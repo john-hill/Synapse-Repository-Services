@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.MigratableObjectData;
+import org.sagebionetworks.repo.model.MigratableObjectStatus;
 import org.sagebionetworks.repo.model.MigratableObjectType;
 import org.sagebionetworks.repo.model.QueryResults;
 import org.sagebionetworks.repo.model.backup.WikiPageBackup;
@@ -121,6 +122,12 @@ public class StubWikiPageDao implements WikiPageDao {
 
 	@Override
 	public WikiPageKey lookupWikiKey(String wikiId) throws NotFoundException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public List<MigratableObjectStatus> listObjectStatus(List<String> ids) {
 		// TODO Auto-generated method stub
 		return null;
 	}

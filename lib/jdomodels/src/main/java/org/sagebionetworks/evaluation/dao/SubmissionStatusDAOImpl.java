@@ -18,6 +18,7 @@ import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.MigratableObjectData;
 import org.sagebionetworks.repo.model.MigratableObjectDescriptor;
+import org.sagebionetworks.repo.model.MigratableObjectStatus;
 import org.sagebionetworks.repo.model.MigratableObjectType;
 import org.sagebionetworks.repo.model.QueryResults;
 import org.sagebionetworks.repo.model.TagMessenger;
@@ -294,5 +295,11 @@ public class SubmissionStatusDAOImpl implements SubmissionStatusDAO {
 		} catch (IOException e) {
 			throw new DatastoreException(e);
 		}
+	}
+
+	@Override
+	public List<MigratableObjectStatus> listObjectStatus(List<String> ids) {
+		// TODO Auto-generated method stub
+		return null;
 	}
 }

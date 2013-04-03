@@ -151,4 +151,12 @@ public class DMLUtils {
 		appendPrimaryKey(mapping, main);
 		return main.toString();
 	}
+
+	public static String createStatus(TableMapping mapping) {
+		if(mapping == null) throw new IllegalArgumentException("Mapping cannot be null");
+		if(mapping.getFieldColumns() == null) throw new IllegalArgumentException("TableMapping.getFieldColumns() cannot be null");
+		StringBuilder main = new StringBuilder();
+		
+		return main.toString();
+	}
 }

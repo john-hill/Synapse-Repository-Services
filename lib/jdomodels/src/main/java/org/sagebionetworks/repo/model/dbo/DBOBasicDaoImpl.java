@@ -54,6 +54,7 @@ public class DBOBasicDaoImpl implements DBOBasicDao, InitializingBean {
 	private Map<Class<? extends DatabaseObject>, String> countMap = new HashMap<Class<? extends DatabaseObject>, String>();
 	private Map<Class<? extends DatabaseObject>, String> deleteMap = new HashMap<Class<? extends DatabaseObject>, String>();
 	private Map<Class<? extends DatabaseObject>, String> updateMap = new HashMap<Class<? extends DatabaseObject>, String>();
+	private Map<Class<? extends DatabaseObject>, String> statusMap = new HashMap<Class<? extends DatabaseObject>, String>();
 	
 	/**
 	 * We cache the mapping for each object type.
@@ -84,6 +85,9 @@ public class DBOBasicDaoImpl implements DBOBasicDao, InitializingBean {
 			String update = DMLUtils.createUpdateStatment(mapping);
 			updateMap.put(mapping.getDBOClass(), update);
 			this.classToMapping.put(mapping.getDBOClass(), dbo.getTableMapping());
+			// The status map
+			String status = DMLUtils.createStatus(mapping);
+			updateMap.put(mapping.getDBOClass(), status);
 		}
 	}
 

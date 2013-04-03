@@ -1,0 +1,13 @@
+{
+ 	"properties":{
+         "id":{
+        	"type":"string"
+         },
+         "type":{
+			"$ref":"org.sagebionetworks.repo.model.MigratableObjectType"
+		},
+         "etag":{
+        	"type":"string"
+         }
+	}	
+}

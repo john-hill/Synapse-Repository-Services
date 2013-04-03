@@ -18,6 +18,7 @@ import org.sagebionetworks.ids.IdGenerator.TYPE;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.MigratableObjectData;
 import org.sagebionetworks.repo.model.MigratableObjectDescriptor;
+import org.sagebionetworks.repo.model.MigratableObjectStatus;
 import org.sagebionetworks.repo.model.MigratableObjectType;
 import org.sagebionetworks.repo.model.QueryResults;
 import org.sagebionetworks.repo.model.TagMessenger;
@@ -49,6 +50,9 @@ import org.springframework.transaction.annotation.Transactional;
  */
 public class DBOFileHandleDaoImpl implements FileHandleDao {
 	
+	private static final String ID_LIST = "IDLIST";
+	private static final String SQL_LIST_OBJECT_STATUS = "SELECT "+COL_FILES_ID+", "+COL_FILES_ETAG+" FROM "+TABLE_FILES+" WHERE "+COL_FILES_ID+" IN (:"+ID_LIST+")";
+	private static final String SQL_FIND_FILEHANDLE_WITH_KEY_MDF = "SELECT "+COL_FILES_ID+" FROM "+TABLE_FILES+" WHERE `"+COL_FILES_KEY+"` = ? AND "+COL_FILES_CONTENT_MD5+" = ?";
 	private static final String SQL_GET_MIGRATION_OBJECT_DATA_PAGE = "SELECT "+COL_FILES_ID+", "+COL_FILES_ETAG+" FROM "+TABLE_FILES+" ORDER BY "+COL_FILES_ID+" DESC LIMIT ? OFFSET ?";
 	private static final String SQL_COUNT_ALL_FILES = "SELECT COUNT(*) FROM "+TABLE_FILES;
 	private static final String SQL_SELECT_CREATOR = "SELECT "+COL_FILES_CREATED_BY+" FROM "+TABLE_FILES+" WHERE "+COL_FILES_ID+" = ?";
@@ -285,12 +289,29 @@ public class DBOFileHandleDaoImpl implements FileHandleDao {
 
 	@Override
 	public List<String> findFileHandleWithKeyAndMD5(String key, String md5) {
-		return simpleJdbcTemplate.query("SELECT "+COL_FILES_ID+" FROM "+TABLE_FILES+" WHERE `"+COL_FILES_KEY+"` = ? AND "+COL_FILES_CONTENT_MD5+" = ?", new RowMapper<String>() {
+		return simpleJdbcTemplate.query(SQL_FIND_FILEHANDLE_WITH_KEY_MDF, new RowMapper<String>() {
 			@Override
 			public String mapRow(ResultSet rs, int rowNum) throws SQLException {
 				return ""+rs.getLong(COL_FILES_ID);
 			}
 		}, key, md5);
+	}
+
+	@Override
+	public List<MigratableObjectStatus> listObjectStatus(List<String> ids) {
+		if(ids == null) throw new IllegalArgumentException("ID list cannot be null");
+		MapSqlParameterSource param = new MapSqlParameterSource();
+		param.addValue(ID_LIST, ids);
+		return simpleJdbcTemplate.query(SQL_LIST_OBJECT_STATUS,  new RowMapper<MigratableObjectStatus>(){
+			@Override
+			public MigratableObjectStatus mapRow(ResultSet rs, int rowNum)
+					throws SQLException {
+				MigratableObjectStatus status = new MigratableObjectStatus();
+				status.setType(MigratableObjectType.FILEHANDLE);
+				status.setEtag(rs.getString(COL_FILES_ETAG));
+				status.setId(""+rs.getLong(COL_FILES_ID));
+				return status;
+			}}, param );
 	}
 	
 }

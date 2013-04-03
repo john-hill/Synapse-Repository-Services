@@ -25,6 +25,7 @@ import org.junit.runner.RunWith;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.MigratableObjectData;
+import org.sagebionetworks.repo.model.MigratableObjectStatus;
 import org.sagebionetworks.repo.model.MigratableObjectType;
 import org.sagebionetworks.repo.model.QueryResults;
 import org.sagebionetworks.repo.model.UserGroupDAO;
@@ -550,6 +551,68 @@ public class DBOFileHandleDaoImplTest {
 		PreviewFileHandle previewClone = (PreviewFileHandle) fileHandleDao.get(preview.getId());
 		assertEquals(preview, previewClone);
 		
+	}
+	
+	@Test
+	public void testListObjectStatus() throws DatastoreException, NotFoundException{
+		// The one will have a preview
+		S3FileHandle withPreview = createS3FileHandle();
+		withPreview.setFileName("withPreview.txt");
+		withPreview = fileHandleDao.createFile(withPreview);
+		assertNotNull(withPreview);
+		toDelete.add(withPreview.getId());
+		// The Preview
+		PreviewFileHandle preview = createPreviewFileHandle();
+		preview.setFileName("preview.txt");
+		preview = fileHandleDao.createFile(preview);
+		assertNotNull(preview);
+		toDelete.add(preview.getId());
+		// Assign it as a preview
+		fileHandleDao.setPreviewId(withPreview.getId(), preview.getId());
+		// The etag should have changed
+		withPreview = (S3FileHandle) fileHandleDao.get(withPreview.getId());
+		
+		// Now list the status of the objects
+		List<String> ids = new LinkedList<String>();
+		// Add values that do not exist.
+		ids.add("-123");
+		ids.add(withPreview.getId());
+		ids.add("-45");
+		ids.add(preview.getId());
+		
+		// Build up the expected results.
+		List<MigratableObjectStatus> expected = new LinkedList<MigratableObjectStatus>();
+		// with preview
+		MigratableObjectStatus status = new MigratableObjectStatus();
+		status.setEtag(withPreview.getEtag());
+		status.setId(withPreview.getId());
+		status.setType(MigratableObjectType.FILEHANDLE);
+		expected.add(status);
+		// preview
+		status = new MigratableObjectStatus();
+		status.setEtag(preview.getEtag());
+		status.setId(preview.getId());
+		status.setType(MigratableObjectType.FILEHANDLE);
+		expected.add(status);
+		// Make the call
+		List<MigratableObjectStatus> statusList = fileHandleDao.listObjectStatus(ids);
+		assertNotNull(statusList);
+		assertEquals("Only two objects in the list exist so only two results should be returned", 2, statusList.size());
+		assertEquals(expected, statusList);
+	
+	}
+	
+	@Test
+	public void testListObjectStatusEmpty(){
+		// Now list the status of the objects
+		List<String> ids = new LinkedList<String>();
+		// Add values that do not exist.
+		ids.add("-123");
+		ids.add("-45");
+		// Make the call
+		List<MigratableObjectStatus> statusList = fileHandleDao.listObjectStatus(ids);
+		assertNotNull(statusList);
+		assertEquals(0, statusList.size());
 	}
 	
 	

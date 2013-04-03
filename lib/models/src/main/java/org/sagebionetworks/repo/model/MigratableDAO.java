@@ -1,5 +1,7 @@
 package org.sagebionetworks.repo.model;
 
+import java.util.List;
+
 
 /**
  * 
@@ -32,5 +34,13 @@ public interface MigratableDAO {
 	 * @return
 	 */
 	MigratableObjectType getMigratableObjectType();
+	
+	/**
+	 * Given a list of ID, return the status of every object with that ID.  If the object does not exist then it should be excluded from the results.
+	 * 
+	 * @param id
+	 * @return
+	 */
+	List<MigratableObjectStatus> listObjectStatus(List<String> ids);
 
 }

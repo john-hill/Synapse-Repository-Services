@@ -5,42 +5,29 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * A simple property replacement utility.
- * 
- * @author jmhill
+ * This implementation will replace javadoc style links '{@link ...}' with an
+ * HTML link '<a>' for REST resources.
+ * For Example: 
+ * {@link org.sagebionetworks.repo.model.file.FileHandle}
+ * Would be replaced with:
+ * <a href="../../org/sagebionetworks/repo/model/file/FileHandle">FileHandle</a>
+ * @author John
  *
  */
-public class PropertyReplacement implements LinkReplacement {
-	
+public class JavadocLinkReplacement implements LinkReplacement {
+
 	/**
 	 * ${...}
 	 */
-	private static final String PROPERTY_REG_EX = "(\\$\\{)([^\\{\\}\\$]*)(\\})";
-	private static final Pattern PROPERTY_PATTERN = Pattern.compile(PROPERTY_REG_EX);
-
-	/**
-	 * Replace all properties in the input string with values from the replacement map
-	 * A property is identified in the input string as: '${<key>}'. The entire regular
-	 * expression will then be replaced with the value from the replacement map that 
-	 * Corresponds with the <key>.
-	 * 
-	 * For example, if the input string is:
-	 * 'this is a ${foo.key}.'
-	 * And the replacement map contains:
-	 * Map<String,String> replacement = new HashMap<String,String>();
-	 * replacement.put("foo.key", "bar");
-	 * Then the resulting string will be:
-	 * 'this is a bar.'
-	 * 
-	 * @param input
-	 * @param nameToPathMap
-	 * @return
-	 */
+	private static final String LINK_REG_EX = "(\\{\\@link)([^\\{\\}]*)(\\})";
+	private static final Pattern lINK_PATTERN = Pattern.compile(LINK_REG_EX);
+	private static int LINK_SIZE = "{@link ".length();
+	
 	@Override
 	public String replace(String input, Map<String, String> nameToPathMap) {
 		if(input == null) throw new IllegalArgumentException("Input string cannot be null");
 		if(nameToPathMap == null) throw new IllegalArgumentException("Replacement map cannot be null"); 
-		Matcher matcher = PROPERTY_PATTERN.matcher(input);
+		Matcher matcher = lINK_PATTERN.matcher(input);
         boolean result = matcher.find();
         if (result) {
         	// This will contain the new string
@@ -49,7 +36,7 @@ public class PropertyReplacement implements LinkReplacement {
             	// The group will be a raw value like: ${<key>}
             	String group = matcher.group();
             	// extract the key by removing the first two and last characters.
-            	String key = group.substring(2, group.length()-1);
+            	String key = group.substring(LINK_SIZE, group.length()-1).trim();
             	// Lookup the replacement value from the provided map
             	String value = nameToPathMap.get(key);
             	if(value == null) {

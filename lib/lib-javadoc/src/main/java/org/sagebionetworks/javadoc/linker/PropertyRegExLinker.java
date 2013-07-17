@@ -27,7 +27,7 @@ public class PropertyRegExLinker implements Linker {
 			Map<String, String> replacements = buildReplacement(baseDir, link.file, toLink);
 			String fileString = FileUtils.readFileToString(link.getFile());
 			// Use the property replacement util
-			fileString = PropertyReplacement.replaceProperties(fileString, replacements);
+			fileString = new PropertyReplacement().replace(fileString, replacements);
 			// Write it back to the file
 			FileUtils.writeStringToFile(link.getFile(), fileString);
 		}

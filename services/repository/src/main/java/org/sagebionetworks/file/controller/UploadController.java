@@ -43,7 +43,11 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
-
+/**
+ * File Services provide the means to work with files.  Files can be upload to Synapse directly or an external file can be 
+ * represented in Synapse.  In either case the Files are represented with a {@link org.sagebionetworks.repo.model.file.FileHandle}.
+ *
+ */
 @ControllerInfo(displayName="File Services", path="file/v1")
 @Controller
 public class UploadController extends BaseController {

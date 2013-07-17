@@ -16,7 +16,7 @@ public class PropertyReplacementTest {
 		replacements.put("to.replace.two", "bar");
 		String input = "<html><body>This is ${to.replace.one} and this is the ${to.replace.two}</body></html>";
 		String expected = "<html><body>This is foo and this is the bar</body></html>";
-		String result = PropertyReplacement.replaceProperties(input, replacements);
+		String result = new PropertyReplacement().replace(input, replacements);
 		assertEquals(expected, result);
 	}
 	
@@ -27,7 +27,7 @@ public class PropertyReplacementTest {
 		replacements.put("to.replace.two", "bar");
 		String input = "${to.replace.one},${to.replace.two},${to.replace.one}";
 		String expected = "foo,bar,foo";
-		String result = PropertyReplacement.replaceProperties(input, replacements);
+		String result = new PropertyReplacement().replace(input, replacements);
 		assertEquals(expected, result);
 	}
 	
@@ -37,7 +37,7 @@ public class PropertyReplacementTest {
 		replacements.put("to.replace.one", "foo");
 		String input = "${to.replace.one},${doesNotExist}";
 		String expected = "foo,bar,foo";
-		String result = PropertyReplacement.replaceProperties(input, replacements);
+		String result = new PropertyReplacement().replace(input, replacements);
 		assertEquals(expected, result);
 	}
 	
@@ -47,7 +47,7 @@ public class PropertyReplacementTest {
 		replacements.put("to.replace.one", "C:/file/path.text");
 		String input = "File: \"${to.replace.one}\".";
 		String expected = "File: \"C:/file/path.text\".";
-		String result = PropertyReplacement.replaceProperties(input, replacements);
+		String result = new PropertyReplacement().replace(input, replacements);
 		assertEquals(expected, result);
 	}
 	
@@ -58,7 +58,7 @@ public class PropertyReplacementTest {
 		replacements.put("to.replace.one", replaced);
 		String input = "File: \"${to.replace.one}\".";
 		String expected = "File: \"C:/file/path.text\".";
-		String result = PropertyReplacement.replaceProperties(input, replacements);
+		String result = new PropertyReplacement().replace(input, replacements);
 		assertEquals(expected, result);
 	}
 }

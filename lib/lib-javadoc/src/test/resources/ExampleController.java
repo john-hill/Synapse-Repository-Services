@@ -230,4 +230,15 @@ public class ExampleController {
 	FileHandle getInterface(@RequestBody Annotations annos) {
 		return null;
 	}
+	
+	/**
+	 * Test link to: {@link FileHandle}
+	 * @return
+	 */
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = "/some/link", method = RequestMethod.GET)
+	public @ResponseBody
+	FileHandle link(@RequestBody Annotations annos) {
+		return null;
+	}
 }

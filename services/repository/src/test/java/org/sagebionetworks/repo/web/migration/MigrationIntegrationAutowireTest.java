@@ -62,7 +62,7 @@ import org.sagebionetworks.repo.model.TeamDAO;
 import org.sagebionetworks.repo.model.TermsOfUseAccessApproval;
 import org.sagebionetworks.repo.model.TermsOfUseAccessRequirement;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.bootstrap.EntityBootstrapper;
 import org.sagebionetworks.repo.model.daemon.BackupRestoreStatus;
@@ -157,7 +157,7 @@ public class MigrationIntegrationAutowireTest {
 	private StorageQuotaAdminDao storageQuotaAdminDao;
 	
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	
 	@Autowired
 	private GroupMembersDAO groupMembersDAO;

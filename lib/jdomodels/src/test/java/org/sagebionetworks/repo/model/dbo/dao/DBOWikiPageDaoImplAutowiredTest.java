@@ -16,7 +16,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.backup.WikiPageBackup;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
 import org.sagebionetworks.repo.model.dao.WikiPageDao;
@@ -43,7 +43,7 @@ public class DBOWikiPageDaoImplAutowiredTest {
 	WikiPageDao wikiPageDao;
 	
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	
 	private List<WikiPageKey> toDelete;
 	String creatorUserGroupId;

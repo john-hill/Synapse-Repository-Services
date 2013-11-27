@@ -17,7 +17,7 @@ import org.sagebionetworks.repo.model.NameConflictException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.User;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.UserProfile;
 import org.sagebionetworks.repo.model.UserProfileDAO;
@@ -31,7 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserManagerImpl implements UserManager {
 	
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	
 	@Autowired
 	private UserProfileDAO userProfileDAO;
@@ -43,7 +43,7 @@ public class UserManagerImpl implements UserManager {
 	private AuthenticationDAO authDAO;
 	
 
-	public void setUserGroupDAO(UserGroupDAO userGroupDAO) {
+	public void setUserGroupDAO(PrincipalDAO userGroupDAO) {
 		this.userGroupDAO = userGroupDAO;
 	}
 	

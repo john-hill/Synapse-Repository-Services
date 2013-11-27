@@ -21,7 +21,7 @@ import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.User;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.UserProfile;
 import org.sagebionetworks.repo.model.UserProfileDAO;
@@ -36,7 +36,7 @@ public class UserProfileManagerImplUnitTest {
 
 	LocationHelper mocKLocationHelper;
 	UserProfileDAO mockProfileDAO;
-	UserGroupDAO mockUserGroupDAO;
+	PrincipalDAO mockUserGroupDAO;
 	S3TokenManager mockS3TokenManager;
 	UserManager mockUserManager;
 	FavoriteDAO mockFavoriteDAO;
@@ -57,7 +57,7 @@ public class UserProfileManagerImplUnitTest {
 	public void before() throws Exception {
 		mocKLocationHelper = Mockito.mock(LocationHelper.class);
 		mockProfileDAO = Mockito.mock(UserProfileDAO.class);
-		mockUserGroupDAO = Mockito.mock(UserGroupDAO.class);
+		mockUserGroupDAO = Mockito.mock(PrincipalDAO.class);
 		mockS3TokenManager = Mockito.mock(S3TokenManager.class);
 		mockUserManager = Mockito.mock(UserManager.class);
 		mockFavoriteDAO = Mockito.mock(FavoriteDAO.class);

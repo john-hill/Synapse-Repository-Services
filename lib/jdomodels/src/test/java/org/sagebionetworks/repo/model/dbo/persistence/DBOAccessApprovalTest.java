@@ -15,7 +15,7 @@ import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.jdo.NodeTestUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,7 +31,7 @@ public class DBOAccessApprovalTest {
 	DBOBasicDao dboBasicDao;
 	
 	@Autowired 
-	UserGroupDAO userGroupDAO;
+	PrincipalDAO userGroupDAO;
 	
 	@Autowired
 	NodeDAO nodeDAO;

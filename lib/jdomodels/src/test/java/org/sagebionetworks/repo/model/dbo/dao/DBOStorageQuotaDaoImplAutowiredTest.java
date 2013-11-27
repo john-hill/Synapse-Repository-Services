@@ -13,7 +13,7 @@ import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.StorageQuotaAdminDao;
 import org.sagebionetworks.repo.model.StorageQuotaDao;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.storage.StorageQuota;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -30,7 +30,7 @@ public class DBOStorageQuotaDaoImplAutowiredTest {
 	private StorageQuotaAdminDao storageQuotaAdminDao;
 
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 
 	private String userId;
 

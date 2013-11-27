@@ -14,10 +14,10 @@ public class UserInfo {
 	// ALL the groups the user belongs to, except "Public",
 	// which everyone implicitly belongs to, and "Administrators",
 	// which is encoded in the 'isAdmin' field
-	private Collection<UserGroup> groups;
+	private Collection<Principal> groups;
 
 	// The user's individual group
-	private UserGroup individualGroup; 
+	private Principal individualGroup; 
 
 	private final boolean isAdmin;
 
@@ -29,19 +29,19 @@ public class UserInfo {
 
 	public void setUser(User user) {this.user = user;}
 
-	public Collection<UserGroup> getGroups() {
+	public Collection<Principal> getGroups() {
 		return groups;
 	}
 
-	public void setGroups(Collection<UserGroup> groups) {
+	public void setGroups(Collection<Principal> groups) {
 		this.groups = groups;
 	}
 
-	public UserGroup getIndividualGroup() {
+	public Principal getIndividualGroup() {
 		return individualGroup;
 	}
 
-	public void setIndividualGroup(UserGroup individualGroup) {
+	public void setIndividualGroup(Principal individualGroup) {
 		this.individualGroup = individualGroup;
 	}
 
@@ -57,9 +57,9 @@ public class UserInfo {
 		UserGroupUtil.validate(info.getIndividualGroup());
 
 		// Validate each group
-		Collection<UserGroup> groups = info.getGroups();
+		Collection<Principal> groups = info.getGroups();
 		if (groups != null) {
-			for (UserGroup group : groups) {
+			for (Principal group : groups) {
 				UserGroupUtil.validate(group);
 			}
 		}

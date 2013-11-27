@@ -21,10 +21,10 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.repo.model.ActivityDAO;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.Reference;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.User;
-import org.sagebionetworks.repo.model.UserGroup;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.message.ChangeType;
 import org.sagebionetworks.repo.model.provenance.Activity;
@@ -318,7 +318,7 @@ public class ActivityManagerImplTest {
 	}
 
 	private void configureUser(UserInfo userInfo, String userGroupId, String userId) {
-		UserGroup userGroup = new UserGroup();
+		Principal userGroup = new Principal();
 		userGroup.setId(userGroupId);
 		userGroup.setIsIndividual(true);
 		userGroup.setName("Admin@sagebase.org");

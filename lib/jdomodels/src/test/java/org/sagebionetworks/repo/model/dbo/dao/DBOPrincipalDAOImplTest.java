@@ -17,12 +17,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
-import org.sagebionetworks.repo.model.DatastoreException;
-import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
-import org.sagebionetworks.repo.model.UserGroupInt;
-import org.sagebionetworks.repo.model.UserProfileDAO;
-import org.sagebionetworks.repo.web.NotFoundException;
+import org.sagebionetworks.repo.model.Principal;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
@@ -30,13 +26,11 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(locations = { "classpath:jdomodels-test-context.xml" })
-public class DBOUserGroupDAOImplTest {
+public class DBOPrincipalDAOImplTest {
 	
 	@Autowired
-	private UserGroupDAO userGroupDAO;
-		
-	@Autowired
-	private UserProfileDAO userProfileDAO;
+	private PrincipalDAO userGroupDAO;
+
 		
 	private List<String> groupsToDelete;
 	
@@ -45,7 +39,7 @@ public class DBOUserGroupDAOImplTest {
 	@Before
 	public void setUp() throws Exception {
 		groupsToDelete = new ArrayList<String>();
-		UserGroup ug = userGroupDAO.findGroup(GROUP_NAME, false);
+		Principal ug = userGroupDAO.findGroup(GROUP_NAME, false);
 		if (ug != null) {
 			userGroupDAO.delete(ug.getId());
 		}
@@ -59,18 +53,35 @@ public class DBOUserGroupDAOImplTest {
 	}
 	
 	@Test
-	public void testRoundTrip() throws Exception {
-		UserGroup group = new UserGroup();
-		group.setName(GROUP_NAME);
+	public void testTeamRoundTrip() throws Exception {
+		Principal group = new Principal();
+		group.setPrincipalName(GROUP_NAME);
 		group.setIsIndividual(false);
 		long initialCount = userGroupDAO.getCount();
 		String groupId = userGroupDAO.create(group);
 		assertNotNull(groupId);
 		groupsToDelete.add(groupId);
-		UserGroup clone = userGroupDAO.get(groupId);
+		Principal clone = userGroupDAO.get(groupId);
 		assertEquals(groupId, clone.getId());
-		assertEquals(GROUP_NAME, clone.getName());
+		assertEquals(GROUP_NAME, clone.getPrincipalName());
 		assertEquals(group.getIsIndividual(), clone.getIsIndividual());
+		assertEquals(1+initialCount, userGroupDAO.getCount());
+	}
+	
+	@Test
+	public void testUserRoundTrip() throws Exception {
+		Principal user = new Principal();
+		user.setPrincipalName("jamesBond007");
+		user.setEmail("Foo@Bar.org");
+		user.setIsIndividual(true);
+		long initialCount = userGroupDAO.getCount();
+		String userId = userGroupDAO.create(user);
+		assertNotNull(userId);
+		groupsToDelete.add(userId);
+		Principal clone = userGroupDAO.get(userId);
+		assertEquals(userId, clone.getId());
+		assertEquals(user.getPrincipalName(), clone.getPrincipalName());
+		assertEquals(true, clone.getIsIndividual());
 		assertEquals(1+initialCount, userGroupDAO.getCount());
 	}
 	
@@ -81,8 +92,8 @@ public class DBOUserGroupDAOImplTest {
 	}
 	@Test
 	public void testDoesPrincipalExist() throws Exception {
-		UserGroup group = new UserGroup();
-		group.setName(GROUP_NAME);
+		Principal group = new Principal();
+		group.setPrincipalName(GROUP_NAME);
 		String groupId = userGroupDAO.create(group);
 		assertNotNull(groupId);
 		groupsToDelete.add(groupId);
@@ -95,25 +106,25 @@ public class DBOUserGroupDAOImplTest {
 	public void testGetGroupsByNamesEmptySet()  throws Exception {
 
 		Collection<String> groupNames = new HashSet<String>();
-		Map<String,UserGroup> map =  userGroupDAO.getGroupsByNames(groupNames);
+		Map<String,Principal> map =  userGroupDAO.getGroupsByNames(groupNames);
 		assertTrue(map.isEmpty());
 	}
 
 	@Test
 	public void testGetGroupsByNames() throws Exception {
-		Collection<UserGroup> allGroups = null; 
+		Collection<Principal> allGroups = null; 
 		allGroups = userGroupDAO.getAll();
 		int startingCount =  allGroups.size();
 	
 		Collection<String> groupNames = new HashSet<String>();
 		groupNames.add(GROUP_NAME);
-		Map<String,UserGroup> map = null;
+		Map<String,Principal> map = null;
 		map = userGroupDAO.getGroupsByNames(groupNames);
 		assertFalse("initial groups: "+allGroups+"  getGroupsByNames("+GROUP_NAME+") returned "+map.keySet(), map.containsKey(GROUP_NAME));
 //		assertFalse(map.containsKey(GROUP_NAME));
 			
-		UserGroup group = new UserGroup();
-		group.setName(GROUP_NAME);
+		Principal group = new Principal();
+		group.setPrincipalName(GROUP_NAME);
 		String groupId = userGroupDAO.create(group);
 		assertNotNull(groupId);
 		groupsToDelete.add(groupId);
@@ -133,25 +144,25 @@ public class DBOUserGroupDAOImplTest {
 		assertTrue(map.toString(), map.containsKey(AuthorizationConstants.DEFAULT_GROUPS.AUTHENTICATED_USERS.name()));
 
 		// try the paginated call
-		List<UserGroup> groups = userGroupDAO.getInRange(0, startingCount+100, false);
+		List<Principal> groups = userGroupDAO.getInRange(0, startingCount+100, false);
 		List<String> omit = new ArrayList<String>();
 		omit.add(AuthorizationConstants.DEFAULT_GROUPS.AUTHENTICATED_USERS.name());
-		List<UserGroup> groupsButOne = userGroupDAO.getInRangeExcept(0, startingCount+100, false, omit);
+		List<Principal> groupsButOne = userGroupDAO.getInRangeExcept(0, startingCount+100, false, omit);
 		assertEquals(groups.size(), groupsButOne.size()+1);
 	}
 	
-	@Test
-	public void testBootstrapUsers() throws DatastoreException, NotFoundException{
-		List<UserGroupInt> boots = this.userGroupDAO.getBootstrapUsers();
-		assertNotNull(boots);
-		assertTrue(boots.size() >0);
-		// Each should exist
-		for(UserGroupInt bootUg: boots){
-			assertTrue(userGroupDAO.doesPrincipalExist(bootUg.getName()));
-			UserGroup ug = userGroupDAO.get(bootUg.getId());
-			assertEquals(bootUg.getId(), ug.getId());
-			assertEquals(bootUg.getName(), ug.getName());
-		}
-	}
+//	@Test
+//	public void testBootstrapUsers() throws DatastoreException, NotFoundException{
+//		List<Principal> boots = this.userGroupDAO.getBootstrapUsers();
+//		assertNotNull(boots);
+//		assertTrue(boots.size() >0);
+//		// Each should exist
+//		for(Principal bootUg: boots){
+//			assertTrue(userGroupDAO.doesPrincipalExist(bootUg.getName()));
+//			UserGroup ug = userGroupDAO.get(bootUg.getId());
+//			assertEquals(bootUg.getId(), ug.getId());
+//			assertEquals(bootUg.getName(), ug.getName());
+//		}
+//	}
 
 }

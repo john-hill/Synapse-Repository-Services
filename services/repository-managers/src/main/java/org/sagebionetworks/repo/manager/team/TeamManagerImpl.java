@@ -38,7 +38,7 @@ import org.sagebionetworks.repo.model.TeamMember;
 import org.sagebionetworks.repo.model.TeamMembershipStatus;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.dao.AuthorizationUtils;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -60,7 +60,7 @@ public class TeamManagerImpl implements TeamManager {
 	@Autowired
 	private GroupMembersDAO groupMembersDAO;
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	@Autowired
 	private AccessControlListDAO aclDAO;
 	@Autowired
@@ -81,7 +81,7 @@ public class TeamManagerImpl implements TeamManager {
 			AuthorizationManager authorizationManager,
 			TeamDAO teamDAO,
 			GroupMembersDAO groupMembersDAO,
-			UserGroupDAO userGroupDAO,
+			PrincipalDAO userGroupDAO,
 			AccessControlListDAO aclDAO,
 			FileHandleManager fileHandlerManager,
 			MembershipInvtnSubmissionDAO membershipInvtnSubmissionDAO,

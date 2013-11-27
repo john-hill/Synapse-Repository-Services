@@ -36,7 +36,7 @@ import org.sagebionetworks.repo.model.TermsOfUseAccessApproval;
 import org.sagebionetworks.repo.model.TermsOfUseAccessRequirement;
 import org.sagebionetworks.repo.model.User;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
 import org.sagebionetworks.repo.model.ObjectType;
@@ -49,7 +49,7 @@ public class AuthorizationManagerImplUnitTest {
 	private AccessRequirementDAO  mockAccessRequirementDAO;
 	private AccessApprovalDAO mockAccessApprovalDAO;
 	private ActivityDAO mockActivityDAO;
-	private UserGroupDAO mockUserGroupDAO;
+	private PrincipalDAO mockUserGroupDAO;
 	private FileHandleDao mockFileHandleDao;
 	private EvaluationDAO mockEvaluationDAO;
 	private UserManager mockUserManager;
@@ -76,7 +76,7 @@ public class AuthorizationManagerImplUnitTest {
 		mockEntityPermissionsManager = mock(EntityPermissionsManager.class);
 		mockFileHandleDao = mock(FileHandleDao.class);
 		mockEvaluationDAO = mock(EvaluationDAO.class);
-		mockUserGroupDAO = Mockito.mock(UserGroupDAO.class);
+		mockUserGroupDAO = Mockito.mock(PrincipalDAO.class);
 		mockAclDAO = Mockito.mock(AccessControlListDAO.class);
 
 		authorizationManager = new AuthorizationManagerImpl();

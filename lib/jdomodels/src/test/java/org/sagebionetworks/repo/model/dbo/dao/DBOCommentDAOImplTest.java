@@ -14,7 +14,7 @@ import org.sagebionetworks.repo.model.CommentDAO;
 import org.sagebionetworks.repo.model.MessageDAO;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.message.Comment;
@@ -33,7 +33,7 @@ public class DBOCommentDAOImplTest {
 	private MessageDAO messageDAO;
 	
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	
 	@Autowired
 	private FileHandleDao fileDAO;

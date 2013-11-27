@@ -24,7 +24,7 @@ import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeDAO;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.jdo.JDONodeLockChecker;
 import org.sagebionetworks.repo.model.jdo.NodeTestUtils;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
@@ -51,7 +51,7 @@ public class NodeDaoMessageTest {
 	@Autowired
 	JDONodeLockChecker nodeLockerA;
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	
 	@Autowired
 	TransactionalMessenger transactionalMessanger;

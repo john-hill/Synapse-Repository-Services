@@ -46,7 +46,7 @@ import org.sagebionetworks.repo.model.TeamMembershipStatus;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.User;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserGroupHeader;
 import org.sagebionetworks.repo.model.UserInfo;
 
@@ -55,7 +55,7 @@ public class TeamManagerImplTest {
 	private AuthorizationManager mockAuthorizationManager = null;
 	private TeamDAO mockTeamDAO = null;
 	private GroupMembersDAO mockGroupMembersDAO = null;
-	private UserGroupDAO mockUserGroupDAO = null;
+	private PrincipalDAO mockUserGroupDAO = null;
 	private AccessControlListDAO mockAclDAO = null;
 	private FileHandleManager mockFileHandleManager = null;
 	private MembershipInvtnSubmissionDAO mockMembershipInvtnSubmissionDAO = null;
@@ -74,7 +74,7 @@ public class TeamManagerImplTest {
 		mockAuthorizationManager = Mockito.mock(AuthorizationManager.class);
 		mockTeamDAO = Mockito.mock(TeamDAO.class);
 		mockGroupMembersDAO = Mockito.mock(GroupMembersDAO.class);
-		mockUserGroupDAO = Mockito.mock(UserGroupDAO.class);
+		mockUserGroupDAO = Mockito.mock(PrincipalDAO.class);
 		mockFileHandleManager = Mockito.mock(FileHandleManager.class);
 		mockAclDAO = Mockito.mock(AccessControlListDAO.class);
 		mockMembershipInvtnSubmissionDAO = Mockito.mock(MembershipInvtnSubmissionDAO.class);

@@ -42,6 +42,7 @@ import org.sagebionetworks.repo.model.MembershipRqstSubmission;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.OriginatingClient;
 import org.sagebionetworks.repo.model.PaginatedResults;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.Reference;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
 import org.sagebionetworks.repo.model.ServiceConstants.AttachmentType;
@@ -49,7 +50,6 @@ import org.sagebionetworks.repo.model.Team;
 import org.sagebionetworks.repo.model.TeamMember;
 import org.sagebionetworks.repo.model.TeamMembershipStatus;
 import org.sagebionetworks.repo.model.TrashedEntity;
-import org.sagebionetworks.repo.model.UserGroup;
 import org.sagebionetworks.repo.model.UserGroupHeaderResponsePage;
 import org.sagebionetworks.repo.model.UserProfile;
 import org.sagebionetworks.repo.model.UserSessionData;
@@ -306,7 +306,7 @@ public interface SynapseClient extends BaseClient {
 	public PaginatedResults<UserProfile> getUsers(int offset, int limit)
 			throws SynapseException;
 
-	public PaginatedResults<UserGroup> getGroups(int offset, int limit)
+	public PaginatedResults<Principal> getGroups(int offset, int limit)
 			throws SynapseException;
 
 	public boolean canAccess(String entityId, ACCESS_TYPE accessType)

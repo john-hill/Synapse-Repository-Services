@@ -10,10 +10,10 @@ import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.model.AuthenticationDAO;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroupDAO;
-import org.sagebionetworks.repo.model.UserGroupInt;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.auth.Session;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.*;
 import org.sagebionetworks.repo.model.query.jdo.SqlConstants;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.securitytools.HMACUtils;
@@ -33,7 +33,7 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 	private SimpleJdbcTemplate simpleJdbcTemplate;
 	
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	
 	@Autowired
 	private DBOBasicDao basicDAO;
@@ -52,8 +52,8 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 	
 	private static final String SELECT_ID_BY_EMAIL_AND_PASSWORD = 
 			"SELECT "+SqlConstants.COL_CREDENTIAL_PRINCIPAL_ID+
-				" FROM "+SqlConstants.TABLE_CREDENTIAL+", "+SqlConstants.TABLE_USER_GROUP+
-			" WHERE "+SqlConstants.COL_CREDENTIAL_PRINCIPAL_ID+"="+SqlConstants.COL_USER_GROUP_ID+
+				" FROM "+SqlConstants.TABLE_CREDENTIAL+", "+TABLE_PRINCIPAL+
+			" WHERE "+SqlConstants.COL_CREDENTIAL_PRINCIPAL_ID+"="+COL_PRINCIPAL_ID+
 				" AND "+SqlConstants.COL_USER_GROUP_NAME+"=:"+EMAIL_PARAM_NAME+
 				" AND "+SqlConstants.COL_CREDENTIAL_PASS_HASH+"=:"+PASSWORD_PARAM_NAME;
 	

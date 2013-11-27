@@ -19,7 +19,7 @@ import org.sagebionetworks.repo.model.MembershipInvitation;
 import org.sagebionetworks.repo.model.Team;
 import org.sagebionetworks.repo.model.TeamDAO;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.dbo.DMLUtils;
 import org.sagebionetworks.repo.model.dbo.FieldColumn;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
@@ -43,7 +43,7 @@ public class DBOMembershipInvtnSubmissionDAOImplTest {
 	private TeamDAO teamDAO;
 
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	
 	@Autowired
 	private GroupMembersDAO groupMembersDAO;

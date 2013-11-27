@@ -26,7 +26,7 @@ import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
 import org.sagebionetworks.repo.model.RestrictableObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.User;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.UserEntityPermissions;
 import org.sagebionetworks.repo.model.dbo.dao.AuthorizationUtils;
@@ -43,7 +43,7 @@ public class EntityPermissionsManagerImpl implements EntityPermissionsManager {
 			StackConfiguration.getTrashFolderEntityIdStatic());
 
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	@Autowired
 	private NodeDAO nodeDAO;
 	@Autowired

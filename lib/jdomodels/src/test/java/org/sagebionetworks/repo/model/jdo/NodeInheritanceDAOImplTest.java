@@ -18,7 +18,7 @@ import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.NodeInheritanceDAO;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -35,7 +35,7 @@ public class NodeInheritanceDAOImplTest {
 	NodeInheritanceDAO nodenheritanceDao;
 	
 	@Autowired
-	UserGroupDAO userGroupDAO;
+	PrincipalDAO userGroupDAO;
 	
 	// the datasets that must be deleted at the end of each test.
 	List<String> toDelete = new ArrayList<String>();

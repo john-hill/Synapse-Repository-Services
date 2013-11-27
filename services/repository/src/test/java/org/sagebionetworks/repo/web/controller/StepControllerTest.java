@@ -32,7 +32,7 @@ import org.sagebionetworks.repo.model.Step;
 import org.sagebionetworks.repo.model.Study;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
@@ -50,7 +50,7 @@ public class StepControllerTest {
 	private ServletTestHelper testHelper;
 
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 
 	private static final String TEST_USER1 = AuthorizationConstants.TEST_USER_NAME;
 	private static final String TEST_USER2 = StackConfiguration.getIntegrationTestUserOneName();

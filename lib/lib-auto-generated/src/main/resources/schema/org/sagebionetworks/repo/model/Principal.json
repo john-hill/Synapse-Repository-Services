@@ -1,0 +1,31 @@
+{
+	"description": "A principal is either a user or a group (team)",
+	"properties": {
+		"id": {
+			"type": "string",
+			"description": "The id of either the user or group."
+		},
+		"principalName": {
+			"type": "string",
+			"description": "The unique name of this principal."
+		},
+		"email": {
+			"type": "string",
+			"description": "Currently, this only applies to users and will be removed from principals in the future."
+		},
+		"isIndividual": {
+			"type": "boolean",
+			"description": "True if this is a user, false if it is a group"
+		}, 
+		"etag": {
+			"type": "string", 
+			"description": "Used to detect when a client's current representation of a user or group is out-of-date."
+		},
+		"creationDate": {
+			"type": "string",
+			"format": "date-time",
+			"description": "The date this principal was created.s",
+			"title": "Created On"
+		}
+	}
+}

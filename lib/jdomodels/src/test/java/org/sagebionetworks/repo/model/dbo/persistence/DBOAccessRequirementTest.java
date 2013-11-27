@@ -27,7 +27,7 @@ import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
 import org.sagebionetworks.repo.model.RestrictableObjectType;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.dbo.dao.OldACTAccessRequirement;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
@@ -48,7 +48,7 @@ public class DBOAccessRequirementTest {
 	DBOBasicDao dboBasicDao;
 	
 	@Autowired 
-	UserGroupDAO userGroupDAO;
+	PrincipalDAO userGroupDAO;
 	@Autowired
 	private IdGenerator idGenerator;
 	

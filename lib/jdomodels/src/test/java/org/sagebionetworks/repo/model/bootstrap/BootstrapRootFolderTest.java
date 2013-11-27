@@ -9,7 +9,7 @@ import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_GROUPS;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
@@ -23,7 +23,7 @@ public class BootstrapRootFolderTest {
 	@Autowired
 	EntityBootstrapData trashFolderBootstrapData;
 	@Autowired
-	UserGroupDAO userGroupDAO;
+	PrincipalDAO userGroupDAO;
 	
 	@Test
 	public void testRootBootstrapDataLoad() throws Exception {

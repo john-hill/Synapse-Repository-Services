@@ -10,7 +10,7 @@ public interface GroupMembersDAO {
 	/**
 	 * Retrieves the IDs of direct members of the given principalId
 	 */
-	public List<UserGroup> getMembers(String principalId) 
+	public List<Principal> getMembers(String principalId) 
 			throws DatastoreException, NotFoundException;
 	
 	/**
@@ -28,7 +28,7 @@ public interface GroupMembersDAO {
 	/**
 	 * Retrieves the list of groups the given user belongs to
 	 */
-	public List<UserGroup> getUsersGroups(String principalId) 
+	public List<Principal> getUsersGroups(String principalId) 
 			throws DatastoreException, NotFoundException;
 
 	/**

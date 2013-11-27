@@ -228,14 +228,20 @@ public class SqlConstants {
 	public static final String TABLE_ANNOTATION_TYPE		= "ANNOTATION_TYPE";
 
 	public static final String TABLE_USER					= "JDOUSER";
-	public static final String TABLE_USER_GROUP				= "JDOUSERGROUP";
+
 	public static final String TABLE_USER_GROUP_USERS		= "JDOUSERGROUPUSERS";
-	public static final String COL_USER_GROUP_ID			= "ID";
-	public static final String COL_USER_GROUP_NAME 			= "NAME";
-	public static final String COL_USER_GROUP_IS_INDIVIDUAL = "ISINDIVIDUAL";
-	public static final String COL_USER_GROUP_E_TAG         = "ETAG";
-	public static final String COL_USER_GROUP_CREATION_DATE = "CREATION_DATE";
-	public static final String DDL_FILE_USER_GROUP			="schema/UserGroup-ddl.sql";
+	
+	// Principal table
+	public static final String TABLE_PRINCIPAL								= "PRINCIPAL";
+	public static final String COL_PRINCIPAL_ID								= "ID";
+	public static final String COL_PRINCIPAL_PRINCIPAL_NAME_LOWER	 		= "PRINCIPAL_NAME_LOWER";
+	public static final String COL_PRINCIPAL_PRINCIPAL_NAME_DISPLAY 		= "PRINCIPAL_NAME_DISPLAY";
+	public static final String COL_PRINCIPAL_MUST_PROVIDE_NEW_PRICIPAL_NAME	= "MUST_PROVIDE_NEW_PRICIPAL_NAME";
+	public static final String COL_PRINCIPAL_EMAIL 							= "EMAIL";
+	public static final String COL_PRINCIPAL_IS_INDIVIDUAL 					= "ISINDIVIDUAL";
+	public static final String COL_PRINCIPAL_E_TAG         					= "ETAG";
+	public static final String COL_PRINCIPAL_CREATION_DATE 					= "CREATION_DATE";
+	public static final String DDL_FILE_PRINCIPAL							="schema/Principal-ddl.sql";
     
     // The group members table
     public static final String TABLE_GROUP_MEMBERS         = "GROUP_MEMBERS";

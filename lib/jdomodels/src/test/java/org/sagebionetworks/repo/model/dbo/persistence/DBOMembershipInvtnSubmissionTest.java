@@ -20,7 +20,7 @@ import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.MembershipInvtnSubmission;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.dbo.dao.MembershipInvtnSubmissionUtils;
 import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
@@ -41,7 +41,7 @@ public class DBOMembershipInvtnSubmissionTest {
 	private IdGenerator idGenerator;
 	
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 		
 	private List<Long> toDelete = null;
 	private List<Long> teamToDelete = null;
@@ -72,7 +72,7 @@ public class DBOMembershipInvtnSubmissionTest {
 	
 	public static DBOMembershipInvtnSubmission newMembershipInvtnSubmission(
 			IdGenerator idGenerator, 
-			UserGroupDAO userGroupDAO,
+			PrincipalDAO userGroupDAO,
 			DBOBasicDao dboBasicDao) {
 		DBOMembershipInvtnSubmission invitation = new DBOMembershipInvtnSubmission();
 		invitation.setId(idGenerator.generateNewId());

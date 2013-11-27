@@ -19,7 +19,7 @@ import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.PaginatedResults;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
 import org.sagebionetworks.repo.model.dao.V2WikiPageMigrationDao;
@@ -51,7 +51,7 @@ public class WikiMigrationServiceTest {
 	@Autowired
 	private V2WikiPageMigrationDao v2WikiPageMigrationDao;
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	@Autowired
 	private FileHandleDao fileMetadataDao;
 	@Autowired

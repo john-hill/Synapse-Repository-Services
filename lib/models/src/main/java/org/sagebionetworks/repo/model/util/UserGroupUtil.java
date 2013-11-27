@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.model.util;
 
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserNotFoundException;
 import org.sagebionetworks.repo.model.UserGroup;
 
@@ -19,7 +20,7 @@ public class UserGroupUtil {
 	 * Is the passed UserGroup valid?
 	 * @param userGroup
 	 */
-	public static void validate(UserGroup userGroup) throws UserNotFoundException {
+	public static void validate(Principal userGroup) throws UserNotFoundException {
 
 		if (userGroup == null) throw new IllegalArgumentException("UserGroup cannot be null");
 

@@ -1,10 +1,15 @@
 package org.sagebionetworks.repo.model.dbo.dao;
 
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_GROUP_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_PRINCIPAL_EMAIL;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_PRINCIPAL_E_TAG;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_PRINCIPAL_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_PRINCIPAL_IS_INDIVIDUAL;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_PRINCIPAL_PRINCIPAL_NAME_LOWER;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.LIMIT_PARAM_NAME;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.OFFSET_PARAM_NAME;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_USER_GROUP;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_PRINCIPAL;
 
+import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -14,19 +19,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import org.sagebionetworks.StackConfiguration;
-import org.sagebionetworks.ids.NamedIdGenerator;
-import org.sagebionetworks.ids.NamedIdGenerator.NamedType;
-import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.ids.IdGenerator;
+import org.sagebionetworks.ids.IdGenerator.TYPE;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.InvalidModelException;
-import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
-import org.sagebionetworks.repo.model.UserGroupInt;
+import org.sagebionetworks.repo.model.Principal;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOCredential;
-import org.sagebionetworks.repo.model.dbo.persistence.DBOUserGroup;
+import org.sagebionetworks.repo.model.dbo.persistence.DBOPrincipal;
 import org.sagebionetworks.repo.model.query.jdo.SqlConstants;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.securitytools.HMACUtils;
@@ -37,18 +39,18 @@ import org.springframework.jdbc.core.simple.SimpleJdbcTemplate;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-public class DBOUserGroupDAOImpl implements UserGroupDAO {
+public class DBOPrincipalDaoImpl implements PrincipalDAO {
 
 	@Autowired
 	private DBOBasicDao basicDao;
-	
+
 	@Autowired
-	private NamedIdGenerator idGenerator;
+	private IdGenerator idGenerator;
 	
 	@Autowired
 	private SimpleJdbcTemplate simpleJdbcTemplate;
 	
-	private List<UserGroupInt> bootstrapUsers;
+	private List<Principal> bootstrapUsers;
 	
 	private static final String ID_PARAM_NAME = "id";
 	private static final String NAME_PARAM_NAME = "name";
@@ -56,99 +58,101 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 	private static final String ETAG_PARAM_NAME = "etag";
 	
 	private static final String SELECT_BY_NAME_AND_IS_INDIVID_SQL = 
-			"SELECT * FROM "+SqlConstants.TABLE_USER_GROUP+
-			" WHERE "+SqlConstants.COL_USER_GROUP_NAME+"=:"+NAME_PARAM_NAME+
-			" AND "+SqlConstants.COL_USER_GROUP_IS_INDIVIDUAL+"=:"+IS_INDIVIDUAL_PARAM_NAME;
+			"SELECT * FROM "+TABLE_PRINCIPAL+
+			" WHERE ("+COL_PRINCIPAL_PRINCIPAL_NAME_LOWER+"=:"+NAME_PARAM_NAME+
+			" OR "+COL_PRINCIPAL_EMAIL+"=:"+NAME_PARAM_NAME+")"+
+			" AND "+COL_PRINCIPAL_IS_INDIVIDUAL+"=:"+IS_INDIVIDUAL_PARAM_NAME;
 	
 	private static final String SELECT_BY_NAME_SQL = 
-			"SELECT * FROM "+SqlConstants.TABLE_USER_GROUP+
-			" WHERE "+SqlConstants.COL_USER_GROUP_NAME+"=:"+NAME_PARAM_NAME;
+			"SELECT * FROM "+TABLE_PRINCIPAL+
+			" WHERE "+COL_PRINCIPAL_PRINCIPAL_NAME_LOWER+"=:"+NAME_PARAM_NAME+
+			" OR "+COL_PRINCIPAL_EMAIL+"=:"+NAME_PARAM_NAME;
 	
 	private static final String SELECT_MULTI_BY_NAME_SQL = 
-			"SELECT * FROM "+SqlConstants.TABLE_USER_GROUP+
-			" WHERE "+SqlConstants.COL_USER_GROUP_NAME+" IN (:"+NAME_PARAM_NAME+")";
+			"SELECT * FROM "+TABLE_PRINCIPAL+
+			" WHERE "+COL_PRINCIPAL_PRINCIPAL_NAME_LOWER+" IN (:"+NAME_PARAM_NAME+")"+
+			" OR "+COL_PRINCIPAL_EMAIL+" IN (:"+NAME_PARAM_NAME+")";
 
 	private static final String SELECT_MULTI_BY_PRINCIPAL_IDS = 
-			"SELECT * FROM "+SqlConstants.TABLE_USER_GROUP+
-			" WHERE "+SqlConstants.COL_USER_GROUP_ID+" IN (:"+ID_PARAM_NAME+")";
+			"SELECT * FROM "+TABLE_PRINCIPAL+
+			" WHERE "+COL_PRINCIPAL_PRINCIPAL_NAME_LOWER+" IN (:"+NAME_PARAM_NAME+")"+
+			" OR "+COL_PRINCIPAL_EMAIL+" IN (:"+NAME_PARAM_NAME+")";
 	
 	private static final String SELECT_BY_IS_INDIVID_SQL = 
-			"SELECT * FROM "+SqlConstants.TABLE_USER_GROUP+
-			" WHERE "+SqlConstants.COL_USER_GROUP_IS_INDIVIDUAL+"=:"+IS_INDIVIDUAL_PARAM_NAME;
+			"SELECT * FROM "+TABLE_PRINCIPAL+
+			" WHERE "+COL_PRINCIPAL_IS_INDIVIDUAL+"=:"+IS_INDIVIDUAL_PARAM_NAME;
 	
 	private static final String SELECT_BY_IS_INDIVID_SQL_PAGINATED = 
-			"SELECT * FROM "+SqlConstants.TABLE_USER_GROUP+
-			" WHERE "+SqlConstants.COL_USER_GROUP_IS_INDIVIDUAL+"=:"+IS_INDIVIDUAL_PARAM_NAME+
+			"SELECT * FROM "+TABLE_PRINCIPAL+
+			" WHERE "+COL_PRINCIPAL_IS_INDIVIDUAL+"=:"+IS_INDIVIDUAL_PARAM_NAME+
 			" LIMIT :"+LIMIT_PARAM_NAME+" OFFSET :"+OFFSET_PARAM_NAME;
 	
 	private static final String SELECT_BY_IS_INDIVID_OMITTING_SQL = 
-			"SELECT * FROM "+SqlConstants.TABLE_USER_GROUP+
-			" WHERE "+SqlConstants.COL_USER_GROUP_IS_INDIVIDUAL+"=:"+IS_INDIVIDUAL_PARAM_NAME+
-			" AND "+SqlConstants.COL_USER_GROUP_NAME+" NOT IN (:"+NAME_PARAM_NAME+")";
+			"SELECT * FROM "+TABLE_PRINCIPAL+
+			" WHERE "+COL_PRINCIPAL_IS_INDIVIDUAL+"=:"+IS_INDIVIDUAL_PARAM_NAME+
+			" AND "+COL_PRINCIPAL_PRINCIPAL_NAME_LOWER+" NOT IN (:"+NAME_PARAM_NAME+")";
 	
 	private static final String SELECT_BY_IS_INDIVID_OMITTING_SQL_PAGINATED = 
 			SELECT_BY_IS_INDIVID_OMITTING_SQL+
 			" LIMIT :"+LIMIT_PARAM_NAME+" OFFSET :"+OFFSET_PARAM_NAME;
 	
 	private static final String SELECT_ALL = 
-			"SELECT * FROM "+SqlConstants.TABLE_USER_GROUP;
+			"SELECT * FROM "+TABLE_PRINCIPAL;
 	
 	private static final String SELECT_ETAG_AND_LOCK_ROW_BY_ID = 
-			"SELECT "+SqlConstants.COL_USER_GROUP_E_TAG+" FROM "+SqlConstants.TABLE_USER_GROUP+
-			" WHERE "+SqlConstants.COL_USER_GROUP_ID+"=:"+ID_PARAM_NAME+
+			"SELECT "+COL_PRINCIPAL_E_TAG+" FROM "+TABLE_PRINCIPAL+
+			" WHERE "+COL_PRINCIPAL_ID+"=:"+ID_PARAM_NAME+
 			" FOR UPDATE";
 	
 	private static final String UPDATE_ETAG_LIST = 
-			"UPDATE "+SqlConstants.TABLE_USER_GROUP+
-			" SET "+SqlConstants.COL_USER_GROUP_E_TAG+"=:"+ETAG_PARAM_NAME+
-			" WHERE "+SqlConstants.COL_USER_GROUP_ID+"=:"+ID_PARAM_NAME;
+			"UPDATE "+TABLE_PRINCIPAL+
+			" SET "+COL_PRINCIPAL_E_TAG+"=:"+ETAG_PARAM_NAME+
+			" WHERE "+COL_PRINCIPAL_ID+"=:"+ID_PARAM_NAME;
 
-	private static final String SQL_COUNT_USER_GROUPS = "SELECT COUNT("+COL_USER_GROUP_ID+") FROM "+TABLE_USER_GROUP + " WHERE "+COL_USER_GROUP_ID+"=:"+ID_PARAM_NAME;
+	private static final String SQL_COUNT_USER_GROUPS = "SELECT COUNT("+COL_PRINCIPAL_ID+") FROM "+TABLE_PRINCIPAL + " WHERE "+COL_PRINCIPAL_ID+"=:"+ID_PARAM_NAME;
 
-	private static final RowMapper<DBOUserGroup> userGroupRowMapper = (new DBOUserGroup()).getTableMapping();
+	private static final RowMapper<DBOPrincipal> userGroupRowMapper = (new DBOPrincipal()).getTableMapping();
 	
 	
 	/**
 	 * This is injected by Spring
 	 * @param bootstrapUsers
 	 */
-	public void setBootstrapUsers(List<UserGroupInt> bootstrapUsers) {
+	public void setBootstrapUsers(List<Principal> bootstrapUsers) {
 		this.bootstrapUsers = bootstrapUsers;
 	}
 
 	@Override
-	public List<UserGroupInt> getBootstrapUsers() {
-		return bootstrapUsers;
+	public List<Principal> getBootstrapUsers() {
+		return this.bootstrapUsers;
 	}
 
 	@Override
-	public UserGroup findGroup(String name, boolean isIndividual)
+	public Principal findGroup(String name, boolean isIndividual)
 			throws DatastoreException {
+		if(name == null) throw new IllegalArgumentException("Name cannot be null");
 		MapSqlParameterSource param = new MapSqlParameterSource();
-		param.addValue(NAME_PARAM_NAME, name);
+		param.addValue(NAME_PARAM_NAME, name.toLowerCase());
 		param.addValue(IS_INDIVIDUAL_PARAM_NAME, isIndividual);		
-		List<DBOUserGroup> ugs = simpleJdbcTemplate.query(SELECT_BY_NAME_AND_IS_INDIVID_SQL, userGroupRowMapper, param);
+		List<DBOPrincipal> ugs = simpleJdbcTemplate.query(SELECT_BY_NAME_AND_IS_INDIVID_SQL, userGroupRowMapper, param);
 		if (ugs.size()>1) throw new DatastoreException("Expected 0-1 UserGroups but found "+ugs.size());
 		if (ugs.size()==0) return null;
-		UserGroup dto = new UserGroup();
-		UserGroupUtils.copyDboToDto(ugs.iterator().next(), dto);
-		return dto;
+		return PrincipalUtils.createDTO(ugs.iterator().next());
 	}
 
 	@Override
-	public Map<String, UserGroup> getGroupsByNames(Collection<String> groupName)
+	public Map<String, Principal> getGroupsByNames(Collection<String> groupName)
 			throws DatastoreException {
-		Map<String, UserGroup> dtos = new HashMap<String, UserGroup>();
+		Map<String, Principal> dtos = new HashMap<String, Principal>();
 		if (groupName.isEmpty()) return dtos;
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(NAME_PARAM_NAME, groupName);	
 		try {
-			List<DBOUserGroup> dbos = simpleJdbcTemplate.query(SELECT_MULTI_BY_NAME_SQL, userGroupRowMapper, param);
+			List<DBOPrincipal> dbos = simpleJdbcTemplate.query(SELECT_MULTI_BY_NAME_SQL, userGroupRowMapper, param);
 			
-			List<UserGroup> listDtos = new ArrayList<UserGroup>();
-			UserGroupUtils.copyDboToDto(dbos, listDtos);
-			for (UserGroup dto : listDtos) {
-				dtos.put(dto.getName(), dto);
+			List<Principal> listDtos = PrincipalUtils.createDTOs(dbos);;
+			for (Principal dto : listDtos) {
+				dtos.put(dto.getPrincipalName(), dto);
 			}
 			return dtos;
 		} catch (Exception e) {
@@ -157,37 +161,33 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 	}
 
 	@Override
-	public Collection<UserGroup> getAll(boolean isIndividual)
+	public Collection<Principal> getAll(boolean isIndividual)
 			throws DatastoreException {
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(IS_INDIVIDUAL_PARAM_NAME, isIndividual);		
-		List<DBOUserGroup> dbos = simpleJdbcTemplate.query(SELECT_BY_IS_INDIVID_SQL, userGroupRowMapper, param);
-		List<UserGroup> dtos = new ArrayList<UserGroup>();
-		UserGroupUtils.copyDboToDto(dbos, dtos);
-		return dtos;
+		List<DBOPrincipal> dbos = simpleJdbcTemplate.query(SELECT_BY_IS_INDIVID_SQL, userGroupRowMapper, param);
+		return PrincipalUtils.createDTOs(dbos);
 	}
 	
 	@Override
 	public long getCount()  throws DatastoreException {
-		return basicDao.getCount(DBOUserGroup.class);
+		return basicDao.getCount(DBOPrincipal.class);
 	}
 
 	@Override
-	public Collection<UserGroup> getAllExcept(boolean isIndividual, Collection<String> groupNamesToOmit) throws DatastoreException {
+	public Collection<Principal> getAllExcept(boolean isIndividual, Collection<String> groupNamesToOmit) throws DatastoreException {
 		// the SQL will be invalid for an empty list, so we 'divert' that case:
 		if (groupNamesToOmit.isEmpty()) return getAll(isIndividual);
 		
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(IS_INDIVIDUAL_PARAM_NAME, isIndividual);		
 		param.addValue(NAME_PARAM_NAME, groupNamesToOmit);
-		List<DBOUserGroup> dbos = simpleJdbcTemplate.query(SELECT_BY_IS_INDIVID_OMITTING_SQL, userGroupRowMapper, param);
-		List<UserGroup> dtos = new ArrayList<UserGroup>();
-		UserGroupUtils.copyDboToDto(dbos, dtos);
-		return dtos;
+		List<DBOPrincipal> dbos = simpleJdbcTemplate.query(SELECT_BY_IS_INDIVID_OMITTING_SQL, userGroupRowMapper, param);
+		return PrincipalUtils.createDTOs(dbos);
 	}
 	
 	@Override
-	public List<UserGroup> getInRange(long fromIncl, long toExcl,
+	public List<Principal> getInRange(long fromIncl, long toExcl,
 			boolean isIndividual) throws DatastoreException {
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(IS_INDIVIDUAL_PARAM_NAME, isIndividual);		
@@ -195,14 +195,12 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 		long limit = toExcl - fromIncl;
 		if (limit<=0) throw new IllegalArgumentException("'to' param must be greater than 'from' param.");
 		param.addValue(LIMIT_PARAM_NAME, limit);	
-		List<DBOUserGroup> dbos = simpleJdbcTemplate.query(SELECT_BY_IS_INDIVID_SQL_PAGINATED, userGroupRowMapper, param);
-		List<UserGroup> dtos = new ArrayList<UserGroup>();
-		UserGroupUtils.copyDboToDto(dbos, dtos);
-		return dtos;
+		List<DBOPrincipal> dbos = simpleJdbcTemplate.query(SELECT_BY_IS_INDIVID_SQL_PAGINATED, userGroupRowMapper, param);
+		return PrincipalUtils.createDTOs(dbos);
 	}
 
 	@Override
-	public List<UserGroup> getInRangeExcept(long fromIncl, long toExcl,
+	public List<Principal> getInRangeExcept(long fromIncl, long toExcl,
 			boolean isIndividual, Collection<String> groupNamesToOmit) throws DatastoreException {
 		// the SQL will be invalid for an empty list, so we 'divert' that case:
 		if (groupNamesToOmit.isEmpty()) return getInRange(fromIncl, toExcl, isIndividual);
@@ -214,16 +212,14 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 		if (limit<=0) throw new IllegalArgumentException("'to' param must be greater than 'from' param.");
 		param.addValue(LIMIT_PARAM_NAME, limit);	
 		param.addValue(NAME_PARAM_NAME, groupNamesToOmit);
-		List<DBOUserGroup> dbos = simpleJdbcTemplate.query(SELECT_BY_IS_INDIVID_OMITTING_SQL_PAGINATED, userGroupRowMapper, param);
-		List<UserGroup> dtos = new ArrayList<UserGroup>();
-		UserGroupUtils.copyDboToDto(dbos, dtos);
-		return dtos;
+		List<DBOPrincipal> dbos = simpleJdbcTemplate.query(SELECT_BY_IS_INDIVID_OMITTING_SQL_PAGINATED, userGroupRowMapper, param);
+		return PrincipalUtils.createDTOs(dbos);
 	}
 
-	public DBOUserGroup findGroup(String name) throws DatastoreException {
+	public DBOPrincipal findGroup(String name) throws DatastoreException {
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(NAME_PARAM_NAME, name);	
-		List<DBOUserGroup> ugs = simpleJdbcTemplate.query(SELECT_BY_NAME_SQL, userGroupRowMapper, param);
+		List<DBOPrincipal> ugs = simpleJdbcTemplate.query(SELECT_BY_NAME_SQL, userGroupRowMapper, param);
 		if (ugs.size()>1) throw new DatastoreException("Expected 0-1 UserGroups but found "+ugs.size());
 		if (ugs.size()==0) return null;
 		return ugs.iterator().next();
@@ -242,7 +238,7 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
 	public boolean deletePrincipal(String name) {
 		try {
-			DBOUserGroup ug = findGroup(name);
+			DBOPrincipal ug = findGroup(name);
 			if (ug==null) return false;
 			delete(ug.getId().toString());
 			return true;
@@ -255,27 +251,46 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 
 	@Override
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
-	public String create(UserGroup dto) throws DatastoreException,
+	public String create(Principal dto) throws DatastoreException,
 			InvalidModelException {
-		DBOUserGroup dbo = new DBOUserGroup();
-		UserGroupUtils.copyDtoToDbo(dto, dbo);
-		
+		DBOPrincipal dbo = PrincipalUtils.createDBO(dto);		
 		// If the create is successful, it should have a new etag
 		dbo.setEtag(UUID.randomUUID().toString());
-		if (AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME.equals(dto.getName())) {
-			// This is a special hack since the auto-generated ID column cannot
-			// start at zero yet the BOOTSTRAP_USER_GROUP_NAME was assigned to zero long ago.
-			dbo.setId(0l);
-		} else {
-			// We allow the ID generator to create all other IDs
-			dbo.setId(idGenerator.generateNewId(dto.getName(), NamedType.USER_GROUP_ID));
-		}
+		dbo.setId(generateNewPrinipalId());
+		createPrincipalPrivate(dbo);
+		return dbo.getId().toString();
+	}
+	
+	/**
+	 * A helper to generate new principal IDs.  When we are done migrating to the new 
+	 * ID generator we can remove this and just use the ID generator.
+	 * @return
+	 */
+	private long generateNewPrinipalId(){
+		// Since we are in the process of moving from one ID generator to another
+		// we need to ensure that the new ID generator never issues IDs that
+		// are already in use.  We will be able to remove this after this
+		// code is deployed to production (Stack 24).
+		idGenerator.reserveId(getMaxUserId(), TYPE.PRINCIPAL_ID);
+		// Now get the next ID
+		return idGenerator.generateNewId(TYPE.PRINCIPAL_ID);
+	}
+	
+	private long getMaxUserId(){
+		return this.simpleJdbcTemplate.queryForLong("SELECT MAX("+COL_PRINCIPAL_ID+") FROM "+TABLE_PRINCIPAL);
+	}
+	/**
+	 * Do not make this public!
+	 * 
+	 * @param dbo
+	 * @return
+	 */
+	private void createPrincipalPrivate(DBOPrincipal dbo){
 		try {
 			dbo = basicDao.createNew(dbo);
 		} catch (Exception e) {
-			throw new DatastoreException("id=" + dbo.getId() + " name="+dto.getName(), e);
+			throw new DatastoreException("id=" + dbo.getId() + " name="+dbo.getPrincipalNameDisplay(), e);
 		}
-		
 		Boolean isIndividual = dbo.getIsIndividual();
 		if (isIndividual != null && isIndividual.booleanValue()) {
 			// Create a row for the authentication DAO
@@ -284,8 +299,6 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 			credDBO.setSecretKey(HMACUtils.newHMACSHA1Key());
 			basicDao.createNew(credDBO);
 		}
-		
-		return dbo.getId().toString();
 	}
 
 	public boolean doesIdExist(Long id) {
@@ -301,57 +314,47 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 	}
 	
 	@Override
-	public UserGroup get(String id) throws DatastoreException,
+	public Principal get(String id) throws DatastoreException,
 			NotFoundException {
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(ID_PARAM_NAME, id);
-		DBOUserGroup dbo;
+		DBOPrincipal dbo;
 		try {
-			dbo = basicDao.getObjectByPrimaryKey(DBOUserGroup.class, param);
+			dbo = basicDao.getObjectByPrimaryKey(DBOPrincipal.class, param);
 		} catch (NotFoundException e) {
 			// Rethrow the basic DAO's generic error message
 			throw new NotFoundException("Principal (" + id + ") does not exist", e);
 		}
-		UserGroup dto = new UserGroup();
-		UserGroupUtils.copyDboToDto(dbo, dto);
-		return dto;
+		return PrincipalUtils.createDTO(dbo);
 	}
 	
 	@Override
-	public List<UserGroup> get(List<String> ids) throws DatastoreException {
-		List<UserGroup> dtos = new ArrayList<UserGroup>();
+	public List<Principal> get(List<String> ids) throws DatastoreException {
+		List<Principal> dtos = new ArrayList<Principal>();
 		if (ids.isEmpty()) {
 			return dtos;
 		}
-		
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(ID_PARAM_NAME, ids);
-		List<DBOUserGroup> dbos = simpleJdbcTemplate.query(SELECT_MULTI_BY_PRINCIPAL_IDS, userGroupRowMapper, param);
-		UserGroupUtils.copyDboToDto(dbos, dtos);
-		return dtos;
+		List<DBOPrincipal> dbos = simpleJdbcTemplate.query(SELECT_MULTI_BY_PRINCIPAL_IDS, userGroupRowMapper, param);
+		return PrincipalUtils.createDTOs(dbos);
 	}
 
 	@Override
-	public Collection<UserGroup> getAll() throws DatastoreException {
+	public Collection<Principal> getAll() throws DatastoreException {
 		MapSqlParameterSource param = new MapSqlParameterSource();	
-		List<DBOUserGroup> dbos = simpleJdbcTemplate.query(SELECT_ALL, userGroupRowMapper, param);
-		List<UserGroup> dtos = new ArrayList<UserGroup>();
-		UserGroupUtils.copyDboToDto(dbos, dtos);
-		return dtos;
-
+		List<DBOPrincipal> dbos = simpleJdbcTemplate.query(SELECT_ALL, userGroupRowMapper, param);
+		return PrincipalUtils.createDTOs(dbos);
 	}
 
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
 	@Override
-	public void update(UserGroup dto) throws DatastoreException,
+	public void update(Principal dto) throws DatastoreException,
 			InvalidModelException, NotFoundException,
 			ConflictingUpdateException {
-		DBOUserGroup dbo = new DBOUserGroup();
-		UserGroupUtils.copyDtoToDbo(dto, dbo);
-		
+		DBOPrincipal dbo = PrincipalUtils.createDBO(dto);
 		// If the update is successful, it should have a new etag
 		dbo.setEtag(UUID.randomUUID().toString());
-
 		basicDao.update(dbo);
 	}
 
@@ -360,7 +363,7 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 	public void delete(String id) throws DatastoreException, NotFoundException {
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(ID_PARAM_NAME, id);
-		basicDao.deleteObjectByPrimaryKey(DBOUserGroup.class, param);
+		basicDao.deleteObjectByPrimaryKey(DBOPrincipal.class, param);
 	}
 	
 	/**
@@ -375,58 +378,50 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 		}
 		
 		// For each one determine if it exists, if not create it
-		for (UserGroupInt ug: this.bootstrapUsers) {
-			if (ug.getId() == null) {
+		for (Principal principal: this.bootstrapUsers) {
+			if (principal.getId() == null) {
 				throw new IllegalArgumentException("Bootstrap users must have an id");
 			}
-			if (ug.getName() == null) {
-				throw new IllegalArgumentException("Bootstrap users must have a name");
+			if (principal.getPrincipalName() == null) {
+				throw new IllegalArgumentException("Bootstrap users must have a principalName");
 			}
-			
-			Long id = Long.parseLong(ug.getId());
-			if (!this.doesIdExist(id)) {
-				UserGroup newUg = new UserGroup();
-				newUg.setId(ug.getId());
-				newUg.setName(ug.getName());
-				newUg.setIsIndividual(ug.getIsIndividual());
-				// Make sure the ID generator has reserved this ID.
-				if (!AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME.equals(ug.getName())) {
-					// We cannot do this for the BOOTSTRAP_USER_GROUP because its ID is zero which is
-					// the same a null for MySQL auto-increment columns
-					idGenerator.unconditionallyAssignIdToName(id, ug.getName(), NamedType.USER_GROUP_ID);
-				}
-				this.create(newUg);
+			if (!this.doesIdExist(Long.parseLong(principal.getId()))) {
+				principal.setEtag(UUID.randomUUID().toString());
+				// Create this users
+				DBOPrincipal dbo = PrincipalUtils.createDBO(principal);
+				dbo.setCreationDate(new Date(System.currentTimeMillis()));
+				this.createPrincipalPrivate(dbo);
 			}
 		}
 
-		// A few additional users are required for testing
-		if (!StackConfiguration.isProductionStack()) {
-			String testUsers[] = new String[]{ 
-					StackConfiguration.getIntegrationTestUserAdminName(), 
-					StackConfiguration.getIntegrationTestRejectTermsOfUseName(), 
-					StackConfiguration.getIntegrationTestUserOneName(), 
-					StackConfiguration.getIntegrationTestUserTwoName(), 
-					StackConfiguration.getIntegrationTestUserThreeName(), 
-					AuthorizationConstants.ADMIN_USER_NAME, 
-					AuthorizationConstants.TEST_GROUP_NAME, 
-					AuthorizationConstants.TEST_USER_NAME };
-			for (String username : testUsers) {
-				if (!this.doesPrincipalExist(username)) {
-					UserGroup ug = new UserGroup();
-					ug.setName(username);
-					ug.setIsIndividual(!username.equals(AuthorizationConstants.TEST_GROUP_NAME));
-					ug.setId(this.create(ug));
-				}
-				UserGroup ug = new UserGroup();
-				UserGroupUtils.copyDboToDto(this.findGroup(username), ug);
-				ug.setCreationDate(null);
-				ug.setEtag(null);
-				ug.setUri(null);
-				if (!this.bootstrapUsers.contains(ug)) {
-					this.bootstrapUsers.add(ug);
-				}
-			}
-		}
+//		// A few additional users are required for testing
+//		if (!StackConfiguration.isProductionStack()) {
+//			String testUsers[] = new String[]{ 
+//					StackConfiguration.getIntegrationTestUserAdminName(), 
+//					StackConfiguration.getIntegrationTestRejectTermsOfUseName(), 
+//					StackConfiguration.getIntegrationTestUserOneName(), 
+//					StackConfiguration.getIntegrationTestUserTwoName(), 
+//					StackConfiguration.getIntegrationTestUserThreeName(), 
+//					AuthorizationConstants.ADMIN_USER_NAME, 
+//					AuthorizationConstants.TEST_GROUP_NAME, 
+//					AuthorizationConstants.TEST_USER_NAME };
+//			for (String username : testUsers) {
+//				if (!this.doesPrincipalExist(username)) {
+//					Principal ug = new Principal();
+//					ug.setPrincipalName(username);
+//					ug.setIsIndividual(!username.equals(AuthorizationConstants.TEST_GROUP_NAME));
+//					ug.setId(this.create(ug));
+//				}
+//				Principal ug = new Principal();
+//				PrincipalUtils.copyDboToDto(this.findGroup(username), ug);
+//				ug.setCreationDate(null);
+//				ug.setEtag(null);
+//				ug.setUri(null);
+//				if (!this.bootstrapUsers.contains(ug)) {
+//					this.bootstrapUsers.add(ug);
+//				}
+//			}
+//		}
 	}
 	
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
@@ -439,7 +434,7 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 					@Override
 					public String mapRow(ResultSet rs, int rowNum)
 							throws SQLException {
-						return rs.getString(SqlConstants.COL_USER_GROUP_E_TAG);
+						return rs.getString(SqlConstants.COL_PRINCIPAL_E_TAG);
 					}
 				}, param);
 	}

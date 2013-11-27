@@ -11,7 +11,7 @@ import org.sagebionetworks.repo.model.PaginatedResults;
 import org.sagebionetworks.repo.model.QueryResults;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.UserProfile;
 import org.sagebionetworks.repo.model.UserProfileDAO;
@@ -25,7 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserProfileManagerImpl implements UserProfileManager {
 	
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	
 	@Autowired
 	private UserProfileDAO userProfileDAO;
@@ -48,7 +48,7 @@ public class UserProfileManagerImpl implements UserProfileManager {
 	/**
 	 * Used by unit tests
 	 */
-	public UserProfileManagerImpl(UserProfileDAO userProfileDAO, UserGroupDAO userGroupDAO,
+	public UserProfileManagerImpl(UserProfileDAO userProfileDAO, PrincipalDAO userGroupDAO,
 			S3TokenManager s3TokenManager, FavoriteDAO favoriteDAO, AttachmentManager attachmentManager) {
 		super();
 		this.userProfileDAO = userProfileDAO;

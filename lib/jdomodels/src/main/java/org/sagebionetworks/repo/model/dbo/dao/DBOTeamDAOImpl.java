@@ -12,8 +12,6 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_RESOURCE
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_RESOURCE_ACCESS_TYPE_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_TEAM_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_TEAM_PROPERTIES;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_GROUP_ID;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_GROUP_NAME;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_PROFILE_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_PROFILE_PROPS_BLOB;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.LIMIT_PARAM_NAME;
@@ -22,8 +20,7 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_GROUP_
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_RESOURCE_ACCESS;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_RESOURCE_ACCESS_TYPE;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_TEAM;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_USER_GROUP;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_USER_PROFILE;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.*;
 
 import java.sql.Blob;
 import java.sql.ResultSet;
@@ -74,8 +71,8 @@ public class DBOTeamDAOImpl implements TeamDAO {
 	private static final RowMapper<DBOTeam> teamRowMapper = (new DBOTeam()).getTableMapping();
 	
 	private static final String SELECT_PAGINATED = 
-			"SELECT t.*, g."+COL_USER_GROUP_NAME+" FROM "+TABLE_USER_GROUP+" g, "+TABLE_TEAM+" t "+
-			" WHERE t."+COL_TEAM_ID+"=g."+COL_USER_GROUP_ID+" order by "+COL_USER_GROUP_NAME+" asc "+
+			"SELECT t.*, g."+COL_PRINCIPAL_PRINCIPAL_NAME_DISPLAY+" FROM "+TABLE_PRINCIPAL+" g, "+TABLE_TEAM+" t "+
+			" WHERE t."+COL_TEAM_ID+"=g."+COL_PRINCIPAL_ID+" order by "+COL_PRINCIPAL_PRINCIPAL_NAME_DISPLAY+" asc "+
 			" LIMIT :"+LIMIT_PARAM_NAME+" OFFSET :"+OFFSET_PARAM_NAME;
 	
 	private static final String SELECT_COUNT = 

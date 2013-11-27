@@ -30,7 +30,7 @@ import org.sagebionetworks.repo.model.ServiceConstants;
 import org.sagebionetworks.repo.model.Study;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.attachment.PresignedUrl;
 import org.sagebionetworks.repo.model.attachment.S3AttachmentToken;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
@@ -51,7 +51,7 @@ public class S3TokenControllerTest {
 	@Autowired
 	AmazonS3Utility s3Utility;
 	@Autowired
-	UserGroupDAO userGroupDAO;
+	PrincipalDAO userGroupDAO;
 
 	private UserGroup testUser;
 	private static final String TEST_USER1 = AuthorizationConstants.TEST_USER_NAME;

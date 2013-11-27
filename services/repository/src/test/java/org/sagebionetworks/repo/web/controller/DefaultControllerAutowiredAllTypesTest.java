@@ -63,7 +63,7 @@ public class DefaultControllerAutowiredAllTypesTest {
 	private NodeManager nodeManager;
 	
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	@Autowired
 	private FileHandleDao fileMetadataDao;
 	@Autowired

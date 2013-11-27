@@ -16,7 +16,7 @@ import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.EntityType;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,7 +32,7 @@ public class DBOTeamTest {
 	DBOBasicDao dboBasicDao;
 	
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	
 	List<Long> toDelete = null;
 	
@@ -52,7 +52,7 @@ public class DBOTeamTest {
 		toDelete = new LinkedList<Long>();
 	}
 	
-	public static DBOTeam newTeam(UserGroupDAO userGroupDAO) {
+	public static DBOTeam newTeam(PrincipalDAO userGroupDAO) {
 		Long id = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 		DBOTeam team = new DBOTeam();
 		team.setId(id);

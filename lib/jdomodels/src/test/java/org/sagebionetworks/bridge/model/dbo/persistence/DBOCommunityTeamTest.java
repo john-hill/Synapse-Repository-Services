@@ -31,7 +31,7 @@ public class DBOCommunityTeamTest {
 	DBOBasicDao dboBasicDao;
 
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 
 	@Autowired
 	private IdGenerator idGenerator;

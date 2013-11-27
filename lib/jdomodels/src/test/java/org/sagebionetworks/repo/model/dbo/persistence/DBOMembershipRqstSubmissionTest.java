@@ -15,7 +15,7 @@ import org.junit.runner.RunWith;
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.DatastoreException;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,7 +34,7 @@ public class DBOMembershipRqstSubmissionTest {
 	private IdGenerator idGenerator;
 		
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	
 	private List<Long> toDelete = null;
 	private List<Long> teamToDelete = null;
@@ -65,7 +65,7 @@ public class DBOMembershipRqstSubmissionTest {
 	
 	public static DBOMembershipRqstSubmission newMembershipRqstSubmission(
 			IdGenerator idGenerator, 
-			UserGroupDAO userGroupDAO,
+			PrincipalDAO userGroupDAO,
 			DBOBasicDao dboBasicDao) {
 		DBOMembershipRqstSubmission request = new DBOMembershipRqstSubmission();
 		request.setId(idGenerator.generateNewId());

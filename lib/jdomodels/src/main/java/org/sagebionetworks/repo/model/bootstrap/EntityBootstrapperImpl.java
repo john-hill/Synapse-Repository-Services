@@ -20,9 +20,9 @@ import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeConstants;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.NodeInheritanceDAO;
+import org.sagebionetworks.repo.model.Principal;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.ResourceAccess;
-import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.UserProfileDAO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Propagation;
@@ -39,7 +39,7 @@ public class EntityBootstrapperImpl implements EntityBootstrapper {
 	private NodeDAO nodeDao;
 	
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	
 	@Autowired
 	private UserProfileDAO userProfileDAO;
@@ -74,7 +74,7 @@ public class EntityBootstrapperImpl implements EntityBootstrapper {
 		// First make sure the nodeDao has been bootstrapped
 		nodeDao.boostrapAllNodeTypes();
 		pathMap = Collections.synchronizedMap(new HashMap<String, EntityBootstrapData>());
-		UserGroup bootstrapPrincipal = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false);
+		Principal bootstrapPrincipal = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false);
 		// Map the default users to their ids
 		// Now create a node for each type in the list
 		for(EntityBootstrapData entityBoot: bootstrapEntities){

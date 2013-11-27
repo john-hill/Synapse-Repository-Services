@@ -42,7 +42,7 @@ public class CommunityManagerImplTest extends MockitoTestBase {
 	@Mock
 	private GroupMembersDAO groupMembersDAO;
 	@Mock
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 
 	@Mock
 	private AccessControlListDAO aclDAO;

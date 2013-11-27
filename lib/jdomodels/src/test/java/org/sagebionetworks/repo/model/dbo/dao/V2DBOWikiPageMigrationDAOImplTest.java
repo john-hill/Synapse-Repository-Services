@@ -29,7 +29,7 @@ import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
 import org.sagebionetworks.repo.model.dao.V2WikiPageMigrationDao;
 import org.sagebionetworks.repo.model.dao.WikiPageKey;
@@ -50,7 +50,7 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.V2_COL_WIKI_
 @ContextConfiguration(locations = { "classpath:jdomodels-test-context.xml" })
 public class V2DBOWikiPageMigrationDAOImplTest {
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	@Autowired
 	private V2WikiPageMigrationDao v2WikiPageMigrationDao;
 	@Autowired

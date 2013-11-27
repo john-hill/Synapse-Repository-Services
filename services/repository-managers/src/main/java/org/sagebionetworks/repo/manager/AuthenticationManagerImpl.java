@@ -4,7 +4,7 @@ import org.sagebionetworks.repo.model.AuthenticationDAO;
 import org.sagebionetworks.repo.model.TermsOfUseException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.auth.Session;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.securitytools.PBKDF2Utils;
@@ -18,14 +18,14 @@ public class AuthenticationManagerImpl implements AuthenticationManager {
 	private AuthenticationDAO authDAO;
 	
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	
 	public AuthenticationManagerImpl() { }
 	
 	/**
 	 * For unit testing
 	 */
-	public AuthenticationManagerImpl(AuthenticationDAO authDAO, UserGroupDAO userGroupDAO) {
+	public AuthenticationManagerImpl(AuthenticationDAO authDAO, PrincipalDAO userGroupDAO) {
 		this.authDAO = authDAO;
 		this.userGroupDAO = userGroupDAO;
 	}

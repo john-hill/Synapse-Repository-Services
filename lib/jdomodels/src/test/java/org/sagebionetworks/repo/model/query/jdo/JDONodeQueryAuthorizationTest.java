@@ -34,7 +34,7 @@ import org.sagebionetworks.repo.model.NodeQueryResults;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.User;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.jdo.NodeTestUtils;
 import org.sagebionetworks.repo.model.query.BasicQuery;
@@ -61,7 +61,7 @@ public class JDONodeQueryAuthorizationTest implements InitializingBean{
 	private NodeDAO nodeDao;
 
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	
 	@Autowired
 	private AccessControlListDAO accessControlListDAO;

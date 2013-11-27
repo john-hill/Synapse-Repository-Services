@@ -29,7 +29,7 @@ import org.junit.runner.RunWith;
 
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.ObjectType;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
 import org.sagebionetworks.repo.model.dao.WikiPageKey;
 import org.sagebionetworks.repo.model.file.FileHandle;
@@ -58,7 +58,7 @@ public class V2DBOWikiPageDaoImplAutowiredTest {
 	V2WikiPageDao wikiPageDao;
 	
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 
 	@Autowired
 	private SimpleJdbcTemplate simpleJdbcTemplate;

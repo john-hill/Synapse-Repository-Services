@@ -19,7 +19,7 @@ import static org.junit.Assert.fail;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
 import org.sagebionetworks.repo.model.dao.WikiPageDao;
 import org.sagebionetworks.repo.model.dao.WikiPageKey;
@@ -45,7 +45,7 @@ public class DBOWikiMigrationDAOTest {
 	@Autowired
 	private FileHandleDao fileMetadataDao;
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	
 	private List<WikiPageKey> toDeleteFromV1;
 	private List<WikiPageKey> toDeleteFromV2;

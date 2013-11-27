@@ -1,5 +1,13 @@
 package org.sagebionetworks.repo.model.query;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -22,7 +30,7 @@ import org.sagebionetworks.evaluation.model.SubmissionStatus;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.DatastoreException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.annotation.Annotations;
 import org.sagebionetworks.repo.model.annotation.DoubleAnnotation;
@@ -35,9 +43,6 @@ import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(locations = { "classpath:jdomodels-test-context.xml" })
@@ -89,10 +94,10 @@ public class QueryDAOImplTest {
 		// set up mocks
 		mockUserInfo = mock(UserInfo.class);
 		mockAclDAO = mock(AccessControlListDAO.class);
-		when(mockAclDAO.canAccess(Matchers.<Collection<UserGroup>>any(), eq(EVAL_ID1), eq(ACCESS_TYPE.READ))).thenReturn(true);
-		when(mockAclDAO.canAccess(Matchers.<Collection<UserGroup>>any(), eq(EVAL_ID1), eq(ACCESS_TYPE.READ_PRIVATE_SUBMISSION))).thenReturn(true);
-		when(mockAclDAO.canAccess(Matchers.<Collection<UserGroup>>any(), eq(EVAL_ID2), eq(ACCESS_TYPE.READ))).thenReturn(true);
-		when(mockAclDAO.canAccess(Matchers.<Collection<UserGroup>>any(), eq(EVAL_ID2), eq(ACCESS_TYPE.READ_PRIVATE_SUBMISSION))).thenReturn(false);
+		when(mockAclDAO.canAccess(Matchers.<Collection<Principal>>any(), eq(EVAL_ID1), eq(ACCESS_TYPE.READ))).thenReturn(true);
+		when(mockAclDAO.canAccess(Matchers.<Collection<Principal>>any(), eq(EVAL_ID1), eq(ACCESS_TYPE.READ_PRIVATE_SUBMISSION))).thenReturn(true);
+		when(mockAclDAO.canAccess(Matchers.<Collection<Principal>>any(), eq(EVAL_ID2), eq(ACCESS_TYPE.READ))).thenReturn(true);
+		when(mockAclDAO.canAccess(Matchers.<Collection<Principal>>any(), eq(EVAL_ID2), eq(ACCESS_TYPE.READ_PRIVATE_SUBMISSION))).thenReturn(false);
 		queryDAO.setAclDAO(mockAclDAO);
 	}
 	

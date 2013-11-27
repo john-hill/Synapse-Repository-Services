@@ -53,40 +53,46 @@
 		class="org.sagebionetworks.repo.model.jdo.JDONodeInheritanceDAOImpl" />
 
 	<util:list id="bootstrapUsers">
-		<bean class="org.sagebionetworks.repo.model.UserGroup">
+		<bean class="org.sagebionetworks.repo.model.Principal">
 			<property name="id" value="0" />
-			<property name="name" value="BOOTSTRAP_USER_GROUP" />
+			<property name="principalName" value="BOOTSTRAP_USER_GROUP" />
+			<property name="email" value="0" />
 			<property name="isIndividual" value="false" />
 		</bean>
-		<bean class="org.sagebionetworks.repo.model.UserGroup">
+		<bean class="org.sagebionetworks.repo.model.Principal">
 			<property name="id" value="1" />
-			<property name="name" value="migrationAdmin@sagebase.org" />
+			<property name="principalName" value="migrationAdmin" />
+			<property name="email" value="migrationAdmin@sagebase.org" />
 			<property name="isIndividual" value="true" />
 		</bean>
-		<bean class="org.sagebionetworks.repo.model.UserGroup">
+		<bean class="org.sagebionetworks.repo.model.Principal">
 			<property name="id" value="2" />
-			<property name="name" value="Administrators" />
+			<property name="principalName" value="Administrators" />
+			<property name="email" value="Administrators@sagebase.org" />
 			<property name="isIndividual" value="false" />
 		</bean>
-		<bean class="org.sagebionetworks.repo.model.UserGroup">
+		<bean class="org.sagebionetworks.repo.model.Principal">
 			<property name="id" value="273948" />
-			<property name="name" value="AUTHENTICATED_USERS" />
+			<property name="principalName" value="AUTHENTICATED_USERS" />
+			<property name="email" value="273948" />
 			<property name="isIndividual" value="false" />
 		</bean>
-		<bean class="org.sagebionetworks.repo.model.UserGroup">
+		<bean class="org.sagebionetworks.repo.model.Principal">
 			<property name="id" value="273949" />
-			<property name="name" value="PUBLIC" />
+			<property name="principalName" value="PUBLIC" />
+			<property name="email" value="273949" />
 			<property name="isIndividual" value="false" />
 		</bean>
-		<bean class="org.sagebionetworks.repo.model.UserGroup">
+		<bean class="org.sagebionetworks.repo.model.Principal">
 			<property name="id" value="273950" />
-			<property name="name" value="anonymous@sagebase.org" />
+			<property name="principalName" value="anonymous" />
+			<property name="email" value="anonymous@sagebase.org" />
 			<property name="isIndividual" value="true" />
 		</bean>
 	</util:list>
 
 	<bean id="userGroupDAO"
-		class="org.sagebionetworks.repo.model.dbo.dao.DBOUserGroupDAOImpl" init-method="bootstrapUsers">
+		class="org.sagebionetworks.repo.model.dbo.dao.DBOPrincipalDaoImpl" init-method="bootstrapUsers">
 		<property name="bootstrapUsers" ref="bootstrapUsers"/>
 	</bean>
 
@@ -110,9 +116,6 @@
 
 	<bean id="accessApprovalDAO"
 		class="org.sagebionetworks.repo.model.dbo.dao.DBOAccessApprovalDAOImpl" />
-
-	<bean id="userGroupCache" class="org.sagebionetworks.repo.model.jdo.UserGroupCacheImpl"
-		scope="singleton" />
 
 	<bean id="aclDAO"
 		class="org.sagebionetworks.repo.model.dbo.dao.DBOAccessControlListDaoImpl"

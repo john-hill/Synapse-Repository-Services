@@ -14,7 +14,7 @@ import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.DoiAdminDao;
 import org.sagebionetworks.repo.model.DoiDao;
 import org.sagebionetworks.repo.model.ObjectType;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.doi.Doi;
 import org.sagebionetworks.repo.model.doi.DoiStatus;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
@@ -29,7 +29,7 @@ public class DBODoiDaoImplAutowiredTest {
 
 	@Autowired private DoiDao doiDao;
 	@Autowired private DoiAdminDao doiAdminDao;
-	@Autowired private UserGroupDAO userGroupDAO;
+	@Autowired private PrincipalDAO userGroupDAO;
 	private String userId;
 
 	@Before

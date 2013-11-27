@@ -18,7 +18,7 @@ import org.sagebionetworks.repo.model.AuthenticationDAO;
 import org.sagebionetworks.repo.model.TermsOfUseException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.auth.Session;
 import org.sagebionetworks.securitytools.PBKDF2Utils;
 
@@ -26,7 +26,7 @@ public class AuthenticationManagerImplUnitTest {
 	
 	private AuthenticationManager authManager;
 	private AuthenticationDAO authDAO;
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	
 	final String userId = "12345";
 	final String username = "AuthManager@test.org";
@@ -40,7 +40,7 @@ public class AuthenticationManagerImplUnitTest {
 		when(authDAO.getPasswordSalt(eq(username))).thenReturn(salt);
 		when(authDAO.changeSessionToken(eq(userId), eq((String) null))).thenReturn(sessionToken);
 		
-		userGroupDAO = mock(UserGroupDAO.class);
+		userGroupDAO = mock(PrincipalDAO.class);
 		UserGroup ug = new UserGroup();
 		ug.setId(userId);
 		when(userGroupDAO.findGroup(eq(username), eq(true))).thenReturn(ug);

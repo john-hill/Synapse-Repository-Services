@@ -12,7 +12,7 @@ import org.sagebionetworks.ids.ETagGenerator;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.InvalidModelException;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserGroupInt;
 import org.sagebionetworks.repo.model.UserProfile;
 import org.sagebionetworks.repo.model.UserProfileDAO;
@@ -38,7 +38,7 @@ public class DBOUserProfileDAOImpl implements UserProfileDAO {
 	@Autowired
 	private DBOBasicDao basicDao;
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	@Autowired
 	private ETagGenerator eTagGenerator;	
 	@Autowired

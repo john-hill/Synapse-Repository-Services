@@ -21,7 +21,7 @@ import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.model.AuthenticationDAO;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserGroupInt;
 import org.sagebionetworks.repo.model.auth.Session;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
@@ -43,7 +43,7 @@ public class DBOAuthenticationDAOImplTest {
 	private AuthenticationDAO authDAO;
 	
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 	
 	@Autowired
 	private DBOBasicDao basicDAO;

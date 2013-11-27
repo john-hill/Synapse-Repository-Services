@@ -9,9 +9,9 @@ import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.GroupMembersDAO;
-import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
-import org.sagebionetworks.repo.model.dbo.persistence.DBOUserGroup;
+import org.sagebionetworks.repo.model.Principal;
+import org.sagebionetworks.repo.model.PrincipalDAO;
+import org.sagebionetworks.repo.model.dbo.persistence.DBOPrincipal;
 import org.sagebionetworks.repo.model.query.jdo.SqlConstants;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,23 +28,23 @@ public class DBOGroupMembersDAOImpl implements GroupMembersDAO {
 	private SimpleJdbcTemplate simpleJdbcTemplate;
 
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 
 	private static final String PRINCIPAL_ID_PARAM_NAME = "principalId";
 	private static final String GROUP_ID_PARAM_NAME     = "groupId";
 	private static final String MEMBER_ID_PARAM_NAME    = "memberId";
 	
 	private static final String SELECT_DIRECT_MEMBERS_OF_GROUP = 
-			"SELECT ug.* FROM "+SqlConstants.TABLE_USER_GROUP+" ug"+
+			"SELECT ug.* FROM "+SqlConstants.TABLE_PRINCIPAL+" ug"+
 			" INNER JOIN "+SqlConstants.TABLE_GROUP_MEMBERS+
 			" WHERE "+SqlConstants.COL_GROUP_MEMBERS_GROUP_ID+"=:"+PRINCIPAL_ID_PARAM_NAME+
-			" AND ug."+SqlConstants.COL_USER_GROUP_ID+"="+SqlConstants.COL_GROUP_MEMBERS_MEMBER_ID;
+			" AND ug."+SqlConstants.COL_PRINCIPAL_ID+"="+SqlConstants.COL_GROUP_MEMBERS_MEMBER_ID;
 	
 	private static final String SELECT_DIRECT_PARENTS_OF_GROUP = 
-			"SELECT ug.* FROM "+SqlConstants.TABLE_USER_GROUP+" ug"+
+			"SELECT ug.* FROM "+SqlConstants.TABLE_PRINCIPAL+" ug"+
 			" INNER JOIN "+SqlConstants.TABLE_GROUP_MEMBERS+
 			" WHERE "+SqlConstants.COL_GROUP_MEMBERS_MEMBER_ID+"=:"+PRINCIPAL_ID_PARAM_NAME+
-			" AND ug."+SqlConstants.COL_USER_GROUP_ID+"="+SqlConstants.COL_GROUP_MEMBERS_GROUP_ID;
+			" AND ug."+SqlConstants.COL_PRINCIPAL_ID+"="+SqlConstants.COL_GROUP_MEMBERS_GROUP_ID;
 	
 	private static final String INSERT_NEW_MEMBERS_OF_GROUP = 
 			"INSERT IGNORE INTO "+SqlConstants.TABLE_GROUP_MEMBERS+
@@ -55,18 +55,18 @@ public class DBOGroupMembersDAOImpl implements GroupMembersDAO {
 			" WHERE "+SqlConstants.COL_GROUP_MEMBERS_GROUP_ID+"=:"+GROUP_ID_PARAM_NAME+
 			" AND "+SqlConstants.COL_GROUP_MEMBERS_MEMBER_ID+"=:"+MEMBER_ID_PARAM_NAME;
 			
-	private static final RowMapper<DBOUserGroup> userGroupRowMapper =  (new DBOUserGroup()).getTableMapping();
+	private static final RowMapper<DBOPrincipal> userGroupRowMapper =  (new DBOPrincipal()).getTableMapping();
 	
 	@Override
-	public List<UserGroup> getMembers(String principalId) 
+	public List<Principal> getMembers(String principalId) 
 			throws DatastoreException, NotFoundException {
-		List<UserGroup> members = new ArrayList<UserGroup>();
+		List<Principal> members = new ArrayList<Principal>();
 		
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(PRINCIPAL_ID_PARAM_NAME, principalId);
-		List<DBOUserGroup> dbos = simpleJdbcTemplate.query(SELECT_DIRECT_MEMBERS_OF_GROUP, userGroupRowMapper, param);
+		List<DBOPrincipal> dbos = simpleJdbcTemplate.query(SELECT_DIRECT_MEMBERS_OF_GROUP, userGroupRowMapper, param);
 		
-		UserGroupUtils.copyDboToDto(dbos, members);
+		PrincipalUtils.copyDboToDto(dbos, members);
 		return members;
 	}
 
@@ -92,8 +92,8 @@ public class DBOGroupMembersDAOImpl implements GroupMembersDAO {
 		}
 		
 		// Make sure all UserGroups corresponding to the member IDs are individuals
-		Collection<UserGroup> members = userGroupDAO.get(memberIds);
-		for (UserGroup member : members) {
+		Collection<Principal> members = userGroupDAO.get(memberIds);
+		for (Principal member : members) {
 			if (!member.getIsIndividual()) {
 				throw new IllegalArgumentException("Only individuals may be added to groups");
 			}
@@ -140,15 +140,15 @@ public class DBOGroupMembersDAOImpl implements GroupMembersDAO {
 
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
 	@Override
-	public List<UserGroup> getUsersGroups(String principalId)
+	public List<Principal> getUsersGroups(String principalId)
 			throws DatastoreException, NotFoundException {
-		List<UserGroup> members = new ArrayList<UserGroup>();
+		List<Principal> members = new ArrayList<Principal>();
 		
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(PRINCIPAL_ID_PARAM_NAME, principalId);
-		List<DBOUserGroup> dbos = simpleJdbcTemplate.query(SELECT_DIRECT_PARENTS_OF_GROUP, userGroupRowMapper, param);
+		List<DBOPrincipal> dbos = simpleJdbcTemplate.query(SELECT_DIRECT_PARENTS_OF_GROUP, userGroupRowMapper, param);
 		
-		UserGroupUtils.copyDboToDto(dbos, members);
+		PrincipalUtils.copyDboToDto(dbos, members);
 		return members;
 	}
 	

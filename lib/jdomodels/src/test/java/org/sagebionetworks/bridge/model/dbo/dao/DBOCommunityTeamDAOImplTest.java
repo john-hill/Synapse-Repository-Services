@@ -1,25 +1,22 @@
 package org.sagebionetworks.bridge.model.dbo.dao;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.sagebionetworks.bridge.model.CommunityTeamDAO;
 import org.sagebionetworks.ids.IdGenerator;
-import org.sagebionetworks.repo.model.*;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.EntityType;
+import org.sagebionetworks.repo.model.GroupMembersDAO;
+import org.sagebionetworks.repo.model.NodeDAO;
+import org.sagebionetworks.repo.model.Principal;
+import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.dbo.persistence.DBONode;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOTeam;
@@ -50,7 +47,7 @@ public class DBOCommunityTeamDAOImplTest {
 	private CommunityTeamDAO communityTeamDAO;
 
 	@Autowired
-	private UserGroupDAO userGroupDAO;
+	private PrincipalDAO userGroupDAO;
 
 	@Autowired
 	private GroupMembersDAO groupMembersDAO;
@@ -71,7 +68,7 @@ public class DBOCommunityTeamDAOImplTest {
 	public void after() throws Exception {
 		if (dboBasicDao != null) {
 			for (Deletable item : toDelete) {
-				if (item.clazz == UserGroup.class) {
+				if (item.clazz == Principal.class) {
 					userGroupDAO.delete("" + item.id);
 				} else {
 					MapSqlParameterSource params = new MapSqlParameterSource("id", item.id);
@@ -87,7 +84,7 @@ public class DBOCommunityTeamDAOImplTest {
 	}
 
 	private String createMember() throws Exception {
-		UserGroup newMember = new UserGroup();
+		Principal newMember = new Principal();
 		newMember.setName("u-" + idGenerator.generateNewId());
 		newMember.setIsIndividual(true);
 		String newMemberId = userGroupDAO.create(newMember);
@@ -96,7 +93,7 @@ public class DBOCommunityTeamDAOImplTest {
 	}
 
 	private DBOTeam createTeam(String... memberIds) throws Exception {
-		UserGroup newGroup = new UserGroup();
+		Principal newGroup = new Principal();
 		newGroup.setName("group-" + idGenerator.generateNewId());
 		String newGroupId = userGroupDAO.create(newGroup);
 
@@ -111,7 +108,7 @@ public class DBOCommunityTeamDAOImplTest {
 		assertNotNull(clone);
 
 		toDelete.add(new Deletable(id, DBOTeam.class));
-		toDelete.add(new Deletable(id, UserGroup.class));
+		toDelete.add(new Deletable(id, Principal.class));
 
 		return clone;
 	}

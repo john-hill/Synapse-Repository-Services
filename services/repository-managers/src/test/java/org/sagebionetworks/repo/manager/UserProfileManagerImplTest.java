@@ -15,7 +15,7 @@ import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.UserProfileDAO;
@@ -41,15 +41,15 @@ public class UserProfileManagerImplTest {
 	private IdGenerator mockIdGenerator;
 	private static final String TEST_USER_NAME = "test-user";
 	
-	private UserGroup individualGroup = null;
+	private Principal individualGroup = null;
 	
 	
 	@Before
 	public void setUp() throws Exception {
 		individualGroup = userGroupDAO.findGroup(TEST_USER_NAME, true);
 		if (individualGroup == null) {
-			individualGroup = new UserGroup();
-			individualGroup.setName(TEST_USER_NAME);
+			individualGroup = new Principal();
+			individualGroup.setPrincipalName(TEST_USER_NAME);
 			individualGroup.setIsIndividual(true);
 			individualGroup.setCreationDate(new Date());
 			userGroupDAO.create(individualGroup);
@@ -62,7 +62,7 @@ public class UserProfileManagerImplTest {
 
 	@After
 	public void tearDown() throws Exception {
-		UserGroup individualGroup = userGroupDAO.findGroup(TEST_USER_NAME, true);
+		Principal individualGroup = userGroupDAO.findGroup(TEST_USER_NAME, true);
 		userGroupDAO.delete(individualGroup.getId());
 		individualGroup = null;
 	}

@@ -8,7 +8,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 import org.sagebionetworks.repo.model.SchemaCache;
 import org.sagebionetworks.repo.model.User;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.UserProfile;
 import org.sagebionetworks.repo.model.attachment.AttachmentData;
@@ -26,7 +26,7 @@ public class UserProfileManagerUtilsTest {
 	@Test
 	public void testIsOwnerOrAdmin() {
 		UserInfo userInfo = new UserInfo(false/*not admin*/);
-		UserGroup individualGroup=new UserGroup();
+		Principal individualGroup=new Principal();
 		individualGroup.setIsIndividual(true);
 		String individualGroupId = "1001";
 		individualGroup.setId(individualGroupId);

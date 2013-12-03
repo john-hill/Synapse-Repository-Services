@@ -19,7 +19,7 @@ import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.MembershipInvtnSubmission;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.dbo.dao.MembershipInvtnSubmissionUtils;
@@ -83,7 +83,7 @@ public class DBOMembershipInvtnSubmissionTest {
 		invitation.setTeamId(team.getId());
 		invitation.setProperties((new String("abcdefg")).getBytes());
 		assertNotNull(userGroupDAO);
-		UserGroup bug = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false);
+		Principal bug = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false);
 		assertNotNull(bug);
 		invitation.setInviteeId(Long.parseLong(bug.getId()));
 		return invitation;

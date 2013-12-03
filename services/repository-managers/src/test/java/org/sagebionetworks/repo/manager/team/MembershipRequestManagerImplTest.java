@@ -26,7 +26,7 @@ import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.PaginatedResults;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.User;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 
 public class MembershipRequestManagerImplTest {
@@ -48,7 +48,7 @@ public class MembershipRequestManagerImplTest {
 				mockMembershipRqstSubmissionDAO
 				);
 		userInfo = new UserInfo(false);
-		UserGroup individualGroup = new UserGroup();
+		Principal individualGroup = new Principal();
 		individualGroup.setId(MEMBER_PRINCIPAL_ID);
 		User user = new User();
 		user.setUserId(MEMBER_PRINCIPAL_ID);
@@ -137,8 +137,8 @@ public class MembershipRequestManagerImplTest {
 	@Test(expected=UnauthorizedException.class)
 	public void testAnonymousCreate() throws Exception {
 		UserInfo anonymousInfo = new UserInfo(false);
-		UserGroup individualGroup = new UserGroup();
-		individualGroup.setName(AuthorizationConstants.ANONYMOUS_USER_ID);
+		Principal individualGroup = new Principal();
+		individualGroup.setPrincipalName(AuthorizationConstants.ANONYMOUS_USER_ID);
 		anonymousInfo.setIndividualGroup(individualGroup);
 		User user = new User();
 		user.setUserId(AuthorizationConstants.ANONYMOUS_USER_ID);

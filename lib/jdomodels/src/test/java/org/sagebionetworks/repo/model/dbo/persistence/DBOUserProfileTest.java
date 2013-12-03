@@ -11,7 +11,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.sagebionetworks.repo.model.DatastoreException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,15 +31,15 @@ public class DBOUserProfileTest {
 	
 	private static final String TEST_USER_NAME = "test-user";
 	
-	private UserGroup individualGroup = null;
+	private Principal individualGroup = null;
 	
 	
 	@Before
 	public void setUp() throws Exception {
 		individualGroup = userGroupDAO.findGroup(TEST_USER_NAME, true);
 		if (individualGroup == null) {
-			individualGroup = new UserGroup();
-			individualGroup.setName(TEST_USER_NAME);
+			individualGroup = new Principal();
+			individualGroup.setPrincipalName(TEST_USER_NAME);
 			individualGroup.setIsIndividual(true);
 			individualGroup.setCreationDate(new Date());
 			individualGroup.setId(userGroupDAO.create(individualGroup));

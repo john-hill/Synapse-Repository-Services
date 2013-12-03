@@ -26,8 +26,9 @@ import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeDAO;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.ResourceAccess;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -53,12 +54,12 @@ public class DBOAccessControlListDAOImplTest {
 	private PrincipalDAO userGroupDAO;
 	
 	private Collection<Node> nodeList = new ArrayList<Node>();
-	private Collection<UserGroup> groupList = new ArrayList<UserGroup>();
+	private Collection<Principal> groupList = new ArrayList<Principal>();
 	private Collection<AccessControlList> aclList = new ArrayList<AccessControlList>();
 
 	private Node node = null;
-	private UserGroup group = null;
-	private UserGroup group2 = null;
+	private Principal group = null;
+	private Principal group2 = null;
 	
 	private Long createdById = null;
 	private Long modifiedById = null;
@@ -88,15 +89,15 @@ public class DBOAccessControlListDAOImplTest {
 		nodeList.add(node);
 		
 		// create a group to give the permissions to
-		group = new UserGroup();
-		group.setName("bar");
+		group = new Principal();
+		group.setPrincipalName("bar");
 		group.setId(userGroupDAO.create(group));
 		assertNotNull(group.getId());
 		groupList.add(group);
 		
 		// Create a second user
-		group2 = new UserGroup();
-		group2.setName("bar2");
+		group2 = new Principal();
+		group2.setPrincipalName("bar2");
 		group2.setId(userGroupDAO.create(group2));
 		assertNotNull(group2.getId());
 		groupList.add(group2);
@@ -149,7 +150,7 @@ public class DBOAccessControlListDAOImplTest {
 		}
 		nodeList.clear();
 		aclList.clear();
-		for (UserGroup g : groupList) {
+		for (Principal g : groupList) {
 			userGroupDAO.delete(g.getId());
 		}
 		groupList.clear();
@@ -187,7 +188,7 @@ public class DBOAccessControlListDAOImplTest {
 	 */
 	@Test
 	public void testCanAccess() throws Exception {
-		Collection<UserGroup> gs = new ArrayList<UserGroup>();
+		Collection<Principal> gs = new ArrayList<Principal>();
 		gs.add(group);
 		
 		// as expressed in 'setUp', 'group' has 'READ' access to 'node'
@@ -197,8 +198,8 @@ public class DBOAccessControlListDAOImplTest {
 		assertFalse(aclDAO.canAccess(gs, node.getId(), ACCESS_TYPE.UPDATE));
 		
 		// and no other group has been given access
-		UserGroup sham = new UserGroup();
-		sham.setName("sham");
+		Principal sham = new Principal();
+		sham.setPrincipalName("sham");
 		sham.setId("-34876387468764"); // dummy
 		gs.clear();
 		gs.add(sham);
@@ -250,7 +251,7 @@ public class DBOAccessControlListDAOImplTest {
 		String etagBeforeUpdate = acl.getEtag();
 		aclDAO.update(acl);
 		
-		Collection<UserGroup> gs = new ArrayList<UserGroup>();
+		Collection<Principal> gs = new ArrayList<Principal>();
 		gs.add(group);
 		assertFalse(aclDAO.canAccess(gs, node.getId(), ACCESS_TYPE.READ));
 		assertTrue(aclDAO.canAccess(gs, node.getId(), ACCESS_TYPE.UPDATE));
@@ -292,9 +293,9 @@ public class DBOAccessControlListDAOImplTest {
 		acl.getResourceAccess().add(ra2);
 		aclDAO.update(acl);
 		
-		Collection<UserGroup> gs = new ArrayList<UserGroup>();
+		Collection<Principal> gs = new ArrayList<Principal>();
 		gs.add(group);
-		Collection<UserGroup> gs2 = new ArrayList<UserGroup>();
+		Collection<Principal> gs2 = new ArrayList<Principal>();
 		gs2.add(group2);
 		assertFalse(aclDAO.canAccess(gs, node.getId(), ACCESS_TYPE.READ));
 		assertTrue(aclDAO.canAccess(gs2, node.getId(), ACCESS_TYPE.READ));

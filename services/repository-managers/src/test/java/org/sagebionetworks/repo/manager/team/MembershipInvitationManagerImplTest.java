@@ -23,7 +23,7 @@ import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.PaginatedResults;
 import org.sagebionetworks.repo.model.QueryResults;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 
 public class MembershipInvitationManagerImplTest {
@@ -63,7 +63,7 @@ public class MembershipInvitationManagerImplTest {
 				mockMembershipInvtnSubmissionDAO
 				);
 		userInfo = new UserInfo(false);
-		UserGroup individualGroup = new UserGroup();
+		Principal individualGroup = new Principal();
 		individualGroup.setId(MEMBER_PRINCIPAL_ID);
 		userInfo.setIndividualGroup(individualGroup);
 		adminInfo = new UserInfo(true);

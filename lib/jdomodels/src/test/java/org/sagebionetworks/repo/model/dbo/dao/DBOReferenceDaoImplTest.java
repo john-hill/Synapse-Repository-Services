@@ -35,7 +35,7 @@ import org.sagebionetworks.repo.model.NodeInheritanceDAO;
 import org.sagebionetworks.repo.model.QueryResults;
 import org.sagebionetworks.repo.model.Reference;
 import org.sagebionetworks.repo.model.ResourceAccess;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
@@ -127,7 +127,7 @@ public class DBOReferenceDaoImplTest {
 		}
 		
 		groupsToDelete = new ArrayList<String>();
-		UserGroup ug = userGroupDAO.findGroup(GROUP_NAME, false);
+		Principal ug = userGroupDAO.findGroup(GROUP_NAME, false);
 		if(ug != null){
 			userGroupDAO.delete(ug.getId());
 		}
@@ -424,8 +424,8 @@ public class DBOReferenceDaoImplTest {
 		assertEquals(expected, justIds(referrers));
 
 		// check authorization
-		UserGroup group = new UserGroup();
-		group.setName(GROUP_NAME);
+		Principal group = new Principal();
+		group.setPrincipalName(GROUP_NAME);
 		String groupId = userGroupDAO.create(group);
 		group.setId(groupId);
 		groupsToDelete.add(groupId);
@@ -453,7 +453,7 @@ public class DBOReferenceDaoImplTest {
 		
 		// add the group to the userInfo
 		userInfo = new UserInfo(false); // not an administrator!
-		Set<UserGroup> userGroups = new HashSet<UserGroup>();
+		Set<Principal> userGroups = new HashSet<Principal>();
 		userGroups.add(group);
 		userInfo.setGroups(userGroups);
 		

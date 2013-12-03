@@ -1,7 +1,7 @@
 package org.sagebionetworks.repo.model.dbo.dao;
 
 import org.sagebionetworks.repo.model.AuthorizationConstants;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 
 public class AuthorizationUtils {
@@ -10,7 +10,7 @@ public class AuthorizationUtils {
 		return isUserAnonymous(userInfo.getIndividualGroup());
 	}
 	
-	public static boolean isUserAnonymous(UserGroup ug) {
+	public static boolean isUserAnonymous(Principal ug) {
 		return isUserAnonymous(ug.getName());
 	}
 	

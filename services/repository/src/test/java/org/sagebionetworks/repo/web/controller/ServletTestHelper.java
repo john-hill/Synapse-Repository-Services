@@ -30,7 +30,7 @@ import org.sagebionetworks.repo.model.QueryResults;
 import org.sagebionetworks.repo.model.Reference;
 import org.sagebionetworks.repo.model.ServiceConstants;
 import org.sagebionetworks.repo.model.ServiceConstants.AttachmentType;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserGroupHeaderResponsePage;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.UserProfile;
@@ -580,7 +580,7 @@ public class ServletTestHelper {
 	/**
 	 * Get the principals
 	 */
-	public static PaginatedResults<UserGroup> getGroups(
+	public static PaginatedResults<Principal> getGroups(
 			HttpServlet dispatchServlet, String username) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.USERGROUP, username, null);
@@ -589,7 +589,7 @@ public class ServletTestHelper {
 				.dispatchRequest(dispatchServlet, request, HttpStatus.OK);
 
 		return ServletTestHelperUtils.readResponsePaginatedResults(response,
-				UserGroup.class);
+				Principal.class);
 	}
 
 	/**

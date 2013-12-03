@@ -37,7 +37,7 @@ import org.sagebionetworks.repo.model.TeamDAO;
 import org.sagebionetworks.repo.model.TeamMember;
 import org.sagebionetworks.repo.model.TeamMembershipStatus;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.dao.AuthorizationUtils;
@@ -211,8 +211,8 @@ public class TeamManagerImpl implements TeamManager {
 		if (userManager.doesPrincipalExist(team.getName())) {
 			throw new NameConflictException("Name "+team.getName()+" is already used.");
 		}
-		UserGroup ug = new UserGroup();
-		ug.setName(team.getName());
+		Principal ug = new Principal();
+		ug.setPrincipalName(team.getName());
 		ug.setIsIndividual(false);
 		String id = userGroupDAO.create(ug);
 		team.setId(id);
@@ -356,8 +356,8 @@ public class TeamManagerImpl implements TeamManager {
 		}
 	}
 	
-	public static boolean userGroupsHasPrincipalId(Collection<UserGroup> userGroups, String principalId) {
-		for (UserGroup ug : userGroups) if (ug.getId().equals(principalId)) return true;
+	public static boolean userGroupsHasPrincipalId(Collection<Principal> userGroups, String principalId) {
+		for (Principal ug : userGroups) if (ug.getId().equals(principalId)) return true;
 		return false;
 	}
 

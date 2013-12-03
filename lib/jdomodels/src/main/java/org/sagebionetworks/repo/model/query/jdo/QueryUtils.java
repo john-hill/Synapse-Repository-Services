@@ -15,7 +15,7 @@ import org.sagebionetworks.repo.model.Annotations;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.NamedAnnotations;
 import org.sagebionetworks.repo.model.NodeQueryResults;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.persistence.DBONode;
 import org.sagebionetworks.repo.model.jdo.AuthorizationSqlUtil;
@@ -82,17 +82,17 @@ public class QueryUtils {
 			return "";
 		}
 		// For all other cases we build up a filter
-		Collection<UserGroup> groups = userInfo.getGroups();
+		Collection<Principal> groups = userInfo.getGroups();
 		if(groups == null) throw new IllegalArgumentException("User's groups cannot be null");
 		if(groups.size() < 1) throw new IllegalArgumentException("User must belong to at least one group");
 		String sql = AuthorizationSqlUtil.authorizationSQL(groups.size());
 		// Bind the variables
 		parameters.put(AuthorizationSqlUtil.ACCESS_TYPE_BIND_VAR, ACCESS_TYPE.READ.name());
 		// Bind each group
-		Iterator<UserGroup> it = groups.iterator();
+		Iterator<Principal> it = groups.iterator();
 		int index = 0;
 		while(it.hasNext()){
-			UserGroup ug = it.next();
+			Principal ug = it.next();
 			if(ug == null) throw new IllegalArgumentException("UserGroup was null");
 			if(ug.getId() == null) throw new IllegalArgumentException("UserGroup.id cannot be null");
 			parameters.put(AuthorizationSqlUtil.BIND_VAR_PREFIX+index, KeyFactory.stringToKey(ug.getId()));

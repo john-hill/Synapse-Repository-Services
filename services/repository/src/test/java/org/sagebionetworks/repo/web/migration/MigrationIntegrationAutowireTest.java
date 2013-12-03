@@ -61,7 +61,7 @@ import org.sagebionetworks.repo.model.Team;
 import org.sagebionetworks.repo.model.TeamDAO;
 import org.sagebionetworks.repo.model.TermsOfUseAccessApproval;
 import org.sagebionetworks.repo.model.TermsOfUseAccessRequirement;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.bootstrap.EntityBootstrapper;
@@ -262,12 +262,12 @@ public class MigrationIntegrationAutowireTest {
 		createV2WikiPages();
 		createDoi();
 		createStorageQuota();
-		UserGroup sampleGroup = createUserGroups(1);
+		Principal sampleGroup = createUserGroups(1);
 		createTeamsRequestsAndInvitations(sampleGroup);
 		createCredentials(sampleGroup);
 		createMessages(sampleGroup, sampleFileHandleId);
 		createColumnModel();
-		UserGroup sampleGroup2 = createUserGroups(2);
+		Principal sampleGroup2 = createUserGroups(2);
 		createCommunity(sampleGroup2);
 	}
 
@@ -538,26 +538,26 @@ public class MigrationIntegrationAutowireTest {
 	}
 	
 	// returns a group for use in a team
-	private UserGroup createUserGroups(int index) throws NotFoundException {
+	private Principal createUserGroups(int index) throws NotFoundException {
 		String groupNamePrefix = "Caravan-" + index;
 		String userNamePrefix = "GoinOnTheOregonTrail" + index + "@";
 		List<String> adder = new ArrayList<String>();
 		
 		// Make one group
-		UserGroup parentGroup = new UserGroup();
+		Principal parentGroup = new Principal();
 		parentGroup.setIsIndividual(false);
-		parentGroup.setName(groupNamePrefix+"1");
+		parentGroup.setPrincipalName(groupNamePrefix+"1");
 		parentGroup.setId(userGroupDAO.create(parentGroup));
 		
 		// Make two users
-		UserGroup parentUser = new UserGroup();
+		Principal parentUser = new Principal();
 		parentUser.setIsIndividual(true);
-		parentUser.setName(userNamePrefix+"1");
+		parentUser.setPrincipalName(userNamePrefix+"1");
 		parentUser.setId(userGroupDAO.create(parentUser));
 		
-		UserGroup siblingUser = new UserGroup();
+		Principal siblingUser = new Principal();
 		siblingUser.setIsIndividual(true);
-		siblingUser.setName(userNamePrefix+"2");
+		siblingUser.setPrincipalName(userNamePrefix+"2");
 		siblingUser.setId(userGroupDAO.create(siblingUser));
 		
 		// Nest one group and two users within the parent group
@@ -568,7 +568,7 @@ public class MigrationIntegrationAutowireTest {
 		return parentGroup;
 	}
 	
-	private void createCredentials(UserGroup group) throws Exception {
+	private void createCredentials(Principal group) throws Exception {
 		String principalId = group.getId();
 		authDAO.changePassword(principalId, "ThisIsMySuperSecurePassword");
 		authDAO.changeSecretKey(principalId);
@@ -576,7 +576,7 @@ public class MigrationIntegrationAutowireTest {
 	}
 	
 	@SuppressWarnings("serial")
-	private void createMessages(final UserGroup group, String fileHandleId) {
+	private void createMessages(final Principal group, String fileHandleId) {
 		MessageToUser dto = new MessageToUser();
 		// Note: ID is auto generated
 		dto.setCreatedBy(group.getId());
@@ -599,7 +599,7 @@ public class MigrationIntegrationAutowireTest {
 		commentDAO.createComment(dto2);
 	}
 	
-	private void createTeamsRequestsAndInvitations(UserGroup group) {
+	private void createTeamsRequestsAndInvitations(Principal group) {
 		Team team = new Team();
 		team.setId(group.getId());
 		team.setName(group.getName());
@@ -615,7 +615,7 @@ public class MigrationIntegrationAutowireTest {
 		mrs.setMessage("Please let me join the team.");
 		mrs.setTeamId(""+group.getId());
 		// need another valid user group
-		UserGroup individUser = userGroupDAO.findGroup(AuthorizationConstants.ANONYMOUS_USER_ID, true);
+		Principal individUser = userGroupDAO.findGroup(AuthorizationConstants.ANONYMOUS_USER_ID, true);
 		mrs.setUserId(individUser.getId());
 		membershipRqstSubmissionDAO.create(mrs);
 		
@@ -634,7 +634,7 @@ public class MigrationIntegrationAutowireTest {
 		membershipInvtnSubmissionDAO.create(mis);
 	}
 
-	private void createCommunity(UserGroup group) throws Exception {
+	private void createCommunity(Principal group) throws Exception {
 		Team team = new Team();
 		team.setId(group.getId());
 		team.setName(group.getName());

@@ -25,7 +25,7 @@ import org.sagebionetworks.repo.model.MembershipRqstSubmission;
 import org.sagebionetworks.repo.model.QueryResults;
 import org.sagebionetworks.repo.model.Team;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
@@ -391,7 +391,7 @@ public class MessageManagerImplTest {
 	public void testSendMessageTo_AUTH_USERS() throws Exception {
 		// Find the ID of the AUTHENTICATED_USERS group
 		String findingAuthUsers = null;
-		for (UserGroup ug : testUser.getGroups()) {
+		for (Principal ug : testUser.getGroups()) {
 			if (ug.getName().equals(DEFAULT_GROUPS.AUTHENTICATED_USERS.toString())) {
 				findingAuthUsers = ug.getId();
 			}

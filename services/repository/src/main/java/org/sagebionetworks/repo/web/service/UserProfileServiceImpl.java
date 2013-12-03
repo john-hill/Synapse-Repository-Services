@@ -33,7 +33,7 @@ import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.PaginatedResults;
 import org.sagebionetworks.repo.model.QueryResults;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserGroupHeader;
 import org.sagebionetworks.repo.model.UserGroupHeaderResponsePage;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -225,9 +225,9 @@ public class UserProfileServiceImpl implements UserProfileService {
 				addToIdCache(tempIdCache, header);
 			}
 		}
-		Collection<UserGroup> userGroups = userManager.getGroups();
+		Collection<Principal> userGroups = userManager.getGroups();
 		this.logger.info("Loaded " + userGroups.size() + " user groups.");
-		for (UserGroup group : userGroups) {
+		for (Principal group : userGroups) {
 			if (group.getName() != null) {
 				header = convertUserGroupToHeader(group);			
 				addToPrefixCache(tempPrefixCache, null, header);
@@ -353,7 +353,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 		return header;
 	}
 
-	private UserGroupHeader convertUserGroupToHeader(UserGroup group) {
+	private UserGroupHeader convertUserGroupToHeader(Principal group) {
 		UserGroupHeader header = new UserGroupHeader();
 		header.setDisplayName(group.getName());
 		header.setOwnerId(group.getId());

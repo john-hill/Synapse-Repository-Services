@@ -18,7 +18,7 @@ import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
 import org.sagebionetworks.repo.model.dao.WikiPageDao;
@@ -48,7 +48,7 @@ public class WikiManagerTest {
 	@Before
 	public void before(){
 		user = new UserInfo(false);
-		user.setIndividualGroup(new UserGroup());
+		user.setIndividualGroup(new Principal());
 		user.getIndividualGroup().setId("987");
 		// setup the mocks
 		mockWikiDao = Mockito.mock(WikiPageDao.class);

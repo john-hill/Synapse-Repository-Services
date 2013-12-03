@@ -18,7 +18,7 @@ import org.sagebionetworks.repo.model.MembershipInvtnSubmissionDAO;
 import org.sagebionetworks.repo.model.MembershipInvitation;
 import org.sagebionetworks.repo.model.Team;
 import org.sagebionetworks.repo.model.TeamDAO;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.dbo.DMLUtils;
 import org.sagebionetworks.repo.model.dbo.FieldColumn;
@@ -67,7 +67,7 @@ public class DBOMembershipInvtnSubmissionDAOImplTest {
 		// create a team
 		Team team = new Team();
 		assertNotNull(userGroupDAO);
-		UserGroup bug = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false);
+		Principal bug = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false);
 		assertNotNull(bug);
 		Long teamId = Long.parseLong(bug.getId());
 		team.setId(""+teamId);
@@ -95,7 +95,7 @@ public class DBOMembershipInvtnSubmissionDAOImplTest {
 		mis.setTeamId(""+teamId);
 		
 		// need another valid user group
-		UserGroup individUser = userGroupDAO.findGroup(AuthorizationConstants.ANONYMOUS_USER_ID, true);
+		Principal individUser = userGroupDAO.findGroup(AuthorizationConstants.ANONYMOUS_USER_ID, true);
 		mis.setInviteeId(individUser.getId());
 		long pgLong = Long.parseLong(individUser.getId());
 		
@@ -131,7 +131,7 @@ public class DBOMembershipInvtnSubmissionDAOImplTest {
 		mis.setTeamId(""+teamId);
 		
 		// need another valid user group
-		UserGroup individUser = userGroupDAO.findGroup(AuthorizationConstants.ANONYMOUS_USER_ID, true);
+		Principal individUser = userGroupDAO.findGroup(AuthorizationConstants.ANONYMOUS_USER_ID, true);
 		mis.setInviteeId(individUser.getId());
 		long pgLong = Long.parseLong(individUser.getId());
 		
@@ -221,7 +221,7 @@ public class DBOMembershipInvtnSubmissionDAOImplTest {
 		mis.setTeamId(""+teamId);
 		
 		// need another valid user group
-		UserGroup individUser = userGroupDAO.findGroup(AuthorizationConstants.ANONYMOUS_USER_ID, true);
+		Principal individUser = userGroupDAO.findGroup(AuthorizationConstants.ANONYMOUS_USER_ID, true);
 		mis.setInviteeId(individUser.getId());
 		long pgLong = Long.parseLong(individUser.getId());
 		

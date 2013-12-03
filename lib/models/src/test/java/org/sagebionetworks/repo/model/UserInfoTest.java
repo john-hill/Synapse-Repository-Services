@@ -33,13 +33,13 @@ public class UserInfoTest {
 		user.setId("101");
 		user.setUserId("myId@idstore.org");
 		info.setUser(user);
-		UserGroup ind = new UserGroup();
+		Principal ind = new Principal();
 		ind.setId("9");
-		ind.setName("one");
+		ind.setPrincipalName("one");
 		info.setIndividualGroup(ind);
-		List<UserGroup> groups = new ArrayList<UserGroup>();
+		List<Principal> groups = new ArrayList<Principal>();
 		// This will have null values
-		groups.add(new UserGroup());
+		groups.add(new Principal());
 		info.setGroups(groups);
 		UserInfo.validateUserInfo(info);
 	}
@@ -51,16 +51,16 @@ public class UserInfoTest {
 		user.setId("101");
 		user.setUserId("myId@idstore.org");
 		info.setUser(user);
-		UserGroup ind = new UserGroup();
+		Principal ind = new Principal();
 		ind.setId("9");
-		ind.setName("one");
+		ind.setPrincipalName("one");
 		ind.setIsIndividual(false);
 		info.setIndividualGroup(ind);
-		List<UserGroup> groups = new ArrayList<UserGroup>();
+		List<Principal> groups = new ArrayList<Principal>();
 		// This will have null values
-		UserGroup group = new UserGroup();
+		Principal group = new Principal();
 		group.setId("0");
-		group.setName("groupies");
+		group.setPrincipalName("groupies");
 		group.setIsIndividual(false);
 		groups.add(group);
 		info.setGroups(groups);

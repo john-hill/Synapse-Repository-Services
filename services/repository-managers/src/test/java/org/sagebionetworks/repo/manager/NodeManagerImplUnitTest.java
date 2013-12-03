@@ -33,7 +33,7 @@ import org.sagebionetworks.repo.model.QueryResults;
 import org.sagebionetworks.repo.model.ReferenceDao;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.User;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.VersionInfo;
 import org.sagebionetworks.repo.model.bootstrap.EntityBootstrapper;
@@ -73,9 +73,9 @@ public class NodeManagerImplUnitTest {
 		nodeManager = new NodeManagerImpl(mockNodeDao, mockAuthManager, mockAclDao, 
 				mockEntityBootstrapper, mockNodeInheritanceManager, mockReferenceDao, mockActivityManager);
 
-		UserGroup userGroup = new UserGroup();
+		Principal userGroup = new Principal();
 		userGroup.setId("2");
-		userGroup.setName("two@foo.bar");
+		userGroup.setPrincipalName("two@foo.bar");
 		userGroup.setIsIndividual(true);
 		User mockUser = new User();
 		mockUser.setId("101");

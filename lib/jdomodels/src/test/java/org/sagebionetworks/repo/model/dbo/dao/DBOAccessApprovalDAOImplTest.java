@@ -30,7 +30,7 @@ import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
 import org.sagebionetworks.repo.model.RestrictableObjectType;
 import org.sagebionetworks.repo.model.TermsOfUseAccessApproval;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.jdo.NodeTestUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,8 +62,8 @@ public class DBOAccessApprovalDAOImplTest {
 	private static final String TEST_USER_NAME = "test-user";
 	private static final String TEST_USER_NAME_2 = "test-user-2";
 	
-	private UserGroup individualGroup = null;
-	private UserGroup individualGroup2 = null;
+	private Principal individualGroup = null;
+	private Principal individualGroup2 = null;
 	private Node node = null;
 	private Node node2 = null;
 	private AccessRequirement accessRequirement = null;
@@ -79,16 +79,16 @@ public class DBOAccessApprovalDAOImplTest {
 	public void setUp() throws Exception {
 		individualGroup = userGroupDAO.findGroup(TEST_USER_NAME, true);
 		if (individualGroup == null) {
-			individualGroup = new UserGroup();
-			individualGroup.setName(TEST_USER_NAME);
+			individualGroup = new Principal();
+			individualGroup.setPrincipalName(TEST_USER_NAME);
 			individualGroup.setIsIndividual(true);
 			individualGroup.setCreationDate(new Date());
 			individualGroup.setId(userGroupDAO.create(individualGroup));
 		}
 		individualGroup2 = userGroupDAO.findGroup(TEST_USER_NAME, true);
 		if (individualGroup2 == null) {
-			individualGroup2 = new UserGroup();
-			individualGroup2.setName(TEST_USER_NAME_2);
+			individualGroup2 = new Principal();
+			individualGroup2.setPrincipalName(TEST_USER_NAME_2);
 			individualGroup2.setIsIndividual(true);
 			individualGroup2.setCreationDate(new Date());
 			individualGroup2.setId(userGroupDAO.create(individualGroup2));
@@ -168,7 +168,7 @@ public class DBOAccessApprovalDAOImplTest {
 		}
 	}
 	
-	public static TermsOfUseAccessApproval newAccessApproval(UserGroup principal, AccessRequirement ar) throws DatastoreException {
+	public static TermsOfUseAccessApproval newAccessApproval(Principal principal, AccessRequirement ar) throws DatastoreException {
 		TermsOfUseAccessApproval accessApproval = new TermsOfUseAccessApproval();
 		accessApproval.setCreatedBy(principal.getId());
 		accessApproval.setCreatedOn(new Date());

@@ -21,7 +21,7 @@ import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.search.SearchDocumentDriver;
 import org.sagebionetworks.repo.model.EntityPath;
 import org.sagebionetworks.repo.model.User;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.search.Hit;
 import org.sagebionetworks.repo.model.search.SearchResults;
@@ -54,8 +54,8 @@ public class SearchServiceImplTest {
 		service= new SearchServiceImpl(mockSearchDao, mockUserManager, mockSearchDocumentDriver);
 		userInfo = new UserInfo(false);
 		userInfo.setUser(new User());
-		userInfo.setGroups(new LinkedList<UserGroup>());
-		UserGroup ug = new UserGroup();
+		userInfo.setGroups(new LinkedList<Principal>());
+		Principal ug = new Principal();
 		ug.setId("999");
 		userInfo.getGroups().add(ug);
 	}

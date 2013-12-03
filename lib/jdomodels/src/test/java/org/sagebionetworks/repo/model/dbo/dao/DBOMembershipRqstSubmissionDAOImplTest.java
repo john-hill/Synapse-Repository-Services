@@ -18,7 +18,7 @@ import org.sagebionetworks.repo.model.MembershipRqstSubmission;
 import org.sagebionetworks.repo.model.MembershipRqstSubmissionDAO;
 import org.sagebionetworks.repo.model.Team;
 import org.sagebionetworks.repo.model.TeamDAO;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -60,7 +60,7 @@ public class DBOMembershipRqstSubmissionDAOImplTest {
 		// create a team
 		Team team = new Team();
 		assertNotNull(userGroupDAO);
-		UserGroup bug = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false);
+		Principal bug = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false);
 		assertNotNull(bug);
 		Long teamId = Long.parseLong(bug.getId());
 		team.setId(""+teamId);
@@ -88,7 +88,7 @@ public class DBOMembershipRqstSubmissionDAOImplTest {
 		mrs.setTeamId(""+teamId);
 		
 		// need another valid user group
-		UserGroup individUser = userGroupDAO.findGroup(AuthorizationConstants.ANONYMOUS_USER_ID, true);
+		Principal individUser = userGroupDAO.findGroup(AuthorizationConstants.ANONYMOUS_USER_ID, true);
 		mrs.setUserId(individUser.getId());
 		
 		mrs = membershipRqstSubmissionDAO.create(mrs);
@@ -172,7 +172,7 @@ public class DBOMembershipRqstSubmissionDAOImplTest {
 		mrs.setTeamId(""+teamId);
 		
 		// need another valid user group
-		UserGroup individUser = userGroupDAO.findGroup(AuthorizationConstants.ANONYMOUS_USER_ID, true);
+		Principal individUser = userGroupDAO.findGroup(AuthorizationConstants.ANONYMOUS_USER_ID, true);
 		mrs.setUserId(individUser.getId());
 		
 		mrs = membershipRqstSubmissionDAO.create(mrs);
@@ -206,7 +206,7 @@ public class DBOMembershipRqstSubmissionDAOImplTest {
 		mrs.setTeamId(""+teamId);
 		
 		// need another valid user group
-		UserGroup individUser = userGroupDAO.findGroup(AuthorizationConstants.ANONYMOUS_USER_ID, true);
+		Principal individUser = userGroupDAO.findGroup(AuthorizationConstants.ANONYMOUS_USER_ID, true);
 		mrs.setUserId(individUser.getId());
 		
 		mrs = membershipRqstSubmissionDAO.create(mrs);

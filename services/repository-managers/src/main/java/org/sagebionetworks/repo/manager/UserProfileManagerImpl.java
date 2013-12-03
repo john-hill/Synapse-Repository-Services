@@ -10,7 +10,7 @@ import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.PaginatedResults;
 import org.sagebionetworks.repo.model.QueryResults;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.UserProfile;
@@ -65,7 +65,7 @@ public class UserProfileManagerImpl implements UserProfileManager {
 		if(ownerId == null) throw new IllegalArgumentException("ownerId can not be null");
 		
 		UserProfile userProfile = userProfileDAO.get(ownerId);
-		UserGroup userGroup = userGroupDAO.get(ownerId);
+		Principal userGroup = userGroupDAO.get(ownerId);
 		if (userGroup != null) {
 			userProfile.setEmail(userGroup.getName());
 			userProfile.setUserName(userGroup.getName());
@@ -79,7 +79,7 @@ public class UserProfileManagerImpl implements UserProfileManager {
 		long totalNumberOfResults = userProfileDAO.getCount();
 		for (UserProfile userProfile : userProfiles) {
 			if (includeEmail) {
-				UserGroup userGroup = userGroupDAO.get(userProfile.getOwnerId());
+				Principal userGroup = userGroupDAO.get(userProfile.getOwnerId());
 				if (userGroup != null)
 					userProfile.setEmail(userGroup.getName());
 			}

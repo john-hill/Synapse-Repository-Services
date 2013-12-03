@@ -31,7 +31,7 @@ import org.sagebionetworks.repo.model.ServiceConstants;
 import org.sagebionetworks.repo.model.Step;
 import org.sagebionetworks.repo.model.Study;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -218,7 +218,7 @@ public class StepControllerTest {
 		AccessControlList projectAcl = testHelper.getEntityACL(project);
 		ResourceAccess ac = new ResourceAccess();
 
-		UserGroup authenticatedUsers = userGroupDAO.findGroup(
+		Principal authenticatedUsers = userGroupDAO.findGroup(
 				AuthorizationConstants.DEFAULT_GROUPS.AUTHENTICATED_USERS.name(), false);
 		assertNotNull(authenticatedUsers);
 		ac.setPrincipalId(Long.parseLong(authenticatedUsers.getId()));

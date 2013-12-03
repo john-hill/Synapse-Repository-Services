@@ -172,8 +172,8 @@ public class CommunityManagerImpl implements CommunityManager {
 
 		// adding the current user to the community as an admin, and the team as a non-admin
 		AccessControlList acl = entityPermissionsManager.getACL(communityId, userInfo);
-		UserGroup authenticatedUsers = userManager.getDefaultUserGroup(DEFAULT_GROUPS.AUTHENTICATED_USERS);
-		UserGroup allUsers = userManager.getDefaultUserGroup(DEFAULT_GROUPS.PUBLIC);
+		Principal authenticatedUsers = userManager.getDefaultUserGroup(DEFAULT_GROUPS.AUTHENTICATED_USERS);
+		Principal allUsers = userManager.getDefaultUserGroup(DEFAULT_GROUPS.PUBLIC);
 		Set<ResourceAccess> raSet = Sets.newHashSet(createResourceAccess(Long.parseLong(allUsers.getId()), ANONYMOUS_PERMISSIONS),
 				createResourceAccess(Long.parseLong(authenticatedUsers.getId()), SIGNEDIN_PERMISSIONS),
 				createResourceAccess(Long.parseLong(team.getId()), COMMUNITY_MEMBER_PERMISSIONS),

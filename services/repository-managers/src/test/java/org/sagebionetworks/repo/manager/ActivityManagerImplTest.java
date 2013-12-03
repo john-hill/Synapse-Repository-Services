@@ -321,7 +321,7 @@ public class ActivityManagerImplTest {
 		Principal userGroup = new Principal();
 		userGroup.setId(userGroupId);
 		userGroup.setIsIndividual(true);
-		userGroup.setName("Admin@sagebase.org");
+		userGroup.setPrincipalName("Admin@sagebase.org");
 		userGroup.setCreationDate(new Date());
 		userInfo.setIndividualGroup(userGroup);
 		User user = new User();

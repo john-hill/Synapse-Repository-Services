@@ -16,7 +16,7 @@ import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.model.OriginatingClient;
 import org.sagebionetworks.repo.model.TermsOfUseException;
 import org.sagebionetworks.repo.model.User;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.LoginCredentials;
 import org.sagebionetworks.repo.model.auth.NewUser;
@@ -46,8 +46,8 @@ public class AuthenticationServiceImplTest {
 		userInfo.setUser(new User());
 		userInfo.getUser().setDisplayName(username);
 		userInfo.getUser().setId("" + userId);
-		userInfo.setIndividualGroup(new UserGroup());
-		userInfo.getIndividualGroup().setName(username);
+		userInfo.setIndividualGroup(new Principal());
+		userInfo.getIndividualGroup().setPrincipalName(username);
 		userInfo.getIndividualGroup().setId("" + userId);
 		
 		mockUserManager = Mockito.mock(UserManager.class);

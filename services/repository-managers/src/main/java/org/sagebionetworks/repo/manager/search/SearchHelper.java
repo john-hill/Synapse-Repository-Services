@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.repo.model.DatastoreException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 
 /**
@@ -34,7 +34,7 @@ public class SearchHelper {
 	 */
 	public static String formulateAuthorizationFilter(UserInfo userInfo)
 			throws DatastoreException {
-		Collection<UserGroup> groups = userInfo.getGroups();
+		Collection<Principal> groups = userInfo.getGroups();
 		if (0 == groups.size()) {
 			// being extra paranoid here, this is unlikely
 			throw new DatastoreException("no groups for user " + userInfo);
@@ -42,7 +42,7 @@ public class SearchHelper {
 
 		// Make our boolean query
 		String authorizationFilter = "";
-		for (UserGroup group : groups) {
+		for (Principal group : groups) {
 			if (0 < authorizationFilter.length()) {
 				authorizationFilter += " ";
 			}

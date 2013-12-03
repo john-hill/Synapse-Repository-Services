@@ -29,7 +29,7 @@ import org.sagebionetworks.repo.model.S3Token;
 import org.sagebionetworks.repo.model.ServiceConstants;
 import org.sagebionetworks.repo.model.Study;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.attachment.PresignedUrl;
 import org.sagebionetworks.repo.model.attachment.S3AttachmentToken;
@@ -53,7 +53,7 @@ public class S3TokenControllerTest {
 	@Autowired
 	PrincipalDAO userGroupDAO;
 
-	private UserGroup testUser;
+	private Principal testUser;
 	private static final String TEST_USER1 = AuthorizationConstants.TEST_USER_NAME;
 	private static final String TEST_USER2 = StackConfiguration.getIntegrationTestUserOneName();
 	private static final String TEST_MD5 = "4053f00b39aae693a6969f37102e2764";
@@ -81,7 +81,7 @@ public class S3TokenControllerTest {
 		// Add a public read ACL to the project object
 		AccessControlList projectAcl = testHelper.getEntityACL(project);
 		ResourceAccess ac = new ResourceAccess();
-		UserGroup authenticatedUsers = userGroupDAO.findGroup(AuthorizationConstants.DEFAULT_GROUPS.AUTHENTICATED_USERS
+		Principal authenticatedUsers = userGroupDAO.findGroup(AuthorizationConstants.DEFAULT_GROUPS.AUTHENTICATED_USERS
 				.name(), false);
 		assertNotNull(authenticatedUsers);
 		ac.setPrincipalId(Long.parseLong(authenticatedUsers.getId()));

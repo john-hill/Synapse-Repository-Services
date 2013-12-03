@@ -11,7 +11,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.sagebionetworks.repo.model.GroupMembersDAO;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -51,8 +51,8 @@ public class DBOGroupMembersDAOImplDeadlockTest {
         // Create all the monkeys
 		monkeyIds = new ArrayList<String>(NUMBER_O_MONKEYS);
         for (int i = 0; i < NUMBER_O_MONKEYS; i++) {
-            UserGroup monkey = new UserGroup();
-            monkey.setName(i + MONKEY_NAME_SUFFIX);
+            Principal monkey = new Principal();
+            monkey.setPrincipalName(i + MONKEY_NAME_SUFFIX);
             monkey.setIsIndividual(true);
             monkeyIds.add(userGroupDAO.create(monkey));
         }
@@ -60,8 +60,8 @@ public class DBOGroupMembersDAOImplDeadlockTest {
         // Create all the barrels
         barrelIds = new ArrayList<String>(NUMBER_O_BARRELS);
         for (int i = 0; i < NUMBER_O_BARRELS; i++) {
-            UserGroup barrel = new UserGroup();
-            barrel.setName(MONKEY_GROUP_PREFIX + i);
+            Principal barrel = new Principal();
+            barrel.setPrincipalName(MONKEY_GROUP_PREFIX + i);
             barrel.setIsIndividual(false);
             barrelIds.add(userGroupDAO.create(barrel));
         }
@@ -154,14 +154,14 @@ public class DBOGroupMembersDAOImplDeadlockTest {
                             groupMembersDAO.addMembers(barrel, memberList);
                             
                             // Check for the barrel
-                            List<UserGroup> funBarrels = groupMembersDAO.getUsersGroups(member);
+                            List<Principal> funBarrels = groupMembersDAO.getUsersGroups(member);
                             if (!checkListForEntry(funBarrels, barrel)) {
                                 racesDetected++;
                             }
                             break;
                             
                         case LEAVE:
-                            List<UserGroup> barrels = groupMembersDAO.getUsersGroups(monkeyId);
+                            List<Principal> barrels = groupMembersDAO.getUsersGroups(monkeyId);
                             if (barrels.size() > 0) {
 	                            barrel = barrels.get(rand.nextInt(barrels.size())).getId();
 	                        	member = monkeyId;
@@ -169,7 +169,7 @@ public class DBOGroupMembersDAOImplDeadlockTest {
 	                            groupMembersDAO.removeMembers(barrel, memberList);
 	                            
 	                            // Check for the barrel
-	                            List<UserGroup> boringBarrels = groupMembersDAO.getUsersGroups(member);
+	                            List<Principal> boringBarrels = groupMembersDAO.getUsersGroups(member);
 	                            if (checkListForEntry(boringBarrels, barrel)) {
 	                                racesDetected++;
 	                            }
@@ -203,9 +203,9 @@ public class DBOGroupMembersDAOImplDeadlockTest {
         }
     }
 
-    private boolean checkListForEntry(List<UserGroup> ugs, String entry) {
+    private boolean checkListForEntry(List<Principal> ugs, String entry) {
         boolean detected = false;
-        for (UserGroup ug : ugs) {
+        for (Principal ug : ugs) {
             if (ug.getId().equals(entry)) {
                 detected = true;
                 break;

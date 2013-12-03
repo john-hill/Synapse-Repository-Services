@@ -16,7 +16,7 @@ import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_GROUPS;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.ResourceAccess;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -57,7 +57,7 @@ public class EntityBootstrapperUnitTest {
 		
 		AccessBootstrapData data = new AccessBootstrapData();
 
-		UserGroup authenticatedUsers = userGroupDAO.findGroup(DEFAULT_GROUPS.AUTHENTICATED_USERS.name(), false);
+		Principal authenticatedUsers = userGroupDAO.findGroup(DEFAULT_GROUPS.AUTHENTICATED_USERS.name(), false);
 		assertNotNull(authenticatedUsers);
 
 		data.setGroupId(Long.parseLong(authenticatedUsers.getId()));
@@ -68,7 +68,7 @@ public class EntityBootstrapperUnitTest {
 		list.add(data);
 		
 		data = new AccessBootstrapData();
-		UserGroup publicUsers = userGroupDAO.findGroup(DEFAULT_GROUPS.PUBLIC.name(), false);
+		Principal publicUsers = userGroupDAO.findGroup(DEFAULT_GROUPS.PUBLIC.name(), false);
 		assertNotNull(publicUsers);
 
 		data.setGroupId(Long.parseLong(publicUsers.getId()));

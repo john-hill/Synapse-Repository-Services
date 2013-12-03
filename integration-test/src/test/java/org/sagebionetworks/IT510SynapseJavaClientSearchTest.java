@@ -25,7 +25,7 @@ import org.sagebionetworks.client.exceptions.SynapseException;
 import org.sagebionetworks.repo.model.Data;
 import org.sagebionetworks.repo.model.PaginatedResults;
 import org.sagebionetworks.repo.model.Project;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserProfile;
 import org.sagebionetworks.repo.model.search.Hit;
 import org.sagebionetworks.repo.model.search.SearchResults;
@@ -378,11 +378,11 @@ public class IT510SynapseJavaClientSearchTest {
 	}
 	
 	private static String getGroupPrincipalIdFromGroupName(String groupName) throws SynapseException {
-		PaginatedResults<UserGroup> paginated = synapse.getGroups(0,100);
+		PaginatedResults<Principal> paginated = synapse.getGroups(0,100);
 		int total = (int)paginated.getTotalNumberOfResults();
-		List<UserGroup> groups = paginated.getResults();
+		List<Principal> groups = paginated.getResults();
 		if (groups.size()<total) throw new RuntimeException("System has "+total+" total users but we've only retrieved "+groups.size());
-		for (UserGroup group : groups) {
+		for (Principal group : groups) {
 			if (group.getName().equalsIgnoreCase(groupName)) return group.getId();
 		}
 		throw new RuntimeException("Cannot find "+groupName+" among groups.");

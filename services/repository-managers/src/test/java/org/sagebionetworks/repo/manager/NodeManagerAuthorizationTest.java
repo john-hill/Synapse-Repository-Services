@@ -20,7 +20,7 @@ import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.User;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.bootstrap.EntityBootstrapper;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -40,7 +40,7 @@ public class NodeManagerAuthorizationTest {
 	private Annotations mockAnnotations;
 	private NamedAnnotations mockNamed;
 	private User mockUser;
-	private UserGroup mockUserGroup;
+	private Principal mockUserGroup;
 	private UserInfo mockUserInfo;	
 	private EntityBootstrapper mockEntityBootstrapper;
 	private NodeInheritanceManager mockInheritanceManager;
@@ -70,7 +70,7 @@ public class NodeManagerAuthorizationTest {
 		when(mockUser.getId()).thenReturn("12");
 		when(mockUser.getUserId()).thenReturn("Max");
 		// UserGroup
-		mockUserGroup = Mockito.mock(UserGroup.class);
+		mockUserGroup = Mockito.mock(Principal.class);
 		when(mockUserGroup.getId()).thenReturn("123");
 		when(mockUserGroup.getName()).thenReturn("GroupNameAlpha");
 		mockUserInfo = Mockito.mock(UserInfo.class);

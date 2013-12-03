@@ -6,7 +6,7 @@ import java.util.List;
 import org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_GROUPS;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -34,12 +34,12 @@ public interface UserManager {
 	/**
 	 * Get a default group
 	 */
-	public UserGroup getDefaultUserGroup(DEFAULT_GROUPS group) throws DatastoreException;
+	public Principal getDefaultUserGroup(DEFAULT_GROUPS group) throws DatastoreException;
 
 	/**
 	 * Find a group
 	 */
-	public UserGroup findGroup(String name, boolean b) throws DatastoreException;
+	public Principal findGroup(String name, boolean b) throws DatastoreException;
 	
 	/**
 	 * Creates a new user
@@ -75,10 +75,10 @@ public interface UserManager {
 	/**
 	 * Get all non-individual user groups, including Public.
 	 */
-	public Collection<UserGroup> getGroups() throws DatastoreException;
+	public Collection<Principal> getGroups() throws DatastoreException;
 
 	/**
 	 * Get non-individual user groups (including Public) in range
 	 **/
-	public List<UserGroup> getGroupsInRange(UserInfo userInfo, long startIncl, long endExcl, String sort, boolean ascending) throws DatastoreException, UnauthorizedException;
+	public List<Principal> getGroupsInRange(UserInfo userInfo, long startIncl, long endExcl, String sort, boolean ascending) throws DatastoreException, UnauthorizedException;
 }

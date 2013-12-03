@@ -13,7 +13,7 @@ import org.sagebionetworks.repo.model.MessageDAO;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.QueryResults;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.message.MessageBundle;
@@ -52,7 +52,7 @@ public class MessageManagerImpl implements MessageManager {
 		// Get the user's ID and the user's groups' IDs
 		String userId = userInfo.getIndividualGroup().getId();
 		Set<String> userGroups = new HashSet<String>();
-		for (UserGroup ug : userInfo.getGroups()) {
+		for (Principal ug : userInfo.getGroups()) {
 			userGroups.add(ug.getId());
 		}
 		userGroups.add(userId);
@@ -87,7 +87,7 @@ public class MessageManagerImpl implements MessageManager {
 		// If the recipient list is only one element long, 
 		// process and send the message in this transaction 
 		if (dto.getRecipients().size() == 1) {
-			UserGroup ug;
+			Principal ug;
 			try {
 				ug = userGroupDAO.get(dto.getRecipients().iterator().next());
 			} catch (NotFoundException e) {
@@ -182,7 +182,7 @@ public class MessageManagerImpl implements MessageManager {
 		// From the list of intended recipients, filter out the un-permitted recipients
 		Set<String> recipients = new HashSet<String>();
 		for (String principalId : dto.getRecipients()) {
-			UserGroup ug;
+			Principal ug;
 			try {
 				ug = userGroupDAO.get(principalId);
 			} catch (NotFoundException e) {
@@ -203,7 +203,7 @@ public class MessageManagerImpl implements MessageManager {
 				recipients.add(principalId);
 			} else {
 				// Expand non-individuals into individuals
-				for (UserGroup member : groupMembersDAO.getMembers(principalId)) {
+				for (Principal member : groupMembersDAO.getMembers(principalId)) {
 					recipients.add(member.getId());
 				}
 			}

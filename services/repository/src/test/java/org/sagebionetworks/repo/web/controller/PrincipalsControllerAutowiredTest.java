@@ -21,7 +21,7 @@ import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.PaginatedResults;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.UserProfile;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -107,11 +107,11 @@ public class PrincipalsControllerAutowiredTest {
 	
 	@Test
 	public void testGetGroups() throws Exception {
-		PaginatedResults<UserGroup> ugs = ServletTestHelper.getGroups(dispatchServlet, userName);
+		PaginatedResults<Principal> ugs = ServletTestHelper.getGroups(dispatchServlet, userName);
 		assertNotNull(ugs);
 		boolean foundPublic = false;
 		boolean foundAdmin = false;
-		for (UserGroup ug : ugs.getResults()) {
+		for (Principal ug : ugs.getResults()) {
 			if (ug.getName().equals(AuthorizationConstants.PUBLIC_GROUP_NAME)) foundPublic=true;
 			if (ug.getName().equals(AuthorizationConstants.ADMIN_GROUP_NAME)) foundAdmin=true;
 			assertTrue(ug.toString(), !ug.getIsIndividual());

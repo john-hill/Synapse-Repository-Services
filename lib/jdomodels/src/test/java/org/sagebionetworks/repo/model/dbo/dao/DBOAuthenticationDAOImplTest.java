@@ -20,7 +20,7 @@ import org.junit.runner.RunWith;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.model.AuthenticationDAO;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserGroupInt;
 import org.sagebionetworks.repo.model.auth.Session;
@@ -59,10 +59,10 @@ public class DBOAuthenticationDAOImplTest {
 		groupsToDelete = new ArrayList<String>();
 		
 		// Initialize a UserGroup
-		UserGroup ug = userGroupDAO.findGroup(GROUP_NAME, true);
+		Principal ug = userGroupDAO.findGroup(GROUP_NAME, true);
 		if (ug == null) {
-			ug = new UserGroup();
-			ug.setName(GROUP_NAME);
+			ug = new Principal();
+			ug.setPrincipalName(GROUP_NAME);
 			ug.setIsIndividual(true);
 			ug.setId(userGroupDAO.create(ug));
 		}

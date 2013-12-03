@@ -20,7 +20,7 @@ import org.sagebionetworks.repo.model.FavoriteDAO;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.User;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.UserProfile;
@@ -45,7 +45,7 @@ public class UserProfileManagerImplUnitTest {
 	UserProfileManager userProfileManager;
 	
 	UserInfo userInfo;
-	UserGroup user;
+	Principal user;
 	UserInfo adminUserInfo;
 	UserProfile userProfile;
 	S3AttachmentToken testToken;
@@ -64,9 +64,9 @@ public class UserProfileManagerImplUnitTest {
 		mockAttachmentManager = Mockito.mock(AttachmentManager.class);
 		userProfileManager = new UserProfileManagerImpl(mockProfileDAO, mockUserGroupDAO, mockS3TokenManager, mockFavoriteDAO, mockAttachmentManager);
 		
-		user = new UserGroup();
+		user = new Principal();
 		user.setId("111");
-		user.setName(TEST_USER_NAME);
+		user.setPrincipalName(TEST_USER_NAME);
 		user.setIsIndividual(true);
 		
 		userInfo = new UserInfo(false);
@@ -162,7 +162,7 @@ public class UserProfileManagerImplUnitTest {
 		String profileId = "132";
 		
 		UserInfo userInfo2 = new UserInfo(false);
-		UserGroup user2 = new UserGroup();
+		Principal user2 = new Principal();
 		user2.setId("222");
 		
 		String userId = userInfo.getIndividualGroup().getId();

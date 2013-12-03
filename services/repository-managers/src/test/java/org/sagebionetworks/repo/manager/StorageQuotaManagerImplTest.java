@@ -10,7 +10,7 @@ import static org.mockito.Matchers.any;
 import org.junit.Test;
 import org.sagebionetworks.repo.model.StorageQuotaDao;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.storage.StorageQuota;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -22,11 +22,11 @@ public class StorageQuotaManagerImplTest {
 
 		UserInfo currUser = mock(UserInfo.class);
 		when(currUser.isAdmin()).thenReturn(false);
-		UserGroup currUserGroup = mock(UserGroup.class);
+		Principal currUserGroup = mock(Principal.class);
 		when(currUserGroup.getId()).thenReturn("1");
 		when(currUser.getIndividualGroup()).thenReturn(currUserGroup);
 		UserInfo user = mock(UserInfo.class);
-		UserGroup userGroup = mock(UserGroup.class);
+		Principal userGroup = mock(Principal.class);
 		when(userGroup.getId()).thenReturn("1");
 		when(user.getIndividualGroup()).thenReturn(userGroup);
 
@@ -45,11 +45,11 @@ public class StorageQuotaManagerImplTest {
 
 		UserInfo currUser = mock(UserInfo.class);
 		when(currUser.isAdmin()).thenReturn(false);
-		UserGroup currUserGroup = mock(UserGroup.class);
+		Principal currUserGroup = mock(Principal.class);
 		when(currUserGroup.getId()).thenReturn("1");
 		when(currUser.getIndividualGroup()).thenReturn(currUserGroup);
 		UserInfo user = mock(UserInfo.class);
-		UserGroup userGroup = mock(UserGroup.class);
+		Principal userGroup = mock(Principal.class);
 		when(userGroup.getId()).thenReturn("1");
 		when(user.getIndividualGroup()).thenReturn(userGroup);
 
@@ -66,11 +66,11 @@ public class StorageQuotaManagerImplTest {
 
 		UserInfo currUser = mock(UserInfo.class);
 		when(currUser.isAdmin()).thenReturn(true);
-		UserGroup currUserGroup = mock(UserGroup.class);
+		Principal currUserGroup = mock(Principal.class);
 		when(currUserGroup.getId()).thenReturn("1");
 		when(currUser.getIndividualGroup()).thenReturn(currUserGroup);
 		UserInfo user = mock(UserInfo.class);
-		UserGroup userGroup = mock(UserGroup.class);
+		Principal userGroup = mock(Principal.class);
 		when(userGroup.getId()).thenReturn("1");
 		when(user.getIndividualGroup()).thenReturn(userGroup);
 
@@ -94,11 +94,11 @@ public class StorageQuotaManagerImplTest {
 	public void testGetQuotaUnauthorizedException2() {
 		UserInfo currUser = mock(UserInfo.class);
 		when(currUser.isAdmin()).thenReturn(false);
-		UserGroup currUserGroup = mock(UserGroup.class);
+		Principal currUserGroup = mock(Principal.class);
 		when(currUserGroup.getId()).thenReturn("1");
 		when(currUser.getIndividualGroup()).thenReturn(currUserGroup);
 		UserInfo user = mock(UserInfo.class);
-		UserGroup userGroup = mock(UserGroup.class);
+		Principal userGroup = mock(Principal.class);
 		when(userGroup.getId()).thenReturn("2");
 		when(user.getIndividualGroup()).thenReturn(userGroup);
 		StorageQuotaManager manager = new StorageQuotaManagerImpl();

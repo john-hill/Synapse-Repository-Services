@@ -13,7 +13,7 @@ import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.storage.StorageUsageDimension;
 import org.sagebionetworks.repo.model.storage.StorageUsageSummaryList;
@@ -37,7 +37,7 @@ public class StorageUsageServiceImplTest {
 	@Before
 	public void before() throws Exception {
 
-		UserGroup userGroup = Mockito.mock(UserGroup.class);
+		Principal userGroup = Mockito.mock(Principal.class);
 		Mockito.when(userGroup.getId()).thenReturn("0");
 
 		UserInfo userInfo = Mockito.mock(UserInfo.class);

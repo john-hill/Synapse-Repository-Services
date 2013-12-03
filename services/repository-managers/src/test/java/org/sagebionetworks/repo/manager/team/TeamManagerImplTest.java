@@ -45,7 +45,7 @@ import org.sagebionetworks.repo.model.TeamMember;
 import org.sagebionetworks.repo.model.TeamMembershipStatus;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.User;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserGroupHeader;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -98,13 +98,13 @@ public class TeamManagerImplTest {
 	
 	private static UserInfo createUserInfo(boolean isAdmin, String principalId) {
 		UserInfo userInfo = new UserInfo(isAdmin);
-		UserGroup individualGroup = new UserGroup();
+		Principal individualGroup = new Principal();
 		individualGroup.setId(principalId);
 		User user = new User();
 		user.setUserId(principalId);
 		userInfo.setUser(user);
 		userInfo.setIndividualGroup(individualGroup);
-		userInfo.setGroups(Arrays.asList(new UserGroup[]{individualGroup}));
+		userInfo.setGroups(Arrays.asList(new Principal[]{individualGroup}));
 		return userInfo;
 	}
 	
@@ -245,7 +245,7 @@ public class TeamManagerImplTest {
 		Team team = createTeam(null, "name", "description", null, "101", null, null, null, null);
 		when(mockTeamDAO.create(team)).thenReturn(team);
 		// mock userGroupDAO
-		when(mockUserGroupDAO.create(any(UserGroup.class))).thenReturn(TEAM_ID);
+		when(mockUserGroupDAO.create(any(Principal.class))).thenReturn(TEAM_ID);
 		Team created = teamManagerImpl.create(userInfo,team);
 		assertEquals(team, created);
 		// verify that group, acl were created
@@ -357,7 +357,7 @@ public class TeamManagerImplTest {
 		accessTypes.add(ACCESS_TYPE.DOWNLOAD);
 		accessTypes.add(ACCESS_TYPE.PARTICIPATE);
 		Set<Long> principalIds = new HashSet<Long>();
-		for (UserGroup ug : userInfo.getGroups()) {
+		for (Principal ug : userInfo.getGroups()) {
 			principalIds.add(Long.parseLong(ug.getId()));
 		}
 		when(mockAccessRequirementDAO.unmetAccessRequirements(rod, principalIds, accessTypes)).thenReturn(unmetAccessRequirementIds);		
@@ -493,9 +493,9 @@ public class TeamManagerImplTest {
 		when(mockMembershipRqstSubmissionDAO.getOpenByTeamAndRequesterCount(eq(Long.parseLong(TEAM_ID)), eq(Long.parseLong(principalId)), anyLong())).thenReturn(1L);
 		when(mockAclDAO.get(TEAM_ID, ObjectType.TEAM)).
 			thenReturn(TeamManagerImpl.createInitialAcl(userInfo, TEAM_ID, new Date()));
-		UserGroup ug = new UserGroup();
+		Principal ug = new Principal();
 		ug.setId(principalId);
-		when(mockGroupMembersDAO.getMembers(TEAM_ID)).thenReturn(Arrays.asList(new UserGroup[]{ug}));
+		when(mockGroupMembersDAO.getMembers(TEAM_ID)).thenReturn(Arrays.asList(new Principal[]{ug}));
 		teamManagerImpl.addMember(userInfo, TEAM_ID, principalUserInfo);
 		verify(mockGroupMembersDAO, times(0)).addMembers(TEAM_ID, Arrays.asList(new String[]{principalId}));
 		verify(mockMembershipInvtnSubmissionDAO).deleteByTeamAndUser(Long.parseLong(TEAM_ID), Long.parseLong(principalId));
@@ -521,9 +521,9 @@ public class TeamManagerImplTest {
 	public void testRemoveMember() throws Exception {
 		String memberPrincipalId = "987";
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)).thenReturn(true);
-		UserGroup ug = new UserGroup();
+		Principal ug = new Principal();
 		ug.setId(memberPrincipalId);
-		when(mockGroupMembersDAO.getMembers(TEAM_ID)).thenReturn(Arrays.asList(new UserGroup[]{ug}));
+		when(mockGroupMembersDAO.getMembers(TEAM_ID)).thenReturn(Arrays.asList(new Principal[]{ug}));
 		AccessControlList acl = new AccessControlList();
 		acl.setResourceAccess(new HashSet<ResourceAccess>());
 		ResourceAccess ra = new ResourceAccess();
@@ -547,7 +547,7 @@ public class TeamManagerImplTest {
 	public void testRemoveMemberNotInTeam() throws Exception {
 		String memberPrincipalId = "987";
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)).thenReturn(true);
-		when(mockGroupMembersDAO.getMembers(TEAM_ID)).thenReturn(Arrays.asList(new UserGroup[]{}));
+		when(mockGroupMembersDAO.getMembers(TEAM_ID)).thenReturn(Arrays.asList(new Principal[]{}));
 		AccessControlList acl = new AccessControlList();
 		acl.setResourceAccess(new HashSet<ResourceAccess>());
 		when(mockAclDAO.get(TEAM_ID, ObjectType.TEAM)).thenReturn(acl);
@@ -684,9 +684,9 @@ public class TeamManagerImplTest {
 		
 		String principalId = MEMBER_PRINCIPAL_ID;
 		UserInfo principalUserInfo = createUserInfo(false, principalId);
-		UserGroup ug = new UserGroup();
+		Principal ug = new Principal();
 		ug.setId(principalId);
-		when(mockGroupMembersDAO.getMembers(TEAM_ID)).thenReturn(Arrays.asList(new UserGroup[]{ug}));
+		when(mockGroupMembersDAO.getMembers(TEAM_ID)).thenReturn(Arrays.asList(new Principal[]{ug}));
 		
 		when(mockMembershipInvtnSubmissionDAO.getOpenByTeamAndUserCount(eq(Long.parseLong(TEAM_ID)), eq(Long.parseLong(MEMBER_PRINCIPAL_ID)), anyLong())).thenReturn(1L);
 		when(mockMembershipRqstSubmissionDAO.getOpenByTeamAndRequesterCount(eq(Long.parseLong(TEAM_ID)), eq(Long.parseLong(MEMBER_PRINCIPAL_ID)), anyLong())).thenReturn(1L);
@@ -701,7 +701,7 @@ public class TeamManagerImplTest {
 		assertTrue(tms.getMembershipApprovalRequired());
 		assertFalse(tms.getHasUnmetAccessRequirement());
 		
-		when(mockGroupMembersDAO.getMembers(TEAM_ID)).thenReturn(Arrays.asList(new UserGroup[]{}));
+		when(mockGroupMembersDAO.getMembers(TEAM_ID)).thenReturn(Arrays.asList(new Principal[]{}));
 		when(mockMembershipInvtnSubmissionDAO.getOpenByTeamAndUserCount(eq(Long.parseLong(TEAM_ID)), eq(Long.parseLong(MEMBER_PRINCIPAL_ID)), anyLong())).thenReturn(0L);
 		when(mockMembershipRqstSubmissionDAO.getOpenByTeamAndRequesterCount(eq(Long.parseLong(TEAM_ID)), eq(Long.parseLong(MEMBER_PRINCIPAL_ID)), anyLong())).thenReturn(0L);
 		tms = teamManagerImpl.getTeamMembershipStatus(userInfo, TEAM_ID, principalUserInfo);

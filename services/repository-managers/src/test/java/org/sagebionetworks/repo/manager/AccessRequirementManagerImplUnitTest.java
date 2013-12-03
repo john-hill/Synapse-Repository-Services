@@ -22,7 +22,7 @@ import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
 import org.sagebionetworks.repo.model.RestrictableObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.util.jrjc.JiraClient;
 
@@ -54,7 +54,7 @@ public class AccessRequirementManagerImplUnitTest {
 		jiraClient = Mockito.mock(JiraClient.class);
 		arm = new AccessRequirementManagerImpl(accessRequirementDAO, authorizationManager, jiraClient);
 		userInfo = new UserInfo(false);
-		UserGroup individualGroup = new UserGroup();
+		Principal individualGroup = new Principal();
 		individualGroup.setId(TEST_PRINCIPAL_ID);
 		userInfo.setIndividualGroup(individualGroup);
 		Project sgProject;

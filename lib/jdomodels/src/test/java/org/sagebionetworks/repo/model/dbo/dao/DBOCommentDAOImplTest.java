@@ -13,7 +13,7 @@ import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.CommentDAO;
 import org.sagebionetworks.repo.model.MessageDAO;
 import org.sagebionetworks.repo.model.ObjectType;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
@@ -39,7 +39,7 @@ public class DBOCommentDAOImplTest {
 	private FileHandleDao fileDAO;
 	
 	private String fileHandleId;	
-	private UserGroup maliciousUser;
+	private Principal maliciousUser;
 	
 	private List<String> cleanup;
 	

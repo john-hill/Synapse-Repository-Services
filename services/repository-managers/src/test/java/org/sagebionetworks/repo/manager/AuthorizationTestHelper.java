@@ -5,8 +5,9 @@ import java.util.Set;
 
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.ResourceAccess;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 
 public class AuthorizationTestHelper {
 	/**
@@ -17,7 +18,7 @@ public class AuthorizationTestHelper {
 	 * @return
 	 * @throws Exception
 	 */
-	public static AccessControlList addToACL(AccessControlList acl, UserGroup ug, ACCESS_TYPE at) throws Exception {
+	public static AccessControlList addToACL(AccessControlList acl, Principal ug, ACCESS_TYPE at) throws Exception {
 		Set<ResourceAccess> ras = null;
 		if (acl.getResourceAccess()==null) {
 			ras = new HashSet<ResourceAccess>();

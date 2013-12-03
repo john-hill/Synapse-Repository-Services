@@ -59,15 +59,11 @@ public class DBOGroupMembersDAOImpl implements GroupMembersDAO {
 	
 	@Override
 	public List<Principal> getMembers(String principalId) 
-			throws DatastoreException, NotFoundException {
-		List<Principal> members = new ArrayList<Principal>();
-		
+			throws DatastoreException, NotFoundException {		
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(PRINCIPAL_ID_PARAM_NAME, principalId);
 		List<DBOPrincipal> dbos = simpleJdbcTemplate.query(SELECT_DIRECT_MEMBERS_OF_GROUP, userGroupRowMapper, param);
-		
-		PrincipalUtils.copyDboToDto(dbos, members);
-		return members;
+		return PrincipalUtils.createDTOs(dbos);
 	}
 
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
@@ -142,14 +138,11 @@ public class DBOGroupMembersDAOImpl implements GroupMembersDAO {
 	@Override
 	public List<Principal> getUsersGroups(String principalId)
 			throws DatastoreException, NotFoundException {
-		List<Principal> members = new ArrayList<Principal>();
 		
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(PRINCIPAL_ID_PARAM_NAME, principalId);
 		List<DBOPrincipal> dbos = simpleJdbcTemplate.query(SELECT_DIRECT_PARENTS_OF_GROUP, userGroupRowMapper, param);
-		
-		PrincipalUtils.copyDboToDto(dbos, members);
-		return members;
+		return PrincipalUtils.createDTOs(dbos);
 	}
 	
 	/**

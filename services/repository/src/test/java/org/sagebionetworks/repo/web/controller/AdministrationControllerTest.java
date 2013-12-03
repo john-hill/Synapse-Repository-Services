@@ -153,7 +153,7 @@ public class AdministrationControllerTest {
 		assertEquals(StatusEnum.READ_WRITE, status.getStatus());
 		// Make sure we can update the status
 		status.setPendingMaintenanceMessage("AdministrationControllerTest.testUpdateStatus");
-		StackStatus back = ServletTestHelper.updateStackStatus(dispatchServlet, adminUserInfo.getIndividualGroup().getName(), status);
+		StackStatus back = ServletTestHelper.updateStackStatus(dispatchServlet, adminUserInfo.getIndividualGroup().getPrincipalName(), status);
 		assertEquals(status, back);
 	}
 	
@@ -163,7 +163,7 @@ public class AdministrationControllerTest {
 		StackStatus setDown = new StackStatus();
 		setDown.setStatus(StatusEnum.DOWN);
 		setDown.setCurrentMessage("Synapse is going down for a test: AdministrationControllerTest.testGetStatusWhenDown");
-		StackStatus back = ServletTestHelper.updateStackStatus(dispatchServlet, adminUserInfo.getIndividualGroup().getName(), setDown);
+		StackStatus back = ServletTestHelper.updateStackStatus(dispatchServlet, adminUserInfo.getIndividualGroup().getPrincipalName(), setDown);
 		assertEquals(setDown, back);
 		// Make sure we can still get the status
 		StackStatus current = ServletTestHelper.getStackStatus(dispatchServlet);
@@ -172,7 +172,7 @@ public class AdministrationControllerTest {
 		// Now make sure we can turn it back on when down.
 		setDown.setStatus(StatusEnum.READ_WRITE);
 		setDown.setCurrentMessage(null);
-		back = ServletTestHelper.updateStackStatus(dispatchServlet, adminUserInfo.getIndividualGroup().getName(), setDown);
+		back = ServletTestHelper.updateStackStatus(dispatchServlet, adminUserInfo.getIndividualGroup().getPrincipalName(), setDown);
 		assertEquals(setDown, back);
 	}
 
@@ -189,7 +189,7 @@ public class AdministrationControllerTest {
 		extraParams.put("limit", "5");
 		
 		PaginatedResults<WikiMigrationResult> results = 
-			ServletTestHelper.migrateWikisToV2(dispatchServlet, adminUserInfo.getIndividualGroup().getName(), extraParams);
+			ServletTestHelper.migrateWikisToV2(dispatchServlet, adminUserInfo.getIndividualGroup().getPrincipalName(), extraParams);
 		assertEquals(2, results.getResults().size());
 	}
 	

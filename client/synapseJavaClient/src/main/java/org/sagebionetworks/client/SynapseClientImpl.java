@@ -76,7 +76,7 @@ import org.sagebionetworks.repo.model.Team;
 import org.sagebionetworks.repo.model.TeamMember;
 import org.sagebionetworks.repo.model.TeamMembershipStatus;
 import org.sagebionetworks.repo.model.TrashedEntity;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserGroupHeaderResponsePage;
 import org.sagebionetworks.repo.model.UserProfile;
 import org.sagebionetworks.repo.model.UserSessionData;
@@ -951,11 +951,11 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	}
 
 	@Override
-	public PaginatedResults<UserGroup> getGroups(int offset, int limit) throws SynapseException {
+	public PaginatedResults<Principal> getGroups(int offset, int limit) throws SynapseException {
 		String uri = "/userGroup?"+OFFSET+"="+offset+"&limit="+limit;
 		JSONObject jsonUsers = getEntity(uri);
 		JSONObjectAdapter adapter = new JSONObjectAdapterImpl(jsonUsers);
-		PaginatedResults<UserGroup> results = new PaginatedResults<UserGroup>(UserGroup.class);
+		PaginatedResults<Principal> results = new PaginatedResults<Principal>(Principal.class);
 		try {
 			results.initializeFromJSONObject(adapter);
 			return results;
@@ -3299,8 +3299,8 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 		for(UserProfile up : pr.getResults()){
 			ids.add(up.getOwnerId());
 		}
-		PaginatedResults<UserGroup> groupPr = this.getGroups(0, Integer.MAX_VALUE);
-		for(UserGroup ug : groupPr.getResults()){
+		PaginatedResults<Principal> groupPr = this.getGroups(0, Integer.MAX_VALUE);
+		for(Principal ug : groupPr.getResults()){
 			ids.add(ug.getId());
 		}
 		return ids;

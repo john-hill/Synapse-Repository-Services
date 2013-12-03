@@ -14,7 +14,7 @@ import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeDAO;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.jdo.NodeTestUtils;
@@ -41,7 +41,7 @@ public class DBOAccessApprovalTest {
 	private static final String TEST_USER_NAME = "test-user";
 	
 	private Node node = null;
-	private UserGroup individualGroup = null;
+	private Principal individualGroup = null;
 	private DBOAccessRequirement ar = null;
 	private DBOAccessApproval accessApproval = null;
 	
@@ -50,8 +50,8 @@ public class DBOAccessApprovalTest {
 	public void setUp() throws Exception {
 		individualGroup = userGroupDAO.findGroup(TEST_USER_NAME, true);
 		if (individualGroup == null) {
-			individualGroup = new UserGroup();
-			individualGroup.setName(TEST_USER_NAME);
+			individualGroup = new Principal();
+			individualGroup.setPrincipalName(TEST_USER_NAME);
 			individualGroup.setIsIndividual(true);
 			individualGroup.setCreationDate(new Date());
 			individualGroup.setId(userGroupDAO.create(individualGroup));
@@ -100,7 +100,7 @@ public class DBOAccessApprovalTest {
 		}
 	}
 	
-	public static DBOAccessApproval newAccessApproval(UserGroup principal, DBOAccessRequirement ar, Long id) throws DatastoreException {
+	public static DBOAccessApproval newAccessApproval(Principal principal, DBOAccessRequirement ar, Long id) throws DatastoreException {
 		DBOAccessApproval accessApproval = new DBOAccessApproval();
 		accessApproval.setCreatedBy(Long.parseLong(principal.getId()));
 		accessApproval.setCreatedOn(System.currentTimeMillis());

@@ -74,7 +74,7 @@ import org.sagebionetworks.repo.model.TeamMember;
 import org.sagebionetworks.repo.model.TeamMembershipStatus;
 import org.sagebionetworks.repo.model.TermsOfUseAccessApproval;
 import org.sagebionetworks.repo.model.TermsOfUseAccessRequirement;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserGroupHeader;
 import org.sagebionetworks.repo.model.UserGroupHeaderResponsePage;
 import org.sagebionetworks.repo.model.UserProfile;
@@ -214,9 +214,9 @@ public class IT500SynapseJavaClient {
 	@Test(expected=SynapseBadRequestException.class)
 	public void testEmptyACLAccessTypeList() throws Exception {
 		AccessControlList acl = synapse.getACL(project.getId());
-		List<UserGroup> ugs = synapse.getGroups(0, 100).getResults();
+		List<Principal> ugs = synapse.getGroups(0, 100).getResults();
 		Long publicPrincipalId = null;
-		for (UserGroup ug: ugs) {
+		for (Principal ug: ugs) {
 			if (ug.getName().equals("PUBLIC")) {
 				publicPrincipalId = Long.parseLong(ug.getId());
 				break;
@@ -785,9 +785,9 @@ public class IT500SynapseJavaClient {
 	
 	@Test
 	public void testGetGroups() throws Exception {
-		PaginatedResults<UserGroup> groups = synapse.getGroups(0,100);
+		PaginatedResults<Principal> groups = synapse.getGroups(0,100);
 		assertTrue(groups.getResults().size()>0);
-		for (UserGroup ug : groups.getResults()) {
+		for (Principal ug : groups.getResults()) {
 			assertNotNull(ug.getId());
 			assertNotNull(ug.getName());
 		}
@@ -1264,8 +1264,8 @@ public class IT500SynapseJavaClient {
 		for(UserProfile up : pr.getResults()){
 			expected.add(up.getOwnerId());
 		}
-		PaginatedResults<UserGroup> groupPr = synapse.getGroups(0, Integer.MAX_VALUE);
-		for(UserGroup ug : groupPr.getResults()){
+		PaginatedResults<Principal> groupPr = synapse.getGroups(0, Integer.MAX_VALUE);
+		for(Principal ug : groupPr.getResults()){
 			expected.add(ug.getId());
 		}
 		Set<String> results = synapse.getAllUserAndGroupIds();
@@ -1312,9 +1312,9 @@ public class IT500SynapseJavaClient {
 	}
 	
 	private String getSomeGroup(String notThisOne) throws SynapseException {
-		PaginatedResults<UserGroup> groups = synapse.getGroups(0,100);
+		PaginatedResults<Principal> groups = synapse.getGroups(0,100);
 		String somePrincipalId = null;
-		for (UserGroup ug : groups.getResults()) {
+		for (Principal ug : groups.getResults()) {
 			if (ug.getId()!=notThisOne) { // don't want to use the team itself!
 				somePrincipalId = ug.getId();
 				break;

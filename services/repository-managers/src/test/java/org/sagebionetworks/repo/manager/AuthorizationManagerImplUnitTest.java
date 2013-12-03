@@ -29,13 +29,14 @@ import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.ActivityDAO;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.PaginatedResults;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.Reference;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
 import org.sagebionetworks.repo.model.RestrictableObjectType;
 import org.sagebionetworks.repo.model.TermsOfUseAccessApproval;
 import org.sagebionetworks.repo.model.TermsOfUseAccessRequirement;
 import org.sagebionetworks.repo.model.User;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
@@ -64,7 +65,7 @@ public class AuthorizationManagerImplUnitTest {
 	private UserInfo userInfo;
 	private UserInfo adminUser;
 	private Evaluation evaluation;
-	private UserGroup actTeam;
+	private Principal actTeam;
 
 	@Before
 	public void setUp() throws Exception {
@@ -90,22 +91,22 @@ public class AuthorizationManagerImplUnitTest {
 		ReflectionTestUtils.setField(authorizationManager, "userGroupDAO", mockUserGroupDAO);
 		ReflectionTestUtils.setField(authorizationManager, "aclDAO", mockAclDAO);
 
-		actTeam = new UserGroup();
+		actTeam = new Principal();
 		actTeam.setId("101");
 		actTeam.setIsIndividual(false);
-		actTeam.setName(ACCESS_AND_COMPLIANCE_TEAM_NAME);
+		actTeam.setPrincipalName(ACCESS_AND_COMPLIANCE_TEAM_NAME);
 		when(mockUserGroupDAO.findGroup(ACCESS_AND_COMPLIANCE_TEAM_NAME, false)).thenReturn(actTeam);
 
 		userInfo = new UserInfo(false);
-		UserGroup userInfoGroup = new UserGroup();
+		Principal userInfoGroup = new Principal();
 		userInfoGroup.setId(USER_PRINCIPAL_ID);
 		userInfo.setIndividualGroup(userInfoGroup);
 		User user = new User();
 		user.setId("not_anonymous");
 		userInfo.setUser(user);
-		userInfo.setGroups(new ArrayList<UserGroup>());
+		userInfo.setGroups(new ArrayList<Principal>());
 		adminUser = new UserInfo(true);
-		UserGroup adminInfoGroup = new UserGroup();
+		Principal adminInfoGroup = new Principal();
 		adminInfoGroup.setId("456");
 		adminUser.setIndividualGroup(adminInfoGroup);
 		User aUser = new User();
@@ -203,7 +204,7 @@ public class AuthorizationManagerImplUnitTest {
 		assertTrue("Creator should have access to their own FileHandles", authorizationManager.canAccessRawFileHandleById(userInfo, fileHandlId));
 		// change the users id
 		UserInfo notTheCreatoro = new UserInfo(false);
-		UserGroup userInfoGroup = new UserGroup();
+		Principal userInfoGroup = new Principal();
 		userInfoGroup.setId("999999");
 		notTheCreatoro.setIndividualGroup(userInfoGroup);
 		assertFalse("Only the creator (or admin) should have access a FileHandle", authorizationManager.canAccessRawFileHandleById(notTheCreatoro, fileHandlId));

@@ -33,7 +33,7 @@ import org.sagebionetworks.repo.model.NodeQueryDao;
 import org.sagebionetworks.repo.model.NodeQueryResults;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.User;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.jdo.NodeTestUtils;
@@ -76,8 +76,8 @@ public class JDONodeQueryAuthorizationTest implements InitializingBean{
 	static List<String> groupsToDelete;
 	static List<String> nodesToDelete;
 	static private UserInfo adminUser;
-	static private UserGroup groupA;
-	static private UserGroup groupB;
+	static private Principal groupA;
+	static private Principal groupB;
 	static private Node projectA;
 	static private Node projectB;
 	static private String attributeName = "JDONodeQueryAuthorizationTest.LongAttName";
@@ -318,11 +318,11 @@ public class JDONodeQueryAuthorizationTest implements InitializingBean{
 		user.setUserId(name);
 		// Create a group for this user
 		String userGroupName = name+"group";
-		UserGroup group = userGroupDAO.findGroup(userGroupName, true); //new UserGroup();
+		Principal group = userGroupDAO.findGroup(userGroupName, true); //new UserGroup();
 		String id = null;
 		if (group==null) {
-			group = new UserGroup();
-			group.setName(userGroupName);
+			group = new Principal();
+			group.setPrincipalName(userGroupName);
 			group.setIsIndividual(true);
 			id = userGroupDAO.create(group);
 		} else {
@@ -333,7 +333,7 @@ public class JDONodeQueryAuthorizationTest implements InitializingBean{
 		UserInfo info = new UserInfo(isAdmin);
 		info.setUser(user);
 		info.setIndividualGroup(group);
-		info.setGroups(new ArrayList<UserGroup>());
+		info.setGroups(new ArrayList<Principal>());
 		info.getGroups().add(group);
 
 		return info;
@@ -347,12 +347,12 @@ public class JDONodeQueryAuthorizationTest implements InitializingBean{
 	 * @throws InvalidModelException
 	 * @throws NotFoundException
 	 */
-	private UserGroup createGroup(String name) throws DatastoreException, InvalidModelException, NotFoundException{
-		UserGroup group = userGroupDAO.findGroup(name, false);
+	private Principal createGroup(String name) throws DatastoreException, InvalidModelException, NotFoundException{
+		Principal group = userGroupDAO.findGroup(name, false);
 		String id = null;
 		if (group==null) { 
-			group = new UserGroup();
-			group.setName(name);
+			group = new Principal();
+			group.setPrincipalName(name);
 			group.setIsIndividual(false);
 			id = userGroupDAO.create(group);
 		} else {

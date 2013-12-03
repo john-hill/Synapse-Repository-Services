@@ -73,13 +73,13 @@ public class CommunityManagerImplTest extends MockitoTestBase {
 		initMockito();
 
 		validUser = new UserInfo(false);
-		UserGroup individualGroup = new UserGroup();
+		Principal individualGroup = new Principal();
 		individualGroup.setId(USER_ID);
 		User user = new User();
 		user.setUserId(USER_ID);
 		validUser.setUser(user);
 		validUser.setIndividualGroup(individualGroup);
-		validUser.setGroups(Arrays.asList(new UserGroup[] { individualGroup }));
+		validUser.setGroups(Arrays.asList(new Principal[] { individualGroup }));
 
 		testCommunity = new Community();
 		testCommunity.setId(COMMUNITY_ID);
@@ -111,9 +111,9 @@ public class CommunityManagerImplTest extends MockitoTestBase {
 		when(entityManager.getEntity(validUser, COMMUNITY_ID, Community.class)).thenAnswer(newCommunity.answer()).thenAnswer(
 				newCommunity.answer());
 
-		UserGroup allUsers = new UserGroup();
+		Principal allUsers = new Principal();
 		allUsers.setId("1");
-		UserGroup authenticatedUsers = new UserGroup();
+		Principal authenticatedUsers = new Principal();
 		authenticatedUsers.setId("2");
 		when(userManager.getDefaultUserGroup(DEFAULT_GROUPS.AUTHENTICATED_USERS)).thenReturn(authenticatedUsers);
 		when(userManager.getDefaultUserGroup(DEFAULT_GROUPS.PUBLIC)).thenReturn(allUsers);
@@ -178,8 +178,8 @@ public class CommunityManagerImplTest extends MockitoTestBase {
 	@Test(expected = UnauthorizedException.class)
 	public void testCreateFailAnonymous() throws Exception {
 		UserInfo anonymousUser = new UserInfo(false);
-		UserGroup ug = new UserGroup();
-		ug.setName(AuthorizationConstants.ANONYMOUS_USER_ID);
+		Principal ug = new Principal();
+		ug.setPrincipalName(AuthorizationConstants.ANONYMOUS_USER_ID);
 		anonymousUser.setIndividualGroup(ug);
 
 		Community community = new Community();

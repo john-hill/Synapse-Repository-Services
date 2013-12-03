@@ -23,7 +23,7 @@ import org.sagebionetworks.repo.model.Team;
 import org.sagebionetworks.repo.model.TeamDAO;
 import org.sagebionetworks.repo.model.TeamHeader;
 import org.sagebionetworks.repo.model.TeamMember;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserGroupHeader;
 import org.sagebionetworks.repo.model.UserProfile;
@@ -88,7 +88,7 @@ public class DBOTeamDAOImplTest {
 		// create a team
 		Team team = new Team();
 		assertNotNull(userGroupDAO);
-		UserGroup bug = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false);
+		Principal bug = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false);
 		assertNotNull(bug);
 		Long id = Long.parseLong(bug.getId());
 		team.setId(""+id);
@@ -129,7 +129,7 @@ public class DBOTeamDAOImplTest {
 		assertEquals(new HashMap<TeamHeader,List<UserGroupHeader>>(), teamDAO.getAllTeamsAndMembers());
 
 		// need an arbitrary user to add to the group
-		UserGroup pg = userGroupDAO.findGroup(AuthorizationConstants.ANONYMOUS_USER_ID, true);
+		Principal pg = userGroupDAO.findGroup(AuthorizationConstants.ANONYMOUS_USER_ID, true);
 		groupMembersDAO.addMembers(""+id, Arrays.asList(new String[]{pg.getId()}));
 		teamMemberPairToDelete = new String[] {""+id, pg.getId()};
 		assertEquals(1, teamDAO.getForMemberInRange(pg.getId(), 1, 0).size());

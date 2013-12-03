@@ -16,7 +16,7 @@ import org.apache.logging.log4j.Logger;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.jdo.AuthorizationSqlUtil;
 import org.sagebionetworks.repo.model.query.FieldType;
@@ -55,7 +55,7 @@ public class JDONodeQueryUnitTest {
 	public void testAuthorizationSqlNonAdminuserEmptyGroups() throws Exception {
 		UserInfo nonAdminUserInfo = Mockito.mock(UserInfo.class);
 		when(nonAdminUserInfo.isAdmin()).thenReturn(false);
-		when(nonAdminUserInfo.getGroups()).thenReturn(new ArrayList<UserGroup>());
+		when(nonAdminUserInfo.getGroups()).thenReturn(new ArrayList<Principal>());
 		HashMap<String, Object> params = new HashMap<String, Object>();
 		// Should throw an exception.
 		String sql = QueryUtils.buildAuthorizationFilter(nonAdminUserInfo, params);
@@ -66,11 +66,11 @@ public class JDONodeQueryUnitTest {
 		HashMap<String, Object> params = new HashMap<String, Object>();
 		UserInfo nonAdminUserInfo = Mockito.mock(UserInfo.class);
 		when(nonAdminUserInfo.isAdmin()).thenReturn(false);
-		ArrayList<UserGroup> groups = new ArrayList<UserGroup>();
-		UserGroup group = Mockito.mock(UserGroup.class);
+		ArrayList<Principal> groups = new ArrayList<Principal>();
+		Principal group = Mockito.mock(Principal.class);
 		when(group.getId()).thenReturn("123");
 		groups.add(group);
-		group = Mockito.mock(UserGroup.class);
+		group = Mockito.mock(Principal.class);
 		when(group.getId()).thenReturn("124");
 		groups.add(group);
 		when(nonAdminUserInfo.getGroups()).thenReturn(groups);

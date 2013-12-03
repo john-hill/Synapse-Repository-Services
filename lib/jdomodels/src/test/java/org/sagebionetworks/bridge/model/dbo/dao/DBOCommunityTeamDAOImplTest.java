@@ -85,16 +85,16 @@ public class DBOCommunityTeamDAOImplTest {
 
 	private String createMember() throws Exception {
 		Principal newMember = new Principal();
-		newMember.setName("u-" + idGenerator.generateNewId());
+		newMember.setPrincipalName("u-" + idGenerator.generateNewId());
 		newMember.setIsIndividual(true);
 		String newMemberId = userGroupDAO.create(newMember);
-		toDelete.add(new Deletable(Long.parseLong(newMemberId), UserGroup.class));
+		toDelete.add(new Deletable(Long.parseLong(newMemberId), Principal.class));
 		return newMemberId;
 	}
 
 	private DBOTeam createTeam(String... memberIds) throws Exception {
 		Principal newGroup = new Principal();
-		newGroup.setName("group-" + idGenerator.generateNewId());
+		newGroup.setPrincipalName("group-" + idGenerator.generateNewId());
 		String newGroupId = userGroupDAO.create(newGroup);
 
 		groupMembersDAO.addMembers(newGroupId, Arrays.asList(memberIds));

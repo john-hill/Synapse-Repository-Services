@@ -2,7 +2,7 @@ package org.sagebionetworks.repo.model.util;
 
 import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserNotFoundException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 
 public class UserGroupUtil {
 	/**

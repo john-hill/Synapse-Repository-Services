@@ -5,7 +5,7 @@ import javax.servlet.http.HttpServletRequest;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.PaginatedResults;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.web.NotFoundException;
 
 /**
@@ -21,7 +21,7 @@ public interface UserGroupService {
 	 * @return The UserGroups for individuals
 	 * @throws DatastoreException - Thrown when there is a server-side problem.
 	 */
-	public PaginatedResults<UserGroup> getUserGroups(HttpServletRequest request,
+	public PaginatedResults<Principal> getUserGroups(HttpServletRequest request,
 			String userId, Integer offset, Integer limit, String sort,
 			Boolean ascending) throws DatastoreException,
 			UnauthorizedException, NotFoundException;

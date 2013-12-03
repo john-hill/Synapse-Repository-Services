@@ -36,7 +36,7 @@ import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.Favorite;
 import org.sagebionetworks.repo.model.QueryResults;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserGroupHeader;
 import org.sagebionetworks.repo.model.UserGroupHeaderResponsePage;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -65,12 +65,12 @@ public class UserProfileServiceTest {
 		
 		
 		// Create UserGroups
-		Collection<UserGroup> groups = new HashSet<UserGroup>();
+		Collection<Principal> groups = new HashSet<Principal>();
 		for (int i = 0; i < 10; i++) {
-			UserGroup g = new UserGroup();
+			Principal g = new Principal();
 			g.setId("g" + i);
 			g.setIsIndividual(false);
-			g.setName("Group " + i);
+			g.setPrincipalName("Group " + i);
 			groups.add(g);
 		}
 		
@@ -93,7 +93,7 @@ public class UserProfileServiceTest {
 		extraProfile.setOwnerId(EXTRA_USER_ID);
 		extraProfile.setDisplayName("This UserProfile was created after the cache was last refreshed.");
 		userInfo = new UserInfo(false);
-		userInfo.setIndividualGroup(new UserGroup());
+		userInfo.setIndividualGroup(new Principal());
 		userInfo.getIndividualGroup().setId(EXTRA_USER_ID);
 
 		when(mockUserProfileManager.getInRange(any(UserInfo.class), anyLong(), anyLong())).thenReturn(profiles);
@@ -336,7 +336,7 @@ public class UserProfileServiceTest {
 		userProfile.setEmail(email);
 
 		userInfo = new UserInfo(true);
-		userInfo.setIndividualGroup(new UserGroup());
+		userInfo.setIndividualGroup(new Principal());
 		userInfo.getIndividualGroup().setId(EXTRA_USER_ID);
 		when(mockUserManager.getUserInfo(EXTRA_USER_ID)).thenReturn(userInfo);
 		when(mockUserProfileManager.getUserProfile(userInfo, profileId)).thenReturn(userProfile);

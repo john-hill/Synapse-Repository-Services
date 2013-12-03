@@ -20,40 +20,40 @@ public class UserGroupTest {
 
 	@Test (expected=UserNotFoundException.class)
 	public void validateNullId(){
-		UserGroup userGroup = new UserGroup();
+		Principal userGroup = new Principal();
 		UserGroupUtil.validate(userGroup);
 	}
 
 	@Test (expected=UserNotFoundException.class)
 	public void validateNullName(){
-		UserGroup userGroup = new UserGroup();
+		Principal userGroup = new Principal();
 		userGroup.setId("99");
 		UserGroupUtil.validate(userGroup);
 	}
 
 	@Test
 	public void validateValid(){
-		UserGroup userGroup = new UserGroup();
+		Principal userGroup = new Principal();
 		userGroup.setId("99");
-		userGroup.setName("something@somewhere.com");
+		userGroup.setPrincipalName("something@somewhere.com");
 		userGroup.setIsIndividual(true);
 		UserGroupUtil.validate(userGroup);
 	}
 
 	@Test(expected=UserNotFoundException.class)
 	public void validateGroupWithEmailAddressName(){
-		UserGroup userGroup = new UserGroup();
+		Principal userGroup = new Principal();
 		userGroup.setId("99");
-		userGroup.setName("something@somewhere.com");
+		userGroup.setPrincipalName("something@somewhere.com");
 		userGroup.setIsIndividual(false);
 		UserGroupUtil.validate(userGroup);
 	}
 
 	@Test(expected=UserNotFoundException.class)
 	public void validateUserWithoutEmailAddressName(){
-		UserGroup userGroup = new UserGroup();
+		Principal userGroup = new Principal();
 		userGroup.setId("99");
-		userGroup.setName("someName");
+		userGroup.setPrincipalName("someName");
 		userGroup.setIsIndividual(true);
 		UserGroupUtil.validate(userGroup);
 	}

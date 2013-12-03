@@ -16,7 +16,7 @@ import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.NameConflictException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.User;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.UserProfile;
@@ -54,8 +54,8 @@ public class UserManagerImpl implements UserManager {
 			throw new NameConflictException("User '" + user.getEmail() + "' already exists");
 		}
 		
-		UserGroup individualGroup = new UserGroup();
-		individualGroup.setName(user.getEmail());
+		Principal individualGroup = new Principal();
+		individualGroup.setPrincipalName(user.getEmail());
 		individualGroup.setIsIndividual(true);
 		individualGroup.setCreationDate(new Date());
 		try {
@@ -93,7 +93,7 @@ public class UserManagerImpl implements UserManager {
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
 	@Override
 	public UserInfo getUserInfo(String userName) throws DatastoreException, NotFoundException {
-		UserGroup individualGroup = userGroupDAO.findGroup(userName, true);
+		Principal individualGroup = userGroupDAO.findGroup(userName, true);
 		if (individualGroup==null) throw new NotFoundException("Cannot find user with name "+userName);
 		return getUserInfo(individualGroup);
 	}
@@ -101,16 +101,16 @@ public class UserManagerImpl implements UserManager {
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
 	@Override
 	public UserInfo getUserInfo(Long principalId) throws DatastoreException, NotFoundException {
-		UserGroup individualGroup = userGroupDAO.get(principalId.toString());
+		Principal individualGroup = userGroupDAO.get(principalId.toString());
 		return getUserInfo(individualGroup);
 	}
 		
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
-	private UserInfo getUserInfo(UserGroup individualGroup) throws DatastoreException, NotFoundException {
+	private UserInfo getUserInfo(Principal individualGroup) throws DatastoreException, NotFoundException {
 		
 		// Check which group(s) of Anonymous, Public, or Authenticated the user belongs to  
-		Set<UserGroup> groups = new HashSet<UserGroup>();
-		if (!AuthorizationUtils.isUserAnonymous(individualGroup.getName())) {
+		Set<Principal> groups = new HashSet<Principal>();
+		if (!AuthorizationUtils.isUserAnonymous(individualGroup.getPrincipalName())) {
 			// All authenticated users belong to the authenticated user group
 			groups.add(getDefaultUserGroup(DEFAULT_GROUPS.AUTHENTICATED_USERS));
 		}
@@ -124,8 +124,8 @@ public class UserManagerImpl implements UserManager {
 
 		// Check to see if the user is an Admin
 		boolean isAdmin = false;
-		for (UserGroup group : groups) {
-			if (AuthorizationConstants.ADMIN_GROUP_NAME.equals(group.getName())) {
+		for (Principal group : groups) {
+			if (AuthorizationConstants.ADMIN_GROUP_NAME.equals(group.getPrincipalName())) {
 				isAdmin = true;
 				break;
 			}
@@ -142,13 +142,13 @@ public class UserManagerImpl implements UserManager {
 	/**
 	 * Constructs a User object out of information from the UserGroup and UserProfile
 	 */
-	private User getUser(UserGroup individualGroup) throws DatastoreException,
+	private User getUser(Principal individualGroup) throws DatastoreException,
 			NotFoundException {
 		User user = new User();
-		user.setUserId(individualGroup.getName());
-		user.setId(individualGroup.getName()); // i.e. username == user id
+		user.setUserId(individualGroup.getPrincipalName());
+		user.setId(individualGroup.getPrincipalName()); // i.e. username == user id
 
-		if (AuthorizationUtils.isUserAnonymous(individualGroup.getName())) {
+		if (AuthorizationUtils.isUserAnonymous(individualGroup.getPrincipalName())) {
 			return user;
 		}
 
@@ -159,7 +159,7 @@ public class UserManagerImpl implements UserManager {
 
 		// The migrator may delete its own profile during migration
 		// But those details do not matter for this user
-		if (individualGroup.getName().equals(AuthorizationConstants.MIGRATION_USER_NAME)) {
+		if (individualGroup.getPrincipalName().equals(AuthorizationConstants.MIGRATION_USER_NAME)) {
 			return user;
 		}
 
@@ -175,16 +175,16 @@ public class UserManagerImpl implements UserManager {
 	 * Lazy fetch of the default groups.
 	 */
 	@Override
-	public UserGroup getDefaultUserGroup(DEFAULT_GROUPS group)
+	public Principal getDefaultUserGroup(DEFAULT_GROUPS group)
 			throws DatastoreException {
-		UserGroup ug = userGroupDAO.findGroup(group.name(), false);
+		Principal ug = userGroupDAO.findGroup(group.name(), false);
 		if (ug == null)
 			throw new DatastoreException(group + " should exist.");
 		return ug;
 	}
 
 	@Override
-	public UserGroup findGroup(String name, boolean b) throws DatastoreException {
+	public Principal findGroup(String name, boolean b) throws DatastoreException {
 		return userGroupDAO.findGroup(name, b);
 	}
 
@@ -201,7 +201,7 @@ public class UserManagerImpl implements UserManager {
 	
 	@Override
 	public String getDisplayName(Long principalId) throws NotFoundException, DatastoreException {
-		UserGroup userGroup = userGroupDAO.get(principalId.toString());
+		Principal userGroup = userGroupDAO.get(principalId.toString());
 		if (userGroup.getIsIndividual()) {
 			UserProfile userProfile = userProfileDAO.get(principalId.toString());
 			return userProfile.getDisplayName();
@@ -212,7 +212,7 @@ public class UserManagerImpl implements UserManager {
 	
 	@Override
 	public String getGroupName(String principalId) throws NotFoundException {
-		UserGroup userGroup = userGroupDAO.get(principalId);
+		Principal userGroup = userGroupDAO.get(principalId);
 		return userGroup.getName();
 	}
 	
@@ -235,14 +235,14 @@ public class UserManagerImpl implements UserManager {
 	}
 
 	@Override
-	public Collection<UserGroup> getGroups() throws DatastoreException {
+	public Collection<Principal> getGroups() throws DatastoreException {
 		List<String> groupsToOmit = new ArrayList<String>();
 		groupsToOmit.add(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME);
 		return userGroupDAO.getAllExcept(false, groupsToOmit);
 	}
 
 	@Override
-	public List<UserGroup> getGroupsInRange(UserInfo userInfo, long startIncl, long endExcl, String sort, boolean ascending) 
+	public List<Principal> getGroupsInRange(UserInfo userInfo, long startIncl, long endExcl, String sort, boolean ascending) 
 			throws DatastoreException, UnauthorizedException {
 		List<String> groupsToOmit = new ArrayList<String>();
 		groupsToOmit.add(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME);

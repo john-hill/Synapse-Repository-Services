@@ -20,7 +20,7 @@ import org.sagebionetworks.repo.model.EntityId;
 import org.sagebionetworks.repo.model.EntityIdList;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.springframework.aop.framework.Advised;
@@ -41,7 +41,7 @@ public class NodeTreeQueryManagerImplTest {
 	@Before
 	public void before() throws Exception {
 
-		UserGroup userGroup = mock(UserGroup.class);
+		Principal userGroup = mock(Principal.class);
 		when(userGroup.getId()).thenReturn("0");
 
 		UserInfo userInfo = mock(UserInfo.class);

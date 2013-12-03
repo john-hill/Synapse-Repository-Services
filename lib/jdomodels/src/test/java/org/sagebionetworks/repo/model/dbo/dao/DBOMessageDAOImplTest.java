@@ -19,7 +19,7 @@ import org.junit.runner.RunWith;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.MessageDAO;
 import org.sagebionetworks.repo.model.ObjectType;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
@@ -57,8 +57,8 @@ public class DBOMessageDAOImplTest {
 	
 	private String fileHandleId;
 	
-	private UserGroup maliciousUser;
-	private UserGroup maliciousGroup;
+	private Principal maliciousUser;
+	private Principal maliciousGroup;
 	
 	// These messages are named by their sender and receiver
 	private MessageToUser userToUser;

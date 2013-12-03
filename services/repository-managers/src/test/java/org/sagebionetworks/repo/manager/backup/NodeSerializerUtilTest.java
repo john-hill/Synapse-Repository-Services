@@ -17,7 +17,7 @@ import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
 import org.sagebionetworks.repo.model.RestrictableObjectType;
 import org.sagebionetworks.repo.model.TermsOfUseAccessApproval;
 import org.sagebionetworks.repo.model.TermsOfUseAccessRequirement;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserProfile;
 
 /**
@@ -32,10 +32,10 @@ public class NodeSerializerUtilTest {
 	public void testRoundTripPrincipalBackup() throws Exception {
 		Collection<PrincipalBackup> pbs = new HashSet<PrincipalBackup>();
 		PrincipalBackup pb = new PrincipalBackup();
-		UserGroup ug = new UserGroup();
+		Principal ug = new Principal();
 		ug.setId("101");
 		ug.setIsIndividual(true);
-		ug.setName("foo");
+		ug.setPrincipalName("foo");
 		ug.setCreationDate(new Date());
 		pb.setUserGroup(ug);
 		UserProfile up = new UserProfile();

@@ -3,7 +3,7 @@ package org.sagebionetworks.repo.manager;
 import org.sagebionetworks.repo.model.AuthenticationDAO;
 import org.sagebionetworks.repo.model.TermsOfUseException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.auth.Session;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -112,7 +112,7 @@ public class AuthenticationManagerImpl implements AuthenticationManager {
 		
 		// Set a new session token if necessary
 		if (session.getSessionToken() == null) {
-			UserGroup ug = userGroupDAO.findGroup(username, true);
+			Principal ug = userGroupDAO.findGroup(username, true);
 			if (ug == null) {
 				throw new NotFoundException("The user (" + username + ") does not exist");
 			}

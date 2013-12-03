@@ -19,7 +19,7 @@ import org.sagebionetworks.ids.NamedIdGenerator;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.GroupMembersDAO;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -47,10 +47,10 @@ public class DBOGroupMembersDAOImplTest {
 	
 	private List<String> groupsToDelete;
 	
-	private UserGroup testGroup;
-	private UserGroup testUserOne;
-	private UserGroup testUserTwo;
-	private UserGroup testUserThree;
+	private Principal testGroup;
+	private Principal testUserOne;
+	private Principal testUserTwo;
+	private Principal testUserThree;
 
 	@Before
 	public void setUp() throws Exception {
@@ -73,9 +73,9 @@ public class DBOGroupMembersDAOImplTest {
 		}
 	}
 	
-	private UserGroup createTestGroup(String name, boolean isIndividual) throws Exception {		
-		UserGroup group = new UserGroup();
-		group.setName(name);
+	private Principal createTestGroup(String name, boolean isIndividual) throws Exception {		
+		Principal group = new Principal();
+		group.setPrincipalName(name);
 		group.setIsIndividual(isIndividual);
 		String id = null;
 		try {
@@ -91,10 +91,10 @@ public class DBOGroupMembersDAOImplTest {
 	
 	@Test
 	public void testGetters() throws Exception {
-		List<UserGroup> members = groupMembersDAO.getMembers(testGroup.getId());
+		List<Principal> members = groupMembersDAO.getMembers(testGroup.getId());
 		assertEquals("No members initially", 0, members.size());
 		
-		List<UserGroup> groups = groupMembersDAO.getUsersGroups(testUserOne.getId());
+		List<Principal> groups = groupMembersDAO.getUsersGroups(testUserOne.getId());
 		assertEquals("No groups initially", 0, groups.size());
 	}
 	
@@ -118,7 +118,7 @@ public class DBOGroupMembersDAOImplTest {
 		groupMembersDAO.addMembers(testGroup.getId(), adder); 
 		
 		// Validate the addition worked
-		List<UserGroup> newMembers = groupMembersDAO.getMembers(testGroup.getId());
+		List<Principal> newMembers = groupMembersDAO.getMembers(testGroup.getId());
 		assertEquals("Number of users should match", 3, newMembers.size());
 		
 		// Each user should be present, with unaltered etags
@@ -127,7 +127,7 @@ public class DBOGroupMembersDAOImplTest {
 		assertTrue("User three should be in the retrieved member list", newMembers.contains(testUserThree));
 		
 		// Verify that the parent group's etag has changed
-		UserGroup updatedTestGroup = userGroupDAO.get(testGroup.getId());
+		Principal updatedTestGroup = userGroupDAO.get(testGroup.getId());
 		assertTrue("Etag must have changed", !testGroup.getEtag().equals(updatedTestGroup.getEtag()));
 	}
 	
@@ -164,21 +164,20 @@ public class DBOGroupMembersDAOImplTest {
 		adder.add(testUserThree.getId());
 
 		groupMembersDAO.addMembers(testGroup.getId(), adder);
-		List<UserGroup> newMembers = groupMembersDAO.getMembers(testGroup.getId());
+		List<Principal> newMembers = groupMembersDAO.getMembers(testGroup.getId());
 		assertEquals("Number of users should match", 3, newMembers.size());
 		
 		// Verify that the parent group's etag has changed
-		UserGroup updatedTestGroup = userGroupDAO.get(testGroup.getId());
+		Principal updatedTestGroup = userGroupDAO.get(testGroup.getId());
 		assertTrue("Etag must have changed", !testGroup.getEtag().equals(updatedTestGroup.getEtag()));
 		
 		// Remove all but one of the users from the group
 		List<String> remover = new ArrayList<String>(adder);
 		String antisocial = remover.remove(0);
 		groupMembersDAO.removeMembers(testGroup.getId(), remover);
-		List<UserGroup> fewerMembers = groupMembersDAO.getMembers(testGroup.getId());
+		List<Principal> fewerMembers = groupMembersDAO.getMembers(testGroup.getId());
 		assertEquals("Number of users should match", 1, fewerMembers.size());
 		fewerMembers.get(0).setCreationDate(null);
-		fewerMembers.get(0).setUri(null);
 		fewerMembers.get(0).setEtag(null);
 		assertEquals("Last member should match the one removed from the DTO", antisocial, fewerMembers.get(0).getId());
 		
@@ -190,7 +189,7 @@ public class DBOGroupMembersDAOImplTest {
 		remover.clear();
 		remover.add(antisocial);
 		groupMembersDAO.removeMembers(testGroup.getId(), remover);
-		List<UserGroup> emptyGroup = groupMembersDAO.getMembers(testGroup.getId());
+		List<Principal> emptyGroup = groupMembersDAO.getMembers(testGroup.getId());
 		assertEquals("Number of users should match", 0, emptyGroup.size());
 		
 		// Verify that the parent group's etag has changed
@@ -201,10 +200,10 @@ public class DBOGroupMembersDAOImplTest {
 	@Test
 	public void testBootstrapGroups() throws Exception {
 		String adminGroupId = userGroupDAO.findGroup(AuthorizationConstants.ADMIN_GROUP_NAME, false).getId();
-		List<UserGroup> admins = groupMembersDAO.getMembers(adminGroupId);
+		List<Principal> admins = groupMembersDAO.getMembers(adminGroupId);
 		Set<String> adminNames = new HashSet<String>();
-		for (UserGroup ug : admins) {
-			adminNames.add(ug.getName());
+		for (Principal ug : admins) {
+			adminNames.add(ug.getPrincipalName());
 		}
 		
 		assertTrue(adminNames.contains(StackConfiguration.getIntegrationTestUserAdminName()));
@@ -212,8 +211,8 @@ public class DBOGroupMembersDAOImplTest {
 		assertTrue(adminNames.contains(AuthorizationConstants.ADMIN_USER_NAME));
 		
 		String testGroupId = userGroupDAO.findGroup(AuthorizationConstants.TEST_GROUP_NAME, false).getId();
-		List<UserGroup> testUsers = groupMembersDAO.getMembers(testGroupId);
+		List<Principal> testUsers = groupMembersDAO.getMembers(testGroupId);
 		assertEquals(1, testUsers.size());
-		assertEquals(AuthorizationConstants.TEST_USER_NAME, testUsers.get(0).getName());
+		assertEquals(AuthorizationConstants.TEST_USER_NAME, testUsers.get(0).getPrincipalName());
 	}
 }

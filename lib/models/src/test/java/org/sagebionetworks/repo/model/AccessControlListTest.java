@@ -18,9 +18,9 @@ public class AccessControlListTest {
 	public void testGrantAll(){
 		String nodeId = "123";
 		UserInfo info = new UserInfo(false);
-		UserGroup userGroup = new UserGroup();
+		Principal userGroup = new Principal();
 		userGroup.setId("123");
-		userGroup.setName("one");
+		userGroup.setPrincipalName("one");
 		userGroup.setIsIndividual(false);
 		User user = new User();
 		user.setId("33");

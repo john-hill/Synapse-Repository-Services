@@ -24,7 +24,7 @@ import org.sagebionetworks.repo.model.LocationTypeNames;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.Study;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 
 public class IT960TermsOfUse {
 	private static SynapseClientImpl synapse = null;
@@ -56,9 +56,9 @@ public class IT960TermsOfUse {
 		project.setName("foo");
 		project = adminSynapse.createEntity(project);
 		// make the project public readable
-		Collection<UserGroup> groups = adminSynapse.getGroups(0,100).getResults();
+		Collection<Principal> groups = adminSynapse.getGroups(0,100).getResults();
 		String publicGroupPrincipalId = null;
-		for (UserGroup group : groups) {
+		for (Principal group : groups) {
 			if (group.getName().equals("PUBLIC")) 
 				publicGroupPrincipalId = group.getId();
 		}

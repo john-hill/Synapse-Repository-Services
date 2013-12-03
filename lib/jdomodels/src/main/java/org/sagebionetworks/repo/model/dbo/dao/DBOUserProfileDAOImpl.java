@@ -12,6 +12,7 @@ import org.sagebionetworks.ids.ETagGenerator;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.InvalidModelException;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserGroupInt;
 import org.sagebionetworks.repo.model.UserProfile;
@@ -179,7 +180,7 @@ public class DBOUserProfileDAOImpl implements UserProfileDAO {
 		}
 		
 		// For each one determine if it exists, if not create it
-		for (UserGroupInt ug: userGroupDAO.getBootstrapUsers()) {
+		for (Principal ug: userGroupDAO.getBootstrapUsers()) {
 			if (ug.getId() == null) throw new IllegalArgumentException("Bootstrap users must have an id");
 			if (ug.getName() == null) throw new IllegalArgumentException("Bootstrap users must have a name");
 			if (ug.getIsIndividual()) {

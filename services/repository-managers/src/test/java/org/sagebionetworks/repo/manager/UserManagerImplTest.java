@@ -17,7 +17,7 @@ import org.junit.runner.RunWith;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_GROUPS;
 import org.sagebionetworks.repo.model.DatastoreException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.NewUser;
@@ -47,7 +47,7 @@ public class UserManagerImplTest {
 	@After
 	public void tearDown() throws Exception {
 		for(String groupId: groupsToDelete){
-			UserGroup ug = userGroupDAO.get(groupId);
+			Principal ug = userGroupDAO.get(groupId);
 			try {
 				userManager.deletePrincipal(ug.getName());
 			} catch (Exception e) {
@@ -61,7 +61,7 @@ public class UserManagerImplTest {
 		// We should be able to get all default groups
 		DEFAULT_GROUPS[] array = DEFAULT_GROUPS.values();
 		for(DEFAULT_GROUPS group: array){
-			UserGroup userGroup = userManager.getDefaultUserGroup(group);
+			Principal userGroup = userManager.getDefaultUserGroup(group);
 			assertNotNull(userGroup);
 		}
 	}
@@ -94,7 +94,7 @@ public class UserManagerImplTest {
 		assertNotNull(userGroupDAO.findGroup(AuthorizationConstants.TEST_USER_NAME, true));
 		
 		// The group the test user belongs to should also exist
-		UserGroup testGroup = userGroupDAO.findGroup(AuthorizationConstants.TEST_GROUP_NAME, false);
+		Principal testGroup = userGroupDAO.findGroup(AuthorizationConstants.TEST_GROUP_NAME, false);
 		assertNotNull(testGroup);
 		
 		// Should include Public and authenticated users' group.

@@ -23,7 +23,7 @@ import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.ResourceAccess;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,7 +49,7 @@ public class DBOAccessControlListDAOScaleTest {
 	@Autowired
 	private PrincipalDAO userGroupDAO;
 
-	private UserGroup userGroup;
+	private Principal userGroup;
 	private String userId;
 
 	private List<String> toDelete;
@@ -61,8 +61,8 @@ public class DBOAccessControlListDAOScaleTest {
 		toDelete = new ArrayList<String>();
 
 		// Create a user
-		userGroup = new UserGroup();
-		userGroup.setName("aTestUser@sagebase.org");
+		userGroup = new Principal();
+		userGroup.setPrincipalName("aTestUser@sagebase.org");
 		userGroup.setCreationDate(new Date());
 		userGroup.setIsIndividual(true);
 		userId = userGroupDAO.create(userGroup);
@@ -127,7 +127,7 @@ public class DBOAccessControlListDAOScaleTest {
 	@Test
 	public void testTime() throws DatastoreException{
 		// Time the can access methods
-		ArrayList<UserGroup> groups = new ArrayList<UserGroup>();
+		ArrayList<Principal> groups = new ArrayList<Principal>();
 		groups.add(userGroup);
 		System.out.println("userGroup ID: \t"+userGroup.getId());
 		System.out.println("Number of base projects: \t"+toDelete.size());

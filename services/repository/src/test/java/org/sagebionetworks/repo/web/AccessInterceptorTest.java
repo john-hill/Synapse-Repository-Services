@@ -14,7 +14,7 @@ import org.sagebionetworks.audit.utils.KeyGeneratorUtil;
 import org.sagebionetworks.audit.utils.VirtualMachineIdProvider;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.audit.AccessRecord;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -44,7 +44,7 @@ public class AccessInterceptorTest {
 		mockHandler = Mockito.mock(Object.class);
 		mockUserManager = Mockito.mock(UserManager.class);
 		mockUserInfo = new UserInfo(false);
-		mockUserInfo.setIndividualGroup(new UserGroup());
+		mockUserInfo.setIndividualGroup(new Principal());
 		mockUserInfo.getIndividualGroup().setId("123");
 		stubRecorder = new StubAccessRecorder();
 		interceptor = new AccessInterceptor();

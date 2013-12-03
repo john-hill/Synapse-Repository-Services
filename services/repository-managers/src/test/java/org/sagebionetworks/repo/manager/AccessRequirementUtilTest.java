@@ -18,14 +18,14 @@ import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
 import org.sagebionetworks.repo.model.RestrictableObjectType;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 
 public class AccessRequirementUtilTest {
 	
 	RestrictableObjectDescriptor subjectId;
 	UserInfo userInfo;
-	UserGroup userGroup;
+	Principal userGroup;
 	NodeDAO mockNodeDAO;
 	AccessRequirementDAO mockAccessRequirementDAO;
 	Node testEntityNode;
@@ -34,8 +34,8 @@ public class AccessRequirementUtilTest {
 	@Before
 	public void before() throws Exception{
 		userInfo = new UserInfo(false);
-		userGroup = new UserGroup();
-		userInfo.setGroups(new ArrayList<UserGroup>());
+		userGroup = new Principal();
+		userInfo.setGroups(new ArrayList<Principal>());
 		String currentUserPrincipalId = "1234";
 		userGroup.setId(currentUserPrincipalId);
 		userInfo.setIndividualGroup(userGroup);

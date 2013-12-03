@@ -29,7 +29,7 @@ import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
 import org.sagebionetworks.repo.model.RestrictableObjectType;
 import org.sagebionetworks.repo.model.TermsOfUseAccessRequirement;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.jdo.NodeTestUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,7 +57,7 @@ public class DBOAccessRequirementDAOImplTest {
 
 	private static final String TEST_USER_NAME = "test-user";
 	
-	private UserGroup individualGroup = null;
+	private Principal individualGroup = null;
 	private Node node = null;
 	private Node node2 = null;
 	private TermsOfUseAccessRequirement accessRequirement = null;
@@ -73,8 +73,8 @@ public class DBOAccessRequirementDAOImplTest {
 	public void setUp() throws Exception {
 		individualGroup = userGroupDAO.findGroup(TEST_USER_NAME, true);
 		if (individualGroup == null) {
-			individualGroup = new UserGroup();
-			individualGroup.setName(TEST_USER_NAME);
+			individualGroup = new Principal();
+			individualGroup.setPrincipalName(TEST_USER_NAME);
 			individualGroup.setIsIndividual(true);
 			individualGroup.setCreationDate(new Date());
 			individualGroup.setId(userGroupDAO.create(individualGroup));
@@ -142,7 +142,7 @@ public class DBOAccessRequirementDAOImplTest {
 		}
 	}
 	
-	public static TermsOfUseAccessRequirement newEntityAccessRequirement(UserGroup principal, Node node, String text) throws DatastoreException {
+	public static TermsOfUseAccessRequirement newEntityAccessRequirement(Principal principal, Node node, String text) throws DatastoreException {
 		TermsOfUseAccessRequirement accessRequirement = new TermsOfUseAccessRequirement();
 		accessRequirement.setCreatedBy(principal.getId());
 		accessRequirement.setCreatedOn(new Date());
@@ -157,7 +157,7 @@ public class DBOAccessRequirementDAOImplTest {
 		return accessRequirement;
 	}
 	// create an AccessRequirement which restricts both an entity and an Evaluation
-	public static TermsOfUseAccessRequirement newMixedAccessRequirement(UserGroup principal, Node node, Evaluation evaluation, String text) throws DatastoreException {
+	public static TermsOfUseAccessRequirement newMixedAccessRequirement(Principal principal, Node node, Evaluation evaluation, String text) throws DatastoreException {
 		TermsOfUseAccessRequirement accessRequirement = new TermsOfUseAccessRequirement();
 		accessRequirement.setCreatedBy(principal.getId());
 		accessRequirement.setCreatedOn(new Date());

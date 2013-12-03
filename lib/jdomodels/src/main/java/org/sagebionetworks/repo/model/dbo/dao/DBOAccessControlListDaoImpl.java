@@ -27,8 +27,9 @@ import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.ResourceAccess;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOAccessControlList;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOResourceAccess;
@@ -177,12 +178,12 @@ public class DBOAccessControlListDaoImpl implements AccessControlListDAO {
 	}
 
 	@Override
-	public boolean canAccess(Collection<UserGroup> groups, String resourceId,
+	public boolean canAccess(Collection<Principal> groups, String resourceId,
 			ACCESS_TYPE accessType) throws DatastoreException {
 		// Build up the parameters
 		Map<String,Object> parameters = new HashMap<String,Object>();
 		int i=0;
-		for (UserGroup gId : groups) {
+		for (Principal gId : groups) {
 			parameters.put(AuthorizationSqlUtil.BIND_VAR_PREFIX+(i++), gId.getId());
 		}
 		// Bind the type

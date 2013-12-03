@@ -33,7 +33,7 @@ import org.sagebionetworks.repo.manager.file.transfer.TransferRequest;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.User;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
 import org.sagebionetworks.repo.model.file.ExternalFileHandle;
@@ -80,7 +80,7 @@ public class FileHandleManagerImplTest {
 		// The user is not really a mock
 		mockUser = new UserInfo(false);
 		mockUser.setUser(new User());
-		mockUser.setIndividualGroup(new UserGroup());
+		mockUser.setIndividualGroup(new Principal());
 		mockUser.getIndividualGroup().setId("987");
 		
 		// Other helper mocks

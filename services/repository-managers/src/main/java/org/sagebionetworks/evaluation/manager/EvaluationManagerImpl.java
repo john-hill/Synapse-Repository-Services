@@ -21,7 +21,7 @@ import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.QueryResults;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.jdo.EntityNameValidation;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -125,7 +125,7 @@ public class EvaluationManagerImpl implements EvaluationManager {
 	public QueryResults<Evaluation> getAvailableInRange(UserInfo userInfo, long limit, long offset)
 			throws DatastoreException, NotFoundException {
 		List<Long> principalIds = new ArrayList<Long>(userInfo.getGroups().size());
-		for (UserGroup g : userInfo.getGroups()) {
+		for (Principal g : userInfo.getGroups()) {
 			principalIds.add(Long.parseLong(g.getId()));
 		}
 		List<Evaluation> evalList = evaluationDAO.getAvailableInRange(principalIds, limit, offset);

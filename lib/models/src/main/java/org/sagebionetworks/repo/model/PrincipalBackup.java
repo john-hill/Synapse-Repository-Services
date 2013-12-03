@@ -1,12 +1,12 @@
 package org.sagebionetworks.repo.model;
 
 public class PrincipalBackup {
-	private UserGroup userGroup;
+	private Principal userGroup;
 	private UserProfile userProfile;
-	public UserGroup getUserGroup() {
+	public Principal getUserGroup() {
 		return userGroup;
 	}
-	public void setUserGroup(UserGroup userGroup) {
+	public void setUserGroup(Principal userGroup) {
 		this.userGroup = userGroup;
 	}
 	public UserProfile getUserProfile() {

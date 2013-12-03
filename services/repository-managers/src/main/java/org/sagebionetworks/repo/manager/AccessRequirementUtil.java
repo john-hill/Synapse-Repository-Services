@@ -12,7 +12,7 @@ import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
 import org.sagebionetworks.repo.model.RestrictableObjectType;
-import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.web.NotFoundException;
 
@@ -45,7 +45,7 @@ public class AccessRequirementUtil {
 		}
 
 		Set<Long> principalIds = new HashSet<Long>();
-		for (UserGroup ug : userInfo.getGroups()) {
+		for (Principal ug : userInfo.getGroups()) {
 			principalIds.add(Long.parseLong(ug.getId()));
 		}
 		

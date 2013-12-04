@@ -23,6 +23,7 @@ import org.sagebionetworks.repo.model.dbo.dao.NodeUtils;
 import org.sagebionetworks.repo.model.dbo.persistence.DBONode;
 import org.sagebionetworks.repo.model.dbo.persistence.DBORevision;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
@@ -40,8 +41,8 @@ public class NodeUtilsTest {
 
 	
 	@Test
-	public void testRoundTrip() throws DatastoreException, InvalidModelException {
-		Long createdById = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
+	public void testRoundTrip() throws DatastoreException, InvalidModelException, NumberFormatException, NotFoundException {
+		Long createdById = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 		Node node = new Node();
 		node.setName("myName");
 		node.setDescription("someDescription");
@@ -80,8 +81,8 @@ public class NodeUtilsTest {
 	}
 	
 	@Test
-	public void testJDOParentId() throws DatastoreException{
-		String createdById = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
+	public void testJDOParentId() throws DatastoreException, NotFoundException{
+		String createdById = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
 		DBONode parent = new DBONode();
 		parent.setId(new Long(123));
 		DBONode child = new DBONode();
@@ -101,8 +102,8 @@ public class NodeUtilsTest {
 	}
 	
 	@Test
-	public void testreplaceFromDto() throws DatastoreException, UnsupportedEncodingException{
-		Long createdById = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
+	public void testreplaceFromDto() throws DatastoreException, UnsupportedEncodingException, NumberFormatException, NotFoundException{
+		Long createdById = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 		Node node = new Node();
 		node.setName("myName");
 		node.setDescription("someDescription");

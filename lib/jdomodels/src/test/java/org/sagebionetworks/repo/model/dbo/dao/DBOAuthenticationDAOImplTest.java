@@ -22,7 +22,6 @@ import org.sagebionetworks.repo.model.AuthenticationDAO;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
-import org.sagebionetworks.repo.model.UserGroupInt;
 import org.sagebionetworks.repo.model.auth.Session;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOCredential;
@@ -59,7 +58,7 @@ public class DBOAuthenticationDAOImplTest {
 		groupsToDelete = new ArrayList<String>();
 		
 		// Initialize a UserGroup
-		Principal ug = userGroupDAO.findGroup(GROUP_NAME, true);
+		Principal ug = userGroupDAO.findPrincipalWithPrincipalName(GROUP_NAME, true);
 		if (ug == null) {
 			ug = new Principal();
 			ug.setPrincipalName(GROUP_NAME);
@@ -317,11 +316,11 @@ public class DBOAuthenticationDAOImplTest {
 		}
 		
 		// Most bootstrapped users should have signed the terms
-		List<UserGroupInt> ugs = userGroupDAO.getBootstrapUsers();
-		for (UserGroupInt ug : ugs) {
+		List<Principal> ugs = userGroupDAO.getBootstrapUsers();
+		for (Principal ug : ugs) {
 			if (ug.getIsIndividual() 
-					&& !ug.getName().equals(StackConfiguration.getIntegrationTestRejectTermsOfUseName())
-					&& !AuthorizationUtils.isUserAnonymous(ug.getName())) {
+					&& !ug.getPrincipalName().equals(StackConfiguration.getIntegrationTestRejectTermsOfUseName())
+					&& !AuthorizationUtils.isUserAnonymous(ug.getPrincipalName())) {
 				MapSqlParameterSource param = new MapSqlParameterSource();
 				param.addValue("principalId", ug.getId());
 				DBOCredential creds = basicDAO.getObjectByPrimaryKey(DBOCredential.class, param);

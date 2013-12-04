@@ -52,8 +52,8 @@ public class DBOTeamTest {
 		toDelete = new LinkedList<Long>();
 	}
 	
-	public static DBOTeam newTeam(PrincipalDAO userGroupDAO) {
-		Long id = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
+	public static DBOTeam newTeam(PrincipalDAO userGroupDAO) throws NumberFormatException, NotFoundException {
+		Long id = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 		DBOTeam team = new DBOTeam();
 		team.setId(id);
 		team.setEtag("1");

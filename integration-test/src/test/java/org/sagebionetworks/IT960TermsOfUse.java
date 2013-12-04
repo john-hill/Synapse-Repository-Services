@@ -59,7 +59,7 @@ public class IT960TermsOfUse {
 		Collection<Principal> groups = adminSynapse.getGroups(0,100).getResults();
 		String publicGroupPrincipalId = null;
 		for (Principal group : groups) {
-			if (group.getName().equals("PUBLIC")) 
+			if (group.getPrincipalName().equals("PUBLIC")) 
 				publicGroupPrincipalId = group.getId();
 		}
 		assertNotNull(publicGroupPrincipalId);

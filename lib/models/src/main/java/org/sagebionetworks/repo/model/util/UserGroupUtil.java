@@ -22,18 +22,18 @@ public class UserGroupUtil {
 	 */
 	public static void validate(Principal userGroup) throws UserNotFoundException {
 
-		if (userGroup == null) throw new IllegalArgumentException("UserGroup cannot be null");
+		if (userGroup == null) throw new IllegalArgumentException("Principal cannot be null");
 
-		if (userGroup.getId() == null) throw new UserNotFoundException("UserGroup.id cannot be null");
-		if (userGroup.getName() == null) throw new UserNotFoundException("UserGroup.name cannot be null");
-		if (userGroup.getIsIndividual() == null) throw new UserNotFoundException("UserGroup.isIndividual cannot be null");
+		if (userGroup.getId() == null) throw new UserNotFoundException("Principal.id cannot be null");
+		if (userGroup.getPrincipalName() == null) throw new UserNotFoundException("Principal.principalName cannot be null");
+		if (userGroup.getIsIndividual() == null) throw new UserNotFoundException("Principal.isIndividual cannot be null");
 		// Only an individual can have an email address for a name
-		if (isEmailAddress(userGroup.getName())) {
+		if (isEmailAddress(userGroup.getPrincipalName())) {
 			if (!userGroup.getIsIndividual()) throw new UserNotFoundException(
-					"Invalid group name: "+userGroup.getName()+", group names cannot be email addresses");
+					"Invalid group name: "+userGroup.getPrincipalName()+", group names cannot be email addresses");
 		} else {
 			if (userGroup.getIsIndividual()) throw new UserNotFoundException(
-					"Invalid user name: "+userGroup.getName()+", user names must be email addresses");
+					"Invalid user name: "+userGroup.getPrincipalName()+", user names must be email addresses");
 		}
 	}
 }

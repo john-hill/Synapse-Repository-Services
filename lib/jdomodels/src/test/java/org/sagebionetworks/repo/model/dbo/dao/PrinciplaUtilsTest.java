@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.util.Date;
 
@@ -40,7 +41,7 @@ public class PrinciplaUtilsTest {
 		assertEquals("The old 'name' for a user should now be an email", backup.getName().toLowerCase(), dbo.getEmail());
 		assertTrue("All users migrated from stack 23 to 24 must provide a new principalName", dbo.getMustProvideNewPrincipalName());
 		assertEquals("Migrated users should have their 'id' as a principalName", "123", dbo.getPrincipalNameDisplay());
-		assertEquals("Migrated users should have their 'id' as a principalName", "123", dbo.getPrincipalNameLower());
+		assertEquals("Migrated users should have their 'id' as a principalNameUnique", "123", dbo.getPrincipalNameUnique());
 		// These fields should just be copied
 		assertEquals(backup.getEtag(), dbo.getEtag());
 		assertEquals(backup.getCreationDate(), dbo.getCreationDate());
@@ -61,7 +62,7 @@ public class PrinciplaUtilsTest {
 		backup.setEtag("etag1");
 		backup.setIsIndividual(false);
 		String teamPrincipalNameDispaly = "Best Team Ever";
-		String teamPrincipalNameLower = teamPrincipalNameDispaly.toLowerCase();
+		String teamPrincipalNameUnique = "bestteamever";
 		backup.setName(teamPrincipalNameDispaly);
 		
 		// Now translate this backup object into the current DBO
@@ -71,7 +72,7 @@ public class PrinciplaUtilsTest {
 		assertEquals("Teams do not have emails, so for now we fill it in with their IDs.", "123", dbo.getEmail());
 		assertFalse("All teams migrated from stack 23 to 24 do not need to provide a new principalName", dbo.getMustProvideNewPrincipalName());
 		assertEquals("Migrated teams should have their 'name' as a 'principalNameDisplay'", teamPrincipalNameDispaly, dbo.getPrincipalNameDisplay());
-		assertEquals("Migrated teams should have their 'name'.towLowerCase() as a principalNameLower",teamPrincipalNameLower, dbo.getPrincipalNameLower());
+		assertEquals("Migrated teams should have their a unique name using lower-case letters and numbers ",teamPrincipalNameUnique, dbo.getPrincipalNameUnique());
 		// These fields should just be copied
 		assertEquals(backup.getEtag(), dbo.getEtag());
 		assertEquals(backup.getCreationDate(), dbo.getCreationDate());
@@ -93,7 +94,7 @@ public class PrinciplaUtilsTest {
 		dbo.setIsIndividual(true);
 		dbo.setMustProvideNewPrincipalName(true);
 		dbo.setPrincipalNameDisplay("jamesBond");
-		dbo.setPrincipalNameLower("jamesbond");
+		dbo.setPrincipalNameUnique("jamesbond");
 		// To backup
 		DBOPrincipalBackup backup = PrincipalUtils.createBackupFromDatabaseObject(dbo);
 		assertNotNull(backup);
@@ -119,7 +120,30 @@ public class PrinciplaUtilsTest {
 		dbo.setIsIndividual(false);
 		dbo.setMustProvideNewPrincipalName(false);
 		dbo.setPrincipalNameDisplay("Best Team Ever");
-		dbo.setPrincipalNameLower("best team ever");
+		dbo.setPrincipalNameUnique("bestteamever");
+		// To backup
+		DBOPrincipalBackup backup = PrincipalUtils.createBackupFromDatabaseObject(dbo);
+		assertNotNull(backup);
+		// New backups must never have a name (this check can be removed when 'name' is removed)
+		assertEquals("The backup of a current DBO must not contain a 'name'",null, backup.getName());
+		// Now make the round trip
+		DBOPrincipal clone = PrincipalUtils.createDatabaseObjectFromBackup(backup);
+		assertEquals(dbo, clone);
+	}
+	
+	@Test (expected=IllegalArgumentException.class)
+	public void testCreateDatabaseObjectFromBackupInvalidName(){
+		// Start with a DBO as that is how a backup will start
+		DBOPrincipal dbo = new DBOPrincipal();
+		dbo.setId(123l);
+		// Teams have their ID as an email for now.  This will be removed from principal in 
+		dbo.setEmail("123");
+		dbo.setCreationDate(new Date());
+		dbo.setEtag("etag");
+		dbo.setIsIndividual(false);
+		dbo.setMustProvideNewPrincipalName(false);
+		dbo.setPrincipalNameDisplay("this is *invalid*");
+		dbo.setPrincipalNameUnique("bestteamever");
 		// To backup
 		DBOPrincipalBackup backup = PrincipalUtils.createBackupFromDatabaseObject(dbo);
 		assertNotNull(backup);
@@ -141,6 +165,7 @@ public class PrinciplaUtilsTest {
 		dto.setEtag("Bloop");
 		// to DBO
 		DBOPrincipal dbo = PrincipalUtils.createDBO(dto);
+		assertEquals("jamesbond007", dbo.getPrincipalNameUnique());
 		Principal clone = PrincipalUtils.createDTO(dbo);
 		// the email will be converted to lower case
 		dto.setEmail(dto.getEmail().toLowerCase());
@@ -161,5 +186,114 @@ public class PrinciplaUtilsTest {
 		Principal clone = PrincipalUtils.createDTO(dbo);
 		assertEquals(dto, clone);
 	}
+	
+	@Test (expected = IllegalArgumentException.class)
+	public void testValidatePrincipalNameNull(){
+		PrincipalUtils.validatePrincipalName(null, true);
+	}
+	
+	@Test
+	public void testValidatePrincipalNameUser(){
+		PrincipalUtils.validatePrincipalName("1234567890.a-b_cdefghijklmnopqrstuvwxyz", true);
+	}
+	
+	@Test
+	public void testValidatePrincipalUserSpaces(){
+		try{
+			PrincipalUtils.validatePrincipalName("has spaces", true);
+			fail("should have failed because it contains spaces.");
+		}catch(IllegalArgumentException e){
+			assertTrue(e.getMessage().contains("letters"));
+			assertTrue(e.getMessage().contains("numbers"));
+			assertTrue(e.getMessage().contains("underscore"));
+			assertTrue(e.getMessage().contains("dash"));
+			assertTrue(e.getMessage().contains("dot"));
+			assertTrue(e.getMessage().contains("3 characters long"));
+		}
+	}
+	
+	@Test (expected=IllegalArgumentException.class)
+	public void testValidatePrincipalUserTooShort(){
+		PrincipalUtils.validatePrincipalName("12", true);
+	}
 
+	@Test
+	public void testValidatePrincipalUserLongEnough(){
+		PrincipalUtils.validatePrincipalName("123", true);
+	}
+	
+	
+	@Test (expected=IllegalArgumentException.class)
+	public void testValidatePrincipalUserOtherChars(){
+		PrincipalUtils.validatePrincipalName("has!@#$%^&*()otherchars", true);
+	}
+
+	@Test
+	public void testValidatePrincipalNameTeam(){
+		PrincipalUtils.validatePrincipalName("1234567890.a-b_c defghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP", false);
+	}
+	
+	@Test
+	public void testValidatePrincipalTeamAt(){
+		try{
+			PrincipalUtils.validatePrincipalName("has@chars", false);
+			fail("should have failed because it contains spaces.");
+		}catch(IllegalArgumentException e){
+			assertTrue(e.getMessage().contains("letters"));
+			assertTrue(e.getMessage().contains("numbers"));
+			assertTrue(e.getMessage().contains("underscore"));
+			assertTrue(e.getMessage().contains("dash"));
+			assertTrue(e.getMessage().contains("dot"));
+			assertTrue(e.getMessage().contains("space"));
+			assertTrue(e.getMessage().contains("3 characters long"));
+		}
+	}
+	
+	@Test (expected=IllegalArgumentException.class)
+	public void testValidatePrincipalTeamTooShort(){
+		PrincipalUtils.validatePrincipalName("12", false);
+	}
+
+	@Test
+	public void testValidatePrincipalTeamLongEnough(){
+		PrincipalUtils.validatePrincipalName("123", false);
+	}
+	
+	
+	@Test (expected=IllegalArgumentException.class)
+	public void testValidatePrincipalTeamOtherChars(){
+		PrincipalUtils.validatePrincipalName("has!@#$%^&*()otherchars", false);
+	}
+	
+	@Test
+	public void testGetUniquePrincipalNameCase(){
+		String input = "BigTop";
+		String expected = "bigtop";
+		String result = PrincipalUtils.getUniquePrincipalName(input);
+		assertEquals(expected, result);
+	}
+	
+	@Test
+	public void testGetUniquePrincipalNameSpace(){
+		String input = "Big Top";
+		String expected = "bigtop";
+		String result = PrincipalUtils.getUniquePrincipalName(input);
+		assertEquals(expected, result);
+	}
+	
+	@Test
+	public void testGetUniquePrincipalNameDash(){
+		String input = "Big-Top";
+		String expected = "bigtop";
+		String result = PrincipalUtils.getUniquePrincipalName(input);
+		assertEquals(expected, result);
+	}
+	
+	@Test
+	public void testGetUniquePrincipalNameAll(){
+		String input = "1.2 3-4_567890AbCdEfGhIJklmnoPqRSTUvwxyz";
+		String expected = "1234567890abcdefghijklmnopqrstuvwxyz";
+		String result = PrincipalUtils.getUniquePrincipalName(input);
+		assertEquals(expected, result);
+	}
 }

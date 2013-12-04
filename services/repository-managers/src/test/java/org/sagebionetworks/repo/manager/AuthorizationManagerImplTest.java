@@ -178,7 +178,7 @@ public class AuthorizationManagerImplTest {
 		assertFalse(b);
 		AccessControlList acl = entityPermissionsManager.getACL(node.getId(), userInfo);
 		assertNotNull(acl);
-		Principal g = userManager.findGroup(AuthorizationConstants.TEST_GROUP_NAME, false);
+		Principal g = userManager.findPrincipalWithPrincipalName(AuthorizationConstants.TEST_GROUP_NAME, false);
 		acl = AuthorizationTestHelper.addToACL(acl, g, ACCESS_TYPE.READ);
 		acl = entityPermissionsManager.updateACL(acl, adminUser);
 		// now they should be able to access
@@ -194,7 +194,7 @@ public class AuthorizationManagerImplTest {
 		assertFalse(b);
 		AccessControlList acl = entityPermissionsManager.getACL(node.getId(), userInfo);
 		assertNotNull(acl);
-		Principal pg = userManager.findGroup(AuthorizationConstants.PUBLIC_GROUP_NAME, false);
+		Principal pg = userManager.findPrincipalWithPrincipalName(AuthorizationConstants.PUBLIC_GROUP_NAME, false);
 		acl = AuthorizationTestHelper.addToACL(acl, pg, ACCESS_TYPE.READ);
 		acl = entityPermissionsManager.updateACL(acl, adminUser);
 		// now they should be able to access
@@ -206,7 +206,7 @@ public class AuthorizationManagerImplTest {
 	public void testAnonymousCanAccessPublicGroup() throws Exception {
 		AccessControlList acl = entityPermissionsManager.getACL(node.getId(), userInfo);
 		assertNotNull(acl);
-		Principal pg = userManager.findGroup(AuthorizationConstants.PUBLIC_GROUP_NAME, false);
+		Principal pg = userManager.findPrincipalWithPrincipalName(AuthorizationConstants.PUBLIC_GROUP_NAME, false);
 		acl = AuthorizationTestHelper.addToACL(acl, pg, ACCESS_TYPE.READ);
 		acl = entityPermissionsManager.updateACL(acl, adminUser);
 		UserInfo anonInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
@@ -220,7 +220,7 @@ public class AuthorizationManagerImplTest {
 	public void testAnonymousCanOnlyReadPublicEntity() throws Exception {
 		AccessControlList acl = entityPermissionsManager.getACL(node.getId(), userInfo);
 		assertNotNull(acl);
-		Principal pg = userManager.findGroup(AuthorizationConstants.PUBLIC_GROUP_NAME, false);
+		Principal pg = userManager.findPrincipalWithPrincipalName(AuthorizationConstants.PUBLIC_GROUP_NAME, false);
 		acl = AuthorizationTestHelper.addToACL(acl, pg, ACCESS_TYPE.READ);
 		acl = AuthorizationTestHelper.addToACL(acl, pg, ACCESS_TYPE.CHANGE_PERMISSIONS);
 		acl = AuthorizationTestHelper.addToACL(acl, pg, ACCESS_TYPE.CREATE);
@@ -257,7 +257,7 @@ public class AuthorizationManagerImplTest {
 		AccessControlList acl = entityPermissionsManager.getACL(node.getId(), userInfo);
 		assertNotNull(acl);
 		// give some other group access
-		Principal g = userManager.findGroup(AuthorizationConstants.TEST_GROUP_NAME, false);
+		Principal g = userManager.findPrincipalWithPrincipalName(AuthorizationConstants.TEST_GROUP_NAME, false);
 		acl = AuthorizationTestHelper.addToACL(acl, g, ACCESS_TYPE.READ);
 		acl = entityPermissionsManager.updateACL(acl, adminUser);
 		// anonymous does not have access
@@ -293,7 +293,7 @@ public class AuthorizationManagerImplTest {
 		//update so that public group CAN read
 		AccessControlList acl = entityPermissionsManager.getACL(node.getId(), userInfo);
 		assertNotNull(acl);
-		Principal pg = userManager.findGroup(AuthorizationConstants.PUBLIC_GROUP_NAME, false);
+		Principal pg = userManager.findPrincipalWithPrincipalName(AuthorizationConstants.PUBLIC_GROUP_NAME, false);
 		acl = AuthorizationTestHelper.addToACL(acl, pg, ACCESS_TYPE.READ);
 		acl = entityPermissionsManager.updateACL(acl, adminUser);
 		

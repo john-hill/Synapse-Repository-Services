@@ -228,7 +228,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 		Collection<Principal> userGroups = userManager.getGroups();
 		this.logger.info("Loaded " + userGroups.size() + " user groups.");
 		for (Principal group : userGroups) {
-			if (group.getName() != null) {
+			if (group.getPrincipalName() != null) {
 				header = convertUserGroupToHeader(group);			
 				addToPrefixCache(tempPrefixCache, null, header);
 				addToIdCache(tempIdCache, header);
@@ -355,7 +355,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 
 	private UserGroupHeader convertUserGroupToHeader(Principal group) {
 		UserGroupHeader header = new UserGroupHeader();
-		header.setDisplayName(group.getName());
+		header.setDisplayName(group.getPrincipalName());
 		header.setOwnerId(group.getId());
 		header.setIsIndividual(group.getIsIndividual());
 		return header;

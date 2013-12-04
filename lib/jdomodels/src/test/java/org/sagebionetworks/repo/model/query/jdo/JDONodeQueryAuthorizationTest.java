@@ -318,7 +318,7 @@ public class JDONodeQueryAuthorizationTest implements InitializingBean{
 		user.setUserId(name);
 		// Create a group for this user
 		String userGroupName = name+"group";
-		Principal group = userGroupDAO.findGroup(userGroupName, true); //new UserGroup();
+		Principal group = userGroupDAO.findUserWithEmail(userGroupName); //new UserGroup();
 		String id = null;
 		if (group==null) {
 			group = new Principal();
@@ -348,7 +348,7 @@ public class JDONodeQueryAuthorizationTest implements InitializingBean{
 	 * @throws NotFoundException
 	 */
 	private Principal createGroup(String name) throws DatastoreException, InvalidModelException, NotFoundException{
-		Principal group = userGroupDAO.findGroup(name, false);
+		Principal group = userGroupDAO.findPrincipalWithPrincipalName(name, false);
 		String id = null;
 		if (group==null) { 
 			group = new Principal();
@@ -393,7 +393,7 @@ public class JDONodeQueryAuthorizationTest implements InitializingBean{
 	 */
 	@Override
 	public void afterPropertiesSet() throws Exception {
-		Long creatorUserGroupId = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
+		Long creatorUserGroupId = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 
 		if(instance != null){
 			return;

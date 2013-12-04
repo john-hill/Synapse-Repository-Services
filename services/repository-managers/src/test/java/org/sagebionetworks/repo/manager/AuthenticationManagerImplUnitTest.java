@@ -43,7 +43,7 @@ public class AuthenticationManagerImplUnitTest {
 		userGroupDAO = mock(PrincipalDAO.class);
 		Principal ug = new Principal();
 		ug.setId(userId);
-		when(userGroupDAO.findGroup(eq(username), eq(true))).thenReturn(ug);
+		when(userGroupDAO.findUserWithEmail(eq(username))).thenReturn(ug);
 		
 		authManager = new AuthenticationManagerImpl(authDAO, userGroupDAO);
 	}
@@ -73,7 +73,7 @@ public class AuthenticationManagerImplUnitTest {
 		Assert.assertEquals(sessionToken, session.getSessionToken());
 		
 		verify(authDAO, times(1)).getSessionTokenIfValid(eq(username));
-		verify(userGroupDAO, times(1)).findGroup(eq(username), eq(true));
+		verify(userGroupDAO, times(1)).findUserWithEmail(eq(username));
 		verify(authDAO, times(1)).changeSessionToken(eq(userId), eq((String) null));
 	}
 	

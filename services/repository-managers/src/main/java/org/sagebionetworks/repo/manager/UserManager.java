@@ -33,13 +33,18 @@ public interface UserManager {
 
 	/**
 	 * Get a default group
+	 * @throws NotFoundException 
 	 */
-	public Principal getDefaultUserGroup(DEFAULT_GROUPS group) throws DatastoreException;
+	public Principal getDefaultUserGroup(DEFAULT_GROUPS group) throws DatastoreException, NotFoundException;
 
 	/**
-	 * Find a group
+	 * Find a principal using the principal's name
+	 * @param principalName
+	 * @param isIndividual
+	 * @return
+	 * @throws NotFoundException 
 	 */
-	public Principal findGroup(String name, boolean b) throws DatastoreException;
+	public Principal findPrincipalWithPrincipalName(String principalName, boolean isIndividual) throws NotFoundException;	
 	
 	/**
 	 * Creates a new user
@@ -47,14 +52,18 @@ public interface UserManager {
 	public void createUser(NewUser user);
 	
 	/**
-	 * Does a principal with this name exist?
+	 * Does a principal exist with the given email address?
 	 */
-	public boolean doesPrincipalExist(String name);
+	public boolean doesPrincipalExistWithEmail(String name);
+	
 	
 	/**
-	 * Delete a principal by name
+	 * Does a principal exist with the given principal name?
+	 * 
+	 * @param principalName
+	 * @return
 	 */
-	public boolean deletePrincipal(String name);
+	public boolean doesPrincipalExistWithPrincipalName(String principalName);
 
 	/**
 	 * @param principalId
@@ -62,15 +71,10 @@ public interface UserManager {
 	 */
 	public String getDisplayName(Long principalId) throws NotFoundException;
 	
-	/**
-	 * Returns the group name
-	 */
-	public String getGroupName(String principalId) throws NotFoundException;
-
-	/**
-	 * Changes the user's email
-	 */
-	public void updateEmail(UserInfo userInfo, String newEmail) throws DatastoreException, NotFoundException;
+//	/**
+//	 * Returns the group name
+//	 */
+//	public String getGroupName(String principalId) throws NotFoundException;
 
 	/**
 	 * Get all non-individual user groups, including Public.
@@ -81,4 +85,12 @@ public interface UserManager {
 	 * Get non-individual user groups (including Public) in range
 	 **/
 	public List<Principal> getGroupsInRange(UserInfo userInfo, long startIncl, long endExcl, String sort, boolean ascending) throws DatastoreException, UnauthorizedException;
+
+	/**
+	 * Delete a principal using the principal id.
+	 * @param groupId
+	 * @throws NotFoundException 
+	 * @throws DatastoreException 
+	 */
+	public void delete(String principalId) throws DatastoreException, NotFoundException;
 }

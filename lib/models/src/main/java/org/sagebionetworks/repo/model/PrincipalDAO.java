@@ -2,19 +2,28 @@ package org.sagebionetworks.repo.model;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
-public interface PrincipalDAO extends BaseDAO<Principal>{
+import org.sagebionetworks.repo.web.NotFoundException;
+
+public interface PrincipalDAO {
 	
 	/**
-	 * @return the group matching the given name, and the given 'individual' property
+	 * Find a principal using an email address.
+	 * @param email
+	 * @param isIndividual
+	 * @return
+	 * @throws NotFoundException 
 	 */
-	public Principal findGroup(String name, boolean isIndividual) throws DatastoreException;
-
+	public Principal findUserWithEmail(String email) throws NotFoundException;
+	
 	/**
-	 * @return the user groups for the given group names
+	 * Find a principal using the principal's name
+	 * @param principalName
+	 * @param isIndividual
+	 * @return
+	 * @throws NotFoundException 
 	 */
-	public Map<String, Principal> getGroupsByNames(Collection<String> groupName) throws DatastoreException;
+	public Principal findPrincipalWithPrincipalName(String principalName, boolean isIndividual) throws NotFoundException;	
 	
 	/**
 	 * @return the list of user groups for the given principal IDs
@@ -50,15 +59,18 @@ public interface PrincipalDAO extends BaseDAO<Principal>{
 			boolean isIndividual, Collection<String> groupNamesToOmit)
 			throws DatastoreException;
 	/**
-	 * Does a principal exist with this name?
+	 * Does a principal exist with the given email?
 	 */
-	public boolean doesPrincipalExist(String name);
-
+	public boolean doesPrincipalExistWithEmail(String email);
+	
+	
 	/**
+	 * Does a principal exist with the given principal name?
 	 * 
-	 * @return true if deletion occurs
+	 * @param principalName
+	 * @return
 	 */
-	public boolean deletePrincipal(String name);
+	public boolean doesPrincipalExistWithPrincipalName(String principalName);
 	
 	/**
 	 * Get the bootstrap users.
@@ -79,5 +91,31 @@ public interface PrincipalDAO extends BaseDAO<Principal>{
 	 * Updates the etag the group with the given ID
 	 */
 	public void touch(String id);
+
+	/**
+	 * Create a new principal
+	 * @param newPrincipal
+	 * @return
+	 */
+	public String create(Principal newPrincipal);
+
+	/**
+	 * Delete a principal using the passed principal ID.
+	 * @param id
+	 * @throws NotFoundException 
+	 * @throws DatastoreException 
+	 */
+	public void delete(String id) throws DatastoreException, NotFoundException;
+
+	/**
+	 * Get a principal using its principal ID.
+	 * @param id
+	 * @return
+	 * @throws NotFoundException 
+	 * @throws DatastoreException 
+	 */
+	public Principal get(String id) throws DatastoreException, NotFoundException;
+
+	public long getCount();
 
 }

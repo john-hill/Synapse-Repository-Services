@@ -2,6 +2,8 @@ package org.sagebionetworks.repo.model.dbo.dao;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOPrincipal;
@@ -14,6 +16,13 @@ import org.sagebionetworks.repo.model.dbo.persistence.DBOPrincipalBackup;
  *
  */
 public class PrincipalUtils {
+	
+	public static String USER_PRINCIPAL_NAME_REGEX = "^[a-z0-9._-]{3,}";
+	public static String TEAM_PRINCIPAL_NAME_REGEX = "^[a-z0-9 ._-]{3,}";
+	private static Pattern USER_PRINCIPAL_NAME_PATTERN = Pattern.compile(USER_PRINCIPAL_NAME_REGEX);
+	private static Pattern TEAM_PRINCIPAL_NAME_PATTERN = Pattern.compile(TEAM_PRINCIPAL_NAME_REGEX);
+	// Used to replace all characters expect letters and numbers.
+	private static Pattern PRINICPAL_UNIQUENESS_REPLACE_PATTERN  = Pattern.compile("[^a-z0-9]");
 	
 	/**
 	 * Translate from a backup to a DBO.
@@ -36,7 +45,7 @@ public class PrincipalUtils {
 				dbo.setEmail(backup.getName().toLowerCase());
 				// set the user's principalName to be their ID and require the user to change it.
 				dbo.setPrincipalNameDisplay(backup.getId().toString());
-				dbo.setPrincipalNameLower(backup.getId().toString().toLowerCase());
+				dbo.setPrincipalNameUnique(getUniquePrincipalName(backup.getId().toString()));
 				// All migrated users must provide a new principal name.
 				dbo.setMustProvideNewPrincipalName(true);
 			}else{
@@ -46,7 +55,7 @@ public class PrincipalUtils {
 				dbo.setEmail(backup.getId().toString());
 				// For teams the old 'name' can be used as the principal name of the team
 				dbo.setPrincipalNameDisplay(backup.getName());
-				dbo.setPrincipalNameLower(backup.getName().toLowerCase());
+				dbo.setPrincipalNameUnique(getUniquePrincipalName(backup.getName()));
 				// Teams do not need to change their names.
 				dbo.setMustProvideNewPrincipalName(false);
 			}
@@ -56,9 +65,11 @@ public class PrincipalUtils {
 			dbo.setEmail(backup.getEmail());
 			dbo.setMustProvideNewPrincipalName(backup.getMustProvideNewPrincipalName());
 			dbo.setPrincipalNameDisplay(backup.getPrincipalDisplay());
-			dbo.setPrincipalNameLower(backup.getPrincipalNameLower());
+			dbo.setPrincipalNameUnique(backup.getPrincipalNameUnique());
 		}
 
+		// Validate the resulting principal name
+		validatePrincipalName(dbo.getPrincipalNameDisplay(), dbo.getIsIndividual());
 		return dbo;
 	}
 
@@ -76,7 +87,7 @@ public class PrincipalUtils {
 		backup.setIsIndividual(dbo.getIsIndividual());
 		backup.setMustProvideNewPrincipalName(dbo.getMustProvideNewPrincipalName());
 		backup.setPrincipalDisplay(dbo.getPrincipalNameDisplay());
-		backup.setPrincipalNameLower(dbo.getPrincipalNameLower());
+		backup.setPrincipalNameUnique(dbo.getPrincipalNameUnique());
 		return backup;
 	}
 	
@@ -95,7 +106,7 @@ public class PrincipalUtils {
 		dbo.setCreationDate(dto.getCreationDate());
 		dbo.setIsIndividual(dto.getIsIndividual());
 		dbo.setPrincipalNameDisplay(dto.getPrincipalName());
-		dbo.setPrincipalNameLower(dto.getPrincipalName().toLowerCase());
+		dbo.setPrincipalNameUnique(getUniquePrincipalName(dto.getPrincipalName()));
 		dbo.setMustProvideNewPrincipalName(false);
 		dbo.setEmail(dto.getEmail().toLowerCase());
 		dbo.setEtag(dto.getEtag());
@@ -135,6 +146,45 @@ public class PrincipalUtils {
 		return dtos;
 	}
 	
+	/**
+	 * Validate a principal name.
+	 * @param name
+	 * @param isIndividual
+	 */
+	public static void validatePrincipalName(String name, boolean isIndividual){
+		if(name == null) throw new IllegalArgumentException("Name cannot be null");
+		// validate the lower case version of the string.
+		String lower = name.toLowerCase();
+		if(isIndividual){
+	        Matcher m = USER_PRINCIPAL_NAME_PATTERN.matcher(lower);
+	        if(!m.matches()){
+	        	throw new IllegalArgumentException("User names can only contain letters, numbers, dot (.), dash (-) and underscore (_) and must be at least 3 characters long.");
+	        }
+		}else{
+	        Matcher m = TEAM_PRINCIPAL_NAME_PATTERN.matcher(lower);
+	        if(!m.matches()){
+	        	throw new IllegalArgumentException("Team names can only contain letters, numbers, spaces, dot (.), dash (-), underscore (_) and must be at least 3 characters long.");
+	        }
+		}
+	}
+	
+	/**
+	 * Get the string that will be used for a uniqueness check of principal names. 
+	 * Only lower case letters and numbers contribute to the uniqueness of a principal name.
+	 * All other characters (-,., ,_) are ignored.
+	 * 
+	 * @param inputName
+	 * @return
+	 */
+	public static String getUniquePrincipalName(String inputName){
+		if(inputName == null) throw new IllegalArgumentException("Name cannot be null");
+		// Case does not contribute to uniqueness
+		String lower = inputName.toLowerCase();
+		// Only letters and numbers contribute to the uniqueness
+		Matcher m = PRINICPAL_UNIQUENESS_REPLACE_PATTERN.matcher(lower);
+		// Replace all non-letters and numbers with empty strings
+		return m.replaceAll("");
+	}
 	
 
 }

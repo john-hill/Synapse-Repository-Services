@@ -114,7 +114,7 @@ public class DBOReferenceDaoImplTest {
 			node.setId(idGenerator.generateNewId());
 			toDelete.add(node);
 			node.setBenefactorId(node.getId());
-			long createdById = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
+			long createdById = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 			node.setCreatedBy(createdById);
 			node.setCreatedOn(System.currentTimeMillis());
 			node.setCurrentRevNumber(null);
@@ -127,7 +127,7 @@ public class DBOReferenceDaoImplTest {
 		}
 		
 		groupsToDelete = new ArrayList<String>();
-		Principal ug = userGroupDAO.findGroup(GROUP_NAME, false);
+		Principal ug = userGroupDAO.findPrincipalWithPrincipalName(GROUP_NAME, false);
 		if(ug != null){
 			userGroupDAO.delete(ug.getId());
 		}
@@ -430,7 +430,7 @@ public class DBOReferenceDaoImplTest {
 		group.setId(groupId);
 		groupsToDelete.add(groupId);
 
-		Long createdById = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
+		Long createdById = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 
 		// create an ACL for node0
 		AccessControlList acl = new AccessControlList();

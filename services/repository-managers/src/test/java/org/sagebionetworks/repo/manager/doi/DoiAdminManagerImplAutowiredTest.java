@@ -31,11 +31,11 @@ public class DoiAdminManagerImplAutowiredTest {
 
 	@Test
 	public void testAdmin() throws Exception {
-		doiAdminManager.clear(testAdminUserInfo.getIndividualGroup().getName());
+		doiAdminManager.clear(testAdminUserInfo.getIndividualGroup().getPrincipalName());
 	}
 
 	@Test(expected=UnauthorizedException.class)
 	public void testNotAdmin() throws Exception {
-		doiAdminManager.clear(testUserInfo.getIndividualGroup().getName());
+		doiAdminManager.clear(testUserInfo.getIndividualGroup().getPrincipalName());
 	}
 }

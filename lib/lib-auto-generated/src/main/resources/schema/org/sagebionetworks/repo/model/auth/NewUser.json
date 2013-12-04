@@ -5,7 +5,11 @@
 		"email": {
 			"type": "string",
 			"description": "User's email"
-		}, 
+		},
+		"principalName": {
+			"type": "string",
+			"description": "User's principal name"
+		},  
 		"password": {
 			"type": "string",
 			"description": "User's password"

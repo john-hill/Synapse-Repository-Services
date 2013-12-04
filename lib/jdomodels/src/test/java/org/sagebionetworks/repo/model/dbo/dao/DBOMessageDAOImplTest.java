@@ -79,8 +79,8 @@ public class DBOMessageDAOImplTest {
 		changeDAO.deleteAllChanges();
 		
 		// These two principals will act as mutual spammers
-		maliciousUser = userGroupDAO.findGroup(AuthorizationConstants.TEST_USER_NAME, true);
-		maliciousGroup = userGroupDAO.findGroup(AuthorizationConstants.TEST_GROUP_NAME, false);
+		maliciousUser = userGroupDAO.findUserWithEmail(AuthorizationConstants.TEST_USER_NAME);
+		maliciousGroup = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.TEST_GROUP_NAME, false);
 		
 		// We need a file handle to satisfy a foreign key constraint
 		// But it doesn't need to point to an actual file

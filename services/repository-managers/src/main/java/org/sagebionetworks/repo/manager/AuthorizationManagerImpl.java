@@ -190,8 +190,14 @@ public class AuthorizationManagerImpl implements AuthorizationManager {
 	
 	public boolean isACTTeamMemberOrAdmin(UserInfo userInfo) throws DatastoreException, UnauthorizedException {
 		if (userInfo.isAdmin()) return true;
-		Principal actTeam = userGroupDAO.findGroup(ACCESS_AND_COMPLIANCE_TEAM_NAME, false);
-		return userInfo.getGroups().contains(actTeam);
+		Principal actTeam;
+		try {
+			actTeam = userGroupDAO.findPrincipalWithPrincipalName(ACCESS_AND_COMPLIANCE_TEAM_NAME, false);
+			return userInfo.getGroups().contains(actTeam);
+		} catch (NotFoundException e) {
+			throw new RuntimeException(e);
+		}
+
 	}
 
 	public boolean isACTTeamMemberOrCanCreateOrEdit(UserInfo userInfo, Collection<String> entityIds) throws NotFoundException {

@@ -77,7 +77,7 @@ public class DBOAccessApprovalDAOImplTest {
 	
 	@Before
 	public void setUp() throws Exception {
-		individualGroup = userGroupDAO.findGroup(TEST_USER_NAME, true);
+		individualGroup = userGroupDAO.findPrincipalWithPrincipalName(TEST_USER_NAME, true);
 		if (individualGroup == null) {
 			individualGroup = new Principal();
 			individualGroup.setPrincipalName(TEST_USER_NAME);
@@ -85,7 +85,7 @@ public class DBOAccessApprovalDAOImplTest {
 			individualGroup.setCreationDate(new Date());
 			individualGroup.setId(userGroupDAO.create(individualGroup));
 		}
-		individualGroup2 = userGroupDAO.findGroup(TEST_USER_NAME, true);
+		individualGroup2 = userGroupDAO.findPrincipalWithPrincipalName(TEST_USER_NAME, true);
 		if (individualGroup2 == null) {
 			individualGroup2 = new Principal();
 			individualGroup2.setPrincipalName(TEST_USER_NAME_2);
@@ -158,11 +158,11 @@ public class DBOAccessApprovalDAOImplTest {
 			evaluationDAO.delete(evaluation.getId());
 			evaluation = null;
 		}
-		individualGroup = userGroupDAO.findGroup(TEST_USER_NAME, true);
+		individualGroup = userGroupDAO.findPrincipalWithPrincipalName(TEST_USER_NAME, true);
 		if (individualGroup != null) {
 			userGroupDAO.delete(individualGroup.getId());
 		}
-		individualGroup2 = userGroupDAO.findGroup(TEST_USER_NAME_2, true);
+		individualGroup2 = userGroupDAO.findPrincipalWithPrincipalName(TEST_USER_NAME_2, true);
 		if (individualGroup2 != null) {
 			userGroupDAO.delete(individualGroup2.getId());
 		}

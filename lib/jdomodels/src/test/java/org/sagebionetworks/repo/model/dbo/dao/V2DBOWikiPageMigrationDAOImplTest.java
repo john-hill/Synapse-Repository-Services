@@ -86,9 +86,9 @@ public class V2DBOWikiPageMigrationDAOImplTest {
 	S3FileHandle markdown;
 	
 	@Before
-	public void before(){
+	public void before() throws NotFoundException{
 		toDeleteFromV2 = new LinkedList<WikiPageKey>();
-		Principal userGroup = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false);
+		Principal userGroup = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false);
 		assertNotNull(userGroup);
 		creatorUserGroupId = userGroup.getId();
 		assertNotNull(creatorUserGroupId);

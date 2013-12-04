@@ -67,8 +67,8 @@ public class UserProfileManagerImpl implements UserProfileManager {
 		UserProfile userProfile = userProfileDAO.get(ownerId);
 		Principal userGroup = userGroupDAO.get(ownerId);
 		if (userGroup != null) {
-			userProfile.setEmail(userGroup.getName());
-			userProfile.setUserName(userGroup.getName());
+			userProfile.setEmail(userGroup.getEmail());
+			userProfile.setUserName(userGroup.getPrincipalName());
 		}
 		return userProfile;
 	}
@@ -81,7 +81,7 @@ public class UserProfileManagerImpl implements UserProfileManager {
 			if (includeEmail) {
 				Principal userGroup = userGroupDAO.get(userProfile.getOwnerId());
 				if (userGroup != null)
-					userProfile.setEmail(userGroup.getName());
+					userProfile.setEmail(userGroup.getEmail());
 			}
 		}
 		QueryResults<UserProfile> result = new QueryResults<UserProfile>(userProfiles, (int)totalNumberOfResults);
@@ -104,15 +104,8 @@ public class UserProfileManagerImpl implements UserProfileManager {
 		UserProfile userProfile = userProfileDAO.get(updated.getOwnerId());
 		boolean canUpdate = UserProfileManagerUtils.isOwnerOrAdmin(userInfo, userProfile.getOwnerId());
 		if (!canUpdate) throw new UnauthorizedException("Only owner or administrator may update UserProfile.");
-		String oldEmail = userInfo.getIndividualGroup().getName();
 		attachmentManager.checkAttachmentsForPreviews(updated);
-		UserProfile returnProfile = userProfileDAO.update(updated);
-		
-		//and update email if it is also set (and is different)
-		if (updated.getEmail() != null && !updated.getEmail().equals(oldEmail)) {
-			userManager.updateEmail(userInfo, updated.getEmail());
-		}
-		
+		UserProfile returnProfile = userProfileDAO.update(updated);		
 		return returnProfile;
 	}
 

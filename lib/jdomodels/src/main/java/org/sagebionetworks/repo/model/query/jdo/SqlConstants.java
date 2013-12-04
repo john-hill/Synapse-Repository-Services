@@ -234,7 +234,7 @@ public class SqlConstants {
 	// Principal table
 	public static final String TABLE_PRINCIPAL								= "PRINCIPAL";
 	public static final String COL_PRINCIPAL_ID								= "ID";
-	public static final String COL_PRINCIPAL_PRINCIPAL_NAME_LOWER	 		= "PRINCIPAL_NAME_LOWER";
+	public static final String COL_PRINCIPAL_PRINCIPAL_NAME_UNIQUE	 		= "PRINCIPAL_NAME_UNIQUE";
 	public static final String COL_PRINCIPAL_PRINCIPAL_NAME_DISPLAY 		= "PRINCIPAL_NAME_DISPLAY";
 	public static final String COL_PRINCIPAL_MUST_PROVIDE_NEW_PRICIPAL_NAME	= "MUST_PROVIDE_NEW_PRICIPAL_NAME";
 	public static final String COL_PRINCIPAL_EMAIL 							= "EMAIL";

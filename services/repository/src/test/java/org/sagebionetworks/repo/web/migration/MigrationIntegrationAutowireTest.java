@@ -599,10 +599,10 @@ public class MigrationIntegrationAutowireTest {
 		commentDAO.createComment(dto2);
 	}
 	
-	private void createTeamsRequestsAndInvitations(Principal group) {
+	private void createTeamsRequestsAndInvitations(Principal group) throws NotFoundException {
 		Team team = new Team();
 		team.setId(group.getId());
-		team.setName(group.getName());
+		team.setName(group.getPrincipalName());
 		team.setDescription("test team");
 		teamDAO.create(team);
 		
@@ -615,7 +615,7 @@ public class MigrationIntegrationAutowireTest {
 		mrs.setMessage("Please let me join the team.");
 		mrs.setTeamId(""+group.getId());
 		// need another valid user group
-		Principal individUser = userGroupDAO.findGroup(AuthorizationConstants.ANONYMOUS_USER_ID, true);
+		Principal individUser = userGroupDAO.findUserWithEmail(AuthorizationConstants.ANONYMOUS_USER_ID);
 		mrs.setUserId(individUser.getId());
 		membershipRqstSubmissionDAO.create(mrs);
 		
@@ -637,7 +637,7 @@ public class MigrationIntegrationAutowireTest {
 	private void createCommunity(Principal group) throws Exception {
 		Team team = new Team();
 		team.setId(group.getId());
-		team.setName(group.getName());
+		team.setName(group.getPrincipalName());
 		team.setDescription("test team");
 		team = teamDAO.create(team);
 

@@ -18,6 +18,7 @@ import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
@@ -51,13 +52,13 @@ public class EntityBootstrapperUnitTest {
 	}
 	
 	@Test
-	public void testCreateAcl() throws DatastoreException {
+	public void testCreateAcl() throws DatastoreException, NotFoundException {
 		// Build up a list of entires
 		List<AccessBootstrapData> list = new ArrayList<AccessBootstrapData>();
 		
 		AccessBootstrapData data = new AccessBootstrapData();
 
-		Principal authenticatedUsers = userGroupDAO.findGroup(DEFAULT_GROUPS.AUTHENTICATED_USERS.name(), false);
+		Principal authenticatedUsers = userGroupDAO.findPrincipalWithPrincipalName(DEFAULT_GROUPS.AUTHENTICATED_USERS.name(), false);
 		assertNotNull(authenticatedUsers);
 
 		data.setGroupId(Long.parseLong(authenticatedUsers.getId()));
@@ -68,7 +69,7 @@ public class EntityBootstrapperUnitTest {
 		list.add(data);
 		
 		data = new AccessBootstrapData();
-		Principal publicUsers = userGroupDAO.findGroup(DEFAULT_GROUPS.PUBLIC.name(), false);
+		Principal publicUsers = userGroupDAO.findPrincipalWithPrincipalName(DEFAULT_GROUPS.PUBLIC.name(), false);
 		assertNotNull(publicUsers);
 
 		data.setGroupId(Long.parseLong(publicUsers.getId()));
@@ -81,7 +82,7 @@ public class EntityBootstrapperUnitTest {
 		
 		// Now create the ACL
 		assertNotNull(userGroupDAO);
-		String createdById = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
+		String createdById = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
 		AccessControlList acl = EntityBootstrapperImpl.createAcl(nodeId, createdById, list); 
 		assertNotNull(acl);
 		assertEquals(nodeId, acl.getId());

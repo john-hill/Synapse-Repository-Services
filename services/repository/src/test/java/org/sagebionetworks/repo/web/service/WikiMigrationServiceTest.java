@@ -69,7 +69,7 @@ public class WikiMigrationServiceTest {
 		toDelete = new ArrayList<WikiPageKey>(); 
 		toDeleteForParentCase = new ArrayList<WikiPageKey>();
 		
-		Principal userGroup = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false);
+		Principal userGroup = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false);
 		assertNotNull(userGroup);
 		creatorUserGroupId = userGroup.getId();
 		assertNotNull(creatorUserGroupId);
@@ -113,7 +113,7 @@ public class WikiMigrationServiceTest {
 	public void testMigrateAndRemigrateSomeWikis() throws NotFoundException, IOException {
 		// Create some wiki pages
 		createWikiPages(1, 3);
-		String userName = adminUserInfo.getIndividualGroup().getName();
+		String userName = adminUserInfo.getIndividualGroup().getPrincipalName();
 		// Migrate some wiki pages
 		PaginatedResults<WikiMigrationResult> results = wikiMigrationService.migrateSomeWikis(userName, 3, 0, "somePath");
 		assertNotNull(results);
@@ -136,7 +136,7 @@ public class WikiMigrationServiceTest {
 		// If there is a change in the wiki page that needs to be updated in the V2 table, we'll remigrate.
 		// Otherwise, we skip the remigration of a wiki page.
 		
-		String userName = adminUserInfo.getIndividualGroup().getName();
+		String userName = adminUserInfo.getIndividualGroup().getPrincipalName();
 		String ownerId = "syn1";
 		ObjectType ownerType = ObjectType.ENTITY;
 		// Create a V2 Wiki

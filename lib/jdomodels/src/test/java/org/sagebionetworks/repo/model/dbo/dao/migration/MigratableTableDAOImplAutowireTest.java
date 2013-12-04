@@ -21,6 +21,7 @@ import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.migration.MigrationType;
 import org.sagebionetworks.repo.model.migration.RowMetadata;
 import org.sagebionetworks.repo.model.migration.RowMetadataResult;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
@@ -42,9 +43,9 @@ public class MigratableTableDAOImplAutowireTest {
 	private String creatorUserGroupId;
 	
 	@Before
-	public void before(){
+	public void before() throws NotFoundException{
 		toDelete = new LinkedList<String>();
-		creatorUserGroupId = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
+		creatorUserGroupId = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
 		assertNotNull(creatorUserGroupId);
 	}
 	

@@ -63,7 +63,7 @@ public class NodeInheritanceDAOImplTest {
 	
 	@Test
 	public void testCrud() throws Exception{
-		Long creatorUserGroupId = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
+		Long creatorUserGroupId = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 		// First create a node
 		Node toCreate = NodeTestUtils.createNew("nodeInheritanceDaoTest", creatorUserGroupId);
 		String parentId = nodeDao.createNew(toCreate);

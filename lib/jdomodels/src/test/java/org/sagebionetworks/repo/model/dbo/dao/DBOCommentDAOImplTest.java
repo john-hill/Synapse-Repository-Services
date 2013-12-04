@@ -47,7 +47,7 @@ public class DBOCommentDAOImplTest {
 	public void setup() throws Exception {
 		cleanup = new ArrayList<String>();
 		
-		maliciousUser = userGroupDAO.findGroup(AuthorizationConstants.TEST_USER_NAME, true);
+		maliciousUser = userGroupDAO.findUserWithEmail(AuthorizationConstants.TEST_USER_NAME);
 		
 		// We need a file handle to satisfy a foreign key constraint
 		// But it doesn't need to point to an actual file

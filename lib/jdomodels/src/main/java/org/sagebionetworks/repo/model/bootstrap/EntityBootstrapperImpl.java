@@ -74,7 +74,7 @@ public class EntityBootstrapperImpl implements EntityBootstrapper {
 		// First make sure the nodeDao has been bootstrapped
 		nodeDao.boostrapAllNodeTypes();
 		pathMap = Collections.synchronizedMap(new HashMap<String, EntityBootstrapData>());
-		Principal bootstrapPrincipal = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false);
+		Principal bootstrapPrincipal = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false);
 		// Map the default users to their ids
 		// Now create a node for each type in the list
 		for(EntityBootstrapData entityBoot: bootstrapEntities){
@@ -112,7 +112,7 @@ public class EntityBootstrapperImpl implements EntityBootstrapper {
 			String nodeId = nodeDao.createNew(toCreate);
 			
 			for (AccessBootstrapData abd: entityBoot.getAccessList()) {
-				Long groupId = Long.parseLong(userGroupDAO.findGroup(abd.getGroup().name(), false).getId());
+				Long groupId = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(abd.getGroup().name(), false).getId());
 				abd.setGroupId(groupId);
 			}
 

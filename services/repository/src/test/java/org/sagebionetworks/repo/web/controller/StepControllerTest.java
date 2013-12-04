@@ -218,7 +218,7 @@ public class StepControllerTest {
 		AccessControlList projectAcl = testHelper.getEntityACL(project);
 		ResourceAccess ac = new ResourceAccess();
 
-		Principal authenticatedUsers = userGroupDAO.findGroup(
+		Principal authenticatedUsers = userGroupDAO.findPrincipalWithPrincipalName(
 				AuthorizationConstants.DEFAULT_GROUPS.AUTHENTICATED_USERS.name(), false);
 		assertNotNull(authenticatedUsers);
 		ac.setPrincipalId(Long.parseLong(authenticatedUsers.getId()));

@@ -14,7 +14,6 @@ import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
-import org.sagebionetworks.repo.model.UserGroupInt;
 import org.sagebionetworks.repo.model.UserProfile;
 import org.sagebionetworks.repo.model.UserProfileDAO;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
@@ -182,7 +181,7 @@ public class DBOUserProfileDAOImpl implements UserProfileDAO {
 		// For each one determine if it exists, if not create it
 		for (Principal ug: userGroupDAO.getBootstrapUsers()) {
 			if (ug.getId() == null) throw new IllegalArgumentException("Bootstrap users must have an id");
-			if (ug.getName() == null) throw new IllegalArgumentException("Bootstrap users must have a name");
+			if (ug.getPrincipalName() == null) throw new IllegalArgumentException("Bootstrap users must have a name");
 			if (ug.getIsIndividual()) {
 				Long.parseLong(ug.getId());
 				UserProfile userProfile = null;
@@ -191,9 +190,9 @@ public class DBOUserProfileDAOImpl implements UserProfileDAO {
 				} catch (NotFoundException nfe) {
 					userProfile = new UserProfile();
 					userProfile.setOwnerId(ug.getId());
-					userProfile.setFirstName("First-" + ug.getName());
-					userProfile.setLastName("Last-" + ug.getName());
-					userProfile.setDisplayName(ug.getName());
+					userProfile.setFirstName("First-" + ug.getPrincipalName());
+					userProfile.setLastName("Last-" + ug.getPrincipalName());
+					userProfile.setDisplayName(ug.getPrincipalName());
 					this.create(userProfile);
 				}
 			}

@@ -112,7 +112,15 @@ public class AuthenticationManagerImpl implements AuthenticationManager {
 		
 		// Set a new session token if necessary
 		if (session.getSessionToken() == null) {
-			Principal ug = userGroupDAO.findGroup(username, true);
+			// Is the username contains an @ it is an email, else it is a principal name
+			Principal ug = null;
+			if(username.contains("@")){
+				// Lookup the user by email.
+				ug = userGroupDAO.findUserWithEmail(username); 
+			}else{
+				// lookup the user by the principal name
+				ug = userGroupDAO.findPrincipalWithPrincipalName(username, true);
+			}
 			if (ug == null) {
 				throw new NotFoundException("The user (" + username + ") does not exist");
 			}

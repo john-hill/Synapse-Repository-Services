@@ -13,6 +13,7 @@ import org.sagebionetworks.repo.model.daemon.BackupRestoreStatus;
 import org.sagebionetworks.repo.model.daemon.DaemonStatus;
 import org.sagebionetworks.repo.model.daemon.DaemonType;
 import org.sagebionetworks.repo.model.dbo.persistence.DBODaemonStatus;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
@@ -25,8 +26,8 @@ public class BackupRestoreStatusUtilTest {
 	private PrincipalDAO userGroupDAO;
 
 	@Test
-	public void testRoundTrip() throws DatastoreException{
-		String userGroupId = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
+	public void testRoundTrip() throws DatastoreException, NotFoundException{
+		String userGroupId = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
 		// Make a round trip from the DTO->JDO->DTO
 		BackupRestoreStatus dto = new BackupRestoreStatus();
 		dto.setId("12");
@@ -53,8 +54,8 @@ public class BackupRestoreStatusUtilTest {
 	}
 
 	@Test
-	public void testRoundTripWithOptionalNulls() throws DatastoreException{
-		String userGroupId = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
+	public void testRoundTripWithOptionalNulls() throws DatastoreException, NotFoundException{
+		String userGroupId = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
 		// Make a round trip from the DTO->JDO->DTO
 		BackupRestoreStatus dto = new BackupRestoreStatus();
 		dto.setId("12");

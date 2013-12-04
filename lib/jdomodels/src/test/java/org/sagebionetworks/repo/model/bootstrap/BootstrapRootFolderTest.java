@@ -54,8 +54,8 @@ public class BootstrapRootFolderTest {
 		assertEquals(1, trashFolderBootstrapData.getAccessList().size());
 		AccessBootstrapData access = trashFolderBootstrapData.getAccessList().get(0);
 		assertNotNull(access);
-		access.setGroupId(Long.parseLong(userGroupDAO.findGroup(access.getGroup().name(), false).getId()));
-		Principal authenticatedUsers = userGroupDAO.findGroup(DEFAULT_GROUPS.AUTHENTICATED_USERS.name(), false);
+		access.setGroupId(Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(access.getGroup().name(), false).getId()));
+		Principal authenticatedUsers = userGroupDAO.findPrincipalWithPrincipalName(DEFAULT_GROUPS.AUTHENTICATED_USERS.name(), false);
 		assertNotNull(authenticatedUsers);
 		assertNotNull(authenticatedUsers.getId());
 		assertEquals(authenticatedUsers.getId(), access.getGroupId().toString());

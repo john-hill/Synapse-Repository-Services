@@ -22,6 +22,7 @@ import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.dbo.dao.AuthorizationUtils;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
@@ -36,20 +37,19 @@ public class UserManagerImplTest {
 	@Autowired
 	private PrincipalDAO userGroupDAO;
 	
-	private List<String> groupsToDelete = null;
+	private List<String> groupsToDeleteIds = null;
 	
 	
 	@Before
 	public void setUp() throws Exception {
-		groupsToDelete = new ArrayList<String>();
+		groupsToDeleteIds = new ArrayList<String>();
 	}
 
 	@After
 	public void tearDown() throws Exception {
-		for(String groupId: groupsToDelete){
-			Principal ug = userGroupDAO.get(groupId);
+		for(String groupId: groupsToDeleteIds){
 			try {
-				userManager.deletePrincipal(ug.getName());
+				userManager.delete(groupId);
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
@@ -57,7 +57,7 @@ public class UserManagerImplTest {
 	}
 	
 	@Test
-	public void testGetDefaultGroup() throws DatastoreException{
+	public void testGetDefaultGroup() throws DatastoreException, NotFoundException{
 		// We should be able to get all default groups
 		DEFAULT_GROUPS[] array = DEFAULT_GROUPS.values();
 		for(DEFAULT_GROUPS group: array){
@@ -78,28 +78,27 @@ public class UserManagerImplTest {
 		assertTrue(ui.getGroups().contains(ui.getIndividualGroup()));
 		//assertEquals(ui.getIndividualGroup(), ui.getGroups().iterator().next());
 		// They belong to the public group but not the authenticated user's group
-		assertTrue(ui.getGroups().contains(userGroupDAO.findGroup(AuthorizationConstants.DEFAULT_GROUPS.PUBLIC.name(), false)));
+		assertTrue(ui.getGroups().contains(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.DEFAULT_GROUPS.PUBLIC.name(), false)));
 		// Anonymous does not belong to the authenticated user's group.
-		assertFalse(ui.getGroups().contains(userGroupDAO.findGroup(AuthorizationConstants.DEFAULT_GROUPS.AUTHENTICATED_USERS.name(), false)));
+		assertFalse(ui.getGroups().contains(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.DEFAULT_GROUPS.AUTHENTICATED_USERS.name(), false)));
 	}
 	
 	@Test
 	public void testStandardUser() throws Exception {
-		System.out.println("Groups in the system: "+userGroupDAO.getAll());
 		
 		// Check that the UserInfo is populated
 		UserInfo ui = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
 		assertNotNull(ui.getIndividualGroup());
 		assertNotNull(ui.getIndividualGroup().getId());
-		assertNotNull(userGroupDAO.findGroup(AuthorizationConstants.TEST_USER_NAME, true));
+		assertNotNull(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.TEST_USER_NAME, true));
 		
 		// The group the test user belongs to should also exist
-		Principal testGroup = userGroupDAO.findGroup(AuthorizationConstants.TEST_GROUP_NAME, false);
+		Principal testGroup = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.TEST_GROUP_NAME, false);
 		assertNotNull(testGroup);
 		
 		// Should include Public and authenticated users' group.
-		assertTrue(ui.getGroups().contains(userGroupDAO.findGroup(AuthorizationConstants.DEFAULT_GROUPS.PUBLIC.name(), false)));
-		assertTrue(ui.getGroups().contains(userGroupDAO.findGroup(AuthorizationConstants.DEFAULT_GROUPS.AUTHENTICATED_USERS.name(), false)));
+		assertTrue(ui.getGroups().contains(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.DEFAULT_GROUPS.PUBLIC.name(), false)));
+		assertTrue(ui.getGroups().contains(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.DEFAULT_GROUPS.AUTHENTICATED_USERS.name(), false)));
 		
 		// The group relationship should exist
 		assertTrue("Missing "+testGroup+"  Has "+ui.getGroups(), ui.getGroups().contains(testGroup));
@@ -116,35 +115,4 @@ public class UserManagerImplTest {
 		userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
 	}
 	
-	/**
-	 * This test can be reactivated once the Named ID generator
-	 * supports a one-to-many mapping
-	 */
-	@Ignore 
-	@Test
-	public void testUpdateEmail() throws Exception {
-		String oldEmail = "old-change-email-test-user@sagebase.org";
-		String newEmail = "new-change-email-test-user@sagebase.org";
-		groupsToDelete.add(oldEmail);
-		groupsToDelete.add(newEmail);
-		
-		// Create a user to change the email of
-		NewUser oldie = new NewUser();
-		oldie.setEmail(oldEmail);
-		oldie.setPassword("foobar");
-		userManager.createUser(oldie);
-		
-		// Make sure the new user exists
-		UserInfo userInfo = userManager.getUserInfo(oldEmail);
-		
-		// Change the email and check it
-		userManager.updateEmail(userInfo, newEmail);
-		UserInfo newUserInfo = userManager.getUserInfo(newEmail);
-		
-		// ID should be the same after updating the email
-		assertEquals(userInfo.getIndividualGroup().getId(), newUserInfo.getIndividualGroup().getId());
-	}
-	
-	
-
 }

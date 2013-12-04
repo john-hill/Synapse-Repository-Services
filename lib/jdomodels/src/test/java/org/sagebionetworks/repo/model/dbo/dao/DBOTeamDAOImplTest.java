@@ -67,7 +67,7 @@ public class DBOTeamDAOImplTest {
 		
 		// make sure I didn't delete something I shouldn't have
 		for (AuthorizationConstants.DEFAULT_GROUPS g : AuthorizationConstants.DEFAULT_GROUPS.values()) {
-			assertNotNull(userGroupDAO.findGroup(g.name(), false));
+			assertNotNull(userGroupDAO.findPrincipalWithPrincipalName(g.name(), false));
 		}
 	}
 	
@@ -88,7 +88,7 @@ public class DBOTeamDAOImplTest {
 		// create a team
 		Team team = new Team();
 		assertNotNull(userGroupDAO);
-		Principal bug = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false);
+		Principal bug = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false);
 		assertNotNull(bug);
 		Long id = Long.parseLong(bug.getId());
 		team.setId(""+id);
@@ -129,7 +129,7 @@ public class DBOTeamDAOImplTest {
 		assertEquals(new HashMap<TeamHeader,List<UserGroupHeader>>(), teamDAO.getAllTeamsAndMembers());
 
 		// need an arbitrary user to add to the group
-		Principal pg = userGroupDAO.findGroup(AuthorizationConstants.ANONYMOUS_USER_ID, true);
+		Principal pg = userGroupDAO.findUserWithEmail(AuthorizationConstants.ANONYMOUS_USER_ID);
 		groupMembersDAO.addMembers(""+id, Arrays.asList(new String[]{pg.getId()}));
 		teamMemberPairToDelete = new String[] {""+id, pg.getId()};
 		assertEquals(1, teamDAO.getForMemberInRange(pg.getId(), 1, 0).size());

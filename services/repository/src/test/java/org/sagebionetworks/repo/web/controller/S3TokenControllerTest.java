@@ -81,7 +81,7 @@ public class S3TokenControllerTest {
 		// Add a public read ACL to the project object
 		AccessControlList projectAcl = testHelper.getEntityACL(project);
 		ResourceAccess ac = new ResourceAccess();
-		Principal authenticatedUsers = userGroupDAO.findGroup(AuthorizationConstants.DEFAULT_GROUPS.AUTHENTICATED_USERS
+		Principal authenticatedUsers = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.DEFAULT_GROUPS.AUTHENTICATED_USERS
 				.name(), false);
 		assertNotNull(authenticatedUsers);
 		ac.setPrincipalId(Long.parseLong(authenticatedUsers.getId()));
@@ -90,7 +90,7 @@ public class S3TokenControllerTest {
 		projectAcl.getResourceAccess().add(ac);
 		projectAcl = testHelper.updateEntityAcl(project, projectAcl);
 		
-		testUser = userGroupDAO.findGroup(TEST_USER1, true);
+		testUser = userGroupDAO.findUserWithEmail(TEST_USER1);
 	}
 
 	/**

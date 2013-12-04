@@ -31,6 +31,7 @@ import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.dbo.persistence.DBONode;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.test.context.ContextConfiguration;
@@ -71,8 +72,8 @@ public class DBOAnnotationsDaoImplTest {
 	}
 	
 	@Before
-	public void before() throws DatastoreException, UnsupportedEncodingException{
-		String createdBy = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
+	public void before() throws DatastoreException, UnsupportedEncodingException, NotFoundException{
+		String createdBy = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
 		toDelete = new LinkedList<Long>();
 		// Create a node to create revisions of.
 		node = new DBONode();

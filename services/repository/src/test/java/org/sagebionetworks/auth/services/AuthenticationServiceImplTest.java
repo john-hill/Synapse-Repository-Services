@@ -80,7 +80,7 @@ public class AuthenticationServiceImplTest {
 	@Test
 	public void testOpenIDAuthentication_newUser() throws Exception {
 		// This user does not exist yet
-		when(mockUserManager.doesPrincipalExist(eq(username))).thenReturn(false);
+		when(mockUserManager.doesPrincipalExistWithEmail(eq(username))).thenReturn(false);
 		userInfo.getUser().setAgreesToTermsOfUse(false);
 		
 		OpenIDInfo info = new OpenIDInfo();

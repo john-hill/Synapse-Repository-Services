@@ -43,8 +43,8 @@ public class TableRowTruthDAOImplTest {
 	String creatorUserGroupId;
 
 	@Before
-	public void before(){
-		creatorUserGroupId = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
+	public void before() throws NotFoundException{
+		creatorUserGroupId = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
 		assertNotNull(creatorUserGroupId);
 	}
 	

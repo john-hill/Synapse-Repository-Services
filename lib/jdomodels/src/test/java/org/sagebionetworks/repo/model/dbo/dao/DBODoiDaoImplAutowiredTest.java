@@ -37,7 +37,7 @@ public class DBODoiDaoImplAutowiredTest {
 		assertNotNull(doiDao);
 		assertNotNull(doiAdminDao);
 		assertNotNull(userGroupDAO);
-		userId = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
+		userId = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
 		assertNotNull(userId);
 	}
 

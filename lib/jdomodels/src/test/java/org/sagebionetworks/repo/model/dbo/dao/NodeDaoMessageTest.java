@@ -66,8 +66,8 @@ public class NodeDaoMessageTest {
 	private Long creatorUserGroupId = null;	
 	
 	@Before
-	public void before() throws NumberFormatException, DatastoreException{
-		creatorUserGroupId = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
+	public void before() throws NumberFormatException, DatastoreException, NotFoundException{
+		creatorUserGroupId = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 		assertNotNull(creatorUserGroupId);
 		
 		mockObserver = Mockito.mock(TransactionalMessengerObserver.class);

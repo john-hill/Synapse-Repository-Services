@@ -84,7 +84,7 @@ public class DBOFavoriteTest {
 		
 		DBOFavorite favorite = new DBOFavorite();
 		favorite.setNodeId(node.getId());
-		Long createdById = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
+		Long createdById = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 		favorite.setPrincipalId(createdById);
 		favorite.setCreatedOn(System.currentTimeMillis());
 		favorite.setId(idGenerator.generateNewId(TYPE.FAVORITE_ID));
@@ -116,12 +116,12 @@ public class DBOFavoriteTest {
 		assertEquals(clone, clone2);
 	}
 
-	private DBONode createNode() {
+	private DBONode createNode() throws NumberFormatException, NotFoundException {
 		DBONode node = new DBONode();
 		node.setId(idGenerator.generateNewId());
 		node.setName("SomeName");
 		node.setBenefactorId(node.getId());
-		Long createdById = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
+		Long createdById = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 		node.setCreatedBy(createdById);
 		node.setCreatedOn(System.currentTimeMillis());
 		node.setCurrentRevNumber(null);

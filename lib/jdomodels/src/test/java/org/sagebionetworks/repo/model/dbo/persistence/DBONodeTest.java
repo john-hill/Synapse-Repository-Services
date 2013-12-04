@@ -61,7 +61,7 @@ public class DBONodeTest {
 		node.setId(idGenerator.generateNewId());
 		node.setName("SomeName");
 		node.setBenefactorId(node.getId());
-		Long createdById = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
+		Long createdById = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 		node.setCreatedBy(createdById);
 		node.setCreatedOn(System.currentTimeMillis());
 		node.setCurrentRevNumber(null);

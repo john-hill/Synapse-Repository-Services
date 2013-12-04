@@ -95,12 +95,12 @@ public class QueryControllerAutowireTest {
 		data.setId(id);
 		// Now query for the data object
 		String queryString = "SELECT id, name FROM data WHERE data.parentId == \""+p.getId()+"\"";
-		QueryResults results = controller.query(user.getIndividualGroup().getName(), queryString, mockRequest);
+		QueryResults results = controller.query(user.getIndividualGroup().getPrincipalName(), queryString, mockRequest);
 		assertNotNull(results);
 		assertEquals(1l, results.getTotalNumberOfResults());
 		
 		queryString = "SELECT id, name FROM layer WHERE layer.parentId == \""+p.getId()+"\"";
-		results = controller.query(user.getIndividualGroup().getName(), queryString, mockRequest);
+		results = controller.query(user.getIndividualGroup().getPrincipalName(), queryString, mockRequest);
 		assertNotNull(results);
 		assertEquals(1l, results.getTotalNumberOfResults());
 	}
@@ -116,7 +116,7 @@ public class QueryControllerAutowireTest {
 		toDelete.add(p.getId());
 		// Now query for the data object
 		String queryString = "SELECT id, name FROM project WHERE createdByPrincipalId == \""+user.getIndividualGroup().getId()+"\"";
-		QueryResults results = controller.query(user.getIndividualGroup().getName(), queryString, mockRequest);
+		QueryResults results = controller.query(user.getIndividualGroup().getPrincipalName(), queryString, mockRequest);
 		assertNotNull(results);
 		assertEquals(1l, results.getTotalNumberOfResults());
 	}

@@ -193,7 +193,7 @@ public class MessageManagerImpl implements MessageManager {
 			// Check permissions to send to non-individuals
 			if (!ug.getIsIndividual()
 					&& !authorizationManager.canAccess(userInfo, principalId, ObjectType.TEAM, ACCESS_TYPE.SEND_MESSAGE)) {
-				errors.add(userInfo.getIndividualGroup().getName()
+				errors.add(userInfo.getIndividualGroup().getPrincipalName()
 						+ " may not send messages to the group (" + principalId + ")");
 				continue;
 			}

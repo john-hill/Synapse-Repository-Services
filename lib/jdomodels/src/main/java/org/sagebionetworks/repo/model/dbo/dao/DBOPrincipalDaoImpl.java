@@ -4,10 +4,9 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_PRINCIPA
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_PRINCIPAL_E_TAG;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_PRINCIPAL_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_PRINCIPAL_IS_INDIVIDUAL;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_PRINCIPAL_PRINCIPAL_NAME_LOWER;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.LIMIT_PARAM_NAME;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.OFFSET_PARAM_NAME;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_PRINCIPAL;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.*;
 
 import java.sql.Date;
 import java.sql.ResultSet;
@@ -33,6 +32,7 @@ import org.sagebionetworks.repo.model.query.jdo.SqlConstants;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.securitytools.HMACUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.simple.SimpleJdbcTemplate;
@@ -57,26 +57,25 @@ public class DBOPrincipalDaoImpl implements PrincipalDAO {
 	private static final String IS_INDIVIDUAL_PARAM_NAME = "isIndividual";
 	private static final String ETAG_PARAM_NAME = "etag";
 	
-	private static final String SELECT_BY_NAME_AND_IS_INDIVID_SQL = 
-			"SELECT * FROM "+TABLE_PRINCIPAL+
-			" WHERE ("+COL_PRINCIPAL_PRINCIPAL_NAME_LOWER+"=:"+NAME_PARAM_NAME+
-			" OR "+COL_PRINCIPAL_EMAIL+"=:"+NAME_PARAM_NAME+")"+
-			" AND "+COL_PRINCIPAL_IS_INDIVIDUAL+"=:"+IS_INDIVIDUAL_PARAM_NAME;
+//	private static final String SELECT_BY_NAME_AND_IS_INDIVID_SQL = 
+//			"SELECT * FROM "+TABLE_PRINCIPAL+
+//			" WHERE ("+COL_PRINCIPAL_PRINCIPAL_NAME_LOWER+"=:"+NAME_PARAM_NAME+
+//			" OR "+COL_PRINCIPAL_EMAIL+"=:"+NAME_PARAM_NAME+")"+
+//			" AND "+COL_PRINCIPAL_IS_INDIVIDUAL+"=:"+IS_INDIVIDUAL_PARAM_NAME;
 	
-	private static final String SELECT_BY_NAME_SQL = 
-			"SELECT * FROM "+TABLE_PRINCIPAL+
-			" WHERE "+COL_PRINCIPAL_PRINCIPAL_NAME_LOWER+"=:"+NAME_PARAM_NAME+
-			" OR "+COL_PRINCIPAL_EMAIL+"=:"+NAME_PARAM_NAME;
+//	private static final String SELECT_BY_NAME_SQL = 
+//			"SELECT * FROM "+TABLE_PRINCIPAL+
+//			" WHERE "+COL_PRINCIPAL_PRINCIPAL_NAME_LOWER+"=:"+NAME_PARAM_NAME+
+//			" OR "+COL_PRINCIPAL_EMAIL+"=:"+NAME_PARAM_NAME;
 	
-	private static final String SELECT_MULTI_BY_NAME_SQL = 
-			"SELECT * FROM "+TABLE_PRINCIPAL+
-			" WHERE "+COL_PRINCIPAL_PRINCIPAL_NAME_LOWER+" IN (:"+NAME_PARAM_NAME+")"+
-			" OR "+COL_PRINCIPAL_EMAIL+" IN (:"+NAME_PARAM_NAME+")";
+//	private static final String SELECT_MULTI_BY_NAME_SQL = 
+//			"SELECT * FROM "+TABLE_PRINCIPAL+
+//			" WHERE "+COL_PRINCIPAL_PRINCIPAL_NAME_LOWER+" IN (:"+NAME_PARAM_NAME+")"+
+//			" OR "+COL_PRINCIPAL_EMAIL+" IN (:"+NAME_PARAM_NAME+")";
 
 	private static final String SELECT_MULTI_BY_PRINCIPAL_IDS = 
 			"SELECT * FROM "+TABLE_PRINCIPAL+
-			" WHERE "+COL_PRINCIPAL_PRINCIPAL_NAME_LOWER+" IN (:"+NAME_PARAM_NAME+")"+
-			" OR "+COL_PRINCIPAL_EMAIL+" IN (:"+NAME_PARAM_NAME+")";
+			" WHERE "+COL_PRINCIPAL_ID+" IN (:"+ID_PARAM_NAME+")";
 	
 	private static final String SELECT_BY_IS_INDIVID_SQL = 
 			"SELECT * FROM "+TABLE_PRINCIPAL+
@@ -87,17 +86,14 @@ public class DBOPrincipalDaoImpl implements PrincipalDAO {
 			" WHERE "+COL_PRINCIPAL_IS_INDIVIDUAL+"=:"+IS_INDIVIDUAL_PARAM_NAME+
 			" LIMIT :"+LIMIT_PARAM_NAME+" OFFSET :"+OFFSET_PARAM_NAME;
 	
-	private static final String SELECT_BY_IS_INDIVID_OMITTING_SQL = 
-			"SELECT * FROM "+TABLE_PRINCIPAL+
-			" WHERE "+COL_PRINCIPAL_IS_INDIVIDUAL+"=:"+IS_INDIVIDUAL_PARAM_NAME+
-			" AND "+COL_PRINCIPAL_PRINCIPAL_NAME_LOWER+" NOT IN (:"+NAME_PARAM_NAME+")";
+//	private static final String SELECT_BY_IS_INDIVID_OMITTING_SQL = 
+//			"SELECT * FROM "+TABLE_PRINCIPAL+
+//			" WHERE "+COL_PRINCIPAL_IS_INDIVIDUAL+"=:"+IS_INDIVIDUAL_PARAM_NAME+
+//			" AND "+COL_PRINCIPAL_PRINCIPAL_NAME_LOWER+" NOT IN (:"+NAME_PARAM_NAME+")";
 	
-	private static final String SELECT_BY_IS_INDIVID_OMITTING_SQL_PAGINATED = 
-			SELECT_BY_IS_INDIVID_OMITTING_SQL+
-			" LIMIT :"+LIMIT_PARAM_NAME+" OFFSET :"+OFFSET_PARAM_NAME;
-	
-	private static final String SELECT_ALL = 
-			"SELECT * FROM "+TABLE_PRINCIPAL;
+//	private static final String SELECT_BY_IS_INDIVID_OMITTING_SQL_PAGINATED = 
+//			SELECT_BY_IS_INDIVID_OMITTING_SQL+
+//			" LIMIT :"+LIMIT_PARAM_NAME+" OFFSET :"+OFFSET_PARAM_NAME;
 	
 	private static final String SELECT_ETAG_AND_LOCK_ROW_BY_ID = 
 			"SELECT "+COL_PRINCIPAL_E_TAG+" FROM "+TABLE_PRINCIPAL+
@@ -125,39 +121,6 @@ public class DBOPrincipalDaoImpl implements PrincipalDAO {
 	@Override
 	public List<Principal> getBootstrapUsers() {
 		return this.bootstrapUsers;
-	}
-
-	@Override
-	public Principal findGroup(String name, boolean isIndividual)
-			throws DatastoreException {
-		if(name == null) throw new IllegalArgumentException("Name cannot be null");
-		MapSqlParameterSource param = new MapSqlParameterSource();
-		param.addValue(NAME_PARAM_NAME, name.toLowerCase());
-		param.addValue(IS_INDIVIDUAL_PARAM_NAME, isIndividual);		
-		List<DBOPrincipal> ugs = simpleJdbcTemplate.query(SELECT_BY_NAME_AND_IS_INDIVID_SQL, userGroupRowMapper, param);
-		if (ugs.size()>1) throw new DatastoreException("Expected 0-1 UserGroups but found "+ugs.size());
-		if (ugs.size()==0) return null;
-		return PrincipalUtils.createDTO(ugs.iterator().next());
-	}
-
-	@Override
-	public Map<String, Principal> getGroupsByNames(Collection<String> groupName)
-			throws DatastoreException {
-		Map<String, Principal> dtos = new HashMap<String, Principal>();
-		if (groupName.isEmpty()) return dtos;
-		MapSqlParameterSource param = new MapSqlParameterSource();
-		param.addValue(NAME_PARAM_NAME, groupName);	
-		try {
-			List<DBOPrincipal> dbos = simpleJdbcTemplate.query(SELECT_MULTI_BY_NAME_SQL, userGroupRowMapper, param);
-			
-			List<Principal> listDtos = PrincipalUtils.createDTOs(dbos);;
-			for (Principal dto : listDtos) {
-				dtos.put(dto.getPrincipalName(), dto);
-			}
-			return dtos;
-		} catch (Exception e) {
-			throw new DatastoreException("'getGroupsByNames' failed for group list: "+groupName, e);
-		}
 	}
 
 	@Override
@@ -216,47 +179,28 @@ public class DBOPrincipalDaoImpl implements PrincipalDAO {
 		return PrincipalUtils.createDTOs(dbos);
 	}
 
-	public DBOPrincipal findGroup(String name) throws DatastoreException {
-		MapSqlParameterSource param = new MapSqlParameterSource();
-		param.addValue(NAME_PARAM_NAME, name);	
-		List<DBOPrincipal> ugs = simpleJdbcTemplate.query(SELECT_BY_NAME_SQL, userGroupRowMapper, param);
-		if (ugs.size()>1) throw new DatastoreException("Expected 0-1 UserGroups but found "+ugs.size());
-		if (ugs.size()==0) return null;
-		return ugs.iterator().next();
-	}
-	
-	@Override
-	public boolean doesPrincipalExist(String name) {
-		try {
-			return null!=findGroup(name);
-		} catch (DatastoreException e) {
-			throw new RuntimeException(e);
-		}
-	}
-
-	@Override
-	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
-	public boolean deletePrincipal(String name) {
-		try {
-			DBOPrincipal ug = findGroup(name);
-			if (ug==null) return false;
-			delete(ug.getId().toString());
-			return true;
-		} catch (DatastoreException e) {
-			throw new RuntimeException(e);
-		} catch (NotFoundException e) {
-			return false;
-		}
-	}
-
 	@Override
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
 	public String create(Principal dto) throws DatastoreException,
 			InvalidModelException {
+		// Validate the principal name
+		PrincipalUtils.validatePrincipalName(dto.getPrincipalName(), dto.getIsIndividual());
+		
+		// Users must have a valid email address
+		if(dto.getIsIndividual()){
+			if(dto.getEmail() == null){
+				throw new IllegalArgumentException("New users cannot have a null email");
+			}
+			if(!dto.getEmail().contains("@")){
+				throw new IllegalArgumentException("New users must have a valid email. The provide email is invalid: "+dto.getEmail());
+			}
+		}
+		
 		DBOPrincipal dbo = PrincipalUtils.createDBO(dto);		
 		// If the create is successful, it should have a new etag
 		dbo.setEtag(UUID.randomUUID().toString());
 		dbo.setId(generateNewPrinipalId());
+
 		createPrincipalPrivate(dbo);
 		return dbo.getId().toString();
 	}
@@ -338,24 +282,6 @@ public class DBOPrincipalDaoImpl implements PrincipalDAO {
 		param.addValue(ID_PARAM_NAME, ids);
 		List<DBOPrincipal> dbos = simpleJdbcTemplate.query(SELECT_MULTI_BY_PRINCIPAL_IDS, userGroupRowMapper, param);
 		return PrincipalUtils.createDTOs(dbos);
-	}
-
-	@Override
-	public Collection<Principal> getAll() throws DatastoreException {
-		MapSqlParameterSource param = new MapSqlParameterSource();	
-		List<DBOPrincipal> dbos = simpleJdbcTemplate.query(SELECT_ALL, userGroupRowMapper, param);
-		return PrincipalUtils.createDTOs(dbos);
-	}
-
-	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
-	@Override
-	public void update(Principal dto) throws DatastoreException,
-			InvalidModelException, NotFoundException,
-			ConflictingUpdateException {
-		DBOPrincipal dbo = PrincipalUtils.createDBO(dto);
-		// If the update is successful, it should have a new etag
-		dbo.setEtag(UUID.randomUUID().toString());
-		basicDao.update(dbo);
 	}
 
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
@@ -447,4 +373,49 @@ public class DBOPrincipalDaoImpl implements PrincipalDAO {
 		param.addValue(ETAG_PARAM_NAME, UUID.randomUUID().toString());
 		simpleJdbcTemplate.update(UPDATE_ETAG_LIST, param);
 	}
+
+	@Override
+	public boolean doesPrincipalExistWithEmail(String email) {
+		if(email == null) throw new IllegalArgumentException("Email cannot be null");
+		// lookup a user with their email address
+		long count = simpleJdbcTemplate.queryForLong("SELECT COUNT("+COL_PRINCIPAL_ID+") FROM "+TABLE_PRINCIPAL+" WHERE "+COL_PRINCIPAL_EMAIL+" = ?", email.toLowerCase());
+		return count > 0;
+	}
+
+	@Override
+	public boolean doesPrincipalExistWithPrincipalName(String principalName) {
+		if(principalName == null) throw new IllegalArgumentException("Principal Name cannot be null");
+		// Convert the name to the unique name for this lookup
+		String uniqueName = PrincipalUtils.getUniquePrincipalName(principalName);
+		// lookup a user with their email address
+		long count = simpleJdbcTemplate.queryForLong("SELECT COUNT("+COL_PRINCIPAL_ID+") FROM "+TABLE_PRINCIPAL+" WHERE "+COL_PRINCIPAL_PRINCIPAL_NAME_UNIQUE+" = ?", uniqueName);
+		return count > 0;
+	}
+
+	@Override
+	public Principal findUserWithEmail(String email) throws NotFoundException {
+		if(email == null) throw new IllegalArgumentException("Email cannot be null");
+		try {
+			// lookup a user with their email address
+			DBOPrincipal dbo = simpleJdbcTemplate.queryForObject("SELECT * FROM "+TABLE_PRINCIPAL+" WHERE "+COL_PRINCIPAL_EMAIL+" = ?", userGroupRowMapper, email.toLowerCase());
+			return PrincipalUtils.createDTO(dbo);
+		} catch (EmptyResultDataAccessException e) {
+			throw new NotFoundException("A user does not exist with email: "+email);
+		}
+	}
+
+	@Override
+	public Principal findPrincipalWithPrincipalName(String principalName, boolean isIndividual) throws NotFoundException {
+		if(principalName == null) throw new IllegalArgumentException("Principal Name cannot be null");
+		// Convert the name to the unique name for this lookup
+		String uniqueName = PrincipalUtils.getUniquePrincipalName(principalName);
+		try {
+			// lookup a user with their email address
+			DBOPrincipal dbo = simpleJdbcTemplate.queryForObject("SELECT * FROM "+TABLE_PRINCIPAL+" WHERE "+COL_PRINCIPAL_PRINCIPAL_NAME_UNIQUE+" = ? AND "+COL_PRINCIPAL_IS_INDIVIDUAL+" = ?", userGroupRowMapper, uniqueName, isIndividual);
+			return PrincipalUtils.createDTO(dbo);
+		} catch (EmptyResultDataAccessException e) {
+			throw new NotFoundException("A principal does not exist with principalName: "+principalName+" and isIndividual: "+isIndividual);
+		}
+	}
+	
 }

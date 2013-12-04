@@ -15,6 +15,7 @@ import org.sagebionetworks.repo.model.StorageQuotaAdminDao;
 import org.sagebionetworks.repo.model.StorageQuotaDao;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.storage.StorageQuota;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
@@ -35,11 +36,11 @@ public class DBOStorageQuotaDaoImplAutowiredTest {
 	private String userId;
 
 	@Before
-	public void before() {
+	public void before() throws NotFoundException {
 		assertNotNull(storageQuotaDao);
 		assertNotNull(storageQuotaAdminDao);
 		assertNotNull(userGroupDAO);
-		userId = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
+		userId = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
 		assertNotNull(userId);
 	}
 

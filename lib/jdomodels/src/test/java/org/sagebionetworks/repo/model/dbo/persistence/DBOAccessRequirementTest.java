@@ -63,7 +63,7 @@ public class DBOAccessRequirementTest {
 	
 	@Before
 	public void setUp() throws Exception {
-		individualGroup = userGroupDAO.findGroup(TEST_USER_NAME, true);
+		individualGroup = userGroupDAO.findPrincipalWithPrincipalName(TEST_USER_NAME, true);
 		if (individualGroup == null) {
 			individualGroup = new Principal();
 			individualGroup.setPrincipalName(TEST_USER_NAME);
@@ -95,7 +95,7 @@ public class DBOAccessRequirementTest {
 			nodeDAO.delete(node.getId());
 			node = null;
 		}
-		individualGroup = userGroupDAO.findGroup(TEST_USER_NAME, true);
+		individualGroup = userGroupDAO.findPrincipalWithPrincipalName(TEST_USER_NAME, true);
 		if (individualGroup != null) {
 			// this will delete the user profile too
 			userGroupDAO.delete(individualGroup.getId());

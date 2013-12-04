@@ -392,7 +392,7 @@ public class MessageManagerImplTest {
 		// Find the ID of the AUTHENTICATED_USERS group
 		String findingAuthUsers = null;
 		for (Principal ug : testUser.getGroups()) {
-			if (ug.getName().equals(DEFAULT_GROUPS.AUTHENTICATED_USERS.toString())) {
+			if (ug.getPrincipalName().equals(DEFAULT_GROUPS.AUTHENTICATED_USERS.toString())) {
 				findingAuthUsers = ug.getId();
 			}
 		}

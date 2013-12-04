@@ -34,6 +34,7 @@ import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_GROUPS;
+import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.ResourceAccess;
@@ -511,36 +512,4 @@ public class EvaluationPermissionsManagerImplAutowiredTest {
 		return acl;
 	}
 
-	// PUBLIC: READ
-	// AUTHENTICATED)USERS: READ, PARTICIPATE
-	private void validatePublicReadParticipate(AccessControlList acl) {
-		Set<ResourceAccess> raSet = acl.getResourceAccess();
-		assertNotNull(raSet);
-		String publicUserId = userManager.getDefaultUserGroup(DEFAULT_GROUPS.PUBLIC).getId();
-		String authenticatedUserId = userManager.getDefaultUserGroup(DEFAULT_GROUPS.AUTHENTICATED_USERS).getId();
-		boolean hasPublicUser = false;
-		boolean hasAuthenticatedUser = false;
-		for (ResourceAccess ra: raSet) {
-			String principalId = ra.getPrincipalId().toString();
-			if (principalId.equals(publicUserId)) {
-				hasPublicUser = true;
-				assertTrue(ra.getAccessType().contains(ACCESS_TYPE.READ));
-				assertFalse(ra.getAccessType().contains(ACCESS_TYPE.CHANGE_PERMISSIONS));
-				assertFalse(ra.getAccessType().contains(ACCESS_TYPE.CREATE));
-				assertFalse(ra.getAccessType().contains(ACCESS_TYPE.DELETE));
-				assertFalse(ra.getAccessType().contains(ACCESS_TYPE.PARTICIPATE));
-				assertFalse(ra.getAccessType().contains(ACCESS_TYPE.UPDATE));
-			} else if (principalId.equals(authenticatedUserId)) {
-				hasAuthenticatedUser = true;
-				assertTrue(ra.getAccessType().contains(ACCESS_TYPE.READ));
-				assertTrue(ra.getAccessType().contains(ACCESS_TYPE.PARTICIPATE));
-				assertFalse(ra.getAccessType().contains(ACCESS_TYPE.CHANGE_PERMISSIONS));
-				assertFalse(ra.getAccessType().contains(ACCESS_TYPE.CREATE));
-				assertFalse(ra.getAccessType().contains(ACCESS_TYPE.DELETE));
-				assertFalse(ra.getAccessType().contains(ACCESS_TYPE.UPDATE));
-			}
-		}
-		assertTrue(hasPublicUser);
-		assertTrue(hasAuthenticatedUser);
-	}
 }

@@ -82,7 +82,7 @@ public class DBOGroupMembersDAOImplTest {
 			id = userGroupDAO.create(group);
 		} catch (DatastoreException e) {
 			// Already exists
-			id = userGroupDAO.findGroup(name, false).getId();
+			id = userGroupDAO.findPrincipalWithPrincipalName(name, false).getId();
 		}
 		assertNotNull(id);
 		groupsToDelete.add(id);
@@ -199,7 +199,7 @@ public class DBOGroupMembersDAOImplTest {
 	
 	@Test
 	public void testBootstrapGroups() throws Exception {
-		String adminGroupId = userGroupDAO.findGroup(AuthorizationConstants.ADMIN_GROUP_NAME, false).getId();
+		String adminGroupId = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.ADMIN_GROUP_NAME, false).getId();
 		List<Principal> admins = groupMembersDAO.getMembers(adminGroupId);
 		Set<String> adminNames = new HashSet<String>();
 		for (Principal ug : admins) {
@@ -210,7 +210,7 @@ public class DBOGroupMembersDAOImplTest {
 		assertTrue(adminNames.contains(AuthorizationConstants.MIGRATION_USER_NAME));
 		assertTrue(adminNames.contains(AuthorizationConstants.ADMIN_USER_NAME));
 		
-		String testGroupId = userGroupDAO.findGroup(AuthorizationConstants.TEST_GROUP_NAME, false).getId();
+		String testGroupId = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.TEST_GROUP_NAME, false).getId();
 		List<Principal> testUsers = groupMembersDAO.getMembers(testGroupId);
 		assertEquals(1, testUsers.size());
 		assertEquals(AuthorizationConstants.TEST_USER_NAME, testUsers.get(0).getPrincipalName());

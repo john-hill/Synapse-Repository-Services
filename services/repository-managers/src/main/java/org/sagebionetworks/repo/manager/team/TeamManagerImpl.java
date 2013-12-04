@@ -208,7 +208,7 @@ public class TeamManagerImpl implements TeamManager {
 				throw new UnauthorizedException("Anonymous user cannot create Team.");
 		validateForCreate(team);
 		// create UserGroup (fail if UG with the given name already exists)
-		if (userManager.doesPrincipalExist(team.getName())) {
+		if (userManager.doesPrincipalExistWithPrincipalName(team.getName())) {
 			throw new NameConflictException("Name "+team.getName()+" is already used.");
 		}
 		Principal ug = new Principal();

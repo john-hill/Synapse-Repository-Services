@@ -105,7 +105,7 @@ public class JDONodeQueryDAOSelectTest {
 	 * @throws DatastoreException
 	 */
 	private String createSingleNode(String name) throws NotFoundException,	DatastoreException, InvalidModelException  {
-		Long createdBy = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
+		Long createdBy = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 		Node root = NodeTestUtils.createNew(name, createdBy);
 		String id = nodeDao.createNew(root);
 		nodeIds.add(id);

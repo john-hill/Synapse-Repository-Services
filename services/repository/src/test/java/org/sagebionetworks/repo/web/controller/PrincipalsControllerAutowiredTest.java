@@ -112,8 +112,8 @@ public class PrincipalsControllerAutowiredTest {
 		boolean foundPublic = false;
 		boolean foundAdmin = false;
 		for (Principal ug : ugs.getResults()) {
-			if (ug.getName().equals(AuthorizationConstants.PUBLIC_GROUP_NAME)) foundPublic=true;
-			if (ug.getName().equals(AuthorizationConstants.ADMIN_GROUP_NAME)) foundAdmin=true;
+			if (ug.getPrincipalName().equals(AuthorizationConstants.PUBLIC_GROUP_NAME)) foundPublic=true;
+			if (ug.getPrincipalName().equals(AuthorizationConstants.ADMIN_GROUP_NAME)) foundAdmin=true;
 			assertTrue(ug.toString(), !ug.getIsIndividual());
 		}
 		assertTrue(foundPublic);

@@ -51,7 +51,7 @@ public class ReferenceUtilTest {
 	
 	@Before
 	public void before() throws NotFoundException, DatastoreException, InvalidModelException {
-		userGroupId = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
+		userGroupId = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 		toDelete = new ArrayList<String>();
 		// Create two nodes to reference
 		one = createNew("one");

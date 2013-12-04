@@ -274,7 +274,7 @@ public class TeamManagerImplTest {
 	public void testCreateExistingTeam() throws Exception {
 		// not allowed to specify ID of team being created
 		Team team = createTeam(null, "name", "description", null, "101", null, null, null, null);
-		when(mockUserManager.doesPrincipalExist("name")).thenReturn(true);
+		when(mockUserManager.doesPrincipalExistWithPrincipalName("name")).thenReturn(true);
 		when(mockTeamDAO.create(team)).thenReturn(team);
 		teamManagerImpl.create(userInfo,team);
 	}

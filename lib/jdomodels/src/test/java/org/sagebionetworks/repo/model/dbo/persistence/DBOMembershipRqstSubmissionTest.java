@@ -66,7 +66,7 @@ public class DBOMembershipRqstSubmissionTest {
 	public static DBOMembershipRqstSubmission newMembershipRqstSubmission(
 			IdGenerator idGenerator, 
 			PrincipalDAO userGroupDAO,
-			DBOBasicDao dboBasicDao) {
+			DBOBasicDao dboBasicDao) throws NumberFormatException, NotFoundException {
 		DBOMembershipRqstSubmission request = new DBOMembershipRqstSubmission();
 		request.setId(idGenerator.generateNewId());
 		request.setCreatedOn(System.currentTimeMillis());
@@ -74,7 +74,7 @@ public class DBOMembershipRqstSubmissionTest {
 		DBOTeam team = DBOTeamTest.newTeam(userGroupDAO);
 		team = dboBasicDao.createNew(team);
 		request.setTeamId(team.getId());
-		Long userId = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
+		Long userId = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 		request.setUserId(userId);
 		request.setProperties((new String("abcdefg")).getBytes());
 		return request;

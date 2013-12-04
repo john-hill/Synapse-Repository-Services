@@ -11,7 +11,7 @@ public class AuthorizationUtils {
 	}
 	
 	public static boolean isUserAnonymous(Principal ug) {
-		return isUserAnonymous(ug.getName());
+		return isUserAnonymous(ug.getPrincipalName());
 	}
 	
 	public static boolean isUserAnonymous(String username) {

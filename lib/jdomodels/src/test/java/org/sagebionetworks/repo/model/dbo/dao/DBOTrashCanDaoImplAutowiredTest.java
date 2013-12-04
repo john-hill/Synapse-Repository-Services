@@ -37,7 +37,7 @@ public class DBOTrashCanDaoImplAutowiredTest {
 	@Before
 	public void before() throws Exception {
 
-		userId = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
+		userId = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
 		assertNotNull(userId);
 
 		clear();

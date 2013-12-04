@@ -68,10 +68,10 @@ public class DBOFavoriteDAOImplAutowiredTest {
 		favoritesToDelete = new ArrayList<Favorite>();
 		nodesToDelete = new ArrayList<String>();
 		
-		creatorUserGroupId = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
+		creatorUserGroupId = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 		assertNotNull(creatorUserGroupId);
 		
-		altUserGroupId = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.DEFAULT_GROUPS.AUTHENTICATED_USERS.name(), false).getId());
+		altUserGroupId = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.DEFAULT_GROUPS.AUTHENTICATED_USERS.name(), false).getId());
 		assertNotNull(altUserGroupId);
 		
 		assertNotNull(favoriteDao);

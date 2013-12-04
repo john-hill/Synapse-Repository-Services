@@ -17,7 +17,6 @@ import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
-import org.sagebionetworks.repo.model.UserGroupInt;
 import org.sagebionetworks.repo.model.UserProfile;
 import org.sagebionetworks.repo.model.UserProfileDAO;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -41,7 +40,7 @@ public class DBOUserProfileDAOImplTest {
 	
 	@Before
 	public void setUp() throws Exception {
-		individualGroup = userGroupDAO.findGroup(TEST_USER_NAME, true);
+		individualGroup = userGroupDAO.findPrincipalWithPrincipalName(TEST_USER_NAME, true);
 		if (individualGroup == null) {
 			individualGroup = new Principal();
 			individualGroup.setPrincipalName(TEST_USER_NAME);
@@ -54,7 +53,7 @@ public class DBOUserProfileDAOImplTest {
 	
 	@After
 	public void tearDown() throws Exception{
-		individualGroup = userGroupDAO.findGroup(TEST_USER_NAME, true);
+		individualGroup = userGroupDAO.findPrincipalWithPrincipalName(TEST_USER_NAME, true);
 		if (individualGroup != null) {
 			// this will delete the user profile too
 			userGroupDAO.delete(individualGroup.getId());
@@ -116,11 +115,11 @@ public class DBOUserProfileDAOImplTest {
 	
 	@Test
 	public void testBootstrapUsers() throws DatastoreException, NotFoundException{
-		List<UserGroupInt> boots = this.userGroupDAO.getBootstrapUsers();
+		List<Principal> boots = this.userGroupDAO.getBootstrapUsers();
 		assertNotNull(boots);
 		assertTrue(boots.size() >0);
 		// Each should exist
-		for(UserGroupInt bootUg: boots){
+		for(Principal bootUg: boots){
 			if(bootUg.getIsIndividual()){
 				UserProfile profile = userProfileDAO.get(bootUg.getId());
 				userGroupDAO.get(bootUg.getId());

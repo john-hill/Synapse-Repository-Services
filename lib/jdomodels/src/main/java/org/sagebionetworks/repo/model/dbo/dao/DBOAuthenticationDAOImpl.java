@@ -9,6 +9,7 @@ import java.util.UUID;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.model.AuthenticationDAO;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.auth.Session;
@@ -50,12 +51,12 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 	private static final String TIME_PARAM_NAME = "time";
 	private static final String TOU_PARAM_NAME = "tou";
 	
-	private static final String SELECT_ID_BY_EMAIL_AND_PASSWORD = 
-			"SELECT "+SqlConstants.COL_CREDENTIAL_PRINCIPAL_ID+
-				" FROM "+SqlConstants.TABLE_CREDENTIAL+", "+TABLE_PRINCIPAL+
-			" WHERE "+SqlConstants.COL_CREDENTIAL_PRINCIPAL_ID+"="+COL_PRINCIPAL_ID+
-				" AND "+SqlConstants.COL_USER_GROUP_NAME+"=:"+EMAIL_PARAM_NAME+
-				" AND "+SqlConstants.COL_CREDENTIAL_PASS_HASH+"=:"+PASSWORD_PARAM_NAME;
+//	private static final String SELECT_ID_BY_EMAIL_AND_PASSWORD = 
+//			"SELECT "+SqlConstants.COL_CREDENTIAL_PRINCIPAL_ID+
+//				" FROM "+SqlConstants.TABLE_CREDENTIAL+", "+TABLE_PRINCIPAL+
+//			" WHERE "+SqlConstants.COL_CREDENTIAL_PRINCIPAL_ID+"="+COL_PRINCIPAL_ID+
+//				" AND "+SqlConstants.COL_PRINCIPAL_EMAIL+"=:"+EMAIL_PARAM_NAME+
+//				" AND "+SqlConstants.COL_CREDENTIAL_PASS_HASH+"=:"+PASSWORD_PARAM_NAME;
 	
 	private static final String UPDATE_VALIDATION_TIME = 
 			"UPDATE "+SqlConstants.TABLE_CREDENTIAL+" SET "+
@@ -71,12 +72,12 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 	private static final String IF_VALID_SUFFIX = 
 			" AND "+SqlConstants.COL_CREDENTIAL_VALIDATED_ON+">:"+TIME_PARAM_NAME;
 	
-	private static final String SELECT_SESSION_TOKEN_BY_USERNAME_IF_VALID = 
-			"SELECT "+SqlConstants.COL_CREDENTIAL_SESSION_TOKEN+","+SqlConstants.COL_CREDENTIAL_TOU+
-			" FROM "+SqlConstants.TABLE_CREDENTIAL+", "+SqlConstants.TABLE_USER_GROUP+
-			" WHERE "+SqlConstants.COL_CREDENTIAL_PRINCIPAL_ID+"="+SqlConstants.COL_USER_GROUP_ID+
-					" AND "+SqlConstants.COL_USER_GROUP_NAME+"=:"+EMAIL_PARAM_NAME+
-					IF_VALID_SUFFIX;
+//	private static final String SELECT_SESSION_TOKEN_BY_USERNAME_IF_VALID = 
+//			"SELECT "+SqlConstants.COL_CREDENTIAL_SESSION_TOKEN+","+SqlConstants.COL_CREDENTIAL_TOU+
+//			" FROM "+SqlConstants.TABLE_CREDENTIAL+", "+SqlConstants.TABLE_USER_GROUP+
+//			" WHERE "+SqlConstants.COL_CREDENTIAL_PRINCIPAL_ID+"="+SqlConstants.COL_USER_GROUP_ID+
+//					" AND "+SqlConstants.COL_USER_GROUP_NAME+"=:"+EMAIL_PARAM_NAME+
+//					IF_VALID_SUFFIX;
 	
 	private static final String NULLIFY_SESSION_TOKEN = 
 			"UPDATE "+SqlConstants.TABLE_CREDENTIAL+" SET "+
@@ -90,11 +91,11 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 	private static final String SELECT_PRINCIPAL_BY_TOKEN_IF_VALID = 
 			SELECT_PRINCIPAL_BY_TOKEN+IF_VALID_SUFFIX;
 	
-	private static final String SELECT_PASSWORD = 
-			"SELECT "+SqlConstants.COL_CREDENTIAL_PASS_HASH+
-				" FROM "+SqlConstants.TABLE_CREDENTIAL+", "+SqlConstants.TABLE_USER_GROUP+
-			" WHERE "+SqlConstants.COL_CREDENTIAL_PRINCIPAL_ID+"="+SqlConstants.COL_USER_GROUP_ID+
-			" AND "+SqlConstants.COL_USER_GROUP_NAME+"=:"+EMAIL_PARAM_NAME;
+//	private static final String SELECT_PASSWORD = 
+//			"SELECT "+SqlConstants.COL_CREDENTIAL_PASS_HASH+
+//				" FROM "+SqlConstants.TABLE_CREDENTIAL+", "+SqlConstants.TABLE_USER_GROUP+
+//			" WHERE "+SqlConstants.COL_CREDENTIAL_PRINCIPAL_ID+"="+SqlConstants.COL_USER_GROUP_ID+
+//			" AND "+SqlConstants.COL_USER_GROUP_NAME+"=:"+EMAIL_PARAM_NAME;
 	
 	private static final String UPDATE_PASSWORD = 
 			"UPDATE "+SqlConstants.TABLE_CREDENTIAL+" SET "+
@@ -310,7 +311,7 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 	public void bootstrapCredentials() throws NotFoundException {
 		if (StackConfiguration.isProductionStack()) {
 			// The migration admin should only be used in specific, non-development stacks
-			String migrationAdminId = userGroupDAO.findGroup(AuthorizationConstants.MIGRATION_USER_NAME, true).getId();
+			String migrationAdminId = userGroupDAO.findUserWithEmail(AuthorizationConstants.MIGRATION_USER_NAME).getId();
 			changeSecretKey(migrationAdminId, StackConfiguration.getMigrationAdminAPIKey());
 		
 		} else {
@@ -328,17 +329,17 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 					StackConfiguration.getIntegrationTestUserThreePassword() };
 			for (int i = 0; i < testUsers.length; i++) {
 				String passHash = PBKDF2Utils.hashPassword(testPasswords[i], null);
-				String userId = userGroupDAO.findGroup(testUsers[i], true).getId();
+				String userId = userGroupDAO.findUserWithEmail(testUsers[i]).getId();
 				changePassword(userId, passHash);
 			}
 		}
 		
 		// With the exception of anonymous and one integration test user
 		// bootstrapped users should not need to sign the terms of use
-		List<UserGroupInt> ugs = userGroupDAO.getBootstrapUsers();
-		for (UserGroupInt ug : ugs) {
-			if (ug.getIsIndividual() && !ug.getName().equals(StackConfiguration.getIntegrationTestRejectTermsOfUseName())
-					&& !AuthorizationUtils.isUserAnonymous(ug.getName())) {
+		List<Principal> ugs = userGroupDAO.getBootstrapUsers();
+		for (Principal ug : ugs) {
+			if (ug.getIsIndividual() && !ug.getPrincipalName().equals(StackConfiguration.getIntegrationTestRejectTermsOfUseName())
+					&& !AuthorizationUtils.isUserAnonymous(ug.getPrincipalName())) {
 				setTermsOfUseAcceptance(ug.getId(), true);
 			}
 		}

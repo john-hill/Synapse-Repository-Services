@@ -41,9 +41,9 @@ public class DBOFileHandleDaoImplTest {
 	String creatorUserGroupId;
 	
 	@Before
-	public void before(){
+	public void before() throws NotFoundException{
 		toDelete = new LinkedList<String>();
-		creatorUserGroupId = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
+		creatorUserGroupId = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
 		assertNotNull(creatorUserGroupId);
 	}
 	

@@ -107,7 +107,7 @@ public class JDONodeQueryDAOImplTest {
 		// All tests in the suite assume the user is an admin.
 		when(mockUserInfo.isAdmin()).thenReturn(true);
 
-		createdBy = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
+		createdBy = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 		
 		populateNodesForTest();
 		

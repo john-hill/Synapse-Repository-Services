@@ -73,7 +73,7 @@ public class DBOMembershipInvtnSubmissionTest {
 	public static DBOMembershipInvtnSubmission newMembershipInvtnSubmission(
 			IdGenerator idGenerator, 
 			PrincipalDAO userGroupDAO,
-			DBOBasicDao dboBasicDao) {
+			DBOBasicDao dboBasicDao) throws NotFoundException {
 		DBOMembershipInvtnSubmission invitation = new DBOMembershipInvtnSubmission();
 		invitation.setId(idGenerator.generateNewId());
 		invitation.setCreatedOn(System.currentTimeMillis());
@@ -83,7 +83,7 @@ public class DBOMembershipInvtnSubmissionTest {
 		invitation.setTeamId(team.getId());
 		invitation.setProperties((new String("abcdefg")).getBytes());
 		assertNotNull(userGroupDAO);
-		Principal bug = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false);
+		Principal bug = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false);
 		assertNotNull(bug);
 		invitation.setInviteeId(Long.parseLong(bug.getId()));
 		return invitation;

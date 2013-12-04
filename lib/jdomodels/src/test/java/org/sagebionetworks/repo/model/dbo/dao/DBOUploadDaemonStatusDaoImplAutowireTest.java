@@ -39,9 +39,9 @@ public class DBOUploadDaemonStatusDaoImplAutowireTest {
 	List<String> toDelete;
 	
 	@Before
-	public void before(){
+	public void before() throws NotFoundException{
 		toDelete = new LinkedList<String>();
-		userId = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
+		userId = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
 		assertNotNull(userId);
 	}
 	

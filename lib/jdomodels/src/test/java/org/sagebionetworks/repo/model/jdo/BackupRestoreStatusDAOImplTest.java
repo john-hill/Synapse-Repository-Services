@@ -85,7 +85,7 @@ public class BackupRestoreStatusDAOImplTest {
 	public BackupRestoreStatus createStatusObject(DaemonStatus status, DaemonType type) {
 		String userGroupId = null;
 		try {
-			userGroupId = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
+			userGroupId = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}

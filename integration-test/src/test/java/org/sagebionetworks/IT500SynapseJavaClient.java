@@ -217,7 +217,7 @@ public class IT500SynapseJavaClient {
 		List<Principal> ugs = synapse.getGroups(0, 100).getResults();
 		Long publicPrincipalId = null;
 		for (Principal ug: ugs) {
-			if (ug.getName().equals("PUBLIC")) {
+			if (ug.getPrincipalName().equals("PUBLIC")) {
 				publicPrincipalId = Long.parseLong(ug.getId());
 				break;
 			}
@@ -789,7 +789,7 @@ public class IT500SynapseJavaClient {
 		assertTrue(groups.getResults().size()>0);
 		for (Principal ug : groups.getResults()) {
 			assertNotNull(ug.getId());
-			assertNotNull(ug.getName());
+			assertNotNull(ug.getPrincipalName());
 		}
 	}
 	

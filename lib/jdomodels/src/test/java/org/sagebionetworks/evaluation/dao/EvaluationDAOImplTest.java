@@ -276,7 +276,7 @@ public class EvaluationDAOImplTest {
 		
 		
 		// PLFM-2312 problem with repeated entries
-		Principal au = userGroupDAO.findGroup(DEFAULT_GROUPS.AUTHENTICATED_USERS.name(), false);
+		Principal au = userGroupDAO.findPrincipalWithPrincipalName(DEFAULT_GROUPS.AUTHENTICATED_USERS.name(), false);
 		assertNotNull(au);
 		ra = new ResourceAccess();
 		ra.setPrincipalId(Long.parseLong(au.getId()));

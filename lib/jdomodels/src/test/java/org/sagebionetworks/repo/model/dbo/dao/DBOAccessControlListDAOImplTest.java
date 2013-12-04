@@ -69,10 +69,10 @@ public class DBOAccessControlListDAOImplTest {
 	 */
 	@Before
 	public void setUp() throws Exception {
-		createdById = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
+		createdById = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 		assertNotNull(createdById);
 		// strictly speaking it's nonsensical for a group to be a 'modifier'.  we're just using it for testing purposes
-		modifiedById = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.DEFAULT_GROUPS.AUTHENTICATED_USERS.name(), false).getId());
+		modifiedById = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.DEFAULT_GROUPS.AUTHENTICATED_USERS.name(), false).getId());
 		assertNotNull(modifiedById);
 
 		// create a resource on which to apply permissions

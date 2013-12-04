@@ -112,13 +112,13 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 		
 		// Get the user's info and session token (which is refreshed)
 		UserInfo user = userManager.getUserInfo(username);
-		username = user.getIndividualGroup().getName();
+		username = user.getIndividualGroup().getPrincipalName();
 		String sessionToken = authManager.authenticate(username, null).getSessionToken();
 
 		// Pass along some basic info to the email sender
 		NewUser mailTarget = new NewUser();
 		mailTarget.setDisplayName(user.getUser().getDisplayName());
-		mailTarget.setEmail(user.getIndividualGroup().getName());
+		mailTarget.setEmail(user.getIndividualGroup().getPrincipalName());
 		mailTarget.setFirstName(user.getUser().getFname());
 		mailTarget.setLastName(user.getUser().getLname());
 		
@@ -220,7 +220,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 			throw new IllegalArgumentException("OriginatingClient may not be null");
 		}
 		
-		if (!userManager.doesPrincipalExist(email)) {
+		if (!userManager.doesPrincipalExistWithEmail(email)) {
 			if (createUserIffNecessary) {
 				// A new user must be created
 				NewUser user = new NewUser();

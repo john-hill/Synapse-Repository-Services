@@ -14,7 +14,7 @@ public class DBOPrincipalBackup {
 	private Date creationDate;
 	private Boolean isIndividual = false;
 	private String etag;
-	private String principalNameLower;
+	private String principalNameUnique;
 	private String principalDisplay;
 	private Boolean mustProvideNewPrincipalName;
 	// Emails will be migrated out of this table in the future.
@@ -47,11 +47,11 @@ public class DBOPrincipalBackup {
 	public void setEtag(String etag) {
 		this.etag = etag;
 	}
-	public String getPrincipalNameLower() {
-		return principalNameLower;
+	public String getPrincipalNameUnique() {
+		return principalNameUnique;
 	}
-	public void setPrincipalNameLower(String principalNameLower) {
-		this.principalNameLower = principalNameLower;
+	public void setPrincipalNameUnique(String principalNameLower) {
+		this.principalNameUnique = principalNameLower;
 	}
 	public String getPrincipalDisplay() {
 		return principalDisplay;
@@ -98,7 +98,7 @@ public class DBOPrincipalBackup {
 				+ ((principalDisplay == null) ? 0 : principalDisplay.hashCode());
 		result = prime
 				* result
-				+ ((principalNameLower == null) ? 0 : principalNameLower
+				+ ((principalNameUnique == null) ? 0 : principalNameUnique
 						.hashCode());
 		return result;
 	}
@@ -152,10 +152,10 @@ public class DBOPrincipalBackup {
 				return false;
 		} else if (!principalDisplay.equals(other.principalDisplay))
 			return false;
-		if (principalNameLower == null) {
-			if (other.principalNameLower != null)
+		if (principalNameUnique == null) {
+			if (other.principalNameUnique != null)
 				return false;
-		} else if (!principalNameLower.equals(other.principalNameLower))
+		} else if (!principalNameUnique.equals(other.principalNameUnique))
 			return false;
 		return true;
 	}
@@ -163,7 +163,7 @@ public class DBOPrincipalBackup {
 	public String toString() {
 		return "DBOPrincipalBackup [id=" + id + ", creationDate="
 				+ creationDate + ", isIndividual=" + isIndividual + ", etag="
-				+ etag + ", principalNameLower=" + principalNameLower
+				+ etag + ", principalNameLower=" + principalNameUnique
 				+ ", principalDisplay=" + principalDisplay
 				+ ", mustProvideNewPrincipalName="
 				+ mustProvideNewPrincipalName + ", email=" + email + ", name="

@@ -30,8 +30,6 @@ public class DBOGroupMembersDAOImplDeadlockTest {
 	@Autowired
 	private PrincipalDAO userGroupDAO;
 	
-	@Autowired
-	private SimpleJdbcTemplate simpleJdbcTemplate;
     
     private static final Integer NUMBER_O_MONKEYS = 10;
     private static final Integer NUMBER_O_BARRELS = 5;
@@ -69,11 +67,11 @@ public class DBOGroupMembersDAOImplDeadlockTest {
 
 	@After
 	public void tearDown() throws Exception {
-        for (int i = 0; i < NUMBER_O_MONKEYS; i++) {
-        	userGroupDAO.deletePrincipal(i + MONKEY_NAME_SUFFIX);
+        for (String id: monkeyIds) {
+        	userGroupDAO.delete(id);
         }
-        for (int i = 0; i < NUMBER_O_BARRELS; i++) {
-            userGroupDAO.deletePrincipal(MONKEY_GROUP_PREFIX + i);
+        for (String id: barrelIds) {
+            userGroupDAO.delete(id);
         }
 	}
     

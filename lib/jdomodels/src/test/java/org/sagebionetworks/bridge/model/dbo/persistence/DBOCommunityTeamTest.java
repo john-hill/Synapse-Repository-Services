@@ -51,8 +51,8 @@ public class DBOCommunityTeamTest {
 		}
 	}
 
-	private DBOTeam createTeam() {
-		Long id = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
+	private DBOTeam createTeam() throws NumberFormatException, NotFoundException {
+		Long id = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 		DBOTeam team = new DBOTeam();
 		team.setId(id);
 		team.setEtag("1");
@@ -63,12 +63,12 @@ public class DBOCommunityTeamTest {
 		return clone;
 	}
 
-	private DBONode createNode() {
+	private DBONode createNode() throws NumberFormatException, NotFoundException {
 		DBONode node = new DBONode();
 		node.setId(idGenerator.generateNewId());
 		node.setName("SomeCommunity");
 		node.setBenefactorId(node.getId());
-		Long createdById = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
+		Long createdById = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 		node.setCreatedBy(createdById);
 		node.setCreatedOn(System.currentTimeMillis());
 		node.setCurrentRevNumber(null);

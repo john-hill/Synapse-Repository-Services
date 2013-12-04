@@ -76,11 +76,11 @@ public interface AuthenticationService {
 	public void deleteSecretKey(String username)
 			throws NotFoundException;
 	
-	/**
-	 * Returns the username of the user
-	 */
-	public String getUsername(String principalId)
-			throws NotFoundException;
+//	/**
+//	 * Returns the username of the user
+//	 */
+//	public String getUsername(String principalId)
+//			throws NotFoundException;
 	
 	/**
 	 * Uses the pre-validated OpenID information to fetch a session token

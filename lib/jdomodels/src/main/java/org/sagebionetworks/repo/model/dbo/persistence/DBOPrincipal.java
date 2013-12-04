@@ -35,8 +35,8 @@ public class DBOPrincipal implements MigratableDatabaseObject<DBOPrincipal, DBOP
 	private Boolean isIndividual = false;
 	private String etag;
 	// This is the unique case-insensitive name of a principal.
-	// Two principals cannot have the same name that differs only by case.
-	private String principalNameLower;
+	// Two principals cannot have the same name that differs only by case.  Also only letters and numbers contribute to the uniqueness.
+	private String principalNameUnique;
 	// This is how the user entered their principal name and can include both upper and lower case characters.
 	// We keep this original name for display purposes only.
 	private String principalNameDisplay;
@@ -50,7 +50,7 @@ public class DBOPrincipal implements MigratableDatabaseObject<DBOPrincipal, DBOP
 		new FieldColumn("creationDate", COL_PRINCIPAL_CREATION_DATE),
 		new FieldColumn("isIndividual", COL_PRINCIPAL_IS_INDIVIDUAL), 
 		new FieldColumn("etag", COL_PRINCIPAL_E_TAG).withIsEtag(true),
-		new FieldColumn("principalNameLower", COL_PRINCIPAL_PRINCIPAL_NAME_LOWER),
+		new FieldColumn("principalNameUnique", COL_PRINCIPAL_PRINCIPAL_NAME_UNIQUE),
 		new FieldColumn("principalNameDisplay", COL_PRINCIPAL_PRINCIPAL_NAME_DISPLAY),
 		new FieldColumn("mustProvideNewPrincipalName", COL_PRINCIPAL_MUST_PROVIDE_NEW_PRICIPAL_NAME),
 		new FieldColumn("email", COL_PRINCIPAL_EMAIL),
@@ -69,7 +69,7 @@ public class DBOPrincipal implements MigratableDatabaseObject<DBOPrincipal, DBOP
 				ug.setCreationDate(new Date(ts.getTime()));
 				ug.setIsIndividual(rs.getBoolean(COL_PRINCIPAL_IS_INDIVIDUAL));
 				ug.setEtag(rs.getString(COL_PRINCIPAL_E_TAG));
-				ug.setPrincipalNameLower(rs.getString(COL_PRINCIPAL_PRINCIPAL_NAME_LOWER));
+				ug.setPrincipalNameUnique(rs.getString(COL_PRINCIPAL_PRINCIPAL_NAME_UNIQUE));
 				ug.setPrincipalNameDisplay(rs.getString(COL_PRINCIPAL_PRINCIPAL_NAME_DISPLAY));
 				ug.setMustProvideNewPrincipalName(rs.getBoolean(COL_PRINCIPAL_MUST_PROVIDE_NEW_PRICIPAL_NAME));
 				return ug;
@@ -114,13 +114,13 @@ public class DBOPrincipal implements MigratableDatabaseObject<DBOPrincipal, DBOP
 	}
 
 
-	public String getPrincipalNameLower() {
-		return principalNameLower;
+	public String getPrincipalNameUnique() {
+		return principalNameUnique;
 	}
 
 
-	public void setPrincipalNameLower(String principalNameLower) {
-		this.principalNameLower = principalNameLower;
+	public void setPrincipalNameUnique(String principalNameLower) {
+		this.principalNameUnique = principalNameLower;
 	}
 	
 
@@ -268,7 +268,7 @@ public class DBOPrincipal implements MigratableDatabaseObject<DBOPrincipal, DBOP
 						.hashCode());
 		result = prime
 				* result
-				+ ((principalNameLower == null) ? 0 : principalNameLower
+				+ ((principalNameUnique == null) ? 0 : principalNameUnique
 						.hashCode());
 		return result;
 	}
@@ -319,10 +319,10 @@ public class DBOPrincipal implements MigratableDatabaseObject<DBOPrincipal, DBOP
 				return false;
 		} else if (!principalNameDisplay.equals(other.principalNameDisplay))
 			return false;
-		if (principalNameLower == null) {
-			if (other.principalNameLower != null)
+		if (principalNameUnique == null) {
+			if (other.principalNameUnique != null)
 				return false;
-		} else if (!principalNameLower.equals(other.principalNameLower))
+		} else if (!principalNameUnique.equals(other.principalNameUnique))
 			return false;
 		return true;
 	}
@@ -332,7 +332,7 @@ public class DBOPrincipal implements MigratableDatabaseObject<DBOPrincipal, DBOP
 	public String toString() {
 		return "DBOUserGroup [id=" + id + ", creationDate=" + creationDate
 				+ ", isIndividual=" + isIndividual + ", etag=" + etag
-				+ ", principalNameLower=" + principalNameLower
+				+ ", principalNameLower=" + principalNameUnique
 				+ ", principalNameDisplay=" + principalNameDisplay
 				+ ", mustProvideNewPrincipalName="
 				+ mustProvideNewPrincipalName + ", email=" + email + "]";

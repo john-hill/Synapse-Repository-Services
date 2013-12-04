@@ -52,9 +52,9 @@ public class DBOWikiPageDaoImplAutowiredTest {
 	S3FileHandle fileTwo;
 	
 	@Before
-	public void before(){
+	public void before() throws NotFoundException{
 		toDelete = new LinkedList<WikiPageKey>();
-		creatorUserGroupId = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
+		creatorUserGroupId = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
 		assertNotNull(creatorUserGroupId);
 		// We use a long file name to test the uniqueness constraint
 		String longFileNamePrefix = "loooooooooooooooooooooooooooooooooooooonnnnnnnnnnnnnnnnnnnnnnnnnnnggggggggggggggggggggggggg";

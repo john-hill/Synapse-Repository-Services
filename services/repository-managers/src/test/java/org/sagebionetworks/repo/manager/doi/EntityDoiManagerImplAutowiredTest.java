@@ -98,7 +98,7 @@ public class EntityDoiManagerImplAutowiredTest {
 		toClearList.add(nodeId);
 		assertNotNull(nodeId);
 
-		final String userName = testUserInfo.getIndividualGroup().getName();
+		final String userName = testUserInfo.getIndividualGroup().getPrincipalName();
 		Doi doiCreate = entityDoiManager.createDoi(userName, nodeId, null);
 		assertNotNull(doiCreate);
 		assertNotNull(doiCreate.getId());
@@ -152,7 +152,7 @@ public class EntityDoiManagerImplAutowiredTest {
 		toClearList.add(nodeId);
 		assertNotNull(nodeId);
 
-		final String userName = testUserInfo.getIndividualGroup().getName();
+		final String userName = testUserInfo.getIndividualGroup().getPrincipalName();
 		Doi doiCreate = entityDoiManager.createDoi(userName, nodeId, 1L);
 		assertNotNull(doiCreate);
 		assertNotNull(doiCreate.getId());
@@ -211,7 +211,7 @@ public class EntityDoiManagerImplAutowiredTest {
 		final String userId = testUserInfo.getIndividualGroup().getId();
 		doiDao.createDoi(userId, nodeId, ObjectType.ENTITY, null, DoiStatus.ERROR);
 
-		final String userName = testUserInfo.getIndividualGroup().getName();
+		final String userName = testUserInfo.getIndividualGroup().getPrincipalName();
 		Doi doiCreate = entityDoiManager.createDoi(userName, nodeId, null);
 
 		assertNotNull(doiCreate);

@@ -95,7 +95,7 @@ public class AuthorizationManagerImplUnitTest {
 		actTeam.setId("101");
 		actTeam.setIsIndividual(false);
 		actTeam.setPrincipalName(ACCESS_AND_COMPLIANCE_TEAM_NAME);
-		when(mockUserGroupDAO.findGroup(ACCESS_AND_COMPLIANCE_TEAM_NAME, false)).thenReturn(actTeam);
+		when(mockUserGroupDAO.findPrincipalWithPrincipalName(ACCESS_AND_COMPLIANCE_TEAM_NAME, false)).thenReturn(actTeam);
 
 		userInfo = new UserInfo(false);
 		Principal userInfoGroup = new Principal();

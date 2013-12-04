@@ -383,7 +383,7 @@ public class IT510SynapseJavaClientSearchTest {
 		List<Principal> groups = paginated.getResults();
 		if (groups.size()<total) throw new RuntimeException("System has "+total+" total users but we've only retrieved "+groups.size());
 		for (Principal group : groups) {
-			if (group.getName().equalsIgnoreCase(groupName)) return group.getId();
+			if (group.getPrincipalName().equalsIgnoreCase(groupName)) return group.getId();
 		}
 		throw new RuntimeException("Cannot find "+groupName+" among groups.");
 	}

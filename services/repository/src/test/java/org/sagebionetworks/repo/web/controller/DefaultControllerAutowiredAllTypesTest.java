@@ -159,7 +159,7 @@ public class DefaultControllerAutowiredAllTypesTest {
 		assertNotNull(acl);
 		assertEquals(id, acl.getId());
 		ResourceAccess ac = new ResourceAccess();
-		Principal publicUserGroup = userGroupDAO.findGroup(AuthorizationConstants.DEFAULT_GROUPS.PUBLIC.name(), false);
+		Principal publicUserGroup = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.DEFAULT_GROUPS.PUBLIC.name(), false);
 		assertNotNull(publicUserGroup);
 		ac.setPrincipalId(Long.parseLong(publicUserGroup.getId()));
 		ac.setAccessType(new HashSet<ACCESS_TYPE>());

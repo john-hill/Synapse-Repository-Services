@@ -17,6 +17,7 @@ import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.test.context.ContextConfiguration;
@@ -51,14 +52,14 @@ public class DBORevisionTest {
 	}
 	
 	@Before
-	public void before() throws DatastoreException, UnsupportedEncodingException{
+	public void before() throws DatastoreException, UnsupportedEncodingException, NumberFormatException, NotFoundException{
 		toDelete = new LinkedList<Long>();
 		// Create a node to create revisions of.
 		node = new DBONode();
 		node.setId(idGenerator.generateNewId());
 		toDelete.add(node.getId());
 		node.setBenefactorId(node.getId());
-		Long createdById = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
+		Long createdById = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 		node.setCreatedBy(createdById);
 		node.setCreatedOn(System.currentTimeMillis());
 		node.setCurrentRevNumber(null);
@@ -79,7 +80,7 @@ public class DBORevisionTest {
 		rev.setReferences(null);
 		rev.setComment(null);
 		rev.setLabel(""+rev.getRevisionNumber());
-		Long createdById = Long.parseLong(userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
+		Long createdById = Long.parseLong(userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId());
 		rev.setModifiedBy(createdById);
 		rev.setModifiedOn(System.currentTimeMillis());
 		// Now create it

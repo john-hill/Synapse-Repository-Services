@@ -23,6 +23,7 @@ import org.sagebionetworks.repo.model.storage.StorageUsageDimension;
 import org.sagebionetworks.repo.model.storage.StorageUsageDimensionValue;
 import org.sagebionetworks.repo.model.storage.StorageUsageSummary;
 import org.sagebionetworks.repo.model.storage.StorageUsageSummaryList;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
@@ -45,13 +46,13 @@ public class StorageUsageQueryDaoImplTest {
 	private List<String> toDelete;
 
 	@Before
-	public void before(){
+	public void before() throws NotFoundException{
 
 		assertNotNull(storageUsageQueryDao);
 		assertNotNull(fileHandleDao);
 		assertNotNull(userGroupDAO);
 
-		userId = userGroupDAO.findGroup(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
+		userId = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME, false).getId();
 		assertNotNull(userId);
 
 		toDelete = new ArrayList<String>();

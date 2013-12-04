@@ -50,8 +50,11 @@ public class UserManagerImpl implements UserManager {
 	@Override
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
 	public void createUser(NewUser user) throws DatastoreException {
-		if (userGroupDAO.doesPrincipalExist(user.getEmail())) {
-			throw new NameConflictException("User '" + user.getEmail() + "' already exists");
+		if (userGroupDAO.doesPrincipalExistWithEmail(user.getEmail())) {
+			throw new NameConflictException("User with email: '" + user.getEmail() + "' already exists");
+		}
+		if (userGroupDAO.doesPrincipalExistWithPrincipalName(user.getPrincipalName())) {
+			throw new NameConflictException("User with principalName: '" + user.getPrincipalName() + "' already exists");
 		}
 		
 		Principal individualGroup = new Principal();
@@ -173,30 +176,20 @@ public class UserManagerImpl implements UserManager {
 
 	/**
 	 * Lazy fetch of the default groups.
+	 * @throws NotFoundException 
 	 */
 	@Override
 	public Principal getDefaultUserGroup(DEFAULT_GROUPS group)
-			throws DatastoreException {
-		Principal ug = userGroupDAO.findGroup(group.name(), false);
+			throws DatastoreException, NotFoundException {
+		Principal ug = userGroupDAO.findPrincipalWithPrincipalName(group.name(), false);
 		if (ug == null)
 			throw new DatastoreException(group + " should exist.");
 		return ug;
 	}
 
 	@Override
-	public Principal findGroup(String name, boolean b) throws DatastoreException {
-		return userGroupDAO.findGroup(name, b);
-	}
-
-	@Override
-	public boolean doesPrincipalExist(String name) {
-		return userGroupDAO.doesPrincipalExist(name);
-	}
-
-	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
-	@Override
-	public boolean deletePrincipal(String name) {
-		return userGroupDAO.deletePrincipal(name);
+	public boolean doesPrincipalExistWithEmail(String email) {
+		return userGroupDAO.doesPrincipalExistWithEmail(email);
 	}
 	
 	@Override
@@ -206,33 +199,15 @@ public class UserManagerImpl implements UserManager {
 			UserProfile userProfile = userProfileDAO.get(principalId.toString());
 			return userProfile.getDisplayName();
 		} else {
-			return userGroup.getName();
+			return userGroup.getPrincipalName();
 		}
 	}
 	
-	@Override
-	public String getGroupName(String principalId) throws NotFoundException {
-		Principal userGroup = userGroupDAO.get(principalId);
-		return userGroup.getName();
-	}
-	
-	@Override
-	public void updateEmail(UserInfo userInfo, String newEmail) throws DatastoreException, NotFoundException {
-		
-		// The mapping between usernames and user IDs is currently done on a one-to-one basis.
-		// This means that changing the email associated with an ID in the UserGroup table 
-		//   introduces an inconsistency between the UserGroup table and ID Generator table.
-		// Until the Named ID Generator supports a one-to-many mapping, this method is disabled
-		throw new NotFoundException("This service is currently unavailable");
-		
-		/*
-		if (userInfo != null) {
-			UserGroup userGroup = userGroupDAO.get(userInfo.getIndividualGroup().getId());
-			userGroup.setName(newEmail);
-			userGroupDAO.update(userGroup);
-		}
-		*/
-	}
+//	@Override
+//	public String getGroupName(String principalId) throws NotFoundException {
+//		Principal userGroup = userGroupDAO.get(principalId);
+//		return userGroup.getPrincipalName();
+//	}
 
 	@Override
 	public Collection<Principal> getGroups() throws DatastoreException {
@@ -247,5 +222,23 @@ public class UserManagerImpl implements UserManager {
 		List<String> groupsToOmit = new ArrayList<String>();
 		groupsToOmit.add(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME);
 		return userGroupDAO.getInRangeExcept(startIncl, endExcl, false, groupsToOmit);
+	}
+
+	@Override
+	public boolean doesPrincipalExistWithPrincipalName(String principalName) {
+		return userGroupDAO.doesPrincipalExistWithPrincipalName(principalName);
+	}
+
+	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
+	@Override
+	public void delete(String principalId) throws DatastoreException, NotFoundException {
+		userGroupDAO.delete(principalId);
+		
+	}
+
+	@Override
+	public Principal findPrincipalWithPrincipalName(String principalName,
+			boolean isIndividual) throws NotFoundException {
+		return userGroupDAO.findPrincipalWithPrincipalName(principalName, isIndividual);
 	}
 }

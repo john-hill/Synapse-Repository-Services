@@ -105,6 +105,8 @@ public class UserManagerImpl implements UserManager {
 	@Override
 	public UserInfo getUserInfo(Long principalId) throws DatastoreException, NotFoundException {
 		Principal individualGroup = userGroupDAO.get(principalId.toString());
+		if (!individualGroup.getIsIndividual()) 
+			throw new IllegalArgumentException(individualGroup.getName()+" is not an individual group.");
 		return getUserInfo(individualGroup);
 	}
 		

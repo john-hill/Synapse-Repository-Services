@@ -12,9 +12,9 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.sagebionetworks.ids.UuidETagGenerator;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.DatastoreException;
+import org.sagebionetworks.repo.model.NodeConstants;
 import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.UserProfile;
@@ -69,7 +69,7 @@ public class DBOUserProfileDAOImplTest {
 		userProfile.setLastName("bar");
 		userProfile.setRStudioUrl("http://rstudio.com");
 		userProfile.setDisplayName("foo bar");
-		userProfile.setEtag(UuidETagGenerator.ZERO_E_TAG);
+		userProfile.setEtag(NodeConstants.ZERO_E_TAG);
 		
 		long initialCount = userProfileDAO.getCount();
 		// Create it
@@ -96,15 +96,6 @@ public class DBOUserProfileDAOImplTest {
 		}
 		catch(ConflictingUpdateException e) {
 			// We expected this exception
-		}
-
-		try {
-			// Update from a backup.
-			updatedProfile = userProfileDAO.updateFromBackup(clone);
-			assertEquals(clone.getEtag(), updatedProfile.getEtag());
-		}
-		catch(ConflictingUpdateException e) {
-			fail("Update from backup should not generate exception even if the e-tag is different.");
 		}
 
 		// Delete it

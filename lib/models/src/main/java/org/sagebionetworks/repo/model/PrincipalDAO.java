@@ -118,4 +118,6 @@ public interface PrincipalDAO {
 
 	public long getCount();
 
+	public List<Principal> getAll();
+
 }

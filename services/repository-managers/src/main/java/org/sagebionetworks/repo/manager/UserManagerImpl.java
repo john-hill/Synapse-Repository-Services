@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
@@ -92,25 +93,15 @@ public class UserManagerImpl implements UserManager {
 			}
 		}
 	}
-
-	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
-	@Override
-	public UserInfo getUserInfo(String userName) throws DatastoreException, NotFoundException {
-		Principal individualGroup = userGroupDAO.findGroup(userName, true);
-		if (individualGroup==null) throw new NotFoundException("Cannot find user with name "+userName);
-		return getUserInfo(individualGroup);
-	}
 		
-	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
 	@Override
 	public UserInfo getUserInfo(Long principalId) throws DatastoreException, NotFoundException {
 		Principal individualGroup = userGroupDAO.get(principalId.toString());
 		if (!individualGroup.getIsIndividual()) 
-			throw new IllegalArgumentException(individualGroup.getName()+" is not an individual group.");
+			throw new IllegalArgumentException(individualGroup.getPrincipalName()+" is not an individual group.");
 		return getUserInfo(individualGroup);
 	}
 		
-	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
 	private UserInfo getUserInfo(Principal individualGroup) throws DatastoreException, NotFoundException {
 		
 		// Check which group(s) of Anonymous, Public, or Authenticated the user belongs to  
@@ -211,20 +202,20 @@ public class UserManagerImpl implements UserManager {
 //		return userGroup.getPrincipalName();
 //	}
 
-	@Override
-	public Collection<Principal> getGroups() throws DatastoreException {
-		List<String> groupsToOmit = new ArrayList<String>();
-		groupsToOmit.add(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME);
-		return userGroupDAO.getAllExcept(false, groupsToOmit);
-	}
-
-	@Override
-	public List<Principal> getGroupsInRange(UserInfo userInfo, long startIncl, long endExcl, String sort, boolean ascending) 
-			throws DatastoreException, UnauthorizedException {
-		List<String> groupsToOmit = new ArrayList<String>();
-		groupsToOmit.add(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME);
-		return userGroupDAO.getInRangeExcept(startIncl, endExcl, false, groupsToOmit);
-	}
+//	@Override
+//	public Collection<Principal> getGroups() throws DatastoreException {
+//		List<String> groupsToOmit = new ArrayList<String>();
+//		groupsToOmit.add(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME);
+//		return userGroupDAO.getAllExcept(false, groupsToOmit);
+//	}
+//
+//	@Override
+//	public List<Principal> getGroupsInRange(UserInfo userInfo, long startIncl, long endExcl, String sort, boolean ascending) 
+//			throws DatastoreException, UnauthorizedException {
+//		List<String> groupsToOmit = new ArrayList<String>();
+//		groupsToOmit.add(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME);
+//		return userGroupDAO.getInRangeExcept(startIncl, endExcl, false, groupsToOmit);
+//	}
 
 	@Override
 	public boolean doesPrincipalExistWithPrincipalName(String principalName) {
@@ -242,5 +233,21 @@ public class UserManagerImpl implements UserManager {
 	public Principal findPrincipalWithPrincipalName(String principalName,
 			boolean isIndividual) throws NotFoundException {
 		return userGroupDAO.findPrincipalWithPrincipalName(principalName, isIndividual);
+	}
+
+	@Override
+	public List<Principal> getAllPrincipals(UserInfo userInfo, long limit, long offset) {
+		if(userInfo == null) throw new IllegalArgumentException("UserInfo cannot be null");
+		List<Principal> list = userGroupDAO.getAllPrincipals(limit, offset);
+		List<Principal> results = new LinkedList<Principal>();
+		for(Principal principal: list){
+			
+		}
+		return null;
+	}
+
+	@Override
+	public long getPrincipalCount() {
+		return this.userGroupDAO.getCount()-1;
 	}
 }

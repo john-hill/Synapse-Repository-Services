@@ -15,6 +15,6 @@ public class AuthorizationUtils {
 	}
 	
 	public static boolean isUserAnonymous(String username) {
-		return AuthorizationConstants.ANONYMOUS_USER_ID.equals(username);
+		return AuthorizationConstants.ANONYMOUS_USER_EMAIL.equals(username);
 	}
 }

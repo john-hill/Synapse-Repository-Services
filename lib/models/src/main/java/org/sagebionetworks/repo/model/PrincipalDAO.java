@@ -30,33 +30,26 @@ public interface PrincipalDAO {
 	 */
 	public List<Principal> get(List<String> ids) throws DatastoreException;
 
+	
 	/**
-	 * a variant of the generic 'getAll' query, this allows the caller to
-	 * separately retrieve the individual and non-individual groups.
+	 * Get all principals one page at a time.
+	 * @param limit
+	 * @param offset
+	 * @return
+	 */
+	public List<Principal> getAllPrincipals(long limit, long offset);
+	
+	/**
+	 * Get all users or groups one page at a time.
 	 */	
-	public Collection<Principal> getAll(boolean isIndividual) throws DatastoreException;
+	public List<Principal> getAllPrincipals(boolean isIndividual, long limit, long offset) throws DatastoreException;
+
 
 	/**
-	 * a variant of the generic 'getAll' query, this allows the caller to
-	 * separately retrieve the individual and non-individual groups.
-	 */	
-	public Collection<Principal> getAllExcept(boolean isIndividual, Collection<String> groupNamesToOmit) throws DatastoreException;
-
-	/**
-	 * a variant of the generic 'getInRange' query, this allows the caller to
-	 * separately retrieve the individual and non-individual groups.
+	 * Get all users or groups excluding the passed principal names, one page at a time.
 	 */
 
-	public List<Principal> getInRange(long fromIncl, long toExcl, boolean isIndividual) throws DatastoreException;
-
-	/**
-	 * This allows the caller to
-	 * separately retrieve the individual and non-individual groups,
-	 * while specifying names of groups to filter out
-	 */
-
-	public List<Principal> getInRangeExcept(long fromIncl, long toExcl,
-			boolean isIndividual, Collection<String> groupNamesToOmit)
+	public List<Principal> getAllPrincipalsExcept(boolean isIndividual, List<String> principalNamesToExclude, long limit, long offset)
 			throws DatastoreException;
 	/**
 	 * Does a principal exist with the given email?
@@ -117,7 +110,5 @@ public interface PrincipalDAO {
 	public Principal get(String id) throws DatastoreException, NotFoundException;
 
 	public long getCount();
-
-	public List<Principal> getAll();
 
 }

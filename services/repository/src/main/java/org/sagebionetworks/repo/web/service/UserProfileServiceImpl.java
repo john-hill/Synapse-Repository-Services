@@ -156,7 +156,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 			userInfo = userManager.getUserInfo(userId);
 		} else {
 			// request is anonymous			
-			userInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
+			userInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		}
 		List<UserGroupHeader> ugHeaders = new ArrayList<UserGroupHeader>();
 		for (String id : ids) {

@@ -407,7 +407,7 @@ public class EvaluationPermissionsManagerImplAutowiredTest {
 		assertFalse(permissions.getCanPublicRead());
 
 		// Set 'public read' for anonymous user
-		UserInfo anonymous = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
+		UserInfo anonymous = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		principalId = Long.parseLong(anonymous.getIndividualGroup().getId());
 		raSet = new HashSet<ResourceAccess>();
 		ra = new ResourceAccess();

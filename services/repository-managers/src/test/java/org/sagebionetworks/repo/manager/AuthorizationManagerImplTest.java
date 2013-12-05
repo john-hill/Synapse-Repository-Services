@@ -209,7 +209,7 @@ public class AuthorizationManagerImplTest {
 		Principal pg = userManager.findPrincipalWithPrincipalName(AuthorizationConstants.PUBLIC_GROUP_NAME, false);
 		acl = AuthorizationTestHelper.addToACL(acl, pg, ACCESS_TYPE.READ);
 		acl = entityPermissionsManager.updateACL(acl, adminUser);
-		UserInfo anonInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
+		UserInfo anonInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		boolean b = authorizationManager.canAccess(anonInfo, node.getId(), ObjectType.ENTITY, ACCESS_TYPE.READ);
 		assertTrue(b);
 	}
@@ -228,7 +228,7 @@ public class AuthorizationManagerImplTest {
 		acl = AuthorizationTestHelper.addToACL(acl, pg, ACCESS_TYPE.DOWNLOAD);
 		acl = AuthorizationTestHelper.addToACL(acl, pg, ACCESS_TYPE.UPDATE);
 		acl = entityPermissionsManager.updateACL(acl, adminUser);
-		UserInfo anonInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
+		UserInfo anonInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		assertTrue(authorizationManager.canAccess(anonInfo, node.getId(), ObjectType.ENTITY, ACCESS_TYPE.READ));
 		assertFalse(authorizationManager.canAccess(anonInfo, node.getId(), ObjectType.ENTITY, ACCESS_TYPE.CHANGE_PERMISSIONS));
 		assertFalse(authorizationManager.canAccess(anonInfo, node.getId(), ObjectType.ENTITY, ACCESS_TYPE.CREATE));
@@ -253,7 +253,7 @@ public class AuthorizationManagerImplTest {
 	
 	@Test
 	public void testCanAccessAsAnonymous() throws Exception {
-		UserInfo anonInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
+		UserInfo anonInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		AccessControlList acl = entityPermissionsManager.getACL(node.getId(), userInfo);
 		assertNotNull(acl);
 		// give some other group access
@@ -277,7 +277,7 @@ public class AuthorizationManagerImplTest {
 	@Test 
 	public void testCanPublicRead() throws Exception {
 		// verify that anonymous user can't initially access
-		UserInfo anonInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
+		UserInfo anonInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		UserInfo adminInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
 		boolean b = authorizationManager.canAccess(anonInfo, node.getId(), ObjectType.ENTITY, ACCESS_TYPE.READ);
 		assertFalse(b);
@@ -411,7 +411,7 @@ public class AuthorizationManagerImplTest {
 		assertTrue(authorizationManager.canCreate(userInfo, child));
 		
 		// but anonymous cannot
-		UserInfo anonInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
+		UserInfo anonInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		assertFalse(authorizationManager.canCreate(anonInfo, child));
 	}
 
@@ -583,7 +583,7 @@ public class AuthorizationManagerImplTest {
 	
 	@Test
 	public void testIsAnonymousUser() throws DatastoreException, NotFoundException{
-		UserInfo anonymous = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
+		UserInfo anonymous = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		assertNotNull(anonymous);
 		assertTrue(authorizationManager.isAnonymousUser(anonymous));
 		assertFalse(authorizationManager.isAnonymousUser(userInfo));

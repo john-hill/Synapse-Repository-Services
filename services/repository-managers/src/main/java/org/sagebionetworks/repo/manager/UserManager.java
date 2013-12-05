@@ -13,14 +13,14 @@ import org.sagebionetworks.repo.web.NotFoundException;
 
 public interface UserManager {
 
-	/**
-	 * Get the User and UserGroup information for the given user name.
-	 * Has the side effect of creating permissions-related objects for the
-	 * groups that the user is in.
-	 * 
-	 * @param userName the name (email address) of the user of interest
-	 */
-	public UserInfo getUserInfo(String userName) throws DatastoreException, NotFoundException;
+//	/**
+//	 * Get the User and UserGroup information for the given user name.
+//	 * Has the side effect of creating permissions-related objects for the
+//	 * groups that the user is in.
+//	 * 
+//	 * @param userName the name (email address) of the user of interest
+//	 */
+//	public UserInfo getUserInfo(String userName) throws DatastoreException, NotFoundException;
 	
 	/**
 	 * Get the User and UserGroup information for the given user ID.
@@ -70,21 +70,6 @@ public interface UserManager {
 	 * @return for a group, returns the group name, for a user returns the display name in the user's profile
 	 */
 	public String getDisplayName(Long principalId) throws NotFoundException;
-	
-//	/**
-//	 * Returns the group name
-//	 */
-//	public String getGroupName(String principalId) throws NotFoundException;
-
-	/**
-	 * Get all non-individual user groups, including Public.
-	 */
-	public Collection<Principal> getGroups() throws DatastoreException;
-
-	/**
-	 * Get non-individual user groups (including Public) in range
-	 **/
-	public List<Principal> getGroupsInRange(UserInfo userInfo, long startIncl, long endExcl, String sort, boolean ascending) throws DatastoreException, UnauthorizedException;
 
 	/**
 	 * Delete a principal using the principal id.
@@ -93,4 +78,9 @@ public interface UserManager {
 	 * @throws DatastoreException 
 	 */
 	public void delete(String principalId) throws DatastoreException, NotFoundException;
+
+	public List<Principal> getAllPrincipals(UserInfo userInfo, long limit,
+			long offset);
+
+	public long getPrincipalCount();
 }

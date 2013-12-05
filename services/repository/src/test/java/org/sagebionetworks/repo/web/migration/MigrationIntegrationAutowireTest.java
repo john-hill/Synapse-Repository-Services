@@ -615,7 +615,7 @@ public class MigrationIntegrationAutowireTest {
 		mrs.setMessage("Please let me join the team.");
 		mrs.setTeamId(""+group.getId());
 		// need another valid user group
-		Principal individUser = userGroupDAO.findUserWithEmail(AuthorizationConstants.ANONYMOUS_USER_ID);
+		Principal individUser = userGroupDAO.findUserWithEmail(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		mrs.setUserId(individUser.getId());
 		membershipRqstSubmissionDAO.create(mrs);
 		

@@ -88,7 +88,7 @@ public class DBOMembershipRqstSubmissionDAOImplTest {
 		mrs.setTeamId(""+teamId);
 		
 		// need another valid user group
-		Principal individUser = userGroupDAO.findUserWithEmail(AuthorizationConstants.ANONYMOUS_USER_ID);
+		Principal individUser = userGroupDAO.findUserWithEmail(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		mrs.setUserId(individUser.getId());
 		
 		mrs = membershipRqstSubmissionDAO.create(mrs);
@@ -172,7 +172,7 @@ public class DBOMembershipRqstSubmissionDAOImplTest {
 		mrs.setTeamId(""+teamId);
 		
 		// need another valid user group
-		Principal individUser = userGroupDAO.findUserWithEmail(AuthorizationConstants.ANONYMOUS_USER_ID);
+		Principal individUser = userGroupDAO.findUserWithEmail(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		mrs.setUserId(individUser.getId());
 		
 		mrs = membershipRqstSubmissionDAO.create(mrs);
@@ -206,7 +206,7 @@ public class DBOMembershipRqstSubmissionDAOImplTest {
 		mrs.setTeamId(""+teamId);
 		
 		// need another valid user group
-		Principal individUser = userGroupDAO.findUserWithEmail(AuthorizationConstants.ANONYMOUS_USER_ID);
+		Principal individUser = userGroupDAO.findUserWithEmail(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		mrs.setUserId(individUser.getId());
 		
 		mrs = membershipRqstSubmissionDAO.create(mrs);

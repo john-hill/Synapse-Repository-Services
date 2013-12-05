@@ -69,7 +69,7 @@ public class UserManagerImplTest {
 	// invoke getUserInfo for Anonymous and check returned userInfo
 	@Test
 	public void testGetAnonymous() throws Exception {
-		UserInfo ui = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
+		UserInfo ui = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		assertTrue(AuthorizationUtils.isUserAnonymous(ui));
 		assertTrue(AuthorizationUtils.isUserAnonymous(ui.getIndividualGroup()));
 		assertTrue(AuthorizationUtils.isUserAnonymous(ui.getUser().getUserId()));
@@ -106,13 +106,13 @@ public class UserManagerImplTest {
 		
 	@Test
 	public void testGetAnonymousUserInfo() throws Exception {
-		userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
+		userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 	}
 
 	@Test
 	public void testIdempotency() throws Exception {
-		userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
-		userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
+		userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
+		userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 	}
 	
 }

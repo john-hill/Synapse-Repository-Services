@@ -244,7 +244,7 @@ public class EntityPermissionsManagerImpl implements EntityPermissionsManager {
 		Node node = nodeDAO.getNode(entityId);
 		permissions.setOwnerPrincipalId(node.getCreatedByPrincipalId());
 
-		UserInfo anonymousUser = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
+		UserInfo anonymousUser = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		permissions.setCanPublicRead(hasAccess(benefactor, READ, anonymousUser));
 
 		final boolean parentIsRoot = nodeDAO.isNodesParentRoot(entityId);

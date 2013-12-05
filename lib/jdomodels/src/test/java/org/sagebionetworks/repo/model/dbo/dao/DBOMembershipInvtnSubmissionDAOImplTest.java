@@ -95,7 +95,7 @@ public class DBOMembershipInvtnSubmissionDAOImplTest {
 		mis.setTeamId(""+teamId);
 		
 		// need another valid user group
-		Principal individUser = userGroupDAO.findUserWithEmail(AuthorizationConstants.ANONYMOUS_USER_ID);
+		Principal individUser = userGroupDAO.findUserWithEmail(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		mis.setInviteeId(individUser.getId());
 		long pgLong = Long.parseLong(individUser.getId());
 		
@@ -131,7 +131,7 @@ public class DBOMembershipInvtnSubmissionDAOImplTest {
 		mis.setTeamId(""+teamId);
 		
 		// need another valid user group
-		Principal individUser = userGroupDAO.findUserWithEmail(AuthorizationConstants.ANONYMOUS_USER_ID);
+		Principal individUser = userGroupDAO.findUserWithEmail(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		mis.setInviteeId(individUser.getId());
 		long pgLong = Long.parseLong(individUser.getId());
 		
@@ -221,7 +221,7 @@ public class DBOMembershipInvtnSubmissionDAOImplTest {
 		mis.setTeamId(""+teamId);
 		
 		// need another valid user group
-		Principal individUser = userGroupDAO.findUserWithEmail(AuthorizationConstants.ANONYMOUS_USER_ID);
+		Principal individUser = userGroupDAO.findUserWithEmail(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		mis.setInviteeId(individUser.getId());
 		long pgLong = Long.parseLong(individUser.getId());
 		

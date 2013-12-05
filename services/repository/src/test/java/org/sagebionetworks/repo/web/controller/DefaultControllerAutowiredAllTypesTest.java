@@ -168,7 +168,7 @@ public class DefaultControllerAutowiredAllTypesTest {
 		ServletTestHelper.updateEntityAcl(dispatchServlet,id, acl, userName);
 		
 		// Make sure the anonymous user can see this.
-		Project clone = ServletTestHelper.getEntity(dispatchServlet, Project.class, project.getId(), AuthorizationConstants.ANONYMOUS_USER_ID);
+		Project clone = ServletTestHelper.getEntity(dispatchServlet, Project.class, project.getId(), AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		assertNotNull(clone);
 	}
 	

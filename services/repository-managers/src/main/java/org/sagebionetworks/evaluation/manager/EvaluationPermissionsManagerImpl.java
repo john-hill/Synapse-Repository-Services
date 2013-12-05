@@ -173,7 +173,7 @@ public class EvaluationPermissionsManagerImpl implements EvaluationPermissionsMa
 		permission.setOwnerPrincipalId(KeyFactory.stringToKey(eval.getOwnerId()));
 
 		// Public read
-		UserInfo anonymousUser = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
+		UserInfo anonymousUser = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		permission.setCanPublicRead(canAccess(anonymousUser, evalId, READ));
 
 		// Other permissions

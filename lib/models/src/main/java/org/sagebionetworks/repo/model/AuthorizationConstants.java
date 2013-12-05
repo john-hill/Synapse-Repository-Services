@@ -73,7 +73,7 @@ public class AuthorizationConstants {
 	/**
 	 * The reserved username for an anonymous user.
 	 */
-	public static final String ANONYMOUS_USER_ID = "anonymous@sagebase.org";
+	public static final String ANONYMOUS_USER_EMAIL = "anonymous@sagebase.org";
 	
 	/**
 	 * Per http://sagebionetworks.jira.com/browse/PLFM-192

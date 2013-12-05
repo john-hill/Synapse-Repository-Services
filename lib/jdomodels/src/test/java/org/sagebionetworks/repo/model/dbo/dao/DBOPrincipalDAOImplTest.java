@@ -166,7 +166,7 @@ public class DBOPrincipalDAOImplTest {
 	
 	@Test
 	public void findAnonymousUser() throws Exception {
-		assertNotNull(userGroupDAO.findUserWithEmail(AuthorizationConstants.ANONYMOUS_USER_ID));
+		assertNotNull(userGroupDAO.findUserWithEmail(AuthorizationConstants.ANONYMOUS_USER_EMAIL));
 	}
 	
 	@Test

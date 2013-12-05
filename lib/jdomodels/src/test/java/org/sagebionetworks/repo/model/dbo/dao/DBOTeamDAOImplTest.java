@@ -142,7 +142,7 @@ public class DBOTeamDAOImplTest {
 		assertEquals(new HashMap<TeamHeader,List<UserGroupHeader>>(), teamDAO.getAllTeamsAndMembers());
 
 		// need an arbitrary user to add to the group
-		Principal anon = userGroupDAO.findUserWithEmail(AuthorizationConstants.ANONYMOUS_USER_ID);
+		Principal anon = userGroupDAO.findUserWithEmail(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		groupMembersDAO.addMembers(""+id, Arrays.asList(new String[]{anon.getId()}));
 		teamMemberPairToDelete = new String[] {""+id, anon.getId()};
 		assertEquals(1, teamDAO.getForMemberInRange(anon.getId(), 1, 0).size());

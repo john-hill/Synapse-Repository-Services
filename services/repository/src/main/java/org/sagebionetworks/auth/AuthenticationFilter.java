@@ -144,7 +144,7 @@ public class AuthenticationFilter implements Filter {
 		}
 		
 		if (username == null) {
-			username = AuthorizationConstants.ANONYMOUS_USER_ID;
+			username = AuthorizationConstants.ANONYMOUS_USER_EMAIL;
 		}
 
 		// Pass along, including the user ID

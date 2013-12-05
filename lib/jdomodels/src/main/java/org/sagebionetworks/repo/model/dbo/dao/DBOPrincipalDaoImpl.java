@@ -4,9 +4,10 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_PRINCIPA
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_PRINCIPAL_E_TAG;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_PRINCIPAL_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_PRINCIPAL_IS_INDIVIDUAL;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_PRINCIPAL_PRINCIPAL_NAME_UNIQUE;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.LIMIT_PARAM_NAME;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.OFFSET_PARAM_NAME;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.*;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_PRINCIPAL;
 
 import java.sql.Date;
 import java.sql.ResultSet;
@@ -14,13 +15,13 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdGenerator.TYPE;
-import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.Principal;
@@ -57,44 +58,15 @@ public class DBOPrincipalDaoImpl implements PrincipalDAO {
 	private static final String IS_INDIVIDUAL_PARAM_NAME = "isIndividual";
 	private static final String ETAG_PARAM_NAME = "etag";
 	
-//	private static final String SELECT_BY_NAME_AND_IS_INDIVID_SQL = 
-//			"SELECT * FROM "+TABLE_PRINCIPAL+
-//			" WHERE ("+COL_PRINCIPAL_PRINCIPAL_NAME_LOWER+"=:"+NAME_PARAM_NAME+
-//			" OR "+COL_PRINCIPAL_EMAIL+"=:"+NAME_PARAM_NAME+")"+
-//			" AND "+COL_PRINCIPAL_IS_INDIVIDUAL+"=:"+IS_INDIVIDUAL_PARAM_NAME;
-	
-//	private static final String SELECT_BY_NAME_SQL = 
-//			"SELECT * FROM "+TABLE_PRINCIPAL+
-//			" WHERE "+COL_PRINCIPAL_PRINCIPAL_NAME_LOWER+"=:"+NAME_PARAM_NAME+
-//			" OR "+COL_PRINCIPAL_EMAIL+"=:"+NAME_PARAM_NAME;
-	
-//	private static final String SELECT_MULTI_BY_NAME_SQL = 
-//			"SELECT * FROM "+TABLE_PRINCIPAL+
-//			" WHERE "+COL_PRINCIPAL_PRINCIPAL_NAME_LOWER+" IN (:"+NAME_PARAM_NAME+")"+
-//			" OR "+COL_PRINCIPAL_EMAIL+" IN (:"+NAME_PARAM_NAME+")";
-
 	private static final String SELECT_MULTI_BY_PRINCIPAL_IDS = 
 			"SELECT * FROM "+TABLE_PRINCIPAL+
 			" WHERE "+COL_PRINCIPAL_ID+" IN (:"+ID_PARAM_NAME+")";
 	
-	private static final String SELECT_BY_IS_INDIVID_SQL = 
-			"SELECT * FROM "+TABLE_PRINCIPAL+
-			" WHERE "+COL_PRINCIPAL_IS_INDIVIDUAL+"=:"+IS_INDIVIDUAL_PARAM_NAME;
-	
-	private static final String SELECT_BY_IS_INDIVID_SQL_PAGINATED = 
+	private static final String SELECT_BY_IS_INDIVID_OMITTING_SQL = 
 			"SELECT * FROM "+TABLE_PRINCIPAL+
 			" WHERE "+COL_PRINCIPAL_IS_INDIVIDUAL+"=:"+IS_INDIVIDUAL_PARAM_NAME+
-			" LIMIT :"+LIMIT_PARAM_NAME+" OFFSET :"+OFFSET_PARAM_NAME;
-	
-//	private static final String SELECT_BY_IS_INDIVID_OMITTING_SQL = 
-//			"SELECT * FROM "+TABLE_PRINCIPAL+
-//			" WHERE "+COL_PRINCIPAL_IS_INDIVIDUAL+"=:"+IS_INDIVIDUAL_PARAM_NAME+
-//			" AND "+COL_PRINCIPAL_PRINCIPAL_NAME_LOWER+" NOT IN (:"+NAME_PARAM_NAME+")";
-	
-//	private static final String SELECT_BY_IS_INDIVID_OMITTING_SQL_PAGINATED = 
-//			SELECT_BY_IS_INDIVID_OMITTING_SQL+
-//			" LIMIT :"+LIMIT_PARAM_NAME+" OFFSET :"+OFFSET_PARAM_NAME;
-	
+			" AND "+COL_PRINCIPAL_PRINCIPAL_NAME_UNIQUE+" NOT IN (:"+NAME_PARAM_NAME+") LIMIT :"+LIMIT_PARAM_NAME+" OFFSET :"+OFFSET_PARAM_NAME;
+		
 	private static final String SELECT_ETAG_AND_LOCK_ROW_BY_ID = 
 			"SELECT "+COL_PRINCIPAL_E_TAG+" FROM "+TABLE_PRINCIPAL+
 			" WHERE "+COL_PRINCIPAL_ID+"=:"+ID_PARAM_NAME+
@@ -122,61 +94,10 @@ public class DBOPrincipalDaoImpl implements PrincipalDAO {
 	public List<Principal> getBootstrapUsers() {
 		return this.bootstrapUsers;
 	}
-
-	@Override
-	public Collection<Principal> getAll(boolean isIndividual)
-			throws DatastoreException {
-		MapSqlParameterSource param = new MapSqlParameterSource();
-		param.addValue(IS_INDIVIDUAL_PARAM_NAME, isIndividual);		
-		List<DBOPrincipal> dbos = simpleJdbcTemplate.query(SELECT_BY_IS_INDIVID_SQL, userGroupRowMapper, param);
-		return PrincipalUtils.createDTOs(dbos);
-	}
 	
 	@Override
 	public long getCount()  throws DatastoreException {
 		return basicDao.getCount(DBOPrincipal.class);
-	}
-
-	@Override
-	public Collection<Principal> getAllExcept(boolean isIndividual, Collection<String> groupNamesToOmit) throws DatastoreException {
-		// the SQL will be invalid for an empty list, so we 'divert' that case:
-		if (groupNamesToOmit.isEmpty()) return getAll(isIndividual);
-		
-		MapSqlParameterSource param = new MapSqlParameterSource();
-		param.addValue(IS_INDIVIDUAL_PARAM_NAME, isIndividual);		
-		param.addValue(NAME_PARAM_NAME, groupNamesToOmit);
-		List<DBOPrincipal> dbos = simpleJdbcTemplate.query(SELECT_BY_IS_INDIVID_OMITTING_SQL, userGroupRowMapper, param);
-		return PrincipalUtils.createDTOs(dbos);
-	}
-	
-	@Override
-	public List<Principal> getInRange(long fromIncl, long toExcl,
-			boolean isIndividual) throws DatastoreException {
-		MapSqlParameterSource param = new MapSqlParameterSource();
-		param.addValue(IS_INDIVIDUAL_PARAM_NAME, isIndividual);		
-		param.addValue(OFFSET_PARAM_NAME, fromIncl);
-		long limit = toExcl - fromIncl;
-		if (limit<=0) throw new IllegalArgumentException("'to' param must be greater than 'from' param.");
-		param.addValue(LIMIT_PARAM_NAME, limit);	
-		List<DBOPrincipal> dbos = simpleJdbcTemplate.query(SELECT_BY_IS_INDIVID_SQL_PAGINATED, userGroupRowMapper, param);
-		return PrincipalUtils.createDTOs(dbos);
-	}
-
-	@Override
-	public List<Principal> getInRangeExcept(long fromIncl, long toExcl,
-			boolean isIndividual, Collection<String> groupNamesToOmit) throws DatastoreException {
-		// the SQL will be invalid for an empty list, so we 'divert' that case:
-		if (groupNamesToOmit.isEmpty()) return getInRange(fromIncl, toExcl, isIndividual);
-		
-		MapSqlParameterSource param = new MapSqlParameterSource();
-		param.addValue(IS_INDIVIDUAL_PARAM_NAME, isIndividual);		
-		param.addValue(OFFSET_PARAM_NAME, fromIncl);
-		long limit = toExcl - fromIncl;
-		if (limit<=0) throw new IllegalArgumentException("'to' param must be greater than 'from' param.");
-		param.addValue(LIMIT_PARAM_NAME, limit);	
-		param.addValue(NAME_PARAM_NAME, groupNamesToOmit);
-		List<DBOPrincipal> dbos = simpleJdbcTemplate.query(SELECT_BY_IS_INDIVID_OMITTING_SQL_PAGINATED, userGroupRowMapper, param);
-		return PrincipalUtils.createDTOs(dbos);
 	}
 
 	@Override
@@ -416,6 +337,40 @@ public class DBOPrincipalDaoImpl implements PrincipalDAO {
 		} catch (EmptyResultDataAccessException e) {
 			throw new NotFoundException("A principal does not exist with principalName: "+principalName+" and isIndividual: "+isIndividual);
 		}
+	}
+
+	@Override
+	public List<Principal> getAllPrincipals(long limit, long offset) {
+    	List<DBOPrincipal> dbos = simpleJdbcTemplate.query("SELECT * FROM "+TABLE_PRINCIPAL+" LIMIT ? OFFSET ?", userGroupRowMapper, limit, offset);
+    	return PrincipalUtils.createDTOs(dbos);
+	}
+
+	@Override
+	public List<Principal> getAllPrincipals(boolean isIndividual,
+			long limit, long offset) throws DatastoreException {
+    	List<DBOPrincipal> dbos = simpleJdbcTemplate.query("SELECT * FROM "+TABLE_PRINCIPAL+" WHERE "+COL_PRINCIPAL_IS_INDIVIDUAL+" = ? LIMIT ? OFFSET ?", userGroupRowMapper, isIndividual, limit, offset);
+    	return PrincipalUtils.createDTOs(dbos);
+	}
+
+	@Override
+	public List<Principal> getAllPrincipalsExcept(boolean isIndividual,
+			List<String> principalNamesToExclude, long limit, long offset)
+			throws DatastoreException {
+		// the SQL will be invalid for an empty list, so we 'divert' that case:
+		if (principalNamesToExclude.isEmpty()) return getAllPrincipals(isIndividual, limit, offset);
+		// Use the unique names
+		List<String> uniqueNames = new LinkedList<String>();
+		for(String original: principalNamesToExclude){
+			uniqueNames.add(PrincipalUtils.getUniquePrincipalName(original));
+		}
+		MapSqlParameterSource param = new MapSqlParameterSource();
+		param.addValue(IS_INDIVIDUAL_PARAM_NAME, isIndividual);		
+		param.addValue(OFFSET_PARAM_NAME, offset);
+		if (limit<=0) throw new IllegalArgumentException("'to' param must be greater than 'from' param.");
+		param.addValue(LIMIT_PARAM_NAME, limit);	
+		param.addValue(NAME_PARAM_NAME, uniqueNames);
+		List<DBOPrincipal> dbos = simpleJdbcTemplate.query(SELECT_BY_IS_INDIVID_OMITTING_SQL, userGroupRowMapper, param);
+		return PrincipalUtils.createDTOs(dbos);
 	}
 	
 }

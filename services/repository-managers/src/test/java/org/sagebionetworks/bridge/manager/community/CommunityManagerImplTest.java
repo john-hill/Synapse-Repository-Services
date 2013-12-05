@@ -186,7 +186,7 @@ public class CommunityManagerImplTest extends MockitoTestBase {
 	public void testCreateFailAnonymous() throws Exception {
 		UserInfo anonymousUser = new UserInfo(false);
 		Principal ug = new Principal();
-		ug.setPrincipalName(AuthorizationConstants.ANONYMOUS_USER_ID);
+		ug.setPrincipalName(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		anonymousUser.setIndividualGroup(ug);
 
 		Community community = new Community();

@@ -85,7 +85,7 @@ public class NodeManagerImplUnitTest {
 		
 		User anonUser = new User();
 		anonUser.setId("102");
-		anonUser.setUserId(AuthorizationConstants.ANONYMOUS_USER_ID);
+		anonUser.setUserId(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
 		anonUserInfo.setUser(anonUser);
 		anonUserInfo.setIndividualGroup(userGroup);
 	}

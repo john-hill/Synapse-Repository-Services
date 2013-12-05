@@ -77,9 +77,7 @@ public class NodeDAOImplTest {
 	
 	@Autowired
 	private IdGenerator idGenerator;
-	
-	@Autowired
-	
+		
 	@Autowired
 	private PrincipalDAO userGroupDAO;
 	

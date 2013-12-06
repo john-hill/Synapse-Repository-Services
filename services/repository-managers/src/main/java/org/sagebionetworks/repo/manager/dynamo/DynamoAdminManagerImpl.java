@@ -17,10 +17,10 @@ public class DynamoAdminManagerImpl implements DynamoAdminManager {
 	private UserManager userManager;
 
 	@Override
-	public void clear(String userName, String tableName, String hashKeyName, String rangeKeyName)
+	public void clear(Long userName, String tableName, String hashKeyName, String rangeKeyName)
 			throws UnauthorizedException, DatastoreException, NotFoundException {
 
-		if (userName == null || userName.isEmpty()) {
+		if (userName == null) {
 			throw new IllegalArgumentException("User name cannot be null or empty.");
 		}
 		if (tableName == null || tableName.isEmpty()) {

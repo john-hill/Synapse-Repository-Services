@@ -25,14 +25,14 @@ public class MessageServiceImpl implements MessageService {
 	private UserManager userManager;
 
 	@Override
-	public MessageToUser create(String username, MessageToUser toCreate)
+	public MessageToUser create(Long username, MessageToUser toCreate)
 			throws NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(username);
 		return messageManager.createMessage(userInfo, toCreate);
 	}
 
 	@Override
-	public PaginatedResults<MessageBundle> getInbox(String username,
+	public PaginatedResults<MessageBundle> getInbox(Long username,
 			List<MessageStatusType> inclusionFilter, MessageSortBy sortBy,
 			boolean descending, long limit, long offset, String urlPath)
 			throws NotFoundException {
@@ -45,7 +45,7 @@ public class MessageServiceImpl implements MessageService {
 	}
 
 	@Override
-	public PaginatedResults<MessageToUser> getOutbox(String username,
+	public PaginatedResults<MessageToUser> getOutbox(Long username,
 			MessageSortBy sortBy, boolean descending, long limit, long offset,
 			String urlPath) throws NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(username);
@@ -57,21 +57,21 @@ public class MessageServiceImpl implements MessageService {
 	}
 
 	@Override
-	public MessageToUser getMessage(String username, String messageId)
+	public MessageToUser getMessage(Long username, String messageId)
 			throws NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(username);
 		return messageManager.getMessage(userInfo, messageId);
 	}
 
 	@Override
-	public MessageToUser forwardMessage(String username, String messageId,
+	public MessageToUser forwardMessage(Long username, String messageId,
 			MessageRecipientSet recipients) throws NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(username);
 		return messageManager.forwardMessage(userInfo, messageId, recipients);
 	}
 
 	@Override
-	public PaginatedResults<MessageToUser> getConversation(String username,
+	public PaginatedResults<MessageToUser> getConversation(Long username,
 			String messageId, MessageSortBy sortBy, boolean descending,
 			long limit, long offset, String urlPath) throws NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(username);
@@ -83,14 +83,14 @@ public class MessageServiceImpl implements MessageService {
 	}
 
 	@Override
-	public void updateMessageStatus(String username, MessageStatus status)
+	public void updateMessageStatus(Long username, MessageStatus status)
 			throws NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(username);
 		messageManager.markMessageStatus(userInfo, status);
 	}
 
 	@Override
-	public void deleteMessage(String username, String messageId)
+	public void deleteMessage(Long username, String messageId)
 			throws NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(username);
 		messageManager.deleteMessage(userInfo, messageId);

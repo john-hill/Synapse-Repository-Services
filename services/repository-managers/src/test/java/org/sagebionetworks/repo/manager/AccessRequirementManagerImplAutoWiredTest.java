@@ -10,13 +10,13 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.sagebionetworks.evaluation.manager.EvaluationManager;
-import org.sagebionetworks.evaluation.manager.EvaluationPermissionsManager;
 import org.sagebionetworks.evaluation.model.Evaluation;
 import org.sagebionetworks.evaluation.model.EvaluationStatus;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -27,6 +27,7 @@ import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.Node;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.QueryResults;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
@@ -34,6 +35,7 @@ import org.sagebionetworks.repo.model.RestrictableObjectType;
 import org.sagebionetworks.repo.model.TermsOfUseAccessRequirement;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -59,9 +61,6 @@ public class AccessRequirementManagerImplAutoWiredTest {
 	@Autowired
 	private EntityPermissionsManager entityPermissionsManager;
 	
-	@Autowired
-	private EvaluationPermissionsManager evaluationPermissionsManager;
-	
 	private UserInfo adminUserInfo;
 	private UserInfo testUserInfo;
 	
@@ -80,8 +79,14 @@ public class AccessRequirementManagerImplAutoWiredTest {
 
 	@Before
 	public void before() throws Exception {
-		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
-		testUserInfo = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
+		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
+		// Create a non admin
+		NewUser nu = new NewUser();
+		nu.setEmail(UUID.randomUUID().toString()+"@test.com");
+		nu.setPrincipalName(UUID.randomUUID().toString());
+		Principal p = userManager.createUser(nu);
+		
+		testUserInfo = userManager.getUserInfo(Long.parseLong(p.getId()));
 		assertNotNull(nodeManager);
 		nodesToDelete = new ArrayList<String>();
 		
@@ -169,7 +174,12 @@ public class AccessRequirementManagerImplAutoWiredTest {
 				adminEvaluation=null;
 			} catch (Exception e) {}
 		}
+		if(testUserInfo != null){
+			userManager.delete(testUserInfo.getIndividualGroup().getId());
+		}
 	}
+	
+	
 	
 	private static TermsOfUseAccessRequirement newEntityAccessRequirement(String entityId) {
 		TermsOfUseAccessRequirement ar = new TermsOfUseAccessRequirement();

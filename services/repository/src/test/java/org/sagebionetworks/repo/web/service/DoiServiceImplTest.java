@@ -17,7 +17,7 @@ public class DoiServiceImplTest {
 		DoiServiceImpl srv = new DoiServiceImpl();
 		EntityDoiManager mockManager = mock(EntityDoiManager.class);
 		ReflectionTestUtils.setField(srv, "entityDoiManager", mockManager);
-		final String userId = Long.toString(1L);
+		final Long userId = 1l;
 		final String objectId = KeyFactory.keyToString(2L);
 		final ObjectType objectType = ObjectType.ENTITY;
 		final Long versionNumber = 3L;
@@ -30,7 +30,7 @@ public class DoiServiceImplTest {
 		DoiServiceImpl srv = new DoiServiceImpl();
 		EntityDoiManager mockManager = mock(EntityDoiManager.class);
 		ReflectionTestUtils.setField(srv, "entityDoiManager", mockManager);
-		final String userId = Long.toString(1L);
+		final Long userId = 1l;
 		final String objectId = KeyFactory.keyToString(2L);
 		final Long versionNumber = 3L;
 		srv.createDoi(userId, objectId, null, versionNumber);
@@ -41,7 +41,7 @@ public class DoiServiceImplTest {
 		DoiServiceImpl srv = new DoiServiceImpl();
 		EntityDoiManager mockManager = mock(EntityDoiManager.class);
 		ReflectionTestUtils.setField(srv, "entityDoiManager", mockManager);
-		final String userId = Long.toString(1L);
+		final Long userId = 1l;
 		final String objectId = KeyFactory.keyToString(2L);
 		final Long versionNumber = 3L;
 		srv.createDoi(userId, objectId, ObjectType.EVALUATION, versionNumber);
@@ -52,7 +52,7 @@ public class DoiServiceImplTest {
 		DoiServiceImpl srv = new DoiServiceImpl();
 		EntityDoiManager mockManager = mock(EntityDoiManager.class);
 		ReflectionTestUtils.setField(srv, "entityDoiManager", mockManager);
-		final String userId = Long.toString(1L);
+		final Long userId = 1l;
 		final String objectId = KeyFactory.keyToString(2L);
 		final ObjectType objectType = ObjectType.ENTITY;
 		final Long versionNumber = 3L;
@@ -65,7 +65,7 @@ public class DoiServiceImplTest {
 		DoiServiceImpl srv = new DoiServiceImpl();
 		EntityDoiManager mockManager = mock(EntityDoiManager.class);
 		ReflectionTestUtils.setField(srv, "entityDoiManager", mockManager);
-		final String userId = Long.toString(1L);
+		final Long userId = 1l;
 		final String objectId = KeyFactory.keyToString(2L);
 		final Long versionNumber = 3L;
 		srv.getDoi(userId, objectId, null, versionNumber);
@@ -76,7 +76,7 @@ public class DoiServiceImplTest {
 		DoiServiceImpl srv = new DoiServiceImpl();
 		EntityDoiManager mockManager = mock(EntityDoiManager.class);
 		ReflectionTestUtils.setField(srv, "entityDoiManager", mockManager);
-		final String userId = Long.toString(1L);
+		final Long userId = 1l;
 		final String objectId = KeyFactory.keyToString(2L);
 		final Long versionNumber = 3L;
 		srv.getDoi(userId, objectId, ObjectType.EVALUATION, versionNumber);

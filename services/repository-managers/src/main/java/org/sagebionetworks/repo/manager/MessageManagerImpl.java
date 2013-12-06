@@ -267,7 +267,7 @@ public class MessageManagerImpl implements MessageManager {
 				// Handle the implicit group that contains all users
 				// Note: only admins can pass the authorization check to reach this
 				if (authUsers.getId().equals(principalId)) {
-					for (Principal member : userGroupDAO.getAll()) {
+					for (Principal member : userGroupDAO.getAllPrincipals(true, Long.MAX_VALUE, 0l)) {
 						recipients.add(member.getId());
 					}
 				}

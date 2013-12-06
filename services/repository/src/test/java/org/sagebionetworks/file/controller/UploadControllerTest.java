@@ -37,8 +37,7 @@ public class UploadControllerTest {
 	@Autowired
 	FileHandleDao fileMetadataDao;
 
-	private String userName;
-	private String ownerId;
+	private Long ownerId;
 
 	S3FileHandle handleOne;
 	PreviewFileHandle handleTwo;
@@ -48,12 +47,10 @@ public class UploadControllerTest {
 	public void before() throws Exception {
 		toDelete = new LinkedList<String>();
 		// get user IDs
-		userName = AuthorizationConstants.TEST_USER_NAME;
-		ownerId = userManager.getUserInfo(userName).getIndividualGroup()
-				.getId();
+		ownerId = AuthorizationConstants.ADMIN_USER_ID;
 		// Create a file handle
 		handleOne = new S3FileHandle();
-		handleOne.setCreatedBy(ownerId);
+		handleOne.setCreatedBy(ownerId.toString());
 		handleOne.setCreatedOn(new Date());
 		handleOne.setBucketName("bucket");
 		handleOne.setKey("mainFileKey");
@@ -63,7 +60,7 @@ public class UploadControllerTest {
 		toDelete.add(handleOne.getId());
 		// Create a preview
 		handleTwo = new PreviewFileHandle();
-		handleTwo.setCreatedBy(ownerId);
+		handleTwo.setCreatedBy(ownerId.toString());
 		handleTwo.setCreatedOn(new Date());
 		handleTwo.setBucketName("bucket");
 		handleTwo.setKey("previewFileKey");
@@ -90,7 +87,7 @@ public class UploadControllerTest {
 		request.addHeader("Accept", "application/json");
 		// Request the real object
 		request.setRequestURI("/fileHandle/" + handleOne.getId());
-		request.setParameter(AuthorizationConstants.USER_ID_PARAM, userName);
+		request.setParameter(AuthorizationConstants.USER_ID_PARAM, ownerId.toString());
 		DispatchServletSingleton.getInstance().service(request, response);
 		assertEquals(HttpStatus.OK.value(), response.getStatus());
 		String body = response.getContentAsString();
@@ -107,7 +104,7 @@ public class UploadControllerTest {
 		request.addHeader("Accept", "application/json");
 		// Request the real object
 		request.setRequestURI("/fileHandle/" + handleOne.getId() + "/filepreview");
-		request.setParameter(AuthorizationConstants.USER_ID_PARAM, userName);
+		request.setParameter(AuthorizationConstants.USER_ID_PARAM, ownerId.toString());
 		DispatchServletSingleton.getInstance().service(request, response);
 		assertEquals(HttpStatus.OK.value(), response.getStatus());
 	}
@@ -121,7 +118,7 @@ public class UploadControllerTest {
 		request.setMethod("POST");
 		request.addHeader("Accept", "application/json");
 		request.setRequestURI("/externalFileHandle");
-		request.setParameter(AuthorizationConstants.USER_ID_PARAM, userName);
+		request.setParameter(AuthorizationConstants.USER_ID_PARAM, ownerId.toString());
 		request.addHeader("Content-Type", "application/json; charset=UTF-8");
 		StringWriter out = new StringWriter();
 		String body = EntityFactory.createJSONStringForEntity(efh);
@@ -142,7 +139,7 @@ public class UploadControllerTest {
 		request.addHeader("Accept", "application/json");
 		// Request a non-existent object
 		request.setRequestURI("/fileHandle/" + "-123");
-		request.setParameter(AuthorizationConstants.USER_ID_PARAM, userName);
+		request.setParameter(AuthorizationConstants.USER_ID_PARAM, ownerId.toString());
 		DispatchServletSingleton.getInstance().service(request, response);
 		assertEquals(HttpStatus.NOT_FOUND.value(), response.getStatus());
 		String body = response.getContentAsString();

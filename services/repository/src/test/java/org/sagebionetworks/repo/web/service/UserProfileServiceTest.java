@@ -45,7 +45,7 @@ import org.sagebionetworks.repo.web.NotFoundException;
 
 public class UserProfileServiceTest {
 	
-	private static final String EXTRA_USER_ID = "foo";
+	private static final Long EXTRA_USER_ID = 123l;
 	private static UserProfile extraProfile;
 	private static UserInfo userInfo;
 	
@@ -90,11 +90,11 @@ public class UserProfileServiceTest {
 		QueryResults<UserProfile> profiles = new QueryResults<UserProfile>(list, list.size());
 		
 		extraProfile = new UserProfile();
-		extraProfile.setOwnerId(EXTRA_USER_ID);
+		extraProfile.setOwnerId(EXTRA_USER_ID.toString());
 		extraProfile.setDisplayName("This UserProfile was created after the cache was last refreshed.");
 		userInfo = new UserInfo(false);
 		userInfo.setIndividualGroup(new Principal());
-		userInfo.getIndividualGroup().setId(EXTRA_USER_ID);
+		userInfo.getIndividualGroup().setId(EXTRA_USER_ID.toString());
 
 		when(mockUserProfileManager.getInRange(any(UserInfo.class), anyLong(), anyLong())).thenReturn(profiles);
 		when(mockUserProfileManager.getInRange(any(UserInfo.class), anyLong(), anyLong(), eq(true))).thenReturn(profiles);

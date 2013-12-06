@@ -173,15 +173,15 @@ public class LocationableMetadataProvider implements
 					if ((null != method)
 							&& (method.equals(RequestMethod.HEAD.name()))) {
 						signedPath = locationHelper
-								.presignS3HEADUrl(
+								.presignS3HEADUrl(Long.parseLong(
 										request
-												.getParameter(AuthorizationConstants.USER_ID_PARAM),
+												.getParameter(AuthorizationConstants.USER_ID_PARAM)),
 										location.getPath());
 					} else {
 						signedPath = locationHelper
-								.presignS3GETUrl(
+								.presignS3GETUrl(Long.parseLong(
 										request
-												.getParameter(AuthorizationConstants.USER_ID_PARAM),
+												.getParameter(AuthorizationConstants.USER_ID_PARAM)),
 										location.getPath());
 					}
 

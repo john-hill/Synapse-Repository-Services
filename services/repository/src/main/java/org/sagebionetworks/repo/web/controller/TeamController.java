@@ -83,7 +83,7 @@ public class TeamController extends BaseController {
 	@RequestMapping(value = UrlHelpers.TEAM, method = RequestMethod.POST)
 	public @ResponseBody
 	Team createTeam(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestBody Team team) throws NotFoundException {
 		return serviceProvider.getTeamService().create(userId, team);
 	}
@@ -126,7 +126,7 @@ public class TeamController extends BaseController {
 	@RequestMapping(value = UrlHelpers.USER_TEAM, method = RequestMethod.GET)
 	public @ResponseBody
 	PaginatedResults<Team> getTeamsByMember(
-			@PathVariable String id,
+			@PathVariable Long id,
 			@RequestParam(value = ServiceConstants.PAGINATION_LIMIT_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_LIMIT_PARAM) Integer limit,
 			@RequestParam(value = ServiceConstants.PAGINATION_OFFSET_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_OFFSET_PARAM_NEW) Integer offset
 			) {
@@ -137,8 +137,8 @@ public class TeamController extends BaseController {
 	@RequestMapping(value = UrlHelpers.TEAM_ID_MEMBER_ID, method = RequestMethod.GET)
 	public @ResponseBody
 	TeamMember getTeamMember(
-			@PathVariable String id,
-			@PathVariable String principalId
+			@PathVariable Long id,
+			@PathVariable Long principalId
 			) throws NotFoundException {
 		return  serviceProvider.getTeamService().getMember(id, principalId);
 	}
@@ -154,7 +154,7 @@ public class TeamController extends BaseController {
 	@RequestMapping(value = UrlHelpers.TEAM_ID, method = RequestMethod.GET)
 	public @ResponseBody
 	Team getTeam(
-			@PathVariable String id
+			@PathVariable Long id
 			) throws NotFoundException {
 		return serviceProvider.getTeamService().get(id);
 	}
@@ -170,7 +170,7 @@ public class TeamController extends BaseController {
 	@RequestMapping(value = UrlHelpers.TEAM_ID_ICON, method = RequestMethod.GET)
 	public
 	void fileRedirectURLForTeamIcon(
-			@PathVariable String id,
+			@PathVariable Long id,
 			@RequestParam(required = false) Boolean redirect,
 			HttpServletResponse response
 			) throws NotFoundException, IOException  {
@@ -190,7 +190,7 @@ public class TeamController extends BaseController {
 	@RequestMapping(value = UrlHelpers.TEAM, method = RequestMethod.PUT)
 	public @ResponseBody
 	Team updateTeam(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestBody Team team
 			) throws NotFoundException {
 		return serviceProvider.getTeamService().update(userId, team);
@@ -206,8 +206,8 @@ public class TeamController extends BaseController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	@RequestMapping(value = UrlHelpers.TEAM_ID, method = RequestMethod.DELETE)
 	public void deleteTeam(
-			@PathVariable String id,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId
+			@PathVariable Long id,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId
 			) throws NotFoundException {
 		serviceProvider.getTeamService().delete(userId, id);
 	}
@@ -226,9 +226,9 @@ public class TeamController extends BaseController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	@RequestMapping(value = UrlHelpers.TEAM_ID_MEMBER_ID, method = RequestMethod.PUT)
 	public void addTeamMember(
-			@PathVariable String id,
-			@PathVariable String principalId,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId
+			@PathVariable Long id,
+			@PathVariable Long principalId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId
 			) throws NotFoundException {
 		serviceProvider.getTeamService().addMember(userId, id, principalId);
 	}
@@ -245,10 +245,10 @@ public class TeamController extends BaseController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	@RequestMapping(value = UrlHelpers.TEAM_ID_MEMBER_ID_PERMISSION, method = RequestMethod.PUT)
 	public void setTeamAdmin(
-			@PathVariable String id,
-			@PathVariable String principalId,
+			@PathVariable Long id,
+			@PathVariable Long principalId,
 			@RequestParam(value = UrlHelpers.TEAM_PERMISSION_REQUEST_PARAMETER, required = true) Boolean isAdmin,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId
 			) throws NotFoundException {
 		serviceProvider.getTeamService().setPermissions(userId, id, principalId, isAdmin);
 	}
@@ -267,9 +267,9 @@ public class TeamController extends BaseController {
 	@RequestMapping(value = UrlHelpers.TEAM_ID_MEMBER_ID_MEMBERSHIP_STATUS, method = RequestMethod.GET)
 	public @ResponseBody 
 	TeamMembershipStatus getTeamMembershipStatus(
-			@PathVariable String id,
-			@PathVariable String principalId,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId
+			@PathVariable Long id,
+			@PathVariable Long principalId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId
 			) throws NotFoundException {
 		return serviceProvider.getTeamService().getTeamMembershipStatus(userId, id, principalId);
 	}
@@ -291,7 +291,7 @@ public class TeamController extends BaseController {
 	@RequestMapping(value = UrlHelpers.TEAM_MEMBERS_ID, method = RequestMethod.GET)
 	public  @ResponseBody 
 	PaginatedResults<TeamMember> getTeamMembers(
-			@PathVariable String id,
+			@PathVariable Long id,
 			@RequestParam(value = UrlHelpers.NAME_FRAGMENT_FILTER, required = false) String fragment,
 			@RequestParam(value = ServiceConstants.PAGINATION_LIMIT_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_LIMIT_PARAM) Integer limit,
 			@RequestParam(value = ServiceConstants.PAGINATION_OFFSET_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_OFFSET_PARAM_NEW) Integer offset
@@ -310,9 +310,9 @@ public class TeamController extends BaseController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	@RequestMapping(value = UrlHelpers.TEAM_ID_MEMBER_ID, method = RequestMethod.DELETE)
 	public void removeTeamMember(
-			@PathVariable String id,
-			@PathVariable String principalId,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId
+			@PathVariable Long id,
+			@PathVariable Long principalId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId
 			) throws NotFoundException {
 		serviceProvider.getTeamService().removeMember(userId, id, principalId);
 	}	
@@ -328,7 +328,7 @@ public class TeamController extends BaseController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	@RequestMapping(value = UrlHelpers.TEAM_UPDATE_SEARCH_CACHE, method = RequestMethod.POST)
 	public void refreshCache(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId
 			) throws NotFoundException, DatastoreException, UnauthorizedException {
 		serviceProvider.getTeamService().refreshCache(userId);
 	}	

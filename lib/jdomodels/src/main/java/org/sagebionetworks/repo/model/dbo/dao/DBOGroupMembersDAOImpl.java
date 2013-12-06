@@ -166,21 +166,7 @@ public class DBOGroupMembersDAOImpl implements GroupMembersDAO {
 		// Add the bootstrap admins to the appropriate admin group
 		String adminGroupId = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.ADMIN_GROUP_NAME, false).getId();
 		List<String> adminUserIdList = new ArrayList<String>();
-		adminUserIdList.add(userGroupDAO.findUserWithEmail(AuthorizationConstants.MIGRATION_USER_NAME).getId());
-		
-		// For testing
-		if (!StackConfiguration.isProductionStack()) {
-			// These two are admins used in the tests
-			adminUserIdList.add(userGroupDAO.findUserWithEmail(StackConfiguration.getIntegrationTestUserAdminName()).getId());
-			adminUserIdList.add(userGroupDAO.findUserWithEmail(AuthorizationConstants.ADMIN_USER_NAME).getId());
-			
-			// Add the test user to the test group
-			String testGroupId = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.TEST_GROUP_NAME, false).getId();
-			List<String> testUserIdList = new ArrayList<String>();
-			testUserIdList.add(userGroupDAO.findUserWithEmail(AuthorizationConstants.TEST_USER_NAME).getId());
-			addMembers(testGroupId, testUserIdList);
-		}
-		
+		adminUserIdList.add(userGroupDAO.findUserWithEmail(AuthorizationConstants.MIGRATION_USER_NAME).getId());		
 		addMembers(adminGroupId, adminUserIdList);
 	}
 }

@@ -44,7 +44,7 @@ public class FileUploadServiceImpl implements FileUploadService {
 	FileHandleManager fileUploadManager;
 
 	@Override
-	public FileHandleResults uploadFiles(String username, FileItemIterator itemIterator) throws DatastoreException, NotFoundException, FileUploadException, IOException, ServiceUnavailableException {
+	public FileHandleResults uploadFiles(Long username, FileItemIterator itemIterator) throws DatastoreException, NotFoundException, FileUploadException, IOException, ServiceUnavailableException {
 		if(username == null) throw new UnauthorizedException("The user must be authenticated");
 		if(itemIterator == null) throw new IllegalArgumentException("FileItemIterator cannot be null");
 		// resolve the user
@@ -60,7 +60,7 @@ public class FileUploadServiceImpl implements FileUploadService {
 	}
 
 	@Override
-	public FileHandle getFileHandle(String handleId, String userId) throws DatastoreException, NotFoundException {
+	public FileHandle getFileHandle(String handleId, Long userId) throws DatastoreException, NotFoundException {
 		if(userId == null) throw new UnauthorizedException("The user must be authenticated");
 		if(handleId == null) throw new IllegalArgumentException("FileHandleId cannot be null");
 		// resolve the user
@@ -69,7 +69,7 @@ public class FileUploadServiceImpl implements FileUploadService {
 	}
 
 	@Override
-	public void deleteFileHandle(String handleId, String userId) throws DatastoreException, NotFoundException {
+	public void deleteFileHandle(String handleId, Long userId) throws DatastoreException, NotFoundException {
 		if(userId == null) throw new UnauthorizedException("The user must be authenticated");
 		if(handleId == null) throw new IllegalArgumentException("FileHandleId cannot be null");
 		// resolve the user
@@ -78,7 +78,7 @@ public class FileUploadServiceImpl implements FileUploadService {
 	}
 	
 	@Override
-	public void clearPreview(String handleId, String userId) throws DatastoreException, NotFoundException {
+	public void clearPreview(String handleId, Long userId) throws DatastoreException, NotFoundException {
 		if(userId == null) throw new UnauthorizedException("The user must be authenticated");
 		if(handleId == null) throw new IllegalArgumentException("FileHandleId cannot be null");
 		// resolve the user
@@ -87,7 +87,7 @@ public class FileUploadServiceImpl implements FileUploadService {
 	}
 
 	@Override
-	public ExternalFileHandle createExternalFileHandle(String userId,
+	public ExternalFileHandle createExternalFileHandle(Long userId,
 			ExternalFileHandle fileHandle) throws DatastoreException, NotFoundException {
 		if(userId == null) throw new UnauthorizedException("The user must be authenticated");
 		if(fileHandle == null) throw new IllegalArgumentException("FileHandleId cannot be null");
@@ -97,7 +97,7 @@ public class FileUploadServiceImpl implements FileUploadService {
 	}
 
 	@Override
-	public ChunkedFileToken createChunkedFileUploadToken(String userId,	CreateChunkedFileTokenRequest ccftr) throws DatastoreException, NotFoundException {
+	public ChunkedFileToken createChunkedFileUploadToken(Long userId,	CreateChunkedFileTokenRequest ccftr) throws DatastoreException, NotFoundException {
 		if(userId == null) throw new UnauthorizedException("The user must be authenticated");
 		if(ccftr == null) throw new IllegalArgumentException("CreateChunkedFileTokenRequest cannot be null");
 		// resolve the user
@@ -106,28 +106,28 @@ public class FileUploadServiceImpl implements FileUploadService {
 	}
 
 	@Override
-	public URL createChunkedFileUploadPartURL(String userId, ChunkRequest cpr) throws DatastoreException, NotFoundException {
+	public URL createChunkedFileUploadPartURL(Long userId, ChunkRequest cpr) throws DatastoreException, NotFoundException {
 		// resolve the user
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		return fileUploadManager.createChunkedFileUploadPartURL(userInfo, cpr);
 	}
 
 	@Override
-	public ChunkResult addChunkToFile(String userId, ChunkRequest cpr) throws DatastoreException, NotFoundException {
+	public ChunkResult addChunkToFile(Long userId, ChunkRequest cpr) throws DatastoreException, NotFoundException {
 		// resolve the user
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		return fileUploadManager.addChunkToFile(userInfo, cpr);
 	}
 
 	@Override
-	public S3FileHandle completeChunkFileUpload(String userId, CompleteChunkedFileRequest ccfr) throws DatastoreException, NotFoundException {
+	public S3FileHandle completeChunkFileUpload(Long userId, CompleteChunkedFileRequest ccfr) throws DatastoreException, NotFoundException {
 		// resolve the user
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		return fileUploadManager.completeChunkFileUpload(userInfo, ccfr);
 	}
 
 	@Override
-	public UploadDaemonStatus startUploadDeamon(String userId, CompleteAllChunksRequest cacf) throws DatastoreException,
+	public UploadDaemonStatus startUploadDeamon(Long userId, CompleteAllChunksRequest cacf) throws DatastoreException,
 			NotFoundException {
 		// resolve the user
 		UserInfo userInfo = userManager.getUserInfo(userId);
@@ -135,7 +135,7 @@ public class FileUploadServiceImpl implements FileUploadService {
 	}
 
 	@Override
-	public UploadDaemonStatus getUploadDaemonStatus(String userId, String daemonId) throws DatastoreException, NotFoundException {
+	public UploadDaemonStatus getUploadDaemonStatus(Long userId, String daemonId) throws DatastoreException, NotFoundException {
 		// resolve the user
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		return fileUploadManager.getUploadDaemonStatus(userInfo, daemonId);

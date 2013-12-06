@@ -17,6 +17,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import org.junit.After;
 import org.junit.Before;
@@ -35,11 +36,13 @@ import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.NamedAnnotations;
 import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.Reference;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.dao.WikiPageDao;
 import org.sagebionetworks.repo.model.dao.WikiPageKey;
 import org.sagebionetworks.repo.model.file.FileHandle;
@@ -84,8 +87,12 @@ public class SearchDocumentDriverImplAutowireTest {
 	
 	@Before
 	public void before() throws Exception {
-		// This will create the user if they do not exist
-		userInfo = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
+		NewUser nu = new NewUser();
+		nu.setEmail(UUID.randomUUID().toString()+"@test.com");
+		nu.setPrincipalName(UUID.randomUUID().toString());
+		Principal p = userManager.createUser(nu);
+		userInfo = userManager.getUserInfo(Long.parseLong(p.getId()));
+		
 		// Create a project
 		project = new Project();
 		project.setName("SearchDocumentDriverImplAutowireTest");
@@ -136,6 +143,11 @@ public class SearchDocumentDriverImplAutowireTest {
 		}
 		if(project != null){
 			entityManager.deleteEntity(userInfo, project.getId());
+		}
+		if(userInfo != null){
+			try {
+				userManager.delete(userInfo.getIndividualGroup().getId());
+			} catch (Exception e) {} 
 		}
 	}
 

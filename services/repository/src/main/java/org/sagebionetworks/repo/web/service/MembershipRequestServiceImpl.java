@@ -30,7 +30,7 @@ public class MembershipRequestServiceImpl implements MembershipRequestService {
 	 * @see org.sagebionetworks.repo.web.service.MembershipRequestService#create(java.lang.String, org.sagebionetworks.repo.model.MembershipRqstSubmission)
 	 */
 	@Override
-	public MembershipRqstSubmission create(String userId,
+	public MembershipRqstSubmission create(Long userId,
 			MembershipRqstSubmission dto) throws UnauthorizedException,
 			InvalidModelException, DatastoreException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
@@ -41,8 +41,8 @@ public class MembershipRequestServiceImpl implements MembershipRequestService {
 	 * @see org.sagebionetworks.repo.web.service.MembershipRequestService#getOpenRequests(java.lang.String, java.lang.String, java.lang.String, long, long)
 	 */
 	@Override
-	public PaginatedResults<MembershipRequest> getOpenRequests(String userId,
-			String requestorId, String teamId, long limit, long offset)
+	public PaginatedResults<MembershipRequest> getOpenRequests(Long userId,
+			Long requestorId, Long teamId, long limit, long offset)
 			throws DatastoreException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		if (requestorId==null) {
@@ -56,7 +56,7 @@ public class MembershipRequestServiceImpl implements MembershipRequestService {
 	 * @see org.sagebionetworks.repo.web.service.MembershipRequestService#get(java.lang.String, java.lang.String)
 	 */
 	@Override
-	public MembershipRqstSubmission get(String userId, String dtoId)
+	public MembershipRqstSubmission get(Long userId, String dtoId)
 			throws DatastoreException, UnauthorizedException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		return membershipRequestManager.get(userInfo, dtoId);
@@ -66,7 +66,7 @@ public class MembershipRequestServiceImpl implements MembershipRequestService {
 	 * @see org.sagebionetworks.repo.web.service.MembershipRequestService#delete(java.lang.String, java.lang.String)
 	 */
 	@Override
-	public void delete(String userId, String dtoId) throws DatastoreException,
+	public void delete(Long userId, String dtoId) throws DatastoreException,
 			UnauthorizedException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		membershipRequestManager.delete(userInfo, dtoId);

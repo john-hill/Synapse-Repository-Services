@@ -58,12 +58,20 @@ public class AuthorizationConstants {
 	@Deprecated
 	public static final String PUBLIC_GROUP_NAME = DEFAULT_GROUPS.PUBLIC.name();
 	
+	public static final long PUBLIC_GROUP_ID = 273949;
+	
 	/**
 	 * The group name for those users that have all kinds of access to all resources.
 	 */
 	public static final String ADMIN_GROUP_NAME = "Administrators";
+	public static final long ADMIN_GROUP_ID = 2;
 
 	public static final String MIGRATION_USER_NAME = "migrationAdmin@sagebase.org";
+	/**
+	 * Note the only Admin user created by the bootstrap is the migration admin.
+	 * The credentials for this user are over-ridden in production.
+	 */
+	public static final long ADMIN_USER_ID = 1;
 	
 	/**
 	 * 
@@ -74,6 +82,7 @@ public class AuthorizationConstants {
 	 * The reserved username for an anonymous user.
 	 */
 	public static final String ANONYMOUS_USER_EMAIL = "anonymous@sagebase.org";
+	public static final long ANONYMOUS_USER_ID = 273950;
 	
 	/**
 	 * Per http://sagebionetworks.jira.com/browse/PLFM-192
@@ -125,19 +134,4 @@ public class AuthorizationConstants {
 	@Deprecated
 	public static final String ETAG_PARAM = "etag";
 
-	/**
-	 * A test user that is bootstrapped for testing on non-production stacks
-	 */
-	public static final String TEST_USER_NAME = "test-user@sagebase.org";
-
-	/**
-	 * The group the test user belongs to (see TEST_USER_NAME)
-	 */
-	public static final String TEST_GROUP_NAME = "test-group";
-
-	/**
-	 * An admin user that is bootstrapped for testing on non-production stacks
-	 */
-	public static final String ADMIN_USER_NAME = "admin@sagebase.org";
-	
 }

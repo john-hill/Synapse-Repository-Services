@@ -13,15 +13,16 @@ import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdGenerator.TYPE;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.Principal;
@@ -240,35 +241,6 @@ public class DBOPrincipalDaoImpl implements PrincipalDAO {
 				this.createPrincipalPrivate(dbo);
 			}
 		}
-
-//		// A few additional users are required for testing
-//		if (!StackConfiguration.isProductionStack()) {
-//			String testUsers[] = new String[]{ 
-//					StackConfiguration.getIntegrationTestUserAdminName(), 
-//					StackConfiguration.getIntegrationTestRejectTermsOfUseName(), 
-//					StackConfiguration.getIntegrationTestUserOneName(), 
-//					StackConfiguration.getIntegrationTestUserTwoName(), 
-//					StackConfiguration.getIntegrationTestUserThreeName(), 
-//					AuthorizationConstants.ADMIN_USER_NAME, 
-//					AuthorizationConstants.TEST_GROUP_NAME, 
-//					AuthorizationConstants.TEST_USER_NAME };
-//			for (String username : testUsers) {
-//				if (!this.doesPrincipalExist(username)) {
-//					Principal ug = new Principal();
-//					ug.setPrincipalName(username);
-//					ug.setIsIndividual(!username.equals(AuthorizationConstants.TEST_GROUP_NAME));
-//					ug.setId(this.create(ug));
-//				}
-//				Principal ug = new Principal();
-//				PrincipalUtils.copyDboToDto(this.findGroup(username), ug);
-//				ug.setCreationDate(null);
-//				ug.setEtag(null);
-//				ug.setUri(null);
-//				if (!this.bootstrapUsers.contains(ug)) {
-//					this.bootstrapUsers.add(ug);
-//				}
-//			}
-//		}
 	}
 	
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)

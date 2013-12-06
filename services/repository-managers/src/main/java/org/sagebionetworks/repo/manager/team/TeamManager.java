@@ -46,7 +46,7 @@ public interface TeamManager {
 	 * @return
 	 * @throws DatastoreException
 	 */
-	public PaginatedResults<TeamMember> getMembers(String teamId, long limit, long offset) throws DatastoreException;
+	public PaginatedResults<TeamMember> getMembers(Long teamId, long limit, long offset) throws DatastoreException;
 	
 	/**
 	 * 
@@ -56,7 +56,7 @@ public interface TeamManager {
 	 * @throws NotFoundException
 	 * @throws DatastoreException
 	 */
-	public TeamMember getMember(String teamId, String principalId) throws NotFoundException, DatastoreException;
+	public TeamMember getMember(Long teamId, Long principalId) throws NotFoundException, DatastoreException;
 
 	/**
 	 * 
@@ -73,7 +73,7 @@ public interface TeamManager {
 	 * @return
 	 * @throws DatastoreException
 	 */
-	public PaginatedResults<Team> getByMember(String principalId, long limit, long offset) throws DatastoreException;
+	public PaginatedResults<Team> getByMember(Long principalId, long limit, long offset) throws DatastoreException;
 	
 	/**
 	 * Get a Team by its ID
@@ -82,7 +82,7 @@ public interface TeamManager {
 	 * @throws DatastoreException
 	 * @throws NotFoundException
 	 */
-	public Team get(String id) throws DatastoreException, NotFoundException;
+	public Team get(Long id) throws DatastoreException, NotFoundException;
 
 	/**
 	 * Update a Team
@@ -105,7 +105,7 @@ public interface TeamManager {
 	 * @throws UnauthorizedException
 	 * @throws NotFoundException
 	 */
-	public void delete(UserInfo userInfo, String id) throws DatastoreException, UnauthorizedException, NotFoundException; 
+	public void delete(UserInfo userInfo, Long id) throws DatastoreException, UnauthorizedException, NotFoundException; 
 
 	/**
 	 * Add a member to a Team, removing applicable membership requests and invitations.
@@ -116,7 +116,7 @@ public interface TeamManager {
 	 * @throws UnauthorizedException
 	 * @throws NotFoundException
 	 */
-	public void addMember(UserInfo userInfo, String teamId, UserInfo principalUserInfo) throws DatastoreException, UnauthorizedException, NotFoundException;
+	public void addMember(UserInfo userInfo, Long teamId, UserInfo principalUserInfo) throws DatastoreException, UnauthorizedException, NotFoundException;
 	
 	/**
 	 * Remove a member from a Team
@@ -127,7 +127,7 @@ public interface TeamManager {
 	 * @throws UnauthorizedException
 	 * @throws NotFoundException
 	 */
-	public void removeMember(UserInfo userInfo, String teamId, String principalId) throws DatastoreException, UnauthorizedException, NotFoundException;
+	public void removeMember(UserInfo userInfo, Long teamId, Long principalId) throws DatastoreException, UnauthorizedException, NotFoundException;
 	
 	/**
 	 * Get the ACL for a Team
@@ -139,7 +139,7 @@ public interface TeamManager {
 	 * @throws UnauthorizedException
 	 * @throws NotFoundException
 	 */
-	public AccessControlList getACL(UserInfo userInfo, String teamId) throws DatastoreException, UnauthorizedException, NotFoundException;
+	public AccessControlList getACL(UserInfo userInfo, Long teamId) throws DatastoreException, UnauthorizedException, NotFoundException;
 	
 	/**
 	 * Update the ACL for a Team
@@ -162,7 +162,7 @@ public interface TeamManager {
 	 * @throws UnauthorizedException
 	 * @throws NotFoundException
 	 */
-	public void setPermissions(UserInfo userInfo, String teamId, String principalId, boolean isAdmin) throws DatastoreException, UnauthorizedException, NotFoundException;
+	public void setPermissions(UserInfo userInfo, Long teamId, Long principalId, boolean isAdmin) throws DatastoreException, UnauthorizedException, NotFoundException;
 	
 	/**
 	 * 
@@ -173,12 +173,12 @@ public interface TeamManager {
 	 * @throws DatastoreException
 	 * @throws NotFoundException
 	 */
-	public TeamMembershipStatus getTeamMembershipStatus(UserInfo userInfo, String teamId, UserInfo principalUserInfo) throws DatastoreException, NotFoundException;
+	public TeamMembershipStatus getTeamMembershipStatus(UserInfo userInfo, Long teamId, UserInfo principalUserInfo) throws DatastoreException, NotFoundException;
 	
 	/**
 	 * return the URL for the icon of the given Team
 	 * @param teamId
 	 * @return
 	 */
-	public URL getIconURL(String teamId) throws NotFoundException;
+	public URL getIconURL(Long teamId) throws NotFoundException;
 }

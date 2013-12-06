@@ -39,12 +39,12 @@ public class UserGroupController extends BaseController {
 	@RequestMapping(value = UrlHelpers.USERGROUP, method = RequestMethod.GET)
 	public @ResponseBody
 	PaginatedResults<Principal> getUserGroups(HttpServletRequest request, 
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestParam(value = ServiceConstants.PAGINATION_OFFSET_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_OFFSET_PARAM_NEW) Integer offset,
 			@RequestParam(value = ServiceConstants.PAGINATION_LIMIT_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PRINCIPALS_PAGINATION_LIMIT_PARAM) Integer limit,
 			@RequestParam(value = ServiceConstants.SORT_BY_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_SORT_BY_PARAM) String sort,
 			@RequestParam(value = ServiceConstants.ASCENDING_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_ASCENDING_PARAM) Boolean ascending
 			) throws DatastoreException, UnauthorizedException, NotFoundException {
-		return serviceProvider.getUserGroupService().getUserGroups(request, userId, offset, limit, sort, ascending);
+		return serviceProvider.getUserGroupService().getUserGroups(request, userId, offset, limit);
 	}
 }

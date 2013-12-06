@@ -29,7 +29,7 @@ public interface S3TokenManager {
 	 * @throws UnauthorizedException
 	 * @throws InvalidModelException
 	 */
-	public 	S3Token createS3Token(String userId, String id, S3Token s3Token, EntityType type) throws DatastoreException,	NotFoundException, UnauthorizedException, InvalidModelException;
+	public 	S3Token createS3Token(Long userId, String id, S3Token s3Token, EntityType type) throws DatastoreException,	NotFoundException, UnauthorizedException, InvalidModelException;
 
 	/**
 	 * Create a new S3AttachmentToken
@@ -42,7 +42,7 @@ public interface S3TokenManager {
 	 * @throws UnauthorizedException
 	 * @throws InvalidModelException
 	 */
-	public S3AttachmentToken createS3AttachmentToken(String userId, String entityId, S3AttachmentToken token) throws NotFoundException, DatastoreException, UnauthorizedException, InvalidModelException;
+	public S3AttachmentToken createS3AttachmentToken(Long userId, String entityId, S3AttachmentToken token) throws NotFoundException, DatastoreException, UnauthorizedException, InvalidModelException;
 	
 	/**
 	 * Create a new pre-signed URL for an attachment.
@@ -55,7 +55,7 @@ public interface S3TokenManager {
 	 * @throws UnauthorizedException
 	 * @throws InvalidModelException
 	 */
-	PresignedUrl getAttachmentUrl(String userId, String entityId,String tokenId) throws NotFoundException,	DatastoreException, UnauthorizedException, InvalidModelException;
+	PresignedUrl getAttachmentUrl(Long userId, String entityId,String tokenId) throws NotFoundException,	DatastoreException, UnauthorizedException, InvalidModelException;
 	
 	/**
 	 * This version takes a userInfo

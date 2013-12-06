@@ -11,6 +11,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.UUID;
 
 import org.junit.After;
 import org.junit.Before;
@@ -28,6 +29,7 @@ import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.auth.UserEntityPermissions;
 import org.sagebionetworks.repo.model.provenance.Activity;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -67,6 +69,7 @@ public class AuthorizationManagerImplTest {
 	private Node node = null;
 	private Node nodeCreatedByTestUser = null;
 	private Node childNode = null;
+	private Long userId;
 	private UserInfo userInfo = null;
 	private UserInfo adminUser;
 	private Random rand = null;
@@ -96,9 +99,15 @@ public class AuthorizationManagerImplTest {
 
 	@Before
 	public void setUp() throws Exception {
-		userInfo = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
+		// Create a non admin user
+		NewUser nu = new NewUser();
+		nu.setEmail(UUID.randomUUID().toString()+"@test.com");
+		nu.setPrincipalName(UUID.randomUUID().toString());
+		Principal p = userManager.createUser(nu);
+		userId = Long.parseLong(p.getId());
+		userInfo = userManager.getUserInfo(userId);
 		
-		adminUser = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
+		adminUser = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		rand = new Random();
 		// create a resource
 		node = createNode("foo_"+rand.nextLong(), adminUser, 2L, null, null);
@@ -116,7 +125,7 @@ public class AuthorizationManagerImplTest {
 
 	@After
 	public void tearDown() throws Exception {
-		UserInfo adminUser = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
+		UserInfo adminUser = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		for (Node n : nodeList) nodeManager.delete(adminUser, n.getId());
 		this.node=null;
 		
@@ -124,6 +133,11 @@ public class AuthorizationManagerImplTest {
 			for(String activityId : activitiesToDelete) {
 				activityManager.deleteActivity(adminUser, activityId);
 			}
+		}
+		if(userInfo != null){
+			try {
+				userManager.delete(userInfo.getIndividualGroup().getId());
+			} catch (Exception e) {} 
 		}
 	}
 	
@@ -178,7 +192,7 @@ public class AuthorizationManagerImplTest {
 		assertFalse(b);
 		AccessControlList acl = entityPermissionsManager.getACL(node.getId(), userInfo);
 		assertNotNull(acl);
-		Principal g = userManager.findPrincipalWithPrincipalName(AuthorizationConstants.TEST_GROUP_NAME, false);
+		Principal g = userManager.getPrincipal(userId);
 		acl = AuthorizationTestHelper.addToACL(acl, g, ACCESS_TYPE.READ);
 		acl = entityPermissionsManager.updateACL(acl, adminUser);
 		// now they should be able to access
@@ -194,7 +208,7 @@ public class AuthorizationManagerImplTest {
 		assertFalse(b);
 		AccessControlList acl = entityPermissionsManager.getACL(node.getId(), userInfo);
 		assertNotNull(acl);
-		Principal pg = userManager.findPrincipalWithPrincipalName(AuthorizationConstants.PUBLIC_GROUP_NAME, false);
+		Principal pg = userManager.getPrincipal(AuthorizationConstants.PUBLIC_GROUP_ID);
 		acl = AuthorizationTestHelper.addToACL(acl, pg, ACCESS_TYPE.READ);
 		acl = entityPermissionsManager.updateACL(acl, adminUser);
 		// now they should be able to access
@@ -206,10 +220,10 @@ public class AuthorizationManagerImplTest {
 	public void testAnonymousCanAccessPublicGroup() throws Exception {
 		AccessControlList acl = entityPermissionsManager.getACL(node.getId(), userInfo);
 		assertNotNull(acl);
-		Principal pg = userManager.findPrincipalWithPrincipalName(AuthorizationConstants.PUBLIC_GROUP_NAME, false);
+		Principal pg = userManager.getPrincipal(AuthorizationConstants.PUBLIC_GROUP_ID);
 		acl = AuthorizationTestHelper.addToACL(acl, pg, ACCESS_TYPE.READ);
 		acl = entityPermissionsManager.updateACL(acl, adminUser);
-		UserInfo anonInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
+		UserInfo anonInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
 		boolean b = authorizationManager.canAccess(anonInfo, node.getId(), ObjectType.ENTITY, ACCESS_TYPE.READ);
 		assertTrue(b);
 	}
@@ -220,7 +234,7 @@ public class AuthorizationManagerImplTest {
 	public void testAnonymousCanOnlyReadPublicEntity() throws Exception {
 		AccessControlList acl = entityPermissionsManager.getACL(node.getId(), userInfo);
 		assertNotNull(acl);
-		Principal pg = userManager.findPrincipalWithPrincipalName(AuthorizationConstants.PUBLIC_GROUP_NAME, false);
+		Principal pg = userManager.getPrincipal(AuthorizationConstants.PUBLIC_GROUP_ID);
 		acl = AuthorizationTestHelper.addToACL(acl, pg, ACCESS_TYPE.READ);
 		acl = AuthorizationTestHelper.addToACL(acl, pg, ACCESS_TYPE.CHANGE_PERMISSIONS);
 		acl = AuthorizationTestHelper.addToACL(acl, pg, ACCESS_TYPE.CREATE);
@@ -228,7 +242,7 @@ public class AuthorizationManagerImplTest {
 		acl = AuthorizationTestHelper.addToACL(acl, pg, ACCESS_TYPE.DOWNLOAD);
 		acl = AuthorizationTestHelper.addToACL(acl, pg, ACCESS_TYPE.UPDATE);
 		acl = entityPermissionsManager.updateACL(acl, adminUser);
-		UserInfo anonInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
+		UserInfo anonInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
 		assertTrue(authorizationManager.canAccess(anonInfo, node.getId(), ObjectType.ENTITY, ACCESS_TYPE.READ));
 		assertFalse(authorizationManager.canAccess(anonInfo, node.getId(), ObjectType.ENTITY, ACCESS_TYPE.CHANGE_PERMISSIONS));
 		assertFalse(authorizationManager.canAccess(anonInfo, node.getId(), ObjectType.ENTITY, ACCESS_TYPE.CREATE));
@@ -253,11 +267,11 @@ public class AuthorizationManagerImplTest {
 	
 	@Test
 	public void testCanAccessAsAnonymous() throws Exception {
-		UserInfo anonInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
+		UserInfo anonInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
 		AccessControlList acl = entityPermissionsManager.getACL(node.getId(), userInfo);
 		assertNotNull(acl);
 		// give some other group access
-		Principal g = userManager.findPrincipalWithPrincipalName(AuthorizationConstants.TEST_GROUP_NAME, false);
+		Principal g = userManager.getPrincipal(userId);
 		acl = AuthorizationTestHelper.addToACL(acl, g, ACCESS_TYPE.READ);
 		acl = entityPermissionsManager.updateACL(acl, adminUser);
 		// anonymous does not have access
@@ -268,7 +282,7 @@ public class AuthorizationManagerImplTest {
 	@Test 
 	public void testCanAccessAdmin() throws Exception {
 		// test that an admin can access anything
-		UserInfo adminInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
+		UserInfo adminInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		// test that admin can access anything
 		boolean b = authorizationManager.canAccess(adminInfo, node.getId(), ObjectType.ENTITY, ACCESS_TYPE.READ);
 		assertTrue(b);
@@ -277,8 +291,8 @@ public class AuthorizationManagerImplTest {
 	@Test 
 	public void testCanPublicRead() throws Exception {
 		// verify that anonymous user can't initially access
-		UserInfo anonInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
-		UserInfo adminInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
+		UserInfo anonInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
+		UserInfo adminInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		boolean b = authorizationManager.canAccess(anonInfo, node.getId(), ObjectType.ENTITY, ACCESS_TYPE.READ);
 		assertFalse(b);
 		
@@ -293,7 +307,7 @@ public class AuthorizationManagerImplTest {
 		//update so that public group CAN read
 		AccessControlList acl = entityPermissionsManager.getACL(node.getId(), userInfo);
 		assertNotNull(acl);
-		Principal pg = userManager.findPrincipalWithPrincipalName(AuthorizationConstants.PUBLIC_GROUP_NAME, false);
+		Principal pg = userManager.getPrincipal(AuthorizationConstants.PUBLIC_GROUP_ID);
 		acl = AuthorizationTestHelper.addToACL(acl, pg, ACCESS_TYPE.READ);
 		acl = entityPermissionsManager.updateACL(acl, adminUser);
 		
@@ -342,7 +356,7 @@ public class AuthorizationManagerImplTest {
 		AccessControlList acl = entityPermissionsManager.getACL(node.getId(), userInfo);
 		assertNotNull(acl);
 		acl.setId(childNode.getId());
-		UserInfo adminInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
+		UserInfo adminInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		entityPermissionsManager.overrideInheritance(acl, adminInfo); // must do as admin!
 		// permissions haven't changed (yet)
 		assertFalse(authorizationManager.canAccess(userInfo, node.getId(), ObjectType.ENTITY, ACCESS_TYPE.READ));
@@ -398,7 +412,7 @@ public class AuthorizationManagerImplTest {
 	@Test
 	public void testCreateSpecialUsers() throws Exception {
 		// admin always has access 
-		UserInfo adminInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
+		UserInfo adminInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		Node child = createDTO("child", 10L, 11L, node.getId(), null);
 		assertTrue(authorizationManager.canCreate(adminInfo, child));
 
@@ -411,7 +425,7 @@ public class AuthorizationManagerImplTest {
 		assertTrue(authorizationManager.canCreate(userInfo, child));
 		
 		// but anonymous cannot
-		UserInfo anonInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
+		UserInfo anonInfo = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
 		assertFalse(authorizationManager.canCreate(anonInfo, child));
 	}
 
@@ -423,13 +437,13 @@ public class AuthorizationManagerImplTest {
 		assertFalse(authorizationManager.canCreate(userInfo, orphan));
 
 		// admin creates a node with no parent.  should work
-		UserInfo adminInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
+		UserInfo adminInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		assertTrue(authorizationManager.canCreate(adminInfo, orphan));
 	}
 
 	@Test
 	public void testGetUserPermissionsForEntity() throws Exception{
-		UserInfo adminInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
+		UserInfo adminInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		assertTrue(adminInfo.isAdmin());
 		assertTrue(adminInfo.getUser().isAgreesToTermsOfUse());
 		// the admin user can do it all
@@ -583,7 +597,7 @@ public class AuthorizationManagerImplTest {
 	
 	@Test
 	public void testIsAnonymousUser() throws DatastoreException, NotFoundException{
-		UserInfo anonymous = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
+		UserInfo anonymous = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		assertNotNull(anonymous);
 		assertTrue(authorizationManager.isAnonymousUser(anonymous));
 		assertFalse(authorizationManager.isAnonymousUser(userInfo));

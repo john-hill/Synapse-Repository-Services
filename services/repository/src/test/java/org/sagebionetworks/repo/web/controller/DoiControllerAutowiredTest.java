@@ -36,7 +36,7 @@ public class DoiControllerAutowiredTest {
 
 	@Autowired private EntityService entityService;
 	@Autowired private DoiAdminDao doiAdminDao;
-	private final String testUser = AuthorizationConstants.TEST_USER_NAME;
+	private final Long testUserId = AuthorizationConstants.ADMIN_USER_ID;
 	private Entity entity;
 
 	@Before
@@ -44,13 +44,13 @@ public class DoiControllerAutowiredTest {
 		entity = new Project();
 		entity.setName("DoiControllerAutowiredTest");
 		HttpServlet dispatchServlet = DispatchServletSingleton.getInstance();
-		entity = ServletTestHelper.createEntity(dispatchServlet, entity, testUser);
+		entity = ServletTestHelper.createEntity(dispatchServlet, entity, testUserId);
 		Assert.assertNotNull(entity);
 	}
 
 	@After
 	public void after() throws Exception {
-		entityService.deleteEntity(testUser, entity.getId());
+		entityService.deleteEntity(testUserId, entity.getId());
 		doiAdminDao.clear();
 	}
 
@@ -69,7 +69,7 @@ public class DoiControllerAutowiredTest {
 		request.setMethod("PUT");
 		request.addHeader("Accept", "application/json");
 		request.setRequestURI(uri);
-		request.setParameter(AuthorizationConstants.USER_ID_PARAM, testUser);
+		request.setParameter(AuthorizationConstants.USER_ID_PARAM, testUserId.toString());
 		MockHttpServletResponse response = new MockHttpServletResponse();
 		HttpServlet servlet = DispatchServletSingleton.getInstance();
 		servlet.service(request, response);
@@ -85,7 +85,7 @@ public class DoiControllerAutowiredTest {
 		request.setMethod("GET");
 		request.addHeader("Accept", "application/json");
 		request.setRequestURI(uri);
-		request.setParameter(AuthorizationConstants.USER_ID_PARAM, testUser);
+		request.setParameter(AuthorizationConstants.USER_ID_PARAM, testUserId.toString());
 		response = new MockHttpServletResponse();
 		servlet = DispatchServletSingleton.getInstance();
 		servlet.service(request, response);
@@ -112,7 +112,7 @@ public class DoiControllerAutowiredTest {
 		request.setMethod("PUT");
 		request.addHeader("Accept", "application/json");
 		request.setRequestURI(uri);
-		request.setParameter(AuthorizationConstants.USER_ID_PARAM, testUser);
+		request.setParameter(AuthorizationConstants.USER_ID_PARAM, testUserId.toString());
 		response = new MockHttpServletResponse();
 		servlet = DispatchServletSingleton.getInstance();
 		servlet.service(request, response);
@@ -128,7 +128,7 @@ public class DoiControllerAutowiredTest {
 		request.setMethod("GET");
 		request.addHeader("Accept", "application/json");
 		request.setRequestURI(uri);
-		request.setParameter(AuthorizationConstants.USER_ID_PARAM, testUser);
+		request.setParameter(AuthorizationConstants.USER_ID_PARAM, testUserId.toString());
 		response = new MockHttpServletResponse();
 		servlet = DispatchServletSingleton.getInstance();
 		servlet.service(request, response);
@@ -164,7 +164,7 @@ public class DoiControllerAutowiredTest {
 		request.setMethod("PUT");
 		request.addHeader("Accept", "application/json");
 		request.setRequestURI(uri);
-		request.setParameter(AuthorizationConstants.USER_ID_PARAM, testUser);
+		request.setParameter(AuthorizationConstants.USER_ID_PARAM, testUserId.toString());
 		MockHttpServletResponse response = new MockHttpServletResponse();
 		HttpServlet servlet = DispatchServletSingleton.getInstance();
 		servlet.service(request, response);
@@ -173,7 +173,7 @@ public class DoiControllerAutowiredTest {
 		request.setMethod("GET");
 		request.addHeader("Accept", "application/json");
 		request.setRequestURI(uri);
-		request.setParameter(AuthorizationConstants.USER_ID_PARAM, testUser);
+		request.setParameter(AuthorizationConstants.USER_ID_PARAM, testUserId.toString());
 		response = new MockHttpServletResponse();
 		servlet = DispatchServletSingleton.getInstance();
 		servlet.service(request, response);
@@ -184,7 +184,7 @@ public class DoiControllerAutowiredTest {
 		request.setMethod("PUT");
 		request.addHeader("Accept", "application/json");
 		request.setRequestURI(uri);
-		request.setParameter(AuthorizationConstants.USER_ID_PARAM, testUser);
+		request.setParameter(AuthorizationConstants.USER_ID_PARAM, testUserId.toString());
 		response = new MockHttpServletResponse();
 		servlet = DispatchServletSingleton.getInstance();
 		servlet.service(request, response);
@@ -193,7 +193,7 @@ public class DoiControllerAutowiredTest {
 		request.setMethod("GET");
 		request.addHeader("Accept", "application/json");
 		request.setRequestURI(uri);
-		request.setParameter(AuthorizationConstants.USER_ID_PARAM, testUser);
+		request.setParameter(AuthorizationConstants.USER_ID_PARAM, testUserId.toString());
 		response = new MockHttpServletResponse();
 		servlet = DispatchServletSingleton.getInstance();
 		servlet.service(request, response);

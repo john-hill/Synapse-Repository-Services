@@ -9,6 +9,7 @@ import java.io.File;
 import java.net.URL;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.UUID;
 
 import org.junit.After;
 import org.junit.Before;
@@ -17,6 +18,7 @@ import org.junit.runner.RunWith;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.AmazonS3Utility;
 import org.sagebionetworks.repo.manager.S3TokenManagerImpl;
+import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
@@ -33,6 +35,7 @@ import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
 import org.sagebionetworks.repo.model.attachment.PresignedUrl;
 import org.sagebionetworks.repo.model.attachment.S3AttachmentToken;
+import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.web.UrlHelpers;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,34 +55,35 @@ public class S3TokenControllerTest {
 	AmazonS3Utility s3Utility;
 	@Autowired
 	PrincipalDAO userGroupDAO;
+	@Autowired
+	private UserManager userManager;
 
-	private Principal testUser;
-	private static final String TEST_USER1 = AuthorizationConstants.TEST_USER_NAME;
-	private static final String TEST_USER2 = StackConfiguration.getIntegrationTestUserOneName();
+//	private Principal testUser;
 	private static final String TEST_MD5 = "4053f00b39aae693a6969f37102e2764";
 
 	private Project project;
 	private Study dataset;
 
+	Long testAdminId = AuthorizationConstants.ADMIN_USER_ID;
+	Long testNonAdminId;
 	/**
 	 * @throws java.lang.Exception
 	 */
 	@Before
 	public void setUp() throws Exception {
 		testHelper.setUp();
-		testHelper.setTestUser(TEST_USER1);
 		
 		project = new Project();
 		project.setName("proj");
-		project = testHelper.createEntity(project, null);
+		project = testHelper.createEntity(project, null, testAdminId);
 
 		dataset = new Study();
 		dataset.setName("study");
 		dataset.setParentId(project.getId());
-		dataset = testHelper.createEntity(dataset, null);
+		dataset = testHelper.createEntity(dataset, null, testAdminId);
 
 		// Add a public read ACL to the project object
-		AccessControlList projectAcl = testHelper.getEntityACL(project);
+		AccessControlList projectAcl = testHelper.getEntityACL(project, testAdminId);
 		ResourceAccess ac = new ResourceAccess();
 		Principal authenticatedUsers = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.DEFAULT_GROUPS.AUTHENTICATED_USERS
 				.name(), false);
@@ -88,9 +92,14 @@ public class S3TokenControllerTest {
 		ac.setAccessType(new HashSet<ACCESS_TYPE>());
 		ac.getAccessType().add(ACCESS_TYPE.READ);
 		projectAcl.getResourceAccess().add(ac);
-		projectAcl = testHelper.updateEntityAcl(project, projectAcl);
+		projectAcl = testHelper.updateEntityAcl(project, projectAcl, testAdminId);
+		// Create a second user
+		NewUser nu = new NewUser();
+		nu.setEmail(UUID.randomUUID().toString()+"@test.com");
+		nu.setPrincipalName(UUID.randomUUID().toString());
+		Principal newPrincipal = userManager.createUser(nu);
+		testNonAdminId = Long.parseLong(newPrincipal.getId());
 		
-		testUser = userGroupDAO.findUserWithEmail(TEST_USER1);
 	}
 
 	/**
@@ -98,7 +107,6 @@ public class S3TokenControllerTest {
 	 */
 	@After
 	public void tearDown() throws Exception {
-		testHelper.setTestUser(TEST_USER1);
 		testHelper.tearDown();
 	}
 	
@@ -110,7 +118,7 @@ public class S3TokenControllerTest {
 		Data layer = new Data();
 		layer.setParentId(dataset.getId());
 		layer.setType(LayerTypeNames.E);
-		layer = testHelper.createEntity(layer, null);
+		layer = testHelper.createEntity(layer, null, testAdminId);
 
 		// an absolute path to a file
 		String initialPath = "/data/123.zip";
@@ -119,7 +127,7 @@ public class S3TokenControllerTest {
 		token.setPath(initialPath);
 		token.setMd5(TEST_MD5);
 
-		token = testHelper.createObject(layer.getS3Token(), token);
+		token = testHelper.createObject(layer.getS3Token(), token, testAdminId);
 
 		assertEquals(StackConfiguration.getS3Bucket(), token.getBucket());
 		assertTrue(token.getPath().matches(
@@ -140,7 +148,7 @@ public class S3TokenControllerTest {
 	public void testCreateS3TokenRelativePath() throws Exception {
 		Code code = new Code();
 		code.setParentId(project.getId());
-		code = testHelper.createEntity(code, null);
+		code = testHelper.createEntity(code, null, testAdminId);
 
 		// a relative path to a file
 		String initialPath = "foo.java";
@@ -148,7 +156,7 @@ public class S3TokenControllerTest {
 		token.setPath(initialPath);
 		token.setMd5(TEST_MD5);
 
-		token = testHelper.createObject(code.getS3Token(), token);
+		token = testHelper.createObject(code.getS3Token(), token, testAdminId);
 
 		assertEquals(StackConfiguration.getS3Bucket(), token.getBucket());
 		assertTrue(token.getPath().matches(
@@ -169,12 +177,11 @@ public class S3TokenControllerTest {
 		token.setPath(initialPath);
 		token.setMd5(TEST_MD5);
 		token = testHelper.createObject(dataset.getUri() + "/"
-				+ UrlHelpers.S3TOKEN, token);
+				+ UrlHelpers.S3TOKEN, token, testAdminId);
 
-		testHelper.setTestUser(TEST_USER2);
 		try {
 			token = testHelper.createObject(dataset.getUri() + "/"
-					+ UrlHelpers.S3TOKEN, token);
+					+ UrlHelpers.S3TOKEN, token, testNonAdminId);
 			fail("expected exception not thrown");
 		} catch (UnauthorizedException ex) {
 			assertTrue(ex
@@ -196,20 +203,20 @@ public class S3TokenControllerTest {
 		File toUpload = new File(toUpUrl.getFile());
 		// Create the token
 		
-		S3AttachmentToken resultToken = ServletTestHelper.createS3AttachmentToken(AuthorizationConstants.TEST_USER_NAME, ServiceConstants.AttachmentType.USER_PROFILE,testUser.getId(), startToken);
+		S3AttachmentToken resultToken = ServletTestHelper.createS3AttachmentToken(testAdminId, ServiceConstants.AttachmentType.USER_PROFILE,""+testAdminId, startToken);
 		System.out.println(resultToken);
 		assertNotNull(resultToken);
 		assertNotNull(resultToken.getTokenId());
 		assertNotNull(resultToken.getPresignedUrl());
 		
 		// Upload it
-		String path = S3TokenManagerImpl.createAttachmentPathNoSlash(testUser.getId(), resultToken.getTokenId());
+		String path = S3TokenManagerImpl.createAttachmentPathNoSlash(""+testAdminId, resultToken.getTokenId());
 		s3Utility.uploadToS3(toUpload, path);
 
 		// Make sure we can get a signed download URL for this attachment.
 		long now = System.currentTimeMillis();
 		long oneMinuteFromNow = now + (60*1000);
-		PresignedUrl url = testHelper.getUserProfileAttachmentUrl(AuthorizationConstants.TEST_USER_NAME, testUser.getId(), resultToken.getTokenId());
+		PresignedUrl url = testHelper.getUserProfileAttachmentUrl(testAdminId,testAdminId.toString(), resultToken.getTokenId());
 		System.out.println(url);
 		assertNotNull(url);
 		assertNotNull(url.getPresignedUrl());
@@ -242,7 +249,7 @@ public class S3TokenControllerTest {
 		assertNotNull("Failed to find: "+fileName+" on the classpath", toUpUrl);
 		File toUpload = new File(toUpUrl.getFile());
 		// Create the token
-		S3AttachmentToken resultToken = ServletTestHelper.createS3AttachmentToken(AuthorizationConstants.TEST_USER_NAME, ServiceConstants.AttachmentType.ENTITY, project.getId(), startToken);
+		S3AttachmentToken resultToken = ServletTestHelper.createS3AttachmentToken(testAdminId, ServiceConstants.AttachmentType.ENTITY, project.getId(), startToken);
 		System.out.println(resultToken);
 		assertNotNull(resultToken);
 		assertNotNull(resultToken.getTokenId());
@@ -255,7 +262,7 @@ public class S3TokenControllerTest {
 		// Make sure we can get a signed download URL for this attachment.
 		long now = System.currentTimeMillis();
 		long oneMinuteFromNow = now + (60*1000);
-		PresignedUrl url = testHelper.getAttachmentUrl(AuthorizationConstants.TEST_USER_NAME, project.getId(), resultToken.getTokenId());
+		PresignedUrl url = testHelper.getAttachmentUrl(testAdminId, project.getId(), resultToken.getTokenId());
 		System.out.println(url);
 		assertNotNull(url);
 		assertNotNull(url.getPresignedUrl());

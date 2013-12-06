@@ -61,7 +61,7 @@ public class SearchControllerTest {
 		// Create an project
 		project = new Project();
 		project.setName("SearchControllerTest");
-		project = provider.getEntityService().createEntity(AuthorizationConstants.TEST_USER_NAME, project, null, new MockHttpServletRequest());
+		project = provider.getEntityService().createEntity(AuthorizationConstants.ADMIN_USER_ID, project, null, new MockHttpServletRequest());
 		// Push this to the serach index
 		Document doc = documentProvider.formulateSearchDocument(project.getId());
 		searchDao.createOrUpdateSearchDocument(doc);
@@ -78,7 +78,7 @@ public class SearchControllerTest {
 	@After
 	public void after()  throws Exception{
 		if(provider != null && project != null){
-			provider.getEntityService().deleteEntity(AuthorizationConstants.TEST_USER_NAME, project.getId());
+			provider.getEntityService().deleteEntity(AuthorizationConstants.ADMIN_USER_ID, project.getId());
 			searchDao.deleteAllDocuments();
 		}
 	}
@@ -99,7 +99,7 @@ public class SearchControllerTest {
 		request.addHeader("Accept", "application/json");
 		request.addHeader("Content-Type", "application/json");
 		request.setRequestURI("/search");
-		request.setParameter(AuthorizationConstants.USER_ID_PARAM, AuthorizationConstants.TEST_USER_NAME);
+		request.setParameter(AuthorizationConstants.USER_ID_PARAM, ""+AuthorizationConstants.ADMIN_USER_ID);
 		request.setContent(EntityFactory.createJSONStringForEntity(query)
 				.getBytes("UTF-8"));
 		DispatchServletSingleton.getInstance().service(request, response);

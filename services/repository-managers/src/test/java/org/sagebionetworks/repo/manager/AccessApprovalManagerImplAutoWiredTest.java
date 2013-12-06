@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import org.junit.After;
 import org.junit.Before;
@@ -26,6 +27,7 @@ import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.QueryResults;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
@@ -34,6 +36,7 @@ import org.sagebionetworks.repo.model.TermsOfUseAccessApproval;
 import org.sagebionetworks.repo.model.TermsOfUseAccessRequirement;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.NewUser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
@@ -75,8 +78,14 @@ public class AccessApprovalManagerImplAutoWiredTest {
 	
 	@Before
 	public void before() throws Exception{
-		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
-		testUserInfo = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
+		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
+		// Create a non admin user
+		NewUser nu = new NewUser();
+		nu.setEmail(UUID.randomUUID().toString()+"@test.com");
+		nu.setPrincipalName(UUID.randomUUID().toString());
+		Principal p = userManager.createUser(nu);
+		
+		testUserInfo = userManager.getUserInfo(Long.parseLong(p.getId()));
 		assertNotNull(nodeManager);
 		nodesToDelete = new ArrayList<String>();
 		
@@ -124,6 +133,11 @@ public class AccessApprovalManagerImplAutoWiredTest {
 				accessRequirementManager.deleteAccessRequirement(adminUserInfo, actAr.getId().toString());
 				actAr=null;
 			}
+		}
+		if(testUserInfo != null){
+			try {
+				userManager.delete(testUserInfo.getIndividualGroup().getId());
+			} catch (Exception e) {} 
 		}
 	}
 	

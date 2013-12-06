@@ -37,7 +37,7 @@ public class ActivityServiceImplUnitTest {
 	UserManager mockUserManager;
 	
 	UserInfo userInfo;
-	String userId = "userId";
+	Long userId = 9999l;
 	Activity activity;
 	Set<Used> used;
 	String n1 = "syn123";

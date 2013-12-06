@@ -60,11 +60,11 @@ public class DBODoiDaoImpl implements DoiDao {
 	 */
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRES_NEW)
 	@Override
-	public Doi createDoi(final String userGroupId, final String objectId,
+	public Doi createDoi(final Long userGroupId, final String objectId,
 			final ObjectType objectType, final Long versionNumber, final DoiStatus doiStatus)
 			throws DatastoreException {
 
-		if (userGroupId == null || userGroupId.isEmpty()) {
+		if (userGroupId == null) {
 			throw new IllegalArgumentException("User group ID cannot be null nor empty.");
 		}
 		if (objectId == null || objectId.isEmpty()) {
@@ -84,7 +84,7 @@ public class DBODoiDaoImpl implements DoiDao {
 		dbo.setObjectType(objectType);
 		dbo.setObjectVersion(versionNumber);
 		dbo.setDoiStatus(doiStatus);
-		dbo.setCreatedBy(KeyFactory.stringToKey(userGroupId));
+		dbo.setCreatedBy(userGroupId);
 		DateTime dt = DateTime.now();
 		// MySQL TIMESTAMP only keeps seconds (not ms)
 		// so for consistency we only write seconds

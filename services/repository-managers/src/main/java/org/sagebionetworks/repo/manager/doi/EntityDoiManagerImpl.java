@@ -49,10 +49,10 @@ public class EntityDoiManagerImpl implements EntityDoiManager {
 	 * avoid race conditions.
 	 */
 	@Override
-	public Doi createDoi(final String currentUserName, final String entityId, final Long versionNumber)
+	public Doi createDoi(final Long currentUserId, final String entityId, final Long versionNumber)
 			throws NotFoundException, UnauthorizedException, DatastoreException {
 
-		if (currentUserName == null || currentUserName.isEmpty()) {
+		if (currentUserId == null) {
 			throw new IllegalArgumentException("User name cannot be null or empty.");
 		}
 		if (entityId == null) {
@@ -60,7 +60,7 @@ public class EntityDoiManagerImpl implements EntityDoiManager {
 		}
 
 		// Authorize
-		UserInfo currentUser = userManager.getUserInfo(currentUserName);
+		UserInfo currentUser = userManager.getUserInfo(currentUserId);
 		UserInfo.validateUserInfo(currentUser);
 		String userId = currentUser.getUser().getUserId();
 		if (!authorizationManager.canAccess(currentUser, entityId, ObjectType.ENTITY, ACCESS_TYPE.UPDATE)) {
@@ -83,8 +83,7 @@ public class EntityDoiManagerImpl implements EntityDoiManager {
 
 		// Record the attempt. This is where we draw the transaction boundary.
 		if (doiDto == null) {
-			String userGroupId = currentUser.getIndividualGroup().getId();
-			doiDto = doiDao.createDoi(userGroupId, entityId, ObjectType.ENTITY, versionNumber, DoiStatus.IN_PROCESS);
+			doiDto = doiDao.createDoi(currentUserId, entityId, ObjectType.ENTITY, versionNumber, DoiStatus.IN_PROCESS);
 		} else {
 			doiDto = doiDao.updateDoiStatus(entityId, ObjectType.ENTITY, versionNumber, DoiStatus.IN_PROCESS, doiDto.getEtag());
 		}
@@ -180,10 +179,10 @@ public class EntityDoiManagerImpl implements EntityDoiManager {
 	}
 
 	@Override
-	public Doi getDoi(String currentUserId, String entityId, Long versionNumber)
+	public Doi getDoi(Long currentUserId, String entityId, Long versionNumber)
 			throws NotFoundException, UnauthorizedException, DatastoreException {
 
-		if (currentUserId == null || currentUserId.isEmpty()) {
+		if (currentUserId == null) {
 			throw new IllegalArgumentException("User ID cannot be null or empty.");
 		}
 		if (entityId == null) {

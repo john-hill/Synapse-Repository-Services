@@ -68,7 +68,7 @@ public class AdministrationController extends BaseController {
 	public @ResponseBody
 	BackupRestoreStatus getStatus(
 			@PathVariable String daemonId,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestHeader HttpHeaders header,
 			HttpServletRequest request)
 			throws DatastoreException, InvalidModelException,
@@ -97,7 +97,7 @@ public class AdministrationController extends BaseController {
 	public @ResponseBody
 	void terminateDaemon(
 			@PathVariable String daemonId,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestHeader HttpHeaders header,
 			HttpServletRequest request)
 			throws DatastoreException, InvalidModelException,
@@ -126,7 +126,7 @@ public class AdministrationController extends BaseController {
 			}, method = RequestMethod.GET)
 	public @ResponseBody
 	StackStatus getStackStatus(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestHeader HttpHeaders header,
 			HttpServletRequest request) {
 
@@ -153,7 +153,7 @@ public class AdministrationController extends BaseController {
 			}, method = RequestMethod.PUT)
 	public @ResponseBody
 	StackStatus updateStatusStackStatus(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestHeader HttpHeaders header,
 			HttpServletRequest request) throws DatastoreException, NotFoundException, UnauthorizedException, IOException {
 
@@ -163,7 +163,7 @@ public class AdministrationController extends BaseController {
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = { UrlHelpers.CHANGE_MESSAGES }, method = RequestMethod.GET)
 	public @ResponseBody
-	ChangeMessages listChangeMessages(String userId,
+	ChangeMessages listChangeMessages(Long userId,
 			@RequestParam Long startChangeNumber, @RequestParam String type,
 			@RequestParam Long limit) throws DatastoreException,
 			NotFoundException {
@@ -179,7 +179,7 @@ public class AdministrationController extends BaseController {
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = { UrlHelpers.REBROADCAST_MESSAGES }, method = RequestMethod.POST)
 	public @ResponseBody
-	PublishResults rebroadcastChangeMessagesToQueue(String userId,
+	PublishResults rebroadcastChangeMessagesToQueue(Long userId,
 			@RequestParam String queueName,
 			@RequestParam Long startChangeNumber, @RequestParam String type,
 			@RequestParam Long limit) throws DatastoreException,
@@ -199,7 +199,7 @@ public class AdministrationController extends BaseController {
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = { UrlHelpers.REFIRE_MESSAGES }, method = RequestMethod.GET)
 	public @ResponseBody
-	FireMessagesResult refireChangeMessagesToQueue(String userId,
+	FireMessagesResult refireChangeMessagesToQueue(Long userId,
 			@RequestParam Long startChangeNumber,
 			@RequestParam Long limit) throws DatastoreException,
 			NotFoundException {
@@ -213,7 +213,7 @@ public class AdministrationController extends BaseController {
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = { UrlHelpers.CURRENT_NUMBER }, method = RequestMethod.GET)
 	public @ResponseBody
-	FireMessagesResult getCurrentChangeNumber(String userId) throws DatastoreException,
+	FireMessagesResult getCurrentChangeNumber(Long userId) throws DatastoreException,
 			NotFoundException {
 		// Pass it along
 		return serviceProvider.getAdministrationService().getCurrentChangeNumber(userId);
@@ -226,7 +226,7 @@ public class AdministrationController extends BaseController {
 	@RequestMapping(value = {UrlHelpers.ADMIN_DOI_CLEAR}, method = RequestMethod.DELETE)
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void
-	clearDoi(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId)
+	clearDoi(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId)
 			throws NotFoundException, UnauthorizedException, DatastoreException {
 		serviceProvider.getAdministrationService().clearDoi(userId);
 	}
@@ -238,7 +238,7 @@ public class AdministrationController extends BaseController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void clearDynamoTable(
 			@PathVariable String tableName,
-	        @RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = true) String userId,
+	        @RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = true) Long userId,
 			@RequestParam(value = ServiceConstants.DYNAMO_HASH_KEY_NAME_PARAM, required = true) String hashKeyName,
 			@RequestParam(value = ServiceConstants.DYNAMO_RANGE_KEY_NAME_PARAM, required = true) String rangeKeyName,
 			HttpServletRequest request) throws DatastoreException, NotFoundException {
@@ -252,7 +252,7 @@ public class AdministrationController extends BaseController {
 	@ResponseStatus(HttpStatus.OK)
 	public @ResponseBody
 	PaginatedResults<WikiMigrationResult> migrateFromV1Wiki(
-	        @RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = true) String username,
+	        @RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = true) Long username,
 			@RequestParam(value = ServiceConstants.PAGINATION_OFFSET_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_OFFSET_PARAM_NEW) long offset,
 			@RequestParam(value = ServiceConstants.PAGINATION_LIMIT_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_LIMIT_PARAM) long limit,
 			HttpServletRequest request) throws NotFoundException, IOException {

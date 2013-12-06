@@ -58,7 +58,7 @@ public class UserProfileControllerAutowiredTest {
 
 	private static HttpServlet dispatchServlet;
 	
-	private String userId = AuthorizationConstants.ADMIN_USER_NAME;
+	private Long userId = AuthorizationConstants.ADMIN_USER_ID;
 	private UserInfo testUser;
 
 	private List<String> favoritesToDelete;

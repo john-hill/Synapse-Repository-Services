@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.After;
 import org.junit.Before;
@@ -35,8 +36,10 @@ import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.NodeInheritanceDAO;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.bootstrap.EntityBootstrapper;
 import org.sagebionetworks.repo.model.provenance.Activity;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -80,6 +83,7 @@ public class NodeManagerImplAutoWiredTest {
 	private List<String> activitiesToDelete;
 	
 	private UserInfo adminUserInfo;
+	private UserInfo nonAdminInfo;
 	
 	@Before
 	public void before() throws Exception{
@@ -87,8 +91,16 @@ public class NodeManagerImplAutoWiredTest {
 		nodesToDelete = new ArrayList<String>();
 		activitiesToDelete = new ArrayList<String>();
 		// Make sure we have a valid user.
-		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
+		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		UserInfo.validateUserInfo(adminUserInfo);
+		
+		// Create a non admin user
+		NewUser nu = new NewUser();
+		nu.setEmail(UUID.randomUUID().toString()+"@test.com");
+		nu.setPrincipalName(UUID.randomUUID().toString());
+		Principal p = userManager.createUser(nu);
+		
+		nonAdminInfo = userManager.getUserInfo(Long.parseLong(p.getId()));
 
 	}
 	
@@ -112,12 +124,15 @@ public class NodeManagerImplAutoWiredTest {
 				} 				
 			}
 		}
+		if(nonAdminInfo != null){
+			userManager.delete(nonAdminInfo.getIndividualGroup().getId());
+		}
 	}
 	
 	@Test
 	public void testCreateEachType() throws DatastoreException, InvalidModelException, NotFoundException, UnauthorizedException{
 		// We do not want an admin for this test
-		UserInfo userInfo = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
+		UserInfo userInfo = nonAdminInfo;
 		
 		// Create a node of each type.
 		EntityType[] array = EntityType.values();
@@ -161,7 +176,7 @@ public class NodeManagerImplAutoWiredTest {
 	@Test
 	public void testCreateWithAnnotations() throws DatastoreException, InvalidModelException, NotFoundException, UnauthorizedException{
 		// We do not want an admin for this test
-		UserInfo userInfo = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
+		UserInfo userInfo = nonAdminInfo;
 		
 		// Create a node
 		Node newNode = new Node();

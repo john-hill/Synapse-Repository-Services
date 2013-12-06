@@ -52,7 +52,7 @@ public class MigrationManagerImplAutowireTest {
 	@Before
 	public void before() throws Exception {
 		toDelete = new LinkedList<String>();
-		adminUser = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
+		adminUser = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		creatorUserGroupId = adminUser.getIndividualGroup().getId();
 		assertNotNull(creatorUserGroupId);
 		startCount = fileHandleDao.getCount();

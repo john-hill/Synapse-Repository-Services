@@ -76,7 +76,7 @@ public class WikiMigrationServiceTest {
 		creatorUserGroupId = userGroup.getId();
 		assertNotNull(creatorUserGroupId);
 		
-		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
+		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 	}
 	
 	@After

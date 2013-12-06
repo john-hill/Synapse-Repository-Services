@@ -56,7 +56,8 @@ public class AccessInterceptor implements HandlerInterceptor, AccessIdListener{
 		// Extract the UserID when provided
 		String userIdString = request.getParameter(AuthorizationConstants.USER_ID_PARAM);
 		if (userIdString != null) {
-			UserInfo user = userManager.getUserInfo(userIdString);
+			long userId = Long.parseLong(userIdString);
+			UserInfo user = userManager.getUserInfo(userId);
 			try {
 				data.setUserId(Long
 						.parseLong(user.getIndividualGroup().getId()));

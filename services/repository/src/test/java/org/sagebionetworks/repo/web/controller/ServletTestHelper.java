@@ -83,7 +83,6 @@ import org.springframework.web.servlet.DispatcherServlet;
 public class ServletTestHelper {
 
 	private static final EntityObjectMapper objectMapper = new EntityObjectMapper();
-	private static final String DEFAULT_USERNAME = AuthorizationConstants.TEST_USER_NAME;
 
 	// Used for cleanup
 	@Autowired
@@ -95,7 +94,6 @@ public class ServletTestHelper {
 	private static HttpServlet dispatchServlet = null;
 	private UserInfo testUser = null;
 	private List<String> toDelete = null;
-	private String username = null;
 
 	/**
 	 * Setup the servlet, default test user, and entity list for test cleanup.
@@ -109,25 +107,6 @@ public class ServletTestHelper {
 		dispatchServlet = DispatchServletSingleton.getInstance();
 		assertNotNull(entityController);
 		toDelete = new ArrayList<String>();
-
-		this.setTestUser(DEFAULT_USERNAME);
-	}
-
-	/**
-	 * Change the test user
-	 * 
-	 * @param username
-	 * @throws Exception
-	 */
-	public void setTestUser(String username) throws Exception {
-		// Make sure we have a valid user.
-		this.username = username;
-		testUser = userManager.getUserInfo(this.username);
-		UserInfo.validateUserInfo(testUser);
-	}
-
-	public UserInfo getTestUser() throws Exception {
-		return testUser;
 	}
 
 	/**
@@ -138,7 +117,7 @@ public class ServletTestHelper {
 			for (String idToDelete : toDelete) {
 				try {
 					entityController.deleteEntity(
-							AuthorizationConstants.ADMIN_USER_NAME, idToDelete);
+							AuthorizationConstants.ADMIN_USER_ID, idToDelete);
 				} catch (NotFoundException e) {
 					// nothing to do here
 				} catch (DatastoreException e) {
@@ -149,18 +128,18 @@ public class ServletTestHelper {
 	}
 
 	public <T extends Entity> T createEntity(T entity,
-			Map<String, String> extraParams) throws Exception {
+			Map<String, String> extraParams, Long userId) throws Exception {
 		T returnedEntity = ServletTestHelper.createEntity(dispatchServlet,
-				entity, username, extraParams);
+				entity, userId, extraParams);
 		toDelete.add(returnedEntity.getId());
 		return returnedEntity;
 	}
 
 	@SuppressWarnings("unchecked")
-	public <T extends Object> T createObject(String uri, T object)
+	public <T extends Object> T createObject(String uri, T object, Long userId)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
-				HTTPMODE.POST, uri, username, null);
+				HTTPMODE.POST, uri, userId, null);
 		
 		StringWriter out = new StringWriter();
 		objectMapper.writeValue(out, object);
@@ -180,56 +159,51 @@ public class ServletTestHelper {
 
 	@SuppressWarnings("unchecked")
 	public <T extends Entity> T getEntity(T entity,
-			Map<String, String> extraParams) throws Exception {
-		return (T) getEntityById(entity.getClass(), entity.getId(), extraParams);
+			Map<String, String> extraParams, Long userId) throws Exception {
+		return (T) getEntityById(entity.getClass(), entity.getId(), extraParams, userId);
 	}
 
 	public <T extends Entity> T getEntityById(Class<? extends T> clazz,
-			String id, Map<String, String> extraParams) throws Exception {
+			String id, Map<String, String> extraParams, Long userId) throws Exception {
 		return ServletTestHelper.getEntity(dispatchServlet, clazz, id,
-				username, extraParams);
+				userId, extraParams);
 	}
 
 	public <T extends Entity> T updateEntity(T entity,
-			Map<String, String> extraParams) throws Exception {
+			Map<String, String> extraParams, Long userId) throws Exception {
 		return ServletTestHelper.updateEntity(dispatchServlet, entity,
-				username, extraParams);
+				userId, extraParams);
 	}
 
 	public <T extends Entity> void deleteEntity(Class<? extends T> clazz,
-			String id, Map<String, String> extraParams) throws Exception {
-		ServletTestHelper.deleteEntity(dispatchServlet, clazz, id, username,
+			String id, Map<String, String> extraParams, Long userId) throws Exception {
+		ServletTestHelper.deleteEntity(dispatchServlet, clazz, id, userId,
 				extraParams);
 	}
 
-	public QueryResults<Map<String, Object>> query(String query)
+	public QueryResults<Map<String, Object>> query(String query, Long userId)
 			throws Exception {
-		return ServletTestHelper.query(dispatchServlet, query, username);
+		return ServletTestHelper.query(dispatchServlet, query, userId);
 	}
 
-	public <T extends Entity> AccessControlList getEntityACL(T entity)
+	public <T extends Entity> AccessControlList getEntityACL(T entity, Long userId)
 			throws Exception {
 		return ServletTestHelper.getEntityACL(dispatchServlet, entity.getId(),
-				username);
+				userId);
 	}
 
 	public <T extends Entity> AccessControlList updateEntityAcl(T entity,
-			AccessControlList entityACL) throws Exception {
+			AccessControlList entityACL, Long userId) throws Exception {
 		return ServletTestHelper.updateEntityAcl(dispatchServlet,
-				entity.getId(), entityACL, username);
+				entity.getId(), entityACL, userId);
 	}
 
-	public SearchResults getSearchResults(Map<String, String> params)
-			throws Exception {
-		return ServletTestHelper.getSearchResults(dispatchServlet, username,
-				params);
-	}
 
 	/**
 	 * Create the passed entity by making a request to the passed servlet
 	 */
 	public static <T extends Entity> T createEntity(
-			HttpServlet dispatchServlet, T entity, String username)
+			HttpServlet dispatchServlet, T entity, Long username)
 			throws Exception {
 		return ServletTestHelper.createEntity(dispatchServlet, entity,
 				username, null);
@@ -240,7 +214,7 @@ public class ServletTestHelper {
 	 */
 	@SuppressWarnings("unchecked")
 	public static <T extends Entity> T createEntity(
-			HttpServlet dispatchServlet, T entity, String username,
+			HttpServlet dispatchServlet, T entity, Long username,
 			Map<String, String> extraParams) throws Exception {
 		entity.setEntityType(entity.getClass().getName());
 
@@ -259,7 +233,7 @@ public class ServletTestHelper {
 	 * Get an entity using an id
 	 */
 	public static <T extends Entity> T getEntity(HttpServlet dispatchServlet,
-			Class<? extends T> clazz, String id, String userId)
+			Class<? extends T> clazz, String id, Long userId)
 			throws Exception {
 		return ServletTestHelper.getEntity(dispatchServlet, clazz, id, userId,
 				null);
@@ -269,7 +243,7 @@ public class ServletTestHelper {
 	 * Get an entity using an id
 	 */
 	public static <T extends Entity> T getEntity(HttpServlet dispatchServlet,
-			Class<? extends T> clazz, String id, String username,
+			Class<? extends T> clazz, String id, Long username,
 			Map<String, String> extraParams) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.ENTITY + "/" + id, username, null);
@@ -286,7 +260,7 @@ public class ServletTestHelper {
 	 */
 	public static <T extends Versionable> T getEntityForVersion(
 			HttpServlet dispatchServlet, Class<? extends T> clazz, String id,
-			Long versionNumber, String username) throws Exception {
+			Long versionNumber, Long username) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.ENTITY + "/" + id + UrlHelpers.VERSION
 						+ "/" + versionNumber, username, null);
@@ -302,7 +276,7 @@ public class ServletTestHelper {
 	 */
 	public static <T extends Entity> Annotations getEntityAnnotations(
 			HttpServlet dispatchServlet, Class<? extends T> clazz, String id,
-			String username) throws Exception {
+			Long username) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.ENTITY + "/" + id
 						+ UrlHelpers.ANNOTATIONS, username, null);
@@ -319,7 +293,7 @@ public class ServletTestHelper {
 	 */
 	public static <T extends Entity> EntityPath getEntityPath(
 			HttpServlet dispatchServlet, Class<? extends T> clazz, String id,
-			String username) throws Exception {
+			Long username) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.ENTITY + "/" + id + UrlHelpers.PATH,
 				username, null);
@@ -336,7 +310,7 @@ public class ServletTestHelper {
 	 */
 	public static <T extends Entity> Annotations getEntityAnnotationsForVersion(
 			HttpServlet dispatchServlet, Class<? extends T> clazz, String id,
-			Long versionNumber, String username) throws Exception {
+			Long versionNumber, Long username) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.ENTITY + "/" + id + UrlHelpers.VERSION
 						+ "/" + versionNumber + UrlHelpers.ANNOTATIONS,
@@ -354,7 +328,7 @@ public class ServletTestHelper {
 	 */
 	public static <T extends Entity> Annotations updateEntityAnnotations(
 			HttpServlet dispatchServlet, Class<? extends T> clazz,
-			Annotations updatedAnnos, String username) throws Exception {
+			Annotations updatedAnnos, Long username) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.PUT, UrlHelpers.ENTITY + "/" + updatedAnnos.getId()
 						+ UrlHelpers.ANNOTATIONS, username, updatedAnnos);
@@ -370,7 +344,7 @@ public class ServletTestHelper {
 	 * Update an entity
 	 */
 	public static <T extends Entity> T updateEntity(
-			HttpServlet dispatchServlet, T entity, String userId)
+			HttpServlet dispatchServlet, T entity, Long userId)
 			throws Exception {
 		return ServletTestHelper.updateEntity(dispatchServlet, entity, userId,
 				null);
@@ -381,7 +355,7 @@ public class ServletTestHelper {
 	 */
 	@SuppressWarnings("unchecked")
 	public static <T extends Entity> T updateEntity(
-			HttpServlet dispatchServlet, T entity, String username,
+			HttpServlet dispatchServlet, T entity, Long username,
 			Map<String, String> extraParams) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.PUT, UrlHelpers.ENTITY + "/" + entity.getId(),
@@ -400,7 +374,7 @@ public class ServletTestHelper {
 	 */
 	@SuppressWarnings("unchecked")
 	public static <T extends Versionable> T createNewVersion(
-			HttpServlet dispatchServlet, T entity, String username)
+			HttpServlet dispatchServlet, T entity, Long username)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.PUT, UrlHelpers.ENTITY + "/" + entity.getId()
@@ -418,7 +392,7 @@ public class ServletTestHelper {
 	 */
 	public static PaginatedResults<VersionInfo> getAllVersionsOfEntity(
 			HttpServlet dispatchServlet, String entityId, Integer offset,
-			Integer limit, String username) throws Exception {
+			Integer limit, Long username) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.ENTITY + "/" + entityId
 						+ UrlHelpers.VERSION, username, null);
@@ -443,7 +417,7 @@ public class ServletTestHelper {
 	 */
 	public static <T extends Entity> void deleteEntity(
 			HttpServlet dispatchServlet, Class<? extends T> clazz, String id,
-			String userId) throws Exception {
+			Long userId) throws Exception {
 		ServletTestHelper
 				.deleteEntity(dispatchServlet, clazz, id, userId, null);
 	}
@@ -453,7 +427,7 @@ public class ServletTestHelper {
 	 */
 	public static <T extends Entity> void deleteEntity(
 			HttpServlet dispatchServlet, Class<? extends T> clazz, String id,
-			String username, Map<String, String> extraParams) throws Exception {
+			Long username, Map<String, String> extraParams) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.DELETE, UrlHelpers.ENTITY + "/" + id, username, null);
 		ServletTestHelperUtils.addExtraParams(request, extraParams);
@@ -467,7 +441,7 @@ public class ServletTestHelper {
 	 */
 	public static <T extends Entity> void deleteEntityVersion(
 			HttpServlet dispatchServlet, Class<? extends T> clazz, String id,
-			Long versionNumber, String username) throws Exception {
+			Long versionNumber, Long username) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.DELETE, UrlHelpers.ENTITY + "/" + id
 						+ UrlHelpers.VERSION + "/" + versionNumber, username,
@@ -479,7 +453,7 @@ public class ServletTestHelper {
 
 	@SuppressWarnings("unchecked")
 	public static <T extends Entity> QueryResults<Map<String, Object>> query(
-			HttpServlet dispatchServlet, String query, String username)
+			HttpServlet dispatchServlet, String query, Long username)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.QUERY, username, null);
@@ -497,7 +471,7 @@ public class ServletTestHelper {
 	 */
 	public static <T extends Entity> AccessControlList createEntityACL(
 			HttpServlet dispatchServlet, String id,
-			AccessControlList entityACL, String username) throws Exception {
+			AccessControlList entityACL, Long username) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.POST, UrlHelpers.ENTITY + "/" + id + UrlHelpers.ACL,
 				username, entityACL);
@@ -513,7 +487,7 @@ public class ServletTestHelper {
 	 * Get the Access Control List (ACL) for an entity
 	 */
 	public static <T extends Entity> AccessControlList getEntityACL(
-			HttpServlet dispatchServlet, String id, String username)
+			HttpServlet dispatchServlet, String id, Long username)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.ENTITY + "/" + id + UrlHelpers.ACL,
@@ -536,7 +510,7 @@ public class ServletTestHelper {
 	 */
 	public static <T extends Entity> AccessControlList updateEntityAcl(
 			HttpServlet dispatchServlet, String id,
-			AccessControlList entityACL, String username) throws Exception {
+			AccessControlList entityACL, Long username) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.PUT, UrlHelpers.ENTITY + "/" + id + UrlHelpers.ACL,
 				username, entityACL);
@@ -552,7 +526,7 @@ public class ServletTestHelper {
 	 * Delete an entity ACL
 	 */
 	public static <T extends Entity> void deleteEntityACL(
-			HttpServlet dispatchServlet, String resourceId, String username)
+			HttpServlet dispatchServlet, String resourceId, Long username)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.DELETE, UrlHelpers.ENTITY + "/" + resourceId
@@ -566,7 +540,7 @@ public class ServletTestHelper {
 	 * Get the principals
 	 */
 	public static PaginatedResults<UserProfile> getUsers(
-			HttpServlet dispatchServlet, String username) throws Exception {
+			HttpServlet dispatchServlet, Long username) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.USER, username, null);
 
@@ -581,7 +555,7 @@ public class ServletTestHelper {
 	 * Get the principals
 	 */
 	public static PaginatedResults<Principal> getGroups(
-			HttpServlet dispatchServlet, String username) throws Exception {
+			HttpServlet dispatchServlet, Long username) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.USERGROUP, username, null);
 
@@ -597,7 +571,7 @@ public class ServletTestHelper {
 	 */
 	public static <T extends Entity> BooleanResult hasAccess(
 			HttpServlet dispatchServlet, Class<? extends T> clazz, String id,
-			String username, String accessType) throws Exception {
+			Long username, String accessType) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.ENTITY + "/" + id + UrlHelpers.ACCESS,
 				username, null);
@@ -614,7 +588,7 @@ public class ServletTestHelper {
 	 * Get the status of a backup/restore daemon
 	 */
 	public static BackupRestoreStatus getDaemonStatus(
-			HttpServlet dispatchServlet, String username, String id)
+			HttpServlet dispatchServlet, Long username, String id)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.DAEMON + "/" + id, username, null);
@@ -645,7 +619,7 @@ public class ServletTestHelper {
 	 * Get the status of a backup/restore daemon
 	 */
 	public static StackStatus updateStackStatus(HttpServlet dispatchServlet,
-			String username, StackStatus toUpdate) throws Exception {
+			Long username, StackStatus toUpdate) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.PUT, UrlHelpers.STACK_STATUS, username, toUpdate);
 
@@ -657,7 +631,7 @@ public class ServletTestHelper {
 	}
 
 	public static void terminateDaemon(HttpServlet dispatchServlet,
-			String username, String id) throws Exception {
+			Long username, String id) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.DELETE, UrlHelpers.DAEMON + "/" + id, username, null);
 
@@ -666,7 +640,7 @@ public class ServletTestHelper {
 	}
 
 	public static EntityHeader getEntityType(HttpServlet dispatchServlet,
-			String id, String username) throws Exception {
+			String id, Long username) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.ENTITY + "/" + id + UrlHelpers.TYPE,
 				username, null);
@@ -679,7 +653,7 @@ public class ServletTestHelper {
 	}
 
 	public static PaginatedResults<EntityHeader> getEntityReferences(
-			HttpServlet dispatchServlet, String id, String username)
+			HttpServlet dispatchServlet, String id, Long username)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.ENTITY + "/" + id
@@ -694,7 +668,7 @@ public class ServletTestHelper {
 
 	public static PaginatedResults<EntityHeader> getEntityReferences(
 			HttpServlet dispatchServlet, String id, Long versionNumber,
-			String username) throws Exception {
+			Long username) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.ENTITY + "/" + id + UrlHelpers.VERSION
 						+ "/" + versionNumber + UrlHelpers.REFERENCED_BY,
@@ -712,7 +686,7 @@ public class ServletTestHelper {
 	 */
 	public static <T extends Entity> EntityHeader getEntityBenefactor(
 			HttpServlet dispatchServlet, String id, Class<? extends T> clazz,
-			String username) throws Exception {
+			Long username) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.ENTITY + "/" + id
 						+ UrlHelpers.BENEFACTOR, username, null);
@@ -728,7 +702,7 @@ public class ServletTestHelper {
 	 * Get search results
 	 */
 	public static SearchResults getSearchResults(HttpServlet dispatchServlet,
-			String username, Map<String, String> extraParams) throws Exception {
+			Long username, Map<String, String> extraParams) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, "/search", username, null);
 		ServletTestHelperUtils.addExtraParams(request, extraParams);
@@ -740,7 +714,7 @@ public class ServletTestHelper {
 				SearchResults.class);
 	}
 
-	public static MessageToUser sendMessage(String username,
+	public static MessageToUser sendMessage(Long username,
 			MessageToUser message) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.POST, UrlHelpers.MESSAGE, username, message);
@@ -771,7 +745,7 @@ public class ServletTestHelper {
 		return params;
 	}
 
-	public static PaginatedResults<MessageBundle> getInbox(String username,
+	public static PaginatedResults<MessageBundle> getInbox(Long username,
 			List<MessageStatusType> inboxFilter, MessageSortBy orderBy,
 			Boolean descending, long limit, long offset) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
@@ -788,7 +762,7 @@ public class ServletTestHelper {
 				MessageBundle.class);
 	}
 
-	public static PaginatedResults<MessageToUser> getOutbox(String username,
+	public static PaginatedResults<MessageToUser> getOutbox(Long username,
 			MessageSortBy orderBy, Boolean descending, long limit, long offset)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
@@ -806,7 +780,7 @@ public class ServletTestHelper {
 				MessageToUser.class);
 	}
 
-	public static MessageToUser getMessage(String username, String messageId)
+	public static MessageToUser getMessage(Long username, String messageId)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.MESSAGE + "/" + messageId, username,
@@ -819,7 +793,7 @@ public class ServletTestHelper {
 				MessageToUser.class);
 	}
 
-	public static MessageToUser forwardMessage(String username,
+	public static MessageToUser forwardMessage(Long username,
 			String messageId, MessageRecipientSet recipients) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.POST, UrlHelpers.MESSAGE + "/" + messageId
@@ -833,7 +807,7 @@ public class ServletTestHelper {
 	}
 
 	public static PaginatedResults<MessageToUser> getConversation(
-			String username, String associatedMessageId, MessageSortBy orderBy,
+			Long username, String associatedMessageId, MessageSortBy orderBy,
 			Boolean descending, long limit, long offset) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.MESSAGE + "/" + associatedMessageId
@@ -851,7 +825,7 @@ public class ServletTestHelper {
 				MessageToUser.class);
 	}
 	
-	public static void updateMessageStatus(String username, MessageStatus status)
+	public static void updateMessageStatus(Long username, MessageStatus status)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.PUT, UrlHelpers.MESSAGE_STATUS, username, status);
@@ -950,7 +924,7 @@ public class ServletTestHelper {
 	}
 
 	public static UserEntityPermissions getUserEntityPermissions(
-			HttpServlet dispatchServlet, String id, String username)
+			HttpServlet dispatchServlet, String id, Long username)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.ENTITY + "/" + id
@@ -966,7 +940,7 @@ public class ServletTestHelper {
 	/**
 	 * Create an attachment token
 	 */
-	public static S3AttachmentToken createS3AttachmentToken(String username,
+	public static S3AttachmentToken createS3AttachmentToken(Long username,
 			ServiceConstants.AttachmentType attachentType, String id,
 			S3AttachmentToken token) throws Exception {
 		Assert.assertNotNull(id);
@@ -987,7 +961,7 @@ public class ServletTestHelper {
 	/**
 	 * Get a pre-signed URL for a an attachment
 	 */
-	public PresignedUrl getAttachmentUrl(String userId, String entityId,
+	public PresignedUrl getAttachmentUrl(Long userId, String entityId,
 			String tokenId) throws Exception {
 		return getAttachmentUrl(userId, AttachmentType.ENTITY, entityId,
 				tokenId);
@@ -996,7 +970,7 @@ public class ServletTestHelper {
 	/**
 	 * Get a pre-signed URL for a user profile attachment
 	 */
-	public PresignedUrl getUserProfileAttachmentUrl(String userId,
+	public PresignedUrl getUserProfileAttachmentUrl(Long userId,
 			String targetProfileId, String tokenId) throws Exception {
 		return getAttachmentUrl(userId, AttachmentType.USER_PROFILE,
 				targetProfileId, tokenId);
@@ -1005,7 +979,7 @@ public class ServletTestHelper {
 	/**
 	 * Get a pre-signed URL for a an attachment
 	 */
-	public PresignedUrl getAttachmentUrl(String username, AttachmentType type,
+	public PresignedUrl getAttachmentUrl(Long username, AttachmentType type,
 			String id, String tokenId) throws Exception {
 		Assert.assertNotNull(id);
 		Assert.assertNotNull(tokenId);
@@ -1025,7 +999,7 @@ public class ServletTestHelper {
 
 	public String checkAmznHealth() throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
-				HTTPMODE.HEAD, UrlHelpers.HEALTHCHECK, username, null);
+				HTTPMODE.HEAD, UrlHelpers.HEALTHCHECK, AuthorizationConstants.ADMIN_USER_ID, null);
 
 		MockHttpServletResponse response = ServletTestHelperUtils
 				.dispatchRequest(dispatchServlet, request, HttpStatus.OK);
@@ -1035,7 +1009,7 @@ public class ServletTestHelper {
 
 	@SuppressWarnings("unchecked")
 	public static <T extends AccessRequirement> T createAccessRequirement(
-			HttpServlet dispatchServlet, T accessRequirement, String username,
+			HttpServlet dispatchServlet, T accessRequirement, Long username,
 			Map<String, String> extraParams) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.POST, UrlHelpers.ACCESS_REQUIREMENT, username, accessRequirement);
@@ -1049,7 +1023,7 @@ public class ServletTestHelper {
 	}
 
 	public static PaginatedResults<AccessRequirement> getEntityAccessRequirements(
-			HttpServlet dispatchServlet, String id, String username)
+			HttpServlet dispatchServlet, String id, Long username)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, "/entity/" + id + UrlHelpers.ACCESS_REQUIREMENT,
@@ -1063,7 +1037,7 @@ public class ServletTestHelper {
 	}
 
 	public static PaginatedResults<AccessRequirement> getEvaluationAccessRequirements(
-			HttpServlet dispatchServlet, String id, String username)
+			HttpServlet dispatchServlet, String id, Long username)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, "/evaluation/" + id
@@ -1077,7 +1051,7 @@ public class ServletTestHelper {
 	}
 
 	public static PaginatedResults<AccessRequirement> getUnmetEntityAccessRequirements(
-			HttpServlet dispatchServlet, String id, String username)
+			HttpServlet dispatchServlet, String id, Long username)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET,
@@ -1092,7 +1066,7 @@ public class ServletTestHelper {
 	}
 
 	public static PaginatedResults<AccessRequirement> getUnmetEvaluationAccessRequirements(
-			HttpServlet dispatchServlet, String id, String username)
+			HttpServlet dispatchServlet, String id, Long username)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, "/evaluation/" + id
@@ -1106,7 +1080,7 @@ public class ServletTestHelper {
 	}
 
 	public static void deleteAccessRequirements(HttpServlet dispatchServlet,
-			String id, String username) throws Exception {
+			String id, Long username) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.DELETE, UrlHelpers.ACCESS_REQUIREMENT + "/" + id,
 				username, null);
@@ -1117,7 +1091,7 @@ public class ServletTestHelper {
 
 	@SuppressWarnings("unchecked")
 	public static <T extends AccessApproval> T createAccessApproval(
-			HttpServlet dispatchServlet, T accessApproval, String username,
+			HttpServlet dispatchServlet, T accessApproval, Long username,
 			Map<String, String> extraParams) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.POST, UrlHelpers.ACCESS_APPROVAL, username, accessApproval);
@@ -1131,7 +1105,7 @@ public class ServletTestHelper {
 	}
 
 	public static PaginatedResults<AccessApproval> getEntityAccessApprovals(
-			HttpServlet dispatchServlet, String id, String username)
+			HttpServlet dispatchServlet, String id, Long username)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, "/entity/" + id + UrlHelpers.ACCESS_APPROVAL,
@@ -1145,7 +1119,7 @@ public class ServletTestHelper {
 	}
 
 	public static PaginatedResults<AccessApproval> getEvaluationAccessApprovals(
-			HttpServlet dispatchServlet, String id, String username)
+			HttpServlet dispatchServlet, String id, Long username)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, "/evaluation/" + id + UrlHelpers.ACCESS_APPROVAL,
@@ -1159,7 +1133,7 @@ public class ServletTestHelper {
 	}
 
 	public static void deleteAccessApprovals(HttpServlet dispatchServlet,
-			String id, String username) throws Exception {
+			String id, Long username) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.DELETE, UrlHelpers.ACCESS_APPROVAL + "/" + id,
 				username, null);
@@ -1180,7 +1154,7 @@ public class ServletTestHelper {
 	}
 
 	public static Activity createActivity(HttpServlet dispatchServlet,
-			Activity activity, String username, Map<String, String> extraParams)
+			Activity activity, Long username, Map<String, String> extraParams)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.POST, UrlHelpers.ACTIVITY, username, activity);
@@ -1194,7 +1168,7 @@ public class ServletTestHelper {
 	}
 
 	public static Activity getActivity(HttpServlet dispatchServlet,
-			String activityId, String username) throws Exception {
+			String activityId, Long username) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.ACTIVITY + "/" + activityId, username,
 				null);
@@ -1206,7 +1180,7 @@ public class ServletTestHelper {
 	}
 
 	public static Activity updateActivity(HttpServlet dispatchServlet,
-			Activity activity, String username, Map<String, String> extraParams)
+			Activity activity, Long username, Map<String, String> extraParams)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.PUT, UrlHelpers.ACTIVITY + "/" + activity.getId(),
@@ -1221,7 +1195,7 @@ public class ServletTestHelper {
 	}
 
 	public static void deleteActivity(HttpServlet dispatchServlet,
-			String activityId, String username, Map<String, String> extraParams)
+			String activityId, Long username, Map<String, String> extraParams)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.DELETE, UrlHelpers.ACTIVITY + "/" + activityId,
@@ -1233,7 +1207,7 @@ public class ServletTestHelper {
 	}
 
 	public static PaginatedResults<Reference> getEntitiesGeneratedBy(
-			HttpServlet dispatchServlet, Activity activity, String username,
+			HttpServlet dispatchServlet, Activity activity, Long username,
 			Map<String, String> extraParams) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.ACTIVITY + "/" + activity.getId()
@@ -1248,7 +1222,7 @@ public class ServletTestHelper {
 	}
 
 	public static EntityHeader addFavorite(HttpServlet dispatchServlet,
-			String entityId, String username, Map<String, String> extraParams)
+			String entityId, Long username, Map<String, String> extraParams)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.POST, UrlHelpers.FAVORITE + "/" + entityId, username,
@@ -1263,7 +1237,7 @@ public class ServletTestHelper {
 	}
 
 	public static void removeFavorite(HttpServlet dispatchServlet,
-			String entityId, String username, Map<String, String> extraParams)
+			String entityId, Long username, Map<String, String> extraParams)
 			throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.DELETE, UrlHelpers.FAVORITE + "/" + entityId,
@@ -1275,7 +1249,7 @@ public class ServletTestHelper {
 	}
 
 	public static PaginatedResults<EntityHeader> getFavorites(
-			HttpServlet dispatchServlet, String username,
+			HttpServlet dispatchServlet, Long username,
 			Map<String, String> extraParams) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.FAVORITE, username, null);
@@ -1289,7 +1263,7 @@ public class ServletTestHelper {
 	}
 	
 	public static PaginatedResults<WikiMigrationResult> migrateWikisToV2(HttpServlet dispatchServlet,
-			String username, Map<String, String> extraParams) throws Exception {
+			Long username, Map<String, String> extraParams) throws Exception {
 		
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.POST, UrlHelpers.ADMIN_MIGRATE_WIKI, username, null);
@@ -1312,7 +1286,7 @@ public class ServletTestHelper {
 	 * @throws Exception
 	 */
 	public static ColumnModel createColumnModel(DispatcherServlet instance,
-			ColumnModel cm, String user) throws Exception {
+			ColumnModel cm, Long user) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.POST, UrlHelpers.COLUMN, user, cm);
 
@@ -1330,7 +1304,7 @@ public class ServletTestHelper {
 	 * @throws Exception
 	 */
 	public static ColumnModel getColumnModel(DispatcherServlet instance,
-			String columnId, String user) throws Exception {
+			String columnId, Long user) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.COLUMN+"/"+columnId, user, null);
 
@@ -1347,7 +1321,7 @@ public class ServletTestHelper {
 	 * @return
 	 * @throws Exception 
 	 */
-	public static List<ColumnModel> getColumnModelsForTableEntity(DispatcherServlet instance, String entityId, String user) throws Exception{
+	public static List<ColumnModel> getColumnModelsForTableEntity(DispatcherServlet instance, String entityId, Long user) throws Exception{
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.ENTITY+"/"+entityId+UrlHelpers.COLUMN, user, null);
 		MockHttpServletResponse response = ServletTestHelperUtils
@@ -1365,7 +1339,7 @@ public class ServletTestHelper {
 	 * @return
 	 * @throws Exception
 	 */
-	public static RowReferenceSet appendTableRows(DispatcherServlet instance, RowSet rows, String user) throws Exception{
+	public static RowReferenceSet appendTableRows(DispatcherServlet instance, RowSet rows, Long user) throws Exception{
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.POST, UrlHelpers.ENTITY+"/"+rows.getTableId()+UrlHelpers.TABLE, user, rows);
 		MockHttpServletResponse response = ServletTestHelperUtils
@@ -1383,7 +1357,7 @@ public class ServletTestHelper {
 	 * @return
 	 * @throws Exception
 	 */
-	public static PaginatedColumnModels listColumnModels(DispatcherServlet instance, String user, String prefix, Long limit, Long offset) throws Exception{
+	public static PaginatedColumnModels listColumnModels(DispatcherServlet instance, Long user, String prefix, Long limit, Long offset) throws Exception{
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
 				HTTPMODE.GET, UrlHelpers.COLUMN, user, null);
 		if(prefix != null){

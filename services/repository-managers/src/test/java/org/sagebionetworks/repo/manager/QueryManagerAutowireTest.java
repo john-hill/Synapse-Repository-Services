@@ -69,7 +69,7 @@ public class QueryManagerAutowireTest {
 	
 	@Before
 	public void before() throws Exception {
-		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
+		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		UserInfo.validateUserInfo(adminUserInfo);
 		toDelete = new ArrayList<String>();
 		mockRequest = Mockito.mock(HttpServletRequest.class);

@@ -59,13 +59,13 @@ public class UserProfileManagerImpl implements UserProfileManager {
 	}
 
 	@Override
-	public UserProfile getUserProfile(UserInfo userInfo, String ownerId)
+	public UserProfile getUserProfile(UserInfo userInfo, Long ownerId)
 			throws NotFoundException, DatastoreException, UnauthorizedException {
 		if(userInfo == null) throw new IllegalArgumentException("userInfo can not be null");
 		if(ownerId == null) throw new IllegalArgumentException("ownerId can not be null");
 		
-		UserProfile userProfile = userProfileDAO.get(ownerId);
-		Principal userGroup = userGroupDAO.get(ownerId);
+		UserProfile userProfile = userProfileDAO.get(ownerId.toString());
+		Principal userGroup = userGroupDAO.get(ownerId.toString());
 		if (userGroup != null) {
 			userProfile.setEmail(userGroup.getEmail());
 			userProfile.setUserName(userGroup.getPrincipalName());
@@ -102,7 +102,7 @@ public class UserProfileManagerImpl implements UserProfileManager {
 	public UserProfile updateUserProfile(UserInfo userInfo, UserProfile updated) 
 			throws DatastoreException, UnauthorizedException, InvalidModelException, NotFoundException {
 		UserProfile userProfile = userProfileDAO.get(updated.getOwnerId());
-		boolean canUpdate = UserProfileManagerUtils.isOwnerOrAdmin(userInfo, userProfile.getOwnerId());
+		boolean canUpdate = UserProfileManagerUtils.isOwnerOrAdmin(userInfo, Long.parseLong(userProfile.getOwnerId()));
 		if (!canUpdate) throw new UnauthorizedException("Only owner or administrator may update UserProfile.");
 		attachmentManager.checkAttachmentsForPreviews(updated);
 		UserProfile returnProfile = userProfileDAO.update(updated);		
@@ -111,7 +111,7 @@ public class UserProfileManagerImpl implements UserProfileManager {
 
 	@Override
 	public S3AttachmentToken createS3UserProfileAttachmentToken(
-			UserInfo userInfo, String profileId, S3AttachmentToken token)
+			UserInfo userInfo, Long profileId, S3AttachmentToken token)
 			throws NotFoundException, DatastoreException,
 			UnauthorizedException, InvalidModelException {
 		boolean isOwnerOrAdmin = UserProfileManagerUtils.isOwnerOrAdmin(userInfo, profileId);
@@ -119,7 +119,7 @@ public class UserProfileManagerImpl implements UserProfileManager {
 			throw new UnauthorizedException("Can't assign attachment to another user's profile");
 		if (!AttachmentManagerImpl.isPreviewType(token.getFileName()))
 			throw new IllegalArgumentException("User profile attachment is not a recognized image type, please try a different file.");
-		return s3TokenManager.createS3AttachmentToken(userInfo.getIndividualGroup().getId(), profileId, token);
+		return s3TokenManager.createS3AttachmentToken(Long.parseLong(userInfo.getIndividualGroup().getId()), profileId.toString(), token);
 	}
 	
 	@Override

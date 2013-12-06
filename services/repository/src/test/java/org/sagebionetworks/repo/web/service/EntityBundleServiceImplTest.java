@@ -36,7 +36,7 @@ public class EntityBundleServiceImplTest {
 	
 	EntityBundleService entityBundleService;
 	
-	private static final String TEST_USER1 = AuthorizationConstants.TEST_USER_NAME;
+	private static final Long TEST_USER1 = 123l;
 	
 	private ServiceProvider mockServiceProvider;
 	private EntityService mockEntityService;

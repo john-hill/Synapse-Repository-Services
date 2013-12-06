@@ -34,7 +34,7 @@ public class UserProfileManagerUtils {
 		return false;
 	}
 
-	public static boolean isOwnerOrAdmin(UserInfo userInfo, String ownerId) {
+	public static boolean isOwnerOrAdmin(UserInfo userInfo, Long ownerId) {
 		if (userInfo == null) return false;
 		if (userInfo.isAdmin()) return true;
 		if (ownerId != null && ownerId.equals(userInfo.getIndividualGroup().getId())) return true;
@@ -48,7 +48,7 @@ public class UserProfileManagerUtils {
 	 */
 	public static void clearPrivateFields(UserInfo userInfo, UserProfile userProfile) {		
 		if (userProfile != null) {
-			boolean canSeePrivate = UserProfileManagerUtils.isOwnerOrAdmin(userInfo, userProfile.getOwnerId());
+			boolean canSeePrivate = UserProfileManagerUtils.isOwnerOrAdmin(userInfo, Long.parseLong(userProfile.getOwnerId()));
 			if (!canSeePrivate) {
 				clearPrivateFields(userInfo, UserProfile.class, userProfile);	
 			}
@@ -62,7 +62,7 @@ public class UserProfileManagerUtils {
 	 */
 	public static void clearPrivateFields(UserInfo userInfo, UserGroupHeader userGroupHeader) {		
 		if (userGroupHeader != null) {
-			boolean canSeePrivate = UserProfileManagerUtils.isOwnerOrAdmin(userInfo, userGroupHeader.getOwnerId());
+			boolean canSeePrivate = UserProfileManagerUtils.isOwnerOrAdmin(userInfo, Long.parseLong(userGroupHeader.getOwnerId()));
 			if (!canSeePrivate) {
 				clearPrivateFields(userInfo, UserGroupHeader.class, userGroupHeader);				
 			}

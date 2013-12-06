@@ -4,6 +4,7 @@ import static junit.framework.Assert.assertNotNull;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.After;
 import org.junit.Before;
@@ -47,7 +48,11 @@ public class DBOCommentDAOImplTest {
 	public void setup() throws Exception {
 		cleanup = new ArrayList<String>();
 		
-		maliciousUser = userGroupDAO.findUserWithEmail(AuthorizationConstants.TEST_USER_NAME);
+		maliciousUser = new Principal();
+		maliciousUser.setEmail(UUID.randomUUID().toString()+"@test.com");
+		maliciousUser.setPrincipalName(UUID.randomUUID().toString());
+		maliciousUser.setIsIndividual(true);
+		maliciousUser.setId(userGroupDAO.create(maliciousUser));
 		
 		// We need a file handle to satisfy a foreign key constraint
 		// But it doesn't need to point to an actual file
@@ -63,6 +68,11 @@ public class DBOCommentDAOImplTest {
 			messageDAO.deleteMessage(id);
 		}
 		fileDAO.delete(fileHandleId);
+		if(maliciousUser != null){
+			try {
+				userGroupDAO.delete(maliciousUser.getId());
+			} catch (Exception e) {} 
+		}
 	}
 	
 	@Test

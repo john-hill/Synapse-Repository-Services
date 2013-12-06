@@ -121,7 +121,7 @@ public class EvaluationController extends BaseController {
 	@RequestMapping(value = UrlHelpers.EVALUATION, method = RequestMethod.POST)
 	public @ResponseBody
 	Evaluation createEvaluation(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestHeader HttpHeaders header,
 			HttpServletRequest request
 			) throws DatastoreException, InvalidModelException, NotFoundException, JSONObjectAdapterException
@@ -152,7 +152,7 @@ public class EvaluationController extends BaseController {
 	@RequestMapping(value = UrlHelpers.EVALUATION_WITH_ID, method = RequestMethod.GET)
 	public @ResponseBody
 	Evaluation getEvaluation(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@PathVariable String evalId,
 			HttpServletRequest request
 			) throws DatastoreException, UnauthorizedException, NotFoundException 
@@ -175,7 +175,7 @@ public class EvaluationController extends BaseController {
 	@RequestMapping(value = UrlHelpers.EVALUATION_WITH_CONTENT_SOURCE, method = RequestMethod.GET)
 	public @ResponseBody
 	PaginatedResults<Evaluation> getEvaluationsByContentSourcePaginated(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@PathVariable String id, 
 			@RequestParam(value = ServiceConstants.PAGINATION_OFFSET_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_OFFSET_PARAM_NEW) long offset,
 			@RequestParam(value = ServiceConstants.PAGINATION_LIMIT_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_LIMIT_PARAM) long limit,
@@ -214,7 +214,7 @@ public class EvaluationController extends BaseController {
 	@RequestMapping(value = UrlHelpers.EVALUATION, method = RequestMethod.GET)
 	public @ResponseBody
 	PaginatedResults<Evaluation> getEvaluationsPaginated(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestParam(value = ServiceConstants.PAGINATION_OFFSET_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_OFFSET_PARAM_NEW) long offset,
 			@RequestParam(value = ServiceConstants.PAGINATION_LIMIT_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_LIMIT_PARAM) long limit,
 			HttpServletRequest request
@@ -253,7 +253,7 @@ public class EvaluationController extends BaseController {
 	PaginatedResults<Evaluation> getAvailableEvaluationsPaginated(
 			@RequestParam(value = ServiceConstants.PAGINATION_OFFSET_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_OFFSET_PARAM_NEW) long offset,
 			@RequestParam(value = ServiceConstants.PAGINATION_LIMIT_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_LIMIT_PARAM) long limit,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			HttpServletRequest request
 			) throws DatastoreException, NotFoundException
 	{
@@ -276,7 +276,7 @@ public class EvaluationController extends BaseController {
 	@RequestMapping(value = UrlHelpers.EVALUATION_COUNT, method = RequestMethod.GET)
 	public @ResponseBody
 	long getEvaluationCount(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			HttpServletRequest request) throws DatastoreException, NotFoundException
 	{
 		return serviceProvider.getEvaluationService().getEvaluationCount(userId);
@@ -303,7 +303,7 @@ public class EvaluationController extends BaseController {
 	@RequestMapping(value = UrlHelpers.EVALUATION_WITH_NAME, method = RequestMethod.GET)
 	public @ResponseBody
 	Evaluation findEvaluation(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@PathVariable String name,
 			HttpServletRequest request
 			) throws DatastoreException, UnauthorizedException, NotFoundException, UnsupportedEncodingException 
@@ -349,7 +349,7 @@ public class EvaluationController extends BaseController {
 	public @ResponseBody
 	Evaluation updateEvaluation(
 			@PathVariable String evalId,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestHeader HttpHeaders header,
 			HttpServletRequest request) throws DatastoreException, UnauthorizedException, InvalidModelException, ConflictingUpdateException, NotFoundException, JSONObjectAdapterException
 	{
@@ -382,7 +382,7 @@ public class EvaluationController extends BaseController {
 	public @ResponseBody
 	void deleteEvaluation(
 			@PathVariable String evalId,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestHeader HttpHeaders header,
 			HttpServletRequest request) throws DatastoreException, UnauthorizedException, NotFoundException 
 	{
@@ -415,7 +415,7 @@ public class EvaluationController extends BaseController {
 	public @ResponseBody
 	Participant createParticipant(
 			@PathVariable String evalId,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestHeader HttpHeaders header,
 			HttpServletRequest request
 			) throws DatastoreException, InvalidModelException, NotFoundException
@@ -446,7 +446,7 @@ public class EvaluationController extends BaseController {
 	@RequestMapping(value = UrlHelpers.PARTICIPANT_WITH_ID, method = RequestMethod.GET)
 	public @ResponseBody
 	Participant getParticipant(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@PathVariable String evalId,
 			@PathVariable String partId,
 			HttpServletRequest request
@@ -482,7 +482,7 @@ public class EvaluationController extends BaseController {
 	void deleteParticipantAsAdmin(
 			@PathVariable String evalId,
 			@PathVariable String partId,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestHeader HttpHeaders header,
 			HttpServletRequest request
 			) throws DatastoreException, InvalidModelException, NotFoundException
@@ -520,7 +520,7 @@ public class EvaluationController extends BaseController {
 	@RequestMapping(value = UrlHelpers.PARTICIPANT, method = RequestMethod.GET)
 	public @ResponseBody
 	PaginatedResults<Participant> getAllParticipants(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestParam(value = ServiceConstants.PAGINATION_OFFSET_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_OFFSET_PARAM_NEW) long offset,
 			@RequestParam(value = ServiceConstants.PAGINATION_LIMIT_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_LIMIT_PARAM) long limit,
 			@PathVariable String evalId,
@@ -551,7 +551,7 @@ public class EvaluationController extends BaseController {
 	@RequestMapping(value = UrlHelpers.PARTICIPANT_COUNT, method = RequestMethod.GET)
 	public @ResponseBody
 	long getParticipantCount(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@PathVariable String evalId,
 			HttpServletRequest request) 
 			throws DatastoreException, NotFoundException
@@ -595,7 +595,7 @@ public class EvaluationController extends BaseController {
 	@RequestMapping(value = UrlHelpers.SUBMISSION, method = RequestMethod.POST)
 	public @ResponseBody
 	Submission createSubmission(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestParam(value = AuthorizationConstants.ETAG_PARAM, required = false) String entityEtag,
 			@RequestHeader HttpHeaders header,
 			HttpServletRequest request
@@ -628,7 +628,7 @@ public class EvaluationController extends BaseController {
 	public @ResponseBody
 	Submission getSubmission(
 			@PathVariable String subId,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			HttpServletRequest request
 			) throws DatastoreException, UnauthorizedException, NotFoundException 
 	{
@@ -660,7 +660,7 @@ public class EvaluationController extends BaseController {
 	public @ResponseBody
 	SubmissionStatus getSubmissionStatus(
 			@PathVariable String subId,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			HttpServletRequest request
 			) throws DatastoreException, UnauthorizedException, NotFoundException 
 	{
@@ -704,7 +704,7 @@ public class EvaluationController extends BaseController {
 	public @ResponseBody
 	SubmissionStatus updateSubmissionStatus(
 			@PathVariable String subId,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestHeader HttpHeaders header,
 			HttpServletRequest request) 
 			throws DatastoreException, UnauthorizedException, InvalidModelException, 
@@ -741,7 +741,7 @@ public class EvaluationController extends BaseController {
 	public @ResponseBody
 	void deleteSubmission(
 			@PathVariable String subId,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestHeader HttpHeaders header,
 			HttpServletRequest request) throws DatastoreException, UnauthorizedException, NotFoundException 
 	{
@@ -780,7 +780,7 @@ public class EvaluationController extends BaseController {
 			@PathVariable String evalId,
 			@RequestParam(value = ServiceConstants.PAGINATION_OFFSET_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_OFFSET_PARAM_NEW) long offset,
 			@RequestParam(value = ServiceConstants.PAGINATION_LIMIT_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_LIMIT_PARAM) long limit,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestParam(value = UrlHelpers.STATUS, defaultValue = "") String statusString,
 			HttpServletRequest request
 			) throws DatastoreException, UnauthorizedException, NotFoundException 
@@ -827,7 +827,7 @@ public class EvaluationController extends BaseController {
 			@PathVariable String evalId,
 			@RequestParam(value = ServiceConstants.PAGINATION_OFFSET_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_OFFSET_PARAM_NEW) long offset,
 			@RequestParam(value = ServiceConstants.PAGINATION_LIMIT_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_LIMIT_PARAM) long limit,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestParam(value = UrlHelpers.STATUS, defaultValue = "") String statusString,
 			HttpServletRequest request
 			) throws DatastoreException, UnauthorizedException, NotFoundException 
@@ -871,7 +871,7 @@ public class EvaluationController extends BaseController {
 			@PathVariable String evalId,
 			@RequestParam(value = ServiceConstants.PAGINATION_OFFSET_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_OFFSET_PARAM_NEW) long offset,
 			@RequestParam(value = ServiceConstants.PAGINATION_LIMIT_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_LIMIT_PARAM) long limit,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestParam(value = UrlHelpers.STATUS, defaultValue = "") String statusString,
 			HttpServletRequest request
 			) throws DatastoreException, UnauthorizedException, NotFoundException 
@@ -909,7 +909,7 @@ public class EvaluationController extends BaseController {
 			@PathVariable String evalId,
 			@RequestParam(value = ServiceConstants.PAGINATION_OFFSET_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_OFFSET_PARAM_NEW) long offset,
 			@RequestParam(value = ServiceConstants.PAGINATION_LIMIT_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_LIMIT_PARAM) long limit,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			HttpServletRequest request
 			) throws DatastoreException, UnauthorizedException, NotFoundException 
 	{
@@ -944,7 +944,7 @@ public class EvaluationController extends BaseController {
 			@PathVariable String evalId,
 			@RequestParam(value = ServiceConstants.PAGINATION_OFFSET_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_OFFSET_PARAM_NEW) long offset,
 			@RequestParam(value = ServiceConstants.PAGINATION_LIMIT_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_LIMIT_PARAM) long limit,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			HttpServletRequest request
 			) throws DatastoreException, UnauthorizedException, NotFoundException 
 	{
@@ -974,7 +974,7 @@ public class EvaluationController extends BaseController {
 			@PathVariable String subId,
 			@PathVariable String fileHandleId,
 			@RequestParam (required = false) Boolean redirect,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			HttpServletResponse response
 			) throws DatastoreException, NotFoundException, IOException {
 		URL url = serviceProvider.getEvaluationService().getRedirectURLForFileHandle(userId, subId, fileHandleId);
@@ -1000,7 +1000,7 @@ public class EvaluationController extends BaseController {
 	public @ResponseBody
 	long getSubmissionCount(
 			@PathVariable String evalId,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			HttpServletRequest request
 			) throws DatastoreException, NotFoundException
 	{
@@ -1026,7 +1026,7 @@ public class EvaluationController extends BaseController {
 	@RequestMapping(value={UrlHelpers.EVALUATION_WITH_ID+UrlHelpers.ACCESS}, method=RequestMethod.GET)
 	public @ResponseBody BooleanResult hasAccess(
 			@PathVariable String evalId,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestParam(value = UrlHelpers.ACCESS_TYPE_PARAM, required = false) String accessType,
 			HttpServletRequest request) throws DatastoreException, NotFoundException, UnauthorizedException {
 		// pass it along.
@@ -1047,7 +1047,7 @@ public class EvaluationController extends BaseController {
 	@RequestMapping(value = UrlHelpers.EVALUATION_ACL, method = RequestMethod.POST)
 	public @ResponseBody AccessControlList
 	createAcl(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = true) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = true) Long userId,
 			@RequestBody AccessControlList acl,
 			HttpServletRequest request)
 			throws NotFoundException, DatastoreException, InvalidModelException,
@@ -1070,7 +1070,7 @@ public class EvaluationController extends BaseController {
 	@RequestMapping(value = UrlHelpers.EVALUATION_ACL, method = RequestMethod.PUT)
 	public @ResponseBody AccessControlList
 	updateAcl(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = true) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = true) Long userId,
 			@RequestBody AccessControlList acl,
 			HttpServletRequest request)
 			throws NotFoundException, DatastoreException, InvalidModelException,
@@ -1089,7 +1089,7 @@ public class EvaluationController extends BaseController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	@RequestMapping(value = UrlHelpers.EVALUATION_ID_ACL, method = RequestMethod.DELETE)
 	public void deleteAcl(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = true) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = true) Long userId,
 			@PathVariable String evalId,
 			HttpServletRequest request)
 			throws NotFoundException, DatastoreException, InvalidModelException,
@@ -1110,7 +1110,7 @@ public class EvaluationController extends BaseController {
 	@RequestMapping(value = UrlHelpers.EVALUATION_ID_ACL, method = RequestMethod.GET)
 	public @ResponseBody AccessControlList
 	getAcl(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = true) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = true) Long userId,
 			@PathVariable String evalId,
 			HttpServletRequest request)
 			throws NotFoundException, DatastoreException, ACLInheritanceException {
@@ -1129,7 +1129,7 @@ public class EvaluationController extends BaseController {
 	@RequestMapping(value = UrlHelpers.EVALUATION_ID_PERMISSIONS, method = RequestMethod.GET)
 	public @ResponseBody UserEvaluationPermissions
 	getUserPermissionsForEvaluation(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = true) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = true) Long userId,
 			@PathVariable String evalId,
 			HttpServletRequest request)
 			throws NotFoundException, DatastoreException {
@@ -1158,7 +1158,7 @@ public class EvaluationController extends BaseController {
 	@RequestMapping(value = UrlHelpers.EVALUATION_QUERY, method = RequestMethod.GET)
 	public @ResponseBody 
 	QueryTableResults query(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = true) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = true) Long userId,
 			@RequestParam(value = ServiceConstants.QUERY_PARAM, required = true) String query,
 			HttpServletRequest request)
 			throws NotFoundException, DatastoreException, ParseException, 

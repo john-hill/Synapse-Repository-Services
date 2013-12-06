@@ -28,10 +28,10 @@ public class DynamoAdminManagerImplTest {
 		UserInfo nonAdminUserInfo = mock(UserInfo.class);
 		when(nonAdminUserInfo.isAdmin()).thenReturn(false);
 		UserManager userManager = mock(UserManager.class);
-		final String adminUserName = "admin";
-		when(userManager.getUserInfo(adminUserName)).thenReturn(adminUserInfo);
-		final String nonAdminUserName = "nonAdmin";
-		when(userManager.getUserInfo(nonAdminUserName)).thenReturn(nonAdminUserInfo);
+		final Long adminUserId= 123l;
+		when(userManager.getUserInfo(adminUserId)).thenReturn(adminUserInfo);
+		final Long nonAdminUserId = 456l;;
+		when(userManager.getUserInfo(nonAdminUserId)).thenReturn(nonAdminUserInfo);
 
 		// Inject the mocks
 		DynamoAdminManagerImpl dynamoAdminManager = new DynamoAdminManagerImpl();
@@ -42,10 +42,10 @@ public class DynamoAdminManagerImplTest {
 		final String tableName = "table name";
 		final String hashKeyName = "hash key name";
 		final String rangeKeyName = "range key name";
-		dynamoAdminManager.clear(adminUserName, tableName, hashKeyName, rangeKeyName);
+		dynamoAdminManager.clear(adminUserId, tableName, hashKeyName, rangeKeyName);
 		verify(dynamoAdminDao, times(1)).clear(tableName, hashKeyName, rangeKeyName);
 		try {
-			dynamoAdminManager.clear(nonAdminUserName, tableName, hashKeyName, rangeKeyName);
+			dynamoAdminManager.clear(nonAdminUserId, tableName, hashKeyName, rangeKeyName);
 		} catch (UnauthorizedException e) {
 			Assert.assertTrue(true);
 		}

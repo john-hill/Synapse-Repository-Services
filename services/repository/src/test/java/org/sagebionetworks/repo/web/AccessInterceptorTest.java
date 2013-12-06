@@ -34,11 +34,11 @@ public class AccessInterceptorTest {
 	StubAccessRecorder stubRecorder;
 	UserManager mockUserManager;
 	AccessInterceptor interceptor;
-	String userName;
+	Long userId;
 
 	@Before
 	public void before() throws Exception {
-		userName = "user@users.r.us.gov";
+		userId = 123l;
 		mockRequest = Mockito.mock(HttpServletRequest.class);
 		mockResponse = Mockito.mock(HttpServletResponse.class);
 		mockHandler = Mockito.mock(Object.class);
@@ -51,8 +51,8 @@ public class AccessInterceptorTest {
 		ReflectionTestUtils.setField(interceptor, "accessRecorder", stubRecorder);
 		ReflectionTestUtils.setField(interceptor, "userManager", mockUserManager);
 		// Setup the happy mock
-		when(mockUserManager.getUserInfo(userName)).thenReturn(mockUserInfo);
-		when(mockRequest.getParameter(AuthorizationConstants.USER_ID_PARAM)).thenReturn(userName);
+		when(mockUserManager.getUserInfo(userId)).thenReturn(mockUserInfo);
+		when(mockRequest.getParameter(AuthorizationConstants.USER_ID_PARAM)).thenReturn(userId.toString());
 		when(mockRequest.getRequestURI()).thenReturn("/entity/syn789");
 		when(mockRequest.getMethod()).thenReturn("DELETE");
 		when(mockRequest.getHeader("Host")).thenReturn("localhost8080");

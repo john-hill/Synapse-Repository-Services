@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import java.io.InputStream;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.UUID;
 
 import org.apache.commons.fileupload.FileItemStream;
 import org.junit.After;
@@ -17,8 +18,9 @@ import org.mockito.Mockito;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.file.transfer.TransferUtils;
-import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
 import org.sagebionetworks.repo.model.file.PreviewFileHandle;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
@@ -61,7 +63,11 @@ public class PreviewManagerImplAutoWireTest {
 	
 	@Before
 	public void before() throws Exception {
-		userInfo = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
+		NewUser nu = new NewUser();
+		nu.setEmail(UUID.randomUUID().toString()+"@test.com");
+		nu.setPrincipalName(UUID.randomUUID().toString());
+		Principal p = userManager.createUser(nu);
+		userInfo = userManager.getUserInfo(Long.parseLong(p.getId()));
 		toDelete = new LinkedList<S3FileHandleInterface>();
 		// First upload a file that we want to generate a preview for.
 		FileItemStream mockFiz = Mockito.mock(FileItemStream.class);
@@ -86,6 +92,11 @@ public class PreviewManagerImplAutoWireTest {
 				// We also need to delete the data from the database
 				fileMetadataDao.delete(meta.getId());
 			}
+		}
+		if(userInfo != null){
+			try {
+				userManager.delete(userInfo.getIndividualGroup().getId());
+			} catch (Exception e) {} 
 		}
 	}
 	

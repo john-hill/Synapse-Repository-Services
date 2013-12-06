@@ -294,38 +294,4 @@ public class DBOAuthenticationDAOImplTest {
 		assertTrue(!userEtag.equals(changedEtag));
 	}
 	
-	@Test
-	public void testBootstrapCredentials() throws Exception {
-		if (!StackConfiguration.isProductionStack()) {
-			String testUsers[] = new String[] { 
-					StackConfiguration.getIntegrationTestUserAdminName(), 
-					StackConfiguration.getIntegrationTestRejectTermsOfUseName(), 
-					StackConfiguration.getIntegrationTestUserOneName(), 
-					StackConfiguration.getIntegrationTestUserTwoName(), 
-					StackConfiguration.getIntegrationTestUserThreeName() };
-			String testPasswords[] = new String[] { 
-					StackConfiguration.getIntegrationTestUserAdminPassword(), 
-					StackConfiguration.getIntegrationTestRejectTermsOfUsePassword(), 
-					StackConfiguration.getIntegrationTestUserOnePassword(), 
-					StackConfiguration.getIntegrationTestUserTwoPassword(), 
-					StackConfiguration.getIntegrationTestUserThreePassword() };
-			for (int i = 0; i < testUsers.length; i++) {
-				String passHash = PBKDF2Utils.hashPassword(testPasswords[i], authDAO.getPasswordSalt(testUsers[i]));
-				authDAO.checkEmailAndPassword(testUsers[i], passHash);
-			}
-		}
-		
-		// Most bootstrapped users should have signed the terms
-		List<Principal> ugs = userGroupDAO.getBootstrapUsers();
-		for (Principal ug : ugs) {
-			if (ug.getIsIndividual() 
-					&& !ug.getPrincipalName().equals(StackConfiguration.getIntegrationTestRejectTermsOfUseName())
-					&& !AuthorizationUtils.isUserAnonymous(ug.getPrincipalName())) {
-				MapSqlParameterSource param = new MapSqlParameterSource();
-				param.addValue("principalId", ug.getId());
-				DBOCredential creds = basicDAO.getObjectByPrimaryKey(DBOCredential.class, param);
-				assertTrue(creds.getAgreesToTermsOfUse());
-			}
-		}
-	}
 }

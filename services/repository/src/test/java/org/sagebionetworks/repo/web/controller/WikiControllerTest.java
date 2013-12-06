@@ -67,7 +67,7 @@ public class WikiControllerTest {
 	@Autowired
 	private AmazonS3Client s3Client;
 	
-	private String userName;
+	private Long userId = AuthorizationConstants.ADMIN_USER_ID;
 	private String creator;
 	
 	Project entity;
@@ -79,8 +79,7 @@ public class WikiControllerTest {
 	@Before
 	public void before() throws Exception{
 		// get user IDs
-		userName = AuthorizationConstants.TEST_USER_NAME;
-		creator = userManager.getUserInfo(userName).getIndividualGroup().getId();
+		creator = userId.toString();
 		toDelete = new LinkedList<WikiPageKey>();
 		// Create a file handle
 		handleOne = new S3FileHandle();
@@ -108,15 +107,15 @@ public class WikiControllerTest {
 	@After
 	public void after() throws Exception{
 		for(WikiPageKey key: toDelete){
-			entityServletHelper.deleteWikiPage(key, userName);
+			entityServletHelper.deleteWikiPage(key, userId);
 		}
 		if(evaluation != null){
 			try {
-				entityServletHelper.deleteEvaluation(evaluation.getId(), userName);
+				entityServletHelper.deleteEvaluation(evaluation.getId(), userId);
 			} catch (Exception e) {}
 		}
 		if(entity != null){
-			UserInfo userInfo = userManager.getUserInfo(userName);
+			UserInfo userInfo = userManager.getUserInfo(userId);
 			nodeManager.delete(userInfo, entity.getId());
 		}
 		if(handleOne != null && handleOne.getId() != null){
@@ -132,7 +131,7 @@ public class WikiControllerTest {
 		// create an entity
 		entity = new Project();
 		entity.setEntityType(Project.class.getName());
-		entity = (Project) entityServletHelper.createEntity(entity, userName, null);
+		entity = (Project) entityServletHelper.createEntity(entity, userId, null);
 		// Test all wiki CRUD for an entity
 		doWikiCRUDForOwnerObject(entity.getId(), ObjectType.ENTITY);
 	}
@@ -145,7 +144,7 @@ public class WikiControllerTest {
 		evaluation.setContentSource(KeyFactory.SYN_ROOT_ID);
 		evaluation.setDescription("a test descrption");
 		evaluation.setStatus(EvaluationStatus.OPEN);
-		evaluation = entityServletHelper.createEvaluation(evaluation, userName);
+		evaluation = entityServletHelper.createEvaluation(evaluation, userId);
 		// Test all wiki CRUD for an entity
 		doWikiCRUDForOwnerObject(evaluation.getId(), ObjectType.EVALUATION);
 	}
@@ -162,7 +161,7 @@ public class WikiControllerTest {
 		wiki.setTitle("testCreateEntityWikiRoundTrip-"+ownerId+"-"+ownerType);
 		wiki.setMarkdown("markdown");
 		// Create it!
-		wiki = entityServletHelper.createWikiPage(userName, ownerId, ownerType, wiki);
+		wiki = entityServletHelper.createWikiPage(userId, ownerId, ownerType, wiki);
 		assertNotNull(wiki);
 		assertNotNull(wiki.getId());
 		WikiPageKey key = new WikiPageKey(ownerId, ownerType, wiki.getId());
@@ -174,12 +173,12 @@ public class WikiControllerTest {
 		assertEquals(1, wikiPageDao.getCount());
 		assertEquals(1, v2WikiPageDao.getCount());
 		// Get the wiki page.
-		WikiPage clone = entityServletHelper.getWikiPage(key, userName);
+		WikiPage clone = entityServletHelper.getWikiPage(key, userId);
 		assertNotNull(clone);
 		System.out.println(clone);
 		assertEquals(wiki, clone);
 		// Get the root wiki
-		WikiPage root = entityServletHelper.getRootWikiPage(ownerId, ownerType, userName);
+		WikiPage root = entityServletHelper.getRootWikiPage(ownerId, ownerType, userId);
 		// The root should match the clone
 		assertEquals(clone, root);
 		
@@ -191,7 +190,7 @@ public class WikiControllerTest {
 		clone.setTitle("updated title");
 		String currentEtag = clone.getEtag();
 		// update
-		WikiPage cloneUpdated = entityServletHelper.updateWikiPage(userName, ownerId, ownerType, clone);
+		WikiPage cloneUpdated = entityServletHelper.updateWikiPage(userId, ownerId, ownerType, clone);
 		assertNotNull(cloneUpdated);
 		// Title should be updated. V2 should have mirrored it too.
 		assertEquals("updated title", cloneUpdated.getTitle());
@@ -208,7 +207,7 @@ public class WikiControllerTest {
 		// Both the S3FileHandle and its Preview should be returned from getWikiFileHandles()
 		child.getAttachmentFileHandleIds().add(handleOne.getId());
 		// Create it!
-		child = entityServletHelper.createWikiPage(userName, ownerId, ownerType, child);
+		child = entityServletHelper.createWikiPage(userId, ownerId, ownerType, child);
 		assertNotNull(child);
 		assertNotNull(child.getId());
 		WikiPageKey childKey = new WikiPageKey(ownerId, ownerType, child.getId());
@@ -216,7 +215,7 @@ public class WikiControllerTest {
 		assertEquals(2, wikiPageDao.getCount());
 		assertEquals(2, v2WikiPageDao.getCount());
 		// List the hierarchy
-		PaginatedResults<WikiHeader> paginated = entityServletHelper.getWikiHeaderTree(userName, ownerId, ownerType);
+		PaginatedResults<WikiHeader> paginated = entityServletHelper.getWikiHeaderTree(userId, ownerId, ownerType);
 		assertNotNull(paginated);
 		assertNotNull(paginated.getResults());
 		assertEquals(2, paginated.getResults().size());
@@ -232,7 +231,7 @@ public class WikiControllerTest {
 		assertEquals(childeHeader.getTitle(), childeHeader.getTitle());
 		assertEquals(wiki.getId(), childeHeader.getParentId());
 		// Check that we can get the FileHandles for each wiki		
-		FileHandleResults handles = entityServletHelper.getWikiFileHandles(userName, childKey);
+		FileHandleResults handles = entityServletHelper.getWikiFileHandles(userId, childKey);
 		assertNotNull(handles);
 		assertNotNull(handles.getList());
 		assertEquals(2, handles.getList().size());
@@ -241,24 +240,24 @@ public class WikiControllerTest {
 		assertEquals(handleTwo.getId(), handles.getList().get(1).getId());
 		
 		// Get the presigned URL for the first file
-		URL presigned  = entityServletHelper.getWikiAttachmentFileURL(userName, childKey, handleOne.getFileName(), null);
+		URL presigned  = entityServletHelper.getWikiAttachmentFileURL(userId, childKey, handleOne.getFileName(), null);
 		assertNotNull(presigned);
 		assertTrue(presigned.toString().indexOf("mainFileKey") > 0);
 		System.out.println(presigned);
 		// Get the preview presigned URL.
-		presigned  = entityServletHelper.getWikiAttachmentPreviewFileURL(userName, childKey, handleOne.getFileName(), null);
+		presigned  = entityServletHelper.getWikiAttachmentPreviewFileURL(userId, childKey, handleOne.getFileName(), null);
 		assertNotNull(presigned);
 		assertTrue(presigned.toString().indexOf("previewFileKey") > 0);
 		System.out.println(presigned);
 		
 		// Make sure we can get the URLs without a redirect
 		Boolean redirect = Boolean.FALSE;
-		presigned  = entityServletHelper.getWikiAttachmentFileURL(userName, childKey, handleOne.getFileName(), redirect);
+		presigned  = entityServletHelper.getWikiAttachmentFileURL(userId, childKey, handleOne.getFileName(), redirect);
 		assertNotNull(presigned);
 		assertTrue(presigned.toString().indexOf("mainFileKey") > 0);
 		System.out.println(presigned);
 		// again without the redirct
-		presigned  = entityServletHelper.getWikiAttachmentPreviewFileURL(userName, childKey, handleOne.getFileName(), redirect);
+		presigned  = entityServletHelper.getWikiAttachmentPreviewFileURL(userId, childKey, handleOne.getFileName(), redirect);
 		assertNotNull(presigned);
 		assertTrue(presigned.toString().indexOf("previewFileKey") > 0);
 		System.out.println(presigned);
@@ -277,16 +276,16 @@ public class WikiControllerTest {
 		}
 		
 		// Now delete the wiki
-		entityServletHelper.deleteWikiPage(key, userName);
+		entityServletHelper.deleteWikiPage(key, userId);
 		try {
-			entityServletHelper.getWikiPage(key, userName);
+			entityServletHelper.getWikiPage(key, userId);
 			fail("The wiki should have been deleted");
 		} catch (NotFoundException e) {
 			// this is expected
 		}
 		// the child should be deleted as well
 		try {
-			entityServletHelper.getWikiPage(childKey, userName);
+			entityServletHelper.getWikiPage(childKey, userId);
 			fail("The wiki should have been deleted");
 		} catch (NotFoundException e) {
 			// this is expected

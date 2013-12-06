@@ -56,7 +56,7 @@ public class AsynchronousMigrationAutowireTest {
 	
 	@Before
 	public void before() throws Exception{
-		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
+		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		toDelete = new ArrayList<String>();
 		
 		// Create a project
@@ -74,7 +74,7 @@ public class AsynchronousMigrationAutowireTest {
 		at.setMd5("3b54d27920bfe247442f8005dd071664");
 		at.setContentType("application/json");
 		at.setFileName("foo.bar");
-		S3AttachmentToken token = s3TokenManager.createS3AttachmentToken(adminUserInfo.getIndividualGroup().getId(), project.getId(), at);
+		S3AttachmentToken token = s3TokenManager.createS3AttachmentToken(AuthorizationConstants.ADMIN_USER_ID, project.getId(), at);
 
 		AttachmentData ad = new AttachmentData();
 		ad.setContentType("application/json");

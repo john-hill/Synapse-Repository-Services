@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 import javax.servlet.ServletException;
 
@@ -32,9 +33,11 @@ import org.sagebionetworks.repo.model.FileEntity;
 import org.sagebionetworks.repo.model.LocationData;
 import org.sagebionetworks.repo.model.LocationTypeNames;
 import org.sagebionetworks.repo.model.NameConflictException;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.Study;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.auth.UserEntityPermissions;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
@@ -63,13 +66,11 @@ public class EntityBundleControllerTest {
 	@Autowired
 	private NodeManager nodeManager;
 
-	private static final String TEST_USER1 = AuthorizationConstants.TEST_USER_NAME;
-	
 	private List<String> toDelete = null;
 	S3FileHandle handleOne;
 	S3FileHandle handleTwo;
 	private String userName;
-	private String ownerId;
+	private Long ownerId;
 	/**
 	 * @throws java.lang.Exception
 	 */
@@ -80,14 +81,19 @@ public class EntityBundleControllerTest {
 		assertNotNull(userManager);
 		assertNotNull(nodeManager);
 		toDelete = new ArrayList<String>();
-		userName = AuthorizationConstants.TEST_USER_NAME;
-		ownerId = userManager.getUserInfo(userName).getIndividualGroup().getId();
+		// Create a non admin user
+		NewUser nu = new NewUser();
+		nu.setEmail(UUID.randomUUID().toString()+"@test.com");
+		nu.setPrincipalName(UUID.randomUUID().toString());
+		Principal p = userManager.createUser(nu);
+		
+		ownerId = Long.parseLong(p.getId());
 	}
 	
 	@After
 	public void after() throws Exception {
 		if(toDelete != null){
-			UserInfo testUserInfo = userManager.getUserInfo(TEST_USER1);
+			UserInfo testUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 			for(String id: toDelete){
 				try {
 					nodeManager.delete(testUserInfo, id);
@@ -106,6 +112,9 @@ public class EntityBundleControllerTest {
 				fileMetadataDao.delete(handleTwo.getId());
 			}catch(Exception e){}
 		}
+		if(ownerId != null){
+			userManager.delete(ownerId.toString());
+		}
 	}
 	
 	
@@ -115,7 +124,7 @@ public class EntityBundleControllerTest {
 		Project p = new Project();
 		p.setName(DUMMY_PROJECT);
 		p.setEntityType(p.getClass().getName());
-		Project p2 = (Project) entityServletHelper.createEntity(p, TEST_USER1, null);
+		Project p2 = (Project) entityServletHelper.createEntity(p, ownerId, null);
 		String id = p2.getId();
 		toDelete.add(id);
 		
@@ -123,21 +132,21 @@ public class EntityBundleControllerTest {
 		s1.setName(DUMMY_STUDY_1);
 		s1.setEntityType(s1.getClass().getName());
 		s1.setParentId(id);
-		s1 = (Study) entityServletHelper.createEntity(s1, TEST_USER1, null);
+		s1 = (Study) entityServletHelper.createEntity(s1, ownerId, null);
 		toDelete.add(s1.getId());
 		
 		Study s2 = new Study();
 		s2.setName(DUMMY_STUDY_2);
 		s2.setEntityType(s2.getClass().getName());
 		s2.setParentId(id);
-		s2 = (Study) entityServletHelper.createEntity(s2, TEST_USER1, null);
+		s2 = (Study) entityServletHelper.createEntity(s2, ownerId, null);
 		toDelete.add(s2.getId());
 		
 		// Get/add/update annotations for this entity
-		Annotations a = entityServletHelper.getEntityAnnotations(id, TEST_USER1);
+		Annotations a = entityServletHelper.getEntityAnnotations(id, ownerId);
 		a.addAnnotation("doubleAnno", new Double(45.0001));
 		a.addAnnotation("string", "A string");
-		Annotations a2 = entityServletHelper.updateAnnotations(a, TEST_USER1);
+		Annotations a2 = entityServletHelper.updateAnnotations(a, ownerId);
 		
 		// Get the bundle, verify contents
 		int mask =  EntityBundle.ENTITY | 
@@ -147,7 +156,7 @@ public class EntityBundleControllerTest {
 					EntityBundle.ENTITY_REFERENCEDBY |
 					EntityBundle.HAS_CHILDREN |
 					EntityBundle.ACL;
-		EntityBundle eb = entityServletHelper.getEntityBundle(id, mask, TEST_USER1);
+		EntityBundle eb = entityServletHelper.getEntityBundle(id, mask, ownerId);
 		Project p3 = (Project) eb.getEntity();
 		assertFalse("Etag should have been updated, but was not", p3.getEtag().equals(p2.getEtag()));
 		p2.setEtag(p3.getEtag());
@@ -182,7 +191,7 @@ public class EntityBundleControllerTest {
 		Project p = new Project();
 		p.setName(DUMMY_PROJECT);
 		p.setEntityType(p.getClass().getName());
-		Project p2 = (Project) entityServletHelper.createEntity(p, TEST_USER1, null);
+		Project p2 = (Project) entityServletHelper.createEntity(p, ownerId, null);
 		String id = p2.getId();
 		toDelete.add(id);
 		
@@ -190,13 +199,13 @@ public class EntityBundleControllerTest {
 		s1.setName(DUMMY_STUDY_1);
 		s1.setEntityType(s1.getClass().getName());
 		s1.setParentId(id);
-		s1 = (Study) entityServletHelper.createEntity(s1, TEST_USER1, null);
+		s1 = (Study) entityServletHelper.createEntity(s1, ownerId, null);
 		toDelete.add(s1.getId());
 		
 		// Get the bundle, verify contents
 		int mask =  EntityBundle.ENTITY | 
 					EntityBundle.ACL;
-		EntityBundle eb = entityServletHelper.getEntityBundle(s1.getId(), mask, TEST_USER1);
+		EntityBundle eb = entityServletHelper.getEntityBundle(s1.getId(), mask, ownerId);
 		Study s2 = (Study) eb.getEntity();
 		assertTrue("Etags do not match.", s2.getEtag().equals(s1.getEtag()));
 		assertEquals(s1, s2);
@@ -220,7 +229,7 @@ public class EntityBundleControllerTest {
 		Project p = new Project();
 		p.setName(DUMMY_PROJECT);
 		p.setEntityType(p.getClass().getName());
-		Project p2 = (Project) entityServletHelper.createEntity(p, TEST_USER1, null);
+		Project p2 = (Project) entityServletHelper.createEntity(p, ownerId, null);
 		String parentId = p2.getId();
 		toDelete.add(parentId);
 		
@@ -233,35 +242,35 @@ public class EntityBundleControllerTest {
 		d1Location.setType(LocationTypeNames.external);		
 		d1.setLocations(Arrays.asList(new LocationData[] { d1Location }));
 		d1.setMd5("c88c3db97754be31f9242eb3c08382ee");
-		d1 = (Data) entityServletHelper.createEntity(d1, TEST_USER1, null);
+		d1 = (Data) entityServletHelper.createEntity(d1, ownerId, null);
 		toDelete.add(d1.getId());
 		
 		// Get/add/update annotations for this entity
-		Annotations a1 = entityServletHelper.getEntityAnnotations(d1.getId(), TEST_USER1);
+		Annotations a1 = entityServletHelper.getEntityAnnotations(d1.getId(), ownerId);
 		a1.addAnnotation("v1", new Long(1));
-		a1 = entityServletHelper.updateAnnotations(a1, TEST_USER1);
-		a1 = entityServletHelper.getEntityAnnotations(d1.getId(), TEST_USER1);
+		a1 = entityServletHelper.updateAnnotations(a1, ownerId);
+		a1 = entityServletHelper.getEntityAnnotations(d1.getId(), ownerId);
 	
 		// create 2nd version of entity and annotations
-		d1 = (Data) entityServletHelper.getEntity(d1.getId(), TEST_USER1);
+		d1 = (Data) entityServletHelper.getEntity(d1.getId(), ownerId);
 		d1Location = new LocationData();
 		d1Location.setPath("fakepath_2");
 		d1Location.setType(LocationTypeNames.external);		
 		d1.setLocations(Arrays.asList(new LocationData[] { d1Location }));
 		d1.setMd5("c88c3db97754be31f9242eb3c08382e0");
-		entityServletHelper.updateEntity(d1, TEST_USER1);
+		entityServletHelper.updateEntity(d1, ownerId);
 		// Get/add/update annotations for this entity
-		Annotations a2 = entityServletHelper.getEntityAnnotations(d1.getId(), TEST_USER1);
+		Annotations a2 = entityServletHelper.getEntityAnnotations(d1.getId(), ownerId);
 		a2.addAnnotation("v2", new Long(2));
-		a2 = entityServletHelper.updateAnnotations(a2, TEST_USER1);
-		a2 = entityServletHelper.getEntityAnnotations(d1.getId(), TEST_USER1);
+		a2 = entityServletHelper.updateAnnotations(a2, ownerId);
+		a2 = entityServletHelper.getEntityAnnotations(d1.getId(), ownerId);
 		
 		int mask =  EntityBundle.ENTITY | 
 					EntityBundle.ANNOTATIONS |
 					EntityBundle.ENTITY_REFERENCEDBY;
 		// Get the bundle for version 1, verify contents
 		Long versionNumber = new Long(1);
-		EntityBundle eb = entityServletHelper.getEntityBundleForVersion(d1.getId(), versionNumber, mask, TEST_USER1);
+		EntityBundle eb = entityServletHelper.getEntityBundleForVersion(d1.getId(), versionNumber, mask, ownerId);
 		Data d2 = (Data) eb.getEntity();
 		assertEquals(versionNumber, d2.getVersionNumber());
 		
@@ -271,7 +280,7 @@ public class EntityBundleControllerTest {
 		
 		// Get the bundle for version 2, verify contents
 		versionNumber = new Long(2);
-		EntityBundle eb2 = entityServletHelper.getEntityBundleForVersion(d1.getId(), versionNumber, mask, TEST_USER1);
+		EntityBundle eb2 = entityServletHelper.getEntityBundleForVersion(d1.getId(), versionNumber, mask, ownerId);
 		d2 = (Data) eb2.getEntity();
 		assertEquals(versionNumber, d2.getVersionNumber());
 		
@@ -286,19 +295,19 @@ public class EntityBundleControllerTest {
 		Project p = new Project();
 		p.setName(DUMMY_PROJECT);
 		p.setEntityType(p.getClass().getName());
-		Project p2 = (Project) entityServletHelper.createEntity(p, TEST_USER1, null);
+		Project p2 = (Project) entityServletHelper.createEntity(p, ownerId, null);
 		String id = p2.getId();
 		toDelete.add(id);
 		
 		// Get/add/update annotations for this entity
-		Annotations a = entityServletHelper.getEntityAnnotations(id, TEST_USER1);
+		Annotations a = entityServletHelper.getEntityAnnotations(id, ownerId);
 		a.addAnnotation("doubleAnno", new Double(45.0001));
 		a.addAnnotation("string", "A string");
-		entityServletHelper.updateAnnotations(a, TEST_USER1);
+		entityServletHelper.updateAnnotations(a, ownerId);
 		
 		// Get the bundle, verify contents
 		int mask =  EntityBundle.ENTITY;
-		EntityBundle eb = entityServletHelper.getEntityBundle(id, mask, TEST_USER1);
+		EntityBundle eb = entityServletHelper.getEntityBundle(id, mask, ownerId);
 		Project p3 = (Project) eb.getEntity();
 		assertFalse("Etag should have been updated, but was not", p3.getEtag().equals(p2.getEtag()));
 		p2.setEtag(p3.getEtag());
@@ -329,7 +338,7 @@ public class EntityBundleControllerTest {
 		S3FileHandle handle = new S3FileHandle();
 		// Create a file handle
 		handle = new S3FileHandle();
-		handle.setCreatedBy(ownerId);
+		handle.setCreatedBy(ownerId.toString());
 		handle.setCreatedOn(new Date());
 		handle.setBucketName("bucket");
 		handle.setKey("EntityControllerTest.testGetFileHandle1");
@@ -344,7 +353,7 @@ public class EntityBundleControllerTest {
 		Project p = new Project();
 		p.setName(DUMMY_PROJECT);
 		p.setEntityType(p.getClass().getName());
-		Project p2 = (Project) entityServletHelper.createEntity(p, TEST_USER1, null);
+		Project p2 = (Project) entityServletHelper.createEntity(p, ownerId, null);
 		String id = p2.getId();
 		toDelete.add(id);
 		
@@ -352,9 +361,9 @@ public class EntityBundleControllerTest {
 		file.setParentId(p.getId());
 		file.setDataFileHandleId(handleOne.getId());
 		file.setEntityType(FileEntity.class.getName());
-		file = (FileEntity) entityServletHelper.createEntity(file, TEST_USER1, null);
+		file = (FileEntity) entityServletHelper.createEntity(file, ownerId, null);
 		// Get the file handle in the bundle
-		EntityBundle bundle = entityServletHelper.getEntityBundle(file.getId(), EntityBundle.FILE_HANDLES, TEST_USER1);
+		EntityBundle bundle = entityServletHelper.getEntityBundle(file.getId(), EntityBundle.FILE_HANDLES, ownerId);
 		assertNotNull(bundle);
 		assertNotNull(bundle.getFileHandles());
 		assertTrue(bundle.getFileHandles().size() > 0);
@@ -363,17 +372,17 @@ public class EntityBundleControllerTest {
 		// Same test with a verion number
 		// Update the file 
 		file.setDataFileHandleId(handleTwo.getId());
-		file = (FileEntity) entityServletHelper.updateEntity(file, TEST_USER1);
+		file = (FileEntity) entityServletHelper.updateEntity(file, ownerId);
 		assertEquals("Changing the fileHandle should have created a new version", new Long(2), file.getVersionNumber());
 		// Get version one.
-		bundle = entityServletHelper.getEntityBundleForVersion(file.getId(), new Long(1), EntityBundle.FILE_HANDLES, TEST_USER1);
+		bundle = entityServletHelper.getEntityBundleForVersion(file.getId(), new Long(1), EntityBundle.FILE_HANDLES, ownerId);
 		assertNotNull(bundle);
 		assertNotNull(bundle.getFileHandles());
 		assertTrue(bundle.getFileHandles().size() > 0);
 		assertNotNull(bundle.getFileHandles().get(0));
 		assertEquals(handleOne.getId(), bundle.getFileHandles().get(0).getId());
 		// Get version two
-		bundle = entityServletHelper.getEntityBundleForVersion(file.getId(), new Long(2), EntityBundle.FILE_HANDLES, TEST_USER1);
+		bundle = entityServletHelper.getEntityBundleForVersion(file.getId(), new Long(2), EntityBundle.FILE_HANDLES, ownerId);
 		assertNotNull(bundle);
 		assertNotNull(bundle.getFileHandles());
 		assertTrue(bundle.getFileHandles().size() > 0);

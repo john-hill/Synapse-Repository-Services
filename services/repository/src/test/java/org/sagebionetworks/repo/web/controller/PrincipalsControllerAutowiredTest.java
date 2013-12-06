@@ -49,7 +49,7 @@ public class PrincipalsControllerAutowiredTest {
 
 	private static HttpServlet dispatchServlet;
 	
-	private String userName = AuthorizationConstants.ADMIN_USER_NAME;
+	private Long userId= AuthorizationConstants.ADMIN_USER_ID;
 	private UserInfo testUser;
 
 	private List<String> toDelete;
@@ -60,7 +60,7 @@ public class PrincipalsControllerAutowiredTest {
 		toDelete = new ArrayList<String>();
 		// Map test objects to their urls
 		// Make sure we have a valid user.
-		testUser = userManager.getUserInfo(userName);
+		testUser = userManager.getUserInfo(userId);
 		UserInfo.validateUserInfo(testUser);
 	}
 
@@ -69,7 +69,7 @@ public class PrincipalsControllerAutowiredTest {
 		if (entityController != null && toDelete != null) {
 			for (String idToDelete : toDelete) {
 				try {
-					entityController.deleteEntity(userName, idToDelete);
+					entityController.deleteEntity(userId, idToDelete);
 				} catch (NotFoundException e) {
 					// nothing to do here
 				} catch (DatastoreException e) {
@@ -87,7 +87,7 @@ public class PrincipalsControllerAutowiredTest {
 
 	@Test
 	public void testGetUsers() throws Exception {
-		PaginatedResults<UserProfile> userProfiles = ServletTestHelper.getUsers(dispatchServlet, userName);
+		PaginatedResults<UserProfile> userProfiles = ServletTestHelper.getUsers(dispatchServlet, userId);
 		assertNotNull(userProfiles);
 		for (UserProfile userProfile : userProfiles.getResults()) {
 			System.out.println(userProfile);
@@ -107,7 +107,7 @@ public class PrincipalsControllerAutowiredTest {
 	
 	@Test
 	public void testGetGroups() throws Exception {
-		PaginatedResults<Principal> ugs = ServletTestHelper.getGroups(dispatchServlet, userName);
+		PaginatedResults<Principal> ugs = ServletTestHelper.getGroups(dispatchServlet, userId);
 		assertNotNull(ugs);
 		boolean foundPublic = false;
 		boolean foundAdmin = false;

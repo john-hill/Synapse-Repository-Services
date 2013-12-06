@@ -39,7 +39,7 @@ public class S3TokenManagerUnitTest {
 	private S3TokenManagerImpl manager;
 	private AmazonS3Utility mockS3Utilitiy;
 	private UserInfo mockUser;
-	String userId = "007";
+	Long userId =7l;
 	
 	@Before
 	public void before(){
@@ -51,7 +51,7 @@ public class S3TokenManagerUnitTest {
 		mockS3Utilitiy = Mockito.mock(AmazonS3Utility.class);
 		mockUser = new UserInfo(false);
 		mockUser.setUser(new User());
-		mockUser.getUser().setId(userId);
+		mockUser.getUser().setId(userId.toString());
 		manager = new S3TokenManagerImpl(mockPermissionsManager, mockUuserManager, mocIdGenerator, mocKLocationHelper, mockS3Utilitiy);
 	}
 
@@ -87,7 +87,7 @@ public class S3TokenManagerUnitTest {
 	
 	@Test (expected=UnauthorizedException.class)
 	public void testValidateUpdateAccessFail() throws DatastoreException, NotFoundException, UnauthorizedException{
-		String userId = "123456";
+		Long userId = 123456l;
 		String entityId = "abc";
 		// return the mock user.
 		when(mockUuserManager.getUserInfo(userId)).thenReturn(mockUser);
@@ -100,7 +100,7 @@ public class S3TokenManagerUnitTest {
 	
 	@Test 
 	public void testValidateUpdateAccessPass() throws DatastoreException, NotFoundException, UnauthorizedException{
-		String userId = "123456";
+		Long userId = 123456l;
 		String entityId = "abc";
 		// return the mock user.
 		when(mockUuserManager.getUserInfo(userId)).thenReturn(mockUser);
@@ -118,13 +118,13 @@ public class S3TokenManagerUnitTest {
 		startToken.setMd5(md5);
 		Long tokenId = new Long(456);
 		String entityId = "132";
-		String userId = "007";
+		Long userId = 123456l;
 		String expectedPath = S3TokenManagerImpl.createAttachmentPathSlash(entityId, tokenId.toString());
 
 		String expectePreSigneUrl = "I am a presigned url! whooot!";
 		when(mocIdGenerator.generateNewId()).thenReturn(tokenId);
 		Credentials mockCreds = Mockito.mock(Credentials.class);
-		when(mockUuserManager.getUserInfo(any(String.class))).thenReturn(mockUser);
+		when(mockUuserManager.getUserInfo(any(Long.class))).thenReturn(mockUser);
 		when(mockPermissionsManager.hasAccess(entityId, ACCESS_TYPE.UPDATE, mockUser)).thenReturn(true);
 		when(mocKLocationHelper.createFederationTokenForS3(userId,HttpMethod.PUT,expectedPath)).thenReturn(mockCreds);
 		when(mocKLocationHelper.presignS3PUTUrl(any(Credentials.class), any(String.class), any(String.class), any(String.class))).thenReturn(expectePreSigneUrl);
@@ -142,7 +142,7 @@ public class S3TokenManagerUnitTest {
 		startToken.setMd5(almostMd5);
 		Long tokenId = new Long(456);
 		String entityId = "132";
-		String userId = "007";
+		Long userId = 123456l;
 		String expectedPath = entityId+"/"+tokenId.toString();
 		String expectePreSigneUrl = "I am a presigned url! whooot!";
 		when(mocIdGenerator.generateNewId()).thenReturn(tokenId);

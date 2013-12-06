@@ -81,7 +81,7 @@ public class EntityManagerImplUnitTest {
 	public void testGetAttachmentUrlNoReadAccess() throws Exception{
 		Long tokenId = new Long(456);
 		String entityId = "132";
-		String userId = "007";
+		Long userId = 7l;
 		String expectedPath = S3TokenManagerImpl.createAttachmentPathSlash(entityId, tokenId.toString());
 		String expectePreSigneUrl = "I am a presigned url! whooot!";
 		when(mockUserManager.getUserInfo(userId)).thenReturn(mockUser);
@@ -102,7 +102,7 @@ public class EntityManagerImplUnitTest {
 		startToken.setMd5(almostMd5);
 		Long tokenId = new Long(456);
 		String entityId = "132";
-		String userId = "007";
+		Long userId = 7l;
 		String expectedPath = entityId+"/"+tokenId.toString();
 		String expectePreSigneUrl = "I am a presigned url! whooot!";
 		when(mocIdGenerator.generateNewId()).thenReturn(tokenId);

@@ -50,8 +50,7 @@ public class V2WikiControllerTest {
 	@Autowired
 	private FileHandleDao fileMetadataDao;
 	
-	private String userName;
-	private String ownerId;
+	private Long userId;
 	
 	Project entity;
 	Evaluation evaluation;
@@ -64,12 +63,11 @@ public class V2WikiControllerTest {
 	@Before
 	public void before() throws Exception{
 		// get user IDs
-		userName = AuthorizationConstants.TEST_USER_NAME;
-		ownerId = userManager.getUserInfo(userName).getIndividualGroup().getId();
+		userId = AuthorizationConstants.ADMIN_USER_ID;
 		toDelete = new LinkedList<WikiPageKey>();
 		// Create a file handle
 		handleOne = new S3FileHandle();
-		handleOne.setCreatedBy(ownerId);
+		handleOne.setCreatedBy(userId.toString());
 		handleOne.setCreatedOn(new Date());
 		handleOne.setBucketName("bucket");
 		handleOne.setKey("mainFileKey");
@@ -78,7 +76,7 @@ public class V2WikiControllerTest {
 		handleOne = fileMetadataDao.createFile(handleOne);
 		// Create a preview
 		handleTwo = new PreviewFileHandle();
-		handleTwo.setCreatedBy(ownerId);
+		handleTwo.setCreatedBy(userId.toString());
 		handleTwo.setCreatedOn(new Date());
 		handleTwo.setBucketName("bucket");
 		handleTwo.setKey("previewFileKey");
@@ -88,7 +86,7 @@ public class V2WikiControllerTest {
 		// Set two as the preview of one
 		fileMetadataDao.setPreviewId(handleOne.getId(), handleTwo.getId());
 		markdown = new S3FileHandle();
-		markdown.setCreatedBy(ownerId);
+		markdown.setCreatedBy(userId.toString());
 		markdown.setCreatedOn(new Date());
 		markdown.setBucketName("bucket");
 		markdown.setKey("markdownKey");
@@ -96,7 +94,7 @@ public class V2WikiControllerTest {
 		markdown.setFileName("markdown");
 		markdown = fileMetadataDao.createFile(markdown);
 		markdownTwo = new S3FileHandle();
-		markdownTwo.setCreatedBy(ownerId);
+		markdownTwo.setCreatedBy(userId.toString());
 		markdownTwo.setCreatedOn(new Date());
 		markdownTwo.setBucketName("bucket");
 		markdownTwo.setKey("markdownKey2");
@@ -108,15 +106,15 @@ public class V2WikiControllerTest {
 	@After
 	public void after() throws Exception{
 		for(WikiPageKey key: toDelete){
-			entityServletHelper.deleteV2WikiPage(key, userName);
+			entityServletHelper.deleteV2WikiPage(key, userId);
 		}
 		if(evaluation != null){
 			try {
-				entityServletHelper.deleteEvaluation(evaluation.getId(), userName);
+				entityServletHelper.deleteEvaluation(evaluation.getId(), userId);
 			} catch (Exception e) {}
 		}
 		if(entity != null){
-			UserInfo userInfo = userManager.getUserInfo(userName);
+			UserInfo userInfo = userManager.getUserInfo(userId);
 			nodeManager.delete(userInfo, entity.getId());
 		}
 		if(handleOne != null && handleOne.getId() != null){
@@ -138,7 +136,7 @@ public class V2WikiControllerTest {
 		// create an entity
 		entity = new Project();
 		entity.setEntityType(Project.class.getName());
-		entity = (Project) entityServletHelper.createEntity(entity, userName, null);
+		entity = (Project) entityServletHelper.createEntity(entity, userId, null);
 		// Test all wiki CRUD for an entity
 		doWikiCRUDForOwnerObject(entity.getId(), ObjectType.ENTITY);
 	}
@@ -151,7 +149,7 @@ public class V2WikiControllerTest {
 		evaluation.setContentSource(KeyFactory.SYN_ROOT_ID);
 		evaluation.setDescription("a test descrption");
 		evaluation.setStatus(EvaluationStatus.OPEN);
-		evaluation = entityServletHelper.createEvaluation(evaluation, userName);
+		evaluation = entityServletHelper.createEvaluation(evaluation, userId);
 		// Test all wiki CRUD for an entity
 		doWikiCRUDForOwnerObject(evaluation.getId(), ObjectType.EVALUATION);
 	}
@@ -169,7 +167,7 @@ public class V2WikiControllerTest {
 		wiki.setTitle("testCreateEntityWikiRoundTrip-"+ownerId+"-"+ownerType);
 		wiki.setMarkdownFileHandleId(markdown.getId());
 		wiki.setAttachmentFileHandleIds(new LinkedList<String>());
-		wiki = entityServletHelper.createV2WikiPage(userName, ownerId, ownerType, wiki);
+		wiki = entityServletHelper.createV2WikiPage(userId, ownerId, ownerType, wiki);
 		assertNotNull(wiki);
 		
 		assertNotNull(wiki.getId());
@@ -178,7 +176,7 @@ public class V2WikiControllerTest {
 		assertNotNull(wiki.getEtag());
 		assertNotNull(ownerId, wiki.getModifiedBy());
 		assertNotNull(ownerId, wiki.getCreatedBy());
-		PaginatedResults<V2WikiHistorySnapshot> startHistory = entityServletHelper.getV2WikiHistory(key, userName, new Long(0), new Long(10));
+		PaginatedResults<V2WikiHistorySnapshot> startHistory = entityServletHelper.getV2WikiHistory(key, userId, new Long(0), new Long(10));
 		assertNotNull(startHistory);
 		List<V2WikiHistorySnapshot> firstSnapshot = startHistory.getResults();
 		assertNotNull(firstSnapshot);
@@ -188,13 +186,13 @@ public class V2WikiControllerTest {
 		assertEquals("0", firstSnapshot.get(0).getVersion());
 		
 		// Get the wiki page.
-		V2WikiPage clone = entityServletHelper.getV2WikiPage(key, userName);
+		V2WikiPage clone = entityServletHelper.getV2WikiPage(key, userId);
 		assertNotNull(clone);
 		System.out.println(clone);
 		assertEquals(wiki, clone);
 		
 		// Get the root wiki
-		V2WikiPage root = entityServletHelper.getRootV2WikiPage(ownerId, ownerType, userName);
+		V2WikiPage root = entityServletHelper.getRootV2WikiPage(ownerId, ownerType, userId);
 		// The root should match the clone
 		assertEquals(clone, root);
 		
@@ -202,7 +200,7 @@ public class V2WikiControllerTest {
 		clone.setMarkdownFileHandleId(markdownTwo.getId());
 		clone.getAttachmentFileHandleIds().add(handleOne.getId());
 		String currentEtag = clone.getEtag();
-		V2WikiPage cloneUpdated = entityServletHelper.updateWikiPage(userName, ownerId, ownerType, clone);
+		V2WikiPage cloneUpdated = entityServletHelper.updateWikiPage(userId, ownerId, ownerType, clone);
 		assertNotNull(cloneUpdated);
 		assertEquals(cloneUpdated.getMarkdownFileHandleId(), markdownTwo.getId());
 		assertEquals(cloneUpdated.getAttachmentFileHandleIds().size(), 1);
@@ -212,14 +210,14 @@ public class V2WikiControllerTest {
 		// Update one more time
 		cloneUpdated.getAttachmentFileHandleIds().add(handleTwo.getId());
 		String currentEtag2 = cloneUpdated.getEtag();
-		V2WikiPage cloneUpdated2 = entityServletHelper.updateWikiPage(userName, ownerId, ownerType, cloneUpdated);
+		V2WikiPage cloneUpdated2 = entityServletHelper.updateWikiPage(userId, ownerId, ownerType, cloneUpdated);
 		assertNotNull(cloneUpdated2);
 		assertEquals(cloneUpdated2.getMarkdownFileHandleId(), markdownTwo.getId());
 		assertEquals(cloneUpdated2.getAttachmentFileHandleIds().size(), 2);
 		assertFalse("The etag should have changed from the update", currentEtag2.equals(cloneUpdated2.getEtag()));
 		
 		// Get history (there should be three snapshots returned)
-		PaginatedResults<V2WikiHistorySnapshot> historyResults = entityServletHelper.getV2WikiHistory(key, userName, new Long(0), new Long(10));
+		PaginatedResults<V2WikiHistorySnapshot> historyResults = entityServletHelper.getV2WikiHistory(key, userId, new Long(0), new Long(10));
 		assertNotNull(historyResults);
 		List<V2WikiHistorySnapshot> snapshots = historyResults.getResults();
 		assertNotNull(snapshots);
@@ -233,7 +231,7 @@ public class V2WikiControllerTest {
 		// Restore wiki to version 1 which had markdownTwo and one file attachment
 		Long versionToRestore = new Long(1);
 		String currentEtag3 = cloneUpdated2.getEtag();
-		V2WikiPage restored = entityServletHelper.restoreWikiPage(userName, ownerId, ownerType, cloneUpdated2, versionToRestore);
+		V2WikiPage restored = entityServletHelper.restoreWikiPage(userId, ownerId, ownerType, cloneUpdated2, versionToRestore);
 		assertNotNull(restored);
 		assertFalse("The etag should have changed from the restore", currentEtag3.equals(restored.getEtag()));
 		
@@ -251,13 +249,13 @@ public class V2WikiControllerTest {
 		child.getAttachmentFileHandleIds().add(handleOne.getId());
 		
 		// Create child!
-		child = entityServletHelper.createV2WikiPage(userName, ownerId, ownerType, child);
+		child = entityServletHelper.createV2WikiPage(userId, ownerId, ownerType, child);
 		assertNotNull(child);
 		assertNotNull(child.getId());
 		WikiPageKey childKey = new WikiPageKey(ownerId, ownerType, child.getId());
 		toDelete.add(childKey);
 		// List the hierarchy
-		PaginatedResults<V2WikiHeader> paginated = entityServletHelper.getV2WikiHeaderTree(userName, ownerId, ownerType);
+		PaginatedResults<V2WikiHeader> paginated = entityServletHelper.getV2WikiHeaderTree(userId, ownerId, ownerType);
 		assertNotNull(paginated);
 		assertNotNull(paginated.getResults());
 		assertEquals(2, paginated.getResults().size());
@@ -275,7 +273,7 @@ public class V2WikiControllerTest {
 		assertEquals(wiki.getId(), childHeader.getParentId());
 		
 		// Check that we can get the FileHandles	
-		FileHandleResults handles = entityServletHelper.getV2WikiFileHandles(userName, childKey);
+		FileHandleResults handles = entityServletHelper.getV2WikiFileHandles(userId, childKey);
 		assertNotNull(handles);
 		assertNotNull(handles.getList());
 		assertEquals(2, handles.getList().size());
@@ -284,39 +282,39 @@ public class V2WikiControllerTest {
 		assertEquals(handleTwo.getId(), handles.getList().get(1).getId());
 		
 		// Get the presigned URL for the first file
-		URL presigned  = entityServletHelper.getV2WikiAttachmentFileURL(userName, childKey, handleOne.getFileName(), null);
+		URL presigned  = entityServletHelper.getV2WikiAttachmentFileURL(userId, childKey, handleOne.getFileName(), null);
 		assertNotNull(presigned);
 		assertTrue(presigned.toString().indexOf("mainFileKey") > 0);
 		System.out.println(presigned);
 		// Get the preview presigned URL.
-		presigned  = entityServletHelper.getV2WikiAttachmentPreviewFileURL(userName, childKey, handleOne.getFileName(), null);
+		presigned  = entityServletHelper.getV2WikiAttachmentPreviewFileURL(userId, childKey, handleOne.getFileName(), null);
 		assertNotNull(presigned);
 		assertTrue(presigned.toString().indexOf("previewFileKey") > 0);
 		System.out.println(presigned);
 		
 		// Make sure we can get the URLs without a redirect
 		Boolean redirect = Boolean.FALSE;
-		presigned  = entityServletHelper.getV2WikiAttachmentFileURL(userName, childKey, handleOne.getFileName(), redirect);
+		presigned  = entityServletHelper.getV2WikiAttachmentFileURL(userId, childKey, handleOne.getFileName(), redirect);
 		assertNotNull(presigned);
 		assertTrue(presigned.toString().indexOf("mainFileKey") > 0);
 		System.out.println(presigned);
 		// again without the redirct
-		presigned  = entityServletHelper.getV2WikiAttachmentPreviewFileURL(userName, childKey, handleOne.getFileName(), redirect);
+		presigned  = entityServletHelper.getV2WikiAttachmentPreviewFileURL(userId, childKey, handleOne.getFileName(), redirect);
 		assertNotNull(presigned);
 		assertTrue(presigned.toString().indexOf("previewFileKey") > 0);
 		System.out.println(presigned);
 		
 		// Now delete the wiki
-		entityServletHelper.deleteV2WikiPage(key, userName);
+		entityServletHelper.deleteV2WikiPage(key, userId);
 		try {
-			entityServletHelper.getV2WikiPage(key, userName);
+			entityServletHelper.getV2WikiPage(key, userId);
 			fail("The wiki should have been deleted");
 		} catch (NotFoundException e) {
 			// this is expected
 		}
 		// the child should be delete as well
 		try {
-			entityServletHelper.getV2WikiPage(childKey, userName);
+			entityServletHelper.getV2WikiPage(childKey, userId);
 			fail("The wiki should have been deleted");
 		} catch (NotFoundException e) {
 			// this is expected

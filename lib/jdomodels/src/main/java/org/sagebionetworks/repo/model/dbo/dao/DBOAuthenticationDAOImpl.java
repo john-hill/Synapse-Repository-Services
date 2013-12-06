@@ -318,39 +318,8 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 	@Override
 	@Transactional(readOnly=false, propagation=Propagation.REQUIRED)
 	public void bootstrapCredentials() throws NotFoundException {
-		if (StackConfiguration.isProductionStack()) {
-			// The migration admin should only be used in specific, non-development stacks
-			String migrationAdminId = userGroupDAO.findUserWithEmail(AuthorizationConstants.MIGRATION_USER_NAME).getId();
-			changeSecretKey(migrationAdminId, StackConfiguration.getMigrationAdminAPIKey());
-		
-		} else {
-			String testUsers[] = new String[] { 
-					StackConfiguration.getIntegrationTestUserAdminName(), 
-					StackConfiguration.getIntegrationTestRejectTermsOfUseName(), 
-					StackConfiguration.getIntegrationTestUserOneName(), 
-					StackConfiguration.getIntegrationTestUserTwoName(), 
-					StackConfiguration.getIntegrationTestUserThreeName() };
-			String testPasswords[] = new String[] { 
-					StackConfiguration.getIntegrationTestUserAdminPassword(), 
-					StackConfiguration.getIntegrationTestRejectTermsOfUsePassword(), 
-					StackConfiguration.getIntegrationTestUserOnePassword(), 
-					StackConfiguration.getIntegrationTestUserTwoPassword(), 
-					StackConfiguration.getIntegrationTestUserThreePassword() };
-			for (int i = 0; i < testUsers.length; i++) {
-				String passHash = PBKDF2Utils.hashPassword(testPasswords[i], null);
-				String userId = userGroupDAO.findUserWithEmail(testUsers[i]).getId();
-				changePassword(userId, passHash);
-			}
-		}
-		
-		// With the exception of anonymous and one integration test user
-		// bootstrapped users should not need to sign the terms of use
-		List<Principal> ugs = userGroupDAO.getBootstrapUsers();
-		for (Principal ug : ugs) {
-			if (ug.getIsIndividual() && !ug.getPrincipalName().equals(StackConfiguration.getIntegrationTestRejectTermsOfUseName())
-					&& !AuthorizationUtils.isUserAnonymous(ug.getPrincipalName())) {
-				setTermsOfUseAcceptance(ug.getId(), true);
-			}
-		}
+		// The migration admin should only be used in specific, non-development stacks
+		String migrationAdminId = userGroupDAO.findUserWithEmail(AuthorizationConstants.MIGRATION_USER_NAME).getId();
+		changeSecretKey(migrationAdminId, StackConfiguration.getMigrationAdminAPIKey());
 	}
 }

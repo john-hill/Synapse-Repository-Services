@@ -206,13 +206,6 @@ public class DBOGroupMembersDAOImplTest {
 			adminNames.add(ug.getPrincipalName());
 		}
 		
-		assertTrue(adminNames.contains(StackConfiguration.getIntegrationTestUserAdminName()));
 		assertTrue(adminNames.contains(AuthorizationConstants.MIGRATION_USER_NAME));
-		assertTrue(adminNames.contains(AuthorizationConstants.ADMIN_USER_NAME));
-		
-		String testGroupId = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.TEST_GROUP_NAME, false).getId();
-		List<Principal> testUsers = groupMembersDAO.getMembers(testGroupId);
-		assertEquals(1, testUsers.size());
-		assertEquals(AuthorizationConstants.TEST_USER_NAME, testUsers.get(0).getPrincipalName());
 	}
 }

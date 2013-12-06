@@ -40,6 +40,7 @@ import org.sagebionetworks.repo.model.v2.wiki.V2WikiPage;
 import org.sagebionetworks.repo.model.wiki.WikiPage;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.IfProfileValue;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
@@ -84,7 +85,7 @@ public class AdministrationControllerTest {
 	public void before() throws DatastoreException, NotFoundException {
 		toDelete = new ArrayList<String>();
 		wikisToDelete = new ArrayList<WikiPageKey>();
-		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
+		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 	}
 	
 	@BeforeClass
@@ -153,7 +154,7 @@ public class AdministrationControllerTest {
 		assertEquals(StatusEnum.READ_WRITE, status.getStatus());
 		// Make sure we can update the status
 		status.setPendingMaintenanceMessage("AdministrationControllerTest.testUpdateStatus");
-		StackStatus back = ServletTestHelper.updateStackStatus(dispatchServlet, adminUserInfo.getIndividualGroup().getPrincipalName(), status);
+		StackStatus back = ServletTestHelper.updateStackStatus(dispatchServlet, AuthorizationConstants.ADMIN_USER_ID, status);
 		assertEquals(status, back);
 	}
 	
@@ -163,7 +164,7 @@ public class AdministrationControllerTest {
 		StackStatus setDown = new StackStatus();
 		setDown.setStatus(StatusEnum.DOWN);
 		setDown.setCurrentMessage("Synapse is going down for a test: AdministrationControllerTest.testGetStatusWhenDown");
-		StackStatus back = ServletTestHelper.updateStackStatus(dispatchServlet, adminUserInfo.getIndividualGroup().getPrincipalName(), setDown);
+		StackStatus back = ServletTestHelper.updateStackStatus(dispatchServlet, AuthorizationConstants.ADMIN_USER_ID, setDown);
 		assertEquals(setDown, back);
 		// Make sure we can still get the status
 		StackStatus current = ServletTestHelper.getStackStatus(dispatchServlet);
@@ -172,7 +173,7 @@ public class AdministrationControllerTest {
 		// Now make sure we can turn it back on when down.
 		setDown.setStatus(StatusEnum.READ_WRITE);
 		setDown.setCurrentMessage(null);
-		back = ServletTestHelper.updateStackStatus(dispatchServlet, adminUserInfo.getIndividualGroup().getPrincipalName(), setDown);
+		back = ServletTestHelper.updateStackStatus(dispatchServlet, AuthorizationConstants.ADMIN_USER_ID, setDown);
 		assertEquals(setDown, back);
 	}
 
@@ -181,7 +182,7 @@ public class AdministrationControllerTest {
 		// create an entity
 		entity = new Project();
 		entity.setEntityType(Project.class.getName());
-		entity = (Project) entityServletHelper.createEntity(entity, AuthorizationConstants.ADMIN_USER_NAME, null);
+		entity = (Project) entityServletHelper.createEntity(entity, AuthorizationConstants.ADMIN_USER_ID, null);
 		createWikiPages(entity.getId());
 		
 		Map<String, String> extraParams = new HashMap<String, String>();
@@ -189,7 +190,7 @@ public class AdministrationControllerTest {
 		extraParams.put("limit", "5");
 		
 		PaginatedResults<WikiMigrationResult> results = 
-			ServletTestHelper.migrateWikisToV2(dispatchServlet, adminUserInfo.getIndividualGroup().getPrincipalName(), extraParams);
+			ServletTestHelper.migrateWikisToV2(dispatchServlet, AuthorizationConstants.ADMIN_USER_ID, extraParams);
 		assertEquals(2, results.getResults().size());
 	}
 	
@@ -223,6 +224,7 @@ public class AdministrationControllerTest {
 		wikisToDelete.add(childKey);
 	}
 	
+	
 	@Test (expected=UnauthorizedException.class)
 	public void testMigrateWikisAsNonAdmit() throws Exception {
 		Map<String, String> extraParams = new HashMap<String, String>();
@@ -230,6 +232,6 @@ public class AdministrationControllerTest {
 		extraParams.put("limit", "10");
 		
 		// Not an admin, so this should fail with a 403
-		ServletTestHelper.migrateWikisToV2(dispatchServlet, StackConfiguration.getIntegrationTestUserOneName(), extraParams);
+		ServletTestHelper.migrateWikisToV2(dispatchServlet, AuthorizationConstants.ANONYMOUS_USER_ID, extraParams);
 	}
 }

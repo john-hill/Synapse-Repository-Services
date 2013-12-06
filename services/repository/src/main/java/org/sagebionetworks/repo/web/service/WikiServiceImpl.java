@@ -44,7 +44,7 @@ public class WikiServiceImpl implements WikiService {
 	
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
 	@Override
-	public WikiPage createWikiPage(String userId, String objectId,	ObjectType objectType, WikiPage toCreate) throws DatastoreException, NotFoundException, IOException {
+	public WikiPage createWikiPage(Long userId, String objectId,	ObjectType objectType, WikiPage toCreate) throws DatastoreException, NotFoundException, IOException {
 		// Resolve the userID
 		UserInfo user = userManager.getUserInfo(userId);
 		// Create the V1 wiki
@@ -56,14 +56,14 @@ public class WikiServiceImpl implements WikiService {
 	}
 
 	@Override
-	public WikiPage getWikiPage(String userId, WikiPageKey key) throws DatastoreException, NotFoundException, IOException {
+	public WikiPage getWikiPage(Long userId, WikiPageKey key) throws DatastoreException, NotFoundException, IOException {
 		UserInfo user = userManager.getUserInfo(userId);
 		return wikiManager.getWikiPage(user, key);
 	}
 
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
 	@Override
-	public WikiPage updateWikiPage(String userId, String objectId,	ObjectType objectType, WikiPage toUpdate) throws DatastoreException, NotFoundException, IOException {
+	public WikiPage updateWikiPage(Long userId, String objectId,	ObjectType objectType, WikiPage toUpdate) throws DatastoreException, NotFoundException, IOException {
 		UserInfo user = userManager.getUserInfo(userId);
 		// Update the V1 wiki
 		WikiPage updateResult = wikiManager.updateWikiPage(user, objectId, objectType, toUpdate);
@@ -76,7 +76,7 @@ public class WikiServiceImpl implements WikiService {
 
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
 	@Override
-	public void deleteWikiPage(String userId, WikiPageKey wikiPageKey) throws DatastoreException, NotFoundException {
+	public void deleteWikiPage(Long userId, WikiPageKey wikiPageKey) throws DatastoreException, NotFoundException {
 		UserInfo user = userManager.getUserInfo(userId);
 		// Delete the V1 wiki and its mirror V2 wiki
 		wikiManager.deleteWiki(user, wikiPageKey);
@@ -84,19 +84,19 @@ public class WikiServiceImpl implements WikiService {
 	}
 
 	@Override
-	public PaginatedResults<WikiHeader> getWikiHeaderTree(String userId, String ownerId, ObjectType type, Long limit, Long offest) throws DatastoreException, NotFoundException {
+	public PaginatedResults<WikiHeader> getWikiHeaderTree(Long userId, String ownerId, ObjectType type, Long limit, Long offest) throws DatastoreException, NotFoundException {
 		UserInfo user = userManager.getUserInfo(userId);
 		return wikiManager.getWikiHeaderTree(user, ownerId, type, limit, offest);
 	}
 
 	@Override
-	public FileHandleResults getAttachmentFileHandles(String userId, WikiPageKey wikiPageKey) throws DatastoreException, NotFoundException {
+	public FileHandleResults getAttachmentFileHandles(Long userId, WikiPageKey wikiPageKey) throws DatastoreException, NotFoundException {
 		UserInfo user = userManager.getUserInfo(userId);
 		return wikiManager.getAttachmentFileHandles(user, wikiPageKey);
 	}
 
 	@Override
-	public URL getAttachmentRedirectURL(String userId, WikiPageKey wikiPageKey,	String fileName) throws DatastoreException, NotFoundException {
+	public URL getAttachmentRedirectURL(Long userId, WikiPageKey wikiPageKey,	String fileName) throws DatastoreException, NotFoundException {
 		UserInfo user = userManager.getUserInfo(userId);
 		// First lookup the FileHandle
 		String fileHandleId = wikiManager.getFileHandleIdForFileName(user, wikiPageKey, fileName);
@@ -105,7 +105,7 @@ public class WikiServiceImpl implements WikiService {
 	}
 
 	@Override
-	public URL getAttachmentPreviewRedirectURL(String userId, WikiPageKey wikiPageKey, String fileName)	throws DatastoreException, NotFoundException {
+	public URL getAttachmentPreviewRedirectURL(Long userId, WikiPageKey wikiPageKey, String fileName)	throws DatastoreException, NotFoundException {
 		UserInfo user = userManager.getUserInfo(userId);
 		// First lookup the FileHandle
 		String fileHandleId = wikiManager.getFileHandleIdForFileName(user, wikiPageKey, fileName);
@@ -116,7 +116,7 @@ public class WikiServiceImpl implements WikiService {
 	}
 
 	@Override
-	public WikiPage getRootWikiPage(String userId, String ownerId, ObjectType type) throws UnauthorizedException, NotFoundException, IOException {
+	public WikiPage getRootWikiPage(Long userId, String ownerId, ObjectType type) throws UnauthorizedException, NotFoundException, IOException {
 		UserInfo user = userManager.getUserInfo(userId);
 		return wikiManager.getRootWikiPage(user, ownerId, type);
 	}

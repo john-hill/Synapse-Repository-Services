@@ -49,7 +49,7 @@ public class TableEntityMetadataProviderTest {
 	
 	@Before
 	public void before() throws DatastoreException, NotFoundException{
-		user = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
+		user = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		List<TypeSpecificMetadataProvider<Entity>> types = metadataProviderFactory.getMetadataProvider(EntityType.getNodeTypeForClass(TableEntity.class));
 		assertNotNull(types);
 		tableEntityMetadataProvider = types.get(0);

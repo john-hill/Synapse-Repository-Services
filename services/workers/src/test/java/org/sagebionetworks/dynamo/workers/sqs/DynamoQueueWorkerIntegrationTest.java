@@ -1,6 +1,7 @@
 package org.sagebionetworks.dynamo.workers.sqs;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -17,8 +18,10 @@ import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.EntityHeader;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -44,6 +47,7 @@ public class DynamoQueueWorkerIntegrationTest {
 	private MessageReceiver dynamoQueueMessageRemover;
 
 	private Project project;
+	private UserInfo nonAdminInfo;
 
 	@Before
 	public void before() throws Exception {
@@ -60,14 +64,20 @@ public class DynamoQueueWorkerIntegrationTest {
 		dynamoAdminDao.clear(DboNodeLineage.TABLE_NAME,
 				DboNodeLineage.HASH_KEY_NAME, DboNodeLineage.RANGE_KEY_NAME);
 
-		// Create a project
-		UserInfo userInfo = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
+		// Create a non admin user
+		NewUser nu = new NewUser();
+		nu.setEmail(UUID.randomUUID().toString()+"@test.com");
+		nu.setPrincipalName(UUID.randomUUID().toString());
+		Principal p = userManager.createUser(nu);
+		
+		nonAdminInfo = userManager.getUserInfo(Long.parseLong(p.getId()));
+
 		project = new Project();
 		project.setName("DynamoQueueWorkerIntegrationTest.Project");
 		
 		// This should trigger create message.
-		String id = entityManager.createEntity(userInfo, project, null);
-		project = entityManager.getEntity(userInfo, id, Project.class);
+		String id = entityManager.createEntity(nonAdminInfo, project, null);
+		project = entityManager.getEntity(nonAdminInfo, id, Project.class);
 		Assert.assertNotNull(project);
 	}
 
@@ -80,7 +90,7 @@ public class DynamoQueueWorkerIntegrationTest {
 		// Remove the project
 		if (project != null) {
 			entityManager.deleteEntity(
-					userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME),
+					userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID),
 					project.getId());
 		}
 		// Try to empty the queue
@@ -91,6 +101,12 @@ public class DynamoQueueWorkerIntegrationTest {
 		// Clear Dynamo
 		dynamoAdminDao.clear(DboNodeLineage.TABLE_NAME,
 				DboNodeLineage.HASH_KEY_NAME, DboNodeLineage.RANGE_KEY_NAME);
+		
+		if(nonAdminInfo != null){
+			try {
+				userManager.delete(nonAdminInfo.getIndividualGroup().getId());
+			} catch (Exception e) {} 
+		}
 	}
 
 	@Test
@@ -108,8 +124,7 @@ public class DynamoQueueWorkerIntegrationTest {
 
 		Assert.assertNotNull(results);
 		Assert.assertTrue(results.size() > 0);
-		UserInfo userInfo = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
-		List<EntityHeader> path = entityManager.getEntityPath(userInfo,
+		List<EntityHeader> path = entityManager.getEntityPath(nonAdminInfo,
 				project.getId());
 		EntityHeader expectedRoot = path.get(0);
 		Assert.assertEquals(KeyFactory.stringToKey(expectedRoot.getId())

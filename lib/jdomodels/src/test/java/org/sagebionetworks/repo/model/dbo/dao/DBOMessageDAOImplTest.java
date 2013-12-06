@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import org.junit.After;
 import org.junit.Before;
@@ -21,6 +22,7 @@ import org.sagebionetworks.repo.model.MessageDAO;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
+import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOMessageContent;
@@ -80,8 +82,16 @@ public class DBOMessageDAOImplTest {
 		changeDAO.deleteAllChanges();
 		
 		// These two principals will act as mutual spammers
-		maliciousUser = userGroupDAO.findUserWithEmail(AuthorizationConstants.TEST_USER_NAME);
-		maliciousGroup = userGroupDAO.findPrincipalWithPrincipalName(AuthorizationConstants.TEST_GROUP_NAME, false);
+		maliciousUser = new Principal();
+		maliciousUser.setEmail(UUID.randomUUID().toString()+"@test.com");
+		maliciousUser.setPrincipalName(UUID.randomUUID().toString());
+		maliciousUser.setIsIndividual(true);
+		maliciousUser.setId(userGroupDAO.create(maliciousUser));
+		
+		maliciousGroup = new Principal();
+		maliciousGroup.setPrincipalName(UUID.randomUUID().toString());
+		maliciousGroup.setIsIndividual(false);
+		maliciousGroup.setId(userGroupDAO.create(maliciousGroup));
 		
 		// We need a file handle to satisfy a foreign key constraint
 		// But it doesn't need to point to an actual file
@@ -146,6 +156,17 @@ public class DBOMessageDAOImplTest {
 			messageDAO.deleteMessage(id);
 		}
 		fileDAO.delete(fileHandleId);
+		if(maliciousUser != null){
+			try {
+				userGroupDAO.delete(maliciousUser.getId());
+			} catch (Exception e) {} 
+		}
+		
+		if(maliciousGroup != null){
+			try {
+				userGroupDAO.delete(maliciousGroup.getId());
+			} catch (Exception e) {} 
+		}
 	}
 	
 	@Test

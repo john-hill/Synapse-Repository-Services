@@ -41,8 +41,7 @@ public class MigrationControllerAutowireTest {
 	@Autowired
 	private FileHandleDao fileMetadataDao;
 	
-	private String userName;
-	private String adminId;
+	private Long adminId;
 	
 	Project entity;
 	S3FileHandle handleOne;
@@ -52,12 +51,12 @@ public class MigrationControllerAutowireTest {
 	@Before
 	public void before() throws Exception{
 		// get user IDs
-		userName = AuthorizationConstants.ADMIN_USER_NAME;
-		adminId = userManager.getUserInfo(userName).getIndividualGroup().getId();
+		adminId = AuthorizationConstants.ADMIN_USER_ID;
+		
 		startFileCount = fileMetadataDao.getCount();
 		// Create a file handle
 		handleOne = new S3FileHandle();
-		handleOne.setCreatedBy(adminId);
+		handleOne.setCreatedBy(adminId.toString());
 		handleOne.setCreatedOn(new Date());
 		handleOne.setBucketName("bucket");
 		handleOne.setKey("mainFileKey");
@@ -66,7 +65,7 @@ public class MigrationControllerAutowireTest {
 		handleOne = fileMetadataDao.createFile(handleOne);
 		// Create a preview
 		preview = new PreviewFileHandle();
-		preview.setCreatedBy(adminId);
+		preview.setCreatedBy(adminId.toString());
 		preview.setCreatedOn(new Date());
 		preview.setBucketName("bucket");
 		preview.setKey("previewFileKey");
@@ -82,7 +81,7 @@ public class MigrationControllerAutowireTest {
 	public void after() throws Exception{
 		// Delete the project
 		if(entity != null){
-			UserInfo userInfo = userManager.getUserInfo(userName);
+			UserInfo userInfo = userManager.getUserInfo(adminId);
 			nodeManager.delete(userInfo, entity.getId());
 		}
 		if(handleOne != null && handleOne.getId() != null){
@@ -95,7 +94,7 @@ public class MigrationControllerAutowireTest {
 	
 	@Test
 	public void testGetCounts() throws Exception {
-		MigrationTypeCounts counts = entityServletHelper.getMigrationTypeCounts(userName);
+		MigrationTypeCounts counts = entityServletHelper.getMigrationTypeCounts(adminId);
 		assertNotNull(counts);
 		assertNotNull(counts.getList());
 		assertTrue(counts.getList().size() <= MigrationType.values().length);
@@ -115,7 +114,7 @@ public class MigrationControllerAutowireTest {
 	@Test
 	public void testRowMetadata() throws Exception {
 		// First list the values for files
-		RowMetadataResult results = entityServletHelper.getRowMetadata(userName, MigrationType.FILE_HANDLE, Long.MAX_VALUE, startFileCount);
+		RowMetadataResult results = entityServletHelper.getRowMetadata(adminId, MigrationType.FILE_HANDLE, Long.MAX_VALUE, startFileCount);
 		assertNotNull(results);
 		assertNotNull(results.getList());
 		assertEquals(new Long(startFileCount+2), results.getTotalCount());

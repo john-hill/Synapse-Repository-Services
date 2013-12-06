@@ -18,7 +18,7 @@ public interface UserProfileManager {
 	/**
 	 * Get an existing UserProfile
 	 */
-	public UserProfile getUserProfile(UserInfo userInfo, String ownerid)
+	public UserProfile getUserProfile(UserInfo userInfo, Long ownerid)
 			throws NotFoundException, DatastoreException, UnauthorizedException;
 
 	/**
@@ -47,7 +47,7 @@ public interface UserProfileManager {
 	 * userId may not match the profileId
 	 */
 	public S3AttachmentToken createS3UserProfileAttachmentToken(
-			UserInfo userInfo, String profileId, S3AttachmentToken token)
+			UserInfo userInfo, Long profileId, S3AttachmentToken token)
 			throws NotFoundException, DatastoreException,
 			UnauthorizedException, InvalidModelException;
 

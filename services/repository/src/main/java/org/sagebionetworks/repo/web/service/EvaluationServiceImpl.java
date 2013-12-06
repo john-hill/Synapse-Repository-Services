@@ -62,21 +62,21 @@ public class EvaluationServiceImpl implements EvaluationService {
 
 	@Override
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
-	public Evaluation createEvaluation(String userName, Evaluation eval) 
+	public Evaluation createEvaluation(Long userName, Evaluation eval) 
 			throws DatastoreException, InvalidModelException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userName);
 		return evaluationManager.createEvaluation(userInfo, eval);
 	}
 	
 	@Override
-	public Evaluation getEvaluation(String userId, String id) throws DatastoreException,
+	public Evaluation getEvaluation(Long userId, String id) throws DatastoreException,
 			NotFoundException, UnauthorizedException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		return evaluationManager.getEvaluation(userInfo, id);
 	}
 	
 	@Override
-	public PaginatedResults<Evaluation> getEvaluationByContentSource(String userId, String id, long limit, long offset, HttpServletRequest request)
+	public PaginatedResults<Evaluation> getEvaluationByContentSource(Long userId, String id, long limit, long offset, HttpServletRequest request)
 			throws DatastoreException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		QueryResults<Evaluation> res = evaluationManager.getEvaluationByContentSource(userInfo, id, limit, offset);
@@ -93,7 +93,7 @@ public class EvaluationServiceImpl implements EvaluationService {
 
 	@Override
 	@Deprecated
-	public PaginatedResults<Evaluation> getEvaluationsInRange(String userId, long limit, long offset, HttpServletRequest request) 
+	public PaginatedResults<Evaluation> getEvaluationsInRange(Long userId, long limit, long offset, HttpServletRequest request) 
 			throws DatastoreException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		QueryResults<Evaluation> res = evaluationManager.getInRange(userInfo, limit, offset);
@@ -120,7 +120,7 @@ public class EvaluationServiceImpl implements EvaluationService {
 	 */
 	@Override
 	public PaginatedResults<Evaluation> getAvailableEvaluationsInRange(
-			String userId, long limit, long offset, HttpServletRequest request) 
+			Long userId, long limit, long offset, HttpServletRequest request) 
 			throws DatastoreException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		QueryResults<Evaluation> res = evaluationManager.getAvailableInRange(userInfo, limit, offset);
@@ -137,13 +137,13 @@ public class EvaluationServiceImpl implements EvaluationService {
 
 	@Override
 	@Deprecated
-	public long getEvaluationCount(String userId) throws DatastoreException, NotFoundException {
+	public long getEvaluationCount(Long userId) throws DatastoreException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		return evaluationManager.getCount(userInfo);
 	}
 
 	@Override
-	public Evaluation findEvaluation(String userId, String name)
+	public Evaluation findEvaluation(Long userId, String name)
 			throws DatastoreException, NotFoundException, UnauthorizedException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		return evaluationManager.findEvaluation(userInfo, name);
@@ -151,7 +151,7 @@ public class EvaluationServiceImpl implements EvaluationService {
 
 	@Override
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
-	public Evaluation updateEvaluation(String userName, Evaluation eval)
+	public Evaluation updateEvaluation(Long userName, Evaluation eval)
 			throws DatastoreException, NotFoundException, UnauthorizedException,
 			InvalidModelException, ConflictingUpdateException {
 		UserInfo userInfo = userManager.getUserInfo(userName);
@@ -160,7 +160,7 @@ public class EvaluationServiceImpl implements EvaluationService {
 
 	@Override
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
-	public void deleteEvaluation(String userName, String id)
+	public void deleteEvaluation(Long userName, String id)
 			throws DatastoreException, NotFoundException, UnauthorizedException {
 		UserInfo userInfo = userManager.getUserInfo(userName);
 		evaluationManager.deleteEvaluation(userInfo, id);
@@ -168,13 +168,13 @@ public class EvaluationServiceImpl implements EvaluationService {
 	
 	@Override
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
-	public Participant addParticipant(String userName, String evalId) throws NotFoundException {
+	public Participant addParticipant(Long userName, String evalId) throws NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userName);
 		return participantManager.addParticipant(userInfo, evalId);
 	}
 
 	@Override
-	public Participant getParticipant(String userId, String principalId, String evalId)
+	public Participant getParticipant(Long userId, String principalId, String evalId)
 			throws DatastoreException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		return participantManager.getParticipant(userInfo, principalId, evalId);
@@ -182,14 +182,14 @@ public class EvaluationServiceImpl implements EvaluationService {
 
 	@Override
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
-	public void removeParticipant(String userName, String evalId,
+	public void removeParticipant(Long userName, String evalId,
 			String idToRemove) throws DatastoreException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userName);
 		participantManager.removeParticipant(userInfo, evalId, idToRemove);
 	}
 
 	@Override
-	public PaginatedResults<Participant> getAllParticipants(String userId, String evalId, long limit, long offset, HttpServletRequest request)
+	public PaginatedResults<Participant> getAllParticipants(Long userId, String evalId, long limit, long offset, HttpServletRequest request)
 			throws NumberFormatException, DatastoreException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		QueryResults<Participant> res = participantManager.getAllParticipants(userInfo, evalId, limit, offset);
@@ -205,7 +205,7 @@ public class EvaluationServiceImpl implements EvaluationService {
 	}
 
 	@Override
-	public long getParticipantCount(String userId, String evalId)
+	public long getParticipantCount(Long userId, String evalId)
 			throws DatastoreException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		return participantManager.getNumberofParticipants(userInfo, evalId);
@@ -213,13 +213,12 @@ public class EvaluationServiceImpl implements EvaluationService {
 	
 	@Override
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
-	public Submission createSubmission(String userName, Submission submission, String entityEtag, HttpServletRequest request)
+	public Submission createSubmission(Long userId, Submission submission, String entityEtag, HttpServletRequest request)
 			throws NotFoundException, DatastoreException, UnauthorizedException, ACLInheritanceException, ParseException, JSONObjectAdapterException {
-		UserInfo userInfo = userManager.getUserInfo(userName);
+		UserInfo userInfo = userManager.getUserInfo(userId);
 		
 		// fetch EntityBundle to be serialized
 		int mask = ServiceConstants.DEFAULT_ENTITYBUNDLE_MASK_FOR_SUBMISSIONS;
-		String userId = userInfo.getUser().getId();
 		String entityId = submission.getEntityId();
 		Long versionNumber = submission.getVersionNumber();
 		EntityBundle bundle = serviceProvider.getEntityBundleService().getEntityBundle(userId, entityId, versionNumber, mask, request);
@@ -227,14 +226,14 @@ public class EvaluationServiceImpl implements EvaluationService {
 	}
 
 	@Override
-	public Submission getSubmission(String userName, String submissionId)
+	public Submission getSubmission(Long userName, String submissionId)
 			throws DatastoreException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userName);
 		return submissionManager.getSubmission(userInfo, submissionId);
 	}
 
 	@Override
-	public SubmissionStatus getSubmissionStatus(String userName, String submissionId)
+	public SubmissionStatus getSubmissionStatus(Long userName, String submissionId)
 			throws DatastoreException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userName);
 		return submissionManager.getSubmissionStatus(userInfo, submissionId);
@@ -242,7 +241,7 @@ public class EvaluationServiceImpl implements EvaluationService {
 
 	@Override
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
-	public SubmissionStatus updateSubmissionStatus(String userName,
+	public SubmissionStatus updateSubmissionStatus(Long userName,
 			SubmissionStatus submissionStatus) throws NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userName);
 		return submissionManager.updateSubmissionStatus(userInfo, submissionStatus);
@@ -251,14 +250,14 @@ public class EvaluationServiceImpl implements EvaluationService {
 	@Override
 	@Deprecated
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
-	public void deleteSubmission(String userName, String submissionId)
+	public void deleteSubmission(Long userName, String submissionId)
 			throws DatastoreException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userName);
 		submissionManager.deleteSubmission(userInfo, submissionId);
 	}
 
 	@Override
-	public PaginatedResults<Submission> getAllSubmissions(String userName, String evalId,
+	public PaginatedResults<Submission> getAllSubmissions(Long userName, String evalId,
 			SubmissionStatusEnum status, long limit, long offset, HttpServletRequest request)
 			throws DatastoreException, UnauthorizedException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userName);
@@ -275,7 +274,7 @@ public class EvaluationServiceImpl implements EvaluationService {
 	}
 	
 	@Override
-	public PaginatedResults<SubmissionStatus> getAllSubmissionStatuses(String userName, String evalId,
+	public PaginatedResults<SubmissionStatus> getAllSubmissionStatuses(Long userName, String evalId,
 			SubmissionStatusEnum status, long limit, long offset, HttpServletRequest request)
 			throws DatastoreException, UnauthorizedException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userName);
@@ -292,7 +291,7 @@ public class EvaluationServiceImpl implements EvaluationService {
 	}
 	
 	@Override
-	public PaginatedResults<SubmissionBundle> getAllSubmissionBundles(String userName, String evalId,
+	public PaginatedResults<SubmissionBundle> getAllSubmissionBundles(Long userName, String evalId,
 			SubmissionStatusEnum status, long limit, long offset, HttpServletRequest request)
 			throws DatastoreException, UnauthorizedException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userName);
@@ -310,7 +309,7 @@ public class EvaluationServiceImpl implements EvaluationService {
 	
 	@Override
 	public PaginatedResults<Submission> getMyOwnSubmissionsByEvaluation(
-			String evalId, String userName, long limit, long offset, HttpServletRequest request)
+			String evalId, Long userName, long limit, long offset, HttpServletRequest request)
 			throws DatastoreException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userName);
 		QueryResults<Submission> res = submissionManager.getMyOwnSubmissionsByEvaluation(userInfo, evalId, limit, offset);
@@ -327,7 +326,7 @@ public class EvaluationServiceImpl implements EvaluationService {
 	
 	@Override
 	public PaginatedResults<SubmissionBundle> getMyOwnSubmissionBundlesByEvaluation(
-			String evalId, String userName, long limit, long offset, HttpServletRequest request)
+			String evalId, Long userName, long limit, long offset, HttpServletRequest request)
 			throws DatastoreException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userName);
 		QueryResults<SubmissionBundle> res = submissionManager.getMyOwnSubmissionBundlesByEvaluation(userInfo, evalId, limit, offset);
@@ -343,7 +342,7 @@ public class EvaluationServiceImpl implements EvaluationService {
 	}
 
 	@Override
-	public URL getRedirectURLForFileHandle(String userName, 
+	public URL getRedirectURLForFileHandle(Long userName, 
 			String submissionId, String fileHandleId) 
 			throws DatastoreException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userName);
@@ -351,7 +350,7 @@ public class EvaluationServiceImpl implements EvaluationService {
 	}
 
 	@Override
-	public long getSubmissionCount(String userName, String evalId) throws DatastoreException,
+	public long getSubmissionCount(Long userName, String evalId) throws DatastoreException,
 			NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userName);
 		return submissionManager.getSubmissionCount(userInfo, evalId);
@@ -359,7 +358,7 @@ public class EvaluationServiceImpl implements EvaluationService {
 
 	@Override
 	@Deprecated
-	public <T extends Entity> boolean hasAccess(String id, String userName,
+	public <T extends Entity> boolean hasAccess(String id, Long userName,
 			HttpServletRequest request, String accessType)
 			throws NotFoundException, DatastoreException, UnauthorizedException {
 		UserInfo userInfo = userManager.getUserInfo(userName);
@@ -367,7 +366,7 @@ public class EvaluationServiceImpl implements EvaluationService {
 	}
 
 	@Override
-	public AccessControlList createAcl(String userName, AccessControlList acl)
+	public AccessControlList createAcl(Long userName, AccessControlList acl)
 			throws NotFoundException, DatastoreException,
 			InvalidModelException, UnauthorizedException,
 			ConflictingUpdateException {
@@ -376,7 +375,7 @@ public class EvaluationServiceImpl implements EvaluationService {
 	}
 
 	@Override
-	public AccessControlList updateAcl(String userName, AccessControlList acl)
+	public AccessControlList updateAcl(Long userName, AccessControlList acl)
 			throws NotFoundException, DatastoreException,
 			InvalidModelException, UnauthorizedException,
 			ConflictingUpdateException {
@@ -385,7 +384,7 @@ public class EvaluationServiceImpl implements EvaluationService {
 	}
 
 	@Override
-	public void deleteAcl(String userName, String evalId)
+	public void deleteAcl(Long userName, String evalId)
 			throws NotFoundException, DatastoreException,
 			InvalidModelException, UnauthorizedException,
 			ConflictingUpdateException {
@@ -394,7 +393,7 @@ public class EvaluationServiceImpl implements EvaluationService {
 	}
 
 	@Override
-	public AccessControlList getAcl(String userName, String evalId)
+	public AccessControlList getAcl(Long userName, String evalId)
 			throws NotFoundException, DatastoreException,
 			ACLInheritanceException {
 		UserInfo userInfo = userManager.getUserInfo(userName);
@@ -403,14 +402,14 @@ public class EvaluationServiceImpl implements EvaluationService {
 
 	@Override
 	public UserEvaluationPermissions getUserPermissionsForEvaluation(
-			String userName, String evalId) throws NotFoundException,
+			Long userName, String evalId) throws NotFoundException,
 			DatastoreException {
 		UserInfo userInfo = userManager.getUserInfo(userName);
 		return evaluationPermissionsManager.getUserPermissionsForEvaluation(userInfo, evalId);
 	}
 	
 	@Override
-	public QueryTableResults query(String userQuery, String userName) 
+	public QueryTableResults query(String userQuery, Long userName) 
 			throws DatastoreException, NotFoundException, JSONObjectAdapterException,
 			ParseException {
 		// Parse and validate the query

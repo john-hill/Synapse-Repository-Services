@@ -13,7 +13,7 @@ public interface DoiDao {
 	 * Creates a DOI for the specified entity version. If the version number is null,
 	 * the DOI will be associated with the most recent version if applicable.
 	 */
-	Doi createDoi(String userGroupId, String objectId, ObjectType objectType,
+	Doi createDoi(Long userGroupId, String objectId, ObjectType objectType,
 			Long versionNumber, DoiStatus doiStatus) throws DatastoreException;
 
 	/**

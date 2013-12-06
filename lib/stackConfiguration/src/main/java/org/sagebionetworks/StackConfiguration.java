@@ -419,94 +419,6 @@ public class StackConfiguration {
 	}
 
 	/**
-	 * @return The name of a user for integration tests
-	 */
-	public static String getIntegrationTestUserOneName() {
-		return configuration
-				.getProperty("org.sagebionetworks.integration.test.username.one");
-	}
-	
-	/**
-	 * @return The password of a user for integration tests
-	 */
-	public static String getIntegrationTestUserOnePassword() {
-		return configuration
-				.getProperty("org.sagebionetworks.integration.test.password.one");
-	}
-
-	/**
-	 * @return The name of a second user for integration tests
-	 */
-	public static String getIntegrationTestUserTwoName() {
-		return configuration
-				.getProperty("org.sagebionetworks.integration.test.username.two");
-	}
-
-	/**
-	 * @return The password of a second user for integration tests
-	 */
-	public static String getIntegrationTestUserTwoPassword() {
-		return configuration
-				.getProperty("org.sagebionetworks.integration.test.password.two");
-	}
-
-	/**
-	 * @return The name of a user for integration tests
-	 */
-	public static String getIntegrationTestUserThreeName() {
-		return configuration
-				.getProperty("org.sagebionetworks.integration.test.username.three");
-	}
-
-	/**
-	 * @return The password of a user for integration tests
-	 */
-	public static String getIntegrationTestUserThreePassword() {
-		return configuration
-				.getProperty("org.sagebionetworks.integration.test.password.three");
-	}
-
-	/**
-	 * @return The name of a user for integration tests
-	 */
-	public static String getIntegrationTestUserThreeDisplayName() {
-		return configuration
-				.getProperty("org.sagebionetworks.integration.test.displayname.three");
-	}
-
-	/**
-	 * @return The name of a second user for integration tests
-	 */
-	public static String getIntegrationTestUserAdminName() {
-		return configuration
-				.getProperty("org.sagebionetworks.integration.test.username.admin");
-	}
-
-	/**
-	 * @return The password of a second user for integration tests
-	 */
-	public static String getIntegrationTestUserAdminPassword() {
-		return configuration
-				.getProperty("org.sagebionetworks.integration.test.password.admin");
-	}
-
-	/**
-	 * @return The name of a user for integration tests
-	 */
-	public static String getIntegrationTestRejectTermsOfUseName() {
-		return configuration
-				.getProperty("org.sagebionetworks.integration.test.username.rejecttermsofuse");
-	}
-
-	/**
-	 * @return The password of a user for integration tests
-	 */
-	public static String getIntegrationTestRejectTermsOfUsePassword() {
-		return configuration
-				.getProperty("org.sagebionetworks.integration.test.password.rejecttermsofuse");
-	}
-
-	/**
 	 * @return whether controller logging is enabled or not.
 	 */
 	public boolean getControllerLoggingEnabled() {
@@ -668,17 +580,6 @@ public class StackConfiguration {
 				.getProperty("org.sagebionetworks.bridge.spreadsheet.title");
 	}
 
-	/**
-	 * 
-	 * Returns the email address to which requests for BCC participation are
-	 * sent.
-	 * 
-	 * @return
-	 */
-	public static String getBCCApprovalEmail() {
-		return configuration
-				.getProperty("org.sagebionetworks.bcc.approvalEmail");
-	}
 
 	public static String getGoogleAppsOAuthConsumerKey() {
 		return configuration

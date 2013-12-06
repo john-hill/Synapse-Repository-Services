@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import java.io.InputStream;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.UUID;
 
 import org.apache.commons.fileupload.FileItemStream;
 import org.junit.After;
@@ -21,7 +22,9 @@ import org.sagebionetworks.repo.manager.file.preview.ImagePreviewGenerator;
 import org.sagebionetworks.repo.manager.file.preview.TabCsvPreviewGenerator;
 import org.sagebionetworks.repo.manager.file.preview.TextPreviewGenerator;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
 import org.sagebionetworks.repo.model.file.PreviewFileHandle;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
@@ -72,7 +75,11 @@ public class PreviewIntegrationTest {
 		// Before we start, make sure the queue is empty
 		emptyQueue();
 		// Create a file
-		userInfo = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
+		NewUser nu = new NewUser();
+		nu.setEmail(UUID.randomUUID().toString()+"@test.com");
+		nu.setPrincipalName(UUID.randomUUID().toString());
+		Principal p = userManager.createUser(nu);
+		userInfo = userManager.getUserInfo(Long.parseLong(p.getId()));
 		toDelete = new LinkedList<S3FileHandleInterface>();
 		// First upload a file that we want to generate a preview for.
 		imageFileHandle = uploadFile(LITTLE_IMAGE_NAME, ImagePreviewGenerator.IMAGE_PNG);
@@ -109,6 +116,11 @@ public class PreviewIntegrationTest {
 				// We also need to delete the data from the database
 				fileMetadataDao.delete(meta.getId());
 			}
+		}
+		if(userInfo != null){
+			try {
+				userManager.delete(userInfo.getIndividualGroup().getId());
+			} catch (Exception e) {} 
 		}
 	}
 

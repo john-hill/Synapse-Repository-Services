@@ -36,19 +36,19 @@ public interface EvaluationService {
 	 * @throws InvalidModelException
 	 * @throws NotFoundException
 	 */
-	public Evaluation createEvaluation(String userId, Evaluation eval)
+	public Evaluation createEvaluation(Long userId, Evaluation eval)
 			throws DatastoreException, InvalidModelException, NotFoundException;
 	
 	/**
 	 * Get a Synapse Evaluation by its id
 	 */
-	public Evaluation getEvaluation(String userId, String id)
+	public Evaluation getEvaluation(Long userId, String id)
 			throws DatastoreException, NotFoundException, UnauthorizedException;
 	
 	/**
 	 * Gets all Synapse Evaluations tied to the given Project
 	 */
-	public PaginatedResults<Evaluation> getEvaluationByContentSource(String userId, String id, long limit, long offset, HttpServletRequest request)
+	public PaginatedResults<Evaluation> getEvaluationByContentSource(Long userId, String id, long limit, long offset, HttpServletRequest request)
 			throws DatastoreException, NotFoundException;
 
 	/**
@@ -61,7 +61,7 @@ public interface EvaluationService {
 	 * @throws NotFoundException
 	 */
 	@Deprecated
-	public PaginatedResults<Evaluation> getEvaluationsInRange(String userId, long limit, long offset,
+	public PaginatedResults<Evaluation> getEvaluationsInRange(Long userId, long limit, long offset,
 			HttpServletRequest request) throws DatastoreException, NotFoundException;
 
 	/**
@@ -75,7 +75,7 @@ public interface EvaluationService {
 	 * @throws NotFoundException
 	 */
 	public PaginatedResults<Evaluation> getAvailableEvaluationsInRange(
-			String userId, long limit, long offset, HttpServletRequest request) throws DatastoreException, NotFoundException;
+			Long userId, long limit, long offset, HttpServletRequest request) throws DatastoreException, NotFoundException;
 
 	/**
 	 * Get the total number of Evaluations in the system
@@ -84,7 +84,7 @@ public interface EvaluationService {
 	 * @throws NotFoundException
 	 */
 	@Deprecated
-	public long getEvaluationCount(String userId) throws DatastoreException,
+	public long getEvaluationCount(Long userId) throws DatastoreException,
 			NotFoundException;
 
 	/**
@@ -96,7 +96,7 @@ public interface EvaluationService {
 	 * @throws NotFoundException
 	 * @throws UnauthorizedException
 	 */
-	public Evaluation findEvaluation(String userId, String name) throws DatastoreException,
+	public Evaluation findEvaluation(Long userId, String name) throws DatastoreException,
 			NotFoundException, UnauthorizedException;
 
 	/**
@@ -111,7 +111,7 @@ public interface EvaluationService {
 	 * @throws InvalidModelException
 	 * @throws ConflictingUpdateException
 	 */
-	public Evaluation updateEvaluation(String userId, Evaluation eval)
+	public Evaluation updateEvaluation(Long userId, Evaluation eval)
 			throws DatastoreException, NotFoundException,
 			UnauthorizedException, InvalidModelException,
 			ConflictingUpdateException;
@@ -125,7 +125,7 @@ public interface EvaluationService {
 	 * @throws NotFoundException
 	 * @throws UnauthorizedException
 	 */
-	public void deleteEvaluation(String userId, String evalId)
+	public void deleteEvaluation(Long userId, String evalId)
 			throws DatastoreException, NotFoundException, UnauthorizedException;
 
 	////// Methods for managing participants //////
@@ -138,7 +138,7 @@ public interface EvaluationService {
 	 * @return
 	 * @throws NotFoundException
 	 */
-	public Participant addParticipant(String userName, String evalId)
+	public Participant addParticipant(Long userName, String evalId)
 			throws NotFoundException;
 
 	/**
@@ -150,7 +150,7 @@ public interface EvaluationService {
 	 * @throws DatastoreException
 	 * @throws NotFoundException
 	 */
-	public Participant getParticipant(String userId, String principalId, String evalId)
+	public Participant getParticipant(Long userId, String principalId, String evalId)
 			throws DatastoreException, NotFoundException;
 
 	/**
@@ -162,7 +162,7 @@ public interface EvaluationService {
 	 * @throws DatastoreException
 	 * @throws NotFoundException
 	 */
-	public void removeParticipant(String userId, String evalId,
+	public void removeParticipant(Long userId, String evalId,
 			String idToRemove) throws DatastoreException, NotFoundException;
 
 	/**
@@ -174,7 +174,7 @@ public interface EvaluationService {
 	 * @throws DatastoreException
 	 * @throws NotFoundException
 	 */
-	public PaginatedResults<Participant> getAllParticipants(String userId, String evalId, long limit, long offset, HttpServletRequest request)
+	public PaginatedResults<Participant> getAllParticipants(Long userId, String evalId, long limit, long offset, HttpServletRequest request)
 			throws NumberFormatException, DatastoreException, NotFoundException;
 
 	/**
@@ -185,7 +185,7 @@ public interface EvaluationService {
 	 * @throws DatastoreException
 	 * @throws NotFoundException
 	 */
-	public long getParticipantCount(String userId, String evalId) throws DatastoreException,
+	public long getParticipantCount(Long userId, String evalId) throws DatastoreException,
 			NotFoundException;
 
 	////// Methods for managing submissions //////
@@ -204,7 +204,7 @@ public interface EvaluationService {
 	 * @throws ParseException
 	 * @throws JSONObjectAdapterException
 	 */
-	public Submission createSubmission(String userId, Submission submission, String entityEtag, HttpServletRequest request)
+	public Submission createSubmission(Long userId, Submission submission, String entityEtag, HttpServletRequest request)
 			throws NotFoundException, DatastoreException, UnauthorizedException, ACLInheritanceException, ParseException, JSONObjectAdapterException;
 
 	/**
@@ -215,7 +215,7 @@ public interface EvaluationService {
 	 * @throws DatastoreException
 	 * @throws NotFoundException
 	 */
-	public Submission getSubmission(String userName, String submissionId)
+	public Submission getSubmission(Long userName, String submissionId)
 			throws DatastoreException, NotFoundException;
 
 	/**
@@ -226,7 +226,7 @@ public interface EvaluationService {
 	 * @throws DatastoreException
 	 * @throws NotFoundException
 	 */
-	public SubmissionStatus getSubmissionStatus(String userName, String submissionId)
+	public SubmissionStatus getSubmissionStatus(Long userName, String submissionId)
 			throws DatastoreException, NotFoundException;
 
 	/**
@@ -239,7 +239,7 @@ public interface EvaluationService {
 	 * @return
 	 * @throws NotFoundException
 	 */
-	public SubmissionStatus updateSubmissionStatus(String userId,
+	public SubmissionStatus updateSubmissionStatus(Long userId,
 			SubmissionStatus submissionStatus) throws NotFoundException;
 
 	/**
@@ -254,7 +254,7 @@ public interface EvaluationService {
 	 * @throws NotFoundException
 	 */
 	@Deprecated
-	public void deleteSubmission(String userId, String submissionId)
+	public void deleteSubmission(Long userId, String submissionId)
 			throws DatastoreException, NotFoundException;
 
 	/**
@@ -274,7 +274,7 @@ public interface EvaluationService {
 	 * @throws UnauthorizedException
 	 * @throws NotFoundException
 	 */
-	public PaginatedResults<Submission> getAllSubmissions(String userId, String evalId,
+	public PaginatedResults<Submission> getAllSubmissions(Long userId, String evalId,
 			SubmissionStatusEnum status, long limit, long offset, HttpServletRequest request)
 			throws DatastoreException, UnauthorizedException, NotFoundException;
 
@@ -290,7 +290,7 @@ public interface EvaluationService {
 	 * @throws NotFoundException
 	 */
 	PaginatedResults<Submission> getMyOwnSubmissionsByEvaluation(String evalId,
-			String userName, long limit, long offset, HttpServletRequest request) 
+			Long userName, long limit, long offset, HttpServletRequest request) 
 			throws DatastoreException, NotFoundException;
 
 	/**
@@ -301,7 +301,7 @@ public interface EvaluationService {
 	 * @throws DatastoreException
 	 * @throws NotFoundException
 	 */
-	public long getSubmissionCount(String userName, String evalId) throws DatastoreException,
+	public long getSubmissionCount(Long userName, String evalId) throws DatastoreException,
 			NotFoundException;
 
 	/**
@@ -317,7 +317,7 @@ public interface EvaluationService {
 	 * @throws NotFoundException
 	 */
 	public PaginatedResults<SubmissionBundle> getMyOwnSubmissionBundlesByEvaluation(
-			String evalId, String userName, long limit, long offset,
+			String evalId, Long userName, long limit, long offset,
 			HttpServletRequest request) throws DatastoreException,
 			NotFoundException;
 
@@ -336,7 +336,7 @@ public interface EvaluationService {
 	 * @throws UnauthorizedException
 	 * @throws NotFoundException
 	 */
-	public PaginatedResults<SubmissionBundle> getAllSubmissionBundles(String userName,
+	public PaginatedResults<SubmissionBundle> getAllSubmissionBundles(Long userName,
 			String evalId, SubmissionStatusEnum status, long limit,
 			long offset, HttpServletRequest request) throws DatastoreException,
 			UnauthorizedException, NotFoundException;
@@ -359,7 +359,7 @@ public interface EvaluationService {
 	 * @throws UnauthorizedException
 	 * @throws NotFoundException
 	 */
-	PaginatedResults<SubmissionStatus> getAllSubmissionStatuses(String userId, String evalId, 
+	PaginatedResults<SubmissionStatus> getAllSubmissionStatuses(Long userId, String evalId, 
 			SubmissionStatusEnum status, long limit, long offset, HttpServletRequest request)
 			throws DatastoreException, UnauthorizedException, NotFoundException;
 
@@ -374,7 +374,7 @@ public interface EvaluationService {
 	 * @throws DatastoreException
 	 * @throws NotFoundException
 	 */
-	public URL getRedirectURLForFileHandle(String userName, String submissionId,
+	public URL getRedirectURLForFileHandle(Long userName, String submissionId,
 			String fileHandleId) throws DatastoreException, NotFoundException;
 
 	////// Methods for managing ACLs //////
@@ -391,41 +391,41 @@ public interface EvaluationService {
 	 * @throws UnauthorizedException
 	 */
 	@Deprecated
-	public <T extends Entity> boolean hasAccess(String evalId, String userName,
+	public <T extends Entity> boolean hasAccess(String evalId, Long userName,
 			HttpServletRequest request, String accessType)
 			throws NotFoundException, DatastoreException, UnauthorizedException;
 
 	/**
 	 * Creates a new ACL.
 	 */
-	public AccessControlList createAcl(String userName, AccessControlList acl)
+	public AccessControlList createAcl(Long userName, AccessControlList acl)
 			throws NotFoundException, DatastoreException, InvalidModelException,
 			UnauthorizedException, ConflictingUpdateException;
 
 	/**
 	 * Updates with the given ACL.
 	 */
-	public AccessControlList updateAcl(String userName, AccessControlList acl)
+	public AccessControlList updateAcl(Long userName, AccessControlList acl)
 			throws NotFoundException, DatastoreException, InvalidModelException,
 			UnauthorizedException, ConflictingUpdateException;
 
 	/**
 	 * Deletes the ACL of the specified evaluation.
 	 */
-	public void deleteAcl(String userName, String evalId)
+	public void deleteAcl(Long userName, String evalId)
 			throws NotFoundException, DatastoreException, InvalidModelException,
 			UnauthorizedException, ConflictingUpdateException;
 
 	/**
 	 * Gets the access control list (ACL) governing the given evaluation.
 	 */
-	public AccessControlList getAcl(String userName, String evalId)
+	public AccessControlList getAcl(Long userName, String evalId)
 			throws NotFoundException, DatastoreException, ACLInheritanceException;
 
 	/**
 	 * Gets the user permissions for an evaluation.
 	 */
-	public UserEvaluationPermissions getUserPermissionsForEvaluation(String userName, String evalId)
+	public UserEvaluationPermissions getUserPermissionsForEvaluation(Long userName, String evalId)
 			throws NotFoundException, DatastoreException;
 
 	/**
@@ -439,6 +439,6 @@ public interface EvaluationService {
 	 * @throws DatastoreException 
 	 * @throws ParseException 
 	 */
-	public QueryTableResults query(String userQuery, String userName)
+	public QueryTableResults query(String userQuery, Long userName)
 			throws DatastoreException, NotFoundException, JSONObjectAdapterException, ParseException;
 }

@@ -183,7 +183,7 @@ public class S3TokenManagerImpl implements S3TokenManager {
 	}
 
 	@Override
-	public S3Token createS3Token(String userId, String id, S3Token s3Token,
+	public S3Token createS3Token(Long userId, String id, S3Token s3Token,
 			EntityType type) throws DatastoreException, NotFoundException,
 			UnauthorizedException, InvalidModelException {
 		// Validate the parameters
@@ -231,7 +231,7 @@ public class S3TokenManagerImpl implements S3TokenManager {
 	}
 	
 	@Override
-	public S3AttachmentToken createS3AttachmentToken(String userId, String entityId,
+	public S3AttachmentToken createS3AttachmentToken(Long userId, String entityId,
 			S3AttachmentToken token) throws NotFoundException,
 			DatastoreException, UnauthorizedException, InvalidModelException {
 		// Wrap it up and pass it along
@@ -294,7 +294,7 @@ public class S3TokenManagerImpl implements S3TokenManager {
 	}
 
 	@Override
-	public PresignedUrl getAttachmentUrl(String userId, String entityId, String tokenId) throws NotFoundException, DatastoreException, UnauthorizedException, InvalidModelException {
+	public PresignedUrl getAttachmentUrl(Long userId, String entityId, String tokenId) throws NotFoundException, DatastoreException, UnauthorizedException, InvalidModelException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		return getAttachmentUrl(userInfo, entityId, tokenId);
 	}
@@ -330,7 +330,7 @@ public class S3TokenManagerImpl implements S3TokenManager {
 		// The path of any attachment is is simply the entity-id/token-id
 		String path = createAttachmentPathSlash(entityId, tokenId);
 		// Generate the presigned url for download
-		String presignedUrl = locationHelper.presignS3GETUrlShortLived(user.getUser().getId(), path);
+		String presignedUrl = locationHelper.presignS3GETUrlShortLived(Long.parseLong(user.getUser().getId()), path);
 		PresignedUrl url = new PresignedUrl();
 		url.setPresignedUrl(presignedUrl);
 		url.setTokenID(tokenId);

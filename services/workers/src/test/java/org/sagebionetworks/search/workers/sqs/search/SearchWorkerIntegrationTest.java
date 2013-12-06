@@ -75,7 +75,7 @@ public class SearchWorkerIntegrationTest {
 		searchDao.deleteAllDocuments();
 		
 		// Create a project
-		userInfo = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
+		userInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		project = new Project();
 		project.setName("SearchIntegrationTest.Project");
 		// this should trigger create messaage.
@@ -114,7 +114,7 @@ public class SearchWorkerIntegrationTest {
 	@After
 	public void after() throws DatastoreException, UnauthorizedException, NotFoundException{
 		if (project != null){
-			UserInfo adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
+			UserInfo adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 			entityManager.deleteEntity(adminUserInfo, project.getId());
 		}
 		if(rootKey != null){

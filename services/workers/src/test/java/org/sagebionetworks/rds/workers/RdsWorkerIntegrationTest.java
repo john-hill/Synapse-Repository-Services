@@ -58,7 +58,7 @@ public class RdsWorkerIntegrationTest {
 		emptyQueue();
 		
 		// Create a project
-		UserInfo userInfo = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
+		UserInfo userInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		project = new Project();
 		project.setName("RdsWorkerIntegrationTest.Project");
 		// this should trigger create message.
@@ -89,7 +89,7 @@ public class RdsWorkerIntegrationTest {
 	
 	@After
 	public void after() throws Exception {
-		UserInfo adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
+		UserInfo adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		entityManager.deleteEntity(adminUserInfo, project.getId());
 	}
 	
@@ -97,7 +97,7 @@ public class RdsWorkerIntegrationTest {
 	@Test
 	public void testRoundTrip() throws Exception {
 		// First run query
-		UserInfo userInfo = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
+		UserInfo userInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		BasicQuery query = new BasicQuery();
 		query.addExpression(new Expression(new CompoundId(null, key), Comparator.EQUALS, uniqueValue));
 		long start = System.currentTimeMillis();

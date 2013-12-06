@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import org.apache.commons.lang.StringUtils;
 import org.junit.After;
@@ -29,6 +30,7 @@ import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.UserProfile;
 import org.sagebionetworks.repo.model.UserProfileDAO;
+import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.message.MessageBundle;
@@ -100,11 +102,23 @@ public class MessageManagerImplTest {
 	@SuppressWarnings("serial")
 	@Before
 	public void setUp() throws Exception {
-		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
+		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		cleanup = new ArrayList<String>();
 		
-		testUser = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
-		otherTestUser = userManager.getUserInfo(StackConfiguration.getIntegrationTestUserOneName());
+		NewUser nu = new NewUser();
+		nu.setEmail(UUID.randomUUID().toString()+"@test.com");
+		nu.setPrincipalName(UUID.randomUUID().toString());
+		Principal p = userManager.createUser(nu);
+		
+		testUser = userManager.getUserInfo(Long.parseLong(p.getId()));
+		
+		nu = new NewUser();
+		nu.setEmail(UUID.randomUUID().toString()+"@test.com");
+		nu.setPrincipalName(UUID.randomUUID().toString());
+		p = userManager.createUser(nu);
+		
+		otherTestUser = userManager.getUserInfo(Long.parseLong(p.getId()));
+		
 		final String testUserId = testUser.getIndividualGroup().getId();
 		final String otherTestUserId = otherTestUser.getIndividualGroup().getId();
 		
@@ -113,10 +127,7 @@ public class MessageManagerImplTest {
 		testTeam.setName("MessageManagerImplTest");
 		testTeam = teamManager.create(testUser, testTeam);
 		final String testTeamId = testTeam.getId();
-		
-		// This user info needs to be updated to contain the team
-		testUser = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
-		
+				
 		// We need a file handle to satisfy a foreign key constraint
 		// But it doesn't need to point to an actual file
 		// Also, it doesn't matter who the handle is tied to
@@ -202,6 +213,13 @@ public class MessageManagerImplTest {
 		UserProfile profile = userProfileDAO.get(testUser.getIndividualGroup().getId());
 		profile.setNotificationSettings(new Settings());
 		userProfileDAO.update(profile);
+		
+		if(testUser != null){
+			userManager.delete(testUser.getIndividualGroup().getId());
+		}
+		if(otherTestUser != null){
+			userManager.delete(otherTestUser.getIndividualGroup().getId());
+		}
 	}
 	
 	@SuppressWarnings("serial")

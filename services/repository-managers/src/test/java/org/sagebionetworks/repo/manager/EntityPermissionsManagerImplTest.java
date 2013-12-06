@@ -14,6 +14,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.UUID;
 
 import org.junit.After;
 import org.junit.Before;
@@ -29,9 +30,11 @@ import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.Node;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -64,6 +67,7 @@ public class EntityPermissionsManagerImplTest {
 	private UserInfo userInfo;
 	private UserInfo adminUserInfo;
 	private static Long ownerId;
+	private static Long secondUserId;
 	
 	private Node createDTO(String name, Long createdBy, Long modifiedBy, String parentId) {
 		Node node = new Node();
@@ -87,9 +91,21 @@ public class EntityPermissionsManagerImplTest {
 
 	@Before
 	public void setUp() throws Exception {
-		userInfo = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
+		// Create a non admin user
+		NewUser nu = new NewUser();
+		nu.setEmail(UUID.randomUUID().toString()+"@test.com");
+		nu.setPrincipalName(UUID.randomUUID().toString());
+		Principal p = userManager.createUser(nu);
+		userInfo = userManager.getUserInfo(Long.parseLong(p.getId()));
 		ownerId = Long.parseLong(userInfo.getIndividualGroup().getId());
-		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
+		// Create a second user
+		nu = new NewUser();
+		nu.setEmail(UUID.randomUUID().toString()+"@test.com");
+		nu.setPrincipalName(UUID.randomUUID().toString());
+		p = userManager.createUser(nu);
+		secondUserId = Long.parseLong(p.getId());
+		
+		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		
 		// create a resource
 		project = createNode("foo", 1L, 2L, null);
@@ -106,6 +122,16 @@ public class EntityPermissionsManagerImplTest {
 			try {
 				nodeManager.delete(adminUserInfo, n.getId());
 			} catch (NotFoundException e) {}
+		}
+		if(userInfo != null){
+			try {
+				userManager.delete(userInfo.getIndividualGroup().getId());
+			} catch (Exception e) {} 
+		}
+		if(secondUserId != null){
+			try {
+				userManager.delete(secondUserId.toString());
+			} catch (Exception e) {} 
 		}
 	}
 	
@@ -155,7 +181,7 @@ public class EntityPermissionsManagerImplTest {
 		acl.setId("resource id");
 		
 		// Should fail, since user is not included with proper permissions in ACL
-		UserInfo otherUserInfo = userManager.getUserInfo(StackConfiguration.getIntegrationTestUserOneName());
+		UserInfo otherUserInfo = userManager.getUserInfo(secondUserId);
 		PermissionsManagerUtils.validateACLContent(acl, otherUserInfo, ownerId);
 	}
 
@@ -194,7 +220,7 @@ public class EntityPermissionsManagerImplTest {
 		acl.setResourceAccess(ras);	
 		
 		// Should fail since user does not have permission editing rights in ACL
-		UserInfo otherUserInfo = userManager.getUserInfo(StackConfiguration.getIntegrationTestUserOneName());
+		UserInfo otherUserInfo = userManager.getUserInfo(secondUserId);
 		PermissionsManagerUtils.validateACLContent(acl, otherUserInfo, ownerId);
 	}
 

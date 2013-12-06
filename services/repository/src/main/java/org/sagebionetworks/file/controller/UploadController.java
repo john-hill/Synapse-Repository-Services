@@ -181,10 +181,11 @@ public class UploadController extends BaseController {
 			IOException, DatastoreException, NotFoundException,
 			ServiceUnavailableException, JSONObjectAdapterException {
 		// Get the user ID
-		String userId = request
+		String userIdString = request
 				.getParameter(AuthorizationConstants.USER_ID_PARAM);
-		if (userId == null)
+		if (userIdString == null)
 			throw new UnauthorizedException("The user must be authenticated");
+		Long userId = Long.parseLong(userIdString);
 		LogUtils.logRequest(log, request);
 		// Maker sure this is a multipart
 		if (!ServletFileUpload.isMultipartContent(request)) {
@@ -226,7 +227,7 @@ public class UploadController extends BaseController {
 	public @ResponseBody
 	FileHandle getFileHandle(
 			@PathVariable String handleId,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			HttpServletRequest request) throws FileUploadException,
 			IOException, DatastoreException, NotFoundException,
 			ServiceUnavailableException, JSONObjectAdapterException {
@@ -258,7 +259,7 @@ public class UploadController extends BaseController {
 	public @ResponseBody
 	void deleteFileHandle(
 			@PathVariable String handleId,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			HttpServletRequest request) throws FileUploadException,
 			IOException, DatastoreException, NotFoundException,
 			ServiceUnavailableException, JSONObjectAdapterException {
@@ -285,7 +286,7 @@ public class UploadController extends BaseController {
 	public @ResponseBody
 	void clearPreview(
 			@PathVariable String handleId,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			HttpServletRequest request) throws FileUploadException,
 			IOException, DatastoreException, NotFoundException,
 			ServiceUnavailableException, JSONObjectAdapterException {
@@ -312,7 +313,7 @@ public class UploadController extends BaseController {
 	@RequestMapping(value = "/externalFileHandle", method = RequestMethod.POST)
 	public @ResponseBody
 	ExternalFileHandle createExternalFileHandle(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@RequestBody ExternalFileHandle fileHandle)
 			throws DatastoreException, NotFoundException {
 		// Pass it along
@@ -339,7 +340,7 @@ public class UploadController extends BaseController {
 	@RequestMapping(value = "/createChunkedFileUploadToken", method = RequestMethod.POST)
 	public @ResponseBody
 	ChunkedFileToken createChunkedFileUploadToken(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@RequestBody CreateChunkedFileTokenRequest ccftr)
 			throws DatastoreException, NotFoundException {
 		return fileService.createChunkedFileUploadToken(userId, ccftr);
@@ -365,7 +366,7 @@ public class UploadController extends BaseController {
 	@ResponseStatus(HttpStatus.CREATED)
 	@RequestMapping(value = "/createChunkedFileUploadChunkURL", method = RequestMethod.POST)
 	public void createChunkedPresignedUrl(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@RequestBody ChunkRequest cpr, HttpServletResponse response)
 			throws DatastoreException, NotFoundException, IOException {
 		URL url = fileService.createChunkedFileUploadPartURL(userId, cpr);
@@ -398,7 +399,7 @@ public class UploadController extends BaseController {
 	@RequestMapping(value = "/addChunkToFile", method = RequestMethod.POST)
 	public @ResponseBody
 	ChunkResult addChunkToFile(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@RequestBody ChunkRequest cpr) throws DatastoreException,
 			NotFoundException {
 		return fileService.addChunkToFile(userId, cpr);
@@ -422,7 +423,7 @@ public class UploadController extends BaseController {
 	@RequestMapping(value = "/completeChunkFileUpload", method = RequestMethod.POST)
 	public @ResponseBody
 	S3FileHandle completeChunkFileUpload(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@RequestBody CompleteChunkedFileRequest ccfr)
 			throws DatastoreException, NotFoundException {
 		return fileService.completeChunkFileUpload(userId, ccfr);
@@ -443,7 +444,7 @@ public class UploadController extends BaseController {
 	@RequestMapping(value = "/startCompleteUploadDaemon", method = RequestMethod.POST)
 	public @ResponseBody
 	UploadDaemonStatus startCompleteUploadDaemon(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@RequestBody CompleteAllChunksRequest cacf)
 			throws DatastoreException, NotFoundException {
 		return fileService.startUploadDeamon(userId, cacf);
@@ -463,7 +464,7 @@ public class UploadController extends BaseController {
 	@RequestMapping(value = "/completeUploadDaemonStatus/{daemonId}", method = RequestMethod.GET)
 	public @ResponseBody
 	UploadDaemonStatus completeUploadDaemonStatus(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@PathVariable String daemonId) throws DatastoreException,
 			NotFoundException {
 		return fileService.getUploadDaemonStatus(userId, daemonId);

@@ -51,7 +51,7 @@ public class NodeInheritanceManagerImplAutowireTest {
 	
 	@Before
 	public void before() throws Exception {
-		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
+		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		assertNotNull(nodeManager);
 		assertNotNull(nodeInheritanceManager);
 		assertNotNull(nodeInheritanceDao);

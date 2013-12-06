@@ -1,7 +1,5 @@
 package org.sagebionetworks.repo.manager;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -15,10 +13,9 @@ import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.GroupMembersDAO;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.NameConflictException;
-import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.User;
 import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.PrincipalDAO;
+import org.sagebionetworks.repo.model.User;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.UserProfile;
 import org.sagebionetworks.repo.model.UserProfileDAO;
@@ -50,7 +47,7 @@ public class UserManagerImpl implements UserManager {
 	
 	@Override
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
-	public void createUser(NewUser user) throws DatastoreException {
+	public Principal createUser(NewUser user) throws DatastoreException {
 		if (userGroupDAO.doesPrincipalExistWithEmail(user.getEmail())) {
 			throw new NameConflictException("User with email: '" + user.getEmail() + "' already exists");
 		}
@@ -92,6 +89,7 @@ public class UserManagerImpl implements UserManager {
 				throw new RuntimeException(e);
 			}
 		}
+		return individualGroup;
 	}
 		
 	@Override
@@ -196,26 +194,6 @@ public class UserManagerImpl implements UserManager {
 		}
 	}
 	
-//	@Override
-//	public String getGroupName(String principalId) throws NotFoundException {
-//		Principal userGroup = userGroupDAO.get(principalId);
-//		return userGroup.getPrincipalName();
-//	}
-
-//	@Override
-//	public Collection<Principal> getGroups() throws DatastoreException {
-//		List<String> groupsToOmit = new ArrayList<String>();
-//		groupsToOmit.add(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME);
-//		return userGroupDAO.getAllExcept(false, groupsToOmit);
-//	}
-//
-//	@Override
-//	public List<Principal> getGroupsInRange(UserInfo userInfo, long startIncl, long endExcl, String sort, boolean ascending) 
-//			throws DatastoreException, UnauthorizedException {
-//		List<String> groupsToOmit = new ArrayList<String>();
-//		groupsToOmit.add(AuthorizationConstants.BOOTSTRAP_USER_GROUP_NAME);
-//		return userGroupDAO.getInRangeExcept(startIncl, endExcl, false, groupsToOmit);
-//	}
 
 	@Override
 	public boolean doesPrincipalExistWithPrincipalName(String principalName) {
@@ -227,12 +205,6 @@ public class UserManagerImpl implements UserManager {
 	public void delete(String principalId) throws DatastoreException, NotFoundException {
 		userGroupDAO.delete(principalId);
 		
-	}
-
-	@Override
-	public Principal findPrincipalWithPrincipalName(String principalName,
-			boolean isIndividual) throws NotFoundException {
-		return userGroupDAO.findPrincipalWithPrincipalName(principalName, isIndividual);
 	}
 
 	@Override
@@ -249,5 +221,10 @@ public class UserManagerImpl implements UserManager {
 	@Override
 	public long getPrincipalCount() {
 		return this.userGroupDAO.getCount()-1;
+	}
+
+	@Override
+	public Principal getPrincipal(Long principalId) throws NotFoundException {
+		return userGroupDAO.get(principalId.toString());
 	}
 }

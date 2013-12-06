@@ -60,7 +60,7 @@ public class MultipartManagerImplAutowireTest {
 	@Before
 	public void before() throws Exception {
 		fileHandlesToDelete = new LinkedList<String>();
-		userInfo = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
+		userInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 	}
 	
 	@After

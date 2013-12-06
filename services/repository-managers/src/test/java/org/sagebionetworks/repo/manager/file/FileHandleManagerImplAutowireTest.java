@@ -14,6 +14,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.UUID;
 
 import org.apache.commons.fileupload.FileItemIterator;
 import org.apache.commons.fileupload.FileItemStream;
@@ -33,7 +34,9 @@ import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.file.transfer.TransferUtils;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.DatastoreException;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
 import org.sagebionetworks.repo.model.file.ChunkRequest;
 import org.sagebionetworks.repo.model.file.ChunkResult;
@@ -89,7 +92,12 @@ public class FileHandleManagerImplAutowireTest {
 	
 	@Before
 	public void before() throws Exception{
-		userInfo = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
+		// Create a non admin user
+		NewUser nu = new NewUser();
+		nu.setEmail(UUID.randomUUID().toString()+"@test.com");
+		nu.setPrincipalName(UUID.randomUUID().toString());
+		Principal p = userManager.createUser(nu);
+		userInfo = userManager.getUserInfo(Long.parseLong(p.getId()));
 		toDelete = new LinkedList<S3FileHandle>();
 		// Setup the mock file to upload.
 		int numberFiles = 2;
@@ -126,6 +134,11 @@ public class FileHandleManagerImplAutowireTest {
 				// We also need to delete the data from the database
 				fileHandleDao.delete(meta.getId());
 			}
+		}
+		if(userInfo != null){
+			try {
+				userManager.delete(userInfo.getIndividualGroup().getId());
+			} catch (Exception e) {} 
 		}
 	}
 	

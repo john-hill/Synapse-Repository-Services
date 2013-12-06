@@ -46,8 +46,7 @@ public class WikiModelTranslationHelperTest {
 	@Autowired
 	WikiModelTranslator wikiModelTranslationHelper;
 	
-	private String userName;
-	private String ownerId;
+	private Long userId;
 	private UserInfo userInfo;
 	private String markdownAsString = "Markdown string contents with a link: \n[example](http://url.com/).";
 	V2WikiPage v2Wiki;
@@ -55,9 +54,8 @@ public class WikiModelTranslationHelperTest {
 	@Before
 	public void before() throws Exception{
 		// get user IDs
-		userName = AuthorizationConstants.TEST_USER_NAME;
-		userInfo = userManager.getUserInfo(userName);
-		ownerId = userManager.getUserInfo(userName).getIndividualGroup().getId();
+		userId = AuthorizationConstants.ADMIN_USER_ID;
+		userInfo = userManager.getUserInfo(userId);
 	}
 	
 	@After
@@ -76,8 +74,8 @@ public class WikiModelTranslationHelperTest {
 		// Setup a WikiPage
 		WikiPage wiki = new WikiPage();
 		wiki.setId("123");
-		wiki.setCreatedBy(ownerId);
-		wiki.setModifiedBy(ownerId);
+		wiki.setCreatedBy(userId.toString());
+		wiki.setModifiedBy(userId.toString());
 		wiki.setParentWikiId(null);
 		wiki.setTitle("v1-wiki");
 		wiki.setAttachmentFileHandleIds(new ArrayList<String>());
@@ -120,8 +118,8 @@ public class WikiModelTranslationHelperTest {
 		// Create a new wiki page with no markdown
 		WikiPage wiki = new WikiPage();
 		wiki.setId("123");
-		wiki.setCreatedBy(ownerId);
-		wiki.setModifiedBy(ownerId);
+		wiki.setCreatedBy(userId.toString());
+		wiki.setModifiedBy(userId.toString());
 		wiki.setParentWikiId(null);
 		wiki.setTitle("v1-wiki");
 		wiki.setAttachmentFileHandleIds(new ArrayList<String>());

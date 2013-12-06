@@ -62,7 +62,7 @@ public class AccessRequirementControllerAutowiredTest {
 
 	private static HttpServlet dispatchServlet;
 	
-	private String userName = AuthorizationConstants.ADMIN_USER_NAME;
+	private Long userId = AuthorizationConstants.ADMIN_USER_ID;
 	private UserInfo testUser;
 	private Project project;
 
@@ -74,11 +74,11 @@ public class AccessRequirementControllerAutowiredTest {
 		toDelete = new ArrayList<String>();
 		// Map test objects to their urls
 		// Make sure we have a valid user.
-		testUser = userManager.getUserInfo(userName);
+		testUser = userManager.getUserInfo(userId);
 		UserInfo.validateUserInfo(testUser);
 		project = new Project();
 		project.setName("createAtLeastOneOfEachType");
-		project = ServletTestHelper.createEntity(dispatchServlet, project, userName);
+		project = ServletTestHelper.createEntity(dispatchServlet, project, userId);
 		assertNotNull(project);
 		toDelete.add(project.getId());
 
@@ -87,7 +87,7 @@ public class AccessRequirementControllerAutowiredTest {
 		evaluation.setContentSource(project.getId());
 		evaluation.setDescription("description");
 		evaluation.setStatus(EvaluationStatus.OPEN);
-		evaluation = (new EntityServletTestHelper()).createEvaluation(evaluation, userName);
+		evaluation = (new EntityServletTestHelper()).createEvaluation(evaluation, userId);
 	}
 
 	@After
@@ -95,7 +95,7 @@ public class AccessRequirementControllerAutowiredTest {
 		if (entityController != null && toDelete != null) {
 			for (String idToDelete : toDelete) {
 				try {
-					entityController.deleteEntity(userName, idToDelete);
+					entityController.deleteEntity(userId, idToDelete);
 				} catch (NotFoundException e) {
 					// nothing to do here
 				} catch (DatastoreException e) {
@@ -106,7 +106,7 @@ public class AccessRequirementControllerAutowiredTest {
 		
 		if (evaluation!=null) {
 			try {
-				(new EntityServletTestHelper()).deleteEvaluation(evaluation.getId(), userName);
+				(new EntityServletTestHelper()).deleteEvaluation(evaluation.getId(), userId);
 			} catch (Exception e) {}
 		}
 	}
@@ -137,33 +137,33 @@ public class AccessRequirementControllerAutowiredTest {
 		subjectId.setType(RestrictableObjectType.ENTITY);
 		accessRequirement.setSubjectIds(Arrays.asList(new RestrictableObjectDescriptor[]{subjectId})); 
 		AccessRequirement clone = ServletTestHelper.createAccessRequirement(
-				 dispatchServlet, accessRequirement, userName, extraParams);
+				 dispatchServlet, accessRequirement, userId, extraParams);
 		assertNotNull(clone);
 
 		// test getAccessRequirementsForEntity
 		PaginatedResults<AccessRequirement> results = ServletTestHelper.getEntityAccessRequirements(
-				dispatchServlet, entityId, userName);	
+				dispatchServlet, entityId, userId);	
 		List<AccessRequirement> ars = results.getResults();
 		assertEquals(1, ars.size());
 		
 		// get the unmet access requirements for the entity, 
 		// when the user is the entity owner (should be none)
 		results = ServletTestHelper.getUnmetEntityAccessRequirements(
-				dispatchServlet, entityId, userName);	
+				dispatchServlet, entityId, userId);	
 		ars = results.getResults();
 		assertEquals(0, ars.size());
 		
 		// get the unmet access requirements for the entity
 		results = ServletTestHelper.getUnmetEntityAccessRequirements(
-				dispatchServlet, entityId, AuthorizationConstants.TEST_USER_NAME);	
+				dispatchServlet, entityId, userId);	
 		ars = results.getResults();
 		assertEquals(1, ars.size());
 		
 		// test deletion
-		ServletTestHelper.deleteAccessRequirements(dispatchServlet, ars.get(0).getId().toString(), userName);
+		ServletTestHelper.deleteAccessRequirements(dispatchServlet, ars.get(0).getId().toString(), userId);
 		
 		results = ServletTestHelper.getEntityAccessRequirements(
-				dispatchServlet, entityId, userName);	
+				dispatchServlet, entityId, userId);	
 		ars = results.getResults();
 		assertEquals(0, ars.size());
 	}
@@ -179,33 +179,33 @@ public class AccessRequirementControllerAutowiredTest {
 		subjectId.setType(RestrictableObjectType.EVALUATION);
 		accessRequirement.setSubjectIds(Arrays.asList(new RestrictableObjectDescriptor[]{subjectId})); 
 		AccessRequirement clone = ServletTestHelper.createAccessRequirement(
-				 dispatchServlet, accessRequirement, userName, extraParams);
+				 dispatchServlet, accessRequirement, userId, extraParams);
 		assertNotNull(clone);
 
 		// test getAccessRequirementsForEvaluation
 		PaginatedResults<AccessRequirement> results = ServletTestHelper.getEvaluationAccessRequirements(
-				dispatchServlet, evaluation.getId(), userName);	
+				dispatchServlet, evaluation.getId(), userId);	
 		List<AccessRequirement> ars = results.getResults();
 		assertEquals(1, ars.size());
 		
 		// get the unmet access requirements for the evaluation, 
 		// when the user is the entity owner, should be the same as for others
 		results = ServletTestHelper.getUnmetEvaluationAccessRequirements(
-				dispatchServlet, evaluation.getId(), userName);	
+				dispatchServlet, evaluation.getId(), userId);	
 		ars = results.getResults();
 		assertEquals(1, ars.size());
 		
 		// get the unmet access requirements for the evaluation
 		results = ServletTestHelper.getUnmetEvaluationAccessRequirements(
-				dispatchServlet, evaluation.getId(), AuthorizationConstants.TEST_USER_NAME);	
+				dispatchServlet, evaluation.getId(), userId);	
 		ars = results.getResults();
 		assertEquals(1, ars.size());
 		
 		// test deletion
-		ServletTestHelper.deleteAccessRequirements(dispatchServlet, ars.get(0).getId().toString(), userName);
+		ServletTestHelper.deleteAccessRequirements(dispatchServlet, ars.get(0).getId().toString(), userId);
 		
 		results = ServletTestHelper.getEvaluationAccessRequirements(
-				dispatchServlet, evaluation.getId(), userName);	
+				dispatchServlet, evaluation.getId(), userId);	
 		ars = results.getResults();
 		assertEquals(0, ars.size());
 	}

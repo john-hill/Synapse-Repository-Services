@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.After;
 import org.junit.Before;
@@ -21,7 +22,6 @@ import org.mockito.Mockito;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.Annotations;
-import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.Data;
 import org.sagebionetworks.repo.model.DatastoreException;
@@ -32,9 +32,11 @@ import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeConstants;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.Study;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.file.ExternalFileHandle;
 import org.sagebionetworks.repo.model.provenance.Activity;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -69,7 +71,13 @@ public class EntityManagerImplAutowireTest {
 	
 	@Before
 	public void before() throws Exception{
-		userInfo = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
+		// Create a non admin user
+		NewUser nu = new NewUser();
+		nu.setEmail(UUID.randomUUID().toString()+"@test.com");
+		nu.setPrincipalName(UUID.randomUUID().toString());
+		Principal p = userManager.createUser(nu);
+		
+		userInfo = userManager.getUserInfo(Long.parseLong(p.getId()));
 		
 		toDelete = new ArrayList<String>();
 		activitiesToDelete = new ArrayList<String>();

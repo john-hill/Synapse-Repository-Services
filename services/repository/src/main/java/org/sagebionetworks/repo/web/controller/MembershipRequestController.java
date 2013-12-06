@@ -48,7 +48,7 @@ public class MembershipRequestController extends BaseController {
 	@RequestMapping(value = UrlHelpers.MEMBERSHIP_REQUEST, method = RequestMethod.POST)
 	public @ResponseBody
 	MembershipRqstSubmission createRequest(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
 			@RequestBody MembershipRqstSubmission request
 			) throws NotFoundException {
 		return serviceProvider.getMembershipRequestService().create(userId, request);
@@ -70,9 +70,9 @@ public class MembershipRequestController extends BaseController {
 	@RequestMapping(value = UrlHelpers.OPEN_MEMBERSHIP_REQUEST, method = RequestMethod.GET)
 	public @ResponseBody
 	PaginatedResults<MembershipRequest> getOpenRequests(
-			@PathVariable String id,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId,
-			@RequestParam(value = UrlHelpers.REQUESTOR_ID_REQUEST_PARAMETER, required = false) String requestorId,
+			@PathVariable Long id,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId,
+			@RequestParam(value = UrlHelpers.REQUESTOR_ID_REQUEST_PARAMETER, required = false) Long requestorId,
 			@RequestParam(value = ServiceConstants.PAGINATION_LIMIT_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_LIMIT_PARAM) Integer limit,
 			@RequestParam(value = ServiceConstants.PAGINATION_OFFSET_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_OFFSET_PARAM_NEW) Integer offset
 			) throws NotFoundException {
@@ -92,7 +92,7 @@ public class MembershipRequestController extends BaseController {
 	public @ResponseBody
 	MembershipRqstSubmission getRequest(
 			@PathVariable String id,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId
 			) throws NotFoundException {
 		return serviceProvider.getMembershipRequestService().get(userId, id);
 	}
@@ -109,7 +109,7 @@ public class MembershipRequestController extends BaseController {
 	@RequestMapping(value = UrlHelpers.MEMBERSHIP_REQUEST_ID, method = RequestMethod.DELETE)
 	public void deleteRequest(
 			@PathVariable String id,
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) String userId
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM, required = false) Long userId
 			) throws NotFoundException {
 		serviceProvider.getMembershipRequestService().delete(userId, id);
 	}

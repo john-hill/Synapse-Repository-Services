@@ -18,7 +18,7 @@ public interface StorageUsageService {
 	 * @throws UnauthorizedException
 	 *			When the current user is not an administrator.
 	 */
-	StorageUsageSummaryList getUsage(String currUserName, List<StorageUsageDimension> dimensionList)
+	StorageUsageSummaryList getUsage(Long currUserName, List<StorageUsageDimension> dimensionList)
 			throws UnauthorizedException, DatastoreException;
 
 	/**
@@ -29,7 +29,7 @@ public interface StorageUsageService {
 	 * @throws NotFoundException
 	 *			When the user does not exist.
 	 */
-	StorageUsageSummaryList getUsageForUser(String currUserName, String userId,
+	StorageUsageSummaryList getUsageForUser(Long currUserName, Long userId,
 			List<StorageUsageDimension> dimensionList)
 			throws UnauthorizedException, NotFoundException, DatastoreException;
 
@@ -41,7 +41,7 @@ public interface StorageUsageService {
 	 * @throws NotFoundException
 	 *			When the user does not exist.
 	 */
-	PaginatedResults<StorageUsage> getUsageInRangeForUser(String currUserName, String userName,
+	PaginatedResults<StorageUsage> getUsageInRangeForUser(Long currUserName, Long userName,
 			Integer offset, Integer limit, String urlPath)
 			throws UnauthorizedException, NotFoundException, DatastoreException;
 
@@ -51,6 +51,6 @@ public interface StorageUsageService {
 	 * @throws UnauthorizedException
 	 *			When the current user is not an administrator.
 	 */
-	StorageUsageSummaryList getUsageByUserInRange(String currUserName, Integer offset, Integer limit)
+	StorageUsageSummaryList getUsageByUserInRange(Long currUserName, Integer offset, Integer limit)
 			throws UnauthorizedException, DatastoreException;
 }

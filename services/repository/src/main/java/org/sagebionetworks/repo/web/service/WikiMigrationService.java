@@ -41,7 +41,7 @@ public class WikiMigrationService {
 	 * @throws NotFoundException
 	 * @throws IOException
 	 */
-	public PaginatedResults<WikiMigrationResult> migrateSomeWikis(String username, long limit, long offset, String servletPath) throws NotFoundException, IOException {
+	public PaginatedResults<WikiMigrationResult> migrateSomeWikis(Long username, long limit, long offset, String servletPath) throws NotFoundException, IOException {
 		// Service is restricted to admins
 		UserInfo userInfo;
 		try {

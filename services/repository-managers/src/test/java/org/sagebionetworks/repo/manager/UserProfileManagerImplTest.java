@@ -90,7 +90,7 @@ public class UserProfileManagerImplTest {
 		String almostMd5 = "79054025255fb1a26e4bc422aef54eb4";
 		startToken.setMd5(almostMd5);
 		Long tokenId = new Long(456);
-		String userId = individualGroup.getId();
+		Long userId = Long.parseLong(individualGroup.getId());
 		when(mockIdGenerator.generateNewId()).thenReturn(tokenId);
 		// Make the actual calls
 		S3AttachmentToken endToken = userProfileManager.createS3UserProfileAttachmentToken(userInfo, userId, startToken);
@@ -108,7 +108,7 @@ public class UserProfileManagerImplTest {
 		String almostMd5 = "79054025255fb1a26e4bc422aef54eb4";
 		startToken.setMd5(almostMd5);
 		Long tokenId = new Long(456);
-		String userId = individualGroup.getId();
+		Long userId = Long.parseLong(individualGroup.getId());
 		when(mockIdGenerator.generateNewId()).thenReturn(tokenId);
 		//next line should result in an IllegalArgumentException, since the filename does not not indicate an image file that we recognize
 		userProfileManager.createS3UserProfileAttachmentToken(userInfo, userId, startToken);

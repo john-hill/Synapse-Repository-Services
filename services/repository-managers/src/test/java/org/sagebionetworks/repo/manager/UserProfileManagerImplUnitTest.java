@@ -115,22 +115,22 @@ public class UserProfileManagerImplUnitTest {
 	
 	@Test (expected=UnauthorizedException.class)
 	public void testCreateS3URLNonAdminNonOwner() throws NotFoundException, DatastoreException, UnauthorizedException, InvalidModelException {
-		userProfileManager.createS3UserProfileAttachmentToken(userInfo, "222", testToken);
+		userProfileManager.createS3UserProfileAttachmentToken(userInfo, 222l, testToken);
 	}
 	@Test
 	public void testIsOwner() throws NotFoundException, DatastoreException, UnauthorizedException, InvalidModelException {
-		userProfileManager.createS3UserProfileAttachmentToken(userInfo, "111", testToken);			
+		userProfileManager.createS3UserProfileAttachmentToken(userInfo, 111l, testToken);			
 	}
 	@Test
 	public void testIsAdmin() throws NotFoundException, DatastoreException, UnauthorizedException, InvalidModelException {
-		userProfileManager.createS3UserProfileAttachmentToken(adminUserInfo, "Superman", testToken);
+		userProfileManager.createS3UserProfileAttachmentToken(adminUserInfo, 999l, testToken);
 	}	
 	@Test
 	public void testAdminGetPresignedUrl() throws NotFoundException, DatastoreException, UnauthorizedException, InvalidModelException {
 		// Simulate an admin trying to access a presigned url
 		Long tokenId = new Long(456);
 		String profileId = "132";
-		String userId = "007";
+		Long userId = 7l;
 		PresignedUrl expectedPreSignedUrl = new PresignedUrl();
 		expectedPreSignedUrl.setPresignedUrl("I am a presigned url! whooot!");
 		when(mockUserManager.getUserInfo(userId)).thenReturn(adminUserInfo);
@@ -145,7 +145,7 @@ public class UserProfileManagerImplUnitTest {
 		// Simulate an normal user trying to access a presigned url
 		Long tokenId = new Long(456);
 		String profileId = "132";
-		String userId = userInfo.getIndividualGroup().getId();
+		Long userId = Long.parseLong(userInfo.getIndividualGroup().getId());
 		PresignedUrl expectedPreSignedUrl = new PresignedUrl();
 		expectedPreSignedUrl.setPresignedUrl("I am a presigned url! whooot!");
 		when(mockUserManager.getUserInfo(userId)).thenReturn(adminUserInfo);
@@ -165,7 +165,7 @@ public class UserProfileManagerImplUnitTest {
 		Principal user2 = new Principal();
 		user2.setId("222");
 		
-		String userId = userInfo.getIndividualGroup().getId();
+		long userId =Long.parseLong(userInfo.getIndividualGroup().getId());
 		PresignedUrl expectedPreSignedUrl = new PresignedUrl();
 		expectedPreSignedUrl.setPresignedUrl("I am a presigned url! whooot!");
 		when(mockUserManager.getUserInfo(userId)).thenReturn(adminUserInfo);
@@ -192,7 +192,7 @@ public class UserProfileManagerImplUnitTest {
 	
 	@Test
 	public void testGetOwnUserProfle() throws Exception {
-		String ownerId = userInfo.getIndividualGroup().getId();
+		Long ownerId = Long.parseLong(userInfo.getIndividualGroup().getId());
 		UserProfile upClone = userProfileManager.getUserProfile(userInfo, ownerId);
 		assertEquals(userProfile, upClone);
 	}
@@ -200,7 +200,7 @@ public class UserProfileManagerImplUnitTest {
 	@Test
 	@Ignore // Private fields are removed in the service layer
 	public void testgetOthersUserProfle() throws Exception {
-		String ownerId = userInfo.getIndividualGroup().getId();
+		Long ownerId = Long.parseLong(userInfo.getIndividualGroup().getId());
 		userInfo.getIndividualGroup().setId("-100");
 		
 		// There should be missing fields, intentionally blanked-out
@@ -211,7 +211,7 @@ public class UserProfileManagerImplUnitTest {
 	
 	@Test
 	public void testgetOthersUserProfleByAdmin() throws Exception {
-		String ownerId = userInfo.getIndividualGroup().getId();
+		Long ownerId = Long.parseLong(userInfo.getIndividualGroup().getId());
 		UserProfile upClone = userProfileManager.getUserProfile(adminUserInfo, ownerId);
 		assertEquals(userProfile, upClone);
 	}
@@ -219,7 +219,7 @@ public class UserProfileManagerImplUnitTest {
 	@Test
 	public void testUpdateOwnUserProfle() throws Exception {
 		// Get a copy of a UserProfile to update
-		String ownerId = userInfo.getIndividualGroup().getId();
+		Long ownerId = Long.parseLong(userInfo.getIndividualGroup().getId());
 		UserProfile upClone = userProfileManager.getUserProfile(userInfo, ownerId);
 		assertEquals(userProfile, upClone);
 		
@@ -232,7 +232,7 @@ public class UserProfileManagerImplUnitTest {
 	
 	@Test(expected=UnauthorizedException.class)
 	public void testUpdateOthersUserProfle() throws Exception {
-		String ownerId = userInfo.getIndividualGroup().getId();
+		Long ownerId = Long.parseLong(userInfo.getIndividualGroup().getId());
 		userInfo.getIndividualGroup().setId("-100");
 		
 		UserProfile upClone = userProfileManager.getUserProfile(userInfo, ownerId);

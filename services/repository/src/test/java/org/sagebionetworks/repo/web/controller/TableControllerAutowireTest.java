@@ -33,13 +33,13 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 public class TableControllerAutowireTest {
 	
 	private Entity parent;
-	private final String testUser = AuthorizationConstants.ADMIN_USER_NAME;
+	private final long testUserId = AuthorizationConstants.ADMIN_USER_ID;
 	
 	@Before
 	public void before() throws Exception{
 		parent = new Project();
 		parent.setName(UUID.randomUUID().toString());
-		parent = ServletTestHelper.createEntity(DispatchServletSingleton.getInstance(), parent, testUser);
+		parent = ServletTestHelper.createEntity(DispatchServletSingleton.getInstance(), parent, testUserId);
 		Assert.assertNotNull(parent);
 	}
 	
@@ -47,7 +47,7 @@ public class TableControllerAutowireTest {
 	public void after(){
 		if(parent != null){
 			try {
-				ServletTestHelper.deleteEntity(DispatchServletSingleton.getInstance(), Project.class, parent.getId(), testUser);
+				ServletTestHelper.deleteEntity(DispatchServletSingleton.getInstance(), Project.class, parent.getId(), testUserId);
 			} catch (Exception e) {} 
 		}
 	}
@@ -58,11 +58,11 @@ public class TableControllerAutowireTest {
 		cm.setName("TableControllerAutowireTest One");
 		cm.setColumnType(ColumnType.STRING);
 		// Save the column
-		cm = ServletTestHelper.createColumnModel(DispatchServletSingleton.getInstance(), cm, testUser);
+		cm = ServletTestHelper.createColumnModel(DispatchServletSingleton.getInstance(), cm, testUserId);
 		assertNotNull(cm);
 		assertNotNull(cm.getId());
 		// Make sure we can get it
-		ColumnModel clone = ServletTestHelper.getColumnModel(DispatchServletSingleton.getInstance(), cm.getId(), testUser);
+		ColumnModel clone = ServletTestHelper.getColumnModel(DispatchServletSingleton.getInstance(), cm.getId(), testUserId);
 		assertEquals(cm, clone);
 	}
 	
@@ -73,12 +73,12 @@ public class TableControllerAutowireTest {
 		ColumnModel one = new ColumnModel();
 		one.setName("one");
 		one.setColumnType(ColumnType.STRING);
-		one = ServletTestHelper.createColumnModel(DispatchServletSingleton.getInstance(), one, testUser);
+		one = ServletTestHelper.createColumnModel(DispatchServletSingleton.getInstance(), one, testUserId);
 		// two
 		ColumnModel two = new ColumnModel();
 		two.setName("two");
 		two.setColumnType(ColumnType.STRING);
-		two = ServletTestHelper.createColumnModel(DispatchServletSingleton.getInstance(), two, testUser);
+		two = ServletTestHelper.createColumnModel(DispatchServletSingleton.getInstance(), two, testUserId);
 		// Now create a TableEntity with these Columns
 		TableEntity table = new TableEntity();
 		table.setName("TableEntity");
@@ -87,14 +87,14 @@ public class TableControllerAutowireTest {
 		idList.add(one.getId());
 		idList.add(two.getId());
 		table.setColumnIds(idList);
-		table = ServletTestHelper.createEntity(DispatchServletSingleton.getInstance(), table, testUser);
+		table = ServletTestHelper.createEntity(DispatchServletSingleton.getInstance(), table, testUserId);
 		assertNotNull(table);
 		assertNotNull(table.getId());
-		TableEntity clone = ServletTestHelper.getEntity(DispatchServletSingleton.getInstance(), TableEntity.class, table.getId(), testUser);
+		TableEntity clone = ServletTestHelper.getEntity(DispatchServletSingleton.getInstance(), TableEntity.class, table.getId(), testUserId);
 		assertNotNull(clone);
 		assertEquals(table, clone);
 		// Now make sure we can get the list of columns for this entity
-		List<ColumnModel> cols = ServletTestHelper.getColumnModelsForTableEntity(DispatchServletSingleton.getInstance(), table.getId(), testUser);
+		List<ColumnModel> cols = ServletTestHelper.getColumnModelsForTableEntity(DispatchServletSingleton.getInstance(), table.getId(), testUserId);
 		assertNotNull(cols);
 		assertEquals(2, cols.size());
 		List<ColumnModel> expected = new LinkedList<ColumnModel>();
@@ -108,7 +108,7 @@ public class TableControllerAutowireTest {
 		set.setRows(rows);
 		set.setHeaders(TableModelUtils.getHeaders(cols));
 		set.setTableId(table.getId());
-		RowReferenceSet results = ServletTestHelper.appendTableRows(DispatchServletSingleton.getInstance(), set, testUser);
+		RowReferenceSet results = ServletTestHelper.appendTableRows(DispatchServletSingleton.getInstance(), set, testUserId);
 		assertNotNull(results);
 		assertNotNull(results.getRows());
 		assertEquals(2, results.getRows().size());
@@ -122,23 +122,23 @@ public class TableControllerAutowireTest {
 		String prefix = UUID.randomUUID().toString();
 		one.setName(prefix+"a");
 		one.setColumnType(ColumnType.STRING);
-		one = ServletTestHelper.createColumnModel(DispatchServletSingleton.getInstance(), one, testUser);
+		one = ServletTestHelper.createColumnModel(DispatchServletSingleton.getInstance(), one, testUserId);
 		// two
 		ColumnModel two = new ColumnModel();
 		two.setName(prefix+"b");
 		two.setColumnType(ColumnType.STRING);
-		two = ServletTestHelper.createColumnModel(DispatchServletSingleton.getInstance(), two, testUser);
+		two = ServletTestHelper.createColumnModel(DispatchServletSingleton.getInstance(), two, testUserId);
 		// three
 		ColumnModel three = new ColumnModel();
 		three.setName(prefix+"bb");
 		three.setColumnType(ColumnType.STRING);
-		three = ServletTestHelper.createColumnModel(DispatchServletSingleton.getInstance(), three, testUser);
+		three = ServletTestHelper.createColumnModel(DispatchServletSingleton.getInstance(), three, testUserId);
 		// Now make sure we can find our columns
-		PaginatedColumnModels pcm = ServletTestHelper.listColumnModels(DispatchServletSingleton.getInstance(), testUser, null, null, null);
+		PaginatedColumnModels pcm = ServletTestHelper.listColumnModels(DispatchServletSingleton.getInstance(), testUserId, null, null, null);
 		assertNotNull(pcm);
 		assertTrue(pcm.getTotalNumberOfResults() >= 3);
 		// filter by our prefix
-		pcm = ServletTestHelper.listColumnModels(DispatchServletSingleton.getInstance(), testUser, prefix, null, null);
+		pcm = ServletTestHelper.listColumnModels(DispatchServletSingleton.getInstance(), testUserId, prefix, null, null);
 		assertNotNull(pcm);
 		List<ColumnModel> expected = new LinkedList<ColumnModel>();
 		expected.add(one);
@@ -147,7 +147,7 @@ public class TableControllerAutowireTest {
 		assertEquals(new Long(3), pcm.getTotalNumberOfResults());
 		assertEquals(expected, pcm.getResults());
 		// Now try pagination.
-		pcm = ServletTestHelper.listColumnModels(DispatchServletSingleton.getInstance(), testUser, prefix, 1l, 2l);
+		pcm = ServletTestHelper.listColumnModels(DispatchServletSingleton.getInstance(), testUserId, prefix, 1l, 2l);
 		assertNotNull(pcm);
 		assertEquals(new Long(3), pcm.getTotalNumberOfResults());
 		expected.clear();

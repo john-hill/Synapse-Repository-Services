@@ -4,6 +4,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.UUID;
 
 import org.junit.After;
 import org.junit.Before;
@@ -14,8 +15,10 @@ import org.sagebionetworks.asynchronous.workers.sqs.MessageReceiver;
 import org.sagebionetworks.repo.manager.MessageManager;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.QueryResults;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.message.MessageBundle;
@@ -51,6 +54,7 @@ public class MessageToUserWorkerIntegrationTest {
 	private UserInfo userInfo;
 	private String fileHandleId;
 	private MessageToUser message;
+	UserInfo otherInfo;
 	
 	@SuppressWarnings("serial")
 	@Before
@@ -58,8 +62,14 @@ public class MessageToUserWorkerIntegrationTest {
 		// Before we start, make sure the queue is empty
 		emptyQueue();
 		
-		userInfo = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
-		final UserInfo otherInfo = userManager.getUserInfo(StackConfiguration.getIntegrationTestUserOneName());
+		userInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
+		// Create a non-admin
+		// Create a non admin user
+		NewUser nu = new NewUser();
+		nu.setEmail(UUID.randomUUID().toString()+"@test.com");
+		nu.setPrincipalName(UUID.randomUUID().toString());
+		Principal p = userManager.createUser(nu);
+		otherInfo =  userManager.getUserInfo(Long.parseLong(p.getId()));
 
 		S3FileHandle handle = new S3FileHandle();
 		handle.setBucketName("bucketName");
@@ -103,10 +113,13 @@ public class MessageToUserWorkerIntegrationTest {
 
 	@After
 	public void after() throws Exception {
-		UserInfo adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
+		UserInfo adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 		messageManager.deleteMessage(adminUserInfo, message.getId());
 		
 		fileDAO.delete(fileHandleId);
+		if(otherInfo != null){
+			userManager.delete(otherInfo.getIndividualGroup().getId());
+		}
 	}
 	
 	

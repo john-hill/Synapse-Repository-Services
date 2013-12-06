@@ -37,12 +37,14 @@ import org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_GROUPS;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.Node;
+import org.sagebionetworks.repo.model.Principal;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
 import org.sagebionetworks.repo.model.RestrictableObjectType;
 import org.sagebionetworks.repo.model.TermsOfUseAccessRequirement;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -81,8 +83,15 @@ public class EvaluationPermissionsManagerImplAutowiredTest {
 
 	@Before
 	public void before() throws Exception {
-		userInfo = userManager.getUserInfo(AuthorizationConstants.TEST_USER_NAME);
-		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_NAME);
+		
+
+		// Create a non admin user
+		NewUser nu = new NewUser();
+		nu.setEmail(UUID.randomUUID().toString()+"@test.com");
+		nu.setPrincipalName(UUID.randomUUID().toString());
+		Principal p = userManager.createUser(nu);
+		userInfo =  userManager.getUserInfo(Long.parseLong(p.getId()));
+		adminUserInfo = userManager.getUserInfo(AuthorizationConstants.ADMIN_USER_ID);
 
 		aclsToDelete = new ArrayList<String>();
 		evalsToDelete = new ArrayList<String>();
@@ -103,6 +112,11 @@ public class EvaluationPermissionsManagerImplAutowiredTest {
 		}
 		for (String id : accessRestrictionsToDelete) {
 			accessRequirementDAO.delete(id);
+		}
+		if(userInfo != null){
+			try {
+				userManager.delete(userInfo.getIndividualGroup().getId());
+			} catch (Exception e) {} 
 		}
 	}
 
@@ -407,7 +421,7 @@ public class EvaluationPermissionsManagerImplAutowiredTest {
 		assertFalse(permissions.getCanPublicRead());
 
 		// Set 'public read' for anonymous user
-		UserInfo anonymous = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_EMAIL);
+		UserInfo anonymous = userManager.getUserInfo(AuthorizationConstants.ANONYMOUS_USER_ID);
 		principalId = Long.parseLong(anonymous.getIndividualGroup().getId());
 		raSet = new HashSet<ResourceAccess>();
 		ra = new ResourceAccess();

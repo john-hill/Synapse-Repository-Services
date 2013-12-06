@@ -72,14 +72,14 @@ public class TeamServiceImpl implements TeamService {
 	 * @see org.sagebionetworks.repo.web.service.TeamService#create(java.lang.String, org.sagebionetworks.repo.model.Team)
 	 */
 	@Override
-	public Team create(String userId, Team team) throws UnauthorizedException,
+	public Team create(Long userId, Team team) throws UnauthorizedException,
 			InvalidModelException, DatastoreException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		return teamManager.create(userInfo, team);
 	}
 	
 	@Override
-	public TeamMember getMember(String teamId, String principalId) throws NotFoundException, DatastoreException {
+	public TeamMember getMember(Long teamId, Long principalId) throws NotFoundException, DatastoreException {
 		TeamMember teamMember = teamManager.getMember(teamId, principalId);
 		UserProfileManagerUtils.clearPrivateFields(null, teamMember.getMember());
 		return teamMember;
@@ -122,7 +122,7 @@ public class TeamServiceImpl implements TeamService {
 	}
 
 	@Override
-	public void refreshCache(String userId) throws DatastoreException, NotFoundException {
+	public void refreshCache(Long userId) throws DatastoreException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		if (!userInfo.isAdmin()) throw new UnauthorizedException("Must be a Synapse administrator.");
 		refreshCache();
@@ -214,7 +214,7 @@ public class TeamServiceImpl implements TeamService {
 	 * @see org.sagebionetworks.repo.web.service.TeamService#getMembers(java.lang.String, java.lang.String, long, long)
 	 */
 	@Override
-	public PaginatedResults<TeamMember> getMembers(String teamId,
+	public PaginatedResults<TeamMember> getMembers(Long teamId,
 			String fragment, long limit, long offset)
 			throws DatastoreException, NotFoundException {
 		
@@ -247,7 +247,7 @@ public class TeamServiceImpl implements TeamService {
 	 * @see org.sagebionetworks.repo.web.service.TeamService#getByMember(java.lang.String, long, long)
 	 */
 	@Override
-	public PaginatedResults<Team> getByMember(String principalId, long limit,
+	public PaginatedResults<Team> getByMember(Long principalId, long limit,
 			long offset) throws DatastoreException {
 		return teamManager.getByMember(principalId, limit, offset);
 	}
@@ -256,7 +256,7 @@ public class TeamServiceImpl implements TeamService {
 	 * @see org.sagebionetworks.repo.web.service.TeamService#get(java.lang.String)
 	 */
 	@Override
-	public Team get(String teamId) throws DatastoreException,
+	public Team get(Long teamId) throws DatastoreException,
 			UnauthorizedException, NotFoundException {
 		return teamManager.get(teamId);
 	}
@@ -265,7 +265,7 @@ public class TeamServiceImpl implements TeamService {
 	 * @see org.sagebionetworks.repo.web.service.TeamService#getIconURL(java.lang.String)
 	 */
 	@Override
-	public URL getIconURL(String teamId) throws DatastoreException,
+	public URL getIconURL(Long teamId) throws DatastoreException,
 			NotFoundException {
 		return teamManager.getIconURL(teamId);
 	}
@@ -274,7 +274,7 @@ public class TeamServiceImpl implements TeamService {
 	 * @see org.sagebionetworks.repo.web.service.TeamService#update(java.lang.String, org.sagebionetworks.repo.model.Team)
 	 */
 	@Override
-	public Team update(String userId, Team team) throws DatastoreException,
+	public Team update(Long userId, Team team) throws DatastoreException,
 			UnauthorizedException, NotFoundException, InvalidModelException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		return teamManager.put(userInfo, team);
@@ -284,7 +284,7 @@ public class TeamServiceImpl implements TeamService {
 	 * @see org.sagebionetworks.repo.web.service.TeamService#delete(java.lang.String, java.lang.String)
 	 */
 	@Override
-	public void delete(String userId, String teamId) throws DatastoreException,
+	public void delete(Long userId, Long teamId) throws DatastoreException,
 			UnauthorizedException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		teamManager.delete(userInfo, teamId);
@@ -294,10 +294,10 @@ public class TeamServiceImpl implements TeamService {
 	 * @see org.sagebionetworks.repo.web.service.TeamService#addMember(java.lang.String, java.lang.String, java.lang.String, boolean)
 	 */
 	@Override
-	public void addMember(String userId, String teamId, String principalId) throws DatastoreException, UnauthorizedException,
+	public void addMember(Long userId, Long teamId, Long principalId) throws DatastoreException, UnauthorizedException,
 			NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
-		UserInfo memberUserInfo = userManager.getUserInfo(Long.parseLong(principalId));
+		UserInfo memberUserInfo = userManager.getUserInfo(principalId);
 		teamManager.addMember(userInfo, teamId, memberUserInfo);
 	}
 
@@ -305,26 +305,26 @@ public class TeamServiceImpl implements TeamService {
 	 * @see org.sagebionetworks.repo.web.service.TeamService#removeMember(java.lang.String, java.lang.String, java.lang.String)
 	 */
 	@Override
-	public void removeMember(String userId, String teamId, String principalId)
+	public void removeMember(Long userId, Long teamId, Long principalId)
 			throws DatastoreException, UnauthorizedException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		teamManager.removeMember(userInfo, teamId, principalId);
 	}
 
 	@Override
-	public void setPermissions(String userId, String teamId,
-			String principalId, boolean isAdmin) throws DatastoreException,
+	public void setPermissions(Long userId, Long teamId,
+			Long principalId, boolean isAdmin) throws DatastoreException,
 			UnauthorizedException, NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		teamManager.setPermissions(userInfo, teamId, principalId, isAdmin);
 	}
 
 	@Override
-	public TeamMembershipStatus getTeamMembershipStatus(String userId,
-			String teamId, String principalId) throws DatastoreException,
+	public TeamMembershipStatus getTeamMembershipStatus(Long userId,
+			Long teamId, Long principalId) throws DatastoreException,
 			NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
-		UserInfo principalUserInfo = userManager.getUserInfo(Long.parseLong(principalId));
+		UserInfo principalUserInfo = userManager.getUserInfo(principalId);
 		return teamManager.getTeamMembershipStatus(userInfo, teamId, principalUserInfo);
 	}
 

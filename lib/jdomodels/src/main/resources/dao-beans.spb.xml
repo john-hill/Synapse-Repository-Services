@@ -198,6 +198,13 @@
 		<property name="s3Bucket" ref="stackConfiguration.tableRowChangeBucketName"/>
 		<property name="maxBytesPerRequest" ref="stackConfiguration.tableMaxBytesPerRequest"/>
 	</bean>
+	
+	<bean id="tableDatabaseClusterDAO"
+		class="org.sagebionetworks.repo.model.dbo.dao.table.DBODatabaseClusterDAOImpl"
+		scope="singleton" init-method="initialize">
+		<property name="databaseClusterEnabled" ref="stackConfiguration.tableClusterEnabled"/>
+		<property name="maxNumberDatabaseInstances" ref="stackConfiguration.maxNumberOfDatabaseInstancesInCluster"/>
+	</bean>
 
 	<bean id="teamDAO" class="org.sagebionetworks.repo.model.dbo.dao.DBOTeamDAOImpl" scope="singleton"/>
 

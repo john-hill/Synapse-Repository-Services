@@ -651,7 +651,24 @@ public class StackConfiguration {
 		return Boolean.parseBoolean(configuration
 				.getProperty("org.sagebionetworks.dynamo.enabled"));
 	}
+	
+	/**
+	 * Is the Table Database cluster feature enabled?
+	 * @return
+	 */
+	public boolean getTableClusterEnabled(){
+		return Boolean.parseBoolean(configuration
+				.getProperty("org.sagebionetworks.table.cluster.enabled"));
+	}
 
+	/**
+	 * The max number of database instances used for the cluster.
+	 * @return
+	 */
+	public int getMaxNumberOfDatabaseInstancesInCluster(){
+		return Integer.parseInt(configuration
+				.getProperty("org.sagebionetworks.table.cluster.max.db.instances"));
+	}
 	/**
 	 * The S3 Bucket for backup file. This is shared across stacks to enable
 	 * data migration across a stack.

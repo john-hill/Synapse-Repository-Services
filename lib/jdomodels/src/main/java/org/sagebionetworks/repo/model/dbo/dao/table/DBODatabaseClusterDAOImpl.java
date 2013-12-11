@@ -2,6 +2,11 @@ package org.sagebionetworks.repo.model.dbo.dao.table;
 
 import org.springframework.jdbc.core.simple.SimpleJdbcTemplate;
 
+/**
+ * This implementaion
+ * @author John
+ *
+ */
 public class DBODatabaseClusterDAOImpl implements DBODatabaseClusterDAO {
 	
 

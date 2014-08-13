@@ -21,7 +21,10 @@ public class VariableContentPaginatedResults<T extends JSONEntity> extends Pagin
 			for(int i=0; i<array.length(); i++){
 				JSONObjectAdapter childAdapter = array.getJSONObject(i);
 				try {
-					this.results.add((T)EntityClassHelper.deserialize(childAdapter));
+					String contreteType = childAdapter.getString(ServiceConstants.CONCRETE_TYPE);
+					T e = (T) Class.forName(contreteType).newInstance();
+					e.initializeFromJSONObject(childAdapter);
+					this.results.add(e);
 				} catch (Exception e) {
 					throw new JSONObjectAdapterException(e);
 				}

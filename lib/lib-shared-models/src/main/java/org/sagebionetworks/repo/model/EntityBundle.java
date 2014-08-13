@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.sagebionetworks.repo.model.auth.UserEntityPermissions;
 import org.sagebionetworks.repo.model.file.FileHandle;
+import org.sagebionetworks.repo.model.file.FileHandleInstatanceFactory;
 import org.sagebionetworks.repo.model.table.TableBundle;
 import org.sagebionetworks.schema.adapter.JSONArrayAdapter;
 import org.sagebionetworks.schema.adapter.JSONEntity;
@@ -32,8 +33,6 @@ public class EntityBundle implements JSONEntity {
 	public static int UNMET_ACCESS_REQUIREMENTS	= 0x400;
 	public static int FILE_HANDLES				= 0x800;
 	public static int TABLE_DATA				= 0x1000;
-	
-	private static AutoGenFactory autoGenFactory = new AutoGenFactory();
 	
 	public static final String JSON_ENTITY = "entity";
 	public static final String JSON_ENTITY_TYPE = "entityType";
@@ -86,7 +85,7 @@ public class EntityBundle implements JSONEntity {
 		if (toInitFrom.has(JSON_ENTITY)) {
 			entityType = toInitFrom.getString(JSON_ENTITY_TYPE);
 			JSONObjectAdapter joa = (JSONObjectAdapter) toInitFrom.getJSONObject(JSON_ENTITY);
-			entity = (Entity) autoGenFactory.newInstance(entityType);
+			entity = EntityInstatanceFactory.singleton().newInstance(entityType);
 			entity.initializeFromJSONObject(joa);
 		}
 		if (toInitFrom.has(JSON_ANNOTATIONS)) {
@@ -98,13 +97,13 @@ public class EntityBundle implements JSONEntity {
 		if (toInitFrom.has(JSON_PERMISSIONS)) {
 			JSONObjectAdapter joa = (JSONObjectAdapter) toInitFrom.getJSONObject(JSON_PERMISSIONS);
 			if (permissions == null)
-				permissions = (UserEntityPermissions) autoGenFactory.newInstance(UserEntityPermissions.class.getName());
+				permissions = new UserEntityPermissions();
 			permissions.initializeFromJSONObject(joa);
 		}
 		if (toInitFrom.has(JSON_PATH)) {
 			JSONObjectAdapter joa = (JSONObjectAdapter) toInitFrom.getJSONObject(JSON_PATH);
 			if (path == null)
-				path = (EntityPath) autoGenFactory.newInstance(EntityPath.class.getName());
+				path = new EntityPath();
 			path.initializeFromJSONObject(joa);
 		}
 		if (toInitFrom.has(JSON_REFERENCED_BY)) {
@@ -123,7 +122,7 @@ public class EntityBundle implements JSONEntity {
 		if (toInitFrom.has(JSON_ACL)) {
 			JSONObjectAdapter joa = (JSONObjectAdapter) toInitFrom.getJSONObject(JSON_ACL);
 			if (acl == null)
-				acl = (AccessControlList) autoGenFactory.newInstance(AccessControlList.class.getName());
+				acl = new AccessControlList();
 			acl.initializeFromJSONObject(joa);
 		}
 		if (toInitFrom.has(JSON_ACCESS_REQUIREMENTS)) {
@@ -131,7 +130,10 @@ public class EntityBundle implements JSONEntity {
 			accessRequirements = new ArrayList<AccessRequirement>();
 			for (int i=0; i<a.length(); i++) {
 				JSONObjectAdapter joa = (JSONObjectAdapter)a.getJSONObject(i);
-				accessRequirements.add((AccessRequirement)EntityClassHelper.deserialize(joa));
+				String cocreteType  =joa.getString("concreteType");
+				AccessRequirement ar = AccessRequirementInstatanceFactory.singleton().newInstance(cocreteType);
+				ar.initializeFromJSONObject(joa);
+				accessRequirements.add(ar);
 			}
 		}
 		if (toInitFrom.has(JSON_UNMET_ACCESS_REQUIREMENTS)) {
@@ -139,7 +141,10 @@ public class EntityBundle implements JSONEntity {
 			unmetAccessRequirements = new ArrayList<AccessRequirement>();
 			for (int i=0; i<a.length(); i++) {
 				JSONObjectAdapter joa = (JSONObjectAdapter)a.getJSONObject(i);
-				unmetAccessRequirements.add((AccessRequirement)EntityClassHelper.deserialize(joa));
+				String cocreteType  =joa.getString("concreteType");
+				AccessRequirement ar = AccessRequirementInstatanceFactory.singleton().newInstance(cocreteType);
+				ar.initializeFromJSONObject(joa);
+				unmetAccessRequirements.add(ar);
 			}
 		}
 		if (toInitFrom.has(JSON_FILE_HANDLES)) {
@@ -148,15 +153,14 @@ public class EntityBundle implements JSONEntity {
 			for (int i=0; i<a.length(); i++) {
 				JSONObjectAdapter joa = (JSONObjectAdapter)a.getJSONObject(i);
 				String type = joa.getString("concreteType");
-				FileHandle handle = (FileHandle) autoGenFactory.newInstance(type);
+				FileHandle handle = FileHandleInstatanceFactory.singleton().newInstance(type);
 				handle.initializeFromJSONObject(joa);
 				fileHandles.add(handle);
 			}
 		}
 		if(toInitFrom.has(JSON_TABLE_DATA)){
 			JSONObjectAdapter joa = (JSONObjectAdapter) toInitFrom.getJSONObject(JSON_TABLE_DATA);
-			if (tableBundle == null)
-				tableBundle = (TableBundle) autoGenFactory.newInstance(TableBundle.class.getName());
+			tableBundle = new TableBundle();
 			tableBundle.initializeFromJSONObject(joa);
 		}
 		return toInitFrom;

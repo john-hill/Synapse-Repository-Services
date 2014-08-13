@@ -9,8 +9,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.sagebionetworks.repo.model.Annotations;
-import org.sagebionetworks.repo.model.AutoGenFactory;
 import org.sagebionetworks.repo.model.Entity;
+import org.sagebionetworks.repo.model.EntityInstatanceFactory;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.query.FieldType;
@@ -55,10 +55,8 @@ public class FieldTypeCache {
 			// Add the primary fields from the node class
 			localCache.put(field.getName(), FieldType.PRIMARY_FIELD);
 		}
-		// Map all of the Entity field names to the schema type.
-		AutoGenFactory factory = new AutoGenFactory();
 		try {
-			addEntityTypeNamesToCache(factory, localCache);
+			addEntityTypeNamesToCache(localCache);
 		} catch (JSONObjectAdapterException e) {
 			throw new RuntimeException(e);
 		}
@@ -124,12 +122,11 @@ public class FieldTypeCache {
 	 * @param localCache
 	 * @throws JSONObjectAdapterException
 	 */
-	protected static void addEntityTypeNamesToCache(AutoGenFactory factory,
-			Map<String, FieldType> localCache)
+	protected static void addEntityTypeNamesToCache(Map<String, FieldType> localCache)
 			throws JSONObjectAdapterException {
-		Iterator<String> it = factory.getKeySetIterator();
+		Iterator<String> it = EntityInstatanceFactory.singleton().getKeySetIterator();
 		while (it.hasNext()) {
-			JSONEntity jsonEntity = factory.newInstance(it.next());
+			JSONEntity jsonEntity = EntityInstatanceFactory.singleton().newInstance(it.next());
 			if (jsonEntity instanceof Entity) {
 				// Load the schema
 				ObjectSchema schema = EntityFactory.createEntityFromJSONString(

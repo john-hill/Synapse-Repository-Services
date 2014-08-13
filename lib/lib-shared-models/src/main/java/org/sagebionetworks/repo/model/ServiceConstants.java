@@ -265,4 +265,6 @@ public class ServiceConstants {
 	public static final String PARTS_MASK = "partsMask";
 	
 	public static final String PRINCIPAL_ID = "principalId";
+	
+	public static final String CONCRETE_TYPE = "concreteType";
 }

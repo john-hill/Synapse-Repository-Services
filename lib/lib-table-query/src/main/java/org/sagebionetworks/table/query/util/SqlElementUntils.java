@@ -1,6 +1,8 @@
 package org.sagebionetworks.table.query.util;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -10,10 +12,7 @@ import org.sagebionetworks.repo.model.table.SortItem;
 import org.sagebionetworks.table.query.ParseException;
 import org.sagebionetworks.table.query.TableQueryParser;
 import org.sagebionetworks.table.query.model.*;
-import org.sagebionetworks.util.ValidateArgument;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 
 /**
  * Utilities for creating SQL elements
@@ -480,9 +479,13 @@ public class SqlElementUntils {
 	 * @throws ParseException 
 	 */
 	public static QuerySpecification convertToCountQuery(QuerySpecification model) {
-		ValidateArgument.required(model, "QuerySpecification");
+		if(model == null){
+			throw new IllegalArgumentException("Model cannot be null");
+		}
 		TableExpression currentTableExpression = model.getTableExpression();
-		ValidateArgument.required(currentTableExpression, "TableExpression");
+		if(currentTableExpression == null){
+			throw new IllegalArgumentException("TableExpression cannot be null");
+		}
 
 		// Clear the select list
 		SelectList count;
@@ -522,10 +525,16 @@ public class SqlElementUntils {
 	}
 
 	public static QuerySpecification convertToSortedQuery(QuerySpecification model, List<SortItem> sortList) {
-		ValidateArgument.required(model, "QuerySpecification");
-		ValidateArgument.required(sortList, "sortList");
+		if(model == null){
+			throw new IllegalArgumentException("QuerySpecification cannot be null");
+		}
+		if(sortList == null){
+			throw new IllegalArgumentException("sortList cannot be null");
+		}
 		TableExpression currentTableExpression = model.getTableExpression();
-		ValidateArgument.required(currentTableExpression, "TableExpression");
+		if(currentTableExpression == null){
+			throw new IllegalArgumentException("TableExpression cannot be null");
+		}
 
 		Map<String, SortSpecification> originalSortSpecifications;
 		OrderByClause orderByClause = currentTableExpression.getOrderByClause();
@@ -533,7 +542,7 @@ public class SqlElementUntils {
 			originalSortSpecifications = Collections.emptyMap();
 		} else {
 			// need to preserve order, so use linked hash map
-			originalSortSpecifications = Maps.newLinkedHashMap();
+			originalSortSpecifications = new LinkedHashMap<String, SortSpecification>();
 			for (SortSpecification spec : orderByClause.getSortSpecificationList().getSortSpecifications()) {
 				StringBuilder columnName = new StringBuilder();
 				spec.getSortKey().getColumnReference().toSQL(columnName, null);
@@ -541,7 +550,7 @@ public class SqlElementUntils {
 			}
 		}
 
-		List<SortSpecification> sortSpecifications = Lists.newArrayListWithCapacity(originalSortSpecifications.size() + sortList.size());
+		List<SortSpecification> sortSpecifications = new ArrayList<SortSpecification>(originalSortSpecifications.size() + sortList.size());
 
 		for (SortItem sortItem : sortList) {
 			// no sortItem.getDirection() will become order ASC

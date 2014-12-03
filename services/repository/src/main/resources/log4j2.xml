@@ -41,6 +41,17 @@
 				<SizeBasedTriggeringPolicy size="250 MB" />
 			</Policies>
 		</RollingFile>
+		<RollingFile name="requestBody"
+			fileName="${org.sagebionetworks.local.logging.dir}/request-body.log"
+			filePattern="${org.sagebionetworks.local.logging.dir}/request-body.%d{yyyy-MM-dd-hh-mm}.log.gz">
+			<PatternLayout>
+				<pattern>%d{ISO8601}{GMT+0} %X{sessionId} %-5p [%15.15t] [%c] - %m%n</pattern>
+			</PatternLayout>
+			<Policies>
+				<TimeBasedTriggeringPolicy interval="1" />
+				<SizeBasedTriggeringPolicy size="250 MB" />
+			</Policies>
+		</RollingFile>
 	</appenders>
 	<loggers>
 		<logger name="org.sagebionetworks.profiler.LoggingProfiler"
@@ -50,6 +61,10 @@
 		<logger name="org.sagebionetworks.profiler.call.performance"
 			level="debug" additivity="false">
 			<appender-ref ref="performanceProfiling" />
+		</logger>
+		<logger name="org.sagebionetworks.repo.web.RequestBodyLogger"
+			level="info" additivity="false">
+			<appender-ref ref="requestBody" />
 		</logger>
 		<logger name="org.sagebionetworks" level="all" additivity="true">
 			<appender-ref ref="repository" />

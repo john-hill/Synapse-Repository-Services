@@ -19,6 +19,13 @@
 	
 	<!-- This bean will intercept gather extra data from controller methods for auditing. -->
 	<bean id="controllerAuditAspect" class="org.sagebionetworks.repo.web.ControllerAuditAspect" />
+	
+	<!-- This bean will intercept request body objects and log them. -->
+	<bean id="requestBodyLogger" class="org.sagebionetworks.repo.web.RequestBodyLogger" >
+		<property name="logProvider">
+			<bean class="org.sagebionetworks.repo.web.RequestBodyLoggerProvider"/>
+		</property>
+	 </bean>
 
 	<!-- To enable @RequestMapping process on type level and method level -->
 	<bean id="jsonDefaultAnnotationHandler"

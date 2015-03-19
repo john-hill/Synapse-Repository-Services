@@ -74,6 +74,11 @@
 			<type>test-jar</type>
 			<scope>test</scope>
 		</dependency>
+		<!-- Provides OAuth support -->
+		<dependency>
+			<groupId>org.scribe</groupId>
+			<artifactId>scribe</artifactId>
+		</dependency>
 
 		<dependency>
 			<groupId>javax.servlet</groupId>

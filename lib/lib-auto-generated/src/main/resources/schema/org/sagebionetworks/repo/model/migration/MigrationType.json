@@ -12,6 +12,7 @@
     	"USER_PROFILE",
     	"STORAGE_LOCATION",
         "FILE_HANDLE",
+        "FILE_OWNER",
         "MESSAGE_CONTENT", 
         "MESSAGE_TO_USER", 
         "MESSAGE_RECIPIENT", 

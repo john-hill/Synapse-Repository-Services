@@ -15,6 +15,7 @@ import java.util.regex.Pattern;
 import javax.sql.DataSource;
 
 import org.sagebionetworks.repo.model.dao.table.RowAndHeaderHandler;
+import org.sagebionetworks.repo.model.dao.table.RowHandler;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.Row;
@@ -305,36 +306,25 @@ public class TableIndexDAOImpl implements TableIndexDAO {
 		final RowSet rowSet = new RowSet();
 		rowSet.setRows(rows);
 		rowSet.setHeaders(query.getSelectColumnModels().getSelectColumns());
-		// Stream over the results and save the results in a a list
-		queryAsStream(query, new RowAndHeaderHandler() {
-			@Override
-			public void writeHeader() {
-				// no-op
-			}
-
-			@Override
-			public void nextRow(Row row) {
-				rows.add(row);
-			}
-
-			@Override
-			public void setEtag(String etag) {
-				rowSet.setEtag(etag);
-			}
-		});
+		// Execute the query and set the rows in the resultset.
+		rowSet.setRows(queryOnePage(query));
 		rowSet.setTableId(query.getTableId());
 		return rowSet;
 	}
 	
+	/**
+	 * Load one page of query results into memory.
+	 * @param query
+	 * @return
+	 */
 	@Override
-	public boolean queryAsStream(final SqlQuery query, final RowAndHeaderHandler handler) {
+	public List<Row> queryOnePage(final SqlQuery query) {
 		ValidateArgument.required(query, "Query");
 		// We use spring to create create the prepared statement
 		NamedParameterJdbcTemplate namedTemplate = new NamedParameterJdbcTemplate(this.template);
-		handler.writeHeader();
-		namedTemplate.query(query.getOutputSQL(), new MapSqlParameterSource(query.getParameters()), new RowCallbackHandler() {
+		return namedTemplate.query(query.getOutputSQL(), new MapSqlParameterSource(query.getParameters()), new RowMapper<Row>() {
 			@Override
-			public void processRow(ResultSet rs) throws SQLException {
+			public Row mapRow(ResultSet rs, int rowNum) throws SQLException {
 				ResultSetMetaData metadata = rs.getMetaData();
 
 				Row row = new Row();
@@ -363,14 +353,15 @@ public class TableIndexDAOImpl implements TableIndexDAO {
 					throw new IllegalStateException("The number of columns returned (" + selectModelIndex
 							+ ") is not the same as the number expected (" + selectColumns.size() + ")");
 				}
-				handler.nextRow(row);
+				return row;
 			}
 		});
-		return true;
 	}
 
 	@Override
 	public <T> T executeInReadTransaction(TransactionCallback<T> callable) {
 		return readTransactionTemplate.execute(callable);
 	}
+
+
 }

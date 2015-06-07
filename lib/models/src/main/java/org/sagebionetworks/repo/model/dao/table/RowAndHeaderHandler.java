@@ -8,6 +8,5 @@ package org.sagebionetworks.repo.model.dao.table;
  */
 public interface RowAndHeaderHandler extends RowHandler {
 
-	public void writeHeader();
 	public void setEtag(String etag);
 }

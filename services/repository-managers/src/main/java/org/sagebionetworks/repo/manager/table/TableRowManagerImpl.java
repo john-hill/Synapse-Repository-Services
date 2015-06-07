@@ -34,6 +34,7 @@ import org.sagebionetworks.repo.model.dao.semaphore.ExclusiveOrSharedSemaphoreRu
 import org.sagebionetworks.repo.model.dao.table.ColumnModelDAO;
 import org.sagebionetworks.repo.model.dao.table.RowAccessor;
 import org.sagebionetworks.repo.model.dao.table.RowAndHeaderHandler;
+import org.sagebionetworks.repo.model.dao.table.RowHandler;
 import org.sagebionetworks.repo.model.dao.table.RowSetAccessor;
 import org.sagebionetworks.repo.model.dao.table.TableRowTruthDAO;
 import org.sagebionetworks.repo.model.dao.table.TableStatusDAO;
@@ -893,14 +894,9 @@ public class TableRowManagerImpl implements TableRowManager {
 			final List<Row> rows = new LinkedList<Row>();
 			results.setRows(rows);
 			results.setTableId(query.getTableId());
+			results.setHeaders(query.getSelectColumnModels().getSelectColumns());
 			// Stream the results but keep them in memory.
 			queryHandlers.add(new QueryHandler(query, new RowAndHeaderHandler() {
-
-				@Override
-				public void writeHeader() {
-					results.setHeaders(query.getSelectColumnModels().getSelectColumns());
-				}
-
 				@Override
 				public void nextRow(Row row) {
 					rows.add(row);
@@ -915,11 +911,6 @@ public class TableRowManagerImpl implements TableRowManager {
 
 		if (countQuery != null) {
 			queryHandlers.add(new QueryHandler(countQuery, new RowAndHeaderHandler() {
-
-				@Override
-				public void writeHeader() {
-					// no-op
-				}
 
 				@Override
 				public void nextRow(Row row) {
@@ -986,7 +977,7 @@ public class TableRowManagerImpl implements TableRowManager {
 									throw new IllegalArgumentException("All queries should be on the same table, but " + tableId + " and "
 											+ queryHandler.getQuery().getTableId());
 								}
-								indexDao.queryAsStream(queryHandler.getQuery(), queryHandler.getHandler());
+								queryPaginatedAsStream(indexDao, queryHandler.getQuery(), queryHandler.getHandler());
 								queryHandler.getHandler().setEtag(status.getLastTableChangeEtag());
 							}
 							return null;
@@ -1008,6 +999,45 @@ public class TableRowManagerImpl implements TableRowManager {
 			// All other exception are converted to generic datastore.
 			throw new DatastoreException(e);
 		}
+	}
+	
+	/**
+	 * This method is used to execute queries with results of any size.
+	 * The query will be executed as 
+	 * @param query
+	 * @param handler
+	 */
+	private void queryPaginatedAsStream(TableIndexDAO indexDao, SqlQuery query, RowHandler handler){
+		long callerLimit = Long.MAX_VALUE;
+		long callerOffset = 0L;
+		Pagination pagination = query.getModel().getTableExpression().getPagination();
+		if(pagination != null){
+			if(pagination.getLimit() != null){
+				callerLimit = pagination.getLimit();
+			}
+			if(pagination.getOffset() != null){
+				callerOffset = pagination.getOffset();
+			}
+		}
+		Long maxRowsPerPageTemp = getMaxRowsPerPage(query.getSelectColumnModels());
+		long maxRowsPerPage = 25000;
+		if(maxRowsPerPageTemp != null){
+			maxRowsPerPage = maxRowsPerPageTemp;
+		}
+		long limit = Math.min(callerLimit, maxRowsPerPage);
+		long offset = callerOffset;
+		while(true){
+			SqlQuery pageQuery = createPaginatedQuery(query, offset, limit);
+			List<Row> rows = indexDao.queryOnePage(pageQuery);
+			// Push rows to the stream
+			for(Row row: rows){
+				handler.nextRow(row);
+			}
+			if(rows.size() <= limit){
+				break;
+			}
+		}
+		
 	}
 	
 	/**
@@ -1038,17 +1068,13 @@ public class TableRowManagerImpl implements TableRowManager {
 		final boolean includeRowIdAndVersionFinal = includeRowIdAndVersion;
 		repsonse.setTableId(query.getTableId());
 		repsonse.setHeaders(query.getSelectColumnModels().getSelectColumns());
+		if (writeHeader) {
+			String[] csvHeaders = TableModelUtils.createColumnNameHeader(query.getSelectColumnModels().getSelectColumns(),
+					includeRowIdAndVersionFinal);
+			writer.writeNext(csvHeaders);
+		}
 
 		runConsistentQueryAsStream(Collections.singletonList(new QueryHandler(query, new RowAndHeaderHandler() {
-			@Override
-			public void writeHeader() {
-				if (writeHeader) {
-					String[] csvHeaders = TableModelUtils.createColumnNameHeader(query.getSelectColumnModels().getSelectColumns(),
-							includeRowIdAndVersionFinal);
-					writer.writeNext(csvHeaders);
-				}
-			}
-
 			@Override
 			public void nextRow(Row row) {
 				String[] array = TableModelUtils.writeRowToStringArray(row, includeRowIdAndVersionFinal);

@@ -159,11 +159,10 @@ public class TableRowManagerImplTest {
 		when(mockColumnModelDAO.getColumnModelsForObject(tableId)).thenReturn(models);
 		when(mockTableConnectionFactory.getConnection(tableId)).thenReturn(mockTableIndexDAO);
 		when(mockTableIndexDAO.query(any(SqlQuery.class))).thenReturn(set);
-		stub(mockTableIndexDAO.queryAsStream(any(SqlQuery.class), any(RowAndHeaderHandler.class))).toAnswer(new Answer<Boolean>() {
+		stub(mockTableIndexDAO.queryOnePage((any(SqlQuery.class)))).toAnswer(new Answer<List<Row>>() {
 			@Override
-			public Boolean answer(InvocationOnMock invocation) throws Throwable {
+			public List<Row> answer(InvocationOnMock invocation) throws Throwable {
 				SqlQuery query = (SqlQuery) invocation.getArguments()[0];
-				RowAndHeaderHandler handler =  (RowAndHeaderHandler) invocation.getArguments()[1];
 				boolean isCount = false;
 				if (query.getModel().getSelectList().getColumns() != null) {
 					String sql = query.getModel().getSelectList().getColumns().get(0).toString();
@@ -173,17 +172,13 @@ public class TableRowManagerImplTest {
 						isCount = true;
 					}
 				}
+				List<Row> results = new LinkedList<Row>();
 				if (isCount) {
-					handler.writeHeader();
-					handler.nextRow(TableModelTestUtils.createRow(null, null, "10"));
+					results.add(TableModelTestUtils.createRow(null, null, "10"));
 				} else {
-					// Pass all rows to the handler
-					handler.writeHeader();
-					for (Row row : set.getRows()) {
-						handler.nextRow(row);
-					}
+					results.addAll(set.getRows());
 				}
-				return true;
+				return results;
 			}
 		});	
 		// Just call the caller.

@@ -1003,7 +1003,7 @@ public class TableRowManagerImpl implements TableRowManager {
 	
 	/**
 	 * This method is used to execute queries with results of any size.
-	 * The query will be executed as 
+	 * The query will be br
 	 * @param query
 	 * @param handler
 	 */

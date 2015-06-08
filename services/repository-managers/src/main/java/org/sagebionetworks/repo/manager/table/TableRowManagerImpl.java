@@ -5,7 +5,6 @@ import java.io.StringWriter;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -42,7 +41,32 @@ import org.sagebionetworks.repo.model.exception.LockUnavilableException;
 import org.sagebionetworks.repo.model.exception.ReadOnlyException;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.status.StatusEnum;
-import org.sagebionetworks.repo.model.table.*;
+import org.sagebionetworks.repo.model.table.ColumnMapper;
+import org.sagebionetworks.repo.model.table.ColumnModel;
+import org.sagebionetworks.repo.model.table.ColumnType;
+import org.sagebionetworks.repo.model.table.DownloadFromTableResult;
+import org.sagebionetworks.repo.model.table.PartialRow;
+import org.sagebionetworks.repo.model.table.PartialRowSet;
+import org.sagebionetworks.repo.model.table.Query;
+import org.sagebionetworks.repo.model.table.QueryBundleRequest;
+import org.sagebionetworks.repo.model.table.QueryNextPageToken;
+import org.sagebionetworks.repo.model.table.QueryResult;
+import org.sagebionetworks.repo.model.table.QueryResultBundle;
+import org.sagebionetworks.repo.model.table.RawRowSet;
+import org.sagebionetworks.repo.model.table.Row;
+import org.sagebionetworks.repo.model.table.RowReference;
+import org.sagebionetworks.repo.model.table.RowReferenceSet;
+import org.sagebionetworks.repo.model.table.RowSelection;
+import org.sagebionetworks.repo.model.table.RowSet;
+import org.sagebionetworks.repo.model.table.SelectColumn;
+import org.sagebionetworks.repo.model.table.SelectColumnAndModel;
+import org.sagebionetworks.repo.model.table.SortItem;
+import org.sagebionetworks.repo.model.table.TableFailedException;
+import org.sagebionetworks.repo.model.table.TableRowChange;
+import org.sagebionetworks.repo.model.table.TableState;
+import org.sagebionetworks.repo.model.table.TableStatus;
+import org.sagebionetworks.repo.model.table.TableUnavilableException;
+import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.table.cluster.ConnectionFactory;
 import org.sagebionetworks.table.cluster.SQLTranslatorUtils;
@@ -66,7 +90,6 @@ import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.csv.CSVWriterStream;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.TransactionStatus;
-import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.springframework.transaction.support.TransactionCallback;
 
 import com.google.common.base.Function;
@@ -78,6 +101,8 @@ import com.thoughtworks.xstream.XStream;
 
 public class TableRowManagerImpl implements TableRowManager {
 	
+	private static final int DEFAULT_ROW_PER_PAGE = 25000;
+
 	private static final String PARTIAL_ROW_KEY_NOT_A_VALID = "PartialRow.value.key: '%s' is not a valid column ID for row ID: %s";
 
 	static private Log log = LogFactory.getLog(TableRowManagerImpl.class);
@@ -1002,8 +1027,13 @@ public class TableRowManagerImpl implements TableRowManager {
 	}
 	
 	/**
-	 * This method is used to execute queries with results of any size.
-	 * The query will be br
+	 * Execute the given query using pagination. The rows from each page will be
+	 * pushed to the provided rows handler after loading each page into memory.
+	 * The page size is a function of the maximum bytes per request and the
+	 * maximum bytes per row of the passed query select clause. This method will
+	 * only keep one page of results in memory at a time, so it can be used to
+	 * execute queries with results of any size.
+	 * 
 	 * @param query
 	 * @param handler
 	 */
@@ -1019,13 +1049,14 @@ public class TableRowManagerImpl implements TableRowManager {
 				callerOffset = pagination.getOffset();
 			}
 		}
-		Long maxRowsPerPageTemp = getMaxRowsPerPage(query.getSelectColumnModels());
-		long maxRowsPerPage = 25000;
-		if(maxRowsPerPageTemp != null){
-			maxRowsPerPage = maxRowsPerPageTemp;
+		long maxRowsPerPage = DEFAULT_ROW_PER_PAGE;
+		int maxRowSizeBytesForSelect = TableModelUtils.calculateMaxRowSizeForColumnModels(query.getSelectColumnModels());
+		if(maxRowSizeBytesForSelect > 0){
+			maxRowsPerPage = (long) (this.maxBytesPerRequest / maxRowSizeBytesForSelect);
 		}
 		long limit = Math.min(callerLimit, maxRowsPerPage);
 		long offset = callerOffset;
+		long totalRowsRead = 0;
 		while(true){
 			SqlQuery pageQuery = createPaginatedQuery(query, offset, limit);
 			List<Row> rows = indexDao.queryOnePage(pageQuery);
@@ -1033,11 +1064,17 @@ public class TableRowManagerImpl implements TableRowManager {
 			for(Row row: rows){
 				handler.nextRow(row);
 			}
-			if(rows.size() <= limit){
+			// Is this the last page?
+			if(rows.size() < limit){
 				break;
 			}
+			totalRowsRead += rows.size();
+			if(totalRowsRead >= callerLimit){
+				break;
+			}
+			// Next page
+			offset += limit;
 		}
-		
 	}
 	
 	/**

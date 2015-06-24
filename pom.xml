@@ -124,7 +124,6 @@
 				<artifactId>tdb</artifactId>
 				<version>0.8.5</version>
 			</dependency>
-			
 			<!-- OAuth support -->
 			<dependency>
 				<groupId>org.scribe</groupId>
@@ -513,6 +512,12 @@
 				<version>${project.version}</version>
 				<scope>test</scope>
 			</dependency>
+			<dependency>
+				<groupId>org.reflections</groupId>
+				<artifactId>reflections</artifactId>
+				<version>0.9.9-RC1</version>
+				<scope>test</scope>
+			</dependency>			
 			<dependency>
 				<groupId>org.sagebionetworks</groupId>
 				<artifactId>database-semaphore</artifactId>

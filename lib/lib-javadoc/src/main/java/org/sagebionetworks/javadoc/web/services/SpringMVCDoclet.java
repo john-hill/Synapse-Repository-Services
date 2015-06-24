@@ -49,7 +49,7 @@ public class SpringMVCDoclet {
 		generators.add(new ControllerContextGenerator());
 		generators.add(new CSVExampleContextGenerator());
 	}
-
+	
 	/**
 	 * The main entry point of the Doclet
 	 * 
@@ -60,6 +60,26 @@ public class SpringMVCDoclet {
 	 * @throws JSONObjectAdapterException
 	 */
 	public static boolean start(RootDoc root) throws Exception {
+		try {
+			return startPrivate(root);
+		} catch (Exception e) {
+			System.out.println(e.getMessage());
+			System.out.print(e.getMessage());
+			e.printStackTrace();
+			return false;
+		}
+	}
+
+	/**
+	 * The main entry point of the Doclet
+	 * 
+	 * @param root
+	 * @return
+	 * @throws XMLStreamException
+	 * @throws IOException
+	 * @throws JSONObjectAdapterException
+	 */
+	private static boolean startPrivate(RootDoc root) throws Exception {
 		// Pass this along to the standard doclet
 		// First determine the output directory.
 		File outputDirectory = getOutputDirectory(root.options());

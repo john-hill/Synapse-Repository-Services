@@ -1,0 +1,19 @@
+{
+	"description": "Describes an association of a files handle with another object.  Access to files handles are controlled through associated objects.",
+	"type": "object",
+	"properties": {
+		"fileHandleId": {
+			"description": "The ID of this FileHandle.",
+			"type": "string"
+		},
+		"associatedObjectId": {
+			"description": "The ID of the object associated with the FileHandle.",
+			"type": "string"
+		},
+		"associatedObjectType": {
+			"description": "The type of object associated with the FileHandle.",
+			"type": "string",
+			"$ref": "org.sagebionetworks.repo.model.ObjectType"
+		}
+	}
+}

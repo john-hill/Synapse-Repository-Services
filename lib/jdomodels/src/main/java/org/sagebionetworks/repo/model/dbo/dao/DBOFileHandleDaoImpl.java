@@ -26,6 +26,7 @@ import org.sagebionetworks.repo.model.dbo.SinglePrimaryKeySqlParameterSource;
 import org.sagebionetworks.repo.model.dbo.TableMapping;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOFileHandle;
 import org.sagebionetworks.repo.model.file.FileHandle;
+import org.sagebionetworks.repo.model.file.FileHandleAssociation;
 import org.sagebionetworks.repo.model.file.FileHandleResults;
 import org.sagebionetworks.repo.model.file.HasPreviewId;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
@@ -280,17 +281,15 @@ public class DBOFileHandleDaoImpl implements FileHandleDao {
 	}
 
 	@Override
-	public Map<String, FileHandle> getAllFileHandlesBatch(Iterable<String> idsList) {
+	public Map<String, FileHandle> getAllFileHandlesBatch(List<String> idsList) {
 		Map<String, FileHandle> resultMap = Maps.newHashMap();
 
 		// because we are using an IN clause and the number of incoming fileHandleIds is undetermined, we need to batch
 		// the selects here
-		for (List<String> fileHandleIdsBatch : Iterables.partition(idsList, 100)) {
-			List<DBOFileHandle> handles = simpleJdbcTemplate.query(SQL_SELECT_BATCH, rowMapping, new SinglePrimaryKeySqlParameterSource(
-					fileHandleIdsBatch));
-			for (DBOFileHandle handle : handles) {
-				resultMap.put(handle.getIdString(), FileMetadataUtils.createDTOFromDBO(handle));
-			}
+		List<DBOFileHandle> handles = simpleJdbcTemplate.query(SQL_SELECT_BATCH, rowMapping, new SinglePrimaryKeySqlParameterSource(
+				idsList));
+		for (DBOFileHandle handle : handles) {
+			resultMap.put(handle.getIdString(), FileMetadataUtils.createDTOFromDBO(handle));
 		}
 		return resultMap;
 	}
@@ -308,5 +307,19 @@ public class DBOFileHandleDaoImpl implements FileHandleDao {
 	@Override
 	public long getMaxId() throws DatastoreException {
 		return simpleJdbcTemplate.queryForLong(SQL_MAX_FILE_ID);
+	}
+
+	@Override
+	public void createFileHandleAssociation(
+			List<FileHandleAssociation> associations) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public List<FileHandleAssociation> listFileHandleAssociations(
+			List<String> fileHandleIds) {
+		// TODO Auto-generated method stub
+		return null;
 	}
 }

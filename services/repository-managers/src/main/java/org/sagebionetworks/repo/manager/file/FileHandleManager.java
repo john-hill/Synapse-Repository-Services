@@ -129,7 +129,7 @@ public interface FileHandleManager {
 	 * @throws NotFoundException
 	 * @throws DatastoreException
 	 */
-	Map<String, FileHandle> getAllFileHandlesBatch(Iterable<String> idsList) throws DatastoreException, NotFoundException;
+	Map<String, FileHandle> getAllFileHandlesBatch(List<String> idsList) throws DatastoreException, NotFoundException;
 
 	/**
 	 * Create an external file handle.

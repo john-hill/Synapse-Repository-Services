@@ -5,6 +5,7 @@ import java.util.Map;
 
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.file.FileHandle;
+import org.sagebionetworks.repo.model.file.FileHandleAssociation;
 import org.sagebionetworks.repo.model.file.FileHandleResults;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -68,7 +69,7 @@ public interface FileHandleDao {
 	 * @throws NotFoundException
 	 * @throws DatastoreException
 	 */
-	public Map<String, FileHandle> getAllFileHandlesBatch(Iterable<String> idsList);
+	public Map<String, FileHandle> getAllFileHandlesBatch(List<String> idsList);
 
 	/**
 	 * Delete the file metadata.
@@ -116,6 +117,19 @@ public interface FileHandleDao {
 	 * @return
 	 */
 	public long getS3objectReferenceCount(String bucketName, String key);
+	
+	/**
+	 * Create an association of a FileHandle with another object.  Access to FileHandles is controlled through the associated objects.
+	 * @param associations
+	 */
+	public void createFileHandleAssociation(List<FileHandleAssociation> associations);
+	
+	/**
+	 * List all file handle associations for each provided file handle id.
+	 * @param fileHandleIds The list of FileHandle ids to get associations of.
+	 * @return The order of the result will match the request list order.
+	 */
+	public List<FileHandleAssociation> listFileHandleAssociations(List<String> fileHandleIds);
 
 	long getCount() throws DatastoreException;
 

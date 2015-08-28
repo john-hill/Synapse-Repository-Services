@@ -9,6 +9,7 @@ import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.backup.FileHandleBackup;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
 import org.sagebionetworks.repo.model.file.FileHandle;
+import org.sagebionetworks.repo.model.file.FileHandleAssociation;
 import org.sagebionetworks.repo.model.file.FileHandleResults;
 import org.sagebionetworks.repo.model.file.HasPreviewId;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
@@ -123,11 +124,25 @@ public class StubFileMetadataDao implements FileHandleDao {
 	}
 
 	@Override
-	public Map<String, FileHandle> getAllFileHandlesBatch(Iterable<String> fileHandleIds) {
+	public Map<String, FileHandle> getAllFileHandlesBatch(List<String> fileHandleIds) {
 		Map<String, FileHandle> result = Maps.newHashMap();
 		for (String fileHandleId : fileHandleIds) {
 			result.put(fileHandleId, map.get(fileHandleId));
 		}
 		return result;
+	}
+
+	@Override
+	public void createFileHandleAssociation(
+			List<FileHandleAssociation> associations) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public List<FileHandleAssociation> listFileHandleAssociations(
+			List<String> fileHandleIds) {
+		// TODO Auto-generated method stub
+		return null;
 	}
 }

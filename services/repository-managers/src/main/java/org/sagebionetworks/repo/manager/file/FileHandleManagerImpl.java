@@ -498,7 +498,7 @@ public class FileHandleManagerImpl implements FileHandleManager {
 	}
 
 	@Override
-	public Map<String, FileHandle> getAllFileHandlesBatch(Iterable<String> idsList)
+	public Map<String, FileHandle> getAllFileHandlesBatch(List<String> idsList)
 			throws DatastoreException, NotFoundException {
 		return fileHandleDao.getAllFileHandlesBatch(idsList);
 	}

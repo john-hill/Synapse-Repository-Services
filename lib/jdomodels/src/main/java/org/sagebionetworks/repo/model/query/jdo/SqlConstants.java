@@ -226,6 +226,12 @@ public class SqlConstants {
 	public static final String COL_FILES_NAME						= "NAME";
 	public static final String COL_FILES_STORAGE_LOCATION_ID		= "STORAGE_LOCATION_ID";
 	public static final String DDL_FILES							= "schema/Files-ddl.sql";
+	
+	// File handle association table.
+	public static final String TABLE_FILE_ASSOCIATIONS				= "FILE_ASSOCIATIONS";
+	public static final String COL_FILE_ASSOC_FILE_HANDLE_ID		= "FILE_HANDLE_ID";
+	public static final String COL_FILE_ASSOC_ASSOC_OBJECT_ID		= "OBJECT_ID";
+	public static final String COL_FILE_ASSOC_ASSOC_OBJECT_TYPE		= "OBJECT_TYPE";
 
 	// 
 	public static final String COL_STACK_STATUS_ID					= "ID";

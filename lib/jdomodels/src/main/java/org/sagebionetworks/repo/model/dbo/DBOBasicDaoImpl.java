@@ -51,6 +51,7 @@ public class DBOBasicDaoImpl implements DBOBasicDao, InitializingBean {
 	 */
 	private Map<Class<? extends DatabaseObject>, String> insertMap = new HashMap<Class<? extends DatabaseObject>, String>();
 	private Map<Class<? extends DatabaseObject>, String> insertOnDuplicateUpdateMap = new HashMap<Class<? extends DatabaseObject>, String>();
+	private Map<Class<? extends DatabaseObject>, String> insertIgnoreMap = new HashMap<Class<? extends DatabaseObject>, String>();
 	private Map<Class<? extends DatabaseObject>, String> fetchMap = new HashMap<Class<? extends DatabaseObject>, String>();
 	private Map<Class<? extends DatabaseObject>, String> countMap = new HashMap<Class<? extends DatabaseObject>, String>();
 	private Map<Class<? extends DatabaseObject>, String> deleteMap = new HashMap<Class<? extends DatabaseObject>, String>();
@@ -71,8 +72,11 @@ public class DBOBasicDaoImpl implements DBOBasicDao, InitializingBean {
 			TableMapping mapping = dbo.getTableMapping();
 			ddlUtils.validateTableExists(mapping);
 			// Create the Insert SQL
-			String insertSQL = DMLUtils.createInsertStatement(mapping);
+			String insertSQL = DMLUtils.createInsertStatement(mapping, false);
 			this.insertMap.put(mapping.getDBOClass(), insertSQL);
+			// Insert ignore
+			String insertIgnore = DMLUtils.createInsertStatement(mapping, true);
+			this.insertIgnoreMap.put(mapping.getDBOClass(), insertIgnore);
 			// INSERT ON DUPLICATE KEY UPDATE
 			String insertOnDuplicateKeyUpdate = DMLUtils.getBatchInsertOrUdpate(mapping);
 			this.insertOnDuplicateUpdateMap.put(mapping.getDBOClass(), insertOnDuplicateKeyUpdate);
@@ -149,6 +153,22 @@ public class DBOBasicDaoImpl implements DBOBasicDao, InitializingBean {
 		if(batch.size() < 1) throw new IllegalArgumentException("There must be at least one item in the batch");
 		// Lookup the insert SQL
 		String insertSQl = getInsertOnDuplicateUpdateSQL(batch.get(0).getClass());
+
+		return batchUpdate(batch, insertSQl, false);
+	}
+	
+	/*
+	 * (non-Javadoc)
+	 * @see org.sagebionetworks.repo.model.dbo.DBOBasicDao#insertIgnoreBatch(java.util.List)
+	 */
+	@WriteTransaction
+	@Override
+	public <T extends DatabaseObject<T>> List<T> insertIgnoreBatch(
+			List<T> batch) throws DatastoreException {
+		if(batch == null) throw new IllegalArgumentException("The batch cannot be null");
+		if(batch.size() < 1) throw new IllegalArgumentException("There must be at least one item in the batch");
+		// Lookup the insert SQL
+		String insertSQl = getInsertIgnoreSQL(batch.get(0).getClass());
 
 		return batchUpdate(batch, insertSQl, false);
 	}
@@ -306,6 +326,13 @@ public class DBOBasicDaoImpl implements DBOBasicDao, InitializingBean {
 		if(clazz == null) throw new IllegalArgumentException("The clazz cannot be null");
 		String sql = this.insertOnDuplicateUpdateMap.get(clazz);
 		if(sql == null) throw new IllegalArgumentException("Cannot find the 'INSERT...ON DUPLICATE KEY UPDATE' SQL for class: "+clazz+".  Please register this class by adding it to the 'databaseObjectRegister' bean");
+		return sql;
+	}
+	
+	private String getInsertIgnoreSQL(Class<? extends DatabaseObject> clazz){
+		if(clazz == null) throw new IllegalArgumentException("The clazz cannot be null");
+		String sql = this.insertIgnoreMap.get(clazz);
+		if(sql == null) throw new IllegalArgumentException("Cannot find the 'INSERT...IGNORE' SQL for class: "+clazz+".  Please register this class by adding it to the 'databaseObjectRegister' bean");
 		return sql;
 	}
 	

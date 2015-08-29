@@ -53,6 +53,14 @@ public interface DBOBasicDao {
 	public <T extends DatabaseObject<T>> List<T> createOrUpdateBatch(List<T> batch) throws DatastoreException;
 	
 	/**
+	 * Insert a batch of DBOs using INSERT IGNORE.  
+	 * @param batch
+	 * @return
+	 * @throws DatastoreException
+	 */
+	public <T extends DatabaseObject<T>> List<T> insertIgnoreBatch(List<T> batch) throws DatastoreException;
+	
+	/**
 	 * Update an existing object.
 	 * @param <T>
 	 * @param toUpdate

@@ -3,12 +3,16 @@ package org.sagebionetworks.repo.model.dbo;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.sagebionetworks.repo.model.backup.FileHandleBackup;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOFileHandle;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOFileHandle.MetadataType;
+import org.sagebionetworks.repo.model.dbo.persistence.DBOFileHandleAssociation;
 import org.sagebionetworks.repo.model.file.ExternalFileHandle;
 import org.sagebionetworks.repo.model.file.FileHandle;
+import org.sagebionetworks.repo.model.file.FileHandleAssociation;
 import org.sagebionetworks.repo.model.file.HasPreviewId;
 import org.sagebionetworks.repo.model.file.PreviewFileHandle;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
@@ -259,6 +263,62 @@ public class FileMetadataUtils {
 			out.setStorageLocationId(in.getStorageLocationId());
 		}
 		return out;
+	}
+	
+	/**
+	 * DBOFileHandleAssociation to FileHandleAssociation
+	 * @param dbo
+	 * @return
+	 */
+	public static FileHandleAssociation createDTOFromDBO(DBOFileHandleAssociation dbo){
+		FileHandleAssociation dto = new FileHandleAssociation();
+		if(dbo.getFileHandleId() != null){
+			dto.setFileHandleId(dbo.getFileHandleId().toString());
+		}
+		if(dbo.getAssociatedObjectId() != null){
+			dto.setAssociatedObjectId(dbo.getAssociatedObjectId().toString());
+		}
+		dto.setAssociatedObjectType(dbo.getAssociatedObjectType());
+		return dto;
+	}
+	
+	/**
+	 * List<DBOFileHandleAssociation> to List<FileHandleAssociation>
+	 * @param dbos
+	 * @return
+	 */
+	public static List<FileHandleAssociation> createDTOFromDBO(List<DBOFileHandleAssociation> dbos){
+		List<FileHandleAssociation> list = new ArrayList<FileHandleAssociation>(dbos.size());
+		for(DBOFileHandleAssociation dto: dbos){
+			list.add(createDTOFromDBO(dto));
+		}
+		return list;
+	}
+	
+	/**
+	 * FileHandleAssociation to DBOFileHandleAssociation
+	 * @param dto
+	 * @return
+	 */
+	public static DBOFileHandleAssociation createDBOFromDTO(FileHandleAssociation dto){
+		DBOFileHandleAssociation dbo = new DBOFileHandleAssociation();
+		dbo.setFileHandleId(Long.parseLong(dto.getFileHandleId()));
+		dbo.setAssociatedObjectId(Long.parseLong(dto.getAssociatedObjectId()));
+		dbo.setAssociatedObjectType(dto.getAssociatedObjectType());
+		return dbo;
+	}
+	
+	/**
+	 * List<FileHandleAssociation> to List<DBOFileHandleAssociation>
+	 * @param dtos
+	 * @return
+	 */
+	public static List<DBOFileHandleAssociation> createDBOFromDTO(List<FileHandleAssociation> dtos){
+		List<DBOFileHandleAssociation> list = new ArrayList<DBOFileHandleAssociation>(dtos.size());
+		for(FileHandleAssociation dto: dtos){
+			list.add(createDBOFromDTO(dto));
+		}
+		return list;
 	}
 
 }

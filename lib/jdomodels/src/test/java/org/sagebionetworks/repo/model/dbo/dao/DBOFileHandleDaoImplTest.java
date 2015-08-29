@@ -1,17 +1,15 @@
 package org.sagebionetworks.repo.model.dbo.dao;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 import java.net.MalformedURLException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.After;
@@ -20,9 +18,11 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.DatastoreException;
+import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.dao.FileHandleDao;
 import org.sagebionetworks.repo.model.file.ExternalFileHandle;
 import org.sagebionetworks.repo.model.file.FileHandle;
+import org.sagebionetworks.repo.model.file.FileHandleAssociation;
 import org.sagebionetworks.repo.model.file.FileHandleResults;
 import org.sagebionetworks.repo.model.file.PreviewFileHandle;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
@@ -591,5 +591,51 @@ public class DBOFileHandleDaoImplTest {
 		handle = fileHandleDao.createFile(handle, false);
 		toDelete.add(handle.getId());
 		assertEquals(handle.getId(), handle.getPreviewId());
+	}
+	
+	@Test
+	public void testTouchFileHandleIds(){
+		S3FileHandle one = TestUtils.createS3FileHandle(creatorUserGroupId);
+		S3FileHandle two = TestUtils.createS3FileHandle(creatorUserGroupId);
+		one = fileHandleDao.createFile(one, false);
+		two = fileHandleDao.createFile(two, false);
+		toDelete.add(one.getId());
+		toDelete.add(two.getId());
+		
+		Set<Long> toTouch = new HashSet<Long>();
+		toTouch.add(Long.parseLong(one.getId()));
+		toTouch.add(Long.parseLong(two.getId()));
+		// update the etag of each
+		fileHandleDao.touchFileHandleEtags(toTouch);
+		S3FileHandle oneTouched = (S3FileHandle) fileHandleDao.get(one.getId());
+		S3FileHandle twoTouched = (S3FileHandle) fileHandleDao.get(two.getId());
+		assertEquals(one.getId(), oneTouched.getId());
+		assertFalse(one.getEtag().equals(oneTouched.getEtag()));
+		assertEquals(two.getId(), twoTouched.getId());
+		assertFalse(two.getEtag().equals(twoTouched.getEtag()));
+	}
+	
+	@Test
+	public void testFileHandleAssociation(){
+		S3FileHandle one = TestUtils.createS3FileHandle(creatorUserGroupId);
+		S3FileHandle two = TestUtils.createS3FileHandle(creatorUserGroupId);
+		one = fileHandleDao.createFile(one, false);
+		two = fileHandleDao.createFile(two, false);
+		toDelete.add(one.getId());
+		toDelete.add(two.getId());
+		
+		FileHandleAssociation oneAssoc = new FileHandleAssociation();
+		oneAssoc.setAssociatedObjectId(one.getId());
+		oneAssoc.setAssociatedObjectId("123");
+		oneAssoc.setAssociatedObjectType(ObjectType.ENTITY);
+		
+		FileHandleAssociation twoAssoc = new FileHandleAssociation();
+		twoAssoc.setAssociatedObjectId(two.getId());
+		twoAssoc.setAssociatedObjectId("456");
+		twoAssoc.setAssociatedObjectType(ObjectType.TABLE);
+		
+		fileHandleDao.createFileHandleAssociation(Arrays.asList(twoAssoc, oneAssoc));
+		
+		
 	}
 }

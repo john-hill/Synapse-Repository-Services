@@ -75,10 +75,18 @@ public class DMLUtilsTest {
 	@Test
 	public void testCreateInsertStatement(){
 
-		String dml = DMLUtils.createInsertStatement(mapping);
+		String dml = DMLUtils.createInsertStatement(mapping, false);
 		assertNotNull(dml);
 		System.out.println(dml);
 		assertEquals("INSERT INTO SOME_TABLE(`ID`, `BIG_NAME`) VALUES (:id, :bigName)", dml);
+	}
+	
+	@Test
+	public void testCreateInsertIgnoreStatement(){
+		String dml = DMLUtils.createInsertStatement(mapping, true);
+		assertNotNull(dml);
+		System.out.println(dml);
+		assertEquals("INSERT IGNORE INTO SOME_TABLE(`ID`, `BIG_NAME`) VALUES (:id, :bigName)", dml);
 	}
 	
 	@Test

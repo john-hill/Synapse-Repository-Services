@@ -24,13 +24,17 @@ public class DMLUtils {
 	/**
 	 * Create an INSERT statement for a given mapping.
 	 * @param mapping
+	 * @param 
 	 * @return
 	 */
-	public static String createInsertStatement(TableMapping mapping){
+	public static String createInsertStatement(TableMapping mapping, boolean ignore){
 		if(mapping == null) throw new IllegalArgumentException("Mapping cannot be null");
 		if(mapping.getFieldColumns() == null) throw new IllegalArgumentException("DBOMapping.getFieldColumns() cannot be null");
 		StringBuilder main = new StringBuilder();
 		main.append("INSERT ");
+		if(ignore){
+			main.append("IGNORE ");
+		}
 		// If a table consists only of primary keys, inserting a duplicate should not result in failure 
 		if (!hasNonPrimaryKeyColumns(mapping)) {
 			main.append("IGNORE ");
@@ -67,7 +71,7 @@ public class DMLUtils {
 	 */
 	public static String getBatchInsertOrUdpate(TableMapping mapping){
 		StringBuilder builder = new StringBuilder();
-		builder.append(createInsertStatement(mapping));
+		builder.append(createInsertStatement(mapping, false));
 		if (hasNonPrimaryKeyColumns(mapping)) {
 			builder.append(" ON DUPLICATE KEY UPDATE ");
 			buildUpdateBody(mapping, builder);

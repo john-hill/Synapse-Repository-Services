@@ -10,9 +10,13 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_FILES;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.sagebionetworks.ids.IdGenerator;
@@ -25,6 +29,7 @@ import org.sagebionetworks.repo.model.dbo.FileMetadataUtils;
 import org.sagebionetworks.repo.model.dbo.SinglePrimaryKeySqlParameterSource;
 import org.sagebionetworks.repo.model.dbo.TableMapping;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOFileHandle;
+import org.sagebionetworks.repo.model.dbo.persistence.DBOFileHandleAssociation;
 import org.sagebionetworks.repo.model.file.FileHandle;
 import org.sagebionetworks.repo.model.file.FileHandleAssociation;
 import org.sagebionetworks.repo.model.file.FileHandleResults;
@@ -55,6 +60,8 @@ import com.google.common.collect.Multimap;
  */
 public class DBOFileHandleDaoImpl implements FileHandleDao {
 	
+	private static final String SQL_TOUCH_FILE_ETAG_BATCH = "UPDATE "+TABLE_FILES+" SET "+COL_FILES_ETAG+" = ? WHERE "+COL_FILES_ID+" = ?";
+
 	private static final String IDS_PARAM = ":ids";
 
 	private static final String SQL_COUNT_ALL_FILES = "SELECT COUNT(*) FROM "+TABLE_FILES;
@@ -309,11 +316,58 @@ public class DBOFileHandleDaoImpl implements FileHandleDao {
 		return simpleJdbcTemplate.queryForLong(SQL_MAX_FILE_ID);
 	}
 
+	/*
+	 * (non-Javadoc)
+	 * @see org.sagebionetworks.repo.model.dao.FileHandleDao#createFileHandleAssociation(java.util.List)
+	 */
+	@WriteTransaction
 	@Override
 	public void createFileHandleAssociation(
 			List<FileHandleAssociation> associations) {
-		// TODO Auto-generated method stub
-		
+		/* 
+		 * FileHandleAssociations are secondary to FileHandle, so by default the fileHandles
+		 * etags should be touched when associations are made.
+		 */
+		boolean touchFileHandles = true;
+		createFileHandleAssociation(associations, touchFileHandles);
+	}
+	
+	/**
+	 * Create a batch of FileHandleAssociations.
+	 * @param associations Associations to create.
+	 * @param touchFileHandles Should the etags of each effected file handle be updated?
+	 */
+	private void createFileHandleAssociation(
+			List<FileHandleAssociation> associations, boolean touchFileHandles) {
+		List<DBOFileHandleAssociation> dbos = FileMetadataUtils.createDBOFromDTO(associations);
+		// insert the association.
+		this.basicDao.insertIgnoreBatch(dbos);
+		// update the etag of each file handle if requested to do so.
+		if(touchFileHandles){
+			Set<Long> uniqueFileHandleIds = new HashSet<Long>(associations.size());
+			for(DBOFileHandleAssociation dbo: dbos){
+				uniqueFileHandleIds.add(dbo.getFileHandleId());
+			}
+			touchFileHandleEtags(uniqueFileHandleIds);
+		}
+	}
+	
+	/*
+	 * (non-Javadoc)
+	 * @see org.sagebionetworks.repo.model.dao.FileHandleDao#touchFileHandleEtags(java.util.Set)
+	 */
+	@WriteTransaction
+	@Override
+	public void touchFileHandleEtags(Set<Long> fileHandleIdsToTouch){
+		// Convert to an array.
+		List<Long> orderedFileHandlIds = new LinkedList<Long>(fileHandleIdsToTouch);
+		// update in order to prevent deadlock.
+		Collections.sort(orderedFileHandlIds);
+		List<Object[]> batchUpdateArgs = new ArrayList<Object[]>(orderedFileHandlIds.size());
+		for(Long fileHandleId: orderedFileHandlIds){
+			batchUpdateArgs.add(new Object[]{UUID.randomUUID().toString(), fileHandleId});
+		}
+		this.simpleJdbcTemplate.batchUpdate(SQL_TOUCH_FILE_ETAG_BATCH, batchUpdateArgs);
 	}
 
 	@Override

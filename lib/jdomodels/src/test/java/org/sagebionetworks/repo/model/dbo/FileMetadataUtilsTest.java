@@ -5,14 +5,19 @@ import static org.junit.Assert.assertNotNull;
 
 import java.net.MalformedURLException;
 import java.sql.Timestamp;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 
 import org.junit.Test;
+import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.backup.FileHandleBackup;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOFileHandle;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOFileHandle.MetadataType;
+import org.sagebionetworks.repo.model.dbo.persistence.DBOFileHandleAssociation;
 import org.sagebionetworks.repo.model.file.ExternalFileHandle;
 import org.sagebionetworks.repo.model.file.FileHandle;
+import org.sagebionetworks.repo.model.file.FileHandleAssociation;
 import org.sagebionetworks.repo.model.file.PreviewFileHandle;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 
@@ -133,6 +138,30 @@ public class FileMetadataUtilsTest {
 		DBOFileHandle clone = FileMetadataUtils.createDBOFromBackup(backup);
 		assertNotNull(clone);
 		assertEquals(dbo, clone);
+	}
+	
+	@Test
+	public void testFileAssociationRoundTrip(){
+		FileHandleAssociation dto = new FileHandleAssociation();
+		dto.setFileHandleId("123");
+		dto.setAssociatedObjectId("456");
+		dto.setAssociatedObjectType(ObjectType.TABLE);
+		
+		DBOFileHandleAssociation dbo = FileMetadataUtils.createDBOFromDTO(dto);
+		FileHandleAssociation clone = FileMetadataUtils.createDTOFromDBO(dbo);
+		assertEquals(dto, clone);
+	}
+	
+	@Test
+	public void testFileAssociationListRoundTrip(){
+		FileHandleAssociation dto = new FileHandleAssociation();
+		dto.setFileHandleId("123");
+		dto.setAssociatedObjectId("456");
+		dto.setAssociatedObjectType(ObjectType.TABLE);
+		
+		List<DBOFileHandleAssociation> dbos = FileMetadataUtils.createDBOFromDTO(Arrays.asList(dto));
+		List<FileHandleAssociation> clone = FileMetadataUtils.createDTOFromDBO(dbos);
+		assertEquals(Arrays.asList(dto), clone);
 	}
 
 

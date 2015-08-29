@@ -14,6 +14,7 @@
 
 	<bean id="ddlUtils" class="org.sagebionetworks.repo.model.dbo.DDLUtilsImpl" />
 
+	<!--This is the register of all DBO objects (both primary and secondary).  -->
 	<bean id="dboBasicDao" class="org.sagebionetworks.repo.model.dbo.DBOBasicDaoImpl">
 		<property name="databaseObjectRegister">
 			<list>
@@ -30,6 +31,7 @@
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOActivity" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOStorageLocation" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOFileHandle" />
+				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOFileHandleAssociation" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOMessageContent" />
                 <bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOMessageToUser" />
                 <bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOMessageRecipient" />

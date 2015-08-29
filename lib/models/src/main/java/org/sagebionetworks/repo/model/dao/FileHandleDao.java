@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.model.dao;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.file.FileHandle;
@@ -130,8 +131,15 @@ public interface FileHandleDao {
 	 * @return The order of the result will match the request list order.
 	 */
 	public List<FileHandleAssociation> listFileHandleAssociations(List<String> fileHandleIds);
+	
+	/**
+	 * Change the etag of each FileHandle from the provided set of fileHandleIds.
+	 * @param fileHandleIdsToTouch
+	 */
+	void touchFileHandleEtags(Set<Long> fileHandleIdsToTouch);
 
 	long getCount() throws DatastoreException;
 
 	long getMaxId() throws DatastoreException;
+
 }

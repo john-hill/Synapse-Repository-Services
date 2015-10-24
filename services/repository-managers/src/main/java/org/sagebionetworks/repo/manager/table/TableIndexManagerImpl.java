@@ -125,6 +125,6 @@ public class TableIndexManagerImpl implements TableIndexManager {
 		// delete all tables for this index.
 		tableIndexDao.deleteTable(tableId);
 		tableIndexDao.deleteSecondayTables(tableId);
-	}	
-
+	}
+	
 }

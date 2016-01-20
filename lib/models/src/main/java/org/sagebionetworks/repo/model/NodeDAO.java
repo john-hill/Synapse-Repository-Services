@@ -294,14 +294,13 @@ public interface NodeDAO {
 	 * 
 	 * @param nodeId
 	 * @param newParentId
-	 * @param isMoveToTrash
 	 * @return returns true if the parent was actually changed, false if not. So, if parent was already set to the
 	 *         parameter newParentId then it will return false.
 	 * @throws NotFoundException
 	 * @throws NumberFormatException
 	 * @throws DatastoreException
 	 */
-	public boolean changeNodeParent(String nodeId, String newParentId, boolean isMoveToTrash) throws NumberFormatException,
+	public boolean changeNodeParent(String nodeId, String newParentId) throws NumberFormatException,
 			NotFoundException, DatastoreException;
 	
 	/**

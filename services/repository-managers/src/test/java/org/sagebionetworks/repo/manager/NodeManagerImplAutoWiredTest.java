@@ -579,7 +579,7 @@ public class NodeManagerImplAutoWiredTest {
 		//set child's parentId to the newProject
 		fetchedChild.setParentId(newProjectId);
 		nodeManagerWMocks.update(adminUserInfo, fetchedChild);
-		verify(mockNodeDao, times(1)).changeNodeParent(childId, newProjectId, false);
+		verify(mockNodeDao, times(1)).changeNodeParent(childId, newProjectId);
 		verify(mockNodeInheritanceManager, times(1)).nodeParentChanged(childId, newProjectId);
 	}
 	
@@ -621,8 +621,8 @@ public class NodeManagerImplAutoWiredTest {
 		fetchedNode.setName("notTheChildName");
 		when(mockNodeDao.getParentId(anyString())).thenReturn(new String(fetchedNode.getParentId()));
 		nodeManagerWMocks.update(adminUserInfo, fetchedNode);
-		verify(mockNodeDao, never()).changeNodeParent(anyString(), anyString(), anyBoolean());
-		verify(mockNodeInheritanceManager, never()).nodeParentChanged(anyString(), anyString(), anyBoolean());
+		verify(mockNodeDao, never()).changeNodeParent(anyString(), anyString());
+		verify(mockNodeInheritanceManager, never()).nodeParentChanged(anyString(), anyString());
 	}
 	
 	@Test

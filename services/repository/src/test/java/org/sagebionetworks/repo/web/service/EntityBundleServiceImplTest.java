@@ -137,7 +137,7 @@ public class EntityBundleServiceImplTest {
 		when(mockEntityService.getEntity(eq(TEST_USER1), eq(STUDY_ID), any(HttpServletRequest.class))).thenReturn(studyWithId);
 		when(mockEntityService.createEntity(eq(TEST_USER1), eq(study), eq(activityId), any(HttpServletRequest.class))).thenReturn(studyWithId);
 		when(mockEntityService.getEntityACL(eq(STUDY_ID), eq(TEST_USER1))).thenReturn(acl);
-		when(mockEntityService.createOrUpdateEntityACL(eq(TEST_USER1), eq(acl), anyString(), any(HttpServletRequest.class))).thenReturn(acl);
+		when(mockEntityService.createOrUpdateEntityACL(eq(TEST_USER1), eq(acl), any(HttpServletRequest.class))).thenReturn(acl);
 		when(mockEntityService.getEntityAnnotations(eq(TEST_USER1), eq(STUDY_ID), any(HttpServletRequest.class))).thenReturn(new Annotations());
 		when(mockEntityService.updateEntityAnnotations(eq(TEST_USER1), eq(STUDY_ID), eq(annos), any(HttpServletRequest.class))).thenReturn(annos);
 		when(mockServiceProvider.getEntityService()).thenReturn(mockEntityService);
@@ -165,7 +165,7 @@ public class EntityBundleServiceImplTest {
 	
 		verify(mockEntityService).createEntity(eq(TEST_USER1), eq(study), eq(activityId), any(HttpServletRequest.class));
 		verify(mockEntityService).updateEntityAnnotations(eq(TEST_USER1), eq(STUDY_ID), eq(annos), any(HttpServletRequest.class));
-		verify(mockEntityService).createOrUpdateEntityACL(eq(TEST_USER1), eq(acl), anyString(), any(HttpServletRequest.class));
+		verify(mockEntityService).createOrUpdateEntityACL(eq(TEST_USER1), eq(acl), any(HttpServletRequest.class));
 	}
 	
 	@Test
@@ -177,7 +177,7 @@ public class EntityBundleServiceImplTest {
 		when(mockEntityService.getEntity(eq(TEST_USER1), eq(STUDY_ID), any(HttpServletRequest.class))).thenReturn(studyWithId);
 		when(mockEntityService.updateEntity(eq(TEST_USER1), eq(study), eq(false), eq(activityId), any(HttpServletRequest.class))).thenReturn(studyWithId);
 		when(mockEntityService.getEntityACL(eq(STUDY_ID), eq(TEST_USER1))).thenReturn(acl);
-		when(mockEntityService.createOrUpdateEntityACL(eq(TEST_USER1), eq(acl), anyString(), any(HttpServletRequest.class))).thenReturn(acl);
+		when(mockEntityService.createOrUpdateEntityACL(eq(TEST_USER1), eq(acl), any(HttpServletRequest.class))).thenReturn(acl);
 		when(mockEntityService.getEntityAnnotations(eq(TEST_USER1), eq(STUDY_ID), any(HttpServletRequest.class))).thenReturn(annosWithId);
 		when(mockEntityService.updateEntityAnnotations(eq(TEST_USER1), eq(STUDY_ID), eq(annos), any(HttpServletRequest.class))).thenReturn(annos);
 		when(mockServiceProvider.getEntityService()).thenReturn(mockEntityService);
@@ -208,7 +208,7 @@ public class EntityBundleServiceImplTest {
 	
 		verify(mockEntityService).updateEntity(eq(TEST_USER1), eq(study), eq(false), eq(activityId), any(HttpServletRequest.class));
 		verify(mockEntityService).updateEntityAnnotations(eq(TEST_USER1), eq(STUDY_ID), eq(annos), any(HttpServletRequest.class));
-		verify(mockEntityService).createOrUpdateEntityACL(eq(TEST_USER1), eq(acl), anyString(), any(HttpServletRequest.class));
+		verify(mockEntityService).createOrUpdateEntityACL(eq(TEST_USER1), eq(acl), any(HttpServletRequest.class));
 	}
 	
 	@Test

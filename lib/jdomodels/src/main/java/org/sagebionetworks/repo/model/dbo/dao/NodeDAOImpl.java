@@ -1228,7 +1228,7 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 	
 	@WriteTransaction
 	@Override
-	public boolean changeNodeParent(String nodeId, String newParentId, boolean isMoveToTrash) throws NumberFormatException,
+	public boolean changeNodeParent(String nodeId, String newParentId) throws NumberFormatException,
 			NotFoundException, DatastoreException {
 		DBONode node = getNodeById(KeyFactory.stringToKey(nodeId));
 		//if node's parentId is null it is a root and can't have
@@ -1246,7 +1246,7 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 		node.setParentId(newParentNode.getId());
 
 		Long desiredProjectId = newParentNode.getProjectId();
-		if (desiredProjectId == null && !isMoveToTrash && EntityType.project.name().equals(node.getType())) {
+		if (desiredProjectId == null && EntityType.project.name().equals(node.getType())) {
 			// we are our own project
 			desiredProjectId = node.getId();
 		}

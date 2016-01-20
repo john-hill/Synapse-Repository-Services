@@ -159,28 +159,6 @@ public class NodeInheritanceManagerImplAutowireTest {
 		benefactorId = nodeInheritanceDao.getBenefactor(aOverrideChildId);
 		assertEquals(aOverrideId, benefactorId);
 	}
-	
-	@Test
-	public void testNodeParentChangedDoNotSkipBenefactor() throws Exception {
-		// Validate the starting conditions
-		String benefactorId = nodeInheritanceDao.getBenefactor(rootId);
-		assertEquals(rootId, benefactorId);
-		benefactorId = nodeInheritanceDao.getBenefactor(aId);
-		assertEquals(rootId, benefactorId);
-		benefactorId = nodeInheritanceDao.getBenefactor(aOverrideId);
-		assertEquals(aOverrideId, benefactorId);
-		benefactorId = nodeInheritanceDao.getBenefactor(aOverrideChildId);
-		assertEquals(aOverrideId, benefactorId);
-		// Move aOverride to under A
-		nodeInheritanceManager.nodeParentChanged(aOverrideId, aId, false);
-		// aOverride's benefactor should be changed
-		benefactorId = nodeInheritanceDao.getBenefactor(aId);
-		assertEquals(rootId, benefactorId);
-		benefactorId = nodeInheritanceDao.getBenefactor(aOverrideId);
-		assertEquals(rootId, benefactorId);
-		benefactorId = nodeInheritanceDao.getBenefactor(aOverrideChildId);
-		assertEquals(rootId, benefactorId);
-	}
 
 	@Test
 	public void testSetNodeToInheritFromItself() throws Exception{

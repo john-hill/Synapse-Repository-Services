@@ -1500,7 +1500,7 @@ public class NodeDAOImplTest {
 		assertEquals(parentProjectId, oldNode.getParentId());
 		
 		//change child's parent to newProject
-		boolean changeReturn = nodeDao.changeNodeParent(childId, newParentId, false);
+		boolean changeReturn = nodeDao.changeNodeParent(childId, newParentId);
 		assertTrue(changeReturn);
 		
 		Node changedNode = nodeDao.getNode(childId);
@@ -1561,7 +1561,7 @@ public class NodeDAOImplTest {
 		assertEquals(parentProjectId, oldNode.getParentId());
 
 		// change child's parent to newProject
-		boolean changeReturn = nodeDao.changeNodeParent(childId, newParentId, false);
+		boolean changeReturn = nodeDao.changeNodeParent(childId, newParentId);
 		assertTrue(changeReturn);
 
 		// make sure all project ids are set to new project
@@ -1571,7 +1571,7 @@ public class NodeDAOImplTest {
 		}
 
 		// change to trash (no project) and back
-		nodeDao.changeNodeParent(childId, StackConfiguration.getTrashFolderEntityIdStatic(), true);
+		nodeDao.changeNodeParent(childId, StackConfiguration.getTrashFolderEntityIdStatic());
 
 		// make sure all project ids are set to new project
 		assertNull(nodeDao.getNode(childId).getProjectId());
@@ -1579,7 +1579,7 @@ public class NodeDAOImplTest {
 			assertNull(nodeDao.getNode(childChilds[i]).getProjectId());
 		}
 
-		nodeDao.changeNodeParent(childId, newParentId, false);
+		nodeDao.changeNodeParent(childId, newParentId);
 
 		// make sure all project ids are set to new project
 		assertEquals(newParentId, nodeDao.getNode(childId).getProjectId());
@@ -1611,7 +1611,7 @@ public class NodeDAOImplTest {
 		
 		Node parent = nodeDao.getNode(rootId);
 		assertNull(parent.getParentId());
-		nodeDao.changeNodeParent(rootId, newParentId, false);
+		nodeDao.changeNodeParent(rootId, newParentId);
 	}
 	
 	/**
@@ -1643,7 +1643,7 @@ public class NodeDAOImplTest {
 		assertEquals(parentProjectId, oldNode.getParentId());
 		
 		//make the parentChange update
-		boolean updateReturn = nodeDao.changeNodeParent(childId, parentProjectId, false);
+		boolean updateReturn = nodeDao.changeNodeParent(childId, parentProjectId);
 		assertFalse(updateReturn);
 		
 		//check new state of node

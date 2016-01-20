@@ -206,7 +206,7 @@ public class EntityBundleServiceImpl implements EntityBundleService {
 			partsMask += EntityBundle.ACL;
 			AccessControlList acl = ebc.getAccessControlList();
 			acl.setId(entity.getId());
-			acl = serviceProvider.getEntityService().createOrUpdateEntityACL(userId, acl, null, request);
+			acl = serviceProvider.getEntityService().createOrUpdateEntityACL(userId, acl, request);
 		}
 		
 		// Create the Annotations
@@ -250,7 +250,7 @@ public class EntityBundleServiceImpl implements EntityBundleService {
 				throw new IllegalArgumentException("ACL does not match requested entity ID");
 			}
 			partsMask += EntityBundle.ACL;
-			acl = serviceProvider.getEntityService().createOrUpdateEntityACL(userId, acl, null, request);
+			acl = serviceProvider.getEntityService().createOrUpdateEntityACL(userId, acl, request);
 		}
 		
 		// Update the Annotations

@@ -146,49 +146,6 @@ public class EntityPermissionsManagerImpl implements EntityPermissionsManager {
 		return aclDAO.get(benefactor, ObjectType.ENTITY);
 	}	
 	
-	@WriteTransaction
-	@Override
-	public AccessControlList applyInheritanceToChildren(String parentId, UserInfo userInfo) throws NotFoundException, DatastoreException, UnauthorizedException, ConflictingUpdateException {
-		// check permissions of user to change permissions for the resource
-		AuthorizationManagerUtil.checkAuthorizationAndThrowException(
-				hasAccess(parentId,CHANGE_PERMISSIONS, userInfo));
-		
-		// Before we can update the ACL we must grab the lock on the node.
-		Node node = nodeDao.getNode(parentId);
-		nodeDao.lockNodeAndIncrementEtag(node.getId(), node.getETag());
-
-		String benefactorId = nodeInheritanceManager.getBenefactor(parentId);
-		applyInheritanceToChildrenHelper(parentId, benefactorId, userInfo);
-
-		// return governing parent ACL
-		return aclDAO.get(nodeInheritanceManager.getBenefactor(parentId), ObjectType.ENTITY);
-	}
-	
-	private void applyInheritanceToChildrenHelper(final String parentId, final String benefactorId, UserInfo userInfo)
-			throws NotFoundException, DatastoreException, ConflictingUpdateException {
-		// Get all of the child nodes, sorted by id (to prevent deadlock)
-		List<String> children = nodeDao.getChildrenIdsAsList(parentId);
-		// Update each node
-		for(String idToChange: children) {
-			// recursively apply to children
-			applyInheritanceToChildrenHelper(idToChange, benefactorId, userInfo);
-			// must be authorized to modify permissions
-			if (hasAccess(idToChange, CHANGE_PERMISSIONS, userInfo).getAuthorized()) {
-				// delete child ACL, if present
-				if (hasLocalACL(idToChange)) {
-					// Before we can update the ACL we must grab the lock on the node.
-					Node node = nodeDao.getNode(idToChange);
-					nodeDao.lockNodeAndIncrementEtag(node.getId(), node.getETag());
-					
-					// delete ACL
-					aclDAO.delete(idToChange, ObjectType.ENTITY);
-				}								
-				// set benefactor ACL
-				nodeInheritanceManager.addBeneficiary(idToChange, benefactorId);
-			}
-		}
-	}
-	
 	private boolean isCertifiedUserOrFeatureDisabled(UserInfo userInfo) {
 		PropertyAccessor<Boolean> pa = configuration.getDisableCertifiedUser();
 		Boolean featureIsDisabled = false;

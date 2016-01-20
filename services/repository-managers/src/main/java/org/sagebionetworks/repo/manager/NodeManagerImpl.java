@@ -1,6 +1,5 @@
 package org.sagebionetworks.repo.manager;
   
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -13,9 +12,27 @@ import org.apache.commons.lang.BooleanUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.sagebionetworks.repo.manager.trash.EntityInTrashCanException;
-import org.sagebionetworks.repo.model.*;
+import org.sagebionetworks.repo.model.ACCESS_TYPE;
+import org.sagebionetworks.repo.model.AccessControlList;
+import org.sagebionetworks.repo.model.AccessControlListDAO;
+import org.sagebionetworks.repo.model.Annotations;
 import org.sagebionetworks.repo.model.AuthorizationConstants.ACL_SCHEME;
+import org.sagebionetworks.repo.model.ConflictingUpdateException;
+import org.sagebionetworks.repo.model.DatastoreException;
+import org.sagebionetworks.repo.model.EntityHeader;
+import org.sagebionetworks.repo.model.EntityType;
+import org.sagebionetworks.repo.model.EntityTypeUtils;
+import org.sagebionetworks.repo.model.InvalidModelException;
+import org.sagebionetworks.repo.model.NamedAnnotations;
+import org.sagebionetworks.repo.model.Node;
+import org.sagebionetworks.repo.model.NodeDAO;
+import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.QueryResults;
+import org.sagebionetworks.repo.model.Reference;
+import org.sagebionetworks.repo.model.ReferenceDao;
+import org.sagebionetworks.repo.model.UnauthorizedException;
+import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.VersionInfo;
 import org.sagebionetworks.repo.model.bootstrap.EntityBootstrapper;
 import org.sagebionetworks.repo.model.jdo.EntityNameValidation;
 import org.sagebionetworks.repo.model.jdo.FieldTypeCache;
@@ -280,7 +297,7 @@ public class NodeManagerImpl implements NodeManager, InitializingBean {
 	public void updateForTrashCan(UserInfo userInfo, Node updatedNode, ChangeType changeType)
 			throws ConflictingUpdateException, NotFoundException, DatastoreException, UnauthorizedException, InvalidModelException {
 		Node oldNode = nodeDao.getNode(updatedNode.getId());
-		updateNode(userInfo, updatedNode, null, false, false, changeType, oldNode);
+		updateNode(userInfo, updatedNode, null, false, changeType, oldNode);
 	}
 
 	@WriteTransaction
@@ -325,12 +342,12 @@ public class NodeManagerImpl implements NodeManager, InitializingBean {
 						authorizationManager.canAccess(userInfo, updatedNode.getParentId(), ObjectType.ENTITY, ACCESS_TYPE.UPLOAD));
 			}
 		}
-		updateNode(userInfo, updatedNode, updatedAnnos, newVersion, true, ChangeType.UPDATE, oldNode);
+		updateNode(userInfo, updatedNode, updatedAnnos, newVersion, ChangeType.UPDATE, oldNode);
 
 		return get(userInfo, updatedNode.getId());
 	}
 
-	private void updateNode(UserInfo userInfo, Node updatedNode, NamedAnnotations updatedAnnos, boolean newVersion, boolean skipBenefactor,
+	private void updateNode(UserInfo userInfo, Node updatedNode, NamedAnnotations updatedAnnos, boolean newVersion,
 			ChangeType changeType, Node oldNode) throws ConflictingUpdateException, NotFoundException, DatastoreException,
 			UnauthorizedException, InvalidModelException {
 
@@ -371,29 +388,8 @@ public class NodeManagerImpl implements NodeManager, InitializingBean {
 		if (isParentIdChange(parentInDatabase, parentInUpdate)) {
 			AuthorizationManagerUtil.checkAuthorizationAndThrowException(
 					authorizationManager.canAccess(userInfo, parentInUpdate, ObjectType.ENTITY, ACCESS_TYPE.CREATE));
-			nodeDao.changeNodeParent(nodeInUpdate, parentInUpdate, changeType == ChangeType.DELETE);
-			// Update the ACL accordingly
-			if (skipBenefactor) {
-				nodeInheritanceManager.nodeParentChanged(nodeInUpdate, parentInUpdate);
-			} else {
-				// If the node is being moved to right under the root, we need to create a new ACL
-				// The root cannot be the benefactor
-				boolean newAcl = nodeDao.isNodeRoot(parentInUpdate);
-				EntityType type = updatedNode.getNodeType();
-				String defaultPath = EntityTypeUtils.getDefaultParentPath(type);
-				ACL_SCHEME aclSchem = entityBootstrapper.getChildAclSchemeForPath(defaultPath);
-				newAcl = newAcl && (ACL_SCHEME.GRANT_CREATOR_ALL == aclSchem);
-				if (newAcl) {
-					AccessControlList acl = AccessControlListUtil.createACLToGrantEntityAdminAccess(nodeInUpdate, userInfo, new Date());
-					aclDAO.create(acl, ObjectType.ENTITY);
-					nodeInheritanceManager.setNodeToInheritFromItself(nodeInUpdate, false);
-				} else {
-					// Remove the ACLs of all the benefactors
-					removeBenefactorAcl(nodeInUpdate);
-					// Set the new parent as the benefactor
-					nodeInheritanceManager.nodeParentChanged(nodeInUpdate, parentInUpdate, false);
-				}
-			}
+			nodeDao.changeNodeParent(nodeInUpdate, parentInUpdate);
+			nodeInheritanceManager.nodeParentChanged(nodeInUpdate, parentInUpdate);
 		}
 
 		// Now make the actual update.
@@ -774,31 +770,5 @@ public class NodeManagerImpl implements NodeManager, InitializingBean {
 		// They must have permission to dowload the file to get the handle.
 		AuthorizationManagerUtil.checkAuthorizationAndThrowException(
 				authorizationManager.canAccess(userInfo, id, ObjectType.ENTITY, ACCESS_TYPE.DOWNLOAD));
-	}
-
-	/**
-	 * Recursively remove the ACLs of all the descendants who are benefactors.
-	 */
-	private void removeBenefactorAcl(String nodeId)  {
-		String benefactor = null;
-		try {
-			benefactor = nodeInheritanceManager.getBenefactor(nodeId);
-		} catch (NotFoundException e) {
-			benefactor = null;
-		}
-		if (nodeId.equals(benefactor)) {
-			try {
-				aclDAO.delete(nodeId, ObjectType.ENTITY);
-			} catch (NotFoundException e) {
-				throw new DatastoreException("ACL for benefactor " + nodeId + " is not found");
-			}
-		}
-		List<String> children = nodeDao.getChildrenIdsAsList(nodeId);
-		if (children == null || children.size() == 0) {
-			return;
-		}
-		for (String child : children) {
-			removeBenefactorAcl(child);
-		}
 	}
 }

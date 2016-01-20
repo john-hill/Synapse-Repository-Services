@@ -915,7 +915,7 @@ public class EntityController extends BaseController {
 		// This is a fix for PLFM-621
 		updatedACL.setId(id);
 		return serviceProvider.getEntityService().updateEntityACL(userId,
-				updatedACL, null, request);
+				updatedACL, request);
 	}
 
 	/**

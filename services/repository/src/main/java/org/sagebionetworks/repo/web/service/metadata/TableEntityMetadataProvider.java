@@ -8,7 +8,6 @@ import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.dao.table.TableRowTruthDAO;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.message.ChangeType;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
@@ -44,7 +43,7 @@ public class TableEntityMetadataProvider implements EntityValidator<TableEntity>
 			}
 			List<String> columnIds = entity.getColumnIds();
 			// Bind the entity to these columns
-			columnModelManager.bindColumnToObject(event.getUserInfo(), columnIds, entity.getId(), isNew);
+			columnModelManager.bindColumnToObject(columnIds, entity.getId(), ObjectType.TABLE, isNew);
 		}	
 	}
 

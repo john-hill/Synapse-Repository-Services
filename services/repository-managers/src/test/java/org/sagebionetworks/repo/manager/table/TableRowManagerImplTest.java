@@ -340,7 +340,7 @@ public class TableRowManagerImplTest {
 		RowReferenceSet results = manager.appendRows(user, tableId, mapper, set, mockProgressCallback);
 		assertEquals(refSet, results);
 		// verify the table status was set
-		verify(mockTableStatusDAO, times(1)).resetTableStatusToProcessing(tableId);
+		verify(mockTableStatusDAO, times(1)).resetTableStatusToProcessing(tableId, ObjectType.TABLE);
 	}
 	
 	@Test
@@ -352,7 +352,7 @@ public class TableRowManagerImplTest {
 		RowReferenceSet results = manager.appendPartialRows(user, tableId, mapper, partialSet, mockProgressCallback);
 		assertEquals(refSet, results);
 		// verify the table status was set
-		verify(mockTableStatusDAO, times(1)).resetTableStatusToProcessing(tableId);
+		verify(mockTableStatusDAO, times(1)).resetTableStatusToProcessing(tableId, ObjectType.TABLE);
 	}
 	
 	/**
@@ -381,7 +381,7 @@ public class TableRowManagerImplTest {
 			assertEquals("PartialRow.value.key: 'foo' is not a valid column ID for row ID: null", e.getMessage());
 		}
 		// verify the table status was set
-		verify(mockTableStatusDAO, never()).resetTableStatusToProcessing(tableId);
+		verify(mockTableStatusDAO, never()).resetTableStatusToProcessing(tableId, ObjectType.TABLE);
 	}
 	
 	@Test
@@ -452,7 +452,7 @@ public class TableRowManagerImplTest {
 		assertEquals(refSet, results);
 		assertEquals(refSet.getEtag(), etag);
 		// verify the table status was set
-		verify(mockTableStatusDAO, times(1)).resetTableStatusToProcessing(tableId);
+		verify(mockTableStatusDAO, times(1)).resetTableStatusToProcessing(tableId, ObjectType.TABLE);
 		verify(mockProgressCallback).progressMade(anyLong());
 	}
 	
@@ -504,7 +504,7 @@ public class TableRowManagerImplTest {
 		assertEquals(new Long(2), results.getRows().get(6).getVersionNumber());
 		assertEquals(new Long(3), results.getRows().get(9).getVersionNumber());
 		// verify the table status was set
-		verify(mockTableStatusDAO, times(1)).resetTableStatusToProcessing(tableId);
+		verify(mockTableStatusDAO, times(1)).resetTableStatusToProcessing(tableId, ObjectType.TABLE);
 		verify(mockProgressCallback, times(4)).progressMade(anyLong());
 	}
 
@@ -555,7 +555,7 @@ public class TableRowManagerImplTest {
 		// verify the correct row set was generated
 		verify(mockTruthDao).appendRowSetToTable(eq(user.getId().toString()), eq(tableId), any(ColumnMapper.class), eq(rawSet));
 		// verify the table status was set
-		verify(mockTableStatusDAO, times(1)).resetTableStatusToProcessing(tableId);
+		verify(mockTableStatusDAO, times(1)).resetTableStatusToProcessing(tableId, ObjectType.TABLE);
 	}
 	
 	@Test
@@ -869,7 +869,7 @@ public class TableRowManagerImplTest {
 			assertEquals(status, e.getStatus());
 		}
 		verify(mockTableStatusDAO, times(2)).getTableStatus(tableId);
-		verify(mockTableStatusDAO).resetTableStatusToProcessing(tableId);
+		verify(mockTableStatusDAO).resetTableStatusToProcessing(tableId, ObjectType.TABLE);
 		verify(mockNodeDAO).isNodeAvailable(123L);
 
 	}
@@ -1085,7 +1085,7 @@ public class TableRowManagerImplTest {
 		// call under test
 		TableStatus result = manager.getTableStatusOrCreateIfNotExists(tableId);
 		assertNotNull(result);
-		verify(mockTableStatusDAO, never()).resetTableStatusToProcessing(tableId);
+		verify(mockTableStatusDAO, never()).resetTableStatusToProcessing(tableId, ObjectType.TABLE);
 	}
 	
 	/**
@@ -1108,7 +1108,7 @@ public class TableRowManagerImplTest {
 		TableStatus result = manager.getTableStatusOrCreateIfNotExists(tableId);
 		assertNotNull(result);
 		// must trigger processing
-		verify(mockTableStatusDAO).resetTableStatusToProcessing(tableId);
+		verify(mockTableStatusDAO).resetTableStatusToProcessing(tableId, ObjectType.TABLE);
 	}
 	
 	/**
@@ -1131,7 +1131,7 @@ public class TableRowManagerImplTest {
 		// call under test
 		TableStatus result = manager.getTableStatusOrCreateIfNotExists(tableId);
 		assertNotNull(result);
-		verify(mockTableStatusDAO).resetTableStatusToProcessing(tableId);
+		verify(mockTableStatusDAO).resetTableStatusToProcessing(tableId, ObjectType.TABLE);
 		verify(mockNodeDAO).isNodeAvailable(tableIdLong);
 	}
 	
@@ -1175,7 +1175,7 @@ public class TableRowManagerImplTest {
 		// call under test
 		TableStatus result = manager.getTableStatusOrCreateIfNotExists(tableId);
 		assertNotNull(result);
-		verify(mockTableStatusDAO, never()).resetTableStatusToProcessing(tableId);
+		verify(mockTableStatusDAO, never()).resetTableStatusToProcessing(tableId, ObjectType.TABLE);
 	}
 	
 	/**
@@ -1197,7 +1197,7 @@ public class TableRowManagerImplTest {
 		// call under test
 		TableStatus result = manager.getTableStatusOrCreateIfNotExists(tableId);
 		assertNotNull(result);
-		verify(mockTableStatusDAO).resetTableStatusToProcessing(tableId);
+		verify(mockTableStatusDAO).resetTableStatusToProcessing(tableId, ObjectType.TABLE);
 	}
 
 
@@ -1336,7 +1336,7 @@ public class TableRowManagerImplTest {
 		String token = "a unique token";
 		// the change should not be broadcast.
 		boolean broadcastChange = false;
-		when(mockTableStatusDAO.resetTableStatusToProcessing(tableId, broadcastChange)).thenReturn(token);
+		when(mockTableStatusDAO.resetTableStatusToProcessing(tableId, ObjectType.TABLE, broadcastChange)).thenReturn(token);
 		// call under test
 		String resultToken = manager.startTableProcessing(tableId);
 		assertEquals(token, resultToken);

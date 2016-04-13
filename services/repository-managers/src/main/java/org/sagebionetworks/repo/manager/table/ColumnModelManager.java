@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.sagebionetworks.repo.model.DatastoreException;
+import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.PaginatedIds;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -78,14 +79,13 @@ public interface ColumnModelManager {
 	
 	/**
 	 * Bind a set of columns to an object.
-	 * @param user
 	 * @param columnIds
 	 * @param objectId
 	 * @return
 	 * @throws NotFoundException 
 	 * @throws DatastoreException 
 	 */
-	public boolean bindColumnToObject(UserInfo user, List<String> columnIds, String objectId, boolean isNew) throws DatastoreException, NotFoundException;
+	public boolean bindColumnToObject(List<String> columnIds, String objectId, ObjectType type, boolean isNew) throws DatastoreException, NotFoundException;
 	
 	/**
 	 * Remove all column bindings for an object

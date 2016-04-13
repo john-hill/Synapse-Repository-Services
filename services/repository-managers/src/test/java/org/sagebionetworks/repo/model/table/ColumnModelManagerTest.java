@@ -245,9 +245,9 @@ public class ColumnModelManagerTest {
 		List<String> ids = new LinkedList<String>();
 		ids.add("123");
 		when(mockColumnModelDAO.bindColumnToObject(ids, objectId)).thenReturn(1);
-		assertTrue(columnModelManager.bindColumnToObject(user, ids, objectId, false));
+		assertTrue(columnModelManager.bindColumnToObject(ids, objectId, ObjectType.TABLE, false));
 		// Validate that the table status gets changed
-		verify(mockTableStatusDao, times(1)).resetTableStatusToProcessing(objectId);
+		verify(mockTableStatusDao, times(1)).resetTableStatusToProcessing(objectId, ObjectType.TABLE);
 	}
 	
 	/**
@@ -263,9 +263,9 @@ public class ColumnModelManagerTest {
 		List<String> ids = new LinkedList<String>();
 		ids.add("123");
 		when(mockColumnModelDAO.bindColumnToObject(ids, objectId)).thenReturn(0);
-		assertTrue("Binding null columns should trigger a rest for a new object",columnModelManager.bindColumnToObject(user, ids, objectId, true));
+		assertTrue("Binding null columns should trigger a rest for a new object",columnModelManager.bindColumnToObject(ids, objectId, ObjectType.TABLE, true));
 		// Validate that the table status gets changed
-		verify(mockTableStatusDao, times(1)).resetTableStatusToProcessing(objectId);
+		verify(mockTableStatusDao, times(1)).resetTableStatusToProcessing(objectId, ObjectType.TABLE);
 	}
 	
 	
@@ -352,7 +352,7 @@ public class ColumnModelManagerTest {
 		}
 		when(mockColumnModelDAO.getColumnModel(scheamIds, false)).thenReturn(schema);
 		//call under test
-		columnModelManager.bindColumnToObject(user, scheamIds, objectId, true);
+		columnModelManager.bindColumnToObject(scheamIds, objectId, ObjectType.TABLE, true);
 	}
 	
 	/**
@@ -372,6 +372,6 @@ public class ColumnModelManagerTest {
 		}
 		when(mockColumnModelDAO.getColumnModel(scheamIds, false)).thenReturn(schema);
 		//call under test
-		columnModelManager.bindColumnToObject(user, scheamIds, objectId, true);
+		columnModelManager.bindColumnToObject(scheamIds, objectId, ObjectType.TABLE, true);
 	}
 }

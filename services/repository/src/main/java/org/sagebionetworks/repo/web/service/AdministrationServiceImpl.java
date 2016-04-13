@@ -288,7 +288,7 @@ public class AdministrationServiceImpl implements AdministrationService  {
 			indexDao.deleteTable(tableId);
 			indexDao.deleteSecondayTables(tableId);
 		}
-		String resetToken = tableStatusDAO.resetTableStatusToProcessing(tableId);
+		String resetToken = tableStatusDAO.resetTableStatusToProcessing(tableId, ObjectType.TABLE);
 		TableEntity tableEntity = entityManager.getEntity(userInfo, tableId, TableEntity.class);
 		ChangeMessage message = new ChangeMessage();
 		message.setChangeType(ChangeType.UPDATE);

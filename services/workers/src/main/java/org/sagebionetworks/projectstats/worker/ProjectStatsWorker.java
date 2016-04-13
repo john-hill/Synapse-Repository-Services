@@ -147,7 +147,7 @@ public class ProjectStatsWorker implements MessageDrivenRunner {
 		}
 	}
 
-	private void updateProjectStats(final Team team, Date timestamp, long... members) {
+	private void updateProjectStats(final Team team, Date timestamp, long member) {
 		Iterable<ProjectHeader> projectHeaders = PaginatedResultsUtil.getPaginatedResultsIterable(
 				new PaginatedResultsUtil.Paginator<ProjectHeader>() {
 					@Override
@@ -161,10 +161,8 @@ public class ProjectStatsWorker implements MessageDrivenRunner {
 				}, 500);
 
 		for (ProjectHeader projectHeader : projectHeaders) {
-			for (long member : members) {
-				ProjectStat projectStat = new ProjectStat(KeyFactory.stringToKey(projectHeader.getId()), member, timestamp);
-				projectStatsDao.update(projectStat);
-			}
+			ProjectStat projectStat = new ProjectStat(KeyFactory.stringToKey(projectHeader.getId()), member, timestamp);
+			projectStatsDao.update(projectStat);
 		}
 	}
 

@@ -29,6 +29,7 @@ import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.table.ColumnModelManager;
 import org.sagebionetworks.repo.manager.table.TableRowManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
+import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.ProjectSettingsDAO;
 import org.sagebionetworks.repo.model.StackStatusDao;
@@ -168,7 +169,7 @@ public class MigrationManagerImplAutowireTest {
 			table.setName(UUID.randomUUID().toString());
 			table.setColumnIds(Lists.transform(headers, TableModelUtils.LONG_TO_STRING));
 			tableId = entityManager.createEntity(adminUser, table, null);
-			columnManager.bindColumnToObject(adminUser, Lists.transform(headers, TableModelUtils.LONG_TO_STRING), tableId, true);
+			columnManager.bindColumnToObject(Lists.transform(headers, TableModelUtils.LONG_TO_STRING), tableId, ObjectType.TABLE, true);
 
 			// Now add some data
 			RowSet rowSet = new RowSet();

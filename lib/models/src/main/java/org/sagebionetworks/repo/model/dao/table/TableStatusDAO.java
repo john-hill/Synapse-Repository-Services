@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.model.dao.table;
 
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
+import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.table.TableStatus;
 import org.sagebionetworks.repo.web.NotFoundException;
 
@@ -21,7 +22,7 @@ public interface TableStatusDAO {
 	 * @param tableId
 	 * @return The new reset-token for this table status.
 	 */
-	public String resetTableStatusToProcessing(String tableId);
+	public String resetTableStatusToProcessing(String tableId, ObjectType type);
 	
 	/**
 	 * See: {@link #resetTableStatusToProcessing(String)}
@@ -29,7 +30,7 @@ public interface TableStatusDAO {
 	 * @param broadcastChange When true, change messages will be broadcast.
 	 * @return
 	 */
-	public String resetTableStatusToProcessing(String tableId, boolean broadcastChange);
+	public String resetTableStatusToProcessing(String tableId, ObjectType type, boolean broadcastChange);
 
 	/**
 	 * Attempt to set the table status to AVIALABLE. The state will be changed

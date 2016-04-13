@@ -28,6 +28,7 @@ import org.sagebionetworks.repo.manager.table.TableRowManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.InvalidModelException;
+import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -166,7 +167,7 @@ public class TableCSVAppenderWorkerIntegrationTest {
 		table.setName(UUID.randomUUID().toString());
 		tableId = entityManager.createEntity(adminUserInfo, table, null);
 		// Bind the columns. This is normally done at the service layer but the workers cannot depend on that layer.
-		columnManager.bindColumnToObject(adminUserInfo, Lists.transform(headers, TableModelUtils.LONG_TO_STRING), tableId, true);
+		columnManager.bindColumnToObject(Lists.transform(headers, TableModelUtils.LONG_TO_STRING), tableId, ObjectType.TABLE, true);
 
 		// Create a CSV file to upload
 		File tempFile = File.createTempFile("TableCSVAppenderWorkerIntegrationTest", ".csv");
@@ -258,7 +259,7 @@ public class TableCSVAppenderWorkerIntegrationTest {
 		table.setName(UUID.randomUUID().toString());
 		tableId = entityManager.createEntity(adminUserInfo, table, null);
 		// Bind the columns. This is normally done at the service layer but the workers cannot depend on that layer.
-		columnManager.bindColumnToObject(adminUserInfo, Lists.transform(headers, TableModelUtils.LONG_TO_STRING), tableId, true);
+		columnManager.bindColumnToObject(Lists.transform(headers, TableModelUtils.LONG_TO_STRING), tableId, ObjectType.TABLE, true);
 
 		// Create a CSV file to upload
 		File tempFile = File.createTempFile("TableCSVAppenderWorkerIntegrationTest", ".csv");

@@ -327,7 +327,7 @@ public class TableRowManagerImpl implements TableRowManager {
 		RawRowSet rowSetToDelete = new RawRowSet(TableModelUtils.getIds(mapper.getColumnModels()), rowsToDelete.getEtag(), tableId, rows);
 		RowReferenceSet result = tableRowTruthDao.appendRowSetToTable(user.getId().toString(), tableId, mapper, rowSetToDelete);
 		// The table has change so we must reset the state.
-		tableStatusDAO.resetTableStatusToProcessing(tableId);
+		tableStatusDAO.resetTableStatusToProcessing(tableId, ObjectType.TABLE);
 		return result;
 	}
 
@@ -383,7 +383,7 @@ public class TableRowManagerImpl implements TableRowManager {
 			etag = appendBatchOfRowsToTable(user, columnMapper, delta, results, progressCallback);
 		}
 		// The table has change so we must reset the state.
-		tableStatusDAO.resetTableStatusToProcessing(tableId);
+		tableStatusDAO.resetTableStatusToProcessing(tableId, ObjectType.TABLE);
 		return etag;
 	}
 
@@ -559,7 +559,7 @@ public class TableRowManagerImpl implements TableRowManager {
 	private TableStatus setTableToProcessingAndTriggerUpdate(String tableId) {
 		// we get here, if the index for this table is not (yet?) being build. We need to kick off the
 		// building of the index and report the table as unavailable
-		tableStatusDAO.resetTableStatusToProcessing(tableId);
+		tableStatusDAO.resetTableStatusToProcessing(tableId, ObjectType.TABLE);
 		// status should exist now
 		return tableStatusDAO.getTableStatus(tableId);
 	}
@@ -1286,7 +1286,7 @@ public class TableRowManagerImpl implements TableRowManager {
 	public String startTableProcessing(String tableId) {
 		// Since this is called from the worker do not broadcast the change.
 		boolean broadcastChange = false;
-		return tableStatusDAO.resetTableStatusToProcessing(tableId, broadcastChange);
+		return tableStatusDAO.resetTableStatusToProcessing(tableId, ObjectType.TABLE, broadcastChange);
 	}
 
 

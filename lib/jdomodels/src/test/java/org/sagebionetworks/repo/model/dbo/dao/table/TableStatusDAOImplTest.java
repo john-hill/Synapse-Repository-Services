@@ -54,7 +54,7 @@ public class TableStatusDAOImplTest {
 			// expected
 		}
 		// This should insert a row for this table.
-		String resetToken = tableStatusDAO.resetTableStatusToProcessing("syn123");
+		String resetToken = tableStatusDAO.resetTableStatusToProcessing("syn123", ObjectType.TABLE);
 		assertNotNull(resetToken);
 		// We should now have a status for this table
 		TableStatus status = tableStatusDAO.getTableStatus(tableId);
@@ -70,7 +70,7 @@ public class TableStatusDAOImplTest {
 		assertEquals(null, status.getProgressTotal());
 		assertEquals(null, status.getTotalTimeMS());
 		// Now if we call it again we should get a new rest-token
-		String newResetToken = tableStatusDAO.resetTableStatusToProcessing("123");
+		String newResetToken = tableStatusDAO.resetTableStatusToProcessing("123", ObjectType.TABLE);
 		assertNotNull(newResetToken);
 		assertFalse(newResetToken.equals(resetToken));
 		
@@ -99,7 +99,7 @@ public class TableStatusDAOImplTest {
 		}
 		// This should insert a row for this table.
 		boolean broadcastChange = false;
-		String resetToken = tableStatusDAO.resetTableStatusToProcessing("syn123", broadcastChange);
+		String resetToken = tableStatusDAO.resetTableStatusToProcessing("syn123", ObjectType.TABLE , broadcastChange);
 		assertNotNull(resetToken);
 		// We should now have a status for this table
 		TableStatus status = tableStatusDAO.getTableStatus(tableId);
@@ -116,7 +116,7 @@ public class TableStatusDAOImplTest {
 	public void testAttemptToSetTableStatusToAvailableHappy() throws NotFoundException{
 		String tableId = "syn123";
 		// This should insert a row for this table.
-		String resetToken = tableStatusDAO.resetTableStatusToProcessing("syn123");
+		String resetToken = tableStatusDAO.resetTableStatusToProcessing("syn123", ObjectType.TABLE);
 		// Status should start as processing
 		TableStatus status = tableStatusDAO.getTableStatus(tableId);
 		assertNotNull(status);
@@ -140,8 +140,8 @@ public class TableStatusDAOImplTest {
 		String tableId1 = "syn1";
 		String tableId2 = "syn2";
 		// This should insert a row for this table.
-		tableStatusDAO.resetTableStatusToProcessing(tableId1);
-		tableStatusDAO.resetTableStatusToProcessing(tableId2);
+		tableStatusDAO.resetTableStatusToProcessing(tableId1, ObjectType.TABLE);
+		tableStatusDAO.resetTableStatusToProcessing(tableId2, ObjectType.TABLE);
 		TableStatus status = tableStatusDAO.getTableStatus(tableId1);
 		assertNotNull(status);
 		status = tableStatusDAO.getTableStatus(tableId2);
@@ -165,7 +165,7 @@ public class TableStatusDAOImplTest {
 	public void testAttemptToSetTableStatusToAvailableNullEtag() throws NotFoundException{
 		String tableId = "syn123";
 		// This should insert a row for this table.
-		String resetToken = tableStatusDAO.resetTableStatusToProcessing("syn123");
+		String resetToken = tableStatusDAO.resetTableStatusToProcessing("syn123", ObjectType.TABLE);
 		// Status should start as processing
 		TableStatus status = tableStatusDAO.getTableStatus(tableId);
 		assertNotNull(status);
@@ -194,7 +194,7 @@ public class TableStatusDAOImplTest {
 	public void testAttemptToSetTableStatusToAvailableConflict() throws NotFoundException{
 		String tableId = "syn123";
 		// This should insert a row for this table.
-		String resetToken = tableStatusDAO.resetTableStatusToProcessing("syn123");
+		String resetToken = tableStatusDAO.resetTableStatusToProcessing("syn123", ObjectType.TABLE);
 		// Status should start as processing
 		TableStatus status = tableStatusDAO.getTableStatus(tableId);
 		assertNotNull(status);
@@ -206,7 +206,7 @@ public class TableStatusDAOImplTest {
 	public void testAttemptToSetTableStatusToFailedHappy() throws NotFoundException{
 		String tableId = "syn123";
 		// This should insert a row for this table.
-		String resetToken = tableStatusDAO.resetTableStatusToProcessing("syn123");
+		String resetToken = tableStatusDAO.resetTableStatusToProcessing("syn123", ObjectType.TABLE);
 		// Status should start as processing
 		TableStatus status = tableStatusDAO.getTableStatus(tableId);
 		assertNotNull(status);
@@ -237,7 +237,7 @@ public class TableStatusDAOImplTest {
 	public void testAttemptToSetTableStatusToFailedConflict() throws NotFoundException{
 		String tableId = "syn123";
 		// This should insert a row for this table.
-		String resetToken = tableStatusDAO.resetTableStatusToProcessing("syn123");
+		String resetToken = tableStatusDAO.resetTableStatusToProcessing("syn123", ObjectType.TABLE);
 		// Status should start as processing
 		TableStatus status = tableStatusDAO.getTableStatus(tableId);
 		assertNotNull(status);
@@ -249,7 +249,7 @@ public class TableStatusDAOImplTest {
 	public void testAttemptToUpdateTableProgressHappy() throws NotFoundException{
 		String tableId = "syn123";
 		// This should insert a row for this table.
-		String resetToken = tableStatusDAO.resetTableStatusToProcessing("syn123");
+		String resetToken = tableStatusDAO.resetTableStatusToProcessing("syn123", ObjectType.TABLE);
 		// Status should start as processing
 		TableStatus status = tableStatusDAO.getTableStatus(tableId);
 		assertNotNull(status);
@@ -280,7 +280,7 @@ public class TableStatusDAOImplTest {
 	public void testAttemptToUpdateTableProgressConflict() throws NotFoundException{
 		String tableId = "syn123";
 		// This should insert a row for this table.
-		String resetToken = tableStatusDAO.resetTableStatusToProcessing("syn123");
+		String resetToken = tableStatusDAO.resetTableStatusToProcessing("syn123", ObjectType.TABLE);
 		// Status should start as processing
 		TableStatus status = tableStatusDAO.getTableStatus(tableId);
 		assertNotNull(status);

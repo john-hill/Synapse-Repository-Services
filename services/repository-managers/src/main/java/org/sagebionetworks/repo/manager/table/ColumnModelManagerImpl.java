@@ -135,8 +135,7 @@ public class ColumnModelManagerImpl implements ColumnModelManager {
 	
 	@WriteTransaction
 	@Override
-	public boolean bindColumnToObject(UserInfo user, List<String> columnIds, String objectId, boolean isNew) throws DatastoreException, NotFoundException {
-		if(user == null) throw new IllegalArgumentException("User cannot be null");
+	public boolean bindColumnToObject(List<String> columnIds, String objectId, ObjectType type,  boolean isNew) throws DatastoreException, NotFoundException {
 		// Get the columns and validate the size
 		validateSchemaSize(columnIds);
 		// pass it along to the DAO.
@@ -144,7 +143,7 @@ public class ColumnModelManagerImpl implements ColumnModelManager {
 		// If there was an actual change we need change the status of the table.
 		if(count > 0 || isNew){
 			// The table has change so we must rest the state to processing.
-			tableStatusDAO.resetTableStatusToProcessing(objectId);
+			tableStatusDAO.resetTableStatusToProcessing(objectId, type);
 			return true;
 		}else{
 			return false;

@@ -504,7 +504,7 @@ public class TableRowManagerImplTest {
 		assertEquals(new Long(2), results.getRows().get(9).getVersionNumber());
 		// verify the table status was set
 		verify(mockTableStatusDAO, times(1)).resetTableStatusToProcessing(tableId, ObjectType.TABLE);
-		verify(mockProgressCallback, times(4)).progressMade(anyLong());
+		verify(mockProgressCallback, times(3)).progressMade(anyLong());
 	}
 
 	@Test(expected = IllegalArgumentException.class)

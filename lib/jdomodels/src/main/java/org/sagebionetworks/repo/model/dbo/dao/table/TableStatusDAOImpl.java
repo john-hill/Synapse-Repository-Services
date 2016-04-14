@@ -91,7 +91,6 @@ public class TableStatusDAOImpl implements TableStatusDAO {
 		if(broadcastChange){
 			// Fire a change event
 			transactionalMessenger.sendMessageAfterCommit(tableId.toString(), type, resetToken, ChangeType.UPDATE);
-			transactionalMessenger.sendModificationMessageAfterCommit(tableIdString, ObjectType.ENTITY);
 		}
 		return resetToken;
 	}

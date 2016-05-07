@@ -3,7 +3,6 @@ package org.sagebionetworks.table.query.model;
 import java.util.List;
 
 import org.sagebionetworks.table.query.model.visitors.GetTableNameVisitor;
-import org.sagebionetworks.table.query.model.visitors.IsAggregateVisitor;
 import org.sagebionetworks.table.query.model.visitors.ToSimpleSqlVisitor;
 import org.sagebionetworks.table.query.model.visitors.Visitor;
 

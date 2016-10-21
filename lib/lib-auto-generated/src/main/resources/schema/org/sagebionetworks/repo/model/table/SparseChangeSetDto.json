@@ -5,6 +5,10 @@
 			"description":"The ID of the table.",
 			"type": "string"
 		},
+		"etag":{
+			"description":"The etag identifies the version of this changeset.",
+			"type": "string"
+		},
 		"columnIds": {
 		    "description":"The column IDs that define the schema of this change set.",
 			"type": "array",

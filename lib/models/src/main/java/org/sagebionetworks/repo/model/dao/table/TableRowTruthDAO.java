@@ -66,18 +66,6 @@ public interface TableRowTruthDAO {
 	 * @return
 	 */
 	public TableRowChange getLastTableRowChange(String tableId, TableChangeType changeType);
-
-	/**
-	 * Append a RowSet to a table.
-	 * 
-	 * @param tableId
-	 * @param models
-	 * @param delta
-	 * @return
-	 * @throws IOException
-	 */
-	public RowReferenceSet appendRowSetToTable(String userId, String tableId, List<ColumnModel> columns, RawRowSet delta)
-			throws IOException;
 	
 	/**
 	 * Append a SpareChangeSet to the given table.
@@ -133,64 +121,6 @@ public interface TableRowTruthDAO {
 	 * @throws IOException 
 	 */
 	public SparseChangeSetDto getRowSet(String tableId, long rowVersion) throws IOException;
-	
-	/**
-	 * Use this method to scan over an entire RowSet without loading the set into memory.  For each row found in the 
-	 * set, the passed handler will be called with the value of the row.
-	 * @param tableId
-	 * @param rowVersion
-	 * @param handler
-	 * @throws IOException
-	 * @throws NotFoundException 
-	 */
-	public TableRowChange scanRowSet(String tableId, long rowVersion, RowHandler handler) throws IOException, NotFoundException;
-	
-	/**
-	 * Get a RowSet for all rows referenced in the requested form.
-	 * 
-	 * @param ref
-	 * @return
-	 * @throws IOException 
-	 * @throws NotFoundException 
-	 */
-	public RowSet getRowSet(RowReferenceSet ref, List<ColumnModel> columns) throws IOException, NotFoundException;
-	
-	/**
-	 * Get all the rows referenced in their unmodified form.
-	 * There will be one RowSet for each distinct row version requested.
-	 * Note: The headers can vary from one version to another.
-	 * @param ref
-	 * @return
-	 * @throws IOException
-	 * @throws NotFoundException 
-	 */
-	public List<RawRowSet> getRowSetOriginals(RowReferenceSet ref, List<ColumnModel> columns) throws IOException, NotFoundException;
-
-	/**
-	 * Get a rows referenced in its unmodified form.
-	 * 
-	 * @param tableId
-	 * @param ref
-	 * @param columns
-	 * @return
-	 * @throws IOException
-	 * @throws NotFoundException
-	 */
-	public Row getRowOriginal(String tableId, RowReference ref, List<ColumnModel> columns) throws IOException, NotFoundException;
-	
-	/**
-	 * Get all the latest versions of the rows specified by the rowIds
-	 * 
-	 * @param tableId
-	 * @param rowIdsInOut the set of row ids to find
-	 * @param minVersion only check with versions equal or greater than the minVersion
-	 * @param columnMapper
-	 * @return
-	 * @throws IOException
-	 * @throws NotFoundException
-	 */
-	public RowSetAccessor getLatestVersionsWithRowData(String tableId, Set<Long> rowIds, long minVersion, List<ColumnModel> columns)
-			throws IOException, NotFoundException;
 
 	/**
 	 * List the keys of all change sets applied to a table.
@@ -245,15 +175,7 @@ public interface TableRowTruthDAO {
 	 * @throws ConflictingUpdateException
 	 *             when a conflict is found
 	 */
-	public void checkForRowLevelConflict(String tableId, RawRowSet delta) throws IOException;
-
-	/**
-	 * Scan over a given changeset
-	 * @param handler
-	 * @param dto
-	 * @throws IOException
-	 */
-	public void scanChange(RowHandler handler, TableRowChange dto) throws IOException;
+	public void checkForRowLevelConflict(String tableId, SparseChangeSetDto delta) throws IOException;
 	
 	
 }

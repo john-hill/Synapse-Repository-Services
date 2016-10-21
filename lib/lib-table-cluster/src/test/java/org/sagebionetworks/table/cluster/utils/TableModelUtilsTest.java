@@ -36,6 +36,8 @@ import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.repo.model.table.RowReference;
 import org.sagebionetworks.repo.model.table.RowSet;
 import org.sagebionetworks.repo.model.table.SelectColumn;
+import org.sagebionetworks.repo.model.table.SparseChangeSetDto;
+import org.sagebionetworks.repo.model.table.SparseRowDto;
 import org.sagebionetworks.table.model.Grouping;
 import org.sagebionetworks.table.model.SparseChangeSet;
 import org.sagebionetworks.table.model.SparseRow;
@@ -56,6 +58,7 @@ public class TableModelUtilsTest {
 	
 	List<ColumnModel> validModel;
 	RawRowSet validRowSet;
+	SparseChangeSetDto validSparseChangeSet;
 	RawRowSet validRowSet2;
 	StringWriter outWritter;
 	CSVWriter out;
@@ -95,6 +98,26 @@ public class TableModelUtilsTest {
 		row.setValues(values);
 		rows.add(row);
 		validRowSet = new RawRowSet(ids, null, null, rows);
+		
+		SparseRowDto rowDto1 = new SparseRowDto();
+		rowDto1.setRowId(new Long(456));
+		rowDto1.setVersionNumber(new Long(2));
+		rowDto1.setValues(new HashMap<String, String>());
+		rowDto1.getValues().put("2", "9999");
+		rowDto1.getValues().put("1", "true");
+		
+		SparseRowDto rowDto2 = new SparseRowDto();
+		rowDto2.setRowId(new Long(456));
+		rowDto2.setVersionNumber(new Long(2));
+		rowDto2.setValues(new HashMap<String, String>());
+		rowDto2.getValues().put("2", "0");
+		rowDto2.getValues().put("1", "false");
+		
+		validSparseChangeSet = new SparseChangeSetDto();
+		validSparseChangeSet.setColumnIds(ids);
+		validSparseChangeSet.setTableId("syn123");
+		validSparseChangeSet.setRows(Lists.newArrayList(rowDto1, rowDto2));
+		
 
 		outWritter = new StringWriter();
 		out = new CSVWriter(outWritter);
@@ -542,26 +565,26 @@ public class TableModelUtilsTest {
 
 	@Test
 	public void testCountEmptyOrInvalidRowIdsNone() {
-		assertEquals(0, TableModelUtils.countEmptyOrInvalidRowIds(validRowSet));
+		assertEquals(0, TableModelUtils.countEmptyOrInvalidRowIds(validSparseChangeSet));
 	}
 
 	@Test
 	public void testCountEmptyOrInvalidRowIdsNull() {
-		validRowSet.getRows().get(0).setRowId(null);
-		assertEquals(1, TableModelUtils.countEmptyOrInvalidRowIds(validRowSet));
+		validSparseChangeSet.getRows().get(0).setRowId(null);
+		assertEquals(1, TableModelUtils.countEmptyOrInvalidRowIds(validSparseChangeSet));
 	}
 
 	@Test
 	public void testCountEmptyOrInvalidRowIdsInvalid() {
-		validRowSet.getRows().get(0).setRowId(-1l);
-		assertEquals(1, TableModelUtils.countEmptyOrInvalidRowIds(validRowSet));
+		validSparseChangeSet.getRows().get(0).setRowId(-1l);
+		assertEquals(1, TableModelUtils.countEmptyOrInvalidRowIds(validSparseChangeSet));
 	}
 
 	@Test
 	public void testCountEmptyOrInvalidRowIdsMixed() {
-		validRowSet.getRows().get(0).setRowId(-1l);
-		validRowSet.getRows().get(1).setRowId(null);
-		assertEquals(2, TableModelUtils.countEmptyOrInvalidRowIds(validRowSet));
+		validSparseChangeSet.getRows().get(0).setRowId(-1l);
+		validSparseChangeSet.getRows().get(1).setRowId(null);
+		assertEquals(2, TableModelUtils.countEmptyOrInvalidRowIds(validSparseChangeSet));
 	}
 	
 	@Test
@@ -572,7 +595,7 @@ public class TableModelUtilsTest {
 		range.setMaximumUpdateId(999l);
 		Long versionNumber = new Long(4);
 		range.setVersionNumber(versionNumber);
-		TableModelUtils.assignRowIdsAndVersionNumbers(validRowSet, range);
+		TableModelUtils.assignRowIdsAndVersionNumbers(validSparseChangeSet, range);
 		// Validate each row was assigned a version number
 		for (Row row : validRowSet.getRows()) {
 			assertEquals(versionNumber, row.getVersionNumber());
@@ -588,7 +611,7 @@ public class TableModelUtilsTest {
 		Long versionNumber = new Long(4);
 		range.setVersionNumber(versionNumber);
 		validRowSet.getRows().get(1).setRowId(null);
-		TableModelUtils.assignRowIdsAndVersionNumbers(validRowSet, range);
+		TableModelUtils.assignRowIdsAndVersionNumbers(validSparseChangeSet, range);
 		// Validate each row was assigned a version number
 		for (Row row : validRowSet.getRows()) {
 			assertEquals(versionNumber, row.getVersionNumber());
@@ -608,14 +631,14 @@ public class TableModelUtilsTest {
 		// Clear all the row ids
 		validRowSet.getRows().get(0).setRowId(null);
 		validRowSet.getRows().get(1).setRowId(null);
-		TableModelUtils.assignRowIdsAndVersionNumbers(validRowSet, range);
+		TableModelUtils.assignRowIdsAndVersionNumbers(validSparseChangeSet, range);
 		// Validate each row was assigned a version number
 		for (Row row : validRowSet.getRows()) {
 			assertEquals(versionNumber, row.getVersionNumber());
 		}
-		assertEquals(new Long(100), validRowSet.getRows().get(0).getRowId());
+		assertEquals(new Long(100), validSparseChangeSet.getRows().get(0).getRowId());
 		// The second row should have been provided
-		assertEquals(new Long(101), validRowSet.getRows().get(1).getRowId());
+		assertEquals(new Long(101), validSparseChangeSet.getRows().get(1).getRowId());
 	}
 	
 	@Test
@@ -630,7 +653,7 @@ public class TableModelUtilsTest {
 		// Clear all the row ids
 		validRowSet.getRows().get(1).setRowId(null);
 		try {
-			TableModelUtils.assignRowIdsAndVersionNumbers(validRowSet, range);
+			TableModelUtils.assignRowIdsAndVersionNumbers(validSparseChangeSet, range);
 			fail("should have failed");
 		} catch (IllegalStateException e) {
 			assertEquals("RowSet required at least one row ID but none were allocated.", e.getMessage());
@@ -650,7 +673,7 @@ public class TableModelUtilsTest {
 		validRowSet.getRows().get(0).setRowId(null);
 		validRowSet.getRows().get(1).setRowId(null);
 		try {
-			TableModelUtils.assignRowIdsAndVersionNumbers(validRowSet, range);
+			TableModelUtils.assignRowIdsAndVersionNumbers(validSparseChangeSet, range);
 			fail("should have failed");
 		} catch (IllegalStateException e) {
 			assertEquals("RowSet required more row IDs than were allocated.", e.getMessage());
@@ -670,7 +693,7 @@ public class TableModelUtilsTest {
 		validRowSet.getRows().get(0).setRowId(0l);
 		validRowSet.getRows().get(1).setRowId(2l);
 		try {
-			TableModelUtils.assignRowIdsAndVersionNumbers(validRowSet, range);
+			TableModelUtils.assignRowIdsAndVersionNumbers(validSparseChangeSet, range);
 			fail("should have failed");
 		} catch (IllegalArgumentException e) {
 			assertEquals("Cannot update row: 2 because it does not exist.", e.getMessage());
@@ -750,23 +773,23 @@ public class TableModelUtilsTest {
 	
 	@Test
 	public void testDistictRowIds() {
-		List<Row> refs = new LinkedList<Row>();
-		Row ref = new Row();
+		List<SparseRowDto> refs = new LinkedList<SparseRowDto>();
+		SparseRowDto ref = new SparseRowDto();
 		ref.setRowId(100l);
 		ref.setVersionNumber(500L);
-		ref.setValues(new LinkedList<String>());
+		ref.setValues(new HashMap<String, String>());
 		refs.add(ref);
 		
-		ref = new Row();
+		ref = new SparseRowDto();
 		ref.setRowId(101l);
 		ref.setVersionNumber(501L);
-		ref.setValues(new LinkedList<String>());
+		ref.setValues(new HashMap<String, String>());
 		refs.add(ref);
 		
-		ref = new Row();
+		ref = new SparseRowDto();
 		ref.setRowId(null);
 		refs.add(ref);
-		ref = new Row();
+		ref = new SparseRowDto();
 		ref.setRowId(-1l);
 		refs.add(ref);
 		Map<Long, Long> expected = Maps.newHashMap();
@@ -777,29 +800,29 @@ public class TableModelUtilsTest {
 	
 	@Test(expected = IllegalArgumentException.class)
 	public void testDuplicateRowIds() {
-		List<Row> refs = new LinkedList<Row>();
-		Row ref = new Row();
+		List<SparseRowDto> refs = new LinkedList<SparseRowDto>();
+		SparseRowDto ref = new SparseRowDto();
 		ref.setRowId(100l);
 		ref.setVersionNumber(500L);
-		ref.setValues(new LinkedList<String>());
+		ref.setValues(new HashMap<String, String>());
 		refs.add(ref);
 		
-		ref = new Row();
+		ref = new SparseRowDto();
 		ref.setRowId(101l);
 		ref.setVersionNumber(501L);
-		ref.setValues(new LinkedList<String>());
+		ref.setValues(new HashMap<String, String>());
 		refs.add(ref);
 		
-		ref = new Row();
+		ref = new SparseRowDto();
 		ref.setRowId(100l);
 		ref.setVersionNumber(600L);
-		ref.setValues(new LinkedList<String>());
+		ref.setValues(new HashMap<String, String>());
 		refs.add(ref);
 		
-		ref = new Row();
+		ref = new SparseRowDto();
 		ref.setRowId(null);
 		refs.add(ref);
-		ref = new Row();
+		ref = new SparseRowDto();
 		ref.setRowId(-1l);
 		refs.add(ref);
 		TableModelUtils.getDistictValidRowIds(refs);

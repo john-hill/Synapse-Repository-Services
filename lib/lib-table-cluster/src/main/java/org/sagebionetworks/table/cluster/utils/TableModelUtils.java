@@ -463,22 +463,6 @@ public class TableModelUtils {
 		}
 		return value;
 	}
-
-	/**
-	 * Count all of the empty or invalid rows in the set
-	 * @param set
-	 */
-	@Deprecated
-	public static int countEmptyOrInvalidRowIds(RawRowSet set) {
-		validateRowSet(set);
-		int count = 0;
-		for (Row row : set.getRows()) {
-			if(isNullOrInvalid(row.getRowId())){
-				count++;
-			}
-		}
-		return count;
-	}
 	
 	/**
 	 * Count all of the empty or invalid rows in the set
@@ -515,7 +499,7 @@ public class TableModelUtils {
 	public static boolean isDeletedRow(Row row) {
 		return row.getValues() == null || row.getValues().size() == 0;
 	}
-
+	
 	/**
 	 * Assign RowIDs and version numbers to each row in the set according to the passed range.
 	 * @param set
@@ -800,10 +784,10 @@ public class TableModelUtils {
 	 * @param rows
 	 * @return
 	 */
-	public static Map<Long, Long> getDistictValidRowIds(Iterable<Row> rows) {
+	public static Map<Long, Long> getDistictValidRowIds(Iterable<SparseRowDto> rows) {
 		ValidateArgument.required(rows, "rows");
 		Map<Long, Long> distictRowIds = Maps.newHashMap();
-		for (Row ref : rows) {
+		for (SparseRowDto ref : rows) {
 			if (!isNullOrInvalid(ref.getRowId())) {
 				if(ref.getValues() != null){
 					if (distictRowIds.put(ref.getRowId(), ref.getVersionNumber()) != null) {
@@ -1421,6 +1405,37 @@ public class TableModelUtils {
 			}
 		}
 		return changeSet;
+	}
+	
+	/**
+	 * Convert form RawRowSet to SparseChangeSetDto.
+	 * 
+	 * @param rowSet
+	 * @return
+	 */
+	public static SparseChangeSetDto createSparseFromRowSet(RawRowSet rowSet){
+		SparseChangeSetDto dto = new SparseChangeSetDto();
+		dto.setColumnIds(rowSet.getIds());
+		dto.setTableId(rowSet.getTableId());
+		dto.setEtag(rowSet.getEtag());
+		List<SparseRowDto> rows = new LinkedList<>();
+		dto.setRows(rows);
+		for(Row row: rowSet.getRows()){
+			SparseRowDto rowDto = new SparseRowDto();
+			rows.add(rowDto);
+			rowDto.setRowId(row.getRowId());
+			rowDto.setVersionNumber(row.getVersionNumber());
+			HashMap<String, String> values = new HashMap<>();
+			rowDto.setValues(values);
+			if(row.getValues() != null){
+				for(int i=0; i<rowSet.getIds().size(); i++){
+					String columnId = rowSet.getIds().get(i);
+					String value = row.getValues().get(i);
+					values.put(columnId, value);
+				}
+			}
+		}
+		return dto;
 	}
 
 }

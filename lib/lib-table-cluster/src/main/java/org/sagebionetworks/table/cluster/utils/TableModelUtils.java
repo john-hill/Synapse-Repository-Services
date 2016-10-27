@@ -419,7 +419,7 @@ public class TableModelUtils {
 			if (!cm.getEnumValues().contains(value)) {
 				if (cm.getEnumValues().size() > 10) {
 					throw new IllegalArgumentException("'" + value
-							+ "' is not a valid value for this column. See column definition for valid values.");
+							+ "' is not a valid value for this column. See column definition for valid values. ColumnId: "+cm.getId());
 				} else {
 					throw new IllegalArgumentException("'" + value + "' is not a valid value for this column. Valid values are: "
 							+ StringUtils.join(cm.getEnumValues(), ", ") + ".");

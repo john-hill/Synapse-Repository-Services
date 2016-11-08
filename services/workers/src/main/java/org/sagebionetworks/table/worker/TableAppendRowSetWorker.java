@@ -6,8 +6,8 @@ import org.sagebionetworks.common.util.progress.ProgressCallback;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.asynch.AsynchJobStatusManager;
 import org.sagebionetworks.repo.manager.asynch.AsynchJobUtils;
-import org.sagebionetworks.repo.manager.table.ColumnModelManager;
-import org.sagebionetworks.repo.manager.table.TableEntityManager;
+import org.sagebionetworks.repo.manager.table.AppendableTableManager;
+import org.sagebionetworks.repo.manager.table.AppendableTableManagerFactory;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.asynch.AsynchronousJobStatus;
 import org.sagebionetworks.repo.model.table.AppendableRowSet;
@@ -34,9 +34,7 @@ public class TableAppendRowSetWorker implements MessageDrivenRunner {
 	@Autowired
 	private AsynchJobStatusManager asynchJobStatusManager;
 	@Autowired
-	private ColumnModelManager columnModelManager;
-	@Autowired
-	private TableEntityManager tableEntityManager;
+	private AppendableTableManagerFactory appendableTableManagerFactory;
 	@Autowired
 	private UserManager userManger;
 
@@ -85,14 +83,16 @@ public class TableAppendRowSetWorker implements MessageDrivenRunner {
 					progressCallback.progressMade(null);
 				}
 			};
+			// get the manager to be used for this type.
+			AppendableTableManager manager = appendableTableManagerFactory.getManagerForEntity(tableId);
 			// Do the work
 			RowReferenceSet results = null;
 			if(appendSet instanceof PartialRowSet){
 				PartialRowSet partialRowSet = (PartialRowSet) appendSet;
-				results =  tableEntityManager.appendPartialRows(user, tableId, partialRowSet, rowCallback);
+				results =  manager.appendPartialRows(user, tableId, partialRowSet, rowCallback);
 			}else if(appendSet instanceof RowSet){
 				RowSet rowSet = (RowSet)appendSet;
-				results = tableEntityManager.appendRows(user, tableId, rowSet, rowCallback);
+				results = manager.appendRows(user, tableId, rowSet, rowCallback);
 			}else{
 				throw new IllegalArgumentException("Unknown RowSet type: "+appendSet.getClass().getName());
 			}

@@ -13,7 +13,8 @@ import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.asynch.AsynchJobStatusManager;
 import org.sagebionetworks.repo.manager.asynch.AsynchJobUtils;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
-import org.sagebionetworks.repo.manager.table.TableEntityManager;
+import org.sagebionetworks.repo.manager.table.AppendableTableManager;
+import org.sagebionetworks.repo.manager.table.AppendableTableManagerFactory;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.asynch.AsynchronousJobStatus;
@@ -22,18 +23,16 @@ import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.UploadToTableRequest;
 import org.sagebionetworks.repo.model.table.UploadToTableResult;
-import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
-import org.sagebionetworks.table.cluster.utils.TableModelUtils;
 import org.sagebionetworks.workers.util.aws.message.MessageDrivenRunner;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.springframework.beans.factory.annotation.Autowired;
+
+import au.com.bytecode.opencsv.CSVReader;
 
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.sqs.model.Message;
-
-import au.com.bytecode.opencsv.CSVReader;
 /**
  * This worker reads CSV files from S3 and appends the data to a given TableEntity.
  * 
@@ -47,7 +46,7 @@ public class TableCSVAppenderWorker implements MessageDrivenRunner {
 	@Autowired
 	private AsynchJobStatusManager asynchJobStatusManager;
 	@Autowired
-	private TableEntityManager tableEntityManager;
+	private AppendableTableManagerFactory appendableTableManagerFactory;
 	@Autowired
 	private TableManagerSupport tableManagerSupport;
 	@Autowired
@@ -116,9 +115,11 @@ public class TableCSVAppenderWorker implements MessageDrivenRunner {
 			boolean isFirstLineHeader = CSVUtils.isFirstRowHeader(body.getCsvTableDescriptor());
 			CSVToRowIterator iterator = new CSVToRowIterator(tableSchema, reader, isFirstLineHeader, body.getColumnIds());
 			ProgressingIteratorProxy iteratorProxy = new  ProgressingIteratorProxy(iterator, throttledProgressCallback);
+			
+			AppendableTableManager manager = appendableTableManagerFactory.getManagerForEntity(body.getTableId());
 			// Append the data to the table
 			rowCount = 0;
-			String etag = tableEntityManager.appendRowsAsStream(user, body.getTableId(),
+			String etag = manager.appendRowsAsStream(user, body.getTableId(),
 					tableSchema, iteratorProxy, body.getUpdateEtag(), null,
 					new ProgressCallback<Long>() {
 

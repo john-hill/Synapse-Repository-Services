@@ -23,6 +23,7 @@ import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.UploadToTableRequest;
 import org.sagebionetworks.repo.model.table.UploadToTableResult;
+import org.sagebionetworks.table.cluster.utils.CSVUtils;
 import org.sagebionetworks.workers.util.aws.message.MessageDrivenRunner;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,8 +56,6 @@ public class TableCSVAppenderWorker implements MessageDrivenRunner {
 	private FileHandleManager fileHandleManager;
 	@Autowired
 	private AmazonS3Client s3Client;
-	
-	private long rowCount;
 
 	@Override
 	public void run(ProgressCallback<Void> progressCallback,
@@ -98,14 +97,15 @@ public class TableCSVAppenderWorker implements MessageDrivenRunner {
 			// Reports progress back the caller.
 			// Report progress every 2 seconds.
 			long progressIntervalMs = 2000;
-			ThrottlingProgressCallback<Integer> throttledProgressCallback = new ThrottlingProgressCallback<Integer>(new ProgressCallback<Integer>() {
-
+			ThrottlingProgressCallback<Void> throttledProgressCallback = new ThrottlingProgressCallback<Void>(new ProgressCallback<Void>() {
+				int rowCount = 0;
 				@Override
-				public void progressMade(Integer rowNumber) {
+				public void progressMade(Void rowNumber) {
+					rowCount++;
 					// update the job progress.
 					asynchJobStatusManager.updateJobProgress(status.getJobId(),
 							countingInputStream.getByteCount(), progressTotal,
-							"Read: " + rowNumber + " rows");
+							"Read: " + rowCount + " rows");
 					// update the message.
 					progressCallback.progressMade(null);
 				}
@@ -114,24 +114,14 @@ public class TableCSVAppenderWorker implements MessageDrivenRunner {
 			// Create the iterator
 			boolean isFirstLineHeader = CSVUtils.isFirstRowHeader(body.getCsvTableDescriptor());
 			CSVToRowIterator iterator = new CSVToRowIterator(tableSchema, reader, isFirstLineHeader, body.getColumnIds());
-			ProgressingIteratorProxy iteratorProxy = new  ProgressingIteratorProxy(iterator, throttledProgressCallback);
 			
 			AppendableTableManager manager = appendableTableManagerFactory.getManagerForEntity(body.getTableId());
 			// Append the data to the table
-			rowCount = 0;
 			String etag = manager.appendRowsAsStream(user, body.getTableId(),
-					tableSchema, iteratorProxy, body.getUpdateEtag(), null,
-					new ProgressCallback<Long>() {
-
-				@Override
-				public void progressMade(Long count) {
-					// update the message.
-					progressCallback.progressMade(null);
-					rowCount += count;
-				}});
+					tableSchema, iterator, body.getUpdateEtag(), null, throttledProgressCallback);
 			// Done
 			UploadToTableResult result = new UploadToTableResult();
-			result.setRowsProcessed(rowCount);
+			result.setRowsProcessed(iterator.getRowsRead());
 			result.setEtag(etag);
 			asynchJobStatusManager.setComplete(status.getJobId(), result);
 		}catch(Throwable e){

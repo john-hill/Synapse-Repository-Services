@@ -1,4 +1,4 @@
-package org.sagebionetworks.table.worker;
+package org.sagebionetworks.table.cluster.utils;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -10,6 +10,7 @@ import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.repo.model.table.UploadToTablePreviewRequest;
+import org.sagebionetworks.table.cluster.utils.CSVUtils;
 
 public class CSVUtilsTest {
 

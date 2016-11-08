@@ -29,6 +29,7 @@ public class CSVToRowIterator implements Iterator<SparseRowDto> {
 
 	private String[] lastRow;
 	private int rowLineNumber;
+	private long rowsRead;
 
 	/**
 	 * Create a new object for each use.
@@ -45,6 +46,7 @@ public class CSVToRowIterator implements Iterator<SparseRowDto> {
 		this.resultSchema = resultSchema;
 		this.reader = reader;
 		this.rowLineNumber = 1;
+		this.rowsRead = 0;
 
 		// We need to read the first row to determine if it a header
 		lastRow = reader.readNext();
@@ -76,6 +78,7 @@ public class CSVToRowIterator implements Iterator<SparseRowDto> {
 	@Override
 	public SparseRowDto next() {
 		// Convert the row.
+		rowsRead++;
 		SparseRowDto row = new SparseRowDto();
 		Map<String, String> values = new HashMap<>(resultSchema.size());
 		boolean anyValues = false; // no values at all in a row denotes a deletion
@@ -130,4 +133,12 @@ public class CSVToRowIterator implements Iterator<SparseRowDto> {
 		throw new UnsupportedOperationException("Not supported");
 	}
 
+	/**
+	 * Get the number of rows read by this iterator.
+	 * 
+	 * @return
+	 */
+	public long getRowsRead(){
+		return rowsRead;
+	}
 }

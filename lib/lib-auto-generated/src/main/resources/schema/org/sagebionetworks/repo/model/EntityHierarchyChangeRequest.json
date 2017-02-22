@@ -1,0 +1,13 @@
+{
+	"description": "Abstraction for an Entity Hierarchy Change Request",
+	"type": "interface",
+	"properties": {
+		"concreteType":{
+			"type": "string"
+		},
+        "entityId":{
+            "type": "string",
+            "description": "The id of the entity."   
+        }		
+	}
+}

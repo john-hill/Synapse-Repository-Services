@@ -1,0 +1,13 @@
+{
+	"description": "A request start a job to make a change to an entity's hierarchy",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.asynch.AsynchronousRequestBody"
+		}
+	],
+	"properties":{
+        "hierarchyChange":{
+            "$ref":"org.sagebionetworks.repo.model.EntityHierarchyChangeRequest",
+        } 
+    }
+}

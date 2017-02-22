@@ -1,0 +1,8 @@
+{
+	"description": "Response of an Asynchronous job to change an Entity's hierarchy",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.EntityHierarchyChangeRequest"
+		}
+	]
+}

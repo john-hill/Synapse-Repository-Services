@@ -1,6 +1,8 @@
 package org.sagebionetworks.repo.model.dbo.asynch;
 
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.repo.model.EntityHierarchyChangeRequestBody;
+import org.sagebionetworks.repo.model.EntityHierarchyChangeResponseBody;
 import org.sagebionetworks.repo.model.asynch.AsynchronousRequestBody;
 import org.sagebionetworks.repo.model.asynch.AsynchronousResponseBody;
 import org.sagebionetworks.repo.model.file.BulkFileDownloadRequest;
@@ -46,7 +48,9 @@ public enum AsynchJobType {
 	
 	BULK_FILE_DOWNLOAD(BulkFileDownloadRequest.class, BulkFileDownloadResponse.class),
 	
-	MIGRATION(AsyncMigrationRequest.class, AsyncMigrationResponse.class);
+	MIGRATION(AsyncMigrationRequest.class, AsyncMigrationResponse.class),
+	
+	ENTITY_HIERARCHY_CHANGE(EntityHierarchyChangeRequestBody.class, EntityHierarchyChangeResponseBody.class);
 
 	private Class<? extends AsynchronousRequestBody> requestClass;
 	private Class<? extends AsynchronousResponseBody> responseClass;

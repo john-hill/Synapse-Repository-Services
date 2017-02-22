@@ -12,21 +12,27 @@ import org.sagebionetworks.repo.manager.SchemaManager;
 import org.sagebionetworks.repo.model.ACLInheritanceException;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.Annotations;
+import org.sagebionetworks.repo.model.AsynchJobFailedException;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.BooleanResult;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.Entity;
 import org.sagebionetworks.repo.model.EntityHeader;
+import org.sagebionetworks.repo.model.EntityHierarchyChangeRequestBody;
+import org.sagebionetworks.repo.model.EntityHierarchyChangeResponseBody;
 import org.sagebionetworks.repo.model.EntityId;
 import org.sagebionetworks.repo.model.EntityPath;
 import org.sagebionetworks.repo.model.InvalidModelException;
+import org.sagebionetworks.repo.model.NotReadyException;
 import org.sagebionetworks.repo.model.Reference;
 import org.sagebionetworks.repo.model.RestResourceList;
 import org.sagebionetworks.repo.model.ServiceConstants;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.VersionInfo;
 import org.sagebionetworks.repo.model.Versionable;
+import org.sagebionetworks.repo.model.asynch.AsyncJobId;
+import org.sagebionetworks.repo.model.asynch.AsynchronousJobStatus;
 import org.sagebionetworks.repo.model.auth.UserEntityPermissions;
 import org.sagebionetworks.repo.model.file.FileHandleResults;
 import org.sagebionetworks.repo.model.provenance.Activity;
@@ -37,6 +43,7 @@ import org.sagebionetworks.repo.web.rest.doc.ControllerInfo;
 import org.sagebionetworks.repo.web.service.ServiceProvider;
 import org.sagebionetworks.schema.ObjectSchema;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
+import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -949,6 +956,7 @@ public class EntityController extends BaseController {
 	 * @throws UnauthorizedException
 	 * @throws ConflictingUpdateException
 	 */
+	@Deprecated
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	@RequestMapping(value = { UrlHelpers.ENTITY_ID_ACL }, method = RequestMethod.DELETE)
 	public void deleteEntityACL(
@@ -1512,4 +1520,69 @@ public class EntityController extends BaseController {
 			@PathVariable String alias) throws NotFoundException{
 		return serviceProvider.getEntityService().getEntityIdForAlias(alias);
 	}
+	
+	/**
+	 * Start an asynchronous job to make a change to an Entity's hierarchy.
+	 * <p>
+	 * Note: The caller must be granted <a
+	 * href="${org.sagebionetworks.repo.model.ACCESS_TYPE}"
+	 * >ACCESS_TYPE.CHANGE_PERMISSIONS</a> on the Entity to call this method.
+	 * </p>
+	 * 
+	 * @param userId
+	 * @param body
+	 *            Identifies the entity for which the ACL should be deleted.
+	 * @return The ID of the started job. The jobId should be used to tack the
+	 *         job.
+	 * @throws DatastoreException
+	 * @throws NotFoundException
+	 * @throws IOException
+	 */
+	@ResponseStatus(HttpStatus.CREATED)
+	@RequestMapping(value = UrlHelpers.ENTITY_HIERARCHY_CHANGE_START, method = RequestMethod.POST)
+	public @ResponseBody
+	AsyncJobId startEntityHierarhcyChange(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@RequestBody EntityHierarchyChangeRequestBody body)
+			throws DatastoreException, NotFoundException, IOException {
+		ValidateArgument.required(body, "body");
+		ValidateArgument.required(userId, "userId");
+		AsynchronousJobStatus job = serviceProvider
+				.getAsynchronousJobServices().startJob(userId, body);
+		AsyncJobId asyncJobId = new AsyncJobId();
+		asyncJobId.setToken(job.getJobId());
+		return asyncJobId;
+	}
+
+	/**
+	 * Track a job started with
+	 * <a href="${POST.entity.hierarchy.change.async.start}">POST
+	 * /entity/hierarchy/change/async/start</a>
+	 * <p>
+	 * Note: When the result is not ready yet, this method will return a status
+	 * code of 202 (ACCEPTED) and the response body will be a <a
+	 * href="${org.sagebionetworks.repo.model.asynch.AsynchronousJobStatus}"
+	 * >AsynchronousJobStatus</a> object.
+	 * </p>
+	 * 
+	 * @param userId
+	 * @param asyncToken
+	 * @param id The ID of the table entity.
+	 * @param asyncToken The token returned when the job was started.
+	 * @return
+	 * @throws NotReadyException
+	 * @throws NotFoundException
+	 * @throws AsynchJobFailedException
+	 */
+	@ResponseStatus(HttpStatus.CREATED)
+	@RequestMapping(value = UrlHelpers.ENTITY_HIERARCHY_CHANGE_GET, method = RequestMethod.GET)
+	public @ResponseBody
+	EntityHierarchyChangeResponseBody getEntityHierarchyChangeResponse(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@PathVariable String asyncToken) throws Throwable {
+		AsynchronousJobStatus jobStatus = serviceProvider
+				.getAsynchronousJobServices().getJobStatusAndThrow(userId,
+						asyncToken);
+		return (EntityHierarchyChangeResponseBody) jobStatus.getResponseBody();
+	}
+
 }

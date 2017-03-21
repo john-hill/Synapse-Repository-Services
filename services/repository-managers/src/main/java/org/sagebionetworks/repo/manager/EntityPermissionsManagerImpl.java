@@ -45,6 +45,9 @@ public class EntityPermissionsManagerImpl implements EntityPermissionsManager {
 
 	private static final Long TRASH_FOLDER_ID = Long.parseLong(
 			StackConfiguration.getTrashFolderEntityIdStatic());
+	
+	public static final long MAX_FILES_WITH_ACLS_PER_PARENT = 100;
+	private static final String MSG_EXCEEDED_THE_MAXIUMN_NUMBER_OF_FILES = "Exceeded the limit of "+MAX_FILES_WITH_ACLS_PER_PARENT+" Access Control Lists for parent: ";
 
 	@Autowired
 	private NodeDAO nodeDao;
@@ -109,6 +112,13 @@ public class EntityPermissionsManagerImpl implements EntityPermissionsManager {
 		Long ownerId = nodeDao.getCreatedBy(acl.getId());
 		PermissionsManagerUtils.validateACLContent(acl, userInfo, ownerId);
 		Node node = nodeDao.getNode(rId);
+		if(EntityType.file.equals(node.getNodeType())){
+			// limit the number of ACL on files for a given parent.
+			long filesWithAcls = aclDAO.getCountFilesWithAcls(node.getParentId());
+			if(filesWithAcls >= MAX_FILES_WITH_ACLS_PER_PARENT){
+				throw new IllegalArgumentException(MSG_EXCEEDED_THE_MAXIUMN_NUMBER_OF_FILES+node.getParentId());
+			}
+		}
 		// Before we can update the ACL we must grab the lock on the node.
 		nodeDao.lockNodeAndIncrementEtag(node.getId(), node.getETag());
 		// set permissions 'benefactor' for resource and all resource's descendants to resource

@@ -130,4 +130,12 @@ public interface AccessControlListDAO  {
 	public Set<Long> getAccessibleProjectIds(Set<Long> principalIds,
 			ACCESS_TYPE read);
 
+	/**
+	 * The number of file with an ACL for the given parentId.
+	 * 
+	 * @param parentId
+	 * @return
+	 */
+	public long getCountFilesWithAcls(String parentId);
+
 }

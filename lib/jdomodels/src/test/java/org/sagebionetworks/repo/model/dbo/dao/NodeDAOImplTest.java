@@ -293,7 +293,7 @@ public class NodeDAOImplTest {
 		assertEquals(testActivity.getId(), loaded.getActivityId());
 		
 		// Since this node has no parent, it should be its own benefactor.
-		String benefactorId = nodeInheritanceDAO.getBenefactorCached(id);
+		String benefactorId = nodeDao.getBenefactor(id);
 		assertEquals(id, benefactorId);
 	}
 	
@@ -1945,57 +1945,6 @@ public class NodeDAOImplTest {
 	}
 	
 	/**
-	 * This was a test added for PLFM-3686, as the method was previously untested.
-	 */
-	@Test
-	public void testUpdateNodeProjectId(){
-		//make a parent project
-		Node node = privateCreateNew("parentProject");
-		node.setNodeType(EntityType.project);
-		String parentProjectId = nodeDao.createNew(node);
-		toDelete.add(parentProjectId);
-		assertNotNull(parentProjectId);
-		
-		//add a child to the parent
-		node = privateCreateNew("parentFolder");
-		node.setNodeType(EntityType.folder);
-		node.setParentId(parentProjectId);
-		String parentFolderId = nodeDao.createNew(node);
-		Node parentFolder = nodeDao.getNode(parentFolderId);
-		toDelete.add(parentFolderId);
-		assertNotNull(parentFolderId);
-		
-		node = privateCreateNew("child");
-		node.setNodeType(EntityType.folder);
-		node.setParentId(parentFolderId);
-		String childId2 = nodeDao.createNew(node);
-		Node child = nodeDao.getNode(parentFolderId);
-		toDelete.add(childId2);
-		assertNotNull(childId2);
-		
-		//make a second project
-		node = privateCreateNew("newProject");
-		node.setNodeType(EntityType.project);
-		String newProjectId = nodeDao.createNew(node);
-		toDelete.add(newProjectId);
-		assertNotNull(newProjectId);
-		
-		// Move the parentFolder to the new project
-		// call under test
-		int count = nodeDao.updateProjectForAllChildren(parentFolder.getId(), newProjectId);
-		assertEquals(2, count);
-		// parent
-		Node updated = nodeDao.getNode(parentFolderId);
-		assertEquals(newProjectId, updated.getProjectId());
-		assertFalse("Changing the projectId should change the etag", parentFolder.getETag().equals(updated.getETag()));
-		//child
-		updated = nodeDao.getNode(parentFolderId);
-		assertEquals(newProjectId, updated.getProjectId());
-		assertFalse("Changing the projectId should change the etag", child.getETag().equals(updated.getETag()));
-	
-	}
-	
-	/**
 	 * Tests that changeNodeParent does nothing if the new parent parameter
 	 * is the parent the current node already references
 	 * @throws Exception
@@ -2842,7 +2791,7 @@ public class NodeDAOImplTest {
 	public void testGetBenefactorIdChildWithNoParent() throws Exception{
 		Node child = setUpChildWithNoParent();
 		// Before the fix, this call call would hang with 100% CPU.
-		nodeInheritanceDAO.getBenefactor(child.getId());
+		nodeDao.getBenefactor(child.getId());
 	}
 	
 	/**
@@ -2868,7 +2817,7 @@ public class NodeDAOImplTest {
 	public void testGetBenefactorIdInfiniteLoop() throws Exception{
 		String id = setUpChildAsItsOwnParent();
 		// Before the fix, this call call would hang with 100% CPU.
-		nodeInheritanceDAO.getBenefactor(id);
+		nodeDao.getBenefactor(id);
 	}
 	
 	/**

@@ -1,17 +1,18 @@
 package org.sagebionetworks.repo.model.dbo.dao;
 
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_CURRENT_REV;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_CURRENT_REV;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_FILES_CONTENT_MD5;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_FILES_CONTENT_SIZE;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_FILES_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_ALIAS;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_BENEFACTOR_ALIAS;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_CREATED_BY;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_CREATED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_ETAG;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_NAME;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_PARENT_ID;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_PROJECT_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_PROJECT_ALIAS;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_TYPE;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_PROJECT_STAT_LAST_ACCESSED;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_PROJECT_STAT_PROJECT_ID;
@@ -55,7 +56,6 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.apache.commons.lang.NotImplementedException;
-import org.apache.commons.lang.ObjectUtils;
 import org.joda.time.DateTime;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.ids.IdGenerator;
@@ -111,7 +111,6 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
@@ -173,7 +172,7 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 			+ " = r."
 			+ COL_REVISION_OWNER_NODE
 			+ " AND n."
-			+ COL_CURRENT_REV
+			+ COL_NODE_CURRENT_REV
 			+ " = r."
 			+ COL_REVISION_NUMBER
 			+ " LEFT JOIN "
@@ -196,8 +195,10 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 			+ BIND_NODE_IDS
 			+ ")";
 
-	private static final String BENEFACTOR_ALIAS = "BENEFACTOR";
-	private static final String SQL_SELECT_BENEFACTOR_N = FUNCTION_GET_ENTITY_BENEFACTOR_ID+"(N."+COL_NODE_ID+") AS "+BENEFACTOR_ALIAS;
+	private static final String SQL_SELECT_BENEFACTOR_N = FUNCTION_GET_ENTITY_BENEFACTOR_ID+"(N."+COL_NODE_ID+") AS "+COL_NODE_BENEFACTOR_ALIAS;
+	private static final String SQL_SELECT_PROJECT_N = FUNCTION_GET_ENTITY_PROJECT_ID+"(N."+COL_NODE_ID+") AS "+COL_NODE_PROJECT_ALIAS;
+	
+	private static final String SELECT_ENTITY_BENEFACTOR_FUNCTION = "SELECT "+FUNCTION_GET_ENTITY_BENEFACTOR_ID+"(?)";
 	
 	private static final String ENTITY_HEADER_SELECT = "SELECT N."+COL_NODE_ID+", R."+COL_REVISION_LABEL+", N."+COL_NODE_NAME+", N."+COL_NODE_TYPE+", "+SQL_SELECT_BENEFACTOR_N+", R."+COL_REVISION_NUMBER;
 	
@@ -205,7 +206,7 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 			ENTITY_HEADER_SELECT+
 				" FROM "+TABLE_NODE+" N"+
 				" JOIN "+TABLE_REVISION+" R"+
-					" ON (N."+COL_NODE_ID+" = R."+COL_REVISION_OWNER_NODE+" AND N."+COL_CURRENT_REV+" = R."+COL_REVISION_NUMBER+")"+
+					" ON (N."+COL_NODE_ID+" = R."+COL_REVISION_OWNER_NODE+" AND N."+COL_NODE_CURRENT_REV+" = R."+COL_REVISION_NUMBER+")"+
 				" WHERE N."+COL_NODE_PARENT_ID+" = :"+BIND_PARENT_ID+
 						" %1$s"+
 						" AND N."+COL_NODE_TYPE+" IN (:"+BIND_NODE_TYPES+")"+
@@ -217,8 +218,22 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 	
 	public static final String SQL_ID_NOT_IN_SET = " AND N."+COL_NODE_ID+" NOT IN (:"+BIND_NODE_IDS+")";
 	
-	private static final String SQL_SELECT_WITHOUT_ANNOTATIONS = "SELECT N.*, R."+COL_REVISION_OWNER_NODE+", R."+COL_REVISION_NUMBER+", R."+COL_REVISION_ACTIVITY_ID+", R."+COL_REVISION_LABEL+", R."+COL_REVISION_COMMENT+", R."+COL_REVISION_MODIFIED_BY+", R."+COL_REVISION_MODIFIED_ON+", R."+COL_REVISION_FILE_HANDLE_ID+", R."+COL_REVISION_COLUMN_MODEL_IDS+", R."+COL_REVISION_SCOPE_IDS+", R."+COL_REVISION_REF_BLOB;
-	private static final String SQL_SELECT_CURRENT_NODE = SQL_SELECT_WITHOUT_ANNOTATIONS+" FROM "+TABLE_NODE+" N, "+TABLE_REVISION+" R WHERE N."+COL_NODE_ID+"= R."+COL_REVISION_OWNER_NODE+" AND N."+COL_CURRENT_REV+" = R."+COL_REVISION_NUMBER+" AND N."+COL_NODE_ID+"= ?";
+	private static final String SQL_SELECT_NODE_FIELDS = 
+			"SELECT"
+			+ " N."+COL_NODE_ID
+			+ ", N."+COL_NODE_NAME
+			+ ", N."+COL_NODE_PARENT_ID
+			+ ", N."+COL_NODE_TYPE
+			+ ", N."+COL_NODE_ETAG
+			+ ", N."+COL_NODE_CREATED_ON
+			+ ", N."+COL_NODE_CREATED_BY
+			+ ", N."+COL_NODE_ALIAS
+			+ ", N."+COL_NODE_CURRENT_REV
+			+ ", "+SQL_SELECT_BENEFACTOR_N
+			+ ", "+SQL_SELECT_PROJECT_N;
+	
+	private static final String SQL_SELECT_WITHOUT_ANNOTATIONS = SQL_SELECT_NODE_FIELDS+", "+COL_REVISION_OWNER_NODE+", R."+COL_REVISION_NUMBER+", R."+COL_REVISION_ACTIVITY_ID+", R."+COL_REVISION_LABEL+", R."+COL_REVISION_COMMENT+", R."+COL_REVISION_MODIFIED_BY+", R."+COL_REVISION_MODIFIED_ON+", R."+COL_REVISION_FILE_HANDLE_ID+", R."+COL_REVISION_COLUMN_MODEL_IDS+", R."+COL_REVISION_SCOPE_IDS+", R."+COL_REVISION_REF_BLOB;
+	private static final String SQL_SELECT_CURRENT_NODE = SQL_SELECT_WITHOUT_ANNOTATIONS+" FROM "+TABLE_NODE+" N, "+TABLE_REVISION+" R WHERE N."+COL_NODE_ID+"= R."+COL_REVISION_OWNER_NODE+" AND N."+COL_NODE_CURRENT_REV+" = R."+COL_REVISION_NUMBER+" AND N."+COL_NODE_ID+"= ?";
 	private static final String SQL_SELECT_NODE_VERSION = SQL_SELECT_WITHOUT_ANNOTATIONS+" FROM "+TABLE_NODE+" N, "+TABLE_REVISION+" R WHERE N."+COL_NODE_ID+"= R."+COL_REVISION_OWNER_NODE+" AND R."+COL_REVISION_NUMBER+" = ? AND N."+COL_NODE_ID+"= ?";
 
 	private static final String SELECT_FUNCTION_PROJECT_ID = "SELECT "+FUNCTION_GET_ENTITY_PROJECT_ID+"(?)";
@@ -229,7 +244,7 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 			ENTITY_HEADER_SELECT +
 			" FROM "+TABLE_NODE +" N" +
 			" JOIN "+TABLE_REVISION+" R"+
-			" ON (N."+COL_NODE_ID+" = R."+COL_REVISION_OWNER_NODE+" AND N."+COL_CURRENT_REV+" = R."+COL_REVISION_NUMBER+")"+
+			" ON (N."+COL_NODE_ID+" = R."+COL_REVISION_OWNER_NODE+" AND N."+COL_NODE_CURRENT_REV+" = R."+COL_REVISION_NUMBER+")"+
 			" WHERE "+COL_NODE_ID+" IN (:nodeIds)";
 	
 	private static final String IDS_PARAM_NAME = "ids_param";
@@ -237,11 +252,11 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 	private static final String PROJECT_ID_PARAM_NAME = "project_id_param";
 
 	private static final String SQL_SELECT_REV_FILE_HANDLE_ID = "SELECT "+COL_REVISION_FILE_HANDLE_ID+" FROM "+TABLE_REVISION+" WHERE "+COL_REVISION_OWNER_NODE+" = ? AND "+COL_REVISION_NUMBER+" = ?";
-	private static final String SELECT_REVISIONS_ONLY = "SELECT R."+COL_REVISION_REF_BLOB+" FROM  "+TABLE_NODE+" N, "+TABLE_REVISION+" R WHERE N."+COL_NODE_ID+" = ? AND R."+COL_REVISION_OWNER_NODE+" = N."+COL_NODE_ID+" AND R."+COL_REVISION_NUMBER+" = N."+COL_CURRENT_REV;
+	private static final String SELECT_REVISIONS_ONLY = "SELECT R."+COL_REVISION_REF_BLOB+" FROM  "+TABLE_NODE+" N, "+TABLE_REVISION+" R WHERE N."+COL_NODE_ID+" = ? AND R."+COL_REVISION_OWNER_NODE+" = N."+COL_NODE_ID+" AND R."+COL_REVISION_NUMBER+" = N."+COL_NODE_CURRENT_REV;
 	private static final String SELECT_ANNOTATIONS_ONLY_PREFIX = "SELECT N."+COL_NODE_ID+", N."+COL_NODE_ETAG+", N."+COL_NODE_CREATED_ON+", N."+COL_NODE_CREATED_BY+", R."+COL_REVISION_ANNOS_BLOB+" FROM  "+TABLE_NODE+" N, "+TABLE_REVISION+" R WHERE N."+COL_NODE_ID+" = ? AND R."+COL_REVISION_OWNER_NODE+" = N."+COL_NODE_ID+" AND R."+COL_REVISION_NUMBER;
 	private static final String CANNOT_FIND_A_NODE_WITH_ID = "Cannot find a node with id: ";
 	private static final String ERROR_RESOURCE_NOT_FOUND = "The resource you are attempting to access cannot be found";
-	private static final String GET_CURRENT_REV_NUMBER_SQL = "SELECT "+COL_CURRENT_REV+" FROM "+TABLE_NODE+" WHERE "+COL_NODE_ID+" = ?";
+	private static final String GET_CURRENT_REV_NUMBER_SQL = "SELECT "+COL_NODE_CURRENT_REV+" FROM "+TABLE_NODE+" WHERE "+COL_NODE_ID+" = ?";
 	private static final String GET_NODE_TYPE_SQL = "SELECT "+COL_NODE_TYPE+" FROM "+TABLE_NODE+" WHERE "+COL_NODE_ID+" = ?";
 	private static final String GET_REV_ACTIVITY_ID_SQL = "SELECT "+COL_REVISION_ACTIVITY_ID+" FROM "+TABLE_REVISION+" WHERE "+COL_REVISION_OWNER_NODE+" = ? AND "+ COL_REVISION_NUMBER +" = ?";
 	private static final String GET_NODE_CREATED_BY_SQL = "SELECT "+COL_NODE_CREATED_BY+" FROM "+TABLE_NODE+" WHERE "+COL_NODE_ID+" = ?";
@@ -254,7 +269,7 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 	public static final String PROJECT_FUNCTION_ALIAS = FUNCTION_GET_ENTITY_PROJECT_ID+"(N."+COL_NODE_ID+")";
 	
 	private static final String SQL_SELECT_ENTITY_DTO = "SELECT N."
-			+ COL_NODE_ID + ", N."+COL_CURRENT_REV+", N." + COL_NODE_CREATED_BY + ", N."
+			+ COL_NODE_ID + ", N."+COL_NODE_CURRENT_REV+", N." + COL_NODE_CREATED_BY + ", N."
 			+ COL_NODE_CREATED_ON + ", N." + COL_NODE_ETAG + ", N."
 			+ COL_NODE_NAME + ", N." + COL_NODE_TYPE + ", N."
 			+ COL_NODE_PARENT_ID + ", " + BENEFACTOR_FUNCTION_ALIAS + ", "
@@ -262,10 +277,10 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 			+ COL_REVISION_MODIFIED_ON + ", R." + COL_REVISION_FILE_HANDLE_ID
 			+ ", R." + COL_REVISION_ANNOS_BLOB + " FROM " + TABLE_NODE + " N, "
 			+ TABLE_REVISION + " R WHERE N." + COL_NODE_ID + " = R."
-			+ COL_REVISION_OWNER_NODE + " AND N." + COL_CURRENT_REV + " = R."
+			+ COL_REVISION_OWNER_NODE + " AND N." + COL_NODE_CURRENT_REV + " = R."
 			+ COL_REVISION_NUMBER + " AND N." + COL_NODE_ID + " IN(:"
 			+ NODE_IDS_LIST_PARAM_NAME + ")";
-	private static final String SQL_GET_CURRENT_VERSIONS = "SELECT "+COL_NODE_ID+","+COL_CURRENT_REV+" FROM "+TABLE_NODE+" WHERE "+COL_NODE_ID+" IN ( :"+NODE_IDS_LIST_PARAM_NAME + " )";
+	private static final String SQL_GET_CURRENT_VERSIONS = "SELECT "+COL_NODE_ID+","+COL_NODE_CURRENT_REV+" FROM "+TABLE_NODE+" WHERE "+COL_NODE_ID+" IN ( :"+NODE_IDS_LIST_PARAM_NAME + " )";
 	private static final String OWNER_ID_PARAM_NAME = "OWNER_ID";
 
 	private static final String LAST_ACCESSED_OR_CREATED =
@@ -317,8 +332,6 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 			+ " AND F." + COL_FILES_CONTENT_MD5 + " = :" + COL_FILES_CONTENT_MD5
 			+ " LIMIT " + (NODE_VERSION_LIMIT_BY_FILE_MD5 + 1);
 
-	private static final String UPDATE_PROJECT_IDS = "UPDATE " + TABLE_NODE + " SET " + COL_NODE_PROJECT_ID + " = :" + PROJECT_ID_PARAM_NAME +", "+COL_NODE_ETAG+" = UUID()"
-			+ " WHERE " + COL_NODE_ID + " IN (:" + IDS_PARAM_NAME + ")";
 
 	// Track the trash folder.
 	public static final Long TRASH_FOLDER_ID = Long.parseLong(StackConfiguration.getTrashFolderEntityIdStatic());
@@ -334,7 +347,7 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 			header.setName(rs.getString(COL_NODE_NAME));
 			header.setVersionNumber(rs.getLong(COL_REVISION_NUMBER));
 			header.setVersionLabel(rs.getString(COL_REVISION_LABEL));
-			header.setBenefactorId(rs.getLong(BENEFACTOR_ALIAS));
+			header.setBenefactorId(rs.getLong(COL_NODE_BENEFACTOR_ALIAS));
 			return header;
 		}
 	};
@@ -634,7 +647,7 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 		if(id == null) throw new IllegalArgumentException("NodeId cannot be null");
 		// Select just the references, not the entire node.
 		try{
-			return jdbcTemplate.queryForObject(SELECT_ANNOTATIONS_ONLY_PREFIX + " = N." + COL_CURRENT_REV, new AnnotationRowMapper(),
+			return jdbcTemplate.queryForObject(SELECT_ANNOTATIONS_ONLY_PREFIX + " = N." + COL_NODE_CURRENT_REV, new AnnotationRowMapper(),
 					KeyFactory.stringToKey(id));
 		}catch (EmptyResultDataAccessException e){
 			// Occurs if there are no results
@@ -1335,12 +1348,6 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 			// we are our own project
 			desiredProjectId = node.getId();
 		}
-
-		// also update the project, since that might have changed too
-		if (!ObjectUtils.equals(node.getProjectId(), desiredProjectId)) {
-			// this means we need to update all the children also
-			updateProjectForAllChildren(node.getId(), desiredProjectId);
-		}
 		
 		try {
 			jdbcTemplate.update(SQL_UPDATE_PARENT_ID, newParentNode.getId(), node.getId());
@@ -1351,35 +1358,6 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 		}
 
 		return true;
-	}
-	
-	@WriteTransaction
-	@Override
-	public int updateProjectForAllChildren(String nodeId, String projectId) {
-		ValidateArgument.required(nodeId, "nodeId");
-		ValidateArgument.required(projectId, "projectId");
-		return updateProjectForAllChildren(KeyFactory.stringToKey(nodeId), KeyFactory.stringToKey(projectId));
-	}
-	
-	private int updateProjectForAllChildren(Long nodeId, Long projectId) {
-		List<Long> allChildren = Lists.newLinkedList();
-		allChildren.add(nodeId);
-		getChildrenIdsRecursive(nodeId, allChildren);
-		// batch the updates, so we don't overwhelm the in clause
-		int count = 0;
-		for (List<Long> batch : Lists.partition(allChildren, 500)) {
-			count += namedParameterJdbcTemplate.update(UPDATE_PROJECT_IDS,
-					new MapSqlParameterSource().addValue(IDS_PARAM_NAME, batch).addValue(PROJECT_ID_PARAM_NAME, projectId));
-		}
-		return count;
-	}
-
-	private void getChildrenIdsRecursive(Long id, List<Long> result) {
-		List<Long> children = jdbcTemplate.queryForList(SQL_GET_ALL_CHILDREN_IDS, Long.class, id);
-		result.addAll(children);
-		for (Long child : children) {
-			getChildrenIdsRecursive(child, result);
-		}
 	}
 		
 	@Override
@@ -1481,7 +1459,7 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 					throws SQLException {
 				Reference ref = new Reference(); 
 				ref.setTargetId(KeyFactory.keyToString(rs.getLong(COL_NODE_ID)));
-				ref.setTargetVersionNumber(rs.getLong(COL_CURRENT_REV));
+				ref.setTargetVersionNumber(rs.getLong(COL_NODE_CURRENT_REV));
 				if(rs.wasNull()) ref.setTargetVersionNumber(null);
 				return ref;
 			}		
@@ -1640,6 +1618,24 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 			throw new NotFoundException("Did not find a match for alias: "+alias);
 		}
 	}
+	
+
+	@Override
+	public String getBenefactor(String beneficiaryId) {
+		Long id = KeyFactory.stringToKey(beneficiaryId);
+		Long benefactorId = jdbcTemplate.queryForObject(SELECT_ENTITY_BENEFACTOR_FUNCTION, Long.class, id);
+		if(benefactorId == null){
+			/*
+			 * Benefactor will be null if the node does not exist or if the node
+			 * is in the trash. In either case a NotFoundException should be
+			 * thrown.
+			 */
+			throw new NotFoundException("Benefactor not found for: "+beneficiaryId);
+		}else if (benefactorId < 0){
+			throw new IllegalStateException("Infinite loop detected for: "+beneficiaryId);
+		}
+		return KeyFactory.keyToString(benefactorId);
+	}
 
 	@Override
 	public String getProjectId(String nodeId) {
@@ -1689,7 +1685,7 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 				EntityDTO dto = new EntityDTO();
 				long entityId = rs.getLong(COL_NODE_ID);
 				dto.setId(entityId);
-				dto.setCurrentVersion(rs.getLong(COL_CURRENT_REV));
+				dto.setCurrentVersion(rs.getLong(COL_NODE_CURRENT_REV));
 				dto.setCreatedBy(rs.getLong(COL_NODE_CREATED_BY));
 				dto.setCreatedOn(new Date(rs.getLong(COL_NODE_CREATED_ON)));
 				dto.setEtag(rs.getString(COL_NODE_ETAG));

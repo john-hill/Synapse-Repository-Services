@@ -28,8 +28,8 @@ public class JDONodeInheritanceDAOImpl implements NodeInheritanceDAO {
 	
 	private static final String SQL_COUNT_NODE = "SELECT COUNT(*) FROM "+TABLE_NODE+" WHERE "+COL_NODE_ID+" = ?";
 	private static final String SELECT_ENTITY_BENEFACTOR_FUNCTION = "SELECT "+FUNCTION_GET_ENTITY_BENEFACTOR_ID+"(?)";
-	private static final String SELECT_BENEFICIARIES = "SELECT "+COL_NODE_ID+" FROM "+TABLE_NODE+" WHERE "+COL_NODE_BENEFACTOR_ID+" = ?";
-	private static final String SELECT_BENEFACTOR = "SELECT "+COL_NODE_BENEFACTOR_ID+" FROM "+TABLE_NODE+" WHERE "+COL_NODE_ID+" = ?";
+	private static final String SELECT_BENEFICIARIES = "SELECT "+COL_NODE_ID+" FROM "+TABLE_NODE+" WHERE  = ?";
+	private static final String SELECT_BENEFACTOR = "SELECT  FROM "+TABLE_NODE+" WHERE "+COL_NODE_ID+" = ?";
 	
 	@Autowired
 	private DBOBasicDao dboBasicDao;

@@ -17,18 +17,18 @@ public class SqlConstants {
 	public static final String TABLE_NODE 				= "JDONODE";
 	public static final String COL_NODE_ID				= "ID";
 	public static final String COL_NODE_PARENT_ID		= "PARENT_ID";
-	public static final String COL_NODE_BENEFACTOR_ID	= "BENEFACTOR_ID";
-	public static final String COL_NODE_PROJECT_ID		= "PROJECT_ID";
 	public static final String COL_NODE_NAME			= "NAME";
 	public static final String COL_NODE_ANNOTATIONS		= "ANNOTATIONS_ID_OID";
 	public static final String COL_NODE_ETAG 			= "ETAG";
 	public static final String COL_NODE_CREATED_BY 		= "CREATED_BY";
 	public static final String COL_NODE_CREATED_ON 		= "CREATED_ON";
 	public static final String COL_NODE_TYPE			= "NODE_TYPE";
-	public static final String COL_NODE_ACL				= "NODE_ACL";
-	public static final String COL_CURRENT_REV			= "CURRENT_REV_NUM";
+	public static final String COL_NODE_CURRENT_REV			= "CURRENT_REV_NUM";
 	public static final String COL_NODE_ALIAS 			= "ALIAS";
 	public static final String DDL_FILE_NODE			="schema/Node-ddl.sql";
+	
+	public static final String COL_NODE_BENEFACTOR_ALIAS = "BENEFACTOR_ID";
+	public static final String COL_NODE_PROJECT_ALIAS	 = "PROJECT_ID";
 	
 	// The Revision table
 	public static final String TABLE_REVISION 				= "JDOREVISION";

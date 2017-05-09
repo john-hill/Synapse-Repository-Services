@@ -9,7 +9,6 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.Annotations;
@@ -65,27 +64,6 @@ public class QueryUtils {
 		}else{
 			throw new IllegalArgumentException("Unknown type: "+type);
 		}
-	}
-
-	/**
-	 * Build up the authorization filter
-	 * 
-	 * @param userInfo
-	 * @param parameters a mutable parameter list
-	 * @param nodeAlias TODO
-	 * @param groupIndexToStartFrom
-	 * @return
-	 * @throws DatastoreException
-	 */
-	public static String buildAuthorizationFilter(boolean isAdmin, Set<Long> groups, Map<String, Object> parameters, String nodeAlias,
-			int groupIndexToStartFrom)
-			throws DatastoreException {
-		// First off, if the user is an administrator then there is no filter
-		if (isAdmin) {
-			return "";
-		}
-		String sql = buildAuthorizationSelect(groups, parameters, groupIndexToStartFrom);
-		return nodeAlias + "." + SqlConstants.COL_NODE_BENEFACTOR_ID + " in (" + sql + ")";
 	}
 
 	public static String buildAuthorizationSelect(Collection<Long> groups, Map<String, Object> parameters, int groupIndexToStartFrom) {

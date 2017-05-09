@@ -33,6 +33,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
  * 
  */
 
+@Deprecated // will be removed.
 @SuppressWarnings("rawtypes")
 public class JDONodeQueryDaoImpl implements NodeQueryDao {
 
@@ -175,8 +176,10 @@ public class JDONodeQueryDaoImpl implements NodeQueryDao {
 		parameters.put(AuthorizationSqlUtil.RESOURCE_TYPE_BIND_VAR, ObjectType.ENTITY.name());
 
 		// Build the authorization filter
-		String authorizationFilter = QueryUtils.buildAuthorizationFilter(userInfo.isAdmin(), userInfo.getGroups(), parameters,
-				SqlConstants.NODE_ALIAS, 0);
+		if(true){
+			throw new IllegalStateException("This function no longer works");
+		}
+		String authorizationFilter = null;
 
 		try {
 			// Build the from
@@ -451,7 +454,7 @@ public class JDONodeQueryDaoImpl implements NodeQueryDao {
 		whereBuilder.append(" and ");
 		whereBuilder.append(SqlConstants.NODE_ALIAS);
 		whereBuilder.append(".");
-		whereBuilder.append(SqlConstants.COL_CURRENT_REV);
+		whereBuilder.append(SqlConstants.COL_NODE_CURRENT_REV);
 		whereBuilder.append(" = ");
 		whereBuilder.append(SqlConstants.REVISION_ALIAS);
 		whereBuilder.append(".");

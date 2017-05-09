@@ -382,11 +382,6 @@ public interface NodeDAO {
 	public Reference getNodeReference(String nodeId) throws NotFoundException, DatastoreException;
 
 	/**
-	 * Gets a page of parent relations.
-	 */
-	QueryResults<NodeParentRelation> getParentRelations(long offset, long limit) throws DatastoreException;
-
-	/**
 	 * Get the FileHandle Id for a given version number.
 	 * 
 	 * @param id

@@ -20,7 +20,6 @@ import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeDAO;
-import org.sagebionetworks.repo.model.NodeInheritanceDAO;
 import org.sagebionetworks.repo.model.NodeQueryDao;
 import org.sagebionetworks.repo.model.NodeQueryResults;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -41,9 +40,6 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(locations = { "classpath:jdomodels-test-context.xml" })
 public class JDONodeQueryDAOImplAdditionalTest {
-	
-	@Autowired
-	NodeInheritanceDAO nodeInheritanceDao;
 	
 	@Autowired
 	private NodeQueryDao nodeQueryDao;
@@ -148,7 +144,7 @@ public class JDONodeQueryDAOImplAdditionalTest {
 		assertTrue(results.getResultIds().contains(toTrash.getId()));
 		
 		// Now move the node to the trash
-		nodeInheritanceDao.addBeneficiary(toTrash.getId(), ""+BasicQueryUtils.TRASH_FOLDER_ID);
+//		nodeInheritanceDao.addBeneficiary(toTrash.getId(), ""+BasicQueryUtils.TRASH_FOLDER_ID);
 		// We should not be able to find it
 		results = nodeQueryDao.executeQuery(query, userInfo);
 		assertNotNull(results);

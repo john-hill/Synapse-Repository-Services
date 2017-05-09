@@ -1,6 +1,5 @@
 package org.sagebionetworks.repo.model.dbo.dao;
 
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_CURRENT_REV;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_FILES_CONTENT_MD5;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_FILES_CONTENT_SIZE;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_FILES_ID;
@@ -8,6 +7,7 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_ALI
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_BENEFACTOR_ALIAS;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_CREATED_BY;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_CREATED_ON;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_CURRENT_REV;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_ETAG;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_NAME;
@@ -56,7 +56,6 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.apache.commons.lang.NotImplementedException;
-import org.joda.time.DateTime;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
@@ -73,12 +72,10 @@ import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeConstants;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.NodeIdAndType;
-import org.sagebionetworks.repo.model.NodeParentRelation;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.ProjectHeader;
 import org.sagebionetworks.repo.model.ProjectListSortColumn;
 import org.sagebionetworks.repo.model.ProjectListType;
-import org.sagebionetworks.repo.model.QueryResults;
 import org.sagebionetworks.repo.model.Reference;
 import org.sagebionetworks.repo.model.VersionInfo;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
@@ -217,22 +214,8 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 	public static final String N_CREATED_ON = "N."+COL_NODE_CREATED_ON;
 	
 	public static final String SQL_ID_NOT_IN_SET = " AND N."+COL_NODE_ID+" NOT IN (:"+BIND_NODE_IDS+")";
-	
-	private static final String SQL_SELECT_NODE_FIELDS = 
-			"SELECT"
-			+ " N."+COL_NODE_ID
-			+ ", N."+COL_NODE_NAME
-			+ ", N."+COL_NODE_PARENT_ID
-			+ ", N."+COL_NODE_TYPE
-			+ ", N."+COL_NODE_ETAG
-			+ ", N."+COL_NODE_CREATED_ON
-			+ ", N."+COL_NODE_CREATED_BY
-			+ ", N."+COL_NODE_ALIAS
-			+ ", N."+COL_NODE_CURRENT_REV
-			+ ", "+SQL_SELECT_BENEFACTOR_N
-			+ ", "+SQL_SELECT_PROJECT_N;
-	
-	private static final String SQL_SELECT_WITHOUT_ANNOTATIONS = SQL_SELECT_NODE_FIELDS+", "+COL_REVISION_OWNER_NODE+", R."+COL_REVISION_NUMBER+", R."+COL_REVISION_ACTIVITY_ID+", R."+COL_REVISION_LABEL+", R."+COL_REVISION_COMMENT+", R."+COL_REVISION_MODIFIED_BY+", R."+COL_REVISION_MODIFIED_ON+", R."+COL_REVISION_FILE_HANDLE_ID+", R."+COL_REVISION_COLUMN_MODEL_IDS+", R."+COL_REVISION_SCOPE_IDS+", R."+COL_REVISION_REF_BLOB;
+		
+	private static final String SQL_SELECT_WITHOUT_ANNOTATIONS = "SELECT N.*, R."+COL_REVISION_OWNER_NODE+", R."+COL_REVISION_NUMBER+", R."+COL_REVISION_ACTIVITY_ID+", R."+COL_REVISION_LABEL+", R."+COL_REVISION_COMMENT+", R."+COL_REVISION_MODIFIED_BY+", R."+COL_REVISION_MODIFIED_ON+", R."+COL_REVISION_FILE_HANDLE_ID+", R."+COL_REVISION_COLUMN_MODEL_IDS+", R."+COL_REVISION_SCOPE_IDS+", R."+COL_REVISION_REF_BLOB;
 	private static final String SQL_SELECT_CURRENT_NODE = SQL_SELECT_WITHOUT_ANNOTATIONS+" FROM "+TABLE_NODE+" N, "+TABLE_REVISION+" R WHERE N."+COL_NODE_ID+"= R."+COL_REVISION_OWNER_NODE+" AND N."+COL_NODE_CURRENT_REV+" = R."+COL_REVISION_NUMBER+" AND N."+COL_NODE_ID+"= ?";
 	private static final String SQL_SELECT_NODE_VERSION = SQL_SELECT_WITHOUT_ANNOTATIONS+" FROM "+TABLE_NODE+" N, "+TABLE_REVISION+" R WHERE N."+COL_NODE_ID+"= R."+COL_REVISION_OWNER_NODE+" AND R."+COL_REVISION_NUMBER+" = ? AND N."+COL_NODE_ID+"= ?";
 
@@ -249,7 +232,6 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 	
 	private static final String IDS_PARAM_NAME = "ids_param";
 	private static final String SQL_SELECT_CONTAINERS_WITH_PARENT_IDS_IN_CLAUSE = "SELECT "+COL_NODE_ID+" FROM "+TABLE_NODE+" WHERE "+COL_NODE_PARENT_ID+" IN (:"+IDS_PARAM_NAME+") AND "+COL_NODE_TYPE+" IN ('"+EntityType.folder.name()+"', '"+EntityType.project.name()+"') ORDER BY "+COL_NODE_ID+" ASC";
-	private static final String PROJECT_ID_PARAM_NAME = "project_id_param";
 
 	private static final String SQL_SELECT_REV_FILE_HANDLE_ID = "SELECT "+COL_REVISION_FILE_HANDLE_ID+" FROM "+TABLE_REVISION+" WHERE "+COL_REVISION_OWNER_NODE+" = ? AND "+COL_REVISION_NUMBER+" = ?";
 	private static final String SELECT_REVISIONS_ONLY = "SELECT R."+COL_REVISION_REF_BLOB+" FROM  "+TABLE_NODE+" N, "+TABLE_REVISION+" R WHERE N."+COL_NODE_ID+" = ? AND R."+COL_REVISION_OWNER_NODE+" = N."+COL_NODE_ID+" AND R."+COL_REVISION_NUMBER+" = N."+COL_NODE_CURRENT_REV;
@@ -931,38 +913,6 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 		});
 	}
 
-	@Override
-	public QueryResults<NodeParentRelation> getParentRelations(long offset, long limit)
-			throws DatastoreException {
-
-		MapSqlParameterSource params = new MapSqlParameterSource();
-		params.addValue(OFFSET_PARAM_NAME, offset);
-		params.addValue(LIMIT_PARAM_NAME, limit);
-
-		List<NodeParentRelation> results = this.namedParameterJdbcTemplate.query(SQL_SELECT_NODE_PARENT_PAGINATED, params,
-				new RowMapper<NodeParentRelation>() {
-
-					@Override
-					public NodeParentRelation mapRow(ResultSet rs, int rowNum) throws SQLException {
-						NodeParentRelation p = new NodeParentRelation();
-						p.setId(KeyFactory.keyToString(rs.getLong(COL_NODE_ID)));
-						long parentId = rs.getLong(COL_NODE_PARENT_ID);
-						if (parentId != 0) {
-							p.setParentId(KeyFactory.keyToString(parentId));
-						}
-						p.setETag(rs.getString(COL_NODE_ETAG));
-						p.setTimestamp(DateTime.now());
-						return p;
-					}
-
-				});
-
-		QueryResults<NodeParentRelation> queryResults = new QueryResults<NodeParentRelation>();
-		queryResults.setTotalNumberOfResults(this.getCount());
-		queryResults.setResults(results);
-
-		return queryResults;
-	}
 
 	@WriteTransaction
 	@Override
@@ -1342,12 +1292,6 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 		DBONode newParentNode = getNodeById(KeyFactory.stringToKey(newParentId));
 		//make the update 
 		node.setParentId(newParentNode.getId());
-
-		Long desiredProjectId = newParentNode.getProjectId();
-		if (desiredProjectId == null && !isMoveToTrash && EntityType.project.name().equals(node.getType())) {
-			// we are our own project
-			desiredProjectId = node.getId();
-		}
 		
 		try {
 			jdbcTemplate.update(SQL_UPDATE_PARENT_ID, newParentNode.getId(), node.getId());

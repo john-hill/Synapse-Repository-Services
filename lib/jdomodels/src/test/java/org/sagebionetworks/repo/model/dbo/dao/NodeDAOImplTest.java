@@ -1,6 +1,5 @@
 package org.sagebionetworks.repo.model.dbo.dao;
 
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -8,6 +7,9 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.sagebionetworks.repo.model.dbo.dao.NodeDAOImpl.TRASH_FOLDER_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_PARENT_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_NODE;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,13 +50,10 @@ import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeConstants;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.NodeIdAndType;
-import org.sagebionetworks.repo.model.NodeInheritanceDAO;
-import org.sagebionetworks.repo.model.NodeParentRelation;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.ProjectHeader;
 import org.sagebionetworks.repo.model.ProjectListSortColumn;
 import org.sagebionetworks.repo.model.ProjectListType;
-import org.sagebionetworks.repo.model.QueryResults;
 import org.sagebionetworks.repo.model.Reference;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.Team;
@@ -101,9 +100,6 @@ public class NodeDAOImplTest {
 
 	@Autowired
 	private NodeDAO nodeDao;
-
-	@Autowired
-	private NodeInheritanceDAO nodeInheritanceDAO;
 	
 	@Autowired
 	private AccessControlListDAO accessControlListDAO;
@@ -166,7 +162,6 @@ public class NodeDAOImplTest {
 		adminUser = new UserInfo(true, creatorUserGroupId);
 		
 		assertNotNull(nodeDao);
-		assertNotNull(nodeInheritanceDAO);
 		toDelete = new ArrayList<String>();
 		
 		testActivity = createTestActivity(new Random().nextLong());
@@ -327,13 +322,14 @@ public class NodeDAOImplTest {
 	
 	@Test
 	public void testDoesNodeExistAndInTrash(){
-		Node toCreate = privateCreateNewDistinctModifier("exists");
+		Node node = privateCreateNewDistinctModifier("exists");
 		// put the node in the trash
-		String id = nodeDao.createNew(toCreate);
-		toDelete.add(id);
+		node = nodeDao.createNewNode(node);
+		toDelete.add(node.getId());
 		// put the node in the trash
-		nodeInheritanceDAO.addBeneficiary(id, ""+TRASH_FOLDER_ID);
-		Long nodeId = KeyFactory.stringToKey(id);
+		node.setParentId(""+TRASH_FOLDER_ID);
+		nodeDao.updateNode(node);
+		Long nodeId = KeyFactory.stringToKey(node.getId());
 		// call under test.
 		boolean exists = nodeDao.doesNodeExist(nodeId);
 		// the node should still exist even though it is in the trash.
@@ -505,7 +501,7 @@ public class NodeDAOImplTest {
 		assertNotNull(childLoaded);
 		assertEquals(parentId, childLoaded.getParentId());
 		// This child should be inheriting from its parent by default
-		String childBenefactorId = nodeInheritanceDAO.getBenefactorCached(childId);
+		String childBenefactorId = nodeDao.getBenefactor(childId);
 		assertEquals(parentId, childBenefactorId);
 		
 		// now add a grandchild
@@ -515,7 +511,7 @@ public class NodeDAOImplTest {
 		assertNotNull(grandkidId);
 
 		// This grandchild should be inheriting from its grandparent by default
-		String grandChildBenefactorId = nodeInheritanceDAO.getBenefactorCached(grandkidId);
+		String grandChildBenefactorId = nodeDao.getBenefactor(grandkidId);
 		assertEquals(parentId, grandChildBenefactorId);
 		
 		// Now delete the parent and confirm the child,grandkid are gone too
@@ -2257,80 +2253,6 @@ public class NodeDAOImplTest {
 		assertTrue(nodeDao.doesNodeHaveChildren(KeyFactory.SYN_ROOT_ID));
 		assertFalse(nodeDao.doesNodeHaveChildren(child1Id));
 	}
-
-	@Test
-	public void testGetParentRelations() throws DatastoreException, InvalidModelException, NotFoundException {
-
-		Node n1 = NodeTestUtils.createNew("testGetParentRelations.name1", creatorUserGroupId);
-		String id1 = this.nodeDao.createNew(n1);
-		this.toDelete.add(id1);
-		Node n2 = NodeTestUtils.createNew("testGetParentRelations.name2", creatorUserGroupId, id1);
-		String id2 = this.nodeDao.createNew(n2);
-		this.toDelete.add(id2);
-		Node n3 = NodeTestUtils.createNew("testGetParentRelations.name3", creatorUserGroupId, id1);
-		String id3 = this.nodeDao.createNew(n3);
-		this.toDelete.add(id3);
-		Node n4 = NodeTestUtils.createNew("testGetParentRelations.name4", creatorUserGroupId, id2);
-		String id4 = this.nodeDao.createNew(n4);
-		this.toDelete.add(id4);
-
-		Map<String, NodeParentRelation> map = new HashMap<String, NodeParentRelation>();
-		QueryResults<NodeParentRelation> results = this.nodeDao.getParentRelations(0, 1);
-		assertNotNull(results);
-		assertTrue(results.getTotalNumberOfResults() > 4);
-		List<NodeParentRelation> rList = results.getResults();
-		assertNotNull(rList);
-		assertEquals(1, rList.size());
-		for (NodeParentRelation npr : rList) {
-			map.put(npr.getId(), npr);
-		}
-
-		results = this.nodeDao.getParentRelations(1, 2);
-		assertNotNull(results);
-		assertTrue(results.getTotalNumberOfResults() > 4);
-		rList = results.getResults();
-		assertNotNull(rList);
-		assertEquals(2, rList.size());
-		for (NodeParentRelation npr : rList) {
-			map.put(npr.getId(), npr);
-		}
-
-		results = this.nodeDao.getParentRelations(3, 1000);
-		assertNotNull(results);
-		assertTrue(results.getTotalNumberOfResults() > 4);
-		rList = results.getResults();
-		assertNotNull(rList);
-		for (NodeParentRelation npr : rList) {
-			map.put(npr.getId(), npr);
-		}
-
-		NodeParentRelation r = map.get(id1);
-		assertEquals(id1, r.getId());
-		assertNull(r.getParentId()); // The root
-		assertNotNull(r.getETag());
-		assertNotNull(r.getTimestamp());
-
-		r = map.get(id2);
-		assertEquals(id2, r.getId());
-		assertNotNull(r.getParentId());
-		assertEquals(id1, r.getParentId());
-		assertNotNull(r.getETag());
-		assertNotNull(r.getTimestamp());
-
-		r = map.get(id3);
-		assertEquals(id3, r.getId());
-		assertNotNull(r.getParentId());
-		assertEquals(id1, r.getParentId());
-		assertNotNull(r.getETag());
-		assertNotNull(r.getTimestamp());
-
-		r = map.get(id4);
-		assertEquals(id4, r.getId());
-		assertNotNull(r.getParentId());
-		assertEquals(id2, r.getParentId());
-		assertNotNull(r.getETag());
-		assertNotNull(r.getTimestamp());
-	}
 	
 	@Test
 	public void testNodeWithFileHandle() throws Exception{
@@ -3109,7 +3031,8 @@ public class NodeDAOImplTest {
 		fileId = nodeDao.createNew(file);
 		resutls.add(nodeDao.getNode(fileId));
 		// Set file2 to be its own benefactor
-		nodeInheritanceDAO.addBeneficiary(fileId, fileId);
+		AccessControlList acl = AccessControlListUtil.createACLToGrantEntityAdminAccess(fileId, adminUser, new Date());
+		accessControlListDAO.create(acl, ObjectType.ENTITY);
 		toDelete.add(fileId);
 		
 		return resutls;
@@ -3125,7 +3048,7 @@ public class NodeDAOImplTest {
 		project.setId(KeyFactory.keyToString(idGenerator.generateNewId(IdType.ENTITY_ID)));
 		project.setParentId(parentId);
 		project = this.nodeDao.createNewNode(project);
-		toDelete.add(project.getProjectId());
+		toDelete.add(project.getId());
 		return project;
 	}
 
@@ -3323,7 +3246,8 @@ public class NodeDAOImplTest {
 		assertEquals(EntityTypeUtils.getEntityTypeClassName(EntityType.folder), header.getType());
 		assertEquals(folder2.getVersionLabel(), header.getVersionLabel());
 		assertEquals(folder2.getVersionNumber(), header.getVersionNumber());
-		assertEquals(KeyFactory.stringToKey(folder2.getBenefactorId()), header.getBenefactorId());
+		String folder2BenefactorId = nodeDao.getBenefactor(folder2.getId());
+		assertEquals(folder2BenefactorId, header.getBenefactorId());
 	}
 	
 	@Test

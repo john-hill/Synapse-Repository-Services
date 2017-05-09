@@ -76,8 +76,6 @@ public class NodeManagerImpl implements NodeManager, InitializingBean {
 	private AccessControlListDAO aclDAO;	
 	@Autowired
 	private EntityBootstrapper entityBootstrapper;	
-	@Autowired
-	private NodeInheritanceManager nodeInheritanceManager;	
 	@Autowired 
 	private ActivityManager activityManager;
 	@Autowired
@@ -157,17 +155,9 @@ public class NodeManagerImpl implements NodeManager, InitializingBean {
 		String id = newNode.getId();
 		
 		// Setup the ACL for this node.
-		if(ACL_SCHEME.INHERIT_FROM_PARENT == aclScheme){
-			// This node inherits from its parent.
-			String parentBenefactor = nodeInheritanceManager.getBenefactorCached(newNode.getParentId());
-			nodeInheritanceManager.addBeneficiary(id, parentBenefactor);
-		}else if(ACL_SCHEME.GRANT_CREATOR_ALL == aclScheme){
+		if(ACL_SCHEME.GRANT_CREATOR_ALL == aclScheme){
 			AccessControlList rootAcl = AccessControlListUtil.createACLToGrantEntityAdminAccess(id, userInfo, new Date());
 			aclDAO.create(rootAcl, ObjectType.ENTITY);
-			// This node is its own benefactor
-			nodeInheritanceManager.addBeneficiary(id, id);
-		}else{
-			throw new IllegalArgumentException("Unknown ACL_SCHEME: "+aclScheme);
 		}
 		
 		// adding access is done at a higher level, not here
@@ -323,16 +313,6 @@ public class NodeManagerImpl implements NodeManager, InitializingBean {
 
 	@WriteTransaction
 	@Override
-	public void updateForTrashCan(UserInfo userInfo, Node updatedNode, ChangeType changeType)
-			throws ConflictingUpdateException, NotFoundException, DatastoreException, UnauthorizedException, InvalidModelException {
-		Node oldNode = nodeDao.getNode(updatedNode.getId());
-		boolean newVersion = false;
-		boolean skipBenefactor = false;
-		updateNode(userInfo, updatedNode, null, newVersion, skipBenefactor, changeType, oldNode);
-	}
-
-	@WriteTransaction
-	@Override
 	public Node update(UserInfo userInfo, Node updated)
 			throws ConflictingUpdateException, NotFoundException,
 			DatastoreException, UnauthorizedException, InvalidModelException {
@@ -431,26 +411,15 @@ public class NodeManagerImpl implements NodeManager, InitializingBean {
 			
 			nodeDao.changeNodeParent(nodeInUpdate, parentInUpdate, changeType == ChangeType.DELETE);
 			// Update the ACL accordingly
-			if (skipBenefactor) {
-				nodeInheritanceManager.nodeParentChanged(nodeInUpdate, parentInUpdate);
-			} else {
-				// If the node is being moved to right under the root, we need to create a new ACL
-				// The root cannot be the benefactor
-				boolean newAcl = nodeDao.isNodeRoot(parentInUpdate);
-				EntityType type = updatedNode.getNodeType();
-				String defaultPath = EntityTypeUtils.getDefaultParentPath(type);
-				ACL_SCHEME aclSchem = entityBootstrapper.getChildAclSchemeForPath(defaultPath);
-				newAcl = newAcl && (ACL_SCHEME.GRANT_CREATOR_ALL == aclSchem);
-				if (newAcl) {
-					AccessControlList acl = AccessControlListUtil.createACLToGrantEntityAdminAccess(nodeInUpdate, userInfo, new Date());
-					aclDAO.create(acl, ObjectType.ENTITY);
-					nodeInheritanceManager.setNodeToInheritFromItself(nodeInUpdate, false);
-				} else {
-					// Remove the ACLs of all the benefactors
-					removeBenefactorAcl(nodeInUpdate);
-					// Set the new parent as the benefactor
-					nodeInheritanceManager.nodeParentChanged(nodeInUpdate, parentInUpdate, false);
-				}
+			// If the node is being moved to right under the root, we need to create a new ACL
+			// The root cannot be the benefactor
+			boolean isNewParentRoot = nodeDao.isNodeRoot(parentInUpdate);
+			EntityType type = updatedNode.getNodeType();
+			String defaultPath = EntityTypeUtils.getDefaultParentPath(type);
+			ACL_SCHEME aclSchem = entityBootstrapper.getChildAclSchemeForPath(defaultPath);
+			if (isNewParentRoot && (ACL_SCHEME.GRANT_CREATOR_ALL == aclSchem)) {
+				AccessControlList acl = AccessControlListUtil.createACLToGrantEntityAdminAccess(nodeInUpdate, userInfo, new Date());
+				aclDAO.create(acl, ObjectType.ENTITY);
 			}
 		}
 

@@ -475,8 +475,6 @@ public class EntityServiceImpl implements EntityService {
 		// Resolve the user
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		AccessControlList acl = entityPermissionsManager.updateACL(updated, userInfo);
-		if (recursive != null && recursive.equalsIgnoreCase("true"))
-			entityPermissionsManager.applyInheritanceToChildren(updated.getId(), userInfo);
 		acl.setUri(request.getRequestURI());
 		return acl;
 	}

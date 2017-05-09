@@ -1,6 +1,9 @@
 package org.sagebionetworks.repo.model.dbo.persistence;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.UnsupportedEncodingException;
 import java.util.LinkedList;
@@ -161,53 +164,6 @@ public class DBONodeTest {
 		node.seteTag("1");
 		node.setType(EntityType.project.name());
 		return node;
-	}
-
-	@Test
-	public void testMigrateProject(){
-		DBONode node = new DBONode();
-		node.setNodeType((short)2);
-		DBONode backup = node.getTranslator().createDatabaseObjectFromBackup(node);
-		assertEquals(EntityType.project.name(), backup.getType());
-	}
-	
-	@Test
-	public void testMigrateFolder(){
-		DBONode node = new DBONode();
-		node.setNodeType((short)4);
-		DBONode backup = node.getTranslator().createDatabaseObjectFromBackup(node);
-		assertEquals(EntityType.folder.name(), backup.getType());
-	}
-	
-	@Test
-	public void testMigrateLink(){
-		DBONode node = new DBONode();
-		node.setNodeType((short)8);
-		DBONode backup = node.getTranslator().createDatabaseObjectFromBackup(node);
-		assertEquals(EntityType.link.name(), backup.getType());
-	}
-	
-	@Test
-	public void testMigrateFile(){
-		DBONode node = new DBONode();
-		node.setNodeType((short)16);
-		DBONode backup = node.getTranslator().createDatabaseObjectFromBackup(node);
-		assertEquals(EntityType.file.name(), backup.getType());
-	}
-	
-	@Test
-	public void testMigrateTable(){
-		DBONode node = new DBONode();
-		node.setNodeType((short)17);
-		DBONode backup = node.getTranslator().createDatabaseObjectFromBackup(node);
-		assertEquals(EntityType.table.name(), backup.getType());
-	}
-	
-	@Test (expected=IllegalArgumentException.class)
-	public void testMigrateUnknown(){
-		DBONode node = new DBONode();
-		node.setNodeType((short)0);
-		DBONode backup = node.getTranslator().createDatabaseObjectFromBackup(node);
 	}
 
 }

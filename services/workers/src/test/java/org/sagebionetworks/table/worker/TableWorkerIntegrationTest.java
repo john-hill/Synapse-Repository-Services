@@ -1987,6 +1987,29 @@ public class TableWorkerIntegrationTest {
 		assertTrue("Job failed after rebuild",TableState.AVAILABLE.equals(status.getState()));
 	}
 	
+
+	@Test
+	public void testPLFM_3853() throws Exception {
+		String columnName = "someBoolean";
+		schema = new LinkedList<ColumnModel>();
+		ColumnModel cm = TableModelTestUtils.createColumn(null, columnName, ColumnType.BOOLEAN);
+		cm = columnManager.createColumnModel(adminUserInfo, cm);
+		schema.add(cm);
+		createTableWithSchema();
+		// Add a true
+		List<String> rowOneValues = Lists.newArrayList("true");
+		addRowToTable(schema, rowOneValues);
+		// Add a false
+		rowOneValues = Lists.newArrayList("false");
+		addRowToTable(schema, rowOneValues);
+		
+		// Wait for the table and check the results.
+		String sql = "select * from " + tableId+" where "+columnName+"='true'";
+		QueryResult queryResult = waitForConsistentQuery(adminUserInfo, sql, null, null);
+		List<Row> queryRows = queryResult.getQueryResults().getRows();
+		assertEquals(1, queryRows.size());
+	}
+	
 	/**
 	 * Wait for tables status to change from processing.
 	 * 

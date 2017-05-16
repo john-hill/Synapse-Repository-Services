@@ -1257,4 +1257,31 @@ public class SQLTranslatorUtilsTest {
 			assertTrue(message.contains("Unknown column"));
 	}
 	}
+	
+	@Test
+	public void testPLFM_3853() throws ParseException {
+		String columnName = "professional-diagnosis";
+		// the query from the jira
+		QuerySpecification element = TableQueryParser.parserQuery(
+				"SELECT healthCode, \"professional-diagnosis\" FROM syn5762676 WHERE \"professional-diagnosis\"='true' and age IS NOT NULL ");
+		// find the first predicate
+		HasPredicate firstPredicate = element.getFirstElementOfType(HasPredicate.class);
+		assertEquals(columnName, firstPredicate.getLeftHandSide().toSqlWithoutQuotes());
+		// Setup a boolean column
+		ColumnModel booleanModel = new ColumnModel();
+		booleanModel.setName(columnName);
+		booleanModel.setColumnType(ColumnType.BOOLEAN);
+		booleanModel.setId("1");
+		Map<String, ColumnModel> columnNameToModelMap = new HashMap<String, ColumnModel>();
+		columnNameToModelMap.put(columnName, booleanModel);
+		
+		Map<String, Object> parameters = new HashMap<>();
+		// Bind the right-hand-side in the parameters
+		SQLTranslatorUtils.translate(firstPredicate, parameters, columnNameToModelMap);
+		// the value should exist and be Boolean.TRUE
+		Object valueObject = parameters.get("b0");
+		assertNotNull(valueObject);
+		assertTrue(valueObject instanceof Boolean);
+		assertEquals(Boolean.TRUE, (Boolean)valueObject);
+	}
 }

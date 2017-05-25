@@ -5,6 +5,7 @@ import java.sql.SQLException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,8 +29,8 @@ import com.google.common.collect.Lists;
 public class CheckScopeCRCs {
 	
 	private static final Long TRASH_ID = new Long(1681355);
-	private static final String SELECT_CHILDREN = "SELECT ID, ETAG FROM JDONODE WHERE PARENT_ID = ?";
-	private static final String SQL = "SELECT PARENT_ID, SUM(crc32(concat(ID,\"-\",ETAG))) AS 'CRC' from %1$s group by PARENT_ID";
+	private static final String SELECT_CHILDREN = "SELECT ID, ETAG FROM %1$s WHERE PARENT_ID = ?";
+	private static final String SQL = "SELECT PARENT_ID, SUM(crc32(concat(ID,\"-\",ETAG))) AS 'CRC' FROM %1$s group by PARENT_ID";
 	JdbcTemplate truth;
 	JdbcTemplate replica;
 	AmazonSNSClient awsSNSClient;
@@ -98,7 +99,7 @@ public class CheckScopeCRCs {
 	}
 
 	public int broadcastMessageForParentId(Long parentId) throws JSONObjectAdapterException{
-		List<ChangeMessage> childrenChanges = createMessage(parentId);
+		List<ChangeMessage> childrenChanges = calculateChanges(parentId);
 		List<List<ChangeMessage>> partitions = Lists.partition(childrenChanges, 500);
 		// Send each partition as a message
 		for(List<ChangeMessage> batch: partitions){
@@ -111,28 +112,96 @@ public class CheckScopeCRCs {
 		return childrenChanges.size();
 	}
 	
-	/**
-	 * Create a change message for each child of the given parent.
-	 * @param parentId
-	 * @return
-	 */
-	List<ChangeMessage> createMessage(Long parentId){
-		return truth.query(SELECT_CHILDREN, new RowMapper<ChangeMessage>(){
-
+	List<ChangeMessage> calculateChanges(Long parentId){
+		// Find the children info for both parents
+		Set<IdAndEtag> truthChildren = getChildrenInfo(truth, "JDONODE", parentId);
+		Set<IdAndEtag> replicaChildren = getChildrenInfo(replica, "ENTITY_REPLICATION", parentId);
+		
+		List<ChangeMessage> results = new LinkedList<ChangeMessage>();
+		Set<Long> truthIds = new HashSet<Long>();
+		// find the create/updates
+		for(IdAndEtag test: truthChildren){
+			if(!replicaChildren.contains(test)){
+				results.add(createChange(test, ChangeType.UPDATE));
+			}
+			truthIds.add(test.getId());
+		}
+		// find the deletes
+		for(IdAndEtag test: replicaChildren){
+			if(!truthIds.contains(test.getId())){
+				results.add(createChange(test, ChangeType.DELETE));
+			}
+		}
+		return results;
+	}
+	
+	public ChangeMessage createChange(IdAndEtag info, ChangeType type){
+		ChangeMessage message = new ChangeMessage();
+		message.setChangeNumber(1L);
+		message.setChangeType(type);
+		message.setObjectId(""+info.getId());
+		message.setObjectEtag(info.getEtag());
+		message.setObjectType(ObjectType.ENTITY);
+		message.setTimestamp(new Date(0));
+		return message;
+	}
+	
+	Set<IdAndEtag> getChildrenInfo(JdbcTemplate template, String tableName, Long parentId){
+		String sql = String.format(SELECT_CHILDREN, tableName);
+		List<IdAndEtag> list = truth.query(sql, new RowMapper<IdAndEtag>(){
 			@Override
-			public ChangeMessage mapRow(ResultSet rs, int rowNum)
+			public IdAndEtag mapRow(ResultSet rs, int rowNum)
 					throws SQLException {
 				Long id = rs.getLong("ID");
 				String etag = rs.getString("ETAG");
-				ChangeMessage message = new ChangeMessage();
-				message.setChangeNumber(1L);
-				message.setChangeType(ChangeType.UPDATE);
-				message.setObjectId(""+id);
-				message.setObjectEtag(etag);
-				message.setObjectType(ObjectType.ENTITY);
-				message.setTimestamp(new Date(0));
-				return message;
+				return new IdAndEtag(id, etag);
 			}}, parentId);
+		return new HashSet<IdAndEtag>(list);
+	}
+	
+	private static class IdAndEtag {
+		Long id;
+		String etag;
+		public IdAndEtag(Long id, String etag) {
+			super();
+			this.id = id;
+			this.etag = etag;
+		}
+		@Override
+		public int hashCode() {
+			final int prime = 31;
+			int result = 1;
+			result = prime * result + ((etag == null) ? 0 : etag.hashCode());
+			result = prime * result + ((id == null) ? 0 : id.hashCode());
+			return result;
+		}
+		@Override
+		public boolean equals(Object obj) {
+			if (this == obj)
+				return true;
+			if (obj == null)
+				return false;
+			if (getClass() != obj.getClass())
+				return false;
+			IdAndEtag other = (IdAndEtag) obj;
+			if (etag == null) {
+				if (other.etag != null)
+					return false;
+			} else if (!etag.equals(other.etag))
+				return false;
+			if (id == null) {
+				if (other.id != null)
+					return false;
+			} else if (!id.equals(other.id))
+				return false;
+			return true;
+		}
+		public Long getId() {
+			return id;
+		}
+		public String getEtag() {
+			return etag;
+		}
 	}
 	
 	/**

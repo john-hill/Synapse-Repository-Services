@@ -27,6 +27,7 @@ import com.google.common.collect.Lists;
 
 public class CheckScopeCRCs {
 	
+	private static final Long TRASH_ID = new Long(1681355);
 	private static final String SELECT_CHILDREN = "SELECT ID, ETAG FROM JDONODE WHERE PARENT_ID = ?";
 	private static final String SQL = "SELECT PARENT_ID, SUM(crc32(concat(ID,\"-\",ETAG))) AS 'CRC' from %1$s group by PARENT_ID";
 	JdbcTemplate truth;
@@ -66,8 +67,12 @@ public class CheckScopeCRCs {
 			Long truthCRC = truthCRCs.get(truthParentId);
 			Long replicaCRC = replicaCRCs.get(truthParentId);
 			if(!truthCRC.equals(replicaCRC)){
-				System.out.println("Out-of-synch: parentId: "+truthParentId);
-				parentOutOfSynch.add(truthParentId);
+				// is the parent in the trash
+				if(!isInTrash(truthParentId)){
+					System.out.println("Out-of-synch: parentId: "+truthParentId);
+					parentOutOfSynch.add(truthParentId);
+				}
+
 			}
 		}
 		System.out.println(""+parentOutOfSynch.size()+" out-of-sych");
@@ -82,6 +87,16 @@ public class CheckScopeCRCs {
 		System.out.println("Total entity changes sent: "+totalUpdates);
 	}
 	
+	/**
+	 * Is the given entity in the trash?
+	 * @param truthParentId
+	 * @return
+	 */
+	private boolean isInTrash(Long truthParentId) {
+		Long benefactor = truth.queryForObject("SELECT getEntityBenefactorId(?)", Long.class, truthParentId);
+		return TRASH_ID.equals(benefactor);
+	}
+
 	public int broadcastMessageForParentId(Long parentId) throws JSONObjectAdapterException{
 		List<ChangeMessage> childrenChanges = createMessage(parentId);
 		List<List<ChangeMessage>> partitions = Lists.partition(childrenChanges, 500);

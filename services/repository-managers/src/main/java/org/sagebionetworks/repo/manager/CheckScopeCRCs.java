@@ -146,9 +146,9 @@ public class CheckScopeCRCs {
 		return message;
 	}
 	
-	Set<IdAndEtag> getChildrenInfo(JdbcTemplate template, String tableName, Long parentId){
+	static Set<IdAndEtag> getChildrenInfo(JdbcTemplate template, String tableName, Long parentId){
 		String sql = String.format(SELECT_CHILDREN, tableName);
-		List<IdAndEtag> list = truth.query(sql, new RowMapper<IdAndEtag>(){
+		List<IdAndEtag> list = template.query(sql, new RowMapper<IdAndEtag>(){
 			@Override
 			public IdAndEtag mapRow(ResultSet rs, int rowNum)
 					throws SQLException {

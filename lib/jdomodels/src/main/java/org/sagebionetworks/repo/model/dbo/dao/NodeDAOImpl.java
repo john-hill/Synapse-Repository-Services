@@ -121,6 +121,7 @@ import com.google.common.collect.Sets;
  */
 public class NodeDAOImpl implements NodeDAO, InitializingBean {
 
+
 	private static final String MAXIMUM_NUMBER_OF_IDS_EXCEEDED = "Maximum number of IDs exceeded";
 	private static final String SQL_SELECT_GET_ENTITY_BENEFACTOR_ID = "SELECT "+FUNCTION_GET_ENTITY_BENEFACTOR_ID+"(?)";
 	private static final String BIND_NODE_IDS =  "bNodeIds";
@@ -129,6 +130,18 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 	private static final String BIND_NODE_TYPES = "bNodeTypes";
 	private static final String BIND_LIMIT = "bLimit";
 	private static final String BIND_OFFSET = "bOffset";
+	private static final String BIND_MODIFIED_ON = "bModifiedOn";
+	private static final String BIND_MODIFIED_BY = "bModifiedBy";
+	private static final String BIND_ANNOS_BLOB = "bAnnosBlob";
+	private static final String BIND_NODE_ID = "bNodeId";
+	private static final String BIND_VERSION_NUM = "bVersionNum";
+	
+	private static final String UPDATE_ANNOTATIONS = "UPDATE "+TABLE_REVISION
+			+" SET "+COL_REVISION_MODIFIED_BY+" = :"+BIND_MODIFIED_BY
+			+" ,"+COL_REVISION_MODIFIED_ON+" = :"+BIND_MODIFIED_ON
+			+" ,"+COL_REVISION_ANNOS_BLOB+" = :"+BIND_ANNOS_BLOB
+			+" WHERE "+COL_REVISION_OWNER_NODE+" = :"+BIND_NODE_ID
+			+" AND "+COL_REVISION_NUMBER+" = :"+BIND_VERSION_NUM;
 	
 	private static final String SQL_SELECT_CHILD_CRC32 = 
 			"SELECT "+COL_NODE_PARENT_ID+","
@@ -153,7 +166,7 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 	
 	private static final String SQL_COUNT_CHILDREN = 
 			"SELECT COUNT("+COL_NODE_ID+")"
-			+ " FROM "+TABLE_NODE+""
+			+ " FROM "+TABLE_NODE
 					+ " WHERE "+COL_NODE_PARENT_ID+" = ?";
 	
 	private static final String SELECT_PROJECTS_STATS = "SELECT n."
@@ -836,23 +849,28 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 
 	@WriteTransaction
 	@Override
-	public void updateAnnotations(String nodeId, NamedAnnotations updatedAnnos) throws NotFoundException, DatastoreException {
+	public void updateAnnotations(String nodeId,
+			final long versionNumber,
+			final long modifiedBy,
+			final long modifiedOn, NamedAnnotations updatedAnnos) throws NotFoundException, DatastoreException {
 
 		if(updatedAnnos == null) throw new IllegalArgumentException("Updateded Annotations cannot be null");
 		if(updatedAnnos.getId() == null) throw new IllegalArgumentException("Node ID cannot be null");
 		if(updatedAnnos.getEtag() == null) throw new IllegalArgumentException("Annotations must have a valid eTag");
 
-		Long nodeIdLong = KeyFactory.stringToKey(nodeId);
-		DBONode jdo =  getNodeById(nodeIdLong);
-		DBORevision rev = getCurrentRevision(jdo);
+		final Long nodeIdLong = KeyFactory.stringToKey(nodeId);
 
 		// now update the annotations from the passed values.
 		try {
 			// Compress the annotations.
-			byte[] newAnnos = JDOSecondaryPropertyUtils.compressAnnotations(updatedAnnos);
-			rev.setAnnotations(newAnnos);
-			// Save the change
-			dboBasicDao.update(rev);
+			final byte[] newAnnos = JDOSecondaryPropertyUtils.compressAnnotations(updatedAnnos);
+			Map<String, Object> params = new HashMap<String, Object>(6);
+			params.put(BIND_MODIFIED_BY, modifiedBy);
+			params.put(BIND_MODIFIED_ON, modifiedOn);
+			params.put(BIND_ANNOS_BLOB, newAnnos);
+			params.put(BIND_NODE_ID, nodeIdLong);
+			params.put(BIND_VERSION_NUM, versionNumber);
+			namedParameterJdbcTemplate.update(UPDATE_ANNOTATIONS, params);
 		} catch (IOException e) {
 			throw new DatastoreException(e);
 		} 
@@ -867,30 +885,6 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 			list.add(revId);
 		}
 		return list;
-	}
-
-	@WriteTransaction
-	@Override
-	public void replaceVersion(String nodeId, Long versionNumber, NamedAnnotations updatedAnnos, String fileHandleId)
-			throws NotFoundException, DatastoreException {
-		Long nodeIdLong = KeyFactory.stringToKey(nodeId);
-		DBORevision rev = getNodeRevisionById(nodeIdLong, versionNumber);
-		// now update the annotations from the passed values.
-		try {
-			// Compress the annotations.
-			byte[] newAnnos = JDOSecondaryPropertyUtils.compressAnnotations(updatedAnnos);
-			rev.setAnnotations(newAnnos);
-			if(fileHandleId != null){
-				rev.setFileHandleId(Long.parseLong(fileHandleId));
-			}else{
-				rev.setFileHandleId(null);
-			}
-			// Save the change
-			dboBasicDao.update(rev);
-		} catch (IOException e) {
-			throw new DatastoreException(e);
-		} 
-		
 	}
 	
 	@Override

@@ -828,7 +828,7 @@ public class NodeDAOImplTest {
 		String newETagString = UUID.randomUUID().toString();
 		annos.setEtag(newETagString);
 		// Update them
-		nodeDao.updateAnnotations(id, named);
+		updateAnnotations(id, named);
 		// Now get a copy and ensure it equals what we sent
 		NamedAnnotations namedCopy = nodeDao.getAnnotations(id);
 		Annotations copy = namedCopy.getAdditionalAnnotations();
@@ -843,6 +843,24 @@ public class NodeDAOImplTest {
 		byte[] bigCopy = (byte[]) copy.getSingleValue("bigBlob");
 		assertNotNull(bigCopy);
 		assertTrue(Arrays.equals(bigBlob, bigCopy));
+	}
+	
+	/**
+	 * Helper to update the annotations.
+	 * @param id
+	 * @param named
+	 */
+	private void updateAnnotations(String id, NamedAnnotations named){
+		Node node = nodeDao.getNode(id);
+		long latestVesion = node.getVersionNumber();
+		long modifiedBy = node.getModifiedByPrincipalId();
+		long modifiedOn = node.getModifiedOn().getTime();
+		nodeDao.updateAnnotations(
+				id,
+				latestVesion,
+				modifiedBy,
+				modifiedOn,
+				named);
 	}
 	
 	@Test
@@ -866,7 +884,7 @@ public class NodeDAOImplTest {
 		annos.addAnnotation("doubleKey", new Double(23.5));
 		annos.addAnnotation("longKey", new Long(1234));
 		// Update them
-		nodeDao.updateAnnotations(id, named);
+		updateAnnotations(id, named);
 		// Now get a copy and ensure it equals what we sent
 		NamedAnnotations namedCopy = nodeDao.getAnnotations(id);
 		Annotations copy = namedCopy.getAdditionalAnnotations();
@@ -874,7 +892,7 @@ public class NodeDAOImplTest {
 		assertEquals(annos, copy);
 		// clear an and update
 		assertNotNull(copy.getStringAnnotations().remove("stringOne"));
-		nodeDao.updateAnnotations(id, namedCopy);
+		updateAnnotations(id, namedCopy);
 		NamedAnnotations namedCopy2 = nodeDao.getAnnotations(id);
 		Annotations copy2 = namedCopy2.getAdditionalAnnotations();
 		assertNotNull(copy2);
@@ -989,7 +1007,7 @@ public class NodeDAOImplTest {
 		annos.addAnnotation("long", 56l);
 		annos.addAnnotation("blob", "Some blob value".getBytes("UTF-8"));
 		// Update the annotations
-		nodeDao.updateAnnotations(id, named);
+		updateAnnotations(id, named);
 		// Now create a new version
 		Node copy = nodeDao.getNode(id);
 		copy.setVersionComment(null);
@@ -1021,7 +1039,7 @@ public class NodeDAOImplTest {
 		// Now update the current annotations
 		currentAnnos.getDoubleAnnotations().clear();
 		currentAnnos.addAnnotation("double", 8989898.2);
-		nodeDao.updateAnnotations(id, namedCopy);
+		updateAnnotations(id, namedCopy);
 		
 		// Now the old and new should no longer match.
 		namedCopyV1 = nodeDao.getAnnotationsForVersion(id, 1L);
@@ -1848,7 +1866,7 @@ public class NodeDAOImplTest {
 		String key = "veryLargeString";
 		annos.getAdditionalAnnotations().addAnnotation(key, largeString);
 		// This update will fail before PLFM-791 is fixed.
-		nodeDao.updateAnnotations(projectId, annos);
+		updateAnnotations(projectId, annos);
 		// Get the values back
 		annos = nodeDao.getAnnotations(projectId);
 		assertNotNull(annos);
@@ -2701,7 +2719,7 @@ public class NodeDAOImplTest {
 		annos.getAdditionalAnnotations().addAnnotation("aString", "someString");
 		annos.getAdditionalAnnotations().addAnnotation("aLong", 123L);
 		annos.getAdditionalAnnotations().addAnnotation("aDouble", 1.22);
-		nodeDao.updateAnnotations(file.getId(), annos);
+		updateAnnotations(file.getId(), annos);
 		
 		int maxAnnotationChars = 10;
 		
@@ -2765,7 +2783,7 @@ public class NodeDAOImplTest {
 		// added for PLFM-4224
 		annos.getAdditionalAnnotations().getLongAnnotations().put("nullList", null);
 		annos.getAdditionalAnnotations().getDoubleAnnotations().put("listWithNullValue", Lists.newArrayList((Double)null));
-		nodeDao.updateAnnotations(file.getId(), annos);
+		updateAnnotations(file.getId(), annos);
 		
 		int maxAnnotationChars = 10;
 		

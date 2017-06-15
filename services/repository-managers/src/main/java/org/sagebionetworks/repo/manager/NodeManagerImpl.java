@@ -381,13 +381,15 @@ public class NodeManagerImpl implements NodeManager {
 		// Clear the modified data and fill it in with the new data
 		Long userIndividualGroupId = userInfo.getId();
 		NodeManagerImpl.validateNodeModifiedData(userIndividualGroupId, updatedNode);
+		
+		long latestVersionNumber = oldNode.getVersionNumber();
 
 		// If this is a new version then we need to create a new version before the update
 		if (newVersion) {
 			// This will create a new version and set the new version to 
 			// be the current version.  Then the rest of the update will then
 			// be applied to this new version.
-			nodeDao.createNewVersion(updatedNode);
+			latestVersionNumber = nodeDao.createNewVersion(updatedNode);
 		}
 
 		// Identify if update is a parentId change by comparing our
@@ -395,7 +397,6 @@ public class NodeManagerImpl implements NodeManager {
 		// and update benefactorID/permissions
 		final String parentInDatabase = oldNode.getParentId();
 		final String parentInUpdate = updatedNode.getParentId();
-		final String nodeInUpdate = updatedNode.getId();
 		// is this a parentId change?
 		if (!KeyFactory.equals(parentInDatabase, parentInUpdate)) {
 			AuthorizationManagerUtil.checkAuthorizationAndThrowException(
@@ -416,7 +417,12 @@ public class NodeManagerImpl implements NodeManager {
 		if(updatedAnnos != null){
 			updatedAnnos.setEtag(nextETag);
 			validateAnnotations(updatedAnnos);
-			nodeDao.updateAnnotations(updatedNode.getId(), updatedAnnos);
+			nodeDao.updateAnnotations(
+					updatedNode.getId(),
+					latestVersionNumber,
+					updatedNode.getModifiedByPrincipalId(),
+					updatedNode.getModifiedOn().getTime(),
+					updatedAnnos);
 		}
 
 		if (log.isDebugEnabled()) {
@@ -460,10 +466,19 @@ public class NodeManagerImpl implements NodeManager {
 		validateAnnotations(updated);
 		// Now lock the node if we can
 		nodeDao.lockNodeAndIncrementEtag(nodeId, updated.getEtag());
+		Long latestVersion = nodeDao.getCurrentRevisionNumber(nodeId);
 		NamedAnnotations namedAnnos = nodeDao.getAnnotations(nodeId);
+		
+		long modifiedBy = userInfo.getId();
+		long modifiedOn = System.currentTimeMillis();
 		// Replace a single namespace
 		namedAnnos.put(namespace, updated);
-		nodeDao.updateAnnotations(nodeId, namedAnnos);
+		nodeDao.updateAnnotations(
+				nodeId,
+				latestVersion,
+				modifiedBy,
+				modifiedOn,
+				namedAnnos);
 		namedAnnos = getAnnotations(userInfo, nodeId);
 		return namedAnnos.getAnnotationsForName(namespace);
 	}
@@ -539,8 +554,17 @@ public class NodeManagerImpl implements NodeManager {
 		newAnnotations.setEtag(newNode.getETag());
 		newAnnotations.setId(newNode.getId());
 		validateAnnotations(newAnnotations);
+		
+		long latestVersion = newNode.getVersionNumber();
+		long modifiedBy = userInfo.getId();
+		long modifiedOn = System.currentTimeMillis();
 		// Since we just created this node we do not need to lock.
-		nodeDao.updateAnnotations(newNode.getId(), newAnnotations);
+		nodeDao.updateAnnotations(
+				newNode.getId(),
+				latestVersion,
+				modifiedBy,
+				modifiedOn,
+				newAnnotations);
 		return newNode;
 	}
 

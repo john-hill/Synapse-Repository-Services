@@ -2,12 +2,12 @@ package org.sagebionetworks.table.worker;
 
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Callable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.asynchronous.workers.changes.ChangeMessageDrivenRunner;
 import org.sagebionetworks.common.util.progress.ProgressCallback;
-import org.sagebionetworks.common.util.progress.ProgressingCallable;
 import org.sagebionetworks.repo.manager.table.TableIndexConnectionFactory;
 import org.sagebionetworks.repo.manager.table.TableIndexConnectionUnavailableException;
 import org.sagebionetworks.repo.manager.table.TableIndexManager;
@@ -81,13 +81,13 @@ public class TableViewWorker implements ChangeMessageDrivenRunner {
 	public void createOrUpdateIndex(final String tableId, final TableIndexManager indexManager, ProgressCallback<Void> outerCallback, final ChangeMessage message) throws RecoverableMessageException{
 		// get the exclusive lock to update the table
 		try {
-			tableManagerSupport.tryRunWithTableExclusiveLock(outerCallback, tableId, TIMEOUT_MS, new ProgressingCallable<Void, Void>() {
+			tableManagerSupport.tryRunWithTableExclusiveLock(outerCallback, tableId, TIMEOUT_MS, new Callable<Void>() {
 
 				@Override
-				public Void call(ProgressCallback<Void> innerCallback)
+				public Void call()
 						throws Exception {
 					// next level.
-					createOrUpdateIndexHoldingLock(tableId, indexManager, innerCallback, message);
+					createOrUpdateIndexHoldingLock(tableId, indexManager, message);
 					return null;
 				}
 
@@ -112,7 +112,7 @@ public class TableViewWorker implements ChangeMessageDrivenRunner {
 	 * @param indexManager
 	 * @param callback
 	 */
-	public void createOrUpdateIndexHoldingLock(final String tableId, final TableIndexManager indexManager, final ProgressCallback<Void> callback, final ChangeMessage message){
+	public void createOrUpdateIndexHoldingLock(final String tableId, final TableIndexManager indexManager, final ChangeMessage message){
 		// Is the index out-of-synch?
 		if(!tableManagerSupport.isIndexWorkRequired(tableId)){
 			// nothing to do
@@ -126,7 +126,6 @@ public class TableViewWorker implements ChangeMessageDrivenRunner {
 
 			// Since this worker re-builds the index, start by deleting it.
 			indexManager.deleteTableIndex(tableId);
-			callback.progressMade(null);
 			// Need the MD5 for the original schema.
 			List<ColumnModel> originalSchema = tableManagerSupport.getColumnModelsForTable(tableId);
 			String originalSchemaMD5Hex = TableModelUtils.createSchemaMD5HexCM(originalSchema);
@@ -137,15 +136,12 @@ public class TableViewWorker implements ChangeMessageDrivenRunner {
 			Set<Long> allContainersInScope  = tableManagerSupport.getAllContainerIdsForViewScope(tableId, viewType);
 
 			// create the table in the index.
-			indexManager.setIndexSchema(tableId, callback, expandedSchema);
-			callback.progressMade(null);
+			indexManager.setIndexSchema(tableId, expandedSchema);
 			tableManagerSupport.attemptToUpdateTableProgress(tableId, token, "Copying data to view...", 0L, 1L);
 			// populate the view by coping data from the entity replication tables.
-			Long viewCRC = indexManager.populateViewFromEntityReplication(tableId, callback, viewType, allContainersInScope, expandedSchema);
-			callback.progressMade(null);
+			Long viewCRC = indexManager.populateViewFromEntityReplication(tableId, viewType, allContainersInScope, expandedSchema);
 			// now that table is created and populated the indices on the table can be optimized.
 			indexManager.optimizeTableIndices(tableId);
-			callback.progressMade(null);
 			// both the CRC and schema MD5 are used to determine if the view is up-to-date.
 			indexManager.setIndexVersionAndSchemaMD5Hex(tableId, viewCRC, originalSchemaMD5Hex);
 			// Attempt to set the table to complete.

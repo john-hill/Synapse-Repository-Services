@@ -239,7 +239,7 @@ public interface TableManagerSupport {
 	 * @return
 	 */
 	public <R> R tryRunWithTableExclusiveLock(ProgressCallback<Void> callback,
-			String tableId, int timeoutMS, ProgressingCallable<R, Void> runner)
+			String tableId, int timeoutMS, Callable<R> runner)
 			throws Exception;
 
 	/**

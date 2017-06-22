@@ -149,9 +149,9 @@ public class TableViewTransactionManagerTest {
 			@Override
 			public TableUpdateResponse answer(InvocationOnMock invocation)
 					throws Throwable {
-				UploadRowProcessor processor = (UploadRowProcessor) invocation.getArguments()[3];
-				return processor.processRows(user, viewId, schema, sparseChangeSet.writeToDto().getRows().iterator(), null, mockProgressCallback);
-			}}).when(mockTableUploadManager).uploadCSV(any(ProgressCallback.class), any(UserInfo.class), any(UploadToTableRequest.class), any(UploadRowProcessor.class));
+				UploadRowProcessor processor = (UploadRowProcessor) invocation.getArguments()[2];
+				return processor.processRows(user, viewId, schema, sparseChangeSet.writeToDto().getRows().iterator(), null);
+			}}).when(mockTableUploadManager).uploadCSV(any(UserInfo.class), any(UploadToTableRequest.class), any(UploadRowProcessor.class));
 	}
 	
 	@Test
@@ -354,7 +354,7 @@ public class TableViewTransactionManagerTest {
 	@Test
 	public void testProcessRows(){
 		// call under test
-		TableUpdateResponse response =  manager.processRows(user,"tableId", schema, sparseChangeSet.writeToDto().getRows().iterator(), "etag", mockProgressCallback);
+		TableUpdateResponse response =  manager.processRows(user,"tableId", schema, sparseChangeSet.writeToDto().getRows().iterator(), "etag");
 		assertNotNull(response);
 		assertTrue(response instanceof EntityUpdateResults);
 		EntityUpdateResults result = (EntityUpdateResults)response;
@@ -365,7 +365,7 @@ public class TableViewTransactionManagerTest {
 	@Test
 	public void testProcessRow(){
 		// call under test
-		EntityUpdateResult result = manager.processRow(user, schema, sparseRow, mockProgressCallback);
+		EntityUpdateResult result = manager.processRow(user, schema, sparseRow);
 		assertNotNull(result);
 		assertEquals("syn123",result.getEntityId());
 		assertNull(result.getFailureCode());
@@ -376,7 +376,7 @@ public class TableViewTransactionManagerTest {
 	public void testProcessRowNotFound(){
 		doThrow(new NotFoundException("not")).when(mockTableViewManger).updateEntityInView(user, schema, sparseRow);
 		// call under test
-		EntityUpdateResult result = manager.processRow(user, schema, sparseRow, mockProgressCallback);
+		EntityUpdateResult result = manager.processRow(user, schema, sparseRow);
 		assertNotNull(result);
 		assertEquals("syn123",result.getEntityId());
 		assertEquals(EntityUpdateFailureCode.NOT_FOUND, result.getFailureCode());
@@ -387,7 +387,7 @@ public class TableViewTransactionManagerTest {
 	public void testProcessRowConflict(){
 		doThrow(new ConflictingUpdateException("conflict")).when(mockTableViewManger).updateEntityInView(user, schema, sparseRow);
 		// call under test
-		EntityUpdateResult result = manager.processRow(user, schema, sparseRow, mockProgressCallback);
+		EntityUpdateResult result = manager.processRow(user, schema, sparseRow);
 		assertNotNull(result);
 		assertEquals("syn123",result.getEntityId());
 		assertEquals(EntityUpdateFailureCode.CONCURRENT_UPDATE, result.getFailureCode());
@@ -398,7 +398,7 @@ public class TableViewTransactionManagerTest {
 	public void testProcessRowUnauthorized(){
 		doThrow(new UnauthorizedException("unathorized")).when(mockTableViewManger).updateEntityInView(user, schema, sparseRow);
 		// call under test
-		EntityUpdateResult result = manager.processRow(user, schema, sparseRow, mockProgressCallback);
+		EntityUpdateResult result = manager.processRow(user, schema, sparseRow);
 		assertNotNull(result);
 		assertEquals("syn123",result.getEntityId());
 		assertEquals(EntityUpdateFailureCode.UNAUTHORIZED, result.getFailureCode());
@@ -409,7 +409,7 @@ public class TableViewTransactionManagerTest {
 	public void testProcessRowIllegalArgument(){
 		doThrow(new IllegalArgumentException("illegal")).when(mockTableViewManger).updateEntityInView(user, schema, sparseRow);
 		// call under test
-		EntityUpdateResult result = manager.processRow(user, schema, sparseRow, mockProgressCallback);
+		EntityUpdateResult result = manager.processRow(user, schema, sparseRow);
 		assertNotNull(result);
 		assertEquals("syn123",result.getEntityId());
 		assertEquals(EntityUpdateFailureCode.ILLEGAL_ARGUMENT, result.getFailureCode());
@@ -420,7 +420,7 @@ public class TableViewTransactionManagerTest {
 	public void testProcessRowUnknown(){
 		doThrow(new RuntimeException("unknown")).when(mockTableViewManger).updateEntityInView(user, schema, sparseRow);
 		// call under test
-		EntityUpdateResult result = manager.processRow(user, schema, sparseRow, mockProgressCallback);
+		EntityUpdateResult result = manager.processRow(user, schema, sparseRow);
 		assertNotNull(result);
 		assertEquals("syn123",result.getEntityId());
 		assertEquals(EntityUpdateFailureCode.UNKNOWN, result.getFailureCode());

@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
-import org.sagebionetworks.common.util.progress.ProgressCallback;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.table.ColumnModel;
@@ -36,7 +35,6 @@ public interface UploadRowProcessor {
 	 */
 	TableUpdateResponse processRows(UserInfo user, String tableId,
 			List<ColumnModel> tableSchema, Iterator<SparseRowDto> rowStream,
-			String updateEtag,
-			ProgressCallback<Void> progressCallback) throws DatastoreException, NotFoundException, IOException;
+			String updateEtag) throws DatastoreException, NotFoundException, IOException;
 
 }

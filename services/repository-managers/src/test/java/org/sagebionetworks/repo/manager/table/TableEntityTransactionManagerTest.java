@@ -16,6 +16,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.Callable;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -24,7 +25,6 @@ import org.mockito.MockitoAnnotations;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.sagebionetworks.common.util.progress.ProgressCallback;
-import org.sagebionetworks.common.util.progress.ProgressingCallable;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.table.TableStatus;
 import org.sagebionetworks.repo.model.table.TableUnavailableException;
@@ -100,7 +100,7 @@ public class TableEntityTransactionManagerTest {
 		when(
 				tableManagerSupport.tryRunWithTableExclusiveLock(
 						any(ProgressCallback.class), anyString(), anyInt(),
-						any(ProgressingCallable.class))).thenReturn(response);
+						any(Callable.class))).thenReturn(response);
 		
 		when(tableIndexConnectionFactory.connectToTableIndex(tableId)).thenReturn(tableIndexManager);
 		
@@ -132,7 +132,7 @@ public class TableEntityTransactionManagerTest {
 		when(
 				tableManagerSupport.tryRunWithTableExclusiveLock(
 						any(ProgressCallback.class), anyString(), anyInt(),
-						any(ProgressingCallable.class))).thenThrow(
+						any(Callable.class))).thenThrow(
 				new TableUnavailableException(null));
 		// call under test.
 		manager.updateTableWithTransaction(progressCallback, userInfo, request);
@@ -146,7 +146,7 @@ public class TableEntityTransactionManagerTest {
 		when(
 				tableManagerSupport.tryRunWithTableExclusiveLock(
 						any(ProgressCallback.class), anyString(), anyInt(),
-						any(ProgressingCallable.class))).thenThrow(
+						any(Callable.class))).thenThrow(
 				new LockUnavilableException());
 		// call under test.
 		manager.updateTableWithTransaction(progressCallback, userInfo, request);
@@ -160,7 +160,7 @@ public class TableEntityTransactionManagerTest {
 		when(
 				tableManagerSupport.tryRunWithTableExclusiveLock(
 						any(ProgressCallback.class), anyString(), anyInt(),
-						any(ProgressingCallable.class))).thenThrow(
+						any(Callable.class))).thenThrow(
 				new RecoverableMessageException());
 		// call under test.
 		manager.updateTableWithTransaction(progressCallback, userInfo, request);
@@ -174,7 +174,7 @@ public class TableEntityTransactionManagerTest {
 		when(
 				tableManagerSupport.tryRunWithTableExclusiveLock(
 						any(ProgressCallback.class), anyString(), anyInt(),
-						any(ProgressingCallable.class))).thenThrow(
+						any(Callable.class))).thenThrow(
 				new RuntimeException());
 		// call under test.
 		manager.updateTableWithTransaction(progressCallback, userInfo, request);
@@ -184,20 +184,16 @@ public class TableEntityTransactionManagerTest {
 	public void testIsTemporaryTableNeededTrue(){
 		when(tableEntityManager.isTemporaryTableNeededToValidate(uploadRequest)).thenReturn(true);
 		//call under test
-		boolean needed = manager.isTemporaryTableNeeded(progressCallback, request);
+		boolean needed = manager.isTemporaryTableNeeded(request);
 		assertTrue(needed);
-		// progress should be made
-		verify(progressCallback).progressMade(null);
 	}
 	
 	@Test
 	public void testIsTemporaryTableNeededFalse(){
 		when(tableEntityManager.isTemporaryTableNeededToValidate(uploadRequest)).thenReturn(false);
 		//call under test
-		boolean needed = manager.isTemporaryTableNeeded(progressCallback, request);
+		boolean needed = manager.isTemporaryTableNeeded(request);
 		assertFalse(needed);
-		// progress should be made
-		verify(progressCallback).progressMade(null);
 	}
 
 	@Test
@@ -205,12 +201,11 @@ public class TableEntityTransactionManagerTest {
 		// need to a temp table.
 		when(tableEntityManager.isTemporaryTableNeededToValidate(uploadRequest)).thenReturn(true);
 		// call under test
-		manager.validateUpdateRequests(progressCallback, userInfo, request);
+		manager.validateUpdateRequests(userInfo, request);
 		verify(tableIndexConnectionFactory).connectToTableIndex(tableId);
-		verify(tableIndexManager).createTemporaryTableCopy(tableId, progressCallback);
-		verify(tableEntityManager).validateUpdateRequest(progressCallback, userInfo, uploadRequest, tableIndexManager);
-		verify(tableIndexManager).deleteTemporaryTableCopy(tableId, progressCallback);
-		verify(progressCallback, times(2)).progressMade(null);
+		verify(tableIndexManager).createTemporaryTableCopy(tableId);
+		verify(tableEntityManager).validateUpdateRequest(userInfo, uploadRequest, tableIndexManager);
+		verify(tableIndexManager).deleteTemporaryTableCopy(tableId);
 	}
 	
 	@Test
@@ -218,19 +213,18 @@ public class TableEntityTransactionManagerTest {
 		// need to a temp table.
 		when(tableEntityManager.isTemporaryTableNeededToValidate(uploadRequest)).thenReturn(true);
 		// setup a failure
-		doThrow(new RuntimeException("Wrong")).when(tableEntityManager).validateUpdateRequest(any(ProgressCallback.class), any(UserInfo.class), any(TableUpdateRequest.class), any(TableIndexManager.class));
+		doThrow(new RuntimeException("Wrong")).when(tableEntityManager).validateUpdateRequest(any(UserInfo.class), any(TableUpdateRequest.class), any(TableIndexManager.class));
 		// call under test
 		try {
-			manager.validateUpdateRequests(progressCallback, userInfo, request);
+			manager.validateUpdateRequests(userInfo, request);
 			fail("Should have failed");
 		} catch (RuntimeException e) {
 			// expected
 		}
 		verify(tableIndexConnectionFactory).connectToTableIndex(tableId);
-		verify(tableIndexManager).createTemporaryTableCopy(tableId, progressCallback);
-		verify(tableEntityManager).validateUpdateRequest(progressCallback, userInfo, uploadRequest, tableIndexManager);
-		verify(tableIndexManager).deleteTemporaryTableCopy(tableId, progressCallback);
-		verify(progressCallback, times(2)).progressMade(null);
+		verify(tableIndexManager).createTemporaryTableCopy(tableId);
+		verify(tableEntityManager).validateUpdateRequest(userInfo, uploadRequest, tableIndexManager);
+		verify(tableIndexManager).deleteTemporaryTableCopy(tableId);
 	}
 	
 	@Test
@@ -238,20 +232,18 @@ public class TableEntityTransactionManagerTest {
 		// need to a temp table.
 		when(tableEntityManager.isTemporaryTableNeededToValidate(uploadRequest)).thenReturn(false);
 		// call under test
-		manager.validateUpdateRequests(progressCallback, userInfo, request);
+		manager.validateUpdateRequests(userInfo, request);
 		verify(tableIndexConnectionFactory, never()).connectToTableIndex(tableId);
-		verify(tableIndexManager, never()).createTemporaryTableCopy(tableId, progressCallback);
-		verify(tableEntityManager).validateUpdateRequest(progressCallback, userInfo, uploadRequest, null);
-		verify(tableIndexManager, never()).deleteTemporaryTableCopy(anyString(), any(ProgressCallback.class));
-		verify(progressCallback, times(2)).progressMade(null);
+		verify(tableIndexManager, never()).createTemporaryTableCopy(tableId);
+		verify(tableEntityManager).validateUpdateRequest(userInfo, uploadRequest, null);
+		verify(tableIndexManager, never()).deleteTemporaryTableCopy(anyString());
 	}
 	
 	@Test
 	public void testUpdateTableWithTransactionWithExclusiveLock(){
 		// call under test
-		manager.updateTableWithTransactionWithExclusiveLock(progressCallback, userInfo, request);
-		verify(progressCallback, times(3)).progressMade(null);
-		verify(tableEntityManager).updateTable(progressCallback, userInfo, uploadRequest);
+		manager.updateTableWithTransactionWithExclusiveLock(userInfo, request);;
+		verify(tableEntityManager).updateTable(userInfo, uploadRequest);
 		verify(readCommitedTransactionTemplate).execute(any(TransactionCallback.class));
 	}
 }

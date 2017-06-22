@@ -5,7 +5,6 @@ import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.util.List;
 
-import org.sagebionetworks.common.util.progress.ProgressCallback;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.dao.table.CSVToRowIterator;
@@ -31,7 +30,7 @@ public class TableUploadManagerImpl implements TableUploadManager {
 	private AmazonS3Client s3Client;
 
 	@Override
-	public TableUpdateResponse uploadCSV(ProgressCallback<Void> progressCallback, UserInfo user, UploadToTableRequest request, UploadRowProcessor rowProcessor) {
+	public TableUpdateResponse uploadCSV(UserInfo user, UploadToTableRequest request, UploadRowProcessor rowProcessor) {
 		CSVReader reader = null;
 		try{
 			// Get the filehandle
@@ -49,7 +48,7 @@ public class TableUploadManagerImpl implements TableUploadManager {
 			CSVToRowIterator iterator = new CSVToRowIterator(tableSchema, reader, isFirstLineHeader, request.getColumnIds(), request.getLinesToSkip());
 			// Append the data to the table
 			return rowProcessor.processRows(user, request.getTableId(),
-					tableSchema, iterator, request.getUpdateEtag(), progressCallback);
+					tableSchema, iterator, request.getUpdateEtag());
 		} catch (UnsupportedEncodingException e) {
 			throw new RuntimeException(e);
 		} catch (IOException e) {

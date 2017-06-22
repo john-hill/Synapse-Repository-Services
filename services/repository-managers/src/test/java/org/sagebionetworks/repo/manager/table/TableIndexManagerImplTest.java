@@ -68,8 +68,6 @@ public class TableIndexManagerImplTest {
 	TransactionStatus mockTransactionStatus;
 	@Mock
 	TableManagerSupport mockManagerSupport;
-	@Mock
-	ProgressCallback<Void> mockCallback;
 	@Captor 
 	ArgumentCaptor<List<ColumnChangeDetails>> changeCaptor;
 	
@@ -247,7 +245,7 @@ public class TableIndexManagerImplTest {
 		when(mockIndexDao.getDatabaseInfo(tableId)).thenReturn(Lists.newArrayList(info));
 		when(mockIndexDao.alterTableAsNeeded(anyString(), anyList(), anyBoolean())).thenReturn(true);
 		// call under test
-		manager.setIndexSchema(tableId, mockCallback, schema);
+		manager.setIndexSchema(tableId, schema);
 		String schemaMD5Hex = TableModelUtils. createSchemaMD5HexCM(Lists.newArrayList(schema));
 		verify(mockIndexDao).setCurrentSchemaMD5Hex(tableId, schemaMD5Hex);
 	}
@@ -257,7 +255,7 @@ public class TableIndexManagerImplTest {
 		when(mockIndexDao.getDatabaseInfo(tableId)).thenReturn(new LinkedList<DatabaseColumnInfo>());
 		when(mockIndexDao.alterTableAsNeeded(anyString(), anyList(), anyBoolean())).thenReturn(true);
 		// call under test
-		manager.setIndexSchema(tableId, mockCallback, new LinkedList<ColumnModel>());
+		manager.setIndexSchema(tableId, new LinkedList<ColumnModel>());
 		String schemaMD5Hex = TableModelUtils. createSchemaMD5HexCM(Lists.newArrayList(new LinkedList<ColumnModel>()));
 		verify(mockIndexDao).setCurrentSchemaMD5Hex(tableId, schemaMD5Hex);
 	}
@@ -322,7 +320,7 @@ public class TableIndexManagerImplTest {
 		when(mockIndexDao.getDatabaseInfo(tableId)).thenReturn(Lists.newArrayList(info));
 		
 		// call under test
-		manager.updateTableSchema(tableId, mockCallback, changes);
+		manager.updateTableSchema(tableId, changes);
 		verify(mockIndexDao).createTableIfDoesNotExist(tableId);
 		verify(mockIndexDao).createSecondaryTables(tableId);
 		// The new schema is not empty so do not truncate.
@@ -348,7 +346,7 @@ public class TableIndexManagerImplTest {
 		List<DatabaseColumnInfo> startSchema = Lists.newArrayList(current);
 		when(mockIndexDao.getDatabaseInfo(tableId)).thenReturn(startSchema, new LinkedList<DatabaseColumnInfo>());
 		// call under test
-		manager.updateTableSchema(tableId, mockCallback, changes);
+		manager.updateTableSchema(tableId, changes);
 		verify(mockIndexDao).createTableIfDoesNotExist(tableId);
 		verify(mockIndexDao).createSecondaryTables(tableId);
 		verify(mockIndexDao, times(2)).getDatabaseInfo(tableId);
@@ -367,7 +365,7 @@ public class TableIndexManagerImplTest {
 		when(mockIndexDao.alterTableAsNeeded(tableId, changes, alterTemp)).thenReturn(false);
 		when(mockIndexDao.getDatabaseInfo(tableId)).thenReturn(new LinkedList<DatabaseColumnInfo>());
 		// call under test
-		manager.updateTableSchema(tableId, mockCallback, changes);
+		manager.updateTableSchema(tableId, changes);
 		verify(mockIndexDao).createTableIfDoesNotExist(tableId);
 		verify(mockIndexDao).createSecondaryTables(tableId);
 		verify(mockIndexDao).alterTableAsNeeded(tableId, changes, alterTemp);
@@ -380,9 +378,7 @@ public class TableIndexManagerImplTest {
 	@Test
 	public void testCreateTemporaryTableCopy() throws Exception{
 		// call under test
-		manager.createTemporaryTableCopy(tableId, mockCallback);
-		// auto progress should be used.
-		verify(mockManagerSupport).callWithAutoProgress(any(ProgressCallback.class), any(Callable.class));
+		manager.createTemporaryTableCopy(tableId);
 		verify(mockIndexDao).createTemporaryTable(tableId);
 		verify(mockIndexDao).copyAllDataToTemporaryTable(tableId);
 	}
@@ -391,9 +387,7 @@ public class TableIndexManagerImplTest {
 	@Test
 	public void testDeleteTemporaryTableCopy() throws Exception{
 		// call under test
-		manager.deleteTemporaryTableCopy(tableId, mockCallback);
-		// auto progress should be used.
-		verify(mockManagerSupport).callWithAutoProgress(any(ProgressCallback.class), any(Callable.class));
+		manager.deleteTemporaryTableCopy(tableId);
 		verify(mockIndexDao).deleteTemporaryTable(tableId);
 	}
 	
@@ -405,7 +399,7 @@ public class TableIndexManagerImplTest {
 		ColumnModel etagColumn = EntityField.findMatch(schema, EntityField.etag);
 		ColumnModel benefactorColumn = EntityField.findMatch(schema, EntityField.benefactorId);
 		// call under test
-		Long resultCrc = manager.populateViewFromEntityReplication(tableId, mockCallback, viewType, scope, schema);
+		Long resultCrc = manager.populateViewFromEntityReplication(tableId, viewType, scope, schema);
 		assertEquals(crc32, resultCrc);
 		verify(mockIndexDao).copyEntityReplicationToTable(tableId, viewType, scope, schema);
 		// the CRC should be calculated with the etag column.
@@ -421,7 +415,7 @@ public class TableIndexManagerImplTest {
 		// remove the etag column
 		schema.remove(etagColumn);
 		// call under test
-		manager.populateViewFromEntityReplication(tableId, mockCallback, viewType, scope, schema);
+		manager.populateViewFromEntityReplication(tableId, viewType, scope, schema);
 	}
 	
 	@Test (expected=IllegalArgumentException.class)
@@ -433,7 +427,7 @@ public class TableIndexManagerImplTest {
 		// remove the benefactor column
 		schema.remove(benefactorColumn);
 		// call under test
-		manager.populateViewFromEntityReplication(tableId, mockCallback, viewType, scope, schema);
+		manager.populateViewFromEntityReplication(tableId, viewType, scope, schema);
 	}
 	
 	@Test (expected=IllegalArgumentException.class)
@@ -442,7 +436,7 @@ public class TableIndexManagerImplTest {
 		Set<Long> scope = Sets.newHashSet(1L,2L);
 		List<ColumnModel> schema = createDefaultColumnsWithIds();
 		// call under test
-		manager.populateViewFromEntityReplication(tableId, mockCallback, viewType, scope, schema);;
+		manager.populateViewFromEntityReplication(tableId, viewType, scope, schema);;
 	}
 	
 	@Test (expected=IllegalArgumentException.class)
@@ -451,7 +445,7 @@ public class TableIndexManagerImplTest {
 		Set<Long> scope = null;
 		List<ColumnModel> schema = createDefaultColumnsWithIds();
 		// call under test
-		manager.populateViewFromEntityReplication(tableId, mockCallback, viewType, scope, schema);;
+		manager.populateViewFromEntityReplication(tableId, viewType, scope, schema);;
 	}
 	
 	@Test (expected=IllegalArgumentException.class)
@@ -460,17 +454,7 @@ public class TableIndexManagerImplTest {
 		Set<Long> scope = Sets.newHashSet(1L,2L);
 		List<ColumnModel> schema = null;
 		// call under test
-		manager.populateViewFromEntityReplication(tableId, mockCallback, viewType, scope, schema);;
-	}
-	
-	@Test (expected=IllegalArgumentException.class)
-	public void testPopulateViewFromEntityReplicationCallbackNull(){
-		ViewType viewType = ViewType.file;
-		Set<Long> scope = Sets.newHashSet(1L,2L);
-		List<ColumnModel> schema = createDefaultColumnsWithIds();
-		mockCallback = null;
-		// call under test
-		manager.populateViewFromEntityReplication(tableId, mockCallback, viewType, scope, schema);;
+		manager.populateViewFromEntityReplication(tableId, viewType, scope, schema);;
 	}
 	
 	@Test

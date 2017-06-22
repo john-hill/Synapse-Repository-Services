@@ -8,12 +8,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.sagebionetworks.StackConfiguration;
-import org.sagebionetworks.common.util.progress.ProgressCallback;
-import org.sagebionetworks.common.util.progress.ProgressingCallable;
 import org.sagebionetworks.manager.util.CollectionUtils;
 import org.sagebionetworks.manager.util.Validate;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
@@ -118,7 +117,7 @@ public class TableEntityManagerImpl implements TableEntityManager, UploadRowProc
 
 	@WriteTransactionReadCommitted
 	@Override
-	public RowReferenceSet appendRows(UserInfo user, String tableId, RowSet delta, ProgressCallback<Void> progressCallback)
+	public RowReferenceSet appendRows(UserInfo user, String tableId, RowSet delta)
 			throws DatastoreException, NotFoundException, IOException {
 		ValidateArgument.required(user, "User");
 		ValidateArgument.required(tableId, "TableId");
@@ -130,14 +129,14 @@ public class TableEntityManagerImpl implements TableEntityManager, UploadRowProc
 		RowReferenceSet results = new RowReferenceSet();
 		SparseChangeSet sparseChangeSet = TableModelUtils.createSparseChangeSet(delta, currentSchema);
 		SparseChangeSetDto dto = sparseChangeSet.writeToDto();
-		appendRowsAsStream(user, tableId, currentSchema, dto.getRows().iterator(), delta.getEtag(), results, progressCallback);
+		appendRowsAsStream(user, tableId, currentSchema, dto.getRows().iterator(), delta.getEtag(), results);
 		return results;
 	}
 	
 	@WriteTransactionReadCommitted
 	@Override
 	public RowReferenceSet appendPartialRows(UserInfo user, String tableId,
-			PartialRowSet partial, ProgressCallback<Void> progressCallback)
+			PartialRowSet partial)
 			throws DatastoreException, NotFoundException, IOException {
 		Validate.required(user, "User");
 		Validate.required(tableId, "TableId");
@@ -155,7 +154,7 @@ public class TableEntityManagerImpl implements TableEntityManager, UploadRowProc
 		TableRowChange lastRowChange = tableRowTruthDao.getLastTableRowChange(tableId, TableChangeType.ROW);
 		SparseChangeSetDto dto = TableModelUtils.createSparseChangeSetFromPartialRowSet(lastRowChange, partial);
 		RowReferenceSet results = new RowReferenceSet();
-		appendRowsAsStream(user, tableId, currentSchema, dto.getRows().iterator(), results.getEtag(), results, progressCallback);
+		appendRowsAsStream(user, tableId, currentSchema, dto.getRows().iterator(), results.getEtag(), results);
 		return results;
 	}
 	
@@ -195,7 +194,7 @@ public class TableEntityManagerImpl implements TableEntityManager, UploadRowProc
 	@WriteTransactionReadCommitted
 	@Override
 	public TableUpdateResponse appendRowsAsStream(UserInfo user, String tableId, List<ColumnModel> columns, Iterator<SparseRowDto> rowStream, String etag,
-			RowReferenceSet results, ProgressCallback<Void> progressCallback) throws DatastoreException, NotFoundException, IOException {
+			RowReferenceSet results) throws DatastoreException, NotFoundException, IOException {
 		ValidateArgument.required(user, "User");
 		ValidateArgument.required(tableId, "TableId");
 		ValidateArgument.required(columns, "columns");
@@ -234,7 +233,7 @@ public class TableEntityManagerImpl implements TableEntityManager, UploadRowProc
 			if(batchSizeBytes >= maxBytesPerChangeSet){
 				// Send this batch and keep the etag.
 				SparseChangeSet delta = new SparseChangeSet(tableId, columns, batch, etag);
-				etag = appendBatchOfRowsToTable(user, columns, delta, results, progressCallback);
+				etag = appendBatchOfRowsToTable(user, columns, delta, results);
 				// Clear the batch
 				batch.clear();
 				batchSizeBytes = 0;
@@ -244,7 +243,7 @@ public class TableEntityManagerImpl implements TableEntityManager, UploadRowProc
 		if(!batch.isEmpty()){
 			// Validate there aren't any illegal file handle replaces
 			SparseChangeSet delta = new SparseChangeSet(tableId, columns, batch, etag);
-			etag = appendBatchOfRowsToTable(user, columns, delta, results, progressCallback);
+			etag = appendBatchOfRowsToTable(user, columns, delta, results);
 		}
 		// The table has change so we must reset the state.
 		tableManagerSupport.setTableToProcessingAndTriggerUpdate(tableId);
@@ -280,13 +279,9 @@ public class TableEntityManagerImpl implements TableEntityManager, UploadRowProc
 	 * @throws IOException
 	 * @throws ReadOnlyException If the stack status is anything other than READ_WRITE
 	 */
-	private String appendBatchOfRowsToTable(UserInfo user, List<ColumnModel> columns, SparseChangeSet delta, RowReferenceSet results,
-			ProgressCallback<Void> progressCallback)
+	private String appendBatchOfRowsToTable(UserInfo user, List<ColumnModel> columns, SparseChangeSet delta, RowReferenceSet results)
 			throws IOException, ReadOnlyException {
 		RowReferenceSet rrs = appendRowsToTable(user, columns, delta);
-		if(progressCallback != null){
-			progressCallback.progressMade(null);
-		}
 		if(results != null){
 			results.setEtag(rrs.getEtag());
 			results.setHeaders(TableModelUtils.getSelectColumns(columns));
@@ -526,10 +521,10 @@ public class TableEntityManagerImpl implements TableEntityManager, UploadRowProc
 	public void setTableSchema(final UserInfo userInfo, final List<String> columnIds,
 			final String id) {
 		try {
-			tableManagerSupport.tryRunWithTableExclusiveLock(null, id, EXCLUSIVE_LOCK_TIMEOUT_MS, new ProgressingCallable<Void, Void>() {
+			tableManagerSupport.tryRunWithTableExclusiveLock(null, id, EXCLUSIVE_LOCK_TIMEOUT_MS, new Callable<Void>() {
 
 				@Override
-				public Void call(ProgressCallback<Void> callback) throws Exception {
+				public Void call() throws Exception {
 					columModelManager.bindColumnToObject(userInfo, columnIds, id);
 					tableManagerSupport.setTableToProcessingAndTriggerUpdate(id);
 					return null;
@@ -594,14 +589,12 @@ public class TableEntityManagerImpl implements TableEntityManager, UploadRowProc
 
 
 	@Override
-	public void validateUpdateRequest(ProgressCallback<Void> callback,
-			UserInfo userInfo, TableUpdateRequest change,
+	public void validateUpdateRequest(UserInfo userInfo, TableUpdateRequest change,
 			TableIndexManager indexManager) {
-		ValidateArgument.required(callback, "callback");
 		ValidateArgument.required(userInfo, "userInfo");
 		ValidateArgument.required(change, "change");
 		if(change instanceof TableSchemaChangeRequest){
-			validateSchemaUpdateRequest(callback, userInfo, (TableSchemaChangeRequest)change, indexManager);
+			validateSchemaUpdateRequest(userInfo, (TableSchemaChangeRequest)change, indexManager);
 		}else if(change instanceof UploadToTableRequest){
 			// nothing to validate
 		}else if(change instanceof AppendableRowSetRequest){
@@ -619,8 +612,7 @@ public class TableEntityManagerImpl implements TableEntityManager, UploadRowProc
 	 * @param change
 	 * @param indexManager
 	 */
-	public void validateSchemaUpdateRequest(ProgressCallback<Void> callback,
-			UserInfo userInfo, TableSchemaChangeRequest changes,
+	public void validateSchemaUpdateRequest(UserInfo userInfo, TableSchemaChangeRequest changes,
 			TableIndexManager indexManager) {
 		// first determine what the new Schema will be
 		columModelManager.calculateNewSchemaIdsAndValidate(changes.getEntityId(), changes.getChanges(), changes.getOrderedColumnIds());
@@ -632,23 +624,21 @@ public class TableEntityManagerImpl implements TableEntityManager, UploadRowProc
 			}
 			List<ColumnChangeDetails> details = columModelManager.getColumnChangeDetails(changes.getChanges());
 			// attempt to apply the schema change to the temp copy of the table.
-			indexManager.alterTempTableSchmea(callback, changes.getEntityId(), details);
+			indexManager.alterTempTableSchmea(changes.getEntityId(), details);
 		}
 	}
 
 
 	@Override
-	public TableUpdateResponse updateTable(ProgressCallback<Void> callback,
-			UserInfo userInfo, TableUpdateRequest change) {
-		ValidateArgument.required(callback, "callback");
+	public TableUpdateResponse updateTable(UserInfo userInfo, TableUpdateRequest change) {
 		ValidateArgument.required(userInfo, "userInfo");
 		ValidateArgument.required(change, "change");
 		if(change instanceof TableSchemaChangeRequest){
-			return updateTableSchema(callback, userInfo, (TableSchemaChangeRequest)change);
+			return updateTableSchema(userInfo, (TableSchemaChangeRequest)change);
 		}else if(change instanceof UploadToTableRequest){
-			return uploadToTable(callback, userInfo, (UploadToTableRequest)change);
+			return uploadToTable(userInfo, (UploadToTableRequest)change);
 		}else if(change instanceof AppendableRowSetRequest){
-			return appendToTable(callback, userInfo, (AppendableRowSetRequest)change);
+			return appendToTable(userInfo, (AppendableRowSetRequest)change);
 		}else{
 			throw new IllegalArgumentException("Unknown request type: "+change.getClass().getName());
 		}
@@ -661,17 +651,16 @@ public class TableEntityManagerImpl implements TableEntityManager, UploadRowProc
 	 * @param request
 	 * @return
 	 */
-	TableUpdateResponse appendToTable(ProgressCallback<Void> callback,
-			UserInfo userInfo, AppendableRowSetRequest request) {
+	TableUpdateResponse appendToTable(UserInfo userInfo, AppendableRowSetRequest request) {
 		ValidateArgument.required(request.getToAppend(), "AppendableRowSetRequest.toAppend");
 		try {
 			RowReferenceSet results = null;
 			if(request.getToAppend() instanceof PartialRowSet){
 				PartialRowSet partialRowSet = (PartialRowSet) request.getToAppend();
-				results =  appendPartialRows(userInfo, partialRowSet.getTableId(), partialRowSet, callback);
+				results =  appendPartialRows(userInfo, partialRowSet.getTableId(), partialRowSet);
 			}else if(request.getToAppend() instanceof RowSet){
 				RowSet rowSet = (RowSet)request.getToAppend();
-				results = appendRows(userInfo, rowSet.getTableId(), rowSet, callback);
+				results = appendRows(userInfo, rowSet.getTableId(), rowSet);
 			}else{
 				throw new IllegalArgumentException("Unknown RowSet type: "+request.getToAppend().getClass().getName());
 			}
@@ -696,19 +685,18 @@ public class TableEntityManagerImpl implements TableEntityManager, UploadRowProc
 	 * @return
 	 * @throws IOException 
 	 */
-	TableUpdateResponse uploadToTable(ProgressCallback<Void> callback,
-			UserInfo userInfo, UploadToTableRequest change) {
+	TableUpdateResponse uploadToTable(UserInfo userInfo, UploadToTableRequest change) {
 		// upload the CSV to the table.
-		return tableUploadManager.uploadCSV(callback, userInfo, change, this);
+		return tableUploadManager.uploadCSV(userInfo, change, this);
 
 	}
 	
 	@Override
 	public TableUpdateResponse processRows(UserInfo user, String tableId,
 			List<ColumnModel> tableSchema, Iterator<SparseRowDto> rowStream,
-			String updateEtag, ProgressCallback<Void> progressCallback)
+			String updateEtag)
 			throws DatastoreException, NotFoundException, IOException {
-		return appendRowsAsStream(user, tableId, tableSchema, rowStream, updateEtag, null, progressCallback);
+		return appendRowsAsStream(user, tableId, tableSchema, rowStream, updateEtag, null);
 	}
 
 
@@ -720,8 +708,7 @@ public class TableEntityManagerImpl implements TableEntityManager, UploadRowProc
 	 * @param change
 	 * @return
 	 */
-	public TableSchemaChangeResponse updateTableSchema(ProgressCallback<Void> callback,
-			UserInfo userInfo, TableSchemaChangeRequest changes) {
+	public TableSchemaChangeResponse updateTableSchema(UserInfo userInfo, TableSchemaChangeRequest changes) {
 
 		// first determine what the new Schema will be
 		List<String> newSchemaIds = columModelManager.calculateNewSchemaIdsAndValidate(changes.getEntityId(), changes.getChanges(), changes.getOrderedColumnIds());

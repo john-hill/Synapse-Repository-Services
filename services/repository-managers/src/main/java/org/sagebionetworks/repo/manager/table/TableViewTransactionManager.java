@@ -92,7 +92,7 @@ public class TableViewTransactionManager implements TableTransactionManager, Upl
 		} else if (change instanceof AppendableRowSetRequest) {
 			return applyRowChange(progressCallback, user, (AppendableRowSetRequest)change);
 		}  else if (change instanceof UploadToTableRequest) {
-			return applyRowChange(progressCallback, user, (UploadToTableRequest)change);
+			return applyRowChange(user, (UploadToTableRequest)change);
 		} else {
 			throw new IllegalArgumentException("Unsupported TableUpdateRequest: "+ change.getClass().getName());
 		}
@@ -105,9 +105,9 @@ public class TableViewTransactionManager implements TableTransactionManager, Upl
 	 * @param change
 	 * @return
 	 */
-	TableUpdateResponse applyRowChange(ProgressCallback<Void> progressCallback, UserInfo user,
+	TableUpdateResponse applyRowChange(UserInfo user,
 			UploadToTableRequest change) {
-		return tableUploadManager.uploadCSV(progressCallback, user, change, this);
+		return tableUploadManager.uploadCSV(user, change, this);
 	}
 
 	/**
@@ -156,7 +156,7 @@ public class TableViewTransactionManager implements TableTransactionManager, Upl
 		SparseChangeSet sparseChangeSet = TableModelUtils.createSparseChangeSet(rowSet, currentSchema);
 		SparseChangeSetDto dto = sparseChangeSet.writeToDto();
 		//process all rows.
-		return processRows(user, rowSet.getTableId(), currentSchema, dto.getRows().iterator(), null, progressCallback);
+		return processRows(user, rowSet.getTableId(), currentSchema, dto.getRows().iterator(), null);
 	}
 
 	/**
@@ -182,7 +182,7 @@ public class TableViewTransactionManager implements TableTransactionManager, Upl
 		// convert
 		SparseChangeSetDto dto = TableModelUtils.createSparseChangeSetFromPartialRowSet(null, partialRowSet);
 		//process all rows.
-		return processRows(user, partialRowSet.getTableId(), currentSchema, dto.getRows().iterator(), null, progressCallback);
+		return processRows(user, partialRowSet.getTableId(), currentSchema, dto.getRows().iterator(), null);
 	}
 
 	/**
@@ -202,12 +202,12 @@ public class TableViewTransactionManager implements TableTransactionManager, Upl
 	@Override
 	public TableUpdateResponse processRows(UserInfo user, String tableId,
 			List<ColumnModel> tableSchema, Iterator<SparseRowDto> rowStream,
-			String updateEtag, ProgressCallback<Void> progressCallback) {
+			String updateEtag) {
 		List<EntityUpdateResult> results = new LinkedList<EntityUpdateResult>();
 		// process all rows, each as a single transaction.
 		while(rowStream.hasNext()){
 			EntityUpdateResult result = processRow(user, tableSchema,
-					rowStream.next(), progressCallback);
+					rowStream.next());
 			results.add(result);
 		}
 		EntityUpdateResults response = new EntityUpdateResults();
@@ -225,11 +225,9 @@ public class TableViewTransactionManager implements TableTransactionManager, Upl
 	 * @return
 	 */
 	EntityUpdateResult processRow(UserInfo user,
-			List<ColumnModel> tableSchema, SparseRowDto row,
-			ProgressCallback<Void> progressCallback) {
+			List<ColumnModel> tableSchema, SparseRowDto row) {
 		EntityUpdateResult result = new EntityUpdateResult();
 		try {
-			progressCallback.progressMade(null);
 			result.setEntityId(KeyFactory.keyToString(row.getRowId()));
 			tableViewManger.updateEntityInView(user, tableSchema, row);
 		} catch (NotFoundException e) {

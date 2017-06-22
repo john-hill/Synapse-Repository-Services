@@ -2,9 +2,9 @@ package org.sagebionetworks.repo.manager.table;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.Callable;
 
 import org.sagebionetworks.common.util.progress.ProgressCallback;
-import org.sagebionetworks.common.util.progress.ProgressingCallable;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.table.TableUnavailableException;
 import org.sagebionetworks.repo.model.table.TableUpdateRequest;
@@ -45,11 +45,11 @@ public class TableEntityTransactionManager implements TableTransactionManager {
 		// Validate the user has permission to edit the table before locking.
 		tableManagerSupport.validateTableWriteAccess(userInfo, tableId);
 		try {
-			return tableManagerSupport.tryRunWithTableExclusiveLock(progressCallback, tableId, EXCLUSIVE_LOCK_TIMEOUT_MS, new ProgressingCallable<TableUpdateTransactionResponse, Void>() {
+			return tableManagerSupport.tryRunWithTableExclusiveLock(progressCallback, tableId, EXCLUSIVE_LOCK_TIMEOUT_MS, new Callable<TableUpdateTransactionResponse>() {
 
 				@Override
-				public TableUpdateTransactionResponse call(ProgressCallback<Void> callback) throws Exception {
-					return updateTableWithTransactionWithExclusiveLock(callback, userInfo, request);
+				public TableUpdateTransactionResponse call() throws Exception {
+					return updateTableWithTransactionWithExclusiveLock(userInfo, request);
 				}
 			});
 		}catch (TableUnavailableException e) {
@@ -72,22 +72,21 @@ public class TableEntityTransactionManager implements TableTransactionManager {
 	 * @param request
 	 * @return
 	 */
-	TableUpdateTransactionResponse updateTableWithTransactionWithExclusiveLock(
-			final ProgressCallback<Void> callback, final UserInfo userInfo,
+	TableUpdateTransactionResponse updateTableWithTransactionWithExclusiveLock(final UserInfo userInfo,
 			final TableUpdateTransactionRequest request) {
 		/*
 		 * Request validation can take a long time and may not involve the primary database.
 		 * Therefore the primary transaction is not started until after validation succeeds.
 		 * A transaction template is used to allow for finer control of the transaction boundary.
 		 */
-		validateUpdateRequests(callback, userInfo, request);
+		validateUpdateRequests(userInfo, request);
 		// the update is valid so the primary transaction can be started.
 		return readCommitedTransactionTemplate.execute(new TransactionCallback<TableUpdateTransactionResponse>() {
 
 			@Override
 			public TableUpdateTransactionResponse doInTransaction(
 					TransactionStatus status) {
-				return doIntransactionUpdateTable(status, callback, userInfo, request);
+				return doIntransactionUpdateTable(status, userInfo, request);
 			}
 		} );
 	}
@@ -99,26 +98,25 @@ public class TableEntityTransactionManager implements TableTransactionManager {
 	 * @param userInfo
 	 * @param request
 	 */
-	void validateUpdateRequests(ProgressCallback<Void> callback,
-			UserInfo userInfo, TableUpdateTransactionRequest request) {
+	void validateUpdateRequests(UserInfo userInfo, TableUpdateTransactionRequest request) {
 
 		// Determine if a temporary table is needed to validate any of the requests.
-		boolean isTemporaryTableNeeded = isTemporaryTableNeeded(callback, request);
+		boolean isTemporaryTableNeeded = isTemporaryTableNeeded(request);
 		
 		// setup a temporary table if needed.
 		if(isTemporaryTableNeeded){
 			String tableId = request.getEntityId();
 			TableIndexManager indexManager = tableIndexConnectionFactory.connectToTableIndex(tableId);
-			indexManager.createTemporaryTableCopy(tableId, callback);
+			indexManager.createTemporaryTableCopy(tableId);
 			try{
 				// validate while the temp table exists.
-				validateEachUpdateRequest(callback, userInfo, request, indexManager);
+				validateEachUpdateRequest(userInfo, request, indexManager);
 			}finally{
-				indexManager.deleteTemporaryTableCopy(tableId, callback);
+				indexManager.deleteTemporaryTableCopy(tableId);
 			}
 		}else{
 			// we do not need a temporary copy to validate this request.
-			validateEachUpdateRequest(callback, userInfo, request, null);
+			validateEachUpdateRequest(userInfo, request, null);
 		}
 	}
 
@@ -130,13 +128,10 @@ public class TableEntityTransactionManager implements TableTransactionManager {
 	 * @param request
 	 * @param indexManager
 	 */
-	void validateEachUpdateRequest(ProgressCallback<Void> callback,
-			UserInfo userInfo, TableUpdateTransactionRequest request,
+	void validateEachUpdateRequest(UserInfo userInfo, TableUpdateTransactionRequest request,
 			TableIndexManager indexManager) {
 		for(TableUpdateRequest change: request.getChanges()){
-			// progress before each check.
-			callback.progressMade(null);
-			tableEntityManager.validateUpdateRequest(callback, userInfo, change, indexManager);
+			tableEntityManager.validateUpdateRequest(userInfo, change, indexManager);
 		}
 	}
 
@@ -147,11 +142,8 @@ public class TableEntityTransactionManager implements TableTransactionManager {
 	 * @param request
 	 * @return
 	 */
-	boolean isTemporaryTableNeeded(ProgressCallback<Void> callback,
-			TableUpdateTransactionRequest request) {
+	boolean isTemporaryTableNeeded(	TableUpdateTransactionRequest request) {
 		for(TableUpdateRequest change: request.getChanges()){
-			// progress before each check.
-			callback.progressMade(null);
 			boolean tempNeeded = tableEntityManager.isTemporaryTableNeededToValidate(change);
 			if(tempNeeded){
 				return true;
@@ -170,15 +162,14 @@ public class TableEntityTransactionManager implements TableTransactionManager {
 	 * @return
 	 */
 	TableUpdateTransactionResponse doIntransactionUpdateTable(TransactionStatus status,
-			ProgressCallback<Void> callback, UserInfo userInfo,
+			UserInfo userInfo,
 			TableUpdateTransactionRequest request) {
 		// execute each request
 		List<TableUpdateResponse> results = new LinkedList<TableUpdateResponse>();
 		TableUpdateTransactionResponse response = new TableUpdateTransactionResponse();
 		response.setResults(results);
 		for(TableUpdateRequest change: request.getChanges()){
-			callback.progressMade(null);
-			TableUpdateResponse changeResponse = tableEntityManager.updateTable(callback, userInfo, change);
+			TableUpdateResponse changeResponse = tableEntityManager.updateTable(userInfo, change);
 			results.add(changeResponse);
 		}
 		return response;

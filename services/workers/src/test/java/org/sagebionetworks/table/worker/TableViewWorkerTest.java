@@ -1,6 +1,6 @@
 package org.sagebionetworks.table.worker;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyString;
@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Callable;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -21,7 +22,6 @@ import org.mockito.MockitoAnnotations;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.sagebionetworks.common.util.progress.ProgressCallback;
-import org.sagebionetworks.common.util.progress.ProgressingCallable;
 import org.sagebionetworks.repo.manager.table.TableIndexConnectionFactory;
 import org.sagebionetworks.repo.manager.table.TableIndexConnectionUnavailableException;
 import org.sagebionetworks.repo.manager.table.TableIndexManager;
@@ -53,8 +53,6 @@ public class TableViewWorkerTest {
 	TableIndexManager indexManager;
 	@Mock
 	ProgressCallback<Void> outerCallback;
-	@Mock
-	ProgressCallback<Void> innerCallback;
 
 	TableViewWorker worker;
 
@@ -107,17 +105,17 @@ public class TableViewWorkerTest {
 		doAnswer(new Answer<Void>() {
 			@Override
 			public Void answer(InvocationOnMock invocation) throws Throwable {
-				ProgressingCallable<Void, Void> callable = (ProgressingCallable<Void, Void>) invocation
+				Callable<Void> callable = (Callable<Void>) invocation
 						.getArguments()[3];
 				// pass it along
 				if(callable != null){
-					callable.call(innerCallback);
+					callable.call();
 				}
 				return null;
 			}
 		}).when(tableManagerSupport).tryRunWithTableExclusiveLock(
 				any(ProgressCallback.class), anyString(), anyInt(),
-				any(ProgressingCallable.class));
+				any(Callable.class));
 		
 		schema = new LinkedList<>();
 		schema.add(EntityField.id.getColumnModel());
@@ -151,7 +149,7 @@ public class TableViewWorkerTest {
 		when(tableManagerSupport.getColumnModelsForTable(tableId)).thenReturn(schema);
 		when(tableViewManager.getViewSchemaWithRequiredColumns(tableId)).thenReturn(expandedSchema);
 		viewCRC = 888L;		
-		when(indexManager.populateViewFromEntityReplication(tableId, innerCallback, ViewType.file, viewScope,expandedSchema)).thenReturn(viewCRC);
+		when(indexManager.populateViewFromEntityReplication(tableId, ViewType.file, viewScope,expandedSchema)).thenReturn(viewCRC);
 	}
 
 	@Test
@@ -187,7 +185,7 @@ public class TableViewWorkerTest {
 		when(
 				tableManagerSupport.tryRunWithTableExclusiveLock(
 						any(ProgressCallback.class), anyString(), anyInt(),
-						any(ProgressingCallable.class))).thenThrow(
+						any(Callable.class))).thenThrow(
 				new LockUnavilableException("No lock for you"));
 		// call under test
 		worker.run(outerCallback, change);
@@ -200,7 +198,7 @@ public class TableViewWorkerTest {
 		when(
 				tableManagerSupport.tryRunWithTableExclusiveLock(
 						any(ProgressCallback.class), anyString(), anyInt(),
-						any(ProgressingCallable.class))).thenThrow(
+						any(Callable.class))).thenThrow(
 				new RecoverableMessageException("Should get re-thrown"));
 		// call under test
 		worker.run(outerCallback, change);
@@ -229,14 +227,13 @@ public class TableViewWorkerTest {
 	@Test
 	public void testCreateOrUpdateIndexHoldingLock() throws RecoverableMessageException{
 		// call under test
-		worker.createOrUpdateIndexHoldingLock(tableId, indexManager, innerCallback, change);
+		worker.createOrUpdateIndexHoldingLock(tableId, indexManager, change);
 		
 		verify(indexManager).deleteTableIndex(tableId);
-		verify(indexManager).setIndexSchema(tableId, innerCallback,expandedSchema);
+		verify(indexManager).setIndexSchema(tableId, expandedSchema);
 		verify(tableViewManager).getViewSchemaWithRequiredColumns(tableId);
-		verify(innerCallback, times(4)).progressMade(null);
 		verify(tableManagerSupport, times(1)).attemptToUpdateTableProgress(tableId, token, "Copying data to view...", 0L, 1L);
-		verify(indexManager, times(1)).populateViewFromEntityReplication(tableId, innerCallback, ViewType.file, viewScope,expandedSchema);
+		verify(indexManager, times(1)).populateViewFromEntityReplication(tableId, ViewType.file, viewScope,expandedSchema);
 		verify(indexManager).setIndexVersionAndSchemaMD5Hex(tableId, viewCRC, schemaMD5Hex);
 		verify(tableManagerSupport).attemptToSetTableStatusToAvailable(tableId, token, TableViewWorker.DEFAULT_ETAG);
 		verify(indexManager).optimizeTableIndices(tableId);
@@ -250,11 +247,11 @@ public class TableViewWorkerTest {
 	@Test
 	public void testCreateOrUpdateIndexHoldingLockException() throws RecoverableMessageException{
 		IllegalArgumentException exception = new IllegalArgumentException("failure");
-		when(indexManager.populateViewFromEntityReplication(tableId, innerCallback, ViewType.file, viewScope,expandedSchema)).thenThrow(exception);
+		when(indexManager.populateViewFromEntityReplication(tableId, ViewType.file, viewScope,expandedSchema)).thenThrow(exception);
 		
 		try {
 			// call under test
-			worker.createOrUpdateIndexHoldingLock(tableId, indexManager, innerCallback, change);
+			worker.createOrUpdateIndexHoldingLock(tableId, indexManager, change);
 			fail("Should have thrown an exception");
 		} catch (IllegalArgumentException e) {
 			// expected

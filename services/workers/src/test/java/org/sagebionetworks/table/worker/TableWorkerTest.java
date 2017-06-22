@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.Callable;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -28,7 +29,6 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.common.util.progress.ProgressCallback;
-import org.sagebionetworks.common.util.progress.ProgressingCallable;
 import org.sagebionetworks.repo.manager.table.TableEntityManager;
 import org.sagebionetworks.repo.manager.table.TableIndexConnectionFactory;
 import org.sagebionetworks.repo.manager.table.TableIndexConnectionUnavailableException;
@@ -91,12 +91,12 @@ public class TableWorkerTest {
 		when(mockConnectionFactory.connectToTableIndex(anyString())).thenReturn(mockTableIndexManager);
 		
 		// By default we want to the manager to just call the passed callable.
-		stub(mockTableManagerSupport.tryRunWithTableExclusiveLock(any(ProgressCallback.class),anyString(), anyInt(), any(ProgressingCallable.class))).toAnswer(new Answer<TableWorker.State>() {
+		stub(mockTableManagerSupport.tryRunWithTableExclusiveLock(any(ProgressCallback.class),anyString(), anyInt(), any(Callable.class))).toAnswer(new Answer<TableWorker.State>() {
 			@Override
 			public TableWorker.State answer(InvocationOnMock invocation) throws Throwable {
-				ProgressingCallable<TableWorker.State, Void> callable = (ProgressingCallable<State, Void>) invocation.getArguments()[3];
+				Callable<TableWorker.State> callable = (Callable<State>) invocation.getArguments()[3];
 				if(callable != null){
-					return callable.call(mockProgressCallback);
+					return callable.call();
 				}else{
 					return null;
 				}
@@ -247,8 +247,6 @@ public class TableWorkerTest {
 		
 		verify(mockTableIndexManager).applyChangeSetToIndex(tableId, sparseRowset1, 0L);
 		verify(mockTableIndexManager).applyChangeSetToIndex(tableId, sparseRowset2, 1L);
-		// Progress should be made for each result
-		verify(mockProgressCallback, times(2)).progressMade(null);
 		verify(mockTableIndexManager).optimizeTableIndices(tableId);
 	}
 	
@@ -264,9 +262,6 @@ public class TableWorkerTest {
 		worker.run(mockProgressCallback, two);
 		
 		verify(mockTableIndexManager).applyChangeSetToIndex(tableId, sparseRowset2, 1L);
-		
-		// Progress should be made for each change even if there is no work.
-		verify(mockProgressCallback, times(2)).progressMade(null);
 	}
 	
 	/**
@@ -395,7 +390,7 @@ public class TableWorkerTest {
 		status.setResetToken(resetToken);
 		when(mockTableManagerSupport.getTableStatusOrCreateIfNotExists(tableId)).thenReturn(status);
 		// Simulate a failure to get the lock
-		when(mockTableManagerSupport.tryRunWithTableExclusiveLock(any(ProgressCallback.class),anyString(), anyInt(), any(ProgressingCallable.class))).thenThrow(new LockUnavilableException("Cannot get a lock at this time"));
+		when(mockTableManagerSupport.tryRunWithTableExclusiveLock(any(ProgressCallback.class),anyString(), anyInt(), any(Callable.class))).thenThrow(new LockUnavilableException("Cannot get a lock at this time"));
 		two.setObjectType(ObjectType.TABLE);
 		two.setChangeType(ChangeType.UPDATE);
 		two.setObjectEtag(resetToken);
@@ -423,7 +418,7 @@ public class TableWorkerTest {
 		status.setResetToken(resetToken);
 		when(mockTableManagerSupport.getTableStatusOrCreateIfNotExists(tableId)).thenReturn(status);
 		// Simulate a failure to get the lock
-		when(mockTableManagerSupport.tryRunWithTableExclusiveLock(any(ProgressCallback.class),anyString(), anyInt(), any(ProgressingCallable.class))).thenThrow(new InterruptedException("Sop!!!"));
+		when(mockTableManagerSupport.tryRunWithTableExclusiveLock(any(ProgressCallback.class),anyString(), anyInt(), any(Callable.class))).thenThrow(new InterruptedException("Sop!!!"));
 		two.setObjectType(ObjectType.TABLE);
 		two.setChangeType(ChangeType.UPDATE);
 		two.setObjectEtag(resetToken);
@@ -512,9 +507,9 @@ public class TableWorkerTest {
 		when(mockTableEntityManager.getSparseChangeSet(trc)).thenReturn(sparseRowset1);
 		
 		// call under test
-		worker.applyRowChange(mockProgressCallback, mockTableIndexManager, tableId, trc);
+		worker.applyRowChange(mockTableIndexManager, tableId, trc);
 		// schema of the change should be applied
-		verify(mockTableIndexManager).setIndexSchema(tableId, mockProgressCallback, currentSchema);
+		verify(mockTableIndexManager).setIndexSchema(tableId, currentSchema);
 		// the change set should be applied.
 		verify(mockTableIndexManager).applyChangeSetToIndex(tableId, sparseRowset1,trc.getRowVersion());
 	}
@@ -523,7 +518,7 @@ public class TableWorkerTest {
 	public void testApplyRowChangeNullChange() throws IOException{
 		TableRowChange trc = null;
 		// call under test
-		worker.applyRowChange(mockProgressCallback, mockTableIndexManager, tableId, trc);
+		worker.applyRowChange(mockTableIndexManager, tableId, trc);
 	}
 	
 	@Test (expected=IllegalArgumentException.class)
@@ -531,14 +526,14 @@ public class TableWorkerTest {
 		TableRowChange trc = new TableRowChange();
 		trc.setChangeType(TableChangeType.COLUMN);
 		// call under test
-		worker.applyRowChange(mockProgressCallback, mockTableIndexManager, tableId, trc);
+		worker.applyRowChange(mockTableIndexManager, tableId, trc);
 	}
 	
 	@Test (expected=IllegalArgumentException.class)
 	public void testApplyColumnChangeNullChange() throws IOException{
 		TableRowChange trc = null;
 		// call under test
-		worker.applyColumnChange(mockProgressCallback, mockTableIndexManager, tableId, trc);
+		worker.applyColumnChange(mockTableIndexManager, tableId, trc);
 	}
 	
 	@Test (expected=IllegalArgumentException.class)
@@ -546,7 +541,7 @@ public class TableWorkerTest {
 		TableRowChange trc = new TableRowChange();
 		trc.setChangeType(TableChangeType.ROW);
 		// call under test
-		worker.applyColumnChange(mockProgressCallback, mockTableIndexManager, tableId, trc);
+		worker.applyColumnChange(mockTableIndexManager, tableId, trc);
 	}
 	
 	@Test
@@ -565,8 +560,8 @@ public class TableWorkerTest {
 		List<ColumnChangeDetails> details = Lists.newArrayList(new ColumnChangeDetails(oldColumn, newColumn));
 		when(mockTableEntityManager.getSchemaChangeForVersion(tableId, trc.getRowVersion())).thenReturn(details);
 		// call under test
-		worker.applyColumnChange(mockProgressCallback, mockTableIndexManager, tableId, trc);
-		verify(mockTableIndexManager).updateTableSchema(tableId, mockProgressCallback, details);
+		worker.applyColumnChange(mockTableIndexManager, tableId, trc);
+		verify(mockTableIndexManager).updateTableSchema(tableId, details);
 		verify(mockTableIndexManager).setIndexVersion(tableId, trc.getRowVersion());
 	}
 }

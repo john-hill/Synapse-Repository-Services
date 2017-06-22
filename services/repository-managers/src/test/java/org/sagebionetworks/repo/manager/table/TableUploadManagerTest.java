@@ -25,7 +25,6 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
-import org.sagebionetworks.common.util.progress.ProgressCallback;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils;
@@ -52,8 +51,6 @@ import com.amazonaws.util.StringInputStream;
  */
 public class TableUploadManagerTest {
 	
-	@Mock
-	ProgressCallback<Void> mockProgressCallback;
 	@Mock
 	TableManagerSupport mockTableManagerSupport;
 	@Mock
@@ -128,20 +125,20 @@ public class TableUploadManagerTest {
 				result.setEtag("etag"+count);
 				result.setRowsProcessed(new Long(count));
 				return result;
-			}}).when(rowProcessor).processRows(eq(user), eq(uploadRequest.getTableId()), anyListOf(ColumnModel.class), any(Iterator.class), anyString(), eq(mockProgressCallback));
+			}}).when(rowProcessor).processRows(eq(user), eq(uploadRequest.getTableId()), anyListOf(ColumnModel.class), any(Iterator.class), anyString());
 	}
 	
 	@Test
 	public void testHappyCase() throws IOException{
 		// call under test;
-		TableUpdateResponse results = manager.uploadCSV(mockProgressCallback, user, uploadRequest, rowProcessor);
+		TableUpdateResponse results = manager.uploadCSV(user, uploadRequest, rowProcessor);
 		assertNotNull(results);
 		assertTrue(results instanceof UploadToTableResult);
 		UploadToTableResult uploadResult = (UploadToTableResult)results;
 		assertEquals("etag2", uploadResult.getEtag());
 		assertEquals(new Long(2), uploadResult.getRowsProcessed());
 		assertEquals(2, rowsRead.size());
-		verify(rowProcessor).processRows(eq(user), eq(uploadRequest.getTableId()), eq(tableSchema), any(Iterator.class), eq(uploadRequest.getUpdateEtag()), eq(mockProgressCallback));
+		verify(rowProcessor).processRows(eq(user), eq(uploadRequest.getTableId()), eq(tableSchema), any(Iterator.class), eq(uploadRequest.getUpdateEtag()));
 	}
 	
 	/**
@@ -180,7 +177,7 @@ public class TableUploadManagerTest {
 		when(mockTableManagerSupport.getColumnModelsForTable(uploadRequest.getTableId())).thenReturn(tableSchema);
 		
 		// call under test;
-		TableUpdateResponse results = manager.uploadCSV(mockProgressCallback, user, uploadRequest, rowProcessor);
+		TableUpdateResponse results = manager.uploadCSV(user, uploadRequest, rowProcessor);
 		assertNotNull(results);
 		assertTrue(results instanceof UploadToTableResult);
 		UploadToTableResult uploadResult = (UploadToTableResult)results;
@@ -200,6 +197,5 @@ public class TableUploadManagerTest {
 		assertNotNull(two.getValues());
 		assertEquals("b",two.getValues().get(columnId));
 	}
-	
 
 }

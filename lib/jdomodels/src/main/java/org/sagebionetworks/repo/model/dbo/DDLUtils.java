@@ -16,7 +16,7 @@ public interface DDLUtils {
 	 * @return
 	 * @throws IOException
 	 */
-	public boolean validateTableExists(TableMapping mapping) throws IOException;
+	public boolean validateTableExists(TableMapping mapping, String schema) throws IOException;
 	
 	/**
 	 * Drop the given table.

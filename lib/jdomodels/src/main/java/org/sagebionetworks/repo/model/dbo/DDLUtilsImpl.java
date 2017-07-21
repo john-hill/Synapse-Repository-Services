@@ -36,8 +36,6 @@ public class DDLUtilsImpl implements DDLUtils{
 	
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
-	@Autowired
-	StackConfiguration stackConfiguration;
 	
 	/**
 	 * If the given table does not already exist, then create it using the provided SQL file
@@ -45,9 +43,7 @@ public class DDLUtilsImpl implements DDLUtils{
 	 * @param DDLSqlFileName
 	 * @throws IOException 
 	 */
-	public boolean validateTableExists(TableMapping mapping) throws IOException{
-		String url = stackConfiguration.getRepositoryDatabaseConnectionUrl();
-		String schema = getSchemaFromConnectionString(url);
+	public boolean validateTableExists(TableMapping mapping, String schema) throws IOException{
 		log.debug("Schema: "+schema);
 		String sql = String.format(TABLE_EXISTS_SQL_FORMAT, mapping.getTableName(), schema);
 		log.debug("About to execute: "+sql);
@@ -65,7 +61,7 @@ public class DDLUtilsImpl implements DDLUtils{
 			// Make sure it exists
 			List<Map<String, Object>> second = jdbcTemplate.queryForList(sql);
 			if(second.size() != 1){
-				throw new RuntimeException("Failed to create the table: "+mapping.getTableName()+" using connection: "+url);
+				throw new RuntimeException("Failed to create the table: "+mapping.getTableName()+" using connection: "+schema);
 			}
 			// the table did not exist until this call
 			return false;

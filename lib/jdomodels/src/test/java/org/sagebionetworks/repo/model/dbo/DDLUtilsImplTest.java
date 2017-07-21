@@ -8,6 +8,7 @@ import java.io.IOException;
 import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.sagebionetworks.StackConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
@@ -26,6 +27,7 @@ public class DDLUtilsImplTest {
 	
 	String tableName = "EXAMPLE_TEST";
 	String ddlFile = "Example.sql";
+	String schema = StackConfiguration.getRepositorySchemaName();
 	
 	@After
 	public void after() {
@@ -38,10 +40,10 @@ public class DDLUtilsImplTest {
 		// Make sure we start without the table
 		ddlUtils.dropTable(tableName);
 		// the first time this is called the table should not exist.
-		boolean result = ddlUtils.validateTableExists(new DBOExample().getTableMapping());
+		boolean result = ddlUtils.validateTableExists(new DBOExample().getTableMapping(), schema);
 		assertFalse("The first time we called this method it should have created the table", result);
 		// the second time the table should already exist
-		result = ddlUtils.validateTableExists(new DBOExample().getTableMapping());
+		result = ddlUtils.validateTableExists(new DBOExample().getTableMapping(), schema);
 		assertTrue("The second time we called this method, the table should have already existed", result);
 	}
 	

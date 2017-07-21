@@ -124,4 +124,11 @@ public class StackConfigurationTest {
 			assertEquals(h.trim(), h);
 		}
 	}
+	
+	@Test
+	public void testGetSchemaName(){
+		String schema = StackConfiguration.getRepositorySchemaName();
+		String expected = StackConfiguration.singleton().getStack()+StackConfiguration.getStackInstance();
+		assertEquals(expected, schema);
+	}
 }

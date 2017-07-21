@@ -259,6 +259,11 @@ public class StackConfiguration {
 	public static String getMailPassword() {
 		return configuration.getDecryptedProperty("org.sagebionetworks.mailPW");
 	}
+	
+	public static String getRepositorySchemaName(){
+		return configuration
+		.getProperty("org.sagebionetworks.repository.database.schema");
+	}
 
 	/**
 	 * The database connection string used for the ID Generator.

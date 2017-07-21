@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -33,6 +34,8 @@ public class DBOBasicDaoImpl implements DBOBasicDao, InitializingBean {
 	private JdbcTemplate jdbcTemplate;
 	@Autowired
 	private NamedParameterJdbcTemplate namedJdbcTemplate;
+	
+	private String schemaName = StackConfiguration.getRepositorySchemaName();
 	
 	/**
 	 * Injected via Spring
@@ -90,7 +93,7 @@ public class DBOBasicDaoImpl implements DBOBasicDao, InitializingBean {
 		// Create the schema for each 
 		for(DatabaseObject dbo: databaseObjectRegister){
 			TableMapping mapping = dbo.getTableMapping();
-			ddlUtils.validateTableExists(mapping);
+			ddlUtils.validateTableExists(mapping, schemaName);
 			// Create the Insert SQL
 			String insertSQL = DMLUtils.createInsertStatement(mapping);
 			this.insertMap.put(mapping.getDBOClass(), insertSQL);

@@ -34,9 +34,20 @@ public class DDLUtilsImpl implements DDLUtils{
 	// Determine if the table exists
 	public static final String TABLE_EXISTS_SQL_FORMAT = "SELECT TABLE_NAME FROM Information_schema.tables WHERE TABLE_NAME = '%1$s' AND table_schema = '%2$s'";
 	
-	@Autowired
+	
 	private JdbcTemplate jdbcTemplate;
 	
+	/**
+	 * IoC provided as a constructor since this class is used in multiple project 
+	 * each will separate dependencies.
+	 * 
+	 * @param jdbcTemplate
+	 */
+	public DDLUtilsImpl(JdbcTemplate jdbcTemplate) {
+		super();
+		this.jdbcTemplate = jdbcTemplate;
+	}
+
 	/**
 	 * If the given table does not already exist, then create it using the provided SQL file
 	 * @param databaseTableName

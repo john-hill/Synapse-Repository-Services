@@ -12,7 +12,9 @@
 	<aop:aspectj-autoproxy />
 
 
-	<bean id="ddlUtils" class="org.sagebionetworks.repo.model.dbo.DDLUtilsImpl" />
+	<bean id="ddlUtils" class="org.sagebionetworks.repo.model.dbo.DDLUtilsImpl">
+	<constructor-arg index="0" ref="jdbcTemplate"/>
+	</bean>
 	
 	<!--Register of all database objects (DBOs) that use BasicDao.  -->
 	<bean id="dboBasicDao" class="org.sagebionetworks.repo.model.dbo.DBOBasicDaoImpl">

@@ -35,8 +35,6 @@ public class DBOBasicDaoImpl implements DBOBasicDao, InitializingBean {
 	@Autowired
 	private NamedParameterJdbcTemplate namedJdbcTemplate;
 	
-	private String schemaName = StackConfiguration.getRepositorySchemaName();
-	
 	/**
 	 * Injected via Spring
 	 */
@@ -88,6 +86,7 @@ public class DBOBasicDaoImpl implements DBOBasicDao, InitializingBean {
 
 	@Override
 	public void afterPropertiesSet() throws Exception {
+		String schemaName = StackConfiguration.getRepositorySchemaName();
 		// Make sure we have a table for all registered objects
 		if(databaseObjectRegister == null) throw new IllegalArgumentException("databaseObjectRegister bean cannot be null");
 		// Create the schema for each 

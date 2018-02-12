@@ -514,14 +514,14 @@ public class MigrationManagerImplTest {
 	@Test
 	public void testBackupStreamToS3() throws IOException {
 		List<MigratableDatabaseObject<?, ?>> stream = new LinkedList<>();
-		MigrationType type = MigrationType.NODE;
+		MigrationType primaryType = MigrationType.NODE;
 		BackupAliasType aliasType = BackupAliasType.TABLE_NAME;
 		long batchSize = 2;
 		// call under test
-		BackupTypeResponse response = manager.backupStreamToS3(type, stream, aliasType, batchSize);
+		BackupTypeResponse response = manager.backupStreamToS3(primaryType, stream, aliasType, batchSize);
 		assertNotNull(response);
 		assertNotNull(response.getBackupFileKey());
-		verify(mockBackupFileStream).writeBackupFile(mockOutputStream, stream, aliasType, batchSize);
+		verify(mockBackupFileStream).writeBackupFile(primaryType, mockOutputStream, stream, aliasType, batchSize);
 		verify(mockS3Client).putObject(MigrationManagerImpl.backupBucket, response.getBackupFileKey(), mockFile);
 		// the stream must be flushed and closed.
 		verify(mockOutputStream).flush();
@@ -534,7 +534,7 @@ public class MigrationManagerImplTest {
 	public void testBackupStreamToS3Exception() throws IOException {
 		// setup an failure
 		IOException toBeThrown = new IOException("some kind of IO error");
-		doThrow(toBeThrown).when(mockBackupFileStream).writeBackupFile(any(OutputStream.class), any(Iterable.class), any(BackupAliasType.class), anyLong());
+		doThrow(toBeThrown).when(mockBackupFileStream).writeBackupFile(any(MigrationType.class),any(OutputStream.class), any(Iterable.class), any(BackupAliasType.class), anyLong());
 		// call under test
 		List<MigratableDatabaseObject<?, ?>> stream = new LinkedList<>();
 		MigrationType type = MigrationType.NODE;
@@ -556,9 +556,10 @@ public class MigrationManagerImplTest {
 	
 	@Test
 	public void testBackupListRequest() throws IOException {
+		MigrationType primaryType = MigrationType.NODE;
  		// call under test
 		manager.backupRequest(mockUser, listRequest);
-		verify(mockBackupFileStream).writeBackupFile(eq(mockOutputStream), iterableCator.capture(), eq(backupAlias), eq(batchSize));
+		verify(mockBackupFileStream).writeBackupFile(eq(primaryType),eq(mockOutputStream), iterableCator.capture(), eq(backupAlias), eq(batchSize));
 		List<MigratableDatabaseObject<?, ?>> results = new LinkedList<>();
 		for(MigratableDatabaseObject<?, ?> object: iterableCator.getValue()) {
 			results.add(object);
@@ -624,9 +625,10 @@ public class MigrationManagerImplTest {
 	
 	@Test
 	public void testBackupRangeRequest() throws IOException {
+		MigrationType primaryType = MigrationType.NODE;
  		// call under test
 		manager.backupRequest(mockUser, rangeRequest);
-		verify(mockBackupFileStream).writeBackupFile(eq(mockOutputStream), iterableCator.capture(), eq(backupAlias), eq(batchSize));
+		verify(mockBackupFileStream).writeBackupFile(eq(primaryType),eq(mockOutputStream), iterableCator.capture(), eq(backupAlias), eq(batchSize));
 		List<MigratableDatabaseObject<?, ?>> results = new LinkedList<>();
 		for(MigratableDatabaseObject<?, ?> object: iterableCator.getValue()) {
 			results.add(object);

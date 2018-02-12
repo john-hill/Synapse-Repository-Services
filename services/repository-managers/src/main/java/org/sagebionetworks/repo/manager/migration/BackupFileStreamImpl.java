@@ -151,12 +151,15 @@ public class BackupFileStreamImpl implements BackupFileStream {
 	 * @see org.sagebionetworks.repo.manager.migration.BackupFileStream#writeBackupFile(java.io.OutputStream, java.lang.Iterable, org.sagebionetworks.repo.model.daemon.BackupAliasType, int)
 	 */
 	@Override
-	public void writeBackupFile(OutputStream out, Iterable<MigratableDatabaseObject<?,?>> stream, BackupAliasType backupAliasType,
+	public void writeBackupFile(MigrationType primaryType, OutputStream out, Iterable<MigratableDatabaseObject<?,?>> stream, BackupAliasType backupAliasType,
 			long maximumRowsPerFile) throws IOException {
+		ValidateArgument.required(primaryType, "primaryType");
 		ValidateArgument.required(out, "OutputStream");
 		ValidateArgument.required(stream, "Stream");
 		ValidateArgument.required(backupAliasType, "BackupAliasType");
 		ZipOutputStream zos = new ZipOutputStream(new BufferedOutputStream(out));
+		long primaryRowCount = 0;
+		long totalRowCount = 0;
 		try {
 			MigrationType currentType = null;
 			int index = 0;
@@ -169,6 +172,14 @@ public class BackupFileStreamImpl implements BackupFileStream {
 					// first row
 					currentType = row.getMigratableTableType();
 					currentBatch = new LinkedList<>();
+				}
+				// track the number of primary rows
+				if(primaryType.equals(currentType)) {
+					primaryRowCount++;
+				}
+				totalRowCount++;
+				if(primaryRowCount > 1 && totalRowCount > maximumRowsPerFile) {
+					
 				}
 
 				/*

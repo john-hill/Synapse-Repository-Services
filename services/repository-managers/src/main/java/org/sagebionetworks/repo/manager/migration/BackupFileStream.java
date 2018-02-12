@@ -6,6 +6,7 @@ import java.io.OutputStream;
 
 import org.sagebionetworks.repo.model.daemon.BackupAliasType;
 import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
+import org.sagebionetworks.repo.model.migration.MigrationType;
 
 /**
  * Abstraction for streaming migration backup files, for both creation an
@@ -41,6 +42,6 @@ public interface BackupFileStream {
 	 *            be started.
 	 * @throws IOException
 	 */
-	public void writeBackupFile(OutputStream out, Iterable<MigratableDatabaseObject<?,?>> stream, BackupAliasType backupAliasType,
+	public void writeBackupFile(MigrationType primaryType, OutputStream out, Iterable<MigratableDatabaseObject<?,?>> stream, BackupAliasType backupAliasType,
 			long maximumRowsPerFile) throws IOException;
 }

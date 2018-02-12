@@ -312,8 +312,9 @@ public class BackupFileStreamImplTest {
 	
 	@Test
 	public void testWriteBackupFileWithLargeMax() throws IOException {
+		MigrationType primaryType = MigrationType.NODE;
 		int maximumRowsPerFile = 100;
-		backupFileStream.writeBackupFile(byteArrayOutputStream, rowsToWrite, backupAliasType, maximumRowsPerFile);
+		backupFileStream.writeBackupFile(primaryType, byteArrayOutputStream, rowsToWrite, backupAliasType, maximumRowsPerFile);
 		// Read the results
 		ZipInputStream zipIn = new ZipInputStream(new ByteArrayInputStream(byteArrayOutputStream.toByteArray()));
 		ZipEntry entry = zipIn.getNextEntry();
@@ -329,8 +330,9 @@ public class BackupFileStreamImplTest {
 	
 	@Test
 	public void testWriteBackupFileWithSmallMax() throws IOException {
+		MigrationType primaryType = MigrationType.NODE;
 		int maximumRowsPerFile = 1;
-		backupFileStream.writeBackupFile(byteArrayOutputStream, rowsToWrite, backupAliasType, maximumRowsPerFile);
+		backupFileStream.writeBackupFile(primaryType, byteArrayOutputStream, rowsToWrite, backupAliasType, maximumRowsPerFile);
 		// Read the results
 		ZipInputStream zipIn = new ZipInputStream(new ByteArrayInputStream(byteArrayOutputStream.toByteArray()));
 		ZipEntry entry = zipIn.getNextEntry();
@@ -352,10 +354,11 @@ public class BackupFileStreamImplTest {
 	
 	@Test
 	public void testWriteThenReadSmallMax() throws IOException {
+		MigrationType primaryType = MigrationType.NODE;
 		backupAliasType = BackupAliasType.TABLE_NAME;
 		int maximumRowsPerFile = 1;
 		// call under test
-		backupFileStream.writeBackupFile(byteArrayOutputStream, rowsToWrite, backupAliasType, maximumRowsPerFile);
+		backupFileStream.writeBackupFile(primaryType, byteArrayOutputStream, rowsToWrite, backupAliasType, maximumRowsPerFile);
 		ByteArrayInputStream input = new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
 		// call under test
 		Iterable<MigratableDatabaseObject<?, ?>> resultIterator = backupFileStream.readBackupFile(input, backupAliasType);
@@ -368,10 +371,11 @@ public class BackupFileStreamImplTest {
 	
 	@Test
 	public void testWriteThenReadLargeMax() throws IOException {
+		MigrationType primaryType = MigrationType.NODE;
 		int maximumRowsPerFile = 1000;
 		backupAliasType = BackupAliasType.MIGRATION_TYPE_NAME;
 		// call under test
-		backupFileStream.writeBackupFile(byteArrayOutputStream, rowsToWrite, backupAliasType, maximumRowsPerFile);
+		backupFileStream.writeBackupFile(primaryType, byteArrayOutputStream, rowsToWrite, backupAliasType, maximumRowsPerFile);
 		ByteArrayInputStream input = new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
 		// call under test
 		Iterable<MigratableDatabaseObject<?, ?>> resultIterator = backupFileStream.readBackupFile(input, backupAliasType);
@@ -384,7 +388,8 @@ public class BackupFileStreamImplTest {
 	
 	@Test (expected=IllegalStateException.class)
 	public void testNextBeforeHasNext() throws IOException {
-		backupFileStream.writeBackupFile(byteArrayOutputStream, rowsToWrite, backupAliasType, maximumRowsPerFile);
+		MigrationType primaryType = MigrationType.NODE;
+		backupFileStream.writeBackupFile(primaryType, byteArrayOutputStream, rowsToWrite, backupAliasType, maximumRowsPerFile);
 		ByteArrayInputStream input = new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
 		Iterable<MigratableDatabaseObject<?, ?>> resultIterator = backupFileStream.readBackupFile(input, backupAliasType);
 		// calling next() before hasNext() should fail.
@@ -393,12 +398,13 @@ public class BackupFileStreamImplTest {
 	
 	@Test
 	public void testWriteExceptionClose() throws IOException {
+		MigrationType primaryType = MigrationType.NODE;
 		OutputStream mockOut = Mockito.mock(OutputStream.class);
 		Exception exception = new IOException("something");
 		doThrow(exception).when(mockOut).write(any(byte[].class), any(int.class), any(int.class));
 		// call under test
 		try {
-			backupFileStream.writeBackupFile(mockOut, rowsToWrite, backupAliasType, maximumRowsPerFile);
+			backupFileStream.writeBackupFile(primaryType, mockOut, rowsToWrite, backupAliasType, maximumRowsPerFile);
 			fail();
 		} catch (Exception e) {
 			// expected
@@ -432,10 +438,11 @@ public class BackupFileStreamImplTest {
 	 */
 	@Test
 	public void testPLFM_4829() throws IOException {
+		MigrationType primaryType = MigrationType.NODE;
 		// setup an empty stream
 		currentBatch = new LinkedList<>();
 		// call under test
-		backupFileStream.writeBackupFile(byteArrayOutputStream, currentBatch, backupAliasType, maximumRowsPerFile);
+		backupFileStream.writeBackupFile(primaryType, byteArrayOutputStream, currentBatch, backupAliasType, maximumRowsPerFile);
 		IOUtils.closeQuietly(zipOutputStream);
 		ByteArrayInputStream input = new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
 		// call under test

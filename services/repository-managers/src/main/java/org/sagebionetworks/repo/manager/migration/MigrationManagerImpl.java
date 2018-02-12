@@ -669,17 +669,17 @@ public class MigrationManagerImpl implements MigrationManager {
 	 * @return
 	 * @throws IOException 
 	 */
-	public BackupTypeResponse backupStreamToS3(MigrationType type, Iterable<MigratableDatabaseObject<?, ?>> dataStream, BackupAliasType aliasType, long batchSize) throws IOException {
+	public BackupTypeResponse backupStreamToS3(MigrationType primaryType, Iterable<MigratableDatabaseObject<?, ?>> dataStream, BackupAliasType aliasType, long batchSize) throws IOException {
 		// Stream all of the data to a local temporary file.
 		File temp = fileProvider.createTempFile("MigrationBackup", ".zip");
 		FileOutputStream fos = null;
 		try {
 			fos = fileProvider.createFileOutputStream(temp);
-			backupFileStream.writeBackupFile(fos, dataStream, aliasType, batchSize);
+			backupFileStream.writeBackupFile(primaryType, fos, dataStream, aliasType, batchSize);
 			fos.flush();
 			fos.close();
 			// Upload the file to S3
-			String key = createNewBackupKey(stack, instance, type);
+			String key = createNewBackupKey(stack, instance, primaryType);
 			s3Client.putObject(backupBucket, key, temp);
 			BackupTypeResponse response = new BackupTypeResponse();
 			response.setBackupFileKey(key);

@@ -22,7 +22,6 @@ import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.ActivityDAO;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
-import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.DockerNodeDao;
@@ -56,7 +55,7 @@ import org.sagebionetworks.repo.model.provenance.Activity;
 import org.sagebionetworks.repo.model.subscription.SubscriptionObjectType;
 import org.sagebionetworks.repo.model.util.DockerNameUtil;
 import org.sagebionetworks.repo.model.v2.dao.V2WikiPageDao;
-import org.sagebionetworks.repo.util.SignedTokenUtil;
+import org.sagebionetworks.repo.util.SignatureManager;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -110,7 +109,7 @@ public class AuthorizationManagerImpl implements AuthorizationManager {
 	@Autowired
 	private GroupMembersDAO groupMembersDao;
 	@Autowired
-	private MembershipInvitationDAO membershipInvitationDAO;
+	private SignatureManager signatureManager;
 
 	
 	@Override
@@ -663,7 +662,7 @@ public class AuthorizationManagerImpl implements AuthorizationManager {
 	public AuthorizationStatus canAccessMembershipInvitation(MembershipInvtnSignedToken token, ACCESS_TYPE accessType) {
 		String miId = token.getMembershipInvitationId();
 		try {
-			SignedTokenUtil.validateToken(token);
+			signatureManager.validateToken(token);
 		} catch (IllegalArgumentException e) {
 			return AuthorizationManagerUtil.accessDenied("Unauthorized to access membership invitation " + miId + "(" + e.getMessage() + ")");
 		}
@@ -677,7 +676,7 @@ public class AuthorizationManagerImpl implements AuthorizationManager {
 	public AuthorizationStatus canAccessMembershipInvitation(Long userId, InviteeVerificationSignedToken token, ACCESS_TYPE accessType) {
 		String miId = token.getMembershipInvitationId();
 		try {
-			SignedTokenUtil.validateToken(token);
+			signatureManager.validateToken(token);
 		} catch (IllegalArgumentException e) {
 			return AuthorizationManagerUtil.accessDenied("Unauthorized to access membership invitation " + miId + "(" + e.getMessage() + ")");
 		}

@@ -42,6 +42,7 @@ import org.sagebionetworks.repo.model.dbo.persistence.DBOCredential;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOTermsOfUseAgreement;
 import org.sagebionetworks.repo.model.provenance.Activity;
 import org.sagebionetworks.repo.model.subscription.SubscriptionObjectType;
+import org.sagebionetworks.repo.util.SignatureManager;
 import org.sagebionetworks.repo.util.SignedTokenUtil;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -78,6 +79,9 @@ public class AuthorizationManagerImplTest {
 
 	@Autowired
 	private TeamManager teamManager;
+	
+	@Autowired
+	private SignatureManager signatureManager;
 
 	private Collection<Node> nodeList = new ArrayList<Node>();
 	private Node node = null;
@@ -691,7 +695,7 @@ public class AuthorizationManagerImplTest {
 	public void testCanAccessMembershipInvitationWithMembershipInvtnSignedToken() {
 		MembershipInvtnSignedToken token = new MembershipInvtnSignedToken();
 		token.setMembershipInvitationId("validId");
-		SignedTokenUtil.signToken(token);
+		signatureManager.signToken(token);
 
 		for (ACCESS_TYPE accessType : ACCESS_TYPE.values()) {
 			AuthorizationStatus status = authorizationManager.canAccessMembershipInvitation(token, accessType);
@@ -714,7 +718,7 @@ public class AuthorizationManagerImplTest {
 		InviteeVerificationSignedToken token = new InviteeVerificationSignedToken();
 		token.setInviteeId(userId.toString());
 		token.setMembershipInvitationId("validId");
-		SignedTokenUtil.signToken(token);
+		signatureManager.signToken(token);
 
 		for (ACCESS_TYPE accessType : ACCESS_TYPE.values()) {
 			// Only updating is allowed

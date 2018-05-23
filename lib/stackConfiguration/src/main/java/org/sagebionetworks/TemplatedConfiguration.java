@@ -66,15 +66,6 @@ public interface TemplatedConfiguration {
 	public String getPropertyOverridesFileURL();
 
 	/**
-	 * The encryption key used to read passwords in the configuration property
-	 * file.
-	 * 
-	 * @return encryption key used to read passwords in the configuration
-	 *         property file
-	 */
-	public String getEncryptionKey();
-
-	/**
 	 * The name of the stack.
 	 * 
 	 * @return name of the stack

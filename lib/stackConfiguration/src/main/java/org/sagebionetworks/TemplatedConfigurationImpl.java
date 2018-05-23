@@ -58,10 +58,6 @@ public class TemplatedConfigurationImpl implements TemplatedConfiguration {
 						value);
 			}
 		}
-		
-		// These three properties are required. If they are null, an exception
-		// will be thrown
-		getEncryptionKey();
 		String stack = getStack();
 		String stackInstance = getStackInstance();
 
@@ -224,17 +220,6 @@ public class TemplatedConfigurationImpl implements TemplatedConfiguration {
 		if (url == null)
 			url = System.getProperty(StackConstants.STACK_PROPERTY_FILE_URL);
 		return url;
-	}
-
-	@Override
-	public String getEncryptionKey() {
-		String ek = System.getProperty(StackConstants.PARAM2);
-		if (ek == null)
-			ek = System.getProperty(StackConstants.STACK_ENCRYPTION_KEY);
-		if (ek == null)
-			throwRequiredPropertyException(StackConstants.STACK_ENCRYPTION_KEY,
-					StackConstants.PARAM2);
-		return ek;
 	}
 
 	@Override

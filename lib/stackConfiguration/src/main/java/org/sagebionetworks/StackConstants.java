@@ -10,7 +10,6 @@ public class StackConstants {
 	static final String S3_PROPERTY_FILENAME_PREFIX = "https://s3.amazonaws.com";
 
 	static final String STACK_PROPERTY_FILE_URL 	= "org.sagebionetworks.stack.configuration.url";
-	static final String STACK_ENCRYPTION_KEY		 = "org.sagebionetworks.stackEncryptionKey";
 	
 	static final String STACK_PROPERTY_NAME 			= "org.sagebionetworks.stack";
 	static final String STACK_INSTANCE_PROPERTY_NAME 	= "org.sagebionetworks.stack.instance";

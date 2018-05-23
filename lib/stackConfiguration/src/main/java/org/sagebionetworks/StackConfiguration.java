@@ -169,13 +169,6 @@ public class StackConfiguration {
 
 	}
 
-	/**
-	 * @return the encryption key for this stack
-	 */
-	public static String getEncryptionKey() {
-		return configuration.getEncryptionKey();
-	}
-
 	public static String getAuthenticationServicePrivateEndpoint() {
 		return configuration.getAuthenticationServicePrivateEndpoint();
 	}

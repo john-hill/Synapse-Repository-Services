@@ -9,7 +9,7 @@ import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 import org.sagebionetworks.schema.adapter.org.json.EntityFactory;
 import org.sagebionetworks.securitytools.HMACUtils;
 
-public class SignedTokenUtil {
+private class SignedTokenUtil {
 		
 	private static final String ENCRYPTION_CHARSET = Charset.forName("utf-8").name();
 

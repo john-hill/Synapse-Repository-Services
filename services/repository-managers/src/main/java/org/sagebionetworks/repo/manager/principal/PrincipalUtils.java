@@ -8,7 +8,7 @@ import org.sagebionetworks.repo.model.principal.EmailValidationSignedToken;
 import org.sagebionetworks.repo.util.SignedTokenUtil;
 import org.sagebionetworks.util.ValidateArgument;
 
-public class PrincipalUtils {
+private class PrincipalUtils {
 	public static final long EMAIL_VALIDATION_TIME_LIMIT_MILLIS = 24*3600*1000L; // 24 hours as milliseconds
 
 	protected static AccountCreationToken createAccountCreationToken(NewUser user, Date now) {

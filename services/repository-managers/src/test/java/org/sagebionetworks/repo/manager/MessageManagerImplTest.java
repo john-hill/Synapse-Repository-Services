@@ -83,6 +83,9 @@ import com.amazonaws.services.simpleemail.model.SendRawEmailRequest;
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
 public class MessageManagerImplTest {
 	
+	public static final String MESSAGE_SUBJECT_FOR_FAILURE = "generatefailure";
+	public static final String TRANSMISSION_FAILURE = "transmission failure";
+	
 	private MessageManagerImpl messageManager;
 	
 	@Autowired
@@ -429,7 +432,7 @@ public class MessageManagerImplTest {
 		// the message subject tells the stubbed client to create a failure
 		final String testUserId = testUser.getId().toString();
 		final String otherTestUserId = otherTestUser.getId().toString();
-		MessageToUser aMessage = createMessage(testUser, StubAmazonSimpleEmailServiceClient.MESSAGE_SUBJECT_FOR_FAILURE, 
+		MessageToUser aMessage = createMessage(testUser, MESSAGE_SUBJECT_FOR_FAILURE, 
 				new HashSet<String>() {{add(testUserId); add(otherTestUserId);}}, null);
 		
 		List<MessageBundle> inbox = null;
@@ -446,7 +449,7 @@ public class MessageManagerImplTest {
 		// check that the stubbed client -- 2 failures for the two recipients
 		assertEquals(2, errors.size());
 		for (String message : errors) {
-			assertTrue(message.indexOf(StubAmazonSimpleEmailServiceClient.TRANSMISSION_FAILURE)>=0);
+			assertTrue(message.indexOf(TRANSMISSION_FAILURE)>=0);
 		}
 		
 		// even though the message is not sent by email, it does appear in the in-box

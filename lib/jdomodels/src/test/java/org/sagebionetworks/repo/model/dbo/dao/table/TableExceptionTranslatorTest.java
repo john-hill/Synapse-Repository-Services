@@ -7,6 +7,7 @@ import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Mockito.when;
 
 import java.sql.SQLException;
+import java.sql.SQLSyntaxErrorException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -22,7 +23,6 @@ import org.springframework.jdbc.UncategorizedSQLException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.google.common.collect.Sets;
-import com.mysql.jdbc.exceptions.jdbc4.MySQLSyntaxErrorException;
 
 @RunWith(MockitoJUnitRunner.class)
 public class TableExceptionTranslatorTest {
@@ -60,7 +60,7 @@ public class TableExceptionTranslatorTest {
 		
 		task = "PreparedStatementCallback";
 		sql = "SELECT _C36450_, _C36451_, _C36452_, _C36453_, ROW_ID, ROW_VERSION FROM T3079449 WHERE parentld = Clinical_Data LIMIT ? OFFSET ?";
-		MySQLSyntaxErrorException syntaxException = new MySQLSyntaxErrorException("Unknown column '_C123_' in 'where clause'");
+		SQLSyntaxErrorException syntaxException = new SQLSyntaxErrorException("Unknown column '_C123_' in 'where clause'");
 		badSqlException = new BadSqlGrammarException(task, sql, syntaxException);
 	}
 	

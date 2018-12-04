@@ -22,6 +22,11 @@ import org.sagebionetworks.securitytools.PBKDF2Utils;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import me.gosimple.nbvcxz.Nbvcxz;
+import me.gosimple.nbvcxz.resources.Feedback;
+import me.gosimple.nbvcxz.scoring.Result;
+import me.gosimple.nbvcxz.scoring.TimeEstimate;
+
 public class AuthenticationManagerImpl implements AuthenticationManager {
 	public static final String LOGIN_FAIL_ATTEMPT_METRIC_UNIT = "Count";
 
@@ -219,5 +224,27 @@ public class AuthenticationManagerImpl implements AuthenticationManager {
 		byte[] salt = authDAO.getPasswordSalt(principalId);
 		String passHash = PBKDF2Utils.hashPassword(password, salt);
 		authDAO.checkUserCredentials(principalId, passHash);
+	}
+	
+	public static void passwordStrength(String password) {
+
+	}
+	
+	public static void main(String[] args) {
+		// With all defaults...
+		Nbvcxz nbvcxz = new Nbvcxz();
+		Result result = nbvcxz.estimate(args[0]);
+		String timeToCrackOn = TimeEstimate.getTimeToCrackFormatted(result, "ONLINE_THROTTLED");
+		Feedback feedback = result.getFeedback();
+		StringBuilder errorMessage = new StringBuilder();
+		if (feedback != null) {
+			if (feedback.getWarning() != null)
+				errorMessage.append("<br>Warning: ").append(feedback.getWarning());
+			for (String suggestion : feedback.getSuggestion()) {
+				errorMessage.append("<br>Suggestion: ").append(suggestion);
+			}
+		}
+		System.out.println("Time to crack: " + timeToCrackOn);
+		System.out.println(errorMessage);
 	}
 }

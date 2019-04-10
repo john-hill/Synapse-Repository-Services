@@ -18,7 +18,7 @@ public class TransactionBackfill {
 
 	public static long ONE_MINUTE_MS = 1000L * 60L;
 	
-	public static long BATCH_SIZE = 100;
+	public static long BATCH_SIZE = 1000;
 
 	JdbcTemplate idGenTemplate;
 	JdbcTemplate dbTemplate;

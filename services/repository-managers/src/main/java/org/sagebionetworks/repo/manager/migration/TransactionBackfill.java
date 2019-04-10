@@ -1,21 +1,30 @@
 package org.sagebionetworks.repo.manager.migration;
 
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
 import org.apache.commons.dbcp2.BasicDataSource;
 import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.core.RowMapper;
 
 public class TransactionBackfill {
 
 	public static long ONE_MINUTE_MS = 1000L * 60L;
+	
+	public static long BATCH_SIZE = 100;
 
 	JdbcTemplate idGenTemplate;
 	JdbcTemplate dbTemplate;
+	BatchIdGenerator idGenerator;
+	ArrayList<TableRowChange> transactionsToCreate;
+	ArrayList<TableRowChange> changesToUpdate;
 
 	public TransactionBackfill(String[] args) throws SQLException {
 		// Id generator connection.
@@ -38,6 +47,9 @@ public class TransactionBackfill {
 		long transactionCount = dbTemplate.queryForObject("SELECT COUNT(*) FROM TABLE_ROW_CHANGE WHERE TRX_ID IS NULL",
 				Long.class, null);
 		System.out.println("SELECT COUNT(*) FROM TABLE_ROW_CHANGE WHERE TRX_ID IS NULL: " + transactionCount);
+		idGenerator = new BatchIdGenerator();
+		transactionsToCreate = new ArrayList<>();
+		changesToUpdate = new ArrayList<>();
 	}
 
 	/**
@@ -50,7 +62,14 @@ public class TransactionBackfill {
 		while (changesMissingTransactions.hasNext()) {
 			TableRowChange next = changesMissingTransactions.next();
 			lastChange = findOrCreateTransaction(next, lastChange);
+			this.changesToUpdate.add(lastChange);
 			System.out.println(lastChange);
+			if(this.changesToUpdate.size() >= BATCH_SIZE) {
+				pushBatches();
+			}
+		}
+		if(this.changesToUpdate.size() > 0) {
+			pushBatches();
 		}
 	}
 
@@ -73,7 +92,6 @@ public class TransactionBackfill {
 			transactionId = startTransactionForChange(rowChange);
 		}
 		// Assign the transaction ID to this change.
-		setChangeTransactionId(rowChange, transactionId);
 		rowChange.transactionId = transactionId;
 		return rowChange;
 	}
@@ -107,11 +125,10 @@ public class TransactionBackfill {
 	 */
 	public long startTransactionForChange(TableRowChange rowChange) {
 		// Generate a new ID
-		idGenTemplate.update("INSERT INTO TABLE_TRANSACTION_ID (CREATED_ON) VALUES (?)", System.currentTimeMillis());
-		long trxId = idGenTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
-		// Apply the id
-		dbTemplate.update("INSERT INTO TABLE_TRANSACTION " + "(TRX_ID,TABLE_ID,STARTED_BY,STARTED_ON) VALUES (?,?,?,?)",
-				trxId, rowChange.tableId, rowChange.createdBy, rowChange.createdOn);
+		long trxId = idGenerator.getNextId();
+		rowChange.transactionId = trxId;
+		// add this to the batch.
+		this.transactionsToCreate.add(rowChange);
 		return trxId;
 	}
 
@@ -144,14 +161,82 @@ public class TransactionBackfill {
 	}
 
 	/**
-	 * Set the transaction ID for the given table change.
+	 * Set a batch the transaction IDs for the given batch of TableRowChange.
 	 * 
 	 * @param rowChange
 	 * @param transactionId
 	 */
-	public void setChangeTransactionId(TableRowChange rowChange, long transactionId) {
-		dbTemplate.update("UPDATE TABLE_ROW_CHANGE SET TRX_ID = ? WHERE TABLE_ID = ? AND ROW_VERSION = ?",
-				transactionId, rowChange.tableId, rowChange.rowVersion);
+	public void pushBatches() {
+		dbTemplate.update("START TRANSACTION");
+		// create the transactions
+		dbTemplate.batchUpdate("INSERT INTO TABLE_TRANSACTION (TRX_ID,TABLE_ID,STARTED_BY,STARTED_ON) VALUES (?,?,?,?)", new BatchPreparedStatementSetter() {
+			
+			@Override
+			public void setValues(PreparedStatement ps, int i) throws SQLException {
+				TableRowChange trx = transactionsToCreate.get(i);
+				int index = 1;
+				ps.setLong(index++, trx.transactionId);
+				ps.setLong(index++, trx.tableId);
+				ps.setLong(index++, trx.createdBy);
+				ps.setLong(index++, trx.createdOn);
+			}
+			
+			@Override
+			public int getBatchSize() {
+				return transactionsToCreate.size();
+			}
+		});
+		transactionsToCreate.clear();
+		
+		// update the changes to point to the transactions
+		dbTemplate.batchUpdate("UPDATE TABLE_ROW_CHANGE SET TRX_ID = ? WHERE TABLE_ID = ? AND ROW_VERSION = ?",
+				new BatchPreparedStatementSetter() {
+
+					@Override
+					public void setValues(PreparedStatement ps, int i) throws SQLException {
+						TableRowChange row = changesToUpdate.get(i);
+						int index = 1;
+						ps.setLong(index++, row.transactionId);
+						ps.setLong(index++, row.tableId);
+						ps.setLong(index++, row.rowVersion);
+					}
+
+					@Override
+					public int getBatchSize() {
+						return changesToUpdate.size();
+					}
+				});
+		changesToUpdate.clear();
+		dbTemplate.update("COMMIT");
+	}
+	
+	/**
+	 * Fetch a batch of ID and return them one at a time.
+	 *
+	 */
+	public class BatchIdGenerator {
+		
+		Long firstIdInRange;
+		Long lastIdInRange;
+		long nextValue = -1;
+		
+		public long getNextId() {
+			if(lastIdInRange == null || lastIdInRange == null || nextValue > lastIdInRange) {
+				createNextBatchOfIds();
+			}
+			return nextValue++;
+		}
+		
+		private void createNextBatchOfIds() {
+			idGenTemplate.query("CALL allocateTransactionIdRange("+BATCH_SIZE+")", new RowCallbackHandler() {
+				@Override
+				public void processRow(ResultSet rs) throws SQLException {
+					firstIdInRange = rs.getLong("FIST_ID");
+					lastIdInRange = rs.getLong("LAST_ID");
+					nextValue = firstIdInRange;
+				}
+			});
+		}
 	}
 
 	/**

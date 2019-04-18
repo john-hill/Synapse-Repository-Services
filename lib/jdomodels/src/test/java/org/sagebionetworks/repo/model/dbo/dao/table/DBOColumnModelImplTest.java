@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 
 import org.apache.commons.codec.binary.Hex;
@@ -26,6 +27,7 @@ import org.sagebionetworks.repo.model.dbo.persistence.table.ColumnModelUtils;
 import org.sagebionetworks.repo.model.dbo.persistence.table.DBOColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
+import org.sagebionetworks.repo.model.table.FacetType;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -474,6 +476,46 @@ public class DBOColumnModelImplTest {
 		column.setColumnType(ColumnType.STRING);
 		column.setMaximumSize(10L);
 		columnModelDao.createColumnModel(column).getId();
+	}
+	
+	@Test
+	public void testReadSpeed() {
+		int stringSize = 1000;
+		Random random = new Random();
+		List<ColumnModel> schema = new LinkedList<>();
+		for(int i=0; i<50; i++) {
+			ColumnModel cm = new ColumnModel();
+			cm.setName("SomeColumnNamesAreLongerThanOhters"+i);
+			cm.setColumnType(ColumnType.STRING);
+			//This is where a column can get large
+			List<String> enums = new LinkedList<>();
+			for(int j=0; j<100; j++) {
+				// add random values to hinder compression
+				char[] chars = new char[stringSize];
+				for(int k=0; k<stringSize; k++) {
+					chars[k] = (char) random.nextInt(255);
+				}
+				enums.add(new String(chars));
+			}
+			cm.setEnumValues(enums);
+			cm.setFacetType(FacetType.enumeration);
+			cm.setMaximumSize((long) stringSize);
+			cm = columnModelDao.createColumnModel(cm);
+			schema.add(cm);
+		}
+		String tableId = "123456";
+		columnModelDao.bindColumnToObject(schema, tableId);
+		
+		// Calculate the time to get the schema
+		int numberOfTries = 100;
+		long sum = 0;
+		for(int i=0; i<numberOfTries; i++) {
+			long start = System.currentTimeMillis();
+			List<ColumnModel> result = columnModelDao.getColumnModelsForObject(tableId);
+			sum += System.currentTimeMillis() - start;
+			assertNotNull(result);
+		}
+		System.out.println("Average MS: "+(sum/numberOfTries));
 	}
 
 }

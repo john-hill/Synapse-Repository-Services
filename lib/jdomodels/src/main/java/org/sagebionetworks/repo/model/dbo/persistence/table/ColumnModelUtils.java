@@ -19,15 +19,23 @@ import java.util.zip.GZIPOutputStream;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.sagebionetworks.repo.model.registry.FieldDescription;
 import org.sagebionetworks.repo.model.table.ColumnChange;
 import org.sagebionetworks.repo.model.table.ColumnModel;
+import org.sagebionetworks.repo.model.table.ColumnModelProtoOuterClass.ColumnModelProto;
+import org.sagebionetworks.repo.model.table.ColumnModelProtoOuterClass.ColumnModelProto.Builder;
+import org.sagebionetworks.repo.model.table.ColumnModelProtoOuterClass.ColumnModelProto.ColumnTypeProto;
+import org.sagebionetworks.repo.model.table.ColumnModelProtoOuterClass.ColumnModelProto.FacetTypeProto;
 import org.sagebionetworks.repo.model.table.ColumnType;
+import org.sagebionetworks.repo.model.table.FacetType;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 import org.sagebionetworks.schema.adapter.org.json.EntityFactory;
 import org.sagebionetworks.table.cluster.utils.ColumnConstants;
 import org.sagebionetworks.table.cluster.utils.TableModelUtils;
 
 import com.google.common.collect.Lists;
+import com.google.protobuf.Descriptors.FieldDescriptor;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.thoughtworks.xstream.XStream;
 
 /**
@@ -43,6 +51,10 @@ public class ColumnModelUtils {
 	 */
 	public static Long DEFAULT_MAX_STRING_SIZE = 50L;
 	public static final Charset UTF8 = Charset.forName("UTF-8");
+	
+	public static final FieldDescriptor FIELD_DEFAULT_VALUE = ColumnModelProto.getDescriptor().findFieldByNumber(ColumnModelProto.DEFAULTVALUE_FIELD_NUMBER);
+	public static final FieldDescriptor FIELD_MAX_SIZE = ColumnModelProto.getDescriptor().findFieldByNumber(ColumnModelProto.MAXIMUMSIZE_FIELD_NUMBER);
+	public static final FieldDescriptor FIELD_COLUMN_ID = ColumnModelProto.getDescriptor().findFieldByNumber(ColumnModelProto.ID_FIELD_NUMBER);
 
 	/**
 	 * Translate from a DTO to DBO.
@@ -63,15 +75,80 @@ public class ColumnModelUtils {
 			IOUtils.closeQuietly(zipWriter);
 			DBOColumnModel dbo = new DBOColumnModel();
 			dbo.setBytes(out.toByteArray());
+//			dbo.setBytes(ColumnModelUtils.writeToProtoBuffer(dto));
 			dbo.setName(normal.getName());
 			dbo.setHash(hash);
 			if(dto.getId() != null){
 				dbo.setId(Long.parseLong(dto.getId()));
 			}
 			return dbo;
-		} catch (IOException e) {
+		} 
+		catch (IOException e) {
 			throw new RuntimeException(e);
 		}
+	}
+	
+	
+	/**
+	 * Write the given ColumnModel to bytes using a Protocol Buffer.
+	 * 
+	 * @param dto
+	 * @return
+	 */
+	public static byte[] writeToProtoBuffer(ColumnModel dto) {
+		Builder builder = ColumnModelProto.newBuilder();
+		if(dto.getId() != null) {
+			builder.setId(Long.parseLong(dto.getId()));
+		}
+		builder.setName(dto.getName());
+		if(dto.getDefaultValue() != null) {
+			builder.setDefaultValue(dto.getDefaultValue());
+		}
+		if(dto.getColumnType() != null) {
+			builder.setColumnType(ColumnTypeProto.valueOf(dto.getColumnType().name()));
+		}
+		if(dto.getMaximumSize() != null) {
+			builder.setMaximumSize(dto.getMaximumSize());
+		}
+		if(dto.getEnumValues() != null) {
+			builder.addAllEnumValues(dto.getEnumValues());
+		}
+		if(dto.getFacetType() != null) {
+			builder.setFacetType(FacetTypeProto.valueOf(dto.getFacetType().name()));
+		}else {
+			// Protocol buffers do not allow null enumerations values.
+			builder.setFacetType(FacetTypeProto._null);
+		}
+		return builder.build().toByteArray();
+	}
+	
+	/**
+	 * Read the given protocol buffer bytes into its ColumnModel.
+	 * @param bytes
+	 * @return
+	 * @throws InvalidProtocolBufferException 
+	 */
+	public static ColumnModel readFromProtoBuffer(byte[] data) throws InvalidProtocolBufferException {
+		ColumnModelProto message = ColumnModelProto.parseFrom(data);
+		ColumnModel results = new ColumnModel();
+		results.setName(message.getName());
+		if(message.hasField(FIELD_COLUMN_ID)) {
+			results.setId(Long.toString(message.getId()));
+		}
+		if(message.hasField(FIELD_DEFAULT_VALUE)) {
+			results.setDefaultValue(message.getDefaultValue());
+		}
+		results.setColumnType(ColumnType.valueOf(message.getColumnType().name()));
+		if(message.getEnumValuesCount() > 0) {
+			results.setEnumValues(message.getEnumValuesList());
+		}
+		if(FacetTypeProto._null != message.getFacetType()) {
+			results.setFacetType(FacetType.valueOf(message.getFacetType().name()));
+		}
+		if(message.hasField(FIELD_MAX_SIZE)) {
+			results.setMaximumSize(message.getMaximumSize());
+		}
+		return results;
 	}
 	
 	/**
@@ -88,6 +165,8 @@ public class ColumnModelUtils {
 			ByteArrayInputStream in = new ByteArrayInputStream(dbo.getBytes());
 			GZIPInputStream zip = new GZIPInputStream(in);
 			ColumnModel model = (ColumnModel) xstream.fromXML(zip, new ColumnModel());
+//			ColumnModel model = ColumnModelUtils.readFromProtoBuffer(dbo.getBytes());
+			System.out.println("ColumnModel bytes size: "+dbo.getBytes().length);
 			model.setId(Long.toString(dbo.getId()));
 			return model;
 		} catch (IOException e) {

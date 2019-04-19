@@ -23,11 +23,13 @@ import org.sagebionetworks.StackConfigurationSingleton;
 import org.sagebionetworks.repo.model.table.ColumnChange;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
+import org.sagebionetworks.repo.model.table.FacetType;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 import org.sagebionetworks.schema.generator.EffectiveSchemaUtil;
 import org.sagebionetworks.table.cluster.utils.ColumnConstants;
 
 import com.google.common.collect.Lists;
+import com.google.protobuf.InvalidProtocolBufferException;
 
 public class ColumnModelUtlisTest {
 	
@@ -309,6 +311,37 @@ public class ColumnModelUtlisTest {
 		ByteArrayInputStream in = new ByteArrayInputStream(out.toByteArray());
 		List<ColumnChange> results = ColumnModelUtils.readSchemaChangeFromGz(in);
 		assertEquals(changes, results);
+	}
+	
+	@Test
+	public void testColumnModelProtocolBufferRoundTrip() throws InvalidProtocolBufferException {
+		ColumnModel cm = new ColumnModel();
+		cm.setName("this is my name");
+		cm.setColumnType(ColumnType.STRING);
+		cm.setDefaultValue("some default value");
+		cm.setId("123");
+		cm.setMaximumSize(1000L);
+		cm.setEnumValues(Lists.newArrayList("one", "two"));
+		cm.setFacetType(FacetType.enumeration);
+		// to bytes
+		byte[] data = ColumnModelUtils.writeToProtoBuffer(cm);
+		ColumnModel clone = ColumnModelUtils.readFromProtoBuffer(data);
+		assertEquals(cm, clone);
+	}
+	
+	@Test
+	public void testColumnModelProtocolBufferRoundTripOptionalFields() throws InvalidProtocolBufferException {
+		ColumnModel cm = new ColumnModel();
+		cm.setName("name");
+		cm.setColumnType(ColumnType.BOOLEAN);
+		cm.setId(null);
+		cm.setDefaultValue(null);
+		cm.setMaximumSize(null);
+		cm.setEnumValues(null);
+		// to bytes
+		byte[] data = ColumnModelUtils.writeToProtoBuffer(cm);
+		ColumnModel clone = ColumnModelUtils.readFromProtoBuffer(data);
+		assertEquals(cm, clone);
 	}
 
 }

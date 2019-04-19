@@ -62,6 +62,14 @@
 			<artifactId>database-semaphore</artifactId>
 		</dependency>
 		<dependency>
+			<groupId>org.sagebionetworks</groupId>
+			<artifactId>synapse-protocol-buffers</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.google.protobuf</groupId>
+			<artifactId>protobuf-java</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>javax.transaction</groupId>
 			<artifactId>jta</artifactId>
 			<version>1.1</version>

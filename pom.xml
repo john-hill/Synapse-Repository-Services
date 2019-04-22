@@ -430,11 +430,6 @@
 				<artifactId>schema-to-pojo-gwt</artifactId>
 				<version>${schema-to-pojo.version}</version>
 			</dependency>
-			<dependency>
-				<groupId>org.sagebionetworks</groupId>
-				<artifactId>synapse-protocol-buffers</artifactId>
-				<version>1.0</version>
-			</dependency>
 			<!-- https://mvnrepository.com/artifact/com.google.protobuf/protobuf-java -->
 			<dependency>
 				<groupId>com.google.protobuf</groupId>

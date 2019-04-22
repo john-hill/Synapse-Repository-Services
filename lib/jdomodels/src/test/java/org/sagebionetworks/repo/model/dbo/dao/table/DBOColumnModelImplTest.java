@@ -17,6 +17,7 @@ import java.util.Random;
 import java.util.Set;
 
 import org.apache.commons.codec.binary.Hex;
+import org.apache.commons.text.RandomStringGenerator;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -493,7 +494,7 @@ public class DBOColumnModelImplTest {
 				// add random values to hinder compression
 				char[] chars = new char[stringSize];
 				for(int k=0; k<stringSize; k++) {
-					chars[k] = (char) random.nextInt(255);
+					chars[k] = (char) ('a'+random.nextInt(47));
 				}
 				enums.add(new String(chars));
 			}
@@ -505,6 +506,8 @@ public class DBOColumnModelImplTest {
 		}
 		String tableId = "123456";
 		columnModelDao.bindColumnToObject(schema, tableId);
+		
+		System.out.println(schema.toString());
 		
 		// Calculate the time to get the schema
 		int numberOfTries = 100;

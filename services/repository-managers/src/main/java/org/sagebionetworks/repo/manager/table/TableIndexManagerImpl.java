@@ -1,12 +1,15 @@
 package org.sagebionetworks.repo.manager.table;
 
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
 import org.sagebionetworks.common.util.progress.ProgressCallback;
+import org.sagebionetworks.repo.manager.table.change.TableChange;
 import org.sagebionetworks.repo.model.NextPageToken;
+import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnModelPage;
@@ -352,6 +355,11 @@ public class TableIndexManagerImpl implements TableIndexManager {
 		results.setNextPageToken(token.getNextPageTokenForCurrentResults(columns));
 		results.setResults(columns);
 		return results;
+	}
+	@Override
+	public void buildTableIndex(IdAndVersion idAndVersion, Long maxChangeNumber, Iterator<TableChange> allChanges) {
+		// TODO Auto-generated method stub
+		
 	}
 
 }

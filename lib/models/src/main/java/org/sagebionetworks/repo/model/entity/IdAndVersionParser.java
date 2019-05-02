@@ -1,11 +1,11 @@
 package org.sagebionetworks.repo.model.entity;
 
 /**
- * EntityId::= [syn]<id>[.<version>]
+ * Synapse ID and version string::= [syn]<id>[.<version>]
  *
  * This instance will parse the string in a single pass.
  */
-public class EntityIdParser {
+public class IdAndVersionParser {
 
 	// Null char is used to indicate parser termination.
 	private static final int NULL_CHAR = 0x0;
@@ -13,9 +13,9 @@ public class EntityIdParser {
 	private int index;
 	private char[] chars;
 	private char currentChar;
-	EntityIdBuilder builder;
+	IdAndVersionBuilder builder;
 
-	EntityIdParser(String toParse) {
+	IdAndVersionParser(String toParse) {
 		if (toParse == null) {
 			throw new IllegalArgumentException("Id string cannot be null");
 		}
@@ -32,9 +32,9 @@ public class EntityIdParser {
 	 * 
 	 * @return
 	 */
-	EntityId parse() {
+	IdAndVersion parse() {
 		try {
-			EntityIdBuilder builder = new EntityIdBuilder();
+			IdAndVersionBuilder builder = new IdAndVersionBuilder();
 			// ignore starting white space
 			consumeWhiteSpace();
 			// skip 'syn' if present.
@@ -179,8 +179,8 @@ public class EntityIdParser {
 	 * @param toParse
 	 * @return
 	 */
-	public static EntityId parseEntityId(String toParse) {
-		EntityIdParser parser = new EntityIdParser(toParse);
+	public static IdAndVersion parseEntityId(String toParse) {
+		IdAndVersionParser parser = new IdAndVersionParser(toParse);
 		return parser.parse();
 	}
 }

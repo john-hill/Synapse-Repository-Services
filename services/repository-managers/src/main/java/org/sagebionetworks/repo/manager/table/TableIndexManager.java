@@ -1,9 +1,12 @@
 package org.sagebionetworks.repo.manager.table;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
 import org.sagebionetworks.common.util.progress.ProgressCallback;
+import org.sagebionetworks.repo.manager.table.change.TableChange;
+import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnModelPage;
 import org.sagebionetworks.repo.model.table.ViewScope;
@@ -187,6 +190,16 @@ public interface TableIndexManager {
 	 * @return A ColumnModel for each distinct annotation for the given scope.
 	 */
 	public ColumnModelPage getPossibleColumnModelsForView(String viewId, String nextPageToken);
+	
+	/**
+	 * Build an index for the given table entity ID up to and including the given change number.
+	 * If the maxChangeNumber is null then all changes will be applied to the index.
+	 * 
+	 * @param idAndVersion
+	 * @param maxChangeNumber
+	 * @param allChanges
+	 */
+	public void buildTableIndex(IdAndVersion idAndVersion, Long maxChangeNumber, Iterator<TableChange> allChanges);
 	
 
 }

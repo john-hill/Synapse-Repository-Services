@@ -777,6 +777,10 @@ public class TableEntityManagerImpl implements TableEntityManager {
 		// This is a change.
 		tableManagerSupport.touchTable(userInfo, tableId);
 		List<ColumnModel> newSchema = columModelManager.bindColumnsToDefaultVersionOfObject(newSchemaIds, tableId);
+		// also bind the schema to the current version of the table.
+		long currentVersion = nodeManager.getCurrentRevisionNumbers(tableId);
+		columModelManager.bindColumnsToVersionOfObject(newSchemaIds,
+				IdAndVersion.newBuilder().setId(KeyFactory.stringToKey(tableId)).setVersion(currentVersion).build());
 		tableRowTruthDao.appendSchemaChangeToTable("" + userInfo.getId(), tableId, newSchemaIds, changes,
 				transactionId);
 		IdAndVersion idAndVersion = IdAndVersion.parse(tableId);

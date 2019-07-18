@@ -346,4 +346,57 @@ public class EntityServiceImplAutowiredTestNew  {
 		assertNotNull(optional);
 		assertFalse(optional.isPresent());
 	}
+	
+	/**
+	 * Test for PLFM-5685.  Getting a previous version of an entity should include
+	 * the schema that matches that version, and not the current version.
+	 */
+	@Test
+	public void testGetTableEntityVersion() {
+		ColumnModel columnTwo = new ColumnModel();
+		columnTwo.setColumnType(ColumnType.STRING);
+		columnTwo.setMaximumSize(5L);
+		columnTwo.setName("aString");
+		columnTwo = columnModelManager.createColumnModel(adminUserInfo, columnTwo);
+		
+		List<String> schemaV1 = Lists.newArrayList(column.getId(), columnTwo.getId());
+		List<String> schemaV2 = Lists.newArrayList(columnTwo.getId());
+		List<String> schemaCurrent = Lists.newArrayList(column.getId());
+		
+		TableEntity table = new TableEntity();
+		table.setParentId(project.getId());
+		table.setName("SampleTable");
+		table.setColumnIds(schemaV1);
+		
+		table = entityService.createEntity(adminUserId, table, null);
+		long v1 = table.getVersionNumber();
+		assertEquals(schemaV1, table.getColumnIds());
+		
+		// create v2
+		String activityId = null;
+		boolean newVersion = true;
+		table.setColumnIds(schemaV2);
+		table.setVersionLabel(null);
+		table = entityService.updateEntity(adminUserId, table, newVersion, activityId);
+		long v2 = table.getVersionNumber();
+		assertEquals(schemaV2, table.getColumnIds());
+		
+		// create current
+		table.setColumnIds(schemaCurrent);
+		table.setVersionLabel(null);
+		table = entityService.updateEntity(adminUserId, table, newVersion, activityId);
+		assertEquals(schemaCurrent, table.getColumnIds());
+		long vCurrent = table.getVersionNumber();
+		
+		// calls under test
+		table = entityService.getEntityForVersion(adminUserId, table.getId(), v1, TableEntity.class);
+		assertEquals(schemaV1, table.getColumnIds());
+		table = entityService.getEntityForVersion(adminUserId, table.getId(), v2, TableEntity.class);
+		assertEquals(schemaV2, table.getColumnIds());
+		table = entityService.getEntityForVersion(adminUserId, table.getId(), vCurrent, TableEntity.class);
+		assertEquals(schemaCurrent, table.getColumnIds());
+		// call under test
+		table = entityService.getEntity(adminUserId, table.getId(), TableEntity.class);
+		assertEquals(schemaCurrent, table.getColumnIds());
+	}
 }

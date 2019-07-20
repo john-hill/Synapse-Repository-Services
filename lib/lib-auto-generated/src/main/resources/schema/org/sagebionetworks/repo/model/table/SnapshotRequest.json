@@ -1,0 +1,22 @@
+{
+	"description": "Request to create a new snapshot of a table with the provided information.",
+	"properties": {
+		"createSnapshot": {
+			"description": "Should a snapshot be created?",
+			"type": "boolean",
+			"required":true
+		},
+		"versionComment": {
+			"description": "Optional. If createSnapshot=true, the comment to be applied to the resulting version of the snapshot.  Null by default ",
+			"type": "string"
+		},
+		"versionLabel": {
+			"description": "Optional. If createSnapshot=true, the label to be applied to the resulting version of the snapshot.  Null by default ",
+			"type": "string"
+		},
+		"versionActivityId": {
+			"description": "Optional. If createSnapshot=true, the Activity ID to be applied to the resulting version of the snapshot.  Null by default ",
+			"type": "string"
+		}
+	}
+}

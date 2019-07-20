@@ -70,16 +70,18 @@ public class TableEntityMetadataProviderTest  {
 		// call under test
 		provider.entityUpdated(userInfo, table, wasNewVersionCreated);
 		verify(tableEntityManager).setTableSchema(userInfo, columnIds, entityId);
-		verify(tableEntityManager, never()).bindCurrentEntityVersionToLatestTransaction(anyString());;
 	}
 	
 	@Test
 	public void testUpdateWithNewVersion(){
 		boolean wasNewVersionCreated = true;
-		// call under test
-		provider.entityUpdated(userInfo, table, wasNewVersionCreated);
-		verify(tableEntityManager).setTableSchema(userInfo, columnIds, entityId);
-		verify(tableEntityManager).bindCurrentEntityVersionToLatestTransaction(entityId);;
+		try {
+			// call under test
+			provider.entityUpdated(userInfo, table, wasNewVersionCreated);
+		} catch (IllegalArgumentException e) {
+			// expected
+		}
+		verify(tableEntityManager, never()).setTableSchema(userInfo, columnIds, entityId);
 	}
 	
 	/**

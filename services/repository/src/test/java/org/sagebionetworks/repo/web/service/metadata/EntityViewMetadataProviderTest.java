@@ -2,8 +2,9 @@ package org.sagebionetworks.repo.web.service.metadata;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import java.util.List;
 
@@ -70,6 +71,19 @@ public class EntityViewMetadataProviderTest {
 		// call under test
 		provider.entityUpdated(userInfo, table, wasNewVersionCreated);
 		verify(mockFileViewManager).setViewSchemaAndScope(userInfo, columnIds, scope, entityId);
+	}
+
+	@Test
+	public void testUpdateNewVersion(){
+		boolean wasNewVersionCreated = true;
+		try {
+			// call under test
+			provider.entityUpdated(userInfo, table, wasNewVersionCreated);
+			fail();
+		} catch (IllegalArgumentException e) {
+			// expected
+		}
+		verify(mockFileViewManager, never()).setViewSchemaAndScope(userInfo, columnIds, scope, entityId);
 	}
 	
 	@Test

@@ -125,7 +125,7 @@ public class TableViewManagerImpl implements TableViewManager {
 	
 	@Override
 	public List<String> getTableSchema(String tableId){
-		return columModelManager.getColumnIdForTable(IdAndVersion.parse(tableId));
+		return columModelManager.getColumnIdsForTable(IdAndVersion.parse(tableId));
 	}
 
 	/**

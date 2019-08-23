@@ -564,7 +564,7 @@ public class TableEntityManagerImpl implements TableEntityManager {
 	void setTableSchemaWithExclusiveLock(final ProgressCallback callback, final UserInfo userInfo, final List<String> newSchema,
 			final String tableId) {
 		// Lookup the current schema for this table
-		List<String> oldSchema = columModelManager.getColumnIdForTable(IdAndVersion.parse(tableId));
+		List<String> oldSchema = columModelManager.getColumnIdsForTable(IdAndVersion.parse(tableId));
 		// Calculate the schema change (if there is one).
 		List<ColumnChange> schemaChange = TableModelUtils.createChangesFromOldSchemaToNew(oldSchema, newSchema);
 		TableSchemaChangeRequest changeRequest = new TableSchemaChangeRequest();
@@ -750,7 +750,7 @@ public class TableEntityManagerImpl implements TableEntityManager {
 		IdAndVersion idAndVersion = IdAndVersion.parse(changes.getEntityId());
 		// First determine if this will be an actual change to the schema.
 		List<String> newSchemaIds = columModelManager.calculateNewSchemaIdsAndValidate(changes.getEntityId(), changes.getChanges(), changes.getOrderedColumnIds());
-		List<String> currentSchemaIds = columModelManager.getColumnIdForTable(idAndVersion);
+		List<String> currentSchemaIds = columModelManager.getColumnIdsForTable(idAndVersion);
 		List<ColumnModel> newSchema = null;
 		if (!currentSchemaIds.equals(newSchemaIds)) {
 			// This will 
@@ -815,7 +815,7 @@ public class TableEntityManagerImpl implements TableEntityManager {
 			
 		}
 		// lookup the schema for the appropriate version.
-		return columModelManager.getColumnIdForTable(lookupBuilder.build());
+		return columModelManager.getColumnIdsForTable(lookupBuilder.build());
 	}
 
 	

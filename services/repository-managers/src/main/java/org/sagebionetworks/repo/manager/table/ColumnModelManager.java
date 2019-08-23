@@ -162,7 +162,7 @@ public interface ColumnModelManager {
 	 * @param idAndVersion
 	 * @return
 	 */
-	public List<String> getColumnIdForTable(IdAndVersion idAndVersion);
+	public List<String> getColumnIdsForTable(IdAndVersion idAndVersion);
 
 	/**
 	 * Get the column models bound to this object.

@@ -12,7 +12,7 @@ public interface AccessControlListDAO  {
 	 * @throws DatastoreException 
 	 */
 	public boolean canAccess(Set<Long> groups, String resourceId, ObjectType resourceType, ACCESS_TYPE accessType) throws DatastoreException;
-
+	
 	/**
 	 * Create a new ACL
 	 * @param dto

@@ -62,6 +62,10 @@
 			<id>spring-plugins</id>
 			<url>https://repo.spring.io/plugins-release/</url>
 		</repository>
+		<repository>
+			<id>jitpack.io</id>
+			<url>https://jitpack.io</url>
+		</repository>
 	</repositories>
 
 	<pluginRepositories>
@@ -685,6 +689,11 @@
 				<groupId>org.apache.velocity</groupId>
 				<artifactId>velocity</artifactId>
 				<version>1.7</version>
+			</dependency>
+			<dependency>
+				<groupId>com.github.everit-org.json-schema</groupId>
+				<artifactId>org.everit.json.schema</artifactId>
+				<version>1.12.1</version>
 			</dependency>
 			<!-- Used to for file upload -->
 			<dependency>

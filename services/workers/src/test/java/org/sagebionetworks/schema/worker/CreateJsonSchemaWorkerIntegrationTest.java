@@ -30,9 +30,15 @@ import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.schema.adapter.JSONEntity;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 import org.sagebionetworks.schema.adapter.org.json.EntityFactory;
+import org.sagebionetworks.schema.adapter.org.json.JSONObjectAdapterImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import org.everit.json.schema.Schema;
+import org.everit.json.schema.loader.SchemaLoader;
+import org.json.JSONObject;
+import org.json.JSONTokener;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
@@ -103,7 +109,7 @@ public class CreateJsonSchemaWorkerIntegrationTest {
 		CreateSchemaRequest request = new CreateSchemaRequest();
 		request.setSchema(one);
 		asynchronousJobWorkerHelper.startAndWaitForJob(adminUserInfo, request, MAX_WAIT_MS, CreateSchemaResponse.class);
-		
+
 		// two
 		JsonSchema refToOne = create$RefSchema(one);
 		JsonSchema two = createSchema(organizationName, "two");
@@ -112,15 +118,16 @@ public class CreateJsonSchemaWorkerIntegrationTest {
 		request = new CreateSchemaRequest();
 		request.setSchema(two);
 		asynchronousJobWorkerHelper.startAndWaitForJob(adminUserInfo, request, MAX_WAIT_MS, CreateSchemaResponse.class);
-		
+
 		// update one to depend on two
 		one.setItems(create$RefSchema(two));
 		one.setDescription("now has a cycle");
 		CreateSchemaRequest cycleRequest = new CreateSchemaRequest();
 		cycleRequest.setSchema(one);
-		String message = assertThrows(IllegalArgumentException.class, ()->{
+		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			asynchronousJobWorkerHelper.startAndWaitForJob(adminUserInfo, cycleRequest, MAX_WAIT_MS, CreateSchemaResponse.class);
+			asynchronousJobWorkerHelper.startAndWaitForJob(adminUserInfo, cycleRequest, MAX_WAIT_MS,
+					CreateSchemaResponse.class);
 		}).getMessage();
 		assertEquals("Schema $id: 'my.org.net/one' has a circular dependency", message);
 	}
@@ -169,6 +176,10 @@ public class CreateJsonSchemaWorkerIntegrationTest {
 		assertTrue(validationSchema.get$defs().containsKey("#/$defs/org.sagebionetworks/repo.model.Versionable"));
 		assertTrue(validationSchema.get$defs().containsKey("#/$defs/org.sagebionetworks/repo.model.VersionableEntity"));
 		assertTrue(validationSchema.get$defs().containsKey("#/$defs/org.sagebionetworks/repo.model.FileEntity"));
+
+		// validate the schema
+		Schema schema = SchemaLoader.load(new JSONObject(EntityFactory.createJSONStringForEntity(validationSchema)));
+		schema.validate(new JSONObject("{\"hello\" : \"world\"}"));
 
 	}
 

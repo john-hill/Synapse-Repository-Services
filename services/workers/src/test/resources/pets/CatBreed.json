@@ -3,7 +3,7 @@
 	"$id": "my.organization/pets.cat.Breed",
 	"description": "Enumeration of possible cat breeds.",
 	"type": "string",
-	"_enum": [
+	"enum": [
 		"Siamese",
 		"Persian",
 		"Maine Coon",

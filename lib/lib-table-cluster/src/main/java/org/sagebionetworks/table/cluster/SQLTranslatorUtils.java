@@ -50,7 +50,9 @@ import org.sagebionetworks.table.query.model.InPredicate;
 import org.sagebionetworks.table.query.model.InPredicateValue;
 import org.sagebionetworks.table.query.model.IntervalLiteral;
 import org.sagebionetworks.table.query.model.JoinCondition;
+import org.sagebionetworks.table.query.model.JoinType;
 import org.sagebionetworks.table.query.model.OrderByClause;
+import org.sagebionetworks.table.query.model.OuterJoinType;
 import org.sagebionetworks.table.query.model.Pagination;
 import org.sagebionetworks.table.query.model.Predicate;
 import org.sagebionetworks.table.query.model.QualifiedJoin;
@@ -424,7 +426,10 @@ public class SQLTranslatorUtils {
 			JoinCondition joinOnRowId = new JoinCondition(new TableQueryParser(
 				mainTableName + "." + ROW_ID + "=" + joinTableName + "." + SQLUtils.getRowIdRefColumnNameForId(columnId)
 			).searchCondition());
-			currentTableReference = new TableReference(new QualifiedJoin(currentTableReference, joinedTableRef, joinOnRowId));
+			JoinType leftOuterJoin = new JoinType(OuterJoinType.LEFT);
+			currentTableReference = new TableReference(new QualifiedJoin(
+					currentTableReference, leftOuterJoin, joinedTableRef, joinOnRowId
+			));
 		}
 		fromClause.setTableReference(currentTableReference);
 	}
@@ -523,8 +528,13 @@ public class SQLTranslatorUtils {
 		// handle the right-hand-side values
 		Iterable<UnsignedLiteral> rightHandSide = predicate.getRightHandSideValues();
 		if(rightHandSide != null){
+			ColumnType columnType = columnTranslationReference.getColumnType();
+			//for the ArrayHasPredicate, we want its corresponding non-list type to be used
+			if(predicate instanceof ArrayHasPredicate && ColumnTypeListMappings.isList(columnType)){
+				columnType = ColumnTypeListMappings.nonListType(columnType);
+			}
 			for(UnsignedLiteral element: rightHandSide){
-				translateRightHandeSide(element, columnTranslationReference.getColumnType(), parameters);
+				translateRightHandeSide(element, columnType, parameters);
 			}
 		}
 		

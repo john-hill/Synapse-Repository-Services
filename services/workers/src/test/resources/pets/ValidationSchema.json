@@ -1,0 +1,241 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "my.organization-pets.PetPhoto",
+	"title": "Pet Photo",
+	"description": "...",
+	"oneOf": [
+		{
+			"$ref": "#/definitions/my.organization-pets.cat.Cat"
+		},
+		{
+			"$ref": "#/definitions/my.organization-pets.dog.Dog"
+		}
+	],
+	"definitions": {
+		"my.organization-pets.cat.Breed": {
+			"$id": "my.organization-pets.cat.Breed",
+			"type": "string",
+			"title": "Cat Breed",
+			"description": "Enumeration of possible cat breeds.",
+			"enum": [
+				"Siamese",
+				"Persian",
+				"Maine Coon",
+				"Ragdoll",
+				"American Shorthair"
+			]
+		},
+		"my.organization-pets.PetType": {
+			"$id": "my.organization-pets.PetType",
+			"type": "string",
+			"title": "Pet Type",
+			"description": "Identifies the type of pet shown in photo.",
+			"enum": [
+				"cat",
+				"dog"
+			]
+		},
+		"org.sagebionetworks-repo.model.Entity": {
+			"$id": "org.sagebionetworks-repo.model.Entity-1.0.0",
+			"type": "object",
+			"properties": {
+				"name": {
+					"type": "string",
+					"title": "Name",
+					"description": "The name of this entity.  Must be 256 characters or less."
+				},
+				"description": {
+					"type": "string",
+					"title": "Description",
+					"description": "The description of this entity.  Must be 1000 characters or less."
+				},
+				"id": {
+					"type": "string",
+					"description": "The unique immutable ID for this entity.  A new ID will be generated for new Entities.  Once issued, this ID is guaranteed to never change or be re-issued"
+				},
+				"etag": {
+					"type": "string",
+					"description": "Synapse employs an Optimistic Concurrency Control (OCC) scheme to handle concurrent updates. Since the E-Tag changes every time an entity is updated it is used to detect when a client's current representation of an entity is out-of-date."
+				},
+				"createdOn": {
+					"type": "string",
+					"title": "Created On",
+					"description": "The date this entity was created.",
+					"format": "date-time"
+				},
+				"modifiedOn": {
+					"type": "string",
+					"title": "Modified On",
+					"description": "The date this entity was last modified.",
+					"format": "date-time"
+				},
+				"createdBy": {
+					"type": "string",
+					"title": "Created By",
+					"description": "The ID of the user that created this entity."
+				},
+				"modifiedBy": {
+					"type": "string",
+					"title": "Modified By",
+					"description": "The ID of the user that last modified this entity."
+				},
+				"parentId": {
+					"type": "string",
+					"description": "The ID of the Entity that is the parent of this Entity."
+				}
+			},
+			"description": "This is the base interface that all Entities implement."
+		},
+		"org.sagebionetworks-repo.model.Versionable": {
+			"$id": "org.sagebionetworks-repo.model.Versionable-1.0.0",
+			"type": "object",
+			"properties": {
+				"versionNumber": {
+					"type": "number",
+					"description": "The version number issued to this version on the object."
+				}
+			},
+			"description": "JSON schema for Versionable interface"
+		},
+		"org.sagebionetworks-repo.model.VersionableEntity": {
+			"$id": "org.sagebionetworks-repo.model.VersionableEntity-1.0.0",
+			"type": "object",
+			"properties": {
+				"versionLabel": {
+					"type": "string",
+					"title": "Version",
+					"description": "The version label for this entity"
+				},
+				"versionComment": {
+					"type": "string",
+					"title": "Version Comment",
+					"description": "The version comment for this entity"
+				}
+			},
+			"description": "JSON schema for Versionable interface",
+			"allOf": [
+				{
+					"$ref": "#/definitions/org.sagebionetworks-repo.model.Entity"
+				},
+				{
+					"$ref": "#/definitions/org.sagebionetworks-repo.model.Versionable"
+				}
+			]
+		},
+		"org.sagebionetworks-repo.model.FileEntity": {
+			"$id": "org.sagebionetworks-repo.model.FileEntity-1.0.0",
+			"properties": {
+				"dataFileHandleId": {
+					"type": "string",
+					"description": "ID of the file associated with this entity."
+				},
+				"fileNameOverride": {
+					"type": "string",
+					"description": "An optional replacement for the name of the uploaded file.  This is distinct from the entity name.  If omitted the file will retain its original name."
+				},
+				"concreteType": {
+					"type": "string",
+					"const": "org.sagebionetworks.repo.model.FileEntity"
+				}
+			},
+			"title": "File",
+			"description": "JSON schema for File POJO",
+			"allOf": [
+				{
+					"$ref": "#/definitions/org.sagebionetworks-repo.model.VersionableEntity"
+				}
+			]
+		},
+		"my.organization-pets.Pet": {
+			"$id": "my.organization-pets.Pet-1.0.3",
+			"properties": {
+				"petName": {
+					"type": "string",
+					"description": "The name of the pet shown in the photo."
+				},
+				"birthday": {
+					"type": "string",
+					"description": "The birthday of the pet shown in the photo.",
+					"format": "date-time"
+				},
+				"petType": {
+					"$ref": "#/definitions/my.organization-pets.PetType"
+				}
+			},
+			"title": "Pet",
+			"description": "Base type information shared by all pet types.",
+			"allOf": [
+				{
+					"$ref": "#/definitions/org.sagebionetworks-repo.model.FileEntity"
+				}
+			]
+		},
+		"my.organization-pets.cat.Cat": {
+			"$id": "my.organization-pets.cat.Cat",
+			"properties": {
+				"breed": {
+					"$ref": "#/definitions/my.organization-pets.cat.Breed"
+				}
+			},
+			"title": "Cat",
+			"description": "...",
+			"allOf": [
+				{
+					"$ref": "#/definitions/my.organization-pets.Pet"
+				}
+			]
+		},
+		"my.organization-pets.dog.Breed": {
+			"$id": "my.organization-pets.dog.Breed",
+			"type": "string",
+			"title": "Dog Breed",
+			"description": "Enumeration of possible dog breeds.",
+			"enum": [
+				"Labrador Retriever",
+				"German Shepherd",
+				"Golden Retriever",
+				"Bulldog",
+				"Beagle"
+			]
+		},
+		"my.organization-pets.Pet-1.0.3": {
+			"$id": "my.organization-pets.Pet-1.0.3",
+			"properties": {
+				"petName": {
+					"type": "string",
+					"description": "The name of the pet shown in the photo."
+				},
+				"birthday": {
+					"type": "string",
+					"description": "The birthday of the pet shown in the photo.",
+					"format": "date-time"
+				},
+				"petType": {
+					"$ref": "#/definitions/my.organization-pets.PetType"
+				}
+			},
+			"title": "Pet",
+			"description": "Base type information shared by all pet types.",
+			"allOf": [
+				{
+					"$ref": "#/definitions/org.sagebionetworks-repo.model.FileEntity"
+				}
+			]
+		},
+		"my.organization-pets.dog.Dog": {
+			"$id": "my.organization-pets.dog.Dog",
+			"properties": {
+				"breed": {
+					"$ref": "#/definitions/my.organization-pets.dog.Breed"
+				}
+			},
+			"title": "Dog",
+			"description": "...",
+			"allOf": [
+				{
+					"$ref": "#/definitions/my.organization-pets.Pet-1.0.3"
+				}
+			]
+		}
+	}
+}

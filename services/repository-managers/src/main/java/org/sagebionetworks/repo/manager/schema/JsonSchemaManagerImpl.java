@@ -408,8 +408,7 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 		}
 		for (JsonSchema subSchema : SubSchemaIterable.depthFirstIterable(baseSchema)) {
 			if (subSchema.get$ref() != null) {
-				String local$defsId = createLocal$defsId(subSchema.get$ref());
-				if (!baseSchema.get$defs().containsKey(local$defsId)) {
+				if (!baseSchema.get$defs().containsKey(subSchema.get$ref())) {
 					// Load the sub-schema's validation schema
 					JsonSchema validationSubSchema = getValidationSchema(visitedStack, subSchema.get$ref());
 					// Merge the $defs from the new schema with the current
@@ -417,9 +416,10 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 						baseSchema.get$defs().putAll(validationSubSchema.get$defs());
 					}
 					validationSubSchema.set$defs(null);
-					baseSchema.get$defs().put(local$defsId, validationSubSchema);
+					baseSchema.get$defs().put(subSchema.get$ref(), validationSubSchema);
 				}
 				// replace the $ref to the local $def
+				String local$defsId = createLocal$defsId(subSchema.get$ref());
 				subSchema.set$ref(local$defsId);
 			}
 		}

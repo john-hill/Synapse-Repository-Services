@@ -1232,7 +1232,7 @@ public class JsonSchemaManagerImplTest {
 		Map<String, JsonSchema> one$defs = new HashMap<String, JsonSchema>();
 		JsonSchema aString = new JsonSchema();
 		aString.setType(Type.string);
-		one$defs.put("#/$defs/foo/bar", aString);
+		one$defs.put("foo/bar", aString);
 		one.set$defs(one$defs);
 		JsonSchema refToOne = create$RefSchema(one);
 		JsonSchema two = createSchema("two");
@@ -1254,18 +1254,18 @@ public class JsonSchemaManagerImplTest {
 		assertNotNull(validationSchema.getItems());
 		assertEquals("#/$defs/two", validationSchema.getItems().get$ref());
 		// two fetched from three's $defs
-		JsonSchema twoFrom$defs = validation$defs.get("#/$defs/two");
+		JsonSchema twoFrom$defs = validation$defs.get("two");
 		assertNotNull(twoFrom$defs);
 		assertNotNull(twoFrom$defs.getItems());
 		assertEquals("#/$defs/one", twoFrom$defs.getItems().get$ref());
 		assertNull(twoFrom$defs.get$defs());
 		// one fetched from three's $defs
-		JsonSchema oneFrom$defs = validation$defs.get("#/$defs/one");
+		JsonSchema oneFrom$defs = validation$defs.get("one");
 		assertNotNull(oneFrom$defs);
 		assertEquals(one.getDescription(), oneFrom$defs.getDescription());
 		assertNull(oneFrom$defs.get$defs());
 		// $defs from one fetched form three's $defs
-		JsonSchema fooBar = validation$defs.get("#/$defs/foo/bar");
+		JsonSchema fooBar = validation$defs.get("foo/bar");
 		assertNotNull(fooBar);
 		assertEquals(Type.string, fooBar.getType());
 

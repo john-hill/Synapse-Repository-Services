@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import java.io.IOException;
 import java.io.InputStream;
 
 import org.apache.commons.io.IOUtils;
@@ -35,6 +36,13 @@ import org.sagebionetworks.schema.adapter.org.json.EntityFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import com.google.gson.JsonObject;
+
+import org.everit.json.schema.Schema;
+import org.everit.json.schema.loader.SchemaLoader;
+import org.json.JSONObject;
+import org.json.JSONTokener;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
@@ -85,14 +93,14 @@ public class CreateJsonSchemaWorkerIntegrationTest {
 	public void testCreateSchema() throws InterruptedException, AssertionError, AsynchJobFailedException {
 		CreateSchemaRequest request = new CreateSchemaRequest();
 		request.setSchema(basicSchema);
-		
+
 		asynchronousJobWorkerHelper.assertJobResponse(adminUserInfo, request, (CreateSchemaResponse response) -> {
 			assertNotNull(response);
 			assertNotNull(response.getNewVersionInfo());
 			assertEquals(adminUserInfo.getId().toString(), response.getNewVersionInfo().getCreatedBy());
 			assertEquals(semanticVersion, response.getNewVersionInfo().getSemanticVersion());
 		}, MAX_WAIT_MS);
-		
+
 		jsonSchemaManager.deleteSchemaAllVersion(adminUserInfo, organizationName, schemaName);
 		assertThrows(NotFoundException.class, () -> {
 			jsonSchemaManager.deleteSchemaAllVersion(adminUserInfo, organizationName, schemaName);
@@ -106,11 +114,11 @@ public class CreateJsonSchemaWorkerIntegrationTest {
 		one.setDescription("no cycle yet");
 		CreateSchemaRequest request = new CreateSchemaRequest();
 		request.setSchema(one);
-		
+
 		asynchronousJobWorkerHelper.assertJobResponse(adminUserInfo, request, (CreateSchemaResponse response) -> {
 			assertNotNull(response);
 		}, MAX_WAIT_MS);
-		
+
 		// two
 		JsonSchema refToOne = create$RefSchema(one);
 		JsonSchema two = createSchema(organizationName, "two");
@@ -118,42 +126,55 @@ public class CreateJsonSchemaWorkerIntegrationTest {
 		two.setItems(refToOne);
 		request = new CreateSchemaRequest();
 		request.setSchema(two);
-		
+
 		asynchronousJobWorkerHelper.assertJobResponse(adminUserInfo, request, (CreateSchemaResponse response) -> {
 			assertNotNull(response);
 		}, MAX_WAIT_MS);
-		
+
 		// update one to depend on two
 		one.setItems(create$RefSchema(two));
 		one.setDescription("now has a cycle");
 		CreateSchemaRequest cycleRequest = new CreateSchemaRequest();
 		cycleRequest.setSchema(one);
-		
-		String message = assertThrows(IllegalArgumentException.class, ()->{
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			asynchronousJobWorkerHelper.assertJobResponse(adminUserInfo, cycleRequest, (CreateSchemaResponse response) -> {
-				fail("Should have not receive a response");
-			}, MAX_WAIT_MS);
+			asynchronousJobWorkerHelper.assertJobResponse(adminUserInfo, cycleRequest,
+					(CreateSchemaResponse response) -> {
+						fail("Should have not receive a response");
+					}, MAX_WAIT_MS);
 		}).getMessage();
-		
+
 		assertEquals("Schema $id: 'my.org.net/one' has a circular dependency", message);
 	}
 
 	public void registerSchemaFromClasspath(String name) throws Exception {
+		String json = loadFromClassPath(name);
+		JsonSchema schema = EntityFactory.createEntityFromJSONString(json, JsonSchema.class);
+		CreateSchemaRequest request = new CreateSchemaRequest();
+		request.setSchema(schema);
+		System.out.println("Creating schema: '" + schema.get$id() + "'");
+
+		asynchronousJobWorkerHelper.assertJobResponse(adminUserInfo, request, (CreateSchemaResponse response) -> {
+			assertNotNull(response);
+			System.out.println(response.getNewVersionInfo());
+		}, MAX_WAIT_MS);
+
+	}
+
+	/**
+	 * Load a file from the classpath
+	 * 
+	 * @param name
+	 * @return
+	 * @throws IOException
+	 */
+	public String loadFromClassPath(String name) throws IOException {
 		try (InputStream in = CreateJsonSchemaWorkerIntegrationTest.class.getClassLoader().getResourceAsStream(name);) {
 			if (in == null) {
 				throw new IllegalArgumentException("Cannot find: '" + name + "' on the classpath");
 			}
-			String json = IOUtils.toString(in, "UTF-8");
-			JsonSchema schema = EntityFactory.createEntityFromJSONString(json, JsonSchema.class);
-			CreateSchemaRequest request = new CreateSchemaRequest();
-			request.setSchema(schema);
-			System.out.println("Creating schema: '" + schema.get$id() + "'");
-			
-			asynchronousJobWorkerHelper.assertJobResponse(adminUserInfo, request, (CreateSchemaResponse response) -> {
-				assertNotNull(response);
-				System.out.println(response.getNewVersionInfo());
-			}, MAX_WAIT_MS);
+			return IOUtils.toString(in, "UTF-8");
 		}
 	}
 
@@ -174,23 +195,47 @@ public class CreateJsonSchemaWorkerIntegrationTest {
 		assertNotNull(schemaBootstrap);
 		printJson(validationSchema);
 		assertNotNull(validationSchema.get$defs());
-		assertTrue(validationSchema.get$defs().containsKey("#/$defs/my.organization/pets.PetType"));
-		assertTrue(validationSchema.get$defs().containsKey("#/$defs/my.organization/pets.Pet"));
-		assertTrue(validationSchema.get$defs().containsKey("#/$defs/my.organization/pets.Pet/1.0.3"));
-		assertTrue(validationSchema.get$defs().containsKey("#/$defs/my.organization/pets.dog.Breed"));
-		assertTrue(validationSchema.get$defs().containsKey("#/$defs/my.organization/pets.cat.Breed"));
-		assertTrue(validationSchema.get$defs().containsKey("#/$defs/my.organization/pets.cat.Cat"));
-		assertTrue(validationSchema.get$defs().containsKey("#/$defs/my.organization/pets.dog.Dog"));
-		assertTrue(validationSchema.get$defs().containsKey("#/$defs/org.sagebionetworks/repo.model.Entity"));
-		assertTrue(validationSchema.get$defs().containsKey("#/$defs/org.sagebionetworks/repo.model.Versionable"));
-		assertTrue(validationSchema.get$defs().containsKey("#/$defs/org.sagebionetworks/repo.model.VersionableEntity"));
-		assertTrue(validationSchema.get$defs().containsKey("#/$defs/org.sagebionetworks/repo.model.FileEntity"));
+		assertTrue(validationSchema.get$defs().containsKey("my.organization/pets.PetType"));
+		assertTrue(validationSchema.get$defs().containsKey("my.organization/pets.Pet"));
+		assertTrue(validationSchema.get$defs().containsKey("my.organization/pets.Pet/1.0.3"));
+		assertTrue(validationSchema.get$defs().containsKey("my.organization/pets.dog.Breed"));
+		assertTrue(validationSchema.get$defs().containsKey("my.organization/pets.cat.Breed"));
+		assertTrue(validationSchema.get$defs().containsKey("my.organization/pets.cat.Cat"));
+		assertTrue(validationSchema.get$defs().containsKey("my.organization/pets.dog.Dog"));
+		assertTrue(validationSchema.get$defs().containsKey("org.sagebionetworks/repo.model.Entity"));
+		assertTrue(validationSchema.get$defs().containsKey("org.sagebionetworks/repo.model.Versionable"));
+		assertTrue(validationSchema.get$defs().containsKey("org.sagebionetworks/repo.model.VersionableEntity"));
+		assertTrue(validationSchema.get$defs().containsKey("org.sagebionetworks/repo.model.FileEntity"));
+
+		JSONObject rawSchema = new JSONObject(EntityFactory.createJSONStringForEntity(validationSchema));
+		Schema schema = SchemaLoader.load(rawSchema);
+		schema.validate(new JSONObject("{\"hello\" : \"world\"}"));
 
 	}
 
 	public void printJson(JSONEntity entity) throws JSONException, JSONObjectAdapterException {
 		JSONObject object = new JSONObject(EntityFactory.createJSONStringForEntity(entity));
 		System.out.println(object.toString(5));
+	}
+
+	@Test
+	public void testValidation() throws IOException {
+		String validationJson = loadFromClassPath("pets/ValidationSchema.json");
+		JSONObject rawSchema = new JSONObject(validationJson);
+		Schema schema = SchemaLoader.load(rawSchema);
+		String jsonToValidate = loadFromClassPath("pets/Charity.json");
+		schema.validate(new JSONObject(jsonToValidate));
+		System.out.println("It worked!");
+	}
+
+	@Test
+	public void testValidationTwo() throws IOException {
+		String validationJson = loadFromClassPath("pets/ValidationTwo.json");
+		JSONObject rawSchema = new JSONObject(validationJson);
+		Schema schema = SchemaLoader.load(rawSchema);
+		String jsonToValidate = loadFromClassPath("pets/Charity.json");
+		schema.validate(new JSONObject(jsonToValidate));
+		System.out.println("It worked!");
 	}
 
 	/**

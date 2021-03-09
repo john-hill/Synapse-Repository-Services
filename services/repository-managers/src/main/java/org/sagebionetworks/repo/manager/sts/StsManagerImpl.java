@@ -103,9 +103,11 @@ public class StsManagerImpl implements StsManager {
 		authManager.canAccess(userInfo, entityId, ObjectType.ENTITY, ACCESS_TYPE.DOWNLOAD)
 				.checkAuthorizationOrElseThrow();
 		if (permission == StsPermission.read_write) {
-			// For write permissions, we also need update access.
+			// For write permissions, we also need update and create access.
 			authManager.canAccess(userInfo, entityId, ObjectType.ENTITY, ACCESS_TYPE.UPDATE)
 					.checkAuthorizationOrElseThrow();
+			authManager.canAccess(userInfo, entityId, ObjectType.ENTITY, ACCESS_TYPE.CREATE)
+			.checkAuthorizationOrElseThrow();
 		}
 
 		String bucket = MultipartUtils.getBucket(storageLocationSetting);

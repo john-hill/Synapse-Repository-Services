@@ -7,8 +7,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.sagebionetworks.repo.manager.principal.NewUserUtils;
-import org.sagebionetworks.repo.manager.team.TeamConstants;
-import org.sagebionetworks.repo.model.auth.AuthenticationDAO;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.DatastoreException;
@@ -19,6 +18,7 @@ import org.sagebionetworks.repo.model.UserGroup;
 import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.UserProfile;
+import org.sagebionetworks.repo.model.auth.AuthenticationDAO;
 import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.dao.NotificationEmailDAO;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
@@ -208,7 +208,7 @@ public class UserManagerImpl implements UserManager {
 		// Check to see if the user is an Admin
 		boolean isAdmin = false;
 		// If the user belongs to the admin group they are an admin
-		if(groups.contains(TeamConstants.ADMINISTRATORS_TEAM_ID)){
+		if(groups.contains(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ADMINISTRATORS_GROUP.getPrincipalId())){
 			isAdmin = true;
 		}
 		UserInfo ui = new UserInfo(isAdmin);

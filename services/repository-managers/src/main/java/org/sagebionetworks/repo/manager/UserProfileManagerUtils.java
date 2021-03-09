@@ -1,6 +1,6 @@
 package org.sagebionetworks.repo.manager;
 
-import org.sagebionetworks.repo.manager.team.TeamConstants;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.UserGroupHeader;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.UserProfile;
@@ -18,7 +18,7 @@ public class UserProfileManagerUtils {
 	public static boolean isOwnerACTOrAdmin(UserInfo userInfo, String ownerId) {
 		if (userInfo == null) return false;
 		if (userInfo.isAdmin()) return true;
-		if (userInfo.getGroups().contains(TeamConstants.ACT_TEAM_ID)) return true;
+		if (userInfo.getGroups().contains(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ACCESS_AND_COMPLIANCE_GROUP.getPrincipalId())) return true;
 		if (ownerId != null && ownerId.equals(userInfo.getId().toString())) return true;
 		return false;
 	}

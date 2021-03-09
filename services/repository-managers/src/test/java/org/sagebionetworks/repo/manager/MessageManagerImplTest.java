@@ -31,7 +31,6 @@ import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.file.FileHandleUrlRequest;
 import org.sagebionetworks.repo.manager.principal.SynapseEmailService;
 import org.sagebionetworks.repo.manager.team.MembershipRequestManager;
-import org.sagebionetworks.repo.manager.team.TeamConstants;
 import org.sagebionetworks.repo.manager.team.TeamManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
@@ -248,11 +247,11 @@ public class MessageManagerImplTest {
 			basicDao.createOrUpdate(tou);
 			// now add to trusted users group
 			groupMembersDao.addMembers(
-					""+TeamConstants.TRUSTED_MESSAGE_SENDER_TEAM_ID, 
+					""+AuthorizationConstants.BOOTSTRAP_PRINCIPAL.TRUSTED_MESSAGE_SENDER_GROUP.getPrincipalId(), 
 					Collections.singletonList(trustedMessageSender.getId().toString()));
 			// now we update the object with the new list of groups
 			trustedMessageSender = userManager.getUserInfo(trustedMessageSender.getId());
-			assertTrue(trustedMessageSender.getGroups().contains(TeamConstants.TRUSTED_MESSAGE_SENDER_TEAM_ID));
+			assertTrue(trustedMessageSender.getGroups().contains(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.TRUSTED_MESSAGE_SENDER_GROUP.getPrincipalId()));
 		}
 
 		// Create a team

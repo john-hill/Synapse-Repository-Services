@@ -16,7 +16,6 @@ import org.sagebionetworks.repo.manager.evaluation.EvaluationPermissionsManager;
 import org.sagebionetworks.repo.manager.file.FileHandleAssociationManager;
 import org.sagebionetworks.repo.manager.file.FileHandleAuthorizationStatus;
 import org.sagebionetworks.repo.manager.form.FormManager;
-import org.sagebionetworks.repo.manager.team.TeamConstants;
 import org.sagebionetworks.repo.manager.token.TokenGenerator;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
@@ -122,14 +121,6 @@ public class AuthorizationManagerImpl implements AuthorizationManager {
 				return entityPermissionsManager.hasAccess(objectId, accessType, userInfo);
 			case EVALUATION:
 				return evaluationPermissionsManager.hasAccess(userInfo, objectId, accessType);
-			case ACCESS_REQUIREMENT:
-				if (isACTTeamMemberOrAdmin(userInfo)) {
-					return AuthorizationStatus.authorized();
-				}
-				if (accessType==ACCESS_TYPE.READ || accessType==ACCESS_TYPE.DOWNLOAD) {
-					return AuthorizationStatus.authorized();
-				}
-				return AuthorizationStatus.accessDenied("Only ACT member can perform this action.");
 			case ACCESS_APPROVAL:
 				if (isACTTeamMemberOrAdmin(userInfo)) {
 					return AuthorizationStatus.authorized();
@@ -270,10 +261,7 @@ public class AuthorizationManagerImpl implements AuthorizationManager {
 	
 	@Override
 	public boolean isUserCreatorOrAdmin(UserInfo userInfo, String creator) {
-		// Admins can see anything.
-		if (userInfo.isAdmin()) return true;
-		// Only the creator can see the raw file handle
-		return userInfo.getId().toString().equals(creator);
+		return AuthorizationUtils.isUserCreatorOrAdmin(userInfo, creator);
 	}
 
 	@Override
@@ -310,20 +298,12 @@ public class AuthorizationManagerImpl implements AuthorizationManager {
 
 	@Override
 	public boolean isACTTeamMemberOrAdmin(UserInfo userInfo) throws DatastoreException, UnauthorizedException {
-		if (userInfo.isAdmin()) return true;
-		if(userInfo.getGroups() != null) {
-			if(userInfo.getGroups().contains(TeamConstants.ACT_TEAM_ID)) return true;
-		}
-		return false;
+		return AuthorizationUtils.isACTTeamMemberOrAdmin(userInfo);
 	}
 
 	@Override
 	public boolean isReportTeamMemberOrAdmin(UserInfo userInfo) throws DatastoreException, UnauthorizedException {
-		if (userInfo.isAdmin()) return true;
-		if(userInfo.getGroups() != null) {
-			if(userInfo.getGroups().contains(TeamConstants.SYNAPSE_REPORT_TEAM_ID)) return true;
-		}
-		return false;
+		return AuthorizationUtils.isReportTeamMemberOrAdmin(userInfo);
 	}
 
 	/**
@@ -366,7 +346,6 @@ public class AuthorizationManagerImpl implements AuthorizationManager {
 
 	@Override
 	public boolean isAnonymousUser(UserInfo userInfo) {
-		if(userInfo == null) throw new IllegalArgumentException("UserInfo cannot be null");
 		return AuthorizationUtils.isUserAnonymous(userInfo);
 	}
 

@@ -23,7 +23,7 @@ import org.sagebionetworks.repo.manager.MessageToUserAndBody;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.UserProfileManager;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
-import org.sagebionetworks.repo.manager.team.TeamConstants;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
@@ -225,13 +225,13 @@ public class VerificationManagerImpl implements VerificationManager {
 		String submitterDisplayName = EmailUtils.getDisplayNameWithUsername(submitterUserProfile);
 		fieldValues.put(TEMPLATE_KEY_DISPLAY_NAME, submitterDisplayName);
 		fieldValues.put(TEMPLATE_KEY_USER_ID, verificationSubmission.getCreatedBy());
-		String recipient = TeamConstants.ACT_TEAM_ID.toString();
+		String recipient = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ACCESS_AND_COMPLIANCE_GROUP.getPrincipalId().toString();
 		String messageContent = EmailUtils.readMailTemplate(VERIFICATION_SUBMISSION_TEMPLATE, fieldValues);
 		MessageToUser mtu = new MessageToUser();
 		mtu.setSubject(VERIFICATION_NOTIFICATION_SUBJECT);
 		mtu.setRecipients(Collections.singleton(recipient));
 		
-		List<PrincipalAlias> actTeamAliases = principalAliasDAO.listPrincipalAliases(TeamConstants.ACT_TEAM_ID, AliasType.TEAM_NAME);
+		List<PrincipalAlias> actTeamAliases = principalAliasDAO.listPrincipalAliases(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ACCESS_AND_COMPLIANCE_GROUP.getPrincipalId(), AliasType.TEAM_NAME);
 		// should just be one
 		if (actTeamAliases.size()!=1) throw new IllegalStateException("Expected one but found "+actTeamAliases.size());
 		String actName = actTeamAliases.get(0).getAlias();

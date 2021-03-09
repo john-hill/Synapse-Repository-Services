@@ -42,7 +42,6 @@ import org.sagebionetworks.reflection.model.PaginatedResults;
 import org.sagebionetworks.repo.manager.evaluation.EvaluationPermissionsManager;
 import org.sagebionetworks.repo.manager.file.FileHandleAssociationManager;
 import org.sagebionetworks.repo.manager.file.FileHandleAuthorizationStatus;
-import org.sagebionetworks.repo.manager.team.TeamConstants;
 import org.sagebionetworks.repo.manager.token.TokenGenerator;
 import org.sagebionetworks.repo.manager.trash.EntityInTrashCanException;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -213,7 +212,7 @@ public class AuthorizationManagerImplUnitTest {
 		submissionId = "111";
 
 		Set<Long> groups = new HashSet<Long>();
-		groups.add(TeamConstants.ACT_TEAM_ID);
+		groups.add(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ACCESS_AND_COMPLIANCE_GROUP.getPrincipalId());
 		when(mockACTUser.getGroups()).thenReturn(groups);
 		
 		when(mockNodeDao.getNodeTypeById(PARENT_ID)).thenReturn(EntityType.project);
@@ -354,7 +353,7 @@ public class AuthorizationManagerImplUnitTest {
 
 	@Test
 	public void testVerifyACTTeamMembershipOrIsAdmin_ACT() {
-		userInfo.getGroups().add(TeamConstants.ACT_TEAM_ID);
+		userInfo.getGroups().add(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ACCESS_AND_COMPLIANCE_GROUP.getPrincipalId());
 		assertTrue(authorizationManager.isACTTeamMemberOrAdmin(userInfo));
 	}
 
@@ -377,7 +376,7 @@ public class AuthorizationManagerImplUnitTest {
 
 	@Test
 	public void testVerifyReportTeamMembershipOrIsAdmin_ReportTeam() {
-		userInfo.getGroups().add(TeamConstants.SYNAPSE_REPORT_TEAM_ID);
+		userInfo.getGroups().add(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.SYNAPSE_REPORT_GROUP.getPrincipalId());
 		assertTrue(authorizationManager.isReportTeamMemberOrAdmin(userInfo));
 	}
 
@@ -408,48 +407,17 @@ public class AuthorizationManagerImplUnitTest {
 		return subjectId;
 	}
 
-	private AccessRequirement createEvaluationAccessRequirement() throws Exception {
-		TermsOfUseAccessRequirement ar = new TermsOfUseAccessRequirement();
-		ar.setSubjectIds(Arrays.asList(new RestrictableObjectDescriptor[]{createEvaluationSubjectId()}));
-		ar.setId(1234L);
-		when(mockAccessRequirementDAO.get(ar.getId().toString())).thenReturn(ar);
-		return ar;
-	}
-
-	@Test
-	public void testCanAccessEntityAccessRequirement() throws Exception {
-		AccessRequirement ar = createEntityAccessRequirement();
-		assertFalse(authorizationManager.canAccess(userInfo, ar.getId().toString(), ObjectType.ACCESS_REQUIREMENT, ACCESS_TYPE.UPDATE).isAuthorized());
-		userInfo.getGroups().add(TeamConstants.ACT_TEAM_ID);
-		assertTrue(authorizationManager.canAccess(userInfo, "1234", ObjectType.ACCESS_REQUIREMENT, ACCESS_TYPE.UPDATE).isAuthorized());
-	}
-
-	@Test
-	public void testCanAccessEntityAccessRequirementWithDownload() throws Exception {
-		AccessRequirement ar = createEntityAccessRequirement();
-		assertTrue(authorizationManager.canAccess(userInfo, ar.getId().toString(), ObjectType.ACCESS_REQUIREMENT, ACCESS_TYPE.DOWNLOAD).isAuthorized());
-	}
-
-	@Test
-	public void testCanAccessEvaluationAccessRequirement() throws Exception {
-		AccessRequirement ar = createEvaluationAccessRequirement();
-		assertFalse(authorizationManager.canAccess(userInfo, ar.getId().toString(), ObjectType.ACCESS_REQUIREMENT, ACCESS_TYPE.UPDATE).isAuthorized());
-		userInfo.setId(Long.parseLong(EVAL_OWNER_PRINCIPAL_ID));
-		// only ACT may update an access requirement
-		assertFalse(authorizationManager.canAccess(userInfo, ar.getId().toString(), ObjectType.ACCESS_REQUIREMENT, ACCESS_TYPE.UPDATE).isAuthorized());
-	}
-
 	@Test
 	public void testCanAccessEntityAccessApproval() throws Exception {
 		assertFalse(authorizationManager.canAccess(userInfo, "1", ObjectType.ACCESS_APPROVAL, ACCESS_TYPE.READ).isAuthorized());
-		userInfo.getGroups().add(TeamConstants.ACT_TEAM_ID);
+		userInfo.getGroups().add(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ACCESS_AND_COMPLIANCE_GROUP.getPrincipalId());
 		assertTrue(authorizationManager.canAccess(userInfo, "1", ObjectType.ACCESS_APPROVAL, ACCESS_TYPE.READ).isAuthorized());
 	}
 
 	@Test
 	public void testCanAccessEntityAccessApprovalsForSubject() throws Exception {
 		assertFalse(authorizationManager.canAccessAccessApprovalsForSubject(userInfo, createEntitySubjectId(), ACCESS_TYPE.READ).isAuthorized());
-		userInfo.getGroups().add(TeamConstants.ACT_TEAM_ID);
+		userInfo.getGroups().add(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ACCESS_AND_COMPLIANCE_GROUP.getPrincipalId());
 		assertTrue(authorizationManager.canAccessAccessApprovalsForSubject(userInfo, createEntitySubjectId(), ACCESS_TYPE.READ).isAuthorized());
 	}
 
@@ -643,7 +611,7 @@ public class AuthorizationManagerImplUnitTest {
 		// ACT can access
 		UserInfo actInfo = new UserInfo(false);
 		actInfo.setId(999L);
-		actInfo.setGroups(Collections.singleton(TeamConstants.ACT_TEAM_ID));
+		actInfo.setGroups(Collections.singleton(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ACCESS_AND_COMPLIANCE_GROUP.getPrincipalId()));
 		when(mockVerificationDao.getVerificationSubmitter(verificationIdLong)).thenReturn(userInfo.getId()*13);
 		assertTrue(authorizationManager.canAccess(actInfo, verificationId, ot, accessType).isAuthorized());
 		

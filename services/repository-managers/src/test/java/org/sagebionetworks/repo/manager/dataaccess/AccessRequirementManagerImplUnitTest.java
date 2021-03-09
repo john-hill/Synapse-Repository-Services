@@ -33,7 +33,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.sagebionetworks.repo.manager.AuthorizationManager;
+import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.ACTAccessRequirement;
 import org.sagebionetworks.repo.model.AccessApprovalDAO;
@@ -41,12 +41,12 @@ import org.sagebionetworks.repo.model.AccessRequirement;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.AccessRequirementInfoForUpdate;
 import org.sagebionetworks.repo.model.AccessRequirementStats;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.LockAccessRequirement;
 import org.sagebionetworks.repo.model.ManagedACTAccessRequirement;
 import org.sagebionetworks.repo.model.NextPageToken;
 import org.sagebionetworks.repo.model.NodeDAO;
-import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.PostMessageContentAccessRequirement;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptorResponse;
@@ -79,12 +79,13 @@ public class AccessRequirementManagerImplUnitTest {
 	@Mock
 	private NodeDAO nodeDao;
 	@Mock
-	private AuthorizationManager authorizationManager;
+	private EntityAuthorizationManager authorizationManager;
 
 	@InjectMocks
 	private AccessRequirementManagerImpl arm;
 
 	private UserInfo userInfo;
+	private UserInfo actUserInfo;
 	@Mock
 	private NotificationEmailDAO notificationEmailDao;
 	@Mock
@@ -98,6 +99,8 @@ public class AccessRequirementManagerImplUnitTest {
 	@BeforeEach
 	public void setUp() throws Exception {
 		userInfo = new UserInfo(false, TEST_PRINCIPAL_ID);
+		actUserInfo = new UserInfo(false, TEST_PRINCIPAL_ID);
+		actUserInfo.getGroups().add(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ACCESS_AND_COMPLIANCE_GROUP.getPrincipalId());
 	}
 
 	@Test
@@ -152,8 +155,8 @@ public class AccessRequirementManagerImplUnitTest {
 
 	@Test
 	public void testCreateLockAccessRequirementHappyPath() throws Exception {
-		when(authorizationManager.canAccess(userInfo, TEST_ENTITY_ID, ObjectType.ENTITY, ACCESS_TYPE.CREATE)).thenReturn(AuthorizationStatus.authorized());
-		when(authorizationManager.canAccess(userInfo, TEST_ENTITY_ID, ObjectType.ENTITY, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
+		when(authorizationManager.hasAccess(userInfo, TEST_ENTITY_ID, ACCESS_TYPE.CREATE)).thenReturn(AuthorizationStatus.authorized());
+		when(authorizationManager.hasAccess(userInfo, TEST_ENTITY_ID, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		when(mockProjectInfo.getProjectId()).thenReturn("projectId");
 		when(mockProjectInfo.getIssueTypeId()).thenReturn(10000L);
 
@@ -199,7 +202,7 @@ public class AccessRequirementManagerImplUnitTest {
 
 	@Test
 	public void testCreateLockAccessRequirementWithoutREADPermission() throws Exception {
-		when(authorizationManager.canAccess(userInfo, TEST_ENTITY_ID, ObjectType.ENTITY, ACCESS_TYPE.CREATE)).thenReturn(AuthorizationStatus.accessDenied(""));
+		when(authorizationManager.hasAccess(userInfo, TEST_ENTITY_ID, ACCESS_TYPE.CREATE)).thenReturn(AuthorizationStatus.accessDenied(""));
 		// this should throw the unauthorized exception
 		Assertions.assertThrows(UnauthorizedException.class, () -> {
 			arm.createLockAccessRequirement(userInfo, TEST_ENTITY_ID);
@@ -208,8 +211,8 @@ public class AccessRequirementManagerImplUnitTest {
 
 	@Test
 	public void testCreateLockAccessRequirementWithoutUPDATEPermission() throws Exception {
-		when(authorizationManager.canAccess(userInfo, TEST_ENTITY_ID, ObjectType.ENTITY, ACCESS_TYPE.CREATE)).thenReturn(AuthorizationStatus.authorized());
-		when(authorizationManager.canAccess(userInfo, TEST_ENTITY_ID, ObjectType.ENTITY, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.accessDenied(""));
+		when(authorizationManager.hasAccess(userInfo, TEST_ENTITY_ID, ACCESS_TYPE.CREATE)).thenReturn(AuthorizationStatus.authorized());
+		when(authorizationManager.hasAccess(userInfo, TEST_ENTITY_ID, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.accessDenied(""));
 		// this should throw the unauthorized exception
 		Assertions.assertThrows(UnauthorizedException.class, () -> {
 			arm.createLockAccessRequirement(userInfo, TEST_ENTITY_ID);
@@ -218,8 +221,8 @@ public class AccessRequirementManagerImplUnitTest {
 
 	@Test
 	public void testCreateLockAccessRequirementAlreadyExists() throws Exception {
-		when(authorizationManager.canAccess(userInfo, TEST_ENTITY_ID, ObjectType.ENTITY, ACCESS_TYPE.CREATE)).thenReturn(AuthorizationStatus.authorized());
-		when(authorizationManager.canAccess(userInfo, TEST_ENTITY_ID, ObjectType.ENTITY, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
+		when(authorizationManager.hasAccess(userInfo, TEST_ENTITY_ID, ACCESS_TYPE.CREATE)).thenReturn(AuthorizationStatus.authorized());
+		when(authorizationManager.hasAccess(userInfo, TEST_ENTITY_ID, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		Set<String> ars = new HashSet<String>();
 		String accessRequirementId = "1";
 		ars.add(accessRequirementId);
@@ -265,8 +268,7 @@ public class AccessRequirementManagerImplUnitTest {
 	@Test
 	public void testCreateACTAccessRequirement() {
 		AccessRequirement toCreate = createExpectedAR();
-		when(authorizationManager.isACTTeamMemberOrAdmin(userInfo)).thenReturn(true);
-		arm.createAccessRequirement(userInfo, toCreate);
+		arm.createAccessRequirement(actUserInfo, toCreate);
 
 		// test that the right AR was created
 		ArgumentCaptor<AccessRequirement> argument = ArgumentCaptor.forClass(AccessRequirement.class);
@@ -332,25 +334,13 @@ public class AccessRequirementManagerImplUnitTest {
 	}
 
 	@Test
-	public void testUpdateUnauthorized() {
-		AccessRequirement toUpdate = createExpectedAR();
-		String accessRequirementId = "1";
-		toUpdate.setId(1L);
-		when(authorizationManager.canAccess(userInfo, accessRequirementId, ObjectType.ACCESS_REQUIREMENT, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.accessDenied(""));
-		Assertions.assertThrows(UnauthorizedException.class, () -> {
-			arm.updateAccessRequirement(userInfo, accessRequirementId, toUpdate);
-		});
-	}
-
-	@Test
 	public void testUpdateNoneExistingAR() {
 		AccessRequirement toUpdate = createExpectedAR();
 		String accessRequirementId = "1";
 		toUpdate.setId(1L);
-		when(authorizationManager.canAccess(userInfo, accessRequirementId, ObjectType.ACCESS_REQUIREMENT, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		when(accessRequirementDAO.getForUpdate(accessRequirementId)).thenThrow(new NotFoundException());
 		Assertions.assertThrows(NotFoundException.class, () -> {
-			arm.updateAccessRequirement(userInfo, accessRequirementId, toUpdate);
+			arm.updateAccessRequirement(actUserInfo, accessRequirementId, toUpdate);
 		});
 	}
 
@@ -361,13 +351,12 @@ public class AccessRequirementManagerImplUnitTest {
 		toUpdate.setId(1L);
 		toUpdate.setEtag("oldEtag");
 		toUpdate.setVersionNumber(1L);
-		when(authorizationManager.canAccess(userInfo, accessRequirementId, ObjectType.ACCESS_REQUIREMENT, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		AccessRequirementInfoForUpdate info = new AccessRequirementInfoForUpdate();
 		info.setEtag("new Etag");
 		info.setCurrentVersion(1L);
 		when(accessRequirementDAO.getForUpdate(accessRequirementId)).thenReturn(info );
 		Assertions.assertThrows(ConflictingUpdateException.class, () -> {
-			arm.updateAccessRequirement(userInfo, accessRequirementId, toUpdate);
+			arm.updateAccessRequirement(actUserInfo, accessRequirementId, toUpdate);
 		});
 	}
 
@@ -378,13 +367,12 @@ public class AccessRequirementManagerImplUnitTest {
 		toUpdate.setId(1L);
 		toUpdate.setEtag("etag");
 		toUpdate.setVersionNumber(1L);
-		when(authorizationManager.canAccess(userInfo, accessRequirementId, ObjectType.ACCESS_REQUIREMENT, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		AccessRequirementInfoForUpdate info = new AccessRequirementInfoForUpdate();
 		info.setEtag("etag");
 		info.setCurrentVersion(2L);
 		when(accessRequirementDAO.getForUpdate(accessRequirementId)).thenReturn(info );
 		Assertions.assertThrows(ConflictingUpdateException.class, () -> {
-			arm.updateAccessRequirement(userInfo, accessRequirementId, toUpdate);
+			arm.updateAccessRequirement(actUserInfo, accessRequirementId, toUpdate);
 		});
 	}
 
@@ -396,14 +384,13 @@ public class AccessRequirementManagerImplUnitTest {
 		toUpdate.setEtag("etag");
 		toUpdate.setVersionNumber(1L);
 		toUpdate.setAccessType(ACCESS_TYPE.DOWNLOAD);
-		when(authorizationManager.canAccess(userInfo, accessRequirementId, ObjectType.ACCESS_REQUIREMENT, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		AccessRequirementInfoForUpdate info = new AccessRequirementInfoForUpdate();
 		info.setEtag("etag");
 		info.setCurrentVersion(1L);
 		info.setAccessType(ACCESS_TYPE.PARTICIPATE);
 		when(accessRequirementDAO.getForUpdate(accessRequirementId)).thenReturn(info );
 		Assertions.assertThrows(IllegalArgumentException.class, () -> {
-			arm.updateAccessRequirement(userInfo, accessRequirementId, toUpdate);
+			arm.updateAccessRequirement(actUserInfo, accessRequirementId, toUpdate);
 		});
 	}
 
@@ -415,7 +402,6 @@ public class AccessRequirementManagerImplUnitTest {
 		toUpdate.setEtag("etag");
 		toUpdate.setVersionNumber(1L);
 		toUpdate.setAccessType(ACCESS_TYPE.DOWNLOAD);
-		when(authorizationManager.canAccess(userInfo, accessRequirementId, ObjectType.ACCESS_REQUIREMENT, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		AccessRequirementInfoForUpdate info = new AccessRequirementInfoForUpdate();
 		info.setEtag("etag");
 		info.setCurrentVersion(1L);
@@ -423,7 +409,7 @@ public class AccessRequirementManagerImplUnitTest {
 		info.setConcreteType(TermsOfUseAccessRequirement.class.getName());
 		when(accessRequirementDAO.getForUpdate(accessRequirementId)).thenReturn(info );
 		Assertions.assertThrows(IllegalArgumentException.class, () -> {
-			arm.updateAccessRequirement(userInfo, accessRequirementId, toUpdate);
+			arm.updateAccessRequirement(actUserInfo, accessRequirementId, toUpdate);
 		});
 	}
 
@@ -435,7 +421,6 @@ public class AccessRequirementManagerImplUnitTest {
 		toUpdate.setEtag("etag");
 		toUpdate.setVersionNumber(1L);
 		toUpdate.setAccessType(ACCESS_TYPE.DOWNLOAD);
-		when(authorizationManager.canAccess(userInfo, accessRequirementId, ObjectType.ACCESS_REQUIREMENT, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		AccessRequirementInfoForUpdate info = new AccessRequirementInfoForUpdate();
 		info.setEtag("etag");
 		info.setCurrentVersion(1L);
@@ -443,7 +428,7 @@ public class AccessRequirementManagerImplUnitTest {
 		info.setConcreteType(ManagedACTAccessRequirement.class.getName());
 		when(accessRequirementDAO.getForUpdate(accessRequirementId)).thenReturn(info );
 
-		arm.updateAccessRequirement(userInfo, "1", toUpdate);
+		arm.updateAccessRequirement(actUserInfo, "1", toUpdate);
 
 		// test that the right AR was created
 		ArgumentCaptor<AccessRequirement> argument = ArgumentCaptor.forClass(AccessRequirement.class);
@@ -565,7 +550,6 @@ public class AccessRequirementManagerImplUnitTest {
 
 	@Test
 	public void testDeleteAccessRequirementUnauthorized() {
-		when(authorizationManager.isACTTeamMemberOrAdmin(userInfo)).thenReturn(false);
 		Assertions.assertThrows(UnauthorizedException.class, () -> {
 			arm.deleteAccessRequirement(userInfo, "1");
 		});
@@ -573,8 +557,7 @@ public class AccessRequirementManagerImplUnitTest {
 
 	@Test
 	public void testDeleteAccessRequirementAuthorized() {
-		when(authorizationManager.isACTTeamMemberOrAdmin(userInfo)).thenReturn(true);
-		arm.deleteAccessRequirement(userInfo, "1");
+		arm.deleteAccessRequirement(actUserInfo, "1");
 		verify(accessRequirementDAO).delete("1");
 	}
 
@@ -686,20 +669,18 @@ public class AccessRequirementManagerImplUnitTest {
 
 	@Test
 	public void testConvertAccessRequirementNotFound() {
-		when(authorizationManager.isACTTeamMemberOrAdmin(userInfo)).thenReturn(true);
 		when(accessRequirementDAO.getAccessRequirementForUpdate("1")).thenThrow(new NotFoundException());
 		AccessRequirementConversionRequest request = new AccessRequirementConversionRequest();
 		request.setAccessRequirementId("1");
 		request.setEtag("etag");
 		request.setCurrentVersion(2L);
 		Assertions.assertThrows(NotFoundException.class, () -> {
-			arm.convertAccessRequirement(userInfo, request);
+			arm.convertAccessRequirement(actUserInfo, request);
 		});
 	}
 
 	@Test
 	public void testConvertAccessRequirementEtagDoesNotMatch() {
-		when(authorizationManager.isACTTeamMemberOrAdmin(userInfo)).thenReturn(true);
 		ACTAccessRequirement current = createACTAccessRequirement();
 		when(accessRequirementDAO.getAccessRequirementForUpdate("1")).thenReturn(current);
 		AccessRequirementConversionRequest request = new AccessRequirementConversionRequest();
@@ -707,13 +688,12 @@ public class AccessRequirementManagerImplUnitTest {
 		request.setEtag("etag does not match");
 		request.setCurrentVersion(current.getVersionNumber());
 		Assertions.assertThrows(ConflictingUpdateException.class, () -> {
-			arm.convertAccessRequirement(userInfo, request);
+			arm.convertAccessRequirement(actUserInfo, request);
 		});
 	}
 
 	@Test
 	public void testConvertAccessRequirementVersionDoesNotMatch() {
-		when(authorizationManager.isACTTeamMemberOrAdmin(userInfo)).thenReturn(true);
 		ACTAccessRequirement current = createACTAccessRequirement();
 		when(accessRequirementDAO.getAccessRequirementForUpdate("1")).thenReturn(current);
 		AccessRequirementConversionRequest request = new AccessRequirementConversionRequest();
@@ -721,33 +701,31 @@ public class AccessRequirementManagerImplUnitTest {
 		request.setEtag(current.getEtag());
 		request.setCurrentVersion(current.getVersionNumber()-1);
 		Assertions.assertThrows(ConflictingUpdateException.class, () -> {
-			arm.convertAccessRequirement(userInfo, request);
+			arm.convertAccessRequirement(actUserInfo, request);
 		});
 	}
 
 	@Test
 	public void testConvertAccessRequirementNotSupported() {
-		when(authorizationManager.isACTTeamMemberOrAdmin(userInfo)).thenReturn(true);
 		when(accessRequirementDAO.getAccessRequirementForUpdate("1")).thenReturn(new TermsOfUseAccessRequirement());
 		AccessRequirementConversionRequest request = new AccessRequirementConversionRequest();
 		request.setAccessRequirementId("1");
 		request.setEtag("etag");
 		request.setCurrentVersion(2L);
 		Assertions.assertThrows(IllegalArgumentException.class, () -> {
-			arm.convertAccessRequirement(userInfo, request);
+			arm.convertAccessRequirement(actUserInfo, request);
 		});
 	}
 
 	@Test
 	public void testConvertAccessRequirement() {
-		when(authorizationManager.isACTTeamMemberOrAdmin(userInfo)).thenReturn(true);
 		ACTAccessRequirement current = createACTAccessRequirement();
 		when(accessRequirementDAO.getAccessRequirementForUpdate("1")).thenReturn(current);
 		AccessRequirementConversionRequest request = new AccessRequirementConversionRequest();
 		request.setAccessRequirementId("1");
 		request.setEtag(current.getEtag());
 		request.setCurrentVersion(current.getVersionNumber());
-		arm.convertAccessRequirement(userInfo, request);
+		arm.convertAccessRequirement(actUserInfo, request);
 		ArgumentCaptor<ManagedACTAccessRequirement> captor = ArgumentCaptor.forClass(ManagedACTAccessRequirement.class);
 		verify(accessRequirementDAO).update(captor.capture());
 		ManagedACTAccessRequirement updated = captor.getValue();
@@ -758,7 +736,7 @@ public class AccessRequirementManagerImplUnitTest {
 		assertEquals(current.getCreatedOn(), updated.getCreatedOn());
 		assertEquals(current.getSubjectIds(), updated.getSubjectIds());
 		assertTrue(updated.getVersionNumber().equals(current.getVersionNumber()+1));
-		assertEquals(userInfo.getId().toString(), updated.getModifiedBy());
+		assertEquals(actUserInfo.getId().toString(), updated.getModifiedBy());
 		assertFalse(updated.getEtag().equals(current.getEtag()));
 	}
 

@@ -7,12 +7,14 @@ import java.util.List;
 import java.util.UUID;
 
 import org.sagebionetworks.repo.manager.AuthorizationManager;
+import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.ACTAccessRequirement;
 import org.sagebionetworks.repo.model.AccessRequirement;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.AccessRequirementInfoForUpdate;
 import org.sagebionetworks.repo.model.AccessRequirementStats;
+import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.InvalidModelException;
@@ -51,7 +53,7 @@ public class AccessRequirementManagerImpl implements AccessRequirementManager {
 	private AccessRequirementDAO accessRequirementDAO;
 
 	@Autowired
-	private AuthorizationManager authorizationManager;
+	private EntityAuthorizationManager authorizationManager;
 	
 	@Autowired
 	private NodeDAO nodeDao;
@@ -115,7 +117,7 @@ public class AccessRequirementManagerImpl implements AccessRequirementManager {
 	@Override
 	public <T extends AccessRequirement> T createAccessRequirement(UserInfo userInfo, T accessRequirement) throws DatastoreException, InvalidModelException, UnauthorizedException, NotFoundException {
 		validateAccessRequirement(accessRequirement);
-		if (!authorizationManager.isACTTeamMemberOrAdmin(userInfo)) {
+		if (!AuthorizationUtils.isACTTeamMemberOrAdmin(userInfo)) {
 			throw new UnauthorizedException("Only ACT member can create an AccessRequirement.");
 		}
 		populateCreationFields(userInfo, accessRequirement);
@@ -145,8 +147,8 @@ public class AccessRequirementManagerImpl implements AccessRequirementManager {
 		ValidateArgument.required(entityId, "entityId");
 
 		// check authority
-		authorizationManager.canAccess(userInfo, entityId, ObjectType. ENTITY, ACCESS_TYPE.CREATE).checkAuthorizationOrElseThrow();
-		authorizationManager.canAccess(userInfo, entityId, ObjectType. ENTITY, ACCESS_TYPE.UPDATE).checkAuthorizationOrElseThrow();
+		authorizationManager.hasAccess(userInfo, entityId, ACCESS_TYPE.CREATE).checkAuthorizationOrElseThrow();
+		authorizationManager.hasAccess(userInfo, entityId, ACCESS_TYPE.UPDATE).checkAuthorizationOrElseThrow();
 
 		RestrictableObjectDescriptor subjectId = new RestrictableObjectDescriptor();
 		subjectId.setId(entityId);
@@ -204,8 +206,9 @@ public class AccessRequirementManagerImpl implements AccessRequirementManager {
 			"Update specified ID "+accessRequirementId+" but object contains id: "+toUpdate.getId());
 		validateAccessRequirement(toUpdate);
 
-		authorizationManager.canAccess(userInfo, toUpdate.getId().toString(), ObjectType.ACCESS_REQUIREMENT, ACCESS_TYPE.UPDATE)
-				.checkAuthorizationOrElseThrow();
+		if (!AuthorizationUtils.isACTTeamMemberOrAdmin(userInfo)) {
+			throw new UnauthorizedException("Only ACT member can update an AccessRequirement.");
+		}
 
 		AccessRequirementInfoForUpdate current = accessRequirementDAO.getForUpdate(accessRequirementId);
 		if(!current.getEtag().equals(toUpdate.getEtag())
@@ -227,7 +230,7 @@ public class AccessRequirementManagerImpl implements AccessRequirementManager {
 			DatastoreException, UnauthorizedException {
 		ValidateArgument.required(userInfo, "userInfo");
 		ValidateArgument.required(accessRequirementId, "accessRequirementId");
-		if (!authorizationManager.isACTTeamMemberOrAdmin(userInfo)) {
+		if (!AuthorizationUtils.isACTTeamMemberOrAdmin(userInfo)) {
 			throw new UnauthorizedException("Only ACT member can delete an AccessRequirement.");
 		}
 		accessRequirementDAO.delete(accessRequirementId);
@@ -296,7 +299,7 @@ public class AccessRequirementManagerImpl implements AccessRequirementManager {
 		ValidateArgument.required(request.getAccessRequirementId(), "requirementId");
 		ValidateArgument.required(request.getEtag(), "etag");
 		ValidateArgument.required(request.getCurrentVersion(), "currentVersion");
-		if (!authorizationManager.isACTTeamMemberOrAdmin(userInfo)) {
+		if (!AuthorizationUtils.isACTTeamMemberOrAdmin(userInfo)) {
 			throw new UnauthorizedException("Only ACT member can perform this action.");
 		}
 

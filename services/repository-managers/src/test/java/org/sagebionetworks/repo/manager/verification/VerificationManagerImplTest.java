@@ -35,7 +35,7 @@ import org.sagebionetworks.repo.manager.MessageToUserAndBody;
 import org.sagebionetworks.repo.manager.UserProfileManager;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.team.EmailParseUtil;
-import org.sagebionetworks.repo.manager.team.TeamConstants;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
@@ -441,7 +441,7 @@ public class VerificationManagerImplTest {
 	public void testCreateSubmissionNotification() throws Exception {
 		when(mockUserProfileManager.getUserProfile(USER_ID.toString())).thenReturn(userProfile);		
 		when(mockPrincipalAliasDAO.listPrincipalAliases(
-				TeamConstants.ACT_TEAM_ID, AliasType.TEAM_NAME)).
+				AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ACCESS_AND_COMPLIANCE_GROUP.getPrincipalId(), AliasType.TEAM_NAME)).
 				thenReturn(actPaList);
 
 		VerificationSubmission verificationSubmission = createVerificationSubmission();
@@ -451,7 +451,7 @@ public class VerificationManagerImplTest {
 		assertEquals(1, mtubs.size());
 		MessageToUserAndBody result = mtubs.get(0);
 		assertEquals(VERIFICATION_NOTIFICATION_SUBJECT, result.getMetadata().getSubject());
-		assertEquals(Collections.singleton(TeamConstants.ACT_TEAM_ID.toString()), 
+		assertEquals(Collections.singleton(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ACCESS_AND_COMPLIANCE_GROUP.getPrincipalId().toString()), 
 				result.getMetadata().getRecipients());
 		assertEquals(NOTIFICATION_UNSUBSCRIBE_ENDPOINT, 
 				result.getMetadata().getNotificationUnsubscribeEndpoint());

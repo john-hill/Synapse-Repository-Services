@@ -12,7 +12,7 @@ import java.util.Date;
 import java.util.List;
 
 import org.junit.Test;
-import org.sagebionetworks.repo.manager.team.TeamConstants;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.SchemaCache;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.UserProfile;
@@ -55,7 +55,7 @@ public class UserProfileManagerUtilsTest {
 
 		assertFalse(UserProfileManagerUtils.isOwnerACTOrAdmin(null, otherId));
 		
-		userInfo.setGroups(Collections.singleton(TeamConstants.ACT_TEAM_ID));
+		userInfo.setGroups(Collections.singleton(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ACCESS_AND_COMPLIANCE_GROUP.getPrincipalId()));
 		assertTrue(UserProfileManagerUtils.isOwnerACTOrAdmin(userInfo, otherId));
 		
 	}

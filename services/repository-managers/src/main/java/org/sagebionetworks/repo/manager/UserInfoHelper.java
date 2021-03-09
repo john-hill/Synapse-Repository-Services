@@ -3,7 +3,7 @@ package org.sagebionetworks.repo.manager;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.sagebionetworks.repo.manager.team.TeamConstants;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.UserInfo;
 
@@ -14,7 +14,7 @@ public class UserInfoHelper {
 	}
 
 	public static boolean isACTMember(UserInfo userInfo) {
-		return userInfo.getGroups().contains(TeamConstants.ACT_TEAM_ID);
+		return userInfo.getGroups().contains(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ACCESS_AND_COMPLIANCE_GROUP.getPrincipalId());
 	}
 	
 	public static UserInfo createAnonymousUserInfo() {

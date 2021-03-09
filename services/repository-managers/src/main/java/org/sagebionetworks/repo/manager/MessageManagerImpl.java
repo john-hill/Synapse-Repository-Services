@@ -17,10 +17,10 @@ import org.sagebionetworks.repo.manager.SendRawEmailRequestBuilder.BodyType;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.file.FileHandleUrlRequest;
 import org.sagebionetworks.repo.manager.principal.SynapseEmailService;
-import org.sagebionetworks.repo.manager.team.TeamConstants;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.ACLInheritanceException;
 import org.sagebionetworks.repo.model.AccessControlList;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.GroupMembersDAO;
@@ -195,7 +195,7 @@ public class MessageManagerImpl implements MessageManager {
 	@Override
 	@WriteTransaction
 	public MessageToUser createMessageWithThrottle(UserInfo userInfo, MessageToUser dto) throws NotFoundException {
-		boolean userIsTrustedMessageSender = userInfo.getGroups().contains(TeamConstants.TRUSTED_MESSAGE_SENDER_TEAM_ID);
+		boolean userIsTrustedMessageSender = userInfo.getGroups().contains(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.TRUSTED_MESSAGE_SENDER_GROUP.getPrincipalId());
 
 		// Throttle message creation
 		if (!userInfo.isAdmin() && !userIsTrustedMessageSender && !messageDAO.canCreateMessage(userInfo.getId().toString(), 
@@ -231,7 +231,7 @@ public class MessageManagerImpl implements MessageManager {
 				throw new UnauthorizedException("Anonymous user may not send messages.");
 			}
 
-			boolean userIsTrustedMessageSender = userInfo.getGroups().contains(TeamConstants.TRUSTED_MESSAGE_SENDER_TEAM_ID);
+			boolean userIsTrustedMessageSender = userInfo.getGroups().contains(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.TRUSTED_MESSAGE_SENDER_GROUP.getPrincipalId());
 
 			// Limit the number of recipients
 			if (!userIsTrustedMessageSender && dto.getRecipients() != null && dto.getRecipients().size() > MAX_NUMBER_OF_RECIPIENTS) {
@@ -497,7 +497,7 @@ public class MessageManagerImpl implements MessageManager {
 				continue;
 			}
 			
-			boolean userIsTrustedMessageSender = userInfo.getGroups().contains(TeamConstants.TRUSTED_MESSAGE_SENDER_TEAM_ID);
+			boolean userIsTrustedMessageSender = userInfo.getGroups().contains(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.TRUSTED_MESSAGE_SENDER_GROUP.getPrincipalId());
 			// Check permissions to send to non-individuals
 			if (!userIsTrustedMessageSender &&
 					!ug.getIsIndividual() &&

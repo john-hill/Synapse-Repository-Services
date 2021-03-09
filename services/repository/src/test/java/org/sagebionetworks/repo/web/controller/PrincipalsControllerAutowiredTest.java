@@ -15,7 +15,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.sagebionetworks.reflection.model.PaginatedResults;
 import org.sagebionetworks.repo.manager.UserManager;
-import org.sagebionetworks.repo.manager.team.TeamConstants;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
@@ -107,7 +107,7 @@ public class PrincipalsControllerAutowiredTest extends AbstractAutowiredControll
 				foundPublic = true;
 			}
 			if (ug.getId().equals(
-					TeamConstants.ADMINISTRATORS_TEAM_ID.toString())) {
+					AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ADMINISTRATORS_GROUP.getPrincipalId().toString())) {
 				foundAdmin = true;
 			}
 			assertTrue(ug.toString(), !ug.getIsIndividual());

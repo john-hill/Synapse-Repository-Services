@@ -495,7 +495,35 @@ public class DownloadListManagerImplTest {
 	}
 	
 	@Test
-	public void testQueryDownloadListWithAvaiable() {
+	public void testQueryDownloadListWithNullRequest() {
+		queryRequestBody = null;
+		String message = assertThrows(IllegalArgumentException.class, ()->{
+			// call under test
+			manager.queryDownloadList(userOne, queryRequestBody);
+		}).getMessage();
+		assertEquals("requestBody is required.", message);
+	}
+	
+	@Test
+	public void testQueryDownloadListWithAvailable() {
+		
+		List<DownloadListItemResult> resultPage = new ArrayList<>(4);
+		resultPage.add((DownloadListItemResult) new DownloadListItemResult().setFileEntityId("syn1"));
+		resultPage.add((DownloadListItemResult) new DownloadListItemResult().setFileEntityId("syn2"));
+		resultPage.add((DownloadListItemResult) new DownloadListItemResult().setFileEntityId("syn3"));
+		AvailableFilesResponse expectedAvailable = new AvailableFilesResponse().setNextPageToken(null).setPage(resultPage);
+
+		List<Long> ids = Arrays.asList(1L, 2L, 3L);
+		setupAvailableCallback(resultPage, ids);
+		
+		// call under test
+		DownloadListQueryResponse response = manager.queryDownloadList(userOne, queryRequestBody);
+		assertNotNull(response);
+		assertEquals(expectedAvailable, response.getReponseDetails());
+	}
+	
+	@Test
+	public void testQueryDownloadListWithStatistics() {
 		
 		FilesStatisticsResponse details = new FilesStatisticsResponse();
 		details.setNumberOfFilesAvailableForDownload(2L);
@@ -513,34 +541,6 @@ public class DownloadListManagerImplTest {
 		assertNotNull(response);
 		assertEquals(details, response.getReponseDetails());
 		verify(mockDownloadListDao).getListStatistics(any(), eq(userOne.getId()));
-	}
-	
-	@Test
-	public void testQueryDownloadListWithNullRequest() {
-		queryRequestBody = null;
-		String message = assertThrows(IllegalArgumentException.class, ()->{
-			// call under test
-			manager.queryDownloadList(userOne, queryRequestBody);
-		}).getMessage();
-		assertEquals("requestBody is required.", message);
-	}
-	
-	@Test
-	public void testQueryDownloadListWithStatistics() {
-		
-		List<DownloadListItemResult> resultPage = new ArrayList<>(4);
-		resultPage.add((DownloadListItemResult) new DownloadListItemResult().setFileEntityId("syn1"));
-		resultPage.add((DownloadListItemResult) new DownloadListItemResult().setFileEntityId("syn2"));
-		resultPage.add((DownloadListItemResult) new DownloadListItemResult().setFileEntityId("syn3"));
-		AvailableFilesResponse expectedAvailable = new AvailableFilesResponse().setNextPageToken(null).setPage(resultPage);
-
-		List<Long> ids = Arrays.asList(1L, 2L, 3L);
-		setupAvailableCallback(resultPage, ids);
-		
-		// call under test
-		DownloadListQueryResponse response = manager.queryDownloadList(userOne, queryRequestBody);
-		assertNotNull(response);
-		assertEquals(expectedAvailable, response.getReponseDetails());
 	}
 
 	/**

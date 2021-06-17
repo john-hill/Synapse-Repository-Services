@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -311,6 +312,41 @@ public class ITJsonSchemaControllerTest {
 		JsonSchema schema = new JsonSchema();
 		schema.set$id(organizationName + "-" + schemaName + "-" + semanticVersion);
 		schema.setDescription("test with a version");
+		CreateSchemaRequest request = new CreateSchemaRequest();
+		request.setSchema(schema);
+
+		// Call under test
+		waitForSchemaCreate(request, (response) -> {
+			assertNotNull(response);
+			assertNotNull(response.getNewVersionInfo());
+			assertEquals(organizationName, response.getNewVersionInfo().getOrganizationName());
+			assertEquals(schemaName, response.getNewVersionInfo().getSchemaName());
+		});
+
+		// call under test
+		JsonSchema fetched = synapse.getJsonSchema(organizationName, schemaName, semanticVersion);
+		schema.set$id(JsonSchemaManager.createAbsolute$id(schema.get$id()));
+		assertEquals(schema, fetched);
+		// call under test
+		synapse.deleteSchema(organizationName, schemaName);
+	}
+	
+	/**
+	 * This is a test for PLFM-6801.
+	 * 
+	 * @throws SynapseException
+	 * @throws InterruptedException
+	 */
+	@Test
+	public void testCreateSchemaWithRequired() throws SynapseException, InterruptedException {
+		organization = synapse.createOrganization(createOrganizationRequest);
+		assertNotNull(organization);
+		String semanticVersion = "1.45.67-alpha+beta";
+		JsonSchema schema = new JsonSchema();
+		schema.set$id(organizationName + "-" + schemaName + "-" + semanticVersion);
+		schema.setDescription("test with a version");
+		schema.setRequired(Arrays.asList("one","two"));
+
 		CreateSchemaRequest request = new CreateSchemaRequest();
 		request.setSchema(schema);
 

@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -242,6 +243,24 @@ public class JSONEntityHttpMessageConverterTest {
 		JSONObjectAdapter adapter = new JSONObjectAdapterImpl();
 		adapter.put("concreteType", "org.sagebionetworks.repo.model.schema.CreateSchemaRequest");
 		adapter.put("schema", schema);
+		String beforeJsonString = adapter.toJSONString();
+		CreateSchemaRequest entity = new CreateSchemaRequest(adapter);
+		// call under test
+		JSONEntityHttpMessageConverter.validateJSONEntity(entity, beforeJsonString);
+	}
+	
+	@Test
+	public void testValidateJSONEntityWithRequired() throws Exception {
+		// setup
+		JsonSchema schema = new JsonSchema();
+		schema.setDescription("test description");
+		schema.setRequired(Arrays.asList("one", "two"));
+		JSONObjectAdapter schemaAdapter = new JSONObjectAdapterImpl();
+		schema.writeToJSONObject(schemaAdapter);
+		
+		JSONObjectAdapter adapter = new JSONObjectAdapterImpl();
+		adapter.put("concreteType", "org.sagebionetworks.repo.model.schema.CreateSchemaRequest");
+		adapter.put("schema", schemaAdapter);
 		String beforeJsonString = adapter.toJSONString();
 		CreateSchemaRequest entity = new CreateSchemaRequest(adapter);
 		// call under test

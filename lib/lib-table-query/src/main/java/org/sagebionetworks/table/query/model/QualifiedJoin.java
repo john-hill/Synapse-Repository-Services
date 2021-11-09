@@ -1,5 +1,7 @@
 package org.sagebionetworks.table.query.model;
 
+import lombok.Builder;
+
 /**
  * Modified subset of &ltqualified join&gt in:
  * <a href="https://github.com/ronsavage/SQL/blob/master/sql-92.bnf">SQL-92</a>
@@ -9,11 +11,12 @@ package org.sagebionetworks.table.query.model;
  * Effectively: <p> &ltqualified join&gt ::= &lttable reference&gt [ &ltjoin type&gt ] JOIN
  * &lttable reference&gt &ltjoin condition&gt
  */
+
 public class QualifiedJoin extends SQLElement {
-	TableReference tableReferenceLHS;// left side of join
-	JoinType joinType; // type of join to perform
-	TableReference tableReferenceRHS;// right side of join
-	JoinCondition joinCondition;// condition for join
+	private TableReference tableReferenceLHS;// left side of join
+	private JoinType joinType; // type of join to perform
+	private TableReference tableReferenceRHS;// right side of join
+	private JoinCondition joinCondition;// condition for join
 
 	public QualifiedJoin(TableReference tableReferenceLHS, TableReference tableReferenceRHS,
 			JoinCondition joinCondition) {

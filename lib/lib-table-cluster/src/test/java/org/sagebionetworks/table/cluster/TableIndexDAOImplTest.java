@@ -587,11 +587,8 @@ public class TableIndexDAOImplTest {
 		range.setVersionNumber(4L);
 		TableModelTestUtils.assignRowIdsAndVersionNumbers(set, range);
 		createOrUpdateOrDeleteRows(tableId, set, allTypes);
-		SchemaProvider schemaProvider = (IdAndVersion tableId) -> {
-			return allTypes;
-		};
 		// This is our query
-		SqlQuery query = new SqlQueryBuilder("select * from " + tableId, schemaProvider, userId).build();
+		SqlQuery query = new SqlQueryBuilder("select * from " + tableId, schemaProvider(allTypes), userId).build();
 		// Now query for the results
 		RowSet results = tableIndexDAO.query(mockProgressCallback, query);
 		assertNotNull(results);

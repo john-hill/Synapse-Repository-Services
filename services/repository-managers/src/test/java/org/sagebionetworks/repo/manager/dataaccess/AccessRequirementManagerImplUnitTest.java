@@ -65,11 +65,13 @@ import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptorResponse;
 import org.sagebionetworks.repo.model.RestrictableObjectType;
 import org.sagebionetworks.repo.model.SelfSignAccessRequirement;
+import org.sagebionetworks.repo.model.TeamConstants;
 import org.sagebionetworks.repo.model.TermsOfUseAccessRequirement;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dao.NotificationEmailDAO;
+import org.sagebionetworks.repo.model.dao.subscription.SubscriptionDAO;
 import org.sagebionetworks.repo.model.dataaccess.AccessRequirementConversionRequest;
 import org.sagebionetworks.repo.model.dataaccess.AccessRequirementSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.AccessRequirementSearchResponse;
@@ -79,6 +81,8 @@ import org.sagebionetworks.repo.model.dataaccess.AccessRequirementSortField;
 import org.sagebionetworks.repo.model.entity.NameIdType;
 import org.sagebionetworks.repo.model.message.ChangeType;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
+import org.sagebionetworks.repo.model.subscription.SubscriptionObjectType;
+import org.sagebionetworks.repo.model.util.AccessControlListUtil;
 import org.sagebionetworks.repo.util.jrjc.CreatedIssue;
 import org.sagebionetworks.repo.util.jrjc.JiraClient;
 import org.sagebionetworks.repo.util.jrjc.ProjectInfo;
@@ -109,6 +113,8 @@ public class AccessRequirementManagerImplUnitTest {
 	private AccessControlListDAO mockAclDao;
 	@Mock
 	private DataAccessAuthorizationManager mockDaAuthManager;
+	@Mock
+	private SubscriptionDAO mockSubscriptionDao;
 
 	@InjectMocks
 	private AccessRequirementManagerImpl arm;
@@ -1773,6 +1779,56 @@ public class AccessRequirementManagerImplUnitTest {
 		verifyZeroInteractions(accessRequirementDAO);
 		verifyZeroInteractions(mockDaAuthManager);
 		
+	}
+	
+	@Test
+	public void testSetupAccessRequirementReviewSubscriptions() {
+		String arId = "123";
+		Set<ResourceAccess> ras = Set.of(
+				AccessControlListUtil.createResourceAccess(1L, ACCESS_TYPE.CREATE, ACCESS_TYPE.UPDATE),
+				AccessControlListUtil.createResourceAccess(2L, ACCESS_TYPE.CREATE, ACCESS_TYPE.REVIEW_SUBMISSIONS),
+				AccessControlListUtil.createResourceAccess(TeamConstants.ACT_TEAM_ID, ACCESS_TYPE.CREATE, ACCESS_TYPE.REVIEW_SUBMISSIONS)
+		);
+		when(mockSubscriptionDao.getAllSubscribers(any(), any())).thenReturn(Collections.emptyList());
+		// call under test
+		arm.setupAccessRequirementReviewSubscriptions(arId, ras);
+		
+		verify(mockSubscriptionDao).getAllSubscribers(arId, SubscriptionObjectType.ACCESS_REQUIREMENT_SUBMISSION);
+		verify(mockSubscriptionDao, times(1)).create(any(), any(), any());
+		verify(mockSubscriptionDao).create("2", arId, SubscriptionObjectType.ACCESS_REQUIREMENT_SUBMISSION);
+		verify(mockSubscriptionDao, never()).removeSubscription(any(), any(), any());
+	}
+	
+	@Test
+	public void testSetupAccessRequirementReviewSubscriptionsWithAlreadySubscribed() {
+		String arId = "123";
+		Set<ResourceAccess> ras = Set.of(
+				AccessControlListUtil.createResourceAccess(1L, ACCESS_TYPE.CREATE, ACCESS_TYPE.UPDATE),
+				AccessControlListUtil.createResourceAccess(2L, ACCESS_TYPE.CREATE, ACCESS_TYPE.REVIEW_SUBMISSIONS)
+		);
+		when(mockSubscriptionDao.getAllSubscribers(any(), any())).thenReturn(List.of("2", "3"));
+		// call under test
+		arm.setupAccessRequirementReviewSubscriptions(arId, ras);
+		
+		verify(mockSubscriptionDao).getAllSubscribers(arId, SubscriptionObjectType.ACCESS_REQUIREMENT_SUBMISSION);
+		verify(mockSubscriptionDao, never()).create(any(), any(), any());
+		verify(mockSubscriptionDao, times(1)).removeSubscription(any(), any(), any());
+		verify(mockSubscriptionDao).removeSubscription("3", arId, SubscriptionObjectType.ACCESS_REQUIREMENT_SUBMISSION);
+	}
+	
+	@Test
+	public void testSetupAccessRequirementReviewSubscriptionsWithEmptyAcl() {
+		String arId = "123";
+		Set<ResourceAccess> ras = Collections.emptySet();
+		when(mockSubscriptionDao.getAllSubscribers(any(), any())).thenReturn(List.of("2", "3"));
+		// call under test
+		arm.setupAccessRequirementReviewSubscriptions(arId, ras);
+		
+		verify(mockSubscriptionDao).getAllSubscribers(arId, SubscriptionObjectType.ACCESS_REQUIREMENT_SUBMISSION);
+		verify(mockSubscriptionDao, never()).create(any(), any(), any());
+		verify(mockSubscriptionDao, times(2)).removeSubscription(any(), any(), any());
+		verify(mockSubscriptionDao).removeSubscription("2", arId, SubscriptionObjectType.ACCESS_REQUIREMENT_SUBMISSION);
+		verify(mockSubscriptionDao).removeSubscription("3", arId, SubscriptionObjectType.ACCESS_REQUIREMENT_SUBMISSION);
 	}
 
 }

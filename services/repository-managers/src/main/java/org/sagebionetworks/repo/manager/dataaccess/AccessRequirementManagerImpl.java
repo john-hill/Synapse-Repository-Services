@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -35,13 +36,16 @@ import org.sagebionetworks.repo.model.NextPageToken;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.PostMessageContentAccessRequirement;
+import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptorResponse;
 import org.sagebionetworks.repo.model.RestrictableObjectType;
 import org.sagebionetworks.repo.model.SelfSignAccessRequirement;
+import org.sagebionetworks.repo.model.TeamConstants;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.NotificationEmailDAO;
+import org.sagebionetworks.repo.model.dao.subscription.SubscriptionDAO;
 import org.sagebionetworks.repo.model.dataaccess.AccessRequirementConversionRequest;
 import org.sagebionetworks.repo.model.dataaccess.AccessRequirementSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.AccessRequirementSearchResponse;
@@ -54,6 +58,7 @@ import org.sagebionetworks.repo.model.entity.NameIdType;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.message.ChangeType;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
+import org.sagebionetworks.repo.model.subscription.SubscriptionObjectType;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.util.jrjc.JRJCHelper;
 import org.sagebionetworks.repo.util.jrjc.JiraClient;
@@ -91,11 +96,13 @@ public class AccessRequirementManagerImpl implements AccessRequirementManager {
 	
 	private DataAccessAuthorizationManager daAuthManager;
 	
+	private final SubscriptionDAO subscriptionDao;
+	
 	@Autowired
 	public AccessRequirementManagerImpl(AccessRequirementDAO accessRequirementDAO, AuthorizationManager authorizationManager,
 			NodeDAO nodeDao, NotificationEmailDAO notificationEmailDao, JiraClient jiraClient,
 			ProjectSettingsManager projectSettingsManager, TransactionalMessenger transactionalMessenger, AccessControlListDAO aclDao,
-			DataAccessAuthorizationManager daAuthManager) {
+			DataAccessAuthorizationManager daAuthManager, SubscriptionDAO subscriptionDao) {
 		this.accessRequirementDAO = accessRequirementDAO;
 		this.authorizationManager = authorizationManager;
 		this.nodeDao = nodeDao;
@@ -105,6 +112,7 @@ public class AccessRequirementManagerImpl implements AccessRequirementManager {
 		this.transactionalMessenger = transactionalMessenger;
 		this.aclDao = aclDao;
 		this.daAuthManager = daAuthManager;
+		this.subscriptionDao = subscriptionDao;
 	}
 
 	public static void validateAccessRequirement(AccessRequirement ar) throws InvalidModelException {
@@ -488,6 +496,7 @@ public class AccessRequirementManagerImpl implements AccessRequirementManager {
 		acl.setCreationDate(Date.from(Instant.now()));
 		
 		aclDao.create(acl, ObjectType.ACCESS_REQUIREMENT);
+		setupAccessRequirementReviewSubscriptions(accessRequirementId, acl.getResourceAccess());
 		
 		return aclDao.get(aclArId, ObjectType.ACCESS_REQUIREMENT);
 	}
@@ -511,6 +520,7 @@ public class AccessRequirementManagerImpl implements AccessRequirementManager {
 		acl.setId(aclArId);		
 				
 		aclDao.update(acl, ObjectType.ACCESS_REQUIREMENT);
+		setupAccessRequirementReviewSubscriptions(accessRequirementId, acl.getResourceAccess());
 		
 		return aclDao.get(aclArId, ObjectType.ACCESS_REQUIREMENT);
 	}
@@ -530,6 +540,25 @@ public class AccessRequirementManagerImpl implements AccessRequirementManager {
 		String aclArId = getAccessRequirement(accessRequirementId).getId().toString();
 		
 		aclDao.delete(aclArId, ObjectType.ACCESS_REQUIREMENT);
+		
+		setupAccessRequirementReviewSubscriptions(accessRequirementId, Collections.emptySet());
+	}
+	
+	void setupAccessRequirementReviewSubscriptions(String accessRequirmentId, Set<ResourceAccess> resourceAccessFromAcl) {
+		Set<String> nonActReviewerPrincipalIdsFromAcl = resourceAccessFromAcl.stream()
+				.filter(r -> r.getAccessType().contains(ACCESS_TYPE.REVIEW_SUBMISSIONS)).map(r -> r.getPrincipalId())
+				.filter(p -> !TeamConstants.ACT_TEAM_ID.equals(p)).map(String::valueOf).collect(Collectors.toSet());
+		Set<String> existingSubscribersToAr = subscriptionDao.getAllSubscribers(accessRequirmentId,
+				SubscriptionObjectType.ACCESS_REQUIREMENT_SUBMISSION).stream().collect(Collectors.toSet());
+
+		// to add
+		nonActReviewerPrincipalIdsFromAcl.stream().filter(Predicate.not(existingSubscribersToAr::contains))
+				.forEach(u -> subscriptionDao.create(u, accessRequirmentId,
+						SubscriptionObjectType.ACCESS_REQUIREMENT_SUBMISSION));
+		// to remove
+		existingSubscribersToAr.stream().filter(Predicate.not(nonActReviewerPrincipalIdsFromAcl::contains))
+				.forEach(u -> subscriptionDao.removeSubscription(u, accessRequirmentId,
+						SubscriptionObjectType.ACCESS_REQUIREMENT_SUBMISSION));
 	}
 
 	@WriteTransaction

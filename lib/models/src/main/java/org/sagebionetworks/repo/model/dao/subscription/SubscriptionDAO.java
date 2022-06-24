@@ -26,6 +26,15 @@ public interface SubscriptionDAO {
 	 */
 	public Subscription get(long subscriptionId);
 	
+	
+	/**
+	 * Remove the subscription for this user and type combination if it exists.
+	 * @param subscriberId
+	 * @param objectId
+	 * @param objectType
+	 */
+	void removeSubscription(String subscriberId, String objectId, SubscriptionObjectType objectType);
+	
 	/**
 	 * Get all subscriptions for the given request.
 	 * @param request

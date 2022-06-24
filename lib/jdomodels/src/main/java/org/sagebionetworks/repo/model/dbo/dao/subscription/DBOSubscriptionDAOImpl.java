@@ -479,4 +479,15 @@ public class DBOSubscriptionDAOImpl implements SubscriptionDAO{
 			throw new IllegalArgumentException("Unknown sort direction: " + direction);
 		}
 	}
+
+
+	@WriteTransaction
+	@Override
+	public void removeSubscription(String subscriberId, String objectId, SubscriptionObjectType objectType) {
+		ValidateArgument.required(subscriberId, "subscriberId");
+		ValidateArgument.required(objectId, "objectId");
+		ValidateArgument.required(objectType, "objectType");
+		jdbcTemplate.update("DELETE FROM SUBSCRIPTION WHERE SUBSCRIBER_ID = ? AND OBJECT_ID = ? AND OBJECT_TYPE = ? ",
+				subscriberId, objectId, objectType.name());
+	}
 }

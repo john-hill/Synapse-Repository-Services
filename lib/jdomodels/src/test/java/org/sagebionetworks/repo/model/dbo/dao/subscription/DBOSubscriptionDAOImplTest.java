@@ -1,9 +1,11 @@
 package org.sagebionetworks.repo.model.dbo.dao.subscription;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.sagebionetworks.repo.model.dbo.dao.subscription.DBOSubscriptionDAOImpl.LIMIT;
 import static org.sagebionetworks.repo.model.dbo.dao.subscription.DBOSubscriptionDAOImpl.OBJECT_IDS;
 import static org.sagebionetworks.repo.model.dbo.dao.subscription.DBOSubscriptionDAOImpl.OBJECT_TYPE;
@@ -24,10 +26,10 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeDAO;
@@ -55,13 +57,13 @@ import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(locations = { "classpath:jdomodels-test-context.xml" })
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration("classpath:jdomodels-test-context.xml")
 public class DBOSubscriptionDAOImplTest {
 
 	private static final String ALL_OBJECT_IDS = "0";
@@ -93,7 +95,7 @@ public class DBOSubscriptionDAOImplTest {
 	Subscriber subscriber;
 	Set<Long> projectIds;
 
-	@Before
+	@BeforeEach
 	public void before() {
 		usersToDelete = new ArrayList<String>();
 		subscriptionIdToDelete = new ArrayList<String>();
@@ -154,7 +156,7 @@ public class DBOSubscriptionDAOImplTest {
 		projectIds.add(Long.parseLong(projectId));
 	}
 
-	@After
+	@AfterEach
 	public void after() {
 		try {
 			principalAliasDAO.removeAllAliasFromPrincipal(userIdLong);
@@ -240,19 +242,26 @@ public class DBOSubscriptionDAOImplTest {
 		return results;
 	}
 
-	@Test (expected = IllegalArgumentException.class)
+	@Test
 	public void testCreateWithNullSubscriberId() {
-		subscriptionDao.create(null, threadId, SubscriptionObjectType.THREAD);
+		assertThrows(IllegalArgumentException.class, ()->{
+			subscriptionDao.create(null, threadId, SubscriptionObjectType.THREAD);
+		});
 	}
 
-	@Test (expected = IllegalArgumentException.class)
+	@Test
 	public void testCreateWithNullObjectId() {
-		subscriptionDao.create(userId, null, SubscriptionObjectType.THREAD);
+		assertThrows(IllegalArgumentException.class, ()->{
+			subscriptionDao.create(userId, null, SubscriptionObjectType.THREAD);
+		});
 	}
 
-	@Test (expected = IllegalArgumentException.class)
+	@Test
 	public void testCreateWithNullObjectType() {
-		subscriptionDao.create(userId, threadId, null);
+		assertThrows(IllegalArgumentException.class, ()->{
+			subscriptionDao.create(userId, threadId, null);
+		});
+
 	}
 
 	@Test
@@ -267,14 +276,18 @@ public class DBOSubscriptionDAOImplTest {
 		subscriptionIdToDelete.add(dto.getSubscriptionId());
 	}
 
-	@Test (expected = IllegalArgumentException.class)
+	@Test
 	public void testGetAllSubscriptionsWithNullSubscriberId(){
-		getAllSubscriptions(null, 10L, 0L, SubscriptionObjectType.DATA_ACCESS_SUBMISSION);
+		assertThrows(IllegalArgumentException.class, ()->{
+			getAllSubscriptions(null, 10L, 0L, SubscriptionObjectType.DATA_ACCESS_SUBMISSION);
+		});
 	}
 
-	@Test (expected = IllegalArgumentException.class)
+	@Test
 	public void testGetAllSubscriptionsWithNullObjectType(){
-		getAllSubscriptions(userId, 10L, 0L, null);
+		assertThrows(IllegalArgumentException.class, ()->{
+			getAllSubscriptions(userId, 10L, 0L, null);
+		});
 	}
 
 	@Test
@@ -295,14 +308,18 @@ public class DBOSubscriptionDAOImplTest {
 		subscriptionIdToDelete.add(sub.getSubscriptionId());
 	}
 
-	@Test (expected = IllegalArgumentException.class)
+	@Test
 	public void testGetAllThreadSubscriptionsWithNullSubscriberId(){
-		getAllThreadSubscriptions(null, 10L, 0L, projectIds);
+		assertThrows(IllegalArgumentException.class, ()->{
+			getAllThreadSubscriptions(null, 10L, 0L, projectIds);
+		});
 	}
 
-	@Test (expected = IllegalArgumentException.class)
+	@Test
 	public void testGetAllThreadSubscriptionsWithNullProjectIds(){
-		getAllSubscriptions(userId, 10L, 0L, null);
+		assertThrows(IllegalArgumentException.class, ()->{
+			getAllSubscriptions(userId, 10L, 0L, null);
+		});
 	}
 
 	@Test
@@ -321,14 +338,18 @@ public class DBOSubscriptionDAOImplTest {
 		subscriptionIdToDelete.add(threadSub.getSubscriptionId());
 	}
 
-	@Test (expected = IllegalArgumentException.class)
+	@Test
 	public void testGetAllForumSubscriptionsWithNullSubscriberId(){
-		getAllForumSubscriptions(null, 10L, 0L, projectIds);
+		assertThrows(IllegalArgumentException.class, ()->{
+			getAllForumSubscriptions(null, 10L, 0L, projectIds);
+		});
 	}
 
-	@Test (expected = IllegalArgumentException.class)
+	@Test
 	public void testGetAllForumSubscriptionsWithNullProjectIds(){
-		getAllSubscriptions(userId, 10L, 0L, null);
+		assertThrows(IllegalArgumentException.class, ()->{
+			getAllSubscriptions(userId, 10L, 0L, null);
+		});
 	}
 
 	@Test
@@ -414,37 +435,99 @@ public class DBOSubscriptionDAOImplTest {
 		subscriptionIdToDelete.add(sub.getSubscriptionId());
 	}
 
-	@Test (expected=NotFoundException.class)
+	@Test
 	public void testDelete() {
 		Subscription dto = subscriptionDao.create(userId, threadId, SubscriptionObjectType.THREAD);
 		long id = Long.parseLong(dto.getSubscriptionId());
 		subscriptionDao.delete(id);
-		subscriptionDao.get(id);
+		assertThrows(NotFoundException.class, ()->{
+			subscriptionDao.get(id);
+		});
 	}
+	
+	@Test
+	public void testRemoveSubscription() {
+		Subscription dto = subscriptionDao.create(userId, threadId, SubscriptionObjectType.THREAD);
+		long id = Long.parseLong(dto.getSubscriptionId());
+		// call under test
+		subscriptionDao.removeSubscription(userId, threadId, SubscriptionObjectType.THREAD);
+		assertThrows(NotFoundException.class, ()->{
+			subscriptionDao.get(id);
+		});
+	}
+	
+	@Test
+	public void testRemoveSubscriptionDoesNotExist() {
+		userId = "-123";
+		// call under test
+		subscriptionDao.removeSubscription(userId, threadId, SubscriptionObjectType.THREAD);
+	}
+	
+	
+	@Test
+	public void testRemoveSubscriptionWithNullUser() {
+		userId = null;
+		String message = assertThrows(IllegalArgumentException.class, ()->{
+			// call under test
+			subscriptionDao.removeSubscription(userId, threadId, SubscriptionObjectType.THREAD);
+		}).getMessage();
+		assertEquals("subscriberId is required.", message);
+	}
+	
+	@Test
+	public void testRemoveSubscriptionWithNullObjectId() {
+		threadId = null;
+		String message = assertThrows(IllegalArgumentException.class, ()->{
+			// call under test
+			subscriptionDao.removeSubscription(userId, threadId, SubscriptionObjectType.THREAD);
+		}).getMessage();
+		assertEquals("objectId is required.", message);
+	}
+	
+	@Test
+	public void testRemoveSubscriptionWithNullObjectType() {
+		SubscriptionObjectType type = null;
+		String message = assertThrows(IllegalArgumentException.class, ()->{
+			// call under test
+			subscriptionDao.removeSubscription(userId, threadId, type);
+		}).getMessage();
+		assertEquals("objectType is required.", message);
+	}
+	
 
-	@Test (expected = IllegalArgumentException.class)
+	@Test
 	public void testGetAllSubscribersWithNullObjectId() {
-		subscriptionDao.getAllSubscribers(null, SubscriptionObjectType.FORUM);
+		assertThrows(IllegalArgumentException.class, ()->{
+			subscriptionDao.getAllSubscribers(null, SubscriptionObjectType.FORUM);
+		});
 	}
 
-	@Test (expected = IllegalArgumentException.class)
+	@Test
 	public void testGetAllSubscribersWithNullObjectType() {
-		subscriptionDao.getAllSubscribers("123", null);
+		assertThrows(IllegalArgumentException.class, ()->{
+			subscriptionDao.getAllSubscribers("123", null);
+		});
 	}
 
-	@Test (expected = IllegalArgumentException.class)
+	@Test
 	public void testSubscribeAllUsersWithNullSubscribers(){
-		subscriptionDao.subscribeAllUsers(null, threadId, SubscriptionObjectType.THREAD);
+		assertThrows(IllegalArgumentException.class, ()->{
+			subscriptionDao.subscribeAllUsers(null, threadId, SubscriptionObjectType.THREAD);
+		});
 	}
 
-	@Test (expected = IllegalArgumentException.class)
+	@Test
 	public void testSubscribeAllUsersWithNullObjectId(){
-		subscriptionDao.subscribeAllUsers(new HashSet<String>(0), null, SubscriptionObjectType.THREAD);
+		assertThrows(IllegalArgumentException.class, ()->{
+			subscriptionDao.subscribeAllUsers(new HashSet<String>(0), null, SubscriptionObjectType.THREAD);
+		});
 	}
 
-	@Test (expected = IllegalArgumentException.class)
+	@Test
 	public void testSubscribeAllUsersWithNullObjectType(){
-		subscriptionDao.subscribeAllUsers(new HashSet<String>(0), threadId, null);
+		assertThrows(IllegalArgumentException.class, ()->{
+			subscriptionDao.subscribeAllUsers(new HashSet<String>(0), threadId, null);
+		});
 	}
 
 	@Test
@@ -483,9 +566,11 @@ public class DBOSubscriptionDAOImplTest {
 		assertEquals(subscriber.getUsername(), sub.getUsername());
 	}
 
-	@Test (expected=IllegalArgumentException.class)
+	@Test
 	public void testGetAllProjectsUserHasThreadSubsWithNullUserId() {
-		subscriptionDao.getAllProjectsUserHasThreadSubs(null);
+		assertThrows(IllegalArgumentException.class, ()->{
+			subscriptionDao.getAllProjectsUserHasThreadSubs(null);
+		});
 	}
 
 	@Test
@@ -500,9 +585,11 @@ public class DBOSubscriptionDAOImplTest {
 		assertTrue(projects.contains(Long.parseLong(projectId)));
 	}
 
-	@Test (expected=IllegalArgumentException.class)
+	@Test
 	public void testGetAllProjectsUserHasForumSubsWithNullUserId() {
-		subscriptionDao.getAllProjectsUserHasForumSubs(null);
+		assertThrows(IllegalArgumentException.class, ()->{
+			subscriptionDao.getAllProjectsUserHasForumSubs(null);
+		});
 	}
 
 	@Test
@@ -517,14 +604,18 @@ public class DBOSubscriptionDAOImplTest {
 		assertTrue(projects.contains(Long.parseLong(projectId)));
 	}
 
-	@Test (expected = IllegalArgumentException.class)
+	@Test
 	public void testGetSubscribersWithNullObjectId() {
-		subscriptionDao.getSubscribers(null, SubscriptionObjectType.FORUM, 0, 0);
+		assertThrows(IllegalArgumentException.class, ()->{
+			subscriptionDao.getSubscribers(null, SubscriptionObjectType.FORUM, 0, 0);
+		});
 	}
 
-	@Test (expected = IllegalArgumentException.class)
+	@Test
 	public void testGetSubscribersWithNullObjectType() {
-		subscriptionDao.getSubscribers("123", null, 0, 0);
+		assertThrows(IllegalArgumentException.class, ()->{
+			subscriptionDao.getSubscribers("123", null, 0, 0);
+		});
 	}
 
 	@Test
@@ -539,14 +630,18 @@ public class DBOSubscriptionDAOImplTest {
 				subscriptionDao.getSubscribers(threadId, SubscriptionObjectType.THREAD, 10, 0));
 	}
 
-	@Test (expected = IllegalArgumentException.class)
+	@Test
 	public void testGetSubscriberCountWithNullObjectId() {
-		subscriptionDao.getSubscriberCount(null, SubscriptionObjectType.THREAD);
+		assertThrows(IllegalArgumentException.class, ()->{
+			subscriptionDao.getSubscriberCount(null, SubscriptionObjectType.THREAD);
+		});
 	}
 
-	@Test (expected = IllegalArgumentException.class)
+	@Test
 	public void testGetSubscriberCountWithNullObjectType() {
-		subscriptionDao.getSubscriberCount("1", null);
+		assertThrows(IllegalArgumentException.class, ()->{
+			subscriptionDao.getSubscriberCount("1", null);
+		});
 	}
 
 	@Test
@@ -576,10 +671,12 @@ public class DBOSubscriptionDAOImplTest {
 		}
 	}
 	
-	@Test (expected=IllegalArgumentException.class)
+	@Test
 	public void testGetSortDirectionNull() {
-		// call under test
-		DBOSubscriptionDAOImpl.getSortDirection(null);
+		assertThrows(IllegalArgumentException.class, ()->{
+			// call under test
+			DBOSubscriptionDAOImpl.getSortDirection(null);
+		});
 	}
 	
 	@Test
@@ -591,9 +688,11 @@ public class DBOSubscriptionDAOImplTest {
 		assertEquals(COL_SUBSCRIPTION_OBJECT_TYPE, DBOSubscriptionDAOImpl.getColunNameForSortType(SortByType.OBJECT_TYPE));
 	}
 	
-	@Test (expected=IllegalArgumentException.class)
+	@Test
 	public void testGetColunNameForSortTypeNull() {
-		DBOSubscriptionDAOImpl.getColunNameForSortType(null);
+		assertThrows(IllegalArgumentException.class, ()->{
+			DBOSubscriptionDAOImpl.getColunNameForSortType(null);
+		});
 	}
 	
 	@Test
@@ -695,22 +794,29 @@ public class DBOSubscriptionDAOImplTest {
 				+ " WHERE S.OBJECT_TYPE = :objectType AND S.SUBSCRIBER_ID = :subscriberId", builder.toString());
 	}
 	
-	@Test (expected=IllegalArgumentException.class)
+	@Test
 	public void testCreateQueryCoreNullObjectType() {
+
 		StringBuilder builder = new StringBuilder();
 		SubscriptionListRequest request = new SubscriptionListRequest()
 				.withObjectType(null).withSubscriberId("123");
-		// call under test
-		DBOSubscriptionDAOImpl.createQueryCore(builder, request);
+
+		assertThrows(IllegalArgumentException.class, ()->{
+			// call under test
+			DBOSubscriptionDAOImpl.createQueryCore(builder, request);	
+		});
 	}
 	
-	@Test (expected=IllegalArgumentException.class)
+	@Test
 	public void testCreateQueryCoreNullSubscriberId() {
 		StringBuilder builder = new StringBuilder();
 		SubscriptionListRequest request = new SubscriptionListRequest()
 				.withObjectType(SubscriptionObjectType.DATA_ACCESS_SUBMISSION).withSubscriberId(null);
-		// call under test
-		DBOSubscriptionDAOImpl.createQueryCore(builder, request);
+
+		assertThrows(IllegalArgumentException.class, ()->{
+			// call under test
+			DBOSubscriptionDAOImpl.createQueryCore(builder, request);
+		});
 	}
 	
 	@Test
@@ -881,22 +987,30 @@ public class DBOSubscriptionDAOImplTest {
 		assertFalse(params.hasValue(OFFSET));
 	}
 	
-	@Test (expected=IllegalArgumentException.class)
+	@Test
 	public void testCreateParametersNullId() {
+
 		SubscriptionListRequest request = new SubscriptionListRequest()
 				.withObjectType(SubscriptionObjectType.FORUM)
 				.withSubscriberId(null);
-		// call under test
-		DBOSubscriptionDAOImpl.createParameters(request);
+
+		assertThrows(IllegalArgumentException.class, ()->{
+			// call under test
+			DBOSubscriptionDAOImpl.createParameters(request);
+		});
 	}
 	
-	@Test (expected=IllegalArgumentException.class)
+	@Test
 	public void testCreateParametersNullType() {
+
 		SubscriptionListRequest request = new SubscriptionListRequest()
 				.withObjectType(null)
 				.withSubscriberId("123");
-		// call under test
-		DBOSubscriptionDAOImpl.createParameters(request);
+
+		assertThrows(IllegalArgumentException.class, ()->{
+			// call under test
+			DBOSubscriptionDAOImpl.createParameters(request);
+		});
 	}
 	
 	@Test

@@ -1782,7 +1782,26 @@ public class AccessRequirementManagerImplUnitTest {
 	}
 	
 	@Test
-	public void testSetupAccessRequirementReviewSubscriptions() {
+	public void testSetupAccessRequirementReviewSubscriptionsWithAddAndRemove() {
+		String arId = "123";
+		Set<ResourceAccess> ras = Set.of(
+				AccessControlListUtil.createResourceAccess(1L, ACCESS_TYPE.CREATE, ACCESS_TYPE.UPDATE),
+				AccessControlListUtil.createResourceAccess(2L, ACCESS_TYPE.CREATE, ACCESS_TYPE.REVIEW_SUBMISSIONS),
+				AccessControlListUtil.createResourceAccess(TeamConstants.ACT_TEAM_ID, ACCESS_TYPE.CREATE, ACCESS_TYPE.REVIEW_SUBMISSIONS)
+		);
+		when(mockSubscriptionDao.getAllSubscribers(any(), any())).thenReturn(List.of("3"));
+		// call under test
+		arm.setupAccessRequirementReviewSubscriptions(arId, ras);
+		
+		verify(mockSubscriptionDao).getAllSubscribers(arId, SubscriptionObjectType.ACCESS_REQUIREMENT_SUBMISSION);
+		verify(mockSubscriptionDao, times(1)).create(any(), any(), any());
+		verify(mockSubscriptionDao).create("2", arId, SubscriptionObjectType.ACCESS_REQUIREMENT_SUBMISSION);
+		verify(mockSubscriptionDao, times(1)).removeSubscription(any(), any(), any());
+		verify(mockSubscriptionDao).removeSubscription("3", arId, SubscriptionObjectType.ACCESS_REQUIREMENT_SUBMISSION);
+	}
+	
+	@Test
+	public void testSetupAccessRequirementReviewSubscriptionsWithAddOnly() {
 		String arId = "123";
 		Set<ResourceAccess> ras = Set.of(
 				AccessControlListUtil.createResourceAccess(1L, ACCESS_TYPE.CREATE, ACCESS_TYPE.UPDATE),
@@ -1800,6 +1819,21 @@ public class AccessRequirementManagerImplUnitTest {
 	}
 	
 	@Test
+	public void testSetupAccessRequirementReviewSubscriptionsWithRemoveOnly() {
+		String arId = "123";
+		Set<ResourceAccess> ras = Collections.emptySet();
+		when(mockSubscriptionDao.getAllSubscribers(any(), any())).thenReturn(List.of("2", "3"));
+		// call under test
+		arm.setupAccessRequirementReviewSubscriptions(arId, ras);
+		
+		verify(mockSubscriptionDao).getAllSubscribers(arId, SubscriptionObjectType.ACCESS_REQUIREMENT_SUBMISSION);
+		verify(mockSubscriptionDao, never()).create(any(), any(), any());
+		verify(mockSubscriptionDao, times(2)).removeSubscription(any(), any(), any());
+		verify(mockSubscriptionDao).removeSubscription("2", arId, SubscriptionObjectType.ACCESS_REQUIREMENT_SUBMISSION);
+		verify(mockSubscriptionDao).removeSubscription("3", arId, SubscriptionObjectType.ACCESS_REQUIREMENT_SUBMISSION);
+	}
+	
+	@Test
 	public void testSetupAccessRequirementReviewSubscriptionsWithAlreadySubscribed() {
 		String arId = "123";
 		Set<ResourceAccess> ras = Set.of(
@@ -1813,21 +1847,6 @@ public class AccessRequirementManagerImplUnitTest {
 		verify(mockSubscriptionDao).getAllSubscribers(arId, SubscriptionObjectType.ACCESS_REQUIREMENT_SUBMISSION);
 		verify(mockSubscriptionDao, never()).create(any(), any(), any());
 		verify(mockSubscriptionDao, times(1)).removeSubscription(any(), any(), any());
-		verify(mockSubscriptionDao).removeSubscription("3", arId, SubscriptionObjectType.ACCESS_REQUIREMENT_SUBMISSION);
-	}
-	
-	@Test
-	public void testSetupAccessRequirementReviewSubscriptionsWithEmptyAcl() {
-		String arId = "123";
-		Set<ResourceAccess> ras = Collections.emptySet();
-		when(mockSubscriptionDao.getAllSubscribers(any(), any())).thenReturn(List.of("2", "3"));
-		// call under test
-		arm.setupAccessRequirementReviewSubscriptions(arId, ras);
-		
-		verify(mockSubscriptionDao).getAllSubscribers(arId, SubscriptionObjectType.ACCESS_REQUIREMENT_SUBMISSION);
-		verify(mockSubscriptionDao, never()).create(any(), any(), any());
-		verify(mockSubscriptionDao, times(2)).removeSubscription(any(), any(), any());
-		verify(mockSubscriptionDao).removeSubscription("2", arId, SubscriptionObjectType.ACCESS_REQUIREMENT_SUBMISSION);
 		verify(mockSubscriptionDao).removeSubscription("3", arId, SubscriptionObjectType.ACCESS_REQUIREMENT_SUBMISSION);
 	}
 

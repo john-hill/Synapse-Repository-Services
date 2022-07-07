@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -511,6 +512,44 @@ public class MigratableTableDAOImplAutowireTest {
 		expectedTwo.setMaximumId(ids.get(2)+1);
 		List<IdRange> expected = Lists.newArrayList(expectedOne, expectedTwo);
 		assertEquals(expected, range);
+	}
+	
+	@Test
+	public void testCalculateRangesForTypeWithMax() {
+		List<Long> ids = createColumns(20);
+		
+		MigrationType migrationType = MigrationType.COLUMN_MODEL;
+		long minimumId = ids.get(0);
+		long maximumId = ids.get(10);
+		long optimalNumberOfRows = 2;
+		// call under test
+		List<IdRange> range = migratableTableDAO.calculateRangesForType(migrationType, minimumId, maximumId, optimalNumberOfRows);
+		List<IdRange> expected = List.of(
+				new IdRange().setMinimumId(minimumId).setMaximumId(minimumId+2),
+				new IdRange().setMinimumId(minimumId+2).setMaximumId(minimumId+4),
+				new IdRange().setMinimumId(minimumId+4).setMaximumId(minimumId+6),
+				new IdRange().setMinimumId(minimumId+6).setMaximumId(minimumId+8),
+				new IdRange().setMinimumId(minimumId+8).setMaximumId(minimumId+10),
+				new IdRange().setMinimumId(minimumId+10).setMaximumId(minimumId+11)
+		);
+		assertEquals(expected, range);
+	}
+	
+	/**
+	 * A helper to create n columns.
+	 * @param numberToCreate
+	 * @return
+	 */
+	private List<Long> createColumns(int numberToCreate){
+		List<Long> ids = new ArrayList<>(numberToCreate);
+		for(int i=0; i<numberToCreate; i++) {
+			ColumnModel c = new ColumnModel();
+			c.setColumnType(ColumnType.INTEGER);
+			c.setName("a"+i);
+			c  = columnModelDao.createColumnModel(c);
+			ids.add(Long.parseLong(c.getId()));
+		}
+		return ids;
 	}
 	
 	@Test

@@ -332,21 +332,6 @@ public class TransactionalMessengerImplTest {
 		assertEquals("The message.changeType is required.", result);
 	}
 	
-	@Test
-	public void testPublishMessageAfterCommmitWithLocalChangeMessageWithNoUserId() {
-		
-		LocalStackChangeMesssage message = new LocalStackChangeMesssage()
-			.setObjectId("123")
-			.setObjectType(ObjectType.ENTITY)
-			.setChangeType(ChangeType.UPDATE);
-		
-		String result = assertThrows(IllegalArgumentException.class, () -> {	
-			// Call under test
-			messenger.publishMessageAfterCommit(message);
-		}).getMessage();
-		
-		assertEquals("The message.userId is required.", result);
-	}
 
 	/**
 	 * PLFM-1662 was a bug the resulted in duplicate messages being broadcast. One of the messages did not have

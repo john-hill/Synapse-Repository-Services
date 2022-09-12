@@ -7,14 +7,16 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Date;
@@ -59,6 +61,7 @@ import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
 import org.sagebionetworks.repo.model.message.ChangeType;
+import org.sagebionetworks.repo.model.message.LocalStackChangeMesssage;
 import org.sagebionetworks.repo.model.message.MessageToSend;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
 import org.sagebionetworks.repo.model.table.ColumnModel;
@@ -80,6 +83,7 @@ import org.sagebionetworks.table.cluster.description.ViewIndexDescription;
 import org.sagebionetworks.table.cluster.utils.TableModelUtils;
 import org.sagebionetworks.util.TimeoutUtils;
 import org.sagebionetworks.workers.util.semaphore.WriteReadSemaphoreRunner;
+import org.springframework.cglib.core.Local;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -231,8 +235,8 @@ public class TableManagerSupportTest {
 		// must trigger processing
 		verify(mockTableStatusDAO).resetTableStatusToProcessing(idAndVersion);
 		verify(mockTransactionalMessenger)
-		.sendMessageAfterCommit(new MessageToSend().withObjectId(tableId).withObjectType(ObjectType.TABLE)
-				.withChangeType(ChangeType.UPDATE).withObjectVersion(null));
+		.publishMessageAfterCommit(new LocalStackChangeMesssage().setObjectId(tableId).setObjectType(ObjectType.TABLE)
+				.setChangeType(ChangeType.UPDATE).setObjectVersion(null));
 	}
 	
 	/**
@@ -257,8 +261,8 @@ public class TableManagerSupportTest {
 		verify(mockTableStatusDAO).resetTableStatusToProcessing(idAndVersion);
 		verify(mockNodeDao).isNodeAvailable(tableIdLong);
 		verify(mockTransactionalMessenger)
-				.sendMessageAfterCommit(new MessageToSend().withObjectId(tableId).withObjectType(ObjectType.TABLE)
-						.withChangeType(ChangeType.UPDATE).withObjectVersion(null));
+				.publishMessageAfterCommit(new LocalStackChangeMesssage().setObjectId(tableId).setObjectType(ObjectType.TABLE)
+						.setChangeType(ChangeType.UPDATE).setObjectVersion(null));
 	}
 	
 	/**
@@ -321,8 +325,8 @@ public class TableManagerSupportTest {
 		assertNotNull(result);
 		verify(mockTableStatusDAO).resetTableStatusToProcessing(idAndVersion);
 		verify(mockTransactionalMessenger)
-		.sendMessageAfterCommit(new MessageToSend().withObjectId(tableId).withObjectType(ObjectType.TABLE)
-				.withChangeType(ChangeType.UPDATE).withObjectVersion(null));
+		.publishMessageAfterCommit(new LocalStackChangeMesssage().setObjectId(tableId).setObjectType(ObjectType.TABLE)
+				.setChangeType(ChangeType.UPDATE).setObjectVersion(null));
 	}
 
 
@@ -787,12 +791,28 @@ public class TableManagerSupportTest {
 		manager.rebuildTable(mockAdmin, idAndVersion);
 		verify(mockTableIndexDAO).deleteTable(idAndVersion);
 		verify(mockTableStatusDAO).resetTableStatusToProcessing(idAndVersion);
-		ArgumentCaptor<ChangeMessage> captor = ArgumentCaptor.forClass(ChangeMessage.class);
-		verify(mockTransactionalMessenger).sendMessageAfterCommit(captor.capture());
-		ChangeMessage message = captor.getValue();
-		assertEquals(message.getObjectId(), tableIdLong+"");
-		assertEquals(ObjectType.TABLE, message.getObjectType());
-		assertEquals(ChangeType.UPDATE, message.getChangeType());
+		LocalStackChangeMesssage expectedMessage = new LocalStackChangeMesssage()
+				.setObjectId(tableIdLong.toString()).setObjectType(ObjectType.TABLE).setChangeType(ChangeType.UPDATE)
+				.setObjectVersion(null);
+		verify(mockTransactionalMessenger).publishMessageAfterCommit(expectedMessage);
+	}
+	
+	@Test
+	public void testRebuildTableWithVersionNumber() throws Exception {
+		idAndVersion = IdAndVersion.parse("syn123.4");
+		when(mockTableConnectionFactory.getConnection(idAndVersion)).thenReturn(mockTableIndexDAO);
+		when(mockTableStatusDAO.resetTableStatusToProcessing(idAndVersion)).thenReturn(etag);
+		when(mockNodeDao.getNodeTypeById(tableId)).thenReturn(EntityType.table);
+		UserInfo mockAdmin = Mockito.mock(UserInfo.class);
+		when(mockAdmin.isAdmin()).thenReturn(true);
+		// call under test
+		manager.rebuildTable(mockAdmin, idAndVersion);
+		verify(mockTableIndexDAO).deleteTable(idAndVersion);
+		verify(mockTableStatusDAO).resetTableStatusToProcessing(idAndVersion);
+		LocalStackChangeMesssage expectedMessage = new LocalStackChangeMesssage()
+				.setObjectId("123").setObjectType(ObjectType.TABLE).setChangeType(ChangeType.UPDATE)
+				.setObjectVersion(4L);
+		verify(mockTransactionalMessenger).publishMessageAfterCommit(expectedMessage);
 	}
 
 	@Test
@@ -807,12 +827,9 @@ public class TableManagerSupportTest {
 		manager.rebuildTable(mockAdmin, idAndVersion);
 		verify(mockTableIndexDAO).deleteTable(idAndVersion);
 		verify(mockTableStatusDAO).resetTableStatusToProcessing(idAndVersion);
-		ArgumentCaptor<ChangeMessage> captor = ArgumentCaptor.forClass(ChangeMessage.class);
-		verify(mockTransactionalMessenger).sendMessageAfterCommit(captor.capture());
-		ChangeMessage message = captor.getValue();
-		assertEquals(message.getObjectId(), tableIdLong+"");
-		assertEquals(ObjectType.ENTITY_VIEW, message.getObjectType());
-		assertEquals(ChangeType.UPDATE, message.getChangeType());
+		LocalStackChangeMesssage expected = new LocalStackChangeMesssage().setObjectId(tableId)
+				.setObjectType(ObjectType.ENTITY_VIEW).setChangeType(ChangeType.UPDATE);
+		verify(mockTransactionalMessenger).publishMessageAfterCommit(expected);
 	}
 	
 	@Test
@@ -854,8 +871,8 @@ public class TableManagerSupportTest {
 		TableStatus resultStatus = manager.setTableToProcessingAndTriggerUpdate(idAndVersion);
 		assertEquals(status, resultStatus);
 		verify(mockTransactionalMessenger)
-				.sendMessageAfterCommit(new MessageToSend().withObjectId("123").withObjectVersion(3L)
-						.withObjectType(ObjectType.ENTITY_VIEW).withChangeType(ChangeType.UPDATE));
+				.publishMessageAfterCommit(new LocalStackChangeMesssage().setObjectId("123").setObjectVersion(3L)
+						.setObjectType(ObjectType.ENTITY_VIEW).setChangeType(ChangeType.UPDATE));
 		verify(mockTableStatusDAO).resetTableStatusToProcessing(idAndVersion);
 	}
 	
@@ -873,8 +890,8 @@ public class TableManagerSupportTest {
 		TableStatus resultStatus = manager.setTableToProcessingAndTriggerUpdate(idAndVersion);
 		assertEquals(status, resultStatus);
 		verify(mockTransactionalMessenger)
-		.sendMessageAfterCommit(new MessageToSend().withObjectId("123").withObjectVersion(null)
-				.withObjectType(ObjectType.ENTITY_VIEW).withChangeType(ChangeType.UPDATE));
+		.publishMessageAfterCommit(new LocalStackChangeMesssage().setObjectId("123").setObjectVersion(null)
+				.setObjectType(ObjectType.ENTITY_VIEW).setChangeType(ChangeType.UPDATE));
 		verify(mockTableStatusDAO).resetTableStatusToProcessing(idAndVersion);
 	}
 	
@@ -935,10 +952,10 @@ public class TableManagerSupportTest {
 		// call under test
 		managerSpy.sendAsynchronousActivitySignal(idAndVersion);
 		verify(managerSpy).getTableType(idAndVersion);
-		MessageToSend expected = new MessageToSend().withObjectId(idAndVersion.getId().toString())
-				.withObjectVersion(null).withObjectType(ObjectType.ENTITY_VIEW)
-				.withChangeType(ChangeType.UPDATE);
-		verify(mockTransactionalMessenger).sendMessageAfterCommit(expected);
+		LocalStackChangeMesssage expected = new LocalStackChangeMesssage().setObjectId(idAndVersion.getId().toString())
+				.setObjectVersion(null).setObjectType(ObjectType.ENTITY_VIEW)
+				.setChangeType(ChangeType.UPDATE);
+		verify(mockTransactionalMessenger).publishMessageAfterCommit(expected);
 	}
 	
 	@Test
@@ -948,10 +965,10 @@ public class TableManagerSupportTest {
 		// call under test
 		managerSpy.sendAsynchronousActivitySignal(idAndVersion);
 		verify(managerSpy).getTableType(idAndVersion);
-		MessageToSend expected = new MessageToSend().withObjectId("123")
-				.withObjectVersion(new Long(1)).withObjectType(ObjectType.ENTITY_VIEW)
-				.withChangeType(ChangeType.UPDATE);
-		verify(mockTransactionalMessenger).sendMessageAfterCommit(expected);
+		LocalStackChangeMesssage expected = new LocalStackChangeMesssage().setObjectId("123")
+				.setObjectVersion(1L).setObjectType(ObjectType.ENTITY_VIEW)
+				.setChangeType(ChangeType.UPDATE);
+		verify(mockTransactionalMessenger).publishMessageAfterCommit(expected);
 	}
 	
 	@Test

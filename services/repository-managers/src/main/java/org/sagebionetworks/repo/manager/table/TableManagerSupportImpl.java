@@ -31,9 +31,8 @@ import org.sagebionetworks.repo.model.dbo.dao.table.TableRowTruthDAO;
 import org.sagebionetworks.repo.model.dbo.dao.table.ViewScopeDao;
 import org.sagebionetworks.repo.model.dbo.dao.table.ViewSnapshotDao;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
-import org.sagebionetworks.repo.model.message.ChangeMessage;
 import org.sagebionetworks.repo.model.message.ChangeType;
-import org.sagebionetworks.repo.model.message.MessageToSend;
+import org.sagebionetworks.repo.model.message.LocalStackChangeMesssage;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.TableConstants;
@@ -142,10 +141,11 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 		// Currently we only signal views
 		if (ObjectType.ENTITY_VIEW.equals(tableType)) {
 			// notify all listeners.
-			transactionalMessenger
-					.sendMessageAfterCommit(new MessageToSend().withObjectId(idAndVersion.getId().toString())
-							.withObjectVersion(idAndVersion.getVersion().orElse(null)).withObjectType(tableType)
-							.withChangeType(ChangeType.UPDATE));
+			transactionalMessenger.publishMessageAfterCommit(new LocalStackChangeMesssage()
+					.setObjectId(idAndVersion.getId().toString())
+					.setObjectVersion(idAndVersion.getVersion().orElse(null))
+					.setObjectType(tableType)
+					.setChangeType(ChangeType.UPDATE));
 		}
 	}
 
@@ -166,9 +166,9 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 		// building of the index and report the table as unavailable
 		tableStatusDAO.resetTableStatusToProcessing(idAndVersion);
 		// notify all listeners.
-		transactionalMessenger.sendMessageAfterCommit(new MessageToSend().withObjectId(idAndVersion.getId().toString())
-				.withObjectVersion(idAndVersion.getVersion().orElse(null)).withObjectType(tableType)
-				.withChangeType(ChangeType.UPDATE));
+		transactionalMessenger.publishMessageAfterCommit(new LocalStackChangeMesssage().setObjectId(idAndVersion.getId().toString())
+				.setObjectVersion(idAndVersion.getVersion().orElse(null)).setObjectType(tableType)
+				.setChangeType(ChangeType.UPDATE));
 		// status should exist now
 		return tableStatusDAO.getTableStatus(idAndVersion);
 	}
@@ -477,11 +477,11 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 			indexDao.deleteTable(idAndVersion);
 		}
 		tableStatusDAO.resetTableStatusToProcessing(idAndVersion);
-		ChangeMessage message = new ChangeMessage();
-		message.setChangeType(ChangeType.UPDATE);
-		message.setObjectType(getTableType(idAndVersion));
-		message.setObjectId(idAndVersion.getId().toString());
-		transactionalMessenger.sendMessageAfterCommit(message);
+		transactionalMessenger.publishMessageAfterCommit(new LocalStackChangeMesssage()
+				.setObjectId(idAndVersion.getId().toString())
+				.setObjectVersion(idAndVersion.getVersion().orElse(null))
+				.setObjectType(getTableType(idAndVersion))
+				.setChangeType(ChangeType.UPDATE));
 	}
 
 	@Override

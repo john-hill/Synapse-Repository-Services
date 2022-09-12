@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.collections.Transform;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.ObservableEntity;
 import org.sagebionetworks.repo.model.dbo.dao.DBOChangeDAO;
@@ -123,8 +124,9 @@ public class TransactionalMessengerImpl implements TransactionalMessenger {
 		if (message instanceof LocalStackChangeMesssage) {
 			LocalStackChangeMesssage changeMessage = (LocalStackChangeMesssage) message;
 			ValidateArgument.required(changeMessage.getChangeType(), "The message.changeType");
-			ValidateArgument.required(changeMessage.getUserId(), "The message.userId");
-			
+			if(changeMessage.getUserId() == null) {
+				changeMessage.setUserId(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId());
+			}			
 			if (changeMessage.getChangeNumber() == null) {
 				changeMessage.setChangeNumber(-1L);
 			}

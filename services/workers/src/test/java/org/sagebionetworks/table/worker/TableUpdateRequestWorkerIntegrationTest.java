@@ -2,7 +2,9 @@ package org.sagebionetworks.table.worker;
 
 
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -12,8 +14,10 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -28,12 +32,12 @@ import org.sagebionetworks.AsynchronousJobWorkerHelper;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
+import org.sagebionetworks.repo.manager.asynch.AsynchJobStatusManager;
 import org.sagebionetworks.repo.manager.table.ColumnModelManager;
 import org.sagebionetworks.repo.model.AsynchJobFailedException;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
+import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.UserInfo;
-import org.sagebionetworks.repo.model.asynch.AsynchronousRequestBody;
-import org.sagebionetworks.repo.model.asynch.AsynchronousResponseBody;
 import org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils;
 import org.sagebionetworks.repo.model.dbo.dao.table.TableSnapshotDao;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
@@ -68,6 +72,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import org.sagebionetworks.repo.model.asynch.*;
+
 import com.google.common.collect.Lists;
 
 @ExtendWith(SpringExtension.class)
@@ -77,19 +83,21 @@ public class TableUpdateRequestWorkerIntegrationTest {
 	public static final int MAX_WAIT_MS = 1000 * 60;
 	
 	@Autowired
-	StackConfiguration config;
+	private StackConfiguration config;
 	@Autowired
-	EntityManager entityManager;
+	private EntityManager entityManager;
 	@Autowired
-	ConnectionFactory tableConnectionFactory;
+	private ConnectionFactory tableConnectionFactory;
 	@Autowired
-	UserManager userManager;
+	private UserManager userManager;
 	@Autowired
-	ColumnModelManager columnManager;
+	private ColumnModelManager columnManager;
 	@Autowired
-	AsynchronousJobWorkerHelper asyncHelper;
+	private AsynchronousJobWorkerHelper asyncHelper;
 	@Autowired
-	TableSnapshotDao tableSnapshotDao;
+	private TableSnapshotDao tableSnapshotDao;
+	@Autowired
+	private AsynchJobStatusManager asynchStatusManager;
 	
 	UserInfo adminUserInfo;	
 	ColumnModel intColumn;
@@ -1025,6 +1033,51 @@ public class TableUpdateRequestWorkerIntegrationTest {
 		}).getMessage();
 		
 		assertEquals("Cannot change column \"column\" to MEDIUMTEXT: The data at row " + exceedingRowId + " exceeds the MEDIUMTEXT limit of 2000 characters.", result);
+	}
+	
+	@Test
+	public void testMultiplePartialUpdates() throws Exception {
+
+		String projectId = entityManager.createEntity(adminUserInfo,
+				new Project().setName(UUID.randomUUID().toString()), null);
+		toDelete.add(projectId);
+
+		ColumnModel cm = columnManager
+				.createColumnModel(new ColumnModel().setName("a").setColumnType(ColumnType.INTEGER));
+		String tableId = entityManager.createEntity(adminUserInfo, new TableEntity().setParentId(projectId)
+				.setName(UUID.randomUUID().toString()).setColumnIds(List.of(cm.getId())), null);
+
+		startAndWaitForJob(adminUserInfo, createAddColumnsRequest(tableId, cm),
+				(TableUpdateTransactionResponse response) -> {
+					assertNotNull(response);
+				});
+
+		int count = 100;
+		List<AsynchronousJobStatus> jobs = new ArrayList<>(count);
+		for (int i = 0; i < count; i++) {
+			TableUpdateTransactionRequest request = createAddDataRequest(tableId,
+					createRowSet(tableId, new PartialRow().setValues(Map.of(cm.getId(), Integer.toString(i)))));
+			jobs.add(asynchStatusManager.startJob(adminUserInfo, request));
+		}
+
+		// each job should complete before the timeout
+		long start = System.currentTimeMillis();
+
+		while (!jobs.isEmpty()) {
+			Iterator<AsynchronousJobStatus> it = jobs.iterator();
+			while (it.hasNext()) {
+				String jobId = it.next().getJobId();
+				AsynchronousJobStatus jobStatus = asynchStatusManager.getJobStatus(adminUserInfo, jobId);
+				assertFalse(AsynchJobState.FAILED.equals(jobStatus.getJobState()),
+						"Job failed: " + jobStatus.getErrorMessage());
+				if (AsynchJobState.COMPLETE.equals(jobStatus.getJobState())) {
+					it.remove();
+				}
+			}
+			System.out.println(String.format("Waiting for %s jobs to complete...", jobs.size()));
+			Thread.sleep(2000);
+			assertTrue((System.currentTimeMillis() - start) < 150_000, "timed out waiting for job");
+		}
 	}
 	
 	/**

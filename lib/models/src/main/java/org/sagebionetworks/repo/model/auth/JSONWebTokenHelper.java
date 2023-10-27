@@ -111,4 +111,9 @@ public class JSONWebTokenHelper {
 	}
 
 
+	public static void main(String[] args) {
+		Jwt<Header,Claims> token = getUnsignedJWTFromToken(args[0]);
+		System.out.println(token);
+	}
+	
 }

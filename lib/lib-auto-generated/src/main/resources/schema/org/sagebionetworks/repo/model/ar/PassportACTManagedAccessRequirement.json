@@ -1,0 +1,15 @@
+{
+	"description": "This is an ACT managed access requirement used to require that a user has obtained one or more GA4GH Passport Visa Claims in order to access the associated subjects.",
+	"extends": {
+		"$ref": "org.sagebionetworks.repo.model.ManagedACTAccessRequirement"
+	},
+	"properties": {
+		"conditions": {
+			"description": "The conditions define how this access requirement matches to the expected Passport Visa Claims.  A separate condition is needed for each required field of a claim.  A user's claims must match ALL of the conditions in this list in order for this AR to be considered met.",
+			"type": "array",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.PassportClaimCondition"
+			}
+		}
+	}
+}

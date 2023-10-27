@@ -1,0 +1,27 @@
+{
+	"properties": {
+		"type": {
+			"name": "MatchType",
+			"description": "...",
+			"type": "string",
+			"enum": [
+				{
+					"name": "const",
+					"description": "..."
+				},
+				{
+					"name": "pattern",
+					"description": "..."
+				},
+				{
+					"name": "split_pattern",
+					"description": "..."
+				}
+			]
+		},
+		"value": {
+			"type": "string",
+			"description": "..."
+		}
+	}
+}

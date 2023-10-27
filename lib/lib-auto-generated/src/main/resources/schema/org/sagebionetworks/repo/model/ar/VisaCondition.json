@@ -1,0 +1,34 @@
+{
+	"properties": {
+		"type": {
+			"name": "VisaType",
+			"description": "...",
+			"type": "string",
+			"enum": [
+				{
+					"name": "AffiliationAndRole",
+					"description": "..."
+				},
+				{
+					"name": "AcceptedTermsAndPolicies",
+					"description": "..."
+				},
+				{
+					"name": "ResearcherStatus",
+					"description": "..."
+				},
+				{
+					"name": "ControlledAccessGrants",
+					"description": "..."
+				},
+				{
+					"name": "LinkedIdentities",
+					"description": "..."
+				}
+			]
+		},
+		"value": {
+			"$ref": "org.sagebionetworks.repo.model.ar.MatchTypeValue"
+		}
+	}
+}

@@ -1,34 +1,29 @@
 {
+	"description": "Defines a match to a single GA4GH passport visa.  See: <a href=\"https://github.com/ga4gh-duri/ga4gh-duri.github.io/blob/master/researcher_ids/ga4gh_passport_v1.md#conditions\">GA4GH passport conditions</a>",
 	"properties": {
 		"type": {
-			"name": "VisaType",
-			"description": "...",
-			"type": "string",
-			"enum": [
-				{
-					"name": "AffiliationAndRole",
-					"description": "..."
-				},
-				{
-					"name": "AcceptedTermsAndPolicies",
-					"description": "..."
-				},
-				{
-					"name": "ResearcherStatus",
-					"description": "..."
-				},
-				{
-					"name": "ControlledAccessGrants",
-					"description": "..."
-				},
-				{
-					"name": "LinkedIdentities",
-					"description": "..."
-				}
-			]
+			"description": "Required.  The visa type to be matched.  Note: Custom types are not supported.",
+			"$ref": "org.sagebionetworks.repo.model.ar.VisaType"
 		},
 		"value": {
+			"description": "Optional.  When provided defines an expected 'value' claim.",
 			"$ref": "org.sagebionetworks.repo.model.ar.MatchTypeValue"
+		},
+		"source": {
+			"description": "Optional.  When provided defines an expected 'source' claim.",
+			"$ref": "org.sagebionetworks.repo.model.ar.MatchTypeValue"
+		},
+		"by": {
+			"description": "Optional.  When provided defines an expected 'by' claim.",
+			"$ref": "org.sagebionetworks.repo.model.ar.MatchTypeValue"
+		},
+		"brokerRedirectUrl": {
+			"description": "The redirect URL of the passport broker that will provide this GA4GH passport visa for an authenticated caller.",
+			"type": "string"
+		},
+		"visaName": {
+			"description": "The name of the visa to request from the passport broker.",
+			"type": "string"
 		}
 	}
 }

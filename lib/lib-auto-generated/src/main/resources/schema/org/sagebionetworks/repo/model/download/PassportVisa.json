@@ -1,0 +1,21 @@
+{
+	"description": "A representation of See: <a href=\"https://github.com/ga4gh-duri/ga4gh-duri.github.io/blob/master/researcher_ids/ga4gh_passport_v1.md#visa-format\">GA4GH passport visa</a>",
+	"properties": {
+		"type": {
+			"description": "Required.",
+			"$ref": "org.sagebionetworks.repo.model.ar.VisaType"
+		},
+		"value": {
+			"description": "Required. A string that represents any of the scope, process, identifier and version of the assertion. The format of the string can vary by the Visa Type",
+			"type": "string"
+		},
+		"source": {
+			"description": "Required. A URL Claim that provides at a minimum the organization that made the assertion. If there is no organization making the assertion, the source claim value MUST be set to 'https://no.organization'.",
+			"type": "string"
+		},
+		"by": {
+			"description": "Optional. The level or type of authority within the 'source' organization of the assertion.",
+			"type": "string"
+		}
+	}
+}

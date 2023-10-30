@@ -1,0 +1,12 @@
+{
+	"description": "A group of one or more VisaConditions.",
+	"properties": {
+		"andConditions": {
+			"description": "A group of one or more visa conditions.  Each condition within the group is delimited with an 'AND'.",
+			"type": "array",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.ar.VisaCondition"
+			}
+		}
+	}
+}

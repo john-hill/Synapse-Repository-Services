@@ -1,0 +1,21 @@
+{
+	"description": "In order to download a file the user will need to provide ore ore more GA4GH passport visa claim.  Such a claim will be provided by the linked GA4GH passport broker.",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.download.Action"
+		}
+	],
+	"properties": {
+		"brokerRedirectUrl": {
+			"description": "The redirect URL of the passport broker that provides the passport visa claims needed to access data.",
+			"type": "string"
+		},
+		"visaNames": {
+			"description": "The name of the visas that the to be provided.",
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		}
+	}
+}

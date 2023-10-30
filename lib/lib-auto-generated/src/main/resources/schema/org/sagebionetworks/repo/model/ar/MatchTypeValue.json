@@ -1,27 +1,28 @@
 {
+	"description": "Defines both the operation and value for matching a single visa claim.",
 	"properties": {
 		"type": {
+			"description": "Required.  The type defines how value should be matched to a claim.",
 			"name": "MatchType",
-			"description": "...",
 			"type": "string",
 			"enum": [
 				{
 					"name": "const",
-					"description": "..."
+					"description": "A case sensitive full string match."
 				},
 				{
 					"name": "pattern",
-					"description": "..."
+					"description": "Supports special meaning characters for matching values.  Use '?' to match any single character, and '*' to match multiple characters"
 				},
 				{
 					"name": "split_pattern",
-					"description": "..."
+					"description": "A pattern match on part of a ';' delimited value."
 				}
 			]
 		},
 		"value": {
-			"type": "string",
-			"description": "..."
+			"description": "The value depends on match type.  For 'const' a match requires a case sensitive full string match of this value.  For 'patterns', use a '?' to match any single character, and '*' to match multiple characters including the empty string and null string.",
+			"type": "string"
 		}
 	}
 }

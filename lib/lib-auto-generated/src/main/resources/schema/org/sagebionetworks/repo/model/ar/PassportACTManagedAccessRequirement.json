@@ -4,11 +4,11 @@
 		"$ref": "org.sagebionetworks.repo.model.ManagedACTAccessRequirement"
 	},
 	"properties": {
-		"conditions": {
-			"description": "The conditions define how this access requirement matches to the expected Passport Visa Claims.  A separate condition is needed for each required field of a claim.  A user's claims must match ALL of the conditions in this list in order for this AR to be considered met.",
+		"visaConditions": {
+			"description": "The conditions define how this access requirement matches to each required GA4GH passport visa.  Each condition group can contain one or more VisaContions. Conditions within each group are delimited with an 'AND' while each groups are delimited with an 'OR'",
 			"type": "array",
 			"items": {
-				"$ref": "org.sagebionetworks.repo.model.PassportClaimCondition"
+				"$ref": "org.sagebionetworks.repo.model.ar.ConditionGroup"
 			}
 		}
 	}

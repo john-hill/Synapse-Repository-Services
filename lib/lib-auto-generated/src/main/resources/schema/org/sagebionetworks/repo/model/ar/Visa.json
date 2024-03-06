@@ -1,0 +1,31 @@
+{
+	"properties": {
+		"type": {
+			"description": "Required.  The visa type to be matched.  Note: Custom types are not supported.",
+			"$ref": "org.sagebionetworks.repo.model.ar.VisaType"
+		},
+		"asserted": {
+			"description": "",
+			"type": "integer"
+		},
+		"value": {
+			"description": "",
+			"type": "string"
+		},
+		"source": {
+			"description": "",
+			"type": "string"
+		},
+		"conditions": {
+			"type": "array",
+			"description": "A group of one or more ConditionGroup.  There is an 'OR' relationship between each ConditionGroup.",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.ar.ConditionGroup"
+			}
+		},
+		"by": {
+			"description": "",
+			"$ref": "org.sagebionetworks.repo.model.ar.ByType"
+		}
+	}
+}

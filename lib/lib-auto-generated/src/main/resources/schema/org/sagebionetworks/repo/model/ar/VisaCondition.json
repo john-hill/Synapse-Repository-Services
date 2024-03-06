@@ -1,0 +1,21 @@
+{
+	"description": "Defines a match to a single GA4GH passport visa.  See: <a href=\"https://github.com/ga4gh-duri/ga4gh-duri.github.io/blob/master/researcher_ids/ga4gh_passport_v1.md#conditions\">GA4GH passport conditions</a>",
+	"properties": {
+		"type": {
+			"description": "Required.  The visa type to be matched.  Note: Custom types are not supported.",
+			"$ref": "org.sagebionetworks.repo.model.ar.VisaType"
+		},
+		"value": {
+			"description": "Optional.  When provided defines an expected 'value' claim.",
+			"$ref": "org.sagebionetworks.repo.model.ar.MatchTypeValue"
+		},
+		"source": {
+			"description": "Optional.  When provided defines an expected 'source' claim.",
+			"$ref": "org.sagebionetworks.repo.model.ar.MatchTypeValue"
+		},
+		"by": {
+			"description": "Optional.  When provided defines an expected 'by' claim.",
+			"$ref": "org.sagebionetworks.repo.model.ar.ByType"
+		}
+	}
+}

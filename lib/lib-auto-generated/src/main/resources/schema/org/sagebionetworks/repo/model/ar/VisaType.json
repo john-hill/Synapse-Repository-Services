@@ -1,0 +1,21 @@
+{
+	"description": "Required.  The visa type to be matched.  Note: Custom types are not supported.",
+	"type": "string",
+	"enum": [
+		{
+			"name": "AffiliationAndRole"
+		},
+		{
+			"name": "AcceptedTermsAndPolicies"
+		},
+		{
+			"name": "ResearcherStatus"
+		},
+		{
+			"name": "ControlledAccessGrants"
+		},
+		{
+			"name": "LinkedIdentities"
+		}
+	]
+}

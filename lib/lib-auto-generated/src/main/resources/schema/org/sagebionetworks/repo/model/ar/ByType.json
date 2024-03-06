@@ -1,0 +1,21 @@
+{
+	"description": "Required.  The visa type to be matched.  Note: Custom types are not supported.",
+	"type": "string",
+	"enum": [
+		{
+			"name": "self"
+		},
+		{
+			"name": "peer"
+		},
+		{
+			"name": "system"
+		},
+		{
+			"name": "so"
+		},
+		{
+			"name": "dac"
+		}
+	]
+}

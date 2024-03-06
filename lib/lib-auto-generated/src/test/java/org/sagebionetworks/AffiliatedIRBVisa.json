@@ -1,0 +1,9 @@
+{
+	"ga4gh_visa_v1": {
+		"type": "ControlledAccessGrants",
+		"asserted": 1645593544,
+		"value": "https://some.institution.org/irb/approval/123/dataset/456",
+		"source": "https://some.institution.org",
+		"by": "dac"
+	}
+}

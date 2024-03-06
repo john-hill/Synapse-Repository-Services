@@ -1,0 +1,12 @@
+{
+	"description": "A group of one or more GA4GH visa conditions.",
+	"properties": {
+		"visaConditions": {
+			"description": "A group of one or more VisaCondition.  There is an 'AND' relationship between each VisaCondition.",
+			"type": "array",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.ar.VisaCondition"
+			}
+		}
+	}
+}

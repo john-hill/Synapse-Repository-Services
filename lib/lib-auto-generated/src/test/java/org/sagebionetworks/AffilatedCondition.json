@@ -1,0 +1,14 @@
+{
+	"id": "12",
+	"name":"Affiliate IRB approval",
+	"type":"ControlledAccessGrants",
+	"value":{
+		"match-type":"pattern",
+		"match-value":"https://some.institution.org/irb/approval/*/dataset/456"
+	},
+	"source":{
+		"match-type":"const",
+		"match-value":"https://some.institution.org"
+	},
+	"by":"dac"
+}

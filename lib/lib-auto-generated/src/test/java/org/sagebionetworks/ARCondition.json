@@ -1,0 +1,14 @@
+{
+	"id": "13",
+	"name":"AR 789 Approval",
+	"type":"ControlledAccessGrants",
+	"value":{
+		"match-type":"pattern",
+		"match-value":"https://repo-prod.prod.sagebase.org/auth/v1/access/requirment/met/789/user/*"
+	},
+	"source":{
+		"match-type":"const",
+		"match-value":"https://repo-prod.prod.sagebase.org/auth/v1"
+	},
+	"by":"dac"
+}

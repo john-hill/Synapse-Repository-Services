@@ -1,0 +1,8 @@
+{
+	"ga4gh_visa_v1": {
+		"type": "ResearcherStatus",
+		"asserted": 1645593544,
+		"value": "https://www.synapse.org/#!Profile:273991/validated-profile",
+		"source": "https://repo-prod.prod.sagebase.org/auth/v1"
+	}
+}

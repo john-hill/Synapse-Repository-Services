@@ -1,0 +1,9 @@
+{
+	"ga4gh_visa_v1": {
+		"type": "ControlledAccessGrants",
+		"asserted": 1645593544,
+		"value": "https://repo-prod.prod.sagebase.org/auth/v1/access/requirment/met/789/user/111",
+		"source": "https://repo-prod.prod.sagebase.org/auth/v1",
+		"by": "dac"
+	}
+}

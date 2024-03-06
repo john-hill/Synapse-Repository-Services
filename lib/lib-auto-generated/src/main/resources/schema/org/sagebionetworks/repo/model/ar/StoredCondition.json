@@ -1,0 +1,15 @@
+{
+	"extends": {
+		"$ref": "org.sagebionetworks.repo.model.ar.VisaCondition"
+	},
+	"properties": {
+		"id": {
+			"description": "The unique ID issued to this condition when it was created.",
+			"type": "string"
+		},
+		"name": {
+			"description": "A display name for this condition.",
+			"type": "string"
+		}
+	}
+}

@@ -1,0 +1,17 @@
+{
+	"description": "An Access Requirement type defined by GA4GH passport visa conditions.",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.AccessRequirement"
+		}
+	],
+	"properties": {
+		"conditions": {
+			"description": "A group of one or more ConditionIdGroups.  There is an 'OR' relationship between each ConditionIdGroup.",
+			"type": "array",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.ar.ConditionIdGroup"
+			}
+		}
+	}
+}

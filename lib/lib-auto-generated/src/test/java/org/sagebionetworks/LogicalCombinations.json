@@ -1,0 +1,8 @@
+{
+	"concreteType":"org.sagebionetworks.repo.model.ar.PassportAccessRequirement",
+	"conditions":[
+		{"conditionIds":["1","2"]},
+		{"conditionIds":["3","4"]},
+		{"conditionIds":["5"]}
+	]
+}

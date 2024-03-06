@@ -1,0 +1,8 @@
+{
+	"actions": [
+		{
+			"concreteType": "org.sagebionetworks.repo.model.download.MeetAccessRequirement",
+			"accessRequirementId": 222
+		}
+	]
+}

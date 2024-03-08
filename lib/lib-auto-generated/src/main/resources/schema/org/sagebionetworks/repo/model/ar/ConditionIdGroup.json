@@ -2,7 +2,7 @@
 	"description": "A group of one or more GA4GH visa condition IDs.",
 	"properties": {
 		"conditionIds": {
-			"description": "A group of one or more condition IDs.  There is an 'OR' relationship between each condition IDs.",
+			"description": "A group of one or more condition IDs.  There is an 'AND' relationship between each condition IDs.",
 			"type": "array",
 			"items": {
 				"type": "string"

@@ -1,0 +1,18 @@
+{
+	"description": "Information about an outstanding OIDC access token",
+	"properties": {
+		"tokenId": {
+			"type": "string",
+			"description": "The unique ID of the OIDC access token"
+		},
+		"expiresOn": {
+			"type": "string",
+			"format": "date-time",
+			"description": "The data-time when this access token expires."
+		},
+		"userId": {
+			"type": "string",
+			"description": "The ID of the user that owns this access token"
+		}
+	}
+}

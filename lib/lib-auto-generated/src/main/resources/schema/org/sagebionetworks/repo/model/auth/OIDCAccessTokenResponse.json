@@ -1,0 +1,16 @@
+{
+	"description": "A single page of OIDCAccessTokenInfo with a nextPageToken to get more results.",
+	"properties": {
+		"page": {
+			"type": "array",
+			"description": "A single page of access tokens",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.OIDCAccessTokenInfo"
+			}
+		},
+		"nextPageToken": {
+			"type": "string",
+			"description": "Token that can be used to get the next page.  Null if there are no more results."
+		}
+	}
+}

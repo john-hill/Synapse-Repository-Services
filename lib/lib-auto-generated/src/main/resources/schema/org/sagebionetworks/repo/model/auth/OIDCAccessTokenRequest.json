@@ -1,0 +1,13 @@
+{
+	"description": "Request for a single page of outstanding OIDCAccessTokenInfo for the given userId",
+	"properties": {
+		"userId": {
+			"type": "string",
+			"description": "The ID of the user that owns the access tokens"
+		},
+		"nextPageToken": {
+			"type": "string",
+			"description": "Optional. Forward the 'nextPageToken' from a previous response to get the next page."
+		}
+	}
+}

@@ -222,4 +222,25 @@ public class AgentChatWorkerIntegrationTest {
 				
 			}, MAX_WAIT_MS).getResponse();
 	}
+	
+	@Test
+	public void testFunctionInformation() throws AssertionError, AsynchJobFailedException {
+		AgentSession session = agentService.createSession(admin.getId(),
+				new CreateAgentSessionRequest().setAgentAccessLevel(AgentAccessLevel.PUBLICLY_ACCESSIBLE));
+		
+		String sessionId = session.getSessionId();
+		
+		String chatRequest = "What functions are available to you?";
+		
+		asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new AgentChatRequest().setEnableTrace(true).setSessionId(sessionId).setChatText(chatRequest),
+				(AgentChatResponse response) -> {
+					assertNotNull(response);
+					assertEquals(sessionId, response.getSessionId());
+					assertNotNull(response.getResponseText());
+					System.out.println(response.getResponseText());
+				}, MAX_WAIT_MS).getResponse();
+		
+
+	}
 }

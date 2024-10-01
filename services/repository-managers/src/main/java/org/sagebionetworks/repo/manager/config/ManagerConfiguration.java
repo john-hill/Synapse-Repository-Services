@@ -14,6 +14,8 @@ import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
@@ -76,6 +78,7 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.bedrockagent.BedrockAgentClient;
+import software.amazon.awssdk.services.bedrockagent.model.GetAgentRequest;
 import software.amazon.awssdk.services.bedrockagent.model.ListAgentsRequest;
 import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAsyncClient;
 
@@ -86,6 +89,9 @@ public class ManagerConfiguration {
 	private static final String VELOCITY_PARAM_CLASSPATH_LOADER_CLASS = "classpath.resource.loader.class";
 	private static final String VELOCITY_PARAM_FILE_LOADER_CLASS = "file.resource.loader.class";
 	private static final String VELOCITY_PARAM_RUNTIME_REFERENCES_STRICT = "runtime.references.strict";
+	
+	
+	private Logger logger = LogManager.getLogger(ManagerConfiguration.class);
 
 	/**
 	 * @return The velocity engine instance that can be used within the managers
@@ -312,10 +318,14 @@ public class ManagerConfiguration {
 				.add("agent").toString();
 
 		return bedrockAgentClient.listAgentsPaginator(ListAgentsRequest.builder().build()).stream()
-				.flatMap(a -> a.agentSummaries().stream()).filter(a -> agentName.equals(a.agentName()))
-				.map(a -> a.agentId()).findFirst()
+				.flatMap(a -> a.agentSummaries().stream()).filter(a -> agentName.equals(a.agentName())).map(a -> {
+					var agent = bedrockAgentClient.getAgent(GetAgentRequest.builder().agentId(a.agentId()).build())
+							.agent();
+					logger.info("Default agent found, agentName: '{}' agentStatus: '{}' foundationModel: '{}'", a.agentName(),
+							a.agentStatus(), agent.foundationModel());
+					return a.agentId();
+				}).findFirst()
 				.orElseThrow(() -> new IllegalArgumentException("Could not find a bedrock agent named: " + agentName));
-
 	}
 
 }

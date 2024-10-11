@@ -1,0 +1,17 @@
+{
+	"description": "Provides information about the storage location that should be used when uploading a file and information about the destination project and limits that may apply",
+	"properties": {
+		"uploadDestination": {
+			"$ref": "org.sagebionetworks.repo.model.file.UploadDestination",
+			"description": "Details of the storage location where the file should be upload."
+		},
+		"destinationProjectId": {
+			"type": "string",
+			"description": "The ID of the project where this file will be uploaded."
+		},
+		"projectStorageLocationUsage": {
+			"$ref": "org.sagebionetworks.repo.model.limits.ProjectStorageLocationUsage",
+			"description": "This object includes information about size and limits associated with this project storage location.  Clients should not attempt to upload a file to this location if isOverLimit=true or if (<size_new_file> + sumFileBytes) is greater than maxAllowedFileBytes."
+		}
+	}
+}

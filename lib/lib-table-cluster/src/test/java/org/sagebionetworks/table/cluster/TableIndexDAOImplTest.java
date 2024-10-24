@@ -169,7 +169,7 @@ public class TableIndexDAOImplTest {
 		if (tableId != null && tableIndexDAO != null) {
 			tableIndexDAO.deleteTable(tableId);
 		}
-		//tableIndexDAO.truncateIndex();
+		tableIndexDAO.truncateIndex();
 	}
 	
 	/**

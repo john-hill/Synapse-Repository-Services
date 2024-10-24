@@ -17,7 +17,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
+import org.sagebionetworks.repo.model.EntityType;
+import org.sagebionetworks.repo.model.helper.FileHandleObjectHelper;
 import org.sagebionetworks.repo.model.helper.NodeDaoObjectHelper;
+import org.sagebionetworks.repo.model.helper.StorageLocationHelper;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.limits.ProjectStorageData;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
@@ -35,23 +38,46 @@ public class ProjectStorageLimitsDaoImplTest {
 	@Autowired
 	private NodeDaoObjectHelper nodeHelper;
 	
+	@Autowired
+	private StorageLocationHelper locationHelper;
+	
+	@Autowired
+	private FileHandleObjectHelper fileHelper;
+	
+	private Long projectOneId;
+	private Long projectTwoId;
+	private Long projectThreeId;
+	
+	private Long sLocOneId;
+	private Long sLocTwoId;
+	private Long sLocThreeId;
+	
 	@BeforeEach
 	public void before() {
 		nodeHelper.truncateAll();
 		dao.truncateAll();
+		fileHelper.truncateAll();
+		locationHelper.truncateAll();
+		
+		projectOneId = KeyFactory.stringToKey(nodeHelper.create(node -> node.setNodeType(EntityType.project)).getId());
+		projectTwoId = KeyFactory.stringToKey(nodeHelper.create(node -> node.setNodeType(EntityType.project)).getId());
+		projectThreeId = KeyFactory.stringToKey(nodeHelper.create(node -> node.setNodeType(EntityType.project)).getId());
+		
+		sLocOneId = locationHelper.create(location -> {}).getStorageLocationId();
+		sLocTwoId = locationHelper.create(location -> {}).getStorageLocationId();
+		sLocThreeId = locationHelper.create(location -> {}).getStorageLocationId();
 	}
 
 	@AfterEach
 	public void after() {
 		dao.truncateAll();
 		nodeHelper.truncateAll();
+		fileHelper.truncateAll();
+		locationHelper.truncateAll();
 	}
 	
 	@Test
 	public void testSetAndGetStorageData() throws InterruptedException {
-		Long projectOneId = 123L;
-		Long projectTwoId = 456L;
-		Long projectThreeId = 789L;
 				
 		// Call under test
 		assertEquals(Optional.empty(), dao.getStorageData(projectOneId));
@@ -61,11 +87,11 @@ public class ProjectStorageLimitsDaoImplTest {
 		List<ProjectStorageData> projectsData = List.of(new ProjectStorageData()
 				.setProjectId(projectOneId)
 				.setRuntimeMs(1000L)
-				.setStorageLocationData(Map.of("1", 1024L, "2", 3072L)),
+				.setStorageLocationData(Map.of(sLocOneId.toString(), 1024L, sLocTwoId.toString(), 3072L)),
 			new ProjectStorageData()
 				.setProjectId(projectTwoId)
 				.setRuntimeMs(1024L)
-				.setStorageLocationData(Map.of("2", 2048L, "3", 4096L)),
+				.setStorageLocationData(Map.of(sLocTwoId.toString(), 2048L, sLocThreeId.toString(), 4096L)),
 			new ProjectStorageData()
 				.setProjectId(projectThreeId)
 				.setRuntimeMs(2048L)
@@ -99,50 +125,46 @@ public class ProjectStorageLimitsDaoImplTest {
 	
 	@Test
 	public void testIsStorageDataModifiedOnAfter() {
-		Long projectId = 123L;
-		
 		Instant instant = Instant.now().minusSeconds(1);
 		
-		assertFalse(dao.isStorageDataModifiedOnAfter(projectId, instant));
+		assertFalse(dao.isStorageDataModifiedOnAfter(projectOneId, instant));
 		
-		dao.setStorageData(List.of(new ProjectStorageData().setProjectId(projectId).setRuntimeMs(1024L)));
+		dao.setStorageData(List.of(new ProjectStorageData().setProjectId(projectOneId).setRuntimeMs(1024L)));
 		
-		assertTrue(dao.isStorageDataModifiedOnAfter(projectId, instant));
+		assertTrue(dao.isStorageDataModifiedOnAfter(projectOneId, instant));
 		
-		assertFalse(dao.isStorageDataModifiedOnAfter(projectId, instant.plusSeconds(60)));
+		assertFalse(dao.isStorageDataModifiedOnAfter(projectOneId, instant.plusSeconds(60)));
 	}
 	
 	@Test
 	public void testGetAndSetStorageLimits() {
 		Long userId = BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
-		
-		Long projectOneId = 123L;
-		Long projectTwoId = 456L;
-		
+				
 		// Call under test
 		assertEquals(Collections.emptyList(), dao.getStorageLocationLimits(projectOneId));
 		assertEquals(Collections.emptyList(), dao.getStorageLocationLimits(projectTwoId));
-		
-		Long storageLocationIdOne = 1L;
-		Long storageLocationIdTwo = 2L;
-		
+				
 		// Call under test
-		assertEquals(Optional.empty(), dao.getStorageLocationLimit(projectOneId, storageLocationIdOne));
-		assertEquals(Optional.empty(), dao.getStorageLocationLimit(projectOneId, storageLocationIdTwo));
+		assertEquals(Optional.empty(), dao.getStorageLocationLimit(projectOneId, sLocOneId));
+		assertEquals(Optional.empty(), dao.getStorageLocationLimit(projectOneId, sLocOneId));
 		
 		List<ProjectStorageLocationLimit> limits = List.of(
 			new ProjectStorageLocationLimit()
 				.setProjectId(KeyFactory.keyToString(projectOneId))
-				.setStorageLocationId(storageLocationIdOne.toString())
+				.setStorageLocationId(sLocOneId.toString())
 				.setMaxAllowedFileBytes(1024L),
 			new ProjectStorageLocationLimit()
 				.setProjectId(KeyFactory.keyToString(projectOneId))
-				.setStorageLocationId(storageLocationIdTwo.toString())
+				.setStorageLocationId(sLocTwoId.toString())
 				.setMaxAllowedFileBytes(2048L),
 			new ProjectStorageLocationLimit()
 				.setProjectId(KeyFactory.keyToString(projectTwoId))
-				.setStorageLocationId(storageLocationIdTwo.toString())
-				.setMaxAllowedFileBytes(3072L)
+				.setStorageLocationId(sLocTwoId.toString())
+				.setMaxAllowedFileBytes(3072L),
+			new ProjectStorageLocationLimit()
+				.setProjectId(KeyFactory.keyToString(projectTwoId))
+				.setStorageLocationId(sLocThreeId.toString())
+				.setMaxAllowedFileBytes(null)
 		);
 
 		limits.forEach(limit -> {
@@ -157,11 +179,11 @@ public class ProjectStorageLimitsDaoImplTest {
 		});
 		
 		// Call under test
-		assertEquals(Optional.empty(), dao.getStorageLocationLimit(projectTwoId, storageLocationIdOne));
+		assertEquals(Optional.empty(), dao.getStorageLocationLimit(projectTwoId, sLocOneId));
 		
 		// Call under test
 		assertEquals(limits.subList(0, 2), dao.getStorageLocationLimits(projectOneId));
-		assertEquals(limits.subList(2, 3), dao.getStorageLocationLimits(projectTwoId));
+		assertEquals(limits.subList(2, 4), dao.getStorageLocationLimits(projectTwoId));
 		
 	}
 }

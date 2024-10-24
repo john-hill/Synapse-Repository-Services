@@ -192,10 +192,19 @@ public class ProjectStorageLimitsDaoImpl implements ProjectStorageLimitsDao {
 		
 		String projectIdKey = KeyFactory.keyToString(projectId);
 		
-		return jdbcTemplate.query(sql, (rs,  i) -> new ProjectStorageLocationLimit()
-			.setProjectId(projectIdKey)
-			.setStorageLocationId(String.valueOf(rs.getLong(COL_PROJECT_STORAGE_LIMIT_LOCATION_ID)))
-			.setMaxAllowedFileBytes(rs.getLong(COL_PROJECT_STORAGE_LIMIT_MAX_BYTES)), args);
+		return jdbcTemplate.query(sql, (rs,  i) -> { 
+			Long maxBytes = rs.getLong(COL_PROJECT_STORAGE_LIMIT_MAX_BYTES);
+			
+			if (rs.wasNull()) {
+				maxBytes = null;
+			}
+			
+			return new ProjectStorageLocationLimit()
+					.setProjectId(projectIdKey)
+					.setStorageLocationId(String.valueOf(rs.getLong(COL_PROJECT_STORAGE_LIMIT_LOCATION_ID)))
+					.setMaxAllowedFileBytes(maxBytes);
+			
+		}, args);
 		
 	}
 

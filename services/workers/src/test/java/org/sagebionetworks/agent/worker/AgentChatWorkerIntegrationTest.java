@@ -222,7 +222,7 @@ public class AgentChatWorkerIntegrationTest {
 
 		assertNotNull(session);
 		// an empty request will return an empty response.
-		String chatRequest = "What are the names and synIDs of the folders and file in the project: " + project.getId();
+		String chatRequest = "What are the names and synIDs of the folders and files in the project: " + project.getId() + "? Please exclude all other entity types.";
 
 		asynchronousJobWorkerHelper.assertJobResponse(admin,
 				new AgentChatRequest().setSessionId(session.getSessionId()).setChatText(chatRequest),
@@ -267,7 +267,7 @@ public class AgentChatWorkerIntegrationTest {
 
 		assertNotNull(session);
 		// an empty request will return an empty response.
-		String chatRequest = "What are the names and synIDs of the files in the project: " + project.getId();
+		String chatRequest = "What are the names and synIDs of the files in the project: " + project.getId() +"? Please exclude all other entity types.";
 
 		asynchronousJobWorkerHelper.assertJobResponse(admin,
 				new AgentChatRequest().setSessionId(session.getSessionId()).setChatText(chatRequest),

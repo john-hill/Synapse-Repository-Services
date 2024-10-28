@@ -3,52 +3,42 @@ package org.sagebionetworks.repo.service.metadata;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import javax.servlet.http.HttpServletRequest;
-
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.discussion.ForumManager;
+import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitManager;
 import org.sagebionetworks.repo.manager.subscription.SubscriptionManager;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.discussion.Forum;
 import org.sagebionetworks.repo.model.subscription.SubscriptionObjectType;
 import org.sagebionetworks.repo.model.subscription.Topic;
-import org.sagebionetworks.repo.service.metadata.ProjectMetadataProvider;
-import org.springframework.test.util.ReflectionTestUtils;
 
+@ExtendWith(MockitoExtension.class)
 public class ProjectMetadataProviderTest {
 
 	@Mock
-	Project mockProject;
+	private ForumManager mockForumManager;
 	@Mock
-	HttpServletRequest mockRequest;
+	private SubscriptionManager mockSubscriptionManager;
 	@Mock
-	ForumManager mockForumManager;
-	@Mock
-	SubscriptionManager mockSubscriptionManager;
-
-	ProjectMetadataProvider provider;
-	Project project;
-	String projectId;
-	UserInfo userInfo;
-	Long userId;
-	Forum forum;
-	String forumId;
+	private ProjectStorageLimitManager mockStorageLimitsManager;
+	@InjectMocks
+	private ProjectMetadataProvider provider;
 	
-	@Before
+	private Project project;
+	private String projectId;
+	private UserInfo userInfo;
+	private Long userId;
+	private Forum forum;
+	private String forumId;
+	
+	@BeforeEach
 	public void before(){
-		MockitoAnnotations.initMocks(this);
-		when(mockProject.getId()).thenReturn("101");
-		when(mockRequest.getServletPath()).thenReturn("/repo/v1");
-		when(mockRequest.getRequestURI()).thenReturn("/project");
-
-		provider = new ProjectMetadataProvider();
-		ReflectionTestUtils.setField(provider, "forumManager", mockForumManager);
-		ReflectionTestUtils.setField(provider, "subscriptionManager", mockSubscriptionManager);
-
 		project = new Project();
 		projectId = "101";
 		project.setId(projectId);
@@ -59,17 +49,18 @@ public class ProjectMetadataProviderTest {
 		forumId = "456";
 		forum.setId(forumId);
 
-		when(mockForumManager.createForum(userInfo, projectId)).thenReturn(forum);
-
 	}
 
 	@Test
 	public void testEntityCreated() {
+		
+		when(mockForumManager.createForum(userInfo, projectId)).thenReturn(forum);
+
+		// Call under test
 		provider.entityCreated(userInfo, project);
+		
 		verify(mockForumManager).createForum(userInfo, projectId);
-		Topic topic = new Topic();
-		topic.setObjectId(forumId);
-		topic.setObjectType(SubscriptionObjectType.FORUM);
-		verify(mockSubscriptionManager).create(userInfo, topic);
+		verify(mockSubscriptionManager).create(userInfo, new Topic().setObjectId(forumId).setObjectType(SubscriptionObjectType.FORUM));
+		verify(mockStorageLimitsManager).setDefaultProjectStorageLimit(projectId, ProjectStorageLimitManager.DEFAULT_STORAGE_LOCATION_ID);
 	}
 }

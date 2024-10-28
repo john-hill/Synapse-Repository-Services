@@ -131,6 +131,11 @@ public class ProjectStorageLimitsDaoImpl implements ProjectStorageLimitsDao {
 			return Optional.empty();
 		}, projectId);
 	}
+	
+	@Override
+	public void deleteStorageData(Long projectId) {
+		jdbcTemplate.update("DELETE FROM " + TABLE_PROJECT_STORAGE_DATA + " WHERE " + COL_PROJECT_STORAGE_DATA_PROJECT_ID + "=?", projectId);
+	}
 
 	@Override
 	@WriteTransaction

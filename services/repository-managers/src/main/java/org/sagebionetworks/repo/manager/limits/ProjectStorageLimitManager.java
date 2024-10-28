@@ -2,21 +2,22 @@ package org.sagebionetworks.repo.manager.limits;
 
 import java.time.Duration;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.dbo.dao.DBOStorageLocationDAOImpl;
 import org.sagebionetworks.repo.model.dbo.limits.ProjectStorageLimitsDao;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.limits.ProjectStorageData;
 import org.sagebionetworks.repo.model.limits.ProjectStorageEvent;
+import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationUsage;
 import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
@@ -29,9 +30,10 @@ import org.springframework.stereotype.Service;
 @Service
 public class ProjectStorageLimitManager {
 	
+	public static final String DEFAULT_STORAGE_LOCATION_ID = DBOStorageLocationDAOImpl.DEFAULT_STORAGE_LOCATION_ID.toString();
+	public static final Long DEFAULT_STORAGE_LOCATION_MAX_BYTES = 100L * 1024L * 1024L * 1024L; // 100GiB
+	
 	private static final Duration CACHE_UPDATE_FREQUENCY = Duration.ofMinutes(2);
-		
-	private static final Comparator<ProjectStorageLocationUsage> LOCATION_COMPARATOR = Comparator.comparing(ProjectStorageLocationUsage::getStorageLocationId);
 	
 	private TransactionalMessenger messenger;
 	
@@ -55,50 +57,54 @@ public class ProjectStorageLimitManager {
 	}
 	
 	public ProjectStorageUsage gerProjectStorageUsage(String projectId) {
-		ValidateArgument.requiredNotBlank(projectId, "The projectId");
-		ValidateArgument.requirement(EntityType.project.equals(nodeDao.getNodeTypeById(projectId)), "The entity with the given id is not a project.");
+		Long projectIdLong = validateAndGetProjectId(projectId);
 		
-		Long projectIdLong = KeyFactory.stringToKey(projectId);
+		// First the the usage map
+		Map<String, Long> storageUsage = storageUsageDao.getStorageData(projectIdLong)
+				.map(ProjectStorageData::getStorageLocationData)
+				.orElseGet(() -> Collections.emptyMap());
 		
-		Map<String, ProjectStorageLocationUsage> locations = new HashMap<>();
-		
-		// First sets the limits
-		storageUsageDao.getStorageLocationLimits(projectIdLong).forEach(limit -> {
-			locations.put(limit.getStorageLocationId(), new ProjectStorageLocationUsage()
-				.setStorageLocationId(limit.getStorageLocationId())
-				.setMaxAllowedFileBytes(limit.getMaxAllowedFileBytes())
-				.setSumFileBytes(0L)
-				.setIsOverLimit(false)
-			);
-		});
-		
-		// Now updates the usage
-		storageUsageDao.getStorageData(projectIdLong)
-			.map(ProjectStorageData::getStorageLocationData)
-			.orElseGet(() -> Collections.emptyMap())
-			.forEach((storageLocationId, currentUsage) -> {
-				ProjectStorageLocationUsage usage = locations.get(storageLocationId);
+		// Now fill the usage data together with the limit, we only return data if we have a limit
+		List<ProjectStorageLocationUsage> locations = storageUsageDao.getStorageLocationLimits(projectIdLong).stream()
+			.map(limit -> {
+				Long currentUsage = storageUsage.getOrDefault(limit.getStorageLocationId(), 0L);
 				
-				// No limit defined for this location, sets the usage
-				if (usage == null) {
-					locations.put(storageLocationId, new ProjectStorageLocationUsage()
-						.setStorageLocationId(storageLocationId)
-						.setSumFileBytes(currentUsage)
-						.setIsOverLimit(false)
-						.setMaxAllowedFileBytes(null)
-					);
-				// A limit is defined, sets the usage accordingly
-				} else {
-					usage.setSumFileBytes(currentUsage)
-						.setIsOverLimit(currentUsage > usage.getMaxAllowedFileBytes());
-				}
-			});
-
+				return new ProjectStorageLocationUsage()
+					.setStorageLocationId(limit.getStorageLocationId())
+					.setMaxAllowedFileBytes(limit.getMaxAllowedFileBytes())
+					.setSumFileBytes(currentUsage)
+					.setIsOverLimit(currentUsage > limit.getMaxAllowedFileBytes());
+			})
+			.collect(Collectors.toList());
+		
 		accessedProjects.add(projectIdLong);
 						
 		return new ProjectStorageUsage()
 			.setProjectId(KeyFactory.keyToString(projectIdLong))
-			.setLocations(locations.values().stream().sorted(LOCATION_COMPARATOR).collect(Collectors.toList()));
+			.setLocations(locations);
+	}
+	
+	/**
+	 * Sets a default storage location limit if a limit for the given project/storage location combination if a limit doesn't exist yet.
+	 * 
+	 * @param projectId
+	 * @param storageLocationId
+	 */
+	@WriteTransaction
+	public void setDefaultProjectStorageLimit(String projectId, String storageLocationId) {
+		// If a limit is already in place we do not change it
+		if (storageUsageDao.getStorageLocationLimit(validateAndGetProjectId(projectId), Long.valueOf(storageLocationId)).isPresent()) {
+			return;
+		}
+		
+		Long maxAllowedBytes = DEFAULT_STORAGE_LOCATION_ID.equals(storageLocationId) ? DEFAULT_STORAGE_LOCATION_MAX_BYTES : null;
+		
+		ProjectStorageLocationLimit limit = new ProjectStorageLocationLimit()
+			.setProjectId(projectId)
+			.setStorageLocationId(storageLocationId)
+			.setMaxAllowedFileBytes(maxAllowedBytes);
+		
+		storageUsageDao.setStorageLocationLimit(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId(), limit);
 	}
 	
 	@WriteTransaction
@@ -122,6 +128,13 @@ public class ProjectStorageLimitManager {
 			);
 			accessedProjects.remove(projectId);
 		});
+	}
+	
+	Long validateAndGetProjectId(String projectId) {
+		ValidateArgument.requiredNotBlank(projectId, "The projectId");
+		ValidateArgument.requirement(EntityType.project.equals(nodeDao.getNodeTypeById(projectId)), "The entity with the given id is not a project.");
+		
+		return KeyFactory.stringToKey(projectId);
 	}
 
 }

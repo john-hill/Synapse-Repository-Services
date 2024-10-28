@@ -5,11 +5,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitManager;
 import org.sagebionetworks.repo.manager.storagelocation.StorageLocationProcessor;
 import org.sagebionetworks.repo.manager.trash.TrashManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.Entity;
+import org.sagebionetworks.repo.model.EntityHeader;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.EntityTypeUtils;
 import org.sagebionetworks.repo.model.Folder;
@@ -59,6 +61,9 @@ public class ProjectSettingsManagerImpl implements ProjectSettingsManager {
 
 	@Autowired
 	private TrashManager trashManager;
+
+	@Autowired
+	private ProjectStorageLimitManager storageLimitsManager;
 	
 	private static final Map<Class<? extends ProjectSetting>, ProjectSettingsType> TYPE_MAP = ImmutableMap.of(
 		UploadDestinationListSetting.class, ProjectSettingsType.upload
@@ -157,6 +162,11 @@ public class ProjectSettingsManagerImpl implements ProjectSettingsManager {
 		}
 
 		String id = projectSettingsDao.create(projectSetting);
+		
+		if (projectSetting instanceof UploadDestinationListSetting) {
+			setDefaultProjectStorageLimits((UploadDestinationListSetting) projectSetting);
+		}
+		
 		return projectSettingsDao.get(id);
 	}
 
@@ -188,6 +198,23 @@ public class ProjectSettingsManagerImpl implements ProjectSettingsManager {
 		}
 
 		projectSettingsDao.update(projectSetting);
+		
+		if (projectSetting instanceof UploadDestinationListSetting) {
+			setDefaultProjectStorageLimits((UploadDestinationListSetting) projectSetting);
+		}
+	}
+	
+	void setDefaultProjectStorageLimits(UploadDestinationListSetting settings) {
+		
+		String projectId = nodeManager.getNodePathAsAdmin(settings.getProjectId()).stream()
+				.filter(e -> EntityType.project.equals(EntityTypeUtils.getEntityTypeForClassName(e.getType())))
+				.findFirst()
+				.map(EntityHeader::getId)
+				.orElseThrow(() -> new IllegalStateException("Could not find project for node " + settings.getProjectId()));
+		
+		settings.getLocations().forEach( storageLocationId -> {
+			storageLimitsManager.setDefaultProjectStorageLimit(projectId, storageLocationId.toString());
+		});
 	}
 
 	@Override

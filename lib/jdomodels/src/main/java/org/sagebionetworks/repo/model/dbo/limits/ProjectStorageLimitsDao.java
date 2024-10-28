@@ -24,6 +24,13 @@ public interface ProjectStorageLimitsDao {
 	 * @param projectStorageData
 	 */
 	void setStorageData(List<ProjectStorageData> projectStorageData);
+	
+	/**
+	 * Deletes the storage data for the given project, invalidating the cache
+	 * 
+	 * @param projectId
+	 */
+	void deleteStorageData(Long projectId);
 
 	/**
 	 * 

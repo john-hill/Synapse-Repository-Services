@@ -27,12 +27,15 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitManager;
 import org.sagebionetworks.repo.manager.storagelocation.StorageLocationProcessor;
 import org.sagebionetworks.repo.manager.trash.TrashManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
+import org.sagebionetworks.repo.model.EntityHeader;
 import org.sagebionetworks.repo.model.EntityType;
-import org.sagebionetworks.repo.model.NodeDAO;
+import org.sagebionetworks.repo.model.Folder;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.ProjectSettingsDAO;
 import org.sagebionetworks.repo.model.StorageLocationDAO;
 import org.sagebionetworks.repo.model.UnauthorizedException;
@@ -70,9 +73,6 @@ public class ProjectSettingsManagerImplUnitTest {
 
 	@Mock
 	private NodeManager mockNodeManager;
-	
-	@Mock
-	private NodeDAO mockNodeDao;
 
 	@Mock
 	private AuthorizationManager authorizationManager;
@@ -94,6 +94,9 @@ public class ProjectSettingsManagerImplUnitTest {
 
 	@Mock
 	private TrashManager mockTrashManager;
+	
+	@Mock
+	private ProjectStorageLimitManager mockStorageLimitsManager;
 
 	@InjectMocks
 	@Spy
@@ -233,6 +236,8 @@ public class ProjectSettingsManagerImplUnitTest {
 		// getProjectSettingForNode() tests.
 		doReturn(Optional.empty()).when(projectSettingsManagerImpl).getProjectSettingForNode(userInfo, PROJECT_ID,
 				ProjectSettingsType.upload, ProjectSetting.class);
+		
+		doNothing().when(projectSettingsManagerImpl).setDefaultProjectStorageLimits(uploadDestinationListSetting);
 
 		// Method under test.
 		ProjectSetting result = projectSettingsManagerImpl.createProjectSetting(userInfo,
@@ -311,6 +316,8 @@ public class ProjectSettingsManagerImplUnitTest {
 		parentStorageLocationSetting.setStsEnabled(false);
 		when(mockStorageLocationDAO.get(PARENT_STORAGE_LOCATION_ID)).thenReturn(parentStorageLocationSetting);
 
+		doNothing().when(projectSettingsManagerImpl).setDefaultProjectStorageLimits(uploadDestinationListSetting);
+		
 		// Method under test.
 		ProjectSetting result = projectSettingsManagerImpl.createProjectSetting(userInfo,
 				uploadDestinationListSetting);
@@ -374,6 +381,8 @@ public class ProjectSettingsManagerImplUnitTest {
 
 		doReturn(Optional.empty()).when(projectSettingsManagerImpl).getProjectSettingForNode(userInfo, PROJECT_ID,
 				ProjectSettingsType.upload, ProjectSetting.class);
+		
+		doNothing().when(projectSettingsManagerImpl).setDefaultProjectStorageLimits(uploadDestinationListSetting);
 
 		// Method under test.
 		ProjectSetting result = projectSettingsManagerImpl.createProjectSetting(userInfo,
@@ -401,6 +410,8 @@ public class ProjectSettingsManagerImplUnitTest {
 		// Nullify the type
 		uploadDestinationListSetting.setSettingsType(null);
 		
+		doNothing().when(projectSettingsManagerImpl).setDefaultProjectStorageLimits(uploadDestinationListSetting);
+		
 		// Call under test
 		ProjectSetting result = projectSettingsManagerImpl.createProjectSetting(userInfo, uploadDestinationListSetting);
 		
@@ -423,6 +434,8 @@ public class ProjectSettingsManagerImplUnitTest {
 		synapseStorageLocationSetting.setStsEnabled(true);
 		when(mockStorageLocationDAO.get(STORAGE_LOCATION_ID)).thenReturn(synapseStorageLocationSetting);
 
+		doNothing().when(projectSettingsManagerImpl).setDefaultProjectStorageLimits(uploadDestinationListSetting);
+		
 		// Method under test.
 		projectSettingsManagerImpl.updateProjectSetting(userInfo, uploadDestinationListSetting);
 		verify(mockProjectSettingDao).update(uploadDestinationListSetting);
@@ -485,6 +498,8 @@ public class ProjectSettingsManagerImplUnitTest {
 		synapseStorageLocationSetting.setStsEnabled(false);
 		when(mockStorageLocationDAO.get(STORAGE_LOCATION_ID)).thenReturn(synapseStorageLocationSetting);
 
+		doNothing().when(projectSettingsManagerImpl).setDefaultProjectStorageLimits(uploadDestinationListSetting);
+		
 		// Method under test.
 		projectSettingsManagerImpl.updateProjectSetting(userInfo, uploadDestinationListSetting);
 		verify(mockProjectSettingDao).update(uploadDestinationListSetting);
@@ -532,6 +547,8 @@ public class ProjectSettingsManagerImplUnitTest {
 		oldStorageLocationSetting.setStsEnabled(false);
 		when(mockStorageLocationDAO.get(OLD_STORAGE_LOCATION_ID)).thenReturn(oldStorageLocationSetting);
 
+		doNothing().when(projectSettingsManagerImpl).setDefaultProjectStorageLimits(uploadDestinationListSetting);
+		
 		// Method under test.
 		projectSettingsManagerImpl.updateProjectSetting(userInfo, uploadDestinationListSetting);
 		verify(mockProjectSettingDao).update(uploadDestinationListSetting);
@@ -577,6 +594,8 @@ public class ProjectSettingsManagerImplUnitTest {
 
 		when(mockStorageLocationDAO.get(STORAGE_LOCATION_ID)).thenReturn(synapseStorageLocationSetting);
 
+		doNothing().when(projectSettingsManagerImpl).setDefaultProjectStorageLimits(uploadDestinationListSetting);
+		
 		// Method under test.
 		projectSettingsManagerImpl.updateProjectSetting(userInfo, uploadDestinationListSetting);
 		
@@ -1007,6 +1026,40 @@ public class ProjectSettingsManagerImplUnitTest {
 		
 		// method under test
 		assertFalse(projectSettingsManagerImpl.entityIsWithinSTSEnabledFolder(NODE_ID));
+	}
+	
+	@Test
+	public void testSetDefaultProjectStorageLimits() {
+		uploadDestinationListSetting.setProjectId("123");
+		uploadDestinationListSetting.setLocations(List.of(2L, 3L));
+		
+		when(mockNodeManager.getNodePathAsAdmin("123")).thenReturn(List.of(
+			new EntityHeader().setId("123").setType(Folder.class.getName()),
+			new EntityHeader().setId("456").setType(Project.class.getName())
+		));
+		
+		// Call under test
+		projectSettingsManagerImpl.setDefaultProjectStorageLimits(uploadDestinationListSetting);
+		
+		verify(mockStorageLimitsManager).setDefaultProjectStorageLimit("456", "2");
+		verify(mockStorageLimitsManager).setDefaultProjectStorageLimit("456", "3");
+	}
+	
+	@Test
+	public void testSetDefaultProjectStorageLimitsWithNoProject() {
+		uploadDestinationListSetting.setProjectId("123");
+		uploadDestinationListSetting.setLocations(List.of(2L, 3L));
+		
+		when(mockNodeManager.getNodePathAsAdmin("123")).thenReturn(List.of(
+			new EntityHeader().setId("123").setType(Folder.class.getName())
+		));
+		
+		assertEquals("Could not find project for node 123", assertThrows(IllegalStateException.class, () -> {			
+			// Call under test
+			projectSettingsManagerImpl.setDefaultProjectStorageLimits(uploadDestinationListSetting);
+		}).getMessage());
+		
+		verifyZeroInteractions(mockStorageLimitsManager);
 	}
 
 }

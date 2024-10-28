@@ -98,8 +98,8 @@ public class ProjectStorageLimitsManagerTest {
 		
 		when(mockNodeDao.getNodeTypeById(projectId)).thenReturn(EntityType.project);
 		when(mockDao.getStorageLocationLimits(projectIdLong)).thenReturn(List.of(
-			new ProjectStorageLocationLimit().setStorageLocationId("2").setMaxAllowedFileBytes(2048L),
-			new ProjectStorageLocationLimit().setStorageLocationId("1").setMaxAllowedFileBytes(1024L)
+			new ProjectStorageLocationLimit().setStorageLocationId("1").setMaxAllowedFileBytes(1024L),
+			new ProjectStorageLocationLimit().setStorageLocationId("2").setMaxAllowedFileBytes(2048L)
 		));
 		
 		when(mockDao.getStorageData(projectIdLong)).thenReturn(Optional.empty());
@@ -133,8 +133,8 @@ public class ProjectStorageLimitsManagerTest {
 		
 		when(mockNodeDao.getNodeTypeById(projectId)).thenReturn(EntityType.project);
 		when(mockDao.getStorageLocationLimits(projectIdLong)).thenReturn(List.of(
-			new ProjectStorageLocationLimit().setStorageLocationId("2").setMaxAllowedFileBytes(2048L),
-			new ProjectStorageLocationLimit().setStorageLocationId("1").setMaxAllowedFileBytes(1024L)
+			new ProjectStorageLocationLimit().setStorageLocationId("1").setMaxAllowedFileBytes(1024L),
+			new ProjectStorageLocationLimit().setStorageLocationId("2").setMaxAllowedFileBytes(2048L)
 		));
 		
 		when(mockDao.getStorageData(projectIdLong)).thenReturn(Optional.of(new ProjectStorageData()
@@ -145,8 +145,7 @@ public class ProjectStorageLimitsManagerTest {
 			.setProjectId(projectId)
 			.setLocations(List.of(
 				new ProjectStorageLocationUsage().setStorageLocationId("1").setMaxAllowedFileBytes(1024L).setIsOverLimit(false).setSumFileBytes(512L),
-				new ProjectStorageLocationUsage().setStorageLocationId("2").setMaxAllowedFileBytes(2048L).setIsOverLimit(true).setSumFileBytes(4096L),
-				new ProjectStorageLocationUsage().setStorageLocationId("3").setMaxAllowedFileBytes(null).setIsOverLimit(false).setSumFileBytes(2024L)
+				new ProjectStorageLocationUsage().setStorageLocationId("2").setMaxAllowedFileBytes(2048L).setIsOverLimit(true).setSumFileBytes(4096L)
 			));
 		
 		// Call under test

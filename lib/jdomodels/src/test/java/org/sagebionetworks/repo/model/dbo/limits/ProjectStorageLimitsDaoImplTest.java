@@ -120,6 +120,10 @@ public class ProjectStorageLimitsDaoImplTest {
 			
 			assertNotEquals(expectedData.getEtag(), fetchedProjectData.getEtag());
 			assertNotEquals(expectedData.getModifiedOn(), fetchedProjectData.getModifiedOn());
+			
+			dao.deleteStorageData(expectedData.getProjectId());
+			
+			assertEquals(Optional.empty(), dao.getStorageData(expectedData.getProjectId()));
 		}
 	}
 	

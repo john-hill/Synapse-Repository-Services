@@ -78,7 +78,8 @@ public enum IdType {
 	AGENT_SESSION_ID(null),
 	AGENT_REGISTRATION_ID(2L),
 	TOS_REQUIREMENT_ID(null),
-	TOS_AGREEMENT_ID(null)
+	TOS_AGREEMENT_ID(null),
+	PROJECT_STORAGE_LIMIT_ID(null)
 	;
 	
 	Long startingId;

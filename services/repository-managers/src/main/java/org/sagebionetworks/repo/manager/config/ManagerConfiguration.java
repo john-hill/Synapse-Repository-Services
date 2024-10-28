@@ -32,6 +32,7 @@ import org.sagebionetworks.repo.manager.file.scanner.FileHandleAssociationScanne
 import org.sagebionetworks.repo.manager.file.scanner.RowMapperSupplier;
 import org.sagebionetworks.repo.manager.file.scanner.SerializedFieldRowMapperSupplier;
 import org.sagebionetworks.repo.manager.file.scanner.tables.TableFileHandleScanner;
+import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitManager;
 import org.sagebionetworks.repo.manager.oauth.GoogleOAuth2Provider;
 import org.sagebionetworks.repo.manager.oauth.OAuthProviderBinding;
 import org.sagebionetworks.repo.manager.oauth.OIDCConfig;
@@ -64,6 +65,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.scheduling.quartz.SimpleTriggerFactoryBean;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -361,6 +363,16 @@ public class ManagerConfiguration {
 				.map(a -> a.agentId()).findFirst()
 				.orElseThrow(() -> new IllegalArgumentException("Could not find a bedrock agent named: " + agentName));
 
+	}
+	
+	@Bean
+	public SimpleTriggerFactoryBean projectStorageAccessTrigger(ProjectStorageLimitManager manager) {
+		return new SimpleTriggerBuilder()
+			.withRepeatInterval(10_000)
+			.withStartDelay(10)
+			.withTargetObject(manager)
+			.withTargetMethod("sendProjectStorageNotifications")
+			.build();
 	}
 
 }

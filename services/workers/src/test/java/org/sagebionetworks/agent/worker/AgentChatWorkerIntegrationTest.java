@@ -15,6 +15,7 @@ import java.util.UUID;
 import com.google.common.collect.Lists;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.AsynchronousJobWorkerHelper;
@@ -282,6 +283,7 @@ public class AgentChatWorkerIntegrationTest {
 
 	}
 
+	@Disabled // added https://sagebionetworks.jira.com/browse/PLFM-8691
 	@Test
 	public void testGetEntityChildrenHandlerWithPagination() throws AssertionError, AsynchJobFailedException {
 		Project project = entityService.createEntity(admin.getId(), new Project().setName(UUID.randomUUID().toString()),

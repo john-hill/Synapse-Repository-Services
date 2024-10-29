@@ -53,7 +53,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
 public class AgentChatWorkerIntegrationTest {
 
-	public static final long MAX_WAIT_MS = 60_000;
+	public static final long MAX_WAIT_MS = 120_000;
 
 	@Autowired
 	private AgentService agentService;
@@ -283,7 +283,6 @@ public class AgentChatWorkerIntegrationTest {
 
 	}
 
-	@Disabled // added https://sagebionetworks.jira.com/browse/PLFM-8691
 	@Test
 	public void testGetEntityChildrenHandlerWithPagination() throws AssertionError, AsynchJobFailedException {
 		Project project = entityService.createEntity(admin.getId(), new Project().setName(UUID.randomUUID().toString()),

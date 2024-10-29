@@ -157,19 +157,11 @@ public class ProjectStorageLimitManager {
 			
 			LOGGER.info("Computing storage locations for {} projects...DONE (Total: {})", projectBatch.size(), storageLocationPairs.size());
 			
-			LOGGER.info("Computing missing limits out of {} project/location pairs...", storageLocationPairs.size());
+			LOGGER.info("Persisting {} limits...", storageLocationPairs.size());
+			int updatedCount = storageUsageDao.setNullLimitBatch(user.getId(), storageLocationPairs);
+			LOGGER.info("Persisting {} limits...DONE (Acutal Count: {})", storageLocationPairs.size(), updatedCount);
 			
-			Set<Pair<Long, Long>> batch = storageUsageDao.getMissingLimits(storageLocationPairs);
-			
-			LOGGER.info("Computing missing limits out of {} project/location pairs...DONE (Total: {})", storageLocationPairs.size(), batch.size());
-
-			totalNewLimits += batch.size();
-			
-			if (!batch.isEmpty()) {
-				LOGGER.info("Storing new {} limits...", batch.size());
-				storageUsageDao.setNullLimitBatch(user.getId(), batch);
-				LOGGER.info("Storing new {} limits...DONE", batch.size());
-			}
+			totalNewLimits += updatedCount;
 			
 			if (projectBatch.size() < batchSize) {
 				break;

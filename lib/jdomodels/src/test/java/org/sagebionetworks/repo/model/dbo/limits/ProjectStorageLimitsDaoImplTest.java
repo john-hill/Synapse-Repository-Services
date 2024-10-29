@@ -196,7 +196,7 @@ public class ProjectStorageLimitsDaoImplTest {
 	}
 	
 	@Test
-	public void getAndSetMissingLimits() {
+	public void testSetNullLimitsBatch() {
 		Long userId = BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
 		
 		dao.setStorageLocationLimit(userId, new ProjectStorageLocationLimit()
@@ -215,21 +215,11 @@ public class ProjectStorageLimitsDaoImplTest {
 			Pair.create(projectId, sLocThreeId)
 		)).collect(Collectors.toSet());
 		
-		Set<Pair<Long, Long>> missingLimits = dao.getMissingLimits(allLimits);
-		
-		assertEquals(Set.of(
-			Pair.create(projectOneId, sLocOneId),
-			Pair.create(projectOneId, sLocThreeId),
-			Pair.create(projectTwoId, sLocOneId),
-			Pair.create(projectTwoId, sLocTwoId),
-			Pair.create(projectTwoId, sLocThreeId),
-			Pair.create(projectThreeId, sLocOneId),
-			Pair.create(projectThreeId, sLocTwoId)
-		), missingLimits);
 
-		dao.setNullLimitBatch(userId, missingLimits);
+		int updatedCount = dao.setNullLimitBatch(userId, allLimits);
 		
-		assertEquals(Collections.emptySet(), dao.getMissingLimits(allLimits));
+		// Total of 9 limits, but 2 are already there
+		assertEquals(7, updatedCount);
 		
 	}
 }

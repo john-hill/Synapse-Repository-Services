@@ -34,6 +34,7 @@ import org.sagebionetworks.repo.model.dbo.limits.ProjectStorageLimitsDao;
 import org.sagebionetworks.repo.model.limits.ProjectStorageData;
 import org.sagebionetworks.repo.model.limits.ProjectStorageEvent;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLimitsBackfillRequest;
+import org.sagebionetworks.repo.model.limits.ProjectStorageLimitsBackfillResponse;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationUsage;
 import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
@@ -337,16 +338,20 @@ public class ProjectStorageLimitsManagerTest {
 		
 		when(mockReplicationDao.getProjectStorageLocations(List.of(4L))).thenReturn(Collections.emptyList());
 		
-		when(mockDao.getMissingLimits(Set.of(Pair.create(1L, 1L), Pair.create(2L, 1L), Pair.create(2L, 2L), Pair.create(2L, 3L), Pair.create(3L, 1L))))
-			.thenReturn(Set.of(Pair.create(1L, 1L), Pair.create(2L, 3L)));
+		when(mockDao.setNullLimitBatch(123L, Set.of(
+			Pair.create(1L, 1L), 
+			Pair.create(2L, 1L), 
+			Pair.create(2L, 2L), 
+			Pair.create(2L, 3L), 
+			Pair.create(3L, 1L)))
+		).thenReturn(2);
 		
-		when(mockDao.getMissingLimits(Set.of(Pair.create(4L, 1L))))
-			.thenReturn(Collections.emptySet());
+		when(mockDao.setNullLimitBatch(123L, Set.of(
+			Pair.create(4L, 1L)))
+		).thenReturn(1);
 				
 		// Call under test
-		manager.backfillProjectLimits(user, new ProjectStorageLimitsBackfillRequest().setBatchSize(3L));
-		
-		verify(mockDao).setNullLimitBatch(123L, Set.of(Pair.create(1L, 1L), Pair.create(2L, 3L)));
+		assertEquals(new ProjectStorageLimitsBackfillResponse().setLimitsAddedCount(3L), manager.backfillProjectLimits(user, new ProjectStorageLimitsBackfillRequest().setBatchSize(3L)));
 		
 		verifyNoMoreInteractions(mockDao);
 	}

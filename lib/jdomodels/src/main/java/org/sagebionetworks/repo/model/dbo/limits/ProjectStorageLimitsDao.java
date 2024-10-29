@@ -69,9 +69,7 @@ public interface ProjectStorageLimitsDao {
 	
 	List<Long> getProjectIdsBatch(long limit, long offset);
 	
-	Set<Pair<Long, Long>> getMissingLimits(Set<Pair<Long, Long>> batch);
-	
-	void setNullLimitBatch(long userId, Set<Pair<Long, Long>> batch);
+	int setNullLimitBatch(long userId, Set<Pair<Long, Long>> batch);
 
 	void truncateAll();
 }

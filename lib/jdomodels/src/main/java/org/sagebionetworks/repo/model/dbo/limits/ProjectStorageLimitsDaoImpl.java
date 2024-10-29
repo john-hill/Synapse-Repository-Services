@@ -23,9 +23,8 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.Date;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -225,43 +224,10 @@ public class ProjectStorageLimitsDaoImpl implements ProjectStorageLimitsDao {
 	}
 	
 	@Override
-	public Set<Pair<Long, Long>> getMissingLimits(Set<Pair<Long, Long>> batch) {
-		if (batch.isEmpty()) {
-			return Collections.emptySet();
-		}
-		
-		// Start with the full set of potential limits
-		Set<Pair<Long, Long>> limits = new LinkedHashSet<>(batch.size());
-		
-		List<Long> args = new ArrayList<>();
-
-		for (Pair<Long, Long> projectLocationIds : batch) {
-			Long projectId = projectLocationIds.getFirst();
-			Long storageLocationId = projectLocationIds.getSecond();
-				
-			limits.add(projectLocationIds);
-			
-			args.add(projectId);
-			args.add(storageLocationId);
-		}
-		
-		String selectSql = "SELECT " +COL_PROJECT_STORAGE_LIMIT_PROJECT_ID + "," + COL_PROJECT_STORAGE_LIMIT_LOCATION_ID
-			+ " FROM " + TABLE_PROJECT_STORAGE_LIMIT + " WHERE (" + COL_PROJECT_STORAGE_LIMIT_PROJECT_ID +"," + COL_PROJECT_STORAGE_LIMIT_LOCATION_ID+")"
-			+ " IN (" + String.join(",", Collections.nCopies(args.size()/2, "(?,?)"))+ ")";
-		
-		jdbcTemplate.query(selectSql, rs -> {
-			// Remove the limit from the set if it exists already
-			limits.remove(Pair.create(rs.getLong(COL_PROJECT_STORAGE_LIMIT_PROJECT_ID), rs.getLong(COL_PROJECT_STORAGE_LIMIT_LOCATION_ID)));
-		}, args.toArray());
-		
-		return limits;
-	}
-	
-	@Override
 	@WriteTransaction
-	public void setNullLimitBatch(long userId, Set<Pair<Long, Long>> batch) {
+	public int setNullLimitBatch(long userId, Set<Pair<Long, Long>> batch) {
 		
-		String sql = "INSERT INTO " + TABLE_PROJECT_STORAGE_LIMIT + "("
+		String sql = "INSERT IGNORE INTO " + TABLE_PROJECT_STORAGE_LIMIT + "("
 			+ COL_PROJECT_STORAGE_LIMIT_ID + ","
 			+ COL_PROJECT_STORAGE_LIMIT_ETAG + ","
 			+ COL_PROJECT_STORAGE_LIMIT_CREATED_BY + ","
@@ -282,7 +248,7 @@ public class ProjectStorageLimitsDaoImpl implements ProjectStorageLimitsDao {
 			ids.add(idGenerator.generateNewId(IdType.PROJECT_STORAGE_LIMIT_ID));
 		};
 		
-		jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
+		int[] result = jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
 			
 			@Override
 			public void setValues(PreparedStatement ps, int i) throws SQLException {
@@ -305,6 +271,8 @@ public class ProjectStorageLimitsDaoImpl implements ProjectStorageLimitsDao {
 				return batchList.size();
 			}
 		});
+		
+		return Arrays.stream(result).sum();
 	}
 
 	// For testing

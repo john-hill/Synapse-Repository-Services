@@ -103,6 +103,8 @@ public class ProjectStorageLimitManager {
 	 */
 	@WriteTransaction
 	public void setDefaultProjectStorageLimit(String projectId, String storageLocationId) {
+		ValidateArgument.required(storageLocationId, "The storage location id");
+		
 		// If a limit is already in place we do not change it
 		if (storageUsageDao.getStorageLocationLimit(validateAndGetProjectId(projectId), Long.valueOf(storageLocationId)).isPresent()) {
 			return;

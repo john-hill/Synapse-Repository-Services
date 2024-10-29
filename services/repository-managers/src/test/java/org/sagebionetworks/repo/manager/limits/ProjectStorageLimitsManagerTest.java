@@ -25,6 +25,7 @@ import org.junit.jupiter.params.provider.EnumSource.Mode;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.ObjectType;
@@ -228,6 +229,98 @@ public class ProjectStorageLimitsManagerTest {
 		);
 		
 		verifyNoMoreInteractions(mockMessenger);
+	}
+	
+	@Test
+	public void testSetDefaultProjectStorageLimit() {
+		String projectId = "123";
+		String storageLocationId = "2";
+		
+		when(mockNodeDao.getNodeTypeById(projectId)).thenReturn(EntityType.project);
+		when(mockDao.getStorageLocationLimit(123L, 2L)).thenReturn(Optional.empty());
+		
+		// Call under test
+		manager.setDefaultProjectStorageLimit(projectId, storageLocationId);
+		
+		verify(mockDao).setStorageLocationLimit(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId(), new ProjectStorageLocationLimit()
+			.setProjectId(projectId)
+			.setStorageLocationId(storageLocationId)
+			.setMaxAllowedFileBytes(null)
+		);
+		
+		verifyNoMoreInteractions(mockDao);
+	}
+	
+	@Test
+	public void testSetDefaultProjectStorageLimitWithAlreadyExists() {
+		String projectId = "123";
+		String storageLocationId = "2";
+		
+		when(mockNodeDao.getNodeTypeById(projectId)).thenReturn(EntityType.project);
+		when(mockDao.getStorageLocationLimit(123L, 2L)).thenReturn(Optional.of(new ProjectStorageLocationLimit()));
+		
+		// Call under test
+		manager.setDefaultProjectStorageLimit(projectId, storageLocationId);
+
+		verifyNoMoreInteractions(mockDao);
+	}
+	
+	@Test
+	public void testSetDefaultProjectStorageLimitWithDefaultStorageLocation() {
+		String projectId = "123";
+		String storageLocationId = ProjectStorageLimitManager.DEFAULT_STORAGE_LOCATION_ID;
+		
+		when(mockNodeDao.getNodeTypeById(projectId)).thenReturn(EntityType.project);
+		when(mockDao.getStorageLocationLimit(123L, 1L)).thenReturn(Optional.empty());
+		
+		// Call under test
+		manager.setDefaultProjectStorageLimit(projectId, storageLocationId);
+		
+		verify(mockDao).setStorageLocationLimit(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId(), new ProjectStorageLocationLimit()
+			.setProjectId(projectId)
+			.setStorageLocationId(storageLocationId)
+			.setMaxAllowedFileBytes(ProjectStorageLimitManager.DEFAULT_STORAGE_LOCATION_MAX_BYTES)
+		);
+		
+		verifyNoMoreInteractions(mockDao);
+	}
+	
+	@Test
+	public void testSetDefaultProjectStorageLimitWithNoProjectId() {
+		String storageLocationId = "1";
+		
+		assertEquals("The projectId is required and must not be the empty string.", assertThrows(IllegalArgumentException.class, () -> {			
+			// Call under test
+			manager.setDefaultProjectStorageLimit(null, storageLocationId);
+		}).getMessage());
+		
+		verifyZeroInteractions(mockDao, mockNodeDao);
+	}
+	
+	@Test
+	public void testSetDefaultProjectStorageLimitWithNoStorageLocationId() {
+		assertEquals("The storage location id is required.", assertThrows(IllegalArgumentException.class, () -> {			
+			// Call under test
+			manager.setDefaultProjectStorageLimit("123", null);
+		}).getMessage());
+		
+		verifyZeroInteractions(mockDao, mockNodeDao);
+	}
+	
+	@ParameterizedTest
+	@EnumSource(value = EntityType.class, mode = Mode.EXCLUDE, names = "project")
+	public void testSetDefaultProjectStorageLimitWithWrongEntityType(EntityType entityType) {
+		String projectId = "123";
+		String storageLocationId = ProjectStorageLimitManager.DEFAULT_STORAGE_LOCATION_ID;
+		
+		when(mockNodeDao.getNodeTypeById(projectId)).thenReturn(entityType);
+		
+		assertEquals("The entity with the given id is not a project.", assertThrows(IllegalArgumentException.class, () -> {			
+			// Call under test
+			manager.setDefaultProjectStorageLimit("123", storageLocationId);
+		}).getMessage());
+		
+		verifyNoMoreInteractions(mockDao, mockNodeDao);
 	}
 	
 	@Test

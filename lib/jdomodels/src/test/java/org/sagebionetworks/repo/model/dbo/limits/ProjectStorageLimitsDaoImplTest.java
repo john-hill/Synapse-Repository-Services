@@ -11,6 +11,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +27,7 @@ import org.sagebionetworks.repo.model.helper.StorageLocationHelper;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.limits.ProjectStorageData;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
+import org.sagebionetworks.util.Pair;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -188,6 +192,44 @@ public class ProjectStorageLimitsDaoImplTest {
 		// Call under test
 		assertEquals(limits.subList(0, 2), dao.getStorageLocationLimits(projectOneId));
 		assertEquals(limits.subList(2, 4), dao.getStorageLocationLimits(projectTwoId));
+		
+	}
+	
+	@Test
+	public void getAndSetMissingLimits() {
+		Long userId = BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
+		
+		dao.setStorageLocationLimit(userId, new ProjectStorageLocationLimit()
+			.setProjectId(KeyFactory.keyToString(projectOneId))
+			.setStorageLocationId(sLocTwoId.toString())
+			.setMaxAllowedFileBytes(1024L));
+		
+		dao.setStorageLocationLimit(userId, new ProjectStorageLocationLimit()
+			.setProjectId(KeyFactory.keyToString(projectThreeId))
+			.setStorageLocationId(sLocThreeId.toString())
+			.setMaxAllowedFileBytes(null));
+		
+		Set<Pair<Long, Long>> allLimits = dao.getProjectIdsBatch(10, 0).stream().flatMap(projectId -> Stream.of(
+			Pair.create(projectId, sLocOneId), 
+			Pair.create(projectId, sLocTwoId), 
+			Pair.create(projectId, sLocThreeId)
+		)).collect(Collectors.toSet());
+		
+		Set<Pair<Long, Long>> missingLimits = dao.getMissingLimits(allLimits);
+		
+		assertEquals(Set.of(
+			Pair.create(projectOneId, sLocOneId),
+			Pair.create(projectOneId, sLocThreeId),
+			Pair.create(projectTwoId, sLocOneId),
+			Pair.create(projectTwoId, sLocTwoId),
+			Pair.create(projectTwoId, sLocThreeId),
+			Pair.create(projectThreeId, sLocOneId),
+			Pair.create(projectThreeId, sLocTwoId)
+		), missingLimits);
+
+		dao.setNullLimitBatch(userId, missingLimits);
+		
+		assertEquals(Collections.emptySet(), dao.getMissingLimits(allLimits));
 		
 	}
 }

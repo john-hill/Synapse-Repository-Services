@@ -26,6 +26,7 @@ import org.sagebionetworks.table.cluster.search.TableRowData;
 import org.sagebionetworks.table.cluster.view.filter.ViewFilter;
 import org.sagebionetworks.table.model.Grouping;
 import org.sagebionetworks.util.Callback;
+import org.sagebionetworks.util.Pair;
 import org.sagebionetworks.util.csv.CSVWriterStream;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionCallback;
@@ -654,5 +655,7 @@ public interface TableIndexDAO {
 	 * @return The project storage data for the project with the given id
 	 */
 	ProjectStorageData computeProjectStorageData(Long projectId);
+
+	List<Pair<Long, Long>> getProjectStorageLocations(List<Long> projectIds);
 
 }

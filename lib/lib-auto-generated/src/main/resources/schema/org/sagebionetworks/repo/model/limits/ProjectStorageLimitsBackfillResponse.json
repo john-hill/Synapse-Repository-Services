@@ -1,0 +1,12 @@
+{
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.migration.AdminResponse"
+		}
+	],
+	"properties": {
+		"limitsAddedCount": {
+			"type": "integer"
+		}	
+	}
+}

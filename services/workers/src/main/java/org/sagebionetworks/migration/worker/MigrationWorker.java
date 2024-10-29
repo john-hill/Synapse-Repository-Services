@@ -2,11 +2,13 @@ package org.sagebionetworks.migration.worker;
 
 import java.io.IOException;
 
+import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitManager;
 import org.sagebionetworks.repo.manager.migration.DatasetChecksumBackfill;
 import org.sagebionetworks.repo.manager.migration.MigrationManager;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
+import org.sagebionetworks.repo.model.limits.ProjectStorageLimitsBackfillRequest;
 import org.sagebionetworks.repo.model.migration.AdminRequest;
 import org.sagebionetworks.repo.model.migration.AdminResponse;
 import org.sagebionetworks.repo.model.migration.AsyncMigrationRangeChecksumRequest;
@@ -32,11 +34,14 @@ public class MigrationWorker implements AsyncJobRunner<AsyncMigrationRequest, As
 	private MigrationManager migrationManager;
 	
 	private DatasetChecksumBackfill datasetBackFill;
+	
+	private ProjectStorageLimitManager storageLimitsManager;
 
 	@Autowired
-	public MigrationWorker(MigrationManager migrationManager, DatasetChecksumBackfill datasetBackFill) {
+	public MigrationWorker(MigrationManager migrationManager, DatasetChecksumBackfill datasetBackFill, ProjectStorageLimitManager storageLimitsManager) {
 		this.migrationManager = migrationManager;
 		this.datasetBackFill = datasetBackFill;
+		this.storageLimitsManager = storageLimitsManager;
 	}
 	
 	@Override
@@ -79,6 +84,8 @@ public class MigrationWorker implements AsyncJobRunner<AsyncMigrationRequest, As
 			return migrationManager.calculateBatchChecksums(user, (BatchChecksumRequest)req);
 		} else if (req instanceof DatasetBackfillRequest) {
 			return datasetBackFill.backfillChecksum(user);
+		} else if (req instanceof ProjectStorageLimitsBackfillRequest) {
+			return storageLimitsManager.backfillProjectLimits(user, (ProjectStorageLimitsBackfillRequest) req);
 		} else {
 			throw new IllegalArgumentException("AsyncMigrationRequest not supported.");
 		}

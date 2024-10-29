@@ -15,6 +15,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,15 +28,18 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.limits.ProjectStorageLimitsDao;
 import org.sagebionetworks.repo.model.limits.ProjectStorageData;
 import org.sagebionetworks.repo.model.limits.ProjectStorageEvent;
+import org.sagebionetworks.repo.model.limits.ProjectStorageLimitsBackfillRequest;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationUsage;
 import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
 import org.sagebionetworks.table.cluster.TableIndexDAO;
 import org.sagebionetworks.util.Clock;
+import org.sagebionetworks.util.Pair;
 
 @ExtendWith(MockitoExtension.class)
 public class ProjectStorageLimitsManagerTest {
@@ -224,6 +228,34 @@ public class ProjectStorageLimitsManagerTest {
 		);
 		
 		verifyNoMoreInteractions(mockMessenger);
+	}
+	
+	@Test
+	public void testBackfillProjectLimits() {
+		UserInfo user = new UserInfo(true, 123L);
+		
+		
+		when(mockDao.getProjectIdsBatch(3, 0)).thenReturn(List.of(1L, 2L, 3L));
+		when(mockDao.getProjectIdsBatch(3, 3)).thenReturn(List.of(4L));
+		
+		when(mockReplicationDao.getProjectStorageLocations(List.of(1L, 2L, 3L))).thenReturn(List.of(
+			Pair.create(1L, 1L), Pair.create(2L, 2L), Pair.create(2L, 3L)
+		));
+		
+		when(mockReplicationDao.getProjectStorageLocations(List.of(4L))).thenReturn(Collections.emptyList());
+		
+		when(mockDao.getMissingLimits(Set.of(Pair.create(1L, 1L), Pair.create(2L, 1L), Pair.create(2L, 2L), Pair.create(2L, 3L), Pair.create(3L, 1L))))
+			.thenReturn(Set.of(Pair.create(1L, 1L), Pair.create(2L, 3L)));
+		
+		when(mockDao.getMissingLimits(Set.of(Pair.create(4L, 1L))))
+			.thenReturn(Collections.emptySet());
+				
+		// Call under test
+		manager.backfillProjectLimits(user, new ProjectStorageLimitsBackfillRequest().setBatchSize(3L));
+		
+		verify(mockDao).setNullLimitBatch(123L, Set.of(Pair.create(1L, 1L), Pair.create(2L, 3L)));
+		
+		verifyNoMoreInteractions(mockDao);
 	}
 	
 }

@@ -108,6 +108,7 @@ import org.sagebionetworks.table.cluster.view.filter.ViewFilter;
 import org.sagebionetworks.table.model.Grouping;
 import org.sagebionetworks.table.query.util.ColumnTypeListMappings;
 import org.sagebionetworks.util.Callback;
+import org.sagebionetworks.util.Pair;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.csv.CSVWriterStream;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -1681,4 +1682,26 @@ public class TableIndexDAOImpl implements TableIndexDAO {
 			.setRuntimeMs(System.currentTimeMillis() - start)
 			.setStorageLocationData(storageLocationData);
 	}	
+	
+	@Override
+	public List<Pair<Long, Long>> getProjectStorageLocations(List<Long> projectIds) {
+		String sql = "SELECT " + OBJECT_REPLICATION_COL_PROJECT_ID + "," + OBJECT_REPLICATION_COL_FILE_LOCATION_ID 
+				+ " FROM " + OBJECT_REPLICATION_TABLE 
+				+ " WHERE " + OBJECT_REPLICATION_COL_PROJECT_ID + " IN (" + String.join(",", Collections.nCopies(projectIds.size(), "?")) + ")"
+				+ " AND " + OBJECT_REPLICATION_COL_FILE_LOCATION_ID + " IS NOT NULL"
+				+ " GROUP BY " + OBJECT_REPLICATION_COL_PROJECT_ID + "," + OBJECT_REPLICATION_COL_FILE_LOCATION_ID
+				+ " ORDER BY " + OBJECT_REPLICATION_COL_PROJECT_ID + "," + OBJECT_REPLICATION_COL_FILE_LOCATION_ID;
+		
+		List<Pair<Long, Long>> result = new ArrayList<>(projectIds.size());
+		
+		template.query(sql, rs -> {
+			Long projectId = rs.getLong(OBJECT_REPLICATION_COL_PROJECT_ID);
+			Long storageLocationId = rs.getLong(OBJECT_REPLICATION_COL_FILE_LOCATION_ID);
+			
+			result.add(Pair.create(projectId, storageLocationId));
+			
+		}, projectIds.toArray());
+		
+		return result;
+	}
 }

@@ -1287,4 +1287,9 @@ public class StackConfigurationImpl implements StackConfiguration {
 	public String getCustomHelloWorldBedrockAgentId() {
 		return configuration.getProperty("org.sagebionetworks.cross.account.bedrock.hello.world.agent.id");
 	}
+	
+	@Override
+	public Long getDefaultProjectStorageLimit() {
+		return Long.valueOf(configuration.getProperty("org.sagebionetworks.project.storage.default.limit"));
+	}
 }

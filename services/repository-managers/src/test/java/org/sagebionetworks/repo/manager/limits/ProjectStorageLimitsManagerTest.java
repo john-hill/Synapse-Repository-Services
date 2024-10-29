@@ -25,6 +25,7 @@ import org.junit.jupiter.params.provider.EnumSource.Mode;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.NodeDAO;
@@ -48,6 +49,9 @@ public class ProjectStorageLimitsManagerTest {
 
 	@Mock
 	private ProjectStorageLimitsDao mockDao;
+	
+	@Mock
+	private StackConfiguration mockConfig;
 	
 	@Mock
 	private TableIndexDAO mockReplicationDao;
@@ -268,6 +272,10 @@ public class ProjectStorageLimitsManagerTest {
 	
 	@Test
 	public void testSetDefaultProjectStorageLimitWithDefaultStorageLocation() {
+		when(mockConfig.getDefaultProjectStorageLimit()).thenReturn(100L);
+		// Mimics spring Autowired call
+		manager.setDefaultStorageLocationMaxBytes(mockConfig);
+		
 		String projectId = "123";
 		String storageLocationId = ProjectStorageLimitManager.DEFAULT_STORAGE_LOCATION_ID;
 		
@@ -280,7 +288,7 @@ public class ProjectStorageLimitsManagerTest {
 		verify(mockDao).setStorageLocationLimit(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId(), new ProjectStorageLocationLimit()
 			.setProjectId(projectId)
 			.setStorageLocationId(storageLocationId)
-			.setMaxAllowedFileBytes(ProjectStorageLimitManager.DEFAULT_STORAGE_LOCATION_MAX_BYTES)
+			.setMaxAllowedFileBytes(100L)
 		);
 		
 		verifyNoMoreInteractions(mockDao);

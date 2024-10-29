@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.NodeDAO;
@@ -34,6 +35,7 @@ import org.sagebionetworks.table.cluster.TableIndexDAO;
 import org.sagebionetworks.util.Clock;
 import org.sagebionetworks.util.Pair;
 import org.sagebionetworks.util.ValidateArgument;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -42,7 +44,6 @@ public class ProjectStorageLimitManager {
 	private static final Logger LOGGER = LogManager.getLogger(ProjectStorageLimitManager.class);
 	
 	public static final String DEFAULT_STORAGE_LOCATION_ID = DBOStorageLocationDAOImpl.DEFAULT_STORAGE_LOCATION_ID.toString();
-	public static final Long DEFAULT_STORAGE_LOCATION_MAX_BYTES = 100L * 1024L * 1024L * 1024L; // 100GiB
 	
 	private static final Duration CACHE_UPDATE_FREQUENCY = Duration.ofMinutes(2);
 	
@@ -58,6 +59,8 @@ public class ProjectStorageLimitManager {
 	
 	private Set<Long> accessedProjects;
 	
+	private Long defaultStorageLocationMaxBytes;
+	
 	public ProjectStorageLimitManager(TransactionalMessenger messenger, ProjectStorageLimitsDao storageUsageDao, TableIndexDAO replicationDao, NodeDAO nodeDao, Clock clock) {
 		this.messenger = messenger;
 		this.storageUsageDao = storageUsageDao;
@@ -65,6 +68,11 @@ public class ProjectStorageLimitManager {
 		this.nodeDao = nodeDao;
 		this.clock = clock;
 		this.accessedProjects = ConcurrentHashMap.newKeySet();
+	}
+	
+	@Autowired
+	void setDefaultStorageLocationMaxBytes(StackConfiguration config) {
+		this.defaultStorageLocationMaxBytes = config.getDefaultProjectStorageLimit();
 	}
 	
 	public ProjectStorageUsage gerProjectStorageUsage(String projectId) {
@@ -110,7 +118,7 @@ public class ProjectStorageLimitManager {
 			return;
 		}
 		
-		Long maxAllowedBytes = DEFAULT_STORAGE_LOCATION_ID.equals(storageLocationId) ? DEFAULT_STORAGE_LOCATION_MAX_BYTES : null;
+		Long maxAllowedBytes = DEFAULT_STORAGE_LOCATION_ID.equals(storageLocationId) ? defaultStorageLocationMaxBytes : null;
 		
 		ProjectStorageLocationLimit limit = new ProjectStorageLocationLimit()
 			.setProjectId(projectId)

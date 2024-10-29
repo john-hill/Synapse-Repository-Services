@@ -1,9 +1,11 @@
 package org.sagebionetworks.repo.manager.agent.handler;
 
 import org.sagebionetworks.repo.manager.agent.parameter.ParameterUtils;
+import org.sagebionetworks.repo.model.Entity;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.dao.WikiPageKey;
 import org.sagebionetworks.repo.model.wiki.WikiPage;
+import org.sagebionetworks.repo.service.EntityService;
 import org.sagebionetworks.repo.service.WikiService;
 import org.springframework.stereotype.Service;
 
@@ -13,10 +15,12 @@ import com.google.gson.JsonObject;
 public class GetDescriptionHandler implements ReturnControlHandler {
 
 	private final WikiService wikiService;
+	private final EntityService entityService;
 
-	public GetDescriptionHandler(WikiService wikiService) {
+	public GetDescriptionHandler(WikiService wikiService, EntityService entityService) {
 		super();
 		this.wikiService = wikiService;
+		this.entityService = entityService;
 	}
 
 	@Override
@@ -42,6 +46,12 @@ public class GetDescriptionHandler implements ReturnControlHandler {
 		StringBuilder builder = new StringBuilder();
 		var offset = 0L;
 		var limit = 5L;
+		Entity entity = entityService.getEntity(event.getRunAsUserId(), synId);
+		if (entity.getDescription() != null) {
+			builder.append(entity.getDescription());
+			builder.append("\n");
+		}
+
 		var headers = wikiService.getWikiHeaderTree(event.getRunAsUserId(), synId, ObjectType.ENTITY, limit, offset)
 				.getResults();
 		if (headers != null) {

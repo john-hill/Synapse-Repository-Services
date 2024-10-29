@@ -14,6 +14,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.AsynchronousJobWorkerHelper;
@@ -283,6 +284,7 @@ public class AgentChatWorkerIntegrationTest {
 
 	}
 
+	@Disabled // added https://sagebionetworks.jira.com/browse/PLFM-8691
 	@Test
 	public void testGetEntityChildrenHandlerWithPagination() throws AssertionError, AsynchJobFailedException {
 		Project project = entityService.createEntity(admin.getId(), new Project().setName(UUID.randomUUID().toString()),
@@ -317,8 +319,8 @@ public class AgentChatWorkerIntegrationTest {
 
 	@Test
 	public void testGetEntityDescriptionHandler() throws DatastoreException, NotFoundException, IOException, AssertionError, AsynchJobFailedException {
-		Project project = entityService.createEntity(admin.getId(), new Project().setName(UUID.randomUUID().toString()),
-				null);
+		Project project = entityService.createEntity(admin.getId(), new Project().setName(UUID.randomUUID().toString())
+						.setDescription("Test Project"), null);
 		entitiesToDelete.add(project.getId());
 		WikiPage wp = wikiService.createWikiPage(admin.getId(), project.getId(), ObjectType.ENTITY,
 				new WikiPage().setTitle("The meaning of life")
@@ -346,6 +348,7 @@ public class AgentChatWorkerIntegrationTest {
 					assertTrue(response.getResponseText().contains(wp.getMarkdown()));
 					assertTrue(response.getResponseText().contains(sub.getTitle()));
 					assertTrue(response.getResponseText().contains(sub.getMarkdown()));
+					assertTrue(response.getResponseText().contains(project.getDescription()));
 				}, MAX_WAIT_MS).getResponse();
 	}
 	

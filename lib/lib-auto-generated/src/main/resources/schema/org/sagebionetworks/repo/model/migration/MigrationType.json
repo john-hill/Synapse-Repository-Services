@@ -15,10 +15,6 @@
 			"description": "TODO: Auto-generated description"
 		},
 		{
-			"name": "TERMS_OF_USE_AGREEMENT",
-			"description": "TODO: Auto-generated description"
-		},
-		{
 			"name": "AUTHENTICATED_ON",
 			"description": "User authenticated date"
 		},

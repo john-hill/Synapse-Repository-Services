@@ -318,8 +318,8 @@ public class AgentChatWorkerIntegrationTest {
 
 	@Test
 	public void testGetEntityDescriptionHandler() throws DatastoreException, NotFoundException, IOException, AssertionError, AsynchJobFailedException {
-		Project project = entityService.createEntity(admin.getId(), new Project().setName(UUID.randomUUID().toString()),
-				null);
+		Project project = entityService.createEntity(admin.getId(), new Project().setName(UUID.randomUUID().toString())
+						.setDescription("Test Project"), null);
 		entitiesToDelete.add(project.getId());
 		WikiPage wp = wikiService.createWikiPage(admin.getId(), project.getId(), ObjectType.ENTITY,
 				new WikiPage().setTitle("The meaning of life")
@@ -347,6 +347,7 @@ public class AgentChatWorkerIntegrationTest {
 					assertTrue(response.getResponseText().contains(wp.getMarkdown()));
 					assertTrue(response.getResponseText().contains(sub.getTitle()));
 					assertTrue(response.getResponseText().contains(sub.getMarkdown()));
+					assertTrue(response.getResponseText().contains(project.getDescription()));
 				}, MAX_WAIT_MS).getResponse();
 	}
 	

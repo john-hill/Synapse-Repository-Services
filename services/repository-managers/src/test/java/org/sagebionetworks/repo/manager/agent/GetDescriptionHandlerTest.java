@@ -9,10 +9,13 @@ import org.sagebionetworks.reflection.model.PaginatedResults;
 import org.sagebionetworks.repo.manager.agent.handler.GetDescriptionHandler;
 import org.sagebionetworks.repo.manager.agent.handler.ReturnControlEvent;
 import org.sagebionetworks.repo.manager.agent.parameter.Parameter;
+import org.sagebionetworks.repo.model.Entity;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.dao.WikiPageKey;
 import org.sagebionetworks.repo.model.wiki.WikiHeader;
 import org.sagebionetworks.repo.model.wiki.WikiPage;
+import org.sagebionetworks.repo.service.EntityService;
 import org.sagebionetworks.repo.service.WikiService;
 
 import java.util.Collections;
@@ -33,6 +36,8 @@ public class GetDescriptionHandlerTest {
 
     @Mock
     private WikiService wikiService;
+    @Mock
+    private EntityService serviceProvider;
     @InjectMocks
     private GetDescriptionHandler getDescriptionHandler;
     private ReturnControlEvent returnControlEvent;
@@ -50,22 +55,24 @@ public class GetDescriptionHandlerTest {
 
     @Test
     public void testGetEntityDescriptionHandler() throws Exception {
+        Entity entity = new Project().setId(ID).setDescription("Test project");
         returnControlEvent = new ReturnControlEvent(USER_ID, ACTION_GROUP, FUNCTION, List.of(SYN_ID));
         WikiHeader wikiHeader = new WikiHeader().setId("headerOne").setTitle("test header").setParentId("syn345");
         WikiPage page = new WikiPage().setId("TestPage").setTitle("random page").setMarkdown("markdown");
         WikiPageKey key = new WikiPageKey().setOwnerObjectId(ID)
                 .setOwnerObjectType(ObjectType.ENTITY).setWikiPageId("headerOne");
         PaginatedResults<WikiHeader> wikiHeaders = PaginatedResults.createWithLimitAndOffset(List.of(wikiHeader), 5l, 0l);
-
+        when(serviceProvider.getEntity(USER_ID, ID)).thenReturn(entity);
         when(wikiService.getWikiHeaderTree(USER_ID, ID, ObjectType.ENTITY, 5l, 0l))
                 .thenReturn(wikiHeaders);
         when(wikiService.getWikiPage(USER_ID, key, null))
                 .thenReturn(page);
 
         String result = getDescriptionHandler.handleEvent(returnControlEvent);
-        assertEquals("{\"description\":\"random page\\nmarkdown\\n\\n\"}", result);
+        assertEquals("{\"description\":\"Test project\\nrandom page\\nmarkdown\\n\\n\"}", result);
         verify(wikiService).getWikiHeaderTree(returnControlEvent.getRunAsUserId(),
                 returnControlEvent.getParameters().get(0).getValue(), ObjectType.ENTITY, 5l, 0l);
         verify(wikiService).getWikiPage(returnControlEvent.getRunAsUserId(), key, null);
+        verify(serviceProvider).getEntity(returnControlEvent.getRunAsUserId(),ID);
     }
 }

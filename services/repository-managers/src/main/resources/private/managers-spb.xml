@@ -276,6 +276,11 @@
 			<property name="name" value="Synapse Report Team" />
 			<property name="description" value="Team for users authorized to generate reports about general resource usage and costs incurred by Synapse" />
 		</bean>
+		<bean class="org.sagebionetworks.repo.model.principal.BootstrapTeam">
+			<property name="id" value="7" />
+			<property name="name" value="Synapse Plan Managers" />
+			<property name="description" value="Team for users authorized to make changes to managed plans, including storage limits" />
+		</bean>
        </util:list>
 		
 	<bean id="certifiedUserManager" class="org.sagebionetworks.repo.manager.CertifiedUserManagerImpl" scope="singleton"/>

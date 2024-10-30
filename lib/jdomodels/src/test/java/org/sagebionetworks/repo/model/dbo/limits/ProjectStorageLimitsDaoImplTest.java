@@ -11,6 +11,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +27,7 @@ import org.sagebionetworks.repo.model.helper.StorageLocationHelper;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.limits.ProjectStorageData;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
+import org.sagebionetworks.util.Pair;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -120,6 +124,10 @@ public class ProjectStorageLimitsDaoImplTest {
 			
 			assertNotEquals(expectedData.getEtag(), fetchedProjectData.getEtag());
 			assertNotEquals(expectedData.getModifiedOn(), fetchedProjectData.getModifiedOn());
+			
+			dao.deleteStorageData(expectedData.getProjectId());
+			
+			assertEquals(Optional.empty(), dao.getStorageData(expectedData.getProjectId()));
 		}
 	}
 	
@@ -184,6 +192,34 @@ public class ProjectStorageLimitsDaoImplTest {
 		// Call under test
 		assertEquals(limits.subList(0, 2), dao.getStorageLocationLimits(projectOneId));
 		assertEquals(limits.subList(2, 4), dao.getStorageLocationLimits(projectTwoId));
+		
+	}
+	
+	@Test
+	public void testSetNullLimitsBatch() {
+		Long userId = BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
+		
+		dao.setStorageLocationLimit(userId, new ProjectStorageLocationLimit()
+			.setProjectId(KeyFactory.keyToString(projectOneId))
+			.setStorageLocationId(sLocTwoId.toString())
+			.setMaxAllowedFileBytes(1024L));
+		
+		dao.setStorageLocationLimit(userId, new ProjectStorageLocationLimit()
+			.setProjectId(KeyFactory.keyToString(projectThreeId))
+			.setStorageLocationId(sLocThreeId.toString())
+			.setMaxAllowedFileBytes(null));
+		
+		Set<Pair<Long, Long>> allLimits = dao.getProjectIdsBatch(10, 0).stream().flatMap(projectId -> Stream.of(
+			Pair.create(projectId, sLocOneId), 
+			Pair.create(projectId, sLocTwoId), 
+			Pair.create(projectId, sLocThreeId)
+		)).collect(Collectors.toSet());
+		
+
+		int updatedCount = dao.setNullLimitBatch(userId, allLimits);
+		
+		// Total of 9 limits, but 2 are already there
+		assertEquals(7, updatedCount);
 		
 	}
 }

@@ -20,11 +20,15 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_PROJEC
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -35,6 +39,7 @@ import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.limits.ProjectStorageData;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
+import org.sagebionetworks.util.Pair;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -131,6 +136,11 @@ public class ProjectStorageLimitsDaoImpl implements ProjectStorageLimitsDao {
 			return Optional.empty();
 		}, projectId);
 	}
+	
+	@Override
+	public void deleteStorageData(Long projectId) {
+		jdbcTemplate.update("DELETE FROM " + TABLE_PROJECT_STORAGE_DATA + " WHERE " + COL_PROJECT_STORAGE_DATA_PROJECT_ID + "=?", projectId);
+	}
 
 	@Override
 	@WriteTransaction
@@ -155,7 +165,7 @@ public class ProjectStorageLimitsDaoImpl implements ProjectStorageLimitsDao {
 		
 		Timestamp now = Timestamp.from(Instant.now());
 		
-		Long newId = idGenerator.generateNewId(IdType.PROJECT_STORAGE_LIMIT_ID);		
+		Long newId = idGenerator.generateNewId(IdType.PROJECT_STORAGE_LIMIT_ID);
 		Long projectId = KeyFactory.stringToKey(limit.getProjectId());
 		Long storageLocationId = KeyFactory.stringToKey(limit.getStorageLocationId());
 		
@@ -206,6 +216,63 @@ public class ProjectStorageLimitsDaoImpl implements ProjectStorageLimitsDao {
 			
 		}, args);
 		
+	}
+	
+	@Override
+	public List<Long> getProjectIdsBatch(long limit, long offset) {
+		return jdbcTemplate.queryForList("SELECT ID FROM NODE WHERE NODE_TYPE = 'project' ORDER BY ID LIMIT ? OFFSET ?", Long.class, limit, offset);
+	}
+	
+	@Override
+	@WriteTransaction
+	public int setNullLimitBatch(long userId, Set<Pair<Long, Long>> batch) {
+		
+		String sql = "INSERT IGNORE INTO " + TABLE_PROJECT_STORAGE_LIMIT + "("
+			+ COL_PROJECT_STORAGE_LIMIT_ID + ","
+			+ COL_PROJECT_STORAGE_LIMIT_ETAG + ","
+			+ COL_PROJECT_STORAGE_LIMIT_CREATED_BY + ","
+			+ COL_PROJECT_STORAGE_LIMIT_CREATED_ON + ","
+			+ COL_PROJECT_STORAGE_LIMIT_MODIFIED_BY + ","
+			+ COL_PROJECT_STORAGE_LIMIT_MODIFIED_ON + ","
+			+ COL_PROJECT_STORAGE_LIMIT_PROJECT_ID + ","
+			+ COL_PROJECT_STORAGE_LIMIT_LOCATION_ID + ","
+			+ COL_PROJECT_STORAGE_LIMIT_MAX_BYTES 
+			+ ") VALUES (?, UUID(), ?, ?, ?, ?, ?, ?, ?)";
+		
+		Timestamp now = Timestamp.from(Instant.now());
+		
+		List<Pair<Long, Long>> batchList = new ArrayList<>(batch);
+		List<Long> ids = new ArrayList<>(batchList.size());
+		
+		for (int i=0; i<batchList.size(); i++) {
+			ids.add(idGenerator.generateNewId(IdType.PROJECT_STORAGE_LIMIT_ID));
+		};
+		
+		int[] result = jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
+			
+			@Override
+			public void setValues(PreparedStatement ps, int i) throws SQLException {
+				Pair<Long, Long> projectStoragePair = batchList.get(i);
+				
+				int paramIndex = 0;
+				
+				ps.setLong(++paramIndex, ids.get(i));
+				ps.setLong(++paramIndex, userId);
+				ps.setTimestamp(++paramIndex, now);
+				ps.setLong(++paramIndex, userId);
+				ps.setTimestamp(++paramIndex, now);
+				ps.setLong(++paramIndex, projectStoragePair.getFirst());
+				ps.setLong(++paramIndex, projectStoragePair.getSecond());
+				ps.setNull(++paramIndex, Types.BIGINT);
+			}
+			
+			@Override
+			public int getBatchSize() {
+				return batchList.size();
+			}
+		});
+		
+		return Arrays.stream(result).sum();
 	}
 
 	// For testing

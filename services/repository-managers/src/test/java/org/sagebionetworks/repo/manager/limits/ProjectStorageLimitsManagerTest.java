@@ -15,6 +15,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,24 +25,33 @@ import org.junit.jupiter.params.provider.EnumSource.Mode;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.limits.ProjectStorageLimitsDao;
 import org.sagebionetworks.repo.model.limits.ProjectStorageData;
 import org.sagebionetworks.repo.model.limits.ProjectStorageEvent;
+import org.sagebionetworks.repo.model.limits.ProjectStorageLimitsBackfillRequest;
+import org.sagebionetworks.repo.model.limits.ProjectStorageLimitsBackfillResponse;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationUsage;
 import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
 import org.sagebionetworks.table.cluster.TableIndexDAO;
 import org.sagebionetworks.util.Clock;
+import org.sagebionetworks.util.Pair;
 
 @ExtendWith(MockitoExtension.class)
 public class ProjectStorageLimitsManagerTest {
 
 	@Mock
 	private ProjectStorageLimitsDao mockDao;
+	
+	@Mock
+	private StackConfiguration mockConfig;
 	
 	@Mock
 	private TableIndexDAO mockReplicationDao;
@@ -98,8 +108,8 @@ public class ProjectStorageLimitsManagerTest {
 		
 		when(mockNodeDao.getNodeTypeById(projectId)).thenReturn(EntityType.project);
 		when(mockDao.getStorageLocationLimits(projectIdLong)).thenReturn(List.of(
-			new ProjectStorageLocationLimit().setStorageLocationId("2").setMaxAllowedFileBytes(2048L),
-			new ProjectStorageLocationLimit().setStorageLocationId("1").setMaxAllowedFileBytes(1024L)
+			new ProjectStorageLocationLimit().setStorageLocationId("1").setMaxAllowedFileBytes(1024L),
+			new ProjectStorageLocationLimit().setStorageLocationId("2").setMaxAllowedFileBytes(2048L)
 		));
 		
 		when(mockDao.getStorageData(projectIdLong)).thenReturn(Optional.empty());
@@ -133,8 +143,8 @@ public class ProjectStorageLimitsManagerTest {
 		
 		when(mockNodeDao.getNodeTypeById(projectId)).thenReturn(EntityType.project);
 		when(mockDao.getStorageLocationLimits(projectIdLong)).thenReturn(List.of(
-			new ProjectStorageLocationLimit().setStorageLocationId("2").setMaxAllowedFileBytes(2048L),
-			new ProjectStorageLocationLimit().setStorageLocationId("1").setMaxAllowedFileBytes(1024L)
+			new ProjectStorageLocationLimit().setStorageLocationId("1").setMaxAllowedFileBytes(1024L),
+			new ProjectStorageLocationLimit().setStorageLocationId("2").setMaxAllowedFileBytes(2048L)
 		));
 		
 		when(mockDao.getStorageData(projectIdLong)).thenReturn(Optional.of(new ProjectStorageData()
@@ -145,8 +155,7 @@ public class ProjectStorageLimitsManagerTest {
 			.setProjectId(projectId)
 			.setLocations(List.of(
 				new ProjectStorageLocationUsage().setStorageLocationId("1").setMaxAllowedFileBytes(1024L).setIsOverLimit(false).setSumFileBytes(512L),
-				new ProjectStorageLocationUsage().setStorageLocationId("2").setMaxAllowedFileBytes(2048L).setIsOverLimit(true).setSumFileBytes(4096L),
-				new ProjectStorageLocationUsage().setStorageLocationId("3").setMaxAllowedFileBytes(null).setIsOverLimit(false).setSumFileBytes(2024L)
+				new ProjectStorageLocationUsage().setStorageLocationId("2").setMaxAllowedFileBytes(2048L).setIsOverLimit(true).setSumFileBytes(4096L)
 			));
 		
 		// Call under test
@@ -225,6 +234,134 @@ public class ProjectStorageLimitsManagerTest {
 		);
 		
 		verifyNoMoreInteractions(mockMessenger);
+	}
+	
+	@Test
+	public void testSetDefaultProjectStorageLimit() {
+		String projectId = "123";
+		String storageLocationId = "2";
+		
+		when(mockNodeDao.getNodeTypeById(projectId)).thenReturn(EntityType.project);
+		when(mockDao.getStorageLocationLimit(123L, 2L)).thenReturn(Optional.empty());
+		
+		// Call under test
+		manager.setDefaultProjectStorageLimit(projectId, storageLocationId);
+		
+		verify(mockDao).setStorageLocationLimit(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId(), new ProjectStorageLocationLimit()
+			.setProjectId(projectId)
+			.setStorageLocationId(storageLocationId)
+			.setMaxAllowedFileBytes(null)
+		);
+		
+		verifyNoMoreInteractions(mockDao);
+	}
+	
+	@Test
+	public void testSetDefaultProjectStorageLimitWithAlreadyExists() {
+		String projectId = "123";
+		String storageLocationId = "2";
+		
+		when(mockNodeDao.getNodeTypeById(projectId)).thenReturn(EntityType.project);
+		when(mockDao.getStorageLocationLimit(123L, 2L)).thenReturn(Optional.of(new ProjectStorageLocationLimit()));
+		
+		// Call under test
+		manager.setDefaultProjectStorageLimit(projectId, storageLocationId);
+
+		verifyNoMoreInteractions(mockDao);
+	}
+	
+	@Test
+	public void testSetDefaultProjectStorageLimitWithDefaultStorageLocation() {
+		when(mockConfig.getDefaultProjectStorageLimit()).thenReturn(100L);
+		// Mimics spring Autowired call
+		manager.setDefaultStorageLocationMaxBytes(mockConfig);
+		
+		String projectId = "123";
+		String storageLocationId = ProjectStorageLimitManager.DEFAULT_STORAGE_LOCATION_ID;
+		
+		when(mockNodeDao.getNodeTypeById(projectId)).thenReturn(EntityType.project);
+		when(mockDao.getStorageLocationLimit(123L, 1L)).thenReturn(Optional.empty());
+		
+		// Call under test
+		manager.setDefaultProjectStorageLimit(projectId, storageLocationId);
+		
+		verify(mockDao).setStorageLocationLimit(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId(), new ProjectStorageLocationLimit()
+			.setProjectId(projectId)
+			.setStorageLocationId(storageLocationId)
+			.setMaxAllowedFileBytes(100L)
+		);
+		
+		verifyNoMoreInteractions(mockDao);
+	}
+	
+	@Test
+	public void testSetDefaultProjectStorageLimitWithNoProjectId() {
+		String storageLocationId = "1";
+		
+		assertEquals("The projectId is required and must not be the empty string.", assertThrows(IllegalArgumentException.class, () -> {			
+			// Call under test
+			manager.setDefaultProjectStorageLimit(null, storageLocationId);
+		}).getMessage());
+		
+		verifyZeroInteractions(mockDao, mockNodeDao);
+	}
+	
+	@Test
+	public void testSetDefaultProjectStorageLimitWithNoStorageLocationId() {
+		assertEquals("The storage location id is required.", assertThrows(IllegalArgumentException.class, () -> {			
+			// Call under test
+			manager.setDefaultProjectStorageLimit("123", null);
+		}).getMessage());
+		
+		verifyZeroInteractions(mockDao, mockNodeDao);
+	}
+	
+	@ParameterizedTest
+	@EnumSource(value = EntityType.class, mode = Mode.EXCLUDE, names = "project")
+	public void testSetDefaultProjectStorageLimitWithWrongEntityType(EntityType entityType) {
+		String projectId = "123";
+		String storageLocationId = ProjectStorageLimitManager.DEFAULT_STORAGE_LOCATION_ID;
+		
+		when(mockNodeDao.getNodeTypeById(projectId)).thenReturn(entityType);
+		
+		assertEquals("The entity with the given id is not a project.", assertThrows(IllegalArgumentException.class, () -> {			
+			// Call under test
+			manager.setDefaultProjectStorageLimit("123", storageLocationId);
+		}).getMessage());
+		
+		verifyNoMoreInteractions(mockDao, mockNodeDao);
+	}
+	
+	@Test
+	public void testBackfillProjectLimits() {
+		UserInfo user = new UserInfo(true, 123L);
+		
+		
+		when(mockDao.getProjectIdsBatch(3, 0)).thenReturn(List.of(1L, 2L, 3L));
+		when(mockDao.getProjectIdsBatch(3, 3)).thenReturn(List.of(4L));
+		
+		when(mockReplicationDao.getProjectStorageLocations(List.of(1L, 2L, 3L))).thenReturn(List.of(
+			Pair.create(1L, 1L), Pair.create(2L, 2L), Pair.create(2L, 3L)
+		));
+		
+		when(mockReplicationDao.getProjectStorageLocations(List.of(4L))).thenReturn(Collections.emptyList());
+		
+		when(mockDao.setNullLimitBatch(123L, Set.of(
+			Pair.create(1L, 1L), 
+			Pair.create(2L, 1L), 
+			Pair.create(2L, 2L), 
+			Pair.create(2L, 3L), 
+			Pair.create(3L, 1L)))
+		).thenReturn(2);
+		
+		when(mockDao.setNullLimitBatch(123L, Set.of(
+			Pair.create(4L, 1L)))
+		).thenReturn(1);
+				
+		// Call under test
+		assertEquals(new ProjectStorageLimitsBackfillResponse().setLimitsAddedCount(3L), manager.backfillProjectLimits(user, new ProjectStorageLimitsBackfillRequest().setBatchSize(3L)));
+		
+		verifyNoMoreInteractions(mockDao);
 	}
 	
 }

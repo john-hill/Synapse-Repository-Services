@@ -880,4 +880,9 @@ public interface StackConfiguration {
 	String getCrossAccountBedrockRoleArn();
 
 	String getCustomHelloWorldBedrockAgentId();
+	
+	/**
+	 * @return The default project storage limit for the synapse bucket
+	 */
+	Long getDefaultProjectStorageLimit();
 }

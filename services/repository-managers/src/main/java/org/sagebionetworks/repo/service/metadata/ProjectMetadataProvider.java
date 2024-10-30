@@ -1,13 +1,13 @@
 package org.sagebionetworks.repo.service.metadata;
 
 import org.sagebionetworks.repo.manager.discussion.ForumManager;
+import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitManager;
 import org.sagebionetworks.repo.manager.subscription.SubscriptionManager;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.discussion.Forum;
 import org.sagebionetworks.repo.model.subscription.SubscriptionObjectType;
 import org.sagebionetworks.repo.model.subscription.Topic;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -16,11 +16,18 @@ import org.springframework.stereotype.Service;
 @Service
 public class ProjectMetadataProvider implements TypeSpecificMetadataProvider<Project>, TypeSpecificCreateProvider<Project> {
 
-	@Autowired
-	ForumManager forumManager;
-	@Autowired
-	SubscriptionManager subscriptionManager;
+	private ForumManager forumManager;
+	
+	private SubscriptionManager subscriptionManager;
+	
+	private ProjectStorageLimitManager storageLimitsManager;
 
+	public ProjectMetadataProvider(ForumManager forumManager, SubscriptionManager subscriptionManager, ProjectStorageLimitManager storageLimitsManager) {
+		this.forumManager = forumManager;
+		this.subscriptionManager = subscriptionManager;
+		this.storageLimitsManager = storageLimitsManager;
+	}
+	
 	@Override
 	public void addTypeSpecificMetadata(Project entity, UserInfo user, EventType eventType) {
 		if(entity == null) throw new IllegalArgumentException("Entity cannot be null");
@@ -34,5 +41,6 @@ public class ProjectMetadataProvider implements TypeSpecificMetadataProvider<Pro
 		toSubscribe.setObjectId(forum.getId());
 		toSubscribe.setObjectType(SubscriptionObjectType.FORUM);
 		subscriptionManager.create(userInfo, toSubscribe);
+		storageLimitsManager.setDefaultProjectStorageLimit(project.getId(), ProjectStorageLimitManager.DEFAULT_STORAGE_LOCATION_ID);
 	}
 }

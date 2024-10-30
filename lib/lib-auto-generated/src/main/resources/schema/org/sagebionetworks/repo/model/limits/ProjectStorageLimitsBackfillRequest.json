@@ -1,8 +1,12 @@
 {
-	"description": "Dataset back filling of checksum, size and count request.",
 	"implements": [
 		{
 			"$ref": "org.sagebionetworks.repo.model.migration.AdminRequest"
 		}
-	]
+	],
+	"properties": {
+		"batchSize": {
+			"type": "integer"
+		}
+	}
 }

@@ -93,6 +93,7 @@ import org.sagebionetworks.table.query.util.ColumnTypeListMappings;
 import org.sagebionetworks.table.query.util.SimpleAggregateQueryException;
 import org.sagebionetworks.table.query.util.SqlElementUtils;
 import org.sagebionetworks.util.Callback;
+import org.sagebionetworks.util.Pair;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.ContextConfiguration;
@@ -5245,6 +5246,36 @@ public class TableIndexDAOImplTest {
 			.setStorageLocationData(Collections.emptyMap())
 			.setRuntimeMs(projectThreeData.getRuntimeMs()),
 			projectThreeData);
+	}
+	
+	@Test
+	public void testGetProjectStorageLocations() {
+		
+		Long projectOneId = 123L;
+		Long projectTwoId = 456L;
+		Long projectThreeId = 789L;
+		
+		tableIndexDAO.addObjectData(ReplicationType.ENTITY, List.of(
+			// Project one
+			createObjectDataDTO(projectOneId, EntityType.project, 0),
+			createObjectDataDTO(2L, EntityType.folder, 0).setProjectId(projectOneId),
+			createObjectDataDTO(3L, EntityType.file, 0).setProjectId(projectOneId).setFileSizeBytes(1024L).setFileLocationId(1L),
+			createObjectDataDTO(4L, EntityType.file, 0).setProjectId(projectOneId).setFileSizeBytes(2048L).setFileLocationId(2L),
+			createObjectDataDTO(5L, EntityType.file, 0).setProjectId(projectOneId).setFileSizeBytes(1024L).setFileLocationId(2L),
+			createObjectDataDTO(6L, EntityType.dataset, 0).setProjectId(projectOneId),
+			// Project two
+			createObjectDataDTO(projectTwoId, EntityType.project, 0),
+			createObjectDataDTO(7, EntityType.file, 0).setProjectId(projectTwoId).setFileSizeBytes(4096L).setFileLocationId(1L),
+			// Project three, no files
+			createObjectDataDTO(projectThreeId, EntityType.project, 0)
+		));
+		
+		assertEquals(List.of(
+			Pair.create(projectOneId, 1L),
+			Pair.create(projectOneId, 2L),
+			Pair.create(projectTwoId, 1L)
+		), tableIndexDAO.getProjectStorageLocations(List.of(projectOneId, projectTwoId, projectThreeId)));
+		
 	}
 	
 }

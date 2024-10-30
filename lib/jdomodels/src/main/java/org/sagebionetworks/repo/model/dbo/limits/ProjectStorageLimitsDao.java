@@ -3,9 +3,11 @@ package org.sagebionetworks.repo.model.dbo.limits;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.sagebionetworks.repo.model.limits.ProjectStorageData;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
+import org.sagebionetworks.util.Pair;
 
 public interface ProjectStorageLimitsDao {
 
@@ -24,6 +26,13 @@ public interface ProjectStorageLimitsDao {
 	 * @param projectStorageData
 	 */
 	void setStorageData(List<ProjectStorageData> projectStorageData);
+	
+	/**
+	 * Deletes the storage data for the given project, invalidating the cache
+	 * 
+	 * @param projectId
+	 */
+	void deleteStorageData(Long projectId);
 
 	/**
 	 * 
@@ -54,6 +63,13 @@ public interface ProjectStorageLimitsDao {
 	 * @return All the storage location limits for the given project
 	 */
 	List<ProjectStorageLocationLimit> getStorageLocationLimits(Long projectId);
+	
+	
+	// PLFM-8687: Needed for backfilling limits
+	
+	List<Long> getProjectIdsBatch(long limit, long offset);
+	
+	int setNullLimitBatch(long userId, Set<Pair<Long, Long>> batch);
 
 	void truncateAll();
 }

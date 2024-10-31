@@ -106,4 +106,16 @@ public class AuthorizationUtils {
 		}
 		return false;
 	}
+	
+	public static boolean isPlanManagerOrAdmin(UserInfo userInfo) {
+		if (userInfo.isAdmin()) {
+			return true;
+		}
+		
+		if (userInfo.getGroups() != null) {
+			return userInfo.getGroups().contains(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.PLAN_MANAGERS.getPrincipalId());
+		}
+		
+		return false;
+	}
 }

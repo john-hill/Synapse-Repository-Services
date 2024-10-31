@@ -1242,6 +1242,10 @@ public class UrlHelpers {
 	public static final String WEBHOOK_VERIFY = WEBHOOK_ID + "/verify";
 	public static final String WEBHOOK_VERIFICATION_CODE = WEBHOOK_ID + "/verificationCode";
 	
+	// Endpoint for project storage limits
+	public static final String PROJECT_STORAGE_LIMIT = "/project/{projectId}/storage/limit";
+	public static final String PROJECT_STORAGE_USAGE = "/project/{projectId}/storage/usage";
+	
 	/**
 	 * API for creating integration test users
 	 */

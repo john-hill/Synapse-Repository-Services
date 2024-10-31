@@ -4,6 +4,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.util.HashSet;
+import java.util.Set;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -71,5 +72,45 @@ public class AuthorizationUtilsTest {
 				BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId());
 		// call under test
 		assertTrue(AuthorizationUtils.isSageEmployeeOrAdmin(userInfo));
+	}
+	
+	@Test
+	public void testIsPlanManagerOrAdminWithNotAdminOrPlanManager() {
+		boolean isAdmin = false;
+		UserInfo userInfo = new UserInfo(isAdmin);
+		userInfo.setGroups(new HashSet<Long>());
+		userInfo.getGroups().add(BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId());
+		// call under test
+		assertFalse(AuthorizationUtils.isPlanManagerOrAdmin(userInfo));
+	}
+	
+	@Test
+	public void testIsPlanManagerOrAdminWithAdminAndNotPlanManager() {
+		boolean isAdmin = true;
+		UserInfo userInfo = new UserInfo(isAdmin);
+		userInfo.setGroups(new HashSet<Long>());
+		userInfo.getGroups().add(BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId());
+		// call under test
+		assertTrue(AuthorizationUtils.isPlanManagerOrAdmin(userInfo));
+	}
+	
+	@Test
+	public void testIsPlanManagerOrAdminWithNotAdminAndPlanManager() {
+		boolean isAdmin = false;
+		UserInfo userInfo = new UserInfo(isAdmin);
+		userInfo.setGroups(new HashSet<Long>());
+		userInfo.getGroups().add(BOOTSTRAP_PRINCIPAL.PLAN_MANAGERS.getPrincipalId());
+		// call under test
+		assertTrue(AuthorizationUtils.isPlanManagerOrAdmin(userInfo));
+	}
+	
+	@Test
+	public void testIsPlanManagerOrAdminWithAdminAndPlanManager() {
+		boolean isAdmin = true;
+		UserInfo userInfo = new UserInfo(isAdmin);
+		userInfo.setGroups(new HashSet<Long>());
+		userInfo.getGroups().add(BOOTSTRAP_PRINCIPAL.PLAN_MANAGERS.getPrincipalId());
+		// call under test
+		assertTrue(AuthorizationUtils.isPlanManagerOrAdmin(userInfo));
 	}
 }

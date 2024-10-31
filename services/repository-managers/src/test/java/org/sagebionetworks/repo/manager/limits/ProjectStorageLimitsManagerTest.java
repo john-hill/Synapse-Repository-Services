@@ -30,6 +30,8 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
+import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.NodeDAO;
@@ -37,6 +39,7 @@ import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.StorageLocationDAO;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dbo.limits.ProjectStorageLimitsDao;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.limits.ProjectStorageData;
@@ -62,6 +65,9 @@ public class ProjectStorageLimitsManagerTest {
 	private StackConfiguration mockConfig;
 	
 	@Mock
+	private EntityAuthorizationManager mockAuthzManager;
+	
+	@Mock
 	private TableIndexDAO mockReplicationDao;
 	
 	@Mock
@@ -80,12 +86,13 @@ public class ProjectStorageLimitsManagerTest {
 	@Spy
 	private ProjectStorageLimitManager manager;
 
-	private UserInfo user;
+	private UserInfo planManagerUser;
 	
 	@BeforeEach
 	public void before() {
-		user = new UserInfo(false, 123L);
-		user.setGroups(new HashSet<>());
+		planManagerUser = new UserInfo(false, 123L);
+		planManagerUser.setGroups(new HashSet<>());
+		planManagerUser.getGroups().add(BOOTSTRAP_PRINCIPAL.PLAN_MANAGERS.getPrincipalId());
 	}
 	
 	@Test
@@ -122,7 +129,7 @@ public class ProjectStorageLimitsManagerTest {
 	}
 	
 	@Test
-	public void getProjectStorageUsageWithNoStorageData() {
+	public void testGetProjectStorageUsageWithNoStorageData() {
 		String projectId = "syn123";
 		Long projectIdLong = 123L;
 		
@@ -143,7 +150,7 @@ public class ProjectStorageLimitsManagerTest {
 			));
 		
 		// Call under test
-		assertEquals(expected, manager.gerProjectStorageUsage(projectId));
+		assertEquals(expected, manager.getProjectStorageUsage(planManagerUser, projectId));
 		
 		// Emulates the call to the notification timer, this clears the internal cache
 		manager.sendProjectStorageNotifications();
@@ -158,7 +165,7 @@ public class ProjectStorageLimitsManagerTest {
 	}
 	
 	@Test
-	public void getProjectStorageUsageWithStorageData() {
+	public void testGetProjectStorageUsageWithStorageData() {
 		String projectId = "syn123";
 		Long projectIdLong = 123L;
 		
@@ -181,7 +188,7 @@ public class ProjectStorageLimitsManagerTest {
 			));
 		
 		// Call under test
-		assertEquals(expected, manager.gerProjectStorageUsage(projectId));
+		assertEquals(expected, manager.getProjectStorageUsage(planManagerUser, projectId));
 		
 		// Emulates the call to the notification timer, this clears the internal cache
 		manager.sendProjectStorageNotifications();
@@ -191,6 +198,65 @@ public class ProjectStorageLimitsManagerTest {
 			.setObjectId(projectIdLong.toString())
 			.setProjectId(projectIdLong)
 		);
+		
+		verifyNoMoreInteractions(mockDao, mockNodeDao, mockReplicationDao, mockClock, mockMessenger);
+	}
+	
+	@Test
+	public void testGetProjectStorageUsageWithNotPlanManagerAndAuthorized() {
+		planManagerUser.setGroups(Collections.emptySet());
+		
+		String projectId = "syn123";
+		Long projectIdLong = 123L;
+		
+		doReturn(KeyFactory.stringToKey(projectId)).when(manager).validateAndGetProjectId(projectId);
+		
+		when(mockAuthzManager.hasAccess(planManagerUser, projectId, ACCESS_TYPE.CREATE)).thenReturn(AuthorizationStatus.authorized());
+		
+		when(mockDao.getStorageLocationLimits(projectIdLong)).thenReturn(List.of(
+			new ProjectStorageLocationLimit().setStorageLocationId("1").setMaxAllowedFileBytes(1024L),
+			new ProjectStorageLocationLimit().setStorageLocationId("2").setMaxAllowedFileBytes(2048L)
+		));
+		
+		when(mockDao.getStorageData(projectIdLong)).thenReturn(Optional.empty());
+		
+		ProjectStorageUsage expected = new ProjectStorageUsage()
+			.setProjectId(projectId)
+			.setLocations(List.of(
+				new ProjectStorageLocationUsage().setStorageLocationId("1").setMaxAllowedFileBytes(1024L).setIsOverLimit(false).setSumFileBytes(0L),
+				new ProjectStorageLocationUsage().setStorageLocationId("2").setMaxAllowedFileBytes(2048L).setIsOverLimit(false).setSumFileBytes(0L)				
+			));
+		
+		// Call under test
+		assertEquals(expected, manager.getProjectStorageUsage(planManagerUser, projectId));
+		
+		// Emulates the call to the notification timer, this clears the internal cache
+		manager.sendProjectStorageNotifications();
+		
+		verify(mockMessenger).publishMessageAfterCommit(new ProjectStorageEvent()
+			.setObjectType(ObjectType.PROJECT_STORAGE_EVENT)
+			.setObjectId(projectIdLong.toString())
+			.setProjectId(projectIdLong)
+		);
+		
+		verifyNoMoreInteractions(mockDao, mockNodeDao, mockReplicationDao, mockClock, mockMessenger);
+	}
+	
+	@Test
+	public void testGetProjectStorageUsageWithNotPlanManagerAndNotAuthorized() {
+		planManagerUser.setGroups(Collections.emptySet());
+		
+		String projectId = "syn123";
+		
+		doReturn(KeyFactory.stringToKey(projectId)).when(manager).validateAndGetProjectId(projectId);
+		
+		when(mockAuthzManager.hasAccess(planManagerUser, projectId, ACCESS_TYPE.CREATE)).thenReturn(AuthorizationStatus.accessDenied("Nope"));
+		
+		
+		assertEquals("Nope", assertThrows(UnauthorizedException.class, () -> {			
+			// Call under test
+			manager.getProjectStorageUsage(planManagerUser, projectId);
+		}).getMessage());
 		
 		verifyNoMoreInteractions(mockDao, mockNodeDao, mockReplicationDao, mockClock, mockMessenger);
 	}
@@ -206,9 +272,9 @@ public class ProjectStorageLimitsManagerTest {
 		
 		verifyZeroInteractions(mockMessenger);
 		
-		manager.gerProjectStorageUsage("123");
-		manager.gerProjectStorageUsage("123");
-		manager.gerProjectStorageUsage("456");
+		manager.getProjectStorageUsage(planManagerUser, "123");
+		manager.getProjectStorageUsage(planManagerUser, "123");
+		manager.getProjectStorageUsage(planManagerUser, "456");
 		
 		// Call under test
 		manager.sendProjectStorageNotifications();
@@ -294,7 +360,6 @@ public class ProjectStorageLimitsManagerTest {
 	
 	@Test
 	public void testSetProjectStorageLimit() {
-		user.getGroups().add(BOOTSTRAP_PRINCIPAL.PLAN_MANAGERS.getPrincipalId());
 		
 		String projectId = "123";
 		String storageLocationId = "2";
@@ -307,10 +372,10 @@ public class ProjectStorageLimitsManagerTest {
 			.setStorageLocationId(storageLocationId)
 			.setMaxAllowedFileBytes(1024L);
 		
-		when(mockDao.setStorageLocationLimit(user.getId(), limit)).thenReturn(limit);
+		when(mockDao.setStorageLocationLimit(planManagerUser.getId(), limit)).thenReturn(limit);
 		
 		// Call under test
-		assertEquals(limit, manager.setProjectStorageLimit(user, limit));
+		assertEquals(limit, manager.setProjectStorageLimit(planManagerUser, limit));
 		
 		// Emulate the timer call
 		manager.sendProjectStorageNotifications();
@@ -326,7 +391,6 @@ public class ProjectStorageLimitsManagerTest {
 	
 	@Test
 	public void testSetProjectStorageLimitWithNullLimit() {
-		user.getGroups().add(BOOTSTRAP_PRINCIPAL.PLAN_MANAGERS.getPrincipalId());
 		
 		String projectId = "123";
 		String storageLocationId = "2";
@@ -339,10 +403,10 @@ public class ProjectStorageLimitsManagerTest {
 			.setStorageLocationId(storageLocationId)
 			.setMaxAllowedFileBytes(null);
 		
-		when(mockDao.setStorageLocationLimit(user.getId(), limit)).thenReturn(limit);
+		when(mockDao.setStorageLocationLimit(planManagerUser.getId(), limit)).thenReturn(limit);
 		
 		// Call under test
-		assertEquals(limit, manager.setProjectStorageLimit(user, limit));
+		assertEquals(limit, manager.setProjectStorageLimit(planManagerUser, limit));
 		
 		// Emulate the timer call
 		manager.sendProjectStorageNotifications();
@@ -358,6 +422,7 @@ public class ProjectStorageLimitsManagerTest {
 	
 	@Test
 	public void testSetProjectStorageLimitWithUnauthorized() {
+		planManagerUser.setGroups(Collections.emptySet());
 		
 		Long projectId = 123L;
 		Long storageLocationId = 2L;
@@ -369,7 +434,7 @@ public class ProjectStorageLimitsManagerTest {
 		
 		assertEquals("You are not authorized to perform this operation.", assertThrows(UnauthorizedException.class, () -> {			
 			// Call under test
-			manager.setProjectStorageLimit(user, limit);
+			manager.setProjectStorageLimit(planManagerUser, limit);
 		}).getMessage());
 		
 		verifyNoMoreInteractions(mockDao, mockStorageLocationDao);
@@ -399,7 +464,7 @@ public class ProjectStorageLimitsManagerTest {
 				
 		assertEquals("The limit is required.", assertThrows(IllegalArgumentException.class, () -> {			
 			// Call under test
-			manager.setProjectStorageLimit(user, null);
+			manager.setProjectStorageLimit(planManagerUser, null);
 		}).getMessage());
 		
 		verifyNoMoreInteractions(mockDao, mockStorageLocationDao);
@@ -407,7 +472,6 @@ public class ProjectStorageLimitsManagerTest {
 	
 	@Test
 	public void testSetProjectStorageLimitWithNegativeLimit() {
-		user.getGroups().add(BOOTSTRAP_PRINCIPAL.PLAN_MANAGERS.getPrincipalId());
 		
 		Long projectId = 123L;
 		Long storageLocationId = 2L;
@@ -419,7 +483,7 @@ public class ProjectStorageLimitsManagerTest {
 		
 		assertEquals("The maxAllowedFileBytes cannot be a negative number.", assertThrows(IllegalArgumentException.class, () -> {			
 			// Call under test
-			manager.setProjectStorageLimit(user, limit);
+			manager.setProjectStorageLimit(planManagerUser, limit);
 		}).getMessage());
 		
 		verifyNoMoreInteractions(mockDao, mockStorageLocationDao);

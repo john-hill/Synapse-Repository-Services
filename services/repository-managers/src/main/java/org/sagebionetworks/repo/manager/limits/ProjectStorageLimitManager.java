@@ -13,7 +13,9 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
+import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.NodeDAO;
@@ -49,6 +51,8 @@ public class ProjectStorageLimitManager {
 	
 	private static final Duration CACHE_UPDATE_FREQUENCY = Duration.ofMinutes(2);
 	
+	private EntityAuthorizationManager authzManager;
+	
 	private TransactionalMessenger messenger;
 	
 	private ProjectStorageLimitsDao storageUsageDao;
@@ -65,8 +69,9 @@ public class ProjectStorageLimitManager {
 	
 	private Long defaultStorageLocationMaxBytes;
 	
-	public ProjectStorageLimitManager(TransactionalMessenger messenger, ProjectStorageLimitsDao storageUsageDao,
+	public ProjectStorageLimitManager(EntityAuthorizationManager authzManager, TransactionalMessenger messenger, ProjectStorageLimitsDao storageUsageDao,
 			StorageLocationDAO storageLocationDao, TableIndexDAO replicationDao, NodeDAO nodeDao, Clock clock) {
+		this.authzManager = authzManager;
 		this.messenger = messenger;
 		this.storageUsageDao = storageUsageDao;
 		this.storageLocationDao = storageLocationDao;
@@ -85,8 +90,13 @@ public class ProjectStorageLimitManager {
 	 * @param projectId
 	 * @return The project usage data for the project with the given id, only the data for storage locations with a set limit will be included
 	 */
-	public ProjectStorageUsage gerProjectStorageUsage(String projectId) {
+	public ProjectStorageUsage getProjectStorageUsage(UserInfo user, String projectId) {
+		ValidateArgument.required(user, "The user");
 		Long projectIdLong = validateAndGetProjectId(projectId);
+		
+		if (!AuthorizationUtils.isPlanManagerOrAdmin(user)) {
+			authzManager.hasAccess(user, projectId, ACCESS_TYPE.CREATE).checkAuthorizationOrElseThrow();
+		}
 		
 		// First the the usage map
 		Map<String, Long> storageUsage = storageUsageDao.getStorageData(projectIdLong)

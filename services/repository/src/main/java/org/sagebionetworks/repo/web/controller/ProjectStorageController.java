@@ -1,10 +1,12 @@
 package org.sagebionetworks.repo.web.controller;
 
 import static org.sagebionetworks.repo.model.oauth.OAuthScope.modify;
+import static org.sagebionetworks.repo.model.oauth.OAuthScope.view;
 
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
-import org.sagebionetworks.repo.service.ProjectStorageService;
+import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
+import org.sagebionetworks.repo.service.limits.ProjectStorageService;
 import org.sagebionetworks.repo.web.RequiredScope;
 import org.sagebionetworks.repo.web.UrlHelpers;
 import org.sagebionetworks.repo.web.rest.doc.ControllerInfo;
@@ -32,6 +34,20 @@ public class ProjectStorageController {
 	}
 
 	/**
+	 * Get the current project usage and limits for the project with the given id.
+	 * 
+	 * @param userId
+	 * @param projectId
+	 * @return
+	 */
+	@RequiredScope({ view })
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = { UrlHelpers.PROJECT_STORAGE_USAGE }, method = RequestMethod.GET)
+	public ProjectStorageUsage getProjectStorageUsage(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable("projectId") String projectId) {
+		return service.getProjectStorageUsage(userId, projectId);
+	}
+
+	/**
 	 * Allows to set a limit on a project for the storage location provided in the
 	 * <a href= "${org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit}">request body</a>. If the
 	 * <a href= "${org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit}">maxAllowedFileBytes</a> property in
@@ -45,7 +61,7 @@ public class ProjectStorageController {
 	 */
 	@RequiredScope({ modify })
 	@ResponseStatus(HttpStatus.OK)
-	@RequestMapping(value = { UrlHelpers.PROJECT_STORAGE_LIMIT }, method = RequestMethod.POST)
+	@RequestMapping(value = { UrlHelpers.PROJECT_STORAGE_LIMIT }, method = RequestMethod.PUT)
 	public ProjectStorageLocationLimit setProjectStorageLocationLimit(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 		@PathVariable("projectId") String projectId, @RequestBody ProjectStorageLocationLimit request) {
 

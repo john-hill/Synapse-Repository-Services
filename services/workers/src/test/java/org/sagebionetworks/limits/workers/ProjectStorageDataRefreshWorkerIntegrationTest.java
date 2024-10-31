@@ -106,7 +106,7 @@ public class ProjectStorageDataRefreshWorkerIntegrationTest {
 					.setSumFileBytes(3072L)
 					.setMaxAllowedFileBytes(defaultLocationMaxBytes)
 					.setIsOverLimit(false)
-				)).equals(manager.gerProjectStorageUsage(projectId)), null);
+				)).equals(manager.getProjectStorageUsage(adminUser, projectId)), null);
 		});
 		
 		entityService.deleteEntity(adminUser.getId(), fileTwoId);
@@ -127,7 +127,7 @@ public class ProjectStorageDataRefreshWorkerIntegrationTest {
 					.setMaxAllowedFileBytes(defaultLocationMaxBytes)
 					.setSumFileBytes(1024L)
 					.setIsOverLimit(false)
-				)).equals(manager.gerProjectStorageUsage(projectId)), null);
+				)).equals(manager.getProjectStorageUsage(adminUser, projectId)), null);
 		});
 		
 	}

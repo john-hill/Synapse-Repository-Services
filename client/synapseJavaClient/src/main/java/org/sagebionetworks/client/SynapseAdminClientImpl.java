@@ -15,6 +15,7 @@ import org.sagebionetworks.repo.model.auth.LoginResponse;
 import org.sagebionetworks.repo.model.auth.NewIntegrationTestUser;
 import org.sagebionetworks.repo.model.feature.Feature;
 import org.sagebionetworks.repo.model.feature.FeatureStatus;
+import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
 import org.sagebionetworks.repo.model.message.ChangeMessages;
 import org.sagebionetworks.repo.model.message.FireMessagesResult;
 import org.sagebionetworks.repo.model.message.PublishResults;
@@ -406,5 +407,10 @@ public class SynapseAdminClientImpl extends SynapseClientImpl implements Synapse
 	@Override
 	public void logoutAllForAccessToken(Long targetUserId) throws SynapseException {
 		deleteUri(getAuthEndpoint(), "/user/" + targetUserId + "/sessionAccessToken/all");
+	}
+	
+	@Override
+	public ProjectStorageLocationLimit setProjectStorageLocationLimit(ProjectStorageLocationLimit limit) throws SynapseException {
+		return putJSONEntity(getRepoEndpoint(), "/project/" + limit.getProjectId() + "/storage/limit", limit, ProjectStorageLocationLimit.class);
 	}
 }

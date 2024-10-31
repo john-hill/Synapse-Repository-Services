@@ -248,6 +248,7 @@ import org.sagebionetworks.repo.model.form.FormGroup;
 import org.sagebionetworks.repo.model.form.FormRejection;
 import org.sagebionetworks.repo.model.form.ListRequest;
 import org.sagebionetworks.repo.model.form.ListResponse;
+import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
 import org.sagebionetworks.repo.model.message.MessageBundle;
 import org.sagebionetworks.repo.model.message.MessageRecipientSet;
 import org.sagebionetworks.repo.model.message.MessageSortBy;
@@ -6351,4 +6352,8 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 		return getJSONEntity(getRepoEndpoint(), "/agent/registration/"+registrationId, AgentRegistration.class);
 	}
 	
+	@Override
+	public ProjectStorageUsage getProjectStorageUsage(String projectId) throws SynapseException {
+		return getJSONEntity(getRepoEndpoint(), "/project/" + projectId + "/storage/usage", ProjectStorageUsage.class);
+	}
 }

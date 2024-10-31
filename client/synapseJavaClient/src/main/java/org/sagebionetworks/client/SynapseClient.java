@@ -210,6 +210,7 @@ import org.sagebionetworks.repo.model.form.FormGroup;
 import org.sagebionetworks.repo.model.form.FormRejection;
 import org.sagebionetworks.repo.model.form.ListRequest;
 import org.sagebionetworks.repo.model.form.ListResponse;
+import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
 import org.sagebionetworks.repo.model.message.MessageBundle;
 import org.sagebionetworks.repo.model.message.MessageRecipientSet;
 import org.sagebionetworks.repo.model.message.MessageSortBy;
@@ -4426,5 +4427,12 @@ public interface SynapseClient extends BaseClient {
 	 * @throws SynapseException 
 	 */
 	AgentRegistration getAgentRegistration(String registrationId) throws SynapseException;
+	
+	/**
+	 * @param projectId
+	 * @return The storage usage and limits information for the project with the given id
+	 * @throws SynapseException
+	 */
+	ProjectStorageUsage getProjectStorageUsage(String projectId) throws SynapseException;
 
 }

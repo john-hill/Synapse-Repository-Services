@@ -10,6 +10,7 @@ import org.sagebionetworks.repo.model.auth.LoginResponse;
 import org.sagebionetworks.repo.model.auth.NewIntegrationTestUser;
 import org.sagebionetworks.repo.model.feature.Feature;
 import org.sagebionetworks.repo.model.feature.FeatureStatus;
+import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
 import org.sagebionetworks.repo.model.message.ChangeMessages;
 import org.sagebionetworks.repo.model.message.FireMessagesResult;
 import org.sagebionetworks.repo.model.message.PublishResults;
@@ -308,5 +309,14 @@ public interface SynapseAdminClient extends SynapseClient {
 	 * @throws SynapseException
 	 */
 	void logoutAllForAccessToken(Long targetUserId) throws SynapseException;
+	
+	/**
+	 * Sets a limit on a project/storage location pair.
+	 * 
+	 * @param limit
+	 * @return
+	 * @throws SynapseException
+	 */
+	ProjectStorageLocationLimit setProjectStorageLocationLimit(ProjectStorageLocationLimit limit) throws SynapseException;
  
 }

@@ -130,24 +130,25 @@ public class ProjectStorageLimitManager {
 			throw new UnauthorizedException("You are not authorized to perform this operation.");
 		}
 		
-		validateAndGetProjectId(limit.getProjectId());
 		validateAndGetStorageLocationId(limit.getStorageLocationId());
-		
+		accessedProjects.add(validateAndGetProjectId(limit.getProjectId()));
+				
 		return storageUsageDao.setStorageLocationLimit(userInfo.getId(), limit);
 	}
 	
 	/**
-	 * Sets a default storage location limit if a limit for the given project/storage location combination if a limit doesn't exist yet.
+	 * Sets a default storage location limit for the given project/storage location combination if a limit doesn't exist yet.
 	 * 
 	 * @param projectId
 	 * @param storageLocationId
 	 */
 	@WriteTransaction
 	public void setDefaultProjectStorageLimit(String projectId, String storageLocationId) {
-		ValidateArgument.required(storageLocationId, "The storage location id");
+		Long storageLocationIdLong = validateAndGetStorageLocationId(storageLocationId);
+		Long projectIdLong = validateAndGetProjectId(projectId);
 		
 		// If a limit is already in place we do not change it
-		if (storageUsageDao.getStorageLocationLimit(validateAndGetProjectId(projectId), Long.valueOf(storageLocationId)).isPresent()) {
+		if (storageUsageDao.getStorageLocationLimit(projectIdLong, storageLocationIdLong).isPresent()) {
 			return;
 		}
 		

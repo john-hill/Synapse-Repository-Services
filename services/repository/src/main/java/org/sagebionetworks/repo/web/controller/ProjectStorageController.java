@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
 /**
@@ -43,7 +44,8 @@ public class ProjectStorageController {
 	@RequiredScope({ view })
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = { UrlHelpers.PROJECT_STORAGE_USAGE }, method = RequestMethod.GET)
-	public ProjectStorageUsage getProjectStorageUsage(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable("projectId") String projectId) {
+	public @ResponseBody ProjectStorageUsage getProjectStorageUsage(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+		@PathVariable("projectId") String projectId) {
 		return service.getProjectStorageUsage(userId, projectId);
 	}
 
@@ -62,7 +64,7 @@ public class ProjectStorageController {
 	@RequiredScope({ modify })
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = { UrlHelpers.PROJECT_STORAGE_LIMIT }, method = RequestMethod.PUT)
-	public ProjectStorageLocationLimit setProjectStorageLocationLimit(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+	public @ResponseBody ProjectStorageLocationLimit setProjectStorageLocationLimit(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 		@PathVariable("projectId") String projectId, @RequestBody ProjectStorageLocationLimit request) {
 
 		if (!projectId.equals(request.getProjectId())) {

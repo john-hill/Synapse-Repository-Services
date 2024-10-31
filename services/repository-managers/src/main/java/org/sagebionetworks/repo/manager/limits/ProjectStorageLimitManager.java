@@ -112,7 +112,7 @@ public class ProjectStorageLimitManager {
 					.setStorageLocationId(limit.getStorageLocationId())
 					.setMaxAllowedFileBytes(limit.getMaxAllowedFileBytes())
 					.setSumFileBytes(currentUsage)
-					.setIsOverLimit(currentUsage > limit.getMaxAllowedFileBytes());
+					.setIsOverLimit(limit.getMaxAllowedFileBytes() == null ? false : currentUsage > limit.getMaxAllowedFileBytes());
 			})
 			.collect(Collectors.toList());
 		

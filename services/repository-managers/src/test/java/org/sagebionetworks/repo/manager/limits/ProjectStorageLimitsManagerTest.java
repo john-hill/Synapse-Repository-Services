@@ -203,6 +203,42 @@ public class ProjectStorageLimitsManagerTest {
 	}
 	
 	@Test
+	public void testGetProjectStorageUsageWithUnlimitedLimit() {
+		String projectId = "syn123";
+		Long projectIdLong = 123L;
+		
+		doReturn(KeyFactory.stringToKey(projectId)).when(manager).validateAndGetProjectId(projectId);
+		
+		when(mockDao.getStorageLocationLimits(projectIdLong)).thenReturn(List.of(
+			new ProjectStorageLocationLimit().setStorageLocationId("1").setMaxAllowedFileBytes(null)
+		));
+		
+		when(mockDao.getStorageData(projectIdLong)).thenReturn(Optional.of(new ProjectStorageData()
+			.setStorageLocationData(Map.of("1", 512L))
+		));
+		
+		ProjectStorageUsage expected = new ProjectStorageUsage()
+			.setProjectId(projectId)
+			.setLocations(List.of(
+				new ProjectStorageLocationUsage().setStorageLocationId("1").setMaxAllowedFileBytes(null).setIsOverLimit(false).setSumFileBytes(512L)
+			));
+		
+		// Call under test
+		assertEquals(expected, manager.getProjectStorageUsage(planManagerUser, projectId));
+		
+		// Emulates the call to the notification timer, this clears the internal cache
+		manager.sendProjectStorageNotifications();
+		
+		verify(mockMessenger).publishMessageAfterCommit(new ProjectStorageEvent()
+			.setObjectType(ObjectType.PROJECT_STORAGE_EVENT)
+			.setObjectId(projectIdLong.toString())
+			.setProjectId(projectIdLong)
+		);
+		
+		verifyNoMoreInteractions(mockDao, mockNodeDao, mockReplicationDao, mockClock, mockMessenger);
+	}
+	
+	@Test
 	public void testGetProjectStorageUsageWithNotPlanManagerAndAuthorized() {
 		planManagerUser.setGroups(Collections.emptySet());
 		

@@ -20,6 +20,7 @@ import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
 import org.sagebionetworks.repo.model.migration.MigrationType;
 import org.sagebionetworks.util.json.JavaJSONUtil;
 
+import com.google.gson.stream.JsonReader;
 import com.thoughtworks.xstream.io.StreamException;
 
 public class MigrationTypeProviderImpl implements MigrationTypeProvider {
@@ -87,9 +88,10 @@ public class MigrationTypeProviderImpl implements MigrationTypeProvider {
 	}
 
 	<B> Optional<List<B>> readJSON(Class<? extends B> clazz, BackupAliasType backupAliasType, InputStream input) {
+
 		try {
 			return Optional.of(
-					JavaJSONUtil.readFromJSON(clazz, new JSONArray(IOUtils.toString(new InputStreamReader(input)))));
+					JavaJSONUtil.readFromJSON(clazz, new InputStreamReader(input, "UTF-8")));
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}

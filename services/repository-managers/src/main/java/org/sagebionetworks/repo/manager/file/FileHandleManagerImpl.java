@@ -47,6 +47,7 @@ import org.sagebionetworks.repo.manager.NodeManager;
 import org.sagebionetworks.repo.manager.ProjectSettingsManager;
 import org.sagebionetworks.repo.manager.feature.FeatureManager;
 import org.sagebionetworks.repo.manager.file.transfer.TransferUtils;
+import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.DatastoreException;
@@ -215,6 +216,9 @@ public class FileHandleManagerImpl implements FileHandleManager {
 	@Autowired
 	private FeatureManager featureManager;
 
+	@Autowired
+	private ProjectStorageLimitManager storageLimitsManager;
+	
 	/**
 	 * Used by spring
 	 */

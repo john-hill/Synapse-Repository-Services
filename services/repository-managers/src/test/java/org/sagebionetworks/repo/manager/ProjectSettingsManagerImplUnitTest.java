@@ -1054,7 +1054,7 @@ public class ProjectSettingsManagerImplUnitTest {
 			new EntityHeader().setId("123").setType(Folder.class.getName())
 		));
 		
-		assertEquals("Could not find project for node 123", assertThrows(IllegalStateException.class, () -> {			
+		assertEquals("Could not find a project in the entity path.", assertThrows(IllegalStateException.class, () -> {			
 			// Call under test
 			projectSettingsManagerImpl.setDefaultProjectStorageLimits(uploadDestinationListSetting);
 		}).getMessage());

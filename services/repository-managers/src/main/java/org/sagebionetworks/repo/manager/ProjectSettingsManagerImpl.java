@@ -11,7 +11,6 @@ import org.sagebionetworks.repo.manager.trash.TrashManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.Entity;
-import org.sagebionetworks.repo.model.EntityHeader;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.EntityTypeUtils;
 import org.sagebionetworks.repo.model.Folder;
@@ -21,6 +20,7 @@ import org.sagebionetworks.repo.model.ProjectSettingsDAO;
 import org.sagebionetworks.repo.model.StorageLocationDAO;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.dbo.dao.NodeUtils;
 import org.sagebionetworks.repo.model.file.UploadDestinationLocation;
 import org.sagebionetworks.repo.model.file.UploadType;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
@@ -206,11 +206,9 @@ public class ProjectSettingsManagerImpl implements ProjectSettingsManager {
 	
 	void setDefaultProjectStorageLimits(UploadDestinationListSetting settings) {
 		
-		String projectId = nodeManager.getNodePathAsAdmin(settings.getProjectId()).stream()
-				.filter(e -> EntityType.project.equals(EntityTypeUtils.getEntityTypeForClassName(e.getType())))
-				.findFirst()
-				.map(EntityHeader::getId)
-				.orElseThrow(() -> new IllegalStateException("Could not find project for node " + settings.getProjectId()));
+		String projectId = NodeUtils.getProjectIdFromEntityPath(
+			nodeManager.getNodePathAsAdmin(settings.getProjectId())
+		);
 		
 		settings.getLocations().forEach( storageLocationId -> {
 			storageLimitsManager.setDefaultProjectStorageLimit(projectId, storageLocationId);

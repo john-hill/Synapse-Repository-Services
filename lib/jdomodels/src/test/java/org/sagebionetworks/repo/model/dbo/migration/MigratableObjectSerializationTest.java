@@ -58,7 +58,7 @@ public class MigratableObjectSerializationTest {
 			// call under test
 			JSONArray jsonArray = JavaJSONUtil.writeToJSON(objects).get();
 			// call under test
-			List<?> results = JavaJSONUtil.readFromJSON(type.getClass(), new StringReader(jsonArray.toString()));
+			List<?> results = JavaJSONUtil.streamFromJSONArray(type.getClass(), new StringReader(jsonArray.toString()));
 			assertEquals(objects, results);
 		}
 		int totalNumberOfObjects = count*migratableTableDAO.getAllMigratableTypes().size();

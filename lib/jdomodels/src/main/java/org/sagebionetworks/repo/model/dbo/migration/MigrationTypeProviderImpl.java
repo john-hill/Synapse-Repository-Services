@@ -88,7 +88,7 @@ public class MigrationTypeProviderImpl implements MigrationTypeProvider {
 
 		try {
 			return Optional.of(
-					JavaJSONUtil.readFromJSON(clazz,new BufferedReader(new InputStreamReader(input, "UTF-8"))));
+					JavaJSONUtil.streamFromJSONArray(clazz,new BufferedReader(new InputStreamReader(input, "UTF-8"))));
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}

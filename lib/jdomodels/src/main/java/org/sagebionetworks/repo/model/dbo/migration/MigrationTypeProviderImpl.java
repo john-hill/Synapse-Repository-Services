@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.model.dbo.migration;
 
+import java.io.BufferedReader;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -87,7 +88,7 @@ public class MigrationTypeProviderImpl implements MigrationTypeProvider {
 
 		try {
 			return Optional.of(
-					JavaJSONUtil.readFromJSON(clazz, new InputStreamReader(input, "UTF-8")));
+					JavaJSONUtil.readFromJSON(clazz,new BufferedReader(new InputStreamReader(input, "UTF-8"))));
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}

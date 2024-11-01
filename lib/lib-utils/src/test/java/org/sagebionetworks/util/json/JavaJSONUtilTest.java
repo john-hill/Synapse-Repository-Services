@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.io.StringReader;
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Date;
@@ -41,7 +42,7 @@ public class JavaJSONUtilTest {
 		String json = array.toString(2);
 		JSONArray clone = new JSONArray(json);
 		// call under test
-		List<AllValidFields> result = JavaJSONUtil.readFromJSON(AllValidFields.class, clone);
+		List<AllValidFields> result = JavaJSONUtil.streamFromJSONArray(AllValidFields.class, new StringReader(json));
 		// note the empty object (four) is not written
 		assertEquals(Arrays.asList(one, two, three), result);
 
@@ -97,20 +98,19 @@ public class JavaJSONUtilTest {
 		JSONArray array = new JSONArray();
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			JavaJSONUtil.readFromJSON(type, array);
+			JavaJSONUtil.streamFromJSONArray(type, new StringReader(array.toString()));
 		}).getMessage();
 		assertEquals("clazz is required.", message);
 	}
 
 	@Test
-	public void testReadFromJSONWithNullArray() {
+	public void testReadFromJSONWithNullReader() {
 		Class<?> type = AllValidFields.class;
-		JSONArray array = null;
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			JavaJSONUtil.readFromJSON(type, array);
+			JavaJSONUtil.streamFromJSONArray(type, null);
 		}).getMessage();
-		assertEquals("array is required.", message);
+		assertEquals("reader is required.", message);
 	}
 
 	@Test
@@ -119,7 +119,7 @@ public class JavaJSONUtilTest {
 		array.put(false);
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			JavaJSONUtil.readFromJSON(Boolean.class, array);
+			JavaJSONUtil.streamFromJSONArray(Boolean.class, new StringReader(array.toString()));
 		}).getMessage();
 		assertEquals("Expected JSONObjects but found: java.lang.Boolean", message);
 	}

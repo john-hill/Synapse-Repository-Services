@@ -66,27 +66,14 @@ public class JavaJSONUtil {
 	}
 
 	/**
-	 * Read a list of simple Java objects from the provided JSONArray.
+	 * Will stream over JSONArray data from the provided reader, and create a POJO
+	 * for each JSONObject found.
 	 * 
 	 * @param <T>
-	 * @param clazz The class of the resulting Java objects.
-	 * @param array The JSONArray containing the data to read.
+	 * @param clazz
+	 * @param reader
 	 * @return
 	 */
-	public static <T> List<T> readFromJSON(Class<? extends T> clazz, JSONArray array) {
-		ValidateArgument.required(array, "array");
-		ValidateArgument.required(clazz, "clazz");
-
-		List<T> list = new ArrayList<>(array.length());
-		array.forEach(o -> {
-			if (!(o instanceof JSONObject)) {
-				throw new IllegalArgumentException("Expected JSONObjects but found: " + o.getClass().getName());
-			}
-			list.add(readFromJSONObject(clazz, (JSONObject) o));
-		});
-		return list;
-	}
-
 	public static <T> List<T> streamFromJSONArray(Class<? extends T> clazz, Reader reader) {
 		ValidateArgument.required(reader, "reader");
 		ValidateArgument.required(clazz, "clazz");
@@ -126,7 +113,11 @@ public class JavaJSONUtil {
 					x.back();
 				} else {
 					x.back();
-					consumer.accept((JSONObject) x.nextValue());
+					Object o = x.nextValue();
+					if((!(o instanceof JSONObject))) {
+						throw new IllegalArgumentException("Expected JSONObjects but found: "+o.getClass().getName());
+					}
+					consumer.accept((JSONObject) o);
 				}
 				switch (x.nextClean()) {
 				case 0:

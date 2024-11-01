@@ -29,25 +29,6 @@ public class MigratableObjectSerializationTest {
 
 	@Autowired
 	private MigratableTableDAOImpl migratableTableDAO;
-
-	@Test
-	public void testRoundTripEachType() {
-		long start = System.currentTimeMillis();
-		int count = 3;
-		for (MigratableDatabaseObject<?, ?> type : migratableTableDAO.getAllMigratableTypes()) {
-			List<MigratableDatabaseObject<?, ?>> objects = createRandomObjects(count, type);
-			// call under test
-			JSONArray jsonArray = JavaJSONUtil.writeToJSON(objects).get();
-			JSONArray arrayClone = new JSONArray(jsonArray.toString());
-			// call under test
-			List<?> results = JavaJSONUtil.readFromJSON(type.getClass(), arrayClone);
-			assertEquals(objects, results);
-		}
-		int totalNumberOfObjects = count*migratableTableDAO.getAllMigratableTypes().size();
-		System.out.println(String.format("Serialized/deserialized %d objects in %d ms, with ", totalNumberOfObjects,
-				System.currentTimeMillis() - start));
-	}
-	
 	
 	@Test
 	public void testRoundTripEachTypeStream() {

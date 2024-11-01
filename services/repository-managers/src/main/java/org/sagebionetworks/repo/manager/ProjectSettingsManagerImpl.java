@@ -213,7 +213,7 @@ public class ProjectSettingsManagerImpl implements ProjectSettingsManager {
 				.orElseThrow(() -> new IllegalStateException("Could not find project for node " + settings.getProjectId()));
 		
 		settings.getLocations().forEach( storageLocationId -> {
-			storageLimitsManager.setDefaultProjectStorageLimit(projectId, storageLocationId.toString());
+			storageLimitsManager.setDefaultProjectStorageLimit(projectId, storageLocationId);
 		});
 	}
 

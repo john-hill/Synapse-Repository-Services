@@ -1041,8 +1041,8 @@ public class ProjectSettingsManagerImplUnitTest {
 		// Call under test
 		projectSettingsManagerImpl.setDefaultProjectStorageLimits(uploadDestinationListSetting);
 		
-		verify(mockStorageLimitsManager).setDefaultProjectStorageLimit("456", "2");
-		verify(mockStorageLimitsManager).setDefaultProjectStorageLimit("456", "3");
+		verify(mockStorageLimitsManager).setDefaultProjectStorageLimit("456", 2L);
+		verify(mockStorageLimitsManager).setDefaultProjectStorageLimit("456", 3L);
 	}
 	
 	@Test

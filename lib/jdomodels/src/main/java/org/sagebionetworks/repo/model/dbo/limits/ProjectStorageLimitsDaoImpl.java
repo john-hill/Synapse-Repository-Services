@@ -167,7 +167,7 @@ public class ProjectStorageLimitsDaoImpl implements ProjectStorageLimitsDao {
 		
 		Long newId = idGenerator.generateNewId(IdType.PROJECT_STORAGE_LIMIT_ID);
 		Long projectId = KeyFactory.stringToKey(limit.getProjectId());
-		Long storageLocationId = KeyFactory.stringToKey(limit.getStorageLocationId());
+		Long storageLocationId = limit.getStorageLocationId();
 		
 		jdbcTemplate.update(sql, newId, userId, now, userId, now, projectId, storageLocationId, limit.getMaxAllowedFileBytes());
 		
@@ -211,7 +211,7 @@ public class ProjectStorageLimitsDaoImpl implements ProjectStorageLimitsDao {
 			
 			return new ProjectStorageLocationLimit()
 					.setProjectId(projectIdKey)
-					.setStorageLocationId(String.valueOf(rs.getLong(COL_PROJECT_STORAGE_LIMIT_LOCATION_ID)))
+					.setStorageLocationId(rs.getLong(COL_PROJECT_STORAGE_LIMIT_LOCATION_ID))
 					.setMaxAllowedFileBytes(maxBytes);
 			
 		}, args);

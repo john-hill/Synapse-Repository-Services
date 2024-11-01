@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -14,13 +15,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
-import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
+import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.ObjectType;
-import org.sagebionetworks.repo.model.StorageLocationDAO;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.dao.DBOStorageLocationDAOImpl;
@@ -47,17 +47,23 @@ public class ProjectStorageLimitManager {
 	
 	private static final Logger LOGGER = LogManager.getLogger(ProjectStorageLimitManager.class);
 	
-	public static final String DEFAULT_STORAGE_LOCATION_ID = DBOStorageLocationDAOImpl.DEFAULT_STORAGE_LOCATION_ID.toString();
+	public static final Long DEFAULT_STORAGE_LOCATION_ID = DBOStorageLocationDAOImpl.DEFAULT_STORAGE_LOCATION_ID;
 	
 	private static final Duration CACHE_UPDATE_FREQUENCY = Duration.ofMinutes(2);
+	
+	static ProjectStorageLocationUsage mapStorageLocationUsage(ProjectStorageLocationLimit limit, Long currentUsage) {
+		return new ProjectStorageLocationUsage()
+			.setStorageLocationId(limit.getStorageLocationId())
+			.setMaxAllowedFileBytes(limit.getMaxAllowedFileBytes())
+			.setSumFileBytes(currentUsage)
+			.setIsOverLimit(limit.getMaxAllowedFileBytes() == null ? false : currentUsage > limit.getMaxAllowedFileBytes());
+	}
 	
 	private EntityAuthorizationManager authzManager;
 	
 	private TransactionalMessenger messenger;
 	
 	private ProjectStorageLimitsDao storageUsageDao;
-	
-	private StorageLocationDAO storageLocationDao;
 
 	private TableIndexDAO replicationDao;
 	
@@ -70,11 +76,10 @@ public class ProjectStorageLimitManager {
 	private Long defaultStorageLocationMaxBytes;
 	
 	public ProjectStorageLimitManager(EntityAuthorizationManager authzManager, TransactionalMessenger messenger, ProjectStorageLimitsDao storageUsageDao,
-			StorageLocationDAO storageLocationDao, TableIndexDAO replicationDao, NodeDAO nodeDao, Clock clock) {
+		TableIndexDAO replicationDao, NodeDAO nodeDao, Clock clock) {
 		this.authzManager = authzManager;
 		this.messenger = messenger;
 		this.storageUsageDao = storageUsageDao;
-		this.storageLocationDao = storageLocationDao;
 		this.replicationDao = replicationDao;
 		this.nodeDao = nodeDao;
 		this.clock = clock;
@@ -105,15 +110,7 @@ public class ProjectStorageLimitManager {
 		
 		// Now fill the usage data together with the limit, we only return data if we have a limit
 		List<ProjectStorageLocationUsage> locations = storageUsageDao.getStorageLocationLimits(projectIdLong).stream()
-			.map(limit -> {
-				Long currentUsage = storageUsage.getOrDefault(limit.getStorageLocationId(), 0L);
-				
-				return new ProjectStorageLocationUsage()
-					.setStorageLocationId(limit.getStorageLocationId())
-					.setMaxAllowedFileBytes(limit.getMaxAllowedFileBytes())
-					.setSumFileBytes(currentUsage)
-					.setIsOverLimit(limit.getMaxAllowedFileBytes() == null ? false : currentUsage > limit.getMaxAllowedFileBytes());
-			})
+			.map(limit -> mapStorageLocationUsage(limit, storageUsage.getOrDefault(limit.getStorageLocationId().toString(), 0L)))
 			.collect(Collectors.toList());
 		
 		accessedProjects.add(projectIdLong);
@@ -121,6 +118,26 @@ public class ProjectStorageLimitManager {
 		return new ProjectStorageUsage()
 			.setProjectId(KeyFactory.keyToString(projectIdLong))
 			.setLocations(locations);
+	}
+	
+	/**
+	 * @param projectId
+	 * @param storageLocationId
+	 * @return Internal usage only (no authz check): The project storage location usage for the given project and storage location combination if a limit exists.
+	 */
+	public Optional<ProjectStorageLocationUsage> getProjectStorageLocationUsage(String projectId, Long storageLocationId) {
+		ValidateArgument.required(storageLocationId, "The storageLocationId");
+		
+		Long projectIdLong = validateAndGetProjectId(projectId);
+		
+		accessedProjects.add(projectIdLong);
+		
+		return storageUsageDao.getStorageLocationLimit(projectIdLong, storageLocationId).map(limit -> {			
+			Long currentUsage = storageUsageDao.getStorageData(projectIdLong)
+				.map(storageData -> storageData.getStorageLocationData().get(storageLocationId.toString()))
+				.orElse(0L);			
+			return mapStorageLocationUsage(limit, currentUsage);
+		});
 	}
 	
 	/**
@@ -140,7 +157,6 @@ public class ProjectStorageLimitManager {
 			throw new UnauthorizedException("You are not authorized to perform this operation.");
 		}
 		
-		validateAndGetStorageLocationId(limit.getStorageLocationId());
 		accessedProjects.add(validateAndGetProjectId(limit.getProjectId()));
 				
 		return storageUsageDao.setStorageLocationLimit(userInfo.getId(), limit);
@@ -153,12 +169,12 @@ public class ProjectStorageLimitManager {
 	 * @param storageLocationId
 	 */
 	@WriteTransaction
-	public void setDefaultProjectStorageLimit(String projectId, String storageLocationId) {
-		Long storageLocationIdLong = validateAndGetStorageLocationId(storageLocationId);
+	public void setDefaultProjectStorageLimit(String projectId, Long storageLocationId) {
+		ValidateArgument.required(storageLocationId, "The storageLocationId");
 		Long projectIdLong = validateAndGetProjectId(projectId);
 		
 		// If a limit is already in place we do not change it
-		if (storageUsageDao.getStorageLocationLimit(projectIdLong, storageLocationIdLong).isPresent()) {
+		if (storageUsageDao.getStorageLocationLimit(projectIdLong, storageLocationId).isPresent()) {
 			return;
 		}
 		
@@ -208,7 +224,7 @@ public class ProjectStorageLimitManager {
 			
 			// Make sure the default storage location is in there for each project
 			storageLocationPairs.addAll(projectBatch.stream()
-				.map(projectId -> Pair.create(projectId, DBOStorageLocationDAOImpl.DEFAULT_STORAGE_LOCATION_ID))
+				.map(projectId -> Pair.create(projectId, DEFAULT_STORAGE_LOCATION_ID))
 				.collect(Collectors.toSet())
 			);
 			
@@ -247,11 +263,6 @@ public class ProjectStorageLimitManager {
 		ValidateArgument.requirement(EntityType.project.equals(nodeDao.getNodeTypeById(projectId)), "The entity with the given id is not a project.");
 		
 		return KeyFactory.stringToKey(projectId);
-	}
-	
-	Long validateAndGetStorageLocationId(String storageLocationId) {
-		ValidateArgument.requiredNotBlank(storageLocationId, "The storageLocationId");
-		return storageLocationDao.get(KeyFactory.stringToKey(storageLocationId)).getStorageLocationId();
 	}
 
 }

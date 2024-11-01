@@ -2,7 +2,7 @@
 	"description": "Represent the current size and limits for a single project storage location.",
 	"properties": {
 		"storageLocationId": {
-			"type": "string",
+			"type": "integer",
 			"description": "The ID of the storage location"
 		},
 		"sumFileBytes": {

@@ -1,7 +1,6 @@
 package org.sagebionetworks;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
 import java.util.UUID;
@@ -13,7 +12,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.client.SynapseAdminClient;
 import org.sagebionetworks.client.SynapseClient;
 import org.sagebionetworks.client.exceptions.SynapseException;
-import org.sagebionetworks.client.exceptions.SynapseUnauthorizedException;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.file.UploadType;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
@@ -54,7 +52,7 @@ public class ITProjectStorageTest {
 			.setProjectId(project.getId())
 			.setLocations(List.of(
 				new ProjectStorageLocationUsage()
-					.setStorageLocationId("1")
+					.setStorageLocationId(1L)
 					.setSumFileBytes(0L)
 					.setMaxAllowedFileBytes(defaultMaxAllowedFileBytes)
 					.setIsOverLimit(false)
@@ -64,7 +62,7 @@ public class ITProjectStorageTest {
 		// Remove the limit on the project
 		adminClient.setProjectStorageLocationLimit(new ProjectStorageLocationLimit()
 			.setProjectId(project.getId())
-			.setStorageLocationId("1")
+			.setStorageLocationId(1L)
 			.setMaxAllowedFileBytes(null)
 		);
 		
@@ -72,7 +70,7 @@ public class ITProjectStorageTest {
 			.setProjectId(project.getId())
 			.setLocations(List.of(
 				new ProjectStorageLocationUsage()
-					.setStorageLocationId("1")
+					.setStorageLocationId(1L)
 					.setSumFileBytes(0L)
 					.setMaxAllowedFileBytes(null)
 					.setIsOverLimit(false)
@@ -95,12 +93,12 @@ public class ITProjectStorageTest {
 			.setProjectId(project.getId())
 			.setLocations(List.of(
 				new ProjectStorageLocationUsage()
-					.setStorageLocationId("1")
+					.setStorageLocationId(1L)
 					.setSumFileBytes(0L)
 					.setMaxAllowedFileBytes(null)
 					.setIsOverLimit(false),
 				new ProjectStorageLocationUsage()
-					.setStorageLocationId(externalStorageLocationId.toString())
+					.setStorageLocationId(externalStorageLocationId)
 					.setSumFileBytes(0L)
 					.setMaxAllowedFileBytes(null)
 					.setIsOverLimit(false)
@@ -110,7 +108,7 @@ public class ITProjectStorageTest {
 		// Add a limit on the external storage location
 		adminClient.setProjectStorageLocationLimit(new ProjectStorageLocationLimit()
 			.setProjectId(project.getId())
-			.setStorageLocationId(externalStorageLocationId.toString())
+			.setStorageLocationId(externalStorageLocationId)
 			.setMaxAllowedFileBytes(100L)
 		);
 		
@@ -118,12 +116,12 @@ public class ITProjectStorageTest {
 			.setProjectId(project.getId())
 			.setLocations(List.of(
 				new ProjectStorageLocationUsage()
-					.setStorageLocationId("1")
+					.setStorageLocationId(1L)
 					.setSumFileBytes(0L)
 					.setMaxAllowedFileBytes(null)
 					.setIsOverLimit(false),
 				new ProjectStorageLocationUsage()
-					.setStorageLocationId(externalStorageLocationId.toString())
+					.setStorageLocationId(externalStorageLocationId)
 					.setSumFileBytes(0L)
 					.setMaxAllowedFileBytes(100L)
 					.setIsOverLimit(false)

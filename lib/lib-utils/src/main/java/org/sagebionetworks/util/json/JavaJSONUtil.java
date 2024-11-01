@@ -1,23 +1,19 @@
 package org.sagebionetworks.util.json;
 
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.Reader;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
-import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
+import java.util.function.Consumer;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.json.JSONTokener;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.json.translator.ByteArrayTranslator;
 import org.sagebionetworks.util.json.translator.DateTranslator;
@@ -27,9 +23,6 @@ import org.sagebionetworks.util.json.translator.JSONEntityTranslator;
 import org.sagebionetworks.util.json.translator.JSONType;
 import org.sagebionetworks.util.json.translator.TimestampTranslator;
 import org.sagebionetworks.util.json.translator.Translator;
-
-import com.google.gson.stream.JsonReader;
-import com.google.gson.stream.JsonToken;
 
 /**
  * A utility to write/read simple Java objects to/from JSON.
@@ -94,82 +87,68 @@ public class JavaJSONUtil {
 		return list;
 	}
 
-	/**
-	 * Read a list of objects directly from the provided Stream
-	 * @param <T>
-	 * @param clazz
-	 * @param reader
-	 * @return
-	 */
 	public static <T> List<T> readFromJSON(Class<? extends T> clazz, Reader reader) {
 		ValidateArgument.required(reader, "reader");
 		ValidateArgument.required(clazz, "clazz");
-		Map<String, Object> typeMap = Arrays.stream(clazz.getDeclaredFields())
-				.collect(Collectors.toMap(f -> f.getName(), f -> f.getType()));
-		try {
-			List<T> list = new ArrayList<>();
-			try (JsonReader stream = new JsonReader(reader)) {
-				stream.beginArray();
-				while (stream.hasNext()) {
-					list.add(readFromJSON(clazz, readObject(typeMap, stream)));
-				}
-				stream.endArray();
-			}
-			return list;
-		} catch (IOException e) {
-			throw new RuntimeException(e);
-		}
+
+		List<T> list = new ArrayList<>();
+		streamJSONArray(reader, o -> {
+			// translate each JSONObject as it is found without keeping a reference to it.
+			list.add(readFromJSON(clazz, o));
+		});
+		return list;
 	}
 
 	/**
-	 * Read a single JSONObject from the provided stream.
+	 * The following code was copied from the the {@link JSONArray} constructor.
+	 * However, as each {@link JSONObject} is parsed it is sent the the provided
+	 * consumer instead of adding it to an internal list.
 	 * 
-	 * @param stream
-	 * @return
-	 * @throws IOException
+	 * @param reader
+	 * @param consumer
 	 */
-	public static JSONObject readObject(Map<String, Object> typeMap, JsonReader stream) throws IOException {
-		JSONObject object = new JSONObject();
-		String name = null;
-		stream.beginObject();
-		while (stream.hasNext()) {
-			JsonToken token = stream.peek();
-			switch (token) {
-			case NAME:
-				name = stream.nextName();
-				break;
-			case NUMBER:
-				Object type = typeMap.get(name);
-				if (Long.class.equals(type)) {
-					object.put(name, stream.nextLong());
-				} else if (Integer.class.equals(type)) {
-					object.put(name, stream.nextInt());
-				} else if (Double.class.equals(type)) {
-					object.put(name, stream.nextDouble());
-				} else if (Date.class.equals(type)) {
-					object.put(name, stream.nextLong());
-				} else if (Timestamp.class.equals(type)) {
-					object.put(name, stream.nextLong());
-				} else if (int.class.equals(type)) {
-					object.put(name, stream.nextInt());
-				} else if (long.class.equals(type)) {
-					object.put(name, stream.nextLong());
+	public static void streamJSONArray(Reader reader, Consumer<JSONObject> consumer) {
+		JSONTokener x = new JSONTokener(reader);
+		if (x.nextClean() != '[') {
+			throw x.syntaxError("A JSONArray text must start with '['");
+		}
+
+		char nextChar = x.nextClean();
+		if (nextChar == 0) {
+			// array is unclosed. No ']' found, instead EOF
+			throw x.syntaxError("Expected a ',' or ']'");
+		}
+		if (nextChar != ']') {
+			x.back();
+			for (;;) {
+				if (x.nextClean() == ',') {
+					x.back();
 				} else {
-					throw new IllegalArgumentException("Unknown number type: " + type);
+					x.back();
+					consumer.accept((JSONObject) x.nextValue());
 				}
-				break;
-			case BOOLEAN:
-				object.put(name, stream.nextBoolean());
-				break;
-			case STRING:
-				object.put(name, stream.nextString());
-				break;
-			default:
-				throw new IllegalArgumentException("Unknown type: " + token);
+				switch (x.nextClean()) {
+				case 0:
+					// array is unclosed. No ']' found, instead EOF
+					throw x.syntaxError("Expected a ',' or ']'");
+				case ',':
+					nextChar = x.nextClean();
+					if (nextChar == 0) {
+						// array is unclosed. No ']' found, instead EOF
+						throw x.syntaxError("Expected a ',' or ']'");
+					}
+					if (nextChar == ']') {
+						return;
+					}
+					x.back();
+					break;
+				case ']':
+					return;
+				default:
+					throw x.syntaxError("Expected a ',' or ']'");
+				}
 			}
 		}
-		stream.endObject();
-		return object;
 	}
 
 	/**

@@ -10,9 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import org.apache.commons.io.IOUtils;
-import org.json.JSONArray;
-import org.json.JSONException;
 import org.json.JSONObject;
 import org.sagebionetworks.repo.model.UnmodifiableXStream;
 import org.sagebionetworks.repo.model.daemon.BackupAliasType;
@@ -20,7 +17,6 @@ import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
 import org.sagebionetworks.repo.model.migration.MigrationType;
 import org.sagebionetworks.util.json.JavaJSONUtil;
 
-import com.google.gson.stream.JsonReader;
 import com.thoughtworks.xstream.io.StreamException;
 
 public class MigrationTypeProviderImpl implements MigrationTypeProvider {

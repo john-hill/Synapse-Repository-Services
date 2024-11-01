@@ -82,19 +82,19 @@ public class JavaJSONUtil {
 			if (!(o instanceof JSONObject)) {
 				throw new IllegalArgumentException("Expected JSONObjects but found: " + o.getClass().getName());
 			}
-			list.add(readFromJSON(clazz, (JSONObject) o));
+			list.add(readFromJSONObject(clazz, (JSONObject) o));
 		});
 		return list;
 	}
 
-	public static <T> List<T> readFromJSON(Class<? extends T> clazz, Reader reader) {
+	public static <T> List<T> streamFromJSONArray(Class<? extends T> clazz, Reader reader) {
 		ValidateArgument.required(reader, "reader");
 		ValidateArgument.required(clazz, "clazz");
 
 		List<T> list = new ArrayList<>();
 		streamJSONArray(reader, o -> {
 			// translate each JSONObject as it is found without keeping a reference to it.
-			list.add(readFromJSON(clazz, o));
+			list.add(readFromJSONObject(clazz, o));
 		});
 		return list;
 	}
@@ -102,7 +102,8 @@ public class JavaJSONUtil {
 	/**
 	 * The following code was copied from the the {@link JSONArray} constructor.
 	 * However, as each {@link JSONObject} is parsed it is sent the the provided
-	 * consumer instead of adding it to an internal list.
+	 * consumer instead of adding it to an internal list. This allows us to stream
+	 * over each JSONObject without retaining a reference to each.
 	 * 
 	 * @param reader
 	 * @param consumer
@@ -159,7 +160,7 @@ public class JavaJSONUtil {
 	 * @param object
 	 * @return
 	 */
-	public static <T> T readFromJSON(Class<? extends T> clazz, JSONObject object) {
+	public static <T> T readFromJSONObject(Class<? extends T> clazz, JSONObject object) {
 		return readFromJSON(TRANSLATORS, clazz, object);
 	}
 

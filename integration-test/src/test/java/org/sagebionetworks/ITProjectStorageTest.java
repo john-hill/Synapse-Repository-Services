@@ -13,6 +13,7 @@ import org.sagebionetworks.client.SynapseAdminClient;
 import org.sagebionetworks.client.SynapseClient;
 import org.sagebionetworks.client.exceptions.SynapseException;
 import org.sagebionetworks.repo.model.Project;
+import org.sagebionetworks.repo.model.file.UploadDestination;
 import org.sagebionetworks.repo.model.file.UploadType;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationUsage;
@@ -48,33 +49,37 @@ public class ITProjectStorageTest {
 	@Test
 	public void testProjectStorageUsageAndLimits() throws SynapseException {
 				
+		ProjectStorageLocationUsage expectedDefaultLocationUsage = new ProjectStorageLocationUsage()
+			.setStorageLocationId(1L)
+			.setSumFileBytes(0L)
+			.setMaxAllowedFileBytes(defaultMaxAllowedFileBytes)
+			.setIsOverLimit(false);
+		
 		assertEquals(new ProjectStorageUsage()
 			.setProjectId(project.getId())
-			.setLocations(List.of(
-				new ProjectStorageLocationUsage()
-					.setStorageLocationId(1L)
-					.setSumFileBytes(0L)
-					.setMaxAllowedFileBytes(defaultMaxAllowedFileBytes)
-					.setIsOverLimit(false)
-			)), client.getProjectStorageUsage(project.getId())
+			.setLocations(List.of(expectedDefaultLocationUsage)), 
+			client.getProjectStorageUsage(project.getId())
 		);
+		
+		// The default upload destination now contains the usage as well
+		UploadDestination defaultUploadDestination = client.getDefaultUploadDestination(project.getId()); 
+		
+		assertEquals(project.getId(), defaultUploadDestination.getDestinationProjectId());
+		assertEquals(expectedDefaultLocationUsage, defaultUploadDestination.getProjectStorageLocationUsage());
 		
 		// Remove the limit on the project
 		adminClient.setProjectStorageLocationLimit(new ProjectStorageLocationLimit()
 			.setProjectId(project.getId())
-			.setStorageLocationId(1L)
+			.setStorageLocationId(expectedDefaultLocationUsage.getStorageLocationId())
 			.setMaxAllowedFileBytes(null)
 		);
 		
+		expectedDefaultLocationUsage.setMaxAllowedFileBytes(null);
+		
 		assertEquals(new ProjectStorageUsage()
 			.setProjectId(project.getId())
-			.setLocations(List.of(
-				new ProjectStorageLocationUsage()
-					.setStorageLocationId(1L)
-					.setSumFileBytes(0L)
-					.setMaxAllowedFileBytes(null)
-					.setIsOverLimit(false)
-			)), client.getProjectStorageUsage(project.getId())
+			.setLocations(List.of(expectedDefaultLocationUsage)),
+			client.getProjectStorageUsage(project.getId())
 		);
 		
 		// Add a storage location to the project
@@ -89,21 +94,25 @@ public class ITProjectStorageTest {
 			.setLocations(List.of(externalStorageLocationId))
 		);
 		
+		ProjectStorageLocationUsage expectedExternalLocationUsage = new ProjectStorageLocationUsage()
+			.setStorageLocationId(externalStorageLocationId)
+			.setSumFileBytes(0L)
+			.setMaxAllowedFileBytes(null)
+			.setIsOverLimit(false);
+		
 		assertEquals(new ProjectStorageUsage()
 			.setProjectId(project.getId())
 			.setLocations(List.of(
-				new ProjectStorageLocationUsage()
-					.setStorageLocationId(1L)
-					.setSumFileBytes(0L)
-					.setMaxAllowedFileBytes(null)
-					.setIsOverLimit(false),
-				new ProjectStorageLocationUsage()
-					.setStorageLocationId(externalStorageLocationId)
-					.setSumFileBytes(0L)
-					.setMaxAllowedFileBytes(null)
-					.setIsOverLimit(false)
+				expectedDefaultLocationUsage,
+				expectedExternalLocationUsage
 			)), client.getProjectStorageUsage(project.getId())
 		);
+		
+		// The default upload destination is now the external location and contains the usage as well
+		defaultUploadDestination = client.getDefaultUploadDestination(project.getId()); 
+		
+		assertEquals(project.getId(), defaultUploadDestination.getDestinationProjectId());
+		assertEquals(expectedExternalLocationUsage, defaultUploadDestination.getProjectStorageLocationUsage());
 		
 		// Add a limit on the external storage location
 		adminClient.setProjectStorageLocationLimit(new ProjectStorageLocationLimit()
@@ -112,19 +121,13 @@ public class ITProjectStorageTest {
 			.setMaxAllowedFileBytes(100L)
 		);
 		
+		expectedExternalLocationUsage.setMaxAllowedFileBytes(100L);
+		
 		assertEquals(new ProjectStorageUsage()
 			.setProjectId(project.getId())
 			.setLocations(List.of(
-				new ProjectStorageLocationUsage()
-					.setStorageLocationId(1L)
-					.setSumFileBytes(0L)
-					.setMaxAllowedFileBytes(null)
-					.setIsOverLimit(false),
-				new ProjectStorageLocationUsage()
-					.setStorageLocationId(externalStorageLocationId)
-					.setSumFileBytes(0L)
-					.setMaxAllowedFileBytes(100L)
-					.setIsOverLimit(false)
+				expectedDefaultLocationUsage,
+				expectedExternalLocationUsage
 			)), client.getProjectStorageUsage(project.getId())
 		);
 	}

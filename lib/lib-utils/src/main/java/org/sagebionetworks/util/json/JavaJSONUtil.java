@@ -1,5 +1,6 @@
 package org.sagebionetworks.util.json;
 
+import java.io.Reader;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
@@ -8,9 +9,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.json.JSONTokener;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.json.translator.ByteArrayTranslator;
 import org.sagebionetworks.util.json.translator.DateTranslator;
@@ -63,25 +66,81 @@ public class JavaJSONUtil {
 	}
 
 	/**
-	 * Read a list of simple Java objects from the provided JSONArray.
+	 * Will stream over JSONArray data from the provided reader, and create a POJO
+	 * for each JSONObject found.
 	 * 
 	 * @param <T>
-	 * @param clazz The class of the resulting Java objects.
-	 * @param array The JSONArray containing the data to read.
+	 * @param clazz
+	 * @param reader
 	 * @return
 	 */
-	public static <T> List<T> readFromJSON(Class<? extends T> clazz, JSONArray array) {
-		ValidateArgument.required(array, "array");
+	public static <T> List<T> streamFromJSONArray(Class<? extends T> clazz, Reader reader) {
+		ValidateArgument.required(reader, "reader");
 		ValidateArgument.required(clazz, "clazz");
 
-		List<T> list = new ArrayList<>(array.length());
-		array.forEach(o -> {
-			if (!(o instanceof JSONObject)) {
-				throw new IllegalArgumentException("Expected JSONObjects but found: " + o.getClass().getName());
-			}
-			list.add(readFromJSON(clazz, (JSONObject) o));
+		List<T> list = new ArrayList<>();
+		streamJSONArray(reader, o -> {
+			// translate each JSONObject as it is found without keeping a reference to it.
+			list.add(readFromJSONObject(clazz, o));
 		});
 		return list;
+	}
+
+	/**
+	 * The following code was copied from the the {@link JSONArray} constructor.
+	 * However, as each {@link JSONObject} is parsed it is sent the the provided
+	 * consumer instead of adding it to an internal list. This allows us to stream
+	 * over each JSONObject without retaining a reference to each.
+	 * 
+	 * @param reader
+	 * @param consumer
+	 */
+	public static void streamJSONArray(Reader reader, Consumer<JSONObject> consumer) {
+		JSONTokener x = new JSONTokener(reader);
+		if (x.nextClean() != '[') {
+			throw x.syntaxError("A JSONArray text must start with '['");
+		}
+
+		char nextChar = x.nextClean();
+		if (nextChar == 0) {
+			// array is unclosed. No ']' found, instead EOF
+			throw x.syntaxError("Expected a ',' or ']'");
+		}
+		if (nextChar != ']') {
+			x.back();
+			for (;;) {
+				if (x.nextClean() == ',') {
+					x.back();
+				} else {
+					x.back();
+					Object o = x.nextValue();
+					if((!(o instanceof JSONObject))) {
+						throw new IllegalArgumentException("Expected JSONObjects but found: "+o.getClass().getName());
+					}
+					consumer.accept((JSONObject) o);
+				}
+				switch (x.nextClean()) {
+				case 0:
+					// array is unclosed. No ']' found, instead EOF
+					throw x.syntaxError("Expected a ',' or ']'");
+				case ',':
+					nextChar = x.nextClean();
+					if (nextChar == 0) {
+						// array is unclosed. No ']' found, instead EOF
+						throw x.syntaxError("Expected a ',' or ']'");
+					}
+					if (nextChar == ']') {
+						return;
+					}
+					x.back();
+					break;
+				case ']':
+					return;
+				default:
+					throw x.syntaxError("Expected a ',' or ']'");
+				}
+			}
+		}
 	}
 
 	/**
@@ -92,7 +151,7 @@ public class JavaJSONUtil {
 	 * @param object
 	 * @return
 	 */
-	public static <T> T readFromJSON(Class<? extends T> clazz, JSONObject object) {
+	public static <T> T readFromJSONObject(Class<? extends T> clazz, JSONObject object) {
 		return readFromJSON(TRANSLATORS, clazz, object);
 	}
 

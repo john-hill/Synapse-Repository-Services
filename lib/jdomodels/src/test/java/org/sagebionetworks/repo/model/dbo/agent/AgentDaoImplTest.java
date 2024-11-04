@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,6 +28,8 @@ import org.sagebionetworks.repo.model.agent.TraceEvent;
 import org.sagebionetworks.repo.model.asynch.AsynchronousJobStatus;
 import org.sagebionetworks.repo.model.auth.CallersContext;
 import org.sagebionetworks.repo.model.dao.asynch.AsynchronousJobStatusDAO;
+import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
+import org.sagebionetworks.repo.model.dbo.SinglePrimaryKeySqlParameterSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -40,6 +43,9 @@ public class AgentDaoImplTest {
 
 	@Autowired
 	private AsynchronousJobStatusDAO asyncDao;
+
+	@Autowired
+	private DBOBasicDao basicDao;
 
 	private Long adminUserId = BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
 	private UserInfo admin;
@@ -361,6 +367,24 @@ public class AgentDaoImplTest {
 
 		// call under test
 		assertEquals(Optional.of(resp), agentDao.getRegeistration(resp.getAgentRegistrationId()));
+	}
+
+	/**
+	 * Test created for PLFM-8696
+	 */
+	@Test
+	public void testGetDboRegistration() {
+
+		AgentRegistration resp = agentDao.createOrGetRegistration(AgentType.BASELINE, registrationRequest);
+
+		DBOAgentRegistration expected = new DBOAgentRegistration()
+				.setRegistrationId(Long.parseLong(resp.getAgentRegistrationId())).setAwsAgentId(resp.getAwsAgentId())
+				.setAwsAliasId(resp.getAwsAliasId()).setCreatedOn(new Timestamp(resp.getRegisteredOn().getTime()))
+				.setType(resp.getType().name());
+
+		// call under test
+		assertEquals(Optional.of(expected), basicDao.getObjectByPrimaryKeyIfExists(DBOAgentRegistration.class,
+				new SinglePrimaryKeySqlParameterSource(resp.getAgentRegistrationId())));
 	}
 
 	@Test

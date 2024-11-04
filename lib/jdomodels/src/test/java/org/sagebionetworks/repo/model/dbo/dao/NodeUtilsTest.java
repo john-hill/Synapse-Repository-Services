@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
@@ -17,11 +18,15 @@ import org.junit.jupiter.api.Test;
 import org.sagebionetworks.StackConfigurationSingleton;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.DatastoreException;
+import org.sagebionetworks.repo.model.EntityHeader;
 import org.sagebionetworks.repo.model.EntityRef;
 import org.sagebionetworks.repo.model.EntityType;
+import org.sagebionetworks.repo.model.FileEntity;
+import org.sagebionetworks.repo.model.Folder;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeConstants;
+import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.Reference;
 import org.sagebionetworks.repo.model.dbo.persistence.DBONode;
 import org.sagebionetworks.repo.model.dbo.persistence.DBORevision;
@@ -424,6 +429,40 @@ public class NodeUtilsTest {
 		assertThrows(IllegalArgumentException.class, ()->{
 			NodeUtils.readJsonToItems("Not json");
 		});
+	}
+	
+	@Test
+	public void testGetProjectIdFromEntityPath() {
+		List<EntityHeader> entityPath = List.of(
+			new EntityHeader().setId("789").setType(FileEntity.class.getName()),
+			new EntityHeader().setId("456").setType(Folder.class.getName()),
+			new EntityHeader().setId("123").setType(Project.class.getName())
+		);
+		
+		assertEquals("123", NodeUtils.getProjectIdFromEntityPath(entityPath));
+	}
+	
+	@Test
+	public void testGetProjectIdFromEntityPathWithNoProject() {
+		List<EntityHeader> entityPath = List.of(
+			new EntityHeader().setId("789").setType(FileEntity.class.getName()),
+			new EntityHeader().setId("456").setType(Folder.class.getName())
+		);
+		
+		assertEquals("Could not find a project in the entity path.", assertThrows(IllegalStateException.class, () -> {
+			// Call under test
+			NodeUtils.getProjectIdFromEntityPath(entityPath);
+		}).getMessage());
+	}
+	
+	@Test
+	public void testGetProjectIdFromEntityPathWithEmptyPath() {
+		List<EntityHeader> entityPath = Collections.emptyList();
+		
+		assertEquals("Could not find a project in the entity path.", assertThrows(IllegalStateException.class, () -> {
+			// Call under test
+			NodeUtils.getProjectIdFromEntityPath(entityPath);
+		}).getMessage());
 	}
 	
 	Node createDefaultNode() {

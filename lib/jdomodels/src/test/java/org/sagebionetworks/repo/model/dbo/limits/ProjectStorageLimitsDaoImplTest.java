@@ -159,19 +159,19 @@ public class ProjectStorageLimitsDaoImplTest {
 		List<ProjectStorageLocationLimit> limits = List.of(
 			new ProjectStorageLocationLimit()
 				.setProjectId(KeyFactory.keyToString(projectOneId))
-				.setStorageLocationId(sLocOneId.toString())
+				.setStorageLocationId(sLocOneId)
 				.setMaxAllowedFileBytes(1024L),
 			new ProjectStorageLocationLimit()
 				.setProjectId(KeyFactory.keyToString(projectOneId))
-				.setStorageLocationId(sLocTwoId.toString())
+				.setStorageLocationId(sLocTwoId)
 				.setMaxAllowedFileBytes(2048L),
 			new ProjectStorageLocationLimit()
 				.setProjectId(KeyFactory.keyToString(projectTwoId))
-				.setStorageLocationId(sLocTwoId.toString())
+				.setStorageLocationId(sLocTwoId)
 				.setMaxAllowedFileBytes(3072L),
 			new ProjectStorageLocationLimit()
 				.setProjectId(KeyFactory.keyToString(projectTwoId))
-				.setStorageLocationId(sLocThreeId.toString())
+				.setStorageLocationId(sLocThreeId)
 				.setMaxAllowedFileBytes(null)
 		);
 
@@ -201,12 +201,12 @@ public class ProjectStorageLimitsDaoImplTest {
 		
 		dao.setStorageLocationLimit(userId, new ProjectStorageLocationLimit()
 			.setProjectId(KeyFactory.keyToString(projectOneId))
-			.setStorageLocationId(sLocTwoId.toString())
+			.setStorageLocationId(sLocTwoId)
 			.setMaxAllowedFileBytes(1024L));
 		
 		dao.setStorageLocationLimit(userId, new ProjectStorageLocationLimit()
 			.setProjectId(KeyFactory.keyToString(projectThreeId))
-			.setStorageLocationId(sLocThreeId.toString())
+			.setStorageLocationId(sLocThreeId)
 			.setMaxAllowedFileBytes(null));
 		
 		Set<Pair<Long, Long>> allLimits = dao.getProjectIdsBatch(10, 0).stream().flatMap(projectId -> Stream.of(

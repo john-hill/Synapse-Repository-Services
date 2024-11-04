@@ -7,11 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -52,6 +54,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
@@ -62,13 +65,17 @@ import org.sagebionetworks.googlecloud.SynapseGoogleCloudStorageClient;
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
 import org.sagebionetworks.repo.manager.AuthorizationManager;
+import org.sagebionetworks.repo.manager.NodeManager;
 import org.sagebionetworks.repo.manager.ProjectSettingsManager;
 import org.sagebionetworks.repo.manager.feature.FeatureManager;
 import org.sagebionetworks.repo.manager.file.transfer.TransferUtils;
+import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.DatastoreException;
+import org.sagebionetworks.repo.model.EntityHeader;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.StorageLocationDAO;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -103,6 +110,7 @@ import org.sagebionetworks.repo.model.file.S3UploadDestination;
 import org.sagebionetworks.repo.model.file.UploadDestination;
 import org.sagebionetworks.repo.model.file.UploadDestinationLocation;
 import org.sagebionetworks.repo.model.file.UploadType;
+import org.sagebionetworks.repo.model.limits.ProjectStorageLocationUsage;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
 import org.sagebionetworks.repo.model.project.ExternalGoogleCloudStorageLocationSetting;
 import org.sagebionetworks.repo.model.project.ExternalObjectStorageLocationSetting;
@@ -145,6 +153,8 @@ public class FileHandleManagerImplTest {
 	private static final String BANNER = "dummy banner text";
 	private static final String BASE_KEY = "some-base-key";
 	private static final String PARENT_ENTITY_ID = "syn123";
+	private static final List<EntityHeader> PARENT_ENTITY_PATH = List.of(new EntityHeader().setId(PARENT_ENTITY_ID).setType(Project.class.getName()));
+	
 	private static final String STACK = "stack";
 	private static final String INSTANCE = "instance";
 	private static final String FAKE_PRIVATE_KEY_VALUE =
@@ -198,6 +208,12 @@ public class FileHandleManagerImplTest {
 	
 	@Mock
 	TransferManager mockTransferManager;
+	
+	@Mock
+	private NodeManager mockNodeManager;
+	
+	@Mock
+	private ProjectStorageLimitManager mockStorageLimitsManager;
 
 	@InjectMocks
 	@Spy
@@ -2851,39 +2867,55 @@ public class FileHandleManagerImplTest {
 
 	@Test
 	public void testGetDefaultUploadDestinationWithNullUploadDestinationListSetting(){
+		when(mockNodeManager.getNodePath(mockUser, PARENT_ENTITY_ID)).thenReturn(PARENT_ENTITY_PATH);
+		doAnswer(returnsFirstArg()).when(manager).includeProjectStorageLocationUsage(any(), eq(PARENT_ENTITY_PATH));
+		
 		assertEquals(DBOStorageLocationDAOImpl.getDefaultUploadDestination(),
-				manager.getDefaultUploadDestination(mockUser, "syn1"));
+				manager.getDefaultUploadDestination(mockUser, PARENT_ENTITY_ID));
 	}
 
 	@Test
 	public void testGetDefaultUploadDestinationWithNullLocations(){
-		when(mockProjectSettingsManager.getProjectSettingForNode(mockUser, "syn1",
+		when(mockProjectSettingsManager.getProjectSettingForNode(mockUser, PARENT_ENTITY_ID,
 				ProjectSettingsType.upload, UploadDestinationListSetting.class))
 				.thenReturn(Optional.of(new UploadDestinationListSetting()));
+		
+		when(mockNodeManager.getNodePath(mockUser, PARENT_ENTITY_ID)).thenReturn(PARENT_ENTITY_PATH);
+		doAnswer(returnsFirstArg()).when(manager).includeProjectStorageLocationUsage(any(), eq(PARENT_ENTITY_PATH));
+		
 		assertEquals(DBOStorageLocationDAOImpl.getDefaultUploadDestination(),
-				manager.getDefaultUploadDestination(mockUser, "syn1"));
+				manager.getDefaultUploadDestination(mockUser, PARENT_ENTITY_ID));
 	}
 
 	@Test
 	public void testGetDefaultUploadDestinationWithEmptyLocations(){
 		UploadDestinationListSetting setting = new UploadDestinationListSetting();
 		setting.setLocations(new LinkedList<>());
-		when(mockProjectSettingsManager.getProjectSettingForNode(mockUser, "syn1",
+		
+		when(mockProjectSettingsManager.getProjectSettingForNode(mockUser, PARENT_ENTITY_ID,
 				ProjectSettingsType.upload, UploadDestinationListSetting.class))
 				.thenReturn(Optional.of(setting));
+		
+		when(mockNodeManager.getNodePath(mockUser, PARENT_ENTITY_ID)).thenReturn(PARENT_ENTITY_PATH);
+		doAnswer(returnsFirstArg()).when(manager).includeProjectStorageLocationUsage(any(), eq(PARENT_ENTITY_PATH));
+		
 		assertEquals(DBOStorageLocationDAOImpl.getDefaultUploadDestination(),
-				manager.getDefaultUploadDestination(mockUser, "syn1"));
+				manager.getDefaultUploadDestination(mockUser, PARENT_ENTITY_ID));
 	}
 
 	@Test
 	public void testGetDefaultUploadDestinationWithANullLocation(){
-		UploadDestinationListSetting setting = new UploadDestinationListSetting();
-		setting.setLocations(Collections.singletonList(null));
-		when(mockProjectSettingsManager.getProjectSettingForNode(mockUser, "syn1",
-				ProjectSettingsType.upload, UploadDestinationListSetting.class))
-				.thenReturn(Optional.of(setting));
-		assertEquals(DBOStorageLocationDAOImpl.getDefaultUploadDestination(),
-				manager.getDefaultUploadDestination(mockUser, "syn1"));
+		UploadDestinationListSetting setting = new UploadDestinationListSetting(); 
+		
+		setting.setLocations(Collections.singletonList(null));		
+		
+		when(mockProjectSettingsManager.getProjectSettingForNode(mockUser, PARENT_ENTITY_ID, ProjectSettingsType.upload, UploadDestinationListSetting.class))
+			.thenReturn(Optional.of(setting));
+		
+		when(mockNodeManager.getNodePath(mockUser, PARENT_ENTITY_ID)).thenReturn(PARENT_ENTITY_PATH);
+		doAnswer(returnsFirstArg()).when(manager).includeProjectStorageLocationUsage(any(), eq(PARENT_ENTITY_PATH));
+		
+		assertEquals(DBOStorageLocationDAOImpl.getDefaultUploadDestination(), manager.getDefaultUploadDestination(mockUser, PARENT_ENTITY_ID));
 	}
 
 	@Test
@@ -2911,16 +2943,20 @@ public class FileHandleManagerImplTest {
 
 	@Test
 	public void testGetUploadDestination_Default() {
+		when(mockNodeManager.getNodePath(mockUser, PARENT_ENTITY_ID)).thenReturn(PARENT_ENTITY_PATH);
+		doAnswer(returnsFirstArg()).when(manager).includeProjectStorageLocationUsage(any(), eq(PARENT_ENTITY_PATH));
 		// Note that this generates a new UploadDestination instance, so we use equals, not same.
-		UploadDestination result = manager.getUploadDestination(mockUser, PARENT_ENTITY_ID,
-				DBOStorageLocationDAOImpl.DEFAULT_STORAGE_LOCATION_ID);
+		UploadDestination result = manager.getUploadDestination(mockUser, PARENT_ENTITY_ID, DBOStorageLocationDAOImpl.DEFAULT_STORAGE_LOCATION_ID);
 		assertEquals(DBOStorageLocationDAOImpl.getDefaultUploadDestination(), result);
 	}
 
 	@Test
 	public void testGetUploadDestination_Synapse() {
 		when(mockStorageLocationDao.get(synapseStorageLocationId)).thenReturn(synapseStorageLocationSetting);
-
+		
+		when(mockNodeManager.getNodePath(mockUser, PARENT_ENTITY_ID)).thenReturn(PARENT_ENTITY_PATH);
+		doAnswer(returnsFirstArg()).when(manager).includeProjectStorageLocationUsage(any(), eq(PARENT_ENTITY_PATH));
+		
 		UploadDestination result = manager.getUploadDestination(mockUser, PARENT_ENTITY_ID, synapseStorageLocationId);
 		assertEquals(BANNER, result.getBanner());
 		assertEquals(synapseStorageLocationId, result.getStorageLocationId());
@@ -2935,6 +2971,9 @@ public class FileHandleManagerImplTest {
 	@Test
 	public void testGetUploadDestination_ExternalS3() {
 		when(mockStorageLocationDao.get(externalS3StorageLocationId)).thenReturn(externalS3StorageLocationSetting);
+		
+		when(mockNodeManager.getNodePath(mockUser, PARENT_ENTITY_ID)).thenReturn(PARENT_ENTITY_PATH);
+		doAnswer(returnsFirstArg()).when(manager).includeProjectStorageLocationUsage(any(), eq(PARENT_ENTITY_PATH));
 
 		UploadDestination result = manager.getUploadDestination(mockUser, PARENT_ENTITY_ID,
 				externalS3StorageLocationId);
@@ -2954,6 +2993,9 @@ public class FileHandleManagerImplTest {
 		when(mockStorageLocationDao.get(externalGoogleCloudStorageLocationId)).thenReturn(
 				externalGoogleCloudStorageLocationSetting);
 
+		when(mockNodeManager.getNodePath(mockUser, PARENT_ENTITY_ID)).thenReturn(PARENT_ENTITY_PATH);
+		doAnswer(returnsFirstArg()).when(manager).includeProjectStorageLocationUsage(any(), eq(PARENT_ENTITY_PATH));
+		
 		UploadDestination result = manager.getUploadDestination(mockUser, PARENT_ENTITY_ID,
 				externalGoogleCloudStorageLocationId);
 		assertEquals(BANNER, result.getBanner());
@@ -2969,10 +3011,11 @@ public class FileHandleManagerImplTest {
 
 	@Test
 	public void testGetUploadDestinationExternalObjectStore(){
-		when(mockStorageLocationDao.get(externalObjectStorageLocationId)).thenReturn(
-				externalObjectStorageLocationSetting);
+		when(mockNodeManager.getNodePath(mockUser, PARENT_ENTITY_ID)).thenReturn(PARENT_ENTITY_PATH);
+		when(mockStorageLocationDao.get(externalObjectStorageLocationId)).thenReturn(externalObjectStorageLocationSetting);
+		doAnswer(returnsFirstArg()).when(manager).includeProjectStorageLocationUsage(any(), eq(PARENT_ENTITY_PATH));
 
-		ExternalObjectStoreUploadDestination result = (ExternalObjectStoreUploadDestination) manager.getUploadDestination(mockUser, "syn123", externalObjectStorageLocationId);
+		ExternalObjectStoreUploadDestination result = (ExternalObjectStoreUploadDestination) manager.getUploadDestination(mockUser, PARENT_ENTITY_ID, externalObjectStorageLocationId);
 		assertNotNull(result);
 		verify(mockStorageLocationDao, times(1)).get(externalObjectStorageLocationId);
 		assertNotNull(result.getKeyPrefixUUID());
@@ -2985,11 +3028,40 @@ public class FileHandleManagerImplTest {
 
 	@Test
 	public void testGetUploadDestination_ProxyStorageNotSupported() {
+		when(mockNodeManager.getNodePath(mockUser, PARENT_ENTITY_ID)).thenReturn(PARENT_ENTITY_PATH);
 		when(mockStorageLocationDao.get(proxyStorageLocationId)).thenReturn(proxyStorageLocationSettings);
 		Exception ex = assertThrows(IllegalArgumentException.class, () -> manager.getUploadDestination(mockUser,
 				PARENT_ENTITY_ID, proxyStorageLocationId));
 		assertEquals("Cannot handle upload destination location setting of type: org.sagebionetworks.repo.model.project.ProxyStorageLocationSettings",
 				ex.getMessage());
+	}
+	
+	@Test
+	public void testIncludeProjectStorageLocationUsage() {
+		UploadDestination mockDestination = Mockito.mock(UploadDestination.class);
+		when(mockDestination.getStorageLocationId()).thenReturn(123L);
+		
+		ProjectStorageLocationUsage usage = new ProjectStorageLocationUsage();
+		
+		when(mockStorageLimitsManager.getProjectStorageLocationUsage(PARENT_ENTITY_ID, 123L)).thenReturn(Optional.of(usage));
+		
+		assertEquals(mockDestination, manager.includeProjectStorageLocationUsage(mockDestination, PARENT_ENTITY_PATH));
+		
+		verify(mockDestination).setDestinationProjectId(PARENT_ENTITY_ID);
+		verify(mockDestination).setProjectStorageLocationUsage(usage);
+	}
+	
+	@Test
+	public void testIncludeProjectStorageLocationUsageWithNoUsageData() {
+		UploadDestination mockDestination = Mockito.mock(UploadDestination.class);
+		when(mockDestination.getStorageLocationId()).thenReturn(123L);
+		
+		when(mockStorageLimitsManager.getProjectStorageLocationUsage(PARENT_ENTITY_ID, 123L)).thenReturn(Optional.empty());
+		
+		assertEquals(mockDestination, manager.includeProjectStorageLocationUsage(mockDestination, PARENT_ENTITY_PATH));
+		
+		verify(mockDestination).setDestinationProjectId(PARENT_ENTITY_ID);
+		verify(mockDestination).setProjectStorageLocationUsage(null);
 	}
 	
 	@Test

@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.BooleanUtils;
@@ -47,6 +48,7 @@ import org.sagebionetworks.repo.manager.NodeManager;
 import org.sagebionetworks.repo.manager.ProjectSettingsManager;
 import org.sagebionetworks.repo.manager.feature.FeatureManager;
 import org.sagebionetworks.repo.manager.file.transfer.TransferUtils;
+import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.DatastoreException;
@@ -58,6 +60,7 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dao.FileHandleMetadataType;
 import org.sagebionetworks.repo.model.dbo.dao.DBOStorageLocationDAOImpl;
+import org.sagebionetworks.repo.model.dbo.dao.NodeUtils;
 import org.sagebionetworks.repo.model.dbo.file.FileHandleDao;
 import org.sagebionetworks.repo.model.feature.Feature;
 import org.sagebionetworks.repo.model.file.BaseKeyUploadDestination;
@@ -73,7 +76,6 @@ import org.sagebionetworks.repo.model.file.ExternalObjectStoreFileHandle;
 import org.sagebionetworks.repo.model.file.ExternalObjectStoreUploadDestination;
 import org.sagebionetworks.repo.model.file.ExternalS3UploadDestination;
 import org.sagebionetworks.repo.model.file.ExternalUploadDestination;
-import org.sagebionetworks.repo.model.file.FileDownloadRecord;
 import org.sagebionetworks.repo.model.file.FileEvent;
 import org.sagebionetworks.repo.model.file.FileEventType;
 import org.sagebionetworks.repo.model.file.FileHandle;
@@ -94,6 +96,7 @@ import org.sagebionetworks.repo.model.file.UploadDestination;
 import org.sagebionetworks.repo.model.file.UploadDestinationLocation;
 import org.sagebionetworks.repo.model.file.UploadType;
 import org.sagebionetworks.repo.model.jdo.NameValidation;
+import org.sagebionetworks.repo.model.limits.ProjectStorageLocationUsage;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
 import org.sagebionetworks.repo.model.project.BaseKeyStorageLocationSetting;
 import org.sagebionetworks.repo.model.project.ExternalGoogleCloudStorageLocationSetting;
@@ -135,7 +138,6 @@ import com.amazonaws.services.s3.transfer.model.UploadResult;
 import com.amazonaws.util.BinaryUtils;
 import com.amazonaws.util.SdkHttpUtils;
 import com.google.cloud.storage.Blob;
-import com.google.common.collect.Lists;
 
 /**
  * Basic implementation of the file upload manager.
@@ -215,6 +217,9 @@ public class FileHandleManagerImpl implements FileHandleManager {
 	@Autowired
 	private FeatureManager featureManager;
 
+	@Autowired
+	private ProjectStorageLimitManager storageLimitsManager;
+	
 	/**
 	 * Used by spring
 	 */
@@ -794,11 +799,11 @@ public class FileHandleManagerImpl implements FileHandleManager {
 			UnauthorizedException, NotFoundException {
 		List<UploadDestinationLocation> uploadDestinationLocations = getUploadDestinationLocations(userInfo, parentId);
 
-		List<UploadDestination> destinations = Lists.newArrayListWithExpectedSize(4);
-		for (UploadDestinationLocation uploadDestinationLocation : uploadDestinationLocations) {
-			destinations.add(getUploadDestination(userInfo, parentId, uploadDestinationLocation.getStorageLocationId()));
-		}
-		return destinations;
+		List<EntityHeader> parentPath = nodeManager.getNodePathAsAdmin(parentId);
+		
+		return uploadDestinationLocations.stream()
+			.map(destination -> getUploadDestination(parentPath, destination.getStorageLocationId()))
+			.collect(Collectors.toList());
 	}
 
 	@Override
@@ -818,61 +823,79 @@ public class FileHandleManagerImpl implements FileHandleManager {
 			return projectSettingsManager.getUploadDestinationLocations(userInfo, uploadDestinationsSettings.get().getLocations());
 		}
 	}
-
+	
 	@Override
-	public UploadDestination getUploadDestination(UserInfo userInfo, String parentId, Long storageLocationId) throws DatastoreException,
-			NotFoundException {
+	public UploadDestination getUploadDestination(UserInfo userInfo, String parentId, Long storageLocationId) throws DatastoreException, NotFoundException {
+		List<EntityHeader> parentPath = nodeManager.getNodePath(userInfo, parentId);
+		
+		return getUploadDestination(parentPath, storageLocationId);
+	}
+
+	UploadDestination getUploadDestination(List<EntityHeader> parentPath, Long storageLocationId) {
 		ValidateArgument.required(storageLocationId, "storageLocationId");
+		
+		UploadDestination uploadDestination;
+		
 		// handle default case
 		if (storageLocationId.equals(DBOStorageLocationDAOImpl.DEFAULT_STORAGE_LOCATION_ID)) {
-			return DBOStorageLocationDAOImpl.getDefaultUploadDestination();
-		}
-
-		StorageLocationSetting storageLocationSetting = storageLocationDAO.get(storageLocationId);
-
-		UploadDestination uploadDestination;
-
-		if (storageLocationSetting instanceof S3StorageLocationSetting) {
-			uploadDestination = new S3UploadDestination();
-		} else if (storageLocationSetting instanceof ExternalS3StorageLocationSetting) {
-			ExternalS3StorageLocationSetting externalS3StorageLocationSetting = (ExternalS3StorageLocationSetting) storageLocationSetting;
-			ExternalS3UploadDestination externalS3UploadDestination = new ExternalS3UploadDestination();
-			externalS3UploadDestination.setBucket(externalS3StorageLocationSetting.getBucket());
-			uploadDestination = externalS3UploadDestination;
-		} else if (storageLocationSetting instanceof ExternalGoogleCloudStorageLocationSetting) {
-			ExternalGoogleCloudStorageLocationSetting externalGoogleCloudStorageLocationSetting = (ExternalGoogleCloudStorageLocationSetting) storageLocationSetting;
-			ExternalGoogleCloudUploadDestination externalGoogleCloudUploadDestination = new ExternalGoogleCloudUploadDestination();
-			externalGoogleCloudUploadDestination.setBucket(externalGoogleCloudStorageLocationSetting.getBucket());
-			uploadDestination = externalGoogleCloudUploadDestination;
-		} else if (storageLocationSetting instanceof ExternalStorageLocationSetting) {
-			String filename = UUID.randomUUID().toString();
-			List<EntityHeader> nodePath = nodeManager.getNodePath(userInfo, parentId);
-			uploadDestination = createExternalUploadDestination((ExternalStorageLocationSetting) storageLocationSetting,
-					nodePath, filename);
-		} else if (storageLocationSetting instanceof ExternalObjectStorageLocationSetting){
-			ExternalObjectStorageLocationSetting extObjStorageLocation = (ExternalObjectStorageLocationSetting) storageLocationSetting;
-			ExternalObjectStoreUploadDestination extObjUploadDestination = new ExternalObjectStoreUploadDestination();
-			extObjUploadDestination.setKeyPrefixUUID(UUID.randomUUID().toString());
-			extObjUploadDestination.setEndpointUrl(extObjStorageLocation.getEndpointUrl());
-			extObjUploadDestination.setBucket(extObjStorageLocation.getBucket());
-			uploadDestination = extObjUploadDestination;
+			uploadDestination = DBOStorageLocationDAOImpl.getDefaultUploadDestination();
 		} else {
-			throw new IllegalArgumentException("Cannot handle upload destination location setting of type: "
-					+ storageLocationSetting.getClass().getName());
+			StorageLocationSetting storageLocationSetting = storageLocationDAO.get(storageLocationId);
+				
+			if (storageLocationSetting instanceof S3StorageLocationSetting) {
+				uploadDestination = new S3UploadDestination();
+			} else if (storageLocationSetting instanceof ExternalS3StorageLocationSetting) {
+				ExternalS3StorageLocationSetting externalS3StorageLocationSetting = (ExternalS3StorageLocationSetting) storageLocationSetting;
+				ExternalS3UploadDestination externalS3UploadDestination = new ExternalS3UploadDestination();
+				externalS3UploadDestination.setBucket(externalS3StorageLocationSetting.getBucket());
+				uploadDestination = externalS3UploadDestination;
+			} else if (storageLocationSetting instanceof ExternalGoogleCloudStorageLocationSetting) {
+				ExternalGoogleCloudStorageLocationSetting externalGoogleCloudStorageLocationSetting = (ExternalGoogleCloudStorageLocationSetting) storageLocationSetting;
+				ExternalGoogleCloudUploadDestination externalGoogleCloudUploadDestination = new ExternalGoogleCloudUploadDestination();
+				externalGoogleCloudUploadDestination.setBucket(externalGoogleCloudStorageLocationSetting.getBucket());
+				uploadDestination = externalGoogleCloudUploadDestination;
+			} else if (storageLocationSetting instanceof ExternalStorageLocationSetting) {
+				String filename = UUID.randomUUID().toString();
+				uploadDestination = createExternalUploadDestination((ExternalStorageLocationSetting) storageLocationSetting, parentPath, filename);
+			} else if (storageLocationSetting instanceof ExternalObjectStorageLocationSetting){
+				ExternalObjectStorageLocationSetting extObjStorageLocation = (ExternalObjectStorageLocationSetting) storageLocationSetting;
+				ExternalObjectStoreUploadDestination extObjUploadDestination = new ExternalObjectStoreUploadDestination();
+				extObjUploadDestination.setKeyPrefixUUID(UUID.randomUUID().toString());
+				extObjUploadDestination.setEndpointUrl(extObjStorageLocation.getEndpointUrl());
+				extObjUploadDestination.setBucket(extObjStorageLocation.getBucket());
+				uploadDestination = extObjUploadDestination;
+			} else {
+				throw new IllegalArgumentException("Cannot handle upload destination location setting of type: "
+						+ storageLocationSetting.getClass().getName());
+			}
+	
+			if (storageLocationSetting instanceof BaseKeyStorageLocationSetting) {
+				((BaseKeyUploadDestination) uploadDestination).setBaseKey(
+						((BaseKeyStorageLocationSetting) storageLocationSetting).getBaseKey());
+			}
+			if (storageLocationSetting instanceof StsStorageLocationSetting) {
+				((StsUploadDestination) uploadDestination).setStsEnabled(
+						((StsStorageLocationSetting)storageLocationSetting).getStsEnabled());
+			}
+	
+			uploadDestination.setStorageLocationId(storageLocationId);
+			uploadDestination.setUploadType(storageLocationSetting.getUploadType());
+			uploadDestination.setBanner(storageLocationSetting.getBanner());
 		}
-
-		if (storageLocationSetting instanceof BaseKeyStorageLocationSetting) {
-			((BaseKeyUploadDestination) uploadDestination).setBaseKey(
-					((BaseKeyStorageLocationSetting) storageLocationSetting).getBaseKey());
-		}
-		if (storageLocationSetting instanceof StsStorageLocationSetting) {
-			((StsUploadDestination) uploadDestination).setStsEnabled(
-					((StsStorageLocationSetting)storageLocationSetting).getStsEnabled());
-		}
-
-		uploadDestination.setStorageLocationId(storageLocationId);
-		uploadDestination.setUploadType(storageLocationSetting.getUploadType());
-		uploadDestination.setBanner(storageLocationSetting.getBanner());
+		
+		return includeProjectStorageLocationUsage(uploadDestination, parentPath);
+	}
+	
+	UploadDestination includeProjectStorageLocationUsage(UploadDestination uploadDestination, List<EntityHeader> parentPath) {
+		String projectId = NodeUtils.getProjectIdFromEntityPath(parentPath);
+		
+		ProjectStorageLocationUsage storageLocationUsage = storageLimitsManager
+			.getProjectStorageLocationUsage(projectId, uploadDestination.getStorageLocationId())
+			.orElse(null);
+		
+		uploadDestination.setDestinationProjectId(projectId);
+		uploadDestination.setProjectStorageLocationUsage(storageLocationUsage);
+		
 		return uploadDestination;
 	}
 
@@ -1295,8 +1318,7 @@ public class FileHandleManagerImpl implements FileHandleManager {
 		ValidateArgument.required(userInfo.getContext().getSessionId(), "userInfo.context.sessionId");
 		ValidateArgument.required(request, "request");
 		ValidateArgument.required(request.getRequestedFiles(), "requestedFiles");
-		String userId = userInfo.getId().toString();
-		long now = System.currentTimeMillis();
+		
 		if (request.getIncludeFileHandles() == null) {
 			request.setIncludeFileHandles(false);
 		}

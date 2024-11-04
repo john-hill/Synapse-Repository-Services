@@ -7,7 +7,7 @@
 			"required": true
 		},
 		"storageLocationId": {
-			"type": "string",
+			"type": "integer",
 			"description": "The ID of the storage location",
 			"required": true
 		},

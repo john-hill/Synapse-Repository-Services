@@ -1,6 +1,5 @@
 package org.sagebionetworks.repo.model.dbo.dao;
 
-import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Date;
 import java.util.LinkedList;
@@ -10,14 +9,15 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.sagebionetworks.StackConfigurationSingleton;
 import org.sagebionetworks.repo.model.DatastoreException;
+import org.sagebionetworks.repo.model.EntityHeader;
 import org.sagebionetworks.repo.model.EntityRef;
 import org.sagebionetworks.repo.model.EntityType;
+import org.sagebionetworks.repo.model.EntityTypeUtils;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeConstants;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.Reference;
-import org.sagebionetworks.repo.model.UnmodifiableXStream;
 import org.sagebionetworks.repo.model.dbo.persistence.DBONode;
 import org.sagebionetworks.repo.model.dbo.persistence.DBORevision;
 import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
@@ -445,5 +445,17 @@ public class NodeUtils {
 	public static Boolean isBucketSynapseStorage(String bucketName) {
 		if (bucketName == null) return null;
 		return bucketName.equals(StackConfigurationSingleton.singleton().getS3Bucket());
+	}
+	
+	/**
+	 * @param entityPath
+	 * @return Extracts the project id from the given entity path 
+	 */
+	public static String getProjectIdFromEntityPath(List<EntityHeader> entityPath) {
+		return entityPath.stream()
+			.filter(header -> EntityType.project.equals(EntityTypeUtils.getEntityTypeForClassName(header.getType())))
+			.map(EntityHeader::getId)
+			.findFirst()
+			.orElseThrow(() -> new IllegalStateException("Could not find a project in the entity path."));
 	}
 }

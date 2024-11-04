@@ -16,7 +16,7 @@
 		},
 		"storageLocationData": {
 			"type": "map",
-			"key": { "type": "integer" },
+			"key": { "type": "string" },
 			"value": { "type": "integer" }			
 		}		
 	}

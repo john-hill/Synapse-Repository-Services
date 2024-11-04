@@ -15,7 +15,6 @@ import java.util.UUID;
 import com.google.common.collect.Lists;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.AsynchronousJobWorkerHelper;
@@ -140,10 +139,10 @@ public class AgentChatWorkerIntegrationTest {
 
 		assertNotNull(session);
 		// an empty request will return an empty response.
-		String chatRequest = "What is the name of entity: " + project.getId();
+		String chatRequest = "What is the name of entity: " + project.getId() + "? Please look only in the entity metadata.";
 
 		asynchronousJobWorkerHelper.assertJobResponse(admin,
-				new AgentChatRequest().setSessionId(session.getSessionId()).setChatText(chatRequest),
+				new AgentChatRequest().setSessionId(session.getSessionId()).setChatText(chatRequest).setEnableTrace(true),
 				(AgentChatResponse response) -> {
 					assertNotNull(response);
 					assertEquals(session.getSessionId(), response.getSessionId());

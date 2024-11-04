@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.model.dbo.migration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.io.StringReader;
 import java.lang.reflect.Field;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -28,18 +29,17 @@ public class MigratableObjectSerializationTest {
 
 	@Autowired
 	private MigratableTableDAOImpl migratableTableDAO;
-
+	
 	@Test
-	public void testRoundTripEachType() {
+	public void testRoundTripEachTypeStream() {
 		long start = System.currentTimeMillis();
 		int count = 3;
 		for (MigratableDatabaseObject<?, ?> type : migratableTableDAO.getAllMigratableTypes()) {
 			List<MigratableDatabaseObject<?, ?>> objects = createRandomObjects(count, type);
 			// call under test
 			JSONArray jsonArray = JavaJSONUtil.writeToJSON(objects).get();
-			JSONArray arrayClone = new JSONArray(jsonArray.toString());
 			// call under test
-			List<?> results = JavaJSONUtil.readFromJSON(type.getClass(), arrayClone);
+			List<?> results = JavaJSONUtil.streamFromJSONArray(type.getClass(), new StringReader(jsonArray.toString()));
 			assertEquals(objects, results);
 		}
 		int totalNumberOfObjects = count*migratableTableDAO.getAllMigratableTypes().size();

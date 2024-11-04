@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.model.dbo.migration;
 
+import java.io.BufferedReader;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,9 +11,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import org.apache.commons.io.IOUtils;
-import org.json.JSONArray;
-import org.json.JSONException;
 import org.json.JSONObject;
 import org.sagebionetworks.repo.model.UnmodifiableXStream;
 import org.sagebionetworks.repo.model.daemon.BackupAliasType;
@@ -87,9 +85,10 @@ public class MigrationTypeProviderImpl implements MigrationTypeProvider {
 	}
 
 	<B> Optional<List<B>> readJSON(Class<? extends B> clazz, BackupAliasType backupAliasType, InputStream input) {
+
 		try {
 			return Optional.of(
-					JavaJSONUtil.readFromJSON(clazz, new JSONArray(IOUtils.toString(new InputStreamReader(input)))));
+					JavaJSONUtil.streamFromJSONArray(clazz,new BufferedReader(new InputStreamReader(input, "UTF-8"))));
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}

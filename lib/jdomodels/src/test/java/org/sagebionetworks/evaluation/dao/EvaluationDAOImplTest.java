@@ -592,7 +592,7 @@ public class EvaluationDAOImplTest {
 
 	@Test
 	public void testTranslateFromXmlToJsonQutoa() throws JSONException, IOException {
-		EvaluationBackup backup = JavaJSONUtil.readFromJSON(EvaluationBackup.class,
+		EvaluationBackup backup = JavaJSONUtil.readFromJSONObject(EvaluationBackup.class,
 				new JSONObject(TestUtils.loadFromClasspath("evaluation-backup-old.json")));
 		SubmissionQuota quota = (SubmissionQuota) JDOSecondaryPropertyUtils.decompressObject(EvaluationDBO.XSTREAM,
 				backup.getQuota());

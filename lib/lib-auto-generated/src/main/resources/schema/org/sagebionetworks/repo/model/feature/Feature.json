@@ -25,6 +25,10 @@
 	    {
 	    	"name": "USE_NEW_ASYNC_GOOGLE_MULTIPART_UPLOAD",
 	    	"description": "Set to false to use the old Google multi-part upload dao."
-	    }
+	    },
+		{
+			"name": "ENFORCE_PROJECT_STORAGE_LIMITS",
+			"description": "Checks for project storage when creating or updating a file entity."
+		}
     ]
 }

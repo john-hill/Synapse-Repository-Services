@@ -43,9 +43,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
-public class ProjectStorageLimitManager {
+public class ProjectStorageLimitsManager {
 	
-	private static final Logger LOGGER = LogManager.getLogger(ProjectStorageLimitManager.class);
+	private static final Logger LOGGER = LogManager.getLogger(ProjectStorageLimitsManager.class);
 	
 	public static final Long DEFAULT_STORAGE_LOCATION_ID = DBOStorageLocationDAOImpl.DEFAULT_STORAGE_LOCATION_ID;
 	
@@ -75,7 +75,7 @@ public class ProjectStorageLimitManager {
 	
 	private Long defaultStorageLocationMaxBytes;
 	
-	public ProjectStorageLimitManager(EntityAuthorizationManager authzManager, TransactionalMessenger messenger, ProjectStorageLimitsDao storageUsageDao,
+	public ProjectStorageLimitsManager(EntityAuthorizationManager authzManager, TransactionalMessenger messenger, ProjectStorageLimitsDao storageUsageDao,
 		TableIndexDAO replicationDao, NodeDAO nodeDao, Clock clock) {
 		this.authzManager = authzManager;
 		this.messenger = messenger;

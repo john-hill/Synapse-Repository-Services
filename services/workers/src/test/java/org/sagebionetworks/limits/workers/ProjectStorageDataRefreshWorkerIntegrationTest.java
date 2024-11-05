@@ -9,7 +9,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.AsynchronousJobWorkerHelper;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.UserManager;
-import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitManager;
+import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitsManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.FileEntity;
 import org.sagebionetworks.repo.model.NodeDAO;
@@ -39,7 +39,7 @@ public class ProjectStorageDataRefreshWorkerIntegrationTest {
 	private ProjectStorageLimitsDao storageLimitsDao;
 	
 	@Autowired
-	private ProjectStorageLimitManager manager;
+	private ProjectStorageLimitsManager manager;
 
 	@Autowired
 	private EntityService entityService;
@@ -102,7 +102,7 @@ public class ProjectStorageDataRefreshWorkerIntegrationTest {
 			return Pair.create(new ProjectStorageUsage()
 				.setProjectId(projectId)
 				.setLocations(List.of(new ProjectStorageLocationUsage()
-					.setStorageLocationId(ProjectStorageLimitManager.DEFAULT_STORAGE_LOCATION_ID)
+					.setStorageLocationId(ProjectStorageLimitsManager.DEFAULT_STORAGE_LOCATION_ID)
 					.setSumFileBytes(3072L)
 					.setMaxAllowedFileBytes(defaultLocationMaxBytes)
 					.setIsOverLimit(false)
@@ -123,7 +123,7 @@ public class ProjectStorageDataRefreshWorkerIntegrationTest {
 			return Pair.create(new ProjectStorageUsage()
 				.setProjectId(projectId)
 				.setLocations(List.of(new ProjectStorageLocationUsage()
-					.setStorageLocationId(ProjectStorageLimitManager.DEFAULT_STORAGE_LOCATION_ID)
+					.setStorageLocationId(ProjectStorageLimitsManager.DEFAULT_STORAGE_LOCATION_ID)
 					.setMaxAllowedFileBytes(defaultLocationMaxBytes)
 					.setSumFileBytes(1024L)
 					.setIsOverLimit(false)

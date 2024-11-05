@@ -79,7 +79,7 @@ public class ProjectStorageLimitsManagerTest {
 	
 	@InjectMocks
 	@Spy
-	private ProjectStorageLimitManager manager;
+	private ProjectStorageLimitsManager manager;
 
 	private UserInfo planManagerUser;
 	
@@ -480,7 +480,7 @@ public class ProjectStorageLimitsManagerTest {
 		manager.setDefaultStorageLocationMaxBytes(mockConfig);
 		
 		String projectId = "123";
-		Long storageLocationId = ProjectStorageLimitManager.DEFAULT_STORAGE_LOCATION_ID;
+		Long storageLocationId = ProjectStorageLimitsManager.DEFAULT_STORAGE_LOCATION_ID;
 		
 		doReturn(KeyFactory.stringToKey(projectId)).when(manager).validateAndGetProjectId(projectId);
 		

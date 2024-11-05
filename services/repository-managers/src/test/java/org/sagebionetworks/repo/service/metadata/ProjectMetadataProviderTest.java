@@ -10,7 +10,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.discussion.ForumManager;
-import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitManager;
+import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitsManager;
 import org.sagebionetworks.repo.manager.subscription.SubscriptionManager;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -26,7 +26,7 @@ public class ProjectMetadataProviderTest {
 	@Mock
 	private SubscriptionManager mockSubscriptionManager;
 	@Mock
-	private ProjectStorageLimitManager mockStorageLimitsManager;
+	private ProjectStorageLimitsManager mockStorageLimitsManager;
 	@InjectMocks
 	private ProjectMetadataProvider provider;
 	
@@ -61,6 +61,6 @@ public class ProjectMetadataProviderTest {
 		
 		verify(mockForumManager).createForum(userInfo, projectId);
 		verify(mockSubscriptionManager).create(userInfo, new Topic().setObjectId(forumId).setObjectType(SubscriptionObjectType.FORUM));
-		verify(mockStorageLimitsManager).setDefaultProjectStorageLimit(projectId, ProjectStorageLimitManager.DEFAULT_STORAGE_LOCATION_ID);
+		verify(mockStorageLimitsManager).setDefaultProjectStorageLimit(projectId, ProjectStorageLimitsManager.DEFAULT_STORAGE_LOCATION_ID);
 	}
 }

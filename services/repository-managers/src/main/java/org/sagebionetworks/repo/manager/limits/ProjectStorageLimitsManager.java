@@ -14,7 +14,9 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.downloadtools.FileUtils;
 import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
+import org.sagebionetworks.repo.manager.feature.FeatureManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
@@ -25,6 +27,7 @@ import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.dao.DBOStorageLocationDAOImpl;
 import org.sagebionetworks.repo.model.dbo.limits.ProjectStorageLimitsDao;
+import org.sagebionetworks.repo.model.feature.Feature;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.limits.ProjectStorageData;
 import org.sagebionetworks.repo.model.limits.ProjectStorageEvent;
@@ -35,6 +38,7 @@ import org.sagebionetworks.repo.model.limits.ProjectStorageLocationUsage;
 import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
+import org.sagebionetworks.repo.web.ProjectStorageLimitExceededException;
 import org.sagebionetworks.table.cluster.TableIndexDAO;
 import org.sagebionetworks.util.Clock;
 import org.sagebionetworks.util.Pair;
@@ -71,18 +75,21 @@ public class ProjectStorageLimitsManager {
 	
 	private Clock clock;
 	
+	private FeatureManager featureManager;
+	
 	private Set<Long> accessedProjects;
 	
 	private Long defaultStorageLocationMaxBytes;
 	
 	public ProjectStorageLimitsManager(EntityAuthorizationManager authzManager, TransactionalMessenger messenger, ProjectStorageLimitsDao storageUsageDao,
-		TableIndexDAO replicationDao, NodeDAO nodeDao, Clock clock) {
+		TableIndexDAO replicationDao, NodeDAO nodeDao, Clock clock, FeatureManager featureManager) {
 		this.authzManager = authzManager;
 		this.messenger = messenger;
 		this.storageUsageDao = storageUsageDao;
 		this.replicationDao = replicationDao;
 		this.nodeDao = nodeDao;
 		this.clock = clock;
+		this.featureManager = featureManager;
 		this.accessedProjects = ConcurrentHashMap.newKeySet();
 	}
 	
@@ -186,6 +193,30 @@ public class ProjectStorageLimitsManager {
 			.setMaxAllowedFileBytes(maxAllowedBytes);
 		
 		storageUsageDao.setStorageLocationLimit(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId(), limit);
+	}
+	
+	/**
+	 * Verifies that the current usage of the storage location with the given id for the given project is under the set limit
+	 * 
+	 * @param projectId
+	 * @param storageLocationId
+	 * @throws ProjectStorageLimitExceededException If the current storage usage for the storage location in the project exceeds the set limit
+	 * @throws
+	 *  
+	 */
+	public void verifyProjectStorageLocationUsageUnderLimit(String projectId, Long storageLocationId) {
+		if (!featureManager.isFeatureEnabled(Feature.ENFORCE_PROJECT_STORAGE_LIMITS)) {
+			return;
+		}
+		
+		ProjectStorageLocationUsage usage = getProjectStorageLocationUsage(projectId, storageLocationId)
+			.orElseThrow(() -> new IllegalArgumentException("The storage location " + storageLocationId + " is not assigned to the project " + projectId + "."));
+		
+		if (usage.getIsOverLimit()) {
+			throw new ProjectStorageLimitExceededException(
+				String.format("The project storage usage exceeds the limit for the storage location (Project: %s, Storage Location: %s, Usage: %s, Limit: %s).", projectId,
+					storageLocationId, FileUtils.bytesToHumanReadable(usage.getSumFileBytes()), FileUtils.bytesToHumanReadable(usage.getMaxAllowedFileBytes())));
+		}
 	}
 	
 	/**

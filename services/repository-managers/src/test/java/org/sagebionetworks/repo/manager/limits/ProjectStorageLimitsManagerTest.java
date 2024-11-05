@@ -31,6 +31,7 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
+import org.sagebionetworks.repo.manager.feature.FeatureManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.EntityType;
@@ -40,6 +41,7 @@ import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dbo.limits.ProjectStorageLimitsDao;
+import org.sagebionetworks.repo.model.feature.Feature;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.limits.ProjectStorageData;
 import org.sagebionetworks.repo.model.limits.ProjectStorageEvent;
@@ -49,6 +51,7 @@ import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationUsage;
 import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
+import org.sagebionetworks.repo.web.ProjectStorageLimitExceededException;
 import org.sagebionetworks.table.cluster.TableIndexDAO;
 import org.sagebionetworks.util.Clock;
 import org.sagebionetworks.util.Pair;
@@ -76,6 +79,9 @@ public class ProjectStorageLimitsManagerTest {
 	
 	@Mock
 	private Clock mockClock;
+	
+	@Mock
+	private FeatureManager mockFeatureManager;
 	
 	@InjectMocks
 	@Spy
@@ -623,6 +629,72 @@ public class ProjectStorageLimitsManagerTest {
 			// Call under test
 			manager.setProjectStorageLimit(planManagerUser, limit);
 		}).getMessage());
+		
+		verifyNoMoreInteractions(mockDao);
+	}
+	
+	@Test
+	public void testVerifyProjectStorageLocationUsageUnderLimitWithUnderLimit() {
+		
+		when(mockFeatureManager.isFeatureEnabled(Feature.ENFORCE_PROJECT_STORAGE_LIMITS)).thenReturn(true);
+		
+		String projectId = "123";
+		Long storageLocationId = 2L;
+		
+		doReturn(Optional.of(new ProjectStorageLocationUsage()
+			.setSumFileBytes(1024L)
+			.setMaxAllowedFileBytes(null)
+			.setIsOverLimit(false)
+		)).when(manager).getProjectStorageLocationUsage(projectId, storageLocationId);
+		
+		// Call under test
+		manager.verifyProjectStorageLocationUsageUnderLimit(projectId, storageLocationId);
+	}
+	
+	@Test
+	public void testVerifyProjectStorageLocationUsageUnderLimitWithOverLimit() {
+		when(mockFeatureManager.isFeatureEnabled(Feature.ENFORCE_PROJECT_STORAGE_LIMITS)).thenReturn(true);
+		
+		String projectId = "123";
+		Long storageLocationId = 2L;
+		
+		doReturn(Optional.of(new ProjectStorageLocationUsage()
+			.setSumFileBytes(4096L)
+			.setMaxAllowedFileBytes(2048L)
+			.setIsOverLimit(true)
+		)).when(manager).getProjectStorageLocationUsage(projectId, storageLocationId);
+		
+		assertEquals("The project storage usage exceeds the limit for the storage location (Project: 123, Storage Location: 2, Usage: 4 KiB, Limit: 2 KiB).", assertThrows(ProjectStorageLimitExceededException.class, () -> {			
+			// Call under test
+			manager.verifyProjectStorageLocationUsageUnderLimit(projectId, storageLocationId);
+		}).getMessage());
+	}
+	
+	@Test
+	public void testVerifyProjectStorageLocationUsageUnderLimitWithNoLimitDefined() {
+		when(mockFeatureManager.isFeatureEnabled(Feature.ENFORCE_PROJECT_STORAGE_LIMITS)).thenReturn(true);
+		
+		String projectId = "123";
+		Long storageLocationId = 2L;
+		
+		doReturn(Optional.empty()).when(manager).getProjectStorageLocationUsage(projectId, storageLocationId);
+		
+		assertEquals("The storage location 2 is not assigned to the project 123.", assertThrows(IllegalArgumentException.class, () -> {			
+			// Call under test
+			manager.verifyProjectStorageLocationUsageUnderLimit(projectId, storageLocationId);
+		}).getMessage());
+	}
+	
+	@Test
+	public void testVerifyProjectStorageLocationUsageUnderLimitWithFeatureDisabled() {
+		
+		when(mockFeatureManager.isFeatureEnabled(Feature.ENFORCE_PROJECT_STORAGE_LIMITS)).thenReturn(false);
+		
+		String projectId = "123";
+		Long storageLocationId = 2L;
+		
+		// Call under test
+		manager.verifyProjectStorageLocationUsageUnderLimit(projectId, storageLocationId);
 		
 		verifyNoMoreInteractions(mockDao);
 	}

@@ -25,6 +25,10 @@
 		{
 			"name": "UNSUPPORTED_WEBHOOK_DOMAIN",
 			"description": "The webhook endpoint domain is not whitelisted."
+		},
+		{
+			"name": "PROJECT_STORAGE_LIMIT_EXCEEDED",
+			"description": "The project storage limit was exceeded for a given storage location."
 		}
 	]
 }

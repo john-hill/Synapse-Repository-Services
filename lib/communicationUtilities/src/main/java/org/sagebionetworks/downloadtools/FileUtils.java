@@ -12,6 +12,7 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
+import java.text.DecimalFormat;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.zip.GZIPInputStream;
@@ -24,6 +25,28 @@ import java.util.zip.GZIPOutputStream;
  *
  */
 public class FileUtils {
+	
+	private enum SizeUnit {
+	    Bytes(1l),
+	    KiB(Bytes.bytes * 1024),
+	    MiB(KiB.bytes * 1024),
+	    GiB(MiB.bytes * 1024),
+	    TiB(GiB.bytes * 1024),
+	    PiB(TiB.bytes * 1024),
+	    EiB(PiB.bytes * 1024);
+
+	    private final long bytes;
+
+	    SizeUnit(long bytes) {
+	    	this.bytes = bytes;
+	    }
+	    
+	    public long getBytes() {
+			return bytes;
+		}
+	}
+	
+	private static DecimalFormat DEC_FORMAT = new DecimalFormat("#.##");
 	
 	public static final Charset DEFAULT_FILE_CHARSET = Charset.forName("UTF-8");
 	
@@ -164,5 +187,24 @@ public class FileUtils {
 		}
 		String fromZip = new String(baos.toByteArray(), charset);
 		return fromZip;
+	}
+	
+	
+	
+	public static String bytesToHumanReadable(long size) {
+		if (size < 0) {			
+			throw new IllegalArgumentException("Invalid file size: " + size);
+		}
+		
+		SizeUnit[] units = SizeUnit.values();
+		
+	    for (int i=units.length - 1; i>=0; i--) {
+	    	long unitBytes = units[i].getBytes();
+	    	if (size >= unitBytes) {
+	    		return DEC_FORMAT.format((double) size / unitBytes) + " " + units[i];
+	    	}
+	    }
+		
+	    return DEC_FORMAT.format(size) + " " + SizeUnit.Bytes;
 	}
 }

@@ -10,6 +10,11 @@ public class MarkdownClientException extends Exception {
 		this.statusCode = statusCode;
 	}
 
+	public MarkdownClientException(Throwable e) {
+		super(e);
+		this.statusCode = -1;
+	}
+
 	public int getStatusCode() {
 		return statusCode;
 	}

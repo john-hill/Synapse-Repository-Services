@@ -1,8 +1,5 @@
 package org.sagebionetworks.markdown;
 
-import java.io.IOException;
-
-import org.apache.http.client.ClientProtocolException;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,7 +24,7 @@ public class MarkdownDaoImpl implements MarkdownDao{
 	}
 
 	@Override
-	public String convertMarkdown(String rawMarkdown, String outputType) throws ClientProtocolException, IOException, JSONException, MarkdownClientException {
+	public String convertMarkdown(String rawMarkdown, String outputType) throws JSONException, MarkdownClientException {
 		if (rawMarkdown == null) {
 			throw new IllegalArgumentException("rawMarkdown cannot be null");
 		}

@@ -29,6 +29,7 @@ import org.sagebionetworks.repo.model.EntityHeader;
 import org.sagebionetworks.repo.model.EntityId;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.EntityTypeUtils;
+import org.sagebionetworks.repo.model.FileEntity;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.Reference;
 import org.sagebionetworks.repo.model.ServiceConstants;
@@ -327,7 +328,7 @@ public class EntityServiceImpl implements EntityService {
 		// Return the updated entity
 		return getEntity(userInfo, entityId, clazz, eventType);
 	}
-	
+		
 	@Override
 	@WriteTransaction
 	public void updateEntityFileHandle(Long userId, String entityId, Long versionNumber, FileHandleUpdateRequest updateRequest)
@@ -336,7 +337,19 @@ public class EntityServiceImpl implements EntityService {
 		
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		
+		FileEntity existingEntity = getEntityForVersion(userInfo, entityId, versionNumber, FileEntity.class);
+		
+		// Align the file handle to the new file handle id
+		existingEntity.setDataFileHandleId(updateRequest.getNewFileHandleId());
+		
+		EventType eventType = EventType.UPDATE_VERSION;
+		
+		// Fire the event
+		fireValidateEvent(userInfo, eventType, existingEntity, EntityType.file);
+		
 		entityManager.updateEntityFileHandle(userInfo, entityId, versionNumber, updateRequest);
+		
+		fireAfterUpdateEntityEvent(userInfo, existingEntity, EntityType.file, false);
 	}
 	
 	@WriteTransaction

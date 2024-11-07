@@ -1,7 +1,11 @@
 package org.sagebionetworks;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.io.File;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.List;
 import java.util.UUID;
 
@@ -11,8 +15,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.client.SynapseAdminClient;
 import org.sagebionetworks.client.SynapseClient;
+import org.sagebionetworks.client.exceptions.SynapseBadRequestException;
 import org.sagebionetworks.client.exceptions.SynapseException;
+import org.sagebionetworks.repo.model.ErrorResponseCode;
+import org.sagebionetworks.repo.model.FileEntity;
 import org.sagebionetworks.repo.model.Project;
+import org.sagebionetworks.repo.model.file.CloudProviderFileHandleInterface;
 import org.sagebionetworks.repo.model.file.UploadDestination;
 import org.sagebionetworks.repo.model.file.UploadType;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
@@ -21,6 +29,8 @@ import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
 import org.sagebionetworks.repo.model.project.ExternalObjectStorageLocationSetting;
 import org.sagebionetworks.repo.model.project.ProjectSettingsType;
 import org.sagebionetworks.repo.model.project.UploadDestinationListSetting;
+import org.sagebionetworks.util.Pair;
+import org.sagebionetworks.util.TimeUtils;
 
 @ExtendWith(ITTestExtension.class)
 public class ITProjectStorageTest {
@@ -29,6 +39,7 @@ public class ITProjectStorageTest {
 	private SynapseAdminClient adminClient;
 	private Long defaultMaxAllowedFileBytes;
 	private Project project;
+	private FileEntity fileEntity;
 	
 	public ITProjectStorageTest(StackConfiguration config, SynapseClient client, SynapseAdminClient adminClient) {
 		this.client = client;
@@ -43,11 +54,12 @@ public class ITProjectStorageTest {
 	
 	@AfterEach
 	public void after() throws SynapseException {
+		adminClient.deleteEntityById(fileEntity.getId(), true);
 		adminClient.deleteEntityById(project.getId(), true);
 	}
 	
 	@Test
-	public void testProjectStorageUsageAndLimits() throws SynapseException {
+	public void testProjectStorageUsageAndLimits() throws Exception {
 				
 		ProjectStorageLocationUsage expectedDefaultLocationUsage = new ProjectStorageLocationUsage()
 			.setStorageLocationId(1L)
@@ -55,11 +67,11 @@ public class ITProjectStorageTest {
 			.setMaxAllowedFileBytes(defaultMaxAllowedFileBytes)
 			.setIsOverLimit(false);
 		
-		assertEquals(new ProjectStorageUsage()
+		ProjectStorageUsage expectedStorageUsage = new ProjectStorageUsage()
 			.setProjectId(project.getId())
-			.setLocations(List.of(expectedDefaultLocationUsage)), 
-			client.getProjectStorageUsage(project.getId())
-		);
+			.setLocations(List.of(expectedDefaultLocationUsage)); 
+		
+		assertEquals(expectedStorageUsage, client.getProjectStorageUsage(project.getId()));
 		
 		// The default upload destination now contains the usage as well
 		UploadDestination defaultUploadDestination = client.getDefaultUploadDestination(project.getId()); 
@@ -76,11 +88,7 @@ public class ITProjectStorageTest {
 		
 		expectedDefaultLocationUsage.setMaxAllowedFileBytes(null);
 		
-		assertEquals(new ProjectStorageUsage()
-			.setProjectId(project.getId())
-			.setLocations(List.of(expectedDefaultLocationUsage)),
-			client.getProjectStorageUsage(project.getId())
-		);
+		assertEquals(expectedStorageUsage, client.getProjectStorageUsage(project.getId()));
 		
 		// Add a storage location to the project
 		Long externalStorageLocationId = client.createStorageLocationSetting(new ExternalObjectStorageLocationSetting()
@@ -100,13 +108,12 @@ public class ITProjectStorageTest {
 			.setMaxAllowedFileBytes(null)
 			.setIsOverLimit(false);
 		
-		assertEquals(new ProjectStorageUsage()
-			.setProjectId(project.getId())
-			.setLocations(List.of(
-				expectedDefaultLocationUsage,
-				expectedExternalLocationUsage
-			)), client.getProjectStorageUsage(project.getId())
-		);
+		expectedStorageUsage.setLocations(List.of(
+			expectedDefaultLocationUsage,
+			expectedExternalLocationUsage
+		));
+		
+		assertEquals(expectedStorageUsage, client.getProjectStorageUsage(project.getId()));
 		
 		// The default upload destination is now the external location and contains the usage as well
 		defaultUploadDestination = client.getDefaultUploadDestination(project.getId()); 
@@ -123,13 +130,56 @@ public class ITProjectStorageTest {
 		
 		expectedExternalLocationUsage.setMaxAllowedFileBytes(100L);
 		
-		assertEquals(new ProjectStorageUsage()
+		assertEquals(expectedStorageUsage, client.getProjectStorageUsage(project.getId()));
+		
+		// Now set a low limit on the default storage location and upload a file
+		adminClient.setProjectStorageLocationLimit(new ProjectStorageLocationLimit()
 			.setProjectId(project.getId())
-			.setLocations(List.of(
-				expectedDefaultLocationUsage,
-				expectedExternalLocationUsage
-			)), client.getProjectStorageUsage(project.getId())
+			.setStorageLocationId(expectedDefaultLocationUsage.getStorageLocationId())
+			.setMaxAllowedFileBytes(100L)
 		);
+		
+		CloudProviderFileHandleInterface fileHandle = client.multipartUpload(getTestFile(), null, false, true);
+		
+		fileEntity = client.createEntity(new FileEntity()
+			.setParentId(project.getId())
+			.setName(UUID.randomUUID().toString())
+			.setDataFileHandleId(fileHandle.getId())
+		);
+		
+		expectedDefaultLocationUsage
+			.setMaxAllowedFileBytes(100L)
+			.setSumFileBytes(fileHandle.getContentSize())
+			.setIsOverLimit(true);
+				
+		TimeUtils.waitFor(180_000, 1000, () -> {
+			return Pair.create(expectedStorageUsage.equals(client.getProjectStorageUsage(project.getId())), null);
+		});
+		
+		// Now that the limit is exceeded creating another file is not allowed
+		
+		SynapseBadRequestException ex = assertThrows(SynapseBadRequestException.class, () -> {
+			client.createEntity(new FileEntity()
+				.setParentId(project.getId())
+				.setName(UUID.randomUUID().toString())
+				.setDataFileHandleId(fileHandle.getId())
+			);
+		});
+
+		assertEquals(ErrorResponseCode.PROJECT_STORAGE_LIMIT_EXCEEDED, ex.getErrorResponseCode());
+		assertEquals("The project storage usage exceeds the limit for the storage location (Project: " + project.getId() + ", Storage Location: 1, Usage: "
+			+ fileHandle.getContentSize() + " Bytes, Limit: 100 Bytes).", ex.getMessage());
 	}
+	
+	private File getTestFile() {
+		URL fileUrl = ITProjectStorageTest.class.getClassLoader().getResource("images/LittleImage.png");
+		try {
+			return new File(fileUrl.toURI());
+		} catch (URISyntaxException e) {
+			throw new RuntimeException(e);
+		}
+	}
+	
+	
 
 }

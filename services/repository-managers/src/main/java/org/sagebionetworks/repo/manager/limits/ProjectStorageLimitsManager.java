@@ -53,7 +53,7 @@ public class ProjectStorageLimitsManager {
 	
 	public static final Long DEFAULT_STORAGE_LOCATION_ID = DBOStorageLocationDAOImpl.DEFAULT_STORAGE_LOCATION_ID;
 	
-	private static final Duration CACHE_UPDATE_FREQUENCY = Duration.ofMinutes(2);
+	static final Duration CACHE_UPDATE_FREQUENCY = Duration.ofMinutes(1);
 	
 	static ProjectStorageLocationUsage mapStorageLocationUsage(ProjectStorageLocationLimit limit, Long currentUsage) {
 		return new ProjectStorageLocationUsage()

@@ -9,7 +9,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Date;
@@ -105,7 +104,7 @@ public class ProjectStorageLimitsManagerTest {
 		ProjectStorageData data = new ProjectStorageData().setProjectId(projectId);
 		
 		when(mockClock.now()).thenReturn(now);
-		when(mockDao.isStorageDataModifiedOnAfter(projectId, now.toInstant().minus(Duration.ofMinutes(2)))).thenReturn(false);
+		when(mockDao.isStorageDataModifiedOnAfter(projectId, now.toInstant().minus(ProjectStorageLimitsManager.CACHE_UPDATE_FREQUENCY))).thenReturn(false);
 		when(mockReplicationDao.computeProjectStorageData(projectId)).thenReturn(data);
 		
 		// Call under test
@@ -121,7 +120,7 @@ public class ProjectStorageLimitsManagerTest {
 		Date now = Date.from(Instant.now());
 		
 		when(mockClock.now()).thenReturn(now);
-		when(mockDao.isStorageDataModifiedOnAfter(projectId, now.toInstant().minus(Duration.ofMinutes(2)))).thenReturn(true);
+		when(mockDao.isStorageDataModifiedOnAfter(projectId, now.toInstant().minus(ProjectStorageLimitsManager.CACHE_UPDATE_FREQUENCY))).thenReturn(true);
 		
 		// Call under test
 		manager.refreshProjectStorageData(projectId);

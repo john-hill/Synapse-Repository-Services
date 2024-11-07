@@ -231,4 +231,9 @@ public class StubFileMetadataDao implements FileHandleDao {
 		return null;
 	}
 
+	@Override
+	public Optional<Long> getStorageLocationId(Long fileHandleId) {
+		// TODO Auto-generated method stub
+		return Optional.empty();
+	}
 }

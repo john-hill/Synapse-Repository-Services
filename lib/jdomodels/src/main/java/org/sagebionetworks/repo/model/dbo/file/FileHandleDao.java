@@ -258,6 +258,13 @@ public interface FileHandleDao {
 	Long getContentSizeByKey(String bucketName, String key);
 	
 	/**
+	 * 
+	 * @param fileHandleId
+	 * @return The optional storage location id for the file handle with the given id
+	 */
+	Optional<Long> getStorageLocationId(Long fileHandleId);
+		
+	/**
 	 * Deleted all file data
 	 */
 	void truncateTable();

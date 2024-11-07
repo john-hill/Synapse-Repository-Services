@@ -7,6 +7,7 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_FILES_CR
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_FILES_ETAG;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_FILES_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_FILES_IS_PREVIEW;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_FILES_STORAGE_LOCATION_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_FILES_KEY;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_FILES_METADATA_TYPE;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_FILES_PREVIEW_ID;
@@ -582,6 +583,19 @@ public class DBOFileHandleDaoImpl implements FileHandleDao {
 		ValidateArgument.requiredNotBlank(key, "The key");
 		
 		return jdbcTemplate.queryForObject(SQL_SELECT_CONTENT_SIZE_BY_KEY, Long.class, key, bucketName);
+	}
+	
+	@Override
+	public Optional<Long> getStorageLocationId(Long fileHandleId) {
+		return jdbcTemplate.query("SELECT "+ COL_FILES_STORAGE_LOCATION_ID 
+			+ " FROM " + TABLE_FILES 
+			+ " WHERE " + COL_FILES_ID + "=?", rs -> {
+				if (rs.next()) {
+					Long storageLocationId = rs.getLong(COL_FILES_STORAGE_LOCATION_ID);
+					return rs.wasNull() ? Optional.empty() : Optional.of(storageLocationId);
+				}
+				return Optional.empty();
+			}, fileHandleId);
 	}
 
 	@WriteTransaction

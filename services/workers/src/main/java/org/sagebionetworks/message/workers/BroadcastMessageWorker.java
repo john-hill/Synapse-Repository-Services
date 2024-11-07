@@ -55,10 +55,10 @@ public class BroadcastMessageWorker implements ChangeMessageDrivenRunner{
 		try {
 			broadcastManager.broadcastMessage(admin, progressCallback, message);
 		} catch (MarkdownClientException e) {
-			log.error("Fail to broadcast message. Reason: "+e.getMessage()+". Status: "+e.getStatusCode());
+			log.error("Fail to broadcast message. Reason: "+e.getMessage()+". Status: "+e.getStatusCode(), e);
 			throw new RecoverableMessageException();
 		} catch (Exception e) {
-			log.error("Fail to broadcast message. "+e.getMessage());
+			log.error("Fail to broadcast message. "+e.getMessage(), e);
 		}
 	}
 

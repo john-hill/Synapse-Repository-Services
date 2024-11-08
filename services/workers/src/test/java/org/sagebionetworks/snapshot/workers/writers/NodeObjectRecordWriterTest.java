@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +34,7 @@ import org.sagebionetworks.repo.manager.trash.EntityInTrashCanException;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.AccessRequirementStats;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
+import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.RestrictableObjectType;
@@ -91,7 +93,8 @@ public class NodeObjectRecordWriterTest {
 		node = new NodeRecord();
 		node.setId("123");
 		node.setProjectId("1");
-		
+		node.setNodeType(EntityType.file);
+		node.setVersionHistory(Collections.emptyList());
 		stats = new AccessRequirementStats();
 		stats.setHasACT(true);
 		stats.setHasToU(false);

@@ -301,7 +301,7 @@ public class NodeDAOImplTest {
 	
 	public String createNodeWithMultipleVersions(int numberOfVersions) throws Exception {
 		String parentId = null;
-		return createNodeWithMultipleVersions(numberOfVersions, parentId);
+		return createNodeWithMultipleVersions(numberOfVersions, parentId, EntityType.file);
 	}
 	
 	/**
@@ -311,13 +311,13 @@ public class NodeDAOImplTest {
 	 * @throws NotFoundException 
 	 * @throws DatastoreException 
 	 */
-	public String createNodeWithMultipleVersions(int numberOfVersions, String parentId) throws Exception {
+	public String createNodeWithMultipleVersions(int numberOfVersions, String parentId, EntityType type) throws Exception {
 		Node node = privateCreateNew(UUID.randomUUID().toString());
 		// Start this node with version and comment information
 		node.setVersionComment("This is the very first version of this node.");
 		node.setVersionLabel("0.0.0");
 		node.setParentId(parentId);
-		node.setNodeType(EntityType.file);
+		node.setNodeType(type);
 		String id = nodeDao.createNew(node);
 		toDelete.add(id);
 		assertNotNull(id);
@@ -327,7 +327,9 @@ public class NodeDAOImplTest {
 			Node current = nodeDao.getNode(id);
 			current.setVersionComment("Comment "+i);
 			current.setVersionLabel("0.0."+i);
-			current.setFileHandleId(fileHandle.getId());
+			if(EntityType.file == type){
+				current.setFileHandleId(fileHandle.getId());
+			}
 			nodeDao.createNewVersion(current);
 		}
 		return id;
@@ -1231,6 +1233,7 @@ public class NodeDAOImplTest {
 		assertEquals(Long.toString(TEST_FILE_SIZE), firstResult.getContentSize());
 		//verify md5 (is set to filename in our test filehandle)
 		assertEquals(DigestUtils.md5Hex(fileHandle.getFileName()), firstResult.getContentMd5());
+		assertEquals(fileHandle.getId(), firstResult.getFileHandleId());
 		
 		// Get the latest version
 		Node currentNode = nodeDao.getNode(id);
@@ -1247,6 +1250,24 @@ public class NodeDAOImplTest {
 			Date modDate = nodeVersion.getModifiedOn();
 			assertEquals(modDate, vi.getModifiedOn());
 		}
+	}
+
+	@Test
+	public void testGetVersionsForFolder() throws Exception {
+		// Create a number of versions
+		int numberVersions = 10;
+		String id = createNodeWithMultipleVersions(numberVersions,null, EntityType.folder);
+		// Now list the versions
+		List<VersionInfo> versionsOfEntity = nodeDao.getVersionsOfEntity(id, 0, 10);
+		assertEquals(numberVersions, versionsOfEntity.size());
+		assertNotNull(versionsOfEntity);
+		assertEquals(numberVersions,versionsOfEntity.size());
+		VersionInfo firstResult = versionsOfEntity.get(0);
+		assertEquals(new Long(numberVersions), firstResult.getVersionNumber());
+		//There is no contentSize, md5 and fileHandleID for folder
+		assertNull(firstResult.getContentSize());
+		assertNull(firstResult.getContentMd5());
+		assertNull(firstResult.getFileHandleId());
 	}
 
 	@Test
@@ -5227,14 +5248,14 @@ public class NodeDAOImplTest {
 		});
 		int numberVersions = 3;
 		List<Long> idsInOne = Arrays.asList(
-				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId())),
-				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId())),
-				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId()))
+				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId(), EntityType.file)),
+				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId(), EntityType.file)),
+				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId(), EntityType.file))
 		);
 		List<Long> idsInTwo = Arrays.asList(
-				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectTwo.getId())),
-				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectTwo.getId())),
-				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectTwo.getId()))
+				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectTwo.getId(), EntityType.file)),
+				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectTwo.getId(), EntityType.file)),
+				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectTwo.getId(), EntityType.file))
 		);
 		// add a folder that should be excluded
 		Node folderInTwo = nodeDaoHelper.create(n -> {
@@ -5274,14 +5295,14 @@ public class NodeDAOImplTest {
 		});
 		int numberVersions = 3;
 		List<Long> idsInOne = Arrays.asList(
-				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId())),
-				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId())),
-				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId()))
+				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId(), EntityType.file)),
+				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId(), EntityType.file)),
+				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId(), EntityType.file))
 		);
 		List<Long> idsInTwo = Arrays.asList(
-				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectTwo.getId())),
-				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectTwo.getId())),
-				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectTwo.getId()))
+				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectTwo.getId(), EntityType.file)),
+				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectTwo.getId(), EntityType.file)),
+				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectTwo.getId(), EntityType.file))
 		);
 		
 		Set<SubType> subTypes = Sets.newHashSet(SubType.file);
@@ -5355,9 +5376,9 @@ public class NodeDAOImplTest {
 		});
 		int numberVersions = 3;
 		List<Long> idsInOne = Arrays.asList(
-				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId())),
-				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId())),
-				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId()))
+				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId(), EntityType.file)),
+				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId(), EntityType.file)),
+				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId(), EntityType.file))
 		);
 		
 		Set<Long> objectIds = idsInOne.stream().collect(Collectors.toSet());
@@ -5392,14 +5413,14 @@ public class NodeDAOImplTest {
 		});
 		int numberVersions = 3;
 		List<Long> idsInOne = Arrays.asList(
-				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId())),
-				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId())),
-				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId()))
+				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId(), EntityType.file)),
+				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId(), EntityType.file)),
+				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectOne.getId(), EntityType.file))
 		);
 		List<Long> idsInTwo = Arrays.asList(
-				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectTwo.getId())),
-				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectTwo.getId())),
-				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectTwo.getId()))
+				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectTwo.getId(), EntityType.file)),
+				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectTwo.getId(), EntityType.file)),
+				KeyFactory.stringToKey(createNodeWithMultipleVersions(numberVersions, projectTwo.getId(), EntityType.file))
 		);
 				
 		Set<Long> objectIds = new HashSet<Long>();

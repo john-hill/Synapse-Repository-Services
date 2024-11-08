@@ -33,6 +33,9 @@
       "type": "string",
       "description": "Calculated md5 of the associated file (when applicable and available)."
     },
+    "fileHandleId": {
+      "type": "string"
+    },
     "modifiedByPrincipalId": {
       "type": "string",
       "description": "The user that last modified this entity."

@@ -25,6 +25,13 @@
         		"type": "integer"
         	}
         },
+		"versionHistory": {
+			"description": "For Datasets and Dataset Collections, the list of entity references the define the view.",
+			"type": "array",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.VersionInfo"
+			}
+		},
         "annotations": {
         	"$ref": "org.sagebionetworks.repo.model.annotation.v2.Annotations"
         },

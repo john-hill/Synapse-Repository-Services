@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,7 +33,6 @@ import org.sagebionetworks.repo.manager.sts.StsManager;
 import org.sagebionetworks.repo.model.EntityHeader;
 import org.sagebionetworks.repo.model.FileEntity;
 import org.sagebionetworks.repo.model.Folder;
-import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.file.FileHandleDao;
@@ -42,9 +40,6 @@ import org.sagebionetworks.repo.model.file.FileEvent;
 import org.sagebionetworks.repo.model.file.FileEventType;
 import org.sagebionetworks.repo.model.file.FileHandleAssociateType;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
-import org.sagebionetworks.repo.service.metadata.EntityEvent;
-import org.sagebionetworks.repo.service.metadata.EventType;
-import org.sagebionetworks.repo.service.metadata.FileEntityMetadataProvider;
 
 @ExtendWith(MockitoExtension.class)
 public class FileEntityMetadataProviderTest {
@@ -67,10 +62,7 @@ public class FileEntityMetadataProviderTest {
 
 	@Mock
 	private ProjectStorageLimitsManager mockStorageLimitsManager;
-	
-	@Mock
-	private NodeDAO mockNodeDao;
-	
+		
 	@Mock
 	private FileHandleDao mockFileDao;
 	
@@ -111,13 +103,13 @@ public class FileEntityMetadataProviderTest {
 	}
 
 	@ParameterizedTest
-	@EnumSource(value = EventType.class, mode = Mode.INCLUDE, names = {"CREATE", "UPDATE", "UPDATE_VERSION", "NEW_VERSION"})
+	@EnumSource(value = EventType.class, mode = Mode.INCLUDE, names = {"CREATE", "UPDATE"})
 	public void testValidateEntity(EventType eventType) {
 		FileEntityMetadataProvider providerSpy = Mockito.spy(provider);
 		
 		EntityEvent event = new EntityEvent(eventType, path, userInfo);
 		
-		doNothing().when(providerSpy).validateProjectStorageLocationUsageLimit(fileEntity, event);
+		doNothing().when(providerSpy).validateProjectStorageLocationUsageLimit(fileEntity, path);
 		
 		// Method under test - Does not throw.
 		providerSpy.validateEntity(fileEntity, event);
@@ -127,7 +119,7 @@ public class FileEntityMetadataProviderTest {
 	}
 	
 	@ParameterizedTest
-	@EnumSource(value = EventType.class, mode = Mode.INCLUDE, names = {"CREATE", "UPDATE", "UPDATE_VERSION", "NEW_VERSION"})
+	@EnumSource(value = EventType.class, mode = Mode.INCLUDE, names = {"CREATE", "UPDATE"})
 	public void testValidateEntityWithoutDataFileHandleId(EventType eventType) {
 		fileEntity.setDataFileHandleId(null);
 		
@@ -137,7 +129,7 @@ public class FileEntityMetadataProviderTest {
 	}
 	
 	@ParameterizedTest
-	@EnumSource(value = EventType.class, mode = Mode.INCLUDE, names = {"CREATE", "UPDATE", "UPDATE_VERSION", "NEW_VERSION"})
+	@EnumSource(value = EventType.class, mode = Mode.INCLUDE, names = {"CREATE", "UPDATE"})
 	public void testValidateEntityWithFileNameOverride(EventType eventType) {
 		fileEntity.setFileNameOverride("fileNameOverride");
 		
@@ -147,7 +139,7 @@ public class FileEntityMetadataProviderTest {
 	}
 	
 	@ParameterizedTest
-	@EnumSource(value = EventType.class, mode = Mode.EXCLUDE, names = {"CREATE", "UPDATE", "UPDATE_VERSION", "NEW_VERSION"})
+	@EnumSource(value = EventType.class, mode = Mode.EXCLUDE, names = {"CREATE", "UPDATE"})
 	public void testValidateEntityWithUnsupportedEvents(EventType eventType) {
 				
 		// Method under test - Does not throw.
@@ -155,103 +147,27 @@ public class FileEntityMetadataProviderTest {
 
 		verifyZeroInteractions(mockStsManager, mockFileDao);
 	}
-	
+
 	@Test
-	public void testValidateProjectStorageLocationUsageLimitWithCreate() {
+	public void testValidateProjectStorageLocationUsageLimit() {
 		when(mockFileDao.getStorageLocationId(Long.valueOf(FILE_HANDLE_ID))).thenReturn(Optional.of(FILE_STORAGE_LOCATION_ID));
 		
 		// Call under test
-		provider.validateProjectStorageLocationUsageLimit(fileEntity, new EntityEvent(EventType.CREATE, path, userInfo));
+		provider.validateProjectStorageLocationUsageLimit(fileEntity, path);
 		
 		verify(mockStorageLimitsManager).verifyProjectStorageLocationUsageUnderLimit(PROJECT_ID, FILE_STORAGE_LOCATION_ID);
 		
-		verifyNoMoreInteractions(mockFileDao, mockNodeDao, mockStorageLimitsManager);
+		verifyNoMoreInteractions(mockFileDao, mockStorageLimitsManager);
 	}
 	
 	@Test
-	public void testValidateProjectStorageLocationUsageLimitWithCreateAndNoStorageLocation() {
+	public void testValidateProjectStorageLocationUsageLimitWithNoStorageLocation() {
 		when(mockFileDao.getStorageLocationId(Long.valueOf(FILE_HANDLE_ID))).thenReturn(Optional.empty());
 		
 		// Call under test
-		provider.validateProjectStorageLocationUsageLimit(fileEntity, new EntityEvent(EventType.CREATE, path, userInfo));
+		provider.validateProjectStorageLocationUsageLimit(fileEntity, path);
 				
-		verifyNoMoreInteractions(mockFileDao, mockNodeDao, mockStorageLimitsManager);
-	}
-	
-	@Test
-	public void testValidateProjectStorageLocationUsageLimitWithUpdate() {
-		
-		when(mockNodeDao.getFileHandleIdForVersion(fileEntity.getId(), null)).thenReturn("54321");
-		when(mockFileDao.getStorageLocationId(Long.valueOf(FILE_HANDLE_ID))).thenReturn(Optional.of(FILE_STORAGE_LOCATION_ID));
-		
-		// Call under test
-		provider.validateProjectStorageLocationUsageLimit(fileEntity, new EntityEvent(EventType.UPDATE, path, userInfo));
-		
-		verify(mockStorageLimitsManager).verifyProjectStorageLocationUsageUnderLimit(PROJECT_ID, FILE_STORAGE_LOCATION_ID);
-				
-		verifyNoMoreInteractions(mockFileDao, mockNodeDao, mockStorageLimitsManager);
-	}
-	
-	@Test
-	public void testValidateProjectStorageLocationUsageLimitWithUpdateAndSameFileHandle() {
-		when(mockNodeDao.getFileHandleIdForVersion(fileEntity.getId(), null)).thenReturn(FILE_HANDLE_ID);
-		
-		// Call under test
-		provider.validateProjectStorageLocationUsageLimit(fileEntity, new EntityEvent(EventType.UPDATE, path, userInfo));
-				
-		verifyNoMoreInteractions(mockFileDao, mockNodeDao, mockStorageLimitsManager);
-	}
-	
-	@Test
-	public void testValidateProjectStorageLocationUsageLimitWithUpdateAndDifferentFileHandleAndNoStorageLocation() {
-		
-		when(mockNodeDao.getFileHandleIdForVersion(fileEntity.getId(), null)).thenReturn("54321");
-		when(mockFileDao.getStorageLocationId(Long.valueOf(FILE_HANDLE_ID))).thenReturn(Optional.empty());
-		
-		// Call under test
-		provider.validateProjectStorageLocationUsageLimit(fileEntity, new EntityEvent(EventType.UPDATE, path, userInfo));
-						
-		verifyNoMoreInteractions(mockFileDao, mockNodeDao, mockStorageLimitsManager);
-	}
-	
-	@Test
-	public void testValidateProjectStorageLocationUsageLimitWithUpdateVersion() {
-		fileEntity.setVersionNumber(2L);
-		
-		when(mockNodeDao.getFileHandleIdForVersion(fileEntity.getId(), 2L)).thenReturn("54321");
-		when(mockFileDao.getStorageLocationId(Long.valueOf(FILE_HANDLE_ID))).thenReturn(Optional.of(FILE_STORAGE_LOCATION_ID));
-		
-		// Call under test
-		provider.validateProjectStorageLocationUsageLimit(fileEntity, new EntityEvent(EventType.UPDATE_VERSION, path, userInfo));
-		
-		verify(mockStorageLimitsManager).verifyProjectStorageLocationUsageUnderLimit(PROJECT_ID, FILE_STORAGE_LOCATION_ID);
-				
-		verifyNoMoreInteractions(mockFileDao, mockNodeDao, mockStorageLimitsManager);
-	}
-	
-	@Test
-	public void testValidateProjectStorageLocationUsageLimitWithUpdateVersionAndSameFileHandle() {
-		fileEntity.setVersionNumber(2L);
-		
-		when(mockNodeDao.getFileHandleIdForVersion(fileEntity.getId(), 2L)).thenReturn(FILE_HANDLE_ID);
-		
-		// Call under test
-		provider.validateProjectStorageLocationUsageLimit(fileEntity, new EntityEvent(EventType.UPDATE_VERSION, path, userInfo));
-				
-		verifyNoMoreInteractions(mockFileDao, mockNodeDao, mockStorageLimitsManager);
-	}
-	
-	@Test
-	public void testValidateProjectStorageLocationUsageLimitWithUpdateVersionAndDifferentFileHandleAndNoStorageLocation() {
-		fileEntity.setVersionNumber(2L);
-		
-		when(mockNodeDao.getFileHandleIdForVersion(fileEntity.getId(), 2L)).thenReturn("54321");
-		when(mockFileDao.getStorageLocationId(Long.valueOf(FILE_HANDLE_ID))).thenReturn(Optional.empty());
-		
-		// Call under test
-		provider.validateProjectStorageLocationUsageLimit(fileEntity, new EntityEvent(EventType.UPDATE_VERSION, path, userInfo));
-						
-		verifyNoMoreInteractions(mockFileDao, mockNodeDao, mockStorageLimitsManager);
+		verifyNoMoreInteractions(mockFileDao, mockStorageLimitsManager);
 	}
 
 	@Test

@@ -1,15 +1,15 @@
 package org.sagebionetworks.repo.service.metadata;
 
-import java.util.Optional;
+import java.util.List;
 
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.file.FileEventUtils;
 import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitsManager;
 import org.sagebionetworks.repo.manager.sts.StsManager;
 import org.sagebionetworks.repo.model.DatastoreException;
+import org.sagebionetworks.repo.model.EntityHeader;
 import org.sagebionetworks.repo.model.FileEntity;
 import org.sagebionetworks.repo.model.InvalidModelException;
-import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.dao.NodeUtils;
@@ -38,14 +38,12 @@ public class FileEntityMetadataProvider implements EntityValidator<FileEntity>, 
 	@Autowired
 	private ProjectStorageLimitsManager storageLimitsManager;
 	@Autowired
-	private NodeDAO nodeDao;
-	@Autowired
 	private FileHandleDao fileDao;
 	
 	@Override
 	public void validateEntity(FileEntity entity, EntityEvent event)
 			throws InvalidModelException, NotFoundException, DatastoreException, UnauthorizedException {
-		if (EventType.CREATE == event.getType() || EventType.UPDATE == event.getType() || EventType.NEW_VERSION == event.getType() || EventType.UPDATE_VERSION == event.getType()) {
+		if (EventType.CREATE == event.getType() || EventType.UPDATE == event.getType()) {
 			// This is for PLFM-1754.
 			if (entity.getDataFileHandleId() == null) {
 				throw new IllegalArgumentException("FileEntity.dataFileHandleId cannot be null");
@@ -55,38 +53,18 @@ public class FileEntityMetadataProvider implements EntityValidator<FileEntity>, 
 				throw new IllegalArgumentException(FILE_NAME_OVERRIDE_DEPRECATED_REASON);
 			}
 			
-			validateProjectStorageLocationUsageLimit(entity, event);
+			validateProjectStorageLocationUsageLimit(entity, event.getNewParentPath());
 			
 			// Note: Parent ID is validated as non-null by AllTypesValidatorImpl.
 			stsManager.validateCanAddFile(event.getUserInfo(), entity.getDataFileHandleId(), entity.getParentId());
 		}
 	}
 	
-	void validateProjectStorageLocationUsageLimit(FileEntity entity, EntityEvent event) {
+	void validateProjectStorageLocationUsageLimit(FileEntity entity, List<EntityHeader> newParentPath) {
 		Long newFileHandleId = KeyFactory.stringToKey(entity.getDataFileHandleId());
-		Long existingFileHandleId = null;
-		
-		switch (event.getType()) {
-		// A file entity version can be updated when its file handle is switched (e.g. migration to a different storage location)
-		case UPDATE_VERSION:
-			existingFileHandleId = Long.valueOf(nodeDao.getFileHandleIdForVersion(entity.getId(), entity.getVersionNumber()));
-			break;
-		case UPDATE:
-			existingFileHandleId = Long.valueOf(nodeDao.getFileHandleIdForVersion(entity.getId(), null));
-			break;
-		default:
-			break;
-		}
-		
-		// The file handle didn't change, nothing to do
-		if (newFileHandleId.equals(existingFileHandleId)) {
-			return;
-		}
-		
-		Optional<Long> checkStorageLocation = fileDao.getStorageLocationId(newFileHandleId);
-		
-		checkStorageLocation.ifPresent(storageLocationId -> {
-			String targetProjectId = NodeUtils.getProjectIdFromEntityPath(event.getNewParentPath());
+				
+		fileDao.getStorageLocationId(newFileHandleId).ifPresent(storageLocationId -> {
+			String targetProjectId = NodeUtils.getProjectIdFromEntityPath(newParentPath);
 			storageLimitsManager.verifyProjectStorageLocationUsageUnderLimit(targetProjectId, storageLocationId);
 		});
 	}

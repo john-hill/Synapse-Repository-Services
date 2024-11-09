@@ -342,7 +342,7 @@ public class EntityServiceImpl implements EntityService {
 		// Align the file handle to the new file handle id
 		existingEntity.setDataFileHandleId(updateRequest.getNewFileHandleId());
 		
-		EventType eventType = EventType.UPDATE_VERSION;
+		EventType eventType = EventType.UPDATE;
 		
 		// Fire the event
 		fireValidateEvent(userInfo, eventType, existingEntity, EntityType.file);

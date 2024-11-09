@@ -213,7 +213,7 @@ public class EntityServiceImplUnitTest {
 		
 		verify(mockEntityManager).updateEntityFileHandle(userInfo, ENTITY_ID, versionNumber, request);
 		verify(mockFileEntity).setDataFileHandleId("456");
-		verify(mockFileEntityProvider).validateEntity(mockFileEntity, new EntityEvent(EventType.UPDATE_VERSION, parentPath, userInfo));
+		verify(mockFileEntityProvider).validateEntity(mockFileEntity, new EntityEvent(EventType.UPDATE, parentPath, userInfo));
 		verify(mockFileEntityProvider).entityUpdated(userInfo, mockFileEntity, false);
 	}
 

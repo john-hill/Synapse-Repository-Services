@@ -114,7 +114,9 @@ public class ExceptionHandlers {
 		new TestEntry(409,
 				new ExceptionType("org.sagebionetworks.repo.web.FileHandleLinkedException", true)),
 		new TestEntry(401,
-				new ExceptionType("org.sagebionetworks.repo.web.TwoFactorAuthRequiredException", true))
+				new ExceptionType("org.sagebionetworks.repo.web.TwoFactorAuthRequiredException", true)),
+		new TestEntry(400, 
+				new ExceptionType("org.sagebionetworks.repo.web.ProjectStorageLimitExceededException", true))
 
 	};
 }

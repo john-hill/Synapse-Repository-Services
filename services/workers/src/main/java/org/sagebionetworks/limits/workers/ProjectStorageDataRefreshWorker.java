@@ -1,6 +1,6 @@
 package org.sagebionetworks.limits.workers;
 
-import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitManager;
+import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitsManager;
 import org.sagebionetworks.repo.model.limits.ProjectStorageEvent;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.sagebionetworks.worker.TypedMessageDrivenRunner;
@@ -12,9 +12,9 @@ import com.amazonaws.services.sqs.model.Message;
 @Service
 public class ProjectStorageDataRefreshWorker implements TypedMessageDrivenRunner<ProjectStorageEvent> {
 	
-	private ProjectStorageLimitManager manager;
+	private ProjectStorageLimitsManager manager;
 	
-	public ProjectStorageDataRefreshWorker(ProjectStorageLimitManager manager) {
+	public ProjectStorageDataRefreshWorker(ProjectStorageLimitsManager manager) {
 		this.manager = manager;
 	}
 

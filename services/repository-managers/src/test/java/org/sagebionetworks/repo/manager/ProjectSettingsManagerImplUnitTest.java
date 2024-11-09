@@ -27,7 +27,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitManager;
+import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitsManager;
 import org.sagebionetworks.repo.manager.storagelocation.StorageLocationProcessor;
 import org.sagebionetworks.repo.manager.trash.TrashManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -96,7 +96,7 @@ public class ProjectSettingsManagerImplUnitTest {
 	private TrashManager mockTrashManager;
 	
 	@Mock
-	private ProjectStorageLimitManager mockStorageLimitsManager;
+	private ProjectStorageLimitsManager mockStorageLimitsManager;
 
 	@InjectMocks
 	@Spy

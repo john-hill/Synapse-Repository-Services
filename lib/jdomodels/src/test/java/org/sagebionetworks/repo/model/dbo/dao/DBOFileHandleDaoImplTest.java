@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 import java.net.MalformedURLException;
 import java.sql.Timestamp;
@@ -1824,5 +1823,24 @@ public class DBOFileHandleDaoImplTest {
 		Long result = fileHandleDao.getContentSizeByKey(bucket, "key1");
 		
 		assertEquals(256L, result);
+	}
+	
+	@Test
+	public void testGetStorageLocationId() {
+		assertEquals(Optional.empty(), fileHandleDao.getStorageLocationId(-1L));
+		
+		DBOFileHandle fileWithStorageLocation = FileMetadataUtils.createDBOFromDTO(
+			TestUtils.createS3FileHandle(creatorUserGroupId, idGenerator.generateNewId(IdType.FILE_IDS).toString())
+				.setStorageLocationId(1L)
+		);
+		
+		DBOFileHandle fileWithoutStorageLocation = FileMetadataUtils.createDBOFromDTO(
+			TestUtils.createS3FileHandle(creatorUserGroupId, idGenerator.generateNewId(IdType.FILE_IDS).toString())
+		);
+		
+		fileHandleDao.createBatchDbo(List.of(fileWithStorageLocation, fileWithoutStorageLocation));
+		
+		assertEquals(Optional.of(1L), fileHandleDao.getStorageLocationId(fileWithStorageLocation.getId()));
+		assertEquals(Optional.empty(), fileHandleDao.getStorageLocationId(fileWithoutStorageLocation.getId()));
 	}
 }

@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.service.metadata;
 
 import java.util.List;
+import java.util.Objects;
 
 import org.sagebionetworks.repo.model.EntityHeader;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -61,5 +62,25 @@ public class EntityEvent {
 		this.userInfo = userInfo;
 	}
 
+	@Override
+	public int hashCode() {
+		return Objects.hash(newParentPath, type, userInfo);
+	}
 
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj) {
+			return true;
+		}
+		if (!(obj instanceof EntityEvent)) {
+			return false;
+		}
+		EntityEvent other = (EntityEvent) obj;
+		return Objects.equals(newParentPath, other.newParentPath) && type == other.type && Objects.equals(userInfo, other.userInfo);
+	}
+
+	@Override
+	public String toString() {
+		return String.format("EntityEvent [type=%s, newParentPath=%s, userInfo=%s]", type, newParentPath, userInfo);
+	}
 }

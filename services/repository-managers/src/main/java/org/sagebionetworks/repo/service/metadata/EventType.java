@@ -8,6 +8,7 @@ package org.sagebionetworks.repo.service.metadata;
 public enum EventType{
 	CREATE,
 	UPDATE,
+	UPDATE_VERSION,
 	GET,
 	DELETE,
 	NEW_VERSION

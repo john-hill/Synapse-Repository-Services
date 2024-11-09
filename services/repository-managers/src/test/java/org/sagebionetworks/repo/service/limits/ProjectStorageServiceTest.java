@@ -10,7 +10,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.UserManager;
-import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitManager;
+import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitsManager;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
 import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
@@ -22,7 +22,7 @@ public class ProjectStorageServiceTest {
 	private UserManager mockUserManager;
 	
 	@Mock
-	private ProjectStorageLimitManager mockLimitsManager;
+	private ProjectStorageLimitsManager mockLimitsManager;
 	
 	@InjectMocks
 	private ProjectStorageService service;

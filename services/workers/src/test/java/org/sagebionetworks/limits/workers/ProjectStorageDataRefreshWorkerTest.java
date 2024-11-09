@@ -7,7 +7,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitManager;
+import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitsManager;
 import org.sagebionetworks.repo.model.limits.ProjectStorageEvent;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
@@ -18,7 +18,7 @@ import com.amazonaws.services.sqs.model.Message;
 public class ProjectStorageDataRefreshWorkerTest {
 	
 	@Mock
-	private ProjectStorageLimitManager mockManager;
+	private ProjectStorageLimitsManager mockManager;
 	
 	@InjectMocks
 	private ProjectStorageDataRefreshWorker worker;

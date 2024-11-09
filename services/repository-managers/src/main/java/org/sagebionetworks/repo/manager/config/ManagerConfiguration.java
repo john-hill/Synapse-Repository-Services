@@ -32,7 +32,7 @@ import org.sagebionetworks.repo.manager.file.scanner.FileHandleAssociationScanne
 import org.sagebionetworks.repo.manager.file.scanner.RowMapperSupplier;
 import org.sagebionetworks.repo.manager.file.scanner.SerializedFieldRowMapperSupplier;
 import org.sagebionetworks.repo.manager.file.scanner.tables.TableFileHandleScanner;
-import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitManager;
+import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitsManager;
 import org.sagebionetworks.repo.manager.oauth.GoogleOAuth2Provider;
 import org.sagebionetworks.repo.manager.oauth.OAuthProviderBinding;
 import org.sagebionetworks.repo.manager.oauth.OIDCConfig;
@@ -366,7 +366,7 @@ public class ManagerConfiguration {
 	}
 	
 	@Bean
-	public SimpleTriggerFactoryBean projectStorageAccessTrigger(ProjectStorageLimitManager manager) {
+	public SimpleTriggerFactoryBean projectStorageAccessTrigger(ProjectStorageLimitsManager manager) {
 		return new SimpleTriggerBuilder()
 			.withRepeatInterval(10_000)
 			.withStartDelay(10)

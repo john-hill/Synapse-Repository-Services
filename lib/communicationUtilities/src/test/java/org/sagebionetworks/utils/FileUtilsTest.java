@@ -1,9 +1,11 @@
 package org.sagebionetworks.utils;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -18,9 +20,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.sagebionetworks.downloadtools.FileUtils;
 
 /**
@@ -32,12 +36,12 @@ public class FileUtilsTest {
 	
 	List<File> toDelete;
 	
-	@Before
+	@BeforeEach
 	public void before(){
 		toDelete = new ArrayList<File>();
 	}
 	
-	@After
+	@AfterEach
 	public void after(){
 		if(toDelete!=null){
 			for(File file: toDelete){
@@ -211,5 +215,31 @@ public class FileUtilsTest {
 		ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
 		String unzippedString = FileUtils.readStreamAsString(bais, charset, true);
 		assertEquals(markdown, unzippedString);
+	}
+	
+	@ParameterizedTest
+	@CsvSource({
+		"1,1 Bytes",
+		"946,946 Bytes",
+		"1024,1 KiB",
+		"2048,2 KiB",
+		"2560,2.5 KiB",
+		"1048576,1 MiB",
+		"1073741824,1 GiB",
+		"107374182400,100 GiB",
+		"107911053312,100.5 GiB",
+		"1099511627776,1 TiB",
+		"1125899906842624,1 PiB",
+		"1152921504606846976,1 EiB"
+	})
+	public void testBytesToHumanReadable(Long size, String expected) {
+		assertEquals(expected, FileUtils.bytesToHumanReadable(size));
+	}
+	
+	@Test
+	public void testBytesToHumanReadableWithNegativeSize() {
+		assertEquals("Invalid file size: -1", assertThrows(IllegalArgumentException.class, () -> {			
+			FileUtils.bytesToHumanReadable(-1);
+		}).getMessage());
 	}
 }

@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitManager;
+import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitsManager;
 import org.sagebionetworks.repo.manager.storagelocation.StorageLocationProcessor;
 import org.sagebionetworks.repo.manager.trash.TrashManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -63,7 +63,7 @@ public class ProjectSettingsManagerImpl implements ProjectSettingsManager {
 	private TrashManager trashManager;
 
 	@Autowired
-	private ProjectStorageLimitManager storageLimitsManager;
+	private ProjectStorageLimitsManager storageLimitsManager;
 	
 	private static final Map<Class<? extends ProjectSetting>, ProjectSettingsType> TYPE_MAP = ImmutableMap.of(
 		UploadDestinationListSetting.class, ProjectSettingsType.upload

@@ -29,21 +29,26 @@ import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.file.FileHandleUrlRequest;
 import org.sagebionetworks.repo.manager.sts.StsManager;
+import org.sagebionetworks.repo.model.EntityHeader;
 import org.sagebionetworks.repo.model.EntityType;
+import org.sagebionetworks.repo.model.FileEntity;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.file.download.v2.FileActionRequired;
 import org.sagebionetworks.repo.model.download.ActionRequiredList;
 import org.sagebionetworks.repo.model.download.EnableTwoFa;
 import org.sagebionetworks.repo.model.download.RequestDownload;
+import org.sagebionetworks.repo.model.entity.FileHandleUpdateRequest;
 import org.sagebionetworks.repo.model.sts.StsCredentials;
 import org.sagebionetworks.repo.model.sts.StsPermission;
 import org.sagebionetworks.repo.model.table.DefiningSqlEntityType;
 import org.sagebionetworks.repo.model.table.MaterializedView;
 import org.sagebionetworks.repo.model.table.ValidateDefiningSqlRequest;
 import org.sagebionetworks.repo.model.table.ValidateDefiningSqlResponse;
-import org.sagebionetworks.repo.service.EntityServiceImpl;
 import org.sagebionetworks.repo.service.metadata.AllTypesValidator;
+import org.sagebionetworks.repo.service.metadata.EntityEvent;
+import org.sagebionetworks.repo.service.metadata.EventType;
+import org.sagebionetworks.repo.service.metadata.FileEntityMetadataProvider;
 import org.sagebionetworks.repo.service.metadata.MetadataProviderFactory;
 import org.sagebionetworks.repo.service.metadata.TypeSpecificCreateProvider;
 import org.sagebionetworks.repo.service.metadata.TypeSpecificDefiningSqlProvider;
@@ -78,6 +83,10 @@ public class EntityServiceImplUnitTest {
 	TypeSpecificDefiningSqlProvider<MaterializedView> mockMaterializedViewDefiningSqlProvider;
 	@Mock
 	EntityAuthorizationManager mockAuthManager;
+	@Mock
+	private FileEntity mockFileEntity;
+	@Mock
+	private FileEntityMetadataProvider mockFileEntityProvider;
 
 	static final Long PRINCIPAL_ID = 101L;
 	UserInfo userInfo = null;
@@ -118,7 +127,7 @@ public class EntityServiceImplUnitTest {
 	}
 
 	@Test
-	public void testFireCreate() {
+	public void testCreateEntityFireCreate() {
 		when(mockUserManager.getUserInfo(PRINCIPAL_ID)).thenReturn(userInfo);
 		when(mockMetadataProviderFactory.getMetadataProvider(EntityType.project)).thenReturn(Optional.of(mockProjectCreateProvider));
 		// Call under test.
@@ -128,7 +137,7 @@ public class EntityServiceImplUnitTest {
 	}
 
 	@Test
-	public void testUpdateEntity_NullId() {
+	public void testUpdateEntityWithNullId() {
 		project.setId(null);
 
 		// Method under test.
@@ -139,7 +148,7 @@ public class EntityServiceImplUnitTest {
 	}
 
 	@Test
-	public void testFireUpdate() {
+	public void testUpdateEntity() {
 		boolean newVersion = true;
 		when(mockUserManager.getUserInfo(PRINCIPAL_ID)).thenReturn(userInfo);
 		when(mockMetadataProviderFactory.getMetadataProvider(EntityType.project)).thenReturn(Optional.of(mockProjectUpdateProvider));
@@ -151,7 +160,7 @@ public class EntityServiceImplUnitTest {
 	}
 
 	@Test
-	public void testFireUpdateNoNewVersion() {
+	public void testUpdateEntityWithNoNewVersion() {
 		boolean newVersion = false;
 		when(mockUserManager.getUserInfo(PRINCIPAL_ID)).thenReturn(userInfo);
 		when(mockMetadataProviderFactory.getMetadataProvider(EntityType.project)).thenReturn(Optional.of(mockProjectUpdateProvider));
@@ -169,7 +178,7 @@ public class EntityServiceImplUnitTest {
 	 * entity update.
 	 */
 	@Test
-	public void testFireUpdateTriggersNewVersion() {
+	public void testUpdateEntityWithNewVersion() {
 		boolean newVersionParameter = false;
 		final boolean wasNewVersionCreated = true;
 		when(mockUserManager.getUserInfo(PRINCIPAL_ID)).thenReturn(userInfo);
@@ -181,9 +190,35 @@ public class EntityServiceImplUnitTest {
 		verify(mockProjectCreateProvider, never()).entityCreated(any(UserInfo.class), any(Project.class));
 		verify(mockProjectUpdateProvider).entityUpdated(userInfo, project, wasNewVersionCreated);
 	}
+		
+	@Test
+	public void testUpdateEntityFileHandle() {
+		
+		Long versionNumber = 2L;
+		
+		FileHandleUpdateRequest request = new FileHandleUpdateRequest()
+			.setOldFileHandleId("123")
+			.setNewFileHandleId("456");
+		
+		List<EntityHeader> parentPath = List.of(new EntityHeader().setId("789"));
+		
+		when(mockUserManager.getUserInfo(PRINCIPAL_ID)).thenReturn(userInfo);
+		when(mockEntityManager.getEntityForVersion(userInfo, ENTITY_ID, versionNumber, FileEntity.class)).thenReturn(mockFileEntity);
+		when(mockMetadataProviderFactory.getMetadataProvider(EntityType.file)).thenReturn(Optional.of(mockFileEntityProvider));
+		when(mockFileEntity.getParentId()).thenReturn("789");
+		when(mockEntityManager.getEntityPathAsAdmin("789")).thenReturn(parentPath);		
+		
+		// Call under test
+		entityService.updateEntityFileHandle(userInfo.getId(), ENTITY_ID, versionNumber, request);
+		
+		verify(mockEntityManager).updateEntityFileHandle(userInfo, ENTITY_ID, versionNumber, request);
+		verify(mockFileEntity).setDataFileHandleId("456");
+		verify(mockFileEntityProvider).validateEntity(mockFileEntity, new EntityEvent(EventType.UPDATE_VERSION, parentPath, userInfo));
+		verify(mockFileEntityProvider).entityUpdated(userInfo, mockFileEntity, false);
+	}
 
 	@Test
-	public void getTemporaryCredentialsForEntity() {
+	public void testGetTemporaryCredentialsForEntity() {
 		// Mock dependencies.
 		when(mockUserManager.getUserInfo(PRINCIPAL_ID)).thenReturn(userInfo);
 

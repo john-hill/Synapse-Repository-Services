@@ -2,7 +2,7 @@ package org.sagebionetworks.migration.worker;
 
 import java.io.IOException;
 
-import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitManager;
+import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitsManager;
 import org.sagebionetworks.repo.manager.migration.MigrationManager;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -31,10 +31,10 @@ public class MigrationWorker implements AsyncJobRunner<AsyncMigrationRequest, As
 	
 	private MigrationManager migrationManager;
 	
-	private ProjectStorageLimitManager storageLimitsManager;
+	private ProjectStorageLimitsManager storageLimitsManager;
 
 	@Autowired
-	public MigrationWorker(MigrationManager migrationManager, ProjectStorageLimitManager storageLimitsManager) {
+	public MigrationWorker(MigrationManager migrationManager, ProjectStorageLimitsManager storageLimitsManager) {
 		this.migrationManager = migrationManager;
 		this.storageLimitsManager = storageLimitsManager;
 	}

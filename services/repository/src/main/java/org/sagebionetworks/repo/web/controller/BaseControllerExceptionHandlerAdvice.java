@@ -50,6 +50,7 @@ import org.sagebionetworks.repo.web.OAuthBadRequestException;
 import org.sagebionetworks.repo.web.OAuthException;
 import org.sagebionetworks.repo.web.OAuthForbiddenException;
 import org.sagebionetworks.repo.web.OAuthUnauthenticatedException;
+import org.sagebionetworks.repo.web.ProjectStorageLimitExceededException;
 import org.sagebionetworks.repo.web.ServiceUnavailableException;
 import org.sagebionetworks.repo.web.TemporarilyUnavailableException;
 import org.sagebionetworks.repo.web.TwoFactorAuthRequiredException;
@@ -1057,7 +1058,12 @@ public class BaseControllerExceptionHandlerAdvice {
 		return handleException(ex, request, false, ErrorResponseCode.INVALID_TABLE_QUERY_FACET_COLUMN_REQUEST);
 	}
 
-
+	@ExceptionHandler(ProjectStorageLimitExceededException.class)
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	public @ResponseBody BaseError handleProjectStorageLimitExceededException(ProjectStorageLimitExceededException ex, HttpServletRequest request){
+		return handleException(ex, request, false, ErrorResponseCode.PROJECT_STORAGE_LIMIT_EXCEEDED);
+	}
+	
 	@ExceptionHandler(NoHandlerFoundException.class)
 	@ResponseStatus(HttpStatus.NOT_FOUND)
 	public @ResponseBody

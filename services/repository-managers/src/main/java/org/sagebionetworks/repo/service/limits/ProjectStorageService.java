@@ -1,7 +1,7 @@
 package org.sagebionetworks.repo.service.limits;
 
 import org.sagebionetworks.repo.manager.UserManager;
-import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitManager;
+import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitsManager;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
 import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
@@ -12,9 +12,9 @@ public class ProjectStorageService {
 
 	private UserManager userManager;
 	
-	private ProjectStorageLimitManager storageLimitsManager;
+	private ProjectStorageLimitsManager storageLimitsManager;
 	
-	public ProjectStorageService(UserManager userManager, ProjectStorageLimitManager storageLimitsManager) {
+	public ProjectStorageService(UserManager userManager, ProjectStorageLimitsManager storageLimitsManager) {
 		this.userManager = userManager;
 		this.storageLimitsManager = storageLimitsManager;
 	}

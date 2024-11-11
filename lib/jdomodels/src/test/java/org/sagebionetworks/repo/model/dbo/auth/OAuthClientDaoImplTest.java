@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -24,7 +23,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.NextPageToken;
-import org.sagebionetworks.repo.model.UnmodifiableXStream;
 import org.sagebionetworks.repo.model.auth.OAuthClientDao;
 import org.sagebionetworks.repo.model.auth.OAuthRefreshTokenDao;
 import org.sagebionetworks.repo.model.auth.SectorIdentifier;
@@ -595,16 +593,4 @@ public class OAuthClientDaoImplTest {
 		assertNull(results.getNextPageToken());
 	}
 
-	@Test
-	public void testMigrationPropertiesToJson() throws IOException {
-
-		OAuthClient dto = newDTO(123L, "foo");
-		DBOOAuthClient dbo = new DBOOAuthClient();
-		dbo.setProperties(JDOSecondaryPropertyUtils
-				.compressObject(UnmodifiableXStream.builder().allowTypes(OAuthClient.class).build(), dto));
-		// call under test
-		DBOOAuthClient translated = dbo.getTranslator().createDatabaseObjectFromBackup(dbo);
-		assertNull(translated.getProperties());
-		assertEquals(JDOSecondaryPropertyUtils.createJSONFromObject(dto), translated.getJson());
-	}
 }

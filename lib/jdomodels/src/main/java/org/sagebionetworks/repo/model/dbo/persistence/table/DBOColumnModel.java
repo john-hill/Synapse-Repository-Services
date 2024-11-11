@@ -16,6 +16,7 @@ import java.util.Objects;
 import org.sagebionetworks.repo.model.dbo.FieldColumn;
 import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
 import org.sagebionetworks.repo.model.dbo.TableMapping;
+import org.sagebionetworks.repo.model.dbo.migration.BasicMigratableTableTranslation;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
 import org.sagebionetworks.repo.model.dbo.migration.MigrateFromXStreamToJSON;
 import org.sagebionetworks.repo.model.dbo.migration.XStreamToJsonTranslator;
@@ -39,7 +40,6 @@ public class DBOColumnModel implements MigratableDatabaseObject<DBOColumnModel, 
 	private Long id;
 	private String name;
 	private String hash;
-	private byte[] bytes;
 	private String json;
 
 	@Override
@@ -102,14 +102,6 @@ public class DBOColumnModel implements MigratableDatabaseObject<DBOColumnModel, 
 		this.hash = hash;
 	}
 
-	public byte[] getBytes() {
-		return bytes;
-	}
-
-	public void setBytes(byte[] bytes) {
-		this.bytes = bytes;
-	}
-
 	@Override
 	public MigrationType getMigratableTableType() {
 		return MigrationType.COLUMN_MODEL;
@@ -125,9 +117,7 @@ public class DBOColumnModel implements MigratableDatabaseObject<DBOColumnModel, 
 
 	@Override
 	public MigratableTableTranslation<DBOColumnModel, DBOColumnModel> getTranslator() {
-		return new MigrateFromXStreamToJSON<DBOColumnModel>(
-				XStreamToJsonTranslator.builder().setXStream(ColumnModelUtils.X_STREAM).setFromName("bytes")
-						.setToName("json").setDboType(getBackupClass()).setDtoType(ColumnModel.class).build());
+		return new BasicMigratableTableTranslation<>();
 	}
 	@Override
 	public Class<? extends DBOColumnModel> getBackupClass() {

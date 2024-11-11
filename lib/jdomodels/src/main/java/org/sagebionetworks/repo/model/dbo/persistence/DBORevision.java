@@ -28,13 +28,11 @@ import java.util.Objects;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.sagebionetworks.repo.model.Reference;
 import org.sagebionetworks.repo.model.dbo.FieldColumn;
 import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
 import org.sagebionetworks.repo.model.dbo.TableMapping;
+import org.sagebionetworks.repo.model.dbo.migration.BasicMigratableTableTranslation;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
-import org.sagebionetworks.repo.model.dbo.migration.MigrateFromXStreamToJSON;
-import org.sagebionetworks.repo.model.dbo.migration.XStreamToJsonTranslator;
 import org.sagebionetworks.repo.model.migration.MigrationType;
 
 /**
@@ -117,7 +115,6 @@ public class DBORevision implements MigratableDatabaseObject<DBORevision, DBORev
 	private byte[] scopeIds;
 	private String items;
 	private byte[] entityPropertyAnnotations;
-	private byte[] reference;
 	private String referenceJson;
 	private String userAnnotationsJSON;
 	private Boolean isSearchEnabled;
@@ -167,12 +164,7 @@ public class DBORevision implements MigratableDatabaseObject<DBORevision, DBORev
 	public void setModifiedOn(Long modifiedOn) {
 		this.modifiedOn = modifiedOn;
 	}
-	public byte[] getReference() {
-		return reference;
-	}
-	public void setReference(byte[] reference) {
-		this.reference = reference;
-	}	
+
 	public Long getActivityId() {
 		return activityId;
 	}
@@ -263,9 +255,7 @@ public class DBORevision implements MigratableDatabaseObject<DBORevision, DBORev
 	}
 	@Override
 	public MigratableTableTranslation<DBORevision, DBORevision> getTranslator() {
-		return new MigrateFromXStreamToJSON<DBORevision>(
-				XStreamToJsonTranslator.builder().setFromName("reference").setToName("referenceJson")
-						.setDboType(getBackupClass()).setDtoType(Reference.class).build());
+		return new BasicMigratableTableTranslation<>();
 	}
 	
 	@Override
@@ -299,7 +289,7 @@ public class DBORevision implements MigratableDatabaseObject<DBORevision, DBORev
 				&& Objects.equals(isSearchEnabled, other.isSearchEnabled) && Objects.equals(items, other.items)
 				&& Objects.equals(label, other.label) && Objects.equals(modifiedBy, other.modifiedBy)
 				&& Objects.equals(modifiedOn, other.modifiedOn) && Objects.equals(owner, other.owner)
-				&& Arrays.equals(reference, other.reference) && Objects.equals(referenceJson, other.referenceJson)
+				&& Objects.equals(referenceJson, other.referenceJson)
 				&& Objects.equals(revisionNumber, other.revisionNumber) && Arrays.equals(scopeIds, other.scopeIds)
 				&& Objects.equals(userAnnotationsJSON, other.userAnnotationsJSON);
 	}
@@ -310,7 +300,6 @@ public class DBORevision implements MigratableDatabaseObject<DBORevision, DBORev
 		int result = 1;
 		result = prime * result + Arrays.hashCode(columnModelIds);
 		result = prime * result + Arrays.hashCode(entityPropertyAnnotations);
-		result = prime * result + Arrays.hashCode(reference);
 		result = prime * result + Arrays.hashCode(scopeIds);
 		result = prime * result
 				+ Objects.hash(activityId, comment, definingSQL, description, fileHandleId, isSearchEnabled, items,
@@ -324,8 +313,8 @@ public class DBORevision implements MigratableDatabaseObject<DBORevision, DBORev
 				+ ", label=" + label + ", comment=" + comment + ", description=" + description + ", modifiedBy="
 				+ modifiedBy + ", modifiedOn=" + modifiedOn + ", fileHandleId=" + fileHandleId + ", columnModelIds="
 				+ Arrays.toString(columnModelIds) + ", scopeIds=" + Arrays.toString(scopeIds) + ", items=" + items
-				+ ", entityPropertyAnnotations=" + Arrays.toString(entityPropertyAnnotations) + ", reference="
-				+ Arrays.toString(reference) + ", referenceJson=" + referenceJson + ", userAnnotationsJSON="
-				+ userAnnotationsJSON + ", isSearchEnabled=" + isSearchEnabled + ", definingSQL=" + definingSQL + "]";
+				+ ", entityPropertyAnnotations=" + Arrays.toString(entityPropertyAnnotations) + ", referenceJson="
+				+ referenceJson + ", userAnnotationsJSON=" + userAnnotationsJSON + ", isSearchEnabled="
+				+ isSearchEnabled + ", definingSQL=" + definingSQL + "]";
 	}
 }

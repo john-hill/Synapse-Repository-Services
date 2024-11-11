@@ -15,19 +15,15 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_QUIZ_R
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
 import org.sagebionetworks.repo.model.dbo.FieldColumn;
 import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
 import org.sagebionetworks.repo.model.dbo.TableMapping;
+import org.sagebionetworks.repo.model.dbo.migration.BasicMigratableTableTranslation;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
-import org.sagebionetworks.repo.model.dbo.migration.MigrateFromXStreamToJSON;
-import org.sagebionetworks.repo.model.dbo.migration.XStreamToJsonTranslator;
 import org.sagebionetworks.repo.model.migration.MigrationType;
-import org.sagebionetworks.repo.model.quiz.PassingRecord;
-import org.sagebionetworks.repo.model.quiz.QuizResponse;
 
 public class DBOQuizResponse implements MigratableDatabaseObject<DBOQuizResponse, DBOQuizResponse> {
 
@@ -51,9 +47,7 @@ public class DBOQuizResponse implements MigratableDatabaseObject<DBOQuizResponse
 	private Long quizId;
 	private Long score;
 	private Boolean passed;
-	private byte[] serialized;
 	private String responseJson;
-	private byte[] passingRecord;
 	private String passingJson;
 
 	@Override
@@ -108,11 +102,7 @@ public class DBOQuizResponse implements MigratableDatabaseObject<DBOQuizResponse
 
 	@Override
 	public MigratableTableTranslation<DBOQuizResponse, DBOQuizResponse> getTranslator() {
-		return new MigrateFromXStreamToJSON<DBOQuizResponse>(
-				XStreamToJsonTranslator.builder().setFromName("serialized").setToName("responseJson")
-						.setDboType(getBackupClass()).setDtoType(QuizResponse.class).build(),
-				XStreamToJsonTranslator.builder().setFromName("passingRecord").setToName("passingJson")
-						.setDboType(getBackupClass()).setDtoType(PassingRecord.class).build());
+		return new BasicMigratableTableTranslation<>();
 	}
 
 	@Override
@@ -194,22 +184,6 @@ public class DBOQuizResponse implements MigratableDatabaseObject<DBOQuizResponse
 		this.passed = passed;
 	}
 
-	public byte[] getSerialized() {
-		return serialized;
-	}
-
-	public void setSerialized(byte[] serialized) {
-		this.serialized = serialized;
-	}
-
-	public byte[] getPassingRecord() {
-		return passingRecord;
-	}
-
-	public void setPassingRecord(byte[] passingRecord) {
-		this.passingRecord = passingRecord;
-	}
-
 	public String getResponseJson() {
 		return responseJson;
 	}
@@ -228,34 +202,31 @@ public class DBOQuizResponse implements MigratableDatabaseObject<DBOQuizResponse
 
 	@Override
 	public int hashCode() {
-		final int prime = 31;
-		int result = 1;
-		result = prime * result + Arrays.hashCode(passingRecord);
-		result = prime * result + Arrays.hashCode(serialized);
-		result = prime * result + Objects.hash(createdBy, createdOn, etag, id, passed, quizId, revokedOn, score);
-		return result;
+		return Objects.hash(createdBy, createdOn, etag, id, passed, passingJson, quizId, responseJson, revokedOn,
+				score);
 	}
 
 	@Override
 	public boolean equals(Object obj) {
-		if (this == obj) {
+		if (this == obj)
 			return true;
-		}
-		if (!(obj instanceof DBOQuizResponse)) {
+		if (obj == null)
 			return false;
-		}
+		if (getClass() != obj.getClass())
+			return false;
 		DBOQuizResponse other = (DBOQuizResponse) obj;
 		return Objects.equals(createdBy, other.createdBy) && Objects.equals(createdOn, other.createdOn)
 				&& Objects.equals(etag, other.etag) && Objects.equals(id, other.id)
-				&& Objects.equals(passed, other.passed) && Arrays.equals(passingRecord, other.passingRecord)
-				&& Objects.equals(quizId, other.quizId) && Objects.equals(revokedOn, other.revokedOn)
-				&& Objects.equals(score, other.score) && Arrays.equals(serialized, other.serialized);
+				&& Objects.equals(passed, other.passed) && Objects.equals(passingJson, other.passingJson)
+				&& Objects.equals(quizId, other.quizId) && Objects.equals(responseJson, other.responseJson)
+				&& Objects.equals(revokedOn, other.revokedOn) && Objects.equals(score, other.score);
 	}
 
 	@Override
 	public String toString() {
 		return "DBOQuizResponse [id=" + id + ", etag=" + etag + ", createdBy=" + createdBy + ", createdOn=" + createdOn
-				+ ", revokedOn=" + revokedOn + ", quizId=" + quizId + ", score=" + score + ", passed=" + passed + "]";
+				+ ", revokedOn=" + revokedOn + ", quizId=" + quizId + ", score=" + score + ", passed=" + passed
+				+ ", responseJson=" + responseJson + ", passingJson=" + passingJson + "]";
 	}
 
 }

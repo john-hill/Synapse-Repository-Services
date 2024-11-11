@@ -120,7 +120,7 @@ public class NodeObjectRecordWriter implements ObjectRecordWriter {
 						 * current version is excluded from the results by incrementing the offset by
 						 * one.
 						 */
-						DEFAULT_OFFSET += 1L;
+						DEFAULT_OFFSET = 1L;
 					}
 
 					List<VersionInfo> versionInfoList = nodeDAO.getVersionsOfEntity(message.getObjectId(), DEFAULT_OFFSET, DEFAULT_LIMIT);

@@ -22,7 +22,6 @@ import static org.sagebionetworks.repo.model.query.SQLConstants.TABLE_SUBSTATUS;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -31,6 +30,7 @@ import org.sagebionetworks.evaluation.model.SubmissionStatusEnum;
 import org.sagebionetworks.repo.model.dbo.FieldColumn;
 import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
 import org.sagebionetworks.repo.model.dbo.TableMapping;
+import org.sagebionetworks.repo.model.dbo.migration.BasicMigratableTableTranslation;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
 import org.sagebionetworks.repo.model.dbo.migration.MigrateFromXStreamToJSON;
 import org.sagebionetworks.repo.model.dbo.migration.XStreamToJsonTranslator;
@@ -98,7 +98,6 @@ public class SubmissionStatusDBO implements MigratableDatabaseObject<SubmissionS
 	private int status;
 	private String annotations;
 	private Double score;
-	private byte[] serializedEntity;
 	private String entityJson;
 
 	public String getEntityJson() {
@@ -166,14 +165,6 @@ public class SubmissionStatusDBO implements MigratableDatabaseObject<SubmissionS
 		this.version = version;
 	}
 	
-	public byte[] getSerializedEntity() {
-		return serializedEntity;
-	}
-	
-	public void setSerializedEntity(byte[] serializedEntity) {
-		this.serializedEntity = serializedEntity;
-	}
-	
 	@Override
 	public MigrationType getMigratableTableType() {
 		return MigrationType.SUBMISSION_STATUS;
@@ -181,9 +172,9 @@ public class SubmissionStatusDBO implements MigratableDatabaseObject<SubmissionS
 	
 	@Override
 	public MigratableTableTranslation<SubmissionStatusDBO, SubmissionStatusDBO> getTranslator() {
-		return new MigrateFromXStreamToJSON<SubmissionStatusDBO>(
-				XStreamToJsonTranslator.builder().setFromName("serializedEntity").setToName("entityJson")
-						.setDboType(getBackupClass()).setDtoType(SubmissionStatus.class).build());	}
+		return new BasicMigratableTableTranslation<>();
+	}
+	
 	@Override
 	public Class<? extends SubmissionStatusDBO> getBackupClass() {
 		return SubmissionStatusDBO.class;
@@ -199,11 +190,7 @@ public class SubmissionStatusDBO implements MigratableDatabaseObject<SubmissionS
 	
 	@Override
 	public int hashCode() {
-		final int prime = 31;
-		int result = 1;
-		result = prime * result + Arrays.hashCode(serializedEntity);
-		result = prime * result + Objects.hash(annotations, eTag, entityJson, id, modifiedOn, score, status, version);
-		return result;
+		return Objects.hash(annotations, eTag, entityJson, id, modifiedOn, score, status, version);
 	}
 	
 	@Override
@@ -218,14 +205,13 @@ public class SubmissionStatusDBO implements MigratableDatabaseObject<SubmissionS
 		return Objects.equals(annotations, other.annotations) && Objects.equals(eTag, other.eTag)
 				&& Objects.equals(entityJson, other.entityJson) && Objects.equals(id, other.id)
 				&& Objects.equals(modifiedOn, other.modifiedOn) && Objects.equals(score, other.score)
-				&& Arrays.equals(serializedEntity, other.serializedEntity) && status == other.status
-				&& Objects.equals(version, other.version);
+				&& status == other.status && Objects.equals(version, other.version);
 	}
 	@Override
 	public String toString() {
 		return "SubmissionStatusDBO [id=" + id + ", eTag=" + eTag + ", version=" + version + ", modifiedOn="
 				+ modifiedOn + ", status=" + status + ", annotations=" + annotations + ", score=" + score
-				+ ", serializedEntity=" + Arrays.toString(serializedEntity) + ", entityJson=" + entityJson + "]";
+				+ ", entityJson=" + entityJson + "]";
 	}
 	
 }

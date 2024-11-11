@@ -284,8 +284,6 @@ public class EvaluationDBO implements MigratableDatabaseObject<EvaluationDBO, Ev
 				&& Arrays.equals(submissionReceiptMessage, other.submissionReceiptMessage);
 	}
 	
-	public static UnmodifiableXStream XSTREAM = UnmodifiableXStream.builder().allowTypes(SubmissionQuota.class).build();
-
 	@Override
 	public MigratableTableTranslation<EvaluationDBO, EvaluationBackup> getTranslator() {
 		

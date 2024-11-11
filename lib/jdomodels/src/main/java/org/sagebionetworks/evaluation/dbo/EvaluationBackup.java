@@ -14,7 +14,6 @@ public class EvaluationBackup {
 	private int status;
 	private byte[] submissionInstructions;
 	private byte[] submissionReceiptMessage;
-	private byte[] quota;
 	private String quotaJson;
 	private Long startTimestamp;
 	private Long endTimestamp;
@@ -87,14 +86,6 @@ public class EvaluationBackup {
 		this.submissionReceiptMessage = submissionReceiptMessage;
 	}
 	
-	public byte[] getQuota() {
-		return quota;
-	}
-	public void setQuota(byte[] quota) {
-		this.quota = quota;
-	}
-	
-	
 	public Long getStartTimestamp() {
 		return startTimestamp;
 	}
@@ -112,7 +103,6 @@ public class EvaluationBackup {
 		final int prime = 31;
 		int result = 1;
 		result = prime * result + Arrays.hashCode(description);
-		result = prime * result + Arrays.hashCode(quota);
 		result = prime * result + Arrays.hashCode(submissionInstructions);
 		result = prime * result + Arrays.hashCode(submissionReceiptMessage);
 		result = prime * result + Objects.hash(contentSource, createdOn, eTag, endTimestamp, id, name, ownerId,
@@ -132,9 +122,8 @@ public class EvaluationBackup {
 				&& Arrays.equals(description, other.description) && Objects.equals(eTag, other.eTag)
 				&& Objects.equals(endTimestamp, other.endTimestamp) && Objects.equals(id, other.id)
 				&& Objects.equals(name, other.name) && Objects.equals(ownerId, other.ownerId)
-				&& Arrays.equals(quota, other.quota) && Objects.equals(quotaJson, other.quotaJson)
-				&& Objects.equals(startTimestamp, other.startTimestamp) && status == other.status
-				&& Arrays.equals(submissionInstructions, other.submissionInstructions)
+				&& Objects.equals(quotaJson, other.quotaJson) && Objects.equals(startTimestamp, other.startTimestamp)
+				&& status == other.status && Arrays.equals(submissionInstructions, other.submissionInstructions)
 				&& Arrays.equals(submissionReceiptMessage, other.submissionReceiptMessage);
 	}
 	@Override
@@ -143,7 +132,7 @@ public class EvaluationBackup {
 				+ Arrays.toString(description) + ", ownerId=" + ownerId + ", createdOn=" + createdOn
 				+ ", contentSource=" + contentSource + ", status=" + status + ", submissionInstructions="
 				+ Arrays.toString(submissionInstructions) + ", submissionReceiptMessage="
-				+ Arrays.toString(submissionReceiptMessage) + ", quota=" + Arrays.toString(quota) + ", startTimestamp="
+				+ Arrays.toString(submissionReceiptMessage) + ", quotaJson=" + quotaJson + ", startTimestamp="
 				+ startTimestamp + ", endTimestamp=" + endTimestamp + "]";
 	}
 	

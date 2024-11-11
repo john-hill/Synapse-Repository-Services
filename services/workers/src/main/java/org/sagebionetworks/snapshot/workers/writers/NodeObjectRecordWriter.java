@@ -25,7 +25,6 @@ import org.sagebionetworks.repo.model.annotation.v2.Annotations;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsV2Translator;
 import org.sagebionetworks.repo.model.audit.NodeRecord;
 import org.sagebionetworks.repo.model.auth.UserEntityPermissions;
-import org.sagebionetworks.repo.model.dao.table.TableType;
 import org.sagebionetworks.repo.model.dbo.schema.DerivedAnnotationDao;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
 import org.sagebionetworks.repo.model.message.ChangeType;
@@ -40,7 +39,7 @@ public class NodeObjectRecordWriter implements ObjectRecordWriter {
 		
 	private static final String KINESIS_STREAM = "nodeSnapshots";
 	public static final long DEFAULT_LIMIT = 50000L;
-	public static long DEFAULT_OFFSET = 0L;
+	public static final long DEFAULT_OFFSET = 0L;
 	
 	private static Logger log = LogManager.getLogger(NodeObjectRecordWriter.class);
 
@@ -113,15 +112,6 @@ public class NodeObjectRecordWriter implements ObjectRecordWriter {
 			} else {
 				try {
 					Node node = nodeDAO.getNode(message.getObjectId());
-
-					if (TableType.lookupByEntityType(node.getNodeType()).isPresent()) {
-						/*
-						 * Snapshots do not exist for the current version of tables/views. Therefore the
-						 * current version is excluded from the results by incrementing the offset by
-						 * one.
-						 */
-						DEFAULT_OFFSET = 1L;
-					}
 
 					List<VersionInfo> versionInfoList = nodeDAO.getVersionsOfEntity(message.getObjectId(), DEFAULT_OFFSET, DEFAULT_LIMIT);
 					NodeRecord record = new NodeRecord();

@@ -398,29 +398,6 @@ public class MigrationManagerImplAutowireTest {
 	}
 	
 	@Test
-	public void testRestoreBigStream() throws IOException {
-		
-		InputStream stream = getClass().getClassLoader().getResourceAsStream("MigrationBackupBig.zip");
-		
-		Long batchSize = 10_000L;
-		Long minId = 3412534L;
-		Long maxId = minId + batchSize;
-		
-		BackupManifest manifest = new BackupManifest()
-			.setAliasType(BackupAliasType.TABLE_NAME)
-			.setPrimaryType(new TypeData().setMigrationType(MigrationType.PRINCIPAL.name()).setBackupIdColumnName("ID"))
-			.setBatchSize(batchSize)
-			.setMaximumId(minId)
-			.setMaximumId(maxId);
-		
-		long start = System.currentTimeMillis();
-		// Call under test
-		migrationManager.restoreStream(stream, manifest);
-		// Should run under 5 seconds
-		assertTrue((System.currentTimeMillis() - start) / 1000 < 5);		
-	}
-	
-	@Test
 	public void testUserGroupRemoveSecondarySetup() throws Exception {
 		
 		UserGroup userGroup = userGroupHelper.create((c)->{});

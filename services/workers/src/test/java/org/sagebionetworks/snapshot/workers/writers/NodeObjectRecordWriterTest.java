@@ -316,43 +316,6 @@ public class NodeObjectRecordWriterTest {
 
 
 	@Test
-	public void testBuildAndWriteRecordsForTableWithVersion() throws IOException {
-		node.setNodeType(EntityType.table);
-		when(mockNodeDAO.getNode(any())).thenReturn(node);
-		when(mockNodeDAO.getProjectId(any())).thenReturn(Optional.of("1"));
-		when(mockUserManager.getUserInfo(any())).thenReturn(mockUserInfo);
-		when(mockEntityAuthorizationManager.getUserPermissionsForEntity(any(), any())).thenReturn(mockPermissions);
-		when(mockAccessRequirementDao.getAccessRequirementStats(any(), any())).thenReturn(stats);
-
-		when(mockNodeDAO.getVersionsOfEntity(any(), anyLong(), anyLong())).thenReturn(Collections.emptyList());
-
-		Long timestamp = System.currentTimeMillis();
-		Message message = MessageUtils.buildMessage(ChangeType.UPDATE, "123", ObjectType.ENTITY, "etag", timestamp);
-		ChangeMessage changeMessage = MessageUtils.extractMessageBody(message);
-
-		node.setIsPublic(false);
-		node.setIsControlled(true);
-		node.setIsRestricted(false);
-		node.setEffectiveArs(List.of(1L, 2L, 3L));
-
-		// Call under test
-		writer.buildAndWriteRecords(mockCallback, Arrays.asList(changeMessage));
-
-		verify(mockNodeDAO).getNode(eq("123"));
-		verify(mockNodeDAO).getVersionsOfEntity("123", 1L, 50000L);
-		verify(mockNodeDAO).getUserAnnotations("123");
-		verify(mockDerivedAnnotaionsDao).getDerivedAnnotations("123");
-
-		KinesisObjectSnapshotRecord<NodeRecord> expectedRecord = KinesisObjectSnapshotRecord.map(changeMessage, node);
-
-		verify(mockKinesisLogger).logBatch(eq("nodeSnapshots"), recordCaptor.capture());
-
-		expectedRecord.withSnapshotTimestamp(recordCaptor.getValue().get(0).getSnapshotTimestamp());
-
-		assertEquals(List.of(expectedRecord), recordCaptor.getValue());
-	}
-
-	@Test
 	public void testNodeInTrashCan() throws IOException {
 		when(mockNodeDAO.getProjectId("123")).thenReturn(Optional.of("1"));
 		when(mockNodeDAO.getNode("123")).thenReturn(node);

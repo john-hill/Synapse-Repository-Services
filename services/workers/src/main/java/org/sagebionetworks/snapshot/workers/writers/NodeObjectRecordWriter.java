@@ -20,7 +20,6 @@ import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.RestrictableObjectType;
 import org.sagebionetworks.repo.model.UserInfo;
-import org.sagebionetworks.repo.model.VersionInfo;
 import org.sagebionetworks.repo.model.annotation.v2.Annotations;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsV2Translator;
 import org.sagebionetworks.repo.model.audit.NodeRecord;
@@ -38,7 +37,7 @@ import org.springframework.stereotype.Service;
 public class NodeObjectRecordWriter implements ObjectRecordWriter {
 		
 	private static final String KINESIS_STREAM = "nodeSnapshots";
-	public static final long DEFAULT_LIMIT = 50000L;
+	public static final long MAX_VERSION_PER_ENTITY = 50000L;
 	public static final long DEFAULT_OFFSET = 0L;
 	
 	private static Logger log = LogManager.getLogger(NodeObjectRecordWriter.class);
@@ -113,13 +112,12 @@ public class NodeObjectRecordWriter implements ObjectRecordWriter {
 				try {
 					Node node = nodeDAO.getNode(message.getObjectId());
 
-					List<VersionInfo> versionInfoList = nodeDAO.getVersionsOfEntity(message.getObjectId(), DEFAULT_OFFSET, DEFAULT_LIMIT);
 					NodeRecord record = new NodeRecord();
 					
 					// First copy all the standard node properties
 					NodeTranslationUtils.copyNodeProperties(node, record);
 
-					record.setVersionHistory(versionInfoList);
+					record.setVersionHistory(nodeDAO.getVersionsOfEntity(message.getObjectId(), DEFAULT_OFFSET, MAX_VERSION_PER_ENTITY));
 					// Include derived properties
 					record.setBenefactorId(nodeDAO.getBenefactor(message.getObjectId()));
 					

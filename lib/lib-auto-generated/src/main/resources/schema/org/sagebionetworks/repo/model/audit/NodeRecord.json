@@ -26,7 +26,7 @@
         	}
         },
 		"versionHistory": {
-			"description": "For Datasets and Dataset Collections, the list of entity references the define the view.",
+			"description": "The list of entity versions.",
 			"type": "array",
 			"items": {
 				"$ref": "org.sagebionetworks.repo.model.VersionInfo"

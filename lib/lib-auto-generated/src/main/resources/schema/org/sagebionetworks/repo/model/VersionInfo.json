@@ -34,7 +34,8 @@
       "description": "Calculated md5 of the associated file (when applicable and available)."
     },
     "fileHandleId": {
-      "type": "string"
+      "type": "string",
+      "description": "The file handle id of the associated file (when applicable and available)."
     },
     "modifiedByPrincipalId": {
       "type": "string",

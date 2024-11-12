@@ -125,7 +125,7 @@ public class DBOProjectStorageLimit implements MigratableDatabaseObject<DBOProje
 			
 			@Override
 			public DBOProjectStorageLimit mapRow(ResultSet rs, int rowNum) throws SQLException {
-				return new DBOProjectStorageLimit()
+				DBOProjectStorageLimit dbo = new DBOProjectStorageLimit()
 					.setId(rs.getLong(SqlConstants.COL_PROJECT_STORAGE_LIMIT_ID))
 					.setEtag(rs.getString(SqlConstants.COL_PROJECT_STORAGE_LIMIT_ETAG))
 					.setCreatedBy(rs.getLong(SqlConstants.COL_PROJECT_STORAGE_LIMIT_CREATED_BY))
@@ -133,8 +133,17 @@ public class DBOProjectStorageLimit implements MigratableDatabaseObject<DBOProje
 					.setModifiedBy(rs.getLong(SqlConstants.COL_PROJECT_STORAGE_LIMIT_MODIFIED_BY))
 					.setModifiedOn(new Date(rs.getTimestamp(SqlConstants.COL_PROJECT_STORAGE_LIMIT_MODIFIED_ON).getTime()))
 					.setProjectId(rs.getLong(SqlConstants.COL_PROJECT_STORAGE_LIMIT_PROJECT_ID))
-					.setStorageLocationId(rs.getLong(SqlConstants.COL_PROJECT_STORAGE_LIMIT_LOCATION_ID))
-					.setMaxBytes(rs.getLong(SqlConstants.COL_PROJECT_STORAGE_LIMIT_MAX_BYTES));
+					.setStorageLocationId(rs.getLong(SqlConstants.COL_PROJECT_STORAGE_LIMIT_LOCATION_ID));
+				
+				Long maxBytes = rs.getLong(SqlConstants.COL_PROJECT_STORAGE_LIMIT_MAX_BYTES);
+				
+				if (rs.wasNull()) {
+					maxBytes = null;
+				}
+				
+				dbo.setMaxBytes(maxBytes);
+				
+				return dbo;
 			}
 			
 			@Override

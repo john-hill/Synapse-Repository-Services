@@ -25,6 +25,13 @@
         		"type": "integer"
         	}
         },
+		"versionHistory": {
+			"description": "The list of entity versions.",
+			"type": "array",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.VersionInfo"
+			}
+		},
         "annotations": {
         	"$ref": "org.sagebionetworks.repo.model.annotation.v2.Annotations"
         },

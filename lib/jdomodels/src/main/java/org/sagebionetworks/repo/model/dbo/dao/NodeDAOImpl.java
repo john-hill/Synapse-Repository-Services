@@ -407,8 +407,10 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 	private static final String SQL_GET_ALL_VERSION_INFO_PAGINATED = "SELECT rr."
 			+ COL_REVISION_NUMBER + ", rr." + COL_REVISION_LABEL + ", rr."
 			+ COL_REVISION_COMMENT + ", rr." + COL_REVISION_MODIFIED_BY + ", rr."
-			+ COL_REVISION_MODIFIED_ON + ", n." + COL_NODE_CURRENT_REV
-			+ ", ff." + COL_FILES_CONTENT_MD5 + ", ff." + COL_FILES_CONTENT_SIZE + " FROM " + TABLE_NODE + " n, "
+			+ COL_REVISION_MODIFIED_ON + ", rr." + COL_REVISION_FILE_HANDLE_ID
+			+ ", n." + COL_NODE_CURRENT_REV
+			+ ", ff." + COL_FILES_CONTENT_MD5 + ", ff." + COL_FILES_CONTENT_SIZE
+			+ " FROM " + TABLE_NODE + " n, "
 			+ TABLE_REVISION + " rr left outer join "
 			+ TABLE_FILES+" ff on (rr."+COL_REVISION_FILE_HANDLE_ID+" = ff."+COL_FILES_ID+") WHERE rr."
 			+ COL_REVISION_OWNER_NODE + " = :"+OWNER_ID_PARAM_NAME +
@@ -1108,6 +1110,7 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 				info.setVersionLabel(rs.getString(COL_REVISION_LABEL));
 				info.setVersionComment(rs.getString(COL_REVISION_COMMENT));
 				info.setIsLatestVersion(rs.getLong(COL_REVISION_NUMBER) == rs.getLong(COL_NODE_CURRENT_REV));
+				info.setFileHandleId(rs.getString(COL_REVISION_FILE_HANDLE_ID));
 				info.setContentMd5(rs.getString(COL_FILES_CONTENT_MD5));
 				info.setContentSize(rs.getString(COL_FILES_CONTENT_SIZE));
 				return info;

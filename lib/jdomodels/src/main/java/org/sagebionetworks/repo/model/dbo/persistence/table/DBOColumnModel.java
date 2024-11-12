@@ -9,7 +9,6 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_COLUMN
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -18,10 +17,7 @@ import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
 import org.sagebionetworks.repo.model.dbo.TableMapping;
 import org.sagebionetworks.repo.model.dbo.migration.BasicMigratableTableTranslation;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
-import org.sagebionetworks.repo.model.dbo.migration.MigrateFromXStreamToJSON;
-import org.sagebionetworks.repo.model.dbo.migration.XStreamToJsonTranslator;
 import org.sagebionetworks.repo.model.migration.MigrationType;
-import org.sagebionetworks.repo.model.table.ColumnModel;
 
 /**
  * Database Object (DBO) for the Table Column Model.
@@ -136,11 +132,7 @@ public class DBOColumnModel implements MigratableDatabaseObject<DBOColumnModel, 
 
 	@Override
 	public int hashCode() {
-		final int prime = 31;
-		int result = 1;
-		result = prime * result + Arrays.hashCode(bytes);
-		result = prime * result + Objects.hash(hash, id, json, name);
-		return result;
+		return Objects.hash(hash, id, json, name);
 	}
 
 	@Override
@@ -152,14 +144,13 @@ public class DBOColumnModel implements MigratableDatabaseObject<DBOColumnModel, 
 		if (getClass() != obj.getClass())
 			return false;
 		DBOColumnModel other = (DBOColumnModel) obj;
-		return Arrays.equals(bytes, other.bytes) && Objects.equals(hash, other.hash) && Objects.equals(id, other.id)
-				&& Objects.equals(json, other.json) && Objects.equals(name, other.name);
+		return Objects.equals(hash, other.hash) && Objects.equals(id, other.id) && Objects.equals(json, other.json)
+				&& Objects.equals(name, other.name);
 	}
 
 	@Override
 	public String toString() {
-		return "DBOColumnModel [id=" + id + ", name=" + name + ", hash=" + hash + ", bytes=" + Arrays.toString(bytes)
-				+ ", json=" + json + "]";
+		return "DBOColumnModel [id=" + id + ", name=" + name + ", hash=" + hash + ", json=" + json + "]";
 	}
 
 }

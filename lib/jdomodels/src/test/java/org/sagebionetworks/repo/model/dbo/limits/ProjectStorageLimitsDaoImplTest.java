@@ -8,10 +8,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Instant;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -21,6 +23,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.EntityType;
+import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
+import org.sagebionetworks.repo.model.dbo.SinglePrimaryKeySqlParameterSource;
 import org.sagebionetworks.repo.model.helper.FileHandleObjectHelper;
 import org.sagebionetworks.repo.model.helper.NodeDaoObjectHelper;
 import org.sagebionetworks.repo.model.helper.StorageLocationHelper;
@@ -29,6 +33,7 @@ import org.sagebionetworks.repo.model.limits.ProjectStorageData;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
 import org.sagebionetworks.util.Pair;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.namedparam.AbstractSqlParameterSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -47,6 +52,9 @@ public class ProjectStorageLimitsDaoImplTest {
 	
 	@Autowired
 	private FileHandleObjectHelper fileHelper;
+	
+	@Autowired
+	private DBOBasicDao basicDao;
 	
 	private Long projectOneId;
 	private Long projectTwoId;
@@ -222,4 +230,25 @@ public class ProjectStorageLimitsDaoImplTest {
 		assertEquals(7, updatedCount);
 		
 	}
-}
+	
+	// Test for https://sagebionetworks.jira.com/browse/PLFM-8706
+	@Test
+	public void testDBOProjectStorageLimitWithNullLimit() {
+		Date now = new Date(1731452665000l);
+		
+		DBOProjectStorageLimit dbo = new DBOProjectStorageLimit()
+			.setId(123L)
+			.setProjectId(projectOneId)
+			.setStorageLocationId(sLocOneId)
+			.setCreatedBy(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId())
+			.setCreatedOn(now)
+			.setEtag(UUID.randomUUID().toString())
+			.setModifiedBy(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId())
+			.setModifiedOn(now)
+			.setMaxBytes(null);
+		
+		basicDao.createNew(dbo);
+		
+		assertEquals(Optional.of(dbo), basicDao.getObjectByPrimaryKey(DBOProjectStorageLimit.class, new SinglePrimaryKeySqlParameterSource(123L)));
+	}
+ }

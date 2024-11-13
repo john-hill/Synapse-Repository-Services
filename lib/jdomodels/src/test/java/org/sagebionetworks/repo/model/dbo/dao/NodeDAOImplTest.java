@@ -5802,15 +5802,4 @@ public class NodeDAOImplTest {
 		assertEquals(827, result.getPath().length());
 	}
 
-	@Test
-	public void testMigrationXStreamToJson() throws IOException {
-		Reference dto = new Reference().setTargetId("123");
-		DBORevision dbo = new DBORevision();
-		dbo.setReference(JDOSecondaryPropertyUtils
-				.compressObject(UnmodifiableXStream.builder().allowTypes(Reference.class).build(), dto));
-		// call under test
-		DBORevision translated = dbo.getTranslator().createDatabaseObjectFromBackup(dbo);
-		assertNull(translated.getReference());
-		assertEquals(JDOSecondaryPropertyUtils.createJSONFromObject(dto), translated.getReferenceJson());
-	}	
 }

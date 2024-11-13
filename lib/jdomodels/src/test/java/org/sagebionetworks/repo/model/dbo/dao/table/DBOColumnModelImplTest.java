@@ -490,16 +490,4 @@ public class DBOColumnModelImplTest {
 		assertEquals(rootResult, rootResult2);
 	}
 
-	@Test
-	public void testMigrationXStreamToJson() throws IOException {
-		ColumnModel dto = new ColumnModel().setId("123").setName("foo");
-		DBOColumnModel dbo = new DBOColumnModel();
-		dbo.setBytes(JDOSecondaryPropertyUtils
-				.compressObject(ColumnModelUtils.X_STREAM, dto));
-		// call under test
-		DBOColumnModel translated = dbo.getTranslator().createDatabaseObjectFromBackup(dbo);
-		assertNull(translated.getBytes());
-		assertEquals(JDOSecondaryPropertyUtils.createJSONFromObject(dto), translated.getJson());
-	}
-
 }

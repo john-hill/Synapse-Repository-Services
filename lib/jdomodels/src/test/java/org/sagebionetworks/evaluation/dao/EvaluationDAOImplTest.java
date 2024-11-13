@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -20,8 +19,6 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 
-import org.json.JSONException;
-import org.json.JSONObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,11 +38,8 @@ import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.NameConflictException;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.ResourceAccess;
-import org.sagebionetworks.repo.model.dbo.dao.TestUtils;
-import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.web.NotFoundException;
-import org.sagebionetworks.util.json.JavaJSONUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -590,27 +584,4 @@ public class EvaluationDAOImplTest {
 		assertEquals(Collections.emptyList(), overlappingRounds);
 	}
 
-	@Test
-	public void testTranslateFromXmlToJsonQutoa() throws JSONException, IOException {
-		EvaluationBackup backup = JavaJSONUtil.readFromJSONObject(EvaluationBackup.class,
-				new JSONObject(TestUtils.loadFromClasspath("evaluation-backup-old.json")));
-		SubmissionQuota quota = (SubmissionQuota) JDOSecondaryPropertyUtils.decompressObject(EvaluationDBO.XSTREAM,
-				backup.getQuota());
-		// call under test
-		EvaluationDBO dbo = new EvaluationDBO().getTranslator().createDatabaseObjectFromBackup(backup);
-		assertNull(dbo.getQuota());
-		assertEquals(JDOSecondaryPropertyUtils.createJSONFromObject(quota), dbo.getQuotaJson());
-	}
-	
-	@Test
-	public void testTransalteWithBothXMLandJSON() {
-		EvaluationBackup backup = new EvaluationBackup();
-		backup.setQuota(new byte[] {1,2,3});
-		backup.setQuotaJson("{}");
-		String message = assertThrows(IllegalArgumentException.class, () -> {
-			// call under test
-			new EvaluationDBO().getTranslator().createDatabaseObjectFromBackup(backup);
-		}).getMessage();
-		assertEquals("Both 'quota' and 'quotaJson' are not null", message);
-	}
 }

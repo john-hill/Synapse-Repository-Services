@@ -131,7 +131,6 @@ public class EvaluationDBO implements MigratableDatabaseObject<EvaluationDBO, Ev
 	private Long contentSource;
 	private byte[] submissionInstructionsMessage;
 	private byte[] submissionReceiptMessage;
-	private byte[] quota;
 	private String quotaJson;
 	private Long startTimestamp;
 	private Long endTimestamp;
@@ -203,12 +202,6 @@ public class EvaluationDBO implements MigratableDatabaseObject<EvaluationDBO, Ev
 		this.submissionReceiptMessage = submissionReceiptMessage;
 	}
 		
-	public byte[] getQuota() {
-		return quota;
-	}
-	public void setQuota(byte[] quota) {
-		this.quota = quota;
-	}
 	@Override
 	public String getIdString() {
 		return id.toString();
@@ -259,15 +252,14 @@ public class EvaluationDBO implements MigratableDatabaseObject<EvaluationDBO, Ev
 				+ Arrays.toString(description) + ", ownerId=" + ownerId + ", createdOn=" + createdOn
 				+ ", contentSource=" + contentSource + ", submissionInstructionsMessage="
 				+ Arrays.toString(submissionInstructionsMessage) + ", submissionReceiptMessage="
-				+ Arrays.toString(submissionReceiptMessage) + ", quota=" + Arrays.toString(quota) + ", quotaJson="
-				+ quotaJson + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + "]";
+				+ Arrays.toString(submissionReceiptMessage) + ", quotaJson=" + quotaJson + ", startTimestamp="
+				+ startTimestamp + ", endTimestamp=" + endTimestamp + "]";
 	}
 	@Override
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
 		result = prime * result + Arrays.hashCode(description);
-		result = prime * result + Arrays.hashCode(quota);
 		result = prime * result + Arrays.hashCode(submissionInstructionsMessage);
 		result = prime * result + Arrays.hashCode(submissionReceiptMessage);
 		result = prime * result + Objects.hash(contentSource, createdOn, eTag, endTimestamp, id, name, ownerId,
@@ -287,14 +279,11 @@ public class EvaluationDBO implements MigratableDatabaseObject<EvaluationDBO, Ev
 				&& Arrays.equals(description, other.description) && Objects.equals(eTag, other.eTag)
 				&& Objects.equals(endTimestamp, other.endTimestamp) && Objects.equals(id, other.id)
 				&& Objects.equals(name, other.name) && Objects.equals(ownerId, other.ownerId)
-				&& Arrays.equals(quota, other.quota) && Objects.equals(quotaJson, other.quotaJson)
-				&& Objects.equals(startTimestamp, other.startTimestamp)
+				&& Objects.equals(quotaJson, other.quotaJson) && Objects.equals(startTimestamp, other.startTimestamp)
 				&& Arrays.equals(submissionInstructionsMessage, other.submissionInstructionsMessage)
 				&& Arrays.equals(submissionReceiptMessage, other.submissionReceiptMessage);
 	}
 	
-	public static UnmodifiableXStream XSTREAM = UnmodifiableXStream.builder().allowTypes(SubmissionQuota.class).build();
-
 	@Override
 	public MigratableTableTranslation<EvaluationDBO, EvaluationBackup> getTranslator() {
 		
@@ -302,22 +291,7 @@ public class EvaluationDBO implements MigratableDatabaseObject<EvaluationDBO, Ev
 
 			@Override
 			public EvaluationDBO createDatabaseObjectFromBackup(EvaluationBackup backup) {
-				EvaluationDBO dbo = EvaluationTranslationUtil.createDatabaseObjectFromBackup(backup);
-				try {
-					if (dbo.getQuota() != null) {
-						if (dbo.getQuotaJson() != null) {
-							throw new IllegalArgumentException(
-									String.format("Both '%s' and '%s' are not null", "quota", "quotaJson"));
-						}
-					}
-					SubmissionQuota quota = (SubmissionQuota) JDOSecondaryPropertyUtils.decompressObject(XSTREAM,
-							dbo.getQuota());
-					dbo.setQuotaJson(JDOSecondaryPropertyUtils.createJSONFromObject(quota));
-					dbo.setQuota(null);
-					return dbo;
-				} catch (IOException e) {
-					throw new RuntimeException(e);
-				}
+				return EvaluationTranslationUtil.createDatabaseObjectFromBackup(backup);
 			}
 
 			@Override

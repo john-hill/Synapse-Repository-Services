@@ -32,8 +32,11 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_TWO_FA
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_USER_GROUP;
 
 import java.sql.ResultSet;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -211,20 +214,44 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 	@Override
 	public Optional<TermsOfServiceAgreement> getLatestTermsOfServiceAgreement(long principalId) {
 		String sql = "SELECT " 
-				+ COL_TOS_AGREEMENT_VERSION + " , " 
-				+ COL_TOS_AGREEMENT_CREATED_ON
-				+ " FROM " + TABLE_TOS_AGREEMENT
-				+ " WHERE " + COL_TOS_AGREEMENT_CREATED_BY + "=?"
-				+ " ORDER BY " + COL_TOS_AGREEMENT_ID + " DESC"
-				+ " LIMIT 1";
-			
-		return jdbcTemplate
-				.query(sql, (rs, i) -> new TermsOfServiceAgreement()
-						.setUserId(principalId)
-						.setVersion(rs.getString(COL_TOS_AGREEMENT_VERSION))
-						.setAgreedOn(new Date(rs.getTimestamp(COL_TOS_AGREEMENT_CREATED_ON).getTime())),
-					principalId)
-				.stream().findFirst();
+			+ COL_TOS_AGREEMENT_VERSION + " , " 
+			+ COL_TOS_AGREEMENT_CREATED_ON
+			+ " FROM " + TABLE_TOS_AGREEMENT
+			+ " WHERE " + COL_TOS_AGREEMENT_CREATED_BY + "=?"
+			+ " ORDER BY " + COL_TOS_AGREEMENT_ID + " DESC"
+			+ " LIMIT 1";
+
+		return jdbcTemplate.query(sql, (rs, i) -> new TermsOfServiceAgreement()
+			.setVersion(rs.getString(COL_TOS_AGREEMENT_VERSION))
+			.setAgreedOn(new Date(rs.getTimestamp(COL_TOS_AGREEMENT_CREATED_ON).getTime())), principalId)
+			.stream().findFirst();	
+	}
+	
+	@Override
+	public Map<Long, List<TermsOfServiceAgreement>> getTermsOfServiceAgreements(List<Long> principalIds) {
+		if (principalIds.isEmpty()) {
+			return Collections.emptyMap();
+		}		
+		
+		String sql = "SELECT " 
+			+ COL_TOS_AGREEMENT_CREATED_BY + " , "
+			+ COL_TOS_AGREEMENT_VERSION + " , "
+			+ COL_TOS_AGREEMENT_CREATED_ON
+			+ " FROM " + TABLE_TOS_AGREEMENT
+			+ " WHERE " + COL_TOS_AGREEMENT_CREATED_BY + " IN (" + String.join(",", Collections.nCopies(principalIds.size(), "?")) + ")"
+			+ " ORDER BY " + COL_TOS_AGREEMENT_CREATED_BY + ", " + COL_TOS_AGREEMENT_CREATED_ON + " DESC";
+
+		Map<Long, List<TermsOfServiceAgreement>> result = new HashMap<>(principalIds.size());
+		
+		jdbcTemplate.query(sql, (rs) -> {
+			result.computeIfAbsent(rs.getLong(COL_TOS_AGREEMENT_CREATED_BY), id -> new ArrayList<>()).add(
+				new TermsOfServiceAgreement()
+					.setVersion(rs.getString(COL_TOS_AGREEMENT_VERSION))
+					.setAgreedOn(new Date(rs.getTimestamp(COL_TOS_AGREEMENT_CREATED_ON).getTime()))
+			);
+		}, principalIds.toArray());
+		
+		return result;
 	}
 	
 	@Override

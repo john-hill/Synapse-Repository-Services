@@ -282,15 +282,27 @@ public class DBOAuthenticationDAOImplTest {
 		// Call under test
 		assertEquals(Optional.empty(), authDAO.getLatestTermsOfServiceAgreement(userId));
 		
-		TermsOfServiceAgreement expected = new TermsOfServiceAgreement()
-			.setUserId(userId)
+		TermsOfServiceAgreement firstAgreement = new TermsOfServiceAgreement()
 			.setVersion("0.0.0")
-			.setAgreedOn(new Date());
+			.setAgreedOn(Date.from(Instant.now().minus(1, ChronoUnit.DAYS)));
 		
-		assertEquals(expected, authDAO.addTermsOfServiceAgreement(userId, expected.getVersion(), expected.getAgreedOn()));
+		assertEquals(firstAgreement, authDAO.addTermsOfServiceAgreement(userId, firstAgreement.getVersion(), firstAgreement.getAgreedOn()));
 		// Ignore re-sign attempts
-		assertEquals(expected, authDAO.addTermsOfServiceAgreement(userId, expected.getVersion(), expected.getAgreedOn()));
-		assertEquals(Optional.of(expected), authDAO.getLatestTermsOfServiceAgreement(userId));
+		assertEquals(firstAgreement, authDAO.addTermsOfServiceAgreement(userId, firstAgreement.getVersion(), firstAgreement.getAgreedOn()));
+		
+		assertEquals(Optional.of(firstAgreement), authDAO.getLatestTermsOfServiceAgreement(userId));
+		
+		// Add new agreement
+		TermsOfServiceAgreement secondAgreement = new TermsOfServiceAgreement()
+			.setVersion("1.0.0")
+			.setAgreedOn(new Date());		
+		
+		assertEquals(secondAgreement, authDAO.addTermsOfServiceAgreement(userId, secondAgreement.getVersion(), secondAgreement.getAgreedOn()));
+		
+		assertEquals(Optional.of(secondAgreement), authDAO.getLatestTermsOfServiceAgreement(userId));
+		
+		assertEquals(Map.of(userId, List.of(secondAgreement, firstAgreement)), authDAO.getTermsOfServiceAgreements(List.of(userId, -1L)));
+		
 	}
 	
 	@Test

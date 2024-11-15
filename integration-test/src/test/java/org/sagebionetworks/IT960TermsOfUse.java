@@ -145,7 +145,7 @@ public class IT960TermsOfUse {
 		
 		String query = String.format(
 				"select count(*) from userprofilesnapshots where snapshot_date %s"
-						+ " and id = % and cardinality(tos_agreements) >= 1",
+						+ " and id = %s and cardinality(tos_agreements) >= 1",
 				warehouseHelper.toDateStringBetweenPlusAndMinusThirtySeconds(now),
 				userId);
 		

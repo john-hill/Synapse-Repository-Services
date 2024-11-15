@@ -197,6 +197,13 @@
 		"twoFactorAuthEnabled": {
 			"type": "boolean",
 			"description": "Flag that indicates if the user has two factor authentication enabled."
+		},
+		"tosAgreements": {
+			"type": "array",
+			"description": "The list of term of service versions that the user agreed to",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.auth.TermsOfServiceAgreement"
+			}
 		}
 	}
 }

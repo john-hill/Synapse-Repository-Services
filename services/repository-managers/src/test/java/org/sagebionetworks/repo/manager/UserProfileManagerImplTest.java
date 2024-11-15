@@ -134,6 +134,7 @@ public class UserProfileManagerImplTest {
 			profile.setEtag(created.getEtag());
 			profile.setCreatedOn(created.getCreatedOn());
 			profile.setTwoFactorAuthEnabled(false);
+			profile.setTosAgreements(Collections.emptyList());
 			assertEquals(profile, created);
 		}
 		assertNotNull(created);

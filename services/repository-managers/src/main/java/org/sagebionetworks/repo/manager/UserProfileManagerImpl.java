@@ -32,6 +32,7 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.UserProfile;
 import org.sagebionetworks.repo.model.UserProfileDAO;
 import org.sagebionetworks.repo.model.auth.AuthenticationDAO;
+import org.sagebionetworks.repo.model.auth.TermsOfServiceAgreement;
 import org.sagebionetworks.repo.model.dbo.verification.VerificationDAO;
 import org.sagebionetworks.repo.model.entity.query.SortDirection;
 import org.sagebionetworks.repo.model.favorite.SortBy;
@@ -97,7 +98,10 @@ public class UserProfileManagerImpl implements UserProfileManager {
 			insertAliasIntoProfile(userProfile, alias);
 		}
 		
-		addTwoFactorAuthInfo(List.of(userProfile));
+		List<UserProfile> singletonList = List.of(userProfile);
+		
+		addTwoFactorAuthInfo(singletonList);
+		addTermsOfServiceAgreements(singletonList);
 		
 		return userProfile;
 	}
@@ -167,11 +171,27 @@ public class UserProfileManagerImpl implements UserProfileManager {
 		});		
 	}
 	
+	private void addTermsOfServiceAgreements(List<UserProfile> userProfiles) {
+		if (userProfiles.isEmpty()) {
+			return;
+		}
+		
+		Map<Long, List<TermsOfServiceAgreement>> tosMap = authDao.getTermsOfServiceAgreements(userProfiles.stream()
+			.map(t -> Long.valueOf(t.getOwnerId()))
+			.collect(Collectors.toList())
+		);
+		
+		userProfiles.forEach( profile -> {
+			profile.setTosAgreements(tosMap.getOrDefault(Long.valueOf(profile.getOwnerId()), Collections.emptyList()));
+		});
+	}
+	
 	@Override
 	public List<UserProfile> getInRange(UserInfo userInfo, long startIncl, long endExcl) throws DatastoreException, NotFoundException{
 		List<UserProfile> userProfiles = userProfileDAO.getInRange(startIncl, endExcl);
 		addAliasesToProfiles(userProfiles);
 		addTwoFactorAuthInfo(userProfiles);
+		addTermsOfServiceAgreements(userProfiles);
 		return userProfiles;
 	}
 	/**
@@ -185,6 +205,7 @@ public class UserProfileManagerImpl implements UserProfileManager {
 		List<UserProfile> userProfiles = userProfileDAO.list(ids.getList());
 		addAliasesToProfiles(userProfiles);
 		addTwoFactorAuthInfo(userProfiles);
+		addTermsOfServiceAgreements(userProfiles);
 		return ListWrapper.wrap(userProfiles, UserProfile.class);
 	}
 	/**

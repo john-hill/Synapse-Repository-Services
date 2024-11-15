@@ -19,6 +19,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -50,6 +51,7 @@ import org.sagebionetworks.repo.model.UserProfile;
 import org.sagebionetworks.repo.model.UserProfileDAO;
 import org.sagebionetworks.repo.model.auth.AuthenticationDAO;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
+import org.sagebionetworks.repo.model.auth.TermsOfServiceAgreement;
 import org.sagebionetworks.repo.model.dbo.dao.UserProfileUtils;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOUserProfile;
 import org.sagebionetworks.repo.model.entity.query.SortDirection;
@@ -130,6 +132,10 @@ public class UserProfileManagerImplUnitTest {
 		settings.setSendEmailNotifications(true);
 		userProfile.setNotificationSettings(settings);
 		userProfile.setTwoFactorAuthEnabled(true);
+		userProfile.setTosAgreements(List.of(new TermsOfServiceAgreement()
+			.setAgreedOn(new Date())
+			.setVersion("1.0.0"))
+		);
 		
 		PrincipalAlias alias = new PrincipalAlias();
 		alias.setAlias(USER_EMAIL);
@@ -253,6 +259,7 @@ public class UserProfileManagerImplUnitTest {
 		
 		when(mockPrincipalAliasDAO.listPrincipalAliases(userId)).thenReturn(aliases);
 		when(mockAuthDao.getTwoFactorAuthStateMap(any())).thenReturn(Map.of(userId, true));
+		when(mockAuthDao.getTermsOfServiceAgreements(List.of(userId))).thenReturn(Map.of(userId, userProfile.getTosAgreements()));
 		
 		String ownerId = userInfo.getId().toString();
 		UserProfile upClone = userProfileManager.getUserProfile(ownerId);
@@ -304,6 +311,7 @@ public class UserProfileManagerImplUnitTest {
 		
 		when(mockPrincipalAliasDAO.listPrincipalAliases(userId)).thenReturn(aliases);
 		when(mockAuthDao.getTwoFactorAuthStateMap(any())).thenReturn(Map.of(userId, true));
+		when(mockAuthDao.getTermsOfServiceAgreements(List.of(userId))).thenReturn(Map.of(userId, userProfile.getTosAgreements()));
 		
 		String ownerId = userInfo.getId().toString();
 		UserProfile upClone = userProfileManager.getUserProfile(ownerId);

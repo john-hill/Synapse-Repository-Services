@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.model.auth;
 
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -89,6 +90,12 @@ public interface AuthenticationDAO {
 	 * @return The lasted terms of service agreement
 	 */
 	Optional<TermsOfServiceAgreement> getLatestTermsOfServiceAgreement(long principalId);
+	
+	/**
+	 * @param principalIds
+	 * @return A map containing the list of agreed terms for each user in input
+	 */
+	Map<Long, List<TermsOfServiceAgreement>> getTermsOfServiceAgreements(List<Long> principalIds);
 	
 	/**
 	 * Sets the current TOS requirements

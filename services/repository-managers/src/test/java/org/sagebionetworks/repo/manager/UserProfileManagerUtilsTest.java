@@ -17,6 +17,7 @@ import org.sagebionetworks.repo.model.SchemaCache;
 import org.sagebionetworks.repo.model.TeamConstants;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.UserProfile;
+import org.sagebionetworks.repo.model.auth.TermsOfServiceAgreement;
 import org.sagebionetworks.repo.model.verification.AttachmentMetadata;
 import org.sagebionetworks.repo.model.verification.VerificationState;
 import org.sagebionetworks.repo.model.verification.VerificationStateEnum;
@@ -74,12 +75,14 @@ public class UserProfileManagerUtilsTest {
 		up.setRStudioUrl("http://rstudio");
 		up.setEmail("useremail@sagebase.org");
 		up.setTwoFactorAuthEnabled(true);
+		up.setTosAgreements(List.of(new TermsOfServiceAgreement()));
 		
 		UserProfileManagerUtils.clearPrivateFields(userInfo, up);
 		assertEquals("456", up.getProfilePicureFileHandleId());
 		assertNull(up.getRStudioUrl());
 		assertNull(up.getEmail());
 		assertNull(up.getTwoFactorAuthEnabled());
+		assertNull(up.getTosAgreements());
 	}
 	
 	/**
@@ -103,11 +106,13 @@ public class UserProfileManagerUtilsTest {
 		UserProfile up = new UserProfile();
 		up.setEmail("useremail@sagebase.org");
 		up.setTwoFactorAuthEnabled(true);
+		up.setTosAgreements(List.of(new TermsOfServiceAgreement()));
 		
 		UserProfileManagerUtils.clearPrivateFields(userInfo, up);
 		
 		assertEquals("useremail@sagebase.org", up.getEmail());
 		assertTrue(up.getTwoFactorAuthEnabled());
+		assertFalse(up.getTosAgreements().isEmpty());
 	}
 	
 	@Test
@@ -117,11 +122,13 @@ public class UserProfileManagerUtilsTest {
 		UserProfile up = new UserProfile();
 		up.setEmail("useremail@sagebase.org");
 		up.setTwoFactorAuthEnabled(true);
+		up.setTosAgreements(List.of(new TermsOfServiceAgreement()));
 		
 		UserProfileManagerUtils.clearPrivateFields(userInfo, up);
 		
 		assertEquals("useremail@sagebase.org", up.getEmail());
 		assertTrue(up.getTwoFactorAuthEnabled());
+		assertFalse(up.getTosAgreements().isEmpty());
 	}
 
 	@Test

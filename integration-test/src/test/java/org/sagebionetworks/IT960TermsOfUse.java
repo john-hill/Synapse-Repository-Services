@@ -32,7 +32,7 @@ import org.sagebionetworks.repo.model.auth.TermsOfServiceRequirements;
 import org.sagebionetworks.repo.model.auth.TermsOfServiceState;
 import org.sagebionetworks.repo.model.auth.TermsOfServiceStatus;
 import org.sagebionetworks.repo.model.file.ExternalFileHandle;
-import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
+import org.sagebionetworks.warehouse.WarehouseTestHelper;
 
 @ExtendWith(ITTestExtension.class)
 public class IT960TermsOfUse {
@@ -42,9 +42,11 @@ public class IT960TermsOfUse {
 	private static Project project;
 	private static FileEntity dataset;
 	
+	private WarehouseTestHelper warehouseHelper;
 	private SynapseClient synapse;
 	
-	public IT960TermsOfUse(SynapseClient synapse) {
+	public IT960TermsOfUse(WarehouseTestHelper warehouseHelper, SynapseClient synapse) {
+		this.warehouseHelper = warehouseHelper;
 		this.synapse = synapse;
 	}
 	
@@ -111,10 +113,10 @@ public class IT960TermsOfUse {
 	}
 	
 	@Test
-	public void testSignTermsOfServiceWithVersion(SynapseAdminClient adminSynapse) throws SynapseException, JSONObjectAdapterException {
+	public void testSignTermsOfServiceWithVersion(SynapseAdminClient adminSynapse) throws Exception {
 		SynapseClient newUser = new SynapseClientImpl();
 		
-		SynapseClientHelper.createUser(adminSynapse, newUser, false, false);
+		Long userId = SynapseClientHelper.createUser(adminSynapse, newUser, false, false);
 		
 		TermsOfServiceStatus status = newUser.getUserTermsOfServiceStatus();
 		
@@ -135,6 +137,22 @@ public class IT960TermsOfUse {
 		
 		assertEquals(TermsOfServiceState.UP_TO_DATE, status.getUserCurrentTermsOfServiceState());
 		assertEquals(latestVersion, status.getLastAgreementVersion());
+		
+		Instant now = Instant.now();
+		
+		// Update the profile to trigger a snapshot
+		newUser.updateMyProfile(newUser.getMyProfile().setFirstName("First Name").setLastName("Last Name"));		
+		
+		String query = String.format(
+				"select count(*) from userprofilesnapshots where snapshot_date %s"
+						+ " and id = %s and cardinality(tos_agreements) >= 1",
+				warehouseHelper.toDateStringBetweenPlusAndMinusThirtySeconds(now),
+				userId);
+		
+		warehouseHelper.assertWarehouseQuery(query);
+		
+		// Sleeping gives the snapshot worker a chance to take the snapshots before the test suite deletes the user.
+		Thread.sleep(10_000);
 	}
 	
 	@Test

@@ -55,6 +55,7 @@ import software.amazon.awssdk.services.bedrockagentruntime.model.TracePart;
 @Service
 public class AgentManagerImpl implements AgentManager {
 
+	public static final int MAX_NUM_RETURN_CONTROL_PER_TURN = 1000;
 	public static final String TSTALIASID = "TSTALIASID";
 	public static final String PROMPT_SESSION_ATTRIBUTE_ACCESS_LEVEL = "access_level";
 
@@ -92,11 +93,14 @@ public class AgentManagerImpl implements AgentManager {
 		// only authenticated users can start a chat session.
 		AuthorizationUtils.disallowAnonymous(userInfo);
 
-		AgentRegistration registration = (request.getAgentRegistrationId() == null || request.getAgentRegistrationId().isBlank())
-				? agentDao.createOrGetRegistration(AgentType.BASELINE,
-						new AgentRegistrationRequest().setAwsAgentId(stackBedrockAgentId).setAwsAliasId(TSTALIASID))
-				: getAgentRegistration(request.getAgentRegistrationId());
-		return agentDao.createSession(userInfo.getId(), request.getAgentAccessLevel(), registration.getAgentRegistrationId());
+		AgentRegistration registration = (request.getAgentRegistrationId() == null
+				|| request.getAgentRegistrationId().isBlank())
+						? agentDao.createOrGetRegistration(AgentType.BASELINE,
+								new AgentRegistrationRequest().setAwsAgentId(stackBedrockAgentId)
+										.setAwsAliasId(TSTALIASID))
+						: getAgentRegistration(request.getAgentRegistrationId());
+		return agentDao.createSession(userInfo.getId(), request.getAgentAccessLevel(),
+				registration.getAgentRegistrationId());
 	}
 
 	@WriteTransaction
@@ -176,8 +180,9 @@ public class AgentManagerImpl implements AgentManager {
 		// When the invocation ID is not null, the agent has requested more information
 		// with a return_control response.
 		while (res.getInvocationId() != null) {
-			if (count > 10) {
-				throw new IllegalStateException("Max number of 10 return_control agent response exceeded.");
+			if (count > MAX_NUM_RETURN_CONTROL_PER_TURN) {
+				throw new IllegalStateException(String.format(
+						"Max number of %d return_control agent response exceeded.", MAX_NUM_RETURN_CONTROL_PER_TURN));
 			}
 			int thisCount = count;
 			res.getReturnControlEvents().forEach(e -> {
@@ -207,9 +212,8 @@ public class AgentManagerImpl implements AgentManager {
 	}
 
 	AgentRegistration getAgentRegistration(String registrationId) {
-		return agentDao.getRegeistration(registrationId)
-				.orElseThrow(() -> new IllegalArgumentException(
-						String.format("AgentRegistrationId='%s' does not exist", registrationId)));
+		return agentDao.getRegeistration(registrationId).orElseThrow(() -> new IllegalArgumentException(
+				String.format("AgentRegistrationId='%s' does not exist", registrationId)));
 	}
 
 	/**
@@ -377,7 +381,6 @@ public class AgentManagerImpl implements AgentManager {
 		return new TraceEventsResponse().setJobId(request.getJobId())
 				.setPage(agentDao.listTraceEvents(request.getJobId(), request.getNewerThanTimestamp()));
 	}
-	
 
 	@WriteTransaction
 	@Override
@@ -387,7 +390,7 @@ public class AgentManagerImpl implements AgentManager {
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(userInfo)) {
 			throw new UnauthorizedException("Currently, only internal users can register agents.");
 		}
-		if(StringUtils.isBlank(request.getAwsAliasId())) {
+		if (StringUtils.isBlank(request.getAwsAliasId())) {
 			request.setAwsAliasId(TSTALIASID);
 		}
 		return agentDao.createOrGetRegistration(AgentType.CUSTOM, request);

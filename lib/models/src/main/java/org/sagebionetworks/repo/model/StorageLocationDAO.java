@@ -10,9 +10,9 @@ public interface StorageLocationDAO {
 	
 	Long DEFAULT_STORAGE_LOCATION_ID = 1L;
 
-	public Long create(StorageLocationSetting setting);
+	Long create(StorageLocationSetting setting);
 	
-	public void delete(Long id);
+	void delete(Long id);
 
 	/**
 	 * 
@@ -21,16 +21,23 @@ public interface StorageLocationDAO {
 	 * @throws DatastoreException
 	 * @throws NotFoundException
 	 */
-	public StorageLocationSetting get(Long id) throws DatastoreException, NotFoundException;
+	StorageLocationSetting get(Long id) throws DatastoreException, NotFoundException;
 
-	public List<UploadDestinationLocation> getUploadDestinationLocations(List<Long> storageLocationIds) throws DatastoreException, NotFoundException;
+	List<UploadDestinationLocation> getUploadDestinationLocations(List<Long> storageLocationIds) throws DatastoreException, NotFoundException;
+	
+	/**
+	 * 
+	 * @param id
+	 * @return True if a storage location with the given id exists
+	 */
+	boolean exists(Long id);
 
 	/**
 	 * @deprecated This should not be used anymore, will return only the last 100 locations
 	 */
 	@Deprecated
-	public List<StorageLocationSetting> getByOwner(Long id) throws DatastoreException, NotFoundException;
+	List<StorageLocationSetting> getByOwner(Long id) throws DatastoreException, NotFoundException;
 
-	public void truncateAll();
+	void truncateAll();
 	
 }

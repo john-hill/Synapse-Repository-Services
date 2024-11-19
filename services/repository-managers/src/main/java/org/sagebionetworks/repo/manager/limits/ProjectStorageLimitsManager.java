@@ -23,6 +23,7 @@ import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.StorageLocationDAO;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.dao.DBOStorageLocationDAOImpl;
@@ -38,6 +39,7 @@ import org.sagebionetworks.repo.model.limits.ProjectStorageLocationUsage;
 import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.repo.web.ProjectStorageLimitExceededException;
 import org.sagebionetworks.table.cluster.TableIndexDAO;
 import org.sagebionetworks.util.Clock;
@@ -73,6 +75,8 @@ public class ProjectStorageLimitsManager {
 	
 	private NodeDAO nodeDao;
 	
+	private StorageLocationDAO storageLocationDao;
+	
 	private Clock clock;
 	
 	private FeatureManager featureManager;
@@ -82,12 +86,13 @@ public class ProjectStorageLimitsManager {
 	private Long defaultStorageLocationMaxBytes;
 	
 	public ProjectStorageLimitsManager(EntityAuthorizationManager authzManager, TransactionalMessenger messenger, ProjectStorageLimitsDao storageUsageDao,
-		TableIndexDAO replicationDao, NodeDAO nodeDao, Clock clock, FeatureManager featureManager) {
+		TableIndexDAO replicationDao, NodeDAO nodeDao, StorageLocationDAO storageLocationDao, Clock clock, FeatureManager featureManager) {
 		this.authzManager = authzManager;
 		this.messenger = messenger;
 		this.storageUsageDao = storageUsageDao;
 		this.replicationDao = replicationDao;
 		this.nodeDao = nodeDao;
+		this.storageLocationDao = storageLocationDao;
 		this.clock = clock;
 		this.featureManager = featureManager;
 		this.accessedProjects = ConcurrentHashMap.newKeySet();
@@ -164,6 +169,8 @@ public class ProjectStorageLimitsManager {
 			throw new UnauthorizedException("You are not authorized to perform this operation.");
 		}
 		
+		validateStorageLocationId(limit.getStorageLocationId());
+		
 		accessedProjects.add(validateAndGetProjectId(limit.getProjectId()));
 				
 		return storageUsageDao.setStorageLocationLimit(userInfo.getId(), limit);
@@ -177,7 +184,7 @@ public class ProjectStorageLimitsManager {
 	 */
 	@WriteTransaction
 	public void setDefaultProjectStorageLimit(String projectId, Long storageLocationId) {
-		ValidateArgument.required(storageLocationId, "The storageLocationId");
+		validateStorageLocationId(storageLocationId);
 		Long projectIdLong = validateAndGetProjectId(projectId);
 		
 		// If a limit is already in place we do not change it
@@ -294,6 +301,14 @@ public class ProjectStorageLimitsManager {
 		ValidateArgument.requirement(EntityType.project.equals(nodeDao.getNodeTypeById(projectId)), "The entity with the given id is not a project.");
 		
 		return KeyFactory.stringToKey(projectId);
+	}
+	
+	void validateStorageLocationId(Long storageLocationId) {
+		ValidateArgument.required(storageLocationId, "The storageLocationId");
+		
+		if (!storageLocationDao.exists(storageLocationId)) {
+			throw new NotFoundException("A storage location with id " + storageLocationId + " does not exist.");
+		}
 	}
 
 }

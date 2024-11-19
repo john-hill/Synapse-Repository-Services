@@ -13,6 +13,7 @@ import org.sagebionetworks.repo.manager.discussion.ForumManager;
 import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitsManager;
 import org.sagebionetworks.repo.manager.subscription.SubscriptionManager;
 import org.sagebionetworks.repo.model.Project;
+import org.sagebionetworks.repo.model.StorageLocationDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.discussion.Forum;
 import org.sagebionetworks.repo.model.subscription.SubscriptionObjectType;
@@ -61,6 +62,6 @@ public class ProjectMetadataProviderTest {
 		
 		verify(mockForumManager).createForum(userInfo, projectId);
 		verify(mockSubscriptionManager).create(userInfo, new Topic().setObjectId(forumId).setObjectType(SubscriptionObjectType.FORUM));
-		verify(mockStorageLimitsManager).setDefaultProjectStorageLimit(projectId, ProjectStorageLimitsManager.DEFAULT_STORAGE_LOCATION_ID);
+		verify(mockStorageLimitsManager).setDefaultProjectStorageLimit(projectId, StorageLocationDAO.DEFAULT_STORAGE_LOCATION_ID);
 	}
 }

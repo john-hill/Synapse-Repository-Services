@@ -14,6 +14,7 @@ import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL
 import org.sagebionetworks.repo.model.FileEntity;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.Project;
+import org.sagebionetworks.repo.model.StorageLocationDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.limits.ProjectStorageLimitsDao;
 import org.sagebionetworks.repo.model.helper.FileHandleObjectHelper;
@@ -102,7 +103,7 @@ public class ProjectStorageDataRefreshWorkerIntegrationTest {
 			return Pair.create(new ProjectStorageUsage()
 				.setProjectId(projectId)
 				.setLocations(List.of(new ProjectStorageLocationUsage()
-					.setStorageLocationId(ProjectStorageLimitsManager.DEFAULT_STORAGE_LOCATION_ID)
+					.setStorageLocationId(StorageLocationDAO.DEFAULT_STORAGE_LOCATION_ID)
 					.setSumFileBytes(3072L)
 					.setMaxAllowedFileBytes(defaultLocationMaxBytes)
 					.setIsOverLimit(false)
@@ -123,7 +124,7 @@ public class ProjectStorageDataRefreshWorkerIntegrationTest {
 			return Pair.create(new ProjectStorageUsage()
 				.setProjectId(projectId)
 				.setLocations(List.of(new ProjectStorageLocationUsage()
-					.setStorageLocationId(ProjectStorageLimitsManager.DEFAULT_STORAGE_LOCATION_ID)
+					.setStorageLocationId(StorageLocationDAO.DEFAULT_STORAGE_LOCATION_ID)
 					.setMaxAllowedFileBytes(defaultLocationMaxBytes)
 					.setSumFileBytes(1024L)
 					.setIsOverLimit(false)

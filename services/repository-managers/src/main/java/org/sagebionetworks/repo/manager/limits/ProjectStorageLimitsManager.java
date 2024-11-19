@@ -1,9 +1,7 @@
 package org.sagebionetworks.repo.manager.limits;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -11,8 +9,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.downloadtools.FileUtils;
 import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
@@ -26,14 +22,11 @@ import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.StorageLocationDAO;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
-import org.sagebionetworks.repo.model.dbo.dao.DBOStorageLocationDAOImpl;
 import org.sagebionetworks.repo.model.dbo.limits.ProjectStorageLimitsDao;
 import org.sagebionetworks.repo.model.feature.Feature;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.limits.ProjectStorageData;
 import org.sagebionetworks.repo.model.limits.ProjectStorageEvent;
-import org.sagebionetworks.repo.model.limits.ProjectStorageLimitsBackfillRequest;
-import org.sagebionetworks.repo.model.limits.ProjectStorageLimitsBackfillResponse;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationUsage;
 import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
@@ -43,17 +36,12 @@ import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.repo.web.ProjectStorageLimitExceededException;
 import org.sagebionetworks.table.cluster.TableIndexDAO;
 import org.sagebionetworks.util.Clock;
-import org.sagebionetworks.util.Pair;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
 public class ProjectStorageLimitsManager {
-	
-	private static final Logger LOGGER = LogManager.getLogger(ProjectStorageLimitsManager.class);
-	
-	public static final Long DEFAULT_STORAGE_LOCATION_ID = DBOStorageLocationDAOImpl.DEFAULT_STORAGE_LOCATION_ID;
 	
 	static final Duration CACHE_UPDATE_FREQUENCY = Duration.ofMinutes(1);
 	
@@ -192,7 +180,7 @@ public class ProjectStorageLimitsManager {
 			return;
 		}
 		
-		Long maxAllowedBytes = DEFAULT_STORAGE_LOCATION_ID.equals(storageLocationId) ? defaultStorageLocationMaxBytes : null;
+		Long maxAllowedBytes = StorageLocationDAO.DEFAULT_STORAGE_LOCATION_ID.equals(storageLocationId) ? defaultStorageLocationMaxBytes : null;
 		
 		ProjectStorageLocationLimit limit = new ProjectStorageLocationLimit()
 			.setProjectId(projectId)
@@ -240,48 +228,6 @@ public class ProjectStorageLimitsManager {
 		ProjectStorageData data = replicationDao.computeProjectStorageData(projectId);
 	
 		storageUsageDao.setStorageData(List.of(data));
-	}
-	
-	public ProjectStorageLimitsBackfillResponse backfillProjectLimits(UserInfo user, ProjectStorageLimitsBackfillRequest request) {
-		if (!user.isAdmin()) {
-        	throw new UnauthorizedException("Only an administrator may access this service.");
-        }
-
-		long batchSize = request.getBatchSize();
-		long limit = batchSize;
-		long offset = 0;
-		
-		List<Long> projectBatch = new ArrayList<>((int) batchSize);
-		long totalNewLimits = 0;
-		
-		while (!(projectBatch = storageUsageDao.getProjectIdsBatch(limit, offset)).isEmpty()) {
-			
-			LOGGER.info("Computing storage locations for {} projects...", projectBatch.size());
-			
-			Set<Pair<Long, Long>> storageLocationPairs = new HashSet<>(replicationDao.getProjectStorageLocations(projectBatch));
-			
-			// Make sure the default storage location is in there for each project
-			storageLocationPairs.addAll(projectBatch.stream()
-				.map(projectId -> Pair.create(projectId, DEFAULT_STORAGE_LOCATION_ID))
-				.collect(Collectors.toSet())
-			);
-			
-			LOGGER.info("Computing storage locations for {} projects...DONE (Total: {})", projectBatch.size(), storageLocationPairs.size());
-			
-			LOGGER.info("Persisting {} limits...", storageLocationPairs.size());
-			int updatedCount = storageUsageDao.setNullLimitBatch(user.getId(), storageLocationPairs);
-			LOGGER.info("Persisting {} limits...DONE (Acutal Count: {})", storageLocationPairs.size(), updatedCount);
-			
-			totalNewLimits += updatedCount;
-			
-			if (projectBatch.size() < batchSize) {
-				break;
-			}
-			
-			offset += batchSize;
-		}
-		
-		return new ProjectStorageLimitsBackfillResponse().setLimitsAddedCount(totalNewLimits);
 	}
 	
 	// On a timer this is invoked to send the notifications for each accessed project

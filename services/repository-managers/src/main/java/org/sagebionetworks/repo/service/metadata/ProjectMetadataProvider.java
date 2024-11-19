@@ -4,6 +4,7 @@ import org.sagebionetworks.repo.manager.discussion.ForumManager;
 import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitsManager;
 import org.sagebionetworks.repo.manager.subscription.SubscriptionManager;
 import org.sagebionetworks.repo.model.Project;
+import org.sagebionetworks.repo.model.StorageLocationDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.discussion.Forum;
 import org.sagebionetworks.repo.model.subscription.SubscriptionObjectType;
@@ -41,6 +42,6 @@ public class ProjectMetadataProvider implements TypeSpecificMetadataProvider<Pro
 		toSubscribe.setObjectId(forum.getId());
 		toSubscribe.setObjectType(SubscriptionObjectType.FORUM);
 		subscriptionManager.create(userInfo, toSubscribe);
-		storageLimitsManager.setDefaultProjectStorageLimit(project.getId(), ProjectStorageLimitsManager.DEFAULT_STORAGE_LOCATION_ID);
+		storageLimitsManager.setDefaultProjectStorageLimit(project.getId(), StorageLocationDAO.DEFAULT_STORAGE_LOCATION_ID);
 	}
 }

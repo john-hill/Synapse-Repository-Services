@@ -2,12 +2,10 @@ package org.sagebionetworks.migration.worker;
 
 import java.io.IOException;
 
-import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitsManager;
 import org.sagebionetworks.repo.manager.migration.MigrationManager;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
-import org.sagebionetworks.repo.model.limits.ProjectStorageLimitsBackfillRequest;
 import org.sagebionetworks.repo.model.migration.AdminRequest;
 import org.sagebionetworks.repo.model.migration.AdminResponse;
 import org.sagebionetworks.repo.model.migration.AsyncMigrationRangeChecksumRequest;
@@ -30,13 +28,10 @@ import org.springframework.stereotype.Service;
 public class MigrationWorker implements AsyncJobRunner<AsyncMigrationRequest, AsyncMigrationResponse> {
 	
 	private MigrationManager migrationManager;
-	
-	private ProjectStorageLimitsManager storageLimitsManager;
 
 	@Autowired
-	public MigrationWorker(MigrationManager migrationManager, ProjectStorageLimitsManager storageLimitsManager) {
+	public MigrationWorker(MigrationManager migrationManager) {
 		this.migrationManager = migrationManager;
-		this.storageLimitsManager = storageLimitsManager;
 	}
 	
 	@Override
@@ -77,8 +72,6 @@ public class MigrationWorker implements AsyncJobRunner<AsyncMigrationRequest, As
 			return migrationManager.calculateOptimalRanges(user, (CalculateOptimalRangeRequest)req);
 		} else if (req instanceof BatchChecksumRequest) {
 			return migrationManager.calculateBatchChecksums(user, (BatchChecksumRequest)req);
-		} else if (req instanceof ProjectStorageLimitsBackfillRequest) {
-			return storageLimitsManager.backfillProjectLimits(user, (ProjectStorageLimitsBackfillRequest) req);
 		} else {
 			throw new IllegalArgumentException("AsyncMigrationRequest not supported.");
 		}

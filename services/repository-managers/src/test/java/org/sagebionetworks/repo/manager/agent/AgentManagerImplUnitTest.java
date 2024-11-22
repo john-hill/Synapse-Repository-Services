@@ -3,9 +3,11 @@ package org.sagebionetworks.repo.manager.agent;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyVararg;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
@@ -24,7 +26,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -698,7 +699,8 @@ public class AgentManagerImplUnitTest {
 			// call under test
 			manager.invokeAgentWithText(jobId, session, chatRequest);
 		}).getMessage();
-		assertEquals("Max number of 10 return_control agent response exceeded.", message);
+		assertEquals("Max number of 1000 return_control agent response exceeded.", message);
+		verify(mockLogger, times(2002)).info(any(String.class), any(), any(), any(), any(), any());
 	}
 
 	@Test

@@ -64,6 +64,8 @@ import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.sagebionetworks.workers.util.semaphore.LockUnavilableException;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.DeadlockLoserDataAccessException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.TransactionStatus;
@@ -849,23 +851,24 @@ public class TableIndexManagerImpl implements TableIndexManager {
 					 * deleted annotations or versions are also removed from the replication tables.
 					 */
 					tableIndexDao.deleteObjectData(replicationType, distinctIdsInBatch);
-					// log.info("{} objects deleted from replication are {})", replicationType.getObjectType(), distinctIdsInBatch);
 					/*
 					 * Add back all of the remaining data in batches.
 					 */
 					tableIndexDao.addObjectData(replicationType, batch);
 					return null;
 				});
-				// log.info("{} objects added to replication are {})", replicationType.getObjectType(), idAndVersionList);
-			}catch(Exception e) {
+			}catch(CannotAcquireLockException | DeadlockLoserDataAccessException e ) {
+				log.error("Recoverable error inserting objects of type: {} with batch: {} and message: {}", replicationType.getObjectType(), idAndVersionList, e.getMessage());
+				throw new RecoverableMessageException(e);
+			} catch(Exception e) {
 				// The fix for PLFM-4497 is to retry failed batches as individuals.
-				//
-				log.error("Replication failed: ", e);
-				log.error("{} replication failed while processing the batch {})", replicationType.getObjectType(), idAndVersionList);
 				if(batch.size() > 1) {
 					// throwing a RecoverableMessageException will result in an attempt to update each object separately.
+					log.error("Failed to insert a batch with more than one item for object type {} with batch: {} and message: {}", replicationType.getObjectType(), idAndVersionList, e.getMessage());
 					throw new RecoverableMessageException(e);
 				}else {
+					log.error("Replication failed: ", e);
+					log.error("{} replication failed while processing the batch {})", replicationType.getObjectType(), idAndVersionList);
 					throw new IllegalArgumentException(e);
 				}
 			}

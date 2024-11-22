@@ -105,7 +105,9 @@ import org.sagebionetworks.util.progress.ProgressingCallable;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.sagebionetworks.workers.util.semaphore.LockType;
 import org.sagebionetworks.workers.util.semaphore.LockUnavilableException;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DeadlockLoserDataAccessException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
@@ -1928,6 +1930,48 @@ public class TableIndexManagerImplTest {
 		doThrow(e).when(mockIndexDao).addObjectData(any(), any());
 		
 		IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class, ()->{
+			// call under test
+			manager.updateObjectReplication(type, toUpdate.iterator(), batchSize);
+		});
+		assertEquals(thrown.getCause(), e);
+	}
+	
+	
+	@Test
+	public void testUpdateObjectReplicationWithCannotAcquireLockException() {
+		ReplicationType type = ReplicationType.ENTITY;
+
+		List<ObjectDataDTO> toUpdate = Arrays.asList(new ObjectDataDTO().setId(0L).setVersion(1L));
+
+		int batchSize = 3;
+
+		setupExecuteInWriteTransaction();
+
+		CannotAcquireLockException e = new CannotAcquireLockException("no lock for you!");
+		doThrow(e).when(mockIndexDao).addObjectData(any(), any());
+
+		RecoverableMessageException thrown = assertThrows(RecoverableMessageException.class, () -> {
+			// call under test
+			manager.updateObjectReplication(type, toUpdate.iterator(), batchSize);
+		});
+		assertEquals(thrown.getCause(), e);
+	}
+
+	@Test
+	public void testUpdateObjectReplicationWithDeadlockLoserDataAccessException() {
+		ReplicationType type = ReplicationType.ENTITY;
+
+		List<ObjectDataDTO> toUpdate = Arrays.asList(new ObjectDataDTO().setId(0L).setVersion(1L));
+
+		int batchSize = 3;
+
+		setupExecuteInWriteTransaction();
+
+		DeadlockLoserDataAccessException e = new DeadlockLoserDataAccessException("Deadlock sucks!",
+				new IllegalArgumentException("something"));
+		doThrow(e).when(mockIndexDao).addObjectData(any(), any());
+
+		RecoverableMessageException thrown = assertThrows(RecoverableMessageException.class, () -> {
 			// call under test
 			manager.updateObjectReplication(type, toUpdate.iterator(), batchSize);
 		});

@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.model.dbo.dao;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -118,12 +119,16 @@ public class DBOStorageLocationDAOImplTest {
 	}
 
 	private StorageLocationSetting doTestCRUD(StorageLocationSetting locationSetting) throws Exception {
+		
 		locationSetting.setDescription("description");
 		locationSetting.setCreatedBy(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId());
 		locationSetting.setCreatedOn(new Date());
 		Long id = storageLocationDAO.create(locationSetting);
 
 		toDelete.add(id);
+		
+		assertTrue(storageLocationDAO.exists(id));
+		assertFalse(storageLocationDAO.exists(id + 1));
 
 		StorageLocationSetting clone = storageLocationDAO.get(id);
 		assertEquals(locationSetting.getClass(), clone.getClass());

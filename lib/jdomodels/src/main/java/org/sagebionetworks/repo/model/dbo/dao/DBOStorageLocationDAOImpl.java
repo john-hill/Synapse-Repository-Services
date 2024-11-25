@@ -6,7 +6,6 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_STORAGE_
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_STORAGE_LOCATION_DESCRIPTION;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_STORAGE_LOCATION_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_STORAGE_LOCATION_UPLOAD_TYPE;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_RESEARCH_PROJECT;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_STORAGE_LOCATION;
 
 import java.sql.ResultSet;
@@ -186,6 +185,13 @@ public class DBOStorageLocationDAOImpl implements StorageLocationDAO, Initializi
 						return location;
 					}
 				});
+	}
+	
+	@Override
+	public boolean exists(Long id) {
+		String sql = "SELECT COUNT(" + COL_STORAGE_LOCATION_ID + ") FROM " + TABLE_STORAGE_LOCATION + " WHERE " + COL_STORAGE_LOCATION_ID + "=?";
+		
+		return jdbcTemplate.queryForObject(sql, Long.class, id) > 0;
 	}
 
 	private Optional<Long> findByCreatorAndHash(Long creatorId, String hash) throws DatastoreException {

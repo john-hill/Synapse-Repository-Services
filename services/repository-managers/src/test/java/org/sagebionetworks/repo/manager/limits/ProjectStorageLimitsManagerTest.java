@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.manager.limits;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -16,7 +17,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,6 +36,7 @@ import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.StorageLocationDAO;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
@@ -44,16 +45,14 @@ import org.sagebionetworks.repo.model.feature.Feature;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.limits.ProjectStorageData;
 import org.sagebionetworks.repo.model.limits.ProjectStorageEvent;
-import org.sagebionetworks.repo.model.limits.ProjectStorageLimitsBackfillRequest;
-import org.sagebionetworks.repo.model.limits.ProjectStorageLimitsBackfillResponse;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationUsage;
 import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.repo.web.ProjectStorageLimitExceededException;
 import org.sagebionetworks.table.cluster.TableIndexDAO;
 import org.sagebionetworks.util.Clock;
-import org.sagebionetworks.util.Pair;
 
 @ExtendWith(MockitoExtension.class)
 public class ProjectStorageLimitsManagerTest {
@@ -72,6 +71,9 @@ public class ProjectStorageLimitsManagerTest {
 		
 	@Mock
 	private NodeDAO mockNodeDao;
+	
+	@Mock
+	private StorageLocationDAO mockStorageLocationDao;
 	
 	@Mock
 	private TransactionalMessenger mockMessenger;
@@ -447,6 +449,7 @@ public class ProjectStorageLimitsManagerTest {
 		String projectId = "123";
 		Long storageLocationId = 2L;
 		
+		doNothing().when(manager).validateStorageLocationId(storageLocationId);
 		doReturn(KeyFactory.stringToKey(projectId)).when(manager).validateAndGetProjectId(projectId);
 		
 		when(mockDao.getStorageLocationLimit(123L, 2L)).thenReturn(Optional.empty());
@@ -468,6 +471,7 @@ public class ProjectStorageLimitsManagerTest {
 		String projectId = "123";
 		Long storageLocationId = 2L;
 		
+		doNothing().when(manager).validateStorageLocationId(storageLocationId);
 		doReturn(KeyFactory.stringToKey(projectId)).when(manager).validateAndGetProjectId(projectId);
 		
 		when(mockDao.getStorageLocationLimit(123L, 2L)).thenReturn(Optional.of(new ProjectStorageLocationLimit()));
@@ -485,8 +489,9 @@ public class ProjectStorageLimitsManagerTest {
 		manager.setDefaultStorageLocationMaxBytes(mockConfig);
 		
 		String projectId = "123";
-		Long storageLocationId = ProjectStorageLimitsManager.DEFAULT_STORAGE_LOCATION_ID;
+		Long storageLocationId = StorageLocationDAO.DEFAULT_STORAGE_LOCATION_ID;
 		
+		doNothing().when(manager).validateStorageLocationId(storageLocationId);
 		doReturn(KeyFactory.stringToKey(projectId)).when(manager).validateAndGetProjectId(projectId);
 		
 		when(mockDao.getStorageLocationLimit(123L, 1L)).thenReturn(Optional.empty());
@@ -509,6 +514,7 @@ public class ProjectStorageLimitsManagerTest {
 		String projectId = "123";
 		Long storageLocationId = 2L;
 		
+		doNothing().when(manager).validateStorageLocationId(storageLocationId);
 		doReturn(KeyFactory.stringToKey(projectId)).when(manager).validateAndGetProjectId(projectId);
 		
 		ProjectStorageLocationLimit limit = new ProjectStorageLocationLimit()
@@ -539,6 +545,7 @@ public class ProjectStorageLimitsManagerTest {
 		String projectId = "123";
 		Long storageLocationId = 2L;
 		
+		doNothing().when(manager).validateStorageLocationId(storageLocationId);
 		doReturn(KeyFactory.stringToKey(projectId)).when(manager).validateAndGetProjectId(projectId);
 		
 		ProjectStorageLocationLimit limit = new ProjectStorageLocationLimit()
@@ -738,35 +745,37 @@ public class ProjectStorageLimitsManagerTest {
 	}
 	
 	@Test
-	public void testBackfillProjectLimits() {
-		UserInfo user = new UserInfo(true, 123L);
+	public void testValidateStorageLocationId() {
+		Long storageLocationId = 2L;
 		
+		when(mockStorageLocationDao.exists(storageLocationId)).thenReturn(true);
 		
-		when(mockDao.getProjectIdsBatch(3, 0)).thenReturn(List.of(1L, 2L, 3L));
-		when(mockDao.getProjectIdsBatch(3, 3)).thenReturn(List.of(4L));
-		
-		when(mockReplicationDao.getProjectStorageLocations(List.of(1L, 2L, 3L))).thenReturn(List.of(
-			Pair.create(1L, 1L), Pair.create(2L, 2L), Pair.create(2L, 3L)
-		));
-		
-		when(mockReplicationDao.getProjectStorageLocations(List.of(4L))).thenReturn(Collections.emptyList());
-		
-		when(mockDao.setNullLimitBatch(123L, Set.of(
-			Pair.create(1L, 1L), 
-			Pair.create(2L, 1L), 
-			Pair.create(2L, 2L), 
-			Pair.create(2L, 3L), 
-			Pair.create(3L, 1L)))
-		).thenReturn(2);
-		
-		when(mockDao.setNullLimitBatch(123L, Set.of(
-			Pair.create(4L, 1L)))
-		).thenReturn(1);
-				
 		// Call under test
-		assertEquals(new ProjectStorageLimitsBackfillResponse().setLimitsAddedCount(3L), manager.backfillProjectLimits(user, new ProjectStorageLimitsBackfillRequest().setBatchSize(3L)));
+		manager.validateStorageLocationId(storageLocationId);
+	}
+	
+	@Test
+	public void testValidateStorageLocationIdWithNotExists() {
+		Long storageLocationId = 2L;
 		
-		verifyNoMoreInteractions(mockDao);
+		when(mockStorageLocationDao.exists(storageLocationId)).thenReturn(false);
+		
+		assertEquals("A storage location with id 2 does not exist.", assertThrows(NotFoundException.class, () -> {			
+			// Call under test
+			manager.validateStorageLocationId(storageLocationId);
+		}).getMessage());
+	}
+	
+	@Test
+	public void testValidateStorageLocationIdWithNull() {
+		Long storageLocationId = null;
+		
+		assertEquals("The storageLocationId is required.", assertThrows(IllegalArgumentException.class, () -> {			
+			// Call under test
+			manager.validateStorageLocationId(storageLocationId);
+		}).getMessage());
+		
+		verifyZeroInteractions(mockStorageLocationDao);
 	}
 	
 }

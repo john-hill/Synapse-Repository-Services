@@ -1,13 +1,16 @@
 package org.sagebionetworks.repo.manager.message;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -109,22 +112,16 @@ public class BroadcastMessageManagerImplTest {
 		topic = new Topic();
 		topic.setObjectId("5555");
 		topic.setObjectType(SubscriptionObjectType.THREAD);
-
-		// This are invocations common to the exposed broadcastMessage method, lenient since we test also unexposed methods
-		lenient().when(mockUser.isAdmin()).thenReturn(true);
-		lenient().when(mockTimeoutUtils.hasExpired(anyLong(), anyLong())).thenReturn(false);
-		lenient().when(mockChangeDao.doesChangeNumberExist(change.getChangeNumber())).thenReturn(true);
-		lenient().when(mockBroadcastMessageDao.wasBroadcast(change.getChangeNumber())).thenReturn(false);
-		lenient().when(mockFactory.createMessageBuilder(change.getObjectId(), change.getChangeType(), change.getUserId())).thenReturn(mockBroadcastMessageBuilder);
-		lenient().when(mockBroadcastMessageBuilder.getBroadcastTopic()).thenReturn(topic);
 		
 		Subscriber sub1 = new Subscriber();
 		sub1.setSubscriptionId("1");
 		sub1.setSubscriberId("1");
+		sub1.setNotificationEmail("email1");
 		
 		Subscriber sub2 = new Subscriber();
 		sub2.setSubscriptionId("2");
 		sub2.setSubscriberId("2");
+		sub2.setNotificationEmail("email2");
 		
 		subscribers = Lists.newArrayList(sub1, sub2);
 	
@@ -132,6 +129,13 @@ public class BroadcastMessageManagerImplTest {
 	
 	@Test
 	public void testBroadcastThreadWithoutMentionedUsers() throws Exception{
+		
+		when(mockUser.isAdmin()).thenReturn(true);
+		when(mockTimeoutUtils.hasExpired(anyLong(), anyLong())).thenReturn(false);
+		when(mockChangeDao.doesChangeNumberExist(change.getChangeNumber())).thenReturn(true);
+		when(mockBroadcastMessageDao.wasBroadcast(change.getChangeNumber())).thenReturn(false);
+		when(mockFactory.createMessageBuilder(change.getObjectId(), change.getChangeType(), change.getUserId())).thenReturn(mockBroadcastMessageBuilder);
+		when(mockBroadcastMessageBuilder.getBroadcastTopic()).thenReturn(topic);
 		
 		when(mockSubscriptionDAO.getAllEmailSubscribers(topic.getObjectId(), topic.getObjectType())).thenReturn(subscribers);
 		when(mockBroadcastMessageBuilder.buildEmailForSubscriber(any(Subscriber.class))).thenReturn(new SendRawEmailRequest());
@@ -143,9 +147,40 @@ public class BroadcastMessageManagerImplTest {
 		// two messages should be sent
 		verify(mockSesClient, times(2)).sendRawEmail(any(SendRawEmailRequest.class));
 	}
+	
+	@Test
+	public void testBroadcastWithIOException() throws Exception{
+		
+		when(mockUser.isAdmin()).thenReturn(true);
+		when(mockTimeoutUtils.hasExpired(anyLong(), anyLong())).thenReturn(false);
+		when(mockChangeDao.doesChangeNumberExist(change.getChangeNumber())).thenReturn(true);
+		when(mockBroadcastMessageDao.wasBroadcast(change.getChangeNumber())).thenReturn(false);
+		when(mockFactory.createMessageBuilder(change.getObjectId(), change.getChangeType(), change.getUserId())).thenReturn(mockBroadcastMessageBuilder);
+		when(mockBroadcastMessageBuilder.getBroadcastTopic()).thenReturn(topic);
+		
+		when(mockSubscriptionDAO.getAllEmailSubscribers(topic.getObjectId(), topic.getObjectType())).thenReturn(subscribers);
+		IOException io = new IOException("connection refused");
+		when(mockBroadcastMessageBuilder.buildEmailForSubscriber(any(Subscriber.class))).thenThrow(io);
+		
+		Exception e = assertThrows(IOException.class, ()->{
+			// call under test
+			manager.broadcastMessage(mockUser, mockCallback, change);
+		});
+		assertEquals(io, e);
+
+		verify(mockBroadcastMessageDao, never()).setBroadcast(anyLong());
+		verify(mockSesClient, never()).sendRawEmail(any(SendRawEmailRequest.class));
+	}
 
 	@Test
 	public void testBroadcastThreadWithMentionedUsers() throws Exception {
+		when(mockUser.isAdmin()).thenReturn(true);
+		when(mockTimeoutUtils.hasExpired(anyLong(), anyLong())).thenReturn(false);
+		when(mockChangeDao.doesChangeNumberExist(change.getChangeNumber())).thenReturn(true);
+		when(mockBroadcastMessageDao.wasBroadcast(change.getChangeNumber())).thenReturn(false);
+		when(mockFactory.createMessageBuilder(change.getObjectId(), change.getChangeType(), change.getUserId())).thenReturn(mockBroadcastMessageBuilder);
+		when(mockBroadcastMessageBuilder.getBroadcastTopic()).thenReturn(topic);
+		
 		when(mockSubscriptionDAO.getAllEmailSubscribers(topic.getObjectId(), topic.getObjectType())).thenReturn(subscribers);
 		when(mockBroadcastMessageBuilder.buildEmailForSubscriber(any(Subscriber.class))).thenReturn(new SendRawEmailRequest());
 		
@@ -186,6 +221,13 @@ public class BroadcastMessageManagerImplTest {
 	
 	@Test
 	public void testBroadcastMessageToSubscribersWithQuarantinedEmail() throws Exception {
+		when(mockUser.isAdmin()).thenReturn(true);
+		when(mockTimeoutUtils.hasExpired(anyLong(), anyLong())).thenReturn(false);
+		when(mockChangeDao.doesChangeNumberExist(change.getChangeNumber())).thenReturn(true);
+		when(mockBroadcastMessageDao.wasBroadcast(change.getChangeNumber())).thenReturn(false);
+		when(mockFactory.createMessageBuilder(change.getObjectId(), change.getChangeType(), change.getUserId())).thenReturn(mockBroadcastMessageBuilder);
+		when(mockBroadcastMessageBuilder.getBroadcastTopic()).thenReturn(topic);
+		
 		String quarantinedEmail = "quarantined@example.com";
 		
 		subscribers.get(0).setNotificationEmail(quarantinedEmail);
@@ -199,6 +241,7 @@ public class BroadcastMessageManagerImplTest {
 		verify(mockEmailQuarantineDao).isQuarantined(quarantinedEmail);
 		// Only one message should be sent
 		verify(mockSesClient).sendRawEmail(any(SendRawEmailRequest.class));
+		verify(mockBroadcastMessageDao).setBroadcast(change.getChangeNumber());
 	}
 
 	@SuppressWarnings("unchecked")
@@ -347,6 +390,13 @@ public class BroadcastMessageManagerImplTest {
 
 	@Test
 	public void testBroadcastFailToBuildMessage() throws Exception{
+		when(mockUser.isAdmin()).thenReturn(true);
+		when(mockTimeoutUtils.hasExpired(anyLong(), anyLong())).thenReturn(false);
+		when(mockChangeDao.doesChangeNumberExist(change.getChangeNumber())).thenReturn(true);
+		when(mockBroadcastMessageDao.wasBroadcast(change.getChangeNumber())).thenReturn(false);
+		when(mockFactory.createMessageBuilder(change.getObjectId(), change.getChangeType(), change.getUserId())).thenReturn(mockBroadcastMessageBuilder);
+		when(mockBroadcastMessageBuilder.getBroadcastTopic()).thenReturn(topic);
+		
 		when(mockSubscriptionDAO.getAllEmailSubscribers(topic.getObjectId(), topic.getObjectType())).thenReturn(subscribers);
 		when(mockBroadcastMessageBuilder.buildEmailForSubscriber(any(Subscriber.class))).thenThrow(new MarkdownClientException(500, ""));
 		
@@ -365,40 +415,61 @@ public class BroadcastMessageManagerImplTest {
 			// call under test
 			manager.broadcastMessage(mockUser, mockCallback, change);
 		});
+		verifyZeroInteractions(mockBroadcastMessageDao);
 	}
 	
 	@Test
 	public void testBroadcastMessageExpired() throws Exception{
+		when(mockUser.isAdmin()).thenReturn(true);
+		when(mockTimeoutUtils.hasExpired(anyLong(), anyLong())).thenReturn(false);
+		
 		// setup expired
 		when(mockTimeoutUtils.hasExpired(anyLong(), anyLong())).thenReturn(true);
 		// call under test
 		manager.broadcastMessage(mockUser, mockCallback, change);
 		// should be ignored
 		verify(mockBroadcastMessageDao, never()).setBroadcast(anyLong());
+		verifyZeroInteractions(mockBroadcastMessageDao);
 	}
 	
 	@Test
 	public void testBroadcastMessageChangeDoesNotExist() throws Exception{
+		when(mockUser.isAdmin()).thenReturn(true);
+		when(mockTimeoutUtils.hasExpired(anyLong(), anyLong())).thenReturn(false);
+		when(mockChangeDao.doesChangeNumberExist(change.getChangeNumber())).thenReturn(true);
+		
 		// change number does not exist
 		when(mockChangeDao.doesChangeNumberExist(change.getChangeNumber())).thenReturn(false);
 		// call under test
 		manager.broadcastMessage(mockUser, mockCallback, change);
 		// should be ignored
 		verify(mockBroadcastMessageDao, never()).setBroadcast(anyLong());
+		verifyZeroInteractions(mockBroadcastMessageDao);
 	}
 	
 	@Test
 	public void testBroadcastMessageAlreadyBroadcast() throws Exception{
+		when(mockUser.isAdmin()).thenReturn(true);
+		when(mockTimeoutUtils.hasExpired(anyLong(), anyLong())).thenReturn(false);
+		when(mockChangeDao.doesChangeNumberExist(change.getChangeNumber())).thenReturn(true);
+		when(mockBroadcastMessageDao.wasBroadcast(change.getChangeNumber())).thenReturn(false);
+		
 		// already broadcast.
 		when(mockBroadcastMessageDao.wasBroadcast(change.getChangeNumber())).thenReturn(true);
 		// call under test
 		manager.broadcastMessage(mockUser, mockCallback, change);
 		// should be ignored
 		verify(mockBroadcastMessageDao, never()).setBroadcast(anyLong());
+		verifyZeroInteractions(mockBroadcastMessageDao);
 	}
 	
 	@Test
 	public void testBroadcastMessageNoBuilder() throws Exception{
+		when(mockUser.isAdmin()).thenReturn(true);
+		when(mockTimeoutUtils.hasExpired(anyLong(), anyLong())).thenReturn(false);
+		when(mockChangeDao.doesChangeNumberExist(change.getChangeNumber())).thenReturn(true);
+		when(mockBroadcastMessageDao.wasBroadcast(change.getChangeNumber())).thenReturn(false);
+		
 		// there is no builder for this type.
 		change.setObjectType(ObjectType.TABLE);
 		Assertions.assertThrows(IllegalArgumentException.class, () -> {			

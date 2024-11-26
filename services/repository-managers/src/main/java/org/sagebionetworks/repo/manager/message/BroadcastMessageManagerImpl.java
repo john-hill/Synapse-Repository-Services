@@ -26,6 +26,7 @@ import org.sagebionetworks.repo.model.dbo.ses.EmailQuarantineDao;
 import org.sagebionetworks.repo.model.message.BroadcastMessageDao;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
 import org.sagebionetworks.repo.model.subscription.Topic;
+import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.util.TimeoutUtils;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.progress.ProgressCallback;
@@ -81,6 +82,7 @@ public class BroadcastMessageManagerImpl implements BroadcastMessageManager {
 	@Autowired
 	private EmailQuarantineDao emailQuarantineDao;
 	
+	@WriteTransaction
 	@Override
 	public void broadcastMessage(UserInfo user,	ProgressCallback progressCallback, ChangeMessage changeMessage) throws ClientProtocolException, JSONException, IOException, MarkdownClientException {
 		ValidateArgument.required(user, "user");
@@ -91,27 +93,19 @@ public class BroadcastMessageManagerImpl implements BroadcastMessageManager {
 		}
 		// Ignore old change messages
 		if(timeoutUtils.hasExpired(MESSAGE_EXPIRATION_MS, changeMessage.getTimestamp().getTime())){
-			if(log.isDebugEnabled()){
-				log.debug("Ignoring "+changeMessage.getChangeNumber()+" since it is older than the maximum expiration time.");
-			}
+			log.info("Ignoring "+changeMessage.getChangeNumber()+" since it is older than the maximum expiration time.");
 			return;
 		}
 		// Does this change message still exist?
 		if(!changeDao.doesChangeNumberExist(changeMessage.getChangeNumber())){
-			if(log.isDebugEnabled()){
-				log.debug("Ignoring "+changeMessage.getChangeNumber()+" since it no longer exists.");
-			}
+			log.info("Ignoring "+changeMessage.getChangeNumber()+" since it no longer exists.");
 			return;
 		}
 		// Ignore messages that have already been sent
 		if(broadcastMessageDao.wasBroadcast(changeMessage.getChangeNumber())){
-			if(log.isDebugEnabled()){
-				log.debug("Ignoring "+changeMessage.getChangeNumber()+" since it was already broadcast.");
-			}
+			log.info("Ignoring "+changeMessage.getChangeNumber()+" since it was already broadcast.");
 			return;
 		}
-		// Record this message as sent to prevent the messages from being sent again.
-		broadcastMessageDao.setBroadcast(changeMessage.getChangeNumber());
 		// Lookup the factory for this type.
 		MessageBuilderFactory factory = messageBuilderFactoryMap.get(changeMessage.getObjectType());
 		if(factory == null){
@@ -136,11 +130,13 @@ public class BroadcastMessageManagerImpl implements BroadcastMessageManager {
 				continue;
 			}
 			SendRawEmailRequest emailRequest = builder.buildEmailForSubscriber(subscriber);
-			log.debug("sending email to "+subscriber.getNotificationEmail());
+			log.info("sending email to: {} for change number: {} object id: {} object type: {}",subscriber.getNotificationEmail(), changeMessage.getChangeNumber(), changeMessage.getObjectId(), changeMessage.getObjectType());
 			sesClient.sendRawEmail(emailRequest);
 		}
 
 		sendMessageToNonSubscribers(progressCallback, changeMessage, builder, subscriberIds, topic);
+		// Record this message as sent to prevent the messages from being sent again.
+		broadcastMessageDao.setBroadcast(changeMessage.getChangeNumber());
 	}
 
 	/*

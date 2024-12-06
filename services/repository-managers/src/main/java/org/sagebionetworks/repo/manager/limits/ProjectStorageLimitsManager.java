@@ -9,6 +9,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.downloadtools.FileUtils;
 import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
@@ -42,6 +44,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class ProjectStorageLimitsManager {
+	
+	private static final Logger LOGGER = LogManager.getLogger(ProjectStorageLimitsManager.class);
 	
 	static final Duration CACHE_UPDATE_FREQUENCY = Duration.ofMinutes(1);
 	

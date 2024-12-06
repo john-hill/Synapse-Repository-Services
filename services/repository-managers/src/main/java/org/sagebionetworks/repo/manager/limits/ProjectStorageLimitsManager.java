@@ -204,14 +204,17 @@ public class ProjectStorageLimitsManager {
 			return;
 		}
 		
-		ProjectStorageLocationUsage usage = getProjectStorageLocationUsage(projectId, storageLocationId)
-			.orElseThrow(() -> new IllegalArgumentException("The storage location " + storageLocationId + " is not assigned to the project " + projectId + "."));
-		
-		if (usage.getIsOverLimit()) {
-			throw new ProjectStorageLimitExceededException(
-				String.format("The project storage usage exceeds the limit for the storage location (Project: %s, Storage Location: %s, Usage: %s, Limit: %s).", projectId,
-					storageLocationId, FileUtils.bytesToHumanReadable(usage.getSumFileBytes()), FileUtils.bytesToHumanReadable(usage.getMaxAllowedFileBytes())));
-		}
+		getProjectStorageLocationUsage(projectId, storageLocationId).ifPresentOrElse(usage -> {
+			if (usage.getIsOverLimit()) {
+				throw new ProjectStorageLimitExceededException(
+					String.format("The project storage usage exceeds the limit for the storage location (Project: %s, Storage Location: %s, Usage: %s, Limit: %s).", projectId,
+						storageLocationId, FileUtils.bytesToHumanReadable(usage.getSumFileBytes()), FileUtils.bytesToHumanReadable(usage.getMaxAllowedFileBytes())));
+			}
+		}, () -> {
+			// See https://sagebionetworks.jira.com/browse/PLFM-8731. There are existing pipelines that would break if we throw an exception when a limit is not there.
+			// Since this require a change in the process for external collaborators we simply log in this case
+			LOGGER.warn("The storage location {} is not assigned to the project {}.", storageLocationId, projectId);
+		});
 	}
 	
 	/**

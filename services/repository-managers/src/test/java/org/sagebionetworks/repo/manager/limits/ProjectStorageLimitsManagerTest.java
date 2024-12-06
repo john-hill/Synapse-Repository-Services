@@ -685,10 +685,14 @@ public class ProjectStorageLimitsManagerTest {
 		
 		doReturn(Optional.empty()).when(manager).getProjectStorageLocationUsage(projectId, storageLocationId);
 		
-		assertEquals("The storage location 2 is not assigned to the project 123.", assertThrows(IllegalArgumentException.class, () -> {			
-			// Call under test
-			manager.verifyProjectStorageLocationUsageUnderLimit(projectId, storageLocationId);
-		}).getMessage());
+		// Call under test
+		manager.verifyProjectStorageLocationUsageUnderLimit(projectId, storageLocationId);
+		
+		// This case used to throw an exception, but it started breaking existing pipelines so we removed it
+//		assertEquals("The storage location 2 is not assigned to the project 123.", assertThrows(IllegalArgumentException.class, () -> {			
+//			// Call under test
+//			manager.verifyProjectStorageLocationUsageUnderLimit(projectId, storageLocationId);
+//		}).getMessage());
 	}
 	
 	@Test

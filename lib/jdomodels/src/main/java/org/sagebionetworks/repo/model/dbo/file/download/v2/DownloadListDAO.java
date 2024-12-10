@@ -134,14 +134,25 @@ public interface DownloadListDAO {
 	/**
 	 * Add all of the children for the given parentId to the user's download list.
 	 * 
-	 * @param id
+	 * @param userId
 	 * @param parentId
 	 * @param useVersion When true, the current version of the file will be used.
 	 *                   When false, the version number will be null;
 	 * @param limit      Limit the number of files that can be added.
 	 * @return The total number of files added.
 	 */
-	Long addChildrenToDownloadList(Long id, Long parentId, boolean useVersion, long limit);
+	Long addChildrenToDownloadList(Long userId, Long parentId, boolean useVersion, long limit);
+	
+	/**
+	 * Add all the files in the tree rooted in the given parentId to the user's download list.
+	 * @param userId
+	 * @param parentId
+	 * @param useVersion When true, the current version of the file will be used.
+	 *                   When false, the version number will be null;
+	 * @param limit      Limit the number of files that can be added.
+	 * @return
+	 */
+	Long addDescendantsToDownloadList(Long userId, Long parentId, boolean useVersion, long limit);
 	
 	/**
 	 * For the given item load all of the details needed to write to a manifest

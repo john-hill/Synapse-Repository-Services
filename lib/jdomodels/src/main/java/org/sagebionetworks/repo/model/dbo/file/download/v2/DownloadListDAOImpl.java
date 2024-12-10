@@ -631,6 +631,29 @@ public class DownloadListDAOImpl implements DownloadListDAO {
 		createOrUpdateDownloadList(userId);
 		return (long) jdbcTemplate.update(sql, userId, parentId, limit);
 	}
+	
+	@WriteTransaction
+	@Override
+	public Long addDescendantsToDownloadList(Long userId, Long parentId, boolean useVersion, long limit) {
+		String versionString = useVersion ? "N." + COL_NODE_CURRENT_REV : "-1";
+		
+		String sql = String.format("INSERT IGNORE INTO " + TABLE_DOWNLOAD_LIST_ITEM_V2 + " ("
+				+ COL_DOWNLOAD_LIST_ITEM_V2_PRINCIPAL_ID + "," 
+				+ COL_DOWNLOAD_LIST_ITEM_V2_ENTITY_ID + ","
+				+ COL_DOWNLOAD_LIST_ITEM_V2_VERSION_NUMBER + "," 
+				+ COL_DOWNLOAD_LIST_ITEM_V2_ADDED_ON + ") "
+				+ "WITH RECURSIVE CONTAINERS (ID, DIST) AS ("
+				+ " SELECT " + COL_NODE_ID + ", 0 FROM " + TABLE_NODE + " WHERE " + COL_NODE_ID + "=? AND " + COL_NODE_TYPE + " IN ('project', 'folder')"
+				+ " UNION DISTINCT"
+				+ " SELECT N." + COL_NODE_ID + ", CONTAINERS.DIST + 1 FROM CONTAINERS JOIN " + TABLE_NODE + " AS N ON (CONTAINERS.ID = N." + COL_NODE_PARENT_ID + " AND N."+COL_NODE_TYPE + " IN ('project', 'folder'))"
+				+ ") "
+				+ "SELECT ?, N." + COL_NODE_ID + ", %s, NOW(3) FROM " + TABLE_NODE + " N JOIN CONTAINERS ON (N." + COL_NODE_PARENT_ID + " = CONTAINERS.ID AND N." + COL_NODE_TYPE + "= 'file') "
+				+ "ORDER BY CONTAINERS.DIST, CONTAINERS.ID, N." + COL_NODE_ID + " LIMIT ?", versionString);
+		
+		createOrUpdateDownloadList(userId);
+		
+		return (long) jdbcTemplate.update(sql, parentId, userId, limit);
+	}
 
 	@Override
 	public JSONObject getItemManifestDetails(DownloadListItem item) {

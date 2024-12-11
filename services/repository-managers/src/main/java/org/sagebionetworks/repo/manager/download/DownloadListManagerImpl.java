@@ -29,6 +29,7 @@ import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.EntityRef;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.NextPageToken;
+import org.sagebionetworks.repo.model.NodeConstants;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -340,19 +341,25 @@ public class DownloadListManagerImpl implements DownloadListManager {
 		if (requestBody.getParentId() != null && requestBody.getQuery() != null) {
 			throw new IllegalArgumentException("Please provide request.parentId or request.query() but not both.");
 		}
-		boolean useVersionNumber = requestBody.getUseVersionNumber() == null ? DEFAULT_USE_VERSION
-				: requestBody.getUseVersionNumber();
-		long usersDownloadListCapacity = MAX_FILES_PER_USER
-				- downloadListDao.getTotalNumberOfFilesOnDownloadList(userInfo.getId());
-		if (usersDownloadListCapacity < 1) {
-			throw new IllegalArgumentException(
-					String.format(YOUR_DOWNLOAD_LIST_ALREADY_HAS_THE_MAXIMUM_NUMBER_OF_FILES, MAX_FILES_PER_USER));
+		
+		boolean recursive = Boolean.TRUE.equals(requestBody.getRecursive());
+		
+		if (recursive && requestBody.getParentId() == null) {
+			throw new IllegalArgumentException("The recursive option is only supported when specifying a parentId.");
 		}
+		
+		boolean useVersionNumber = requestBody.getUseVersionNumber() == null ? DEFAULT_USE_VERSION : requestBody.getUseVersionNumber();
+		
+		long usersDownloadListCapacity = MAX_FILES_PER_USER - downloadListDao.getTotalNumberOfFilesOnDownloadList(userInfo.getId());
+		
+		if (usersDownloadListCapacity < 1) {
+			throw new IllegalArgumentException(String.format(YOUR_DOWNLOAD_LIST_ALREADY_HAS_THE_MAXIMUM_NUMBER_OF_FILES, MAX_FILES_PER_USER));
+		}
+		
 		if (requestBody.getQuery() != null) {
-			return addQueryResultsToDownloadList(progressCallback, userInfo, requestBody.getQuery(), useVersionNumber,
-					MAX_QUERY_PAGE_SIZE, usersDownloadListCapacity);
+			return addQueryResultsToDownloadList(progressCallback, userInfo, requestBody.getQuery(), useVersionNumber, MAX_QUERY_PAGE_SIZE, usersDownloadListCapacity);
 		} else if (requestBody.getParentId() != null) {
-			return addToDownloadList(userInfo, requestBody.getParentId(), useVersionNumber, usersDownloadListCapacity);
+			return addToDownloadList(userInfo, requestBody.getParentId(), useVersionNumber, recursive, usersDownloadListCapacity);
 		} else {
 			throw new IllegalArgumentException("Must include either request.parentId or request.query().");
 		}
@@ -366,17 +373,26 @@ public class DownloadListManagerImpl implements DownloadListManager {
 	 * @param useVersion
 	 * @return
 	 */
-	AddToDownloadListResponse addToDownloadList(UserInfo userInfo, String parentId, boolean useVersion, long limit) {
-		entityAuthorizationManager.hasAccess(userInfo, parentId, ACCESS_TYPE.READ).checkAuthorizationOrElseThrow();
+	AddToDownloadListResponse addToDownloadList(UserInfo userInfo, String parentId, boolean useVersion, boolean recursive, long limit) {
 		Long parentIdKey = KeyFactory.stringToKey(parentId);
+		
+		ValidateArgument.requirement(!NodeConstants.BOOTSTRAP_NODES.getAllBootstrapIds().contains(parentIdKey), "Invalid parentId.");
+		
+		entityAuthorizationManager.hasAccess(userInfo, parentId, ACCESS_TYPE.READ).checkAuthorizationOrElseThrow();
+		
+		Long numberOfFilesAdded;
+		
 		if (nodeDao.getNodeTypeById(parentId).equals(EntityType.dataset)) {
+			ValidateArgument.requirement(!recursive, "The recursive option is not supported for a dataset.");
 			List<EntityRef> items = nodeDao.getNodeItems(parentIdKey);
-			return new AddToDownloadListResponse().setNumberOfFilesAdded(this.downloadListDao
-					.addDatasetItemsToDownloadList(userInfo.getId(), items, limit));
+			numberOfFilesAdded = this.downloadListDao.addDatasetItemsToDownloadList(userInfo.getId(), items, limit);
+		} else if (recursive) {
+			numberOfFilesAdded = this.downloadListDao.addDescendantsToDownloadList(userInfo.getId(), parentIdKey, useVersion, limit);
 		} else {
-			return new AddToDownloadListResponse().setNumberOfFilesAdded(this.downloadListDao
-					.addChildrenToDownloadList(userInfo.getId(), parentIdKey, useVersion, limit));
+			numberOfFilesAdded = this.downloadListDao.addChildrenToDownloadList(userInfo.getId(), parentIdKey, useVersion, limit);
 		}
+		
+		return new AddToDownloadListResponse().setNumberOfFilesAdded(numberOfFilesAdded);
 	}
 
 	/**

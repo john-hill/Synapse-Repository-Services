@@ -19,6 +19,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils.createColumn;
 
@@ -42,6 +43,8 @@ import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.InjectMocks;
@@ -63,6 +66,8 @@ import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.EntityRef;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.NextPageToken;
+import org.sagebionetworks.repo.model.NodeConstants;
+import org.sagebionetworks.repo.model.NodeConstants.BOOTSTRAP_NODES;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -907,14 +912,13 @@ public class DownloadListManagerImplTest {
 		DownloadListManagerImpl managerSpy = Mockito.spy(manager);
 		addRequest.setParentId("syn123");
 		addRequest.setUseVersionNumber(null);
-		doReturn(addResponse).when(managerSpy).addToDownloadList(any(UserInfo.class), any(String.class), anyBoolean(),
+		doReturn(addResponse).when(managerSpy).addToDownloadList(any(UserInfo.class), any(String.class), anyBoolean(), anyBoolean(),
 				anyLong());
 		when(mockDownloadListDao.getTotalNumberOfFilesOnDownloadList(any())).thenReturn(0L);
 		// call under test
 		AddToDownloadListResponse response = managerSpy.addToDownloadList(mockProgressCallback, userOne, addRequest);
 		assertEquals(addResponse, response);
-		verify(managerSpy).addToDownloadList(userOne, addRequest.getParentId(), true,
-				DownloadListManagerImpl.MAX_FILES_PER_USER);
+		verify(managerSpy).addToDownloadList(userOne, addRequest.getParentId(), true, false, DownloadListManagerImpl.MAX_FILES_PER_USER);
 	}
 
 	@Test
@@ -922,13 +926,12 @@ public class DownloadListManagerImplTest {
 		DownloadListManagerImpl managerSpy = Mockito.spy(manager);
 		addRequest.setParentId("syn123");
 		addRequest.setUseVersionNumber(false);
-		doReturn(addResponse).when(managerSpy).addToDownloadList(any(), any(String.class), anyBoolean(), anyLong());
+		doReturn(addResponse).when(managerSpy).addToDownloadList(any(), any(String.class), anyBoolean(), anyBoolean(), anyLong());
 		when(mockDownloadListDao.getTotalNumberOfFilesOnDownloadList(any())).thenReturn(0L);
 		// call under test
 		AddToDownloadListResponse response = managerSpy.addToDownloadList(mockProgressCallback, userOne, addRequest);
 		assertEquals(addResponse, response);
-		verify(managerSpy).addToDownloadList(userOne, addRequest.getParentId(), false,
-				DownloadListManagerImpl.MAX_FILES_PER_USER);
+		verify(managerSpy).addToDownloadList(userOne, addRequest.getParentId(), false, false, DownloadListManagerImpl.MAX_FILES_PER_USER);
 	}
 
 	@Test
@@ -936,14 +939,14 @@ public class DownloadListManagerImplTest {
 		DownloadListManagerImpl managerSpy = Mockito.spy(manager);
 		addRequest.setParentId("syn123");
 		addRequest.setUseVersionNumber(true);
-		doReturn(addResponse).when(managerSpy).addToDownloadList(any(), any(String.class), anyBoolean(), anyLong());
+		doReturn(addResponse).when(managerSpy).addToDownloadList(any(), any(String.class), anyBoolean(), anyBoolean(), anyLong());
 		when(mockDownloadListDao.getTotalNumberOfFilesOnDownloadList(any()))
 				.thenReturn(DownloadListManagerImpl.MAX_FILES_PER_USER - 1);
 		// call under test
 		AddToDownloadListResponse response = managerSpy.addToDownloadList(mockProgressCallback, userOne, addRequest);
 		assertEquals(addResponse, response);
 		long expectedLimit = 1L;
-		verify(managerSpy).addToDownloadList(userOne, addRequest.getParentId(), true, expectedLimit);
+		verify(managerSpy).addToDownloadList(userOne, addRequest.getParentId(), true, false, expectedLimit);
 	}
 
 	@Test
@@ -959,7 +962,26 @@ public class DownloadListManagerImplTest {
 		}).getMessage();
 		assertEquals(String.format(DownloadListManagerImpl.YOUR_DOWNLOAD_LIST_ALREADY_HAS_THE_MAXIMUM_NUMBER_OF_FILES,
 				DownloadListManagerImpl.MAX_FILES_PER_USER), message);
-		verify(managerSpy, never()).addToDownloadList(any(), anyString(), anyBoolean(), anyLong());
+		verify(managerSpy, never()).addToDownloadList(any(), anyString(), anyBoolean(), anyBoolean(), anyLong());
+	}
+	
+	@Test
+	public void testAddToDownloadListWithFolderAndRecursive() {
+		DownloadListManagerImpl managerSpy = Mockito.spy(manager);
+		addRequest.setParentId("syn123");
+		addRequest.setUseVersionNumber(null);
+		addRequest.setRecursive(true);
+		
+		doReturn(addResponse).when(managerSpy).addToDownloadList(any(UserInfo.class), any(String.class), anyBoolean(), anyBoolean(), anyLong());
+		
+		when(mockDownloadListDao.getTotalNumberOfFilesOnDownloadList(any())).thenReturn(0L);
+		
+		// call under test
+		AddToDownloadListResponse response = managerSpy.addToDownloadList(mockProgressCallback, userOne, addRequest);
+		
+		assertEquals(addResponse, response);
+		
+		verify(managerSpy).addToDownloadList(userOne, addRequest.getParentId(), true, true, DownloadListManagerImpl.MAX_FILES_PER_USER);
 	}
 
 	@Test
@@ -992,6 +1014,18 @@ public class DownloadListManagerImplTest {
 		}).getMessage();
 		assertEquals("Please provide request.parentId or request.query() but not both.", message);
 	}
+	
+	@Test
+	public void testAddToDownloadListWithQueryAndRecurisve() {
+		addRequest.setQuery(new Query()).setRecursive(true);
+		
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			manager.addToDownloadList(mockProgressCallback, userOne, addRequest);
+		}).getMessage();
+		
+		assertEquals("The recursive option is only supported when specifying a parentId.", message);
+	}
 
 	@Test
 	public void testAddToDownloadListWithNullRequest() {
@@ -1008,14 +1042,14 @@ public class DownloadListManagerImplTest {
 		Long count = 99L;
 		String parentId = "syn123";
 		boolean useVersion = false;
+		boolean recursive = false;
 		long limit = 100L;
-		when(mockDownloadListDao.addChildrenToDownloadList(any(), anyLong(), anyBoolean(), anyLong()))
-				.thenReturn(count);
+		when(mockDownloadListDao.addChildrenToDownloadList(any(), anyLong(), anyBoolean(), anyLong())).thenReturn(count);
 		when(mockNodeDao.getNodeTypeById(parentId)).thenReturn(EntityType.folder);
 		when(mockEntityAuthorizationManager.hasAccess(any(), any(), any()))
 				.thenReturn(AuthorizationStatus.authorized());
 		// Call under test
-		AddToDownloadListResponse response = manager.addToDownloadList(userOne, parentId, useVersion, limit);
+		AddToDownloadListResponse response = manager.addToDownloadList(userOne, parentId, useVersion, recursive, limit);
 		AddToDownloadListResponse expected = new AddToDownloadListResponse().setNumberOfFilesAdded(count);
 		assertEquals(expected, response);
 		verify(mockDownloadListDao).addChildrenToDownloadList(userOne.getId(), 123L, useVersion, limit);
@@ -1023,9 +1057,29 @@ public class DownloadListManagerImplTest {
 	}
 	
 	@Test
+	public void testAddToDownloadListFolderAndRecursive() {
+		Long count = 99L;
+		String parentId = "syn123";
+		boolean useVersion = false;
+		boolean recursive = true;
+		long limit = 100L;
+		when(mockDownloadListDao.addDescendantsToDownloadList(any(), anyLong(), anyBoolean(), anyLong())).thenReturn(count);
+		when(mockNodeDao.getNodeTypeById(parentId)).thenReturn(EntityType.folder);
+		when(mockEntityAuthorizationManager.hasAccess(any(), any(), any()))
+				.thenReturn(AuthorizationStatus.authorized());
+		// Call under test
+		AddToDownloadListResponse response = manager.addToDownloadList(userOne, parentId, useVersion, recursive, limit);
+		AddToDownloadListResponse expected = new AddToDownloadListResponse().setNumberOfFilesAdded(count);
+		assertEquals(expected, response);
+		verify(mockDownloadListDao).addDescendantsToDownloadList(userOne.getId(), 123L, useVersion, limit);
+		verify(mockEntityAuthorizationManager).hasAccess(userOne, parentId, ACCESS_TYPE.READ);
+	}
+	
+	@Test
 	public void testAddToDownloadListWithDatasetAsParentId() {
 		Long count = 2L;
 		String parentId = "syn123";
+		boolean recursive = false;
 		long limit = 100L;
 		List<EntityRef> items = Arrays.asList(new EntityRef().setEntityId("123"),
 				new EntityRef().setEntityId("234"));
@@ -1036,11 +1090,30 @@ public class DownloadListManagerImplTest {
 		when(mockEntityAuthorizationManager.hasAccess(any(), any(), any()))
 				.thenReturn(AuthorizationStatus.authorized());
 		// Call under test
-		AddToDownloadListResponse response = manager.addToDownloadList(userOne, parentId, true, limit);
+		AddToDownloadListResponse response = manager.addToDownloadList(userOne, parentId, true, recursive, limit);
 		AddToDownloadListResponse expected = new AddToDownloadListResponse().setNumberOfFilesAdded(count);
 		assertEquals(expected, response);
 		verify(mockNodeDao).getNodeItems(123L);
 		verify(mockDownloadListDao).addDatasetItemsToDownloadList(userOne.getId(), items, limit);
+		verify(mockEntityAuthorizationManager).hasAccess(userOne, parentId, ACCESS_TYPE.READ);
+	}
+	
+	@Test
+	public void testAddToDownloadListWithDatasetAndRecursive() {
+		String parentId = "syn123";
+		boolean recursive = true;
+		long limit = 100L;
+		
+		when(mockNodeDao.getNodeTypeById(parentId)).thenReturn(EntityType.dataset);
+		when(mockEntityAuthorizationManager.hasAccess(any(), any(), any())) .thenReturn(AuthorizationStatus.authorized());
+		String errorMessage = assertThrows(IllegalArgumentException.class, () -> {			
+			// Call under test
+			manager.addToDownloadList(userOne, parentId, true, recursive, limit);
+		}).getMessage();
+		
+		assertEquals("The recursive option is not supported for a dataset.", errorMessage);
+		
+		verifyZeroInteractions(mockNodeDao, mockDownloadListDao);
 		verify(mockEntityAuthorizationManager).hasAccess(userOne, parentId, ACCESS_TYPE.READ);
 	}
 
@@ -1048,15 +1121,34 @@ public class DownloadListManagerImplTest {
 	public void testAddToDownloadListFolderWithUnauthorized() {
 		String parentId = "syn123";
 		boolean useVersion = false;
+		boolean recursive = false;
 		long limit = 100L;
 		when(mockEntityAuthorizationManager.hasAccess(any(), any(), any()))
 				.thenReturn(AuthorizationStatus.accessDenied("nope"));
 		assertThrows(UnauthorizedException.class, () -> {
 			// Call under test
-			manager.addToDownloadList(userOne, parentId, useVersion, limit);
+			manager.addToDownloadList(userOne, parentId, useVersion, recursive, limit);
 		});
 		verifyNoMoreInteractions(mockDownloadListDao);
 		verify(mockEntityAuthorizationManager).hasAccess(userOne, parentId, ACCESS_TYPE.READ);
+	}
+	
+	@ParameterizedTest
+	@EnumSource(NodeConstants.BOOTSTRAP_NODES.class)
+	public void testAddToDownloadListFolderWithBootstrapNodes(BOOTSTRAP_NODES node) {
+		String parentId = node.getId().toString();
+		boolean useVersion = false;
+		boolean recursive = false;
+		long limit = 100L;
+		
+		String errorMessage = assertThrows(IllegalArgumentException.class, () -> {
+			// Call under test
+			manager.addToDownloadList(userOne, parentId, useVersion, recursive, limit);
+		}).getMessage();
+		
+		assertEquals("Invalid parentId.", errorMessage);
+		
+		verifyZeroInteractions(mockDownloadListDao, mockEntityAuthorizationManager);
 	}
 
 	@Test

@@ -2081,6 +2081,142 @@ public class DownloadListDaoImplTest {
 	}
 	
 	@Test
+	public void testAddDescendantsToDownloadListWithUseVersionTrue() {
+		int numberOfProject = 1;
+		int foldersPerProject = 2;
+		int filesPerFolder = 3;
+		List<Node> files = createFileHierarchy(numberOfProject, foldersPerProject, filesPerFolder);
+		assertEquals(6, files.size());
+		
+		long parentId = KeyFactory.stringToKey(nodeDao.getProjectId(files.get(0).getId()).get());
+		
+		boolean useVersion = true;
+		
+		// call under test
+		Long count = downloadListDao.addDescendantsToDownloadList(userOneIdLong, parentId, useVersion, limit);
+		
+		assertEquals(6L, count);
+		
+		List<DownloadListItem> expected = files.stream()
+			.map( node -> new DownloadListItem().setFileEntityId(node.getId()).setVersionNumber(2L))
+			.collect(Collectors.toList());
+		
+		compareIdAndVersionToListItem(userOneIdLong, expected, downloadListDao.getDBODownloadListItems(userOneIdLong));
+	}
+	
+	@Test
+	public void testAddDescendantsToDownloadListWithUseVersionFalse() {
+		int numberOfProject = 1;
+		int foldersPerProject = 2;
+		int filesPerFolder = 3;
+		List<Node> files = createFileHierarchy(numberOfProject, foldersPerProject, filesPerFolder);
+		assertEquals(6, files.size());
+		
+		long parentId = KeyFactory.stringToKey(nodeDao.getProjectId(files.get(0).getId()).get());
+		
+		boolean useVersion = false;
+		
+		// call under test
+		Long count = downloadListDao.addDescendantsToDownloadList(userOneIdLong, parentId, useVersion, limit);
+		
+		assertEquals(6L, count);
+		
+		List<DownloadListItem> expected = files.stream()
+			.map( node -> new DownloadListItem().setFileEntityId(node.getId()).setVersionNumber(null))
+			.collect(Collectors.toList());
+		
+		compareIdAndVersionToListItem(userOneIdLong, expected, downloadListDao.getDBODownloadListItems(userOneIdLong));
+	}
+	
+	@Test
+	public void testAddDescendantsToDownloadListWithLimit() {
+		int numberOfProject = 1;
+		int foldersPerProject = 2;
+		int filesPerFolder = 3;
+		List<Node> files = createFileHierarchy(numberOfProject, foldersPerProject, filesPerFolder);
+		assertEquals(6, files.size());
+		
+		long parentId = KeyFactory.stringToKey(nodeDao.getProjectId(files.get(0).getId()).get());
+		
+		boolean useVersion = true;
+		limit = 4;
+		
+		// call under test
+		Long count = downloadListDao.addDescendantsToDownloadList(userOneIdLong, parentId, useVersion, limit);
+		
+		assertEquals(limit, count);
+		
+		List<DownloadListItem> expected = files.stream()
+			.limit(limit)
+			.map( node -> new DownloadListItem().setFileEntityId(node.getId()).setVersionNumber(2L))
+			.collect(Collectors.toList());
+		
+		compareIdAndVersionToListItem(userOneIdLong, expected, downloadListDao.getDBODownloadListItems(userOneIdLong));
+	}
+	
+	@Test
+	public void testAddDescendantsToDownloadListWithFilesAlreadyOnListDifferentVersion() {
+		int numberOfProject = 1;
+		int foldersPerProject = 2;
+		int filesPerFolder = 3;
+		
+		List<Node> files = createFileHierarchy(numberOfProject, foldersPerProject, filesPerFolder);
+		assertEquals(6, files.size());
+		
+		downloadListDao.addBatchOfFilesToDownloadList(userOneIdLong, List.of(
+			new DownloadListItem().setFileEntityId(files.get(1).getId()).setVersionNumber(1L)
+		));
+		
+		long parentId = KeyFactory.stringToKey(nodeDao.getProjectId(files.get(0).getId()).get());
+		boolean useVersion = true;
+		
+		// call under test
+		Long count = downloadListDao.addDescendantsToDownloadList(userOneIdLong, parentId, useVersion, limit);
+		
+		assertEquals(6L, count);
+		
+		List<DownloadListItem> expected = List.of(
+			new DownloadListItem().setFileEntityId(files.get(0).getId()).setVersionNumber(2L),
+			new DownloadListItem().setFileEntityId(files.get(1).getId()).setVersionNumber(1L),
+			new DownloadListItem().setFileEntityId(files.get(1).getId()).setVersionNumber(2L),
+			new DownloadListItem().setFileEntityId(files.get(2).getId()).setVersionNumber(2L),
+			new DownloadListItem().setFileEntityId(files.get(3).getId()).setVersionNumber(2L),
+			new DownloadListItem().setFileEntityId(files.get(4).getId()).setVersionNumber(2L),
+			new DownloadListItem().setFileEntityId(files.get(5).getId()).setVersionNumber(2L)
+		);
+		
+		compareIdAndVersionToListItem(userOneIdLong, expected, downloadListDao.getDBODownloadListItems(userOneIdLong));
+	}
+	
+	@Test
+	public void testAddDescendantsToDownloadListWithFilesAlreadyOnListSameVersion() {
+		int numberOfProject = 1;
+		int foldersPerProject = 2;
+		int filesPerFolder = 3;
+		
+		List<Node> files = createFileHierarchy(numberOfProject, foldersPerProject, filesPerFolder);
+		assertEquals(6, files.size());
+		
+		downloadListDao.addBatchOfFilesToDownloadList(userOneIdLong, List.of(
+			new DownloadListItem().setFileEntityId(files.get(1).getId()).setVersionNumber(2L)
+		));
+		
+		long parentId = KeyFactory.stringToKey(nodeDao.getProjectId(files.get(0).getId()).get());
+		boolean useVersion = true;
+		
+		// call under test
+		Long count = downloadListDao.addDescendantsToDownloadList(userOneIdLong, parentId, useVersion, limit);
+		
+		assertEquals(5L, count);
+		
+		List<DownloadListItem> expected = files.stream()
+			.map( node -> new DownloadListItem().setFileEntityId(node.getId()).setVersionNumber(2L))
+			.collect(Collectors.toList());
+		
+		compareIdAndVersionToListItem(userOneIdLong, expected, downloadListDao.getDBODownloadListItems(userOneIdLong));
+	}
+	
+	@Test
 	public void testAddDatasetItemsToDownloadList() {
 		int numberOfProject = 1;
 		int foldersPerProject = 1;

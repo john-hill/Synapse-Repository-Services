@@ -344,8 +344,11 @@ public class ManagerConfiguration {
 	public AgentClientProvider createAgentClientProvider(
 			BedrockAgentRuntimeAsyncClient defaultBedrockAgentRuntimeAsyncClient,
 			BedrockAgentRuntimeAsyncClient customBedrockAgentRuntimeAsyncClient) {
-		return new AgentClientProvider(Map.of(AgentType.BASELINE, defaultBedrockAgentRuntimeAsyncClient,
-				AgentType.CUSTOM, customBedrockAgentRuntimeAsyncClient));
+		
+		return new AgentClientProvider(Map.of(
+			AgentType.BASELINE, defaultBedrockAgentRuntimeAsyncClient,
+			AgentType.CUSTOM, customBedrockAgentRuntimeAsyncClient)
+		);
 	}
 
 	@Bean

@@ -168,11 +168,15 @@ public class AgentManagerImpl implements AgentManager {
 		boolean enableTrace = request.getEnableTrace() != null ? request.getEnableTrace() : false;
 
 		AgentRegistration agentRegistration = getAgentRegistration(session.getAgentRegistrationId());
+		
 		InvokeAgentRequest startRequest = InvokeAgentRequest.builder().agentId(agentRegistration.getAwsAgentId())
 				.agentAliasId(agentRegistration.getAwsAliasId()).sessionId(session.getSessionId())
 				.enableTrace(enableTrace).inputText(request.getChatText())
-				.sessionState(sessionState -> sessionState.promptSessionAttributes(
-						Map.of(PROMPT_SESSION_ATTRIBUTE_ACCESS_LEVEL, session.getAgentAccessLevel().toString())))
+				.sessionState(sessionState -> sessionState
+					.promptSessionAttributes(
+						Map.of(PROMPT_SESSION_ATTRIBUTE_ACCESS_LEVEL, session.getAgentAccessLevel().toString())
+					)
+				)
 				.build();
 
 		AgentResponse res = invokeAgentAsync(jobId, agentRegistration.getType(), session, startRequest);
@@ -198,12 +202,14 @@ public class AgentManagerImpl implements AgentManager {
 
 			InvokeAgentRequest returnRequest = InvokeAgentRequest.builder().agentId(agentRegistration.getAwsAgentId())
 					.agentAliasId(agentRegistration.getAwsAliasId()).sessionId(session.getSessionId())
-					.sessionState(SessionState.builder().invocationId(res.getInvocationId())
+					.sessionState(SessionState.builder()
+							.invocationId(res.getInvocationId())
 							.returnControlInvocationResults(eventResults)
-							.promptSessionAttributes(Map.of(PROMPT_SESSION_ATTRIBUTE_ACCESS_LEVEL,
-									session.getAgentAccessLevel().toString()))
-							.build())
-					.enableTrace(enableTrace).build();
+							.promptSessionAttributes(
+								Map.of(PROMPT_SESSION_ATTRIBUTE_ACCESS_LEVEL,session.getAgentAccessLevel().toString())
+							).build())
+					.enableTrace(enableTrace)
+					.build();
 
 			res = invokeAgentAsync(jobId, agentRegistration.getType(), session, returnRequest);
 			count++;

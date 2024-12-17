@@ -302,7 +302,7 @@ public class AgentChatWorkerIntegrationTest {
 
 		assertNotNull(session);
 		// an empty request will return an empty response.
-		String chatRequest = "What are the names and synIDs of the children of project: " + project.getId();
+		String chatRequest = "What are the names and synIDs of the children of project: " + project.getId() +"? Please fetch all the pages.";
 
 		//call under test
 		asynchronousJobWorkerHelper.assertJobResponse(admin,

@@ -33,6 +33,8 @@ import org.sagebionetworks.repo.model.agent.AgentChatRequest;
 import org.sagebionetworks.repo.model.agent.AgentChatResponse;
 import org.sagebionetworks.repo.model.agent.AgentSession;
 import org.sagebionetworks.repo.model.agent.CreateAgentSessionRequest;
+import org.sagebionetworks.repo.model.agent.TraceEvent;
+import org.sagebionetworks.repo.model.agent.TraceEventsRequest;
 import org.sagebionetworks.repo.model.agent.UpdateAgentSessionRequest;
 import org.sagebionetworks.repo.model.dbo.file.FileHandleDao;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
@@ -300,7 +302,7 @@ public class AgentChatWorkerIntegrationTest {
 
 		assertNotNull(session);
 		// an empty request will return an empty response.
-		String chatRequest = "What are the names and synIDs of the children of project: " + project.getId();
+		String chatRequest = "What are the names and synIDs of the children of project: " + project.getId() +"? Please fetch all the pages.";
 
 		//call under test
 		asynchronousJobWorkerHelper.assertJobResponse(admin,
@@ -398,5 +400,31 @@ public class AgentChatWorkerIntegrationTest {
 				assertTrue(response.getResponseText().contains(project.getName()));
 				
 			}, MAX_WAIT_MS).getResponse();
+	}
+	
+	@Test
+	public void testSynapseHelpKnowledgeBase() throws AssertionError, AsynchJobFailedException {
+		AgentSession session = agentService.createSession(admin.getId(),
+			new CreateAgentSessionRequest().setAgentAccessLevel(AgentAccessLevel.PUBLICLY_ACCESSIBLE));
+	
+		String sessionId = session.getSessionId();
+		
+		String chatRequest = "Can you tell me about the sage service plans?";
+		
+		String jobId = asynchronousJobWorkerHelper.assertJobResponse(admin, new AgentChatRequest().setSessionId(sessionId).setEnableTrace(true).setChatText(chatRequest),
+			(AgentChatResponse response) -> {
+				assertEquals(sessionId, response.getSessionId());
+				assertNotNull(response.getResponseText());
+				System.out.println(response.getResponseText());
+				assertTrue(response.getResponseText().contains("Basic Hosting Plan"));
+			}, MAX_WAIT_MS).getJobToken();
+		
+		String traceText = agentService.getChatTrace(admin.getId(), new TraceEventsRequest().setJobId(jobId)).getPage().stream()
+			.map(TraceEvent::getMessage)
+			.reduce(String::concat)
+			.orElseThrow();
+		
+		assertTrue(traceText.contains("knowledge base"));
+				
 	}
 }

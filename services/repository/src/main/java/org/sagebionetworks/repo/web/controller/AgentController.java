@@ -56,7 +56,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * the provided sessionId, where each job is started by providing the user's
  * prompt to the agent. The job's response will then include the agent's
  * response to the user's prompt. Use:
- * <a href="POST.agent.chat.async.start">POST /agent/chat/async/start<a/> to
+ * <a href="POST.agent.chat.async.start">POST /agent/chat/async/start</a> to
  * start a chat job and <a href="GET.agent.chat.async.get.asyncToken">GET
  * /agent/chat/async/get/{asyncToken}</a> to get the job's results.
  * 
@@ -155,7 +155,7 @@ public class AgentController {
 
 	/**
 	 * Get the agent's response to a user's prompt started by calling:
-	 * <a href="POST.agent.chat.async.start">POST /agent/chat/async/start<a/>
+	 * <a href="POST.agent.chat.async.start">POST /agent/chat/async/start</a>
 	 * </p>
 	 * Only the user that started the job may get the job's results.
 	 * 
@@ -175,8 +175,7 @@ public class AgentController {
 	}
 
 	/**
-	 * Get a single page of trace events associated with an <a href=
-	 * "${org.sagebionetworks.repo.model.agent.AgentChatRequest}">AgentChatRequest<a/>.
+	 * Get a single page of trace events associated with an <a href="${org.sagebionetworks.repo.model.agent.AgentChatRequest}">AgentChatRequest</a>.
 	 * The resulting TraceEvents will be ordered by timestamp ascending.
 	 * </p>
 	 * Note: The AgentChatRequest.enableTrace must be set to 'true' to enable

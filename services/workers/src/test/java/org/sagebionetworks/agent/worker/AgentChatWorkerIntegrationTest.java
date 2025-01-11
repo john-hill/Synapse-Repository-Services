@@ -2,6 +2,7 @@ package org.sagebionetworks.agent.worker;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -10,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -36,6 +38,9 @@ import org.sagebionetworks.repo.model.agent.CreateAgentSessionRequest;
 import org.sagebionetworks.repo.model.agent.TraceEvent;
 import org.sagebionetworks.repo.model.agent.TraceEventsRequest;
 import org.sagebionetworks.repo.model.agent.UpdateAgentSessionRequest;
+import org.sagebionetworks.repo.model.annotation.v2.Annotations;
+import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValue;
+import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValueType;
 import org.sagebionetworks.repo.model.dbo.file.FileHandleDao;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.table.Dataset;
@@ -81,9 +86,9 @@ public class AgentChatWorkerIntegrationTest {
 	@Autowired
 	private FileHandleManager fileHandleManager;
 
-    private UserInfo admin;
-    private List<String> entitiesToDelete = new ArrayList<>();
-    private List<S3FileHandle> fileHandlesToDelete = new ArrayList<>();
+	private UserInfo admin;
+	private List<String> entitiesToDelete = new ArrayList<>();
+	private List<S3FileHandle> fileHandlesToDelete = new ArrayList<>();
 
 	@BeforeEach
 	public void before() {
@@ -111,8 +116,8 @@ public class AgentChatWorkerIntegrationTest {
 		}
 	}
 
-    @Test
-    public void testChatWithEmptyRequest() throws AssertionError, AsynchJobFailedException {
+	@Test
+	public void testChatWithEmptyRequest() throws AssertionError, AsynchJobFailedException {
 
 		AgentSession session = agentService.createSession(admin.getId(),
 				new CreateAgentSessionRequest().setAgentAccessLevel(AgentAccessLevel.PUBLICLY_ACCESSIBLE));
@@ -142,11 +147,11 @@ public class AgentChatWorkerIntegrationTest {
 
 		assertNotNull(session);
 		// an empty request will return an empty response.
-		String chatRequest = "What is the name of entity: " + project.getId() + "? Please look only in the entity metadata.";
+		String chatRequest = "What is the name of entity: " + project.getId()
+				+ "? Please look only in the entity metadata.";
 
-		asynchronousJobWorkerHelper.assertJobResponse(admin,
-				new AgentChatRequest().setSessionId(session.getSessionId()).setChatText(chatRequest).setEnableTrace(true),
-				(AgentChatResponse response) -> {
+		asynchronousJobWorkerHelper.assertJobResponse(admin, new AgentChatRequest().setSessionId(session.getSessionId())
+				.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {
 					assertNotNull(response);
 					assertEquals(session.getSessionId(), response.getSessionId());
 					assertNotNull(response.getResponseText());
@@ -170,7 +175,8 @@ public class AgentChatWorkerIntegrationTest {
 				null);
 		entitiesToDelete.add(f2.getId());
 
-		Dataset dataset = entityService.createEntity(admin.getId(), new Dataset().setName("dataset1").setParentId(project.getId()), null);
+		Dataset dataset = entityService.createEntity(admin.getId(),
+				new Dataset().setName("dataset1").setParentId(project.getId()), null);
 		entitiesToDelete.add(dataset.getId());
 
 		AgentSession session = agentService.createSession(admin.getId(),
@@ -210,14 +216,16 @@ public class AgentChatWorkerIntegrationTest {
 		entitiesToDelete.add(f2.getId());
 
 		S3FileHandle fileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(),
-				"Test file content".getBytes(StandardCharsets.UTF_8), "TestFile.txt", ContentTypeUtil.TEXT_PLAIN_UTF8, null);
+				"Test file content".getBytes(StandardCharsets.UTF_8), "TestFile.txt", ContentTypeUtil.TEXT_PLAIN_UTF8,
+				null);
 		fileHandlesToDelete.add(fileHandle);
 
-		FileEntity fileOne = entityService.createEntity(admin.getId(),
-				new FileEntity().setName("TestFile1").setParentId(project.getId()).setDataFileHandleId(fileHandle.getId()), null);
+		FileEntity fileOne = entityService.createEntity(admin.getId(), new FileEntity().setName("TestFile1")
+				.setParentId(project.getId()).setDataFileHandleId(fileHandle.getId()), null);
 		entitiesToDelete.add(fileOne.getId());
 
-		Dataset dataset = entityService.createEntity(admin.getId(), new Dataset().setName("dataset1").setParentId(project.getId()), null);
+		Dataset dataset = entityService.createEntity(admin.getId(),
+				new Dataset().setName("dataset1").setParentId(project.getId()), null);
 		entitiesToDelete.add(dataset.getId());
 
 		AgentSession session = agentService.createSession(admin.getId(),
@@ -225,7 +233,8 @@ public class AgentChatWorkerIntegrationTest {
 
 		assertNotNull(session);
 		// an empty request will return an empty response.
-		String chatRequest = "What are the names and synIDs of the folders and files in the project: " + project.getId() + "? Please exclude all other entity types.";
+		String chatRequest = "What are the names and synIDs of the folders and files in the project: " + project.getId()
+				+ "? Please exclude all other entity types.";
 
 		asynchronousJobWorkerHelper.assertJobResponse(admin,
 				new AgentChatRequest().setSessionId(session.getSessionId()).setChatText(chatRequest),
@@ -258,11 +267,12 @@ public class AgentChatWorkerIntegrationTest {
 		entitiesToDelete.add(f2.getId());
 
 		S3FileHandle fileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(),
-				"Test file content".getBytes(StandardCharsets.UTF_8), "TestFile.txt", ContentTypeUtil.TEXT_PLAIN_UTF8, null);
+				"Test file content".getBytes(StandardCharsets.UTF_8), "TestFile.txt", ContentTypeUtil.TEXT_PLAIN_UTF8,
+				null);
 		fileHandlesToDelete.add(fileHandle);
 
-		FileEntity fileOne = entityService.createEntity(admin.getId(),
-				new FileEntity().setName("TestFile1").setParentId(project.getId()).setDataFileHandleId(fileHandle.getId()), null);
+		FileEntity fileOne = entityService.createEntity(admin.getId(), new FileEntity().setName("TestFile1")
+				.setParentId(project.getId()).setDataFileHandleId(fileHandle.getId()), null);
 		entitiesToDelete.add(fileOne.getId());
 
 		AgentSession session = agentService.createSession(admin.getId(),
@@ -270,7 +280,8 @@ public class AgentChatWorkerIntegrationTest {
 
 		assertNotNull(session);
 		// an empty request will return an empty response.
-		String chatRequest = "What are the names and synIDs of the files in the project: " + project.getId() +"? Please exclude all other entity types.";
+		String chatRequest = "What are the names and synIDs of the files in the project: " + project.getId()
+				+ "? Please exclude all other entity types.";
 
 		asynchronousJobWorkerHelper.assertJobResponse(admin,
 				new AgentChatRequest().setSessionId(session.getSessionId()).setChatText(chatRequest),
@@ -292,9 +303,8 @@ public class AgentChatWorkerIntegrationTest {
 		entitiesToDelete.add(project.getId());
 
 		// create more than 50 children as one page can show up to 50 entities.
-		for(int i=1; i<100;i++){
-			 entityService.createEntity(admin.getId(), new Folder().setName("f"+i).setParentId(project.getId()),
-					null);
+		for (int i = 1; i < 100; i++) {
+			entityService.createEntity(admin.getId(), new Folder().setName("f" + i).setParentId(project.getId()), null);
 		}
 
 		AgentSession session = agentService.createSession(admin.getId(),
@@ -302,9 +312,10 @@ public class AgentChatWorkerIntegrationTest {
 
 		assertNotNull(session);
 		// an empty request will return an empty response.
-		String chatRequest = "What are the names and synIDs of the children of project: " + project.getId() +"? Please fetch all the pages.";
+		String chatRequest = "What are the names and synIDs of the children of project: " + project.getId()
+				+ "? Please fetch all the pages.";
 
-		//call under test
+		// call under test
 		asynchronousJobWorkerHelper.assertJobResponse(admin,
 				new AgentChatRequest().setSessionId(session.getSessionId()).setChatText(chatRequest),
 				(AgentChatResponse response) -> {
@@ -318,9 +329,10 @@ public class AgentChatWorkerIntegrationTest {
 	}
 
 	@Test
-	public void testGetEntityDescriptionHandler() throws DatastoreException, NotFoundException, IOException, AssertionError, AsynchJobFailedException {
-		Project project = entityService.createEntity(admin.getId(), new Project().setName(UUID.randomUUID().toString())
-						.setDescription("Test Project"), null);
+	public void testGetEntityDescriptionHandler()
+			throws DatastoreException, NotFoundException, IOException, AssertionError, AsynchJobFailedException {
+		Project project = entityService.createEntity(admin.getId(),
+				new Project().setName(UUID.randomUUID().toString()).setDescription("Test Project"), null);
 		entitiesToDelete.add(project.getId());
 		WikiPage wp = wikiService.createWikiPage(admin.getId(), project.getId(), ObjectType.ENTITY,
 				new WikiPage().setTitle("The meaning of life")
@@ -329,7 +341,7 @@ public class AgentChatWorkerIntegrationTest {
 		WikiPage sub = wikiService.createWikiPage(admin.getId(), project.getId(), ObjectType.ENTITY,
 				new WikiPage().setParentWikiId(wp.getId()).setTitle("Sub-page working title")
 						.setMarkdown("This sub-page also contains another uuid:" + UUID.randomUUID().toString()));
-		
+
 		AgentSession session = agentService.createSession(admin.getId(),
 				new CreateAgentSessionRequest().setAgentAccessLevel(AgentAccessLevel.READ_YOUR_PRIVATE_DATA));
 
@@ -351,80 +363,161 @@ public class AgentChatWorkerIntegrationTest {
 					assertTrue(response.getResponseText().contains(project.getDescription()));
 				}, MAX_WAIT_MS).getResponse();
 	}
-	
+
 	@Test
 	public void testGetAccessLevel() throws AssertionError, AsynchJobFailedException {
 		AgentSession session = agentService.createSession(admin.getId(),
 				new CreateAgentSessionRequest().setAgentAccessLevel(AgentAccessLevel.PUBLICLY_ACCESSIBLE));
-		
+
 		String sessionId = session.getSessionId();
-		
+
 		String chatRequest = "What is the current access level?";
-		
-		asynchronousJobWorkerHelper.assertJobResponse(admin, new AgentChatRequest().setSessionId(sessionId).setChatText(chatRequest),
-			(AgentChatResponse response) -> {
-				assertNotNull(response);
-				assertEquals(sessionId, response.getSessionId());
-				assertNotNull(response.getResponseText());
-				System.out.println(response.getResponseText());
-				assertTrue(response.getResponseText().contains("PUBLICLY_ACCESSIBLE"));
-			}, MAX_WAIT_MS).getResponse();
-		
-		Project project = entityService.createEntity(admin.getId(), new Project().setName(UUID.randomUUID().toString()), null);
+
+		asynchronousJobWorkerHelper
+				.assertJobResponse(admin, new AgentChatRequest().setSessionId(sessionId).setChatText(chatRequest),
+						(AgentChatResponse response) -> {
+							assertNotNull(response);
+							assertEquals(sessionId, response.getSessionId());
+							assertNotNull(response.getResponseText());
+							System.out.println(response.getResponseText());
+							assertTrue(response.getResponseText().contains("PUBLICLY_ACCESSIBLE"));
+						}, MAX_WAIT_MS)
+				.getResponse();
+
+		Project project = entityService.createEntity(admin.getId(), new Project().setName(UUID.randomUUID().toString()),
+				null);
 		entitiesToDelete.add(project.getId());
 
 		chatRequest = "What is the name of entity: " + project.getId();
 
-		asynchronousJobWorkerHelper.assertJobResponse(admin, new AgentChatRequest().setSessionId(sessionId).setChatText(chatRequest),
-			(AgentChatResponse response) -> {
-				assertNotNull(response);
-				assertEquals(sessionId, response.getSessionId());
-				assertNotNull(response.getResponseText());
-				System.out.println(response.getResponseText());
-				assertTrue(response.getResponseText().contains(project.getId()));
-				assertFalse(response.getResponseText().contains(project.getName()));
-				
-			}, MAX_WAIT_MS).getResponse();
-		
-		session = agentService.updateSession(admin.getId(), new UpdateAgentSessionRequest().setSessionId(sessionId).setAgentAccessLevel(AgentAccessLevel.READ_YOUR_PRIVATE_DATA));
-		
+		asynchronousJobWorkerHelper
+				.assertJobResponse(admin, new AgentChatRequest().setSessionId(sessionId).setChatText(chatRequest),
+						(AgentChatResponse response) -> {
+							assertNotNull(response);
+							assertEquals(sessionId, response.getSessionId());
+							assertNotNull(response.getResponseText());
+							System.out.println(response.getResponseText());
+							assertTrue(response.getResponseText().contains(project.getId()));
+							assertFalse(response.getResponseText().contains(project.getName()));
+
+						}, MAX_WAIT_MS)
+				.getResponse();
+
+		session = agentService.updateSession(admin.getId(), new UpdateAgentSessionRequest().setSessionId(sessionId)
+				.setAgentAccessLevel(AgentAccessLevel.READ_YOUR_PRIVATE_DATA));
+
 		chatRequest = "Ok, I updated the access level. What is the name of entity: " + project.getId();
 
-		asynchronousJobWorkerHelper.assertJobResponse(admin, new AgentChatRequest().setSessionId(sessionId).setChatText(chatRequest),
-			(AgentChatResponse response) -> {
-				assertNotNull(response);
-				assertEquals(sessionId, response.getSessionId());
-				assertNotNull(response.getResponseText());
-				System.out.println(response.getResponseText());
-				assertTrue(response.getResponseText().contains(project.getId()));
-				assertTrue(response.getResponseText().contains(project.getName()));
-				
-			}, MAX_WAIT_MS).getResponse();
+		asynchronousJobWorkerHelper
+				.assertJobResponse(admin, new AgentChatRequest().setSessionId(sessionId).setChatText(chatRequest),
+						(AgentChatResponse response) -> {
+							assertNotNull(response);
+							assertEquals(sessionId, response.getSessionId());
+							assertNotNull(response.getResponseText());
+							System.out.println(response.getResponseText());
+							assertTrue(response.getResponseText().contains(project.getId()));
+							assertTrue(response.getResponseText().contains(project.getName()));
+
+						}, MAX_WAIT_MS)
+				.getResponse();
 	}
-	
+
 	@Test
 	public void testSynapseHelpKnowledgeBase() throws AssertionError, AsynchJobFailedException {
 		AgentSession session = agentService.createSession(admin.getId(),
-			new CreateAgentSessionRequest().setAgentAccessLevel(AgentAccessLevel.PUBLICLY_ACCESSIBLE));
-	
+				new CreateAgentSessionRequest().setAgentAccessLevel(AgentAccessLevel.PUBLICLY_ACCESSIBLE));
+
 		String sessionId = session.getSessionId();
-		
+
 		String chatRequest = "Can you tell me about the sage service plans?";
-		
-		String jobId = asynchronousJobWorkerHelper.assertJobResponse(admin, new AgentChatRequest().setSessionId(sessionId).setEnableTrace(true).setChatText(chatRequest),
-			(AgentChatResponse response) -> {
-				assertEquals(sessionId, response.getSessionId());
-				assertNotNull(response.getResponseText());
-				System.out.println(response.getResponseText());
-				assertTrue(response.getResponseText().contains("Basic Hosting Plan"));
-			}, MAX_WAIT_MS).getJobToken();
-		
-		String traceText = agentService.getChatTrace(admin.getId(), new TraceEventsRequest().setJobId(jobId)).getPage().stream()
-			.map(TraceEvent::getMessage)
-			.reduce(String::concat)
-			.orElseThrow();
-		
+
+		String jobId = asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new AgentChatRequest().setSessionId(sessionId).setEnableTrace(true).setChatText(chatRequest),
+				(AgentChatResponse response) -> {
+					assertEquals(sessionId, response.getSessionId());
+					assertNotNull(response.getResponseText());
+					System.out.println(response.getResponseText());
+					assertTrue(response.getResponseText().contains("Basic Hosting Plan"));
+				}, MAX_WAIT_MS).getJobToken();
+
+		String traceText = agentService.getChatTrace(admin.getId(), new TraceEventsRequest().setJobId(jobId)).getPage()
+				.stream().map(TraceEvent::getMessage).reduce(String::concat).orElseThrow();
+
 		assertTrue(traceText.contains("knowledge base"));
-				
+
+	}
+
+	@Test
+	public void testGetAndUpdateEntityAnnotations() throws AssertionError, AsynchJobFailedException {
+		Project project = entityService.createEntity(admin.getId(), new Project().setName(UUID.randomUUID().toString()),
+				null);
+		entitiesToDelete.add(project.getId());
+
+		Annotations ann = entityService.getEntityAnnotations(admin.getId(), project.getId(), true);
+		ann.getAnnotations().put("fileCount",
+				new AnnotationsValue().setType(AnnotationsValueType.LONG).setValue(List.of("2")));
+		ann = entityService.updateEntityAnnotations(admin.getId(), project.getId(), ann);
+
+		AgentSession session = agentService.createSession(admin.getId(),
+				new CreateAgentSessionRequest().setAgentAccessLevel(AgentAccessLevel.WRITE_YOUR_PRIVATE_DATA));
+
+		assertNotNull(session);
+
+		String chatRequest = "Can you increment by one,  the 'fileCount' annotation of project: " + project.getId()
+				+ "?";
+
+		// call under test
+		asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new AgentChatRequest().setSessionId(session.getSessionId()).setChatText(chatRequest),
+				(AgentChatResponse response) -> {
+					assertNotNull(response);
+					assertEquals(session.getSessionId(), response.getSessionId());
+					assertNotNull(response.getResponseText());
+					System.out.println(response.getResponseText());
+					assertTrue(response.getResponseText().contains("success"));
+					assertTrue(response.getResponseText().contains("3"));
+				}, MAX_WAIT_MS);
+
+		// The agent should have updated the annotations.
+		Annotations annUpdated = entityService.getEntityAnnotations(admin.getId(), project.getId(), true);
+		assertNotEquals(ann.getEtag(), annUpdated.getEtag());
+		Annotations expected = new Annotations().setId(project.getId()).setEtag(annUpdated.getEtag()).setAnnotations(
+				Map.of("fileCount", new AnnotationsValue().setType(AnnotationsValueType.LONG).setValue(List.of("3"))));
+		assertEquals(expected, annUpdated);
+	}
+	
+	@Test
+	public void testGetAndUpdateEntityAnnotationsWithLowerAccessLevel() throws AssertionError, AsynchJobFailedException {
+		Project project = entityService.createEntity(admin.getId(), new Project().setName(UUID.randomUUID().toString()),
+				null);
+		entitiesToDelete.add(project.getId());
+
+		Annotations ann = entityService.getEntityAnnotations(admin.getId(), project.getId(), true);
+		ann.getAnnotations().put("fileCount",
+				new AnnotationsValue().setType(AnnotationsValueType.LONG).setValue(List.of("2")));
+		ann = entityService.updateEntityAnnotations(admin.getId(), project.getId(), ann);
+
+		AgentSession session = agentService.createSession(admin.getId(),
+				new CreateAgentSessionRequest().setAgentAccessLevel(AgentAccessLevel.READ_YOUR_PRIVATE_DATA));
+
+		assertNotNull(session);
+
+		String chatRequest = "Can you increment by one,  the 'fileCount' annotation of project: " + project.getId()
+				+ "?";
+
+		// call under test
+		asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new AgentChatRequest().setSessionId(session.getSessionId()).setChatText(chatRequest),
+				(AgentChatResponse response) -> {
+					assertNotNull(response);
+					assertEquals(session.getSessionId(), response.getSessionId());
+					assertNotNull(response.getResponseText());
+					System.out.println(response.getResponseText());
+					assertTrue(response.getResponseText().contains("Read and Write your Data"));
+				}, MAX_WAIT_MS);
+
+		// The agent should not have been able to change the annotations.
+		Annotations annUpdated = entityService.getEntityAnnotations(admin.getId(), project.getId(), true);
+		assertEquals(ann, annUpdated);
 	}
 }

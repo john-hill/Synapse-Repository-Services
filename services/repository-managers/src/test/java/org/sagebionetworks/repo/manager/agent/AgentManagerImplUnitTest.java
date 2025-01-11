@@ -64,6 +64,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAsyncClient;
 import software.amazon.awssdk.services.bedrockagentruntime.model.ActionGroupInvocationInput;
+import software.amazon.awssdk.services.bedrockagentruntime.model.ApiInvocationInput;
+import software.amazon.awssdk.services.bedrockagentruntime.model.ApiParameter;
 import software.amazon.awssdk.services.bedrockagentruntime.model.ContentBody;
 import software.amazon.awssdk.services.bedrockagentruntime.model.FunctionInvocationInput;
 import software.amazon.awssdk.services.bedrockagentruntime.model.FunctionParameter;
@@ -944,6 +946,49 @@ public class AgentManagerImplUnitTest {
 	}
 
 	@Test
+	public void testExtractEventsApiFunction() {
+		String invocationId = "invocationId";
+		String apiPathOne = "/foo/one/{id}";
+		String apiPathTwo = "/foo/two/{another}";
+
+		ReturnControlPayload payload = ReturnControlPayload.builder().invocationId(invocationId)
+				.invocationInputs(List.of(createInvocationInputMemberApi(actionGroup, apiPathOne, "get"),
+						createInvocationInputMemberApi(actionGroup, apiPathTwo, "PUT")))
+				.build();
+
+		List<Parameter> params = List.of(new Parameter("oneKey", "string", "oneValue"),
+				new Parameter("twoKey", "string", "twoValue"));
+		List<ReturnControlEvent> expected = List.of(
+				new ReturnControlEvent(anonymousUserId, actionGroup, "GET /foo/one/{id}", params),
+				new ReturnControlEvent(anonymousUserId, actionGroup, "PUT /foo/two/{another}", params));
+
+		// call under test
+		List<ReturnControlEvent> results = manager.extractEvents(anonymousUserId, payload);
+		assertEquals(expected, results);
+	}
+	
+	@Test
+	public void testExtractEventsWithBothTypes() {
+		String invocationId = "invocationId";
+		String apiPathOne = "/foo/one/{id}";
+
+		ReturnControlPayload payload = ReturnControlPayload.builder().invocationId(invocationId)
+				.invocationInputs(List.of(createInvocationInputMemberApi(actionGroup, apiPathOne, "get"),
+						createInvocationInputMember(actionGroup, functionTwo)))
+				.build();
+
+		List<Parameter> params = List.of(new Parameter("oneKey", "string", "oneValue"),
+				new Parameter("twoKey", "string", "twoValue"));
+		List<ReturnControlEvent> expected = List.of(
+				new ReturnControlEvent(anonymousUserId, actionGroup, "GET /foo/one/{id}", params),
+				new ReturnControlEvent(anonymousUserId, actionGroup, functionTwo, params));
+
+		// call under test
+		List<ReturnControlEvent> results = manager.extractEvents(anonymousUserId, payload);
+		assertEquals(expected, results);
+	}
+
+	@Test
 	public void testGetChatTrace() {
 		when(mockStatusDao.getJobStatus(jobId))
 				.thenReturn(new AsynchronousJobStatus().setJobId(jobId).setStartedByUserId(sageUser.getId()));
@@ -1019,6 +1064,13 @@ public class AgentManagerImplUnitTest {
 				.actionGroup(actionGroup).function(function).parameters(List.of(paramOne, paramTwo)).build()).build();
 	}
 
+	private InvocationInputMember createInvocationInputMemberApi(String actionGroup, String apiPath, String method) {
+		ApiParameter paramOne = ApiParameter.builder().name("oneKey").type("string").value("oneValue").build();
+		ApiParameter paramTwo = ApiParameter.builder().name("twoKey").type("string").value("twoValue").build();
+		return InvocationInputMember.builder().apiInvocationInput(ApiInvocationInput.builder().actionGroup(actionGroup)
+				.apiPath(apiPath).httpMethod(method).parameters(paramOne, paramTwo).build()).build();
+	}
+
 	@Test
 	public void testOnTraceWithInput() {
 		// call under test
@@ -1062,7 +1114,7 @@ public class AgentManagerImplUnitTest {
 		var r = manager.createOrGetAgentRegistration(sageUser, agentRegistrationRequest);
 		assertEquals(agentRegistration, r);
 	}
-	
+
 	@Test
 	public void testRegisterAgentWithSagerBlankAlias() {
 		agentRegistrationRequest.setAwsAliasId(" \n");

@@ -4,12 +4,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.StringJoiner;
 import java.util.concurrent.CompletableFuture;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.Logger;
 import org.json.JSONObject;
 import org.sagebionetworks.LoggerProvider;
+import org.sagebionetworks.repo.manager.agent.handler.OpenApiReturnControlHandler;
 import org.sagebionetworks.repo.manager.agent.handler.ReturnControlEvent;
 import org.sagebionetworks.repo.manager.agent.handler.ReturnControlHandler;
 import org.sagebionetworks.repo.manager.agent.handler.ReturnControlHandlerProvider;
@@ -38,14 +40,20 @@ import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import software.amazon.awssdk.services.bedrockagentruntime.model.ApiInvocationInput;
+import software.amazon.awssdk.services.bedrockagentruntime.model.ApiRequestBody;
+import software.amazon.awssdk.services.bedrockagentruntime.model.ApiResult;
 import software.amazon.awssdk.services.bedrockagentruntime.model.ContentBody;
+import software.amazon.awssdk.services.bedrockagentruntime.model.FunctionInvocationInput;
 import software.amazon.awssdk.services.bedrockagentruntime.model.FunctionResult;
+import software.amazon.awssdk.services.bedrockagentruntime.model.InvocationInputMember;
 import software.amazon.awssdk.services.bedrockagentruntime.model.InvocationResultMember;
 import software.amazon.awssdk.services.bedrockagentruntime.model.InvokeAgentRequest;
 import software.amazon.awssdk.services.bedrockagentruntime.model.InvokeAgentResponseHandler;
 import software.amazon.awssdk.services.bedrockagentruntime.model.InvokeAgentResponseHandler.Visitor;
 import software.amazon.awssdk.services.bedrockagentruntime.model.OrchestrationModelInvocationOutput;
 import software.amazon.awssdk.services.bedrockagentruntime.model.OrchestrationTrace;
+import software.amazon.awssdk.services.bedrockagentruntime.model.PropertyParameters;
 import software.amazon.awssdk.services.bedrockagentruntime.model.RawResponse;
 import software.amazon.awssdk.services.bedrockagentruntime.model.ReturnControlPayload;
 import software.amazon.awssdk.services.bedrockagentruntime.model.SessionState;
@@ -168,15 +176,12 @@ public class AgentManagerImpl implements AgentManager {
 		boolean enableTrace = request.getEnableTrace() != null ? request.getEnableTrace() : false;
 
 		AgentRegistration agentRegistration = getAgentRegistration(session.getAgentRegistrationId());
-		
+
 		InvokeAgentRequest startRequest = InvokeAgentRequest.builder().agentId(agentRegistration.getAwsAgentId())
 				.agentAliasId(agentRegistration.getAwsAliasId()).sessionId(session.getSessionId())
 				.enableTrace(enableTrace).inputText(request.getChatText())
-				.sessionState(sessionState -> sessionState
-					.promptSessionAttributes(
-						Map.of(PROMPT_SESSION_ATTRIBUTE_ACCESS_LEVEL, session.getAgentAccessLevel().toString())
-					)
-				)
+				.sessionState(sessionState -> sessionState.promptSessionAttributes(
+						Map.of(PROMPT_SESSION_ATTRIBUTE_ACCESS_LEVEL, session.getAgentAccessLevel().toString())))
 				.build();
 
 		AgentResponse res = invokeAgentAsync(jobId, agentRegistration.getType(), session, startRequest);
@@ -202,14 +207,12 @@ public class AgentManagerImpl implements AgentManager {
 
 			InvokeAgentRequest returnRequest = InvokeAgentRequest.builder().agentId(agentRegistration.getAwsAgentId())
 					.agentAliasId(agentRegistration.getAwsAliasId()).sessionId(session.getSessionId())
-					.sessionState(SessionState.builder()
-							.invocationId(res.getInvocationId())
+					.sessionState(SessionState.builder().invocationId(res.getInvocationId())
 							.returnControlInvocationResults(eventResults)
-							.promptSessionAttributes(
-								Map.of(PROMPT_SESSION_ATTRIBUTE_ACCESS_LEVEL,session.getAgentAccessLevel().toString())
-							).build())
-					.enableTrace(enableTrace)
-					.build();
+							.promptSessionAttributes(Map.of(PROMPT_SESSION_ATTRIBUTE_ACCESS_LEVEL,
+									session.getAgentAccessLevel().toString()))
+							.build())
+					.enableTrace(enableTrace).build();
 
 			res = invokeAgentAsync(jobId, agentRegistration.getType(), session, returnRequest);
 			count++;
@@ -264,6 +267,7 @@ public class AgentManagerImpl implements AgentManager {
 			future.get();
 			return response;
 		} catch (Exception e) {
+			logger.error("Invoke Agent failed", e);
 			throw new RuntimeException(e);
 		}
 	}
@@ -316,10 +320,24 @@ public class AgentManagerImpl implements AgentManager {
 							String.format("No handler for actionGroup: '%s' and function: '%s'", e.getActionGroup(),
 									e.getFunction())));
 			String responseBody = handleEvent(accessLevel, handler, e);
-			results.add(InvocationResultMember.builder()
-					.functionResult(FunctionResult.builder().actionGroup(e.getActionGroup()).function(e.getFunction())
-							.responseBody(Map.of("TEXT", ContentBody.builder().body(responseBody).build())).build())
-					.build());
+			Map<String, ContentBody> bodyMap = Map.of("TEXT", ContentBody.builder().body(responseBody).build());
+			if (handler instanceof OpenApiReturnControlHandler) {
+				OpenApiReturnControlHandler apiHandler = (OpenApiReturnControlHandler) handler;
+				results.add(InvocationResultMember.builder()
+						.apiResult(ApiResult.builder().actionGroup(e.getActionGroup()).apiPath(apiHandler.getPath())
+								.httpMethod(apiHandler.getHttpMethod().name())
+								.httpStatusCode(apiHandler.getSuccessHttpCode().getCode())
+								.responseBody(bodyMap)
+								.build())
+						.build());
+			} else {
+				results.add(InvocationResultMember.builder()
+						.functionResult(FunctionResult.builder().actionGroup(e.getActionGroup())
+								.function(e.getFunction())
+								.responseBody(bodyMap)
+								.build())
+						.build());
+			}
 		}
 		return results;
 	}
@@ -364,15 +382,57 @@ public class AgentManagerImpl implements AgentManager {
 	List<ReturnControlEvent> extractEvents(Long userId, ReturnControlPayload payload) {
 		List<ReturnControlEvent> events = new ArrayList<>();
 		payload.invocationInputs().forEach(iim -> {
-			var input = iim.functionInvocationInput();
-			List<Parameter> params = new ArrayList<>();
-			input.parameters().forEach(p -> {
-
-				params.add(new Parameter(p.name(), p.type(), p.value()));
-			});
-			events.add(new ReturnControlEvent(userId, input.actionGroup(), input.function(), params));
+			events.add(fromInvocationInputMember(userId, iim));
 		});
 		return events;
+	}
+
+	ReturnControlEvent fromInvocationInputMember(Long userId, InvocationInputMember member) {
+		if (member.functionInvocationInput() != null) {
+			return fromFunctionInvocationInput(userId, member.functionInvocationInput());
+		} else if (member.apiInvocationInput() != null) {
+			return fromApiInvocationInput(userId, member.apiInvocationInput());
+		}
+		throw new IllegalStateException("Expected either function or api invocation");
+	}
+
+	ReturnControlEvent fromFunctionInvocationInput(Long userId, FunctionInvocationInput input) {
+		List<Parameter> params = new ArrayList<>();
+		input.parameters().forEach(p -> {
+			params.add(new Parameter(p.name(), p.type(), p.value()));
+		});
+		return new ReturnControlEvent(userId, input.actionGroup(), input.function(), params);
+	}
+
+	ReturnControlEvent fromApiInvocationInput(Long userId, ApiInvocationInput input) {
+		String requestBody = getRequestBody(input.requestBody());
+		List<Parameter> params = new ArrayList<>();
+		input.parameters().forEach(p -> {
+			params.add(new Parameter(p.name(), p.type(), p.value()));
+		});
+		String function = String.format("%s %s", input.httpMethod().toUpperCase(), input.apiPath());
+		return new ReturnControlEvent(userId, input.actionGroup(), function, params, requestBody);
+	}
+	
+	String getRequestBody(ApiRequestBody body) {
+		if(body == null || body.content() == null) {
+			return null;
+		}
+		PropertyParameters jsonBody = body.content().get("application/json");
+		if(jsonBody == null) {
+			throw new IllegalArgumentException("Expected a body of type 'application/json'");
+		}
+		JSONObject object = new JSONObject();
+		jsonBody.properties().forEach(p->{
+			if("object".equals(p.type())) {
+				object.put(p.name(), new JSONObject(p.value()));
+			}else if("string".equals(p.type())) {
+				object.put(p.name(), p.value());
+			}else {
+				throw new IllegalArgumentException("Unknown type: "+p.type());
+			}
+		});
+		return object.toString();
 	}
 
 	@Override

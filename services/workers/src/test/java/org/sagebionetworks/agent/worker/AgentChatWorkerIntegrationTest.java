@@ -456,6 +456,8 @@ public class AgentChatWorkerIntegrationTest {
 		Annotations ann = entityService.getEntityAnnotations(admin.getId(), project.getId(), true);
 		ann.getAnnotations().put("fileCount",
 				new AnnotationsValue().setType(AnnotationsValueType.LONG).setValue(List.of("2")));
+		ann.getAnnotations().put("fileType",
+				new AnnotationsValue().setType(AnnotationsValueType.STRING).setValue(List.of("temp")));
 		ann = entityService.updateEntityAnnotations(admin.getId(), project.getId(), ann);
 
 		AgentSession session = agentService.createSession(admin.getId(),
@@ -473,7 +475,6 @@ public class AgentChatWorkerIntegrationTest {
 					assertNotNull(response);
 					assertEquals(session.getSessionId(), response.getSessionId());
 					assertNotNull(response.getResponseText());
-					System.out.println(response.getResponseText());
 					assertTrue(response.getResponseText().contains("success"));
 					assertTrue(response.getResponseText().contains("3"));
 				}, MAX_WAIT_MS);
@@ -481,13 +482,97 @@ public class AgentChatWorkerIntegrationTest {
 		// The agent should have updated the annotations.
 		Annotations annUpdated = entityService.getEntityAnnotations(admin.getId(), project.getId(), true);
 		assertNotEquals(ann.getEtag(), annUpdated.getEtag());
-		Annotations expected = new Annotations().setId(project.getId()).setEtag(annUpdated.getEtag()).setAnnotations(
-				Map.of("fileCount", new AnnotationsValue().setType(AnnotationsValueType.LONG).setValue(List.of("3"))));
+		Annotations expected = new Annotations().setId(project.getId()).setEtag(annUpdated.getEtag())
+				.setAnnotations(Map.of("fileCount",
+						new AnnotationsValue().setType(AnnotationsValueType.LONG).setValue(List.of("3")), "fileType",
+						new AnnotationsValue().setType(AnnotationsValueType.STRING).setValue(List.of("temp"))));
 		assertEquals(expected, annUpdated);
 	}
-	
+
 	@Test
-	public void testGetAndUpdateEntityAnnotationsWithLowerAccessLevel() throws AssertionError, AsynchJobFailedException {
+	public void testGetAndDeleteEntityAnnotation() throws AssertionError, AsynchJobFailedException {
+		Project project = entityService.createEntity(admin.getId(), new Project().setName(UUID.randomUUID().toString()),
+				null);
+		entitiesToDelete.add(project.getId());
+
+		Annotations ann = entityService.getEntityAnnotations(admin.getId(), project.getId(), true);
+		ann.getAnnotations().put("fileCount",
+				new AnnotationsValue().setType(AnnotationsValueType.LONG).setValue(List.of("2")));
+		ann.getAnnotations().put("fileType",
+				new AnnotationsValue().setType(AnnotationsValueType.STRING).setValue(List.of("temp")));
+		ann = entityService.updateEntityAnnotations(admin.getId(), project.getId(), ann);
+
+		AgentSession session = agentService.createSession(admin.getId(),
+				new CreateAgentSessionRequest().setAgentAccessLevel(AgentAccessLevel.WRITE_YOUR_PRIVATE_DATA));
+
+		assertNotNull(session);
+
+		String chatRequest = "Can you remove the 'fileType' annotation of project: " + project.getId() + "?";
+
+		// call under test
+		asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new AgentChatRequest().setSessionId(session.getSessionId()).setChatText(chatRequest),
+				(AgentChatResponse response) -> {
+					assertNotNull(response);
+					assertEquals(session.getSessionId(), response.getSessionId());
+					assertNotNull(response.getResponseText());
+					assertTrue(response.getResponseText().contains("successfully removed"));
+				}, MAX_WAIT_MS);
+
+		// The agent should have updated the annotations.
+		Annotations annUpdated = entityService.getEntityAnnotations(admin.getId(), project.getId(), true);
+		assertNotEquals(ann.getEtag(), annUpdated.getEtag());
+		Annotations expected = new Annotations().setId(project.getId()).setEtag(annUpdated.getEtag()).setAnnotations(
+				Map.of("fileCount", new AnnotationsValue().setType(AnnotationsValueType.LONG).setValue(List.of("2"))));
+		assertEquals(expected, annUpdated);
+	}
+
+	@Test
+	public void testGetAndAddEntityAnnotation() throws AssertionError, AsynchJobFailedException {
+		Project project = entityService.createEntity(admin.getId(), new Project().setName(UUID.randomUUID().toString()),
+				null);
+		entitiesToDelete.add(project.getId());
+
+		Annotations ann = entityService.getEntityAnnotations(admin.getId(), project.getId(), true);
+		ann.getAnnotations().put("fileCount",
+				new AnnotationsValue().setType(AnnotationsValueType.LONG).setValue(List.of("2")));
+		ann.getAnnotations().put("fileType",
+				new AnnotationsValue().setType(AnnotationsValueType.STRING).setValue(List.of("temp")));
+		ann = entityService.updateEntityAnnotations(admin.getId(), project.getId(), ann);
+
+		AgentSession session = agentService.createSession(admin.getId(),
+				new CreateAgentSessionRequest().setAgentAccessLevel(AgentAccessLevel.WRITE_YOUR_PRIVATE_DATA));
+
+		assertNotNull(session);
+
+		String chatRequest = "Can you add an annotation named 'concat' that is the string concatenation"
+				+ " of 'fileType' + '/' + 'fileCount' to project: "
+				+ project.getId() + "?";
+
+		// call under test
+		asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new AgentChatRequest().setSessionId(session.getSessionId()).setChatText(chatRequest),
+				(AgentChatResponse response) -> {
+					assertNotNull(response);
+					assertEquals(session.getSessionId(), response.getSessionId());
+					assertNotNull(response.getResponseText());
+					assertTrue(response.getResponseText().contains("success"));
+					assertTrue(response.getResponseText().contains("temp/2"));
+				}, MAX_WAIT_MS);
+
+		// The agent should have updated the annotations.
+		Annotations annUpdated = entityService.getEntityAnnotations(admin.getId(), project.getId(), true);
+		assertNotEquals(ann.getEtag(), annUpdated.getEtag());
+		Annotations expected = new Annotations().setId(project.getId()).setEtag(annUpdated.getEtag()).setAnnotations(
+				Map.of("fileCount", new AnnotationsValue().setType(AnnotationsValueType.LONG).setValue(List.of("2")),
+						"fileType", new AnnotationsValue().setType(AnnotationsValueType.STRING).setValue(List.of("temp")),
+						"concat", new AnnotationsValue().setType(AnnotationsValueType.STRING).setValue(List.of("temp/2"))));
+		assertEquals(expected, annUpdated);
+	}
+
+	@Test
+	public void testGetAndUpdateEntityAnnotationsWithLowerAccessLevel()
+			throws AssertionError, AsynchJobFailedException {
 		Project project = entityService.createEntity(admin.getId(), new Project().setName(UUID.randomUUID().toString()),
 				null);
 		entitiesToDelete.add(project.getId());
@@ -512,7 +597,6 @@ public class AgentChatWorkerIntegrationTest {
 					assertNotNull(response);
 					assertEquals(session.getSessionId(), response.getSessionId());
 					assertNotNull(response.getResponseText());
-					System.out.println(response.getResponseText());
 					assertTrue(response.getResponseText().contains("Read and Write your Data"));
 				}, MAX_WAIT_MS);
 

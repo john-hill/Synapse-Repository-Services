@@ -31,6 +31,7 @@ import org.sagebionetworks.asynchronous.workers.sqs.MessageUtils;
 import org.sagebionetworks.kinesis.AwsKinesisFirehoseLogger;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
+import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitsManager;
 import org.sagebionetworks.repo.manager.trash.EntityInTrashCanException;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.AccessRequirementStats;
@@ -50,6 +51,8 @@ import org.sagebionetworks.repo.model.audit.NodeRecord;
 import org.sagebionetworks.repo.model.auth.UserEntityPermissions;
 import org.sagebionetworks.repo.model.dbo.schema.DerivedAnnotationDao;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
+import org.sagebionetworks.repo.model.limits.ProjectStorageLocationUsage;
+import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
 import org.sagebionetworks.repo.model.message.ChangeType;
 import org.sagebionetworks.snapshot.workers.KinesisObjectSnapshotRecord;
@@ -76,6 +79,8 @@ public class NodeObjectRecordWriterTest {
 	private UserInfo mockUserInfo;
 	@Mock
 	private AwsKinesisFirehoseLogger mockKinesisLogger;
+	@Mock
+	private ProjectStorageLimitsManager mockStorageLimitsManager;
 	@Mock
 	private ProgressCallback mockCallback;
 	
@@ -337,6 +342,48 @@ public class NodeObjectRecordWriterTest {
 		deletedNode.setId(nodeId);
 				
 		KinesisObjectSnapshotRecord<?> expectedRecord = KinesisObjectSnapshotRecord.map(changeMessage, new NodeRecord().setId(nodeId));
+		
+		verify(mockKinesisLogger).logBatch(eq("nodeSnapshots"), recordCaptor.capture());
+		
+		expectedRecord.withSnapshotTimestamp(recordCaptor.getValue().get(0).getSnapshotTimestamp());
+		
+		assertEquals(List.of(expectedRecord), recordCaptor.getValue());
+	}
+	
+	@Test
+	public void testBuildAndWriteRecordsWithProjectAndStorageLimits() throws IOException {
+		node.setNodeType(EntityType.project);
+		
+		when(mockNodeDAO.getNode(any())).thenReturn(node);
+		when(mockNodeDAO.getProjectId(any())).thenReturn(Optional.of("1"));
+		when(mockUserManager.getUserInfo(any())).thenReturn(mockUserInfo);
+		when(mockEntityAuthorizationManager.getUserPermissionsForEntity(any(), any())).thenReturn(mockPermissions);
+		when(mockAccessRequirementDao.getAccessRequirementStats(any(), any())).thenReturn(stats);
+		
+		ProjectStorageUsage projectStorageUsage = new ProjectStorageUsage().setLocations(List.of(
+			new ProjectStorageLocationUsage().setMaxAllowedFileBytes(1000L).setStorageLocationId(2L).setSumFileBytes(500L).setIsOverLimit(false)
+		));
+		
+		when(mockStorageLimitsManager.getProjectStorageUsage(any())).thenReturn(projectStorageUsage);
+				
+		Long timestamp = System.currentTimeMillis();
+		Message message = MessageUtils.buildMessage(ChangeType.UPDATE, "123", ObjectType.ENTITY, "etag", timestamp);
+		ChangeMessage changeMessage = MessageUtils.extractMessageBody(message);
+		
+		node.setIsPublic(false);
+		node.setIsControlled(true);
+		node.setIsRestricted(false);
+		node.setEffectiveArs(List.of(1L, 2L, 3L));
+		node.setProjectStorageUsage(projectStorageUsage);
+		
+		writer.buildAndWriteRecords(mockCallback, Arrays.asList(changeMessage));
+		
+		verify(mockNodeDAO).getNode(eq("123"));
+		verify(mockNodeDAO).getUserAnnotations("123");
+		verify(mockDerivedAnnotaionsDao).getDerivedAnnotations("123");
+		verify(mockStorageLimitsManager).getProjectStorageUsage(123L);
+		
+		KinesisObjectSnapshotRecord<NodeRecord> expectedRecord = KinesisObjectSnapshotRecord.map(changeMessage, node);
 		
 		verify(mockKinesisLogger).logBatch(eq("nodeSnapshots"), recordCaptor.capture());
 		

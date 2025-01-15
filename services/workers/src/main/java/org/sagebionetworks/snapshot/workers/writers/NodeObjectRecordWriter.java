@@ -11,10 +11,12 @@ import org.sagebionetworks.kinesis.AwsKinesisFirehoseLogger;
 import org.sagebionetworks.repo.manager.NodeTranslationUtils;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
+import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitsManager;
 import org.sagebionetworks.repo.manager.trash.EntityInTrashCanException;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.AccessRequirementStats;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
+import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.ObjectType;
@@ -25,6 +27,7 @@ import org.sagebionetworks.repo.model.annotation.v2.AnnotationsV2Translator;
 import org.sagebionetworks.repo.model.audit.NodeRecord;
 import org.sagebionetworks.repo.model.auth.UserEntityPermissions;
 import org.sagebionetworks.repo.model.dbo.schema.DerivedAnnotationDao;
+import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
 import org.sagebionetworks.repo.model.message.ChangeType;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -48,16 +51,18 @@ public class NodeObjectRecordWriter implements ObjectRecordWriter {
 	private AccessRequirementDAO accessRequirementDao;
 	private EntityAuthorizationManager entityAuthorizationManager;
 	private AwsKinesisFirehoseLogger kinesisLogger;
+	private ProjectStorageLimitsManager storageLimitsManager;
 	
 	@Autowired
 	public NodeObjectRecordWriter(NodeDAO nodeDAO, UserManager userManager, DerivedAnnotationDao derivedAnnotationsDao, AccessRequirementDAO accessRequirementDao,
-			EntityAuthorizationManager entityAuthorizationManager, AwsKinesisFirehoseLogger kinesisLogger) {
+			EntityAuthorizationManager entityAuthorizationManager, AwsKinesisFirehoseLogger kinesisLogger, ProjectStorageLimitsManager storageLimitsManager) {
 		this.nodeDAO = nodeDAO;
 		this.userManager = userManager;
 		this.derivedAnnotationsDao = derivedAnnotationsDao;
 		this.accessRequirementDao = accessRequirementDao;
 		this.entityAuthorizationManager = entityAuthorizationManager;
 		this.kinesisLogger = kinesisLogger;
+		this.storageLimitsManager = storageLimitsManager;
 	}
 
 	/**
@@ -136,6 +141,11 @@ public class NodeObjectRecordWriter implements ObjectRecordWriter {
 
 					// Include derived access properties
 					setAccessProperties(record);
+					
+					// Include project storage data if the node is a project
+					if (EntityType.project.equals(record.getNodeType())) {
+						record.setProjectStorageUsage(storageLimitsManager.getProjectStorageUsage(KeyFactory.stringToKey(record.getId())));
+					}
 					
 					kinesisRecords.add(KinesisObjectSnapshotRecord.map(message, record));
 					

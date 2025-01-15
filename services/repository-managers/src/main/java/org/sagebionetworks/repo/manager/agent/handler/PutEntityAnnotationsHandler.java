@@ -1,5 +1,7 @@
 package org.sagebionetworks.repo.manager.agent.handler;
 
+import org.apache.logging.log4j.Logger;
+import org.sagebionetworks.LoggerProvider;
 import org.sagebionetworks.repo.manager.agent.parameter.ParameterUtils;
 import org.sagebionetworks.repo.model.annotation.v2.Annotations;
 import org.sagebionetworks.repo.service.EntityService;
@@ -10,10 +12,12 @@ import org.springframework.stereotype.Service;
 public class PutEntityAnnotationsHandler implements OpenApiReturnControlHandler {
 
 	private final EntityService entityService;
+	private final Logger log;
 
-	public PutEntityAnnotationsHandler(EntityService entityService) {
+	public PutEntityAnnotationsHandler(EntityService entityService, LoggerProvider loggerProvider) {
 		super();
 		this.entityService = entityService;
+		log = loggerProvider.getLogger(PutEntityAnnotationsHandler.class.getName());
 	}
 
 	@Override
@@ -34,8 +38,10 @@ public class PutEntityAnnotationsHandler implements OpenApiReturnControlHandler 
 		Annotations body = EntityFactory.createEntityFromJSONString(
 				event.getRequestBody().orElseThrow(() -> new IllegalArgumentException("Request body cannot be null")),
 				Annotations.class);
-
-		return entityService.updateEntityAnnotations(event.getRunAsUserId(), synId, body).toString();
+		log.info("Agent called '{}' entityId = {} userId = {} requestBody = '{}'", this.getFunction(), synId,
+				event.getRunAsUserId(), body);
+		return EntityFactory
+				.createJSONStringForEntity(entityService.updateEntityAnnotations(event.getRunAsUserId(), synId, body));
 	}
 
 	@Override

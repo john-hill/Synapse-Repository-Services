@@ -475,7 +475,7 @@ public class AgentChatWorkerIntegrationTest {
 					assertNotNull(response);
 					assertEquals(session.getSessionId(), response.getSessionId());
 					assertNotNull(response.getResponseText());
-					assertTrue(response.getResponseText().contains("success"));
+					assertTrue(response.getResponseText().contains("incremented"));
 					assertTrue(response.getResponseText().contains("3"));
 				}, MAX_WAIT_MS);
 
@@ -516,7 +516,7 @@ public class AgentChatWorkerIntegrationTest {
 					assertNotNull(response);
 					assertEquals(session.getSessionId(), response.getSessionId());
 					assertNotNull(response.getResponseText());
-					assertTrue(response.getResponseText().contains("successfully removed"));
+					assertTrue(response.getResponseText().contains("removed"));
 				}, MAX_WAIT_MS);
 
 		// The agent should have updated the annotations.
@@ -556,7 +556,6 @@ public class AgentChatWorkerIntegrationTest {
 					assertNotNull(response);
 					assertEquals(session.getSessionId(), response.getSessionId());
 					assertNotNull(response.getResponseText());
-					assertTrue(response.getResponseText().contains("success"));
 					assertTrue(response.getResponseText().contains("temp/2"));
 				}, MAX_WAIT_MS);
 

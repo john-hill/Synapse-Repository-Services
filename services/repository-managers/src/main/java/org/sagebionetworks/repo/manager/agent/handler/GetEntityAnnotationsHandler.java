@@ -1,5 +1,7 @@
 package org.sagebionetworks.repo.manager.agent.handler;
 
+import org.apache.logging.log4j.Logger;
+import org.sagebionetworks.LoggerProvider;
 import org.sagebionetworks.repo.manager.agent.parameter.ParameterUtils;
 import org.sagebionetworks.repo.service.EntityService;
 import org.sagebionetworks.schema.adapter.org.json.EntityFactory;
@@ -9,10 +11,12 @@ import org.springframework.stereotype.Service;
 public class GetEntityAnnotationsHandler implements OpenApiReturnControlHandler {
 
 	private final EntityService entityService;
+	private final Logger log;
 
-	public GetEntityAnnotationsHandler(EntityService entityService) {
+	public GetEntityAnnotationsHandler(EntityService entityService, LoggerProvider loggerProvider) {
 		super();
 		this.entityService = entityService;
+		log = loggerProvider.getLogger(GetEntityAnnotationsHandler.class.getName());
 	}
 
 	@Override
@@ -31,8 +35,11 @@ public class GetEntityAnnotationsHandler implements OpenApiReturnControlHandler 
 				.orElseThrow(() -> new IllegalArgumentException("Parameter 'entityId' of type string is required"));
 
 		boolean includeDerived = true;
-		return EntityFactory.createJSONStringForEntity(
+		String json = EntityFactory.createJSONStringForEntity(
 				entityService.getEntityAnnotations(event.getRunAsUserId(), synId, includeDerived));
+		log.info("Agent called '{}' entityId = {} userId = {} results = '{}'", this.getFunction(), synId,
+				event.getRunAsUserId(), json);
+		return json;
 	}
 
 	@Override

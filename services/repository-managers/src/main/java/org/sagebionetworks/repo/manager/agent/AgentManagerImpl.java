@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.StringJoiner;
 import java.util.concurrent.CompletableFuture;
 
 import org.apache.commons.lang.StringUtils;
@@ -324,10 +323,9 @@ public class AgentManagerImpl implements AgentManager {
 			if (handler instanceof OpenApiReturnControlHandler) {
 				OpenApiReturnControlHandler apiHandler = (OpenApiReturnControlHandler) handler;
 				results.add(InvocationResultMember.builder()
-						.apiResult(ApiResult.builder().actionGroup(e.getActionGroup()).apiPath(apiHandler.getPath())
-								.httpMethod(apiHandler.getHttpMethod().name())
-								.httpStatusCode(apiHandler.getSuccessHttpCode().getCode())
-								.responseBody(bodyMap)
+						.apiResult(ApiResult.builder().actionGroup(apiHandler.getActionGroup())
+								.apiPath(apiHandler.getPath()).httpMethod(apiHandler.getHttpMethod().name())
+								.httpStatusCode(apiHandler.getSuccessHttpCode().getCode()).responseBody(bodyMap)
 								.build())
 						.build());
 			} else {
@@ -393,7 +391,7 @@ public class AgentManagerImpl implements AgentManager {
 		} else if (member.apiInvocationInput() != null) {
 			return fromApiInvocationInput(userId, member.apiInvocationInput());
 		}
-		throw new IllegalStateException("Expected either function or api invocation");
+		throw new IllegalArgumentException("Expected either function or api invocation");
 	}
 
 	ReturnControlEvent fromFunctionInvocationInput(Long userId, FunctionInvocationInput input) {
@@ -415,13 +413,10 @@ public class AgentManagerImpl implements AgentManager {
 	}
 	
 	String getRequestBody(ApiRequestBody body) {
-		if(body == null || body.content() == null) {
+		if(body == null) {
 			return null;
 		}
 		PropertyParameters jsonBody = body.content().get("application/json");
-		if(jsonBody == null) {
-			throw new IllegalArgumentException("Expected a body of type 'application/json'");
-		}
 		JSONObject object = new JSONObject();
 		jsonBody.properties().forEach(p->{
 			if("object".equals(p.type())) {

@@ -1,9 +1,9 @@
 package org.sagebionetworks.repo.manager.agent;
 
+import static org.junit.Assert.assertNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyVararg;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
@@ -34,6 +34,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.reactivestreams.Subscription;
 import org.sagebionetworks.LoggerProvider;
 import org.sagebionetworks.repo.manager.agent.AgentManagerImpl.AgentResponse;
+import org.sagebionetworks.repo.manager.agent.handler.HttpCode;
+import org.sagebionetworks.repo.manager.agent.handler.HttpMethod;
+import org.sagebionetworks.repo.manager.agent.handler.OpenApiReturnControlHandler;
 import org.sagebionetworks.repo.manager.agent.handler.ReturnControlEvent;
 import org.sagebionetworks.repo.manager.agent.handler.ReturnControlHandler;
 import org.sagebionetworks.repo.manager.agent.handler.ReturnControlHandlerProvider;
@@ -66,6 +69,8 @@ import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAs
 import software.amazon.awssdk.services.bedrockagentruntime.model.ActionGroupInvocationInput;
 import software.amazon.awssdk.services.bedrockagentruntime.model.ApiInvocationInput;
 import software.amazon.awssdk.services.bedrockagentruntime.model.ApiParameter;
+import software.amazon.awssdk.services.bedrockagentruntime.model.ApiRequestBody;
+import software.amazon.awssdk.services.bedrockagentruntime.model.ApiResult;
 import software.amazon.awssdk.services.bedrockagentruntime.model.ContentBody;
 import software.amazon.awssdk.services.bedrockagentruntime.model.FunctionInvocationInput;
 import software.amazon.awssdk.services.bedrockagentruntime.model.FunctionParameter;
@@ -78,6 +83,7 @@ import software.amazon.awssdk.services.bedrockagentruntime.model.InvokeAgentResp
 import software.amazon.awssdk.services.bedrockagentruntime.model.InvokeAgentResponseHandler;
 import software.amazon.awssdk.services.bedrockagentruntime.model.OrchestrationModelInvocationOutput;
 import software.amazon.awssdk.services.bedrockagentruntime.model.OrchestrationTrace;
+import software.amazon.awssdk.services.bedrockagentruntime.model.PropertyParameters;
 import software.amazon.awssdk.services.bedrockagentruntime.model.RawResponse;
 import software.amazon.awssdk.services.bedrockagentruntime.model.ReturnControlPayload;
 import software.amazon.awssdk.services.bedrockagentruntime.model.SessionState;
@@ -119,6 +125,9 @@ public class AgentManagerImplUnitTest {
 
 	@Mock
 	private ReturnControlHandler mockReturnControlHandlerTwo;
+	
+	@Mock
+	private OpenApiReturnControlHandler mockOpenApiReturnControlHandler;
 
 	@Mock
 	private Clock mockClock;
@@ -150,9 +159,18 @@ public class AgentManagerImplUnitTest {
 	private String actionGroup;
 	private String functionOne;
 	private String functionTwo;
+	
+	private String apiFunction;
+	private String apiPath;
+	private HttpMethod apiHttpMethod;
+	private HttpCode apiHttpCode;
+	
 	private Parameter parameter;
 	private ReturnControlEvent returnControlEventOne;
 	private ReturnControlEvent returnControlEventTwo;
+	private ReturnControlEvent returnControlEventApi;
+	private JSONObject requestBody;
+	private String requestBodyString;
 	private List<ReturnControlEvent> returnControlEvents;
 	private String invocationId;
 
@@ -231,8 +249,21 @@ public class AgentManagerImplUnitTest {
 		functionTwo = "functionTwo";
 		returnControlEventTwo = new ReturnControlEvent(session.getStartedBy(), actionGroup, functionTwo,
 				List.of(new Parameter("paramTwo", "string", "valueTwo")));
-
+		
 		returnControlEvents = List.of(returnControlEventOne, returnControlEventTwo);
+		
+		// Open API function
+		apiFunction = "PUT /foo/{id}";
+		apiPath = "/foo/{id}";
+		apiHttpMethod = HttpMethod.put;
+		apiHttpCode = HttpCode.created;
+		
+		requestBody = new JSONObject();
+		requestBody.put("someKey", "someValue");
+		requestBodyString = requestBody.toString();
+		returnControlEventApi = new ReturnControlEvent(session.getStartedBy(), actionGroup, apiFunction,
+				List.of(new Parameter("id", "string", "987")), requestBodyString);
+
 
 		JSONObject response = new JSONObject();
 		response.put("someKey", "someValue");
@@ -847,6 +878,34 @@ public class AgentManagerImplUnitTest {
 		assertEquals(expected, results);
 
 	}
+	
+	@ParameterizedTest
+	@EnumSource(AgentAccessLevel.class)
+	public void testExecuteEventsWithOpenApiHandler(AgentAccessLevel level) throws Exception {
+		when(mockReturnControlHandlerProvider.getHandler(actionGroup, apiFunction))
+				.thenReturn(Optional.of(mockOpenApiReturnControlHandler));
+		doReturn("one").when(manager).handleEvent(level, mockOpenApiReturnControlHandler, returnControlEventApi);
+		
+		when(mockOpenApiReturnControlHandler.getActionGroup()).thenReturn(actionGroup);
+		when(mockOpenApiReturnControlHandler.getPath()).thenReturn(apiPath);
+		when(mockOpenApiReturnControlHandler.getHttpMethod()).thenReturn(apiHttpMethod);
+		when(mockOpenApiReturnControlHandler.getSuccessHttpCode()).thenReturn(apiHttpCode);
+
+		List<InvocationResultMember> expected = List.of(InvocationResultMember.builder()
+				.apiResult(ApiResult.builder()
+						.actionGroup(actionGroup)
+						.apiPath(apiPath)
+						.httpMethod(apiHttpMethod.name())
+						.httpStatusCode(apiHttpCode.getCode())
+						.responseBody(Map.of("TEXT", ContentBody.builder().body("one").build()))
+						.build())
+				.build());
+
+		// call under test
+		List<InvocationResultMember> results = manager.executeEvents(level, List.of(returnControlEventApi));
+		assertEquals(expected, results);
+
+	}
 
 	private InvocationResultMember createInvocationResultMember(String actionGroup, String function, String response) {
 		return InvocationResultMember.builder().functionResult(FunctionResult.builder().actionGroup(actionGroup)
@@ -966,7 +1025,7 @@ public class AgentManagerImplUnitTest {
 		List<ReturnControlEvent> results = manager.extractEvents(anonymousUserId, payload);
 		assertEquals(expected, results);
 	}
-	
+
 	@Test
 	public void testExtractEventsWithBothTypes() {
 		String invocationId = "invocationId";
@@ -1207,6 +1266,89 @@ public class AgentManagerImplUnitTest {
 			manager.getAgentRegistration(nonSageNonAdmin, null);
 		}).getMessage();
 		assertEquals("agentRegistrationId is required.", message);
+	}
+
+	@Test
+	public void testFromInvocationInputMemberWithFunction() {
+
+		List<Parameter> params = List.of(new Parameter("oneKey", "string", "oneValue"),
+				new Parameter("twoKey", "string", "twoValue"));
+		InvocationInputMember member = createInvocationInputMember(actionGroup, functionOne);
+		// call under test
+		ReturnControlEvent event = manager.fromInvocationInputMember(adminId, member);
+		ReturnControlEvent expected = new ReturnControlEvent(adminId, actionGroup, functionOne, params);
+		assertEquals(expected, event);
+	}
+
+	@Test
+	public void testFromInvocationInputMemberWithApi() {
+		String apiPathOne = "/foo/one/{id}";
+
+		List<Parameter> params = List.of(new Parameter("oneKey", "string", "oneValue"),
+				new Parameter("twoKey", "string", "twoValue"));
+		InvocationInputMember member = createInvocationInputMemberApi(actionGroup, apiPathOne, "get");
+		// call under test
+		ReturnControlEvent event = manager.fromInvocationInputMember(adminId, member);
+		ReturnControlEvent expected = new ReturnControlEvent(adminId, actionGroup, "GET /foo/one/{id}", params);
+		assertEquals(expected, event);
+	}
+
+	@Test
+	public void testFromInvocationInputMemberWithUnknowtype() {
+		InvocationInputMember member = InvocationInputMember.builder().build();
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			manager.fromInvocationInputMember(adminId, member);
+		}).getMessage();
+		assertEquals("Expected either function or api invocation", message);
+	}
+
+	@Test
+	public void testGetRequestBody() {
+		JSONObject object = new JSONObject();
+		object.put("keyOne", "someString");
+		object.put("keyTwo", false);
+		ApiRequestBody body = ApiRequestBody.builder()
+				.content(Map.of("application/json", PropertyParameters.builder()
+						.properties(
+								software.amazon.awssdk.services.bedrockagentruntime.model.Parameter.builder()
+										.name("baseOne").type("string").value("foo").build(),
+								software.amazon.awssdk.services.bedrockagentruntime.model.Parameter.builder()
+										.name("baseTwo").type("object").value(object.toString()).build())
+						.build()))
+				.build();
+
+		// call under test
+		String result = manager.getRequestBody(body);
+		String expected = "{\"baseOne\":\"foo\",\"baseTwo\":{\"keyOne\":\"someString\",\"keyTwo\":false}}";
+		assertEquals(expected, result);
+	}
+
+	@Test
+	public void testGetRequestBodyWithNullBody() {
+		ApiRequestBody body = null;
+
+		// call under test
+		String result = manager.getRequestBody(body);
+		assertNull(result);
+	}
+
+	@Test
+	public void testGetRequestBodyWithUnknowType() {
+
+		ApiRequestBody body = ApiRequestBody.builder()
+				.content(Map.of("application/json",
+						PropertyParameters.builder()
+								.properties(software.amazon.awssdk.services.bedrockagentruntime.model.Parameter
+										.builder().name("baseOne").type("boolean").value("true").build())
+								.build()))
+				.build();
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			manager.getRequestBody(body);
+		}).getMessage();
+		assertEquals("Unknown type: boolean", message);
 	}
 
 }

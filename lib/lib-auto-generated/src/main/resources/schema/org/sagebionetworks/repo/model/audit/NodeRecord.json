@@ -40,6 +40,9 @@
         },
         "internalAnnotations": {
 			"$ref": "org.sagebionetworks.repo.model.annotation.v2.Annotations"
+		},
+		"projectStorageUsage": {
+			"$ref": "org.sagebionetworks.repo.model.limits.ProjectStorageUsage"
 		}
 	}
 }

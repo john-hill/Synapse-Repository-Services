@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.io.File;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,6 +24,7 @@ import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.file.CloudProviderFileHandleInterface;
 import org.sagebionetworks.repo.model.file.UploadDestination;
 import org.sagebionetworks.repo.model.file.UploadType;
+import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
 import org.sagebionetworks.repo.model.limits.ProjectStorageLocationUsage;
 import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
@@ -31,6 +33,7 @@ import org.sagebionetworks.repo.model.project.ProjectSettingsType;
 import org.sagebionetworks.repo.model.project.UploadDestinationListSetting;
 import org.sagebionetworks.util.Pair;
 import org.sagebionetworks.util.TimeUtils;
+import org.sagebionetworks.warehouse.WarehouseTestHelper;
 
 @ExtendWith(ITTestExtension.class)
 public class ITProjectStorageTest {
@@ -40,11 +43,13 @@ public class ITProjectStorageTest {
 	private Long defaultMaxAllowedFileBytes;
 	private Project project;
 	private FileEntity fileEntity;
+	private WarehouseTestHelper warehouseHelper;
 	
-	public ITProjectStorageTest(StackConfiguration config, SynapseClient client, SynapseAdminClient adminClient) {
+	public ITProjectStorageTest(StackConfiguration config, SynapseClient client, SynapseAdminClient adminClient, WarehouseTestHelper warehouseHelper) {
 		this.client = client;
 		this.adminClient = adminClient;
 		this.defaultMaxAllowedFileBytes = config.getDefaultProjectStorageLimit();
+		this.warehouseHelper = warehouseHelper;
 	}	
 	
 	@BeforeEach
@@ -169,6 +174,28 @@ public class ITProjectStorageTest {
 		assertEquals(ErrorResponseCode.PROJECT_STORAGE_LIMIT_EXCEEDED, ex.getErrorResponseCode());
 		assertEquals("The project storage usage exceeds the limit for the storage location (Project: " + project.getId() + ", Storage Location: 1, Usage: "
 			+ fileHandle.getContentSize() + " Bytes, Limit: 100 Bytes).", ex.getMessage());
+				
+		// Updates the project to trigger a node snapshot
+		project = client.putEntity(project.setName(UUID.randomUUID().toString()));
+		
+		Instant now = Instant.now();
+		
+		String query = String.format(
+			"select count(*) from nodesnapshots"
+			+ " where snapshot_date %s"
+			+ " and id = %s"
+			+ " and any_match(n.project_storage_usage.locations, l -> l.storageLocationId = %s and l.isOverLimit = true)"
+			+ " and any_match(n.project_storage_usage.locations, l -> l.storageLocationId = %s and l.isOverLimit = false)",
+			warehouseHelper.toDateStringBetweenPlusAndMinusThirtySeconds(now),
+			KeyFactory.stringToKey(project.getId()),
+			defaultUploadDestination.getStorageLocationId().toString(),
+			externalStorageLocationId.toString()
+		);
+		
+		warehouseHelper.assertWarehouseQuery(query);
+		
+		// Sleeping gives the snapshot worker a chance to take the snapshots before the test suite deletes the project.
+		Thread.sleep(10_000);
 	}
 	
 	private File getTestFile() {

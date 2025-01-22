@@ -107,20 +107,32 @@ public class ProjectStorageLimitsManager {
 			authzManager.hasAccess(user, projectId, ACCESS_TYPE.CREATE).checkAuthorizationOrElseThrow();
 		}
 		
+		ProjectStorageUsage usage = getProjectStorageUsage(projectIdLong);
+		
+		accessedProjects.add(projectIdLong);
+						
+		return usage;
+	}
+	
+	/**
+	 * Internal use only. Does not perform validation on the project
+	 * 
+	 * @param projectId
+	 * @return The project usage data for the project with the given id, only the data for storage locations with a set limit will be included
+	 */
+	public ProjectStorageUsage getProjectStorageUsage(Long projectId) {
 		// First the the usage map
-		Map<String, Long> storageUsage = storageUsageDao.getStorageData(projectIdLong)
+		Map<String, Long> storageUsage = storageUsageDao.getStorageData(projectId)
 				.map(ProjectStorageData::getStorageLocationData)
 				.orElseGet(() -> Collections.emptyMap());
 		
 		// Now fill the usage data together with the limit, we only return data if we have a limit
-		List<ProjectStorageLocationUsage> locations = storageUsageDao.getStorageLocationLimits(projectIdLong).stream()
+		List<ProjectStorageLocationUsage> locations = storageUsageDao.getStorageLocationLimits(projectId).stream()
 			.map(limit -> mapStorageLocationUsage(limit, storageUsage.getOrDefault(limit.getStorageLocationId().toString(), 0L)))
 			.collect(Collectors.toList());
 		
-		accessedProjects.add(projectIdLong);
-						
 		return new ProjectStorageUsage()
-			.setProjectId(KeyFactory.keyToString(projectIdLong))
+			.setProjectId(KeyFactory.keyToString(projectId))
 			.setLocations(locations);
 	}
 	

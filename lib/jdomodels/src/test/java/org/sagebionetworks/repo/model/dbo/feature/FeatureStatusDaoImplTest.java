@@ -9,7 +9,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.sagebionetworks.repo.model.feature.Feature;
+import org.sagebionetworks.repo.model.table.ColumnType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -84,6 +87,14 @@ public class FeatureStatusDaoImplTest {
 		featureStatusDao.setFeatureEnabled(Feature.DATA_ACCESS_AUTO_REVOCATION, true);
 		
 		assertTrue(featureStatusDao.isFeatureEnabled(Feature.DATA_ACCESS_AUTO_REVOCATION).get());
+	}
+	
+	@ParameterizedTest
+	@EnumSource(Feature.class)
+	public void testEachType(Feature feature) {
+		Optional<Boolean> result = featureStatusDao.isFeatureEnabled(feature);
+		assertFalse(result.isPresent());
+		featureStatusDao.setFeatureEnabled(feature, true);
 	}
 	
 }

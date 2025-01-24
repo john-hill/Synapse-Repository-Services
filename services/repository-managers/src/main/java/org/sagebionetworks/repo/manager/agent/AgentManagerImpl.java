@@ -15,6 +15,7 @@ import org.sagebionetworks.repo.manager.agent.handler.ReturnControlEvent;
 import org.sagebionetworks.repo.manager.agent.handler.ReturnControlHandler;
 import org.sagebionetworks.repo.manager.agent.handler.ReturnControlHandlerProvider;
 import org.sagebionetworks.repo.manager.agent.parameter.Parameter;
+import org.sagebionetworks.repo.manager.feature.FeatureManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.UnauthorizedException;
@@ -32,6 +33,7 @@ import org.sagebionetworks.repo.model.agent.TraceEventsResponse;
 import org.sagebionetworks.repo.model.agent.UpdateAgentSessionRequest;
 import org.sagebionetworks.repo.model.dao.asynch.AsynchronousJobStatusDAO;
 import org.sagebionetworks.repo.model.dbo.agent.AgentDao;
+import org.sagebionetworks.repo.model.feature.Feature;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.Clock;
@@ -72,11 +74,13 @@ public class AgentManagerImpl implements AgentManager {
 	private final ReturnControlHandlerProvider handlerProvider;
 	private final Clock clock;
 	private final AsynchronousJobStatusDAO statusDao;
+	private final FeatureManager featureManager;
 	private Logger logger;
 
 	@Autowired
 	public AgentManagerImpl(AgentDao agentDao, AgentClientProvider agentClientProvider, String stackBedrockAgentId,
-			ReturnControlHandlerProvider handlerProvider, Clock clock, AsynchronousJobStatusDAO statusDao) {
+			ReturnControlHandlerProvider handlerProvider, Clock clock, AsynchronousJobStatusDAO statusDao,
+			FeatureManager featureManager) {
 		super();
 		this.agentDao = agentDao;
 		this.agentClientProvider = agentClientProvider;
@@ -84,6 +88,7 @@ public class AgentManagerImpl implements AgentManager {
 		this.clock = clock;
 		this.statusDao = statusDao;
 		this.handlerProvider = handlerProvider;
+		this.featureManager = featureManager;
 	}
 
 	@Autowired
@@ -329,11 +334,8 @@ public class AgentManagerImpl implements AgentManager {
 								.build())
 						.build());
 			} else {
-				results.add(InvocationResultMember.builder()
-						.functionResult(FunctionResult.builder().actionGroup(e.getActionGroup())
-								.function(e.getFunction())
-								.responseBody(bodyMap)
-								.build())
+				results.add(InvocationResultMember.builder().functionResult(FunctionResult.builder()
+						.actionGroup(e.getActionGroup()).function(e.getFunction()).responseBody(bodyMap).build())
 						.build());
 			}
 		}
@@ -352,15 +354,20 @@ public class AgentManagerImpl implements AgentManager {
 	 */
 	String handleEvent(AgentAccessLevel accessLevel, ReturnControlHandler handler, ReturnControlEvent event) {
 		try {
-			if (handler.needsWriteAccess() && !AgentAccessLevel.WRITE_YOUR_PRIVATE_DATA.equals(accessLevel)) {
-				throw new UnauthorizedException(String.format(
-						"Calling actionGroup: '%s' function: '%s' requires an access level of '%s'. The current session has an access level of '%s'. Please inform the user that they will need to need to change the access level of this session to be '%s' before this function may be called.",
-						event.getActionGroup(), event.getFunction(), AgentAccessLevel.WRITE_YOUR_PRIVATE_DATA,
-						accessLevel, AgentAccessLevel.WRITE_YOUR_PRIVATE_DATA));
 
-			} else {
-				return handler.handleEvent(event);
+			if (handler.needsWriteAccess()) {
+				if (!featureManager.isFeatureEnabled(Feature.ALLOW_AGENT_WRITES)) {
+					throw new UnsupportedOperationException(
+							"The feature to allow agents to write to Synapse is currently disabled.");
+				}
+				if (!AgentAccessLevel.WRITE_YOUR_PRIVATE_DATA.equals(accessLevel)) {
+					throw new UnauthorizedException(String.format(
+							"Calling actionGroup: '%s' function: '%s' requires an access level of '%s'. The current session has an access level of '%s'. Please inform the user that they will need to need to change the access level of this session to be '%s' before this function may be called.",
+							event.getActionGroup(), event.getFunction(), AgentAccessLevel.WRITE_YOUR_PRIVATE_DATA,
+							accessLevel, AgentAccessLevel.WRITE_YOUR_PRIVATE_DATA));
+				}
 			}
+			return handler.handleEvent(event);
 		} catch (Exception e) {
 			logger.error("Return_control event execution failed. Will send the following message to the agent: '{}'",
 					e.getMessage());
@@ -411,20 +418,20 @@ public class AgentManagerImpl implements AgentManager {
 		String function = String.format("%s %s", input.httpMethod().toUpperCase(), input.apiPath());
 		return new ReturnControlEvent(userId, input.actionGroup(), function, params, requestBody);
 	}
-	
+
 	String getRequestBody(ApiRequestBody body) {
-		if(body == null) {
+		if (body == null) {
 			return null;
 		}
 		PropertyParameters jsonBody = body.content().get("application/json");
 		JSONObject object = new JSONObject();
-		jsonBody.properties().forEach(p->{
-			if("object".equals(p.type())) {
+		jsonBody.properties().forEach(p -> {
+			if ("object".equals(p.type())) {
 				object.put(p.name(), new JSONObject(p.value()));
-			}else if("string".equals(p.type())) {
+			} else if ("string".equals(p.type())) {
 				object.put(p.name(), p.value());
-			}else {
-				throw new IllegalArgumentException("Unknown type: "+p.type());
+			} else {
+				throw new IllegalArgumentException("Unknown type: " + p.type());
 			}
 		});
 		return object.toString();

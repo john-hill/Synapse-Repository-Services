@@ -596,7 +596,6 @@ public class AgentChatWorkerIntegrationTest {
 					assertNotNull(response);
 					assertEquals(session.getSessionId(), response.getSessionId());
 					assertNotNull(response.getResponseText());
-					assertTrue(response.getResponseText().contains("Read and Write your Data"));
 				}, MAX_WAIT_MS);
 
 		// The agent should not have been able to change the annotations.

@@ -41,6 +41,7 @@ import org.sagebionetworks.repo.manager.agent.handler.ReturnControlEvent;
 import org.sagebionetworks.repo.manager.agent.handler.ReturnControlHandler;
 import org.sagebionetworks.repo.manager.agent.handler.ReturnControlHandlerProvider;
 import org.sagebionetworks.repo.manager.agent.parameter.Parameter;
+import org.sagebionetworks.repo.manager.feature.FeatureManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.UnauthorizedException;
@@ -60,6 +61,7 @@ import org.sagebionetworks.repo.model.agent.UpdateAgentSessionRequest;
 import org.sagebionetworks.repo.model.asynch.AsynchronousJobStatus;
 import org.sagebionetworks.repo.model.dao.asynch.AsynchronousJobStatusDAO;
 import org.sagebionetworks.repo.model.dbo.agent.AgentDao;
+import org.sagebionetworks.repo.model.feature.Feature;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.Clock;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -134,6 +136,9 @@ public class AgentManagerImplUnitTest {
 
 	@Mock
 	private AsynchronousJobStatusDAO mockStatusDao;
+	
+	@Mock
+	private FeatureManager mockFeatureManager;
 
 	@Spy
 	@InjectMocks
@@ -945,6 +950,7 @@ public class AgentManagerImplUnitTest {
 	public void testHandleEventWithNeedWriteAccessTrueWithWrite(AgentAccessLevel level) throws Exception {
 
 		when(mockReturnControlHandlerOne.needsWriteAccess()).thenReturn(true);
+		when(mockFeatureManager.isFeatureEnabled(Feature.ALLOW_AGENT_WRITES)).thenReturn(true);
 		when(mockReturnControlHandlerOne.handleEvent(returnControlEventOne)).thenReturn("one");
 
 		// call under test
@@ -956,6 +962,7 @@ public class AgentManagerImplUnitTest {
 	@EnumSource(value = AgentAccessLevel.class, names = { "PUBLICLY_ACCESSIBLE", "READ_YOUR_PRIVATE_DATA" })
 	public void testHandleEventWithNeedWriteAccessTrue(AgentAccessLevel level) throws Exception {
 		when(mockReturnControlHandlerOne.needsWriteAccess()).thenReturn(true);
+		when(mockFeatureManager.isFeatureEnabled(Feature.ALLOW_AGENT_WRITES)).thenReturn(true);
 
 		// call under test
 		String result = manager.handleEvent(level, mockReturnControlHandlerOne, returnControlEventOne);
@@ -966,6 +973,17 @@ public class AgentManagerImplUnitTest {
 		verify(mockLogger).error(
 				"Return_control event execution failed. Will send the following message to the agent: '{}'",
 				expectedMessage);
+	}
+	
+	@ParameterizedTest
+	@EnumSource(AgentAccessLevel.class)
+	public void testHandleEventWithFeatrueDisabled(AgentAccessLevel level) throws Exception {
+		when(mockReturnControlHandlerOne.needsWriteAccess()).thenReturn(true);
+		when(mockFeatureManager.isFeatureEnabled(Feature.ALLOW_AGENT_WRITES)).thenReturn(false);
+
+		// call under test
+		String result = manager.handleEvent(level, mockReturnControlHandlerOne, returnControlEventOne);
+		assertEquals("{\"errorMessage\":\"The feature to allow agents to write to Synapse is currently disabled.\"}", result);
 	}
 
 	@ParameterizedTest

@@ -29,6 +29,10 @@
 		{
 			"name": "ENFORCE_PROJECT_STORAGE_LIMITS",
 			"description": "Checks for project storage when creating or updating a file entity."
+		},
+		{
+			"name": "ALLOW_AGENT_WRITES",
+			"description": "When enabled, bedrock agents are allowed to directly write to Synapse."
 		}
     ]
 }

@@ -21,9 +21,12 @@ import java.util.Objects;
 import org.sagebionetworks.repo.model.dbo.FieldColumn;
 import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
 import org.sagebionetworks.repo.model.dbo.TableMapping;
+import org.sagebionetworks.repo.model.dbo.dao.QuizResponseUtils;
 import org.sagebionetworks.repo.model.dbo.migration.BasicMigratableTableTranslation;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
+import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.migration.MigrationType;
+import org.sagebionetworks.repo.model.quiz.PassingRecord;
 
 public class DBOQuizResponse implements MigratableDatabaseObject<DBOQuizResponse, DBOQuizResponse> {
 
@@ -102,7 +105,23 @@ public class DBOQuizResponse implements MigratableDatabaseObject<DBOQuizResponse
 
 	@Override
 	public MigratableTableTranslation<DBOQuizResponse, DBOQuizResponse> getTranslator() {
-		return new BasicMigratableTableTranslation<>();
+		return new BasicMigratableTableTranslation<DBOQuizResponse>() {
+			
+			@Override
+			public DBOQuizResponse createDatabaseObjectFromBackup(DBOQuizResponse backup) {
+				PassingRecord record = QuizResponseUtils.extractPassingRecord(backup);
+				
+				// Migrates the deprecated passedOn value to the createdOn property
+				if (record.getCreatedOn() == null) {
+					record.setCreatedOn(record.getPassedOn());
+
+					backup.setPassingJson(JDOSecondaryPropertyUtils.createJSONFromObject(record));
+				}
+				
+				return backup;
+			}
+			
+		};
 	}
 
 	@Override

@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.StackConfigurationSingleton;
+import org.sagebionetworks.change.workers.RangeIterator.Direction;
 import org.sagebionetworks.cloudwatch.ProfileData;
 import org.sagebionetworks.cloudwatch.WorkerLogger;
 import org.sagebionetworks.repo.manager.message.ChangeMessageUtils;
@@ -71,7 +72,7 @@ public class ChangeSentMessageSynchWorker implements ProgressingRunner {
 	@Autowired
 	WorkerLogger workerLogger;
 
-	int pageSizeVarriance = 5000;
+	int pageSizeVarriance = 55;
 	/**
 	 * By default use a nondeterministic pseudo-random generator
 	 */
@@ -100,17 +101,17 @@ public class ChangeSentMessageSynchWorker implements ProgressingRunner {
 		 * pseudo-randomly from run to run.
 		 */
 		int pageSize = getMinimumPageSize() + random.nextInt(pageSizeVarriance);
+		
 		// Setup the run
-		for(long lowerBounds=minChangeNumber; lowerBounds <= maxChangeNumber; lowerBounds+= pageSize){
+		new RangeIterator(minChangeNumber, maxChangeNumber, pageSize, Direction.reverse).forEach(r->{
 			long startTime = System.currentTimeMillis();
 			long countSuccess = 0;
 			long countFailures = 0;
 			long publishElapseSum = 0;
-			long upperBounds = lowerBounds-1+pageSize;
 			// Could the tables be out-of-synch for this range?
-			if(!changeDao.checkUnsentMessageByCheckSumForRange(lowerBounds, upperBounds)){
+			if(!changeDao.checkUnsentMessageByCheckSumForRange(r.getLowerBounds(), r.getUpperBounds())){
 				// We are out-of-synch
-				List<ChangeMessage> toSend = changeDao.listUnsentMessages(lowerBounds, upperBounds, olderThan);
+				List<ChangeMessage> toSend = changeDao.listUnsentMessages(r.getLowerBounds(), r.getUpperBounds(), olderThan);
 				// Group the changes by object type and partition by max changes per SQS messages body.
 				Map<ObjectType, List<List<ChangeMessage>>> batches = 
 						ChangeMessageUtils.groupByObjectTypeAndPartitionEachGroup(
@@ -151,7 +152,7 @@ public class ChangeSentMessageSynchWorker implements ProgressingRunner {
 			}
 			// Sleep between pages to keep from overloading the database.
 			clock.sleepNoInterrupt(configuration.getChangeSynchWorkerSleepTimeMS());
-		}
+		});
 
 	}
 	

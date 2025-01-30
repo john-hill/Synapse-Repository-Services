@@ -108,6 +108,11 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
+		    <groupId>org.junit.jupiter</groupId>
+		    <artifactId>junit-jupiter-params</artifactId>
+		    <scope>test</scope>
+		</dependency>
+		<dependency>
 			<groupId>org.quartz-scheduler</groupId>
 			<artifactId>quartz</artifactId>
 		</dependency>

@@ -9,4 +9,6 @@ public class TeamConstants {
 			.getPrincipalId();
 	public static final Long SYNAPSE_REPORT_TEAM_ID = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.SYNAPSE_REPORT_GROUP
 			.getPrincipalId();
+	public static final Long SAGE_BIONETWORKS_TEAM_ID = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS
+			.getPrincipalId();
 }

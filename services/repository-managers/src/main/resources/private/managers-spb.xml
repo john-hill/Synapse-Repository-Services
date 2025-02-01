@@ -281,6 +281,11 @@
 			<property name="name" value="Synapse Plan Managers" />
 			<property name="description" value="Team for users authorized to make changes to managed plans, including storage limits" />
 		</bean>
+		<bean class="org.sagebionetworks.repo.model.principal.BootstrapTeam">
+			<property name="id" value="273957" />
+			<property name="name" value="Sage Bionetworks" />
+			<property name="description" value="Team for Sage Bionetworks workers" />
+		</bean>
        </util:list>
 		
 	<bean id="certifiedUserManager" class="org.sagebionetworks.repo.manager.CertifiedUserManagerImpl" scope="singleton"/>

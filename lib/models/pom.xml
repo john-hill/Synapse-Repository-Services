@@ -9,7 +9,7 @@
 		<artifactId>lib</artifactId>
 		<version>develop-SNAPSHOT</version>
 	</parent>
-	
+
 	<artifactId>lib-models</artifactId>
 	<packaging>jar</packaging>
 	<name>Platform Repository Model Objects</name>
@@ -24,7 +24,7 @@
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-databind</artifactId>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>com.fasterxml.jackson.datatype</groupId>
 			<artifactId>jackson-datatype-jsr310</artifactId>
@@ -34,7 +34,10 @@
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-lang3</artifactId>
 		</dependency>
-
+		<dependency>
+			<groupId>org.apache.avro</groupId>
+			<artifactId>avro</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.sagebionetworks</groupId>
 			<artifactId>lib-shared-models</artifactId>
@@ -44,13 +47,13 @@
 			<groupId>org.sagebionetworks</groupId>
 			<artifactId>lib-utils</artifactId>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>org.sagebionetworks</groupId>
 			<artifactId>schema-to-pojo-core</artifactId>
 		</dependency>
-		
-		
+
+
 		<dependency>
 			<groupId>org.mockito</groupId>
 			<artifactId>mockito-core</artifactId>
@@ -91,7 +94,7 @@
 			<artifactId>equalsverifier</artifactId>
 			<scope>test</scope>
 		</dependency>
-		
+
 		<!-- Spring test -->
 		<dependency>
 			<groupId>org.springframework</groupId>
@@ -103,7 +106,7 @@
 			<artifactId>spring-aop</artifactId>
 			<scope>test</scope>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-impl</artifactId>
@@ -112,19 +115,19 @@
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-jackson</artifactId>
 		</dependency>
-		
+
 	</dependencies>
 
 	<build>
 		<plugins>
-            <!-- Compile to Java 8 for compatibility with SWC -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <release>8</release>
-                </configuration>
-            </plugin>
+			<!-- Compile to Java 8 for compatibility with SWC -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<release>8</release>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 

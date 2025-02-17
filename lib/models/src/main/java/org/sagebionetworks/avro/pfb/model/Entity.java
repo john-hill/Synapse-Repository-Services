@@ -114,7 +114,6 @@ public class Entity extends SpecificRecordBase implements SpecificRecord {
 
 	public Entity setRelations(List<Relation> relations) {
 		this.relations = PFBUtils.translateGeneric(relations, Relation.class);
-		;
 		return this;
 	}
 

@@ -26,7 +26,7 @@ public class PFBUtils {
 			return null;
 		}
 		try {
-			T result = clazz.getDeclaredConstructor().newInstance(null);
+			T result = clazz.getDeclaredConstructor().newInstance((Object[]) null);
 			record.getSchema().getFields().forEach(f -> {
 				result.put(f.pos(), record.get(f.pos()));
 			});
@@ -75,7 +75,10 @@ public class PFBUtils {
 	}
 
 	/**
-	 * Convert a map of objects into a map of strings.
+	 * Convert a map of objects into a map of strings. Note: Avro will load strings
+	 * as {@link CharSequence} without proper hash and equals implementations. By
+	 * converting these values to actual strings, hash() and equals() works as
+	 * expected.
 	 * 
 	 * @param map
 	 * @return

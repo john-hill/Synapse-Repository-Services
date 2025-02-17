@@ -44,7 +44,10 @@ public class TableRowData {
 		TableRowData other = (TableRowData) obj;
 		return Objects.equals(rowValues, other.rowValues) && Objects.equals(rowId, other.rowId);
 	}
-	
-	
+
+	@Override
+	public String toString() {
+		return "TableRowData [rowId=" + rowId + ", rowValues=" + rowValues + "]";
+	}
 	
 }

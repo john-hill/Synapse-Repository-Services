@@ -45,6 +45,9 @@ public class TypedCellValue {
 		return columnType == other.columnType && Objects.equals(rawValue, other.rawValue);
 	}
 
-	
+	@Override
+	public String toString() {
+		return "TypedCellValue [columnType=" + columnType + ", rawValue=" + rawValue + "]";
+	}
 
 }

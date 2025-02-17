@@ -1,11 +1,14 @@
 package org.sagebionetworks.avro.pfb;
 
+import static org.junit.Assert.assertNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -114,6 +117,76 @@ public class PFBUtilsTest {
 			result = new Entity(entity.getSchema(), dataFileReader.next());
 		}
 		assertEquals(entity, result);
+	}
+
+	@Test
+	public void testCreateSpecificRecord() {
+		GenericRecord g = new GenericRecordBuilder(Relation.SCHEMA).set("dst_id", "id").set("dst_name", "name").build();
+
+		// Call under test
+		Relation r = PFBUtils.createSpecificRecord(g, Relation.class);
+		assertEquals(new Relation().setDst_id("id").setDst_name("name"), r);
+
+	}
+
+	@Test
+	public void testCreateSpecificRecordWithNullRecord() {
+		GenericRecord g = null;
+
+		// Call under test
+		Relation r = PFBUtils.createSpecificRecord(g, Relation.class);
+		assertNull(r);
+	}
+
+	@Test
+	public void testCreateSpecificRecordWithNullClass() {
+		GenericRecord g = new GenericRecordBuilder(Relation.SCHEMA).set("dst_id", "id").set("dst_name", "name").build();
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// Call under test
+			Relation r = PFBUtils.createSpecificRecord(g, null);
+			assertNull(r);
+		}).getMessage();
+		assertEquals("Clazz is required.", message);
+	}
+
+	@Test
+	public void testTranslateGeneric() {
+		GenericRecord g = new GenericRecordBuilder(Relation.SCHEMA).set("dst_id", "id").set("dst_name", "name").build();
+		Relation r = new Relation().setDst_id("id2").setDst_name("name2");
+		List<?> in = Arrays.asList(g, r);
+		// call under test
+		List<Relation> results = PFBUtils.translateGeneric(in, Relation.class);
+		List<Relation> expected = Arrays.asList(new Relation().setDst_id("id").setDst_name("name"), r);
+		assertEquals(expected, results);
+	}
+
+	@Test
+	public void testTranslateGenericWithNullList() {
+		List<?> in = null;
+		// call under test
+		List<Relation> result = PFBUtils.translateGeneric(in, Relation.class);
+		assertNull(result);
+	}
+
+	@Test
+	public void testTranslateGenericWithNullClass() {
+		GenericRecord g = new GenericRecordBuilder(Relation.SCHEMA).set("dst_id", "id").set("dst_name", "name").build();
+		Relation r = new Relation().setDst_id("id2").setDst_name("name2");
+		List<?> in = Arrays.asList(g, r);
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			PFBUtils.translateGeneric(in, null);
+		}).getMessage();
+		assertEquals("Clazz is required.", message);
+	}
+
+	@Test
+	public void testCreateString() {
+		assertEquals("one", PFBUtils.createString("one"));
+		assertEquals("abc", PFBUtils.createString(new StringBuilder("abc")));
+		assertEquals(null, PFBUtils.createString(null));
+		assertEquals("123", PFBUtils.createString(new StringBuffer("123")));
 	}
 
 	static Relation createRelation(int i) {

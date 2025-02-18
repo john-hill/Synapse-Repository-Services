@@ -18,6 +18,14 @@ public class RowPFBUtilsTest {
 	}
 
 	@Test
+	public void testCreateRow() {
+		// call under test
+		assertEquals(new Row(), RowPFBUtils.createRow(null));
+		assertEquals(new Row().setRowId(123L), RowPFBUtils.createRow("123"));
+		assertEquals(new Row().setRowId(123L).setVersionNumber(456L), RowPFBUtils.createRow("123_456"));
+	}
+
+	@Test
 	public void testCreateEntityIdWithNullRow() {
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test

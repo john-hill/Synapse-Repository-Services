@@ -1,7 +1,7 @@
 package org.sagebionetworks.table.cluster.avro;
 
+import static org.junit.Assert.assertNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
@@ -14,7 +14,7 @@ public class RowPFBUtilsTest {
 		// call under test
 		assertEquals("123", RowPFBUtils.createEntiyId(new Row().setRowId(123L)));
 		assertEquals("123_456", RowPFBUtils.createEntiyId(new Row().setRowId(123L).setVersionNumber(456L)));
-		assertNotNull(RowPFBUtils.createEntiyId(new Row()));
+		assertNull(RowPFBUtils.createEntiyId(new Row()));
 	}
 
 	@Test

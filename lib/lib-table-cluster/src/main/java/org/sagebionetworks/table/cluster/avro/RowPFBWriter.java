@@ -35,7 +35,7 @@ public class RowPFBWriter implements RowHandler, Closeable {
 	@Override
 	public void nextRow(Row row) {
 		try {
-			writer.append(new Entity(entitySchema).setName(RowPFBUtils.createEntiyId(row)).setName(tableName)
+			writer.append(new Entity(entitySchema).setId(RowPFBUtils.createEntiyId(row)).setName(tableName)
 					.setObject(RowPFBUtils.createObject(objectSchema, columns, row)));
 		} catch (IOException e) {
 			throw new RuntimeException(e);

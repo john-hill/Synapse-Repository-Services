@@ -1,7 +1,6 @@
 package org.sagebionetworks.table.cluster.avro;
 
 import java.util.List;
-import java.util.UUID;
 
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
@@ -22,12 +21,17 @@ public class RowPFBUtils {
 	public static String createEntiyId(Row row) {
 		ValidateArgument.required(row, "row");
 		if (row.getRowId() == null) {
-			return UUID.randomUUID().toString();
+			return null;
 		}
 		return row.getVersionNumber() != null ? String.format("%d_%d", row.getRowId(), row.getVersionNumber())
 				: String.format("%d", row.getRowId());
 	}
 
+	/**
+	 * Create a new Row given the provided entity id.
+	 * @param entityId
+	 * @return
+	 */
 	public static Row createRow(String entityId) {
 		if(entityId == null) {
 			return new Row();

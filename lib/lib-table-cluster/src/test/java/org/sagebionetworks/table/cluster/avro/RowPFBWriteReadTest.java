@@ -20,19 +20,20 @@ public class RowPFBWriteReadTest {
 		boolean hasDefault = false;
 		String tableName = "foo";
 		List<ColumnModel> columns = TableModelTestUtils.createOneOfEachType(hasDefault);
-		List<Row> rows = TableModelTestUtils.createRows(columns, 10, false, null);
+		List<Row> rows = TableModelTestUtils.createRows(columns, 10,
+				new TableModelTestUtils.ValueOptions().includeSpace(false));
 		// write
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
 		try (RowPFBWriter writer = new RowPFBWriter(tableName, columns, out)) {
-			rows.forEach(r->{
+			rows.forEach(r -> {
 				writer.nextRow(r);
 			});
 		}
-		
+
 		// Read
 		List<Row> result = new ArrayList<>();
-		try(RowPFBReader reader = new RowPFBReader(new SeekableByteArrayInput(out.toByteArray()))){
-			while(reader.hasNext()) {
+		try (RowPFBReader reader = new RowPFBReader(new SeekableByteArrayInput(out.toByteArray()))) {
+			while (reader.hasNext()) {
 				result.add(reader.next());
 			}
 		}

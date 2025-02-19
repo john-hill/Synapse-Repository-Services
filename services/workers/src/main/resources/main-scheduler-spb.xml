@@ -88,6 +88,7 @@
 		<ref bean="cloudwatchTrigger" />
 		<ref bean="tableCSVAppenderPreviewWorkerTrigger" />
 		<ref bean="tableCSVDownloaderWorkerTrigger" />
+		<ref bean="queryAsPFBWorkerTrigger" />
 		<ref bean="tableQueryTrigger" />
 		<ref bean="tableQueryNextPageTrigger" />
 		<ref bean="projectStatsWorkerV2QueueMessageReveiverTrigger"/>
@@ -166,6 +167,7 @@
 		<!-- Refresh project storage data event trigger -->
 		<ref bean="projectStorageDataRefreshWorkerTrigger"/>
 		<ref bean="projectStorageAccessTrigger"/>
+			<ref bean="projectStorageAccessTrigger"/>
 	</util:list>
 
 	<bean id="mainScheduler"

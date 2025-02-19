@@ -1,0 +1,28 @@
+{
+	"description": "Request to download a Portable Format for Biomedical (PFB) file from a a table/view query result.",
+	"extends": {
+		"$ref": "org.sagebionetworks.repo.model.table.Query"
+	},
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.asynch.CacheableRequestBody"
+		},
+		{
+			"$ref": "org.sagebionetworks.repo.model.table.HasEntityId"
+		}
+	],
+	"properties": {
+		"includeRowIdAndRowVersion": {
+			"type": "boolean",
+			"description": "When 'true', the Entity.id field will be populated with the concatenation of: <row_id> + '_' + <row_version>. When false, the Entity.id field will be null.  The default value is 'true'."
+		},
+		"entityName": {
+			"type": "string",
+			"description": "Required. Used for the Entity.name field of each row."
+		},
+		"fileName": {
+			"type": "string",
+			"description": "Set the name of the resulting PFB file. An auto-generated name will be used if omitted."
+		}
+	}
+}

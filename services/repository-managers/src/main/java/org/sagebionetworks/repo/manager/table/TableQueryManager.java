@@ -6,6 +6,7 @@ import java.util.List;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.dao.table.RowHandler;
 import org.sagebionetworks.repo.model.dao.table.TableType;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.table.ColumnModel;
@@ -126,5 +127,23 @@ public interface TableQueryManager {
 	TableStatus validateTableIsAvailable(String tableId)
 			throws NotFoundException, TableUnavailableException,
 			TableFailedException;
+
+	/**
+	 * Run a query and stream the results to the provided {@link RowHandler}.
+	 * 
+	 * @param progressCallback
+	 * @param user
+	 * @param request
+	 * @param provider
+	 * @return
+	 * @throws TableUnavailableException
+	 * @throws NotFoundException
+	 * @throws TableFailedException
+	 * @throws LockUnavilableException
+	 * @throws IOException
+	 */
+	QueryResultBundle runQueryAsStream(ProgressCallback progressCallback, UserInfo user, Query request,
+			RowHandlerProvider provider) throws TableUnavailableException, NotFoundException, TableFailedException,
+			LockUnavilableException, IOException;
 	
 }

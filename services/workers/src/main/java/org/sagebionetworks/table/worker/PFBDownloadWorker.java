@@ -1,0 +1,91 @@
+package org.sagebionetworks.table.worker;
+
+import java.io.File;
+import java.util.List;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.sagebionetworks.repo.manager.file.FileHandleManager;
+import org.sagebionetworks.repo.manager.file.LocalFileUploadRequest;
+import org.sagebionetworks.repo.manager.table.TableQueryManager;
+import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
+import org.sagebionetworks.repo.model.dbo.dao.table.TableExceptionTranslator;
+import org.sagebionetworks.repo.model.file.S3FileHandle;
+import org.sagebionetworks.repo.model.table.ColumnModel;
+import org.sagebionetworks.repo.model.table.DownloadPFBRequest;
+import org.sagebionetworks.repo.model.table.DownloadPFBResult;
+import org.sagebionetworks.repo.model.table.QueryResultBundle;
+import org.sagebionetworks.repo.model.table.TableFailedException;
+import org.sagebionetworks.repo.model.table.TableUnavailableException;
+import org.sagebionetworks.table.cluster.avro.RowPFBWriterProvider;
+import org.sagebionetworks.util.FileProvider;
+import org.sagebionetworks.worker.AsyncJobRunner;
+import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
+import org.sagebionetworks.workers.util.semaphore.LockUnavilableException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+@Service
+public class PFBDownloadWorker implements AsyncJobRunner<DownloadPFBRequest, DownloadPFBResult> {
+
+	static private Logger log = LogManager.getLogger(PFBDownloadWorker.class);
+
+	private final FileProvider fileProvider;
+	private final TableQueryManager tableQueryManager;
+	private final FileHandleManager fileHandleManager;
+	private final RowPFBWriterProvider writerProvider;
+	private final TableExceptionTranslator tableExceptionTranslator;
+
+	@Autowired
+	public PFBDownloadWorker(FileProvider fileProvider, TableQueryManager tableQueryManager,
+			FileHandleManager fileHandleManager, RowPFBWriterProvider writerProvider,
+			TableExceptionTranslator tableExceptionTranslator) {
+		super();
+		this.fileProvider = fileProvider;
+		this.tableQueryManager = tableQueryManager;
+		this.fileHandleManager = fileHandleManager;
+		this.writerProvider = writerProvider;
+		this.tableExceptionTranslator = tableExceptionTranslator;
+	}
+
+	@Override
+	public Class<DownloadPFBRequest> getRequestType() {
+		return DownloadPFBRequest.class;
+	}
+
+	@Override
+	public Class<DownloadPFBResult> getResponseType() {
+		return DownloadPFBResult.class;
+	}
+
+	@Override
+	public DownloadPFBResult run(String jobId, UserInfo user, DownloadPFBRequest request,
+			AsyncJobProgressCallback jobProgressCallback) throws RecoverableMessageException, Exception {
+		String fileName = "Job-" + jobId;
+		File temp = fileProvider.createTempFile(fileName, ".avro");
+		try {
+			QueryResultBundle qrb = tableQueryManager.runQueryAsStream(jobProgressCallback, user, request, t -> {
+				List<ColumnModel> schema = t.getMainQuery().getTranslator().getSchemaOfSelect();
+				return writerProvider.createWriter(request.getEntityName(), schema, temp);
+			});
+			S3FileHandle fileHandle = fileHandleManager.uploadLocalFile(
+					new LocalFileUploadRequest().withUserId(user.getId().toString()).withFileToUpload(temp)
+							.withContentType("application/octet-stream").withFileName(temp.getName()));
+
+			return new DownloadPFBResult().setTableId(qrb.getQueryResult().getQueryResults().getTableId())
+					.setResultsFileHandleId(fileHandle.getId());
+		} catch (TableUnavailableException | LockUnavilableException e) {
+			jobProgressCallback.updateProgress("Waiting for the table index to become available...", 0L, 100L);
+			throw new RecoverableMessageException();
+		} catch (TableFailedException | RecoverableMessageException e) {
+			throw e;
+		} catch (Throwable e) {
+			log.error("Worker Failed", e);
+			throw tableExceptionTranslator.translateException(e);
+		} finally {
+			temp.delete();
+		}
+	}
+
+}

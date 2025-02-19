@@ -63,7 +63,7 @@ public class RowPFBWriteReadTest {
 				writer.nextRow(r);
 			});
 		}
-
+		
 		// Read
 		List<Row> result = new ArrayList<>();
 		try (RowPFBReader reader = new RowPFBReader(new SeekableByteArrayInput(out.toByteArray()))) {

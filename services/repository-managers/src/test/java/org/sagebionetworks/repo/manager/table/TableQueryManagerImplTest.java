@@ -49,6 +49,7 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
+import org.mockito.Spy;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.stubbing.Answer;
@@ -58,6 +59,7 @@ import org.sagebionetworks.repo.manager.table.query.FacetQueries;
 import org.sagebionetworks.repo.manager.table.query.QueryContext;
 import org.sagebionetworks.repo.manager.table.query.QueryExecutor;
 import org.sagebionetworks.repo.manager.table.query.QueryTranslations;
+import org.sagebionetworks.repo.manager.table.query.StreamingQueryExecutor;
 import org.sagebionetworks.repo.manager.table.query.SumFileSizesQuery;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
@@ -77,6 +79,7 @@ import org.sagebionetworks.repo.model.table.ColumnSingleValueQueryFilter;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.DownloadFromTableRequest;
 import org.sagebionetworks.repo.model.table.DownloadFromTableResult;
+import org.sagebionetworks.repo.model.table.DownloadPFBRequest;
 import org.sagebionetworks.repo.model.table.FacetColumnRangeRequest;
 import org.sagebionetworks.repo.model.table.FacetColumnRequest;
 import org.sagebionetworks.repo.model.table.FacetColumnResult;
@@ -149,7 +152,14 @@ public class TableQueryManagerImplTest {
 	private ExecutorService mockThreadPool;
 	@Mock
 	private QueryCacheManager mockQueryCacheManager;
+	@Mock
+	private RowHandlerProvider mockRowHandlerProvider;
+	@Mock
+	private RowHandler mockRowHandler;
+	@Mock
+	private QueryTranslations mockQueryTranslations;
 	
+	@Spy
 	@InjectMocks
 	private TableQueryManagerImpl manager;
 	
@@ -1659,7 +1669,7 @@ public class TableQueryManagerImplTest {
 		// just the selected value
 		assertEquals("[i0]", line);
 	}
-	
+
 	@Test
 	public void testSetRequsetDefaultsQuery(){
 		Query query = new Query();
@@ -2663,6 +2673,45 @@ public class TableQueryManagerImplTest {
 		assertFalse(sum.getGreaterThan());
 		verify(mockTableIndexDAO, never()).getRowIdAndVersions(anyString(), any());
 		verify(mockTableIndexDAO, never()).getSumOfFileSizes(any(), any());
+	}
+	
+	@Test
+	public void testRunQueryAsStream() throws Exception {
+		queryOptions = new QueryOptions().withRunQuery(true).withReturnSelectColumns(true).withRunCount(false)
+				.withReturnFacets(false);
+		Query request = new Query().setSql("select * from " + idAndVersion.toString());
+		doReturn(mockQueryTranslations).when(manager).queryPreflight(user, request, null, queryOptions);
+
+		when(mockRowHandlerProvider.getHandler(mockQueryTranslations)).thenReturn(mockRowHandler);
+		StreamingQueryExecutor executor = new StreamingQueryExecutor(mockRowHandler);
+
+		QueryResultBundle expected = new QueryResultBundle().setQueryCount(1L);
+		doReturn(expected).when(manager).queryAfterAuthorization(mockProgressCallbackVoid, user, mockQueryTranslations,
+				queryOptions, executor);
+
+		// call under test
+		QueryResultBundle results = manager.runQueryAsStream(mockProgressCallbackVoid, user, request,
+				mockRowHandlerProvider);
+		assertEquals(expected, results);
+
+		verify(mockRowHandler).close();
+	}
+	
+	@Test
+	public void testRunQueryAsStreamWithEmptyException() throws Exception {
+		queryOptions = new QueryOptions().withRunQuery(true).withReturnSelectColumns(true).withRunCount(false)
+				.withReturnFacets(false);
+		Query request = new Query().setSql("select * from " + idAndVersion.toString());
+		doThrow(new EmptyResultException("message", "syn123")).when(manager).queryPreflight(user, request, null,
+				queryOptions);
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			manager.runQueryAsStream(mockProgressCallbackVoid, user, request, mockRowHandlerProvider);
+		}).getMessage();
+		assertEquals("Table syn123 has an empty schema", message);
+
+		verify(mockRowHandler, never()).close();
 	}
 	
 	private RowSet createRowSetForTest(List<String> headerNames, List<String>... rowValues){

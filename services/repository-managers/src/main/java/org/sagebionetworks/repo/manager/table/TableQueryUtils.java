@@ -5,6 +5,7 @@ import org.sagebionetworks.repo.model.UnmodifiableXStream;
 import org.sagebionetworks.repo.model.asynch.CacheableRequestBody;
 import org.sagebionetworks.repo.model.dbo.dao.table.TableExceptionTranslator;
 import org.sagebionetworks.repo.model.table.DownloadFromTableRequest;
+import org.sagebionetworks.repo.model.table.DownloadPFBRequest;
 import org.sagebionetworks.repo.model.table.FacetColumnRequest;
 import org.sagebionetworks.repo.model.table.Query;
 import org.sagebionetworks.repo.model.table.QueryBundleRequest;
@@ -71,18 +72,18 @@ public class TableQueryUtils {
 	 * @param body
 	 * @return
 	 */
-	public static String getTableIdFromRequestBody(CacheableRequestBody body){
-		if(body == null){
+	public static String getTableIdFromRequestBody(CacheableRequestBody body) {
+		if (body == null) {
 			throw new IllegalArgumentException("Body cannot be null");
 		}
-		if(body instanceof DownloadFromTableRequest){
-			return getTableId((DownloadFromTableRequest)body);
-		}else if(body instanceof QueryBundleRequest){
-			return getTableId((QueryBundleRequest)body);
-		}else if(body instanceof QueryNextPageToken){
-			return getTableId((QueryNextPageToken)body);
-		}else{
-			throw new IllegalArgumentException("Unknown request body type: "+body.getClass());
+		if (body instanceof DownloadFromTableRequest || body instanceof DownloadPFBRequest) {
+			return getTableId((Query) body);
+		} else if (body instanceof QueryBundleRequest) {
+			return getTableId((QueryBundleRequest) body);
+		} else if (body instanceof QueryNextPageToken) {
+			return getTableId((QueryNextPageToken) body);
+		} else {
+			throw new IllegalArgumentException("Unknown request body type: " + body.getClass());
 		}
 	}
 	
@@ -115,10 +116,11 @@ public class TableQueryUtils {
 	 * @param body
 	 * @return
 	 */
-	public static String getTableId(DownloadFromTableRequest body){
+	public static String getTableId(Query body){
 		ValidateArgument.required(body, "DownloadFromTableRequest");
 		return extractTableIdFromSql(body.getSql());
 	}
+	
 	
 	/**
 	 * Helper to determine the tableId from the SQL.

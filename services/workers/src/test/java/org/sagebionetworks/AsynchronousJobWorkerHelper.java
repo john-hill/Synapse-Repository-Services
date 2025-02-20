@@ -6,6 +6,7 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.asynch.AsynchronousRequestBody;
 import org.sagebionetworks.repo.model.asynch.AsynchronousResponseBody;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
+import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.Dataset;
 import org.sagebionetworks.repo.model.table.DatasetCollection;
 import org.sagebionetworks.repo.model.table.EntityView;
@@ -15,6 +16,8 @@ import org.sagebionetworks.repo.model.table.Query;
 import org.sagebionetworks.repo.model.table.QueryOptions;
 import org.sagebionetworks.repo.model.table.QueryResultBundle;
 import org.sagebionetworks.repo.model.table.ReplicationType;
+import org.sagebionetworks.repo.model.table.Row;
+import org.sagebionetworks.repo.model.table.RowReferenceSetResults;
 import org.sagebionetworks.repo.model.table.SubmissionView;
 import org.sagebionetworks.repo.model.table.TableEntity;
 import org.sagebionetworks.repo.model.table.VirtualTable;
@@ -284,5 +287,16 @@ public interface AsynchronousJobWorkerHelper {
 	 * @throws InterruptedException
 	 */
 	void waitForTableOrViewToBeAvailable(IdAndVersion id, long maxWaitMs) throws InterruptedException;
+	
+	/**
+	 * Append rows to a table.
+	 * @param schema
+	 * @param tableId
+	 * @param rows
+	 * @return 
+	 * @throws AsynchJobFailedException 
+	 * @throws AssertionError 
+	 */
+	RowReferenceSetResults appendRowsToTable(UserInfo user, List<ColumnModel> schema, String tableId, List<Row> rows, long maxWaitTime) throws Exception;
 
 }

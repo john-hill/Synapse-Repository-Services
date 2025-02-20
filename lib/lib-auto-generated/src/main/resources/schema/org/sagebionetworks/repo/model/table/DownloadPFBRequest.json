@@ -12,13 +12,9 @@
 		}
 	],
 	"properties": {
-		"includeRowIdAndRowVersion": {
-			"type": "boolean",
-			"description": "When 'true', the Entity.id field will be populated with the concatenation of: <row_id> + '_' + <row_version>. When false, the Entity.id field will be null.  The default value is 'true'."
-		},
-		"entityName": {
+		"pfbEntityName": {
 			"type": "string",
-			"description": "Required. Used for the Entity.name field of each row."
+			"description": "Required. Used for the PFB entity.name field of each row added to the resulting avro file."
 		},
 		"fileName": {
 			"type": "string",

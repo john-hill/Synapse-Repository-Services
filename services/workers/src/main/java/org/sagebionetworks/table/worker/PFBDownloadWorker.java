@@ -20,6 +20,7 @@ import org.sagebionetworks.repo.model.table.TableFailedException;
 import org.sagebionetworks.repo.model.table.TableUnavailableException;
 import org.sagebionetworks.table.cluster.avro.RowPFBWriterProvider;
 import org.sagebionetworks.util.FileProvider;
+import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.worker.AsyncJobRunner;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.sagebionetworks.workers.util.semaphore.LockUnavilableException;
@@ -62,21 +63,26 @@ public class PFBDownloadWorker implements AsyncJobRunner<DownloadPFBRequest, Dow
 	@Override
 	public DownloadPFBResult run(String jobId, UserInfo user, DownloadPFBRequest request,
 			AsyncJobProgressCallback jobProgressCallback) throws RecoverableMessageException, Exception {
-		String fileName = "Job-" + jobId;
-		File temp = fileProvider.createTempFile(fileName, ".avro");
+		ValidateArgument.required(request, "request");
+		ValidateArgument.required(request.getPfbEntityName(), "request.pfbEntityName");
+		String jobName = "Job-" + jobId;
+		String fileName = request.getFileName() != null ? request.getFileName() : jobName + ".avro";
+		File temp = fileProvider.createTempFile(jobName, ".avro");
 		try {
+			jobProgressCallback.updateProgress("running query...", 0L, 100L);
 			QueryResultBundle qrb = tableQueryManager.runQueryAsStream(jobProgressCallback, user, request, t -> {
 				List<ColumnModel> schema = t.getMainQuery().getTranslator().getSchemaOfSelect();
-				return writerProvider.createWriter(request.getEntityName(), schema, temp);
+				return writerProvider.createWriter(request.getPfbEntityName(), schema, temp);
 			});
-			S3FileHandle fileHandle = fileHandleManager.uploadLocalFile(
-					new LocalFileUploadRequest().withUserId(user.getId().toString()).withFileToUpload(temp)
-							.withContentType("application/octet-stream").withFileName(temp.getName()));
+			jobProgressCallback.updateProgress("saving results...", 0L, 100L);
+			S3FileHandle fileHandle = fileHandleManager
+					.uploadLocalFile(new LocalFileUploadRequest().withUserId(user.getId().toString())
+							.withFileToUpload(temp).withContentType("application/octet-stream").withFileName(fileName));
 
 			return new DownloadPFBResult().setTableId(qrb.getQueryResult().getQueryResults().getTableId())
 					.setResultsFileHandleId(fileHandle.getId());
 		} catch (TableUnavailableException | LockUnavilableException e) {
-			jobProgressCallback.updateProgress("Waiting for the table index to become available...", 0L, 100L);
+			jobProgressCallback.updateProgress("Waiting for the table/view to become available...", 0L, 100L);
 			throw new RecoverableMessageException();
 		} catch (TableFailedException | RecoverableMessageException e) {
 			throw e;

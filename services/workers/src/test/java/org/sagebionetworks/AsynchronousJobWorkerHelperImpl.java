@@ -30,6 +30,7 @@ import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.status.StackStatus;
 import org.sagebionetworks.repo.model.status.StatusEnum;
+import org.sagebionetworks.repo.model.table.AppendableRowSetRequest;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.Dataset;
 import org.sagebionetworks.repo.model.table.DatasetCollection;
@@ -41,9 +42,15 @@ import org.sagebionetworks.repo.model.table.QueryBundleRequest;
 import org.sagebionetworks.repo.model.table.QueryOptions;
 import org.sagebionetworks.repo.model.table.QueryResultBundle;
 import org.sagebionetworks.repo.model.table.ReplicationType;
+import org.sagebionetworks.repo.model.table.Row;
+import org.sagebionetworks.repo.model.table.RowReferenceSet;
+import org.sagebionetworks.repo.model.table.RowReferenceSetResults;
+import org.sagebionetworks.repo.model.table.RowSet;
 import org.sagebionetworks.repo.model.table.SubmissionView;
 import org.sagebionetworks.repo.model.table.TableEntity;
 import org.sagebionetworks.repo.model.table.TableState;
+import org.sagebionetworks.repo.model.table.TableUpdateTransactionRequest;
+import org.sagebionetworks.repo.model.table.TableUpdateTransactionResponse;
 import org.sagebionetworks.repo.model.table.ViewEntityType;
 import org.sagebionetworks.repo.model.table.ViewScope;
 import org.sagebionetworks.repo.model.table.ViewTypeMask;
@@ -69,6 +76,8 @@ import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -659,6 +668,29 @@ public class AsynchronousJobWorkerHelperImpl implements AsynchronousJobWorkerHel
 			System.out.println(String.format("Waiting for '%s' to become available", id.toString()));
 			Thread.sleep(2000);
 		}
+	}
+
+	@Override
+	public RowReferenceSetResults appendRowsToTable(UserInfo user, List<ColumnModel> schema, String tableId, List<Row> rows, long maxWaitTime) throws Exception {
+		RowSet set = new RowSet().setRows(rows).setTableId(tableId)
+				.setHeaders(TableModelUtils.getSelectColumns(schema));
+		AppendableRowSetRequest request = new AppendableRowSetRequest().setEntityId(tableId).setEntityId(tableId)
+				.setToAppend(set);
+
+		TableUpdateTransactionRequest txRequest = TableModelUtils.wrapInTransactionRequest(request);
+
+		// Wait for the job to complete.
+		var t =assertJobResponse(user, txRequest, (TableUpdateTransactionResponse response) -> {
+			RowReferenceSetResults results = TableModelUtils.extractResponseFromTransaction(response,
+					RowReferenceSetResults.class);
+			assertNotNull(results.getRowReferenceSet());
+			RowReferenceSet refSet = results.getRowReferenceSet();
+			assertNotNull(refSet.getRows());
+			assertEquals(rows.size(), refSet.getRows().size());
+		}, maxWaitTime);
+		return TableModelUtils.extractResponseFromTransaction(t.getResponse(),
+				RowReferenceSetResults.class);
+		
 	}
 
 }

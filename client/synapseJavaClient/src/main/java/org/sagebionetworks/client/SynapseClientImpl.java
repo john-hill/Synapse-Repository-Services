@@ -338,6 +338,8 @@ import org.sagebionetworks.repo.model.table.ColumnModelPage;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.repo.model.table.DownloadFromTableRequest;
 import org.sagebionetworks.repo.model.table.DownloadFromTableResult;
+import org.sagebionetworks.repo.model.table.DownloadPFBRequest;
+import org.sagebionetworks.repo.model.table.DownloadPFBResult;
 import org.sagebionetworks.repo.model.table.PaginatedColumnModels;
 import org.sagebionetworks.repo.model.table.Query;
 import org.sagebionetworks.repo.model.table.QueryBundleRequest;
@@ -6355,5 +6357,21 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	@Override
 	public ProjectStorageUsage getProjectStorageUsage(String projectId) throws SynapseException {
 		return getJSONEntity(getRepoEndpoint(), "/project/" + projectId + "/storage/usage", ProjectStorageUsage.class);
+	}
+	
+	@Override
+	public String downloadPFBFromTableAsyncStart(DownloadPFBRequest downloadRequest)
+			throws SynapseException {
+		ValidateArgument.required(downloadRequest, "request");
+		ValidateArgument.required(downloadRequest.getEntityId(), "request.entityId");
+		return startAsynchJob(AsynchJobType.TablePFBDownload, downloadRequest);
+	}
+
+	@Override
+	public DownloadPFBResult downloadPFBFromTableAsyncGet(
+			String asyncJobToken, String tableId) throws SynapseException,
+			SynapseResultNotReadyException {
+		return (DownloadPFBResult) getAsyncResult(
+				AsynchJobType.TablePFBDownload, asyncJobToken, tableId);
 	}
 }

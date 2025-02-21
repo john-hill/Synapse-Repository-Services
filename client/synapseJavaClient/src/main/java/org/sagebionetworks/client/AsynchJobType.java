@@ -36,6 +36,7 @@ import org.sagebionetworks.repo.model.report.DownloadStorageReportResponse;
 import org.sagebionetworks.repo.model.schema.CreateSchemaResponse;
 import org.sagebionetworks.repo.model.schema.GetValidationSchemaResponse;
 import org.sagebionetworks.repo.model.table.DownloadFromTableResult;
+import org.sagebionetworks.repo.model.table.DownloadPFBResult;
 import org.sagebionetworks.repo.model.table.HasEntityId;
 import org.sagebionetworks.repo.model.table.QueryResult;
 import org.sagebionetworks.repo.model.table.QueryResultBundle;
@@ -68,7 +69,8 @@ public enum AsynchJobType {
 	DownloadPackageList(DOWNLOAD_LIST_PACKAGE, DownloadListPackageResponse.class, RestEndpointType.repo),
 	DownloadListManifest(DOWNLOAD_LIST_MANIFEST, DownloadListManifestResponse.class, RestEndpointType.repo),
 	FileHandleRestore(FILE_HANDLE_RESTORE, FileHandleRestoreResponse.class, RestEndpointType.file),
-	AgentChat("/agent/chat", AgentChatResponse.class, RestEndpointType.repo);
+	AgentChat("/agent/chat", AgentChatResponse.class, RestEndpointType.repo),
+	TablePFBDownload("/table/download/pfb", DownloadPFBResult.class, RestEndpointType.repo);
 
 	String prefix;
 	Class<? extends AsynchronousResponseBody> responseClass;

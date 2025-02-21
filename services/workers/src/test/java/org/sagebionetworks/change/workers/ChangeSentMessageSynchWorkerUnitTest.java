@@ -1,6 +1,5 @@
 package org.sagebionetworks.change.workers;
 
-import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -13,9 +12,12 @@ import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Random;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.Mockito;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.cloudwatch.ProfileData;
 import org.sagebionetworks.cloudwatch.WorkerLogger;
@@ -26,67 +28,60 @@ import org.sagebionetworks.repo.model.dbo.dao.DBOChangeDAO;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
 import org.sagebionetworks.util.TestClock;
 import org.sagebionetworks.util.progress.ProgressCallback;
-import org.springframework.test.util.ReflectionTestUtils;
 
+@ExtendWith(MockitoExtension.class)
 public class ChangeSentMessageSynchWorkerUnitTest {
-	
-	DBOChangeDAO mockChangeDao;
-	RepositoryMessagePublisher mockRepositoryMessagePublisher;
-	StackStatusDao mockStatusDao;
-	ChangeSentMessageSynchWorker worker;
-	ProgressCallback mockCallback;
-	StackConfiguration mockConfiguration;
-	WorkerLogger mockLogger;
-	Random mockRandom;
-	int pageSize = 10;
-	TestClock testClock;
-	ChangeMessage one;
-	ChangeMessage two;
-	
-	@Before
-	public void before(){
-		mockChangeDao = Mockito.mock(DBOChangeDAO.class);
-		mockRepositoryMessagePublisher = Mockito.mock(RepositoryMessagePublisher.class);
-		mockStatusDao = Mockito.mock(StackStatusDao.class);
-		mockCallback = Mockito.mock(ProgressCallback.class);
-		mockConfiguration = Mockito.mock(StackConfiguration.class);
-		mockLogger = Mockito.mock(WorkerLogger.class);
-		mockRandom = Mockito.mock(Random.class);
-		testClock = new TestClock();
-		worker = new ChangeSentMessageSynchWorker();
-		ReflectionTestUtils.setField(worker, "changeDao", mockChangeDao);
-		ReflectionTestUtils.setField(worker, "repositoryMessagePublisher", mockRepositoryMessagePublisher);
-		ReflectionTestUtils.setField(worker, "stackStatusDao", mockStatusDao);
-		ReflectionTestUtils.setField(worker, "clock", testClock);
-		ReflectionTestUtils.setField(worker, "configuration", mockConfiguration);
-		ReflectionTestUtils.setField(worker, "workerLogger", mockLogger);
-		ReflectionTestUtils.setField(worker, "random", mockRandom);
-		when(mockStatusDao.isStackReadWrite()).thenReturn(true);
-		when(mockConfiguration.getChangeSynchWorkerMinPageSize()).thenReturn(pageSize);
-		when(mockConfiguration.getChangeSynchWorkerSleepTimeMS()).thenReturn(1000L);
-		when(mockRandom.nextInt(anyInt())).thenReturn(1);
-		
+
+	@Mock
+	private DBOChangeDAO mockChangeDao;
+	@Mock
+	private RepositoryMessagePublisher mockRepositoryMessagePublisher;
+	@Mock
+	private StackStatusDao mockStatusDao;
+	@InjectMocks
+	private ChangeSentMessageSynchWorker worker;
+	@Mock
+	private ProgressCallback mockCallback;
+	@Mock
+	private StackConfiguration mockConfiguration;
+	@Mock
+	private WorkerLogger mockLogger;
+	@Mock
+	private Random mockRandom;
+	private int pageSize = 10;
+	@Mock
+	private TestClock mockClock;
+	private ChangeMessage one;
+	private ChangeMessage two;
+
+	@BeforeEach
+	public void before() {
 		one = new ChangeMessage();
 		one.setObjectType(ObjectType.ENTITY);
 		one.setObjectId("one");
 		two = new ChangeMessage();
 		two.setObjectType(ObjectType.FILE);
 		two.setObjectId("two");
-		when(mockChangeDao.listUnsentMessages(anyLong(), anyLong(), any(Timestamp.class))).thenReturn(Arrays.asList(one, two));
 	}
 
-	
 	@Test
-	public void testStackNotReadWrite() throws Exception{
+	public void testStackNotReadWrite() throws Exception {
 		when(mockStatusDao.isStackReadWrite()).thenReturn(false);
 		worker.run(mockCallback);
 		verify(mockChangeDao, never()).getMinimumChangeNumber();
-		verify(mockChangeDao, never()).listUnsentMessages(anyLong(), anyLong(),  any(Timestamp.class));
+		verify(mockChangeDao, never()).listUnsentMessages(anyLong(), anyLong(), any(Timestamp.class));
 	}
-	
+
 	@Test
-	public void testHappy() throws Exception{
-		long max = pageSize*2+3;
+	public void testHappy() throws Exception {
+		when(mockStatusDao.isStackReadWrite()).thenReturn(true);
+		when(mockConfiguration.getChangeSynchWorkerMinPageSize()).thenReturn(pageSize);
+		when(mockConfiguration.getChangeSynchWorkerSleepTimeMS()).thenReturn(1000L);
+		when(mockRandom.nextInt(anyInt())).thenReturn(1);
+		when(mockChangeDao.listUnsentMessages(anyLong(), anyLong(), any(Timestamp.class)))
+				.thenReturn(Arrays.asList(one, two));
+
+		long max = pageSize * 2 + 3;
 		long min = 1;
 		when(mockChangeDao.getCurrentChangeNumber()).thenReturn(max);
 		when(mockChangeDao.getMinimumChangeNumber()).thenReturn(min);
@@ -94,12 +89,12 @@ public class ChangeSentMessageSynchWorkerUnitTest {
 		when(mockChangeDao.checkUnsentMessageByCheckSumForRange(12L, 22L)).thenReturn(true);
 		when(mockChangeDao.checkUnsentMessageByCheckSumForRange(23L, 33L)).thenReturn(false);
 		// run
-		long start = testClock.currentTimeMillis();
 		worker.run(mockCallback);
 		verify(mockRepositoryMessagePublisher).publishBatchToTopic(ObjectType.ENTITY, Arrays.asList(one));
 		verify(mockRepositoryMessagePublisher).publishBatchToTopic(ObjectType.FILE, Arrays.asList(two));
 		verify(mockLogger, times(10)).logCustomMetric(any(ProfileData.class));
-		assertEquals(start + 3000, testClock.currentTimeMillis());
+		verify(mockClock, times(1)).currentTimeMillis();
+		verify(mockClock, times(3)).sleepNoInterrupt(1000L);
 	}
 
 }

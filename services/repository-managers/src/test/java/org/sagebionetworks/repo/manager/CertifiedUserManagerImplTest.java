@@ -650,11 +650,9 @@ public class CertifiedUserManagerImplTest {
 		assertTrue(passingRecord.getCertified());
 		assertFalse(passingRecord.getRevoked());
 		assertNull(passingRecord.getRevokedOn());
-		assertNotNull(pr.getPassedOn());
-		assertEquals(created.getQuizId(), pr.getQuizId());
-		assertEquals(created.getId(), pr.getResponseId());
-		assertEquals(passingRecord.getScore(), pr.getScore());
-		assertEquals(created.getCreatedBy(), pr.getUserId());
+		assertEquals(quizResponse.getCreatedOn(), passingRecord.getPassedOn());
+		assertEquals(quizResponse.getCreatedOn(), passingRecord.getCreatedOn());
+		assertEquals(pr, passingRecord);
 		verify(mockTransactionalMessenger).sendMessageAfterCommit(userInfo.getId().toString(), ObjectType.CERTIFIED_USER_PASSING_RECORD, ChangeType.CREATE);
 	}
 	
@@ -690,11 +688,9 @@ public class CertifiedUserManagerImplTest {
 		assertFalse(passingRecord.getCertified());
 		assertFalse(passingRecord.getRevoked());
 		assertNull(passingRecord.getRevokedOn());
-		assertNotNull(pr.getPassedOn());
-		assertEquals(created.getQuizId(), pr.getQuizId());
-		assertEquals(created.getId(), pr.getResponseId());
-		assertEquals(passingRecord.getScore(), pr.getScore());
-		assertEquals(created.getCreatedBy(), pr.getUserId());
+		assertEquals(quizResponse.getCreatedOn(), passingRecord.getPassedOn());
+		assertEquals(quizResponse.getCreatedOn(), passingRecord.getCreatedOn());
+		assertEquals(pr, passingRecord);
 		verify(mockTransactionalMessenger).sendMessageAfterCommit(userInfo.getId().toString(), ObjectType.CERTIFIED_USER_PASSING_RECORD, ChangeType.CREATE);
 	}
 	

@@ -186,11 +186,11 @@ public class ITProjectStorageTest {
 			"select count(*) from nodesnapshots"
 			+ " where snapshot_date %s"
 			+ " and id = %s"
-			+ " and any_match(n.project_storage_usage.locations, l -> l.storageLocationId = %s and l.isOverLimit = true)"
-			+ " and any_match(n.project_storage_usage.locations, l -> l.storageLocationId = %s and l.isOverLimit = false)",
+			+ " and any_match(project_storage_usage.locations, l -> l.storageLocationId = %s and l.isOverLimit = true)"
+			+ " and any_match(project_storage_usage.locations, l -> l.storageLocationId = %s and l.isOverLimit = false)",
 			warehouseHelper.toDateStringBetweenPlusAndMinusThirtySeconds(now),
 			KeyFactory.stringToKey(project.getId()),
-			defaultUploadDestination.getStorageLocationId().toString(),
+			expectedDefaultLocationUsage.getStorageLocationId().toString(),
 			externalStorageLocationId.toString()
 		);
 		

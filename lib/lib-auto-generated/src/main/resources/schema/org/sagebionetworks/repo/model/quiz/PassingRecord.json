@@ -25,8 +25,13 @@
 		"passedOn":{
 			"type": "string",
 			"format":"date-time",
-			"description":"Date/time when the user passed the test (omitted if the user has not passed)"
-		},		
+			"description":"DEPRECATED: Same as createdOn. Date/time when the user submitted the response for this passing record. Note that this DOES NOT indicate when the user passed the certification quiz."
+		},
+		"createdOn": {
+			"type": "string",
+			"format": "date-time",
+			"description": "Date/time when this record was generated on a response submission (this will match the createdOn of a QuizResponse)."
+		},
 		"revokedOn": {
 			"type": "string",
 			"format":"date-time",

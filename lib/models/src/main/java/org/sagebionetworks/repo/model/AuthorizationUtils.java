@@ -102,7 +102,7 @@ public class AuthorizationUtils {
 			return true;
 		}
 		if(userInfo.getGroups() != null) {
-			if(userInfo.getGroups().contains(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId())) return true;
+			if(userInfo.getGroups().contains(TeamConstants.SAGE_BIONETWORKS_TEAM_ID)) return true;
 		}
 		return false;
 	}

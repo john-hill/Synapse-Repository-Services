@@ -1009,14 +1009,14 @@ public class IT100TableControllerTest {
 		DownloadPFBRequest request = new DownloadPFBRequest();
 		request.setEntityId(table.getId());
 		request.setSql("select * from " + table.getId());
+		request.setPfbEntityName("testing");
 
 		// call under test
-		DownloadPFBResult result = (DownloadPFBResult) AsyncJobHelper
-				.assertAysncJobResult(synapse, AsynchJobType.TablePFBDownload, request, body -> {
-					assertTrue(body instanceof DownloadPFBResult);
-					DownloadPFBResult response = (DownloadPFBResult) body;
-					assertNotNull(response.getResultsFileHandleId());
-				}, MAX_QUERY_TIMEOUT_MS, AsyncJobHelper.INFINITE_RETRIES).getResponse();
+		AsyncJobHelper.assertAysncJobResult(synapse, AsynchJobType.TablePFBDownload, request, body -> {
+			assertTrue(body instanceof DownloadPFBResult);
+			DownloadPFBResult response = (DownloadPFBResult) body;
+			assertNotNull(response.getResultsFileHandleId());
+		}, MAX_QUERY_TIMEOUT_MS, AsyncJobHelper.INFINITE_RETRIES);
 
 	}
 		

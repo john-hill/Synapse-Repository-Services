@@ -24,6 +24,7 @@ import org.sagebionetworks.repo.manager.table.query.StreamingQueryExecutor;
 import org.sagebionetworks.repo.manager.table.query.SumFileSizesQuery;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.dao.table.RowHandler;
 import org.sagebionetworks.repo.model.dbo.file.download.v2.ActionsRequiredDao;
 import org.sagebionetworks.repo.model.dbo.file.download.v2.EntityActionRequiredCallback;
 import org.sagebionetworks.repo.model.dbo.file.download.v2.FilesBatchProvider;
@@ -519,43 +520,48 @@ public class TableQueryManagerImpl implements TableQueryManager {
 	 * @throws TableLockUnavailableException
 	 */
 	@Override
-	public DownloadFromTableResult runQueryDownloadAsStream(ProgressCallback progressCallback, UserInfo user,
-			DownloadFromTableRequest request, final CSVWriterStream writer)
-			throws TableUnavailableException, NotFoundException, TableFailedException, LockUnavilableException, IOException {
-		// Convert to a query.
-		try {
-			// run the query.
-			QueryOptions options = new QueryOptions().withRunQuery(true).withReturnSelectColumns(true)
-					.withRunCount(false).withReturnFacets(false);
-			// ensure null values in request are set to defaults.
-			setDefaultValues(request);
-			// there is no limit to the size
-			Long maxBytes = null;
-			final QueryTranslations query = queryPreflight(user, request, maxBytes, options);
-
-			// Do not include rowId and version if it is not provided (PLFM-2993)
+	public DownloadFromTableResult runQueryDownloadAsCSV(ProgressCallback progressCallback, UserInfo user,
+			DownloadFromTableRequest request, final CSVWriterStream writer) throws TableUnavailableException,
+			NotFoundException, TableFailedException, LockUnavilableException, IOException {
+		setDefaultValues(request);
+		QueryResultBundle result = runQueryAsStream(progressCallback, user, request, query -> {
 			if (!query.getMainQuery().getTranslator().getIncludesRowIdAndVersion()) {
 				request.setIncludeRowIdAndRowVersion(false);
 				request.setIncludeEntityEtag(false);
 			}
 			// This handler will capture the row data.
-			CSVWriterRowHandler handler = new CSVWriterRowHandler(writer, query.getMainQuery().getTranslator().getSelectColumns(),
-					request.getIncludeRowIdAndRowVersion(), query.getMainQuery().getTranslator().getIncludeEntityEtag());
+			CSVWriterRowHandler handler = new CSVWriterRowHandler(writer,
+					query.getMainQuery().getTranslator().getSelectColumns(), request.getIncludeRowIdAndRowVersion(),
+					query.getMainQuery().getTranslator().getIncludeEntityEtag());
 
 			if (request.getWriteHeader()) {
 				handler.writeHeader();
 			}
-
-			StreamingQueryExecutor queryExecutor = new StreamingQueryExecutor(handler);
-
-			QueryResultBundle result = queryAfterAuthorization(progressCallback, user, query, options, queryExecutor);
-			// convert the response
-			DownloadFromTableResult response = new DownloadFromTableResult();
-			response.setHeaders(result.getSelectColumns());
-			response.setTableId(result.getQueryResult().getQueryResults().getTableId());
-			// pass along the etag.
-			response.setEtag(result.getQueryResult().getQueryResults().getEtag());
-			return response;
+			return handler;
+		});
+		// convert the response
+		DownloadFromTableResult response = new DownloadFromTableResult();
+		response.setHeaders(result.getSelectColumns());
+		response.setTableId(result.getQueryResult().getQueryResults().getTableId());
+		// pass along the etag.
+		response.setEtag(result.getQueryResult().getQueryResults().getEtag());
+		return response;
+	}
+	
+	@Override
+	public QueryResultBundle runQueryAsStream(ProgressCallback progressCallback, UserInfo user, Query request,
+			RowHandlerProvider provider) throws TableUnavailableException, NotFoundException, TableFailedException,
+			LockUnavilableException, IOException {
+		try {
+			QueryOptions options = new QueryOptions().withRunQuery(true).withReturnSelectColumns(true)
+					.withRunCount(false).withReturnFacets(false);
+			// there is no limit to the size
+			Long maxBytes = null;
+			final QueryTranslations query = queryPreflight(user, request, maxBytes, options);
+			try(RowHandler handler = provider.getHandler(query)){
+				return queryAfterAuthorization(progressCallback, user, query, options,
+						new StreamingQueryExecutor(handler));
+			}
 		} catch (EmptyResultException e) { // this is thrown in queryPreflight()
 			throw new IllegalArgumentException("Table " + e.getTableId() + " has an empty schema", e);
 		}

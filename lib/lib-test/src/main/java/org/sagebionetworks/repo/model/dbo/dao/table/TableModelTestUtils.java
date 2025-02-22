@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TimeZone;
 
 import org.sagebionetworks.repo.model.DatastoreException;
@@ -178,7 +179,7 @@ public class TableModelTestUtils {
 			boolean isUpdate = false;
 			boolean useDateStrings = false;
 			List<String> fileHandleIds = null;
-			String value = getValue(cm, rowIndex, isUpdate, useDateStrings, false, columnIndex++, fileHandleIds);
+			String value = getValue(cm, rowIndex, columnIndex++, new ValueOptions().setUpdate(isUpdate).setUseDateStrings(useDateStrings).setExpected(false).setFileHandleIds(fileHandleIds));
 			valueMap.put(cm.getId(), value);
 		}
 		row.setValues(valueMap);
@@ -218,16 +219,37 @@ public class TableModelTestUtils {
 		return rows;
 	}
 
+	/**
+	 * Use {@link #createRows(List, int, ValueOptions)}
+	 * @param cms
+	 */
+	@Deprecated
 	public static List<Row> createRows(List<ColumnModel> cms, int count, boolean useDateStrings) {
 		return createRows(cms, count, useDateStrings, null);
 	}
 	
+	/**
+	 * Use {@link #createRows(List, int, ValueOptions)}
+	 * @param cms
+	 */
+	@Deprecated
 	public static List<Row> createRows(List<ColumnModel> cms, int count, boolean useDateStrings, List<String> fileHandleIs) {
+		return createRows(cms, count, new ValueOptions().setUpdate(false).setUseDateStrings(useDateStrings).setFileHandleIds(fileHandleIs));
+	}
+	
+	/**
+	 * Create a list of rows with values for each provided Column according to the provided options.
+	 * @param cms
+	 * @param count
+	 * @param o
+	 * @return
+	 */
+	public static List<Row> createRows(List<ColumnModel> cms, int count, ValueOptions o) {
 		List<Row> rows = new LinkedList<Row>();
 		for (int i = 0; i < count; i++) {
 			Row row = new Row();
 			// Add a value for each column
-			updateRow(cms, row, i, false, useDateStrings, fileHandleIs);
+			updateRow(cms, row, i, o);
 			rows.add(row);
 		}
 		return rows;
@@ -275,14 +297,22 @@ public class TableModelTestUtils {
 		return rows;
 	}
 
+	/**
+	 * Use {@link #updateRow(List, Row, int, ValueOptions)}
+	 */
+	@Deprecated
 	public static void updateRow(List<ColumnModel> cms, Row toUpdate, int i) {
-		updateRow(cms, toUpdate, i, true, false, null);
+		updateRow(cms, toUpdate, i, new ValueOptions().setUpdate(true).setUseDateStrings(false));
 	}
 	
+	/**
+	 * Use {@link #updateRow(List, Row, int, ValueOptions)}
+	 */
+	@Deprecated
 	public static void updateRow(List<ColumnModel> cms, Row toUpdate, int i, List<String> fileHandleIds) {
-		updateRow(cms, toUpdate, i, true, false, fileHandleIds);
+		updateRow(cms, toUpdate, i,  new ValueOptions().setUpdate(true).setUseDateStrings(false).setFileHandleIds(fileHandleIds));
 	}
-
+	
 	public static PartialRow updatePartialRow(List<ColumnModel> schema, Row row, int i) {
 		return updatePartialRow(schema, row, i, false, null);
 	}
@@ -293,12 +323,19 @@ public class TableModelTestUtils {
 		gmtDateFormatter.setTimeZone(TimeZone.getTimeZone("UTC"));
 	}
 
-	private static void updateRow(List<ColumnModel> cms, Row toUpdate, int i, boolean isUpdate, boolean useDateStrings, List<String> fileHandleIds) {
+	/**
+	 * Updated the provided row using the provided options.
+	 * @param cms
+	 * @param toUpdate
+	 * @param i
+	 * @param o
+	 */
+	public static void updateRow(List<ColumnModel> cms, Row toUpdate, int i, ValueOptions o) {
 		// Add a value for each column
 		List<String> values = new LinkedList<String>();
 		int cmIndex = 0;
 		for (ColumnModel cm : cms) {
-			values.add(getValue(cm, i, isUpdate, useDateStrings, false, cmIndex++, fileHandleIds));
+			values.add(getValue(cm, i, cmIndex++, o));
 		}
 		toUpdate.setValues(values);
 	}
@@ -311,7 +348,7 @@ public class TableModelTestUtils {
 			if (cm.getColumnType() == null)
 				throw new IllegalArgumentException("ColumnType cannot be null");
 			if ((i + cmIndex) % 3 != 0) {
-				values.put(cm.getId(), getValue(cm, i, false, useDateStrings, false, cmIndex, fileHandleIds));
+				values.put(cm.getId(), getValue(cm, i, cmIndex, new ValueOptions().setUpdate(false).setUseDateStrings(useDateStrings).setExpected(false).setFileHandleIds(fileHandleIds)));
 			}
 			cmIndex++;
 		}
@@ -326,7 +363,7 @@ public class TableModelTestUtils {
 			if (cm.getColumnType() == null)
 				throw new IllegalArgumentException("ColumnType cannot be null");
 			if ((i + cmIndex) % 3 != 0) {
-				String value = getValue(cm, i, true, useDateStrings, false, cmIndex, fileHandleIds);
+				String value = getValue(cm, i, cmIndex, new ValueOptions().setUpdate(true).setUseDateStrings(useDateStrings).setExpected(false).setFileHandleIds(fileHandleIds));
 				values.put(cm.getId(), value);
 				toUpdate.getValues().set(cmIndex, value);
 			}
@@ -345,7 +382,7 @@ public class TableModelTestUtils {
 			if (cm.getColumnType() == null)
 				throw new IllegalArgumentException("ColumnType cannot be null");
 			if ((i + cmIndex) % 3 != 0) {
-				values.add(getValue(cm, i, isUpdate, useDateStrings, true, cmIndex, fileHandleIds));
+				values.add(getValue(cm, i, cmIndex, new ValueOptions().setUpdate(isUpdate).setUseDateStrings(useDateStrings).setExpected(true).setFileHandleIds(fileHandleIds)));
 			} else {
 				values.add(cm.getDefaultValue());
 			}
@@ -354,62 +391,132 @@ public class TableModelTestUtils {
 		toUpdate.setValues(values);
 	}
 
-	private static String getValue(ColumnModel cm, int i, boolean isUpdate, boolean useDateStrings, boolean isExpected, int colIndex, List<String> fileHandleIds) {
+	private static String getValue(ColumnModel cm, int i, int colIndex, ValueOptions o) {
 		i = i + 100000 * colIndex;
 		if (cm.getColumnType() == null)
 			throw new IllegalArgumentException("ColumnType cannot be null");
 		switch (cm.getColumnType()) {
 			case STRING:
-				return (isUpdate ? "updatestring" : "string") + i;
+				return (o.isUpdate ? "updatestring" : "string") + i;
 			case USERID:
 			case INTEGER:
 			case SUBMISSIONID:
 			case EVALUATIONID:
 				return "" + (i + 3000);
 			case DATE:
-				if (!isExpected && useDateStrings && i % 2 == 0) {
-					return gmtDateFormatter.format(new Date(i + 4000 + (isUpdate ? 10000 : 0)));
+				if (!o.isExpected && o.useDateStrings && i % 2 == 0) {
+					return gmtDateFormatter.format(new Date(i + 4000 + (o.isUpdate ? 10000 : 0)));
 				} else {
-					return "" + (i + 4000 + (isUpdate ? 10000 : 0));
+					return "" + (i + 4000 + (o.isUpdate ? 10000 : 0));
 				}
 			case FILEHANDLEID:
-				if (fileHandleIds != null) {
-					int index = i % fileHandleIds.size();
-					return fileHandleIds.get(index);
+				if (o.fileHandleIds != null) {
+					int index = i % o.fileHandleIds.size();
+					return o.fileHandleIds.get(index);
 				} else {
-					return "" + (i + 5000 + (isUpdate ? 10000 : 0));
+					return "" + (i + 5000 + (o.isUpdate ? 10000 : 0));
 				}
 			case ENTITYID:
-				return "syn" + (i + 6000 + (isUpdate ? 10000 : 0));
+				return "syn" + (i + 6000 + (o.isUpdate ? 10000 : 0));
 			case BOOLEAN:
-				if (i % 2 > 0 ^ isUpdate) {
+				if (i % 2 > 0 ^ o.isUpdate) {
 					return Boolean.TRUE.toString();
 				} else {
 					return Boolean.FALSE.toString();
 				}
 			case DOUBLE:
-				return "" + (i * 3.41 + 3.12 + (isUpdate ? 10000 : 0));
+				return "" + (i * 3.41 + 3.12 + (o.isUpdate ? 10000 : 0));
 			case LINK:
-				return (isUpdate ? "updatelink" : "link") + (8000 + i);
+				return (o.isUpdate ? "updatelink" : "link") + (8000 + i);
 			case LARGETEXT:
-				return (isUpdate ? "updateLargeText" : "largeText") + (4000 + i);
+				return (o.isUpdate ? "updateLargeText" : "largeText") + (4000 + i);
 			case MEDIUMTEXT:
-				return (isUpdate ? "updateMediumText" : "mediumText") + (4000 + i);
+				return (o.isUpdate ? "updateMediumText" : "mediumText") + (4000 + i);
 			case STRING_LIST:
-				return "[\""+(isUpdate ? "updatestring" : "string") + i+"\", \"" +(isUpdate ? "otherupdatestring" : "otherstring") + i+"\"]";
+				String delimiter = o.includeSpace? "\", \"": "\",\"";
+				return "[\""+(o.isUpdate ? "updatestring" : "string") + i+delimiter +(o.isUpdate ? "otherupdatestring" : "otherstring") + i+"\"]";
 			case INTEGER_LIST:
 			case USERID_LIST:
 				return "[" + (i + 3000) + "]";
 			case BOOLEAN_LIST:
-				return "[" + ((i % 2 > 0 ^ isUpdate) ? "true" : "false") + "]";
+				return "[" + ((i % 2 > 0 ^ o.isUpdate) ? "true" : "false") + "]";
 			case DATE_LIST:
-				return "[" + (i + 4000 + (isUpdate ? 10000 : 0)) + "]";
+				return "[" + (i + 4000 + (o.isUpdate ? 10000 : 0)) + "]";
 			case ENTITYID_LIST:
-				return "[\"syn" + (i + 6000 + (isUpdate ? 10000 : 0)) + "\"]";
+				return "[\"syn" + (i + 6000 + (o.isUpdate ? 10000 : 0)) + "\"]";
 			case JSON:
-				return "{\"foo\": \"" +(isUpdate ? "updateBar": "bar") + i +"\"}";
+				return "{\"foo\": \"" +(o.isUpdate ? "updateBar": "bar") + i +"\"}";
 		}
 		throw new IllegalArgumentException("Unknown ColumnType: " + cm.getColumnType());
+	}
+	
+	public static class ValueOptions {
+		private boolean isUpdate = false;
+		private boolean useDateStrings = false;
+		private boolean isExpected = false;
+		private boolean includeSpace = true;
+		private List<String> fileHandleIds = null;
+		
+		
+		public ValueOptions includeSpace(boolean includeSpace) {
+			this.includeSpace = includeSpace;
+			return this;
+		}
+		
+		public boolean inlcudeSpace() {
+			return includeSpace;
+		}
+
+		public boolean isUpdate() {
+			return isUpdate;
+		}
+		public ValueOptions setUpdate(boolean isUpdate) {
+			this.isUpdate = isUpdate;
+			return this;
+		}
+		public boolean isUseDateStrings() {
+			return useDateStrings;
+		}
+		public ValueOptions setUseDateStrings(boolean useDateStrings) {
+			this.useDateStrings = useDateStrings;
+			return this;
+		}
+		public boolean isExpected() {
+			return isExpected;
+		}
+		public ValueOptions setExpected(boolean isExpected) {
+			this.isExpected = isExpected;
+			return this;
+		}
+		public List<String> getFileHandleIds() {
+			return fileHandleIds;
+		}
+		public ValueOptions setFileHandleIds(List<String> fileHandleIds) {
+			this.fileHandleIds = fileHandleIds;
+			return this;
+		}
+		@Override
+		public int hashCode() {
+			return Objects.hash(fileHandleIds, isExpected, isUpdate, useDateStrings);
+		}
+		@Override
+		public boolean equals(Object obj) {
+			if (this == obj)
+				return true;
+			if (obj == null)
+				return false;
+			if (getClass() != obj.getClass())
+				return false;
+			ValueOptions other = (ValueOptions) obj;
+			return Objects.equals(fileHandleIds, other.fileHandleIds) && isExpected == other.isExpected
+					&& isUpdate == other.isUpdate && useDateStrings == other.useDateStrings;
+		}
+		@Override
+		public String toString() {
+			return "ValueOptions [isUpdate=" + isUpdate + ", useDateStrings=" + useDateStrings + ", isExpected="
+					+ isExpected + ", fileHandleIds=" + fileHandleIds + "]";
+		}
+		
 	}
 	
 	/**

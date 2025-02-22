@@ -8,6 +8,7 @@ import org.mockito.Mockito;
 import org.sagebionetworks.repo.model.asynch.CacheableRequestBody;
 import org.sagebionetworks.repo.model.dbo.dao.table.TableExceptionTranslator;
 import org.sagebionetworks.repo.model.table.DownloadFromTableRequest;
+import org.sagebionetworks.repo.model.table.DownloadPFBRequest;
 import org.sagebionetworks.repo.model.table.FacetColumnRangeRequest;
 import org.sagebionetworks.repo.model.table.FacetColumnRequest;
 import org.sagebionetworks.repo.model.table.Query;
@@ -161,6 +162,16 @@ public class TableQueryUtilsTest {
 		assertEquals(tableId, requestTableId);
 	}
 	
+	@Test
+	public void testGetTableIdFromRequestBodyWithDownloadPFBRequest() {
+		DownloadPFBRequest request = new DownloadPFBRequest();
+		request.setSql("select * from " + tableId);
+
+		// call under test
+		String requestTableId = TableQueryUtils
+				.getTableIdFromRequestBody(request);
+		assertEquals(tableId, requestTableId);
+	}
 	/**
 	 * For PLFM-6027, a user's query contained an unknown character ("\u2018") resulting in a 
 	 * org.sagebionetworks.table.query.TokenMgrError exception.  Since this exception was

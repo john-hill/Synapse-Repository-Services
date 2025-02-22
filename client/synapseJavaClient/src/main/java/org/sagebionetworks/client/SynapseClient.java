@@ -292,6 +292,8 @@ import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnModelPage;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.repo.model.table.DownloadFromTableResult;
+import org.sagebionetworks.repo.model.table.DownloadPFBRequest;
+import org.sagebionetworks.repo.model.table.DownloadPFBResult;
 import org.sagebionetworks.repo.model.table.PaginatedColumnModels;
 import org.sagebionetworks.repo.model.table.Query;
 import org.sagebionetworks.repo.model.table.QueryOptions;
@@ -4434,5 +4436,24 @@ public interface SynapseClient extends BaseClient {
 	 * @throws SynapseException
 	 */
 	ProjectStorageUsage getProjectStorageUsage(String projectId) throws SynapseException;
+
+	/**
+	 * 
+	 * @param downloadRequest
+	 * @return
+	 * @throws SynapseException
+	 */
+	String downloadPFBFromTableAsyncStart(DownloadPFBRequest downloadRequest) throws SynapseException;
+
+	/**
+	 * 
+	 * @param asyncJobToken
+	 * @param tableId
+	 * @return
+	 * @throws SynapseException
+	 * @throws SynapseResultNotReadyException
+	 */
+	DownloadPFBResult downloadPFBFromTableAsyncGet(String asyncJobToken, String tableId)
+			throws SynapseException, SynapseResultNotReadyException;
 
 }

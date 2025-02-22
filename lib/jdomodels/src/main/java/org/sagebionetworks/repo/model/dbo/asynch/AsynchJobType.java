@@ -33,6 +33,8 @@ import org.sagebionetworks.repo.model.schema.GetValidationSchemaRequest;
 import org.sagebionetworks.repo.model.schema.GetValidationSchemaResponse;
 import org.sagebionetworks.repo.model.table.DownloadFromTableRequest;
 import org.sagebionetworks.repo.model.table.DownloadFromTableResult;
+import org.sagebionetworks.repo.model.table.DownloadPFBRequest;
+import org.sagebionetworks.repo.model.table.DownloadPFBResult;
 import org.sagebionetworks.repo.model.table.QueryBundleRequest;
 import org.sagebionetworks.repo.model.table.QueryNextPageToken;
 import org.sagebionetworks.repo.model.table.QueryResult;
@@ -88,7 +90,9 @@ public enum AsynchJobType {
 	
 	FILE_HANDLE_RESTORE_REQUEST(FileHandleRestoreRequest.class, FileHandleRestoreResponse.class),
 	
-	AGENT_CHAT(AgentChatRequest.class, AgentChatResponse.class)
+	AGENT_CHAT(AgentChatRequest.class, AgentChatResponse.class),
+	
+	QUERY_AS_PFB(DownloadPFBRequest.class, DownloadPFBResult.class)
 	;
 
 	private Class<? extends AsynchronousRequestBody> requestClass;

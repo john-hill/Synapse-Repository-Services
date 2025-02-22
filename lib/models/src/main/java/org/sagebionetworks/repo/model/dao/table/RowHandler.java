@@ -1,5 +1,8 @@
 package org.sagebionetworks.repo.model.dao.table;
 
+import java.io.Closeable;
+import java.io.IOException;
+
 import org.sagebionetworks.repo.model.table.Row;
 
 /**
@@ -8,7 +11,11 @@ import org.sagebionetworks.repo.model.table.Row;
  * @author jmhill
  *
  */
-public interface RowHandler {
+public interface RowHandler extends Closeable {
+
+	@Override
+	default void close() throws IOException {
+	}
 
 	/**
 	 * Called for each row of the set.

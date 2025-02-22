@@ -520,7 +520,7 @@ public class TableQueryManagerImpl implements TableQueryManager {
 	 * @throws TableLockUnavailableException
 	 */
 	@Override
-	public DownloadFromTableResult runQueryDownloadAsStream(ProgressCallback progressCallback, UserInfo user,
+	public DownloadFromTableResult runQueryDownloadAsCSV(ProgressCallback progressCallback, UserInfo user,
 			DownloadFromTableRequest request, final CSVWriterStream writer) throws TableUnavailableException,
 			NotFoundException, TableFailedException, LockUnavilableException, IOException {
 		setDefaultValues(request);

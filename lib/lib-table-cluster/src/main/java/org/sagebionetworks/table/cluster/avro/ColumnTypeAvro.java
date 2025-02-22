@@ -12,9 +12,9 @@ import org.sagebionetworks.table.cluster.avro.translator.DoubleTranslator;
 import org.sagebionetworks.table.cluster.avro.translator.ListTranslator;
 import org.sagebionetworks.table.cluster.avro.translator.LongTranslator;
 import org.sagebionetworks.table.cluster.avro.translator.StringTranslator;
-import org.sagebionetworks.table.cluster.avro.translator.Translator;
+import org.sagebionetworks.table.cluster.avro.translator.AvroRowTranslator;
 
-public enum ColumnTypeAvro implements Translator {
+public enum ColumnTypeAvro implements AvroRowTranslator {
 
 	STRING(ColumnType.STRING, Schema.create(Type.STRING), new StringTranslator()),
 	DOUBLE(ColumnType.DOUBLE, Schema.create(Type.DOUBLE), new DoubleTranslator()),
@@ -39,9 +39,9 @@ public enum ColumnTypeAvro implements Translator {
 
 	private final ColumnType type;
 	private final Schema schema;
-	private final Translator translator;
+	private final AvroRowTranslator translator;
 
-	private ColumnTypeAvro(ColumnType type, Schema schema, Translator translator) {
+	private ColumnTypeAvro(ColumnType type, Schema schema, AvroRowTranslator translator) {
 		this.type = type;
 		this.schema = schema;
 		this.translator = translator;

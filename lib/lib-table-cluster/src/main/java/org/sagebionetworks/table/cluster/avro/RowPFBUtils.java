@@ -11,6 +11,9 @@ import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.util.ValidateArgument;
 
 public class RowPFBUtils {
+	
+	private static String DELMITER= "_";
+	private static String ID_VERSION_TEMPLATE = "%d"+DELMITER+"%d";
 
 	/**
 	 * Create an {@link Entity} id from the row's id and version.
@@ -23,7 +26,7 @@ public class RowPFBUtils {
 		if (row.getRowId() == null) {
 			return null;
 		}
-		return row.getVersionNumber() != null ? String.format("%d_%d", row.getRowId(), row.getVersionNumber())
+		return row.getVersionNumber() != null ? String.format(ID_VERSION_TEMPLATE, row.getRowId(), row.getVersionNumber())
 				: String.format("%d", row.getRowId());
 	}
 
@@ -36,7 +39,7 @@ public class RowPFBUtils {
 		if(entityId == null) {
 			return new Row();
 		}
-		String[] split = entityId.split("_");
+		String[] split = entityId.split(DELMITER);
 		return new Row().setRowId(Long.parseLong(split[0]))
 				.setVersionNumber(split.length > 1 ? Long.parseLong(split[1]) : null);
 	}

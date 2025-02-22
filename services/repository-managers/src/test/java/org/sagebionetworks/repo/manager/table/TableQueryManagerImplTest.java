@@ -1518,7 +1518,7 @@ public class TableQueryManagerImplTest {
 		request.setWriteHeader(true);
 
 		// call under test
-		DownloadFromTableResult results = manager.runQueryDownloadAsStream(
+		DownloadFromTableResult results = manager.runQueryDownloadAsCSV(
 				mockProgressCallbackVoid, user, request, writer);
 		assertNotNull(results);
 		
@@ -1550,7 +1550,7 @@ public class TableQueryManagerImplTest {
 		addRowIdAndVersionToRows();
 
 		// call under test
-		DownloadFromTableResult results = manager.runQueryDownloadAsStream(
+		DownloadFromTableResult results = manager.runQueryDownloadAsCSV(
 				mockProgressCallbackVoid, user, request, writer);
 		assertNotNull(results);
 		
@@ -1589,7 +1589,7 @@ public class TableQueryManagerImplTest {
 		convertRowsToEntityRows();
 
 		// call under test
-		DownloadFromTableResult results = manager.runQueryDownloadAsStream(
+		DownloadFromTableResult results = manager.runQueryDownloadAsCSV(
 				mockProgressCallbackVoid, user, request, writer);
 		assertNotNull(results);
 		
@@ -1626,7 +1626,7 @@ public class TableQueryManagerImplTest {
 		convertRowsToEntityRows();
 
 		// call under test
-		DownloadFromTableResult results = manager.runQueryDownloadAsStream(
+		DownloadFromTableResult results = manager.runQueryDownloadAsCSV(
 				mockProgressCallbackVoid, user, request, writer);
 		assertNotNull(results);
 		
@@ -1661,7 +1661,7 @@ public class TableQueryManagerImplTest {
 		convertRowsToEntityRows();
 
 		// call under test
-		DownloadFromTableResult results = manager.runQueryDownloadAsStream(
+		DownloadFromTableResult results = manager.runQueryDownloadAsCSV(
 				mockProgressCallbackVoid, user, request, writer);
 		assertNotNull(results);
 		
@@ -1706,7 +1706,7 @@ public class TableQueryManagerImplTest {
 		
 		assertThrows(IllegalArgumentException.class, ()->{
 			// call under test
-			manager.runQueryDownloadAsStream(
+			manager.runQueryDownloadAsCSV(
 					mockProgressCallbackVoid, user, request, writer);
 		});
 		

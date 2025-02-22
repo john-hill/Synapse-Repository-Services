@@ -1,6 +1,6 @@
 package org.sagebionetworks.table.cluster.avro.translator;
 
-public class DoubleTranslator implements Translator {
+public class DoubleTranslator implements AvroRowTranslator {
 
 	@Override
 	public Object rowToAvro(String value) {

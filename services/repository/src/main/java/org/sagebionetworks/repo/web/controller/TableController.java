@@ -1464,7 +1464,7 @@ public class TableController {
 	@RequiredScope({ view, download })
 	@ResponseStatus(HttpStatus.CREATED)
 	@RequestMapping(value = UrlHelpers.ENTITY_TABLE_DOWNLOAD_PFB_ASYNC_START, method = RequestMethod.POST)
-	public @ResponseBody AsyncJobId startPFVDownload(
+	public @ResponseBody AsyncJobId startPFBDownload(
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable String id,
 			@RequestBody DownloadPFBRequest downloadRequest) throws DatastoreException, NotFoundException, IOException {
 		ValidateArgument.required(id, "{id}");

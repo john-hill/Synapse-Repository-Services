@@ -5,7 +5,7 @@ import java.util.List;
 
 import org.json.JSONArray;
 
-public class ListTranslator implements Translator {
+public class ListTranslator implements AvroRowTranslator {
 
 	@Override
 	public Object rowToAvro(String value) {

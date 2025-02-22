@@ -71,7 +71,7 @@ public class PFBUtils {
 	 * @return
 	 */
 	public static String createString(Object in) {
-		return in == null ? null : in.toString();
+		return in == null ? null : in instanceof String ? (String) in : in.toString();
 	}
 
 	/**

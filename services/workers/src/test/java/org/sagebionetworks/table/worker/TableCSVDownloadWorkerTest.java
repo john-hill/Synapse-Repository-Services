@@ -99,7 +99,7 @@ public class TableCSVDownloadWorkerTest {
 
 	@Test
 	public void testBasicQuery() throws Exception {
-		when(mockTableQueryManager.runQueryDownloadAsStream(any(), any(), any(), any())).thenReturn(results);
+		when(mockTableQueryManager.runQueryDownloadAsCSV(any(), any(), any(), any())).thenReturn(results);
 		when(mockFileHandleManager.uploadLocalFile(any())).thenReturn(new S3FileHandle().setId("8888"));
 		when(mockCSVWriterProvider.createWriter(any(), any())).thenReturn(mockCSVWriter);
 		
@@ -120,7 +120,7 @@ public class TableCSVDownloadWorkerTest {
 	
 	@Test
 	public void testBasicQueryWithError() throws Exception {
-		when(mockTableQueryManager.runQueryDownloadAsStream(any(), any(), any(), any())).thenReturn(results);
+		when(mockTableQueryManager.runQueryDownloadAsCSV(any(), any(), any(), any())).thenReturn(results);
 		when(mockCSVWriterProvider.createWriter(any(), any())).thenReturn(mockCSVWriter);
 		doAnswer(a->{ return new RuntimeException((IOException)a.getArgument(0));}).when(mockTableExceptionTranslator).translateException(any());
 		doThrow(new IOException("Fake out of disk space error")).when(mockCSVWriter).close();
@@ -138,7 +138,7 @@ public class TableCSVDownloadWorkerTest {
 	@Test
 	public void testTableUnavailableException() throws Exception {
 		// table not available
-		when(mockTableQueryManager.runQueryDownloadAsStream(any(), any(),any(), any())).thenThrow(new TableUnavailableException(new TableStatus()));
+		when(mockTableQueryManager.runQueryDownloadAsCSV(any(), any(),any(), any())).thenThrow(new TableUnavailableException(new TableStatus()));
 		when(mockCSVWriterProvider.createWriter(any(), any())).thenReturn(mockCSVWriter);
 		assertThrows(RecoverableMessageException.class, () -> {
 			// call under test
@@ -149,7 +149,7 @@ public class TableCSVDownloadWorkerTest {
 	@Test
 	public void testLockUnavilableExceptionException() throws Exception {
 		// table not available
-		when(mockTableQueryManager.runQueryDownloadAsStream(any(), any(),any(), any())).thenThrow(new LockUnavilableException(LockType.Read, "key", "context"));
+		when(mockTableQueryManager.runQueryDownloadAsCSV(any(), any(),any(), any())).thenThrow(new LockUnavilableException(LockType.Read, "key", "context"));
 		when(mockCSVWriterProvider.createWriter(any(), any())).thenReturn(mockCSVWriter);
 		assertThrows(RecoverableMessageException.class, () -> {
 			// call under test
@@ -161,7 +161,7 @@ public class TableCSVDownloadWorkerTest {
 	public void testTableFailedExceptionException() throws Exception {
 		TableFailedException exception = new TableFailedException(new TableStatus());
 		// table not available
-		when(mockTableQueryManager.runQueryDownloadAsStream(any(), any(),any(), any())).thenThrow(exception);
+		when(mockTableQueryManager.runQueryDownloadAsCSV(any(), any(),any(), any())).thenThrow(exception);
 		when(mockCSVWriterProvider.createWriter(any(), any())).thenReturn(mockCSVWriter);
 		
 		TableFailedException result = assertThrows(TableFailedException.class, () -> {			
@@ -180,7 +180,7 @@ public class TableCSVDownloadWorkerTest {
 
 		RuntimeException error = new RuntimeException("Bad stuff happened");
 		// table not available
-		when(mockTableQueryManager.runQueryDownloadAsStream(any(), any(),any(), any())).thenThrow(error);
+		when(mockTableQueryManager.runQueryDownloadAsCSV(any(), any(),any(), any())).thenThrow(error);
 		RuntimeException result = assertThrows(RuntimeException.class, () -> {
 			// call under test
 			worker.run(jobId, userInfo, request, mockJobProgressCallback);

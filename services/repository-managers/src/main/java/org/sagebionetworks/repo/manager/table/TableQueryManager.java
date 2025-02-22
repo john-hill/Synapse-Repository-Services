@@ -101,7 +101,7 @@ public interface TableQueryManager {
 	 * @throws IOException 
 	 * @throws TableLockUnavailableException 
 	 */
-	DownloadFromTableResult runQueryDownloadAsStream(ProgressCallback progressCallback, UserInfo user, DownloadFromTableRequest request, CSVWriterStream writer) throws TableUnavailableException, NotFoundException, TableFailedException, LockUnavilableException, IOException;
+	DownloadFromTableResult runQueryDownloadAsCSV(ProgressCallback progressCallback, UserInfo user, DownloadFromTableRequest request, CSVWriterStream writer) throws TableUnavailableException, NotFoundException, TableFailedException, LockUnavilableException, IOException;
 
 
 	/**

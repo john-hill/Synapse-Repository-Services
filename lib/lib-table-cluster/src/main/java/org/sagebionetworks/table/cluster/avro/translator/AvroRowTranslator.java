@@ -2,7 +2,7 @@ package org.sagebionetworks.table.cluster.avro.translator;
 
 import org.sagebionetworks.repo.model.table.Row;
 
-public interface Translator {
+public interface AvroRowTranslator {
 
 	/**
 	 * Translate from a {@link Row} value String value to an Avro object.

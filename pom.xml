@@ -476,7 +476,11 @@
 				<artifactId>schema-to-pojo-gwt</artifactId>
 				<version>${schema-to-pojo.version}</version>
 			</dependency>
-
+			<dependency>
+				<groupId>org.sagebionetworks</groupId>
+				<artifactId>lib-pfb</artifactId>
+				<version>${project.version}</version>
+			</dependency>
 			<dependency>
 				<groupId>org.sagebionetworks</groupId>
 				<artifactId>lib-openapi</artifactId>

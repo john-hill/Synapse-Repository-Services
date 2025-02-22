@@ -1,6 +1,5 @@
 package org.sagebionetworks.table.cluster.avro;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.List;
@@ -13,7 +12,7 @@ import org.sagebionetworks.repo.model.dao.table.RowHandler;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.Row;
 
-public class RowPFBWriter implements RowHandler, Closeable {
+public class RowPFBWriter implements RowHandler {
 
 	private final String tableName;
 	private final DataFileWriter<Entity> writer;

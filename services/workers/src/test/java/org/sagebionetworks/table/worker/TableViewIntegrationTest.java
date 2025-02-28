@@ -59,6 +59,7 @@ import org.sagebionetworks.repo.model.asynch.AsynchronousRequestBody;
 import org.sagebionetworks.repo.model.asynch.AsynchronousResponseBody;
 import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.dao.table.TableStatusDAO;
+import org.sagebionetworks.repo.model.dao.table.TableType;
 import org.sagebionetworks.repo.model.dbo.dao.DBOChangeDAO;
 import org.sagebionetworks.repo.model.dbo.file.FileHandleDao;
 import org.sagebionetworks.repo.model.download.AddToDownloadListRequest;
@@ -109,8 +110,13 @@ import org.sagebionetworks.repo.model.table.ViewType;
 import org.sagebionetworks.repo.model.table.ViewTypeMask;
 import org.sagebionetworks.repo.model.util.AccessControlListUtil;
 import org.sagebionetworks.repo.web.NotFoundException;
+import org.sagebionetworks.table.cluster.BasicSchemaProvider;
 import org.sagebionetworks.table.cluster.ConnectionFactory;
+import org.sagebionetworks.table.cluster.QueryTranslator;
 import org.sagebionetworks.table.cluster.TableIndexDAO;
+import org.sagebionetworks.table.cluster.description.TableIndexDescription;
+import org.sagebionetworks.util.Pair;
+import org.sagebionetworks.util.TimeUtils;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -153,34 +159,34 @@ public class TableViewIntegrationTest {
 	private BulkDownloadManager bulkDownloadManager;
 	@Autowired
 	private DownloadListManagerImpl downloadListManager;
-
+	@Autowired
+	private ConnectionFactory connectionFactory;
 	
-	ProgressCallback mockProgressCallbackVoid;
+	private ProgressCallback mockProgressCallbackVoid;
 	
-	List<String> entitiesToDelete;
-	UserInfo adminUserInfo;
-	UserInfo userInfo;
+	private List<String> entitiesToDelete;
+	private UserInfo adminUserInfo;
+	private UserInfo userInfo;
 	
-	S3FileHandle sharedHandle;
-	Project project;
-	int fileCount;
+	private S3FileHandle sharedHandle;
+	private Project project;
+	private int fileCount;
 	
-	List<String> defaultColumnIds;
+	private List<String> defaultColumnIds;
 	
-	List<String> fileIds;
+	private List<String> fileIds;
 	
-	String fileViewId;
-	EntityView entityView;
-	List<ColumnModel> defaultSchema;
+	private String fileViewId;
+	private List<ColumnModel> defaultSchema;
 	
-	ColumnModel etagColumn;
-	ColumnModel benefactorColumn;
-	ColumnModel anno1Column;
-	ColumnModel booleanColumn;
-	ColumnModel stringColumn;
-	ColumnModel entityIdColumn;
-	ColumnModel stringListColumn;
-	ColumnModel integerListColumn;
+	private ColumnModel etagColumn;
+	private ColumnModel benefactorColumn;
+	private ColumnModel anno1Column;
+	private ColumnModel booleanColumn;
+	private ColumnModel stringColumn;
+	private ColumnModel entityIdColumn;
+	private ColumnModel stringListColumn;
+	private ColumnModel integerListColumn;
 	
 	private ReplicationType viewObjectType;
 	
@@ -2337,6 +2343,66 @@ public class TableViewIntegrationTest {
 			assertEquals(expectedRows, extractRows(results));
 		});
 	}
+	
+	/**
+	 * A test that ensure a change to an entity propagate to view even if a user do
+	 * not query that view. See: PLFM-8793.
+	 * 
+	 * @throws Exception
+	 */
+	@Test
+	public void testFileViewWithFileUpdate() throws Exception {
+		createFileView();
+		IdAndVersion fileView = IdAndVersion.parse(fileViewId);
+		TableIndexDAO indexDao = connectionFactory.getConnection(IdAndVersion.parse(fileViewId));
+
+		// wait for replication
+		waitForEntityReplication(fileViewId);
+		Query query = new Query();
+		query.setSql("select * from " + fileViewId);
+		query.setIncludeEntityEtag(true);
+
+		// run the query again
+		waitForConsistentQuery(adminUserInfo, query, (results) -> {
+			assertNotNull(results);
+			assertEquals(new Long(fileCount), results.getQueryCount());
+			assertNotNull(results.getQueryResult());
+			assertNotNull(results.getQueryResult().getQueryResults());
+			assertNotNull(results.getQueryResult().getQueryResults().getRows());
+			List<Row> rows = results.getQueryResult().getQueryResults().getRows();
+			assertEquals(fileCount, rows.size());
+			validateRowsMatchFiles(rows);
+		});
+
+		// change the file's name
+		String newName = "newName";
+		FileEntity f0 = entityManager.getEntity(adminUserInfo, fileIds.get(0), FileEntity.class);
+		Long f0Id = KeyFactory.stringToKey(f0.getId());
+		f0.setName("newName");
+		entityManager.updateEntity(adminUserInfo, f0, false, null);
+
+		// We need query the view's index directly to determine if the change propagated.
+		QueryTranslator translator = QueryTranslator
+				.builder(String.format("select name from %s where row_id = %d", fileViewId, f0Id),
+						new BasicSchemaProvider(defaultSchema, TableType.entityview), adminUserInfo.getId())
+				.indexDescription(new TableIndexDescription(fileView)).build();
+
+		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+			List<Row> rows = indexDao.query(translator).getRows();
+			if (rows != null && rows.size() == 1) {
+				Row row = rows.get(0);
+				System.out.println("Waiting for view index to update: "+row);
+				if (row.getValues() != null && row.getValues().size() == 1) {
+					if (newName.equals(row.getValues().get(0))) {
+						return Pair.create(true, 1L);
+					}
+				}
+			}
+			return Pair.create(false, 0L);
+		});
+		
+	}
+	
 
 	/**
 	 * Broadcast a change message to the view worker.

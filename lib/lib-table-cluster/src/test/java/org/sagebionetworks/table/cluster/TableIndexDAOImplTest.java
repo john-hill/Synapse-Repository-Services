@@ -32,6 +32,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.UUID;
@@ -40,6 +41,7 @@ import java.util.stream.Collectors;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.collections4.IteratorUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -4985,24 +4987,7 @@ public class TableIndexDAOImplTest {
 	 * @return
 	 */
 	SchemaProvider schemaProvider(List<ColumnModel> schema) {
-		return new SchemaProvider() {
-			
-			@Override
-			public List<ColumnModel> getTableSchema(IdAndVersion tableId) {
-				return schema;
-			}
-			
-			@Override
-			public ColumnModel getColumnModel(String id) {
-				return schema.stream().filter(c->id.equals(c.getId())).findFirst().get();
-			}
-
-			@Override
-			public TableType getTableType(IdAndVersion tableId) {
-				// Unused
-				return null;
-			}
-		};
+		return new BasicSchemaProvider(schema, null);
 	}
 	
 	@Test
@@ -5278,4 +5263,104 @@ public class TableIndexDAOImplTest {
 		
 	}
 	
+	@Test
+	public void testViewScopeCRUD() {
+
+		// create
+		tableIndexDAO.setViewScope(1L, ReplicationType.ENTITY, List.of(22L, 33L, 44L));
+		tableIndexDAO.setViewScope(1L, ReplicationType.SUBMISSION, List.of(11L, 33L, 55L));
+
+		tableIndexDAO.setViewScope(2L, ReplicationType.ENTITY, List.of(44L, 55L, 66L));
+		tableIndexDAO.setViewScope(2L, ReplicationType.SUBMISSION, List.of(55L, 77L, 99L));
+
+		tableIndexDAO.setViewScope(3L, ReplicationType.ENTITY, List.of(66L, 77L, 99L));
+		tableIndexDAO.setViewScope(3L, ReplicationType.SUBMISSION, List.of(111L, 333L, 555L));
+
+		// read
+		assertEquals(Set.of(3L), new HashSet<Long>(IteratorUtils
+				.toList(tableIndexDAO.getViewsIntersectionForPath(List.of(99L, 77L), ReplicationType.ENTITY))));
+		assertEquals(Set.of(2L), new HashSet<Long>(IteratorUtils
+				.toList(tableIndexDAO.getViewsIntersectionForPath(List.of(99L, 77L), ReplicationType.SUBMISSION))));
+		assertEquals(Set.of(1L, 2L), new HashSet<Long>(IteratorUtils
+				.toList(tableIndexDAO.getViewsIntersectionForPath(List.of(44L, 55L, 33L), ReplicationType.ENTITY))));
+		assertEquals(Set.of(1L, 3L), new HashSet<Long>(IteratorUtils
+				.toList(tableIndexDAO.getViewsIntersectionForPath(List.of(22L, 77L, 22L), ReplicationType.ENTITY))));
+		
+		// update
+		tableIndexDAO.setViewScope(1L, ReplicationType.ENTITY, List.of(123L));
+		assertEquals(Set.of(1L), new HashSet<Long>(IteratorUtils
+				.toList(tableIndexDAO.getViewsIntersectionForPath(List.of(123L), ReplicationType.ENTITY))));
+		
+		// delete
+		tableIndexDAO.deleteViewScope(1L, ReplicationType.ENTITY);
+		assertEquals(Collections.emptySet(), new HashSet<Long>(IteratorUtils
+				.toList(tableIndexDAO.getViewsIntersectionForPath(List.of(123L), ReplicationType.ENTITY))));
+		assertEquals(Set.of(1L), new HashSet<Long>(IteratorUtils
+				.toList(tableIndexDAO.getViewsIntersectionForPath(List.of(11L, 33L), ReplicationType.SUBMISSION))));
+
+	}
+	
+	@Test
+	public void testSetViewScopeWithNullViewId() {
+		String message = assertThrows(IllegalArgumentException.class, ()->{
+			// call under test
+			tableIndexDAO.setViewScope(null, ReplicationType.ENTITY, Collections.emptyList());
+		}).getMessage();
+		assertEquals("", message);
+	}
+	
+	
+	@Test
+	public void testSetViewScopeWithNullType() {
+		String message = assertThrows(IllegalArgumentException.class, ()->{
+			// call under test
+			tableIndexDAO.setViewScope(123L, null, Collections.emptyList());
+		}).getMessage();
+		assertEquals("viewId is required.", message);
+	}
+	
+	@Test
+	public void testSetViewScopeWithNullScope() {
+		String message = assertThrows(IllegalArgumentException.class, ()->{
+			// call under test
+			tableIndexDAO.setViewScope(123L, ReplicationType.ENTITY, null);
+		}).getMessage();
+		assertEquals("scopeIds is required.", message);
+	}
+
+	@Test
+	public void testGetViewsIntersectionForPathWithNullPath() {
+		String message = assertThrows(IllegalArgumentException.class, ()->{
+			// call under test
+			tableIndexDAO.getViewsIntersectionForPath(null, ReplicationType.ENTITY);
+		}).getMessage();
+		assertEquals("path is required.", message);
+	}
+
+	@Test
+	public void testGetViewsIntersectionForPathWithNullType() {
+		String message = assertThrows(IllegalArgumentException.class, ()->{
+			// call under test
+			tableIndexDAO.getViewsIntersectionForPath(Collections.emptyList(), null);
+		}).getMessage();
+		assertEquals("type is required.", message);
+	}
+
+	@Test
+	public void testDeleteViewScopeWithNullViewId() {
+		String message = assertThrows(IllegalArgumentException.class, ()->{
+			// call under test
+			tableIndexDAO.deleteViewScope(null, ReplicationType.ENTITY);
+		}).getMessage();
+		assertEquals("viewId is required.", message);
+	}
+
+	@Test
+	public void testDeleteViewScopeWithNullType() {
+		String message = assertThrows(IllegalArgumentException.class, ()->{
+			// call under test
+			tableIndexDAO.deleteViewScope(1L, null);
+		}).getMessage();
+		assertEquals("type is required.", message);
+	}
 }

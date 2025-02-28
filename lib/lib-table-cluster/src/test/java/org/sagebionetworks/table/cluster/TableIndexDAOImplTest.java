@@ -5306,7 +5306,7 @@ public class TableIndexDAOImplTest {
 			// call under test
 			tableIndexDAO.setViewScope(null, ReplicationType.ENTITY, Collections.emptyList());
 		}).getMessage();
-		assertEquals("", message);
+		assertEquals("viewId is required.", message);
 	}
 	
 	
@@ -5316,7 +5316,7 @@ public class TableIndexDAOImplTest {
 			// call under test
 			tableIndexDAO.setViewScope(123L, null, Collections.emptyList());
 		}).getMessage();
-		assertEquals("viewId is required.", message);
+		assertEquals("type is required.", message);
 	}
 	
 	@Test

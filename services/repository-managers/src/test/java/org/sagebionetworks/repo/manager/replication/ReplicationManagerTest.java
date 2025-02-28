@@ -543,7 +543,7 @@ public class ReplicationManagerTest {
 		assertEquals(result, it);
 
 		verify(mockObjectDataProviderFactory).getObjectDataProvider(ReplicationType.ENTITY);
-		verify(mockObjectDataProvider).streamOverIdsAndChecksumsForObjects(salt, filter.getObjectIds());
+		verify(mockObjectDataProvider).streamOverIdsAndChecksumsForObjects(salt, filter.getScopeId());
 	}
 
 	@Test

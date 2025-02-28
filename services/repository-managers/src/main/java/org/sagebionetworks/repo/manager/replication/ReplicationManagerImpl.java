@@ -262,10 +262,10 @@ public class ReplicationManagerImpl implements ReplicationManager {
 		ObjectDataProvider provider = objectDataProviderFactory.getObjectDataProvider(filter.getReplicationType());
 		if (filter instanceof HierarchicaFilter) {
 			HierarchicaFilter hierarchy = (HierarchicaFilter) filter;
-			return provider.streamOverIdsAndChecksumsForChildren(salt, hierarchy.getParentIds(), filter.getSubTypes());
+			return provider.streamOverIdsAndChecksumsForChildren(salt, hierarchy.getScopeId(), filter.getSubTypes());
 		} else if (filter instanceof IdAndVersionFilter) {
 			IdAndVersionFilter flat = (IdAndVersionFilter) filter;
-			return provider.streamOverIdsAndChecksumsForObjects(salt, flat.getObjectIds());
+			return provider.streamOverIdsAndChecksumsForObjects(salt, flat.getScopeId());
 		} else {
 			throw new IllegalStateException("Unknown filter types: " + filter.getClass().getName());
 		}

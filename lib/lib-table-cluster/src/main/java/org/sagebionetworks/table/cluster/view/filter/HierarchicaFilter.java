@@ -1,5 +1,6 @@
 package org.sagebionetworks.table.cluster.view.filter;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -49,10 +50,6 @@ public class HierarchicaFilter extends AbstractViewFilter {
 		return super.getFilterSql() + " AND R.PARENT_ID IN (:parentIds)";
 	}
 
-	public Set<Long> getParentIds() {
-		return parentIds;
-	}
-
 	@Override
 	public Builder newBuilder() {
 		return new Builder(mainType, subTypes, limitObjectIds, excludeKeys, parentIds, excludeDerivedKeys);
@@ -66,6 +63,11 @@ public class HierarchicaFilter extends AbstractViewFilter {
 		} else {
 			return Optional.empty();
 		}
+	}
+	
+	@Override
+	public Set<Long> getScopeId() {
+		return parentIds;
 	}
 
 	@Override

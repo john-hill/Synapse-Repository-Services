@@ -51,6 +51,7 @@ import org.sagebionetworks.table.cluster.search.RowSearchContent;
 import org.sagebionetworks.table.cluster.search.TableRowData;
 import org.sagebionetworks.table.cluster.search.TableRowSearchProcessor;
 import org.sagebionetworks.table.cluster.utils.TableModelUtils;
+import org.sagebionetworks.table.cluster.view.filter.HierarchicaFilter;
 import org.sagebionetworks.table.cluster.view.filter.ViewFilter;
 import org.sagebionetworks.table.model.ChangeData;
 import org.sagebionetworks.table.model.Grouping;
@@ -377,7 +378,8 @@ public class TableIndexManagerImpl implements TableIndexManager {
 		ValidateArgument.required(currentSchema, "currentSchema");
 		
 		MetadataIndexProvider provider = metadataIndexProviderFactory.getMetadataIndexProvider(scopeType.getObjectType());
-		ViewFilter filter = provider.getViewFilter(viewId);		
+		ViewFilter filter = provider.getViewFilter(viewId);	
+		setViewScopeIndex(viewId, filter);
 		// copy the data from the entity replication tables to table's index
 		try {
 			tableIndexDao.copyObjectReplicationToView(viewId, filter, currentSchema, provider);			
@@ -1102,6 +1104,35 @@ public class TableIndexManagerImpl implements TableIndexManager {
 	@Override
 	public void swapTableIndex(IndexDescription source, IndexDescription target) {
 		tableIndexDao.swapTableIndex(source.getIdAndVersion(), target.getIdAndVersion());
+	}
+
+	/**
+	 * Set the view's scope index for cases where it applies.
+	 * This method will only update the scope index if it is out-of-date. 
+	 * @param viewId
+	 * @param filter
+	 */
+	void setViewScopeIndex(Long viewId, ViewFilter filter) {
+		ValidateArgument.required(viewId, "viewId");
+		ValidateArgument.required(filter, "filter");
+		// The view scope index only works for hierarchical views.
+		if (filter instanceof HierarchicaFilter) {
+			Set<Long> scopeIds = filter.getScopeIds();
+			/*
+			 * Updating the view scope index is expensive so we only do it when there is a
+			 * real change.
+			 */
+			String newHash = TableModelUtils.createMD5HexOfIds(scopeIds);
+			tableIndexDao.getViewScopeIdsHash(viewId, filter.getReplicationType()).ifPresentOrElse(currentHash -> {
+				// Only update the view's scope if it has changed.
+				if (!currentHash.equals(newHash)) {
+					tableIndexDao.setViewScope(viewId, filter.getReplicationType(), scopeIds, newHash);
+				}
+			}, () -> {
+				// No scope exists for this view, so set it.
+				tableIndexDao.setViewScope(viewId, filter.getReplicationType(), scopeIds, newHash);
+			});
+		}
 	}
 	
 }

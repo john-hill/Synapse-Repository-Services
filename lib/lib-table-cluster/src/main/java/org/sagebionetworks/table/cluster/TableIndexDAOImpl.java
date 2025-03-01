@@ -1737,17 +1737,32 @@ public class TableIndexDAOImpl implements TableIndexDAO {
 	}
 	
 	@Override
-	public void setViewScope(Long viewId, ReplicationType type, Collection<Long> scopeIds) {
+	public void setViewScope(Long viewId, ReplicationType type, Collection<Long> scopeIds, String idsHash) {
 		ValidateArgument.required(viewId, "viewId");
 		ValidateArgument.required(type, "type");
 		ValidateArgument.required(scopeIds, "scopeIds");
+		ValidateArgument.required(idsHash, "idsHash");
 		MapSqlParameterSource params = new MapSqlParameterSource();
 		params.addValue("vieId", viewId);
 		params.addValue("objectType", type.name());
 		params.addValue("json", new JSONArray(scopeIds).toString());
+		params.addValue("hash", idsHash);
 		namedTemplate
-				.update("INSERT INTO VIEW_SCOPE (VIEW_ID, OBJECT_TYPE, OBJECT_IDS) VALUES (:vieId, :objectType, :json)"
-						+ " ON DUPLICATE KEY UPDATE OBJECT_IDS = :json", params);
+				.update("INSERT INTO VIEW_SCOPE (VIEW_ID, OBJECT_TYPE, OBJECT_IDS, IDS_HASH) VALUES "
+						+ "(:vieId, :objectType, :json, :hash) ON DUPLICATE KEY UPDATE OBJECT_IDS = :json, IDS_HASH = :hash", params);
+	}
+	
+	@Override
+	public Optional<String> getViewScopeIdsHash(Long viewId, ReplicationType type) {
+		ValidateArgument.required(viewId, "viewId");
+		ValidateArgument.required(type, "type");
+		try {
+			return Optional
+					.of(template.queryForObject("SELECT IDS_HASH FROM VIEW_SCOPE WHERE VIEW_ID = ? AND OBJECT_TYPE = ?",
+							String.class, viewId, type.name()));
+		} catch (EmptyResultDataAccessException e) {
+			return Optional.empty();
+		}
 	}
 	
 	@Override

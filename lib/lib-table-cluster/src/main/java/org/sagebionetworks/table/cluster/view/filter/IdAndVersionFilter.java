@@ -92,7 +92,7 @@ public class IdAndVersionFilter extends AbstractViewFilter {
 	}
 	
 	@Override
-	public Set<Long> getScopeId() {
+	public Set<Long> getScopeIds() {
 		return allObjectIds;
 	}	
 	

@@ -679,7 +679,15 @@ public interface TableIndexDAO {
 	 * @param type
 	 * @param scopeId
 	 */
-	void setViewScope(Long viewId, ReplicationType type, Collection<Long> scopeId);
+	void setViewScope(Long viewId, ReplicationType type, Collection<Long> scopeIds, String idsHash);
+
+	/**
+	 * Get the Ids hash for a view's scope if it exists.
+	 * @param viewId
+	 * @param type
+	 * @return
+	 */
+	Optional<String> getViewScopeIdsHash(Long viewId, ReplicationType type);
 
 	/**
 	 * Delete the scope of a view.

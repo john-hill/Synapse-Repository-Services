@@ -65,6 +65,7 @@ import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.ObjectDataDTO;
 import org.sagebionetworks.repo.model.table.ObjectField;
 import org.sagebionetworks.repo.model.table.ReplicationType;
+import org.sagebionetworks.repo.model.table.SubType;
 import org.sagebionetworks.repo.model.table.TableChangeType;
 import org.sagebionetworks.repo.model.table.TableConstants;
 import org.sagebionetworks.repo.model.table.TableUnavailableException;
@@ -91,6 +92,7 @@ import org.sagebionetworks.table.cluster.search.TableRowData;
 import org.sagebionetworks.table.cluster.search.TableRowSearchProcessor;
 import org.sagebionetworks.table.cluster.search.TypedCellValue;
 import org.sagebionetworks.table.cluster.utils.TableModelUtils;
+import org.sagebionetworks.table.cluster.view.filter.HierarchicaFilter;
 import org.sagebionetworks.table.cluster.view.filter.ViewFilter;
 import org.sagebionetworks.table.cluster.view.filter.ViewFilterBuilder;
 import org.sagebionetworks.table.model.ChangeData;
@@ -639,6 +641,7 @@ public class TableIndexManagerImplTest {
 		assertEquals(1L, version);
 		verify(mockIndexDao).copyObjectReplicationToView(tableId.getId(), mockFilter, schema, mockMetadataProvider);
 		verify(mockIndexDao).getMaxCurrentCompleteVersionForTable(tableId);
+		verify(managerSpy).setViewScopeIndex(tableId.getId(), mockFilter);
 	}
 
 	/**
@@ -724,6 +727,7 @@ public class TableIndexManagerImplTest {
 	@Test
 	public void testPopulateViewFromEntityReplicationKnownCause() throws Exception {
 		when(mockMetadataProviderFactory.getMetadataIndexProvider(any())).thenReturn(mockMetadataProvider);
+		when(mockMetadataProvider.getViewFilter(tableId.getId())).thenReturn(mockFilter);
 		when(mockMetadataProvider.getDefaultColumnModel(any())).thenReturn(mockDefaultColumnModel);
 		when(mockObjectFieldModelResolverFactory.getObjectFieldModelResolver(any()))
 				.thenReturn(mockObjectFieldModelResolver);
@@ -3000,6 +3004,50 @@ public class TableIndexManagerImplTest {
 		verify(mockIndexDao).provideCardinality(info, tableId);
 		verify(mockIndexDao).provideIndexInfo(info, tableId, isTemp);
 		verify(mockIndexDao).provideConstraintInfo(info, tableId, isTemp);
+	}
+	
+	
+	@Test
+	public void testSetViewScopeIndexWithNoHash() {
+		Set<Long> scope = Set.of(22L, 33L);
+		String hash = TableModelUtils.createMD5HexOfIds(scope);
+		when(mockIndexDao.getViewScopeIdsHash(tableId.getId(), ReplicationType.ENTITY)).thenReturn(Optional.empty());
+		HierarchicaFilter filter = new HierarchicaFilter(ReplicationType.ENTITY, Set.of(SubType.file),
+				scope);
+		// call under test
+		manager.setViewScopeIndex(tableId.getId(), filter);
+		verify(mockIndexDao).setViewScope(tableId.getId(), ReplicationType.ENTITY, scope, hash);
+	}
+	
+	@Test
+	public void testSetViewScopeIndexWithMatchingHash() {
+		Set<Long> scope = Set.of(22L, 33L);
+		String hash = TableModelUtils.createMD5HexOfIds(scope);
+		when(mockIndexDao.getViewScopeIdsHash(tableId.getId(), ReplicationType.ENTITY)).thenReturn(Optional.of(hash));
+		HierarchicaFilter filter = new HierarchicaFilter(ReplicationType.ENTITY, Set.of(SubType.file),
+				scope);
+		// call under test
+		manager.setViewScopeIndex(tableId.getId(), filter);
+		verify(mockIndexDao, never()).setViewScope(any(), any(), any(), any());
+	}
+
+	@Test
+	public void testSetViewScopeIndexWithOldHash() {
+		Set<Long> scope = Set.of(22L, 33L);
+		String hash = TableModelUtils.createMD5HexOfIds(scope);
+		when(mockIndexDao.getViewScopeIdsHash(tableId.getId(), ReplicationType.ENTITY)).thenReturn(Optional.of("old"));
+		HierarchicaFilter filter = new HierarchicaFilter(ReplicationType.ENTITY, Set.of(SubType.file),
+				scope);
+		// call under test
+		manager.setViewScopeIndex(tableId.getId(), filter);
+		verify(mockIndexDao).setViewScope(tableId.getId(), ReplicationType.ENTITY, scope, hash);
+	}
+	
+	@Test
+	public void testSetViewScopeIndexWithNonHierarchyFilter() {
+		// call under test
+		manager.setViewScopeIndex(tableId.getId(), mockFilter);
+		verifyZeroInteractions(mockIndexDao);
 	}
 			
 	@SuppressWarnings("unchecked")

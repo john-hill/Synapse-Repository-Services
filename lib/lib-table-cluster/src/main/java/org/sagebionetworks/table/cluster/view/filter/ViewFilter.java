@@ -76,5 +76,5 @@ public interface ViewFilter {
 	 * Get the object ids that define this view's scope.
 	 * @return
 	 */
-	Set<Long> getScopeId();
+	Set<Long> getScopeIds();
 }

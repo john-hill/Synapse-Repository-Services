@@ -1,6 +1,5 @@
 package org.sagebionetworks.table.cluster.view.filter;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -66,7 +65,7 @@ public class HierarchicaFilter extends AbstractViewFilter {
 	}
 	
 	@Override
-	public Set<Long> getScopeId() {
+	public Set<Long> getScopeIds() {
 		return parentIds;
 	}
 

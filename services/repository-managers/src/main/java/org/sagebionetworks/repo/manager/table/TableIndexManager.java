@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.table;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -314,5 +315,13 @@ public interface TableIndexManager {
 	 * @return A version representing the sum of the current versions of all the dependencies for the given index
 	 */
 	long getVersionFromIndexDependencies(IndexDescription index);
+
+	/**
+	 * Get the full path of of each object from the object_replication table.
+	 * @param objectType
+	 * @param objectIds
+	 * @return
+	 */
+	Map<Long, String> getReplicatedPathIds(ReplicationType objectType, List<Long> objectIds);
 
 }

@@ -696,4 +696,12 @@ public interface TableIndexDAO {
 	 */
 	void deleteViewScope(Long viewId, ReplicationType type);
 
+	/**
+	 * 
+	 * @param objectType
+	 * @param objectIds
+	 * @return
+	 */
+	Map<Long, String> getReplicatedPathIds(ReplicationType objectType, List<Long> objectIds);
+
 }

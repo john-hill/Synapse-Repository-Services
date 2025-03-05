@@ -37,6 +37,7 @@ import static org.sagebionetworks.repo.model.table.TableConstants.OBJECT_REPLICA
 import static org.sagebionetworks.repo.model.table.TableConstants.OBJECT_REPLICATION_COL_OBJECT_VERSION;
 import static org.sagebionetworks.repo.model.table.TableConstants.OBJECT_REPLICATION_COL_PARENT_ID;
 import static org.sagebionetworks.repo.model.table.TableConstants.OBJECT_REPLICATION_COL_PATH;
+import static org.sagebionetworks.repo.model.table.TableConstants.OBJECT_REPLICATION_COL_PATH_IDS;
 import static org.sagebionetworks.repo.model.table.TableConstants.OBJECT_REPLICATION_COL_PROJECT_ID;
 import static org.sagebionetworks.repo.model.table.TableConstants.OBJECT_REPLICATION_COL_SUBTYPE;
 import static org.sagebionetworks.repo.model.table.TableConstants.OBJECT_REPLICATION_TABLE;
@@ -203,6 +204,7 @@ public class TableIndexDAOImpl implements TableIndexDAO {
 		dto.setFileKey(rs.getString(OBJECT_REPLICATION_COL_FILE_KEY));
 		dto.setFileName(rs.getString(OBJECT_REPLICATION_COL_FILE_NAME));
 		dto.setPath(rs.getString(OBJECT_REPLICATION_COL_PATH));
+		dto.setPathIds(rs.getString(OBJECT_REPLICATION_COL_PATH_IDS));
 		return dto;
 	};
 	
@@ -799,7 +801,7 @@ public class TableIndexDAOImpl implements TableIndexDAO {
 					throws SQLException {
 				ObjectDataDTO dto = sorted.get(i);
 				int parameterIndex = 1;
-				int updateOffset = 23;
+				int updateOffset = 24;
 				
 				ps.setString(parameterIndex++, mainType.name());
 				ps.setLong(parameterIndex++, dto.getId());
@@ -935,6 +937,9 @@ public class TableIndexDAOImpl implements TableIndexDAO {
 				
 				ps.setString(parameterIndex++, dto.getPath());
 				ps.setString(parameterIndex + updateOffset, dto.getPath());
+
+				ps.setString(parameterIndex++, dto.getPathIds());
+				ps.setString(parameterIndex + updateOffset, dto.getPathIds());
 				
 			}
 
@@ -1773,6 +1778,27 @@ public class TableIndexDAOImpl implements TableIndexDAO {
 		params.addValue("viewId", viewId);
 		params.addValue("objectType", type.name());
 		namedTemplate.update("DELETE FROM VIEW_SCOPE WHERE VIEW_ID = :viewId AND OBJECT_TYPE = :objectType", params);
+	}
+
+	@Override
+	public Map<Long, String> getReplicatedPathIds(ReplicationType objectType, List<Long> objectIds) {
+		ValidateArgument.required(objectType, "objectType");
+		ValidateArgument.required(objectIds, "objectIds");
+		if(objectIds.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		MapSqlParameterSource params = new MapSqlParameterSource();
+		params.addValue("objectType", objectType);
+		params.addValue("objectIds", objectIds);
+		Map<Long, String> map = new HashMap<>();
+		namedTemplate.query("SELECT OBJECT_ID, PATH_IDS FROM OBJECT_REPLICATION", params, (rs) -> {
+			Long objectId = rs.getLong("OBJECT_ID");
+			String pathJson = rs.getString("PATH_IDS");
+			if(pathJson != null) {
+				map.put(objectId, pathJson);
+			}
+		});
+		return map;
 	}
 	
 }

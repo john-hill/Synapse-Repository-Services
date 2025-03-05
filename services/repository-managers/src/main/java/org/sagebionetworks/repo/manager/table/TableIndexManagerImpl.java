@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -1133,6 +1134,11 @@ public class TableIndexManagerImpl implements TableIndexManager {
 				tableIndexDao.setViewScope(viewId, filter.getReplicationType(), scopeIds, newHash);
 			});
 		}
+	}
+	
+	@Override
+	public Map<Long, String> getReplicatedPathIds(ReplicationType objectType, List<Long> objectIds) {
+		return tableIndexDao.getReplicatedPathIds(objectType, objectIds);
 	}
 	
 }

@@ -32,7 +32,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Random;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.UUID;
@@ -2071,7 +2070,51 @@ public class TableIndexDAOImplTest {
 		count = tableIndexDAO.getTempTableCount(tableId);
 		assertEquals(0L, count);
 	}
+	
+	@Test
+	public void testGetReplicatedPathIds(){
+		// delete all data
+		tableIndexDAO.deleteObjectData(mainType, Lists.newArrayList(1L,2L,3L,4L));
 
+		ObjectDataDTO project = createObjectDataDTO(1L, EntityType.project, 0);
+		ObjectDataDTO file = createObjectDataDTO(3L, EntityType.file, 10);
+		tableIndexDAO.addObjectData(mainType, Lists.newArrayList(file, project));
+		
+		
+		// call under test
+		Map<Long, String> results = tableIndexDAO.getReplicatedPathIds(ReplicationType.ENTITY, List.of(1L,3L));
+		Map<Long, String> expected = Map.of(file.getId(), file.getPathIds());
+		assertEquals(expected, results);
+	}
+	
+	@Test
+	public void testGetReplicatedPathIdsWithEmptyIds(){
+		// call under test
+		Map<Long, String> results = tableIndexDAO.getReplicatedPathIds(ReplicationType.ENTITY, Collections.emptyList());
+		Map<Long, String> expected = Collections.emptyMap();
+		assertEquals(expected, results);
+	}
+
+	@Test
+	public void testGetReplicatedPathIdsWithNullType() {
+		String message = assertThrows(IllegalArgumentException.class, ()->{
+			// call under test
+			tableIndexDAO.getReplicatedPathIds(null, Collections.emptyList());
+		}).getMessage();
+		
+		assertEquals("objectType is required.", message);
+	}
+	
+	@Test
+	public void testGetReplicatedPathIdsWithNullList() {
+		String message = assertThrows(IllegalArgumentException.class, ()->{
+			// call under test
+			tableIndexDAO.getReplicatedPathIds(ReplicationType.ENTITY, null);
+		}).getMessage();
+		
+		assertEquals("objectIds is required.", message);
+	}
+	
 	@Test
 	public void testEntityReplication(){
 		// delete all data
@@ -3519,6 +3562,7 @@ public class TableIndexDAOImplTest {
 			objectDataDTO.setFileName("fileName");
 			objectDataDTO.setFileConcreteType(S3FileHandle.class.getName());
 			objectDataDTO.setPath("parentName/fileName");
+			objectDataDTO.setPathIds("[123, 456]");
 		}
 		if(EntityType.dataset.equals(type)){
 			objectDataDTO.setFileSizeBytes(999L);
@@ -5347,7 +5391,7 @@ public class TableIndexDAOImplTest {
 			// call under test
 			tableIndexDAO.setViewScope(null, ReplicationType.ENTITY, Collections.emptyList(),"hash");
 		}).getMessage();
-		assertEquals("type is required.", message);
+		assertEquals("viewId is required.", message);
 	}
 	
 	@Test

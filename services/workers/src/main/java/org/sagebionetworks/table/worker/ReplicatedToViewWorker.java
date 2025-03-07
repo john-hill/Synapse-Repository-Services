@@ -29,7 +29,7 @@ public class ReplicatedToViewWorker implements TypedMessageDrivenRunner<Replicat
 	@Override
 	public void run(ProgressCallback progressCallback, Message message, ReplicatedEvent event)
 			throws RecoverableMessageException, Exception {
-		System.out.println(event);
+		manager.objectReplicated(event);
 	}
 
 }

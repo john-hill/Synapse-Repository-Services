@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.table;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -44,6 +45,7 @@ import org.sagebionetworks.table.cluster.QueryTranslator;
 import org.sagebionetworks.table.cluster.SQLTranslatorUtils;
 import org.sagebionetworks.table.cluster.SQLUtils;
 import org.sagebionetworks.table.cluster.TableIndexDAO;
+import org.sagebionetworks.table.cluster.ViewUpdateHandler;
 import org.sagebionetworks.table.cluster.description.IndexDescription;
 import org.sagebionetworks.table.cluster.description.TableIndexDescription;
 import org.sagebionetworks.table.cluster.metadata.ObjectFieldModelResolver;
@@ -1118,7 +1120,7 @@ public class TableIndexManagerImpl implements TableIndexManager {
 		ValidateArgument.required(filter, "filter");
 		// The view scope index only works for hierarchical views.
 		if (filter instanceof HierarchicaFilter) {
-			Set<Long> scopeIds = filter.getScopeIds();
+			Set<Long> scopeIds = ((HierarchicaFilter)filter).getScope();
 			/*
 			 * Updating the view scope index is expensive so we only do it when there is a
 			 * real change.
@@ -1139,6 +1141,19 @@ public class TableIndexManagerImpl implements TableIndexManager {
 	@Override
 	public Map<Long, String> getReplicatedPathIds(ReplicationType objectType, List<Long> objectIds) {
 		return tableIndexDao.getReplicatedPathIds(objectType, objectIds);
+	}
+	@Override
+	public Iterator<Long> getViewsIntersectionForPath(Collection<Long> path, ReplicationType type) {
+		return tableIndexDao.getViewsIntersectionForPath(path, type);
+	}
+	@Override
+	public void setViewAsNeedsUpdate(Long viewId, int visiblityTimeoutSec) {
+		tableIndexDao.setViewAsNeedsUpdate(viewId, visiblityTimeoutSec);
+	}
+
+	@Override
+	public boolean consumeFirstVisibleViewUpdate(ViewUpdateHandler handler) {
+		return tableIndexDao.consumeFirstVisibleViewUpdate(handler);
 	}
 	
 }

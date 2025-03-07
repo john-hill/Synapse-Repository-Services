@@ -1,6 +1,7 @@
 package org.sagebionetworks.table.cluster;
 
 import java.io.IOException;
+import java.sql.Timestamp;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -671,7 +672,7 @@ public interface TableIndexDAO {
 	 * @param type
 	 * @return
 	 */
-	Iterator<Long> getViewsIntersectionForPath(List<Long> path, ReplicationType type);
+	Iterator<Long> getViewsIntersectionForPath(Collection<Long> path, ReplicationType type);
 
 	/**
 	 * Set the scope of a view.
@@ -703,5 +704,31 @@ public interface TableIndexDAO {
 	 * @return
 	 */
 	Map<Long, String> getReplicatedPathIds(ReplicationType objectType, List<Long> objectIds);
+	
+	/**
+	 * Create a unique record that indicates a view needs to be updated. The view
+	 * will not be considered for {@link #consumeAllVisibleViewUpdates()} until its
+	 * visiblityTimeoutMS has elapsed. Each call to this method for the same view
+	 * will refresh the visibility timeout of that view, allowing multiple changes
+	 * to accumulate during this period.
+	 * 
+	 * @param viewId              The ID of the view that needs to be updated.
+	 * @param visiblityTimeoutSec The number of seconds until this recored become
+	 *                            visible.
+	 */
+	void setViewAsNeedsUpdate(Long viewId, int visiblityTimeoutSec);
+	
+	/**
+	 * The provided handler will be passed the the ID of the first visible view that
+	 * needs to be updated. If the handler returns without throwing an exception,
+	 * the view update recored will be consumed. If the handler fails with any type
+	 * of exception, the view update recored will not be consumed and the exception
+	 * will be thrown.
+	 * 
+	 * @return True if a view update was consumed. False if there was nothing to
+	 *         consume.
+	 * @throws RuntimeException
+	 */
+	boolean consumeFirstVisibleViewUpdate(ViewUpdateHandler handler);
 
 }

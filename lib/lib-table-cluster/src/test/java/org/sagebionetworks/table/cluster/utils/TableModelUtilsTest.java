@@ -1421,8 +1421,8 @@ public class TableModelUtilsTest {
 		assertEquals(TableModelUtils.createMD5HexOfIds(Lists.newArrayList("1","2","3")),
 				TableModelUtils.createMD5HexOfIds(Lists.newArrayList("3","2","1")));
 		
-		assertEquals(TableModelUtils.createMD5HexOfIds(Collections.emptyList()),
-				TableModelUtils.createMD5HexOfIds(Collections.emptySet()));
+		assertEquals(TableModelUtils.createMD5HexOfIds(new LinkedList<Long>()),
+				TableModelUtils.createMD5HexOfIds(new HashSet<Long>()));
 		
 		assertNotEquals(TableModelUtils.createMD5HexOfIds(Sets.newHashSet(1L, 3L, 2L)),
 				TableModelUtils.createMD5HexOfIds(Lists.newArrayList("3","2","1","4")));

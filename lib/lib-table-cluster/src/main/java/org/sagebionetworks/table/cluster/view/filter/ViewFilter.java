@@ -1,7 +1,6 @@
 package org.sagebionetworks.table.cluster.view.filter;
 
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -72,9 +71,4 @@ public interface ViewFilter {
 	 */
 	Optional<List<ChangeMessage>> getSubViews();
 	
-	/**
-	 * Get the object ids that define this view's scope.
-	 * @return
-	 */
-	Set<Long> getScopeIds();
 }

@@ -151,6 +151,7 @@ public class TableIndexDAOImpl implements TableIndexDAO {
 	private static String REPLICATION_SYNCH_EXPIRATION_TABLE_CREATE = SQLUtils.loadSQLFromClasspath("schema/ReplicationSynchExpiration.sql");
 	private static String QUERY_CACHE_TABLE_CREATE = SQLUtils.loadSQLFromClasspath("schema/QueryCache.sql");
 	private static String VIEW_SCOPE = SQLUtils.loadSQLFromClasspath("schema/ViewScope.sql");
+	private static String VIEW_TO_UPDATE = SQLUtils.loadSQLFromClasspath("schema/ViewToUpdate.sql");
 	private static String GET_ID_AND_CHECKSUMS_SQL_TEMPLATE = SQLUtils.loadSQLFromClasspath("sql/GetIdAndChecksumsTemplate.sql");
 	
 	public static RowMapper<ObjectDataDTO> OBJECT_DATA_ROW_MAPPER = (ResultSet rs, int rowNum) -> {
@@ -763,6 +764,7 @@ public class TableIndexDAOImpl implements TableIndexDAO {
 		template.update(REPLICATION_SYNCH_EXPIRATION_TABLE_CREATE);
 		template.update(QUERY_CACHE_TABLE_CREATE);
 		template.update(VIEW_SCOPE);
+		template.update(VIEW_TO_UPDATE);
 	}
 
 	@Override
@@ -1385,6 +1387,7 @@ public class TableIndexDAOImpl implements TableIndexDAO {
 		template.update(TRUNCATE_OBJECT_REPLICATION_TABLE);
 		template.update("DELETE FROM QUERY_CACHE");
 		template.update("DELETE FROM VIEW_SCOPE");
+		template.update("DELETE FROM VIEW_TO_UPDATE");
 	}
 
 	@Override
@@ -1718,7 +1721,7 @@ public class TableIndexDAOImpl implements TableIndexDAO {
 	}
 
 	@Override
-	public Iterator<Long> getViewsIntersectionForPath(List<Long> path, ReplicationType type) {
+	public Iterator<Long> getViewsIntersectionForPath(Collection<Long> path, ReplicationType type) {
 		ValidateArgument.required(path, "path");
 		ValidateArgument.required(type, "type");
 		return new PaginationIterator<Long>((long limit, long offset) -> {
@@ -1726,7 +1729,7 @@ public class TableIndexDAOImpl implements TableIndexDAO {
 		}, PAGE_SIZE_LIMIT);
 	}
 
-	private List<Long> getViewsIntersectionForPathPaginated(List<Long> path, ReplicationType type, long limit,
+	private List<Long> getViewsIntersectionForPathPaginated(Collection<Long> path, ReplicationType type, long limit,
 			long offset) {
 		ValidateArgument.required(path, "path");
 		ValidateArgument.required(type, "type");
@@ -1799,6 +1802,32 @@ public class TableIndexDAOImpl implements TableIndexDAO {
 			}
 		});
 		return map;
+	}
+
+	@Override
+	public void setViewAsNeedsUpdate(Long viewId, int visiblityTimeoutSec) {
+		ValidateArgument.required(viewId, "viewId");
+		ValidateArgument.requirement(visiblityTimeoutSec > 0, "visiblityTimeoutSec must be > 0");
+		template.update(
+				"INSERT INTO VIEW_TO_UPDATE (VIEW_ID, VISIBLE_ON) VALUES (?, (NOW() + INTERVAL ? SECOND))"
+						+ " ON DUPLICATE KEY UPDATE VISIBLE_ON = (NOW() + INTERVAL ? SECOND)",
+				viewId, visiblityTimeoutSec, visiblityTimeoutSec);
+	}
+
+	@Override
+	public boolean consumeFirstVisibleViewUpdate(ViewUpdateHandler handler) {
+		ValidateArgument.required(handler, "handler");
+		return this.writeTransactionTemplate.execute((s) -> {
+			try {
+				Long viewId = template.queryForObject(
+						"SELECT VIEW_ID FROM VIEW_TO_UPDATE WHERE VISIBLE_ON < NOW() LIMIT 1 FOR UPDATE", Long.class);
+				handler.handleViewUpdate(viewId);
+				template.update("DELETE FROM VIEW_TO_UPDATE WHERE VIEW_ID = ?", viewId);
+				return true;
+			} catch (EmptyResultDataAccessException e) {
+				return false;
+			}
+		});
 	}
 	
 }

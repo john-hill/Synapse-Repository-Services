@@ -1,6 +1,5 @@
 package org.sagebionetworks.table.cluster.view.filter;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -91,8 +90,7 @@ public class IdAndVersionFilter extends AbstractViewFilter {
 		return new Builder(mainType, subTypes, limitObjectIds, excludeKeys, scope, excludeDerivedKeys);
 	}
 	
-	@Override
-	public Set<Long> getScopeIds() {
+	public Set<Long> getAllObjectIds() {
 		return allObjectIds;
 	}	
 	

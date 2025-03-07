@@ -16,9 +16,11 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.StringJoiner;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -2345,62 +2347,118 @@ public class TableViewIntegrationTest {
 	}
 	
 	/**
-	 * A test that ensure a change to an entity propagate to view even if a user do
+	 * A test that ensure a change to an entity propagate to view even if a user does
 	 * not query that view. See: PLFM-8793.
 	 * 
 	 * @throws Exception
 	 */
 	@Test
 	public void testFileViewWithFileUpdate() throws Exception {
-		createFileView();
-		IdAndVersion fileView = IdAndVersion.parse(fileViewId);
-		TableIndexDAO indexDao = connectionFactory.getConnection(IdAndVersion.parse(fileViewId));
-
-		// wait for replication
-		waitForEntityReplication(fileViewId);
-		Query query = new Query();
-		query.setSql("select * from " + fileViewId);
-		query.setIncludeEntityEtag(true);
-
-		// run the query again
-		waitForConsistentQuery(adminUserInfo, query, (results) -> {
-			assertNotNull(results);
-			assertEquals(new Long(fileCount), results.getQueryCount());
-			assertNotNull(results.getQueryResult());
-			assertNotNull(results.getQueryResult().getQueryResults());
-			assertNotNull(results.getQueryResult().getQueryResults().getRows());
-			List<Row> rows = results.getQueryResult().getQueryResults().getRows();
-			assertEquals(fileCount, rows.size());
-			validateRowsMatchFiles(rows);
-		});
-
-		// change the file's name
-		String newName = "newName";
-		FileEntity f0 = entityManager.getEntity(adminUserInfo, fileIds.get(0), FileEntity.class);
-		Long f0Id = KeyFactory.stringToKey(f0.getId());
-		f0.setName("newName");
-		entityManager.updateEntity(adminUserInfo, f0, false, null);
-
-		// We need query the view's index directly to determine if the change propagated.
-		QueryTranslator translator = QueryTranslator
-				.builder(String.format("select name from %s where row_id = %d", fileViewId, f0Id),
-						new BasicSchemaProvider(defaultSchema, TableType.entityview), adminUserInfo.getId())
-				.indexDescription(new TableIndexDescription(fileView)).build();
-
-		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
-			List<Row> rows = indexDao.query(translator).getRows();
-			if (rows != null && rows.size() == 1) {
-				Row row = rows.get(0);
-				System.out.println("Waiting for view index to update: "+row);
-				if (row.getValues() != null && row.getValues().size() == 1) {
-					if (newName.equals(row.getValues().get(0))) {
-						return Pair.create(true, 1L);
-					}
-				}
+		String folderOneId = entityManager.createEntity(adminUserInfo,
+				new Folder().setName("folderOne").setParentId(project.getId()), null);
+		entityManager.createEntity(adminUserInfo,
+				new FileEntity().setName("extraOne").setDataFileHandleId(sharedHandle.getId()).setParentId(folderOneId),
+				null);
+		String folderTwoId = entityManager.createEntity(adminUserInfo,
+				new Folder().setName("folderTwo").setParentId(project.getId()), null);
+		entityManager.createEntity(adminUserInfo,
+				new FileEntity().setName("extraTwo").setDataFileHandleId(sharedHandle.getId()).setParentId(folderTwoId),
+				null);
+		
+		IdAndVersion viewOne = IdAndVersion.parse(createView(ViewType.file, List.of(folderOneId)));
+		IdAndVersion viewTwo = IdAndVersion.parse(createView(ViewType.file, List.of(folderTwoId)));
+		asyncHelper.waitForTableOrViewToBeAvailable(viewOne, MAX_WAIT_MS);
+		asyncHelper.waitForTableOrViewToBeAvailable(viewTwo, MAX_WAIT_MS);
+		
+		TableIndexDAO indexDao = connectionFactory.getConnection(viewOne);
+		
+		// create
+		Long fileOne = KeyFactory.stringToKey(entityManager.createEntity(adminUserInfo,
+				new FileEntity().setName("fileOne").setDataFileHandleId(sharedHandle.getId()).setParentId(folderOneId),
+				null));
+		
+		String sql = String.format("select name from %s where row_id = %d", viewOne, fileOne);
+		waitForDirectIndexQuery(adminUserInfo.getId(), indexDao, sql, viewOne, defaultSchema, (r) -> {
+			Optional<String> value =  getFirstRowFirstValue(r);
+			if(value.isPresent()) {
+				return "fileOne".equals(value.get());
 			}
-			return Pair.create(false, 0L);
+			return false;
 		});
 		
+		// update
+		FileEntity f= entityManager.getEntity(adminUserInfo, fileOne.toString(), FileEntity.class);
+		f.setName("newName");
+		entityManager.updateEntity(adminUserInfo, f, false, null);
+		
+		sql = String.format("select name from %s where row_id = %d", viewOne, fileOne);
+		waitForDirectIndexQuery(adminUserInfo.getId(), indexDao, sql, viewOne, defaultSchema, (r) -> {
+			Optional<String> value =  getFirstRowFirstValue(r);
+			if(value.isPresent()) {
+				return "newName".equals(value.get());
+			}
+			return false;
+		});
+		
+		// move
+		f= entityManager.getEntity(adminUserInfo, fileOne.toString(), FileEntity.class);
+		f.setParentId(folderTwoId);
+		entityManager.updateEntity(adminUserInfo, f, false, null);
+		// The file should no longer appear in the first view
+		sql = String.format("select count(*) from %s where row_id = %d", viewOne, fileOne);
+		waitForDirectIndexQuery(adminUserInfo.getId(), indexDao, sql, viewOne, defaultSchema, (r) -> {
+			Optional<String> value =  getFirstRowFirstValue(r);
+			if(value.isPresent()) {
+				return "0".equals(value.get());
+			}
+			return false;
+		});
+		// The file should appear in the second view.
+		sql = String.format("select count(*) from %s where row_id = %d", viewTwo, fileOne);
+		waitForDirectIndexQuery(adminUserInfo.getId(), indexDao, sql, viewOne, defaultSchema, (r) -> {
+			Optional<String> value =  getFirstRowFirstValue(r);
+			if(value.isPresent()) {
+				return "1".equals(value.get());
+			}
+			return false;
+		});
+		
+		// delete
+		entityManager.deleteEntity(adminUserInfo, fileOne.toString());
+		
+		sql = String.format("select count(*) from %s where row_id = %d", viewTwo, fileOne);
+		waitForDirectIndexQuery(adminUserInfo.getId(), indexDao, sql, viewOne, defaultSchema, (r) -> {
+			Optional<String> value =  getFirstRowFirstValue(r);
+			if(value.isPresent()) {
+				return "0".equals(value.get());
+			}
+			return false;
+		});
+	}
+	
+	static void waitForDirectIndexQuery(Long userId, TableIndexDAO indexDAO, String sql, IdAndVersion viewId,
+			List<ColumnModel> schema, Function<List<Row>, Boolean> function) throws Exception {
+		// We need query the view's index directly to determine if the change
+		// propagated.
+		QueryTranslator translator = QueryTranslator
+				.builder(sql, new BasicSchemaProvider(schema, TableType.entityview), userId)
+				.indexDescription(new TableIndexDescription(viewId)).build();
+
+		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+			System.out.println("Waiting for view index to update...");
+			List<Row> rows = indexDAO.query(translator).getRows();
+			return Pair.create(function.apply(rows), 0L);
+		});
+	}
+	
+	static Optional<String> getFirstRowFirstValue(List<Row> rows) {
+		if (rows != null && rows.size() == 1) {
+			Row row = rows.get(0);
+			if (row.getValues() != null && row.getValues().size() == 1) {
+				return Optional.of(row.getValues().get(0));
+			}
+		}
+		return Optional.empty();
 	}
 	
 

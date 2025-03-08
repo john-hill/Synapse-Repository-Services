@@ -18,6 +18,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class ReplicationToViewManagerImpl implements ReplicationToViewManager {
 
+	public static final int MAX_CALLS_PER_RUN = 1000;
+
 	private static final Log LOG = LogFactory.getLog(ReplicationToViewManagerImpl.class);
 
 	private final TableIndexConnectionFactory connectionFactory;
@@ -77,6 +79,8 @@ public class ReplicationToViewManagerImpl implements ReplicationToViewManager {
 	@Override
 	public void consumeVisibleViewUpdates() {
 		TableIndexManager indexManger = connectionFactory.connectToFirstIndex();
+		
+		int count = 0;
 		while (indexManger.consumeFirstVisibleViewUpdate(viewId -> {
 			LOG.info(String.format("Triggering an update for view: syn%d", viewId));
 			try {
@@ -87,6 +91,11 @@ public class ReplicationToViewManagerImpl implements ReplicationToViewManager {
 				LOG.error("Failed to trigger view update:", e);
 			}
 		})) {
+			count++;
+			if(count > MAX_CALLS_PER_RUN) {
+				LOG.info("Terminating loop after max number of tries.");
+				return;
+			}
 		}
 	}
 

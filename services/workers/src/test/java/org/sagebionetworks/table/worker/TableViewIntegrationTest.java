@@ -2356,6 +2356,7 @@ public class TableViewIntegrationTest {
 	public void testFileViewWithFileUpdate() throws Exception {
 		String folderOneId = entityManager.createEntity(adminUserInfo,
 				new Folder().setName("folderOne").setParentId(project.getId()), null);
+		// Since empty folders are ignored for the HierarchyFilters we add an extra file to each folder.
 		entityManager.createEntity(adminUserInfo,
 				new FileEntity().setName("extraOne").setDataFileHandleId(sharedHandle.getId()).setParentId(folderOneId),
 				null);

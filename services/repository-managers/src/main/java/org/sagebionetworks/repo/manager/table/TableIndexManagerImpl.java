@@ -1120,7 +1120,8 @@ public class TableIndexManagerImpl implements TableIndexManager {
 		ValidateArgument.required(filter, "filter");
 		// The view scope index only works for hierarchical views.
 		if (filter instanceof HierarchicaFilter) {
-			Set<Long> scopeIds = ((HierarchicaFilter)filter).getScope();
+			HierarchicaFilter hierFilter = (HierarchicaFilter)filter;
+			Set<Long> scopeIds = hierFilter.getScope() == null ? Collections.emptySet() : hierFilter.getScope();
 			/*
 			 * Updating the view scope index is expensive so we only do it when there is a
 			 * real change.

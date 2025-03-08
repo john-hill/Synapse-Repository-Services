@@ -3009,23 +3009,38 @@ public class TableIndexManagerImplTest {
 	
 	@Test
 	public void testSetViewScopeIndexWithNoHash() {
+		Set<Long> parentIds = Set.of(22L);
 		Set<Long> scope = Set.of(22L, 33L);
 		String hash = TableModelUtils.createMD5HexOfIds(scope);
 		when(mockIndexDao.getViewScopeIdsHash(tableId.getId(), ReplicationType.ENTITY)).thenReturn(Optional.empty());
 		HierarchicaFilter filter = new HierarchicaFilter(ReplicationType.ENTITY, Set.of(SubType.file),
-				scope);
+				parentIds,scope);
 		// call under test
 		manager.setViewScopeIndex(tableId.getId(), filter);
 		verify(mockIndexDao).setViewScope(tableId.getId(), ReplicationType.ENTITY, scope, hash);
 	}
 	
 	@Test
+	public void testSetViewScopeIndexWithNullScope() {
+		Set<Long> parentIds = Set.of(22L);
+		Set<Long> scope = null;
+		String hash = TableModelUtils.createMD5HexOfIds(Collections.emptySet());
+		when(mockIndexDao.getViewScopeIdsHash(tableId.getId(), ReplicationType.ENTITY)).thenReturn(Optional.empty());
+		HierarchicaFilter filter = new HierarchicaFilter(ReplicationType.ENTITY, Set.of(SubType.file),
+				parentIds,scope);
+		// call under test
+		manager.setViewScopeIndex(tableId.getId(), filter);
+		verify(mockIndexDao).setViewScope(tableId.getId(), ReplicationType.ENTITY, Collections.emptySet(), hash);
+	}
+	
+	@Test
 	public void testSetViewScopeIndexWithMatchingHash() {
+		Set<Long> parentIds = Set.of(22L);
 		Set<Long> scope = Set.of(22L, 33L);
 		String hash = TableModelUtils.createMD5HexOfIds(scope);
 		when(mockIndexDao.getViewScopeIdsHash(tableId.getId(), ReplicationType.ENTITY)).thenReturn(Optional.of(hash));
 		HierarchicaFilter filter = new HierarchicaFilter(ReplicationType.ENTITY, Set.of(SubType.file),
-				scope);
+				parentIds,scope);
 		// call under test
 		manager.setViewScopeIndex(tableId.getId(), filter);
 		verify(mockIndexDao, never()).setViewScope(any(), any(), any(), any());
@@ -3033,11 +3048,12 @@ public class TableIndexManagerImplTest {
 
 	@Test
 	public void testSetViewScopeIndexWithOldHash() {
+		Set<Long> parentIds = Set.of(22L);
 		Set<Long> scope = Set.of(22L, 33L);
 		String hash = TableModelUtils.createMD5HexOfIds(scope);
 		when(mockIndexDao.getViewScopeIdsHash(tableId.getId(), ReplicationType.ENTITY)).thenReturn(Optional.of("old"));
 		HierarchicaFilter filter = new HierarchicaFilter(ReplicationType.ENTITY, Set.of(SubType.file),
-				scope);
+				parentIds, scope);
 		// call under test
 		manager.setViewScopeIndex(tableId.getId(), filter);
 		verify(mockIndexDao).setViewScope(tableId.getId(), ReplicationType.ENTITY, scope, hash);

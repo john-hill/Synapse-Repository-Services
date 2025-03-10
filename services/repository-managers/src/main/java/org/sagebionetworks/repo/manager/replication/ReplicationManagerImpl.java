@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.replication;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -8,9 +9,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.LoggerProvider;
+import org.sagebionetworks.repo.manager.message.RepositoryMessagePublisher;
 import org.sagebionetworks.repo.manager.table.TableIndexConnectionFactory;
 import org.sagebionetworks.repo.manager.table.TableIndexManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
@@ -24,7 +27,9 @@ import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
 import org.sagebionetworks.repo.model.message.ChangeType;
+import org.sagebionetworks.repo.model.message.TransactionalMessenger;
 import org.sagebionetworks.repo.model.table.ObjectDataDTO;
+import org.sagebionetworks.repo.model.table.ReplicatedEvent;
 import org.sagebionetworks.repo.model.table.ReplicationType;
 import org.sagebionetworks.repo.model.table.SubType;
 import org.sagebionetworks.repo.model.table.ViewScopeType;
@@ -58,6 +63,8 @@ public class ReplicationManagerImpl implements ReplicationManager {
 	final private TableIndexConnectionFactory indexConnectionFactory;
 	
 	final private Random random;
+	
+	final private RepositoryMessagePublisher messagePublisher;
 
 	@Autowired
 	public ReplicationManagerImpl(
@@ -66,7 +73,7 @@ public class ReplicationManagerImpl implements ReplicationManager {
 			ReplicationMessageManager replicationMessageManager, 
 			TableIndexConnectionFactory indexConnectionFactory,
 			MetadataIndexProviderFactory indexProviderFactory, LoggerProvider logProvider,
-			Random random) {
+			Random random, RepositoryMessagePublisher messagePublisher) {
 		this.objectDataProviderFactory = objectDataProviderFactory;
 		this.tableManagerSupport = tableManagerSupport;
 		this.replicationMessageManager = replicationMessageManager;
@@ -74,6 +81,7 @@ public class ReplicationManagerImpl implements ReplicationManager {
 		this.indexProviderFactory = indexProviderFactory;
 		this.log = logProvider.getLogger(ReplicationManagerImpl.class.getName());
 		this.random = random;
+		this.messagePublisher = messagePublisher;
 	}
 
 	/**
@@ -89,11 +97,13 @@ public class ReplicationManagerImpl implements ReplicationManager {
 		
 		for (ReplicationDataGroup group : data.values()) {
 			
-			updateReplicationTables(group);
+			List<ReplicatedEvent> events = updateReplicationTables(group);
+			
+			events.forEach(messagePublisher::fireLocalStackMessage);
 		}
 
 	}
-
+	
 	/**
 	 * Update the replication tables within a single transaction that removes rows to be deleted
 	 * and creates or updates rows from the provided group.
@@ -102,16 +112,32 @@ public class ReplicationManagerImpl implements ReplicationManager {
 	 * @param toDelete
 	 * @param objectData
 	 */
-	void updateReplicationTables(ReplicationDataGroup group) {
+	List<ReplicatedEvent> updateReplicationTables(ReplicationDataGroup group) {
 		TableIndexManager indexManager = indexConnectionFactory.connectToFirstIndex();
-		
+
+		List<Long> combinedId = Stream.concat(group.getToDeleteIds().stream(), group.getCreateOrUpdateIds().stream())
+				.collect(Collectors.toList());
+		// capture the pathsIds before making any changes.
+		Map<Long, String> beforePathIds = indexManager.getReplicatedPathIds(group.getObjectType(), combinedId);
+
 		indexManager.deleteObjectData(group.getObjectType(), group.getToDeleteIds());
-		
+
 		ObjectDataProvider provider = objectDataProviderFactory.getObjectDataProvider(group.getObjectType());
-		Iterator<ObjectDataDTO> objectData = provider.getObjectData(group.getCreateOrUpdateIds(),
-				MAX_ANNOTATION_CHARS);
-		
+		Iterator<ObjectDataDTO> objectData = provider.getObjectData(group.getCreateOrUpdateIds(), MAX_ANNOTATION_CHARS);
+
 		indexManager.updateObjectReplication(group.getObjectType(), objectData);
+
+		// capture the pathIds after all of the changes.
+		Map<Long, String> afterPathIds = indexManager.getReplicatedPathIds(group.getObjectType(),
+				group.getCreateOrUpdateIds());
+
+		List<ReplicatedEvent> events = new ArrayList<>(combinedId.size());
+		combinedId.forEach(id -> {
+			events.add(new ReplicatedEvent().setObjectType(ObjectType.REPLICATED_EVENT).setReplicatedObjectId(id)
+					.setReplicatedObjectType(group.getObjectType().getObjectType())
+					.setBeforePathIds(beforePathIds.get(id)).setAfterPathIds(afterPathIds.get(id)));
+		});
+		return events;
 	}
 
 	/**
@@ -265,7 +291,7 @@ public class ReplicationManagerImpl implements ReplicationManager {
 			return provider.streamOverIdsAndChecksumsForChildren(salt, hierarchy.getParentIds(), filter.getSubTypes());
 		} else if (filter instanceof IdAndVersionFilter) {
 			IdAndVersionFilter flat = (IdAndVersionFilter) filter;
-			return provider.streamOverIdsAndChecksumsForObjects(salt, flat.getObjectIds());
+			return provider.streamOverIdsAndChecksumsForObjects(salt, flat.getAllObjectIds());
 		} else {
 			throw new IllegalStateException("Unknown filter types: " + filter.getClass().getName());
 		}

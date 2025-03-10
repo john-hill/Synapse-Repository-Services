@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -36,6 +37,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.LoggerProvider;
+import org.sagebionetworks.repo.manager.message.RepositoryMessagePublisher;
 import org.sagebionetworks.repo.manager.table.TableIndexConnectionFactory;
 import org.sagebionetworks.repo.manager.table.TableIndexManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
@@ -50,6 +52,7 @@ import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
 import org.sagebionetworks.repo.model.message.ChangeType;
 import org.sagebionetworks.repo.model.table.ObjectDataDTO;
+import org.sagebionetworks.repo.model.table.ReplicatedEvent;
 import org.sagebionetworks.repo.model.table.ReplicationType;
 import org.sagebionetworks.repo.model.table.SubType;
 import org.sagebionetworks.repo.model.table.ViewObjectType;
@@ -61,6 +64,7 @@ import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.springframework.transaction.TransactionStatus;
 
 import com.google.common.collect.ImmutableList;
+
 
 @ExtendWith(MockitoExtension.class)
 public class ReplicationManagerTest {
@@ -100,6 +104,9 @@ public class ReplicationManagerTest {
 
 	@Mock
 	private ViewScopeType mockViewScopeType;
+	
+	@Mock
+	private RepositoryMessagePublisher mockMessagePublisher;
 
 	@Captor
 	private ArgumentCaptor<Iterator<ObjectDataDTO>> iteratorCaptor;
@@ -116,7 +123,7 @@ public class ReplicationManagerTest {
 		when(mockLoggerProvider.getLogger(any())).thenReturn(mockLogger);
 		manager = new ReplicationManagerImpl(mockObjectDataProviderFactory, mockTableManagerSupport,
 				mockReplicationMessageManager, mockIndexConnectionFactory, mockIndexProviderFactory,
-				mockLoggerProvider, mockRandom);
+				mockLoggerProvider, mockRandom, mockMessagePublisher);
 		managerSpy = Mockito.spy(manager);
 		ChangeMessage update = new ChangeMessage();
 		update.setChangeType(ChangeType.UPDATE);
@@ -206,6 +213,20 @@ public class ReplicationManagerTest {
 		verify(mockTableIndexManager).updateObjectReplication(eq(mainType), iteratorCaptor.capture());
 		List<ObjectDataDTO> actualList = ImmutableList.copyOf(iteratorCaptor.getValue());
 		assertEquals(entityData, actualList);
+	}
+	
+	@Test
+	public void testReplicateChangesWithEvents() throws RecoverableMessageException, Exception {
+		ReplicatedEvent one = new ReplicatedEvent().setReplicatedObjectId(1L);
+		ReplicatedEvent two = new ReplicatedEvent().setReplicatedObjectId(2L);
+		
+		doReturn(List.of(one,two)).when(managerSpy).updateReplicationTables(any());
+
+		// call under test
+		managerSpy.replicate(changes);
+		
+		verify(mockMessagePublisher).fireLocalStackMessage(one);
+		verify(mockMessagePublisher).fireLocalStackMessage(two);
 	}
 
 	@Test
@@ -543,7 +564,7 @@ public class ReplicationManagerTest {
 		assertEquals(result, it);
 
 		verify(mockObjectDataProviderFactory).getObjectDataProvider(ReplicationType.ENTITY);
-		verify(mockObjectDataProvider).streamOverIdsAndChecksumsForObjects(salt, filter.getObjectIds());
+		verify(mockObjectDataProvider).streamOverIdsAndChecksumsForObjects(salt, filter.getAllObjectIds());
 	}
 
 	@Test
@@ -654,6 +675,35 @@ public class ReplicationManagerTest {
 		assertFalse(managerSpy.isReplicationSynchronizedForView(viewObjectType, viewId));
 		verify(managerSpy).getFilter(viewId, viewObjectType);
 		verify(managerSpy).createReconcileIterator(mockFilter);
+	}
+	
+	@Test
+	public void testUpdateReplicationTables() {
+		when(mockIndexConnectionFactory.connectToFirstIndex()).thenReturn(mockTableIndexManager);
+		when(mockObjectDataProviderFactory.getObjectDataProvider(ReplicationType.ENTITY))
+				.thenReturn(mockObjectDataProvider);
+		Iterator<ObjectDataDTO> it = List.of(new ObjectDataDTO()).iterator();
+		when(mockObjectDataProvider.getObjectData(List.of(1L), ReplicationManagerImpl.MAX_ANNOTATION_CHARS))
+				.thenReturn(it);
+		ReplicationDataGroup group = new ReplicationDataGroup(ReplicationType.ENTITY);
+		group.addForCreateOrUpdate(1L);
+		group.addForDelete(2L);
+		Map<Long, String> beforePathIds = Map.of(1L, "[22,1]", 2L, "[33,2]");
+		Map<Long, String> afterPathIds = Map.of(1L, "[33,1]");
+		when(mockTableIndexManager.getReplicatedPathIds(ReplicationType.ENTITY, List.of(2L, 1L)))
+				.thenReturn(beforePathIds);
+		when(mockTableIndexManager.getReplicatedPathIds(ReplicationType.ENTITY, List.of(1L))).thenReturn(afterPathIds);
+
+		// call under test
+		List<ReplicatedEvent> events = managerSpy.updateReplicationTables(group);
+		List<ReplicatedEvent> expected = List.of(
+				new ReplicatedEvent().setObjectType(ObjectType.REPLICATED_EVENT)
+						.setReplicatedObjectType(ObjectType.ENTITY).setReplicatedObjectId(2L).setBeforePathIds("[33,2]")
+						.setAfterPathIds(null),
+				new ReplicatedEvent().setObjectType(ObjectType.REPLICATED_EVENT)
+						.setReplicatedObjectType(ObjectType.ENTITY).setReplicatedObjectId(1L).setBeforePathIds("[22,1]")
+						.setAfterPathIds("[33,1]"));
+		assertEquals(events, expected);
 	}
 
 	/**

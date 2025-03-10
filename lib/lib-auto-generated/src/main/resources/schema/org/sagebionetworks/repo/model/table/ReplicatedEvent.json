@@ -1,0 +1,26 @@
+{
+	"description": "Event created after data is replcated.",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.message.LocalStackMessage"
+		}
+	],
+	"properties": {
+		"replicatedObjectId": {
+			"type": "integer",
+			"description": "The ID of the changed object."
+		},
+		"replicatedObjectType": {
+			"$ref": "org.sagebionetworks.repo.model.ObjectType",
+			"description": "The type of the changed object"
+		},
+		"beforePathIds": {
+			"description": "The full path of the object before the change. Value is a json array of longs.  Will be null for create events.",
+			"type": "string"
+		},
+		"afterPathIds": {
+			"description": "The full path of the object after the change. Value is a json array of longs. Will be null for delete events.",
+			"type": "string"
+		}
+	}
+}

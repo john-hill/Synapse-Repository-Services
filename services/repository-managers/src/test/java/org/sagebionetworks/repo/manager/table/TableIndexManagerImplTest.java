@@ -26,6 +26,7 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -3024,7 +3025,7 @@ public class TableIndexManagerImplTest {
 	public void testSetViewScopeIndexWithNullScope() {
 		Set<Long> parentIds = Set.of(22L);
 		Set<Long> scope = null;
-		String hash = TableModelUtils.createMD5HexOfIds(Collections.emptySet());
+		String hash = TableModelUtils.createMD5HexOfIds(new ArrayList<Long>());
 		when(mockIndexDao.getViewScopeIdsHash(tableId.getId(), ReplicationType.ENTITY)).thenReturn(Optional.empty());
 		HierarchicaFilter filter = new HierarchicaFilter(ReplicationType.ENTITY, Set.of(SubType.file),
 				parentIds,scope);

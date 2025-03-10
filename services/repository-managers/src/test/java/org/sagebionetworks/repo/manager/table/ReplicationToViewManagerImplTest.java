@@ -133,7 +133,7 @@ public class ReplicationToViewManagerImplTest {
 		// call under test
 		manager.consumeVisibleViewUpdates();
 
-		verify(mockTableIndexManager, times(ReplicationToViewManagerImpl.MAX_CALLS_PER_RUN+1))
+		verify(mockTableIndexManager, times(ReplicationToViewManagerImpl.MAX_CALLS_PER_RUN))
 				.consumeFirstVisibleViewUpdate(any());
 	}
 	

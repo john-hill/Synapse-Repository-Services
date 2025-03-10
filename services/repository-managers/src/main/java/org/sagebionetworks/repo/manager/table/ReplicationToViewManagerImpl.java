@@ -79,21 +79,19 @@ public class ReplicationToViewManagerImpl implements ReplicationToViewManager {
 	@Override
 	public void consumeVisibleViewUpdates() {
 		TableIndexManager indexManger = connectionFactory.connectToFirstIndex();
-		
-		int count = 0;
-		while (indexManger.consumeFirstVisibleViewUpdate(viewId -> {
-			LOG.info(String.format("Triggering an update for view: syn%d", viewId));
-			try {
-				tableManagerSupport.triggerIndexUpdate(IdAndVersion.newBuilder().setId(viewId).build());
-			} catch (NotFoundException e) {
-				// skip views that are not found.
-			}catch(Throwable e) {
-				LOG.error("Failed to trigger view update:", e);
-			}
-		})) {
-			count++;
-			if(count > MAX_CALLS_PER_RUN) {
-				LOG.info("Terminating loop after max number of tries.");
+
+		for (int i = 0; i < MAX_CALLS_PER_RUN; i++) {
+			boolean consumed = indexManger.consumeFirstVisibleViewUpdate(viewId -> {
+				LOG.info(String.format("Triggering an update for view: syn%d", viewId));
+				try {
+					tableManagerSupport.triggerIndexUpdate(IdAndVersion.newBuilder().setId(viewId).build());
+				} catch (NotFoundException e) {
+					// skip views that are not found.
+				} catch (Throwable e) {
+					LOG.error("Failed to trigger view update:", e);
+				}
+			});
+			if (!consumed) {
 				return;
 			}
 		}

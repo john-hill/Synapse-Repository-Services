@@ -104,10 +104,6 @@ public class ReplicationManagerImpl implements ReplicationManager {
 
 	}
 	
-	public void publishEvents(List<ReplicatedEvent> e) {
-		
-	}
-
 	/**
 	 * Update the replication tables within a single transaction that removes rows to be deleted
 	 * and creates or updates rows from the provided group.

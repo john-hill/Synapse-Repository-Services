@@ -960,6 +960,27 @@ public class ProjectSettingsManagerImplUnitTest {
 	}
 
 	@Test
+	public void testIsStsStorageLocation_EmptyStorageLocations() {
+		ProjectSetting input = mock(UploadDestinationListSetting.class);
+
+		// Call under test.
+		boolean result = projectSettingsManagerImpl.isStsStorageLocationSetting(input);
+		assertFalse(result);
+		verifyZeroInteractions(mockStorageLocationDAO);
+	}
+
+	@Test
+	public void testIsStsStorageLocation_NullStorageLocations() {
+		ProjectSetting input = mock(UploadDestinationListSetting.class);
+		when(((UploadDestinationListSetting) input).getLocations()).thenReturn(null);
+
+		// Call under test.
+		boolean result = projectSettingsManagerImpl.isStsStorageLocationSetting(input);
+		assertFalse(result);
+		verifyZeroInteractions(mockStorageLocationDAO);
+	}
+
+	@Test
 	public void testIsStsStorageLocation_StorageLocationNotFound() {
 		// Mock dependencies.
 		when(mockStorageLocationDAO.get(STORAGE_LOCATION_ID)).thenThrow(NotFoundException.class);

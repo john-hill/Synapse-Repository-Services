@@ -33,6 +33,10 @@
 		{
 			"name": "ALLOW_AGENT_WRITES",
 			"description": "When enabled, bedrock agents are allowed to directly write to Synapse."
+		},
+		{
+			"name": "ENFORCE_TWO_FA",
+			"description": "When enabled, two factor authentication must be enabled for any user using Synapse."
 		}
     ]
 }

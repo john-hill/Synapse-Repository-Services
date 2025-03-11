@@ -12,9 +12,9 @@ import org.sagebionetworks.client.SynapseAdminClientImpl;
 import org.sagebionetworks.client.SynapseClient;
 import org.sagebionetworks.client.SynapseClientImpl;
 import org.sagebionetworks.client.exceptions.SynapseException;
-import org.sagebionetworks.util.DefaultClock;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.auth.LoginResponse;
+import org.sagebionetworks.util.DefaultClock;
 import org.sagebionetworks.warehouse.WarehouseTestHelper;
 import org.sagebionetworks.warehouse.WarehouseTestHelperImpl;
 
@@ -154,6 +154,5 @@ public class ITTestExtension implements BeforeAllCallback, AfterAllCallback, Par
 
 			}
 		}
-	}
-
+	}	
 }

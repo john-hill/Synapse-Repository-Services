@@ -35,8 +35,8 @@
 			"description": "When enabled, bedrock agents are allowed to directly write to Synapse."
 		},
 		{
-			"name": "ENFORCE_TWO_FA",
-			"description": "When enabled, two factor authentication must be enabled for any user using Synapse."
+			"name": "REQUIRE_TWO_FA_BYPASS",
+			"description": "When enabled, two factor authentication WON'T be required for users accessing Synapse."
 		}
     ]
 }

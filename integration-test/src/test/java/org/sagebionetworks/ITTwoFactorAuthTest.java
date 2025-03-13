@@ -63,10 +63,7 @@ public class ITTwoFactorAuthTest {
 	public void testEnable2FaRoundTrip(SynapseAdminClient adminClient) throws SynapseException, JSONObjectAdapterException {
 		SynapseClient synapseClient = new SynapseClientImpl();
 		
-		String username = UUID.randomUUID().toString();
-		String password = UUID.randomUUID().toString();
-		
-		SynapseClientHelper.createUser(adminClient, synapseClient, username, password, true, false);
+		SynapseClientHelper.createUser(adminClient, synapseClient);
 		
 		assertEquals(TwoFactorState.DISABLED, synapseClient.get2FaStatus().getStatus());
 		
@@ -459,7 +456,13 @@ public class ITTwoFactorAuthTest {
 	}
 	
 	@Test
-	public void testEnable2FaEnableRequirement(SynapseAdminClient adminClient, SynapseClient synapseClient) throws SynapseException {		
+	public void testEnable2FaEnableRequirement(SynapseAdminClient adminClient) throws SynapseException, JSONObjectAdapterException {
+		SynapseClient synapseClient = new SynapseClientImpl();
+		
+		SynapseClientHelper.createUser(adminClient, synapseClient);
+		
+		assertEquals(TwoFactorState.DISABLED, synapseClient.get2FaStatus().getStatus());
+		
 		// A user should normally be able to fetch their profile
 		synapseClient.getMyProfile();
 		

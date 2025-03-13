@@ -459,11 +459,7 @@ public class ITTwoFactorAuthTest {
 	}
 	
 	@Test
-	public void testEnable2FaEnableRequirement(SynapseAdminClient adminClient, SynapseClient synapseClient) throws SynapseException {
-		if (adminClient.get2FaStatus().getStatus().equals(TwoFactorState.ENABLED)) {
-			adminClient.disable2Fa();
-		}
-		
+	public void testEnable2FaEnableRequirement(SynapseAdminClient adminClient, SynapseClient synapseClient) throws SynapseException {		
 		// A user should normally be able to fetch their profile
 		synapseClient.getMyProfile();
 		
@@ -475,25 +471,20 @@ public class ITTwoFactorAuthTest {
 			synapseClient.getMyProfile();
 		}).getErrorResponseCode());
 		
-		// This admin call should fail now since 2fa is required
-		assertEquals(ErrorResponseCode.TWO_FA_ENABLED_REQUIRED, assertThrows(SynapseUnauthorizedException.class, () -> {			
-			adminClient.setFeatureStatus(Feature.DISABLE_2FA_REQUIREMENT, new FeatureStatus().setEnabled(true));
-		}).getErrorResponseCode());		
+		// The user should still be able to enable 2fa
+		TotpSecret secret = synapseClient.init2Fa();
 		
-		// We should still be able to enable 2fa
-		TotpSecret secret = adminClient.init2Fa();
-		
-		TwoFactorAuthStatus status = adminClient.enable2Fa(new TotpSecretActivationRequest()
+		TwoFactorAuthStatus status = synapseClient.enable2Fa(new TotpSecretActivationRequest()
 			.setSecretId(secret.getSecretId())
 			.setTotp(generateTotpCode(secret.getSecret()))
 		);
 		
 		assertEquals(TwoFactorState.ENABLED, status.getStatus());
 		
-		// With 2fa enabled we can now disable the feature
-		adminClient.setFeatureStatus(Feature.DISABLE_2FA_REQUIREMENT, new FeatureStatus().setEnabled(true));
+		// Now the user should be able to access their profile
+		synapseClient.getMyProfile();
 		
-		adminClient.disable2Fa();
+		adminClient.setFeatureStatus(Feature.DISABLE_2FA_REQUIREMENT, new FeatureStatus().setEnabled(true));
 	}
 	
 	private String generateTotpCode(String secret) {

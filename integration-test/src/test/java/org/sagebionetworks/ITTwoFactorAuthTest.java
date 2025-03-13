@@ -468,7 +468,7 @@ public class ITTwoFactorAuthTest {
 		synapseClient.getMyProfile();
 		
 		// Now enable the 2fa requirement enforcement
-		adminClient.setFeatureStatus(Feature.REQUIRE_TWO_FA_BYPASS, new FeatureStatus().setEnabled(false));
+		adminClient.setFeatureStatus(Feature.DISABLE_2FA_REQUIREMENT, new FeatureStatus().setEnabled(false));
 		
 		// Now the user cannot fetch their profile since this is a /repo/v1 API and requires 2fa
 		assertEquals(ErrorResponseCode.TWO_FA_ENABLED_REQUIRED, assertThrows(SynapseUnauthorizedException.class, () -> {
@@ -477,7 +477,7 @@ public class ITTwoFactorAuthTest {
 		
 		// This admin call should fail now since 2fa is required
 		assertEquals(ErrorResponseCode.TWO_FA_ENABLED_REQUIRED, assertThrows(SynapseUnauthorizedException.class, () -> {			
-			adminClient.setFeatureStatus(Feature.REQUIRE_TWO_FA_BYPASS, new FeatureStatus().setEnabled(true));
+			adminClient.setFeatureStatus(Feature.DISABLE_2FA_REQUIREMENT, new FeatureStatus().setEnabled(true));
 		}).getErrorResponseCode());		
 		
 		// We should still be able to enable 2fa
@@ -491,7 +491,7 @@ public class ITTwoFactorAuthTest {
 		assertEquals(TwoFactorState.ENABLED, status.getStatus());
 		
 		// With 2fa enabled we can now disable the feature
-		adminClient.setFeatureStatus(Feature.REQUIRE_TWO_FA_BYPASS, new FeatureStatus().setEnabled(true));
+		adminClient.setFeatureStatus(Feature.DISABLE_2FA_REQUIREMENT, new FeatureStatus().setEnabled(true));
 		
 		adminClient.disable2Fa();
 	}

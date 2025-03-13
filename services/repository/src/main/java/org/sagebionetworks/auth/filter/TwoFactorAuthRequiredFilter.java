@@ -7,14 +7,12 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import org.sagebionetworks.auth.HttpAuthUtil;
 import org.sagebionetworks.repo.manager.feature.FeatureManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.auth.AuthenticationDAO;
 import org.sagebionetworks.repo.model.feature.Feature;
 import org.sagebionetworks.repo.web.TwoFactorAuthEnabledRequiredException;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -43,8 +41,8 @@ public class TwoFactorAuthRequiredFilter extends OncePerRequestFilter {
 			return;
 		}
 		
-		// By default having two FA enabled WON'T be required, this is necessary to avoid breaking staging and the integration tests
-		if (featureManager.isFeatureEnabled(Feature.REQUIRE_TWO_FA_BYPASS)) {
+		// By default having two FA enabled WON'T be required for all users and will be turned on as necessary
+		if (featureManager.isFeatureEnabled(Feature.DISABLE_2FA_REQUIREMENT)) {
 			filterChain.doFilter(httpRequest, httpResponse);
 			return;
 		}

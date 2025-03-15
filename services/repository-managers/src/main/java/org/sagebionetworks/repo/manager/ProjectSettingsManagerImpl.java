@@ -361,9 +361,6 @@ public class ProjectSettingsManagerImpl implements ProjectSettingsManager {
 		// Short-cut: Only check the first Storage Location ID. Entities with an StsStorageLocation can't have other
 		// storage locations.
 		List<Long> storageLocationIdList = ((UploadDestinationListSetting) projectSetting).getLocations();
-		if (storageLocationIdList == null || storageLocationIdList.isEmpty()) {
-			return false;
-		}
 		long storageLocationId = storageLocationIdList.get(0);
 		try {
 			StorageLocationSetting storageLocationSetting = storageLocationDAO.get(storageLocationId);

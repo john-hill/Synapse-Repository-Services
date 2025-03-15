@@ -10,14 +10,13 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.StringTokenizer;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.sagebionetworks.repo.model.Entity;
 import org.sagebionetworks.repo.model.ErrorResponse;
-import org.sagebionetworks.repo.model.schema.CreateSchemaRequest;
-import org.sagebionetworks.repo.model.schema.JsonSchema;
 import org.sagebionetworks.repo.util.JSONEntityUtil;
 import org.sagebionetworks.schema.adapter.JSONArrayAdapter;
 import org.sagebionetworks.schema.adapter.JSONEntity;
@@ -67,6 +66,7 @@ public class JSONEntityHttpMessageConverter implements	HttpMessageConverter<JSON
 		supportedMedia = new ArrayList<MediaType>();
 		supportedMedia.add(MediaType.APPLICATION_JSON);
 		supportedMedia.add(MediaType.TEXT_PLAIN);
+		supportedMedia.add(MediaType.APPLICATION_FORM_URLENCODED);
 		this.classesToValidateConversion = classesToValidateConversion;
 	}
 
@@ -80,13 +80,13 @@ public class JSONEntityHttpMessageConverter implements	HttpMessageConverter<JSON
 		return isJSONType(mediaType);
 	}
 
-	
-	public static boolean isJSONType(MediaType type){
+	public static boolean isJSONType(MediaType type) { 
 		if(type == null) return false;
 		if(type.getType() == null) return false;
 		if(type.getSubtype() == null) return false;
 		if(!"application".equals(type.getType().toLowerCase())) return false;
-		if(!"json".equals(type.getSubtype().toLowerCase())) return false;
+		if(!("json".equals(type.getSubtype().toLowerCase()) || 
+				"x-www-form-urlencoded".equals(type.getSubtype().toLowerCase()))) return false;
 		return true;
 	}
 
@@ -167,6 +167,19 @@ public class JSONEntityHttpMessageConverter implements	HttpMessageConverter<JSON
 	
 	// This is the character set used by Synapse if the client does not specify one
 	private static final Charset SYNAPSE_DEFAULT_CHARSET = Charset.forName(UTF_8);
+	
+	public static String convertFormEncodedDataToJSONString(String s) {
+		JSONObject result = new JSONObject();
+		// split by &
+		StringTokenizer st=new StringTokenizer(s, "&");
+		while (st.hasMoreTokens()) {
+			String token = st.nextToken();
+			String[] keyValuePair = token.split("=");
+			if (keyValuePair.length!=2) throw new IllegalArgumentException(s);
+			result.put(keyValuePair[0], keyValuePair[1]);
+		}
+		return result.toString();
+	}
 
 	@Override
 	public JSONEntity read(Class<? extends JSONEntity> clazz, HttpInputMessage inputMessage) throws IOException,
@@ -177,7 +190,14 @@ public class JSONEntityHttpMessageConverter implements	HttpMessageConverter<JSON
 			// HTTP 1.1 says that the default is ISO-8859-1
 			charsetForDeSerializingBody = HTTP_1_1_DEFAULT_CHARSET;
 		}
-		String jsonString = JSONEntityHttpMessageConverter.readToString(inputMessage.getBody(), charsetForDeSerializingBody);
+		// TODO this could be json or form-encoded
+		String requestBody = JSONEntityHttpMessageConverter.readToString(inputMessage.getBody(), charsetForDeSerializingBody);
+		String jsonString;
+		if (false/* TODO form-encoded*/) {
+			jsonString=convertFormEncodedDataToJSONString(requestBody);
+		} else {
+			jsonString = requestBody;
+		}
 		try {
 			JSONEntity entity = EntityFactory.createEntityFromJSONString(jsonString, clazz);
 			// validate the entity if its class is one which we should validate

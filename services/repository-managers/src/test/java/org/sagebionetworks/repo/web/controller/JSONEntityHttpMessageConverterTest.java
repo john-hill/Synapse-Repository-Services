@@ -10,6 +10,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.StringReader;
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -120,6 +121,18 @@ public class JSONEntityHttpMessageConverterTest {
 		JSONEntity results = converter.read(Project.class, mockInMessage);
 		assertEquals(project, results);
 	}
+	
+	@Test
+	public void testRoundTripWithFormencodedMediaType() throws IOException  {
+		project.setId("101");
+		project.setName("myproject");
+		ByteArrayInputStream in  = new ByteArrayInputStream("id=101&name=myproject".getBytes("latin-1"));
+		Mockito.when(mockInMessage.getBody()).thenReturn(in);
+		JSONEntity results = converter.read(Project.class, mockInMessage);
+		assertEquals(project, results);
+	}
+	
+
 	
 	@Test
 	public void testErrorResponseRoundTripWithPlainTextMediaType() throws HttpMessageNotWritableException, IOException{

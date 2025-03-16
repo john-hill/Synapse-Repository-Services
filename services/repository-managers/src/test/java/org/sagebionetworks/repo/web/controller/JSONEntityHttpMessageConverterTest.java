@@ -126,7 +126,6 @@ public class JSONEntityHttpMessageConverterTest {
 	public void testRoundTripWithFormencodedMediaType() throws IOException  {
 		project.setId("101");
 		project.setName("myproject");
-		Charset.
 		ByteArrayInputStream in  = new ByteArrayInputStream("id=101&name=myproject".getBytes("ISO-8859-1"));
 		Mockito.when(mockInMessage.getBody()).thenReturn(in);
 		JSONEntity results = converter.read(Project.class, mockInMessage);

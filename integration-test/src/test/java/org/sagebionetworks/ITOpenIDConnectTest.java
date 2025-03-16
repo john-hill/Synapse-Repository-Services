@@ -634,4 +634,40 @@ public class ITOpenIDConnectTest {
 		assertThrows(SynapseNotFoundException.class, () ->
 				synapse.getRefreshTokenMetadata(tokenId));
 	}
+	
+	@Test
+	public void testRevokeTokensViaClient_formURLEncoded() throws Exception {
+		// START Set up, use authorization code
+		OAuthClient client = setUpOAuthClient(true);
+		OAuthClientIdAndSecret secret = synapse.createOAuthClientSecret(client.getClient_id());
+
+		OIDCAuthorizationRequest authorizationRequest = setUpAuthorizationRequest(client);
+
+		OAuthAuthorizationResponse oauthAuthorizationResponse = synapse.authorizeClient(authorizationRequest);
+
+		// Note, we use Basic auth to authorize the client when asking for an access token
+		OIDCTokenResponse tokenResponse = null;
+		try {
+			synapseAnonymous.setBasicAuthorizationCredentials(client.getClient_id(), secret.getClient_secret());
+			tokenResponse = synapseAnonymous.getTokenResponse(OAuthGrantType.authorization_code,
+					oauthAuthorizationResponse.getAccess_code(), client.getRedirect_uris().get(0), null, null, null);
+		} finally {
+			synapseAnonymous.removeAuthorizationHeader();
+		}
+		// END Set up. We now have a refresh token
+
+		OAuthRefreshTokenInformationList tokens = synapse.getRefreshTokenMetadataForAuthorizedClient(client.getClient_id(), null);
+		String tokenId = tokens.getResults().get(0).getTokenId();
+
+		try {
+			synapseAnonymous.setBasicAuthorizationCredentials(client.getClient_id(), secret.getClient_secret());
+			// Call under test
+			synapseAnonymous.revokeTokenURLEncoded(tokenResponse.getRefresh_token());
+		} finally {
+			synapseAnonymous.removeAuthorizationHeader();
+		}
+
+		assertThrows(SynapseNotFoundException.class, () ->
+				synapse.getRefreshTokenMetadata(tokenId));	
+	}
 }

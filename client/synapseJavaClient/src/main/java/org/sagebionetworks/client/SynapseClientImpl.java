@@ -1,6 +1,7 @@
 package org.sagebionetworks.client;
 
 import static org.sagebionetworks.client.Method.GET;
+import static org.sagebionetworks.client.Method.POST;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
@@ -4767,6 +4768,18 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public void revokeToken(OAuthTokenRevocationRequest revocationRequest) throws SynapseException {
 		ValidateArgument.required(revocationRequest, "revocationRequest");
 		voidPost(getAuthEndpoint(), AUTH_OAUTH_2 + REVOKE, revocationRequest, null);
+	}
+
+	@Override
+	public void revokeTokenURLEncoded(String token) throws SynapseException {
+		ValidateArgument.required(token, "token");
+		Map<String, String> headers = new HashMap<String, String>();
+		headers.put(CONTENT_TYPE, "application/x-www-form-urlencoded");
+		String requestBody="token="+token;
+		
+		SimpleHttpResponse response = signAndDispatchSynapseRequest(getAuthEndpoint(),
+				AUTH_OAUTH_2 + REVOKE, POST, requestBody, headers, null);
+		ClientUtils.checkStatusCodeAndThrowException(response);
 	}
 
 	@Override

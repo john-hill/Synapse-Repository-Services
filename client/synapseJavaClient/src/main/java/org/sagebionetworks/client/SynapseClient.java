@@ -2253,6 +2253,13 @@ public interface SynapseClient extends BaseClient {
 	void revokeToken(OAuthTokenRevocationRequest revocationRequest) throws SynapseException;
 
 	/**
+	 * Revokes a refresh token using the token itself, or a supplied access token,
+	 * passing the token as a Form URL Encoded Payload
+	 * Note: if the access token is not associated with a refresh token, it cannot be revoked.
+	 */
+	void revokeTokenURLEncoded(String token) throws SynapseException;
+
+	/**
 	 * Updates the metadata for a particular refresh token.
 	 * @param metadata
 	 * @return

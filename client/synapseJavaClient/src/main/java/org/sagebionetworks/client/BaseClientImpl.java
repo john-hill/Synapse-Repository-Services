@@ -75,7 +75,7 @@ public class BaseClientImpl implements BaseClient {
 	protected static final String APPLICATION_JWT = "application/jwt";
 	
 	private static final String CONTENT_LENGTH = "Content-Length";
-	private static final String CONTENT_TYPE = "Content-Type";
+	protected static final String CONTENT_TYPE = "Content-Type";
 	protected static final String ACCEPT = "Accept";
 	private static final String SESSION_TOKEN_HEADER = "sessionToken";
 	private static final String X_FORWARDED_FOR_HEADER = "X-Forwarded-For";

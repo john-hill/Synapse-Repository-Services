@@ -128,7 +128,12 @@ public class JSONEntityHttpMessageConverterTest {
 		project.setName("myproject");
 		ByteArrayInputStream in  = new ByteArrayInputStream("id=101&name=myproject".getBytes("ISO-8859-1"));
 		Mockito.when(mockInMessage.getBody()).thenReturn(in);
+		
+		Mockito.when(mockHeaders.getContentType()).thenReturn(MediaType.APPLICATION_FORM_URLENCODED);
+
+		// method under test
 		JSONEntity results = converter.read(Project.class, mockInMessage);
+		
 		assertEquals(project, results);
 	}
 	

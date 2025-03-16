@@ -89,7 +89,7 @@ public class JSONEntityHttpMessageConverter implements	HttpMessageConverter<JSON
 	@Override
 	public boolean canWrite(Class<?> clazz, MediaType mediaType) {
 		return MediaType.TEXT_PLAIN.includes(mediaType) || 
-				(isJSONCompatible(mediaType) && JSONEntityUtil.isJSONEntity(clazz));
+				(MediaType.APPLICATION_JSON.equalsTypeAndSubtype(mediaType) && JSONEntityUtil.isJSONEntity(clazz));
 	}
 
 	@Override
@@ -171,7 +171,7 @@ public class JSONEntityHttpMessageConverter implements	HttpMessageConverter<JSON
 		while (st.hasMoreTokens()) {
 			String token = st.nextToken();
 			String[] keyValuePair = token.split("=");
-			if (keyValuePair.length!=2) throw new IllegalArgumentException(s);
+			if (keyValuePair.length!=2) throw new IllegalArgumentException("Expected key-value pairs separated by '= but found "+s);
 			result.put(keyValuePair[0], keyValuePair[1]);
 		}
 		return result.toString();
@@ -191,8 +191,12 @@ public class JSONEntityHttpMessageConverter implements	HttpMessageConverter<JSON
 		String jsonString;
 		if (MediaType.APPLICATION_FORM_URLENCODED.equalsTypeAndSubtype(contentType)) {
 			jsonString=convertFormEncodedDataToJSONString(requestBody);
-		} else {
+		} else if (MediaType.APPLICATION_JSON.equalsTypeAndSubtype(contentType)) {
 			jsonString = requestBody;
+		} else {
+			throw new IllegalStateException(
+					"Expected "+MediaType.APPLICATION_JSON+" or "+
+					MediaType.APPLICATION_FORM_URLENCODED+" but found "+contentType);
 		}
 		try {
 			JSONEntity entity = EntityFactory.createEntityFromJSONString(jsonString, clazz);

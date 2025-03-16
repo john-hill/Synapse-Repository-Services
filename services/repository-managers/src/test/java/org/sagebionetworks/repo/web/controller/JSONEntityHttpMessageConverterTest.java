@@ -5,24 +5,19 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static  org.sagebionetworks.repo.web.controller.JSONEntityHttpMessageConverter.convertFormEncodedDataToJSONString;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.StringReader;
-import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.apache.commons.io.IOUtils;
-import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.Before;
 import org.junit.Test;
@@ -33,7 +28,6 @@ import org.sagebionetworks.repo.model.ExampleEntity;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.schema.CreateSchemaRequest;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
-import org.sagebionetworks.repo.model.schema.Type;
 import org.sagebionetworks.schema.adapter.JSONArrayAdapter;
 import org.sagebionetworks.schema.adapter.JSONEntity;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapter;
@@ -111,6 +105,23 @@ public class JSONEntityHttpMessageConverterTest {
 	}
 	
 	@Test
+	public void testConvertFormEncodedDataToJSONString_HappyCase() {
+		assertEquals("{\"foo\":\"bar\",\"bar\":\"baz\"}", convertFormEncodedDataToJSONString("foo=bar&bar=baz"));
+	}
+	
+	@Test
+	public void testConvertFormEncodedDataToJSONString_EmptyString() {
+		assertEquals("{}", convertFormEncodedDataToJSONString(""));
+	}
+	
+	@Test
+	public void testConvertFormEncodedDataToJSONString_InvalidInput() {
+		assertThrows(IllegalArgumentException.class, () -> {
+			convertFormEncodedDataToJSONString("garbage");
+		});
+	}
+	
+	@Test
 	public void testRoundTripWithPlainTextMediaType() throws HttpMessageNotWritableException, IOException{
 		// Write it out.
 		converter.write(project, MediaType.TEXT_PLAIN, mockOutMessage);
@@ -124,9 +135,8 @@ public class JSONEntityHttpMessageConverterTest {
 	
 	@Test
 	public void testRoundTripWithFormencodedMediaType() throws IOException  {
-		project.setId("101");
-		project.setName("myproject");
-		ByteArrayInputStream in  = new ByteArrayInputStream("id=101&name=myproject".getBytes("ISO-8859-1"));
+		String keyValueParams = "name=foo-bar&concreteType=org.sagebionetworks.repo.model.Project";
+		ByteArrayInputStream in  = new ByteArrayInputStream(keyValueParams.getBytes("ISO-8859-1"));
 		Mockito.when(mockInMessage.getBody()).thenReturn(in);
 		
 		Mockito.when(mockHeaders.getContentType()).thenReturn(MediaType.APPLICATION_FORM_URLENCODED);

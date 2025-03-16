@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.StringTokenizer;
 
+import org.apache.commons.lang3.StringUtils;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -77,23 +78,18 @@ public class JSONEntityHttpMessageConverter implements	HttpMessageConverter<JSON
 		// Are we converting any request to json?
 		if(convertAnyRequestToJson) return true;
 		// Is the requested type a json type?
-		return isJSONType(mediaType);
+		return isJSONCompatible(mediaType);
 	}
 
-	public static boolean isJSONType(MediaType type) { 
-		if(type == null) return false;
-		if(type.getType() == null) return false;
-		if(type.getSubtype() == null) return false;
-		if(!"application".equals(type.getType().toLowerCase())) return false;
-		if(!("json".equals(type.getSubtype().toLowerCase()) || 
-				"x-www-form-urlencoded".equals(type.getSubtype().toLowerCase()))) return false;
-		return true;
+	public static boolean isJSONCompatible(MediaType type) { 
+		return MediaType.APPLICATION_JSON.equalsTypeAndSubtype(type) ||
+				MediaType.APPLICATION_FORM_URLENCODED.equalsTypeAndSubtype(type);
 	}
 
 	@Override
 	public boolean canWrite(Class<?> clazz, MediaType mediaType) {
 		return MediaType.TEXT_PLAIN.includes(mediaType) || 
-				(isJSONType(mediaType) && JSONEntityUtil.isJSONEntity(clazz));
+				(isJSONCompatible(mediaType) && JSONEntityUtil.isJSONEntity(clazz));
 	}
 
 	@Override
@@ -180,20 +176,20 @@ public class JSONEntityHttpMessageConverter implements	HttpMessageConverter<JSON
 		}
 		return result.toString();
 	}
-
+	
 	@Override
 	public JSONEntity read(Class<? extends JSONEntity> clazz, HttpInputMessage inputMessage) throws IOException,
 			HttpMessageNotReadableException, IllegalArgumentException {
 		// First read the string
-		Charset charsetForDeSerializingBody = inputMessage.getHeaders().getContentType().getCharset();
+		MediaType contentType = inputMessage.getHeaders().getContentType();
+		Charset charsetForDeSerializingBody = contentType.getCharset();
 		if (charsetForDeSerializingBody==null) {
 			// HTTP 1.1 says that the default is ISO-8859-1
 			charsetForDeSerializingBody = HTTP_1_1_DEFAULT_CHARSET;
 		}
-		// TODO this could be json or form-encoded
 		String requestBody = JSONEntityHttpMessageConverter.readToString(inputMessage.getBody(), charsetForDeSerializingBody);
 		String jsonString;
-		if (false/* TODO form-encoded*/) {
+		if (MediaType.APPLICATION_FORM_URLENCODED.equalsTypeAndSubtype(contentType)) {
 			jsonString=convertFormEncodedDataToJSONString(requestBody);
 		} else {
 			jsonString = requestBody;

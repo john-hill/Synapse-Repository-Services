@@ -4774,6 +4774,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public void revokeTokenURLEncoded(String token) throws SynapseException {
 		ValidateArgument.required(token, "token");
 		Map<String, String> headers = new HashMap<String, String>();
+		headers.put(AuthorizationConstants.AUTHORIZATION_HEADER_NAME, getAuthorizationHeader());
 		headers.put(CONTENT_TYPE, "application/x-www-form-urlencoded");
 		String requestBody="token="+token;
 		

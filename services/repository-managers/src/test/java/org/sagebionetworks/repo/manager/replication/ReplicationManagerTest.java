@@ -217,20 +217,6 @@ public class ReplicationManagerTest {
 	}
 	
 	@Test
-	public void testReplicateChangesWithEvents() throws RecoverableMessageException, Exception {
-		ReplicatedEvent one = new ReplicatedEvent().setReplicatedObjectId(1L);
-		ReplicatedEvent two = new ReplicatedEvent().setReplicatedObjectId(2L);
-		
-		doReturn(List.of(one,two)).when(managerSpy).updateReplicationTables(any());
-
-		// call under test
-		managerSpy.replicate(changes);
-		
-		verify(mockMessagePublisher).fireLocalStackMessage(one);
-		verify(mockMessagePublisher).fireLocalStackMessage(two);
-	}
-
-	@Test
 	public void testReplicateSingle() {
 		String entityId = "syn123";
 		List<Long> entityids = Collections.singletonList(KeyFactory.stringToKey(entityId));

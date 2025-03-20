@@ -1733,6 +1733,9 @@ public class TableIndexDAOImpl implements TableIndexDAO {
 			long offset) {
 		ValidateArgument.required(path, "path");
 		ValidateArgument.required(type, "type");
+		if(path.isEmpty()) {
+			return Collections.emptyList();
+		}
 		MapSqlParameterSource params = new MapSqlParameterSource();
 		params.addValue("path", new JSONArray(path).toString());
 		params.addValue("type", type.name());

@@ -2,9 +2,7 @@ package org.sagebionetworks.repo.manager.table;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -39,20 +37,10 @@ public class ReplicationToViewManagerImpl implements ReplicationToViewManager {
 
 		IdAndVersion objectId = IdAndVersion.newBuilder().setId(event.getReplicatedObjectId()).build();
 		ReplicationType objectType = ReplicationType.matchType(event.getReplicatedObjectType()).get();
-		/*
-		 * In order to cover: create, update, delete, and move actions, we need to
-		 * consider the object's path before and after the change. The unique path IDs
-		 * from both the before and after are used to find all views that need to be
-		 * updated as a result of the changed.
-		 */
-		List<Long> beforePath = parseJSONArray(event.getBeforePathIds());
-		List<Long> afterPath = parseJSONArray(event.getAfterPathIds());
-		Set<Long> allIds = new HashSet<>(beforePath.size() + afterPath.size());
-		allIds.addAll(beforePath);
-		allIds.addAll(afterPath);
-
+		List<Long> pathIds = parseJSONArray(event.getPathIds());
+		
 		TableIndexManager indexManger = connectionFactory.connectToTableIndex(objectId);
-		indexManger.getViewsIntersectionForPath(allIds, objectType).forEachRemaining(viewId -> {
+		indexManger.getViewsIntersectionForPath(pathIds, objectType).forEachRemaining(viewId -> {
 			LOG.info(String.format("View: syn%d matched for event: %s", viewId, event));
 			indexManger.setViewAsNeedsUpdate(viewId, viewUpdateVisibilityTimeoutSeconds);
 		});

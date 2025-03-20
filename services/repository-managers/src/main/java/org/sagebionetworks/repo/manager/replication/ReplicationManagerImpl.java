@@ -1,6 +1,5 @@
 package org.sagebionetworks.repo.manager.replication;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -27,7 +26,6 @@ import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
 import org.sagebionetworks.repo.model.message.ChangeType;
-import org.sagebionetworks.repo.model.message.TransactionalMessenger;
 import org.sagebionetworks.repo.model.table.ObjectDataDTO;
 import org.sagebionetworks.repo.model.table.ReplicatedEvent;
 import org.sagebionetworks.repo.model.table.ReplicationType;
@@ -97,11 +95,8 @@ public class ReplicationManagerImpl implements ReplicationManager {
 		
 		for (ReplicationDataGroup group : data.values()) {
 			
-			List<ReplicatedEvent> events = updateReplicationTables(group);
-			
-			events.forEach(messagePublisher::fireLocalStackMessage);
+			updateReplicationTables(group);
 		}
-
 	}
 	
 	/**
@@ -112,13 +107,17 @@ public class ReplicationManagerImpl implements ReplicationManager {
 	 * @param toDelete
 	 * @param objectData
 	 */
-	List<ReplicatedEvent> updateReplicationTables(ReplicationDataGroup group) {
+	void updateReplicationTables(ReplicationDataGroup group) {
 		TableIndexManager indexManager = indexConnectionFactory.connectToFirstIndex();
 
 		List<Long> combinedId = Stream.concat(group.getToDeleteIds().stream(), group.getCreateOrUpdateIds().stream())
 				.collect(Collectors.toList());
-		// capture the pathsIds before making any changes.
-		Map<Long, String> beforePathIds = indexManager.getReplicatedPathIds(group.getObjectType(), combinedId);
+
+		/*
+		 * Firing events with the starting pathIds covers notifications for deletes and
+		 * move origination.
+		 */
+		fireReplicationEvents(indexManager, group.getObjectType(), combinedId, MAX_MESSAGE_PAGE_SIZE);
 
 		indexManager.deleteObjectData(group.getObjectType(), group.getToDeleteIds());
 
@@ -127,17 +126,22 @@ public class ReplicationManagerImpl implements ReplicationManager {
 
 		indexManager.updateObjectReplication(group.getObjectType(), objectData);
 
-		// capture the pathIds after all of the changes.
-		Map<Long, String> afterPathIds = indexManager.getReplicatedPathIds(group.getObjectType(),
-				group.getCreateOrUpdateIds());
-
-		List<ReplicatedEvent> events = new ArrayList<>(combinedId.size());
-		combinedId.forEach(id -> {
-			events.add(new ReplicatedEvent().setObjectType(ObjectType.REPLICATED_EVENT).setReplicatedObjectId(id)
-					.setReplicatedObjectType(group.getObjectType().getObjectType())
-					.setBeforePathIds(beforePathIds.get(id)).setAfterPathIds(afterPathIds.get(id)));
+		/*
+		 * Firing events with the final pathIds covers notifications for creates,
+		 * updates, and move destinations.
+		 */
+		fireReplicationEvents(indexManager, group.getObjectType(), combinedId, MAX_MESSAGE_PAGE_SIZE);
+	}
+	
+	void fireReplicationEvents(TableIndexManager manager, ReplicationType objectType, List<Long> objectIds, int pageSize) {
+		Iterators.partition(objectIds.iterator(), pageSize).forEachRemaining(page -> {
+			Map<Long, String> pathIds = manager.getReplicatedPathIds(objectType, page);
+			pathIds.forEach((id, path) -> {
+				messagePublisher.fireLocalStackMessage(
+						new ReplicatedEvent().setObjectType(ObjectType.REPLICATED_EVENT).setReplicatedObjectId(id)
+								.setReplicatedObjectType(objectType.getObjectType()).setPathIds(path));
+			});
 		});
-		return events;
 	}
 
 	/**

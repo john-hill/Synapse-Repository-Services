@@ -55,9 +55,9 @@ public class ReplicationToViewManagerImplTest {
 	public void testobjectReplicated() {
 		IdAndVersion id = IdAndVersion.newBuilder().setId(123L).build();
 		ReplicatedEvent event = new ReplicatedEvent().setReplicatedObjectId(123L)
-				.setReplicatedObjectType(ObjectType.ENTITY).setBeforePathIds("[1,2,3]").setAfterPathIds("[3,4,5]");
+				.setReplicatedObjectType(ObjectType.ENTITY).setPathIds("[1,2,3,4,5]");
 		when(mockFactory.connectToTableIndex(id)).thenReturn(mockTableIndexManager);
-		when(mockTableIndexManager.getViewsIntersectionForPath(Set.of(1L, 2L, 3L, 4L, 5L), ReplicationType.ENTITY))
+		when(mockTableIndexManager.getViewsIntersectionForPath(List.of(1L, 2L, 3L, 4L, 5L), ReplicationType.ENTITY))
 				.thenReturn(List.of(22L, 33L).iterator());
 
 		// call under test
@@ -68,28 +68,12 @@ public class ReplicationToViewManagerImplTest {
 	}
 	
 	@Test
-	public void testobjectReplicatedWithNullBefore() {
+	public void testobjectReplicatedWithNullPath() {
 		IdAndVersion id = IdAndVersion.newBuilder().setId(123L).build();
 		ReplicatedEvent event = new ReplicatedEvent().setReplicatedObjectId(123L)
-				.setReplicatedObjectType(ObjectType.ENTITY).setBeforePathIds(null).setAfterPathIds("[3,4,5]");
+				.setReplicatedObjectType(ObjectType.ENTITY).setPathIds(null);
 		when(mockFactory.connectToTableIndex(id)).thenReturn(mockTableIndexManager);
-		when(mockTableIndexManager.getViewsIntersectionForPath(Set.of(3L, 4L, 5L), ReplicationType.ENTITY))
-				.thenReturn(List.of(22L, 33L).iterator());
-
-		// call under test
-		manager.objectReplicated(event);
-		verify(mockTableIndexManager).setViewAsNeedsUpdate(22L, viewUpdateVisibilityTimeoutSeconds);
-		verify(mockTableIndexManager).setViewAsNeedsUpdate(33L, viewUpdateVisibilityTimeoutSeconds);
-
-	}
-	
-	@Test
-	public void testobjectReplicatedWithNullAfter() {
-		IdAndVersion id = IdAndVersion.newBuilder().setId(123L).build();
-		ReplicatedEvent event = new ReplicatedEvent().setReplicatedObjectId(123L)
-				.setReplicatedObjectType(ObjectType.ENTITY).setBeforePathIds("[1,2,3]").setAfterPathIds(null);
-		when(mockFactory.connectToTableIndex(id)).thenReturn(mockTableIndexManager);
-		when(mockTableIndexManager.getViewsIntersectionForPath(Set.of(1L, 2L, 3L), ReplicationType.ENTITY))
+		when(mockTableIndexManager.getViewsIntersectionForPath(Collections.emptyList(), ReplicationType.ENTITY))
 				.thenReturn(List.of(22L, 33L).iterator());
 
 		// call under test

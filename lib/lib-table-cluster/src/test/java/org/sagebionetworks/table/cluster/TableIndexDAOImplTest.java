@@ -1983,33 +1983,37 @@ public class TableIndexDAOImplTest {
 	}
 
 	@Test
-	public void testGetReplicatedPathIds() {
+	public void testGetDistinctReplicatedPathIds() {
 		// delete all data
 		tableIndexDAO.deleteObjectData(mainType, Lists.newArrayList(1L, 2L, 3L, 4L));
 
-		ObjectDataDTO project = createObjectDataDTO(1L, EntityType.project, 0);
-		ObjectDataDTO file = createObjectDataDTO(3L, EntityType.file, 10);
-		tableIndexDAO.addObjectData(mainType, Lists.newArrayList(file, project));
+		ObjectDataDTO project = createObjectDataDTO(1L, EntityType.project, 0).setPath("[44,1]");
+		ObjectDataDTO f2 = createObjectDataDTO(2L, EntityType.file, 10).setPathIds("[44,1,2]");
+		ObjectDataDTO f3 = createObjectDataDTO(3L, EntityType.file, 10).setPathIds("[44,1,3]");
+		ObjectDataDTO f4 = createObjectDataDTO(4L, EntityType.file, 10).setPathIds("[44,18,4]");
+		tableIndexDAO.addObjectData(mainType, Lists.newArrayList(project, f2,f3,f4));
 
 		// call under test
-		Map<Long, String> results = tableIndexDAO.getReplicatedPathIds(ReplicationType.ENTITY, List.of(1L, 3L));
-		Map<Long, String> expected = Map.of(file.getId(), file.getPathIds());
-		assertEquals(expected, results);
+		List<Long> distinct = IteratorUtils
+				.toList(tableIndexDAO.getDistinctReplicatedPathIds(ReplicationType.ENTITY, List.of(1L,3L,4L,5L)));
+		
+		assertEquals(List.of(44L,1L,3L,18L,4L), distinct);
 	}
 
 	@Test
 	public void testGetReplicatedPathIdsWithEmptyIds() {
 		// call under test
-		Map<Long, String> results = tableIndexDAO.getReplicatedPathIds(ReplicationType.ENTITY, Collections.emptyList());
-		Map<Long, String> expected = Collections.emptyMap();
-		assertEquals(expected, results);
+		List<Long> distinct = IteratorUtils
+				.toList(tableIndexDAO.getDistinctReplicatedPathIds(ReplicationType.ENTITY, Collections.emptyList()));
+
+		assertEquals(Collections.emptyList(), distinct);
 	}
 
 	@Test
 	public void testGetReplicatedPathIdsWithNullType() {
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			tableIndexDAO.getReplicatedPathIds(null, Collections.emptyList());
+			tableIndexDAO.getDistinctReplicatedPathIds(null, Collections.emptyList());
 		}).getMessage();
 
 		assertEquals("objectType is required.", message);
@@ -2019,7 +2023,7 @@ public class TableIndexDAOImplTest {
 	public void testGetReplicatedPathIdsWithNullList() {
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			tableIndexDAO.getReplicatedPathIds(ReplicationType.ENTITY, null);
+			tableIndexDAO.getDistinctReplicatedPathIds(ReplicationType.ENTITY, null);
 		}).getMessage();
 
 		assertEquals("objectIds is required.", message);

@@ -319,14 +319,6 @@ public interface TableIndexManager {
 	long getVersionFromIndexDependencies(IndexDescription index);
 
 	/**
-	 * Get the full path of of each object from the object_replication table.
-	 * @param objectType
-	 * @param objectIds
-	 * @return
-	 */
-	Map<Long, String> getReplicatedPathIds(ReplicationType objectType, List<Long> objectIds);
-	
-	/**
 	 * Find all Views IDs that have a scope that overlaps with provided path.
 	 * @param path
 	 * @param type

@@ -1140,11 +1140,6 @@ public class TableIndexManagerImpl implements TableIndexManager {
 	}
 	
 	@Override
-	public Map<Long, String> getReplicatedPathIds(ReplicationType objectType, List<Long> objectIds) {
-		return tableIndexDao.getReplicatedPathIds(objectType, objectIds);
-	}
-	
-	@Override
 	public Iterator<Long> getDistinctReplicatedPathIds(ReplicationType objectType, List<Long> objectIds) {
 		return tableIndexDao.getDistinctReplicatedPathIds(objectType, objectIds);
 	}

@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -202,9 +203,12 @@ public class ReplicationManagerTest {
 		when(mockIndexConnectionFactory.connectToFirstIndex()).thenReturn(mockTableIndexManager);
 		when(mockObjectDataProviderFactory.getObjectDataProvider(any())).thenReturn(mockObjectDataProvider);
 		when(mockObjectDataProvider.getObjectData(any(), anyInt())).thenReturn(entityData.iterator());
+		
+		doNothing().when(managerSpy).fireReplicationEvents(mockTableIndexManager, ReplicationType.ENTITY,
+				List.of(333L,111L,222L), ReplicationManagerImpl.MAX_MESSAGE_PAGE_SIZE);
 
 		// call under test
-		manager.replicate(changes);
+		managerSpy.replicate(changes);
 
 		verify(mockIndexConnectionFactory).connectToFirstIndex();
 		verify(mockObjectDataProviderFactory).getObjectDataProvider(mainType);
@@ -218,6 +222,7 @@ public class ReplicationManagerTest {
 	
 	@Test
 	public void testReplicateSingle() {
+
 		String entityId = "syn123";
 		List<Long> entityids = Collections.singletonList(KeyFactory.stringToKey(entityId));
 
@@ -229,9 +234,12 @@ public class ReplicationManagerTest {
 		when(mockIndexConnectionFactory.connectToFirstIndex()).thenReturn(mockTableIndexManager);
 		when(mockObjectDataProviderFactory.getObjectDataProvider(any())).thenReturn(mockObjectDataProvider);
 		when(mockObjectDataProvider.getObjectData(any(), anyInt())).thenReturn(entityData.iterator());
+		
+		doNothing().when(managerSpy).fireReplicationEvents(mockTableIndexManager, ReplicationType.ENTITY,
+				List.of(123L), ReplicationManagerImpl.MAX_MESSAGE_PAGE_SIZE);
 
 		// call under test
-		manager.replicate(mainType, entityId);
+		managerSpy.replicate(mainType, entityId);
 
 		verify(mockIndexConnectionFactory).connectToFirstIndex();
 		verify(mockObjectDataProviderFactory).getObjectDataProvider(mainType);
@@ -666,6 +674,8 @@ public class ReplicationManagerTest {
 	
 	@Test
 	public void testUpdateReplicationTables() {
+		doNothing().when(managerSpy).fireReplicationEvents(mockTableIndexManager, ReplicationType.ENTITY,
+				List.of(2L, 1L), ReplicationManagerImpl.MAX_MESSAGE_PAGE_SIZE);
 		when(mockIndexConnectionFactory.connectToFirstIndex()).thenReturn(mockTableIndexManager);
 		when(mockObjectDataProviderFactory.getObjectDataProvider(ReplicationType.ENTITY))
 				.thenReturn(mockObjectDataProvider);
@@ -677,8 +687,9 @@ public class ReplicationManagerTest {
 		group.addForDelete(2L);
 		// call under test
 		managerSpy.updateReplicationTables(group);
-		
-		verify(managerSpy, times(2)).fireReplicationEvents(mockTableIndexManager, ReplicationType.ENTITY, List.of(2L, 1L), ReplicationManagerImpl.MAX_MESSAGE_PAGE_SIZE);
+
+		verify(managerSpy, times(2)).fireReplicationEvents(mockTableIndexManager, ReplicationType.ENTITY,
+				List.of(2L, 1L), ReplicationManagerImpl.MAX_MESSAGE_PAGE_SIZE);
 	}
 	
 	

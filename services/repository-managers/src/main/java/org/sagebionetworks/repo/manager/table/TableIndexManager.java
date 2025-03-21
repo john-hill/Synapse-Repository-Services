@@ -319,20 +319,20 @@ public interface TableIndexManager {
 	long getVersionFromIndexDependencies(IndexDescription index);
 
 	/**
-	 * Get the full path of of each object from the object_replication table.
-	 * @param objectType
-	 * @param objectIds
-	 * @return
-	 */
-	Map<Long, String> getReplicatedPathIds(ReplicationType objectType, List<Long> objectIds);
-	
-	/**
 	 * Find all Views IDs that have a scope that overlaps with provided path.
 	 * @param path
 	 * @param type
 	 * @return
 	 */
 	Iterator<Long> getViewsIntersectionForPath(Collection<Long> path, ReplicationType type);
+	
+	/**
+	 * Get an iterator over the distinct combined pathIds of the provided objectIds.
+	 * @param objectType
+	 * @param objectIds
+	 * @return
+	 */
+	Iterator<Long> getDistinctReplicatedPathIds(ReplicationType objectType, List<Long> objectIds);
 
 	/**
 	 * Create a unique record that indicates a view needs to be updated. The view

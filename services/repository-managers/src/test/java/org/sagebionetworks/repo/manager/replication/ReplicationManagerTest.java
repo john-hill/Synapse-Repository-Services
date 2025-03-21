@@ -684,27 +684,24 @@ public class ReplicationManagerTest {
 	
 	@Test
 	public void testFireReplicationEvents() {
-		Map<Long, String> pathIdsPageOne = Map.of(1L, "[22,1]", 2L, "[33,2]");
-		Map<Long, String> pathIdsPageTwo = Map.of(3L, "[33,1]");
-		when(mockTableIndexManager.getReplicatedPathIds(ReplicationType.ENTITY, List.of(1L, 2L)))
-				.thenReturn(pathIdsPageOne);
-		when(mockTableIndexManager.getReplicatedPathIds(ReplicationType.ENTITY, List.of(3L)))
-				.thenReturn(pathIdsPageTwo);
-
 		List<Long> ids = List.of(1L, 2L, 3L);
+		when(mockTableIndexManager.getDistinctReplicatedPathIds(ReplicationType.ENTITY, ids))
+				.thenReturn(List.of(11L,22L,33L,44L,55L).iterator());
+
 		int pageSize = 2;
 		// call under test
 		managerSpy.fireReplicationEvents(mockTableIndexManager, ReplicationType.ENTITY, ids, pageSize);
 
 		verify(mockMessagePublisher)
 				.fireLocalStackMessage(new ReplicatedEvent().setObjectType(ObjectType.REPLICATED_EVENT)
-						.setReplicatedObjectType(ObjectType.ENTITY).setReplicatedObjectId(1L).setPathIds("[22,1]"));
+						.setReplicatedObjectType(ObjectType.ENTITY).setPathIds(List.of(11L, 22L)));
 		verify(mockMessagePublisher)
 				.fireLocalStackMessage(new ReplicatedEvent().setObjectType(ObjectType.REPLICATED_EVENT)
-						.setReplicatedObjectType(ObjectType.ENTITY).setReplicatedObjectId(2L).setPathIds("[33,2]"));
+						.setReplicatedObjectType(ObjectType.ENTITY).setPathIds(List.of(33L, 44L)));
 		verify(mockMessagePublisher)
 				.fireLocalStackMessage(new ReplicatedEvent().setObjectType(ObjectType.REPLICATED_EVENT)
-						.setReplicatedObjectType(ObjectType.ENTITY).setReplicatedObjectId(3L).setPathIds("[33,1]"));
+						.setReplicatedObjectType(ObjectType.ENTITY).setPathIds(List.of(55L)));
+
 	}
 
 	/**

@@ -1787,24 +1787,29 @@ public class TableIndexDAOImpl implements TableIndexDAO {
 	}
 
 	@Override
-	public Map<Long, String> getReplicatedPathIds(ReplicationType objectType, List<Long> objectIds) {
+	public Iterator<Long> getDistinctReplicatedPathIds(ReplicationType objectType, List<Long> objectIds) {
 		ValidateArgument.required(objectType, "objectType");
 		ValidateArgument.required(objectIds, "objectIds");
-		if(objectIds.isEmpty()) {
-			return Collections.emptyMap();
+		return new PaginationIterator<Long>((long limit, long offset) -> {
+			return getDistinctReplicatedPathIds(objectType, objectIds, limit, offset);
+		}, PAGE_SIZE_LIMIT);
+	}
+	
+	List<Long> getDistinctReplicatedPathIds(ReplicationType objectType, List<Long> objectIds, long limit, long offset) {
+		if (objectIds.isEmpty()) {
+			return Collections.emptyList();
 		}
 		MapSqlParameterSource params = new MapSqlParameterSource();
-		params.addValue("objectType", objectType);
+		params.addValue("objectType", objectType.name());
 		params.addValue("objectIds", objectIds);
-		Map<Long, String> map = new HashMap<>();
-		namedTemplate.query("SELECT OBJECT_ID, PATH_IDS FROM OBJECT_REPLICATION", params, (rs) -> {
-			Long objectId = rs.getLong("OBJECT_ID");
-			String pathJson = rs.getString("PATH_IDS");
-			if(pathJson != null) {
-				map.put(objectId, pathJson);
-			}
-		});
-		return map;
+		params.addValue("limit", limit);
+		params.addValue("offset", offset);
+		return namedTemplate.queryForList(
+				"SELECT DISTINCT j.value AS distinct_path_id FROM OBJECT_REPLICATION,"
+						+ " JSON_TABLE(OBJECT_REPLICATION.PATH_IDS,'$[*]' COLUMNS (value INT PATH '$')) AS j"
+						+ " WHERE OBJECT_REPLICATION.OBJECT_ID IN (:objectIds) AND OBJECT_TYPE = :objectType"
+						+ " AND OBJECT_REPLICATION.PATH_IDS IS NOT NULL LIMIT :limit OFFSET :offset",
+				params, Long.class);
 	}
 
 	@Override
@@ -1832,5 +1837,7 @@ public class TableIndexDAOImpl implements TableIndexDAO {
 			}
 		});
 	}
+
+
 	
 }

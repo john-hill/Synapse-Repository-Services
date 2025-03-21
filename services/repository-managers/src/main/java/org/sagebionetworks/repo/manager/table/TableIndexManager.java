@@ -333,6 +333,14 @@ public interface TableIndexManager {
 	 * @return
 	 */
 	Iterator<Long> getViewsIntersectionForPath(Collection<Long> path, ReplicationType type);
+	
+	/**
+	 * Get an iterator over the distinct combined pathIds of the provided objectIds.
+	 * @param objectType
+	 * @param objectIds
+	 * @return
+	 */
+	Iterator<Long> getDistinctReplicatedPathIds(ReplicationType objectType, List<Long> objectIds);
 
 	/**
 	 * Create a unique record that indicates a view needs to be updated. The view

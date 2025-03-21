@@ -133,15 +133,15 @@ public class ReplicationManagerImpl implements ReplicationManager {
 		fireReplicationEvents(indexManager, group.getObjectType(), combinedId, MAX_MESSAGE_PAGE_SIZE);
 	}
 	
-	void fireReplicationEvents(TableIndexManager manager, ReplicationType objectType, List<Long> objectIds, int pageSize) {
-		Iterators.partition(objectIds.iterator(), pageSize).forEachRemaining(page -> {
-			Map<Long, String> pathIds = manager.getReplicatedPathIds(objectType, page);
-			pathIds.forEach((id, path) -> {
-				messagePublisher.fireLocalStackMessage(
-						new ReplicatedEvent().setObjectType(ObjectType.REPLICATED_EVENT).setReplicatedObjectId(id)
-								.setReplicatedObjectType(objectType.getObjectType()).setPathIds(path));
-			});
-		});
+	void fireReplicationEvents(TableIndexManager manager, ReplicationType objectType, List<Long> objectIds,
+			int pageSize) {
+		Iterators.partition(manager.getDistinctReplicatedPathIds(objectType, objectIds), pageSize)
+				.forEachRemaining(batch -> {
+					messagePublisher
+							.fireLocalStackMessage(new ReplicatedEvent().setObjectType(ObjectType.REPLICATED_EVENT)
+									.setReplicatedObjectType(objectType.getObjectType()).setPathIds(batch));
+
+				});
 	}
 
 	/**

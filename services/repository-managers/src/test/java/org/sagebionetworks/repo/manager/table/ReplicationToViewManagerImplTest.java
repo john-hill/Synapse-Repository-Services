@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,27 +52,10 @@ public class ReplicationToViewManagerImplTest {
 
 	@Test
 	public void testobjectReplicated() {
-		IdAndVersion id = IdAndVersion.newBuilder().setId(123L).build();
-		ReplicatedEvent event = new ReplicatedEvent().setReplicatedObjectId(123L)
-				.setReplicatedObjectType(ObjectType.ENTITY).setPathIds("[1,2,3,4,5]");
-		when(mockFactory.connectToTableIndex(id)).thenReturn(mockTableIndexManager);
+		ReplicatedEvent event = new ReplicatedEvent()
+				.setReplicatedObjectType(ObjectType.ENTITY).setPathIds(List.of(1L,2L,3L,4L,5L));
+		when(mockFactory.connectToFirstIndex()).thenReturn(mockTableIndexManager);
 		when(mockTableIndexManager.getViewsIntersectionForPath(List.of(1L, 2L, 3L, 4L, 5L), ReplicationType.ENTITY))
-				.thenReturn(List.of(22L, 33L).iterator());
-
-		// call under test
-		manager.objectReplicated(event);
-		verify(mockTableIndexManager).setViewAsNeedsUpdate(22L, viewUpdateVisibilityTimeoutSeconds);
-		verify(mockTableIndexManager).setViewAsNeedsUpdate(33L, viewUpdateVisibilityTimeoutSeconds);
-
-	}
-	
-	@Test
-	public void testobjectReplicatedWithNullPath() {
-		IdAndVersion id = IdAndVersion.newBuilder().setId(123L).build();
-		ReplicatedEvent event = new ReplicatedEvent().setReplicatedObjectId(123L)
-				.setReplicatedObjectType(ObjectType.ENTITY).setPathIds(null);
-		when(mockFactory.connectToTableIndex(id)).thenReturn(mockTableIndexManager);
-		when(mockTableIndexManager.getViewsIntersectionForPath(Collections.emptyList(), ReplicationType.ENTITY))
 				.thenReturn(List.of(22L, 33L).iterator());
 
 		// call under test

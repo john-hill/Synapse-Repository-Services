@@ -34,13 +34,9 @@ public class ReplicationToViewManagerImpl implements ReplicationToViewManager {
 
 	@Override
 	public void objectReplicated(ReplicatedEvent event) {
-
-		IdAndVersion objectId = IdAndVersion.newBuilder().setId(event.getReplicatedObjectId()).build();
 		ReplicationType objectType = ReplicationType.matchType(event.getReplicatedObjectType()).get();
-		List<Long> pathIds = parseJSONArray(event.getPathIds());
-		
-		TableIndexManager indexManger = connectionFactory.connectToTableIndex(objectId);
-		indexManger.getViewsIntersectionForPath(pathIds, objectType).forEachRemaining(viewId -> {
+		TableIndexManager indexManger = connectionFactory.connectToFirstIndex();
+		indexManger.getViewsIntersectionForPath(event.getPathIds(), objectType).forEachRemaining(viewId -> {
 			LOG.info(String.format("View: syn%d matched for event: %s", viewId, event));
 			indexManger.setViewAsNeedsUpdate(viewId, viewUpdateVisibilityTimeoutSeconds);
 		});

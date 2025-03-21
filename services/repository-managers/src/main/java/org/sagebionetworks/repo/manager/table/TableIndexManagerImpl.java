@@ -1143,6 +1143,12 @@ public class TableIndexManagerImpl implements TableIndexManager {
 	public Map<Long, String> getReplicatedPathIds(ReplicationType objectType, List<Long> objectIds) {
 		return tableIndexDao.getReplicatedPathIds(objectType, objectIds);
 	}
+	
+	@Override
+	public Iterator<Long> getDistinctReplicatedPathIds(ReplicationType objectType, List<Long> objectIds) {
+		return tableIndexDao.getDistinctReplicatedPathIds(objectType, objectIds);
+	}
+	
 	@Override
 	public Iterator<Long> getViewsIntersectionForPath(Collection<Long> path, ReplicationType type) {
 		return tableIndexDao.getViewsIntersectionForPath(path, type);
@@ -1156,5 +1162,6 @@ public class TableIndexManagerImpl implements TableIndexManager {
 	public boolean consumeFirstVisibleViewUpdate(ViewUpdateHandler handler) {
 		return tableIndexDao.consumeFirstVisibleViewUpdate(handler);
 	}
+
 	
 }

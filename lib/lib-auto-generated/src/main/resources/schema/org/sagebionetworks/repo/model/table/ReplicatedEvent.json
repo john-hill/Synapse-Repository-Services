@@ -6,17 +6,16 @@
 		}
 	],
 	"properties": {
-		"replicatedObjectId": {
-			"type": "integer",
-			"description": "The ID of the changed object."
-		},
 		"replicatedObjectType": {
 			"$ref": "org.sagebionetworks.repo.model.ObjectType",
-			"description": "The type of the changed object"
+			"description": "The type of object that was replicated"
 		},
 		"pathIds": {
-			"description": "The full path of the object at the time this event was created.  Will be null for create events.",
-			"type": "string"
+			"description": "The distinct set of pathIs associated a batch of objects that were replciated.",
+			"type": "array",
+			"items": {
+				"type": "integer"
+			}
 		}
 	}
 }

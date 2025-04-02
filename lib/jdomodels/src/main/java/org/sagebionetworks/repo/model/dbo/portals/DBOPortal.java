@@ -75,7 +75,7 @@ public class DBOPortal implements MigratableDatabaseObject<DBOPortal, DBOPortal>
 	private String name;
 	private String endpoint;
 
-	DBOPortal() { }
+	public DBOPortal() { }
 
 	public Long getId() {
 		return id;

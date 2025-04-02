@@ -1252,9 +1252,9 @@ public class UrlHelpers {
 	
 	// Endpoint for portals management
 	public static final String PORTAL = "/portal";
-	public static final String PORTAL_LIST = WEBHOOK + "/list";
-	public static final String PORTAL_ID = WEBHOOK + "/{portalId}";
-	public static final String PORTAL_ACL = WEBHOOK_ID + "/acl";
+	public static final String PORTAL_LIST = PORTAL + "/list";
+	public static final String PORTAL_ID = PORTAL + "/{portalId}";
+	public static final String PORTAL_ACL = PORTAL_ID + "/acl";
 	
 	
 	/**

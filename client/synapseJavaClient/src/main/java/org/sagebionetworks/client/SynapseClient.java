@@ -237,6 +237,10 @@ import org.sagebionetworks.repo.model.oauth.OIDCAuthorizationRequest;
 import org.sagebionetworks.repo.model.oauth.OIDCAuthorizationRequestDescription;
 import org.sagebionetworks.repo.model.oauth.OIDCTokenResponse;
 import org.sagebionetworks.repo.model.oauth.OIDConnectConfiguration;
+import org.sagebionetworks.repo.model.portals.CreateOrUpdatePortalRequest;
+import org.sagebionetworks.repo.model.portals.ListPortalsRequest;
+import org.sagebionetworks.repo.model.portals.ListPortalsResponse;
+import org.sagebionetworks.repo.model.portals.Portal;
 import org.sagebionetworks.repo.model.principal.AccountSetupInfo;
 import org.sagebionetworks.repo.model.principal.AliasCheckRequest;
 import org.sagebionetworks.repo.model.principal.AliasCheckResponse;
@@ -353,8 +357,7 @@ public interface SynapseClient extends BaseClient {
 	/**
 	 * Get the current status of the stack
 	 */
-	public StackStatus getCurrentStackStatus() 
-			throws SynapseException;
+	public StackStatus getCurrentStackStatus() throws SynapseException;
 	
 	/**
 	 * Is the passed alias available and valid?
@@ -4455,5 +4458,19 @@ public interface SynapseClient extends BaseClient {
 	 */
 	DownloadPFBResult downloadPFBFromTableAsyncGet(String asyncJobToken, String tableId)
 			throws SynapseException, SynapseResultNotReadyException;
+	
+	Portal createPortal(CreateOrUpdatePortalRequest request) throws SynapseException;
+	
+	Portal updatePortal(String portalId, CreateOrUpdatePortalRequest request) throws SynapseException;
 
+	Portal getPortal(String portalId) throws SynapseException;
+	
+	ListPortalsResponse listPortals(ListPortalsRequest request) throws SynapseException;
+	
+	void deletePortal(String portalId) throws SynapseException;
+	
+	AccessControlList getPortalAcl(String portalId) throws SynapseException;
+	
+	AccessControlList updatePortalAcl(AccessControlList acl) throws SynapseException;
 }
+

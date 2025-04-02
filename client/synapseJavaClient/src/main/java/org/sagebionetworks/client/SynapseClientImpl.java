@@ -277,6 +277,10 @@ import org.sagebionetworks.repo.model.oauth.OIDCAuthorizationRequest;
 import org.sagebionetworks.repo.model.oauth.OIDCAuthorizationRequestDescription;
 import org.sagebionetworks.repo.model.oauth.OIDCTokenResponse;
 import org.sagebionetworks.repo.model.oauth.OIDConnectConfiguration;
+import org.sagebionetworks.repo.model.portals.CreateOrUpdatePortalRequest;
+import org.sagebionetworks.repo.model.portals.ListPortalsRequest;
+import org.sagebionetworks.repo.model.portals.ListPortalsResponse;
+import org.sagebionetworks.repo.model.portals.Portal;
 import org.sagebionetworks.repo.model.principal.AccountSetupInfo;
 import org.sagebionetworks.repo.model.principal.AliasCheckRequest;
 import org.sagebionetworks.repo.model.principal.AliasCheckResponse;
@@ -6373,5 +6377,40 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 			SynapseResultNotReadyException {
 		return (DownloadPFBResult) getAsyncResult(
 				AsynchJobType.TablePFBDownload, asyncJobToken, tableId);
+	}
+
+	@Override
+	public Portal createPortal(CreateOrUpdatePortalRequest request) throws SynapseException {
+		return postJSONEntity(getRepoEndpoint(), "/portal", request, Portal.class);
+	}
+	
+	@Override
+	public Portal updatePortal(String portalId, CreateOrUpdatePortalRequest request) throws SynapseException {
+		return putJSONEntity(getRepoEndpoint(), "/portal/" + portalId, request, Portal.class);
+	}
+	
+	@Override
+	public Portal getPortal(String portalId) throws SynapseException {
+		return getJSONEntity(getRepoEndpoint(), "/portal/" + portalId, Portal.class);
+	}
+	
+	@Override
+	public ListPortalsResponse listPortals(ListPortalsRequest request) throws SynapseException {
+		return postJSONEntity(getRepoEndpoint(), "/portal/list", request, ListPortalsResponse.class);
+	}
+	
+	@Override
+	public void deletePortal(String portalId) throws SynapseException {
+		deleteUri(getRepoEndpoint(), "/portal/" + portalId);
+	}
+	
+	@Override
+	public AccessControlList getPortalAcl(String portalId) throws SynapseException {
+		return getJSONEntity(getRepoEndpoint(), "/portal/" + portalId + "/acl", AccessControlList.class);
+	}
+	
+	@Override
+	public AccessControlList updatePortalAcl(AccessControlList acl) throws SynapseException {
+		return putJSONEntity(getRepoEndpoint(), "/portal/" + acl.getId() + "/acl", acl, AccessControlList.class);
 	}
 }

@@ -77,7 +77,7 @@
         },
 		{
             "name": "MINT_DOI",
-            "description": "Allows to mint a DOI for a portal resource"
+            "description": "Allows minting a DOI for a portal resource"
         }
     ]
 }

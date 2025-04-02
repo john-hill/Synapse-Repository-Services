@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.client.SynapseAdminClient;
 import org.sagebionetworks.client.SynapseClient;
-import org.sagebionetworks.client.exceptions.SynapseUnauthorizedException;
+import org.sagebionetworks.client.exceptions.SynapseForbiddenException;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.ResourceAccess;
@@ -33,7 +33,7 @@ public class ITPortalTest {
 			.setUrl("https://myportal.synapse.org");
 		
 		// Only an admin can create a portal
-		assertThrows(SynapseUnauthorizedException.class, () -> {			
+		assertThrows(SynapseForbiddenException.class, () -> {			
 			client.createPortal(request);
 		});
 		
@@ -42,7 +42,7 @@ public class ITPortalTest {
 		// Any user can read
 		assertEquals(portal, client.getPortal(portal.getId()));
 		
-		assertThrows(SynapseUnauthorizedException.class, () -> {
+		assertThrows(SynapseForbiddenException.class, () -> {
 			client.updatePortal(portal.getId(), request.setName("My Portal Updated"));
 		});
 		

@@ -811,6 +811,16 @@ public class ProjectSettingsManagerImplUnitTest {
 	}
 
 	@Test
+	public void testValidateProjectSettingNullLocationId() {
+		UploadDestinationListSetting setting = new UploadDestinationListSetting();
+		setting.setProjectId("projectId");
+		setting.setSettingsType(ProjectSettingsType.upload);
+		setting.setLocations(Lists.newArrayList((Long)null));
+
+		assertThrows(IllegalArgumentException.class, () -> projectSettingsManagerImpl.validateProjectSetting(setting, null));
+	}
+
+	@Test
 	public void testValidExternalS3() {
 		UploadDestinationListSetting setting = new UploadDestinationListSetting();
 		setting.setProjectId("projectId");

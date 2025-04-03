@@ -433,8 +433,11 @@ public class SubmissionManagerImpl implements SubmissionManager{
 		ValidateArgument.required(submissionId, "submissionId");
 		
 		Submission submission = submissionDao.getSubmission(submissionId);
-		
-		authorizationManager.canReviewAccessRequirementSubmissions(userInfo, submission.getAccessRequirementId())
+
+		Set<Long> accessorIds = submission.getAccessorChanges().stream()
+				.map(accessorChange -> Long.parseLong(accessorChange.getUserId())).collect(Collectors.toSet());
+
+		authorizationManager.canFetchSubmissionInformation(userInfo, submission.getAccessRequirementId(), accessorIds)
 			.checkAuthorizationOrElseThrow();
 
 		return submission;
@@ -523,7 +526,6 @@ public class SubmissionManagerImpl implements SubmissionManager{
 
 	/**
 	 * @param approvals
-	 * @param expiredOn
 	 * @return
 	 */
 	public static Date getLatestExpirationDate(List<AccessApproval> approvals) {

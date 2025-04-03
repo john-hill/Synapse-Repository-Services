@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.joda.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -136,7 +135,7 @@ public class SubmissionManagerImplTest {
 	private String ducFileHandleId;
 	private String irbFileHandleId;
 	private String attachmentId;
-	private List<AccessorChange> accessors;
+	private List<AccessorChange> accessors = new ArrayList<>();
 	private HashSet<String> accessorIds;
 	private String publication;
 	private String summaryOfUse;
@@ -1736,22 +1735,21 @@ public class SubmissionManagerImplTest {
 	public void testGetSubmission() {
 		
 		when(mockSubmissionDao.getSubmission(any())).thenReturn(submission);
-		when(mockAuthManager.canReviewAccessRequirementSubmissions(any(), any())).thenReturn(AuthorizationStatus.authorized());
+		when(mockAuthManager.canFetchSubmissionInformation(any(), any(), any())).thenReturn(AuthorizationStatus.authorized());
 		
 		// Call under test
 		Submission result = manager.getSubmission(atcUser, submissionId);
-		
 		assertEquals(submission, result);
 		
 		verify(mockSubmissionDao).getSubmission(submissionId);
-		verify(mockAuthManager).canReviewAccessRequirementSubmissions(atcUser, accessRequirementId);
+		verify(mockAuthManager).canFetchSubmissionInformation(atcUser, accessRequirementId, Sets.newHashSet(Long.parseLong(userId)));
 	}
 	
 	@Test
 	public void testGetSubmissionWithUnauthorized() {
 		
 		when(mockSubmissionDao.getSubmission(any())).thenReturn(submission);
-		when(mockAuthManager.canReviewAccessRequirementSubmissions(any(), any())).thenReturn(AuthorizationStatus.accessDenied("nope"));
+		when(mockAuthManager.canFetchSubmissionInformation(any(), any(), any())).thenReturn(AuthorizationStatus.accessDenied("nope"));
 		
 		String result = assertThrows(UnauthorizedException.class, () -> {			
 			// Call under test
@@ -1761,7 +1759,7 @@ public class SubmissionManagerImplTest {
 		assertEquals("nope", result);
 		
 		verify(mockSubmissionDao).getSubmission(submissionId);
-		verify(mockAuthManager).canReviewAccessRequirementSubmissions(mockUser, accessRequirementId);
+		verify(mockAuthManager).canFetchSubmissionInformation(mockUser, accessRequirementId,Sets.newHashSet(Long.parseLong(userId)));
 	}
 	
 	@Test

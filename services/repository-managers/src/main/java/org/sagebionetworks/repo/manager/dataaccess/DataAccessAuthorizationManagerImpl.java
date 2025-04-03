@@ -88,7 +88,18 @@ public class DataAccessAuthorizationManagerImpl implements DataAccessAuthorizati
 		
 		return AuthorizationStatus.authorized();
 	}
-	
+
+	@Override
+	public AuthorizationStatus canFetchSubmissionInformation(UserInfo userInfo, String accessRequirementId, Set<Long> accessorIds) {
+		ValidateArgument.required(accessorIds, "accessorIds");
+
+		if (accessorIds.stream().anyMatch(id -> id.equals(userInfo.getId()))) {
+			return AuthorizationStatus.authorized();
+		}
+
+		return canReviewAccessRequirementSubmissions(userInfo, accessRequirementId);
+	}
+
 	@Override
 	public boolean isAccessRequirementReviewer(UserInfo userInfo) {
 		ValidateArgument.required(userInfo, "userInfo");

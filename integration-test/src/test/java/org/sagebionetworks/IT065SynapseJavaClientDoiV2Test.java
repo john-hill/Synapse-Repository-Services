@@ -24,6 +24,7 @@ import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.asynch.AsynchJobState;
 import org.sagebionetworks.repo.model.doi.v2.Doi;
 import org.sagebionetworks.repo.model.doi.v2.DoiCreator;
+import org.sagebionetworks.repo.model.doi.v2.DoiObjectType;
 import org.sagebionetworks.repo.model.doi.v2.DoiResourceType;
 import org.sagebionetworks.repo.model.doi.v2.DoiResourceTypeGeneral;
 import org.sagebionetworks.repo.model.doi.v2.DoiResponse;
@@ -99,7 +100,7 @@ public class IT065SynapseJavaClientDoiV2Test {
 	private static Doi setUpRequestDoi() {
 		Doi doi = new Doi();
 		doi.setObjectId(entity.getId());
-		doi.setObjectType(ObjectType.ENTITY);
+		doi.setObjectType(DoiObjectType.ENTITY);
 		doi.setObjectVersion(1L);
 
 		doi.setPublicationYear(2018L);

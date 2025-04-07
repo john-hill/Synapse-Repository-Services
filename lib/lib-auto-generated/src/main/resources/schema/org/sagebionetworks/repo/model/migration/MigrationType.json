@@ -475,6 +475,10 @@
 			"description": "Table that stores project storage limits"
 		},
 		{
+			"name": "PORTAL",
+			"description": "Table that stores portal information"
+		},
+		{
 			"name": "CHANGE",
 			"description": "TODO: Auto-generated description"
 		}

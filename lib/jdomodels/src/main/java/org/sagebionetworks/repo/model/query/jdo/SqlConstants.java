@@ -1370,6 +1370,18 @@ public class SqlConstants {
 	public static final String COL_PROJECT_STORAGE_LIMIT_MAX_BYTES =		"MAX_BYTES";
 	public static final String DDL_PROJECT_STORAGE_LIMIT = 					"schema/limits/ProjectStorageLimit-ddl.sql";
 	
+	// Portal table
+	public static final String TABLE_PORTAL = 			"PORTAL";
+	public static final String COL_PORTAL_ID = 			"ID";
+	public static final String COL_PORTAL_ETAG = 		"ETAG";
+	public static final String COL_PORTAL_CREATED_BY = 	"CREATED_BY";
+	public static final String COL_PORTAL_CREATED_ON = 	"CREATED_ON";
+	public static final String COL_PORTAL_MODIFIED_BY = "MODIFIED_BY";
+	public static final String COL_PORTAL_MODIFIED_ON = "MODIFIED_ON";
+	public static final String COL_PORTAL_NAME = 		"NAME";
+	public static final String COL_PORTAL_ENDPOINT = 	"ENDPOINT";	
+	public static final String DDL_PORTAL = "schema/portals/Portal-ddl.sql";
+	
 	// This seems to be the name of the id column for all tables.
 	public static final String COLUMN_ID		= "id";
 	

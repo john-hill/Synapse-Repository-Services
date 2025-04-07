@@ -32,6 +32,7 @@ import org.sagebionetworks.client.exceptions.SynapseForbiddenException;
 import org.sagebionetworks.client.exceptions.SynapseNotFoundException;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.ACTAccessRequirement;
+import org.sagebionetworks.repo.model.AccessApproval;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.BatchAccessApprovalInfoRequest;
 import org.sagebionetworks.repo.model.FileEntity;
@@ -794,7 +795,11 @@ public class ITDataAccessTest {
 		// A validated user
 		SynapseClient synapseTwo = new SynapseClientImpl();
 		userTwoId = SynapseClientHelper.createUser(adminSynapse, synapseTwo, true, true);
-		
+
+		// A non Validated user
+		SynapseClient synapseThree = new SynapseClientImpl();
+		Long userThreeId = SynapseClientHelper.createUser(adminSynapse, synapseThree, true, false);
+
 		managedAR = new ManagedACTAccessRequirement()
 				.setAccessType(ACCESS_TYPE.DOWNLOAD)
 				.setSubjectIds(Collections.singletonList(new RestrictableObjectDescriptor().setId(project.getId()).setType(RestrictableObjectType.ENTITY)));
@@ -831,9 +836,9 @@ public class ITDataAccessTest {
 		
 		assertEquals(submissionStatus.getSubmissionId(), submission.getId());
 		
-		// A normal non-reviewer user cannot access the submission
+		// A non validator user can not access the submission
 		String message = assertThrows(SynapseForbiddenException.class, () -> {
-			synapse.getDataAccessSubmission(submissionStatus.getSubmissionId());	
+			synapseThree.getDataAccessSubmission(submissionStatus.getSubmissionId());
 		}).getMessage();
 		
 		assertEquals("The user must be validated in order to review data access submissions.", message);
@@ -861,12 +866,69 @@ public class ITDataAccessTest {
 				
 				assertEquals(submissionStatus.getSubmissionId(), submission.getId());
 				
-				// The first user is still not validated
-				message = assertThrows(SynapseForbiddenException.class, () -> {
-					synapse.getDataAccessSubmission(submissionStatus.getSubmissionId());	
-				}).getMessage();
-				
-				assertEquals("The user must be validated in order to review data access submissions.", message);
+				// The accessor of submission can fetch the submission.
+				Submission submission1 = synapse.getDataAccessSubmission(submissionId);
+				assertEquals(submissionStatus.getSubmissionId(), submission1.getId());
+	}
+
+
+	@Test
+	public void testGetUserAccessApproval() throws SynapseException, JSONObjectAdapterException {
+		SynapseClient synapseTwo = new SynapseClientImpl();
+		userTwoId = SynapseClientHelper.createUser(adminSynapse, synapseTwo, true, true);
+
+		managedAR = new ManagedACTAccessRequirement()
+				.setAccessType(ACCESS_TYPE.DOWNLOAD)
+				.setSubjectIds(Collections.singletonList(new RestrictableObjectDescriptor().setId(project.getId()).setType(RestrictableObjectType.ENTITY)));
+
+		managedAR = adminSynapse.createAccessRequirement(managedAR);
+
+		ResearchProject rp = synapse.getResearchProjectForUpdate(managedAR.getId().toString());
+
+		rp.setInstitution("Sage");
+		rp.setProjectLead("Lead");
+		rp.setIntendedDataUseStatement("intendedDataUseStatement");
+		rp.setAccessRequirementId(managedAR.getId().toString());
+
+		rp = synapse.createOrUpdateResearchProject(rp);
+
+		RequestInterface request = synapse.createOrUpdateRequest(new Request()
+				.setResearchProjectId(rp.getId())
+				.setAccessRequirementId(managedAR.getId().toString())
+				.setAccessorChanges(Arrays.asList(
+						new AccessorChange().setType(AccessType.GAIN_ACCESS).setUserId(adminSynapse.getMyProfile().getOwnerId()),
+						new AccessorChange().setType(AccessType.GAIN_ACCESS).setUserId(synapse.getMyProfile().getOwnerId())
+				)));
+
+		SubmissionStatus submissionStatus = synapse.submitRequest(new CreateSubmissionRequest()
+				.setRequestId(request.getId())
+				.setRequestEtag(request.getEtag())
+				.setSubjectId(project.getId())
+				.setSubjectType(RestrictableObjectType.ENTITY));
+
+		submissionId = submissionStatus.getSubmissionId();
+
+		// Admin is able to fetch the submission
+		Submission submission = adminSynapse.getDataAccessSubmission(submissionStatus.getSubmissionId());
+
+		// create approval for the requirement
+		AccessApproval approval = new AccessApproval();
+		approval.setAccessorId(synapse.getMyProfile().getOwnerId());
+		approval.setRequirementId(managedAR.getId());
+		approval.setRequirementVersion(managedAR.getVersionNumber());
+		approval.setSubmitterId(submission.getSubmittedBy());
+		AccessApproval created = adminSynapse.createAccessApproval(approval);
+
+		String message = assertThrows(SynapseForbiddenException.class, () -> {
+			synapseTwo.getUserAccessApproval(submission.getId());
+		}).getMessage();
+
+		assertEquals("User is not an accessor of the submission " + submission.getId() + ".", message);
+
+		// call under test
+		AccessApproval accessApproval = synapse.getUserAccessApproval(submission.getId());
+		assertNotNull(accessApproval);
+		assertEquals(created, accessApproval);
 	}
 	
 	@Test

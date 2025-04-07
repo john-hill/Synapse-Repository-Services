@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.web.controller;
 import static org.sagebionetworks.repo.model.oauth.OAuthScope.modify;
 import static org.sagebionetworks.repo.model.oauth.OAuthScope.view;
 
+import org.sagebionetworks.repo.model.AccessApproval;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.RestrictionInformationBatchRequest;
@@ -353,5 +354,24 @@ public class DataAccessController {
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@PathVariable String submissionId) {
 		return serviceProvider.getDataAccessService().getSubmission(userId, submissionId);
+	}
+
+	/**
+	 * Fetch an access approval for a submission.If the user is an accessor in the submission they can fetch their own
+	 * access approval information specific to a submission.
+	 *
+	 * @param userId
+	 * @param submissionId
+	 * @return
+	 * @throws NotFoundException
+	 * @throws NotFoundException
+	 */
+	@RequiredScope({view})
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.USER_ACCESS_APPROVAL_FOR_SUBMISSION, method = RequestMethod.GET)
+	public @ResponseBody AccessApproval getUserAccessApproval(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@PathVariable String submissionId) {
+		return serviceProvider.getDataAccessService().getUserAccessApproval(userId, submissionId);
 	}
 }

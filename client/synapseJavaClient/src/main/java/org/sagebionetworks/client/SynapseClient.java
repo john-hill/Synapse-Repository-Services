@@ -3372,6 +3372,15 @@ public interface SynapseClient extends BaseClient {
 	org.sagebionetworks.repo.model.dataaccess.Submission getDataAccessSubmission(String submissionId) throws SynapseException;
 
 	/**
+	 * Fetch their own access approval information specific to a submission, as long as the user is an accessor in the submission.
+	 *
+	 * @param submissionId
+	 * @return
+	 * @throws SynapseException
+	 */
+	AccessApproval getUserAccessApproval(String submissionId) throws SynapseException;
+
+	/**
 	 * Retrieve a page of submissions.
 	 * Only ACT member can perform this action.
 	 * 

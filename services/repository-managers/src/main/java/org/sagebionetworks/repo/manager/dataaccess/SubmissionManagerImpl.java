@@ -23,6 +23,7 @@ import org.sagebionetworks.repo.model.NextPageToken;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dao.subscription.SubscriptionDAO;
 import org.sagebionetworks.repo.model.dataaccess.AccessRequirementStatus;
 import org.sagebionetworks.repo.model.dataaccess.AccessorChange;
@@ -442,7 +443,41 @@ public class SubmissionManagerImpl implements SubmissionManager{
 
 		return submission;
 	}
-	
+
+	@Override
+	public AccessApproval getUserAccessApproval(UserInfo userInfo, String submissionId) {
+		ValidateArgument.required(userInfo, "userInfo");
+		ValidateArgument.required(submissionId, "submissionId");
+
+		Submission submission = submissionDao.getSubmission(submissionId);
+
+		if (!isUserAnAccessor(userInfo, submission)) {
+			throw new UnauthorizedException(String.format("User is not an accessor of the submission %s.", submissionId));
+		}
+
+		AccessApproval accessApproval = accessApprovalDao.getByPrimaryKey(Long.parseLong(submission.getAccessRequirementId()),
+				submission.getAccessRequirementVersion(), submission.getSubmittedBy(), userInfo.getId().toString());
+
+		return accessApproval;
+	}
+
+	boolean isUserAnAccessor(UserInfo userInfo, Submission submission) {
+		ValidateArgument.required(submission, "submission");
+
+		if (submission.getAccessorChanges() == null || submission.getAccessorChanges().isEmpty()) {
+			return false;
+		}
+
+		Set<Long> accessorIds = submission.getAccessorChanges().stream()
+				.map(accessorChange -> Long.parseLong(accessorChange.getUserId())).collect(Collectors.toSet());
+
+		if (accessorIds.stream().anyMatch(id -> id.equals(userInfo.getId()))) {
+			return true;
+		}
+
+		return false;
+	}
+
 	@Override
 	public SubmissionSearchResponse searchSubmissions(UserInfo userInfo, SubmissionSearchRequest request) {
 		ValidateArgument.required(userInfo, "userInfo");

@@ -5586,6 +5586,12 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	}
 
 	@Override
+	public AccessApproval getUserAccessApproval(String submissionId) throws SynapseException {
+		ValidateArgument.required(submissionId, "submissionId");
+		return getJSONEntity(getRepoEndpoint(), DATA_ACCESS_SUBMISSION + "/" + submissionId + "/userAccessApproval", AccessApproval.class);
+	}
+
+	@Override
 	public SubmissionPage listSubmissions(String requirementId, String nextPageToken,
 			SubmissionState filter, SubmissionOrder order, Boolean isAscending)
 			throws SynapseException {

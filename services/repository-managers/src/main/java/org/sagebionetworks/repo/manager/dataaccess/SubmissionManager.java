@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.dataaccess;
 
+import org.sagebionetworks.repo.model.AccessApproval;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dataaccess.AccessRequirementStatus;
 import org.sagebionetworks.repo.model.dataaccess.CreateSubmissionRequest;
@@ -105,5 +106,14 @@ public interface SubmissionManager {
 	 * @return
 	 */
 	Submission getSubmission(UserInfo userInfo, String submissionId);
+
+	/**
+	 * Fetch their own access approval information specific to a submission, as long as the user is an accessor in the submission.
+	 *
+	 * @param userInfo
+	 * @param submissionId
+	 * @return
+	 */
+	AccessApproval getUserAccessApproval(UserInfo userInfo, String submissionId);
 
 }

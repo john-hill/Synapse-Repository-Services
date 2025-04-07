@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.service.dataaccess;
 
+import org.sagebionetworks.repo.model.AccessApproval;
 import org.sagebionetworks.repo.model.RestrictionInformationBatchRequest;
 import org.sagebionetworks.repo.model.RestrictionInformationBatchResponse;
 import org.sagebionetworks.repo.model.RestrictionInformationRequest;
@@ -52,6 +53,8 @@ public interface DataAccessService {
 	SubmissionSearchResponse searchSubmissions(Long userId, SubmissionSearchRequest request);
 
 	Submission getSubmission(Long userId, String submissionId);
+
+	AccessApproval getUserAccessApproval(Long userId, String submissionId);
 
 
 }

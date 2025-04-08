@@ -74,7 +74,7 @@ public class PortalDaoImpl implements PortalDao {
  			Timestamp now = Timestamp.from(Instant.now());
  			
  			DBOPortal portalDbo = new DBOPortal()
-				.setId(idGenerator.generateNewId(IdType.PORTAL_ID))
+				.setId(DBOPortal.SYNAPSE_PORTAL_ID)
 				.setCreatedBy(adminId)
 				.setCreatedOn(now)
 				.setModifiedBy(adminId)

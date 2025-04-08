@@ -49,8 +49,7 @@ public class PortalManagerImpl implements PortalManager {
 	}
 
 	@Override
-	public Portal getPortal(UserInfo user, String portalId) {
-		ValidateArgument.required(user, "The user");
+	public Portal getPortal(String portalId) {
 		ValidateArgument.required(portalId, "The portalId");
 		
 		return portalsDao.getPortal(portalId).orElseThrow(() -> new NotFoundException("A portal with the given id does not exist."));
@@ -67,7 +66,7 @@ public class PortalManagerImpl implements PortalManager {
 			aclDao.canAccess(user, portalId, ObjectType.PORTAL, ACCESS_TYPE.UPDATE).checkAuthorizationOrElseThrow();
 		}
 		
-		return portalsDao.updatePortal(user.getId(), getPortal(user, portalId).getId(), request.getName(), request.getUrl());
+		return portalsDao.updatePortal(user.getId(), getPortal(portalId).getId(), request.getName(), request.getUrl());
 	}
 	
 	@Override
@@ -80,12 +79,11 @@ public class PortalManagerImpl implements PortalManager {
 			aclDao.canAccess(user, portalId, ObjectType.PORTAL, ACCESS_TYPE.DELETE).checkAuthorizationOrElseThrow();
 		}
 		
-		portalsDao.deletePortal(getPortal(user, portalId).getId());
+		portalsDao.deletePortal(getPortal(portalId).getId());
 	}
 
 	@Override
-	public ListPortalsResponse listPortals(UserInfo user, ListPortalsRequest request) {
-		ValidateArgument.required(user, "The user");
+	public ListPortalsResponse listPortals(ListPortalsRequest request) {
 		ValidateArgument.required(request, "The request");
 		
 		NextPageToken nextPageToken = new NextPageToken(request.getNextPageToken());
@@ -98,8 +96,7 @@ public class PortalManagerImpl implements PortalManager {
 	}	
 
 	@Override
-	public AccessControlList getPortalAcl(UserInfo user, String portalId) {
-		ValidateArgument.required(user, "The user");
+	public AccessControlList getPortalAcl(String portalId) {
 		ValidateArgument.required(portalId, "The portalId");
 		
 		return aclDao.getAcl(portalId, ObjectType.PORTAL).orElseThrow(() -> new NotFoundException("Could not find an ACL for the portal with the given id."));
@@ -123,7 +120,7 @@ public class PortalManagerImpl implements PortalManager {
 		
 		aclDao.update(acl, ObjectType.PORTAL);
 
-		return getPortalAcl(user, portalId);
+		return getPortalAcl(portalId);
 	}
 	
 	private static void validateCreateOrUpdateRequest(UserInfo user, CreateOrUpdatePortalRequest request) {

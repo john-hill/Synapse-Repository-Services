@@ -120,7 +120,15 @@ public class DBODoiAssociationDaoImpl implements DoiAssociationDao {
 	DoiAssociation getDoiAssociation(String portalId, String objectId, DoiObjectType objectType, Long versionNumber, boolean forUpdate) throws NotFoundException {
 		MapSqlParameterSource paramMap = new MapSqlParameterSource();
 		paramMap.addValue(COL_DOI_PORTAL_ID, portalId);
-		paramMap.addValue(COL_DOI_OBJECT_ID, KeyFactory.stringToKey(objectId));
+		
+		if (DoiObjectType.ENTITY.equals(objectType)) {
+			// For an entity we normalize the id to its numeric representation, note that before introducing portal resources 
+			// the id of the entity was stored as a long, hence the conversion
+			paramMap.addValue(COL_DOI_OBJECT_ID, KeyFactory.stringToKey(objectId));
+		} else {
+			paramMap.addValue(COL_DOI_OBJECT_ID, objectId);		
+		}
+		
 		paramMap.addValue(COL_DOI_OBJECT_TYPE, objectType.name());
 		if (versionNumber == null) {
 			paramMap.addValue(COL_DOI_OBJECT_VERSION, DBODoi.NULL_OBJECT_VERSION);

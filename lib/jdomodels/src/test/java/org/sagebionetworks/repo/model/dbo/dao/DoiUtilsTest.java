@@ -13,6 +13,7 @@ import org.sagebionetworks.repo.model.dbo.persistence.DBODoi;
 import org.sagebionetworks.repo.model.doi.DoiStatus;
 import org.sagebionetworks.repo.model.doi.v2.DoiAssociation;
 import org.sagebionetworks.repo.model.doi.v2.DoiObjectType;
+import org.sagebionetworks.repo.model.doi.v2.DoiUriVersion;
 
 public class DoiUtilsTest {
 
@@ -27,6 +28,7 @@ public class DoiUtilsTest {
 	private static final Long objectId = 3L;
 	private static final Long objectVersion = 4L;
 	private static final Timestamp updatedOn = new Timestamp((new Date()).getTime());
+	private static final DoiUriVersion uriVersion = DoiUriVersion.V2;
 
 	@Test
 	public void testConvertToDtoV2() {
@@ -44,6 +46,7 @@ public class DoiUtilsTest {
 		assertEquals("syn" + objectId.toString(), dto.getObjectId());
 		assertEquals(objectVersion, dto.getObjectVersion());
 		assertEquals(updatedOn.getTime(), dto.getUpdatedOn().getTime());
+		assertEquals(uriVersion, dto.getDoiUriVersion());
 	}
 
 	@Test
@@ -81,6 +84,7 @@ public class DoiUtilsTest {
 		assertEquals(objectId.toString(), dbo.getObjectId());
 		assertEquals(objectVersion, dbo.getObjectVersion());
 		assertEquals(updatedOn.getTime(), dbo.getUpdatedOn().getTime());
+		assertEquals(uriVersion.name(), dbo.getUriVersion());
 	}
 
 	@Test
@@ -200,6 +204,16 @@ public class DoiUtilsTest {
 			DoiUtils.convertToDbo(dto);
 		});
 	}
+	
+	@Test
+	public void testConvertV2ToDboNullUriVersion() {
+		DoiAssociation dto = setUpDtoV2();
+		dto.setDoiUriVersion(null); // Omit required field.
+		assertThrows(IllegalArgumentException.class, () -> {
+			// Call under test
+			DoiUtils.convertToDbo(dto);
+		});
+	}
 
 	private static DBODoi setUpDbo() {
 		DBODoi dbo = new DBODoi();
@@ -214,6 +228,7 @@ public class DoiUtilsTest {
 		dbo.setObjectId(objectId.toString());
 		dbo.setObjectVersion(objectVersion);
 		dbo.setUpdatedOn(updatedOn);
+		dbo.setUriVersion(uriVersion);
 		return dbo;
 	}
 
@@ -229,6 +244,7 @@ public class DoiUtilsTest {
 		dto.setObjectVersion(objectVersion);
 		dto.setUpdatedBy(updatedBy.toString());
 		dto.setUpdatedOn(updatedOn);
+		dto.setDoiUriVersion(uriVersion);
 		return dto;
 	}
 

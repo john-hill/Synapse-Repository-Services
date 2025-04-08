@@ -18,9 +18,13 @@
 			"type": "string",
 			"description": "The DOI URL that will point to the Synapse object.  Provided by Synapse."
 		},
+		"doiUriVersion": {
+			"description": "The version of the URI scheme of the DOI for the association. Provided by Synapse.",
+			"$ref": "org.sagebionetworks.repo.model.doi.v2.DoiUriVersion"
+		},
 		"portalId": {
 			"type": "string",
-			"description": "The id of the portal that this DOI is associated with if any."
+			"description": "The id of the portal that this DOI is associated with."
 		},
 		"objectId": {
 			"description": "Required. The ID of the digital object in Synapse for which this DOI is created.",

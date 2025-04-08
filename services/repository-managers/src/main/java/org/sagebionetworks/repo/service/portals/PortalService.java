@@ -10,15 +10,15 @@ public interface PortalService {
 
 	Portal createPortal(Long userId, CreateOrUpdatePortalRequest request);
 
-	Portal getPortal(Long userId, String portalId);
+	Portal getPortal(String portalId);
 
-	ListPortalsResponse listPortals(Long userId, ListPortalsRequest request);
+	ListPortalsResponse listPortals(ListPortalsRequest request);
 
 	Portal updatePortal(Long userId, String portalId, CreateOrUpdatePortalRequest request);
 
 	void deletePortal(Long userId, String portalId);
 	
-	AccessControlList getPortalAcl(Long userId, String portalId);
+	AccessControlList getPortalAcl(String portalId);
 
 	AccessControlList updatePortalAcl(Long userId, String portalId, AccessControlList acl);
 

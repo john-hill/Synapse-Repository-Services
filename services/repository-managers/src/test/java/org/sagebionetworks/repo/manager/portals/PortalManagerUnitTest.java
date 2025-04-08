@@ -356,7 +356,7 @@ public class PortalManagerUnitTest {
 		when(mockPortalDao.getPortal(portal.getId())).thenReturn(Optional.of(portal));
 		
 		// Call under test
-		assertEquals(portal, manager.getPortal(user, portal.getId()));
+		assertEquals(portal, manager.getPortal(portal.getId()));
 		
 		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
 	}
@@ -367,31 +367,19 @@ public class PortalManagerUnitTest {
 		
 		assertEquals("A portal with the given id does not exist.", assertThrows(NotFoundException.class, () -> {			
 			// Call under test
-			manager.getPortal(user, portal.getId());
+			manager.getPortal(portal.getId());
 		}).getMessage());
 		
 		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
 	}
-	
-	@Test
-	public void testGetPortalWithNoUser() {
-		user = null;
 		
-		assertEquals("The user is required.", assertThrows(IllegalArgumentException.class, () -> {			
-			// Call under test
-			manager.getPortal(user, portal.getId());
-		}).getMessage());
-		
-		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
-	}
-	
 	@Test
 	public void testGetPortalWithNoPortalId() {
 		portal.setId(null);
 		
 		assertEquals("The portalId is required.", assertThrows(IllegalArgumentException.class, () -> {			
 			// Call under test
-			manager.getPortal(user, portal.getId());
+			manager.getPortal(portal.getId());
 		}).getMessage());
 		
 		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
@@ -402,7 +390,7 @@ public class PortalManagerUnitTest {
 		when(mockPortalDao.getPortalPage(NextPageToken.DEFAULT_LIMIT + 1, NextPageToken.DEFAULT_OFFSET)).thenReturn(List.of(portal));
 		
 		// Call under test
-		assertEquals(new ListPortalsResponse().setPage(List.of(portal)), manager.listPortals(user, new ListPortalsRequest()));
+		assertEquals(new ListPortalsResponse().setPage(List.of(portal)), manager.listPortals(new ListPortalsRequest()));
 		
 		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
 	}
@@ -414,19 +402,7 @@ public class PortalManagerUnitTest {
 		when(mockPortalDao.getPortalPage(nextPageToken.getLimitForQuery(), nextPageToken.getOffset())).thenReturn(List.of(portal));
 		
 		// Call under test
-		assertEquals(new ListPortalsResponse().setPage(List.of(portal)), manager.listPortals(user, new ListPortalsRequest().setNextPageToken(nextPageToken.toToken())));
-		
-		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
-	}
-	
-	@Test
-	public void testListPortalsWithNoUser() {
-		user = null;
-		
-		assertEquals("The user is required.", assertThrows(IllegalArgumentException.class, () -> {			
-			// Call under test
-			manager.listPortals(user, new ListPortalsRequest());
-		}).getMessage());
+		assertEquals(new ListPortalsResponse().setPage(List.of(portal)), manager.listPortals(new ListPortalsRequest().setNextPageToken(nextPageToken.toToken())));
 		
 		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
 	}
@@ -436,7 +412,7 @@ public class PortalManagerUnitTest {
 		
 		assertEquals("The request is required.", assertThrows(IllegalArgumentException.class, () -> {			
 			// Call under test
-			manager.listPortals(user, null);
+			manager.listPortals(null);
 		}).getMessage());
 		
 		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
@@ -447,7 +423,7 @@ public class PortalManagerUnitTest {
 		when(mockAclDao.getAcl(portal.getId(), ObjectType.PORTAL)).thenReturn(Optional.of(acl));
 		
 		// Call under test
-		manager.getPortalAcl(user, portal.getId());
+		manager.getPortalAcl(portal.getId());
 		
 		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
 	}
@@ -458,19 +434,7 @@ public class PortalManagerUnitTest {
 		
 		assertEquals("Could not find an ACL for the portal with the given id.", assertThrows(NotFoundException.class, () -> {			
 			// Call under test
-			manager.getPortalAcl(user, portal.getId());
-		}).getMessage());
-		
-		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
-	}
-	
-	@Test
-	public void testGetPortalAclWithNoUser() {
-		user = null;
-		
-		assertEquals("The user is required.", assertThrows(IllegalArgumentException.class, () -> {			
-			// Call under test
-			manager.getPortalAcl(user, portal.getId());
+			manager.getPortalAcl(portal.getId());
 		}).getMessage());
 		
 		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
@@ -482,7 +446,7 @@ public class PortalManagerUnitTest {
 		
 		assertEquals("The portalId is required.", assertThrows(IllegalArgumentException.class, () -> {			
 			// Call under test
-			manager.getPortalAcl(user, portal.getId());
+			manager.getPortalAcl(portal.getId());
 		}).getMessage());
 		
 		verifyNoMoreInteractions(mockAclDao, mockPortalDao);

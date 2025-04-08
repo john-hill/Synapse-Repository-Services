@@ -6,6 +6,7 @@ import org.sagebionetworks.repo.model.dbo.persistence.DBODoi;
 import org.sagebionetworks.repo.model.doi.DoiStatus;
 import org.sagebionetworks.repo.model.doi.v2.DoiAssociation;
 import org.sagebionetworks.repo.model.doi.v2.DoiObjectType;
+import org.sagebionetworks.repo.model.doi.v2.DoiUriVersion;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 
 public class DoiUtils {
@@ -25,7 +26,7 @@ public class DoiUtils {
 		dto.setPortalId(dbo.getPortalId().toString());
 		DoiObjectType objectType = DoiObjectType.valueOf(dbo.getObjectType());
 		if (DoiObjectType.ENTITY.equals(objectType)) {
-			// For an entity make sure to maintain the syn prefix convention, note that previously 
+			// For an entity make sure to maintain the syn prefix convention, note that before introducing portal resources
 			// the id of the entity was stored as a long, hence the conversion
 			dto.setObjectId(KeyFactory.keyToString(Long.valueOf(dbo.getObjectId())));
 		} else {
@@ -41,6 +42,7 @@ public class DoiUtils {
 		dto.setAssociatedOn(dbo.getCreatedOn());
 		dto.setUpdatedBy(dbo.getUpdatedBy().toString());
 		dto.setUpdatedOn(dbo.getUpdatedOn());
+		dto.setDoiUriVersion(DoiUriVersion.valueOf(dbo.getUriVersion()));
 		return dto;
 	}
 
@@ -80,8 +82,11 @@ public class DoiUtils {
 		if (dto.getUpdatedOn() == null) {
 			throw new IllegalArgumentException("Updated On cannot be null.");
 		}
-
+		if (dto.getDoiUriVersion() == null) {
+			throw new IllegalArgumentException("Doi Uri Version cannot be null.");
+		}
 		DBODoi dbo = new DBODoi();
+		
 		dbo.setId(Long.valueOf(dto.getAssociationId()));
 		dbo.setETag(dto.getEtag());
 		
@@ -90,7 +95,7 @@ public class DoiUtils {
 		dbo.setPortalId(Long.valueOf(dto.getPortalId()));
 		
 		if (DoiObjectType.ENTITY.equals(dto.getObjectType())) {
-			// For an entity we normalize the id to its numeric representation, note that previously 
+			// For an entity we normalize the id to its numeric representation, note that before introducing portal resources
 			// the id of the entity was stored as a long, hence the conversion
 			dbo.setObjectId(KeyFactory.stringToKey(dto.getObjectId()).toString());
 		} else {
@@ -102,10 +107,13 @@ public class DoiUtils {
 		} else {
 			dbo.setObjectVersion(dto.getObjectVersion());
 		}
+		
 		dbo.setCreatedBy(Long.valueOf(dto.getAssociatedBy()));
 		dbo.setCreatedOn(new Timestamp(dto.getAssociatedOn().getTime()));
 		dbo.setUpdatedBy(Long.valueOf(dto.getUpdatedBy()));
 		dbo.setUpdatedOn(new Timestamp(dto.getUpdatedOn().getTime()));
+		dbo.setUriVersion(dto.getDoiUriVersion());
+		
 		return dbo;
 	}
 }

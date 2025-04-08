@@ -189,6 +189,10 @@
 		{
 			"name": "TRASH_CAN",
 			"description": "TODO: Auto-generated description"
+		},		
+		{
+			"name": "PORTAL",
+			"description": "Table that stores portal information"
 		},
 		{
 			"name": "DOI",
@@ -473,10 +477,6 @@
 		{
 			"name": "PROJECT_STORAGE_LIMIT",
 			"description": "Table that stores project storage limits"
-		},
-		{
-			"name": "PORTAL",
-			"description": "Table that stores portal information"
 		},
 		{
 			"name": "CHANGE",

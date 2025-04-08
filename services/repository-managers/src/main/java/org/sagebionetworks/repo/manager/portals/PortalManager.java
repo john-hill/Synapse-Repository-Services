@@ -12,19 +12,19 @@ import org.sagebionetworks.repo.model.portals.Portal;
 
 public interface PortalManager {
 	
-	Set<ACCESS_TYPE> DEFAULT_PERMISSIONS = Set.of(ACCESS_TYPE.CREATE, ACCESS_TYPE.READ, ACCESS_TYPE.UPDATE, ACCESS_TYPE.DELETE, ACCESS_TYPE.CHANGE_PERMISSIONS, ACCESS_TYPE.MINT_DOI);
+	Set<ACCESS_TYPE> DEFAULT_PERMISSIONS = Set.of(ACCESS_TYPE.CREATE, ACCESS_TYPE.READ, ACCESS_TYPE.UPDATE, ACCESS_TYPE.DELETE, ACCESS_TYPE.CHANGE_PERMISSIONS);
 	
 	Portal createPortal(UserInfo user, CreateOrUpdatePortalRequest request);
 
-	Portal getPortal(UserInfo user, String portalId);
+	Portal getPortal(String portalId);
 	
 	Portal updatePortal(UserInfo user, String portalId, CreateOrUpdatePortalRequest request);
 	
 	void deletePortal(UserInfo user, String portalId);	
 
-	ListPortalsResponse listPortals(UserInfo user, ListPortalsRequest request);	
+	ListPortalsResponse listPortals(ListPortalsRequest request);	
 
-	AccessControlList getPortalAcl(UserInfo user, String portalId);
+	AccessControlList getPortalAcl(String portalId);
 
 	AccessControlList updatePortalAcl(UserInfo user, String portalId, AccessControlList acl);
 

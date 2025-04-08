@@ -11,6 +11,7 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DOI_OBJE
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DOI_PORTAL_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DOI_UPDATED_BY;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DOI_UPDATED_ON;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DOI_URI_VERSION;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.DDL_FILE_DOI;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_DOI;
 
@@ -28,6 +29,7 @@ import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
 import org.sagebionetworks.repo.model.dbo.portals.DBOPortal;
 import org.sagebionetworks.repo.model.doi.DoiStatus;
 import org.sagebionetworks.repo.model.doi.v2.DoiObjectType;
+import org.sagebionetworks.repo.model.doi.v2.DoiUriVersion;
 import org.sagebionetworks.repo.model.migration.MigrationType;
 
 public class DBODoi implements MigratableDatabaseObject<DBODoi, DBODoi> {
@@ -45,7 +47,8 @@ public class DBODoi implements MigratableDatabaseObject<DBODoi, DBODoi> {
 			new FieldColumn("createdBy", COL_DOI_CREATED_BY),
 			new FieldColumn("createdOn", COL_DOI_CREATED_ON),
 			new FieldColumn("updatedBy", COL_DOI_UPDATED_BY),
-			new FieldColumn("updatedOn", COL_DOI_UPDATED_ON)
+			new FieldColumn("updatedOn", COL_DOI_UPDATED_ON),
+			new FieldColumn("uriVersion", COL_DOI_URI_VERSION)
 	};
 
 	@Override
@@ -65,6 +68,7 @@ public class DBODoi implements MigratableDatabaseObject<DBODoi, DBODoi> {
 					dbo.setCreatedOn(rs.getTimestamp(COL_DOI_CREATED_ON));
 					dbo.setUpdatedBy(rs.getLong(COL_DOI_UPDATED_BY));
 					dbo.setUpdatedOn(rs.getTimestamp(COL_DOI_UPDATED_ON));
+					dbo.setUriVersion(DoiUriVersion.valueOf(rs.getString(COL_DOI_URI_VERSION)));
 					return dbo;
 				}
 
@@ -156,17 +160,22 @@ public class DBODoi implements MigratableDatabaseObject<DBODoi, DBODoi> {
 	public void setUpdatedOn(Timestamp updatedOn) {
 		this.updatedOn = updatedOn;
 	}
-
+	public String getUriVersion() {
+		return uriVersion.name();
+	}
+	public void setUriVersion(DoiUriVersion uriVersion) {
+		this.uriVersion = uriVersion;
+	}
 	@Override
 	public String toString() {
 		return String.format(
-			"DBODoi [id=%s, eTag=%s, doiStatus=%s, portalId=%s, objectId=%s, objectType=%s, objectVersion=%s, createdBy=%s, createdOn=%s, updatedBy=%s, updatedOn=%s]", id, eTag,
-			doiStatus, portalId, objectId, objectType, objectVersion, createdBy, createdOn, updatedBy, updatedOn);
+			"DBODoi [id=%s, eTag=%s, doiStatus=%s, portalId=%s, objectId=%s, objectType=%s, objectVersion=%s, createdBy=%s, createdOn=%s, updatedBy=%s, updatedOn=%s, uriVersion=%s]",
+			id, eTag, doiStatus, portalId, objectId, objectType, objectVersion, createdBy, createdOn, updatedBy, updatedOn, uriVersion);
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(createdBy, createdOn, doiStatus, eTag, id, objectId, objectType, objectVersion, portalId, updatedBy, updatedOn);
+		return Objects.hash(createdBy, createdOn, doiStatus, eTag, id, objectId, objectType, objectVersion, portalId, updatedBy, updatedOn, uriVersion);
 	}
 
 	@Override
@@ -180,7 +189,8 @@ public class DBODoi implements MigratableDatabaseObject<DBODoi, DBODoi> {
 		DBODoi other = (DBODoi) obj;
 		return Objects.equals(createdBy, other.createdBy) && Objects.equals(createdOn, other.createdOn) && doiStatus == other.doiStatus && Objects.equals(eTag, other.eTag)
 			&& Objects.equals(id, other.id) && Objects.equals(objectId, other.objectId) && objectType == other.objectType && Objects.equals(objectVersion, other.objectVersion)
-			&& Objects.equals(portalId, other.portalId) && Objects.equals(updatedBy, other.updatedBy) && Objects.equals(updatedOn, other.updatedOn);
+			&& Objects.equals(portalId, other.portalId) && Objects.equals(updatedBy, other.updatedBy) && Objects.equals(updatedOn, other.updatedOn)
+			&& uriVersion == other.uriVersion;
 	}
 
 	private Long id;
@@ -194,7 +204,7 @@ public class DBODoi implements MigratableDatabaseObject<DBODoi, DBODoi> {
 	private Timestamp createdOn;
 	private Long updatedBy;
 	private Timestamp updatedOn;
-
+	private DoiUriVersion uriVersion;
 
 	@Override
 	public MigrationType getMigratableTableType() {
@@ -207,6 +217,9 @@ public class DBODoi implements MigratableDatabaseObject<DBODoi, DBODoi> {
 			public DBODoi createBackupFromDatabaseObject(DBODoi dbo) {
 				if (dbo.getPortalId() == null) {
 					dbo.setPortalId(DBOPortal.SYNAPSE_PORTAL_ID);
+				}
+				if (dbo.getUriVersion() == null) {
+					dbo.setUriVersion(DoiUriVersion.V1);
 				}
 				return dbo;
 			};

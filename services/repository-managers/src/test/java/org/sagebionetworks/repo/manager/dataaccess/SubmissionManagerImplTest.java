@@ -1837,7 +1837,7 @@ public class SubmissionManagerImplTest {
 			manager.getUserAccessApproval(actUser, submissionId);
 		}).getMessage();
 
-		assertEquals("User should be an accessor in the submission.", result);
+		assertEquals("User is not an accessor of the submission " + submission.getId() + ".", result);
 
 		verify(mockSubmissionDao).getSubmission(submissionId);
 		verifyZeroInteractions(mockAccessApprovalDao);

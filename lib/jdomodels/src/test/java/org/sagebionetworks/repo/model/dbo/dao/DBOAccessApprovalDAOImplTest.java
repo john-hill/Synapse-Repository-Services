@@ -163,7 +163,7 @@ public class DBOAccessApprovalDAOImplTest {
 	@AfterEach
 	public void tearDown() throws Exception{
 		accessApprovalDAO.clear();
-		accessRequirementDAO.truncateAll();
+		submissionDAO.truncateAll();
 
 		if (request != null) {
 			requestDAO.delete(request.getId());
@@ -185,6 +185,8 @@ public class DBOAccessApprovalDAOImplTest {
 		if (individualGroup2 != null) {
 			userGroupDAO.delete(individualGroup2.getId());
 		}
+
+		accessRequirementDAO.truncateAll();
 	}
 	
 	public static AccessApproval newAccessApproval(UserGroup principal, AccessRequirement ar) throws DatastoreException {
@@ -922,7 +924,6 @@ public class DBOAccessApprovalDAOImplTest {
 		
 		List<Long> expected = Collections.emptyList();
 		List<Long> result = accessApprovalDAO.listApprovalsBySubmitter(accessRequirementId, submitterId, accessorIds);
-		
 		assertEquals(expected, result);
 	}
 	

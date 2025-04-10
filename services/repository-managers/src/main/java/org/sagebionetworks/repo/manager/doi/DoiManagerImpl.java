@@ -296,6 +296,8 @@ public class DoiManagerImpl implements DoiManager {
 		doi.setPublicationYear(metadata.getPublicationYear());
 		doi.setResourceType(metadata.getResourceType());
 		doi.setTitles(metadata.getTitles());
+		doi.setPublisher(metadata.getPublisher());
+		
 		// Copy from association
 		doi.setAssociationId(association.getAssociationId());
 		doi.setPortalId(association.getPortalId());

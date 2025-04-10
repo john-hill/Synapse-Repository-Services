@@ -8,7 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -65,6 +67,7 @@ import org.sagebionetworks.repo.model.dataaccess.OpenSubmissionPage;
 import org.sagebionetworks.repo.model.dataaccess.Renewal;
 import org.sagebionetworks.repo.model.dataaccess.Request;
 import org.sagebionetworks.repo.model.dataaccess.ResearchProject;
+import org.sagebionetworks.repo.model.dataaccess.SortDirection;
 import org.sagebionetworks.repo.model.dataaccess.Submission;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionInfo;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionInfoPage;
@@ -81,6 +84,9 @@ import org.sagebionetworks.repo.model.dataaccess.SubmissionSortField;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionState;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionStateChangeRequest;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionStatus;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchRequest;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResponse;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResult;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.ResearchProjectDAO;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.SubmissionDAO;
 import org.sagebionetworks.repo.model.message.ChangeType;
@@ -1892,5 +1898,149 @@ public class SubmissionManagerImplTest {
 		boolean isAccessor = manager.isUserAnAccessor(mockUser, submission);
 
 		assertTrue(isAccessor);
+	}
+
+	@Test
+	public void testlistUserSubmissionSearchResultWithoutRequest() {
+
+		String result = assertThrows(IllegalArgumentException.class, () -> {
+			// Call under test
+			manager.listUserSubmissionSearchResult(mockUser, null);
+		}).getMessage();
+
+		assertEquals("request is required.", result);
+
+		verifyZeroInteractions(mockSubmissionDao);
+		verifyZeroInteractions(mockAccessApprovalDao);
+		verifyZeroInteractions(mockAccessRequirementDao);
+	}
+
+	@Test
+	public void testlistUserSubmissionSearchResultWithoutUser() {
+
+		String result = assertThrows(IllegalArgumentException.class, () -> {
+			// Call under test
+			manager.listUserSubmissionSearchResult(null, new UserSubmissionSearchRequest());
+		}).getMessage();
+
+		assertEquals("userInfo is required.", result);
+
+		verifyZeroInteractions(mockSubmissionDao);
+		verifyZeroInteractions(mockAccessApprovalDao);
+		verifyZeroInteractions(mockAccessRequirementDao);
+	}
+
+	@Test
+	public void listUserSubmissionSearchResult() {
+		List<Submission> submissionList = List.of(submission);
+
+		when(mockSubmissionDao.searchAllSubmissions(any(), anyList(), any(), any(), any(), any(), anyLong(), anyLong()))
+				.thenReturn(submissionList);
+		when(mockAccessApprovalDao.searchAccessApprovalsForSubmission(anySet(), any()))
+				.thenReturn(Map.of(Long.parseLong(submission.getId()), accessApproval));
+		when(mockAccessRequirementDao.getAccessRequirementNames(anySet())).thenReturn(Map.of(
+				Long.parseLong(accessRequirementId), "ar1"
+		));
+
+		UserSubmissionSearchRequest request = new UserSubmissionSearchRequest();
+
+		UserSubmissionSearchResult res = new UserSubmissionSearchResult();
+		res.setId(submissionId);
+		res.setAccessRequirementId(accessRequirementId);
+		res.setAccessRequirementVersion(accessRequirementVersion.toString());
+		res.setAccessRequirementName("ar1");
+		res.setSubmitterId(userId);
+		res.setCreatedOn(submission.getSubmittedOn());
+		res.setModifiedOn(submission.getModifiedOn());
+		res.setState(submission.getState());
+		res.setUserAccessApproval(accessApproval);
+
+		UserSubmissionSearchResponse expected = new UserSubmissionSearchResponse();
+		expected.setResults(List.of(res));
+
+		// Call under test
+		UserSubmissionSearchResponse response = manager.listUserSubmissionSearchResult(mockUser, request);
+		assertNotNull(response);
+		assertEquals(expected, response);
+
+		List<SubmissionSearchSort> sort = List.of(new SubmissionSearchSort().setField(SubmissionSortField.CREATED_ON)
+				.setDirection(SortDirection.DESC));
+
+		verify(mockSubmissionDao).searchAllSubmissions(SubmissionReviewerFilterType.ALL, sort, "1",
+				request.getAccessRequirementId(), null, request.getSubmissionState(),
+				NextPageToken.DEFAULT_LIMIT + 1, NextPageToken.DEFAULT_OFFSET);
+
+		verify(mockAccessApprovalDao).searchAccessApprovalsForSubmission(Set.of(Long.parseLong(submission.getId())), userId);
+		verify(mockAccessRequirementDao).getAccessRequirementNames(Set.of(Long.parseLong(accessRequirementId)));
+	}
+
+	@Test
+	public void listUserSubmissionSearchResultWithNoSubmission() {
+		when(mockSubmissionDao.searchAllSubmissions(any(), anyList(), any(), any(), any(), any(), anyLong(), anyLong()))
+				.thenReturn(Collections.emptyList());
+
+		UserSubmissionSearchRequest request = new UserSubmissionSearchRequest();
+
+		UserSubmissionSearchResponse expected = new UserSubmissionSearchResponse();
+		expected.setResults(Collections.emptyList());
+
+		// Call under test
+		UserSubmissionSearchResponse response = manager.listUserSubmissionSearchResult(mockUser, request);
+		assertNotNull(response);
+		assertEquals(expected, response);
+
+		List<SubmissionSearchSort> sort = List.of(new SubmissionSearchSort().setField(SubmissionSortField.CREATED_ON)
+				.setDirection(SortDirection.DESC));
+
+		verify(mockSubmissionDao).searchAllSubmissions(SubmissionReviewerFilterType.ALL, sort, "1",
+				request.getAccessRequirementId(), null, request.getSubmissionState(),
+				NextPageToken.DEFAULT_LIMIT + 1, NextPageToken.DEFAULT_OFFSET);
+
+		verifyZeroInteractions(mockAccessApprovalDao);
+		verifyZeroInteractions(mockAccessRequirementDao);
+	}
+
+	@Test
+	public void listUserSubmissionSearchResultWithNoAccessApproval() {
+		List<Submission> submissionList = List.of(submission);
+
+		when(mockSubmissionDao.searchAllSubmissions(any(), anyList(), any(), any(), any(), any(), anyLong(), anyLong()))
+				.thenReturn(submissionList);
+		when(mockAccessApprovalDao.searchAccessApprovalsForSubmission(anySet(), any()))
+				.thenReturn(Collections.emptyMap());
+		when(mockAccessRequirementDao.getAccessRequirementNames(anySet())).thenReturn(Map.of(
+				Long.parseLong(accessRequirementId), "ar1"
+		));
+
+		UserSubmissionSearchRequest request = new UserSubmissionSearchRequest();
+
+		UserSubmissionSearchResult res = new UserSubmissionSearchResult();
+		res.setId(submissionId);
+		res.setAccessRequirementId(accessRequirementId);
+		res.setAccessRequirementVersion(accessRequirementVersion.toString());
+		res.setAccessRequirementName("ar1");
+		res.setSubmitterId(userId);
+		res.setCreatedOn(submission.getSubmittedOn());
+		res.setModifiedOn(submission.getModifiedOn());
+		res.setState(submission.getState());
+		res.setUserAccessApproval(null);
+
+		UserSubmissionSearchResponse expected = new UserSubmissionSearchResponse();
+		expected.setResults(List.of(res));
+
+		// Call under test
+		UserSubmissionSearchResponse response = manager.listUserSubmissionSearchResult(mockUser, request);
+		assertNotNull(response);
+		assertEquals(expected, response);
+
+		List<SubmissionSearchSort> sort = List.of(new SubmissionSearchSort().setField(SubmissionSortField.CREATED_ON)
+				.setDirection(SortDirection.DESC));
+
+		verify(mockSubmissionDao).searchAllSubmissions(SubmissionReviewerFilterType.ALL, sort, "1",
+				request.getAccessRequirementId(), null, request.getSubmissionState(),
+				NextPageToken.DEFAULT_LIMIT + 1, NextPageToken.DEFAULT_OFFSET);
+
+		verify(mockAccessApprovalDao).searchAccessApprovalsForSubmission(Set.of(Long.parseLong(submission.getId())), userId);
+		verify(mockAccessRequirementDao).getAccessRequirementNames(Set.of(Long.parseLong(accessRequirementId)));
 	}
 }

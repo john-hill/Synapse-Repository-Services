@@ -1145,6 +1145,7 @@ public class UrlHelpers {
 			ACCESS_REQUIREMENT_WITH_REQUIREMENT_ID + "/submissions";
 	public static final String ACCESS_REQUIREMENT_ID_LIST_APPROVED_SUBMISISON_INFO =
 			ACCESS_REQUIREMENT_WITH_REQUIREMENT_ID + "/approvedSubmissionInfo";
+	public static final String DATA_ACCESS_SUBMISSION_USER_REQUESTS = DATA_ACCESS_SUBMISSION + "/userRequests";
 	public static final String ACCESS_REQUIREMENT_ID_STATUS =
 			ACCESS_REQUIREMENT_WITH_REQUIREMENT_ID + "/status";
 	public static final String RESTRICTION_INFORMATION = "/restrictionInformation";

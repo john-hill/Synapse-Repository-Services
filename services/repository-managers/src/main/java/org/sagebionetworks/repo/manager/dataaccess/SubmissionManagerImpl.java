@@ -23,7 +23,6 @@ import org.sagebionetworks.repo.model.NextPageToken;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
-import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dao.subscription.SubscriptionDAO;
 import org.sagebionetworks.repo.model.dataaccess.AccessRequirementStatus;
 import org.sagebionetworks.repo.model.dataaccess.AccessorChange;
@@ -35,6 +34,7 @@ import org.sagebionetworks.repo.model.dataaccess.OpenSubmission;
 import org.sagebionetworks.repo.model.dataaccess.OpenSubmissionPage;
 import org.sagebionetworks.repo.model.dataaccess.Renewal;
 import org.sagebionetworks.repo.model.dataaccess.RequestInterface;
+import org.sagebionetworks.repo.model.dataaccess.SortDirection;
 import org.sagebionetworks.repo.model.dataaccess.Submission;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionInfo;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionInfoPage;
@@ -50,6 +50,9 @@ import org.sagebionetworks.repo.model.dataaccess.SubmissionSortField;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionState;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionStateChangeRequest;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionStatus;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchRequest;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResponse;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResult;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.ResearchProjectDAO;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.SubmissionDAO;
 import org.sagebionetworks.repo.model.message.ChangeType;
@@ -573,6 +576,51 @@ public class SubmissionManagerImpl implements SubmissionManager{
 			}
 		}
 		return expiredOn;
+	}
+
+	@Override
+	public UserSubmissionSearchResponse listUserSubmissionSearchResult(UserInfo userInfo, UserSubmissionSearchRequest request) {
+		ValidateArgument.required(userInfo, "userInfo");
+		ValidateArgument.required(request, "request");
+
+		NextPageToken token = new NextPageToken(request.getNextPageToken());
+		List<SubmissionSearchSort> sort = request.getSort() == null || request.getSort().isEmpty() ?
+				List.of(new SubmissionSearchSort().setField(SubmissionSortField.CREATED_ON).setDirection(SortDirection.DESC)) : request.getSort();
+
+		List<Submission> submissions = submissionDao.searchAllSubmissions(SubmissionReviewerFilterType.ALL,
+				sort, userInfo.getId().toString(),request.getAccessRequirementId(), null, request.getSubmissionState(),
+				token.getLimitForQuery(), token.getOffset());
+
+		if (submissions.isEmpty()) {
+			return new UserSubmissionSearchResponse().setResults(Collections.emptyList());
+		}
+
+		Set<Long> submissionIds = submissions.stream().map(s -> Long.valueOf(s.getId())).collect(Collectors.toSet());
+		Map<Long, AccessApproval> accessApprovalForSubmission = accessApprovalDao.searchAccessApprovalsForSubmission(submissionIds, userInfo.getId().toString());
+
+		Set<Long> arIds = submissions.stream().map(s -> Long.valueOf(s.getAccessRequirementId())).collect(Collectors.toSet());
+		Map<Long, String> arNamesMap = accessRequirementDao.getAccessRequirementNames(arIds);
+
+		List<UserSubmissionSearchResult> resultList = new ArrayList<>();
+
+		for(Submission submission : submissions){
+			UserSubmissionSearchResult result = new UserSubmissionSearchResult();
+			result.setId(submission.getId());
+			result.setCreatedOn(submission.getSubmittedOn());
+			result.setModifiedOn(submission.getModifiedOn());
+			result.setAccessRequirementId(submission.getAccessRequirementId());
+			result.setAccessRequirementVersion(submission.getAccessRequirementVersion().toString());
+			result.setAccessRequirementName(arNamesMap.get(Long.parseLong(submission.getAccessRequirementId())));
+			result.setSubmitterId(submission.getSubmittedBy());
+			result.setState(submission.getState());
+			result.setUserAccessApproval(accessApprovalForSubmission.get(Long.parseLong(submission.getId())));
+			resultList.add(result);
+		}
+
+		UserSubmissionSearchResponse response = new UserSubmissionSearchResponse();
+		response.setResults(resultList);
+		response.setNextPageToken(token.getNextPageTokenForCurrentResults(submissions));
+		return response;
 	}
 
 	@Override

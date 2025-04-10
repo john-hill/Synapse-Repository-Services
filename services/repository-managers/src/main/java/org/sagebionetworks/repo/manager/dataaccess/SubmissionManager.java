@@ -14,6 +14,8 @@ import org.sagebionetworks.repo.model.dataaccess.SubmissionSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionSearchResponse;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionStateChangeRequest;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionStatus;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchRequest;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResponse;
 
 public interface SubmissionManager {
 
@@ -115,5 +117,14 @@ public interface SubmissionManager {
 	 * @return
 	 */
 	AccessApproval getUserAccessApproval(UserInfo userInfo, String submissionId);
+
+	/**
+	 * List a page of submissions with access approval.
+	 *
+	 * @param userInfo
+	 * @param request
+	 * @return
+	 */
+	 UserSubmissionSearchResponse listUserSubmissionSearchResult(UserInfo userInfo, UserSubmissionSearchRequest request);
 
 }

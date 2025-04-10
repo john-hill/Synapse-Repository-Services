@@ -25,6 +25,8 @@ import org.sagebionetworks.repo.model.dataaccess.SubmissionSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionSearchResponse;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionStateChangeRequest;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionStatus;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchRequest;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -145,4 +147,11 @@ public class DataAccessServiceImpl implements DataAccessService {
 		UserInfo user = userManager.getUserInfo(userId);
 		return dataAccessSubmissionManager.getUserAccessApproval(user, submissionId);
 	}
+
+	@Override
+	public UserSubmissionSearchResponse listUserSubmissionSearchResult(Long userId, UserSubmissionSearchRequest request) {
+		UserInfo user = userManager.getUserInfo(userId);
+		return dataAccessSubmissionManager.listUserSubmissionSearchResult(user, request);
+	}
+
 }

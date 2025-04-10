@@ -111,7 +111,7 @@ public class IT065SynapseJavaClientDoiV2Test {
 		
 		externalDoi = createOrUpdateDoiRetrieveAndValidate(externalDoi);
 		
-		assertEquals(externalDoi, synapse.getDoiAssociation(externalDoi.getPortalId(), externalDoi.getObjectId(), DoiObjectType.PORTAL_RESOURCE, null));
+		assertEquals(externalDoi, synapse.getDoi(externalDoi.getPortalId(), externalDoi.getObjectId(), DoiObjectType.PORTAL_RESOURCE, null));
 		assertEquals("https://myportal.synapse.org/doi?objectId=DATASET.123", synapse.getPortalUrl(externalDoi.getPortalId(), externalDoi.getObjectId(), DoiObjectType.PORTAL_RESOURCE, null));
 		
 	}

@@ -35,16 +35,6 @@ public interface DataAccessAuthorizationManager {
 	 * @return The {@link AuthorizationStatus} defining the user access
 	 */
 	AuthorizationStatus canReviewAccessRequirementSubmissions(UserInfo userInfo, String accessRequirementId);
-
-	/**
-	 * Checks if the given user can fetch submissions information for the given access requirement.
-	 *
-	 * @param userInfo The user fetching the access requirement submissions
-	 * @param accessRequirementId The id of the access requirement
-	 * @param accessorIds the set of accessor id for the submission
-	 * @return The {@link AuthorizationStatus} defining the user access
-	 */
-	AuthorizationStatus canFetchSubmissionInformation(UserInfo userInfo, String accessRequirementId, Set<Long> accessorIds);
 	
 	/**
 	 * Checks if the given user is the reviewer of at least on AR.

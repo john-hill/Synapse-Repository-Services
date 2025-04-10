@@ -309,36 +309,6 @@ public class DataAccessAuthorizationManagerUnitTest {
 	}
 
 	@Test
-	public void testAccessorCanFetchSubmissionInformation() {
-		String accessRequirementId = "123";
-		Set<Long> accessorIds = Set.of(user.getId(), 24L);
-		// Call under test
-		AuthorizationStatus result = manager.canFetchSubmissionInformation(user, accessRequirementId, accessorIds);
-
-		assertEquals(AuthorizationStatus.authorized(), result);
-
-		verifyZeroInteractions(mockVerificationDao);
-		verifyZeroInteractions(mockAclDao);
-
-	}
-
-	@Test
-	public void testACTCanFetchSubmissionInformationWithNoAccessor() {
-
-		user.setGroups(Collections.singleton(BOOTSTRAP_PRINCIPAL.ACCESS_AND_COMPLIANCE_GROUP.getPrincipalId()));
-
-		String accessRequirementId = "123";
-
-		// Call under test
-		AuthorizationStatus result = manager.canFetchSubmissionInformation(user, accessRequirementId, Collections.emptySet());
-
-		assertEquals(AuthorizationStatus.authorized(), result);
-
-		verifyZeroInteractions(mockVerificationDao);
-		verifyZeroInteractions(mockAclDao);
-	}
-	
-	@Test
 	public void testIsAccessRequirementReviewer() {
 		
 		when(mockAclDao.hasAccessToResourceOfType(any(), any(), any())).thenReturn(true);

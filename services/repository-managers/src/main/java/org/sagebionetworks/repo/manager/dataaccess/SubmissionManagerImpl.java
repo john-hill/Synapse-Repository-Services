@@ -438,10 +438,11 @@ public class SubmissionManagerImpl implements SubmissionManager{
 		
 		Submission submission = submissionDao.getSubmission(submissionId);
 
-		Set<Long> accessorIds = submission.getAccessorChanges().stream()
-				.map(accessorChange -> Long.parseLong(accessorChange.getUserId())).collect(Collectors.toSet());
+		if(isUserAnAccessor(userInfo, submission)){
+			return submission;
+		}
 
-		authorizationManager.canFetchSubmissionInformation(userInfo, submission.getAccessRequirementId(), accessorIds)
+		authorizationManager.canReviewAccessRequirementSubmissions(userInfo, submission.getAccessRequirementId())
 			.checkAuthorizationOrElseThrow();
 
 		return submission;

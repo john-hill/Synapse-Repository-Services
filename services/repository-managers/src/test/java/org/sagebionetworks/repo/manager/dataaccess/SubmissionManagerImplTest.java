@@ -1747,34 +1747,64 @@ public class SubmissionManagerImplTest {
 	}
 	
 	@Test
-	public void testGetSubmission() {
-		
+	public void testGetSubmissionByACT() {
+
 		when(mockSubmissionDao.getSubmission(any())).thenReturn(submission);
-		when(mockAuthManager.canFetchSubmissionInformation(any(), any(), any())).thenReturn(AuthorizationStatus.authorized());
+		when(mockAuthManager.canReviewAccessRequirementSubmissions(any(), any())).thenReturn(AuthorizationStatus.authorized());
 		
 		// Call under test
 		Submission result = manager.getSubmission(actUser, submissionId);
 		assertEquals(submission, result);
 		
 		verify(mockSubmissionDao).getSubmission(submissionId);
-		verify(mockAuthManager).canFetchSubmissionInformation(actUser, accessRequirementId, Sets.newHashSet(Long.parseLong(userId)));
+		verify(mockAuthManager).canReviewAccessRequirementSubmissions(actUser, accessRequirementId);
+	}
+
+	@Test
+	public void testGetSubmissionByAccessor() {
+
+		when(mockSubmissionDao.getSubmission(any())).thenReturn(submission);
+
+		// Call under test.
+		Submission result = manager.getSubmission(mockUser, submissionId);
+		assertNotNull(result);
+		assertEquals(result, submission);
+
+		verify(mockSubmissionDao).getSubmission(submissionId);
+		verifyZeroInteractions(mockAuthManager);
+	}
+
+	@Test
+	public void testGetSubmissionByNonACTByNonAccessorByValidatedUser() {
+		lenient().when(mockUser.getId()).thenReturn(2L);
+		when(mockSubmissionDao.getSubmission(any())).thenReturn(submission);
+		when(mockAuthManager.canReviewAccessRequirementSubmissions(any(), any())).thenReturn(AuthorizationStatus.authorized());
+
+		// Call under test
+		Submission result = manager.getSubmission(mockUser, submissionId);
+		assertEquals(submission, result);
+
+		verify(mockSubmissionDao).getSubmission(submissionId);
+		verify(mockAuthManager).canReviewAccessRequirementSubmissions(mockUser, accessRequirementId);
 	}
 	
 	@Test
-	public void testGetSubmissionWithUnauthorized() {
-		
+	public void testGetSubmissionByUnauthorizedAndByNonAccessor() {
+		//user is nighter  an accessor nor authorized
+		lenient().when(mockUser.getId()).thenReturn(2L);
+
 		when(mockSubmissionDao.getSubmission(any())).thenReturn(submission);
-		when(mockAuthManager.canFetchSubmissionInformation(any(), any(), any())).thenReturn(AuthorizationStatus.accessDenied("nope"));
+		when(mockAuthManager.canReviewAccessRequirementSubmissions(any(), any())).thenReturn(AuthorizationStatus.accessDenied("nope"));
 		
 		String result = assertThrows(UnauthorizedException.class, () -> {			
-			// Call under test
+			// Call under test.
 			manager.getSubmission(mockUser, submissionId);
 		}).getMessage();
 		
 		assertEquals("nope", result);
 		
 		verify(mockSubmissionDao).getSubmission(submissionId);
-		verify(mockAuthManager).canFetchSubmissionInformation(mockUser, accessRequirementId,Sets.newHashSet(Long.parseLong(userId)));
+		verify(mockAuthManager).canReviewAccessRequirementSubmissions(mockUser, accessRequirementId);
 	}
 	
 	@Test

@@ -341,7 +341,8 @@ public class DataAccessController {
 	}
 	
 	/**
-	 * Fetch a submission by its id. If the user is a not part of the ACT they must be validated and assigned as reviewers of the AR submissions in order to fetch the submission.
+	 * Fetch a submission by its id. If the user is a not accessor to the submission or part of the ACT,
+	 * they must be validated and assigned as reviewers of the AR submissions in order to fetch the submission.
 	 * 
 	 * @param userId
 	 * @param submissionId

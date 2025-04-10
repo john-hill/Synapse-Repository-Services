@@ -1751,11 +1751,11 @@ public class SubmissionManagerImplTest {
 
 		when(mockSubmissionDao.getSubmission(any())).thenReturn(submission);
 		when(mockAuthManager.canReviewAccessRequirementSubmissions(any(), any())).thenReturn(AuthorizationStatus.authorized());
-		
+
 		// Call under test
 		Submission result = manager.getSubmission(actUser, submissionId);
 		assertEquals(submission, result);
-		
+
 		verify(mockSubmissionDao).getSubmission(submissionId);
 		verify(mockAuthManager).canReviewAccessRequirementSubmissions(actUser, accessRequirementId);
 	}
@@ -1795,14 +1795,14 @@ public class SubmissionManagerImplTest {
 
 		when(mockSubmissionDao.getSubmission(any())).thenReturn(submission);
 		when(mockAuthManager.canReviewAccessRequirementSubmissions(any(), any())).thenReturn(AuthorizationStatus.accessDenied("nope"));
-		
-		String result = assertThrows(UnauthorizedException.class, () -> {			
+
+		String result = assertThrows(UnauthorizedException.class, () -> {
 			// Call under test.
 			manager.getSubmission(mockUser, submissionId);
 		}).getMessage();
-		
+
 		assertEquals("nope", result);
-		
+
 		verify(mockSubmissionDao).getSubmission(submissionId);
 		verify(mockAuthManager).canReviewAccessRequirementSubmissions(mockUser, accessRequirementId);
 	}
@@ -1880,13 +1880,28 @@ public class SubmissionManagerImplTest {
 	}
 
 	@Test
-	public void testGetUserAccessApproval() {
+	public void testGetUserAccessApprovalWithUserHavingNoApproval() {
 
+		when(mockSubmissionDao.getSubmission(any())).thenReturn(submission);
+		when(mockAccessApprovalDao.getByPrimaryKey(any(), any(), any(), any())).thenReturn(null);
+
+		// Call under test
+		AccessApproval result = manager.getUserAccessApproval(mockUser, submissionId);
+		assertNull(result);
+
+		verify(mockSubmissionDao).getSubmission(submissionId);
+		verify(mockAccessApprovalDao).getByPrimaryKey(Long.parseLong(submission.getAccessRequirementId()), submission.getAccessRequirementVersion(),
+				submission.getSubmittedBy(), userId);
+	}
+
+	@Test
+	public void testGetUserAccessApproval() {
 		when(mockSubmissionDao.getSubmission(any())).thenReturn(submission);
 		when(mockAccessApprovalDao.getByPrimaryKey(any(), any(), any(), any())).thenReturn(accessApproval);
 
 		// Call under test
-		manager.getUserAccessApproval(mockUser, submissionId);
+		AccessApproval result = manager.getUserAccessApproval(mockUser, submissionId);
+		assertEquals(accessApproval, result);
 
 		verify(mockSubmissionDao).getSubmission(submissionId);
 		verify(mockAccessApprovalDao).getByPrimaryKey(Long.parseLong(submission.getAccessRequirementId()), submission.getAccessRequirementVersion(),
@@ -1907,26 +1922,26 @@ public class SubmissionManagerImplTest {
 	@Test
 	public void testIsUserAnAccessorWithNullAccessorChanges() {
 		submission.setAccessorChanges(null);
+
 		// Call under test
 		boolean isAccessor = manager.isUserAnAccessor(mockUser, submission);
-
 		assertFalse(isAccessor);
 	}
 
 	@Test
 	public void testIsUserAnAccessorWithOutAccessorChanges() {
 		submission.setAccessorChanges(Collections.emptyList());
+
 		// Call under test
 		boolean isAccessor = manager.isUserAnAccessor(mockUser, submission);
-
 		assertFalse(isAccessor);
 	}
 
 	@Test
 	public void testIsUserAnAccessor() {
+
 		// Call under test
 		boolean isAccessor = manager.isUserAnAccessor(mockUser, submission);
-
 		assertTrue(isAccessor);
 	}
 

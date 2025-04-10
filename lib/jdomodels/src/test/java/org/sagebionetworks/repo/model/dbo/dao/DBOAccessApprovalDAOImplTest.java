@@ -1356,13 +1356,27 @@ public class DBOAccessApprovalDAOImplTest {
 	}
 
 	@Test
-	public void testSearchAccessApprovalsForSubmissionWithoutNonExistingAccessApproval() {
+	public void testSearchAccessApprovalsForSubmissionWithNonExistingAccessor() {
 		Date createdOn = new Date();
 		Long s1 = Long.parseLong(submissionDAO.createSubmission(createSubmission(accessRequirement, researchProject, System.currentTimeMillis(),
 				individualGroup.getId()).setSubmittedOn(createdOn)).getSubmissionId());
 
 		//call under test
 		Map<Long, AccessApproval> result = accessApprovalDAO.searchAccessApprovalsForSubmission(Set.of(s1), "123");
+		assertTrue(result.isEmpty());
+	}
+
+	@Test
+	public void testSearchAccessApprovalsForSubmissionWithNonExistingSubmissionID() {
+		Date createdOn = new Date();
+		Long s1 = Long.parseLong(submissionDAO.createSubmission(createSubmission(accessRequirement, researchProject, System.currentTimeMillis(),
+				individualGroup.getId()).setSubmittedOn(createdOn)).getSubmissionId());
+
+		AccessApproval ap1 = newAccessApproval(individualGroup, accessRequirement);
+		accessApprovalDAO.create(ap1);
+
+		//call under test
+		Map<Long, AccessApproval> result = accessApprovalDAO.searchAccessApprovalsForSubmission(Set.of(123L), individualGroup.getId());
 		assertTrue(result.isEmpty());
 	}
 

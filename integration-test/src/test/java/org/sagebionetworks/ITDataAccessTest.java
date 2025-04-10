@@ -941,7 +941,7 @@ public class ITDataAccessTest {
 	}
 
 	@Test
-	public void testlistUserSubmissionSearchResult() throws SynapseException, JSONObjectAdapterException {
+	public void testListUserSubmissionSearchResult() throws SynapseException, JSONObjectAdapterException {
 		SynapseClient synapseOne = new SynapseClientImpl();
 		userOneId = SynapseClientHelper.createUser(adminSynapse, synapseOne, true, true);
 		SynapseClient synapseTwo = new SynapseClientImpl();
@@ -1087,7 +1087,8 @@ public class ITDataAccessTest {
 				.setRequestEtag(request.getEtag())
 				.setSubjectId(project.getId())
 				.setSubjectType(RestrictableObjectType.ENTITY));
-		
+
+		submissionId = submissionStatus.getSubmissionId();
 		Submission submission = adminSynapse.getDataAccessSubmission(submissionStatus.getSubmissionId());
 		
 		// The submission stores a "snapshot" or copy of the research project object in a serialized field, is that stored correctly?

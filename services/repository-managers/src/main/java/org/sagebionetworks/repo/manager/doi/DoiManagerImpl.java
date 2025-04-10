@@ -156,8 +156,12 @@ public class DoiManagerImpl implements DoiManager {
 	}
 
 	DataciteMetadata createOrUpdateDataciteMetadata(Doi dto) throws RecoverableMessageException {
+		ValidateArgument.required(dto.getPortalId(), "The portalId");
 		ValidateArgument.required(dto.getDoiUri(), "The doiUri");
 		ValidateArgument.required(dto.getDoiUrl(), "The doiUrl");
+		
+		// Makes sure the publisher of the DOI is managed by Synapse and set to the Portal name
+		dto.setPublisher(portalManager.getPortal(dto.getPortalId()).getName());
 		
 		try {
 			dataciteClient.registerMetadata(dto, dto.getDoiUri());

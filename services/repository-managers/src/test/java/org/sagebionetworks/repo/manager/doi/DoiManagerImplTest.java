@@ -281,10 +281,18 @@ public class DoiManagerImplTest {
 	public void testCreateOrUpdateDataciteMetadata() throws Exception {
 		inputDto.setDoiUri(doiUri);
 		inputDto.setDoiUrl(doiUrl);
+		inputDto.setPublisher("Bogus");
+		
+		when(mockPortalManager.getPortal(inputDto.getPortalId())).thenReturn(new Portal().setName("My Portal"));
+		
 		// Call under test
 		doiManager.createOrUpdateDataciteMetadata(inputDto);
+		
+		assertEquals("My Portal", inputDto.getPublisher());
+		
 		verify(mockDataciteClient).registerMetadata(inputDto, doiUri);
 		verify(mockDataciteClient).registerDoi(doiUri, doiUrl);
+		
 		verify(mockDataciteClient, never()).deactivate(any(String.class));
 	}
 
@@ -293,10 +301,10 @@ public class DoiManagerImplTest {
 		inputDto.setDoiUri(null);
 		inputDto.setDoiUrl(doiUrl);
 		
-		assertThrows(IllegalArgumentException.class, () -> {
+		assertEquals("The doiUri is required.", assertThrows(IllegalArgumentException.class, () -> {
 			// Call under test
 			doiManager.createOrUpdateDataciteMetadata(inputDto);
-		});
+		}).getMessage());
 	}
 
 	@Test
@@ -304,16 +312,31 @@ public class DoiManagerImplTest {
 		inputDto.setDoiUri(doiUri);
 		inputDto.setDoiUrl(null);
 		
-		assertThrows(IllegalArgumentException.class, () -> {
+		assertEquals("The doiUrl is required.", assertThrows(IllegalArgumentException.class, () -> {
 			// Call under test
 			doiManager.createOrUpdateDataciteMetadata(inputDto);
-		});
+		}).getMessage());
+	}
+	
+	@Test
+	public void testCreateOrUpdateDataciteMetadataWithNoPortalId() throws Exception {
+		inputDto.setPortalId(null);
+		inputDto.setDoiUri(doiUri);
+		inputDto.setDoiUrl(doiUrl);
+		
+		assertEquals("The portalId is required.", assertThrows(IllegalArgumentException.class, () -> {
+			// Call under test
+			doiManager.createOrUpdateDataciteMetadata(inputDto);
+		}).getMessage());
 	}
 
 	@Test
 	public void testCreateOrUpdateDataciteMetadataWithNotReady() throws Exception {
 		inputDto.setDoiUri(doiUri);
 		inputDto.setDoiUrl(doiUrl);
+		
+		when(mockPortalManager.getPortal(inputDto.getPortalId())).thenReturn(new Portal().setName("My Portal"));
+		
 		doThrow(new NotReadyException(new AsynchronousJobStatus())).when(mockDataciteClient).registerMetadata(any(DataciteMetadata.class), any(String.class));
 		
 		assertThrows(RecoverableMessageException.class, () -> {			
@@ -326,6 +349,9 @@ public class DoiManagerImplTest {
 	public void testCreateOrUpdateDataciteMetadataWithServiceUnavailable() throws Exception {
 		inputDto.setDoiUri(doiUri);
 		inputDto.setDoiUrl(doiUrl);
+		
+		when(mockPortalManager.getPortal(inputDto.getPortalId())).thenReturn(new Portal().setName("My Portal"));
+		
 		doThrow(new ServiceUnavailableException()).when(mockDataciteClient).registerMetadata(any(DataciteMetadata.class), any(String.class));
 		
 		assertThrows(RecoverableMessageException.class, () -> {

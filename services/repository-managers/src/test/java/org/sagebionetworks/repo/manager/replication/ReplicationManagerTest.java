@@ -8,9 +8,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
@@ -201,9 +203,12 @@ public class ReplicationManagerTest {
 		when(mockIndexConnectionFactory.connectToFirstIndex()).thenReturn(mockTableIndexManager);
 		when(mockObjectDataProviderFactory.getObjectDataProvider(any())).thenReturn(mockObjectDataProvider);
 		when(mockObjectDataProvider.getObjectData(any(), anyInt())).thenReturn(entityData.iterator());
+		
+		doNothing().when(managerSpy).fireReplicationEvents(mockTableIndexManager, ReplicationType.ENTITY,
+				List.of(333L,111L,222L), ReplicationManagerImpl.MAX_MESSAGE_PAGE_SIZE);
 
 		// call under test
-		manager.replicate(changes);
+		managerSpy.replicate(changes);
 
 		verify(mockIndexConnectionFactory).connectToFirstIndex();
 		verify(mockObjectDataProviderFactory).getObjectDataProvider(mainType);
@@ -216,21 +221,8 @@ public class ReplicationManagerTest {
 	}
 	
 	@Test
-	public void testReplicateChangesWithEvents() throws RecoverableMessageException, Exception {
-		ReplicatedEvent one = new ReplicatedEvent().setReplicatedObjectId(1L);
-		ReplicatedEvent two = new ReplicatedEvent().setReplicatedObjectId(2L);
-		
-		doReturn(List.of(one,two)).when(managerSpy).updateReplicationTables(any());
-
-		// call under test
-		managerSpy.replicate(changes);
-		
-		verify(mockMessagePublisher).fireLocalStackMessage(one);
-		verify(mockMessagePublisher).fireLocalStackMessage(two);
-	}
-
-	@Test
 	public void testReplicateSingle() {
+
 		String entityId = "syn123";
 		List<Long> entityids = Collections.singletonList(KeyFactory.stringToKey(entityId));
 
@@ -242,9 +234,12 @@ public class ReplicationManagerTest {
 		when(mockIndexConnectionFactory.connectToFirstIndex()).thenReturn(mockTableIndexManager);
 		when(mockObjectDataProviderFactory.getObjectDataProvider(any())).thenReturn(mockObjectDataProvider);
 		when(mockObjectDataProvider.getObjectData(any(), anyInt())).thenReturn(entityData.iterator());
+		
+		doNothing().when(managerSpy).fireReplicationEvents(mockTableIndexManager, ReplicationType.ENTITY,
+				List.of(123L), ReplicationManagerImpl.MAX_MESSAGE_PAGE_SIZE);
 
 		// call under test
-		manager.replicate(mainType, entityId);
+		managerSpy.replicate(mainType, entityId);
 
 		verify(mockIndexConnectionFactory).connectToFirstIndex();
 		verify(mockObjectDataProviderFactory).getObjectDataProvider(mainType);
@@ -679,6 +674,8 @@ public class ReplicationManagerTest {
 	
 	@Test
 	public void testUpdateReplicationTables() {
+		doNothing().when(managerSpy).fireReplicationEvents(mockTableIndexManager, ReplicationType.ENTITY,
+				List.of(2L, 1L), ReplicationManagerImpl.MAX_MESSAGE_PAGE_SIZE);
 		when(mockIndexConnectionFactory.connectToFirstIndex()).thenReturn(mockTableIndexManager);
 		when(mockObjectDataProviderFactory.getObjectDataProvider(ReplicationType.ENTITY))
 				.thenReturn(mockObjectDataProvider);
@@ -688,22 +685,34 @@ public class ReplicationManagerTest {
 		ReplicationDataGroup group = new ReplicationDataGroup(ReplicationType.ENTITY);
 		group.addForCreateOrUpdate(1L);
 		group.addForDelete(2L);
-		Map<Long, String> beforePathIds = Map.of(1L, "[22,1]", 2L, "[33,2]");
-		Map<Long, String> afterPathIds = Map.of(1L, "[33,1]");
-		when(mockTableIndexManager.getReplicatedPathIds(ReplicationType.ENTITY, List.of(2L, 1L)))
-				.thenReturn(beforePathIds);
-		when(mockTableIndexManager.getReplicatedPathIds(ReplicationType.ENTITY, List.of(1L))).thenReturn(afterPathIds);
-
 		// call under test
-		List<ReplicatedEvent> events = managerSpy.updateReplicationTables(group);
-		List<ReplicatedEvent> expected = List.of(
-				new ReplicatedEvent().setObjectType(ObjectType.REPLICATED_EVENT)
-						.setReplicatedObjectType(ObjectType.ENTITY).setReplicatedObjectId(2L).setBeforePathIds("[33,2]")
-						.setAfterPathIds(null),
-				new ReplicatedEvent().setObjectType(ObjectType.REPLICATED_EVENT)
-						.setReplicatedObjectType(ObjectType.ENTITY).setReplicatedObjectId(1L).setBeforePathIds("[22,1]")
-						.setAfterPathIds("[33,1]"));
-		assertEquals(events, expected);
+		managerSpy.updateReplicationTables(group);
+
+		verify(managerSpy, times(2)).fireReplicationEvents(mockTableIndexManager, ReplicationType.ENTITY,
+				List.of(2L, 1L), ReplicationManagerImpl.MAX_MESSAGE_PAGE_SIZE);
+	}
+	
+	
+	@Test
+	public void testFireReplicationEvents() {
+		List<Long> ids = List.of(1L, 2L, 3L);
+		when(mockTableIndexManager.getDistinctReplicatedPathIds(ReplicationType.ENTITY, ids))
+				.thenReturn(List.of(11L,22L,33L,44L,55L).iterator());
+
+		int pageSize = 2;
+		// call under test
+		managerSpy.fireReplicationEvents(mockTableIndexManager, ReplicationType.ENTITY, ids, pageSize);
+
+		verify(mockMessagePublisher)
+				.fireLocalStackMessage(new ReplicatedEvent().setObjectType(ObjectType.REPLICATED_EVENT)
+						.setReplicatedObjectType(ObjectType.ENTITY).setPathIds(List.of(11L, 22L)));
+		verify(mockMessagePublisher)
+				.fireLocalStackMessage(new ReplicatedEvent().setObjectType(ObjectType.REPLICATED_EVENT)
+						.setReplicatedObjectType(ObjectType.ENTITY).setPathIds(List.of(33L, 44L)));
+		verify(mockMessagePublisher)
+				.fireLocalStackMessage(new ReplicatedEvent().setObjectType(ObjectType.REPLICATED_EVENT)
+						.setReplicatedObjectType(ObjectType.ENTITY).setPathIds(List.of(55L)));
+
 	}
 
 	/**

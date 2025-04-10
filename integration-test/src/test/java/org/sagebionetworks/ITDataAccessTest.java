@@ -81,6 +81,8 @@ import org.sagebionetworks.repo.model.dataaccess.SubmissionSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionSearchResponse;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionState;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionStatus;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchRequest;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResponse;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.file.CloudProviderFileHandleInterface;
 import org.sagebionetworks.repo.model.file.FileHandleAssociateType;
@@ -99,6 +101,8 @@ public class ITDataAccessTest {
 	private SynapseAdminClient adminSynapse;
 	private SynapseClient synapse;
 	private WarehouseTestHelper warehouseHelper;
+
+	private Long userOneId;
 	private Long userTwoId;
 	private String submissionId;
 	
@@ -127,7 +131,12 @@ public class ITDataAccessTest {
 		try {
 			adminSynapse.deleteEntity(project);
 		} catch (SynapseNotFoundException e) {}
-		
+
+		if (userOneId != null) {
+			try {
+				adminSynapse.deleteUser(userTwoId);
+			} catch (SynapseException e) {}
+		}
 		if (userTwoId != null) {
 			try {
 				adminSynapse.deleteUser(userTwoId);
@@ -792,13 +801,12 @@ public class ITDataAccessTest {
 	
 	@Test
 	public void testGetSubmission() throws SynapseException, JSONObjectAdapterException {
+		// A non Validated user
+		SynapseClient synapseThree = new SynapseClientImpl();
+		userOneId = SynapseClientHelper.createUser(adminSynapse, synapseThree, true, false);
 		// A validated user
 		SynapseClient synapseTwo = new SynapseClientImpl();
 		userTwoId = SynapseClientHelper.createUser(adminSynapse, synapseTwo, true, true);
-
-		// A non Validated user
-		SynapseClient synapseThree = new SynapseClientImpl();
-		Long userThreeId = SynapseClientHelper.createUser(adminSynapse, synapseThree, true, false);
 
 		managedAR = new ManagedACTAccessRequirement()
 				.setAccessType(ACCESS_TYPE.DOWNLOAD)
@@ -929,6 +937,73 @@ public class ITDataAccessTest {
 		AccessApproval accessApproval = synapse.getUserAccessApproval(submission.getId());
 		assertNotNull(accessApproval);
 		assertEquals(created, accessApproval);
+		adminSynapse.revokeAccessApprovals(managedAR.getId().toString(), synapse.getMyProfile().getOwnerId());
+	}
+
+	@Test
+	public void testlistUserSubmissionSearchResult() throws SynapseException, JSONObjectAdapterException {
+		SynapseClient synapseOne = new SynapseClientImpl();
+		userOneId = SynapseClientHelper.createUser(adminSynapse, synapseOne, true, true);
+		SynapseClient synapseTwo = new SynapseClientImpl();
+		userTwoId = SynapseClientHelper.createUser(adminSynapse, synapseTwo, true, true);
+
+		managedAR = new ManagedACTAccessRequirement()
+				.setAccessType(ACCESS_TYPE.DOWNLOAD)
+				.setSubjectIds(Collections.singletonList(new RestrictableObjectDescriptor().setId(project.getId()).setType(RestrictableObjectType.ENTITY)));
+
+		managedAR = adminSynapse.createAccessRequirement(managedAR);
+
+		ResearchProject rp = synapse.getResearchProjectForUpdate(managedAR.getId().toString());
+
+		rp.setInstitution("Sage");
+		rp.setProjectLead("Lead");
+		rp.setIntendedDataUseStatement("intendedDataUseStatement");
+		rp.setAccessRequirementId(managedAR.getId().toString());
+
+		rp = synapse.createOrUpdateResearchProject(rp);
+
+		RequestInterface request = synapse.createOrUpdateRequest(new Request()
+				.setResearchProjectId(rp.getId())
+				.setAccessRequirementId(managedAR.getId().toString())
+				.setAccessorChanges(Arrays.asList(
+						new AccessorChange().setType(AccessType.GAIN_ACCESS).setUserId(adminSynapse.getMyProfile().getOwnerId()),
+						new AccessorChange().setType(AccessType.GAIN_ACCESS).setUserId(synapse.getMyProfile().getOwnerId())
+				)));
+
+		SubmissionStatus submissionStatus = synapse.submitRequest(new CreateSubmissionRequest()
+				.setRequestId(request.getId())
+				.setRequestEtag(request.getEtag())
+				.setSubjectId(project.getId())
+				.setSubjectType(RestrictableObjectType.ENTITY));
+
+		submissionId = submissionStatus.getSubmissionId();
+
+		// Admin is able to fetch the submission
+		Submission submission = adminSynapse.getDataAccessSubmission(submissionStatus.getSubmissionId());
+
+		UserSubmissionSearchRequest userRequest = new UserSubmissionSearchRequest();
+
+		//call under test. SynapseOne is not accessor of Submission so empty result will be returned
+		UserSubmissionSearchResponse response = synapseOne.listUserSubmissionSearchResults(userRequest);
+
+		assertTrue(response.getResults().isEmpty());
+
+		// create approval for the requirement
+		AccessApproval approval = new AccessApproval();
+		approval.setAccessorId(synapse.getMyProfile().getOwnerId());
+		approval.setRequirementId(managedAR.getId());
+		approval.setRequirementVersion(managedAR.getVersionNumber());
+		approval.setSubmitterId(submission.getSubmittedBy());
+		AccessApproval expectedAccessApproval = adminSynapse.createAccessApproval(approval);
+
+		// call under test
+		UserSubmissionSearchResponse responseTwo = synapse.listUserSubmissionSearchResults(userRequest);
+
+		assertEquals(responseTwo.getResults().size(), 1);
+		assertEquals(responseTwo.getResults().get(0).getUserAccessApproval(), expectedAccessApproval);
+		assertEquals(responseTwo.getResults().get(0).getId(), submissionId);
+
+		adminSynapse.revokeAccessApprovals(managedAR.getId().toString(), synapse.getMyProfile().getOwnerId());
 	}
 	
 	@Test

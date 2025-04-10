@@ -131,6 +131,8 @@ import org.sagebionetworks.repo.model.dataaccess.SubmissionPage;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionSearchResponse;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionState;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchRequest;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResponse;
 import org.sagebionetworks.repo.model.discussion.CreateDiscussionReply;
 import org.sagebionetworks.repo.model.discussion.CreateDiscussionThread;
 import org.sagebionetworks.repo.model.discussion.DiscussionFilter;
@@ -4198,6 +4200,15 @@ public interface SynapseClient extends BaseClient {
 	 * @throws SynapseException
 	 */
 	SubmissionSearchResponse searchDataAccessSubmissions(SubmissionSearchRequest request) throws SynapseException;
+
+	/**
+	 * Performs a search through the data access submissions as long as user is accessor.
+	 *
+	 * @param request
+	 * @return
+	 * @throws SynapseException
+	 */
+	UserSubmissionSearchResponse listUserSubmissionSearchResults(UserSubmissionSearchRequest request) throws SynapseException;
 	
 	/**
 	 * Performs a search through the available access requirements matching the criteria in the given request.

@@ -202,7 +202,7 @@ public class DBODoi implements MigratableDatabaseObject<DBODoi, DBODoi> {
 	@Override
 	public MigratableTableTranslation<DBODoi, DBODoi> getTranslator() {
 		return new BasicMigratableTableTranslation<>() {
-			public DBODoi createBackupFromDatabaseObject(DBODoi dbo) {
+			public DBODoi createDatabaseObjectFromBackup(DBODoi dbo) {
 				if (dbo.getPortalId() == null) {
 					dbo.setPortalId(DBOPortal.SYNAPSE_PORTAL_ID);
 				}

@@ -34,7 +34,6 @@ import org.sagebionetworks.repo.model.doi.v2.DoiResourceType;
 import org.sagebionetworks.repo.model.doi.v2.DoiResourceTypeGeneral;
 import org.sagebionetworks.repo.model.doi.v2.DoiResponse;
 import org.sagebionetworks.repo.model.doi.v2.DoiTitle;
-import org.sagebionetworks.repo.model.doi.v2.DoiUriVersion;
 import org.sagebionetworks.repo.model.portals.CreateOrUpdatePortalRequest;
 
 @ExtendWith(ITTestExtension.class)
@@ -190,7 +189,6 @@ public class IT065SynapseJavaClientDoiV2Test {
 		assertNotNull(doiRetrieved.getEtag());
 		assertNotNull(doiRetrieved.getUpdatedOn());
 		assertEquals(doiToMint.getPortalId(), doiRetrieved.getPortalId());
-		assertEquals(DoiUriVersion.V2, doiRetrieved.getDoiUriVersion());
 
 		return doiRetrieved;
 	}

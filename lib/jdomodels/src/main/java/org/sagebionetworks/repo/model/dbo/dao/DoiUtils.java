@@ -6,7 +6,6 @@ import org.sagebionetworks.repo.model.dbo.persistence.DBODoi;
 import org.sagebionetworks.repo.model.doi.DoiStatus;
 import org.sagebionetworks.repo.model.doi.v2.DoiAssociation;
 import org.sagebionetworks.repo.model.doi.v2.DoiObjectType;
-import org.sagebionetworks.repo.model.doi.v2.DoiUriVersion;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 
 public class DoiUtils {
@@ -42,7 +41,6 @@ public class DoiUtils {
 		dto.setAssociatedOn(dbo.getCreatedOn());
 		dto.setUpdatedBy(dbo.getUpdatedBy().toString());
 		dto.setUpdatedOn(dbo.getUpdatedOn());
-		dto.setDoiUriVersion(DoiUriVersion.valueOf(dbo.getUriVersion()));
 		return dto;
 	}
 
@@ -82,9 +80,6 @@ public class DoiUtils {
 		if (dto.getUpdatedOn() == null) {
 			throw new IllegalArgumentException("Updated On cannot be null.");
 		}
-		if (dto.getDoiUriVersion() == null) {
-			throw new IllegalArgumentException("Doi Uri Version cannot be null.");
-		}
 		DBODoi dbo = new DBODoi();
 		
 		dbo.setId(Long.valueOf(dto.getAssociationId()));
@@ -112,7 +107,6 @@ public class DoiUtils {
 		dbo.setCreatedOn(new Timestamp(dto.getAssociatedOn().getTime()));
 		dbo.setUpdatedBy(Long.valueOf(dto.getUpdatedBy()));
 		dbo.setUpdatedOn(new Timestamp(dto.getUpdatedOn().getTime()));
-		dbo.setUriVersion(dto.getDoiUriVersion());
 		
 		return dbo;
 	}

@@ -20,7 +20,6 @@ import org.sagebionetworks.repo.model.doi.v2.DataciteMetadata;
 import org.sagebionetworks.repo.model.doi.v2.Doi;
 import org.sagebionetworks.repo.model.doi.v2.DoiAssociation;
 import org.sagebionetworks.repo.model.doi.v2.DoiObjectType;
-import org.sagebionetworks.repo.model.doi.v2.DoiUriVersion;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.ServiceUnavailableException;
 import org.sagebionetworks.util.ValidateArgument;
@@ -133,15 +132,12 @@ public class DoiManagerImpl implements DoiManager {
 			dto.setAssociatedBy(existing.getAssociatedBy());
 			dto.setAssociatedOn(existing.getAssociatedOn());
 			dto.setEtag(UUID.randomUUID().toString());
-			dto.setDoiUriVersion(existing.getDoiUriVersion());
 			association = doiAssociationDao.updateDoiAssociation(dto);
 		} else { // The DOI does not already exist
 			try {
 				dto.setAssociatedBy(dto.getUpdatedBy());
 				dto.setAssociatedOn(dto.getUpdatedOn());
 				dto.setEtag(UUID.randomUUID().toString());
-				// By default we use the latest DOI URI scheme
-				dto.setDoiUriVersion(DoiUriVersion.V2);
 				association = doiAssociationDao.createDoiAssociation(dto); // Create
 			} catch (DuplicateKeyException e2) {
 					/*
@@ -266,24 +262,23 @@ public class DoiManagerImpl implements DoiManager {
 	 * @return A well-formatted DOI URI that should refer to the input object.
 	 */
 	String generateDoiUri(DoiAssociation association) {
-		ValidateArgument.required(association.getDoiUriVersion(), "The doiUriVersion");
 		
 		String uri = stackConfiguration.getDoiPrefix() + "/";
 
-		switch (association.getDoiUriVersion()) {
-		case V1:
+		switch (association.getObjectType()) {
+		case ENTITY:
 			ValidateArgument.required(association.getObjectId(), "The objectId");
 			uri += association.getObjectId();
 			if (association.getObjectVersion() != null) {
 				uri += "." + association.getObjectVersion();
 			}
 			break;
-		case V2:
+		case PORTAL_RESOURCE:
 			ValidateArgument.required(association.getAssociationId(), "The associationId");
 			uri += association.getAssociationId();
 			break;
 		default:
-			throw new IllegalStateException("Unsupported DOI URI Version: " + association.getDoiUriVersion());
+			throw new IllegalStateException("Unsupported object type: " + association.getObjectType());
 		}
 		
 		return uri;
@@ -311,7 +306,6 @@ public class DoiManagerImpl implements DoiManager {
 		doi.setEtag(association.getEtag());
 		doi.setDoiUri(association.getDoiUri());
 		doi.setDoiUrl(association.getDoiUrl());
-		doi.setDoiUriVersion(association.getDoiUriVersion());
 		
 		return doi;
 	}

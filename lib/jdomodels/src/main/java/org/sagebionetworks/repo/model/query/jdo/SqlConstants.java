@@ -766,7 +766,6 @@ public class SqlConstants {
 	public static final String COL_DOI_CREATED_ON       = "CREATED_ON";
 	public static final String COL_DOI_UPDATED_BY       = "UPDATED_BY";
 	public static final String COL_DOI_UPDATED_ON       = "UPDATED_ON";
-	public static final String COL_DOI_URI_VERSION      = "URI_VERSION";
 	public static final String DDL_FILE_DOI = "schema/Doi-ddl.sql";
 
 	

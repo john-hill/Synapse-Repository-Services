@@ -18,7 +18,6 @@ import org.sagebionetworks.repo.model.DoiAssociationDao;
 import org.sagebionetworks.repo.model.dbo.portals.DBOPortal;
 import org.sagebionetworks.repo.model.doi.v2.DoiAssociation;
 import org.sagebionetworks.repo.model.doi.v2.DoiObjectType;
-import org.sagebionetworks.repo.model.doi.v2.DoiUriVersion;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,7 +61,6 @@ public class DBODoiAssociationDaoImplAutowiredTest {
 		dto.setEtag(etag);
 		dto.setAssociatedOn(new Date());
 		dto.setUpdatedOn(new Date());
-		dto.setDoiUriVersion(DoiUriVersion.V1);
 	}
 
 	@AfterEach
@@ -85,7 +83,6 @@ public class DBODoiAssociationDaoImplAutowiredTest {
 		assertEquals(objectType, createdDto.getObjectType());
 		assertEquals(associatedById, createdDto.getAssociatedBy());
 		assertEquals(associatedById, createdDto.getUpdatedBy());
-		assertEquals(DoiUriVersion.V1, createdDto.getDoiUriVersion());
 		assertNotNull(createdDto.getAssociatedOn());
 		assertNotNull(createdDto.getUpdatedOn());
 	}
@@ -123,7 +120,6 @@ public class DBODoiAssociationDaoImplAutowiredTest {
 		assertEquals(createdDto.getAssociatedOn(), retrievedDto.getAssociatedOn());
 		assertEquals(createdDto.getUpdatedBy(), retrievedDto.getUpdatedBy());
 		assertEquals(createdDto.getUpdatedOn(), retrievedDto.getUpdatedOn());
-		assertEquals(createdDto.getDoiUriVersion(), retrievedDto.getDoiUriVersion());
 	}
 
 	@Test

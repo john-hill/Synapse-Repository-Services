@@ -38,7 +38,6 @@ import org.sagebionetworks.repo.model.doi.v2.DoiObjectType;
 import org.sagebionetworks.repo.model.doi.v2.DoiResourceType;
 import org.sagebionetworks.repo.model.doi.v2.DoiResourceTypeGeneral;
 import org.sagebionetworks.repo.model.doi.v2.DoiTitle;
-import org.sagebionetworks.repo.model.doi.v2.DoiUriVersion;
 import org.sagebionetworks.repo.model.portals.Portal;
 import org.sagebionetworks.repo.web.ServiceUnavailableException;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
@@ -85,7 +84,6 @@ public class DoiManagerImplTest {
 	private static final String mockPrefix = "10.1234";
 	private static final String doiUri = "10.1234/someuri";
 	private static final String doiUrl = baseUrl + objectId;
-	private static final DoiUriVersion doiUriVersion = DoiUriVersion.V1;
 
 	private static final String title = "5 Easy Steps You Can Take To Become President (You Won't Believe #3!)";
 	private static final String author = "Washington, George";
@@ -523,7 +521,7 @@ public class DoiManagerImplTest {
 	}
 
 	@Test
-	public void testGenerateDoiUriV1() {
+	public void testGenerateDoiUri() {
 		when(mockConfig.getDoiPrefix()).thenReturn(mockPrefix);
 		
 		String expected = mockPrefix + "/" + objectId + "." + version;
@@ -533,7 +531,7 @@ public class DoiManagerImplTest {
 	}
 	
 	@Test
-	public void testGenerateDoiUriV1WithNoObjectId() {
+	public void testGenerateDoiUriWithNoObjectId() {
 		when(mockConfig.getDoiPrefix()).thenReturn(mockPrefix);
 		
 		inputDto.setObjectId(null);
@@ -545,7 +543,7 @@ public class DoiManagerImplTest {
 	}
 
 	@Test
-	public void testGenerateDoiUriNullVersion() {
+	public void testGenerateDoiUriWithNullVersion() {
 		when(mockConfig.getDoiPrefix()).thenReturn(mockPrefix);
 		
 		String expected = mockPrefix + "/" + objectId;
@@ -556,10 +554,10 @@ public class DoiManagerImplTest {
 	}
 
 	@Test
-	public void testGenerateDoiUriV2() {
+	public void testGenerateDoiUriWithPortalResource() {
 		when(mockConfig.getDoiPrefix()).thenReturn(mockPrefix);
 		
-		inputDto.setDoiUriVersion(DoiUriVersion.V2);
+		inputDto.setObjectType(DoiObjectType.PORTAL_RESOURCE);
 		
 		String expected = mockPrefix + "/" + associationId;
 		
@@ -569,9 +567,10 @@ public class DoiManagerImplTest {
 	}
 	
 	@Test
-	public void testGenerateDoiUriV2WithNoAssociationId() {
+	public void testGenerateDoiUriWithPortalResourceAndNoAssociationId() {
 		when(mockConfig.getDoiPrefix()).thenReturn(mockPrefix);
-		inputDto.setDoiUriVersion(DoiUriVersion.V2);
+		
+		inputDto.setObjectType(DoiObjectType.PORTAL_RESOURCE);		
 		inputDto.setAssociationId(null);
 		
 		assertEquals("The associationId is required.", assertThrows(IllegalArgumentException.class, () -> {
@@ -608,7 +607,6 @@ public class DoiManagerImplTest {
 		doi.setEtag("etag");
 		doi.setDoiUri(doiUri);
 		doi.setDoiUrl(doiUrl);
-		doi.setDoiUriVersion(doiUriVersion);
 
 		//Call under test
 		Doi expected = DoiManagerImpl.mergeMetadataAndAssociation(metadata, doi);
@@ -625,7 +623,6 @@ public class DoiManagerImplTest {
 		assertEquals(doi.getEtag(), expected.getEtag());
 		assertEquals(doi.getDoiUri(), expected.getDoiUri());
 		assertEquals(doi.getDoiUrl(), expected.getDoiUrl());
-		assertEquals(doi.getDoiUriVersion(), expected.getDoiUriVersion());
 
 		assertEquals(metadata.getCreators(), expected.getCreators());
 		assertEquals(metadata.getTitles(), expected.getTitles());
@@ -687,7 +684,6 @@ public class DoiManagerImplTest {
 		dto.setObjectType(doiObjectType);
 		dto.setObjectVersion(version);
 		dto.setDoiUri(doiUri);
-		dto.setDoiUriVersion(doiUriVersion);
 
 		if (withMetadata) {
 			// Required metadata fields

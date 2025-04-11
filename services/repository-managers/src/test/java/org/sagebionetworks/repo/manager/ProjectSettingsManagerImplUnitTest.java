@@ -815,9 +815,10 @@ public class ProjectSettingsManagerImplUnitTest {
 		UploadDestinationListSetting setting = new UploadDestinationListSetting();
 		setting.setProjectId("projectId");
 		setting.setSettingsType(ProjectSettingsType.upload);
-		setting.setLocations(Lists.newArrayList((Long)null));
+		setting.setLocations(Lists.newArrayList(1L, (Long)null));
 
 		assertThrows(IllegalArgumentException.class, () -> projectSettingsManagerImpl.validateProjectSetting(setting, null));
+		verify(mockStorageLocationDAO).get(1L);
 	}
 
 	@Test

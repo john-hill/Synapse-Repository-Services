@@ -94,7 +94,6 @@ public class DoiManagerImpl implements DoiManager {
 	@WriteTransaction
 	public Doi createOrUpdateDoi(final UserInfo user, final Doi dto) throws RecoverableMessageException {
 		ValidateArgument.required(user, "The user");
-		ValidateArgument.required(dto.getPortalId(), "The portalId");
 		ValidateArgument.required(dto.getObjectId(), "The objectId");
 		ValidateArgument.required(dto.getObjectType(), "The objectType");
 		

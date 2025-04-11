@@ -26,7 +26,6 @@ import org.sagebionetworks.repo.model.Entity;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.asynch.AsynchJobState;
-import org.sagebionetworks.repo.model.dbo.portals.DBOPortal;
 import org.sagebionetworks.repo.model.doi.v2.Doi;
 import org.sagebionetworks.repo.model.doi.v2.DoiCreator;
 import org.sagebionetworks.repo.model.doi.v2.DoiObjectType;
@@ -39,7 +38,6 @@ import org.sagebionetworks.repo.model.portals.CreateOrUpdatePortalRequest;
 @ExtendWith(ITTestExtension.class)
 public class IT065SynapseJavaClientDoiV2Test {
 
-	private static final String SYNAPSE_PORTAL_ID = DBOPortal.SYNAPSE_PORTAL_ID.toString();
 	private static final long RETRY_TIME = 1000L;
 
 	private static Entity entity;
@@ -94,13 +92,13 @@ public class IT065SynapseJavaClientDoiV2Test {
 	@Test
 	public void testGetNotFoundException() throws SynapseException {		
 		assertThrows(SynapseNotFoundException.class, () -> {			
-			synapse.getDoiAssociation(SYNAPSE_PORTAL_ID, "syn8395713", DoiObjectType.ENTITY, null);
+			synapse.getDoiAssociation(null, "syn8395713", DoiObjectType.ENTITY, null);
 		});
 	}
 
 	@Test
 	public void testGetPortalUrl() throws SynapseException {
-		assertNotNull(synapse.getPortalUrl(SYNAPSE_PORTAL_ID, "syn1236464", DoiObjectType.ENTITY, 5L));
+		assertNotNull(synapse.getPortalUrl(null, "syn1236464", DoiObjectType.ENTITY, 5L));
 	}
 	
 	@Test
@@ -138,7 +136,6 @@ public class IT065SynapseJavaClientDoiV2Test {
 	private static Doi setUpRequestDoi() {
 		Doi doi = new Doi();
 		
-		doi.setPortalId(SYNAPSE_PORTAL_ID);
 		doi.setObjectId(entity.getId());
 		doi.setObjectType(DoiObjectType.ENTITY);
 		doi.setObjectVersion(1L);
@@ -188,7 +185,6 @@ public class IT065SynapseJavaClientDoiV2Test {
 		assertEquals(doiRetrieved.getUpdatedBy(), expectedUser);
 		assertNotNull(doiRetrieved.getEtag());
 		assertNotNull(doiRetrieved.getUpdatedOn());
-		assertEquals(doiToMint.getPortalId(), doiRetrieved.getPortalId());
 
 		return doiRetrieved;
 	}

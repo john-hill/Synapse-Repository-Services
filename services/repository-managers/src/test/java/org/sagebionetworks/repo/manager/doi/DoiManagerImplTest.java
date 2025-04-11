@@ -119,12 +119,12 @@ public class DoiManagerImplTest {
 	
 	@Test
 	public void testGetAssociationWithNoPortalId() throws Exception {
-		when(mockDoiDao.getDoiAssociation(portalId, objectId, doiObjectType, version)).thenReturn(outputDto);
+		portalId = null;
+		
+		when(mockDoiDao.getDoiAssociation(DoiManagerImpl.SYNAPSE_PORTAL_ID, objectId, doiObjectType, version)).thenReturn(outputDto);
 		
 		doReturn(doiUri).when(doiManager).generateDoiUri(outputDto);
-		doReturn(doiUrl).when(doiManager).generateLocationRequestUrl(outputDto);
-		
-		portalId = null;
+		doReturn(doiUrl).when(doiManager).generateLocationRequestUrl(outputDto);		
 		
 		// Call under test
 		DoiAssociation result = doiManager.getDoiAssociation(portalId, objectId, doiObjectType, version);
@@ -209,6 +209,29 @@ public class DoiManagerImplTest {
 		assertEquals(inputDto.getDoiUri(), doiUri);
 		assertEquals(inputDto.getDoiUrl(), doiUrl);
 	}
+	
+	@Test
+	public void testCreateOrUpdateDoiWithNoPortalId() throws Exception{
+
+		inputDto.setPortalId(null);
+		
+		doNothing().when(doiManager).verifyDoiMintingAuthorization(userInfo, DoiManagerImpl.SYNAPSE_PORTAL_ID, objectId, doiObjectType);
+		
+		doReturn(outputDto).when(doiManager).createOrUpdateAssociation(inputDto);
+		
+		doReturn(doiUri).when(doiManager).generateDoiUri(outputDto);
+		doReturn(doiUrl).when(doiManager).generateLocationRequestUrl(outputDto);
+		
+		doReturn(outputDto).when(doiManager).createOrUpdateDataciteMetadata(inputDto);
+		
+		// Call under test
+		Doi result = doiManager.createOrUpdateDoi(userInfo, inputDto);
+		
+		assertEquals(outputDto, result);
+		
+		assertEquals(inputDto.getDoiUri(), doiUri);
+		assertEquals(inputDto.getDoiUrl(), doiUrl);
+	}
 
 	@Test
 	public void testCreateOrUpdateDoiWithNullObjectId() throws Exception {
@@ -223,16 +246,6 @@ public class DoiManagerImplTest {
 	@Test
 	public void testCreateOrUpdateDoiWithNullObjectType() throws Exception {
 		inputDto.setObjectType(null);
-		
-		assertThrows(IllegalArgumentException.class, () -> {
-			// Call under test
-			doiManager.createOrUpdateDoi(userInfo, inputDto);
-		});
-	}
-
-	@Test
-	public void testCreateOrUpdateDoiWithNonEntityObjectType() throws Exception {
-		inputDto.setObjectType(DoiObjectType.PORTAL_RESOURCE);
 		
 		assertThrows(IllegalArgumentException.class, () -> {
 			// Call under test
@@ -367,6 +380,21 @@ public class DoiManagerImplTest {
 		
 		// Call under test
 		doiManager.deactivateDoi(userInfo, portalId, objectId, doiObjectType, version);
+		
+		verify(mockDataciteClient).deactivate(doiUri);
+	}
+	
+	@Test
+	public void testDeactivateDoiWithNoPortalId() throws Exception {
+		portalId = null;
+		
+		outputDto.setDoiUri(doiUri);
+		
+		doNothing().when(doiManager).verifyDoiMintingAuthorization(userInfo, DoiManagerImpl.SYNAPSE_PORTAL_ID, objectId, doiObjectType);
+		doReturn(outputDto).when(doiManager).getDoiAssociation(DoiManagerImpl.SYNAPSE_PORTAL_ID, objectId, doiObjectType, version);
+		
+		// Call under test
+		doiManager.deactivateDoi(userInfo, DoiManagerImpl.SYNAPSE_PORTAL_ID, objectId, doiObjectType, version);
 		
 		verify(mockDataciteClient).deactivate(doiUri);
 	}

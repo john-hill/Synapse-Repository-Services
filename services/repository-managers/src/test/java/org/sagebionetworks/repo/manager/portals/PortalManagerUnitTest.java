@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
+import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.NextPageToken;
 import org.sagebionetworks.repo.model.ObjectType;
@@ -59,7 +60,9 @@ public class PortalManagerUnitTest {
 
 	@BeforeEach
 	public void before() {
-		user = new UserInfo(true, 1L);
+		user = new UserInfo(false, 1234L);
+		user.setGroups(Set.of(user.getId(), BOOTSTRAP_PRINCIPAL.PORTAL_MANAGERS.getPrincipalId()));
+		
 		request = new CreateOrUpdatePortalRequest().setName("My Portal").setUrl("https://myportal.synapse.org");
 		portal = new Portal().setId("123").setCreatedOn(new Date());
 		acl = AccessControlListUtil.createACL(portal.getId().toString(), user, PortalManager.DEFAULT_PERMISSIONS, portal.getCreatedOn());
@@ -465,7 +468,7 @@ public class PortalManagerUnitTest {
 	
 	@Test
 	public void testUpdatePortalAclWithNotAdminAndAuthorized() {
-		user = new UserInfo(false, 1L);
+		user.setGroups(Set.of(user.getId()));
 		
 		when(mockAclDao.canAccess(user, portal.getId(), ObjectType.PORTAL, ACCESS_TYPE.CHANGE_PERMISSIONS)).thenReturn(AuthorizationStatus.authorized());
 		doNothing().when(mockAclDao).update(acl, ObjectType.PORTAL);
@@ -479,7 +482,7 @@ public class PortalManagerUnitTest {
 	
 	@Test
 	public void testUpdatePortalAclWithNotAdminAndNotAuthorized() {
-		user = new UserInfo(false, 1L);
+		user.setGroups(Set.of(user.getId()));
 		
 		when(mockAclDao.canAccess(user, portal.getId(), ObjectType.PORTAL, ACCESS_TYPE.CHANGE_PERMISSIONS)).thenReturn(AuthorizationStatus.accessDenied("Nope"));
 				
@@ -493,7 +496,7 @@ public class PortalManagerUnitTest {
 	
 	@Test
 	public void testUpdatePortalAclWithNotAdminAndInvalidAcl() {
-		user = new UserInfo(false, 1L);
+		user.setGroups(Set.of(user.getId()));
 		acl.setResourceAccess(Set.of(new ResourceAccess().setPrincipalId(user.getId()).setAccessType(Set.of(ACCESS_TYPE.CREATE))));					
 		
 		assertEquals("Caller is trying to revoke their own ACL editing permissions.", assertThrows(InvalidModelException.class, () -> {

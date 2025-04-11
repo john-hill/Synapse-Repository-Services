@@ -6,6 +6,7 @@ import org.sagebionetworks.repo.manager.PermissionsManagerUtils;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
+import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.NextPageToken;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
@@ -37,7 +38,7 @@ public class PortalManagerImpl implements PortalManager {
 	public Portal createPortal(UserInfo user, CreateOrUpdatePortalRequest request) {
 		validateCreateOrUpdateRequest(user, request);
 		
-		if (!user.isAdmin()) {
+		if (!AuthorizationUtils.isPortalManagerOrAdmin(user)) {
 			throw new UnauthorizedException("You are not authorized to perform this operation.");
 		}
 		
@@ -62,7 +63,7 @@ public class PortalManagerImpl implements PortalManager {
 		
 		validateCreateOrUpdateRequest(user, request);
 		
-		if (!user.isAdmin()) {
+		if (!AuthorizationUtils.isPortalManagerOrAdmin(user)) {
 			aclDao.canAccess(user, portalId, ObjectType.PORTAL, ACCESS_TYPE.UPDATE).checkAuthorizationOrElseThrow();
 		}
 		
@@ -75,7 +76,7 @@ public class PortalManagerImpl implements PortalManager {
 		ValidateArgument.required(user, "The user");
 		ValidateArgument.required(portalId, "The portalId");
 		
-		if (!user.isAdmin()) {
+		if (!AuthorizationUtils.isPortalManagerOrAdmin(user)) {
 			aclDao.canAccess(user, portalId, ObjectType.PORTAL, ACCESS_TYPE.DELETE).checkAuthorizationOrElseThrow();
 		}
 		
@@ -114,7 +115,7 @@ public class PortalManagerImpl implements PortalManager {
 		// Makes sure the user is not revoking their own permissions
 		PermissionsManagerUtils.validateACLContent(acl, user, Long.valueOf(portalId));
 		
-		if (!user.isAdmin()) {
+		if (!AuthorizationUtils.isPortalManagerOrAdmin(user)) {
 			aclDao.canAccess(user, portalId, ObjectType.PORTAL, ACCESS_TYPE.CHANGE_PERMISSIONS).checkAuthorizationOrElseThrow();
 		}
 		

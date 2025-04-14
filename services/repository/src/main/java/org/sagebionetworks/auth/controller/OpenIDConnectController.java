@@ -7,6 +7,7 @@ import static org.sagebionetworks.repo.model.oauth.OAuthScope.view;
 
 import org.sagebionetworks.auth.HttpAuthUtil;
 import org.sagebionetworks.repo.manager.oauth.OAuthClientNotVerifiedException;
+import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.oauth.JsonWebKeySet;
 import org.sagebionetworks.repo.model.oauth.OAuthAuthorizationResponse;
@@ -199,6 +200,45 @@ public class OpenIDConnectController {
 				reverificationRequiredForUpdatedOpenIDConnectClient(userId, oauthClient);
 	}
 	
+
+	/**
+	 * Retrieve the AccessControlList for a specified Team.
+	 * 
+	 * @param userId
+	 * @param id the ID of the OpenID Client of interest
+	 * @return
+	 * @throws NotFoundException
+	 */
+	@RequiredScope({view})
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.OAUTH_2_CLIENT_ID_ACL, method = RequestMethod.GET)
+	public @ResponseBody
+	AccessControlList getClientACL(
+			@PathVariable String id,
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId
+			) throws NotFoundException {
+		return serviceProvider.getOpenIDConnectService().getAccessControlList(userId, id);
+	}
+	
+	/**
+	 * Update the Access Control List for the specified OpenID Client.  
+	 * @param userId
+	 * @param acl the updated Access Control List
+	 * @return
+	 * @throws NotFoundException
+	 */
+	@RequiredScope({view,modify})
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.OAUTH_2_CLIENT_ACL, method = RequestMethod.PUT)
+	public @ResponseBody
+	AccessControlList updateClientACL(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@RequestBody AccessControlList acl
+			) throws NotFoundException {
+		return serviceProvider.getOpenIDConnectService().updateAccessControlList(userId, acl);
+	}
+	
+
 	
 	/**
 	 * Update the metadata for an existing OAuth 2.0 client.

@@ -20,8 +20,12 @@ import org.sagebionetworks.repo.manager.AuthorizationManager;
 import org.sagebionetworks.repo.manager.NotificationManager;
 import org.sagebionetworks.repo.manager.PrivateFieldUtils;
 import org.sagebionetworks.repo.manager.UserManager;
+import org.sagebionetworks.repo.model.ACCESS_TYPE;
+import org.sagebionetworks.repo.model.AccessControlList;
+import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
+import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.OAuthClientDao;
@@ -60,11 +64,15 @@ public class OAuthClientManagerImpl implements OAuthClientManager {
 	
 	private NotificationManager notificationManager;
 	
+	private AccessControlListDAO aclDAO;
+	
 	@Autowired
-	public OAuthClientManagerImpl(OAuthClientDao oauthClientDao, SimpleHttpClient httpClient, AuthorizationManager authManager, UserManager userManager,
+	public OAuthClientManagerImpl(OAuthClientDao oauthClientDao, AccessControlListDAO aclDAO,
+			SimpleHttpClient httpClient, AuthorizationManager authManager, UserManager userManager,
 			NotificationManager notificationManager) {
 		super();
 		this.oauthClientDao = oauthClientDao;
+		this.aclDAO=aclDAO;
 		this.httpClient = httpClient;
 		this.authManager = authManager;
 		this.userManager = userManager;
@@ -167,6 +175,13 @@ public class OAuthClientManagerImpl implements OAuthClientManager {
 	public static boolean canAdministrate(UserInfo userInfo, String createdBy) {
 		return createdBy.equals(userInfo.getId().toString()) || userInfo.isAdmin();
 	}
+	
+	AccessControlList createAccessControlList(Long creatorId) {
+		AccessControlList acl = new AccessControlList();
+		acl.setCreatedBy(creatorId.toString());
+		acl.setCreationDate(new Date(System.currentTimeMillis()));
+		return acl;
+	}
 
 	@WriteTransaction
 	@Override
@@ -186,6 +201,9 @@ public class OAuthClientManagerImpl implements OAuthClientManager {
 		ensureSectorIdentifierExists(resolvedSectorIdentifier, userInfo.getId());
 
 		OAuthClient client = oauthClientDao.createOAuthClient(oauthClient);
+		
+		AccessControlList acl = createAccessControlList(userInfo.getId());
+		aclDAO.create(acl, ObjectType.OAUTH_CLIENT);
 		
 		Map<String, Object> notificationContext = new HashMap<>();
 		
@@ -359,6 +377,35 @@ public class OAuthClientManagerImpl implements OAuthClientManager {
 		UserInfo recipient = userManager.getUserInfo(Long.valueOf(client.getCreatedBy()));
 		
 		notificationManager.sendTemplatedNotification(recipient, NOTIFICATION_TPL_CLIENT_REMOVED, "OAuth Client Removed", notificationContext);
+	}
+	
+	// TODO we must add a migration step to bootstrap a default ACL for all existing clients
+	@Override
+	public AccessControlList getAccessControlList(UserInfo userInfo, String clientId) {
+		// if the user is anonymous, throw Forbidden
+		// if the client does not exist, throw a NotFoundException
+		// retrieve the ACL
+		// check permissions.  Can the user read the ACL? if not, throw Forbidden
+		// return the ACL
+		authManager.canAccess(userInfo, clientId, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.READ).checkAuthorizationOrElseThrow();
+		AccessControlList result = aclDAO.get(clientId, ObjectType.OAUTH_CLIENT);
+		// TODO what if there is no ACL?
+		return result;
+	}
+	
+	@WriteTransaction
+	@Override
+	public AccessControlList updateAccessControlList(UserInfo userInfo, AccessControlList acl) {
+		// if the user is anonymous, throw Forbidden
+		// if the client does not exist, throw a NotFoundException
+		// retrieve the ACL 
+		// check permissions.  Can the user update the ACL? if not, throw Forbidden
+		// validate ACL:  Make sure some principal can access it (has READ and EDIT permission) after the change
+		// merge the changes and store the ACL
+		// return the ACL
+		authManager.canAccess(userInfo, acl.getId(), ObjectType.OAUTH_CLIENT, ACCESS_TYPE.UPDATE).checkAuthorizationOrElseThrow();
+		aclDAO.update(acl, ObjectType.OAUTH_CLIENT);
+		return aclDAO.get(acl.getId(), ObjectType.OAUTH_CLIENT);
 	}
 
 	@WriteTransaction

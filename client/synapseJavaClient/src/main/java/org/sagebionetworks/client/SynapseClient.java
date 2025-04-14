@@ -151,6 +151,7 @@ import org.sagebionetworks.repo.model.docker.DockerCommit;
 import org.sagebionetworks.repo.model.docker.DockerCommitSortBy;
 import org.sagebionetworks.repo.model.doi.v2.Doi;
 import org.sagebionetworks.repo.model.doi.v2.DoiAssociation;
+import org.sagebionetworks.repo.model.doi.v2.DoiObjectType;
 import org.sagebionetworks.repo.model.doi.v2.DoiResponse;
 import org.sagebionetworks.repo.model.download.AddBatchOfFilesToDownloadListRequest;
 import org.sagebionetworks.repo.model.download.AddBatchOfFilesToDownloadListResponse;
@@ -1184,15 +1185,15 @@ public interface SynapseClient extends BaseClient {
 	public PaginatedResults<ProjectHeader> getProjectsForTeamDeprecated(Long teamId, ProjectListSortColumn sortColumn, SortDirection sortDirection,
 			Integer limit, Integer offset) throws SynapseException;
 
-	public DoiAssociation getDoiAssociation(String objectId, ObjectType objectType, Long objectVersion) throws SynapseException;
+	DoiAssociation getDoiAssociation(String portalId, String objectId, DoiObjectType objectType, Long objectVersion) throws SynapseException;
 
-	public Doi getDoi(String objectId, ObjectType objectType, Long objectVersion) throws SynapseException;
+	Doi getDoi(String portalId, String objectId, DoiObjectType objectType, Long objectVersion) throws SynapseException;
 
-	public String createOrUpdateDoiAsyncStart(Doi doi) throws SynapseException;
+	String createOrUpdateDoiAsyncStart(Doi doi) throws SynapseException;
 
-	public DoiResponse createOrUpdateDoiAsyncGet(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException;
+	DoiResponse createOrUpdateDoiAsyncGet(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException;
 
-	public String getPortalUrl(String objectId, ObjectType objectType, Long objectVersion) throws SynapseException;
+	String getPortalUrl(String portalId, String objectId, DoiObjectType objectType, Long objectVersion) throws SynapseException;
 
 	public List<EntityHeader> getEntityHeaderByMd5(String md5) throws SynapseException;
 

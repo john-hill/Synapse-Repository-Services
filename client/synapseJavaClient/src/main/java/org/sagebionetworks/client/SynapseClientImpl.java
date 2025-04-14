@@ -186,6 +186,7 @@ import org.sagebionetworks.repo.model.docker.DockerCommit;
 import org.sagebionetworks.repo.model.docker.DockerCommitSortBy;
 import org.sagebionetworks.repo.model.doi.v2.Doi;
 import org.sagebionetworks.repo.model.doi.v2.DoiAssociation;
+import org.sagebionetworks.repo.model.doi.v2.DoiObjectType;
 import org.sagebionetworks.repo.model.doi.v2.DoiRequest;
 import org.sagebionetworks.repo.model.doi.v2.DoiResponse;
 import org.sagebionetworks.repo.model.download.AddBatchOfFilesToDownloadListRequest;
@@ -3677,12 +3678,15 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	 * for the current version of the object.
 	 */
 	@Override
-	public DoiAssociation getDoiAssociation(String objectId, ObjectType objectType, Long objectVersion) throws SynapseException {
+	public DoiAssociation getDoiAssociation(String portalId, String objectId, DoiObjectType objectType, Long objectVersion) throws SynapseException {
 		ValidateArgument.required(objectId, "objectId");
 		ValidateArgument.required(objectType, "objectType");
 		String url = DOI_ASSOCIATION + "?id=" + objectId + "&type=" + objectType;
 		if (objectVersion != null) {
 			url += "&version=" + objectVersion;
+		}
+		if (portalId != null) {
+			url += "&portalId=" + portalId;
 		}
 		return getJSONEntity(getRepoEndpoint(), url, DoiAssociation.class);
 	}
@@ -3692,12 +3696,15 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	 * for the current version of the object.
 	 */
 	@Override
-	public Doi getDoi(String objectId, ObjectType objectType, Long objectVersion) throws SynapseException {
+	public Doi getDoi(String portalId, String objectId, DoiObjectType objectType, Long objectVersion) throws SynapseException {
 		ValidateArgument.required(objectId, "objectId");
 		ValidateArgument.required(objectType, "objectType");
 		String url = DOI_ASSOCIATION + "?id=" + objectId + "&type=" + objectType;
 		if (objectVersion != null) {
 			url += "&version=" + objectVersion;
+		}
+		if (portalId != null) {
+			url += "&portalId=" + portalId;
 		}
 		return getJSONEntity(getRepoEndpoint(), url, Doi.class);
 	}
@@ -3726,12 +3733,15 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	 *
 	 */
 	@Override
-	public String getPortalUrl(String objectId, ObjectType objectType, Long objectVersion) throws SynapseException {
+	public String getPortalUrl(String portalId, String objectId, DoiObjectType objectType, Long objectVersion) throws SynapseException {
 		ValidateArgument.required(objectId, "objectId");
 		ValidateArgument.required(objectType, "objectType");
 		String requestUrl = DOI_LOCATE + "?id=" + objectId + "&type=" + objectType;
 		if (objectVersion != null) {
 			requestUrl += "&version=" + objectVersion;
+		}
+		if (portalId != null) {
+			requestUrl += "&portalId=" + portalId;
 		}
 		requestUrl += "&redirect=false";
 		return getStringDirect(getRepoEndpoint(), requestUrl);

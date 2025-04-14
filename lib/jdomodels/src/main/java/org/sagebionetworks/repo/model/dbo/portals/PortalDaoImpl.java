@@ -19,6 +19,7 @@ import java.util.UUID;
 
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.dbo.SinglePrimaryKeySqlParameterSource;
 import org.sagebionetworks.repo.model.portals.Portal;
@@ -63,6 +64,27 @@ public class PortalDaoImpl implements PortalDao {
 		this.jdbcTemplate = jdbcTemplate;
 		this.idGenerator = idGenerator;
 		this.basicDao = basicDao;
+	}
+	
+	@Override
+	@WriteTransaction
+	public void bootstrap() {
+		if (getPortal(DBOPortal.SYNAPSE_PORTAL_ID.toString()).isEmpty()) {
+			Long adminId = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
+ 			Timestamp now = Timestamp.from(Instant.now());
+ 			
+ 			DBOPortal portalDbo = new DBOPortal()
+				.setId(DBOPortal.SYNAPSE_PORTAL_ID)
+				.setCreatedBy(adminId)
+				.setCreatedOn(now)
+				.setModifiedBy(adminId)
+				.setModifiedOn(now)
+				.setEtag(UUID.randomUUID().toString())
+				.setName("Synapse")
+				.setEndpoint("https://synapse.org");
+			
+			basicDao.createNew(portalDbo);
+		}
 	}
 
 	@Override

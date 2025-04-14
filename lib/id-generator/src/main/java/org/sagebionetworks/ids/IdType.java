@@ -80,7 +80,7 @@ public enum IdType {
 	TOS_REQUIREMENT_ID(null),
 	TOS_AGREEMENT_ID(null),
 	PROJECT_STORAGE_LIMIT_ID(null),
-	PORTAL_ID(2L)
+	PORTAL_ID(1000L)
 	;
 	
 	Long startingId;

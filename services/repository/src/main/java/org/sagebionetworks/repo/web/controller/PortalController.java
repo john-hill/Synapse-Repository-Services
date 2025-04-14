@@ -62,7 +62,7 @@ public class PortalController {
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = { UrlHelpers.PORTAL_ID }, method = RequestMethod.GET)
 	public @ResponseBody Portal getPortal(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable(value = "portalId") String portalId) {
-		return portalService.getPortal(userId, portalId);
+		return portalService.getPortal(portalId);
 	}
 
 	/**
@@ -76,7 +76,7 @@ public class PortalController {
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = { UrlHelpers.PORTAL_LIST }, method = RequestMethod.POST)
 	public @ResponseBody ListPortalsResponse listPortals(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @RequestBody ListPortalsRequest request) {
-		return portalService.listPortals(userId, request);
+		return portalService.listPortals(request);
 	}
 
 	/**
@@ -118,7 +118,7 @@ public class PortalController {
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = { UrlHelpers.PORTAL_ACL }, method = RequestMethod.GET)
 	public @ResponseBody AccessControlList getPortalAcl(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable(value = "portalId", required = true) String portalId) {
-		return portalService.getPortalAcl(userId, portalId);
+		return portalService.getPortalAcl(portalId);
 	}
 	
 	/**

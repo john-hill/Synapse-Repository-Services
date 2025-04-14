@@ -28,15 +28,13 @@ public class PortalServiceImpl implements PortalService {
 	}
 
 	@Override
-	public Portal getPortal(Long userId, String portalId) {
-		UserInfo user = userManager.getUserInfo(userId);
-		return portalsManager.getPortal(user, portalId);
+	public Portal getPortal(String portalId) {
+		return portalsManager.getPortal(portalId);
 	}
 
 	@Override
-	public ListPortalsResponse listPortals(Long userId, ListPortalsRequest request) {
-		UserInfo user = userManager.getUserInfo(userId);
-		return portalsManager.listPortals(user, request);
+	public ListPortalsResponse listPortals(ListPortalsRequest request) {
+		return portalsManager.listPortals(request);
 	}
 
 	@Override
@@ -52,9 +50,8 @@ public class PortalServiceImpl implements PortalService {
 	}
 
 	@Override
-	public AccessControlList getPortalAcl(Long userId, String portalId) {
-		UserInfo user = userManager.getUserInfo(userId);
-		return portalsManager.getPortalAcl(user, portalId);
+	public AccessControlList getPortalAcl(String portalId) {
+		return portalsManager.getPortalAcl(portalId);
 	}
 
 	@Override

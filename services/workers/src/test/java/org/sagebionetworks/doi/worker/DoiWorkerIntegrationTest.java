@@ -13,7 +13,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
@@ -27,8 +26,10 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.asynch.AsynchronousJobStatus;
 import org.sagebionetworks.repo.model.asynch.AsynchronousRequestBody;
 import org.sagebionetworks.repo.model.asynch.AsynchronousResponseBody;
+import org.sagebionetworks.repo.model.dbo.portals.DBOPortal;
 import org.sagebionetworks.repo.model.doi.v2.Doi;
 import org.sagebionetworks.repo.model.doi.v2.DoiCreator;
+import org.sagebionetworks.repo.model.doi.v2.DoiObjectType;
 import org.sagebionetworks.repo.model.doi.v2.DoiRequest;
 import org.sagebionetworks.repo.model.doi.v2.DoiResourceType;
 import org.sagebionetworks.repo.model.doi.v2.DoiResourceTypeGeneral;
@@ -113,8 +114,9 @@ public class DoiWorkerIntegrationTest {
 \	 */
 	private Doi setUpRequestBody() {
 		Doi body = new Doi();
+		body.setPortalId(DBOPortal.SYNAPSE_PORTAL_ID.toString());
 		body.setObjectId(projectId);
-		body.setObjectType(ObjectType.ENTITY);
+		body.setObjectType(DoiObjectType.ENTITY);
 		// Required metadata fields
 		DoiCreator doiCreator = new DoiCreator();
 		doiCreator.setCreatorName(author);

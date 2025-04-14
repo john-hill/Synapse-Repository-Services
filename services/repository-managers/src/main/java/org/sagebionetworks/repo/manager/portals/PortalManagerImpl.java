@@ -6,6 +6,7 @@ import org.sagebionetworks.repo.manager.PermissionsManagerUtils;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
+import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.NextPageToken;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
@@ -37,7 +38,7 @@ public class PortalManagerImpl implements PortalManager {
 	public Portal createPortal(UserInfo user, CreateOrUpdatePortalRequest request) {
 		validateCreateOrUpdateRequest(user, request);
 		
-		if (!user.isAdmin()) {
+		if (!AuthorizationUtils.isPortalManagerOrAdmin(user)) {
 			throw new UnauthorizedException("You are not authorized to perform this operation.");
 		}
 		
@@ -49,8 +50,7 @@ public class PortalManagerImpl implements PortalManager {
 	}
 
 	@Override
-	public Portal getPortal(UserInfo user, String portalId) {
-		ValidateArgument.required(user, "The user");
+	public Portal getPortal(String portalId) {
 		ValidateArgument.required(portalId, "The portalId");
 		
 		return portalsDao.getPortal(portalId).orElseThrow(() -> new NotFoundException("A portal with the given id does not exist."));
@@ -63,11 +63,11 @@ public class PortalManagerImpl implements PortalManager {
 		
 		validateCreateOrUpdateRequest(user, request);
 		
-		if (!user.isAdmin()) {
+		if (!AuthorizationUtils.isPortalManagerOrAdmin(user)) {
 			aclDao.canAccess(user, portalId, ObjectType.PORTAL, ACCESS_TYPE.UPDATE).checkAuthorizationOrElseThrow();
 		}
 		
-		return portalsDao.updatePortal(user.getId(), getPortal(user, portalId).getId(), request.getName(), request.getUrl());
+		return portalsDao.updatePortal(user.getId(), getPortal(portalId).getId(), request.getName(), request.getUrl());
 	}
 	
 	@Override
@@ -76,16 +76,15 @@ public class PortalManagerImpl implements PortalManager {
 		ValidateArgument.required(user, "The user");
 		ValidateArgument.required(portalId, "The portalId");
 		
-		if (!user.isAdmin()) {
+		if (!AuthorizationUtils.isPortalManagerOrAdmin(user)) {
 			aclDao.canAccess(user, portalId, ObjectType.PORTAL, ACCESS_TYPE.DELETE).checkAuthorizationOrElseThrow();
 		}
 		
-		portalsDao.deletePortal(getPortal(user, portalId).getId());
+		portalsDao.deletePortal(getPortal(portalId).getId());
 	}
 
 	@Override
-	public ListPortalsResponse listPortals(UserInfo user, ListPortalsRequest request) {
-		ValidateArgument.required(user, "The user");
+	public ListPortalsResponse listPortals(ListPortalsRequest request) {
 		ValidateArgument.required(request, "The request");
 		
 		NextPageToken nextPageToken = new NextPageToken(request.getNextPageToken());
@@ -98,8 +97,7 @@ public class PortalManagerImpl implements PortalManager {
 	}	
 
 	@Override
-	public AccessControlList getPortalAcl(UserInfo user, String portalId) {
-		ValidateArgument.required(user, "The user");
+	public AccessControlList getPortalAcl(String portalId) {
 		ValidateArgument.required(portalId, "The portalId");
 		
 		return aclDao.getAcl(portalId, ObjectType.PORTAL).orElseThrow(() -> new NotFoundException("Could not find an ACL for the portal with the given id."));
@@ -117,13 +115,13 @@ public class PortalManagerImpl implements PortalManager {
 		// Makes sure the user is not revoking their own permissions
 		PermissionsManagerUtils.validateACLContent(acl, user, Long.valueOf(portalId));
 		
-		if (!user.isAdmin()) {
+		if (!AuthorizationUtils.isPortalManagerOrAdmin(user)) {
 			aclDao.canAccess(user, portalId, ObjectType.PORTAL, ACCESS_TYPE.CHANGE_PERMISSIONS).checkAuthorizationOrElseThrow();
 		}
 		
 		aclDao.update(acl, ObjectType.PORTAL);
 
-		return getPortalAcl(user, portalId);
+		return getPortalAcl(portalId);
 	}
 	
 	private static void validateCreateOrUpdateRequest(UserInfo user, CreateOrUpdatePortalRequest request) {

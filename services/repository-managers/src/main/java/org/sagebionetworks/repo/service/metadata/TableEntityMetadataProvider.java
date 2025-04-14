@@ -12,6 +12,7 @@ import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.table.TableConstants;
 import org.sagebionetworks.repo.model.table.TableEntity;
 import org.sagebionetworks.repo.web.NotFoundException;
+import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -72,5 +73,8 @@ public class TableEntityMetadataProvider implements TypeSpecificDeleteProvider<T
 			Boolean isCurrentlyEnabled = nodeManager.getNode(entity.getId()).getIsSearchEnabled();
 			entity.setIsSearchEnabled(isCurrentlyEnabled);
 		}
+		
+		ValidateArgument.required(entity.getColumnIds(), "column id list");
+		
 	}
 }

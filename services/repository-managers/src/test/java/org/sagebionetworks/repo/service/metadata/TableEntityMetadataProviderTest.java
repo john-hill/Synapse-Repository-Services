@@ -20,14 +20,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.NodeManager;
 import org.sagebionetworks.repo.manager.table.TableEntityManager;
+import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.table.TableConstants;
 import org.sagebionetworks.repo.model.table.TableEntity;
-import org.sagebionetworks.repo.service.metadata.EntityEvent;
-import org.sagebionetworks.repo.service.metadata.EventType;
-import org.sagebionetworks.repo.service.metadata.TableEntityMetadataProvider;
 
 import com.google.common.collect.Lists;
 
@@ -176,6 +174,14 @@ public class TableEntityMetadataProviderTest  {
 		provider.validateEntity(table, event);
 
 		assertTrue(table.getIsSearchEnabled());
+	}
+	
+	@Test
+	public void testValidateTableEntityithNullColumnList() {
+		table.setColumnIds(null);
+		
+		// Call under test
+		assertThrows(IllegalArgumentException.class, ()->{provider.validateEntity(table, event);});
 	}
 	
 }

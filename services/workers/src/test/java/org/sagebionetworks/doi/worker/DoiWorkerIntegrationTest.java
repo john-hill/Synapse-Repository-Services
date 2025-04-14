@@ -20,7 +20,6 @@ import org.sagebionetworks.repo.manager.asynch.AsynchJobStatusManager;
 import org.sagebionetworks.repo.manager.doi.DoiManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.DoiAdminDao;
-import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.asynch.AsynchronousJobStatus;
@@ -99,7 +98,7 @@ public class DoiWorkerIntegrationTest {
 		
 		// Make sure the DOI refers to the project
 		assertEquals(projectId, responseDoi.getObjectId());
-		assertEquals(ObjectType.ENTITY, responseDoi.getObjectType());
+		assertEquals(DoiObjectType.ENTITY, responseDoi.getObjectType());
 		assertNull(responseDoi.getObjectVersion());
 		
 		// Make sure all of the metadata we get back matches the metadata we enter

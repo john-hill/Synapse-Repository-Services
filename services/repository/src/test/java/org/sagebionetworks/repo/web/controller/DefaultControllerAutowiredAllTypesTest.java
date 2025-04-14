@@ -270,16 +270,20 @@ public class DefaultControllerAutowiredAllTypesTest extends AbstractAutowiredCon
 					table = servletTestHelper.createEntity(dispatchServlet, table, userId);
 					((HasDefiningSql) object).setDefiningSQL("SELECT * FROM "+table.getId());
 				}
-				Entity clone = servletTestHelper.createEntity(dispatchServlet, object, userId);
-				assertNotNull(clone);
-				assertNotNull(clone.getId());
-				assertNotNull(clone.getEtag());
-				
-				// Mark entities for deletion after the current test completes
-				toDelete.add(clone.getId());
+				try {
+					Entity clone = servletTestHelper.createEntity(dispatchServlet, object, userId);
+					assertNotNull(clone);
+					assertNotNull(clone.getId());
+					assertNotNull(clone.getEtag());
 
-				// Add this to the list of entities created
-				newChildren.add(clone);
+					// Mark entities for deletion after the current test completes
+					toDelete.add(clone.getId());
+
+					// Add this to the list of entities created
+					newChildren.add(clone);
+				} catch (Exception e) {
+					throw new RuntimeException("object is of type "+object.getClass()+" "+object.getConcreteType(), e);
+				}
 				index++;
 			}
 		}

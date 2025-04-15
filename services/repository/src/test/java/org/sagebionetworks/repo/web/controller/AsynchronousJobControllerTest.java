@@ -56,7 +56,6 @@ public class AsynchronousJobControllerTest extends AbstractAutowiredControllerTe
 		table = new TableEntity();
 		table.setName("TableEntity");
 		table.setParentId(parent.getId());
-		table.setColumnIds(Collections.EMPTY_LIST);
 		table = servletTestHelper.createEntity(dispatchServlet, table, adminUserId);
 		// Create a file handle
 		fileHandle = TestUtils.createS3FileHandle(adminUserId.toString(), idGenerator.generateNewId(IdType.FILE_IDS).toString());

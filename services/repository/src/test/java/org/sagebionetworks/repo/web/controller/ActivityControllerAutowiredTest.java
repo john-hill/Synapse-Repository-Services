@@ -9,7 +9,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -148,12 +147,10 @@ public class ActivityControllerAutowiredTest extends AbstractAutowiredController
 		entityIdsToDelete.add(proj.getId());
 		TableEntity entity1 = new TableEntity();
 		entity1.setParentId(proj.getId());
-		entity1.setColumnIds(Collections.EMPTY_LIST);
 		entity1 = entityService.createEntity(userId, entity1, act.getId());
 		entityIdsToDelete.add(entity1.getId());
 		TableEntity entity2 = new TableEntity();
 		entity2.setParentId(proj.getId());
-		entity2.setColumnIds(Collections.EMPTY_LIST);
 		entity2 = entityService.createEntity(userId, entity2, act.getId());
 		entityIdsToDelete.add(entity2.getId());
 		

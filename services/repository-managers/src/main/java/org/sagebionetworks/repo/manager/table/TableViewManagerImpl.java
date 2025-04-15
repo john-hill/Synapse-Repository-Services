@@ -144,7 +144,11 @@ public class TableViewManagerImpl implements TableViewManager {
 	@Override
 	public void validateViewSchemaAndScope(List<String> schema, ViewScope scope) {
 		
-		ValidateArgument.required(schema, "column id list");
+		if (schema!=null) {
+			for (String colId: schema) {
+				ValidateArgument.required(colId, "column id");				
+			}
+		}
 		
 		validateViewSchemaSize(schema);
 		

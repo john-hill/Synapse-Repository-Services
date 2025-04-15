@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -178,7 +179,8 @@ public class TableEntityMetadataProviderTest  {
 	
 	@Test
 	public void testValidateTableEntityithNullColumnList() {
-		table.setColumnIds(null);
+		List<String> schemaWithNullElement = Arrays.asList(new String[] {"1", null, "3"});
+		table.setColumnIds(schemaWithNullElement);
 		
 		// Call under test
 		assertThrows(IllegalArgumentException.class, ()->{provider.validateEntity(table, event);});

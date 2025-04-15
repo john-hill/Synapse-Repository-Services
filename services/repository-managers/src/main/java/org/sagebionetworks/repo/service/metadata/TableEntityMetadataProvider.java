@@ -74,7 +74,11 @@ public class TableEntityMetadataProvider implements TypeSpecificDeleteProvider<T
 			entity.setIsSearchEnabled(isCurrentlyEnabled);
 		}
 		
-		ValidateArgument.required(entity.getColumnIds(), "column id list");
+		if (entity.getColumnIds()!=null) {
+			for (String colId: entity.getColumnIds()) {
+				ValidateArgument.required(colId, "column id");
+			}
+		}
 		
 	}
 }

@@ -1,0 +1,15 @@
+{
+	"description": "Base for all cell level Conflict-Free Replicated Data Types (CRDT).",
+	"type": "interface",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.grid.crdt.Crdt"
+		}
+	],
+	"properties": {
+		"cellId": {
+			"description": "The unique identifier for this cell's row",
+			"$ref":"org.sagebionetworks.repo.model.grid.CellId"
+		}
+	}
+}

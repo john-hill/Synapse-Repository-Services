@@ -1,0 +1,13 @@
+{
+	"description": "Response for getting the cell CRDTs.",
+	"type": "object",
+	"properties": {
+		"cells": {
+			"description": "List of cell level CRDTs",
+			"type": "array",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.grid.crdt.CellCrdt"
+			}
+		}
+	}
+}

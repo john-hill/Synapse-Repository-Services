@@ -1,0 +1,17 @@
+{
+	"description": "Request to map cell IDs to cell addresses relative to a viewport.",
+	"type": "object",
+	"properties": {
+		"viewport": {
+			"description": "Viewport defines the address space.",
+			"$ref": "org.sagebionetworks.repo.model.grid.Viewport"
+		},
+		"cellIds": {
+			"description": "The cell IDs to be mapped.",
+			"type": "array",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.grid.CellId"
+			}
+		}
+	}
+}

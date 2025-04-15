@@ -1,0 +1,13 @@
+{
+	"description": "The address of a grid cell based on its row and column index. This is a local address that is relative to a Viewport.",
+	"properties": {
+		"rowIndex": {
+			"type": "integer",
+			"description": "The row index of the top-left cell. Minimum value: 1."
+		},
+		"columnIndex": {
+			"type": "integer",
+			"description": "The column index of the top-left cell. Minimum value: 1."
+		}
+	}
+}

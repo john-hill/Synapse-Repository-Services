@@ -1,0 +1,38 @@
+{
+	"description": "Basic information about a grid session.",
+	"properties": {
+		"sessionId": {
+			"description": "The sessionId that identifies the grid session.",
+			"type": "string"
+		},
+		"startedBy": {
+			"description": "The user that started this session.",
+			"type": "integer"
+		},
+		"startedOn": {
+			"type": "string",
+			"format": "date-time",
+			"description": "The date-time when the user made this change."
+		},
+		"numberOfRows": {
+			"description": "The number of rows in the grid.",
+			"type": "integer"
+		},
+		"columnNames": {
+			"description": "The names of the coumns in this grid",
+			"type": "array",
+			"items": {
+				"description": "Column name",
+				"type": "string"
+			}
+		},
+		"currentVesion":{
+			"description": "The current global version of this grid.",
+			"type": "integer"
+		},
+		"schema$id": {
+			"type": "string",
+			"description": "The $id of the JSON schema to be used for model validation."
+		}
+	}
+}

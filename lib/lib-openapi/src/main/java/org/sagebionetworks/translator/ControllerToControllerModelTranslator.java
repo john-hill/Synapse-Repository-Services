@@ -145,7 +145,9 @@ public class ControllerToControllerModelTranslator {
 		List<? extends AnnotationMirror> fileAnnotations = file.getAnnotationMirrors();
 		for (AnnotationMirror annotation : fileAnnotations) {
 			if (ControllerInfo.class.getSimpleName().equals(getSimpleAnnotationName(annotation))) {
-				return true;
+				System.out.println("Controller: "+file.toString());
+				return "org.sagebionetworks.repo.web.controller.GridController".equals(file.toString());
+//				return true;
 			}
 		}
 		return false;

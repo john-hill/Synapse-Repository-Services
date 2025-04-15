@@ -1,0 +1,13 @@
+{
+	"description": "Request to get cell CRDTs.",
+	"type": "object",
+	"properties": {
+		"cellIds": {
+			"description": "The cell IDs of the cells to get.",
+			"type": "array",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.grid.CellId"
+			}
+		}
+	}
+}

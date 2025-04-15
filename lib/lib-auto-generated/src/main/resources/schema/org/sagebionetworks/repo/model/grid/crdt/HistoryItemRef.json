@@ -1,0 +1,14 @@
+{
+	"description": "Refrence to a specific HistoryItem using its 'itemUUID'",
+	"properties": {
+		"itemUUID": {
+			"type": "string",
+			"description": "UUID (Universally Unique IDentifier) for this item."
+		},
+		"createdOn": {
+			"type": "string",
+			"format": "date-time",
+			"description": "The date-time when this referenced was created."
+		}
+	}
+}

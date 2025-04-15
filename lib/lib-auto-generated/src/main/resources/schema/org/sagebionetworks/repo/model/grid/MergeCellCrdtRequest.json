@@ -1,0 +1,17 @@
+{
+	"description": "Request to merge a batch of cell CRDTs back into the grid.",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.asynch.AsynchronousRequestBody"
+		}
+	],
+	"properties": {
+		"toMerge": {
+			"description": "The cell CRDTs to be merged.",
+			"type": "array",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.grid.crdt.CellCrdt"
+			}
+		}
+	}
+}

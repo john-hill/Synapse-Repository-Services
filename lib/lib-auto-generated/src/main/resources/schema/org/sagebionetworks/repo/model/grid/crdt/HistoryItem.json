@@ -1,0 +1,30 @@
+{
+	"description": "An immutable change appended to a grid cell's history.",
+	"properties": {
+		"itemUUID": {
+			"type": "string",
+			"description": "UUID (Universally Unique IDentifier) for this item. Clients must issue a new UUID for each history item generated."
+		},
+		"cellValue": {
+			"type": "string",
+			"description": "The value of the cell, set by the user, at the time this item was generated."
+		},
+		"changedById": {
+			"type": "string",
+			"description": "The ID of the user that made this change"
+		},
+		"changedOn": {
+			"type": "string",
+			"format": "date-time",
+			"description": "The date-time when the user made this change."
+		},
+		"agentAssist": {
+			"type": "boolean",
+			"description": "When true, this change was made by an agent on the changeById user's behalf."
+		},
+		"gridVersion": {
+			"type": "number",
+			"description": "The current version number of the grid at the time this change was made."
+		}
+	}
+}

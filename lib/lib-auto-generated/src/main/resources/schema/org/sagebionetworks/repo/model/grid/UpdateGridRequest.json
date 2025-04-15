@@ -1,0 +1,13 @@
+{
+	"description": "Request to update the grid by executing a SQL update command.",
+	"properties": {
+		"gridSessionId": {
+			"description": "The grid session ID.",
+			"type": "string"
+		},
+		"update": {
+			"description": "",
+			"$ref": "org.sagebionetworks.repo.model.grid.sql.Update"
+		}
+	}
+}

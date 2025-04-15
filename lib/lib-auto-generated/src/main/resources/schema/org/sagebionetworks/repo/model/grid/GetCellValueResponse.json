@@ -1,0 +1,13 @@
+{
+	"description": "Response for getting the cell values.",
+	"type": "object",
+	"properties": {
+		"cells": {
+			"description": "List of cell values.",
+			"type": "array",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.grid.CellValue"
+			}
+		}
+	}
+}

@@ -1,0 +1,13 @@
+{
+	"description": "The value of a cell.",
+	"properties": {
+		"cellId": {
+			"description": "The cell's ID.",
+			"$ref": "org.sagebionetworks.repo.model.grid.CellId"
+		},
+		"value": {
+			"description": "The current value of a cell",
+			"type": "string"
+		}
+	}
+}

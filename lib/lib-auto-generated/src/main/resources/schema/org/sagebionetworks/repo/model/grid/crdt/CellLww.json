@@ -1,0 +1,31 @@
+{
+	"description": "Cell level Last-Write-Wins (LLW) Conflict-Free Replicated Data Type.  All conflicts are resolved using last-write-wins.",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.grid.crdt.CellCrdt"
+		}
+	],
+	"properties": {
+		"changeHistory": {
+			"type": "array",
+			"description": "Append-only set of changes applied to a grid cell. Items must be be removed or modified.",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.grid.crdt.HistoryItem"
+			}
+		},
+		"undo": {
+			"description": "Append-only set if ItemRefs that the user has selected to 'undo'.",
+			"type": "array",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.grid.crdt.HistoryItemRef"
+			}
+		},
+		"redo": {
+			"description": "Append-only set if ItemRefs that the user has selected to 'redo'.",
+			"type": "array",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.grid.crdt.HistoryItemRef"
+			}
+		}
+	}
+}

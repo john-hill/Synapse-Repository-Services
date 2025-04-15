@@ -1,0 +1,25 @@
+{
+    "description": "Sort item defines a column name and direction",
+    "properties": {
+        "columnName": {
+            "type": "string",
+            "description": "The name of the column to sort by."
+        },
+        "direction": {
+            "type": "string",
+            "description": "Direction of the sort",
+            "name": "SortDirection",
+            "id": "org.sagebionetworks.repo.model.grid.SortDirection",
+            "enum": [
+                {
+                    "name": "ASC",
+                    "description": "Ascending sort order"
+                },
+                {
+                    "name": "DESC",
+                    "description": "Descending sort order"
+                }
+            ]
+        }
+    }
+}

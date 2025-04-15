@@ -1,0 +1,10 @@
+{
+	"description": "Base interface for all grid Conflict-Free Replicated Data Types (CRDT). Each CRDT has its own strategy for resolving conflicts.",
+	"type": "interface",
+	"properties": {
+		"concreteType": {
+			"type": "string",
+			"description": "The implementation type of the CRDT, for example, org.sagebionetworks.model.grid.crdt.CellLLW"
+		}
+	}
+}

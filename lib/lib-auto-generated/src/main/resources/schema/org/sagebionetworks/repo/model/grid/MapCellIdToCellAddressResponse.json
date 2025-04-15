@@ -1,0 +1,13 @@
+{
+	"description": "Response map of cell IDs to cell addresses relative to a viewport.",
+	"type": "object",
+	"properties": {
+		"map": {
+			"description": "The cell IDs to be mapped.",
+			"type": "array",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.grid.CellIdAndAddress"
+			}
+		}
+	}
+}

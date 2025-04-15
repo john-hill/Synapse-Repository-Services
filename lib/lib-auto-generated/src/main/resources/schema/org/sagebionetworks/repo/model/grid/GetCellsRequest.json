@@ -1,0 +1,13 @@
+{
+	"description": "Request to get cells from a grid.",
+	"properties": {
+		"gridSessionId": {
+			"description": "The grid session ID.",
+			"type": "string"
+		},
+		"viewPort": {
+			"description": "The view port defines the cells to load.",
+			"$ref": "org.sagebionetworks.repo.model.grid.Viewport"
+		}
+	}
+}

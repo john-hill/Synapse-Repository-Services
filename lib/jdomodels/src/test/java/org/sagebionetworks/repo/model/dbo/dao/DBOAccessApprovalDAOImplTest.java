@@ -1399,6 +1399,7 @@ public class DBOAccessApprovalDAOImplTest {
 	private Submission createSubmission(AccessRequirement accessRequirement, ResearchProject researchProject, long modifiedOn, String submitter) {
 		Submission dto = new Submission();
 		dto.setAccessRequirementId(accessRequirement.getId().toString());
+		dto.setAccessRequirementVersion(accessRequirement.getVersionNumber());
 		dto.setRequestId(request.getId());
 		AccessorChange change = new AccessorChange();
 		change.setType(AccessType.GAIN_ACCESS);

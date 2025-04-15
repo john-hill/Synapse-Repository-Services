@@ -24,19 +24,28 @@ public class TextMatchesPredicate extends SQLElement implements HasPredicate {
 	}
 	
 	private UnsignedLiteral searchExpression;
+	private TextMatchesSearchMode searchMode;
 
-	public TextMatchesPredicate(CharacterStringLiteral searchExpression) {
+	public TextMatchesPredicate(CharacterStringLiteral searchExpression, TextMatchesSearchMode searchMode) {
 		this.searchExpression = new UnsignedLiteral(new GeneralLiteral(searchExpression));
+		this.searchMode = searchMode;
 	}
 	
 	public UnsignedLiteral getSearchExpression() {
 		return searchExpression;
+	}
+	
+	public TextMatchesSearchMode getSearchMode() {
+		return searchMode;
 	}
 
 	@Override
 	public void toSql(StringBuilder builder, ToSqlParameters parameters) {
 		builder.append(KEYWORD).append("(");
 		searchExpression.toSql(builder, parameters);
+		if (searchMode != null) {
+			builder.append(" ").append(searchMode.getSql());
+		}
 		builder.append(")");
 	}
 

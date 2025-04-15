@@ -3387,7 +3387,7 @@ public class TableWorkerIntegrationTest {
 		
 		// works using boolean mode in a query filter
 		waitForConsistentQueryBundle(adminUserInfo, new Query().setSql("select * from " + tableId).setAdditionalFilters(List.of(
-			new TextMatchesQueryFilter().setSearchExpression("'\"singlevalue value\" @3'").setSearchMode(TextMatchesMode.BOOLEAN))), queryOptions, (resultBundle) -> {
+			new TextMatchesQueryFilter().setSearchExpression("\"singlevalue value\" @3").setSearchMode(TextMatchesMode.BOOLEAN))), queryOptions, (resultBundle) -> {
 				assertEquals(1, resultBundle.getQueryResult().getQueryResults().getRows().size());
 				List<Long> expectedIds = Arrays.asList(referenceSet.getRows().get(1).getRowId());
 				assertEquals(expectedIds, resultBundle.getQueryResult().getQueryResults().getRows().stream().map(Row::getRowId).collect(Collectors.toList()));

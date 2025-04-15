@@ -82,7 +82,7 @@ public class TableCSVDownloadWorker implements AsyncJobRunner<DownloadFromTableR
 			try(CSVWriter writer = csvWriterProvider.createWriter(new FileWriter(temp), request.getCsvTableDescriptor());){
 				// this object will update the progress of both the job and refresh the timeout on the message as rows are read from the DB.
 				ProgressingCSVWriterStream stream = new ProgressingCSVWriterStream(writer, jobProgressCallback, currentProgress, totalProgress, clock);
-				result =  tableQueryManager.runQueryDownloadAsStream(jobProgressCallback, user, request, stream);
+				result =  tableQueryManager.runQueryDownloadAsCSV(jobProgressCallback, user, request, stream);
 			}
 
 			// At this point we have the entire CSV written to a local file.

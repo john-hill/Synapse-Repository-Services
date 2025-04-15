@@ -945,6 +945,10 @@ public class UrlHelpers {
 	public static final String TABLE_COLUMNS_OF_SCOPE = COLUMN+"/view/scope";
 	public static final String TABLE_SNAPSHOT = ENTITY_TABLE+"/snapshot";
 
+	public static final String ENTITY_TABLE_DOWNOLAD_PFB = ENTITY_TABLE + "/download/pfb";
+	public static final String ENTITY_TABLE_DOWNLOAD_PFB_ASYNC_START = ENTITY_TABLE_DOWNOLAD_PFB + ASYNC_START_REQUEST;
+	public static final String ENTITY_TABLE_DOWNLOAD_PFB_ASYNC_GET = ENTITY_TABLE_DOWNOLAD_PFB + ASYNC_GET_REQUEST;
+	
 	public static final String VALIDATE_DEFINING_SQL = "/validateDefiningSql";
 	
 	public static final String VIEW_COLUMNS_FROM_SCOPE_ASYNC_START = TABLE_COLUMNS_OF_SCOPE + ASYNC_START_REQUEST;
@@ -1245,6 +1249,13 @@ public class UrlHelpers {
 	// Endpoint for project storage limits
 	public static final String PROJECT_STORAGE_LIMIT = "/project/{projectId}/storage/limit";
 	public static final String PROJECT_STORAGE_USAGE = "/project/{projectId}/storage/usage";
+	
+	// Endpoint for portals management
+	public static final String PORTAL = "/portal";
+	public static final String PORTAL_LIST = PORTAL + "/list";
+	public static final String PORTAL_ID = PORTAL + "/{portalId}";
+	public static final String PORTAL_ACL = PORTAL_ID + "/acl";
+	
 	
 	/**
 	 * API for creating integration test users

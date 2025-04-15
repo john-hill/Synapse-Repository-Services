@@ -20,6 +20,7 @@ import org.sagebionetworks.repo.manager.asynch.AsynchJobStatusManager;
 import org.sagebionetworks.report.worker.StorageReportCSVDownloadWorker;
 import org.sagebionetworks.schema.worker.CreateJsonSchemaWorker;
 import org.sagebionetworks.schema.worker.GetValidationSchemaWorker;
+import org.sagebionetworks.table.worker.PFBDownloadWorker;
 import org.sagebionetworks.table.worker.TableCSVAppenderPreviewWorker;
 import org.sagebionetworks.table.worker.TableCSVDownloadWorker;
 import org.sagebionetworks.table.worker.TableQueryNextPageWorker;
@@ -458,6 +459,30 @@ public class AsyncJobWorkersConfig {
 		config.setSemaphoreLockAndMessageVisibilityTimeoutSec(60);
 		config.setSemaphoreMaxLockCount(4);
 		config.setSemaphoreLockKey("tableCSVDownloader");
+		
+		MessageDrivenWorkerStack stack = new MessageDrivenWorkerStack(countingSemaphore, amazonSQSClient, config);
+		
+		return new WorkerTriggerBuilder()
+			.withStack(stack)
+			.withRepeatInterval(2087)
+			.withStartDelay(15)
+			.build();
+	}
+	
+	@Bean
+	public SimpleTriggerFactoryBean queryAsPFBWorkerTrigger(PFBDownloadWorker queryAsPFBWorker) {
+		
+		String queueName = stackConfig.getQueueName("QUERY_AS_PFB");
+		MessageDrivenRunner worker = new AsyncJobRunnerAdapter<>(jobStatusManager, userManager, queryAsPFBWorker);
+		
+		MessageDrivenWorkerStackConfiguration config = new MessageDrivenWorkerStackConfiguration();
+		
+		config.setGate(stackStatusGate);
+		config.setQueueName(queueName);
+		config.setRunner(worker);
+		config.setSemaphoreLockAndMessageVisibilityTimeoutSec(60);
+		config.setSemaphoreMaxLockCount(4);
+		config.setSemaphoreLockKey("queryAsPFBWorker");
 		
 		MessageDrivenWorkerStack stack = new MessageDrivenWorkerStack(countingSemaphore, amazonSQSClient, config);
 		

@@ -45,12 +45,15 @@ import org.sagebionetworks.repo.model.annotation.v2.Annotations;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsV2TestUtils;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValueType;
 import org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils;
+import org.sagebionetworks.repo.model.download.AddToDownloadListResponse;
 import org.sagebionetworks.repo.model.file.FileHandle;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.table.ColumnChange;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.DefiningSqlEntityType;
+import org.sagebionetworks.repo.model.table.DownloadPFBRequest;
+import org.sagebionetworks.repo.model.table.DownloadPFBResult;
 import org.sagebionetworks.repo.model.table.MaterializedView;
 import org.sagebionetworks.repo.model.table.PaginatedColumnModels;
 import org.sagebionetworks.repo.model.table.PartialRow;
@@ -981,6 +984,40 @@ public class IT100TableControllerTest {
 		
 		ValidateDefiningSqlResponse response = synapse.validateDefiningSql(request);
 		assertTrue(response.getIsValid());
+	}
+	
+	@Test
+	public void testDownloadPFB() throws Exception {
+		// Create a few columns to add to a table entity
+		ColumnModel one = new ColumnModel();
+		one.setName("one");
+		one.setColumnType(ColumnType.INTEGER);
+		one = synapse.createColumnModel(one);
+
+		TableEntity table = createTable(Lists.newArrayList(one.getId()));
+
+		List<ColumnModel> columns = synapse.getColumnModelsForTableEntity(table.getId());
+
+		// Append some rows
+		RowSet set = new RowSet();
+		List<Row> rows = List.of(new Row().setValues(List.of("54321")));
+		set.setRows(rows);
+		set.setHeaders(TableModelUtils.getSelectColumns(columns));
+		set.setTableId(table.getId());
+		synapse.appendRowsToTable(set, MAX_APPEND_TIMEOUT, table.getId());
+
+		DownloadPFBRequest request = new DownloadPFBRequest();
+		request.setEntityId(table.getId());
+		request.setSql("select * from " + table.getId());
+		request.setPfbEntityName("testing");
+
+		// call under test
+		AsyncJobHelper.assertAysncJobResult(synapse, AsynchJobType.TablePFBDownload, request, body -> {
+			assertTrue(body instanceof DownloadPFBResult);
+			DownloadPFBResult response = (DownloadPFBResult) body;
+			assertNotNull(response.getResultsFileHandleId());
+		}, MAX_QUERY_TIMEOUT_MS, AsyncJobHelper.INFINITE_RETRIES);
+
 	}
 		
 	private TableEntity createTable(List<String> columns) throws SynapseException {

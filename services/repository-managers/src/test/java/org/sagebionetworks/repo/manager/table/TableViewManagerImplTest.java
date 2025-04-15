@@ -266,6 +266,11 @@ public class TableViewManagerImplTest {
 	}
 	
 	@Test
+	public void testValidateSchemaAndScopeNullSchema() {
+		assertThrows(IllegalArgumentException.class, ()->{manager.validateViewSchemaAndScope(null, viewScope);});
+	}
+	
+	@Test
 	public void testValidateSchemaAndScopeOverLimit(){
 		IllegalArgumentException overLimit = new IllegalArgumentException("Over limit");
 		doThrow(overLimit).when(mockTableManagerSupport).validateScope(any(), anySet());

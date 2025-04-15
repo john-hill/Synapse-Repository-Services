@@ -2,6 +2,10 @@ package org.sagebionetworks.repo.manager.config;
 
 import static org.sagebionetworks.repo.manager.file.scanner.BasicFileHandleAssociationScanner.DEFAULT_BATCH_SIZE;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpClient.Redirect;
 import java.time.Duration;
@@ -58,7 +62,10 @@ import org.sagebionetworks.repo.model.dbo.wikiV2.V2DBOWikiMarkdown;
 import org.sagebionetworks.repo.model.file.FileHandleAssociateType;
 import org.sagebionetworks.repo.model.oauth.OAuthProvider;
 import org.sagebionetworks.repo.model.oauth.OIDCClaimName;
+import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.simpleHttpClient.SimpleHttpClient;
+import org.sagebionetworks.table.cluster.avro.RowPFBWriter;
+import org.sagebionetworks.table.cluster.avro.RowPFBWriterProvider;
 import org.sagebionetworks.workers.util.semaphore.WriteReadSemaphore;
 import org.sagebionetworks.workers.util.semaphore.WriteReadSemaphoreImpl;
 import org.springframework.context.annotation.Bean;
@@ -376,6 +383,18 @@ public class ManagerConfiguration {
 			.withTargetObject(manager)
 			.withTargetMethod("sendProjectStorageNotifications")
 			.build();
+	}
+	
+	@Bean
+	public RowPFBWriterProvider createRowPFBWriterProvider() {
+		return (String tableName, List<ColumnModel> columns, File file) -> {
+			return new RowPFBWriter(tableName, columns, new FileOutputStream(file));
+		};
+	}
+	
+	@Bean
+	int viewUpdateVisibilityTimeoutSeconds() {
+		return 120;
 	}
 
 }

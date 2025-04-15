@@ -189,6 +189,10 @@
 		{
 			"name": "TRASH_CAN",
 			"description": "TODO: Auto-generated description"
+		},		
+		{
+			"name": "PORTAL",
+			"description": "Table that stores portal information"
 		},
 		{
 			"name": "DOI",

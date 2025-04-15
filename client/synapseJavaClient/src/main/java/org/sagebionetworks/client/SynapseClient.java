@@ -151,6 +151,7 @@ import org.sagebionetworks.repo.model.docker.DockerCommit;
 import org.sagebionetworks.repo.model.docker.DockerCommitSortBy;
 import org.sagebionetworks.repo.model.doi.v2.Doi;
 import org.sagebionetworks.repo.model.doi.v2.DoiAssociation;
+import org.sagebionetworks.repo.model.doi.v2.DoiObjectType;
 import org.sagebionetworks.repo.model.doi.v2.DoiResponse;
 import org.sagebionetworks.repo.model.download.AddBatchOfFilesToDownloadListRequest;
 import org.sagebionetworks.repo.model.download.AddBatchOfFilesToDownloadListResponse;
@@ -237,6 +238,10 @@ import org.sagebionetworks.repo.model.oauth.OIDCAuthorizationRequest;
 import org.sagebionetworks.repo.model.oauth.OIDCAuthorizationRequestDescription;
 import org.sagebionetworks.repo.model.oauth.OIDCTokenResponse;
 import org.sagebionetworks.repo.model.oauth.OIDConnectConfiguration;
+import org.sagebionetworks.repo.model.portals.CreateOrUpdatePortalRequest;
+import org.sagebionetworks.repo.model.portals.ListPortalsRequest;
+import org.sagebionetworks.repo.model.portals.ListPortalsResponse;
+import org.sagebionetworks.repo.model.portals.Portal;
 import org.sagebionetworks.repo.model.principal.AccountSetupInfo;
 import org.sagebionetworks.repo.model.principal.AliasCheckRequest;
 import org.sagebionetworks.repo.model.principal.AliasCheckResponse;
@@ -292,6 +297,8 @@ import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnModelPage;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.repo.model.table.DownloadFromTableResult;
+import org.sagebionetworks.repo.model.table.DownloadPFBRequest;
+import org.sagebionetworks.repo.model.table.DownloadPFBResult;
 import org.sagebionetworks.repo.model.table.PaginatedColumnModels;
 import org.sagebionetworks.repo.model.table.Query;
 import org.sagebionetworks.repo.model.table.QueryOptions;
@@ -351,8 +358,7 @@ public interface SynapseClient extends BaseClient {
 	/**
 	 * Get the current status of the stack
 	 */
-	public StackStatus getCurrentStackStatus() 
-			throws SynapseException;
+	public StackStatus getCurrentStackStatus() throws SynapseException;
 	
 	/**
 	 * Is the passed alias available and valid?
@@ -1179,15 +1185,15 @@ public interface SynapseClient extends BaseClient {
 	public PaginatedResults<ProjectHeader> getProjectsForTeamDeprecated(Long teamId, ProjectListSortColumn sortColumn, SortDirection sortDirection,
 			Integer limit, Integer offset) throws SynapseException;
 
-	public DoiAssociation getDoiAssociation(String objectId, ObjectType objectType, Long objectVersion) throws SynapseException;
+	DoiAssociation getDoiAssociation(String portalId, String objectId, DoiObjectType objectType, Long objectVersion) throws SynapseException;
 
-	public Doi getDoi(String objectId, ObjectType objectType, Long objectVersion) throws SynapseException;
+	Doi getDoi(String portalId, String objectId, DoiObjectType objectType, Long objectVersion) throws SynapseException;
 
-	public String createOrUpdateDoiAsyncStart(Doi doi) throws SynapseException;
+	String createOrUpdateDoiAsyncStart(Doi doi) throws SynapseException;
 
-	public DoiResponse createOrUpdateDoiAsyncGet(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException;
+	DoiResponse createOrUpdateDoiAsyncGet(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException;
 
-	public String getPortalUrl(String objectId, ObjectType objectType, Long objectVersion) throws SynapseException;
+	String getPortalUrl(String portalId, String objectId, DoiObjectType objectType, Long objectVersion) throws SynapseException;
 
 	public List<EntityHeader> getEntityHeaderByMd5(String md5) throws SynapseException;
 
@@ -4442,4 +4448,37 @@ public interface SynapseClient extends BaseClient {
 	 */
 	ProjectStorageUsage getProjectStorageUsage(String projectId) throws SynapseException;
 
+	/**
+	 * 
+	 * @param downloadRequest
+	 * @return
+	 * @throws SynapseException
+	 */
+	String downloadPFBFromTableAsyncStart(DownloadPFBRequest downloadRequest) throws SynapseException;
+
+	/**
+	 * 
+	 * @param asyncJobToken
+	 * @param tableId
+	 * @return
+	 * @throws SynapseException
+	 * @throws SynapseResultNotReadyException
+	 */
+	DownloadPFBResult downloadPFBFromTableAsyncGet(String asyncJobToken, String tableId)
+			throws SynapseException, SynapseResultNotReadyException;
+	
+	Portal createPortal(CreateOrUpdatePortalRequest request) throws SynapseException;
+	
+	Portal updatePortal(String portalId, CreateOrUpdatePortalRequest request) throws SynapseException;
+
+	Portal getPortal(String portalId) throws SynapseException;
+	
+	ListPortalsResponse listPortals(ListPortalsRequest request) throws SynapseException;
+	
+	void deletePortal(String portalId) throws SynapseException;
+	
+	AccessControlList getPortalAcl(String portalId) throws SynapseException;
+	
+	AccessControlList updatePortalAcl(AccessControlList acl) throws SynapseException;
 }
+

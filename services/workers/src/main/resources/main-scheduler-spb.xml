@@ -88,6 +88,7 @@
 		<ref bean="cloudwatchTrigger" />
 		<ref bean="tableCSVAppenderPreviewWorkerTrigger" />
 		<ref bean="tableCSVDownloaderWorkerTrigger" />
+		<ref bean="queryAsPFBWorkerTrigger" />
 		<ref bean="tableQueryTrigger" />
 		<ref bean="tableQueryNextPageTrigger" />
 		<ref bean="projectStatsWorkerV2QueueMessageReveiverTrigger"/>
@@ -160,6 +161,9 @@
 		<ref bean="webhookChangeMessageWorkerTrigger"/>
 		<ref bean="webhookMetricsTrigger"/>
 		
+		<ref bean="replicatedToViewWorkerTrigger"/>
+		<ref bean="replicatedToViewConsumerWorkerTrigger"/>
+
 		<!-- TOS -->
 		<ref bean="tosLatestVersionRefreshWorkerTrigger"/>
 		

@@ -332,7 +332,7 @@ public class SQLTranslatorUtils {
 	 */
 	public static Row readRow(ResultSet rs, boolean includesRowIdAndVersion, boolean includeEtag, ColumnTypeInfo[] colunTypes) throws SQLException{
 		Row row = new Row();
-		List<String> values = new LinkedList<String>();
+		List<String> values = new ArrayList<String>(colunTypes.length);
 		row.setValues(values);
 		if(includesRowIdAndVersion){
 			row.setRowId(rs.getLong(ROW_ID));

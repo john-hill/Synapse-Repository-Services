@@ -187,6 +187,7 @@ import org.sagebionetworks.repo.model.docker.DockerCommit;
 import org.sagebionetworks.repo.model.docker.DockerCommitSortBy;
 import org.sagebionetworks.repo.model.doi.v2.Doi;
 import org.sagebionetworks.repo.model.doi.v2.DoiAssociation;
+import org.sagebionetworks.repo.model.doi.v2.DoiObjectType;
 import org.sagebionetworks.repo.model.doi.v2.DoiRequest;
 import org.sagebionetworks.repo.model.doi.v2.DoiResponse;
 import org.sagebionetworks.repo.model.download.AddBatchOfFilesToDownloadListRequest;
@@ -278,6 +279,10 @@ import org.sagebionetworks.repo.model.oauth.OIDCAuthorizationRequest;
 import org.sagebionetworks.repo.model.oauth.OIDCAuthorizationRequestDescription;
 import org.sagebionetworks.repo.model.oauth.OIDCTokenResponse;
 import org.sagebionetworks.repo.model.oauth.OIDConnectConfiguration;
+import org.sagebionetworks.repo.model.portals.CreateOrUpdatePortalRequest;
+import org.sagebionetworks.repo.model.portals.ListPortalsRequest;
+import org.sagebionetworks.repo.model.portals.ListPortalsResponse;
+import org.sagebionetworks.repo.model.portals.Portal;
 import org.sagebionetworks.repo.model.principal.AccountSetupInfo;
 import org.sagebionetworks.repo.model.principal.AliasCheckRequest;
 import org.sagebionetworks.repo.model.principal.AliasCheckResponse;
@@ -339,6 +344,8 @@ import org.sagebionetworks.repo.model.table.ColumnModelPage;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.repo.model.table.DownloadFromTableRequest;
 import org.sagebionetworks.repo.model.table.DownloadFromTableResult;
+import org.sagebionetworks.repo.model.table.DownloadPFBRequest;
+import org.sagebionetworks.repo.model.table.DownloadPFBResult;
 import org.sagebionetworks.repo.model.table.PaginatedColumnModels;
 import org.sagebionetworks.repo.model.table.Query;
 import org.sagebionetworks.repo.model.table.QueryBundleRequest;
@@ -3672,12 +3679,15 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	 * for the current version of the object.
 	 */
 	@Override
-	public DoiAssociation getDoiAssociation(String objectId, ObjectType objectType, Long objectVersion) throws SynapseException {
+	public DoiAssociation getDoiAssociation(String portalId, String objectId, DoiObjectType objectType, Long objectVersion) throws SynapseException {
 		ValidateArgument.required(objectId, "objectId");
 		ValidateArgument.required(objectType, "objectType");
 		String url = DOI_ASSOCIATION + "?id=" + objectId + "&type=" + objectType;
 		if (objectVersion != null) {
 			url += "&version=" + objectVersion;
+		}
+		if (portalId != null) {
+			url += "&portalId=" + portalId;
 		}
 		return getJSONEntity(getRepoEndpoint(), url, DoiAssociation.class);
 	}
@@ -3687,12 +3697,15 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	 * for the current version of the object.
 	 */
 	@Override
-	public Doi getDoi(String objectId, ObjectType objectType, Long objectVersion) throws SynapseException {
+	public Doi getDoi(String portalId, String objectId, DoiObjectType objectType, Long objectVersion) throws SynapseException {
 		ValidateArgument.required(objectId, "objectId");
 		ValidateArgument.required(objectType, "objectType");
 		String url = DOI_ASSOCIATION + "?id=" + objectId + "&type=" + objectType;
 		if (objectVersion != null) {
 			url += "&version=" + objectVersion;
+		}
+		if (portalId != null) {
+			url += "&portalId=" + portalId;
 		}
 		return getJSONEntity(getRepoEndpoint(), url, Doi.class);
 	}
@@ -3721,12 +3734,15 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	 *
 	 */
 	@Override
-	public String getPortalUrl(String objectId, ObjectType objectType, Long objectVersion) throws SynapseException {
+	public String getPortalUrl(String portalId, String objectId, DoiObjectType objectType, Long objectVersion) throws SynapseException {
 		ValidateArgument.required(objectId, "objectId");
 		ValidateArgument.required(objectType, "objectType");
 		String requestUrl = DOI_LOCATE + "?id=" + objectId + "&type=" + objectType;
 		if (objectVersion != null) {
 			requestUrl += "&version=" + objectVersion;
+		}
+		if (portalId != null) {
+			requestUrl += "&portalId=" + portalId;
 		}
 		requestUrl += "&redirect=false";
 		return getStringDirect(getRepoEndpoint(), requestUrl);
@@ -6369,5 +6385,56 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	@Override
 	public ProjectStorageUsage getProjectStorageUsage(String projectId) throws SynapseException {
 		return getJSONEntity(getRepoEndpoint(), "/project/" + projectId + "/storage/usage", ProjectStorageUsage.class);
+	}
+	
+	@Override
+	public String downloadPFBFromTableAsyncStart(DownloadPFBRequest downloadRequest)
+			throws SynapseException {
+		ValidateArgument.required(downloadRequest, "request");
+		ValidateArgument.required(downloadRequest.getEntityId(), "request.entityId");
+		return startAsynchJob(AsynchJobType.TablePFBDownload, downloadRequest);
+	}
+
+	@Override
+	public DownloadPFBResult downloadPFBFromTableAsyncGet(
+			String asyncJobToken, String tableId) throws SynapseException,
+			SynapseResultNotReadyException {
+		return (DownloadPFBResult) getAsyncResult(
+				AsynchJobType.TablePFBDownload, asyncJobToken, tableId);
+	}
+
+	@Override
+	public Portal createPortal(CreateOrUpdatePortalRequest request) throws SynapseException {
+		return postJSONEntity(getRepoEndpoint(), "/portal", request, Portal.class);
+	}
+	
+	@Override
+	public Portal updatePortal(String portalId, CreateOrUpdatePortalRequest request) throws SynapseException {
+		return putJSONEntity(getRepoEndpoint(), "/portal/" + portalId, request, Portal.class);
+	}
+	
+	@Override
+	public Portal getPortal(String portalId) throws SynapseException {
+		return getJSONEntity(getRepoEndpoint(), "/portal/" + portalId, Portal.class);
+	}
+	
+	@Override
+	public ListPortalsResponse listPortals(ListPortalsRequest request) throws SynapseException {
+		return postJSONEntity(getRepoEndpoint(), "/portal/list", request, ListPortalsResponse.class);
+	}
+	
+	@Override
+	public void deletePortal(String portalId) throws SynapseException {
+		deleteUri(getRepoEndpoint(), "/portal/" + portalId);
+	}
+	
+	@Override
+	public AccessControlList getPortalAcl(String portalId) throws SynapseException {
+		return getJSONEntity(getRepoEndpoint(), "/portal/" + portalId + "/acl", AccessControlList.class);
+	}
+	
+	@Override
+	public AccessControlList updatePortalAcl(AccessControlList acl) throws SynapseException {
+		return putJSONEntity(getRepoEndpoint(), "/portal/" + acl.getId() + "/acl", acl, AccessControlList.class);
 	}
 }

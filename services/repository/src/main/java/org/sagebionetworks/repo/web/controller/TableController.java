@@ -21,6 +21,8 @@ import org.sagebionetworks.repo.model.table.AppendableRowSetRequest;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.DownloadFromTableRequest;
 import org.sagebionetworks.repo.model.table.DownloadFromTableResult;
+import org.sagebionetworks.repo.model.table.DownloadPFBRequest;
+import org.sagebionetworks.repo.model.table.DownloadPFBResult;
 import org.sagebionetworks.repo.model.table.PaginatedColumnModels;
 import org.sagebionetworks.repo.model.table.QueryBundleRequest;
 import org.sagebionetworks.repo.model.table.QueryNextPageToken;
@@ -1416,4 +1418,97 @@ public class TableController {
 	) {
 		return serviceProvider.getEntityService().validateDefiningSql(request);
 	}
+
+	/**
+	 * Start an asynchronous job to download a table/view query result as Portable
+	 * Format for Biomedical (PFB) file.
+	 * </p>
+	 * The schema of the resulting PFB file will be an extension of the PFB Entity's
+	 * schema. The query's select statement will define the schema of a new type of
+	 * PFB object which will be appended to the entity.object union schema.
+	 * </p>
+	 * <table border="1">
+	 * <tr>
+	 * <th>entity field</th>
+	 * <th>description</th>
+	 * </tr>
+	 * <tr>
+	 * <td>entity.id</td>
+	 * <td>The concatenation of the row's row_id + '_' + row_version. The
+	 * entity.id will be null for cases where a row's row_id and row_version are null.</td>
+	 * </tr>
+	 * <tr>
+	 * <td>entity.name</td>
+	 * <td>Will always match the provided DownloadPFBRequest.pfbEntityName</td>
+	 * </tr>
+	 * <tr>
+	 * <td>entity.object</td>
+	 * <td>Will contain the actual data of the query result row.</td>
+	 * </tr>
+	 * </table>
+	 * </p>
+	 * The resulting PFB file will not include PFB Metadata rows.
+	 * </p>
+	 * Use the returned job id and
+	 * <a href="${GET.entity.id.table.download.pfb.async.get.asyncToken}">GET
+	 * /entity/{id}/table/download/pfb/async/get</a> to get the results of the query
+	 * 
+	 * @param userId
+	 * @param id              The ID of the TableEntity.
+	 * @param downloadRequest
+	 * @return
+	 * @throws DatastoreException
+	 * @throws NotFoundException
+	 * @throws IOException
+	 */
+	@RequiredScope({ view, download })
+	@ResponseStatus(HttpStatus.CREATED)
+	@RequestMapping(value = UrlHelpers.ENTITY_TABLE_DOWNLOAD_PFB_ASYNC_START, method = RequestMethod.POST)
+	public @ResponseBody AsyncJobId startPFBDownload(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable String id,
+			@RequestBody DownloadPFBRequest downloadRequest) throws DatastoreException, NotFoundException, IOException {
+		ValidateArgument.required(id, "{id}");
+		downloadRequest.setEntityId(id);
+		AsynchronousJobStatus job = serviceProvider.getAsynchronousJobServices().startJob(userId, downloadRequest);
+		AsyncJobId asyncJobId = new AsyncJobId();
+		asyncJobId.setToken(job.getJobId());
+		return asyncJobId;
+	}
+
+	/**
+	 * Asynchronously get the results of a Portable Format for Biomedical (PFB)
+	 * download started with
+	 * <a href="${POST.entity.id.table.download.csv.async.start}">POST
+	 * /entity/{id}/table/download/pfb/async/start</a>
+	 * 
+	 * <p>
+	 * Note: When the result is not ready yet, this method will return a status code
+	 * of 202 (ACCEPTED) and the response body will be a
+	 * <a href="${org.sagebionetworks.repo.model.asynch.AsynchronousJobStatus}"
+	 * >AsynchronousJobStatus</a> object.
+	 * </p>
+	 * 
+	 * @param userId
+	 * @param id         The ID of the TableEntity.
+	 * @param asyncToken
+	 * @return
+	 * @throws DatastoreException
+	 * @throws NotFoundException
+	 * @throws IOException
+	 * @throws AsynchJobFailedException
+	 * @throws NotReadyException
+	 */
+	@RequiredScope({ view, download })
+	@ResponseStatus(HttpStatus.CREATED)
+	@RequestMapping(value = UrlHelpers.ENTITY_TABLE_DOWNLOAD_PFB_ASYNC_GET, method = RequestMethod.GET)
+	public @ResponseBody DownloadPFBResult getPFBDownlaodResults(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable String id,
+			@PathVariable String asyncToken) throws Throwable {
+		if (id == null)
+			throw new IllegalArgumentException("{id} cannot be null");
+		AsynchronousJobStatus jobStatus = serviceProvider.getAsynchronousJobServices().getJobStatusAndThrow(userId,
+				asyncToken);
+		return (DownloadPFBResult) jobStatus.getResponseBody();
+	}
+
 }

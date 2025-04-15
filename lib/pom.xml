@@ -40,6 +40,7 @@
 		<module>lib-worker-common</module>
 		<module>database-semaphore</module>
 		<module>lib-scripts</module>
+		<module>lib-pfb</module>
 	</modules>
 
 </project>

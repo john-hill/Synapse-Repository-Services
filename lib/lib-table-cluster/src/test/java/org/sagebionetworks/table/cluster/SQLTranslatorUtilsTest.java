@@ -32,6 +32,8 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -52,6 +54,7 @@ import org.sagebionetworks.repo.model.table.JsonSubColumnModel;
 import org.sagebionetworks.repo.model.table.QueryFilter;
 import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.repo.model.table.SelectColumn;
+import org.sagebionetworks.repo.model.table.TextMatchesMode;
 import org.sagebionetworks.repo.model.table.TextMatchesQueryFilter;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapter;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
@@ -3096,6 +3099,21 @@ public class SQLTranslatorUtilsTest {
 		// method under test
 		SQLTranslatorUtils.translateQueryFilters(builder, filter);
 		assertEquals("(TEXT_MATCHES('some search string'))", builder.toString());
+	}
+	
+	@ParameterizedTest
+	@EnumSource(TextMatchesMode.class)
+	public void testTranslateQueryFiltersWithTextMatchesFilterAndSearchMode(TextMatchesMode searchMode) {
+		TextMatchesQueryFilter filter = new TextMatchesQueryFilter()
+				.setSearchExpression("some search string")
+				.setSearchMode(searchMode);
+
+		StringBuilder builder = new StringBuilder();
+		
+		// method under test
+		SQLTranslatorUtils.translateQueryFilters(builder, filter);
+		
+		assertEquals("(TEXT_MATCHES('some search string' IN " + searchMode.name() + " MODE))", builder.toString());
 	}
 	
 	@Test

@@ -1173,6 +1173,9 @@ public class SQLTranslatorUtils {
 		builder.append("(");
 		builder.append(TextMatchesPredicate.KEYWORD).append("(");
 		appendSingleQuotedValueToStringBuilder(builder, filter.getSearchExpression());
+		if (filter.getSearchMode() != null) {
+			builder.append(" IN ").append(filter.getSearchMode().name()).append(" MODE");
+		}
 		builder.append(")");
 		builder.append(")");
 	}

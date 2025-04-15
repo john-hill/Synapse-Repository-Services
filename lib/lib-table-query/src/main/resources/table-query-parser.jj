@@ -1244,25 +1244,25 @@ SynapseFunctionName synapseFunctionName():
 TextMatchesPredicate textMatchesPredicate():
 {
 	CharacterStringLiteral searchExpression = null;
-	TextMatchesSearchMode searchMode = null;
+	TextMatchesMode searchMode = null;
 }
 {
 	<text_matches>
 	<left_paren> { searchExpression = characterStringLiteral(); }
 	[
-		<in> { searchMode = textMatchesSearchMode(); } <mode>
+		<in> { searchMode = textMatchesMode(); } <mode>
 	]
 	<right_paren>
 	
 	{ return new TextMatchesPredicate(searchExpression, searchMode); }
 }
 
-TextMatchesSearchMode textMatchesSearchMode():
+TextMatchesMode textMatchesMode():
 {
     Token searchMode = null;
 }
 {
-    searchMode = <text_matches_mode> { return TextMatchesSearchMode.valueOf(searchMode.image.toUpperCase()); }
+    searchMode = <text_matches_mode> { return TextMatchesMode.valueOf(searchMode.image.toUpperCase()); }
 }
 
 MySqlFunction mysqlFunction():

@@ -15,7 +15,7 @@ import org.sagebionetworks.table.query.model.CharacterStringLiteral;
 import org.sagebionetworks.table.query.model.ColumnReference;
 import org.sagebionetworks.table.query.model.Element;
 import org.sagebionetworks.table.query.model.TextMatchesPredicate;
-import org.sagebionetworks.table.query.model.TextMatchesSearchMode;
+import org.sagebionetworks.table.query.model.TextMatchesMode;
 import org.sagebionetworks.table.query.model.UnsignedLiteral;
 
 public class TextMatchesPredicateTest {
@@ -43,8 +43,8 @@ public class TextMatchesPredicateTest {
 	}
 
 	@ParameterizedTest
-	@EnumSource(TextMatchesSearchMode.class)
-	public void testTextMatchesPredicateWithSearchMode(TextMatchesSearchMode mode) throws ParseException {
+	@EnumSource(TextMatchesMode.class)
+	public void testTextMatchesPredicateWithSearchMode(TextMatchesMode mode) throws ParseException {
 		TextMatchesPredicate element = new TableQueryParser("TEXT_MATCHES('test' IN " + mode.name() + " MODE)").textMatchesPredicate();
 		
 		// Call under test
@@ -73,7 +73,7 @@ public class TextMatchesPredicateTest {
 	@Test
 	public void testToSQL() {
 		CharacterStringLiteral literal = new CharacterStringLiteral("some string");
-		TextMatchesSearchMode searchMode = null;
+		TextMatchesMode searchMode = null;
 		TextMatchesPredicate element = new TextMatchesPredicate(literal, searchMode);
 		
 		// Call under test
@@ -85,7 +85,7 @@ public class TextMatchesPredicateTest {
 	@Test
 	public void testGetChildren() {
 		CharacterStringLiteral literal = new CharacterStringLiteral("some string");
-		TextMatchesSearchMode searchMode = null;
+		TextMatchesMode searchMode = null;
 		TextMatchesPredicate element = new TextMatchesPredicate(literal, searchMode);
 		
 		// Call under test
@@ -98,7 +98,7 @@ public class TextMatchesPredicateTest {
 	@Test
 	public void testGetLeftHandSide() throws ParseException {
 		CharacterStringLiteral literal = new CharacterStringLiteral("some string");
-		TextMatchesSearchMode searchMode = null;
+		TextMatchesMode searchMode = null;
 		TextMatchesPredicate element = new TextMatchesPredicate(literal, searchMode);
 		
 		// Call under test
@@ -111,7 +111,7 @@ public class TextMatchesPredicateTest {
 	@Test
 	public void testGetRightHandSideValues() {
 		CharacterStringLiteral literal = new CharacterStringLiteral("some string");
-		TextMatchesSearchMode searchMode = null;
+		TextMatchesMode searchMode = null;
 		TextMatchesPredicate element = new TextMatchesPredicate(literal, searchMode);
 		
 		// Call under test

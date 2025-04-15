@@ -24,9 +24,9 @@ public class TextMatchesPredicate extends SQLElement implements HasPredicate {
 	}
 	
 	private UnsignedLiteral searchExpression;
-	private TextMatchesSearchMode searchMode;
+	private TextMatchesMode searchMode;
 
-	public TextMatchesPredicate(CharacterStringLiteral searchExpression, TextMatchesSearchMode searchMode) {
+	public TextMatchesPredicate(CharacterStringLiteral searchExpression, TextMatchesMode searchMode) {
 		this.searchExpression = new UnsignedLiteral(new GeneralLiteral(searchExpression));
 		this.searchMode = searchMode;
 	}
@@ -35,7 +35,7 @@ public class TextMatchesPredicate extends SQLElement implements HasPredicate {
 		return searchExpression;
 	}
 	
-	public TextMatchesSearchMode getSearchMode() {
+	public TextMatchesMode getSearchMode() {
 		return searchMode;
 	}
 

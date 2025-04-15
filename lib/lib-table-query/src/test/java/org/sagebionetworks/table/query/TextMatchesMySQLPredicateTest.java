@@ -19,7 +19,7 @@ import org.sagebionetworks.table.query.model.Element;
 import org.sagebionetworks.table.query.model.PredicateLeftHandSide;
 import org.sagebionetworks.table.query.model.TextMatchesMySQLPredicate;
 import org.sagebionetworks.table.query.model.TextMatchesPredicate;
-import org.sagebionetworks.table.query.model.TextMatchesSearchMode;
+import org.sagebionetworks.table.query.model.TextMatchesMode;
 import org.sagebionetworks.table.query.model.UnsignedLiteral;
 
 @ExtendWith(MockitoExtension.class)
@@ -52,8 +52,8 @@ public class TextMatchesMySQLPredicateTest {
 	}
 	
 	@ParameterizedTest
-	@EnumSource(TextMatchesSearchMode.class)
-	public void testToSQLWithSearchMode(TextMatchesSearchMode searchMode) {
+	@EnumSource(TextMatchesMode.class)
+	public void testToSQLWithSearchMode(TextMatchesMode searchMode) {
 		when(mockInputPredicate.getSearchExpression()).thenReturn(mockLiteral);
 		when(mockInputPredicate.getSearchMode()).thenReturn(searchMode);
 		doNothing().when(mockLiteral).toSql(any(), any());

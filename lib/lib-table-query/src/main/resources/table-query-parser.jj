@@ -211,6 +211,7 @@ TOKEN [IGNORE_CASE]: {
 | < cast: "CAST">
 | < with: "WITH">
 | < defining_where: "DEFINING_WHERE">
+| < mode: "MODE">
 }
 
 /* Aggregate functions */
@@ -256,6 +257,10 @@ TOKEN [IGNORE_CASE]: {
   >
 }
 
+/* Text Matches Search Modes */
+TOKEN [IGNORE_CASE]: {
+  < text_matches_mode: "NATURAL_LANGUAGE" | "BOOLEAN" >
+}
 
 /* Synapse Functions */
 TOKEN [IGNORE_CASE]: {
@@ -1239,11 +1244,25 @@ SynapseFunctionName synapseFunctionName():
 TextMatchesPredicate textMatchesPredicate():
 {
 	CharacterStringLiteral searchExpression = null;
+	TextMatchesSearchMode searchMode = null;
 }
 {
-	<text_matches><left_paren> { searchExpression = characterStringLiteral(); } <right_paren>
+	<text_matches>
+	<left_paren> { searchExpression = characterStringLiteral(); }
+	[
+		<in> { searchMode = textMatchesSearchMode(); } <mode>
+	]
+	<right_paren>
 	
-	{ return new TextMatchesPredicate(searchExpression); }
+	{ return new TextMatchesPredicate(searchExpression, searchMode); }
+}
+
+TextMatchesSearchMode textMatchesSearchMode():
+{
+    Token searchMode = null;
+}
+{
+    searchMode = <text_matches_mode> { return TextMatchesSearchMode.valueOf(searchMode.image.toUpperCase()); }
 }
 
 MySqlFunction mysqlFunction():

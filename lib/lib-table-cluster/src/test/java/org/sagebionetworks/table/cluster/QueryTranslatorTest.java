@@ -1383,6 +1383,23 @@ public class QueryTranslatorTest {
 		assertEquals(ImmutableMap.of("b0", "some text"), query.getParameters());
 		assertTrue(query.isIncludeSearch());
 	}
+	
+	@Test
+	public void testQueryWithTextMatchesAndSearchMode() throws ParseException {
+
+		when(mockSchemaProvider.getTableSchema(any())).thenReturn(tableSchema);
+		setupGetColumns(columnNameToModelMap.get("foo"));
+
+		sql = "select foo from syn123 WHERE TEXT_MATCHES('\"some text\" @3' IN BOOLEAN MODE)";
+		
+		QueryTranslator query = QueryTranslator.builder(sql, userId).schemaProvider(mockSchemaProvider)
+				.indexDescription(new TableIndexDescription(idAndVersion)).build();
+
+		assertEquals("SELECT _C111_, ROW_ID, ROW_VERSION FROM T123 WHERE MATCH(ROW_SEARCH_CONTENT) AGAINST(:b0 IN BOOLEAN MODE)",
+				query.getOutputSQL());
+		assertEquals(ImmutableMap.of("b0", "\"some text\" @3"), query.getParameters());
+		assertTrue(query.isIncludeSearch());
+	}
 
 	@Test
 	public void testTranslateWithJoinWithQueryContext() throws ParseException {

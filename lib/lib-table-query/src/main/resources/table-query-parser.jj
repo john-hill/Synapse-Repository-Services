@@ -211,7 +211,6 @@ TOKEN [IGNORE_CASE]: {
 | < cast: "CAST">
 | < with: "WITH">
 | < defining_where: "DEFINING_WHERE">
-| < mode: "MODE">
 }
 
 /* Aggregate functions */
@@ -255,11 +254,6 @@ TOKEN [IGNORE_CASE]: {
    | "MONTHNAME"
    | "WEEKOFYEAR"
   >
-}
-
-/* Text Matches Search Modes */
-TOKEN [IGNORE_CASE]: {
-  < text_matches_mode: "NATURAL_LANGUAGE" | "BOOLEAN" >
 }
 
 /* Synapse Functions */
@@ -342,6 +336,12 @@ TOKEN [IGNORE_CASE]:{
 | < div: "DIV">
 }
 
+/* Text Matches Modes */
+TOKEN [IGNORE_CASE]: {
+  <text_matches_mode_boolean: "BOOLEAN MODE">
+| <text_matches_mode_natural: "NATURAL_LANGUAGE MODE">
+}
+
 TOKEN [IGNORE_CASE]: {
   < entity_id: "syn"(["0"-"9"])+("."(["0"-"9"])+)?>
 }
@@ -383,6 +383,7 @@ TOKEN: {
 | < right_curly_brace: "}">
 | < tilde: "~">
 }
+
 QueryExpression queryExpression():
 {
 	WithListElement withListElement = null;
@@ -1250,7 +1251,7 @@ TextMatchesPredicate textMatchesPredicate():
 	<text_matches>
 	<left_paren> { searchExpression = characterStringLiteral(); }
 	[
-		<in> { searchMode = textMatchesMode(); } <mode>
+		<in> searchMode = textMatchesMode()
 	]
 	<right_paren>
 	
@@ -1262,7 +1263,8 @@ TextMatchesMode textMatchesMode():
     Token searchMode = null;
 }
 {
-    searchMode = <text_matches_mode> { return TextMatchesMode.valueOf(searchMode.image.toUpperCase()); }
+    searchMode = <text_matches_mode_boolean> { return TextMatchesMode.BOOLEAN; }
+    | searchMode = <text_matches_mode_natural> { return TextMatchesMode.NATURAL_LANGUAGE; }
 }
 
 MySqlFunction mysqlFunction():

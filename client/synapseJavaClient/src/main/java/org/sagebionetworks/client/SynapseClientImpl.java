@@ -6206,7 +6206,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	}
 
 	@Override
-	public UserSubmissionSearchResponse listUserSubmissionSearchResults(UserSubmissionSearchRequest request) throws SynapseException {
+	public UserSubmissionSearchResponse searchUserSubmissions(UserSubmissionSearchRequest request) throws SynapseException {
 		return postJSONEntity(getRepoEndpoint(), DATA_ACCESS_SUBMISSION + "/userRequests", request, UserSubmissionSearchResponse.class);
 	}
 	

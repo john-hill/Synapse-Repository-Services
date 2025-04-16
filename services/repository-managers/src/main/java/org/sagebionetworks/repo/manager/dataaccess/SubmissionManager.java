@@ -125,6 +125,6 @@ public interface SubmissionManager {
 	 * @param request
 	 * @return
 	 */
-	 UserSubmissionSearchResponse listUserSubmissionSearchResult(UserInfo userInfo, UserSubmissionSearchRequest request);
+	 UserSubmissionSearchResponse searchUserSubmissions(UserInfo userInfo, UserSubmissionSearchRequest request);
 
 }

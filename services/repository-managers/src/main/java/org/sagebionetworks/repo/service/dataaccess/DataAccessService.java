@@ -59,6 +59,6 @@ public interface DataAccessService {
 
 	AccessApproval getUserAccessApproval(Long userId, String submissionId);
 
-	UserSubmissionSearchResponse listUserSubmissionSearchResult(Long userId, UserSubmissionSearchRequest request);
+	UserSubmissionSearchResponse searchUserSubmissions(Long userId, UserSubmissionSearchRequest request);
 
 }

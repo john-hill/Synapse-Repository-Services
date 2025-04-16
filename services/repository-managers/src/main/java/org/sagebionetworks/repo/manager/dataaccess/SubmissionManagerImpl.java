@@ -456,7 +456,7 @@ public class SubmissionManagerImpl implements SubmissionManager{
 		Submission submission = submissionDao.getSubmission(submissionId);
 
 		if (!isUserAnAccessor(userInfo, submission)) {
-			throw new UnauthorizedException(String.format("User is not an accessor of the submission %s.", submissionId));
+			throw new UnauthorizedException("The user does not have access to the submission.");
 		}
 
 		AccessApproval accessApproval = accessApprovalDao.getByPrimaryKey(Long.parseLong(submission.getAccessRequirementId()),
@@ -580,7 +580,7 @@ public class SubmissionManagerImpl implements SubmissionManager{
 	}
 
 	@Override
-	public UserSubmissionSearchResponse listUserSubmissionSearchResult(UserInfo userInfo, UserSubmissionSearchRequest request) {
+	public UserSubmissionSearchResponse searchUserSubmissions(UserInfo userInfo, UserSubmissionSearchRequest request) {
 		ValidateArgument.required(userInfo, "userInfo");
 		ValidateArgument.required(request, "request");
 

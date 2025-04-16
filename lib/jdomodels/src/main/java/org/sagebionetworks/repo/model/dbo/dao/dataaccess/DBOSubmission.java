@@ -53,7 +53,8 @@ public class DBOSubmission implements MigratableDatabaseObject<DBOSubmission, DB
 
 	@Override
 	public String toString() {
-		return "DBOSubmission [id=" + id + ", accessRequirementId=" + accessRequirementId + ", dataAccessRequestId="
+		return "DBOSubmission [id=" + id + ", accessRequirementId=" + accessRequirementId
+				+ ", accessRequirementVersion=" + accessRequirementVersion + ", dataAccessRequestId="
 				+ dataAccessRequestId + ", createdBy=" + createdBy + ", createdOn=" + createdOn + ", etag=" + etag
 				+ ", submissionSerialized=" + Arrays.toString(submissionSerialized) + ", researchProjectId="
 				+ researchProjectId + "]";

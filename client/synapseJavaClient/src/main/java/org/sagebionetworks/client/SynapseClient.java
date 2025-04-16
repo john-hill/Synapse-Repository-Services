@@ -4208,7 +4208,7 @@ public interface SynapseClient extends BaseClient {
 	 * @return
 	 * @throws SynapseException
 	 */
-	UserSubmissionSearchResponse listUserSubmissionSearchResults(UserSubmissionSearchRequest request) throws SynapseException;
+	UserSubmissionSearchResponse searchUserSubmissions(UserSubmissionSearchRequest request) throws SynapseException;
 	
 	/**
 	 * Performs a search through the available access requirements matching the criteria in the given request.

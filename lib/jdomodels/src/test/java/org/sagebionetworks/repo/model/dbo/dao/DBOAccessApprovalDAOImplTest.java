@@ -1332,22 +1332,30 @@ public class DBOAccessApprovalDAOImplTest {
 	public void testSearchAccessApprovalsForSubmission() {
 		Date createdOn = new Date();
 
-		Long s1 = Long.parseLong(submissionDAO.createSubmission(createSubmission(accessRequirement, researchProject, System.currentTimeMillis(), individualGroup.getId()).setSubmittedOn(createdOn)).getSubmissionId());
-		Long s2 = Long.parseLong(submissionDAO.createSubmission(createSubmission(accessRequirement, researchProject, System.currentTimeMillis() + 1000, individualGroup2.getId()).setSubmittedOn(createdOn)).getSubmissionId());
-		Long s3 = Long.parseLong(submissionDAO.createSubmission(createSubmission(accessRequirement2, researchProject, System.currentTimeMillis() + 2000, individualGroup.getId()).setSubmittedOn(createdOn)).getSubmissionId());
+		Long s1 = Long.parseLong(submissionDAO.createSubmission(createSubmission(accessRequirement, researchProject,
+				System.currentTimeMillis(), individualGroup.getId()).setSubmittedOn(createdOn)).getSubmissionId());
+		Long s2 = Long.parseLong(submissionDAO.createSubmission(createSubmission(accessRequirement, researchProject,
+				System.currentTimeMillis() + 1000, individualGroup2.getId()).setSubmittedOn(createdOn)).getSubmissionId());
+		Long s3 = Long.parseLong(submissionDAO.createSubmission(createSubmission(accessRequirement2, researchProject,
+				System.currentTimeMillis() + 2000, individualGroup.getId()).setSubmittedOn(createdOn)).getSubmissionId());
 
 		String accessorId = individualGroup.getId();
-		Set<Long> submissionIds = Set.of(s1, s3);
+		Set<Long> submissionIds = Set.of(s1, s2, s3);
 
+		// create access approval with initial version of access requirement
 		AccessApproval ap1 = newAccessApproval(individualGroup, accessRequirement);
-		ap1.setState(ApprovalState.REVOKED);
-
-		AccessApproval ap2 = newAccessApproval(individualGroup, accessRequirement2);
-
 		ap1 = accessApprovalDAO.create(ap1);
+
+		// create access approval with updated version of access requirement
+		accessRequirement.setVersionNumber(accessRequirement.getVersionNumber()+1);
+		AccessApproval ap2 = newAccessApproval(individualGroup, accessRequirement);
 		ap2 = accessApprovalDAO.create(ap2);
 
-		Map<Long, AccessApproval> expected = Map.of(s1, ap1, s3, ap2);
+		// create access approval with initial version of access requirement
+		AccessApproval ap3 = newAccessApproval(individualGroup, accessRequirement2);
+		ap3 = accessApprovalDAO.create(ap3);
+
+		Map<Long, AccessApproval> expected = Map.of(s1, ap1, s3, ap3);
 
 		//call under test
 		Map<Long, AccessApproval> result = accessApprovalDAO.searchAccessApprovalsForSubmission(submissionIds, accessorId);

@@ -149,9 +149,9 @@ public class DataAccessServiceImpl implements DataAccessService {
 	}
 
 	@Override
-	public UserSubmissionSearchResponse listUserSubmissionSearchResult(Long userId, UserSubmissionSearchRequest request) {
+	public UserSubmissionSearchResponse searchUserSubmissions(Long userId, UserSubmissionSearchRequest request) {
 		UserInfo user = userManager.getUserInfo(userId);
-		return dataAccessSubmissionManager.listUserSubmissionSearchResult(user, request);
+		return dataAccessSubmissionManager.searchUserSubmissions(user, request);
 	}
 
 }

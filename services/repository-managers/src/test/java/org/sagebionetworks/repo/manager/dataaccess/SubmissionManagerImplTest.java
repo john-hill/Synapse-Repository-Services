@@ -1950,7 +1950,7 @@ public class SubmissionManagerImplTest {
 
 		String result = assertThrows(IllegalArgumentException.class, () -> {
 			// Call under test
-			manager.listUserSubmissionSearchResult(mockUser, null);
+			manager.searchUserSubmissions(mockUser, null);
 		}).getMessage();
 
 		assertEquals("request is required.", result);
@@ -1965,7 +1965,7 @@ public class SubmissionManagerImplTest {
 
 		String result = assertThrows(IllegalArgumentException.class, () -> {
 			// Call under test
-			manager.listUserSubmissionSearchResult(null, new UserSubmissionSearchRequest());
+			manager.searchUserSubmissions(null, new UserSubmissionSearchRequest());
 		}).getMessage();
 
 		assertEquals("userInfo is required.", result);
@@ -2004,7 +2004,7 @@ public class SubmissionManagerImplTest {
 		expected.setResults(List.of(res));
 
 		// Call under test
-		UserSubmissionSearchResponse response = manager.listUserSubmissionSearchResult(mockUser, request);
+		UserSubmissionSearchResponse response = manager.searchUserSubmissions(mockUser, request);
 		assertNotNull(response);
 		assertEquals(expected, response);
 
@@ -2030,7 +2030,7 @@ public class SubmissionManagerImplTest {
 		expected.setResults(Collections.emptyList());
 
 		// Call under test
-		UserSubmissionSearchResponse response = manager.listUserSubmissionSearchResult(mockUser, request);
+		UserSubmissionSearchResponse response = manager.searchUserSubmissions(mockUser, request);
 		assertNotNull(response);
 		assertEquals(expected, response);
 
@@ -2074,7 +2074,7 @@ public class SubmissionManagerImplTest {
 		expected.setResults(List.of(res));
 
 		// Call under test
-		UserSubmissionSearchResponse response = manager.listUserSubmissionSearchResult(mockUser, request);
+		UserSubmissionSearchResponse response = manager.searchUserSubmissions(mockUser, request);
 		assertNotNull(response);
 		assertEquals(expected, response);
 

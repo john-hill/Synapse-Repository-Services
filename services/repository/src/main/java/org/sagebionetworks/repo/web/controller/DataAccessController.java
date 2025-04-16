@@ -392,10 +392,10 @@ public class DataAccessController {
 	@RequiredScope({view})
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = UrlHelpers.DATA_ACCESS_SUBMISSION_USER_REQUESTS, method = RequestMethod.POST)
-	public @ResponseBody UserSubmissionSearchResponse listUserSubmissionSearchResult(
+	public @ResponseBody UserSubmissionSearchResponse searchUserSubmissions(
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@RequestBody UserSubmissionSearchRequest submissionSearchRequest ) throws NotFoundException {
-		return serviceProvider.getDataAccessService().listUserSubmissionSearchResult(userId, submissionSearchRequest);
+		return serviceProvider.getDataAccessService().searchUserSubmissions(userId, submissionSearchRequest);
 	}
 
 }

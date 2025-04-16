@@ -97,7 +97,6 @@ public class ITDataAccessTest {
 	private Project project;
 	private ACTAccessRequirement actAR;
 	private ManagedACTAccessRequirement managedAR;
-	
 	private SynapseAdminClient adminSynapse;
 	private SynapseClient synapse;
 	private WarehouseTestHelper warehouseHelper;
@@ -802,8 +801,8 @@ public class ITDataAccessTest {
 	@Test
 	public void testGetSubmission() throws SynapseException, JSONObjectAdapterException {
 		// A non Validated user
-		SynapseClient synapseThree = new SynapseClientImpl();
-		userOneId = SynapseClientHelper.createUser(adminSynapse, synapseThree, true, false);
+		SynapseClient synapseOne = new SynapseClientImpl();
+		userOneId = SynapseClientHelper.createUser(adminSynapse, synapseOne, true, false);
 		// A validated user
 		SynapseClient synapseTwo = new SynapseClientImpl();
 		userTwoId = SynapseClientHelper.createUser(adminSynapse, synapseTwo, true, true);
@@ -843,15 +842,19 @@ public class ITDataAccessTest {
 		Submission submission = adminSynapse.getDataAccessSubmission(submissionStatus.getSubmissionId());
 		
 		assertEquals(submissionStatus.getSubmissionId(), submission.getId());
+
+		// The accessor of submission can fetch the submission.
+		Submission submission1 = synapse.getDataAccessSubmission(submissionId);
+		assertEquals(submissionStatus.getSubmissionId(), submission1.getId());
 		
-		// A non validator user can not access the submission
+		// A normal non-reviewer user cannot access the submission
 		String message = assertThrows(SynapseForbiddenException.class, () -> {
-			synapseThree.getDataAccessSubmission(submissionStatus.getSubmissionId());
+			synapseOne.getDataAccessSubmission(submissionStatus.getSubmissionId());
 		}).getMessage();
 		
 		assertEquals("The user must be validated in order to review data access submissions.", message);
-		
-		// A validated user cannot access the submission unless they are reviewers
+
+		// A normal non-reviewer user cannot access the submission
 		message = assertThrows(SynapseForbiddenException.class, () -> {
 			synapseTwo.getDataAccessSubmission(submissionStatus.getSubmissionId());	
 		}).getMessage();
@@ -862,21 +865,16 @@ public class ITDataAccessTest {
 		AccessControlList acl = new AccessControlList()
 			.setId(managedAR.getId().toString())
 			.setResourceAccess(Set.of(
-				new ResourceAccess().setPrincipalId(Long.valueOf(synapse.getMyProfile().getOwnerId())).setAccessType(Collections.singleton(ACCESS_TYPE.REVIEW_SUBMISSIONS)),
 				new ResourceAccess().setPrincipalId(Long.valueOf(synapseTwo.getMyProfile().getOwnerId())).setAccessType(Collections.singleton(ACCESS_TYPE.REVIEW_SUBMISSIONS))
 					));
 				
 				// Add the user directly to the ACL
 				acl = adminSynapse.createAccessRequirementAcl(acl);
 				
-				// Now the validated user can fetch the submission
+				// Now the validated reviewer user can fetch the submission
 				submission = synapseTwo.getDataAccessSubmission(submissionStatus.getSubmissionId());
 				
 				assertEquals(submissionStatus.getSubmissionId(), submission.getId());
-				
-				// The accessor of submission can fetch the submission.
-				Submission submission1 = synapse.getDataAccessSubmission(submissionId);
-				assertEquals(submissionStatus.getSubmissionId(), submission1.getId());
 	}
 
 
@@ -904,7 +902,6 @@ public class ITDataAccessTest {
 				.setResearchProjectId(rp.getId())
 				.setAccessRequirementId(managedAR.getId().toString())
 				.setAccessorChanges(Arrays.asList(
-						new AccessorChange().setType(AccessType.GAIN_ACCESS).setUserId(adminSynapse.getMyProfile().getOwnerId()),
 						new AccessorChange().setType(AccessType.GAIN_ACCESS).setUserId(synapse.getMyProfile().getOwnerId())
 				)));
 
@@ -916,32 +913,27 @@ public class ITDataAccessTest {
 
 		submissionId = submissionStatus.getSubmissionId();
 
-		// Admin is able to fetch the submission
-		Submission submission = adminSynapse.getDataAccessSubmission(submissionStatus.getSubmissionId());
-
 		// create approval for the requirement
-		AccessApproval approval = new AccessApproval();
-		approval.setAccessorId(synapse.getMyProfile().getOwnerId());
-		approval.setRequirementId(managedAR.getId());
-		approval.setRequirementVersion(managedAR.getVersionNumber());
-		approval.setSubmitterId(submission.getSubmittedBy());
-		AccessApproval created = adminSynapse.createAccessApproval(approval);
+		Submission submission = adminSynapse.updateSubmissionState(submissionStatus.getSubmissionId(), SubmissionState.APPROVED, "Approving the request");
 
 		String message = assertThrows(SynapseForbiddenException.class, () -> {
 			synapseTwo.getUserAccessApproval(submission.getId());
 		}).getMessage();
 
-		assertEquals("User is not an accessor of the submission " + submission.getId() + ".", message);
+		assertEquals("The user does not have access to the submission.", message);
 
 		// call under test
 		AccessApproval accessApproval = synapse.getUserAccessApproval(submission.getId());
+
 		assertNotNull(accessApproval);
-		assertEquals(created, accessApproval);
-		adminSynapse.revokeAccessApprovals(managedAR.getId().toString(), synapse.getMyProfile().getOwnerId());
+		assertEquals(Long.parseLong(submission.getAccessRequirementId()), accessApproval.getRequirementId());
+		assertEquals(submission.getAccessRequirementVersion(), accessApproval.getRequirementVersion());
+		assertEquals(submission.getSubmittedBy(), accessApproval.getSubmitterId());
+		assertEquals(synapse.getMyProfile().getOwnerId(), accessApproval.getAccessorId());
 	}
 
 	@Test
-	public void testListUserSubmissionSearchResult() throws SynapseException, JSONObjectAdapterException {
+	public void testSearchUserSubmission() throws SynapseException, JSONObjectAdapterException {
 		SynapseClient synapseOne = new SynapseClientImpl();
 		userOneId = SynapseClientHelper.createUser(adminSynapse, synapseOne, true, true);
 		SynapseClient synapseTwo = new SynapseClientImpl();
@@ -966,10 +958,10 @@ public class ITDataAccessTest {
 				.setResearchProjectId(rp.getId())
 				.setAccessRequirementId(managedAR.getId().toString())
 				.setAccessorChanges(Arrays.asList(
-						new AccessorChange().setType(AccessType.GAIN_ACCESS).setUserId(adminSynapse.getMyProfile().getOwnerId()),
 						new AccessorChange().setType(AccessType.GAIN_ACCESS).setUserId(synapse.getMyProfile().getOwnerId())
 				)));
 
+		// Request to create the submission
 		SubmissionStatus submissionStatus = synapse.submitRequest(new CreateSubmissionRequest()
 				.setRequestId(request.getId())
 				.setRequestEtag(request.getEtag())
@@ -978,32 +970,24 @@ public class ITDataAccessTest {
 
 		submissionId = submissionStatus.getSubmissionId();
 
-		// Admin is able to fetch the submission
-		Submission submission = adminSynapse.getDataAccessSubmission(submissionStatus.getSubmissionId());
+		Submission submission = adminSynapse.updateSubmissionState(submissionStatus.getSubmissionId(), SubmissionState.APPROVED, "Approving the request");
+
+		AccessApproval expectedApproval = synapse.getUserAccessApproval(submissionId);
+
 
 		UserSubmissionSearchRequest userRequest = new UserSubmissionSearchRequest();
 
 		//call under test. SynapseOne is not accessor of Submission so empty result will be returned
-		UserSubmissionSearchResponse response = synapseOne.listUserSubmissionSearchResults(userRequest);
+		UserSubmissionSearchResponse responseOne = synapseOne.searchUserSubmissions(userRequest);
 
-		assertTrue(response.getResults().isEmpty());
-
-		// create approval for the requirement
-		AccessApproval approval = new AccessApproval();
-		approval.setAccessorId(synapse.getMyProfile().getOwnerId());
-		approval.setRequirementId(managedAR.getId());
-		approval.setRequirementVersion(managedAR.getVersionNumber());
-		approval.setSubmitterId(submission.getSubmittedBy());
-		AccessApproval expectedAccessApproval = adminSynapse.createAccessApproval(approval);
+		assertTrue(responseOne.getResults().isEmpty());
 
 		// call under test
-		UserSubmissionSearchResponse responseTwo = synapse.listUserSubmissionSearchResults(userRequest);
+		UserSubmissionSearchResponse responseTwo = synapse.searchUserSubmissions(userRequest);
 
-		assertEquals(responseTwo.getResults().size(), 1);
-		assertEquals(responseTwo.getResults().get(0).getUserAccessApproval(), expectedAccessApproval);
-		assertEquals(responseTwo.getResults().get(0).getId(), submissionId);
-
-		adminSynapse.revokeAccessApprovals(managedAR.getId().toString(), synapse.getMyProfile().getOwnerId());
+		assertEquals(1, responseTwo.getResults().size());
+		assertEquals(expectedApproval, responseTwo.getResults().get(0).getUserAccessApproval());
+		assertEquals(submission.getId(), responseTwo.getResults().get(0).getId());
 	}
 	
 	@Test

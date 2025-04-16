@@ -14,6 +14,7 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_ACCESS_A
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_ACCESS_APPROVAL_STATE;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_ACCESS_APPROVAL_SUBMITTER_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DATA_ACCESS_SUBMISSION_ACCESS_REQUIREMENT_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DATA_ACCESS_SUBMISSION_ACCESS_REQUIREMENT_VERSION;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DATA_ACCESS_SUBMISSION_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DATA_ACCESS_SUBMISSION_SUBMITTER_SUBMITTER_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_ACCESS_APPROVAL;
@@ -530,11 +531,12 @@ public class DBOAccessApprovalDAOImpl implements AccessApprovalDAO {
 		ValidateArgument.required(accessorId, "accessorId");
 
 		String sql = "SELECT A.*, S.ID AS SUBMISSION_ID FROM " + TABLE_ACCESS_APPROVAL +
-				" A JOIN " + TABLE_DATA_ACCESS_SUBMISSION + " S On S." + CREATED_BY + " = A."
-				+ COL_DATA_ACCESS_SUBMISSION_SUBMITTER_SUBMITTER_ID + " and S." +
-				COL_DATA_ACCESS_SUBMISSION_ACCESS_REQUIREMENT_ID + " = A." + COL_ACCESS_APPROVAL_REQUIREMENT_ID +
-				" where A." + COL_ACCESS_APPROVAL_ACCESSOR_ID + " = :" + COL_ACCESS_APPROVAL_ACCESSOR_ID +
-				" and S." + COL_DATA_ACCESS_SUBMISSION_ID + " IN (:" + COL_DATA_ACCESS_SUBMISSION_ID + ")";
+				" A JOIN " + TABLE_DATA_ACCESS_SUBMISSION +
+				" S ON S." + CREATED_BY + " = A." + COL_DATA_ACCESS_SUBMISSION_SUBMITTER_SUBMITTER_ID +
+				" AND S." + COL_DATA_ACCESS_SUBMISSION_ACCESS_REQUIREMENT_ID + " = A." + COL_ACCESS_APPROVAL_REQUIREMENT_ID +
+				" AND S." + COL_DATA_ACCESS_SUBMISSION_ACCESS_REQUIREMENT_VERSION + " = A." + COL_ACCESS_APPROVAL_REQUIREMENT_VERSION +
+				" WHERE A." + COL_ACCESS_APPROVAL_ACCESSOR_ID + " = :" + COL_ACCESS_APPROVAL_ACCESSOR_ID +
+				" AND S." + COL_DATA_ACCESS_SUBMISSION_ID + " IN (:" + COL_DATA_ACCESS_SUBMISSION_ID + ")";
 
 		MapSqlParameterSource params = new MapSqlParameterSource();
 		params.addValue(COL_ACCESS_APPROVAL_ACCESSOR_ID, accessorId);

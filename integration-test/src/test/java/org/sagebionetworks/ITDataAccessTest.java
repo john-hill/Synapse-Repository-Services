@@ -595,6 +595,7 @@ public class ITDataAccessTest {
 		submission = synapseTwo.updateSubmissionState(newSubmission.getSubmissionId(), SubmissionState.REJECTED, "Rejecting the request");
 		
 		assertEquals(SubmissionState.REJECTED, submission.getState());
+		adminSynapse.deleteDataAccessSubmission(newSubmission.getSubmissionId());
 	}
 	
 	@Test

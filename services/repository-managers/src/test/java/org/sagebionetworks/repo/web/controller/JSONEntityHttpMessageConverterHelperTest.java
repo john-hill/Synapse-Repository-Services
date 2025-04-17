@@ -6,23 +6,17 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.StringReader;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.apache.commons.io.IOUtils;
 import org.json.JSONObject;
-import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
 import org.sagebionetworks.repo.model.Entity;
-import org.sagebionetworks.repo.model.ErrorResponse;
 import org.sagebionetworks.repo.model.ExampleEntity;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.schema.CreateSchemaRequest;
@@ -34,16 +28,76 @@ import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 import org.sagebionetworks.schema.adapter.org.json.EntityFactory;
 import org.sagebionetworks.schema.adapter.org.json.JSONArrayAdapterImpl;
 import org.sagebionetworks.schema.adapter.org.json.JSONObjectAdapterImpl;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpInputMessage;
-import org.springframework.http.HttpOutputMessage;
-import org.springframework.http.MediaType;
-import org.springframework.http.converter.HttpMessageNotWritableException;
-
-import com.amazonaws.util.StringInputStream;
 
 
 public class JSONEntityHttpMessageConverterHelperTest {
+	
+	private static final Set<Class <? extends JSONEntity>> CLASSES_TO_VALIDATE_CONVERSION 
+		= Collections.singleton(CreateSchemaRequest.class);
+
+	@Test 
+	public void testReadToString() throws IOException{
+		String value = "This string should make a round trip!";
+		StringReader reader = new StringReader(value);
+		String clone = JSONEntityHttpMessageConverterHelper.readToString(reader);
+		assertEquals(value, clone);
+	}
+
+	@Test
+	public void testReadEntity() throws JSONObjectAdapterException, IOException{
+		ExampleEntity entity = new ExampleEntity();
+		entity.setName("name");
+		// this version requires a class name fo the entity type.
+		entity.setDoubleList(new ArrayList<Double>());
+		entity.getDoubleList().add(123.45);
+		entity.getDoubleList().add(4.56);
+		// To string
+		String jsonString =EntityFactory.createJSONStringForEntity(entity);
+		StringReader reader = new StringReader(jsonString);
+		ExampleEntity clone = (ExampleEntity) JSONEntityHttpMessageConverterHelper.readEntity(reader);
+		assertEquals(entity, clone);
+	}
+
+	@Test (expected=JSONObjectAdapterException.class)
+	public void testReadEntityNullType() throws JSONObjectAdapterException, IOException{
+		ExampleEntity entity = new ExampleEntity();
+		entity.setName("name");
+		// this version requires a class name fo the entity type.
+		entity.setConcreteType(null);
+		entity.setDoubleList(new ArrayList<Double>());
+		entity.getDoubleList().add(123.45);
+		entity.getDoubleList().add(4.56);
+		// To string
+		String jsonString =EntityFactory.createJSONStringForEntity(entity);
+		StringReader reader = new StringReader(jsonString);
+		JSONEntityHttpMessageConverterHelper.readEntity(reader);
+	}
+
+	/**
+	 * This test was added for PLFM-1280.
+	 * @throws JSONObjectAdapterException
+	 */
+	@Test (expected=IllegalArgumentException.class)
+	public void testCreateEntityFromAdapterClassNotFound() throws JSONObjectAdapterException{
+		JSONObjectAdapter adapter = new JSONObjectAdapterImpl();
+		adapter.put("concreteType", "org.sagebionetworks.FakeClass");
+		JSONEntityHttpMessageConverterHelper.createEntityFromAdapter(adapter);
+	}
+
+	/**
+	 * This test was added for PLFM-1280.
+	 * @throws JSONObjectAdapterException
+	 */
+	@Test (expected=JSONObjectAdapterException.class)
+	public void testCreateEntityFromAdapterBadJSON() throws JSONObjectAdapterException{
+		// Test a valid entity type with a field that does not exist on that type.
+		JSONObjectAdapter adapter = new JSONObjectAdapterImpl();
+		adapter.put("entityType", ExampleEntity.class.getName());
+		adapter.put("notAField", "shoudld not exist");
+		JSONEntityHttpMessageConverterHelper.createEntityFromAdapter(adapter);
+	}
+	
+	
 	@Test
 	public void testValidateJSONEntityWithValid() throws Exception {
 		// setup
@@ -322,5 +376,81 @@ public class JSONEntityHttpMessageConverterHelperTest {
 		
 		// call under test
 		JSONEntityHttpMessageConverterHelper.validateJSONEntityRecursive(parsedAdapter, originalAdapter);
+	}
+	
+	
+	@Test
+	public void testPLFM_2079() throws Exception{
+		// In the past we used the "entityType" field to determine which implementation Entity to create when a caller passed an JSON string.
+		// This was specific to Entity so when the JSON schema project tackled the same problem "concreteType" was used instead of entityType.
+		// We then switch Entities to use concreteType but we did not want this to be a breaking API change.
+		// So when a old client uses "entityType" it should not break.
+		
+		// Create some JSON using a project entity.
+		Project project = new Project();
+		project.setName("someProject");
+		project.setParentId("syn123");
+		project.setId("syn456");
+		JSONObject jsonObject = new JSONObject();
+		JSONObjectAdapter adapter = new JSONObjectAdapterImpl(jsonObject);
+		project.writeToJSONObject(adapter);
+		// Swap the concreteType field with entityType
+		String type = jsonObject.getString("concreteType");
+		jsonObject.remove("concreteType");
+		// replace it with entity type
+		jsonObject.put("entityType", type);
+		String json = adapter.toJSONString();
+		assertTrue(json.indexOf("entityType") > 0);
+		assertFalse(json.indexOf("concreteType") > 0);
+		// Now make sure we can parse the json
+		try{
+			Project clone = (Project) JSONEntityHttpMessageConverterHelper.read(json, 
+					null, Entity.class, CLASSES_TO_VALIDATE_CONVERSION);
+			assertNotNull(clone);
+			// It should match the original
+			assertEquals(project, clone);
+		}catch(Exception e){
+			throw new RuntimeException(json,e);
+		}
+		
+	}
+		
+	@Test
+	public void testReadWhereEntityTypeNotToBeValidated() throws Exception {
+			// PLFM-6320
+			// empty set, not entities to validate
+			Set<Class <? extends JSONEntity>> set = new HashSet<>();
+			JSONObjectAdapter schema = new JSONObjectAdapterImpl();
+			schema.put("description", "Expect this to fail");
+			// unsupported element
+			schema.put("notPartOfSpecification", "random");
+			JSONObjectAdapter adapter = new JSONObjectAdapterImpl();
+			adapter.put("concreteType", "org.sagebionetworks.repo.model.schema.CreateSchemaRequest");
+			adapter.put("schema", schema);
+			String jsonString = adapter.toJSONString();
+			// call under test
+			CreateSchemaRequest result = (CreateSchemaRequest)JSONEntityHttpMessageConverterHelper.read(jsonString, 
+					null, CreateSchemaRequest.class, set);
+			assertNotNull(result);
+	}
+	
+	@Test
+	public void testReadWhereValidationOfInvalidSuccess() throws Exception {
+		// PLFM-6320
+		// Invalid element, and the entity is one in which we want to validate
+		// setup no exception to be thrown
+		JSONObjectAdapter schema = new JSONObjectAdapterImpl();
+		schema.put("description", "Expect this to fail");
+		schema.put("notPartOfSpecification", "random");
+		JSONObjectAdapter adapter = new JSONObjectAdapterImpl();
+		adapter.put("concreteType", "org.sagebionetworks.repo.model.schema.CreateSchemaRequest");
+		adapter.put("schema", schema);
+		String jsonString = adapter.toJSONString();
+		// call under test
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			JSONEntityHttpMessageConverterHelper.read(jsonString, null, 
+					CreateSchemaRequest.class, CLASSES_TO_VALIDATE_CONVERSION);
+		}).getMessage();
+		assertEquals(message, "JSON Element in Entity is Unsupported: notPartOfSpecification");
 	}
 }

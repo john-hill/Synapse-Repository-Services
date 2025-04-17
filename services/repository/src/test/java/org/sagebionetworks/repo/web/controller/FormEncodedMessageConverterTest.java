@@ -1,6 +1,8 @@
 package org.sagebionetworks.repo.web.controller;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.ByteArrayInputStream;
@@ -41,8 +43,8 @@ class FormEncodedMessageConverterTest {
 
 	@Test
 	public void testConvertFormEncodedDataToJSONString_HappyCase() throws JSONException, UnsupportedEncodingException {
-		assertEquals("{\"foo\":\"bar\",\"bar\":\"baz\"}", 
-				FormEncodedMessageConverter.convertFormEncodedDataToJSONString("foo=bar&bar=baz", CHARSET));
+		assertEquals("{\"foo/\":\"bar\",\"bar\":\"baz/\"}", 
+				FormEncodedMessageConverter.convertFormEncodedDataToJSONString("foo%2F=bar&bar=baz%2F", CHARSET));
 	}
 	
 	@Test
@@ -56,13 +58,12 @@ class FormEncodedMessageConverterTest {
 			FormEncodedMessageConverter.convertFormEncodedDataToJSONString("garbage", CHARSET);
 		});
 	}
-
 	
 	@Test
 	public void testRoundTripWithFormEncodedMediaType() throws IOException  {
 		// note we encode / as %2F
 		String keyValueParams = "name=foo%2Fbar&concreteType=org.sagebionetworks.repo.model.Project";
-		ByteArrayInputStream in  = new ByteArrayInputStream(keyValueParams.getBytes("ISO-8859-1"));
+		ByteArrayInputStream in  = new ByteArrayInputStream(keyValueParams.getBytes(CHARSET));
 		Mockito.when(mockInMessage.getBody()).thenReturn(in);
 		Mockito.when(mockInMessage.getHeaders()).thenReturn(mockHeaders);
 		Mockito.when(mockHeaders.getContentType()).thenReturn(MediaType.APPLICATION_FORM_URLENCODED);
@@ -76,5 +77,42 @@ class FormEncodedMessageConverterTest {
 		assertEquals(expectedEntity, results);
 	}
 	
+	@Test
+	public void testRoundTripWithFormEncodedMediaTypeAndSpecifiedCharset() throws IOException  {
+		// note we encode / as %2F
+		String keyValueParams = "name=foo%2Fbar&concreteType=org.sagebionetworks.repo.model.Project";
+		Charset charsetUtf8=Charset.forName("UTF-8");
+		MediaType mediaType = new MediaType("application", "x-www-form-urlencoded", charsetUtf8);
+		ByteArrayInputStream in = new ByteArrayInputStream(keyValueParams.getBytes(charsetUtf8));
+		Mockito.when(mockInMessage.getBody()).thenReturn(in);
+		Mockito.when(mockInMessage.getHeaders()).thenReturn(mockHeaders);
+		Mockito.when(mockHeaders.getContentType()).thenReturn(mediaType);
 
+		// method under test
+		JSONEntity results = converter.read(Project.class, mockInMessage);
+		
+		Project expectedEntity = new Project();
+		expectedEntity.setName("foo/bar");
+		
+		assertEquals(expectedEntity, results);
+	}
+	
+	@Test
+	public void testCanRead() {
+		assertTrue(converter.canRead(Project.class,  MediaType.APPLICATION_FORM_URLENCODED));
+		assertFalse(converter.canRead(String.class, MediaType.APPLICATION_FORM_URLENCODED));
+		assertFalse(converter.canRead(Project.class, MediaType.APPLICATION_JSON));
+	}
+	
+	@Test
+	public void testCanWrite() {
+		assertFalse(converter.canWrite(Project.class, MediaType.APPLICATION_FORM_URLENCODED));
+	}
+	
+	@Test
+	public void tesWrite() {
+		assertThrows(IllegalStateException.class, ()->{
+			converter.write(new Project(), MediaType.APPLICATION_FORM_URLENCODED, null);});
+	}
+	
 }

@@ -724,7 +724,7 @@ public class EntityController {
 			HttpHeaders header, boolean newVersion, String activityId, HttpServletRequest request)
 			throws IOException, NotFoundException, ConflictingUpdateException, DatastoreException,
 			InvalidModelException, UnauthorizedException, JSONObjectAdapterException {
-		Entity entity = JSONEntityHttpMessageConverter.readEntity(request.getReader());
+		Entity entity = JSONEntityHttpMessageConverterHelper.readEntity(request.getReader());
 		// validate the entity
 		entity = serviceProvider.getEntityService().updateEntity(userId, entity, newVersion, activityId);
 		// Return the result

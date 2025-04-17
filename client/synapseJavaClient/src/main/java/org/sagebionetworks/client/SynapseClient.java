@@ -2262,8 +2262,13 @@ public interface SynapseClient extends BaseClient {
 	 * Revokes a refresh token using the token itself, or a supplied access token,
 	 * passing the token as a Form URL Encoded Payload
 	 * Note: if the access token is not associated with a refresh token, it cannot be revoked.
+	 * 
+	 * Note: The client must be authenticated using the client id and secret of the
+	 * OAuth client making the request.  I.e., it is the OAuth client, not an Synapse user
+	 * who is making this request.
+	 * @throws UnsupportedEncodingException 
 	 */
-	void revokeTokenURLEncoded(String token) throws SynapseException;
+	void revokeTokenURLEncoded(String token) throws SynapseException, UnsupportedEncodingException;
 
 	/**
 	 * Updates the metadata for a particular refresh token.

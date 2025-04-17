@@ -30,6 +30,7 @@ import org.sagebionetworks.repo.model.dbo.migration.BasicMigratableTableTranslat
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
 import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.migration.MigrationType;
+import org.sagebionetworks.util.TemporaryCode;
 
 public class DBOSubmission implements MigratableDatabaseObject<DBOSubmission, DBOSubmission>{
 
@@ -214,6 +215,7 @@ public class DBOSubmission implements MigratableDatabaseObject<DBOSubmission, DB
 	@Override
 	public MigratableTableTranslation<DBOSubmission, DBOSubmission> getTranslator() {
 		return new MigratableTableTranslation<DBOSubmission, DBOSubmission>() {
+			@TemporaryCode(author = "sandhra.sokhal@sagebase.org", comment = "Extract access requirement version from blob")
 			@Override
 			public DBOSubmission createDatabaseObjectFromBackup(DBOSubmission backup) {
 				if (backup.getAccessRequirementVersion() == null) {

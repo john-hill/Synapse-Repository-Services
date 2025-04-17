@@ -3,12 +3,14 @@ package org.sagebionetworks.repo.model.dbo.dao.dataaccess;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.repo.model.dataaccess.Submission;
+import org.sagebionetworks.util.TemporaryCode;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.sagebionetworks.repo.model.dbo.dao.dataaccess.SubmissionUtils.writeSerializedField;
 
+@TemporaryCode(author = "sandhra.sokhal@sagebase.org", comment = "Extract access requirement version from blob test")
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:jdomodels-test-context.xml" })
 public class DBOSubmissionTest {

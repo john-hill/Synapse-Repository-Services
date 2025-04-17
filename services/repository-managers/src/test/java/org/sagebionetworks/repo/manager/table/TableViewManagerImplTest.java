@@ -267,7 +267,8 @@ public class TableViewManagerImplTest {
 	
 	@Test
 	public void testValidateSchemaAndScopeNullSchema() {
-		assertThrows(IllegalArgumentException.class, ()->{manager.validateViewSchemaAndScope(null, viewScope);});
+		List<String> schemaWithNullElement = Arrays.asList(new String[] {"1", null, "3"});
+		assertThrows(IllegalArgumentException.class, ()->{manager.validateViewSchemaAndScope(schemaWithNullElement, viewScope);});
 	}
 	
 	@Test

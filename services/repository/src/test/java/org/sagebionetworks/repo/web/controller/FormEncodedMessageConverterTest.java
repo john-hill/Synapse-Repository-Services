@@ -33,19 +33,16 @@ class FormEncodedMessageConverterTest {
 	
 	FormEncodedMessageConverter converter;
 	
-	Project project;
-	
-
 	@BeforeEach
 	void setUp() throws Exception {
-		project = new Project();
-		project.setName("foo-bar");		
+
 		converter = new FormEncodedMessageConverter();
 	}
 
 	@Test
 	public void testConvertFormEncodedDataToJSONString_HappyCase() throws JSONException, UnsupportedEncodingException {
-		assertEquals("{\"foo\":\"bar\",\"bar\":\"baz\"}", FormEncodedMessageConverter.convertFormEncodedDataToJSONString("foo=bar&bar=baz", CHARSET));
+		assertEquals("{\"foo\":\"bar\",\"bar\":\"baz\"}", 
+				FormEncodedMessageConverter.convertFormEncodedDataToJSONString("foo=bar&bar=baz", CHARSET));
 	}
 	
 	@Test
@@ -62,8 +59,9 @@ class FormEncodedMessageConverterTest {
 
 	
 	@Test
-	public void testRoundTripWithFormencodedMediaType() throws IOException  {
-		String keyValueParams = "name=foo-bar&concreteType=org.sagebionetworks.repo.model.Project";
+	public void testRoundTripWithFormEncodedMediaType() throws IOException  {
+		// note we encode / as %2F
+		String keyValueParams = "name=foo%2Fbar&concreteType=org.sagebionetworks.repo.model.Project";
 		ByteArrayInputStream in  = new ByteArrayInputStream(keyValueParams.getBytes("ISO-8859-1"));
 		Mockito.when(mockInMessage.getBody()).thenReturn(in);
 		Mockito.when(mockInMessage.getHeaders()).thenReturn(mockHeaders);
@@ -72,7 +70,10 @@ class FormEncodedMessageConverterTest {
 		// method under test
 		JSONEntity results = converter.read(Project.class, mockInMessage);
 		
-		assertEquals(project, results);
+		Project expectedEntity = new Project();
+		expectedEntity.setName("foo/bar");
+		
+		assertEquals(expectedEntity, results);
 	}
 	
 

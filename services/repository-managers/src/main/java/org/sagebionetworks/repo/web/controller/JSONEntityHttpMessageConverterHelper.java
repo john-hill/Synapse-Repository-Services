@@ -183,7 +183,7 @@ public class JSONEntityHttpMessageConverterHelper {
 		String jsonString = readToString(reader);
 		// Read it into an adapter
 		JSONObjectAdapter adapter = new JSONObjectAdapterImpl(jsonString);
-		return createEntityFromeAdapter(adapter);
+		return createEntityFromAdapter(adapter);
 	}
 
 	/**
@@ -193,7 +193,7 @@ public class JSONEntityHttpMessageConverterHelper {
 	 * @return
 	 * @throws JSONObjectAdapterException
 	 */
-	public static Entity createEntityFromeAdapter(JSONObjectAdapter adapter)
+	public static Entity createEntityFromAdapter(JSONObjectAdapter adapter)
 			throws JSONObjectAdapterException {
 		// Get the entity type
 		String typeClassName = adapter.getString("concreteType");

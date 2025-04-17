@@ -339,7 +339,7 @@ TOKEN [IGNORE_CASE]:{
 /* Text Matches Modes */
 TOKEN [IGNORE_CASE]: {
   <text_matches_mode_boolean: "BOOLEAN MODE">
-| <text_matches_mode_natural: "NATURAL_LANGUAGE MODE">
+| <text_matches_mode_natural: "NATURAL LANGUAGE MODE">
 }
 
 TOKEN [IGNORE_CASE]: {

@@ -65,7 +65,6 @@ import org.sagebionetworks.table.cluster.description.ColumnToAdd;
 import org.sagebionetworks.table.cluster.description.IndexDescription;
 import org.sagebionetworks.table.cluster.description.IndexDescriptionLookup;
 import org.sagebionetworks.table.cluster.description.MaterializedViewIndexDescription;
-import org.sagebionetworks.table.cluster.description.TableDependency;
 import org.sagebionetworks.table.cluster.description.TableIndexDescription;
 import org.sagebionetworks.table.cluster.description.ViewIndexDescription;
 import org.sagebionetworks.table.query.ParseException;
@@ -3112,8 +3111,10 @@ public class SQLTranslatorUtilsTest {
 		
 		// method under test
 		SQLTranslatorUtils.translateQueryFilters(builder, filter);
+
+		String expectedSearchMode = org.sagebionetworks.table.query.model.TextMatchesMode.valueOf(searchMode.name()).getSql();
 		
-		assertEquals("(TEXT_MATCHES('some search string' IN " + searchMode.name() + " MODE))", builder.toString());
+		assertEquals("(TEXT_MATCHES('some search string' " + expectedSearchMode + "))", builder.toString());
 	}
 	
 	@Test

@@ -12,6 +12,7 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DATA_ACC
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.DDL_DATA_ACCESS_SUBMISSION;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_DATA_ACCESS_SUBMISSION;
 
+import java.io.IOException;
 import java.sql.Blob;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -20,11 +21,14 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 
+import org.sagebionetworks.repo.model.UnmodifiableXStream;
+import org.sagebionetworks.repo.model.dataaccess.Submission;
 import org.sagebionetworks.repo.model.dbo.FieldColumn;
 import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
 import org.sagebionetworks.repo.model.dbo.TableMapping;
 import org.sagebionetworks.repo.model.dbo.migration.BasicMigratableTableTranslation;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
+import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.migration.MigrationType;
 
 public class DBOSubmission implements MigratableDatabaseObject<DBOSubmission, DBOSubmission>{
@@ -41,6 +45,7 @@ public class DBOSubmission implements MigratableDatabaseObject<DBOSubmission, DB
 			new FieldColumn("researchProjectId", COL_DATA_ACCESS_SUBMISSION_RESEARCH_PROJECT_ID)
 		};
 
+	private static final UnmodifiableXStream X_STREAM = UnmodifiableXStream.builder().allowTypes(Submission.class).build();
 	private Long id;
 	private Long accessRequirementId;
 	private Long accessRequirementVersion;
@@ -208,7 +213,26 @@ public class DBOSubmission implements MigratableDatabaseObject<DBOSubmission, DB
 
 	@Override
 	public MigratableTableTranslation<DBOSubmission, DBOSubmission> getTranslator() {
-		return new BasicMigratableTableTranslation<DBOSubmission>();
+		return new MigratableTableTranslation<DBOSubmission, DBOSubmission>() {
+			@Override
+			public DBOSubmission createDatabaseObjectFromBackup(DBOSubmission backup) {
+				if (backup.getAccessRequirementVersion() == null) {
+					try {
+						Submission submission = (Submission) JDOSecondaryPropertyUtils.decompressObject(X_STREAM, backup.getSubmissionSerialized());
+						backup.setAccessRequirementVersion(submission.getAccessRequirementVersion());
+
+					} catch (IOException e) {
+						throw new RuntimeException(e);
+					}
+				}
+				return backup;
+			}
+
+			@Override
+			public DBOSubmission createBackupFromDatabaseObject(DBOSubmission dbo) {
+				return dbo;
+			}
+		};
 	}
 
 	@Override

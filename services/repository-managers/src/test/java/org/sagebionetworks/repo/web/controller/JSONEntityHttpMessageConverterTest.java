@@ -103,22 +103,6 @@ public class JSONEntityHttpMessageConverterTest {
 	}
 	
 	@Test
-	public void testRoundTripWithFormencodedMediaType() throws IOException  {
-		String keyValueParams = "name=foo-bar&concreteType=org.sagebionetworks.repo.model.Project";
-		ByteArrayInputStream in  = new ByteArrayInputStream(keyValueParams.getBytes("ISO-8859-1"));
-		Mockito.when(mockInMessage.getBody()).thenReturn(in);
-		
-		Mockito.when(mockHeaders.getContentType()).thenReturn(MediaType.APPLICATION_FORM_URLENCODED);
-
-		// method under test
-		JSONEntity results = converter.read(Project.class, mockInMessage);
-		
-		assertEquals(project, results);
-	}
-	
-
-	
-	@Test
 	public void testErrorResponseRoundTripWithPlainTextMediaType() throws HttpMessageNotWritableException, IOException{
 		ErrorResponse error = new ErrorResponse();
 		error.setReason("foo");

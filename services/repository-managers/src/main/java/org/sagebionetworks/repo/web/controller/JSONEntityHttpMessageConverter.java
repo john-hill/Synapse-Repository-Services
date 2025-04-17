@@ -25,6 +25,7 @@ import org.springframework.http.converter.HttpMessageNotWritableException;
 
 public class JSONEntityHttpMessageConverter implements	HttpMessageConverter<JSONEntity> {
 	private static final String UTF_8 = "UTF-8";
+	// This is the character set used by Synapse if the client does not specify one
 	private static final Charset SYNAPSE_DEFAULT_CHARSET = Charset.forName(UTF_8);
 
 	private List<MediaType> supportedMedia;

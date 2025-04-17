@@ -27,7 +27,7 @@ public class JSONEntityHttpMessageConverterHelper {
 	private static final String MISSING_ELEMENT_ERROR = "Missing element in child array of %s element on conversion";
 	
 	// This is specified by HTTP 1.1
-	private static final Charset HTTP_1_1_DEFAULT_CHARSET = Charset.forName("ISO-8859-1");
+	public static final Charset HTTP_1_1_DEFAULT_CHARSET = Charset.forName("ISO-8859-1");
 	
 	public static JSONEntity read(String jsonString, Charset charset, Class<? extends JSONEntity> clazz, Set<Class <? extends JSONEntity>> classesToValidateConversion)
 			throws IOException, HttpMessageNotReadableException {

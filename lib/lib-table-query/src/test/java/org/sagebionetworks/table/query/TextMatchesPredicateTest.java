@@ -45,7 +45,7 @@ public class TextMatchesPredicateTest {
 	@ParameterizedTest
 	@EnumSource(TextMatchesMode.class)
 	public void testTextMatchesPredicateWithSearchMode(TextMatchesMode mode) throws ParseException {
-		TextMatchesPredicate element = new TableQueryParser("TEXT_MATCHES('test' IN " + mode.name() + " MODE)").textMatchesPredicate();
+		TextMatchesPredicate element = new TableQueryParser("TEXT_MATCHES('test' " + mode.getSql() + ")").textMatchesPredicate();
 		
 		// Call under test
 		String sql = element.toSql();

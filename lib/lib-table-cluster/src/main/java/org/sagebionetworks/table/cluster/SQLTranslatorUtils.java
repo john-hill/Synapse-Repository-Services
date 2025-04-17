@@ -107,6 +107,7 @@ import org.sagebionetworks.table.query.model.TableExpression;
 import org.sagebionetworks.table.query.model.TableNameCorrelation;
 import org.sagebionetworks.table.query.model.TableReference;
 import org.sagebionetworks.table.query.model.Term;
+import org.sagebionetworks.table.query.model.TextMatchesMode;
 import org.sagebionetworks.table.query.model.TextMatchesMySQLPredicate;
 import org.sagebionetworks.table.query.model.TextMatchesPredicate;
 import org.sagebionetworks.table.query.model.TruthSpecification;
@@ -1115,10 +1116,6 @@ public class SQLTranslatorUtils {
 		
 		return columnRefMatch;
 	}
-	
-	public static void addFiltersToTableExpression(List<QueryFilter> additionalFilters, TableExpression expression) {
-		
-	}
 
 	public static void translateQueryFilters(TableExpression tableExpression, List<QueryFilter> additionalFilters) {
 		ValidateArgument.required(tableExpression, "tableExpression");
@@ -1174,7 +1171,7 @@ public class SQLTranslatorUtils {
 		builder.append(TextMatchesPredicate.KEYWORD).append("(");
 		appendSingleQuotedValueToStringBuilder(builder, filter.getSearchExpression());
 		if (filter.getSearchMode() != null) {
-			builder.append(" IN ").append(filter.getSearchMode().name()).append(" MODE");
+			builder.append(" ").append(TextMatchesMode.valueOf(filter.getSearchMode().name()).getSql());
 		}
 		builder.append(")");
 		builder.append(")");

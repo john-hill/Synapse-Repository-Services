@@ -165,6 +165,8 @@ import org.sagebionetworks.repo.model.dataaccess.SubmissionSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionSearchResponse;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionState;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionStateChangeRequest;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchRequest;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResponse;
 import org.sagebionetworks.repo.model.discussion.CreateDiscussionReply;
 import org.sagebionetworks.repo.model.discussion.CreateDiscussionThread;
 import org.sagebionetworks.repo.model.discussion.DiscussionFilter;
@@ -5600,6 +5602,12 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	}
 
 	@Override
+	public AccessApproval getUserAccessApproval(String submissionId) throws SynapseException {
+		ValidateArgument.required(submissionId, "submissionId");
+		return getJSONEntity(getRepoEndpoint(), DATA_ACCESS_SUBMISSION + "/" + submissionId + "/userAccessApproval", AccessApproval.class);
+	}
+
+	@Override
 	public SubmissionPage listSubmissions(String requirementId, String nextPageToken,
 			SubmissionState filter, SubmissionOrder order, Boolean isAscending)
 			throws SynapseException {
@@ -6209,6 +6217,11 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	@Override
 	public SubmissionSearchResponse searchDataAccessSubmissions(SubmissionSearchRequest request) throws SynapseException {
 		return postJSONEntity(getRepoEndpoint(), DATA_ACCESS_SUBMISSION + "/search", request, SubmissionSearchResponse.class);
+	}
+
+	@Override
+	public UserSubmissionSearchResponse searchUserSubmissions(UserSubmissionSearchRequest request) throws SynapseException {
+		return postJSONEntity(getRepoEndpoint(), DATA_ACCESS_SUBMISSION + "/userRequests", request, UserSubmissionSearchResponse.class);
 	}
 	
 	@Override

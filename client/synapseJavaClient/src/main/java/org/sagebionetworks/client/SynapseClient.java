@@ -131,6 +131,8 @@ import org.sagebionetworks.repo.model.dataaccess.SubmissionPage;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionSearchResponse;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionState;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchRequest;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResponse;
 import org.sagebionetworks.repo.model.discussion.CreateDiscussionReply;
 import org.sagebionetworks.repo.model.discussion.CreateDiscussionThread;
 import org.sagebionetworks.repo.model.discussion.DiscussionFilter;
@@ -3376,6 +3378,15 @@ public interface SynapseClient extends BaseClient {
 	org.sagebionetworks.repo.model.dataaccess.Submission getDataAccessSubmission(String submissionId) throws SynapseException;
 
 	/**
+	 * Fetch their own access approval information specific to a submission, as long as the user is an accessor in the submission.
+	 *
+	 * @param submissionId
+	 * @return
+	 * @throws SynapseException
+	 */
+	AccessApproval getUserAccessApproval(String submissionId) throws SynapseException;
+
+	/**
 	 * Retrieve a page of submissions.
 	 * Only ACT member can perform this action.
 	 * 
@@ -4193,6 +4204,15 @@ public interface SynapseClient extends BaseClient {
 	 * @throws SynapseException
 	 */
 	SubmissionSearchResponse searchDataAccessSubmissions(SubmissionSearchRequest request) throws SynapseException;
+
+	/**
+	 * Performs a search through the data access submissions as long as user is accessor.
+	 *
+	 * @param request
+	 * @return
+	 * @throws SynapseException
+	 */
+	UserSubmissionSearchResponse searchUserSubmissions(UserSubmissionSearchRequest request) throws SynapseException;
 	
 	/**
 	 * Performs a search through the available access requirements matching the criteria in the given request.

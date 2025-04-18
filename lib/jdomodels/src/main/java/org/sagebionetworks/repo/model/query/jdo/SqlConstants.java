@@ -758,6 +758,7 @@ public class SqlConstants {
 	public static final String COL_DOI_ID               = "ID";
 	public static final String COL_DOI_ETAG             = "ETAG";
 	public static final String COL_DOI_DOI_STATUS       = "DOI_STATUS";
+	public static final String COL_DOI_PORTAL_ID        = "PORTAL_ID";
 	public static final String COL_DOI_OBJECT_ID        = "OBJECT_ID";
 	public static final String COL_DOI_OBJECT_TYPE      = "OBJECT_TYPE";
 	public static final String COL_DOI_OBJECT_VERSION   = "OBJECT_VERSION";
@@ -1068,6 +1069,7 @@ public class SqlConstants {
 	public static final String COL_DATA_ACCESS_SUBMISSION_ETAG = 					"ETAG";
 	public static final String COL_DATA_ACCESS_SUBMISSION_SUBMISSION_SERIALIZED = 	"SUBMISSION_SERIALIZED";
 	public static final String COL_DATA_ACCESS_SUBMISSION_RESEARCH_PROJECT_ID = 	"RESEARCH_PROJECT_ID";
+	public static final String COL_DATA_ACCESS_SUBMISSION_ACCESS_REQUIREMENT_VERSION = 	"ACCESS_REQUIREMENT_VERSION";
 
 	// DataAccessSubmissionStatus
 	public static final String DDL_DATA_ACCESS_SUBMISSION_STATUS = 					"schema/DataAccessSubmissionStatus-ddl.sql";

@@ -1,6 +1,7 @@
 package org.sagebionetworks.client;
 
 import static org.sagebionetworks.client.Method.GET;
+import static org.sagebionetworks.client.Method.POST;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
@@ -165,6 +166,8 @@ import org.sagebionetworks.repo.model.dataaccess.SubmissionSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionSearchResponse;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionState;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionStateChangeRequest;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchRequest;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResponse;
 import org.sagebionetworks.repo.model.discussion.CreateDiscussionReply;
 import org.sagebionetworks.repo.model.discussion.CreateDiscussionThread;
 import org.sagebionetworks.repo.model.discussion.DiscussionFilter;
@@ -186,6 +189,7 @@ import org.sagebionetworks.repo.model.docker.DockerCommit;
 import org.sagebionetworks.repo.model.docker.DockerCommitSortBy;
 import org.sagebionetworks.repo.model.doi.v2.Doi;
 import org.sagebionetworks.repo.model.doi.v2.DoiAssociation;
+import org.sagebionetworks.repo.model.doi.v2.DoiObjectType;
 import org.sagebionetworks.repo.model.doi.v2.DoiRequest;
 import org.sagebionetworks.repo.model.doi.v2.DoiResponse;
 import org.sagebionetworks.repo.model.download.AddBatchOfFilesToDownloadListRequest;
@@ -3677,12 +3681,15 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	 * for the current version of the object.
 	 */
 	@Override
-	public DoiAssociation getDoiAssociation(String objectId, ObjectType objectType, Long objectVersion) throws SynapseException {
+	public DoiAssociation getDoiAssociation(String portalId, String objectId, DoiObjectType objectType, Long objectVersion) throws SynapseException {
 		ValidateArgument.required(objectId, "objectId");
 		ValidateArgument.required(objectType, "objectType");
 		String url = DOI_ASSOCIATION + "?id=" + objectId + "&type=" + objectType;
 		if (objectVersion != null) {
 			url += "&version=" + objectVersion;
+		}
+		if (portalId != null) {
+			url += "&portalId=" + portalId;
 		}
 		return getJSONEntity(getRepoEndpoint(), url, DoiAssociation.class);
 	}
@@ -3692,12 +3699,15 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	 * for the current version of the object.
 	 */
 	@Override
-	public Doi getDoi(String objectId, ObjectType objectType, Long objectVersion) throws SynapseException {
+	public Doi getDoi(String portalId, String objectId, DoiObjectType objectType, Long objectVersion) throws SynapseException {
 		ValidateArgument.required(objectId, "objectId");
 		ValidateArgument.required(objectType, "objectType");
 		String url = DOI_ASSOCIATION + "?id=" + objectId + "&type=" + objectType;
 		if (objectVersion != null) {
 			url += "&version=" + objectVersion;
+		}
+		if (portalId != null) {
+			url += "&portalId=" + portalId;
 		}
 		return getJSONEntity(getRepoEndpoint(), url, Doi.class);
 	}
@@ -3726,12 +3736,15 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	 *
 	 */
 	@Override
-	public String getPortalUrl(String objectId, ObjectType objectType, Long objectVersion) throws SynapseException {
+	public String getPortalUrl(String portalId, String objectId, DoiObjectType objectType, Long objectVersion) throws SynapseException {
 		ValidateArgument.required(objectId, "objectId");
 		ValidateArgument.required(objectType, "objectType");
 		String requestUrl = DOI_LOCATE + "?id=" + objectId + "&type=" + objectType;
 		if (objectVersion != null) {
 			requestUrl += "&version=" + objectVersion;
+		}
+		if (portalId != null) {
+			requestUrl += "&portalId=" + portalId;
 		}
 		requestUrl += "&redirect=false";
 		return getStringDirect(getRepoEndpoint(), requestUrl);
@@ -4719,7 +4732,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public Jwt<JwsHeader,Claims> getUserInfoAsJSONWebToken() throws SynapseException {
 		Map<String,String> requestHeaders = new HashMap<String,String>();
 		requestHeaders.put(AuthorizationConstants.AUTHORIZATION_HEADER_NAME, getAuthorizationHeader());
-		SimpleHttpResponse response = signAndDispatchSynapseRequest(
+		SimpleHttpResponse response = dispatchSynapseRequest(
 				getAuthEndpoint(), AUTH_OAUTH_2_USER_INFO, GET, null, requestHeaders, null);
 		if (!ClientUtils.is200sStatusCode(response.getStatusCode())) {
 			ClientUtils.throwException(response.getStatusCode(), response.getContent());
@@ -4773,6 +4786,22 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public void revokeToken(OAuthTokenRevocationRequest revocationRequest) throws SynapseException {
 		ValidateArgument.required(revocationRequest, "revocationRequest");
 		voidPost(getAuthEndpoint(), AUTH_OAUTH_2 + REVOKE, revocationRequest, null);
+	}
+
+	@Override
+	public void revokeTokenURLEncoded(String token) throws SynapseException, UnsupportedEncodingException {
+		ValidateArgument.required(token, "token");
+		Map<String, String> headers = new HashMap<String, String>();
+		// Note, the authorization header is expected to be the Basic Authorization
+		// credentials (client id & secret) for the OAuth client making this request
+		headers.put(AuthorizationConstants.AUTHORIZATION_HEADER_NAME, getAuthorizationHeader());
+		String charset="UTF-8";
+		headers.put(CONTENT_TYPE, "application/x-www-form-urlencoded; charset="+charset);
+		String requestBody="token="+URLEncoder.encode(token, charset);
+		
+		SimpleHttpResponse response = dispatchSynapseRequest(getAuthEndpoint(),
+				AUTH_OAUTH_2 + REVOKE, POST, requestBody, headers, null);
+		ClientUtils.checkStatusCodeAndThrowException(response);
 	}
 
 	@Override
@@ -5590,6 +5619,12 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	}
 
 	@Override
+	public AccessApproval getUserAccessApproval(String submissionId) throws SynapseException {
+		ValidateArgument.required(submissionId, "submissionId");
+		return getJSONEntity(getRepoEndpoint(), DATA_ACCESS_SUBMISSION + "/" + submissionId + "/userAccessApproval", AccessApproval.class);
+	}
+
+	@Override
 	public SubmissionPage listSubmissions(String requirementId, String nextPageToken,
 			SubmissionState filter, SubmissionOrder order, Boolean isAscending)
 			throws SynapseException {
@@ -6199,6 +6234,11 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	@Override
 	public SubmissionSearchResponse searchDataAccessSubmissions(SubmissionSearchRequest request) throws SynapseException {
 		return postJSONEntity(getRepoEndpoint(), DATA_ACCESS_SUBMISSION + "/search", request, SubmissionSearchResponse.class);
+	}
+
+	@Override
+	public UserSubmissionSearchResponse searchUserSubmissions(UserSubmissionSearchRequest request) throws SynapseException {
+		return postJSONEntity(getRepoEndpoint(), DATA_ACCESS_SUBMISSION + "/userRequests", request, UserSubmissionSearchResponse.class);
 	}
 	
 	@Override

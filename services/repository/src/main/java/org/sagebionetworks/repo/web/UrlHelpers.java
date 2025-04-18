@@ -1139,11 +1139,13 @@ public class UrlHelpers {
 	public static final String DATA_ACCESS_REQUEST_ID_SUBMISSION = DATA_ACCESS_REQUEST+"/{requestId}/submission";
 	public static final String DATA_ACCESS_SUBMISSION = "/dataAccessSubmission";
 	public static final String DATA_ACCESS_SUBMISSION_ID = DATA_ACCESS_SUBMISSION + "/{submissionId}";
+	public static final String USER_ACCESS_APPROVAL_FOR_SUBMISSION = DATA_ACCESS_SUBMISSION_ID + "/userAccessApproval";
 	public static final String DATA_ACCESS_SUBMISSION_ID_CANCEL = DATA_ACCESS_SUBMISSION_ID +"/cancellation";
 	public static final String ACCESS_REQUIREMENT_ID_LIST_SUBMISSION =
 			ACCESS_REQUIREMENT_WITH_REQUIREMENT_ID + "/submissions";
 	public static final String ACCESS_REQUIREMENT_ID_LIST_APPROVED_SUBMISISON_INFO =
 			ACCESS_REQUIREMENT_WITH_REQUIREMENT_ID + "/approvedSubmissionInfo";
+	public static final String DATA_ACCESS_SUBMISSION_USER_REQUESTS = DATA_ACCESS_SUBMISSION + "/userRequests";
 	public static final String ACCESS_REQUIREMENT_ID_STATUS =
 			ACCESS_REQUIREMENT_WITH_REQUIREMENT_ID + "/status";
 	public static final String RESTRICTION_INFORMATION = "/restrictionInformation";

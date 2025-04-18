@@ -17,7 +17,9 @@ import org.sagebionetworks.repo.model.migration.MigrationType;
 import org.sagebionetworks.repo.model.query.jdo.SqlConstants;
 
 public class DBOPortal implements MigratableDatabaseObject<DBOPortal, DBOPortal> {
-
+	
+	public static final Long SYNAPSE_PORTAL_ID = 1L;
+	
 	private static final FieldColumn[] FIELDS = new FieldColumn[] {
 		new FieldColumn("id", SqlConstants.COL_PORTAL_ID, true).withIsBackupId(true),
 		new FieldColumn("etag", SqlConstants.COL_PORTAL_ETAG).withIsEtag(true),
@@ -26,8 +28,7 @@ public class DBOPortal implements MigratableDatabaseObject<DBOPortal, DBOPortal>
 		new FieldColumn("modifiedBy", SqlConstants.COL_PORTAL_MODIFIED_BY),
 		new FieldColumn("modifiedOn", SqlConstants.COL_PORTAL_MODIFIED_ON),
 		new FieldColumn("name", SqlConstants.COL_PORTAL_NAME),
-		new FieldColumn("endpoint", SqlConstants.COL_PORTAL_ENDPOINT)
-		
+		new FieldColumn("endpoint", SqlConstants.COL_PORTAL_ENDPOINT)		
 	};
 
 	private static final TableMapping<DBOPortal> TABLE_MAPPING = new TableMapping<DBOPortal>() {

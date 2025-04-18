@@ -131,6 +131,8 @@ import org.sagebionetworks.repo.model.dataaccess.SubmissionPage;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionSearchResponse;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionState;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchRequest;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResponse;
 import org.sagebionetworks.repo.model.discussion.CreateDiscussionReply;
 import org.sagebionetworks.repo.model.discussion.CreateDiscussionThread;
 import org.sagebionetworks.repo.model.discussion.DiscussionFilter;
@@ -151,6 +153,7 @@ import org.sagebionetworks.repo.model.docker.DockerCommit;
 import org.sagebionetworks.repo.model.docker.DockerCommitSortBy;
 import org.sagebionetworks.repo.model.doi.v2.Doi;
 import org.sagebionetworks.repo.model.doi.v2.DoiAssociation;
+import org.sagebionetworks.repo.model.doi.v2.DoiObjectType;
 import org.sagebionetworks.repo.model.doi.v2.DoiResponse;
 import org.sagebionetworks.repo.model.download.AddBatchOfFilesToDownloadListRequest;
 import org.sagebionetworks.repo.model.download.AddBatchOfFilesToDownloadListResponse;
@@ -1184,15 +1187,15 @@ public interface SynapseClient extends BaseClient {
 	public PaginatedResults<ProjectHeader> getProjectsForTeamDeprecated(Long teamId, ProjectListSortColumn sortColumn, SortDirection sortDirection,
 			Integer limit, Integer offset) throws SynapseException;
 
-	public DoiAssociation getDoiAssociation(String objectId, ObjectType objectType, Long objectVersion) throws SynapseException;
+	DoiAssociation getDoiAssociation(String portalId, String objectId, DoiObjectType objectType, Long objectVersion) throws SynapseException;
 
-	public Doi getDoi(String objectId, ObjectType objectType, Long objectVersion) throws SynapseException;
+	Doi getDoi(String portalId, String objectId, DoiObjectType objectType, Long objectVersion) throws SynapseException;
 
-	public String createOrUpdateDoiAsyncStart(Doi doi) throws SynapseException;
+	String createOrUpdateDoiAsyncStart(Doi doi) throws SynapseException;
 
-	public DoiResponse createOrUpdateDoiAsyncGet(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException;
+	DoiResponse createOrUpdateDoiAsyncGet(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException;
 
-	public String getPortalUrl(String objectId, ObjectType objectType, Long objectVersion) throws SynapseException;
+	String getPortalUrl(String portalId, String objectId, DoiObjectType objectType, Long objectVersion) throws SynapseException;
 
 	public List<EntityHeader> getEntityHeaderByMd5(String md5) throws SynapseException;
 
@@ -2256,6 +2259,18 @@ public interface SynapseClient extends BaseClient {
 	 * Note: if the access token is not associated with a refresh token, it cannot be revoked.
 	 */
 	void revokeToken(OAuthTokenRevocationRequest revocationRequest) throws SynapseException;
+
+	/**
+	 * Revokes a refresh token using the token itself, or a supplied access token,
+	 * passing the token as a Form URL Encoded Payload
+	 * Note: if the access token is not associated with a refresh token, it cannot be revoked.
+	 * 
+	 * Note: The client must be authenticated using the client id and secret of the
+	 * OAuth client making the request.  I.e., it is the OAuth client, not an Synapse user
+	 * who is making this request.
+	 * @throws UnsupportedEncodingException 
+	 */
+	void revokeTokenURLEncoded(String token) throws SynapseException, UnsupportedEncodingException;
 
 	/**
 	 * Updates the metadata for a particular refresh token.
@@ -3375,6 +3390,15 @@ public interface SynapseClient extends BaseClient {
 	org.sagebionetworks.repo.model.dataaccess.Submission getDataAccessSubmission(String submissionId) throws SynapseException;
 
 	/**
+	 * Fetch their own access approval information specific to a submission, as long as the user is an accessor in the submission.
+	 *
+	 * @param submissionId
+	 * @return
+	 * @throws SynapseException
+	 */
+	AccessApproval getUserAccessApproval(String submissionId) throws SynapseException;
+
+	/**
 	 * Retrieve a page of submissions.
 	 * Only ACT member can perform this action.
 	 * 
@@ -4192,6 +4216,15 @@ public interface SynapseClient extends BaseClient {
 	 * @throws SynapseException
 	 */
 	SubmissionSearchResponse searchDataAccessSubmissions(SubmissionSearchRequest request) throws SynapseException;
+
+	/**
+	 * Performs a search through the data access submissions as long as user is accessor.
+	 *
+	 * @param request
+	 * @return
+	 * @throws SynapseException
+	 */
+	UserSubmissionSearchResponse searchUserSubmissions(UserSubmissionSearchRequest request) throws SynapseException;
 	
 	/**
 	 * Performs a search through the available access requirements matching the criteria in the given request.

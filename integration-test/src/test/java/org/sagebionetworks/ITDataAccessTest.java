@@ -921,7 +921,7 @@ public class ITDataAccessTest {
 			synapseTwo.getUserAccessApproval(submission.getId());
 		}).getMessage();
 
-		assertEquals("The user does not have access to the submission.", message);
+		assertEquals("The user is not an accessor to the submission.", message);
 
 		// call under test
 		AccessApproval accessApproval = synapse.getUserAccessApproval(submission.getId());

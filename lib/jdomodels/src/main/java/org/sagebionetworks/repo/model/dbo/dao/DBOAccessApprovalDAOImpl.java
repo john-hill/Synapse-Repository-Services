@@ -15,6 +15,7 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_ACCESS_A
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_ACCESS_APPROVAL_SUBMITTER_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DATA_ACCESS_SUBMISSION_ACCESS_REQUIREMENT_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DATA_ACCESS_SUBMISSION_ACCESS_REQUIREMENT_VERSION;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DATA_ACCESS_SUBMISSION_CREATED_BY;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DATA_ACCESS_SUBMISSION_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DATA_ACCESS_SUBMISSION_SUBMITTER_SUBMITTER_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_ACCESS_APPROVAL;
@@ -530,9 +531,9 @@ public class DBOAccessApprovalDAOImpl implements AccessApprovalDAO {
 		ValidateArgument.requiredNotEmpty(submissionIDs, "submissionIDs");
 		ValidateArgument.required(accessorId, "accessorId");
 
-		String sql = "SELECT A.*, S.ID AS SUBMISSION_ID FROM " + TABLE_ACCESS_APPROVAL +
-				" A JOIN " + TABLE_DATA_ACCESS_SUBMISSION +
-				" S ON S." + CREATED_BY + " = A." + COL_DATA_ACCESS_SUBMISSION_SUBMITTER_SUBMITTER_ID +
+		String sql = "SELECT A.*, S.ID AS SUBMISSION_ID FROM " + TABLE_DATA_ACCESS_SUBMISSION +
+				" S JOIN " + TABLE_ACCESS_APPROVAL +
+				" A ON S." + COL_DATA_ACCESS_SUBMISSION_CREATED_BY + " = A." + COL_ACCESS_APPROVAL_SUBMITTER_ID +
 				" AND S." + COL_DATA_ACCESS_SUBMISSION_ACCESS_REQUIREMENT_ID + " = A." + COL_ACCESS_APPROVAL_REQUIREMENT_ID +
 				" AND S." + COL_DATA_ACCESS_SUBMISSION_ACCESS_REQUIREMENT_VERSION + " = A." + COL_ACCESS_APPROVAL_REQUIREMENT_VERSION +
 				" WHERE A." + COL_ACCESS_APPROVAL_ACCESSOR_ID + " = :" + COL_ACCESS_APPROVAL_ACCESSOR_ID +

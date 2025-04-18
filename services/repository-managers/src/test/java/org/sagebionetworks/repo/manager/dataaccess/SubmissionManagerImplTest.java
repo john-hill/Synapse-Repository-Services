@@ -1873,7 +1873,7 @@ public class SubmissionManagerImplTest {
 			manager.getUserAccessApproval(actUser, submissionId);
 		}).getMessage();
 
-		assertEquals("The user does not have access to the submission.", result);
+		assertEquals("The user is not an access to the submission.", result);
 
 		verify(mockSubmissionDao).getSubmission(submissionId);
 		verifyZeroInteractions(mockAccessApprovalDao);

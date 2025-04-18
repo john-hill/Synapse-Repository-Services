@@ -456,7 +456,7 @@ public class SubmissionManagerImpl implements SubmissionManager{
 		Submission submission = submissionDao.getSubmission(submissionId);
 
 		if (!isUserAnAccessor(userInfo, submission)) {
-			throw new UnauthorizedException("The user does not have access to the submission.");
+			throw new UnauthorizedException("The user is not an accessor to the submission.");
 		}
 
 		AccessApproval accessApproval = accessApprovalDao.getByPrimaryKey(Long.parseLong(submission.getAccessRequirementId()),
@@ -472,14 +472,9 @@ public class SubmissionManagerImpl implements SubmissionManager{
 			return false;
 		}
 
-		Set<Long> accessorIds = submission.getAccessorChanges().stream()
-				.map(accessorChange -> Long.parseLong(accessorChange.getUserId())).collect(Collectors.toSet());
-
-		if (accessorIds.stream().anyMatch(id -> id.equals(userInfo.getId()))) {
-			return true;
-		}
-
-		return false;
+		return submission.getAccessorChanges().stream()
+				.map(accessorChange -> Long.parseLong(accessorChange.getUserId()))
+				.anyMatch(id -> id.equals(userInfo.getId()));
 	}
 
 	@Override
@@ -602,21 +597,18 @@ public class SubmissionManagerImpl implements SubmissionManager{
 		Set<Long> arIds = submissions.stream().map(s -> Long.valueOf(s.getAccessRequirementId())).collect(Collectors.toSet());
 		Map<Long, String> arNamesMap = accessRequirementDao.getAccessRequirementNames(arIds);
 
-		List<UserSubmissionSearchResult> resultList = new ArrayList<>();
-
-		for(Submission submission : submissions){
-			UserSubmissionSearchResult result = new UserSubmissionSearchResult();
-			result.setId(submission.getId());
-			result.setCreatedOn(submission.getSubmittedOn());
-			result.setModifiedOn(submission.getModifiedOn());
-			result.setAccessRequirementId(submission.getAccessRequirementId());
-			result.setAccessRequirementVersion(submission.getAccessRequirementVersion().toString());
-			result.setAccessRequirementName(arNamesMap.get(Long.parseLong(submission.getAccessRequirementId())));
-			result.setSubmitterId(submission.getSubmittedBy());
-			result.setState(submission.getState());
-			result.setUserAccessApproval(accessApprovalForSubmission.get(Long.parseLong(submission.getId())));
-			resultList.add(result);
-		}
+		List<UserSubmissionSearchResult> resultList = submissions.stream()
+				.map(submission -> new UserSubmissionSearchResult()
+						.setId(submission.getId())
+						.setCreatedOn(submission.getSubmittedOn())
+						.setModifiedOn(submission.getModifiedOn())
+						.setAccessRequirementId(submission.getAccessRequirementId())
+						.setAccessRequirementVersion(submission.getAccessRequirementVersion().toString())
+						.setAccessRequirementName(arNamesMap.get(Long.parseLong(submission.getAccessRequirementId())))
+						.setSubmitterId(submission.getSubmittedBy())
+						.setState(submission.getState())
+						.setUserAccessApproval(accessApprovalForSubmission.get(Long.parseLong(submission.getId()))))
+				.collect(Collectors.toList());
 
 		UserSubmissionSearchResponse response = new UserSubmissionSearchResponse();
 		response.setResults(resultList);

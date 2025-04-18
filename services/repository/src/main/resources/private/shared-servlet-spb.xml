@@ -36,11 +36,15 @@
 		</property>
 	</bean>
 
+	<bean id="jsonObjectHttpMessageConverter"
+		class="org.sagebionetworks.repo.web.controller.JSONObjectHttpMessageConverter" />
+
 	<!-- Setup our own JSON processing. -->
 	<bean id="platformMessageConverters"
 		class="org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter">
 		<property name="messageConverters">
 			<list>
+				<ref bean="jsonObjectHttpMessageConverter" />
 				<ref bean="jwtTypeSerializer" />
 				<ref bean="objectTypeSerializer" />
 				<ref bean="formEncodedMessageConverter"/>

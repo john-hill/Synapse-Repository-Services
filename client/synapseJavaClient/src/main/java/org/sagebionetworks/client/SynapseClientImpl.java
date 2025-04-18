@@ -1,6 +1,7 @@
 package org.sagebionetworks.client;
 
 import static org.sagebionetworks.client.Method.GET;
+import static org.sagebionetworks.client.Method.POST;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
@@ -4731,7 +4732,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public Jwt<JwsHeader,Claims> getUserInfoAsJSONWebToken() throws SynapseException {
 		Map<String,String> requestHeaders = new HashMap<String,String>();
 		requestHeaders.put(AuthorizationConstants.AUTHORIZATION_HEADER_NAME, getAuthorizationHeader());
-		SimpleHttpResponse response = signAndDispatchSynapseRequest(
+		SimpleHttpResponse response = dispatchSynapseRequest(
 				getAuthEndpoint(), AUTH_OAUTH_2_USER_INFO, GET, null, requestHeaders, null);
 		if (!ClientUtils.is200sStatusCode(response.getStatusCode())) {
 			ClientUtils.throwException(response.getStatusCode(), response.getContent());
@@ -4785,6 +4786,22 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public void revokeToken(OAuthTokenRevocationRequest revocationRequest) throws SynapseException {
 		ValidateArgument.required(revocationRequest, "revocationRequest");
 		voidPost(getAuthEndpoint(), AUTH_OAUTH_2 + REVOKE, revocationRequest, null);
+	}
+
+	@Override
+	public void revokeTokenURLEncoded(String token) throws SynapseException, UnsupportedEncodingException {
+		ValidateArgument.required(token, "token");
+		Map<String, String> headers = new HashMap<String, String>();
+		// Note, the authorization header is expected to be the Basic Authorization
+		// credentials (client id & secret) for the OAuth client making this request
+		headers.put(AuthorizationConstants.AUTHORIZATION_HEADER_NAME, getAuthorizationHeader());
+		String charset="UTF-8";
+		headers.put(CONTENT_TYPE, "application/x-www-form-urlencoded; charset="+charset);
+		String requestBody="token="+URLEncoder.encode(token, charset);
+		
+		SimpleHttpResponse response = dispatchSynapseRequest(getAuthEndpoint(),
+				AUTH_OAUTH_2 + REVOKE, POST, requestBody, headers, null);
+		ClientUtils.checkStatusCodeAndThrowException(response);
 	}
 
 	@Override

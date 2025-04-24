@@ -1257,6 +1257,7 @@ public class UrlHelpers {
 	public static final String PORTAL_LIST = PORTAL + "/list";
 	public static final String PORTAL_ID = PORTAL + "/{portalId}";
 	public static final String PORTAL_ACL = PORTAL_ID + "/acl";
+	public static final String PORTAL_PERMISSIONS = PORTAL_ID + "/permissions";
 	
 	
 	/**

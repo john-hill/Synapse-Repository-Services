@@ -11,6 +11,9 @@ import org.sagebionetworks.repo.model.NextPageToken;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
+import org.sagebionetworks.repo.model.auth.UserPortalPermissions;
+import org.sagebionetworks.repo.model.dbo.portals.DBOPortal;
 import org.sagebionetworks.repo.model.dbo.portals.PortalDao;
 import org.sagebionetworks.repo.model.portals.CreateOrUpdatePortalRequest;
 import org.sagebionetworks.repo.model.portals.ListPortalsRequest;
@@ -122,6 +125,30 @@ public class PortalManagerImpl implements PortalManager {
 		aclDao.update(acl, ObjectType.PORTAL);
 
 		return getPortalAcl(portalId);
+	}
+	
+	@Override
+	public UserPortalPermissions getUserPortalPermissions(UserInfo user, String portalId) {
+		ValidateArgument.required(user, "The user");
+		ValidateArgument.required(portalId, "The portalId");
+		
+		boolean canMintDoi = canMintDoi(user, portalId).isAuthorized();
+		
+		return new UserPortalPermissions()
+			.setCanMintDoi(canMintDoi);
+	}
+	
+	@Override
+	public AuthorizationStatus canMintDoi(UserInfo user, String portalId) {
+		ValidateArgument.required(user, "The user");
+		ValidateArgument.required(portalId, "The portalId");
+
+		// Any user on the Synapse.org portal can mint a DOIs as long as they have edit permissions on the underlying entity.
+		if (DBOPortal.SYNAPSE_PORTAL_ID.toString().equals(portalId) || AuthorizationUtils.isPortalManagerOrAdmin(user)) {
+			return AuthorizationStatus.authorized();
+		} else {
+			return aclDao.canAccess(user, portalId, ObjectType.PORTAL, ACCESS_TYPE.UPDATE);
+		}
 	}
 	
 	private static void validateCreateOrUpdateRequest(UserInfo user, CreateOrUpdatePortalRequest request) {

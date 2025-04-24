@@ -681,7 +681,7 @@ public class DoiManagerImplTest {
 		portalId = "456";
 		doiObjectType = DoiObjectType.PORTAL_RESOURCE;
 		
-		when(mockAuthorizationManager.canAccess(userInfo, portalId, ObjectType.PORTAL, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
+		when(mockPortalManager.canMintDoi(userInfo, portalId)).thenReturn(AuthorizationStatus.authorized());
 		
 		// Call under test
 		doiManager.verifyDoiMintingAuthorization(userInfo, portalId, objectId, doiObjectType);

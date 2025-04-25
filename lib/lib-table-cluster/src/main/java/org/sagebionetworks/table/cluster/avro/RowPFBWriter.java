@@ -30,7 +30,7 @@ public class RowPFBWriter implements RowHandler {
 
 		writer = new DataFileWriter<>(new SpecificDatumWriter<>(entitySchema));
 		writer.create(entitySchema, out);
-		// the first row must be a metadata row even though we do not have any 
+		// the first row must be metadata
 		writer.append(new Entity(entitySchema).setId(null).setName("Metadata")
 				.setObject(metadata));
 	}

@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.service.portals;
 
 import org.sagebionetworks.repo.model.AccessControlList;
+import org.sagebionetworks.repo.model.auth.UserPortalPermissions;
 import org.sagebionetworks.repo.model.portals.CreateOrUpdatePortalRequest;
 import org.sagebionetworks.repo.model.portals.ListPortalsRequest;
 import org.sagebionetworks.repo.model.portals.ListPortalsResponse;
@@ -22,4 +23,5 @@ public interface PortalService {
 
 	AccessControlList updatePortalAcl(Long userId, String portalId, AccessControlList acl);
 
+	UserPortalPermissions getUserPortalPermissions(Long userId, String portalId);
 }

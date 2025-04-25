@@ -207,7 +207,7 @@ public class DoiManagerImpl implements DoiManager {
 				throw new IllegalArgumentException("Object must be a portal resource.");
 			}
 			// For an external portal, only the portal "administrator" can mint a DOI
-			authStatus = authorizationManager.canAccess(user, portalId, ObjectType.PORTAL, ACCESS_TYPE.UPDATE);
+			authStatus = portalManager.canMintDoi(user, portalId);
 		}
 		
 		authStatus.checkAuthorizationOrElseThrow();

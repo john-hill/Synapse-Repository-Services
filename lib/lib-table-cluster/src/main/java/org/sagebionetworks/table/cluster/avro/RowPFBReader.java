@@ -35,10 +35,8 @@ public class RowPFBReader implements Iterator<Row>, Closeable {
 	private Metadata readMetadata() {
 		if(dataFileReader.hasNext()) {
 			Entity entity = new Entity(this.entitySchema, dataFileReader.next());
-			if("Metadata".equals(entity.getName())) {
-				if(entity.getObject() instanceof Metadata) {
-					return (Metadata) entity.getObject();
-				}
+			if(entity.getObject() instanceof Metadata) {
+				return (Metadata) entity.getObject();
 			}
 		}
 		throw new IllegalArgumentException("The first row of a PFB must be 'Metadata'");

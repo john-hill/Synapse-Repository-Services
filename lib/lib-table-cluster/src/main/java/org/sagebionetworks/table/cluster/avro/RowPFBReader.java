@@ -29,8 +29,19 @@ public class RowPFBReader implements Iterator<Row>, Closeable {
 		this.entityReader = new GenericDatumReader<GenericRecord>();
 		this.dataFileReader = new DataFileReader<>(in, this.entityReader);
 		this.entitySchema = this.dataFileReader.getSchema();
-		Entity entity = new Entity(this.entitySchema, dataFileReader.next());
-		metadata = (Metadata) entity.getObject();
+		this.metadata = readMetadata();
+	}
+	
+	private Metadata readMetadata() {
+		if(dataFileReader.hasNext()) {
+			Entity entity = new Entity(this.entitySchema, dataFileReader.next());
+			if("Metadata".equals(entity.getName())) {
+				if(entity.getObject() instanceof Metadata) {
+					return (Metadata) entity.getObject();
+				}
+			}
+		}
+		throw new IllegalArgumentException("The first row of a PFB must be 'Metadata'");
 	}
 	
 	public Metadata getMetadata() {

@@ -9,7 +9,11 @@
 	"properties": {
 		"cellId": {
 			"description": "The unique identifier for this cell's row",
-			"$ref":"org.sagebionetworks.repo.model.grid.CellId"
+			"$ref": "org.sagebionetworks.repo.model.grid.CellId"
+		},
+		"calculatedValue": {
+			"description": "The current calcualted value for this cell.",
+			"type": "string"
 		}
 	}
 }

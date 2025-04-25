@@ -107,7 +107,7 @@ public class GridController {
 	 */
 	@RequiredScope({ view })
 	@ResponseStatus(HttpStatus.OK)
-	@RequestMapping(value = UrlHelpers.GRID_SESSION_ID_CELL_CRDT, method = RequestMethod.GET)
+	@RequestMapping(value = UrlHelpers.GRID_SESSION_ID_CELL_CRDT, method = RequestMethod.PUT)
 	public @ResponseBody GetCellCrdtResponse getCellCrdts(
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable String sessionId,
 			@RequestBody GetCellCrdtRequest request) throws Throwable {
@@ -125,7 +125,7 @@ public class GridController {
 	 */
 	@RequiredScope({ view })
 	@ResponseStatus(HttpStatus.OK)
-	@RequestMapping(value = UrlHelpers.GRID_SESSION_ID_CELL_VALUE, method = RequestMethod.GET)
+	@RequestMapping(value = UrlHelpers.GRID_SESSION_ID_CELL_VALUE, method = RequestMethod.PUT)
 	public @ResponseBody GetCellValueResponse getCellValues(
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable String sessionId,
 			@RequestBody GetCellValueRequest request) throws Throwable {
@@ -287,5 +287,25 @@ public class GridController {
 
 		return null;
 	}
+
+	/**
+	 * Get the JSON Schema that defines the validation rules for the given grid
+	 * session. Agents use this method to load the JSON schema for this grid into
+	 * their context window.
+	 * 
+	 * @param userId
+	 * @param sessionId
+	 * @return The JSON Schema that defines the validation rules of this grid.
+	 * @throws Throwable
+	 */
+	@RequiredScope({ view })
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.GRID_SESSION_ID_SCHEMA, method = RequestMethod.GET)
+	public @ResponseBody String getGridSchema(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@PathVariable String sessionId) throws Throwable {
+		return null;
+	}
+	
+	
 
 }

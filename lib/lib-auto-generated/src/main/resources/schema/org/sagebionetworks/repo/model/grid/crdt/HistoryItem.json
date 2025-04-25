@@ -23,7 +23,7 @@
 			"description": "When true, this change was made by an agent on the changeById user's behalf."
 		},
 		"gridVersion": {
-			"type": "number",
+			"type": "integer",
 			"description": "The current version number of the grid at the time this change was made."
 		}
 	}

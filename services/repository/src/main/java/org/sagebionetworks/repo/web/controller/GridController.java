@@ -7,19 +7,11 @@ import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.asynch.AsyncJobId;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridResponse;
-import org.sagebionetworks.repo.model.grid.GetCellCrdtRequest;
-import org.sagebionetworks.repo.model.grid.GetCellCrdtResponse;
-import org.sagebionetworks.repo.model.grid.GetCellValueRequest;
-import org.sagebionetworks.repo.model.grid.GetCellValueResponse;
-import org.sagebionetworks.repo.model.grid.GetViewportCellsRequest;
-import org.sagebionetworks.repo.model.grid.GetViewportCellsResponse;
+import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
+import org.sagebionetworks.repo.model.grid.CreateReplicaResponse;
 import org.sagebionetworks.repo.model.grid.GridQueryRequest;
 import org.sagebionetworks.repo.model.grid.GridQueryResponse;
 import org.sagebionetworks.repo.model.grid.GridSession;
-import org.sagebionetworks.repo.model.grid.MapCellIdToCellAddressRequest;
-import org.sagebionetworks.repo.model.grid.MapCellIdToCellAddressResponse;
-import org.sagebionetworks.repo.model.grid.MergeCellCrdtRequest;
-import org.sagebionetworks.repo.model.grid.MergeCellCrdtResponse;
 import org.sagebionetworks.repo.model.grid.UpdateGridRequest;
 import org.sagebionetworks.repo.model.grid.UpdateGridResponse;
 import org.sagebionetworks.repo.web.RequiredScope;
@@ -97,161 +89,8 @@ public class GridController {
 	}
 
 	/**
-	 * Get the cell level CRDTs for the provided cell IDs.
-	 * 
-	 * @param userId
-	 * @param sessionId
-	 * @param request
-	 * @return
-	 * @throws Throwable
-	 */
-	@RequiredScope({ view })
-	@ResponseStatus(HttpStatus.OK)
-	@RequestMapping(value = UrlHelpers.GRID_SESSION_ID_CELL_CRDT, method = RequestMethod.PUT)
-	public @ResponseBody GetCellCrdtResponse getCellCrdts(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable String sessionId,
-			@RequestBody GetCellCrdtRequest request) throws Throwable {
-		return null;
-	}
-
-	/**
-	 * Get the current cell values for the provided cell IDs.
-	 * 
-	 * @param userId
-	 * @param sessionId
-	 * @param request
-	 * @return
-	 * @throws Throwable
-	 */
-	@RequiredScope({ view })
-	@ResponseStatus(HttpStatus.OK)
-	@RequestMapping(value = UrlHelpers.GRID_SESSION_ID_CELL_VALUE, method = RequestMethod.PUT)
-	public @ResponseBody GetCellValueResponse getCellValues(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable String sessionId,
-			@RequestBody GetCellValueRequest request) throws Throwable {
-		return null;
-	}
-
-	/**
-	 * Start a job to get the cells within the provide viewport.
-	 * 
-	 * @param userId
-	 * @param request
-	 * @return
-	 */
-	@RequiredScope({ view, modify })
-	@ResponseStatus(HttpStatus.CREATED)
-	@RequestMapping(value = UrlHelpers.GRID_SESSION_ID_VIEWPORT_CELL_ASYNC_START, method = RequestMethod.POST)
-	public @ResponseBody AsyncJobId startGetViewportCells(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
-			@RequestBody GetViewportCellsRequest request) {
-
-		return null;
-	}
-
-	/**
-	 * Get the results of the job started with:
-	 * <a href="POST.grid.session.sessionId.viewport.cell.async.start">POST
-	 * /grid/session/{sessionId}/viewport/cell/async/start</a>
-	 * </p>
-	 * Only the user that started the job may get the job's results.
-	 * 
-	 * @param userId
-	 * @param asyncToken
-	 * @return
-	 * @throws Throwable
-	 */
-	@RequiredScope({ view })
-	@ResponseStatus(HttpStatus.OK)
-	@RequestMapping(value = UrlHelpers.GRID_SESSION_ID_VIEWPORT_CELL_ASYNC_GET, method = RequestMethod.GET)
-	public @ResponseBody GetViewportCellsResponse getViewportCells(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable String asyncToken)
-			throws Throwable {
-		return null;
-	}
-
-	/**
-	 * Start a job to get the map of cell address relative to a view port given cell
-	 * IDs..
-	 * 
-	 * @param userId
-	 * @param request
-	 * @return
-	 */
-	@RequiredScope({ view, modify })
-	@ResponseStatus(HttpStatus.CREATED)
-	@RequestMapping(value = UrlHelpers.GRID_SESSION_ID_VIEWPORT_MAP_ASYNC_START, method = RequestMethod.POST)
-	public @ResponseBody AsyncJobId startMapViewportCells(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
-			@RequestBody MapCellIdToCellAddressRequest request) {
-
-		return null;
-	}
-
-	/**
-	 * Get the results of the job started with:
-	 * <a href="POST.grid.session.sessionId.viewport.map.async.start">POST
-	 * /grid/session/{sessionId}/viewport/map/async/start</a>
-	 * </p>
-	 * Only the user that started the job may get the job's results.
-	 * 
-	 * @param userId
-	 * @param asyncToken
-	 * @return
-	 * @throws Throwable
-	 */
-	@RequiredScope({ view })
-	@ResponseStatus(HttpStatus.OK)
-	@RequestMapping(value = UrlHelpers.GRID_SESSION_ID_VIEWPORT_MAP_ASYNC_GET, method = RequestMethod.GET)
-	public @ResponseBody MapCellIdToCellAddressResponse getMapViewportCell(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable String asyncToken)
-			throws Throwable {
-		return null;
-	}
-
-	/**
-	 * Start a job to merge a batch of cell CRDT into the grid. A change message
-	 * will be published for each cell that is updated.
-	 * 
-	 * @param userId
-	 * @param request
-	 * @return
-	 */
-	@RequiredScope({ view, modify })
-	@ResponseStatus(HttpStatus.CREATED)
-	@RequestMapping(value = UrlHelpers.GRID_SESSION_ID_CELL_CRDT_MERGE_START, method = RequestMethod.POST)
-	public @ResponseBody AsyncJobId startCellMerge(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
-			@RequestBody MergeCellCrdtRequest request) {
-
-		return null;
-	}
-
-	/**
-	 * Get the results of the job started with:
-	 * <a href="POST.grid.session.sessionId.viewport.map.async.start">POST
-	 * /grid/session/{sessionId}/viewport/map/async/start</a>
-	 * </p>
-	 * Only the user that started the job may get the job's results.
-	 * 
-	 * @param userId
-	 * @param asyncToken
-	 * @return
-	 * @throws Throwable
-	 */
-	@RequiredScope({ view })
-	@ResponseStatus(HttpStatus.OK)
-	@RequestMapping(value = UrlHelpers.GRID_SESSION_ID_CELL_CRDT_MERGE_GET, method = RequestMethod.GET)
-	public @ResponseBody MergeCellCrdtResponse getCellMerge(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable String asyncToken)
-			throws Throwable {
-		return null;
-	}
-
-	/**
-	 * An Agent query against the grid. This call does not need to be asynchronous
-	 * if it is made via return_control. We are considering defining this with Model
-	 * Context Protocol (MCP).
+	 * A return_control agent function to run a query against the grid. Context
+	 * Protocol (MCP).
 	 * 
 	 * @param userId
 	 * @param sessionId The grid session ID.
@@ -268,10 +107,7 @@ public class GridController {
 	}
 
 	/**
-	 * An Agent SQL update request. Each cell update with extend the cell's CRDT
-	 * history with attribution of aggent_assist=true. This call does not need to be
-	 * asynchronous if it is made via return_control. We are considering defining
-	 * this with Model Context Protocol (MCP).
+	 * A return_control agent function to support agent update request.
 	 * 
 	 * @param userId
 	 * @param sessionId The grid session ID.
@@ -305,7 +141,27 @@ public class GridController {
 			@PathVariable String sessionId) throws Throwable {
 		return null;
 	}
-	
-	
+
+	/**
+	 * A grid replica is an in-memory document that represents a 'copy' of the grid.
+	 * Each replica is identified by a unique replicaId, issued by the 'hub'. A user
+	 * can have more then one replica at time (i.e. using multiple
+	 * browser/tabs/machines). A user is limited to 10 replicas per-hour
+	 * per-grid-session.
+	 * 
+	 * @param userId
+	 * @param sessionId
+	 * @param request
+	 * @return
+	 */
+	@RequiredScope({ view, modify })
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.GRID_SESSION_ID_REPLICA, method = RequestMethod.PUT)
+	public @ResponseBody CreateReplicaResponse createReplica(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable String sessionId,
+			@RequestBody CreateReplicaRequest request) {
+
+		return null;
+	}
 
 }

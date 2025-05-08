@@ -443,24 +443,15 @@ public class UrlHelpers {
 	
 	public static final String GRID = "/grid";
 	public static final String GRID_SESSION = GRID + "/session";
-	public static final String GRID_SESSION_ID = GRID_SESSION + "/{sessionId}";
+	public static final String GRID_SESSION_ID = GRID + "/{sessionId}";
 	public static final String GRID_SESSION_ASYNC_START = GRID_SESSION + ASYNC_START_REQUEST;
 	public static final String GRID_SESSION_ASYNC_GET = GRID_SESSION + ASYNC_GET_REQUEST;
-	public static final String GRID_SESSION_ID_CELL = GRID_SESSION_ID+"/cell";
-	public static final String GRID_SESSION_ID_CELL_CRDT = GRID_SESSION_ID_CELL+"/crdt";
-	public static final String GRID_SESSION_ID_CELL_VALUE = GRID_SESSION_ID_CELL+"/value";
-	public static final String GRID_SESSION_ID_VIEWPORT = GRID_SESSION_ID+"/viewport";
-	public static final String GRID_SESSION_ID_VIEWPORT_CELL_ASYNC_START = GRID_SESSION_ID_VIEWPORT+"/cell"+ASYNC_START_REQUEST;
-	public static final String GRID_SESSION_ID_VIEWPORT_CELL_ASYNC_GET = GRID_SESSION_ID_VIEWPORT+"/cell"+ASYNC_GET_REQUEST;
-	public static final String GRID_SESSION_ID_VIEWPORT_MAP_ASYNC_START = GRID_SESSION_ID_VIEWPORT+"/map"+ASYNC_START_REQUEST;
-	public static final String GRID_SESSION_ID_VIEWPORT_MAP_ASYNC_GET = GRID_SESSION_ID_VIEWPORT+"/map"+ASYNC_GET_REQUEST;
-	
-	public static final String GRID_SESSION_ID_CELL_CRDT_MERGE_START = GRID_SESSION_ID_CELL_CRDT+"/merge"+ASYNC_START_REQUEST;
-	public static final String GRID_SESSION_ID_CELL_CRDT_MERGE_GET = GRID_SESSION_ID_CELL_CRDT+"/merge"+ASYNC_GET_REQUEST;
 	
 	public static final String GRID_SESSION_ID_SQL = GRID_SESSION_ID+"/sql";
 	public static final String GRID_SESSION_ID_SQL_QUERY = GRID_SESSION_ID_SQL+"/query";
 	public static final String GRID_SESSION_ID_SQL_UPDATE = GRID_SESSION_ID_SQL+"/update";
+	
+	public static final String GRID_SESSION_ID_REPLICA = GRID_SESSION_ID+"/replica";
 	
 	public static final String GRID_SESSION_ID_SCHEMA = GRID_SESSION_ID+"/schema";
 	

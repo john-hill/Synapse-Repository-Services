@@ -44,7 +44,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 public class GridController {
 
 	/**
-	 * Start a job to create a new curation grid session given a CSV and data model.
+	 * Start a job to create a new sandbox grid session.
 	 * 
 	 * @param userId
 	 * @param request

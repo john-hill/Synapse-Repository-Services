@@ -36,11 +36,8 @@ public class ObjectSchemaUtils {
 		Map<String, ObjectSchema> classNameToObjectSchema = new HashMap<>();
 		while (concreteClassNames.hasNext()) {
 			String className = concreteClassNames.next();
-			System.out.println("ConcreteClassName: "+className);
-			if(className.startsWith("org.sagebionetworks.repo.model.grid.")) {
-				ObjectSchema schema = SchemaUtils.getSchema(className);
-				SchemaUtils.recursiveAddTypes(classNameToObjectSchema, className, schema);
-			}
+			ObjectSchema schema = SchemaUtils.getSchema(className);
+			SchemaUtils.recursiveAddTypes(classNameToObjectSchema, className, schema);
 		}
 		return classNameToObjectSchema;
 	}

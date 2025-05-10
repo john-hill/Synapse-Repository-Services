@@ -57,6 +57,7 @@
 				<bean class="org.sagebionetworks.repo.model.dbo.wikiV2.V2DBOWikiMarkdown" />
 				<bean class="org.sagebionetworks.repo.model.dbo.wikiV2.V2DBOWikiOwner" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOFavorite" />
+				<bean class="org.sagebionetworks.repo.model.dbo.portals.DBOPortal"/>
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBODoi" />
 				<!-- Team-related beans -->
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOTeam" />
@@ -254,6 +255,8 @@
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOAccessControlList" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOFavorite" />
 				<bean class="org.sagebionetworks.repo.model.dbo.trash.DBOTrashedEntity" />
+				
+				<bean class="org.sagebionetworks.repo.model.dbo.portals.DBOPortal"/>
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBODoi" />
 
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOChallenge" />

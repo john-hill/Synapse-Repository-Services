@@ -758,6 +758,7 @@ public class SqlConstants {
 	public static final String COL_DOI_ID               = "ID";
 	public static final String COL_DOI_ETAG             = "ETAG";
 	public static final String COL_DOI_DOI_STATUS       = "DOI_STATUS";
+	public static final String COL_DOI_PORTAL_ID        = "PORTAL_ID";
 	public static final String COL_DOI_OBJECT_ID        = "OBJECT_ID";
 	public static final String COL_DOI_OBJECT_TYPE      = "OBJECT_TYPE";
 	public static final String COL_DOI_OBJECT_VERSION   = "OBJECT_VERSION";
@@ -1068,6 +1069,7 @@ public class SqlConstants {
 	public static final String COL_DATA_ACCESS_SUBMISSION_ETAG = 					"ETAG";
 	public static final String COL_DATA_ACCESS_SUBMISSION_SUBMISSION_SERIALIZED = 	"SUBMISSION_SERIALIZED";
 	public static final String COL_DATA_ACCESS_SUBMISSION_RESEARCH_PROJECT_ID = 	"RESEARCH_PROJECT_ID";
+	public static final String COL_DATA_ACCESS_SUBMISSION_ACCESS_REQUIREMENT_VERSION = 	"ACCESS_REQUIREMENT_VERSION";
 
 	// DataAccessSubmissionStatus
 	public static final String DDL_DATA_ACCESS_SUBMISSION_STATUS = 					"schema/DataAccessSubmissionStatus-ddl.sql";
@@ -1369,6 +1371,18 @@ public class SqlConstants {
 	public static final String COL_PROJECT_STORAGE_LIMIT_LOCATION_ID =		"STORAGE_LOCATION_ID";
 	public static final String COL_PROJECT_STORAGE_LIMIT_MAX_BYTES =		"MAX_BYTES";
 	public static final String DDL_PROJECT_STORAGE_LIMIT = 					"schema/limits/ProjectStorageLimit-ddl.sql";
+	
+	// Portal table
+	public static final String TABLE_PORTAL = 			"PORTAL";
+	public static final String COL_PORTAL_ID = 			"ID";
+	public static final String COL_PORTAL_ETAG = 		"ETAG";
+	public static final String COL_PORTAL_CREATED_BY = 	"CREATED_BY";
+	public static final String COL_PORTAL_CREATED_ON = 	"CREATED_ON";
+	public static final String COL_PORTAL_MODIFIED_BY = "MODIFIED_BY";
+	public static final String COL_PORTAL_MODIFIED_ON = "MODIFIED_ON";
+	public static final String COL_PORTAL_NAME = 		"NAME";
+	public static final String COL_PORTAL_ENDPOINT = 	"ENDPOINT";	
+	public static final String DDL_PORTAL = "schema/portals/Portal-ddl.sql";
 	
 	// This seems to be the name of the id column for all tables.
 	public static final String COLUMN_ID		= "id";

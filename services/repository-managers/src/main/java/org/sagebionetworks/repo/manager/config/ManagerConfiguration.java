@@ -25,6 +25,7 @@ import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
 import org.apache.velocity.runtime.resource.loader.FileResourceLoader;
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.avro.pfb.model.Metadata;
 import org.sagebionetworks.aws.v2.AwsCrdentialPoviderV2;
 import org.sagebionetworks.database.semaphore.CountingSemaphore;
 import org.sagebionetworks.evaluation.dbo.SubmissionFileHandleDBO;
@@ -387,8 +388,8 @@ public class ManagerConfiguration {
 	
 	@Bean
 	public RowPFBWriterProvider createRowPFBWriterProvider() {
-		return (String tableName, List<ColumnModel> columns, File file) -> {
-			return new RowPFBWriter(tableName, columns, new FileOutputStream(file));
+		return (String tableName, List<ColumnModel> columns, Metadata metadata, File file) -> {
+			return new RowPFBWriter(tableName, columns, metadata, new FileOutputStream(file));
 		};
 	}
 	

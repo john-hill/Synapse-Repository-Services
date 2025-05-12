@@ -12,8 +12,10 @@ import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.FileEntity;
 import org.sagebionetworks.repo.model.Folder;
+import org.sagebionetworks.repo.model.Link;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.docker.DockerRepository;
 import org.sagebionetworks.repo.model.schema.CreateOrganizationRequest;
 import org.sagebionetworks.repo.model.schema.CreateSchemaRequest;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
@@ -21,6 +23,13 @@ import org.sagebionetworks.repo.model.schema.JsonSchemaConstants;
 import org.sagebionetworks.repo.model.schema.JsonSchemaVersionInfo;
 import org.sagebionetworks.repo.model.schema.NormalizedJsonSchema;
 import org.sagebionetworks.repo.model.schema.SubSchemaIterable;
+import org.sagebionetworks.repo.model.table.Dataset;
+import org.sagebionetworks.repo.model.table.DatasetCollection;
+import org.sagebionetworks.repo.model.table.EntityView;
+import org.sagebionetworks.repo.model.table.MaterializedView;
+import org.sagebionetworks.repo.model.table.SubmissionView;
+import org.sagebionetworks.repo.model.table.TableEntity;
+import org.sagebionetworks.repo.model.table.VirtualTable;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.schema.ObjectSchema;
@@ -44,8 +53,20 @@ public class SynapseSchemaBootstrapImpl implements SynapseSchemaBootstrap {
 	 * The Synapse objects that can be referenced in JSON schemas and therefore must
 	 * exist in the repository.
 	 */
-	public static final List<String> OBJECTS_TO_BOOTSTRAP = Lists.newArrayList(FileEntity.class.getName(),
-			Folder.class.getName(), Project.class.getName());
+	public static final List<String> OBJECTS_TO_BOOTSTRAP = Lists.newArrayList(
+			FileEntity.class.getName(),
+			Folder.class.getName(),
+			Project.class.getName(),
+			TableEntity.class.getName(),
+			EntityView.class.getName(),
+			Dataset.class.getName(),
+			DatasetCollection.class.getName(),
+			SubmissionView.class.getName(),
+			MaterializedView.class.getName(),
+			VirtualTable.class.getName(),
+			DockerRepository.class.getName(),
+			Link.class.getName()
+		);
 
 	@Autowired
 	private JsonSchemaManager jsonSchemaManager;

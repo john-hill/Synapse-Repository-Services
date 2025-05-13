@@ -201,10 +201,11 @@ public class SynapseSchemaBootstrapImpl implements SynapseSchemaBootstrap {
 	 * @return
 	 */
 	List<ObjectSchema> loadAllSchemasAndReferences(List<String> schemaClassNames) {
-		Set<String> visitedId = new HashSet<String>();
+		Set<String> visitedIds = new HashSet<String>();
 		Map<String, ObjectSchema> loadedSchemas = new LinkedHashMap<>();
 		for (String idToLoad : schemaClassNames) {
-			loadAllSchemasRecursive(loadedSchemas, idToLoad, visitedId);
+			ObjectSchema schema = translator.loadSchemaFromClasspath(idToLoad);
+			loadAllSchemasRecursive(loadedSchemas, visitedIds, schema);
 		}
 		return loadedSchemas.values().stream().collect(Collectors.toList());
 	}
@@ -215,45 +216,37 @@ public class SynapseSchemaBootstrapImpl implements SynapseSchemaBootstrap {
 	 * are added before the object that depend on them.
 	 *
 	 * @param loadedSchemas a mapping of loaded schema class names to the ObjectSchema
-	 * @param schemaClassName the class name of the schema to load
-	 * @param visitedId the set of visited schema classes to prevent infinite loops
+	 * @param visitedIds    the set of visited schema classes to prevent infinite loops
+	 * @param schema        the schema to walk through
 	 */
-	private void loadAllSchemasRecursive(Map<String, ObjectSchema> loadedSchemas, String schemaClassName,
-										 Set<String> visitedId) {
-		loadAllSchemasRecursive(loadedSchemas, schemaClassName, visitedId, null);
-	}
-
-	/**
-	 * Depth-first recursive walk of the entire schema hierarchy, so dependencies
-	 * are added before the object that depend on them.
-	 *
-	 * @param loadedSchemas a mapping of loaded schema class names to the ObjectSchema
-	 * @param schemaClassName the class name of the schema to load (optional if schema is provided)
-	 * @param visitedId the set of visited schema classes to prevent infinite loops
-	 * @param schema the schema to walk through (ignored if schemaClassName is provided)
-	 */
-	private void loadAllSchemasRecursive(Map<String, ObjectSchema> loadedSchemas, String schemaClassName,
-			Set<String> visitedId, ObjectSchema schema) {
-		if (schemaClassName != null) {
-			if (loadedSchemas.containsKey(schemaClassName)) {
+	private void loadAllSchemasRecursive(Map<String, ObjectSchema> loadedSchemas, Set<String> visitedIds, ObjectSchema schema) {
+		String schemaId = schema.getId();
+		if (schemaId != null) {
+			if (loadedSchemas.containsKey(schemaId)) {
 				// schema is already loaded.
 				return;
 			}
 			// loop detection
-			if (!visitedId.add(schemaClassName)) {
+			if (!visitedIds.add(schemaId)) {
 				return;
 			}
+		}
 
-			schema = translator.loadSchemaFromClasspath(schemaClassName);
+		// If this schema has a ref, then load the referenced schema recursively.
+		if (schema.getRef() != null) {
+			ObjectSchema referencedSchema = translator.loadSchemaFromClasspath(schema.getRef());
+			loadAllSchemasRecursive(loadedSchemas, visitedIds, referencedSchema);
 		}
 
 		// Walk through the schema to continue loading all references
 		schema.getSubSchemaIterator().forEachRemaining((ObjectSchema subSchema) ->
-				loadAllSchemasRecursive(loadedSchemas, subSchema.getRef(), visitedId, subSchema)
+				loadAllSchemasRecursive(loadedSchemas, visitedIds, subSchema)
 		);
 
-		if (schemaClassName != null) {
-			loadedSchemas.put(schemaClassName, schema);
+
+		// Add the schema to the end of the insertion-ordered loaded schemas map (ensure the references are added first)
+		if (schemaId != null) {
+			loadedSchemas.put(schemaId, schema);
 		}
 	}
 

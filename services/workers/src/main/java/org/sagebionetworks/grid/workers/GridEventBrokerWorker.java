@@ -1,5 +1,7 @@
 package org.sagebionetworks.grid.workers;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.logging.log4j.LogManager;
@@ -91,6 +93,11 @@ public class GridEventBrokerWorker implements MessageDrivenRunner {
 		default:
 			throw new IllegalArgumentException("Unknown eventSource: " + eventSource);
 		}
+	}
+	
+	@Override
+	public List<String> getMessageAttributeNames() {
+		return Collections.singletonList(".*");
 	}
 
 }

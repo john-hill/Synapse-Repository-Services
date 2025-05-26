@@ -1,18 +1,16 @@
 package org.sagebionetworks.repo.web;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.logging.Logger;
+
+import javax.servlet.http.HttpServletRequest;
+
 import org.sagebionetworks.repo.model.Annotations;
 import org.sagebionetworks.repo.model.PrefixConst;
 import org.sagebionetworks.repo.model.ServiceConstants;
 import org.sagebionetworks.repo.model.ServiceConstants.AttachmentType;
-
-import javax.servlet.http.HttpServletRequest;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * UrlHelpers is responsible for the formatting of all URLs exposed by the
@@ -452,15 +450,11 @@ public class UrlHelpers {
 	public static final String GRID_SESSION_ID_SQL_UPDATE = GRID_SESSION_ID_SQL+"/update";
 	
 	public static final String GRID_SESSION_ID_REPLICA = GRID_SESSION_ID+"/replica";
+	public static final String GRID_SESSION_ID_REPLICA_ID = GRID_SESSION_ID_REPLICA+"/{replicaId}";
+	
+	public static final String GRID_SESSION_ID_PRESIGNED_URL = GRID_SESSION_ID+"/presigned/url";
 	
 	public static final String GRID_SESSION_ID_SCHEMA = GRID_SESSION_ID+"/schema";
-	
-	
-	public static final String GRID_WS = "/gridws";
-	public static final String GRID_WS_CONNECT = GRID_WS +"/connect";
-	public static final String GRID_WS_DEFAULT = GRID_WS +"/default";
-	public static final String GRID_WS_DISCONNECT = GRID_WS +"/disconnect";
-	
 	
 	/*
 	 * The regular expression is needed in the path variable due to:

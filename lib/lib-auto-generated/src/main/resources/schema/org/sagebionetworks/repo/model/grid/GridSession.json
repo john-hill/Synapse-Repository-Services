@@ -7,7 +7,7 @@
 		},
 		"startedBy": {
 			"description": "The user that started this session.",
-			"type": "integer"
+			"type": "string"
 		},
 		"startedOn": {
 			"type": "string",

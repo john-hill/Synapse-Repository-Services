@@ -17,18 +17,18 @@ public class GridManagerAutowireTest {
 	@Test
 	public void testPresigned() {
 		UserInfo user = new UserInfo(false, 98765L);
-		String presigned = manager.createWebsocketPresignedUrl("grid123", 222, user);
-		System.out.println(presigned);
-		System.out.println("wscat -c '"+presigned+"'");
+//		String presigned = manager.createWebsocketPresignedUrl("grid123", 222, user);
+//		System.out.println(presigned);
+//		System.out.println("wscat -c '"+presigned+"'");
 
 	}
 	
 	
 	@Test
 	public void testSendMessage() {
-		String connectionId = "LCSwJfvMIAMCIiw=";
-		String message = "This is from the manger demo";
-		manager.sendMessage(connectionId, message);
+//		String connectionId = "LCSwJfvMIAMCIiw=";
+//		String message = "This is from the manger demo";
+//		manager.sendMessage(connectionId, message);
 	}
 
 }

@@ -117,6 +117,7 @@ public class ConcurrentManagerImpl implements ConcurrentManager {
 				"messageVisibilityTimeoutSec must be greater than or equals to 10.");
 
 		ReceiveMessageRequest request = new ReceiveMessageRequest()
+			.withMessageAttributeNames(".*")
 			.withQueueUrl(queueUrl)
 			.withWaitTimeSeconds(0)
 			.withMaxNumberOfMessages(maxNumberOfMessages)

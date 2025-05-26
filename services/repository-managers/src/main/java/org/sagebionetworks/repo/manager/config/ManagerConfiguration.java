@@ -3,9 +3,9 @@ package org.sagebionetworks.repo.manager.config;
 import static org.sagebionetworks.repo.manager.file.scanner.BasicFileHandleAssociationScanner.DEFAULT_BATCH_SIZE;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpClient.Redirect;
 import java.time.Duration;
@@ -13,6 +13,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.StringJoiner;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -64,6 +65,7 @@ import org.sagebionetworks.repo.model.file.FileHandleAssociateType;
 import org.sagebionetworks.repo.model.oauth.OAuthProvider;
 import org.sagebionetworks.repo.model.oauth.OIDCClaimName;
 import org.sagebionetworks.repo.model.table.ColumnModel;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.simpleHttpClient.SimpleHttpClient;
 import org.sagebionetworks.table.cluster.avro.RowPFBWriter;
 import org.sagebionetworks.table.cluster.avro.RowPFBWriterProvider;
@@ -90,6 +92,13 @@ import dev.samstevens.totp.time.TimeProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.apigatewaymanagementapi.ApiGatewayManagementApiClient;
+import software.amazon.awssdk.services.apigatewayv2.ApiGatewayV2Client;
+import software.amazon.awssdk.services.apigatewayv2.model.Api;
+import software.amazon.awssdk.services.apigatewayv2.model.GetApisRequest;
+import software.amazon.awssdk.services.apigatewayv2.model.GetApisResponse;
+import software.amazon.awssdk.services.apigatewayv2.model.GetStagesRequest;
+import software.amazon.awssdk.services.apigatewayv2.model.Stage;
 import software.amazon.awssdk.services.bedrockagent.BedrockAgentClient;
 import software.amazon.awssdk.services.bedrockagent.model.ListAgentsRequest;
 import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAsyncClient;
@@ -397,5 +406,50 @@ public class ManagerConfiguration {
 	int viewUpdateVisibilityTimeoutSeconds() {
 		return 120;
 	}
+	
+	
+	@Bean
+	public ApiGatewayV2Client createApiGatewayV2Client(AwsCredentialsProvider credentialProvider) {
+		return ApiGatewayV2Client.builder().credentialsProvider(credentialProvider)
+				.region(Region.US_EAST_1).build();
+	}
+	
+	@Bean
+	public WebsocketApi createWebsocketApi(ApiGatewayV2Client client, StackConfiguration stackConfig) {
+		String gridWebsocketApiName = String.format("%s-%s-grid-websocket", stackConfig.getStack(), stackConfig.getStackInstance());
+		Api api = findWebsocketApi(client, gridWebsocketApiName);
+		Stage stage = client.getStages(GetStagesRequest.builder().apiId(api.apiId()).build()).items().stream()
+				.findFirst().get();
 
+		return new WebsocketApi().setApiId(api.apiId()).setApiEndpoint(api.apiEndpoint()).setApiName(api.name())
+				.setStageName(stage.stageName());
+	}
+	
+	/**
+	 * Helper to find a websocket API by name.
+	 * @param client
+	 * @param apiName
+	 * @return
+	 */
+	Api findWebsocketApi(ApiGatewayV2Client client, String apiName) {
+		String nextToken = null;
+		do {
+			GetApisResponse res = client.getApis(GetApisRequest.builder().nextToken(nextToken).build());
+			Optional<Api> op = res.items().stream()
+					.filter(i -> apiName.equals(i.name())).findFirst();
+			if(op.isPresent()) {
+				return op.get();
+			}
+			nextToken = res.nextToken();
+		} while (nextToken != null);
+		throw new NotFoundException("Cannot find websocket apiName: "+apiName);
+	}
+	
+	@Bean
+	public ApiGatewayManagementApiClient createAmazonApiGatewayManagementApi(AwsCredentialsProvider credentialProvider,
+			WebsocketApi websocketApi) throws URISyntaxException {
+		return ApiGatewayManagementApiClient.builder().endpointOverride(new URI(websocketApi.getHttpUrl()))
+				.credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
+	}
+	
 }

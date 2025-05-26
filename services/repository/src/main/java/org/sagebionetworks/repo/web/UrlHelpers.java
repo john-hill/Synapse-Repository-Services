@@ -456,6 +456,12 @@ public class UrlHelpers {
 	public static final String GRID_SESSION_ID_SCHEMA = GRID_SESSION_ID+"/schema";
 	
 	
+	public static final String GRID_WS = "/gridws";
+	public static final String GRID_WS_CONNECT = GRID_WS +"/connect";
+	public static final String GRID_WS_DEFAULT = GRID_WS +"/default";
+	public static final String GRID_WS_DISCONNECT = GRID_WS +"/disconnect";
+	
+	
 	/*
 	 * The regular expression is needed in the path variable due to:
 	 * https://stackoverflow.com/questions/3526523/spring-mvc-pathvariable-getting-

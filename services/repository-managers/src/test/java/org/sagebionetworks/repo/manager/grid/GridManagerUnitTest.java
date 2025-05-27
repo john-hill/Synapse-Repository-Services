@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.manager.grid;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
@@ -23,6 +24,8 @@ import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
+import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
+import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlResponse;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridResponse;
 import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
@@ -31,6 +34,7 @@ import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
 @ExtendWith(MockitoExtension.class)
@@ -59,6 +63,7 @@ public class GridManagerUnitTest {
 	private CreateReplicaRequest createReplicaRequest;
 	private Long replicaId;
 	private GridReplica replica;
+	private CreateGridPresignedUrlRequest createGridPresignedUrlRequest;
 
 	@BeforeEach
 	public void before() {
@@ -69,6 +74,8 @@ public class GridManagerUnitTest {
 		createReplicaRequest = new CreateReplicaRequest().setGridSessionId(gridSessionId);
 		replicaId = 88L;
 		replica = new GridReplica().setReplicaId(replicaId);
+		createGridPresignedUrlRequest = new CreateGridPresignedUrlRequest().setGridSessionId(gridSessionId)
+				.setReplicaId(replicaId);
 	}
 
 	@Test
@@ -334,7 +341,7 @@ public class GridManagerUnitTest {
 		assertEquals("user is required.", message);
 		verifyZeroInteractions(mockGridDao);
 	}
-	
+
 	@Test
 	public void testValidateReplicaOwnerWithNullSessionId() {
 		gridSessionId = null;
@@ -345,7 +352,7 @@ public class GridManagerUnitTest {
 		assertEquals("gridSessionId is required.", message);
 		verifyZeroInteractions(mockGridDao);
 	}
-	
+
 	@Test
 	public void testValidateReplicaOwnerWithNullReplicaId() {
 		replicaId = null;
@@ -355,5 +362,43 @@ public class GridManagerUnitTest {
 		}).getMessage();
 		assertEquals("replicaId is required.", message);
 		verifyZeroInteractions(mockGridDao);
+	}
+
+	@Test
+	public void testCreateWebsocketPresignedUrl() {
+		when(mockUser.getId()).thenReturn(userId);
+		when(mockWebsocketApi.getApiId()).thenReturn("abcde");
+		when(mockWebsocketApi.getStageName()).thenReturn("stage");
+		AwsBasicCredentials creds = AwsBasicCredentials.builder().accessKeyId("accessKey").secretAccessKey("secret")
+				.build();
+		when(mockCredentialsProvider.resolveCredentials()).thenReturn(creds);
+		doNothing().when(gridManager).validateRepicaOwner(mockUser, gridSessionId, replicaId);
+
+		// call under test
+		CreateGridPresignedUrlResponse response = gridManager.createWebsocketPresignedUrl(mockUser,
+				createGridPresignedUrlRequest);
+		String presigned = response.getPresignedUrl();
+		assertTrue(presigned.startsWith(
+				"wss://abcde.execute-api.us-east-1.amazonaws.com/stage/?gridSessionId=gs456&replicaId=88&userId=123"));
+		// note the date and signature change with each run.
+		assertTrue(presigned.contains("X-Amz-Algorithm=AWS4-HMAC-SHA256"));
+		assertTrue(presigned.contains("X-Amz-Date"));
+		assertTrue(presigned.contains("X-Amz-SignedHeaders=host"));
+		assertTrue(presigned.contains("X-Amz-Credential=accessKey"));
+		assertTrue(presigned.contains("X-Amz-Expires"));
+		assertTrue(presigned.contains("X-Amz-Signature"));
+
+	}
+
+	@Test
+	public void testCreateWebsocketPresignedUrlWithNullRequest() {
+		createGridPresignedUrlRequest = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.createWebsocketPresignedUrl(mockUser, createGridPresignedUrlRequest);
+		}).getMessage();
+		assertEquals("request is required.", message);
+		verify(gridManager, never()).validateRepicaOwner(any(), any(), any());
+
 	}
 }

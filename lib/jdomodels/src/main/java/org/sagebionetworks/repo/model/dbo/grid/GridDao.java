@@ -1,7 +1,5 @@
 package org.sagebionetworks.repo.model.dbo.grid;
 
-import java.util.Optional;
-
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;

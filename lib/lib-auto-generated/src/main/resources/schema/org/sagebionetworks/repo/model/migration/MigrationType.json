@@ -189,7 +189,7 @@
 		{
 			"name": "TRASH_CAN",
 			"description": "TODO: Auto-generated description"
-		},		
+		},
 		{
 			"name": "PORTAL",
 			"description": "Table that stores portal information"
@@ -477,6 +477,14 @@
 		{
 			"name": "PROJECT_STORAGE_LIMIT",
 			"description": "Table that stores project storage limits"
+		},
+		{
+			"name": "GRID_SESSION",
+			"description": "Table that tracks grid sessions."
+		},
+		{
+			"name": "GRID_REPLICA",
+			"description": "Table that tracks grid replica."
 		},
 		{
 			"name": "CHANGE",

@@ -1,0 +1,18 @@
+{
+	"description": "Start a job to create a new Grid session.",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.asynch.AsynchronousRequestBody"
+		}
+	],
+	"properties": {
+		"csvFileHandleId": {
+			"type": "integer",
+			"description": "The ID of a fileHandle of a CSV that defines the starting state of the grid.  The first line of the CSV must be a header that defines the column names of the grid."
+		},
+		"schema$id": {
+			"type": "string",
+			"description": "The $id of the JSON schema to be used for model validation.  Note: If the $id includes a semantic version then specific version will be used.  If the $id excludes the semantic version then the latest version of that schema."
+		}
+	}
+}

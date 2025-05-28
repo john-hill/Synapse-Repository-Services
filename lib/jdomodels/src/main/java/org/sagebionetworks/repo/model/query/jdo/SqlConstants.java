@@ -1384,6 +1384,29 @@ public class SqlConstants {
 	public static final String COL_PORTAL_ENDPOINT = 	"ENDPOINT";	
 	public static final String DDL_PORTAL = "schema/portals/Portal-ddl.sql";
 	
+	// Grid tables
+	public static final String TABLE_GRID_SESSION = 				"GRID_SESSION";
+	public static final String COL_GRID_SESSION_ID = 				"ID";
+	public static final String COL_GRID_SESSION_ETAG = 				"ETAG";
+	public static final String COL_GRID_SESSION_CREATED_BY = 		"CREATED_BY";
+	public static final String COL_GRID_SESSION_CREATED_ON = 		"CREATED_ON";
+	public static final String COL_GRID_SESSION_MODIFIED_ON = 		"MODIFIED_ON";
+	public static final String COL_GRID_SESSION_SESSION_ID = 		"SESSION_ID";
+	public static final String COL_GRID_SESSION_REP_ID_CLIENT =		"REP_ID_CLIENT";
+	public static final String COL_GRID_SESSION_REP_ID_SERVICE =	"REP_ID_SERVICE";
+	public static final String DDL_GRID_SESSION = "schema/grid/Grid-Session-ddl.sql";
+	
+	public static final String TABLE_GRID_REPLICA =					"GRID_REPLICA";
+	public static final String COL_GRID_REPLICA_ID =				"ID";
+	public static final String COL_GRID_REPLICA_REPLICA_ID =		"REPLICA_ID";
+	public static final String COL_GRID_REPLICA_CREATE_BY =			"CREATED_BY";
+	public static final String COL_GRID_REPLICA_CREATE_ON =			"CREATED_ON";
+	public static final String COL_GRID_REPLICA_SESSION_ID =		"SESSION_ID";	
+	public static final String COL_GRID_REPLICA_IS_AGENT =			"IS_AGENT";	
+	public static final String DDL_GRID_REPLICA = "schema/grid/Grid-Replica-ddl.sql";
+	
+	
+
 	// This seems to be the name of the id column for all tables.
 	public static final String COLUMN_ID		= "id";
 	

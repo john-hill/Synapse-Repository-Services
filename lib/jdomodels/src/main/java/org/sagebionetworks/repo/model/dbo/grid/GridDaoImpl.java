@@ -1,0 +1,176 @@
+package org.sagebionetworks.repo.model.dbo.grid;
+
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.*;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_REPLICA_CREATE_ON;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_REPLICA_IS_AGENT;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_REPLICA_REPLICA_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_REPLICA_SESSION_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_CREATED_BY;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_CREATED_ON;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_SESSION_ID;
+
+import java.nio.charset.StandardCharsets;
+import java.sql.ResultSet;
+import java.util.Base64;
+import java.util.Optional;
+
+import org.sagebionetworks.ids.IdGenerator;
+import org.sagebionetworks.ids.IdType;
+import org.sagebionetworks.repo.model.grid.EventSource;
+import org.sagebionetworks.repo.model.grid.GridConstants;
+import org.sagebionetworks.repo.model.grid.GridReplica;
+import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.transactions.WriteTransaction;
+import org.sagebionetworks.util.ValidateArgument;
+import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public class GridDaoImpl implements GridDao {
+
+	private final IdGenerator idGenerator;
+	private final JdbcTemplate jdbcTemplate;
+
+	private final RowMapper<GridSession> SESSION_MAPPER = (ResultSet rs, int rowNum) -> {
+		return new GridSession().setSessionId(rs.getString(COL_GRID_SESSION_SESSION_ID))
+				.setStartedOn(rs.getTimestamp(COL_GRID_SESSION_CREATED_ON))
+				.setStartedBy(rs.getString(COL_GRID_SESSION_CREATED_BY)).setEtag(rs.getString(COL_GRID_SESSION_ETAG))
+				.setModifiedOn(rs.getTimestamp(COL_GRID_SESSION_MODIFIED_ON))
+				.setLastReplicaIdClient(rs.getLong(COL_GRID_SESSION_REP_ID_CLIENT))
+				.setLastReplicaIdService(rs.getLong(COL_GRID_SESSION_REP_ID_SERVICE));
+	};
+
+	private final RowMapper<GridReplica> REPLICA_MAPPER = (ResultSet rs, int rowNum) -> {
+		return new GridReplica().setReplicaId(rs.getLong(COL_GRID_REPLICA_REPLICA_ID))
+				.setCreatedBy(rs.getString(COL_GRID_REPLICA_CREATE_BY))
+				.setCreatedOn(rs.getTime(COL_GRID_REPLICA_CREATE_ON))
+				.setGridSessionId(rs.getString(COL_GRID_REPLICA_SESSION_ID))
+				.setIsAgentReplica(rs.getBoolean(COL_GRID_REPLICA_IS_AGENT));
+	};
+
+	public GridDaoImpl(IdGenerator idGenerator, JdbcTemplate jdbcTemplate) {
+		super();
+		this.idGenerator = idGenerator;
+		this.jdbcTemplate = jdbcTemplate;
+	}
+
+	@WriteTransaction
+	@Override
+	public GridSession createGridSession(Long userId) {
+		ValidateArgument.required(userId, "userId");
+		Long id = idGenerator.generateNewId(IdType.GRID_SESSION_ID);
+		String sessionId = Base64.getEncoder().encodeToString(id.toString().getBytes(StandardCharsets.UTF_8));
+		long repIdClient = GridConstants.START_REPLICA_ID_CLIENT;
+		long repIdService = GridConstants.START_REPLICA_ID_SERVICE;
+		jdbcTemplate.update(
+				"INSERT INTO GRID_SESSION (ID, ETAG, CREATED_BY, CREATED_ON, MODIFIED_ON, SESSION_ID, REP_ID_CLIENT, REP_ID_SERVICE)"
+						+ " VALUES(?,UUID(),?,NOw(),NOW(),?,?,?)",
+				id, userId, sessionId, repIdClient, repIdService);
+		return geGridSession(sessionId).get();
+	}
+
+	@Override
+	public Optional<Long> getGridSessionStartedBy(String gridSessionId) {
+		ValidateArgument.required(gridSessionId, "gridSessionId");
+		try {
+			return Optional.of(jdbcTemplate.queryForObject(
+					"SELECT CREATED_BY" + "  FROM GRID_SESSION WHERE SESSION_ID = ?", Long.class, gridSessionId));
+		} catch (EmptyResultDataAccessException e) {
+			return Optional.empty();
+		}
+	}
+
+	@Override
+	public Optional<GridSession> geGridSession(String gridSessionId) {
+		ValidateArgument.required(gridSessionId, "gridSessionId");
+		try {
+			return Optional.of(jdbcTemplate.queryForObject("SELECT * FROM GRID_SESSION WHERE SESSION_ID = ?",
+					SESSION_MAPPER, gridSessionId));
+		} catch (EmptyResultDataAccessException e) {
+			return Optional.empty();
+		}
+	}
+
+	@WriteTransaction
+	@Override
+	public GridReplica createReplica(Long userId, String gridSessionId, boolean isAgent, EventSource source) {
+		ValidateArgument.required(userId, "userId");
+
+		Long replicaId = getNextReplicaSequence(gridSessionId, source);
+		Long id = idGenerator.generateNewId(IdType.GRID_REPLICA_ID);
+		jdbcTemplate.update("INSERT INTO GRID_REPLICA (ID, REPLICA_ID, CREATED_BY, CREATED_ON, SESSION_ID, IS_AGENT)"
+				+ " VALUES(?,?,?,NOW(),?,?)", id, replicaId, userId, gridSessionId, isAgent);
+
+		return getGridReplica(gridSessionId, replicaId).get();
+	}
+
+	/**
+	 * Generate a new replica number for a session.
+	 * 
+	 * @param gridSessionId
+	 * @param source
+	 * @return
+	 */
+	Long getNextReplicaSequence(String gridSessionId, EventSource source) {
+		ValidateArgument.required(gridSessionId, "gridSessionId");
+		ValidateArgument.required(source, "source");
+		String set = null;
+		String select = null;
+		switch (source) {
+		case INTERNAL:
+			// decrement service.
+			set = "REP_ID_SERVICE = REP_ID_SERVICE-1";
+			select = "REP_ID_SERVICE";
+			break;
+
+		case WEBSOCKET:
+			// increment client.
+			set = "REP_ID_CLIENT = REP_ID_CLIENT+1";
+			select = "REP_ID_CLIENT";
+			break;
+		default:
+			throw new IllegalArgumentException("Unknown eventSource: " + source);
+		}
+
+		String updateSql = String.format(
+				"UPDATE GRID_SESSION SET %s, ETAG=UUID(), MODIFIED_ON = NOW() WHERE SESSION_ID = ?", set);
+		jdbcTemplate.update(updateSql, gridSessionId);
+		String selectSql = String.format("SELECT %s FROM GRID_SESSION WHERE SESSION_ID = ?", select);
+		return jdbcTemplate.queryForObject(selectSql, Long.class, gridSessionId);
+	}
+
+	@Override
+	public Optional<GridReplica> getGridReplica(String sessionId, Long replicaId) {
+		ValidateArgument.required(sessionId, "sessionId");
+		ValidateArgument.required(replicaId, "replicaId");
+		try {
+			return Optional.of(
+					jdbcTemplate.queryForObject("SELECT * FROM GRID_REPLICA WHERE SESSION_ID = ? AND REPLICA_ID = ?",
+							REPLICA_MAPPER, sessionId, replicaId));
+		} catch (EmptyResultDataAccessException e) {
+			return Optional.empty();
+		}
+	}
+
+	@Override
+	public Optional<Long> getReplicaCreatedBy(String sessionId, Long replicaId, boolean isAgentReplica) {
+		ValidateArgument.required(sessionId, "sessionId");
+		ValidateArgument.required(replicaId, "replicaId");
+		try {
+			return Optional.of(jdbcTemplate.queryForObject(
+					"SELECT CREATED_BY FROM GRID_REPLICA WHERE SESSION_ID = ? AND REPLICA_ID = ? AND IS_AGENT = ?",
+					Long.class, sessionId, replicaId, isAgentReplica));
+		} catch (EmptyResultDataAccessException e) {
+			return Optional.empty();
+		}
+	}
+
+	@Override
+	public void truncateAll() {
+		jdbcTemplate.update("DELETE FROM GRID_SESSION WHERE ID > -1");
+		
+	}
+
+}

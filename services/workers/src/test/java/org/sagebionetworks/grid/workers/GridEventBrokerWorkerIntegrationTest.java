@@ -11,10 +11,10 @@ public class GridEventBrokerWorkerIntegrationTest {
 	
 	@Test
 	public void test() throws InterruptedException {
-		while(true) {
-			System.out.println("Waiting for worker...");
-			Thread.sleep(2000L);
-		}
+//		while(true) {
+//			System.out.println("Waiting for worker...");
+//			Thread.sleep(2000L);
+//		}
 	}
 
 }

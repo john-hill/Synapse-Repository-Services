@@ -12,6 +12,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.Optional;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,6 +35,7 @@ import org.sagebionetworks.repo.model.grid.CreateReplicaResponse;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.web.NotFoundException;
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -138,7 +141,7 @@ public class GridManagerUnitTest {
 	@Test
 	public void testValidGridSessionAccess() {
 		when(mockUser.getId()).thenReturn(userId);
-		when(mockGridDao.getGridSessionStartedBy(gridSessionId)).thenReturn(userId);
+		when(mockGridDao.getGridSessionStartedBy(gridSessionId)).thenReturn(Optional.of(userId));
 		// call under test
 		gridManager.validGridSessionAccess(mockUser, gridSessionId);
 	}
@@ -147,7 +150,7 @@ public class GridManagerUnitTest {
 	public void testValidGridSessionAccessWithOtherUserNonAdmin() {
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockUser.isAdmin()).thenReturn(false);
-		when(mockGridDao.getGridSessionStartedBy(gridSessionId)).thenReturn(456L);
+		when(mockGridDao.getGridSessionStartedBy(gridSessionId)).thenReturn(Optional.of(456L));
 		String message = assertThrows(UnauthorizedException.class, () -> {
 			// call under test
 			gridManager.validGridSessionAccess(mockUser, gridSessionId);
@@ -160,9 +163,19 @@ public class GridManagerUnitTest {
 		when(mockUser.isAdmin()).thenReturn(true);
 
 		String gridSessionId = "gs123";
-		when(mockGridDao.getGridSessionStartedBy(gridSessionId)).thenReturn(456L);
+		when(mockGridDao.getGridSessionStartedBy(gridSessionId)).thenReturn(Optional.of(456L));
 		// call under test
 		gridManager.validGridSessionAccess(mockUser, gridSessionId);
+	}
+	
+	@Test
+	public void testValidGridSessionAccessWithNotFound() {
+		when(mockGridDao.getGridSessionStartedBy(gridSessionId)).thenReturn(Optional.empty());
+		String message = assertThrows(NotFoundException.class, () -> {
+			// call under test
+			gridManager.validGridSessionAccess(mockUser, gridSessionId);
+		}).getMessage();
+		assertEquals("Grid session not found.", message);
 	}
 
 	@Test
@@ -195,11 +208,25 @@ public class GridManagerUnitTest {
 		doNothing().when(gridManager).validGridSessionAccess(mockUser, gridSessionId);
 
 		GridSession expected = new GridSession().setSessionId("gs123").setStartedBy(userId.toString());
-		when(mockGridDao.geGridSession(gridSessionId)).thenReturn(expected);
+		when(mockGridDao.geGridSession(gridSessionId)).thenReturn(Optional.of(expected));
 
 		// call under test
 		GridSession session = gridManager.getGridSession(mockUser, gridSessionId);
 		assertEquals(expected, session);
+	}
+	
+	@Test
+	public void testGetGridSessionNotFound() {
+
+		doNothing().when(gridManager).validGridSessionAccess(mockUser, gridSessionId);
+
+		when(mockGridDao.geGridSession(gridSessionId)).thenReturn(Optional.empty());
+		
+		String message = assertThrows(NotFoundException.class, ()->{
+			// call under test
+			gridManager.getGridSession(mockUser, gridSessionId);
+		}).getMessage();
+		assertEquals("Grid session not found.", message);
 	}
 
 	@Test
@@ -284,11 +311,24 @@ public class GridManagerUnitTest {
 	public void testGetReplica() {
 		// must have access to create a replica.
 		doNothing().when(gridManager).validGridSessionAccess(mockUser, gridSessionId);
-		when(mockGridDao.getGridReplica(gridSessionId, replicaId)).thenReturn(replica);
+		when(mockGridDao.getGridReplica(gridSessionId, replicaId)).thenReturn(Optional.of(replica));
 
 		// call under test
 		GridReplica result = gridManager.getReplica(mockUser, gridSessionId, replicaId);
 		assertEquals(replica, result);
+	}
+	
+	@Test
+	public void testGetReplicaWithNotFound() {
+		// must have access to create a replica.
+		doNothing().when(gridManager).validGridSessionAccess(mockUser, gridSessionId);
+		when(mockGridDao.getGridReplica(gridSessionId, replicaId)).thenReturn(Optional.empty());
+
+		String message = assertThrows(NotFoundException.class, ()->{
+			// call under test
+			gridManager.getReplica(mockUser, gridSessionId, replicaId);
+		}).getMessage();
+		assertEquals("Grid replica not found.", message);
 	}
 
 	@Test
@@ -305,7 +345,7 @@ public class GridManagerUnitTest {
 	public void testValidateReplicaOwnerWithOwner() {
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockUser.isAdmin()).thenReturn(false);
-		when(mockGridDao.getReplicaCreatedBy(gridSessionId, replicaId, false)).thenReturn(userId);
+		when(mockGridDao.getReplicaCreatedBy(gridSessionId, replicaId, false)).thenReturn(Optional.of(userId));
 		// call under test
 		gridManager.validateRepicaOwner(mockUser, gridSessionId, replicaId);
 	}
@@ -314,7 +354,7 @@ public class GridManagerUnitTest {
 	public void testValidateReplicaOwnerWithOther() {
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockUser.isAdmin()).thenReturn(false);
-		when(mockGridDao.getReplicaCreatedBy(gridSessionId, replicaId, false)).thenReturn(77777L);
+		when(mockGridDao.getReplicaCreatedBy(gridSessionId, replicaId, false)).thenReturn(Optional.of(77777L));
 
 		String message = assertThrows(UnauthorizedException.class, () -> {
 			// call under test
@@ -326,9 +366,20 @@ public class GridManagerUnitTest {
 	@Test
 	public void testValidateReplicaOwnerWithOtherAdmin() {
 		when(mockUser.isAdmin()).thenReturn(true);
-		when(mockGridDao.getReplicaCreatedBy(gridSessionId, replicaId, false)).thenReturn(555L);
+		when(mockGridDao.getReplicaCreatedBy(gridSessionId, replicaId, false)).thenReturn(Optional.of(555L));
 		// call under test
 		gridManager.validateRepicaOwner(mockUser, gridSessionId, replicaId);
+	}
+	
+	@Test
+	public void testValidateReplicaOwnerWithNotFound() {
+		when(mockGridDao.getReplicaCreatedBy(gridSessionId, replicaId, false)).thenReturn(Optional.empty());
+		String message = assertThrows(NotFoundException.class, () -> {
+			// call under test
+			gridManager.validateRepicaOwner(mockUser, gridSessionId, replicaId);
+		}).getMessage();
+		assertEquals("Grid replica not found.", message);
+		verifyZeroInteractions(mockGridDao);
 	}
 
 	@Test

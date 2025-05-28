@@ -5,8 +5,8 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SES
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_ETAG;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_MODIFIED_ON;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_REPLICA_SEQ_INT;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_REPLICA_SEQ_WEB;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_REP_ID_CLIENT;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_REP_ID_SERVICE;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_SESSION_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.DDL_GRID_SESSION;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_GRID_SESSION;
@@ -32,8 +32,8 @@ public class DBOGridSession implements MigratableDatabaseObject<DBOGridSession, 
 	private Timestamp createdOn;
 	private Timestamp modifiedOn;
 	private String sessionId;
-	private Long replicaSequenceInteranl;
-	private Long replicaSequenceWebsocket;
+	private Long repIdClient;
+	private Long repIdService;
 
 	private static FieldColumn[] FIELDS = new FieldColumn[] {
 			new FieldColumn("id", COL_GRID_SESSION_ID).withIsPrimaryKey(true).withIsBackupId(true),
@@ -42,8 +42,8 @@ public class DBOGridSession implements MigratableDatabaseObject<DBOGridSession, 
 			new FieldColumn("createdOn", COL_GRID_SESSION_CREATED_ON),
 			new FieldColumn("modifiedOn", COL_GRID_SESSION_MODIFIED_ON),
 			new FieldColumn("sessionId", COL_GRID_SESSION_SESSION_ID),
-			new FieldColumn("replicaSequenceInteranl", COL_GRID_SESSION_REPLICA_SEQ_INT),
-			new FieldColumn("replicaSequenceWebsocket", COL_GRID_SESSION_REPLICA_SEQ_WEB), };
+			new FieldColumn("repIdClient", COL_GRID_SESSION_REP_ID_CLIENT),
+			new FieldColumn("repIdService", COL_GRID_SESSION_REP_ID_SERVICE), };
 
 	@Override
 	public TableMapping<DBOGridSession> getTableMapping() {
@@ -58,8 +58,8 @@ public class DBOGridSession implements MigratableDatabaseObject<DBOGridSession, 
 				dbo.setCreatedOn(rs.getTimestamp(COL_GRID_SESSION_CREATED_ON));
 				dbo.setModifiedOn(rs.getTimestamp(COL_GRID_SESSION_MODIFIED_ON));
 				dbo.setSessionId(rs.getString(COL_GRID_SESSION_SESSION_ID));
-				dbo.setReplicaSequenceInteranl(rs.getLong(COL_GRID_SESSION_REPLICA_SEQ_INT));
-				dbo.setReplicaSequenceWebsocket(rs.getLong(COL_GRID_SESSION_REPLICA_SEQ_WEB));
+				dbo.setRepIdClient(rs.getLong(COL_GRID_SESSION_REP_ID_CLIENT));
+				dbo.setRepIdClient(rs.getLong(COL_GRID_SESSION_REP_ID_SERVICE));
 				return dbo;
 			}
 
@@ -164,28 +164,25 @@ public class DBOGridSession implements MigratableDatabaseObject<DBOGridSession, 
 		return this;
 	}
 
-	public Long getReplicaSequenceInteranl() {
-		return replicaSequenceInteranl;
+	public Long getRepIdClient() {
+		return repIdClient;
 	}
 
-	public DBOGridSession setReplicaSequenceInteranl(Long replicaSequenceInteranl) {
-		this.replicaSequenceInteranl = replicaSequenceInteranl;
-		return this;
+	public void setRepIdClient(Long repIdClient) {
+		this.repIdClient = repIdClient;
 	}
 
-	public Long getReplicaSequenceWebsocket() {
-		return replicaSequenceWebsocket;
+	public Long getRepIdService() {
+		return repIdService;
 	}
 
-	public DBOGridSession setReplicaSequenceWebsocket(Long replicaSequenceWebsocket) {
-		this.replicaSequenceWebsocket = replicaSequenceWebsocket;
-		return this;
+	public void setRepIdService(Long repIdService) {
+		this.repIdService = repIdService;
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(createdBy, createdOn, etag, id, modifiedOn, replicaSequenceInteranl,
-				replicaSequenceWebsocket, sessionId);
+		return Objects.hash(createdBy, createdOn, etag, id, modifiedOn, repIdClient, repIdService, sessionId);
 	}
 
 	@Override
@@ -199,17 +196,15 @@ public class DBOGridSession implements MigratableDatabaseObject<DBOGridSession, 
 		DBOGridSession other = (DBOGridSession) obj;
 		return Objects.equals(createdBy, other.createdBy) && Objects.equals(createdOn, other.createdOn)
 				&& Objects.equals(etag, other.etag) && Objects.equals(id, other.id)
-				&& Objects.equals(modifiedOn, other.modifiedOn)
-				&& Objects.equals(replicaSequenceInteranl, other.replicaSequenceInteranl)
-				&& Objects.equals(replicaSequenceWebsocket, other.replicaSequenceWebsocket)
-				&& Objects.equals(sessionId, other.sessionId);
+				&& Objects.equals(modifiedOn, other.modifiedOn) && Objects.equals(repIdClient, other.repIdClient)
+				&& Objects.equals(repIdService, other.repIdService) && Objects.equals(sessionId, other.sessionId);
 	}
 
 	@Override
 	public String toString() {
 		return "DBOGridSession [id=" + id + ", etag=" + etag + ", createdBy=" + createdBy + ", createdOn=" + createdOn
-				+ ", modifiedOn=" + modifiedOn + ", sessionId=" + sessionId + ", replicaSequenceInteranl="
-				+ replicaSequenceInteranl + ", replicaSequenceWebsocket=" + replicaSequenceWebsocket + "]";
+				+ ", modifiedOn=" + modifiedOn + ", sessionId=" + sessionId + ", repIdClient=" + repIdClient
+				+ ", repIdService=" + repIdService + "]";
 	}
 
 }

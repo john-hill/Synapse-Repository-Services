@@ -1,5 +1,7 @@
 package org.sagebionetworks.repo.model.dbo.grid;
 
+import java.util.Optional;
+
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
@@ -18,14 +20,14 @@ public interface GridDao {
 	 * @param gridSessionId
 	 * @return
 	 */
-	Long getGridSessionStartedBy(String gridSessionId);
+	Optional<Long> getGridSessionStartedBy(String gridSessionId);
 
 	/**
 	 * Get session by ID.
 	 * @param gridSessionId
 	 * @return
 	 */
-	GridSession geGridSession(String gridSessionId);
+	Optional<GridSession> geGridSession(String gridSessionId);
 
 	/**
 	 * Create a new replica.
@@ -43,7 +45,7 @@ public interface GridDao {
 	 * @param replicaId
 	 * @return
 	 */
-	GridReplica getGridReplica(String sessionId, Long replicaId);
+	Optional<GridReplica> getGridReplica(String sessionId, Long replicaId);
 	
 	/**
 	 * Get the replica createdBy of the replica matching the parameters.
@@ -52,7 +54,10 @@ public interface GridDao {
 	 * @param isAgent
 	 * @return
 	 */
-	Long getReplicaCreatedBy(String sessionId, Long replicaId, boolean isAgentReplica);
+	Optional<Long> getReplicaCreatedBy(String sessionId, Long replicaId, boolean isAgentReplica);
+	
+	
+	void truncateAll();
 
 
 }

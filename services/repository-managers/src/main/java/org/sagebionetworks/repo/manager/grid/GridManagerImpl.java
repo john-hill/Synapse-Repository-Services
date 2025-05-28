@@ -16,6 +16,7 @@ import org.sagebionetworks.repo.model.grid.CreateReplicaResponse;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,8 @@ import software.amazon.awssdk.regions.Region;
 @Service
 public class GridManagerImpl implements GridManager {
 
+	public static final String GRID_REPLICA_NOT_FOUND = "Grid replica not found.";
+	public static final String GRID_SESSION_NOT_FOUND = "Grid session not found.";
 	private final AwsCredentialsProvider awsCredentialsProvider;
 	private final WebsocketApi websocketApi;
 	private final GridDao gridDao;
@@ -67,7 +70,8 @@ public class GridManagerImpl implements GridManager {
 		ValidateArgument.required(user, "user");
 		ValidateArgument.required(gridSessionId, "gridSessionId");
 
-		Long startedBy = gridDao.getGridSessionStartedBy(gridSessionId);
+		Long startedBy = gridDao.getGridSessionStartedBy(gridSessionId)
+				.orElseThrow(() -> new NotFoundException(GRID_SESSION_NOT_FOUND));
 		if (!AuthorizationUtils.isUserCreatorOrAdmin(user, startedBy.toString())) {
 			throw new UnauthorizedException("You are not authorized to access this resource.");
 		}
@@ -76,7 +80,7 @@ public class GridManagerImpl implements GridManager {
 	@Override
 	public GridSession getGridSession(UserInfo user, String gridSessionId) {
 		validGridSessionAccess(user, gridSessionId);
-		return gridDao.geGridSession(gridSessionId);
+		return gridDao.geGridSession(gridSessionId).orElseThrow(() -> new NotFoundException(GRID_SESSION_NOT_FOUND));
 	}
 
 	@Override
@@ -105,11 +109,13 @@ public class GridManagerImpl implements GridManager {
 		ValidateArgument.required(replicaId, "replicaId");
 		// User must have access to the session in order to create a replica
 		validGridSessionAccess(user, sessionId);
-		return gridDao.getGridReplica(sessionId, replicaId);
+		return gridDao.getGridReplica(sessionId, replicaId)
+				.orElseThrow(() -> new NotFoundException(GRID_REPLICA_NOT_FOUND));
 	}
 
 	/**
 	 * Validate that the user created the replica.
+	 * 
 	 * @param user
 	 * @param sesisonId
 	 * @param replicaId
@@ -118,9 +124,10 @@ public class GridManagerImpl implements GridManager {
 		ValidateArgument.required(user, "user");
 		ValidateArgument.required(sesisonId, "gridSessionId");
 		ValidateArgument.required(replicaId, "replicaId");
-		
+
 		boolean isAgentReplica = false;
-		Long replicaCreatedBy = gridDao.getReplicaCreatedBy(sesisonId, replicaId, isAgentReplica);
+		Long replicaCreatedBy = gridDao.getReplicaCreatedBy(sesisonId, replicaId, isAgentReplica)
+				.orElseThrow(() -> new NotFoundException(GRID_REPLICA_NOT_FOUND));
 		if (!AuthorizationUtils.isUserCreatorOrAdmin(user, replicaCreatedBy.toString())) {
 			throw new UnauthorizedException("You are not authorized to access this resource.");
 		}
@@ -130,7 +137,7 @@ public class GridManagerImpl implements GridManager {
 	public CreateGridPresignedUrlResponse createWebsocketPresignedUrl(UserInfo user,
 			CreateGridPresignedUrlRequest request) {
 		ValidateArgument.required(request, "request");
-		
+
 		validateRepicaOwner(user, request.getGridSessionId(), request.getReplicaId());
 
 		AwsV4HttpSigner signer = AwsV4HttpSigner.create();

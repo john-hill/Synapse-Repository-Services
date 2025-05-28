@@ -1392,8 +1392,8 @@ public class SqlConstants {
 	public static final String COL_GRID_SESSION_CREATED_ON = 		"CREATED_ON";
 	public static final String COL_GRID_SESSION_MODIFIED_ON = 		"MODIFIED_ON";
 	public static final String COL_GRID_SESSION_SESSION_ID = 		"SESSION_ID";
-	public static final String COL_GRID_SESSION_REPLICA_SEQ_INT =	"REPLICA_SEQ_INT";
-	public static final String COL_GRID_SESSION_REPLICA_SEQ_WEB =	"REPLICA_SEQ_WEB";
+	public static final String COL_GRID_SESSION_REP_ID_CLIENT =		"REP_ID_CLIENT";
+	public static final String COL_GRID_SESSION_REP_ID_SERVICE =	"REP_ID_SERVICE";
 	public static final String DDL_GRID_SESSION = "schema/grid/Grid-Session-ddl.sql";
 	
 	public static final String TABLE_GRID_REPLICA =					"GRID_REPLICA";

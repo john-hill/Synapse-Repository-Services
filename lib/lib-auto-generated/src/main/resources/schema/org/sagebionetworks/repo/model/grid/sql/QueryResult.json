@@ -14,7 +14,7 @@
 			"items": {
 				"$ref": "org.sagebionetworks.repo.model.grid.sql.Row"
 			},
-			"description": "The column names from the select."
+			"description": "The page of rows."
 		}
 	}
 }

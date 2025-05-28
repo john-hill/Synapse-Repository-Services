@@ -103,7 +103,7 @@ public class GridController {
 	/**
 	 * A grid replica is an in-memory document that represents a 'copy' of the grid.
 	 * Each replica is identified by a unique replicaId, issued by the 'hub'. A user
-	 * can have more then one replica at time (i.e. using multiple
+	 * can have more then one replica at a time (i.e. using multiple
 	 * browser/tabs/machines). A user is limited to 10 replicas per-hour
 	 * per-grid-session.
 	 * </p>

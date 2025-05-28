@@ -2,7 +2,7 @@
 	"description": "Response to a create replica request.",
 	"properties": {
 		"replica": {
-			"description": "The ID of the grid seesion.",
+			"description": "The new replica.",
 			"$ref": "org.sagebionetworks.repo.model.grid.GridReplica"
 		}
 	}

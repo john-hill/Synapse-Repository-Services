@@ -213,6 +213,14 @@ import org.sagebionetworks.repo.model.form.FormGroup;
 import org.sagebionetworks.repo.model.form.FormRejection;
 import org.sagebionetworks.repo.model.form.ListRequest;
 import org.sagebionetworks.repo.model.form.ListResponse;
+import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
+import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlResponse;
+import org.sagebionetworks.repo.model.grid.CreateGridRequest;
+import org.sagebionetworks.repo.model.grid.CreateGridResponse;
+import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
+import org.sagebionetworks.repo.model.grid.CreateReplicaResponse;
+import org.sagebionetworks.repo.model.grid.GridReplica;
+import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
 import org.sagebionetworks.repo.model.message.MessageBundle;
 import org.sagebionetworks.repo.model.message.MessageRecipientSet;
@@ -4505,5 +4513,59 @@ public interface SynapseClient extends BaseClient {
 	AccessControlList getPortalAcl(String portalId) throws SynapseException;
 	
 	AccessControlList updatePortalAcl(AccessControlList acl) throws SynapseException;
+
+	/**
+	 * Start an asynchronous job to create a grid session.
+	 * @param request
+	 * @return
+	 * @throws SynapseException
+	 */
+	String createGridSessoinAsyncStart(CreateGridRequest request) throws SynapseException;
+
+	/**
+	 * Get the results of an asynchronous job to create a grid session.
+	 * @param asyncJobToken
+	 * @return
+	 * @throws SynapseException
+	 * @throws SynapseResultNotReadyException
+	 */
+	CreateGridResponse createGridSessionAsyncGet(String asyncJobToken)
+			throws SynapseException, SynapseResultNotReadyException;
+
+	/**
+	 * Get a grid session.
+	 * @param sessionId
+	 * @return
+	 * @throws SynapseException
+	 */
+	GridSession getGridSession(String sessionId) throws SynapseException;
+
+	/**
+	 * Create a grid replica.
+	 * @param request
+	 * @return
+	 * @throws SynapseException
+	 */
+	CreateReplicaResponse createGridReplica(CreateReplicaRequest request) throws SynapseException;
+
+	/**
+	 * Get a grid replica
+	 * @param sessionId
+	 * @param replicaId
+	 * @return
+	 * @throws SynapseException
+	 */
+	GridReplica getGridReplica(String sessionId, Long replicaId) throws SynapseException;
+
+	/**
+	 * Create a websocket presigned URL to connect to a grid.
+	 * @param request
+	 * @return
+	 * @throws SynapseException
+	 */
+	CreateGridPresignedUrlResponse createGridPresignedUrl(CreateGridPresignedUrlRequest request)
+			throws SynapseException;
+
+	
 }
 

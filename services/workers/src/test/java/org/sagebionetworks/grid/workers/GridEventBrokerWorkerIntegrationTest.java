@@ -101,7 +101,6 @@ public class GridEventBrokerWorkerIntegrationTest {
 		String message = null;
 		do {
 			message = incomingMessages.poll(10, TimeUnit.SECONDS);
-			System.out.println("Message: " + message);
 			JSONArray response = new JSONArray(message);
 			if(response.length() > 1){
 				if(response.getInt(0) == 8) {

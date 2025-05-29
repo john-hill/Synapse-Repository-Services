@@ -252,6 +252,14 @@ import org.sagebionetworks.repo.model.form.FormGroup;
 import org.sagebionetworks.repo.model.form.FormRejection;
 import org.sagebionetworks.repo.model.form.ListRequest;
 import org.sagebionetworks.repo.model.form.ListResponse;
+import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
+import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlResponse;
+import org.sagebionetworks.repo.model.grid.CreateGridRequest;
+import org.sagebionetworks.repo.model.grid.CreateGridResponse;
+import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
+import org.sagebionetworks.repo.model.grid.CreateReplicaResponse;
+import org.sagebionetworks.repo.model.grid.GridReplica;
+import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
 import org.sagebionetworks.repo.model.message.MessageBundle;
 import org.sagebionetworks.repo.model.message.MessageRecipientSet;
@@ -6452,5 +6460,41 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	@Override
 	public AccessControlList updatePortalAcl(AccessControlList acl) throws SynapseException {
 		return putJSONEntity(getRepoEndpoint(), "/portal/" + acl.getId() + "/acl", acl, AccessControlList.class);
+	}
+	
+	// Grid connters methods	
+	@Override
+	public String createGridSessoinAsyncStart(CreateGridRequest request) throws SynapseException {
+		ValidateArgument.required(request, "request");
+		return startAsynchJob(AsynchJobType.CreateGrid, request);
+	}
+
+	@Override
+	public CreateGridResponse createGridSessionAsyncGet(String asyncJobToken)
+			throws SynapseException, SynapseResultNotReadyException {
+		return (CreateGridResponse) getAsyncResult(AsynchJobType.CreateGrid, asyncJobToken);
+	}
+	
+	@Override
+	public GridSession getGridSession(String sessionId) throws SynapseException {
+		return getJSONEntity(getRepoEndpoint(), "/grid/"+ sessionId, GridSession.class);
+	}
+	
+	@Override
+	public CreateReplicaResponse createGridReplica(CreateReplicaRequest request) throws SynapseException {
+		return postJSONEntity(getRepoEndpoint(), "/grid/" + request.getGridSessionId() + "/replica", request,
+				CreateReplicaResponse.class);
+	}
+	
+	@Override
+	public GridReplica getGridReplica(String sessionId, Long replicaId) throws SynapseException {
+		return getJSONEntity(getRepoEndpoint(), "/grid/" + sessionId + "/replica/" + replicaId, GridReplica.class);
+	}
+	
+	@Override
+	public CreateGridPresignedUrlResponse createGridPresignedUrl(CreateGridPresignedUrlRequest request)
+			throws SynapseException {
+		return postJSONEntity(getRepoEndpoint(), "/grid/" + request.getGridSessionId() + "/presigned/url", request,
+				CreateGridPresignedUrlResponse.class);
 	}
 }

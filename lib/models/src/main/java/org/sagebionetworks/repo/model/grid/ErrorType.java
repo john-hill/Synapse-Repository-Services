@@ -2,7 +2,8 @@ package org.sagebionetworks.repo.model.grid;
 
 public enum ErrorType {
 	
-	BAD_REQUEST("Bad Request", 400);
+	BAD_REQUEST("Bad Request", 400),
+	SERVER_ERROR("Internal Server Error", 500);
 	
 	ErrorType(String code, Integer errno) {
 		this.code = code;

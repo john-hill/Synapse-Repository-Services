@@ -1,4 +1,4 @@
-package org.sagebionetworks.repo.manager.grid;
+package org.sagebionetworks.repo.manager.grid.response;
 
 import java.nio.charset.StandardCharsets;
 
@@ -13,7 +13,7 @@ import software.amazon.awssdk.services.apigatewaymanagementapi.ApiGatewayManagem
 import software.amazon.awssdk.services.apigatewaymanagementapi.model.PostToConnectionRequest;
 
 @Service
-public class WebsocketGridEventPublishHandler implements GridEventPublishHandler {
+public class WebsocketGridEventPublishHandler implements GridEventResponsePublishHandler {
 
 	private final ApiGatewayManagementApiClient apiGatewayManagmentClient;
 
@@ -29,7 +29,7 @@ public class WebsocketGridEventPublishHandler implements GridEventPublishHandler
 	}
 
 	@Override
-	public boolean publishEvent(EventContext context, String event) {
+	public boolean publishEventResponse(EventContext context, String event) {
 		WebsocketEventContext webContext = (WebsocketEventContext) context;
 		apiGatewayManagmentClient.postToConnection(
 				PostToConnectionRequest.builder().data(SdkBytes.fromByteArray(event.getBytes(StandardCharsets.UTF_8)))

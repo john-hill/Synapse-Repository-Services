@@ -54,6 +54,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 	public void before() {
 		admin = userManager.getUserInfo(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId());
 	}
+	
 
 	@Test
 	public void testPingGrid()
@@ -76,7 +77,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 						.setGridSessionId(session.getSessionId()).setReplicaId(replica.getReplicaId()))
 				.getPresignedUrl();
 		assertNotNull(presignedUrl);
-
+		
 		BlockingQueue<String> incomingMessages = new LinkedBlockingQueue<>();
 		WebSocket ws = createConnection(presignedUrl, incomingMessages);
 

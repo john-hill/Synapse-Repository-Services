@@ -1,10 +1,10 @@
-package org.sagebionetworks.grid.workers.message.builder;
+package org.sagebionetworks.grid.workers.message;
 
 import java.util.Objects;
 
 import org.sagebionetworks.repo.model.grid.EventContext;
 
-public abstract class AbstractJsonRxMessage {
+public abstract class AbstractJsonRxMessage implements JsonRxMessage {
 	
 	private final EventContext context;
 	private final Integer id;

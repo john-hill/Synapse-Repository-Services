@@ -29,8 +29,9 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.sagebionetworks.grid.workers.message.builder.AbstractJsonRxMessage;
-import org.sagebionetworks.grid.workers.message.builder.JsonRxMessageBuilder;
+import org.sagebionetworks.grid.workers.message.AbstractJsonRxMessage;
+import org.sagebionetworks.grid.workers.message.JsonRxMessage;
+import org.sagebionetworks.grid.workers.message.factory.JsonRxMessageFactory;
 import org.sagebionetworks.repo.manager.grid.response.GridEventResponsePublisher;
 import org.sagebionetworks.repo.model.grid.EventContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
@@ -58,7 +59,7 @@ public class GridEventBrokerWorkerUnitTest {
 	private ApplicationEventPublisher mockApplicationEventPublisher;
 
 	@Mock
-	private JsonRxMessageBuilder mockBuilder;
+	private JsonRxMessageFactory<JsonRxMessage> mockFactory;
 
 	@Mock
 	private WebsocketEventContext mockContext;
@@ -69,27 +70,30 @@ public class GridEventBrokerWorkerUnitTest {
 	@Captor
 	private ArgumentCaptor<JSONArray> arrayCaptor;
 
-	private List<JsonRxMessageBuilder> builders;
+	private List<JsonRxMessageFactory<?>> factories;
 	private GridEventBrokerWorker broker;
 	private GridEventBrokerWorker brokerSpy;
+	private TestMessage testMessage;
+	private TestMessage testMessageTwo;
 
 	@BeforeEach
 	public void before() {
-		builders = List.of(mockBuilder);
-		broker = new GridEventBrokerWorker(mockPublisher, mockApplicationEventPublisher, builders);
+		factories = List.of(mockFactory);
+		broker = new GridEventBrokerWorker(mockPublisher, mockApplicationEventPublisher, factories);
 		brokerSpy = Mockito.spy(broker);
+		testMessage = new TestMessage(mockContext, 1, arrayCaptor);
+		testMessageTwo = new TestMessage(mockContext, 2, arrayCaptor);
 	}
 
 	@ParameterizedTest
 	@MethodSource("provideAllTestCases")
 	void testCreateEventWithEachType(ExampleEvent example) {
 
-		when(mockBuilder.typeKey()).thenReturn(JsonRxMessageBuilder.createTypeKey(example.type, example.method));
-		builders = List.of(mockBuilder);
-		broker = new GridEventBrokerWorker(mockPublisher, mockApplicationEventPublisher, builders);
+		when(mockFactory.type()).thenReturn(example.type);
+		broker = new GridEventBrokerWorker(mockPublisher, mockApplicationEventPublisher, factories);
 
 		TestMessage expected = new TestMessage(mockContext, example.id, example.getBody());
-		when(mockBuilder.build(mockContext, example.id, example.body)).thenReturn(expected);
+		when(mockFactory.createMessage(mockContext, example.id, example.method, example.body)).thenReturn(expected);
 
 		// call under test
 		Object result = broker.createEvent(mockContext, example.createMessage());
@@ -175,10 +179,10 @@ public class GridEventBrokerWorkerUnitTest {
 	public void testCreateEventsWithBatch() {
 
 		JSONArray batch = new JSONArray("[[1,2],[3,4]]");
-		doReturn("one", "two").when(brokerSpy).createEvent(eq(mockContext), arrayCaptor.capture());
+		doReturn(testMessage, testMessageTwo).when(brokerSpy).createEvent(eq(mockContext), arrayCaptor.capture());
 		// call under test
-		List<Object> results = brokerSpy.createEvents(mockContext, batch);
-		List<Object> expected = List.of("one", "two");
+		List<JsonRxMessage> results = brokerSpy.createEvents(mockContext, batch);
+		List<Object> expected = List.of(testMessage, testMessageTwo);
 		assertEquals(results, expected);
 		List<String> arrayString = arrayCaptor.getAllValues().stream().map(a -> a.toString())
 				.collect(Collectors.toList());
@@ -202,10 +206,10 @@ public class GridEventBrokerWorkerUnitTest {
 	public void testCreateEventsWithNonbatch() {
 
 		JSONArray batch = new JSONArray("[1,2]");
-		doReturn("one").when(brokerSpy).createEvent(eq(mockContext), arrayCaptor.capture());
+		doReturn(testMessage).when(brokerSpy).createEvent(eq(mockContext), arrayCaptor.capture());
 		// call under test
-		List<Object> results = brokerSpy.createEvents(mockContext, batch);
-		List<Object> expected = List.of("one");
+		List<JsonRxMessage> results = brokerSpy.createEvents(mockContext, batch);
+		List<Object> expected = List.of(testMessage);
 		assertEquals(results, expected);
 		List<String> arrayString = arrayCaptor.getAllValues().stream().map(a -> a.toString())
 				.collect(Collectors.toList());
@@ -313,13 +317,13 @@ public class GridEventBrokerWorkerUnitTest {
 
 		EventContext context = GridEventBrokerWorker.buildEventContext(mockMessage);
 
-		doReturn(List.of("one", "two")).when(brokerSpy).createEvents(eq(context), arrayCaptor.capture());
+		doReturn(List.of(testMessage, testMessageTwo)).when(brokerSpy).createEvents(eq(context), arrayCaptor.capture());
 
 		// call under test
 		brokerSpy.run(mockProgressCallback, mockMessage);
 
-		verify(mockApplicationEventPublisher).publishEvent("one");
-		verify(mockApplicationEventPublisher).publishEvent("two");
+		verify(mockApplicationEventPublisher).publishEvent(testMessage);
+		verify(mockApplicationEventPublisher).publishEvent(testMessageTwo);
 		List<String> arrayString = arrayCaptor.getAllValues().stream().map(a -> a.toString())
 				.collect(Collectors.toList());
 		assertEquals(List.of("[8,\"ping\"]"), arrayString);
@@ -357,8 +361,8 @@ public class GridEventBrokerWorkerUnitTest {
 
 		EventContext context = GridEventBrokerWorker.buildEventContext(mockMessage);
 
-		doReturn(List.of("one")).when(brokerSpy).createEvents(eq(context), arrayCaptor.capture());
-		doThrow(new IllegalArgumentException("wrong")).when(mockApplicationEventPublisher).publishEvent("one");
+		doReturn(List.of(testMessage)).when(brokerSpy).createEvents(eq(context), arrayCaptor.capture());
+		doThrow(new IllegalArgumentException("wrong")).when(mockApplicationEventPublisher).publishEvent(testMessage);
 
 		// call under test
 		brokerSpy.run(mockProgressCallback, mockMessage);
@@ -379,8 +383,24 @@ public class GridEventBrokerWorkerUnitTest {
 
 		EventContext context = GridEventBrokerWorker.buildEventContext(mockMessage);
 
-		doReturn(List.of("one")).when(brokerSpy).createEvents(eq(context), arrayCaptor.capture());
-		doThrow(new IllegalStateException("wrong")).when(mockApplicationEventPublisher).publishEvent("one");
+		doReturn(List.of(testMessage)).when(brokerSpy).createEvents(eq(context), arrayCaptor.capture());
+		doThrow(new IllegalStateException("wrong")).when(mockApplicationEventPublisher).publishEvent(testMessage);
+
+		// call under test
+		brokerSpy.run(mockProgressCallback, mockMessage);
+
+		verify(mockPublisher).publishEventResponse(context,
+				"[8,\"error\",{\"message\":\"wrong\",\"code\":\"Internal Server Error\",\"errno\":500}]");
+	}
+
+	@Test
+	public void testRunWithNullContext() throws RecoverableMessageException, Exception {
+		Map<String, MessageAttributeValue> attributes = new HashMap<>();
+		attributes.put("EventType", new MessageAttributeValue().withStringValue(EventType.MESSAGE.name()));
+		attributes.put("EventSource", new MessageAttributeValue().withStringValue(EventSource.WEBSOCKET.name()));
+
+		// The connection ID is missing so this will fail to create a context.
+		when(mockMessage.getMessageAttributes()).thenReturn(attributes);
 
 		// call under test
 		brokerSpy.run(mockProgressCallback, mockMessage);

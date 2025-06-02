@@ -1,8 +1,8 @@
 package org.sagebionetworks.grid.workers;
 
-import org.sagebionetworks.grid.workers.message.builder.ConnectionMessageBuilder.ConnectionMessage;
-import org.sagebionetworks.grid.workers.message.builder.DisconnectedMessageBuilder.DisconnectedMessage;
-import org.sagebionetworks.grid.workers.message.builder.PingMessageBuilder.PingMessage;
+import org.sagebionetworks.grid.workers.message.ConnectionMessage;
+import org.sagebionetworks.grid.workers.message.DisconnectedMessage;
+import org.sagebionetworks.grid.workers.message.PingMessage;
 import org.sagebionetworks.repo.manager.grid.response.GridEventResponsePublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;

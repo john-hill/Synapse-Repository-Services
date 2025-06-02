@@ -11,7 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.sagebionetworks.grid.workers.message.builder.JsonRxMessageBuilder;
+import org.sagebionetworks.grid.workers.message.JsonRxMessage;
+import org.sagebionetworks.grid.workers.message.factory.JsonRxMessageFactory;
 import org.sagebionetworks.repo.manager.grid.response.GridEventResponsePublisher;
 import org.sagebionetworks.repo.model.grid.ErrorEvent;
 import org.sagebionetworks.repo.model.grid.ErrorType;
@@ -32,6 +33,12 @@ import org.springframework.stereotype.Service;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.MessageAttributeValue;
 
+/**
+ * This work pull in JSON-Rx message
+ * (<a href="https://jsonjoy.com/specs/json-rx">JSON Reactive RPC</a>) from the
+ * queue. Message can either be from a websocket or internal worker. Factory
+ * methods are used to convert each message to an internal POJO.
+ */
 @Service
 public class GridEventBrokerWorker implements MessageDrivenRunner {
 
@@ -39,26 +46,28 @@ public class GridEventBrokerWorker implements MessageDrivenRunner {
 
 	private final GridEventResponsePublisher publisher;
 	private final ApplicationEventPublisher applicationEventPublisher;
-	private final Map<String, JsonRxMessageBuilder> builderTypeMap;
+	private final Map<JsonRxMessageType, JsonRxMessageFactory<?>> factoryTypeMap;
 
 	public GridEventBrokerWorker(GridEventResponsePublisher publisher,
-			ApplicationEventPublisher applicationEventPublisher, List<JsonRxMessageBuilder> builders) {
+			ApplicationEventPublisher applicationEventPublisher, List<JsonRxMessageFactory<?>> builders) {
 		super();
 		this.publisher = publisher;
 		this.applicationEventPublisher = applicationEventPublisher;
-		this.builderTypeMap = builders.stream()
-				.collect(Collectors.toMap(JsonRxMessageBuilder::typeKey, handler -> handler));
+		this.factoryTypeMap = builders.stream()
+				.collect(Collectors.toMap(JsonRxMessageFactory::type, handler -> handler));
 	}
 
 	@Override
 	public void run(ProgressCallback progressCallback, Message message) throws RecoverableMessageException, Exception {
 		log.info(message);
+		EventContext context = null;
 		try {
-			EventContext context = buildEventContext(message);
+			context = buildEventContext(message);
 			try {
 				JSONArray eventBatch = new JSONArray(message.getBody());
 				createEvents(context, eventBatch).forEach(e -> applicationEventPublisher.publishEvent(e));
 			} catch (JSONException | IllegalArgumentException e) {
+				log.error("Failed with bad request:", e);
 				// Invalid message
 				publisher.publishEventResponse(context,
 						new NotificationError()
@@ -67,6 +76,12 @@ public class GridEventBrokerWorker implements MessageDrivenRunner {
 			}
 		} catch (Exception e) {
 			log.error("Failed to process message:", e);
+			if (context != null) {
+				publisher.publishEventResponse(context,
+						new NotificationError()
+								.setEvent(new ErrorEvent().setMessage(e.getMessage()).setError(ErrorType.SERVER_ERROR))
+								.toString());
+			}
 		}
 	}
 
@@ -78,7 +93,7 @@ public class GridEventBrokerWorker implements MessageDrivenRunner {
 	 * @param array
 	 * @return
 	 */
-	List<Object> createEvents(EventContext context, JSONArray array) {
+	List<JsonRxMessage> createEvents(EventContext context, JSONArray array) {
 		JSONArray child = array.optJSONArray(0);
 		if (child != null) {
 			List<JSONArray> arrays = new ArrayList<>(array.length());
@@ -104,11 +119,12 @@ public class GridEventBrokerWorker implements MessageDrivenRunner {
 	 * @param array
 	 * @return
 	 */
-	Object createEvent(EventContext context, JSONArray array) {
+	JsonRxMessage createEvent(EventContext context, JSONArray array) {
 		int zero = array.optInt(0, -1);
 		if (zero < 1) {
 			throw new IllegalArgumentException("Expected the fist element of the array to be a message code.");
 		}
+		JsonRxMessageType type = JsonRxMessageType.fromCode(zero);
 		Object one = array.opt(1);
 		Object two = array.opt(2);
 		Object three = array.opt(3);
@@ -120,11 +136,9 @@ public class GridEventBrokerWorker implements MessageDrivenRunner {
 				: three instanceof JSONArray ? (JSONArray) three : null;
 		Object body = bodyObject != null ? bodyObject : bodyArray;
 
-		JsonRxMessageType type = JsonRxMessageType.fromCode(zero);
-		String key = JsonRxMessageBuilder.createTypeKey(type, method);
-		JsonRxMessageBuilder builder = builderTypeMap.get(key);
-		if (builder != null) {
-			return builder.build(context, id, body);
+		JsonRxMessageFactory<?> factory = factoryTypeMap.get(type);
+		if (factory != null) {
+			return factory.createMessage(context, id, method, body);
 		}
 		throw new IllegalArgumentException(String.format("Unknown message type -- code: %d and method: '%s'",
 				type.getCode(), method != null ? method : ""));

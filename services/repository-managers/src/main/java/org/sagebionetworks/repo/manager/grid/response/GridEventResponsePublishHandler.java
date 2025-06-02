@@ -1,9 +1,9 @@
-package org.sagebionetworks.repo.manager.grid;
+package org.sagebionetworks.repo.manager.grid.response;
 
 import org.sagebionetworks.repo.model.grid.EventContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
 
-public interface GridEventPublishHandler {
+public interface GridEventResponsePublishHandler {
 	
 	/**
 	 * The source to handle.
@@ -17,6 +17,6 @@ public interface GridEventPublishHandler {
 	 * @param event
 	 * @return
 	 */
-	boolean publishEvent(EventContext context, String event);
+	boolean publishEventResponse(EventContext context, String event);
 
 }

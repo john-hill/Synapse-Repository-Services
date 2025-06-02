@@ -54,6 +54,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 	public void before() {
 		admin = userManager.getUserInfo(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId());
 	}
+	
 
 	@Test
 	public void testPingGrid()
@@ -76,6 +77,8 @@ public class GridEventBrokerWorkerIntegrationTest {
 						.setGridSessionId(session.getSessionId()).setReplicaId(replica.getReplicaId()))
 				.getPresignedUrl();
 		assertNotNull(presignedUrl);
+		
+		System.out.println(String.format("wscat -c '%s'", presignedUrl));
 
 		BlockingQueue<String> incomingMessages = new LinkedBlockingQueue<>();
 		WebSocket ws = createConnection(presignedUrl, incomingMessages);
@@ -101,6 +104,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 		String message = null;
 		do {
 			message = incomingMessages.poll(10, TimeUnit.SECONDS);
+			System.out.println("Received message: "+message);
 			JSONArray response = new JSONArray(message);
 			if(response.length() > 1){
 				if(response.getInt(0) == 8) {

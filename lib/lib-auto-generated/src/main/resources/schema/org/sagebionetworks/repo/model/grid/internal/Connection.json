@@ -1,5 +1,5 @@
 {
-	"description": "",
+	"description": "Connection information from a presigned URL.",
 	"properties": {
 		"gridSessionId": {
 			"description": "The unique sessionId that identifies the grid session.",

@@ -7,7 +7,7 @@ import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
-import org.sagebionetworks.repo.model.grid.ConnectionInfo;
+import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlResponse;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
@@ -181,7 +181,7 @@ public class GridManagerImpl implements GridManager {
 		}
 		String sessionIdAsString = GridUtils.gridSessionIdAsString(connection.getGridSessionId());
 		validateRepicaOwner(user, sessionIdAsString, connection.getReplicaId());
-		gridDao.createConnection(new ConnectionInfo().setConnectionId(context.getConnectionId())
+		gridDao.createConnection(new GridConnectionInfo().setConnectionId(context.getConnectionId())
 				.setCreatedBy(user.getId()).setReplciaId(connection.getReplicaId()).setSessionId(sessionIdAsString)
 				.setSource(context.getEventSource()));
 	}

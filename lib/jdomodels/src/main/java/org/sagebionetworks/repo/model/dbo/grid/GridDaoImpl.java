@@ -27,7 +27,7 @@ import java.util.Optional;
 
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
-import org.sagebionetworks.repo.model.grid.ConnectionInfo;
+import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridConstants;
 import org.sagebionetworks.repo.model.grid.GridReplica;
@@ -63,8 +63,8 @@ public class GridDaoImpl implements GridDao {
 				.setIsAgentReplica(rs.getBoolean(COL_GRID_REPLICA_IS_AGENT));
 	};
 
-	private final RowMapper<ConnectionInfo> CONNECTION_MAPPER = (ResultSet rs, int rowNum) -> {
-		return new ConnectionInfo().setConnectionId(rs.getString(COL_GRID_CON_CONNECTION_ID))
+	private final RowMapper<GridConnectionInfo> CONNECTION_MAPPER = (ResultSet rs, int rowNum) -> {
+		return new GridConnectionInfo().setConnectionId(rs.getString(COL_GRID_CON_CONNECTION_ID))
 				.setCreatedBy(rs.getLong(COL_GRID_CON_CREATED_BY))
 				.setCreatedOn(rs.getTimestamp(COL_GRID_CON_CREATED_ON))
 				.setSessionId(rs.getString(COL_GRID_CON_SESSION_ID)).setReplciaId(rs.getLong(COL_GRID_CON_REPLICA_ID))
@@ -196,7 +196,7 @@ public class GridDaoImpl implements GridDao {
 
 	@WriteTransaction
 	@Override
-	public void createConnection(ConnectionInfo connection) {
+	public void createConnection(GridConnectionInfo connection) {
 		ValidateArgument.required(connection, "connection");
 		ValidateArgument.required(connection.getConnectionId(), "connection.connectionId");
 		ValidateArgument.required(connection.getSessionId(), "connection.sessionId");
@@ -212,7 +212,7 @@ public class GridDaoImpl implements GridDao {
 	}
 
 	@Override
-	public Optional<ConnectionInfo> getConnection(String connectionId) {
+	public Optional<GridConnectionInfo> getConnection(String connectionId) {
 		ValidateArgument.required(connectionId, "connectionId");
 		try {
 			return Optional.of(jdbcTemplate.queryForObject("SELECT * FROM GRID_CONNECTION WHERE CONNECTION_ID = ?",
@@ -223,7 +223,7 @@ public class GridDaoImpl implements GridDao {
 	}
 
 	@Override
-	public List<ConnectionInfo> listConnections(String sessionId) {
+	public List<GridConnectionInfo> listConnections(String sessionId) {
 		ValidateArgument.required(sessionId, "sessionId");
 		return jdbcTemplate.query("SELECT * FROM GRID_CONNECTION WHERE SESSION_ID = ? ORDER BY REPLICA_ID ASC",
 				CONNECTION_MAPPER, sessionId);

@@ -26,7 +26,7 @@ import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
-import org.sagebionetworks.repo.model.grid.ConnectionInfo;
+import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlResponse;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
@@ -476,7 +476,7 @@ public class GridManagerUnitTest {
 				new Connection().setGridSessionId(gridSessionIdLong).setReplicaId(replicaId).setUserId(userId));
 
 		verify(mockGridDao)
-				.createConnection(new ConnectionInfo().setConnectionId(connectionId).setSessionId(gridSessionId)
+				.createConnection(new GridConnectionInfo().setConnectionId(connectionId).setSessionId(gridSessionId)
 						.setReplciaId(replicaId).setCreatedBy(userId).setSource(EventSource.WEBSOCKET));
 	}
 

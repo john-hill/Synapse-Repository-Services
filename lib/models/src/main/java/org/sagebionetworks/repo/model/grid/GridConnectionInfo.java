@@ -3,7 +3,10 @@ package org.sagebionetworks.repo.model.grid;
 import java.util.Date;
 import java.util.Objects;
 
-public class ConnectionInfo {
+/**
+ * Information captured for each grid replica connection established.
+ */
+public class GridConnectionInfo {
 
 	private String connectionId;
 	private String sessionId;
@@ -16,7 +19,7 @@ public class ConnectionInfo {
 		return connectionId;
 	}
 
-	public ConnectionInfo setConnectionId(String connectionId) {
+	public GridConnectionInfo setConnectionId(String connectionId) {
 		this.connectionId = connectionId;
 		return this;
 	}
@@ -25,7 +28,7 @@ public class ConnectionInfo {
 		return sessionId;
 	}
 
-	public ConnectionInfo setSessionId(String sessionId) {
+	public GridConnectionInfo setSessionId(String sessionId) {
 		this.sessionId = sessionId;
 		return this;
 	}
@@ -34,7 +37,7 @@ public class ConnectionInfo {
 		return replciaId;
 	}
 
-	public ConnectionInfo setReplciaId(Long replciaId) {
+	public GridConnectionInfo setReplciaId(Long replciaId) {
 		this.replciaId = replciaId;
 		return this;
 	}
@@ -43,7 +46,7 @@ public class ConnectionInfo {
 		return createdBy;
 	}
 
-	public ConnectionInfo setCreatedBy(Long createdBy) {
+	public GridConnectionInfo setCreatedBy(Long createdBy) {
 		this.createdBy = createdBy;
 		return this;
 	}
@@ -52,7 +55,7 @@ public class ConnectionInfo {
 		return createdOn;
 	}
 
-	public ConnectionInfo setCreatedOn(Date createdOn) {
+	public GridConnectionInfo setCreatedOn(Date createdOn) {
 		this.createdOn = createdOn;
 		return this;
 	}
@@ -61,7 +64,7 @@ public class ConnectionInfo {
 		return source;
 	}
 
-	public ConnectionInfo setSource(EventSource source) {
+	public GridConnectionInfo setSource(EventSource source) {
 		this.source = source;
 		return this;
 	}
@@ -79,7 +82,7 @@ public class ConnectionInfo {
 			return false;
 		if (getClass() != obj.getClass())
 			return false;
-		ConnectionInfo other = (ConnectionInfo) obj;
+		GridConnectionInfo other = (GridConnectionInfo) obj;
 		return Objects.equals(connectionId, other.connectionId) && Objects.equals(createdBy, other.createdBy)
 				&& Objects.equals(createdOn, other.createdOn) && Objects.equals(replciaId, other.replciaId)
 				&& Objects.equals(sessionId, other.sessionId) && source == other.source;

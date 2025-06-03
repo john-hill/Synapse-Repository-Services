@@ -17,7 +17,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
-import org.sagebionetworks.repo.model.grid.ConnectionInfo;
+import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridConstants;
 import org.sagebionetworks.repo.model.grid.GridReplica;
@@ -185,16 +185,16 @@ public class GridDaoImplTest {
 		GridReplica r1 = dao.createReplica(adminUserId, session.getSessionId(), isAgent, eventSource);
 		GridReplica r2 = dao.createReplica(adminUserId, session.getSessionId(), isAgent, eventSource);
 
-		ConnectionInfo info1 = new ConnectionInfo().setConnectionId(UUID.randomUUID().toString())
+		GridConnectionInfo info1 = new GridConnectionInfo().setConnectionId(UUID.randomUUID().toString())
 				.setCreatedBy(adminUserId).setReplciaId(r1.getReplicaId()).setSessionId(session.getSessionId())
 				.setSource(source);
-		ConnectionInfo info2 = new ConnectionInfo().setConnectionId(UUID.randomUUID().toString())
+		GridConnectionInfo info2 = new GridConnectionInfo().setConnectionId(UUID.randomUUID().toString())
 				.setCreatedBy(adminUserId).setReplciaId(r2.getReplicaId()).setSessionId(session.getSessionId())
 				.setSource(source);
 		// call under test
 		dao.createConnection(info1);
 		// call under test
-		ConnectionInfo f1 = dao.getConnection(info1.getConnectionId()).get();
+		GridConnectionInfo f1 = dao.getConnection(info1.getConnectionId()).get();
 		assertNotNull(f1.getCreatedOn());
 		long startingCreatedOn = f1.getCreatedOn().getTime();
 		assertEquals(session.getSessionId(), f1.getSessionId());
@@ -205,7 +205,7 @@ public class GridDaoImplTest {
 		// call under test
 		dao.createConnection(info2);
 		// call under test
-		ConnectionInfo f2 = dao.getConnection(info2.getConnectionId()).get();
+		GridConnectionInfo f2 = dao.getConnection(info2.getConnectionId()).get();
 		assertNotNull(f2.getCreatedOn());
 		assertEquals(session.getSessionId(), f2.getSessionId());
 		assertEquals(r2.getReplicaId(), f2.getReplciaId());
@@ -225,8 +225,8 @@ public class GridDaoImplTest {
 		assertEquals(info1.getConnectionId(), f1.getConnectionId());
 
 		// call under test
-		List<ConnectionInfo> listed = dao.listConnections(session.getSessionId());
-		List<ConnectionInfo> expected = List.of(f1, f2);
+		List<GridConnectionInfo> listed = dao.listConnections(session.getSessionId());
+		List<GridConnectionInfo> expected = List.of(f1, f2);
 		assertEquals(expected, listed);
 		
 		// call under test

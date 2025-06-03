@@ -5,14 +5,19 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
+import org.sagebionetworks.repo.model.grid.ConnectionInfo;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridConstants;
 import org.sagebionetworks.repo.model.grid.GridReplica;
@@ -172,4 +177,66 @@ public class GridDaoImplTest {
 		// call under test
 		assertEquals(Optional.empty(), dao.getReplicaCreatedBy("doesnotexist", 0L, isAgent));
 	}
+
+	@ParameterizedTest
+	@EnumSource(EventSource.class)
+	public void testConnectionCRUD(EventSource source) throws InterruptedException {
+		GridSession session = dao.createGridSession(adminUserId);
+		GridReplica r1 = dao.createReplica(adminUserId, session.getSessionId(), isAgent, eventSource);
+		GridReplica r2 = dao.createReplica(adminUserId, session.getSessionId(), isAgent, eventSource);
+
+		ConnectionInfo info1 = new ConnectionInfo().setConnectionId(UUID.randomUUID().toString())
+				.setCreatedBy(adminUserId).setReplciaId(r1.getReplicaId()).setSessionId(session.getSessionId())
+				.setSource(source);
+		ConnectionInfo info2 = new ConnectionInfo().setConnectionId(UUID.randomUUID().toString())
+				.setCreatedBy(adminUserId).setReplciaId(r2.getReplicaId()).setSessionId(session.getSessionId())
+				.setSource(source);
+		// call under test
+		dao.createConnection(info1);
+		// call under test
+		ConnectionInfo f1 = dao.getConnection(info1.getConnectionId()).get();
+		assertNotNull(f1.getCreatedOn());
+		long startingCreatedOn = f1.getCreatedOn().getTime();
+		assertEquals(session.getSessionId(), f1.getSessionId());
+		assertEquals(r1.getReplicaId(), f1.getReplciaId());
+		assertEquals(adminUserId, f1.getCreatedBy());
+		assertEquals(info1.getConnectionId(), f1.getConnectionId());
+
+		// call under test
+		dao.createConnection(info2);
+		// call under test
+		ConnectionInfo f2 = dao.getConnection(info2.getConnectionId()).get();
+		assertNotNull(f2.getCreatedOn());
+		assertEquals(session.getSessionId(), f2.getSessionId());
+		assertEquals(r2.getReplicaId(), f2.getReplciaId());
+		assertEquals(adminUserId, f2.getCreatedBy());
+		assertEquals(info2.getConnectionId(), f2.getConnectionId());
+
+		// Wait for the new createdOn to be larger
+		Thread.sleep(1001L);
+
+		// replace an existing connection with a new ID
+		dao.createConnection(info1.setConnectionId(UUID.randomUUID().toString()));
+		f1 = dao.getConnection(info1.getConnectionId()).get();
+		assertTrue(f1.getCreatedOn().getTime() > startingCreatedOn);
+		assertEquals(session.getSessionId(), f1.getSessionId());
+		assertEquals(r1.getReplicaId(), f1.getReplciaId());
+		assertEquals(adminUserId, f1.getCreatedBy());
+		assertEquals(info1.getConnectionId(), f1.getConnectionId());
+
+		// call under test
+		List<ConnectionInfo> listed = dao.listConnections(session.getSessionId());
+		List<ConnectionInfo> expected = List.of(f1, f2);
+		assertEquals(expected, listed);
+		
+		// call under test
+		dao.removeConnection(info1.getConnectionId());
+		// double delete is allowed
+		dao.removeConnection(info1.getConnectionId());
+		assertEquals(Optional.empty(), dao.getConnection(info1.getConnectionId()));
+		
+		// should still be able to get the second
+		assertEquals(f2, dao.getConnection(info2.getConnectionId()).get());
+	}
+	
 }

@@ -17,6 +17,6 @@ public interface GridEventResponsePublishHandler {
 	 * @param event
 	 * @return
 	 */
-	boolean publishEventResponse(EventContext context, String event);
+	void publishEventResponse(EventContext context, String event);
 
 }

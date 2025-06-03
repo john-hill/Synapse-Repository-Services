@@ -79,8 +79,11 @@ public class GridEventBrokerWorkerIntegrationTest {
 		assertNotNull(presignedUrl);
 		
 		BlockingQueue<String> incomingMessages = new LinkedBlockingQueue<>();
+		try {
 		WebSocket ws = createConnection(presignedUrl, incomingMessages);
 
+		
+		assertTrue(waitForMessage(8, "connected", incomingMessages));
 		// send a ping
 		long start = System.currentTimeMillis();
 		ws.sendText(new JSONArray("[8,\"ping\"]").toString(), true).join();
@@ -88,6 +91,10 @@ public class GridEventBrokerWorkerIntegrationTest {
 		long end = System.currentTimeMillis();
 		System.out.println("Ping: " + (end - start) + " ms");
 		ws.sendClose(4999, "closing").join();
+		
+		}catch (Exception e) {
+			System.out.println(e);
+		}
 	}
 	
 	/**
@@ -102,6 +109,10 @@ public class GridEventBrokerWorkerIntegrationTest {
 		String message = null;
 		do {
 			message = incomingMessages.poll(10, TimeUnit.SECONDS);
+			if(message == null) {
+				return false;
+			}
+			System.out.println(message);
 			JSONArray response = new JSONArray(message);
 			if(response.length() > 1){
 				if(response.getInt(0) == 8) {

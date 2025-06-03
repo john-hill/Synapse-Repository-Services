@@ -14,6 +14,7 @@ import org.sagebionetworks.file.worker.FileHandleStreamWorker;
 import org.sagebionetworks.replication.workers.ObjectReplicationReconciliationWorker;
 import org.sagebionetworks.replication.workers.ObjectReplicationWorker;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.search.workers.sqs.search.SearchIndexWorker;
 import org.sagebionetworks.search.workers.sqs.search.SearchQueueWorker;
 import org.sagebionetworks.snapshot.workers.ObjectSnapshotWorker;
 import org.sagebionetworks.snapshot.workers.writers.ObjectRecordWriter;
@@ -240,7 +241,30 @@ public class ChangeMessageWorkersConfig {
 			.withStartDelay(256)
 			.build();
 	}
-	
+
+	@Bean
+	public SimpleTriggerFactoryBean searchIndexMessageReceiverTrigger(SearchIndexWorker searchIndexWorker) {
+
+		String queueName = stackConfig.getQueueName("SEARCH_INDEX");
+		MessageDrivenRunner worker = new ChangeMessageBatchProcessor(amazonSQSClient, queueName, searchIndexWorker);
+
+		return new WorkerTriggerBuilder()
+				.withStack(ConcurrentWorkerStack.builder()
+						.withSemaphoreLockKey("searchWorker")
+						.withSemaphoreMaxLockCount(8)
+						.withSemaphoreLockAndMessageVisibilityTimeoutSec(600)
+						.withMaxThreadsPerMachine(2)
+						.withSingleton(concurrentStackManager)
+						.withCanRunInReadOnly(true)
+						.withQueueName(queueName)
+						.withWorker(worker)
+						.build()
+				)
+				.withRepeatInterval(2007)
+				.withStartDelay(256)
+				.build();
+	}
+
 	@Bean
 	public SimpleTriggerFactoryBean webhookChangeMessageWorkerTrigger(WebhookChangeMessageWorker webhookChangeMessageWorker) {
 		

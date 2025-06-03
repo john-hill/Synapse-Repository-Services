@@ -25,6 +25,9 @@ import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
 import org.apache.velocity.runtime.resource.loader.FileResourceLoader;
+import org.opensearch.client.opensearch.OpenSearchClient;
+import org.opensearch.client.transport.aws.AwsSdk2Transport;
+import org.opensearch.client.transport.aws.AwsSdk2TransportOptions;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.avro.pfb.model.Metadata;
 import org.sagebionetworks.aws.v2.AwsCrdentialPoviderV2;
@@ -90,6 +93,8 @@ import dev.samstevens.totp.secret.SecretGenerator;
 import dev.samstevens.totp.time.SystemTimeProvider;
 import dev.samstevens.totp.time.TimeProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.apigatewaymanagementapi.ApiGatewayManagementApiClient;
@@ -103,6 +108,8 @@ import software.amazon.awssdk.services.bedrockagent.BedrockAgentClient;
 import software.amazon.awssdk.services.bedrockagent.model.ListAgentsRequest;
 import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAsyncClient;
 import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAsyncClientBuilder;
+import software.amazon.awssdk.services.opensearchserverless.OpenSearchServerlessClient;
+import software.amazon.awssdk.services.opensearchserverless.model.CollectionDetail;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
@@ -337,6 +344,36 @@ public class ManagerConfiguration {
 			AwsCredentialsProvider credentialProvider, BedrockAgentRuntimeAsyncClientBuilder builder) {
 		// This client uses the stack's credentials.
 		return builder.credentialsProvider(credentialProvider).build();
+	}
+
+	@Bean
+	public OpenSearchServerlessClient openSearchServerlessClient() {
+		return OpenSearchServerlessClient.builder().region(Region.US_EAST_1).build();
+	}
+
+	@Bean
+	public SdkHttpClient sdkHttpClient() {
+		return ApacheHttpClient.builder().build();
+	}
+
+	@Bean
+	public OpenSearchClient createOpenSearchClient(OpenSearchServerlessClient openSearchServerlessClient,
+												   StackConfiguration config, SdkHttpClient httpClient) {
+		String collectionName = config.getStack() + "-" + config.getStackInstance() + "-sagebase-org";
+
+		CollectionDetail collection = openSearchServerlessClient.batchGetCollection(req -> req
+				.names(collectionName)
+		).collectionDetails().stream().findFirst().orElseThrow();
+
+		return new OpenSearchClient(
+				new AwsSdk2Transport(
+						httpClient,
+						collection.collectionEndpoint().replace("https://", ""),
+						"aoss",
+						Region.US_EAST_1,
+						AwsSdk2TransportOptions.builder().build()
+				)
+		);
 	}
 
 	@Bean

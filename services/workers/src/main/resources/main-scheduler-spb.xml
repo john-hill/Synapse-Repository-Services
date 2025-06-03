@@ -79,6 +79,7 @@
 		<!-- workers -->
 		<ref bean="principalPrefixQueueMessageReveiverTrigger" />
 		<ref bean="searchQueueMessageReveiverTrigger" />
+		<ref bean="searchIndexMessageReceiverTrigger" />
 		<ref bean="fileQueueMessageReveiverTrigger" />
 		<ref bean="evaluationSubmissionAnnotationsWorkerTrigger" />
 		<ref bean="logCollateWorkerTrigger" />

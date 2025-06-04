@@ -7,8 +7,8 @@ import org.opensearch.client.opensearch.core.BulkResponse;
 import org.opensearch.client.opensearch.core.GetRequest;
 import org.opensearch.client.opensearch.core.GetResponse;
 import org.sagebionetworks.repo.model.search.Document;
+import org.sagebionetworks.search.SearchConstants;
 import org.sagebionetworks.util.ValidateArgument;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -16,9 +16,12 @@ import java.io.IOException;
 
 @Service
 public class SearchDaoImpl implements SearchDao {
-    static final private String INDEX_NAME = "synapse";
-    @Autowired
-    OpenSearchClient openSearchClient;
+
+   private OpenSearchClient openSearchClient;
+
+    public SearchDaoImpl(OpenSearchClient openSearchClient) {
+        this.openSearchClient = openSearchClient;
+    }
 
     @Override
     public BulkResponse sendDocuments(BulkRequest bulkRequest) throws IOException {
@@ -31,7 +34,7 @@ public class SearchDaoImpl implements SearchDao {
         ValidateArgument.required(id, "id");
         try {
             GetRequest getRequest = GetRequest.of(g -> g
-                    .index(INDEX_NAME)
+                    .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
                     .id(id)
             );
 

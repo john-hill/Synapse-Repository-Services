@@ -2,13 +2,13 @@ package org.sagebionetworks.repo.manager.opensearch;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
+import org.sagebionetworks.repo.manager.search.ChangeMessageToSearchDocumentTranslator;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
 import org.sagebionetworks.repo.web.TemporarilyUnavailableException;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.sagebionetworks.search.SearchConstants;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -19,15 +19,14 @@ import java.util.stream.Collectors;
 @Service
 public class SearchManagerImpl implements SearchManager {
     static private Logger log = LogManager.getLogger(SearchManagerImpl.class);
-    static final private String INDEX_NAME= "synapse";
 
-    @Autowired
-    ChangeMessageToOpenSearchDocumentTranslator translator;
+    private ChangeMessageToSearchDocumentTranslator translator;
+    private SearchDao searchDao;
 
-    @Autowired
-    OpenSearchClient openSearchClient;
-    @Autowired
-    SearchDao searchDao;
+    public SearchManagerImpl(ChangeMessageToSearchDocumentTranslator translator, SearchDao searchDao) {
+        this.translator = translator;
+        this.searchDao = searchDao;
+    }
 
     @Override
     public void documentChangeMessages(List<ChangeMessage> messages) throws TemporarilyUnavailableException {
@@ -37,7 +36,7 @@ public class SearchManagerImpl implements SearchManager {
                     .filter(Objects::nonNull)
                     .map(doc -> BulkOperation.of(op -> op
                             .index(idx -> idx
-                                    .index(INDEX_NAME) // index should be created
+                                    .index(SearchConstants.OPEN_SEARCH_INDEX_NAME) // index should be created
                                     .id(doc.getId())
                                     .document(doc)
                             )

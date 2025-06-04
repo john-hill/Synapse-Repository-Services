@@ -70,16 +70,4 @@ public class SearchIndexWorkerIntegrationTest {
             return Pair.create(searchManager.doesDocumentExist(id), null);
         });
     }
-
-
-    @Test
-    public void test() throws InterruptedException {
-        //create entity it will send message to queue
-        ChangeMessage message = new ChangeMessage();
-        message.setChangeType(ChangeType.CREATE);
-        message.setObjectType(ObjectType.ENTITY);
-        message.setObjectId("syn9602970");
-        message.setChangeNumber(1675l);
-       // searchManager.documentChangeMessages(List.of(message));
-    }
 }

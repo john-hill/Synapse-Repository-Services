@@ -39,7 +39,7 @@ public class WebsocketGridEventPublishHandler implements GridEventResponsePublis
 					.data(SdkBytes.fromByteArray(event.getBytes(StandardCharsets.UTF_8)))
 					.connectionId(context.getConnectionId()).build());
 		} catch (GoneException e) {
-			gridManager.removeReplicatConnection(context.getConnectionId());
+			gridManager.removeReplicaConnection(context.getConnectionId());
 		}
 	}
 

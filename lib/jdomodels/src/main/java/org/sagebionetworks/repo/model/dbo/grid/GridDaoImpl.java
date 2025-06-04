@@ -67,7 +67,7 @@ public class GridDaoImpl implements GridDao {
 		return new GridConnectionInfo().setConnectionId(rs.getString(COL_GRID_CON_CONNECTION_ID))
 				.setCreatedBy(rs.getLong(COL_GRID_CON_CREATED_BY))
 				.setCreatedOn(rs.getTimestamp(COL_GRID_CON_CREATED_ON))
-				.setSessionId(rs.getString(COL_GRID_CON_SESSION_ID)).setReplciaId(rs.getLong(COL_GRID_CON_REPLICA_ID))
+				.setSessionId(rs.getString(COL_GRID_CON_SESSION_ID)).setReplicaId(rs.getLong(COL_GRID_CON_REPLICA_ID))
 				.setSource(EventSource.valueOf(rs.getString(COL_GRID_CON_SOURCE)));
 	};
 
@@ -200,14 +200,14 @@ public class GridDaoImpl implements GridDao {
 		ValidateArgument.required(connection, "connection");
 		ValidateArgument.required(connection.getConnectionId(), "connection.connectionId");
 		ValidateArgument.required(connection.getSessionId(), "connection.sessionId");
-		ValidateArgument.required(connection.getReplciaId(), "connection.replicaId");
+		ValidateArgument.required(connection.getReplicaId(), "connection.replicaId");
 		ValidateArgument.required(connection.getCreatedBy(), "connection.createdBy");
 		ValidateArgument.required(connection.getSource(), "connection.source");
 
 		jdbcTemplate.update(
 				"INSERT INTO GRID_CONNECTION (CONNECTION_ID, SESSION_ID, REPLICA_ID, CREATED_BY, CREATED_ON, SOURCE)"
 						+ " VALUES (?,?,?,?,NOW(),?) ON DUPLICATE KEY UPDATE CONNECTION_ID = ?, CREATED_ON = NOW()",
-				connection.getConnectionId(), connection.getSessionId(), connection.getReplciaId(),
+				connection.getConnectionId(), connection.getSessionId(), connection.getReplicaId(),
 				connection.getCreatedBy(), connection.getSource().name(), connection.getConnectionId());
 	}
 

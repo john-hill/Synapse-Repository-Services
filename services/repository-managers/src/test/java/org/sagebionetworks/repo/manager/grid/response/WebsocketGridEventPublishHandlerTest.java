@@ -75,7 +75,7 @@ public class WebsocketGridEventPublishHandlerTest {
 		handler.publishEventResponse(context, body);
 
 		// remove the connection info in the DB when the connection is lost.
-		verify(mockGridManager).removeReplicatConnection(connectionId);
+		verify(mockGridManager).removeReplicaConnection(connectionId);
 
 	}
 }

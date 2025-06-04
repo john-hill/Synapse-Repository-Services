@@ -186,10 +186,10 @@ public class GridDaoImplTest {
 		GridReplica r2 = dao.createReplica(adminUserId, session.getSessionId(), isAgent, eventSource);
 
 		GridConnectionInfo info1 = new GridConnectionInfo().setConnectionId(UUID.randomUUID().toString())
-				.setCreatedBy(adminUserId).setReplciaId(r1.getReplicaId()).setSessionId(session.getSessionId())
+				.setCreatedBy(adminUserId).setReplicaId(r1.getReplicaId()).setSessionId(session.getSessionId())
 				.setSource(source);
 		GridConnectionInfo info2 = new GridConnectionInfo().setConnectionId(UUID.randomUUID().toString())
-				.setCreatedBy(adminUserId).setReplciaId(r2.getReplicaId()).setSessionId(session.getSessionId())
+				.setCreatedBy(adminUserId).setReplicaId(r2.getReplicaId()).setSessionId(session.getSessionId())
 				.setSource(source);
 		// call under test
 		dao.createConnection(info1);
@@ -198,7 +198,7 @@ public class GridDaoImplTest {
 		assertNotNull(f1.getCreatedOn());
 		long startingCreatedOn = f1.getCreatedOn().getTime();
 		assertEquals(session.getSessionId(), f1.getSessionId());
-		assertEquals(r1.getReplicaId(), f1.getReplciaId());
+		assertEquals(r1.getReplicaId(), f1.getReplicaId());
 		assertEquals(adminUserId, f1.getCreatedBy());
 		assertEquals(info1.getConnectionId(), f1.getConnectionId());
 
@@ -208,7 +208,7 @@ public class GridDaoImplTest {
 		GridConnectionInfo f2 = dao.getConnection(info2.getConnectionId()).get();
 		assertNotNull(f2.getCreatedOn());
 		assertEquals(session.getSessionId(), f2.getSessionId());
-		assertEquals(r2.getReplicaId(), f2.getReplciaId());
+		assertEquals(r2.getReplicaId(), f2.getReplicaId());
 		assertEquals(adminUserId, f2.getCreatedBy());
 		assertEquals(info2.getConnectionId(), f2.getConnectionId());
 
@@ -220,7 +220,7 @@ public class GridDaoImplTest {
 		f1 = dao.getConnection(info1.getConnectionId()).get();
 		assertTrue(f1.getCreatedOn().getTime() > startingCreatedOn);
 		assertEquals(session.getSessionId(), f1.getSessionId());
-		assertEquals(r1.getReplicaId(), f1.getReplciaId());
+		assertEquals(r1.getReplicaId(), f1.getReplicaId());
 		assertEquals(adminUserId, f1.getCreatedBy());
 		assertEquals(info1.getConnectionId(), f1.getConnectionId());
 

@@ -10,7 +10,7 @@ public class GridConnectionInfo {
 
 	private String connectionId;
 	private String sessionId;
-	private Long replciaId;
+	private Long replicaId;
 	private Long createdBy;
 	private Date createdOn;
 	private EventSource source;
@@ -33,12 +33,12 @@ public class GridConnectionInfo {
 		return this;
 	}
 
-	public Long getReplciaId() {
-		return replciaId;
+	public Long getReplicaId() {
+		return replicaId;
 	}
 
-	public GridConnectionInfo setReplciaId(Long replciaId) {
-		this.replciaId = replciaId;
+	public GridConnectionInfo setReplicaId(Long replicaId) {
+		this.replicaId = replicaId;
 		return this;
 	}
 
@@ -71,7 +71,7 @@ public class GridConnectionInfo {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(connectionId, createdBy, createdOn, replciaId, sessionId, source);
+		return Objects.hash(connectionId, createdBy, createdOn, replicaId, sessionId, source);
 	}
 
 	@Override
@@ -84,13 +84,13 @@ public class GridConnectionInfo {
 			return false;
 		GridConnectionInfo other = (GridConnectionInfo) obj;
 		return Objects.equals(connectionId, other.connectionId) && Objects.equals(createdBy, other.createdBy)
-				&& Objects.equals(createdOn, other.createdOn) && Objects.equals(replciaId, other.replciaId)
+				&& Objects.equals(createdOn, other.createdOn) && Objects.equals(replicaId, other.replicaId)
 				&& Objects.equals(sessionId, other.sessionId) && source == other.source;
 	}
 
 	@Override
 	public String toString() {
-		return "ConnectionInfo [connectionId=" + connectionId + ", sessionId=" + sessionId + ", replciaId=" + replciaId
+		return "ConnectionInfo [connectionId=" + connectionId + ", sessionId=" + sessionId + ", replicaId=" + replicaId
 				+ ", createdBy=" + createdBy + ", createdOn=" + createdOn + ", source=" + source + "]";
 	}
 

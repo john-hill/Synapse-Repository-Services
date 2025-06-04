@@ -93,6 +93,6 @@ public interface GridManager {
 	 * Unconditionally remove a connection.
 	 * @param connectionId
 	 */
-	void removeReplicatConnection(String connectionId);
+	void removeReplicaConnection(String connectionId);
 
 }

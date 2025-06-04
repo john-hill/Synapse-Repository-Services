@@ -23,7 +23,7 @@ public class DBOGridConnection implements DatabaseObject<DBOGridConnection> {
 
 	private String connectionId;
 	private String sessionId;
-	private Long replciaId;
+	private Long replicaId;
 	private Long createdBy;
 	private Timestamp createdOn;
 	private String source;
@@ -94,11 +94,11 @@ public class DBOGridConnection implements DatabaseObject<DBOGridConnection> {
 	}
 
 	public Long getReplciaId() {
-		return replciaId;
+		return replicaId;
 	}
 
-	public DBOGridConnection setReplciaId(Long replciaId) {
-		this.replciaId = replciaId;
+	public DBOGridConnection setReplciaId(Long replicaId) {
+		this.replicaId = replicaId;
 		return this;
 	}
 
@@ -131,7 +131,7 @@ public class DBOGridConnection implements DatabaseObject<DBOGridConnection> {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(connectionId, createdBy, createdOn, replciaId, sessionId, source);
+		return Objects.hash(connectionId, createdBy, createdOn, replicaId, sessionId, source);
 	}
 
 	@Override
@@ -144,13 +144,13 @@ public class DBOGridConnection implements DatabaseObject<DBOGridConnection> {
 			return false;
 		DBOGridConnection other = (DBOGridConnection) obj;
 		return Objects.equals(connectionId, other.connectionId) && Objects.equals(createdBy, other.createdBy)
-				&& Objects.equals(createdOn, other.createdOn) && Objects.equals(replciaId, other.replciaId)
+				&& Objects.equals(createdOn, other.createdOn) && Objects.equals(replicaId, other.replicaId)
 				&& Objects.equals(sessionId, other.sessionId) && Objects.equals(source, other.source);
 	}
 
 	@Override
 	public String toString() {
-		return "DBOConnection [connectionId=" + connectionId + ", sessionId=" + sessionId + ", replciaId=" + replciaId
+		return "DBOConnection [connectionId=" + connectionId + ", sessionId=" + sessionId + ", replicaId=" + replicaId
 				+ ", createdBy=" + createdBy + ", createdOn=" + createdOn + ", source=" + source + "]";
 	}
 

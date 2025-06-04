@@ -177,26 +177,27 @@ public class GridManagerImpl implements GridManager {
 		ValidateArgument.required(connection, "connection");
 
 		if (!EventType.CONNECT.equals(context.getEventType())) {
-			throw new UnauthorizedException("The 'connected' event is not allowed in this context");
+			throw new UnauthorizedException("Invalid request");
 		}
 		String sessionIdAsString = GridUtils.gridSessionIdAsString(connection.getGridSessionId());
 		validateRepicaOwner(user, sessionIdAsString, connection.getReplicaId());
 		gridDao.createConnection(new GridConnectionInfo().setConnectionId(context.getConnectionId())
-				.setCreatedBy(user.getId()).setReplciaId(connection.getReplicaId()).setSessionId(sessionIdAsString)
+				.setCreatedBy(user.getId()).setReplicaId(connection.getReplicaId()).setSessionId(sessionIdAsString)
 				.setSource(context.getEventSource()));
 	}
 
+	@WriteTransaction
 	@Override
 	public void removeReplicatConnection(EventType type, String connectionId) {
 		ValidateArgument.required(type, "type");
 		if (!EventType.DISCONNECT.equals(type)) {
-			throw new UnauthorizedException("The 'disconnected' event is not allowed in this context");
+			throw new UnauthorizedException("Invalid request");
 		}
-		removeReplicatConnection(connectionId);
+		removeReplicaConnection(connectionId);
 	}
 
 	@Override
-	public void removeReplicatConnection(String connectionId) {
+	public void removeReplicaConnection(String connectionId) {
 		ValidateArgument.required(connectionId, "connectionId");
 		gridDao.removeConnection(connectionId);
 	}

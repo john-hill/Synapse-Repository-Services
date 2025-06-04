@@ -26,7 +26,6 @@ import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
-import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlResponse;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
@@ -36,13 +35,12 @@ import org.sagebionetworks.repo.model.grid.CreateReplicaResponse;
 import org.sagebionetworks.repo.model.grid.EventContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.EventType;
+import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
 import org.sagebionetworks.repo.web.NotFoundException;
-
-import com.mchange.v1.cachedstore.CachedStore.Manager;
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -477,7 +475,7 @@ public class GridManagerUnitTest {
 
 		verify(mockGridDao)
 				.createConnection(new GridConnectionInfo().setConnectionId(connectionId).setSessionId(gridSessionId)
-						.setReplciaId(replicaId).setCreatedBy(userId).setSource(EventSource.WEBSOCKET));
+						.setReplicaId(replicaId).setCreatedBy(userId).setSource(EventSource.WEBSOCKET));
 	}
 
 	@Test
@@ -489,7 +487,7 @@ public class GridManagerUnitTest {
 			gridManager.createReplicaConnection(mockUser, eventContext,
 					new Connection().setGridSessionId(gridSessionIdLong).setReplicaId(replicaId).setUserId(userId));
 		}).getMessage();
-		assertEquals("The 'connected' event is not allowed in this context", message);
+		assertEquals("Invalid request", message);
 
 		verifyZeroInteractions(mockGridDao);
 	}
@@ -544,7 +542,7 @@ public class GridManagerUnitTest {
 			// call under test
 			gridManager.removeReplicatConnection(EventType.MESSAGE, connectionId);
 		}).getMessage();
-		assertEquals("The 'disconnected' event is not allowed in this context", message);
+		assertEquals("Invalid request", message);
 		verifyZeroInteractions(mockGridDao);
 	}
 
@@ -572,7 +570,7 @@ public class GridManagerUnitTest {
 	@Test
 	public void testRemoveReplicaConnectionInternal() {
 		// call under test
-		gridManager.removeReplicatConnection(connectionId);
+		gridManager.removeReplicaConnection(connectionId);
 		verify(mockGridDao).removeConnection(connectionId);
 	}
 
@@ -581,7 +579,7 @@ public class GridManagerUnitTest {
 		connectionId = null;
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			gridManager.removeReplicatConnection(connectionId);
+			gridManager.removeReplicaConnection(connectionId);
 		}).getMessage();
 		assertEquals("connectionId is required.", message);
 		verifyZeroInteractions(mockGridDao);

@@ -79,9 +79,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 		assertNotNull(presignedUrl);
 		
 		BlockingQueue<String> incomingMessages = new LinkedBlockingQueue<>();
-		try {
 		WebSocket ws = createConnection(presignedUrl, incomingMessages);
-
 		
 		assertTrue(waitForMessage(8, "connected", incomingMessages));
 		// send a ping
@@ -92,9 +90,6 @@ public class GridEventBrokerWorkerIntegrationTest {
 		System.out.println("Ping: " + (end - start) + " ms");
 		ws.sendClose(4999, "closing").join();
 		
-		}catch (Exception e) {
-			System.out.println(e);
-		}
 	}
 	
 	/**

@@ -1405,7 +1405,14 @@ public class SqlConstants {
 	public static final String COL_GRID_REPLICA_IS_AGENT =			"IS_AGENT";	
 	public static final String DDL_GRID_REPLICA = "schema/grid/Grid-Replica-ddl.sql";
 	
-	
+	public static final String TABLE_GRID_CONNECTION = 				"GRID_CONNECTION";
+	public static final String COL_GRID_CON_CONNECTION_ID = 		"CONNECTION_ID";
+	public static final String COL_GRID_CON_SESSION_ID = 			"SESSION_ID";
+	public static final String COL_GRID_CON_REPLICA_ID =			"REPLICA_ID";
+	public static final String COL_GRID_CON_CREATED_BY =			"CREATED_BY";
+	public static final String COL_GRID_CON_CREATED_ON = 			"CREATED_ON";
+	public static final String COL_GRID_CON_SOURCE = 				"SOURCE";
+	public static final String DDL_GRID_CONNECTION = "schema/grid/Grid-Connection-ddl.sql"; 
 
 	// This seems to be the name of the id column for all tables.
 	public static final String COLUMN_ID		= "id";

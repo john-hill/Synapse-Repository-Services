@@ -19,9 +19,7 @@ import org.sagebionetworks.repo.model.grid.ErrorType;
 import org.sagebionetworks.repo.model.grid.EventContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.EventType;
-import org.sagebionetworks.repo.model.grid.InternalEventContext;
 import org.sagebionetworks.repo.model.grid.NotificationError;
-import org.sagebionetworks.repo.model.grid.WebsocketEventContext;
 import org.sagebionetworks.repo.model.grid.event.JsonRxMessageType;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.progress.ProgressCallback;
@@ -161,19 +159,9 @@ public class GridEventBrokerWorker implements MessageDrivenRunner {
 			MessageAttributeValue eventSourceString = attributes.get("EventSource");
 			ValidateArgument.required(eventSourceString, "attribute.EventSource");
 			EventSource eventSource = EventSource.valueOf(eventSourceString.getStringValue());
-
-			switch (eventSource) {
-			case INTERNAL:
-				MessageAttributeValue queueValue = attributes.get("QueueName");
-				ValidateArgument.required(queueValue, "attribute.QueueName");
-				return new InternalEventContext(eventType, queueValue.getStringValue());
-			case WEBSOCKET:
-				MessageAttributeValue convalue = attributes.get("ConnectionId");
-				ValidateArgument.required(convalue, "attribute.ConnectionId");
-				return new WebsocketEventContext(eventType, convalue.getStringValue());
-			default:
-				throw new IllegalArgumentException("Unknown eventSource: " + eventSource);
-			}
+			MessageAttributeValue convalue = attributes.get("ConnectionId");
+			ValidateArgument.required(convalue, "attribute.ConnectionId");
+			return new EventContext(eventType, eventSource, convalue.getStringValue());
 		} catch (IllegalArgumentException e) {
 			// Any IllegalArgumentException in this context is a server-side issue.
 			throw new IllegalStateException(e.getMessage());

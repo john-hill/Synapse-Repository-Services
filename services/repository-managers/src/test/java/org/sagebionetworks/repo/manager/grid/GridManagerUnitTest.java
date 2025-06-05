@@ -32,9 +32,14 @@ import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridResponse;
 import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
 import org.sagebionetworks.repo.model.grid.CreateReplicaResponse;
+import org.sagebionetworks.repo.model.grid.EventContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
+import org.sagebionetworks.repo.model.grid.EventType;
+import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.GridUtils;
+import org.sagebionetworks.repo.model.grid.internal.Connection;
 import org.sagebionetworks.repo.web.NotFoundException;
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -61,17 +66,21 @@ public class GridManagerUnitTest {
 
 	private Long userId;
 	private String gridSessionId;
+	private Long gridSessionIdLong;
 	private EventSource eventSource;
 	private boolean isAgent;
 	private CreateReplicaRequest createReplicaRequest;
 	private Long replicaId;
 	private GridReplica replica;
 	private CreateGridPresignedUrlRequest createGridPresignedUrlRequest;
+	private EventContext eventContext;
+	private String connectionId;
 
 	@BeforeEach
 	public void before() {
 		userId = 123L;
-		gridSessionId = "gs456";
+		gridSessionIdLong = 456L;
+		gridSessionId = GridUtils.gridSessionIdAsString(gridSessionIdLong);
 		eventSource = EventSource.WEBSOCKET;
 		isAgent = false;
 		createReplicaRequest = new CreateReplicaRequest().setGridSessionId(gridSessionId);
@@ -79,6 +88,8 @@ public class GridManagerUnitTest {
 		replica = new GridReplica().setReplicaId(replicaId);
 		createGridPresignedUrlRequest = new CreateGridPresignedUrlRequest().setGridSessionId(gridSessionId)
 				.setReplicaId(replicaId);
+		connectionId = "con444=";
+		eventContext = new EventContext(EventType.CONNECT, eventSource, connectionId);
 	}
 
 	@Test
@@ -167,7 +178,7 @@ public class GridManagerUnitTest {
 		// call under test
 		gridManager.validGridSessionAccess(mockUser, gridSessionId);
 	}
-	
+
 	@Test
 	public void testValidGridSessionAccessWithNotFound() {
 		when(mockGridDao.getGridSessionStartedBy(gridSessionId)).thenReturn(Optional.empty());
@@ -214,15 +225,15 @@ public class GridManagerUnitTest {
 		GridSession session = gridManager.getGridSession(mockUser, gridSessionId);
 		assertEquals(expected, session);
 	}
-	
+
 	@Test
 	public void testGetGridSessionNotFound() {
 
 		doNothing().when(gridManager).validGridSessionAccess(mockUser, gridSessionId);
 
 		when(mockGridDao.geGridSession(gridSessionId)).thenReturn(Optional.empty());
-		
-		String message = assertThrows(NotFoundException.class, ()->{
+
+		String message = assertThrows(NotFoundException.class, () -> {
 			// call under test
 			gridManager.getGridSession(mockUser, gridSessionId);
 		}).getMessage();
@@ -317,14 +328,14 @@ public class GridManagerUnitTest {
 		GridReplica result = gridManager.getReplica(mockUser, gridSessionId, replicaId);
 		assertEquals(replica, result);
 	}
-	
+
 	@Test
 	public void testGetReplicaWithNotFound() {
 		// must have access to create a replica.
 		doNothing().when(gridManager).validGridSessionAccess(mockUser, gridSessionId);
 		when(mockGridDao.getGridReplica(gridSessionId, replicaId)).thenReturn(Optional.empty());
 
-		String message = assertThrows(NotFoundException.class, ()->{
+		String message = assertThrows(NotFoundException.class, () -> {
 			// call under test
 			gridManager.getReplica(mockUser, gridSessionId, replicaId);
 		}).getMessage();
@@ -370,7 +381,7 @@ public class GridManagerUnitTest {
 		// call under test
 		gridManager.validateRepicaOwner(mockUser, gridSessionId, replicaId);
 	}
-	
+
 	@Test
 	public void testValidateReplicaOwnerWithNotFound() {
 		when(mockGridDao.getReplicaCreatedBy(gridSessionId, replicaId, false)).thenReturn(Optional.empty());
@@ -430,7 +441,7 @@ public class GridManagerUnitTest {
 				createGridPresignedUrlRequest);
 		String presigned = response.getPresignedUrl();
 		assertTrue(presigned.startsWith(
-				"wss://abcde.execute-api.us-east-1.amazonaws.com/stage/?gridSessionId=gs456&replicaId=88&userId=123"));
+				"wss://abcde.execute-api.us-east-1.amazonaws.com/stage/?gridSessionId=456&replicaId=88&userId=123"));
 		// note the date and signature change with each run.
 		assertTrue(presigned.contains("X-Amz-Algorithm=AWS4-HMAC-SHA256"));
 		assertTrue(presigned.contains("X-Amz-Date"));
@@ -451,5 +462,126 @@ public class GridManagerUnitTest {
 		assertEquals("request is required.", message);
 		verify(gridManager, never()).validateRepicaOwner(any(), any(), any());
 
+	}
+
+	@Test
+	public void testCreateReplicaConnection() {
+		when(mockUser.getId()).thenReturn(userId);
+		doNothing().when(gridManager).validateRepicaOwner(mockUser, gridSessionId, replicaId);
+
+		// call under test
+		gridManager.createReplicaConnection(mockUser, eventContext,
+				new Connection().setGridSessionId(gridSessionIdLong).setReplicaId(replicaId).setUserId(userId));
+
+		verify(mockGridDao)
+				.createConnection(new GridConnectionInfo().setConnectionId(connectionId).setSessionId(gridSessionId)
+						.setReplicaId(replicaId).setCreatedBy(userId).setSource(EventSource.WEBSOCKET));
+	}
+
+	@Test
+	public void testCreateReplicaConnectionWithNonConnectionType() {
+		// Only connection type is allowed.
+		eventContext = new EventContext(EventType.MESSAGE, EventSource.WEBSOCKET, connectionId);
+		String message = assertThrows(UnauthorizedException.class, () -> {
+			// call under test
+			gridManager.createReplicaConnection(mockUser, eventContext,
+					new Connection().setGridSessionId(gridSessionIdLong).setReplicaId(replicaId).setUserId(userId));
+		}).getMessage();
+		assertEquals("Invalid request", message);
+
+		verifyZeroInteractions(mockGridDao);
+	}
+
+	@Test
+	public void testCreateReplicaConnectionWithNullUser() {
+		mockUser = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.createReplicaConnection(mockUser, eventContext,
+					new Connection().setGridSessionId(gridSessionIdLong).setReplicaId(replicaId).setUserId(userId));
+		}).getMessage();
+		assertEquals("user is required.", message);
+
+		verifyZeroInteractions(mockGridDao);
+	}
+
+	@Test
+	public void testCreateReplicaConnectionWithNullContext() {
+		eventContext = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.createReplicaConnection(mockUser, eventContext,
+					new Connection().setGridSessionId(gridSessionIdLong).setReplicaId(replicaId).setUserId(userId));
+		}).getMessage();
+		assertEquals("context is required.", message);
+
+		verifyZeroInteractions(mockGridDao);
+	}
+
+	@Test
+	public void testCreateReplicaConnectionWithNullConnection() {
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.createReplicaConnection(mockUser, eventContext, null);
+		}).getMessage();
+		assertEquals("connection is required.", message);
+
+		verifyZeroInteractions(mockGridDao);
+	}
+
+	@Test
+	public void testRemoveReplicaConnection() {
+		// call under test
+		gridManager.removeReplicatConnection(EventType.DISCONNECT, connectionId);
+		verify(mockGridDao).removeConnection(connectionId);
+	}
+
+	@Test
+	public void testRemoveReplicaConnectionWithNonDisconnect() {
+		String message = assertThrows(UnauthorizedException.class, () -> {
+			// call under test
+			gridManager.removeReplicatConnection(EventType.MESSAGE, connectionId);
+		}).getMessage();
+		assertEquals("Invalid request", message);
+		verifyZeroInteractions(mockGridDao);
+	}
+
+	@Test
+	public void testRemoveReplicaConnectionWithNullType() {
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.removeReplicatConnection(null, connectionId);
+		}).getMessage();
+		assertEquals("type is required.", message);
+		verifyZeroInteractions(mockGridDao);
+	}
+
+	@Test
+	public void testRemoveReplicaConnectionWithNullConnectionId() {
+		connectionId = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.removeReplicatConnection(EventType.DISCONNECT, connectionId);
+		}).getMessage();
+		assertEquals("connectionId is required.", message);
+		verifyZeroInteractions(mockGridDao);
+	}
+
+	@Test
+	public void testRemoveReplicaConnectionInternal() {
+		// call under test
+		gridManager.removeReplicaConnection(connectionId);
+		verify(mockGridDao).removeConnection(connectionId);
+	}
+
+	@Test
+	public void testRemoveReplicaConnectionInternalWithNullId() {
+		connectionId = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.removeReplicaConnection(connectionId);
+		}).getMessage();
+		assertEquals("connectionId is required.", message);
+		verifyZeroInteractions(mockGridDao);
 	}
 }

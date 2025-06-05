@@ -10,17 +10,17 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class GridEventResponsePublisherImpl implements GridEventResponsePublisher {
-	
+
 	private Map<EventSource, GridEventResponsePublishHandler> handlerMap;
-	
+
 	public GridEventResponsePublisherImpl(List<GridEventResponsePublishHandler> handlers) {
 		handlerMap = handlers.stream()
 				.collect(Collectors.toMap(GridEventResponsePublishHandler::getEventSource, handler -> handler));
 	}
-	
+
 	@Override
-	public boolean publishEventResponse(EventContext context, String event) {
-		return handlerMap.get(context.eventSource()).publishEventResponse(context, event);
+	public void publishEventResponse(EventContext context, String event) {
+		handlerMap.get(context.getEventSource()).publishEventResponse(context, event);
 	}
 
 }

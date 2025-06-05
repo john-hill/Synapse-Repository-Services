@@ -7,9 +7,12 @@ import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridResponse;
 import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
 import org.sagebionetworks.repo.model.grid.CreateReplicaResponse;
+import org.sagebionetworks.repo.model.grid.EventContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
+import org.sagebionetworks.repo.model.grid.EventType;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.internal.Connection;
 
 public interface GridManager {
 
@@ -70,5 +73,26 @@ public interface GridManager {
 	 * @return
 	 */
 	CreateGridPresignedUrlResponse createWebsocketPresignedUrl(UserInfo user, CreateGridPresignedUrlRequest request);
+
+	/**
+	 * Called when a connection is established with a replica.
+	 * @param user
+	 * @param context
+	 * @param connection
+	 */
+	void createReplicaConnection(UserInfo user, EventContext context, Connection connection);
+
+	/**
+	 * Remove a connection if the type matches the expected type.
+	 * @param type
+	 * @param connectionId
+	 */
+	void removeReplicatConnection(EventType type, String connectionId);
+	
+	/**
+	 * Unconditionally remove a connection.
+	 * @param connectionId
+	 */
+	void removeReplicaConnection(String connectionId);
 
 }

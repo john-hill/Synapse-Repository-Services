@@ -1,5 +1,6 @@
 package org.sagebionetworks.grid.workers.message.factory;
 
+import org.json.JSONObject;
 import org.sagebionetworks.grid.workers.message.ConnectionMessage;
 import org.sagebionetworks.grid.workers.message.DisconnectedMessage;
 import org.sagebionetworks.grid.workers.message.NotificationMessage;
@@ -22,7 +23,7 @@ public class NotificationMessageFactory implements JsonRxMessageFactory<Notifica
 			return new PingMessage(context, id, body);
 		}
 		if ("connection".equals(method)) {
-			return new ConnectionMessage(context, id, body);
+			return new ConnectionMessage(context, (JSONObject)body);
 		}
 		if ("disconnected".equals(method)) {
 			return new DisconnectedMessage(context, id, body);

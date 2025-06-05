@@ -1,7 +1,9 @@
 package org.sagebionetworks.repo.model.dbo.grid;
 
+import java.util.List;
 import java.util.Optional;
 
+import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
@@ -55,6 +57,33 @@ public interface GridDao {
 	 * @return
 	 */
 	Optional<Long> getReplicaCreatedBy(String sessionId, Long replicaId, boolean isAgentReplica);
+	
+	
+	/**
+	 * Crete a new connection.
+	 * @param con
+	 */
+	void createConnection(GridConnectionInfo con);
+	
+	/**
+	 * Get a connection by its id
+	 * @param connectionId
+	 * @return
+	 */
+	Optional<GridConnectionInfo> getConnection(String connectionId);
+	
+	/**
+	 * List all active connections for a session.
+	 * @param sessionId
+	 * @return
+	 */
+	List<GridConnectionInfo> listConnections(String sessionId);
+	
+	/**
+	 * Remove an actvie connection.
+	 * @param connectionId
+	 */
+	void removeConnection(String connectionId);
 	
 	
 	void truncateAll();

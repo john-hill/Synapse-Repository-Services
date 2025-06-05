@@ -191,6 +191,7 @@
 				<!-- Grid -->
 				<bean class="org.sagebionetworks.repo.model.dbo.grid.DBOGridSession"/>
 				<bean class="org.sagebionetworks.repo.model.dbo.grid.DBOGridReplica"/>
+				<bean class="org.sagebionetworks.repo.model.dbo.grid.DBOGridConnection"/>
 			</list>
 		</property>
 		<!-- MySQL Functions to be created/updated -->

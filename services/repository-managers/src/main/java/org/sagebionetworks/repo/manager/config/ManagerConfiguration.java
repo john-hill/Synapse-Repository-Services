@@ -347,8 +347,8 @@ public class ManagerConfiguration {
 	}
 
 	@Bean
-	public OpenSearchServerlessClient openSearchServerlessClient() {
-		return OpenSearchServerlessClient.builder().region(Region.US_EAST_1).build();
+	public OpenSearchServerlessClient openSearchServerlessClient(AwsCredentialsProvider credentialProvider) {
+		return OpenSearchServerlessClient.builder().credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
 	}
 
 	@Bean
@@ -358,6 +358,7 @@ public class ManagerConfiguration {
 
 	@Bean
 	public OpenSearchClient createOpenSearchClient(OpenSearchServerlessClient openSearchServerlessClient,
+												   AwsCredentialsProvider credentialProvider,
 												   StackConfiguration config, SdkHttpClient httpClient) {
 		String collectionName = config.getStack() + "-" + config.getStackInstance() + "-sagebase-org";
 
@@ -371,7 +372,7 @@ public class ManagerConfiguration {
 						collection.collectionEndpoint().replace("https://", ""),
 						"aoss",
 						Region.US_EAST_1,
-						AwsSdk2TransportOptions.builder().build()
+						AwsSdk2TransportOptions.builder().setCredentials(credentialProvider).build()
 				)
 		);
 	}

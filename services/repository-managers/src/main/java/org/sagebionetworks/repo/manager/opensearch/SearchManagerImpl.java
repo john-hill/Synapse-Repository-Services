@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.opensearch;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.client.opensearch._types.OpenSearchException;
 import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
@@ -45,7 +46,7 @@ public class SearchManagerImpl implements SearchManager {
                     .filter(Objects::nonNull)
                     .map(doc -> BulkOperation.of(op -> op
                             .index(idx -> idx
-                                    .index(SearchConstants.OPEN_SEARCH_INDEX_NAME) // index should be created
+                                    .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
                                     .id(doc.getId())
                                     .document(doc)
                             )
@@ -55,14 +56,17 @@ public class SearchManagerImpl implements SearchManager {
             BulkResponse response = searchDao.sendDocuments(new BulkRequest.Builder().operations(operations).build());
             response.items().forEach(item -> {
                 if (item.error() != null) {
-                    log.error(String.format("Error for document Id %s and the stackTrace %s ", item.id(), item.error().stackTrace()));
+                    log.error("Error for document Id {} and the reason {} ", item.id(), item.error().reason());
                 }
             });
+        } catch (OpenSearchException e) {
+            log.error("Error {} and the stackTrace {} ", e.error().type(), e.error().causedBy());
         } catch (IOException e) {
             throw new TemporarilyUnavailableException(e);
         }
     }
 
+    //currently only for testing purpose
     @Override
     public boolean doesDocumentExist(String id) {
         return searchDao.doesDocumentExists(id);

@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.opensearch;
 
+import org.opensearch.client.opensearch._types.OpenSearchException;
 import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
 
@@ -19,7 +20,7 @@ public interface SearchDao {
      * @param bulkRequest
      * @return
      */
-    BulkResponse sendDocuments(BulkRequest bulkRequest) throws IOException;
+    BulkResponse sendDocuments(BulkRequest bulkRequest) throws IOException, OpenSearchException;
 
     /**
      * Does a document already exist with the given id.?

@@ -8,7 +8,6 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.opensearch.client.opensearch._types.ErrorCause;
 import org.opensearch.client.opensearch._types.Result;
 import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
@@ -23,8 +22,8 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -36,25 +35,26 @@ public class SearchManagerTest {
     ChangeMessageToSearchDocumentTranslator mockTranslator;
     @Captor
     ArgumentCaptor<BulkRequest> bulkRequestArgumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
-    Document doc1;
     @InjectMocks
     private SearchManagerImpl mockSearchManager;
     @Mock
     private SearchDao mockSearchDao;
 
+    Document document;
+
     @BeforeEach
     public void before() {
-        doc1 = new Document();
-        doc1.setId("syn1");
+        document = new Document();
+        document.setId("syn1");
     }
 
 
     @Test
     public void testDocumentChangeMessages() throws IOException {
-        when(mockTranslator.generateSearchDocumentIfNecessary(any(ChangeMessage.class))).thenReturn(doc1);
+        when(mockTranslator.generateSearchDocumentIfNecessary(any(ChangeMessage.class))).thenReturn(document);
         BulkResponseItem item = new BulkResponseItem.Builder()
                 .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
-                .id(doc1.getId())
+                .id(document.getId())
                 .status(201)
                 .result(String.valueOf(Result.Created))
                 .operationType(OperationType.Create)
@@ -68,32 +68,18 @@ public class SearchManagerTest {
         BulkRequest request = bulkRequestArgumentCaptor.getValue();
         assertEquals(1, request.operations().size());
         assertEquals(SearchConstants.OPEN_SEARCH_INDEX_NAME, request.operations().get(0).index().index());
-        assertEquals(request.operations().get(0).index().document(), doc1);
+        assertEquals(request.operations().get(0).index().document(), document);
     }
 
     @Test
     public void testDocumentChangeMessagesWithoutDocument() throws IOException {
         when(mockTranslator.generateSearchDocumentIfNecessary(any(ChangeMessage.class))).thenReturn(null);
-        BulkResponseItem item = new BulkResponseItem.Builder()
-                .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
-                .id(doc1.getId())
-                .status(201)
-                .result(String.valueOf(Result.Created))
-                .operationType(OperationType.Create)
-                .error(new ErrorCause.Builder()
-                        .type("mapper_parsing_exception")
-                        .reason("failed to parse field [name] of type [text]")
-                        .build())
-                .build();
-        when(mockSearchDao.sendDocuments(any())).thenReturn(new BulkResponse.Builder()
-                .items(List.of(item)).errors(true).took(1L).build());
+        when(mockSearchDao.sendDocuments(any())).thenThrow(IllegalArgumentException.class);
 
-        //call under test
-        mockSearchManager.documentChangeMessages(List.of(new ChangeMessage()));
-        verify(mockSearchDao, times(1)).sendDocuments(bulkRequestArgumentCaptor.capture());
-        BulkRequest request = bulkRequestArgumentCaptor.getValue();
-        assertEquals(0, request.operations().size());
-
+        assertThrows(IllegalArgumentException.class, () -> {
+            //call under test
+            mockSearchManager.documentChangeMessages(List.of(new ChangeMessage()));
+        });
     }
 
     @Test
@@ -101,7 +87,16 @@ public class SearchManagerTest {
         when(mockSearchDao.doesDocumentExists(any())).thenReturn(true);
 
         //call under test
-        mockSearchManager.doesDocumentExist(doc1.getId());
-        verify(mockSearchDao, times(1)).doesDocumentExists(doc1.getId());
+        mockSearchManager.doesDocumentExist(document.getId());
+        verify(mockSearchDao, times(1)).doesDocumentExists(document.getId());
+    }
+
+    @Test
+    public void testDoesNotDocumentExist() throws IOException {
+        when(mockSearchDao.doesDocumentExists(any())).thenReturn(false);
+
+        //call under test
+        mockSearchManager.doesDocumentExist(document.getId());
+        verify(mockSearchDao, times(1)).doesDocumentExists(document.getId());
     }
 }

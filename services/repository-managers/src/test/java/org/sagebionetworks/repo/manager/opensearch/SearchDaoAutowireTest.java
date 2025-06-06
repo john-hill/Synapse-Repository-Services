@@ -128,4 +128,9 @@ public class SearchDaoAutowireTest {
             searchDao.doesDocumentExists(null);
         });
     }
+
+    @Test
+    public void testDoesDocumentWithWrongId() {
+        assertFalse(searchDao.doesDocumentExists(UUID.randomUUID().toString()));
+    }
 }

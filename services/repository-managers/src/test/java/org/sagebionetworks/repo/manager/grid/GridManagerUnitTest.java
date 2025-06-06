@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -580,6 +581,30 @@ public class GridManagerUnitTest {
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
 			gridManager.removeReplicaConnection(connectionId);
+		}).getMessage();
+		assertEquals("connectionId is required.", message);
+		verifyZeroInteractions(mockGridDao);
+	}
+
+	@Test
+	public void testListActiveConnections() {
+		when(mockGridDao.getConnection(connectionId)).thenReturn(
+				Optional.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)));
+		List<GridConnectionInfo> otherCons = List
+				.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId("con22"));
+		when(mockGridDao.listConnections(gridSessionId)).thenReturn(otherCons);
+
+		// call under test
+		List<GridConnectionInfo> cons = gridManager.listActiveConnections(connectionId);
+		assertEquals(otherCons, cons);
+	}
+	
+	@Test
+	public void testListActiveConnectionsWithNullId() {
+		connectionId = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.listActiveConnections(connectionId);
 		}).getMessage();
 		assertEquals("connectionId is required.", message);
 		verifyZeroInteractions(mockGridDao);

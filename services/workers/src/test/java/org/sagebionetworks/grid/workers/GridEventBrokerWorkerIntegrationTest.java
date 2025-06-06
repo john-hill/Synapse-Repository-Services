@@ -12,6 +12,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 import org.json.JSONArray;
 import org.junit.jupiter.api.BeforeEach;
@@ -81,17 +82,83 @@ public class GridEventBrokerWorkerIntegrationTest {
 		BlockingQueue<String> incomingMessages = new LinkedBlockingQueue<>();
 		WebSocket ws = createConnection(presignedUrl, incomingMessages);
 		
-		assertTrue(waitForMessage(8, "connected", incomingMessages));
+		waitForConnected(incomingMessages);
 		// send a ping
-		long start = System.currentTimeMillis();
 		ws.sendText(new JSONArray("[8,\"ping\"]").toString(), true).join();
-		assertTrue(waitForMessage(8, "pong", incomingMessages));
-		long end = System.currentTimeMillis();
-		System.out.println("Ping: " + (end - start) + " ms");
+		assertTrue(waitForMessage((a)-> a.optInt(0) == 8 && "pong".equals(a.optString(1)), incomingMessages));
 		ws.sendClose(4999, "closing").join();
 		
 	}
+
+
+	void waitForConnected(BlockingQueue<String> incomingMessages) throws InterruptedException {
+		assertTrue(waitForMessage((a)-> a.optInt(0) == 8 && "connected".equals(a.optString(1)), incomingMessages));
+	}
 	
+	@Test
+	public void testPatch() throws AssertionError, AsynchJobFailedException, URISyntaxException, InterruptedException {
+		// Create a grid session.
+		GridSession session = asynchronousJobWorkerHelper
+				.assertJobResponse(admin, new CreateGridRequest(), (CreateGridResponse response) -> {
+					assertNotNull(response);
+					assertNotNull(response.getGridSession());
+				}, MAX_WAIT_MS).getResponse().getGridSession();
+
+		// Create replica One
+		GridReplica replicaOne = gridServie
+				.createReplica(admin.getId(), new CreateReplicaRequest().setGridSessionId(session.getSessionId()))
+				.getReplica();
+
+		String urlOne = gridServie
+				.createPresignedUrl(admin.getId(), new CreateGridPresignedUrlRequest()
+						.setGridSessionId(session.getSessionId()).setReplicaId(replicaOne.getReplicaId()))
+				.getPresignedUrl();
+		assertNotNull(urlOne);
+		
+		BlockingQueue<String> incomingMessagesOne = new LinkedBlockingQueue<>();
+		WebSocket wsOne = createConnection(urlOne, incomingMessagesOne);
+		waitForConnected(incomingMessagesOne);
+		
+		// Create replica two.
+		GridReplica replicaTwo = gridServie
+				.createReplica(admin.getId(), new CreateReplicaRequest().setGridSessionId(session.getSessionId()))
+				.getReplica();
+
+		String urlTwo = gridServie
+				.createPresignedUrl(admin.getId(), new CreateGridPresignedUrlRequest()
+						.setGridSessionId(session.getSessionId()).setReplicaId(replicaTwo.getReplicaId()))
+				.getPresignedUrl();
+		assertNotNull(urlOne);
+		
+		BlockingQueue<String> incomingMessagesTwo = new LinkedBlockingQueue<>();
+		WebSocket wsTwo = createConnection(urlTwo, incomingMessagesTwo);
+		waitForConnected(incomingMessagesTwo);
+		
+		// Replica one sends a patch.
+		String patchBody = String.format("[[[%d,1]],[0]]", replicaOne.getReplicaId());
+		String patchRequest = String.format("[1,101,\"patch\", %s]", patchBody);
+		wsOne.sendText(patchRequest, true).join();
+		
+		// Wait for response complete: [5,101]
+		assertTrue(waitForMessage((a)-> a.optInt(0) == 5 && a.optInt(1) == 101, incomingMessagesOne));
+		
+		// The second replica should be notified on the patch
+		assertTrue(waitForMessage((a)-> {
+			if(a.optInt(0) != 8) {
+				return false;
+			}
+			if(!"patch".equals(a.optString(1))) {
+				return false;
+			}
+			JSONArray body = a.optJSONArray(2);
+			if(body != null && body.toString().equals(patchBody)) {
+				return true;
+			}
+			return false;
+		}, incomingMessagesTwo));
+		
+	}
+
 	/**
 	 * Wait for the given message to appear on the queue.
 	 * @param code
@@ -100,7 +167,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 	 * @return
 	 * @throws InterruptedException
 	 */
-	boolean waitForMessage(int code, String key, BlockingQueue<String> incomingMessages) throws InterruptedException {
+	boolean waitForMessage(Predicate<JSONArray> handler, BlockingQueue<String> incomingMessages) throws InterruptedException {
 		String message = null;
 		do {
 			message = incomingMessages.poll(10, TimeUnit.SECONDS);
@@ -108,20 +175,14 @@ public class GridEventBrokerWorkerIntegrationTest {
 				return false;
 			}
 			System.out.println(message);
-			JSONArray response = new JSONArray(message);
-			if(response.length() > 1){
-				if(response.getInt(0) == 8) {
-					if(key.equals(response.getString(1))) {
-						return true;
-					}
-				}
+			JSONArray array = new JSONArray(message);
+			if(handler.test(array)) {
+				return true;
 			}
 		} while (message != null);
 		return false;
 	}
 	
-	
-
 	/**
 	 * Create a websocket connection that will post all received messages to the
 	 * passed queue.

@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.grid;
 
 import java.time.Duration;
+import java.util.List;
 
 import org.sagebionetworks.repo.manager.config.WebsocketApi;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
@@ -21,6 +22,7 @@ import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
+import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.ValidateArgument;
@@ -200,6 +202,20 @@ public class GridManagerImpl implements GridManager {
 	public void removeReplicaConnection(String connectionId) {
 		ValidateArgument.required(connectionId, "connectionId");
 		gridDao.removeConnection(connectionId);
+	}
+
+	@Override
+	public boolean savePatch(EventContext context, LogicalTimestamp patchId, String body) {
+		return true;
+	}
+
+	@Override
+	public List<GridConnectionInfo> listActiveConnections(String connectionId) {
+		ValidateArgument.required(connectionId, "connectionId");
+		// Lookup the grid session for the provide connection Id.
+		GridConnectionInfo thisCon = gridDao.getConnection(connectionId)
+				.orElseThrow(() -> new IllegalArgumentException(""));
+		return gridDao.listConnections(thisCon.getSessionId());
 	}
 
 }

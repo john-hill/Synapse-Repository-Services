@@ -65,6 +65,6 @@ public class SearchManagerImpl implements SearchManager {
 
     @Override
     public boolean doesDocumentExist(String id) {
-        return searchDao.doesDocumentExistInSearchIndex(id);
+        return searchDao.doesDocumentExists(id);
     }
 }

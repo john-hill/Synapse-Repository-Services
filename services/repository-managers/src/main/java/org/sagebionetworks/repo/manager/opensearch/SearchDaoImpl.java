@@ -24,13 +24,13 @@ public class SearchDaoImpl implements SearchDao {
     }
 
     @Override
-    public BulkResponse sendDocuments(BulkRequest bulkRequest) throws IOException {
+    public BulkResponse sendDocuments(BulkRequest bulkRequest) throws IOException, OpenSearchException {
         ValidateArgument.required(bulkRequest, "bulkRequest");
         return openSearchClient.bulk(bulkRequest);
     }
 
     @Override
-    public boolean doesDocumentExistInSearchIndex(String id){
+    public boolean doesDocumentExists(String id){
         ValidateArgument.required(id, "id");
         try {
             GetRequest getRequest = GetRequest.of(g -> g

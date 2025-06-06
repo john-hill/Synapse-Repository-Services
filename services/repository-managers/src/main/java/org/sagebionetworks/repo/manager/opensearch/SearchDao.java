@@ -26,5 +26,5 @@ public interface SearchDao {
      * @param id
      * @return
      */
-    boolean doesDocumentExistInSearchIndex(String id);
+    boolean doesDocumentExists(String id);
 }

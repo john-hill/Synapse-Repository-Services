@@ -23,6 +23,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 
@@ -48,10 +49,10 @@ public class OpenSearchIndexInitializerTest {
         //call under test
         initializer.init();
 
-        Mockito.verify(mockIndicesClient, Mockito.times(1)).exists(captorIndexExists.capture());
+        verify(mockIndicesClient, Mockito.times(1)).exists(captorIndexExists.capture());
         ExistsRequest captured = captorIndexExists.getValue();
         assertEquals(SearchConstants.OPEN_SEARCH_INDEX_NAME, captured.index().get(0));
-        Mockito.verify(mockIndicesClient, Mockito.times(1)).create(captorIndexCreation.capture());
+        verify(mockIndicesClient, Mockito.times(1)).create(captorIndexCreation.capture());
         CreateIndexRequest capturedCreation = captorIndexCreation.getValue();
         assertEquals(SearchConstants.OPEN_SEARCH_INDEX_NAME, capturedCreation.index());
     }
@@ -64,10 +65,10 @@ public class OpenSearchIndexInitializerTest {
         //call under test
         initializer.init();
 
-        Mockito.verify(mockIndicesClient).exists(captorIndexExists.capture());
+        verify(mockIndicesClient).exists(captorIndexExists.capture());
         ExistsRequest captured = captorIndexExists.getValue();
         assertEquals(SearchConstants.OPEN_SEARCH_INDEX_NAME, captured.index().get(0));
-        Mockito.verify(mockIndicesClient, Mockito.never()).create((CreateIndexRequest) ArgumentMatchers.any());
+        verify(mockIndicesClient, Mockito.never()).create((CreateIndexRequest) ArgumentMatchers.any());
     }
 
     @Test
@@ -95,8 +96,8 @@ public class OpenSearchIndexInitializerTest {
         future1.get();
         future2.get();
 
-        Mockito.verify(mockIndicesClient, Mockito.times(2)).exists(captorIndexExists.capture());
-        Mockito.verify(mockIndicesClient, Mockito.times(1)).create(captorIndexCreation.capture());
+        verify(mockIndicesClient, Mockito.times(2)).exists(captorIndexExists.capture());
+        verify(mockIndicesClient, Mockito.times(1)).create(captorIndexCreation.capture());
 
         executor.shutdown();
     }
@@ -126,8 +127,8 @@ public class OpenSearchIndexInitializerTest {
         future1.get();
         future2.get();
 
-        Mockito.verify(mockIndicesClient, Mockito.times(2)).exists(captorIndexExists.capture());
-        Mockito.verify(mockIndicesClient, Mockito.times(2)).create(captorIndexCreation.capture());
+        verify(mockIndicesClient, Mockito.times(2)).exists(captorIndexExists.capture());
+        verify(mockIndicesClient, Mockito.times(2)).create(captorIndexCreation.capture());
 
         executor.shutdown();
     }

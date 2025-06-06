@@ -3,11 +3,11 @@ package org.sagebionetworks.repo.manager.opensearch;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.opensearch.client.util.MissingRequiredPropertyException;
+import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.search.Document;
 import org.sagebionetworks.repo.model.search.DocumentFields;
 import org.sagebionetworks.repo.model.search.DocumentTypeNames;
@@ -17,8 +17,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -32,13 +32,12 @@ public class SearchDaoAutowireTest {
     Document document;
     @Autowired
     private SearchDao searchDao;
-    @Autowired
-    private OpenSearchClient openSearchClient;
+
 
     @BeforeEach
     public void before() {
         document = new Document();
-        document.setId("syn4");
+        document.setId("syn" + UUID.randomUUID());
         document.setType(DocumentTypeNames.add);
         document.setFields(new DocumentFields().setName("test"));
     }
@@ -56,8 +55,51 @@ public class SearchDaoAutowireTest {
         assertFalse(response.errors());
         assertEquals(1, response.items().size());
         assertEquals(document.getId(), response.items().get(0).id());
+
+        //once we index the document, it takes some time to became searchable
         Thread.sleep(15000);
         assertTrue(searchDao.doesDocumentExists(document.getId()));
+
+    }
+
+    @Test
+    public void testSendDocumentTwiceUpdateDocument() throws IOException, InterruptedException {
+        BulkRequest request = new BulkRequest.Builder().operations(List.of(BulkOperation.of(op -> op
+                .index(idx -> idx
+                        .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
+                        .id(document.getId())
+                        .document(document))))).build();
+
+        //call under test. sending document first time.
+        BulkResponse response = searchDao.sendDocuments(request);
+        assertFalse(response.errors());
+        assertEquals(1, response.items().size());
+        assertEquals(1, response.items().get(0).version());
+
+        //once we index the document, it takes some time to became searchable
+        Thread.sleep(15000);
+
+        //sending document 2nd time.
+        BulkResponse response2 = searchDao.sendDocuments(request);
+        assertFalse(response.errors());
+        assertEquals(1, response2.items().size());
+        assertEquals(2, response2.items().get(0).version());
+    }
+
+
+    @Test
+    public void testSendDocumentWithWrongMapping() throws IOException {
+        Project project = new Project().setId("test" + UUID.randomUUID()).setName("test");
+        BulkRequest request = new BulkRequest.Builder().operations(List.of(BulkOperation.of(op -> op
+                .index(idx -> idx
+                        .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
+                        .id(project.getId())
+                        .document(project))))).build();
+
+        //call under test. sending document first time.
+        BulkResponse response = searchDao.sendDocuments(request);
+        assertTrue(response.errors());
+        assertEquals("strict_dynamic_mapping_exception", response.items().get(0).error().type());
     }
 
     @Test

@@ -4,6 +4,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch._types.OpenSearchException;
+import org.opensearch.client.opensearch._types.mapping.DynamicMapping;
 import org.opensearch.client.opensearch.indices.CreateIndexRequest;
 import org.opensearch.client.opensearch.indices.CreateIndexResponse;
 import org.opensearch.client.opensearch.indices.OpenSearchIndicesClient;
@@ -34,6 +35,7 @@ public class OpenSearchIndexInitializer {
                 CreateIndexRequest request = new CreateIndexRequest.Builder()
                         .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
                         .mappings(m -> m
+                                .dynamic(DynamicMapping.Strict)
                                 .properties("type", p -> p
                                         .text(text -> text
                                                 .fields("keyword", f -> f.keyword(k -> k))))

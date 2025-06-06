@@ -360,7 +360,7 @@ public class ManagerConfiguration {
 	public OpenSearchClient createOpenSearchClient(OpenSearchServerlessClient openSearchServerlessClient,
 												   AwsCredentialsProvider credentialProvider,
 												   StackConfiguration config, SdkHttpClient httpClient) {
-		String collectionName = config.getStack() + "-" + config.getStackInstance() + "-sagebase-org";
+		String collectionName = config.getStack() + "-" + config.getStackInstance() + "-synsearch";
 
 		CollectionDetail collection = openSearchServerlessClient.batchGetCollection(req -> req
 				.names(collectionName)

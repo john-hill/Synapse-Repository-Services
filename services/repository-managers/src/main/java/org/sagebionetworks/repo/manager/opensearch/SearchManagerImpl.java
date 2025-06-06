@@ -11,6 +11,7 @@ import org.sagebionetworks.repo.web.TemporarilyUnavailableException;
 import org.sagebionetworks.search.SearchConstants;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
@@ -21,11 +22,19 @@ public class SearchManagerImpl implements SearchManager {
     static private Logger log = LogManager.getLogger(SearchManagerImpl.class);
 
     private ChangeMessageToSearchDocumentTranslator translator;
+    private OpenSearchIndexInitializer openSearchIndexInitializer;
     private SearchDao searchDao;
 
-    public SearchManagerImpl(ChangeMessageToSearchDocumentTranslator translator, SearchDao searchDao) {
+    public SearchManagerImpl(ChangeMessageToSearchDocumentTranslator translator,
+                             OpenSearchIndexInitializer openSearchIndexInitializer, SearchDao searchDao) {
         this.translator = translator;
+        this.openSearchIndexInitializer = openSearchIndexInitializer;
         this.searchDao = searchDao;
+    }
+
+    @PostConstruct()
+    public void init() throws IOException {
+        openSearchIndexInitializer.init();
     }
 
     @Override

@@ -1,5 +1,7 @@
 package org.sagebionetworks.repo.manager.grid;
 
+import java.util.List;
+
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlResponse;
@@ -10,9 +12,11 @@ import org.sagebionetworks.repo.model.grid.CreateReplicaResponse;
 import org.sagebionetworks.repo.model.grid.EventContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.EventType;
+import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
+import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
 public interface GridManager {
 
@@ -76,6 +80,7 @@ public interface GridManager {
 
 	/**
 	 * Called when a connection is established with a replica.
+	 * 
 	 * @param user
 	 * @param context
 	 * @param connection
@@ -84,15 +89,36 @@ public interface GridManager {
 
 	/**
 	 * Remove a connection if the type matches the expected type.
+	 * 
 	 * @param type
 	 * @param connectionId
 	 */
 	void removeReplicatConnection(EventType type, String connectionId);
-	
+
 	/**
 	 * Unconditionally remove a connection.
+	 * 
 	 * @param connectionId
 	 */
 	void removeReplicaConnection(String connectionId);
+
+	/**
+	 * Save a patch.
+	 * 
+	 * @param context
+	 * @param patchId
+	 * @param body
+	 * @return True if this is a new patch. False if this patch has been saved
+	 *         before.
+	 */
+	boolean savePatch(EventContext context, LogicalTimestamp patchId, String body);
+
+	/**
+	 * List the active connections for a grid session.
+	 * 
+	 * @param connectionId
+	 * @return
+	 */
+	List<GridConnectionInfo> listActiveConnections(String connectionId);
 
 }

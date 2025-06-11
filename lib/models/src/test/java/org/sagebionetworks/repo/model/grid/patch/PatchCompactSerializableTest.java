@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.model.grid.patch;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.Arrays;
+import java.util.List;
 
 import org.json.JSONArray;
 import org.junit.jupiter.api.Test;
@@ -17,7 +18,7 @@ public class PatchCompactSerializableTest {
 
 		// call under test
 		Patch patch = PatchCompactSerializable.deserialize(new JSONArray(patchJson));
-		Patch expected = new Patch().setMetadta("{\"key\":9}")
+		Patch expected = new Patch().setMetadata("{\"key\":9}")
 				.setPatchId(new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(10L)).setOperations(Arrays.asList(
 						new NewConstant().setId(new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(10L))));
 		assertEquals(expected, patch);
@@ -34,6 +35,17 @@ public class PatchCompactSerializableTest {
 		LogicalTimestamp patchId = PatchCompactSerializable.peekPatchId(new JSONArray(patchJson));
 		LogicalTimestamp expected = new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(10L);
 		assertEquals(patchId, expected);
+	}
+
+	@Test
+	public void testSerializeClock() {
+		List<LogicalTimestamp> clock = Arrays.asList(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(22L),
+				new LogicalTimestamp().setReplicaId(99L).setSequenceNumber(34L));
+		// call under test
+		JSONArray serialized = PatchCompactSerializable.serializeClock(clock);
+		// call under test
+		List<LogicalTimestamp> back = PatchCompactSerializable.deserializeClock(serialized);
+		assertEquals(clock, back);
 	}
 
 }

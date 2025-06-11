@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.grid;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
@@ -120,5 +121,14 @@ public interface GridManager {
 	 * @return
 	 */
 	List<GridConnectionInfo> listActiveConnections(String connectionId);
+
+	/**
+	 * Given a replica's clock, find the next patch that the replica is missing.
+	 * 
+	 * @param context
+	 * @param clock
+	 * @return {@link Optional#empty()} If the replica is up-to-date.
+	 */
+	Optional<String> getNextMissingPatch(EventContext context, List<LogicalTimestamp> clock);
 
 }

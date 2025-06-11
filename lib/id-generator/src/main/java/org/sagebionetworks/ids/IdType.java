@@ -82,7 +82,8 @@ public enum IdType {
 	PROJECT_STORAGE_LIMIT_ID(null),
 	PORTAL_ID(1000L),
 	GRID_SESSION_ID((long) 0xffff),
-	GRID_REPLICA_ID(null)
+	GRID_REPLICA_ID(null),
+	GRID_PATCH_ID(null)
 	;
 	
 	Long startingId;

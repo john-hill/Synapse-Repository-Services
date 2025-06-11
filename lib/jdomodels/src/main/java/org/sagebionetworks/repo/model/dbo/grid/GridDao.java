@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.model.dbo.grid;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
@@ -7,18 +8,22 @@ import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.PatchInfo;
+import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
 public interface GridDao {
 
 	/**
 	 * Create a new grid session.
+	 * 
 	 * @param userId
 	 * @return
 	 */
 	GridSession createGridSession(Long userId);
-	
+
 	/**
 	 * Get the user that started the grid session.
+	 * 
 	 * @param gridSessionId
 	 * @return
 	 */
@@ -26,6 +31,7 @@ public interface GridDao {
 
 	/**
 	 * Get session by ID.
+	 * 
 	 * @param gridSessionId
 	 * @return
 	 */
@@ -33,6 +39,7 @@ public interface GridDao {
 
 	/**
 	 * Create a new replica.
+	 * 
 	 * @param userId
 	 * @param gridSessionId
 	 * @param isAgent
@@ -43,50 +50,83 @@ public interface GridDao {
 
 	/**
 	 * Get information about a grid replica.
+	 * 
 	 * @param sessionId
 	 * @param replicaId
 	 * @return
 	 */
 	Optional<GridReplica> getGridReplica(String sessionId, Long replicaId);
-	
+
 	/**
 	 * Get the replica createdBy of the replica matching the parameters.
+	 * 
 	 * @param sessionId
 	 * @param replicaId
 	 * @param isAgent
 	 * @return
 	 */
 	Optional<Long> getReplicaCreatedBy(String sessionId, Long replicaId, boolean isAgentReplica);
-	
-	
+
 	/**
 	 * Crete a new connection.
+	 * 
 	 * @param con
 	 */
 	void createConnection(GridConnectionInfo con);
-	
+
 	/**
 	 * Get a connection by its id
+	 * 
 	 * @param connectionId
 	 * @return
 	 */
 	Optional<GridConnectionInfo> getConnection(String connectionId);
-	
+
 	/**
 	 * List all active connections for a session.
+	 * 
 	 * @param sessionId
 	 * @return
 	 */
 	List<GridConnectionInfo> listConnections(String sessionId);
-	
+
 	/**
 	 * Remove an actvie connection.
+	 * 
 	 * @param connectionId
 	 */
 	void removeConnection(String connectionId);
-	
-	
-	void truncateAll();
 
+	/**
+	 * Save grid patch data.
+	 * 
+	 * @param sessionId
+	 * @param patchId
+	 * @param s3Key
+	 * @param expires
+	 * @return True of this was a new patch, else false.
+	 */
+	boolean savePatch(String sessionId, LogicalTimestamp patchId, String s3Key, Duration expires);
+
+	/**
+	 * Get information about a patch.
+	 * 
+	 * @param sessionId
+	 * @param patchId
+	 * @return
+	 */
+	Optional<PatchInfo> getPatchInfo(String sessionId, LogicalTimestamp patchId);
+	
+
+	/**
+	 * List all of the missing patches give a clock
+	 * @param sessionId
+	 * @param clock
+	 * @param limit
+	 * @return
+	 */
+	List<LogicalTimestamp> listMissingPatchIdsForClock(String sessionId, List<LogicalTimestamp> clock, long limit);
+
+	void truncateAll();
 
 }

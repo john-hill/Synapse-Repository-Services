@@ -7,14 +7,17 @@ import org.sagebionetworks.repo.model.grid.EventContext;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
 
-public class PatchDataRequest implements RequestDataMessage {
+/**
+ * Message from a replica to the hub to register a new patch.
+ */
+public class NewPatchRegistrationMessage implements RequestDataMessage {
 
 	private final LogicalTimestamp patchId;
 	private final Integer requestId;
 	private final EventContext context;
 	private final String body;
 
-	public PatchDataRequest(EventContext context, Integer id, JSONArray body) {
+	public NewPatchRegistrationMessage(EventContext context, Integer id, JSONArray body) {
 		this.patchId = PatchCompactSerializable.peekPatchId(body);
 		this.requestId = id;
 		this.context = context;
@@ -60,7 +63,7 @@ public class PatchDataRequest implements RequestDataMessage {
 			return false;
 		if (getClass() != obj.getClass())
 			return false;
-		PatchDataRequest other = (PatchDataRequest) obj;
+		NewPatchRegistrationMessage other = (NewPatchRegistrationMessage) obj;
 		return Objects.equals(body, other.body) && Objects.equals(context, other.context)
 				&& Objects.equals(patchId, other.patchId) && Objects.equals(requestId, other.requestId);
 	}

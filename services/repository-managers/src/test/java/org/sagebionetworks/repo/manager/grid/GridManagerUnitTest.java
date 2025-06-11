@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.grid;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -12,16 +13,21 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
-import org.mockito.Spy;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.config.WebsocketApi;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.UnauthorizedException;
@@ -40,11 +46,19 @@ import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridUtils;
+import org.sagebionetworks.repo.model.grid.PatchInfo;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
+import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.web.NotFoundException;
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.core.ResponseBytes;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @ExtendWith(MockitoExtension.class)
 public class GridManagerUnitTest {
@@ -59,10 +73,23 @@ public class GridManagerUnitTest {
 	private WebsocketApi mockWebsocketApi;
 
 	@Mock
+	private StackConfiguration mockConfig;
+
+	@Mock
+	private S3Client mockS3Client;
+
+	@Mock
 	private UserInfo mockUser;
 
-	@Spy
-	@InjectMocks
+	@Captor
+	private ArgumentCaptor<PutObjectRequest> putCaptor;
+
+	@Captor
+	private ArgumentCaptor<RequestBody> bodyCaptor;
+
+	@Captor
+	private ArgumentCaptor<GetObjectRequest> getObjectRequestCaptor;
+
 	private GridManagerImpl gridManager;
 
 	private Long userId;
@@ -76,6 +103,9 @@ public class GridManagerUnitTest {
 	private CreateGridPresignedUrlRequest createGridPresignedUrlRequest;
 	private EventContext eventContext;
 	private String connectionId;
+	private LogicalTimestamp patchId;
+	private String patchBody;
+	private List<LogicalTimestamp> clock;
 
 	@BeforeEach
 	public void before() {
@@ -91,6 +121,14 @@ public class GridManagerUnitTest {
 				.setReplicaId(replicaId);
 		connectionId = "con444=";
 		eventContext = new EventContext(EventType.CONNECT, eventSource, connectionId);
+		patchId = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(777L);
+		patchBody = "[[[66537,1]],[0]]";
+
+		when(mockConfig.getStack()).thenReturn("dev");
+		gridManager = new GridManagerImpl(mockCredentialsProvider, mockWebsocketApi, mockGridDao, mockConfig,
+				mockS3Client);
+		gridManager = Mockito.spy(gridManager);
+		clock = List.of(patchId);
 	}
 
 	@Test
@@ -598,7 +636,17 @@ public class GridManagerUnitTest {
 		List<GridConnectionInfo> cons = gridManager.listActiveConnections(connectionId);
 		assertEquals(otherCons, cons);
 	}
-	
+
+	@Test
+	public void testListActiveConnectionsWithNotFound() {
+		when(mockGridDao.getConnection(connectionId)).thenReturn(Optional.empty());
+		String message = assertThrows(NotFoundException.class, () -> {
+			// call under test
+			gridManager.listActiveConnections(connectionId);
+		}).getMessage();
+		assertEquals("No Connection Found: con444=", message);
+	}
+
 	@Test
 	public void testListActiveConnectionsWithNullId() {
 		connectionId = null;
@@ -608,5 +656,192 @@ public class GridManagerUnitTest {
 		}).getMessage();
 		assertEquals("connectionId is required.", message);
 		verifyZeroInteractions(mockGridDao);
+	}
+
+	@Test
+	public void testSavePatch() {
+		doReturn(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)).when(gridManager)
+				.getConnectionInfo(connectionId);
+		when(mockS3Client.putObject(putCaptor.capture(), bodyCaptor.capture())).thenReturn(null);
+		when(mockGridDao.savePatch(any(), any(), any(), any())).thenReturn(true);
+		// call under test
+		boolean isNew = gridManager.savePatch(eventContext, patchId, patchBody);
+		assertTrue(isNew);
+
+		assertEquals("dev.grid.patch.sagebase.org", putCaptor.getValue().bucket());
+		String key = putCaptor.getValue().key();
+		assertTrue(key.endsWith(".json"));
+		assertEquals(RequestBody.fromString(patchBody, StandardCharsets.UTF_8).optionalContentLength(),
+				bodyCaptor.getValue().optionalContentLength());
+
+		verify(mockGridDao).savePatch(gridSessionId, patchId, key, GridManagerImpl.PATCH_DURATION);
+
+	}
+
+	@Test
+	public void testSavePatchWithNotNew() {
+		doReturn(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)).when(gridManager)
+				.getConnectionInfo(connectionId);
+		when(mockS3Client.putObject(putCaptor.capture(), bodyCaptor.capture())).thenReturn(null);
+		when(mockGridDao.savePatch(any(), any(), any(), any())).thenReturn(false);
+		// call under test
+		boolean isNew = gridManager.savePatch(eventContext, patchId, patchBody);
+		assertFalse(isNew);
+
+		assertEquals("dev.grid.patch.sagebase.org", putCaptor.getValue().bucket());
+		String key = putCaptor.getValue().key();
+		assertTrue(key.endsWith(".json"));
+		assertEquals(RequestBody.fromString(patchBody, StandardCharsets.UTF_8).optionalContentLength(),
+				bodyCaptor.getValue().optionalContentLength());
+
+		verify(mockGridDao).savePatch(gridSessionId, patchId, key, GridManagerImpl.PATCH_DURATION);
+
+	}
+
+	@Test
+	public void testSavePatchWithNullContext() {
+		eventContext = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// Call under test
+			gridManager.savePatch(eventContext, patchId, patchBody);
+		}).getMessage();
+		assertEquals("context is required.", message);
+	}
+
+	@Test
+	public void testSavePatchWithNullPatchId() {
+		patchId = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// Call under test
+			gridManager.savePatch(eventContext, patchId, patchBody);
+		}).getMessage();
+		assertEquals("patchId is required.", message);
+	}
+
+	@Test
+	public void testSavePatchWithNullPatchBody() {
+		patchBody = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// Call under test
+			gridManager.savePatch(eventContext, patchId, patchBody);
+		}).getMessage();
+		assertEquals("body is required.", message);
+	}
+
+	@Test
+	public void testGetPatchBody() {
+		Timestamp expires = new Timestamp(System.currentTimeMillis() + 1001L);
+		when(mockGridDao.getPatchInfo(gridSessionId, patchId))
+				.thenReturn(Optional.of(new PatchInfo().setPatchId(patchId).setS3Key("akey").setExpiresOn(expires)));
+		when(mockS3Client.getObjectAsBytes(getObjectRequestCaptor.capture())).thenReturn(ResponseBytes
+				.fromByteArray(GetObjectResponse.builder().build(), patchBody.getBytes(StandardCharsets.UTF_8)));
+		// call under test
+		Optional<String> op = gridManager.getPatchBody(gridSessionId, patchId);
+		assertEquals(Optional.of(patchBody), op);
+
+		assertEquals("dev.grid.patch.sagebase.org", getObjectRequestCaptor.getValue().bucket());
+		assertEquals("akey", getObjectRequestCaptor.getValue().key());
+	}
+
+	@Test
+	public void testGetPatchBodyWithExpired() {
+		Timestamp expires = new Timestamp(System.currentTimeMillis() - 1001L);
+		when(mockGridDao.getPatchInfo(gridSessionId, patchId))
+				.thenReturn(Optional.of(new PatchInfo().setPatchId(patchId).setS3Key("akey").setExpiresOn(expires)));
+
+		String message = assertThrows(NotFoundException.class, () -> {
+			// Call under test
+			gridManager.getPatchBody(gridSessionId, patchId);
+		}).getMessage();
+		assertEquals("The requested patch has expired: LogicalTimestamp [replicaId=88, sequenceNumber=777]", message);
+
+		verifyZeroInteractions(mockS3Client);
+	}
+
+	@Test
+	public void testGetPatchBodyWithNoPatch() {
+		when(mockGridDao.getPatchInfo(gridSessionId, patchId)).thenReturn(Optional.empty());
+
+		String message = assertThrows(NotFoundException.class, () -> {
+			// Call under test
+			gridManager.getPatchBody(gridSessionId, patchId);
+		}).getMessage();
+		assertEquals("Cannot find patch: LogicalTimestamp [replicaId=88, sequenceNumber=777]", message);
+
+		verifyZeroInteractions(mockS3Client);
+	}
+
+	@Test
+	public void testGetPatchBodyWithNullSessionId() {
+		gridSessionId = null;
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// Call under test
+			gridManager.getPatchBody(gridSessionId, patchId);
+		}).getMessage();
+		assertEquals("sessionId is required.", message);
+
+		verifyZeroInteractions(mockS3Client);
+	}
+
+	@Test
+	public void testGetPatchBodyWithNullPatchId() {
+		patchId = null;
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// Call under test
+			gridManager.getPatchBody(gridSessionId, patchId);
+		}).getMessage();
+		assertEquals("patchId is required.", message);
+
+		verifyZeroInteractions(mockS3Client);
+	}
+
+	@Test
+	public void testGetNextMissingPatch() {
+		when(mockGridDao.getConnection(connectionId)).thenReturn(
+				Optional.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)));
+		List<LogicalTimestamp> missing = List.of(new LogicalTimestamp().setReplicaId(44L).setSequenceNumber(90L));
+
+		when(mockGridDao.listMissingPatchIdsForClock(gridSessionId, clock, 1)).thenReturn(missing);
+		doReturn(Optional.of(patchBody)).when(gridManager).getPatchBody(gridSessionId, missing.get(0));
+
+		// call under test
+		Optional<String> op = gridManager.getNextMissingPatch(eventContext, clock);
+		assertEquals(Optional.of(patchBody), op);
+	}
+
+	@Test
+	public void testGetNextMissingPatchUpToDate() {
+		when(mockGridDao.getConnection(connectionId)).thenReturn(
+				Optional.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)));
+
+		when(mockGridDao.listMissingPatchIdsForClock(gridSessionId, clock, 1)).thenReturn(Collections.emptyList());
+
+		// call under test
+		Optional<String> op = gridManager.getNextMissingPatch(eventContext, clock);
+		assertEquals(Optional.empty(), op);
+	}
+
+	@Test
+	public void testGetNextMissingPatchWithNullContext() {
+		eventContext = null;
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// Call under test
+			gridManager.getNextMissingPatch(eventContext, clock);
+		}).getMessage();
+		assertEquals("context is required.", message);
+	}
+
+	@Test
+	public void testGetNextMissingPatchWithNullClock() {
+		clock = null;
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// Call under test
+			gridManager.getNextMissingPatch(eventContext, clock);
+		}).getMessage();
+		assertEquals("clock is required.", message);
 	}
 }

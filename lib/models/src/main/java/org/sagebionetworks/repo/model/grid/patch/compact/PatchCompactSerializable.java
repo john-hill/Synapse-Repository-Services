@@ -33,7 +33,7 @@ public class PatchCompactSerializable {
 
 		patch.setPatchId(deserializeLogicalTimestamp(header.getJSONArray(0)));
 		JSONObject metadata = header.optJSONObject(1);
-		patch.setMetadta(metadata != null ? metadata.toString() : null);
+		patch.setMetadata(metadata != null ? metadata.toString() : null);
 		List<Operation> operations = new ArrayList<>(compact.length() - 1);
 		for (int i = 0; i < compact.length() - 1; i++) {
 			JSONArray next = compact.getJSONArray(i + 1);
@@ -51,6 +51,7 @@ public class PatchCompactSerializable {
 
 	/**
 	 * Read the patch ID for a patch without deserialization.
+	 * 
 	 * @return
 	 */
 	public static LogicalTimestamp peekPatchId(JSONArray compact) {
@@ -68,8 +69,8 @@ public class PatchCompactSerializable {
 	public static JSONArray serialize(Patch patch) {
 		JSONArray compact = new JSONArray();
 		JSONArray header = new JSONArray().put(0, serializeLogicalTimestamp(patch.getPatchId()));
-		if (patch.getMetadta() != null) {
-			header.put(1, new JSONObject(patch.getMetadta()));
+		if (patch.getMetadata() != null) {
+			header.put(1, new JSONObject(patch.getMetadata()));
 		}
 		compact.put(0, header);
 		for (int i = 0; i < patch.getOperations().size(); i++) {
@@ -108,6 +109,38 @@ public class PatchCompactSerializable {
 
 	public static JSONArray serializeLogicalTimestamp(LogicalTimestamp time) {
 		return new JSONArray().put(0, time.getReplicaId()).put(1, time.getSequenceNumber());
+	}
+
+	/**
+	 * Deserialize a JSON array that represented a clock (version vector).
+	 * 
+	 * @param array
+	 * @return
+	 */
+	public static List<LogicalTimestamp> deserializeClock(JSONArray array) {
+		ValidateArgument.required(array, "array");
+		List<LogicalTimestamp> clock = new ArrayList<>(array.length());
+		for (int i = 0; i < array.length(); i++) {
+			JSONArray idArray = array.optJSONArray(i);
+			if (idArray != null) {
+				clock.add(deserializeLogicalTimestamp(idArray));
+			}
+		}
+		return clock;
+	}
+
+	/**
+	 * Serialize a clock (version vector) to JSON Array.
+	 * @param clock
+	 * @return
+	 */
+	public static JSONArray serializeClock(List<LogicalTimestamp> clock) {
+		ValidateArgument.required(clock, "clock");
+		JSONArray array = new JSONArray();
+		clock.forEach(t -> {
+			array.put(serializeLogicalTimestamp(t));
+		});
+		return array;
 	}
 
 }

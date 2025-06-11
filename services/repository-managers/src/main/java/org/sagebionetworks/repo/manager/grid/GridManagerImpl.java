@@ -1,14 +1,18 @@
 package org.sagebionetworks.repo.manager.grid;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
+import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.config.WebsocketApi;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
-import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlResponse;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
@@ -18,9 +22,11 @@ import org.sagebionetworks.repo.model.grid.CreateReplicaResponse;
 import org.sagebionetworks.repo.model.grid.EventContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.EventType;
+import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridUtils;
+import org.sagebionetworks.repo.model.grid.PatchInfo;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
@@ -30,6 +36,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.SdkHttpMethod;
 import software.amazon.awssdk.http.SdkHttpRequest;
 import software.amazon.awssdk.http.auth.aws.signer.AwsV4FamilyHttpSigner.AuthLocation;
@@ -37,22 +44,37 @@ import software.amazon.awssdk.http.auth.aws.signer.AwsV4HttpSigner;
 import software.amazon.awssdk.http.auth.spi.signer.SignRequest;
 import software.amazon.awssdk.http.auth.spi.signer.SignedRequest;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @Service
 public class GridManagerImpl implements GridManager {
 
 	public static final String GRID_REPLICA_NOT_FOUND = "Grid replica not found.";
 	public static final String GRID_SESSION_NOT_FOUND = "Grid session not found.";
+	/*
+	 * Note: The S3 bucket that store patches will automatically delete all patch
+	 * files that are 120 days old. We expire each patch in the database after 119
+	 * days to ensure we never try to read a files that is about to be deleted
+	 */
+	public static final Duration PATCH_DURATION = Duration.ofDays(119);
+
 	private final AwsCredentialsProvider awsCredentialsProvider;
 	private final WebsocketApi websocketApi;
 	private final GridDao gridDao;
+	private final String gridPatchBucket;
+	private final S3Client s3Client;
 
 	@Autowired
-	public GridManagerImpl(AwsCredentialsProvider awsCredentialsProvider, WebsocketApi websocketApi, GridDao gridDao) {
+	public GridManagerImpl(AwsCredentialsProvider awsCredentialsProvider, WebsocketApi websocketApi, GridDao gridDao,
+			StackConfiguration config, S3Client s3Client) {
 		super();
 		this.awsCredentialsProvider = awsCredentialsProvider;
 		this.websocketApi = websocketApi;
 		this.gridDao = gridDao;
+		this.gridPatchBucket = String.format("%s.grid.patch.sagebase.org", config.getStack());
+		this.s3Client = s3Client;
 	}
 
 	@WriteTransaction
@@ -204,18 +226,67 @@ public class GridManagerImpl implements GridManager {
 		gridDao.removeConnection(connectionId);
 	}
 
+	@WriteTransaction
 	@Override
 	public boolean savePatch(EventContext context, LogicalTimestamp patchId, String body) {
-		return true;
+		ValidateArgument.required(context, "context");
+		ValidateArgument.required(patchId, "patchId");
+		ValidateArgument.required(body, "body");
+
+		GridConnectionInfo thisCon = getConnectionInfo(context.getConnectionId());
+		String s3Key = String.format("%s.json", UUID.randomUUID().toString());
+		s3Client.putObject(PutObjectRequest.builder().bucket(gridPatchBucket).key(s3Key).build(),
+				RequestBody.fromString(body, StandardCharsets.UTF_8));
+		return gridDao.savePatch(thisCon.getSessionId(), patchId, s3Key, PATCH_DURATION);
 	}
 
 	@Override
 	public List<GridConnectionInfo> listActiveConnections(String connectionId) {
 		ValidateArgument.required(connectionId, "connectionId");
 		// Lookup the grid session for the provide connection Id.
-		GridConnectionInfo thisCon = gridDao.getConnection(connectionId)
-				.orElseThrow(() -> new IllegalArgumentException(""));
+		GridConnectionInfo thisCon = getConnectionInfo(connectionId);
 		return gridDao.listConnections(thisCon.getSessionId());
+	}
+
+	GridConnectionInfo getConnectionInfo(String connectionId) {
+		return gridDao.getConnection(connectionId)
+				.orElseThrow(() -> new NotFoundException("No Connection Found: " + connectionId));
+	}
+
+	@Override
+	public Optional<String> getNextMissingPatch(EventContext context, List<LogicalTimestamp> clock) {
+		ValidateArgument.required(context, "context");
+		ValidateArgument.required(clock, "clock");
+		GridConnectionInfo thisCon = getConnectionInfo(context.getConnectionId());
+		// Get the first patch ID that this clock is missing.
+		List<LogicalTimestamp> missing = gridDao.listMissingPatchIdsForClock(thisCon.getSessionId(), clock, 1);
+		if (missing.isEmpty()) {
+			return Optional.empty();
+		}
+		LogicalTimestamp nextPatchId = missing.get(0);
+
+		return getPatchBody(thisCon.getSessionId(), nextPatchId);
+	}
+
+	/**
+	 * Get the body of a patch for the given patch ID.
+	 * 
+	 * @param sessionId
+	 * @param patchId
+	 * @return
+	 */
+	Optional<String> getPatchBody(String sessionId, LogicalTimestamp patchId) {
+		ValidateArgument.required(sessionId, "sessionId");
+		ValidateArgument.required(patchId, "patchId");
+		PatchInfo patch = gridDao.getPatchInfo(sessionId, patchId)
+				.orElseThrow(() -> new NotFoundException("Cannot find patch: " + patchId));
+		if (Instant.now().isAfter(patch.getExpiresOn().toInstant())) {
+			throw new NotFoundException("The requested patch has expired: " + patchId);
+		}
+
+		return Optional.of(s3Client
+				.getObjectAsBytes(GetObjectRequest.builder().bucket(gridPatchBucket).key(patch.getS3Key()).build())
+				.asString(StandardCharsets.UTF_8));
 	}
 
 }

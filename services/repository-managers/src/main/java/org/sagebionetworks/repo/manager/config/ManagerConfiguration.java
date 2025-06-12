@@ -103,6 +103,7 @@ import software.amazon.awssdk.services.bedrockagent.BedrockAgentClient;
 import software.amazon.awssdk.services.bedrockagent.model.ListAgentsRequest;
 import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAsyncClient;
 import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAsyncClientBuilder;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
@@ -362,10 +363,8 @@ public class ManagerConfiguration {
 			BedrockAgentRuntimeAsyncClient defaultBedrockAgentRuntimeAsyncClient,
 			BedrockAgentRuntimeAsyncClient customBedrockAgentRuntimeAsyncClient) {
 		
-		return new AgentClientProvider(Map.of(
-			AgentType.BASELINE, defaultBedrockAgentRuntimeAsyncClient,
-			AgentType.CUSTOM, customBedrockAgentRuntimeAsyncClient)
-		);
+		return new AgentClientProvider(Map.of(AgentType.BASELINE, defaultBedrockAgentRuntimeAsyncClient,
+				AgentType.CUSTOM, customBedrockAgentRuntimeAsyncClient));
 	}
 
 	@Bean
@@ -384,39 +383,34 @@ public class ManagerConfiguration {
 				.orElseThrow(() -> new IllegalArgumentException("Could not find a bedrock agent named: " + agentName));
 
 	}
-	
+
 	@Bean
 	public SimpleTriggerFactoryBean projectStorageAccessTrigger(ProjectStorageLimitsManager manager) {
-		return new SimpleTriggerBuilder()
-			.withRepeatInterval(10_000)
-			.withStartDelay(10)
-			.withTargetObject(manager)
-			.withTargetMethod("sendProjectStorageNotifications")
-			.build();
+		return new SimpleTriggerBuilder().withRepeatInterval(10_000).withStartDelay(10).withTargetObject(manager)
+				.withTargetMethod("sendProjectStorageNotifications").build();
 	}
-	
+
 	@Bean
 	public RowPFBWriterProvider createRowPFBWriterProvider() {
 		return (String tableName, List<ColumnModel> columns, Metadata metadata, File file) -> {
 			return new RowPFBWriter(tableName, columns, metadata, new FileOutputStream(file));
 		};
 	}
-	
+
 	@Bean
 	int viewUpdateVisibilityTimeoutSeconds() {
 		return 120;
 	}
-	
-	
+
 	@Bean
 	public ApiGatewayV2Client createApiGatewayV2Client(AwsCredentialsProvider credentialProvider) {
-		return ApiGatewayV2Client.builder().credentialsProvider(credentialProvider)
-				.region(Region.US_EAST_1).build();
+		return ApiGatewayV2Client.builder().credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
 	}
-	
+
 	@Bean
 	public WebsocketApi createWebsocketApi(ApiGatewayV2Client client, StackConfiguration stackConfig) {
-		String gridWebsocketApiName = String.format("%s-%s-grid-websocket", stackConfig.getStack(), stackConfig.getStackInstance());
+		String gridWebsocketApiName = String.format("%s-%s-grid-websocket", stackConfig.getStack(),
+				stackConfig.getStackInstance());
 		Api api = findWebsocketApi(client, gridWebsocketApiName);
 		Stage stage = client.getStages(GetStagesRequest.builder().apiId(api.apiId()).build()).items().stream()
 				.findFirst().get();
@@ -424,9 +418,10 @@ public class ManagerConfiguration {
 		return new WebsocketApi().setApiId(api.apiId()).setApiEndpoint(api.apiEndpoint()).setApiName(api.name())
 				.setStageName(stage.stageName());
 	}
-	
+
 	/**
 	 * Helper to find a websocket API by name.
+	 * 
 	 * @param client
 	 * @param apiName
 	 * @return
@@ -435,21 +430,25 @@ public class ManagerConfiguration {
 		String nextToken = null;
 		do {
 			GetApisResponse res = client.getApis(GetApisRequest.builder().nextToken(nextToken).build());
-			Optional<Api> op = res.items().stream()
-					.filter(i -> apiName.equals(i.name())).findFirst();
-			if(op.isPresent()) {
+			Optional<Api> op = res.items().stream().filter(i -> apiName.equals(i.name())).findFirst();
+			if (op.isPresent()) {
 				return op.get();
 			}
 			nextToken = res.nextToken();
 		} while (nextToken != null);
-		throw new NotFoundException("Cannot find websocket apiName: "+apiName);
+		throw new NotFoundException("Cannot find websocket apiName: " + apiName);
 	}
-	
+
 	@Bean
 	public ApiGatewayManagementApiClient createAmazonApiGatewayManagementApi(AwsCredentialsProvider credentialProvider,
 			WebsocketApi websocketApi) throws URISyntaxException {
 		return ApiGatewayManagementApiClient.builder().endpointOverride(new URI(websocketApi.getHttpUrl()))
 				.credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
 	}
-	
+
+	@Bean
+	public S3Client createS3Client(AwsCredentialsProvider credentialProvider) {
+		return S3Client.builder().credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
+	}
+
 }

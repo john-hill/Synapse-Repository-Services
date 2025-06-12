@@ -1,11 +1,13 @@
 package org.sagebionetworks.grid.workers;
 
+import java.util.Optional;
 import java.util.function.Predicate;
 
 import org.sagebionetworks.grid.workers.message.ConnectionMessage;
 import org.sagebionetworks.grid.workers.message.DisconnectedMessage;
-import org.sagebionetworks.grid.workers.message.PatchDataRequest;
+import org.sagebionetworks.grid.workers.message.NewPatchRegistrationMessage;
 import org.sagebionetworks.grid.workers.message.PingMessage;
+import org.sagebionetworks.grid.workers.message.SynchronizeClockMessage;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.grid.GridManager;
 import org.sagebionetworks.repo.manager.grid.response.GridEventResponsePublisher;
@@ -34,7 +36,7 @@ public class GridEventListener {
 	@EventListener
 	public void onPing(PingMessage ping) {
 		ValidateArgument.required(ping, "ping");
-		publisher.publishEventResponse(ping.getContext(), "[8,\"pong\"]");
+		publisher.publishEventResponse(ping.getContext(), JsonRxMessageType.Notification, "pong");
 	}
 
 	@EventListener
@@ -46,7 +48,7 @@ public class GridEventListener {
 		// Save the connection.
 		manager.createReplicaConnection(user, message.getContext(), message.getConnection());
 		// notify the call they are connected.
-		publisher.publishEventResponse(message.getContext(), "[8,\"connected\"]");
+		publisher.publishEventResponse(message.getContext(), JsonRxMessageType.Notification, "connected");
 	}
 
 	@EventListener
@@ -57,29 +59,45 @@ public class GridEventListener {
 	}
 
 	@EventListener
-	public void onPatchDataRequest(PatchDataRequest message) {
+	public void onNewPatchRegistration(NewPatchRegistrationMessage message) {
 		ValidateArgument.required(message, "message");
 		boolean isNew = manager.savePatch(message.getContext(), message.getPatchId(), message.getBody());
-		String response = String.format("[%d,%d]", JsonRxMessageType.ResponseComplete.getCode(),
+		// Let the caller know we have accepted their patch so they no longer need to
+		// keep a copy.
+		publisher.publishEventResponse(message.getContext(), JsonRxMessageType.ResponseComplete,
 				message.getRequestId());
-		publisher.publishEventResponse(message.getContext(), response);
 
 		if (isNew) {
 			/*
-			 * This is a new patch that needs to be broadcast to all other connected
-			 * replicas.
+			 * This is a new patch so let all other connected replicas know there is a new
+			 * patch.
 			 */
-			String patchNotification = String.format("[%d,\"patch\",%s]", JsonRxMessageType.Notification.getCode(),
-					message.getBody());
 			manager.listActiveConnections(message.getContext().getConnectionId()).stream()
 					// exclude the caller from the patch notification.
 					.filter(Predicate.not(c -> message.getContext().getConnectionId().equals(c.getConnectionId())))
 					.forEach(c -> {
 						publisher.publishEventResponse(
 								new EventContext(EventType.MESSAGE, c.getSource(), c.getConnectionId()),
-								patchNotification);
+								JsonRxMessageType.Notification, "new-patch");
 					});
 		}
+	}
+
+	@EventListener
+	public void onSynchronizeClock(SynchronizeClockMessage message) {
+		ValidateArgument.required(message, "message");
+
+		Optional<String> optional = manager.getNextMissingPatch(message.getContext(), message.getClock());
+		if (optional.isEmpty()) {
+			// The clock is up-to-date.
+			publisher.publishEventResponse(message.getContext(), JsonRxMessageType.ResponseComplete,
+					message.getRequestId());
+		}else {
+			// The caller needs to apply the provided patch
+			publisher.publishEventResponse(message.getContext(), JsonRxMessageType.ResponseData,
+					message.getRequestId(), optional.get());
+		}
+
 	}
 
 }

@@ -261,6 +261,7 @@ public class ITDocker {
 		request.setUri(url.toString());
 		request.setHeaders(requestHeaders);
 		String body = EntityFactory.createJSONStringForEntity(registryEvents);
+		System.out.println(body);
 		simpleClient.post(request, body);
 		
 		// check that repo was created

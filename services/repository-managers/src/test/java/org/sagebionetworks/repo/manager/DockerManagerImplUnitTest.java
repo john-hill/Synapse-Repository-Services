@@ -50,6 +50,9 @@ import org.sagebionetworks.repo.model.docker.RegistryEventAction;
 import org.sagebionetworks.repo.model.message.ChangeType;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
 import org.sagebionetworks.repo.web.NotFoundException;
+import org.sagebionetworks.schema.adapter.AdapterFactory;
+import org.sagebionetworks.schema.adapter.JSONObjectAdapter;
+import org.sagebionetworks.schema.adapter.org.json.AdapterFactoryImpl;
 import org.sagebionetworks.util.DockerRegistryEventUtil;
 
 import com.google.common.collect.ImmutableList;
@@ -222,12 +225,20 @@ public class DockerManagerImplUnitTest {
 
 	
 	@Test
-	public void testDockerRegistryNotificationPushExistingEntity() {
+	public void testDockerRegistryNotificationPushExistingEntity() throws Exception {
 		when(mockConfig.getDockerRegistryHosts()).thenReturn(Arrays.asList(REGISTRY_HOST));
 		when(dockerNodeDao.getEntityIdForRepositoryName(REPOSITORY_NAME)).thenReturn(REPO_ENTITY_ID);
 		
 		DockerRegistryEventList events = 
 				DockerRegistryEventUtil.createDockerRegistryEvent(RegistryEventAction.push, REGISTRY_HOST, USER_ID, REPOSITORY_PATH, TAG, DIGEST, MEDIA_TYPE);
+		
+		AdapterFactory adapterFactory = new AdapterFactoryImpl();
+		JSONObjectAdapter a = adapterFactory.createNew();
+
+		events.writeToJSONObject(a);
+		
+		System.out.println(a);
+		
 		
 		// method under test:
 		dockerManager.dockerRegistryNotification(events);

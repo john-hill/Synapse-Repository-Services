@@ -88,15 +88,13 @@ public class SearchManagerImpl implements SearchManager {
         try {
             SearchRequest request = SearchRequest.of(r -> r
                     .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
-                    .query(q -> q
-                            .bool(b -> b
-                                    .must(List.of(
-                                            Query.of(m1 -> m1.term(t -> t.field(SearchConstants.FIELD_ID).value(FieldValue.of(id)))),
-                                            Query.of(m2 -> m2.term(t -> t.field(SearchConstants.FIELD_ETAG).value(FieldValue.of(etag))))
-                                    ))
-                            )
-                    )
-            );
+                    .query( q ->q.bool(
+                            b ->b.must(List.of(
+                                    Query.of( qr ->qr.term(t ->t.field(SearchConstants.FIELD_ID).value(FieldValue.of(id)))),
+                                    Query.of(q1 -> q1.match( m ->m.field(SearchConstants.FIELD_ETAG).query(FieldValue.of(etag))))
+
+                            )))));
+
 
             SearchResponse<DocumentFields> response = openSearchClient.search(request, DocumentFields.class);
 

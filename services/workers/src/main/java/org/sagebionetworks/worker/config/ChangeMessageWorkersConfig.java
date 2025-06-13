@@ -251,7 +251,7 @@ public class ChangeMessageWorkersConfig {
 				.withStack(ConcurrentWorkerStack.builder()
 						.withSemaphoreLockKey("searchWorker")
 						.withSemaphoreMaxLockCount(8)
-						.withSemaphoreLockAndMessageVisibilityTimeoutSec(600)
+						.withSemaphoreLockAndMessageVisibilityTimeoutSec(60)
 						.withMaxThreadsPerMachine(2)
 						.withSingleton(concurrentStackManager)
 						.withCanRunInReadOnly(true)
@@ -259,8 +259,8 @@ public class ChangeMessageWorkersConfig {
 						.withWorker(worker)
 						.build()
 				)
-				.withRepeatInterval(2007)
-				.withStartDelay(256)
+				.withRepeatInterval(2010)
+				.withStartDelay(270)
 				.build();
 	}
 

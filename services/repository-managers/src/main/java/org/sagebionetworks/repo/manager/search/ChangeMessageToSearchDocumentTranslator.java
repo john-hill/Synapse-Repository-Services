@@ -30,7 +30,7 @@ public class ChangeMessageToSearchDocumentTranslator {
 	@Autowired
 	CloudSearchLogger recordLogger;
 
-	public Document generateSearchDocumentIfNecessary(ChangeMessage change) {
+	Document generateSearchDocumentIfNecessary(ChangeMessage change) {
 		// start a log record for this message.
 		CloudSearchDocumentLogRecord record = recordLogger.startRecordForChangeMessage(change);
 		switch (change.getObjectType()) {

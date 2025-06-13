@@ -10,8 +10,7 @@ public enum OpenSearchExceptionType {
     IndexNotFound("index_not_found_exception"),
     InvalidIndexName("invalid_index_name_exception"),
     IllegalArgument("illegal_argument_exception"),
-    IndexClosed("index_closed_exception"),
-    UNKNOWN("unknown");
+    IndexClosed("index_closed_exception");
     private String value;
 
 

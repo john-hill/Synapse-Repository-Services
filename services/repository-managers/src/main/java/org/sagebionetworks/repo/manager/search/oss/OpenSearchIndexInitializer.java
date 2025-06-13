@@ -28,7 +28,6 @@ public class OpenSearchIndexInitializer {
         try {
             OpenSearchIndicesClient indicesClient = client.indices();
             if (!indicesClient.exists(request -> request.index(SearchConstants.OPEN_SEARCH_INDEX_NAME)).value()) {
-                //create template
                 CreateIndexRequest request = new CreateIndexRequest.Builder()
                         .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
                         .mappings(m -> m

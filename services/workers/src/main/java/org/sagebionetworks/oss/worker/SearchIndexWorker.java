@@ -1,8 +1,8 @@
-package org.sagebionetworks.search.workers.sqs.search;
+package org.sagebionetworks.oss.worker;
 
 import org.sagebionetworks.asynchronous.workers.changes.BatchChangeMessageDrivenRunner;
 import org.sagebionetworks.cloudwatch.WorkerLogger;
-import org.sagebionetworks.repo.manager.opensearch.SearchManager;
+import org.sagebionetworks.repo.manager.search.oss.SearchManager;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
 import org.sagebionetworks.repo.web.TemporarilyUnavailableException;
 import org.sagebionetworks.util.progress.ProgressCallback;

@@ -5,22 +5,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
-import org.sagebionetworks.repo.manager.opensearch.SearchManager;
+import org.sagebionetworks.repo.manager.search.oss.SearchManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
-import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.UserInfo;
-import org.sagebionetworks.repo.model.message.ChangeMessage;
-import org.sagebionetworks.repo.model.message.ChangeType;
-import org.sagebionetworks.repo.model.search.query.SearchQuery;
-import org.sagebionetworks.repo.service.EntityService;
 import org.sagebionetworks.util.Pair;
 import org.sagebionetworks.util.TimeUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -56,7 +50,7 @@ public class SearchIndexWorkerIntegrationTest {
         assertNotNull(project);
 
         //call under test
-        waitForQuery(id);
+        waitForQuery(id, project.getEtag());
 
     }
 
@@ -64,10 +58,10 @@ public class SearchIndexWorkerIntegrationTest {
      * @param id
      * @throws Exception
      */
-    public void waitForQuery(String id) throws Exception {
+    public void waitForQuery(String id, String etag) throws Exception {
         TimeUtils.waitFor(MAX_WAIT, CHECK_TIME, () -> {
             System.out.println("Waiting for Get request to get the document.");
-            return Pair.create(searchManager.doesDocumentExist(id), null);
+            return Pair.create(searchManager.doesDocumentExist(id, etag), null);
         });
     }
 }

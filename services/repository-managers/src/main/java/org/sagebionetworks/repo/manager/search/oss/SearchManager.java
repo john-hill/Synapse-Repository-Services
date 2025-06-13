@@ -1,15 +1,16 @@
-package org.sagebionetworks.repo.manager.opensearch;
-
-import java.util.List;
+package org.sagebionetworks.repo.manager.search.oss;
 
 import org.sagebionetworks.repo.model.message.ChangeMessage;
 import org.sagebionetworks.repo.web.TemporarilyUnavailableException;
+
+import java.io.IOException;
+import java.util.List;
 
 
 public interface SearchManager {
 
     /**
-     * Creates a document based on Entity or Wiki changes that occurred in Synapse. Used by SearchIndexWorker.
+     * Creates/deletes a document based on Entity or Wiki changes that occurred in Synapse . Used by SearchIndexWorker.
      * @param changeMessages a batch of ChangeMessages representing changes in Synapse
      */
     void documentChangeMessages(List<ChangeMessage> changeMessages) throws TemporarilyUnavailableException;
@@ -19,6 +20,6 @@ public interface SearchManager {
      * @param id id of the Synapse entity
      * @return true if a document exists, false otherwise.
      */
-    boolean doesDocumentExist(String id);
+    boolean doesDocumentExist(String id, String etag) throws IOException;
 
 }

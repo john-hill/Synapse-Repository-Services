@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.model.grid.patch.operation;
 
 import java.util.Objects;
 
+import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
 /**
@@ -11,12 +12,17 @@ import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 public class NewConstant implements Operation {
 
 	private LogicalTimestamp id;
-	private Object value;
+	private ConValue value;
 	private boolean isTimestamp;
 
 	@Override
 	public OperationType getType() {
 		return OperationType.new_con;
+	}
+	
+	@Override
+	public long span() {
+		return 1L;
 	}
 
 	public boolean isTimestamp() {
@@ -28,7 +34,7 @@ public class NewConstant implements Operation {
 		return this;
 	}
 
-	public LogicalTimestamp getId() {
+	public LogicalTimestamp getOperationId() {
 		return id;
 	}
 
@@ -37,11 +43,11 @@ public class NewConstant implements Operation {
 		return this;
 	}
 
-	public Object getValue() {
+	public ConValue getValue() {
 		return value;
 	}
 
-	public NewConstant setValue(Object value) {
+	public NewConstant setValue(ConValue value) {
 		this.value = value;
 		return this;
 	}
@@ -67,5 +73,7 @@ public class NewConstant implements Operation {
 	public String toString() {
 		return "NewConstant [isTimestamp=" + isTimestamp + ", id=" + id + ", value=" + value + "]";
 	}
+
+
 
 }

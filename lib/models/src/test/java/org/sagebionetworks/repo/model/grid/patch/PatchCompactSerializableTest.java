@@ -1,9 +1,13 @@
 package org.sagebionetworks.repo.model.grid.patch;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -13,8 +17,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
+import org.sagebionetworks.repo.model.grid.patch.operation.InsertValue;
+import org.sagebionetworks.repo.model.grid.patch.operation.InsertVector;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
+import org.sagebionetworks.repo.model.grid.patch.operation.Operation;
 import org.sagebionetworks.repo.model.grid.patch.operation.OperationType;
+import org.sagebionetworks.repo.model.util.ClasspathUtil;
 
 public class PatchCompactSerializableTest {
 
@@ -123,6 +131,45 @@ public class PatchCompactSerializableTest {
 			String reSerialized = PatchCompactSerializable.serialize(patch).toString();
 			assertEquals(patchJson, reSerialized);
 		});
+	}
+
+	@Test
+	public void testLoadExampePatchesWithZero() throws IOException {
+		String loaded = ClasspathUtil.loadFromClasspath("patch-zero.json");
+
+		// call under test
+		Patch patch = PatchCompactSerializable.deserialize(new JSONArray(loaded));
+		assertNotNull(patch);
+		assertEquals(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(1L), patch.getPatchId());
+		assertNotNull(patch.getOperations());
+		assertEquals(15, patch.getOperations().size());
+		Operation last = patch.getOperations().get(patch.getOperations().size() - 1);
+		InsertValue expected = new InsertValue()
+				.setOperationId(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(15L))
+				.setReferenceId(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L))
+				.setValueId(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(1L));
+		assertEquals(expected, last);
+	}
+
+	@Test
+	public void testLoadExampePatches() throws IOException {
+		String loaded = ClasspathUtil.loadFromClasspath("patch-one.json");
+
+		// call under test
+		Patch patch = PatchCompactSerializable.deserialize(new JSONArray(loaded));
+		assertNotNull(patch);
+		assertEquals(new LogicalTimestamp().setReplicaId(65536L).setSequenceNumber(16L), patch.getPatchId());
+		assertNotNull(patch.getOperations());
+		assertEquals(28, patch.getOperations().size());
+		Operation last = patch.getOperations().get(patch.getOperations().size() - 1);
+		Map<Integer, LogicalTimestamp> map = new LinkedHashMap<Integer, LogicalTimestamp>();
+		InsertVector expected = new InsertVector()
+				.setOperationId(new LogicalTimestamp().setReplicaId(65536L).setSequenceNumber(43L))
+				.setVectorId(new LogicalTimestamp().setReplicaId(65536L).setSequenceNumber(38L)).setMap(map);
+		map.put(0, new LogicalTimestamp().setReplicaId(65536L).setSequenceNumber(40L));
+		map.put(1, new LogicalTimestamp().setReplicaId(65536L).setSequenceNumber(41L));
+		map.put(2, new LogicalTimestamp().setReplicaId(65536L).setSequenceNumber(42L));
+		assertEquals(expected, last);
 	}
 
 }

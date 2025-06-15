@@ -1,5 +1,7 @@
 package org.sagebionetworks.repo.model.grid.patch;
 
+import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -9,7 +11,7 @@ public class Patch {
 
 	private LogicalTimestamp patchId;
 	private String metadata;
-	private List<Operation> operations;
+	private List<Operation<?>> operations;
 
 	public LogicalTimestamp getPatchId() {
 		return patchId;
@@ -29,13 +31,48 @@ public class Patch {
 		return this;
 	}
 
-	public List<Operation> getOperations() {
+	public List<Operation<?>> getOperations() {
 		return operations;
 	}
 
-	public Patch setOperations(List<Operation> operations) {
+	public Patch setOperations(List<Operation<?>> operations) {
 		this.operations = operations;
 		return this;
+	}
+
+	/**
+	 * Add a new operation of the provided type to the patch. The newly created
+	 * operation will be issued a correct operationId.
+	 * 
+	 * @param <T>
+	 * @param clazz
+	 * @return
+	 */
+	public <T extends Operation<T>> T addNewOperation(Class<? extends T> clazz) {
+		try {
+			T operation = clazz.getDeclaredConstructor().newInstance();
+			if (operations == null) {
+				operations = new ArrayList<>();
+			}
+			operation.setOperationId(LogicalTimestamp.newIncrement(patchId, getSpan()));
+			operations.add(operation);
+			return operation;
+		} catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException
+				| NoSuchMethodException | SecurityException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	/**
+	 * The number of clock cycles consumed by this patch is the span.
+	 * 
+	 * @return
+	 */
+	public long getSpan() {
+		if (operations == null) {
+			return 0L;
+		}
+		return operations.stream().mapToLong(Operation::getSpan).sum();
 	}
 
 	@Override

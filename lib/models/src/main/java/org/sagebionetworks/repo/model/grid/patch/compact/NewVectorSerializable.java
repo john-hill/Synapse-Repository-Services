@@ -19,7 +19,7 @@ public class NewVectorSerializable implements OperationSerializable<NewVector> {
 
 	@Override
 	public NewVector deserialize(LogicalTimestamp id, JSONArray array) {
-		return new NewVector().setId(id);
+		return new NewVector().setOperationId(id);
 	}
 
 	@Override

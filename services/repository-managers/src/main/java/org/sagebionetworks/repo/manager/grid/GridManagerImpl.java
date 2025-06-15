@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.grid;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -9,9 +10,11 @@ import java.util.UUID;
 
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.config.WebsocketApi;
+import org.sagebionetworks.repo.manager.table.TableQueryManager;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlResponse;
@@ -29,9 +32,16 @@ import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.PatchInfo;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.table.ColumnModel;
+import org.sagebionetworks.repo.model.table.Query;
+import org.sagebionetworks.repo.model.table.QueryResultBundle;
+import org.sagebionetworks.repo.model.table.TableFailedException;
+import org.sagebionetworks.repo.model.table.TableUnavailableException;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.ValidateArgument;
+import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
+import org.sagebionetworks.workers.util.semaphore.LockUnavilableException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -53,6 +63,7 @@ public class GridManagerImpl implements GridManager {
 
 	public static final String GRID_REPLICA_NOT_FOUND = "Grid replica not found.";
 	public static final String GRID_SESSION_NOT_FOUND = "Grid session not found.";
+	public static final int MAX_ROWS_PER_PATCH = 1000;
 	/*
 	 * Note: The S3 bucket that store patches will automatically delete all patch
 	 * files that are 120 days old. We expire each patch in the database after 119
@@ -65,30 +76,62 @@ public class GridManagerImpl implements GridManager {
 	private final GridDao gridDao;
 	private final String gridPatchBucket;
 	private final S3Client s3Client;
+	private final TableQueryManager tableQueryManager;
 
 	@Autowired
 	public GridManagerImpl(AwsCredentialsProvider awsCredentialsProvider, WebsocketApi websocketApi, GridDao gridDao,
-			StackConfiguration config, S3Client s3Client) {
+			StackConfiguration config, S3Client s3Client, TableQueryManager tableQueryManager) {
 		super();
 		this.awsCredentialsProvider = awsCredentialsProvider;
 		this.websocketApi = websocketApi;
 		this.gridDao = gridDao;
 		this.gridPatchBucket = String.format("%s.grid.patch.sagebase.org", config.getStack());
 		this.s3Client = s3Client;
+		this.tableQueryManager = tableQueryManager;
 	}
 
 	@WriteTransaction
 	@Override
-	public CreateGridResponse createGrid(UserInfo user, CreateGridRequest request) {
+	public CreateGridResponse createGrid(AsyncJobProgressCallback callback, UserInfo user, CreateGridRequest request) {
+		ValidateArgument.required(callback, "callback");
 		ValidateArgument.required(user, "user");
 		ValidateArgument.required(request, "request");
 
 		// Must authenticate to create a grid session.
 		AuthorizationUtils.disallowAnonymous(user);
 
-		GridSession session = gridDao.createGridSession(user.getId());
+		GridSession session = request.getInitialQuery() != null
+				? buildSessionFromQuery(callback, user, request.getInitialQuery())
+				// start with an empty session
+				: gridDao.createGridSession(user.getId());
 
 		return new CreateGridResponse().setGridSession(session);
+	}
+
+	/**
+	 * Build a new GridSesison from the provided query.
+	 * 
+	 * @param callback
+	 * @param user
+	 * @param initialQuery
+	 * @return
+	 */
+	GridSession buildSessionFromQuery(AsyncJobProgressCallback callback, UserInfo user, Query initialQuery) {
+		GridSession session = gridDao.createGridSession(user.getId());
+		GridReplica replica = gridDao.createReplica(user.getId(), session.getSessionId(), false, EventSource.INTERNAL);
+		try {
+			QueryResultBundle qrb = tableQueryManager.runQueryAsStream(callback, user, initialQuery, t -> {
+				List<ColumnModel> schema = t.getMainQuery().getTranslator().getSchemaOfSelect();
+				return new PatchRowHandler(this, session.getSessionId(), replica.getReplicaId(), schema,
+						MAX_ROWS_PER_PATCH);
+			});
+		} catch (NotFoundException | LockUnavilableException | TableUnavailableException e) {
+			callback.updateProgress("Waiting for table/view to become available..", 1L, 100L);
+			throw new RecoverableMessageException(e);
+		} catch (TableFailedException | IOException e) {
+			throw new RuntimeException(e);
+		}
+		return session;
 	}
 
 	/**
@@ -230,14 +273,20 @@ public class GridManagerImpl implements GridManager {
 	@Override
 	public boolean savePatch(EventContext context, LogicalTimestamp patchId, String body) {
 		ValidateArgument.required(context, "context");
+		GridConnectionInfo thisCon = getConnectionInfo(context.getConnectionId());
+		return savePatch(thisCon.getSessionId(), patchId, body);
+	}
+
+	@WriteTransaction
+	@Override
+	public boolean savePatch(String sessionId, LogicalTimestamp patchId, String body) {
+		ValidateArgument.required(patchId, "patchId");
 		ValidateArgument.required(patchId, "patchId");
 		ValidateArgument.required(body, "body");
-
-		GridConnectionInfo thisCon = getConnectionInfo(context.getConnectionId());
 		String s3Key = String.format("%s.json", UUID.randomUUID().toString());
 		s3Client.putObject(PutObjectRequest.builder().bucket(gridPatchBucket).key(s3Key).build(),
 				RequestBody.fromString(body, StandardCharsets.UTF_8));
-		return gridDao.savePatch(thisCon.getSessionId(), patchId, s3Key, PATCH_DURATION);
+		return gridDao.savePatch(sessionId, patchId, s3Key, PATCH_DURATION);
 	}
 
 	@Override

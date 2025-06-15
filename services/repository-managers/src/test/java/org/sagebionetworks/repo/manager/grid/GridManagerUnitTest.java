@@ -29,9 +29,11 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.config.WebsocketApi;
+import org.sagebionetworks.repo.manager.table.TableQueryManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlResponse;
@@ -80,6 +82,12 @@ public class GridManagerUnitTest {
 
 	@Mock
 	private UserInfo mockUser;
+	
+	@Mock
+	private TableQueryManager mockQueryManager;
+	
+	@Mock
+	private AsyncJobProgressCallback mockCallback;
 
 	@Captor
 	private ArgumentCaptor<PutObjectRequest> putCaptor;
@@ -126,7 +134,7 @@ public class GridManagerUnitTest {
 
 		when(mockConfig.getStack()).thenReturn("dev");
 		gridManager = new GridManagerImpl(mockCredentialsProvider, mockWebsocketApi, mockGridDao, mockConfig,
-				mockS3Client);
+				mockS3Client, mockQueryManager);
 		gridManager = Mockito.spy(gridManager);
 		clock = List.of(patchId);
 	}
@@ -139,7 +147,7 @@ public class GridManagerUnitTest {
 		GridSession expected = new GridSession().setSessionId("gs123");
 		when(mockGridDao.createGridSession(userId)).thenReturn(expected);
 		// call under test
-		CreateGridResponse result = gridManager.createGrid(mockUser, request);
+		CreateGridResponse result = gridManager.createGrid(mockCallback, mockUser, request);
 		assertNotNull(result);
 		assertEquals(expected, result.getGridSession());
 	}
@@ -153,7 +161,7 @@ public class GridManagerUnitTest {
 		String message = assertThrows(UnauthorizedException.class, () -> {
 
 			// call under test
-			gridManager.createGrid(mockUser, request);
+			gridManager.createGrid(mockCallback, mockUser, request);
 
 		}).getMessage();
 		assertEquals("Must login to perform this action", message);
@@ -167,7 +175,7 @@ public class GridManagerUnitTest {
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 
 			// call under test
-			gridManager.createGrid(null, request);
+			gridManager.createGrid(mockCallback, null, request);
 
 		}).getMessage();
 		assertEquals("user is required.", message);
@@ -181,7 +189,7 @@ public class GridManagerUnitTest {
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 
 			// call under test
-			gridManager.createGrid(mockUser, request);
+			gridManager.createGrid(mockCallback, mockUser, request);
 
 		}).getMessage();
 		assertEquals("request is required.", message);

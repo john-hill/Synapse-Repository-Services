@@ -7,19 +7,5 @@ package org.sagebionetworks.repo.model.grid.patch;
  */
 public enum ConType {
 
-	_null(null),
-	_boolean(null),
-	_long(null),
-	_double(null),
-	string(null),
-	json_array(null),
-	json_object(null),
-	undefined(null),
-	timestamp(null);
-
-	ConType(ConValueTranslator translator) {
-		this.translator = translator;
-	}
-
-	private ConValueTranslator translator;
+	NULL, BOOLEAN, LONG, DOUBLE, STRING, JSON_ARRAY, JSON_OBJECT, UNDEFINED, TIMESTAMP;
 }

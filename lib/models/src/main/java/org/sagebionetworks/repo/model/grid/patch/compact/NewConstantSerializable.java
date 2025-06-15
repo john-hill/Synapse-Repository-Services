@@ -12,50 +12,50 @@ public class NewConstantSerializable implements OperationSerializable<NewConstan
 
 	@Override
 	public NewConstant deserialize(LogicalTimestamp id, JSONArray array) {
-		NewConstant con = new NewConstant().setId(id);
+		NewConstant con = new NewConstant().setOperationId(id);
 		if (array.length() == 1) {
-			return con.setValue(new ConValue(ConType.undefined, null));
+			return con.setValue(new ConValue(ConType.UNDEFINED, null));
 		}
 		if (array.length() == 3) {
 			con.setTimestamp(array.getBoolean(2));
 		}
 		if (array.isNull(1)) {
-			return con.setValue(new ConValue(ConType._null, null));
+			return con.setValue(new ConValue(ConType.NULL, null));
 		}
 
 		Object value = array.get(1);
 		if (value instanceof Boolean) {
-			return con.setValue(new ConValue(ConType._boolean, value));
+			return con.setValue(new ConValue(ConType.BOOLEAN, value));
 		} else if (value instanceof Double) {
-			return con.setValue(new ConValue(ConType._double, value));
+			return con.setValue(new ConValue(ConType.DOUBLE, value));
 		} else if (value instanceof Float) {
-			return con.setValue(new ConValue(ConType._double, (Double) value));
+			return con.setValue(new ConValue(ConType.DOUBLE, (Double) value));
 		} else if (value instanceof Integer) {
 			Long longValue = ((Integer) value).longValue();
 			if (con.isTimestamp()) {
-				return con.setValue(new ConValue(ConType.timestamp,
+				return con.setValue(new ConValue(ConType.TIMESTAMP,
 						new LogicalTimestamp().setReplicaId(id.getReplicaId()).setSequenceNumber(longValue)));
 			} else {
-				return con.setValue(new ConValue(ConType._long, longValue));
+				return con.setValue(new ConValue(ConType.LONG, longValue));
 			}
 		} else if (value instanceof Long) {
 			if (con.isTimestamp()) {
-				return con.setValue(new ConValue(ConType.timestamp,
+				return con.setValue(new ConValue(ConType.TIMESTAMP,
 						new LogicalTimestamp().setReplicaId(id.getReplicaId()).setSequenceNumber((Long) value)));
 			} else {
-				return con.setValue(new ConValue(ConType._long, value));
+				return con.setValue(new ConValue(ConType.LONG, value));
 			}
 		} else if (value instanceof String) {
-			return con.setValue(new ConValue(ConType.string, value));
+			return con.setValue(new ConValue(ConType.STRING, value));
 		} else if (value instanceof JSONArray) {
 			if (con.isTimestamp()) {
-				return con.setValue(new ConValue(ConType.timestamp,
+				return con.setValue(new ConValue(ConType.TIMESTAMP,
 						LogicalTimestampCompactSerializable.deserialize((JSONArray) value)));
 			} else {
-				return con.setValue(new ConValue(ConType.json_array, value));
+				return con.setValue(new ConValue(ConType.JSON_ARRAY, value));
 			}
 		} else if (value instanceof JSONObject) {
-			return con.setValue(new ConValue(ConType.json_object, value));
+			return con.setValue(new ConValue(ConType.JSON_OBJECT, value));
 		} else {
 			throw new IllegalArgumentException("Unknown constant type: " + array.toString());
 		}
@@ -66,23 +66,23 @@ public class NewConstantSerializable implements OperationSerializable<NewConstan
 		JSONArray array = new JSONArray().put(OperationType.new_con.getCode());
 		ConType type = con.getValue().getType();
 		switch (type) {
-		case _boolean:
-		case _double:
-		case _long:
-		case string:
-		case json_array:
-		case json_object:
+		case BOOLEAN:
+		case DOUBLE:
+		case LONG:
+		case STRING:
+		case JSON_ARRAY:
+		case JSON_OBJECT:
 			return array.put(con.getValue().getValue());
-		case _null:
+		case NULL:
 			return array.put((Object) null);
-		case timestamp:
+		case TIMESTAMP:
 			LogicalTimestamp timestamp = (LogicalTimestamp) con.getValue().getValue();
 			if (con.getOperationId().getReplicaId().equals(timestamp.getReplicaId())) {
 				return array.put(timestamp.getSequenceNumber()).put(true);
 			} else {
 				return array.put(LogicalTimestampCompactSerializable.serialize(timestamp)).put(true);
 			}
-		case undefined:
+		case UNDEFINED:
 			return array;
 		default:
 			throw new IllegalArgumentException("Unknown con type: " + type);

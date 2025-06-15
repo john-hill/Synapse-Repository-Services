@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.model.grid.patch;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -17,9 +18,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
+import org.sagebionetworks.repo.model.grid.patch.operation.InsertArray;
 import org.sagebionetworks.repo.model.grid.patch.operation.InsertValue;
 import org.sagebionetworks.repo.model.grid.patch.operation.InsertVector;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
+import org.sagebionetworks.repo.model.grid.patch.operation.NewObject;
 import org.sagebionetworks.repo.model.grid.patch.operation.Operation;
 import org.sagebionetworks.repo.model.grid.patch.operation.OperationType;
 import org.sagebionetworks.repo.model.util.ClasspathUtil;
@@ -55,9 +58,9 @@ public class PatchCompactSerializableTest {
 		Patch patch = PatchCompactSerializable.deserialize(new JSONArray(patchJson));
 		Patch expected = new Patch().setMetadata("{\"key\":9}")
 				.setPatchId(new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(10L))
-				.setOperations(Arrays
-						.asList(new NewConstant().setId(new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(10L))
-								.setValue(new ConValue(ConType.undefined, null))));
+				.setOperations(Arrays.asList(
+						new NewConstant().setOperationId(new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(10L))
+								.setValue(new ConValue(ConType.UNDEFINED, null))));
 		assertEquals(expected, patch);
 
 		// call under test
@@ -73,9 +76,9 @@ public class PatchCompactSerializableTest {
 		Patch patch = PatchCompactSerializable.deserialize(new JSONArray(patchJson));
 		Patch expected = new Patch().setMetadata(null)
 				.setPatchId(new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(10L))
-				.setOperations(Arrays
-						.asList(new NewConstant().setId(new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(10L))
-								.setValue(new ConValue(ConType.undefined, null))));
+				.setOperations(Arrays.asList(
+						new NewConstant().setOperationId(new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(10L))
+								.setValue(new ConValue(ConType.UNDEFINED, null))));
 		assertEquals(expected, patch);
 
 		// call under test
@@ -93,12 +96,12 @@ public class PatchCompactSerializableTest {
 		Patch expected = new Patch().setMetadata("{\"key\":9}")
 				.setPatchId(new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(10L))
 				.setOperations(Arrays.asList(
-						new NewConstant().setId(new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(10L))
-								.setValue(new ConValue(ConType._long, 8L)),
-						new NewConstant().setId(new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(11L))
-								.setValue(new ConValue(ConType._long, 7L)),
-						new NewConstant().setId(new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(12L))
-								.setValue(new ConValue(ConType._long, 5L))));
+						new NewConstant().setOperationId(new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(10L))
+								.setValue(new ConValue(ConType.LONG, 8L)),
+						new NewConstant().setOperationId(new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(11L))
+								.setValue(new ConValue(ConType.LONG, 7L)),
+						new NewConstant().setOperationId(new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(12L))
+								.setValue(new ConValue(ConType.LONG, 5L))));
 		assertEquals(expected, patch);
 
 		// call under test
@@ -106,8 +109,42 @@ public class PatchCompactSerializableTest {
 		assertEquals(patchJson, reSerialized);
 	}
 
+	/**
+	 * Insert arrays can have a span larger than one.
+	 */
 	@Test
-	public void test() {
+	public void testDeserializeAndSerializeWithMultipleInsertArray() {
+		String patchJson = "[[[4,10],{\"key\":9}],[14,[1,2],[3,4],[[5,6],[7,8]]],[14,9,10,[11,12,13]],[2]]";
+
+		// call under test
+		Patch patch = PatchCompactSerializable.deserialize(new JSONArray(patchJson));
+		// each sequence number should be incremented by the span.
+		Patch expected = new Patch().setMetadata("{\"key\":9}")
+				.setPatchId(new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(10L));
+		expected.addNewOperation(InsertArray.class)
+				.setArrayId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L))
+				.setReferenceId(new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(4L))
+				.setElementIds(Arrays.asList(new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(6L),
+						new LogicalTimestamp().setReplicaId(7L).setSequenceNumber(8L)));
+		expected.addNewOperation(InsertArray.class)
+				.setArrayId(new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(9L))
+				.setReferenceId(new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(10L))
+				.setElementIds(Arrays.asList(new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(11L),
+						new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(12L),
+						new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(13L)));
+		expected.addNewOperation(NewObject.class);
+
+		assertEquals(expected, patch);
+		// The patch has a span of 6 even though there are only three operations.
+		assertEquals(6L, patch.getSpan());
+
+		// call under test
+		String reSerialized = PatchCompactSerializable.serialize(patch).toString();
+		assertEquals(patchJson, reSerialized);
+	}
+
+	@Test
+	public void testPeekPatchId() {
 		String patchJson = "[[[4,10],{\"key\":9}],[0]]";
 		// call under test
 		LogicalTimestamp patchId = PatchCompactSerializable.peekPatchId(new JSONArray(patchJson));

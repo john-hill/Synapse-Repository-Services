@@ -5,7 +5,7 @@ import java.util.Objects;
 
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
-public class InsertVector implements Operation {
+public class InsertVector implements Operation<InsertVector> {
 
 	private LogicalTimestamp operationId;
 	private LogicalTimestamp vectorId;
@@ -22,7 +22,7 @@ public class InsertVector implements Operation {
 	}
 
 	@Override
-	public long span() {
+	public long getSpan() {
 		return 1;
 	}
 

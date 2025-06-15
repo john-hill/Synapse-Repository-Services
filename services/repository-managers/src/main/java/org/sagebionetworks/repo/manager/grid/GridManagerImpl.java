@@ -1,6 +1,5 @@
 package org.sagebionetworks.repo.manager.grid;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -34,8 +33,6 @@ import org.sagebionetworks.repo.model.grid.internal.Connection;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.Query;
-import org.sagebionetworks.repo.model.table.QueryResultBundle;
-import org.sagebionetworks.repo.model.table.TableFailedException;
 import org.sagebionetworks.repo.model.table.TableUnavailableException;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -120,15 +117,15 @@ public class GridManagerImpl implements GridManager {
 		GridSession session = gridDao.createGridSession(user.getId());
 		GridReplica replica = gridDao.createReplica(user.getId(), session.getSessionId(), false, EventSource.INTERNAL);
 		try {
-			QueryResultBundle qrb = tableQueryManager.runQueryAsStream(callback, user, initialQuery, t -> {
+			tableQueryManager.runQueryAsStream(callback, user, initialQuery, t -> {
 				List<ColumnModel> schema = t.getMainQuery().getTranslator().getSchemaOfSelect();
 				return new PatchRowHandler(this, session.getSessionId(), replica.getReplicaId(), schema,
 						MAX_ROWS_PER_PATCH);
 			});
-		} catch (NotFoundException | LockUnavilableException | TableUnavailableException e) {
-			callback.updateProgress("Waiting for table/view to become available..", 1L, 100L);
+		} catch (LockUnavilableException | TableUnavailableException e) {
+			callback.updateProgress("Waiting for table/view to become available...", 1L, 100L);
 			throw new RecoverableMessageException(e);
-		} catch (TableFailedException | IOException e) {
+		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}
 		return session;

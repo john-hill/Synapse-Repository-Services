@@ -4,7 +4,7 @@ import java.util.Objects;
 
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
-public class InsertValue implements Operation {
+public class InsertValue implements Operation<InsertValue> {
 
 	private LogicalTimestamp operationId;
 	private LogicalTimestamp referenceId;
@@ -44,7 +44,7 @@ public class InsertValue implements Operation {
 	}
 
 	@Override
-	public long span() {
+	public long getSpan() {
 		return 1L;
 	}
 

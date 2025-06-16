@@ -4,9 +4,9 @@ import java.util.Objects;
 
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
-public class NewString implements Operation {
+public class NewString implements Operation<NewString> {
 
-	private LogicalTimestamp id;
+	private LogicalTimestamp operationId;
 
 	@Override
 	public OperationType getType() {
@@ -15,22 +15,22 @@ public class NewString implements Operation {
 
 	@Override
 	public LogicalTimestamp getOperationId() {
-		return id;
+		return operationId;
 	}
 
-	public NewString setId(LogicalTimestamp id) {
-		this.id = id;
+	public NewString setOperationId(LogicalTimestamp id) {
+		this.operationId = id;
 		return this;
 	}
 
 	@Override
-	public long span() {
+	public long getSpan() {
 		return 1L;
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(id);
+		return Objects.hash(operationId);
 	}
 
 	@Override
@@ -42,12 +42,12 @@ public class NewString implements Operation {
 		if (getClass() != obj.getClass())
 			return false;
 		NewString other = (NewString) obj;
-		return Objects.equals(id, other.id);
+		return Objects.equals(operationId, other.operationId);
 	}
 
 	@Override
 	public String toString() {
-		return "NewString [id=" + id + "]";
+		return "NewString [id=" + operationId + "]";
 	}
 
 }

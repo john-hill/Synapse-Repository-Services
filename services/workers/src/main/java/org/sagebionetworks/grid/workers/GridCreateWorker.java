@@ -34,7 +34,7 @@ public class GridCreateWorker implements AsyncJobRunner<CreateGridRequest, Creat
 	@Override
 	public CreateGridResponse run(String jobId, UserInfo user, CreateGridRequest request,
 			AsyncJobProgressCallback jobProgressCallback) throws RecoverableMessageException, Exception {
-		return gridManager.createGrid(user, request);
+		return gridManager.createGrid(jobProgressCallback, user, request);
 	}
 
 }

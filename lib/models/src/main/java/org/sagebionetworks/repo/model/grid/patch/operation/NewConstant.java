@@ -9,9 +9,9 @@ import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
  * The new_con operation. See: <a href=
  * "https://jsonjoy.com/specs/json-crdt-patch/patch-document/operation-types">operation-types</a>
  */
-public class NewConstant implements Operation {
+public class NewConstant implements Operation<NewConstant> {
 
-	private LogicalTimestamp id;
+	private LogicalTimestamp operationId;
 	private ConValue value;
 	private boolean isTimestamp;
 
@@ -19,9 +19,9 @@ public class NewConstant implements Operation {
 	public OperationType getType() {
 		return OperationType.new_con;
 	}
-	
+
 	@Override
-	public long span() {
+	public long getSpan() {
 		return 1L;
 	}
 
@@ -35,11 +35,11 @@ public class NewConstant implements Operation {
 	}
 
 	public LogicalTimestamp getOperationId() {
-		return id;
+		return operationId;
 	}
 
-	public NewConstant setId(LogicalTimestamp id) {
-		this.id = id;
+	public NewConstant setOperationId(LogicalTimestamp operationId) {
+		this.operationId = operationId;
 		return this;
 	}
 
@@ -54,7 +54,7 @@ public class NewConstant implements Operation {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(id, isTimestamp, value);
+		return Objects.hash(operationId, isTimestamp, value);
 	}
 
 	@Override
@@ -66,14 +66,13 @@ public class NewConstant implements Operation {
 		if (getClass() != obj.getClass())
 			return false;
 		NewConstant other = (NewConstant) obj;
-		return Objects.equals(id, other.id) && isTimestamp == other.isTimestamp && Objects.equals(value, other.value);
+		return Objects.equals(operationId, other.operationId) && isTimestamp == other.isTimestamp
+				&& Objects.equals(value, other.value);
 	}
 
 	@Override
 	public String toString() {
-		return "NewConstant [isTimestamp=" + isTimestamp + ", id=" + id + ", value=" + value + "]";
+		return "NewConstant [isTimestamp=" + isTimestamp + ", id=" + operationId + ", value=" + value + "]";
 	}
-
-
 
 }

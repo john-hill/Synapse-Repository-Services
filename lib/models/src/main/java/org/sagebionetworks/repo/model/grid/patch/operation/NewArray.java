@@ -4,7 +4,7 @@ import java.util.Objects;
 
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
-public class NewArray implements Operation {
+public class NewArray implements Operation<NewArray> {
 
 	private LogicalTimestamp operationId;
 
@@ -24,7 +24,7 @@ public class NewArray implements Operation {
 	}
 
 	@Override
-	public long span() {
+	public long getSpan() {
 		return 1L;
 	}
 

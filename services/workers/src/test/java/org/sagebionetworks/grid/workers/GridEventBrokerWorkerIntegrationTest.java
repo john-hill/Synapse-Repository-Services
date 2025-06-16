@@ -1,5 +1,6 @@
 package org.sagebionetworks.grid.workers;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -10,19 +11,25 @@ import java.net.http.WebSocket;
 import java.net.http.WebSocket.Listener;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import org.json.JSONArray;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.AsynchronousJobWorkerHelper;
+import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
+import org.sagebionetworks.repo.manager.table.ColumnModelManager;
 import org.sagebionetworks.repo.model.AsynchJobFailedException;
+import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
@@ -31,9 +38,18 @@ import org.sagebionetworks.repo.model.grid.CreateGridResponse;
 import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.grid.patch.Patch;
 import org.sagebionetworks.repo.model.grid.patch.compact.LogicalTimestampCompactSerializable;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
+import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
+import org.sagebionetworks.repo.model.table.ColumnModel;
+import org.sagebionetworks.repo.model.table.ColumnType;
+import org.sagebionetworks.repo.model.table.Query;
+import org.sagebionetworks.repo.model.table.Row;
+import org.sagebionetworks.repo.model.table.RowReferenceSetResults;
+import org.sagebionetworks.repo.model.table.TableEntity;
 import org.sagebionetworks.repo.service.GridService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -54,11 +70,22 @@ public class GridEventBrokerWorkerIntegrationTest {
 	@Autowired
 	private AsynchronousJobWorkerHelper asynchronousJobWorkerHelper;
 
+	@Autowired
+	private EntityManager entityManager;
+
+	@Autowired
+	private ColumnModelManager columnManager;
+
 	private UserInfo admin;
 
 	@BeforeEach
 	public void before() {
 		admin = userManager.getUserInfo(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId());
+	}
+
+	@AfterEach
+	public void after() {
+		entityManager.truncateAll();
 	}
 
 	@Test
@@ -187,8 +214,67 @@ public class GridEventBrokerWorkerIntegrationTest {
 		// after the second snych, replica two should be up-to-date.
 		newClock = LogicalTimestampCompactSerializable.serializeClock(patchIds).toString();
 		wsTwo.sendText(String.format("[1,99,\"synchronize-clock\",%s]", newClock), true).join();
-		
+
 		assertTrue(waitForMessage((a) -> a.optInt(0) == 5 && a.optInt(1) == 99, incomingMessagesTwo));
+
+	}
+
+	@Test
+	public void testGridWithTableQuery() throws Exception {
+		// setup a table
+		String projectId = entityManager.createEntity(admin, new Project().setName("test"), null);
+		List<ColumnModel> schema = List.of(new ColumnModel().setName("anInt").setColumnType(ColumnType.INTEGER));
+		schema = columnManager.createColumnModels(admin, schema);
+		List<String> colIds = schema.stream().map(c -> c.getId()).collect(Collectors.toList());
+
+		TableEntity table = asynchronousJobWorkerHelper.createTable(admin, "testTable", projectId, colIds, false);
+		List<Row> rows = List.of(new Row().setValues(List.of("9090")));
+
+		RowReferenceSetResults rrsr = asynchronousJobWorkerHelper.appendRowsToTable(admin, schema, table.getId(), rows,
+				MAX_WAIT_MS);
+
+		String sql = String.format("select * from %s", table.getId());
+
+		// create a grid using the table
+		GridSession session = asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new CreateGridRequest().setInitialQuery(new Query().setSql(sql)), (CreateGridResponse response) -> {
+					assertNotNull(response);
+					assertNotNull(response.getGridSession());
+				}, MAX_WAIT_MS).getResponse().getGridSession();
+
+		// Create replica One
+		GridReplica replicaOne = gridServie
+				.createReplica(admin.getId(), new CreateReplicaRequest().setGridSessionId(session.getSessionId()))
+				.getReplica();
+
+		String urlOne = gridServie
+				.createPresignedUrl(admin.getId(), new CreateGridPresignedUrlRequest()
+						.setGridSessionId(session.getSessionId()).setReplicaId(replicaOne.getReplicaId()))
+				.getPresignedUrl();
+		assertNotNull(urlOne);
+
+		BlockingQueue<String> incomingMessagesOne = new LinkedBlockingQueue<>();
+		WebSocket wsOne = createConnection(urlOne, incomingMessagesOne);
+		waitForConnected(incomingMessagesOne);
+
+		// start the synchronize
+		wsOne.sendText("[1,99,\"synchronize-clock\",[]]", true).join();
+		assertTrue(waitForMessage((a) -> {
+			if (a.optInt(0) == 4 && a.optInt(1) == 99) {
+				Patch patch = PatchCompactSerializable.deserialize(a.getJSONArray(2));
+				assertNotNull(patch);
+				assertEquals(new LogicalTimestamp().setReplicaId(66534L).setSequenceNumber(1L), patch.getPatchId());
+				assertEquals(15L, patch.getSpan());
+				// find the constant that contains the table's value
+				Optional<NewConstant> op = patch.getOperations().stream().filter(o -> (o instanceof NewConstant))
+						.map(c -> (NewConstant) c).filter(c -> ConType.LONG.equals(c.getValue().getType()))
+						.filter(c -> Long.valueOf(9090).equals(c.getValue().getValue())).findFirst();
+				assertTrue(op.isPresent());
+				return true;
+			} else {
+				return false;
+			}
+		}, incomingMessagesOne));
 
 	}
 

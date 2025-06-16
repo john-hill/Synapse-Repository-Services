@@ -27,7 +27,7 @@ public class NewConstantSerializableTest {
 
 		// call under test
 		NewConstant con = serializable.deserialize(id, new JSONArray(json));
-		NewConstant expected = new NewConstant().setId(id).setValue(new ConValue(ConType.undefined, null));
+		NewConstant expected = new NewConstant().setOperationId(id).setValue(new ConValue(ConType.UNDEFINED, null));
 		assertEquals(expected, con);
 
 		// call under test
@@ -41,7 +41,7 @@ public class NewConstantSerializableTest {
 
 		// call under test
 		NewConstant con = serializable.deserialize(id, new JSONArray(json));
-		NewConstant expected = new NewConstant().setId(id).setValue(new ConValue(ConType._null, null));
+		NewConstant expected = new NewConstant().setOperationId(id).setValue(new ConValue(ConType.NULL, null));
 		assertEquals(expected, con);
 
 		// call under test
@@ -55,7 +55,7 @@ public class NewConstantSerializableTest {
 
 		// call under test
 		NewConstant con = serializable.deserialize(id, new JSONArray(json));
-		NewConstant expected = new NewConstant().setId(id).setValue(new ConValue(ConType._boolean, true));
+		NewConstant expected = new NewConstant().setOperationId(id).setValue(new ConValue(ConType.BOOLEAN, true));
 		assertEquals(expected, con);
 
 		// call under test
@@ -69,7 +69,7 @@ public class NewConstantSerializableTest {
 
 		// call under test
 		NewConstant con = serializable.deserialize(id, new JSONArray(json));
-		NewConstant expected = new NewConstant().setId(id).setValue(new ConValue(ConType._boolean, false));
+		NewConstant expected = new NewConstant().setOperationId(id).setValue(new ConValue(ConType.BOOLEAN, false));
 		assertEquals(expected, con);
 
 		// call under test
@@ -83,7 +83,7 @@ public class NewConstantSerializableTest {
 
 		// call under test
 		NewConstant con = serializable.deserialize(id, new JSONArray(json));
-		NewConstant expected = new NewConstant().setId(id).setValue(new ConValue(ConType._double, 3.14));
+		NewConstant expected = new NewConstant().setOperationId(id).setValue(new ConValue(ConType.DOUBLE, 3.14));
 		assertEquals(expected, con);
 
 		// call under test
@@ -97,7 +97,7 @@ public class NewConstantSerializableTest {
 
 		// call under test
 		NewConstant con = serializable.deserialize(id, new JSONArray(json));
-		NewConstant expected = new NewConstant().setId(id).setValue(new ConValue(ConType._long, 12345L));
+		NewConstant expected = new NewConstant().setOperationId(id).setValue(new ConValue(ConType.LONG, 12345L));
 		assertEquals(expected, con);
 
 		// call under test
@@ -111,7 +111,7 @@ public class NewConstantSerializableTest {
 
 		// call under test
 		NewConstant con = serializable.deserialize(id, new JSONArray(json));
-		NewConstant expected = new NewConstant().setId(id).setValue(new ConValue(ConType._long, -12345L));
+		NewConstant expected = new NewConstant().setOperationId(id).setValue(new ConValue(ConType.LONG, -12345L));
 		assertEquals(expected, con);
 
 		// call under test
@@ -125,7 +125,7 @@ public class NewConstantSerializableTest {
 
 		// call under test
 		NewConstant con = serializable.deserialize(id, new JSONArray(json));
-		NewConstant expected = new NewConstant().setId(id).setValue(new ConValue(ConType._long, 1234567891011121314L));
+		NewConstant expected = new NewConstant().setOperationId(id).setValue(new ConValue(ConType.LONG, 1234567891011121314L));
 		assertEquals(expected, con);
 
 		// call under test
@@ -139,7 +139,7 @@ public class NewConstantSerializableTest {
 
 		// call under test
 		NewConstant con = serializable.deserialize(id, new JSONArray(json));
-		NewConstant expected = new NewConstant().setId(id).setValue(new ConValue(ConType.string, "abcdef"));
+		NewConstant expected = new NewConstant().setOperationId(id).setValue(new ConValue(ConType.STRING, "abcdef"));
 		assertEquals(expected, con);
 
 		// call under test
@@ -154,7 +154,7 @@ public class NewConstantSerializableTest {
 		// call under test
 		NewConstant con = serializable.deserialize(id, new JSONArray(json));
 		assertEquals(id, con.getOperationId());
-		assertEquals(ConType.json_array, con.getValue().getType());
+		assertEquals(ConType.JSON_ARRAY, con.getValue().getType());
 		assertEquals("[1,2,3]", con.getValue().getValue().toString());
 
 		// call under test
@@ -169,7 +169,7 @@ public class NewConstantSerializableTest {
 		// call under test
 		NewConstant con = serializable.deserialize(id, new JSONArray(json));
 		assertEquals(id, con.getOperationId());
-		assertEquals(ConType.json_object, con.getValue().getType());
+		assertEquals(ConType.JSON_OBJECT, con.getValue().getType());
 		assertEquals("{\"key\":99}", con.getValue().getValue().toString());
 
 		// call under test
@@ -184,10 +184,10 @@ public class NewConstantSerializableTest {
 		// call under test
 		NewConstant con = serializable.deserialize(id, new JSONArray(json));
 		assertEquals(id, con.getOperationId());
-		assertEquals(ConType.timestamp, con.getValue().getType());
-		NewConstant expected = new NewConstant().setId(id)
+		assertEquals(ConType.TIMESTAMP, con.getValue().getType());
+		NewConstant expected = new NewConstant().setOperationId(id)
 				.setValue(
-						new ConValue(ConType.timestamp, new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(5L)))
+						new ConValue(ConType.TIMESTAMP, new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(5L)))
 				.setTimestamp(true);
 		assertEquals(expected, con);
 
@@ -203,9 +203,9 @@ public class NewConstantSerializableTest {
 		// call under test
 		NewConstant con = serializable.deserialize(id, new JSONArray(json));
 		assertEquals(id, con.getOperationId());
-		assertEquals(ConType.timestamp, con.getValue().getType());
-		NewConstant expected = new NewConstant().setId(id)
-				.setValue(new ConValue(ConType.timestamp,
+		assertEquals(ConType.TIMESTAMP, con.getValue().getType());
+		NewConstant expected = new NewConstant().setOperationId(id)
+				.setValue(new ConValue(ConType.TIMESTAMP,
 						new LogicalTimestamp().setReplicaId(id.getReplicaId()).setSequenceNumber(5L)))
 				.setTimestamp(true);
 		assertEquals(expected, con);
@@ -222,9 +222,9 @@ public class NewConstantSerializableTest {
 		// call under test
 		NewConstant con = serializable.deserialize(id, new JSONArray(json));
 		assertEquals(id, con.getOperationId());
-		assertEquals(ConType.timestamp, con.getValue().getType());
-		NewConstant expected = new NewConstant().setId(id)
-				.setValue(new ConValue(ConType.timestamp,
+		assertEquals(ConType.TIMESTAMP, con.getValue().getType());
+		NewConstant expected = new NewConstant().setOperationId(id)
+				.setValue(new ConValue(ConType.TIMESTAMP,
 						new LogicalTimestamp().setReplicaId(id.getReplicaId()).setSequenceNumber(1234567891011121314L)))
 				.setTimestamp(true);
 		assertEquals(expected, con);

@@ -4,9 +4,9 @@ import java.util.Objects;
 
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
-public class NewBinary implements Operation {
+public class NewBinary implements Operation<NewBinary> {
 
-	private LogicalTimestamp id;
+	private LogicalTimestamp operationId;
 
 	@Override
 	public OperationType getType() {
@@ -15,22 +15,22 @@ public class NewBinary implements Operation {
 
 	@Override
 	public LogicalTimestamp getOperationId() {
-		return id;
+		return operationId;
 	}
 
 	@Override
-	public long span() {
+	public long getSpan() {
 		return 1L;
 	}
 
-	public NewBinary setId(LogicalTimestamp id) {
-		this.id = id;
+	public NewBinary setOperationId(LogicalTimestamp id) {
+		this.operationId = id;
 		return this;
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(id);
+		return Objects.hash(operationId);
 	}
 
 	@Override
@@ -42,12 +42,13 @@ public class NewBinary implements Operation {
 		if (getClass() != obj.getClass())
 			return false;
 		NewBinary other = (NewBinary) obj;
-		return Objects.equals(id, other.id);
+		return Objects.equals(operationId, other.operationId);
 	}
 
 	@Override
 	public String toString() {
-		return "NewBinary [id=" + id + "]";
+		return "NewBinary [id=" + operationId + "]";
 	}
+
 
 }

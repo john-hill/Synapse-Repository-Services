@@ -39,7 +39,7 @@ public class PatchCompactSerializable {
 		patch.setPatchId(LogicalTimestampCompactSerializable.deserialize(header.getJSONArray(0)));
 		JSONObject metadata = header.optJSONObject(1);
 		patch.setMetadata(metadata != null ? metadata.toString() : null);
-		List<Operation> operations = new ArrayList<>(compact.length() - 1);
+		List<Operation<?>> operations = new ArrayList<>(compact.length() - 1);
 		// The first operation ID is the same as the patchId.
 		LogicalTimestamp nextOperationId = LogicalTimestamp.clone(patch.getPatchId());
 		for (int i = 0; i < compact.length() - 1; i++) {
@@ -50,9 +50,9 @@ public class PatchCompactSerializable {
 			if (serializer == null) {
 				throw new IllegalArgumentException("Unknown type: " + type);
 			}
-			Operation operation = serializer.deserialize(nextOperationId, next);
+			Operation<?> operation = serializer.deserialize(nextOperationId, next);
 			operations.add(operation);
-			nextOperationId = LogicalTimestamp.newIncrement(nextOperationId, operation.span());
+			nextOperationId = LogicalTimestamp.newIncrement(nextOperationId, operation.getSpan());
 		}
 		patch.setOperations(operations);
 		return patch;
@@ -83,7 +83,7 @@ public class PatchCompactSerializable {
 		}
 		compact.put(0, header);
 		for (int i = 0; i < patch.getOperations().size(); i++) {
-			Operation op = patch.getOperations().get(i);
+			Operation<?> op = patch.getOperations().get(i);
 			OperationSerializable<?> serializer = map.get(op.getType());
 			if (serializer == null) {
 				throw new IllegalArgumentException("Unknown type: " + op.getType());
@@ -105,8 +105,8 @@ public class PatchCompactSerializable {
 	 * @param generalOperation
 	 * @return
 	 */
-	private static <S extends Operation> JSONArray serializeWithHelper(OperationSerializable<S> typedSerializer,
-			Operation generalOperation) {
+	private static <S extends Operation<?>> JSONArray serializeWithHelper(OperationSerializable<S> typedSerializer,
+			Operation<?> generalOperation) {
 		S specificOperation = typedSerializer.getTypeClass().cast(generalOperation);
 		return typedSerializer.serialize(specificOperation);
 	}

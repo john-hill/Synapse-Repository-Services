@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlResponse;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
@@ -19,7 +20,7 @@ import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
-public interface GridManager {
+public interface GridManager extends PatchStore {
 
 	/**
 	 * Create a new grid session.
@@ -28,7 +29,7 @@ public interface GridManager {
 	 * @param request
 	 * @return
 	 */
-	CreateGridResponse createGrid(UserInfo user, CreateGridRequest request);
+	CreateGridResponse createGrid(AsyncJobProgressCallback progressCallback, UserInfo user, CreateGridRequest request);
 
 	/**
 	 * Get information about a grid session.
@@ -113,7 +114,7 @@ public interface GridManager {
 	 *         before.
 	 */
 	boolean savePatch(EventContext context, LogicalTimestamp patchId, String body);
-
+	
 	/**
 	 * List the active connections for a grid session.
 	 * 
@@ -130,5 +131,7 @@ public interface GridManager {
 	 * @return {@link Optional#empty()} If the replica is up-to-date.
 	 */
 	Optional<String> getNextMissingPatch(EventContext context, List<LogicalTimestamp> clock);
+
+
 
 }

@@ -37,6 +37,7 @@ import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.event.JsonRxMessageType;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.grid.patch.compact.LogicalTimestampCompactSerializable;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 import org.sagebionetworks.schema.adapter.org.json.EntityFactory;
@@ -87,7 +88,7 @@ public class GridEventListenerTest {
 		patchDataRequest = new NewPatchRegistrationMessage(context, requestId, new JSONArray(patch));
 		clock = List.of(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L));
 		synchronizeClockMessage = new SynchronizeClockMessage(context, requestId,
-				PatchCompactSerializable.serializeClock(clock));
+				LogicalTimestampCompactSerializable.serializeClock(clock));
 	}
 
 	@Test
@@ -233,22 +234,22 @@ public class GridEventListenerTest {
 
 		// call under test
 		listener.onSynchronizeClock(synchronizeClockMessage);
-		verify(mockPublisher).publishEventResponse(context, JsonRxMessageType.ResponseData, requestId, patch); 
+		verify(mockPublisher).publishEventResponse(context, JsonRxMessageType.ResponseData, requestId, patch);
 	}
-	
+
 	@Test
 	public void testOnSynchronizeClockWithDone() {
 		when(mockManager.getNextMissingPatch(context, clock)).thenReturn(Optional.empty());
 
 		// call under test
 		listener.onSynchronizeClock(synchronizeClockMessage);
-		verify(mockPublisher).publishEventResponse(context, JsonRxMessageType.ResponseComplete, requestId); 
+		verify(mockPublisher).publishEventResponse(context, JsonRxMessageType.ResponseComplete, requestId);
 	}
-	
+
 	@Test
 	public void testOnSynchronizeClockWithNullMessage() {
 		synchronizeClockMessage = null;
-		
+
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
 			listener.onSynchronizeClock(synchronizeClockMessage);

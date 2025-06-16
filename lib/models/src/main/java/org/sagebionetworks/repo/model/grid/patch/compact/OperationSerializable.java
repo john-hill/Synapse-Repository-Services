@@ -5,14 +5,14 @@ import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.operation.Operation;
 import org.sagebionetworks.repo.model.grid.patch.operation.OperationType;
 
-public interface OperationSerializable<T extends Operation> {
+public interface OperationSerializable<T extends Operation<?>> {
 	
 	OperationType getType();
 	
 	Class<? extends T> getTypeClass();
 	
-	T deserialize(LogicalTimestamp patchId, int index, JSONArray array);
+	T deserialize(LogicalTimestamp operationId, JSONArray array);
 	
-	JSONArray serialize(LogicalTimestamp patchId, int index, T opp);
+	JSONArray serialize(T operation);
 
 }

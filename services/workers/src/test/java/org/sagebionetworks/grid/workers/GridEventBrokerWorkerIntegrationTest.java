@@ -32,6 +32,7 @@ import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.grid.patch.compact.LogicalTimestampCompactSerializable;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
 import org.sagebionetworks.repo.service.GridService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -170,7 +171,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 		}, incomingMessagesTwo));
 
 		// after applying the patch update the clock and synchronize again.
-		String newClock = PatchCompactSerializable.serializeClock(patchIds).toString();
+		String newClock = LogicalTimestampCompactSerializable.serializeClock(patchIds).toString();
 		wsTwo.sendText(String.format("[1,99,\"synchronize-clock\",%s]", newClock), true).join();
 
 		patchIds.clear();
@@ -184,7 +185,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 		}, incomingMessagesTwo));
 
 		// after the second snych, replica two should be up-to-date.
-		newClock = PatchCompactSerializable.serializeClock(patchIds).toString();
+		newClock = LogicalTimestampCompactSerializable.serializeClock(patchIds).toString();
 		wsTwo.sendText(String.format("[1,99,\"synchronize-clock\",%s]", newClock), true).join();
 		
 		assertTrue(waitForMessage((a) -> a.optInt(0) == 5 && a.optInt(1) == 99, incomingMessagesTwo));

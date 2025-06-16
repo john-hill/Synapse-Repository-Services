@@ -6,7 +6,7 @@ public class LogicalTimestamp {
 
 	private Long replicaId;
 	private Long sequenceNumber;
-	
+
 	public Long getReplicaId() {
 		return replicaId;
 	}
@@ -23,6 +23,29 @@ public class LogicalTimestamp {
 	public LogicalTimestamp setSequenceNumber(Long sequenceNumber) {
 		this.sequenceNumber = sequenceNumber;
 		return this;
+	}
+
+	/**
+	 * Create a new LogicalTimestamp with a sequence that is incremented by the
+	 * provided span.
+	 * 
+	 * @param original
+	 * @param span
+	 * @return
+	 */
+	public static LogicalTimestamp newIncrement(LogicalTimestamp original, long span) {
+		return new LogicalTimestamp().setReplicaId(original.getReplicaId())
+				.setSequenceNumber(original.getSequenceNumber() + span);
+	}
+
+	/**
+	 * Create a clone of the provided LogicalTimestamp.
+	 * @param original
+	 * @return
+	 */
+	public static LogicalTimestamp clone(LogicalTimestamp original) {
+		return new LogicalTimestamp().setReplicaId(original.getReplicaId())
+				.setSequenceNumber(original.getSequenceNumber());
 	}
 
 	@Override

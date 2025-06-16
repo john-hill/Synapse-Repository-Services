@@ -6,6 +6,7 @@ import java.util.Objects;
 import org.json.JSONArray;
 import org.sagebionetworks.repo.model.grid.EventContext;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.grid.patch.compact.LogicalTimestampCompactSerializable;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
 
 public class SynchronizeClockMessage implements RequestDataMessage {
@@ -18,7 +19,7 @@ public class SynchronizeClockMessage implements RequestDataMessage {
 		super();
 		this.context = context;
 		this.requestId = requestId;
-		this.clock = PatchCompactSerializable.deserializeClock(body);
+		this.clock = LogicalTimestampCompactSerializable.deserializeClock(body);
 	}
 
 	public EventContext getContext() {

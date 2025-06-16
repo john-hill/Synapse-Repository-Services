@@ -11,8 +11,8 @@ public interface OperationSerializable<T extends Operation> {
 	
 	Class<? extends T> getTypeClass();
 	
-	T deserialize(LogicalTimestamp patchId, int index, JSONArray array);
+	T deserialize(LogicalTimestamp operationId, JSONArray array);
 	
-	JSONArray serialize(LogicalTimestamp patchId, int index, T opp);
+	JSONArray serialize(T operation);
 
 }

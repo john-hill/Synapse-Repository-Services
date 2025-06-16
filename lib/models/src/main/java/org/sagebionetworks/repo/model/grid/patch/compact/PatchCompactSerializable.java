@@ -16,7 +16,12 @@ import org.sagebionetworks.util.ValidateArgument;
 
 public class PatchCompactSerializable {
 
-	private static List<OperationSerializable<?>> serializables = Arrays.asList(new NewConstantSerializable());
+	private static List<OperationSerializable<?>> serializables = Arrays.asList(new NewConstantSerializable(),
+			new NewValueSerializable(), new NewObjectSerializable(), new NewVectorSerializable(),
+			new NewStringSerializable(), new NewBinarySerializable(), new NewArraySerializable(),
+			new InsertValueSerializable(), new InsertObjectSerializable(), new InsertVectorSerializable(),
+			new InsertArraySerializable());
+
 	private static Map<OperationType, OperationSerializable<?>> map = serializables.stream()
 			.collect(Collectors.toMap(OperationSerializable::getType, handler -> handler));
 
@@ -31,10 +36,12 @@ public class PatchCompactSerializable {
 		// first array is the patch metadata
 		JSONArray header = compact.getJSONArray(0);
 
-		patch.setPatchId(deserializeLogicalTimestamp(header.getJSONArray(0)));
+		patch.setPatchId(LogicalTimestampCompactSerializable.deserialize(header.getJSONArray(0)));
 		JSONObject metadata = header.optJSONObject(1);
 		patch.setMetadata(metadata != null ? metadata.toString() : null);
 		List<Operation> operations = new ArrayList<>(compact.length() - 1);
+		// The first operation ID is the same as the patchId.
+		LogicalTimestamp nextOperationId = LogicalTimestamp.clone(patch.getPatchId());
 		for (int i = 0; i < compact.length() - 1; i++) {
 			JSONArray next = compact.getJSONArray(i + 1);
 			int code = next.getInt(0);
@@ -43,7 +50,9 @@ public class PatchCompactSerializable {
 			if (serializer == null) {
 				throw new IllegalArgumentException("Unknown type: " + type);
 			}
-			operations.add(serializer.deserialize(patch.getPatchId(), i, next));
+			Operation operation = serializer.deserialize(nextOperationId, next);
+			operations.add(operation);
+			nextOperationId = LogicalTimestamp.newIncrement(nextOperationId, operation.span());
 		}
 		patch.setOperations(operations);
 		return patch;
@@ -57,7 +66,7 @@ public class PatchCompactSerializable {
 	public static LogicalTimestamp peekPatchId(JSONArray compact) {
 		ValidateArgument.required(compact, "array");
 		JSONArray header = compact.getJSONArray(0);
-		return deserializeLogicalTimestamp(header.getJSONArray(0));
+		return LogicalTimestampCompactSerializable.deserialize(header.getJSONArray(0));
 	}
 
 	/**
@@ -68,7 +77,7 @@ public class PatchCompactSerializable {
 	 */
 	public static JSONArray serialize(Patch patch) {
 		JSONArray compact = new JSONArray();
-		JSONArray header = new JSONArray().put(0, serializeLogicalTimestamp(patch.getPatchId()));
+		JSONArray header = new JSONArray().put(0, LogicalTimestampCompactSerializable.serialize(patch.getPatchId()));
 		if (patch.getMetadata() != null) {
 			header.put(1, new JSONObject(patch.getMetadata()));
 		}
@@ -79,8 +88,7 @@ public class PatchCompactSerializable {
 			if (serializer == null) {
 				throw new IllegalArgumentException("Unknown type: " + op.getType());
 			}
-
-			JSONArray serializedOperation = serializeWithHelper(serializer, patch.getPatchId(), i, op);
+			JSONArray serializedOperation = serializeWithHelper(serializer, op);
 			compact.put(serializedOperation);
 		}
 
@@ -98,49 +106,9 @@ public class PatchCompactSerializable {
 	 * @return
 	 */
 	private static <S extends Operation> JSONArray serializeWithHelper(OperationSerializable<S> typedSerializer,
-			LogicalTimestamp patchId, int index, Operation generalOperation) {
+			Operation generalOperation) {
 		S specificOperation = typedSerializer.getTypeClass().cast(generalOperation);
-		return typedSerializer.serialize(patchId, index, specificOperation);
-	}
-
-	public static LogicalTimestamp deserializeLogicalTimestamp(JSONArray array) {
-		return new LogicalTimestamp().setReplicaId(array.getLong(0)).setSequenceNumber(array.getLong(1));
-	}
-
-	public static JSONArray serializeLogicalTimestamp(LogicalTimestamp time) {
-		return new JSONArray().put(0, time.getReplicaId()).put(1, time.getSequenceNumber());
-	}
-
-	/**
-	 * Deserialize a JSON array that represented a clock (version vector).
-	 * 
-	 * @param array
-	 * @return
-	 */
-	public static List<LogicalTimestamp> deserializeClock(JSONArray array) {
-		ValidateArgument.required(array, "array");
-		List<LogicalTimestamp> clock = new ArrayList<>(array.length());
-		for (int i = 0; i < array.length(); i++) {
-			JSONArray idArray = array.optJSONArray(i);
-			if (idArray != null) {
-				clock.add(deserializeLogicalTimestamp(idArray));
-			}
-		}
-		return clock;
-	}
-
-	/**
-	 * Serialize a clock (version vector) to JSON Array.
-	 * @param clock
-	 * @return
-	 */
-	public static JSONArray serializeClock(List<LogicalTimestamp> clock) {
-		ValidateArgument.required(clock, "clock");
-		JSONArray array = new JSONArray();
-		clock.forEach(t -> {
-			array.put(serializeLogicalTimestamp(t));
-		});
-		return array;
+		return typedSerializer.serialize(specificOperation);
 	}
 
 }

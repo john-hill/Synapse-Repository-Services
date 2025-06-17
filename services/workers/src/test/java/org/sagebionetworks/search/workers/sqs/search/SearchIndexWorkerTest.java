@@ -5,10 +5,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.sagebionetworks.oss.worker.SearchIndexWorker;
 import org.sagebionetworks.repo.manager.search.oss.SearchManager;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
 import org.sagebionetworks.repo.model.message.ChangeType;
+import org.sagebionetworks.search.oss.worker.SearchIndexWorker;
 import org.sagebionetworks.util.progress.ProgressCallback;
 
 import java.util.List;

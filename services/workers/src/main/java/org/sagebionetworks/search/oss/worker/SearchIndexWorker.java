@@ -1,4 +1,4 @@
-package org.sagebionetworks.oss.worker;
+package org.sagebionetworks.search.oss.worker;
 
 import org.sagebionetworks.asynchronous.workers.changes.BatchChangeMessageDrivenRunner;
 import org.sagebionetworks.cloudwatch.WorkerLogger;

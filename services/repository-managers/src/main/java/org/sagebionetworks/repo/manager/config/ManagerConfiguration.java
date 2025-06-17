@@ -354,8 +354,8 @@ public class ManagerConfiguration {
 		return ApacheHttpClient.builder().build();
 	}
 
-	@Bean(name = "synsearchOssClient")
-	public OpenSearchClient createOpenSearchClient(OpenSearchServerlessClient openSearchServerlessClient,
+	@Bean
+	public OpenSearchClient synSearchOssClient(OpenSearchServerlessClient openSearchServerlessClient,
 												   AwsCredentialsProvider credentialProvider,
 												   StackConfiguration config, SdkHttpClient httpClient) {
 		String collectionName = config.getStack() + "-" + config.getStackInstance() + "-synsearch";

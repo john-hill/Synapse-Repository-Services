@@ -31,7 +31,7 @@ public class SearchManagerImpl implements SearchManager {
     private Logger log;
     private ChangeMessageToOpenSearchDocumentTranslator translator;
     private OpenSearchIndexInitializer openSearchIndexInitializer;
-    @Qualifier("synsearchOssClient")
+    @Qualifier("synSearchOssClient")
     private OpenSearchClient openSearchClient;
 
     public SearchManagerImpl(LoggerProvider logProvider, ChangeMessageToOpenSearchDocumentTranslator translator,

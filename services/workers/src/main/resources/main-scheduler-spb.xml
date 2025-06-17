@@ -38,7 +38,7 @@
     <context:component-scan base-package="org.sagebionetworks.ses.workers" annotation-config="false"/>
     <context:component-scan base-package="org.sagebionetworks.snapshot.workers" annotation-config="false"/>
     <context:component-scan base-package="org.sagebionetworks.search.workers" annotation-config="false"/>
-	<context:component-scan base-package="org.sagebionetworks.oss.worker" annotation-config="false"/>
+	<context:component-scan base-package="org.sagebionetworks.search.oss.worker" annotation-config="false"/>
     <context:component-scan base-package="org.sagebionetworks.auth.workers" annotation-config="false"/>
     <context:component-scan base-package="org.sagebionetworks.webhook.workers" annotation-config="false"/>
     <context:component-scan base-package="org.sagebionetworks.agent.worker" annotation-config="false"/>

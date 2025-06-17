@@ -126,7 +126,7 @@ public class SearchManagerImplTest {
 
         when(mockTranslator.generateSearchDocumentIfNecessary(any(ChangeMessage.class)))
                 .thenReturn(document);
-
+        ErrorCause errorCause = ErrorCause.of(er -> er.reason("reason").type("type"));
         BulkResponseItem itemAdd = new BulkResponseItem.Builder()
                 .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
                 .id(document.getId())
@@ -137,7 +137,7 @@ public class SearchManagerImplTest {
                 .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
                 .id(document.getId())
                 .status(403)
-                .error(ErrorCause.of(er -> er.reason("reason").type("type")))
+                .error(errorCause)
                 .operationType(OperationType.Delete)
                 .build();
 
@@ -147,6 +147,8 @@ public class SearchManagerImplTest {
         assertThrows(RecoverableMessageException.class, () -> {
             //call under test
             mockSearchManager.documentChangeMessages(List.of(new ChangeMessage(), new ChangeMessage()));
+            verify(mockLog).error("Document {} has error {} with reason {}.",
+                    document.getId(), errorCause.type(), errorCause.type());
         });
     }
 
@@ -163,7 +165,7 @@ public class SearchManagerImplTest {
         assertThrows(RecoverableMessageException.class, () -> {
             //call under test
             mockSearchManager.documentChangeMessages(List.of(new ChangeMessage(), new ChangeMessage()));
-            verify(mockLog).error("OpenSearch error type with reason reason");
+            verify(mockLog).error("OpenSearch error type with reason reason.");
         });
     }
 
@@ -174,12 +176,12 @@ public class SearchManagerImplTest {
         when(mockTranslator.generateSearchDocumentIfNecessary(any(ChangeMessage.class)))
                 .thenReturn(document);
 
-        when(mockSearchClient.bulk(any(BulkRequest.class))).thenThrow(new IOException());
+        when(mockSearchClient.bulk(any(BulkRequest.class))).thenThrow(new IOException("exception"));
 
         assertThrows(RecoverableMessageException.class, () -> {
             //call under test
             mockSearchManager.documentChangeMessages(List.of(new ChangeMessage(), new ChangeMessage()));
-
+            verify(mockLog).error("IOException exception.");
         });
     }
 
@@ -187,7 +189,7 @@ public class SearchManagerImplTest {
     public void testDoesDocumentExist() throws IOException {
         when(mockSearchClient.search(any(SearchRequest.class), eq(DocumentFields.class))).thenReturn(SearchResponse.searchResponseOf(sr -> sr
                 .hits(h -> h.hits(List.of(Hit.of(hit -> hit.id(document.getId()).source(document.getFields())
-                        .index(SearchConstants.OPEN_SEARCH_INDEX_NAME))))).took(1).timedOut(true)
+                        .index(SearchConstants.OPEN_SEARCH_INDEX_NAME))))).took(1).timedOut(false)
                 .shards(ShardStatistics.of(sh -> sh.successful(1).failed(0).total(1)))));
 
         //call under test
@@ -202,7 +204,7 @@ public class SearchManagerImplTest {
     public void testDoesDocumentExistWithNoDocument() throws IOException {
         when(mockSearchClient.search(any(SearchRequest.class), eq(DocumentFields.class))).thenReturn(SearchResponse.searchResponseOf(sr -> sr
                 .hits(h -> h.hits(List.of(Hit.of(hit -> hit.index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
-                        .id(null).source(null))))).took(1).timedOut(true)
+                        .id(null).source(null))))).took(1).timedOut(false)
                 .shards(ShardStatistics.of(sh -> sh.successful(1).failed(0).total(1)))));
 
         //call under test
@@ -216,7 +218,7 @@ public class SearchManagerImplTest {
     @Test
     public void testDoesDocumentExistWithOpenSearchException() throws IOException {
         when(mockSearchClient.search(any(SearchRequest.class), eq(DocumentFields.class))).thenThrow(new OpenSearchException(
-                ErrorResponse.of(er -> er.error(ErrorCause.of(ec ->ec.reason("reason").type("type"))))));
+                ErrorResponse.of(er -> er.error(ErrorCause.of(ec -> ec.reason("reason").type("type"))))));
 
         assertThrows(OpenSearchException.class, () -> {
             //call under test

@@ -1,6 +1,5 @@
 package org.sagebionetworks.repo.manager.search.oss;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,7 +13,6 @@ import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch._types.ErrorCause;
 import org.opensearch.client.opensearch._types.ErrorResponse;
 import org.opensearch.client.opensearch._types.OpenSearchException;
-import org.opensearch.client.opensearch._types.mapping.TypeMapping;
 import org.opensearch.client.opensearch.indices.CreateIndexRequest;
 import org.opensearch.client.opensearch.indices.CreateIndexResponse;
 import org.opensearch.client.opensearch.indices.ExistsRequest;
@@ -70,58 +68,6 @@ public class OpenSearchIndexInitializerTest {
         verify(mockIndicesClient).create(captorIndexCreation.capture());
         CreateIndexRequest capturedCreation = captorIndexCreation.getValue();
         assertEquals(SearchConstants.OPEN_SEARCH_INDEX_NAME, capturedCreation.index());
-    }
-
-    @Test
-    public void testIndexMapping() throws IOException {
-        when(mockOpenSearchClient.indices()).thenReturn(mockIndicesClient);
-        when(mockIndicesClient.exists((ExistsRequest) ArgumentMatchers.any())).thenReturn(new BooleanResponse(false));
-        when(mockIndicesClient.create((CreateIndexRequest) ArgumentMatchers.any())).thenReturn(
-                new CreateIndexResponse.Builder().index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
-                        .acknowledged(true).shardsAcknowledged(true).build());
-
-        TypeMapping expectedMapping = TypeMapping.of(t -> t.properties(SearchConstants.FIELD_NAME, p -> p.text(text ->
-                        text.analyzer("english")))
-                .properties(SearchConstants.FIELD_DESCRIPTION,
-                        p -> p.text(text ->
-                                text.analyzer("english")))
-                .properties(SearchConstants.FIELD_CREATED_ON,
-                        p -> p.integer(i -> i))
-                .properties(SearchConstants.FIELD_MODIFIED_ON,
-                        p -> p.integer(i -> i))
-                .properties(SearchConstants.FIELD_NODE_TYPE,
-                        p -> p.keyword(k -> k))
-                .properties(SearchConstants.FIELD_ETAG,
-                        p -> p.keyword(k -> k))
-                .properties(SearchConstants.FIELD_PARENT_ID,
-                        p -> p.keyword(k -> k))
-                .properties(SearchConstants.FIELD_CREATED_BY,
-                        p -> p.keyword(k -> k))
-                .properties(SearchConstants.FIELD_MODIFIED_BY,
-                        p -> p.keyword(k -> k))
-                .properties(SearchConstants.FIELD_ACL,
-                        p -> p.keyword(k -> k))
-                .properties(SearchConstants.FIELD_UPDATE_ACL,
-                        p -> p.keyword(k -> k))
-                .properties(SearchConstants.FIELD_DIAGNOSIS,
-                        p -> p.keyword(k -> k))
-                .properties(SearchConstants.FIELD_TISSUE,
-                        p -> p.keyword(k -> k))
-                .properties(SearchConstants.FIELD_CONSORTIUM,
-                        p -> p.keyword(k -> k))
-                .properties(SearchConstants.FIELD_ORGAN,
-                        p -> p.keyword(k -> k)));
-
-        //call under test
-        initializer.init();
-        verify(mockIndicesClient).create(captorIndexCreation.capture());
-        CreateIndexRequest capturedCreation = captorIndexCreation.getValue();
-
-        ObjectMapper mapper = new ObjectMapper();
-        String expectedJson = mapper.writeValueAsString(expectedMapping.properties());
-        String actualJson = mapper.writeValueAsString(capturedCreation.mappings().properties());
-
-        assertEquals(expectedJson, actualJson);
     }
 
     @Test

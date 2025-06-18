@@ -36,8 +36,6 @@ import org.sagebionetworks.repo.manager.grid.response.GridEventResponsePublisher
 import org.sagebionetworks.repo.model.grid.EventContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.EventType;
-import org.sagebionetworks.repo.model.grid.InternalEventContext;
-import org.sagebionetworks.repo.model.grid.WebsocketEventContext;
 import org.sagebionetworks.repo.model.grid.event.JsonRxMessageType;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
@@ -62,7 +60,7 @@ public class GridEventBrokerWorkerUnitTest {
 	private JsonRxMessageFactory<JsonRxMessage> mockFactory;
 
 	@Mock
-	private WebsocketEventContext mockContext;
+	private EventContext mockContext;
 
 	@Mock
 	private Message mockMessage;
@@ -223,21 +221,7 @@ public class GridEventBrokerWorkerUnitTest {
 	}
 
 	@Test
-	public void testBuildEventContextWithInternal() {
-		Map<String, MessageAttributeValue> attributes = new HashMap<>();
-		attributes.put("EventType", new MessageAttributeValue().withStringValue(EventType.CONNECT.name()));
-		attributes.put("EventSource", new MessageAttributeValue().withStringValue(EventSource.INTERNAL.name()));
-		attributes.put("QueueName", new MessageAttributeValue().withStringValue("somequeue"));
-		when(mockMessage.getMessageAttributes()).thenReturn(attributes);
-
-		// call under test
-		EventContext context = GridEventBrokerWorker.buildEventContext(mockMessage);
-		EventContext expected = new InternalEventContext(EventType.CONNECT, "somequeue");
-		assertEquals(expected, context);
-	}
-
-	@Test
-	public void testBuildEventContextWithWebsocket() {
+	public void testBuildEventContext() {
 		Map<String, MessageAttributeValue> attributes = new HashMap<>();
 		attributes.put("EventType", new MessageAttributeValue().withStringValue(EventType.MESSAGE.name()));
 		attributes.put("EventSource", new MessageAttributeValue().withStringValue(EventSource.WEBSOCKET.name()));
@@ -246,7 +230,7 @@ public class GridEventBrokerWorkerUnitTest {
 
 		// call under test
 		EventContext context = GridEventBrokerWorker.buildEventContext(mockMessage);
-		EventContext expected = new WebsocketEventContext(EventType.MESSAGE, "c123");
+		EventContext expected = new EventContext(EventType.MESSAGE, EventSource.WEBSOCKET, "c123");
 		assertEquals(expected, context);
 	}
 
@@ -290,20 +274,6 @@ public class GridEventBrokerWorkerUnitTest {
 			GridEventBrokerWorker.buildEventContext(mockMessage);
 		}).getMessage();
 		assertEquals("attribute.ConnectionId is required.", message);
-	}
-
-	@Test
-	public void testBuildEventContextWithNullQueueName() {
-		Map<String, MessageAttributeValue> attributes = new HashMap<>();
-		attributes.put("EventType", new MessageAttributeValue().withStringValue(EventType.MESSAGE.name()));
-		attributes.put("EventSource", new MessageAttributeValue().withStringValue(EventSource.INTERNAL.name()));
-		when(mockMessage.getMessageAttributes()).thenReturn(attributes);
-
-		String message = assertThrows(IllegalStateException.class, () -> {
-			// call under test
-			GridEventBrokerWorker.buildEventContext(mockMessage);
-		}).getMessage();
-		assertEquals("attribute.QueueName is required.", message);
 	}
 
 	@Test

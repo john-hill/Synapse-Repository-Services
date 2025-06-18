@@ -1,17 +1,26 @@
 package org.sagebionetworks.repo.manager.grid;
 
+import java.util.List;
+import java.util.Optional;
+
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlResponse;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridResponse;
 import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
 import org.sagebionetworks.repo.model.grid.CreateReplicaResponse;
+import org.sagebionetworks.repo.model.grid.EventContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
+import org.sagebionetworks.repo.model.grid.EventType;
+import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.internal.Connection;
+import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
-public interface GridManager {
+public interface GridManager extends PatchStore {
 
 	/**
 	 * Create a new grid session.
@@ -20,7 +29,7 @@ public interface GridManager {
 	 * @param request
 	 * @return
 	 */
-	CreateGridResponse createGrid(UserInfo user, CreateGridRequest request);
+	CreateGridResponse createGrid(AsyncJobProgressCallback progressCallback, UserInfo user, CreateGridRequest request);
 
 	/**
 	 * Get information about a grid session.
@@ -70,5 +79,59 @@ public interface GridManager {
 	 * @return
 	 */
 	CreateGridPresignedUrlResponse createWebsocketPresignedUrl(UserInfo user, CreateGridPresignedUrlRequest request);
+
+	/**
+	 * Called when a connection is established with a replica.
+	 * 
+	 * @param user
+	 * @param context
+	 * @param connection
+	 */
+	void createReplicaConnection(UserInfo user, EventContext context, Connection connection);
+
+	/**
+	 * Remove a connection if the type matches the expected type.
+	 * 
+	 * @param type
+	 * @param connectionId
+	 */
+	void removeReplicatConnection(EventType type, String connectionId);
+
+	/**
+	 * Unconditionally remove a connection.
+	 * 
+	 * @param connectionId
+	 */
+	void removeReplicaConnection(String connectionId);
+
+	/**
+	 * Save a patch.
+	 * 
+	 * @param context
+	 * @param patchId
+	 * @param body
+	 * @return True if this is a new patch. False if this patch has been saved
+	 *         before.
+	 */
+	boolean savePatch(EventContext context, LogicalTimestamp patchId, String body);
+	
+	/**
+	 * List the active connections for a grid session.
+	 * 
+	 * @param connectionId
+	 * @return
+	 */
+	List<GridConnectionInfo> listActiveConnections(String connectionId);
+
+	/**
+	 * Given a replica's clock, find the next patch that the replica is missing.
+	 * 
+	 * @param context
+	 * @param clock
+	 * @return {@link Optional#empty()} If the replica is up-to-date.
+	 */
+	Optional<String> getNextMissingPatch(EventContext context, List<LogicalTimestamp> clock);
+
+
 
 }

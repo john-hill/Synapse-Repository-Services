@@ -1,16 +1,26 @@
 package org.sagebionetworks.repo.manager.config;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import dev.samstevens.totp.code.CodeGenerator;
-import dev.samstevens.totp.code.DefaultCodeGenerator;
-import dev.samstevens.totp.code.DefaultCodeVerifier;
-import dev.samstevens.totp.recovery.RecoveryCodeGenerator;
-import dev.samstevens.totp.secret.DefaultSecretGenerator;
-import dev.samstevens.totp.secret.SecretGenerator;
-import dev.samstevens.totp.time.SystemTimeProvider;
-import dev.samstevens.totp.time.TimeProvider;
+import static org.sagebionetworks.repo.manager.file.scanner.BasicFileHandleAssociationScanner.DEFAULT_BATCH_SIZE;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.http.HttpClient;
+import java.net.http.HttpClient.Redirect;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.StringJoiner;
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
@@ -69,6 +79,19 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.scheduling.quartz.SimpleTriggerFactoryBean;
+
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+
+import dev.samstevens.totp.code.CodeGenerator;
+import dev.samstevens.totp.code.DefaultCodeGenerator;
+import dev.samstevens.totp.code.DefaultCodeVerifier;
+import dev.samstevens.totp.recovery.RecoveryCodeGenerator;
+import dev.samstevens.totp.secret.DefaultSecretGenerator;
+import dev.samstevens.totp.secret.SecretGenerator;
+import dev.samstevens.totp.time.SystemTimeProvider;
+import dev.samstevens.totp.time.TimeProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
@@ -85,32 +108,12 @@ import software.amazon.awssdk.services.bedrockagent.BedrockAgentClient;
 import software.amazon.awssdk.services.bedrockagent.model.ListAgentsRequest;
 import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAsyncClient;
 import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAsyncClientBuilder;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.opensearchserverless.OpenSearchServerlessClient;
 import software.amazon.awssdk.services.opensearchserverless.model.CollectionDetail;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
-
-import java.io.File;
-import java.io.FileOutputStream;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.http.HttpClient;
-import java.net.http.HttpClient.Redirect;
-import java.time.Duration;
-import java.time.temporal.ChronoUnit;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.StringJoiner;
-import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-
-import static org.sagebionetworks.repo.manager.file.scanner.BasicFileHandleAssociationScanner.DEFAULT_BATCH_SIZE;
 
 @Configuration
 public class ManagerConfiguration {
@@ -398,10 +401,8 @@ public class ManagerConfiguration {
 			BedrockAgentRuntimeAsyncClient defaultBedrockAgentRuntimeAsyncClient,
 			BedrockAgentRuntimeAsyncClient customBedrockAgentRuntimeAsyncClient) {
 		
-		return new AgentClientProvider(Map.of(
-			AgentType.BASELINE, defaultBedrockAgentRuntimeAsyncClient,
-			AgentType.CUSTOM, customBedrockAgentRuntimeAsyncClient)
-		);
+		return new AgentClientProvider(Map.of(AgentType.BASELINE, defaultBedrockAgentRuntimeAsyncClient,
+				AgentType.CUSTOM, customBedrockAgentRuntimeAsyncClient));
 	}
 
 	@Bean
@@ -420,39 +421,34 @@ public class ManagerConfiguration {
 				.orElseThrow(() -> new IllegalArgumentException("Could not find a bedrock agent named: " + agentName));
 
 	}
-	
+
 	@Bean
 	public SimpleTriggerFactoryBean projectStorageAccessTrigger(ProjectStorageLimitsManager manager) {
-		return new SimpleTriggerBuilder()
-			.withRepeatInterval(10_000)
-			.withStartDelay(10)
-			.withTargetObject(manager)
-			.withTargetMethod("sendProjectStorageNotifications")
-			.build();
+		return new SimpleTriggerBuilder().withRepeatInterval(10_000).withStartDelay(10).withTargetObject(manager)
+				.withTargetMethod("sendProjectStorageNotifications").build();
 	}
-	
+
 	@Bean
 	public RowPFBWriterProvider createRowPFBWriterProvider() {
 		return (String tableName, List<ColumnModel> columns, Metadata metadata, File file) -> {
 			return new RowPFBWriter(tableName, columns, metadata, new FileOutputStream(file));
 		};
 	}
-	
+
 	@Bean
 	int viewUpdateVisibilityTimeoutSeconds() {
 		return 120;
 	}
-	
-	
+
 	@Bean
 	public ApiGatewayV2Client createApiGatewayV2Client(AwsCredentialsProvider credentialProvider) {
-		return ApiGatewayV2Client.builder().credentialsProvider(credentialProvider)
-				.region(Region.US_EAST_1).build();
+		return ApiGatewayV2Client.builder().credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
 	}
-	
+
 	@Bean
 	public WebsocketApi createWebsocketApi(ApiGatewayV2Client client, StackConfiguration stackConfig) {
-		String gridWebsocketApiName = String.format("%s-%s-grid-websocket", stackConfig.getStack(), stackConfig.getStackInstance());
+		String gridWebsocketApiName = String.format("%s-%s-grid-websocket", stackConfig.getStack(),
+				stackConfig.getStackInstance());
 		Api api = findWebsocketApi(client, gridWebsocketApiName);
 		Stage stage = client.getStages(GetStagesRequest.builder().apiId(api.apiId()).build()).items().stream()
 				.findFirst().get();
@@ -460,9 +456,10 @@ public class ManagerConfiguration {
 		return new WebsocketApi().setApiId(api.apiId()).setApiEndpoint(api.apiEndpoint()).setApiName(api.name())
 				.setStageName(stage.stageName());
 	}
-	
+
 	/**
 	 * Helper to find a websocket API by name.
+	 *
 	 * @param client
 	 * @param apiName
 	 * @return
@@ -471,21 +468,25 @@ public class ManagerConfiguration {
 		String nextToken = null;
 		do {
 			GetApisResponse res = client.getApis(GetApisRequest.builder().nextToken(nextToken).build());
-			Optional<Api> op = res.items().stream()
-					.filter(i -> apiName.equals(i.name())).findFirst();
-			if(op.isPresent()) {
+			Optional<Api> op = res.items().stream().filter(i -> apiName.equals(i.name())).findFirst();
+			if (op.isPresent()) {
 				return op.get();
 			}
 			nextToken = res.nextToken();
 		} while (nextToken != null);
-		throw new NotFoundException("Cannot find websocket apiName: "+apiName);
+		throw new NotFoundException("Cannot find websocket apiName: " + apiName);
 	}
-	
+
 	@Bean
 	public ApiGatewayManagementApiClient createAmazonApiGatewayManagementApi(AwsCredentialsProvider credentialProvider,
 			WebsocketApi websocketApi) throws URISyntaxException {
 		return ApiGatewayManagementApiClient.builder().endpointOverride(new URI(websocketApi.getHttpUrl()))
 				.credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
 	}
-	
+
+	@Bean
+	public S3Client createS3Client(AwsCredentialsProvider credentialProvider) {
+		return S3Client.builder().credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
+	}
+
 }

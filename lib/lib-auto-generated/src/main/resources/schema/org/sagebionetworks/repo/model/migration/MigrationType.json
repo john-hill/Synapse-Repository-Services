@@ -487,6 +487,10 @@
 			"description": "Table that tracks grid replica."
 		},
 		{
+			"name": "GRID_PATCH",
+			"description": "Table that tracks grid replica patches."
+		},
+		{
 			"name": "CHANGE",
 			"description": "TODO: Auto-generated description"
 		}

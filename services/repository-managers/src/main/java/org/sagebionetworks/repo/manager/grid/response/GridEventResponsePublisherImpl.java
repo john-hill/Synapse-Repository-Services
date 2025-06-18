@@ -6,21 +6,40 @@ import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.model.grid.EventContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
+import org.sagebionetworks.repo.model.grid.event.JsonRxMessageType;
 import org.springframework.stereotype.Service;
 
 @Service
 public class GridEventResponsePublisherImpl implements GridEventResponsePublisher {
-	
+
 	private Map<EventSource, GridEventResponsePublishHandler> handlerMap;
-	
+
 	public GridEventResponsePublisherImpl(List<GridEventResponsePublishHandler> handlers) {
 		handlerMap = handlers.stream()
 				.collect(Collectors.toMap(GridEventResponsePublishHandler::getEventSource, handler -> handler));
 	}
-	
+
 	@Override
-	public boolean publishEventResponse(EventContext context, String event) {
-		return handlerMap.get(context.eventSource()).publishEventResponse(context, event);
+	public void publishEventResponse(EventContext context, String event) {
+		handlerMap.get(context.getEventSource()).publishEventResponse(context, event);
+	}
+
+	@Override
+	public void publishEventResponse(EventContext context, JsonRxMessageType type, String method) {
+		String message = String.format("[%d,\"%s\"]", type.getCode(), method);
+		publishEventResponse(context, message);
+	}
+
+	@Override
+	public void publishEventResponse(EventContext context, JsonRxMessageType type, int requestId) {
+		String message = String.format("[%d,%d]", type.getCode(), requestId);
+		publishEventResponse(context, message);
+	}
+
+	@Override
+	public void publishEventResponse(EventContext context, JsonRxMessageType type, int requestId, String payload) {
+		String message = String.format("[%d,%d,%s]", type.getCode(), requestId, payload);
+		publishEventResponse(context, message);
 	}
 
 }

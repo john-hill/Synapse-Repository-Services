@@ -67,19 +67,19 @@ public class OpenSearchIndexInitializer {
                 CreateIndexResponse response = indicesClient.create(request);
 
                 if (Boolean.TRUE.equals(response.acknowledged())) {
-                    log.info(String.format("Index %s creation completed.", SearchConstants.OPEN_SEARCH_INDEX_NAME));
+                    log.info("Index {} creation completed.", SearchConstants.OPEN_SEARCH_INDEX_NAME);
                 } else {
-                    log.error(String.format("Index %s creation was not acknowledged.", SearchConstants.OPEN_SEARCH_INDEX_NAME));
+                    log.error("Index {} creation was not acknowledged.", SearchConstants.OPEN_SEARCH_INDEX_NAME);
                 }
             }
         } catch (OpenSearchException e) {
             if (RESOURCE_EXISTS.equals(e.error().type())) {
-                log.error(String.format("Index %s already exists.", SearchConstants.OPEN_SEARCH_INDEX_NAME));
+                log.error("Index {} already exists.", SearchConstants.OPEN_SEARCH_INDEX_NAME);
             } else {
-                log.error(String.format("Index %s creation failed %s", SearchConstants.OPEN_SEARCH_INDEX_NAME, e.error().reason()));
+                log.error("Index {} creation failed {}.", SearchConstants.OPEN_SEARCH_INDEX_NAME, e.getMessage());
             }
         } catch (IOException e) {
-            log.error(String.format("Index %s creation failed %s", SearchConstants.OPEN_SEARCH_INDEX_NAME, e.getMessage()));
+            log.error("Index {} creation failed {}.", SearchConstants.OPEN_SEARCH_INDEX_NAME, e.getMessage());
         }
     }
 }

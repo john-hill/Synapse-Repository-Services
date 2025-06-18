@@ -62,7 +62,7 @@ public class OpenSearchIndexInitializerTest {
         initializer.init();
 
         verify(mockIndicesClient).exists(captorIndexExists.capture());
-        verify(mockLog).info(String.format("Index %s creation completed.", SearchConstants.OPEN_SEARCH_INDEX_NAME));
+        verify(mockLog).info("Index {} creation completed.", SearchConstants.OPEN_SEARCH_INDEX_NAME);
         ExistsRequest captured = captorIndexExists.getValue();
         assertEquals(SearchConstants.OPEN_SEARCH_INDEX_NAME, captured.index().get(0));
         verify(mockIndicesClient).create(captorIndexCreation.capture());
@@ -87,15 +87,16 @@ public class OpenSearchIndexInitializerTest {
         verify(mockIndicesClient).create(captorIndexCreation.capture());
         CreateIndexRequest capturedCreation = captorIndexCreation.getValue();
         assertEquals(SearchConstants.OPEN_SEARCH_INDEX_NAME, capturedCreation.index());
-        verify(mockLog).error(String.format("Index %s creation was not acknowledged.", SearchConstants.OPEN_SEARCH_INDEX_NAME));
+        verify(mockLog).error("Index {} creation was not acknowledged.", SearchConstants.OPEN_SEARCH_INDEX_NAME);
     }
 
     @Test
     public void testCreateIndexThrowOpenSearchException() throws IOException {
         when(mockOpenSearchClient.indices()).thenReturn(mockIndicesClient);
         when(mockIndicesClient.exists((ExistsRequest) ArgumentMatchers.any())).thenReturn(new BooleanResponse(false));
-        when(mockIndicesClient.create((CreateIndexRequest) ArgumentMatchers.any())).thenThrow(new OpenSearchException(
-                ErrorResponse.of(er -> er.error(ErrorCause.of(er1 -> er1.reason("reason").type("type"))))));
+        OpenSearchException exception = new OpenSearchException(
+                ErrorResponse.of(er -> er.error(ErrorCause.of(er1 -> er1.reason("reason").type("type")))));
+        when(mockIndicesClient.create((CreateIndexRequest) ArgumentMatchers.any())).thenThrow(exception);
 
         //call under test
         initializer.init();
@@ -106,7 +107,7 @@ public class OpenSearchIndexInitializerTest {
         verify(mockIndicesClient).create(captorIndexCreation.capture());
         CreateIndexRequest capturedCreation = captorIndexCreation.getValue();
         assertEquals(SearchConstants.OPEN_SEARCH_INDEX_NAME, capturedCreation.index());
-        verify(mockLog).error(String.format("Index %s creation failed reason", SearchConstants.OPEN_SEARCH_INDEX_NAME));
+        verify(mockLog).error("Index {} creation failed {}.", SearchConstants.OPEN_SEARCH_INDEX_NAME, exception.getMessage());
     }
     @Test
     public void testCreateIndexThrowResourceAlreadyExistsException() throws IOException {
@@ -125,15 +126,16 @@ public class OpenSearchIndexInitializerTest {
         verify(mockIndicesClient).create(captorIndexCreation.capture());
         CreateIndexRequest capturedCreation = captorIndexCreation.getValue();
         assertEquals(SearchConstants.OPEN_SEARCH_INDEX_NAME, capturedCreation.index());
-        verify(mockLog).error(String.format("Index %s already exists.",
-                SearchConstants.OPEN_SEARCH_INDEX_NAME));
+        verify(mockLog).error("Index {} already exists.",
+                SearchConstants.OPEN_SEARCH_INDEX_NAME);
     }
 
     @Test
     public void testCreateIndexThrowIOException() throws IOException {
+        IOException exception = new IOException("IOException");
         when(mockOpenSearchClient.indices()).thenReturn(mockIndicesClient);
         when(mockIndicesClient.exists((ExistsRequest) ArgumentMatchers.any())).thenReturn(new BooleanResponse(false));
-        when(mockIndicesClient.create((CreateIndexRequest) ArgumentMatchers.any())).thenThrow(new IOException("IOException"));
+        when(mockIndicesClient.create((CreateIndexRequest) ArgumentMatchers.any())).thenThrow(exception);
 
         //call under test
         initializer.init();
@@ -144,8 +146,8 @@ public class OpenSearchIndexInitializerTest {
         verify(mockIndicesClient).create(captorIndexCreation.capture());
         CreateIndexRequest capturedCreation = captorIndexCreation.getValue();
         assertEquals(SearchConstants.OPEN_SEARCH_INDEX_NAME, capturedCreation.index());
-        verify(mockLog).error(String.format("Index %s creation failed IOException",
-                SearchConstants.OPEN_SEARCH_INDEX_NAME));
+        verify(mockLog).error("Index {} creation failed {}.",
+                SearchConstants.OPEN_SEARCH_INDEX_NAME, exception.getMessage());
     }
 
     @Test

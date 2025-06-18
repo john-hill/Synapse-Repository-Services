@@ -6,7 +6,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.opensearch.client.opensearch.OpenSearchClient;
@@ -40,14 +39,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 public class SearchManagerImplTest {
-    @Captor
+
     ArgumentCaptor<BulkRequest> bulkRequestArgumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
-    @Captor
-    ArgumentCaptor<SearchRequest> searchRequestArgumentCaptor;
+
+    ArgumentCaptor<SearchRequest> searchRequestArgumentCaptor = ArgumentCaptor.forClass(SearchRequest.class);
     @Mock
     ChangeMessageToOpenSearchDocumentTranslator mockTranslator;
     @Mock
@@ -117,6 +117,7 @@ public class SearchManagerImplTest {
         assertEquals(1, request.operations().size());
         assertEquals(DeleteOperation.class, request.operations().get(0).delete().getClass());
         assertEquals(SearchConstants.OPEN_SEARCH_INDEX_NAME, request.operations().get(0).delete().index());
+        verifyZeroInteractions(mockLog);
     }
 
 
@@ -147,42 +148,45 @@ public class SearchManagerImplTest {
         assertThrows(RecoverableMessageException.class, () -> {
             //call under test
             mockSearchManager.documentChangeMessages(List.of(new ChangeMessage(), new ChangeMessage()));
-            verify(mockLog).error("Document {} has error {} with reason {}.",
-                    document.getId(), errorCause.type(), errorCause.type());
+
         });
+
+        verify(mockLog).error("Document {} has error {} with reason {}.",
+                document.getId(), errorCause.type(), errorCause.reason());
     }
 
     @Test
     public void testDocumentChangeMessagesErrorWithOpenSearchException() throws IOException {
         document.setType(DocumentTypeNames.delete);
+        OpenSearchException exception = new OpenSearchException(
+                ErrorResponse.of(er -> er.error(ErrorCause.of(er1 -> er1.reason("reason").type("type")))));
 
         when(mockTranslator.generateSearchDocumentIfNecessary(any(ChangeMessage.class)))
                 .thenReturn(document);
 
-        when(mockSearchClient.bulk(any(BulkRequest.class))).thenThrow(new OpenSearchException(
-                ErrorResponse.of(er -> er.error(ErrorCause.of(er1 -> er1.reason("reason").type("type"))))));
+        when(mockSearchClient.bulk(any(BulkRequest.class))).thenThrow(exception);
 
         assertThrows(RecoverableMessageException.class, () -> {
             //call under test
             mockSearchManager.documentChangeMessages(List.of(new ChangeMessage(), new ChangeMessage()));
-            verify(mockLog).error("OpenSearch error type with reason reason.");
         });
+        verify(mockLog).error("OpenSearch error {} with reason {}.", exception.error().type(), exception.error().reason());
     }
 
     @Test
     public void testDocumentChangeMessagesErrorWithIOException() throws IOException {
         document.setType(DocumentTypeNames.delete);
-
+        IOException exception = new IOException("IOException");
         when(mockTranslator.generateSearchDocumentIfNecessary(any(ChangeMessage.class)))
                 .thenReturn(document);
 
-        when(mockSearchClient.bulk(any(BulkRequest.class))).thenThrow(new IOException("exception"));
+        when(mockSearchClient.bulk(any(BulkRequest.class))).thenThrow(exception);
 
         assertThrows(RecoverableMessageException.class, () -> {
             //call under test
             mockSearchManager.documentChangeMessages(List.of(new ChangeMessage(), new ChangeMessage()));
-            verify(mockLog).error("IOException exception.");
         });
+        verify(mockLog).error("IOException {}.", exception.getMessage());
     }
 
     @Test
@@ -217,25 +221,26 @@ public class SearchManagerImplTest {
 
     @Test
     public void testDoesDocumentExistWithOpenSearchException() throws IOException {
-        when(mockSearchClient.search(any(SearchRequest.class), eq(DocumentFields.class))).thenThrow(new OpenSearchException(
-                ErrorResponse.of(er -> er.error(ErrorCause.of(ec -> ec.reason("reason").type("type"))))));
+        OpenSearchException exception = new OpenSearchException(
+                ErrorResponse.of(er -> er.error(ErrorCause.of(ec -> ec.reason("reason").type("type")))));
+        when(mockSearchClient.search(any(SearchRequest.class), eq(DocumentFields.class))).thenThrow(exception);
 
         assertThrows(OpenSearchException.class, () -> {
             //call under test
             mockSearchManager.doesDocumentExist(document.getId(), document.getFields().getEtag());
-            verify(mockLog).error("Error Request failed: [type] reason occurred while searching document.");
-
         });
+        verify(mockLog).error("Error {} occurred while searching document.", exception.getMessage());
     }
 
     @Test
     public void testDoesDocumentExistWithIOException() throws IOException {
-        when(mockSearchClient.search(any(SearchRequest.class), eq(DocumentFields.class))).thenThrow(new IOException("IO"));
+        IOException exception = new IOException("IOException");
+        when(mockSearchClient.search(any(SearchRequest.class), eq(DocumentFields.class))).thenThrow(exception);
 
         assertThrows(IOException.class, () -> {
             //call under test
             mockSearchManager.doesDocumentExist(document.getId(), document.getFields().getEtag());
-            verify(mockLog).error("Error IO occurred while searching document.");
         });
+        verify(mockLog).error("Error {} occurred while searching document.", exception.getMessage());
     }
 }

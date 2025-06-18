@@ -107,7 +107,7 @@ public class OpenSearchIndexInitializerTest {
         verify(mockIndicesClient).create(captorIndexCreation.capture());
         CreateIndexRequest capturedCreation = captorIndexCreation.getValue();
         assertEquals(SearchConstants.OPEN_SEARCH_INDEX_NAME, capturedCreation.index());
-        verify(mockLog).error("Index {} creation failed {}.", SearchConstants.OPEN_SEARCH_INDEX_NAME, exception.getMessage());
+        verify(mockLog).error("Index {} creation failed {}.", SearchConstants.OPEN_SEARCH_INDEX_NAME, exception);
     }
     @Test
     public void testCreateIndexThrowResourceAlreadyExistsException() throws IOException {
@@ -147,7 +147,7 @@ public class OpenSearchIndexInitializerTest {
         CreateIndexRequest capturedCreation = captorIndexCreation.getValue();
         assertEquals(SearchConstants.OPEN_SEARCH_INDEX_NAME, capturedCreation.index());
         verify(mockLog).error("Index {} creation failed {}.",
-                SearchConstants.OPEN_SEARCH_INDEX_NAME, exception.getMessage());
+                SearchConstants.OPEN_SEARCH_INDEX_NAME, exception);
     }
 
     @Test

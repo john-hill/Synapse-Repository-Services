@@ -31,15 +31,15 @@ public class SearchManagerImpl implements SearchManager {
     private Logger log;
     private ChangeMessageToOpenSearchDocumentTranslator translator;
     private OpenSearchIndexInitializer openSearchIndexInitializer;
-    @Qualifier("synSearchOssClient")
+
     private OpenSearchClient openSearchClient;
 
     public SearchManagerImpl(LoggerProvider logProvider, ChangeMessageToOpenSearchDocumentTranslator translator,
-                             OpenSearchIndexInitializer openSearchIndexInitializer, OpenSearchClient openSearchClient) {
+                             OpenSearchIndexInitializer openSearchIndexInitializer, OpenSearchClient synSearchOssClient) {
         this.log = logProvider.getLogger(SearchManagerImpl.class.getName());
         this.translator = translator;
         this.openSearchIndexInitializer = openSearchIndexInitializer;
-        this.openSearchClient = openSearchClient;
+        this.openSearchClient = synSearchOssClient;
     }
 
     @PostConstruct()
@@ -69,18 +69,14 @@ public class SearchManagerImpl implements SearchManager {
             BulkResponse response = openSearchClient.bulk(req -> req.operations(operations));
 
             // if any message fails to process we will throw exception to reprocess it.
-            boolean hasError = response.items().stream().filter(item -> item.error() != null)
-                    .peek(item -> log.error("Document {} has error {} with reason {}.", item.id(), item.error().type(),
-                            item.error().reason())).findAny().isPresent();
+            long hasError = response.items().stream().filter(item -> item.error() != null)
+                    .peek(item -> log.error("Document {} has error {}.", item.id(), item.error())).count();
 
-            if (hasError) {
+            if (hasError > 0L) {
                 throw new RecoverableMessageException();
             }
-        } catch (OpenSearchException e) {
-            log.error("OpenSearch error {} with reason {}.", e.error().type(), e.error().reason());
-            throw new RecoverableMessageException(e);
-        } catch (IOException e) {
-            log.error("IOException {}.", e.getMessage());
+        } catch (OpenSearchException | IOException e) {
+            log.error(e);
             throw new RecoverableMessageException(e);
         }
     }
@@ -102,7 +98,7 @@ public class SearchManagerImpl implements SearchManager {
 
             return !response.hits().hits().isEmpty();
         } catch (OpenSearchException | IOException e) {
-            log.error("Error {} occurred while searching document.", e.getMessage());
+            log.error(e);
             throw e;
         }
     }

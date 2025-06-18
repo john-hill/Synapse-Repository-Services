@@ -134,6 +134,14 @@ public class SearchManagerImplTest {
                 .status(201)
                 .operationType(OperationType.Index)
                 .build();
+
+        BulkResponseItem itemAdd2 = new BulkResponseItem.Builder()
+                .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
+                .id(document.getId()+1)
+                .status(403)
+                .operationType(OperationType.Index)
+                .error(errorCause)
+                .build();
         BulkResponseItem itemDel = new BulkResponseItem.Builder()
                 .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
                 .id(document.getId())
@@ -143,16 +151,18 @@ public class SearchManagerImplTest {
                 .build();
 
         when(mockSearchClient.bulk(any(BulkRequest.class))).thenReturn(new BulkResponse.Builder()
-                .items(List.of(itemAdd, itemDel)).errors(false).took(1L).build());
+                .items(List.of(itemAdd, itemAdd2, itemDel)).errors(false).took(1L).build());
 
         assertThrows(RecoverableMessageException.class, () -> {
             //call under test
-            mockSearchManager.documentChangeMessages(List.of(new ChangeMessage(), new ChangeMessage()));
+            mockSearchManager.documentChangeMessages(List.of(new ChangeMessage(), new ChangeMessage(), new ChangeMessage()));
 
         });
 
-        verify(mockLog).error("Document {} has error {} with reason {}.",
-                document.getId(), errorCause.type(), errorCause.reason());
+        verify(mockLog).error("Document {} has error {}.",
+                document.getId(), errorCause);
+        verify(mockLog).error("Document {} has error {}.",
+                document.getId()+1, errorCause);
     }
 
     @Test
@@ -170,7 +180,7 @@ public class SearchManagerImplTest {
             //call under test
             mockSearchManager.documentChangeMessages(List.of(new ChangeMessage(), new ChangeMessage()));
         });
-        verify(mockLog).error("OpenSearch error {} with reason {}.", exception.error().type(), exception.error().reason());
+        verify(mockLog).error(exception);
     }
 
     @Test
@@ -186,7 +196,7 @@ public class SearchManagerImplTest {
             //call under test
             mockSearchManager.documentChangeMessages(List.of(new ChangeMessage(), new ChangeMessage()));
         });
-        verify(mockLog).error("IOException {}.", exception.getMessage());
+        verify(mockLog).error(exception);
     }
 
     @Test
@@ -229,7 +239,7 @@ public class SearchManagerImplTest {
             //call under test
             mockSearchManager.doesDocumentExist(document.getId(), document.getFields().getEtag());
         });
-        verify(mockLog).error("Error {} occurred while searching document.", exception.getMessage());
+        verify(mockLog).error(exception);
     }
 
     @Test
@@ -241,6 +251,6 @@ public class SearchManagerImplTest {
             //call under test
             mockSearchManager.doesDocumentExist(document.getId(), document.getFields().getEtag());
         });
-        verify(mockLog).error("Error {} occurred while searching document.", exception.getMessage());
+        verify(mockLog).error(exception);
     }
 }

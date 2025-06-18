@@ -79,10 +79,10 @@ public class OpenSearchIndexInitializer {
             if (RESOURCE_EXISTS.equals(e.error().type())) {
                 log.error("Index {} already exists.", SearchConstants.OPEN_SEARCH_INDEX_NAME);
             } else {
-                log.error("Index {} creation failed {}.", SearchConstants.OPEN_SEARCH_INDEX_NAME, e.getMessage());
+                log.error("Index {} creation failed {}.", SearchConstants.OPEN_SEARCH_INDEX_NAME, e);
             }
         } catch (IOException e) {
-            log.error("Index {} creation failed {}.", SearchConstants.OPEN_SEARCH_INDEX_NAME, e.getMessage());
+            log.error("Index {} creation failed {}.", SearchConstants.OPEN_SEARCH_INDEX_NAME, e);
         }
     }
 }

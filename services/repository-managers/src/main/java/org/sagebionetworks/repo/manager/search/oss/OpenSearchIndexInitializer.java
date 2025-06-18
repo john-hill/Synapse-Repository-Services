@@ -11,6 +11,7 @@ import org.sagebionetworks.search.SearchConstants;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.util.List;
 
 @Component
 public class OpenSearchIndexInitializer {
@@ -31,25 +32,27 @@ public class OpenSearchIndexInitializer {
                 CreateIndexRequest request = new CreateIndexRequest.Builder()
                         .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
                         .mappings(m -> m
+                                .source(s -> s.excludes(List.of(SearchConstants.FIELD_ACL,
+                                        SearchConstants.FIELD_UPDATE_ACL, SearchConstants.FIELD_PARENT_ID)))
                                 .properties(SearchConstants.FIELD_NAME, p -> p.text(text ->
                                         text.analyzer("english")))
                                 .properties(SearchConstants.FIELD_DESCRIPTION,
                                         p -> p.text(text ->
                                                 text.analyzer("english")))
                                 .properties(SearchConstants.FIELD_CREATED_ON,
-                                        p -> p.integer( i ->i))
+                                        p -> p.integer( i -> i))
                                 .properties(SearchConstants.FIELD_MODIFIED_ON,
                                         p -> p.integer(i -> i))
                                 .properties(SearchConstants.FIELD_NODE_TYPE,
                                         p -> p.keyword(k -> k))
                                 .properties(SearchConstants.FIELD_ETAG,
-                                        p -> p.keyword(k ->k))
+                                        p -> p.keyword(k -> k))
                                 .properties(SearchConstants.FIELD_PARENT_ID,
-                                        p -> p.keyword( k ->k))
+                                        p -> p.keyword(k -> k))
                                 .properties(SearchConstants.FIELD_CREATED_BY,
                                         p -> p.keyword(k -> k))
                                 .properties(SearchConstants.FIELD_MODIFIED_BY,
-                                        p-> p.keyword(k -> k))
+                                        p -> p.keyword(k -> k))
                                 .properties(SearchConstants.FIELD_ACL,
                                         p -> p.keyword(k -> k))
                                 .properties(SearchConstants.FIELD_UPDATE_ACL,
@@ -61,7 +64,7 @@ public class OpenSearchIndexInitializer {
                                 .properties(SearchConstants.FIELD_CONSORTIUM,
                                         p -> p.keyword(k -> k))
                                 .properties(SearchConstants.FIELD_ORGAN,
-                                        p-> p.keyword(k -> k))
+                                        p -> p.keyword(k -> k))
                         ).build();
 
                 CreateIndexResponse response = indicesClient.create(request);

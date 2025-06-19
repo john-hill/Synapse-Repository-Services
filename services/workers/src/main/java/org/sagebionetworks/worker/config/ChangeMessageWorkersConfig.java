@@ -1,10 +1,6 @@
 package org.sagebionetworks.worker.config;
 
-import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-
+import com.amazonaws.services.sqs.AmazonSQSClient;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.asynchronous.workers.changes.ChangeMessageBatchProcessor;
 import org.sagebionetworks.asynchronous.workers.concurrent.ConcurrentManager;
@@ -14,6 +10,7 @@ import org.sagebionetworks.file.worker.FileHandleStreamWorker;
 import org.sagebionetworks.replication.workers.ObjectReplicationReconciliationWorker;
 import org.sagebionetworks.replication.workers.ObjectReplicationWorker;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.search.oss.worker.SearchIndexWorker;
 import org.sagebionetworks.search.workers.sqs.search.SearchQueueWorker;
 import org.sagebionetworks.snapshot.workers.ObjectSnapshotWorker;
 import org.sagebionetworks.snapshot.workers.writers.ObjectRecordWriter;
@@ -29,7 +26,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.quartz.SimpleTriggerFactoryBean;
 
-import com.amazonaws.services.sqs.AmazonSQSClient;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Configuration for workers that are driven by change messages
@@ -240,7 +240,30 @@ public class ChangeMessageWorkersConfig {
 			.withStartDelay(256)
 			.build();
 	}
-	
+
+	@Bean
+	public SimpleTriggerFactoryBean searchIndexMessageReceiverTrigger(SearchIndexWorker searchIndexWorker) {
+
+		String queueName = stackConfig.getQueueName("SEARCH_INDEX");
+		MessageDrivenRunner worker = new ChangeMessageBatchProcessor(amazonSQSClient, queueName, searchIndexWorker);
+
+		return new WorkerTriggerBuilder()
+				.withStack(ConcurrentWorkerStack.builder()
+						.withSemaphoreLockKey("searchWorker")
+						.withSemaphoreMaxLockCount(8)
+						.withSemaphoreLockAndMessageVisibilityTimeoutSec(60)
+						.withMaxThreadsPerMachine(2)
+						.withSingleton(concurrentStackManager)
+						.withCanRunInReadOnly(true)
+						.withQueueName(queueName)
+						.withWorker(worker)
+						.build()
+				)
+				.withRepeatInterval(2010)
+				.withStartDelay(270)
+				.build();
+	}
+
 	@Bean
 	public SimpleTriggerFactoryBean webhookChangeMessageWorkerTrigger(WebhookChangeMessageWorker webhookChangeMessageWorker) {
 		

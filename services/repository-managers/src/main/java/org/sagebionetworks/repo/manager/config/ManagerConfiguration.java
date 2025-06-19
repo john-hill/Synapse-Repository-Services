@@ -25,6 +25,9 @@ import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
 import org.apache.velocity.runtime.resource.loader.FileResourceLoader;
+import org.opensearch.client.opensearch.OpenSearchClient;
+import org.opensearch.client.transport.aws.AwsSdk2Transport;
+import org.opensearch.client.transport.aws.AwsSdk2TransportOptions;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.avro.pfb.model.Metadata;
 import org.sagebionetworks.aws.v2.AwsCrdentialPoviderV2;
@@ -90,6 +93,8 @@ import dev.samstevens.totp.secret.SecretGenerator;
 import dev.samstevens.totp.time.SystemTimeProvider;
 import dev.samstevens.totp.time.TimeProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.apigatewaymanagementapi.ApiGatewayManagementApiClient;
@@ -104,6 +109,8 @@ import software.amazon.awssdk.services.bedrockagent.model.ListAgentsRequest;
 import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAsyncClient;
 import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAsyncClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.opensearchserverless.OpenSearchServerlessClient;
+import software.amazon.awssdk.services.opensearchserverless.model.CollectionDetail;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
@@ -341,6 +348,37 @@ public class ManagerConfiguration {
 	}
 
 	@Bean
+	public OpenSearchServerlessClient ossManagementClient(AwsCredentialsProvider credentialProvider) {
+		return OpenSearchServerlessClient.builder().credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
+	}
+
+	@Bean
+	public SdkHttpClient ossHttpClient() {
+		return ApacheHttpClient.builder().build();
+	}
+
+	@Bean
+	public OpenSearchClient synSearchOssClient(OpenSearchServerlessClient openSearchServerlessClient,
+												   AwsCredentialsProvider credentialProvider,
+												   StackConfiguration config, SdkHttpClient httpClient) {
+		String collectionName = config.getStack() + "-" + config.getStackInstance() + "-synsearch";
+
+		CollectionDetail collection = openSearchServerlessClient.batchGetCollection(req -> req
+				.names(collectionName)
+		).collectionDetails().stream().findFirst().orElseThrow();
+
+		return new OpenSearchClient(
+				new AwsSdk2Transport(
+						httpClient,
+						collection.collectionEndpoint().replace("https://", ""),
+						"aoss",
+						Region.US_EAST_1,
+						AwsSdk2TransportOptions.builder().setCredentials(credentialProvider).build()
+				)
+		);
+	}
+
+	@Bean
 	public BedrockAgentRuntimeAsyncClient customBedrockAgentRuntimeAsyncClient(
 			AwsCredentialsProvider credentialProvider, BedrockAgentRuntimeAsyncClientBuilder builder,
 			StackConfiguration config) {
@@ -421,7 +459,7 @@ public class ManagerConfiguration {
 
 	/**
 	 * Helper to find a websocket API by name.
-	 * 
+	 *
 	 * @param client
 	 * @param apiName
 	 * @return

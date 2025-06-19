@@ -26,7 +26,7 @@ import org.springframework.stereotype.Component;
  */
 @Component("acceptTermsOfUseFilter")
 public class AcceptTermsOfUseFilter implements Filter {
-	private static final String TOU_UNSIGNED_REASON = "Terms of use have not been signed.";
+	private static final String TOU_UNSIGNED_REASON = "Login to https://synapse.org to accept the latest Terms of Service.";
 	
 	@Autowired
 	private AuthenticationService authenticationService;
@@ -72,7 +72,5 @@ public class AcceptTermsOfUseFilter implements Filter {
 	public void destroy() {
 		// nothing to do
 	}
-	
-
 
 }

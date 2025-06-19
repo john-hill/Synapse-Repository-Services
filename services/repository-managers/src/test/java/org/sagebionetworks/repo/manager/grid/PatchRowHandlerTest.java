@@ -14,10 +14,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.Row;
+import org.sagebionetworks.util.ClasspathUtil;
 
 @ExtendWith(MockitoExtension.class)
 public class PatchRowHandlerTest {
@@ -102,8 +104,8 @@ public class PatchRowHandlerTest {
 		// The first patch includes the grid setup and the first row
 		verify(mockStore).savePatch(sessionId, new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(1L),
 				"[[[19,1]],[2],[0,\"0.0.2\"],[3],[6],[6],[10,1,[[\"doc_version\",2],[\"columnNames\",3],"
-				+ "[\"columnOrder\",4],[\"rows\",5]]],[9,[0,0],1],[0,\"aString\"],[0,0],[0,\"anInt\"],"
-				+ "[0,1],[11,3,[[0,8],[1,10]]],[14,4,4,[9,11]],[3],[0,\"one\"],[0,101],[11,15,[[0,16],[1,17]]],[14,5,5,[15]]]");
+						+ "[\"columnOrder\",4],[\"rows\",5]]],[9,[0,0],1],[0,\"aString\"],[0,0],[0,\"anInt\"],"
+						+ "[0,1],[11,3,[[0,8],[1,10]]],[14,4,4,[9,11]],[3],[0,\"one\"],[0,101],[11,15,[[0,16],[1,17]]],[14,5,5,[15]]]");
 		// second patch includes only the second row.
 		verify(mockStore).savePatch(sessionId, new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(20L),
 				"[[[19,20]],[3],[0,\"two\"],[0,202],[11,20,[[0,21],[1,22]]],[14,5,19,[20]]]");
@@ -111,6 +113,23 @@ public class PatchRowHandlerTest {
 		verify(mockStore).savePatch(sessionId, new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(25L),
 				"[[[19,25]],[3],[0,\"three\"],[0,303],[11,25,[[0,26],[1,27]]],[14,5,24,[25]]]");
 
+	}
+
+	@Test
+	public void testEachType() throws IOException {
+		boolean hasDefault = false;
+		schema = TableModelTestUtils.createOneOfEachType(hasDefault);
+		List<Row> rows = TableModelTestUtils.createRows(schema, 3,
+				new TableModelTestUtils.ValueOptions().includeSpace(false));
+
+		try (PatchRowHandler handler = new PatchRowHandler(mockStore, sessionId, replicaId, schema, maxRowsPerPatch)) {
+			rows.forEach(r -> {
+				handler.nextRow(r);
+			});
+		}
+		String expectedPatch = ClasspathUtil.loadFromClasspath("AllTypesPatch.json");
+		verify(mockStore).savePatch(sessionId, new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(1L),
+				expectedPatch);
 	}
 
 }

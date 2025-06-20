@@ -1,4 +1,4 @@
-package org.sagebionetworks.repo.model.util;
+package org.sagebionetworks.util;
 
 import java.io.IOException;
 import java.io.InputStream;

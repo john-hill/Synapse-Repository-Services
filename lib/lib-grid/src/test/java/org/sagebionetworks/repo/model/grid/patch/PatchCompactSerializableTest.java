@@ -2,8 +2,6 @@ package org.sagebionetworks.repo.model.grid.patch;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -25,7 +23,7 @@ import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewObject;
 import org.sagebionetworks.repo.model.grid.patch.operation.Operation;
 import org.sagebionetworks.repo.model.grid.patch.operation.OperationType;
-import org.sagebionetworks.repo.model.util.ClasspathUtil;
+import org.sagebionetworks.util.ClasspathUtil;
 
 public class PatchCompactSerializableTest {
 

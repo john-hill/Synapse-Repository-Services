@@ -534,6 +534,24 @@ public class DoiManagerImplTest {
 	}
 
 	@Test
+	public void testGenerateLocationRequestUrlEncodedId() {
+		String objectId = "{\"foo\":\"bar\"}";
+		String encodedObjectId = "%7B%22foo%22%3A%22bar%22%7D";
+
+		inputDto.setObjectId(objectId);
+		when(mockConfig.getStack()).thenReturn(stack);
+
+		String expected = expectedRepoEndpoint + DoiManagerImpl.LOCATE_RESOURCE_PATH
+				+ "?portalId=" + portalId
+				+ "&id=" + encodedObjectId
+				+ "&type=" + doiObjectType.name()
+				+ "&version=" + version;
+
+		// Call under test
+		assertEquals(expected, doiManager.generateLocationRequestUrl(inputDto));
+	}
+
+	@Test
 	public void testGenerateLocationRequestUrlNullVersion() {
 		when(mockConfig.getStack()).thenReturn(stack);
 		

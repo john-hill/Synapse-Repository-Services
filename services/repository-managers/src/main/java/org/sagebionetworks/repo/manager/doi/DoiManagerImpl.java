@@ -1,5 +1,7 @@
 package org.sagebionetworks.repo.manager.doi;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.UUID;
 
@@ -240,10 +242,17 @@ public class DoiManagerImpl implements DoiManager {
 		final String PERSISTENT_REPOSITORY_ENDPOINT = "https://repo-" + stack + "." + stack + ".sagebase.org/repo/v1";
 		
 		String request = PERSISTENT_REPOSITORY_ENDPOINT + LOCATE_RESOURCE_PATH;
-		
+
+		String encodedId;
+		try {
+			encodedId = URLEncoder.encode(association.getObjectId(), StandardCharsets.UTF_8.toString());
+		} catch (Exception e) {
+			throw new IllegalArgumentException("Failed to encode objectId: " + association.getObjectId(), e);
+		}
+
 		request += "?" 
 			+ PORTAL_ID_PATH_PARAM + "=" + association.getPortalId() + "&" 
-			+ OBJECT_ID_PATH_PARAM + "=" + association.getObjectId() + "&" 
+			+ OBJECT_ID_PATH_PARAM + "=" + encodedId + "&"
 			+ OBJECT_TYPE_PATH_PARAM + "=" + association.getObjectType().name();
 		
 		if (association.getObjectVersion() != null) {

@@ -230,7 +230,8 @@ public class DoiManagerImpl implements DoiManager {
 			}
 			
 		} else {
-			url = portalManager.getPortal(resolvedPortalId).getUrl() + "/doi?objectId=" + objectId;
+			String encodedId = encodeURLComponent(objectId);
+			url = portalManager.getPortal(resolvedPortalId).getUrl() + "/doi?objectId=" + encodedId;
 		}
 		
 		return url;
@@ -243,12 +244,7 @@ public class DoiManagerImpl implements DoiManager {
 		
 		String request = PERSISTENT_REPOSITORY_ENDPOINT + LOCATE_RESOURCE_PATH;
 
-		String encodedId;
-		try {
-			encodedId = URLEncoder.encode(association.getObjectId(), StandardCharsets.UTF_8.toString());
-		} catch (Exception e) {
-			throw new IllegalArgumentException("Failed to encode objectId: " + association.getObjectId(), e);
-		}
+		String encodedId = encodeURLComponent(association.getObjectId());
 
 		request += "?" 
 			+ PORTAL_ID_PATH_PARAM + "=" + association.getPortalId() + "&" 
@@ -316,5 +312,13 @@ public class DoiManagerImpl implements DoiManager {
 		doi.setDoiUrl(association.getDoiUrl());
 		
 		return doi;
+	}
+
+	private static String encodeURLComponent(String value) {
+		try {
+			return URLEncoder.encode(value, StandardCharsets.UTF_8);
+		} catch (Exception e) {
+			throw new IllegalArgumentException("Failed to encode value: " + value, e);
+		}
 	}
 }

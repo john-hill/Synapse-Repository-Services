@@ -72,7 +72,7 @@ public class DoiManagerImplTest {
 	private String portalId;
 	private DoiObjectType doiObjectType;
 	
-	private static final String objectId = "syn584322";
+	private static String objectId = "syn584322";
 	private static final String associationId = "4567";
 	
 	private static final Long version = 4L;
@@ -509,6 +509,7 @@ public class DoiManagerImplTest {
 	
 	@Test
 	public void testGetLocationWithExternalPortal() {
+		objectId = "DATASET.123.&";
 		portalId = "456";
 
 		when(mockPortalManager.getPortal(portalId)).thenReturn(new Portal().setUrl("https://myportal.synapse.org"));
@@ -516,7 +517,7 @@ public class DoiManagerImplTest {
 		// Call under test
 		String actual = doiManager.getLocation(portalId, objectId, doiObjectType, version);
 		
-		assertEquals("https://myportal.synapse.org/doi?objectId="+objectId, actual);
+		assertEquals("https://myportal.synapse.org/doi?objectId=DATASET.123.%26", actual);
 	}
 
 	@Test

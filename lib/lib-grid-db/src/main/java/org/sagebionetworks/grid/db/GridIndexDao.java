@@ -136,5 +136,7 @@ public interface GridIndexDao {
 	 * @return
 	 */
 	List<ConstantNode> getConstants(String sessionId, Long replicaId, List<LogicalTimestamp> ids);
+	
+	void truncateAll();
 
 }

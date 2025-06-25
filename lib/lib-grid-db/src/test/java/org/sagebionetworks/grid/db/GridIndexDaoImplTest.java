@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.sql.Timestamp;
 import java.util.Optional;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,12 +28,21 @@ public class GridIndexDaoImplTest {
 
 	@BeforeEach
 	public void before() {
+		gridIndexDao.truncateAll();
 		sessionId = GridUtils.gridSessionIdAsString(99L);
 		replicaId = 28L;
 	}
 
+	@AfterEach
+	public void after() {
+		gridIndexDao.truncateAll();
+	}
+
 	@Test
 	public void testCreateReplica() {
+
+		Optional<Timestamp> createdOn = gridIndexDao.getReplciaCreatedOn(sessionId, replicaId);
+		assertEquals(Optional.empty(), createdOn);
 
 		// call under test
 		gridIndexDao.createReplicaIfNotExists(sessionId, replicaId);
@@ -40,7 +50,7 @@ public class GridIndexDaoImplTest {
 		gridIndexDao.createReplicaIfNotExists(sessionId, replicaId);
 		gridIndexDao.createReplicaIfNotExists(sessionId, replicaId + 1L);
 
-		Optional<Timestamp> createdOn = gridIndexDao.getReplciaCreatedOn(sessionId, replicaId);
+		createdOn = gridIndexDao.getReplciaCreatedOn(sessionId, replicaId);
 		assertNotNull(createdOn);
 		assertTrue(createdOn.isPresent());
 

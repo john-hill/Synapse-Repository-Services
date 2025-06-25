@@ -204,4 +204,9 @@ public class GridIndexDaoImpl implements GridIndexDao {
 
 	}
 
+	@Transactional(readOnly = false)
+	@Override
+	public void truncateAll() {
+		jdbcTempalte.update("DELETE FROM GRID_REPLICA WHERE SESSION_ID > -1 AND REPLICA_ID > -1");
+	}
 }

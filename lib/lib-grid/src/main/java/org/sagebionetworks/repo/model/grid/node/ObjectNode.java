@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.model.grid.node;
 
+import java.util.Map;
 import java.util.Objects;
 
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
@@ -7,29 +8,19 @@ import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 public class ObjectNode implements Node {
 
 	private LogicalTimestamp id;
-	private String key;
-	private LogicalTimestamp value;
+	private Map<String, LogicalTimestamp> map;
 
 	@Override
 	public LogicalTimestamp getId() {
 		return id;
 	}
 
-	public String getKey() {
-		return key;
+	public Map<String, LogicalTimestamp> getMap() {
+		return map;
 	}
 
-	public ObjectNode setKey(String key) {
-		this.key = key;
-		return this;
-	}
-
-	public LogicalTimestamp getValue() {
-		return value;
-	}
-
-	public ObjectNode setValue(LogicalTimestamp value) {
-		this.value = value;
+	public ObjectNode setMap(Map<String, LogicalTimestamp> map) {
+		this.map = map;
 		return this;
 	}
 
@@ -40,7 +31,7 @@ public class ObjectNode implements Node {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(id, key, value);
+		return Objects.hash(id, map);
 	}
 
 	@Override
@@ -52,12 +43,12 @@ public class ObjectNode implements Node {
 		if (getClass() != obj.getClass())
 			return false;
 		ObjectNode other = (ObjectNode) obj;
-		return Objects.equals(id, other.id) && Objects.equals(key, other.key) && Objects.equals(value, other.value);
+		return Objects.equals(id, other.id) && Objects.equals(map, other.map);
 	}
 
 	@Override
 	public String toString() {
-		return "ObjectNode [id=" + id + ", key=" + key + ", value=" + value + "]";
+		return "ObjectNode [id=" + id + ", map=" + map + "]";
 	}
 
 }

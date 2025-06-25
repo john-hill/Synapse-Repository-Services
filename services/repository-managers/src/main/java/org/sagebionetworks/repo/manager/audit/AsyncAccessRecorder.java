@@ -1,8 +1,11 @@
 package org.sagebionetworks.repo.manager.audit;
 
 import java.io.IOException;
+import java.time.Duration;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
 
@@ -10,8 +13,13 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.sagebionetworks.kinesis.AwsKinesisFirehoseLogger;
 import org.sagebionetworks.repo.model.audit.AccessRecord;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.sagebionetworks.repo.model.auth.AuthenticationDAO;
+import org.sagebionetworks.util.Clock;
 import org.springframework.stereotype.Service;
+
+import com.google.common.base.Ticker;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 
 /**
  * This implementation writes the records to S3
@@ -20,9 +28,13 @@ import org.springframework.stereotype.Service;
  * 
  */
 @Service
-public class KinesisAccessRecorder implements AccessRecorder {
+public class AsyncAccessRecorder implements AccessRecorder {
+	
+	private static final long USER_ACCESS_CACHE_MAX_SIZE = 2000;
+	private static final Duration USER_ACCESS_UDPATE_FREQUENCY = Duration.ofMinutes(5);
 
-	static private Log log = LogFactory.getLog(KinesisAccessRecorder.class);
+	static private Log log = LogFactory.getLog(AsyncAccessRecorder.class);
+	
 	public static final String ACCESS_RECORD_STREAM = "accessRecord";
 
 	/**
@@ -32,15 +44,31 @@ public class KinesisAccessRecorder implements AccessRecorder {
 	 * processed from a separate timer thread.
 	 */
 	private ConcurrentLinkedQueue<AccessRecord> recordBatch = new ConcurrentLinkedQueue<AccessRecord>();
+	
+	private AwsKinesisFirehoseLogger firehoseLogger;
+	
+	private AuthenticationDAO authDao;
+	
+	private Clock clock;
+	
+	private Cache<Long, Long> userAccessCache;
 
-	AwsKinesisFirehoseLogger firehoseLogger;
-
-	boolean shouldAccessRecordsBePushedToS3 = true;
-
-	@Autowired
-	public KinesisAccessRecorder(AwsKinesisFirehoseLogger firehoseLogger) {
+	public AsyncAccessRecorder(AwsKinesisFirehoseLogger firehoseLogger, AuthenticationDAO authDao, Clock clock) {
 		this.firehoseLogger = firehoseLogger;
+		this.authDao = authDao;
+		this.clock = clock;
+		this.userAccessCache = CacheBuilder.newBuilder()
+			.ticker(new Ticker() {
+				@Override
+				public long read() {
+					return clock.nanoTime();
+				}
+			})
+			.expireAfterWrite(USER_ACCESS_UDPATE_FREQUENCY)
+			.maximumSize(USER_ACCESS_CACHE_MAX_SIZE)
+			.build();
 	}
+	
 
 	/**
 	 * New AccessRecords will come in from 
@@ -57,12 +85,15 @@ public class KinesisAccessRecorder implements AccessRecorder {
 	 * 
 	 */
 	public void timerFired() {
+		
 		// Poll all data currently on the queue.
 		List<AccessRecord> currentBatch = pollListFromQueue();
+		
 		// There is nothing to do if the batch is empty.
 		if (currentBatch.isEmpty()) {
 			return;
 		}
+		
 		try {
 			// send records to firehose delivery stream
 			List<KinesisJsonEntityRecord<AccessRecord>> kinesisJsonEntityRecords = currentBatch.stream()
@@ -72,6 +103,27 @@ public class KinesisAccessRecorder implements AccessRecorder {
 			firehoseLogger.logBatch(ACCESS_RECORD_STREAM, kinesisJsonEntityRecords);
 		} catch (Exception e) {
 			log.error("Failed to write batch", e);
+		}
+				
+		Date lastSeenOn = clock.now();
+		
+		List<Long> lastSeenOnUpdateBatch = currentBatch.stream()
+			.map(AccessRecord::getUserId)
+			.filter(Objects::nonNull)
+			.distinct()
+			.filter(userId -> {
+				
+				if (userAccessCache.getIfPresent(userId) == null) {
+					// Only update the cache if it is expired or not present, this effectively throttles the updates
+					userAccessCache.put(userId, lastSeenOn.getTime());
+					return true;
+				} else {
+					return false;
+				}
+		}).collect(Collectors.toList());
+		
+		if (!lastSeenOnUpdateBatch.isEmpty()) {
+			authDao.setLastSeenOn(lastSeenOnUpdateBatch, lastSeenOn);
 		}
 	}
 	

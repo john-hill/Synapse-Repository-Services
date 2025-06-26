@@ -343,12 +343,12 @@ public class OpenIDConnectManagerImpl implements OpenIDConnectManager {
 		return userId;
 	}
 	
-	void addClaimsToMap(final String userId, Map<OIDCClaimName, OIDCClaimsRequestDetails> claims, Map<OIDCClaimName,Object> result) {
+	void addClaimsToMap(final String userId, Map<OIDCClaimName, OIDCClaimsRequestDetails> claims, String oauthEndpoint, Map<OIDCClaimName,Object> result) {
 		for (Entry<OIDCClaimName, OIDCClaimsRequestDetails> claim : claims.entrySet()) {
 			Object claimValue = null;
 			OIDCClaimProvider claimProvider = claimProviders.get(claim.getKey());
 			if (claimProvider!=null) {
-				claimValue = claimProvider.getClaim(userId, claim.getValue());
+				claimValue = claimProvider.getClaim(userId, claim.getValue(), oauthEndpoint);
 			}
 			// from https://openid.net/specs/openid-connect-core-1_0.html#UserInfoResponse
 			// "If a Claim is not returned, that Claim Name SHOULD be omitted from the JSON object 
@@ -364,21 +364,21 @@ public class OpenIDConnectManagerImpl implements OpenIDConnectManager {
 	 * user info claims to add to the returned User Info object or JSON Web Token
 	 */
 	public Map<OIDCClaimName,Object> getUserInfo(final String userId, List<OAuthScope> scopes, 
-			Map<OIDCClaimName, OIDCClaimsRequestDetails>  oidcClaims) {
+			Map<OIDCClaimName, OIDCClaimsRequestDetails>  oidcClaims, String oauthEndpoint) {
 		Map<OIDCClaimName,Object> result = new HashMap<OIDCClaimName,Object>();
 		// Use of [the OpenID Connect] extension [to OAuth 2.0] is requested by
 		// Clients by including the openid scope value in the Authorization Request.
 		// https://openid.net/specs/openid-connect-core-1_0.html#Introduction
 		if (!scopes.contains(OAuthScope.openid)) return result;
 
-		addClaimsToMap(userId, oidcClaims, result);
+		addClaimsToMap(userId, oidcClaims, oauthEndpoint, result);
 
 		// 'email' and 'profile' scopes map to specific user claims
 		if (scopes.contains(OAuthScope.email)) {
-			addClaimsToMap(userId, EMAIL_CLAIMS, result);
+			addClaimsToMap(userId, EMAIL_CLAIMS, oauthEndpoint, result);
 		}
 		if (scopes.contains(OAuthScope.profile)) {
-			addClaimsToMap(userId, PROFILE_CLAIMS, result);
+			addClaimsToMap(userId, PROFILE_CLAIMS, oauthEndpoint, result);
 		}
 		return result;
 	}
@@ -434,7 +434,7 @@ public class OpenIDConnectManagerImpl implements OpenIDConnectManager {
 		if (scopes.contains(OAuthScope.openid)) {
 			String idTokenId = UUID.randomUUID().toString();
 			Map<OIDCClaimName,Object> userInfo = getUserInfo(authorizationRequest.getUserId(), 
-					scopes, EnumKeyedJsonMapUtil.convertKeysToEnums(normalizedClaims.getId_token(), OIDCClaimName.class));
+					scopes, EnumKeyedJsonMapUtil.convertKeysToEnums(normalizedClaims.getId_token(), OIDCClaimName.class), oauthEndpoint);
 			String idToken = oidcTokenManager.createOIDCIdToken(oauthEndpoint, ppid, oauthClientId, now, 
 					authorizationRequest.getNonce(), authTime, idTokenId, userInfo);
 			result.setId_token(idToken);
@@ -511,7 +511,7 @@ public class OpenIDConnectManagerImpl implements OpenIDConnectManager {
 		Map<OIDCClaimName, OIDCClaimsRequestDetails> userInfoClaims = EnumKeyedJsonMapUtil.convertKeysToEnums(refreshTokenMetadata.getClaims().getUserinfo(), OIDCClaimName.class);
 		if (scopes.contains(OAuthScope.openid)) {
 			String idTokenId = UUID.randomUUID().toString();
-			Map<OIDCClaimName,Object> userInfo = getUserInfo(refreshTokenMetadata.getPrincipalId(), scopes, idTokenClaims);
+			Map<OIDCClaimName,Object> userInfo = getUserInfo(refreshTokenMetadata.getPrincipalId(), scopes, idTokenClaims, oauthEndpoint);
 			String idToken = oidcTokenManager.createOIDCIdToken(oauthEndpoint, ppid, oauthClientId, now, null, authTime, idTokenId, userInfo);
 			result.setId_token(idToken);
 		} else {
@@ -578,7 +578,7 @@ public class OpenIDConnectManagerImpl implements OpenIDConnectManager {
 		// userId is used to retrieve the user info
 		String userId = getUserIdFromPPID(ppid, oauthClientId);
 
-		Map<OIDCClaimName,Object> userInfo = getUserInfo(userId, scopes, oidcClaims);
+		Map<OIDCClaimName,Object> userInfo = getUserInfo(userId, scopes, oidcClaims, oauthEndpoint);
 
 		// From https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata
 		// "If [a signing algorithm] is specified, the response will be JWT serialized, and signed using JWS. 

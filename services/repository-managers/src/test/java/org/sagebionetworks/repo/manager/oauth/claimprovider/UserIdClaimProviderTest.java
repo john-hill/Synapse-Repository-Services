@@ -29,6 +29,6 @@ public class UserIdClaimProviderTest {
 		// method under test
 		assertNotNull(claimProvider.getDescription());
 		// method under test
-		assertEquals(USER_ID, claimProvider.getClaim(USER_ID, null));
+		assertEquals(USER_ID, claimProvider.getClaim(USER_ID, null, null));
 	}
 }

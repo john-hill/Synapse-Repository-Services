@@ -48,7 +48,7 @@ public class ValidatedFamilyNameClaimProviderTest {
 		// method under test
 		assertNotNull(claimProvider.getDescription());
 		// method under test
-		assertNull(claimProvider.getClaim(USER_ID, null));
+		assertNull(claimProvider.getClaim(USER_ID, null, null));
 		
 		VerificationState verificationState = new VerificationState();
 		verificationState.setState(VerificationStateEnum.APPROVED);
@@ -58,6 +58,6 @@ public class ValidatedFamilyNameClaimProviderTest {
 		verificationSubmission.setLastName(FAMILY_NAME);
 		
 		// method under test
-		assertEquals(FAMILY_NAME, claimProvider.getClaim(USER_ID, null));
+		assertEquals(FAMILY_NAME, claimProvider.getClaim(USER_ID, null, null));
 	}
 }

@@ -48,7 +48,7 @@ public class ValidatedEmailClaimProviderTest {
 		// method under test
 		assertNotNull(claimProvider.getDescription());
 		// method under test
-		assertNull(claimProvider.getClaim(USER_ID, null));
+		assertNull(claimProvider.getClaim(USER_ID, null, null));
 		
 		VerificationState verificationState = new VerificationState();
 		verificationState.setState(VerificationStateEnum.APPROVED);
@@ -58,6 +58,6 @@ public class ValidatedEmailClaimProviderTest {
 		verificationSubmission.setNotificationEmail(EMAIL);
 		
 		// method under test
-		assertEquals(EMAIL, claimProvider.getClaim(USER_ID, null));
+		assertEquals(EMAIL, claimProvider.getClaim(USER_ID, null, null));
 	}
 }

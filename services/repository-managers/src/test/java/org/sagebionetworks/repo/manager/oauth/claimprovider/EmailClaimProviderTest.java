@@ -36,14 +36,14 @@ public class EmailClaimProviderTest {
 		// method under test
 		assertNotNull(claimProvider.getDescription());
 		// method under test
-		assertEquals(EMAIL, claimProvider.getClaim(USER_ID, null));
+		assertEquals(EMAIL, claimProvider.getClaim(USER_ID, null, null));
 	}
 
 	@Test
 	public void testEmailClaimMissingEmail() {
 		when(mockNotificationEmailDao.getNotificationEmailForPrincipal(USER_ID_LONG)).thenReturn(null);
 		// method under test
-		assertNull(claimProvider.getClaim(USER_ID, null));
+		assertNull(claimProvider.getClaim(USER_ID, null, null));
 	}
 
 }

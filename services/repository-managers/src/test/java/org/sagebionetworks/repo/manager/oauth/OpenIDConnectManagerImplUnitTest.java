@@ -731,7 +731,7 @@ public class OpenIDConnectManagerImplUnitTest {
 		oidcClaims.put(OIDCClaimName.team, teamRequest);
 		
 		// method under test
-		Map<OIDCClaimName, Object> result=openIDConnectManagerImpl.getUserInfo(USER_ID, Collections.singletonList(OAuthScope.openid), oidcClaims);
+		Map<OIDCClaimName, Object> result=openIDConnectManagerImpl.getUserInfo(USER_ID, Collections.singletonList(OAuthScope.openid), oidcClaims, OAUTH_ENDPOINT);
 
 		assertEquals(EMAIL, result.get(OIDCClaimName.email));
 		assertTrue((Boolean)result.get(OIDCClaimName.email_verified));
@@ -751,7 +751,7 @@ public class OpenIDConnectManagerImplUnitTest {
 		List<OAuthScope> scopes = Arrays.asList(OAuthScope.openid, OAuthScope.email, OAuthScope.profile);
 		
 		// method under test
-		Map<OIDCClaimName, Object> result=openIDConnectManagerImpl.getUserInfo(USER_ID, scopes, oidcClaims);
+		Map<OIDCClaimName, Object> result=openIDConnectManagerImpl.getUserInfo(USER_ID, scopes, oidcClaims, OAUTH_ENDPOINT);
 
 		assertEquals(EMAIL, result.get(OIDCClaimName.email));
 		assertTrue((Boolean)result.get(OIDCClaimName.email_verified));
@@ -776,7 +776,7 @@ public class OpenIDConnectManagerImplUnitTest {
 		oidcClaims.put(OIDCClaimName.team, teamRequest);
 		
 		// method under test
-		Map<OIDCClaimName, Object> result=openIDConnectManagerImpl.getUserInfo(USER_ID, Collections.singletonList(OAuthScope.openid), oidcClaims);
+		Map<OIDCClaimName, Object> result=openIDConnectManagerImpl.getUserInfo(USER_ID, Collections.singletonList(OAuthScope.openid), oidcClaims, OAUTH_ENDPOINT);
 
 		assertFalse(result.containsKey(OIDCClaimName.validated_at));
 		assertEquals(Collections.EMPTY_LIST, result.get(OIDCClaimName.team));
@@ -785,7 +785,7 @@ public class OpenIDConnectManagerImplUnitTest {
 	@Test
 	public void testGetUserInfo_internal_noOpenIDScope() {
 		Map<OIDCClaimName, OIDCClaimsRequestDetails> oidcClaims = new HashMap<OIDCClaimName, OIDCClaimsRequestDetails>();
-		Map<OIDCClaimName, String> result=openIDConnectManagerImpl.getUserInfo(USER_ID, Collections.EMPTY_LIST, oidcClaims);
+		Map<OIDCClaimName, String> result=openIDConnectManagerImpl.getUserInfo(USER_ID, Collections.EMPTY_LIST, oidcClaims, OAUTH_ENDPOINT);
 		assertTrue(result.isEmpty());
 	}
 

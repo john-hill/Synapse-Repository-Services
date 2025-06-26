@@ -38,14 +38,14 @@ public class UserNameClaimProviderTest {
 		// method under test
 		assertNotNull(claimProvider.getDescription());
 		// method under test
-		assertEquals(USER_NAME, claimProvider.getClaim(USER_ID, null));
+		assertEquals(USER_NAME, claimProvider.getClaim(USER_ID, null, null));
 	}
 
 	@Test
 	public void testEmailClaimMissingEmail() {
 		when(mockPrincipalAliasDao.getUserName(USER_ID_LONG)).thenReturn(null);
 		// method under test
-		assertNull(claimProvider.getClaim(USER_ID, null));
+		assertNull(claimProvider.getClaim(USER_ID, null, null));
 	}
 
 }

@@ -48,7 +48,7 @@ public class ValidatedOrcidClaimProviderTest {
 		// method under test
 		assertNotNull(claimProvider.getDescription());
 		// method under test
-		assertNull(claimProvider.getClaim(USER_ID, null));
+		assertNull(claimProvider.getClaim(USER_ID, null, null));
 		
 		VerificationState verificationState = new VerificationState();
 		verificationState.setState(VerificationStateEnum.APPROVED);
@@ -58,6 +58,6 @@ public class ValidatedOrcidClaimProviderTest {
 		verificationSubmission.setOrcid(ORCID);
 		
 		// method under test
-		assertEquals(ORCID, claimProvider.getClaim(USER_ID, null));
+		assertEquals(ORCID, claimProvider.getClaim(USER_ID, null, null));
 	}
 }

@@ -44,14 +44,14 @@ public class GivenNameClaimProviderTest {
 		// method under test
 		assertNotNull(claimProvider.getDescription());
 		// method under test
-		assertEquals(GIVEN_NAME, claimProvider.getClaim(USER_ID, null));
+		assertEquals(GIVEN_NAME, claimProvider.getClaim(USER_ID, null, null));
 	}
 
 	@Test
 	public void testClaimMissing() {
 		userProfile.setFirstName(null);
 		// method under test
-		assertNull(claimProvider.getClaim(USER_ID, null));
+		assertNull(claimProvider.getClaim(USER_ID, null, null));
 	}
 
 }

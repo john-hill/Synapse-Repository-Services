@@ -49,7 +49,7 @@ public class TeamClaimProviderTest {
 		assertNotNull(claimProvider.getDescription());
 		
 		// method under test
-		assertEquals(Collections.singletonList(TEAM_ID), claimProvider.getClaim(USER_ID, teamRequest));
+		assertEquals(Collections.singletonList(TEAM_ID), claimProvider.getClaim(USER_ID, teamRequest, null));
 	}
 
 	@Test
@@ -57,7 +57,7 @@ public class TeamClaimProviderTest {
 		// what if the user belongs to no teams?
 		when(groupMembersDAO.filterUserGroups(USER_ID, ImmutableList.of("102",TEAM_ID))).thenReturn(Collections.EMPTY_LIST);
 		// method under test
-		assertEquals(Collections.EMPTY_LIST, claimProvider.getClaim(USER_ID, teamRequest));
+		assertEquals(Collections.EMPTY_LIST, claimProvider.getClaim(USER_ID, teamRequest, null));
 	}
 
 }

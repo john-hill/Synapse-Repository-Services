@@ -24,7 +24,7 @@ public class EmailVerifiedClaimProviderTest {
 		// method under test
 		assertNotNull(claimProvider.getDescription());	
 		// method under test
-		assertTrue((Boolean)claimProvider.getClaim("101", null));
+		assertTrue((Boolean)claimProvider.getClaim("101", null, null));
 	}
 
 }

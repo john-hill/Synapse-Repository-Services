@@ -45,9 +45,9 @@ public class IsCertifiedClaimProviderTest {
 		// method under test
 		assertNotNull(claimProvider.getDescription());
 		// method under test
-		assertFalse((Boolean)claimProvider.getClaim(USER_ID, null));
+		assertFalse((Boolean)claimProvider.getClaim(USER_ID, null, null));
 		USER_INFO.setGroups(Collections.singleton(BOOTSTRAP_PRINCIPAL.CERTIFIED_USERS.getPrincipalId()));
 		// method under test
-		assertTrue((Boolean)claimProvider.getClaim(USER_ID, null));
+		assertTrue((Boolean)claimProvider.getClaim(USER_ID, null, null));
 	}
 }

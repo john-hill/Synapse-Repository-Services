@@ -48,7 +48,7 @@ public class ValidatedCompanyClaimProviderTest {
 		// method under test
 		assertNotNull(claimProvider.getDescription());
 		// method under test
-		assertNull(claimProvider.getClaim(USER_ID, null));
+		assertNull(claimProvider.getClaim(USER_ID, null, null));
 		
 		VerificationState verificationState = new VerificationState();
 		verificationState.setState(VerificationStateEnum.APPROVED);
@@ -58,6 +58,6 @@ public class ValidatedCompanyClaimProviderTest {
 		verificationSubmission.setCompany(COMPANY);
 		
 		// method under test
-		assertEquals(COMPANY, claimProvider.getClaim(USER_ID, null));
+		assertEquals(COMPANY, claimProvider.getClaim(USER_ID, null, null));
 	}
 }

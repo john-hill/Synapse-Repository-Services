@@ -64,7 +64,7 @@ public class AsyncAccessRecorder implements AccessRecorder {
 					return clock.nanoTime();
 				}
 			})
-			.expireAfterWrite(USER_ACCESS_UDPATE_FREQUENCY)
+			.expireAfterWrite(USER_ACCESS_UPDATE_FREQUENCY)
 			.maximumSize(USER_ACCESS_CACHE_MAX_SIZE)
 			.build();
 	}

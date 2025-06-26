@@ -31,7 +31,7 @@ import com.google.common.cache.CacheBuilder;
 public class AsyncAccessRecorder implements AccessRecorder {
 	
 	private static final long USER_ACCESS_CACHE_MAX_SIZE = 2000;
-	private static final Duration USER_ACCESS_UDPATE_FREQUENCY = Duration.ofMinutes(5);
+	private static final Duration USER_ACCESS_UPDATE_FREQUENCY = Duration.ofMinutes(5);
 
 	static private Log log = LogFactory.getLog(AsyncAccessRecorder.class);
 	

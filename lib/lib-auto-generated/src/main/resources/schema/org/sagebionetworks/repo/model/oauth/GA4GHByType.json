@@ -1,0 +1,21 @@
+{
+	"description": "The level or type of authority within the 'source' organization of the assertion.",
+	"type": "string",
+	"enum": [
+		{
+			"name": "self"
+		},
+		{
+			"name": "peer"
+		},
+		{
+			"name": "system"
+		},
+		{
+			"name": "so"
+		},
+		{
+			"name": "dac"
+		}
+	]
+}

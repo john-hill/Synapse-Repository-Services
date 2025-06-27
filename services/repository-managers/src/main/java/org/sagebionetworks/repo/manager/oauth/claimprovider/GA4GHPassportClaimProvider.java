@@ -14,8 +14,10 @@ import org.sagebionetworks.repo.model.AccessApprovalDAO;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.ManagedACTAccessRequirement;
 import org.sagebionetworks.repo.model.SelfSignAccessRequirement;
+import org.sagebionetworks.repo.model.oauth.GA4GHByType;
 import org.sagebionetworks.repo.model.oauth.GA4GHVisa;
 import org.sagebionetworks.repo.model.oauth.GA4GHVisaPayload;
+import org.sagebionetworks.repo.model.oauth.GA4GHVisaType;
 import org.sagebionetworks.repo.model.oauth.OIDCClaimName;
 import org.sagebionetworks.repo.model.oauth.OIDCClaimsRequestDetails;
 import org.sagebionetworks.util.Clock;
@@ -23,12 +25,35 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
+/*
+ * From
+ * https://github.com/ga4gh-duri/ga4gh-duri.github.io/tree/master/researcher_ids
+ * 
+ * The login token request contains an OIDC scope of "ga4gh_passport_v1" to indicate that it 
+ * wishes to have a Passport accessible by presenting the access token.
+ * 
+ * The Passport Broker asks the user which Passport Visas the researcher wishes to release 
+ * to the downstream system (Passport Clearinghouse) that wants to use the Passport.
+ * 
+ * The Passport Broker packages up all the Passport Visas the researcher wishes to release 
+ * and mints an OIDC access token, and signs the token with the Passport Broker's private key.
+ * This signature will be used by downstream systems to verify the authenticity of the Passport 
+ * and maintain its integrity (i.e. prevents any party from tampering with the contents).
+ * 
+ * --
+ * 
+ * To implement the above, we require that the authorization request contain 
+ * (1) the "ga4gh_passport_v1" scope and,
+ * (2) a claim which is a list of access requirements of interest.
+ * Each access requirement is of the form https://{host}/repo/v1/accessRequirement/{arId}
+ * where {arId} is the id of the access requirement of interest.
+ * 
+ * For those access requirements for which the user is approved, a GA4GH Visa will be included
+ * in the array returned in the "ga4gh_passport_v1" claim of the OIDC user-info.
+ */
 public class GA4GHPassportClaimProvider implements OIDCClaimProvider {
-	private static final String ACCEPTED_TERMS_AND_POLICIES = "AcceptedTermsAndPolicies";
-	private static final String CONTROLLED_ACCESS_GRANTS = "ControlledAccessGrants";
 	// The source organization’s information system has made the assertion based on system data or metadata that it stores.
 	// from https://github.com/ga4gh-duri/ga4gh-duri.github.io/blob/master/researcher_ids/ga4gh_passport_v1.md
-	private static final String BY_SYSTEM = "system";
 	private static final String ACCESS_REQUIREMENT_CLAIM = "%s/repo/v1/accessRequirement/%s";
 	private static final Pattern DETAIL_FORMAT = Pattern.compile("/accessRequirement/([0-9]*)$");
 	private static final long VISA_EXPIRATION_SECONDS = 3600*24L; // a day
@@ -72,15 +97,17 @@ public class GA4GHPassportClaimProvider implements OIDCClaimProvider {
 		result.setExp(issuedAtSeconds+VISA_EXPIRATION_SECONDS);
 		GA4GHVisa visa = new GA4GHVisa();
 		result.setGa4gh_visa_v1(visa);
-		visa.setBy(BY_SYSTEM);
 		visa.setSource(oauthEndpoint);
 		String baseUri=oauthEndpoint.replace("/auth/v1","");
 		visa.setValue(createVisaValueFromARId(baseUri, arId));
+		visa.setAsserted(issuedAtSeconds);
 		if (SelfSignAccessRequirement.class.getName().equals(concreteType)) {
-			visa.setType(ACCEPTED_TERMS_AND_POLICIES);			
+			visa.setType(GA4GHVisaType.AcceptedTermsAndPolicies);	
+			visa.setBy(GA4GHByType.self);
 		} else if (ACTAccessRequirement.class.getName().equals(concreteType) || 
 				ManagedACTAccessRequirement.class.getName().equals(concreteType)) {
-			visa.setType(CONTROLLED_ACCESS_GRANTS);
+			visa.setType(GA4GHVisaType.ControlledAccessGrants);
+			visa.setBy(GA4GHByType.dac);
 		} else {
 			throw new IllegalArgumentException("Unexpected AccessRequirement type: "+concreteType);
 		}

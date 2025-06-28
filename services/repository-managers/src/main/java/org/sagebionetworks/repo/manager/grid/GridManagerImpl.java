@@ -139,17 +139,19 @@ public class GridManagerImpl implements GridManager {
 			String tableId = rowSet.getTableId();
 
 			String schemaId = getSchemaId(user, tableId, rowSet.getRows());
+			Long maxRowSizeBytes = getMaxRowSizeBytes(pre.getMaxRowsPerPage());
 
 			GridSession session = gridDao.createGridSession(
 					new CreateGridSession().setUserId(user.getId()).setSourceId(tableId).setSchemaId(schemaId));
 			GridReplica replica = gridDao.createReplica(user.getId(), session.getSessionId(), false,
 					EventSource.INTERNAL);
 
-			// The second query is a full query to build all of the patches from the query results.
-			 tableQueryManager.runQueryAsStream(callback, user, initialQuery, t -> {
+			// The second query is a full query to build all of the patches from the query
+			// results.
+			tableQueryManager.runQueryAsStream(callback, user, initialQuery, t -> {
 				List<ColumnModel> schema = t.getMainQuery().getTranslator().getSchemaOfSelect();
 				return new PatchRowHandler(this, session.getSessionId(), replica.getReplicaId(), schema,
-						pre.getMaxRowsPerPage().intValue());
+						maxRowSizeBytes);
 			});
 
 			return session;
@@ -159,6 +161,21 @@ public class GridManagerImpl implements GridManager {
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}
+	}
+
+	/**
+	 * Calculate the maximum size of a row given the maximum number of rows per
+	 * page. Note: This is a function of the
+	 * {@link TableQueryManager#getMaxBytesPerRequest()}.
+	 * 
+	 * @param maxRowsPerPage
+	 * @return
+	 */
+	Long getMaxRowSizeBytes(Long maxRowsPerPage) {
+		if (maxRowsPerPage <= 1L) {
+			return Long.MAX_VALUE;
+		}
+		return this.tableQueryManager.getMaxBytesPerRequest() / maxRowsPerPage;
 	}
 
 	String getSchemaId(UserInfo user, String tableId, List<Row> rows) {

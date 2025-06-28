@@ -34,6 +34,13 @@ public class PatchUtilsTest {
 	}
 	
 	@Test
+	public void testCalculateRowsPerPatchWithMaxUnderLimit() {
+		Long maxRowSizeBytes = PatchUtils.MAX_BYTES_PER_PATCH - 1L;
+		// call under test
+		assertEquals(1, PatchUtils.calculateRowsPerPatch(maxRowSizeBytes));
+	}
+	
+	@Test
 	public void testCalculateRowsPerPatch() {
 		// call under test with maxRowsSizeBytes=
 		assertEquals(128000, PatchUtils.calculateRowsPerPatch(1L));

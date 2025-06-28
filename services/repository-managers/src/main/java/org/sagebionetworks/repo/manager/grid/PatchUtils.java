@@ -18,7 +18,7 @@ public class PatchUtils {
 	public static int calculateRowsPerPatch(Long maxRowSizeBytes) {
 		// Note: We estimate a 10% overhead to serialize a row as a patch.
 		return maxRowSizeBytes >= MAX_BYTES_PER_PATCH ? 1
-				: Long.valueOf(MAX_BYTES_PER_PATCH / plusTenPerent(maxRowSizeBytes)).intValue();
+				: Math.max(1, Long.valueOf(MAX_BYTES_PER_PATCH / plusTenPerent(maxRowSizeBytes)).intValue());
 	}
 
 	/**

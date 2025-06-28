@@ -41,6 +41,14 @@ public class PatchUtilsTest {
 	}
 	
 	@Test
+	public void testCalculateRowsPerPatchWithHalf() {
+		// half - 10% should be two rows.
+		Long maxRowSizeBytes = (PatchUtils.MAX_BYTES_PER_PATCH/2)-Double.valueOf(PatchUtils.MAX_BYTES_PER_PATCH * 0.1).longValue();
+		// call under test
+		assertEquals(2, PatchUtils.calculateRowsPerPatch(maxRowSizeBytes));
+	}
+	
+	@Test
 	public void testCalculateRowsPerPatch() {
 		// call under test with maxRowsSizeBytes=
 		assertEquals(128000, PatchUtils.calculateRowsPerPatch(1L));

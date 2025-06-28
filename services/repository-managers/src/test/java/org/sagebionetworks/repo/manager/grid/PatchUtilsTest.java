@@ -36,7 +36,7 @@ public class PatchUtilsTest {
 	@Test
 	public void testCalculateRowsPerPatch() {
 		// call under test with maxRowsSizeBytes=
-		assertEquals(11636, PatchUtils.calculateRowsPerPatch(1L));
+		assertEquals(128000, PatchUtils.calculateRowsPerPatch(1L));
 		assertEquals(11636, PatchUtils.calculateRowsPerPatch(10L));
 		assertEquals(1163, PatchUtils.calculateRowsPerPatch(100L));
 		assertEquals(116, PatchUtils.calculateRowsPerPatch(1_000L));

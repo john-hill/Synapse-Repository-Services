@@ -1,13 +1,15 @@
 package org.sagebionetworks.repo.model.dbo.grid;
 
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.*;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_CREATED_BY;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_CREATED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_ETAG;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_MODIFIED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_REP_ID_CLIENT;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_REP_ID_SERVICE;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_SCHEMA_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_SESSION_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_SOURCE_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.DDL_GRID_SESSION;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_GRID_SESSION;
 
@@ -64,6 +66,8 @@ public class DBOGridSession implements MigratableDatabaseObject<DBOGridSession, 
 				dbo.setSessionId(rs.getString(COL_GRID_SESSION_SESSION_ID));
 				dbo.setRepIdClient(rs.getLong(COL_GRID_SESSION_REP_ID_CLIENT));
 				dbo.setRepIdService(rs.getLong(COL_GRID_SESSION_REP_ID_SERVICE));
+				dbo.setSourceId(rs.getLong(COL_GRID_SESSION_SOURCE_ID));
+				dbo.setSchemaId(rs.getString(COL_GRID_SESSION_SCHEMA_ID));
 				return dbo;
 			}
 

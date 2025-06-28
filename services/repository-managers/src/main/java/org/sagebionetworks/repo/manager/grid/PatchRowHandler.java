@@ -140,4 +140,8 @@ public class PatchRowHandler implements RowHandler {
 		saveCurrentPatch();
 	}
 
+	public int getRowsPerPatch() {
+		return rowsPerPatch;
+	}
+
 }

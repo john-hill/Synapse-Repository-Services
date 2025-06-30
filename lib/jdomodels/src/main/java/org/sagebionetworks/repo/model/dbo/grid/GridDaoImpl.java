@@ -23,7 +23,9 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SES
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_MODIFIED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_REP_ID_CLIENT;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_REP_ID_SERVICE;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_SCHEMA_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_SESSION_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SESSION_SOURCE_ID;
 
 import java.sql.ResultSet;
 import java.time.Duration;
@@ -42,6 +44,7 @@ import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.PatchInfo;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -59,12 +62,15 @@ public class GridDaoImpl implements GridDao {
 			.loadSQLFromClasspath("sql/grid/ListMissingPatches.sql");
 
 	private final RowMapper<GridSession> SESSION_MAPPER = (ResultSet rs, int rowNum) -> {
+		long sourceIdLong = rs.getLong(COL_GRID_SESSION_SOURCE_ID);
+		String sourceId = rs.wasNull() ? null : KeyFactory.keyToString(sourceIdLong);
 		return new GridSession().setSessionId(rs.getString(COL_GRID_SESSION_SESSION_ID))
 				.setStartedOn(rs.getTimestamp(COL_GRID_SESSION_CREATED_ON))
 				.setStartedBy(rs.getString(COL_GRID_SESSION_CREATED_BY)).setEtag(rs.getString(COL_GRID_SESSION_ETAG))
 				.setModifiedOn(rs.getTimestamp(COL_GRID_SESSION_MODIFIED_ON))
 				.setLastReplicaIdClient(rs.getLong(COL_GRID_SESSION_REP_ID_CLIENT))
-				.setLastReplicaIdService(rs.getLong(COL_GRID_SESSION_REP_ID_SERVICE));
+				.setLastReplicaIdService(rs.getLong(COL_GRID_SESSION_REP_ID_SERVICE)).setSourceEntityId(sourceId)
+				.setGridJsonSchema$Id(rs.getString(COL_GRID_SESSION_SCHEMA_ID));
 	};
 
 	private final RowMapper<GridReplica> REPLICA_MAPPER = (ResultSet rs, int rowNum) -> {
@@ -104,16 +110,22 @@ public class GridDaoImpl implements GridDao {
 
 	@WriteTransaction
 	@Override
-	public GridSession createGridSession(Long userId) {
-		ValidateArgument.required(userId, "userId");
+	public GridSession createGridSession(CreateGridSession create) {
+		ValidateArgument.required(create, "create");
+		ValidateArgument.required(create.getUserId(), "create.userId");
 		Long id = idGenerator.generateNewId(IdType.GRID_SESSION_ID);
 		String sessionId = GridUtils.gridSessionIdAsString(id);
 		long repIdClient = GridConstants.START_REPLICA_ID_CLIENT;
 		long repIdService = GridConstants.START_REPLICA_ID_SERVICE;
+		Long sourceId = create.getSourceId() == null ? null : KeyFactory.stringToKey(create.getSourceId());
+		Object[] args = { id, create.getUserId(), sessionId, repIdClient, repIdService, sourceId,
+				create.getSchemaId() };
+		int[] argTypes = { java.sql.Types.BIGINT, java.sql.Types.BIGINT, java.sql.Types.VARCHAR, java.sql.Types.BIGINT,
+				java.sql.Types.BIGINT, java.sql.Types.BIGINT, java.sql.Types.VARCHAR };
 		jdbcTemplate.update(
-				"INSERT INTO GRID_SESSION (ID, ETAG, CREATED_BY, CREATED_ON, MODIFIED_ON, SESSION_ID, REP_ID_CLIENT, REP_ID_SERVICE)"
-						+ " VALUES(?,UUID(),?,NOw(),NOW(),?,?,?)",
-				id, userId, sessionId, repIdClient, repIdService);
+				"INSERT INTO GRID_SESSION (ID, ETAG, CREATED_BY, CREATED_ON, MODIFIED_ON, SESSION_ID, REP_ID_CLIENT, REP_ID_SERVICE, SOURCE_ID, SCHEMA_ID)"
+						+ " VALUES(?,UUID(),?,NOw(),NOW(),?,?,?,?,?)",
+				args, argTypes);
 		return geGridSession(sessionId).get();
 	}
 

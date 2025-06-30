@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.grid;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -30,7 +31,7 @@ public class PatchRowHandlerTest {
 	private String sessionId;
 	private Long replicaId;
 	private List<ColumnModel> schema;
-	private int maxRowsPerPatch;
+	private Long maxRowSizeBytes;
 
 	@BeforeEach
 	public void before() {
@@ -38,15 +39,16 @@ public class PatchRowHandlerTest {
 		replicaId = 19L;
 		schema = List.of(new ColumnModel().setColumnType(ColumnType.STRING).setName("aString"),
 				new ColumnModel().setColumnType(ColumnType.INTEGER).setName("anInt"));
-		maxRowsPerPatch = 100;
+		maxRowSizeBytes = 100L;
 	}
 
 	@Test
 	public void testNoColumnsNoRows() throws IOException {
 		schema = Collections.emptyList();
 		// call under test
-		try (PatchRowHandler handler = new PatchRowHandler(mockStore, sessionId, replicaId, schema, maxRowsPerPatch)) {
+		try (PatchRowHandler handler = new PatchRowHandler(mockStore, sessionId, replicaId, schema, maxRowSizeBytes)) {
 			// no row to add
+			assertEquals(PatchUtils.calculateRowsPerPatch(maxRowSizeBytes), handler.getRowsPerPatch());
 		}
 		verify(mockStore, times(1)).savePatch(any(), any(), any());
 		// This patch has been tested with the JSON-Joy TypeScript library.
@@ -59,8 +61,9 @@ public class PatchRowHandlerTest {
 	public void testWithColumnNoRows() throws IOException {
 
 		// call under test
-		try (PatchRowHandler handler = new PatchRowHandler(mockStore, sessionId, replicaId, schema, maxRowsPerPatch)) {
+		try (PatchRowHandler handler = new PatchRowHandler(mockStore, sessionId, replicaId, schema, maxRowSizeBytes)) {
 			// no row to add
+			assertEquals(PatchUtils.calculateRowsPerPatch(maxRowSizeBytes), handler.getRowsPerPatch());
 		}
 		verify(mockStore, times(1)).savePatch(any(), any(), any());
 		// This patch has been tested with the JSON-Joy TypeScript library.
@@ -74,7 +77,7 @@ public class PatchRowHandlerTest {
 	public void testWithRows() throws IOException {
 
 		// call under test
-		try (PatchRowHandler handler = new PatchRowHandler(mockStore, sessionId, replicaId, schema, maxRowsPerPatch)) {
+		try (PatchRowHandler handler = new PatchRowHandler(mockStore, sessionId, replicaId, schema, maxRowSizeBytes)) {
 			handler.nextRow(new Row().setValues(Arrays.asList("one", "101")));
 			handler.nextRow(new Row().setValues(Arrays.asList("two", "202")));
 			handler.nextRow(new Row().setValues(Arrays.asList("three", "303")));
@@ -92,12 +95,13 @@ public class PatchRowHandlerTest {
 
 	@Test
 	public void testWithRowsWithOneRowPerPatch() throws IOException {
-		maxRowsPerPatch = 1;
+		maxRowSizeBytes = Long.MAX_VALUE;
 		// call under test
-		try (PatchRowHandler handler = new PatchRowHandler(mockStore, sessionId, replicaId, schema, maxRowsPerPatch)) {
+		try (PatchRowHandler handler = new PatchRowHandler(mockStore, sessionId, replicaId, schema, maxRowSizeBytes)) {
 			handler.nextRow(new Row().setValues(Arrays.asList("one", "101")));
 			handler.nextRow(new Row().setValues(Arrays.asList("two", "202")));
 			handler.nextRow(new Row().setValues(Arrays.asList("three", "303")));
+			assertEquals(PatchUtils.calculateRowsPerPatch(maxRowSizeBytes), handler.getRowsPerPatch());
 		}
 		verify(mockStore, times(3)).savePatch(any(), any(), any());
 		// All three patch has been tested with the JSON-Joy TypeScript library.
@@ -122,10 +126,11 @@ public class PatchRowHandlerTest {
 		List<Row> rows = TableModelTestUtils.createRows(schema, 3,
 				new TableModelTestUtils.ValueOptions().includeSpace(false));
 
-		try (PatchRowHandler handler = new PatchRowHandler(mockStore, sessionId, replicaId, schema, maxRowsPerPatch)) {
+		try (PatchRowHandler handler = new PatchRowHandler(mockStore, sessionId, replicaId, schema, maxRowSizeBytes)) {
 			rows.forEach(r -> {
 				handler.nextRow(r);
 			});
+			assertEquals(PatchUtils.calculateRowsPerPatch(maxRowSizeBytes), handler.getRowsPerPatch());
 		}
 		String expectedPatch = ClasspathUtil.loadFromClasspath("AllTypesPatch.json");
 		verify(mockStore).savePatch(sessionId, new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(1L),

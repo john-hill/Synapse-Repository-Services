@@ -4,6 +4,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
@@ -20,6 +21,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
+import org.sagebionetworks.repo.model.Node;
+import org.sagebionetworks.repo.model.NodeDAO;
+import org.sagebionetworks.repo.model.dbo.grid.CreateGridSession;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.EventSource;
@@ -28,6 +32,7 @@ import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.PatchInfo;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.jdo.NodeTestUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -40,6 +45,8 @@ public class GridDaoImplTest {
 
 	@Autowired
 	private GridDao dao;
+	@Autowired
+	private NodeDAO nodeDao;
 
 	private boolean isAgent;
 	private EventSource eventSource;
@@ -53,13 +60,14 @@ public class GridDaoImplTest {
 	@AfterEach
 	public void after() {
 		dao.truncateAll();
+		nodeDao.truncateAll();
 	}
 
 	@Test
 	public void testCreateGridSession() {
 
 		// call under test
-		GridSession session = dao.createGridSession(adminUserId);
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		assertNotNull(session);
 		assertEquals(adminUserId.toString(), session.getStartedBy());
 		assertNotNull(session.getSessionId());
@@ -67,9 +75,33 @@ public class GridDaoImplTest {
 		assertNotNull(session.getEtag());
 		assertEquals(GridConstants.START_REPLICA_ID_CLIENT, session.getLastReplicaIdClient());
 		assertEquals(GridConstants.START_REPLICA_ID_SERVICE, session.getLastReplicaIdService());
+		assertNull(session.getSourceEntityId());
+		assertNull(session.getGridJsonSchema$Id());
 
 		// call under test
 		GridSession back = dao.geGridSession(session.getSessionId()).get();
+		assertEquals(session, back);
+	}
+
+	@Test
+	public void testCreateGridSessionWithTableIdAndSchema() {
+		Node node = nodeDao.createNewNode(NodeTestUtils.createNew("source", adminUserId));
+		// call under test
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId)
+				.setSourceId(node.getId()).setSchemaId("someorg-someschema"));
+		assertNotNull(session);
+		assertEquals(adminUserId.toString(), session.getStartedBy());
+		assertNotNull(session.getSessionId());
+		assertNotNull(session.getStartedOn());
+		assertNotNull(session.getEtag());
+		assertEquals(GridConstants.START_REPLICA_ID_CLIENT, session.getLastReplicaIdClient());
+		assertEquals(GridConstants.START_REPLICA_ID_SERVICE, session.getLastReplicaIdService());
+		assertEquals(node.getId(), session.getSourceEntityId());
+		assertEquals("someorg-someschema", session.getGridJsonSchema$Id());
+
+		// call under test
+		GridSession back = dao.geGridSession(session.getSessionId()).get();
+		assertEquals(session, back);
 		assertEquals(session, back);
 	}
 
@@ -81,7 +113,7 @@ public class GridDaoImplTest {
 
 	@Test
 	public void testGetGridSessionStartedBy() {
-		GridSession session = dao.createGridSession(adminUserId);
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		// call under test
 		assertEquals(Optional.of(adminUserId), dao.getGridSessionStartedBy(session.getSessionId()));
 	}
@@ -95,8 +127,8 @@ public class GridDaoImplTest {
 	@Test
 	public void testCreateGridReplicaWithWebsocket() throws InterruptedException {
 		eventSource = EventSource.WEBSOCKET;
-		GridSession session = dao.createGridSession(adminUserId);
-		GridSession other = dao.createGridSession(adminUserId);
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		GridSession other = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		Thread.sleep(1001L);
 
 		// call under test
@@ -124,7 +156,7 @@ public class GridDaoImplTest {
 	public void testCreateGridReplicaWithInternal() throws InterruptedException {
 		eventSource = EventSource.INTERNAL;
 		isAgent = true;
-		GridSession session = dao.createGridSession(adminUserId);
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		Thread.sleep(1001L);
 
 		// call under test
@@ -147,7 +179,7 @@ public class GridDaoImplTest {
 
 	@Test
 	public void testGetReplica() {
-		GridSession session = dao.createGridSession(adminUserId);
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), isAgent, eventSource);
 		// call under test
 		assertEquals(replica, dao.getGridReplica(session.getSessionId(), replica.getReplicaId()).get());
@@ -161,7 +193,7 @@ public class GridDaoImplTest {
 
 	@Test
 	public void testGetReplicaCreatedBy() {
-		GridSession session = dao.createGridSession(adminUserId);
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), isAgent, eventSource);
 		// call under test
 		assertEquals(Optional.of(adminUserId),
@@ -171,7 +203,7 @@ public class GridDaoImplTest {
 	@Test
 	public void testGetReplicaCreatedByWithAgentNoMatch() {
 		isAgent = true;
-		GridSession session = dao.createGridSession(adminUserId);
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), isAgent, eventSource);
 		// call under test
 		assertEquals(Optional.empty(), dao.getReplicaCreatedBy(session.getSessionId(), replica.getReplicaId(), false));
@@ -186,7 +218,7 @@ public class GridDaoImplTest {
 	@ParameterizedTest
 	@EnumSource(EventSource.class)
 	public void testConnectionCRUD(EventSource source) throws InterruptedException {
-		GridSession session = dao.createGridSession(adminUserId);
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		GridReplica r1 = dao.createReplica(adminUserId, session.getSessionId(), isAgent, eventSource);
 		GridReplica r2 = dao.createReplica(adminUserId, session.getSessionId(), isAgent, eventSource);
 
@@ -246,7 +278,7 @@ public class GridDaoImplTest {
 
 	@Test
 	public void testSavePatch() {
-		GridSession session = dao.createGridSession(adminUserId);
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		LogicalTimestamp patchId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(11L);
 		String s3Key = "thekey";
 		Duration expires = Duration.ofSeconds(100L);
@@ -267,8 +299,8 @@ public class GridDaoImplTest {
 
 	@Test
 	public void testSavePatchWithMultipleSession() {
-		GridSession sessionOne = dao.createGridSession(adminUserId);
-		GridSession sessionTwo = dao.createGridSession(adminUserId);
+		GridSession sessionOne = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		GridSession sessionTwo = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		LogicalTimestamp patchId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(11L);
 		String s3Key = "thekey";
 		Duration expires = Duration.ofSeconds(100L);
@@ -297,8 +329,8 @@ public class GridDaoImplTest {
 
 	@Test
 	public void testListMissingPatchs() {
-		GridSession sessionOne = dao.createGridSession(adminUserId);
-		GridSession sessionTwo = dao.createGridSession(adminUserId);
+		GridSession sessionOne = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		GridSession sessionTwo = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		Duration expires = Duration.ofSeconds(100L);
 
 		List<LogicalTimestamp> patchIds = createTestPatchIds(3, 4);
@@ -329,8 +361,7 @@ public class GridDaoImplTest {
 						new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(4L)),
 				100);
 
-		List<LogicalTimestamp> expected = List.of(
-				new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(6L),
+		List<LogicalTimestamp> expected = List.of(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(6L),
 				new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(8L),
 				new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(8L));
 

@@ -62,13 +62,14 @@ public class GridDaoImpl implements GridDao {
 			.loadSQLFromClasspath("sql/grid/ListMissingPatches.sql");
 
 	private final RowMapper<GridSession> SESSION_MAPPER = (ResultSet rs, int rowNum) -> {
+		long sourceIdLong = rs.getLong(COL_GRID_SESSION_SOURCE_ID);
+		String sourceId = rs.wasNull() ? null : KeyFactory.keyToString(sourceIdLong);
 		return new GridSession().setSessionId(rs.getString(COL_GRID_SESSION_SESSION_ID))
 				.setStartedOn(rs.getTimestamp(COL_GRID_SESSION_CREATED_ON))
 				.setStartedBy(rs.getString(COL_GRID_SESSION_CREATED_BY)).setEtag(rs.getString(COL_GRID_SESSION_ETAG))
 				.setModifiedOn(rs.getTimestamp(COL_GRID_SESSION_MODIFIED_ON))
 				.setLastReplicaIdClient(rs.getLong(COL_GRID_SESSION_REP_ID_CLIENT))
-				.setLastReplicaIdService(rs.getLong(COL_GRID_SESSION_REP_ID_SERVICE))
-				.setSourceEntityId(KeyFactory.keyToString(rs.getLong(COL_GRID_SESSION_SOURCE_ID)))
+				.setLastReplicaIdService(rs.getLong(COL_GRID_SESSION_REP_ID_SERVICE)).setSourceEntityId(sourceId)
 				.setGridJsonSchema$Id(rs.getString(COL_GRID_SESSION_SCHEMA_ID));
 	};
 
@@ -116,11 +117,15 @@ public class GridDaoImpl implements GridDao {
 		String sessionId = GridUtils.gridSessionIdAsString(id);
 		long repIdClient = GridConstants.START_REPLICA_ID_CLIENT;
 		long repIdService = GridConstants.START_REPLICA_ID_SERVICE;
+		Long sourceId = create.getSourceId() == null ? null : KeyFactory.stringToKey(create.getSourceId());
+		Object[] args = { id, create.getUserId(), sessionId, repIdClient, repIdService, sourceId,
+				create.getSchemaId() };
+		int[] argTypes = { java.sql.Types.BIGINT, java.sql.Types.BIGINT, java.sql.Types.VARCHAR, java.sql.Types.BIGINT,
+				java.sql.Types.BIGINT, java.sql.Types.BIGINT, java.sql.Types.VARCHAR };
 		jdbcTemplate.update(
 				"INSERT INTO GRID_SESSION (ID, ETAG, CREATED_BY, CREATED_ON, MODIFIED_ON, SESSION_ID, REP_ID_CLIENT, REP_ID_SERVICE, SOURCE_ID, SCHEMA_ID)"
 						+ " VALUES(?,UUID(),?,NOw(),NOW(),?,?,?,?,?)",
-				id, create.getUserId(), sessionId, repIdClient, repIdService,
-				KeyFactory.stringToKey(create.getSourceId()), create.getSchemaId());
+				args, argTypes);
 		return geGridSession(sessionId).get();
 	}
 

@@ -4,6 +4,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
@@ -74,6 +75,8 @@ public class GridDaoImplTest {
 		assertNotNull(session.getEtag());
 		assertEquals(GridConstants.START_REPLICA_ID_CLIENT, session.getLastReplicaIdClient());
 		assertEquals(GridConstants.START_REPLICA_ID_SERVICE, session.getLastReplicaIdService());
+		assertNull(session.getSourceEntityId());
+		assertNull(session.getGridJsonSchema$Id());
 
 		// call under test
 		GridSession back = dao.geGridSession(session.getSessionId()).get();

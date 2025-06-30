@@ -17,9 +17,11 @@ public interface GridDao {
 	 * Create a new grid session.
 	 * 
 	 * @param userId
+	 * @param schemaId
+	 * @param tableId
 	 * @return
 	 */
-	GridSession createGridSession(Long userId);
+	GridSession createGridSession(CreateGridSession create);
 
 	/**
 	 * Get the user that started the grid session.
@@ -116,10 +118,10 @@ public interface GridDao {
 	 * @return
 	 */
 	Optional<PatchInfo> getPatchInfo(String sessionId, LogicalTimestamp patchId);
-	
 
 	/**
 	 * List all of the missing patches give a clock
+	 * 
 	 * @param sessionId
 	 * @param clock
 	 * @param limit

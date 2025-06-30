@@ -33,6 +33,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.config.WebsocketApi;
 import org.sagebionetworks.repo.manager.table.RowHandlerProvider;
 import org.sagebionetworks.repo.manager.table.TableQueryManager;
@@ -42,6 +43,7 @@ import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
+import org.sagebionetworks.repo.model.dbo.grid.CreateGridSession;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlResponse;
@@ -64,7 +66,11 @@ import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializabl
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.Query;
+import org.sagebionetworks.repo.model.table.QueryOptions;
+import org.sagebionetworks.repo.model.table.QueryResult;
 import org.sagebionetworks.repo.model.table.QueryResultBundle;
+import org.sagebionetworks.repo.model.table.Row;
+import org.sagebionetworks.repo.model.table.RowSet;
 import org.sagebionetworks.repo.model.table.TableStatus;
 import org.sagebionetworks.repo.model.table.TableUnavailableException;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -115,6 +121,8 @@ public class GridManagerUnitTest {
 	private MainQuery mockMainQuery;
 	@Mock
 	private QueryTranslator mockTranslator;
+	@Mock
+	private EntityManager mockEntityManager;
 
 	@Captor
 	private ArgumentCaptor<PutObjectRequest> putCaptor;
@@ -147,6 +155,13 @@ public class GridManagerUnitTest {
 	private String patchBody;
 	private List<LogicalTimestamp> clock;
 	private Query query;
+	private String tableId;
+	private List<Row> rows;
+	private QueryResult queryResults;
+	private QueryResultBundle queryResultBundle;
+	private String schema$id;
+	private QueryOptions queryOptions;
+	private Long maxRowsPerPage;
 
 	@BeforeEach
 	public void before() {
@@ -167,10 +182,18 @@ public class GridManagerUnitTest {
 
 		when(mockConfig.getStack()).thenReturn("dev");
 		gridManager = new GridManagerImpl(mockCredentialsProvider, mockWebsocketApi, mockGridDao, mockConfig,
-				mockS3Client, mockQueryManager);
+				mockS3Client, mockQueryManager, mockEntityManager);
 		gridManager = Mockito.spy(gridManager);
 		clock = List.of(patchId);
 		query = new Query().setSql("select * from syn123");
+		tableId = "syn999";
+		rows = List.of(new Row().setRowId(10101L));
+		maxRowsPerPage = 78L;
+		queryResults = new QueryResult().setQueryResults(new RowSet().setTableId(tableId).setRows(rows));
+		queryResultBundle = new QueryResultBundle().setQueryResult(queryResults).setMaxRowsPerPage(maxRowsPerPage);
+		schema$id = "someorg-somename";
+		queryOptions = new QueryOptions().withReturnMaxRowsPerPage(true).withRunQuery(true)
+				.withReturnSelectColumns(true);
 	}
 
 	@Test
@@ -179,7 +202,7 @@ public class GridManagerUnitTest {
 		CreateGridRequest request = new CreateGridRequest();
 
 		GridSession expected = new GridSession().setSessionId("gs123");
-		when(mockGridDao.createGridSession(userId)).thenReturn(expected);
+		when(mockGridDao.createGridSession(new CreateGridSession().setUserId(userId))).thenReturn(expected);
 		// call under test
 		CreateGridResponse result = gridManager.createGrid(mockCallback, mockUser, request);
 		assertNotNull(result);
@@ -919,11 +942,18 @@ public class GridManagerUnitTest {
 	@Test
 	public void testBuildSessionFromQuery() throws Exception {
 		when(mockUser.getId()).thenReturn(userId);
-		GridSession expected = new GridSession().setSessionId(gridSessionId);
-		when(mockGridDao.createGridSession(userId)).thenReturn(expected);
-		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
+		when(mockQueryManager.querySinglePage(mockCallback, mockUser, new Query().setSql(query.getSql()).setLimit(1L),
+				queryOptions)).thenReturn(queryResultBundle);
 		when(mockQueryManager.runQueryAsStream(eq(mockCallback), eq(mockUser), eq(query),
 				rowHandlerProviderCaptor.capture())).thenReturn(new QueryResultBundle());
+		doReturn(schema$id).when(gridManager).getSchemaId(mockUser, tableId, rows);
+
+		GridSession expected = new GridSession().setSessionId(gridSessionId);
+		when(mockGridDao.createGridSession(
+				new CreateGridSession().setUserId(userId).setSourceId(tableId).setSchemaId(schema$id)))
+				.thenReturn(expected);
+		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
+		when(mockQueryManager.getMaxBytesPerRequest()).thenReturn(2_000_000L);
 
 		// call under test
 		gridManager.buildSessionFromQuery(mockCallback, mockUser, query);
@@ -938,15 +968,22 @@ public class GridManagerUnitTest {
 		verify(gridManager).savePatch(eq(gridSessionId), eq(patchId), patchCaptor.capture());
 		Patch patch = PatchCompactSerializable.deserialize(new JSONArray(patchCaptor.getValue()));
 		assertEquals(patchId, patch.getPatchId());
+		assertEquals(PatchUtils.calculateRowsPerPatch(gridManager.getMaxRowSizeBytes(maxRowsPerPage)),
+				handler.getRowsPerPatch());
 	}
 
 	@Test
 	public void testBuildSessionFromQueryWithLockUnavilableException() throws Exception {
 		when(mockUser.getId()).thenReturn(userId);
 		GridSession expected = new GridSession().setSessionId(gridSessionId);
-		when(mockGridDao.createGridSession(userId)).thenReturn(expected);
+		when(mockGridDao.createGridSession(
+				new CreateGridSession().setUserId(userId).setSourceId(tableId).setSchemaId(schema$id)))
+				.thenReturn(expected);
+		doReturn(schema$id).when(gridManager).getSchemaId(mockUser, tableId, rows);
 		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
 		LockUnavilableException e = new LockUnavilableException(LockType.Read, "key", "context");
+		when(mockQueryManager.querySinglePage(mockCallback, mockUser, new Query().setSql(query.getSql()).setLimit(1L),
+				queryOptions)).thenReturn(queryResultBundle);
 		when(mockQueryManager.runQueryAsStream(eq(mockCallback), eq(mockUser), eq(query), any())).thenThrow(e);
 
 		String message = assertThrows(RecoverableMessageException.class, () -> {
@@ -963,9 +1000,14 @@ public class GridManagerUnitTest {
 	public void testBuildSessionFromQueryWithTableUnavailableException() throws Exception {
 		when(mockUser.getId()).thenReturn(userId);
 		GridSession expected = new GridSession().setSessionId(gridSessionId);
-		when(mockGridDao.createGridSession(userId)).thenReturn(expected);
+		when(mockGridDao.createGridSession(
+				new CreateGridSession().setUserId(userId).setSourceId(tableId).setSchemaId(schema$id)))
+				.thenReturn(expected);
+		doReturn(schema$id).when(gridManager).getSchemaId(mockUser, tableId, rows);
 		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
 		TableUnavailableException e = new TableUnavailableException(new TableStatus().setTableId("syn123"));
+		when(mockQueryManager.querySinglePage(mockCallback, mockUser, new Query().setSql(query.getSql()).setLimit(1L),
+				queryOptions)).thenReturn(queryResultBundle);
 		when(mockQueryManager.runQueryAsStream(eq(mockCallback), eq(mockUser), eq(query), any())).thenThrow(e);
 
 		String message = assertThrows(RecoverableMessageException.class, () -> {
@@ -980,9 +1022,14 @@ public class GridManagerUnitTest {
 	public void testBuildSessionFromQueryWithOhterException() throws Exception {
 		when(mockUser.getId()).thenReturn(userId);
 		GridSession expected = new GridSession().setSessionId(gridSessionId);
-		when(mockGridDao.createGridSession(userId)).thenReturn(expected);
+		when(mockGridDao.createGridSession(
+				new CreateGridSession().setUserId(userId).setSourceId(tableId).setSchemaId(schema$id)))
+				.thenReturn(expected);
+		doReturn(schema$id).when(gridManager).getSchemaId(mockUser, tableId, rows);
 		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
 		IOException e = new IOException("not connected");
+		when(mockQueryManager.querySinglePage(mockCallback, mockUser, new Query().setSql(query.getSql()).setLimit(1L),
+				queryOptions)).thenReturn(queryResultBundle);
 		when(mockQueryManager.runQueryAsStream(eq(mockCallback), eq(mockUser), eq(query), any())).thenThrow(e);
 
 		String message = assertThrows(RuntimeException.class, () -> {
@@ -991,5 +1038,29 @@ public class GridManagerUnitTest {
 		}).getMessage();
 		assertEquals("java.io.IOException: not connected", message);
 		verify(mockCallback, never()).updateProgress(anyString(), anyLong(), anyLong());
+	}
+	
+	@Test
+	public void testGetMaxRowSizeBytesWithOneRow() {
+		long maxRowsPerPage = 1L;
+		// call under test
+		assertEquals(Long.MAX_VALUE, gridManager.getMaxRowSizeBytes(maxRowsPerPage));
+		verifyZeroInteractions(mockQueryManager);
+	}
+	
+	@Test
+	public void testGetMaxRowSizeBytesWithLessThandOneRow() {
+		long maxRowsPerPage = 0L;
+		// call under test
+		assertEquals(Long.MAX_VALUE, gridManager.getMaxRowSizeBytes(maxRowsPerPage));
+		verifyZeroInteractions(mockQueryManager);
+	}
+	
+	@Test
+	public void testGetMaxRowSizeBytes() {
+		when(mockQueryManager.getMaxBytesPerRequest()).thenReturn(2_000_000L);
+		long maxRowsPerPage = 101L;
+		// call under test
+		assertEquals(2_000_000L/maxRowsPerPage, gridManager.getMaxRowSizeBytes(maxRowsPerPage));
 	}
 }

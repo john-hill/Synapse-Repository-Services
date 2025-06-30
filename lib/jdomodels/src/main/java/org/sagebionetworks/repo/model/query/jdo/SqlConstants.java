@@ -1393,6 +1393,8 @@ public class SqlConstants {
 	public static final String COL_GRID_SESSION_SESSION_ID = 		"SESSION_ID";
 	public static final String COL_GRID_SESSION_REP_ID_CLIENT =		"REP_ID_CLIENT";
 	public static final String COL_GRID_SESSION_REP_ID_SERVICE =	"REP_ID_SERVICE";
+	public static final String COL_GRID_SESSION_SOURCE_ID =			"SOURCE_ID";
+	public static final String COL_GRID_SESSION_SCHEMA_ID =			"SCHEMA_ID";
 	public static final String DDL_GRID_SESSION = "schema/grid/Grid-Session-ddl.sql";
 	
 	public static final String TABLE_GRID_REPLICA =					"GRID_REPLICA";

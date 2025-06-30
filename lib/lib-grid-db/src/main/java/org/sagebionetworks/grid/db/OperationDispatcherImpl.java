@@ -52,6 +52,7 @@ public class OperationDispatcherImpl implements OperationDispatcher {
 	@SuppressWarnings("unchecked")
 	private <O extends Operation<O>> void dispatchToHandler(String sessionId, Long replicaId,
 			OperationHandler<O> handler, List<Operation<?>> batch) {
-		handler.handleBatch(sessionId, replicaId, (List<O>) batch);
+		List<O> oBatch = batch.stream().map(op->(O)op).collect(Collectors.toList());
+		handler.handleBatch(sessionId, replicaId, oBatch);
 	}
 }

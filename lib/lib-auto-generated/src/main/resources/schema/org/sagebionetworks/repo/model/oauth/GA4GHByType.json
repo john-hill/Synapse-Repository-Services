@@ -3,19 +3,24 @@
 	"type": "string",
 	"enum": [
 		{
-			"name": "self"
+			"name": "self",
+			"description":""
 		},
 		{
-			"name": "peer"
+			"name": "peer",
+			"description":""
 		},
 		{
-			"name": "system"
+			"name": "system",
+			"description":""
 		},
 		{
-			"name": "so"
+			"name": "so",
+			"description":""
 		},
 		{
-			"name": "dac"
+			"name": "dac",
+			"description":""
 		}
 	]
 }

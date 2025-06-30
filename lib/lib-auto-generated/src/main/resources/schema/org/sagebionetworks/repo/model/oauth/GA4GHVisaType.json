@@ -3,19 +3,24 @@
 	"type": "string",
 	"enum": [
 		{
-			"name": "AffiliationAndRole"
+			"name": "AffiliationAndRole",
+			"description":""
 		},
 		{
-			"name": "AcceptedTermsAndPolicies"
+			"name": "AcceptedTermsAndPolicies",
+			"description":""
 		},
 		{
-			"name": "ResearcherStatus"
+			"name": "ResearcherStatus",
+			"description":""
 		},
 		{
-			"name": "ControlledAccessGrants"
+			"name": "ControlledAccessGrants",
+			"description":""
 		},
 		{
-			"name": "LinkedIdentities"
+			"name": "LinkedIdentities",
+			"description":""
 		}
 	]
 }

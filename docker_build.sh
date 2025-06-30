@@ -3,8 +3,6 @@
 # user - e.g. 'pjmhill'
 # m2_cache_parent_folder - the folder within which .m2 is to be found
 # src_folder - the folder within which the source code is found
-# org_sagebionetworks_stack_iam_id - the id of the developer's AWS secret key
-# org_sagebionetworks_stack_iam_key - the developer's AWS secret key
 # org_sagebionetworks_stackEncryptionKey - the stack encryption key, common to all dev builds
 # org_sagebionetworks_search_enabled - when set to "true", will enable search feature and its tests
 # rds_password - the password for the build database, common to all dev builds
@@ -39,10 +37,6 @@ if [ ! ${JOB_NAME} ]; then
 	JOB_NAME=${stack}${user}
 fi
 
-AWS_CREDS=""
-if [ -n "${org_sagebionetworks_stack_iam_id}" ]  && [ -n "${org_sagebionetworks_stack_iam_key}" ]; then
-	AWS_CREDS="-Dorg.sagebionetworks.stack.iam.id=${org_sagebionetworks_stack_iam_id} -Dorg.sagebionetworks.stack.iam.key=${org_sagebionetworks_stack_iam_key} "
-fi
 
 MVN_GOAL=install
 if [ ${build_deploy} ]; then

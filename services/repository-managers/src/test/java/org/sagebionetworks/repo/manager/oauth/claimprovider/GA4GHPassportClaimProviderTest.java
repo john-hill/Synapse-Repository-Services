@@ -2,10 +2,12 @@ package org.sagebionetworks.repo.manager.oauth.claimprovider;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
-import java.util.List;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -15,7 +17,10 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.sagebionetworks.repo.model.AccessApprovalDAO;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
-import org.sagebionetworks.repo.model.GroupMembersDAO;
+import org.sagebionetworks.repo.model.oauth.GA4GHByType;
+import org.sagebionetworks.repo.model.oauth.GA4GHVisa;
+import org.sagebionetworks.repo.model.oauth.GA4GHVisaPayload;
+import org.sagebionetworks.repo.model.oauth.GA4GHVisaType;
 import org.sagebionetworks.repo.model.oauth.OIDCClaimName;
 import org.sagebionetworks.repo.model.oauth.OIDCClaimsRequestDetails;
 import org.sagebionetworks.util.Clock;
@@ -38,58 +43,112 @@ public class GA4GHPassportClaimProviderTest {
 	private GA4GHPassportClaimProvider claimProvider;
 	
 	private static final String USER_ID = "101";
+	private static final String SUBJECT = "abcxyz";
+	
+	private static final String ACCESS_REQUIREMENT_ID = "111";
 	
 	private static final String HOST_NAME = "repo.sage.org";
 	private static final String AUTH_ENDPOINT = "https://"+HOST_NAME+"/auth/v1";
 	
-	private OIDCClaimsRequestDetails teamRequest;
+	private OIDCClaimsRequestDetails passportRequest;
 	
 	private static String createArUrl(String arId) {
-		return "https://"+HOST_NAME+"/accessRequirement/"+arId;
+		return "https://"+HOST_NAME+"/repo/v1/accessRequirement/"+arId;
 	}
 	
 	@Before
 	public void setUp() {
-		teamRequest = new OIDCClaimsRequestDetails();
-		teamRequest.setValue(createArUrl("111"));
-		teamRequest.setValues(ImmutableList.of(createArUrl("222"), createArUrl("333")));
+		passportRequest = new OIDCClaimsRequestDetails();
+		passportRequest.setValue(createArUrl(ACCESS_REQUIREMENT_ID));
+		passportRequest.setValues(ImmutableList.of(createArUrl("222"), createArUrl("333")));
 	}
 	
 	@Test
 	public void testGetArIdFromDetail() {
-		// TODO test happy case
-		// TODO test invalid string
+		String arId="987";
+		// test happy case
+		assertEquals(
+			arId,
+			// method under test
+			GA4GHPassportClaimProvider.getArIdFromDetail(createArUrl(arId))
+		);
+		// test invalid string
+		assertThrows(IllegalArgumentException.class, () -> {
+			// method under test
+			GA4GHPassportClaimProvider.getArIdFromDetail("foo");	
+		});
+	}
+	
+	private static GA4GHVisaPayload createGA4GHVisaPayload(long now, GA4GHByType by, GA4GHVisaType type) {
+		GA4GHVisaPayload result = new GA4GHVisaPayload();
+		result.setExp(now/1000L+3600*24);
+		GA4GHVisa visa = new GA4GHVisa();
+		visa.setAsserted(now/1000L);
+		visa.setBy(by);
+		visa.setSource(AUTH_ENDPOINT);
+		visa.setType(type);
+		visa.setValue(createArUrl(ACCESS_REQUIREMENT_ID));
+		result.setGa4gh_visa_v1(visa);
+		result.setIat(now/1000L);
+		result.setIss(AUTH_ENDPOINT);
+		result.setSub(SUBJECT);
+		return result;
 	}
 	
 	@Test
-	public void testGetArIdFromDetailSelfSigned() {
-		// TODO
+	public void testGetVisaForAccessRequirementSelfSigned() {
+		long now = System.currentTimeMillis();
+		when(clock.currentTimeMillis()).thenReturn(now);
+		// method under test
+		GA4GHVisaPayload actual = 
+				claimProvider.getVisaForAccessRequirement(
+				ACCESS_REQUIREMENT_ID, SUBJECT, "org.sagebionetworks.repo.model.SelfSignAccessRequirement", AUTH_ENDPOINT);
+		GA4GHVisaPayload expected = createGA4GHVisaPayload(now, GA4GHByType.self, GA4GHVisaType.AcceptedTermsAndPolicies);
+		assertEquals(expected, actual);
 	}
 
 	@Test
-	public void testGetArIdFromDetailACTApproved() {
-		// TODO
+	public void testGetVisaForAccessRequirementACTApproved() {
+		long now = System.currentTimeMillis();
+		when(clock.currentTimeMillis()).thenReturn(now);
+		// method under test
+		GA4GHVisaPayload actual = 
+				claimProvider.getVisaForAccessRequirement(
+				ACCESS_REQUIREMENT_ID, SUBJECT, "org.sagebionetworks.repo.model.ManagedACTAccessRequirement", AUTH_ENDPOINT);
+		GA4GHVisaPayload expected = createGA4GHVisaPayload(now, GA4GHByType.dac, GA4GHVisaType.ControlledAccessGrants);
+		assertEquals(expected, actual);
+
 	}
 
 	@Test
 	public void testClaim() {
-		List<String> teams = Collections.singletonList(TEAM_ID); // the list of teams to which the user belongs
-		when(groupMembersDAO.filterUserGroups(USER_ID, ImmutableList.of("102",TEAM_ID))).thenReturn(teams);
 		// method under test
-		assertEquals(OIDCClaimName.team, claimProvider.getName());
+		assertEquals(OIDCClaimName.ga4gh_passport_v1, claimProvider.getName());
 		// method under test
 		assertNotNull(claimProvider.getDescription());
 		
+		when(accessApprovalDao.getRequirementsUserHasApprovals(eq(USER_ID), any())).thenReturn(Collections.singleton(ACCESS_REQUIREMENT_ID));
+		when(accessRequirementDao.getConcreteTypes(Collections.singleton(ACCESS_REQUIREMENT_ID))).
+			thenReturn(Collections.singletonMap(ACCESS_REQUIREMENT_ID, "org.sagebionetworks.repo.model.ManagedACTAccessRequirement"));
+		long now = System.currentTimeMillis();
+		when(clock.currentTimeMillis()).thenReturn(now);
+
+		GA4GHVisaPayload expected = createGA4GHVisaPayload(now, GA4GHByType.dac, GA4GHVisaType.ControlledAccessGrants);
+
 		// method under test
-		assertEquals(Collections.singletonList(TEAM_ID), claimProvider.getClaim(USER_ID, teamRequest, AUTH_ENDPOINT));
+		Object actual = claimProvider.getClaim(USER_ID, SUBJECT, passportRequest, AUTH_ENDPOINT);
+		Object[] actualArray = (Object[])actual;
+		assertEquals(1, actualArray.length);
+		assertEquals(expected, actualArray[0]);
 	}
 
 	@Test
 	public void testClaimEmpty() {
-		// what if the user belongs to no teams?
-		when(accessApprovalDao.getRequirementsUserHasApprovals(USER_ID, Collections.EMPTY_LIST)).thenReturn(Collections.EMPTY_SET);
+		// what if the user has approvals for none of the listed access requirements?
+		when(accessApprovalDao.getRequirementsUserHasApprovals(eq(USER_ID), any())).thenReturn(Collections.EMPTY_SET);
 		// method under test
-		assertEquals(Collections.EMPTY_LIST, claimProvider.getClaim(USER_ID, teamRequest, AUTH_ENDPOINT));
+		Object[] actual = (Object[])claimProvider.getClaim(USER_ID, SUBJECT, passportRequest, AUTH_ENDPOINT);
+		assertEquals(0, actual.length);
 	}
 
 }

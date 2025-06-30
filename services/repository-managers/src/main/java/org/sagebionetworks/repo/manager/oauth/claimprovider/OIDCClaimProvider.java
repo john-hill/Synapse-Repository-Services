@@ -33,6 +33,6 @@ public interface OIDCClaimProvider {
 	 * done by the FasterXML Object mapper which supports a variety of types including String, boolean, 
 	 * number and collections of the above.
 	 */
-	public Object getClaim(String userId, OIDCClaimsRequestDetails details, String oauthEndpoint);
+	public Object getClaim(String userId, String subject, OIDCClaimsRequestDetails details, String oauthEndpoint);
 	
 }

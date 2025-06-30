@@ -48,7 +48,7 @@ public class ValidatedLocationClaimProviderTest {
 		// method under test
 		assertNotNull(claimProvider.getDescription());
 		// method under test
-		assertNull(claimProvider.getClaim(USER_ID, null, null));
+		assertNull(claimProvider.getClaim(USER_ID, null, null, null));
 		
 		VerificationState verificationState = new VerificationState();
 		verificationState.setState(VerificationStateEnum.APPROVED);
@@ -58,6 +58,6 @@ public class ValidatedLocationClaimProviderTest {
 		verificationSubmission.setLocation(LOCATION);
 		
 		// method under test
-		assertEquals(LOCATION, claimProvider.getClaim(USER_ID, null, null));
+		assertEquals(LOCATION, claimProvider.getClaim(USER_ID, null, null, null));
 	}
 }

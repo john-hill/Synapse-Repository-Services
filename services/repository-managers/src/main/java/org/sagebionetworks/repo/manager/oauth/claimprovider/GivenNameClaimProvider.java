@@ -23,7 +23,7 @@ public class GivenNameClaimProvider implements OIDCClaimProvider {
 	}
 
 	@Override
-	public Object getClaim(String userId, OIDCClaimsRequestDetails details, String oauthEndpoint) {
+	public Object getClaim(String userId, String subject, OIDCClaimsRequestDetails details, String oauthEndpoint) {
 		return userProfileManager.getUserProfile(userId).getFirstName();
 	}
 

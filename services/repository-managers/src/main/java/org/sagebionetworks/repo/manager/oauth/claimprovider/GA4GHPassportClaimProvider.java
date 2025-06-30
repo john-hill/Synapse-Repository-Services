@@ -86,15 +86,16 @@ public class GA4GHPassportClaimProvider implements OIDCClaimProvider {
 		if (!matcher.find()) {
 			throw new IllegalArgumentException("Illegal detail for access requirement: "+detail);		
 		}
-		return matcher.group(0);
+		return matcher.group(1);
 	}
 	
-	GA4GHVisaPayload getVisaForAccessRequirement(String arId, String concreteType, String oauthEndpoint) {
+	GA4GHVisaPayload getVisaForAccessRequirement(String arId, String subject, String concreteType, String oauthEndpoint) {
 		GA4GHVisaPayload result = new GA4GHVisaPayload();
 		result.setIss(oauthEndpoint);
 		long issuedAtSeconds = clock.currentTimeMillis()/1000L;
 		result.setIat(issuedAtSeconds);
 		result.setExp(issuedAtSeconds+VISA_EXPIRATION_SECONDS);
+		result.setSub(subject);
 		GA4GHVisa visa = new GA4GHVisa();
 		result.setGa4gh_visa_v1(visa);
 		visa.setSource(oauthEndpoint);
@@ -115,7 +116,7 @@ public class GA4GHPassportClaimProvider implements OIDCClaimProvider {
 	}
 
 	@Override
-	public Object getClaim(String userId, OIDCClaimsRequestDetails details, String oauthEndpoint) {
+	public Object getClaim(String userId, String subject, OIDCClaimsRequestDetails details, String oauthEndpoint) {
 		if (details==null) {
 			return Collections.EMPTY_LIST;
 		}
@@ -130,11 +131,11 @@ public class GA4GHPassportClaimProvider implements OIDCClaimProvider {
 		}
 		Set<String> approvedArIds = accessApprovalDao.getRequirementsUserHasApprovals(userId, requestedArIds);
 		Map<String, String> accessRequirementTypes = accessRequirementDao.getConcreteTypes(approvedArIds);
-		List<GA4GHVisaPayload> result = new ArrayList<GA4GHVisaPayload>(approvedArIds.size());
+		List<Object> result = new ArrayList<>(approvedArIds.size());
 		for (Map.Entry<String, String> entry : accessRequirementTypes.entrySet()) {
-			result.add(getVisaForAccessRequirement(entry.getKey(), entry.getValue(), oauthEndpoint));
+			result.add(getVisaForAccessRequirement(entry.getKey(), subject, entry.getValue(), oauthEndpoint));
 		}
-		return result;
+		return result.toArray();
 	}
 
 }

@@ -46,7 +46,7 @@ public class ValidatedAtClaimProviderTest {
 		// method under test
 		assertNotNull(claimProvider.getDescription());
 		// method under test
-		assertNull(claimProvider.getClaim(USER_ID, null, null));
+		assertNull(claimProvider.getClaim(USER_ID, null, null, null));
 		
 		VerificationState verificationState = new VerificationState();
 		verificationState.setState(VerificationStateEnum.APPROVED);
@@ -55,6 +55,6 @@ public class ValidatedAtClaimProviderTest {
 		verificationSubmission.setStateHistory(Collections.singletonList(verificationState));
 		
 		// method under test
-		assertEquals(now.getTime()/1000L, (Long)claimProvider.getClaim(USER_ID, null, null));
+		assertEquals(now.getTime()/1000L, (Long)claimProvider.getClaim(USER_ID, null, null, null));
 	}
 }

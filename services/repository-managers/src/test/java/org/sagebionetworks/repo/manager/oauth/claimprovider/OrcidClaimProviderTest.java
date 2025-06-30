@@ -39,14 +39,14 @@ public class OrcidClaimProviderTest {
 		// method under test
 		assertNotNull(claimProvider.getDescription());
 		// method under test
-		assertEquals(ORCID, claimProvider.getClaim(USER_ID, null, null));
+		assertEquals(ORCID, claimProvider.getClaim(USER_ID, null, null, null));
 	}
 
 	@Test
 	public void testClaimMissing() {
 		when(mockUserProfileManager.getOrcid(Long.parseLong(USER_ID))).thenReturn(null);
 		// method under test
-		assertNull(claimProvider.getClaim(USER_ID, null, null));
+		assertNull(claimProvider.getClaim(USER_ID, null, null, null));
 	}
 
 }

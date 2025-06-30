@@ -2,9 +2,10 @@ package org.sagebionetworks.repo.model.grid.node;
 
 import java.util.Objects;
 
+import org.json.JSONArray;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
-public class ConstantNode implements Node {
+public class ConstantNode implements Node, HasJsonValue<ConstantNode> {
 
 	private LogicalTimestamp id;
 	private Object value;
@@ -21,6 +22,17 @@ public class ConstantNode implements Node {
 	public ConstantNode setId(LogicalTimestamp id) {
 		this.id = id;
 		return this;
+	}
+
+	@Override
+	public ConstantNode setValueFromJson(String json) {
+		this.value = new JSONArray(value).get(0);
+		return this;
+	}
+
+	@Override
+	public String getValueAsJson() {
+		return new JSONArray().put(value).toString();
 	}
 
 	@Override

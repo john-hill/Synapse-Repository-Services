@@ -82,13 +82,23 @@ public interface GridIndexDao {
 	List<IndexNode> getIndices(String sessionId, Long replicaId, List<LogicalTimestamp> ids);
 
 	/**
-	 * Save a batch of {@link NewObject} to a replica.
+	 * Save a batch of {@link ObjectNode} to a replica.
 	 * 
 	 * @param sessionId
 	 * @param replicaId
 	 * @param batch
 	 */
-	void saveNewObjects(String sessionId, Long replicaId, List<NewObject> batch);
+	void saveNewObjects(String sessionId, Long replicaId, List<ObjectNode> batch);
+
+	/**
+	 * Get a batch of {@link ObjectNode} given their Ids.
+	 * 
+	 * @param sessionId
+	 * @param replicaId
+	 * @param ids
+	 * @return
+	 */
+	List<ObjectNode> getObjects(String sessionId, Long replicaId, List<LogicalTimestamp> ids);
 
 	/**
 	 * Save a batch of {@link NewVector} to a replica.
@@ -100,32 +110,13 @@ public interface GridIndexDao {
 	void saveNewVectors(String sessionId, Long replicaId, List<NewVector> batch);
 
 	/**
-	 * Save a batch of {@link NewConstant} to a replica.
+	 * Save a batch of {@link ConstantNode} to a replica.
 	 * 
 	 * @param sessionId
 	 * @param replicaId
 	 * @param batch
 	 */
-	void saveNewConstants(String sessionId, Long replicaId, List<NewConstant> batch);
-
-	/**
-	 * Set a single clock value for a replica.
-	 * 
-	 * @param sessionId
-	 * @param replicaId
-	 * @param clock
-	 */
-	void setClock(String sessionId, Long replicaId, LogicalTimestamp clock);
-
-	/**
-	 * Get {@link ObjectNode} using from its key.
-	 * 
-	 * @param sessionId
-	 * @param replicaId
-	 * @param key
-	 * @return
-	 */
-	ObjectNode getObject(String sessionId, Long replicaId, String key);
+	void saveNewConstants(String sessionId, Long replicaId, List<ConstantNode> batch);
 
 	/**
 	 * Get a batch of {@link ConstantNode} given their Ids.
@@ -136,7 +127,16 @@ public interface GridIndexDao {
 	 * @return
 	 */
 	List<ConstantNode> getConstants(String sessionId, Long replicaId, List<LogicalTimestamp> ids);
-	
+
+	/**
+	 * Set a single clock value for a replica.
+	 * 
+	 * @param sessionId
+	 * @param replicaId
+	 * @param clock
+	 */
+	void setClock(String sessionId, Long replicaId, LogicalTimestamp clock);
+
 	void truncateAll();
 
 }

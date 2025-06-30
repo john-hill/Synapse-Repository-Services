@@ -12,14 +12,13 @@ import java.util.stream.Collectors;
 import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.json.JSONArray;
 import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.IndexNode;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.node.ObjectNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewObject;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewVector;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -34,7 +33,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Repository
-@Transactional(readOnly = false, propagation = Propagation.REQUIRED, isolation = Isolation.READ_COMMITTED)
+@Transactional(readOnly = false, propagation = Propagation.REQUIRED, isolation = Isolation.READ_COMMITTED, transactionManager = "gridTransactionManager")
 public class GridIndexDaoImpl implements GridIndexDao {
 
 	private static final Logger log = LogManager.getLogger(GridIndexDaoImpl.class);
@@ -45,6 +44,18 @@ public class GridIndexDaoImpl implements GridIndexDao {
 	private static RowMapper<IndexNode> INDEX_NODE_MAPPER = (ResultSet rs, int rowNum) -> {
 		return new IndexNode().setType(IndexType.valueOf(rs.getString("KIND"))).setId(
 				new LogicalTimestamp().setReplicaId(rs.getLong("NODE_REP")).setSequenceNumber(rs.getLong("NODE_SEQ")));
+	};
+
+	private static RowMapper<ConstantNode> CONSTANT_NODE_MAPPER = (ResultSet rs, int rowNum) -> {
+		return new ConstantNode().setId(
+				new LogicalTimestamp().setReplicaId(rs.getLong("CON_REP")).setSequenceNumber(rs.getLong("CON_SEQ")))
+				.setValueFromJson(rs.getString("CON_VAL"));
+	};
+
+	private static RowMapper<ObjectNode> OBJECT_NODE_MAPPER = (ResultSet rs, int rowNum) -> {
+		return new ObjectNode().setId(
+				new LogicalTimestamp().setReplicaId(rs.getLong("OBJ_REP")).setSequenceNumber(rs.getLong("OBJ_SEQ")))
+				.setValueFromJson(rs.getString("OBJ_VAL"));
 	};
 
 	public GridIndexDaoImpl(JdbcTemplate gridDatabaseJdbcTempalte,
@@ -132,20 +143,12 @@ public class GridIndexDaoImpl implements GridIndexDao {
 			// Nothing to save, so we can return early.
 			return;
 		}
-		SqlParameterSource[] batchArgs = batch.stream().map(ts -> new MapSqlParameterSource()
-				// session
-				.addValue("sessionId", sessionId)
-				// rep
-				.addValue("replicaId", replicaId)
-				// batch rep
-				.addValue("nodeRep", ts.getReplicaId())
-				// batch seq
-				.addValue("nodeSeq", ts.getSequenceNumber())
-				// kind
-				.addValue("kind", type.name())).toArray(SqlParameterSource[]::new);
+		SqlParameterSource[] batchArgs = batch.stream()
+				.map(ts -> new MapSqlParameterSource().addValue("sessionId", sessionId).addValue("replicaId", replicaId)
+						.addValue("nodeRep", ts.getReplicaId()).addValue("nodeSeq", ts.getSequenceNumber())
+						.addValue("kind", type.name()))
+				.toArray(SqlParameterSource[]::new);
 
-		// Execute the batch update. Spring handles the iteration and statement
-		// preparation.
 		namedTemplate.batchUpdate("INSERT INTO GRID_INDEX (SESSION_ID, REPLICA_ID, NODE_REP, NODE_SEQ, KIND) "
 				+ "VALUES (:sessionId, :replicaId, :nodeRep, :nodeSeq, :kind)", batchArgs);
 	}
@@ -167,13 +170,8 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		params.addValue("ids", idTuples);
 
 		return namedTemplate.query("SELECT NODE_REP, NODE_SEQ, KIND FROM GRID_INDEX "
-				+ "WHERE SESSION_ID = :sessionId AND REPLICA_ID = :replicaId AND (NODE_REP, NODE_SEQ) IN (:timestamps)",
+				+ "WHERE SESSION_ID = :sessionId AND REPLICA_ID = :replicaId AND (NODE_REP, NODE_SEQ) IN (:ids)",
 				params, INDEX_NODE_MAPPER);
-	}
-
-	@Override
-	public void saveNewObjects(String sessionIdString, Long replicaId, List<NewObject> batch) {
-		Long sessionId = validateReplica(sessionIdString, replicaId);
 	}
 
 	@Override
@@ -187,20 +185,39 @@ public class GridIndexDaoImpl implements GridIndexDao {
 	}
 
 	@Override
-	public ObjectNode getObject(String sessionIdString, Long replicaId, String key) {
-		Long sessionId = validateReplica(sessionIdString, replicaId);
-		return null;
-	}
-
-	@Override
 	public List<ConstantNode> getConstants(String sessionIdString, Long replicaId, List<LogicalTimestamp> ids) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
-		return null;
+		if (ids == null || ids.isEmpty()) {
+			return List.of();
+		}
+		List<Object[]> idTuples = ids.stream().map(ts -> new Object[] { ts.getReplicaId(), ts.getSequenceNumber() })
+				.collect(Collectors.toList());
+
+		MapSqlParameterSource params = new MapSqlParameterSource();
+		params.addValue("sessionId", sessionId);
+		params.addValue("replicaId", replicaId);
+		params.addValue("ids", idTuples);
+
+		return namedTemplate.query(
+				"SELECT CON_REP, CON_SEQ, VAL FROM GRID_CON "
+						+ "WHERE SESSION_ID = :sessionId AND REPLICA_ID = :replicaId AND (CON_REP, CON_SEQ) IN (:ids)",
+				params, CONSTANT_NODE_MAPPER);
 	}
 
 	@Override
-	public void saveNewConstants(String sessionIdString, Long replicaId, List<NewConstant> batch) {
+	public void saveNewConstants(String sessionIdString, Long replicaId, List<ConstantNode> batch) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
+		if (batch == null || batch.isEmpty()) {
+			return;
+		}
+		SqlParameterSource[] batchArgs = batch.stream()
+				.map(cn -> new MapSqlParameterSource().addValue("sessionId", sessionId).addValue("replicaId", replicaId)
+						.addValue("conRep", cn.getId().getReplicaId())
+						.addValue("conSeq", cn.getId().getSequenceNumber()).addValue("value", cn.getValueAsJson()))
+				.toArray(SqlParameterSource[]::new);
+
+		namedTemplate.batchUpdate("INSERT INTO GRID_CON (SESSION_ID, REPLICA_ID, CON_REP, CON_SEQ, CON_VAL) "
+				+ "VALUES (:sessionId, :replicaId, :conRep, :conSeq, :value)", batchArgs);
 
 	}
 
@@ -208,5 +225,27 @@ public class GridIndexDaoImpl implements GridIndexDao {
 	@Override
 	public void truncateAll() {
 		jdbcTempalte.update("DELETE FROM GRID_REPLICA WHERE SESSION_ID > -1 AND REPLICA_ID > -1");
+	}
+
+	@Override
+	public void saveNewObjects(String sessionIdString, Long replicaId, List<ObjectNode> batch) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		if (batch == null || batch.isEmpty()) {
+			return;
+		}
+		SqlParameterSource[] batchArgs = batch.stream()
+				.map(o -> new MapSqlParameterSource().addValue("sessionId", sessionId).addValue("replicaId", replicaId)
+						.addValue("objRep", o.getId().getReplicaId()).addValue("objSeq", o.getId().getSequenceNumber())
+						.addValue("value", o.getValueAsJson()))
+				.toArray(SqlParameterSource[]::new);
+		namedTemplate.batchUpdate("INSERT INTO GRID_OBJ (SESSION_ID, REPLICA_ID, OBJ_REP, OBJ_SEQ, OBJ_VAL) "
+				+ "VALUES (:sessionId, :replicaId, :objRep, :objSeq, :value)", batchArgs);
+
+	}
+
+	@Override
+	public List<ObjectNode> getObjects(String sessionIdString, Long replicaId, List<LogicalTimestamp> ids) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		return null;
 	}
 }

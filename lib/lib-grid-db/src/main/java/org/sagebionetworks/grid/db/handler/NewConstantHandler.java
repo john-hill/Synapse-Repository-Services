@@ -5,6 +5,7 @@ import java.util.stream.Collectors;
 
 import org.sagebionetworks.grid.db.GridIndexDao;
 import org.sagebionetworks.grid.db.OperationHandler;
+import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
 import org.sagebionetworks.repo.model.grid.patch.operation.OperationType;
@@ -32,7 +33,9 @@ public class NewConstantHandler implements OperationHandler<NewConstant> {
 		ValidateArgument.required(replicaId, "replicId");
 		dao.saveIndex(sessionId, replicaId, IndexType.con,
 				batch.stream().map(NewConstant::getOperationId).collect(Collectors.toList()));
-		dao.saveNewConstants(sessionId, replicaId, batch);
+		dao.saveNewConstants(sessionId, replicaId,
+				batch.stream().map(c -> new ConstantNode().setId(c.getOperationId()).setValue(c.getValue().getValue()))
+						.collect(Collectors.toList()));
 	}
 
 }

@@ -16,7 +16,6 @@
 	<aop:aspectj-autoproxy />
 	
 	<context:component-scan base-package="org.sagebionetworks.grid"/>
-	<context:component-scan base-package="org.sagebionetworks.lib.dbuserhelper"/>
 
 	<!-- Import the stack configuration -->
 	<import resource="stack-configuration.spb.xml" />

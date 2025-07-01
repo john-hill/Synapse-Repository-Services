@@ -13,7 +13,7 @@ public interface SearchManager {
      * Creates/deletes a document based on Entity or Wiki changes that occurred in Synapse. Used by SearchIndexWorker.
      * @param changeMessages a batch of ChangeMessages representing changes in Synapse.
      */
-    void documentChangeMessages(List<ChangeMessage> changeMessages) throws RecoverableMessageException;
+    void documentChangeMessages(List<ChangeMessage> changeMessages);
 
     /**
      * Returns whether a document exists for a given Synapse id and etag

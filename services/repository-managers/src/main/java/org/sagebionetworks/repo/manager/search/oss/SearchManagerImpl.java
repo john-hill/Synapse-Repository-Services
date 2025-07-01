@@ -46,7 +46,7 @@ public class SearchManagerImpl implements SearchManager {
     }
 
     @Override
-    public void documentChangeMessages(List<ChangeMessage> messages) throws RecoverableMessageException {
+    public void documentChangeMessages(List<ChangeMessage> messages) {
         try {
             List<BulkOperation> operations = messages.stream()
                     .map(translator::generateSearchDocumentIfNecessary)
@@ -67,6 +67,10 @@ public class SearchManagerImpl implements SearchManager {
                         }
                     }).collect(Collectors.toList());
 
+            if (operations.isEmpty()) {
+                return;
+            }
+
             BulkResponse response = openSearchClient.bulk(req -> req.operations(operations));
 
             // if any message fails to process we will throw exception to reprocess it.
@@ -74,14 +78,12 @@ public class SearchManagerImpl implements SearchManager {
                     .peek(item -> log.error("Document {} has error {}.", item.id(), item.error())).count();
 
             if (hasError > 0L) {
+                log.error("The OpenSearch response has {} error", hasError);
                 throw new RecoverableMessageException();
             }
         } catch (OpenSearchException | IOException e) {
             log.error(e);
             throw new RecoverableMessageException(e);
-        } catch (Exception e){
-            log.error(e);
-            throw e;
         }
     }
 

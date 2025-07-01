@@ -30,8 +30,10 @@ public class SearchIndexWorker implements BatchChangeMessageDrivenRunner {
     public void run(ProgressCallback progressCallback, List<ChangeMessage> changes) throws RecoverableMessageException {
         try {
             searchManager.documentChangeMessages(changes);
-        } catch (Exception e) {
-            log.error(e);
+        } catch (RecoverableMessageException e) {
+            throw e;
+        } catch (Throwable e) {
+            log.error("SearchIndexWorker Failed", e);
             throw e;
         }
     }

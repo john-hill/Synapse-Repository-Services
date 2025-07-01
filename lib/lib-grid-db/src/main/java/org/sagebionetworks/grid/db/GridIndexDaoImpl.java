@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -12,7 +13,6 @@ import java.util.stream.Collectors;
 import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.json.JSONArray;
 import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.IndexNode;
@@ -112,7 +112,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 	}
 
 	@Override
-	public Optional<Timestamp> getReplciaCreatedOn(String sessionIdString, Long replicaId) {
+	public Optional<Timestamp> getReplicaCreatedOn(String sessionIdString, Long replicaId) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
 		try {
 			return Optional.of(jdbcTempalte.queryForObject(
@@ -157,7 +157,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 	public List<IndexNode> getIndices(String sessionIdString, Long replicaId, List<LogicalTimestamp> ids) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
 		if (ids == null || ids.isEmpty()) {
-			return List.of(); // Return an empty list if there's nothing to find.
+			return Collections.emptyList(); // Return an empty list if there's nothing to find.
 		}
 
 		List<Object[]> idTuples = ids.stream().map(ts -> new Object[] { ts.getReplicaId(), ts.getSequenceNumber() })
@@ -188,7 +188,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 	public List<ConstantNode> getConstants(String sessionIdString, Long replicaId, List<LogicalTimestamp> ids) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
 		if (ids == null || ids.isEmpty()) {
-			return List.of();
+			return Collections.emptyList();
 		}
 		List<Object[]> idTuples = ids.stream().map(ts -> new Object[] { ts.getReplicaId(), ts.getSequenceNumber() })
 				.collect(Collectors.toList());

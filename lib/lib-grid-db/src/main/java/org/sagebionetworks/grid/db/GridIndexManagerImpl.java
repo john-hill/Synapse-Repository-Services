@@ -28,6 +28,8 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	@Transactional(readOnly = false)
 	@Override
 	public void applyPatch(String sessionId, Long replicaId, Patch patch) {
+		ValidateArgument.required(sessionId, "sessionId");
+		ValidateArgument.required(replicaId, "replicaId");
 		ValidateArgument.required(patch, "patch");
 		ValidateArgument.required(patch.getOperations(), "patch.operations");
 
@@ -45,6 +47,13 @@ public class GridIndexManagerImpl implements GridIndexManager {
 		dao.setClock(sessionId, replicaId, LogicalTimestamp.newIncrement(patch.getPatchId(), patch.getSpan()));
 	}
 
+	/**
+	 * Has the given patch already been applied to this replica?
+	 * @param sessionId
+	 * @param replicaId
+	 * @param patchId
+	 * @return
+	 */
 	boolean isPatchAlreadyApplied(String sessionId, Long replicaId, LogicalTimestamp patchId) {
 		return dao.getClock(sessionId, replicaId, patchId.getReplicaId())
 				.map(clock -> patchId.getSequenceNumber() <= clock.getSequenceNumber()).orElse(false);

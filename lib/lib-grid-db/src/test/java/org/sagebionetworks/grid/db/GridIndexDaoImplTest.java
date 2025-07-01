@@ -63,7 +63,7 @@ public class GridIndexDaoImplTest {
 	@Test
 	public void testCreateReplica() {
 
-		Optional<Timestamp> createdOn = gridIndexDao.getReplciaCreatedOn(sessionIdOne, replicaIdOne);
+		Optional<Timestamp> createdOn = gridIndexDao.getReplicaCreatedOn(sessionIdOne, replicaIdOne);
 		assertEquals(Optional.empty(), createdOn);
 
 		// call under test
@@ -72,21 +72,21 @@ public class GridIndexDaoImplTest {
 		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
 		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne + 1L);
 
-		createdOn = gridIndexDao.getReplciaCreatedOn(sessionIdOne, replicaIdOne);
+		createdOn = gridIndexDao.getReplicaCreatedOn(sessionIdOne, replicaIdOne);
 		assertNotNull(createdOn);
 		assertTrue(createdOn.isPresent());
 
-		createdOn = gridIndexDao.getReplciaCreatedOn(sessionIdOne, replicaIdOne + 1);
+		createdOn = gridIndexDao.getReplicaCreatedOn(sessionIdOne, replicaIdOne + 1);
 		assertNotNull(createdOn);
 		assertTrue(createdOn.isPresent());
 
 		// call under test
 		gridIndexDao.deleteReplica(sessionIdOne, replicaIdOne);
 
-		createdOn = gridIndexDao.getReplciaCreatedOn(sessionIdOne, replicaIdOne);
+		createdOn = gridIndexDao.getReplicaCreatedOn(sessionIdOne, replicaIdOne);
 		assertEquals(Optional.empty(), createdOn);
 
-		createdOn = gridIndexDao.getReplciaCreatedOn(sessionIdOne, replicaIdOne + 1);
+		createdOn = gridIndexDao.getReplicaCreatedOn(sessionIdOne, replicaIdOne + 1);
 		assertNotNull(createdOn);
 		assertTrue(createdOn.isPresent());
 

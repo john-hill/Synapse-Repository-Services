@@ -31,7 +31,7 @@ public interface GridIndexDao {
 	 * @param replicaId
 	 * @return
 	 */
-	Optional<Timestamp> getReplciaCreatedOn(String sessionId, Long replicaId);
+	Optional<Timestamp> getReplicaCreatedOn(String sessionId, Long replicaId);
 
 	/**
 	 * Delete a replica and all of its data.

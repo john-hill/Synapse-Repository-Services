@@ -199,7 +199,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		params.addValue("ids", idTuples);
 
 		return namedTemplate.query(
-				"SELECT CON_REP, CON_SEQ, VAL FROM GRID_CON "
+				"SELECT CON_REP, CON_SEQ, CON_VAL FROM GRID_CON "
 						+ "WHERE SESSION_ID = :sessionId AND REPLICA_ID = :replicaId AND (CON_REP, CON_SEQ) IN (:ids)",
 				params, CONSTANT_NODE_MAPPER);
 	}

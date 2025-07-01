@@ -26,7 +26,7 @@ public class ConstantNode implements Node, HasJsonValue<ConstantNode> {
 
 	@Override
 	public ConstantNode setValueFromJson(String json) {
-		this.value = new JSONArray(value).get(0);
+		this.value = new JSONArray(json).get(0);
 		return this;
 	}
 

@@ -32,6 +32,7 @@ import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -74,7 +75,7 @@ public class SearchManagerImplTest {
 
     @Test
     public void testADDDocumentChangeMessages() throws IOException {
-        when(mockTranslator.generateSearchDocumentIfNecessary(any(ChangeMessage.class))).thenReturn(document);
+        when(mockTranslator.generateSearchDocumentIfNecessary(any(ChangeMessage.class))).thenReturn(Optional.of(document));
         BulkResponseItem item = new BulkResponseItem.Builder()
                 .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
                 .id(document.getId())
@@ -99,7 +100,7 @@ public class SearchManagerImplTest {
         document.setType(DocumentTypeNames.delete);
 
         when(mockTranslator.generateSearchDocumentIfNecessary(any(ChangeMessage.class)))
-                .thenReturn(document);
+                .thenReturn(Optional.of(document));
         BulkResponseItem item = new BulkResponseItem.Builder()
                 .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
                 .id(document.getId())
@@ -120,13 +121,31 @@ public class SearchManagerImplTest {
         verifyZeroInteractions(mockLog);
     }
 
+    @Test
+    public void testDocumentChangeMessagesWithNoDocument() throws IOException {
+        when(mockTranslator.generateSearchDocumentIfNecessary(any(ChangeMessage.class))).thenReturn(Optional.empty());
+        BulkResponseItem item = new BulkResponseItem.Builder()
+                .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
+                .id(document.getId())
+                .status(201)
+                .result(String.valueOf(Result.Created))
+                .operationType(OperationType.Create)
+                .build();
+
+        when(mockSearchClient.bulk(any(BulkRequest.class))).thenReturn(new BulkResponse.Builder()
+                .items(List.of(item)).errors(false).took(1L).build());
+
+        //call under test
+        mockSearchManager.documentChangeMessages(List.of(new ChangeMessage()));
+        verify(mockSearchClient).bulk(bulkRequestArgumentCaptor.capture());
+        BulkRequest request = bulkRequestArgumentCaptor.getValue();
+        assertEquals(0, request.operations().size());
+    }
 
     @Test
     public void testDocumentChangeMessagesErrorInResponse() throws IOException {
-        document.setType(DocumentTypeNames.delete);
-
         when(mockTranslator.generateSearchDocumentIfNecessary(any(ChangeMessage.class)))
-                .thenReturn(document);
+                .thenReturn(Optional.of(document));
         ErrorCause errorCause = ErrorCause.of(er -> er.reason("reason").type("type"));
         BulkResponseItem itemAdd = new BulkResponseItem.Builder()
                 .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
@@ -172,7 +191,7 @@ public class SearchManagerImplTest {
                 ErrorResponse.of(er -> er.error(ErrorCause.of(er1 -> er1.reason("reason").type("type")))));
 
         when(mockTranslator.generateSearchDocumentIfNecessary(any(ChangeMessage.class)))
-                .thenReturn(document);
+                .thenReturn(Optional.of(document));
 
         when(mockSearchClient.bulk(any(BulkRequest.class))).thenThrow(exception);
 
@@ -188,7 +207,7 @@ public class SearchManagerImplTest {
         document.setType(DocumentTypeNames.delete);
         IOException exception = new IOException("IOException");
         when(mockTranslator.generateSearchDocumentIfNecessary(any(ChangeMessage.class)))
-                .thenReturn(document);
+                .thenReturn(Optional.of(document));
 
         when(mockSearchClient.bulk(any(BulkRequest.class))).thenThrow(exception);
 

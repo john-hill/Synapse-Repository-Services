@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
@@ -64,7 +65,22 @@ public class GridIndexManagerImplTest {
 		manager.applyPatch(sessionId, replicaId, patch);
 		verify(mockDao).createReplicaIfNotExists(sessionId, replicaId);
 		verify(mockOperationDispatcher).processAll(sessionId, replicaId, patch.getOperations());
+		verify(mockDao, times(2)).setClock(any(), any(), any());
+		verify(mockDao).setClock(sessionId, replicaId, new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(8L));
 		verify(mockDao).setClock(sessionId, replicaId, new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(8L));
+	}
+	
+	@Test
+	public void testApplyPatchWithPatchFromThisReplica() {
+		this.patch.getPatchId().setReplicaId(replicaId);
+		doReturn(false).when(manager).isPatchAlreadyApplied(sessionId, replicaId, patch.getPatchId());
+		// call under test
+		manager.applyPatch(sessionId, replicaId, patch);
+		verify(mockDao).createReplicaIfNotExists(sessionId, replicaId);
+		verify(mockOperationDispatcher).processAll(sessionId, replicaId, patch.getOperations());
+		// only need one call to set clock for this case.
+		verify(mockDao, times(1)).setClock(any(), any(), any());
+		verify(mockDao).setClock(sessionId, replicaId, new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(8L));
 	}
 
 	@Test
@@ -98,7 +114,7 @@ public class GridIndexManagerImplTest {
 		assertEquals("replicaId is required.", message);
 		verifyZeroInteractions(mockOperationDispatcher, mockDao);
 	}
-	
+
 	@Test
 	public void testApplyPatchWithNullPatch() {
 		patch = null;
@@ -109,7 +125,7 @@ public class GridIndexManagerImplTest {
 		assertEquals("patch is required.", message);
 		verifyZeroInteractions(mockOperationDispatcher, mockDao);
 	}
-	
+
 	@Test
 	public void testApplyPatchWithNullPatchOperations() {
 		patch.setOperations(null);
@@ -123,7 +139,8 @@ public class GridIndexManagerImplTest {
 
 	@Test
 	public void testIsPatchAlreadyApplied() {
-		when(mockDao.getClock(sessionId, replicaId, patch.getPatchId().getReplicaId())).thenReturn(Optional.empty());
+		when(mockDao.getClockSequenceNumber(sessionId, replicaId, patch.getPatchId().getReplicaId()))
+				.thenReturn(Optional.empty());
 
 		// call under test
 		assertFalse(manager.isPatchAlreadyApplied(sessionId, replicaId, patch.getPatchId()));
@@ -132,8 +149,8 @@ public class GridIndexManagerImplTest {
 	@Test
 	public void testIsPatchAlreadyAppliedWithSameRepica() {
 		Long patchSequence = patch.getPatchId().getSequenceNumber();
-		when(mockDao.getClock(sessionId, replicaId, patch.getPatchId().getReplicaId()))
-				.thenReturn(Optional.of(new LogicalTimestamp().setSequenceNumber(patchSequence)));
+		when(mockDao.getClockSequenceNumber(sessionId, replicaId, patch.getPatchId().getReplicaId()))
+				.thenReturn(Optional.of(patchSequence));
 
 		// call under test
 		assertTrue(manager.isPatchAlreadyApplied(sessionId, replicaId, patch.getPatchId()));
@@ -142,8 +159,8 @@ public class GridIndexManagerImplTest {
 	@Test
 	public void testIsPatchAlreadyAppliedWithOlderReplica() {
 		Long patchSequence = patch.getPatchId().getSequenceNumber();
-		when(mockDao.getClock(sessionId, replicaId, patch.getPatchId().getReplicaId()))
-				.thenReturn(Optional.of(new LogicalTimestamp().setSequenceNumber(patchSequence - 1L)));
+		when(mockDao.getClockSequenceNumber(sessionId, replicaId, patch.getPatchId().getReplicaId()))
+				.thenReturn(Optional.of(patchSequence - 1L));
 
 		// call under test
 		assertFalse(manager.isPatchAlreadyApplied(sessionId, replicaId, patch.getPatchId()));
@@ -152,8 +169,8 @@ public class GridIndexManagerImplTest {
 	@Test
 	public void testIsPatchAlreadyAppliedWithNewerReplica() {
 		Long patchSequence = patch.getPatchId().getSequenceNumber();
-		when(mockDao.getClock(sessionId, replicaId, patch.getPatchId().getReplicaId()))
-				.thenReturn(Optional.of(new LogicalTimestamp().setSequenceNumber(patchSequence + 1L)));
+		when(mockDao.getClockSequenceNumber(sessionId, replicaId, patch.getPatchId().getReplicaId()))
+				.thenReturn(Optional.of(patchSequence + 1L));
 
 		// call under test
 		assertTrue(manager.isPatchAlreadyApplied(sessionId, replicaId, patch.getPatchId()));

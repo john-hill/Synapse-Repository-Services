@@ -2,9 +2,11 @@ package org.sagebionetworks.grid.db;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.sql.Timestamp;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -123,6 +125,81 @@ public class GridIndexDaoImplTest {
 	}
 
 	@Test
+	public void testSaveIndexWithNullSessionId() {
+		sessionIdOne = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.con, ids);
+		}).getMessage();
+		assertEquals("sessionId is required.", message);
+	}
+
+	@Test
+	public void testSaveIndexWithNullRelicaId() {
+		replicaIdOne = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.con, ids);
+		}).getMessage();
+		assertEquals("replicaId is required.", message);
+	}
+
+	@Test
+	public void testSaveIndexWithType() {
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, null, ids);
+		}).getMessage();
+		assertEquals("type is required.", message);
+	}
+
+	@Test
+	public void testSaveIndexWithNullIds() {
+		// call under test
+		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.con, null);
+	}
+
+	@Test
+	public void testSaveIndexWithNullEmptyIds() {
+		// call under test
+		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.con, Collections.emptyList());
+	}
+
+	@Test
+	public void testGetIndeciesWithNullSessionId() {
+		sessionIdOne = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridIndexDao.getIndices(sessionIdOne, replicaIdOne, ids);
+		}).getMessage();
+		assertEquals("sessionId is required.", message);
+	}
+
+	@Test
+	public void testGetIndeciesWithNullReplicaId() {
+		replicaIdOne = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridIndexDao.getIndices(sessionIdOne, replicaIdOne, ids);
+		}).getMessage();
+		assertEquals("replicaId is required.", message);
+	}
+
+	@Test
+	public void testGetIndeciesWithNullBatch() {
+		ids = null;
+		// call under test
+		assertEquals(Collections.emptyList(), gridIndexDao.getIndices(sessionIdOne, replicaIdOne, ids));
+	}
+
+	@Test
+	public void testGetIndeciesWithEmptyBatch() {
+		ids = Collections.emptyList();
+		// call under test
+		assertEquals(Collections.emptyList(), gridIndexDao.getIndices(sessionIdOne, replicaIdOne, ids));
+	}
+
+	@Test
 	public void testSaveAndGetConstantEachObjectType() {
 		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
 
@@ -163,4 +240,220 @@ public class GridIndexDaoImplTest {
 		assertEquals(constants2, results2);
 	}
 
+	@Test
+	public void testSaveNewConstantsWithNullSessionId() {
+		List<ConstantNode> constants1 = List.of(new ConstantNode().setId(ids.get(0)).setValue("Hello from session 1"));
+		sessionIdOne = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridIndexDao.saveNewConstants(sessionIdOne, replicaIdOne, constants1);
+		}).getMessage();
+		assertEquals("sessionId is required.", message);
+	}
+
+	@Test
+	public void testSaveNewConstantsWithNullReplicaIdd() {
+		List<ConstantNode> constants1 = List.of(new ConstantNode().setId(ids.get(0)).setValue("Hello from session 1"));
+		replicaIdOne = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridIndexDao.saveNewConstants(sessionIdOne, replicaIdOne, constants1);
+		}).getMessage();
+		assertEquals("replicaId is required.", message);
+	}
+
+	@Test
+	public void testSaveNewConstantsWithNullConstants() {
+		List<ConstantNode> constants1 = null;
+		// call under test
+		gridIndexDao.saveNewConstants(sessionIdOne, replicaIdOne, constants1);
+	}
+
+	@Test
+	public void testSaveNewConstantsWithEmptyConstants() {
+		List<ConstantNode> constants1 = Collections.emptyList();
+		// call under test
+		gridIndexDao.saveNewConstants(sessionIdOne, replicaIdOne, constants1);
+	}
+
+	@Test
+	public void testGetConstantsWithNullSessionId() {
+		sessionIdOne = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridIndexDao.getConstants(sessionIdOne, replicaIdOne, ids);
+		}).getMessage();
+		assertEquals("sessionId is required.", message);
+	}
+
+	@Test
+	public void testGetConstantsWithNullReplicaId() {
+		replicaIdOne = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridIndexDao.getConstants(sessionIdOne, replicaIdOne, ids);
+		}).getMessage();
+		assertEquals("replicaId is required.", message);
+	}
+
+	@Test
+	public void testGetConstantsWithNullIds() {
+		ids = null;
+		// call under test
+		assertEquals(Collections.emptyList(), gridIndexDao.getConstants(sessionIdOne, replicaIdOne, ids));
+	}
+
+	@Test
+	public void testGetConstantsWithEmptyIds() {
+		ids = Collections.emptyList();
+		// call under test
+		assertEquals(Collections.emptyList(), gridIndexDao.getConstants(sessionIdOne, replicaIdOne, ids));
+	}
+
+	@Test
+	public void testGetAndSetClock() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		gridIndexDao.createReplicaIfNotExists(sessionIdTwo, replicaIdTwo);
+
+		LogicalTimestamp clockOne = ids.get(0);
+		LogicalTimestamp clockTwo = ids.get(1);
+		LogicalTimestamp clockThree = ids.get(2);
+
+		// call under test
+		gridIndexDao.setClock(sessionIdOne, replicaIdOne, clockOne);
+		gridIndexDao.setClock(sessionIdOne, replicaIdOne, clockThree);
+		// call under test
+		gridIndexDao.setClock(sessionIdTwo, replicaIdTwo, clockTwo);
+		gridIndexDao.setClock(sessionIdTwo, replicaIdTwo, clockThree);
+
+		// call under test
+		assertEquals(Optional.of(clockOne.getSequenceNumber()),
+				gridIndexDao.getClockSequenceNumber(sessionIdOne, replicaIdOne, clockOne.getReplicaId()));
+		assertEquals(Optional.of(clockThree.getSequenceNumber()),
+				gridIndexDao.getClockSequenceNumber(sessionIdOne, replicaIdOne, clockThree.getReplicaId()));
+
+		// call under test
+		assertEquals(Optional.of(clockTwo.getSequenceNumber()),
+				gridIndexDao.getClockSequenceNumber(sessionIdTwo, replicaIdTwo, clockTwo.getReplicaId()));
+		assertEquals(Optional.of(clockThree.getSequenceNumber()),
+				gridIndexDao.getClockSequenceNumber(sessionIdTwo, replicaIdTwo, clockThree.getReplicaId()));
+
+		// call under test
+		assertEquals(List.of(clockOne, clockThree), gridIndexDao.getClock(sessionIdOne, replicaIdOne));
+		assertEquals(List.of(clockTwo, clockThree), gridIndexDao.getClock(sessionIdTwo, replicaIdTwo));
+	}
+
+	@Test
+	public void testGetAndSetClockWithUpdate() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+
+		LogicalTimestamp start = new LogicalTimestamp().setReplicaId(9L).setSequenceNumber(11L);
+		LogicalTimestamp updated = new LogicalTimestamp().setReplicaId(9L).setSequenceNumber(12L);
+
+		// call under test
+		gridIndexDao.setClock(sessionIdOne, replicaIdOne, start);
+		assertEquals(Optional.of(11L), gridIndexDao.getClockSequenceNumber(sessionIdOne, replicaIdOne, 9L));
+		assertEquals(List.of(start), gridIndexDao.getClock(sessionIdOne, replicaIdOne));
+		// update
+		gridIndexDao.setClock(sessionIdOne, replicaIdOne, updated);
+		assertEquals(Optional.of(12L), gridIndexDao.getClockSequenceNumber(sessionIdOne, replicaIdOne, 9L));
+		assertEquals(List.of(updated), gridIndexDao.getClock(sessionIdOne, replicaIdOne));
+
+	}
+
+	@Test
+	public void testGetClockWithDoesNotExist() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+
+		LogicalTimestamp clockOne = ids.get(0);
+
+		// call under test
+		assertEquals(Optional.empty(),
+				gridIndexDao.getClockSequenceNumber(sessionIdOne, replicaIdOne, clockOne.getReplicaId()));
+
+	}
+
+	@Test
+	public void testSetClockWithNullSessionId() {
+		sessionIdOne = null;
+		LogicalTimestamp clock = ids.get(0);
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridIndexDao.setClock(sessionIdOne, replicaIdOne, clock);
+		}).getMessage();
+		assertEquals("sessionId is required.", message);
+	}
+
+	@Test
+	public void testSetClockWithNullReplicaId() {
+		replicaIdOne = null;
+		LogicalTimestamp clock = ids.get(0);
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridIndexDao.setClock(sessionIdOne, replicaIdOne, clock);
+		}).getMessage();
+		assertEquals("replicaId is required.", message);
+	}
+
+	@Test
+	public void testSetClockWithNullClock() {
+		LogicalTimestamp clock = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridIndexDao.setClock(sessionIdOne, replicaIdOne, clock);
+		}).getMessage();
+		assertEquals("clock is required.", message);
+	}
+
+	@Test
+	public void testGetClockWithNullSessionId() {
+		sessionIdOne = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridIndexDao.getClock(sessionIdOne, replicaIdOne);
+		}).getMessage();
+		assertEquals("sessionId is required.", message);
+	}
+
+	@Test
+	public void testGetClockWithNullReplicaId() {
+		replicaIdOne = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridIndexDao.getClock(sessionIdOne, replicaIdOne);
+		}).getMessage();
+		assertEquals("replicaId is required.", message);
+	}
+
+	@Test
+	public void testGetClockSequenceNumberWithNullSessionId() {
+		sessionIdOne = null;
+		Long clockId = 88L;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridIndexDao.getClockSequenceNumber(sessionIdOne, replicaIdTwo, clockId);
+		}).getMessage();
+		assertEquals("sessionId is required.", message);
+	}
+
+	@Test
+	public void testGetClockSequenceNumberWithNullReplicaId() {
+		replicaIdTwo = null;
+		Long clockId = 88L;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridIndexDao.getClockSequenceNumber(sessionIdOne, replicaIdTwo, clockId);
+		}).getMessage();
+		assertEquals("replicaId is required.", message);
+	}
+
+	@Test
+	public void testGetClockSequenceNumberWithNullClock() {
+		Long clockId = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridIndexDao.getClockSequenceNumber(sessionIdOne, replicaIdTwo, clockId);
+		}).getMessage();
+		assertEquals("clockIdRep is required.", message);
+	}
 }

@@ -52,6 +52,11 @@ public class GridIndexDaoImpl implements GridIndexDao {
 				.setValueFromJson(rs.getString("CON_VAL"));
 	};
 
+	private static RowMapper<LogicalTimestamp> CLOCK_MAPPER = (ResultSet rs, int rowNum) -> {
+		return new LogicalTimestamp().setReplicaId(rs.getLong("CLOCK_ID_REP"))
+				.setSequenceNumber(rs.getLong("CLOCK_ID_SEQ"));
+	};
+
 	private static RowMapper<ObjectNode> OBJECT_NODE_MAPPER = (ResultSet rs, int rowNum) -> {
 		return new ObjectNode().setId(
 				new LogicalTimestamp().setReplicaId(rs.getLong("OBJ_REP")).setSequenceNumber(rs.getLong("OBJ_SEQ")))
@@ -90,7 +95,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 
 	Long validateReplica(String sessionId, Long replicaId) {
 		ValidateArgument.required(sessionId, "sessionId");
-		ValidateArgument.required(replicaId, "repicaId");
+		ValidateArgument.required(replicaId, "replicaId");
 		return GridUtils.gridSessionIdAsLong(sessionId);
 	}
 
@@ -123,21 +128,10 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		}
 	}
 
-	@Override
-	public List<LogicalTimestamp> getClock(String sessionIdString, Long replicaId) {
-		Long sessionId = validateReplica(sessionIdString, replicaId);
-		return null;
-	}
-
-	@Override
-	public Optional<LogicalTimestamp> getClock(String sessionIdString, Long replicaId, Long patchReplicaId) {
-		Long sessionId = validateReplica(sessionIdString, replicaId);
-		return Optional.empty();
-	}
-
 	@Transactional(readOnly = false)
 	@Override
 	public void saveIndex(String sessionIdString, Long replicaId, IndexType type, List<LogicalTimestamp> batch) {
+		ValidateArgument.required(type, "type");
 		Long sessionId = validateReplica(sessionIdString, replicaId);
 		if (batch == null || batch.isEmpty()) {
 			// Nothing to save, so we can return early.
@@ -179,9 +173,53 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
 	}
 
+	@Transactional(readOnly = false)
 	@Override
 	public void setClock(String sessionIdString, Long replicaId, LogicalTimestamp clock) {
+		ValidateArgument.required(clock, "clock");
+		ValidateArgument.required(clock.getReplicaId(), "clock.replicaId");
+		ValidateArgument.required(clock.getSequenceNumber(), "clock.sequenceNumber");
 		Long sessionId = validateReplica(sessionIdString, replicaId);
+		MapSqlParameterSource params = new MapSqlParameterSource();
+		params.addValue("sessionId", sessionId);
+		params.addValue("replicaId", replicaId);
+		params.addValue("clockRep", clock.getReplicaId());
+		params.addValue("clockSeq", clock.getSequenceNumber());
+
+		namedTemplate.update("INSERT INTO GRID_CLOCK (SESSION_ID, REPLICA_ID, CLOCK_ID_REP, CLOCK_ID_SEQ) VALUES"
+				+ " (:sessionId,:replicaId,:clockRep,:clockSeq) ON DUPLICATE KEY UPDATE CLOCK_ID_SEQ = :clockSeq",
+				params);
+	}
+
+	@Override
+	public List<LogicalTimestamp> getClock(String sessionIdString, Long replicaId) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		MapSqlParameterSource params = new MapSqlParameterSource();
+		params.addValue("sessionId", sessionId);
+		params.addValue("replicaId", replicaId);
+		return namedTemplate.query("SELECT CLOCK_ID_REP, CLOCK_ID_SEQ FROM GRID_CLOCK "
+				+ "WHERE SESSION_ID = :sessionId AND REPLICA_ID = :replicaId " + "ORDER BY CLOCK_ID_REP, CLOCK_ID_SEQ",
+				params, CLOCK_MAPPER);
+	}
+
+	@Override
+	public Optional<Long> getClockSequenceNumber(String sessionIdString, Long replicaId, Long clockIdRep) {
+		ValidateArgument.required(clockIdRep, "clockIdRep");
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		MapSqlParameterSource params = new MapSqlParameterSource();
+		params.addValue("sessionId", sessionId);
+		params.addValue("replicaId", replicaId);
+		params.addValue("clockRep", clockIdRep);
+
+		// query on empty exception return optional empty
+		try {
+			return Optional.of(namedTemplate.queryForObject(
+					"SELECT CLOCK_ID_SEQ FROM GRID_CLOCK "
+							+ "WHERE SESSION_ID = :sessionId AND REPLICA_ID = :replicaId AND CLOCK_ID_REP = :clockRep ",
+					params, Long.class));
+		} catch (EmptyResultDataAccessException e) {
+			return Optional.empty();
+		}
 	}
 
 	@Override

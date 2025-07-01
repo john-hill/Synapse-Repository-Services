@@ -9,8 +9,6 @@ import org.sagebionetworks.repo.model.grid.node.IndexNode;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.node.ObjectNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewObject;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewVector;
 
 public interface GridIndexDao {
@@ -51,15 +49,15 @@ public interface GridIndexDao {
 	List<LogicalTimestamp> getClock(String sessionId, Long replicaId);
 
 	/**
-	 * Get {@link LogicalTimestamp} for the given replica and patchId.
+	 * Get the current sequence number for a clock replica ID if it exists.
 	 * 
 	 * @param sessionId
 	 * @param replicaId
-	 * @param patchReplicaId
+	 * @param clockIdRep
 	 * @return {@link Optional#empty()} if there is no clock for the provided
 	 *         patchId.
 	 */
-	Optional<LogicalTimestamp> getClock(String sessionId, Long replicaId, Long patchReplicaId);
+	Optional<Long> getClockSequenceNumber(String sessionId, Long replicaId, Long clockIdRep);
 
 	/**
 	 * Save a batch of Index objects to a replica.

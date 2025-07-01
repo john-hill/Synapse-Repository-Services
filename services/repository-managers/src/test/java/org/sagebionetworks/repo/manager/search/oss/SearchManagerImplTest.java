@@ -75,7 +75,8 @@ public class SearchManagerImplTest {
 
     @Test
     public void testADDDocumentChangeMessages() throws IOException {
-        when(mockTranslator.generateSearchDocumentIfNecessary(any(ChangeMessage.class))).thenReturn(Optional.of(document));
+        when(mockTranslator.generateSearchDocumentIfNecessary(any(ChangeMessage.class)))
+                .thenReturn(Optional.of(document)).thenReturn(Optional.empty());
         BulkResponseItem item = new BulkResponseItem.Builder()
                 .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
                 .id(document.getId())
@@ -87,7 +88,7 @@ public class SearchManagerImplTest {
                 .items(List.of(item)).errors(false).took(1L).build());
 
         //call under test
-        mockSearchManager.documentChangeMessages(List.of(new ChangeMessage()));
+        mockSearchManager.documentChangeMessages(List.of(new ChangeMessage(), new ChangeMessage()));
         verify(mockSearchClient).bulk(bulkRequestArgumentCaptor.capture());
         BulkRequest request = bulkRequestArgumentCaptor.getValue();
         assertEquals(1, request.operations().size());
@@ -122,24 +123,12 @@ public class SearchManagerImplTest {
     }
 
     @Test
-    public void testDocumentChangeMessagesWithNoDocument() throws IOException {
+    public void testDocumentChangeMessagesWithNoDocument() {
         when(mockTranslator.generateSearchDocumentIfNecessary(any(ChangeMessage.class))).thenReturn(Optional.empty());
-        BulkResponseItem item = new BulkResponseItem.Builder()
-                .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
-                .id(document.getId())
-                .status(201)
-                .result(String.valueOf(Result.Created))
-                .operationType(OperationType.Create)
-                .build();
-
-        when(mockSearchClient.bulk(any(BulkRequest.class))).thenReturn(new BulkResponse.Builder()
-                .items(List.of(item)).errors(false).took(1L).build());
 
         //call under test
         mockSearchManager.documentChangeMessages(List.of(new ChangeMessage()));
-        verify(mockSearchClient).bulk(bulkRequestArgumentCaptor.capture());
-        BulkRequest request = bulkRequestArgumentCaptor.getValue();
-        assertEquals(0, request.operations().size());
+        verifyZeroInteractions(mockSearchClient);
     }
 
     @Test

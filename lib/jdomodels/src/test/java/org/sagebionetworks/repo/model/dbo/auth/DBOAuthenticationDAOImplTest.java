@@ -321,22 +321,5 @@ public class DBOAuthenticationDAOImplTest {
 		
 		assertEquals("1.0.1", authDAO.getTermsOfServiceLatestVersion());
 	}
-	
-	@Test
-	public void testGetAndSetLastSeenOn() {
-		assertEquals(Optional.empty(), authDAO.getLastSeenOn(userId));
-		
-		Date lastSeenOn = Date.from(Instant.now().minus(1, ChronoUnit.DAYS));
-		
-		authDAO.setLastSeenOn(List.of(userId), lastSeenOn);
-		
-		assertEquals(Optional.of(lastSeenOn), authDAO.getLastSeenOn(userId));
-		
-		lastSeenOn = Date.from(Instant.now().plus(1, ChronoUnit.DAYS));
-		
-		authDAO.setLastSeenOn(List.of(userId), lastSeenOn);
-		
-		assertEquals(Optional.of(lastSeenOn), authDAO.getLastSeenOn(userId));
-	}
 
 }

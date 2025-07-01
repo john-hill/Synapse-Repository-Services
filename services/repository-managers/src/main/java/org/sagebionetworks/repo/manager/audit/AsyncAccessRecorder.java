@@ -13,7 +13,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.sagebionetworks.kinesis.AwsKinesisFirehoseLogger;
 import org.sagebionetworks.repo.model.audit.AccessRecord;
-import org.sagebionetworks.repo.model.auth.AuthenticationDAO;
+import org.sagebionetworks.repo.model.dbo.auth.UserStatusDao;
 import org.sagebionetworks.util.Clock;
 import org.springframework.stereotype.Service;
 
@@ -47,15 +47,15 @@ public class AsyncAccessRecorder implements AccessRecorder {
 	
 	private AwsKinesisFirehoseLogger firehoseLogger;
 	
-	private AuthenticationDAO authDao;
+	private UserStatusDao userStatusDao;
 	
 	private Clock clock;
 	
 	private Cache<Long, Long> userAccessCache;
 
-	public AsyncAccessRecorder(AwsKinesisFirehoseLogger firehoseLogger, AuthenticationDAO authDao, Clock clock) {
+	public AsyncAccessRecorder(AwsKinesisFirehoseLogger firehoseLogger, UserStatusDao userStatusDao, Clock clock) {
 		this.firehoseLogger = firehoseLogger;
-		this.authDao = authDao;
+		this.userStatusDao = userStatusDao;
 		this.clock = clock;
 		this.userAccessCache = CacheBuilder.newBuilder()
 			.ticker(new Ticker() {
@@ -123,7 +123,7 @@ public class AsyncAccessRecorder implements AccessRecorder {
 		}).collect(Collectors.toList());
 		
 		if (!lastSeenOnUpdateBatch.isEmpty()) {
-			authDao.setLastSeenOn(lastSeenOnUpdateBatch, lastSeenOn);
+			userStatusDao.setLastSeenOn(lastSeenOnUpdateBatch, lastSeenOn);
 		}
 	}
 	

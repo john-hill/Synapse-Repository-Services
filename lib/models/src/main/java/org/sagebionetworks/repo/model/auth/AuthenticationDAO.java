@@ -158,10 +158,6 @@ public interface AuthenticationDAO {
 	 * @return The expiration date for the user password, if any
 	 */
 	Optional<Date> getPasswordExpiresOn(long principalId);
-	
-	void setLastSeenOn(List<Long> principalIds, Date lastSeenOn);
-	
-	Optional<Date> getLastSeenOn(long principalId);
 		
 	/**
 	 * Ensure the bootstrap users have sufficient credentials to authenticate

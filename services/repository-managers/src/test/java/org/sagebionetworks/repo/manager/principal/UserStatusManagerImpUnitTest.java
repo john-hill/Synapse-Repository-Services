@@ -1,0 +1,93 @@
+package org.sagebionetworks.repo.manager.principal;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
+
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.manager.UserManager;
+import org.sagebionetworks.repo.manager.oauth.OpenIDConnectManager;
+import org.sagebionetworks.repo.model.dbo.auth.UserStatusDao;
+import org.sagebionetworks.util.Clock;
+
+@ExtendWith(MockitoExtension.class)
+public class UserStatusManagerImpUnitTest {
+
+	private static final int MAX_BATCH_SIZE = 2;
+
+	@Mock
+	private UserStatusDao mockUserStatusDao;
+	@Mock
+	private UserManager mockUserManager;
+	@Mock
+	private OpenIDConnectManager mockOidcTokenManager;
+	@Mock
+	private Clock mockClock;
+
+	@InjectMocks
+	private UserStatusManagerImpl userStatusManager;
+
+	@Test
+	public void testDisableInactiveUsers() {
+		Instant now = Instant.now();
+
+		when(mockClock.now()).thenReturn(Date.from(now));
+
+		when(mockUserStatusDao.getInactiveUsersBatch(Date.from(now.minus(UserStatusManager.INACTIVITY_DAYS, ChronoUnit.DAYS)), MAX_BATCH_SIZE)).thenReturn(List.of(123L, 456L));
+
+		// Call under test
+		assertEquals(2, userStatusManager.disableInactiveUsers(MAX_BATCH_SIZE));
+
+		verify(mockOidcTokenManager).revokeUserAccess(123L);
+		verify(mockOidcTokenManager).revokeUserAccess(456L);
+		verify(mockUserManager).deleteOidcBinding(123L);
+		verify(mockUserManager).deleteOidcBinding(456L);
+		verify(mockUserStatusDao).setDisabled(123L, true);
+		verify(mockUserStatusDao).setDisabled(456L, true);
+
+		verifyNoMoreInteractions(mockUserStatusDao, mockUserManager, mockOidcTokenManager);
+	}
+
+	@Test
+	public void testDisableInactiveUsersWithBootstrapPrincipal() {
+		Instant now = Instant.now();
+
+		when(mockClock.now()).thenReturn(Date.from(now));
+
+		when(mockUserStatusDao.getInactiveUsersBatch(Date.from(now.minus(UserStatusManager.INACTIVITY_DAYS, ChronoUnit.DAYS)), MAX_BATCH_SIZE)).thenReturn(List.of(123L, 1L));
+
+		// Call under test
+		assertEquals(1, userStatusManager.disableInactiveUsers(MAX_BATCH_SIZE));
+
+		verify(mockOidcTokenManager).revokeUserAccess(123L);
+		verify(mockUserManager).deleteOidcBinding(123L);
+		verify(mockUserStatusDao).setDisabled(123L, true);
+
+		verifyNoMoreInteractions(mockUserStatusDao, mockUserManager, mockOidcTokenManager);
+	}
+
+	@Test
+	public void testDisableInactiveUsersWithNoInactiveUsers() {
+		Instant now = Instant.now();
+
+		when(mockClock.now()).thenReturn(Date.from(now));
+
+		when(mockUserStatusDao.getInactiveUsersBatch(Date.from(now.minus(UserStatusManager.INACTIVITY_DAYS, ChronoUnit.DAYS)), MAX_BATCH_SIZE)).thenReturn(Collections.emptyList());
+
+		// Call under test
+		assertEquals(0, userStatusManager.disableInactiveUsers(MAX_BATCH_SIZE));
+
+		verifyNoMoreInteractions(mockUserStatusDao, mockUserManager, mockOidcTokenManager);
+	}
+}

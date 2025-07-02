@@ -176,6 +176,8 @@
 		<ref bean="gridMessageBrokerWorkerTrigger"/>
 		<ref bean="gridCreateWorkerTrigger"/>
 		
+		<ref bean="inactiveUsersWorkerTrigger"/>
+		
 	</util:list>
 
 	<bean id="mainScheduler"

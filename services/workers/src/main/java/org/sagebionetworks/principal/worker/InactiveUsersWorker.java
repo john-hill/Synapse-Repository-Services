@@ -32,7 +32,7 @@ public class InactiveUsersWorker implements ProgressingRunner {
 				disabledCount += disabledBatchCount;
 			} while (disabledBatchCount > 0);
 			
-			LOG.info("Disabling inactive users...DONE (Deleted Count: {})", disabledCount);
+			LOG.info("Disabling inactive users...DONE (Disabled Count: {})", disabledCount);
 		} catch (Throwable e) {
 			LOG.error(e.getMessage(), e);
 		}

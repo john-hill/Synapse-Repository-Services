@@ -90,8 +90,8 @@ public class UserStatusDaoImpl implements UserStatusDao {
 	public List<Long> getInactiveUsersBatch(Date lastSeenOnThreshold, int batchSize) {
 		return jdbcTemplate.queryForList(
 				"SELECT " + COL_USER_STATUS_PRINCIPAL_ID + " FROM " + TABLE_USER_STATUS + " WHERE "
-				+ COL_USER_STATUS_LAST_SEEN_ON + " < ? AND "
-				+ COL_USER_STATUS_DISABLED + " = false LIMIT ?",
+				+ COL_USER_STATUS_DISABLED + " = false AND "
+				+ COL_USER_STATUS_LAST_SEEN_ON + " < ? LIMIT ?",
 				Long.class, lastSeenOnThreshold, batchSize);
 	}
 

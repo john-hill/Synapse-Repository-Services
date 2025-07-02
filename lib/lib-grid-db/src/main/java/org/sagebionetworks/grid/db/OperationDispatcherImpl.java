@@ -32,14 +32,20 @@ public class OperationDispatcherImpl implements OperationDispatcher {
 		Map<OperationType, List<Operation<?>>> batches = operations.stream()
 				.collect(Collectors.groupingBy(Operation::getType));
 
-		batches.forEach((type, batch) -> {
-			OperationHandler<?> handler = operationHandlers.get(type);
-			if (handler == null) {
-				throw new IllegalStateException("Unknown type: " + type);
+		/*
+		 * By processing batches in the order defined by the enumeration, we can ensure
+		 * that 'new' operations will be processed before 'insert' operations.
+		 */
+		for (OperationType type : OperationType.values()) {
+			List<Operation<?>> batch = batches.get(type);
+			if (batch != null) {
+				OperationHandler<?> handler = operationHandlers.get(type);
+				if (handler == null) {
+					throw new IllegalStateException("Unknown type: " + type);
+				}
+				dispatchToHandler(sessionId, replicaId, handler, batch);
 			}
-			dispatchToHandler(sessionId, replicaId, handler, batch);
-		});
-
+		}
 	}
 
 	/**

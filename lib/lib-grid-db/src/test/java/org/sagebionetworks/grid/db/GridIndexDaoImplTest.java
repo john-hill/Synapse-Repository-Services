@@ -10,6 +10,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,7 +56,9 @@ public class GridIndexDaoImplTest {
 				new LogicalTimestamp().setReplicaId(7L).setSequenceNumber(8L),
 				new LogicalTimestamp().setReplicaId(9L).setSequenceNumber(10L),
 				new LogicalTimestamp().setReplicaId(11L).setSequenceNumber(12L),
-				new LogicalTimestamp().setReplicaId(13L).setSequenceNumber(14L));
+				new LogicalTimestamp().setReplicaId(13L).setSequenceNumber(14L),
+				new LogicalTimestamp().setReplicaId(15L).setSequenceNumber(16L)
+				);
 	}
 
 	@AfterEach
@@ -208,8 +212,10 @@ public class GridIndexDaoImplTest {
 				new ConstantNode().setId(ids.get(2)).setValue(505555555555555555L),
 				new ConstantNode().setId(ids.get(3)).setValue(3.14),
 				new ConstantNode().setId(ids.get(4)).setValue("Hello World"),
-				new ConstantNode().setId(ids.get(5)).setValue("[1,2,3]"),
-				new ConstantNode().setId(ids.get(6)).setValue("{\"key\":99}"));
+				new ConstantNode().setId(ids.get(5)).setValue(new JSONArray("[1,2,3]")),
+				new ConstantNode().setId(ids.get(6)).setValue(new JSONObject("{\"key\":99}")),
+				new ConstantNode().setId(ids.get(7)).setValue(null)
+				);
 
 		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.con, ids);
 		// call under test

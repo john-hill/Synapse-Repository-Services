@@ -8,6 +8,7 @@ import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.IndexNode;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.node.ObjectNode;
+import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewVector;
 
@@ -103,9 +104,9 @@ public interface GridIndexDao {
 	 * 
 	 * @param sessionId
 	 * @param replicaId
-	 * @param batch
+	 * @param list
 	 */
-	void saveNewVectors(String sessionId, Long replicaId, List<NewVector> batch);
+	void saveVectors(String sessionId, Long replicaId, List<VectorNode> list);
 
 	/**
 	 * Save a batch of {@link ConstantNode} to a replica.

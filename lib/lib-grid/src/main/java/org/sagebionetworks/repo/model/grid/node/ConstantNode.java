@@ -26,12 +26,15 @@ public class ConstantNode implements Node, HasJsonValue<ConstantNode> {
 
 	@Override
 	public ConstantNode setValueFromJson(String json) {
-		this.value = new JSONArray(json).get(0);
+		this.value = "[]".equals(json) ? null : new JSONArray(json).get(0);
 		return this;
 	}
 
 	@Override
 	public String getValueAsJson() {
+		if (value == null) {
+			return "[]";
+		}
 		return new JSONArray().put(value).toString();
 	}
 
@@ -42,7 +45,7 @@ public class ConstantNode implements Node, HasJsonValue<ConstantNode> {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(id, value);
+		return Objects.hash(id, getValueAsJson());
 	}
 
 	@Override
@@ -54,7 +57,7 @@ public class ConstantNode implements Node, HasJsonValue<ConstantNode> {
 		if (getClass() != obj.getClass())
 			return false;
 		ConstantNode other = (ConstantNode) obj;
-		return Objects.equals(id, other.id) && Objects.equals(value, other.value);
+		return Objects.equals(id, other.id) && Objects.equals(getValueAsJson(), other.getValueAsJson());
 	}
 
 	@Override

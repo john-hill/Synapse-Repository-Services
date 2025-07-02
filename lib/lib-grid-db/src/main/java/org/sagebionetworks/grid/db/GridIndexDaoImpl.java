@@ -18,8 +18,8 @@ import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.IndexNode;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.node.ObjectNode;
+import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewVector;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -143,7 +143,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 						.addValue("kind", type.name()))
 				.toArray(SqlParameterSource[]::new);
 
-		namedTemplate.batchUpdate("INSERT INTO GRID_INDEX (SESSION_ID, REPLICA_ID, NODE_REP, NODE_SEQ, KIND) "
+		namedTemplate.batchUpdate("INSERT INTO GRID_REPLICA_INDEX (SESSION_ID, REPLICA_ID, NODE_REP, NODE_SEQ, KIND) "
 				+ "VALUES (:sessionId, :replicaId, :nodeRep, :nodeSeq, :kind)", batchArgs);
 	}
 
@@ -163,13 +163,13 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		params.addValue("replicaId", replicaId);
 		params.addValue("ids", idTuples);
 
-		return namedTemplate.query("SELECT NODE_REP, NODE_SEQ, KIND FROM GRID_INDEX "
+		return namedTemplate.query("SELECT NODE_REP, NODE_SEQ, KIND FROM GRID_REPLICA_INDEX "
 				+ "WHERE SESSION_ID = :sessionId AND REPLICA_ID = :replicaId AND (NODE_REP, NODE_SEQ) IN (:ids)",
 				params, INDEX_NODE_MAPPER);
 	}
 
 	@Override
-	public void saveNewVectors(String sessionIdString, Long replicaId, List<NewVector> batch) {
+	public void saveVectors(String sessionIdString, Long replicaId, List<VectorNode> batch) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
 	}
 
@@ -186,7 +186,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		params.addValue("clockRep", clock.getReplicaId());
 		params.addValue("clockSeq", clock.getSequenceNumber());
 
-		namedTemplate.update("INSERT INTO GRID_CLOCK (SESSION_ID, REPLICA_ID, CLOCK_ID_REP, CLOCK_ID_SEQ) VALUES"
+		namedTemplate.update("INSERT INTO GRID_REPLICA_CLOCK (SESSION_ID, REPLICA_ID, CLOCK_ID_REP, CLOCK_ID_SEQ) VALUES"
 				+ " (:sessionId,:replicaId,:clockRep,:clockSeq) ON DUPLICATE KEY UPDATE CLOCK_ID_SEQ = :clockSeq",
 				params);
 	}
@@ -197,7 +197,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		MapSqlParameterSource params = new MapSqlParameterSource();
 		params.addValue("sessionId", sessionId);
 		params.addValue("replicaId", replicaId);
-		return namedTemplate.query("SELECT CLOCK_ID_REP, CLOCK_ID_SEQ FROM GRID_CLOCK "
+		return namedTemplate.query("SELECT CLOCK_ID_REP, CLOCK_ID_SEQ FROM GRID_REPLICA_CLOCK "
 				+ "WHERE SESSION_ID = :sessionId AND REPLICA_ID = :replicaId " + "ORDER BY CLOCK_ID_REP, CLOCK_ID_SEQ",
 				params, CLOCK_MAPPER);
 	}
@@ -214,7 +214,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		// query on empty exception return optional empty
 		try {
 			return Optional.of(namedTemplate.queryForObject(
-					"SELECT CLOCK_ID_SEQ FROM GRID_CLOCK "
+					"SELECT CLOCK_ID_SEQ FROM GRID_REPLICA_CLOCK "
 							+ "WHERE SESSION_ID = :sessionId AND REPLICA_ID = :replicaId AND CLOCK_ID_REP = :clockRep ",
 					params, Long.class));
 		} catch (EmptyResultDataAccessException e) {
@@ -237,7 +237,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		params.addValue("ids", idTuples);
 
 		return namedTemplate.query(
-				"SELECT CON_REP, CON_SEQ, CON_VAL FROM GRID_CON "
+				"SELECT CON_REP, CON_SEQ, CON_VAL FROM GRID_REPLICA_CON "
 						+ "WHERE SESSION_ID = :sessionId AND REPLICA_ID = :replicaId AND (CON_REP, CON_SEQ) IN (:ids)",
 				params, CONSTANT_NODE_MAPPER);
 	}
@@ -254,7 +254,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 						.addValue("conSeq", cn.getId().getSequenceNumber()).addValue("value", cn.getValueAsJson()))
 				.toArray(SqlParameterSource[]::new);
 
-		namedTemplate.batchUpdate("INSERT INTO GRID_CON (SESSION_ID, REPLICA_ID, CON_REP, CON_SEQ, CON_VAL) "
+		namedTemplate.batchUpdate("INSERT INTO GRID_REPLICA_CON (SESSION_ID, REPLICA_ID, CON_REP, CON_SEQ, CON_VAL) "
 				+ "VALUES (:sessionId, :replicaId, :conRep, :conSeq, :value)", batchArgs);
 
 	}
@@ -276,7 +276,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 						.addValue("objRep", o.getId().getReplicaId()).addValue("objSeq", o.getId().getSequenceNumber())
 						.addValue("value", o.getValueAsJson()))
 				.toArray(SqlParameterSource[]::new);
-		namedTemplate.batchUpdate("INSERT INTO GRID_OBJ (SESSION_ID, REPLICA_ID, OBJ_REP, OBJ_SEQ, OBJ_VAL) "
+		namedTemplate.batchUpdate("INSERT INTO GRID_REPLICA_OBJ (SESSION_ID, REPLICA_ID, OBJ_REP, OBJ_SEQ, OBJ_VAL) "
 				+ "VALUES (:sessionId, :replicaId, :objRep, :objSeq, :value)", batchArgs);
 
 	}

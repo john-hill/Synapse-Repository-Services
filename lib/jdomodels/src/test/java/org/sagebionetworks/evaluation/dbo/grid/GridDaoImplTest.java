@@ -5,6 +5,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
@@ -42,6 +43,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 public class GridDaoImplTest {
 
 	private Long adminUserId = BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
+	private Long otherUser = BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId();
 
 	@Autowired
 	private GridDao dao;
@@ -50,11 +52,15 @@ public class GridDaoImplTest {
 
 	private boolean isAgent;
 	private EventSource eventSource;
+	private Long limit;
+	private Long offset;
 
 	@BeforeEach
 	public void before() {
 		isAgent = false;
 		eventSource = EventSource.WEBSOCKET;
+		limit = 100L;
+		offset = 0L;
 	}
 
 	@AfterEach
@@ -366,7 +372,199 @@ public class GridDaoImplTest {
 				new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(8L));
 
 		assertEquals(expected, list);
+	}
 
+	@Test
+	public void testListActiveSession() throws InterruptedException {
+		assertEquals(Collections.emptyList(), dao.listActiveGridSession(adminUserId, limit, offset));
+		
+		List<GridSession> adminSessions = createSessions(3, new CreateGridSession().setUserId(adminUserId));
+		List<GridSession> otherSessions = createSessions(3, new CreateGridSession().setUserId(otherUser));
+
+		// call under test
+		List<GridSession> list = dao.listActiveGridSession(adminUserId, limit, offset);
+		List<GridSession> expected = List.of(adminSessions.get(2), adminSessions.get(1), adminSessions.get(0));
+		assertEquals(expected, list);
+		// call under test
+		dao.deleteGridSession(adminSessions.get(1).getSessionId());
+		// call under test
+		list = dao.listActiveGridSession(adminUserId, limit, offset);
+		expected = List.of(adminSessions.get(2), adminSessions.get(0));
+		assertEquals(expected, list);
+
+		list = dao.listActiveGridSession(otherUser, limit, offset);
+		expected = List.of(otherSessions.get(2), otherSessions.get(1), otherSessions.get(0));
+	}
+	
+	@Test
+	public void testListActiveSessionWithPagination() throws InterruptedException {
+		List<GridSession> adminSessions = createSessions(3, new CreateGridSession().setUserId(adminUserId));
+		limit = 1L;
+		offset = 0L;
+		// call under test
+		List<GridSession> list = dao.listActiveGridSession(adminUserId, limit, offset);
+		List<GridSession> expected = List.of(adminSessions.get(2));
+		assertEquals(expected, list);
+		
+		limit = 2L;
+		offset = 1L;
+		// call under test
+		list = dao.listActiveGridSession(adminUserId, limit, offset);
+		expected = List.of(adminSessions.get(1), adminSessions.get(0));
+		assertEquals(expected, list);
+	}
+	
+	@Test
+	public void testListActiveSessionsWithNullUser() {
+		adminUserId = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			dao.listActiveGridSession(adminUserId, limit, offset);
+		}).getMessage();
+		assertEquals("userId is required.", message);
+	}
+	
+	
+	@Test
+	public void testListActiveSessionsWithNullLimit() {
+		limit = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			dao.listActiveGridSession(adminUserId, limit, offset);
+		}).getMessage();
+		assertEquals("limit is required.", message);
+	}
+	
+	@Test
+	public void testListActiveSessionsWithNullOffset() {
+		offset = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			dao.listActiveGridSession(adminUserId, limit, offset);
+		}).getMessage();
+		assertEquals("offset is required.", message);
+	}
+
+	@Test
+	public void testListActiveSessionWithSource() throws InterruptedException {
+		assertEquals(Collections.emptyList(), dao.listActiveGridSession(adminUserId, "syn1", limit, offset));
+		Node n1 = nodeDao.createNewNode(NodeTestUtils.createNew("source", adminUserId));
+		Node n2 = nodeDao.createNewNode(NodeTestUtils.createNew("source", adminUserId));
+		List<GridSession> adminSessions1 = createSessions(1,
+				new CreateGridSession().setUserId(adminUserId).setSourceId(n1.getId()));
+		List<GridSession> otherSessions = createSessions(3,
+				new CreateGridSession().setUserId(otherUser).setSchemaId(n1.getId()));
+		List<GridSession> adminSessions2 = createSessions(2,
+				new CreateGridSession().setUserId(adminUserId).setSourceId(n2.getId()));
+
+		// call under test
+		List<GridSession> list = dao.listActiveGridSession(adminUserId, n1.getId(), limit, offset);
+		List<GridSession> expected = List.of(adminSessions1.get(0));
+		assertEquals(expected, list);
+		
+		// call under test
+		list = dao.listActiveGridSession(adminUserId, n2.getId(), limit, offset);
+		expected = List.of(adminSessions2.get(1),adminSessions2.get(0));
+		assertEquals(expected, list);
+		
+		// call under test
+		dao.deleteGridSession(adminSessions2.get(1).getSessionId());
+		// call under test
+		list = dao.listActiveGridSession(adminUserId, n2.getId(), limit, offset);
+		expected = List.of(adminSessions2.get(0));
+		assertEquals(expected, list);
+
+		list = dao.listActiveGridSession(otherUser, n1.getId(), limit, offset);
+		expected = List.of(otherSessions.get(2), otherSessions.get(1), otherSessions.get(0));
+	}
+	
+	@Test
+	public void testListActiveSessionWihtSourceAndPagination() throws InterruptedException {
+		Node n1 = nodeDao.createNewNode(NodeTestUtils.createNew("source", adminUserId));
+		List<GridSession> adminSessions1 = createSessions(3,
+				new CreateGridSession().setUserId(adminUserId).setSourceId(n1.getId()));
+
+		limit = 1L;
+		offset = 0L;
+		// call under test
+		List<GridSession> list = dao.listActiveGridSession(adminUserId, n1.getId(), limit, offset);
+		List<GridSession> expected = List.of(adminSessions1.get(2));
+		assertEquals(expected, list);
+		
+		limit = 2L;
+		offset = 1L;
+		// call under test
+		list = dao.listActiveGridSession(adminUserId, n1.getId(), limit, offset);
+		expected = List.of(adminSessions1.get(1),adminSessions1.get(0));
+		assertEquals(expected, list);
+		
+	}
+	
+	@Test
+	public void testListActiveSessionsWithSourceAndNullUser() {
+		adminUserId = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			dao.listActiveGridSession(adminUserId, "syn123", limit, offset);
+		}).getMessage();
+		assertEquals("userId is required.", message);
+	}
+	
+	@Test
+	public void testListActiveSessionsWithNullSource() {
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			dao.listActiveGridSession(adminUserId, null, limit, offset);
+		}).getMessage();
+		assertEquals("sourceId is required.", message);
+	}
+	
+	
+	@Test
+	public void testListActiveSessionsWithSourceNullLimit() {
+		limit = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			dao.listActiveGridSession(adminUserId, "syn123", limit, offset);
+		}).getMessage();
+		assertEquals("limit is required.", message);
+	}
+	
+	@Test
+	public void testListActiveSessionsWithSourceAndNullOffset() {
+		offset = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			dao.listActiveGridSession(adminUserId, "syn123", limit, offset);
+		}).getMessage();
+		assertEquals("offset is required.", message);
+	}
+	
+	@Test
+	public void testDeleteGridSessionWithNullId() {
+		offset = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			dao.deleteGridSession(null);
+		}).getMessage();
+		assertEquals("sessionId is required.", message);
+	}
+
+	/**
+	 * Helper to create n grid sessions.
+	 * 
+	 * @param count
+	 * @param create
+	 * @return
+	 * @throws InterruptedException
+	 */
+	public List<GridSession> createSessions(int count, CreateGridSession create) throws InterruptedException {
+		List<GridSession> sessions = new ArrayList<>();
+		for (int i = 0; i < count; i++) {
+			sessions.add(dao.createGridSession(create));
+			Thread.sleep(1001);
+		}
+		return sessions;
 	}
 
 	List<LogicalTimestamp> createTestPatchIds(int replicaCount, int sequenceCount) {

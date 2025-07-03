@@ -129,6 +129,23 @@ public interface GridDao {
 	 */
 	List<LogicalTimestamp> listMissingPatchIdsForClock(String sessionId, List<LogicalTimestamp> clock, long limit);
 
+	/**
+	 * List the active grid session for a user filtered by the provided sourceId.
+	 * @param userId
+	 * @param sourceId The synID of the grid data source.
+	 * @return
+	 */
+	List<GridSession> listActiveGridSession(Long userId, String sourceId, Long limit, Long offset);
+	
+	/**
+	 * List all active grid sessions started by the provided user.
+	 * @param userId
+	 * @return
+	 */
+	List<GridSession> listActiveGridSession(Long userId, Long limit, Long offset);
+	
+	void deleteGridSession(String sessionId);
+	
 	void truncateAll();
 
 }

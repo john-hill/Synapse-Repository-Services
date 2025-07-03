@@ -34,7 +34,7 @@ public class NewObjectHandler implements OperationHandler<NewObject> {
 		ValidateArgument.required(batch, "batch");
 		dao.saveIndex(sessionId, replicaId, IndexType.obj,
 				batch.stream().map(NewObject::getOperationId).collect(Collectors.toList()));
-		dao.saveNewObjects(sessionId, replicaId,
+		dao.saveObjects(sessionId, replicaId,
 				batch.stream().map(o -> new ObjectNode().setId(o.getOperationId())).collect(Collectors.toList()));
 	}
 

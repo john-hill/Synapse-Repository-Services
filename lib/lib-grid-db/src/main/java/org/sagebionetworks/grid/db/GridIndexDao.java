@@ -87,7 +87,7 @@ public interface GridIndexDao {
 	 * @param replicaId
 	 * @param batch
 	 */
-	void saveNewObjects(String sessionId, Long replicaId, List<ObjectNode> batch);
+	void saveObjects(String sessionId, Long replicaId, List<ObjectNode> batch);
 
 	/**
 	 * Get a batch of {@link ObjectNode} given their Ids.

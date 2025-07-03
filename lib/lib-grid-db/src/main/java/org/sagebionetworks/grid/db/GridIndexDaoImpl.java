@@ -154,14 +154,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 			return Collections.emptyList(); // Return an empty list if there's nothing to find.
 		}
 
-		List<Object[]> idTuples = ids.stream().map(ts -> new Object[] { ts.getReplicaId(), ts.getSequenceNumber() })
-				.collect(Collectors.toList());
-
-		// Create the parameter map for the query.
-		MapSqlParameterSource params = new MapSqlParameterSource();
-		params.addValue("sessionId", sessionId);
-		params.addValue("replicaId", replicaId);
-		params.addValue("ids", idTuples);
+		MapSqlParameterSource params = createParameters(sessionId, replicaId, ids);
 
 		return namedTemplate.query("SELECT NODE_REP, NODE_SEQ, KIND FROM GRID_REPLICA_INDEX "
 				+ "WHERE SESSION_ID = :sessionId AND REPLICA_ID = :replicaId AND (NODE_REP, NODE_SEQ) IN (:ids)",
@@ -186,8 +179,9 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		params.addValue("clockRep", clock.getReplicaId());
 		params.addValue("clockSeq", clock.getSequenceNumber());
 
-		namedTemplate.update("INSERT INTO GRID_REPLICA_CLOCK (SESSION_ID, REPLICA_ID, CLOCK_ID_REP, CLOCK_ID_SEQ) VALUES"
-				+ " (:sessionId,:replicaId,:clockRep,:clockSeq) ON DUPLICATE KEY UPDATE CLOCK_ID_SEQ = :clockSeq",
+		namedTemplate.update(
+				"INSERT INTO GRID_REPLICA_CLOCK (SESSION_ID, REPLICA_ID, CLOCK_ID_REP, CLOCK_ID_SEQ) VALUES"
+						+ " (:sessionId,:replicaId,:clockRep,:clockSeq) ON DUPLICATE KEY UPDATE CLOCK_ID_SEQ = :clockSeq",
 				params);
 	}
 
@@ -228,6 +222,15 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		if (ids == null || ids.isEmpty()) {
 			return Collections.emptyList();
 		}
+		MapSqlParameterSource params = createParameters(sessionId, replicaId, ids);
+
+		return namedTemplate.query(
+				"SELECT CON_REP, CON_SEQ, CON_VAL FROM GRID_REPLICA_CON "
+						+ "WHERE SESSION_ID = :sessionId AND REPLICA_ID = :replicaId AND (CON_REP, CON_SEQ) IN (:ids)",
+				params, CONSTANT_NODE_MAPPER);
+	}
+
+	MapSqlParameterSource createParameters(Long sessionId, Long replicaId, List<LogicalTimestamp> ids) {
 		List<Object[]> idTuples = ids.stream().map(ts -> new Object[] { ts.getReplicaId(), ts.getSequenceNumber() })
 				.collect(Collectors.toList());
 
@@ -235,11 +238,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		params.addValue("sessionId", sessionId);
 		params.addValue("replicaId", replicaId);
 		params.addValue("ids", idTuples);
-
-		return namedTemplate.query(
-				"SELECT CON_REP, CON_SEQ, CON_VAL FROM GRID_REPLICA_CON "
-						+ "WHERE SESSION_ID = :sessionId AND REPLICA_ID = :replicaId AND (CON_REP, CON_SEQ) IN (:ids)",
-				params, CONSTANT_NODE_MAPPER);
+		return params;
 	}
 
 	@Override
@@ -254,7 +253,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 						.addValue("conSeq", cn.getId().getSequenceNumber()).addValue("value", cn.getValueAsJson()))
 				.toArray(SqlParameterSource[]::new);
 
-		namedTemplate.batchUpdate("INSERT INTO GRID_REPLICA_CON (SESSION_ID, REPLICA_ID, CON_REP, CON_SEQ, CON_VAL) "
+		namedTemplate.batchUpdate("INSERT IGNORE INTO GRID_REPLICA_CON (SESSION_ID, REPLICA_ID, CON_REP, CON_SEQ, CON_VAL) "
 				+ "VALUES (:sessionId, :replicaId, :conRep, :conSeq, :value)", batchArgs);
 
 	}
@@ -266,7 +265,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 	}
 
 	@Override
-	public void saveNewObjects(String sessionIdString, Long replicaId, List<ObjectNode> batch) {
+	public void saveObjects(String sessionIdString, Long replicaId, List<ObjectNode> batch) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
 		if (batch == null || batch.isEmpty()) {
 			return;
@@ -277,13 +276,22 @@ public class GridIndexDaoImpl implements GridIndexDao {
 						.addValue("value", o.getValueAsJson()))
 				.toArray(SqlParameterSource[]::new);
 		namedTemplate.batchUpdate("INSERT INTO GRID_REPLICA_OBJ (SESSION_ID, REPLICA_ID, OBJ_REP, OBJ_SEQ, OBJ_VAL) "
-				+ "VALUES (:sessionId, :replicaId, :objRep, :objSeq, :value)", batchArgs);
+				+ "VALUES (:sessionId, :replicaId, :objRep, :objSeq, :value) ON DUPLICATE KEY UPDATE OBJ_VAL = :value",
+				batchArgs);
 
 	}
 
 	@Override
 	public List<ObjectNode> getObjects(String sessionIdString, Long replicaId, List<LogicalTimestamp> ids) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
-		return null;
+		if (ids == null || ids.isEmpty()) {
+			return Collections.emptyList();
+		}
+		MapSqlParameterSource params = createParameters(sessionId, replicaId, ids);
+
+		return namedTemplate.query(
+				"SELECT OBJ_REP, OBJ_SEQ, OBJ_VAL FROM GRID_REPLICA_OBJ "
+						+ "WHERE SESSION_ID = :sessionId AND REPLICA_ID = :replicaId AND (OBJ_REP, OBJ_SEQ) IN (:ids)",
+				params, OBJECT_NODE_MAPPER);
 	}
 }

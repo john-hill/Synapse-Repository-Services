@@ -7,7 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.sql.Timestamp;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.json.JSONArray;
@@ -22,6 +24,7 @@ import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.IndexNode;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
+import org.sagebionetworks.repo.model.grid.node.ObjectNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -57,8 +60,7 @@ public class GridIndexDaoImplTest {
 				new LogicalTimestamp().setReplicaId(9L).setSequenceNumber(10L),
 				new LogicalTimestamp().setReplicaId(11L).setSequenceNumber(12L),
 				new LogicalTimestamp().setReplicaId(13L).setSequenceNumber(14L),
-				new LogicalTimestamp().setReplicaId(15L).setSequenceNumber(16L)
-				);
+				new LogicalTimestamp().setReplicaId(15L).setSequenceNumber(16L));
 	}
 
 	@AfterEach
@@ -214,8 +216,7 @@ public class GridIndexDaoImplTest {
 				new ConstantNode().setId(ids.get(4)).setValue("Hello World"),
 				new ConstantNode().setId(ids.get(5)).setValue(new JSONArray("[1,2,3]")),
 				new ConstantNode().setId(ids.get(6)).setValue(new JSONObject("{\"key\":99}")),
-				new ConstantNode().setId(ids.get(7)).setValue(null)
-				);
+				new ConstantNode().setId(ids.get(7)).setValue(null));
 
 		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.con, ids);
 		// call under test
@@ -223,6 +224,21 @@ public class GridIndexDaoImplTest {
 		// call under test
 		List<ConstantNode> results = gridIndexDao.getConstants(sessionIdOne, replicaIdOne, ids);
 		assertEquals(constants, results);
+	}
+
+	@Test
+	public void testSaveAndGetConstantWithDuplicate() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+
+		List<ConstantNode> constants = List.of(new ConstantNode().setId(ids.get(0)).setValue(101),
+				new ConstantNode().setId(ids.get(0)).setValue(102));
+
+		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.con, ids);
+		// call under test
+		gridIndexDao.saveNewConstants(sessionIdOne, replicaIdOne, constants);
+		// call under test
+		List<ConstantNode> results = gridIndexDao.getConstants(sessionIdOne, replicaIdOne, ids);
+		assertEquals(constants.subList(0, 1), results);
 	}
 
 	@Test
@@ -461,5 +477,30 @@ public class GridIndexDaoImplTest {
 			gridIndexDao.getClockSequenceNumber(sessionIdOne, replicaIdTwo, clockId);
 		}).getMessage();
 		assertEquals("clockIdRep is required.", message);
+	}
+
+	@Test
+	public void testSaveAndGetObjects() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		gridIndexDao.createReplicaIfNotExists(sessionIdTwo, replicaIdTwo);
+
+		Map<String, LogicalTimestamp> value = new LinkedHashMap<>();
+		value.put("one", ids.get(2));
+		value.put("two", ids.get(3));
+		List<ObjectNode> objects = List.of(new ObjectNode().setId(ids.get(0)),
+				new ObjectNode().setId(ids.get(1)).setValue(value));
+		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.obj, ids);
+		// all under test
+		gridIndexDao.saveObjects(sessionIdOne, replicaIdOne, objects);
+		// call under test
+		List<ObjectNode> back = gridIndexDao.getObjects(sessionIdOne, replicaIdOne, List.of(ids.get(0), ids.get(1)));
+		assertEquals(objects, back);
+
+		ObjectNode updated = new ObjectNode().setId(ids.get(0)).setValueFromJson("{\"a\":[7,8],\"b\":[9,10]}");
+		// update the first object
+		gridIndexDao.saveObjects(sessionIdOne, replicaIdOne, List.of(updated));
+		back = gridIndexDao.getObjects(sessionIdOne, replicaIdOne, List.of(ids.get(0), ids.get(1)));
+		assertEquals(List.of(updated, objects.get(1)), back);
+
 	}
 }

@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 import org.sagebionetworks.grid.db.GridIndexDao;
 import org.sagebionetworks.grid.db.OperationHandler;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
+import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewVector;
 import org.sagebionetworks.repo.model.grid.patch.operation.OperationType;
 import org.sagebionetworks.util.ValidateArgument;
@@ -33,7 +34,8 @@ public class NewVectorHandler implements OperationHandler<NewVector> {
 		ValidateArgument.required(batch, "batch");
 		dao.saveIndex(sessionId, replicaId, IndexType.vec,
 				batch.stream().map(NewVector::getOperationId).collect(Collectors.toList()));
-		dao.saveNewVectors(sessionId, replicaId, batch);
+		dao.saveVectors(sessionId, replicaId,
+				batch.stream().map(n -> new VectorNode().setId(n.getOperationId())).collect(Collectors.toList()));
 	}
 
 }

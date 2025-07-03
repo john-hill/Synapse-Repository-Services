@@ -28,6 +28,8 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	@Transactional(readOnly = false)
 	@Override
 	public void applyPatch(String sessionId, Long replicaId, Patch patch) {
+		ValidateArgument.required(sessionId, "sessionId");
+		ValidateArgument.required(replicaId, "replicaId");
 		ValidateArgument.required(patch, "patch");
 		ValidateArgument.required(patch.getOperations(), "patch.operations");
 
@@ -41,13 +43,28 @@ public class GridIndexManagerImpl implements GridIndexManager {
 
 		// Operations are batched and processed by type.
 		operationDispatcher.processAll(sessionId, replicaId, patch.getOperations());
+		
+		LogicalTimestamp patchClock = LogicalTimestamp.newIncrement(patch.getPatchId(), patch.getSpan());
 
-		dao.setClock(sessionId, replicaId, LogicalTimestamp.newIncrement(patch.getPatchId(), patch.getSpan()));
+		// unconditionally increment this replica's clock by the new sequence.
+		dao.setClock(sessionId, replicaId, new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(patchClock.getSequenceNumber()));
+		if(patchClock.getReplicaId() != replicaId) {
+			// The patch is from another replica, so add it to this replica's clock.
+			dao.setClock(sessionId, replicaId, patchClock);
+		}
 	}
 
+	/**
+	 * Has the given patch already been applied to this replica?
+	 * 
+	 * @param sessionId
+	 * @param replicaId
+	 * @param patchId
+	 * @return
+	 */
 	boolean isPatchAlreadyApplied(String sessionId, Long replicaId, LogicalTimestamp patchId) {
-		return dao.getClock(sessionId, replicaId, patchId.getReplicaId())
-				.map(clock -> patchId.getSequenceNumber() <= clock.getSequenceNumber()).orElse(false);
+		return dao.getClockSequenceNumber(sessionId, replicaId, patchId.getReplicaId())
+				.map(seq -> patchId.getSequenceNumber() <= seq).orElse(false);
 	}
 
 }

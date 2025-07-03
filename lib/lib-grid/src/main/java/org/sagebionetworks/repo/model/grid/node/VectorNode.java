@@ -1,25 +1,28 @@
 package org.sagebionetworks.repo.model.grid.node;
 
-import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 
+import org.json.JSONObject;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.grid.patch.compact.LogicalTimestampCompactSerializable;
 
-public class VectorNode implements Node {
+public class VectorNode implements Node, HasJsonValue<VectorNode> {
 
 	private LogicalTimestamp id;
-	private List<ConstantNode> values;
+	private Map<String, ConstantNode> values;
 
 	@Override
 	public LogicalTimestamp getId() {
 		return id;
 	}
 
-	public List<ConstantNode> getValues() {
+	public Map<String, ConstantNode> getValues() {
 		return values;
 	}
 
-	public VectorNode setValues(List<ConstantNode> values) {
+	public VectorNode setValues(Map<String, ConstantNode> values) {
 		this.values = values;
 		return this;
 	}
@@ -27,6 +30,42 @@ public class VectorNode implements Node {
 	public VectorNode setId(LogicalTimestamp id) {
 		this.id = id;
 		return this;
+	}
+
+	@Override
+	public VectorNode setValueFromJson(String json) {
+		if ("{}".equals(json)) {
+			values = null;
+			return this;
+		}
+		JSONObject ob = new JSONObject(json);
+		this.values = new LinkedHashMap<>(ob.length());
+		ob.keySet().forEach(k -> {
+			JSONObject sub = ob.getJSONObject(k);
+			values.put(k,
+					new ConstantNode().setId(LogicalTimestampCompactSerializable.deserialize(sub.getJSONArray("i")))
+							.setValue(sub.opt("v")));
+		});
+		return this;
+	}
+
+	@Override
+	public String getValueAsJson() {
+		if (values == null) {
+			return "{}";
+		}
+		JSONObject ob = new JSONObject();
+		values.forEach((k, v) -> {
+			if (v != null) {
+				JSONObject sub = new JSONObject();
+				ob.put(k, sub);
+				if (v.getValue() != null) {
+					sub.put("v", v.getValue());
+				}
+				sub.put("i", LogicalTimestampCompactSerializable.serialize(v.getId()));
+			}
+		});
+		return ob.toString();
 	}
 
 	@Override
@@ -50,5 +89,4 @@ public class VectorNode implements Node {
 	public String toString() {
 		return "VectorNode [id=" + id + ", values=" + values + "]";
 	}
-
 }

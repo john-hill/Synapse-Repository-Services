@@ -8,9 +8,8 @@ import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.IndexNode;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.node.ObjectNode;
+import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewObject;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewVector;
 
 public interface GridIndexDao {
@@ -31,7 +30,7 @@ public interface GridIndexDao {
 	 * @param replicaId
 	 * @return
 	 */
-	Optional<Timestamp> getReplciaCreatedOn(String sessionId, Long replicaId);
+	Optional<Timestamp> getReplicaCreatedOn(String sessionId, Long replicaId);
 
 	/**
 	 * Delete a replica and all of its data.
@@ -51,15 +50,15 @@ public interface GridIndexDao {
 	List<LogicalTimestamp> getClock(String sessionId, Long replicaId);
 
 	/**
-	 * Get {@link LogicalTimestamp} for the given replica and patchId.
+	 * Get the current sequence number for a clock replica ID if it exists.
 	 * 
 	 * @param sessionId
 	 * @param replicaId
-	 * @param patchReplicaId
+	 * @param clockIdRep
 	 * @return {@link Optional#empty()} if there is no clock for the provided
 	 *         patchId.
 	 */
-	Optional<LogicalTimestamp> getClock(String sessionId, Long replicaId, Long patchReplicaId);
+	Optional<Long> getClockSequenceNumber(String sessionId, Long replicaId, Long clockIdRep);
 
 	/**
 	 * Save a batch of Index objects to a replica.
@@ -88,7 +87,7 @@ public interface GridIndexDao {
 	 * @param replicaId
 	 * @param batch
 	 */
-	void saveNewObjects(String sessionId, Long replicaId, List<ObjectNode> batch);
+	void saveObjects(String sessionId, Long replicaId, List<ObjectNode> batch);
 
 	/**
 	 * Get a batch of {@link ObjectNode} given their Ids.
@@ -105,9 +104,9 @@ public interface GridIndexDao {
 	 * 
 	 * @param sessionId
 	 * @param replicaId
-	 * @param batch
+	 * @param list
 	 */
-	void saveNewVectors(String sessionId, Long replicaId, List<NewVector> batch);
+	void saveVectors(String sessionId, Long replicaId, List<VectorNode> list);
 
 	/**
 	 * Save a batch of {@link ConstantNode} to a replica.

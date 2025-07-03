@@ -2,6 +2,7 @@ package org.sagebionetworks.grid.db;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.model.grid.patch.operation.Operation;
@@ -18,7 +19,8 @@ public class OperationDispatcherImpl implements OperationDispatcher {
 	private final Map<OperationType, OperationHandler<?>> operationHandlers;
 
 	public OperationDispatcherImpl(List<OperationHandler<?>> handlers) {
-		operationHandlers = handlers.stream().collect(Collectors.toMap(OperationHandler::getOperationType, h -> h));
+		operationHandlers = handlers.stream()
+				.collect(Collectors.toMap(OperationHandler::getOperationType, Function.identity()));
 	}
 
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED, isolation = Isolation.READ_COMMITTED)
@@ -30,14 +32,20 @@ public class OperationDispatcherImpl implements OperationDispatcher {
 		Map<OperationType, List<Operation<?>>> batches = operations.stream()
 				.collect(Collectors.groupingBy(Operation::getType));
 
-		batches.forEach((type, batch) -> {
-			OperationHandler<?> handler = operationHandlers.get(type);
-			if (handler == null) {
-				throw new IllegalStateException("Unknown type: " + type);
+		/*
+		 * By processing batches in the order defined by the enumeration, we can ensure
+		 * that 'new' operations will be processed before 'insert' operations.
+		 */
+		for (OperationType type : OperationType.values()) {
+			List<Operation<?>> batch = batches.get(type);
+			if (batch != null) {
+				OperationHandler<?> handler = operationHandlers.get(type);
+				if (handler == null) {
+					throw new IllegalStateException("Unknown type: " + type);
+				}
+				dispatchToHandler(sessionId, replicaId, handler, batch);
 			}
-			dispatchToHandler(sessionId, replicaId, handler, batch);
-		});
-
+		}
 	}
 
 	/**
@@ -52,7 +60,7 @@ public class OperationDispatcherImpl implements OperationDispatcher {
 	@SuppressWarnings("unchecked")
 	private <O extends Operation<O>> void dispatchToHandler(String sessionId, Long replicaId,
 			OperationHandler<O> handler, List<Operation<?>> batch) {
-		List<O> oBatch = batch.stream().map(op->(O)op).collect(Collectors.toList());
+		List<O> oBatch = batch.stream().map(op -> (O) op).collect(Collectors.toList());
 		handler.handleBatch(sessionId, replicaId, oBatch);
 	}
 }

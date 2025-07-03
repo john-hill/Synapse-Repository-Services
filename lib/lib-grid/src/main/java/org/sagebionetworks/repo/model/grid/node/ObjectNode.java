@@ -1,6 +1,6 @@
 package org.sagebionetworks.repo.model.grid.node;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -39,9 +39,13 @@ public class ObjectNode implements Node, HasJsonValue<ObjectNode> {
 	 * @return
 	 */
 	public ObjectNode setValueFromJson(String json) {
+		if ("{}".equals(json)) {
+			this.value = null;
+			return this;
+		}
 		JSONObject obj = new JSONObject(json);
 		if (obj.length() > 0) {
-			this.value = new HashMap<>(obj.length());
+			this.value = new LinkedHashMap<>(obj.length());
 			obj.keySet().stream().forEach(k -> {
 				value.put(k, LogicalTimestampCompactSerializable.deserialize(obj.getJSONArray(k)));
 			});
@@ -55,6 +59,9 @@ public class ObjectNode implements Node, HasJsonValue<ObjectNode> {
 	 * @return
 	 */
 	public String getValueAsJson() {
+		if (value == null) {
+			return "{}";
+		}
 		JSONObject ob = new JSONObject();
 		if (value != null) {
 			value.forEach((k, v) -> {

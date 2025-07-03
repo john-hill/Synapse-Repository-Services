@@ -675,5 +675,16 @@ public class OpenIDConnectManagerImpl implements OpenIDConnectManager {
 			}
 		}
 	}
+	
+	@Override
+	@WriteTransaction
+	public void revokeUserAccess(Long userId) {
+		// Revoke all the access tokens
+		oidcTokenManager.revokeOIDCAccessTokens(userId);
+		// Revoke all the refresh tokens
+		oauthRefreshTokenManager.revokeAllRefreshTokens(userId);
+		// Revoke all authorization consents
+		oauthDao.deleteAllAuthorizationConsents(userId);
+	}
 
 }

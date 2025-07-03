@@ -98,9 +98,11 @@ public class UserManagerImpl implements UserManager {
 			});
 		}
 		
+		Date createdOn = new Date();
+		
 		UserGroup individualGroup = new UserGroup();
 		individualGroup.setIsIndividual(true);
-		individualGroup.setCreationDate(new Date());
+		individualGroup.setCreationDate(createdOn);
 		Long principalId = userGroupDAO.create(individualGroup);
 		
 		// Make some credentials for this user

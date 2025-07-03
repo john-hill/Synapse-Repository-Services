@@ -3,12 +3,11 @@ package org.sagebionetworks.repo.manager.audit;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
@@ -24,7 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.kinesis.AwsKinesisFirehoseLogger;
 import org.sagebionetworks.repo.model.audit.AccessRecord;
-import org.sagebionetworks.repo.model.auth.AuthenticationDAO;
+import org.sagebionetworks.repo.model.dbo.auth.UserStatusDao;
 import org.sagebionetworks.util.Clock;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,7 +36,7 @@ public class AsyncAccessRecorderTest {
 	private Clock mockClock;
 	
 	@Mock
-	private AuthenticationDAO mockAuthenticationDAO;
+	private UserStatusDao mockUserStatusDao;
 	
 	@InjectMocks
 	private AsyncAccessRecorder recorder;
@@ -63,7 +62,7 @@ public class AsyncAccessRecorderTest {
 		
 		// Get the saved record and check it
 		verify(mockAwsKinesisFirehoseLogger).logBatch(AsyncAccessRecorder.ACCESS_RECORD_STREAM, kinesisJsonEntityRecords);
-		verify(mockAuthenticationDAO).setLastSeenOn(toTest.stream().map(AccessRecord::getUserId).collect(Collectors.toList()), Date.from(now));
+		verify(mockUserStatusDao).setLastSeenOn(toTest.stream().map(AccessRecord::getUserId).collect(Collectors.toList()), Date.from(now));
 		
 		// For the same batch of users the last seen should not be updated within the update frequency period
 		now = now.plus(1, ChronoUnit.MINUTES);
@@ -76,7 +75,7 @@ public class AsyncAccessRecorderTest {
 		recorder.timerFired();
 		
 		verify(mockAwsKinesisFirehoseLogger, times(2)).logBatch(AsyncAccessRecorder.ACCESS_RECORD_STREAM, kinesisJsonEntityRecords);
-		verifyNoMoreInteractions(mockAuthenticationDAO);
+		verifyNoMoreInteractions(mockUserStatusDao);
 				
 		// Now moving the clock forward by more than the update frequency period
 		now = now.plus(5, ChronoUnit.MINUTES);
@@ -89,7 +88,7 @@ public class AsyncAccessRecorderTest {
 		recorder.timerFired();
 
 		verify(mockAwsKinesisFirehoseLogger, times(3)).logBatch(AsyncAccessRecorder.ACCESS_RECORD_STREAM, kinesisJsonEntityRecords);
-		verify(mockAuthenticationDAO).setLastSeenOn(toTest.stream().map(AccessRecord::getUserId).collect(Collectors.toList()), Date.from(now));
+		verify(mockUserStatusDao).setLastSeenOn(toTest.stream().map(AccessRecord::getUserId).collect(Collectors.toList()), Date.from(now));
 
 	}
 
@@ -115,7 +114,7 @@ public class AsyncAccessRecorderTest {
 		recorder.timerFired();
 		// Get the saved record and check it
 		verify(mockAwsKinesisFirehoseLogger).logBatch(AsyncAccessRecorder.ACCESS_RECORD_STREAM, kinesisJsonEntityRecords);
-		verify(mockAuthenticationDAO).setLastSeenOn(toTest.stream().map(AccessRecord::getUserId).collect(Collectors.toList()), now);
+		verify(mockUserStatusDao).setLastSeenOn(toTest.stream().map(AccessRecord::getUserId).collect(Collectors.toList()), now);
 	}
 	
 	private static List<AccessRecord> createList(int count, long startTimestamp){

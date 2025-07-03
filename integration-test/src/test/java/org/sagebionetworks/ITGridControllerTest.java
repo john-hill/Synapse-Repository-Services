@@ -1,12 +1,12 @@
 package org.sagebionetworks;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.URISyntaxException;
 import java.net.http.WebSocket;
-import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -51,7 +51,10 @@ public class ITGridControllerTest {
 
 		GridSession session = resposne.getGridSession();
 		ListGridSessionsResponse listResp = synapse.listGridSessions(new ListGridSessionsRequest());
-		assertEquals(List.of(session), listResp.getPage());
+		assertNotNull(listResp);
+		assertNotNull(listResp.getPage());
+		assertTrue(listResp.getPage().contains(session));
+
 
 		// call under test
 		GridSession clone = synapse.getGridSession(session.getSessionId());
@@ -81,7 +84,13 @@ public class ITGridControllerTest {
 		assertTrue(AsyncJobHelper.waitForMessage(8, "pong", incomingMessages));
 		ws.sendClose(4999, "closing").join();
 		
+		// call under test
 		synapse.deleteGridSession(session.getSessionId());
+		
+		listResp = synapse.listGridSessions(new ListGridSessionsRequest());
+		assertNotNull(listResp);
+		assertNotNull(listResp.getPage());
+		assertFalse(listResp.getPage().contains(session));
 	}
 
 }

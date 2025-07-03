@@ -6479,24 +6479,24 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	
 	@Override
 	public GridSession getGridSession(String sessionId) throws SynapseException {
-		return getJSONEntity(getRepoEndpoint(), "/grid/"+ sessionId, GridSession.class);
+		return getJSONEntity(getRepoEndpoint(), "/grid/session/"+ sessionId, GridSession.class);
 	}
 	
 	@Override
 	public CreateReplicaResponse createGridReplica(CreateReplicaRequest request) throws SynapseException {
-		return postJSONEntity(getRepoEndpoint(), "/grid/" + request.getGridSessionId() + "/replica", request,
+		return postJSONEntity(getRepoEndpoint(), "/grid/session/" + request.getGridSessionId() + "/replica", request,
 				CreateReplicaResponse.class);
 	}
 	
 	@Override
 	public GridReplica getGridReplica(String sessionId, Long replicaId) throws SynapseException {
-		return getJSONEntity(getRepoEndpoint(), "/grid/" + sessionId + "/replica/" + replicaId, GridReplica.class);
+		return getJSONEntity(getRepoEndpoint(), "/grid/session/" + sessionId + "/replica/" + replicaId, GridReplica.class);
 	}
 	
 	@Override
 	public CreateGridPresignedUrlResponse createGridPresignedUrl(CreateGridPresignedUrlRequest request)
 			throws SynapseException {
-		return postJSONEntity(getRepoEndpoint(), "/grid/" + request.getGridSessionId() + "/presigned/url", request,
+		return postJSONEntity(getRepoEndpoint(), "/grid/session/" + request.getGridSessionId() + "/presigned/url", request,
 				CreateGridPresignedUrlResponse.class);
 	}
 
@@ -6507,6 +6507,6 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	
 	@Override
 	public void deleteGridSession(String sessionId) throws SynapseException {
-		deleteUri(getRepoEndpoint(), "/grid/" + sessionId);
+		deleteUri(getRepoEndpoint(), "/grid/session/" + sessionId);
 	}
 }

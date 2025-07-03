@@ -446,7 +446,7 @@ public class GridDaoImplTest {
 	}
 
 	@Test
-	public void testListActiveSessionWihtSource() throws InterruptedException {
+	public void testListActiveSessionWithSource() throws InterruptedException {
 		assertEquals(Collections.emptyList(), dao.listActiveGridSession(adminUserId, "syn1", limit, offset));
 		Node n1 = nodeDao.createNewNode(NodeTestUtils.createNew("source", adminUserId));
 		Node n2 = nodeDao.createNewNode(NodeTestUtils.createNew("source", adminUserId));

@@ -4569,7 +4569,7 @@ public interface SynapseClient extends BaseClient {
 			throws SynapseException;
 
 	/**
-	 * List the ative grid sessions for the current user.
+	 * List the active grid sessions for the current user.
 	 * @param request
 	 * @return
 	 * @throws SynapseException

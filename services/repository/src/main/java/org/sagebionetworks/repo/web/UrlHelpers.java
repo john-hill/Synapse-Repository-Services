@@ -456,6 +456,7 @@ public class UrlHelpers {
 	public static final String GRID_SESSION_ID_PRESIGNED_URL = GRID_SESSION_ID+"/presigned/url";
 	
 	public static final String GRID_SESSION_ID_SCHEMA = GRID_SESSION_ID+"/schema";
+	public static final String GRID_SESSION_LIST = GRID_SESSION + "/list";
 	
 	/*
 	 * The regular expression is needed in the path variable due to:

@@ -22,6 +22,8 @@ import java.sql.Timestamp;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.json.JSONArray;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,6 +60,8 @@ import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridUtils;
+import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
+import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
 import org.sagebionetworks.repo.model.grid.PatchInfo;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
@@ -162,6 +166,9 @@ public class GridManagerUnitTest {
 	private String schema$id;
 	private QueryOptions queryOptions;
 	private Long maxRowsPerPage;
+	private ListGridSessionsRequest listGridSessionRequest;
+	private GridSession gridSession;
+	private List<GridSession> gridSessions;
 
 	@BeforeEach
 	public void before() {
@@ -194,6 +201,10 @@ public class GridManagerUnitTest {
 		schema$id = "someorg-somename";
 		queryOptions = new QueryOptions().withReturnMaxRowsPerPage(true).withRunQuery(true)
 				.withReturnSelectColumns(true);
+
+		listGridSessionRequest = new ListGridSessionsRequest().setSourceId(tableId);
+		gridSession = new GridSession();
+		gridSessions = List.of(gridSession);
 	}
 
 	@Test
@@ -1039,7 +1050,7 @@ public class GridManagerUnitTest {
 		assertEquals("java.io.IOException: not connected", message);
 		verify(mockCallback, never()).updateProgress(anyString(), anyLong(), anyLong());
 	}
-	
+
 	@Test
 	public void testGetMaxRowSizeBytesWithOneRow() {
 		long maxRowsPerPage = 1L;
@@ -1047,7 +1058,7 @@ public class GridManagerUnitTest {
 		assertEquals(Long.MAX_VALUE, gridManager.getMaxRowSizeBytes(maxRowsPerPage));
 		verifyZeroInteractions(mockQueryManager);
 	}
-	
+
 	@Test
 	public void testGetMaxRowSizeBytesWithLessThandOneRow() {
 		long maxRowsPerPage = 0L;
@@ -1055,12 +1066,120 @@ public class GridManagerUnitTest {
 		assertEquals(Long.MAX_VALUE, gridManager.getMaxRowSizeBytes(maxRowsPerPage));
 		verifyZeroInteractions(mockQueryManager);
 	}
-	
+
 	@Test
 	public void testGetMaxRowSizeBytes() {
 		when(mockQueryManager.getMaxBytesPerRequest()).thenReturn(2_000_000L);
 		long maxRowsPerPage = 101L;
 		// call under test
-		assertEquals(2_000_000L/maxRowsPerPage, gridManager.getMaxRowSizeBytes(maxRowsPerPage));
+		assertEquals(2_000_000L / maxRowsPerPage, gridManager.getMaxRowSizeBytes(maxRowsPerPage));
+	}
+
+	@Test
+	public void testListGridSessionsWithSource() {
+		when(mockUser.getId()).thenReturn(userId);
+		when(mockGridDao.listActiveGridSession(userId, tableId, 51L, 0L)).thenReturn(gridSessions);
+
+		// call under test
+		ListGridSessionsResponse response = gridManager.listActiveGridSessions(mockUser, listGridSessionRequest);
+		ListGridSessionsResponse expected = new ListGridSessionsResponse().setPage(gridSessions).setNextPageToken(null);
+		assertEquals(expected, response);
+	}
+
+	@Test
+	public void testListGridSessionsWithAnonymous() {
+		userId = BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId();
+		when(mockUser.getId()).thenReturn(userId);
+		String message = assertThrows(UnauthorizedException.class, () -> {
+			// call under test
+			gridManager.listActiveGridSessions(mockUser, listGridSessionRequest);
+		}).getMessage();
+		assertEquals("Must login to perform this action", message);
+		verifyZeroInteractions(mockGridDao);
+	}
+
+	@Test
+	public void testListGridSessionsWithNullUser() {
+		mockUser = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.listActiveGridSessions(mockUser, listGridSessionRequest);
+		}).getMessage();
+		assertEquals("user is required.", message);
+		verifyZeroInteractions(mockGridDao);
+	}
+
+	@Test
+	public void testListGridSessionsWithNullRequest() {
+		listGridSessionRequest = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.listActiveGridSessions(mockUser, listGridSessionRequest);
+		}).getMessage();
+		assertEquals("request is required.", message);
+		verifyZeroInteractions(mockGridDao);
+	}
+
+	@Test
+	public void testListGridSessionsWithoutSource() {
+		listGridSessionRequest.setSourceId(null);
+		when(mockUser.getId()).thenReturn(userId);
+		when(mockGridDao.listActiveGridSession(userId, 51L, 0L)).thenReturn(gridSessions);
+
+		// call under test
+		ListGridSessionsResponse response = gridManager.listActiveGridSessions(mockUser, listGridSessionRequest);
+		ListGridSessionsResponse expected = new ListGridSessionsResponse().setPage(gridSessions).setNextPageToken(null);
+		assertEquals(expected, response);
+	}
+
+	@Test
+	public void testListGridSessionsWithNextPageToken() {
+		when(mockUser.getId()).thenReturn(userId);
+		List<GridSession> page = IntStream.range(0, 51).mapToObj(i -> new GridSession().setSessionId("s" + i))
+				.collect(Collectors.toList());
+		when(mockGridDao.listActiveGridSession(userId, tableId, 51L, 0L)).thenReturn(page);
+
+		// call under test
+		ListGridSessionsResponse response = gridManager.listActiveGridSessions(mockUser, listGridSessionRequest);
+		ListGridSessionsResponse expected = new ListGridSessionsResponse().setPage(page.subList(0, 50))
+				.setNextPageToken("50a50");
+		assertEquals(expected, response);
+
+		when(mockGridDao.listActiveGridSession(userId, tableId, 51L, 50L)).thenReturn(gridSessions);
+		// call under test
+		response = gridManager.listActiveGridSessions(mockUser,
+				listGridSessionRequest.setNextPageToken(response.getNextPageToken()));
+		expected = new ListGridSessionsResponse().setPage(gridSessions).setNextPageToken(null);
+		assertEquals(expected, response);
+	}
+
+	@Test
+	public void testListGridSessionsWithoutSourceNextPageToken() {
+		listGridSessionRequest.setSourceId(null);
+		when(mockUser.getId()).thenReturn(userId);
+		List<GridSession> page = IntStream.range(0, 51).mapToObj(i -> new GridSession().setSessionId("s" + i))
+				.collect(Collectors.toList());
+		when(mockGridDao.listActiveGridSession(userId, 51L, 0L)).thenReturn(page);
+
+		// call under test
+		ListGridSessionsResponse response = gridManager.listActiveGridSessions(mockUser, listGridSessionRequest);
+		ListGridSessionsResponse expected = new ListGridSessionsResponse().setPage(page.subList(0, 50))
+				.setNextPageToken("50a50");
+		assertEquals(expected, response);
+
+		when(mockGridDao.listActiveGridSession(userId, 51L, 50L)).thenReturn(gridSessions);
+		// call under test
+		response = gridManager.listActiveGridSessions(mockUser,
+				listGridSessionRequest.setNextPageToken(response.getNextPageToken()));
+		expected = new ListGridSessionsResponse().setPage(gridSessions).setNextPageToken(null);
+		assertEquals(expected, response);
+	}
+
+	@Test
+	public void testDeleteSession() {
+		doNothing().when(gridManager).validGridSessionAccess(mockUser, gridSessionId);
+		// call udner test
+		gridManager.deleteGridSession(mockUser, gridSessionId);
+		verify(mockGridDao).deleteGridSession(gridSessionId);
 	}
 }

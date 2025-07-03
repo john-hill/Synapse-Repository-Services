@@ -318,4 +318,32 @@ public class GridDaoImpl implements GridDao {
 		return jdbcTemplate.query(sql, TIMESTAMP_MAPPER, sessionId, limit);
 	}
 
+	@Override
+	public List<GridSession> listActiveGridSession(Long userId, String sourceIdString, Long limit, Long offset) {
+		ValidateArgument.required(userId, "userId");
+		ValidateArgument.required(sourceIdString, "sourceId");
+		ValidateArgument.required(limit, "limit");
+		ValidateArgument.required(offset, "offset");
+		return jdbcTemplate.query(
+				"SELECT * FROM GRID_SESSION WHERE CREATED_BY = ? AND SOURCE_ID = ? ORDER BY MODIFIED_ON DESC LIMIT ? OFFSET ?",
+				SESSION_MAPPER, userId, KeyFactory.stringToKey(sourceIdString), limit, offset);
+	}
+
+	@Override
+	public List<GridSession> listActiveGridSession(Long userId, Long limit, Long offset) {
+		ValidateArgument.required(userId, "userId");
+		ValidateArgument.required(limit, "limit");
+		ValidateArgument.required(offset, "offset");
+		return jdbcTemplate.query(
+				"SELECT * FROM GRID_SESSION WHERE CREATED_BY = ? ORDER BY MODIFIED_ON DESC LIMIT ? OFFSET ?",
+				SESSION_MAPPER, userId, limit, offset);
+	}
+
+	@WriteTransaction
+	@Override
+	public void deleteGridSession(String sessionId) {
+		ValidateArgument.required(sessionId, "sessionId");
+		jdbcTemplate.update("DELETE FROM GRID_SESSION WHERE SESSION_ID = ?", sessionId);
+	}
+
 }

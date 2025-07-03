@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.URISyntaxException;
 import java.net.http.WebSocket;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -23,6 +24,8 @@ import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
 import org.sagebionetworks.repo.model.grid.CreateReplicaResponse;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
+import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
 
 @ExtendWith(ITTestExtension.class)
 public class ITGridControllerTest {
@@ -47,6 +50,8 @@ public class ITGridControllerTest {
 				}, MAX_TME_MS, AsyncJobHelper.INFINITE_RETRIES).getResponse();
 
 		GridSession session = resposne.getGridSession();
+		ListGridSessionsResponse listResp = synapse.listGridSessions(new ListGridSessionsRequest());
+		assertEquals(List.of(session), listResp.getPage());
 
 		// call under test
 		GridSession clone = synapse.getGridSession(session.getSessionId());
@@ -75,6 +80,8 @@ public class ITGridControllerTest {
 		ws.sendText(new JSONArray("[8,\"ping\"]").toString(), true).join();
 		assertTrue(AsyncJobHelper.waitForMessage(8, "pong", incomingMessages));
 		ws.sendClose(4999, "closing").join();
+		
+		synapse.deleteGridSession(session.getSessionId());
 	}
 
 }

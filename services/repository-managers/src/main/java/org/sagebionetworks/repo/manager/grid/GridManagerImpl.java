@@ -13,6 +13,7 @@ import org.sagebionetworks.repo.manager.config.WebsocketApi;
 import org.sagebionetworks.repo.manager.table.TableQueryManager;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.EntityType;
+import org.sagebionetworks.repo.model.NextPageToken;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
@@ -31,6 +32,8 @@ import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridUtils;
+import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
+import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
 import org.sagebionetworks.repo.model.grid.PatchInfo;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
@@ -391,6 +394,28 @@ public class GridManagerImpl implements GridManager {
 		return Optional.of(s3Client
 				.getObjectAsBytes(GetObjectRequest.builder().bucket(gridPatchBucket).key(patch.getS3Key()).build())
 				.asString(StandardCharsets.UTF_8));
+	}
+
+	@Override
+	public ListGridSessionsResponse listActiveGridSessions(UserInfo user, ListGridSessionsRequest request) {
+		ValidateArgument.required(user, "user");
+		ValidateArgument.required(request, "request");
+		AuthorizationUtils.disallowAnonymous(user);
+		NextPageToken nextPageToken = new NextPageToken(request.getNextPageToken());
+		List<GridSession> page = request.getSourceId() != null
+				? gridDao.listActiveGridSession(user.getId(), request.getSourceId(), nextPageToken.getLimitForQuery(),
+						nextPageToken.getOffset())
+				: gridDao.listActiveGridSession(user.getId(), nextPageToken.getLimitForQuery(),
+						nextPageToken.getOffset());
+		return new ListGridSessionsResponse().setPage(page)
+				.setNextPageToken(nextPageToken.getNextPageTokenForCurrentResults(page));
+	}
+
+	@Override
+	public void deleteGridSession(UserInfo user, String sessionId) {
+		// User must have access to the session in order to delete it.
+		validGridSessionAccess(user, sessionId);
+		gridDao.deleteGridSession(sessionId);
 	}
 
 }

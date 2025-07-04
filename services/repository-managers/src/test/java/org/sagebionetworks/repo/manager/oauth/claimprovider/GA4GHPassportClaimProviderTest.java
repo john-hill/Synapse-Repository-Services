@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.oauth.claimprovider;
 
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -8,13 +9,14 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.List;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.AccessApprovalDAO;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.oauth.GA4GHByType;
@@ -25,9 +27,7 @@ import org.sagebionetworks.repo.model.oauth.OIDCClaimName;
 import org.sagebionetworks.repo.model.oauth.OIDCClaimsRequestDetails;
 import org.sagebionetworks.util.Clock;
 
-import com.google.common.collect.ImmutableList;
-
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 public class GA4GHPassportClaimProviderTest {
 	
 	@Mock
@@ -56,11 +56,11 @@ public class GA4GHPassportClaimProviderTest {
 		return "https://"+HOST_NAME+"/repo/v1/accessRequirement/"+arId;
 	}
 	
-	@Before
+	@BeforeEach
 	public void setUp() {
 		passportRequest = new OIDCClaimsRequestDetails();
 		passportRequest.setValue(createArUrl(ACCESS_REQUIREMENT_ID));
-		passportRequest.setValues(ImmutableList.of(createArUrl("222"), createArUrl("333")));
+		passportRequest.setValues(List.of(createArUrl("222"), createArUrl("333")));
 	}
 	
 	@Test
@@ -136,10 +136,9 @@ public class GA4GHPassportClaimProviderTest {
 		GA4GHVisaPayload expected = createGA4GHVisaPayload(now, GA4GHByType.dac, GA4GHVisaType.ControlledAccessGrants);
 
 		// method under test
-		Object actual = claimProvider.getClaim(USER_ID, SUBJECT, passportRequest, AUTH_ENDPOINT);
-		Object[] actualArray = (Object[])actual;
-		assertEquals(1, actualArray.length);
-		assertEquals(expected, actualArray[0]);
+		List<Object> actual = (List<Object>)claimProvider.getClaim(USER_ID, SUBJECT, passportRequest, AUTH_ENDPOINT);
+		assertEquals(1, actual.size());
+		assertEquals(expected, actual.get(0));
 	}
 
 	@Test
@@ -147,8 +146,8 @@ public class GA4GHPassportClaimProviderTest {
 		// what if the user has approvals for none of the listed access requirements?
 		when(accessApprovalDao.getRequirementsUserHasApprovals(eq(USER_ID), any())).thenReturn(Collections.EMPTY_SET);
 		// method under test
-		Object[] actual = (Object[])claimProvider.getClaim(USER_ID, SUBJECT, passportRequest, AUTH_ENDPOINT);
-		assertEquals(0, actual.length);
+		List<Object> actual = (List<Object>)claimProvider.getClaim(USER_ID, SUBJECT, passportRequest, AUTH_ENDPOINT);
+		assertEquals(0, actual.size());
 	}
 
 }

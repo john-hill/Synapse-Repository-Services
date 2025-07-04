@@ -135,7 +135,7 @@ public class GA4GHPassportClaimProvider implements OIDCClaimProvider {
 		for (Map.Entry<String, String> entry : accessRequirementTypes.entrySet()) {
 			result.add(getVisaForAccessRequirement(entry.getKey(), subject, entry.getValue(), oauthEndpoint));
 		}
-		return result.toArray();
+		return result;
 	}
 
 }

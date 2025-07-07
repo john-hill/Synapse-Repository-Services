@@ -12,6 +12,7 @@ import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL
 import org.sagebionetworks.repo.model.dbo.auth.UserStatusDao;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.util.Clock;
+import org.sagebionetworks.util.TemporaryCode;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -28,7 +29,6 @@ public class UserStatusManagerImpl implements UserStatusManager {
 	public UserStatusManagerImpl(UserStatusDao userStatusDao, UserManager userManager, OpenIDConnectManager oidcTokenManager, Clock clock) {
 		this.userStatusDao = userStatusDao;
 		this.userManager = userManager;
-		this.oidcTokenManager = oidcTokenManager;
 		this.oidcTokenManager = oidcTokenManager;
 		this.clock = clock;
 	}
@@ -58,6 +58,40 @@ public class UserStatusManagerImpl implements UserStatusManager {
 		}
 		
 		return inactiveUsers.size();
-	}	
+	}
+	
+	@Override
+	@TemporaryCode(author = "marco", comment = "After the backfill job is complete, this method should be removed.")
+	public int backfillUsersLastSeenOn(int maxCount) {
+		
+		int maxBatchSize = 500;
+		int count = 0;
+		
+		List<Long> batch;
+		
+		do {
+			batch = userStatusDao.getNeverSeenUsersBatch(maxBatchSize).stream()
+				// Does not touch botstrapped users
+				.filter(Predicate.not(BOOTSTRAP_PRINCIPAL::isBootstrapPrincipalId))
+				.collect(Collectors.toList());
+			
+			if (batch.isEmpty()) {
+				return count;
+			}
+			
+			// Get a random date between now and a week ago to spread disabling users over time
+			long randomMins = (long) (Math.random() * 7 * 24 * 60);
+			
+			Date lastSeenOn = Date.from(clock.now().toInstant().minus(randomMins, ChronoUnit.MINUTES));
+			
+			userStatusDao.setLastSeenOn(batch, lastSeenOn);
+			
+			count+= batch.size();
+			
+		} while (count < maxCount);
+		
+		return count;
+		
+	}
 	
 }

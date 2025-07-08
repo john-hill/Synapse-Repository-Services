@@ -7,8 +7,10 @@ import java.util.Objects;
 import org.json.JSONObject;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.compact.LogicalTimestampCompactSerializable;
+import org.sagebionetworks.repo.model.grid.patch.operation.InsertObject;
+import org.sagebionetworks.util.ValidateArgument;
 
-public class ObjectNode implements Node, HasJsonValue<ObjectNode> {
+public class ObjectNode implements Node, HasJsonValue<ObjectNode>, CanInsert<InsertObject> {
 
 	private LogicalTimestamp id;
 	private Map<String, LogicalTimestamp> value;
@@ -44,12 +46,10 @@ public class ObjectNode implements Node, HasJsonValue<ObjectNode> {
 			return this;
 		}
 		JSONObject obj = new JSONObject(json);
-		if (obj.length() > 0) {
-			this.value = new LinkedHashMap<>(obj.length());
-			obj.keySet().stream().forEach(k -> {
-				value.put(k, LogicalTimestampCompactSerializable.deserialize(obj.getJSONArray(k)));
-			});
-		}
+		this.value = new LinkedHashMap<>(obj.length());
+		obj.keySet().stream().forEach(k -> {
+			value.put(k, LogicalTimestampCompactSerializable.deserialize(obj.getJSONArray(k)));
+		});
 		return this;
 	}
 
@@ -63,12 +63,46 @@ public class ObjectNode implements Node, HasJsonValue<ObjectNode> {
 			return "{}";
 		}
 		JSONObject ob = new JSONObject();
-		if (value != null) {
-			value.forEach((k, v) -> {
-				ob.put(k, LogicalTimestampCompactSerializable.serialize(v));
-			});
-		}
+		value.forEach((k, v) -> {
+			ob.put(k, LogicalTimestampCompactSerializable.serialize(v));
+		});
 		return ob.toString();
+	}
+
+	/**
+	 * Attempt to insert the {@link InsertObject} following last-writer-wins (LWW)
+	 * for each new value.
+	 * 
+	 * @param change
+	 * @return True if this object was updated, otherwise false.
+	 */
+	@Override
+	public boolean attemptInsert(InsertObject change) {
+		ValidateArgument.required(change, "change");
+		ValidateArgument.required(change.getObjectId(), "change.id");
+		if (!change.getObjectId().equals(this.id)) {
+			throw new IllegalArgumentException("The ID of the passed change does not match the ID of this object.");
+		}
+		if (change.getMap() == null) {
+			return false;
+		}
+		if (this.value == null) {
+			this.value = new LinkedHashMap<>();
+		}
+		boolean wasChanged = false;
+		for (Map.Entry<String, LogicalTimestamp> entry : change.getMap().entrySet()) {
+			String key = entry.getKey();
+			LogicalTimestamp changeId = entry.getValue();
+			if (changeId == null) {
+				throw new IllegalArgumentException("Cannot set an object value to null");
+			}
+			LogicalTimestamp thisId = this.value.get(key);
+			if (thisId == null || changeId.compareTo(thisId) > 0) {
+				this.value.put(key, LogicalTimestamp.clone(changeId));
+				wasChanged = true;
+			}
+		}
+		return wasChanged;
 	}
 
 	@Override

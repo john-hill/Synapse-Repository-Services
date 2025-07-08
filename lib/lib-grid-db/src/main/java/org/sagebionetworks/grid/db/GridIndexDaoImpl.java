@@ -18,6 +18,7 @@ import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.IndexNode;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.node.ObjectNode;
+import org.sagebionetworks.repo.model.grid.node.ValueNode;
 import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.util.ValidateArgument;
@@ -33,7 +34,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Repository
-@Transactional(readOnly = false, propagation = Propagation.REQUIRED, isolation = Isolation.READ_COMMITTED, transactionManager = "gridTransactionManager")
+@Transactional(readOnly = true, propagation = Propagation.REQUIRED, isolation = Isolation.READ_COMMITTED, transactionManager = "gridTransactionManager")
 public class GridIndexDaoImpl implements GridIndexDao {
 
 	private static final Logger log = LogManager.getLogger(GridIndexDaoImpl.class);
@@ -63,6 +64,18 @@ public class GridIndexDaoImpl implements GridIndexDao {
 				.setValueFromJson(rs.getString("OBJ_VAL"));
 	};
 
+	private static RowMapper<ValueNode> VALUE_NODE_MAPPER = (ResultSet rs, int rowNum) -> {
+		return new ValueNode().setId(
+				new LogicalTimestamp().setReplicaId(rs.getLong("VAL_REP")).setSequenceNumber(rs.getLong("VAL_SEQ")))
+				.setValueFromJson(rs.getString("VAL_REF"));
+	};
+
+	private static RowMapper<VectorNode> VECTOR_NODE_MAPPER = (ResultSet rs, int rowNum) -> {
+		return new VectorNode().setId(
+				new LogicalTimestamp().setReplicaId(rs.getLong("VEC_REP")).setSequenceNumber(rs.getLong("VEC_SEQ")))
+				.setValueFromJson(rs.getString("VEC_VAL"));
+	};
+
 	public GridIndexDaoImpl(JdbcTemplate gridDatabaseJdbcTempalte,
 			NamedParameterJdbcTemplate gridDatabaseNamedParameterJdbcTempalte) {
 		super();
@@ -70,7 +83,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		this.namedTemplate = gridDatabaseNamedParameterJdbcTempalte;
 		createTables(List.of("schema/Grid-Replica-ddl.sql", "schema/Grid-Clock-ddl.sql", "schema/Grid-Index-ddl.sql",
 				"schema/Grid-Array-ddl.sql", "schema/Grid-Vector-ddl.sql", "schema/Grid-Object-ddl.sql",
-				"schema/Grid-Constant-ddl.sql"));
+				"schema/Grid-Constant-ddl.sql", "schema/Grid-Value-ddl.sql"));
 	}
 
 	/**
@@ -101,11 +114,12 @@ public class GridIndexDaoImpl implements GridIndexDao {
 
 	@Transactional(readOnly = false)
 	@Override
-	public void createReplicaIfNotExists(String sessionIdString, Long replicaId) {
+	public boolean createReplicaIfNotExists(String sessionIdString, Long replicaId) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
 
-		jdbcTempalte.update("INSERT IGNORE INTO GRID_REPLICA (SESSION_ID, REPLICA_ID, CREATED_ON) VALUES (?,?,NOW())",
-				sessionId, replicaId);
+		return jdbcTempalte.update(
+				"INSERT IGNORE INTO GRID_REPLICA (SESSION_ID, REPLICA_ID, CREATED_ON) VALUES (?,?,NOW())", sessionId,
+				replicaId) > 0;
 
 	}
 
@@ -159,11 +173,6 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		return namedTemplate.query("SELECT NODE_REP, NODE_SEQ, KIND FROM GRID_REPLICA_INDEX "
 				+ "WHERE SESSION_ID = :sessionId AND REPLICA_ID = :replicaId AND (NODE_REP, NODE_SEQ) IN (:ids)",
 				params, INDEX_NODE_MAPPER);
-	}
-
-	@Override
-	public void saveVectors(String sessionIdString, Long replicaId, List<VectorNode> batch) {
-		Long sessionId = validateReplica(sessionIdString, replicaId);
 	}
 
 	@Transactional(readOnly = false)
@@ -241,6 +250,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		return params;
 	}
 
+	@Transactional(readOnly = false)
 	@Override
 	public void saveNewConstants(String sessionIdString, Long replicaId, List<ConstantNode> batch) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
@@ -253,8 +263,9 @@ public class GridIndexDaoImpl implements GridIndexDao {
 						.addValue("conSeq", cn.getId().getSequenceNumber()).addValue("value", cn.getValueAsJson()))
 				.toArray(SqlParameterSource[]::new);
 
-		namedTemplate.batchUpdate("INSERT IGNORE INTO GRID_REPLICA_CON (SESSION_ID, REPLICA_ID, CON_REP, CON_SEQ, CON_VAL) "
-				+ "VALUES (:sessionId, :replicaId, :conRep, :conSeq, :value)", batchArgs);
+		namedTemplate
+				.batchUpdate("INSERT IGNORE INTO GRID_REPLICA_CON (SESSION_ID, REPLICA_ID, CON_REP, CON_SEQ, CON_VAL) "
+						+ "VALUES (:sessionId, :replicaId, :conRep, :conSeq, :value)", batchArgs);
 
 	}
 
@@ -264,6 +275,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		jdbcTempalte.update("DELETE FROM GRID_REPLICA WHERE SESSION_ID > -1 AND REPLICA_ID > -1");
 	}
 
+	@Transactional(readOnly = false)
 	@Override
 	public void saveObjects(String sessionIdString, Long replicaId, List<ObjectNode> batch) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
@@ -293,5 +305,68 @@ public class GridIndexDaoImpl implements GridIndexDao {
 				"SELECT OBJ_REP, OBJ_SEQ, OBJ_VAL FROM GRID_REPLICA_OBJ "
 						+ "WHERE SESSION_ID = :sessionId AND REPLICA_ID = :replicaId AND (OBJ_REP, OBJ_SEQ) IN (:ids)",
 				params, OBJECT_NODE_MAPPER);
+	}
+
+	@Transactional(readOnly = false)
+	@Override
+	public void saveValues(String sessionIdString, Long replicaId, List<ValueNode> batch) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		if (batch == null || batch.isEmpty()) {
+			return;
+		}
+		SqlParameterSource[] batchArgs = batch.stream()
+				.map(o -> new MapSqlParameterSource().addValue("sessionId", sessionId).addValue("replicaId", replicaId)
+						.addValue("valRep", o.getId().getReplicaId()).addValue("valSeq", o.getId().getSequenceNumber())
+						.addValue("ref", o.getValueAsJson()))
+				.toArray(SqlParameterSource[]::new);
+		namedTemplate.batchUpdate("INSERT INTO GRID_REPLICA_VAL (SESSION_ID, REPLICA_ID, VAL_REP, VAL_SEQ, VAL_REF) "
+				+ "VALUES (:sessionId, :replicaId, :valRep, :valSeq, :ref) ON DUPLICATE KEY UPDATE VAL_REF = :ref",
+				batchArgs);
+
+	}
+
+	@Override
+	public List<ValueNode> getValues(String sessionIdString, Long replicaId, List<LogicalTimestamp> ids) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		if (ids == null || ids.isEmpty()) {
+			return Collections.emptyList();
+		}
+		MapSqlParameterSource params = createParameters(sessionId, replicaId, ids);
+
+		return namedTemplate.query(
+				"SELECT VAL_REP, VAL_SEQ, VAL_REF FROM GRID_REPLICA_VAL "
+						+ "WHERE SESSION_ID = :sessionId AND REPLICA_ID = :replicaId AND (VAL_REP, VAL_SEQ) IN (:ids)",
+				params, VALUE_NODE_MAPPER);
+	}
+
+	@Transactional(readOnly = false)
+	@Override
+	public void saveVectors(String sessionIdString, Long replicaId, List<VectorNode> batch) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		if (batch == null || batch.isEmpty()) {
+			return;
+		}
+		SqlParameterSource[] batchArgs = batch.stream()
+				.map(o -> new MapSqlParameterSource().addValue("sessionId", sessionId).addValue("replicaId", replicaId)
+						.addValue("vecRep", o.getId().getReplicaId()).addValue("vecSeq", o.getId().getSequenceNumber())
+						.addValue("vecVal", o.getValueAsJson()))
+				.toArray(SqlParameterSource[]::new);
+		namedTemplate.batchUpdate("INSERT INTO GRID_REPLICA_VEC (SESSION_ID, REPLICA_ID, VEC_REP, VEC_SEQ, VEC_VAL) "
+				+ "VALUES (:sessionId, :replicaId, :vecRep, :vecSeq, :vecVal) ON DUPLICATE KEY UPDATE VEC_VAL = :vecVal",
+				batchArgs);
+	}
+
+	@Override
+	public List<VectorNode> getVectors(String sessionIdString, Long replicaId, List<LogicalTimestamp> ids) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		if (ids == null || ids.isEmpty()) {
+			return Collections.emptyList();
+		}
+		MapSqlParameterSource params = createParameters(sessionId, replicaId, ids);
+
+		return namedTemplate.query(
+				"SELECT VEC_REP, VEC_SEQ, VEC_VAL FROM GRID_REPLICA_VEC "
+						+ "WHERE SESSION_ID = :sessionId AND REPLICA_ID = :replicaId AND (VEC_REP, VEC_SEQ) IN (:ids)",
+				params, VECTOR_NODE_MAPPER);
 	}
 }

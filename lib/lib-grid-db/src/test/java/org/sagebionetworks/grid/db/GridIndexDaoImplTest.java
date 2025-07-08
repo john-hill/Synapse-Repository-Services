@@ -1,6 +1,7 @@
 package org.sagebionetworks.grid.db;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -11,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -25,6 +27,8 @@ import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.IndexNode;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.node.ObjectNode;
+import org.sagebionetworks.repo.model.grid.node.ValueNode;
+import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -75,10 +79,10 @@ public class GridIndexDaoImplTest {
 		assertEquals(Optional.empty(), createdOn);
 
 		// call under test
-		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
-		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne + 1L);
-		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
-		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne + 1L);
+		assertTrue(gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne));
+		assertTrue(gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne + 1L));
+		assertFalse(gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne));
+		assertFalse(gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne + 1L));
 
 		createdOn = gridIndexDao.getReplicaCreatedOn(sessionIdOne, replicaIdOne);
 		assertNotNull(createdOn);
@@ -487,20 +491,89 @@ public class GridIndexDaoImplTest {
 		Map<String, LogicalTimestamp> value = new LinkedHashMap<>();
 		value.put("one", ids.get(2));
 		value.put("two", ids.get(3));
-		List<ObjectNode> objects = List.of(new ObjectNode().setId(ids.get(0)),
+		List<ObjectNode> objectsOne = List.of(new ObjectNode().setId(ids.get(0)),
 				new ObjectNode().setId(ids.get(1)).setValue(value));
-		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.obj, ids);
+		List<ObjectNode> objectsTwo = List.of(new ObjectNode().setId(ids.get(2)),
+				new ObjectNode().setId(ids.get(3)).setValue(value));
+		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.obj,
+				objectsOne.stream().map(ObjectNode::getId).collect(Collectors.toList()));
+		gridIndexDao.saveIndex(sessionIdTwo, replicaIdTwo, IndexType.obj,
+				objectsTwo.stream().map(ObjectNode::getId).collect(Collectors.toList()));
 		// all under test
-		gridIndexDao.saveObjects(sessionIdOne, replicaIdOne, objects);
+		gridIndexDao.saveObjects(sessionIdOne, replicaIdOne, objectsOne);
+		gridIndexDao.saveObjects(sessionIdTwo, replicaIdTwo, objectsTwo);
 		// call under test
-		List<ObjectNode> back = gridIndexDao.getObjects(sessionIdOne, replicaIdOne, List.of(ids.get(0), ids.get(1)));
-		assertEquals(objects, back);
+		assertEquals(objectsOne, gridIndexDao.getObjects(sessionIdOne, replicaIdOne, List.of(ids.get(0), ids.get(1))));
+		assertEquals(objectsTwo, gridIndexDao.getObjects(sessionIdTwo, replicaIdTwo, List.of(ids.get(2), ids.get(3))));
 
 		ObjectNode updated = new ObjectNode().setId(ids.get(0)).setValueFromJson("{\"a\":[7,8],\"b\":[9,10]}");
 		// update the first object
 		gridIndexDao.saveObjects(sessionIdOne, replicaIdOne, List.of(updated));
-		back = gridIndexDao.getObjects(sessionIdOne, replicaIdOne, List.of(ids.get(0), ids.get(1)));
-		assertEquals(List.of(updated, objects.get(1)), back);
+		assertEquals(List.of(updated, objectsOne.get(1)),
+				gridIndexDao.getObjects(sessionIdOne, replicaIdOne, List.of(ids.get(0), ids.get(1))));
+		assertEquals(objectsTwo, gridIndexDao.getObjects(sessionIdTwo, replicaIdTwo, List.of(ids.get(2), ids.get(3))));
+	}
 
+	@Test
+	public void testSaveAndGetValues() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		gridIndexDao.createReplicaIfNotExists(sessionIdTwo, replicaIdTwo);
+
+		List<ValueNode> valuesOne = List.of(new ValueNode().setId(ids.get(0)).setValue(ids.get(1)),
+				new ValueNode().setId(ids.get(2)).setValue(ids.get(3)));
+		List<ValueNode> valuesTwo = List.of(new ValueNode().setId(ids.get(4)).setValue(ids.get(5)),
+				new ValueNode().setId(ids.get(6)).setValue(ids.get(7)));
+		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.val,
+				valuesOne.stream().map(ValueNode::getId).collect(Collectors.toList()));
+		gridIndexDao.saveIndex(sessionIdTwo, replicaIdTwo, IndexType.val,
+				valuesTwo.stream().map(ValueNode::getId).collect(Collectors.toList()));
+		// all under test
+		gridIndexDao.saveValues(sessionIdOne, replicaIdOne, valuesOne);
+		gridIndexDao.saveValues(sessionIdTwo, replicaIdTwo, valuesTwo);
+		// call under test
+		assertEquals(valuesOne, gridIndexDao.getValues(sessionIdOne, replicaIdOne, List.of(ids.get(0), ids.get(2))));
+		assertEquals(valuesTwo, gridIndexDao.getValues(sessionIdTwo, replicaIdTwo, List.of(ids.get(4), ids.get(6))));
+
+		ValueNode updated = new ValueNode().setId(ids.get(0)).setValueFromJson("[7,8]");
+		// update the first object
+		gridIndexDao.saveValues(sessionIdOne, replicaIdOne, List.of(updated));
+		assertEquals(List.of(updated, valuesOne.get(1)),
+				gridIndexDao.getValues(sessionIdOne, replicaIdOne, List.of(ids.get(0), ids.get(2))));
+		assertEquals(valuesTwo, gridIndexDao.getValues(sessionIdTwo, replicaIdTwo, List.of(ids.get(4), ids.get(6))));
+	}
+
+	@Test
+	public void testSaveAndGetVectors() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		gridIndexDao.createReplicaIfNotExists(sessionIdTwo, replicaIdTwo);
+
+		List<VectorNode> valuesOne = List.of(
+				new VectorNode().setId(ids.get(0))
+						.setValueFromJson("{\"c0\":{\"v\":123,\"i\":[3,4]},\"c1\":{\"v\":\"one\",\"i\":[5,6]}}"),
+				new VectorNode().setId(ids.get(1))
+						.setValueFromJson("{\"c0\":{\"v\":456,\"i\":[7,8]},\"c1\":{\"v\":\"two\",\"i\":[9,10]}}"));
+		List<VectorNode> valuesTwo = List.of(
+				new VectorNode().setId(ids.get(2))
+						.setValueFromJson("{\"c0\":{\"v\":111,\"i\":[11,12]},\"c1\":{\"v\":\"one\",\"i\":[13,14]}}"),
+				new VectorNode().setId(ids.get(3))
+						.setValueFromJson("{\"c0\":{\"v\":222,\"i\":[15,16]},\"c1\":{\"v\":\"two\",\"i\":[17,18]}}"));
+		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.val,
+				valuesOne.stream().map(VectorNode::getId).collect(Collectors.toList()));
+		gridIndexDao.saveIndex(sessionIdTwo, replicaIdTwo, IndexType.val,
+				valuesTwo.stream().map(VectorNode::getId).collect(Collectors.toList()));
+		// all under test
+		gridIndexDao.saveVectors(sessionIdOne, replicaIdOne, valuesOne);
+		gridIndexDao.saveVectors(sessionIdTwo, replicaIdTwo, valuesTwo);
+		// call under test
+		assertEquals(valuesOne, gridIndexDao.getVectors(sessionIdOne, replicaIdOne, List.of(ids.get(0), ids.get(1))));
+		assertEquals(valuesTwo, gridIndexDao.getVectors(sessionIdTwo, replicaIdTwo, List.of(ids.get(2), ids.get(3))));
+
+		VectorNode updated = new VectorNode().setId(ids.get(0))
+				.setValueFromJson("{\"c0\":{\"v\":888,\"i\":[3,4]},\"c1\":{\"v\":\"three\",\"i\":[5,6]}}");
+		// update the first object
+		gridIndexDao.saveVectors(sessionIdOne, replicaIdOne, List.of(updated));
+		assertEquals(List.of(updated, valuesOne.get(1)),
+				gridIndexDao.getVectors(sessionIdOne, replicaIdOne, List.of(ids.get(0), ids.get(1))));
+		assertEquals(valuesTwo, gridIndexDao.getVectors(sessionIdTwo, replicaIdTwo, List.of(ids.get(2), ids.get(3))));
 	}
 }

@@ -2,7 +2,9 @@ package org.sagebionetworks.repo.model.grid.patch;
 
 import java.util.Objects;
 
-public class LogicalTimestamp {
+import org.sagebionetworks.util.ValidateArgument;
+
+public class LogicalTimestamp implements Comparable<LogicalTimestamp> {
 
 	private Long replicaId;
 	private Long sequenceNumber;
@@ -40,6 +42,7 @@ public class LogicalTimestamp {
 
 	/**
 	 * Create a clone of the provided LogicalTimestamp.
+	 * 
 	 * @param original
 	 * @return
 	 */
@@ -68,6 +71,20 @@ public class LogicalTimestamp {
 	@Override
 	public String toString() {
 		return "LogicalTimestamp [replicaId=" + replicaId + ", sequenceNumber=" + sequenceNumber + "]";
+	}
+
+	@Override
+	public int compareTo(LogicalTimestamp o) {
+		ValidateArgument.required(o, "other");
+		ValidateArgument.required(o.getReplicaId(), "other.replicaId");
+		ValidateArgument.required(o.getSequenceNumber(), "other.sequenceNumber");
+		ValidateArgument.required(this.replicaId, "this.replicaId");
+		ValidateArgument.required(this.sequenceNumber, "this.sequenceNumber");
+		int seqComp = this.sequenceNumber.compareTo(o.sequenceNumber);
+		if (seqComp != 0) {
+			return seqComp;
+		}
+		return this.replicaId.compareTo(o.replicaId);
 	}
 
 }

@@ -8,6 +8,7 @@ import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.IndexNode;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.node.ObjectNode;
+import org.sagebionetworks.repo.model.grid.node.ValueNode;
 import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewVector;
@@ -21,7 +22,7 @@ public interface GridIndexDao {
 	 * @param sessionId
 	 * @param replicaId
 	 */
-	void createReplicaIfNotExists(String sessionId, Long replicaId);
+	boolean createReplicaIfNotExists(String sessionId, Long replicaId);
 
 	/**
 	 * Get the created on for a grid replica.
@@ -100,15 +101,6 @@ public interface GridIndexDao {
 	List<ObjectNode> getObjects(String sessionId, Long replicaId, List<LogicalTimestamp> ids);
 
 	/**
-	 * Save a batch of {@link NewVector} to a replica.
-	 * 
-	 * @param sessionId
-	 * @param replicaId
-	 * @param list
-	 */
-	void saveVectors(String sessionId, Long replicaId, List<VectorNode> list);
-
-	/**
 	 * Save a batch of {@link ConstantNode} to a replica.
 	 * 
 	 * @param sessionId
@@ -136,6 +128,47 @@ public interface GridIndexDao {
 	 */
 	void setClock(String sessionId, Long replicaId, LogicalTimestamp clock);
 
+	/**
+	 * Delete all grid data from the database.
+	 */
 	void truncateAll();
+
+	/**
+	 * Save a batch of {@link ValueNode} to a replica.
+	 * 
+	 * @param sessionIdString
+	 * @param replicaId
+	 * @param batch
+	 */
+	void saveValues(String sessionIdString, Long replicaId, List<ValueNode> batch);
+
+	/**
+	 * Get a batch of {@link ValueNode} from given their IDs.
+	 * 
+	 * @param sessionIdString
+	 * @param replicaId
+	 * @param ids
+	 * @return
+	 */
+	List<ValueNode> getValues(String sessionIdString, Long replicaId, List<LogicalTimestamp> ids);
+
+	/**
+	 * Save a batch of {@link NewVector} to a replica.
+	 * 
+	 * @param sessionId
+	 * @param replicaId
+	 * @param list
+	 */
+	void saveVectors(String sessionId, Long replicaId, List<VectorNode> list);
+
+	/**
+	 * Get a batch of {@link VectorNode} given their IDs
+	 * 
+	 * @param sessionIdString
+	 * @param replicaId
+	 * @param ids
+	 * @return
+	 */
+	List<VectorNode> getVectors(String sessionIdString, Long replicaId, List<LogicalTimestamp> ids);
 
 }

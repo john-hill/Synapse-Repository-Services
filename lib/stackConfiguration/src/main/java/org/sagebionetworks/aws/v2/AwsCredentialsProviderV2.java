@@ -6,7 +6,7 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 
-public class AwsCrdentialPoviderV2 {
+public class AwsCredentialsProviderV2 {
 
 	public static final AwsCredentialsProvider PROVIDER_CHAIN = createCredentialProvider();
 

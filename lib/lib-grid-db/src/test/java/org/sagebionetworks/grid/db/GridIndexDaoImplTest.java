@@ -557,9 +557,9 @@ public class GridIndexDaoImplTest {
 						.setValueFromJson("{\"c0\":{\"v\":111,\"i\":[11,12]},\"c1\":{\"v\":\"one\",\"i\":[13,14]}}"),
 				new VectorNode().setId(ids.get(3))
 						.setValueFromJson("{\"c0\":{\"v\":222,\"i\":[15,16]},\"c1\":{\"v\":\"two\",\"i\":[17,18]}}"));
-		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.val,
+		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.vec,
 				valuesOne.stream().map(VectorNode::getId).collect(Collectors.toList()));
-		gridIndexDao.saveIndex(sessionIdTwo, replicaIdTwo, IndexType.val,
+		gridIndexDao.saveIndex(sessionIdTwo, replicaIdTwo, IndexType.vec,
 				valuesTwo.stream().map(VectorNode::getId).collect(Collectors.toList()));
 		// all under test
 		gridIndexDao.saveVectors(sessionIdOne, replicaIdOne, valuesOne);

@@ -3,7 +3,7 @@ package org.sagebionetworks.repo.model.grid.node;
 /**
  * Abstraction for a node insert action.
  * 
- * @param <T> The type of object that can be be inserted into this node.
+ * @param <T> The type of object that can be inserted into this node.
  */
 public interface CanInsert<T> {
 

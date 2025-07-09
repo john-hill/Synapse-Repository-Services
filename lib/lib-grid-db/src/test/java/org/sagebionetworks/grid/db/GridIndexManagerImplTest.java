@@ -56,7 +56,7 @@ public class GridIndexManagerImplTest {
 		replicaId = 123L;
 		newConstant = new NewConstant().setOperationId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L))
 				.setValue(new ConValue(ConType.BOOLEAN, true));
-		newVector = new NewVector().setOperationId(new LogicalTimestamp().setReplicaId(3L).setReplicaId(4L));
+		newVector = new NewVector().setOperationId(new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(4L));
 		patch = new Patch().setPatchId(new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(6L))
 				.setOperations(List.of(newConstant, newVector));
 		rootValueId = new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L);

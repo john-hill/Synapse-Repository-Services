@@ -1,7 +1,11 @@
 package org.sagebionetworks.grid.db;
 
+import java.util.List;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.sagebionetworks.repo.model.grid.node.IndexType;
+import org.sagebionetworks.repo.model.grid.node.ValueNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
 import org.sagebionetworks.util.ValidateArgument;
@@ -33,7 +37,13 @@ public class GridIndexManagerImpl implements GridIndexManager {
 		ValidateArgument.required(patch, "patch");
 		ValidateArgument.required(patch.getOperations(), "patch.operations");
 
-		dao.createReplicaIfNotExists(sessionId, replicaId);
+		if (dao.createReplicaIfNotExists(sessionId, replicaId)) {
+			// this is the first patch of a replica.
+			LogicalTimestamp rootId = new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L);
+			// create the root value of the document.
+			dao.saveIndex(sessionId, replicaId, IndexType.val, List.of(rootId));
+			dao.saveValues(sessionId, replicaId, List.of(new ValueNode().setId(rootId)));
+		}
 
 		if (isPatchAlreadyApplied(sessionId, replicaId, patch.getPatchId())) {
 			log.info("Patch: {}.{} has already been applied to session: {} replica: {}",
@@ -43,12 +53,13 @@ public class GridIndexManagerImpl implements GridIndexManager {
 
 		// Operations are batched and processed by type.
 		operationDispatcher.processAll(sessionId, replicaId, patch.getOperations());
-		
+
 		LogicalTimestamp patchClock = LogicalTimestamp.newIncrement(patch.getPatchId(), patch.getSpan());
 
 		// unconditionally increment this replica's clock by the new sequence.
-		dao.setClock(sessionId, replicaId, new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(patchClock.getSequenceNumber()));
-		if(patchClock.getReplicaId() != replicaId) {
+		dao.setClock(sessionId, replicaId,
+				new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(patchClock.getSequenceNumber()));
+		if (patchClock.getReplicaId() != replicaId) {
 			// The patch is from another replica, so add it to this replica's clock.
 			dao.setClock(sessionId, replicaId, patchClock);
 		}

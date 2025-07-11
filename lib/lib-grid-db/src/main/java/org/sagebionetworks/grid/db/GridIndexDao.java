@@ -4,6 +4,7 @@ import java.sql.Timestamp;
 import java.util.List;
 import java.util.Optional;
 
+import org.sagebionetworks.repo.model.grid.node.ArrayNode;
 import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.IndexNode;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
@@ -170,5 +171,12 @@ public interface GridIndexDao {
 	 * @return
 	 */
 	List<VectorNode> getVectors(String sessionIdString, Long replicaId, List<LogicalTimestamp> ids);
+
+	void saveArrayNode(String sessionId, Long replicaId, List<ArrayNode> batch);
+	
+	List<ArrayNode> getArrays(String sessionIdString, Long replicaId, List<LogicalTimestamp> ids);
+
+	Optional<ArrayNode> getRgaAtPosition(String sessionId, Long replicaId, LogicalTimestamp arrayId,
+			LogicalTimestamp cursor);
 
 }

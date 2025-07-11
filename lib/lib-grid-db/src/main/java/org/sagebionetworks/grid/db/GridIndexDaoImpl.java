@@ -14,6 +14,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.repo.model.grid.GridUtils;
+import org.sagebionetworks.repo.model.grid.node.ArrayNode;
 import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.IndexNode;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
@@ -368,5 +369,24 @@ public class GridIndexDaoImpl implements GridIndexDao {
 				"SELECT VEC_REP, VEC_SEQ, VEC_VAL FROM GRID_REPLICA_VEC "
 						+ "WHERE SESSION_ID = :sessionId AND REPLICA_ID = :replicaId AND (VEC_REP, VEC_SEQ) IN (:ids)",
 				params, VECTOR_NODE_MAPPER);
+	}
+
+	@Override
+	public void saveArrayNode(String sessionId, Long replicaId, List<ArrayNode> batch) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public List<ArrayNode> getArrays(String sessionIdString, Long replicaId, List<LogicalTimestamp> ids) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public Optional<ArrayNode> getRgaAtPosition(String sessionId, Long replicaId, LogicalTimestamp arrayId,
+			LogicalTimestamp cursor) {
+		// TODO Auto-generated method stub
+		return Optional.empty();
 	}
 }

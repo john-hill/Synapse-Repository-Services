@@ -141,11 +141,11 @@ public class GridManagerImpl implements GridManager {
 			RowSet rowSet = pre.getQueryResult().getQueryResults();
 			String tableId = rowSet.getTableId();
 
-			String schemaId = getSchemaId(user, tableId, rowSet.getRows());
+			Optional<String> schemaIdOp = getSchemaId(user, tableId, rowSet.getRows());
 			Long maxRowSizeBytes = getMaxRowSizeBytes(pre.getMaxRowsPerPage());
 
-			GridSession session = gridDao.createGridSession(
-					new CreateGridSession().setUserId(user.getId()).setSourceId(tableId).setSchemaId(schemaId));
+			GridSession session = gridDao.createGridSession(new CreateGridSession().setUserId(user.getId())
+					.setSourceId(tableId).setSchemaId(schemaIdOp.orElse(null)));
 			GridReplica replica = gridDao.createReplica(user.getId(), session.getSessionId(), false,
 					EventSource.INTERNAL);
 
@@ -181,15 +181,17 @@ public class GridManagerImpl implements GridManager {
 		return this.tableQueryManager.getMaxBytesPerRequest() / maxRowsPerPage;
 	}
 
-	String getSchemaId(UserInfo user, String tableId, List<Row> rows) {
+	Optional<String> getSchemaId(UserInfo user, String tableId, List<Row> rows) {
 		if (EntityType.entityview.equals(entityManager.getEntityType(tableId)) && rows != null && rows.size() > 0) {
 			String firstRowId = KeyFactory.keyToString(rows.get(0).getRowId());
-			JsonSchemaObjectBinding binding = entityManager.getBoundSchema(user, firstRowId);
-			if (binding != null && binding.getJsonSchemaVersionInfo() != null) {
-				return binding.getJsonSchemaVersionInfo().get$id();
+			try {
+				JsonSchemaObjectBinding binding = entityManager.getBoundSchema(user, firstRowId);
+				return Optional.of(binding.getJsonSchemaVersionInfo().get$id());
+			} catch (NotFoundException e) {
+				return Optional.empty();
 			}
 		}
-		return null;
+		return Optional.empty();
 	}
 
 	/**

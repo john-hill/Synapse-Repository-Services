@@ -6,10 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.URISyntaxException;
-import java.net.http.WebSocket;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import org.java_websocket.WebSocket;
 import org.json.JSONArray;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -80,9 +80,9 @@ public class ITGridControllerTest {
 		BlockingQueue<String> incomingMessages = new LinkedBlockingQueue<>();
 		WebSocket ws = AsyncJobHelper.createConnection(urlResponse.getPresignedUrl(), incomingMessages);
 
-		ws.sendText(new JSONArray("[8,\"ping\"]").toString(), true).join();
+		ws.send(new JSONArray("[8,\"ping\"]").toString());
 		assertTrue(AsyncJobHelper.waitForMessage(8, "pong", incomingMessages));
-		ws.sendClose(4999, "closing").join();
+		ws.close(4999, "closing");
 		
 		// call under test
 		synapse.deleteGridSession(session.getSessionId());

@@ -6,20 +6,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.http.HttpClient;
-import java.net.http.WebSocket;
-import java.net.http.WebSocket.Listener;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CompletionStage;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.java_websocket.WebSocket;
+import org.java_websocket.client.WebSocketClient;
 import org.json.JSONArray;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -79,6 +79,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
 public class GridEventBrokerWorkerIntegrationTest {
 
+	private static final Logger LOG = LogManager.getLogger(GridEventBrokerWorkerIntegrationTest.class);
+	
 	public static final long MAX_WAIT_MS = 120_000;
 
 	@Autowired
@@ -144,9 +146,9 @@ public class GridEventBrokerWorkerIntegrationTest {
 
 		waitForConnected(incomingMessages);
 		// send a ping
-		ws.sendText(new JSONArray("[8,\"ping\"]").toString(), true).join();
+		ws.send(new JSONArray("[8,\"ping\"]").toString());
 		assertTrue(waitForMessage((a) -> a.optInt(0) == 8 && "pong".equals(a.optString(1)), incomingMessages));
-		ws.sendClose(4999, "closing").join();
+		ws.close();
 
 	}
 
@@ -196,7 +198,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 		// Replica one sends a patch.
 		String patchBody = String.format("[[[%d,1]],[0]]", replicaOne.getReplicaId());
 		String patchRequest = String.format("[1,101,\"patch\", %s]", patchBody);
-		wsOne.sendText(patchRequest, true).join();
+		wsOne.send(patchRequest);
 
 		// Wait for response complete: [5,101]
 		assertTrue(waitForMessage((a) -> a.optInt(0) == 5 && a.optInt(1) == 101, incomingMessagesOne));
@@ -204,7 +206,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 		// send a second patch;
 		patchBody = String.format("[[[%d,4]],[0]]", replicaOne.getReplicaId());
 		patchRequest = String.format("[1,102,\"patch\", %s]", patchBody);
-		wsOne.sendText(patchRequest, true).join();
+		wsOne.send(patchRequest);
 
 		// Wait for response complete: [5,102]
 		assertTrue(waitForMessage((a) -> a.optInt(0) == 5 && a.optInt(1) == 102, incomingMessagesOne));
@@ -214,7 +216,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 		assertTrue(waitForMessage((a) -> a.optInt(0) == 8 && "new-patch".equals(a.optString(1)), incomingMessagesTwo));
 
 		// Two's clock is currently empty so start a synchronize.
-		wsTwo.sendText("[1,99,\"synchronize-clock\",[]]", true).join();
+		wsTwo.send("[1,99,\"synchronize-clock\",[]]");
 
 		List<LogicalTimestamp> patchIds = new ArrayList<>();
 		assertTrue(waitForMessage((a) -> {
@@ -228,7 +230,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 
 		// after applying the patch update the clock and synchronize again.
 		String newClock = LogicalTimestampCompactSerializable.serializeClock(patchIds).toString();
-		wsTwo.sendText(String.format("[1,99,\"synchronize-clock\",%s]", newClock), true).join();
+		wsTwo.send(String.format("[1,99,\"synchronize-clock\",%s]", newClock));
 
 		patchIds.clear();
 		assertTrue(waitForMessage((a) -> {
@@ -242,7 +244,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 
 		// after the second snych, replica two should be up-to-date.
 		newClock = LogicalTimestampCompactSerializable.serializeClock(patchIds).toString();
-		wsTwo.sendText(String.format("[1,99,\"synchronize-clock\",%s]", newClock), true).join();
+		wsTwo.send(String.format("[1,99,\"synchronize-clock\",%s]", newClock));
 
 		assertTrue(waitForMessage((a) -> a.optInt(0) == 5 && a.optInt(1) == 99, incomingMessagesTwo));
 
@@ -290,7 +292,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 		waitForConnected(incomingMessagesOne);
 
 		// start the synchronize
-		wsOne.sendText("[1,99,\"synchronize-clock\",[]]", true).join();
+		wsOne.send("[1,99,\"synchronize-clock\",[]]");
 		assertTrue(waitForMessage((a) -> {
 			if (a.optInt(0) == 4 && a.optInt(1) == 99) {
 				Patch patch = PatchCompactSerializable.deserialize(a.getJSONArray(2));
@@ -373,7 +375,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 		waitForConnected(incomingMessagesOne);
 
 		// start the synchronize
-		wsOne.sendText("[1,99,\"synchronize-clock\",[]]", true).join();
+		wsOne.send("[1,99,\"synchronize-clock\",[]]");
 		assertTrue(waitForMessage((a) -> {
 			if (a.optInt(0) == 4 && a.optInt(1) == 99) {
 				Patch patch = PatchCompactSerializable.deserialize(a.getJSONArray(2));
@@ -439,7 +441,6 @@ public class GridEventBrokerWorkerIntegrationTest {
 		String message = null;
 		do {
 			message = incomingMessages.poll(10, TimeUnit.SECONDS);
-			System.out.println(message);
 			if (message == null) {
 				return false;
 			}
@@ -461,22 +462,53 @@ public class GridEventBrokerWorkerIntegrationTest {
 	 * @throws URISyntaxException
 	 */
 	public WebSocket createConnection(String presignedUrl, BlockingQueue<String> incomingMessages)
-			throws URISyntaxException {
-		HttpClient client = HttpClient.newHttpClient();
-		return client.newWebSocketBuilder().buildAsync(new URI(presignedUrl), new Listener() {
-
-			@Override
-			public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
-				try {
-					incomingMessages.put(data.toString());
-				} catch (InterruptedException e) {
-					webSocket.sendClose(4999, "closing");
-					throw new RuntimeException(e);
-				}
-				webSocket.request(1);
-				return null;
+			throws URISyntaxException {				
+		WebSocketImpl client = new WebSocketImpl(presignedUrl, incomingMessages);
+		
+		try {
+			client.connectBlocking();
+		} catch (InterruptedException e) {
+			throw new RuntimeException("Failed to connect to WebSocket: " + presignedUrl, e);
+		}
+		
+		return client;
+	}
+	
+	public static class WebSocketImpl extends WebSocketClient {
+		
+		private BlockingQueue<String> incomingMessages;
+		
+		public WebSocketImpl(String url, BlockingQueue<String> incomingMessages) {
+			super(URI.create(url));
+			this.incomingMessages = incomingMessages;
+		}
+	
+		@Override
+		public void onOpen(org.java_websocket.handshake.ServerHandshake handshakedata) {
+			LOG.info("WebSocket connection opened: {}, ", handshakedata.getHttpStatusMessage());
+		}
+	
+		@Override
+		public void onClose(int code, String reason, boolean remote) {
+			LOG.info("WebSocket connection closed with code: {}, reason: {}", code, reason);
+		}
+	
+		@Override
+		public void onError(Exception ex) {
+			LOG.error("WebSocket error: ", ex);
+		}
+	
+		@Override
+		public void onMessage(String message) {
+			LOG.info("Message received: {}", message);
+			try {
+				incomingMessages.put(message);
+			} catch (InterruptedException e) {
+				this.close(4999);
+				throw new RuntimeException(e);
 			}
-		}).join();
+		}
+		
 	}
 
 }

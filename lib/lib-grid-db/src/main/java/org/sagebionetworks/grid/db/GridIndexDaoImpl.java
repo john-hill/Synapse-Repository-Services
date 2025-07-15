@@ -23,6 +23,7 @@ import org.sagebionetworks.repo.model.grid.node.ValueNode;
 import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.util.ValidateArgument;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -42,6 +43,9 @@ public class GridIndexDaoImpl implements GridIndexDao {
 
 	private final JdbcTemplate jdbcTempalte;
 	private final NamedParameterJdbcTemplate namedTemplate;
+
+	private final String LIST_ARRAY_ORDER_SQL = loadStringFromClasspath("sql/ListArrayOrder.sql");
+	private final String FIND_INSERT_LOCATION = loadStringFromClasspath("sql/FindInsertLocation.sql");
 
 	private static RowMapper<IndexNode> INDEX_NODE_MAPPER = (ResultSet rs, int rowNum) -> {
 		return new IndexNode().setType(IndexType.valueOf(rs.getString("KIND"))).setId(
@@ -77,6 +81,23 @@ public class GridIndexDaoImpl implements GridIndexDao {
 				.setValueFromJson(rs.getString("VEC_VAL"));
 	};
 
+	private static RowMapper<ArrayNode> ARRAY_NODE_MAPPER = (ResultSet rs, int rowNum) -> {
+		Boolean wasDeleted = rs.getBoolean("IS_DELETED");
+		if (rs.wasNull()) {
+			wasDeleted = null;
+		}
+		return new ArrayNode()
+				.setArrayId(new LogicalTimestamp().setReplicaId(rs.getLong("ARR_REP"))
+						.setSequenceNumber(rs.getLong("ARR_SEQ")))
+				.setDataId(new LogicalTimestamp().setReplicaId(rs.getLong("DATA_REP"))
+						.setSequenceNumber(rs.getLong("DATA_SEQ")))
+				.setNodeId(new LogicalTimestamp().setReplicaId(rs.getLong("NODE_REP"))
+						.setSequenceNumber(rs.getLong("NODE_SEQ")))
+				.setReferenceNodeId(new LogicalTimestamp().setReplicaId(rs.getLong("REF_REP"))
+						.setSequenceNumber(rs.getLong("REF_SEQ")))
+				.setIsDeleted(wasDeleted);
+	};
+
 	public GridIndexDaoImpl(JdbcTemplate gridDatabaseJdbcTempalte,
 			NamedParameterJdbcTemplate gridDatabaseNamedParameterJdbcTempalte) {
 		super();
@@ -94,17 +115,27 @@ public class GridIndexDaoImpl implements GridIndexDao {
 	 */
 	private void createTables(List<String> tables) {
 		tables.forEach(t -> {
-			try (InputStream in = GridIndexDaoImpl.class.getClassLoader().getResourceAsStream(t)) {
-				if (in == null) {
-					throw new IllegalArgumentException("Cannot find file " + t + " on classpath.");
-				}
-				String ddl = IOUtils.toString(in, StandardCharsets.UTF_8);
-				log.info("Running: {}", t);
-				this.jdbcTempalte.update(ddl);
-			} catch (IOException e) {
-				throw new RuntimeException(e);
-			}
+			String ddl = loadStringFromClasspath(t);
+			log.info("Running: {}", t);
+			this.jdbcTempalte.update(ddl);
 		});
+	}
+
+	/**
+	 * Helper to load a string from a file on the classpath.
+	 * 
+	 * @param name
+	 * @return
+	 */
+	private static String loadStringFromClasspath(String name) {
+		try (InputStream in = GridIndexDaoImpl.class.getClassLoader().getResourceAsStream(name)) {
+			if (in == null) {
+				throw new IllegalArgumentException("Cannot find file " + name + " on classpath.");
+			}
+			return IOUtils.toString(in, StandardCharsets.UTF_8);
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	Long validateReplica(String sessionId, Long replicaId) {
@@ -371,22 +402,150 @@ public class GridIndexDaoImpl implements GridIndexDao {
 				params, VECTOR_NODE_MAPPER);
 	}
 
+	@Transactional(readOnly = false)
 	@Override
-	public void saveArrayNode(String sessionId, Long replicaId, List<ArrayNode> batch) {
-		// TODO Auto-generated method stub
-		
+	public void createArrayBatch(String sessionIdString, Long replicaId, List<LogicalTimestamp> arrayIds) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		if (arrayIds == null || arrayIds.isEmpty()) {
+			return;
+		}
+		SqlParameterSource[] batchArgs = arrayIds.stream()
+				.map(o -> new MapSqlParameterSource().addValue("sessionId", sessionId).addValue("replicaId", replicaId)
+						.addValue("arrRep", o.getReplicaId()).addValue("arrSeq", o.getSequenceNumber()))
+				.toArray(SqlParameterSource[]::new);
+		namedTemplate.batchUpdate(
+				"INSERT INTO GRID_REPLICA_ARR (SESSION_ID, REPLICA_ID, NODE_REP, NODE_SEQ, ARR_REP, ARR_SEQ)"
+						+ "VALUES (:sessionId, :replicaId, :arrRep, :arrSeq, :arrRep, :arrSeq)",
+				batchArgs);
+
+	}
+
+	@Transactional(readOnly = false)
+	@Override
+	public void insertIntoArray(String sessionIdString, Long replicaId, ArrayNode toInsert) {
+		ValidateArgument.required(toInsert, "toInsert");
+		ValidateArgument.required(toInsert.getDataId(), "toInsert.datatId");
+		ValidateArgument.required(toInsert.getReferenceNodeId(), "toInsert.referenceNodeId");
+
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		MapSqlParameterSource params = createArrrayNodeParameter(sessionId, replicaId, toInsert);
+
+		Optional<LogicalTimestamp> currentNodeId = getCurrentArrayNodeAtReference(params);
+		if (currentNodeId.isPresent()) {
+			params.addValue("currentNodeRep", currentNodeId.get().getReplicaId());
+			params.addValue("currentNodeSeq", currentNodeId.get().getSequenceNumber());
+			// clear the current node's reference
+			namedTemplate
+					.update("UPDATE GRID_REPLICA_ARR SET REF_REP = NULL, REF_SEQ = NULL WHERE SESSION_ID = :sessionId "
+							+ "AND REPLICA_ID = :replicaId AND ARR_REP = :arrRep AND ARR_SEQ = :arrSeq "
+							+ "AND NODE_REP = :currentNodeRep AND NODE_SEQ = :currentNodeSeq", params);
+		}
+		// insert the new node
+		namedTemplate
+				.update("INSERT INTO GRID_REPLICA_ARR (SESSION_ID, REPLICA_ID, NODE_REP, NODE_SEQ, ARR_REP, ARR_SEQ,"
+						+ " DATA_REP, DATA_SEQ, REF_REP, REF_SEQ, IS_DELETED) "
+						+ "VALUES (:sessionId, :replicaId, :nodeRep, :nodeSeq, :arrRep, :arrSeq,"
+						+ " :dataRep, :dataSeq, :refRep, :refSeq, :isDeleted)", params);
+
+		if (currentNodeId.isPresent()) {
+			// set the current to point to the new node.
+			namedTemplate.update(
+					"UPDATE GRID_REPLICA_ARR SET REF_REP = :nodeRep, REF_SEQ = :nodeSeq WHERE SESSION_ID = :sessionId "
+							+ "AND REPLICA_ID = :replicaId AND ARR_REP = :arrRep AND ARR_SEQ = :arrSeq "
+							+ "AND NODE_REP = :currentNodeRep AND NODE_SEQ = :currentNodeSeq",
+					params);
+		}
+	}
+
+	/**
+	 * Get the ID of the {@link ArrayNode} currently pointing to the provided
+	 * reference.
+	 * 
+	 * @param params
+	 * @return
+	 */
+	Optional<LogicalTimestamp> getCurrentArrayNodeAtReference(MapSqlParameterSource params) {
+		try {
+			return Optional.of(namedTemplate.queryForObject(
+					"SELECT NODE_REP, NODE_SEQ FROM GRID_REPLICA_ARR WHERE SESSION_ID = :sessionId "
+							+ "AND REPLICA_ID = :replicaId AND ARR_REP = :arrRep AND ARR_SEQ = :arrSeq "
+							+ "AND REF_REP = :refRep AND REF_SEQ = :refSeq FOR UPDATE",
+					params, (ResultSet rs, int rowNum) -> {
+						return new LogicalTimestamp().setReplicaId(rs.getLong("NODE_REP"))
+								.setSequenceNumber(rs.getLong("NODE_SEQ"));
+					}));
+		} catch (EmptyResultDataAccessException e) {
+			return Optional.empty();
+		}
+	}
+
+	MapSqlParameterSource createArrrayNodeParameter(Long sessionId, Long replicaId, ArrayNode node) {
+		return new MapSqlParameterSource().addValue("sessionId", sessionId).addValue("replicaId", replicaId)
+				.addValue("nodeRep", node.getId().getReplicaId()).addValue("nodeSeq", node.getId().getSequenceNumber())
+				.addValue("arrRep", node.getArrayId().getReplicaId())
+				.addValue("arrSeq", node.getArrayId().getSequenceNumber())
+				.addValue("dataRep", node.getDataId() != null ? node.getDataId().getReplicaId() : null)
+				.addValue("dataSeq", node.getDataId() != null ? node.getDataId().getSequenceNumber() : null)
+				.addValue("refRep", node.getReferenceNodeId() != null ? node.getReferenceNodeId().getReplicaId() : null)
+				.addValue("refSeq",
+						node.getReferenceNodeId() != null ? node.getReferenceNodeId().getSequenceNumber() : null)
+				.addValue("isDeleted", node.getIsDeleted());
 	}
 
 	@Override
-	public List<ArrayNode> getArrays(String sessionIdString, Long replicaId, List<LogicalTimestamp> ids) {
-		// TODO Auto-generated method stub
-		return null;
+	public List<ArrayNode> getArrayNodesInOrder(String sessionIdString, Long replicaId, LogicalTimestamp arrayId,
+			Long limit, Long offset) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		MapSqlParameterSource params = new MapSqlParameterSource();
+		params.addValue("sessionId", sessionId);
+		params.addValue("replicaId", replicaId);
+		params.addValue("arrRep", arrayId.getReplicaId());
+		params.addValue("arrSeq", arrayId.getSequenceNumber());
+		params.addValue("limit", limit);
+		params.addValue("offset", offset);
+
+		return namedTemplate.query(LIST_ARRAY_ORDER_SQL, params, ARRAY_NODE_MAPPER);
 	}
 
 	@Override
-	public Optional<ArrayNode> getRgaAtPosition(String sessionId, Long replicaId, LogicalTimestamp arrayId,
-			LogicalTimestamp cursor) {
-		// TODO Auto-generated method stub
-		return Optional.empty();
+	public Optional<LogicalTimestamp> findArrayInsertLocation(String sessionIdString, Long replicaId,
+			ArrayNode toInsert) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		MapSqlParameterSource param = createArrrayNodeParameter(sessionId, replicaId, toInsert);
+		try {
+			/*
+			 * This query will recursively walk the RGA starting at the new node's reference
+			 * ID. The first node in the walk with a data value less than or equal to the
+			 * new data's value will be returned. If there are no nodes that meet this
+			 * condition, then the last node in the RGA will be returned.
+			 */
+			ArrayNode finalCursorNode = namedTemplate.queryForObject(FIND_INSERT_LOCATION, param, ARRAY_NODE_MAPPER);
+			//
+			int comp = finalCursorNode.getDataId().compareTo(toInsert.getDataId());
+			if (comp == 0) {
+				/*
+				 * The data at the cursor position matches the new data, so the new node does
+				 * not need to be inserted.
+				 */
+				return Optional.empty();
+			}
+			if (comp < 0) {
+				/*
+				 * The cursor node's data is less than the new data so the new node will be
+				 * inserted at the cursor node's position with the cursor node referencing the
+				 * new node.
+				 */
+				return Optional.of(finalCursorNode.getReferenceNodeId());
+			}
+			/*
+			 * The cursor node's data is greater than the new data, but there are no more
+			 * nodes in the RGA so the new node appended to the end of the RGA by
+			 * referencing the cursor node.
+			 */
+			return Optional.of(finalCursorNode.getNodeId());
+		} catch (EmptyResultDataAccessException e) {
+			// no conflict
+			return Optional.of(toInsert.getReferenceNodeId());
+		}
 	}
 }

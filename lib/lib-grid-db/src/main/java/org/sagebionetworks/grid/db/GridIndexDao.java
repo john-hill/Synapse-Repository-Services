@@ -172,11 +172,42 @@ public interface GridIndexDao {
 	 */
 	List<VectorNode> getVectors(String sessionIdString, Long replicaId, List<LogicalTimestamp> ids);
 
-	void saveArrayNode(String sessionId, Long replicaId, List<ArrayNode> batch);
-	
-	List<ArrayNode> getArrays(String sessionIdString, Long replicaId, List<LogicalTimestamp> ids);
+	/**
+	 * Will create an a new empty array for each provided array ID.s
+	 * 
+	 * @param sessionIdString
+	 * @param replicaId
+	 * @param arrayIds
+	 */
+	void createArrayBatch(String sessionIdString, Long replicaId, List<LogicalTimestamp> arrayIds);
 
-	Optional<ArrayNode> getRgaAtPosition(String sessionId, Long replicaId, LogicalTimestamp arrayId,
-			LogicalTimestamp cursor);
+	/**
+	 * Insert an {@link ArrayNode} into an array.
+	 * 
+	 * @param sessionIdString
+	 * @param replicaId
+	 * @param toInsert
+	 */
+	void insertIntoArray(String sessionIdString, Long replicaId, ArrayNode toInsert);
+
+	/**
+	 * Get a single page of ordered {@link ArrayNode}.
+	 * 
+	 * @param sessionIdString
+	 * @param replicaId
+	 * @param arrayId
+	 * @param limit
+	 * @param offset
+	 * @return
+	 */
+	List<ArrayNode> getArrayNodesInOrder(String sessionIdString, Long replicaId, LogicalTimestamp arrayId, Long limit,
+			Long offset);
+
+	/**
+	 * Given a new {@link ArrayNode} to insert, find the location where the node
+	 * should actually be inserted following the RGA insert algorithm (specifically
+	 * step three).
+	 */
+	Optional<LogicalTimestamp> findArrayInsertLocation(String sessionIdString, Long replicaId, ArrayNode toInsert);
 
 }

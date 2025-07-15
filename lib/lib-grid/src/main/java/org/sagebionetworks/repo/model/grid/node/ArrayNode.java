@@ -2,36 +2,20 @@ package org.sagebionetworks.repo.model.grid.node;
 
 import java.util.Objects;
 
-import org.json.JSONArray;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
-import org.sagebionetworks.repo.model.grid.patch.compact.LogicalTimestampCompactSerializable;
 
 /**
  * The Replicated Growable Array (RGA) algorithm is used for all JSON CRDT nodes
  * which implement an ordered lists of values. An ArrayNode represents a single
  * node in the RGA, positioned after the {@link ArrayNode#referenceNodeId}.
  */
-public class ArrayNode implements Node, HasJsonValue<ArrayNode> {
+public class ArrayNode implements Node {
 
 	private LogicalTimestamp nodeId; // the ID of this node.
 	private LogicalTimestamp arrayId; // the ID of the array that this node belongs too.
 	private LogicalTimestamp dataId; // the ID of the data contained in this node.
 	private LogicalTimestamp referenceNodeId; // the ID of the node that proceeds this node in the array (its parent).
 	private Boolean isDeleted;
-
-	@Override
-	public ArrayNode setValueFromJson(String json) {
-		dataId = "[]".equals(json) ? null : LogicalTimestampCompactSerializable.deserialize(new JSONArray(json));
-		return this;
-	}
-
-	@Override
-	public String getValueAsJson() {
-		if (dataId == null) {
-			return "[]";
-		}
-		return LogicalTimestampCompactSerializable.serialize(dataId).toString();
-	}
 
 	@Override
 	public LogicalTimestamp getId() {
@@ -106,11 +90,6 @@ public class ArrayNode implements Node, HasJsonValue<ArrayNode> {
 	public String toString() {
 		return "ArrayNode [nodeId=" + nodeId + ", arrayId=" + arrayId + ", dataId=" + dataId + ", referenceNodeId="
 				+ referenceNodeId + ", isDeleted=" + isDeleted + "]";
-	}
-
-	public boolean attemptInsert(ArrayNode i) {
-		// TODO Auto-generated method stub
-		return false;
 	}
 
 }

@@ -5,8 +5,8 @@ import java.util.stream.Collectors;
 
 import org.sagebionetworks.grid.db.GridIndexDao;
 import org.sagebionetworks.grid.db.OperationHandler;
-import org.sagebionetworks.repo.model.grid.node.ArrayNode;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
+import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewArray;
 import org.sagebionetworks.repo.model.grid.patch.operation.OperationType;
 import org.sagebionetworks.util.ValidateArgument;
@@ -32,11 +32,9 @@ public class NewArrayHandler implements OperationHandler<NewArray> {
 		ValidateArgument.required(sessionId, "sessionId");
 		ValidateArgument.required(replicaId, "replicId");
 		ValidateArgument.required(batch, "batch");
-		dao.saveIndex(sessionId, replicaId, IndexType.arr,
-				batch.stream().map(NewArray::getOperationId).collect(Collectors.toList()));
-		dao.saveArrayNode(sessionId, replicaId,
-				batch.stream().map(o -> new ArrayNode().setNodeId(o.getOperationId()).setArrayId(o.getOperationId()))
-						.collect(Collectors.toList()));
+		List<LogicalTimestamp> arrayIds = batch.stream().map(NewArray::getOperationId).collect(Collectors.toList());
+		dao.saveIndex(sessionId, replicaId, IndexType.arr, arrayIds);
+		dao.createArrayBatch(sessionId, replicaId, arrayIds);
 	}
 
 }

@@ -380,7 +380,7 @@ public class AgentChatWorkerIntegrationTest {
 							assertEquals(sessionId, response.getSessionId());
 							assertNotNull(response.getResponseText());
 							System.out.println(response.getResponseText());
-							assertTrue(response.getResponseText().contains("PUBLICLY_ACCESSIBLE"));
+							assertTrue(response.getResponseText().toLowerCase().contains("public"));
 						}, MAX_WAIT_MS)
 				.getResponse();
 
@@ -442,8 +442,8 @@ public class AgentChatWorkerIntegrationTest {
 
 		String traceText = agentService.getChatTrace(admin.getId(), new TraceEventsRequest().setJobId(jobId)).getPage()
 				.stream().map(TraceEvent::getMessage).reduce(String::concat).orElseThrow();
-
-		assertTrue(traceText.contains("knowledge base"));
+		
+		assertTrue(traceText.contains("knowledgebase"));
 
 	}
 

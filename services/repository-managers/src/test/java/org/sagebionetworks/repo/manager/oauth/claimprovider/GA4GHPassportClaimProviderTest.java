@@ -7,9 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.sagebionetworks.repo.manager.oauth.claimprovider.GA4GHPassportClaimProvider.VISA_CLAIM_NAME;
 
+import java.security.KeyPair;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,6 +20,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.repo.manager.KeyPairUtil;
+import org.sagebionetworks.repo.manager.oauth.JWTTestHelper;
 import org.sagebionetworks.repo.model.AccessApprovalDAO;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.oauth.GA4GHByType;
@@ -26,6 +32,10 @@ import org.sagebionetworks.repo.model.oauth.GA4GHVisaType;
 import org.sagebionetworks.repo.model.oauth.OIDCClaimName;
 import org.sagebionetworks.repo.model.oauth.OIDCClaimsRequestDetails;
 import org.sagebionetworks.util.Clock;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtParser;
+import io.jsonwebtoken.Jwts;
 
 @ExtendWith(MockitoExtension.class)
 public class GA4GHPassportClaimProviderTest {
@@ -38,6 +48,9 @@ public class GA4GHPassportClaimProviderTest {
 	
 	@Mock
 	private Clock clock;
+	
+	@Mock
+	private StackConfiguration stackConfiguration;
 	
 	@InjectMocks
 	private GA4GHPassportClaimProvider claimProvider;
@@ -61,6 +74,16 @@ public class GA4GHPassportClaimProviderTest {
 		passportRequest = new OIDCClaimsRequestDetails();
 		passportRequest.setValue(createArUrl(ACCESS_REQUIREMENT_ID));
 		passportRequest.setValues(List.of(createArUrl("222"), createArUrl("333")));
+		
+		/*
+		 * Since we mock stack configuration we have to reintroduce a (valid, though NOT production)
+		 * RSA key that can be used to sign tokens.
+		 */
+		when(stackConfiguration.getOIDCSignatureRSAPrivateKeys()).thenReturn(
+				Collections.singletonList(JWTTestHelper.TEST_RSA_KEY_PAIR));
+		
+		// takes the place of Spring set up
+		claimProvider.afterPropertiesSet();
 	}
 	
 	@Test
@@ -133,12 +156,38 @@ public class GA4GHPassportClaimProviderTest {
 		long now = System.currentTimeMillis();
 		when(clock.currentTimeMillis()).thenReturn(now);
 
-		GA4GHVisaPayload expected = createGA4GHVisaPayload(now, GA4GHByType.dac, GA4GHVisaType.ControlledAccessGrants);
+		String expected = claimProvider.visaAsJWS(createGA4GHVisaPayload(now, GA4GHByType.dac, GA4GHVisaType.ControlledAccessGrants));
 
 		// method under test
 		List<Object> actual = (List<Object>)claimProvider.getClaim(USER_ID, SUBJECT, passportRequest, AUTH_ENDPOINT);
 		assertEquals(1, actual.size());
 		assertEquals(expected, actual.get(0));
+	}
+	
+	@Test
+	public void testVisaAsJWS() {
+		GA4GHVisaPayload payload = createGA4GHVisaPayload(System.currentTimeMillis(), GA4GHByType.dac, GA4GHVisaType.ControlledAccessGrants);
+		
+		// method under test
+		String jwt = claimProvider.visaAsJWS(payload);
+		
+		String testPemEncodedRsaPrivateKey = stackConfiguration.getOIDCSignatureRSAPrivateKeys().get(0);
+		KeyPair testKeyPair = KeyPairUtil.getRSAKeyPairFromPrivateKey(testPemEncodedRsaPrivateKey);
+		JwtParser parser = Jwts.parserBuilder().setSigningKey(testKeyPair.getPrivate()).build();
+		
+		Claims parsedClaims = parser.parseClaimsJws(jwt).getBody();
+		assertEquals(payload.getExp(), parsedClaims.getExpiration().getTime()/1000L);
+		assertEquals(payload.getIat(), parsedClaims.getIssuedAt().getTime()/1000L);
+		assertEquals(payload.getIss(), parsedClaims.getIssuer());
+		assertEquals(payload.getSub(), parsedClaims.getSubject());
+		GA4GHVisa expectedVisa = payload.getGa4gh_visa_v1();
+		Map<String,Object> actualVisa = (Map<String,Object>)parsedClaims.get(VISA_CLAIM_NAME);
+		assertEquals(expectedVisa.getAsserted().intValue(), actualVisa.get("asserted"));
+		assertEquals(expectedVisa.getBy().name(), actualVisa.get("by"));
+		assertEquals(expectedVisa.getSource(), actualVisa.get("source"));
+		assertEquals(expectedVisa.getType().name(), actualVisa.get("type"));
+		assertEquals(expectedVisa.getValue(), actualVisa.get("value"));
+		
 	}
 
 	@Test

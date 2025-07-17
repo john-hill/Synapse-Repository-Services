@@ -27,7 +27,6 @@ import org.sagebionetworks.repo.model.AccessApprovalDAO;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.oauth.GA4GHByType;
 import org.sagebionetworks.repo.model.oauth.GA4GHVisa;
-import org.sagebionetworks.repo.model.oauth.GA4GHVisaPayload;
 import org.sagebionetworks.repo.model.oauth.GA4GHVisaType;
 import org.sagebionetworks.repo.model.oauth.OIDCClaimName;
 import org.sagebionetworks.repo.model.oauth.OIDCClaimsRequestDetails;

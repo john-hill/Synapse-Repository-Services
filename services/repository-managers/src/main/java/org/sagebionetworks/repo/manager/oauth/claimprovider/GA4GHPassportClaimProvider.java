@@ -21,7 +21,6 @@ import org.sagebionetworks.repo.model.ManagedACTAccessRequirement;
 import org.sagebionetworks.repo.model.SelfSignAccessRequirement;
 import org.sagebionetworks.repo.model.oauth.GA4GHByType;
 import org.sagebionetworks.repo.model.oauth.GA4GHVisa;
-import org.sagebionetworks.repo.model.oauth.GA4GHVisaPayload;
 import org.sagebionetworks.repo.model.oauth.GA4GHVisaType;
 import org.sagebionetworks.repo.model.oauth.OIDCClaimName;
 import org.sagebionetworks.repo.model.oauth.OIDCClaimsRequestDetails;
@@ -120,18 +119,12 @@ public class GA4GHPassportClaimProvider implements InitializingBean, OIDCClaimPr
 		return matcher.group(1);
 	}
 	
-	GA4GHVisaPayload getVisaForAccessRequirement(String arId, String subject, String concreteType, String oauthEndpoint) {
-		GA4GHVisaPayload result = new GA4GHVisaPayload();
-		result.setIss(oauthEndpoint);
-		long issuedAtSeconds = clock.currentTimeMillis()/1000L;
-		result.setIat(issuedAtSeconds);
-		result.setExp(issuedAtSeconds+VISA_EXPIRATION_SECONDS);
-		result.setSub(subject);
+	GA4GHVisa getVisaForAccessRequirement(String arId, String concreteType, String oauthEndpoint) {
 		GA4GHVisa visa = new GA4GHVisa();
-		result.setGa4gh_visa_v1(visa);
 		visa.setSource(oauthEndpoint);
 		String baseUri=oauthEndpoint.replace("/auth/v1","");
 		visa.setValue(createVisaValueFromARId(baseUri, arId));
+		long issuedAtSeconds = clock.currentTimeMillis()/1000L;
 		visa.setAsserted(issuedAtSeconds);
 		if (SelfSignAccessRequirement.class.getName().equals(concreteType)) {
 			visa.setType(GA4GHVisaType.AcceptedTermsAndPolicies);	
@@ -143,17 +136,16 @@ public class GA4GHPassportClaimProvider implements InitializingBean, OIDCClaimPr
 		} else {
 			throw new IllegalArgumentException("Unexpected AccessRequirement type: "+concreteType);
 		}
-		return result;
+		return visa;
 	}
 	
-	String visaAsJWS(GA4GHVisaPayload visaPayload) {
+	String visaAsJWS(GA4GHVisa visa, String subject) {
 		Claims claims = new DefaultClaims();
-		claims.setIssuer(visaPayload.getIss());
-		claims.setExpiration(new Date(1000L*visaPayload.getExp()));
-		visaPayload.getGa4gh_visa_v1();
-		claims.setIssuedAt(new Date(1000L*visaPayload.getIat()));
-		claims.put(VISA_CLAIM_NAME, visaPayload.getGa4gh_visa_v1());
-		claims.setSubject(visaPayload.getSub());
+		claims.setIssuer(visa.getSource());
+		claims.setIssuedAt(new Date(1000L*visa.getAsserted()));
+		claims.setExpiration(new Date(1000L*(visa.getAsserted()+VISA_EXPIRATION_SECONDS)));
+		claims.put(VISA_CLAIM_NAME, visa);
+		claims.setSubject(subject);
 		return Jwts.builder()
 		.setClaims(claims)
 		.setHeaderParam(Header.TYPE, Header.JWT_TYPE)
@@ -180,7 +172,7 @@ public class GA4GHPassportClaimProvider implements InitializingBean, OIDCClaimPr
 		Map<String, String> accessRequirementTypes = accessRequirementDao.getConcreteTypes(approvedArIds);
 		List<Object> result = new ArrayList<>(approvedArIds.size());
 		for (Map.Entry<String, String> entry : accessRequirementTypes.entrySet()) {
-			result.add(visaAsJWS(getVisaForAccessRequirement(entry.getKey(), subject, entry.getValue(), oauthEndpoint)));
+			result.add(visaAsJWS(getVisaForAccessRequirement(entry.getKey(), entry.getValue(), oauthEndpoint), subject));
 		}
 		return result;
 	}

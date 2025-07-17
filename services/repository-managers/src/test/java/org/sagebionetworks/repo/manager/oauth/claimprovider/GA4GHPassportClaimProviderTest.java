@@ -102,20 +102,14 @@ public class GA4GHPassportClaimProviderTest {
 		});
 	}
 	
-	private static GA4GHVisaPayload createGA4GHVisaPayload(long now, GA4GHByType by, GA4GHVisaType type) {
-		GA4GHVisaPayload result = new GA4GHVisaPayload();
-		result.setExp(now/1000L+3600*24);
+	private static GA4GHVisa createGA4GHVisa(long now, GA4GHByType by, GA4GHVisaType type) {
 		GA4GHVisa visa = new GA4GHVisa();
 		visa.setAsserted(now/1000L);
 		visa.setBy(by);
 		visa.setSource(AUTH_ENDPOINT);
 		visa.setType(type);
 		visa.setValue(createArUrl(ACCESS_REQUIREMENT_ID));
-		result.setGa4gh_visa_v1(visa);
-		result.setIat(now/1000L);
-		result.setIss(AUTH_ENDPOINT);
-		result.setSub(SUBJECT);
-		return result;
+		return visa;
 	}
 	
 	@Test
@@ -123,10 +117,10 @@ public class GA4GHPassportClaimProviderTest {
 		long now = System.currentTimeMillis();
 		when(clock.currentTimeMillis()).thenReturn(now);
 		// method under test
-		GA4GHVisaPayload actual = 
+		GA4GHVisa actual = 
 				claimProvider.getVisaForAccessRequirement(
-				ACCESS_REQUIREMENT_ID, SUBJECT, "org.sagebionetworks.repo.model.SelfSignAccessRequirement", AUTH_ENDPOINT);
-		GA4GHVisaPayload expected = createGA4GHVisaPayload(now, GA4GHByType.self, GA4GHVisaType.AcceptedTermsAndPolicies);
+				ACCESS_REQUIREMENT_ID, "org.sagebionetworks.repo.model.SelfSignAccessRequirement", AUTH_ENDPOINT);
+		GA4GHVisa expected = createGA4GHVisa(now, GA4GHByType.self, GA4GHVisaType.AcceptedTermsAndPolicies);
 		assertEquals(expected, actual);
 	}
 
@@ -135,10 +129,10 @@ public class GA4GHPassportClaimProviderTest {
 		long now = System.currentTimeMillis();
 		when(clock.currentTimeMillis()).thenReturn(now);
 		// method under test
-		GA4GHVisaPayload actual = 
+		GA4GHVisa actual = 
 				claimProvider.getVisaForAccessRequirement(
-				ACCESS_REQUIREMENT_ID, SUBJECT, "org.sagebionetworks.repo.model.ManagedACTAccessRequirement", AUTH_ENDPOINT);
-		GA4GHVisaPayload expected = createGA4GHVisaPayload(now, GA4GHByType.dac, GA4GHVisaType.ControlledAccessGrants);
+				ACCESS_REQUIREMENT_ID, "org.sagebionetworks.repo.model.ManagedACTAccessRequirement", AUTH_ENDPOINT);
+		GA4GHVisa expected = createGA4GHVisa(now, GA4GHByType.dac, GA4GHVisaType.ControlledAccessGrants);
 		assertEquals(expected, actual);
 
 	}
@@ -156,7 +150,7 @@ public class GA4GHPassportClaimProviderTest {
 		long now = System.currentTimeMillis();
 		when(clock.currentTimeMillis()).thenReturn(now);
 
-		String expected = claimProvider.visaAsJWS(createGA4GHVisaPayload(now, GA4GHByType.dac, GA4GHVisaType.ControlledAccessGrants));
+		String expected = claimProvider.visaAsJWS(createGA4GHVisa(now, GA4GHByType.dac, GA4GHVisaType.ControlledAccessGrants), SUBJECT);
 
 		// method under test
 		List<Object> actual = (List<Object>)claimProvider.getClaim(USER_ID, SUBJECT, passportRequest, AUTH_ENDPOINT);
@@ -166,27 +160,27 @@ public class GA4GHPassportClaimProviderTest {
 	
 	@Test
 	public void testVisaAsJWS() {
-		GA4GHVisaPayload payload = createGA4GHVisaPayload(System.currentTimeMillis(), GA4GHByType.dac, GA4GHVisaType.ControlledAccessGrants);
+		long now = System.currentTimeMillis();
+		GA4GHVisa visa = createGA4GHVisa(now, GA4GHByType.dac, GA4GHVisaType.ControlledAccessGrants);
 		
 		// method under test
-		String jwt = claimProvider.visaAsJWS(payload);
+		String jwt = claimProvider.visaAsJWS(visa, SUBJECT);
 		
 		String testPemEncodedRsaPrivateKey = stackConfiguration.getOIDCSignatureRSAPrivateKeys().get(0);
 		KeyPair testKeyPair = KeyPairUtil.getRSAKeyPairFromPrivateKey(testPemEncodedRsaPrivateKey);
 		JwtParser parser = Jwts.parserBuilder().setSigningKey(testKeyPair.getPrivate()).build();
 		
 		Claims parsedClaims = parser.parseClaimsJws(jwt).getBody();
-		assertEquals(payload.getExp(), parsedClaims.getExpiration().getTime()/1000L);
-		assertEquals(payload.getIat(), parsedClaims.getIssuedAt().getTime()/1000L);
-		assertEquals(payload.getIss(), parsedClaims.getIssuer());
-		assertEquals(payload.getSub(), parsedClaims.getSubject());
-		GA4GHVisa expectedVisa = payload.getGa4gh_visa_v1();
+		assertEquals(now/1000L+86400L, parsedClaims.getExpiration().getTime()/1000L);
+		assertEquals(now/1000L, parsedClaims.getIssuedAt().getTime()/1000L);
+		assertEquals(AUTH_ENDPOINT, parsedClaims.getIssuer());
+		assertEquals(SUBJECT, parsedClaims.getSubject());
 		Map<String,Object> actualVisa = (Map<String,Object>)parsedClaims.get(VISA_CLAIM_NAME);
-		assertEquals(expectedVisa.getAsserted().intValue(), actualVisa.get("asserted"));
-		assertEquals(expectedVisa.getBy().name(), actualVisa.get("by"));
-		assertEquals(expectedVisa.getSource(), actualVisa.get("source"));
-		assertEquals(expectedVisa.getType().name(), actualVisa.get("type"));
-		assertEquals(expectedVisa.getValue(), actualVisa.get("value"));
+		assertEquals(visa.getAsserted().intValue(), actualVisa.get("asserted"));
+		assertEquals(visa.getBy().name(), actualVisa.get("by"));
+		assertEquals(visa.getSource(), actualVisa.get("source"));
+		assertEquals(visa.getType().name(), actualVisa.get("type"));
+		assertEquals(visa.getValue(), actualVisa.get("value"));
 		
 	}
 

@@ -27,7 +27,7 @@ jobs:
       - name: Build and Test
         run: ./docker_build.sh
         env:
-          INSTANCE: $INSTANCE
+#          INSTANCE: $INSTANCE
           user: $INSTANCE
           stack: dev
           STACK_BRANCH: $STACK_BRANCH

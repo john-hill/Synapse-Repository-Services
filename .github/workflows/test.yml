@@ -36,6 +36,7 @@ jobs:
       org_sagebionetworks_table_cluster_endpoint_0: dev-${{ needs.get-env.outputs.INSTANCE }}-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
       org_sagebionetworks_search_enabled: false
       org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
+      m2_cache_parent_folder: .
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3

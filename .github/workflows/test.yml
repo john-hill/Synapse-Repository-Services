@@ -21,25 +21,26 @@ jobs:
   build_and_test:
     needs: get-env
     runs-on: ubuntu-latest
-    env:
-      INSTANCE: ${{ needs.get-env.outputs.INSTANCE }}
-      user: ${{ needs.get-env.outputs.INSTANCE }}
-      stack: dev
-      STACK_BRANCH: ${{ needs.get-env.outputs.STACK_BRANCH }}
-      org_sagebionetworks_stack_iam_id: ${{ secrets.org_sagebionetworks_stack_iam_id }}
-      org_sagebionetworks_stack_iam_key: ${{ secrets.org_sagebionetworks_stack_iam_key }}
-      org_sagebionetworks_stackEncryptionKey: ${{ secrets.org_sagebionetworks_stackEncryptionKey }}
-      rds_password: ${{ secrets.rds_password }}
-      org_sagebionetworks_cloudfront_keypair: ${{ secrets.org_sagebionetworks_cloudfront_keypair }}
-      org_sagebionetworks_cloudfront_private_key_secret: ${{ secrets.org_sagebionetworks_cloudfront_private_key_secret }}
-      org_sagebionetworks_repository_database_connection_url: dev-${{ needs.get-env.outputs.INSTANCE }}-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
-      org_sagebionetworks_table_cluster_endpoint_0: dev-${{ needs.get-env.outputs.INSTANCE }}-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
-      org_sagebionetworks_search_enabled: false
-      org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
-      m2_cache_parent_folder: .
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Build and Test
         run: ./docker_build.sh
+        env:
+          INSTANCE: ${{ needs.get-env.outputs.INSTANCE }}
+          user: ${{ needs.get-env.outputs.INSTANCE }}
+          stack: dev
+          STACK_BRANCH: ${{ needs.get-env.outputs.STACK_BRANCH }}
+          org_sagebionetworks_stack_iam_id: ${{ secrets.org_sagebionetworks_stack_iam_id }}
+          org_sagebionetworks_stack_iam_key: ${{ secrets.org_sagebionetworks_stack_iam_key }}
+          org_sagebionetworks_stackEncryptionKey: ${{ secrets.org_sagebionetworks_stackEncryptionKey }}
+          rds_password: ${{ secrets.rds_password }}
+          org_sagebionetworks_cloudfront_keypair: ${{ secrets.org_sagebionetworks_cloudfront_keypair }}
+          org_sagebionetworks_cloudfront_private_key_secret: ${{ secrets.org_sagebionetworks_cloudfront_private_key_secret }}
+          org_sagebionetworks_repository_database_connection_url: dev-${{ needs.get-env.outputs.INSTANCE }}-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
+          org_sagebionetworks_table_cluster_endpoint_0: dev-${{ needs.get-env.outputs.INSTANCE }}-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
+          org_sagebionetworks_search_enabled: false
+          org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
+          m2_cache_parent_folder: .
+        

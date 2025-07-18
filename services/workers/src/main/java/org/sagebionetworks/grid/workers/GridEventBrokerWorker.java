@@ -32,7 +32,7 @@ import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.MessageAttributeValue;
 
 /**
- * This work pull in JSON-Rx message
+ * This worker pulls in JSON-Rx message
  * (<a href="https://jsonjoy.com/specs/json-rx">JSON Reactive RPC</a>) from the
  * queue. Message can either be from a websocket or internal worker. Factory
  * methods are used to convert each message to an internal POJO.

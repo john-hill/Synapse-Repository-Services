@@ -21,7 +21,7 @@ jobs:
   build_and_test:
     needs: get-env
     runs-on: ubuntu-latest
-    with:
+    env:
       INSTANCE: ${{ needs.get-env.outputs.INSTANCE }}
       STACK_BRANCH: ${{ needs.get-env.outputs.STACK_BRANCH }}
       org_sagebionetworks_stack_iam_id: ${{ secrets.org_sagebionetworks_stack_iam_id }}

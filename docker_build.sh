@@ -31,6 +31,10 @@
 set -e
 set -v
 
+# next two lines are temporary, for debugging
+echo INSTANCE $INSTANCE
+echo org_sagebionetworks_repository_database_connection_url $org_sagebionetworks_repository_database_connection_url
+
 db_name=${stack}${user}
 #used to log in to the db for setup
 rds_user_name=${db_name}user

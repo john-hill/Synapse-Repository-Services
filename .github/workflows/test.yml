@@ -23,6 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       INSTANCE: ${{ needs.get-env.outputs.INSTANCE }}
+      user: ${{ needs.get-env.outputs.INSTANCE }
+      stack: dev
       STACK_BRANCH: ${{ needs.get-env.outputs.STACK_BRANCH }}
       org_sagebionetworks_stack_iam_id: ${{ secrets.org_sagebionetworks_stack_iam_id }}
       org_sagebionetworks_stack_iam_key: ${{ secrets.org_sagebionetworks_stack_iam_key }}
@@ -39,4 +41,4 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Build and Test
-        run: ./jenkins_build.sh
+        run: ./docker_build.sh

@@ -27,18 +27,18 @@ jobs:
       - name: Build and Test
         run: ./docker_build.sh
         env:
-          INSTANCE: ${{ env.INSTANCE }}
-          user: ${{ env.INSTANCE }}
+          INSTANCE: $INSTANCE
+          user: $INSTANCE
           stack: dev
-          STACK_BRANCH: ${{ env.STACK_BRANCH }}
+          STACK_BRANCH: $STACK_BRANCH
           org_sagebionetworks_stack_iam_id: ${{ secrets.org_sagebionetworks_stack_iam_id }}
           org_sagebionetworks_stack_iam_key: ${{ secrets.org_sagebionetworks_stack_iam_key }}
           org_sagebionetworks_stackEncryptionKey: ${{ secrets.org_sagebionetworks_stackEncryptionKey }}
           rds_password: ${{ secrets.rds_password }}
           org_sagebionetworks_cloudfront_keypair: ${{ secrets.org_sagebionetworks_cloudfront_keypair }}
           org_sagebionetworks_cloudfront_private_key_secret: ${{ secrets.org_sagebionetworks_cloudfront_private_key_secret }}
-          org_sagebionetworks_repository_database_connection_url: dev-${{ env.INSTANCE }}-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
-          org_sagebionetworks_table_cluster_endpoint_0: dev-${{ env.INSTANCE }}-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
+          org_sagebionetworks_repository_database_connection_url: dev-$INSTANCE-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
+          org_sagebionetworks_table_cluster_endpoint_0: dev-$INSTANCE-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
           org_sagebionetworks_search_enabled: false
           org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
           m2_cache_parent_folder: .

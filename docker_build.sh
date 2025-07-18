@@ -31,7 +31,8 @@
 set -e
 set -v
 
-# next two lines are temporary, for debugging
+# next lines are temporary, for debugging
+echo org_sagebionetworks_stack_iam_id $org_sagebionetworks_stack_iam_id
 echo INSTANCE $INSTANCE
 echo org_sagebionetworks_repository_database_connection_url $org_sagebionetworks_repository_database_connection_url
 

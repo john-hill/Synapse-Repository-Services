@@ -155,6 +155,12 @@ public class OpenIDConnectManagerImplUnitTest {
 	
 	@Mock
 	private NotificationManager mockNotificationManager;
+	
+	@InjectMocks
+	private JwtBuilder jwtBuilder;
+
+	@Mock
+	private JwtBuilder mockJwtBuilder;
 
 	@InjectMocks
 	private OpenIDConnectManagerImpl openIDConnectManagerImpl;
@@ -292,16 +298,6 @@ public class OpenIDConnectManagerImplUnitTest {
 		mockClaimProviders.put(OIDCClaimName.ga4gh_passport_v1, mockPassportClaimProvider);
 		
 		openIDConnectManagerImpl.setClaimProviders(mockClaimProviders);
-		
-		/*
-		 * Since we mock stack configuration we have to reintroduce a (valid, though NOT production)
-		 * RSA key that can be used to sign tokens.
-		 */
-		when(stackConfiguration.getOIDCSignatureRSAPrivateKeys()).thenReturn(
-				Collections.singletonList(JWTTestHelper.TEST_RSA_KEY_PAIR));
-		
-		// takes the place of Spring set up
-		mockPassportClaimProvider.afterPropertiesSet();
 	}
 	
 	@Test
@@ -1377,6 +1373,19 @@ public class OpenIDConnectManagerImplUnitTest {
 		// if the client omits a signing algorithm it means it wants the UserInfo as json
 		oauthClient.setUserinfo_signed_response_alg(null);
 		
+		
+		/*
+		 * Since we mock stack configuration we have to reintroduce a (valid, though NOT production)
+		 * RSA key that can be used to sign tokens.
+		 */
+		when(stackConfiguration.getOIDCSignatureRSAPrivateKeys()).thenReturn(
+				Collections.singletonList(JWTTestHelper.TEST_RSA_KEY_PAIR));
+		
+		when(mockJwtBuilder.createSignedJWT(any()))
+		.thenAnswer(invocation -> {
+			Claims claims = (Claims) invocation.getArgument(0);
+			return jwtBuilder.createSignedJWT(claims);});
+	
 		// method under test
 		Map<OIDCClaimName,Object> userInfo = (Map<OIDCClaimName,Object>)openIDConnectManagerImpl.
 				getUserInfo(ACCESS_TOKEN, OAUTH_ENDPOINT);

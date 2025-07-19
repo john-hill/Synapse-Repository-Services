@@ -1,7 +1,5 @@
 package org.sagebionetworks.repo.manager.oauth.claimprovider;
 
-import java.security.KeyPair;
-import java.security.PrivateKey;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -12,8 +10,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringUtils;
-import org.sagebionetworks.StackConfiguration;
-import org.sagebionetworks.repo.manager.KeyPairUtil;
+import org.sagebionetworks.repo.manager.oauth.JwtBuilder;
 import org.sagebionetworks.repo.model.ACTAccessRequirement;
 import org.sagebionetworks.repo.model.AccessApprovalDAO;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
@@ -25,15 +22,10 @@ import org.sagebionetworks.repo.model.oauth.GA4GHVisaType;
 import org.sagebionetworks.repo.model.oauth.OIDCClaimName;
 import org.sagebionetworks.repo.model.oauth.OIDCClaimsRequestDetails;
 import org.sagebionetworks.util.Clock;
-import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Header;
-import io.jsonwebtoken.JwsHeader;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.impl.DefaultClaims;
 
 @Service
@@ -63,7 +55,7 @@ import io.jsonwebtoken.impl.DefaultClaims;
  * For those access requirements for which the user is approved, a GA4GH Visa will be included
  * in the array returned in the "ga4gh_passport_v1" claim of the OIDC user-info.
  */
-public class GA4GHPassportClaimProvider implements InitializingBean, OIDCClaimProvider {
+public class GA4GHPassportClaimProvider implements OIDCClaimProvider {
 	// The source organization’s information system has made the assertion based on system data or metadata that it stores.
 	// from https://github.com/ga4gh-duri/ga4gh-duri.github.io/blob/master/researcher_ids/ga4gh_passport_v1.md
 	private static final String ACCESS_REQUIREMENT_CLAIM = "%s/repo/v1/accessRequirement/%s";
@@ -80,22 +72,9 @@ public class GA4GHPassportClaimProvider implements InitializingBean, OIDCClaimPr
 	private Clock clock;
 	
 	@Autowired
-	private StackConfiguration stackConfiguration;
-	
-	private String oidcSignatureKeyId;
-	private PrivateKey oidcSignaturePrivateKey;
+	private JwtBuilder jwtBuilder;
 	
 	public static final String VISA_CLAIM_NAME = "ga4gh_visa_v1";
-	
-	@Override
-	public void afterPropertiesSet() {
-		List<String> pemEncodedRsaPrivateKeys = stackConfiguration.getOIDCSignatureRSAPrivateKeys();
-		
-		// grab the latest private key to be used for signing
-		KeyPair keyPair = KeyPairUtil.getRSAKeyPairFromPrivateKey(pemEncodedRsaPrivateKeys.get(pemEncodedRsaPrivateKeys.size()-1));
-		this.oidcSignaturePrivateKey=keyPair.getPrivate();
-		this.oidcSignatureKeyId = KeyPairUtil.computeKeyId(keyPair.getPublic());
-	}
 	
 	@Override
 	public OIDCClaimName getName() {
@@ -146,12 +125,7 @@ public class GA4GHPassportClaimProvider implements InitializingBean, OIDCClaimPr
 		claims.setExpiration(new Date(1000L*(visa.getAsserted()+VISA_EXPIRATION_SECONDS)));
 		claims.put(VISA_CLAIM_NAME, visa);
 		claims.setSubject(subject);
-		return Jwts.builder()
-		.setClaims(claims)
-		.setHeaderParam(Header.TYPE, Header.JWT_TYPE)
-		.setHeaderParam(JwsHeader.KEY_ID, oidcSignatureKeyId)
-		.signWith(oidcSignaturePrivateKey, SignatureAlgorithm.RS256)
-		.compact();
+		return jwtBuilder.createSignedJWT(claims);
 	}
 
 	@Override

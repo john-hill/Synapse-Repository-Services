@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
@@ -96,6 +97,12 @@ public class OIDCTokenManagerImplTest {
 	private OAuthAccessTokenDaoImpl mockAccessTokenDao;
 	
 	@InjectMocks
+	private JwtBuilder jwtBuilder;
+	
+	@Mock
+	private JwtBuilder mockJwtBuilder;
+	
+	@InjectMocks
 	private OIDCTokenManagerImpl oidcTokenManager;
 	
 	private JwtParser jwtParser;
@@ -108,13 +115,13 @@ public class OIDCTokenManagerImplTest {
 		 */
 		when(stackConfiguration.getOIDCSignatureRSAPrivateKeys()).thenReturn(
 				Collections.singletonList(JWTTestHelper.TEST_RSA_KEY_PAIR));
-		
+
 		// takes the place of Spring set up
 		oidcTokenManager.afterPropertiesSet();
-		
+
 		jwtParser = Jwts.parserBuilder()
-			.setSigningKey(getPublicSigningKey())
-			.build();
+				.setSigningKey(getPublicSigningKey())
+				.build();
 	}
 
 	@Test
@@ -132,6 +139,11 @@ public class OIDCTokenManagerImplTest {
 	
 	@Test
 	public void testGenerateOIDCIdentityToken() throws Exception {
+		when(mockJwtBuilder.createSignedJWT(any()))
+		.thenAnswer(invocation -> {
+			Claims claims = (Claims) invocation.getArgument(0);
+			return jwtBuilder.createSignedJWT(claims);});
+	
 		String oidcToken = oidcTokenManager.createOIDCIdToken(ISSUER, 
 				SUBJECT_ID, CLIENT_ID, NOW, NONCE, AUTH_TIME, TOKEN_ID, USER_CLAIMS);
 		Claims claims = jwtParser.parseClaimsJws(oidcToken).getBody();
@@ -236,6 +248,11 @@ public class OIDCTokenManagerImplTest {
 		
 	@Test
 	public void testGenerateOIDCAccessToken() throws Exception {
+		when(mockJwtBuilder.createSignedJWT(any()))
+		.thenAnswer(invocation -> {
+			Claims claims = (Claims) invocation.getArgument(0);
+			return jwtBuilder.createSignedJWT(claims);});
+	
 		List<OAuthScope> grantedScopes = Collections.singletonList(OAuthScope.openid);
 		Map<OIDCClaimName,OIDCClaimsRequestDetails> expectedClaims = new HashMap<OIDCClaimName,OIDCClaimsRequestDetails>();
 		expectedClaims.put(OIDCClaimName.email, ESSENTIAL);
@@ -286,6 +303,11 @@ public class OIDCTokenManagerImplTest {
 	
 	@Test
 	public void testGenerateOIDCAccessTokenWithPersistFalse() throws Exception {
+		when(mockJwtBuilder.createSignedJWT(any()))
+		.thenAnswer(invocation -> {
+			Claims claims = (Claims) invocation.getArgument(0);
+			return jwtBuilder.createSignedJWT(claims);});
+	
 		List<OAuthScope> grantedScopes = Collections.singletonList(OAuthScope.openid);
 		Map<OIDCClaimName,OIDCClaimsRequestDetails> expectedClaims = new HashMap<OIDCClaimName,OIDCClaimsRequestDetails>();
 		expectedClaims.put(OIDCClaimName.email, ESSENTIAL);
@@ -328,6 +350,11 @@ public class OIDCTokenManagerImplTest {
 	
 	@Test
 	public void testOIDCSignatureValidation() throws Exception {
+		when(mockJwtBuilder.createSignedJWT(any()))
+		.thenAnswer(invocation -> {
+			Claims claims = (Claims) invocation.getArgument(0);
+			return jwtBuilder.createSignedJWT(claims);});
+	
 		String oidcToken = oidcTokenManager.createOIDCIdToken("https://repo-prod.prod.sagebase.org/auth/v1", 
 				SUBJECT_ID, CLIENT_ID, NOW, NONCE, AUTH_TIME, TOKEN_ID, USER_CLAIMS);
 		oidcTokenManager.validateJWT(oidcToken);
@@ -337,6 +364,11 @@ public class OIDCTokenManagerImplTest {
 	public void testCreateInternalTotalAccessToken() {
 		long now = System.currentTimeMillis();
 		when(mockClock.currentTimeMillis()).thenReturn(now);
+		when(mockJwtBuilder.createSignedJWT(any()))
+		.thenAnswer(invocation -> {
+			Claims claims = (Claims) invocation.getArgument(0);
+			return jwtBuilder.createSignedJWT(claims);});
+	
 		Long principalId = 101L;
 		
 		// method under test
@@ -358,6 +390,11 @@ public class OIDCTokenManagerImplTest {
 		long now = System.currentTimeMillis();
 		when(mockClock.currentTimeMillis()).thenReturn(now);
 		
+		when(mockJwtBuilder.createSignedJWT(any()))
+		.thenAnswer(invocation -> {
+			Claims claims = (Claims) invocation.getArgument(0);
+			return jwtBuilder.createSignedJWT(claims);});
+	
 		Long principalId = 101L;
 		
 		// method under test
@@ -386,6 +423,11 @@ public class OIDCTokenManagerImplTest {
 	@Test
 	public void testParseExpiredJWTException() {
 		when(mockClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() - ONE_YEAR_MILLIS);
+		when(mockJwtBuilder.createSignedJWT(any()))
+		.thenAnswer(invocation -> {
+			Claims claims = (Claims) invocation.getArgument(0);
+			return jwtBuilder.createSignedJWT(claims);});
+	
 		Long principalId = 101L;
 		String expiredAccessToken = oidcTokenManager.createInternalTotalAccessToken(principalId);
 		assertThrows(OAuthUnauthenticatedException.class, () ->
@@ -394,6 +436,11 @@ public class OIDCTokenManagerImplTest {
 
 	@Test
 	public void testCreatePersonalAccessToken() throws Exception {
+		when(mockJwtBuilder.createSignedJWT(any()))
+		.thenAnswer(invocation -> {
+			Claims claims = (Claims) invocation.getArgument(0);
+			return jwtBuilder.createSignedJWT(claims);});
+	
 		List<OAuthScope> grantedScopes = Collections.singletonList(OAuthScope.openid);
 		Map<String,OIDCClaimsRequestDetails> expectedClaims = new HashMap<>();
 		expectedClaims.put(OIDCClaimName.email.name(), ESSENTIAL);
@@ -445,6 +492,11 @@ public class OIDCTokenManagerImplTest {
 	
 	@Test
 	public void testRevokeOIDCAccessToken() {
+		when(mockJwtBuilder.createSignedJWT(any()))
+		.thenAnswer(invocation -> {
+			Claims claims = (Claims) invocation.getArgument(0);
+			return jwtBuilder.createSignedJWT(claims);});
+	
 		
 		when(mockClock.currentTimeMillis()).thenReturn(System.currentTimeMillis());
 		
@@ -476,6 +528,11 @@ public class OIDCTokenManagerImplTest {
 		
 		when(mockClock.now()).thenReturn(now);
 		
+		when(mockJwtBuilder.createSignedJWT(any()))
+		.thenAnswer(invocation -> {
+			Claims claims = (Claims) invocation.getArgument(0);
+			return jwtBuilder.createSignedJWT(claims);});
+	
 		String messageId = "123";
 		String messageMd5 = "messageMd5";
 		String webhookOwnerId = "456";

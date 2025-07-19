@@ -17,17 +17,20 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.KeyPairUtil;
 import org.sagebionetworks.repo.manager.oauth.JWTTestHelper;
+import org.sagebionetworks.repo.manager.oauth.JwtBuilder;
 import org.sagebionetworks.repo.model.AccessApprovalDAO;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.oauth.GA4GHByType;
 import org.sagebionetworks.repo.model.oauth.GA4GHVisa;
 import org.sagebionetworks.repo.model.oauth.GA4GHVisaType;
+import org.sagebionetworks.repo.model.oauth.OAuthRefreshTokenInformation;
 import org.sagebionetworks.repo.model.oauth.OIDCClaimName;
 import org.sagebionetworks.repo.model.oauth.OIDCClaimsRequestDetails;
 import org.sagebionetworks.util.Clock;
@@ -51,6 +54,12 @@ public class GA4GHPassportClaimProviderTest {
 	@Mock
 	private StackConfiguration stackConfiguration;
 	
+	@Mock
+	private JwtBuilder mockJwtBuilder;
+	
+	@InjectMocks
+	private JwtBuilder jwtBuilder;
+	
 	@InjectMocks
 	private GA4GHPassportClaimProvider claimProvider;
 	
@@ -73,16 +82,6 @@ public class GA4GHPassportClaimProviderTest {
 		passportRequest = new OIDCClaimsRequestDetails();
 		passportRequest.setValue(createArUrl(ACCESS_REQUIREMENT_ID));
 		passportRequest.setValues(List.of(createArUrl("222"), createArUrl("333")));
-		
-		/*
-		 * Since we mock stack configuration we have to reintroduce a (valid, though NOT production)
-		 * RSA key that can be used to sign tokens.
-		 */
-		when(stackConfiguration.getOIDCSignatureRSAPrivateKeys()).thenReturn(
-				Collections.singletonList(JWTTestHelper.TEST_RSA_KEY_PAIR));
-		
-		// takes the place of Spring set up
-		claimProvider.afterPropertiesSet();
 	}
 	
 	@Test
@@ -138,6 +137,20 @@ public class GA4GHPassportClaimProviderTest {
 
 	@Test
 	public void testClaim() {
+		/*
+		 * Since we mock stack configuration we have to reintroduce a (valid, though NOT production)
+		 * RSA key that can be used to sign tokens.
+		 */
+		when(stackConfiguration.getOIDCSignatureRSAPrivateKeys()).thenReturn(
+				Collections.singletonList(JWTTestHelper.TEST_RSA_KEY_PAIR));
+
+		when(mockJwtBuilder.createSignedJWT(any()))
+		.thenAnswer(
+			    invocation -> {
+			        Claims claims = (Claims) invocation.getArgument(0);
+			        return jwtBuilder.createSignedJWT(claims);
+			    });
+
 		// method under test
 		assertEquals(OIDCClaimName.ga4gh_passport_v1, claimProvider.getName());
 		// method under test
@@ -159,6 +172,20 @@ public class GA4GHPassportClaimProviderTest {
 	
 	@Test
 	public void testVisaAsJWS() {
+		/*
+		 * Since we mock stack configuration we have to reintroduce a (valid, though NOT production)
+		 * RSA key that can be used to sign tokens.
+		 */
+		when(stackConfiguration.getOIDCSignatureRSAPrivateKeys()).thenReturn(
+				Collections.singletonList(JWTTestHelper.TEST_RSA_KEY_PAIR));
+
+		when(mockJwtBuilder.createSignedJWT(any()))
+		.thenAnswer(
+			    invocation -> {
+			        Claims claims = (Claims) invocation.getArgument(0);
+			        return jwtBuilder.createSignedJWT(claims);
+			    });
+
 		long now = System.currentTimeMillis();
 		GA4GHVisa visa = createGA4GHVisa(now, GA4GHByType.dac, GA4GHVisaType.ControlledAccessGrants);
 		

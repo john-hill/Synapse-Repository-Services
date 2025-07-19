@@ -19,6 +19,9 @@ jobs:
 
   build_and_test:
     needs: get-env
+    permissions:
+      id-token: write
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

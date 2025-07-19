@@ -37,7 +37,7 @@ jobs:
         with:
           project-name: plfm9092 
           region: us-east-1
-          buildspec-override:
+          buildspec-override: |
             version: 0.2
             phases:
               build:

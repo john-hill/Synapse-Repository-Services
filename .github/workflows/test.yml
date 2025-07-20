@@ -41,9 +41,9 @@ jobs:
             phases:
               install:
                 commands:
-              - echo "Installing MySQL CLI"
+                  - echo "Installing MySQL CLI"
 #              https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/mysql-install-cli.html
-              - sudo dnf update && sudo install mariadb105
+                  - sudo dnf update && sudo install mariadb105
               build:
                 commands:
                   - ./docker_build.sh

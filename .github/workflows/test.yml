@@ -39,6 +39,9 @@ jobs:
           buildspec-override: |
             version: 0.2
             phases:
+              install:
+                commands:
+                  - echo hello world
               build:
                 commands:
                   - ./docker_build.sh

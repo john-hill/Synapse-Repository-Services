@@ -39,11 +39,6 @@ jobs:
           buildspec-override: |
             version: 0.2
             phases:
-#              install:
-#                commands:
-#                  - echo "Installing MySQL CLI"
-#              https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/mysql-install-cli.html
-#                  - sudo dnf update && sudo install mariadb105
               build:
                 commands:
                   - ./docker_build.sh

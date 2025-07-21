@@ -2,10 +2,10 @@ package org.sagebionetworks.repo.manager.grid.response;
 
 import java.util.Map;
 
-import org.json.JSONArray;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.model.grid.EventContext;
-import org.sagebionetworks.repo.model.grid.event.JsonRxMessageType;
+import org.sagebionetworks.repo.model.grid.message.JsonRxMessage;
+import org.sagebionetworks.repo.model.grid.message.JsonRxMessageType;
 import org.sagebionetworks.schema.adapter.JSONEntity;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 import org.sagebionetworks.schema.adapter.org.json.EntityFactory;
@@ -39,11 +39,18 @@ public class InternalReplicaToHubEventPublisherImpl implements InternalReplicaTo
 	}
 
 	@Override
-	public void publishEventAfterCommit(EventContext context, String event) {
+	public void publishEventAfterCommit(EventContext context, String messageJson) {
 		ValidateArgument.required(context, "context");
-		ValidateArgument.required(event, "event");
+		ValidateArgument.required(messageJson, "messageJson");
 		// the message will not go out until the transaction commits.
-		applicationEventPublisher.publishEvent(new InternalEvent().setContext(context).setBody(event));
+		applicationEventPublisher.publishEvent(new InternalEvent().setContext(context).setBody(messageJson));
+	}
+
+	@Override
+	public void publishEventAfterCommit(EventContext context, JsonRxMessage message) {
+		ValidateArgument.required(context, "context");
+		ValidateArgument.required(message, "message");
+		publishEventAfterCommit(context, message.toJson());
 	}
 
 	@Override
@@ -54,11 +61,8 @@ public class InternalReplicaToHubEventPublisherImpl implements InternalReplicaTo
 		ValidateArgument.required(method, "method");
 		ValidateArgument.required(payload, "payload");
 		try {
-			JSONArray array = new JSONArray();
-			array.put(type.getCode());
-			array.put(method);
-			array.put(EntityFactory.createJSONObjectForEntity(payload));
-			publishEventAfterCommit(context, array.toString());
+			publishEventAfterCommit(context, new JsonRxMessage(type).setMethod(method)
+					.setBody(EntityFactory.createJSONObjectForEntity(payload)));
 		} catch (JSONObjectAdapterException e) {
 			throw new RuntimeException(e);
 		}

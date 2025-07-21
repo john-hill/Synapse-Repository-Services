@@ -36,8 +36,8 @@ import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
 import org.sagebionetworks.repo.model.grid.PatchInfo;
-import org.sagebionetworks.repo.model.grid.event.JsonRxMessageType;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
+import org.sagebionetworks.repo.model.grid.message.JsonRxMessageType;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.schema.JsonSchemaObjectBinding;
@@ -433,6 +433,11 @@ public class GridManagerImpl implements GridManager {
 		// User must have access to the session in order to delete it.
 		validGridSessionAccess(user, sessionId);
 		gridDao.deleteGridSession(sessionId);
+	}
+
+	@Override
+	public Optional<GridConnectionInfo> getConnectionInfoOptional(String connectionId) {
+		return gridDao.getConnection(connectionId);
 	}
 
 }

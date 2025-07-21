@@ -176,6 +176,7 @@
 		<!-- Grid workers-->
 		<ref bean="gridMessageBrokerWorkerTrigger"/>
 		<ref bean="gridCreateWorkerTrigger"/>
+		<ref bean="gridReplicaWorkerTrigger"/>
 		
 		<ref bean="inactiveUsersWorkerTrigger"/>
 		

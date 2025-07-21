@@ -1,7 +1,8 @@
 package org.sagebionetworks.repo.manager.grid.response;
 
 import org.sagebionetworks.repo.model.grid.EventContext;
-import org.sagebionetworks.repo.model.grid.event.JsonRxMessageType;
+import org.sagebionetworks.repo.model.grid.message.JsonRxMessage;
+import org.sagebionetworks.repo.model.grid.message.JsonRxMessageType;
 import org.sagebionetworks.schema.adapter.JSONEntity;
 
 /**
@@ -13,9 +14,11 @@ public interface InternalReplicaToHubEventPublisher {
 	 * Publish an internal event after the current transaction commits.
 	 * 
 	 * @param context
-	 * @param event
+	 * @param messageJson
 	 */
-	void publishEventAfterCommit(EventContext context, String event);
+	void publishEventAfterCommit(EventContext context, String messageJson);
+
+	void publishEventAfterCommit(EventContext context, JsonRxMessage message);
 
 	/**
 	 * Publish an internal event after the current transaction commits.

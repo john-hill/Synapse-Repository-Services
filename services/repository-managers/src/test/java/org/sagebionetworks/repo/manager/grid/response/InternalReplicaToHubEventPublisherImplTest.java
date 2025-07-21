@@ -16,8 +16,8 @@ import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.model.grid.EventContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.EventType;
-import org.sagebionetworks.repo.model.grid.event.JsonRxMessageType;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
+import org.sagebionetworks.repo.model.grid.message.JsonRxMessageType;
 import org.springframework.context.ApplicationEventPublisher;
 
 import software.amazon.awssdk.services.sqs.SqsClient;

@@ -47,7 +47,7 @@ jobs:
             env:
               variables:
                 INSTANCE: devp3bhoff
-                user: devp3bhoff
+                user: p3bhoff
                 stack: dev
                 # TODO: parameterized the next two lines:
                 org_sagebionetworks_repository_database_connection_url: dev-p3bhoff-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com

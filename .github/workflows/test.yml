@@ -39,8 +39,7 @@ jobs:
 
       - name: Run StackBuilder
         run: |
-          - >-
-            export CMD_PROPS=
+          - > export CMD_PROPS=
             "-Dorg.sagebionetworks.stack=dev"
             " -Dorg.sagebionetworks.instance=$user"
             " -Dorg.sagebionetworks.vpc.subnet.color=Green"

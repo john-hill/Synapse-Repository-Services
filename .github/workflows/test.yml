@@ -37,8 +37,8 @@ jobs:
           repository: Sage-Bionetworks/Synapse-Stack-Builder
           ref: {{ env.STACK_BRANCH }}
           path: ${{ stack_builder }}
-          
-      - name: Execute Stack Builder
+
+      - name: Run StackBuilder
         run: |
         - >-
           export CMD_PROPS=
@@ -46,15 +46,15 @@ jobs:
           " -Dorg.sagebionetworks.instance=$user"\
           " -Dorg.sagebionetworks.vpc.subnet.color=Green"
         - java -Xms256m -Xmx2g -cp stack_builder/target/stack-builder-0.2.0-SNAPSHOT-jar-with-dependencies.jar $CMD_PROPS org.sagebionetworks.template.repo.RepositoryBuilderMain
-          
+
       - name: Checkout repository
         uses: actions/checkout@v3
-          
+
       - uses: aws-actions/configure-aws-credentials@v1
         with:
           role-to-assume: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev
           aws-region: us-east-1
-          
+
       - name: Build and Test
         uses: aws-actions/aws-codebuild-run-build@v1
         with:

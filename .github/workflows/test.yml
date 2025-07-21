@@ -34,7 +34,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: Sage-Bionetworks/Synapse-Stack-Builder
-          ref: {{ env.STACK_BRANCH }}
+          ref: ${{ env.STACK_BRANCH }}
           path: stack_builder
 
       - name: Run StackBuilder

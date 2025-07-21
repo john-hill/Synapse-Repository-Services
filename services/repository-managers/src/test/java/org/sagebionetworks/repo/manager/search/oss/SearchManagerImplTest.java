@@ -23,6 +23,7 @@ import org.opensearch.client.opensearch.core.bulk.DeleteOperation;
 import org.opensearch.client.opensearch.core.bulk.OperationType;
 import org.opensearch.client.opensearch.core.search.Hit;
 import org.sagebionetworks.LoggerProvider;
+import org.sagebionetworks.repo.manager.search.SearchDocumentDriver;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
 import org.sagebionetworks.repo.model.search.Document;
 import org.sagebionetworks.repo.model.search.DocumentFields;
@@ -57,6 +58,8 @@ public class SearchManagerImplTest {
     LoggerProvider mockLoggerProvider;
     @Mock
     OpenSearchIndexInitializer mockOpenSearchIndexInitializer;
+    @Mock
+    SearchDocumentDriver mockSearchDocumentDriver;
     Document document;
     @Mock
     private OpenSearchClient mockSearchClient;
@@ -69,7 +72,7 @@ public class SearchManagerImplTest {
         document.setType(DocumentTypeNames.add);
         document.setId("syn1");
         document.setFields(new DocumentFields().setName("test").setEtag("etag"));
-        mockSearchManager = new SearchManagerImpl(mockLoggerProvider, mockTranslator, mockOpenSearchIndexInitializer, mockSearchClient);
+        mockSearchManager = new SearchManagerImpl(mockLoggerProvider, mockTranslator, mockOpenSearchIndexInitializer, mockSearchClient, mockSearchDocumentDriver);
     }
 
 

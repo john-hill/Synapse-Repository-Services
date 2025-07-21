@@ -9,6 +9,7 @@ import org.sagebionetworks.repo.service.ServiceProvider;
 import org.sagebionetworks.repo.web.RequiredScope;
 import org.sagebionetworks.repo.web.UrlHelpers;
 import org.sagebionetworks.repo.web.rest.doc.ControllerInfo;
+import org.sagebionetworks.search.SearchConstants;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
@@ -43,7 +44,11 @@ public class SearchController {
 	@ResponseStatus(HttpStatus.CREATED)
 	@RequestMapping(value = { "/search" }, method = RequestMethod.POST)
 	public @ResponseBody
-	SearchResults proxySearch(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @RequestBody SearchQuery searchQuery) {
-		return serviceProvider.getSearchService().proxySearch(userId, searchQuery);
+	SearchResults proxySearch(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@RequestParam(value = SearchConstants.IS_OPENSEARCH_ENABLE, required = false,
+					defaultValue = SearchConstants.DEFAULT_IS_OPENSEARCH_ENABLE) boolean isOpenSearchEnable,
+			@RequestBody SearchQuery searchQuery) {
+		return serviceProvider.getSearchService().proxySearch(userId, isOpenSearchEnable, searchQuery);
 	}
 }

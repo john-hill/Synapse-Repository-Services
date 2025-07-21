@@ -1,4 +1,3 @@
-
 name: main
 
 on:
@@ -12,17 +11,17 @@ jobs:
   get-env:
     runs-on: ubuntu-latest
     steps:
-       - run: |
-           if [ ${{ env.user }} ]; then
-             echo "user=${{ env.user }}" >> $GITHUB_ENV
-           else
-             echo "user=$GITHUB_REPOSITORY_OWNER" >> $GITHUB_ENV
-           fi
-           if [ ${{ env.STACK_BRANCH }} ]; then
-             echo "STACK_BRANCH=${{ env.STACK_BRANCH }}" >> $GITHUB_ENV
-           else
-             echo "STACK_BRANCH=develop" >> $GITHUB_ENV
-           fi
+      - run: |
+          if [ ${{ env.user }} ]; then
+            echo "user=${{ env.user }}" >> $GITHUB_ENV
+          else
+            echo "user=$GITHUB_REPOSITORY_OWNER" >> $GITHUB_ENV
+          fi
+          if [ ${{ env.STACK_BRANCH }} ]; then
+            echo "STACK_BRANCH=${{ env.STACK_BRANCH }}" >> $GITHUB_ENV
+          else
+            echo "STACK_BRANCH=develop" >> $GITHUB_ENV
+          fi
 
   build_and_test:
     needs: get-env
@@ -40,12 +39,12 @@ jobs:
 
       - name: Run StackBuilder
         run: |
-        - >-
-          export CMD_PROPS=
-          " -Dorg.sagebionetworks.stack=dev"\
-          " -Dorg.sagebionetworks.instance=$user"\
-          " -Dorg.sagebionetworks.vpc.subnet.color=Green"
-        - java -Xms256m -Xmx2g -cp stack_builder/target/stack-builder-0.2.0-SNAPSHOT-jar-with-dependencies.jar $CMD_PROPS org.sagebionetworks.template.repo.RepositoryBuilderMain
+          - >-
+            export CMD_PROPS=
+            "-Dorg.sagebionetworks.stack=dev"
+            " -Dorg.sagebionetworks.instance=$user"
+            " -Dorg.sagebionetworks.vpc.subnet.color=Green"
+          - java -Xms256m -Xmx2g -cp stack_builder/target/stack-builder-0.2.0-SNAPSHOT-jar-with-dependencies.jar $CMD_PROPS org.sagebionetworks.template.repo.RepositoryBuilderMain
 
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -58,7 +57,7 @@ jobs:
       - name: Build and Test
         uses: aws-actions/aws-codebuild-run-build@v1
         with:
-          project-name: plfm9092 
+          project-name: plfm9092
           buildspec-override: |
             version: 0.2
             env:

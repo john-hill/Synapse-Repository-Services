@@ -36,7 +36,7 @@ jobs:
         with:
           repository: Sage-Bionetworks/Synapse-Stack-Builder
           ref: {{ env.STACK_BRANCH }}
-          path: ${{ stack_builder }}
+          path: stack_builder
 
       - name: Run StackBuilder
         run: |

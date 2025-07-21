@@ -14,8 +14,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
        - run: |
+           # TODO default to repo' owner
            echo "INSTANCE=${{ env.INSTANCE }}" >> $GITHUB_ENV
-           echo "STACK_BRANCH=${{ env.STACK_BRANCH }}" >> $GITHUB_ENV
+           if [ ${{ env.STACK_BRANCH }} ];
+           then
+             echo "STACK_BRANCH=${{ env.STACK_BRANCH }}" >> $GITHUB_ENV
+           else
+             echo "STACK_BRANCH=develop" >> $GITHUB_ENV
+           fi
 
   build_and_test:
     needs: get-env
@@ -46,17 +52,18 @@ jobs:
                 # TODO: parameterized the next two lines:
                 org_sagebionetworks_repository_database_connection_url: dev-p3bhoff-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
                 org_sagebionetworks_table_cluster_endpoint_0: dev-p3bhoff-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
+                # TODO get the following from $GITHUB_ENV
                 STACK_BRANCH: develop
                 org_sagebionetworks_search_enabled: false
                 org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
-              secrets-manager:
+              # secrets-manager:
                 # TODO: Replace this keypair with OIDC auth':
-                org_sagebionetworks_stack_iam_id: org.sagebionetworks.stack.iam.id.bhoff
-                org_sagebionetworks_stack_iam_key: org.sagebionetworks.stack.iam.key.bhoff
-                org_sagebionetworks_stackEncryptionKey: org.sagebionetworks.stackEncryptionKey
-                rds_password: dev.org.sagebionetworks.repository.db.readonlypassword
-                org_sagebionetworks_cloudfront_keypair: org.sagebionetworks.cloudfront.private.key.id
-                org_sagebionetworks_cloudfront_private_key_secret: org.sagebionetworks.cloudfront.private.key.secret
+                # org_sagebionetworks_stack_iam_id: org.sagebionetworks.stack.iam.id.bhoff
+                # org_sagebionetworks_stack_iam_key: org.sagebionetworks.stack.iam.key.bhoff
+                # org_sagebionetworks_stackEncryptionKey: org.sagebionetworks.stackEncryptionKey
+                # rds_password: dev.org.sagebionetworks.repository.db.readonlypassword
+                # org_sagebionetworks_cloudfront_keypair: org.sagebionetworks.cloudfront.private.key.id
+                # org_sagebionetworks_cloudfront_private_key_secret: org.sagebionetworks.cloudfront.private.key.secret
             phases:
               install:
                 commands:

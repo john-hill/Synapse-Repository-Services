@@ -38,6 +38,25 @@ jobs:
           project-name: plfm9092 
           buildspec-override: |
             version: 0.2
+            env:
+              variables:
+                INSTANCE: devp3bhoff
+                user: devp3bhoff
+                stack: dev
+                # TODO: parameterized the next two lines:
+                org_sagebionetworks_repository_database_connection_url: dev-p3bhoff-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
+                org_sagebionetworks_table_cluster_endpoint_0: dev-p3bhoff-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
+                STACK_BRANCH: develop
+                org_sagebionetworks_search_enabled: false
+                org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
+              secrets-manager:
+                # TODO: Replace this keypair with OIDC auth':
+                org_sagebionetworks_stack_iam_id: org.sagebionetworks.stack.iam.id.bhoff
+                org_sagebionetworks_stack_iam_key: org.sagebionetworks.stack.iam.key.bhoff
+                org_sagebionetworks_stackEncryptionKey: org.sagebionetworks.stackEncryptionKey
+                rds_password: dev.org.sagebionetworks.repository.db.readonlypassword
+                org_sagebionetworks_cloudfront_keypair: org.sagebionetworks.cloudfront.private.key.id
+                org_sagebionetworks_cloudfront_private_key_secret: org.sagebionetworks.cloudfront.private.key.secret
             phases:
               install:
                 commands:
@@ -48,19 +67,5 @@ jobs:
                 commands:
                   - ./docker_build.sh
         env:
-#         INSTANCE: devp3bhoff
-          user: devp3bhoff
-          stack: dev
-          STACK_BRANCH: develop
-          org_sagebionetworks_stack_iam_id: ${{ secrets.org_sagebionetworks_stack_iam_id }}
-          org_sagebionetworks_stack_iam_key: ${{ secrets.org_sagebionetworks_stack_iam_key }}
-          org_sagebionetworks_stackEncryptionKey: ${{ secrets.org_sagebionetworks_stackEncryptionKey }}
-          rds_password: ${{ secrets.rds_password }}
-          org_sagebionetworks_cloudfront_keypair: ${{ secrets.org_sagebionetworks_cloudfront_keypair }}
-          org_sagebionetworks_cloudfront_private_key_secret: ${{ secrets.org_sagebionetworks_cloudfront_private_key_secret }}
-          org_sagebionetworks_repository_database_connection_url: dev-p3bhoff-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
-          org_sagebionetworks_table_cluster_endpoint_0: dev-p3bhoff-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
-          org_sagebionetworks_search_enabled: false
-          org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
           m2_cache_parent_folder: .
         

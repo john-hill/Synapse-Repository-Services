@@ -56,14 +56,14 @@ jobs:
                 STACK_BRANCH: develop
                 org_sagebionetworks_search_enabled: false
                 org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
-              # secrets-manager:
+              secrets-manager:
                 # TODO: Replace this keypair with OIDC auth':
                 # org_sagebionetworks_stack_iam_id: org.sagebionetworks.stack.iam.id.bhoff
                 # org_sagebionetworks_stack_iam_key: org.sagebionetworks.stack.iam.key.bhoff
                 # org_sagebionetworks_stackEncryptionKey: org.sagebionetworks.stackEncryptionKey
-                # rds_password: dev.org.sagebionetworks.repository.db.readonlypassword
-                # org_sagebionetworks_cloudfront_keypair: org.sagebionetworks.cloudfront.private.key.id
-                # org_sagebionetworks_cloudfront_private_key_secret: org.sagebionetworks.cloudfront.private.key.secret
+                rds_password: dev.org.sagebionetworks.repository.db.readonlypassword
+                org_sagebionetworks_cloudfront_keypair: org.sagebionetworks.cloudfront.private.key.id
+                org_sagebionetworks_cloudfront_private_key_secret: org.sagebionetworks.cloudfront.private.key.secret
             phases:
               install:
                 commands:

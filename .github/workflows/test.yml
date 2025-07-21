@@ -62,8 +62,8 @@ jobs:
                 # org_sagebionetworks_stack_iam_key: org.sagebionetworks.stack.iam.key.bhoff
                 # org_sagebionetworks_stackEncryptionKey: org.sagebionetworks.stackEncryptionKey
                 rds_password: dev.org.sagebionetworks.repository.db.readonlypassword
-                org_sagebionetworks_cloudfront_keypair: org.sagebionetworks.cloudfront.private.key.id
-                org_sagebionetworks_cloudfront_private_key_secret: org.sagebionetworks.cloudfront.private.key.secret
+                # org_sagebionetworks_cloudfront_keypair: org.sagebionetworks.cloudfront.private.key.id
+                # org_sagebionetworks_cloudfront_private_key_secret: org.sagebionetworks.cloudfront.private.key.secret
             phases:
               install:
                 commands:

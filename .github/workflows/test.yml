@@ -56,6 +56,8 @@ jobs:
                 STACK_BRANCH: develop
                 org_sagebionetworks_search_enabled: false
                 org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
+                m2_cache_parent_folder: .
+                src_folder: .
               secrets-manager:
                 # TODO: Replace this keypair with OIDC auth':
                 org_sagebionetworks_stack_iam_id: org.sagebionetworks.stack.iam.id.bhoff
@@ -73,6 +75,5 @@ jobs:
               build:
                 commands:
                   - ./docker_build.sh
-        env:
-          m2_cache_parent_folder: .
+
         

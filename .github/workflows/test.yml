@@ -7,17 +7,18 @@ on:
   push:
     branches: ['*']
 
-
 jobs:
   # this is necessary to make env values available to later jobs
   get-env:
     runs-on: ubuntu-latest
     steps:
        - run: |
-           # TODO default to repo' owner
-           echo "INSTANCE=${{ env.INSTANCE }}" >> $GITHUB_ENV
-           if [ ${{ env.STACK_BRANCH }} ];
-           then
+           if [ ${{ env.user }} ]; then
+             echo "user=${{ env.user }}" >> $GITHUB_ENV
+           else
+             echo "user=$GITHUB_REPOSITORY_OWNER" >> $GITHUB_ENV
+           fi
+           if [ ${{ env.STACK_BRANCH }} ]; then
              echo "STACK_BRANCH=${{ env.STACK_BRANCH }}" >> $GITHUB_ENV
            else
              echo "STACK_BRANCH=develop" >> $GITHUB_ENV
@@ -30,9 +31,25 @@ jobs:
       contents: read
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout StackBuilder repository
+        uses: actions/checkout@v3
+        with:
+          repository: Sage-Bionetworks/Synapse-Stack-Builder
+          ref: {{ env.STACK_BRANCH }}
+          path: ${{ stack_builder }}
+          
+      - name: Execute Stack Builder
+        run: |
+        - >-
+          export CMD_PROPS=
+          " -Dorg.sagebionetworks.stack=dev"\
+          " -Dorg.sagebionetworks.instance=$user"\
+          " -Dorg.sagebionetworks.vpc.subnet.color=Green"
+        - java -Xms256m -Xmx2g -cp stack_builder/target/stack-builder-0.2.0-SNAPSHOT-jar-with-dependencies.jar $CMD_PROPS org.sagebionetworks.template.repo.RepositoryBuilderMain
+          
       - name: Checkout repository
         uses: actions/checkout@v3
-
+          
       - uses: aws-actions/configure-aws-credentials@v1
         with:
           role-to-assume: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev
@@ -46,22 +63,18 @@ jobs:
             version: 0.2
             env:
               variables:
-                INSTANCE: devp3bhoff
-                user: p3bhoff
                 stack: dev
-                # TODO: parameterized the next two lines:
-                org_sagebionetworks_repository_database_connection_url: dev-p3bhoff-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
-                org_sagebionetworks_table_cluster_endpoint_0: dev-p3bhoff-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
-                # TODO get the following from $GITHUB_ENV
-                STACK_BRANCH: develop
+                org_sagebionetworks_repository_database_connection_url: dev-${{ env.user }}-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
+                org_sagebionetworks_table_cluster_endpoint_0: dev-${{ env.user }}-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
+                STACK_BRANCH: ${{ env.STACK_BRANCH }}
                 org_sagebionetworks_search_enabled: false
                 org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
                 m2_cache_parent_folder: .
                 src_folder: .
               secrets-manager:
                 # TODO: Replace this keypair with OIDC auth':
-                org_sagebionetworks_stack_iam_id: org.sagebionetworks.stack.iam.id.bhoff
-                org_sagebionetworks_stack_iam_key: org.sagebionetworks.stack.iam.key.bhoff
+                # org_sagebionetworks_stack_iam_id: org.sagebionetworks.stack.iam.id.bhoff
+                # org_sagebionetworks_stack_iam_key: org.sagebionetworks.stack.iam.key.bhoff
                 org_sagebionetworks_stackEncryptionKey: org.sagebionetworks.stackEncryptionKey
                 rds_password: build.rds.password
                 org_sagebionetworks_cloudfront_keypair: org.sagebionetworks.cloudfront.private.key.id
@@ -75,5 +88,3 @@ jobs:
               build:
                 commands:
                   - ./docker_build.sh
-
-        

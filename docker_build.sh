@@ -31,11 +31,6 @@
 set -e
 set -v
 
-# next lines are temporary, for debugging
-echo org_sagebionetworks_stack_iam_id $org_sagebionetworks_stack_iam_id
-echo INSTANCE $INSTANCE
-echo org_sagebionetworks_repository_database_connection_url $org_sagebionetworks_repository_database_connection_url
-
 db_name=${stack}${user}
 #used to log in to the db for setup
 rds_user_name=${db_name}user
@@ -85,11 +80,6 @@ if [ ${SETTINGS_XML} ]; then
 fi
 
 
-echo rds_user_name ${rds_user_name}
-echo rds_password ${rds_password}
-echo org_sagebionetworks_repository_database_connection_url ${org_sagebionetworks_repository_database_connection_url}
-echo db_name ${db_name}
-echo org_sagebionetworks_table_cluster_endpoint_0 ${org_sagebionetworks_table_cluster_endpoint_0}
 mysql -u${rds_user_name} -p${rds_password} -h ${org_sagebionetworks_repository_database_connection_url} -sN -e "DROP DATABASE ${db_name};CREATE DATABASE ${db_name};"
 mysql -u${rds_user_name} -p${rds_password} -h ${org_sagebionetworks_table_cluster_endpoint_0} -sN -e "DROP DATABASE ${db_name};CREATE DATABASE ${db_name};"
 

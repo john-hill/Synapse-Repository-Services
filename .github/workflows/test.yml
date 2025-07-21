@@ -39,11 +39,13 @@ jobs:
 
       - name: Run StackBuilder
         run: |
+          cd stack_builder
+          mvn clean install
           export CMD_PROPS=\
           "-Dorg.sagebionetworks.stack=dev"\
           " -Dorg.sagebionetworks.instance=$user"\
           " -Dorg.sagebionetworks.vpc.subnet.color=Green"
-          java -Xms256m -Xmx2g -cp stack_builder/target/stack-builder-0.2.0-SNAPSHOT-jar-with-dependencies.jar $CMD_PROPS org.sagebionetworks.template.repo.RepositoryBuilderMain
+          java -Xms256m -Xmx2g -cp ./target/stack-builder-0.2.0-SNAPSHOT-jar-with-dependencies.jar $CMD_PROPS org.sagebionetworks.template.repo.RepositoryBuilderMain
 
       - name: Checkout repository
         uses: actions/checkout@v3

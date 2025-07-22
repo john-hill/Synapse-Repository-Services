@@ -25,12 +25,6 @@ jobs:
             echo "STACK_BRANCH=develop" >> $GITHUB_ENV
           fi
 
-      - name: Checkout StackBuilder repository
-        uses: actions/checkout@v3
-        with:
-          repository: Sage-Bionetworks/Synapse-Stack-Builder
-          ref: ${{ env.STACK_BRANCH }}
-
       - uses: aws-actions/configure-aws-credentials@v1
         with:
           role-to-assume: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev
@@ -39,7 +33,7 @@ jobs:
       - name: Compile StackBuilder
         uses: aws-actions/aws-codebuild-run-build@v1
         with:
-          project-name: plfm9092
+          project-name: StackBuilder
           buildspec-override: |
             version: 0.2
             env:
@@ -62,7 +56,7 @@ jobs:
       - name: Run StackBuilder
         uses: aws-actions/aws-codebuild-run-build@v1
         with:
-          project-name: plfm9092
+          project-name: StackBuilder
           buildspec-override: |
             version: 0.2
             env:

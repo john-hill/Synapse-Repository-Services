@@ -1,4 +1,4 @@
-package org.sagebionetworks.repo.model.grid.event;
+package org.sagebionetworks.repo.model.grid.message;
 
 /**
  * See: <a href="https://jsonjoy.com/specs/json-rx/json-encoding">JSON-Rx

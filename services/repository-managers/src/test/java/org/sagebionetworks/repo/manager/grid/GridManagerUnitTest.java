@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.grid;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -23,6 +24,7 @@ import java.sql.Timestamp;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -38,6 +40,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.config.WebsocketApi;
+import org.sagebionetworks.repo.manager.grid.response.InternalReplicaToHubEventPublisher;
 import org.sagebionetworks.repo.manager.table.RowHandlerProvider;
 import org.sagebionetworks.repo.manager.table.TableQueryManager;
 import org.sagebionetworks.repo.manager.table.query.MainQuery;
@@ -66,6 +69,7 @@ import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
 import org.sagebionetworks.repo.model.grid.PatchInfo;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
+import org.sagebionetworks.repo.model.grid.message.JsonRxMessageType;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
@@ -131,6 +135,8 @@ public class GridManagerUnitTest {
 	private QueryTranslator mockTranslator;
 	@Mock
 	private EntityManager mockEntityManager;
+	@Mock
+	private InternalReplicaToHubEventPublisher mockInternalEventPublisher;
 
 	@Captor
 	private ArgumentCaptor<PutObjectRequest> putCaptor;
@@ -145,6 +151,9 @@ public class GridManagerUnitTest {
 	private ArgumentCaptor<RowHandlerProvider> rowHandlerProviderCaptor;
 	@Captor
 	private ArgumentCaptor<String> patchCaptor;
+	
+	@Captor
+	private ArgumentCaptor<EventContext> eventContextCaptor;
 
 	private GridManagerImpl gridManager;
 
@@ -194,7 +203,7 @@ public class GridManagerUnitTest {
 
 		when(mockConfig.getStack()).thenReturn("dev");
 		gridManager = new GridManagerImpl(mockCredentialsProvider, mockWebsocketApi, mockGridDao, mockConfig,
-				mockS3Client, mockQueryManager, mockEntityManager);
+				mockS3Client, mockQueryManager, mockEntityManager, mockInternalEventPublisher);
 		gridManager = Mockito.spy(gridManager);
 		clock = List.of(patchId);
 		query = new Query().setSql("select * from syn123");
@@ -988,6 +997,20 @@ public class GridManagerUnitTest {
 		assertEquals(patchId, patch.getPatchId());
 		assertEquals(PatchUtils.calculateRowsPerPatch(gridManager.getMaxRowSizeBytes(maxRowsPerPage)),
 				handler.getRowsPerPatch());
+
+		verify(mockInternalEventPublisher).publishEventAfterCommit(
+				eventContextCaptor.capture(), eq(JsonRxMessageType.Notification),
+				eq("connection"),
+				eq(new Connection().setGridSessionId(gridSessionIdLong).setReplicaId(replicaId).setUserId(userId)));
+		
+	    // Verify the connectionId is a valid UUID
+	    EventContext capturedContext = eventContextCaptor.getValue();
+	    assertEquals(EventType.CONNECT, capturedContext.getEventType());
+	    assertEquals(EventSource.INTERNAL, capturedContext.getEventSource());
+	    
+	    String connectionId = capturedContext.getConnectionId();
+	    assertNotNull(connectionId);
+	    assertDoesNotThrow(() -> UUID.fromString(connectionId));
 	}
 
 	@Test
@@ -1021,6 +1044,7 @@ public class GridManagerUnitTest {
 		assertEquals(patchId, patch.getPatchId());
 		assertEquals(PatchUtils.calculateRowsPerPatch(gridManager.getMaxRowSizeBytes(maxRowsPerPage)),
 				handler.getRowsPerPatch());
+
 	}
 
 	@Test
@@ -1232,16 +1256,16 @@ public class GridManagerUnitTest {
 		assertEquals(Optional.of(schema$id), gridManager.getSchemaId(mockUser, tableId, rows));
 		verifyNoMoreInteractions(mockEntityManager);
 	}
-	
+
 	@Test
 	public void testGcheSchemaIdWithNonview() {
 		when(mockEntityManager.getEntityType(tableId)).thenReturn(EntityType.folder);
-		
+
 		// call under test
 		assertEquals(Optional.empty(), gridManager.getSchemaId(mockUser, tableId, rows));
 		verifyNoMoreInteractions(mockEntityManager);
 	}
-	
+
 	@Test
 	public void testGcheSchemaIdWithNotFound() {
 		when(mockEntityManager.getEntityType(tableId)).thenReturn(EntityType.entityview);
@@ -1251,7 +1275,7 @@ public class GridManagerUnitTest {
 		assertEquals(Optional.empty(), gridManager.getSchemaId(mockUser, tableId, rows));
 		verifyNoMoreInteractions(mockEntityManager);
 	}
-	
+
 	@Test
 	public void testGcheSchemaIdWithEmptyRows() {
 		when(mockEntityManager.getEntityType(tableId)).thenReturn(EntityType.entityview);
@@ -1261,7 +1285,7 @@ public class GridManagerUnitTest {
 		assertEquals(Optional.empty(), gridManager.getSchemaId(mockUser, tableId, rows));
 		verifyNoMoreInteractions(mockEntityManager);
 	}
-	
+
 	@Test
 	public void testGcheSchemaIdWithNullRows() {
 		when(mockEntityManager.getEntityType(tableId)).thenReturn(EntityType.entityview);

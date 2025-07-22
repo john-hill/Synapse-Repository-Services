@@ -38,14 +38,26 @@ jobs:
           aws-region: us-east-1
 
       - name: Compile and Run StackBuilder
-        run: |
-          cd stack_builder
-          mvn clean install
-          export CMD_PROPS=\
-          "-Dorg.sagebionetworks.stack=dev"\
-          " -Dorg.sagebionetworks.instance=$user"\
-          " -Dorg.sagebionetworks.vpc.subnet.color=Green"
-          java -Xms256m -Xmx2g -cp ./target/stack-builder-0.2.0-SNAPSHOT-jar-with-dependencies.jar $CMD_PROPS org.sagebionetworks.template.repo.RepositoryBuilderMain
+        uses: aws-actions/aws-codebuild-run-build@v1
+        with:
+          project-name: plfm9092
+          buildspec-override: |
+            version: 0.2
+            env:
+              variables:
+                user: ${{ env.user }}
+            phases:
+              build:
+                commands:
+                  - |
+                    cd stack_builder
+                    mvn clean install
+                    export CMD_PROPS=\
+                    "-Dorg.sagebionetworks.stack=dev"\
+                    " -Dorg.sagebionetworks.instance=$user"\
+                    " -Dorg.sagebionetworks.vpc.subnet.color=Green"
+                    java -Xms256m -Xmx2g -cp ./target/stack-builder-0.2.0-SNAPSHOT-jar-with-dependencies.jar \
+                    $CMD_PROPS org.sagebionetworks.template.repo.RepositoryBuilderMain
 
       - name: Checkout Synapse-Repository-Services repository
         uses: actions/checkout@v3
@@ -72,9 +84,6 @@ jobs:
                 m2_cache_parent_folder: .
                 src_folder: .
               secrets-manager:
-                # TODO: Replace this keypair with OIDC auth':
-                # org_sagebionetworks_stack_iam_id: org.sagebionetworks.stack.iam.id.bhoff
-                # org_sagebionetworks_stack_iam_key: org.sagebionetworks.stack.iam.key.bhoff
                 org_sagebionetworks_stackEncryptionKey: org.sagebionetworks.stackEncryptionKey
                 rds_password: build.rds.password
                 org_sagebionetworks_cloudfront_keypair: org.sagebionetworks.cloudfront.private.key.id

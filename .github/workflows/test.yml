@@ -27,17 +27,19 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@v1
         with:
+          # TODO I'm not really sure what this does.  Can we just use the service role created for the CodeBuild project?
           role-to-assume: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev
           aws-region: us-east-1
 
       - name: Compile StackBuilder
         uses: aws-actions/aws-codebuild-run-build@v1
         with:
-          project-name: StackBuilder
+          project-name: plfm9092
           buildspec-override: |
             version: 0.2
             env:
               variables:
+                CODEBUILD_SRC_DIR: Sage-Bionetworks/Synapse-Stack-Builder
                 user: ${{ env.user }}
             phases:
               install:
@@ -56,11 +58,12 @@ jobs:
       - name: Run StackBuilder
         uses: aws-actions/aws-codebuild-run-build@v1
         with:
-          project-name: StackBuilder
+          project-name: plfm9092
           buildspec-override: |
             version: 0.2
             env:
               variables:
+                CODEBUILD_SRC_DIR: Sage-Bionetworks/Synapse-Stack-Builder
                 user: ${{ env.user }}
             phases:
               install:
@@ -75,14 +78,6 @@ jobs:
                     export AWS_SESSION_TOKEN=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.SessionToken')
                     export CMD_PROPS="-DAWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} -DAWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} -DAWS_SESSION_TOKEN=${AWS_SESSION_TOKEN} -Dorg.sagebionetworks.stack=dev -Dorg.sagebionetworks.instance=${user} -Dorg.sagebionetworks.vpc.subnet.color=Green"
                     java -Xms256m -Xmx2g -cp ./target/stack-builder-0.2.0-SNAPSHOT-jar-with-dependencies.jar $CMD_PROPS org.sagebionetworks.template.repo.RepositoryBuilderMain
-
-      - name: Checkout Synapse-Repository-Services repository
-        uses: actions/checkout@v3
-
-#      - uses: aws-actions/configure-aws-credentials@v1
-#        with:
-#          role-to-assume: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev
-#          aws-region: us-east-1
 
       - name: Build and Test
         uses: aws-actions/aws-codebuild-run-build@v1

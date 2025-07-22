@@ -46,29 +46,25 @@ jobs:
               variables:
                 user: ${{ env.user }}
             phases:
+              install:
+                commands:
+                  sudo yum -y update && sudo yum install -y jq
               build:
                 commands:
                   - |
                     STS_CREDENTIALS=$(aws sts assume-role --role-arn arn:aws:iam::449435941126:role/synapse-dev-cmk-SynapseDeploymentRole-15QJA2H05YVY --role-session-name build-stack)
-                    sudo yum install -y jq
                     export AWS_ACCESS_KEY_ID=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.AccessKeyId')
                     export AWS_SECRET_ACCESS_KEY=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.SecretAccessKey')
                     export AWS_SESSION_TOKEN=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.SessionToken')
-                    echo AWS_ACCESS_KEY_ID $AWS_ACCESS_KEY_ID
-                    echo AWS_SECRET_ACCESS_KEY $AWS_SECRET_ACCESS_KEY
-                    echo AWS_SESSION_TOKEN $AWS_SESSION_TOKEN
-                    echo "let's try aws s3 ls:"
-                    aws s3 ls
                     mvn clean install
-                    export CMD_PROPS=\
-                    " -DAWS_ACCESS_KEY_ID=AWS_ACCESS_KEY_ID"\
-                    " -DAWS_SECRET_ACCESS_KEY=AWS_SECRET_ACCESS_KEY"\
-                    " -DAWS_SESSION_TOKEN=AWS_SESSION_TOKEN"\
-                    " -Dorg.sagebionetworks.stack=dev"\
-                    " -Dorg.sagebionetworks.instance=$user"\
-                    " -Dorg.sagebionetworks.vpc.subnet.color=Green"
                     java -Xms256m -Xmx2g -cp ./target/stack-builder-0.2.0-SNAPSHOT-jar-with-dependencies.jar \
-                    $CMD_PROPS org.sagebionetworks.template.repo.RepositoryBuilderMain
+                    -DAWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
+                    -DAWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
+                    -DAWS_SESSION_TOKEN=${AWS_SESSION_TOKEN} \
+                    -Dorg.sagebionetworks.stack=dev \
+                    -Dorg.sagebionetworks.instance=${user} \
+                    -Dorg.sagebionetworks.vpc.subnet.color=Green \
+                    org.sagebionetworks.template.repo.RepositoryBuilderMain
 
       - name: Checkout Synapse-Repository-Services repository
         uses: actions/checkout@v3
@@ -104,7 +100,7 @@ jobs:
                 commands:
                   # https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/mysql-install-cli.html
                   - echo "Installing MySQL CLI"
-                  - sudo dnf -y update && sudo dnf install -y mariadb105
+                  - sudo yum -y update && sudo yum install -y mariadb105
               build:
                 commands:
                   - ./docker_build.sh

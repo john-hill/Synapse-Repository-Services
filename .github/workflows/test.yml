@@ -37,7 +37,12 @@ jobs:
           ref: ${{ env.STACK_BRANCH }}
           path: stack_builder
 
-      - name: Run StackBuilder
+      - uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::449435941126:role/synapse-dev-cmk-SynapseDeploymentRole-15QJA2H05YVY
+          aws-region: us-east-1
+
+      - name: Compile and Run StackBuilder
         run: |
           cd stack_builder
           mvn clean install
@@ -47,7 +52,7 @@ jobs:
           " -Dorg.sagebionetworks.vpc.subnet.color=Green"
           java -Xms256m -Xmx2g -cp ./target/stack-builder-0.2.0-SNAPSHOT-jar-with-dependencies.jar $CMD_PROPS org.sagebionetworks.template.repo.RepositoryBuilderMain
 
-      - name: Checkout repository
+      - name: Checkout Synapse-Repository-Services repository
         uses: actions/checkout@v3
 
       - uses: aws-actions/configure-aws-credentials@v1

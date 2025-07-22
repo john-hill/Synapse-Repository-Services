@@ -56,19 +56,9 @@ jobs:
                     export AWS_ACCESS_KEY_ID=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.AccessKeyId')
                     export AWS_SECRET_ACCESS_KEY=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.SecretAccessKey')
                     export AWS_SESSION_TOKEN=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.SessionToken')
-                    export org.sagebionetworks.stack=dev
-                    export org.sagebionetworks.instance=${user}
-                    export org.sagebionetworks.developer=${user}
-                    export CMD_PROPS=\
-                    -DAWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
-                    -DAWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
-                    -DAWS_SESSION_TOKEN=${AWS_SESSION_TOKEN} \
-                    -Dorg.sagebionetworks.stack=dev \
-                    -Dorg.sagebionetworks.instance=${user} \
-                    -Dorg.sagebionetworks.vpc.subnet.color=Green
+                    export CMD_PROPS="-DAWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} -DAWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} -DAWS_SESSION_TOKEN=${AWS_SESSION_TOKEN} -Dorg.sagebionetworks.stack=dev -Dorg.sagebionetworks.instance=${user} -Dorg.sagebionetworks.vpc.subnet.color=Green"
                     mvn clean install $CMD_PROPS
-                    java -Xms256m -Xmx2g -cp ./target/stack-builder-0.2.0-SNAPSHOT-jar-with-dependencies.jar $CMD_PROPS \
-                    org.sagebionetworks.template.repo.RepositoryBuilderMain
+                    java -Xms256m -Xmx2g -cp ./target/stack-builder-0.2.0-SNAPSHOT-jar-with-dependencies.jar $CMD_PROPS org.sagebionetworks.template.repo.RepositoryBuilderMain
 
       - name: Checkout Synapse-Repository-Services repository
         uses: actions/checkout@v3

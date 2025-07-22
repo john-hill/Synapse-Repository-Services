@@ -55,7 +55,10 @@ jobs:
                     export AWS_SESSION_TOKEN=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.SessionToken');
                     mvn clean install
                     export CMD_PROPS=\
-                    "-Dorg.sagebionetworks.stack=dev"\
+                    " -DAWS_ACCESS_KEY_ID=AWS_ACCESS_KEY_ID"\
+                    " -DAWS_SECRET_ACCESS_KEY=AWS_SECRET_ACCESS_KEY"\
+                    " -DAWS_SESSION_TOKEN=AWS_SESSION_TOKEN"\
+                    " -Dorg.sagebionetworks.stack=dev"\
                     " -Dorg.sagebionetworks.instance=$user"\
                     " -Dorg.sagebionetworks.vpc.subnet.color=Green"
                     java -Xms256m -Xmx2g -cp ./target/stack-builder-0.2.0-SNAPSHOT-jar-with-dependencies.jar \

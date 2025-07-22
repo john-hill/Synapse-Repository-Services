@@ -30,7 +30,6 @@ jobs:
         with:
           repository: Sage-Bionetworks/Synapse-Stack-Builder
           ref: ${{ env.STACK_BRANCH }}
-          path: stack_builder
 
       - uses: aws-actions/configure-aws-credentials@v1
         with:
@@ -50,8 +49,10 @@ jobs:
               build:
                 commands:
                   - |
-                    aws sts assume-role --role-arn arn:aws:iam::449435941126:role/synapse-dev-cmk-SynapseDeploymentRole-15QJA2H05YVY --role-session-name build-stack
-                    # cd stack_builder  <<< TODO: cd: stack_builder: No such file or directory
+                    STS_CREDENTIALS=$(aws sts assume-role --role-arn arn:aws:iam::449435941126:role/synapse-dev-cmk-SynapseDeploymentRole-15QJA2H05YVY --role-session-name build-stack)
+                    export AWS_ACCESS_KEY_ID=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.AccessKeyId');\
+                    export AWS_SECRET_ACCESS_KEY=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.SecretAccessKey');\
+                    export AWS_SESSION_TOKEN=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.SessionToken');
                     mvn clean install
                     export CMD_PROPS=\
                     "-Dorg.sagebionetworks.stack=dev"\

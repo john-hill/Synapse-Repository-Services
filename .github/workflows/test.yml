@@ -50,6 +50,7 @@ jobs:
               build:
                 commands:
                   - |
+                    aws sts assume-role --role-arn arn:aws:iam::449435941126:role/synapse-dev-cmk-SynapseDeploymentRole-15QJA2H05YVY --role-session-name build-stack
                     cd stack_builder
                     mvn clean install
                     export CMD_PROPS=\
@@ -62,10 +63,10 @@ jobs:
       - name: Checkout Synapse-Repository-Services repository
         uses: actions/checkout@v3
 
-      - uses: aws-actions/configure-aws-credentials@v1
-        with:
-          role-to-assume: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev
-          aws-region: us-east-1
+#      - uses: aws-actions/configure-aws-credentials@v1
+#        with:
+#          role-to-assume: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev
+#          aws-region: us-east-1
 
       - name: Build and Test
         uses: aws-actions/aws-codebuild-run-build@v1
@@ -96,4 +97,5 @@ jobs:
                   - sudo dnf -y update && sudo dnf install -y mariadb105
               build:
                 commands:
+                  - aws sts assume-role --role-arn arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev --role-session-name build-test
                   - ./docker_build.sh

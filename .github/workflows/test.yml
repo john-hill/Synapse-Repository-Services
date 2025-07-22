@@ -17,12 +17,8 @@ jobs:
           if [ ${{ env.user }} ]; then
             echo "user=${{ env.user }}" >> $GITHUB_ENV
           else
-            echo "user=$GITHUB_REPOSITORY_OWNER" >> $GITHUB_ENV
-          fi
-          if [ ${{ env.STACK_BRANCH }} ]; then
-            echo "STACK_BRANCH=${{ env.STACK_BRANCH }}" >> $GITHUB_ENV
-          else
-            echo "STACK_BRANCH=develop" >> $GITHUB_ENV
+            echo "user=p3bhoff" >> $GITHUB_ENV
+            # echo "user=$GITHUB_REPOSITORY_OWNER" >> $GITHUB_ENV
           fi
 
       - uses: aws-actions/configure-aws-credentials@v1
@@ -30,54 +26,6 @@ jobs:
           # TODO I'm not really sure what this does.  Can we just use the service role created for the CodeBuild project?
           role-to-assume: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev
           aws-region: us-east-1
-
-      - name: Compile StackBuilder
-        uses: aws-actions/aws-codebuild-run-build@v1
-        with:
-          project-name: plfm9092
-          buildspec-override: |
-            version: 0.2
-            env:
-              variables:
-                CODEBUILD_SRC_DIR: Sage-Bionetworks/Synapse-Stack-Builder
-                user: ${{ env.user }}
-            phases:
-              install:
-                commands:
-                  sudo yum -y update && sudo yum install -y jq
-              build:
-                commands:
-                  - |
-                    STS_CREDENTIALS=$(aws sts assume-role --role-arn arn:aws:iam::449435941126:role/synapse-dev-cmk-SynapseDeploymentRole-15QJA2H05YVY --role-session-name build-stack)
-                    export AWS_ACCESS_KEY_ID=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.AccessKeyId')
-                    export AWS_SECRET_ACCESS_KEY=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.SecretAccessKey')
-                    export AWS_SESSION_TOKEN=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.SessionToken')
-                    export CMD_PROPS="-DAWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} -DAWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} -DAWS_SESSION_TOKEN=${AWS_SESSION_TOKEN} -Dorg.sagebionetworks.stack=dev -Dorg.sagebionetworks.instance=${user} -Dorg.sagebionetworks.vpc.subnet.color=Green"
-                    mvn clean install $CMD_PROPS
-
-      - name: Run StackBuilder
-        uses: aws-actions/aws-codebuild-run-build@v1
-        with:
-          project-name: plfm9092
-          buildspec-override: |
-            version: 0.2
-            env:
-              variables:
-                CODEBUILD_SRC_DIR: Sage-Bionetworks/Synapse-Stack-Builder
-                user: ${{ env.user }}
-            phases:
-              install:
-                commands:
-                  sudo yum -y update && sudo yum install -y jq
-              build:
-                commands:
-                  - |
-                    STS_CREDENTIALS=$(aws sts assume-role --role-arn arn:aws:iam::449435941126:role/synapse-dev-cmk-SynapseDeploymentRole-15QJA2H05YVY --role-session-name build-stack)
-                    export AWS_ACCESS_KEY_ID=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.AccessKeyId')
-                    export AWS_SECRET_ACCESS_KEY=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.SecretAccessKey')
-                    export AWS_SESSION_TOKEN=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.SessionToken')
-                    export CMD_PROPS="-DAWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} -DAWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} -DAWS_SESSION_TOKEN=${AWS_SESSION_TOKEN} -Dorg.sagebionetworks.stack=dev -Dorg.sagebionetworks.instance=${user} -Dorg.sagebionetworks.vpc.subnet.color=Green"
-                    java -Xms256m -Xmx2g -cp ./target/stack-builder-0.2.0-SNAPSHOT-jar-with-dependencies.jar $CMD_PROPS org.sagebionetworks.template.repo.RepositoryBuilderMain
 
       - name: Build and Test
         uses: aws-actions/aws-codebuild-run-build@v1
@@ -90,7 +38,6 @@ jobs:
                 stack: dev
                 org_sagebionetworks_repository_database_connection_url: dev-${{ env.user }}-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
                 org_sagebionetworks_table_cluster_endpoint_0: dev-${{ env.user }}-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
-                STACK_BRANCH: ${{ env.STACK_BRANCH }}
                 org_sagebionetworks_search_enabled: false
                 org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
                 m2_cache_parent_folder: .

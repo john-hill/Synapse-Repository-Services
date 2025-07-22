@@ -51,7 +51,7 @@ jobs:
                 commands:
                   - |
                     aws sts assume-role --role-arn arn:aws:iam::449435941126:role/synapse-dev-cmk-SynapseDeploymentRole-15QJA2H05YVY --role-session-name build-stack
-                    cd stack_builder
+                    # cd stack_builder  <<< TODO: cd: stack_builder: No such file or directory
                     mvn clean install
                     export CMD_PROPS=\
                     "-Dorg.sagebionetworks.stack=dev"\

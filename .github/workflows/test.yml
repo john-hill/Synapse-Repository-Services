@@ -7,8 +7,10 @@ on:
     branches: ['*']
 
 jobs:
-  # this is necessary to make env values available to later jobs
-  get-env:
+  build_and_test:
+    permissions:
+      id-token: write
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - run: |
@@ -23,13 +25,6 @@ jobs:
             echo "STACK_BRANCH=develop" >> $GITHUB_ENV
           fi
 
-  build_and_test:
-    needs: get-env
-    permissions:
-      id-token: write
-      contents: read
-    runs-on: ubuntu-latest
-    steps:
       - name: Checkout StackBuilder repository
         uses: actions/checkout@v3
         with:

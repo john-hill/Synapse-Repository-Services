@@ -32,10 +32,10 @@ jobs:
           ref: ${{ env.STACK_BRANCH }}
           path: stack_builder
 
-#      - uses: aws-actions/configure-aws-credentials@v1
-#        with:
-#          role-to-assume: arn:aws:iam::449435941126:role/service-role/codebuild-plfm9092-service-role
-#          aws-region: us-east-1
+      - uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev
+          aws-region: us-east-1
 
       - name: Compile and Run StackBuilder
         uses: aws-actions/aws-codebuild-run-build@v1
@@ -97,5 +97,5 @@ jobs:
                   - sudo dnf -y update && sudo dnf install -y mariadb105
               build:
                 commands:
-                  - aws sts assume-role --role-arn arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev --role-session-name build-test
                   - ./docker_build.sh
+                #- aws sts assume-role --role-arn arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev --role-session-name build-test

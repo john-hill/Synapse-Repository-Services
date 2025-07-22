@@ -36,6 +36,7 @@ jobs:
             env:
               variables:
                 stack: dev
+                user: ${{ env.user }}
                 org_sagebionetworks_repository_database_connection_url: dev-${{ env.user }}-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
                 org_sagebionetworks_table_cluster_endpoint_0: dev-${{ env.user }}-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
                 org_sagebionetworks_search_enabled: false

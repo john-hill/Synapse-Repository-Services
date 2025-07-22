@@ -32,10 +32,10 @@ jobs:
           ref: ${{ env.STACK_BRANCH }}
           path: stack_builder
 
-      - uses: aws-actions/configure-aws-credentials@v1
-        with:
-          role-to-assume: arn:aws:iam::449435941126:role/service-role/codebuild-plfm9092-service-role
-          aws-region: us-east-1
+#      - uses: aws-actions/configure-aws-credentials@v1
+#        with:
+#          role-to-assume: arn:aws:iam::449435941126:role/service-role/codebuild-plfm9092-service-role
+#          aws-region: us-east-1
 
       - name: Compile and Run StackBuilder
         uses: aws-actions/aws-codebuild-run-build@v1

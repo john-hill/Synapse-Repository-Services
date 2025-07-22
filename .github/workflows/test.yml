@@ -52,7 +52,7 @@ jobs:
                 commands:
                   # https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/mysql-install-cli.html
                   - echo "Installing MySQL CLI"
-                  - sudo yum -y update && sudo yum install -y mariadb105
+                  - sudo dnf update && sudo dnf install -y mariadb105
               build:
                 commands:
                   - ./docker_build.sh

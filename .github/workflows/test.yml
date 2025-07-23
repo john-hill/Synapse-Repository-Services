@@ -59,9 +59,9 @@ jobs:
               build:
                 commands:
                   # At this point the AWS role is codebuild-plfm9092-service-role, the service role associated with the Code Build project
-                  aws sts get-caller-identity
-                  echo printenv
-                  printenv
+                  - aws sts get-caller-identity
+                  - echo printenv
+                  - printenv
                   # Let's switch to a role with the permissions we want
                   # session duration 10800 seconds, or 3 hours
                   - STS_CREDENTIALS=$(aws sts assume-role --role-arn arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev --duration-seconds 10800 --role-session-name build-stack)

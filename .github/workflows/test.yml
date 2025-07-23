@@ -64,9 +64,10 @@ jobs:
                   # At this point the AWS role is codebuild-plfm9092-service-role, the service role associated with the Code Build project
                   # Added admin access to allow it to run a build
                   # But the build still failed.  I think the sts token isn't getting passed to the build
-                  - STS_CREDENTIALS=$(aws sts get-caller-identity)
+                  - STS_CREDENTIALS=$(aws sts get-session-token)
                   - export org_sagebionetworks_stack_iam_id=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.AccessKeyId')
                   - export org_sagebionetworks_stack_iam_key=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.SecretAccessKey')
                   - export org_sagebionetworks_stack_iam_session_token=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.SessionToken')
+                  - echo org_sagebionetworks_stack_iam_id $org_sagebionetworks_stack_iam_id
                   - ./docker_build.sh
                 #- aws sts assume-role --role-arn arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev --role-session-name build-test

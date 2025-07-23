@@ -23,10 +23,7 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@v1
         with:
-          # TODO I'm not really sure what this does.  Can we just use the service role created for the CodeBuild project?
-          # TODO What if we just omit this altogether?
-          # role-to-assume: arn:aws:iam::449435941126:role/service-role/codebuild-plfm9092-service-role
-          #role-to-assume: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev
+          role-to-assume: arn:aws:iam::449435941126:role/service-role/codebuild-plfm9092-service-role
           aws-region: us-east-1
 
       - name: Build and Test

@@ -21,13 +21,13 @@ jobs:
             # echo "user=$GITHUB_REPOSITORY_OWNER" >> $GITHUB_ENV
           fi
 
-      - uses: aws-actions/configure-aws-credentials@v1
-        with:
-          # TODO I'm not really sure what this does.  Can we just use the service role created for the CodeBuild project?
-          # TODO What if we just omit this altogether?
-          # role-to-assume: arn:aws:iam::449435941126:role/service-role/codebuild-plfm9092-service-role
-          role-to-assume: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev
-          aws-region: us-east-1
+#      - uses: aws-actions/configure-aws-credentials@v1
+#        with:
+#          # TODO I'm not really sure what this does.  Can we just use the service role created for the CodeBuild project?
+#          # TODO What if we just omit this altogether?
+#          # role-to-assume: arn:aws:iam::449435941126:role/service-role/codebuild-plfm9092-service-role
+#          role-to-assume: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev
+#          aws-region: us-east-1
 
       - name: Build and Test
         uses: aws-actions/aws-codebuild-run-build@v1
@@ -60,20 +60,11 @@ jobs:
                   - sudo dnf -y update && sudo dnf install -y mariadb105
               build:
                 commands:
-                  - aws sts get-caller-identity
                   # At this point the AWS role is codebuild-plfm9092-service-role, the service role associated with the Code Build project
-                  # Added admin access to allow it to run a build
-                  # But the build still failed.  I think the sts token isn't getting passed to the build
-                  #- STS_CREDENTIALS=$(aws sts get-session-token)
-                  #- export org_sagebionetworks_stack_iam_id=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.AccessKeyId')
-                  #- export org_sagebionetworks_stack_iam_key=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.SecretAccessKey')
-                  #- export org_sagebionetworks_stack_iam_session_token=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.SessionToken')
-                  - STS_CREDENTIALS=$(aws sts assume-role --role-arn arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev --role-session-name build-stack)
+                  # Let's switch to a role with the permissions we want
+                  # session duration 10800 seconds, or 3 hours
+                  - STS_CREDENTIALS=$(aws sts assume-role --role-arn arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev --duration-seconds 10800 --role-session-name build-stack)
                   - export org_sagebionetworks_stack_iam_id=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.AccessKeyId')
                   - export org_sagebionetworks_stack_iam_key=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.SecretAccessKey')
                   - export org_sagebionetworks_stack_iam_session_token=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.SessionToken')
-                  - echo org_sagebionetworks_stack_iam_id $org_sagebionetworks_stack_iam_id
-                  - echo org_sagebionetworks_stack_iam_key $org_sagebionetworks_stack_iam_key
-                  - echo org_sagebionetworks_stack_iam_session_token $org_sagebionetworks_stack_iam_session_token
                   - ./docker_build.sh
-                #- aws sts assume-role --role-arn arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev --role-session-name build-test

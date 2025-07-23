@@ -69,7 +69,7 @@ public class OssUtil {
         // check for minimum search requirements
         if (CollectionUtils.isEmpty(terms) && CollectionUtils.isEmpty(booleanQueries)) {
             throw new IllegalArgumentException(
-                    "Either one queryTerm or one booleanQuery must be defined");
+                    "Either one queryTerm or one booleanQuery must be defined.");
         }
 
         if (!CollectionUtils.isEmpty(terms)) {
@@ -94,7 +94,7 @@ public class OssUtil {
                         .field(query.getKey())
                         .value(FieldValue.of(query.getValue()))
                 )._toQuery();
-                if (query.getNot()) {
+                if (query.getNot() != null && query.getNot()) {
                     // Add to must_not if this is a NOT condition
                     boolBuilder.mustNot(termQuery);
                 } else {
@@ -107,13 +107,17 @@ public class OssUtil {
 
             rangeQueries.forEach(query -> {
                 ValidateArgument.required(query.getKey(), "keyRange key");
-                if (query.getMax() == null || query.getMin() == null) {
-                    throw new IllegalArgumentException("at least one of min or max for key=" + query.getKey() + "must be not null");
+                if (query.getMax() == null && query.getMin() == null) {
+                    throw new IllegalArgumentException("At least one of min or max for key=" + query.getKey() + " must be not null.");
                 }
 
                 RangeQuery.Builder builder = new RangeQuery.Builder().field(query.getKey());
-                if (query.getMin() != null) builder.gte(JsonData.of(query.getMax()));
-                if (query.getMax() != null) builder.lte(JsonData.of(query.getMin()));
+                if (query.getMin() != null){
+                    builder.gte(JsonData.of(query.getMin()));
+                }
+                if (query.getMax() != null) {
+                    builder.lte(JsonData.of(query.getMax()));
+                }
 
                 boolBuilder.must(Query.of(q -> q.range(builder.build())));
 
@@ -132,15 +136,18 @@ public class OssUtil {
         }
 
         if (!CollectionUtils.isEmpty(searchFacetOptions)) {
+            // in cloud search we check if its facet-able or not
             searchFacetOptions.forEach(facet -> {
                 SortOrder order = SortOrder.Desc;
                 if (SearchFacetSort.ALPHA == facet.getSortType()) {
                     order = SortOrder.Asc;
                 }
                 SortOrder finalOrder = order;
+                // facet filed value should be exactly same as it is in DocumentField class
+                String filedValue = SynapseToOpenSearchField.OpenSearchFieldFor(facet.getName());
                 aggregations.put(facet.getName().name(), Aggregation.of(a -> a
                         .terms(t -> t
-                                .field(facet.getName().name())
+                                .field(filedValue)
                                 .size(Math.toIntExact(facet.getMaxResultCount()))
                                 .order((List.of(Map.of("_count", finalOrder)))))));
             });
@@ -168,11 +175,12 @@ public class OssUtil {
     }
 
     public static Set<Long> getAuthorizedUserGroups(UserInfo userInfo) {
+        ValidateArgument.required(userInfo, "userInfo");
+
         if (userInfo.isAdmin()) {
             return Collections.emptySet();
         }
 
-        ValidateArgument.required(userInfo, "userInfo");
         Set<Long> userGroups = userInfo.getGroups();
         ValidateArgument.requiredNotEmpty(userGroups, "userGroup for " + userInfo.getId());
         return userGroups;
@@ -183,7 +191,7 @@ public class OssUtil {
         SearchResults synapseSearchResults = new SearchResults();
         synapseSearchResults.setFacets(getFacets(response));
         synapseSearchResults.setStart(from == null ? 0L : Long.valueOf(from));
-        synapseSearchResults.setFound(response.hits().total().value());
+        synapseSearchResults.setFound(response.hits() == null ? 0L : response.hits().total().value());
         synapseSearchResults.setHits(convertToSynapseHit(response.hits().hits()));
         return synapseSearchResults;
     }
@@ -238,6 +246,7 @@ public class OssUtil {
             synapseHit.setOrgan(hit.source().getOrgan());
             hitList.add(synapseHit);
         }
+
         return hitList;
     }
 

@@ -83,6 +83,7 @@ fi
 mysql -u${rds_user_name} -p${rds_password} -h ${org_sagebionetworks_repository_database_connection_url} -sN -e "DROP DATABASE ${db_name};CREATE DATABASE ${db_name};"
 mysql -u${rds_user_name} -p${rds_password} -h ${org_sagebionetworks_table_cluster_endpoint_0} -sN -e "DROP DATABASE ${db_name};CREATE DATABASE ${db_name};"
 
+
 # create build container and run build
 docker run --user "$(id -u):$(id -g)" -i --rm --name ${build_container_name} \
 -m 5500M \

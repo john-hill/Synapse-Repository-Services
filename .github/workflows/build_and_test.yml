@@ -7,6 +7,20 @@ on:
     branches: ['*']
 
 jobs:
+#  deploy_codebuild_stack:
+#    steps:
+#      # TODO need to authenticate to AWS first
+#      - name: Deploy to AWS CloudFormation
+#        uses: aws-actions/aws-cloudformation-github-deploy@v1
+#        with:
+#          # TODO give it a unique name
+#          name: CodeBuildProject
+#          template: configuration/build/codebuild_cf_template.yaml
+#          # TODO pass in user name
+#          # TODO need to get back ARN of execution role
+#          parameter-overrides: "MyParam1=myValue,MyParam2=${{ secrets.MY_SECRET_VALUE }}"
+
+
   build_and_test:
     permissions:
       id-token: write
@@ -26,7 +40,8 @@ jobs:
           # we have to start with this role or we run into trouble when getting an sts token for the role, below
           role-to-assume: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev
           aws-region: us-east-1
-          role-duration-seconds: 10800
+          # eight hours
+          role-duration-seconds: 28800
 
       - name: Build and Test
         uses: aws-actions/aws-codebuild-run-build@v1
@@ -65,6 +80,6 @@ jobs:
                   - export org_sagebionetworks_stack_iam_id=$(echo $STS_CREDENTIALS | jq -r '.AccessKeyId')
                   - export org_sagebionetworks_stack_iam_key=$(echo $STS_CREDENTIALS | jq -r '.SecretAccessKey')
                   - export org_sagebionetworks_stack_iam_session_token=$(echo $STS_CREDENTIALS | jq -r '.Token')
-                  - echo STS_CREDENTIALS **Duration should be 3 hours**
-                  - echo $STS_CREDENTIALS
+                  - echo Credential Expiration **Duration should be 8 hours**
+                  - echo $STS_CREDENTIALS | jq -r '.Expiration'
                   - ./docker_build.sh

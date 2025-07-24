@@ -61,13 +61,13 @@ jobs:
                   # At this point the AWS role is codebuild-plfm9092-service-role, the service role associated with the Code Build project
                   - aws sts get-caller-identity
                   - echo AWS Credentials
-                  - curl -i --output curlout.txt http://169.254.170.2/$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
+                  - curl -i -L --output curlout.txt http://169.254.170.2/$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
                   - echo printing curlout.txt
                   - cat curlout.txt
-                  - echo $(curl http://169.254.170.2/$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI)
+                  - echo $(curl -L http://169.254.170.2/$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI)
                   # Let's switch to a role with the permissions we want
                   # session duration 10800 seconds, or 3 hours
-                  - STS_CREDENTIALS=$(curl http://169.254.170.2/$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI)
+                  - STS_CREDENTIALS=$(curl -L http://169.254.170.2/$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI)
                   - echo STS_CREDENTIALS
                   - echo $STS_CREDENTIALS
                   - export org_sagebionetworks_stack_iam_id=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.AccessKeyId')

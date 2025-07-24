@@ -80,6 +80,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.scheduling.quartz.SimpleTriggerFactoryBean;
 
+import com.amazonaws.services.sqs.AmazonSQSClient;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -109,6 +110,8 @@ import software.amazon.awssdk.services.bedrockagent.model.ListAgentsRequest;
 import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAsyncClient;
 import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAsyncClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.SqsClientBuilder;
 import software.amazon.awssdk.services.opensearchserverless.OpenSearchServerlessClient;
 import software.amazon.awssdk.services.opensearchserverless.model.CollectionDetail;
 import software.amazon.awssdk.services.sts.StsClient;
@@ -487,6 +490,11 @@ public class ManagerConfiguration {
 	@Bean
 	public S3Client createS3Client(AwsCredentialsProvider credentialProvider) {
 		return S3Client.builder().credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
+	}
+	
+	@Bean
+	public SqsClient createSqsClient(AwsCredentialsProvider credentialProvider) {
+		return SqsClient.builder().credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
 	}
 
 }

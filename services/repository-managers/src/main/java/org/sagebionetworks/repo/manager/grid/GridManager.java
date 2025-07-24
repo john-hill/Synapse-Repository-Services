@@ -138,6 +138,8 @@ public interface GridManager extends PatchStore {
 
 	void deleteGridSession(UserInfo user, String gridSessionId);
 
+	Optional<GridConnectionInfo> getConnectionInfoOptional(String connectionId);
+
 
 
 }

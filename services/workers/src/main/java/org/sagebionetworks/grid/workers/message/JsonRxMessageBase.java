@@ -1,5 +1,5 @@
 package org.sagebionetworks.grid.workers.message;
 
-public interface JsonRxMessage {
+public interface JsonRxMessageBase {
 
 }

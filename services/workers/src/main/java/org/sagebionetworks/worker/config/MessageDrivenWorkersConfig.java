@@ -8,6 +8,7 @@ import org.sagebionetworks.file.worker.FileEventRecordWorker;
 import org.sagebionetworks.file.worker.FileHandleAssociationScanRangeWorker;
 import org.sagebionetworks.file.worker.FileHandleKeysArchiveWorker;
 import org.sagebionetworks.grid.workers.GridEventBrokerWorker;
+import org.sagebionetworks.grid.workers.GridReplicaWorker;
 import org.sagebionetworks.limits.workers.ProjectStorageDataRefreshWorker;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
 import org.sagebionetworks.ses.workers.SESNotificationWorker;
@@ -302,6 +303,28 @@ public class MessageDrivenWorkersConfig {
 						.build()
 				)
 				.withRepeatInterval(989)
+				.withStartDelay(3065)
+				.build();
+	}
+	
+	@Bean
+	public SimpleTriggerFactoryBean gridReplicaWorkerTrigger(GridReplicaWorker worker) {
+
+		String queueName = stackConfig.getQueueName("GRID_INTERNAL_EVENT");
+
+		return new WorkerTriggerBuilder()
+				.withStack(ConcurrentWorkerStack.builder()
+						.withSemaphoreLockKey("gridReplicaWorker")
+						.withSemaphoreMaxLockCount(8)
+						.withSemaphoreLockAndMessageVisibilityTimeoutSec(30)
+						.withMaxThreadsPerMachine(3)
+						.withSingleton(concurrentStackManager)
+						.withCanRunInReadOnly(false)
+						.withQueueName(queueName)
+						.withWorker(worker)
+						.build()
+				)
+				.withRepeatInterval(981)
 				.withStartDelay(3065)
 				.build();
 	}

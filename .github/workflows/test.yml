@@ -26,6 +26,7 @@ jobs:
           # we have to start with this role or we run into trouble when getting an sts token for the role, below
           role-to-assume: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev
           aws-region: us-east-1
+          role-duration-seconds: 10800
 
       - name: Build and Test
         uses: aws-actions/aws-codebuild-run-build@v1
@@ -64,7 +65,6 @@ jobs:
                   - export org_sagebionetworks_stack_iam_id=$(echo $STS_CREDENTIALS | jq -r '.AccessKeyId')
                   - export org_sagebionetworks_stack_iam_key=$(echo $STS_CREDENTIALS | jq -r '.SecretAccessKey')
                   - export org_sagebionetworks_stack_iam_session_token=$(echo $STS_CREDENTIALS | jq -r '.Token')
-                  - echo org_sagebionetworks_stack_iam_id $org_sagebionetworks_stack_iam_id
-                  - echo org_sagebionetworks_stack_iam_key $org_sagebionetworks_stack_iam_key
-                  - echo org_sagebionetworks_stack_iam_session_token $org_sagebionetworks_stack_iam_session_token
+                  - echo STS_CREDENTIALS **Duration should be 3 hours**
+                  - echo $STS_CREDENTIALS
                   - ./docker_build.sh

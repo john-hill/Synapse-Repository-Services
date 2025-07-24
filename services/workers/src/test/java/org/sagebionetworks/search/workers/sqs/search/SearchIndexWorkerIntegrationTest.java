@@ -11,6 +11,7 @@ import org.sagebionetworks.repo.manager.search.oss.SearchManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.FileEntity;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -22,15 +23,15 @@ import org.sagebionetworks.util.TimeUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.util.CollectionUtils;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
@@ -50,6 +51,9 @@ public class SearchIndexWorkerIntegrationTest {
     private Project project;
     private UserInfo adminUser;
     private UserInfo anotherUser;
+    private FileEntity fileOne;
+    private FileEntity fileTwo;
+    private List<FileEntity> fileToBeDeleted = new ArrayList<>();
 
 
     @BeforeEach
@@ -64,11 +68,26 @@ public class SearchIndexWorkerIntegrationTest {
         //creating entity, trigger create message. SearchIndexWorker will pick up the message and create a searchable document.
         String id = entityManager.createEntity(adminUser, project, null);
         project = entityManager.getEntity(adminUser, id, Project.class);
+
+        FileEntity fileTobeCreated = new FileEntity().setName(UUID.randomUUID().toString());
+        String fileOneId = entityManager.createEntity(adminUser, fileTobeCreated, null);
+        fileOne = entityManager.getEntity(adminUser, fileOneId, FileEntity.class);
+        fileToBeDeleted.add(fileOne);
+        FileEntity fileTwoTobeCreated = new FileEntity().setName(UUID.randomUUID().toString());
+        String fileTwoId = entityManager.createEntity(adminUser, fileTwoTobeCreated, null);
+        fileTwo = entityManager.getEntity(adminUser, fileTwoId, FileEntity.class);
+        fileToBeDeleted.add(fileTwo);
+
     }
 
     @AfterEach
     public void after(){
-        if (project != null){
+        if (!CollectionUtils.isEmpty(fileToBeDeleted)) {
+            for (FileEntity file : fileToBeDeleted) {
+                entityManager.deleteEntity(adminUser, file.getId());
+            }
+        }
+        if (project != null) {
             entityManager.deleteEntity(adminUser, project.getId());
         }
 
@@ -83,26 +102,24 @@ public class SearchIndexWorkerIntegrationTest {
         //call under test
         waitForEntityToAppearInSearch(project.getId(), project.getEtag());
 
-        // The admin should find the project
-        SearchResults results = searchManager.search(adminUser, searchQueryByTerm(project.getName()));
-        assertNotNull(results);
-        assertTrue(results.getHits().stream().anyMatch(hit -> hit.getId().equals(project.getId())));
+        // The admin should find the project and the files
+        String term = project.getName() + " " + fileOne.getName() + " " + fileTwo.getName();
+        waitForQuery(adminUser, term, 3);
 
-        // No results for the user since the project is not shared
-        SearchResults results1 = searchManager.search(anotherUser, searchQueryByTerm(project.getName()));
+        // No results for the user since the project and files are not shared
+        SearchResults results1 = searchManager.search(anotherUser, searchQueryByTerm(term));
         assertEquals(0, results1.getFound());
-        // Now share the project with the user
-        AccessControlList acl = entityAclManager.getACL(project.getId(), adminUser);
+
+        // Now share the file with the user
+        AccessControlList acl = entityAclManager.getACL(fileOne.getId(), adminUser);
 
         acl.getResourceAccess().add(new ResourceAccess().setPrincipalId(anotherUser.getId()).setAccessType(Collections.singleton(ACCESS_TYPE.READ)));
 
         // Update the ACL, this should propagate the change so that the document is visible to the user
         entityAclManager.updateACL(acl, adminUser);
 
-        // The user should eventually find the project
-        SearchResults results2 = searchManager.search(anotherUser, searchQueryByTerm(project.getName()));
-        /*assertNotNull(results2);
-        assertTrue(results2.getHits().stream().anyMatch(hit -> hit.getId().equals(project.getId())));*/
+        // The user should eventually find the file
+        waitForQuery(anotherUser, term, 1);
     }
 
     /**
@@ -118,5 +135,13 @@ public class SearchIndexWorkerIntegrationTest {
 
     private static SearchQuery searchQueryByTerm(String term) {
         return new SearchQuery().setQueryTerm(Arrays.asList(term));
+    }
+
+    public void waitForQuery(UserInfo user, String term, long expected) throws Exception {
+        SearchQuery searchQuery = new SearchQuery().setQueryTerm(Arrays.asList(term));
+        TimeUtils.waitFor(MAX_WAIT, CHECK_TIME, () -> {
+            System.out.println("Waiting for search query: "+searchQuery);
+            return Pair.create(searchManager.search(user, searchQuery).getFound() == expected, null);
+        });
     }
 }

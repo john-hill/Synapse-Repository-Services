@@ -60,17 +60,11 @@ jobs:
                 commands:
                   # At this point the AWS role is codebuild-plfm9092-service-role, the service role associated with the Code Build project
                   - aws sts get-caller-identity
-                  - echo AWS Credentials
-                  - curl -i -L --output curlout.txt http://169.254.170.2/$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
-                  - echo printing curlout.txt
-                  - cat curlout.txt
-                  - echo $(curl -L http://169.254.170.2/$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI)
-                  # Let's switch to a role with the permissions we want
-                  # session duration 10800 seconds, or 3 hours
                   - STS_CREDENTIALS=$(curl -L http://169.254.170.2/$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI)
-                  - echo STS_CREDENTIALS
-                  - echo $STS_CREDENTIALS
-                  - export org_sagebionetworks_stack_iam_id=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.AccessKeyId')
-                  - export org_sagebionetworks_stack_iam_key=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.SecretAccessKey')
-                  - export org_sagebionetworks_stack_iam_session_token=$(echo $STS_CREDENTIALS | jq -r '.Credentials''.SessionToken')
+                  - export org_sagebionetworks_stack_iam_id=$(echo $STS_CREDENTIALS | jq -r '.AccessKeyId')
+                  - export org_sagebionetworks_stack_iam_key=$(echo $STS_CREDENTIALS | jq -r '.SecretAccessKey')
+                  - export org_sagebionetworks_stack_iam_session_token=$(echo $STS_CREDENTIALS | jq -r '.Token')
+                  - echo org_sagebionetworks_stack_iam_id $org_sagebionetworks_stack_iam_id
+                  - echo org_sagebionetworks_stack_iam_key $org_sagebionetworks_stack_iam_key
+                  - echo org_sagebionetworks_stack_iam_session_token $org_sagebionetworks_stack_iam_session_token
                   - ./docker_build.sh

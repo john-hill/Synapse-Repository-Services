@@ -55,7 +55,7 @@ public class PatchRowHandler implements RowHandler {
 		// initialize an empty document
 		NewObject rootObject = currentPatch.addNewOperation(NewObject.class);
 		NewConstant documentVersion = currentPatch.addNewOperation(NewConstant.class)
-				.setValue(new ConValue(ConType.STRING, "0.0.3"));
+				.setValue(new ConValue(ConType.STRING, "0.1.0"));
 		NewVector columnNames = currentPatch.addNewOperation(NewVector.class);
 		NewArray columnOrder = currentPatch.addNewOperation(NewArray.class);
 		NewArray rows = currentPatch.addNewOperation(NewArray.class);
@@ -153,14 +153,14 @@ public class PatchRowHandler implements RowHandler {
 		Long rowId = row.getRowId();
 		if (rowId != null) {
 			NewConstant rowIdConst = currentPatch.addNewOperation(NewConstant.class)
-					.setValue(new ConValue(ConType.DOUBLE, rowId));
+					.setValue(new ConValue(ConType.LONG, rowId));
 			synapseRowMetadataObjectMap.put("rowId",  rowIdConst.getOperationId());
 		}
 
 		Long versionNumber = row.getVersionNumber();
 		if (versionNumber != null) {
 			NewConstant versionNumberConst = currentPatch.addNewOperation(NewConstant.class)
-					.setValue(new ConValue(ConType.DOUBLE, versionNumber));
+					.setValue(new ConValue(ConType.LONG, versionNumber));
 			synapseRowMetadataObjectMap.put("versionNumber",  versionNumberConst.getOperationId());
 
 		}

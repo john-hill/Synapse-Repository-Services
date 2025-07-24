@@ -53,7 +53,7 @@ public class PatchRowHandlerTest {
 		verify(mockStore, times(1)).savePatch(any(), any(), any());
 		// This patch has been tested with the JSON-Joy TypeScript library.
 		verify(mockStore).savePatch(sessionId, new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(1L),
-				"[[[19,1]],[2],[0,\"0.0.3\"],[3],[6],[6],[10,1,[[\"doc_version\",2],[\"columnNames\",3],"
+				"[[[19,1]],[2],[0,\"0.1.0\"],[3],[6],[6],[10,1,[[\"doc_version\",2],[\"columnNames\",3],"
 						+ "[\"columnOrder\",4],[\"rows\",5]]],[9,[0,0],1]]");
 	}
 
@@ -68,7 +68,7 @@ public class PatchRowHandlerTest {
 		verify(mockStore, times(1)).savePatch(any(), any(), any());
 		// This patch has been tested with the JSON-Joy TypeScript library.
 		verify(mockStore).savePatch(sessionId, new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(1L),
-				"[[[19,1]],[2],[0,\"0.0.3\"],[3],[6],[6],[10,1,[[\"doc_version\",2],[\"columnNames\",3],"
+				"[[[19,1]],[2],[0,\"0.1.0\"],[3],[6],[6],[10,1,[[\"doc_version\",2],[\"columnNames\",3],"
 						+ "[\"columnOrder\",4],[\"rows\",5]]],[9,[0,0],1],[0,\"aString\"],[0,0],[0,\"anInt\"],"
 						+ "[0,1],[11,3,[[0,8],[1,10]]],[14,4,4,[9,11]]]");
 	}
@@ -85,7 +85,7 @@ public class PatchRowHandlerTest {
 		verify(mockStore, times(1)).savePatch(any(), any(), any());
 		// This patch has been tested with the JSON-Joy TypeScript library.
 		verify(mockStore).savePatch(sessionId, new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(1L),
-		 "[[[19,1]],[2],[0,\"0.0.3\"],[3],[6],[6],[10,1,[[\"doc_version\",2],[\"columnNames\",3],"
+		 "[[[19,1]],[2],[0,\"0.1.0\"],[3],[6],[6],[10,1,[[\"doc_version\",2],[\"columnNames\",3],"
 				 + "[\"columnOrder\",4],[\"rows\",5]]],[9,[0,0],1],[0,\"aString\"],[0,0],[0,\"anInt\"],"
 				 + "[0,1],[11,3,[[0,8],[1,10]]],[14,4,4,[9,11]],[2],"
 				 + "[3],[0,\"one\"],[0,101],[11,16,[[0,17],[1,18]]],[2],[2],[0,1],[0,4],[0,\"fake-etag-1\"],[10,21,[[\"rowId\",22],[\"versionNumber\",23],[\"etag\",24]]],[10,20,[[\"synapseRow\",21]]],[10,15,[[\"data\",16],[\"metadata\",20]]],[14,5,5,[15]],[2],"
@@ -108,7 +108,7 @@ public class PatchRowHandlerTest {
 		// All three patch has been tested with the JSON-Joy TypeScript library.
 		// The first patch includes the grid setup and the first row
 		verify(mockStore).savePatch(sessionId, new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(1L),
-				"[[[19,1]],[2],[0,\"0.0.3\"],[3],[6],[6],[10,1,[[\"doc_version\",2],[\"columnNames\",3],"
+				"[[[19,1]],[2],[0,\"0.1.0\"],[3],[6],[6],[10,1,[[\"doc_version\",2],[\"columnNames\",3],"
 						+ "[\"columnOrder\",4],[\"rows\",5]]],[9,[0,0],1],[0,\"aString\"],[0,0],[0,\"anInt\"],"
 						+ "[0,1],[11,3,[[0,8],[1,10]]],[14,4,4,[9,11]],[2],[3],[0,\"one\"],[0,101],[11,16,[[0,17],[1,18]]],[2],[2],[0,1],[0,4],"
 						+ "[0,\"fake-etag-1\"],[10,21,[[\"rowId\",22],[\"versionNumber\",23],[\"etag\",24]]],"

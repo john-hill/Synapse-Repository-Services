@@ -61,7 +61,7 @@ jobs:
                   # At this point the AWS role is codebuild-plfm9092-service-role, the service role associated with the Code Build project
                   - aws sts get-caller-identity
                   - echo AWS Credentials
-                  - curl -i --output curlout.txt ttp://169.254.170.2/$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
+                  - curl -i --output curlout.txt http://169.254.170.2/$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
                   - echo printing curlout.txt
                   - cat curlout.txt
                   - echo $(curl http://169.254.170.2/$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI)

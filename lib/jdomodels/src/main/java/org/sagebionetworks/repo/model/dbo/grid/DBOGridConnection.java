@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.model.dbo.grid;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_CON_CONNECTION_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_CON_CREATED_BY;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_CON_CREATED_ON;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_CON_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_CON_REPLICA_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_CON_SESSION_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_CON_SOURCE;
@@ -13,14 +14,19 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.Date;
+import java.util.List;
 import java.util.Objects;
 
-import org.sagebionetworks.repo.model.dbo.DatabaseObject;
 import org.sagebionetworks.repo.model.dbo.FieldColumn;
+import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
 import org.sagebionetworks.repo.model.dbo.TableMapping;
+import org.sagebionetworks.repo.model.dbo.migration.BasicMigratableTableTranslation;
+import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
+import org.sagebionetworks.repo.model.migration.MigrationType;
 
-public class DBOGridConnection implements DatabaseObject<DBOGridConnection> {
+public class DBOGridConnection implements MigratableDatabaseObject<DBOGridConnection, DBOGridConnection> {
 
+	private Long id;
 	private String connectionId;
 	private String sessionId;
 	private Long replicaId;
@@ -28,14 +34,14 @@ public class DBOGridConnection implements DatabaseObject<DBOGridConnection> {
 	private Timestamp createdOn;
 	private String source;
 
-
 	private static FieldColumn[] FIELDS = new FieldColumn[] {
-			new FieldColumn("connectionId", COL_GRID_CON_CONNECTION_ID).withIsPrimaryKey(true),
+			new FieldColumn("id", COL_GRID_CON_ID).withIsPrimaryKey(true).withIsBackupId(true),
+			new FieldColumn("connectionId", COL_GRID_CON_CONNECTION_ID),
 			new FieldColumn("sessionId", COL_GRID_CON_SESSION_ID),
 			new FieldColumn("replicaId", COL_GRID_CON_REPLICA_ID),
 			new FieldColumn("createdBy", COL_GRID_CON_CREATED_BY),
-			new FieldColumn("createdOn", COL_GRID_CON_CREATED_ON),
-			new FieldColumn("source", COL_GRID_CON_SOURCE), };
+			new FieldColumn("createdOn", COL_GRID_CON_CREATED_ON), 
+			new FieldColumn("source", COL_GRID_CON_SOURCE) };
 
 	@Override
 	public TableMapping<DBOGridConnection> getTableMapping() {
@@ -44,6 +50,7 @@ public class DBOGridConnection implements DatabaseObject<DBOGridConnection> {
 			@Override
 			public DBOGridConnection mapRow(ResultSet rs, int rowNum) throws SQLException {
 				DBOGridConnection dbo = new DBOGridConnection();
+				dbo.setId(rs.getLong(COL_GRID_CON_ID));
 				dbo.setConnectionId(rs.getString(COL_GRID_CON_CONNECTION_ID));
 				dbo.setSessionId(rs.getString(COL_GRID_CON_SESSION_ID));
 				dbo.setReplciaId(rs.getLong(COL_GRID_CON_REPLICA_ID));
@@ -73,6 +80,15 @@ public class DBOGridConnection implements DatabaseObject<DBOGridConnection> {
 				return DBOGridConnection.class;
 			}
 		};
+	}
+
+	public Long getId() {
+		return id;
+	}
+
+	public DBOGridConnection setId(Long id) {
+		this.id = id;
+		return this;
 	}
 
 	public String getConnectionId() {
@@ -154,6 +170,29 @@ public class DBOGridConnection implements DatabaseObject<DBOGridConnection> {
 				+ ", createdBy=" + createdBy + ", createdOn=" + createdOn + ", source=" + source + "]";
 	}
 
+	@Override
+	public MigrationType getMigratableTableType() {
+		return MigrationType.GRID_CONNECTION;
+	}
 
+	@Override
+	public MigratableTableTranslation<DBOGridConnection, DBOGridConnection> getTranslator() {
+		return new BasicMigratableTableTranslation<>();
+	}
+
+	@Override
+	public Class<? extends DBOGridConnection> getBackupClass() {
+		return DBOGridConnection.class;
+	}
+
+	@Override
+	public Class<? extends DBOGridConnection> getDatabaseObjectClass() {
+		return DBOGridConnection.class;
+	}
+
+	@Override
+	public List<MigratableDatabaseObject<?, ?>> getSecondaryTypes() {
+		return null;
+	}
 
 }

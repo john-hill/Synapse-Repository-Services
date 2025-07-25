@@ -12,9 +12,9 @@ import org.sagebionetworks.repo.model.grid.node.ValueNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.operation.InsertValue;
 import org.sagebionetworks.repo.model.grid.patch.operation.OperationType;
-import org.springframework.stereotype.Repository;
+import org.springframework.stereotype.Component;
 
-@Repository
+@Component
 public class InsertValueHandler implements OperationHandler<InsertValue> {
 
 	private final GridIndexDao gridDao;

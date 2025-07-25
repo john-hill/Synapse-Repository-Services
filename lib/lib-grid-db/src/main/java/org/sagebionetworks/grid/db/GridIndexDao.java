@@ -210,4 +210,46 @@ public interface GridIndexDao {
 	 */
 	Optional<LogicalTimestamp> findArrayInsertLocation(String sessionIdString, Long replicaId, ArrayNode toInsert);
 
+	/**
+	 * Create the next message ID to start a new message chain.The id resets to zero
+	 * when it reaches 65535.
+	 * 
+	 * @see <a href=
+	 *      "https://jsonjoy.com/specs/json-rx/messages#Sequence-number-(message-ID)-component">Sequence-number-(message-ID)-component</a>
+	 * 
+	 * @param sessionIdString
+	 * @param replicaId
+	 * @param maxValue
+	 * @return
+	 */
+	Integer createNextMessageId(String sessionIdString, Long replicaId, int maxValue);
+
+	/**
+	 * Create a new {@link MessageChain} to track this chain as it is executed.
+	 * 
+	 * @param setMethod
+	 * @return
+	 */
+	MessageChain createMessageChain(MessageChain setMethod);
+
+	/**
+	 * Get a {@link MessageChain} if it exists.
+	 * 
+	 * @param sessionId
+	 * @param replicaId
+	 * @param chainId
+	 * @return Optional.empty() if the chain no longer exists
+	 */
+	Optional<MessageChain> getMessageChain(String sessionId, Long replicaId, Integer chainId);
+
+	/**
+	 * Delete a message chain upon completion. This will free up the ID to be
+	 * recycled if needed.
+	 * 
+	 * @param sessionId
+	 * @param replicaId
+	 * @param chainId
+	 */
+	void deleteMessageChain(String sessionId, Long replicaId, Integer chainId);
+
 }

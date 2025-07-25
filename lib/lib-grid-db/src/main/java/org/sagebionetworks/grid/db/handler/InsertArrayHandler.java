@@ -10,12 +10,14 @@ import org.sagebionetworks.repo.model.grid.node.ArrayNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.operation.InsertArray;
 import org.sagebionetworks.repo.model.grid.patch.operation.OperationType;
+import org.springframework.stereotype.Component;
 
 /**
  * This handler follows the <a href=
  * "https://jsonjoy.com/specs/json-crdt/model-document/crdt-algorithms#RGA-Insertion-Routine">RGA
  * Insertion Routine</a>.
  */
+@Component
 public class InsertArrayHandler implements OperationHandler<InsertArray> {
 
 	private final GridIndexDao gridDao;

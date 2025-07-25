@@ -10,9 +10,9 @@ import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
 import org.sagebionetworks.repo.model.grid.patch.operation.OperationType;
 import org.sagebionetworks.util.ValidateArgument;
-import org.springframework.stereotype.Repository;
+import org.springframework.stereotype.Component;
 
-@Repository
+@Component
 public class NewConstantHandler implements OperationHandler<NewConstant> {
 
 	private final GridIndexDao dao;

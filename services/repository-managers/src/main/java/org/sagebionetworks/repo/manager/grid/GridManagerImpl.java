@@ -153,6 +153,10 @@ public class GridManagerImpl implements GridManager {
 			GridReplica replica = gridDao.createReplica(user.getId(), session.getSessionId(), false,
 					EventSource.INTERNAL);
 
+			// Always include the entity etag so it is included in the grid metadata. The etag can be used to merge the
+			// grid data back into a Synapse Table or View
+			initialQuery.setIncludeEntityEtag(true);
+
 			// The second query is a full query to build all of the patches from the query
 			// results.
 			tableQueryManager.runQueryAsStream(callback, user, initialQuery, t -> {

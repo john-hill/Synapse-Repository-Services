@@ -298,7 +298,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 				Patch patch = PatchCompactSerializable.deserialize(a.getJSONArray(2));
 				assertNotNull(patch);
 				assertEquals(new LogicalTimestamp().setReplicaId(66534L).setSequenceNumber(1L), patch.getPatchId());
-				assertEquals(15L, patch.getSpan());
+				assertEquals(23L, patch.getSpan());
 				// find the constant that contains the table's value
 				Optional<NewConstant> op = patch.getOperations().stream().filter(o -> (o instanceof NewConstant))
 						.map(c -> (NewConstant) c).filter(c -> ConType.LONG.equals(c.getValue().getType()))
@@ -381,7 +381,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 				Patch patch = PatchCompactSerializable.deserialize(a.getJSONArray(2));
 				assertNotNull(patch);
 				assertEquals(new LogicalTimestamp().setReplicaId(66534L).setSequenceNumber(1L), patch.getPatchId());
-				assertEquals(15L, patch.getSpan());
+				assertEquals(24L, patch.getSpan());
 				// find the constant that contains the table's value
 				Optional<NewConstant> op = patch.getOperations().stream().filter(o -> (o instanceof NewConstant))
 						.map(c -> (NewConstant) c).filter(c -> ConType.LONG.equals(c.getValue().getType()))

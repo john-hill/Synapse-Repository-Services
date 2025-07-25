@@ -206,7 +206,7 @@ public class GridManagerUnitTest {
 				mockS3Client, mockQueryManager, mockEntityManager, mockInternalEventPublisher);
 		gridManager = Mockito.spy(gridManager);
 		clock = List.of(patchId);
-		query = new Query().setSql("select * from syn123");
+		query = new Query().setSql("select * from syn123").setIncludeEntityEtag(false);
 		tableId = "syn999";
 		rows = List.of(new Row().setRowId(10101L));
 		maxRowsPerPage = 78L;
@@ -984,6 +984,7 @@ public class GridManagerUnitTest {
 
 		// call under test
 		gridManager.buildSessionFromQuery(mockCallback, mockUser, query);
+		assertTrue(query.getIncludeEntityEtag()); // verify that the query is mutated to include etag
 		RowHandlerProvider rp = rowHandlerProviderCaptor.getValue();
 		when(mockQueryTranslattion.getMainQuery()).thenReturn(mockMainQuery);
 		when(mockMainQuery.getTranslator()).thenReturn(mockTranslator);

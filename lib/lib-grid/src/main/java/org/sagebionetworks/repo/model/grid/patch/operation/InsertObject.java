@@ -31,6 +31,10 @@ public class InsertObject implements Operation<InsertObject> {
 	}
 
 	public InsertObject setMap(Map<String, LogicalTimestamp> map) {
+		if (map == null || map.isEmpty()) {
+			// Writing an empty map creates an invalid patch that cannot be parsed by json-joy.
+			throw new IllegalArgumentException("Map cannot be null or empty");
+		}
 		this.map = map;
 		return this;
 	}

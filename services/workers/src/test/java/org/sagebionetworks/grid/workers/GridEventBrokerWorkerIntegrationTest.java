@@ -26,6 +26,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.AsynchronousJobWorkerHelper;
+import org.sagebionetworks.grid.db.GridIndexManager;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
@@ -70,17 +71,20 @@ import org.sagebionetworks.repo.service.EntityService;
 import org.sagebionetworks.repo.service.GridService;
 import org.sagebionetworks.repo.service.JsonSchemaServices;
 import org.sagebionetworks.repo.web.NotFoundException;
+import org.sagebionetworks.util.Pair;
+import org.sagebionetworks.util.TimeUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
-
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
 public class GridEventBrokerWorkerIntegrationTest {
 
+	private static final long INTERNAL_REPLICA_ID = 66534L;
+
 	private static final Logger LOG = LogManager.getLogger(GridEventBrokerWorkerIntegrationTest.class);
-	
+
 	public static final long MAX_WAIT_MS = 120_000;
 
 	@Autowired
@@ -106,6 +110,9 @@ public class GridEventBrokerWorkerIntegrationTest {
 
 	@Autowired
 	private FileHandleManager fileHandleManager;
+
+	@Autowired
+	private GridIndexManager gridIndexManager;
 
 	private UserInfo admin;
 
@@ -157,7 +164,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 	}
 
 	@Test
-	public void testPatch() throws AssertionError, AsynchJobFailedException, URISyntaxException, InterruptedException {
+	public void testPatch() throws AssertionError, Exception {
 		// Create a grid session.
 		GridSession session = asynchronousJobWorkerHelper
 				.assertJobResponse(admin, new CreateGridRequest(), (CreateGridResponse response) -> {
@@ -272,7 +279,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 					assertNotNull(response);
 					assertNotNull(response.getGridSession());
 				}, MAX_WAIT_MS).getResponse().getGridSession();
-		
+
 		assertNotNull(session);
 		assertEquals(table.getId(), session.getSourceEntityId());
 
@@ -297,7 +304,8 @@ public class GridEventBrokerWorkerIntegrationTest {
 			if (a.optInt(0) == 4 && a.optInt(1) == 99) {
 				Patch patch = PatchCompactSerializable.deserialize(a.getJSONArray(2));
 				assertNotNull(patch);
-				assertEquals(new LogicalTimestamp().setReplicaId(66534L).setSequenceNumber(1L), patch.getPatchId());
+				assertEquals(new LogicalTimestamp().setReplicaId(INTERNAL_REPLICA_ID).setSequenceNumber(1L),
+						patch.getPatchId());
 				assertEquals(23L, patch.getSpan());
 				// find the constant that contains the table's value
 				Optional<NewConstant> op = patch.getOperations().stream().filter(o -> (o instanceof NewConstant))
@@ -380,7 +388,8 @@ public class GridEventBrokerWorkerIntegrationTest {
 			if (a.optInt(0) == 4 && a.optInt(1) == 99) {
 				Patch patch = PatchCompactSerializable.deserialize(a.getJSONArray(2));
 				assertNotNull(patch);
-				assertEquals(new LogicalTimestamp().setReplicaId(66534L).setSequenceNumber(1L), patch.getPatchId());
+				assertEquals(new LogicalTimestamp().setReplicaId(INTERNAL_REPLICA_ID).setSequenceNumber(1L),
+						patch.getPatchId());
 				assertEquals(24L, patch.getSpan());
 				// find the constant that contains the table's value
 				Optional<NewConstant> op = patch.getOperations().stream().filter(o -> (o instanceof NewConstant))
@@ -393,6 +402,16 @@ public class GridEventBrokerWorkerIntegrationTest {
 			}
 		}, incomingMessagesOne));
 
+		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+			List<LogicalTimestamp> clock = gridIndexManager.getClock(session.getSessionId(), INTERNAL_REPLICA_ID);
+			List<LogicalTimestamp> expected = List
+					.of(new LogicalTimestamp().setReplicaId(INTERNAL_REPLICA_ID).setSequenceNumber(25L));
+			System.out.println(
+					String.format("Waiting for the internal replica's clock to be: '%s' Replicas's current clock: '%s'",
+							expected, clock));
+
+			return Pair.create(expected.equals(clock), null);
+		});
 	}
 
 	/**
@@ -402,7 +421,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 	 * @throws Exception
 	 */
 	CreateSchemaResponse createJsonSchema(Map<String, JsonSchema> properties) throws Exception {
-		Organization org=  getOrCreateOrganization(admin.getId(), "gridtestorg");
+		Organization org = getOrCreateOrganization(admin.getId(), "gridtestorg");
 		String jsonSchemaName = "exampleSchema";
 		JsonSchema jsonSchema = new JsonSchema().set$id(org.getName() + "-" + jsonSchemaName).setProperties(properties);
 
@@ -411,9 +430,10 @@ public class GridEventBrokerWorkerIntegrationTest {
 					assertNotNull(response);
 				}, MAX_WAIT_MS).getResponse();
 	}
-	
+
 	/**
 	 * Helper to get or create a schema organization.
+	 * 
 	 * @param userId
 	 * @param name
 	 * @return
@@ -462,42 +482,42 @@ public class GridEventBrokerWorkerIntegrationTest {
 	 * @throws URISyntaxException
 	 */
 	public WebSocket createConnection(String presignedUrl, BlockingQueue<String> incomingMessages)
-			throws URISyntaxException {				
+			throws URISyntaxException {
 		WebSocketImpl client = new WebSocketImpl(presignedUrl, incomingMessages);
-		
+
 		try {
 			client.connectBlocking();
 		} catch (InterruptedException e) {
 			throw new RuntimeException("Failed to connect to WebSocket: " + presignedUrl, e);
 		}
-		
+
 		return client;
 	}
-	
+
 	public static class WebSocketImpl extends WebSocketClient {
-		
+
 		private BlockingQueue<String> incomingMessages;
-		
+
 		public WebSocketImpl(String url, BlockingQueue<String> incomingMessages) {
 			super(URI.create(url));
 			this.incomingMessages = incomingMessages;
 		}
-	
+
 		@Override
 		public void onOpen(org.java_websocket.handshake.ServerHandshake handshakedata) {
 			LOG.info("WebSocket connection opened: {}, ", handshakedata.getHttpStatusMessage());
 		}
-	
+
 		@Override
 		public void onClose(int code, String reason, boolean remote) {
 			LOG.info("WebSocket connection closed with code: {}, reason: {}", code, reason);
 		}
-	
+
 		@Override
 		public void onError(Exception ex) {
 			LOG.error("WebSocket error: ", ex);
 		}
-	
+
 		@Override
 		public void onMessage(String message) {
 			LOG.info("Message received: {}", message);
@@ -508,7 +528,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 				throw new RuntimeException(e);
 			}
 		}
-		
+
 	}
 
 }

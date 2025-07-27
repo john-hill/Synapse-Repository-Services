@@ -277,6 +277,25 @@ public class WriteReadSemaphoreImplTest {
 				throw e;
 			});
 		});
+		assertEquals(e, thrown.getCause());
+
+		verify(semaphore).createReadLock(readRequest);
+		verify(mockReadLock).attemptToAcquireLock();
+		verify(mockReadLock).close();
+	}
+
+	@Test
+	public void testTryRunWithReadLockWithRuntimeException() throws Exception {
+		doReturn(mockReadLock).when(semaphore).createReadLock(any());
+		when(mockCallback.getLockTimeoutSeconds()).thenReturn(maxTimeout);
+		readRequest = new ReadLockRequest(mockCallback, context, keys);
+		RuntimeException e = new RuntimeException("no");
+		Exception thrown = assertThrows(Exception.class, () -> {
+			// call under test
+			semaphore.tryRunWithReadLock(readRequest, (cb) -> {
+				throw e;
+			});
+		});
 		assertEquals(e, thrown);
 
 		verify(semaphore).createReadLock(readRequest);
@@ -297,6 +316,52 @@ public class WriteReadSemaphoreImplTest {
 			return "results";
 		});
 		assertEquals("results", returned);
+
+		verify(semaphore).createWriteLock(writeLockRequest);
+		verify(mockWriteLock).attemptToAcquireLock();
+		verify(mockWriteLock).close();
+		verifyZeroInteractions(mockClock);
+	}
+
+	@Test
+	public void testTryRunWithWriteLockWithRuntimeException() throws Exception {
+		doReturn(mockWriteLock).when(semaphore).createWriteLock(any());
+		when(mockWriteLock.getExistingReadLockContext()).thenReturn(Optional.empty());
+
+		when(mockCallback.getLockTimeoutSeconds()).thenReturn(maxTimeout);
+		writeLockRequest = new WriteLockRequest(mockCallback, context, keys[0]);
+		RuntimeException e = new RuntimeException("not");
+
+		RuntimeException thrown = assertThrows(RuntimeException.class, () -> {
+			// call under test
+			semaphore.tryRunWithWriteLock(writeLockRequest, (p) -> {
+				throw e;
+			});
+		});
+		assertEquals(e, thrown);
+
+		verify(semaphore).createWriteLock(writeLockRequest);
+		verify(mockWriteLock).attemptToAcquireLock();
+		verify(mockWriteLock).close();
+		verifyZeroInteractions(mockClock);
+	}
+
+	@Test
+	public void testTryRunWithWriteLockWithException() throws Exception {
+		doReturn(mockWriteLock).when(semaphore).createWriteLock(any());
+		when(mockWriteLock.getExistingReadLockContext()).thenReturn(Optional.empty());
+
+		when(mockCallback.getLockTimeoutSeconds()).thenReturn(maxTimeout);
+		writeLockRequest = new WriteLockRequest(mockCallback, context, keys[0]);
+		Exception e = new Exception("not");
+
+		Exception thrown = assertThrows(Exception.class, () -> {
+			// call under test
+			semaphore.tryRunWithWriteLock(writeLockRequest, (p) -> {
+				throw e;
+			});
+		});
+		assertEquals(e, thrown.getCause());
 
 		verify(semaphore).createWriteLock(writeLockRequest);
 		verify(mockWriteLock).attemptToAcquireLock();

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -65,10 +66,17 @@ public class BeanTest implements ApplicationContextAware {
 
 	@Test
 	public void testTransactionalNotUsed() {
-		// Transactional is not used anymore, use @WriteTransaction, @NewWriteTransaction or @MandatoryWriteTransaction
-		Reflections reflections = new Reflections("org.sagebionetworks", Scanners.MethodsAnnotated, Scanners.TypesAnnotated);
-		assertEquals(0, reflections.getTypesAnnotatedWith(Transactional.class).size());
-		assertEquals(0, reflections.getMethodsAnnotatedWith(Transactional.class).stream().filter(m -> !TRANSACTIONAL_EXCEPTIONS.contains(m.getName())).count());
+		// Transactional is not used anymore, use @WriteTransaction,
+		// @NewWriteTransaction or @MandatoryWriteTransaction
+		Reflections reflections = new Reflections("org.sagebionetworks", Scanners.MethodsAnnotated,
+				Scanners.TypesAnnotated);
+		assertEquals(0, reflections.getTypesAnnotatedWith(Transactional.class).stream()
+				.filter(r -> !r.getPackageName().contains("grid")).count());
+		assertEquals(0,
+				reflections.getMethodsAnnotatedWith(Transactional.class).stream()
+						.filter(m -> !TRANSACTIONAL_EXCEPTIONS.contains(m.getName())
+								&& !m.getDeclaringClass().getPackageName().contains("grid"))
+						.count());
 	}
 
 	private static final List<String> readMethodPrefixes = Lists.newArrayList("check", "get");

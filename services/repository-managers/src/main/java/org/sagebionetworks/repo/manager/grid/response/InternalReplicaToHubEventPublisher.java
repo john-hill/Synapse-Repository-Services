@@ -21,6 +21,14 @@ public interface InternalReplicaToHubEventPublisher {
 	void publishEventAfterCommit(EventContext context, JsonRxMessage message);
 
 	/**
+	 * Publish an internal event event (without a transaction).
+	 * 
+	 * @param context
+	 * @param message
+	 */
+	void publishEvent(EventContext context, JsonRxMessage message);
+
+	/**
 	 * Publish an internal event after the current transaction commits.
 	 * 
 	 * @param <T>

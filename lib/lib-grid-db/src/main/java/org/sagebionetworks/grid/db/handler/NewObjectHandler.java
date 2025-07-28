@@ -10,9 +10,9 @@ import org.sagebionetworks.repo.model.grid.node.ObjectNode;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewObject;
 import org.sagebionetworks.repo.model.grid.patch.operation.OperationType;
 import org.sagebionetworks.util.ValidateArgument;
-import org.springframework.stereotype.Repository;
+import org.springframework.stereotype.Component;
 
-@Repository
+@Component
 public class NewObjectHandler implements OperationHandler<NewObject> {
 
 	private final GridIndexDao dao;

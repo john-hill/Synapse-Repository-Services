@@ -10,9 +10,9 @@ import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewVector;
 import org.sagebionetworks.repo.model.grid.patch.operation.OperationType;
 import org.sagebionetworks.util.ValidateArgument;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
-@Service
+@Component
 public class NewVectorHandler implements OperationHandler<NewVector> {
 
 	private final GridIndexDao dao;

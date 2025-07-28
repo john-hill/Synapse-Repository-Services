@@ -740,6 +740,62 @@ public class GridIndexDaoImplTest {
 
 	}
 
+	@Test
+	public void testCreateNextMessageId() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		gridIndexDao.createReplicaIfNotExists(sessionIdTwo, replicaIdTwo);
+		int maxValues = 3;
+		assertEquals(0, gridIndexDao.createNextMessageId(sessionIdOne, replicaIdOne, maxValues));
+		assertEquals(0, gridIndexDao.createNextMessageId(sessionIdTwo, replicaIdTwo, maxValues));
+
+		assertEquals(1, gridIndexDao.createNextMessageId(sessionIdOne, replicaIdOne, maxValues));
+		assertEquals(2, gridIndexDao.createNextMessageId(sessionIdOne, replicaIdOne, maxValues));
+		assertEquals(3, gridIndexDao.createNextMessageId(sessionIdOne, replicaIdOne, maxValues));
+		assertEquals(0, gridIndexDao.createNextMessageId(sessionIdOne, replicaIdOne, maxValues));
+		assertEquals(1, gridIndexDao.createNextMessageId(sessionIdOne, replicaIdOne, maxValues));
+
+		assertEquals(1, gridIndexDao.createNextMessageId(sessionIdTwo, replicaIdTwo, maxValues));
+
+	}
+
+	@Test
+	public void testMessageChainCRUD() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		gridIndexDao.createReplicaIfNotExists(sessionIdTwo, replicaIdTwo);
+		int maxValues = 100;
+		// one
+		Integer idOne = gridIndexDao.createNextMessageId(sessionIdOne, replicaIdOne, maxValues);
+		assertEquals(Optional.empty(), gridIndexDao.getMessageChain(sessionIdOne, replicaIdOne, idOne));
+		MessageChain chainOne = new MessageChain().setSessionId(sessionIdOne).setReplicaId(replicaIdOne).setId(idOne)
+				.setMethod("methodOne");
+		MessageChain backOne = gridIndexDao.createMessageChain(chainOne);
+		MessageChain expected = new MessageChain().setSessionId(sessionIdOne).setReplicaId(replicaIdOne).setId(idOne)
+				.setMethod("methodOne").setCreatedOn(backOne.getCreatedOn());
+		assertEquals(expected, backOne);
+		assertEquals(Optional.of(expected), gridIndexDao.getMessageChain(sessionIdOne, replicaIdOne, idOne));
+		// update
+		chainOne.setMethod("updatedMethod");
+		backOne = gridIndexDao.createMessageChain(chainOne);
+		expected = new MessageChain().setSessionId(sessionIdOne).setReplicaId(replicaIdOne).setId(idOne)
+				.setMethod("updatedMethod").setCreatedOn(backOne.getCreatedOn());
+		assertEquals(expected, backOne);
+
+		// two
+		Integer idTwo = gridIndexDao.createNextMessageId(sessionIdTwo, replicaIdTwo, maxValues);
+		MessageChain chainTwo = new MessageChain().setSessionId(sessionIdTwo).setReplicaId(replicaIdTwo).setId(idTwo)
+				.setMethod("methodTwo");
+		backOne = gridIndexDao.createMessageChain(chainTwo);
+		expected = new MessageChain().setSessionId(sessionIdTwo).setReplicaId(replicaIdTwo).setId(idTwo)
+				.setMethod("methodTwo").setCreatedOn(backOne.getCreatedOn());
+		assertEquals(expected, backOne);
+		assertEquals(Optional.of(expected), gridIndexDao.getMessageChain(sessionIdTwo, replicaIdTwo, idTwo));
+
+		// call under test
+		gridIndexDao.deleteMessageChain(sessionIdOne, replicaIdOne, idOne);
+		assertEquals(Optional.empty(), gridIndexDao.getMessageChain(sessionIdOne, replicaIdOne, idOne));
+		assertEquals(Optional.of(expected), gridIndexDao.getMessageChain(sessionIdTwo, replicaIdTwo, idTwo));
+	}
+
 	/**
 	 * Helper to create a new array.
 	 * 

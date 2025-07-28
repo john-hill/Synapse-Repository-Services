@@ -181,8 +181,8 @@ public class PatchCompactSerializableTest {
 		Operation last = patch.getOperations().get(patch.getOperations().size() - 1);
 		InsertValue expected = new InsertValue()
 				.setOperationId(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(15L))
-				.setReferenceId(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L))
-				.setValueId(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(1L));
+				.setValueId(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L))
+				.setReferenceId(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(1L));
 		assertEquals(expected, last);
 	}
 

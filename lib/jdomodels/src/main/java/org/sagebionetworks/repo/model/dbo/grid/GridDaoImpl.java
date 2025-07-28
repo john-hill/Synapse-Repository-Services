@@ -240,11 +240,12 @@ public class GridDaoImpl implements GridDao {
 		ValidateArgument.required(connection.getReplicaId(), "connection.replicaId");
 		ValidateArgument.required(connection.getCreatedBy(), "connection.createdBy");
 		ValidateArgument.required(connection.getSource(), "connection.source");
+		Long id = idGenerator.generateNewId(IdType.GRID_CONNECTION_ID);
 
 		jdbcTemplate.update(
-				"INSERT INTO GRID_CONNECTION (CONNECTION_ID, SESSION_ID, REPLICA_ID, CREATED_BY, CREATED_ON, SOURCE)"
-						+ " VALUES (?,?,?,?,NOW(),?) ON DUPLICATE KEY UPDATE CONNECTION_ID = ?, CREATED_ON = NOW()",
-				connection.getConnectionId(), connection.getSessionId(), connection.getReplicaId(),
+				"INSERT INTO GRID_CONNECTION (ID, CONNECTION_ID, SESSION_ID, REPLICA_ID, CREATED_BY, CREATED_ON, SOURCE)"
+						+ " VALUES (?,?,?,?,?,NOW(),?) ON DUPLICATE KEY UPDATE CONNECTION_ID = ?, CREATED_ON = NOW()",
+				id, connection.getConnectionId(), connection.getSessionId(), connection.getReplicaId(),
 				connection.getCreatedBy(), connection.getSource().name(), connection.getConnectionId());
 	}
 

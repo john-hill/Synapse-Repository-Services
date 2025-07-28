@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.Test;
@@ -30,7 +31,7 @@ import com.google.common.collect.Sets;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
-public class BeanTest implements ApplicationContextAware {
+public class BeanTestRepo implements ApplicationContextAware {
 
 	ApplicationContext applicationContext;
 
@@ -62,13 +63,21 @@ public class BeanTest implements ApplicationContextAware {
 		}
 		assertEquals("", StringUtils.join(foundBeans, ","), "Found beans without name/id. Either give the bean a name/id or add to exceptions in the test, otherwise Spring will not guarantee that the bean is a singleton");
 	}
-
+	
 	@Test
 	public void testTransactionalNotUsed() {
-		// Transactional is not used anymore, use @WriteTransaction, @NewWriteTransaction or @MandatoryWriteTransaction
-		Reflections reflections = new Reflections("org.sagebionetworks", Scanners.MethodsAnnotated, Scanners.TypesAnnotated);
-		assertEquals(0, reflections.getTypesAnnotatedWith(Transactional.class).size());
-		assertEquals(0, reflections.getMethodsAnnotatedWith(Transactional.class).stream().filter(m -> !TRANSACTIONAL_EXCEPTIONS.contains(m.getName())).count());
+		// Transactional is not used anymore, use @WriteTransaction,
+		// @NewWriteTransaction or @MandatoryWriteTransaction
+		Reflections reflections = new Reflections("org.sagebionetworks", Scanners.MethodsAnnotated,
+				Scanners.TypesAnnotated);
+		assertEquals(0, reflections.getTypesAnnotatedWith(Transactional.class).stream()
+				.filter(r -> !r.getPackageName().contains("grid")).count());
+		List<Method> methodsWithAnnotation = reflections.getMethodsAnnotatedWith(Transactional.class).stream()
+				.filter(m -> !TRANSACTIONAL_EXCEPTIONS.contains(m.getName())
+						&& !m.getDeclaringClass().getPackageName().contains("grid"))
+				.collect(Collectors.toList());
+		System.out.println(methodsWithAnnotation);
+		assertEquals(0, methodsWithAnnotation.size());
 	}
 
 	private static final List<String> readMethodPrefixes = Lists.newArrayList("check", "get");

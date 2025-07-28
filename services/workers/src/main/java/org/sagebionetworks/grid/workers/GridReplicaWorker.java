@@ -15,6 +15,7 @@ import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.sagebionetworks.workers.util.aws.message.MessageDrivenRunner;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
+import org.sagebionetworks.workers.util.semaphore.LockUnavilableException;
 import org.springframework.stereotype.Service;
 
 import com.amazonaws.services.sqs.model.MessageAttributeValue;
@@ -55,6 +56,9 @@ public class GridReplicaWorker implements MessageDrivenRunner {
 		} catch (RecoverableMessageException e) {
 			log.info("Will retry message for connectionId: {}, body: {}", connectionId, body);
 			throw e;
+		} catch (LockUnavilableException e) {
+			log.info("Will retry message for connectionId: {}, body: {}", connectionId, body);
+			throw new RecoverableMessageException(e);
 		} catch (Exception e) {
 			log.error(String.format("Failed to process message for connectionId: %s, body: %s", connectionId, body), e);
 		}

@@ -104,11 +104,11 @@ public class GridIndexDaoImpl implements GridIndexDao {
 				.setMethod(rs.getString("METHOD_NAME")).setCreatedOn(rs.getTimestamp("CREATED_ON"));
 	};
 
-	public GridIndexDaoImpl(@Qualifier("gridDatabaseJdbcTempalte") JdbcTemplate gridDatabaseJdbcTempalte,
-			@Qualifier("gridDatabaseNamedParameterJdbcTempalte") NamedParameterJdbcTemplate gridDatabaseNamedParameterJdbcTempalte) {
+	public GridIndexDaoImpl(@Qualifier("gridDatabaseJdbcTemplate") JdbcTemplate gridDatabaseJdbcTemplate,
+			@Qualifier("gridDatabaseNamedParameterJdbcTemplate") NamedParameterJdbcTemplate gridDatabaseNamedParameterJdbcTemplate) {
 		super();
-		this.jdbcTempalte = gridDatabaseJdbcTempalte;
-		this.namedTemplate = gridDatabaseNamedParameterJdbcTempalte;
+		this.jdbcTempalte = gridDatabaseJdbcTemplate;
+		this.namedTemplate = gridDatabaseNamedParameterJdbcTemplate;
 		createTables(List.of("schema/Grid-Replica-ddl.sql", "schema/Grid-Clock-ddl.sql", "schema/Grid-Index-ddl.sql",
 				"schema/Grid-Array-ddl.sql", "schema/Grid-Vector-ddl.sql", "schema/Grid-Object-ddl.sql",
 				"schema/Grid-Constant-ddl.sql", "schema/Grid-Value-ddl.sql", "schema/Grid-Message-ddl.sql"));

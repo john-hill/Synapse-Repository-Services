@@ -6,6 +6,7 @@ import org.json.JSONArray;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.operation.InsertObject;
 import org.sagebionetworks.repo.model.grid.patch.operation.OperationType;
+import org.sagebionetworks.util.ValidateArgument;
 
 public class InsertObjectSerializable implements OperationSerializable<InsertObject> {
 
@@ -38,6 +39,13 @@ public class InsertObjectSerializable implements OperationSerializable<InsertObj
 
 	@Override
 	public JSONArray serialize(InsertObject operation) {
+		ValidateArgument.required(operation, "operation");
+		ValidateArgument.required(operation.getMap(), "operation.map");
+		if (operation.getMap().isEmpty()) {
+			// Writing an empty map creates an invalid patch that cannot be parsed by json-joy.
+			// This is a requirement of the patch format.
+			ValidateArgument.failRequirement("InsertObject must have a non-empty map");
+		}
 		Long replicaId = operation.getOperationId().getReplicaId();
 		JSONArray array = new JSONArray();
 		array.put(OperationType.ins_obj.getCode());

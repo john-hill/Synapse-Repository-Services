@@ -1,8 +1,10 @@
 package org.sagebionetworks.repo.model.grid.patch.compact;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.LinkedHashMap;
+import java.util.Map;
 
 import org.json.JSONArray;
 import org.junit.jupiter.api.BeforeEach;
@@ -91,5 +93,30 @@ public class InsertObjectSerializableTest {
 		// call under test
 		String back = serializable.serialize(obj).toString();
 		assertEquals(json, back);
+	}
+
+	@Test
+	public void testSerializeNullMap() {
+		Map<String, LogicalTimestamp> map = null;
+		InsertObject insertObject = new InsertObject().setOperationId(operationId)
+				.setObjectId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L))
+				.setMap(map);
+
+		assertThrows(IllegalArgumentException.class, () -> this.serializable.serialize(insertObject),
+				"InsertObject must have a non-empty map"
+		);
+
+	}
+
+	@Test
+	public void testSerializeEmptyMap() {
+		Map<String, LogicalTimestamp> map = new LinkedHashMap<>();
+		InsertObject insertObject = new InsertObject().setOperationId(operationId)
+				.setObjectId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L))
+				.setMap(map);
+
+		assertThrows(IllegalArgumentException.class, () -> this.serializable.serialize(insertObject),
+				"InsertObject must have a non-empty map"
+		);
 	}
 }

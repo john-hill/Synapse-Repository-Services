@@ -172,10 +172,12 @@ public class PatchRowHandler implements RowHandler {
 			synapseRowMetadataObjectMap.put("etag",  etagConst.getOperationId());
 		}
 
-		// fill the `synapseRow` object
-		currentPatch.addNewOperation(InsertObject.class)
-				.setObjectId(synapseRowMetadata.getOperationId())
-				.setMap(synapseRowMetadataObjectMap);
+		if (!synapseRowMetadataObjectMap.isEmpty()) {
+			// fill the `synapseRow` object
+			currentPatch.addNewOperation(InsertObject.class)
+					.setObjectId(synapseRowMetadata.getOperationId())
+					.setMap(synapseRowMetadataObjectMap);
+		}
 
 
 

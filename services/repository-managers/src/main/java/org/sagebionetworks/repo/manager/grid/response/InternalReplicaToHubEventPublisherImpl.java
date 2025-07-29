@@ -92,4 +92,9 @@ public class InternalReplicaToHubEventPublisherImpl implements InternalReplicaTo
 				.messageBody(event.getBody()).build());
 	}
 
+	@Override
+	public void publishEvent(EventContext context, JsonRxMessage message) {
+		sendAfterCommit(new InternalEvent().setContext(context).setBody(message.toJson()));
+	}
+
 }

@@ -26,8 +26,8 @@ public class InsertValueSerializableTest {
 		// call under test
 		InsertValue val = serializable.deserialize(id, new JSONArray(json));
 		InsertValue expected = new InsertValue().setOperationId(id)
-				.setReferenceId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L))
-				.setValueId(new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(4L));
+				.setValueId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L))
+				.setReferenceId(new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(4L));
 		assertEquals(expected, val);
 
 		// call under test
@@ -42,8 +42,8 @@ public class InsertValueSerializableTest {
 		// call under test
 		InsertValue val = serializable.deserialize(id, new JSONArray(json));
 		InsertValue expected = new InsertValue().setOperationId(id)
-				.setReferenceId(new LogicalTimestamp().setReplicaId(12L).setSequenceNumber(2L))
-				.setValueId(new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(4L));
+				.setValueId(new LogicalTimestamp().setReplicaId(12L).setSequenceNumber(2L))
+				.setReferenceId(new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(4L));
 		assertEquals(expected, val);
 
 		// call under test
@@ -58,8 +58,8 @@ public class InsertValueSerializableTest {
 		// call under test
 		InsertValue val = serializable.deserialize(id, new JSONArray(json));
 		InsertValue expected = new InsertValue().setOperationId(id)
-				.setReferenceId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L))
-				.setValueId(new LogicalTimestamp().setReplicaId(12L).setSequenceNumber(4L));
+				.setValueId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L))
+				.setReferenceId(new LogicalTimestamp().setReplicaId(12L).setSequenceNumber(4L));
 		assertEquals(expected, val);
 
 		// call under test
@@ -74,8 +74,8 @@ public class InsertValueSerializableTest {
 		// call under test
 		InsertValue val = serializable.deserialize(id, new JSONArray(json));
 		InsertValue expected = new InsertValue().setOperationId(id)
-				.setReferenceId(new LogicalTimestamp().setReplicaId(12L).setSequenceNumber(2L))
-				.setValueId(new LogicalTimestamp().setReplicaId(12L).setSequenceNumber(4L));
+				.setValueId(new LogicalTimestamp().setReplicaId(12L).setSequenceNumber(2L))
+				.setReferenceId(new LogicalTimestamp().setReplicaId(12L).setSequenceNumber(4L));
 		assertEquals(expected, val);
 
 		// call under test

@@ -68,8 +68,8 @@ public class PatchRowHandler implements RowHandler {
 		objectMap.put("rows", rows.getOperationId());
 		currentPatch.addNewOperation(InsertObject.class).setObjectId(rootObject.getOperationId()).setMap(objectMap);
 		currentPatch.addNewOperation(InsertValue.class)
-				.setReferenceId(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L))
-				.setValueId(rootObject.getOperationId());
+				.setValueId(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L))
+				.setReferenceId(rootObject.getOperationId());
 
 		if (!schema.isEmpty()) {
 			translators = new Translator[schema.size()];
@@ -172,10 +172,12 @@ public class PatchRowHandler implements RowHandler {
 			synapseRowMetadataObjectMap.put("etag",  etagConst.getOperationId());
 		}
 
-		// fill the `synapseRow` object
-		currentPatch.addNewOperation(InsertObject.class)
-				.setObjectId(synapseRowMetadata.getOperationId())
-				.setMap(synapseRowMetadataObjectMap);
+		if (!synapseRowMetadataObjectMap.isEmpty()) {
+			// fill the `synapseRow` object
+			currentPatch.addNewOperation(InsertObject.class)
+					.setObjectId(synapseRowMetadata.getOperationId())
+					.setMap(synapseRowMetadataObjectMap);
+		}
 
 
 

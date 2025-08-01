@@ -609,4 +609,24 @@ public class GridIndexDaoImpl implements GridIndexDao {
 				"DELETE FROM GRID_REPLICA_MESSAGE WHERE SESSION_ID = ? AND REPLICA_ID = ? AND MESSAGE_ID = ?",
 				sessionId, replicaId, chainId);
 	}
+
+	@Override
+	public Optional<ObjectNode> getRootObject(String gridSessionId, Long replicaId) {
+		List<ValueNode> roots = getValues(gridSessionId, replicaId,
+				List.of(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L)));
+		if (roots.isEmpty()) {
+			return Optional.empty();
+		}
+		List<ObjectNode> rootObjects = getObjects(gridSessionId, replicaId,
+				roots.stream().map(v -> v.getValue()).collect(Collectors.toList()));
+		if (rootObjects.isEmpty()) {
+			return Optional.empty();
+		}
+		return Optional.of(rootObjects.get(0));
+	}
+
+	@Override
+	public <T> List<T> query(String sql, SqlParameterSource paramSource, RowMapper<T> rowMapper) {
+		return namedTemplate.query(sql, paramSource, rowMapper);
+	}
 }

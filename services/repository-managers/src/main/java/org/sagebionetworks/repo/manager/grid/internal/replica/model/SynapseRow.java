@@ -78,7 +78,7 @@ public class SynapseRow {
 		return tempConstantMap == null ? Collections.emptyList() : tempConstantMap.values();
 	}
 
-	public void resovleConstants(Map<LogicalTimestamp, ConstantNode> constants) {
+	public void resolveConstants(Map<LogicalTimestamp, ConstantNode> constants) {
 		if (this.tempConstantMap != null) {
 			LogicalTimestamp rowIdId = this.tempConstantMap.get("rowId");
 			if (rowIdId != null) {

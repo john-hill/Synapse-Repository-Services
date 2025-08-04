@@ -140,7 +140,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 								.setMetadata(new RowMetadata()
 										.setObjectId(
 												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(50L))
-										.setRowValiation(new RowValidation())
+										.setRowValidation(new RowValidation())
 										.setSynapseRow(new SynapseRow().setObjectId(new LogicalTimestamp()
 												.setReplicaId(replicaId).setSequenceNumber(51L))))),
 				new RowView().setArrNodeId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(64L))
@@ -151,7 +151,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 								.setMetadata(new RowMetadata()
 										.setObjectId(
 												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(60L))
-										.setRowValiation(new RowValidation())
+										.setRowValidation(new RowValidation())
 										.setSynapseRow(new SynapseRow().setObjectId(new LogicalTimestamp()
 												.setReplicaId(replicaId).setSequenceNumber(61L))))));
 		assertEquals(expected, page);

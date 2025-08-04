@@ -48,7 +48,7 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 										.setObjectId(readNullableTimestamp(rs, "O2.OBJ_REP", "O2.OBJ_SEQ"))
 										.setSynapseRow(new SynapseRow().setTempObject(rs.getString("O3.OBJ_VAL"))
 												.setObjectId(readNullableTimestamp(rs, "O3.OBJ_REP", "O3.OBJ_SEQ")))
-										.setRowValiation(new RowValidation()
+										.setRowValidation(new RowValidation()
 												.setObjectId(readNullableTimestamp(rs, "O4.OBJ_REP", "O4.OBJ_SEQ"))))
 								.setData(new RowData().setData(new JSONArray(rs.getString("VALS")))));
 	};
@@ -122,7 +122,7 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 				.collect(Collectors.toMap(ConstantNode::getId, Function.identity()));
 
 		page.stream().forEach(p -> {
-			p.getRowObject().getMetadata().getSynapseRow().resovleConstants(constantMap);
+			p.getRowObject().getMetadata().getSynapseRow().resolveConstants(constantMap);
 		});
 
 		return page;

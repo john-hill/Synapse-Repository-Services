@@ -7,9 +7,9 @@ import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 public class RowMetadata {
 
 	private SynapseRow synapseRow;
-	private RowValidation rowValiation;
+	private RowValidation rowValidation;
 	/**
-	 * The ID of the object that contains both 'synapseRow' and 'rowValiation'.
+	 * The ID of the object that contains both 'synapseRow' and 'rowValidation'.
 	 */
 	private LogicalTimestamp objectId;
 
@@ -22,12 +22,12 @@ public class RowMetadata {
 		return this;
 	}
 
-	public RowValidation getRowValiation() {
-		return rowValiation;
+	public RowValidation getRowValidation() {
+		return rowValidation;
 	}
 
-	public RowMetadata setRowValiation(RowValidation rowValiation) {
-		this.rowValiation = rowValiation;
+	public RowMetadata setRowValidation(RowValidation rowValidation) {
+		this.rowValidation = rowValidation;
 		return this;
 	}
 
@@ -42,7 +42,7 @@ public class RowMetadata {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(objectId, rowValiation, synapseRow);
+		return Objects.hash(objectId, rowValidation, synapseRow);
 	}
 
 	@Override
@@ -54,13 +54,13 @@ public class RowMetadata {
 		if (getClass() != obj.getClass())
 			return false;
 		RowMetadata other = (RowMetadata) obj;
-		return Objects.equals(objectId, other.objectId) && Objects.equals(rowValiation, other.rowValiation)
+		return Objects.equals(objectId, other.objectId) && Objects.equals(rowValidation, other.rowValidation)
 				&& Objects.equals(synapseRow, other.synapseRow);
 	}
 
 	@Override
 	public String toString() {
-		return "RowMetadata [synapseRow=" + synapseRow + ", rowValiation=" + rowValiation + ", objectId=" + objectId
+		return "RowMetadata [synapseRow=" + synapseRow + ", rowValidation=" + rowValidation + ", objectId=" + objectId
 				+ "]";
 	}
 

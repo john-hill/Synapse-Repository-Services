@@ -16,40 +16,39 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.grid.db.GridIndexDao;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
-import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewVector;
+import org.sagebionetworks.repo.model.grid.patch.operation.NewArray;
 
 @ExtendWith(MockitoExtension.class)
-public class NewVectorHandlerTest {
+public class NewArrayHandlerTest {
+
 	@Mock
 	private GridIndexDao mockDao;
 
 	@InjectMocks
-	private NewVectorHandler handler;
+	private NewArrayHandler handler;
 
 	private String sessionId;
 	private Long replicaId;
 
-	private List<NewVector> vectors;
+	private List<NewArray> arrays;
 
 	@BeforeEach
 	public void before() {
 		sessionId = "sessionOne";
 		replicaId = 123L;
 
-		vectors = List.of(new NewVector().setOperationId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L)),
-				new NewVector().setOperationId(new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(4L)));
+		arrays = List.of(new NewArray().setOperationId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L)),
+				new NewArray().setOperationId(new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(4L)));
 	}
 
 	@Test
 	public void testHandleBatch() {
 		// call under test
-		Set<LogicalTimestamp> changes = handler.handleBatch(sessionId, replicaId, vectors);
-		List<LogicalTimestamp> vecIds = vectors.stream().map(NewVector::getOperationId).collect(Collectors.toList());
-		assertEquals(new LinkedHashSet<>(vecIds), changes);
-		verify(mockDao).saveIndex(sessionId, replicaId, IndexType.vec, vecIds);
-		verify(mockDao).saveVectors(sessionId, replicaId,
-				vectors.stream().map(n -> new VectorNode().setId(n.getOperationId())).collect(Collectors.toList()));
+		Set<LogicalTimestamp> changes = handler.handleBatch(sessionId, replicaId, arrays);
+		List<LogicalTimestamp> arrayIds = arrays.stream().map(NewArray::getOperationId).collect(Collectors.toList());
+		assertEquals(new LinkedHashSet<>(arrayIds), changes);
+		verify(mockDao).saveIndex(sessionId, replicaId, IndexType.arr, arrayIds);
+		verify(mockDao).createArrayBatch(sessionId, replicaId, arrayIds);
 	}
 }

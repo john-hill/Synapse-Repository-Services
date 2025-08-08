@@ -2,7 +2,9 @@ package org.sagebionetworks.repo.manager.grid.internal.replica.model;
 
 import java.util.Objects;
 
+import org.json.JSONArray;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.schema.ValidationResults;
 
 public class RowObject {
 
@@ -38,6 +40,14 @@ public class RowObject {
 
 	public LogicalTimestamp getObjectId() {
 		return objectId;
+	}
+
+	public ValidationResults getRowValidation() {
+		return metadata != null ? metadata.getRowValidation() : null;
+	}
+
+	public JSONArray getCells() {
+		return data != null ? data.getCells() : null;
 	}
 
 	@Override

@@ -3,11 +3,12 @@ package org.sagebionetworks.repo.manager.grid.internal.replica.model;
 import java.util.Objects;
 
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.schema.ValidationResults;
 
 public class RowMetadata {
 
 	private SynapseRow synapseRow;
-	private RowValidation rowValidation;
+	private ValidationResults rowValidation;
 	/**
 	 * The ID of the object that contains both 'synapseRow' and 'rowValidation'.
 	 */
@@ -22,11 +23,11 @@ public class RowMetadata {
 		return this;
 	}
 
-	public RowValidation getRowValidation() {
+	public ValidationResults getRowValidation() {
 		return rowValidation;
 	}
 
-	public RowMetadata setRowValidation(RowValidation rowValidation) {
+	public RowMetadata setRowValidation(ValidationResults rowValidation) {
 		this.rowValidation = rowValidation;
 		return this;
 	}

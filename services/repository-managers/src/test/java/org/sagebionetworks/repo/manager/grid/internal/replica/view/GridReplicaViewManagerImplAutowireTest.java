@@ -1,4 +1,4 @@
-package org.sagebionetworks.repo.manager.grid.internal.replica;
+package org.sagebionetworks.repo.manager.grid.internal.replica.view;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -18,9 +18,13 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowData;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowMetadata;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowObject;
-import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowValidation;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.SynapseRow;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.CellValueViewFilter;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.Operator;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.VectorIdViewFilter;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.ViewFilter;
 import org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils;
 import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
@@ -136,22 +140,26 @@ public class GridReplicaViewManagerImplAutowireTest {
 						.setRowIndex(3L)
 						.setRowObject(new RowObject()
 								.setObjectId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(45L))
-								.setData(new RowData().setData(new JSONArray("[\"string3\",103003]")))
-								.setMetadata(new RowMetadata()
-										.setObjectId(
-												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(50L))
-										.setRowValidation(new RowValidation())
-										.setSynapseRow(new SynapseRow().setObjectId(new LogicalTimestamp()
-												.setReplicaId(replicaId).setSequenceNumber(51L))))),
+								.setData(new RowData().setVectorId(
+										new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(46L))
+										.setCells(new JSONArray("[\"string3\",103003]")))
+								.setMetadata(
+										new RowMetadata()
+												.setObjectId(new LogicalTimestamp().setReplicaId(replicaId)
+														.setSequenceNumber(50L))
+												.setSynapseRow(new SynapseRow().setObjectId(new LogicalTimestamp()
+														.setReplicaId(replicaId).setSequenceNumber(51L))))),
 				new RowView().setArrNodeId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(64L))
 						.setRowIndex(4L)
 						.setRowObject(new RowObject()
 								.setObjectId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(55L))
-								.setData(new RowData().setData(new JSONArray("[\"string4\",103004]")))
+								.setData(new RowData()
+										.setVectorId(
+												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(56L))
+										.setCells(new JSONArray("[\"string4\",103004]")))
 								.setMetadata(new RowMetadata()
 										.setObjectId(
 												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(60L))
-										.setRowValidation(new RowValidation())
 										.setSynapseRow(new SynapseRow().setObjectId(new LogicalTimestamp()
 												.setReplicaId(replicaId).setSequenceNumber(61L))))));
 		assertEquals(expected, page);
@@ -168,7 +176,56 @@ public class GridReplicaViewManagerImplAutowireTest {
 		// call under test
 		page = gridViewManager.querySinglePage(header, limit, offset);
 		assertEquals(expected, page);
+	}
 
+	@Test
+	public void testQuerySinglePageWithFiltersOne() throws IOException {
+		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
+		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(115L);
+		assertEquals(List.of(expectedClock), gridIndexManger.getClock(sessionId, replicaId));
+
+		Long limit = 100L;
+		Long offset = 0L;
+		GridHeader header = gridViewManager.readHeader(sessionId, replicaId).get();
+
+		List<RowView> allRows = gridViewManager.querySinglePage(header, limit, offset);
+
+		List<ViewFilter> filters = List
+				.of(new VectorIdViewFilter(List.of(allRows.get(1).getRowObject().getData().getVectorId(),
+						allRows.get(4).getRowObject().getData().getVectorId())));
+
+		// call under test
+		List<RowView> page = gridViewManager.querySinglePage(header, filters, limit, offset);
+		List<RowView> expected = List.of(allRows.get(1), allRows.get(4));
+		assertEquals(expected, page);
+	}
+
+	@Test
+	public void testQuerySinglePageWithFiltersMultiple() throws IOException {
+		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
+		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(115L);
+		assertEquals(List.of(expectedClock), gridIndexManger.getClock(sessionId, replicaId));
+
+		Long limit = 100L;
+		Long offset = 0L;
+		GridHeader header = gridViewManager.readHeader(sessionId, replicaId).get();
+
+		List<RowView> allRows = gridViewManager.querySinglePage(header, limit, offset);
+
+		List<ViewFilter> filters = List.of(
+				// filter 4 rows by their vector id.
+				new VectorIdViewFilter(List.of(allRows.get(1).getRowObject().getData().getVectorId(),
+						allRows.get(4).getRowObject().getData().getVectorId(),
+						allRows.get(5).getRowObject().getData().getVectorId(),
+						allRows.get(9).getRowObject().getData().getVectorId())),
+				// of those four rows only include rows with a cell value greater than 103004.
+				new CellValueViewFilter().setColumn(header.getOrderedColumns().get(1)).setOperator(Operator.gt)
+						.setValue(103004L));
+
+		// call under test
+		List<RowView> page = gridViewManager.querySinglePage(header, filters, limit, offset);
+		List<RowView> expected = List.of(allRows.get(5), allRows.get(9));
+		assertEquals(expected, page);
 	}
 
 	void addSynapseMetadataToRow(Patch toExtend, RowView row, SynapseRow toAdd) {

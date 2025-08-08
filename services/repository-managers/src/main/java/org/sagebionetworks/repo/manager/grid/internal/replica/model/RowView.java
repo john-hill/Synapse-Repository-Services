@@ -2,7 +2,9 @@ package org.sagebionetworks.repo.manager.grid.internal.replica.model;
 
 import java.util.Objects;
 
+import org.json.JSONArray;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.schema.ValidationResults;
 
 public class RowView {
 
@@ -48,6 +50,18 @@ public class RowView {
 		return this;
 	}
 
+	public ValidationResults getRowValidation() {
+		return rowObject != null ? rowObject.getRowValidation() : null;
+	}
+
+	public JSONArray getCells() {
+		return rowObject != null ? rowObject.getCells() : null;
+	}
+
+	public RowMetadata getRowMetadata() {
+		return rowObject != null ? rowObject.getMetadata() : null;
+	}
+
 	@Override
 	public int hashCode() {
 		return Objects.hash(arrNodeId, rowIndex, rowObject);
@@ -70,5 +84,5 @@ public class RowView {
 	public String toString() {
 		return "RowView [arrNodeId=" + arrNodeId + ", rowIndex=" + rowIndex + ", rowObject=" + rowObject + "]";
 	}
-	
+
 }

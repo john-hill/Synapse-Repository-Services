@@ -1,10 +1,11 @@
-package org.sagebionetworks.repo.manager.grid.internal.replica;
+package org.sagebionetworks.repo.manager.grid.internal.replica.view;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -20,9 +21,9 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowData;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowMetadata;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowObject;
-import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowValidation;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.SynapseRow;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.ViewFilter;
 import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.node.ArrayNode;
 import org.sagebionetworks.repo.model.grid.node.ConstantNode;
@@ -47,10 +48,10 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 								.setMetadata(new RowMetadata()
 										.setObjectId(readNullableTimestamp(rs, "O2.OBJ_REP", "O2.OBJ_SEQ"))
 										.setSynapseRow(new SynapseRow().setTempObject(rs.getString("O3.OBJ_VAL"))
-												.setObjectId(readNullableTimestamp(rs, "O3.OBJ_REP", "O3.OBJ_SEQ")))
-										.setRowValidation(new RowValidation()
-												.setObjectId(readNullableTimestamp(rs, "O4.OBJ_REP", "O4.OBJ_SEQ"))))
-								.setData(new RowData().setData(new JSONArray(rs.getString("VALS")))));
+												.setObjectId(readNullableTimestamp(rs, "O3.OBJ_REP", "O3.OBJ_SEQ"))))
+								.setData(
+										new RowData().setVectorId(readNullableTimestamp(rs, "V1.VEC_REP", "V1.VEC_SEQ"))
+												.setCells(new JSONArray(rs.getString("VALS")))));
 	};
 
 	/**
@@ -92,18 +93,16 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 
 	@Override
 	public List<RowView> querySinglePage(GridHeader header, Long limit, Long offset) {
+		return querySinglePage(header, Collections.emptyList(), limit, offset);
+	}
+
+	@Override
+	public List<RowView> querySinglePage(GridHeader header, List<ViewFilter> filters, Long limit, Long offset) {
 		ValidateArgument.required(header, "header");
+		ValidateArgument.required(filters, "filters");
 		ValidateArgument.required(limit, "limit");
 		ValidateArgument.required(offset, "offset");
 
-		StringJoiner joiner = new StringJoiner(",");
-		// read the values out of each array in the order defined in the header.
-		header.getOrderedColumns().forEach(c -> {
-			joiner.add(String.format("JSON_EXTRACT(V1.VEC_VAL, '$.c%d.v')", c.getVectorIndex()));
-		});
-		String select = joiner.toString();
-		String where = "";
-		String sql = String.format(GRID_INDEX_VIEW_TEMPLATE, select, where);
 		MapSqlParameterSource params = new MapSqlParameterSource();
 		params.addValue("sessionId", GridUtils.gridSessionIdAsLong(header.getSessionId()));
 		params.addValue("replicaId", header.getReplicaId());
@@ -111,6 +110,25 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		params.addValue("arraySeq", header.getRowsId().getSequenceNumber());
 		params.addValue("limit", limit);
 		params.addValue("offset", offset);
+
+		StringJoiner joiner = new StringJoiner(",");
+		// read the values out of each array in the order defined in the header.
+		header.getOrderedColumns().forEach(c -> {
+			joiner.add(String.format("JSON_EXTRACT(V1.VEC_VAL, '$.c%d.v')", c.getVectorIndex()));
+		});
+		String select = joiner.toString();
+		StringBuilder wherBuilder = new StringBuilder("");
+		if (!filters.isEmpty()) {
+			wherBuilder.append(" WHERE ");
+			StringJoiner whereJoiner = new StringJoiner(" AND ");
+			for (int i = 0; i < filters.size(); i++) {
+				ViewFilter f = filters.get(i);
+				whereJoiner.add(f.getConditionSql(i));
+				params.addValue(f.getParameterKey(i), f.getParameterValue());
+			}
+			wherBuilder.append(whereJoiner.toString());
+		}
+		String sql = String.format(GRID_INDEX_VIEW_TEMPLATE, select, wherBuilder.toString());
 
 		List<RowView> page = gridIndexDao.query(sql, params, ROW_VIEW_MAPPER);
 		List<LogicalTimestamp> conId = page.stream().flatMap(r -> {

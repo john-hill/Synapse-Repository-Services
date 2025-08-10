@@ -89,14 +89,14 @@ public class RowView implements HasConstantIds {
 	}
 
 	@Override
-	public void appplyConstants(Map<LogicalTimestamp, ConstantNode> constants) {
+	public void applyConstants(Map<LogicalTimestamp, ConstantNode> constants) {
 		RowValidation rowValidation = getRowValidation();
 		if (rowValidation != null) {
-			rowValidation.appplyConstants(constants);
+			rowValidation.applyConstants(constants);
 		}
 		SynapseRow synapseRow = getSynapseRow();
 		if (synapseRow != null) {
-			synapseRow.appplyConstants(constants);
+			synapseRow.applyConstants(constants);
 		}
 	}
 

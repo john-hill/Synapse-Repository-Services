@@ -143,7 +143,7 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 				.collect(Collectors.toMap(ConstantNode::getId, Function.identity()));
 
 		page.stream().forEach(r -> {
-			r.appplyConstants(constantMap);
+			r.applyConstants(constantMap);
 		});
 
 		return page;

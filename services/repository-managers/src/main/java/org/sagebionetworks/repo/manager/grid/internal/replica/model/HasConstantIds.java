@@ -19,5 +19,5 @@ public interface HasConstantIds {
 	 * Apply the provided constant IDs mapped to each constant value.
 	 * 
 	 */
-	void appplyConstants(Map<LogicalTimestamp, ConstantNode> constants);
+	void applyConstants(Map<LogicalTimestamp, ConstantNode> constants);
 }

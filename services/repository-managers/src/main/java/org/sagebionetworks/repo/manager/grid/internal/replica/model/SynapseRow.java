@@ -80,24 +80,6 @@ public class SynapseRow implements HasConstantIds {
 		return tempConstantMap == null ? Collections.emptyList() : tempConstantMap.values();
 	}
 
-	public void resolveConstants(Map<LogicalTimestamp, ConstantNode> constants) {
-		if (this.tempConstantMap != null) {
-			LogicalTimestamp rowIdId = this.tempConstantMap.get("rowId");
-			if (rowIdId != null) {
-				this.rowId = Long.parseLong(constants.get(rowIdId).getValue().toString());
-			}
-			LogicalTimestamp versionId = this.tempConstantMap.get("versionNumber");
-			if (versionId != null) {
-				this.versionNumber = Long.parseLong(constants.get(versionId).getValue().toString());
-			}
-			LogicalTimestamp etagId = this.tempConstantMap.get("etag");
-			if (etagId != null) {
-				this.etag = (String) constants.get(etagId).getValue();
-			}
-			this.tempConstantMap = null;
-		}
-	}
-
 	@Override
 	public List<LogicalTimestamp> getConstantIds() {
 		return tempConstantMap == null ? Collections.emptyList()
@@ -105,7 +87,7 @@ public class SynapseRow implements HasConstantIds {
 	}
 
 	@Override
-	public void appplyConstants(Map<LogicalTimestamp, ConstantNode> constants) {
+	public void applyConstants(Map<LogicalTimestamp, ConstantNode> constants) {
 		if (this.tempConstantMap != null) {
 			LogicalTimestamp rowIdId = this.tempConstantMap.get("rowId");
 			if (rowIdId != null) {

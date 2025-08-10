@@ -42,7 +42,7 @@ public class RowValidation implements HasConstantIds {
 	}
 
 	@Override
-	public void appplyConstants(Map<LogicalTimestamp, ConstantNode> constants) {
+	public void applyConstants(Map<LogicalTimestamp, ConstantNode> constants) {
 		if (constantId != null) {
 			try {
 				validationResults = EntityFactory.createEntityFromJSONObject(

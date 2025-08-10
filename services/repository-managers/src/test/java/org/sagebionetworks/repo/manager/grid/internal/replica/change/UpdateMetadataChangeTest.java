@@ -14,20 +14,20 @@ public class UpdateMetadataChangeTest {
 
 	private LogicalTimestamp objectId;
 	private LogicalTimestamp metadataId;
-	private JSONObject valdiation;
+	private JSONObject validation;
 
 	@BeforeEach
 	public void before() throws JSONObjectAdapterException {
-		objectId = new LogicalTimestamp().setReplicaId(1l).setSequenceNumber(2L);
+		objectId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L);
 		metadataId = new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(4L);
-		valdiation = EntityFactory.createJSONObjectForEntity(new ValidationResults().setIsValid(true));
+		validation = EntityFactory.createJSONObjectForEntity(new ValidationResults().setIsValid(true));
 	}
 
 	@Test
 	public void testToAndFromJson() {
 
 		UpdateMetadataChange change = new UpdateMetadataChange().setRowMetadataId(metadataId).setRowObjectId(objectId)
-				.setValidationState(valdiation);
+				.setValidationState(validation);
 		// call under test
 		JSONObject json = change.toJson();
 		assertEquals("{\"o\":[1,2],\"m\":[3,4],\"state\":{\"isValid\":true}}", json.toString());
@@ -40,7 +40,7 @@ public class UpdateMetadataChangeTest {
 	public void testToAndFromJsonWithNullMetadataId() {
 
 		UpdateMetadataChange change = new UpdateMetadataChange().setRowMetadataId(null).setRowObjectId(objectId)
-				.setValidationState(valdiation);
+				.setValidationState(validation);
 		// call under test
 		JSONObject json = change.toJson();
 		assertEquals("{\"o\":[1,2],\"state\":{\"isValid\":true}}", json.toString());
@@ -53,7 +53,7 @@ public class UpdateMetadataChangeTest {
 	public void testToAndFromJsonWithNullObjectId() {
 
 		UpdateMetadataChange change = new UpdateMetadataChange().setRowMetadataId(metadataId).setRowObjectId(null)
-				.setValidationState(valdiation);
+				.setValidationState(validation);
 		// call under test
 		JSONObject json = change.toJson();
 		assertEquals("{\"m\":[3,4],\"state\":{\"isValid\":true}}", json.toString());

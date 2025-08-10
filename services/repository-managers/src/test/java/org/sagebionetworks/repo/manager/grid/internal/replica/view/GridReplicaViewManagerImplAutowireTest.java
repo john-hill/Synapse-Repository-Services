@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.json.JSONArray;
+import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,9 +19,9 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowData;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowMetadata;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowObject;
+import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowValidation;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.SynapseRow;
-import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.CellValueViewFilter;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.Operator;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.VectorIdViewFilter;
@@ -34,11 +35,16 @@ import org.sagebionetworks.repo.model.grid.patch.Patch;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
 import org.sagebionetworks.repo.model.grid.patch.operation.InsertArray;
 import org.sagebionetworks.repo.model.grid.patch.operation.InsertObject;
+import org.sagebionetworks.repo.model.grid.patch.operation.InsertObjectBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.InsertVector;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
+import org.sagebionetworks.repo.model.grid.patch.operation.NewConstantBuilder;
+import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.Row;
+import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
+import org.sagebionetworks.schema.adapter.org.json.EntityFactory;
 import org.semver4j.Semver;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -140,15 +146,16 @@ public class GridReplicaViewManagerImplAutowireTest {
 						.setRowIndex(3L)
 						.setRowObject(new RowObject()
 								.setObjectId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(45L))
-								.setData(new RowData().setVectorId(
-										new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(46L))
+								.setData(new RowData()
+										.setVectorId(
+												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(46L))
 										.setCells(new JSONArray("[\"string3\",103003]")))
-								.setMetadata(
-										new RowMetadata()
-												.setObjectId(new LogicalTimestamp().setReplicaId(replicaId)
-														.setSequenceNumber(50L))
-												.setSynapseRow(new SynapseRow().setObjectId(new LogicalTimestamp()
-														.setReplicaId(replicaId).setSequenceNumber(51L))))),
+								.setMetadata(new RowMetadata()
+										.setObjectId(
+												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(50L))
+										.setRowValidation(new RowValidation())
+										.setSynapseRow(new SynapseRow().setObjectId(new LogicalTimestamp()
+												.setReplicaId(replicaId).setSequenceNumber(51L))))),
 				new RowView().setArrNodeId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(64L))
 						.setRowIndex(4L)
 						.setRowObject(new RowObject()
@@ -160,6 +167,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 								.setMetadata(new RowMetadata()
 										.setObjectId(
 												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(60L))
+										.setRowValidation(new RowValidation())
 										.setSynapseRow(new SynapseRow().setObjectId(new LogicalTimestamp()
 												.setReplicaId(replicaId).setSequenceNumber(61L))))));
 		assertEquals(expected, page);
@@ -226,6 +234,41 @@ public class GridReplicaViewManagerImplAutowireTest {
 		List<RowView> page = gridViewManager.querySinglePage(header, filters, limit, offset);
 		List<RowView> expected = List.of(allRows.get(5), allRows.get(9));
 		assertEquals(expected, page);
+	}
+
+	@Test
+	public void testQuerySinglePageWithRowValidation() throws IOException, JSONObjectAdapterException {
+		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
+		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(115L);
+		assertEquals(List.of(expectedClock), gridIndexManger.getClock(sessionId, replicaId));
+
+		Long limit = 100L;
+		Long offset = 0L;
+		GridHeader header = gridViewManager.readHeader(sessionId, replicaId).get();
+
+		List<RowView> allRows = gridViewManager.querySinglePage(header, limit, offset);
+
+		RowView four = allRows.get(4);
+
+		Patch patch = new Patch()
+				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
+		ValidationResults validation = new ValidationResults().setIsValid(true);
+		JSONObject validationJson = EntityFactory.createJSONObjectForEntity(validation);
+		LogicalTimestamp conId = patch
+				.addNewOperation(new NewConstantBuilder().setValue(new ConValue(ConType.JSON_OBJECT, validationJson)));
+		patch.addNewOperation(new InsertObjectBuilder().setObjectId(four.getRowMetadata().getObjectId())
+				.setMap(Map.of("rowValidation", conId)));
+
+		gridIndexManger.applyPatch(sessionId, replicaId, patch);
+
+		List<ViewFilter> filters = List
+				.of(new VectorIdViewFilter(List.of(four.getRowObject().getData().getVectorId())));
+
+		// call under test
+		List<RowView> page = gridViewManager.querySinglePage(header, filters, limit, offset);
+		assertEquals(1, page.size());
+		RowView fourUpdated = page.get(0);
+		assertEquals(validation, fourUpdated.getRowValidationResults());
 	}
 
 	void addSynapseMetadataToRow(Patch toExtend, RowView row, SynapseRow toAdd) {

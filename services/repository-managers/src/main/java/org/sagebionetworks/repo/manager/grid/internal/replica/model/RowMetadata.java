@@ -8,7 +8,7 @@ import org.sagebionetworks.repo.model.schema.ValidationResults;
 public class RowMetadata {
 
 	private SynapseRow synapseRow;
-	private ValidationResults rowValidation;
+	private RowValidation rowValidation;
 	/**
 	 * The ID of the object that contains both 'synapseRow' and 'rowValidation'.
 	 */
@@ -23,13 +23,17 @@ public class RowMetadata {
 		return this;
 	}
 
-	public ValidationResults getRowValidation() {
+	public RowValidation getRowValidation() {
 		return rowValidation;
 	}
 
-	public RowMetadata setRowValidation(ValidationResults rowValidation) {
+	public RowMetadata setRowValidation(RowValidation rowValidation) {
 		this.rowValidation = rowValidation;
 		return this;
+	}
+
+	public ValidationResults getRowValidationResults() {
+		return rowValidation != null ? rowValidation.getValidationResults() : null;
 	}
 
 	public LogicalTimestamp getObjectId() {

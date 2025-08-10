@@ -21,6 +21,7 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowData;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowMetadata;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowObject;
+import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowValidation;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.SynapseRow;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.ViewFilter;
@@ -43,15 +44,16 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 
 	private static RowMapper<RowView> ROW_VIEW_MAPPER = (ResultSet rs, int rowNum) -> {
 		return new RowView().setArrNodeId(readNullableTimestamp(rs, "D.NODE_REP", "D.NODE_SEQ"))
-				.setRowIndex(rs.getLong("INDEX")).setRowObject(
-						new RowObject().setObjectId(readNullableTimestamp(rs, "O1.OBJ_REP", "O1.OBJ_SEQ"))
-								.setMetadata(new RowMetadata()
-										.setObjectId(readNullableTimestamp(rs, "O2.OBJ_REP", "O2.OBJ_SEQ"))
-										.setSynapseRow(new SynapseRow().setTempObject(rs.getString("O3.OBJ_VAL"))
-												.setObjectId(readNullableTimestamp(rs, "O3.OBJ_REP", "O3.OBJ_SEQ"))))
-								.setData(
-										new RowData().setVectorId(readNullableTimestamp(rs, "V1.VEC_REP", "V1.VEC_SEQ"))
-												.setCells(new JSONArray(rs.getString("VALS")))));
+				.setRowIndex(rs.getLong("INDEX"))
+				.setRowObject(new RowObject().setObjectId(readNullableTimestamp(rs, "O1.OBJ_REP", "O1.OBJ_SEQ"))
+						.setMetadata(new RowMetadata()
+								.setRowValidation(new RowValidation()
+										.setConstantId(readNullableTimestamp(rs, "RVC_REP", "RVC_SEQ")))
+								.setObjectId(readNullableTimestamp(rs, "O2.OBJ_REP", "O2.OBJ_SEQ"))
+								.setSynapseRow(new SynapseRow().setTempObject(rs.getString("O3.OBJ_VAL"))
+										.setObjectId(readNullableTimestamp(rs, "O3.OBJ_REP", "O3.OBJ_SEQ"))))
+						.setData(new RowData().setVectorId(readNullableTimestamp(rs, "V1.VEC_REP", "V1.VEC_SEQ"))
+								.setCells(new JSONArray(rs.getString("VALS")))));
 	};
 
 	/**
@@ -131,16 +133,17 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		String sql = String.format(GRID_INDEX_VIEW_TEMPLATE, select, wherBuilder.toString());
 
 		List<RowView> page = gridIndexDao.query(sql, params, ROW_VIEW_MAPPER);
+
 		List<LogicalTimestamp> conId = page.stream().flatMap(r -> {
-			return r.getRowObject().getMetadata().getSynapseRow().listConstantsIds().stream();
+			return r.getConstantIds().stream();
 		}).collect(Collectors.toList());
 
 		Map<LogicalTimestamp, ConstantNode> constantMap = gridIndexDao
 				.getConstants(header.getSessionId(), header.getReplicaId(), conId).stream()
 				.collect(Collectors.toMap(ConstantNode::getId, Function.identity()));
 
-		page.stream().forEach(p -> {
-			p.getRowObject().getMetadata().getSynapseRow().resolveConstants(constantMap);
+		page.stream().forEach(r -> {
+			r.appplyConstants(constantMap);
 		});
 
 		return page;

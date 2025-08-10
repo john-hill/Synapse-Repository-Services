@@ -25,11 +25,15 @@ public class PatchBuilderPublisherImpl implements PatchBuilderPublisher {
 	@Override
 	public void sendChangesToPatchBuilder(IntendedChangeSet changeSet) {
 		String body = IntendedChangeSerializable.serialize(changeSet).toString();
-		String groupId = String.format("%s-%d-%s", changeSet.getSessionId(), changeSet.getReplicaId(),
-				changeSet.getConnectionId());
+		/*
+		 * Patches for a replica must be created in series to prevent data loss from
+		 * conflicting patches. Messages are grouped by 'sessionId-replicaId' to ensure
+		 * the FIFO queue triggers the creation of all patches for the same replica
+		 * sequentially.
+		 */
+		String groupId = String.format("%s-%d", changeSet.getSessionId(), changeSet.getReplicaId());
 		sqsClient.sendMessage(SendMessageRequest.builder().queueUrl(queueUrl)
-				.messageDeduplicationId(DigestUtils.sha256Hex(body)).messageGroupId(groupId).messageBody(body).build());
-
+				.messageDeduplicationId(DigestUtils.md5Hex(body)).messageGroupId(groupId).messageBody(body).build());
 	}
 
 }

@@ -4,11 +4,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -107,10 +109,33 @@ public class GridReplicaManagerImplTest {
 	}
 
 	@Test
-	public void testonResponseComplete() {
+	public void testOnResponseComplete() {
 		Integer methodId = 44;
+		when(mockGridIndexManager.getMessageChain(sessionId, replicaId, methodId)).thenReturn(Optional.empty());
 		// call under test
-		manager.onResponseComplete(connection, methodId);
+		manager.onResponseComplete(mockCallback, connection, methodId);
+		verify(mockGridIndexManager).completeMessageChain(sessionId, replicaId, methodId);
+	}
+
+	@Test
+	public void testOnResponseCompleteWithOtherMethod() {
+		Integer methodId = 44;
+		MessageChain chain = new MessageChain().setId(methodId).setMethod("other");
+		when(mockGridIndexManager.getMessageChain(sessionId, replicaId, methodId)).thenReturn(Optional.of(chain));
+		// call under test
+		manager.onResponseComplete(mockCallback, connection, methodId);
+		verify(mockGridIndexManager).completeMessageChain(sessionId, replicaId, methodId);
+		verify(manager, never()).synchronizeClock(any(), any());
+	}
+
+	@Test
+	public void testOnResponseCompleteWithPatch() {
+		doNothing().when(manager).synchronizeClock(mockCallback, connection);
+		Integer methodId = 44;
+		MessageChain chain = new MessageChain().setId(methodId).setMethod("patch");
+		when(mockGridIndexManager.getMessageChain(sessionId, replicaId, methodId)).thenReturn(Optional.of(chain));
+		// call under test
+		manager.onResponseComplete(mockCallback, connection, methodId);
 		verify(mockGridIndexManager).completeMessageChain(sessionId, replicaId, methodId);
 	}
 

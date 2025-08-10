@@ -129,7 +129,7 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 
 		cleanupValidationResults(validationResults);
 
-		if (validationResults.equals(row.getRowValidation())) {
+		if (validationResults.equals(row.getRowValidationResults())) {
 			return Optional.empty();
 		}
 

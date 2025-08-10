@@ -28,6 +28,7 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowMetadata;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowObject;
+import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowValidation;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.VectorIdViewFilter;
@@ -218,7 +219,8 @@ public class GridReplicaValidationManagerImplTest {
 
 	@Test
 	public void testValidateCellsWithNoValidationChange() {
-		row.setRowObject(new RowObject().setMetadata(new RowMetadata().setRowValidation(validationResult)));
+		row.setRowObject(new RowObject().setMetadata(
+				new RowMetadata().setRowValidation(new RowValidation().setValidationResults(validationResult))));
 
 		when(mockJsonSchemaValidationManager.validate(jsonSchema, new RowJsonSubject(columns, row)))
 				.thenReturn(validationResult);

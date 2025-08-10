@@ -42,8 +42,16 @@ public class RowObject {
 		return objectId;
 	}
 
-	public ValidationResults getRowValidation() {
+	public ValidationResults getRowValidationResults() {
+		return metadata != null ? metadata.getRowValidationResults() : null;
+	}
+
+	public RowValidation getRowValidation() {
 		return metadata != null ? metadata.getRowValidation() : null;
+	}
+	
+	public SynapseRow getSynapseRow() {
+		return metadata != null ? metadata.getSynapseRow() : null;
 	}
 
 	public JSONArray getCells() {
@@ -72,5 +80,7 @@ public class RowObject {
 	public String toString() {
 		return "RowObject [data=" + data + ", metadata=" + metadata + ", objectId=" + objectId + "]";
 	}
+
+
 
 }

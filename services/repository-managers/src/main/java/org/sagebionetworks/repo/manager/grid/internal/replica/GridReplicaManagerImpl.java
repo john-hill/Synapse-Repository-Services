@@ -65,7 +65,14 @@ public class GridReplicaManagerImpl implements GridReplicaManager {
 	}
 
 	@Override
-	public void onResponseComplete(GridConnectionInfo connection, Integer methodId) {
+	public void onResponseComplete(ProgressCallback callback, GridConnectionInfo connection, Integer methodId) {
+		gridIndexManager.getMessageChain(connection.getSessionId(), connection.getReplicaId(), methodId)
+				.ifPresent(chain -> {
+					if ("patch".equals(chain.getMethod())) {
+						// the patch builder saved a new patch
+						synchronizeClock(callback, connection);
+					}
+				});
 		gridIndexManager.completeMessageChain(connection.getSessionId(), connection.getReplicaId(), methodId);
 	}
 

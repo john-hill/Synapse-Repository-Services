@@ -178,6 +178,7 @@
 		<ref bean="gridCreateWorkerTrigger"/>
 		<ref bean="gridReplicaWorkerTrigger"/>
 		<ref bean="gridReplicaValidationWorkerTrigger"/>
+		<ref bean="gridReplicaPatchBuilderWorkerTrigger"/>
 		
 		<ref bean="inactiveUsersWorkerTrigger"/>
 		

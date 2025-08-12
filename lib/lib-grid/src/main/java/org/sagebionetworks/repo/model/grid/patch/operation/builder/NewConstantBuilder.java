@@ -4,6 +4,8 @@ import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
 
+import java.util.Objects;
+
 public final class NewConstantBuilder extends OperationBuilder<NewConstant> {
     private ConValue value;
 
@@ -12,8 +14,24 @@ public final class NewConstantBuilder extends OperationBuilder<NewConstant> {
         return this;
     }
 
+    public ConValue getValue() {
+        return value;
+    }
+
     @Override
     public NewConstant build(LogicalTimestamp operationId) {
         return new NewConstant(operationId, value);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        NewConstantBuilder that = (NewConstantBuilder) o;
+        return Objects.equals(value, that.value);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(value);
     }
 }

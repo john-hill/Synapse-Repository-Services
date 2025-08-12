@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Objects;
 
 import org.sagebionetworks.repo.model.grid.patch.operation.Operation;
+import org.sagebionetworks.repo.model.grid.patch.operation.OperationBuilder;
 
 public class Patch {
 
@@ -61,6 +62,21 @@ public class Patch {
 				| NoSuchMethodException | SecurityException e) {
 			throw new RuntimeException(e);
 		}
+	}
+	
+	/**
+	 * Add a new immutable operation from a builder. 
+	 * @param <T>
+	 * @param builder
+	 * @return The ID of the new operation.
+	 */
+	public <T extends Operation<T>> LogicalTimestamp addNewOperation(OperationBuilder<T> builder) {
+		if (operations == null) {
+			operations = new ArrayList<>();
+		}
+		T operation = builder.build(LogicalTimestamp.newIncrement(patchId, getSpan()));
+		operations.add(operation);
+		return operation.getOperationId();
 	}
 
 	/**

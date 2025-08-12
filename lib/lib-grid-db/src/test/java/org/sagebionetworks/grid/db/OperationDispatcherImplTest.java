@@ -2,9 +2,14 @@ package org.sagebionetworks.grid.db;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,6 +18,7 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.operation.InsertObject;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
@@ -51,7 +57,8 @@ public class OperationDispatcherImplTest {
 		when(mockNewVectorHandler.getOperationType()).thenReturn(OperationType.new_vec);
 		when(mockInsertObject.getOperationType()).thenReturn(OperationType.ins_obj);
 
-		dispatcher = new OperationDispatcherImpl(List.of(mockInsertObject, mockNewObjectHandler, mockNewVectorHandler));
+		dispatcher = Mockito.spy(
+				new OperationDispatcherImpl(List.of(mockInsertObject, mockNewObjectHandler, mockNewVectorHandler)));
 
 		newVectorOne = new NewVector().setOperationId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L));
 		newVectorTwo = new NewVector().setOperationId(new LogicalTimestamp().setReplicaId(31L).setSequenceNumber(4L));
@@ -67,9 +74,20 @@ public class OperationDispatcherImplTest {
 	@Test
 	public void testProcessAll() {
 
+		when(mockNewVectorHandler.handleBatch(sessionId, replicaId, List.of(newVectorTwo, newVectorOne)))
+				.thenReturn(Set.of(newVectorOne.getOperationId()));
+		when(mockNewObjectHandler.handleBatch(sessionId, replicaId, List.of(newObjectOne, newObjectTwo)))
+				.thenReturn(Set.of(newObjectTwo.getOperationId()));
+		when(mockInsertObject.handleBatch(sessionId, replicaId, List.of(insertObjectOne, insertObjectTwo)))
+				.thenReturn(Set.of(newObjectTwo.getOperationId()));
+
 		// call under test
-		dispatcher.processAll(sessionId, replicaId,
+		Map<IndexType, Set<LogicalTimestamp>> changes = dispatcher.processAll(sessionId, replicaId,
 				List.of(newObjectOne, insertObjectOne, newVectorTwo, newObjectTwo, insertObjectTwo, newVectorOne));
+		Map<IndexType, Set<LogicalTimestamp>> expected = new LinkedHashMap<>();
+		expected.put(IndexType.obj, Set.of(newObjectTwo.getOperationId()));
+		expected.put(IndexType.vec, Set.of(newVectorOne.getOperationId()));
+		assertEquals(expected, changes);
 
 		InOrder inOrder = Mockito.inOrder(mockNewObjectHandler, mockNewVectorHandler, mockInsertObject);
 		inOrder.verify(mockNewObjectHandler).handleBatch(sessionId, replicaId, List.of(newObjectOne, newObjectTwo));
@@ -78,6 +96,28 @@ public class OperationDispatcherImplTest {
 		inOrder.verify(mockInsertObject).handleBatch(sessionId, replicaId, List.of(insertObjectOne, insertObjectTwo));
 	}
 
+	@Test
+	public void testProcessAllWithNullChanges() {
+		doReturn(null).when(dispatcher).dispatchToHandler(any(), any(), any(), any());
+
+		// call under test
+		Map<IndexType, Set<LogicalTimestamp>> changes = dispatcher.processAll(sessionId, replicaId,
+				List.of(newObjectOne, insertObjectOne, newVectorTwo, newObjectTwo, insertObjectTwo, newVectorOne));
+		assertEquals(Map.of(), changes);
+
+	}
+
+	@Test
+	public void testProcessAllWithEmptyChanges() {
+		doReturn(Set.of()).when(dispatcher).dispatchToHandler(any(), any(), any(), any());
+
+		// call under test
+		Map<IndexType, Set<LogicalTimestamp>> changes = dispatcher.processAll(sessionId, replicaId,
+				List.of(newObjectOne, insertObjectOne, newVectorTwo, newObjectTwo, insertObjectTwo, newVectorOne));
+		assertEquals(Map.of(), changes);
+
+	}
+	
 	@Test
 	public void testProcessAllWithNullList() {
 

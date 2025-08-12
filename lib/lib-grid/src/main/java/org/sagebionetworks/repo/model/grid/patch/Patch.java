@@ -1,18 +1,18 @@
 package org.sagebionetworks.repo.model.grid.patch;
 
-import java.lang.reflect.InvocationTargetException;
+import org.sagebionetworks.repo.model.grid.patch.operation.Operation;
+import org.sagebionetworks.repo.model.grid.patch.operation.builder.OperationBuilder;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-
-import org.sagebionetworks.repo.model.grid.patch.operation.Operation;
-import org.sagebionetworks.repo.model.grid.patch.operation.OperationBuilder;
 
 public class Patch {
 
 	private LogicalTimestamp patchId;
 	private String metadata;
 	private List<Operation<?>> operations;
+	private long span = 0; // Cache the span as a performance optimization
 
 	public LogicalTimestamp getPatchId() {
 		return patchId;
@@ -38,45 +38,31 @@ public class Patch {
 
 	public Patch setOperations(List<Operation<?>> operations) {
 		this.operations = operations;
+		if (operations == null) {
+			this.span = 0L;
+		} else {
+			this.span = operations.stream().mapToLong(Operation::getSpan).sum();
+		}
 		return this;
 	}
 
 	/**
-	 * Add a new operation of the provided type to the patch. The newly created
-	 * operation will be issued a correct operationId.
-	 * 
-	 * @param <T>
-	 * @param clazz
-	 * @return
+	 * Factory Method that accepts any valid OperationBuilder.
+	 * It generates the ID and asks the builder to construct the final object.
 	 */
-	public <T extends Operation<T>> T addNewOperation(Class<? extends T> clazz) {
+	public <T extends Operation<T>> T addNewOperation(OperationBuilder<T> builder) {
 		try {
-			T operation = clazz.getDeclaredConstructor().newInstance();
 			if (operations == null) {
 				operations = new ArrayList<>();
 			}
-			operation.setOperationId(LogicalTimestamp.newIncrement(patchId, getSpan()));
+			LogicalTimestamp nextId = LogicalTimestamp.newIncrement(patchId, getSpan());
+			T operation = builder.build(nextId);
 			operations.add(operation);
+			span += operation.getSpan();
 			return operation;
-		} catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException
-				| NoSuchMethodException | SecurityException e) {
+		} catch (IllegalArgumentException | SecurityException e) {
 			throw new RuntimeException(e);
 		}
-	}
-	
-	/**
-	 * Add a new immutable operation from a builder. 
-	 * @param <T>
-	 * @param builder
-	 * @return The ID of the new operation.
-	 */
-	public <T extends Operation<T>> LogicalTimestamp addNewOperation(OperationBuilder<T> builder) {
-		if (operations == null) {
-			operations = new ArrayList<>();
-		}
-		T operation = builder.build(LogicalTimestamp.newIncrement(patchId, getSpan()));
-		operations.add(operation);
-		return operation.getOperationId();
 	}
 
 	/**
@@ -88,7 +74,7 @@ public class Patch {
 		if (operations == null) {
 			return 0L;
 		}
-		return operations.stream().mapToLong(Operation::getSpan).sum();
+		return this.span;
 	}
 
 	@Override

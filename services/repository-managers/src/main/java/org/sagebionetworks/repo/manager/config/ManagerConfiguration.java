@@ -3,9 +3,9 @@ package org.sagebionetworks.repo.manager.config;
 import static org.sagebionetworks.repo.manager.file.scanner.BasicFileHandleAssociationScanner.DEFAULT_BATCH_SIZE;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpClient.Redirect;
 import java.time.Duration;
@@ -13,6 +13,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.StringJoiner;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -24,8 +25,12 @@ import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
 import org.apache.velocity.runtime.resource.loader.FileResourceLoader;
+import org.opensearch.client.opensearch.OpenSearchClient;
+import org.opensearch.client.transport.aws.AwsSdk2Transport;
+import org.opensearch.client.transport.aws.AwsSdk2TransportOptions;
 import org.sagebionetworks.StackConfiguration;
-import org.sagebionetworks.aws.v2.AwsCrdentialPoviderV2;
+import org.sagebionetworks.avro.pfb.model.Metadata;
+import org.sagebionetworks.aws.v2.AwsCredentialsProviderV2;
 import org.sagebionetworks.database.semaphore.CountingSemaphore;
 import org.sagebionetworks.evaluation.dbo.SubmissionFileHandleDBO;
 import org.sagebionetworks.repo.manager.agent.AgentClientProvider;
@@ -63,9 +68,11 @@ import org.sagebionetworks.repo.model.file.FileHandleAssociateType;
 import org.sagebionetworks.repo.model.oauth.OAuthProvider;
 import org.sagebionetworks.repo.model.oauth.OIDCClaimName;
 import org.sagebionetworks.repo.model.table.ColumnModel;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.simpleHttpClient.SimpleHttpClient;
 import org.sagebionetworks.table.cluster.avro.RowPFBWriter;
 import org.sagebionetworks.table.cluster.avro.RowPFBWriterProvider;
+import org.sagebionetworks.util.DefaultClock;
 import org.sagebionetworks.workers.util.semaphore.WriteReadSemaphore;
 import org.sagebionetworks.workers.util.semaphore.WriteReadSemaphoreImpl;
 import org.springframework.context.annotation.Bean;
@@ -87,12 +94,29 @@ import dev.samstevens.totp.secret.SecretGenerator;
 import dev.samstevens.totp.time.SystemTimeProvider;
 import dev.samstevens.totp.time.TimeProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.apigatewaymanagementapi.ApiGatewayManagementApiClient;
+import software.amazon.awssdk.services.apigatewayv2.ApiGatewayV2Client;
+import software.amazon.awssdk.services.apigatewayv2.model.Api;
+import software.amazon.awssdk.services.apigatewayv2.model.GetApisRequest;
+import software.amazon.awssdk.services.apigatewayv2.model.GetApisResponse;
+import software.amazon.awssdk.services.apigatewayv2.model.GetStagesRequest;
+import software.amazon.awssdk.services.apigatewayv2.model.Stage;
 import software.amazon.awssdk.services.bedrockagent.BedrockAgentClient;
 import software.amazon.awssdk.services.bedrockagent.model.ListAgentsRequest;
 import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAsyncClient;
 import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAsyncClientBuilder;
+import software.amazon.awssdk.services.opensearchserverless.OpenSearchServerlessClient;
+import software.amazon.awssdk.services.opensearchserverless.model.CollectionDetail;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.sns.SnsClient;
+import software.amazon.awssdk.services.sns.model.ListTopicsRequest;
+import software.amazon.awssdk.services.sns.model.ListTopicsResponse;
+import software.amazon.awssdk.services.sns.model.Topic;
+import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
@@ -290,7 +314,8 @@ public class ManagerConfiguration {
 
 	@Bean
 	public WriteReadSemaphore getWriteReadSemaphore(StackConfiguration config, CountingSemaphore countingSemaphore) {
-		return new WriteReadSemaphoreImpl(countingSemaphore, config.getWriteReadSemaphoreRunnerMaxReaders());
+		return new WriteReadSemaphoreImpl(countingSemaphore, config.getWriteReadSemaphoreRunnerMaxReaders(),
+				new DefaultClock());
 	}
 
 	@Bean
@@ -313,7 +338,7 @@ public class ManagerConfiguration {
 
 	@Bean
 	public AwsCredentialsProvider createAwsCredentialProviderV2() {
-		return AwsCrdentialPoviderV2.createCredentialProvider();
+		return AwsCredentialsProviderV2.createCredentialProvider();
 	}
 
 	@Bean
@@ -327,6 +352,30 @@ public class ManagerConfiguration {
 			AwsCredentialsProvider credentialProvider, BedrockAgentRuntimeAsyncClientBuilder builder) {
 		// This client uses the stack's credentials.
 		return builder.credentialsProvider(credentialProvider).build();
+	}
+
+	@Bean
+	public OpenSearchServerlessClient ossManagementClient(AwsCredentialsProvider credentialProvider) {
+		return OpenSearchServerlessClient.builder().credentialsProvider(credentialProvider).region(Region.US_EAST_1)
+				.build();
+	}
+
+	@Bean
+	public SdkHttpClient ossHttpClient() {
+		return ApacheHttpClient.builder().build();
+	}
+
+	@Bean
+	public OpenSearchClient synSearchOssClient(OpenSearchServerlessClient openSearchServerlessClient,
+			AwsCredentialsProvider credentialProvider, StackConfiguration config, SdkHttpClient httpClient) {
+		String collectionName = config.getStack() + "-" + config.getStackInstance() + "-synsearch";
+
+		CollectionDetail collection = openSearchServerlessClient.batchGetCollection(req -> req.names(collectionName))
+				.collectionDetails().stream().findFirst().orElseThrow();
+
+		return new OpenSearchClient(new AwsSdk2Transport(httpClient,
+				collection.collectionEndpoint().replace("https://", ""), "aoss", Region.US_EAST_1,
+				AwsSdk2TransportOptions.builder().setCredentials(credentialProvider).build()));
 	}
 
 	@Bean
@@ -351,11 +400,9 @@ public class ManagerConfiguration {
 	public AgentClientProvider createAgentClientProvider(
 			BedrockAgentRuntimeAsyncClient defaultBedrockAgentRuntimeAsyncClient,
 			BedrockAgentRuntimeAsyncClient customBedrockAgentRuntimeAsyncClient) {
-		
-		return new AgentClientProvider(Map.of(
-			AgentType.BASELINE, defaultBedrockAgentRuntimeAsyncClient,
-			AgentType.CUSTOM, customBedrockAgentRuntimeAsyncClient)
-		);
+
+		return new AgentClientProvider(Map.of(AgentType.BASELINE, defaultBedrockAgentRuntimeAsyncClient,
+				AgentType.CUSTOM, customBedrockAgentRuntimeAsyncClient));
 	}
 
 	@Bean
@@ -374,27 +421,112 @@ public class ManagerConfiguration {
 				.orElseThrow(() -> new IllegalArgumentException("Could not find a bedrock agent named: " + agentName));
 
 	}
-	
+
 	@Bean
 	public SimpleTriggerFactoryBean projectStorageAccessTrigger(ProjectStorageLimitsManager manager) {
-		return new SimpleTriggerBuilder()
-			.withRepeatInterval(10_000)
-			.withStartDelay(10)
-			.withTargetObject(manager)
-			.withTargetMethod("sendProjectStorageNotifications")
-			.build();
+		return new SimpleTriggerBuilder().withRepeatInterval(10_000).withStartDelay(10).withTargetObject(manager)
+				.withTargetMethod("sendProjectStorageNotifications").build();
 	}
-	
+
 	@Bean
 	public RowPFBWriterProvider createRowPFBWriterProvider() {
-		return (String tableName, List<ColumnModel> columns, File file) -> {
-			return new RowPFBWriter(tableName, columns, new FileOutputStream(file));
+		return (String tableName, List<ColumnModel> columns, Metadata metadata, File file) -> {
+			return new RowPFBWriter(tableName, columns, metadata, new FileOutputStream(file));
 		};
 	}
-	
+
 	@Bean
 	int viewUpdateVisibilityTimeoutSeconds() {
 		return 120;
+	}
+
+	@Bean
+	public ApiGatewayV2Client createApiGatewayV2Client(AwsCredentialsProvider credentialProvider) {
+		return ApiGatewayV2Client.builder().credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
+	}
+
+	@Bean
+	public WebsocketApi createWebsocketApi(ApiGatewayV2Client client, StackConfiguration stackConfig) {
+		String gridWebsocketApiName = String.format("%s-%s-grid-websocket", stackConfig.getStack(),
+				stackConfig.getStackInstance());
+		Api api = findWebsocketApi(client, gridWebsocketApiName);
+		Stage stage = client.getStages(GetStagesRequest.builder().apiId(api.apiId()).build()).items().stream()
+				.findFirst().get();
+
+		return new WebsocketApi().setApiId(api.apiId()).setApiEndpoint(api.apiEndpoint()).setApiName(api.name())
+				.setStageName(stage.stageName());
+	}
+
+	/**
+	 * Helper to find a websocket API by name.
+	 *
+	 * @param client
+	 * @param apiName
+	 * @return
+	 */
+	Api findWebsocketApi(ApiGatewayV2Client client, String apiName) {
+		String nextToken = null;
+		do {
+			GetApisResponse res = client.getApis(GetApisRequest.builder().nextToken(nextToken).build());
+			Optional<Api> op = res.items().stream().filter(i -> apiName.equals(i.name())).findFirst();
+			if (op.isPresent()) {
+				return op.get();
+			}
+			nextToken = res.nextToken();
+		} while (nextToken != null);
+		throw new NotFoundException("Cannot find websocket apiName: " + apiName);
+	}
+
+	@Bean
+	public ApiGatewayManagementApiClient createAmazonApiGatewayManagementApi(AwsCredentialsProvider credentialProvider,
+			WebsocketApi websocketApi) throws URISyntaxException {
+		return ApiGatewayManagementApiClient.builder().endpointOverride(new URI(websocketApi.getHttpUrl()))
+				.credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
+	}
+
+	@Bean
+	public S3Client createS3Client(AwsCredentialsProvider credentialProvider) {
+		return S3Client.builder().credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
+	}
+
+	@Bean
+	public SqsClient createSqsClient(AwsCredentialsProvider credentialProvider) {
+		return SqsClient.builder().credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
+	}
+
+	@Bean
+	public SnsClient createSnsClient(AwsCredentialsProvider credentialProvider) {
+		return SnsClient.builder().credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
+	}
+
+	@Bean
+	public String gridReplicaChangeTopicArn(SnsClient client, StackConfiguration config) {
+		return getTopicArnByName(config.getQueueName("GRID_REPLICA_CHANGES"), client);
+	}
+
+	/**
+	 * Helper to lookup a SNS topic by its name.
+	 * 
+	 * @param topicName
+	 * @param snsClient
+	 * @return
+	 */
+	String getTopicArnByName(String topicName, SnsClient snsClient) {
+		String nextToken = null;
+		do {
+			ListTopicsResponse response = snsClient
+					.listTopics(ListTopicsRequest.builder().nextToken(nextToken).build());
+
+			Optional<Topic> foundTopic = response.topics().stream()
+					.filter(topic -> topic.topicArn().endsWith(":" + topicName)).findFirst();
+
+			if (foundTopic.isPresent()) {
+				return foundTopic.get().topicArn();
+			}
+			nextToken = response.nextToken();
+		} while (nextToken != null);
+
+		throw new RuntimeException("Topic not found: " + topicName);
 	}
 
 }

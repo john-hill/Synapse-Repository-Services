@@ -188,6 +188,13 @@
 				<bean class="org.sagebionetworks.repo.model.dbo.auth.DBOTermsOfServiceLatestVersion"/>
 				<bean class="org.sagebionetworks.repo.model.dbo.limits.DBOProjectStorageData"/>
 				<bean class="org.sagebionetworks.repo.model.dbo.limits.DBOProjectStorageLimit"/>
+				<!-- Grid -->
+				<bean class="org.sagebionetworks.repo.model.dbo.grid.DBOGridSession"/>
+				<bean class="org.sagebionetworks.repo.model.dbo.grid.DBOGridReplica"/>
+				<bean class="org.sagebionetworks.repo.model.dbo.grid.DBOGridConnection"/>
+				<bean class="org.sagebionetworks.repo.model.dbo.grid.DBOGridPatch"/>
+				
+				<bean class="org.sagebionetworks.repo.model.dbo.auth.DBOUserStatus"/>	
 			</list>
 		</property>
 		<!-- MySQL Functions to be created/updated -->
@@ -340,7 +347,14 @@
 				
 				<bean class="org.sagebionetworks.repo.model.dbo.limits.DBOProjectStorageData"/>
 				<bean class="org.sagebionetworks.repo.model.dbo.limits.DBOProjectStorageLimit"/>
-						
+				
+				<bean class="org.sagebionetworks.repo.model.dbo.grid.DBOGridSession"/>
+				<bean class="org.sagebionetworks.repo.model.dbo.grid.DBOGridReplica"/>
+				<bean class="org.sagebionetworks.repo.model.dbo.grid.DBOGridConnection"/>
+				<bean class="org.sagebionetworks.repo.model.dbo.grid.DBOGridPatch"/>
+
+				<bean class="org.sagebionetworks.repo.model.dbo.auth.DBOUserStatus"/>
+
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOChange" /> <!-- THIS MUST ALWAYS BE THE LAST BEAN -->
 			</list>
 		</property>

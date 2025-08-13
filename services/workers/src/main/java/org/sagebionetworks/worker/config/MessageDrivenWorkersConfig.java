@@ -7,6 +7,10 @@ import org.sagebionetworks.database.semaphore.CountingSemaphore;
 import org.sagebionetworks.file.worker.FileEventRecordWorker;
 import org.sagebionetworks.file.worker.FileHandleAssociationScanRangeWorker;
 import org.sagebionetworks.file.worker.FileHandleKeysArchiveWorker;
+import org.sagebionetworks.grid.workers.GridEventBrokerWorker;
+import org.sagebionetworks.grid.workers.GridReplicaPatchBuilderWorker;
+import org.sagebionetworks.grid.workers.GridReplicaValidationWorker;
+import org.sagebionetworks.grid.workers.GridReplicaWorker;
 import org.sagebionetworks.limits.workers.ProjectStorageDataRefreshWorker;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
 import org.sagebionetworks.ses.workers.SESNotificationWorker;
@@ -280,6 +284,94 @@ public class MessageDrivenWorkersConfig {
 				)
 				.withRepeatInterval(2564)
 				.withStartDelay(3065)
+				.build();
+	}
+	
+	@Bean
+	public SimpleTriggerFactoryBean gridMessageBrokerWorkerTrigger(GridEventBrokerWorker gridMessageBroker) {
+
+		String queueName = stackConfig.getQueueName("GRID_WEBSOCKET_MESSAGE");
+
+		return new WorkerTriggerBuilder()
+				.withStack(ConcurrentWorkerStack.builder()
+						.withSemaphoreLockKey("gridMessageBrokerWorker")
+						.withSemaphoreMaxLockCount(8)
+						.withSemaphoreLockAndMessageVisibilityTimeoutSec(30)
+						.withMaxThreadsPerMachine(3)
+						.withSingleton(concurrentStackManager)
+						.withCanRunInReadOnly(false)
+						.withQueueName(queueName)
+						.withWorker(gridMessageBroker)
+						.build()
+				)
+				.withRepeatInterval(989)
+				.withStartDelay(3065)
+				.build();
+	}
+	
+	@Bean
+	public SimpleTriggerFactoryBean gridReplicaWorkerTrigger(GridReplicaWorker worker) {
+
+		String queueName = stackConfig.getQueueName("GRID_INTERNAL_EVENT");
+
+		return new WorkerTriggerBuilder()
+				.withStack(ConcurrentWorkerStack.builder()
+						.withSemaphoreLockKey("gridReplicaWorker")
+						.withSemaphoreMaxLockCount(8)
+						.withSemaphoreLockAndMessageVisibilityTimeoutSec(30)
+						.withMaxThreadsPerMachine(3)
+						.withSingleton(concurrentStackManager)
+						.withCanRunInReadOnly(false)
+						.withQueueName(queueName)
+						.withWorker(worker)
+						.build()
+				)
+				.withRepeatInterval(981)
+				.withStartDelay(3065)
+				.build();
+	}
+	
+	@Bean
+	public SimpleTriggerFactoryBean gridReplicaValidationWorkerTrigger(GridReplicaValidationWorker worker) {
+
+		String queueName = stackConfig.getQueueName("GRID_REPLICA_CHANGES_VALIDATION");
+
+		return new WorkerTriggerBuilder()
+				.withStack(ConcurrentWorkerStack.builder()
+						.withSemaphoreLockKey("gridReplicaValidationWorker")
+						.withSemaphoreMaxLockCount(8)
+						.withSemaphoreLockAndMessageVisibilityTimeoutSec(30)
+						.withMaxThreadsPerMachine(3)
+						.withSingleton(concurrentStackManager)
+						.withCanRunInReadOnly(false)
+						.withQueueName(queueName)
+						.withWorker(worker)
+						.build()
+				)
+				.withRepeatInterval(971)
+				.withStartDelay(3063)
+				.build();
+	}
+	
+	@Bean
+	public SimpleTriggerFactoryBean gridReplicaPatchBuilderWorkerTrigger(GridReplicaPatchBuilderWorker worker) {
+
+		String queueName = stackConfig.getQueueName("GRID_REPLICA_PATCH_BUILDER.fifo");
+
+		return new WorkerTriggerBuilder()
+				.withStack(ConcurrentWorkerStack.builder()
+						.withSemaphoreLockKey("gridReplicaPatchBuilderWorker")
+						.withSemaphoreMaxLockCount(5)
+						.withSemaphoreLockAndMessageVisibilityTimeoutSec(30)
+						.withMaxThreadsPerMachine(2)
+						.withSingleton(concurrentStackManager)
+						.withCanRunInReadOnly(false)
+						.withQueueName(queueName)
+						.withWorker(worker)
+						.build()
+				)
+				.withRepeatInterval(971)
+				.withStartDelay(3063)
 				.build();
 	}
 	

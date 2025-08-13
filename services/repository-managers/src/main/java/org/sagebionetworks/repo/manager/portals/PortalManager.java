@@ -5,6 +5,8 @@ import java.util.Set;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
+import org.sagebionetworks.repo.model.auth.UserPortalPermissions;
 import org.sagebionetworks.repo.model.portals.CreateOrUpdatePortalRequest;
 import org.sagebionetworks.repo.model.portals.ListPortalsRequest;
 import org.sagebionetworks.repo.model.portals.ListPortalsResponse;
@@ -27,5 +29,9 @@ public interface PortalManager {
 	AccessControlList getPortalAcl(String portalId);
 
 	AccessControlList updatePortalAcl(UserInfo user, String portalId, AccessControlList acl);
-
+	
+	AuthorizationStatus canMintDoi(UserInfo user, String portalId);
+	
+	UserPortalPermissions getUserPortalPermissions(UserInfo user, String portalId);
+	
 }

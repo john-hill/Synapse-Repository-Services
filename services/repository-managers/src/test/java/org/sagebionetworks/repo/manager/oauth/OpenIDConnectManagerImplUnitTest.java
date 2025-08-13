@@ -17,7 +17,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.repo.manager.oauth.OpenIDConnectManager.getScopeHash;
+import static org.sagebionetworks.repo.manager.oauth.claimprovider.GA4GHPassportClaimProvider.VISA_CLAIM_NAME;
 
+import java.security.KeyPair;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -40,6 +42,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.StackEncrypter;
 import org.sagebionetworks.manager.util.OAuthPermissionUtils;
+import org.sagebionetworks.repo.manager.KeyPairUtil;
 import org.sagebionetworks.repo.manager.NotificationManager;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.UserProfileManager;
@@ -48,12 +51,15 @@ import org.sagebionetworks.repo.manager.oauth.claimprovider.CompanyClaimProvider
 import org.sagebionetworks.repo.manager.oauth.claimprovider.EmailClaimProvider;
 import org.sagebionetworks.repo.manager.oauth.claimprovider.EmailVerifiedClaimProvider;
 import org.sagebionetworks.repo.manager.oauth.claimprovider.FamilyNameClaimProvider;
+import org.sagebionetworks.repo.manager.oauth.claimprovider.GA4GHPassportClaimProvider;
 import org.sagebionetworks.repo.manager.oauth.claimprovider.GivenNameClaimProvider;
 import org.sagebionetworks.repo.manager.oauth.claimprovider.OIDCClaimProvider;
 import org.sagebionetworks.repo.manager.oauth.claimprovider.TeamClaimProvider;
 import org.sagebionetworks.repo.manager.oauth.claimprovider.UserIdClaimProvider;
 import org.sagebionetworks.repo.manager.oauth.claimprovider.UserNameClaimProvider;
 import org.sagebionetworks.repo.manager.oauth.claimprovider.ValidatedAtClaimProvider;
+import org.sagebionetworks.repo.model.AccessApprovalDAO;
+import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.GroupMembersDAO;
@@ -64,6 +70,8 @@ import org.sagebionetworks.repo.model.auth.OAuthClientDao;
 import org.sagebionetworks.repo.model.auth.OAuthDao;
 import org.sagebionetworks.repo.model.auth.TokenType;
 import org.sagebionetworks.repo.model.dao.NotificationEmailDAO;
+import org.sagebionetworks.repo.model.oauth.GA4GHByType;
+import org.sagebionetworks.repo.model.oauth.GA4GHVisaType;
 import org.sagebionetworks.repo.model.oauth.OAuthAuthorizationResponse;
 import org.sagebionetworks.repo.model.oauth.OAuthClient;
 import org.sagebionetworks.repo.model.oauth.OAuthRefreshTokenInformation;
@@ -95,8 +103,9 @@ import com.google.common.collect.ImmutableList;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwsHeader;
 import io.jsonwebtoken.Jwt;
+import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
-
+	
 @ExtendWith(MockitoExtension.class)
 public class OpenIDConnectManagerImplUnitTest {
 	private static final String USER_ID = "101";
@@ -111,6 +120,7 @@ public class OpenIDConnectManagerImplUnitTest {
 	private static final String COMPANY = "company";
 	private static final String USER_NAME = "user-name";
 	private static final long EXPECTED_ACCESS_TOKEN_EXPIRATION_TIME_SECONDS = 3600*24L; // a day
+	private static final String ACCESS_REQUIREMENT_ID = "1111";
 	private String ppid;
 
 	@Mock
@@ -127,6 +137,12 @@ public class OpenIDConnectManagerImplUnitTest {
 
 	@Mock
 	private PrincipalAliasDAO mockPrincipalAliasDao;
+	
+	@Mock
+	private AccessRequirementDAO mockAccessRequirementDao;
+	
+	@Mock
+	private AccessApprovalDAO mockAccessApprovalDao;
 
 	@Mock
 	private OIDCTokenManager oidcTokenManager;
@@ -139,6 +155,12 @@ public class OpenIDConnectManagerImplUnitTest {
 	
 	@Mock
 	private NotificationManager mockNotificationManager;
+	
+	@InjectMocks
+	private JwtBuilder jwtBuilder;
+
+	@Mock
+	private JwtBuilder mockJwtBuilder;
 
 	@InjectMocks
 	private OpenIDConnectManagerImpl openIDConnectManagerImpl;
@@ -167,6 +189,9 @@ public class OpenIDConnectManagerImplUnitTest {
 	@Mock
 	private Clock mockClock;
 	
+	@Mock
+	private StackConfiguration stackConfiguration;
+	
 	@InjectMocks
 	private EmailClaimProvider mockEmailClaimProvider;
 
@@ -193,6 +218,9 @@ public class OpenIDConnectManagerImplUnitTest {
 
 	@InjectMocks
 	private TeamClaimProvider mockTeamClaimProvider;
+
+	@InjectMocks
+	private GA4GHPassportClaimProvider mockPassportClaimProvider;
 
 	@Captor
 	private ArgumentCaptor<Map<OIDCClaimName, Object>> userInfoCaptor;
@@ -266,6 +294,8 @@ public class OpenIDConnectManagerImplUnitTest {
 		mockClaimProviders.put(OIDCClaimName.validated_at, mockValidatedAtClaimProvider);
 		
 		mockClaimProviders.put(OIDCClaimName.team, mockTeamClaimProvider);
+		
+		mockClaimProviders.put(OIDCClaimName.ga4gh_passport_v1, mockPassportClaimProvider);
 		
 		openIDConnectManagerImpl.setClaimProviders(mockClaimProviders);
 	}
@@ -731,7 +761,7 @@ public class OpenIDConnectManagerImplUnitTest {
 		oidcClaims.put(OIDCClaimName.team, teamRequest);
 		
 		// method under test
-		Map<OIDCClaimName, Object> result=openIDConnectManagerImpl.getUserInfo(USER_ID, Collections.singletonList(OAuthScope.openid), oidcClaims);
+		Map<OIDCClaimName, Object> result=openIDConnectManagerImpl.getUserInfo(USER_ID, ppid, Collections.singletonList(OAuthScope.openid), oidcClaims, OAUTH_ENDPOINT);
 
 		assertEquals(EMAIL, result.get(OIDCClaimName.email));
 		assertTrue((Boolean)result.get(OIDCClaimName.email_verified));
@@ -751,7 +781,7 @@ public class OpenIDConnectManagerImplUnitTest {
 		List<OAuthScope> scopes = Arrays.asList(OAuthScope.openid, OAuthScope.email, OAuthScope.profile);
 		
 		// method under test
-		Map<OIDCClaimName, Object> result=openIDConnectManagerImpl.getUserInfo(USER_ID, scopes, oidcClaims);
+		Map<OIDCClaimName, Object> result=openIDConnectManagerImpl.getUserInfo(USER_ID, ppid, scopes, oidcClaims, OAUTH_ENDPOINT);
 
 		assertEquals(EMAIL, result.get(OIDCClaimName.email));
 		assertTrue((Boolean)result.get(OIDCClaimName.email_verified));
@@ -776,7 +806,7 @@ public class OpenIDConnectManagerImplUnitTest {
 		oidcClaims.put(OIDCClaimName.team, teamRequest);
 		
 		// method under test
-		Map<OIDCClaimName, Object> result=openIDConnectManagerImpl.getUserInfo(USER_ID, Collections.singletonList(OAuthScope.openid), oidcClaims);
+		Map<OIDCClaimName, Object> result=openIDConnectManagerImpl.getUserInfo(USER_ID, ppid, Collections.singletonList(OAuthScope.openid), oidcClaims, OAUTH_ENDPOINT);
 
 		assertFalse(result.containsKey(OIDCClaimName.validated_at));
 		assertEquals(Collections.EMPTY_LIST, result.get(OIDCClaimName.team));
@@ -785,7 +815,7 @@ public class OpenIDConnectManagerImplUnitTest {
 	@Test
 	public void testGetUserInfo_internal_noOpenIDScope() {
 		Map<OIDCClaimName, OIDCClaimsRequestDetails> oidcClaims = new HashMap<OIDCClaimName, OIDCClaimsRequestDetails>();
-		Map<OIDCClaimName, String> result=openIDConnectManagerImpl.getUserInfo(USER_ID, Collections.EMPTY_LIST, oidcClaims);
+		Map<OIDCClaimName, String> result=openIDConnectManagerImpl.getUserInfo(USER_ID, ppid, Collections.EMPTY_LIST, oidcClaims, OAUTH_ENDPOINT);
 		assertTrue(result.isEmpty());
 	}
 
@@ -1317,6 +1347,9 @@ public class OpenIDConnectManagerImplUnitTest {
 		oidcClaims.put(OIDCClaimName.userid, null);
 		oidcClaims.put(OIDCClaimName.email, null);
 		oidcClaims.put(OIDCClaimName.email_verified, null);
+		OIDCClaimsRequestDetails passportDetails = new OIDCClaimsRequestDetails();
+		passportDetails.setValue("https://synapse/accessRequirement/"+ACCESS_REQUIREMENT_ID);
+		oidcClaims.put(OIDCClaimName.ga4gh_passport_v1, passportDetails);
 		ClaimsJsonUtil.addAccessClaims(scopes, oidcClaims, claims);
 		when(mockJWT.getBody()).thenReturn(claims);
 	}
@@ -1331,9 +1364,28 @@ public class OpenIDConnectManagerImplUnitTest {
 		when(mockUserProfileManager.getUserProfile(USER_ID)).thenReturn(userProfile);
 		when(mockPrincipalAliasDao.getUserName(USER_ID_LONG)).thenReturn(USER_NAME);
 		
+		when(mockAccessApprovalDao.getRequirementsUserHasApprovals(eq(USER_ID), any())).thenReturn(Collections.singleton(ACCESS_REQUIREMENT_ID));
+		when(mockAccessRequirementDao.getConcreteTypes(Collections.singleton(ACCESS_REQUIREMENT_ID))).
+			thenReturn(Collections.singletonMap(ACCESS_REQUIREMENT_ID, "org.sagebionetworks.repo.model.ManagedACTAccessRequirement"));
+		
+		when(mockClock.currentTimeMillis()).thenReturn(System.currentTimeMillis());
+		
 		// if the client omits a signing algorithm it means it wants the UserInfo as json
 		oauthClient.setUserinfo_signed_response_alg(null);
 		
+		
+		/*
+		 * Since we mock stack configuration we have to reintroduce a (valid, though NOT production)
+		 * RSA key that can be used to sign tokens.
+		 */
+		when(stackConfiguration.getOIDCSignatureRSAPrivateKeys()).thenReturn(
+				Collections.singletonList(JWTTestHelper.TEST_RSA_KEY_PAIR));
+		
+		when(mockJwtBuilder.createSignedJWT(any()))
+		.thenAnswer(invocation -> {
+			Claims claims = (Claims) invocation.getArgument(0);
+			return jwtBuilder.createSignedJWT(claims);});
+	
 		// method under test
 		Map<OIDCClaimName,Object> userInfo = (Map<OIDCClaimName,Object>)openIDConnectManagerImpl.
 				getUserInfo(ACCESS_TOKEN, OAUTH_ENDPOINT);
@@ -1345,6 +1397,19 @@ public class OpenIDConnectManagerImplUnitTest {
 		assertEquals(USER_ID, userInfo.get(OIDCClaimName.userid));
 		assertEquals(EMAIL, userInfo.get(OIDCClaimName.email));
 		assertTrue((Boolean)userInfo.get(OIDCClaimName.email_verified));
+		Object passportClaim = userInfo.get(OIDCClaimName.ga4gh_passport_v1);
+		assertNotNull(passportClaim);
+		List<String> visaJWTs = (List<String>)passportClaim;
+		assertEquals(1, visaJWTs.size());
+		String visaJWT = visaJWTs.get(0);
+		// parse JWT  and get visa claim
+		String testPemEncodedRsaPrivateKey = stackConfiguration.getOIDCSignatureRSAPrivateKeys().get(0);
+		KeyPair testKeyPair = KeyPairUtil.getRSAKeyPairFromPrivateKey(testPemEncodedRsaPrivateKey);
+		JwtParser parser = Jwts.parserBuilder().setSigningKey(testKeyPair.getPrivate()).build();
+		Claims parsedClaims = parser.parseClaimsJws(visaJWT).getBody();
+		Map<String,String> visa  = (Map<String,String>)parsedClaims.get(VISA_CLAIM_NAME); 
+		assertEquals(GA4GHByType.dac.name(), visa.get("by"));
+		assertEquals(GA4GHVisaType.ControlledAccessGrants.name(), visa.get("type"));
 	}
 
 	@Test

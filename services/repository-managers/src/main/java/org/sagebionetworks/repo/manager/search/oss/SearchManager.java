@@ -1,0 +1,39 @@
+package org.sagebionetworks.repo.manager.search.oss;
+
+import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.message.ChangeMessage;
+import org.sagebionetworks.repo.model.search.SearchResults;
+import org.sagebionetworks.repo.model.search.query.SearchQuery;
+
+import java.io.IOException;
+import java.util.List;
+
+
+public interface SearchManager {
+
+    /**
+     * Creates/deletes a document based on Entity or Wiki changes that occurred in Synapse. Used by SearchIndexWorker.
+     *
+     * @param changeMessages a batch of ChangeMessages representing changes in Synapse.
+     */
+    void documentChangeMessages(List<ChangeMessage> changeMessages);
+
+    /**
+     * Returns whether a document exists for a given Synapse id and etag
+     *
+     * @param id   id of the Synapse entity.
+     * @param etag etag od Synapse entity.
+     * @return true if a document exists, false otherwise.
+     */
+    boolean doesDocumentExist(String id, String etag) throws IOException;
+
+    /**
+     * Perform the search defined in the SearchQuery on behalf of the user
+     *
+     * @param userInfo    user performing the search
+     * @param searchQuery defines the search
+     * @return the results of the search
+     */
+    SearchResults search(UserInfo userInfo, SearchQuery searchQuery);
+
+}

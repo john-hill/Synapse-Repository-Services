@@ -8,11 +8,6 @@ import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
-import org.sagebionetworks.repo.model.grid.patch.operation.InsertArray;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewArray;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewObject;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewVector;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.Row;
@@ -93,7 +88,7 @@ public class PatchRowHandler implements RowHandler {
 					.setVectorId(columnNamesOperationId)
 					.setMap(columnNameMap));
 			currentPatch.addNewOperation(Operations.insertArray().setArrayId(columnOrderOperationId)
-					.setReferenceId(columnNamesOperationId).setElementIds(indexList));
+					.setReferenceId(columnOrderOperationId).setElementIds(indexList));
 		} else {
 			translators = new Translator[0];
 		}

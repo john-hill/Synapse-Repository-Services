@@ -34,7 +34,6 @@ import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
 import org.sagebionetworks.repo.model.grid.patch.operation.InsertArray;
-import org.sagebionetworks.repo.model.grid.patch.operation.InsertObject;
 import org.sagebionetworks.repo.model.grid.patch.operation.InsertObjectBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.InsertVector;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
@@ -72,8 +71,12 @@ public class GridReplicaViewManagerImplAutowireTest {
 		gridIndexManger.truncateAll();
 		sessionId = GridUtils.gridSessionIdAsString(123L);
 		replicaId = 111L;
-		schema = List.of(new ColumnModel().setName("a").setColumnType(ColumnType.STRING),
-				new ColumnModel().setName("b").setColumnType(ColumnType.INTEGER));
+		
+		schema = List.of(
+			new ColumnModel().setName("a").setColumnType(ColumnType.STRING),
+			new ColumnModel().setName("b").setColumnType(ColumnType.INTEGER)
+		);
+		
 		rows = TableModelTestUtils.createRows(schema, 10);
 	}
 
@@ -154,7 +157,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 										.setObjectId(
 												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(50L))
 										.setRowValidation(new RowValidation())
-										.setSynapseRow(new SynapseRow().setObjectId(new LogicalTimestamp()
+										.setSynapseRow(new SynapseRow().setConstantId(new LogicalTimestamp()
 												.setReplicaId(replicaId).setSequenceNumber(51L))))),
 				new RowView().setArrNodeId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(64L))
 						.setRowIndex(4L)
@@ -168,19 +171,28 @@ public class GridReplicaViewManagerImplAutowireTest {
 										.setObjectId(
 												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(60L))
 										.setRowValidation(new RowValidation())
-										.setSynapseRow(new SynapseRow().setObjectId(new LogicalTimestamp()
+										.setSynapseRow(new SynapseRow().setConstantId(new LogicalTimestamp()
 												.setReplicaId(replicaId).setSequenceNumber(61L))))));
 		assertEquals(expected, page);
 
 		// add some metadata
-		Patch patch = new Patch()
-				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
-		SynapseRow toAdd = new SynapseRow().setRowId(111L).setVersionNumber(333L).setEtag("etag88");
-		addSynapseMetadataToRow(patch, page.get(1), toAdd);
-		gridIndexManger.applyPatch(sessionId, replicaId, patch);
 
-		expected.get(1).getRowObject().getMetadata().getSynapseRow().setRowId(111L).setVersionNumber(333L)
-				.setEtag("etag88");
+		Patch newPatch = new Patch()
+				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
+		
+		LogicalTimestamp conId = newPatch.addNewOperation(NewConstant.class).setValue(new ConValue(ConType.JSON_OBJECT, new JSONObject()
+			.put("i", 111L)
+			.put("v", 333L)
+			.put("e", "etag88")
+		)).getOperationId();
+		
+		newPatch.addNewOperation(new InsertObjectBuilder().setObjectId(page.get(1).getRowMetadata().getObjectId())
+			.setMap(Map.of("synapseRow", conId)));
+		
+		gridIndexManger.applyPatch(sessionId, replicaId, newPatch);
+
+		expected.get(1).getSynapseRow().setConstantId(conId).setRowId(111L).setVersionNumber(333L).setEtag("etag88");
+		
 		// call under test
 		page = gridViewManager.querySinglePage(header, limit, offset);
 		assertEquals(expected, page);
@@ -269,21 +281,6 @@ public class GridReplicaViewManagerImplAutowireTest {
 		assertEquals(1, page.size());
 		RowView fourUpdated = page.get(0);
 		assertEquals(validation, fourUpdated.getRowValidationResults());
-	}
-
-	void addSynapseMetadataToRow(Patch toExtend, RowView row, SynapseRow toAdd) {
-		toExtend.addNewOperation(InsertObject.class)
-				.setObjectId(row.getRowObject().getMetadata().getSynapseRow().getObjectId()).setMap(Map.of(
-						//
-						"rowId", toExtend.addNewOperation(NewConstant.class)
-								.setValue(new ConValue(ConType.LONG, toAdd.getRowId())).getOperationId()
-						//
-						, "versionNumber", toExtend.addNewOperation(NewConstant.class)
-								.setValue(new ConValue(ConType.LONG, toAdd.getVersionNumber())).getOperationId()
-						//
-						, "etag", toExtend.addNewOperation(NewConstant.class)
-								.setValue(new ConValue(ConType.STRING, toAdd.getEtag())).getOperationId()));
-
 	}
 
 	/**

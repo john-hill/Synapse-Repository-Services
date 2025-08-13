@@ -88,9 +88,9 @@ public class PatchRowHandlerTest {
 		 "[[[19,1]],[2],[0,\"0.1.0\"],[3],[6],[6],[10,1,[[\"doc_version\",2],[\"columnNames\",3],"
 				 + "[\"columnOrder\",4],[\"rows\",5]]],[9,[0,0],1],[0,\"aString\"],[0,0],[0,\"anInt\"],"
 				 + "[0,1],[11,3,[[0,8],[1,10]]],[14,4,4,[9,11]],[2],"
-				 + "[3],[0,\"one\"],[0,101],[11,16,[[0,17],[1,18]]],[2],[2],[0,1],[0,4],[0,\"fake-etag-1\"],[10,21,[[\"rowId\",22],[\"versionNumber\",23],[\"etag\",24]]],[10,20,[[\"synapseRow\",21]]],[10,15,[[\"data\",16],[\"metadata\",20]]],[14,5,5,[15]],[2],"
-				 + "[3],[0,\"two\"],[0,202],[11,30,[[0,31],[1,32]]],[2],[2],[0,2],[0,5],[0,\"fake-etag-2\"],[10,35,[[\"rowId\",36],[\"versionNumber\",37],[\"etag\",38]]],[10,34,[[\"synapseRow\",35]]],[10,29,[[\"data\",30],[\"metadata\",34]]],[14,5,28,[29]],[2],"
-				 + "[3],[0,\"three\"],[0,303],[11,44,[[0,45],[1,46]]],[2],[2],[0,3],[0,6],[0,\"fake-etag-3\"],[10,49,[[\"rowId\",50],[\"versionNumber\",51],[\"etag\",52]]],[10,48,[[\"synapseRow\",49]]],[10,43,[[\"data\",44],[\"metadata\",48]]],[14,5,42,[43]]]"
+				 + "[3],[0,\"one\"],[0,101],[11,16,[[0,17],[1,18]]],[2],[0,{\"i\":1,\"v\":4,\"e\":\"fake-etag-1\"}],[10,20,[[\"synapseRow\",21]]],[10,15,[[\"data\",16],[\"metadata\",20]]],[14,5,5,[15]],[2],"
+				 + "[3],[0,\"two\"],[0,202],[11,26,[[0,27],[1,28]]],[2],[0,{\"i\":2,\"v\":5,\"e\":\"fake-etag-2\"}],[10,30,[[\"synapseRow\",31]]],[10,25,[[\"data\",26],[\"metadata\",30]]],[14,5,24,[25]],[2],"
+				 + "[3],[0,\"three\"],[0,303],[11,36,[[0,37],[1,38]]],[2],[0,{\"i\":3,\"v\":6,\"e\":\"fake-etag-3\"}],[10,40,[[\"synapseRow\",41]]],[10,35,[[\"data\",36],[\"metadata\",40]]],[14,5,34,[35]]]"
 		);
 	}
 
@@ -109,20 +109,19 @@ public class PatchRowHandlerTest {
 		// The first patch includes the grid setup and the first row
 		verify(mockStore).savePatch(sessionId, new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(1L),
 				"[[[19,1]],[2],[0,\"0.1.0\"],[3],[6],[6],[10,1,[[\"doc_version\",2],[\"columnNames\",3],"
-						+ "[\"columnOrder\",4],[\"rows\",5]]],[9,[0,0],1],[0,\"aString\"],[0,0],[0,\"anInt\"],"
-						+ "[0,1],[11,3,[[0,8],[1,10]]],[14,4,4,[9,11]],[2],[3],[0,\"one\"],[0,101],[11,16,[[0,17],[1,18]]],[2],[2],[0,1],[0,4],"
-						+ "[0,\"fake-etag-1\"],[10,21,[[\"rowId\",22],[\"versionNumber\",23],[\"etag\",24]]],"
-						+ "[10,20,[[\"synapseRow\",21]]],[10,15,[[\"data\",16],[\"metadata\",20]]],[14,5,5,[15]]]");
+				+ "[\"columnOrder\",4],[\"rows\",5]]],[9,[0,0],1],[0,\"aString\"],[0,0],[0,\"anInt\"],"
+				+ "[0,1],[11,3,[[0,8],[1,10]]],[14,4,4,[9,11]],[2],[3],[0,\"one\"],[0,101],[11,16,[[0,17],[1,18]]],[2],"
+				+ "[0,{\"i\":1,\"v\":4,\"e\":\"fake-etag-1\"}],[10,20,[[\"synapseRow\",21]]],[10,15,[[\"data\",16],[\"metadata\",20]]],[14,5,5,[15]]]");
 		// second patch includes only the second row.
-		verify(mockStore).savePatch(sessionId, new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(29L),
-				"[[[19,29]],[2],[3],[0,\"two\"],[0,202],[11,30,[[0,31],[1,32]]],[2],[2],[0,2],[0,5],"
-						+ "[0,\"fake-etag-2\"],[10,35,[[\"rowId\",36],[\"versionNumber\",37],[\"etag\",38]]],"
-						+ "[10,34,[[\"synapseRow\",35]]],[10,29,[[\"data\",30],[\"metadata\",34]]],[14,5,28,[29]]]");
+		verify(mockStore).savePatch(sessionId, new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(25L),
+				"[[[19,25]],[2],[3],[0,\"two\"],[0,202],[11,26,[[0,27],[1,28]]],[2],"
+				+ "[0,{\"i\":2,\"v\":5,\"e\":\"fake-etag-2\"}],"
+				+ "[10,30,[[\"synapseRow\",31]]],[10,25,[[\"data\",26],[\"metadata\",30]]],[14,5,24,[25]]]");
 		// last patch includes only the last row.
-		verify(mockStore).savePatch(sessionId, new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(43L),
-				"[[[19,43]],[2],[3],[0,\"three\"],[0,303],[11,44,[[0,45],[1,46]]],[2],[2],[0,3],[0,6],"
-						+ "[0,\"fake-etag-3\"],[10,49,[[\"rowId\",50],[\"versionNumber\",51],[\"etag\",52]]],"
-						+ "[10,48,[[\"synapseRow\",49]]],[10,43,[[\"data\",44],[\"metadata\",48]]],[14,5,42,[43]]]");
+		verify(mockStore).savePatch(sessionId, new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(35L),
+				"[[[19,35]],[2],[3],[0,\"three\"],[0,303],[11,36,[[0,37],[1,38]]],[2],"
+				+ "[0,{\"i\":3,\"v\":6,\"e\":\"fake-etag-3\"}],"
+				+ "[10,40,[[\"synapseRow\",41]]],[10,35,[[\"data\",36],[\"metadata\",40]]],[14,5,34,[35]]]");
 
 	}
 

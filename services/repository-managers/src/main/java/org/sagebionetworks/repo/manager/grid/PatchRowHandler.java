@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.json.JSONObject;
 import org.sagebionetworks.repo.manager.grid.row.translator.ColumnTypeToConType;
 import org.sagebionetworks.repo.manager.grid.row.translator.Translator;
 import org.sagebionetworks.repo.model.dao.table.RowHandler;
@@ -105,10 +106,14 @@ public class PatchRowHandler implements RowHandler {
 	 * undefined are not guaranteed to be present.
 	 * ```
 	 * obj({
-	 *     validation: RowValidationSchema (TBD) | undefined
-	 *     synapseRow: SynapseRowMetadataSchema | undefined
+	 *     rowValidation: s.const(json_object) | undefined
+	 *     synapseRow: s.const(json_object) | undefined
 	 * })
 	 * ```
+	 * 
+	 * The synapseRow metadata is a constant with a serialized JSON object containing synapse row information:
+	 * 
+	 * { "i": rowId, "v": versionNumber, "e": etag}.
 	 *
 	 * @param row the table query Row for which metadata should be extracted
 	 * @return the NewObject containing the row metadata.
@@ -116,10 +121,16 @@ public class PatchRowHandler implements RowHandler {
 	private NewObject getRowMetadata(Row row) {
 		NewObject metadataObjectForRow = currentPatch.addNewOperation(NewObject.class);
 
-		// Create the "synapseRow" object
-		NewObject synapseRowMetadata = getSynapseRowMetadata(row);
+		// Create the "synapseRow" constant
+		NewConstant synapseRowMetadata = currentPatch.addNewOperation(NewConstant.class).setValue(
+			new ConValue(ConType.JSON_OBJECT, new JSONObject()
+				.put("i", row.getRowId())
+				.put("v", row.getVersionNumber())
+				.put("e", row.getEtag())
+			)
+		);
 
-		// Attach the "synapseRow" object to the row metadata map
+		// Attach the "synapseRow" constant to the row metadata map
 		Map<String, LogicalTimestamp> metadataMapForRow = new LinkedHashMap<>();
 		metadataMapForRow.put("synapseRow", synapseRowMetadata.getOperationId());
 
@@ -129,59 +140,6 @@ public class PatchRowHandler implements RowHandler {
 
 		return metadataObjectForRow;
 
-	}
-
-	/**
-	 * Creates the SynapseRowMetadata object. The row metadata has the following pseudo-schema. Fields are not
-	 * guaranteed to be present.
-	 * ```
-	 * s.obj({
-	 *     rowId: s.const(double)
-	 *     versionNumber: s.const(double)
-	 *     etag: s.const(str)
-	 * })
-	 * ```
-	 *
-	 * @param row the table query Row for which Synapse Row metadata should be created
-	 * @return the NewObject containing the synapseRowMetadata
-	 */
-	private NewObject getSynapseRowMetadata(Row row) {
-		// Create the `synapseRow` object
-		NewObject synapseRowMetadata = currentPatch.addNewOperation(NewObject.class);
-
-		Map<String, LogicalTimestamp> synapseRowMetadataObjectMap = new LinkedHashMap<>();
-		Long rowId = row.getRowId();
-		if (rowId != null) {
-			NewConstant rowIdConst = currentPatch.addNewOperation(NewConstant.class)
-					.setValue(new ConValue(ConType.LONG, rowId));
-			synapseRowMetadataObjectMap.put("rowId",  rowIdConst.getOperationId());
-		}
-
-		Long versionNumber = row.getVersionNumber();
-		if (versionNumber != null) {
-			NewConstant versionNumberConst = currentPatch.addNewOperation(NewConstant.class)
-					.setValue(new ConValue(ConType.LONG, versionNumber));
-			synapseRowMetadataObjectMap.put("versionNumber",  versionNumberConst.getOperationId());
-
-		}
-
-		String etag = row.getEtag();
-		if (etag != null) {
-			NewConstant etagConst = currentPatch.addNewOperation(NewConstant.class)
-					.setValue(new ConValue(ConType.STRING, etag));
-			synapseRowMetadataObjectMap.put("etag",  etagConst.getOperationId());
-		}
-
-		if (!synapseRowMetadataObjectMap.isEmpty()) {
-			// fill the `synapseRow` object
-			currentPatch.addNewOperation(InsertObject.class)
-					.setObjectId(synapseRowMetadata.getOperationId())
-					.setMap(synapseRowMetadataObjectMap);
-		}
-
-
-
-		return synapseRowMetadata;
 	}
 
 	/**
@@ -214,8 +172,10 @@ public class PatchRowHandler implements RowHandler {
 		NewObject rowMetadata = getRowMetadata(row);
 
 		Map<String, LogicalTimestamp> rowObjectMap = new LinkedHashMap<>();
+		
 		rowObjectMap.put("data", rowData.getOperationId());
 		rowObjectMap.put("metadata", rowMetadata.getOperationId());
+		
 		currentPatch.addNewOperation(InsertObject.class)
 				.setObjectId(rowObject.getOperationId())
 				.setMap(rowObjectMap);

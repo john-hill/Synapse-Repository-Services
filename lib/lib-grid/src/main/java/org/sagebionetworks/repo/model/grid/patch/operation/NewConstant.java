@@ -11,7 +11,7 @@ import org.sagebionetworks.util.ValidateArgument;
  * The new_con operation. See: <a href=
  * "https://jsonjoy.com/specs/json-crdt-patch/patch-document/operation-types">operation-types</a>
  */
-public class NewConstant implements Operation<NewConstant> {
+public class NewConstant implements Operation {
 
 	private final LogicalTimestamp operationId;
 	private final ConValue value;

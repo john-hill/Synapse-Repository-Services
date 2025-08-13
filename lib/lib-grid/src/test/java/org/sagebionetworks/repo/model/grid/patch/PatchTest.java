@@ -35,16 +35,16 @@ public class PatchTest {
 	public void testAddNewOperation() {
 		Patch patch = new Patch().setPatchId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L));
 		// call under test
-		NewConstant con = patch.addNewOperation(Operations.newConstant());
+		LogicalTimestamp constantRef = patch.addNewOperation(Operations.newConstant());
 		NewConstant expected = new NewConstant(patch.getPatchId(), null);
-		assertEquals(expected, con);
+		assertEquals(expected.getOperationId(), constantRef);
 
 		// call under test
-		NewConstant con2 = patch.addNewOperation(Operations.newConstant());
-		NewConstant expected2 = new NewConstant(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(3L), null);
-		assertEquals(expected2, con2);
+		LogicalTimestamp constantRef2 = patch.addNewOperation(Operations.newConstant());
+        NewConstant expected2 = new NewConstant(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(3L), null);
+		assertEquals(expected2.getOperationId(), constantRef2);
 
-		assertEquals(Arrays.asList(con, con2), patch.getOperations());
+		assertEquals(Arrays.asList(expected, expected2), patch.getOperations());
 		assertEquals(2L, patch.getSpan());
 	}
 
@@ -52,16 +52,16 @@ public class PatchTest {
 	public void testAddNewOperationWithInsertArrays() {
 		Patch patch = new Patch().setPatchId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L));
 		// call under test
-		InsertArray op = patch.addNewOperation(Operations.insertArray().setElementIds(listOne).setArrayId(arrayId).setReferenceId(referenceId));
+        LogicalTimestamp opRef = patch.addNewOperation(Operations.insertArray().setElementIds(listOne).setArrayId(arrayId).setReferenceId(referenceId));
 		InsertArray expected = new InsertArray(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L), arrayId, referenceId, listOne);
-		assertEquals(expected, op);
+		assertEquals(expected.getOperationId(), opRef);
 
 		// call under test
-		InsertArray op2 = patch.addNewOperation(Operations.insertArray().setElementIds(listTwo).setArrayId(arrayId).setReferenceId(referenceId));
+        LogicalTimestamp opRef2 = patch.addNewOperation(Operations.insertArray().setElementIds(listTwo).setArrayId(arrayId).setReferenceId(referenceId));
 		InsertArray expected2 = new InsertArray(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(4L), arrayId, referenceId, listTwo);
-		assertEquals(expected2, op2);
+		assertEquals(expected2.getOperationId(), opRef2);
 
-		assertEquals(Arrays.asList(op, op2), patch.getOperations());
+		assertEquals(Arrays.asList(expected, expected2), patch.getOperations());
 
 		// call under test
 		assertEquals(5L, patch.getSpan());

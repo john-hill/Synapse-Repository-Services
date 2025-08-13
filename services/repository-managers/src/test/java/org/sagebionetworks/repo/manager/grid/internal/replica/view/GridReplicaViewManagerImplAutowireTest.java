@@ -99,8 +99,8 @@ public class GridReplicaViewManagerImplAutowireTest {
 		// rename column b.
 		Patch patch = new Patch()
 				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
-		NewConstant b2 = patch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.STRING, "b2")));
-		patch.addNewOperation(Operations.insertVector().setVectorId(columnNamesVecId).setMap(Map.of(1, b2.getOperationId())));
+		LogicalTimestamp b2Ref = patch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.STRING, "b2")));
+		patch.addNewOperation(Operations.insertVector().setVectorId(columnNamesVecId).setMap(Map.of(1, b2Ref)));
 		gridIndexManger.applyPatch(sessionId, replicaId, patch);
 
 		expected.getOrderedColumns().get(1).setName("b2");
@@ -110,13 +110,13 @@ public class GridReplicaViewManagerImplAutowireTest {
 		// insert a new column at zero
 		patch = new Patch()
 				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
-		NewConstant c = patch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.STRING, "c")));
-		NewConstant two = patch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.LONG, 2L)));
-		patch.addNewOperation(Operations.insertVector().setVectorId(columnNamesVecId).setMap(Map.of(2, c.getOperationId())));
+		LogicalTimestamp cRef = patch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.STRING, "c")));
+        LogicalTimestamp twoRef = patch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.LONG, 2L)));
+		patch.addNewOperation(Operations.insertVector().setVectorId(columnNamesVecId).setMap(Map.of(2, cRef)));
 		patch.addNewOperation(Operations.insertArray()
 				.setArrayId(columnOrderArrayId)
 				.setReferenceId(columnOrderArrayId)
-				.setElementIds(List.of(two.getOperationId()))
+				.setElementIds(List.of(twoRef))
 		);
 		gridIndexManger.applyPatch(sessionId, replicaId, patch);
 		assertEquals(List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(123L)),
@@ -254,8 +254,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 		ValidationResults validation = new ValidationResults().setIsValid(true);
 		JSONObject validationJson = EntityFactory.createJSONObjectForEntity(validation);
 		LogicalTimestamp conId = patch
-				.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.JSON_OBJECT, validationJson)))
-				.getOperationId();
+				.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.JSON_OBJECT, validationJson)));
 		patch.addNewOperation(Operations.insertObject().setObjectId(four.getRowMetadata().getObjectId())
 				.setMap(Map.of("rowValidation", conId)));
 
@@ -272,16 +271,18 @@ public class GridReplicaViewManagerImplAutowireTest {
 	}
 
 	void addSynapseMetadataToRow(Patch toExtend, RowView row, SynapseRow toAdd) {
-		toExtend.addNewOperation(Operations.insertObject()
-						.setObjectId(row.getRowObject().getMetadata().getSynapseRow().getObjectId())
-						.setMap(Map.of(
-								//
-								"rowId", toExtend.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.LONG, toAdd.getRowId()))).getOperationId()
-								//
-								, "versionNumber", toExtend.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.LONG, toAdd.getVersionNumber()))).getOperationId()
-								//
-								, "etag", toExtend.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.STRING, toAdd.getEtag()))).getOperationId()))
-				);
+		toExtend.addNewOperation(
+                Operations.insertObject()
+                    .setObjectId(row.getRowObject().getMetadata().getSynapseRow().getObjectId())
+                    .setMap(Map.of(
+                            //
+                            "rowId", toExtend.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.LONG, toAdd.getRowId())))
+                            //
+                            , "versionNumber", toExtend.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.LONG, toAdd.getVersionNumber())))
+                            //
+                            , "etag", toExtend.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.STRING, toAdd.getEtag()))))
+                    )
+        );
 
 	}
 

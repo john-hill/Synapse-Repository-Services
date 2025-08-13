@@ -3,7 +3,7 @@ package org.sagebionetworks.repo.model.grid.patch.operation.builder;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.operation.Operation;
 
-public abstract class OperationBuilder<T extends Operation<T>> {
+public abstract class OperationBuilder {
 
 
     /**
@@ -11,6 +11,6 @@ public abstract class OperationBuilder<T extends Operation<T>> {
      *
      * @return
      */
-    public abstract T build(LogicalTimestamp operationId);
+    public abstract Operation build(LogicalTimestamp operationId);
 }
 

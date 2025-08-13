@@ -6,7 +6,7 @@ import org.sagebionetworks.repo.model.grid.patch.operation.InsertVector;
 import java.util.Map;
 import java.util.Objects;
 
-public final class InsertVectorBuilder extends OperationBuilder<InsertVector> {
+public final class InsertVectorBuilder extends OperationBuilder {
     private LogicalTimestamp vectorId;
     private Map<Integer, LogicalTimestamp> map;
 

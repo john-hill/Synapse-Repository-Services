@@ -6,7 +6,7 @@ import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
 
 import java.util.Objects;
 
-public final class NewConstantBuilder extends OperationBuilder<NewConstant> {
+public final class NewConstantBuilder extends OperationBuilder {
     private ConValue value;
 
     public NewConstantBuilder setValue(ConValue value) {

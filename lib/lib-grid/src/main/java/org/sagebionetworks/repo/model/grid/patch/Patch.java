@@ -11,7 +11,7 @@ public class Patch {
 
 	private LogicalTimestamp patchId;
 	private String metadata;
-	private List<Operation<?>> operations;
+	private List<Operation> operations;
 	private long span = 0; // Cache the span as a performance optimization
 
 	public LogicalTimestamp getPatchId() {
@@ -32,11 +32,11 @@ public class Patch {
 		return this;
 	}
 
-	public List<Operation<?>> getOperations() {
+	public List<Operation> getOperations() {
 		return operations;
 	}
 
-	public Patch setOperations(List<Operation<?>> operations) {
+	public Patch setOperations(List<Operation> operations) {
 		this.operations = operations;
 		if (operations == null) {
 			this.span = 0L;
@@ -50,16 +50,16 @@ public class Patch {
 	 * Factory Method that accepts any valid OperationBuilder.
 	 * It generates the ID and asks the builder to construct the final object.
 	 */
-	public <T extends Operation<T>> T addNewOperation(OperationBuilder<T> builder) {
+	public LogicalTimestamp addNewOperation(OperationBuilder builder) {
 		try {
 			if (operations == null) {
 				operations = new ArrayList<>();
 			}
 			LogicalTimestamp nextId = LogicalTimestamp.newIncrement(patchId, getSpan());
-			T operation = builder.build(nextId);
+			Operation operation = builder.build(nextId);
 			operations.add(operation);
 			span += operation.getSpan();
-			return operation;
+			return operation.getOperationId();
 		} catch (IllegalArgumentException | SecurityException e) {
 			throw new RuntimeException(e);
 		}

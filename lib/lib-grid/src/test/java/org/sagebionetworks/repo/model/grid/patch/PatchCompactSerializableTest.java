@@ -192,7 +192,7 @@ public class PatchCompactSerializableTest {
 		assertEquals(new LogicalTimestamp().setReplicaId(65536L).setSequenceNumber(16L), patch.getPatchId());
 		assertNotNull(patch.getOperations());
 		assertEquals(28, patch.getOperations().size());
-		Operation<?> last = patch.getOperations().get(patch.getOperations().size() - 1);
+		Operation last = patch.getOperations().get(patch.getOperations().size() - 1);
 		Map<Integer, LogicalTimestamp> map = new LinkedHashMap<Integer, LogicalTimestamp>();
 		map.put(0, new LogicalTimestamp().setReplicaId(65536L).setSequenceNumber(40L));
 		map.put(1, new LogicalTimestamp().setReplicaId(65536L).setSequenceNumber(41L));

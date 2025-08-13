@@ -5,7 +5,7 @@ import org.sagebionetworks.repo.model.grid.patch.operation.InsertValue;
 
 import java.util.Objects;
 
-public final class InsertValueBuilder extends OperationBuilder<InsertValue> {
+public final class InsertValueBuilder extends OperationBuilder {
     private LogicalTimestamp valueId;
     private LogicalTimestamp referenceId;
 

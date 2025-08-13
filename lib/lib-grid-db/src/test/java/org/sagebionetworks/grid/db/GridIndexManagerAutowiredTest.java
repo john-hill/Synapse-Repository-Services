@@ -11,11 +11,6 @@ import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
-import org.sagebionetworks.repo.model.grid.patch.operation.InsertArray;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewArray;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewObject;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewVector;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -77,32 +72,32 @@ public class GridIndexManagerAutowiredTest {
         // Create the patches
         LogicalTimestamp lastRowRef;
         patch = new Patch().setPatchId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(0L));
-        NewObject obj = patch.addNewOperation(Operations.newObject());
-        NewArray rows = patch.addNewOperation(Operations.newArray());
-        lastRowRef = rows.getOperationId();
+        LogicalTimestamp objRef = patch.addNewOperation(Operations.newObject());
+        LogicalTimestamp rowsArrayRef = patch.addNewOperation(Operations.newArray());
+        lastRowRef = rowsArrayRef;
         patch.addNewOperation(
                 Operations.insertObject()
-                        .setObjectId(obj.getOperationId())
-                        .setMap(Collections.singletonMap("rows", rows.getOperationId()))
+                        .setObjectId(objRef)
+                        .setMap(Collections.singletonMap("rows", rowsArrayRef))
         );
 
         savePatch();
         for (long j = 0; j < nRow; j++) {
-            NewVector row = patch.addNewOperation(Operations.newVector());
+            LogicalTimestamp rowDataRef = patch.addNewOperation(Operations.newVector());
             Map<Integer, LogicalTimestamp> cellValues = new LinkedHashMap<>();
             for (int i = 0; i < nCol; i++) {
-                NewConstant newConstant = patch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.STRING, i + "-" + j)));
-                cellValues.put(i, newConstant.getOperationId());
+                LogicalTimestamp newConstantRef = patch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.STRING, i + "-" + j)));
+                cellValues.put(i, newConstantRef);
             }
             patch.addNewOperation(Operations.insertVector()
-                    .setVectorId(row.getOperationId())
+                    .setVectorId(rowDataRef)
                     .setMap(cellValues)
             );
 
-            InsertArray insertArrayOperation = patch.addNewOperation(Operations.insertArray()
-                    .setArrayId(rows.getOperationId())
+            LogicalTimestamp insertArrayOperationRef = patch.addNewOperation(Operations.insertArray()
+                    .setArrayId(rowsArrayRef)
                     .setReferenceId(lastRowRef)
-                    .setElementIds(Collections.singletonList(row.getOperationId()))
+                    .setElementIds(Collections.singletonList(rowDataRef))
             );
 
             if (j % rowsPerPatch == 0) {
@@ -110,7 +105,7 @@ public class GridIndexManagerAutowiredTest {
                 savePatch();
             }
 
-            lastRowRef = insertArrayOperation.getOperationId();
+            lastRowRef = insertArrayOperationRef;
         }
         savePatch();
 

@@ -6,7 +6,7 @@ import org.sagebionetworks.repo.model.grid.patch.operation.InsertArray;
 import java.util.List;
 import java.util.Objects;
 
-public final class InsertArrayBuilder extends OperationBuilder<InsertArray> {
+public final class InsertArrayBuilder extends OperationBuilder {
 
     private LogicalTimestamp arrayId;
     private LogicalTimestamp referenceId;

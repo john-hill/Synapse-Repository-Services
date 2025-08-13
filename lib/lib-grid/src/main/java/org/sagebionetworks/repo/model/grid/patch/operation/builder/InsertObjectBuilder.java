@@ -6,7 +6,7 @@ import org.sagebionetworks.repo.model.grid.patch.operation.InsertObject;
 import java.util.Map;
 import java.util.Objects;
 
-public final class InsertObjectBuilder extends OperationBuilder<InsertObject> {
+public final class InsertObjectBuilder extends OperationBuilder {
     private LogicalTimestamp objectId;
     private Map<String, LogicalTimestamp> map;
 

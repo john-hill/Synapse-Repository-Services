@@ -13,7 +13,6 @@ import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewConstantBuilder;
-import org.sagebionetworks.repo.model.grid.patch.operation.Operation;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.OperationBuilder;
 import org.sagebionetworks.util.ValidateArgument;
 
@@ -41,7 +40,7 @@ public class ChangePatchBuilder implements Closeable, PatchBuilder {
 	}
 
 	@Override
-	public <T extends Operation<T>> LogicalTimestamp addOperationBuilder(OperationBuilder<T> builder) {
+	public LogicalTimestamp addOperationBuilder(OperationBuilder builder) {
 		ValidateArgument.required(builder, "builder");
 
 		if (builder instanceof NewConstantBuilder) {
@@ -75,11 +74,11 @@ public class ChangePatchBuilder implements Closeable, PatchBuilder {
 		return timestamp;
 	}
 
-	LogicalTimestamp addRegularOperation(OperationBuilder<?> builder) {
+	LogicalTimestamp addRegularOperation(OperationBuilder builder) {
 		return addToPatch(builder);
 	}
 
-	LogicalTimestamp addToPatch(OperationBuilder<?> builder) {
+	LogicalTimestamp addToPatch(OperationBuilder builder) {
 		int bytes = PatchCompactSerializable.calculateOperationSizeBytes(builder);
 
 		if (currentPatchSize + bytes > maxBytesPerPatch) {
@@ -87,7 +86,7 @@ public class ChangePatchBuilder implements Closeable, PatchBuilder {
 		}
 
 		currentPatchSize += bytes;
-		return currentPatch.addNewOperation(builder).getOperationId();
+		return currentPatch.addNewOperation(builder);
 	}
 
 	@Override

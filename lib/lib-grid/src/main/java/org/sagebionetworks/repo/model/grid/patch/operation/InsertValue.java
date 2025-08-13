@@ -5,7 +5,7 @@ import java.util.Objects;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.util.ValidateArgument;
 
-public class InsertValue implements Operation<InsertValue> {
+public class InsertValue implements Operation {
 
 	private final LogicalTimestamp operationId;
 	private final LogicalTimestamp valueId;

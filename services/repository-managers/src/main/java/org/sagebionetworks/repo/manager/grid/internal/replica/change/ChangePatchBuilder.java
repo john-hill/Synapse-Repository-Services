@@ -87,7 +87,7 @@ public class ChangePatchBuilder implements Closeable, PatchBuilder {
 		}
 
 		currentPatchSize += bytes;
-		return currentPatch.addNewOperation(builder);
+		return currentPatch.addNewOperation(builder).getOperationId();
 	}
 
 	@Override

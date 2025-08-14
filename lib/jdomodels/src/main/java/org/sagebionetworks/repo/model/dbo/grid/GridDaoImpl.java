@@ -267,6 +267,19 @@ public class GridDaoImpl implements GridDao {
 				CONNECTION_MAPPER, sessionId);
 	}
 
+    @Override
+    public Optional<GridConnectionInfo> getDefaultInternalConnection(String sessionId) {
+        ValidateArgument.required(sessionId, "sessionId");
+        // This will be the largest replica ID that is within the bounds of our internal ID space
+        try {
+            return Optional.ofNullable(jdbcTemplate.queryForObject(
+                    "SELECT * FROM GRID_CONNECTION WHERE SESSION_ID = ? AND SOURCE = 'INTERNAL' ORDER BY REPLICA_ID DESC LIMIT 1",
+                    CONNECTION_MAPPER, sessionId));
+        } catch (EmptyResultDataAccessException e) {
+            return Optional.empty();
+        }
+    }
+
 	@Override
 	public void removeConnection(String connectionId) {
 		ValidateArgument.required(connectionId, "connectionId");

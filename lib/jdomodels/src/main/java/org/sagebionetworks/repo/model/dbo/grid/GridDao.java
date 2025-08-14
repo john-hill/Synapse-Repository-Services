@@ -92,6 +92,14 @@ public interface GridDao {
 	 */
 	List<GridConnectionInfo> listConnections(String sessionId);
 
+    /**
+     * Retrieves the default internal connection for a given grid session ID.
+     *
+     * @param sessionId
+     * @return
+     */
+    Optional<GridConnectionInfo> getDefaultInternalConnection(String sessionId);
+    
 	/**
 	 * Remove an actvie connection.
 	 * 

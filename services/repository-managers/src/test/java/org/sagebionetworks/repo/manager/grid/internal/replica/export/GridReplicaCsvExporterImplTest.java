@@ -38,8 +38,8 @@ import org.sagebionetworks.repo.model.grid.DownloadFromGridRequest;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridSession;
-import org.sagebionetworks.repo.web.TemporarilyUnavailableException;
 import org.sagebionetworks.util.csv.CSVWriterStream;
+import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 
 @ExtendWith(MockitoExtension.class)
 public class GridReplicaCsvExporterImplTest {
@@ -228,7 +228,7 @@ public class GridReplicaCsvExporterImplTest {
         when(mockGridManager.getGridSession(mockUserInfo, request.getSessionId())).thenReturn(mockGridSession);
         when(mockGridManager.getDefaultInternalConnection(request.getSessionId())).thenReturn(Optional.empty());
 
-        assertThrows(TemporarilyUnavailableException.class, () -> {
+        assertThrows(RecoverableMessageException.class, () -> {
             exporter.exportGridAsCsv(mockUserInfo, request, mockCsvWriterStream);
         });
     }
@@ -241,7 +241,7 @@ public class GridReplicaCsvExporterImplTest {
         when(mockGridConnectionInfo.getReplicaId()).thenReturn(1L);
         when(mockGridReplicaViewManager.readHeader(request.getSessionId(), 1L)).thenReturn(Optional.empty());
 
-        assertThrows(TemporarilyUnavailableException.class, () -> {
+        assertThrows(RecoverableMessageException.class, () -> {
             exporter.exportGridAsCsv(mockUserInfo, request, mockCsvWriterStream);
         });
     }

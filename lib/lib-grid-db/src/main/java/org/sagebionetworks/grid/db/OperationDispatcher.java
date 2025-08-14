@@ -18,6 +18,6 @@ public interface OperationDispatcher {
 	 * @param batch
 	 * @return Map of actual changes applied by IndexType.
 	 */
-	Map<IndexType, Set<LogicalTimestamp>> processAll(String sessionId, Long replicaId, List<Operation<?>> batch);
+	Map<IndexType, Set<LogicalTimestamp>> processAll(String sessionId, Long replicaId, List<Operation> batch);
 
 }

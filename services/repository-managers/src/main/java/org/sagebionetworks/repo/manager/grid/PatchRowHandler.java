@@ -16,14 +16,7 @@ import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
-import org.sagebionetworks.repo.model.grid.patch.operation.InsertArray;
-import org.sagebionetworks.repo.model.grid.patch.operation.InsertObject;
-import org.sagebionetworks.repo.model.grid.patch.operation.InsertValue;
-import org.sagebionetworks.repo.model.grid.patch.operation.InsertVector;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewArray;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewObject;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewVector;
+import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.util.ValidateArgument;
@@ -54,23 +47,26 @@ public class PatchRowHandler implements RowHandler {
 				.setPatchId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(1L));
 
 		// initialize an empty document
-		NewObject rootObject = currentPatch.addNewOperation(NewObject.class);
-		NewConstant documentVersion = currentPatch.addNewOperation(NewConstant.class)
-				.setValue(new ConValue(ConType.STRING, "0.1.0"));
-		NewVector columnNames = currentPatch.addNewOperation(NewVector.class);
-		NewArray columnOrder = currentPatch.addNewOperation(NewArray.class);
-		NewArray rows = currentPatch.addNewOperation(NewArray.class);
-		rowsArrayRef = rows.getOperationId();
-		lastRowRef = rows.getOperationId();
+
+		LogicalTimestamp rootObjectOperationId = currentPatch.addNewOperation(Operations.newObject());
+		LogicalTimestamp documentVersionOperationId = currentPatch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.STRING, "0.1.0")));
+		LogicalTimestamp columnNamesOperationId = currentPatch.addNewOperation(Operations.newVector());
+		LogicalTimestamp columnOrderOperationId = currentPatch.addNewOperation(Operations.newArray());
+		LogicalTimestamp rowsOperationId = currentPatch.addNewOperation(Operations.newArray());
+		rowsArrayRef = rowsOperationId;
+		lastRowRef = rowsOperationId;
 		Map<String, LogicalTimestamp> objectMap = new LinkedHashMap<>();
-		objectMap.put("doc_version", documentVersion.getOperationId());
-		objectMap.put("columnNames", columnNames.getOperationId());
-		objectMap.put("columnOrder", columnOrder.getOperationId());
-		objectMap.put("rows", rows.getOperationId());
-		currentPatch.addNewOperation(InsertObject.class).setObjectId(rootObject.getOperationId()).setMap(objectMap);
-		currentPatch.addNewOperation(InsertValue.class)
+		objectMap.put("doc_version", documentVersionOperationId);
+		objectMap.put("columnNames", columnNamesOperationId);
+		objectMap.put("columnOrder", columnOrderOperationId);
+		objectMap.put("rows", rowsOperationId);
+		currentPatch.addNewOperation(
+				Operations.insertObject().setObjectId(rootObjectOperationId).setMap(objectMap)
+		);
+		currentPatch.addNewOperation(Operations.insertValue()
 				.setValueId(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L))
-				.setReferenceId(rootObject.getOperationId());
+				.setReferenceId(rootObjectOperationId)
+		);
 
 		if (!schema.isEmpty()) {
 			translators = new Translator[schema.size()];
@@ -80,21 +76,20 @@ public class PatchRowHandler implements RowHandler {
 			for (int i = 0; i < schema.size(); i++) {
 				ColumnModel cm = schema.get(i);
 				// column name
-				NewConstant nameConst = currentPatch.addNewOperation(NewConstant.class)
-						.setValue(new ConValue(ConType.STRING, cm.getName()));
-				columnNameMap.put(i, nameConst.getOperationId());
+				LogicalTimestamp nameConstRef = currentPatch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.STRING, cm.getName())));
+				columnNameMap.put(i, nameConstRef);
 				// column index
-				NewConstant indexConst = currentPatch.addNewOperation(NewConstant.class)
-						.setValue(new ConValue(ConType.LONG, i));
-				indexList.add(indexConst.getOperationId());
+                LogicalTimestamp columnIndexRef = currentPatch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.LONG, i)));
+				indexList.add(columnIndexRef);
 
 				translators[i] = ColumnTypeToConType.lookUpType(cm.getColumnType()).getTranslator();
 
 			}
-			currentPatch.addNewOperation(InsertVector.class).setVectorId(columnNames.getOperationId())
-					.setMap(columnNameMap);
-			currentPatch.addNewOperation(InsertArray.class).setArrayId(columnOrder.getOperationId())
-					.setReferenceId(columnOrder.getOperationId()).setElementIds(indexList);
+			currentPatch.addNewOperation(Operations.insertVector()
+					.setVectorId(columnNamesOperationId)
+					.setMap(columnNameMap));
+			currentPatch.addNewOperation(Operations.insertArray().setArrayId(columnOrderOperationId)
+					.setReferenceId(columnOrderOperationId).setElementIds(indexList));
 		} else {
 			translators = new Translator[0];
 		}
@@ -106,8 +101,12 @@ public class PatchRowHandler implements RowHandler {
 	 * undefined are not guaranteed to be present.
 	 * ```
 	 * obj({
+<<<<<<< HEAD
 	 *     rowValidation: s.const(json_object) | undefined
 	 *     synapseRow: s.const(json_object) | undefined
+=======
+	 *     synapseRow: SynapseRowMetadataSchema | undefined
+>>>>>>> develop
 	 * })
 	 * ```
 	 * 
@@ -116,76 +115,83 @@ public class PatchRowHandler implements RowHandler {
 	 * { "i": rowId, "v": versionNumber, "e": etag}.
 	 *
 	 * @param row the table query Row for which metadata should be extracted
-	 * @return the NewObject containing the row metadata.
+	 * @return a reference to the object node containing the row metadata.
 	 */
-	private NewObject getRowMetadata(Row row) {
-		NewObject metadataObjectForRow = currentPatch.addNewOperation(NewObject.class);
+	private LogicalTimestamp getRowMetadata(Row row) {
+		LogicalTimestamp metadataObjectForRowRef = currentPatch.addNewOperation(Operations.newObject());
 
 		// Create the "synapseRow" constant
-		NewConstant synapseRowMetadata = currentPatch.addNewOperation(NewConstant.class).setValue(
-			new ConValue(ConType.JSON_OBJECT, new JSONObject()
-				.put("i", row.getRowId())
-				.put("v", row.getVersionNumber())
-				.put("e", row.getEtag())
+		LogicalTimestamp synapseRowMetadataRef = currentPatch.addNewOperation(Operations.newConstant()
+			.setValue(new ConValue(ConType.JSON_OBJECT, new JSONObject()
+					.put("i", row.getRowId())
+					.put("v", row.getVersionNumber())
+					.put("e", row.getEtag())
+				)
 			)
 		);
 
 		// Attach the "synapseRow" constant to the row metadata map
 		Map<String, LogicalTimestamp> metadataMapForRow = new LinkedHashMap<>();
-		metadataMapForRow.put("synapseRow", synapseRowMetadata.getOperationId());
+		metadataMapForRow.put("synapseRow", synapseRowMetadataRef);
 
-		currentPatch.addNewOperation(InsertObject.class)
-				.setObjectId(metadataObjectForRow.getOperationId())
-				.setMap(metadataMapForRow);
+		currentPatch.addNewOperation(Operations.insertObject()
+				.setObjectId(metadataObjectForRowRef)
+				.setMap(metadataMapForRow)
+		);
 
-		return metadataObjectForRow;
+		return metadataObjectForRowRef;
 
 	}
 
 	/**
 	 * Creates and returns a NewVector containing the values for the row.
+	 *
 	 * @param row the table query Row for which Synapse Row metadata should be created
-	 * @return the NewVector containing the row values
+	 * @return a reference to the vector node containing the row values.
 	 */
-	private NewVector getRowData(Row row) {
-		NewVector rowValuesVector = currentPatch.addNewOperation(NewVector.class);
+	private LogicalTimestamp getRowData(Row row) {
+		LogicalTimestamp rowValuesVectorRef = currentPatch.addNewOperation(Operations.newVector());
 		Map<Integer, LogicalTimestamp> cellValues = new LinkedHashMap<>();
 		for (int i = 0; i < row.getValues().size(); i++) {
 			String cellValue = row.getValues().get(i);
-			NewConstant con = currentPatch.addNewOperation(NewConstant.class);
-			con.setValue(translators[i].translateNullable(cellValue));
-			cellValues.put(i, con.getOperationId());
+            LogicalTimestamp conRef = currentPatch.addNewOperation(
+					Operations.newConstant().setValue(translators[i].translateNullable(cellValue))
+			);
+			cellValues.put(i, conRef);
 		}
-		currentPatch.addNewOperation(InsertVector.class)
-				.setVectorId(rowValuesVector.getOperationId())
-				.setMap(cellValues);
+		currentPatch.addNewOperation(Operations.insertVector()
+				.setVectorId(rowValuesVectorRef)
+				.setMap(cellValues)
+		);
 
-		return rowValuesVector;
+		return rowValuesVectorRef;
 	}
 
 	@Override
 	public void nextRow(Row row) {
 		this.rowCount++;
-		NewObject rowObject = currentPatch.addNewOperation(NewObject.class);
+		LogicalTimestamp rowObjectRef = currentPatch.addNewOperation(Operations.newObject());
 
-		NewVector rowData = getRowData(row);
-		NewObject rowMetadata = getRowMetadata(row);
+        LogicalTimestamp rowDataRef = getRowData(row);
+        LogicalTimestamp rowMetadataRef = getRowMetadata(row);
 
 		Map<String, LogicalTimestamp> rowObjectMap = new LinkedHashMap<>();
-		
-		rowObjectMap.put("data", rowData.getOperationId());
-		rowObjectMap.put("metadata", rowMetadata.getOperationId());
-		
-		currentPatch.addNewOperation(InsertObject.class)
-				.setObjectId(rowObject.getOperationId())
-				.setMap(rowObjectMap);
 
-		InsertArray insertArray = currentPatch.addNewOperation(InsertArray.class)
-				.setArrayId(rowsArrayRef)
-				.setReferenceId(lastRowRef)
-				.setElementIds(Collections.singletonList(rowObject.getOperationId()));
+		rowObjectMap.put("data", rowDataRef);
+		rowObjectMap.put("metadata", rowMetadataRef);
+		
+		currentPatch.addNewOperation(Operations.insertObject()
+			.setObjectId(rowObjectRef)
+			.setMap(rowObjectMap)
+		);
 
-		lastRowRef = insertArray.getOperationId();
+		LogicalTimestamp insertArrayRef = currentPatch.addNewOperation(Operations.insertArray()
+			.setArrayId(rowsArrayRef)
+			.setReferenceId(lastRowRef)
+			.setElementIds(Collections.singletonList(rowObjectRef))
+		);
+
+		lastRowRef = insertArrayRef;
 
 		if (this.rowCount >= rowsPerPatch) {
 			saveCurrentPatch();

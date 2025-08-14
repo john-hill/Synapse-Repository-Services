@@ -33,11 +33,7 @@ import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
-import org.sagebionetworks.repo.model.grid.patch.operation.InsertArray;
-import org.sagebionetworks.repo.model.grid.patch.operation.InsertObjectBuilder;
-import org.sagebionetworks.repo.model.grid.patch.operation.InsertVector;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewConstantBuilder;
+import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
 import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
@@ -106,8 +102,8 @@ public class GridReplicaViewManagerImplAutowireTest {
 		// rename column b.
 		Patch patch = new Patch()
 				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
-		NewConstant b2 = patch.addNewOperation(NewConstant.class).setValue(new ConValue(ConType.STRING, "b2"));
-		patch.addNewOperation(InsertVector.class).setVectorId(columnNamesVecId).setMap(Map.of(1, b2.getOperationId()));
+		LogicalTimestamp b2Ref = patch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.STRING, "b2")));
+		patch.addNewOperation(Operations.insertVector().setVectorId(columnNamesVecId).setMap(Map.of(1, b2Ref)));
 		gridIndexManger.applyPatch(sessionId, replicaId, patch);
 
 		expected.getOrderedColumns().get(1).setName("b2");
@@ -117,11 +113,14 @@ public class GridReplicaViewManagerImplAutowireTest {
 		// insert a new column at zero
 		patch = new Patch()
 				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
-		NewConstant c = patch.addNewOperation(NewConstant.class).setValue(new ConValue(ConType.STRING, "c"));
-		NewConstant two = patch.addNewOperation(NewConstant.class).setValue(new ConValue(ConType.LONG, 2L));
-		patch.addNewOperation(InsertVector.class).setVectorId(columnNamesVecId).setMap(Map.of(2, c.getOperationId()));
-		patch.addNewOperation(InsertArray.class).setArrayId(columnOrderArrayId).setReferenceId(columnOrderArrayId)
-				.setElementIds(List.of(two.getOperationId()));
+		LogicalTimestamp cRef = patch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.STRING, "c")));
+        LogicalTimestamp twoRef = patch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.LONG, 2L)));
+		patch.addNewOperation(Operations.insertVector().setVectorId(columnNamesVecId).setMap(Map.of(2, cRef)));
+		patch.addNewOperation(Operations.insertArray()
+				.setArrayId(columnOrderArrayId)
+				.setReferenceId(columnOrderArrayId)
+				.setElementIds(List.of(twoRef))
+		);
 		gridIndexManger.applyPatch(sessionId, replicaId, patch);
 		assertEquals(List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(123L)),
 				gridIndexManger.getClock(sessionId, replicaId));
@@ -180,13 +179,16 @@ public class GridReplicaViewManagerImplAutowireTest {
 		Patch newPatch = new Patch()
 				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
 		
-		LogicalTimestamp conId = newPatch.addNewOperation(NewConstant.class).setValue(new ConValue(ConType.JSON_OBJECT, new JSONObject()
-			.put("i", 111L)
-			.put("v", 333L)
-			.put("e", "etag88")
-		)).getOperationId();
+		LogicalTimestamp conId = newPatch.addNewOperation(Operations.newConstant()
+			.setValue(new ConValue(ConType.JSON_OBJECT, new JSONObject()
+					.put("i", 111L)
+					.put("v", 333L)
+					.put("e", "etag88")
+				)
+			)
+		);
 		
-		newPatch.addNewOperation(new InsertObjectBuilder().setObjectId(page.get(1).getRowMetadata().getObjectId())
+		newPatch.addNewOperation(Operations.insertObject().setObjectId(page.get(1).getRowMetadata().getObjectId())
 			.setMap(Map.of("synapseRow", conId)));
 		
 		gridIndexManger.applyPatch(sessionId, replicaId, newPatch);
@@ -267,8 +269,8 @@ public class GridReplicaViewManagerImplAutowireTest {
 		ValidationResults validation = new ValidationResults().setIsValid(true);
 		JSONObject validationJson = EntityFactory.createJSONObjectForEntity(validation);
 		LogicalTimestamp conId = patch
-				.addNewOperation(new NewConstantBuilder().setValue(new ConValue(ConType.JSON_OBJECT, validationJson)));
-		patch.addNewOperation(new InsertObjectBuilder().setObjectId(four.getRowMetadata().getObjectId())
+				.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.JSON_OBJECT, validationJson)));
+		patch.addNewOperation(Operations.insertObject().setObjectId(four.getRowMetadata().getObjectId())
 				.setMap(Map.of("rowValidation", conId)));
 
 		gridIndexManger.applyPatch(sessionId, replicaId, patch);

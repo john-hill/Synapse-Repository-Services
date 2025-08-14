@@ -32,8 +32,11 @@ public class InsertObjectSerializableTest {
 		LinkedHashMap<String, LogicalTimestamp> map = new LinkedHashMap<>();
 		map.put("a", new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(4L));
 		map.put("b", new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(6L));
-		InsertObject expected = new InsertObject().setOperationId(operationId)
-				.setObjectId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L)).setMap(map);
+		InsertObject expected = new InsertObject(
+				operationId,
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L),
+				map
+		);
 		assertEquals(expected, obj);
 
 		// call under test
@@ -50,8 +53,11 @@ public class InsertObjectSerializableTest {
 		LinkedHashMap<String, LogicalTimestamp> map = new LinkedHashMap<>();
 		map.put("a", new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(4L));
 		map.put("b", new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(6L));
-		InsertObject expected = new InsertObject().setOperationId(operationId)
-				.setObjectId(new LogicalTimestamp().setReplicaId(12L).setSequenceNumber(2L)).setMap(map);
+		InsertObject expected = new InsertObject(
+				operationId,
+				new LogicalTimestamp().setReplicaId(12L).setSequenceNumber(2L),
+				map
+		);
 		assertEquals(expected, obj);
 
 		// call under test
@@ -68,8 +74,11 @@ public class InsertObjectSerializableTest {
 		LinkedHashMap<String, LogicalTimestamp> map = new LinkedHashMap<>();
 		map.put("a", new LogicalTimestamp().setReplicaId(12L).setSequenceNumber(4L));
 		map.put("b", new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(6L));
-		InsertObject expected = new InsertObject().setOperationId(operationId)
-				.setObjectId(new LogicalTimestamp().setReplicaId(12L).setSequenceNumber(2L)).setMap(map);
+		InsertObject expected = new InsertObject(
+				operationId,
+				new LogicalTimestamp().setReplicaId(12L).setSequenceNumber(2L),
+				map
+		);
 		assertEquals(expected, obj);
 
 		// call under test
@@ -86,37 +95,15 @@ public class InsertObjectSerializableTest {
 		LinkedHashMap<String, LogicalTimestamp> map = new LinkedHashMap<>();
 		map.put("a", new LogicalTimestamp().setReplicaId(12L).setSequenceNumber(4L));
 		map.put("b", new LogicalTimestamp().setReplicaId(12L).setSequenceNumber(6L));
-		InsertObject expected = new InsertObject().setOperationId(operationId)
-				.setObjectId(new LogicalTimestamp().setReplicaId(12L).setSequenceNumber(2L)).setMap(map);
+		InsertObject expected = new InsertObject(
+				operationId,
+				new LogicalTimestamp().setReplicaId(12L).setSequenceNumber(2L),
+				map
+		);
 		assertEquals(expected, obj);
 
 		// call under test
 		String back = serializable.serialize(obj).toString();
 		assertEquals(json, back);
-	}
-
-	@Test
-	public void testSerializeNullMap() {
-		Map<String, LogicalTimestamp> map = null;
-		InsertObject insertObject = new InsertObject().setOperationId(operationId)
-				.setObjectId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L))
-				.setMap(map);
-
-		assertThrows(IllegalArgumentException.class, () -> this.serializable.serialize(insertObject),
-				"InsertObject must have a non-empty map"
-		);
-
-	}
-
-	@Test
-	public void testSerializeEmptyMap() {
-		Map<String, LogicalTimestamp> map = new LinkedHashMap<>();
-		InsertObject insertObject = new InsertObject().setOperationId(operationId)
-				.setObjectId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L))
-				.setMap(map);
-
-		assertThrows(IllegalArgumentException.class, () -> this.serializable.serialize(insertObject),
-				"InsertObject must have a non-empty map"
-		);
 	}
 }

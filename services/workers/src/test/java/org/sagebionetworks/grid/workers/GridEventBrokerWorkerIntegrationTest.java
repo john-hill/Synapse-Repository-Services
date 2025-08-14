@@ -313,7 +313,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 				assertNotNull(patch);
 				assertEquals(new LogicalTimestamp().setReplicaId(INTERNAL_REPLICA_ID).setSequenceNumber(1L),
 						patch.getPatchId());
-				assertEquals(23L, patch.getSpan());
+				assertEquals(20L, patch.getSpan());
 				// find the constant that contains the table's value
 				Optional<NewConstant> op = patch.getOperations().stream().filter(o -> (o instanceof NewConstant))
 						.map(c -> (NewConstant) c).filter(c -> ConType.LONG.equals(c.getValue().getType()))
@@ -397,7 +397,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 				assertNotNull(patch);
 				assertEquals(new LogicalTimestamp().setReplicaId(INTERNAL_REPLICA_ID).setSequenceNumber(1L),
 						patch.getPatchId());
-				assertEquals(24L, patch.getSpan());
+				assertEquals(20L, patch.getSpan());
 				// find the constant that contains the table's value
 				Optional<NewConstant> op = patch.getOperations().stream().filter(o -> (o instanceof NewConstant))
 						.map(c -> (NewConstant) c).filter(c -> ConType.LONG.equals(c.getValue().getType()))

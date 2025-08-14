@@ -5,8 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
-import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.CellValueViewFilter;
-import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.Operator;
 
 public class CellValueViewFilterTest {
 

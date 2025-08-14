@@ -47,11 +47,11 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 				.setRowIndex(rs.getLong("INDEX"))
 				.setRowObject(new RowObject().setObjectId(readNullableTimestamp(rs, "O1.OBJ_REP", "O1.OBJ_SEQ"))
 						.setMetadata(new RowMetadata()
+								.setObjectId(readNullableTimestamp(rs, "O2.OBJ_REP", "O2.OBJ_SEQ"))
 								.setRowValidation(new RowValidation()
 										.setConstantId(readNullableTimestamp(rs, "RVC_REP", "RVC_SEQ")))
-								.setObjectId(readNullableTimestamp(rs, "O2.OBJ_REP", "O2.OBJ_SEQ"))
-								.setSynapseRow(new SynapseRow().setTempObject(rs.getString("O3.OBJ_VAL"))
-										.setObjectId(readNullableTimestamp(rs, "O3.OBJ_REP", "O3.OBJ_SEQ"))))
+								.setSynapseRow(new SynapseRow()
+										.setConstantId(readNullableTimestamp(rs, "SRC_REP", "SRC_SEQ"))))
 						.setData(new RowData().setVectorId(readNullableTimestamp(rs, "V1.VEC_REP", "V1.VEC_SEQ"))
 								.setCells(new JSONArray(rs.getString("VALS")))));
 	};

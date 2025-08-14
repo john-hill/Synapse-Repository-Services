@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import org.json.JSONObject;
+import org.json.JSONArray;
 import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
@@ -64,11 +64,11 @@ public class SynapseRow implements HasConstantIds {
 	@Override
 	public void applyConstants(Map<LogicalTimestamp, ConstantNode> constants) {
 		if (this.constantId != null) {
-			JSONObject jsonObject = (JSONObject) constants.get(constantId).getValue();
+			JSONArray jsonArray = (JSONArray) constants.get(constantId).getValue();
 			
-			this.rowId = jsonObject.isNull("i") ? null : jsonObject.getLong("i");
-			this.versionNumber = jsonObject.isNull("v") ? null : jsonObject.getLong("v");
-			this.etag = jsonObject.isNull("e") ? null : jsonObject.getString("e");
+			this.rowId = jsonArray.isNull(0) ? null : jsonArray.getLong(0);
+			this.versionNumber = jsonArray.isNull(1) ? null : jsonArray.getLong(1);
+			this.etag = jsonArray.isNull(2) ? null : jsonArray.getString(2);
 		}
 	}
 

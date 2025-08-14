@@ -83,7 +83,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 		assertEquals(Optional.empty(), gridViewManager.readHeader(sessionId, replicaId));
 
 		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
-		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(115L);
+		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(85L);
 		assertEquals(List.of(expectedClock), gridIndexManger.getClock(sessionId, replicaId));
 
 		LogicalTimestamp columnOrderArrayId = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(4L);
@@ -122,7 +122,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 				.setElementIds(List.of(twoRef))
 		);
 		gridIndexManger.applyPatch(sessionId, replicaId, patch);
-		assertEquals(List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(123L)),
+		assertEquals(List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(93L)),
 				gridIndexManger.getClock(sessionId, replicaId));
 
 		expected.setOrderedColumns(List.of(new Column().setName("c").setVectorIndex(2),
@@ -135,7 +135,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 	@Test
 	public void testQuerySinglePage() throws IOException {
 		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
-		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(115L);
+		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(85L);
 		assertEquals(List.of(expectedClock), gridIndexManger.getClock(sessionId, replicaId));
 
 		Long limit = 2L;
@@ -144,56 +144,58 @@ public class GridReplicaViewManagerImplAutowireTest {
 		// call under test
 		List<RowView> page = gridViewManager.querySinglePage(header, limit, offset);
 		List<RowView> expected = List.of(
-				new RowView().setArrNodeId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(54L))
+				new RowView().setArrNodeId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(42L))
 						.setRowIndex(3L)
 						.setRowObject(new RowObject()
-								.setObjectId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(45L))
+								.setObjectId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(36L))
 								.setData(new RowData()
 										.setVectorId(
-												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(46L))
+												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(37L))
 										.setCells(new JSONArray("[\"string3\",103003]")))
-								.setMetadata(new RowMetadata()
-										.setObjectId(
-												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(50L))
-										.setRowValidation(new RowValidation())
-										.setSynapseRow(new SynapseRow().setConstantId(new LogicalTimestamp()
-												.setReplicaId(replicaId).setSequenceNumber(51L))))),
-				new RowView().setArrNodeId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(64L))
+								.setMetadata(new RowMetadata().setRowValidation(new RowValidation()).setSynapseRow(new SynapseRow()))),
+				new RowView().setArrNodeId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(49L))
 						.setRowIndex(4L)
 						.setRowObject(new RowObject()
-								.setObjectId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(55L))
+								.setObjectId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(43L))
 								.setData(new RowData()
 										.setVectorId(
-												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(56L))
+												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(44L))
 										.setCells(new JSONArray("[\"string4\",103004]")))
-								.setMetadata(new RowMetadata()
-										.setObjectId(
-												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(60L))
-										.setRowValidation(new RowValidation())
-										.setSynapseRow(new SynapseRow().setConstantId(new LogicalTimestamp()
-												.setReplicaId(replicaId).setSequenceNumber(61L))))));
+								.setMetadata(new RowMetadata().setRowValidation(new RowValidation()).setSynapseRow(new SynapseRow())))
+		);
 		assertEquals(expected, page);
 
-		// add some metadata
+		// Add some metadata
 
 		Patch newPatch = new Patch()
 				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
 		
-		LogicalTimestamp conId = newPatch.addNewOperation(Operations.newConstant()
-			.setValue(new ConValue(ConType.JSON_OBJECT, new JSONObject()
-					.put("i", 111L)
-					.put("v", 333L)
-					.put("e", "etag88")
+		
+		LogicalTimestamp synapseRowRef = newPatch.addNewOperation(Operations.newConstant()
+			.setValue(new ConValue(ConType.JSON_ARRAY, new JSONArray()
+					.put(111L)
+					.put(333L)
+					.put("etag88")
 				)
 			)
 		);
 		
-		newPatch.addNewOperation(Operations.insertObject().setObjectId(page.get(1).getRowMetadata().getObjectId())
-			.setMap(Map.of("synapseRow", conId)));
+		// Since the row doesn't have any metadata yet we need to create the object
+		LogicalTimestamp metadataRef = newPatch.addNewOperation(Operations.newObject());
+		
+		newPatch.addNewOperation(Operations.insertObject().setObjectId(metadataRef)
+			.setMap(Map.of("synapseRow", synapseRowRef)));
+		
+		// We also need to update the row object with the metadata now
+		LogicalTimestamp rowObjectRef = expected.get(1).getRowObject().getObjectId();
+		
+		newPatch.addNewOperation(Operations.insertObject().setObjectId(rowObjectRef)
+			.setMap(Map.of("metadata", metadataRef)));
 		
 		gridIndexManger.applyPatch(sessionId, replicaId, newPatch);
 
-		expected.get(1).getSynapseRow().setConstantId(conId).setRowId(111L).setVersionNumber(333L).setEtag("etag88");
+		expected.get(1).getRowMetadata().setObjectId(metadataRef);
+		expected.get(1).getSynapseRow().setConstantId(synapseRowRef).setRowId(111L).setVersionNumber(333L).setEtag("etag88");
 		
 		// call under test
 		page = gridViewManager.querySinglePage(header, limit, offset);
@@ -203,7 +205,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 	@Test
 	public void testQuerySinglePageWithFiltersOne() throws IOException {
 		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
-		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(115L);
+		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(85L);
 		assertEquals(List.of(expectedClock), gridIndexManger.getClock(sessionId, replicaId));
 
 		Long limit = 100L;
@@ -225,7 +227,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 	@Test
 	public void testQuerySinglePageWithFiltersMultiple() throws IOException {
 		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
-		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(115L);
+		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(85L);
 		assertEquals(List.of(expectedClock), gridIndexManger.getClock(sessionId, replicaId));
 
 		Long limit = 100L;
@@ -253,7 +255,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 	@Test
 	public void testQuerySinglePageWithRowValidation() throws IOException, JSONObjectAdapterException {
 		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
-		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(115L);
+		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(85L);
 		assertEquals(List.of(expectedClock), gridIndexManger.getClock(sessionId, replicaId));
 
 		Long limit = 100L;
@@ -266,11 +268,24 @@ public class GridReplicaViewManagerImplAutowireTest {
 
 		Patch patch = new Patch()
 				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
+		
 		ValidationResults validation = new ValidationResults().setIsValid(true);
+		
 		JSONObject validationJson = EntityFactory.createJSONObjectForEntity(validation);
+		
+		// Since the row doesn't have any metadata yet we need to create the object
+		LogicalTimestamp metadataRef = patch.addNewOperation(Operations.newObject());
+		
+		// We also need to update the row object with the metadata now
+		LogicalTimestamp rowObjectRef = four.getRowObject().getObjectId();
+		
+		patch.addNewOperation(Operations.insertObject().setObjectId(rowObjectRef)
+			.setMap(Map.of("metadata", metadataRef)));
+		
 		LogicalTimestamp conId = patch
 				.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.JSON_OBJECT, validationJson)));
-		patch.addNewOperation(Operations.insertObject().setObjectId(four.getRowMetadata().getObjectId())
+		
+		patch.addNewOperation(Operations.insertObject().setObjectId(metadataRef)
 				.setMap(Map.of("rowValidation", conId)));
 
 		gridIndexManger.applyPatch(sessionId, replicaId, patch);

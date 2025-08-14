@@ -8,6 +8,7 @@ import static org.sagebionetworks.client.SynapseClientImpl.DOWNLOAD_LIST_MANIFES
 import static org.sagebionetworks.client.SynapseClientImpl.DOWNLOAD_LIST_PACKAGE;
 import static org.sagebionetworks.client.SynapseClientImpl.DOWNLOAD_LIST_QUERY;
 import static org.sagebionetworks.client.SynapseClientImpl.FILE_BULK;
+import static org.sagebionetworks.client.SynapseClientImpl.FILE_HANDLE_RESTORE;
 import static org.sagebionetworks.client.SynapseClientImpl.SCHEMA_TYPE_CREATE;
 import static org.sagebionetworks.client.SynapseClientImpl.SCHEMA_TYPE_VALIDATION;
 import static org.sagebionetworks.client.SynapseClientImpl.STORAGE_REPORT;
@@ -19,7 +20,6 @@ import static org.sagebionetworks.client.SynapseClientImpl.TABLE_TRANSACTION;
 import static org.sagebionetworks.client.SynapseClientImpl.TABLE_UPLOAD_CSV;
 import static org.sagebionetworks.client.SynapseClientImpl.TABLE_UPLOAD_CSV_PREVIEW;
 import static org.sagebionetworks.client.SynapseClientImpl.VIEW_COLUMNS;
-import static org.sagebionetworks.client.SynapseClientImpl.FILE_HANDLE_RESTORE;
 
 import org.sagebionetworks.repo.model.agent.AgentChatResponse;
 import org.sagebionetworks.repo.model.asynch.AsynchronousRequestBody;
@@ -72,7 +72,8 @@ public enum AsynchJobType {
 	FileHandleRestore(FILE_HANDLE_RESTORE, FileHandleRestoreResponse.class, RestEndpointType.file),
 	AgentChat("/agent/chat", AgentChatResponse.class, RestEndpointType.repo),
 	TablePFBDownload("/table/download/pfb", DownloadPFBResult.class, RestEndpointType.repo),
-	CreateGrid("/grid/session", CreateGridResponse.class, RestEndpointType.repo);
+    CreateGrid("/grid/session", CreateGridResponse.class, RestEndpointType.repo),
+    GridCsvDownload("/grid/download/csv", CreateGridResponse.class, RestEndpointType.repo);
 	;
 
 	String prefix;

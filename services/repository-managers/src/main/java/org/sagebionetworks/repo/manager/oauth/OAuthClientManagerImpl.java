@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -26,10 +27,12 @@ import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.OAuthClientDao;
 import org.sagebionetworks.repo.model.auth.SectorIdentifier;
+import org.sagebionetworks.repo.model.dbo.dao.AccessControlListUtils;
 import org.sagebionetworks.repo.model.oauth.OAuthClient;
 import org.sagebionetworks.repo.model.oauth.OAuthClientIdAndSecret;
 import org.sagebionetworks.repo.model.oauth.OAuthClientList;
@@ -179,7 +182,14 @@ public class OAuthClientManagerImpl implements OAuthClientManager {
 	AccessControlList createAccessControlList(Long creatorId) {
 		AccessControlList acl = new AccessControlList();
 		acl.setCreatedBy(creatorId.toString());
-		acl.setCreationDate(new Date(System.currentTimeMillis()));
+		Date now = new Date(System.currentTimeMillis());
+		acl.setCreationDate(now);
+		ResourceAccess ra = new ResourceAccess();
+		ra.setPrincipalId(creatorId);
+		ra.setAccessType(AccessControlListUtils.ALLOWED_ACCESS_TYPES.get(ObjectType.OAUTH_CLIENT));
+		acl.setResourceAccess(Collections.singleton(ra));
+		acl.setModifiedBy(creatorId.toString());
+		acl.setModifiedOn(now);
 		return acl;
 	}
 
@@ -203,7 +213,7 @@ public class OAuthClientManagerImpl implements OAuthClientManager {
 		OAuthClient client = oauthClientDao.createOAuthClient(oauthClient);
 		
 		AccessControlList acl = createAccessControlList(userInfo.getId());
-		aclDAO.create(acl, ObjectType.OAUTH_CLIENT);
+		aclDAO.create(acl, ObjectType.OAUTH_CLIENT); // The DAO sets the ID and etag
 		
 		Map<String, Object> notificationContext = new HashMap<>();
 		

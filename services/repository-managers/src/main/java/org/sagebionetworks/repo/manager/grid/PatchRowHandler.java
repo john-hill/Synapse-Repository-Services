@@ -1,5 +1,14 @@
 package org.sagebionetworks.repo.manager.grid;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import org.json.JSONArray;
 import org.sagebionetworks.repo.manager.grid.row.translator.ColumnTypeToConType;
 import org.sagebionetworks.repo.manager.grid.row.translator.Translator;
 import org.sagebionetworks.repo.model.dao.table.RowHandler;
@@ -12,13 +21,6 @@ import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.util.ValidateArgument;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 
 /**
  * A handler that can build a series of patches from a table row query.
@@ -98,22 +100,42 @@ public class PatchRowHandler implements RowHandler {
 	/**
 	 * Adds the RowMetadata object to the patch. The row metadata has the following pseudo-schema. Fields that can be
 	 * undefined are not guaranteed to be present.
+	 * 
 	 * ```
 	 * obj({
-	 *     synapseRow: SynapseRowMetadataSchema | undefined
+	 *     rowValidation: s.const(json_object) | undefined
+	 *     synapseRow: s.const(json_array) | undefined
 	 * })
 	 * ```
+	 * The rowValidation metadata is not included during this boostrap phase.
+	 * The synapseRow metadata is a constant with a serialized JSON array that contains 3 values in order:
+	 * 
+	 * [<rowId>, <versionNumber>, <etag>]
 	 *
 	 * @param row the table query Row for which metadata should be extracted
-	 * @return a reference to the object node containing the row metadata.
+	 * @return a reference to the object node containing the row metadata if metadata is present, an empty Optional otherwise.
 	 */
-	private LogicalTimestamp getRowMetadata(Row row) {
+	private Optional<LogicalTimestamp> getRowMetadata(Row row) {
+		
+		// The synapse row information is the only metadata that might be included during this bootstrap phase.
+		// The validation state is computed later on when the patches are applied
+		if (row.getRowId() == null && row.getVersionNumber() == null && row.getEtag() == null) {
+			return Optional.empty();
+		}
+		
 		LogicalTimestamp metadataObjectForRowRef = currentPatch.addNewOperation(Operations.newObject());
 
-		// Create the "synapseRow" object
-		LogicalTimestamp synapseRowMetadataRef = getSynapseRowMetadata(row);
+		// Create the "synapseRow" JSON_ARRAY constant
+		LogicalTimestamp synapseRowMetadataRef = currentPatch.addNewOperation(Operations.newConstant()
+			.setValue(new ConValue(ConType.JSON_ARRAY, new JSONArray()
+				    .put(row.getRowId())
+					.put(row.getVersionNumber())
+					.put(row.getEtag())
+				)
+			)
+		);
 
-		// Attach the "synapseRow" object to the row metadata map
+		// Attach the "synapseRow" constant to the row metadata map
 		Map<String, LogicalTimestamp> metadataMapForRow = new LinkedHashMap<>();
 		metadataMapForRow.put("synapseRow", synapseRowMetadataRef);
 
@@ -122,54 +144,8 @@ public class PatchRowHandler implements RowHandler {
 				.setMap(metadataMapForRow)
 		);
 
-		return metadataObjectForRowRef;
+		return Optional.of(metadataObjectForRowRef);
 
-	}
-
-	/**
-	 * Creates the SynapseRowMetadata object. The row metadata has the following pseudo-schema. Fields are not
-	 * guaranteed to be present.
-	 * ```
-	 * s.obj({
-	 *     rowId: s.const(double)
-	 *     versionNumber: s.const(double)
-	 *     etag: s.const(str)
-	 * })
-	 * ```
-	 *
-	 * @param row the table query Row for which Synapse Row metadata should be created
-	 * @return a reference to the object node containing the synapseRowMetadata
-	 */
-	private LogicalTimestamp getSynapseRowMetadata(Row row) {
-		// Create the `synapseRow` object
-        LogicalTimestamp synapseRowMetadataRef = currentPatch.addNewOperation(Operations.newObject());
-
-		Map<String, LogicalTimestamp> synapseRowMetadataObjectMap = new LinkedHashMap<>();
-		Long rowId = row.getRowId();
-		if (rowId != null) {
-            LogicalTimestamp rowIdConstRef = currentPatch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.LONG, rowId)));
-			synapseRowMetadataObjectMap.put("rowId", rowIdConstRef);
-		}
-
-		Long versionNumber = row.getVersionNumber();
-		if (versionNumber != null) {
-            LogicalTimestamp versionNumberConstRef = currentPatch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.LONG, versionNumber)));
-			synapseRowMetadataObjectMap.put("versionNumber", versionNumberConstRef);
-		}
-
-		String etag = row.getEtag();
-		if (etag != null) {
-            LogicalTimestamp etagConstRef = currentPatch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.STRING, etag)));
-			synapseRowMetadataObjectMap.put("etag", etagConstRef);
-		}
-
-		if (!synapseRowMetadataObjectMap.isEmpty()) {
-			// fill the `synapseRow` object
-			currentPatch.addNewOperation(Operations.insertObject()
-                    .setObjectId(synapseRowMetadataRef)
-					.setMap(synapseRowMetadataObjectMap));
-		}
-		return synapseRowMetadataRef;
 	}
 
 	/**
@@ -202,20 +178,24 @@ public class PatchRowHandler implements RowHandler {
 		LogicalTimestamp rowObjectRef = currentPatch.addNewOperation(Operations.newObject());
 
         LogicalTimestamp rowDataRef = getRowData(row);
-        LogicalTimestamp rowMetadataRef = getRowMetadata(row);
 
 		Map<String, LogicalTimestamp> rowObjectMap = new LinkedHashMap<>();
+
 		rowObjectMap.put("data", rowDataRef);
-		rowObjectMap.put("metadata", rowMetadataRef);
+		
+		getRowMetadata(row).ifPresent(rowMetadataRef -> {
+			rowObjectMap.put("metadata", rowMetadataRef);
+		});
+		
 		currentPatch.addNewOperation(Operations.insertObject()
-				.setObjectId(rowObjectRef)
-				.setMap(rowObjectMap)
+			.setObjectId(rowObjectRef)
+			.setMap(rowObjectMap)
 		);
 
 		LogicalTimestamp insertArrayRef = currentPatch.addNewOperation(Operations.insertArray()
-				.setArrayId(rowsArrayRef)
-				.setReferenceId(lastRowRef)
-				.setElementIds(Collections.singletonList(rowObjectRef))
+			.setArrayId(rowsArrayRef)
+			.setReferenceId(lastRowRef)
+			.setElementIds(Collections.singletonList(rowObjectRef))
 		);
 
 		lastRowRef = insertArrayRef;

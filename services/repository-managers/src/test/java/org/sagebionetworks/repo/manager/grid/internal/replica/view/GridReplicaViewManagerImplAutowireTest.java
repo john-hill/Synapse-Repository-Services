@@ -1,5 +1,12 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.view;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,7 +33,6 @@ import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
 import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.table.ColumnModel;
@@ -38,13 +44,6 @@ import org.semver4j.Semver;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
@@ -68,8 +67,12 @@ public class GridReplicaViewManagerImplAutowireTest {
 		gridIndexManger.truncateAll();
 		sessionId = GridUtils.gridSessionIdAsString(123L);
 		replicaId = 111L;
-		schema = List.of(new ColumnModel().setName("a").setColumnType(ColumnType.STRING),
-				new ColumnModel().setName("b").setColumnType(ColumnType.INTEGER));
+		
+		schema = List.of(
+			new ColumnModel().setName("a").setColumnType(ColumnType.STRING),
+			new ColumnModel().setName("b").setColumnType(ColumnType.INTEGER)
+		);
+		
 		rows = TableModelTestUtils.createRows(schema, 10);
 	}
 
@@ -80,7 +83,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 		assertEquals(Optional.empty(), gridViewManager.readHeader(sessionId, replicaId));
 
 		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
-		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(115L);
+		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(85L);
 		assertEquals(List.of(expectedClock), gridIndexManger.getClock(sessionId, replicaId));
 
 		LogicalTimestamp columnOrderArrayId = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(4L);
@@ -119,7 +122,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 				.setElementIds(List.of(twoRef))
 		);
 		gridIndexManger.applyPatch(sessionId, replicaId, patch);
-		assertEquals(List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(123L)),
+		assertEquals(List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(93L)),
 				gridIndexManger.getClock(sessionId, replicaId));
 
 		expected.setOrderedColumns(List.of(new Column().setName("c").setVectorIndex(2),
@@ -132,7 +135,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 	@Test
 	public void testQuerySinglePage() throws IOException {
 		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
-		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(115L);
+		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(85L);
 		assertEquals(List.of(expectedClock), gridIndexManger.getClock(sessionId, replicaId));
 
 		Long limit = 2L;
@@ -141,45 +144,59 @@ public class GridReplicaViewManagerImplAutowireTest {
 		// call under test
 		List<RowView> page = gridViewManager.querySinglePage(header, limit, offset);
 		List<RowView> expected = List.of(
-				new RowView().setArrNodeId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(54L))
+				new RowView().setArrNodeId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(42L))
 						.setRowIndex(3L)
 						.setRowObject(new RowObject()
-								.setObjectId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(45L))
+								.setObjectId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(36L))
 								.setData(new RowData()
 										.setVectorId(
-												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(46L))
+												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(37L))
 										.setCells(new JSONArray("[\"string3\",103003]")))
-								.setMetadata(new RowMetadata()
-										.setObjectId(
-												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(50L))
-										.setRowValidation(new RowValidation())
-										.setSynapseRow(new SynapseRow().setObjectId(new LogicalTimestamp()
-												.setReplicaId(replicaId).setSequenceNumber(51L))))),
-				new RowView().setArrNodeId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(64L))
+								.setMetadata(new RowMetadata().setRowValidation(new RowValidation()).setSynapseRow(new SynapseRow()))),
+				new RowView().setArrNodeId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(49L))
 						.setRowIndex(4L)
 						.setRowObject(new RowObject()
-								.setObjectId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(55L))
+								.setObjectId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(43L))
 								.setData(new RowData()
 										.setVectorId(
-												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(56L))
+												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(44L))
 										.setCells(new JSONArray("[\"string4\",103004]")))
-								.setMetadata(new RowMetadata()
-										.setObjectId(
-												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(60L))
-										.setRowValidation(new RowValidation())
-										.setSynapseRow(new SynapseRow().setObjectId(new LogicalTimestamp()
-												.setReplicaId(replicaId).setSequenceNumber(61L))))));
+								.setMetadata(new RowMetadata().setRowValidation(new RowValidation()).setSynapseRow(new SynapseRow())))
+		);
 		assertEquals(expected, page);
 
-		// add some metadata
-		Patch patch = new Patch()
-				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
-		SynapseRow toAdd = new SynapseRow().setRowId(111L).setVersionNumber(333L).setEtag("etag88");
-		addSynapseMetadataToRow(patch, page.get(1), toAdd);
-		gridIndexManger.applyPatch(sessionId, replicaId, patch);
+		// Add some metadata
 
-		expected.get(1).getRowObject().getMetadata().getSynapseRow().setRowId(111L).setVersionNumber(333L)
-				.setEtag("etag88");
+		Patch newPatch = new Patch()
+				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
+		
+		
+		LogicalTimestamp synapseRowRef = newPatch.addNewOperation(Operations.newConstant()
+			.setValue(new ConValue(ConType.JSON_ARRAY, new JSONArray()
+					.put(111L)
+					.put(333L)
+					.put("etag88")
+				)
+			)
+		);
+		
+		// Since the row doesn't have any metadata yet we need to create the object
+		LogicalTimestamp metadataRef = newPatch.addNewOperation(Operations.newObject());
+		
+		newPatch.addNewOperation(Operations.insertObject().setObjectId(metadataRef)
+			.setMap(Map.of("synapseRow", synapseRowRef)));
+		
+		// We also need to update the row object with the metadata now
+		LogicalTimestamp rowObjectRef = expected.get(1).getRowObject().getObjectId();
+		
+		newPatch.addNewOperation(Operations.insertObject().setObjectId(rowObjectRef)
+			.setMap(Map.of("metadata", metadataRef)));
+		
+		gridIndexManger.applyPatch(sessionId, replicaId, newPatch);
+
+		expected.get(1).getRowMetadata().setObjectId(metadataRef);
+		expected.get(1).getSynapseRow().setConstantId(synapseRowRef).setRowId(111L).setVersionNumber(333L).setEtag("etag88");
+		
 		// call under test
 		page = gridViewManager.querySinglePage(header, limit, offset);
 		assertEquals(expected, page);
@@ -188,7 +205,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 	@Test
 	public void testQuerySinglePageWithFiltersOne() throws IOException {
 		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
-		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(115L);
+		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(85L);
 		assertEquals(List.of(expectedClock), gridIndexManger.getClock(sessionId, replicaId));
 
 		Long limit = 100L;
@@ -210,7 +227,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 	@Test
 	public void testQuerySinglePageWithFiltersMultiple() throws IOException {
 		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
-		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(115L);
+		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(85L);
 		assertEquals(List.of(expectedClock), gridIndexManger.getClock(sessionId, replicaId));
 
 		Long limit = 100L;
@@ -238,7 +255,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 	@Test
 	public void testQuerySinglePageWithRowValidation() throws IOException, JSONObjectAdapterException {
 		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
-		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(115L);
+		LogicalTimestamp expectedClock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(85L);
 		assertEquals(List.of(expectedClock), gridIndexManger.getClock(sessionId, replicaId));
 
 		Long limit = 100L;
@@ -251,11 +268,24 @@ public class GridReplicaViewManagerImplAutowireTest {
 
 		Patch patch = new Patch()
 				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
+		
 		ValidationResults validation = new ValidationResults().setIsValid(true);
+		
 		JSONObject validationJson = EntityFactory.createJSONObjectForEntity(validation);
+		
+		// Since the row doesn't have any metadata yet we need to create the object
+		LogicalTimestamp metadataRef = patch.addNewOperation(Operations.newObject());
+		
+		// We also need to update the row object with the metadata now
+		LogicalTimestamp rowObjectRef = four.getRowObject().getObjectId();
+		
+		patch.addNewOperation(Operations.insertObject().setObjectId(rowObjectRef)
+			.setMap(Map.of("metadata", metadataRef)));
+		
 		LogicalTimestamp conId = patch
 				.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.JSON_OBJECT, validationJson)));
-		patch.addNewOperation(Operations.insertObject().setObjectId(four.getRowMetadata().getObjectId())
+		
+		patch.addNewOperation(Operations.insertObject().setObjectId(metadataRef)
 				.setMap(Map.of("rowValidation", conId)));
 
 		gridIndexManger.applyPatch(sessionId, replicaId, patch);
@@ -268,22 +298,6 @@ public class GridReplicaViewManagerImplAutowireTest {
 		assertEquals(1, page.size());
 		RowView fourUpdated = page.get(0);
 		assertEquals(validation, fourUpdated.getRowValidationResults());
-	}
-
-	void addSynapseMetadataToRow(Patch toExtend, RowView row, SynapseRow toAdd) {
-		toExtend.addNewOperation(
-                Operations.insertObject()
-                    .setObjectId(row.getRowObject().getMetadata().getSynapseRow().getObjectId())
-                    .setMap(Map.of(
-                            //
-                            "rowId", toExtend.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.LONG, toAdd.getRowId())))
-                            //
-                            , "versionNumber", toExtend.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.LONG, toAdd.getVersionNumber())))
-                            //
-                            , "etag", toExtend.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.STRING, toAdd.getEtag()))))
-                    )
-        );
-
 	}
 
 	/**

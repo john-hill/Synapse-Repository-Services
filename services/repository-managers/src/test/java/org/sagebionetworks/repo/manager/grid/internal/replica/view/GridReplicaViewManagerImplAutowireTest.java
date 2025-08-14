@@ -1,12 +1,5 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.view;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,12 +26,8 @@ import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
-import org.sagebionetworks.repo.model.grid.patch.operation.InsertArray;
-import org.sagebionetworks.repo.model.grid.patch.operation.InsertObject;
-import org.sagebionetworks.repo.model.grid.patch.operation.InsertObjectBuilder;
-import org.sagebionetworks.repo.model.grid.patch.operation.InsertVector;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
-import org.sagebionetworks.repo.model.grid.patch.operation.NewConstantBuilder;
+import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
 import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
@@ -49,6 +38,13 @@ import org.semver4j.Semver;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
@@ -103,8 +99,8 @@ public class GridReplicaViewManagerImplAutowireTest {
 		// rename column b.
 		Patch patch = new Patch()
 				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
-		NewConstant b2 = patch.addNewOperation(NewConstant.class).setValue(new ConValue(ConType.STRING, "b2"));
-		patch.addNewOperation(InsertVector.class).setVectorId(columnNamesVecId).setMap(Map.of(1, b2.getOperationId()));
+		LogicalTimestamp b2Ref = patch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.STRING, "b2")));
+		patch.addNewOperation(Operations.insertVector().setVectorId(columnNamesVecId).setMap(Map.of(1, b2Ref)));
 		gridIndexManger.applyPatch(sessionId, replicaId, patch);
 
 		expected.getOrderedColumns().get(1).setName("b2");
@@ -114,11 +110,14 @@ public class GridReplicaViewManagerImplAutowireTest {
 		// insert a new column at zero
 		patch = new Patch()
 				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
-		NewConstant c = patch.addNewOperation(NewConstant.class).setValue(new ConValue(ConType.STRING, "c"));
-		NewConstant two = patch.addNewOperation(NewConstant.class).setValue(new ConValue(ConType.LONG, 2L));
-		patch.addNewOperation(InsertVector.class).setVectorId(columnNamesVecId).setMap(Map.of(2, c.getOperationId()));
-		patch.addNewOperation(InsertArray.class).setArrayId(columnOrderArrayId).setReferenceId(columnOrderArrayId)
-				.setElementIds(List.of(two.getOperationId()));
+		LogicalTimestamp cRef = patch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.STRING, "c")));
+        LogicalTimestamp twoRef = patch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.LONG, 2L)));
+		patch.addNewOperation(Operations.insertVector().setVectorId(columnNamesVecId).setMap(Map.of(2, cRef)));
+		patch.addNewOperation(Operations.insertArray()
+				.setArrayId(columnOrderArrayId)
+				.setReferenceId(columnOrderArrayId)
+				.setElementIds(List.of(twoRef))
+		);
 		gridIndexManger.applyPatch(sessionId, replicaId, patch);
 		assertEquals(List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(123L)),
 				gridIndexManger.getClock(sessionId, replicaId));
@@ -255,8 +254,8 @@ public class GridReplicaViewManagerImplAutowireTest {
 		ValidationResults validation = new ValidationResults().setIsValid(true);
 		JSONObject validationJson = EntityFactory.createJSONObjectForEntity(validation);
 		LogicalTimestamp conId = patch
-				.addNewOperation(new NewConstantBuilder().setValue(new ConValue(ConType.JSON_OBJECT, validationJson)));
-		patch.addNewOperation(new InsertObjectBuilder().setObjectId(four.getRowMetadata().getObjectId())
+				.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.JSON_OBJECT, validationJson)));
+		patch.addNewOperation(Operations.insertObject().setObjectId(four.getRowMetadata().getObjectId())
 				.setMap(Map.of("rowValidation", conId)));
 
 		gridIndexManger.applyPatch(sessionId, replicaId, patch);
@@ -272,17 +271,18 @@ public class GridReplicaViewManagerImplAutowireTest {
 	}
 
 	void addSynapseMetadataToRow(Patch toExtend, RowView row, SynapseRow toAdd) {
-		toExtend.addNewOperation(InsertObject.class)
-				.setObjectId(row.getRowObject().getMetadata().getSynapseRow().getObjectId()).setMap(Map.of(
-						//
-						"rowId", toExtend.addNewOperation(NewConstant.class)
-								.setValue(new ConValue(ConType.LONG, toAdd.getRowId())).getOperationId()
-						//
-						, "versionNumber", toExtend.addNewOperation(NewConstant.class)
-								.setValue(new ConValue(ConType.LONG, toAdd.getVersionNumber())).getOperationId()
-						//
-						, "etag", toExtend.addNewOperation(NewConstant.class)
-								.setValue(new ConValue(ConType.STRING, toAdd.getEtag())).getOperationId()));
+		toExtend.addNewOperation(
+                Operations.insertObject()
+                    .setObjectId(row.getRowObject().getMetadata().getSynapseRow().getObjectId())
+                    .setMap(Map.of(
+                            //
+                            "rowId", toExtend.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.LONG, toAdd.getRowId())))
+                            //
+                            , "versionNumber", toExtend.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.LONG, toAdd.getVersionNumber())))
+                            //
+                            , "etag", toExtend.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.STRING, toAdd.getEtag()))))
+                    )
+        );
 
 	}
 

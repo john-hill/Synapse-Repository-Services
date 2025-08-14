@@ -44,9 +44,7 @@ public class GridReplicaCsvExporterImpl implements GridReplicaCsvExporter {
         gridManager.getGridSession(userInfo, request.getSessionId());
 
         GridConnectionInfo connectionInfo = gridManager.getDefaultInternalConnection(request.getSessionId())
-                .orElseThrow(() -> new RecoverableMessageException("No internal connection found for session: " + request.getSessionId()
-                        // TODO: Should we create one?
-                ));
+                .orElseThrow(() -> new RecoverableMessageException("No internal connection found for session: " + request.getSessionId()));
         GridHeader header = gridReplicaViewManager.readHeader(connectionInfo.getSessionId(), connectionInfo.getReplicaId())
                 .orElseThrow(() -> new RecoverableMessageException("Grid header has not yet been instantiated for sessionId: " + request.getSessionId()));
 

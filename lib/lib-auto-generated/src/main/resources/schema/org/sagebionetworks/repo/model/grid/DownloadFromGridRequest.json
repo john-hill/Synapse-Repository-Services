@@ -20,7 +20,7 @@
 		},
 		"includeEtag": {
 			"type": "boolean",
-			"description": "Should the first column contain the row etag?  The default value is 'true'."
+			"description": "Should the first (or third if includeRowIdAndRowVersion is true) column contain the row etag? The default value is 'true'."
 		},
 		"csvTableDescriptor": {
 			"$ref":"org.sagebionetworks.repo.model.table.CsvTableDescriptor"

@@ -33,6 +33,7 @@ import org.sagebionetworks.repo.model.file.AddFileToDownloadListResponse;
 import org.sagebionetworks.repo.model.file.BulkFileDownloadResponse;
 import org.sagebionetworks.repo.model.file.FileHandleRestoreResponse;
 import org.sagebionetworks.repo.model.grid.CreateGridResponse;
+import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
 import org.sagebionetworks.repo.model.report.DownloadStorageReportResponse;
 import org.sagebionetworks.repo.model.schema.CreateSchemaResponse;
 import org.sagebionetworks.repo.model.schema.GetValidationSchemaResponse;
@@ -73,7 +74,7 @@ public enum AsynchJobType {
 	AgentChat("/agent/chat", AgentChatResponse.class, RestEndpointType.repo),
 	TablePFBDownload("/table/download/pfb", DownloadPFBResult.class, RestEndpointType.repo),
     CreateGrid("/grid/session", CreateGridResponse.class, RestEndpointType.repo),
-    GridCsvDownload("/grid/download/csv", CreateGridResponse.class, RestEndpointType.repo);
+    GridCsvDownload("/grid/download/csv", DownloadFromGridResult.class, RestEndpointType.repo);
 	;
 
 	String prefix;

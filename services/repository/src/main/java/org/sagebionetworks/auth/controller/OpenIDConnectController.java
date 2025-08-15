@@ -9,6 +9,7 @@ import org.sagebionetworks.auth.HttpAuthUtil;
 import org.sagebionetworks.repo.manager.oauth.OAuthClientNotVerifiedException;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.BackfillCount;
 import org.sagebionetworks.repo.model.oauth.JsonWebKeySet;
 import org.sagebionetworks.repo.model.oauth.OAuthAuthorizationResponse;
 import org.sagebionetworks.repo.model.oauth.OAuthClient;
@@ -202,7 +203,7 @@ public class OpenIDConnectController {
 	
 
 	/**
-	 * Retrieve the AccessControlList for a specified Team.
+	 * Retrieve the AccessControlList for a specified OAuth Client.
 	 * 
 	 * @param userId
 	 * @param id the ID of the OpenID Client of interest
@@ -221,7 +222,13 @@ public class OpenIDConnectController {
 	}
 	
 	/**
-	 * Update the Access Control List for the specified OpenID Client.  
+	 * Update the Access Control List for the specified OAuth Client.  The allowed permissions are:
+	 * <ul>
+	 * <li>UPDATE: Permission to change the OAuth Client, to see its private fields, and to generate the client secret</li>
+	 * <li>DELETE: Permission to delete the OAuth Client</li>
+	 * <li>READ: Permission to see the ACL</li>
+	 * <li>CHANGE_PERMISSIONS: Permissions to change the ACL</li>
+	 * </ul>
 	 * @param userId
 	 * @param acl the updated Access Control List
 	 * @return
@@ -578,6 +585,17 @@ public class OpenIDConnectController {
 			@RequestHeader(value = AuthorizationConstants.OAUTH_VERIFIED_CLIENT_ID_HEADER, required=true) String verifiedClientId,
 			@RequestBody OAuthTokenRevocationRequest revokeRequest) throws NotFoundException {
 		serviceProvider.getOpenIDConnectService().revokeToken(verifiedClientId, revokeRequest);
+	}
+
+	/*
+	 * 
+	 */
+	@RequiredScope({modify})
+	@ResponseStatus(HttpStatus.CREATED)
+	@RequestMapping(value = UrlHelpers.OAUTH_2_CLIENT_ACL_BACKFILL, method = RequestMethod.POST)
+	public @ResponseBody BackfillCount backfillOauthClientACLs(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId) throws NotFoundException {
+		return serviceProvider.getOpenIDConnectService().backfillOauthClientACLs(userId);
 	}
 
 }

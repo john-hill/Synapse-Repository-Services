@@ -39,12 +39,17 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.AuthorizationManager;
 import org.sagebionetworks.repo.manager.NotificationManager;
 import org.sagebionetworks.repo.manager.UserManager;
+import org.sagebionetworks.repo.model.AccessControlList;
+import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
+import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.OAuthClientDao;
 import org.sagebionetworks.repo.model.auth.SectorIdentifier;
+import org.sagebionetworks.repo.model.dbo.dao.AccessControlListUtils;
 import org.sagebionetworks.repo.model.oauth.OAuthClient;
 import org.sagebionetworks.repo.model.oauth.OAuthClientIdAndSecret;
 import org.sagebionetworks.repo.model.oauth.OIDCSigningAlgorithm;
@@ -75,6 +80,9 @@ public class OAuthClientManagerImplUnitTest {
 
 	@Mock
 	private OAuthClientDao mockOauthClientDao;
+	
+	@Mock
+	private AccessControlListDAO mockAclDAO;
 
 	@Mock
 	private SimpleHttpClient mockHttpClient;
@@ -99,6 +107,9 @@ public class OAuthClientManagerImplUnitTest {
 	
 	@Captor
 	private ArgumentCaptor<OAuthClient> oauthClientCaptor;
+	
+	@Captor
+	private ArgumentCaptor<AccessControlList> aclCaptor;
 	
 	@InjectMocks
 	private OAuthClientManagerImpl oauthClientManagerImpl;
@@ -378,6 +389,9 @@ public class OAuthClientManagerImplUnitTest {
 		assertNull(oauthClient.getSector_identifier());
 		assertNull(oauthClient.getSector_identifier_uri());
 		
+		// mock the dao behavior of filling in the client id
+		oauthClient.setClient_id(OAUTH_CLIENT_ID);
+		
 		// method under test
 		OAuthClient result = oauthClientManagerImpl.createOpenIDConnectClient(userInfo, oauthClient);
 		
@@ -398,6 +412,20 @@ public class OAuthClientManagerImplUnitTest {
 		verify(mockNotificationManager).sendTemplatedNotification(userInfo, "message/OAuthClientAddedNotification.html.vtl", "OAuth Client Added", 
 			Map.of("clientName", CLIENT_NAME, "redirectUris", REDIRCT_URIS)
 		);
+		
+		// make sure the ACL was created
+		verify(mockAclDAO).create(aclCaptor.capture(), eq(ObjectType.OAUTH_CLIENT));
+		AccessControlList acl = aclCaptor.getValue();
+		
+		assertEquals(OAUTH_CLIENT_ID, acl.getId());
+		assertEquals(USER_ID, acl.getCreatedBy());
+		assertNotNull(acl.getCreationDate());
+		assertEquals(USER_ID, acl.getModifiedBy());
+		assertNotNull(acl.getModifiedOn());
+		assertEquals(1, acl.getResourceAccess().size());
+		ResourceAccess aclEntry = acl.getResourceAccess().iterator().next();
+		assertEquals(USER_ID, ""+aclEntry.getPrincipalId());
+		assertEquals(AccessControlListUtils.ALLOWED_ACCESS_TYPES.get(ObjectType.OAUTH_CLIENT), aclEntry.getAccessType());
 	}
 	
 	@Test
@@ -755,6 +783,9 @@ public class OAuthClientManagerImplUnitTest {
 		verify(mockNotificationManager).sendTemplatedNotification(userInfo, "message/OAuthClientRemovedNotification.html.vtl", "OAuth Client Removed",
 			Map.of("clientName", client.getClient_name())
 		);
+		
+		// make sure the ACL was deleted too
+		verify(mockAclDAO).delete(OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT);
 	}
 	
 	@Test
@@ -1102,6 +1133,39 @@ public class OAuthClientManagerImplUnitTest {
 		verify(mockOauthClientDao).selectOAuthClientForUpdate(clientId);
 		verify(mockOauthClientDao, never()).updateOAuthClient(oauthClientCaptor.capture());
 		verify(mockNotificationManager, never()).sendTemplatedNotification(eq(userInfo), anyString(),  anyString(), (Map<String,Object>)any());
+	}
+	
+	@Test
+	public void testGetClientACLHappyCase() throws Exception {
+		AccessControlList expected = new AccessControlList();
+		expected.setId(OAUTH_CLIENT_ID);
+		expected.setCreatedBy(USER_ID);
+		expected.setCreationDate(new Date());
+		when(mockAclDAO.get(OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT)).thenReturn(expected);
+		
+		// method under test
+		AccessControlList actual = oauthClientManagerImpl.getAccessControlList(anonymousUserInfo, OAUTH_CLIENT_ID);
+		
+		assertEquals(expected, actual);
+	}
+	
+	@Test
+	public void testGetClientACLForbidden() throws Exception {
+		AccessControlList expected = new AccessControlList();
+		expected.setId(OAUTH_CLIENT_ID);
+		expected.setCreatedBy(USER_ID);
+		expected.setCreationDate(new Date());
+		when(mockAclDAO.get(OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT)).thenReturn(expected);
+		
+		// method under test
+		AccessControlList actual = oauthClientManagerImpl.getAccessControlList(anonymousUserInfo, OAUTH_CLIENT_ID);
+		
+		assertEquals(expected, actual);
+	}
+	
+	@Test
+	public void testUpdateClientACL() throws Exception {
+		// TODO
 	}
 	
 	private static OAuthClient createOAuthClient(String userId) {

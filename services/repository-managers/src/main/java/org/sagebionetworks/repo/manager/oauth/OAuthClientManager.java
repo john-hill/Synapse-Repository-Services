@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.oauth;
 
 import org.sagebionetworks.repo.model.AccessControlList;
+import org.sagebionetworks.repo.model.BackfillCount;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.oauth.OAuthClient;
@@ -111,5 +112,11 @@ public interface OAuthClientManager {
 	 */
 	boolean validateClientCredentials(OAuthClientIdAndSecret idAndSecret);
 	
-
+	/**
+	 * Create ACLs for legacy OAuthClients which have none.
+	 * Can only be invoked by a Synapse admin'.
+	 * @param userInfo
+	 * @return the number of ACLs created
+	 */
+	BackfillCount backfillAccessControlLists(UserInfo userInfo);
 }

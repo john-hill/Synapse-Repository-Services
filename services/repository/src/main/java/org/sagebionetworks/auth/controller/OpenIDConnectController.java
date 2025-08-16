@@ -223,12 +223,14 @@ public class OpenIDConnectController {
 	
 	/**
 	 * Update the Access Control List for the specified OAuth Client.  The allowed permissions are:
+	 * <p>
 	 * <ul>
 	 * <li>UPDATE: Permission to change the OAuth Client, to see its private fields, and to generate the client secret</li>
 	 * <li>DELETE: Permission to delete the OAuth Client</li>
 	 * <li>READ: Permission to see the ACL</li>
 	 * <li>CHANGE_PERMISSIONS: Permissions to change the ACL</li>
 	 * </ul>
+	 * </p>
 	 * @param userId
 	 * @param acl the updated Access Control List
 	 * @return

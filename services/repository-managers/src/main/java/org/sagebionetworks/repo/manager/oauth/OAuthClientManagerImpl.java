@@ -402,6 +402,7 @@ public class OAuthClientManagerImpl implements OAuthClientManager {
 		// return the ACL
 		authManager.canAccess(userInfo, clientId, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.READ).checkAuthorizationOrElseThrow();
 		AccessControlList result = aclDAO.get(clientId, ObjectType.OAUTH_CLIENT);
+		
 		return result;
 	}
 	

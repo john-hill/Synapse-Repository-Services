@@ -39,6 +39,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.AuthorizationManager;
 import org.sagebionetworks.repo.manager.NotificationManager;
 import org.sagebionetworks.repo.manager.UserManager;
+import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
@@ -47,6 +48,7 @@ import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.auth.OAuthClientDao;
 import org.sagebionetworks.repo.model.auth.SectorIdentifier;
 import org.sagebionetworks.repo.model.dbo.dao.AccessControlListUtils;
@@ -1143,24 +1145,25 @@ public class OAuthClientManagerImplUnitTest {
 		expected.setCreationDate(new Date());
 		when(mockAclDAO.get(OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT)).thenReturn(expected);
 		
+		when(mockAuthManager.canAccess(userInfo, OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.READ)).
+			thenReturn(AuthorizationStatus.authorized());
+		
 		// method under test
-		AccessControlList actual = oauthClientManagerImpl.getAccessControlList(anonymousUserInfo, OAUTH_CLIENT_ID);
+		AccessControlList actual = oauthClientManagerImpl.getAccessControlList(userInfo, OAUTH_CLIENT_ID);
 		
 		assertEquals(expected, actual);
 	}
 	
 	@Test
-	public void testGetClientACLForbidden() throws Exception {
-		AccessControlList expected = new AccessControlList();
-		expected.setId(OAUTH_CLIENT_ID);
-		expected.setCreatedBy(USER_ID);
-		expected.setCreationDate(new Date());
-		when(mockAclDAO.get(OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT)).thenReturn(expected);
-		
+	public void testGetClientACLForbidden() throws Exception {		
+		when(mockAuthManager.canAccess(anonymousUserInfo, OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.READ)).
+		thenReturn(AuthorizationStatus.accessDenied("anonymous"));
+	
 		// method under test
-		AccessControlList actual = oauthClientManagerImpl.getAccessControlList(anonymousUserInfo, OAUTH_CLIENT_ID);
-		
-		assertEquals(expected, actual);
+		assertThrows(UnauthorizedException.class, () -> {
+			oauthClientManagerImpl.getAccessControlList(anonymousUserInfo, OAUTH_CLIENT_ID);
+		});
+
 	}
 	
 	@Test

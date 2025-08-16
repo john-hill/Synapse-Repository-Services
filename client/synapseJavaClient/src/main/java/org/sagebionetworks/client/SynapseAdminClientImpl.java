@@ -418,6 +418,6 @@ public class SynapseAdminClientImpl extends SynapseClientImpl implements Synapse
 	@Override
 	public BackfillCount backfillOAuthClientACLs() throws SynapseException {
 		String uri = OAUTH_CLIENT + "/acl/backfill";
-		return postJSONEntity(getRepoEndpoint(), uri, null, BackfillCount.class);
+		return postJSONEntity(getAuthEndpoint(), uri, null, BackfillCount.class);
 	}
 }

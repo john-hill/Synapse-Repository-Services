@@ -6512,11 +6512,11 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 
 	@Override
 	public AccessControlList getOAuthClientACL(String id) throws SynapseException {
-		return getJSONEntity(getRepoEndpoint(), AUTH_OAUTH_2_CLIENT+"/"+id+ENTITY_ACL_PATH_SUFFIX, AccessControlList.class);
+		return getJSONEntity(getAuthEndpoint(), AUTH_OAUTH_2_CLIENT+"/"+id+ENTITY_ACL_PATH_SUFFIX, AccessControlList.class);
 	}
 
 	@Override
 	public AccessControlList updateOAuthClientACL(AccessControlList acl) throws SynapseException {
-		return putJSONEntity(getRepoEndpoint(), AUTH_OAUTH_2_CLIENT+ENTITY_ACL_PATH_SUFFIX, acl, AccessControlList.class);
+		return putJSONEntity(getAuthEndpoint(), AUTH_OAUTH_2_CLIENT+ENTITY_ACL_PATH_SUFFIX, acl, AccessControlList.class);
 	}
 }

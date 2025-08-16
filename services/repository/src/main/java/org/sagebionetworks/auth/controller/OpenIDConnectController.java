@@ -587,8 +587,11 @@ public class OpenIDConnectController {
 		serviceProvider.getOpenIDConnectService().revokeToken(verifiedClientId, revokeRequest);
 	}
 
-	/*
-	 * 
+	/**
+	 * Backfill OAuth client ACLs.  This service can only be called by a Synapse administrator.
+	 * @param userId
+	 * @return
+	 * @throws NotFoundException
 	 */
 	@RequiredScope({modify})
 	@ResponseStatus(HttpStatus.CREATED)

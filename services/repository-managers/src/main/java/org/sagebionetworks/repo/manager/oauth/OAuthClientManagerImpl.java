@@ -392,30 +392,17 @@ public class OAuthClientManagerImpl implements OAuthClientManager {
 		notificationManager.sendTemplatedNotification(recipient, NOTIFICATION_TPL_CLIENT_REMOVED, "OAuth Client Removed", notificationContext);
 	}
 	
-	// TODO we must add a migration step to bootstrap a default ACL for all existing clients
 	@Override
 	public AccessControlList getAccessControlList(UserInfo userInfo, String clientId) {
-		// if the user is anonymous, throw Forbidden
-		// if the client does not exist, throw a NotFoundException
-		// retrieve the ACL
-		// check permissions.  Can the user read the ACL? if not, throw Forbidden
-		// return the ACL
 		authManager.canAccess(userInfo, clientId, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.READ).checkAuthorizationOrElseThrow();
-		AccessControlList result = aclDAO.get(clientId, ObjectType.OAUTH_CLIENT);
-		
-		return result;
+		return  aclDAO.get(clientId, ObjectType.OAUTH_CLIENT);
 	}
 	
 	@WriteTransaction
 	@Override
 	public AccessControlList updateAccessControlList(UserInfo userInfo, AccessControlList acl) {
-		// if the user is anonymous, throw Forbidden
-		// if the client does not exist, throw a NotFoundException
-		// retrieve the ACL 
-		// check permissions.  Can the user update the ACL? if not, throw Forbidden
-		// validate ACL:  Make sure some principal can access it (has READ and EDIT permission) after the change
-		// merge the changes and store the ACL
-		// return the ACL
+		// TODO validate ACL:  Make sure some principal can access it (has READ and EDIT permission) after the change
+		// TODO merge the changes and store the ACL
 		authManager.canAccess(userInfo, acl.getId(), ObjectType.OAUTH_CLIENT, ACCESS_TYPE.UPDATE).checkAuthorizationOrElseThrow();
 		aclDAO.update(acl, ObjectType.OAUTH_CLIENT);
 		return aclDAO.get(acl.getId(), ObjectType.OAUTH_CLIENT);

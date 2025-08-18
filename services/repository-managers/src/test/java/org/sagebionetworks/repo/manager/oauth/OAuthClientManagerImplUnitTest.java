@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Assertions;
@@ -124,6 +125,7 @@ public class OAuthClientManagerImplUnitTest {
 	public void setUp() throws Exception {
 		userInfo = new UserInfo(false);
 		userInfo.setId(USER_ID_LONG);
+		userInfo.setGroups(Collections.singleton(USER_ID_LONG));
 
 		anonymousUserInfo = new UserInfo(false);
 		anonymousUserInfo.setId(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
@@ -1151,6 +1153,8 @@ public class OAuthClientManagerImplUnitTest {
 		// method under test
 		AccessControlList actual = oauthClientManagerImpl.getAccessControlList(userInfo, OAUTH_CLIENT_ID);
 		
+		verify(mockAclDAO).get(OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT);
+		
 		assertEquals(expected, actual);
 	}
 	
@@ -1167,8 +1171,39 @@ public class OAuthClientManagerImplUnitTest {
 	}
 	
 	@Test
-	public void testUpdateClientACL() throws Exception {
-		// TODO
+	public void testUpdateClientACLHappyPath() throws Exception {
+		AccessControlList acl = new AccessControlList();
+		acl.setId(OAUTH_CLIENT_ID);
+		acl.setCreationDate(new Date());
+		ResourceAccess ra = new ResourceAccess();
+		ra.setPrincipalId(USER_ID_LONG);
+		ra.setAccessType(Collections.singleton(ACCESS_TYPE.CHANGE_PERMISSIONS));
+		Set<ResourceAccess> ras = Collections.singleton(ra);
+		acl.setResourceAccess(ras);
+		
+		when(mockAuthManager.canAccess(userInfo, OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.CHANGE_PERMISSIONS)).
+			thenReturn(AuthorizationStatus.authorized());
+		
+		// method under test
+		oauthClientManagerImpl.updateAccessControlList(userInfo, acl);
+		
+		verify(mockAclDAO).update(acl, ObjectType.OAUTH_CLIENT);
+		verify(mockAclDAO).get(OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT);
+		
+	}
+	
+	@Test
+	public void testUpdateClientACLForbidden() throws Exception {		
+		AccessControlList acl = new AccessControlList();
+		acl.setId(OAUTH_CLIENT_ID);
+		when(mockAuthManager.canAccess(anonymousUserInfo, OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.CHANGE_PERMISSIONS)).
+			thenReturn(AuthorizationStatus.accessDenied("anonymous"));
+	
+		// method under test
+		assertThrows(UnauthorizedException.class, () -> {
+			oauthClientManagerImpl.updateAccessControlList(anonymousUserInfo, acl);
+		});
+
 	}
 	
 	private static OAuthClient createOAuthClient(String userId) {

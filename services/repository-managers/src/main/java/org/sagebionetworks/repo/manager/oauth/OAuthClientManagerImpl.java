@@ -19,6 +19,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.sagebionetworks.repo.manager.AuthorizationManager;
 import org.sagebionetworks.repo.manager.NotificationManager;
+import org.sagebionetworks.repo.manager.PermissionsManagerUtils;
 import org.sagebionetworks.repo.manager.PrivateFieldUtils;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -401,16 +402,17 @@ public class OAuthClientManagerImpl implements OAuthClientManager {
 	@WriteTransaction
 	@Override
 	public AccessControlList updateAccessControlList(UserInfo userInfo, AccessControlList acl) {
-		// TODO validate ACL:  Make sure some principal can access it (has READ and EDIT permission) after the change
-		// TODO merge the changes and store the ACL
-		authManager.canAccess(userInfo, acl.getId(), ObjectType.OAUTH_CLIENT, ACCESS_TYPE.UPDATE).checkAuthorizationOrElseThrow();
+		ValidateArgument.required(userInfo, "The user");
+		ValidateArgument.required(acl, "The acl");
+		authManager.canAccess(userInfo, acl.getId(), ObjectType.OAUTH_CLIENT, ACCESS_TYPE.CHANGE_PERMISSIONS).checkAuthorizationOrElseThrow();
+		// Makes sure the user is not revoking their own permissions
+		// The 'ownerId' parameter allows bypassing the check that one is revoking
+		// their own access for the case that the caller is the creator of the object (i.e., of the
+		// oauth client).  We suppress this (i.e., we ALWAYS do the check) by
+		// passing the dummy value '0' for 'ownerId'
+		PermissionsManagerUtils.validateACLContent(acl, userInfo, /*ownerId*/0L);
 		aclDAO.update(acl, ObjectType.OAUTH_CLIENT);
 		return aclDAO.get(acl.getId(), ObjectType.OAUTH_CLIENT);
-	}
-	
-	public void backfillAccessControlLists() {
-		// list all clients
-		// for each client
 	}
 
 	@WriteTransaction

@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.validation;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -17,6 +18,7 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaVi
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.VectorIdViewFilter;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaValidationManager;
+import org.sagebionetworks.repo.manager.schema.JsonSubject;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
@@ -111,29 +113,26 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 	List<IntendedChange> validateRows(GridHeader header, String schemaId, List<RowView> rowsToValidate) {
 		JsonSchema schema = jsonSchemaManager.getValidationSchema(schemaId);
 
-		return rowsToValidate.stream().map(row -> validateCells(header, schema, row)).filter(Optional::isPresent)
-				.map(Optional::get).collect(Collectors.toList());
-	}
+		List<JsonSubject> subjects = rowsToValidate.stream()
+				.map(row -> new RowJsonSubject(header.getOrderedColumns(), row))
+				.collect(Collectors.toList());
 
-	/**
-	 * Validate the cell data for a single row against the provided schema.
-	 * 
-	 * @param header
-	 * @param schema
-	 * @param row
-	 * @return Optional.empty() if the new results are equal to the old.
-	 */
-	Optional<IntendedChange> validateCells(GridHeader header, JsonSchema schema, RowView row) {
-		RowJsonSubject subject = new RowJsonSubject(header.getOrderedColumns(), row);
-		ValidationResults validationResults = jsonSchemaValidationManager.validate(schema, subject);
+		List<ValidationResults> results = jsonSchemaValidationManager.validateBatch(schema, subjects);
+		
+		List<IntendedChange> changes = new ArrayList<>();
 
-		cleanupValidationResults(validationResults);
+		for (int i = 0; i < results.size(); i++) {
+			ValidationResults validationResults = results.get(i);
+			RowView row = rowsToValidate.get(i);
+			
+			cleanupValidationResults(validationResults);
 
-		if (validationResults.equals(row.getRowValidationResults())) {
-			return Optional.empty();
+			if (!validationResults.equals(row.getRowValidationResults())) {
+				changes.add(createChange(row, validationResults));
+			}
 		}
 
-		return Optional.of(createChange(row, validationResults));
+		return changes;
 	}
 
 	/**

@@ -74,7 +74,7 @@ public class InsertValueSerializableTest {
 	}
 
 	@Test
-	public void testRoundTripWithValueBothMatchesReplcia() {
+	public void testRoundTripWithValueBothMatchesReplica() {
 		String json = "[9,2,4]";
 
 		// call under test

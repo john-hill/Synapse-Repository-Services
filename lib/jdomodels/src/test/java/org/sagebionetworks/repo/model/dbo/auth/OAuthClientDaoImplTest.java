@@ -605,11 +605,14 @@ public class OAuthClientDaoImplTest {
 		Long creatorId = BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
 		String clientWithACL = createSectorIdentifierAndClient(SECTOR_IDENTIFIER, 
 				creatorId, CLIENT_NAME);
-		String clientWithoutACL = createSectorIdentifierAndClient(SECTOR_IDENTIFIER, 
+		String clientWithoutACL = createSectorIdentifierAndClient(SECOND_SECTOR_IDENTIFIER, 
 				creatorId, "some other client");
 		
 		AccessControlList acl = new AccessControlList();
 		acl.setCreatedBy(clientWithACL);
+		acl.setId(clientWithACL);
+		acl.setCreationDate(new Date());
+		acl.setResourceAccess(Collections.EMPTY_SET);
 		aclDAO.create(acl, ObjectType.OAUTH_CLIENT);
 		
 		// method under test

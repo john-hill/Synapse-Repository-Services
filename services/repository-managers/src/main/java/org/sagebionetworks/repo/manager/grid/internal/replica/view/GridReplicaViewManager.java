@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.view;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 
@@ -46,5 +47,14 @@ public interface GridReplicaViewManager {
 	 * @return
 	 */
 	List<RowView> querySinglePage(GridHeader header, List<ViewFilter> filters, Long limit, Long offset);
+
+
+    /**
+     * Returns an iterator that can be used to retrieve and stream through a grid session's query results.
+     * @param header
+     * @param filters
+     * @return
+     */
+    Iterator<RowView> getQueryIterator(GridHeader header, List<ViewFilter> filters);
 
 }

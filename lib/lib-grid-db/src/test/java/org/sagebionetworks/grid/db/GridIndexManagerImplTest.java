@@ -25,6 +25,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.node.ValueNode;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
@@ -38,6 +39,9 @@ import org.sagebionetworks.repo.model.grid.patch.operation.NewVector;
 public class GridIndexManagerImplTest {
 	@Mock
 	private GridIndexDao mockDao;
+
+    @Mock
+    private GridDao mockGridDao;
 
 	@Mock
 	private OperationDispatcher mockOperationDispatcher;
@@ -215,5 +219,43 @@ public class GridIndexManagerImplTest {
 		// call under test
 		assertTrue(manager.isPatchAlreadyApplied(sessionId, replicaId, patch.getPatchId()));
 	}
+
+    @Test
+    public void testGetCurrentClock() {
+        Long last = 101L;
+        when(mockDao.getClockSequenceNumber(sessionId, replicaId, replicaId)).thenReturn(Optional.of(last));
+        when(mockGridDao.listMissingPatchIdsForClock(sessionId,
+                List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(last)), 1))
+                .thenReturn(List.of());
+
+        // call under test
+        Optional<LogicalTimestamp> result = manager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId);
+        assertEquals(Optional.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(last)), result);
+    }
+
+    @Test
+    public void testGetCurrentClockWithNoSequence() {
+        when(mockDao.getClockSequenceNumber(sessionId, replicaId, replicaId)).thenReturn(Optional.empty());
+        when(mockGridDao.listMissingPatchIdsForClock(sessionId,
+                List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(0L)), 1))
+                .thenReturn(List.of());
+
+        // call under test
+        Optional<LogicalTimestamp> result = manager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId);
+        assertEquals(Optional.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(0L)), result);
+    }
+
+    @Test
+    public void testGetCurrentClockWithMissingPatches() {
+        Long last = 101L;
+        when(mockDao.getClockSequenceNumber(sessionId, replicaId, replicaId)).thenReturn(Optional.of(last));
+        when(mockGridDao.listMissingPatchIdsForClock(sessionId,
+                List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(last)), 1))
+                .thenReturn(List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(999L)));
+
+        // call under test
+        Optional<LogicalTimestamp> result = manager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId);
+        assertEquals(Optional.empty(), result);
+    }
 
 }

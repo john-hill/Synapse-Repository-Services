@@ -258,6 +258,8 @@ import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridResponse;
 import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
 import org.sagebionetworks.repo.model.grid.CreateReplicaResponse;
+import org.sagebionetworks.repo.model.grid.DownloadFromGridRequest;
+import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
@@ -3738,7 +3740,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	 */
 	@Override
 	public DoiResponse createOrUpdateDoiAsyncGet(String asyncJobToken) throws SynapseException {
-		String url = DOI + ASYNC_GET + asyncJobToken;
+        String url = DOI + ASYNC_GET + asyncJobToken;
 		return getJSONEntity(getRepoEndpoint(), url, DoiResponse.class);
 	}
 
@@ -6509,4 +6511,14 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public void deleteGridSession(String sessionId) throws SynapseException {
 		deleteUri(getRepoEndpoint(), "/grid/session/" + sessionId);
 	}
+
+    @Override
+    public String exportGridAsCsvAsyncStart(DownloadFromGridRequest request) throws SynapseException {
+        return startAsynchJob(AsynchJobType.GridCsvDownload, request);
+    }
+
+    @Override
+    public DownloadFromGridResult exportGridAsCsvAsyncGet(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException {
+        return (DownloadFromGridResult) getAsyncResult(AsynchJobType.CreateGrid, asyncJobToken);
+    }
 }

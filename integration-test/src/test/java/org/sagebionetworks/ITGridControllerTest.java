@@ -2,6 +2,8 @@ package org.sagebionetworks;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -16,12 +18,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.client.AsynchJobType;
 import org.sagebionetworks.client.SynapseClient;
 import org.sagebionetworks.client.exceptions.SynapseException;
+import org.sagebionetworks.client.exceptions.SynapseResultNotReadyException;
+import org.sagebionetworks.repo.model.asynch.AsynchJobState;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlResponse;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridResponse;
 import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
 import org.sagebionetworks.repo.model.grid.CreateReplicaResponse;
+import org.sagebionetworks.repo.model.grid.DownloadFromGridRequest;
+import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
@@ -31,6 +37,7 @@ import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
 public class ITGridControllerTest {
 
 	private static long MAX_TME_MS = 30 * 1000;
+    private static long ASYNC_JOB_POLL_TIME_MS = 100L;
 
 	private final SynapseClient synapse;
 
@@ -83,14 +90,44 @@ public class ITGridControllerTest {
 		ws.send(new JSONArray("[8,\"ping\"]").toString());
 		assertTrue(AsyncJobHelper.waitForMessage(8, "pong", incomingMessages));
 		ws.close(4999, "closing");
-		
+
 		// call under test
 		synapse.deleteGridSession(session.getSessionId());
-		
+
 		listResp = synapse.listGridSessions(new ListGridSessionsRequest());
 		assertNotNull(listResp);
 		assertNotNull(listResp.getPage());
 		assertFalse(listResp.getPage().contains(session));
 	}
+
+    @Test
+    public void testExportGridToCsv() throws Exception {
+        CreateGridResponse createGridResponse = (CreateGridResponse) AsyncJobHelper
+                .assertAysncJobResult(synapse, AsynchJobType.CreateGrid, new CreateGridRequest(), body -> {
+                    assertInstanceOf(CreateGridResponse.class, body);
+                    CreateGridResponse r = (CreateGridResponse) body;
+                    assertNotNull(r.getGridSession());
+                    assertNotNull(r.getGridSession().getSessionId());
+                }, MAX_TME_MS, AsyncJobHelper.INFINITE_RETRIES).getResponse();
+
+        GridSession session = createGridResponse.getGridSession();
+
+        // call under test
+        String jobId = synapse.exportGridAsCsvAsyncStart(new DownloadFromGridRequest().setSessionId(session.getSessionId()));
+
+        DownloadFromGridResult result;
+        boolean success = false;
+        while (!success) {
+            Thread.sleep(ASYNC_JOB_POLL_TIME_MS);
+            try {
+                result = synapse.exportGridAsCsvAsyncGet(jobId);
+                if (result.getResultsFileHandleId() != null) {
+                    success = true;
+                }
+            } catch (SynapseResultNotReadyException e) {
+                assertNotEquals(AsynchJobState.FAILED, e.getJobStatus().getJobState());
+            }
+        }
+    }
 
 }

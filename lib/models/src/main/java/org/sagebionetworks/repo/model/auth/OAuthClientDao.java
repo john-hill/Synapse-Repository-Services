@@ -125,7 +125,7 @@ public interface OAuthClientDao {
 	OAuthClientAuthorizationHistoryList getAuthorizedClientHistory(String userId, String nextPageToken, Long maxLeaseLengthInDays);
 	
 	/** 
-	 * List the legal OAuth clients which lack ACLs.
+	 * List the legacy OAuth clients which lack ACLs.
 	 * Since there are only about 200 client, and since this is temporary code,
 	 * we do not paginate.
 	 * @return the IDs of OAuth Clients which lack an ACL

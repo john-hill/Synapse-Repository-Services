@@ -23,7 +23,7 @@ import org.sagebionetworks.repo.model.grid.node.ValueNode;
 import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.util.ValidateArgument;
-import org.springframework.dao.DataAccessException;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -98,14 +98,20 @@ public class GridIndexDaoImpl implements GridIndexDao {
 				.setIsDeleted(wasDeleted);
 	};
 
-	public GridIndexDaoImpl(JdbcTemplate gridDatabaseJdbcTempalte,
-			NamedParameterJdbcTemplate gridDatabaseNamedParameterJdbcTempalte) {
+	private static RowMapper<MessageChain> MESSAGE_CHAIN_MAPPER = (ResultSet rs, int rowNum) -> {
+		return new MessageChain().setSessionId(GridUtils.gridSessionIdAsString(rs.getLong("SESSION_ID")))
+				.setReplicaId(rs.getLong("REPLICA_ID")).setId(rs.getInt("MESSAGE_ID"))
+				.setMethod(rs.getString("METHOD_NAME")).setCreatedOn(rs.getTimestamp("CREATED_ON"));
+	};
+
+	public GridIndexDaoImpl(@Qualifier("gridDatabaseJdbcTemplate") JdbcTemplate gridDatabaseJdbcTemplate,
+			@Qualifier("gridDatabaseNamedParameterJdbcTemplate") NamedParameterJdbcTemplate gridDatabaseNamedParameterJdbcTemplate) {
 		super();
-		this.jdbcTempalte = gridDatabaseJdbcTempalte;
-		this.namedTemplate = gridDatabaseNamedParameterJdbcTempalte;
+		this.jdbcTempalte = gridDatabaseJdbcTemplate;
+		this.namedTemplate = gridDatabaseNamedParameterJdbcTemplate;
 		createTables(List.of("schema/Grid-Replica-ddl.sql", "schema/Grid-Clock-ddl.sql", "schema/Grid-Index-ddl.sql",
 				"schema/Grid-Array-ddl.sql", "schema/Grid-Vector-ddl.sql", "schema/Grid-Object-ddl.sql",
-				"schema/Grid-Constant-ddl.sql", "schema/Grid-Value-ddl.sql"));
+				"schema/Grid-Constant-ddl.sql", "schema/Grid-Value-ddl.sql", "schema/Grid-Message-ddl.sql"));
 	}
 
 	/**
@@ -547,5 +553,101 @@ public class GridIndexDaoImpl implements GridIndexDao {
 			// no conflict
 			return Optional.of(toInsert.getReferenceNodeId());
 		}
+	}
+
+	@Transactional(readOnly = false)
+	@Override
+	public Integer createNextMessageId(String sessionIdString, Long replicaId, int maxValue) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		Integer current = jdbcTempalte.queryForObject(
+				"SELECT LAST_MESSAGE_ID FROM GRID_REPLICA WHERE SESSION_ID = ? AND REPLICA_ID = ? FOR UPDATE",
+				Integer.class, sessionId, replicaId);
+		if (current >= maxValue) {
+			current = -1;
+		}
+		Integer next = current + 1;
+		jdbcTempalte.update("UPDATE GRID_REPLICA SET LAST_MESSAGE_ID = ? WHERE SESSION_ID = ? AND REPLICA_ID = ?", next,
+				sessionId, replicaId);
+		return next;
+	}
+
+	@Transactional(readOnly = false)
+	@Override
+	public MessageChain createMessageChain(MessageChain chain) {
+		ValidateArgument.required(chain, "chain");
+		ValidateArgument.required(chain.getId(), "chain.id");
+		ValidateArgument.required(chain.getSessionId(), "chain.sessionId");
+		ValidateArgument.required(chain.getReplicaId(), "chain.replicaId");
+		ValidateArgument.required(chain.getMethod(), "chain.method");
+		Long sessionId = validateReplica(chain.getSessionId(), chain.getReplicaId());
+		jdbcTempalte.update(
+				"INSERT INTO GRID_REPLICA_MESSAGE (SESSION_ID, REPLICA_ID, MESSAGE_ID, METHOD_NAME, CREATED_ON)"
+						+ " VALUES (?,?,?,?,NOW()) ON DUPLICATE KEY UPDATE METHOD_NAME = ?, CREATED_ON = NOW()",
+				sessionId, chain.getReplicaId(), chain.getId(), chain.getMethod(), chain.getMethod());
+		return getMessageChain(chain.getSessionId(), chain.getReplicaId(), chain.getId()).get();
+	}
+
+	@Override
+	public Optional<MessageChain> getMessageChain(String sessionIdString, Long replicaId, Integer chainId) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		ValidateArgument.required(chainId, "chainId");
+		try {
+			return Optional.of(jdbcTempalte.queryForObject(
+					"SELECT * FROM GRID_REPLICA_MESSAGE WHERE SESSION_ID = ? AND REPLICA_ID = ? AND MESSAGE_ID = ?",
+					MESSAGE_CHAIN_MAPPER, sessionId, replicaId, chainId));
+		} catch (EmptyResultDataAccessException e) {
+			return Optional.empty();
+		}
+	}
+
+	@Transactional(readOnly = false)
+	@Override
+	public void deleteMessageChain(String sessionIdString, Long replicaId, Integer chainId) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		ValidateArgument.required(chainId, "chainId");
+		jdbcTempalte.update(
+				"DELETE FROM GRID_REPLICA_MESSAGE WHERE SESSION_ID = ? AND REPLICA_ID = ? AND MESSAGE_ID = ?",
+				sessionId, replicaId, chainId);
+	}
+
+	@Override
+	public Optional<ObjectNode> getRootObject(String gridSessionId, Long replicaId) {
+		List<ValueNode> roots = getValues(gridSessionId, replicaId,
+				List.of(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L)));
+		if (roots.isEmpty()) {
+			return Optional.empty();
+		}
+		ValueNode root = roots.get(0);
+		if(root == null || root.getValue() == null) {
+			return Optional.empty();
+		}
+		List<ObjectNode> rootObjects = getObjects(gridSessionId, replicaId,
+				List.of(root.getValue()));
+		if (rootObjects.isEmpty()) {
+			return Optional.empty();
+		}
+		return Optional.of(rootObjects.get(0));
+	}
+
+	@Override
+	public <T> List<T> query(String sql, SqlParameterSource paramSource, RowMapper<T> rowMapper) {
+		return namedTemplate.query(sql, paramSource, rowMapper);
+	}
+
+	@Override
+	public Optional<LogicalTimestamp> findExistingConstant(String sessionIdString, Long replicaId, String jsonValue) {
+	    Long sessionId = validateReplica(sessionIdString, replicaId);
+	    try {
+	        return Optional.of(jdbcTempalte.queryForObject(
+	            "SELECT CON_REP, CON_SEQ FROM GRID_REPLICA_CON " +
+	            "WHERE SESSION_ID = ? AND REPLICA_ID = ? AND CON_VAL_HASH = CRC32(JSON_EXTRACT(?, '$')) " +
+	            "AND JSON_EXTRACT(CON_VAL, '$') = JSON_EXTRACT(?, '$') LIMIT 1",
+	            (rs, rowNum) -> new LogicalTimestamp()
+	                .setReplicaId(rs.getLong("CON_REP"))
+	                .setSequenceNumber(rs.getLong("CON_SEQ")),
+	            sessionId, replicaId, jsonValue, jsonValue));
+	    } catch (EmptyResultDataAccessException e) {
+	        return Optional.empty();
+	    }
 	}
 }

@@ -72,6 +72,7 @@ import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.simpleHttpClient.SimpleHttpClient;
 import org.sagebionetworks.table.cluster.avro.RowPFBWriter;
 import org.sagebionetworks.table.cluster.avro.RowPFBWriterProvider;
+import org.sagebionetworks.util.DefaultClock;
 import org.sagebionetworks.workers.util.semaphore.WriteReadSemaphore;
 import org.sagebionetworks.workers.util.semaphore.WriteReadSemaphoreImpl;
 import org.springframework.context.annotation.Bean;
@@ -80,7 +81,6 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.scheduling.quartz.SimpleTriggerFactoryBean;
 
-import com.amazonaws.services.sqs.AmazonSQSClient;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -109,11 +109,14 @@ import software.amazon.awssdk.services.bedrockagent.BedrockAgentClient;
 import software.amazon.awssdk.services.bedrockagent.model.ListAgentsRequest;
 import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAsyncClient;
 import software.amazon.awssdk.services.bedrockagentruntime.BedrockAgentRuntimeAsyncClientBuilder;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.sqs.SqsClient;
-import software.amazon.awssdk.services.sqs.SqsClientBuilder;
 import software.amazon.awssdk.services.opensearchserverless.OpenSearchServerlessClient;
 import software.amazon.awssdk.services.opensearchserverless.model.CollectionDetail;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.sns.SnsClient;
+import software.amazon.awssdk.services.sns.model.ListTopicsRequest;
+import software.amazon.awssdk.services.sns.model.ListTopicsResponse;
+import software.amazon.awssdk.services.sns.model.Topic;
+import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
@@ -311,7 +314,8 @@ public class ManagerConfiguration {
 
 	@Bean
 	public WriteReadSemaphore getWriteReadSemaphore(StackConfiguration config, CountingSemaphore countingSemaphore) {
-		return new WriteReadSemaphoreImpl(countingSemaphore, config.getWriteReadSemaphoreRunnerMaxReaders());
+		return new WriteReadSemaphoreImpl(countingSemaphore, config.getWriteReadSemaphoreRunnerMaxReaders(),
+				new DefaultClock());
 	}
 
 	@Bean
@@ -352,7 +356,8 @@ public class ManagerConfiguration {
 
 	@Bean
 	public OpenSearchServerlessClient ossManagementClient(AwsCredentialsProvider credentialProvider) {
-		return OpenSearchServerlessClient.builder().credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
+		return OpenSearchServerlessClient.builder().credentialsProvider(credentialProvider).region(Region.US_EAST_1)
+				.build();
 	}
 
 	@Bean
@@ -362,23 +367,15 @@ public class ManagerConfiguration {
 
 	@Bean
 	public OpenSearchClient synSearchOssClient(OpenSearchServerlessClient openSearchServerlessClient,
-												   AwsCredentialsProvider credentialProvider,
-												   StackConfiguration config, SdkHttpClient httpClient) {
+			AwsCredentialsProvider credentialProvider, StackConfiguration config, SdkHttpClient httpClient) {
 		String collectionName = config.getStack() + "-" + config.getStackInstance() + "-synsearch";
 
-		CollectionDetail collection = openSearchServerlessClient.batchGetCollection(req -> req
-				.names(collectionName)
-		).collectionDetails().stream().findFirst().orElseThrow();
+		CollectionDetail collection = openSearchServerlessClient.batchGetCollection(req -> req.names(collectionName))
+				.collectionDetails().stream().findFirst().orElseThrow();
 
-		return new OpenSearchClient(
-				new AwsSdk2Transport(
-						httpClient,
-						collection.collectionEndpoint().replace("https://", ""),
-						"aoss",
-						Region.US_EAST_1,
-						AwsSdk2TransportOptions.builder().setCredentials(credentialProvider).build()
-				)
-		);
+		return new OpenSearchClient(new AwsSdk2Transport(httpClient,
+				collection.collectionEndpoint().replace("https://", ""), "aoss", Region.US_EAST_1,
+				AwsSdk2TransportOptions.builder().setCredentials(credentialProvider).build()));
 	}
 
 	@Bean
@@ -403,7 +400,7 @@ public class ManagerConfiguration {
 	public AgentClientProvider createAgentClientProvider(
 			BedrockAgentRuntimeAsyncClient defaultBedrockAgentRuntimeAsyncClient,
 			BedrockAgentRuntimeAsyncClient customBedrockAgentRuntimeAsyncClient) {
-		
+
 		return new AgentClientProvider(Map.of(AgentType.BASELINE, defaultBedrockAgentRuntimeAsyncClient,
 				AgentType.CUSTOM, customBedrockAgentRuntimeAsyncClient));
 	}
@@ -491,10 +488,45 @@ public class ManagerConfiguration {
 	public S3Client createS3Client(AwsCredentialsProvider credentialProvider) {
 		return S3Client.builder().credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
 	}
-	
+
 	@Bean
 	public SqsClient createSqsClient(AwsCredentialsProvider credentialProvider) {
 		return SqsClient.builder().credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
+	}
+
+	@Bean
+	public SnsClient createSnsClient(AwsCredentialsProvider credentialProvider) {
+		return SnsClient.builder().credentialsProvider(credentialProvider).region(Region.US_EAST_1).build();
+	}
+
+	@Bean
+	public String gridReplicaChangeTopicArn(SnsClient client, StackConfiguration config) {
+		return getTopicArnByName(config.getQueueName("GRID_REPLICA_CHANGES"), client);
+	}
+
+	/**
+	 * Helper to lookup a SNS topic by its name.
+	 * 
+	 * @param topicName
+	 * @param snsClient
+	 * @return
+	 */
+	String getTopicArnByName(String topicName, SnsClient snsClient) {
+		String nextToken = null;
+		do {
+			ListTopicsResponse response = snsClient
+					.listTopics(ListTopicsRequest.builder().nextToken(nextToken).build());
+
+			Optional<Topic> foundTopic = response.topics().stream()
+					.filter(topic -> topic.topicArn().endsWith(":" + topicName)).findFirst();
+
+			if (foundTopic.isPresent()) {
+				return foundTopic.get().topicArn();
+			}
+			nextToken = response.nextToken();
+		} while (nextToken != null);
+
+		throw new RuntimeException("Topic not found: " + topicName);
 	}
 
 }

@@ -227,6 +227,12 @@ public class GridIndexDaoImplTest {
 		// call under test
 		List<ConstantNode> results = gridIndexDao.getConstants(sessionIdOne, replicaIdOne, ids);
 		assertEquals(constants, results);
+
+		// each constant should exist
+		for (ConstantNode con : results) {
+			assertEquals(Optional.of(con.getId()),
+					gridIndexDao.findExistingConstant(sessionIdOne, replicaIdOne, con.getValueAsJson()));
+		}
 	}
 
 	@Test
@@ -263,6 +269,18 @@ public class GridIndexDaoImplTest {
 
 		List<ConstantNode> results2 = gridIndexDao.getConstants(sessionIdTwo, replicaIdTwo, ids);
 		assertEquals(constants2, results2);
+
+		// one matches session one only.
+		assertEquals(Optional.of(constants1.get(0).getId()),
+				gridIndexDao.findExistingConstant(sessionIdOne, replicaIdOne, constants1.get(0).getValueAsJson()));
+		assertEquals(Optional.empty(),
+				gridIndexDao.findExistingConstant(sessionIdTwo, replicaIdTwo, constants1.get(0).getValueAsJson()));
+		
+		// two matches session two only.
+		assertEquals(Optional.of(constants2.get(0).getId()),
+				gridIndexDao.findExistingConstant(sessionIdTwo, replicaIdTwo, constants2.get(0).getValueAsJson()));
+		assertEquals(Optional.empty(),
+				gridIndexDao.findExistingConstant(sessionIdOne, replicaIdOne, constants2.get(0).getValueAsJson()));
 	}
 
 	@Test
@@ -738,6 +756,113 @@ public class GridIndexDaoImplTest {
 		assertEquals(Optional.empty(),
 				gridIndexDao.findArrayInsertLocation(sessionIdOne, replicaIdOne, valuesOne.get(2)));
 
+	}
+
+	@Test
+	public void testCreateNextMessageId() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		gridIndexDao.createReplicaIfNotExists(sessionIdTwo, replicaIdTwo);
+		int maxValues = 3;
+		assertEquals(0, gridIndexDao.createNextMessageId(sessionIdOne, replicaIdOne, maxValues));
+		assertEquals(0, gridIndexDao.createNextMessageId(sessionIdTwo, replicaIdTwo, maxValues));
+
+		assertEquals(1, gridIndexDao.createNextMessageId(sessionIdOne, replicaIdOne, maxValues));
+		assertEquals(2, gridIndexDao.createNextMessageId(sessionIdOne, replicaIdOne, maxValues));
+		assertEquals(3, gridIndexDao.createNextMessageId(sessionIdOne, replicaIdOne, maxValues));
+		assertEquals(0, gridIndexDao.createNextMessageId(sessionIdOne, replicaIdOne, maxValues));
+		assertEquals(1, gridIndexDao.createNextMessageId(sessionIdOne, replicaIdOne, maxValues));
+
+		assertEquals(1, gridIndexDao.createNextMessageId(sessionIdTwo, replicaIdTwo, maxValues));
+
+	}
+
+	@Test
+	public void testMessageChainCRUD() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		gridIndexDao.createReplicaIfNotExists(sessionIdTwo, replicaIdTwo);
+		int maxValues = 100;
+		// one
+		Integer idOne = gridIndexDao.createNextMessageId(sessionIdOne, replicaIdOne, maxValues);
+		assertEquals(Optional.empty(), gridIndexDao.getMessageChain(sessionIdOne, replicaIdOne, idOne));
+		MessageChain chainOne = new MessageChain().setSessionId(sessionIdOne).setReplicaId(replicaIdOne).setId(idOne)
+				.setMethod("methodOne");
+		MessageChain backOne = gridIndexDao.createMessageChain(chainOne);
+		MessageChain expected = new MessageChain().setSessionId(sessionIdOne).setReplicaId(replicaIdOne).setId(idOne)
+				.setMethod("methodOne").setCreatedOn(backOne.getCreatedOn());
+		assertEquals(expected, backOne);
+		assertEquals(Optional.of(expected), gridIndexDao.getMessageChain(sessionIdOne, replicaIdOne, idOne));
+		// update
+		chainOne.setMethod("updatedMethod");
+		backOne = gridIndexDao.createMessageChain(chainOne);
+		expected = new MessageChain().setSessionId(sessionIdOne).setReplicaId(replicaIdOne).setId(idOne)
+				.setMethod("updatedMethod").setCreatedOn(backOne.getCreatedOn());
+		assertEquals(expected, backOne);
+
+		// two
+		Integer idTwo = gridIndexDao.createNextMessageId(sessionIdTwo, replicaIdTwo, maxValues);
+		MessageChain chainTwo = new MessageChain().setSessionId(sessionIdTwo).setReplicaId(replicaIdTwo).setId(idTwo)
+				.setMethod("methodTwo");
+		backOne = gridIndexDao.createMessageChain(chainTwo);
+		expected = new MessageChain().setSessionId(sessionIdTwo).setReplicaId(replicaIdTwo).setId(idTwo)
+				.setMethod("methodTwo").setCreatedOn(backOne.getCreatedOn());
+		assertEquals(expected, backOne);
+		assertEquals(Optional.of(expected), gridIndexDao.getMessageChain(sessionIdTwo, replicaIdTwo, idTwo));
+
+		// call under test
+		gridIndexDao.deleteMessageChain(sessionIdOne, replicaIdOne, idOne);
+		assertEquals(Optional.empty(), gridIndexDao.getMessageChain(sessionIdOne, replicaIdOne, idOne));
+		assertEquals(Optional.of(expected), gridIndexDao.getMessageChain(sessionIdTwo, replicaIdTwo, idTwo));
+	}
+
+	@Test
+	public void testGetRootObject() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		ConstantNode con = new ConstantNode().setId(ids.get(0)).setValueFromJson("[123]");
+		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.con, List.of(con.getId()));
+		gridIndexDao.saveNewConstants(sessionIdOne, replicaIdOne, List.of(con));
+		ObjectNode rootObj = new ObjectNode().setId(ids.get(1)).setValue(Map.of("aCon", con.getId()));
+		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.obj, List.of(rootObj.getId()));
+		gridIndexDao.saveObjects(sessionIdOne, replicaIdOne, List.of(rootObj));
+		ValueNode root = new ValueNode().setId(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L))
+				.setValue(rootObj.getId());
+		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.val, List.of(root.getId()));
+		gridIndexDao.saveValues(sessionIdOne, replicaIdOne, List.of(root));
+
+		// call under test
+		assertEquals(Optional.of(rootObj), gridIndexDao.getRootObject(sessionIdOne, replicaIdOne));
+	}
+
+	@Test
+	public void testGetRootObjectWithRootNoValue() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		ValueNode root = new ValueNode().setId(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L))
+				.setValue(null);
+		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.val, List.of(root.getId()));
+		gridIndexDao.saveValues(sessionIdOne, replicaIdOne, List.of(root));
+
+		// call under test
+		assertEquals(Optional.empty(), gridIndexDao.getRootObject(sessionIdOne, replicaIdOne));
+	}
+
+	@Test
+	public void testGetRootObjectWithNoRoot() {
+		// call under test
+		assertEquals(Optional.empty(), gridIndexDao.getRootObject(sessionIdOne, replicaIdOne));
+	}
+
+	@Test
+	public void testGetRootObjectWithRootNotAnObject() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		ConstantNode con = new ConstantNode().setId(ids.get(0)).setValueFromJson("[123]");
+		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.con, List.of(con.getId()));
+		gridIndexDao.saveNewConstants(sessionIdOne, replicaIdOne, List.of(con));
+		ValueNode root = new ValueNode().setId(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L))
+				.setValue(con.getId());
+		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.val, List.of(root.getId()));
+		gridIndexDao.saveValues(sessionIdOne, replicaIdOne, List.of(root));
+
+		// call under test
+		assertEquals(Optional.empty(), gridIndexDao.getRootObject(sessionIdOne, replicaIdOne));
 	}
 
 	/**

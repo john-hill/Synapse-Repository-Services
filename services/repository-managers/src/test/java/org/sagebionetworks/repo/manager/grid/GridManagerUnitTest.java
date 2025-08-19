@@ -206,7 +206,7 @@ public class GridManagerUnitTest {
 				mockS3Client, mockQueryManager, mockEntityManager, mockInternalEventPublisher);
 		gridManager = Mockito.spy(gridManager);
 		clock = List.of(patchId);
-		query = new Query().setSql("select * from syn123");
+		query = new Query().setSql("select * from syn123").setIncludeEntityEtag(false);
 		tableId = "syn999";
 		rows = List.of(new Row().setRowId(10101L));
 		maxRowsPerPage = 78L;
@@ -362,7 +362,7 @@ public class GridManagerUnitTest {
 		doNothing().when(gridManager).validGridSessionAccess(mockUser, gridSessionId);
 
 		GridSession expected = new GridSession().setSessionId("gs123").setStartedBy(userId.toString());
-		when(mockGridDao.geGridSession(gridSessionId)).thenReturn(Optional.of(expected));
+		when(mockGridDao.getGridSession(gridSessionId)).thenReturn(Optional.of(expected));
 
 		// call under test
 		GridSession session = gridManager.getGridSession(mockUser, gridSessionId);
@@ -374,7 +374,7 @@ public class GridManagerUnitTest {
 
 		doNothing().when(gridManager).validGridSessionAccess(mockUser, gridSessionId);
 
-		when(mockGridDao.geGridSession(gridSessionId)).thenReturn(Optional.empty());
+		when(mockGridDao.getGridSession(gridSessionId)).thenReturn(Optional.empty());
 
 		String message = assertThrows(NotFoundException.class, () -> {
 			// call under test
@@ -984,6 +984,7 @@ public class GridManagerUnitTest {
 
 		// call under test
 		gridManager.buildSessionFromQuery(mockCallback, mockUser, query);
+		assertTrue(query.getIncludeEntityEtag()); // verify that the query is mutated to include etag
 		RowHandlerProvider rp = rowHandlerProviderCaptor.getValue();
 		when(mockQueryTranslattion.getMainQuery()).thenReturn(mockMainQuery);
 		when(mockMainQuery.getTranslator()).thenReturn(mockTranslator);

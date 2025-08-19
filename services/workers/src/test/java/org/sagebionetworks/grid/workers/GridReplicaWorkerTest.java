@@ -24,6 +24,8 @@ import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.message.JsonRxMessage;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
+import org.sagebionetworks.workers.util.semaphore.LockType;
+import org.sagebionetworks.workers.util.semaphore.LockUnavilableException;
 
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.MessageAttributeValue;
@@ -82,6 +84,18 @@ public class GridReplicaWorkerTest {
 			worker.run(mockCallback, message);
 		});
 		assertEquals(e, th);
+	}
+
+	@Test
+	public void testRunWithLockUnavailableException() {
+		when(mockGridManager.getConnectionInfoOptional(connectionId)).thenReturn(Optional.of(connectionInfo));
+		LockUnavilableException e = new LockUnavilableException(LockType.Write, "not now", connectionId);
+		doThrow(e).when(mockDispatcher).dispatchMessage(any());
+		RecoverableMessageException thrown = assertThrows(RecoverableMessageException.class, () -> {
+			// call under test
+			worker.run(mockCallback, message);
+		});
+		assertEquals(e, thrown.getCause());
 	}
 
 	@Test

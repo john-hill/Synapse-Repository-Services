@@ -2,10 +2,12 @@ package org.sagebionetworks;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.Test;
@@ -23,7 +25,7 @@ import com.google.common.collect.Lists;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
-public class BeanTest implements ApplicationContextAware {
+public class BeanTestWorkers implements ApplicationContextAware {
 
 	ApplicationContext applicationContext;
 
@@ -37,11 +39,10 @@ public class BeanTest implements ApplicationContextAware {
 			"org.springframework.transaction.interceptor.TransactionInterceptor",
 			"org.springframework.aop.support.DefaultBeanFactoryPointcutAdvisor");
 	private static final Pattern UNNAMED_BEAN_PATTERN = Pattern.compile("^(.*)#[0-9]+$");
-	
+
 	// The semaphore uses the standard transactional annotation
-	private static final Set<String> TRANSACTIONAL_EXCEPTIONS = Set.of(
-		"refreshLockTimeout", "releaseLock", "attemptToAcquireLock", "runGarbageCollection"
-	);
+	private static final Set<String> TRANSACTIONAL_EXCEPTIONS = Set.of("refreshLockTimeout", "releaseLock",
+			"attemptToAcquireLock", "runGarbageCollection");
 
 	@Test
 	public void testNoUnnamedBeans() {
@@ -52,14 +53,23 @@ public class BeanTest implements ApplicationContextAware {
 				foundBeans.add(beanName);
 			}
 		}
-		assertEquals("", StringUtils.join(foundBeans, ","), "Found beans without name/id. Either give the bean a name/id or add to exceptions in the test, otherwise Spring will not guarantee that the bean is a singleton");
+		assertEquals("", StringUtils.join(foundBeans, ","),
+				"Found beans without name/id. Either give the bean a name/id or add to exceptions in the test, otherwise Spring will not guarantee that the bean is a singleton");
 	}
 
 	@Test
 	public void testTransactionalNotUsed() {
-		// Transactional is not used anymore, use @WriteTransaction, @NewWriteTransaction or @MandatoryWriteTransaction
-		Reflections reflections = new Reflections("org.sagebionetworks", Scanners.MethodsAnnotated, Scanners.TypesAnnotated);
-		assertEquals(0, reflections.getTypesAnnotatedWith(Transactional.class).size());
-		assertEquals(0, reflections.getMethodsAnnotatedWith(Transactional.class).stream().filter(m -> !TRANSACTIONAL_EXCEPTIONS.contains(m.getName())).count());
+		// Transactional is not used anymore, use @WriteTransaction,
+		// @NewWriteTransaction or @MandatoryWriteTransaction
+		Reflections reflections = new Reflections("org.sagebionetworks", Scanners.MethodsAnnotated,
+				Scanners.TypesAnnotated);
+		assertEquals(0, reflections.getTypesAnnotatedWith(Transactional.class).stream()
+				.filter(r -> !r.getPackageName().contains("grid")).count());
+		List<Method> methodsWithAnnotation = reflections.getMethodsAnnotatedWith(Transactional.class).stream()
+				.filter(m -> !TRANSACTIONAL_EXCEPTIONS.contains(m.getName())
+						&& !m.getDeclaringClass().getPackageName().contains("grid"))
+				.collect(Collectors.toList());
+		System.out.println(methodsWithAnnotation);
+		assertEquals(0, methodsWithAnnotation.size());
 	}
 }

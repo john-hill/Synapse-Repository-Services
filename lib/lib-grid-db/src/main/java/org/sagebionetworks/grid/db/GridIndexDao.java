@@ -13,8 +13,10 @@ import org.sagebionetworks.repo.model.grid.node.ValueNode;
 import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewVector;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 
-public interface GridIndexDao {
+public interface GridIndexDao extends ConstantProvider {
 
 	/**
 	 * Create a new Replica, if it does not already exist. This the first step to
@@ -209,5 +211,67 @@ public interface GridIndexDao {
 	 * step three).
 	 */
 	Optional<LogicalTimestamp> findArrayInsertLocation(String sessionIdString, Long replicaId, ArrayNode toInsert);
+
+	/**
+	 * Create the next message ID to start a new message chain.The id resets to zero
+	 * when it reaches 65535.
+	 * 
+	 * @see <a href=
+	 *      "https://jsonjoy.com/specs/json-rx/messages#Sequence-number-(message-ID)-component">Sequence-number-(message-ID)-component</a>
+	 * 
+	 * @param sessionIdString
+	 * @param replicaId
+	 * @param maxValue
+	 * @return
+	 */
+	Integer createNextMessageId(String sessionIdString, Long replicaId, int maxValue);
+
+	/**
+	 * Create a new {@link MessageChain} to track this chain as it is executed.
+	 * 
+	 * @param setMethod
+	 * @return
+	 */
+	MessageChain createMessageChain(MessageChain setMethod);
+
+	/**
+	 * Get a {@link MessageChain} if it exists.
+	 * 
+	 * @param sessionId
+	 * @param replicaId
+	 * @param chainId
+	 * @return Optional.empty() if the chain no longer exists
+	 */
+	Optional<MessageChain> getMessageChain(String sessionId, Long replicaId, Integer chainId);
+
+	/**
+	 * Delete a message chain upon completion. This will free up the ID to be
+	 * recycled if needed.
+	 * 
+	 * @param sessionId
+	 * @param replicaId
+	 * @param chainId
+	 */
+	void deleteMessageChain(String sessionId, Long replicaId, Integer chainId);
+
+	/**
+	 * Get the root object of the document.
+	 * 
+	 * @param sessionId
+	 * @param replicaId
+	 * @return
+	 */
+	Optional<ObjectNode> getRootObject(String sessionId, Long replicaId);
+
+	/**
+	 * Run a custom query against the nodes.
+	 * 
+	 * @param <T>
+	 * @param sql
+	 * @param paramSource
+	 * @param rowMapper
+	 * @return
+	 */
+	<T> List<T> query(String sql, SqlParameterSource paramSource, RowMapper<T> rowMapper);
 
 }

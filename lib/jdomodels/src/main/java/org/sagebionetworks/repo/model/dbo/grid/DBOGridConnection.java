@@ -53,7 +53,7 @@ public class DBOGridConnection implements MigratableDatabaseObject<DBOGridConnec
 				dbo.setId(rs.getLong(COL_GRID_CON_ID));
 				dbo.setConnectionId(rs.getString(COL_GRID_CON_CONNECTION_ID));
 				dbo.setSessionId(rs.getString(COL_GRID_CON_SESSION_ID));
-				dbo.setReplciaId(rs.getLong(COL_GRID_CON_REPLICA_ID));
+				dbo.setReplicaId(rs.getLong(COL_GRID_CON_REPLICA_ID));
 				dbo.setCreatedBy(rs.getLong(COL_GRID_CON_CREATED_BY));
 				dbo.setCreatedOn(rs.getTimestamp(COL_GRID_CON_CREATED_ON));
 				dbo.setSource(rs.getString(COL_GRID_CON_SOURCE));
@@ -109,11 +109,11 @@ public class DBOGridConnection implements MigratableDatabaseObject<DBOGridConnec
 		return this;
 	}
 
-	public Long getReplciaId() {
+	public Long getReplicaId() {
 		return replicaId;
 	}
 
-	public DBOGridConnection setReplciaId(Long replicaId) {
+	public DBOGridConnection setReplicaId(Long replicaId) {
 		this.replicaId = replicaId;
 		return this;
 	}

@@ -51,6 +51,8 @@ import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.repo.model.table.RowSet;
 import org.sagebionetworks.repo.model.table.TableEntity;
 import org.sagebionetworks.table.cluster.utils.TableModelUtils;
+import org.sagebionetworks.util.Pair;
+import org.sagebionetworks.util.TimeUtils;
 
 @ExtendWith(ITTestExtension.class)
 public class ITGridControllerTest {
@@ -152,21 +154,19 @@ public class ITGridControllerTest {
 
         // call under test (using Grid endpoints, not generic async job endpoints)
         String jobId = synapse.exportGridAsCsvAsyncStart(new DownloadFromGridRequest().setSessionId(session.getSessionId()));
-
-        DownloadFromGridResult result;
-        boolean success = false;
-        while (!success) {
-            Thread.sleep(ASYNC_JOB_POLL_TIME_MS);
+        TimeUtils.waitFor(MAX_TME_MS, ASYNC_JOB_POLL_TIME_MS,  () -> {
             try {
-                result = synapse.exportGridAsCsvAsyncGet(jobId);
-                if (result.getResultsFileHandleId() != null) {
-                    success = true;
-                }
+                DownloadFromGridResult result = synapse.exportGridAsCsvAsyncGet(jobId);
+                assertNotNull(result);
+                assertNotNull(result.getSessionId());
+                assertEquals(session.getSessionId(), result.getSessionId());
+                assertNotNull(result.getResultsFileHandleId());
+                return Pair.create(true, null);
             } catch (SynapseResultNotReadyException e) {
                 log.info("Grid CSV Export job results not ready: " + e.getMessage());
-                assertNotEquals(AsynchJobState.FAILED, e.getJobStatus().getJobState());
+                return Pair.create(false, null);
             }
-        }
+        });
     }
 
 
@@ -196,6 +196,7 @@ public class ITGridControllerTest {
                 .setName("my table")
                 .setParentId(project.getId())
                 .setColumnIds(columns.stream().map(ColumnModel::getId).collect(Collectors.toList())));
+        entitiesToDelete.add(table);
         String tableId = table.getId();
         // Append some rows
         RowSet set = new RowSet();

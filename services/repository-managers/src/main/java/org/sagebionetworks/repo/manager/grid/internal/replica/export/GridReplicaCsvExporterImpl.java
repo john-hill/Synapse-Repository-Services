@@ -8,10 +8,10 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-import org.sagebionetworks.grid.db.GridIndexManager;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.file.LocalFileUploadRequest;
 import org.sagebionetworks.repo.manager.grid.GridManager;
+import org.sagebionetworks.repo.manager.grid.internal.replica.change.GridReplicaPatchBuilderManager;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
@@ -35,20 +35,20 @@ import au.com.bytecode.opencsv.CSVWriter;
 @Service
 public class GridReplicaCsvExporterImpl implements GridReplicaCsvExporter {
     private final GridManager gridManager;
-    private final GridIndexManager gridIndexManager;
+    private final GridReplicaPatchBuilderManager replicaPatchBuilderManager;
     private final GridReplicaViewManager gridReplicaViewManager;
     private final CSVWriterProvider csvWriterProvider;
     private final FileHandleManager fileHandleManager;
 
     public GridReplicaCsvExporterImpl(
             GridManager gridManager,
-            GridIndexManager gridIndexManager,
+            GridReplicaPatchBuilderManager replicaPatchBuilderManager,
             GridReplicaViewManager gridReplicaViewManager,
             CSVWriterProvider csvWriterProvider,
             FileHandleManager fileHandleManager
     ) {
         this.gridManager = gridManager;
-        this.gridIndexManager = gridIndexManager;
+        this.replicaPatchBuilderManager = replicaPatchBuilderManager;
         this.gridReplicaViewManager = gridReplicaViewManager;
         this.csvWriterProvider = csvWriterProvider;
         this.fileHandleManager = fileHandleManager;
@@ -103,7 +103,7 @@ public class GridReplicaCsvExporterImpl implements GridReplicaCsvExporter {
         GridConnectionInfo connectionInfo = gridManager.getDefaultInternalConnection(gridSessionId)
                 .orElseThrow(() -> new RecoverableMessageException("No internal connection found for session: " + gridSessionId));
 
-        gridIndexManager.getCurrentClockIfAllPatchesApplied(connectionInfo.getSessionId(), connectionInfo.getReplicaId())
+        replicaPatchBuilderManager.getCurrentClockIfAllPatchesApplied(connectionInfo.getSessionId(), connectionInfo.getReplicaId())
                 .orElseThrow(() -> new RecoverableMessageException("Current clock could not be retrieved, patches are still being applied to sessionId: " + connectionInfo.getSessionId() + ", replicaId: " + connectionInfo.getReplicaId()));
         return gridReplicaViewManager.readHeader(connectionInfo.getSessionId(), connectionInfo.getReplicaId())
                 .orElseThrow(() -> new RecoverableMessageException("Grid header has not yet been instantiated for sessionId: " + gridSessionId));

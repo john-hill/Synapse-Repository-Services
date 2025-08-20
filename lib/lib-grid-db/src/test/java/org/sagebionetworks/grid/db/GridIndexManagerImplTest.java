@@ -220,42 +220,4 @@ public class GridIndexManagerImplTest {
 		assertTrue(manager.isPatchAlreadyApplied(sessionId, replicaId, patch.getPatchId()));
 	}
 
-    @Test
-    public void testGetCurrentClock() {
-        Long last = 101L;
-        when(mockDao.getClockSequenceNumber(sessionId, replicaId, replicaId)).thenReturn(Optional.of(last));
-        when(mockGridDao.listMissingPatchIdsForClock(sessionId,
-                List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(last)), 1))
-                .thenReturn(List.of());
-
-        // call under test
-        Optional<LogicalTimestamp> result = manager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId);
-        assertEquals(Optional.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(last)), result);
-    }
-
-    @Test
-    public void testGetCurrentClockWithNoSequence() {
-        when(mockDao.getClockSequenceNumber(sessionId, replicaId, replicaId)).thenReturn(Optional.empty());
-        when(mockGridDao.listMissingPatchIdsForClock(sessionId,
-                List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(0L)), 1))
-                .thenReturn(List.of());
-
-        // call under test
-        Optional<LogicalTimestamp> result = manager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId);
-        assertEquals(Optional.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(0L)), result);
-    }
-
-    @Test
-    public void testGetCurrentClockWithMissingPatches() {
-        Long last = 101L;
-        when(mockDao.getClockSequenceNumber(sessionId, replicaId, replicaId)).thenReturn(Optional.of(last));
-        when(mockGridDao.listMissingPatchIdsForClock(sessionId,
-                List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(last)), 1))
-                .thenReturn(List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(999L)));
-
-        // call under test
-        Optional<LogicalTimestamp> result = manager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId);
-        assertEquals(Optional.empty(), result);
-    }
-
 }

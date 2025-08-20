@@ -8,7 +8,6 @@ import java.util.Set;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.node.ValueNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
@@ -28,13 +27,11 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	private static final Logger log = LogManager.getLogger(GridIndexManagerImpl.class);
 
 	private final GridIndexDao dao;
-    private final GridDao gridDao;
 	private final OperationDispatcher operationDispatcher;
 
-	public GridIndexManagerImpl(GridIndexDao dao, GridDao gridDao, OperationDispatcher operationDispatcher) {
+	public GridIndexManagerImpl(GridIndexDao dao, OperationDispatcher operationDispatcher) {
 		super();
 		this.dao = dao;
-        this.gridDao = gridDao;
 		this.operationDispatcher = operationDispatcher;
 	}
 
@@ -123,17 +120,4 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	public void truncateAll() {
 		dao.truncateAll();
 	}
-
-    @Override
-    public Optional<LogicalTimestamp> getCurrentClockIfAllPatchesApplied(String sessionId, Long replicaId) {
-        Optional<Long> sequenceNumber = dao.getClockSequenceNumber(sessionId, replicaId, replicaId);
-        LogicalTimestamp currentClock = new LogicalTimestamp().setReplicaId(replicaId)
-                .setSequenceNumber(sequenceNumber.orElse(0L));
-
-        List<LogicalTimestamp> missingPatches = gridDao.listMissingPatchIdsForClock(sessionId, List.of(currentClock),
-                1);
-
-        return missingPatches.isEmpty() ? Optional.of(currentClock) : Optional.empty();
-    }
-
 }

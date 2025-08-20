@@ -62,14 +62,4 @@ public interface GridIndexManager {
 	void completeMessageChain(String sessionId, Long replicaId, Integer chainId);
 
 	void truncateAll();
-
-    /**
-     * Retrieve the current clock for this session. This method references the patch database and will return an empty optional
-     * if there are outstanding patches to apply.
-     * @param sessionId
-     * @param replicaId
-     * @return
-     */
-    Optional<LogicalTimestamp> getCurrentClockIfAllPatchesApplied(String sessionId, Long replicaId);
-
 }

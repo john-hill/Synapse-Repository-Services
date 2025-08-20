@@ -23,11 +23,6 @@
 			<artifactId>lib-stackConfiguration</artifactId>
 		</dependency>
 
-		<dependency>
-            <groupId>org.sagebionetworks</groupId>
-            <artifactId>lib-jdomodels</artifactId>
-        </dependency>
-
         <dependency>
 			<groupId>org.sagebionetworks</groupId>
 			<artifactId>lib-test</artifactId>

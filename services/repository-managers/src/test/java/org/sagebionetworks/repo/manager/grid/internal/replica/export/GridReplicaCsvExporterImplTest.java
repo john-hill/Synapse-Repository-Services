@@ -298,7 +298,7 @@ public class GridReplicaCsvExporterImplTest {
         when(mockGridManager.getGridSession(userInfo, sessionId)).thenReturn(mockGridSession);
         when(mockGridManager.getDefaultInternalConnection(sessionId)).thenReturn(Optional.empty());
 
-        assertThrows(IllegalStateException.class, () -> {
+        assertThrows(RecoverableMessageException.class, () -> {
             exporter.exportGridAsCsv(jobId, userInfo, request, mockJobProgressCallback);
         }, "No internal connection found for session: " + sessionId);
         verifyNoFileUpload();

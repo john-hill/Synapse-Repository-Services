@@ -15,8 +15,4 @@
 
 	<import resource="classpath:grid-db-spb.xml" />
 
-    <import resource="classpath:jdomodels-import.xml" />
-    <import resource="classpath:id-generator.spb.xml" />
-    <import resource="classpath:table-cluster-spb.xml" />
-
 </beans>

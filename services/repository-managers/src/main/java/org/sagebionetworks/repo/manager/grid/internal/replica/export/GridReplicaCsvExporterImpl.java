@@ -101,7 +101,7 @@ public class GridReplicaCsvExporterImpl implements GridReplicaCsvExporter {
         gridManager.getGridSession(userInfo, gridSessionId);
 
         GridConnectionInfo connectionInfo = gridManager.getDefaultInternalConnection(gridSessionId)
-                .orElseThrow(() -> new IllegalStateException("No internal connection found for session: " + gridSessionId));
+                .orElseThrow(() -> new RecoverableMessageException("No internal connection found for session: " + gridSessionId));
 
         gridIndexManager.getCurrentClockIfAllPatchesApplied(connectionInfo.getSessionId(), connectionInfo.getReplicaId())
                 .orElseThrow(() -> new RecoverableMessageException("Current clock could not be retrieved, patches are still being applied to sessionId: " + connectionInfo.getSessionId() + ", replicaId: " + connectionInfo.getReplicaId()));

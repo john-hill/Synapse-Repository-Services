@@ -6519,6 +6519,6 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 
     @Override
     public DownloadFromGridResult exportGridAsCsvAsyncGet(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException {
-        return (DownloadFromGridResult) getAsyncResult(AsynchJobType.CreateGrid, asyncJobToken);
+        return (DownloadFromGridResult) getAsyncResult(AsynchJobType.GridCsvDownload, asyncJobToken);
     }
 }

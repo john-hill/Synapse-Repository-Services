@@ -1296,4 +1296,16 @@ public class GridManagerUnitTest {
 		assertEquals(Optional.empty(), gridManager.getSchemaId(mockUser, tableId, rows));
 		verifyNoMoreInteractions(mockEntityManager);
 	}
+
+    @Test
+    public void testGetDefaultInternalConnection() {
+        when(mockGridDao.getDefaultInternalConnection(gridSessionId)).thenReturn(
+                Optional.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)));
+
+        // call under test
+        Optional<GridConnectionInfo> actual = gridManager.getDefaultInternalConnection(gridSessionId);
+        assertEquals(Optional.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)), actual);
+        verifyNoMoreInteractions(mockGridDao);
+        verifyNoMoreInteractions(mockEntityManager);
+    }
 }

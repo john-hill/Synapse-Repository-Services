@@ -1,7 +1,9 @@
-package org.sagebionetworks.table.worker;
+package org.sagebionetworks.util.csv;
 
-import java.io.FileWriter;
+import java.io.Writer;
+
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
+
 import au.com.bytecode.opencsv.CSVWriter;
 
 public interface CSVWriterProvider {
@@ -12,6 +14,6 @@ public interface CSVWriterProvider {
 	 * @param csvTableDescriptor
 	 * @return
 	 */
-	CSVWriter createWriter(FileWriter fileWriter, CsvTableDescriptor csvTableDescriptor);
+	CSVWriter createWriter(Writer fileWriter, CsvTableDescriptor csvTableDescriptor);
 
 }

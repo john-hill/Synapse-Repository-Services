@@ -80,7 +80,7 @@ public class GridReplicaPatchBuilderManagerImplTest {
 	@Test
 	public void testBuildPatch() throws IOException {
 		when(mockGridDao.getGridSession(sessionId)).thenReturn(Optional.of(session));
-		doReturn(Optional.of(clock)).when(manager).getCurrentClock(sessionId, replicaId);
+		doReturn(Optional.of(clock)).when(manager).getCurrentClockIfAllPatchesApplied(sessionId, replicaId);
 		doReturn(mockChangePatchBuilder).when(manager).createChangePatchBuilder(con, clock);
 		doNothing().when(manager).processChanges(mockChangePatchBuilder, changeSet.getChanges());
 
@@ -95,7 +95,7 @@ public class GridReplicaPatchBuilderManagerImplTest {
 
 		// call under test
 		manager.buildPatch(changeSet);
-		verify(manager, never()).getCurrentClock(any(), any());
+		verify(manager, never()).getCurrentClockIfAllPatchesApplied(any(), any());
 		verify(manager, never()).createChangePatchBuilder(any(), any());
 		verify(manager, never()).createChangePatchBuilder(any(), any());
 		verifyNoMoreInteractions(mockGridDao, mockGridIndexDao);
@@ -104,7 +104,8 @@ public class GridReplicaPatchBuilderManagerImplTest {
 	@Test
 	public void testBuildPatchWithNoClock() throws IOException {
 		when(mockGridDao.getGridSession(sessionId)).thenReturn(Optional.of(session));
-		doReturn(Optional.empty()).when(manager).getCurrentClock(sessionId, replicaId);
+		doReturn(Optional.empty()).when(manager).getCurrentClockIfAllPatchesApplied(sessionId, replicaId);
+		doReturn(Optional.empty()).when(manager).getCurrentClockIfAllPatchesApplied(sessionId, replicaId);
 		String message = assertThrows(RecoverableMessageException.class, () -> {
 			// call under test
 			manager.buildPatch(changeSet);
@@ -135,6 +136,7 @@ public class GridReplicaPatchBuilderManagerImplTest {
 				(UpdateMetadataChange) changeSet.getChanges().get(0));
 	}
 
+//<<<<<<< HEAD
 	@Test
 	public void testGetCurrentClock() {
 		Long last = 101L;
@@ -143,7 +145,7 @@ public class GridReplicaPatchBuilderManagerImplTest {
 		when(mockGridDao.listMissingPatchIdsForClock(sessionId, currentClock, 1)).thenReturn(List.of());
 
 		// call under test
-		Optional<LogicalTimestamp> result = manager.getCurrentClock(sessionId, replicaId);
+		Optional<LogicalTimestamp> result = manager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId);
 		assertEquals(Optional.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(last)), result);
 	}
 
@@ -154,7 +156,7 @@ public class GridReplicaPatchBuilderManagerImplTest {
 		when(mockGridDao.listMissingPatchIdsForClock(sessionId, currentClock, 1)).thenReturn(List.of());
 
 		// call under test
-		Optional<LogicalTimestamp> result = manager.getCurrentClock(sessionId, replicaId);
+		Optional<LogicalTimestamp> result = manager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId);
 		assertEquals(Optional.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(0L)), result);
 	}
 
@@ -165,7 +167,8 @@ public class GridReplicaPatchBuilderManagerImplTest {
 				.thenReturn(List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(999L)));
 
 		// call under test
-		Optional<LogicalTimestamp> result = manager.getCurrentClock(sessionId, replicaId);
+		Optional<LogicalTimestamp> result = manager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId);
 		assertEquals(Optional.empty(), result);
 	}
+
 }

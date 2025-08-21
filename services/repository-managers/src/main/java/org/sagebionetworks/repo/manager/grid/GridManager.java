@@ -107,6 +107,14 @@ public interface GridManager extends PatchStore {
 	void removeReplicaConnection(String connectionId);
 
 	/**
+	 * Retrieves the default internal connection for a given grid session ID.
+	 *
+	 * @param sessionId
+	 * @return
+	 */
+	Optional<GridConnectionInfo> getDefaultInternalConnection(String sessionId);
+
+	/**
 	 * Save a patch.
 	 * 
 	 * @param context

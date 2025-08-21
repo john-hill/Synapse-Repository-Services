@@ -452,8 +452,13 @@ public class UrlHelpers {
 	
 	public static final String GRID_SESSION_ID_REPLICA = GRID_SESSION_ID+"/replica";
 	public static final String GRID_SESSION_ID_REPLICA_ID = GRID_SESSION_ID_REPLICA+"/{replicaId}";
-	
-	public static final String GRID_SESSION_ID_PRESIGNED_URL = GRID_SESSION_ID+"/presigned/url";
+
+    public static final String GRID_DOWNLOAD = GRID+"/download";
+    public static final String GRID_DOWNLOAD_CSV = GRID_DOWNLOAD+"/csv";
+    public static final String GRID_DOWNLOAD_CSV_ASYNC_START = GRID_DOWNLOAD_CSV+ASYNC_START_REQUEST;
+    public static final String GRID_DOWNLOAD_CSV_ASYNC_GET = GRID_DOWNLOAD_CSV+ASYNC_GET_REQUEST;
+
+    public static final String GRID_SESSION_ID_PRESIGNED_URL = GRID_SESSION_ID+"/presigned/url";
 	
 	public static final String GRID_SESSION_ID_SCHEMA = GRID_SESSION_ID+"/schema";
 	public static final String GRID_SESSION_LIST = GRID_SESSION + "/list";

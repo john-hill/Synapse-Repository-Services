@@ -30,11 +30,11 @@ public class GridReplicaPatchBuilderManagerImpl implements GridReplicaPatchBuild
 	private final PatchPublisher patchPublisher;
 	private final Map<IntendedChangeType, ChangeHandler<?>> handlers;
 
-	public GridReplicaPatchBuilderManagerImpl(GridDao gridDao, GridIndexDao gridIndexDao, PatchPublisher patchPublisher,
-			List<ChangeHandler<?>> handlers, ConstantProvider constantProvider) {
-		this.gridDao = gridDao;
-		this.gridIndexDao = gridIndexDao;
-		this.constantProvider = constantProvider;
+    public GridReplicaPatchBuilderManagerImpl(GridDao gridDao, GridIndexDao gridIndexDao, PatchPublisher patchPublisher,
+                                              List<ChangeHandler<?>> handlers, ConstantProvider constantProvider) {
+        this.gridDao = gridDao;
+        this.gridIndexDao = gridIndexDao;
+        this.constantProvider = constantProvider;
 		this.patchPublisher = patchPublisher;
 		this.handlers = handlers.stream().collect(Collectors.toMap(ChangeHandler::getType, h -> h));
 	}
@@ -48,7 +48,7 @@ public class GridReplicaPatchBuilderManagerImpl implements GridReplicaPatchBuild
 			return;
 		}
 
-		Optional<LogicalTimestamp> currentClock = getCurrentClock(changeSet.getSessionId(), changeSet.getReplicaId());
+		Optional<LogicalTimestamp> currentClock = getCurrentClockIfAllPatchesApplied(changeSet.getSessionId(), changeSet.getReplicaId());
 		if (currentClock.isEmpty()) {
 			throw new RecoverableMessageException(
 					"Waiting for outstanding patches to be applied before building new ones");
@@ -88,7 +88,8 @@ public class GridReplicaPatchBuilderManagerImpl implements GridReplicaPatchBuild
 		}
 	}
 
-	Optional<LogicalTimestamp> getCurrentClock(String sessionId, Long replicaId) {
+	@Override
+	public Optional<LogicalTimestamp> getCurrentClockIfAllPatchesApplied(String sessionId, Long replicaId) {
 		List<LogicalTimestamp> missingPatches = gridDao.listMissingPatchIdsForClock(sessionId,
 				gridIndexDao.getClock(sessionId, replicaId), 1);
 		if (!missingPatches.isEmpty()) {
@@ -97,4 +98,5 @@ public class GridReplicaPatchBuilderManagerImpl implements GridReplicaPatchBuild
 		Optional<Long> sequenceNumber = gridIndexDao.getClockSequenceNumber(sessionId, replicaId, replicaId);
 		return Optional.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(sequenceNumber.orElse(0L)));
 	}
+
 }

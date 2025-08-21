@@ -312,6 +312,10 @@
 
 	<bean id="storageReportManager"
 		  class="org.sagebionetworks.repo.manager.report.StorageReportManagerImpl"
-		  scope="singleton"/>	
+		  scope="singleton"/>
+
+    <bean id="csvWriterProvider"
+          class="org.sagebionetworks.util.csv.CSVWriterProviderImpl"
+          scope="singleton"/>
 		  
 </beans>

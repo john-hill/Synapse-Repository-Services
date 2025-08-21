@@ -8,6 +8,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
@@ -26,6 +27,7 @@ import org.sagebionetworks.grid.db.GridIndexDao;
 import org.sagebionetworks.repo.manager.grid.PatchUtils;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
+import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 
@@ -50,7 +52,9 @@ public class GridReplicaPatchBuilderManagerImplTest {
 	private Long replicaId;
 	private String connectionId;
 	private GridConnectionInfo con;
+	private List<LogicalTimestamp> currentClock;
 	private LogicalTimestamp clock;
+	private GridSession session;
 
 	private GridReplicaPatchBuilderManagerImpl manager;
 
@@ -59,11 +63,14 @@ public class GridReplicaPatchBuilderManagerImplTest {
 		connectionId = "con123";
 		replicaId = 3L;
 		sessionId = "session34";
+
 		con = new GridConnectionInfo().setConnectionId(connectionId).setSessionId(sessionId).setReplicaId(replicaId);
 		changeSet = new IntendedChangeSet().setSessionId(sessionId).setReplicaId(replicaId)
 				.setConnectionId(connectionId).setChanges(List.of(new UpdateMetadataChange()
 						.setRowMetadataId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L))));
 		clock = new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(4L);
+		currentClock = List.of(new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(6L));
+		session = new GridSession().setEtag("etag").setSessionId(sessionId);
 		when(mockChangeHandler.getType()).thenReturn(IntendedChangeType.update_row_metadata);
 
 		manager = Mockito.spy(new GridReplicaPatchBuilderManagerImpl(mockGridDao, mockGridIndexDao, mockPatchPublisher,
@@ -72,6 +79,7 @@ public class GridReplicaPatchBuilderManagerImplTest {
 
 	@Test
 	public void testBuildPatch() throws IOException {
+		when(mockGridDao.getGridSession(sessionId)).thenReturn(Optional.of(session));
 		doReturn(Optional.of(clock)).when(manager).getCurrentClock(sessionId, replicaId);
 		doReturn(mockChangePatchBuilder).when(manager).createChangePatchBuilder(con, clock);
 		doNothing().when(manager).processChanges(mockChangePatchBuilder, changeSet.getChanges());
@@ -82,7 +90,20 @@ public class GridReplicaPatchBuilderManagerImplTest {
 	}
 
 	@Test
+	public void testBuildPatchWithNoSession() throws IOException {
+		when(mockGridDao.getGridSession(sessionId)).thenReturn(Optional.empty());
+
+		// call under test
+		manager.buildPatch(changeSet);
+		verify(manager, never()).getCurrentClock(any(), any());
+		verify(manager, never()).createChangePatchBuilder(any(), any());
+		verify(manager, never()).createChangePatchBuilder(any(), any());
+		verifyNoMoreInteractions(mockGridDao, mockGridIndexDao);
+	}
+
+	@Test
 	public void testBuildPatchWithNoClock() throws IOException {
+		when(mockGridDao.getGridSession(sessionId)).thenReturn(Optional.of(session));
 		doReturn(Optional.empty()).when(manager).getCurrentClock(sessionId, replicaId);
 		String message = assertThrows(RecoverableMessageException.class, () -> {
 			// call under test
@@ -118,9 +139,8 @@ public class GridReplicaPatchBuilderManagerImplTest {
 	public void testGetCurrentClock() {
 		Long last = 101L;
 		when(mockGridIndexDao.getClockSequenceNumber(sessionId, replicaId, replicaId)).thenReturn(Optional.of(last));
-		when(mockGridDao.listMissingPatchIdsForClock(sessionId,
-				List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(last)), 1))
-				.thenReturn(List.of());
+		when(mockGridIndexDao.getClock(sessionId, replicaId)).thenReturn(currentClock);
+		when(mockGridDao.listMissingPatchIdsForClock(sessionId, currentClock, 1)).thenReturn(List.of());
 
 		// call under test
 		Optional<LogicalTimestamp> result = manager.getCurrentClock(sessionId, replicaId);
@@ -130,9 +150,8 @@ public class GridReplicaPatchBuilderManagerImplTest {
 	@Test
 	public void testGetCurrentClockWithNoSequence() {
 		when(mockGridIndexDao.getClockSequenceNumber(sessionId, replicaId, replicaId)).thenReturn(Optional.empty());
-		when(mockGridDao.listMissingPatchIdsForClock(sessionId,
-				List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(0L)), 1))
-				.thenReturn(List.of());
+		when(mockGridIndexDao.getClock(sessionId, replicaId)).thenReturn(currentClock);
+		when(mockGridDao.listMissingPatchIdsForClock(sessionId, currentClock, 1)).thenReturn(List.of());
 
 		// call under test
 		Optional<LogicalTimestamp> result = manager.getCurrentClock(sessionId, replicaId);
@@ -141,10 +160,8 @@ public class GridReplicaPatchBuilderManagerImplTest {
 
 	@Test
 	public void testGetCurrentClockWithMissingPatches() {
-		Long last = 101L;
-		when(mockGridIndexDao.getClockSequenceNumber(sessionId, replicaId, replicaId)).thenReturn(Optional.of(last));
-		when(mockGridDao.listMissingPatchIdsForClock(sessionId,
-				List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(last)), 1))
+		when(mockGridIndexDao.getClock(sessionId, replicaId)).thenReturn(currentClock);
+		when(mockGridDao.listMissingPatchIdsForClock(sessionId, currentClock, 1))
 				.thenReturn(List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(999L)));
 
 		// call under test

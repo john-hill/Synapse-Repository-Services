@@ -105,7 +105,6 @@ public class GridReplicaPatchBuilderManagerImplTest {
 	public void testBuildPatchWithNoClock() throws IOException {
 		when(mockGridDao.getGridSession(sessionId)).thenReturn(Optional.of(session));
 		doReturn(Optional.empty()).when(manager).getCurrentClockIfAllPatchesApplied(sessionId, replicaId);
-		doReturn(Optional.empty()).when(manager).getCurrentClockIfAllPatchesApplied(sessionId, replicaId);
 		String message = assertThrows(RecoverableMessageException.class, () -> {
 			// call under test
 			manager.buildPatch(changeSet);

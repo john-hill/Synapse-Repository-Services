@@ -137,8 +137,8 @@ public class GridEventBrokerWorkerIntegrationTest {
 	@Autowired
 	private GridReplicaViewManager gridViewManager;
 
-    @Autowired
-    private SynapseS3Client s3Client;
+	@Autowired
+	private SynapseS3Client s3Client;
 
 	private UserInfo admin;
 
@@ -344,19 +344,16 @@ public class GridEventBrokerWorkerIntegrationTest {
 			}
 		}, incomingMessagesOne));
 
+		DownloadFromGridRequest csvDownloadRequest = new DownloadFromGridRequest().setSessionId(session.getSessionId())
+				.setIncludeEtag(false);
 
-        DownloadFromGridRequest csvDownloadRequest = new DownloadFromGridRequest()
-                .setSessionId(session.getSessionId())
-                .setIncludeEtag(false);
+		// Create and validate the CSV exported form the grid
+		List<String[]> csvContents = createAndDownloadCsvFromGrid(csvDownloadRequest);
 
-        // Create and validate the CSV exported form the grid
-        List<String[]> csvContents = createAndDownloadCsvFromGrid(csvDownloadRequest);
-
-        assertEquals(2, csvContents.size());
-        assertArrayEquals(new String[]{"ROW_ID", "ROW_VERSION", "anInt"}, csvContents.get(0));
-        assertArrayEquals(new String[]{"1", "1", "9090"}, csvContents.get(1));
-    }
-
+		assertEquals(2, csvContents.size());
+		assertArrayEquals(new String[] { "ROW_ID", "ROW_VERSION", "anInt" }, csvContents.get(0));
+		assertArrayEquals(new String[] { "1", "1", "9090" }, csvContents.get(1));
+	}
 
 	@Test
 	public void testGridWithViewQueryAndBoundSchema() throws Exception {
@@ -379,7 +376,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 				new AnnotationsValue().setType(AnnotationsValueType.LONG).setValue(List.of("9090"))));
 		entityService.updateEntityAnnotations(admin.getId(), file.getId(), annos);
 		asynchronousJobWorkerHelper.waitForEntityReplication(admin, file.getId(), MAX_WAIT_MS);
-        file = (FileEntity) entityService.getEntity(admin.getId(), file.getId());
+		file = (FileEntity) entityService.getEntity(admin.getId(), file.getId());
 
 		// Bind the schema to the file.
 		entityService.bindSchemaToEntity(admin.getId(),
@@ -455,11 +452,11 @@ public class GridEventBrokerWorkerIntegrationTest {
 					rows.get(0));
 		});
 
-
 		Patch updatePatch = new Patch()
 				.setPatchId(new LogicalTimestamp().setReplicaId(replicaOne.getReplicaId()).setSequenceNumber(25L));
+		String updateValue = "wrong-type";
 		LogicalTimestamp conId = updatePatch
-				.addNewOperation(new NewConstantBuilder().setValue(new ConValue(ConType.STRING, "wrong-type")));
+				.addNewOperation(new NewConstantBuilder().setValue(new ConValue(ConType.STRING, updateValue)));
 		updatePatch.addNewOperation(new InsertVectorBuilder().setVectorId(row.getRowObject().getData().getVectorId())
 				.setMap(Map.of(0, conId)));
 		JSONArray patchBody = PatchCompactSerializable.serialize(updatePatch);
@@ -483,43 +480,45 @@ public class GridEventBrokerWorkerIntegrationTest {
 					.equals(rows.get(0).getRowValidationResults()), rows.get(0));
 		});
 
-        DownloadFromGridRequest csvDownloadRequest = new DownloadFromGridRequest()
-                .setSessionId(session.getSessionId())
-                .setIncludeEtag(true);
+		DownloadFromGridRequest csvDownloadRequest = new DownloadFromGridRequest().setSessionId(session.getSessionId())
+				.setIncludeEtag(true);
 
-        // Create and validate the CSV exported form the grid
-        List<String[]> csvContents = createAndDownloadCsvFromGrid(csvDownloadRequest);
+		// Create and validate the CSV exported form the grid
+		List<String[]> csvContents = createAndDownloadCsvFromGrid(csvDownloadRequest);
 
-        assertEquals(2, csvContents.size());
-        assertArrayEquals(new String[]{"ROW_ID", "ROW_VERSION", "etag", "anInt"}, csvContents.get(0));
-        assertArrayEquals(new String[]{file.getId().substring("syn".length()), file.getVersionNumber().toString(), file.getEtag(), "9090"}, csvContents.get(1));
-    }
+		assertEquals(2, csvContents.size());
+		assertArrayEquals(new String[] { "ROW_ID", "ROW_VERSION", "etag", "anInt" }, csvContents.get(0));
+		assertArrayEquals(new String[] { file.getId().substring("syn".length()), file.getVersionNumber().toString(),
+				file.getEtag(), updateValue }, csvContents.get(1));
+	}
 
-    List<String[]> createAndDownloadCsvFromGrid(DownloadFromGridRequest request) throws AsynchJobFailedException, IOException {
-        DownloadFromGridResult downloadFromGridResult = asynchronousJobWorkerHelper
-                .assertJobResponse(admin, request, (DownloadFromGridResult response) -> {
-                    assertNotNull(response);
-                    assertEquals(request.getSessionId(), response.getSessionId());
-                    assertNotNull(response.getResultsFileHandleId());
-                }, MAX_WAIT_MS).getResponse();
+	List<String[]> createAndDownloadCsvFromGrid(DownloadFromGridRequest request)
+			throws AsynchJobFailedException, IOException {
+		DownloadFromGridResult downloadFromGridResult = asynchronousJobWorkerHelper
+				.assertJobResponse(admin, request, (DownloadFromGridResult response) -> {
+					assertNotNull(response);
+					assertEquals(request.getSessionId(), response.getSessionId());
+					assertNotNull(response.getResultsFileHandleId());
+				}, MAX_WAIT_MS).getResponse();
 
-        S3FileHandle csvFileHandle = (S3FileHandle) fileHandleManager.getRawFileHandle(admin, downloadFromGridResult.getResultsFileHandleId());
+		S3FileHandle csvFileHandle = (S3FileHandle) fileHandleManager.getRawFileHandle(admin,
+				downloadFromGridResult.getResultsFileHandleId());
 
-        assertEquals("text/csv", csvFileHandle.getContentType());
-        assertNotNull(csvFileHandle.getContentMd5());
-        // Download the file
-        List<String[]> csvContents;
-        File temp = File.createTempFile("DownloadCSV", "."+ CSVUtils.guessExtension(null));
-        try {
-            s3Client.getObject(new GetObjectRequest(csvFileHandle.getBucketName(), csvFileHandle.getKey()), temp);
-            try (CSVReader csvReader = new CSVReader(new FileReader(temp))) {
-                csvContents = csvReader.readAll();
-            }
-        } finally {
-            temp.delete();
-        }
-        return csvContents;
-    }
+		assertEquals("text/csv", csvFileHandle.getContentType());
+		assertNotNull(csvFileHandle.getContentMd5());
+		// Download the file
+		List<String[]> csvContents;
+		File temp = File.createTempFile("DownloadCSV", "." + CSVUtils.guessExtension(null));
+		try {
+			s3Client.getObject(new GetObjectRequest(csvFileHandle.getBucketName(), csvFileHandle.getKey()), temp);
+			try (CSVReader csvReader = new CSVReader(new FileReader(temp))) {
+				csvContents = csvReader.readAll();
+			}
+		} finally {
+			temp.delete();
+		}
+		return csvContents;
+	}
 
 	/**
 	 * Helper to create a schema

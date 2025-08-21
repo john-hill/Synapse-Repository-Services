@@ -25,7 +25,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.node.ValueNode;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
@@ -39,9 +38,6 @@ import org.sagebionetworks.repo.model.grid.patch.operation.NewVector;
 public class GridIndexManagerImplTest {
 	@Mock
 	private GridIndexDao mockDao;
-
-    @Mock
-    private GridDao mockGridDao;
 
 	@Mock
 	private OperationDispatcher mockOperationDispatcher;

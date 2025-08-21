@@ -144,6 +144,7 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 	void cleanupValidationResults(ValidationResults validationResults) {
 		validationResults.setValidatedOn(null);
 		validationResults.setSchema$id(null);
+		validationResults.setValidationException(null);
 	}
 
 	/**

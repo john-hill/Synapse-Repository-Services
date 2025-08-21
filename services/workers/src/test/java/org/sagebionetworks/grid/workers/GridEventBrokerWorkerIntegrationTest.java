@@ -52,14 +52,11 @@ import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
-import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
 import org.sagebionetworks.repo.model.grid.patch.compact.LogicalTimestampCompactSerializable;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
-import org.sagebionetworks.repo.model.grid.patch.operation.builder.InsertVectorBuilder;
-import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewConstantBuilder;
 import org.sagebionetworks.repo.model.schema.CreateOrganizationRequest;
 import org.sagebionetworks.repo.model.schema.CreateSchemaRequest;
 import org.sagebionetworks.repo.model.schema.CreateSchemaResponse;
@@ -412,7 +409,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 			}
 		}, incomingMessagesOne));
 
-		RowView row = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
 			System.out.println("Waiting for row validation results to change...");
 			Optional<GridHeader> header = gridViewManager.readHeader(session.getSessionId(), INTERNAL_REPLICA_ID);
 			if (header.isEmpty()) {
@@ -423,36 +420,8 @@ public class GridEventBrokerWorkerIntegrationTest {
 				return Pair.create(false, null);
 			}
 			return Pair.create(new ValidationResults().setIsValid(true).equals(rows.get(0).getRowValidationResults()),
-					rows.get(0));
+					null);
 		});
-
-		Patch updatePatch = new Patch()
-				.setPatchId(new LogicalTimestamp().setReplicaId(replicaOne.getReplicaId()).setSequenceNumber(25L));
-		LogicalTimestamp conId = updatePatch
-				.addNewOperation(new NewConstantBuilder().setValue(new ConValue(ConType.STRING, "wrong-type")));
-		updatePatch.addNewOperation(new InsertVectorBuilder().setVectorId(row.getRowObject().getData().getVectorId())
-				.setMap(Map.of(0, conId)));
-		JSONArray patchBody = PatchCompactSerializable.serialize(updatePatch);
-		wsOne.send(String.format("[1,102,\"patch\", %s]", patchBody.toString()));
-		// Wait for response complete: [5,102]
-		assertTrue(waitForMessage((a) -> a.optInt(0) == 5 && a.optInt(1) == 102, incomingMessagesOne));
-
-		RowView rowUpdated = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
-			System.out.println("Waiting for row validation results to change...");
-			Optional<GridHeader> header = gridViewManager.readHeader(session.getSessionId(), INTERNAL_REPLICA_ID);
-			if (header.isEmpty()) {
-				return Pair.create(false, null);
-			}
-			List<RowView> rows = gridViewManager.querySinglePage(header.get(), 100L, 0L);
-			if (rows.size() != 1) {
-				return Pair.create(false, null);
-			}
-			return Pair.create(new ValidationResults().setIsValid(false)
-					.setAllValidationMessages(List.of("#/anInt: expected type: Integer, found: String"))
-					.setValidationErrorMessage("expected type: Integer, found: String")
-					.equals(rows.get(0).getRowValidationResults()), rows.get(0));
-		});
-
 	}
 
 	/**

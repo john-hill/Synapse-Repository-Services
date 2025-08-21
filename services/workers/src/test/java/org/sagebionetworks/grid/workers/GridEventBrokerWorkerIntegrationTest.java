@@ -1,9 +1,13 @@
 package org.sagebionetworks.grid.workers;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -26,6 +30,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.AsynchronousJobWorkerHelper;
+import org.sagebionetworks.aws.SynapseS3Client;
 import org.sagebionetworks.grid.db.GridIndexManager;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
@@ -45,10 +50,13 @@ import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValue;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValueType;
 import org.sagebionetworks.repo.model.entity.BindSchemaToEntityRequest;
 import org.sagebionetworks.repo.model.file.ExternalFileHandle;
+import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridResponse;
 import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
+import org.sagebionetworks.repo.model.grid.DownloadFromGridRequest;
+import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
@@ -75,11 +83,15 @@ import org.sagebionetworks.repo.service.EntityService;
 import org.sagebionetworks.repo.service.GridService;
 import org.sagebionetworks.repo.service.JsonSchemaServices;
 import org.sagebionetworks.repo.web.NotFoundException;
+import org.sagebionetworks.table.cluster.utils.CSVUtils;
 import org.sagebionetworks.util.Pair;
 import org.sagebionetworks.util.TimeUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import com.amazonaws.services.s3.model.GetObjectRequest;
+import au.com.bytecode.opencsv.CSVReader;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
@@ -120,6 +132,9 @@ public class GridEventBrokerWorkerIntegrationTest {
 
 	@Autowired
 	private GridReplicaViewManager gridViewManager;
+
+    @Autowired
+    private SynapseS3Client s3Client;
 
 	private UserInfo admin;
 
@@ -325,7 +340,19 @@ public class GridEventBrokerWorkerIntegrationTest {
 			}
 		}, incomingMessagesOne));
 
-	}
+
+        DownloadFromGridRequest csvDownloadRequest = new DownloadFromGridRequest()
+                .setSessionId(session.getSessionId())
+                .setIncludeEtag(false);
+
+        // Create and validate the CSV exported form the grid
+        List<String[]> csvContents = createAndDownloadCsvFromGrid(csvDownloadRequest);
+
+        assertEquals(2, csvContents.size());
+        assertArrayEquals(new String[]{"ROW_ID", "ROW_VERSION", "anInt"}, csvContents.get(0));
+        assertArrayEquals(new String[]{"1", "1", "9090"}, csvContents.get(1));
+    }
+
 
 	@Test
 	public void testGridWithViewQueryAndBoundSchema() throws Exception {
@@ -348,6 +375,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 				new AnnotationsValue().setType(AnnotationsValueType.LONG).setValue(List.of("9090"))));
 		entityService.updateEntityAnnotations(admin.getId(), file.getId(), annos);
 		asynchronousJobWorkerHelper.waitForEntityReplication(admin, file.getId(), MAX_WAIT_MS);
+        file = (FileEntity) entityService.getEntity(admin.getId(), file.getId());
 
 		// Bind the schema to the file.
 		entityService.bindSchemaToEntity(admin.getId(),
@@ -422,7 +450,44 @@ public class GridEventBrokerWorkerIntegrationTest {
 			return Pair.create(new ValidationResults().setIsValid(true).equals(rows.get(0).getRowValidationResults()),
 					null);
 		});
-	}
+
+        DownloadFromGridRequest csvDownloadRequest = new DownloadFromGridRequest()
+                .setSessionId(session.getSessionId())
+                .setIncludeEtag(true);
+
+        // Create and validate the CSV exported form the grid
+        List<String[]> csvContents = createAndDownloadCsvFromGrid(csvDownloadRequest);
+
+        assertEquals(2, csvContents.size());
+        assertArrayEquals(new String[]{"ROW_ID", "ROW_VERSION", "etag", "anInt"}, csvContents.get(0));
+        assertArrayEquals(new String[]{file.getId().substring("syn".length()), file.getVersionNumber().toString(), file.getEtag(), "9090"}, csvContents.get(1));
+    }
+
+    List<String[]> createAndDownloadCsvFromGrid(DownloadFromGridRequest request) throws AsynchJobFailedException, IOException {
+        DownloadFromGridResult downloadFromGridResult = asynchronousJobWorkerHelper
+                .assertJobResponse(admin, request, (DownloadFromGridResult response) -> {
+                    assertNotNull(response);
+                    assertEquals(request.getSessionId(), response.getSessionId());
+                    assertNotNull(response.getResultsFileHandleId());
+                }, MAX_WAIT_MS).getResponse();
+
+        S3FileHandle csvFileHandle = (S3FileHandle) fileHandleManager.getRawFileHandle(admin, downloadFromGridResult.getResultsFileHandleId());
+
+        assertEquals("text/csv", csvFileHandle.getContentType());
+        assertNotNull(csvFileHandle.getContentMd5());
+        // Download the file
+        List<String[]> csvContents;
+        File temp = File.createTempFile("DownloadCSV", "."+ CSVUtils.guessExtension(null));
+        try {
+            s3Client.getObject(new GetObjectRequest(csvFileHandle.getBucketName(), csvFileHandle.getKey()), temp);
+            try (CSVReader csvReader = new CSVReader(new FileReader(temp))) {
+                csvContents = csvReader.readAll();
+            }
+        } finally {
+            temp.delete();
+        }
+        return csvContents;
+    }
 
 	/**
 	 * Helper to create a schema

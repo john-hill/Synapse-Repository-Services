@@ -62,5 +62,4 @@ public interface GridIndexManager {
 	void completeMessageChain(String sessionId, Long replicaId, Integer chainId);
 
 	void truncateAll();
-
 }

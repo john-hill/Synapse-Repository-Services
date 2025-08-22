@@ -9,7 +9,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -38,8 +37,8 @@ import org.sagebionetworks.table.cluster.columntranslation.SchemaColumnTranslati
 import org.sagebionetworks.table.cluster.description.BenefactorDescription;
 import org.sagebionetworks.table.cluster.description.ColumnToAdd;
 import org.sagebionetworks.table.cluster.description.IndexDescription;
-import org.sagebionetworks.table.cluster.stats.StatGenerator;
 import org.sagebionetworks.table.cluster.stats.ElementStats;
+import org.sagebionetworks.table.cluster.stats.StatGenerator;
 import org.sagebionetworks.table.cluster.utils.TableModelUtils;
 import org.sagebionetworks.table.query.ParseException;
 import org.sagebionetworks.table.query.TableQueryParser;
@@ -108,6 +107,7 @@ import org.sagebionetworks.table.query.model.TableExpression;
 import org.sagebionetworks.table.query.model.TableNameCorrelation;
 import org.sagebionetworks.table.query.model.TableReference;
 import org.sagebionetworks.table.query.model.Term;
+import org.sagebionetworks.table.query.model.TextMatchesMode;
 import org.sagebionetworks.table.query.model.TextMatchesMySQLPredicate;
 import org.sagebionetworks.table.query.model.TextMatchesPredicate;
 import org.sagebionetworks.table.query.model.TruthSpecification;
@@ -1065,25 +1065,35 @@ public class SQLTranslatorUtils {
 		return new SearchCondition(orTerms);
 	}
 	
-	// Translate the expression foo HAS (1, 2, 3) -> JSON_OVERLAPS(foo, JSON_ARRAY(1, 2, 3)) IS TRUE
+	// Translate the expression foo HAS (1, 2, 3) -> JSON_OVERLAPS(lower(foo), JSON_ARRAY(lower(1), lower(2), lower(3))) IS TRUE
 	private static SearchCondition createArrayHasSearchCondition(ArrayHasPredicate predicate, ColumnReference columnReference) {
 		
 		// First build the JSON_ARRAY expression with the input values
 		MySqlFunction jsonArrayFunction = new MySqlFunction(MySqlFunctionName.JSON_ARRAY);
 		
 		jsonArrayFunction.startParentheses();
-		
 		predicate.getFirstElementOfType(InValueList.class).getValueExpressions().forEach(jsonArrayFunction::addParameter);
 		
 		MySqlFunction jsonOverlapFunction = new MySqlFunction(MySqlFunctionName.JSON_OVERLAPS);
 		
-		jsonOverlapFunction.startParentheses();
+		jsonOverlapFunction.startParentheses();		
+		// JSON_OVERLAPS in MySQL is case sensitive, we need to wrap the parameters in a LOWER() call to make it case insensitive
+		// (See https://sagebionetworks.jira.com/browse/PLFM-9086)
+		MySqlFunction lowerColumnReference = new MySqlFunction(MySqlFunctionName.LOWER);
 		
-		// The first argument of the JSON_OVERLAPS is the column reference
-		jsonOverlapFunction.addParameter(new ValueExpression(new NumericValueExpression(new Term(new Factor(null, new NumericPrimary(new ValueExpressionPrimary(columnReference)))))));
+		lowerColumnReference.startParentheses();
+		lowerColumnReference.addParameter(new ValueExpression(new NumericValueExpression(new Term(new Factor(null, new NumericPrimary(new ValueExpressionPrimary(columnReference)))))));
+
+		// The first argument of the JSON_OVERLAPS is the column reference (wrapped in the lower() call)
+		jsonOverlapFunction.addParameter(new ValueExpression(new NumericValueExpression(new Term(new Factor(null, new NumericPrimary(new NumericValueFunction(lowerColumnReference)))))));
 		
-		// The second argument of the JSON_OVERLAPS is the result of a JSON_ARRAY with the input values
-		jsonOverlapFunction.addParameter(new ValueExpression(new NumericValueExpression(new Term(new Factor(null, new NumericPrimary(new NumericValueFunction(jsonArrayFunction)))))));
+		MySqlFunction lowerJsonArrayFunction = new MySqlFunction(MySqlFunctionName.LOWER);
+
+		lowerJsonArrayFunction.startParentheses();		
+		lowerJsonArrayFunction.addParameter(new ValueExpression(new NumericValueExpression(new Term(new Factor(null, new NumericPrimary(new NumericValueFunction(jsonArrayFunction)))))));
+		
+		// The second argument of the JSON_OVERLAPS is the result of a JSON_ARRAY with the input values (again wrapped in a lower() call)
+		jsonOverlapFunction.addParameter(new ValueExpression(new NumericValueExpression(new Term(new Factor(null, new NumericPrimary(new NumericValueFunction(lowerJsonArrayFunction)))))));
 		
 		TruthValue truthValue = Boolean.TRUE.equals(predicate.getNot()) ? TruthValue.FALSE : TruthValue.TRUE;
 		
@@ -1115,10 +1125,6 @@ public class SQLTranslatorUtils {
 		}
 		
 		return columnRefMatch;
-	}
-	
-	public static void addFiltersToTableExpression(List<QueryFilter> additionalFilters, TableExpression expression) {
-		
 	}
 
 	public static void translateQueryFilters(TableExpression tableExpression, List<QueryFilter> additionalFilters) {
@@ -1174,6 +1180,9 @@ public class SQLTranslatorUtils {
 		builder.append("(");
 		builder.append(TextMatchesPredicate.KEYWORD).append("(");
 		appendSingleQuotedValueToStringBuilder(builder, filter.getSearchExpression());
+		if (filter.getSearchMode() != null) {
+			builder.append(" ").append(TextMatchesMode.valueOf(filter.getSearchMode().name()).getSql());
+		}
 		builder.append(")");
 		builder.append(")");
 	}

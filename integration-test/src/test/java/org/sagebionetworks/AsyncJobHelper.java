@@ -2,10 +2,17 @@ package org.sagebionetworks;
 
 import static org.junit.jupiter.api.Assertions.fail;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.java_websocket.WebSocket;
+import org.java_websocket.client.WebSocketClient;
+import org.json.JSONArray;
 import org.sagebionetworks.client.AsynchJobType;
 import org.sagebionetworks.client.SynapseClient;
 import org.sagebionetworks.client.exceptions.SynapseException;
@@ -151,6 +158,91 @@ public class AsyncJobHelper {
 		
 		public T getResponse() {
 			return response;
+		}
+		
+	}
+	
+	/**
+	 * Wait for the given message to appear on the queue.
+	 * @param code
+	 * @param key
+	 * @param incomingMessages
+	 * @return
+	 * @throws InterruptedException
+	 */
+	public static boolean waitForMessage(int code, String key, BlockingQueue<String> incomingMessages) throws InterruptedException {
+		String message = null;
+		do {
+			message = incomingMessages.poll(10, TimeUnit.SECONDS);
+			JSONArray response = new JSONArray(message);
+			if(response.length() > 1){
+				if(response.getInt(0) == 8) {
+					if(key.equals(response.getString(1))) {
+						return true;
+					}
+				}
+			}
+		} while (message != null);
+		return false;
+	}
+	
+	
+
+	/**
+	 * Create a websocket connection that will post all received messages to the
+	 * passed queue.
+	 * 
+	 * @param presignedUrl
+	 * @param incomingMessages
+	 * @return
+	 * @throws URISyntaxException
+	 */	
+	public static WebSocket createConnection(String presignedUrl, BlockingQueue<String> incomingMessages)
+		throws URISyntaxException {				
+		WebSocketImpl client = new WebSocketImpl(presignedUrl, incomingMessages);
+		
+		try {
+			client.connectBlocking();
+		} catch (InterruptedException e) {
+			throw new RuntimeException("Failed to connect to WebSocket: " + presignedUrl, e);
+		}
+		
+		return client;
+	}
+
+	public static class WebSocketImpl extends WebSocketClient {
+	
+		private BlockingQueue<String> incomingMessages;
+		
+		public WebSocketImpl(String url, BlockingQueue<String> incomingMessages) {
+			super(URI.create(url));
+			this.incomingMessages = incomingMessages;
+		}
+	
+		@Override
+		public void onOpen(org.java_websocket.handshake.ServerHandshake handshakedata) {
+			LOG.info("WebSocket connection opened: {}, ", handshakedata.getHttpStatusMessage());
+		}
+	
+		@Override
+		public void onClose(int code, String reason, boolean remote) {
+			LOG.info("WebSocket connection closed with code: {}, reason: {}", code, reason);
+		}
+	
+		@Override
+		public void onError(Exception ex) {
+			LOG.error("WebSocket error: ", ex);
+		}
+	
+		@Override
+		public void onMessage(String message) {
+			LOG.info("Message received: {}", message);
+			try {
+				incomingMessages.put(message);
+			} catch (InterruptedException e) {
+				this.close(4999);
+				throw new RuntimeException(e);
+			}
 		}
 		
 	}

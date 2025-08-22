@@ -5,6 +5,7 @@ import static org.sagebionetworks.repo.model.oauth.OAuthScope.view;
 
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.auth.UserPortalPermissions;
 import org.sagebionetworks.repo.model.portals.CreateOrUpdatePortalRequest;
 import org.sagebionetworks.repo.model.portals.ListPortalsRequest;
 import org.sagebionetworks.repo.model.portals.ListPortalsResponse;
@@ -38,7 +39,7 @@ public class PortalController {
 	}
 
 	/**
-	 * Allows to register a new Synapse portal, this service is only available to Synapse administrators.
+	 * Allows to register a new Synapse portal, this service is only available to Synapse (or Portal) administrators.
 	 * 
 	 * @param userId
 	 * @param request
@@ -62,7 +63,7 @@ public class PortalController {
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = { UrlHelpers.PORTAL_ID }, method = RequestMethod.GET)
 	public @ResponseBody Portal getPortal(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable(value = "portalId") String portalId) {
-		return portalService.getPortal(userId, portalId);
+		return portalService.getPortal(portalId);
 	}
 
 	/**
@@ -76,11 +77,11 @@ public class PortalController {
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = { UrlHelpers.PORTAL_LIST }, method = RequestMethod.POST)
 	public @ResponseBody ListPortalsResponse listPortals(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @RequestBody ListPortalsRequest request) {
-		return portalService.listPortals(userId, request);
+		return portalService.listPortals(request);
 	}
 
 	/**
-	 * Updates the details of a Synapse portal. Only Synapse administrators or users with the UPDATE permission on the portal are allowed to perform this operation. 
+	 * Updates the details of a Synapse portal. Only Synapse (or Portal) administrators or users with the UPDATE permission on the portal are allowed to perform this operation. 
 	 * 
 	 * @param userId
 	 * @param portalId
@@ -118,7 +119,7 @@ public class PortalController {
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = { UrlHelpers.PORTAL_ACL }, method = RequestMethod.GET)
 	public @ResponseBody AccessControlList getPortalAcl(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable(value = "portalId", required = true) String portalId) {
-		return portalService.getPortalAcl(userId, portalId);
+		return portalService.getPortalAcl(portalId);
 	}
 	
 	/**
@@ -134,5 +135,19 @@ public class PortalController {
 	@RequestMapping(value = { UrlHelpers.PORTAL_ACL }, method = RequestMethod.PUT)
 	public @ResponseBody AccessControlList updatePortalAcl(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable(value = "portalId", required = true) String portalId, @RequestBody AccessControlList acl) {
 		return portalService.updatePortalAcl(userId, portalId, acl);
+	}
+	
+	/**
+	 * Returns the permissions that the user has on the portal with the given id. Any user can perform this operation.
+	 * 
+	 * @param userId
+	 * @param portalId
+	 * @return
+	 */
+	@RequiredScope({view})
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = { UrlHelpers.PORTAL_PERMISSIONS }, method = RequestMethod.GET)
+	public @ResponseBody UserPortalPermissions getuserPortalPermissions(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable(value = "portalId", required = true) String portalId) {
+		return portalService.getUserPortalPermissions(userId, portalId);
 	}
 }

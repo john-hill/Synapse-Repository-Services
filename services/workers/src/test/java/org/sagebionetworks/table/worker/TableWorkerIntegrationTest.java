@@ -122,6 +122,7 @@ import org.sagebionetworks.repo.model.table.TableStatus;
 import org.sagebionetworks.repo.model.table.TableUpdateRequest;
 import org.sagebionetworks.repo.model.table.TableUpdateResponse;
 import org.sagebionetworks.repo.model.table.TableUpdateTransactionRequest;
+import org.sagebionetworks.repo.model.table.TextMatchesMode;
 import org.sagebionetworks.repo.model.table.TextMatchesQueryFilter;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.table.cluster.ConnectionFactory;
@@ -3377,6 +3378,21 @@ public class TableWorkerIntegrationTest {
 			assertEquals(expectedIds, resultBundle.getQueryResult().getQueryResults().getRows().stream().map(Row::getRowId).collect(Collectors.toList()));
 		});
 		
+		// works using boolean mode
+		waitForConsistentQuery(adminUserInfo, "select * from " + tableId + " where text_matches('\"singlevalue value\" @3' IN BOOLEAN MODE)", null, null, (queryResult) -> {
+			assertEquals(1, queryResult.getQueryResults().getRows().size());
+			List<Long> expectedIds = Arrays.asList(referenceSet.getRows().get(1).getRowId());
+			assertEquals(expectedIds, queryResult.getQueryResults().getRows().stream().map(Row::getRowId).collect(Collectors.toList()));
+		});
+		
+		// works using boolean mode in a query filter
+		waitForConsistentQueryBundle(adminUserInfo, new Query().setSql("select * from " + tableId).setAdditionalFilters(List.of(
+			new TextMatchesQueryFilter().setSearchExpression("\"singlevalue value\" @3").setSearchMode(TextMatchesMode.BOOLEAN))), queryOptions, (resultBundle) -> {
+				assertEquals(1, resultBundle.getQueryResult().getQueryResults().getRows().size());
+				List<Long> expectedIds = Arrays.asList(referenceSet.getRows().get(1).getRowId());
+				assertEquals(expectedIds, resultBundle.getQueryResult().getQueryResults().getRows().stream().map(Row::getRowId).collect(Collectors.toList()));
+		});
+		
 	}
 	
 	@Test
@@ -3732,6 +3748,100 @@ public class TableWorkerIntegrationTest {
 
 	}
 	
+	// Reproduce https://sagebionetworks.jira.com/browse/PLFM-9086.
+	@Test
+	public void testMultiValueColumnFacetValueCaseInsensitive() throws Exception {
+		schema = Lists.newArrayList(
+			columnManager.createColumnModel(adminUserInfo, new ColumnModel().setColumnType(ColumnType.STRING).setName("one").setFacetType(FacetType.enumeration)),
+			columnManager.createColumnModel(adminUserInfo, new ColumnModel().setColumnType(ColumnType.STRING_LIST).setName("two").setFacetType(FacetType.enumeration)),
+			columnManager.createColumnModel(adminUserInfo, new ColumnModel().setColumnType(ColumnType.INTEGER_LIST).setName("three").setFacetType(FacetType.enumeration))
+		);
+		
+		headers = TableModelUtils.getIds(schema);
+		
+		tableId = asyncHelper.createTable(adminUserInfo, UUID.randomUUID().toString(), projectId, headers, true).getId();
+		
+		// Now add some data
+		List<Row> rows = Arrays.asList(
+			TableModelTestUtils.createRow(null, null, "value", "[\"multi\", \"ValuE\"]", "[1, 2, 3]"),
+			TableModelTestUtils.createRow(null, null, "Value", "[\"Multi\", \"value\"]", null),
+			TableModelTestUtils.createRow(null, null, "other", null, "[1, 3]")
+		);
+				
+		RowSet rowSet = new RowSet();
+		rowSet.setRows(rows);
+		rowSet.setHeaders(TableModelUtils.getSelectColumns(schema));
+		rowSet.setTableId(tableId);
+		
+		referenceSet = appendRows(adminUserInfo, tableId, rowSet, mockProgressCallback);
+		
+		assertEquals(TableState.AVAILABLE, waitForTableProcessing(tableId).getState());
+				
+		query.setSql("SELECT * FROM " + tableId);
+		
+		waitForConsistentQueryBundle(adminUserInfo, query, queryOptions, result -> {
+			assertEquals(List.of(
+				new FacetColumnResultValues()
+					.setColumnName("one")
+					.setFacetType(FacetType.enumeration)
+					.setFacetValues(List.of(
+						new FacetColumnResultValueCount().setValue("value").setCount(2L).setIsSelected(false),
+						new FacetColumnResultValueCount().setValue("other").setCount(1L).setIsSelected(false)
+					)),
+				new FacetColumnResultValues()
+					.setColumnName("two")
+					.setFacetType(FacetType.enumeration)
+					.setFacetValues(List.of(
+						new FacetColumnResultValueCount().setValue("multi").setCount(2L).setIsSelected(false),
+						new FacetColumnResultValueCount().setValue("ValuE").setCount(2L).setIsSelected(false),
+						new FacetColumnResultValueCount().setValue(NULL_VALUE_KEYWORD).setCount(1L).setIsSelected(false)
+					)),
+				new FacetColumnResultValues()
+					.setColumnName("three")
+					.setFacetType(FacetType.enumeration)
+					.setFacetValues(List.of(
+						new FacetColumnResultValueCount().setValue("1").setCount(2L).setIsSelected(false),
+						new FacetColumnResultValueCount().setValue("3").setCount(2L).setIsSelected(false),
+						new FacetColumnResultValueCount().setValue(NULL_VALUE_KEYWORD).setCount(1L).setIsSelected(false),
+						new FacetColumnResultValueCount().setValue("2").setCount(1L).setIsSelected(false)
+					))
+			), result.getFacets());
+		});
+		
+		// Now select one of the multi-value column facets
+		query.setSelectedFacets(List.of(
+			new FacetColumnValuesRequest().setColumnName("two").setFacetValues(Set.of("ValuE"))
+		));
+		
+		waitForConsistentQueryBundle(adminUserInfo, query, queryOptions, result -> {
+			assertEquals(List.of(
+				new FacetColumnResultValues()
+					.setColumnName("one")
+					.setFacetType(FacetType.enumeration)
+					.setFacetValues(List.of(
+						new FacetColumnResultValueCount().setValue("value").setCount(2L).setIsSelected(false)
+					)),
+				new FacetColumnResultValues()
+					.setColumnName("two")
+					.setFacetType(FacetType.enumeration)
+					.setFacetValues(List.of(
+						new FacetColumnResultValueCount().setValue("multi").setCount(2L).setIsSelected(false),
+						new FacetColumnResultValueCount().setValue("ValuE").setCount(2L).setIsSelected(true),
+						new FacetColumnResultValueCount().setValue(NULL_VALUE_KEYWORD).setCount(1L).setIsSelected(false)
+					)),
+				new FacetColumnResultValues()
+					.setColumnName("three")
+					.setFacetType(FacetType.enumeration)
+					.setFacetValues(List.of(
+						new FacetColumnResultValueCount().setValue(NULL_VALUE_KEYWORD).setCount(1L).setIsSelected(false),
+						new FacetColumnResultValueCount().setValue("1").setCount(1L).setIsSelected(false),
+						new FacetColumnResultValueCount().setValue("2").setCount(1L).setIsSelected(false),
+						new FacetColumnResultValueCount().setValue("3").setCount(1L).setIsSelected(false)
+					))
+			), result.getFacets());
+		});
+	}
+	
 	
 	/**
 	 * Create a string of the given size.
@@ -3793,6 +3903,7 @@ public class TableWorkerIntegrationTest {
 		rowSet.setRows(TableModelTestUtils.createRows(schema, 6));
 		rowSet.setHeaders(TableModelUtils.getSelectColumns(schema));
 		rowSet.setTableId(tableId);
+		
 		referenceSet = appendRows(adminUserInfo, tableId,
 				rowSet, mockProgressCallback);
 		simpleSql = "select * from " + tableId;

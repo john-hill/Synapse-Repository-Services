@@ -6,6 +6,8 @@ import java.util.Optional;
 import org.sagebionetworks.repo.model.portals.Portal;
 
 public interface PortalDao {
+	
+	void bootstrap();
 
 	Portal createPortal(Long userId, String name, String endpoint);
 	

@@ -1,0 +1,201 @@
+package org.sagebionetworks.repo.manager.search.oss;
+
+import org.apache.logging.log4j.Logger;
+import org.opensearch.client.opensearch.OpenSearchClient;
+import org.opensearch.client.opensearch._types.FieldValue;
+import org.opensearch.client.opensearch._types.OpenSearchException;
+import org.opensearch.client.opensearch._types.query_dsl.Query;
+import org.opensearch.client.opensearch.core.BulkResponse;
+import org.opensearch.client.opensearch.core.SearchRequest;
+import org.opensearch.client.opensearch.core.SearchResponse;
+import org.opensearch.client.opensearch.core.bulk.BulkOperation;
+import org.sagebionetworks.LoggerProvider;
+import org.sagebionetworks.repo.manager.search.SearchDocumentDriver;
+import org.sagebionetworks.repo.model.EntityPath;
+import org.sagebionetworks.repo.model.IdAndAlias;
+import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.message.ChangeMessage;
+import org.sagebionetworks.repo.model.search.DocumentFields;
+import org.sagebionetworks.repo.model.search.DocumentTypeNames;
+import org.sagebionetworks.repo.model.search.Hit;
+import org.sagebionetworks.repo.model.search.SearchResults;
+import org.sagebionetworks.repo.model.search.query.SearchQuery;
+import org.sagebionetworks.repo.web.NotFoundException;
+import org.sagebionetworks.repo.web.TemporarilyUnavailableException;
+import org.sagebionetworks.search.SearchConstants;
+import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
+
+import org.springframework.stereotype.Service;
+
+import javax.annotation.PostConstruct;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+
+@Service
+public class SearchManagerImpl implements SearchManager {
+    private Logger log;
+    private ChangeMessageToOpenSearchDocumentTranslator translator;
+    private OpenSearchIndexInitializer openSearchIndexInitializer;
+
+    private OpenSearchClient openSearchClient;
+    private SearchDocumentDriver searchDocumentDriver;
+
+    public SearchManagerImpl(LoggerProvider logProvider, ChangeMessageToOpenSearchDocumentTranslator translator,
+                             OpenSearchIndexInitializer openSearchIndexInitializer, OpenSearchClient synSearchOssClient,
+                             SearchDocumentDriver searchDocumentDriver) {
+        this.log = logProvider.getLogger(SearchManagerImpl.class.getName());
+        this.translator = translator;
+        this.openSearchIndexInitializer = openSearchIndexInitializer;
+        this.openSearchClient = synSearchOssClient;
+        this.searchDocumentDriver = searchDocumentDriver;
+    }
+
+    @PostConstruct()
+    public void init() throws IOException {
+        openSearchIndexInitializer.init();
+    }
+
+    @Override
+    public void documentChangeMessages(List<ChangeMessage> messages) {
+        try {
+            List<BulkOperation> operations = messages.stream()
+                    .map(translator::generateSearchDocumentIfNecessary)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .map(document -> {
+                        if (DocumentTypeNames.add == document.getType()) {
+                            return BulkOperation.of(op -> op
+                                    .index(idx -> idx
+                                            .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
+                                            .id(document.getId())
+                                            .document(document.getFields())));
+                        } else {
+                            return BulkOperation.of(op -> op
+                                    .delete(idx -> idx
+                                            .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
+                                            .id(document.getId())));
+                        }
+                    }).collect(Collectors.toList());
+
+            if (operations.isEmpty()) {
+                return;
+            }
+
+            BulkResponse response = openSearchClient.bulk(req -> req.operations(operations));
+
+            // if any message fails to process we will throw exception to reprocess it.
+            long hasError = response.items().stream().filter(item -> item.error() != null)
+                    .peek(item -> log.error("Document {} has error {}.", item.id(), item.error())).count();
+
+            if (hasError > 0L) {
+                log.error("The OpenSearch response has {} error", hasError);
+                throw new RecoverableMessageException();
+            }
+        } catch (OpenSearchException | IOException e) {
+            log.error(e);
+            throw new RecoverableMessageException(e);
+        }
+    }
+
+    @Override
+    public boolean doesDocumentExist(String id, String etag) throws OpenSearchException, IOException {
+        try {
+            SearchRequest request = SearchRequest.of(r -> r
+                    .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
+                    .query( q ->q.bool(
+                            b ->b.must(List.of(
+                                    Query.of( q1 ->q1.term(t ->t.field(SearchConstants.FIELD_ID).value(FieldValue.of(id)))),
+                                    Query.of(q2 -> q2.term( t ->t.field(SearchConstants.FIELD_ETAG).value(FieldValue.of(etag))))
+
+                            )))));
+
+
+            SearchResponse<DocumentFields> response = openSearchClient.search(request, DocumentFields.class);
+
+            return !response.hits().hits().isEmpty();
+        } catch (OpenSearchException | IOException e) {
+            log.error(e);
+            throw e;
+        }
+    }
+
+    @Override
+    public SearchResults search(UserInfo userInfo, SearchQuery searchQuery) {
+        try {
+            boolean includePath = false;
+            if (searchQuery.getReturnFields() != null) {
+                // We do not want to pass FIELD_PATH along to the search index as it is not there. So we remove that field
+                // and use includePath to indicate that the FIELD_PATH was requested.
+                //List<T>.remove() returns a boolean indicating whether the return fields previously contained FIELD_PATH
+                includePath = searchQuery.getReturnFields().remove(SearchConstants.FIELD_PATH);
+            }
+
+            // Create the search request
+            SearchRequest searchRequest = OssUtil.generateSearchRequest(userInfo, searchQuery);
+            SearchResults results = OssUtil.convertToSynapseSearchResult(openSearchClient.search(searchRequest, DocumentFields.class), searchRequest.from());
+
+            if (results != null && results.getHits() != null) {
+                if (includePath) {
+                    // FIELD_PATH is resolved here after search results are retrieved from OpenSearch
+                    addPathDataToHits(results.getHits());
+                }
+                addAliasesToHits(results.getHits());
+            }
+            return results;
+        } catch (IOException exception) {
+            log.error(exception);
+            throw new TemporarilyUnavailableException(exception.getMessage());
+        }
+    }
+
+
+    /**
+     * Add path data to the hit list.
+     *
+     * @param hits
+     */
+    public void addPathDataToHits(List<Hit> hits) {
+        // For each hit we need to add the path
+        List<Hit> toRemove = new LinkedList<>();
+        for (Hit hit : hits) {
+            try {
+                EntityPath path = searchDocumentDriver.getEntityPath(hit.getId());
+                hit.setPath(path);
+            } catch (NotFoundException e) {
+                // Add a warning and remove it from the hits
+                log.warn("Found a search document that did not exist in the repository: " + hit);
+                // We need to remove this from the hits
+                toRemove.add(hit);
+            }
+        }
+        hits.removeAll(toRemove);
+    }
+
+    /**
+     * Add aliases to the hit list.
+     *
+     * @param hits
+     */
+    public void addAliasesToHits(List<Hit> hits) {
+        // add aliases
+        List<String> ids = new ArrayList<String>();
+        for (Hit hit : hits) {
+            ids.add(hit.getId());
+        }
+        List<IdAndAlias> aliases = searchDocumentDriver.getAliases(ids);
+        Map<String, String> idToAliasMap = new HashMap<String, String>();
+        for (IdAndAlias ia : aliases) {
+            idToAliasMap.put(ia.getId(), ia.getAlias());
+        }
+        for (Hit hit : hits) {
+            hit.setAlias(idToAliasMap.get(hit.getId()));
+        }
+    }
+}

@@ -32,6 +32,8 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -52,6 +54,7 @@ import org.sagebionetworks.repo.model.table.JsonSubColumnModel;
 import org.sagebionetworks.repo.model.table.QueryFilter;
 import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.repo.model.table.SelectColumn;
+import org.sagebionetworks.repo.model.table.TextMatchesMode;
 import org.sagebionetworks.repo.model.table.TextMatchesQueryFilter;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapter;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
@@ -62,7 +65,6 @@ import org.sagebionetworks.table.cluster.description.ColumnToAdd;
 import org.sagebionetworks.table.cluster.description.IndexDescription;
 import org.sagebionetworks.table.cluster.description.IndexDescriptionLookup;
 import org.sagebionetworks.table.cluster.description.MaterializedViewIndexDescription;
-import org.sagebionetworks.table.cluster.description.TableDependency;
 import org.sagebionetworks.table.cluster.description.TableIndexDescription;
 import org.sagebionetworks.table.cluster.description.ViewIndexDescription;
 import org.sagebionetworks.table.query.ParseException;
@@ -1091,7 +1093,7 @@ public class SQLTranslatorUtilsTest {
 
 		SQLTranslatorUtils.replaceArrayHasPredicate(booleanPrimary, singleTableMapper);
 
-		assertEquals("( JSON_OVERLAPS(_C111_,JSON_ARRAY(:b0,:b1,:b2)) IS TRUE )", booleanPrimary.toSql());
+		assertEquals("( JSON_OVERLAPS(LOWER(_C111_),LOWER(JSON_ARRAY(:b0,:b1,:b2))) IS TRUE )", booleanPrimary.toSql());
 
 	}
 
@@ -1112,7 +1114,7 @@ public class SQLTranslatorUtilsTest {
 
 		SQLTranslatorUtils.replaceArrayHasPredicate(booleanPrimary, singleTableMapper);
 
-		assertEquals("( JSON_OVERLAPS(_C111_,JSON_ARRAY(:b0,:b1,:b2)) IS FALSE )", booleanPrimary.toSql());
+		assertEquals("( JSON_OVERLAPS(LOWER(_C111_),LOWER(JSON_ARRAY(:b0,:b1,:b2))) IS FALSE )", booleanPrimary.toSql());
 
 	}
 
@@ -2538,7 +2540,7 @@ public class SQLTranslatorUtilsTest {
 		TableAndColumnMapper mapper = new TableAndColumnMapper(element, mockSchemaProvider);
 		Map<String, Object> parameters = new HashMap<>();
 		SQLTranslatorUtils.translateModel(element, parameters, userId, mapper);
-		assertEquals("SELECT * FROM T123 WHERE ( _C333_ = :b0 OR ( JSON_OVERLAPS(_C111_,JSON_ARRAY(:b1)) IS TRUE ) ) AND ( JSON_OVERLAPS(_C777_,JSON_ARRAY(:b2,:b3,:b4)) IS TRUE )",element.toSql());
+		assertEquals("SELECT * FROM T123 WHERE ( _C333_ = :b0 OR ( JSON_OVERLAPS(LOWER(_C111_),LOWER(JSON_ARRAY(:b1))) IS TRUE ) ) AND ( JSON_OVERLAPS(LOWER(_C777_),LOWER(JSON_ARRAY(:b2,:b3,:b4))) IS TRUE )",element.toSql());
 		assertEquals(Map.of(
 			"b0", "yeet",
 			"b1", "yah",
@@ -2567,7 +2569,7 @@ public class SQLTranslatorUtilsTest {
 				+ " )"
 			+ " )"
 			+ " AND ("
-				+ " JSON_OVERLAPS(_C777_,JSON_ARRAY(:b3,:b4,:b5)"
+				+ " JSON_OVERLAPS(LOWER(_C777_),LOWER(JSON_ARRAY(:b3,:b4,:b5))"
 			+ ") IS TRUE )",element.toSql());
 		
 		assertEquals(Map.of(
@@ -2596,7 +2598,7 @@ public class SQLTranslatorUtilsTest {
 			+ " _C333_ = :b0 OR ("
 				+ " JSON_SEARCH(_C111_,'one',:b1 COLLATE 'utf8mb4_0900_ai_ci',:b3,'$[*]') IS NOT NULL"
 				+ " OR JSON_SEARCH(_C111_,'one',:b2 COLLATE 'utf8mb4_0900_ai_ci',:b3,'$[*]') IS NOT NULL ) )"
-			+ " AND ( JSON_OVERLAPS(_C777_,JSON_ARRAY(:b4,:b5,:b6)) IS TRUE )",element.toSql());
+			+ " AND ( JSON_OVERLAPS(LOWER(_C777_),LOWER(JSON_ARRAY(:b4,:b5,:b6))) IS TRUE )",element.toSql());
 		
 		assertEquals(Map.of(
 			"b0", "yeet",
@@ -3096,6 +3098,23 @@ public class SQLTranslatorUtilsTest {
 		// method under test
 		SQLTranslatorUtils.translateQueryFilters(builder, filter);
 		assertEquals("(TEXT_MATCHES('some search string'))", builder.toString());
+	}
+	
+	@ParameterizedTest
+	@EnumSource(TextMatchesMode.class)
+	public void testTranslateQueryFiltersWithTextMatchesFilterAndSearchMode(TextMatchesMode searchMode) {
+		TextMatchesQueryFilter filter = new TextMatchesQueryFilter()
+				.setSearchExpression("some search string")
+				.setSearchMode(searchMode);
+
+		StringBuilder builder = new StringBuilder();
+		
+		// method under test
+		SQLTranslatorUtils.translateQueryFilters(builder, filter);
+
+		String expectedSearchMode = org.sagebionetworks.table.query.model.TextMatchesMode.valueOf(searchMode.name()).getSql();
+		
+		assertEquals("(TEXT_MATCHES('some search string' " + expectedSearchMode + "))", builder.toString());
 	}
 	
 	@Test

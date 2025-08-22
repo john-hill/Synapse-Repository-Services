@@ -14,6 +14,8 @@ import org.sagebionetworks.file.worker.AddFilesToDownloadListWorker;
 import org.sagebionetworks.file.worker.BulkFileDownloadWorker;
 import org.sagebionetworks.file.worker.FileHandleArchivalRequestWorker;
 import org.sagebionetworks.file.worker.FileHandleRestoreRequestWorker;
+import org.sagebionetworks.grid.workers.GridCSVDownloadWorker;
+import org.sagebionetworks.grid.workers.GridCreateWorker;
 import org.sagebionetworks.migration.worker.MigrationWorker;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.asynch.AsynchJobStatusManager;
@@ -563,5 +565,53 @@ public class AsyncJobWorkersConfig {
 			.withStartDelay(1025)
 			.build();
 	}
+
+	@Bean
+	public SimpleTriggerFactoryBean gridCreateWorkerTrigger(ConcurrentManager concurrentStackManager, GridCreateWorker createWorker) {
+		
+		String queueName = stackConfig.getQueueName("GRID_CREATE");		
+		MessageDrivenRunner worker = new AsyncJobRunnerAdapter<>(jobStatusManager, userManager, createWorker);
+		
+		return new WorkerTriggerBuilder()
+			.withStack(ConcurrentWorkerStack.builder()
+				.withSemaphoreLockKey("gridCreateWorker")
+				.withSemaphoreMaxLockCount(5)
+				.withSemaphoreLockAndMessageVisibilityTimeoutSec(120)
+				.withMaxThreadsPerMachine(3)
+				.withSingleton(concurrentStackManager)
+				.withCanRunInReadOnly(false)
+				.withQueueName(queueName)
+				.withWorker(worker)
+				.build()
+			)
+			.withRepeatInterval(987)
+			.withStartDelay(1025)
+			.build();
+	}
+
+
+    @Bean
+    public SimpleTriggerFactoryBean gridCSVDownloaderWorkerTrigger(GridCSVDownloadWorker gridCSVDownloadWorker) {
+
+        String queueName = stackConfig.getQueueName("DOWNLOAD_CSV_FROM_GRID");
+        MessageDrivenRunner worker = new AsyncJobRunnerAdapter<>(jobStatusManager, userManager, gridCSVDownloadWorker);
+
+        MessageDrivenWorkerStackConfiguration config = new MessageDrivenWorkerStackConfiguration();
+
+        config.setGate(stackStatusGate);
+        config.setQueueName(queueName);
+        config.setRunner(worker);
+        config.setSemaphoreLockAndMessageVisibilityTimeoutSec(60);
+        config.setSemaphoreMaxLockCount(4);
+        config.setSemaphoreLockKey("gridCSVDownloader");
+
+        MessageDrivenWorkerStack stack = new MessageDrivenWorkerStack(countingSemaphore, amazonSQSClient, config);
+
+        return new WorkerTriggerBuilder()
+                .withStack(stack)
+                .withRepeatInterval(1368)
+                .withStartDelay(1305)
+                .build();
+    }
 
 }

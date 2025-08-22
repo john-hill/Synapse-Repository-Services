@@ -18,10 +18,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.manager.doi.DoiManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
+import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.NextPageToken;
 import org.sagebionetworks.repo.model.ObjectType;
@@ -29,6 +32,8 @@ import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
+import org.sagebionetworks.repo.model.auth.UserPortalPermissions;
+import org.sagebionetworks.repo.model.dbo.portals.DBOPortal;
 import org.sagebionetworks.repo.model.dbo.portals.PortalDao;
 import org.sagebionetworks.repo.model.portals.CreateOrUpdatePortalRequest;
 import org.sagebionetworks.repo.model.portals.ListPortalsRequest;
@@ -59,7 +64,9 @@ public class PortalManagerUnitTest {
 
 	@BeforeEach
 	public void before() {
-		user = new UserInfo(true, 1L);
+		user = new UserInfo(false, 1234L);
+		user.setGroups(Set.of(user.getId(), BOOTSTRAP_PRINCIPAL.PORTAL_MANAGERS.getPrincipalId()));
+		
 		request = new CreateOrUpdatePortalRequest().setName("My Portal").setUrl("https://myportal.synapse.org");
 		portal = new Portal().setId("123").setCreatedOn(new Date());
 		acl = AccessControlListUtil.createACL(portal.getId().toString(), user, PortalManager.DEFAULT_PERMISSIONS, portal.getCreatedOn());
@@ -356,7 +363,7 @@ public class PortalManagerUnitTest {
 		when(mockPortalDao.getPortal(portal.getId())).thenReturn(Optional.of(portal));
 		
 		// Call under test
-		assertEquals(portal, manager.getPortal(user, portal.getId()));
+		assertEquals(portal, manager.getPortal(portal.getId()));
 		
 		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
 	}
@@ -367,31 +374,19 @@ public class PortalManagerUnitTest {
 		
 		assertEquals("A portal with the given id does not exist.", assertThrows(NotFoundException.class, () -> {			
 			// Call under test
-			manager.getPortal(user, portal.getId());
+			manager.getPortal(portal.getId());
 		}).getMessage());
 		
 		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
 	}
-	
-	@Test
-	public void testGetPortalWithNoUser() {
-		user = null;
 		
-		assertEquals("The user is required.", assertThrows(IllegalArgumentException.class, () -> {			
-			// Call under test
-			manager.getPortal(user, portal.getId());
-		}).getMessage());
-		
-		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
-	}
-	
 	@Test
 	public void testGetPortalWithNoPortalId() {
 		portal.setId(null);
 		
 		assertEquals("The portalId is required.", assertThrows(IllegalArgumentException.class, () -> {			
 			// Call under test
-			manager.getPortal(user, portal.getId());
+			manager.getPortal(portal.getId());
 		}).getMessage());
 		
 		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
@@ -402,7 +397,7 @@ public class PortalManagerUnitTest {
 		when(mockPortalDao.getPortalPage(NextPageToken.DEFAULT_LIMIT + 1, NextPageToken.DEFAULT_OFFSET)).thenReturn(List.of(portal));
 		
 		// Call under test
-		assertEquals(new ListPortalsResponse().setPage(List.of(portal)), manager.listPortals(user, new ListPortalsRequest()));
+		assertEquals(new ListPortalsResponse().setPage(List.of(portal)), manager.listPortals(new ListPortalsRequest()));
 		
 		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
 	}
@@ -414,19 +409,7 @@ public class PortalManagerUnitTest {
 		when(mockPortalDao.getPortalPage(nextPageToken.getLimitForQuery(), nextPageToken.getOffset())).thenReturn(List.of(portal));
 		
 		// Call under test
-		assertEquals(new ListPortalsResponse().setPage(List.of(portal)), manager.listPortals(user, new ListPortalsRequest().setNextPageToken(nextPageToken.toToken())));
-		
-		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
-	}
-	
-	@Test
-	public void testListPortalsWithNoUser() {
-		user = null;
-		
-		assertEquals("The user is required.", assertThrows(IllegalArgumentException.class, () -> {			
-			// Call under test
-			manager.listPortals(user, new ListPortalsRequest());
-		}).getMessage());
+		assertEquals(new ListPortalsResponse().setPage(List.of(portal)), manager.listPortals(new ListPortalsRequest().setNextPageToken(nextPageToken.toToken())));
 		
 		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
 	}
@@ -436,7 +419,7 @@ public class PortalManagerUnitTest {
 		
 		assertEquals("The request is required.", assertThrows(IllegalArgumentException.class, () -> {			
 			// Call under test
-			manager.listPortals(user, null);
+			manager.listPortals(null);
 		}).getMessage());
 		
 		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
@@ -447,7 +430,7 @@ public class PortalManagerUnitTest {
 		when(mockAclDao.getAcl(portal.getId(), ObjectType.PORTAL)).thenReturn(Optional.of(acl));
 		
 		// Call under test
-		manager.getPortalAcl(user, portal.getId());
+		manager.getPortalAcl(portal.getId());
 		
 		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
 	}
@@ -458,19 +441,7 @@ public class PortalManagerUnitTest {
 		
 		assertEquals("Could not find an ACL for the portal with the given id.", assertThrows(NotFoundException.class, () -> {			
 			// Call under test
-			manager.getPortalAcl(user, portal.getId());
-		}).getMessage());
-		
-		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
-	}
-	
-	@Test
-	public void testGetPortalAclWithNoUser() {
-		user = null;
-		
-		assertEquals("The user is required.", assertThrows(IllegalArgumentException.class, () -> {			
-			// Call under test
-			manager.getPortalAcl(user, portal.getId());
+			manager.getPortalAcl(portal.getId());
 		}).getMessage());
 		
 		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
@@ -482,7 +453,7 @@ public class PortalManagerUnitTest {
 		
 		assertEquals("The portalId is required.", assertThrows(IllegalArgumentException.class, () -> {			
 			// Call under test
-			manager.getPortalAcl(user, portal.getId());
+			manager.getPortalAcl(portal.getId());
 		}).getMessage());
 		
 		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
@@ -501,7 +472,7 @@ public class PortalManagerUnitTest {
 	
 	@Test
 	public void testUpdatePortalAclWithNotAdminAndAuthorized() {
-		user = new UserInfo(false, 1L);
+		user.setGroups(Set.of(user.getId()));
 		
 		when(mockAclDao.canAccess(user, portal.getId(), ObjectType.PORTAL, ACCESS_TYPE.CHANGE_PERMISSIONS)).thenReturn(AuthorizationStatus.authorized());
 		doNothing().when(mockAclDao).update(acl, ObjectType.PORTAL);
@@ -515,7 +486,7 @@ public class PortalManagerUnitTest {
 	
 	@Test
 	public void testUpdatePortalAclWithNotAdminAndNotAuthorized() {
-		user = new UserInfo(false, 1L);
+		user.setGroups(Set.of(user.getId()));
 		
 		when(mockAclDao.canAccess(user, portal.getId(), ObjectType.PORTAL, ACCESS_TYPE.CHANGE_PERMISSIONS)).thenReturn(AuthorizationStatus.accessDenied("Nope"));
 				
@@ -529,13 +500,72 @@ public class PortalManagerUnitTest {
 	
 	@Test
 	public void testUpdatePortalAclWithNotAdminAndInvalidAcl() {
-		user = new UserInfo(false, 1L);
+		user.setGroups(Set.of(user.getId()));
 		acl.setResourceAccess(Set.of(new ResourceAccess().setPrincipalId(user.getId()).setAccessType(Set.of(ACCESS_TYPE.CREATE))));					
 		
 		assertEquals("Caller is trying to revoke their own ACL editing permissions.", assertThrows(InvalidModelException.class, () -> {
 			// Call under test
 			manager.updatePortalAcl(user, portal.getId(), acl);
 		}).getMessage());
+		
+		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
+	}
+	
+	@Test
+	public void testCanMintDoi() {
+		
+		// Call under test
+		assertEquals(AuthorizationStatus.authorized(), manager.canMintDoi(user, portal.getId()));
+		
+		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
+	}
+	
+	@Test
+	public void testCanMintDoiWithNotAdminAndAuthorized() {
+		user.setGroups(Set.of(user.getId()));
+		
+		when(mockAclDao.canAccess(user, portal.getId(), ObjectType.PORTAL, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
+		
+		// Call under test
+		assertEquals(AuthorizationStatus.authorized(), manager.canMintDoi(user, portal.getId()));
+		
+		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
+	}
+	
+	@Test
+	public void testCanMintDoiWithNotAdminAndNotAuthorized() {
+		user.setGroups(Set.of(user.getId()));
+		
+		when(mockAclDao.canAccess(user, portal.getId(), ObjectType.PORTAL, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.accessDenied("Nope"));
+		
+		// Call under test
+		assertEquals(AuthorizationStatus.accessDenied("Nope"), manager.canMintDoi(user, portal.getId()));
+		
+		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
+	}
+	
+	@Test
+	public void testCanMintDoiWithSynapsePortal() {
+		portal.setId(DBOPortal.SYNAPSE_PORTAL_ID.toString());
+		
+		// Call under test
+		assertEquals(AuthorizationStatus.authorized(), manager.canMintDoi(user, portal.getId()));
+		
+		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
+						
+	}
+	
+	@Test
+	public void testGetUserPortalPermissions() {
+		PortalManagerImpl managerSpy = Mockito.spy(manager);
+		
+		when(managerSpy.canMintDoi(user, portal.getId())).thenReturn(AuthorizationStatus.authorized());
+		
+		UserPortalPermissions expected = new UserPortalPermissions()
+				.setCanMintDoi(true);
+		
+		// Call under test
+		assertEquals(expected, managerSpy.getUserPortalPermissions(user, portal.getId()));
 		
 		verifyNoMoreInteractions(mockAclDao, mockPortalDao);
 	}

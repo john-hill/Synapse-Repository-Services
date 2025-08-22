@@ -1,6 +1,7 @@
 package org.sagebionetworks.client;
 
 import static org.sagebionetworks.client.Method.GET;
+import static org.sagebionetworks.client.Method.POST;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
@@ -165,6 +166,8 @@ import org.sagebionetworks.repo.model.dataaccess.SubmissionSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionSearchResponse;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionState;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionStateChangeRequest;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchRequest;
+import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResponse;
 import org.sagebionetworks.repo.model.discussion.CreateDiscussionReply;
 import org.sagebionetworks.repo.model.discussion.CreateDiscussionThread;
 import org.sagebionetworks.repo.model.discussion.DiscussionFilter;
@@ -186,6 +189,7 @@ import org.sagebionetworks.repo.model.docker.DockerCommit;
 import org.sagebionetworks.repo.model.docker.DockerCommitSortBy;
 import org.sagebionetworks.repo.model.doi.v2.Doi;
 import org.sagebionetworks.repo.model.doi.v2.DoiAssociation;
+import org.sagebionetworks.repo.model.doi.v2.DoiObjectType;
 import org.sagebionetworks.repo.model.doi.v2.DoiRequest;
 import org.sagebionetworks.repo.model.doi.v2.DoiResponse;
 import org.sagebionetworks.repo.model.download.AddBatchOfFilesToDownloadListRequest;
@@ -248,6 +252,18 @@ import org.sagebionetworks.repo.model.form.FormGroup;
 import org.sagebionetworks.repo.model.form.FormRejection;
 import org.sagebionetworks.repo.model.form.ListRequest;
 import org.sagebionetworks.repo.model.form.ListResponse;
+import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
+import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlResponse;
+import org.sagebionetworks.repo.model.grid.CreateGridRequest;
+import org.sagebionetworks.repo.model.grid.CreateGridResponse;
+import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
+import org.sagebionetworks.repo.model.grid.CreateReplicaResponse;
+import org.sagebionetworks.repo.model.grid.DownloadFromGridRequest;
+import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
+import org.sagebionetworks.repo.model.grid.GridReplica;
+import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
+import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
 import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
 import org.sagebionetworks.repo.model.message.MessageBundle;
 import org.sagebionetworks.repo.model.message.MessageRecipientSet;
@@ -3677,12 +3693,15 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	 * for the current version of the object.
 	 */
 	@Override
-	public DoiAssociation getDoiAssociation(String objectId, ObjectType objectType, Long objectVersion) throws SynapseException {
+	public DoiAssociation getDoiAssociation(String portalId, String objectId, DoiObjectType objectType, Long objectVersion) throws SynapseException {
 		ValidateArgument.required(objectId, "objectId");
 		ValidateArgument.required(objectType, "objectType");
 		String url = DOI_ASSOCIATION + "?id=" + objectId + "&type=" + objectType;
 		if (objectVersion != null) {
 			url += "&version=" + objectVersion;
+		}
+		if (portalId != null) {
+			url += "&portalId=" + portalId;
 		}
 		return getJSONEntity(getRepoEndpoint(), url, DoiAssociation.class);
 	}
@@ -3692,12 +3711,15 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	 * for the current version of the object.
 	 */
 	@Override
-	public Doi getDoi(String objectId, ObjectType objectType, Long objectVersion) throws SynapseException {
+	public Doi getDoi(String portalId, String objectId, DoiObjectType objectType, Long objectVersion) throws SynapseException {
 		ValidateArgument.required(objectId, "objectId");
 		ValidateArgument.required(objectType, "objectType");
 		String url = DOI_ASSOCIATION + "?id=" + objectId + "&type=" + objectType;
 		if (objectVersion != null) {
 			url += "&version=" + objectVersion;
+		}
+		if (portalId != null) {
+			url += "&portalId=" + portalId;
 		}
 		return getJSONEntity(getRepoEndpoint(), url, Doi.class);
 	}
@@ -3718,7 +3740,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	 */
 	@Override
 	public DoiResponse createOrUpdateDoiAsyncGet(String asyncJobToken) throws SynapseException {
-		String url = DOI + ASYNC_GET + asyncJobToken;
+        String url = DOI + ASYNC_GET + asyncJobToken;
 		return getJSONEntity(getRepoEndpoint(), url, DoiResponse.class);
 	}
 
@@ -3726,12 +3748,15 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	 *
 	 */
 	@Override
-	public String getPortalUrl(String objectId, ObjectType objectType, Long objectVersion) throws SynapseException {
+	public String getPortalUrl(String portalId, String objectId, DoiObjectType objectType, Long objectVersion) throws SynapseException {
 		ValidateArgument.required(objectId, "objectId");
 		ValidateArgument.required(objectType, "objectType");
 		String requestUrl = DOI_LOCATE + "?id=" + objectId + "&type=" + objectType;
 		if (objectVersion != null) {
 			requestUrl += "&version=" + objectVersion;
+		}
+		if (portalId != null) {
+			requestUrl += "&portalId=" + portalId;
 		}
 		requestUrl += "&redirect=false";
 		return getStringDirect(getRepoEndpoint(), requestUrl);
@@ -4719,7 +4744,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public Jwt<JwsHeader,Claims> getUserInfoAsJSONWebToken() throws SynapseException {
 		Map<String,String> requestHeaders = new HashMap<String,String>();
 		requestHeaders.put(AuthorizationConstants.AUTHORIZATION_HEADER_NAME, getAuthorizationHeader());
-		SimpleHttpResponse response = signAndDispatchSynapseRequest(
+		SimpleHttpResponse response = dispatchSynapseRequest(
 				getAuthEndpoint(), AUTH_OAUTH_2_USER_INFO, GET, null, requestHeaders, null);
 		if (!ClientUtils.is200sStatusCode(response.getStatusCode())) {
 			ClientUtils.throwException(response.getStatusCode(), response.getContent());
@@ -4773,6 +4798,22 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public void revokeToken(OAuthTokenRevocationRequest revocationRequest) throws SynapseException {
 		ValidateArgument.required(revocationRequest, "revocationRequest");
 		voidPost(getAuthEndpoint(), AUTH_OAUTH_2 + REVOKE, revocationRequest, null);
+	}
+
+	@Override
+	public void revokeTokenURLEncoded(String token) throws SynapseException, UnsupportedEncodingException {
+		ValidateArgument.required(token, "token");
+		Map<String, String> headers = new HashMap<String, String>();
+		// Note, the authorization header is expected to be the Basic Authorization
+		// credentials (client id & secret) for the OAuth client making this request
+		headers.put(AuthorizationConstants.AUTHORIZATION_HEADER_NAME, getAuthorizationHeader());
+		String charset="UTF-8";
+		headers.put(CONTENT_TYPE, "application/x-www-form-urlencoded; charset="+charset);
+		String requestBody="token="+URLEncoder.encode(token, charset);
+		
+		SimpleHttpResponse response = dispatchSynapseRequest(getAuthEndpoint(),
+				AUTH_OAUTH_2 + REVOKE, POST, requestBody, headers, null);
+		ClientUtils.checkStatusCodeAndThrowException(response);
 	}
 
 	@Override
@@ -5590,6 +5631,12 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	}
 
 	@Override
+	public AccessApproval getUserAccessApproval(String submissionId) throws SynapseException {
+		ValidateArgument.required(submissionId, "submissionId");
+		return getJSONEntity(getRepoEndpoint(), DATA_ACCESS_SUBMISSION + "/" + submissionId + "/userAccessApproval", AccessApproval.class);
+	}
+
+	@Override
 	public SubmissionPage listSubmissions(String requirementId, String nextPageToken,
 			SubmissionState filter, SubmissionOrder order, Boolean isAscending)
 			throws SynapseException {
@@ -6200,6 +6247,11 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public SubmissionSearchResponse searchDataAccessSubmissions(SubmissionSearchRequest request) throws SynapseException {
 		return postJSONEntity(getRepoEndpoint(), DATA_ACCESS_SUBMISSION + "/search", request, SubmissionSearchResponse.class);
 	}
+
+	@Override
+	public UserSubmissionSearchResponse searchUserSubmissions(UserSubmissionSearchRequest request) throws SynapseException {
+		return postJSONEntity(getRepoEndpoint(), DATA_ACCESS_SUBMISSION + "/userRequests", request, UserSubmissionSearchResponse.class);
+	}
 	
 	@Override
 	public AccessRequirementSearchResponse searchAccessRequirements(AccessRequirementSearchRequest request) throws SynapseException {
@@ -6413,4 +6465,60 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public AccessControlList updatePortalAcl(AccessControlList acl) throws SynapseException {
 		return putJSONEntity(getRepoEndpoint(), "/portal/" + acl.getId() + "/acl", acl, AccessControlList.class);
 	}
+	
+	// Grid connters methods	
+	@Override
+	public String createGridSessoinAsyncStart(CreateGridRequest request) throws SynapseException {
+		ValidateArgument.required(request, "request");
+		return startAsynchJob(AsynchJobType.CreateGrid, request);
+	}
+
+	@Override
+	public CreateGridResponse createGridSessionAsyncGet(String asyncJobToken)
+			throws SynapseException, SynapseResultNotReadyException {
+		return (CreateGridResponse) getAsyncResult(AsynchJobType.CreateGrid, asyncJobToken);
+	}
+	
+	@Override
+	public GridSession getGridSession(String sessionId) throws SynapseException {
+		return getJSONEntity(getRepoEndpoint(), "/grid/session/"+ sessionId, GridSession.class);
+	}
+	
+	@Override
+	public CreateReplicaResponse createGridReplica(CreateReplicaRequest request) throws SynapseException {
+		return postJSONEntity(getRepoEndpoint(), "/grid/session/" + request.getGridSessionId() + "/replica", request,
+				CreateReplicaResponse.class);
+	}
+	
+	@Override
+	public GridReplica getGridReplica(String sessionId, Long replicaId) throws SynapseException {
+		return getJSONEntity(getRepoEndpoint(), "/grid/session/" + sessionId + "/replica/" + replicaId, GridReplica.class);
+	}
+	
+	@Override
+	public CreateGridPresignedUrlResponse createGridPresignedUrl(CreateGridPresignedUrlRequest request)
+			throws SynapseException {
+		return postJSONEntity(getRepoEndpoint(), "/grid/session/" + request.getGridSessionId() + "/presigned/url", request,
+				CreateGridPresignedUrlResponse.class);
+	}
+
+	@Override
+	public ListGridSessionsResponse listGridSessions(ListGridSessionsRequest request) throws SynapseException {
+		return postJSONEntity(getRepoEndpoint(), "/grid/session/list", request, ListGridSessionsResponse.class);
+	}
+	
+	@Override
+	public void deleteGridSession(String sessionId) throws SynapseException {
+		deleteUri(getRepoEndpoint(), "/grid/session/" + sessionId);
+	}
+
+    @Override
+    public String exportGridAsCsvAsyncStart(DownloadFromGridRequest request) throws SynapseException {
+        return startAsynchJob(AsynchJobType.GridCsvDownload, request);
+    }
+
+    @Override
+    public DownloadFromGridResult exportGridAsCsvAsyncGet(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException {
+        return (DownloadFromGridResult) getAsyncResult(AsynchJobType.GridCsvDownload, asyncJobToken);
+    }
 }

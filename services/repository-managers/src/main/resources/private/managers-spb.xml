@@ -14,6 +14,7 @@
 	<context:component-scan base-package="org.sagebionetworks.repo.manager" annotation-config="false"/>
     <context:component-scan base-package="org.sagebionetworks.repo.service" annotation-config="false"/>
     <context:component-scan base-package="org.sagebionetworks.repo.util" annotation-config="false"/>
+    <context:component-scan base-package="org.sagebionetworks.grid" annotation-config="false"/>
 	<!-- Turn on Spring's autoproxy using AspectJ's @Aspect annotations. -->
 	<aop:aspectj-autoproxy />
 
@@ -286,6 +287,11 @@
 			<property name="name" value="Sage Bionetworks" />
 			<property name="description" value="Team for Sage Bionetworks workers" />
 		</bean>
+		<bean class="org.sagebionetworks.repo.model.principal.BootstrapTeam">
+			<property name="id" value="8" />
+			<property name="name" value="Synapse Portal Managers" />
+			<property name="description" value="Team for users authorized to make changes to portals" />
+		</bean>
        </util:list>
 		
 	<bean id="certifiedUserManager" class="org.sagebionetworks.repo.manager.CertifiedUserManagerImpl" scope="singleton"/>
@@ -306,6 +312,10 @@
 
 	<bean id="storageReportManager"
 		  class="org.sagebionetworks.repo.manager.report.StorageReportManagerImpl"
-		  scope="singleton"/>	
+		  scope="singleton"/>
+
+    <bean id="csvWriterProvider"
+          class="org.sagebionetworks.util.csv.CSVWriterProviderImpl"
+          scope="singleton"/>
 		  
 </beans>

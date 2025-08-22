@@ -401,16 +401,14 @@ public class OAuthClientManagerImpl implements OAuthClientManager {
 	
 	@WriteTransaction
 	@Override
-	public AccessControlList updateAccessControlList(UserInfo userInfo, AccessControlList acl) {
+	public AccessControlList updateAccessControlList(UserInfo userInfo, String clientId, AccessControlList acl) {
 		ValidateArgument.required(userInfo, "The user");
+		ValidateArgument.required(clientId, "The OAuth client id");
 		ValidateArgument.required(acl, "The acl");
+		ValidateArgument.requirement(clientId.equals(acl.getId()), "Id in URI must match id in ACL object.");
 		authManager.canAccess(userInfo, acl.getId(), ObjectType.OAUTH_CLIENT, ACCESS_TYPE.CHANGE_PERMISSIONS).checkAuthorizationOrElseThrow();
-		// Makes sure the user is not revoking their own permissions
-		// The 'ownerId' parameter allows bypassing the check that one is revoking
-		// their own access for the case that the caller is the creator of the object (i.e., of the
-		// oauth client).  We suppress this (i.e., we ALWAYS do the check) by
-		// passing the dummy value '0' for 'ownerId'
-		PermissionsManagerUtils.validateACLContent(acl, userInfo, /*ownerId*/0L);
+		OAuthClient client = oauthClientDao.getOAuthClient(acl.getId());
+		PermissionsManagerUtils.validateACLContent(acl, userInfo, Long.parseLong(client.getCreatedBy()));
 		aclDAO.update(acl, ObjectType.OAUTH_CLIENT);
 		return aclDAO.get(acl.getId(), ObjectType.OAUTH_CLIENT);
 	}

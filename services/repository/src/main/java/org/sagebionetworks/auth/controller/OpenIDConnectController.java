@@ -242,9 +242,10 @@ public class OpenIDConnectController {
 	public @ResponseBody
 	AccessControlList updateClientACL(
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@PathVariable String id,
 			@RequestBody AccessControlList acl
 			) throws NotFoundException {
-		return serviceProvider.getOpenIDConnectService().updateAccessControlList(userId, acl);
+		return serviceProvider.getOpenIDConnectService().updateAccessControlList(userId, id, acl);
 	}
 	
 

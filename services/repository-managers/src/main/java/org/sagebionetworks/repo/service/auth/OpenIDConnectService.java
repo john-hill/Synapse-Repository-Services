@@ -74,10 +74,11 @@ public interface OpenIDConnectService {
 	/**
 	 * 
 	 * @param userId
+	 * @param clientId
 	 * @param acl
 	 * @return
 	 */
-	public AccessControlList updateAccessControlList(Long userId, AccessControlList acl);
+	public AccessControlList updateAccessControlList(Long userId, String clientId, AccessControlList acl);
 	
 	/**
 	 * 

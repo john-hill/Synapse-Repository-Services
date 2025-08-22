@@ -139,9 +139,9 @@ public class OpenIDConnectServiceImpl implements OpenIDConnectService {
 	}
 	
 	@Override
-	public AccessControlList updateAccessControlList(Long userId, AccessControlList acl) {
+	public AccessControlList updateAccessControlList(Long userId, String clientId, AccessControlList acl) {
 		UserInfo userInfo = userManager.getUserInfo(userId);
-		return oauthClientManager.updateAccessControlList(userInfo, acl);
+		return oauthClientManager.updateAccessControlList(userInfo, clientId, acl);
 	}
 
 	@Override

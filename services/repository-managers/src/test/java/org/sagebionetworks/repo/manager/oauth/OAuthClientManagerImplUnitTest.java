@@ -384,7 +384,7 @@ public class OAuthClientManagerImplUnitTest {
 		when(mockOauthClientDao.createOAuthClient((OAuthClient)any())).then(returnsFirstArg());	
 		when(mockOauthClientDao.doesSectorIdentifierExistForURI(anyString())).thenReturn(false);
 		
-		OAuthClient oauthClient = createOAuthClient(USER_ID);
+		OAuthClient oauthClient = createOAuthClient(null);
 		
 		// later we test these fields are filled in.  So let's ensure they are not pre-filled.
 		assertNull(oauthClient.getCreatedBy());
@@ -1184,6 +1184,9 @@ public class OAuthClientManagerImplUnitTest {
 		when(mockAuthManager.canAccess(userInfo, OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.CHANGE_PERMISSIONS)).
 			thenReturn(AuthorizationStatus.authorized());
 		
+		OAuthClient oauthClient = createOAuthClient(USER_ID);
+		when(mockOauthClientDao.getOAuthClient(OAUTH_CLIENT_ID)).thenReturn(oauthClient);
+		
 		// method under test
 		oauthClientManagerImpl.updateAccessControlList(userInfo, acl);
 		
@@ -1208,6 +1211,7 @@ public class OAuthClientManagerImplUnitTest {
 	
 	private static OAuthClient createOAuthClient(String userId) {
 		OAuthClient result = new OAuthClient();
+		result.setCreatedBy(userId);
 		result.setClient_name(CLIENT_NAME);
 		result.setClient_uri(CLIENT_URI);
 		result.setCreatedOn(new Date(System.currentTimeMillis()));

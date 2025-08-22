@@ -92,10 +92,11 @@ public interface OAuthClientManager {
 	/**
 	 * Update the ACL for the specified OAuth Client
 	 * @param userInfo
+	 * @param clientId
 	 * @param acl
 	 * @return
 	 */
-	AccessControlList updateAccessControlList(UserInfo userInfo, AccessControlList acl);
+	AccessControlList updateAccessControlList(UserInfo userInfo, String clientId, AccessControlList acl);
 	
 	/**
 	 * Generate and return the secret for the given client.

@@ -130,7 +130,7 @@ public class OAuthClientManagerImplAutowiredTest {
 		acl.getResourceAccess().iterator().next().setAccessType(newPermissions);
 		
 		// method under test
-		oauthClientManager.updateAccessControlList(adminUserInfo, acl);
+		oauthClientManager.updateAccessControlList(adminUserInfo, acl.getId(), acl);
 
 		acl = oauthClientManager.getAccessControlList(adminUserInfo, id);
 		// check that the change was persisted

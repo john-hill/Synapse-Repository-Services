@@ -1188,7 +1188,7 @@ public class OAuthClientManagerImplUnitTest {
 		when(mockOauthClientDao.getOAuthClient(OAUTH_CLIENT_ID)).thenReturn(oauthClient);
 		
 		// method under test
-		oauthClientManagerImpl.updateAccessControlList(userInfo, acl);
+		oauthClientManagerImpl.updateAccessControlList(userInfo, OAUTH_CLIENT_ID, acl);
 		
 		verify(mockAclDAO).update(acl, ObjectType.OAUTH_CLIENT);
 		verify(mockAclDAO).get(OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT);
@@ -1204,7 +1204,7 @@ public class OAuthClientManagerImplUnitTest {
 	
 		// method under test
 		assertThrows(UnauthorizedException.class, () -> {
-			oauthClientManagerImpl.updateAccessControlList(anonymousUserInfo, acl);
+			oauthClientManagerImpl.updateAccessControlList(anonymousUserInfo, OAUTH_CLIENT_ID, acl);
 		});
 
 	}

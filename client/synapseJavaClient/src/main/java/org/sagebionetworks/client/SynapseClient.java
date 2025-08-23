@@ -219,6 +219,8 @@ import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridResponse;
 import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
 import org.sagebionetworks.repo.model.grid.CreateReplicaResponse;
+import org.sagebionetworks.repo.model.grid.DownloadFromGridRequest;
+import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
@@ -4597,6 +4599,16 @@ public interface SynapseClient extends BaseClient {
 	 * @throws SynapseException
 	 */
 	void deleteGridSession(String sessionId) throws SynapseException;
-	
+
+    /**
+     * Begin a job to export the contents of a grid as a CSV file.
+     */
+    String exportGridAsCsvAsyncStart(DownloadFromGridRequest request) throws SynapseException;
+
+    /**
+     * Get the results/status of an asynchronous job to export a grid as a CSV file.
+     */
+    DownloadFromGridResult exportGridAsCsvAsyncGet(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException;
+
 }
 

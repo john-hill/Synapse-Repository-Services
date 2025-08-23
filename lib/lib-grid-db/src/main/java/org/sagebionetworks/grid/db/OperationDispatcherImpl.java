@@ -30,12 +30,11 @@ public class OperationDispatcherImpl implements OperationDispatcher {
 
 	@Transactional(readOnly = false, propagation = Propagation.REQUIRED, isolation = Isolation.READ_COMMITTED)
 	@Override
-	public Map<IndexType, Set<LogicalTimestamp>> processAll(String sessionId, Long replicaId,
-			List<Operation<?>> operations) {
+	public Map<IndexType, Set<LogicalTimestamp>> processAll(String sessionId, Long replicaId, List<Operation> operations) {
 		ValidateArgument.required(sessionId, "sessionId");
 		ValidateArgument.required(replicaId, "replicaId");
 		ValidateArgument.required(operations, "operations");
-		Map<OperationType, List<Operation<?>>> batches = operations.stream()
+		Map<OperationType, List<Operation>> batches = operations.stream()
 				.collect(Collectors.groupingBy(Operation::getType));
 
 		Map<IndexType, Set<LogicalTimestamp>> allChanges = new LinkedHashMap<>();
@@ -44,7 +43,7 @@ public class OperationDispatcherImpl implements OperationDispatcher {
 		 * that 'new' operations will be processed before 'insert' operations.
 		 */
 		for (OperationType type : OperationType.values()) {
-			List<Operation<?>> batch = batches.get(type);
+			List<Operation> batch = batches.get(type);
 			if (batch != null) {
 				OperationHandler<?> handler = operationHandlers.get(type);
 				if (handler == null) {
@@ -72,8 +71,7 @@ public class OperationDispatcherImpl implements OperationDispatcher {
 	 * @param handler
 	 * @param batch
 	 */
-	@SuppressWarnings("unchecked") <O extends Operation<O>> Set<LogicalTimestamp> dispatchToHandler(String sessionId, Long replicaId,
-			OperationHandler<O> handler, List<Operation<?>> batch) {
+	@SuppressWarnings("unchecked") <O extends Operation> Set<LogicalTimestamp> dispatchToHandler(String sessionId, Long replicaId, OperationHandler<O> handler, List<Operation> batch) {
 		List<O> oBatch = batch.stream().map(op -> (O) op).collect(Collectors.toList());
 		return handler.handleBatch(sessionId, replicaId, oBatch);
 	}

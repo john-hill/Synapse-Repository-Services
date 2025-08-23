@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,6 +32,7 @@ import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.ObjectNode;
 import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.util.PaginationIterator;
 import org.sagebionetworks.util.ValidateArgument;
 import org.semver4j.Semver;
 import org.springframework.jdbc.core.RowMapper;
@@ -47,11 +49,11 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 				.setRowIndex(rs.getLong("INDEX"))
 				.setRowObject(new RowObject().setObjectId(readNullableTimestamp(rs, "O1.OBJ_REP", "O1.OBJ_SEQ"))
 						.setMetadata(new RowMetadata()
+								.setObjectId(readNullableTimestamp(rs, "O2.OBJ_REP", "O2.OBJ_SEQ"))
 								.setRowValidation(new RowValidation()
 										.setConstantId(readNullableTimestamp(rs, "RVC_REP", "RVC_SEQ")))
-								.setObjectId(readNullableTimestamp(rs, "O2.OBJ_REP", "O2.OBJ_SEQ"))
-								.setSynapseRow(new SynapseRow().setTempObject(rs.getString("O3.OBJ_VAL"))
-										.setObjectId(readNullableTimestamp(rs, "O3.OBJ_REP", "O3.OBJ_SEQ"))))
+								.setSynapseRow(new SynapseRow()
+										.setConstantId(readNullableTimestamp(rs, "SRC_REP", "SRC_SEQ"))))
 						.setData(new RowData().setVectorId(readNullableTimestamp(rs, "V1.VEC_REP", "V1.VEC_SEQ"))
 								.setCells(new JSONArray(rs.getString("VALS")))));
 	};
@@ -149,7 +151,16 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		return page;
 	}
 
-	@Override
+    @Override
+    public Iterator<RowView> getQueryIterator(GridHeader header, List<ViewFilter> filters) {
+        final long ROWS_PER_PAGE = 1_000L;
+        return new PaginationIterator<>(
+                (long limit, long offset) -> this.querySinglePage(header, filters, limit, offset),
+                ROWS_PER_PAGE
+        );
+    }
+
+    @Override
 	public Optional<GridHeader> readHeader(String gridSessionId, Long replicaId) {
 		Optional<ObjectNode> rootOpt = gridIndexDao.getRootObject(gridSessionId, replicaId);
 		if (rootOpt.isEmpty()) {

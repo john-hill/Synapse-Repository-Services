@@ -120,5 +120,4 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	public void truncateAll() {
 		dao.truncateAll();
 	}
-
 }

@@ -194,41 +194,27 @@ public class GridReplicaValidationManagerImplTest {
 	@Test
 	public void testValidateRows() {
 		when(mockJsonSchemaManager.getValidationSchema(schemaId)).thenReturn(jsonSchema);
-		doReturn(Optional.empty()).when(manager).validateCells(gridHeader, jsonSchema, rows.get(0));
-		UpdateMetadataChange change = new UpdateMetadataChange()
-				.setRowMetadataId(new LogicalTimestamp().setReplicaId(13L).setSequenceNumber(14L));
-		doReturn(Optional.of(change)).when(manager).validateCells(gridHeader, jsonSchema, rows.get(1));
+		
+		// Sets an existing and equal validation result for the second row 
+		rows.get(1).setRowObject(new RowObject().setMetadata(
+			new RowMetadata().setRowValidation(new RowValidation().setValidationResults(validationResult))));
+		
+		when(mockJsonSchemaValidationManager.validateBatch(jsonSchema, List.of(
+					new RowJsonSubject(columns, rows.get(0)),
+					new RowJsonSubject(columns, rows.get(1))
+				)
+			)
+		).thenReturn(List.of(validationResult, validationResult));
+		
+		doNothing().when(manager).cleanupValidationResults(validationResult);
+		
+		// The change is created only for the first row that does not contain any validation result yet
+		doReturn(intendedChange).when(manager).createChange(rows.get(0), validationResult);
 
 		// call under test
 		List<IntendedChange> changes = manager.validateRows(gridHeader, schemaId, rows);
-		assertEquals(List.of(change), changes);
-	}
-
-	@Test
-	public void testValidateCells() {
-
-		when(mockJsonSchemaValidationManager.validate(jsonSchema, new RowJsonSubject(columns, row)))
-				.thenReturn(validationResult);
-		doNothing().when(manager).cleanupValidationResults(validationResult);
-		doReturn(intendedChange).when(manager).createChange(row, validationResult);
-
-		// call under test
-		Optional<IntendedChange> result = manager.validateCells(gridHeader, jsonSchema, row);
-		assertEquals(Optional.of(intendedChange), result);
-	}
-
-	@Test
-	public void testValidateCellsWithNoValidationChange() {
-		row.setRowObject(new RowObject().setMetadata(
-				new RowMetadata().setRowValidation(new RowValidation().setValidationResults(validationResult))));
-
-		when(mockJsonSchemaValidationManager.validate(jsonSchema, new RowJsonSubject(columns, row)))
-				.thenReturn(validationResult);
-		doNothing().when(manager).cleanupValidationResults(validationResult);
-
-		// call under test
-		Optional<IntendedChange> result = manager.validateCells(gridHeader, jsonSchema, row);
-		assertEquals(Optional.empty(), result);
+		
+		assertEquals(List.of(intendedChange), changes);
 	}
 
 	@Test

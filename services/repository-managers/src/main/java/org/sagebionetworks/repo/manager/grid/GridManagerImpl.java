@@ -348,6 +348,12 @@ public class GridManagerImpl implements GridManager {
 		gridDao.removeConnection(connectionId);
 	}
 
+    @Override
+    public Optional<GridConnectionInfo> getDefaultInternalConnection(String sessionId) {
+        ValidateArgument.required(sessionId, "sessionId");
+        return gridDao.getDefaultInternalConnection(sessionId);
+    }
+
 	@WriteTransaction
 	@Override
 	public boolean savePatch(EventContext context, LogicalTimestamp patchId, String body) {

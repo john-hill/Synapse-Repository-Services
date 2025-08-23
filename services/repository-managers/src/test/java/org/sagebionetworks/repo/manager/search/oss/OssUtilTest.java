@@ -1,17 +1,20 @@
 package org.sagebionetworks.repo.manager.search.oss;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Sets;
 import jakarta.json.Json;
 import jakarta.json.stream.JsonGenerator;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.opensearch.client.json.JsonData;
 import org.opensearch.client.json.JsonpMapper;
 import org.opensearch.client.json.jackson.JacksonJsonpMapper;
 import org.opensearch.client.opensearch._types.FieldValue;
 import org.opensearch.client.opensearch._types.SortOrder;
+import org.opensearch.client.opensearch._types.aggregations.Aggregate;
 import org.opensearch.client.opensearch._types.aggregations.Aggregation;
+import org.opensearch.client.opensearch._types.aggregations.LongTermsBucket;
 import org.opensearch.client.opensearch._types.aggregations.StringTermsBucket;
 import org.opensearch.client.opensearch._types.query_dsl.Query;
 import org.opensearch.client.opensearch._types.query_dsl.RangeQuery;
@@ -23,7 +26,6 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.search.DocumentFields;
 import org.sagebionetworks.repo.model.search.Facet;
 import org.sagebionetworks.repo.model.search.FacetConstraint;
-import org.sagebionetworks.repo.model.search.FacetTypeNames;
 import org.sagebionetworks.repo.model.search.SearchResults;
 import org.sagebionetworks.repo.model.search.query.KeyRange;
 import org.sagebionetworks.repo.model.search.query.KeyValue;
@@ -31,9 +33,7 @@ import org.sagebionetworks.repo.model.search.query.SearchFacetOption;
 import org.sagebionetworks.repo.model.search.query.SearchFacetSort;
 import org.sagebionetworks.repo.model.search.query.SearchFieldName;
 import org.sagebionetworks.repo.model.search.query.SearchQuery;
-import org.sagebionetworks.search.IndexFieldToSynapseFacetType;
 import org.sagebionetworks.search.SearchConstants;
-import org.sagebionetworks.search.awscloudsearch.SynapseToCloudSearchField;
 
 import java.io.StringWriter;
 import java.util.ArrayList;
@@ -60,7 +60,7 @@ public class OssUtilTest {
     private List<KeyRange> keyRangeList;
     private KeyRange keyRange;
 
-    @Before
+    @BeforeEach
     public void before() throws Exception {
         query = new SearchQuery();
         // q
@@ -297,8 +297,14 @@ public class OssUtilTest {
         assertEquals(expectedJson, actualJson);
     }
 
-    @Test
-    public void testGenerateSearchRequestWithFacetOrderDesc() throws JsonProcessingException {
+    @ParameterizedTest
+    @EnumSource(SearchFieldName.class)
+    public void testGenerateSearchRequestWithFacetOrderDesc(SearchFieldName searchFieldName) {
+        //Test fields are not supported by OpenSearch Aggregation
+        if (searchFieldName == SearchFieldName.Name || searchFieldName == SearchFieldName.Description) {
+            return;
+        }
+
         expectedSearchRequestBaseNoQueryTermSet.query(query -> query.bool(b1 -> b1
                         .must(Query.of(q1 -> q1.matchAll(m -> m)))
                         .filter(List.of(
@@ -310,23 +316,26 @@ public class OssUtilTest {
                                                         .map(FieldValue::of)
                                                         .collect(Collectors.toList())
                                         ))))))))
-                .aggregations(searchFacetOption.getName().name(), Aggregation.of(a -> a
+
+                .aggregations(SynapseToOpenSearchAggregationField.openSearchFieldFor(searchFieldName), Aggregation.of(a -> a
                         .terms(t -> t
-                                .field("node_type")
+                                .field(SynapseToOpenSearchAggregationField.openSearchFieldFor(searchFieldName))
                                 .order((List.of(Map.of("_count", SortOrder.Desc))))
-                                .size(Math.toIntExact(searchFacetOption.getMaxResultCount())))));
+                                .size(300))));
 
         SearchRequest expectedRequest = expectedSearchRequestBaseNoQueryTermSet.build();
 
         //call under test
-        SearchRequest request = OssUtil.generateSearchRequest(userInfo, query.setBooleanQuery(bq).setFacetOptions(List.of(searchFacetOption)));
+        SearchRequest request = OssUtil.generateSearchRequest(userInfo, query.setBooleanQuery(bq)
+                .setFacetOptions(List.of(
+                        new SearchFacetOption().setName(searchFieldName).setSortType(SearchFacetSort.COUNT).setMaxResultCount(300l)
+                )));
         assertEquals(1, request.query().bool().must().size());
         assertEquals(2, request.query().bool().filter().size());
         assertEquals(1, request.aggregations().size());
 
         String actualJson = toJson(request);
         String expectedJson = toJson(expectedRequest);
-
         assertEquals(expectedJson, actualJson);
     }
 
@@ -343,9 +352,9 @@ public class OssUtilTest {
                                                         .map(FieldValue::of)
                                                         .collect(Collectors.toList())
                                         ))))))))
-                .aggregations(searchFacetOption.getName().name(), Aggregation.of(a -> a
+                .aggregations(SynapseToOpenSearchAggregationField.openSearchFieldFor(SearchFieldName.EntityType), Aggregation.of(a -> a
                         .terms(t -> t
-                                .field("node_type")
+                                .field(SynapseToOpenSearchAggregationField.openSearchFieldFor(SearchFieldName.EntityType))
                                 .order((List.of(Map.of("_count", SortOrder.Asc))))
                                 .size(Math.toIntExact(searchFacetOption.getMaxResultCount())))));
 
@@ -360,7 +369,6 @@ public class OssUtilTest {
 
         String actualJson = toJson(request);
         String expectedJson = toJson(expectedRequest);
-
         assertEquals(expectedJson, actualJson);
     }
 
@@ -460,27 +468,40 @@ public class OssUtilTest {
     @Test
     public void testConvertToSynapseSearchResult() {
         DocumentFields document = getDocument();
-        String facetName = "node_type";
-
+        String nodeType = SynapseToOpenSearchAggregationField.openSearchFieldFor(SearchFieldName.EntityType);
+        String createdON = SynapseToOpenSearchAggregationField.openSearchFieldFor(SearchFieldName.CreatedOn);
+        String nodeBucketKey = "project";
+        String createdOnBucketKey = "1234567";
         SearchResponse<DocumentFields> response = SearchResponse.searchResponseOf(res -> res.documents(document)
                 .shards(shard -> shard.total(1).failed(0l).successful(1l))
-                .aggregations(facetName, a -> a.
-                        sterms(terms -> terms
-                                .buckets(buckets -> buckets.array(Arrays.asList(
-                                        StringTermsBucket.of(b -> b.key(facetName).docCount(100L))
-                                ))).sumOtherDocCount(0))).timedOut(false).took(10).hits(hh -> hh.hits(ht -> ht.source(document).id("id")
+                .aggregations(Map.of(nodeType, Aggregate.of(a -> a
+                                        .sterms(terms -> terms
+                                                .buckets(buckets -> buckets.array(Arrays.asList(
+                                                        StringTermsBucket.of(b -> b.key(nodeBucketKey).docCount(100L))
+                                                ))).sumOtherDocCount(0))),
+                                createdON, Aggregate.of(a -> a
+                                        .lterms(terms -> terms
+                                                .buckets(buckets -> buckets.array(Arrays.asList(
+                                                        LongTermsBucket.of(b -> b.key(createdOnBucketKey).docCount(100L))
+                                                ))).sumOtherDocCount(0)))
+                        )
+                )
+                .timedOut(false).took(10).hits(hh -> hh.hits(ht -> ht.source(document).id("id")
                         .index(SearchConstants.OPEN_SEARCH_INDEX_NAME)).total(t -> t.value(1l).relation(TotalHitsRelation.valueOf("Eq")))));
-
-        FacetTypeNames facetType = IndexFieldToSynapseFacetType.getSynapseFacetType(SynapseToCloudSearchField.cloudSearchFieldFor(facetName).getType());
 
 
         SearchResults expectedSynapseSearchResults = new SearchResults().setFound(1l).setStart(5l).setFacets(List.of(
-                        new Facet().setName("node_type").setType(facetType).setConstraints(List.of(new FacetConstraint().setCount(100l).setValue(facetName)))))
+                        new Facet().setName(createdON).setType(OpenSearchFieldType.fieldType(SynapseToOpenSearchAggregationField.synapseFieldFor(createdON)))
+                                .setConstraints(List.of(new FacetConstraint().setCount(100l).setValue(createdOnBucketKey))),
+                        new Facet().setName(nodeType).setType(OpenSearchFieldType.fieldType(SynapseToOpenSearchAggregationField.synapseFieldFor(nodeType)))
+                                .setConstraints(List.of(new FacetConstraint().setCount(100l).setValue(nodeBucketKey)))))
                 .setHits(List.of(getHitFromDocument(document)));
 
         //call under test
         SearchResults results = OssUtil.convertToSynapseSearchResult(response, 5);
-        assertEquals(expectedSynapseSearchResults, results);
+        results.getFacets().sort((o1, o2) -> o1.getName().compareTo(o2.getName()));
+        assertEquals(2, results.getFacets().size());
+        assertEquals(expectedSynapseSearchResults.getFacets(), results.getFacets());
 
     }
 

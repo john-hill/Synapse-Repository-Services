@@ -6,11 +6,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.grid.db.ConstantProvider;
 import org.sagebionetworks.grid.db.GridIndexDao;
 import org.sagebionetworks.repo.manager.grid.PatchUtils;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
+import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
@@ -19,17 +22,19 @@ import org.springframework.stereotype.Service;
 @Service
 public class GridReplicaPatchBuilderManagerImpl implements GridReplicaPatchBuilderManager {
 
+	private static final Logger log = LogManager.getLogger(GridReplicaPatchBuilderManagerImpl.class);
+
 	private final GridDao gridDao;
 	private final GridIndexDao gridIndexDao;
 	private final ConstantProvider constantProvider;
 	private final PatchPublisher patchPublisher;
 	private final Map<IntendedChangeType, ChangeHandler<?>> handlers;
 
-	public GridReplicaPatchBuilderManagerImpl(GridDao gridDao, GridIndexDao gridIndexDao, PatchPublisher patchPublisher,
-			List<ChangeHandler<?>> handlers, ConstantProvider constantProvider) {
-		this.gridDao = gridDao;
-		this.gridIndexDao = gridIndexDao;
-		this.constantProvider = constantProvider;
+    public GridReplicaPatchBuilderManagerImpl(GridDao gridDao, GridIndexDao gridIndexDao, PatchPublisher patchPublisher,
+                                              List<ChangeHandler<?>> handlers, ConstantProvider constantProvider) {
+        this.gridDao = gridDao;
+        this.gridIndexDao = gridIndexDao;
+        this.constantProvider = constantProvider;
 		this.patchPublisher = patchPublisher;
 		this.handlers = handlers.stream().collect(Collectors.toMap(ChangeHandler::getType, h -> h));
 	}
@@ -37,8 +42,13 @@ public class GridReplicaPatchBuilderManagerImpl implements GridReplicaPatchBuild
 	@Override
 	public void buildPatch(IntendedChangeSet changeSet) throws IOException {
 		validateChangeSet(changeSet);
+		Optional<GridSession> session = gridDao.getGridSession(changeSet.getSessionId());
+		if (session.isEmpty()) {
+			log.info("No session found for: '{}' the message will be ignored", changeSet.getSessionId());
+			return;
+		}
 
-		Optional<LogicalTimestamp> currentClock = getCurrentClock(changeSet.getSessionId(), changeSet.getReplicaId());
+		Optional<LogicalTimestamp> currentClock = getCurrentClockIfAllPatchesApplied(changeSet.getSessionId(), changeSet.getReplicaId());
 		if (currentClock.isEmpty()) {
 			throw new RecoverableMessageException(
 					"Waiting for outstanding patches to be applied before building new ones");
@@ -78,14 +88,15 @@ public class GridReplicaPatchBuilderManagerImpl implements GridReplicaPatchBuild
 		}
 	}
 
-	Optional<LogicalTimestamp> getCurrentClock(String sessionId, Long replicaId) {
+	@Override
+	public Optional<LogicalTimestamp> getCurrentClockIfAllPatchesApplied(String sessionId, Long replicaId) {
+		List<LogicalTimestamp> missingPatches = gridDao.listMissingPatchIdsForClock(sessionId,
+				gridIndexDao.getClock(sessionId, replicaId), 1);
+		if (!missingPatches.isEmpty()) {
+			return Optional.empty();
+		}
 		Optional<Long> sequenceNumber = gridIndexDao.getClockSequenceNumber(sessionId, replicaId, replicaId);
-		LogicalTimestamp currentClock = new LogicalTimestamp().setReplicaId(replicaId)
-				.setSequenceNumber(sequenceNumber.orElse(0L));
-
-		List<LogicalTimestamp> missingPatches = gridDao.listMissingPatchIdsForClock(sessionId, List.of(currentClock),
-				1);
-
-		return missingPatches.isEmpty() ? Optional.of(currentClock) : Optional.empty();
+		return Optional.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(sequenceNumber.orElse(0L)));
 	}
+
 }

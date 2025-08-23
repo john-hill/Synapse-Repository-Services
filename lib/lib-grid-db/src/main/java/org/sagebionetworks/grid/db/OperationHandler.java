@@ -7,7 +7,7 @@ import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.operation.Operation;
 import org.sagebionetworks.repo.model.grid.patch.operation.OperationType;
 
-public interface OperationHandler<T extends Operation<T>> {
+public interface OperationHandler<T extends Operation> {
 
 	/**
 	 * The type of operation that a specific implementation can handle.

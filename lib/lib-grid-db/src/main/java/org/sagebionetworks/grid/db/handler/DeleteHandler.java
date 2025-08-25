@@ -9,9 +9,9 @@ import org.sagebionetworks.grid.db.OperationHandler;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.operation.Delete;
 import org.sagebionetworks.repo.model.grid.patch.operation.OperationType;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
-@Service
+@Component
 public class DeleteHandler implements OperationHandler<Delete> {
 
 	private GridIndexDao gridDao;

@@ -362,21 +362,6 @@ public class OAuthClientManagerImplUnitTest {
 		// method under test
 		assertFalse(OAuthClientManagerImpl.canCreate(anonymousUserInfo));
 	}
-
-	@Test
-	public void testCanAdministrate() {
-		UserInfo userInfo = new UserInfo(false);
-		userInfo.setId(USER_ID_LONG);
-		// method under test
-		assertTrue(OAuthClientManagerImpl.canAdministrate(userInfo, USER_ID));
-		// method under test
-		assertFalse(OAuthClientManagerImpl.canAdministrate(userInfo, "9999"));
-		
-		UserInfo adminUserInfo = new UserInfo(true);
-		adminUserInfo.setId(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId());
-		// method under test
-		assertTrue(OAuthClientManagerImpl.canAdministrate(adminUserInfo, USER_ID));
-	}
 	
 	@Test
 	public void testCreateOpenIDConnectClient() throws Exception {

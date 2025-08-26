@@ -357,9 +357,13 @@ public class GridEventBrokerWorkerIntegrationTest {
 				.orElse(Pair.create(false, null))
 		);
 		
-		List<RowView> rowsView = gridViewManager.querySinglePage(header, 100L, 0L);
-		
-		assertEquals(3, rowsView.size());
+		List<RowView> rowsView = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+			List<RowView> page = gridViewManager.querySinglePage(header, 100L, 0L);
+			if (page.size() == 3) {
+				return Pair.create(true, page);
+			}
+			return Pair.create(false, null);
+		});
 		
 		// Deletes the first two rows:
 		Patch updatePatch = new Patch()

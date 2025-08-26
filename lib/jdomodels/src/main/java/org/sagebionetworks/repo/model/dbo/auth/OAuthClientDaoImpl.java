@@ -29,6 +29,7 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_RESOUR
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -84,7 +85,7 @@ public class OAuthClientDaoImpl implements OAuthClientDao {
 			"acl."+COL_ACL_OWNER_TYPE+"='OAUTH_CLIENT' "+
 			"and ra."+COL_RESOURCE_ACCESS_OWNER+"=acl."+COL_ACL_ID+" and ra."+COL_RESOURCE_ACCESS_GROUP_ID+" in (?) "+
 			"and ra."+COL_RESOURCE_ACCESS_ID + " = rat." + COL_RESOURCE_ACCESS_TYPE_ID+
-			"and rat."+COL_RESOURCE_ACCESS_TYPE_ELEMENT+"=? "+
+			" and rat."+COL_RESOURCE_ACCESS_TYPE_ELEMENT+"=? "+
 			"LIMIT ? OFFSET ? ";
 	
 	private static final String CLIENT_WITHOUT_ACL_SQL_SELECT = "SELECT oc.*"+
@@ -222,8 +223,12 @@ public class OAuthClientDaoImpl implements OAuthClientDao {
 	@Override
 	public OAuthClientList listOAuthClients(Set<Long> userGroups, ACCESS_TYPE accessType, String nextPageToken) {
 		NextPageToken nextPage = new NextPageToken(nextPageToken);
+		Set<String> principalsAsStrings = new HashSet<String>();
+		for (Long principal: userGroups) {
+			principalsAsStrings.add(principal.toString());
+		}
 		List<DBOOAuthClient> dboList = jdbcTemplate.query(CLIENT_WITH_ACCESS_SQL_SELECT, 
-				new Object[] {userGroups, accessType, nextPage.getLimitForQuery(), nextPage.getOffset()}, 
+				new Object[] {String.join(",", principalsAsStrings), accessType.toString(), nextPage.getLimitForQuery(), nextPage.getOffset()}, 
 				(new DBOOAuthClient()).getTableMapping());
 		OAuthClientList result = new OAuthClientList();
 		result.setNextPageToken(nextPage.getNextPageTokenForCurrentResults(dboList));

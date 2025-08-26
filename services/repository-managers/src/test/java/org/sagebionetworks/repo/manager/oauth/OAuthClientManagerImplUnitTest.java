@@ -481,6 +481,9 @@ public class OAuthClientManagerImplUnitTest {
 		oauthClient.setEtag("some etag");
 		when(mockOauthClientDao.getOAuthClient(id)).thenReturn(oauthClient);
 		
+		when(mockAuthManager.canAccess(userInfo, id, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.UPDATE)).
+			thenReturn(AuthorizationStatus.authorized());
+
 		// method under test
 		oauthClientManagerImpl.getOpenIDConnectClient(userInfo, id);
 		
@@ -505,6 +508,9 @@ public class OAuthClientManagerImplUnitTest {
 		oauthClient.setEtag("some etag");
 		when(mockOauthClientDao.getOAuthClient(id)).thenReturn(oauthClient);
 		
+		when(mockAuthManager.canAccess(anonymousUserInfo, id, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.UPDATE)).
+			thenReturn(AuthorizationStatus.accessDenied("not authorized"));
+		
 		// method under test
 		oauthClientManagerImpl.getOpenIDConnectClient(anonymousUserInfo, id);
 		
@@ -526,7 +532,7 @@ public class OAuthClientManagerImplUnitTest {
 		// method under test
 		oauthClientManagerImpl.listOpenIDConnectClients(userInfo, nextPageToken);
 		
-		verify(mockOauthClientDao).listOAuthClients(nextPageToken, USER_ID_LONG);
+		verify(mockOauthClientDao).listOAuthClients(userInfo.getGroups(), ACCESS_TYPE.UPDATE, nextPageToken);
 	}
 	
 	@Test
@@ -539,6 +545,9 @@ public class OAuthClientManagerImplUnitTest {
 		
 		when(mockOauthClientDao.selectOAuthClientForUpdate(created.getClient_id())).thenReturn(created);
 		
+		when(mockAuthManager.canAccess(userInfo, OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.UPDATE)).
+			thenReturn(AuthorizationStatus.authorized());
+	
 		// 'toUpdate' is the object as retrieved and modified by the client
 		OAuthClient toUpdate = createOAuthClient(USER_ID);
 		toUpdate.setClient_id(OAUTH_CLIENT_ID);
@@ -562,6 +571,9 @@ public class OAuthClientManagerImplUnitTest {
 		
 		when(mockOauthClientDao.selectOAuthClientForUpdate(created.getClient_id())).thenReturn(created);
 		
+		when(mockAuthManager.canAccess(userInfo, OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.UPDATE)).
+			thenReturn(AuthorizationStatus.authorized());
+
 		// 'toUpdate' is the object as retrieved and modified by the client
 		OAuthClient toUpdate = createOAuthClient(USER_ID);
 		toUpdate.setClient_id(OAUTH_CLIENT_ID);
@@ -597,6 +609,9 @@ public class OAuthClientManagerImplUnitTest {
 		
 		when(mockOauthClientDao.selectOAuthClientForUpdate(created.getClient_id())).thenReturn(created);
 		
+		when(mockAuthManager.canAccess(userInfo, OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.UPDATE)).
+			thenReturn(AuthorizationStatus.authorized());
+		
 		// 'toUpdate' is the object as retrieved and modified by the client
 		OAuthClient toUpdate = createOAuthClient(USER_ID);
 		toUpdate.setClient_id(OAUTH_CLIENT_ID);
@@ -619,6 +634,9 @@ public class OAuthClientManagerImplUnitTest {
 		
 		when(mockOauthClientDao.selectOAuthClientForUpdate(created.getClient_id())).thenReturn(created);
 		
+		when(mockAuthManager.canAccess(userInfo, OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.UPDATE)).
+			thenReturn(AuthorizationStatus.authorized());
+
 		// 'toUpdate' is the object as retrieved and modified by the client
 		OAuthClient toUpdate = createOAuthClient(USER_ID);
 		toUpdate.setClient_id(OAUTH_CLIENT_ID);
@@ -626,6 +644,21 @@ public class OAuthClientManagerImplUnitTest {
 		toUpdate.setRedirect_uris(Collections.EMPTY_LIST);
 		
 		assertThrows(IllegalArgumentException.class, () -> {
+			// method under test
+			oauthClientManagerImpl.reverificationRequiredForUpdatedOpenIDConnectClient(userInfo, toUpdate);
+		});
+	}
+	
+	@Test
+	public void testReverificationRequiredForUpdatedOpenIDConnectClient_unauthorized() throws Exception {
+		when(mockAuthManager.canAccess(userInfo, OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.UPDATE)).
+			thenReturn(AuthorizationStatus.accessDenied("unauthorized"));
+
+		// 'toUpdate' is the object as retrieved and modified by the client
+		OAuthClient toUpdate = createOAuthClient(USER_ID);
+		toUpdate.setClient_id(OAUTH_CLIENT_ID);
+		
+		assertThrows(UnauthorizedException.class, () -> {
 			// method under test
 			oauthClientManagerImpl.reverificationRequiredForUpdatedOpenIDConnectClient(userInfo, toUpdate);
 		});
@@ -657,6 +690,8 @@ public class OAuthClientManagerImplUnitTest {
 		when(mockOauthClientDao.selectOAuthClientForUpdate(created.getClient_id())).thenReturn(created);
 		when(mockOauthClientDao.updateOAuthClient((OAuthClient)any())).then(returnsFirstArg());
 		when(mockUserManager.getUserInfo(any())).thenReturn(userInfo);
+		when(mockAuthManager.canAccess(userInfo, OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.UPDATE)).
+			thenReturn(AuthorizationStatus.authorized());
 		
 		// method under test
 		OAuthClient updated = oauthClientManagerImpl.updateOpenIDConnectClient(userInfo, toUpdate);
@@ -701,6 +736,8 @@ public class OAuthClientManagerImplUnitTest {
 				
 		when(mockOauthClientDao.selectOAuthClientForUpdate(created.getClient_id())).thenReturn(created);
 		when(mockOauthClientDao.updateOAuthClient((OAuthClient)any())).then(returnsFirstArg());
+		when(mockAuthManager.canAccess(userInfo, OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.UPDATE)).
+			thenReturn(AuthorizationStatus.authorized());
 		
 		// method under test
 		OAuthClient updated = oauthClientManagerImpl.updateOpenIDConnectClient(userInfo, toUpdate);
@@ -729,7 +766,10 @@ public class OAuthClientManagerImplUnitTest {
 		
 		// 'toUpdate' is the object as retrieved and modified by the client
 		OAuthClient toUpdate = newCreatedOAuthClient();
-
+		
+		when(mockAuthManager.canAccess(anonymousUserInfo, OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.UPDATE)).
+			thenReturn(AuthorizationStatus.accessDenied("unauthorized"));
+	
 		assertThrows(UnauthorizedException.class, () -> {
 			// method under test
 			oauthClientManagerImpl.updateOpenIDConnectClient(anonymousUserInfo, toUpdate);
@@ -744,6 +784,10 @@ public class OAuthClientManagerImplUnitTest {
 		OAuthClient created = newCreatedOAuthClient();
 		created.setCreatedBy(userInfo.getId().toString());
 		when(mockOauthClientDao.selectOAuthClientForUpdate(created.getClient_id())).thenReturn(created);
+		when(mockAuthManager.canAccess(userInfo, OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.UPDATE)).
+			thenReturn(AuthorizationStatus.authorized());
+		when(mockAuthManager.canAccess(userInfo, OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.UPDATE)).
+			thenReturn(AuthorizationStatus.authorized());
 		
 		// 'toUpdate' is the object as retrieved and modified by the client
 		OAuthClient toUpdate = newCreatedOAuthClient();
@@ -764,6 +808,8 @@ public class OAuthClientManagerImplUnitTest {
 		
 		when(mockOauthClientDao.getOAuthClient(OAUTH_CLIENT_ID)).thenReturn(client);
 		when(mockUserManager.getUserInfo(any())).thenReturn(userInfo);
+		when(mockAuthManager.canAccess(userInfo, OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.DELETE)).
+			thenReturn(AuthorizationStatus.authorized());
 		
 		// method under test
 		oauthClientManagerImpl.deleteOpenIDConnectClient(userInfo, OAUTH_CLIENT_ID);
@@ -779,9 +825,8 @@ public class OAuthClientManagerImplUnitTest {
 	
 	@Test
 	public void testDeleteOpenIDConnectClient_Unauthorized() {
-		OAuthClient client = newCreatedOAuthClient().setCreatedBy("202");
-		
-		when(mockOauthClientDao.getOAuthClient(OAUTH_CLIENT_ID)).thenReturn(client);
+		when(mockAuthManager.canAccess(userInfo, OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.DELETE)).
+			thenReturn(AuthorizationStatus.accessDenied("unauthorized"));
 
 		assertThrows(UnauthorizedException.class, () -> {
 			// method under test
@@ -799,10 +844,12 @@ public class OAuthClientManagerImplUnitTest {
 		
 		when(mockOauthClientDao.getOAuthClient(OAUTH_CLIENT_ID)).thenReturn(client);
 		when(mockUserManager.getUserInfo(any())).thenReturn(userInfo);
+		when(mockAuthManager.canAccess(userInfo, OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.UPDATE)).
+			thenReturn(AuthorizationStatus.authorized());
 		
 		// method under test
 		OAuthClientIdAndSecret idAndSecret = oauthClientManagerImpl.createClientSecret(userInfo, OAUTH_CLIENT_ID);
-
+		
 		assertEquals(OAUTH_CLIENT_ID, idAndSecret.getClient_id());
 		assertNotNull(idAndSecret.getClient_secret());
 		
@@ -815,10 +862,8 @@ public class OAuthClientManagerImplUnitTest {
 
 	@Test
 	public void testCreateClientSecret_unauthorized() {
-
-		OAuthClient client = newCreatedOAuthClient();
-		
-		when(mockOauthClientDao.getOAuthClient(OAUTH_CLIENT_ID)).thenReturn(client);
+		when(mockAuthManager.canAccess(anonymousUserInfo, OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.UPDATE)).
+			thenReturn(AuthorizationStatus.accessDenied("unauthorized"));
 		
 		assertThrows(UnauthorizedException.class, () -> {
 			// method under test

@@ -125,13 +125,11 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		StringBuilder whereBuilder = new StringBuilder(" WHERE IS_DELETED IS FALSE");
 		
 		if (!filters.isEmpty()) {
-			StringJoiner whereJoiner = new StringJoiner(" AND ");
 			for (int i = 0; i < filters.size(); i++) {
 				ViewFilter f = filters.get(i);
-				whereJoiner.add(f.getConditionSql(i));
+				whereBuilder.append(" AND ").append(f.getConditionSql(i));
 				params.addValue(f.getParameterKey(i), f.getParameterValue());
 			}
-			whereBuilder.append(whereJoiner.toString());
 		}
 		String sql = String.format(GRID_INDEX_VIEW_TEMPLATE, select, whereBuilder.toString());
 

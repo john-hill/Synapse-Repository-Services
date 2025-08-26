@@ -67,9 +67,9 @@ import org.sagebionetworks.repo.model.grid.patch.Timespan;
 import org.sagebionetworks.repo.model.grid.patch.compact.LogicalTimestampCompactSerializable;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
-import org.sagebionetworks.repo.model.grid.patch.operation.builder.DeleteBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.InsertVectorBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewConstantBuilder;
+import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
 import org.sagebionetworks.repo.model.schema.CreateOrganizationRequest;
 import org.sagebionetworks.repo.model.schema.CreateSchemaRequest;
 import org.sagebionetworks.repo.model.schema.CreateSchemaResponse;
@@ -365,7 +365,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 		Patch updatePatch = new Patch()
 			.setPatchId(new LogicalTimestamp().setReplicaId(replicaOne.getReplicaId()).setSequenceNumber(25L));
 		
-		updatePatch.addNewOperation(new DeleteBuilder()
+		updatePatch.addNewOperation(Operations.delete()
 			.setNodeId(header.getRowsId())
 			.setTimespans(List.of(
 				new Timespan(

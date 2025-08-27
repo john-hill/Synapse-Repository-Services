@@ -786,8 +786,6 @@ public class OAuthClientManagerImplUnitTest {
 		when(mockOauthClientDao.selectOAuthClientForUpdate(created.getClient_id())).thenReturn(created);
 		when(mockAuthManager.canAccess(userInfo, OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.UPDATE)).
 			thenReturn(AuthorizationStatus.authorized());
-		when(mockAuthManager.canAccess(userInfo, OAUTH_CLIENT_ID, ObjectType.OAUTH_CLIENT, ACCESS_TYPE.UPDATE)).
-			thenReturn(AuthorizationStatus.authorized());
 		
 		// 'toUpdate' is the object as retrieved and modified by the client
 		OAuthClient toUpdate = newCreatedOAuthClient();

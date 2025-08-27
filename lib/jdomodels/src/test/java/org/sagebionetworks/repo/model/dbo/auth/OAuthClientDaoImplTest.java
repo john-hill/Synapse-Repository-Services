@@ -400,7 +400,7 @@ public class OAuthClientDaoImplTest {
 
 		// method under test
 		OAuthClientList list = oauthClientDao.listOAuthClients(
-			Set.of(userId2), ACCESS_TYPE.UPDATE, null);
+			Set.of(userId2, 0L), ACCESS_TYPE.UPDATE, null);
 
 		assertNull(list.getNextPageToken());
 		List<OAuthClient> clients = list.getResults();

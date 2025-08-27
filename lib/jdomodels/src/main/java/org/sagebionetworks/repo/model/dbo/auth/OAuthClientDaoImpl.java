@@ -1,5 +1,7 @@
 package org.sagebionetworks.repo.model.dbo.auth;
 
+import static org.sagebionetworks.repo.model.jdo.AuthorizationSqlUtil.ACCESS_TYPE_BIND_VAR;
+import static org.sagebionetworks.repo.model.jdo.AuthorizationSqlUtil.PRINCIPAL_IDS_BIND_VAR;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_ACL_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_ACL_OWNER_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_ACL_OWNER_TYPE;
@@ -19,6 +21,8 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_RESOURCE
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_RESOURCE_ACCESS_OWNER;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_RESOURCE_ACCESS_TYPE_ELEMENT;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_RESOURCE_ACCESS_TYPE_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.LIMIT_PARAM_NAME;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.OFFSET_PARAM_NAME;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_ACCESS_CONTROL_LIST;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_OAUTH_CLIENT;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_OAUTH_REFRESH_TOKEN;
@@ -29,7 +33,6 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_RESOUR
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -58,6 +61,8 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.IncorrectResultSetColumnCountException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 
 public class OAuthClientDaoImpl implements OAuthClientDao {
@@ -81,12 +86,13 @@ public class OAuthClientDaoImpl implements OAuthClientDao {
 			TABLE_RESOURCE_ACCESS+" ra, "+
 			TABLE_RESOURCE_ACCESS_TYPE+" rat "+
 			"WHERE "+
-			"oc."+COL_OAUTH_CLIENT_ID+"=acl."+COL_ACL_OWNER_ID+" and "+
-			"acl."+COL_ACL_OWNER_TYPE+"='OAUTH_CLIENT' "+
-			"and ra."+COL_RESOURCE_ACCESS_OWNER+"=acl."+COL_ACL_ID+" and ra."+COL_RESOURCE_ACCESS_GROUP_ID+" in (?) "+
-			"and ra."+COL_RESOURCE_ACCESS_ID + " = rat." + COL_RESOURCE_ACCESS_TYPE_ID+
-			" and rat."+COL_RESOURCE_ACCESS_TYPE_ELEMENT+"=? "+
-			"LIMIT ? OFFSET ? ";
+			" oc."+COL_OAUTH_CLIENT_ID+"=acl."+COL_ACL_OWNER_ID+" and "+
+			" acl."+COL_ACL_OWNER_TYPE+"='OAUTH_CLIENT'"+
+			" and ra."+COL_RESOURCE_ACCESS_OWNER+"=acl."+COL_ACL_ID+
+			" and ra."+COL_RESOURCE_ACCESS_GROUP_ID+" in (:"+PRINCIPAL_IDS_BIND_VAR+")"+
+			" and ra."+COL_RESOURCE_ACCESS_ID + " = rat." + COL_RESOURCE_ACCESS_TYPE_ID+
+			" and rat."+COL_RESOURCE_ACCESS_TYPE_ELEMENT+"=:"+ACCESS_TYPE_BIND_VAR+
+			" LIMIT :"+LIMIT_PARAM_NAME+" OFFSET :"+OFFSET_PARAM_NAME+" ";
 	
 	private static final String CLIENT_WITHOUT_ACL_SQL_SELECT = "SELECT oc.*"+
 			" FROM "+TABLE_OAUTH_CLIENT+" oc "+
@@ -140,6 +146,9 @@ public class OAuthClientDaoImpl implements OAuthClientDao {
 
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
+	
+	@Autowired
+	private NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
 	// Note, this drop the 'secretHash' fields, which is not part of the DTO
 	public static OAuthClient clientDboToDto(DBOOAuthClient dbo) {
@@ -223,13 +232,14 @@ public class OAuthClientDaoImpl implements OAuthClientDao {
 	@Override
 	public OAuthClientList listOAuthClients(Set<Long> userGroups, ACCESS_TYPE accessType, String nextPageToken) {
 		NextPageToken nextPage = new NextPageToken(nextPageToken);
-		Set<String> principalsAsStrings = new HashSet<String>();
-		for (Long principal: userGroups) {
-			principalsAsStrings.add(principal.toString());
-		}
-		List<DBOOAuthClient> dboList = jdbcTemplate.query(CLIENT_WITH_ACCESS_SQL_SELECT, 
-				new Object[] {String.join(",", principalsAsStrings), accessType.toString(), nextPage.getLimitForQuery(), nextPage.getOffset()}, 
-				(new DBOOAuthClient()).getTableMapping());
+		MapSqlParameterSource params = new MapSqlParameterSource();
+		params.addValue(PRINCIPAL_IDS_BIND_VAR, userGroups);
+		params.addValue(ACCESS_TYPE_BIND_VAR, accessType.toString());
+		params.addValue(LIMIT_PARAM_NAME, nextPage.getLimitForQuery());
+		params.addValue(OFFSET_PARAM_NAME, nextPage.getOffset());
+		List<DBOOAuthClient> dboList = 
+			namedParameterJdbcTemplate.query(CLIENT_WITH_ACCESS_SQL_SELECT, params, 
+			(new DBOOAuthClient()).getTableMapping());
 		OAuthClientList result = new OAuthClientList();
 		result.setNextPageToken(nextPage.getNextPageTokenForCurrentResults(dboList));
 		List<OAuthClient> dtoList = new ArrayList<OAuthClient>();

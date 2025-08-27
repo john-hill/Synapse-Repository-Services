@@ -399,6 +399,9 @@ public class OAuthClientDaoImplTest {
 		}
 
 		// method under test
+		// note we want to make sure the query works with a list of principal ids > 1
+		// so we add in an unused id, '0'.  This is just to exercise binding a multi-value
+		// list to a query parameter.
 		OAuthClientList list = oauthClientDao.listOAuthClients(
 			Set.of(userId2, 0L), ACCESS_TYPE.UPDATE, null);
 
@@ -407,8 +410,12 @@ public class OAuthClientDaoImplTest {
 		// we only see our own clients
 		Set<String> actualClientNames = new HashSet<String>();
 		assertEquals(numClients, clients.size());
+		Long previousClientId=null;
 		for (OAuthClient client : clients) {
 			actualClientNames.add(client.getClient_name());
+			Long clientId=Long.parseLong(client.getClient_id());
+			assertTrue(previousClientId==null || previousClientId.compareTo(clientId)<0);
+			previousClientId=clientId;
 		}
 		assertEquals(expectedClientNames, actualClientNames);
 

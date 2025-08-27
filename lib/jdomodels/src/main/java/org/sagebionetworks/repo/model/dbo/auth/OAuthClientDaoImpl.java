@@ -92,6 +92,7 @@ public class OAuthClientDaoImpl implements OAuthClientDao {
 			" and ra."+COL_RESOURCE_ACCESS_GROUP_ID+" in (:"+PRINCIPAL_IDS_BIND_VAR+")"+
 			" and ra."+COL_RESOURCE_ACCESS_ID + " = rat." + COL_RESOURCE_ACCESS_TYPE_ID+
 			" and rat."+COL_RESOURCE_ACCESS_TYPE_ELEMENT+"=:"+ACCESS_TYPE_BIND_VAR+
+			" ORDER BY oc."+COL_OAUTH_CLIENT_ID+
 			" LIMIT :"+LIMIT_PARAM_NAME+" OFFSET :"+OFFSET_PARAM_NAME+" ";
 	
 	private static final String CLIENT_WITHOUT_ACL_SQL_SELECT = "SELECT oc.*"+

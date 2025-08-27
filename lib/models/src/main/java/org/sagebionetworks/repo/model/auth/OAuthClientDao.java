@@ -33,7 +33,7 @@ public interface OAuthClientDao {
 	OAuthClient selectOAuthClientForUpdate(String clientId);
 	
 	/**
-	 * @param userGroups he list of principals the user belongs to
+	 * @param userGroups the list of principals the user belongs to
 	 * @param accessType the access type the user must have for a client to be in the returned list
 	 * @param nextPageToken 
 	 * @return the list of OAuth Clients in which the given user has the given access

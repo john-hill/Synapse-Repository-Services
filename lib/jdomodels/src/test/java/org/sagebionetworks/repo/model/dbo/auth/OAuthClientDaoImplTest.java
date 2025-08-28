@@ -180,7 +180,7 @@ public class OAuthClientDaoImplTest {
 		assertFalse(dbo.getVerified());
 		assertNotNull(dbo.getJson());
 
-		OAuthClient deser = JDOSecondaryPropertyUtils.createObejctFromJSON(OAuthClient.class, dbo.getJson());
+		OAuthClient deser = JDOSecondaryPropertyUtils.createObjectFromJSON(OAuthClient.class, dbo.getJson());
 		// these should have been serialized
 		assertEquals(dto.getClient_uri(), deser.getClient_uri());
 		assertEquals(dto.getPolicy_uri(), deser.getPolicy_uri());

@@ -4,7 +4,16 @@
 	"extends": {
 		"$ref": "org.sagebionetworks.repo.model.FileEntity"
 	},
+	"implements":[
+        {
+            "$ref":"org.sagebionetworks.repo.model.VersionableEntity"
+        }
+    ],
 	"properties": {
+		"dataFileHandleId":{
+            "type":"string",
+            "description":"ID of the CSV file associated with this record set."
+        },
 		"upsertKey": {
 			"description": "One or more column names that define this upsert key for this set.  This key is used to determine if a new record should be treated as an update or an insert.",
 			"type": "array",

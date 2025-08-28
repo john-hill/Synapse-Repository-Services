@@ -48,6 +48,8 @@ public class EntityTypeUtils {
 				buildMetadata(EntityType.project, Arrays.asList("DEFAULT"), Project.class, "Project"),
 				// file
 				buildMetadata(EntityType.file, Arrays.asList(Project.class.getName(), Folder.class.getName()), FileEntity.class, "File"),
+				// recordset
+				buildMetadata(EntityType.recordset, Arrays.asList(Project.class.getName(), Folder.class.getName()), RecordSet.class, "Record Set"),
 				// folder
 				buildMetadata(EntityType.folder, Arrays.asList(Project.class.getName(), Folder.class.getName()), Folder.class, "Folder"),
 				// table
@@ -84,6 +86,7 @@ public class EntityTypeUtils {
 		className.put(DatasetCollection.class.getName(), DatasetCollection.class);
 		className.put(MaterializedView.class.getName(), MaterializedView.class);
 		className.put(VirtualTable.class.getName(), VirtualTable.class);
+		className.put(RecordSet.class.getName(), RecordSet.class);
 	}
 
 	/**

@@ -1,10 +1,11 @@
 package org.sagebionetworks.repo.model.table;
 
 import org.sagebionetworks.repo.model.EntityType;
+import org.sagebionetworks.repo.model.EntityTypeUtils;
 
 public enum ViewTypeMask {
 
-	File(0x01, EntityType.file),
+	File(0x01, EntityTypeUtils.getFileTypes().toArray(new EntityType[0])),
 	Project(0x02, EntityType.project),
 	Table(0x04, EntityType.table),
 	Folder(0x08, EntityType.folder),
@@ -16,11 +17,11 @@ public enum ViewTypeMask {
 	MaterializedView(0x200, EntityType.materializedview);
 
 	long bitMask;
-	EntityType entityType;
+	EntityType[] entityTypes;
 
-	ViewTypeMask(int mask, EntityType entityType) {
+	ViewTypeMask(int mask, EntityType... entityTypes) {
 		this.bitMask = mask;
-		this.entityType = entityType;
+		this.entityTypes = entityTypes;
 	}
 
 	/**
@@ -51,8 +52,8 @@ public enum ViewTypeMask {
 		return this.bitMask;
 	}
 
-	public EntityType getEntityType() {
-		return this.entityType;
+	public EntityType[] getEntityTypes() {
+		return this.entityTypes;
 	}
 
 	/**

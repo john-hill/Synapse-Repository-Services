@@ -317,8 +317,7 @@ public class NodeUtils {
 	 */
 	public static boolean isRootEntityId(String entityId){
 		return KeyFactory.equals(ROOT_ENTITY_ID, entityId);
-	}
-	
+	}	
 
 	/**
 	 * Translate the provided alias.

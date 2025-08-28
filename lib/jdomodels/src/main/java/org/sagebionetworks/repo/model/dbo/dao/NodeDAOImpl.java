@@ -381,7 +381,7 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 	private static final String SELECT_CURRENT_VERSION_FILE_HANDLES = "SELECT N." + COL_NODE_ID + ", R."
 			+ COL_REVISION_FILE_HANDLE_ID + " FROM " + TABLE_NODE + " N JOIN " + TABLE_REVISION + " R ON (N."
 			+ COL_NODE_ID + " = R." + COL_REVISION_OWNER_NODE + " AND N." + COL_NODE_CURRENT_REV + " = R."
-			+ COL_REVISION_NUMBER + ") WHERE N." + COL_NODE_TYPE + " = '" + EntityType.file + "' AND N." + COL_NODE_ID
+			+ COL_REVISION_NUMBER + ") WHERE N." + COL_NODE_TYPE + " IN (:" + BIND_NODE_TYPES + ") AND N." + COL_NODE_ID
 			+ " IN (:" + NODE_IDS_LIST_PARAM_NAME + ")";
 	
 	private static final String SQL_GET_CURRENT_VERSIONS = "SELECT "+COL_NODE_ID+","+COL_NODE_CURRENT_REV+" FROM "+TABLE_NODE+" WHERE "+COL_NODE_ID+" IN ( :"+NODE_IDS_LIST_PARAM_NAME + " )";
@@ -1565,18 +1565,13 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 		}
 		MapSqlParameterSource parameters = new MapSqlParameterSource();
 		parameters.addValue(NODE_IDS_LIST_PARAM_NAME, KeyFactory.stringToKey(entityIds));
-		return namedParameterJdbcTemplate.query(
-				SELECT_CURRENT_VERSION_FILE_HANDLES,
-				parameters, new RowMapper<FileHandleAssociation>() {
-
-			@Override
-			public FileHandleAssociation mapRow(ResultSet rs, int rowNum) throws SQLException {
-				FileHandleAssociation fha = new FileHandleAssociation();
-				fha.setAssociateObjectId(rs.getString(1));
-				fha.setAssociateObjectType(FileHandleAssociateType.FileEntity);
-				fha.setFileHandleId(rs.getString(2));
-				return fha;
-			}
+		parameters.addValue(BIND_NODE_TYPES, EntityTypeUtils.getFileTypes().stream().map(EntityType::name).collect(Collectors.toList()));
+		return namedParameterJdbcTemplate.query(SELECT_CURRENT_VERSION_FILE_HANDLES, parameters, (rs, rowNum) -> {
+			FileHandleAssociation fha = new FileHandleAssociation();
+			fha.setAssociateObjectId(rs.getString(1));
+			fha.setAssociateObjectType(FileHandleAssociateType.FileEntity);
+			fha.setFileHandleId(rs.getString(2));
+			return fha;
 		});
 	}
 	

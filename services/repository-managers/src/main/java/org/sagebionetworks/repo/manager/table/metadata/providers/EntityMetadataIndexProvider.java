@@ -8,7 +8,6 @@ import java.util.stream.Collectors;
 import org.sagebionetworks.repo.manager.NodeManager;
 import org.sagebionetworks.repo.manager.table.metadata.DefaultColumnModel;
 import org.sagebionetworks.repo.manager.table.metadata.MetadataIndexProvider;
-import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.LimitExceededException;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -113,9 +112,7 @@ public class EntityMetadataIndexProvider implements MetadataIndexProvider {
 		Set<SubType> typesFilter = new HashSet<>();
 		for (ViewTypeMask type : ViewTypeMask.values()) {
 			if ((type.getMask() & typeMask) > 0) {
-				for (EntityType entityType : type.getEntityTypes()) {
-					typesFilter.add(SubType.valueOf(entityType.name()));
-				}
+				typesFilter.add(SubType.valueOf(type.getEntityType().name()));
 			}
 		}
 		return typesFilter;

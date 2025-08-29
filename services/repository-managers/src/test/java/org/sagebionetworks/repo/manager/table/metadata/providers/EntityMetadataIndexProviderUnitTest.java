@@ -116,7 +116,7 @@ public class EntityMetadataIndexProviderUnitTest {
 	public void testGetSubTypesForMaskWithFile() {
 		Long viewTypeMask = ViewTypeMask.File.getMask();
 
-		Set<SubType> expected = Set.of(SubType.file, SubType.recordset);
+		Set<SubType> expected = Set.of(SubType.file);
 
 		// Call under test
 		Set<SubType> result = provider.getSubTypesForMask(viewTypeMask);
@@ -126,7 +126,7 @@ public class EntityMetadataIndexProviderUnitTest {
 
 	@Test
 	public void testGetSubTypesForMaskWithMixed() {
-		Long viewTypeMask = ViewTypeMask.File.getMask() | ViewTypeMask.Project.getMask();
+		Long viewTypeMask = ViewTypeMask.File.getMask() | ViewTypeMask.RecordSet.getMask() | ViewTypeMask.Project.getMask();
 
 		Set<SubType> expected = Set.of(SubType.file, SubType.recordset, SubType.project);
 
@@ -145,8 +145,7 @@ public class EntityMetadataIndexProviderUnitTest {
 		Set<SubType> result = provider.getSubTypesForMask(viewTypeMask);
 		
 		Set<SubType> expected = Arrays.stream(ViewTypeMask.values())
-			.flatMap(t -> Arrays.stream(t.getEntityTypes()))
-			.map(e -> SubType.valueOf(e.name()))
+			.map(e -> SubType.valueOf(e.getEntityType().name()))
 			.collect(Collectors.toSet());
 
 		assertEquals(expected, result);
@@ -305,7 +304,7 @@ public class EntityMetadataIndexProviderUnitTest {
 		when(mockNodeDao.getAllContainerIds((Collection<Long>)any(), anyInt())).thenReturn(parentIds);
 		// call under test
 		ViewFilter filter = provider.getViewFilter(viewTypeMask, scope);
-		ViewFilter expected = new HierarchicaFilter(ReplicationType.ENTITY, Set.of(SubType.file, SubType.recordset), parentIds, Set.of(1L,2L));
+		ViewFilter expected = new HierarchicaFilter(ReplicationType.ENTITY, Set.of(SubType.file), parentIds, Set.of(1L,2L));
 		assertEquals(expected, filter);
 	}
 	

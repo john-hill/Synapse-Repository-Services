@@ -180,11 +180,11 @@ public class EntityServiceImplAutowiredTest  {
 		if(toDelete != null){
 			for(String id: toDelete){
 				try {
-					//entityService.deleteEntity(adminUserId, id);
+					entityService.deleteEntity(adminUserId, id);
 				} catch (Exception e) {	}
 			}
 		}
-		//fileHandleDao.truncateTable();
+		fileHandleDao.truncateTable();
 	}
 	
 	/**

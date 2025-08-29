@@ -116,6 +116,8 @@ public class OpenIDConnectController {
 	 * <br>
 	 * Synapse supports 'client_secret_basic' and 'client_secret_post'.
 	 * <br>
+	 * To create a secret you must have UPDATE permission on the client.
+	 * <br>
 	 * <em>NOTE:  This request will invalidate any previously issued secrets.</em>
 	 * 
 	 * @param clientId the ID of the client whose secret is to be generated
@@ -133,9 +135,9 @@ public class OpenIDConnectController {
 	}
 	
 	/**
-	 * Get an existing OAuth 2.0 client.  When retrieving one's own client,
+	 * Get an existing OAuth 2.0 client.  When retrieving a client for which you have UPDATE access,
 	 * all metadata is returned.  It is permissible to retrieve a client anonymously
-	 * or as a user other than the one who created the client, but only public fields
+	 * or as a user other than the one with UPDATE access, but only public fields
 	 * (name, redirect URIs, and links to the client's site) are returned.
 	 * 
 	 * @param id the ID of the client to retrieve
@@ -156,7 +158,7 @@ public class OpenIDConnectController {
 	
 	/**
 	 * 
-	 * List the OAuth 2.0 clients created by the current user.
+	 * List the OAuth 2.0 clients for which the current user has UPDATE access.
 	 * 
 	 * @param userId
 	 * @param nextPageToken returned along with a page of results, this is passed to 
@@ -181,6 +183,8 @@ public class OpenIDConnectController {
 	 * will cause the client to enter the 'unverified' state.
 	 * This service also validates the submitted client information
 	 * and will return a 400 Bad Request status for invalid information.
+	 * <br>
+	 * Note:  The user must have UPDATE permission on the client to invoke this service.
 	 * 
 	 * @param oauthClient the proposed changes to the client metadata
 	 * @param clientId the ID for the OAuth client
@@ -204,6 +208,8 @@ public class OpenIDConnectController {
 
 	/**
 	 * Retrieve the AccessControlList for a specified OAuth Client.
+	 * <br>
+	 * Note:  You must have READ access to the client to retrieve its ACL.
 	 * 
 	 * @param userId
 	 * @param id the ID of the OpenID Client of interest
@@ -225,7 +231,7 @@ public class OpenIDConnectController {
 	 * Update the Access Control List for the specified OAuth Client.  The allowed permissions are:
 	 * <p>
 	 * <ul>
-	 * <li>UPDATE: Permission to change the OAuth Client, to see its private fields, and to generate the client secret</li>
+	 * <li>UPDATE: Permission to change the OAuth Client, to check whether a change will require reverification, to see its private fields, to include it in a listing of clients, and to generate the client secret</li>
 	 * <li>DELETE: Permission to delete the OAuth Client</li>
 	 * <li>READ: Permission to see the ACL</li>
 	 * <li>CHANGE_PERMISSIONS: Permissions to change the ACL</li>
@@ -253,7 +259,7 @@ public class OpenIDConnectController {
 	/**
 	 * Update the metadata for an existing OAuth 2.0 client.
 	 * <br/>
-	 * Note:  Only the creator of a client can update it.
+	 * Note:  You must have UPDATE permission on the client to invoke this service.
 	 * <br/>
 	 * Note: Changing the redirect URIs and/or the sector identifier
 	 * may revert the 'verified' status of the client, necessitating re-verification.
@@ -282,6 +288,8 @@ public class OpenIDConnectController {
 	
 	/**
 	 * Delete OAuth 2.0 client
+	 * <br/>
+	 * Note:  You must have DELETE permission on the client to invoke this service.
 	 * 
 	 * @param id the ID of the client to delete
 	 * @throws NotFoundException

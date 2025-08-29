@@ -94,7 +94,7 @@ public class EntitySchemaValidator implements ObjectSchemaValidator {
 			
 		} catch (NotFoundException e) {
 			// If the entity does not exist, we still want to make sure that validation result are cleared
-			LOG.warn("An entity with id {} does not exist, will clear validation data.", entityId, e);
+			LOG.warn("An entity with id {} does not exist, will clear validation data.", entityId);
 			sendEntityUpdate = clearAllBoundSchemaRelatedData(objectDescriptor);
 		}
 			

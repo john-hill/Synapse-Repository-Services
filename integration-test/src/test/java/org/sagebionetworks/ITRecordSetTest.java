@@ -52,14 +52,10 @@ public class ITRecordSetTest {
 	}
 	
 	@AfterEach
-	public void after() throws SynapseException {
+	public void after() throws Exception {
 		
 		if (recordSet != null) {
 			synapse.deleteEntity(recordSet, true);
-		}
-		
-		if (csvFileHandle != null) {
-			synapse.deleteFileHandle(csvFileHandle.getId());
 		}
 		
 		if (project != null){
@@ -71,6 +67,7 @@ public class ITRecordSetTest {
 	public void testRecordSet() throws SynapseException, IOException {
 		recordSet = new RecordSet();
 		
+		recordSet.setParentId(project.getId());
 		recordSet.setName("Record Set");
 		recordSet.setUpsertKey(List.of("a", "b"));
 		recordSet.setDataFileHandleId(csvFileHandle.getId());

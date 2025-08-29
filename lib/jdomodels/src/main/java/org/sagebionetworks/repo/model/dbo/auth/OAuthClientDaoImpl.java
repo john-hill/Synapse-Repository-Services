@@ -153,7 +153,7 @@ public class OAuthClientDaoImpl implements OAuthClientDao {
 
 	// Note, this drop the 'secretHash' fields, which is not part of the DTO
 	public static OAuthClient clientDboToDto(DBOOAuthClient dbo) {
-		OAuthClient dto = JDOSecondaryPropertyUtils.createObejctFromJSON(OAuthClient.class, dbo.getJson());
+		OAuthClient dto = JDOSecondaryPropertyUtils.createObjectFromJSON(OAuthClient.class, dbo.getJson());
 		dto.setClient_id(dbo.getId().toString());
 		dto.setClient_name(dbo.getName());
 		dto.setCreatedBy(dbo.getCreatedBy().toString());

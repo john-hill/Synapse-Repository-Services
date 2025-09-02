@@ -95,13 +95,6 @@ public class OAuthClientDaoImpl implements OAuthClientDao {
 			" ORDER BY oc."+COL_OAUTH_CLIENT_ID+
 			" LIMIT :"+LIMIT_PARAM_NAME+" OFFSET :"+OFFSET_PARAM_NAME+" ";
 	
-	private static final String CLIENT_WITHOUT_ACL_SQL_SELECT = "SELECT oc.*"+
-			" FROM "+TABLE_OAUTH_CLIENT+" oc "+
-			"LEFT OUTER JOIN "+TABLE_ACCESS_CONTROL_LIST+" acl "+
-			" ON oc."+COL_OAUTH_CLIENT_ID+"=acl."+COL_ACL_OWNER_ID+
-			" AND acl."+COL_ACL_OWNER_TYPE+"='OAUTH_CLIENT'"+
-			" WHERE acl."+COL_ACL_ID+" is null";
-	
 	private static final String CLIENT_SECRET_HASH_SQL_SELECT = "SELECT "+COL_OAUTH_CLIENT_SECRET_HASH+
 			" FROM "+TABLE_OAUTH_CLIENT
 			+ " WHERE "+COL_OAUTH_CLIENT_ID+" = ?";
@@ -366,16 +359,4 @@ public class OAuthClientDaoImpl implements OAuthClientDao {
 	private NotFoundException clientNotFoundException(String clientId) {
 		return new NotFoundException("The OAuth client (" + clientId + ") does not exist");
 	}
-	
-	@Override
-	public List<OAuthClient> listClientsWithoutACLs() {
-		List<DBOOAuthClient> dboList = jdbcTemplate.query(CLIENT_WITHOUT_ACL_SQL_SELECT, 
-				(new DBOOAuthClient()).getTableMapping());
-		List<OAuthClient> dtoList = new ArrayList<OAuthClient>();
-		for (DBOOAuthClient dbo : dboList) {
-			dtoList.add(clientDboToDto(dbo));
-		}
-		return dtoList;
-	}
-	
 }

@@ -641,27 +641,5 @@ public class OAuthClientDaoImplTest {
 		assertEquals(0, results.getResults().size());
 		assertNull(results.getNextPageToken());
 	}
-	
-	@Test
-	public void testListClientsWithoutACLs() throws Exception {
-		// create two clients, create one acl
-		Long creatorId = BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
-		String clientWithACL = createSectorIdentifierAndClient(SECTOR_IDENTIFIER, 
-				creatorId, CLIENT_NAME);
-		String clientWithoutACL = createSectorIdentifierAndClient(SECOND_SECTOR_IDENTIFIER, 
-				creatorId, "some other client");
-		aclDAO.delete(clientWithoutACL, ObjectType.OAUTH_CLIENT);
-		
-		// method under test
-		List<OAuthClient> clients = oauthClientDao.listClientsWithoutACLs();
-		
-		// should return just the client not having an ACL
-		assertEquals(1, clients.size());
-		
-		OAuthClient actual = clients.get(0);
-		
-		assertEquals(clientWithoutACL, actual.getClient_id());
-		assertEquals(creatorId.toString(), actual.getCreatedBy());
-	}
 
 }

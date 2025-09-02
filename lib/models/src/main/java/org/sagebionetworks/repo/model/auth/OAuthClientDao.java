@@ -1,6 +1,5 @@
 package org.sagebionetworks.repo.model.auth;
 
-import java.util.List;
 import java.util.Set;
 
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -125,12 +124,4 @@ public interface OAuthClientDao {
 	 * @return a paginated list of clients which have been granted refresh token(s) for the given user.
 	 */
 	OAuthClientAuthorizationHistoryList getAuthorizedClientHistory(String userId, String nextPageToken, Long maxLeaseLengthInDays);
-	
-	/** 
-	 * List the legacy OAuth clients which lack ACLs.
-	 * Since there are only about 200 client, and since this is temporary code,
-	 * we do not paginate.
-	 * @return the IDs of OAuth Clients which lack an ACL
-	 */
-	List<OAuthClient> listClientsWithoutACLs();
 }

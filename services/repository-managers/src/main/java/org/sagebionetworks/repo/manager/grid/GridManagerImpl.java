@@ -5,6 +5,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -252,7 +253,7 @@ public class GridManagerImpl implements GridManager {
 			String[] csvRow;
 			
 			while ((csvRow = csvReader.readNext()) != null) {
-				rowHandler.nextRow(new Row().setValues(List.of(csvRow)));
+				rowHandler.nextRow(new Row().setValues(Arrays.asList(csvRow)));
 			}
 			
 		} catch (IOException e) {

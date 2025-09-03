@@ -245,7 +245,7 @@ public class GridManagerImpl implements GridManager {
 		Long maxBytesPerRow = (long) TableModelUtils.calculateMaxRowSize(schema);
 		
 		try (CSVReader csvReader = getCsvReader(((CloudProviderFileHandleInterface) fileHandle), csvDescriptor);
-			 PatchRowHandler rowHandler = new PatchRowHandler(this, session.getSessionId(), replica.getReplicaId(), schema, maxBytesPerRow)) {
+			PatchRowHandler rowHandler = getPatchRowHandler(session, replica, schema, maxBytesPerRow)) {
 			
 			// Skip the header
 			csvReader.readNext();
@@ -275,6 +275,10 @@ public class GridManagerImpl implements GridManager {
 		return session;
 	}
 	
+	PatchRowHandler getPatchRowHandler(GridSession session, GridReplica replica, List<ColumnModel> schema, Long maxBytesPerRow) {
+		return new PatchRowHandler(this, session.getSessionId(), replica.getReplicaId(), schema, maxBytesPerRow);
+	}
+	
 	List<ColumnModel> getSchemaFromCsv(CloudProviderFileHandleInterface fileHandle, CsvTableDescriptor csvDescriptor) {
 		try (CSVReader csvReader = getCsvReader(fileHandle, csvDescriptor)) {
 			// Reuse the CSV preview builder to extract the schema
@@ -288,8 +292,7 @@ public class GridManagerImpl implements GridManager {
 			return csvPreviewBuilder.buildResult().getSuggestedColumns();
 		} catch (IOException e) {
 			throw new IllegalStateException(e);
-		}
-		
+		}		
 	}
 	
 	CSVReader getCsvReader(CloudProviderFileHandleInterface fileHandle, CsvTableDescriptor csvDescriptor) {

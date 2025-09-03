@@ -40,6 +40,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.config.WebsocketApi;
+import org.sagebionetworks.repo.manager.file.BucketObjectReaderProvider;
+import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.grid.response.InternalReplicaToHubEventPublisher;
 import org.sagebionetworks.repo.manager.table.RowHandlerProvider;
 import org.sagebionetworks.repo.manager.table.TableQueryManager;
@@ -137,7 +139,11 @@ public class GridManagerUnitTest {
 	private EntityManager mockEntityManager;
 	@Mock
 	private InternalReplicaToHubEventPublisher mockInternalEventPublisher;
-
+	@Mock
+	private FileHandleManager mockFileHandleManager;
+	@Mock
+	private BucketObjectReaderProvider mockFileReaderProvider;
+	
 	@Captor
 	private ArgumentCaptor<PutObjectRequest> putCaptor;
 
@@ -183,6 +189,7 @@ public class GridManagerUnitTest {
 	private GridSession gridSession;
 	private List<GridSession> gridSessions;
 	private JsonSchemaObjectBinding schemaBinding;
+	private String recordSetId;
 
 	@BeforeEach
 	public void before() {
@@ -203,7 +210,10 @@ public class GridManagerUnitTest {
 
 		when(mockConfig.getStack()).thenReturn("dev");
 		gridManager = new GridManagerImpl(mockCredentialsProvider, mockWebsocketApi, mockGridDao, mockConfig,
-				mockS3Client, mockQueryManager, mockEntityManager, mockInternalEventPublisher);
+			mockS3Client, mockQueryManager, mockEntityManager, mockInternalEventPublisher, mockFileHandleManager,
+			mockFileReaderProvider
+		);
+		
 		gridManager = Mockito.spy(gridManager);
 		clock = List.of(patchId);
 		query = new Query().setSql("select * from syn123").setIncludeEntityEtag(false);
@@ -221,6 +231,7 @@ public class GridManagerUnitTest {
 		gridSessions = List.of(gridSession);
 		schemaBinding = new JsonSchemaObjectBinding()
 				.setJsonSchemaVersionInfo(new JsonSchemaVersionInfo().set$id(schema$id));
+		recordSetId = "syn456";
 	}
 
 	@Test
@@ -246,6 +257,30 @@ public class GridManagerUnitTest {
 		CreateGridResponse result = gridManager.createGrid(mockCallback, mockUser, request);
 		assertNotNull(result);
 		assertEquals(expected, result.getGridSession());
+	}
+	
+	@Test
+	public void testCreateGridWithRecordSetId() {
+		when(mockUser.getId()).thenReturn(userId);
+		CreateGridRequest request = new CreateGridRequest().setRecordSetId(recordSetId);
+		GridSession expected = new GridSession().setSessionId("gs123");
+		doReturn(expected).when(gridManager).buildSessionFromRecordSet(mockUser, recordSetId);
+		// call under test
+		CreateGridResponse result = gridManager.createGrid(mockCallback, mockUser, request);
+		assertNotNull(result);
+		assertEquals(expected, result.getGridSession());
+	}
+	
+	@Test
+	public void testCreateGridWithInitialQueryAndRecordSetId() {
+		CreateGridRequest request = new CreateGridRequest().setInitialQuery(query).setRecordSetId(recordSetId);
+		
+		String errorMessage = assertThrows(IllegalArgumentException.class, () -> {			
+			// call under test
+			gridManager.createGrid(mockCallback, mockUser, request);
+		}).getMessage();
+		
+		assertEquals("Cannot set both initialQuery and recordSetId.", errorMessage);
 	}
 
 	@Test

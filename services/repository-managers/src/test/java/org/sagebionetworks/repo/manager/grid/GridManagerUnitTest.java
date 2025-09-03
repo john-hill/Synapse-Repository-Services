@@ -1,9 +1,11 @@
 package org.sagebionetworks.repo.manager.grid;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -12,14 +14,14 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
@@ -43,6 +45,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.config.WebsocketApi;
+import org.sagebionetworks.repo.manager.file.BucketObjectReader;
 import org.sagebionetworks.repo.manager.file.BucketObjectReaderProvider;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.grid.response.InternalReplicaToHubEventPublisher;
@@ -152,6 +155,8 @@ public class GridManagerUnitTest {
 	private FileHandleManager mockFileHandleManager;
 	@Mock
 	private BucketObjectReaderProvider mockFileReaderProvider;
+	@Mock
+	private BucketObjectReader mockObjectReader;
 	
 	@Captor
 	private ArgumentCaptor<PutObjectRequest> putCaptor;
@@ -248,14 +253,22 @@ public class GridManagerUnitTest {
 		listGridSessionRequest = new ListGridSessionsRequest().setSourceId(tableId);
 		gridSession = new GridSession();
 		gridSessions = List.of(gridSession);
+		
 		schemaBinding = new JsonSchemaObjectBinding()
 				.setJsonSchemaVersionInfo(new JsonSchemaVersionInfo().set$id(schema$id));
-		csvFile = new S3FileHandle().setId("789");
+		
+		csvFile = new S3FileHandle()
+			.setId("789")
+			.setBucketName("someBucket")
+			.setKey("someKey");
+		
 		csvSchema = List.of(
 			new ColumnModel().setColumnType(ColumnType.INTEGER).setName("foo"),
 			new ColumnModel().setColumnType(ColumnType.STRING).setName("bar").setMaximumSize(50L)
 		);
+		
 		csvDescriptor = new CsvTableDescriptor().setIsFirstLineHeader(true).setQuoteCharacter("'");
+		
 		recordSet = new RecordSet().setId("syn456").setDataFileHandleId(csvFile.getId()).setCsvDescriptor(csvDescriptor);
 	}
 
@@ -1416,6 +1429,67 @@ public class GridManagerUnitTest {
 		verify(mockRowHandler).close();
 		
 		verifyNoMoreInteractions(mockCsvReader, mockRowHandler, mockInternalEventPublisher);
+	}
+	
+	@Test
+	public void testGetPatchRowHandler() throws IOException {
+		gridSession = new GridSession().setSessionId(gridSessionId);
+		
+		long maxRowSize = (long) TableModelUtils.calculateMaxRowSize(csvSchema);
+		
+		// Call under test
+		PatchRowHandler handler = gridManager.getPatchRowHandler(gridSession, replica, csvSchema, maxRowSize);		
+		
+		assertNotNull(handler);
+		
+		// Call under test
+		handler.nextRow(new Row().setValues(Arrays.asList("1", "one")));
+		handler.close();
+		
+		verify(gridManager).savePatch(eq(gridSessionId), any(), patchCaptor.capture());
+		
+		Patch patch = PatchCompactSerializable.deserialize(new JSONArray(patchCaptor.getValue()));
+		
+		assertEquals(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(1L), patch.getPatchId());
+	}
+	
+	@Test
+	public void testGetCsvReader() throws IOException {
+		csvDescriptor = new CsvTableDescriptor().setIsFirstLineHeader(true);
+		
+		when(mockFileReaderProvider.getBucketObjectReader(csvFile.getClass())).thenReturn(mockObjectReader);
+		when(mockObjectReader.openStream(csvFile.getBucketName(), csvFile.getKey()))
+			.thenReturn(new ByteArrayInputStream("foo,bar\n1,\"one\"\n2,\"two\"\n,\"three\"".getBytes(StandardCharsets.UTF_8)));
+		
+		// Call under test
+		CSVReader reader = gridManager.getCsvReader(csvFile, csvDescriptor);
+		
+		assertNotNull(reader);
+
+		assertArrayEquals(new String[] {"foo", "bar"}, reader.readNext());
+		assertArrayEquals(new String[] {"1", "one"}, reader.readNext());
+		assertArrayEquals(new String[] {"2", "two"}, reader.readNext());
+		assertArrayEquals(new String[] {null, "three"}, reader.readNext());
+		
+		assertNull(reader.readNext());
+	}
+	
+	@Test
+	public void testgetSchemaFromCsv() throws IOException {
+		csvDescriptor = new CsvTableDescriptor().setIsFirstLineHeader(true);
+		
+		when(mockFileReaderProvider.getBucketObjectReader(csvFile.getClass())).thenReturn(mockObjectReader);
+		when(mockObjectReader.openStream(csvFile.getBucketName(), csvFile.getKey()))
+			.thenReturn(new ByteArrayInputStream("foo,bar\n1,\"one\"\n2,\"two\"\n,\"three\"".getBytes(StandardCharsets.UTF_8)));
+		
+		// Call under test
+		List<ColumnModel> schema = gridManager.getSchemaFromCsv(csvFile, csvDescriptor);
+		
+		assertEquals(List.of(
+			new ColumnModel().setName("foo").setColumnType(ColumnType.INTEGER),
+			new ColumnModel().setName("bar").setColumnType(ColumnType.STRING).setMaximumSize(5L)
+		), schema);
+
 	}
 
 	@Test

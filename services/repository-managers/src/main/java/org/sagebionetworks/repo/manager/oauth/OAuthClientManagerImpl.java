@@ -26,13 +26,11 @@ import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
-import org.sagebionetworks.repo.model.BackfillCount;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
-import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.auth.OAuthClientDao;
 import org.sagebionetworks.repo.model.auth.SectorIdentifier;
 import org.sagebionetworks.repo.model.dbo.dao.AccessControlListUtils;
@@ -450,21 +448,4 @@ public class OAuthClientManagerImpl implements OAuthClientManager {
 			return false;
 		}
 	}
-	
-	@WriteTransaction
-	@Override
-	public BackfillCount backfillAccessControlLists(UserInfo userInfo) {
-		if (!userInfo.isAdmin()) {
-			throw new UnauthorizedException("Only an administrator can backfill OAuth client ACLs.");
-		}
-		List<OAuthClient> clients = oauthClientDao.listClientsWithoutACLs();
-		for (OAuthClient client: clients) {
-			AccessControlList acl = createAccessControlList(Long.parseLong(client.getCreatedBy()), client.getClient_id());
-			aclDAO.create(acl, ObjectType.OAUTH_CLIENT);
-		}
-		BackfillCount result = new BackfillCount();
-		result.setCount((long)clients.size());
-		return result;
-	}
-
 }

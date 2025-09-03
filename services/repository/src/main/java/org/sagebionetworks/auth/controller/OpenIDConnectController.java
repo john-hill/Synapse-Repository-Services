@@ -9,7 +9,6 @@ import org.sagebionetworks.auth.HttpAuthUtil;
 import org.sagebionetworks.repo.manager.oauth.OAuthClientNotVerifiedException;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
-import org.sagebionetworks.repo.model.BackfillCount;
 import org.sagebionetworks.repo.model.oauth.JsonWebKeySet;
 import org.sagebionetworks.repo.model.oauth.OAuthAuthorizationResponse;
 import org.sagebionetworks.repo.model.oauth.OAuthClient;
@@ -597,19 +596,4 @@ public class OpenIDConnectController {
 			@RequestBody OAuthTokenRevocationRequest revokeRequest) throws NotFoundException {
 		serviceProvider.getOpenIDConnectService().revokeToken(verifiedClientId, revokeRequest);
 	}
-
-	/**
-	 * Backfill OAuth client ACLs.  This service can only be called by a Synapse administrator.
-	 * @param userId
-	 * @return
-	 * @throws NotFoundException
-	 */
-	@RequiredScope({modify})
-	@ResponseStatus(HttpStatus.CREATED)
-	@RequestMapping(value = UrlHelpers.OAUTH_2_CLIENT_ACL_BACKFILL, method = RequestMethod.POST)
-	public @ResponseBody BackfillCount backfillOauthClientACLs(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId) throws NotFoundException {
-		return serviceProvider.getOpenIDConnectService().backfillOauthClientACLs(userId);
-	}
-
 }

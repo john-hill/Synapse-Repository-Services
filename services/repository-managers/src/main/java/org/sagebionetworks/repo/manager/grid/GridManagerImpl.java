@@ -124,7 +124,7 @@ public class GridManagerImpl implements GridManager {
 		this.entityManager = entityManager;
 		this.internalEventPublisher = internalEventPublisher;
 		this.fileHandleManager = fileHandleManager;
-		this.fileReaderProvider	= fileReaderProvider;
+		this.fileReaderProvider = fileReaderProvider;
 	}
 	
 	@WriteTransaction
@@ -230,7 +230,7 @@ public class GridManagerImpl implements GridManager {
 		
 		FileHandle fileHandle = fileHandleManager.getRawFileHandle(user, recordSet.getDataFileHandleId());
 		
-		ValidateArgument.requirement(fileHandle instanceof CloudProviderFileHandleInterface, "Only S3 and Google Cloud Storage files that Synapse can acccess are supported.");
+		ValidateArgument.requirement(fileHandle instanceof CloudProviderFileHandleInterface, "Only S3 and Google Cloud Storage files that Synapse can access are supported.");
 		
 		CloudProviderFileHandleInterface cpFileHandle = (CloudProviderFileHandleInterface) fileHandle;
 		

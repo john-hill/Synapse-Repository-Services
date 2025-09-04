@@ -1387,7 +1387,7 @@ public class GridManagerUnitTest {
 			gridManager.buildSessionFromRecordSet(mockUser, recordSet.getId());
 		}).getMessage();
 		
-		assertEquals("Only S3 and Google Cloud Storage files that Synapse can acccess are supported.", errorMessage);
+		assertEquals("Only S3 and Google Cloud Storage files that Synapse can access are supported.", errorMessage);
 		
 		verifyNoMoreInteractions(mockCsvReader, mockRowHandler, mockInternalEventPublisher);
 	}

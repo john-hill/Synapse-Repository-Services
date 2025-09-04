@@ -1248,7 +1248,7 @@ public class GridManagerUnitTest {
 	}
 	
 	@Test
-	public void testBuildSessionFromRecordSetWithNoSchema() throws IOException {
+	public void testBuildSessionFromRecordSetWithNoValidationSchema() throws IOException {
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockEntityManager.getEntity(mockUser, recordSet.getId(), RecordSet.class)).thenReturn(recordSet);
 		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.empty());
@@ -1427,6 +1427,36 @@ public class GridManagerUnitTest {
 		
 		verify(mockCsvReader).close();
 		verify(mockRowHandler).close();
+		
+		verifyNoMoreInteractions(mockCsvReader, mockRowHandler, mockInternalEventPublisher);
+	}
+	
+	@Test
+	public void testBuildSessionFromRecordSetWithEmptyCsvSchema() throws IOException {
+		when(mockUser.getId()).thenReturn(userId);
+		when(mockEntityManager.getEntity(mockUser, recordSet.getId(), RecordSet.class)).thenReturn(recordSet);
+		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.empty());
+		
+		gridSession = new GridSession().setSessionId(gridSessionId);
+		
+		when(mockGridDao.createGridSession(
+			new CreateGridSession().setUserId(userId).setSourceId(recordSet.getId()))
+		).thenReturn(gridSession);
+		
+		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
+		
+		when(mockFileHandleManager.getRawFileHandle(mockUser, recordSet.getDataFileHandleId())).thenReturn(csvFile);
+
+		csvSchema = Collections.emptyList();
+		
+		doReturn(csvSchema).when(gridManager).getSchemaFromCsv(csvFile, csvDescriptor);
+		
+		String errorMessage = assertThrows(IllegalArgumentException.class, () -> {			
+			// Call under test
+			gridManager.buildSessionFromRecordSet(mockUser, recordSet.getId());
+		}).getMessage();
+		
+		assertEquals("Cannot determine the schema from the CSV file, at least one column header must be present.", errorMessage);
 		
 		verifyNoMoreInteractions(mockCsvReader, mockRowHandler, mockInternalEventPublisher);
 	}

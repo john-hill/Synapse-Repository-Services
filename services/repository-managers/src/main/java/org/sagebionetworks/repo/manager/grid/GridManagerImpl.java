@@ -216,7 +216,8 @@ public class GridManagerImpl implements GridManager {
 	GridSession buildSessionFromRecordSet(UserInfo user, String recordSetId) {
 		RecordSet recordSet = entityManager.getEntity(user, recordSetId, RecordSet.class);
 		
-		Optional<String> validationSchemaId = entityManager.findBoundSchema(recordSetId).map(binding -> binding.getJsonSchemaVersionInfo().get$id());
+		Optional<String> validationSchemaId = entityManager.findBoundSchema(recordSetId)
+			.map(binding -> binding.getJsonSchemaVersionInfo().get$id());
 		
 		GridSession session = gridDao.createGridSession(
 			new CreateGridSession()
@@ -239,11 +240,21 @@ public class GridManagerImpl implements GridManager {
 			csvDescriptor = new CsvTableDescriptor().setIsFirstLineHeader(true);
 		}
 		
-		// First infers the schema
+		// In order to emit patches using the PatchRowHandler we need a starting schema, this is needed so that
+		// the values in a row are emitted with some sensible data types. Additionally, we split into multiple 
+		// patches according to the max size of each row.
+		// 
+		// In order to determine the correct schema and size we first scan the CSV file reusing the UploadPreviewBuilder
+		// that allows to compute a suggested schema from a CSV file.
 		List<ColumnModel> schema = getSchemaFromCsv(cpFileHandle, csvDescriptor);
+
+		if (schema == null || schema.isEmpty()) {
+			throw new IllegalArgumentException("Cannot determine the schema from the CSV file, at least one column header must be present.");
+		}
 		
 		Long maxBytesPerRow = (long) TableModelUtils.calculateMaxRowSize(schema);
 		
+		// We can now read the CSV file again and reuse the PatchRowHandler.
 		try (CSVReader csvReader = getCsvReader(((CloudProviderFileHandleInterface) fileHandle), csvDescriptor);
 			PatchRowHandler rowHandler = getPatchRowHandler(session, replica, schema, maxBytesPerRow)) {
 			
@@ -279,22 +290,6 @@ public class GridManagerImpl implements GridManager {
 		return new PatchRowHandler(this, session.getSessionId(), replica.getReplicaId(), schema, maxBytesPerRow);
 	}
 	
-	List<ColumnModel> getSchemaFromCsv(CloudProviderFileHandleInterface fileHandle, CsvTableDescriptor csvDescriptor) {
-		try (CSVReader csvReader = getCsvReader(fileHandle, csvDescriptor)) {
-			// Reuse the CSV preview builder to extract the schema
-			UploadPreviewBuilder csvPreviewBuilder = new UploadPreviewBuilder(
-				csvReader, 
-				new UploadToTablePreviewRequest()
-					.setCsvTableDescriptor(csvDescriptor)
-					.setDoFullFileScan(true)
-			);
-			
-			return csvPreviewBuilder.buildResult().getSuggestedColumns();
-		} catch (IOException e) {
-			throw new IllegalStateException(e);
-		}		
-	}
-	
 	CSVReader getCsvReader(CloudProviderFileHandleInterface fileHandle, CsvTableDescriptor csvDescriptor) {
 		BucketObjectReader fileReader = fileReaderProvider.getBucketObjectReader(fileHandle.getClass());
 		
@@ -303,6 +298,24 @@ public class GridManagerImpl implements GridManager {
 				fileReader.openStream(fileHandle.getBucketName(), fileHandle.getKey()), 
 				StandardCharsets.UTF_8
 			), csvDescriptor, null);
+	}
+	
+	List<ColumnModel> getSchemaFromCsv(CloudProviderFileHandleInterface fileHandle, CsvTableDescriptor csvDescriptor) {
+		try (CSVReader csvReader = getCsvReader(fileHandle, csvDescriptor)) {
+
+			// Reuse the CSV preview builder to extract the schema
+			UploadToTablePreviewRequest request = new UploadToTablePreviewRequest()
+				.setCsvTableDescriptor(csvDescriptor)
+				// We do a full scan so that the row size is accurate
+				.setDoFullFileScan(true);
+			
+			return new UploadPreviewBuilder(csvReader, request)
+				.buildResult()
+				.getSuggestedColumns();
+			
+		} catch (IOException e) {
+			throw new IllegalStateException(e);
+		}		
 	}
 
 	/**

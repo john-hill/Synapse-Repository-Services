@@ -10,11 +10,13 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.Logger;
 import org.json.JSONObject;
 import org.sagebionetworks.LoggerProvider;
+import org.sagebionetworks.repo.manager.agent.context.AgentContextValidator;
 import org.sagebionetworks.repo.manager.agent.handler.OpenApiReturnControlHandler;
 import org.sagebionetworks.repo.manager.agent.handler.ReturnControlEvent;
 import org.sagebionetworks.repo.manager.agent.handler.ReturnControlHandler;
 import org.sagebionetworks.repo.manager.agent.handler.ReturnControlHandlerProvider;
 import org.sagebionetworks.repo.manager.agent.parameter.Parameter;
+import org.sagebionetworks.repo.manager.config.AgentSuffix;
 import org.sagebionetworks.repo.manager.feature.FeatureManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
@@ -28,6 +30,7 @@ import org.sagebionetworks.repo.model.agent.AgentRegistrationRequest;
 import org.sagebionetworks.repo.model.agent.AgentSession;
 import org.sagebionetworks.repo.model.agent.AgentType;
 import org.sagebionetworks.repo.model.agent.CreateAgentSessionRequest;
+import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.sagebionetworks.repo.model.agent.TraceEventsRequest;
 import org.sagebionetworks.repo.model.agent.TraceEventsResponse;
 import org.sagebionetworks.repo.model.agent.UpdateAgentSessionRequest;
@@ -71,24 +74,34 @@ public class AgentManagerImpl implements AgentManager {
 	private final AgentDao agentDao;
 	private final AgentClientProvider agentClientProvider;
 	private final String stackBedrockAgentId;
+	private final String stackBedrockGridAgentId;
 	private final ReturnControlHandlerProvider handlerProvider;
 	private final Clock clock;
 	private final AsynchronousJobStatusDAO statusDao;
 	private final FeatureManager featureManager;
+	private final AgentContextValidator contextValidator;
 	private Logger logger;
 
 	@Autowired
-	public AgentManagerImpl(AgentDao agentDao, AgentClientProvider agentClientProvider, String stackBedrockAgentId,
-			ReturnControlHandlerProvider handlerProvider, Clock clock, AsynchronousJobStatusDAO statusDao,
-			FeatureManager featureManager) {
+	public AgentManagerImpl(AgentDao agentDao, AgentClientProvider agentClientProvider,
+			Map<AgentSuffix, String> stackBedrockAgentIds, ReturnControlHandlerProvider handlerProvider, Clock clock,
+			AsynchronousJobStatusDAO statusDao, FeatureManager featureManager, AgentContextValidator contextValidator) {
 		super();
 		this.agentDao = agentDao;
 		this.agentClientProvider = agentClientProvider;
-		this.stackBedrockAgentId = stackBedrockAgentId;
+		this.stackBedrockAgentId = stackBedrockAgentIds.get(AgentSuffix.basic);
+		if (stackBedrockAgentId == null) {
+			throw new IllegalArgumentException("AgentId not found for suffix: " + AgentSuffix.basic);
+		}
+		this.stackBedrockGridAgentId = stackBedrockAgentIds.get(AgentSuffix.grid);
+		if (stackBedrockGridAgentId == null) {
+			throw new IllegalArgumentException("AgentId not found for suffix: " + AgentSuffix.grid);
+		}
 		this.clock = clock;
 		this.statusDao = statusDao;
 		this.handlerProvider = handlerProvider;
 		this.featureManager = featureManager;
+		this.contextValidator = contextValidator;
 	}
 
 	@Autowired
@@ -104,15 +117,20 @@ public class AgentManagerImpl implements AgentManager {
 		ValidateArgument.required(request.getAgentAccessLevel(), "request.agentAccessLevel");
 		// only authenticated users can start a chat session.
 		AuthorizationUtils.disallowAnonymous(userInfo);
+		if (request.getSessionContext() != null) {
+			contextValidator.validate(userInfo, request.getSessionContext());
+		}
+		String baselineAgentId = request.getSessionContext() instanceof GridAgentSessionContext
+				? stackBedrockGridAgentId
+				: stackBedrockAgentId;
 
 		AgentRegistration registration = (request.getAgentRegistrationId() == null
 				|| request.getAgentRegistrationId().isBlank())
 						? agentDao.createOrGetRegistration(AgentType.BASELINE,
-								new AgentRegistrationRequest().setAwsAgentId(stackBedrockAgentId)
-										.setAwsAliasId(TSTALIASID))
+								new AgentRegistrationRequest().setAwsAgentId(baselineAgentId).setAwsAliasId(TSTALIASID))
 						: getAgentRegistration(request.getAgentRegistrationId());
 		return agentDao.createSession(userInfo.getId(), request.getAgentAccessLevel(),
-				registration.getAgentRegistrationId());
+				registration.getAgentRegistrationId(), request.getSessionContext());
 	}
 
 	@WriteTransaction

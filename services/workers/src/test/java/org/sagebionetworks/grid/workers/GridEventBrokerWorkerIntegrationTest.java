@@ -125,16 +125,10 @@ public class GridEventBrokerWorkerIntegrationTest {
 	private EntityService entityService;
 
 	@Autowired
-	private JsonSchemaServices jsonSchemaService;
-
-	@Autowired
 	private ColumnModelManager columnManager;
 
 	@Autowired
 	private FileHandleManager fileHandleManager;
-
-	@Autowired
-	private GridIndexManager gridIndexManager;
 
 	@Autowired
 	private GridReplicaViewManager gridViewManager;
@@ -570,7 +564,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 	 * @throws Exception
 	 */
 	CreateSchemaResponse createJsonSchema(Map<String, JsonSchema> properties) throws Exception {
-		Organization org = getOrCreateOrganization(admin.getId(), "gridtestorg");
+		Organization org = asynchronousJobWorkerHelper.getOrCreateOrganization(admin.getId(), "gridtestorg");
 		String jsonSchemaName = "exampleSchema";
 		JsonSchema jsonSchema = new JsonSchema().set$id(org.getName() + "-" + jsonSchemaName).setProperties(properties);
 
@@ -578,22 +572,6 @@ public class GridEventBrokerWorkerIntegrationTest {
 				new CreateSchemaRequest().setDryRun(false).setSchema(jsonSchema), (CreateSchemaResponse response) -> {
 					assertNotNull(response);
 				}, MAX_WAIT_MS).getResponse();
-	}
-
-	/**
-	 * Helper to get or create a schema organization.
-	 * 
-	 * @param userId
-	 * @param name
-	 * @return
-	 */
-	Organization getOrCreateOrganization(Long userId, String name) {
-		try {
-			return jsonSchemaService.getOrganizationByName(admin.getId(), name);
-		} catch (NotFoundException e) {
-			return jsonSchemaService.createOrganization(admin.getId(),
-					new CreateOrganizationRequest().setOrganizationName(name));
-		}
 	}
 
 	/**

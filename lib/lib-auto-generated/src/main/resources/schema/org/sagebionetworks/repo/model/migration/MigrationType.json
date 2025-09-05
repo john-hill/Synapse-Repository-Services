@@ -496,7 +496,7 @@
 		},
 		{
 		  "name": "METADATA_TASK",
-		  "description": "TODO: Auto-generated description"
+		  "description": "Table that stores metadata task information."
 		},
 		{
 			"name": "USER_STATUS",

@@ -141,7 +141,7 @@ public class MetadataTaskDaoImpl implements MetadataTaskDao {
         Long recordSetId = null;
         if (toUpdate instanceof FileBasedMetadataTask) {
             uploadFolderId = KeyFactory.stringToKey(((FileBasedMetadataTask) toUpdate).getUploadFolderId());
-            fileViewId = KeyFactory.stringToKey(((FileBasedMetadataTask) toUpdate).getUploadFolderId());
+            fileViewId = KeyFactory.stringToKey(((FileBasedMetadataTask) toUpdate).getFileViewId());
         } else if (toUpdate instanceof RecordBasedMetadataTask) {
             recordSetId = KeyFactory.stringToKey(((RecordBasedMetadataTask) toUpdate).getRecordSetId());
         }

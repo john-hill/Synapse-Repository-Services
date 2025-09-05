@@ -107,7 +107,7 @@ public class MetadataTaskController {
     }
 
     /**
-     * Update a MetadataTask.
+     * Delete a MetadataTask.
      *
      * @param userId
      * @param taskId the MetadataTask to delete

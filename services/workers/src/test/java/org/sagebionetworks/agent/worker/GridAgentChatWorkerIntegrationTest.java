@@ -169,7 +169,7 @@ public class GridAgentChatWorkerIntegrationTest {
 	 * @throws Exception
 	 */
 	String createJsonSchema() throws Exception {
-		Organization org = asynchronousJobWorkerHelper.getOrCreateOrganization(admin.getId(), "gridtestorg");
+		Organization org = asynchronousJobWorkerHelper.getOrCreateOrganization(admin.getId(), "GridAgentChatWorkerIntegrationTest");
 		JsonSchema jsonSchema = JsonEntityUtils.fromJsonString(
 				ClasspathUtil.loadFromClasspath("schema/ConditionalRequirement.json"), JsonSchema.class);
 		jsonSchema.set$id(org.getName() + "-conditionalrequirement");

@@ -92,9 +92,11 @@ public class ServiceProviderImpl implements ServiceProvider {
 	private JsonSchemaServicesImpl schemaServices;
 	@Autowired
 	private DownloadListService downloadListService;
-	@Autowired
-	private DrsService drsService;
-	
+    @Autowired
+    private DrsService drsService;
+    @Autowired
+    private MetadataTaskService metadataTaskService;
+
 	public AccessApprovalService getAccessApprovalService() {
 		return accessApprovalService;
 	}
@@ -243,5 +245,10 @@ public class ServiceProviderImpl implements ServiceProvider {
 	public DrsService getDrsService(){
 		return drsService;
 	}
+
+    @Override
+    public MetadataTaskService getMetadataTaskService() {
+        return metadataTaskService;
+    }
 
 }

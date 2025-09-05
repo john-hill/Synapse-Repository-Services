@@ -1436,6 +1436,23 @@ public class SqlConstants {
 	public static final String COL_USER_STATUS_DISABLED				= "DISABLED";
 	public static final String DDL_USER_STATUS 						= "schema/UserStatus-ddl.sql";
 
+    public static final String TABLE_METADATA_TASK = "METADATA_TASK";
+    public static final String COL_METADATA_TASK_ID = "ID";
+    public static final String COL_METADATA_TASK_DATA_TYPE = "DATA_TYPE";
+    public static final String COL_METADATA_TASK_INSTRUCTIONS = "INSTRUCTIONS";
+    public static final String COL_METADATA_TASK_ETAG = "ETAG";
+    public static final String COL_METADATA_TASK_PROJECT_ID = "PROJECT_ID";
+    public static final String COL_METADATA_TASK_CREATED_BY = "CREATED_BY";
+    public static final String COL_METADATA_TASK_CREATED_ON = "CREATED_ON";
+    public static final String COL_METADATA_TASK_MODIFIED_ON = "MODIFIED_ON";
+    public static final String COL_METADATA_TASK_MODIFIED_BY = "MODIFIED_BY";
+    public static final String COL_METADATA_TASK_UPLOAD_FOLDER_ID = "UPLOAD_FOLDER_ID";
+    public static final String COL_METADATA_TASK_FILE_VIEW_ID = "FILE_VIEW_ID";
+    public static final String COL_METADATA_TASK_RECORD_SET_ID = "RECORD_SET_ID";
+    public static final String COL_METADATA_TASK_TASK_TYPE = "TASK_TYPE";
+    public static final String DDL_METADATA_TASK = "schema/MetadataTask-ddl.sql";
+
+
 	// This seems to be the name of the id column for all tables.
 	public static final String COLUMN_ID		= "id";
 	

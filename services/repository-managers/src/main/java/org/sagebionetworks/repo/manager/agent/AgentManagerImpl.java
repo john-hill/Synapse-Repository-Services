@@ -31,6 +31,7 @@ import org.sagebionetworks.repo.model.agent.AgentSession;
 import org.sagebionetworks.repo.model.agent.AgentType;
 import org.sagebionetworks.repo.model.agent.CreateAgentSessionRequest;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
+import org.sagebionetworks.repo.model.agent.SessionContext;
 import org.sagebionetworks.repo.model.agent.TraceEventsRequest;
 import org.sagebionetworks.repo.model.agent.TraceEventsResponse;
 import org.sagebionetworks.repo.model.agent.UpdateAgentSessionRequest;
@@ -267,7 +268,7 @@ public class AgentManagerImpl implements AgentManager {
 						 * response..
 						 */
 						Long runAsUser = getRunAsUser(session);
-						List<ReturnControlEvent> events = extractEvents(runAsUser, payload);
+						List<ReturnControlEvent> events = extractEvents(runAsUser, session.getSessionContext(), payload);
 						response.setReturnControl(payload.invocationId(), events);
 					}).onChunk(chunk -> {
 						String chunktoken = chunk.bytes().asUtf8String();
@@ -402,19 +403,19 @@ public class AgentManagerImpl implements AgentManager {
 	 * @param payload
 	 * @return
 	 */
-	List<ReturnControlEvent> extractEvents(Long userId, ReturnControlPayload payload) {
+	List<ReturnControlEvent> extractEvents(Long userId, SessionContext context, ReturnControlPayload payload) {
 		List<ReturnControlEvent> events = new ArrayList<>();
 		payload.invocationInputs().forEach(iim -> {
-			events.add(fromInvocationInputMember(userId, iim));
+			events.add(fromInvocationInputMember(userId, context, iim));
 		});
 		return events;
 	}
 
-	ReturnControlEvent fromInvocationInputMember(Long userId, InvocationInputMember member) {
+	ReturnControlEvent fromInvocationInputMember(Long userId, SessionContext context, InvocationInputMember member) {
 		if (member.functionInvocationInput() != null) {
 			return fromFunctionInvocationInput(userId, member.functionInvocationInput());
 		} else if (member.apiInvocationInput() != null) {
-			return fromApiInvocationInput(userId, member.apiInvocationInput());
+			return fromApiInvocationInput(userId, context, member.apiInvocationInput());
 		}
 		throw new IllegalArgumentException("Expected either function or api invocation");
 	}
@@ -427,14 +428,14 @@ public class AgentManagerImpl implements AgentManager {
 		return new ReturnControlEvent(userId, input.actionGroup(), input.function(), params);
 	}
 
-	ReturnControlEvent fromApiInvocationInput(Long userId, ApiInvocationInput input) {
+	ReturnControlEvent fromApiInvocationInput(Long userId, SessionContext context, ApiInvocationInput input) {
 		String requestBody = getRequestBody(input.requestBody());
 		List<Parameter> params = new ArrayList<>();
 		input.parameters().forEach(p -> {
 			params.add(new Parameter(p.name(), p.type(), p.value()));
 		});
 		String function = String.format("%s %s", input.httpMethod().toUpperCase(), input.apiPath());
-		return new ReturnControlEvent(userId, input.actionGroup(), function, params, requestBody);
+		return new ReturnControlEvent(userId, input.actionGroup(), function, params, requestBody, context);
 	}
 
 	String getRequestBody(ApiRequestBody body) {

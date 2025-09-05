@@ -56,6 +56,7 @@ import org.sagebionetworks.repo.model.agent.AgentSession;
 import org.sagebionetworks.repo.model.agent.AgentType;
 import org.sagebionetworks.repo.model.agent.CreateAgentSessionRequest;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
+import org.sagebionetworks.repo.model.agent.SessionContext;
 import org.sagebionetworks.repo.model.agent.TraceEvent;
 import org.sagebionetworks.repo.model.agent.TraceEventsRequest;
 import org.sagebionetworks.repo.model.agent.TraceEventsResponse;
@@ -201,6 +202,7 @@ public class AgentManagerImplUnitTest {
 	private TracePart traceOutput;
 	private String traceOutText;
 	private TraceEventsRequest traceRequest;
+	private SessionContext sessionContext;
 
 	@BeforeEach
 	public void before() {
@@ -276,8 +278,9 @@ public class AgentManagerImplUnitTest {
 		requestBody = new JSONObject();
 		requestBody.put("someKey", "someValue");
 		requestBodyString = requestBody.toString();
+		sessionContext = new GridAgentSessionContext().setGridSessionId("98765");
 		returnControlEventApi = new ReturnControlEvent(session.getStartedBy(), actionGroup, apiFunction,
-				List.of(new Parameter("id", "string", "987")), requestBodyString);
+				List.of(new Parameter("id", "string", "987")), requestBodyString, null);
 
 		JSONObject response = new JSONObject();
 		response.put("someKey", "someValue");
@@ -695,6 +698,19 @@ public class AgentManagerImplUnitTest {
 		String results = manager.invokeAgentWithText(jobId, session, chatRequest);
 		assertEquals("foo", results);
 	}
+	
+	@Test
+	public void testInvokeAgentWithTextAndSessionContext() {
+		session.setSessionContext(sessionContext);
+		when(mockAgentDao.getRegeistration(session.getAgentRegistrationId()))
+				.thenReturn(Optional.of(agentRegistration));
+		doReturn(new AgentResponse().appendText("foo")).when(manager).invokeAgentAsync(jobId,
+				agentRegistration.getType(), session, invokeAgentRequest);
+
+		// call under test
+		String results = manager.invokeAgentWithText(jobId, session, chatRequest);
+		assertEquals("foo", results);
+	}
 
 	@Test
 	public void testInvokeAgentWithTextWithReturnControl() {
@@ -842,7 +858,34 @@ public class AgentManagerImplUnitTest {
 	public void testInvokeAgentWithTextWithOnReturnControl() throws InterruptedException, ExecutionException {
 		ReturnControlPayload payload = DefaultReturnControl.builder().invocationId(invocationId).build();
 		doReturn(session.getStartedBy()).when(manager).getRunAsUser(session);
-		doReturn(returnControlEvents).when(manager).extractEvents(session.getStartedBy(), payload);
+		doReturn(returnControlEvents).when(manager).extractEvents(session.getStartedBy(), null, payload);
+
+		when(mockCompletableFuture.get()).thenReturn(null);
+
+		when(mockAgentClientProvider.getBedrockAgentRuntimeAsyncClient(agentRegistration.getType()))
+				.thenReturn(mockAgentRuntime);
+		// mock mock a return control call
+		doAnswer((InvocationOnMock invocation) -> {
+			InvokeAgentResponseHandler asyncResponseHandler = invocation.getArgument(1);
+			asyncResponseHandler.onEventStream((s) -> {
+				s.onSubscribe(mockSubscription);
+				s.onNext(payload);
+			});
+			return mockCompletableFuture;
+		}).when(mockAgentRuntime).invokeAgent(any(InvokeAgentRequest.class), any(InvokeAgentResponseHandler.class));
+
+		// call under test
+		AgentResponse response = manager.invokeAgentAsync(jobId, agentRegistration.getType(), session,
+				invokeAgentRequest);
+		assertEquals(new AgentResponse().setReturnControl(invocationId, returnControlEvents), response);
+	}
+	
+	@Test
+	public void testInvokeAgentWithTextWithOnReturnControlAndContext() throws InterruptedException, ExecutionException {
+		session.setSessionContext(sessionContext);
+		ReturnControlPayload payload = DefaultReturnControl.builder().invocationId(invocationId).build();
+		doReturn(session.getStartedBy()).when(manager).getRunAsUser(session);
+		doReturn(returnControlEvents).when(manager).extractEvents(session.getStartedBy(), sessionContext, payload);
 
 		when(mockCompletableFuture.get()).thenReturn(null);
 
@@ -1059,7 +1102,7 @@ public class AgentManagerImplUnitTest {
 				new ReturnControlEvent(anonymousUserId, actionGroup, functionTwo, params));
 
 		// call under test
-		List<ReturnControlEvent> results = manager.extractEvents(anonymousUserId, payload);
+		List<ReturnControlEvent> results = manager.extractEvents(anonymousUserId,null, payload);
 		assertEquals(expected, results);
 	}
 
@@ -1081,7 +1124,7 @@ public class AgentManagerImplUnitTest {
 				new ReturnControlEvent(anonymousUserId, actionGroup, "PUT /foo/two/{another}", params));
 
 		// call under test
-		List<ReturnControlEvent> results = manager.extractEvents(anonymousUserId, payload);
+		List<ReturnControlEvent> results = manager.extractEvents(anonymousUserId,null, payload);
 		assertEquals(expected, results);
 	}
 
@@ -1102,7 +1145,7 @@ public class AgentManagerImplUnitTest {
 				new ReturnControlEvent(anonymousUserId, actionGroup, functionTwo, params));
 
 		// call under test
-		List<ReturnControlEvent> results = manager.extractEvents(anonymousUserId, payload);
+		List<ReturnControlEvent> results = manager.extractEvents(anonymousUserId,null, payload);
 		assertEquals(expected, results);
 	}
 
@@ -1334,7 +1377,7 @@ public class AgentManagerImplUnitTest {
 				new Parameter("twoKey", "string", "twoValue"));
 		InvocationInputMember member = createInvocationInputMember(actionGroup, functionOne);
 		// call under test
-		ReturnControlEvent event = manager.fromInvocationInputMember(adminId, member);
+		ReturnControlEvent event = manager.fromInvocationInputMember(adminId,null, member);
 		ReturnControlEvent expected = new ReturnControlEvent(adminId, actionGroup, functionOne, params);
 		assertEquals(expected, event);
 	}
@@ -1347,7 +1390,7 @@ public class AgentManagerImplUnitTest {
 				new Parameter("twoKey", "string", "twoValue"));
 		InvocationInputMember member = createInvocationInputMemberApi(actionGroup, apiPathOne, "get");
 		// call under test
-		ReturnControlEvent event = manager.fromInvocationInputMember(adminId, member);
+		ReturnControlEvent event = manager.fromInvocationInputMember(adminId,null, member);
 		ReturnControlEvent expected = new ReturnControlEvent(adminId, actionGroup, "GET /foo/one/{id}", params);
 		assertEquals(expected, event);
 	}
@@ -1357,7 +1400,7 @@ public class AgentManagerImplUnitTest {
 		InvocationInputMember member = InvocationInputMember.builder().build();
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			manager.fromInvocationInputMember(adminId, member);
+			manager.fromInvocationInputMember(adminId,null, member);
 		}).getMessage();
 		assertEquals("Expected either function or api invocation", message);
 	}

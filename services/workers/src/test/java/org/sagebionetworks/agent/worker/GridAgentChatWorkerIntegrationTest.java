@@ -2,6 +2,7 @@ package org.sagebionetworks.agent.worker;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -20,6 +21,8 @@ import org.sagebionetworks.repo.model.Folder;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.agent.AgentAccessLevel;
+import org.sagebionetworks.repo.model.agent.AgentChatRequest;
+import org.sagebionetworks.repo.model.agent.AgentChatResponse;
 import org.sagebionetworks.repo.model.agent.AgentSession;
 import org.sagebionetworks.repo.model.agent.CreateAgentSessionRequest;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
@@ -96,11 +99,13 @@ public class GridAgentChatWorkerIntegrationTest {
 
 		ExternalFileHandle fh = fileHandleManager.createExternalFileHandle(admin, new ExternalFileHandle()
 				.setContentType("text/plain").setFileName("foo.bar").setExternalURL("https://something.org"));
+		FileEntity lastFile = null;
 		for (int i = 0; i < 10; i++) {
-			entityService.createEntity(admin.getId(),
+			lastFile = entityService.createEntity(admin.getId(),
 					new FileEntity().setName("f" + i).setDataFileHandleId(fh.getId()).setParentId(folder.getId()),
 					null);
 		}
+		asynchronousJobWorkerHelper.waitForEntityReplication(admin, lastFile.getId(), MAX_WAIT_MS);
 
 		List<ColumnModel> schema = List.of(new ColumnModel().setName("a").setColumnType(ColumnType.INTEGER),
 				new ColumnModel().setName("b").setColumnType(ColumnType.STRING).setMaximumSize(100L));
@@ -115,23 +120,23 @@ public class GridAgentChatWorkerIntegrationTest {
 
 		String sql = String.format("select * from %s", view.getId());
 
-		GridSession session = asynchronousJobWorkerHelper.assertJobResponse(admin,
+		GridSession gridSession = asynchronousJobWorkerHelper.assertJobResponse(admin,
 				new CreateGridRequest().setInitialQuery(new Query().setSql(sql)), (CreateGridResponse response) -> {
 					assertNotNull(response);
 					assertNotNull(response.getGridSession());
 				}, MAX_WAIT_MS).getResponse().getGridSession();
-		assertNotNull(session);
-		assertEquals(view.getId(), session.getSourceEntityId());
-		assertEquals(jsonSchem$id, session.getGridJsonSchema$Id());
+		assertNotNull(gridSession);
+		assertEquals(view.getId(), gridSession.getSourceEntityId());
+		assertEquals(jsonSchem$id, gridSession.getGridJsonSchema$Id());
 
 		// Create replica One
 		GridReplica replicaOne = gridServie
-				.createReplica(admin.getId(), new CreateReplicaRequest().setGridSessionId(session.getSessionId()))
+				.createReplica(admin.getId(), new CreateReplicaRequest().setGridSessionId(gridSession.getSessionId()))
 				.getReplica();
 
 		String urlOne = gridServie
 				.createPresignedUrl(admin.getId(), new CreateGridPresignedUrlRequest()
-						.setGridSessionId(session.getSessionId()).setReplicaId(replicaOne.getReplicaId()))
+						.setGridSessionId(gridSession.getSessionId()).setReplicaId(replicaOne.getReplicaId()))
 				.getPresignedUrl();
 		assertNotNull(urlOne);
 
@@ -141,6 +146,20 @@ public class GridAgentChatWorkerIntegrationTest {
 				.setSessionContext(context).setAgentAccessLevel(AgentAccessLevel.WRITE_YOUR_PRIVATE_DATA));
 		assertNotNull(agentSession);
 		assertEquals(context, agentSession.getSessionContext());
+		
+		
+		String chatRequest = "Can you help me understand the validation error: '#/a: expected type: Integer, found: Null'?";
+		// the agent is expected to read the grid's schema and help the user understand the error
+		asynchronousJobWorkerHelper.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
+				.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {
+					assertNotNull(response);
+					assertEquals(agentSession.getSessionId(), response.getSessionId());
+					assertNotNull(response.getResponseText());
+					System.out.println(response.getResponseText());
+					assertTrue(response.getResponseText().toLowerCase().contains("schema"));
+					// the description of column 'a' indicates that the schema was read.
+					assertTrue(response.getResponseText().toLowerCase().contains("an integer value"));
+				}, MAX_WAIT_MS).getResponse();
 	}
 
 	/**

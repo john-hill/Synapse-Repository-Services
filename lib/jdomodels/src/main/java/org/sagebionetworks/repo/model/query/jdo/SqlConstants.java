@@ -1336,6 +1336,7 @@ public class SqlConstants {
 	public static final String COL_AGENT_SESSION_SESSION_ID = 		"SESSION_ID";
 	public static final String COL_AGENT_SESSION_REGISTRATION_ID = 	"REGISTRATION_ID";
 	public static final String COL_AGENT_SESSION_ACCESS_LEVEL = 	"ACCESS_LEVEL";
+	public static final String COL_AGENT_SESSION_CONTEXT =		 	"CONTEXT";
 	public static final String DDL_AGENT_SESSION = 				"schema/agent/Agent-Session-ddl.sql";
 	
 	public static final String TABLE_AGENT_TRACE =				"AGENT_TRACE";

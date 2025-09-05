@@ -856,4 +856,9 @@ public class EntityServiceImpl implements EntityService {
 		return entityId;
 	}
 
+	@Override
+	public void truncateAll() {
+		entityManager.truncateAll();
+	}
+
 }

@@ -54,7 +54,6 @@ public class ControllerModelsToOpenApiModelTranslatorTest {
 		schemaMap = new HashMap<>();
 		OpenApiJsonSchema js = new OpenApiJsonSchema();
 		js.setType(Type.integer);
-		js.setDescription("a description");
 		schemaMap.put(MOCK_CLASS_NAME, js);
 
 		this.translator = spy(new ControllerModelsToOpenApiModelTranslator(schemaMap));
@@ -87,9 +86,6 @@ public class ControllerModelsToOpenApiModelTranslatorTest {
 		OpenApiSpecModel expected = new OpenApiSpecModel().withInfo(apiInfo).withOpenapi("3.0.1").withServers(servers)
 				.withComponents(components).withPaths(new LinkedHashMap<>()).withTags(tags);
 		assertEquals(expected, result);
-		
-	
-		System.out.println(result.generateJSON().toString(5));
 
 		verify(translator).insertPaths(methods, basePath, displayName, result.getPaths());
 		verify(translator).getApiInfo();

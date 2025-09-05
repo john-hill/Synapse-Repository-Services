@@ -67,7 +67,6 @@ public class AgentContextValidatorImplTest {
 			validator.validate(mockUser, mockContext);
 		}).getMessage();
 		assertEquals("user is required.", message);
-		;
 		verifyZeroInteractions(mockHandler);
 	}
 

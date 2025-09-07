@@ -110,6 +110,9 @@ import org.sagebionetworks.repo.model.auth.TwoFactorAuthRecoveryCodes;
 import org.sagebionetworks.repo.model.auth.TwoFactorAuthResetRequest;
 import org.sagebionetworks.repo.model.auth.TwoFactorAuthStatus;
 import org.sagebionetworks.repo.model.auth.UserEntityPermissions;
+import org.sagebionetworks.repo.model.curation.CurationTask;
+import org.sagebionetworks.repo.model.curation.ListCurationTaskRequest;
+import org.sagebionetworks.repo.model.curation.ListCurationTaskResponse;
 import org.sagebionetworks.repo.model.dao.WikiPageKey;
 import org.sagebionetworks.repo.model.dataaccess.AccessApprovalNotificationRequest;
 import org.sagebionetworks.repo.model.dataaccess.AccessApprovalNotificationResponse;
@@ -4610,5 +4613,14 @@ public interface SynapseClient extends BaseClient {
      */
     DownloadFromGridResult exportGridAsCsvAsyncGet(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException;
 
+    CurationTask createCurationTask(CurationTask request) throws SynapseException;
+
+    CurationTask getMetadataTask(String taskId) throws SynapseException;
+
+    CurationTask updateMetadataTask(CurationTask request) throws SynapseException;
+
+    void deleteMetadataTask(String taskId) throws SynapseException;
+
+    ListCurationTaskResponse listMetadataTasks(ListCurationTaskRequest request) throws SynapseException;
 }
 

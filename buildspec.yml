@@ -6,7 +6,7 @@ env:
     org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
     m2_cache_parent_folder: .
     src_folder: .
-    user: ${user}
+#    user: ${user} <<< does not work, just sets the value literally to ${user}
   secrets-manager:
     org_sagebionetworks_stackEncryptionKey: org.sagebionetworks.stackEncryptionKey
     rds_password: build.rds.password

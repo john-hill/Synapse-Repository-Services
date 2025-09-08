@@ -1,8 +1,8 @@
 {
-  "description": "A MetadataTask for record-based metadata",
+  "description": "A CurationTaskProperties for record-based metadata",
   "implements": [
     {
-      "$ref": "org.sagebionetworks.repo.model.metadata.MetadataTask"
+      "$ref": "org.sagebionetworks.repo.model.curation.CurationTaskProperties"
     }
   ],
   "properties": {

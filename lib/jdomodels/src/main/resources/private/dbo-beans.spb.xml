@@ -194,8 +194,8 @@
 				<bean class="org.sagebionetworks.repo.model.dbo.grid.DBOGridConnection"/>
 				<bean class="org.sagebionetworks.repo.model.dbo.grid.DBOGridPatch"/>
 
-                <!-- Metadata tasks -->
-                <bean class="org.sagebionetworks.repo.model.dbo.metadata.task.DBOMetadataTask"/>
+                <!-- Curation tasks -->
+                <bean class="org.sagebionetworks.repo.model.dbo.curation.DBOCurationTask"/>
 
                 <bean class="org.sagebionetworks.repo.model.dbo.auth.DBOUserStatus"/>
 			</list>
@@ -356,7 +356,7 @@
 				<bean class="org.sagebionetworks.repo.model.dbo.grid.DBOGridConnection"/>
 				<bean class="org.sagebionetworks.repo.model.dbo.grid.DBOGridPatch"/>
 
-                <bean class="org.sagebionetworks.repo.model.dbo.metadata.task.DBOMetadataTask"/>
+                <bean class="org.sagebionetworks.repo.model.dbo.curation.DBOCurationTask"/>
 
 				<bean class="org.sagebionetworks.repo.model.dbo.auth.DBOUserStatus"/>
 

@@ -1,6 +1,5 @@
 {
-  "description": "The MetadataTask provides instructions for a Data Contributor on how data/metadata of a specific type should be both added to a project and curated. There should be a MetadataTask for each type of data/metadata to be contributed to a project. There are currently two categories of data/metadata: file-based and record-based. For each category there will be a concrete implementation of this interface. This interfaces defines the common fields of all MetadataTasks.",
-  "type": "interface",
+  "description": "The CurationTask provides instructions for a Data Contributor on how data or metadata of a specific type should be both added to a project and curated. There should be a CurationTask for each type of data/metadata to be contributed to a project. There are currently two categories of curation tasks: file-based metadata collection and record-based metadata collection. For each category there will be a concrete implementation of this interface. This interfaces defines the common fields of all CurationTasks.",
   "properties": {
     "taskId": {
       "type": "string",
@@ -37,9 +36,8 @@
     "modifiedBy": {
       "type": "string"
     },
-    "concreteType": {
-      "type": "string",
-      "description": "Indicates which implementation of MetadataTask this object represents.  Possible values include: 'org.sagebionetworks.repo.model.metadata.FileBasedMetadataTask' and 'org.sagebionetworks.repo.model.metadata.RecordBasedMetadataTask'. "
+    "taskProperties": {
+      "$ref": "org.sagebionetworks.repo.model.curation.CurationTaskProperties"
     }
   }
 }

@@ -1,5 +1,5 @@
 {
-  "description": "Request for a single page of MetadataTasks for a project.",
+  "description": "Request for a single page of CurationTasks for a project.",
   "properties": {
     "projectId": {
       "type": "string",

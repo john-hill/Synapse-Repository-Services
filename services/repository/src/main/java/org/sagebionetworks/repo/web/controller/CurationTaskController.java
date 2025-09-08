@@ -9,10 +9,10 @@ import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.metadata.ListMetadataTaskRequest;
-import org.sagebionetworks.repo.model.metadata.ListMetadataTaskResponse;
-import org.sagebionetworks.repo.model.metadata.MetadataTask;
-import org.sagebionetworks.repo.service.ServiceProvider;
+import org.sagebionetworks.repo.model.curation.CurationTask;
+import org.sagebionetworks.repo.model.curation.ListCurationTaskRequest;
+import org.sagebionetworks.repo.model.curation.ListCurationTaskResponse;
+import org.sagebionetworks.repo.service.CurationTaskService;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.repo.web.RequiredScope;
 import org.sagebionetworks.repo.web.UrlHelpers;
@@ -29,22 +29,22 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
 /**
- * The Metadata Task services are used to manage <a href="${org.sagebionetworks.repo.model.metadata.MetadataTask}>Metadata Tasks</a>.
- * Metadata tasks are used to guide data contributors through the process of providing metadata in Synapse.
+ * The Curation Task services are used to manage <a href="${org.sagebionetworks.repo.model.curation.CurationTask}>Curation Tasks</a>.
+ * Curation tasks are used to guide data contributors through the process of contributing data or metadata in Synapse.
  */
-@ControllerInfo(displayName = "Metadata Task Services", path = "repo/v1")
+@ControllerInfo(displayName = "Curation Task Services", path = "repo/v1")
 @Controller
 @RequestMapping(UrlHelpers.REPO_PATH)
-public class MetadataTaskController {
+public class CurationTaskController {
 
     @Autowired
-    ServiceProvider serviceProvider;
+    CurationTaskService service;
 
     /**
-     * Create a MetadataTask associated with a project.
+     * Create a CurationTask associated with a project.
      *
      * @param userId
-     * @param metadataTask the MetadataTask to create
+     * @param curationTask the CurationTask to create
      * @return
      * @throws DatastoreException
      * @throws UnauthorizedException
@@ -54,19 +54,19 @@ public class MetadataTaskController {
      */
     @RequiredScope({view, modify})
     @ResponseStatus(HttpStatus.CREATED)
-    @RequestMapping(value = UrlHelpers.METADATA_TASK, method = RequestMethod.POST)
+    @RequestMapping(value = UrlHelpers.CURATION_TASK, method = RequestMethod.POST)
     public @ResponseBody
-    MetadataTask createMetadataTask(
+    CurationTask createCurationTask(
             @RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
-            @RequestBody MetadataTask metadataTask) throws DatastoreException, UnauthorizedException, NotFoundException, InvalidModelException, IOException {
-        return serviceProvider.getMetadataTaskService().createMetadataTask(userId, metadataTask);
+            @RequestBody CurationTask curationTask) throws DatastoreException, UnauthorizedException, NotFoundException, InvalidModelException, IOException {
+        return service.createCurationTask(userId, curationTask);
     }
 
     /**
-     * Get a MetadataTask by its ID.
+     * Get a CurationTask by its ID.
      *
      * @param userId
-     * @param taskId the MetadataTask to retrieve
+     * @param taskId the CurationTask to retrieve
      * @return
      * @throws DatastoreException
      * @throws UnauthorizedException
@@ -76,19 +76,19 @@ public class MetadataTaskController {
      */
     @RequiredScope({view, modify})
     @ResponseStatus(HttpStatus.OK)
-    @RequestMapping(value = UrlHelpers.METADATA_TASK_ID, method = RequestMethod.GET)
+    @RequestMapping(value = UrlHelpers.CURATION_TASK_ID, method = RequestMethod.GET)
     public @ResponseBody
-    MetadataTask getMetadataTask(
+    CurationTask getCurationTask(
             @RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
             @PathVariable String taskId) throws DatastoreException, UnauthorizedException, NotFoundException, InvalidModelException, IOException {
-        return serviceProvider.getMetadataTaskService().getMetadataTask(userId, taskId);
+        return service.getCurationTask(userId, taskId);
     }
 
     /**
-     * Update a MetadataTask.
+     * Update a CurationTask.
      *
      * @param userId
-     * @param metadataTask the MetadataTask to update
+     * @param curationTask the CurationTask to update
      * @return
      * @throws DatastoreException
      * @throws UnauthorizedException
@@ -98,19 +98,19 @@ public class MetadataTaskController {
      */
     @RequiredScope({view, modify})
     @ResponseStatus(HttpStatus.OK)
-    @RequestMapping(value = UrlHelpers.METADATA_TASK_ID, method = RequestMethod.PUT)
+    @RequestMapping(value = UrlHelpers.CURATION_TASK_ID, method = RequestMethod.PUT)
     public @ResponseBody
-    MetadataTask updateMetadataTask(
+    CurationTask updateCurationTask(
             @RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
-            @RequestBody MetadataTask metadataTask) throws DatastoreException, UnauthorizedException, NotFoundException, InvalidModelException, IOException {
-        return serviceProvider.getMetadataTaskService().updateMetadataTask(userId, metadataTask);
+            @RequestBody CurationTask curationTask) throws DatastoreException, UnauthorizedException, NotFoundException, InvalidModelException, IOException {
+        return service.updateCurationTask(userId, curationTask);
     }
 
     /**
-     * Delete a MetadataTask.
+     * Delete a CurationTask.
      *
      * @param userId
-     * @param taskId the MetadataTask to delete
+     * @param taskId the CurationTask to delete
      * @return
      * @throws DatastoreException
      * @throws UnauthorizedException
@@ -120,22 +120,21 @@ public class MetadataTaskController {
      */
     @RequiredScope({view, modify})
     @ResponseStatus(HttpStatus.OK)
-    @RequestMapping(value = UrlHelpers.METADATA_TASK_ID, method = RequestMethod.DELETE)
+    @RequestMapping(value = UrlHelpers.CURATION_TASK_ID, method = RequestMethod.DELETE)
     public @ResponseBody
-    void deleteMetadataTask(
+    void deleteCurationTask(
             @RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
-
-            @PathVariable String taskId) throws DatastoreException, UnauthorizedException, NotFoundException, InvalidModelException, IOException {
-        serviceProvider.getMetadataTaskService().deleteMetadataTask(userId, taskId);
+            @PathVariable String taskId) throws DatastoreException, UnauthorizedException, NotFoundException, InvalidModelException {
+        service.deleteCurationTask(userId, taskId);
     }
 
 
 
     /**
-     * Get a list of MetadataTasks.
+     * Get a list of CurationTasks.
      *
      * @param userId
-     * @param request the request to specify which MetadataTasks to retrieve
+     * @param request the request to specify which CurationTasks to retrieve
      * @return
      * @throws DatastoreException
      * @throws UnauthorizedException
@@ -145,11 +144,11 @@ public class MetadataTaskController {
      */
     @RequiredScope({view, modify})
     @ResponseStatus(HttpStatus.OK)
-    @RequestMapping(value = UrlHelpers.METADATA_TASK_LIST, method = RequestMethod.POST)
+    @RequestMapping(value = UrlHelpers.CURATION_TASK_LIST, method = RequestMethod.POST)
     public @ResponseBody
-    ListMetadataTaskResponse getListOfMetadataTasks(
+    ListCurationTaskResponse getListOfCurationTasks(
             @RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
-            @RequestBody ListMetadataTaskRequest request) throws DatastoreException, UnauthorizedException, NotFoundException, InvalidModelException, IOException {
-        return serviceProvider.getMetadataTaskService().getMetadataTasks(userId, request);
+            @RequestBody ListCurationTaskRequest request) throws DatastoreException, UnauthorizedException, NotFoundException, InvalidModelException, IOException {
+        return service.getCurationTasks(userId, request);
     }
 }

@@ -1,10 +1,10 @@
 {
-  "description": "A single page of MetadataTask.",
+  "description": "A single page of CurationTasks.",
   "properties": {
     "page": {
       "type": "array",
       "items":{
-        "$ref" : "org.sagebionetworks.repo.model.metadata.MetadataTask"
+        "$ref" : "org.sagebionetworks.repo.model.curation.CurationTask"
       }
     },
     "nextPageToken": {

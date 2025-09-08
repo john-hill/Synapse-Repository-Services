@@ -1285,10 +1285,10 @@ public class UrlHelpers {
 	public static final String PORTAL_ACL = PORTAL_ID + "/acl";
 	public static final String PORTAL_PERMISSIONS = PORTAL_ID + "/permissions";
 
-    // Endpoint for metadata tasks
-    public static final String METADATA_TASK = "/metadata/task";
-    public static final String METADATA_TASK_ID = METADATA_TASK + "/{taskId}";
-    public static final String METADATA_TASK_LIST = METADATA_TASK + LIST;
+    // Endpoint for curation tasks
+    public static final String CURATION_TASK = "/curation/task";
+    public static final String CURATION_TASK_ID = CURATION_TASK + "/{taskId}";
+    public static final String CURATION_TASK_LIST = CURATION_TASK + LIST;
 	
 	/**
 	 * API for creating integration test users

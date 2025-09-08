@@ -1,8 +1,8 @@
 {
-  "description": "A MetadataTask for file-based data, describing where data is uploaded and a view which contains the annotations.",
+  "description": "A CurationTaskProperties for file-based data, describing where data is uploaded and a view which contains the annotations.",
   "implements": [
     {
-      "$ref": "org.sagebionetworks.repo.model.metadata.MetadataTask"
+      "$ref": "org.sagebionetworks.repo.model.curation.CurationTaskProperties"
     }
   ],
   "properties": {

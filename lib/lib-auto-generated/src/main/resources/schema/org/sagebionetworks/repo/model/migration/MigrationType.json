@@ -495,8 +495,8 @@
 			"description": "Table that tracks grid replica patches."
 		},
 		{
-		  "name": "METADATA_TASK",
-		  "description": "Table that stores metadata task information."
+		  "name": "CURATION_TASK",
+		  "description": "Table that stores curation task information."
 		},
 		{
 			"name": "USER_STATUS",

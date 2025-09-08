@@ -88,6 +88,4 @@ public interface ServiceProvider {
 	public DownloadListService getDownloadListService();
 
 	DrsService getDrsService();
-
-    MetadataTaskService getMetadataTaskService();
 }

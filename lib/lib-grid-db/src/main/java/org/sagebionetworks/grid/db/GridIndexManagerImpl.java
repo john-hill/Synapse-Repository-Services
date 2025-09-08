@@ -87,7 +87,7 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	 */
 	boolean isPatchAlreadyApplied(String sessionId, Long replicaId, LogicalTimestamp patchId) {
 		return dao.getClockSequenceNumber(sessionId, replicaId, patchId.getReplicaId())
-				.map(seq -> patchId.getSequenceNumber() <= seq).orElse(false);
+				.map(seq -> patchId.getSequenceNumber() < seq).orElse(false);
 	}
 
 	@Override
@@ -120,5 +120,4 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	public void truncateAll() {
 		dao.truncateAll();
 	}
-
 }

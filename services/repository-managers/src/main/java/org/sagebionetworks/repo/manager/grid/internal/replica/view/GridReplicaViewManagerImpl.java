@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,6 +32,7 @@ import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.ObjectNode;
 import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.util.PaginationIterator;
 import org.sagebionetworks.util.ValidateArgument;
 import org.semver4j.Semver;
 import org.springframework.jdbc.core.RowMapper;
@@ -119,18 +121,17 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 			joiner.add(String.format("JSON_EXTRACT(V1.VEC_VAL, '$.c%d.v')", c.getVectorIndex()));
 		});
 		String select = joiner.toString();
-		StringBuilder wherBuilder = new StringBuilder("");
+		
+		StringBuilder whereBuilder = new StringBuilder(" WHERE IS_DELETED IS FALSE");
+		
 		if (!filters.isEmpty()) {
-			wherBuilder.append(" WHERE ");
-			StringJoiner whereJoiner = new StringJoiner(" AND ");
 			for (int i = 0; i < filters.size(); i++) {
 				ViewFilter f = filters.get(i);
-				whereJoiner.add(f.getConditionSql(i));
+				whereBuilder.append(" AND ").append(f.getConditionSql(i));
 				params.addValue(f.getParameterKey(i), f.getParameterValue());
 			}
-			wherBuilder.append(whereJoiner.toString());
 		}
-		String sql = String.format(GRID_INDEX_VIEW_TEMPLATE, select, wherBuilder.toString());
+		String sql = String.format(GRID_INDEX_VIEW_TEMPLATE, select, whereBuilder.toString());
 
 		List<RowView> page = gridIndexDao.query(sql, params, ROW_VIEW_MAPPER);
 
@@ -149,7 +150,16 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		return page;
 	}
 
-	@Override
+    @Override
+    public Iterator<RowView> getQueryIterator(GridHeader header, List<ViewFilter> filters) {
+        final long ROWS_PER_PAGE = 1_000L;
+        return new PaginationIterator<>(
+                (long limit, long offset) -> this.querySinglePage(header, filters, limit, offset),
+                ROWS_PER_PAGE
+        );
+    }
+
+    @Override
 	public Optional<GridHeader> readHeader(String gridSessionId, Long replicaId) {
 		Optional<ObjectNode> rootOpt = gridIndexDao.getRootObject(gridSessionId, replicaId);
 		if (rootOpt.isEmpty()) {

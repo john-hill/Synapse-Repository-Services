@@ -1,5 +1,7 @@
 package org.sagebionetworks.repo.manager.oauth;
 
+import org.sagebionetworks.repo.model.AccessControlList;
+import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.oauth.OAuthClient;
 import org.sagebionetworks.repo.model.oauth.OAuthClientIdAndSecret;
@@ -78,6 +80,22 @@ public interface OAuthClientManager {
 	 */
 	void deleteOpenIDConnectClient(UserInfo userInfo, String id);
 	
+	/**
+	 * Get the ACL for the specified OAuth Client
+	 * @param userInfo
+	 * @param id
+	 * @return
+	 */
+	AccessControlList getAccessControlList(UserInfo userInfo, String id);
+	
+	/**
+	 * Update the ACL for the specified OAuth Client
+	 * @param userInfo
+	 * @param clientId
+	 * @param acl
+	 * @return
+	 */
+	AccessControlList updateAccessControlList(UserInfo userInfo, String clientId, AccessControlList acl);
 	
 	/**
 	 * Generate and return the secret for the given client.
@@ -93,6 +111,4 @@ public interface OAuthClientManager {
 	 * @return true iff the credentials are valid
 	 */
 	boolean validateClientCredentials(OAuthClientIdAndSecret idAndSecret);
-	
-
 }

@@ -14,7 +14,6 @@ import org.sagebionetworks.repo.model.limits.ProjectStorageLocationLimit;
 import org.sagebionetworks.repo.model.message.ChangeMessages;
 import org.sagebionetworks.repo.model.message.FireMessagesResult;
 import org.sagebionetworks.repo.model.message.PublishResults;
-import org.sagebionetworks.repo.model.migration.AsyncMigrationRequest;
 import org.sagebionetworks.repo.model.migration.IdGeneratorExport;
 import org.sagebionetworks.repo.model.migration.MigrationRangeChecksum;
 import org.sagebionetworks.repo.model.migration.MigrationType;
@@ -24,7 +23,6 @@ import org.sagebionetworks.repo.model.migration.MigrationTypeCounts;
 import org.sagebionetworks.repo.model.migration.MigrationTypeList;
 import org.sagebionetworks.repo.model.migration.MigrationTypeNames;
 import org.sagebionetworks.repo.model.oauth.OAuthClient;
-import org.sagebionetworks.repo.model.quiz.PassingRecord;
 import org.sagebionetworks.repo.model.quiz.QuizResponse;
 import org.sagebionetworks.repo.model.status.StackStatus;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
@@ -318,5 +316,5 @@ public interface SynapseAdminClient extends SynapseClient {
 	 * @throws SynapseException
 	 */
 	ProjectStorageLocationLimit setProjectStorageLocationLimit(ProjectStorageLocationLimit limit) throws SynapseException;
- 
+
 }

@@ -28,7 +28,6 @@ import org.sagebionetworks.repo.model.migration.MigrationTypeCounts;
 import org.sagebionetworks.repo.model.migration.MigrationTypeList;
 import org.sagebionetworks.repo.model.migration.MigrationTypeNames;
 import org.sagebionetworks.repo.model.oauth.OAuthClient;
-import org.sagebionetworks.repo.model.quiz.PassingRecord;
 import org.sagebionetworks.repo.model.quiz.QuizResponse;
 import org.sagebionetworks.repo.model.status.StackStatus;
 import org.sagebionetworks.simpleHttpClient.SimpleHttpClientConfig;

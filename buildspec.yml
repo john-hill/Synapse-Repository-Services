@@ -6,7 +6,6 @@ env:
     org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
     m2_cache_parent_folder: .
     src_folder: .
-#    user: ${user} <<< does not work, just sets the value literally to ${user}
   secrets-manager:
     org_sagebionetworks_stackEncryptionKey: org.sagebionetworks.stackEncryptionKey
     rds_password: build.rds.password
@@ -32,6 +31,4 @@ phases:
       - echo $STS_CREDENTIALS | jq -r '.Expiration'
       - export org_sagebionetworks_repository_database_connection_url=dev-${user}-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
       - export org_sagebionetworks_table_cluster_endpoint_0=dev-${user}-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
-      - echo "All env vars"
-      - printenv
       - ./docker_build.sh

@@ -139,7 +139,6 @@ public class GridRecordSetExporterImplTest {
 
 		assertEquals(expectedResponse, response);
 		
-		assertEquals("Grid curation export", recordSet.getVersionLabel());
 		assertEquals(2L, recordSet.getVersionNumber());
 	}
 

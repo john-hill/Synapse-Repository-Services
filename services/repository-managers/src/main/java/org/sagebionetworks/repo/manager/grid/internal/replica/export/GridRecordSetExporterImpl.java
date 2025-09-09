@@ -84,7 +84,7 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 	
 	RecordSet createNewVersion(UserInfo user, RecordSet recordSet, String newFileHandleId, ValidationSummaryStatistics validationSummary) {
 		recordSet.setDataFileHandleId(newFileHandleId);
-		recordSet.setVersionLabel("Grid curation export");
+		recordSet.setVersionLabel(null);
 		
 		// TODO Should the validation summary be stored somewhere?
 		

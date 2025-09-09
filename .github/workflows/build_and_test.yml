@@ -7,18 +7,18 @@ on:
     branches: ['*']
 
 jobs:
-#  deploy_codebuild_stack:
-#    steps:
-#      # TODO need to authenticate to AWS first
-#      - name: Deploy to AWS CloudFormation
-#        uses: aws-actions/aws-cloudformation-github-deploy@v1
-#        with:
-#          # TODO give it a unique name
-#          name: CodeBuildProject
-#          template: configuration/build/codebuild_cf_template.yaml
-#          # TODO pass in user name
-#          # TODO need to get back ARN of execution role
-#          parameter-overrides: "MyParam1=myValue,MyParam2=${{ secrets.MY_SECRET_VALUE }}"
+  deploy_codepipeline_stack:
+    steps:
+      # TODO need to authenticate to AWS first
+      - name: Deploy CodePipeline to AWS CloudFormation
+        uses: aws-actions/aws-cloudformation-github-deploy@v1
+        with:
+          # TODO give it a unique name
+          name: CodePipelineProject
+          template: configuration/build/codepipeline_cf_template.yaml
+          # TODO pass in user name
+          # TODO need to get back ARN of execution role
+          parameter-overrides: "MyParam1=myValue,MyParam2=${{ secrets.MY_SECRET_VALUE }}"
 
 
   build_and_test:

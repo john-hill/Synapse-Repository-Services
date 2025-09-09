@@ -4615,11 +4615,11 @@ public interface SynapseClient extends BaseClient {
 
     CurationTask createCurationTask(CurationTask request) throws SynapseException;
 
-    CurationTask getMetadataTask(String taskId) throws SynapseException;
+    CurationTask getMetadataTask(Long taskId) throws SynapseException;
 
     CurationTask updateMetadataTask(CurationTask request) throws SynapseException;
 
-    void deleteMetadataTask(String taskId) throws SynapseException;
+    void deleteMetadataTask(Long taskId) throws SynapseException;
 
     ListCurationTaskResponse listMetadataTasks(ListCurationTaskRequest request) throws SynapseException;
 }

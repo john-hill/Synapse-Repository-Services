@@ -61,7 +61,7 @@ public class ITCurationTaskControllerTest {
         view = synapse.createEntity(new EntityView().setName("view").setViewTypeMask(1L).setParentId(project.getId()));
         entitiesToDelete.add(view);
 
-        csvFile = new File(ITRecordSetTest.class.getClassLoader().getResource("docs/test.csv").getFile().replaceAll("%20", " "));
+        csvFile = new File(ITCurationTaskControllerTest.class.getClassLoader().getResource("docs/test.csv").getFile().replaceAll("%20", " "));
         FileHandle csvFileHandle = synapse.multipartUpload(csvFile, null, false, true);
         recordSet = synapse.createEntity(new RecordSet().setName("record set").setParentId(folder.getId()).setUpsertKey(Collections.singletonList("id")).setDataFileHandleId(csvFileHandle.getId()));
         entitiesToDelete.add(recordSet);

@@ -256,9 +256,9 @@ public class GridReplicaCsvExporterImplTest {
     }
 
     @Test
-    public void testExportGridAsCsvWithNullValues() throws IOException {
+    public void testExportGridAsCsvWithNullOrEmptyValues() throws IOException {
         rowViews.get(0).getRowObject().getMetadata().getSynapseRow().setRowId(null).setVersionNumber(null).setEtag(null);
-        rowViews.get(0).getRowObject().getData().setCells(new JSONArray("[\"a\",null]"));
+        rowViews.get(0).getRowObject().getData().setCells(new JSONArray("[\"a\",\"\"]"));
 
         when(mockGridManager.getGridSession(userInfo, sessionId)).thenReturn(mockGridSession);
         when(mockGridManager.getDefaultInternalConnection(sessionId)).thenReturn(Optional.of(mockGridConnectionInfo));
@@ -285,7 +285,7 @@ public class GridReplicaCsvExporterImplTest {
         assertArrayEquals(
                 new String[]{
                         "ROW_ID", "ROW_VERSION", "etag", "col1", "col2",
-                        "", "", "", "a", "",
+                        null, null, null, "a", "",
                         "3", "4", "etag2", "c", "d"
                 },
                 writtenRows.toArray()

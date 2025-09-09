@@ -4,7 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.net.URISyntaxException;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
@@ -24,15 +28,16 @@ import org.sagebionetworks.repo.model.curation.ListCurationTaskRequest;
 import org.sagebionetworks.repo.model.curation.ListCurationTaskResponse;
 import org.sagebionetworks.repo.model.curation.metadata.FileBasedMetadataTaskProperties;
 import org.sagebionetworks.repo.model.curation.metadata.RecordBasedMetadataTaskProperties;
+import org.sagebionetworks.repo.model.file.FileHandle;
 import org.sagebionetworks.repo.model.table.EntityView;
 
 @ExtendWith(ITTestExtension.class)
-public class ITMetadataTaskControllerTest {
+public class ITCurationTaskControllerTest {
     private List<Entity> entitiesToDelete;
 
     private final SynapseClient synapse;
 
-    public ITMetadataTaskControllerTest(SynapseClient synapse) {
+    public ITCurationTaskControllerTest(SynapseClient synapse) {
         this.synapse = synapse;
     }
 
@@ -40,9 +45,10 @@ public class ITMetadataTaskControllerTest {
     Folder folder;
     EntityView view;
     RecordSet recordSet;
+    File csvFile;
 
     @BeforeEach
-    public void before() throws SynapseException {
+    public void before() throws SynapseException, FileNotFoundException, IOException {
         entitiesToDelete = new LinkedList<Entity>();
 
         // Set up project, folder, file view, and record set
@@ -52,10 +58,12 @@ public class ITMetadataTaskControllerTest {
         folder = synapse.createEntity(new Folder().setName("folder").setParentId(project.getId()));
         entitiesToDelete.add(folder);
 
-        view = synapse.createEntity(new EntityView().setName("view").setParentId(project.getId()));
+        view = synapse.createEntity(new EntityView().setName("view").setViewTypeMask(1L).setParentId(project.getId()));
         entitiesToDelete.add(view);
 
-        recordSet = synapse.createEntity(new RecordSet().setName("record set").setParentId(folder.getId()));
+        csvFile = new File(ITRecordSetTest.class.getClassLoader().getResource("docs/test.csv").getFile().replaceAll("%20", " "));
+        FileHandle csvFileHandle = synapse.multipartUpload(csvFile, null, false, true);
+        recordSet = synapse.createEntity(new RecordSet().setName("record set").setParentId(folder.getId()).setUpsertKey(Collections.singletonList("id")).setDataFileHandleId(csvFileHandle.getId()));
         entitiesToDelete.add(recordSet);
     }
 
@@ -67,18 +75,20 @@ public class ITMetadataTaskControllerTest {
     }
 
     @Test
-    public void testMetadataTaskCRUD() throws AssertionError, SynapseException, URISyntaxException, InterruptedException {
+    public void testCurationTaskCRUD() throws AssertionError, SynapseException, URISyntaxException, InterruptedException {
 
         CurationTask fbTask = new CurationTask()
+                .setProjectId(project.getId())
                 .setDataType("fastq: file-based")
                 .setInstructions("upload to the folder and annotate with the view")
                 .setTaskProperties(
                         new FileBasedMetadataTaskProperties()
                                 .setFileViewId(view.getId())
-                                .setUploadFolderId(recordSet.getId())
+                                .setUploadFolderId(folder.getId())
                 );
 
         CurationTask rbTask = new CurationTask()
+                .setProjectId(project.getId())
                 .setDataType("fastq: record-based")
                 .setInstructions("add data to the recordset")
                 .setTaskProperties(

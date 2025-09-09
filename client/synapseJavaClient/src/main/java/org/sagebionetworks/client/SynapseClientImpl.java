@@ -6536,26 +6536,26 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 
     @Override
     public CurationTask createCurationTask(CurationTask task) throws SynapseException{
-        return postJSONEntity(getRepoEndpoint(), "/metadata/task", task, CurationTask.class);
+        return postJSONEntity(getRepoEndpoint(), "/curation/task", task, CurationTask.class);
     }
 
     @Override
     public CurationTask getMetadataTask(String taskId) throws SynapseException {
-        return getJSONEntity(getRepoEndpoint(), "/metadata/task/"+taskId, CurationTask.class);
+        return getJSONEntity(getRepoEndpoint(), "/curation/task/"+taskId, CurationTask.class);
     }
 
     @Override
     public CurationTask updateMetadataTask(CurationTask task) throws SynapseException {
-        return putJSONEntity(getRepoEndpoint(), "/metadata/task/"+task.getTaskId(), task, CurationTask.class);
+        return putJSONEntity(getRepoEndpoint(), "/curation/task/"+task.getTaskId(), task, CurationTask.class);
     }
 
     @Override
     public void deleteMetadataTask(String taskId) throws SynapseException {
-        deleteUri(getRepoEndpoint(), "/metadata/task/"+taskId);
+        deleteUri(getRepoEndpoint(), "/curation/task/"+taskId);
     }
 
     @Override
     public ListCurationTaskResponse listMetadataTasks(ListCurationTaskRequest request) throws SynapseException {
-        return postJSONEntity(getRepoEndpoint(), "/metadata/task/list", request, ListCurationTaskResponse.class);
+        return postJSONEntity(getRepoEndpoint(), "/curation/task/list", request, ListCurationTaskResponse.class);
     }
 }

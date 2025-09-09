@@ -10,11 +10,11 @@ public interface CurationTaskManager {
 
     CurationTask createCurationTask(UserInfo userInfo, CurationTask toCreate);
 
-    CurationTask getCurationTask(UserInfo userInfo, String taskId);
+    CurationTask getCurationTask(UserInfo userInfo, Long taskId);
 
     CurationTask updateCurationTask(UserInfo userInfo, CurationTask toUpdate);
 
-    void deleteCurationTask(UserInfo userInfo, String taskId);
+    void deleteCurationTask(UserInfo userInfo, Long taskId);
 
     ListCurationTaskResponse getCurationTasks(UserInfo userInfo, ListCurationTaskRequest request);
 }

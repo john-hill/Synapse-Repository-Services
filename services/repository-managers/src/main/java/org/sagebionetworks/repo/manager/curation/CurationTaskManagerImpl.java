@@ -16,6 +16,7 @@ import org.sagebionetworks.repo.model.curation.metadata.FileBasedMetadataTaskPro
 import org.sagebionetworks.repo.model.curation.metadata.RecordBasedMetadataTaskProperties;
 import org.sagebionetworks.repo.model.dbo.curation.CurationTaskDao;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
+import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +37,7 @@ public class CurationTaskManagerImpl implements CurationTaskManager {
     }
 
     @Override
+    @WriteTransaction
     public CurationTask createCurationTask(UserInfo userInfo, CurationTask curationTask) {
         validateCurationTask(userInfo, curationTask);
 
@@ -45,7 +47,7 @@ public class CurationTaskManagerImpl implements CurationTaskManager {
     }
 
     @Override
-    public CurationTask getCurationTask(UserInfo userInfo, String taskId) {
+    public CurationTask getCurationTask(UserInfo userInfo, Long taskId) {
         CurationTask task = curationTaskDao.getCurationTask(taskId).orElseThrow(() -> new NotFoundException("Task not found: " + taskId));
 
         authorizationManager.canAccess(userInfo, task.getProjectId(), ObjectType.ENTITY, ACCESS_TYPE.READ).checkAuthorizationOrElseThrow();
@@ -54,6 +56,7 @@ public class CurationTaskManagerImpl implements CurationTaskManager {
     }
 
     @Override
+    @WriteTransaction
     public CurationTask updateCurationTask(UserInfo userInfo, CurationTask toUpdate) {
         validateCurationTask(userInfo, toUpdate);
         ValidateArgument.required(toUpdate.getTaskId(), "taskId");
@@ -70,7 +73,8 @@ public class CurationTaskManagerImpl implements CurationTaskManager {
     }
 
     @Override
-    public void deleteCurationTask(UserInfo userInfo, String taskId) {
+    @WriteTransaction
+    public void deleteCurationTask(UserInfo userInfo, Long taskId) {
         CurationTask existing = getCurationTask(userInfo, taskId);
 
         authorizationManager.canAccess(userInfo, existing.getProjectId(), ObjectType.ENTITY, ACCESS_TYPE.DELETE).checkAuthorizationOrElseThrow();

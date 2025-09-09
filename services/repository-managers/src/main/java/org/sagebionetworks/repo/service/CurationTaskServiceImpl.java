@@ -38,13 +38,13 @@ public class CurationTaskServiceImpl implements CurationTaskService {
     }
 
     @Override
-    public CurationTask getCurationTask(Long userId, String taskId) {
+    public CurationTask getCurationTask(Long userId, Long taskId) {
         UserInfo userInfo = userManager.getUserInfo(userId);
         return curationTaskManager.getCurationTask(userInfo, taskId);
     }
 
     @Override
-    public void deleteCurationTask(Long userId, String taskId) throws NotFoundException {
+    public void deleteCurationTask(Long userId, Long taskId) throws NotFoundException {
         UserInfo userInfo = userManager.getUserInfo(userId);
         curationTaskManager.deleteCurationTask(userInfo, taskId);
     }

@@ -62,7 +62,7 @@ public class CurationTaskManagerImplUnitTest {
     Long userId = 101L;
     private UserInfo userInfo;
 
-    String taskId = "987";
+    Long taskId = 987L;
     String projectId = "syn123";
     String fileViewId = "syn456";
     String recordSetId = "syn789";
@@ -75,9 +75,9 @@ public class CurationTaskManagerImplUnitTest {
 
     @ParameterizedTest
     @EnumSource(CurationTaskPropertiesType.class)
-    public void testCreateCurationTask_Success(CurationTaskPropertiesType type) {
+    public void testCreateCurationTaskWithSuccess(CurationTaskPropertiesType type) {
         CurationTask toCreate = createCurationTask(type);
-        CurationTask createdByDao = new CurationTask().setTaskId("999");
+        CurationTask createdByDao = new CurationTask().setTaskId(999L);
 
         when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.CREATE))).thenReturn(mockAuthorizationStatus);
         when(mockCurationTaskDao.createCurationTask(eq(userId), eq(toCreate))).thenReturn(createdByDao);
@@ -95,14 +95,14 @@ public class CurationTaskManagerImplUnitTest {
     }
 
     @Test
-    public void testCreateCurationTask_Fails_UnknownPropertiesType() {
+    public void testCreateCurationTaskFailsWithUnknownPropertiesType() {
         CurationTask task = createCurationTask(CurationTaskPropertiesType.FILE_BASED).setTaskProperties(new UnknownCurationTaskProperties());
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> curationTaskManager.createCurationTask(userInfo, task));
         assertTrue(ex.getMessage().contains("Unknown CurationTaskProperties concreteType"));
     }
 
     @Test
-    public void testGetCurationTask_Success() {
+    public void testGetCurationTaskWithSuccess() {
         CurationTask task = new CurationTask().setTaskId(taskId).setProjectId(projectId);
         when(mockCurationTaskDao.getCurationTask(taskId)).thenReturn(Optional.of(task));
         when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.READ))).thenReturn(mockAuthorizationStatus);
@@ -114,15 +114,16 @@ public class CurationTaskManagerImplUnitTest {
     }
 
     @Test
-    public void testGetCurationTask_NotFound() {
-        when(mockCurationTaskDao.getCurationTask("nonexistent-task")).thenReturn(Optional.empty());
-        NotFoundException ex = assertThrows(NotFoundException.class, () -> curationTaskManager.getCurationTask(userInfo, "nonexistent-task"));
+    public void testGetCurationTaskWithNotFound() {
+        Long nonexistentTaskId = 999L;
+        when(mockCurationTaskDao.getCurationTask(nonexistentTaskId)).thenReturn(Optional.empty());
+        NotFoundException ex = assertThrows(NotFoundException.class, () -> curationTaskManager.getCurationTask(userInfo, nonexistentTaskId));
         assertTrue(ex.getMessage().contains("Task not found"));
     }
 
     @ParameterizedTest
     @EnumSource(CurationTaskPropertiesType.class)
-    public void testUpdateCurationTask_Success(CurationTaskPropertiesType type) {
+    public void testUpdateCurationTaskWithSuccess(CurationTaskPropertiesType type) {
         CurationTask task = createCurationTask(type).setTaskId(taskId);
         when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.READ))).thenReturn(mockAuthorizationStatus);
         when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.UPDATE))).thenReturn(mockAuthorizationStatus);
@@ -143,7 +144,7 @@ public class CurationTaskManagerImplUnitTest {
     }
 
     @Test
-    public void testUpdateCurationTask_ProjectIdChangeFails() {
+    public void testUpdateCurationTaskWithProjectIdChangeFails() {
         CurationTask toUpdate = createCurationTask(CurationTaskPropertiesType.FILE_BASED).setTaskId(taskId).setProjectId("syn77777");
 
         CurationTask existing = createCurationTask(CurationTaskPropertiesType.FILE_BASED).setTaskId(taskId).setProjectId("syn88888"); // different project
@@ -158,7 +159,7 @@ public class CurationTaskManagerImplUnitTest {
     }
 
     @Test
-    public void testDeleteCurationTask_Success() {
+    public void testDeleteCurationTaskWithSuccess() {
         CurationTask toUpdate = createCurationTask(CurationTaskPropertiesType.FILE_BASED);
 
         when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.READ))).thenReturn(mockAuthorizationStatus);
@@ -173,14 +174,14 @@ public class CurationTaskManagerImplUnitTest {
     }
 
     @Test
-    public void testDeleteCurationTask_NotFound() {
+    public void testDeleteCurationTaskWithNotFound() {
         when(mockCurationTaskDao.getCurationTask(taskId)).thenReturn(Optional.empty());
         NotFoundException ex = assertThrows(NotFoundException.class, () -> curationTaskManager.deleteCurationTask(userInfo, taskId));
         assertTrue(ex.getMessage().contains("Task not found"));
     }
 
     @Test
-    public void testGetCurationTasks_Success() {
+    public void testGetCurationTasksWithSuccess() {
         ListCurationTaskRequest request = new ListCurationTaskRequest().setProjectId(projectId);
         List<CurationTask> tasks = Arrays.asList(createCurationTask(CurationTaskPropertiesType.FILE_BASED), createCurationTask(CurationTaskPropertiesType.RECORD_BASED));
         when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.READ))).thenReturn(mockAuthorizationStatus);
@@ -193,7 +194,7 @@ public class CurationTaskManagerImplUnitTest {
     }
 
     @Test
-    public void testCreateCurationTask_Fails_MissingProjectId() {
+    public void testCreateCurationTaskFailsWithMissingProjectId() {
         CurationTask task = createCurationTask().setProjectId(null);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> curationTaskManager.createCurationTask(userInfo, task));
@@ -201,7 +202,7 @@ public class CurationTaskManagerImplUnitTest {
     }
 
     @Test
-    public void testCreateCurationTask_Fails_MissingDataType() {
+    public void testCreateCurationTaskFailsWithMissingDataType() {
         CurationTask task = createCurationTask().setDataType(null);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> curationTaskManager.createCurationTask(userInfo, task));
@@ -209,7 +210,7 @@ public class CurationTaskManagerImplUnitTest {
     }
 
     @Test
-    public void testCreateCurationTask_Fails_MissingFileViewId() {
+    public void testCreateCurationTaskFailsWithMissingFileViewId() {
         CurationTask task = createCurationTask(CurationTaskPropertiesType.FILE_BASED);
         ((FileBasedMetadataTaskProperties) task.getTaskProperties()).setFileViewId(null);
 
@@ -218,7 +219,7 @@ public class CurationTaskManagerImplUnitTest {
     }
 
     @Test
-    public void testCreateCurationTask_Fails_MissingUploadFolderId() {
+    public void testCreateCurationTaskFailsWithMissingUploadFolderId() {
         CurationTask task = createCurationTask(CurationTaskPropertiesType.FILE_BASED);
         ((FileBasedMetadataTaskProperties) task.getTaskProperties()).setUploadFolderId(null);
 
@@ -227,7 +228,7 @@ public class CurationTaskManagerImplUnitTest {
     }
 
     @Test
-    public void testCreateCurationTask_Fails_MissingRecordSetId() {
+    public void testCreateCurationTaskFailsWithMissingRecordSetId() {
         CurationTask task = createCurationTask(CurationTaskPropertiesType.RECORD_BASED);
         ((RecordBasedMetadataTaskProperties) task.getTaskProperties()).setRecordSetId(null);
 
@@ -236,7 +237,7 @@ public class CurationTaskManagerImplUnitTest {
     }
 
     @Test
-    public void testUpdateCurationTask_Fails_MissingTaskId() {
+    public void testUpdateCurationTaskFailsWithMissingTaskId() {
         when(mockEntityManager.getEntityType(eq(userInfo), eq(fileViewId))).thenReturn(EntityType.entityview);
         when(mockEntityManager.getEntityType(eq(userInfo), eq(uploadFolderId))).thenReturn(EntityType.folder);
 
@@ -247,7 +248,7 @@ public class CurationTaskManagerImplUnitTest {
     }
 
     @Test
-    public void testCreateCurationTask_Fails_FileViewIdNotEntityView() {
+    public void testCreateCurationTaskFailsWithFileViewIdNotEntityView() {
         CurationTask task = createCurationTask(CurationTaskPropertiesType.FILE_BASED);
         when(mockEntityManager.getEntityType(eq(userInfo), eq(fileViewId))).thenReturn(EntityType.folder); // Not entityview
 
@@ -256,7 +257,7 @@ public class CurationTaskManagerImplUnitTest {
     }
 
     @Test
-    public void testCreateCurationTask_Fails_UploadFolderIdNotFolderOrProject() {
+    public void testCreateCurationTaskFailsWithUploadFolderIdNotFolderOrProject() {
         CurationTask task = createCurationTask(CurationTaskPropertiesType.FILE_BASED);
         when(mockEntityManager.getEntityType(eq(userInfo), eq(fileViewId))).thenReturn(EntityType.entityview);
         when(mockEntityManager.getEntityType(eq(userInfo), eq(uploadFolderId))).thenReturn(EntityType.table); // Not folder or project
@@ -266,7 +267,7 @@ public class CurationTaskManagerImplUnitTest {
     }
 
     @Test
-    public void testCreateCurationTask_Fails_RecordSetIdNotRecordSet() {
+    public void testCreateCurationTaskFailsWithRecordSetIdNotRecordSet() {
         CurationTask task = createCurationTask(CurationTaskPropertiesType.RECORD_BASED);
         when(mockEntityManager.getEntityType(eq(userInfo), eq(recordSetId))).thenReturn(EntityType.folder); // Not recordset
 

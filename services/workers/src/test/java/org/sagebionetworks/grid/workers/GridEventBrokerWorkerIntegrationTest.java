@@ -2,6 +2,7 @@ package org.sagebionetworks.grid.workers;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -42,6 +43,7 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
+import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.manager.table.ColumnModelManager;
 import org.sagebionetworks.repo.model.AsynchJobFailedException;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
@@ -62,6 +64,8 @@ import org.sagebionetworks.repo.model.grid.CreateGridResponse;
 import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridRequest;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
+import org.sagebionetworks.repo.model.grid.GridRecordSetExportRequest;
+import org.sagebionetworks.repo.model.grid.GridRecordSetExportResponse;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
@@ -137,17 +141,22 @@ public class GridEventBrokerWorkerIntegrationTest {
 
 	@Autowired
 	private SynapseS3Client s3Client;
+	
+	@Autowired
+	private JsonSchemaManager jsonSchemaManager;
 
 	private UserInfo admin;
 
 	@BeforeEach
 	public void before() {
 		admin = userManager.getUserInfo(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId());
+		jsonSchemaManager.truncateAll();
 		entityManager.truncateAll();
 	}
 
 	@AfterEach
 	public void after() {
+		jsonSchemaManager.truncateAll();
 		entityManager.truncateAll();
 	}
 
@@ -550,6 +559,16 @@ public class GridEventBrokerWorkerIntegrationTest {
 			.setDataFileHandleId(fileHandle.getId())
 			.setUpsertKey(List.of("integer_column")), null);
 		
+		String schemaId = createJsonSchema(Map.of(
+			"integer_column", new JsonSchema().setType(Type.integer),
+			"string_column", new JsonSchema().setType(Type.string),
+			"double_column", new JsonSchema().setType(Type.number),
+			"boolean_column", new JsonSchema().setType(Type._boolean)
+		)).getNewVersionInfo().get$id();
+		
+		entityService.bindSchemaToEntity(admin.getId(),
+			new BindSchemaToEntityRequest().setEntityId(recordSet.getId()).setSchema$id(schemaId));
+		
 		GridSession session = asynchronousJobWorkerHelper.assertJobResponse(admin,
 			new CreateGridRequest().setRecordSetId(recordSet.getId()), (CreateGridResponse response) -> {
 				assertNotNull(response);
@@ -597,10 +616,16 @@ public class GridEventBrokerWorkerIntegrationTest {
 		
 		List<RowView> rowsView = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
 			List<RowView> page = gridViewManager.querySinglePage(header, 100L, 0L);
-			if (page.size() == 3) {
-				return Pair.create(true, page);
+			
+			if (page.size() != 3) {
+				return Pair.create(false, page);
 			}
-			return Pair.create(false, null);
+			
+			// Also wait for the validation results to be set, the first row should be valid
+			return Pair.create(
+				new ValidationResults().setIsValid(true).equals(page.get(0).getRowValidationResults()), 
+				page
+			);
 		});
 		
 		assertEquals(
@@ -612,6 +637,23 @@ public class GridEventBrokerWorkerIntegrationTest {
 			rowsView.stream().map(r -> r.getRowObject().getData().getCells().toString()).collect(Collectors.toList())
 		);
 		
+		// Now export the grid back to the record set		
+		GridRecordSetExportRequest request = new GridRecordSetExportRequest()
+			.setSessionId(session.getSessionId());
+		
+		asynchronousJobWorkerHelper.assertJobResponse(admin, request, (GridRecordSetExportResponse response) -> {
+			assertEquals(request.getSessionId(), response.getSessionId());
+			assertEquals(recordSet.getId(), response.getRecordSetId());
+			assertTrue(response.getRecordSetVersionNumber() > recordSet.getVersionNumber());
+			assertNotNull(response.getValidationSummaryStatistics());
+			assertEquals(3L, response.getValidationSummaryStatistics().getTotalNumberOfChildren());
+			assertEquals(2L, response.getValidationSummaryStatistics().getNumberOfValidChildren());
+			assertEquals(1L, response.getValidationSummaryStatistics().getNumberOfInvalidChildren());
+		}, MAX_WAIT_MS);
+
+		RecordSet updatedRecordSet = entityService.getEntity(admin.getId(), recordSet.getId(), RecordSet.class);
+		
+		assertNotEquals(recordSet.getDataFileHandleId(), updatedRecordSet.getDataFileHandleId());
 	}
 
 	List<String[]> createAndDownloadCsvFromGrid(DownloadFromGridRequest request)

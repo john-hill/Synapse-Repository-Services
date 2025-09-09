@@ -5,9 +5,7 @@ import java.util.Map;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
-import org.sagebionetworks.repo.model.grid.patch.operation.builder.InsertObjectBuilder;
-import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewConstantBuilder;
-import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewObjectBuilder;
+import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -20,12 +18,28 @@ public class UpdateMetadataChangeHandler implements ChangeHandler<UpdateMetadata
 
 	@Override
 	public void handleChange(PatchBuilder builder, UpdateMetadataChange change) {
-		LogicalTimestamp metadataObjectId = change.getRowMetadataId() != null ? change.getRowMetadataId()
-				: builder.addOperationBuilder(new NewObjectBuilder());
-		LogicalTimestamp stateId = builder.addOperationBuilder(
-				new NewConstantBuilder().setValue(new ConValue(ConType.JSON_OBJECT, change.getValidationState())));
-		builder.addOperationBuilder(
-				new InsertObjectBuilder().setObjectId(metadataObjectId).setMap(Map.of("rowValidation", stateId)));
+		LogicalTimestamp metadataRefId = change.getRowMetadataId();
+
+		// The metadata object might not be there at all for a row without a validation state nor 
+		// synapse metadata (For example when the grid is created from a recordSet) 
+		if (metadataRefId == null) {
+			metadataRefId = builder.addOperationBuilder(Operations.newObject());
+			
+			// We also need to add the reference in the row object
+			builder.addOperationBuilder(Operations.insertObject()
+				.setObjectId(change.getRowObjectId())
+				.setMap(Map.of("metadata", metadataRefId))
+			);
+		}
+
+		LogicalTimestamp validationStateRefId = builder.addOperationBuilder(
+			Operations.newConstant().setValue(new ConValue(ConType.JSON_OBJECT, change.getValidationState()))
+		);
+		
+		builder.addOperationBuilder(Operations.insertObject()
+			.setObjectId(metadataRefId)
+			.setMap(Map.of("rowValidation", validationStateRefId))
+		);
 	}
 
 }

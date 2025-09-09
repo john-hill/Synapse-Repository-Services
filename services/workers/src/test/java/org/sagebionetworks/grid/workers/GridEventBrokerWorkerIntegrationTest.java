@@ -90,7 +90,6 @@ import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.EntityView;
 import org.sagebionetworks.repo.model.table.Query;
 import org.sagebionetworks.repo.model.table.Row;
-import org.sagebionetworks.repo.model.table.RowReferenceSetResults;
 import org.sagebionetworks.repo.model.table.TableEntity;
 import org.sagebionetworks.repo.service.EntityService;
 import org.sagebionetworks.repo.service.GridService;
@@ -307,8 +306,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 			new Row().setValues(List.of("9090"))
 		);
 
-		RowReferenceSetResults rrsr = asynchronousJobWorkerHelper.appendRowsToTable(admin, schema, table.getId(), rows,
-				MAX_WAIT_MS);
+		asynchronousJobWorkerHelper.appendRowsToTable(admin, schema, table.getId(), rows, MAX_WAIT_MS);
 
 		String sql = String.format("select * from %s", table.getId());
 
@@ -513,7 +511,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 		// Wait for response complete: [5,102]
 		assertTrue(waitForMessage((a) -> a.optInt(0) == 5 && a.optInt(1) == 102, incomingMessagesOne));
 
-		RowView rowUpdated = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
 			System.out.println("Waiting for row validation results to change...");
 			Optional<GridHeader> header = gridViewManager.readHeader(session.getSessionId(), INTERNAL_REPLICA_ID);
 			if (header.isEmpty()) {
@@ -649,11 +647,68 @@ public class GridEventBrokerWorkerIntegrationTest {
 			assertEquals(3L, response.getValidationSummaryStatistics().getTotalNumberOfChildren());
 			assertEquals(2L, response.getValidationSummaryStatistics().getNumberOfValidChildren());
 			assertEquals(1L, response.getValidationSummaryStatistics().getNumberOfInvalidChildren());
+			assertEquals(0L, response.getValidationSummaryStatistics().getNumberOfUnknownChildren());
+		}, MAX_WAIT_MS);
+		
+		RecordSet recordSetV2 = entityService.getEntity(admin.getId(), recordSet.getId(), RecordSet.class);
+
+		assertNotEquals(recordSet.getDataFileHandleId(), recordSetV2.getDataFileHandleId());
+		
+		// Now fix the grid by changing the double value in the second row from null to 2.2
+		Patch patch = new Patch().setPatchId(
+			new LogicalTimestamp().setReplicaId(replicaOne.getReplicaId()).setSequenceNumber(60L)
+		);
+		
+		RowView secondRow = rowsView.get(1);
+		
+		patch.addNewOperation(new InsertVectorBuilder()
+			.setVectorId(secondRow.getRowObject().getData().getVectorId())
+			.setMap(Map.of(
+				2, patch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.DOUBLE, 2.2)))
+			))
+		);
+		
+		wsOne.send(String.format("[1,102,\"patch\", %s]", PatchCompactSerializable.serialize(patch).toString()));
+		
+		// Wait for response complete: [5,102]
+		assertTrue(waitForMessage((a) -> a.optInt(0) == 5 && a.optInt(1) == 102, incomingMessagesOne));
+		
+		rowsView = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+			List<RowView> page = gridViewManager.querySinglePage(header, 100L, 0L);
+			
+			// Wait for the updated validation results, all the rows should now be valid
+			return Pair.create(
+				new ValidationResults().setIsValid(true).equals(page.get(0).getRowValidationResults()) &&
+				new ValidationResults().setIsValid(true).equals(page.get(1).getRowValidationResults()) &&
+				new ValidationResults().setIsValid(true).equals(page.get(2).getRowValidationResults()), 
+				page
+			);
+		});
+		
+		assertEquals(
+			List.of(
+				"[1,\"test_1\",1.1,true]",
+				"[2,\"test_2\",2.2,true]",
+				"[3,\"test_3\",3.3,false]"
+			),
+			rowsView.stream().map(r -> r.getRowObject().getData().getCells().toString()).collect(Collectors.toList())
+		);
+		
+		// Now export the grid again		
+		asynchronousJobWorkerHelper.assertJobResponse(admin, request, (GridRecordSetExportResponse response) -> {
+			assertEquals(request.getSessionId(), response.getSessionId());
+			assertEquals(recordSet.getId(), response.getRecordSetId());
+			assertTrue(response.getRecordSetVersionNumber() > recordSetV2.getVersionNumber());
+			assertNotNull(response.getValidationSummaryStatistics());
+			assertEquals(3L, response.getValidationSummaryStatistics().getTotalNumberOfChildren());
+			assertEquals(3L, response.getValidationSummaryStatistics().getNumberOfValidChildren());
+			assertEquals(0L, response.getValidationSummaryStatistics().getNumberOfInvalidChildren());
+			assertEquals(0L, response.getValidationSummaryStatistics().getNumberOfUnknownChildren());
 		}, MAX_WAIT_MS);
 
-		RecordSet updatedRecordSet = entityService.getEntity(admin.getId(), recordSet.getId(), RecordSet.class);
+		RecordSet recordSetV3 = entityService.getEntity(admin.getId(), recordSet.getId(), RecordSet.class);
 		
-		assertNotEquals(recordSet.getDataFileHandleId(), updatedRecordSet.getDataFileHandleId());
+		assertNotEquals(recordSetV2.getDataFileHandleId(), recordSetV3.getDataFileHandleId());
 	}
 
 	List<String[]> createAndDownloadCsvFromGrid(DownloadFromGridRequest request)

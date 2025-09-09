@@ -55,15 +55,16 @@ public class GridReplicaCsvExporterImpl implements GridReplicaCsvExporter {
     }
 
     @Override
-    public DownloadFromGridResult exportGridAsCsv(String jobId, UserInfo userInfo, DownloadFromGridRequest request, AsyncJobProgressCallback jobProgressCallback) throws IOException {
-        ValidateArgument.required(jobId, "jobId");
+    public DownloadFromGridResult exportGridAsCsv(UserInfo userInfo, DownloadFromGridRequest request, AsyncJobProgressCallback jobProgressCallback, RowViewCallbackHandler rowCallback) throws IOException {
         ValidateArgument.required(userInfo, "userInfo");
         ValidateArgument.required(request.getSessionId(), "request.sessionId");
-
+        ValidateArgument.required(jobProgressCallback, "jobProgressCallback");
+        
         GridHeader header = checkSessionAndGetHeader(userInfo, request.getSessionId());
 
-        String fileName = "Job-" + jobId;
+        String fileName = "Job-" + jobProgressCallback.getJobId();
         File temp = null;
+        
         try {
             // For other CSV writers (e.g. tables), we estimate progress by first counting the total number of rows to be written.
             // This is a potentially expensive operation for a grid, so instead we will just estimate that writing the CSV is 50% of the work and uploading to S3 is the other 50%.
@@ -73,7 +74,7 @@ public class GridReplicaCsvExporterImpl implements GridReplicaCsvExporter {
             temp = File.createTempFile(fileName, "." + CSVUtils.guessExtension(
                     request.getCsvTableDescriptor() == null ? null : request.getCsvTableDescriptor().getSeparator()));
             try (CSVWriter writer = csvWriterProvider.createWriter(new FileWriter(temp), request.getCsvTableDescriptor())) {
-                this.writeToCsv(header, request, writer);
+                this.writeToCsv(header, request, writer, rowCallback);
             }
 
             // At this point we have the entire CSV written to a local file.
@@ -110,7 +111,7 @@ public class GridReplicaCsvExporterImpl implements GridReplicaCsvExporter {
 
     }
 
-    void writeToCsv(GridHeader header, DownloadFromGridRequest request, CSVWriter writer) {
+    void writeToCsv(GridHeader header, DownloadFromGridRequest request, CSVWriter writer, RowViewCallbackHandler rowCallback) {
         boolean writeHeader = request.getWriteHeader() != null ? request.getWriteHeader() : true;
         boolean includeRowIdAndRowVersion = request.getIncludeRowIdAndRowVersion() != null ? request.getIncludeRowIdAndRowVersion() : true;
         boolean includeEtag = request.getIncludeEtag() != null ? request.getIncludeEtag() : true;
@@ -133,6 +134,11 @@ public class GridReplicaCsvExporterImpl implements GridReplicaCsvExporter {
 
             while (iterator.hasNext()) {
                 RowView rowView = iterator.next();
+                
+                if (rowCallback != null) {
+					rowCallback.next(rowView);
+				}
+                
                 List<String> csvRow = new ArrayList<>();
                 SynapseRow synapseRow = rowView.getSynapseRow();
 

@@ -9,11 +9,13 @@ import org.sagebionetworks.repo.model.Entity;
 import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
+import org.sagebionetworks.repo.model.dbo.schema.EntitySchemaValidationResultDao;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridRequest;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportRequest;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportResponse;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.schema.ValidationSummaryStatistics;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
@@ -27,11 +29,13 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 	private final GridManager gridManager;
 	private final EntityService entityService;
 	private final GridReplicaCsvExporter csvExporter;
+	private final EntitySchemaValidationResultDao validationResultDao;	
 	
-	public GridRecordSetExporterImpl(GridManager gridManager, EntityService entityService, GridReplicaCsvExporter csvExporter) {
+	public GridRecordSetExporterImpl(GridManager gridManager, EntityService entityService, GridReplicaCsvExporter csvExporter, EntitySchemaValidationResultDao validationResultDao) {
 		this.gridManager = gridManager;
 		this.entityService = entityService;
 		this.csvExporter = csvExporter;
+		this.validationResultDao = validationResultDao;
 	}
 	
 	public GridRecordSetExportResponse exportGrid(UserInfo user, GridRecordSetExportRequest request, AsyncJobProgressCallback jobCallback) {
@@ -52,10 +56,13 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 		// First export to a CSV file
 		String exportedFileId = exportToCsv(user, gridSession.getSessionId(), recordSet.getCsvDescriptor(), jobCallback, validationSummaryBuilder);
 		
-		ValidationSummaryStatistics validationSummary = validationSummaryBuilder.getValidationSummary();
-		
 		// Creates a new version of the record set that points to the new file
-		recordSet = createNewVersion(user, recordSet, exportedFileId, validationSummary);
+		recordSet = createNewVersion(user, recordSet, exportedFileId);
+		
+		ValidationSummaryStatistics validationSummary = validationSummaryBuilder.getValidationSummary();
+
+		// Saves the validation summary for the record set
+		persistValidationSummary(recordSet, validationSummary);
 		
 		return new GridRecordSetExportResponse()
 			.setSessionId(request.getSessionId())
@@ -63,7 +70,7 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 			.setRecordSetVersionNumber(recordSet.getVersionNumber())
 			.setValidationSummaryStatistics(validationSummary);
 	}
-	
+
 	String exportToCsv(UserInfo user, String sessionId, CsvTableDescriptor csvDescriptor, AsyncJobProgressCallback jobCallback, RowViewCallbackHandler rowCallback) {
 		
 		DownloadFromGridRequest request = new DownloadFromGridRequest()
@@ -82,14 +89,19 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 		return result.getResultsFileHandleId();
 	}
 	
-	RecordSet createNewVersion(UserInfo user, RecordSet recordSet, String newFileHandleId, ValidationSummaryStatistics validationSummary) {
+	RecordSet createNewVersion(UserInfo user, RecordSet recordSet, String newFileHandleId) {
 		recordSet.setDataFileHandleId(newFileHandleId);
 		recordSet.setVersionLabel(null);
 		
-		// TODO Should the validation summary be stored somewhere?
-		
 		// Updates the entity
 		return entityService.updateEntity(user.getId(), recordSet, true, null);
+	}
+	
+	void persistValidationSummary(RecordSet recordSet, ValidationSummaryStatistics validationSummary) {
+		Long recordSetId = KeyFactory.stringToKey(recordSet.getId());
+		Long recordSetVersion = recordSet.getVersionNumber();
+		
+		validationResultDao.setRecordSetValidationSummaryStatistics(recordSetId, recordSetVersion, validationSummary);
 	}
 	
 	final class ValidationSummaryBuilder implements RowViewCallbackHandler {

@@ -5,9 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -25,11 +24,13 @@ import org.sagebionetworks.repo.model.Entity;
 import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
+import org.sagebionetworks.repo.model.dbo.schema.EntitySchemaValidationResultDao;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridRequest;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportRequest;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportResponse;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.schema.ValidationSummaryStatistics;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
@@ -44,6 +45,9 @@ public class GridRecordSetExporterImplTest {
 	private GridReplicaCsvExporter mockCsvExporter;
 	@Mock
 	private EntityService mockEntityService;
+	@Mock
+	private EntitySchemaValidationResultDao mockValidationResultDao;
+	
 	@InjectMocks
 	private GridRecordSetExporterImpl exporter;
 
@@ -111,7 +115,7 @@ public class GridRecordSetExporterImplTest {
 					.setResultsFileHandleId(fileHandleId);
 			});
 		
-		when(mockEntityService.updateEntity(eq(userId), same(recordSet), eq(true), isNull()))
+		when(mockEntityService.updateEntity(userId, recordSet, true, null))
 			.then(invocation -> {
 				// Simulate version increment performed by the service
 				recordSet.setVersionNumber(2L);
@@ -140,6 +144,10 @@ public class GridRecordSetExporterImplTest {
 		assertEquals(expectedResponse, response);
 		
 		assertEquals(2L, recordSet.getVersionNumber());
+		
+		verify(mockValidationResultDao).setRecordSetValidationSummaryStatistics(
+			KeyFactory.stringToKey(recordSetId), 2L, expectedResponse.getValidationSummaryStatistics()
+		);
 	}
 
 	@Test

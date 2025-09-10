@@ -55,6 +55,7 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.annotation.v2.Annotations;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValue;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValueType;
+import org.sagebionetworks.repo.model.dbo.schema.EntitySchemaValidationResultDao;
 import org.sagebionetworks.repo.model.entity.BindSchemaToEntityRequest;
 import org.sagebionetworks.repo.model.file.ExternalFileHandle;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
@@ -85,6 +86,7 @@ import org.sagebionetworks.repo.model.schema.JsonSchema;
 import org.sagebionetworks.repo.model.schema.Organization;
 import org.sagebionetworks.repo.model.schema.Type;
 import org.sagebionetworks.repo.model.schema.ValidationResults;
+import org.sagebionetworks.repo.model.schema.ValidationSummaryStatistics;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.EntityView;
@@ -143,6 +145,9 @@ public class GridEventBrokerWorkerIntegrationTest {
 	
 	@Autowired
 	private JsonSchemaManager jsonSchemaManager;
+	
+	@Autowired
+	private EntitySchemaValidationResultDao schemaValidationResultDao;
 
 	private UserInfo admin;
 
@@ -151,12 +156,14 @@ public class GridEventBrokerWorkerIntegrationTest {
 		admin = userManager.getUserInfo(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId());
 		jsonSchemaManager.truncateAll();
 		entityManager.truncateAll();
+		schemaValidationResultDao.truncateAll();
 	}
 
 	@AfterEach
 	public void after() {
 		jsonSchemaManager.truncateAll();
 		entityManager.truncateAll();
+		schemaValidationResultDao.truncateAll();
 	}
 
 	@Test
@@ -639,7 +646,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 		GridRecordSetExportRequest request = new GridRecordSetExportRequest()
 			.setSessionId(session.getSessionId());
 		
-		asynchronousJobWorkerHelper.assertJobResponse(admin, request, (GridRecordSetExportResponse response) -> {
+		ValidationSummaryStatistics validationStats = asynchronousJobWorkerHelper.assertJobResponse(admin, request, (GridRecordSetExportResponse response) -> {
 			assertEquals(request.getSessionId(), response.getSessionId());
 			assertEquals(recordSet.getId(), response.getRecordSetId());
 			assertTrue(response.getRecordSetVersionNumber() > recordSet.getVersionNumber());
@@ -648,11 +655,12 @@ public class GridEventBrokerWorkerIntegrationTest {
 			assertEquals(2L, response.getValidationSummaryStatistics().getNumberOfValidChildren());
 			assertEquals(1L, response.getValidationSummaryStatistics().getNumberOfInvalidChildren());
 			assertEquals(0L, response.getValidationSummaryStatistics().getNumberOfUnknownChildren());
-		}, MAX_WAIT_MS);
+		}, MAX_WAIT_MS).getResponse().getValidationSummaryStatistics();
 		
 		RecordSet recordSetV2 = entityService.getEntity(admin.getId(), recordSet.getId(), RecordSet.class);
 
 		assertNotEquals(recordSet.getDataFileHandleId(), recordSetV2.getDataFileHandleId());
+		assertEquals(validationStats, recordSetV2.getValidationSummary());
 		
 		// Now fix the grid by changing the double value in the second row from null to 2.2
 		Patch patch = new Patch().setPatchId(
@@ -695,7 +703,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 		);
 		
 		// Now export the grid again		
-		asynchronousJobWorkerHelper.assertJobResponse(admin, request, (GridRecordSetExportResponse response) -> {
+		validationStats = asynchronousJobWorkerHelper.assertJobResponse(admin, request, (GridRecordSetExportResponse response) -> {
 			assertEquals(request.getSessionId(), response.getSessionId());
 			assertEquals(recordSet.getId(), response.getRecordSetId());
 			assertTrue(response.getRecordSetVersionNumber() > recordSetV2.getVersionNumber());
@@ -704,11 +712,12 @@ public class GridEventBrokerWorkerIntegrationTest {
 			assertEquals(3L, response.getValidationSummaryStatistics().getNumberOfValidChildren());
 			assertEquals(0L, response.getValidationSummaryStatistics().getNumberOfInvalidChildren());
 			assertEquals(0L, response.getValidationSummaryStatistics().getNumberOfUnknownChildren());
-		}, MAX_WAIT_MS);
+		}, MAX_WAIT_MS).getResponse().getValidationSummaryStatistics();
 
 		RecordSet recordSetV3 = entityService.getEntity(admin.getId(), recordSet.getId(), RecordSet.class);
 		
 		assertNotEquals(recordSetV2.getDataFileHandleId(), recordSetV3.getDataFileHandleId());
+		assertEquals(validationStats, recordSetV3.getValidationSummary());
 	}
 
 	List<String[]> createAndDownloadCsvFromGrid(DownloadFromGridRequest request)

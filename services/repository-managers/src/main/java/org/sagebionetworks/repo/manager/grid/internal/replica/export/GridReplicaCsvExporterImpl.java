@@ -136,8 +136,8 @@ public class GridReplicaCsvExporterImpl implements GridReplicaCsvExporter {
                 RowView rowView = iterator.next();
                 
                 if (rowCallback != null) {
-					rowCallback.next(rowView);
-				}
+                    rowCallback.next(rowView);
+                }
                 
                 List<String> csvRow = new ArrayList<>();
                 SynapseRow synapseRow = rowView.getSynapseRow();

@@ -38,17 +38,12 @@ public class GridRecordSetExportWorkerTest {
     public void before() throws Exception {
         userInfo = new UserInfo(false, 123L);
 
-        request = new GridRecordSetExportRequest()
-        	.setSessionId("session");
+        request = new GridRecordSetExportRequest();
         
-        String sessionId = "some-session-id";
-        request.setSessionId(sessionId);
-
         jobId = "1";
 
         results = new GridRecordSetExportResponse();
-        results.setSessionId(sessionId);
-
+        
     }
 
     @Test

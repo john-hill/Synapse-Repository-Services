@@ -45,7 +45,7 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
     }
 
     private static final RowMapper<CurationTask> CURATION_TASK_ROW_MAPPER = (rs, rowNum) ->
-            new CurationTask().setTaskId(String.valueOf(rs.getLong(COL_CURATION_TASK_ID)))
+            new CurationTask().setTaskId(rs.getLong(COL_CURATION_TASK_ID))
                     .setDataType(rs.getString(SqlConstants.COL_CURATION_TASK_DATA_TYPE))
                     .setProjectId(KeyFactory.keyToString(rs.getLong(SqlConstants.COL_CURATION_TASK_PROJECT_ID)))
                     .setInstructions(rs.getString(SqlConstants.COL_CURATION_TASK_INSTRUCTIONS))
@@ -63,7 +63,7 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
     @WriteTransaction
     public CurationTask createCurationTask(Long userId, CurationTask toCreate) {
         Instant now = Instant.now();
-        toCreate.setTaskId(idGenerator.generateNewId(IdType.CURATION_TASK_ID).toString())
+        toCreate.setTaskId(idGenerator.generateNewId(IdType.CURATION_TASK_ID))
                 .setEtag(UUID.randomUUID().toString())
                 .setCreatedBy(String.valueOf(userId))
                 .setCreatedOn(Timestamp.from(now))
@@ -81,7 +81,7 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
             throw e;
         }
 
-        return getCurationTask(dbo.getId().toString()).orElseThrow(() -> new IllegalStateException("The curation task was not created."));
+        return getCurationTask(dbo.getId()).orElseThrow(() -> new IllegalStateException("The curation task was not created."));
     }
 
     @Override
@@ -107,12 +107,12 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
     }
 
     @Override
-    public Optional<CurationTask> getCurationTask(String taskId) {
+    public Optional<CurationTask> getCurationTask(Long taskId) {
         String sql = "SELECT * FROM " + SqlConstants.TABLE_CURATION_TASK + " WHERE "
                 + SqlConstants.COL_CURATION_TASK_ID + " = ?";
 
         try {
-            return Optional.ofNullable(jdbcTemplate.queryForObject(sql, CURATION_TASK_ROW_MAPPER, Long.parseLong(taskId)));
+            return Optional.ofNullable(jdbcTemplate.queryForObject(sql, CURATION_TASK_ROW_MAPPER, taskId));
         } catch (EmptyResultDataAccessException e) {
             return Optional.empty();
         }
@@ -120,8 +120,8 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
 
     @Override
     @WriteTransaction
-    public void deleteCurationTask(String taskId) {
-        basicDao.deleteObjectByPrimaryKey(DBOCurationTask.class, new SinglePrimaryKeySqlParameterSource(Long.parseLong(taskId)));
+    public void deleteCurationTask(Long taskId) {
+        basicDao.deleteObjectByPrimaryKey(DBOCurationTask.class, new SinglePrimaryKeySqlParameterSource(taskId));
     }
 
     @Override
@@ -134,7 +134,7 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
     }
 
     @WriteTransaction
-    String getEtagForCurationTaskForUpdate(String taskId) {
+    String getEtagForCurationTaskForUpdate(Long taskId) {
         String sql = "SELECT " + COL_CURATION_TASK_ETAG + " FROM " + SqlConstants.TABLE_CURATION_TASK + " WHERE "
                 + COL_CURATION_TASK_ID + " = ? "
                 + "FOR UPDATE";
@@ -152,7 +152,7 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
 
     private static DBOCurationTask mapToDbo(CurationTask dto) {
         DBOCurationTask dbo = new DBOCurationTask()
-                .setId(Long.parseLong(dto.getTaskId()))
+                .setId(dto.getTaskId())
                 .setDataType(dto.getDataType())
                 .setProjectId(KeyFactory.stringToKey(dto.getProjectId()))
                 .setInstructions(dto.getInstructions())

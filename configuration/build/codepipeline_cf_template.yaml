@@ -1,25 +1,29 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: CloudFormation template to create AWS CodeBuild project
 Parameters:
+# TODO this stack should define its execution role
   RoleArn:
     Type: String
     Description: ARN of the IAM role to be used by CodePipeline
     Default: arn:aws:iam::449435941126:role/service-role/codebuild-plfm9092-service-role
-  Branch:
+  FullSynapseRepositoryId:
+    Type: String
+    Default: Sage-Bionetworks/Synapse-Repository-Services
+    Description: Full Synapse repository Id, <owner>/<repo-name>
+  SynapseBranch:
     Type: String
     Default: PLFM-9092
-    Description: Branch of the repo to build
-  GitHubRepoOwner:
+    Description: Branch of the Synapse repo to build
+  GitHubUser:
     Type: String
-    Description: GitHub repository owner
-  GitHubRepo:
+    Description: Handle of GitHub user
+    AllowedPattern: ".+"
+    ConstraintDescription: Parameter cannot be empty.
+  BuildParamUser:
     Type: String
-    Default: Synapse-Repository-Services
-    Description: GitHub repository name
-  GitHubConnectionName:
-    Type: String
-    Description: ARN of the GitHub connection in AWS CodeStar Connections
-    Default: plfm9092
+    Description: The 'user' param for the Synapse build, e.g. 'pjmhill'
+    AllowedPattern: ".+"
+    ConstraintDescription: Parameter cannot be empty.
   BuildImage:
     Type: String
     Description: CodeBuild image to use for the build
@@ -52,7 +56,7 @@ Resources:
   GitHubConnection:
     Type: AWS::CodeStarConnections::Connection
     Properties:
-      ConnectionName: !Ref GitHubConnectionName
+      ConnectionName: !Sub '${GitHubUser}'
       ProviderType: GitHub
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
@@ -61,25 +65,25 @@ Resources:
       ArtifactStore:
         Type: S3
         Location: !Ref PipelineOutputBucket
-      Name: !Sub 'SynapseBuild-${GitHubRepoOwner}'
+      Name: !Sub 'SynapseBuild-${GitHubUser}'
       PipelineType: V2
       Stages:
-        - Name: Source
+        - Name: CheckoutSynapseRepo
           Actions:
-            - Name: Source
+            - Name: CheckoutSynapseRepo
               ActionTypeId:
                 Category: Source
                 Owner: AWS
                 Provider: CodeStarSourceConnection
                 Version: 1
               OutputArtifacts:
-                - Name: SourceOutput
+                - Name: SynapseRepoSource
               Configuration:
-                FullRepositoryId: !Sub '${GitHubRepoOwner}/${GitHubRepo}'
-                BranchName: !Ref Branch
+                FullRepositoryId: !Sub '${FullSynapseRepositoryId}'
+                BranchName: !Ref SynapseBranch
                 ConnectionArn: !Ref GitHubConnection
               RunOrder: 1
-        - Name: Build
+        - Name: BuildSynapseRepo
           Actions:
             - Name: Build
               ActionTypeId:
@@ -88,26 +92,22 @@ Resources:
                 Provider: CodeBuild
                 Version: 1
               InputArtifacts:
-                - Name: SourceOutput
+                - Name: SynapseRepoSource
               OutputArtifacts:
-                - Name: BuildOutput
+                - Name: SynapseRepoBuildOutput
               Configuration:
-                ProjectName: !Sub 'SynapseBuild-${GitHubRepoOwner}' # TODO !Ref CodeBuildProject
+                ProjectName: !Ref CodeBuildProject
+                EnvironmentVariables: !Sub '[{"name":"user","type":"PLAINTEXT","value": "${BuildParamUser}"}]'
               RunOrder: 2
+  # A CodeBuild project that can be used to run the stack builder or to build the Synapse back-end
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name:  !Sub 'SynapseBuild-${GitHubRepoOwner}'
+      Name:  !Sub 'CodeBuild-${GitHubUser}'
       Source:
-        Type: GITHUB
-        Location: !Sub 'https://github.com/${GitHubRepoOwner}/${GitHubRepo}'
-        GitCloneDepth: 1
-        GitSubmodulesConfig:
-          FetchSubmodules: false
-        InsecureSsl: false
-        ReportBuildStatus: false
+        Type: CODEPIPELINE
       Artifacts:
-        Type: NO_ARTIFACTS
+        Type: CODEPIPELINE
       Cache:
         Type: NO_CACHE
       Environment:
@@ -116,7 +116,6 @@ Resources:
         ComputeType: !Ref BuildComputeType
         PrivilegedMode: true
         ImagePullCredentialsType: CODEBUILD
-        EnvironmentVariables: []
       ServiceRole: !Ref RoleArn
       TimeoutInMinutes: 600
       QueuedTimeoutInMinutes: 480

@@ -363,7 +363,7 @@ public class MessageDrivenWorkersConfig {
 						.withSemaphoreLockKey("gridReplicaPatchBuilderWorker")
 						.withSemaphoreMaxLockCount(5)
 						.withSemaphoreLockAndMessageVisibilityTimeoutSec(30)
-						.withMaxThreadsPerMachine(2)
+						.withMaxThreadsPerMachine(1)
 						.withSingleton(concurrentStackManager)
 						.withCanRunInReadOnly(false)
 						.withQueueName(queueName)

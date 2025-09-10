@@ -140,6 +140,9 @@ import org.sagebionetworks.repo.model.auth.TwoFactorAuthResetRequest;
 import org.sagebionetworks.repo.model.auth.TwoFactorAuthStatus;
 import org.sagebionetworks.repo.model.auth.UserEntityPermissions;
 import org.sagebionetworks.repo.model.auth.Username;
+import org.sagebionetworks.repo.model.curation.CurationTask;
+import org.sagebionetworks.repo.model.curation.ListCurationTaskRequest;
+import org.sagebionetworks.repo.model.curation.ListCurationTaskResponse;
 import org.sagebionetworks.repo.model.dao.WikiPageKey;
 import org.sagebionetworks.repo.model.dataaccess.AccessApprovalNotificationRequest;
 import org.sagebionetworks.repo.model.dataaccess.AccessApprovalNotificationResponse;
@@ -415,7 +418,6 @@ import org.sagebionetworks.util.FileProviderImpl;
 import org.sagebionetworks.util.ValidateArgument;
 
 import com.google.common.base.Joiner;
-
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwsHeader;
 import io.jsonwebtoken.Jwt;
@@ -6530,5 +6532,30 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
     @Override
     public DownloadFromGridResult exportGridAsCsvAsyncGet(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException {
         return (DownloadFromGridResult) getAsyncResult(AsynchJobType.GridCsvDownload, asyncJobToken);
+    }
+
+    @Override
+    public CurationTask createCurationTask(CurationTask task) throws SynapseException{
+        return postJSONEntity(getRepoEndpoint(), "/curation/task", task, CurationTask.class);
+    }
+
+    @Override
+    public CurationTask getMetadataTask(Long taskId) throws SynapseException {
+        return getJSONEntity(getRepoEndpoint(), "/curation/task/"+taskId, CurationTask.class);
+    }
+
+    @Override
+    public CurationTask updateMetadataTask(CurationTask task) throws SynapseException {
+        return putJSONEntity(getRepoEndpoint(), "/curation/task/"+task.getTaskId(), task, CurationTask.class);
+    }
+
+    @Override
+    public void deleteMetadataTask(Long taskId) throws SynapseException {
+        deleteUri(getRepoEndpoint(), "/curation/task/"+taskId);
+    }
+
+    @Override
+    public ListCurationTaskResponse listMetadataTasks(ListCurationTaskRequest request) throws SynapseException {
+        return postJSONEntity(getRepoEndpoint(), "/curation/task/list", request, ListCurationTaskResponse.class);
     }
 }

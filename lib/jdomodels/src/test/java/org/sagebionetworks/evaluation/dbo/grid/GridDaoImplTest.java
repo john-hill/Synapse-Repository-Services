@@ -375,13 +375,26 @@ public class GridDaoImplTest {
 
 		// call under test
 		list = dao.listMissingPatchIdsForClock(sessionOne.getSessionId(),
-				List.of(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(8L),
-						new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(8L),
-						new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(8L)),
+				List.of(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(9L),
+						new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(9L),
+						new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(9L)),
 				100);
 		// up-to-date should be empty patches
 		assertEquals(Collections.emptyList(), list);
 
+		// call under test
+		list = dao.listMissingPatchIdsForClock(sessionOne.getSessionId(),
+				List.of(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(9L),
+						new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(7L),
+						new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(5L)),
+				100);
+
+		List<LogicalTimestamp> expected = List.of(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(6L),
+				new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(8L),
+				new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(8L));
+
+		assertEquals(expected, list);
+		
 		// call under test
 		list = dao.listMissingPatchIdsForClock(sessionOne.getSessionId(),
 				List.of(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(8L),
@@ -389,8 +402,12 @@ public class GridDaoImplTest {
 						new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(4L)),
 				100);
 
-		List<LogicalTimestamp> expected = List.of(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(6L),
+		expected = List.of(
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(8L),
+				new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(4L),
+				new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(6L),
 				new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(8L),
+				new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(6L),
 				new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(8L));
 
 		assertEquals(expected, list);

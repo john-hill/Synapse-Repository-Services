@@ -138,19 +138,19 @@ public class GridReplicaCsvExporterImpl implements GridReplicaCsvExporter {
 
                 if (includeRowIdAndRowVersion) {
                     Long rowId = synapseRow != null ? synapseRow.getRowId() : null;
-                    csvRow.add(rowId == null ? "" : rowId.toString());
+                    csvRow.add(rowId == null ? null : rowId.toString());
 
                     Long rowVersion = synapseRow != null ? synapseRow.getVersionNumber() : null;
-                    csvRow.add(rowVersion == null ? "" : rowVersion.toString());
+                    csvRow.add(rowVersion == null ? null : rowVersion.toString());
                 }
 
                 if (includeEtag) {
                     String etag = synapseRow != null ? synapseRow.getEtag() : null;
-                    csvRow.add(etag == null ? "" : etag);
+                    csvRow.add(etag);
                 }
 
                 rowView.getCells().toList().stream()
-                        .map(v -> v == null ? "" : v.toString())
+                        .map(v -> v == null ? null : v.toString())
                         .forEach(csvRow::add);
 
                 writer.writeNext(csvRow.toArray(new String[0]));

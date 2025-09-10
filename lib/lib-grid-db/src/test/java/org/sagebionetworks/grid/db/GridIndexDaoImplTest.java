@@ -973,6 +973,32 @@ public class GridIndexDaoImplTest {
 		);
 		
 	}
+	
+	
+	@Test
+	public void testGetClockSequenceMaximum() {
+		// call under test
+		assertEquals(1L, gridIndexDao.getClockSequenceMaximum(sessionIdOne, replicaIdOne));
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		gridIndexDao.createReplicaIfNotExists(sessionIdTwo, replicaIdTwo);
+		
+		// call under test
+		assertEquals(1L, gridIndexDao.getClockSequenceMaximum(sessionIdOne, replicaIdOne));
+		assertEquals(1L, gridIndexDao.getClockSequenceMaximum(sessionIdTwo, replicaIdTwo));
+		
+		gridIndexDao.setClock(sessionIdOne, replicaIdOne, new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L));
+		gridIndexDao.setClock(sessionIdOne, replicaIdOne, new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(4L));
+		gridIndexDao.setClock(sessionIdOne, replicaIdOne, new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(6L));
+		
+		gridIndexDao.setClock(sessionIdTwo, replicaIdTwo, new LogicalTimestamp().setReplicaId(7L).setSequenceNumber(8L));
+		gridIndexDao.setClock(sessionIdTwo, replicaIdTwo, new LogicalTimestamp().setReplicaId(9L).setSequenceNumber(10L));
+		gridIndexDao.setClock(sessionIdTwo, replicaIdTwo, new LogicalTimestamp().setReplicaId(11L).setSequenceNumber(12L));
+		
+		// call under test
+		assertEquals(6L, gridIndexDao.getClockSequenceMaximum(sessionIdOne, replicaIdOne));
+		assertEquals(12L, gridIndexDao.getClockSequenceMaximum(sessionIdTwo, replicaIdTwo));
+		
+	}
 
 	/**
 	 * Helper to create a new array.

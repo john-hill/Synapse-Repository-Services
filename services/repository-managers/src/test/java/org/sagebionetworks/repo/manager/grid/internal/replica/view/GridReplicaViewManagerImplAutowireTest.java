@@ -97,7 +97,8 @@ public class GridReplicaViewManagerImplAutowireTest {
 						new Column().setName("b").setVectorIndex(1)))
 				.setNodeId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(1L))
 				.setRowsId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(5L))
-				.setColumnOrderArrId(columnOrderArrayId).setColumnNamesVecId(columnNamesVecId);
+				.setColumnOrderArrId(columnOrderArrayId).setColumnNamesVecId(columnNamesVecId)
+				.setClockSequenceMaximum(expectedClock.getSequenceNumber());
 		// call under test
 		assertEquals(Optional.of(expected), gridViewManager.readHeader(sessionId, replicaId));
 
@@ -110,6 +111,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 		gridIndexManger.applyPatch(sessionId, replicaId, patch);
 
 		expected.getOrderedColumns().get(1).setName("b2");
+		expected.setClockSequenceMaximum(patch.getPatchId().getSequenceNumber() + patch.getSpan());
 		// call under test
 		assertEquals(Optional.of(expected), gridViewManager.readHeader(sessionId, replicaId));
 
@@ -129,6 +131,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 
 		expected.setOrderedColumns(List.of(new Column().setName("c").setVectorIndex(2),
 				new Column().setName("a").setVectorIndex(0), new Column().setName("b2").setVectorIndex(1)));
+		expected.setClockSequenceMaximum(patch.getPatchId().getSequenceNumber() + patch.getSpan());
 		// call under test
 		assertEquals(Optional.of(expected), gridViewManager.readHeader(sessionId, replicaId));
 

@@ -106,7 +106,7 @@ public class ConcurrentWorkerStackTest {
 	}
 	
 	@Test
-	public void testBuildWithFifoQueueMaxThreadsNotONe() {
+	public void testBuildWithFifoQueueMaxThreadsNotOne() {
 		queueName = "some.FiFo";
 		maxThreadsPerMachine = 3;
 		String message = assertThrows(IllegalArgumentException.class, () -> {

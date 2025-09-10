@@ -54,7 +54,7 @@ public class UpdateMetadataChangeHandlerTest {
 	}
 
 	@Test
-	public void testHandleChangeWithNullMetadtaId() {
+	public void testHandleChangeWithNullMetadataId() {
 		change.setRowMetadataId(null);
 		LogicalTimestamp metadataId = new LogicalTimestamp().setReplicaId(11L).setSequenceNumber(12L);
 		when(mockPatchBuilder.addOperationBuilder(eq(new NewObjectBuilder()))).thenReturn(metadataId);

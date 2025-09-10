@@ -6540,7 +6540,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
     }
 
     @Override
-    public CurationTask getMetadataTask(String taskId) throws SynapseException {
+    public CurationTask getMetadataTask(Long taskId) throws SynapseException {
         return getJSONEntity(getRepoEndpoint(), "/curation/task/"+taskId, CurationTask.class);
     }
 
@@ -6550,7 +6550,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
     }
 
     @Override
-    public void deleteMetadataTask(String taskId) throws SynapseException {
+    public void deleteMetadataTask(Long taskId) throws SynapseException {
         deleteUri(getRepoEndpoint(), "/curation/task/"+taskId);
     }
 

@@ -9,11 +9,14 @@ on:
 jobs:
   build_and_test:
     permissions:
+      # https://graphite.dev/guides/github-actions-permissions
       id-token: write
       contents: read
       deployments: write
-      repository_hooks: write
+      security-events: write
       statuses: write
+      actions: write
+      checks: write
     runs-on: ubuntu-latest
     steps:
       - run: |

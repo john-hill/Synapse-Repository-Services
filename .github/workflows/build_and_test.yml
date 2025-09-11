@@ -40,7 +40,7 @@ jobs:
           name: CodePipeline
           template: configuration/build/codepipeline_cf_template.yaml
           parameter-overrides: >-
-            "SynapseBranch=${{ env.branch }},
+            SynapseBranch=${{ env.branch }},
             SynapseRepoOwner=${{ github.repository_owner }},
             GitHubToken=${{ secrets.GITHUB_TOKEN }},
-            BuildParamUser=${{ env.user }}"
+            BuildParamUser=${{ env.user }}

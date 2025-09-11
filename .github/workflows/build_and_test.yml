@@ -11,6 +11,9 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      deployments: write
+      repository_hooks: write
+      statuses: write
     runs-on: ubuntu-latest
     steps:
       - run: |
@@ -24,7 +27,7 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@v1
         with:
-          # we have to start with this role or we run into trouble when getting an sts token for the role, below
+          # TODO we should create a role for dev' repo's to use
           role-to-assume: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev
           aws-region: us-east-1
           # eight hours

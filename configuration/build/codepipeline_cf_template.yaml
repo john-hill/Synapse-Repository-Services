@@ -12,7 +12,6 @@ Parameters:
   SynapseRepoOwner:
     Type: String
     Description: Owner of the Synapse Repo to build
-    Default:  brucehoff # TODO Remove
     AllowedPattern: ".+"
     ConstraintDescription: Parameter cannot be empty.
   GitHubToken:
@@ -23,7 +22,6 @@ Parameters:
   BuildParamUser:
     Type: String
     Description: The 'user' param for the Synapse build, e.g. 'pjmhill'
-    Default: p3bhoff # TODO Remove
     AllowedPattern: ".+"
     ConstraintDescription: Parameter cannot be empty.
   BuildImage:
@@ -46,19 +44,66 @@ Parameters:
     Type: CommaDelimitedList
     Description: Security group IDs for CodeBuild to use.  Default is a security group for synapse-dev.
     Default: sg-0818ba0f1872103d4
-  RoleArn:
-    Type: String
-    Description: ARN of the IAM role to be used by CodePipeline
-    Default: arn:aws:iam::449435941126:role/service-role/codebuild-plfm9092-service-role
 Resources:
-#
-#  CodePipelineExecutionRole:
-#    Type: AWS::IAM::Role
-#    ????
-#  CodeBuildExecutionRole:
-#    Type: AWS::IAM::Role
-#    ????
-# TODO this stack should define its execution role
+  CodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodePipelinePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Permission to use S3 artifact store
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:GetBucketVersioning
+                Resource:
+                  - !Sub "${PipelineOutputBucket.Arn}/*"
+                  - !GetAtt PipelineOutputBucket.Arn
+              # Permission to invoke CodeBuild
+              - Effect: Allow
+                Action:
+                  - codebuild:BatchGetBuilds
+                  - codebuild:StartBuild
+                Resource: !GetAtt CodeBuildProject.Arn
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+        - arn:aws:iam::aws:policy/SecretsManagerReadWrite
+      Policies:
+        - PolicyName: CodeBuildPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Permission to access artifacts
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub "${PipelineOutputBucket.Arn}/*"
+              - Effect: Allow
+                Action:
+                  - ec2:*
+                Resource:
+                  - '*'
   PipelineOutputBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -70,7 +115,7 @@ Resources:
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
-      RoleArn: !Ref RoleArn
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
       ArtifactStore:
         Type: S3
         Location: !Ref PipelineOutputBucket
@@ -125,7 +170,7 @@ Resources:
         ComputeType: !Ref BuildComputeType
         PrivilegedMode: true
         ImagePullCredentialsType: CODEBUILD
-      ServiceRole: !Ref RoleArn
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
       TimeoutInMinutes: 600
       QueuedTimeoutInMinutes: 480
       VpcConfig:

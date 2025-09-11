@@ -7,8 +7,8 @@ Parameters:
     Description: Synapse repository name
   SynapseBranch:
     Type: String
-    Default: PLFM-9092
     Description: Branch of the Synapse repo to build
+    AllowedPattern: ".+"
   SynapseRepoOwner:
     Type: String
     Description: Owner of the Synapse Repo to build

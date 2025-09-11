@@ -7,20 +7,6 @@ on:
     branches: ['*']
 
 jobs:
-  deploy_codepipeline_stack:
-    steps:
-      # TODO need to authenticate to AWS first
-      - name: Deploy CodePipeline to AWS CloudFormation
-        uses: aws-actions/aws-cloudformation-github-deploy@v1
-        with:
-          # TODO give it a unique name
-          name: CodePipelineProject
-          template: configuration/build/codepipeline_cf_template.yaml
-          # TODO pass in user name
-          # TODO need to get back ARN of execution role
-          parameter-overrides: "MyParam1=myValue,MyParam2=${{ secrets.MY_SECRET_VALUE }}"
-
-
   build_and_test:
     permissions:
       id-token: write
@@ -34,6 +20,7 @@ jobs:
             echo "user=p3bhoff" >> $GITHUB_ENV
             # echo "user=$GITHUB_REPOSITORY_OWNER" >> $GITHUB_ENV
           fi
+          echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
 
       - uses: aws-actions/configure-aws-credentials@v1
         with:
@@ -42,8 +29,14 @@ jobs:
           aws-region: us-east-1
           # eight hours
           role-duration-seconds: 28800
-
-      - name: Build and Test
-        uses: aws-actions/aws-codebuild-run-build@v1
+      - name: Deploy CodePipeline to AWS CloudFormation
+        uses: aws-actions/aws-cloudformation-github-deploy@v1
         with:
-          project-name: plfm9092
+          # TODO give it a unique name
+          name: CodePipeline
+          template: configuration/build/codepipeline_cf_template.yaml
+          parameter-overrides: >
+            "SynapseBranch=${{ env.branch }},
+            SynapseRepoOwner=${{ github.repository_owner }},
+            GitHubToken=${{ secrets.GITHUB_TOKEN }},
+            BuildParamUser=${{ env.user }}"

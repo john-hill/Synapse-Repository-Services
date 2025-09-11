@@ -51,7 +51,8 @@ public class GridReplicaWorker implements MessageDrivenRunner {
 				return;
 			}
 			GridConnectionInfo connection = conOption.get();
-			log.info("New message for connectionId: {}, body: {}", connectionId, body);
+			String truncatedBody = body.length() > 100 ? body.substring(0, 100) + "..." : body;
+			log.info("New message for connectionId: {}, body: {}", connectionId, truncatedBody);
 			dispatcher.dispatchMessage(new JsonRxMessageBundle(new JsonRxMessage(body), connection, progressCallback));
 		} catch (RecoverableMessageException e) {
 			log.info("Will retry message for connectionId: {}, body: {}", connectionId, body);

@@ -41,8 +41,9 @@ jobs:
 
       - name: Deploy CodePipeline to AWS CloudFormation
         uses: aws-actions/aws-cloudformation-github-deploy@v1
+        id: pipeline
         with:
-          # TODO give it a unique name
+          # TODO give it a unique name (update below too)
           name: CodePipeline
           template: configuration/build/codepipeline_cf_template.yaml
           parameter-overrides: >-
@@ -50,9 +51,19 @@ jobs:
             SynapseRepoOwner=${{ github.repository_owner }},
             GitHubToken=${{ secrets.GITHUB_TOKEN }},
             BuildParamUser=${{ env.user }}
+        outputs:
+          - name: CodePipeline
 
-#      - name: Trigger CodePipeline
-#        run: |
-#          aws codepipeline start-pipeline-execution \
-#            --name CodePipeline \
-#            --source-revisions actionName=SourceAction,revisionType=COMMIT_ID,revisionValue=${{ github.sha }}
+      - name: Trigger CodePipeline
+        run: |
+          EXECUTION_ID=$(aws codepipeline start-pipeline-execution \
+            --name ${{ steps.pipeline.outputs.name }} \
+            --source-revisions actionName=SourceAction,revisionType=COMMIT_ID,revisionValue=${{ github.sha }} \
+            --query 'pipelineExecutionId' --output text)
+
+          echo "Pipeline execution ID: $EXECUTION_ID"
+
+          # Wait for completion (optional)
+          aws codepipeline wait pipeline-execution-succeeded \
+            --pipeline-name ${{ steps.pipeline.outputs.name }} \
+            --pipeline-execution-id $EXECUTION_ID

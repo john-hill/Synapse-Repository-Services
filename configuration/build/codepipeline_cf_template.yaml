@@ -6,17 +6,22 @@ Parameters:
     Type: String
     Description: ARN of the IAM role to be used by CodePipeline
     Default: arn:aws:iam::449435941126:role/service-role/codebuild-plfm9092-service-role
-  FullSynapseRepositoryId:
+  SynapseRepository:
     Type: String
-    Default: Sage-Bionetworks/Synapse-Repository-Services
-    Description: Full Synapse repository Id, <owner>/<repo-name>
+    Default: Synapse-Repository-Services
+    Description: Synapse repository name
   SynapseBranch:
     Type: String
     Default: PLFM-9092
     Description: Branch of the Synapse repo to build
-  GitHubUser:
+  SynapseRepoOwner:
     Type: String
-    Description: Handle of GitHub user
+    Description: Owner of the Synapse Repo to build
+    AllowedPattern: ".+"
+    ConstraintDescription: Parameter cannot be empty.
+  GitHubToken:
+    Type: String
+    Description: Token to authorize GitHub requests
     AllowedPattern: ".+"
     ConstraintDescription: Parameter cannot be empty.
   BuildParamUser:
@@ -53,11 +58,6 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
-  GitHubConnection:
-    Type: AWS::CodeStarConnections::Connection
-    Properties:
-      ConnectionName: !Sub '${GitHubUser}'
-      ProviderType: GitHub
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -65,7 +65,6 @@ Resources:
       ArtifactStore:
         Type: S3
         Location: !Ref PipelineOutputBucket
-      Name: !Sub 'SynapseBuild-${GitHubUser}'
       PipelineType: V2
       Stages:
         - Name: CheckoutSynapseRepo
@@ -73,15 +72,16 @@ Resources:
             - Name: CheckoutSynapseRepo
               ActionTypeId:
                 Category: Source
-                Owner: AWS
-                Provider: CodeStarSourceConnection
+                Owner: ThirdParty
+                Provider: GitHub
                 Version: 1
               OutputArtifacts:
                 - Name: SynapseRepoSource
               Configuration:
-                FullRepositoryId: !Sub '${FullSynapseRepositoryId}'
-                BranchName: !Ref SynapseBranch
-                ConnectionArn: !Ref GitHubConnection
+                Owner: !Ref SynapseRepoOwner
+                Repo: !Ref SynapseRepository
+                Branch: !Ref SynapseBranch
+                OAuthToken: !Ref GitHubToken
               RunOrder: 1
         - Name: BuildSynapseRepo
           Actions:
@@ -98,12 +98,48 @@ Resources:
               Configuration:
                 ProjectName: !Ref CodeBuildProject
                 EnvironmentVariables: !Sub '[{"name":"user","type":"PLAINTEXT","value": "${BuildParamUser}"}]'
+                BuildspecOverride: |
+                  version: 0.2
+                  env:
+                    variables:
+                      stack: dev
+                      org_sagebionetworks_search_enabled: false
+                      org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
+                      m2_cache_parent_folder: .
+                      src_folder: .
+                    secrets-manager:
+                      org_sagebionetworks_stackEncryptionKey: org.sagebionetworks.stackEncryptionKey
+                      rds_password: build.rds.password
+                      org_sagebionetworks_cloudfront_keypair: org.sagebionetworks.cloudfront.private.key.id
+                      org_sagebionetworks_cloudfront_private_key_secret: build.org.sagebionetworks.cloudfront.private.key.secret
+                  phases:
+                    install:
+                      commands:
+                        # https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/mysql-install-cli.html
+                        - echo "Installing MySQL CLI"
+                        # Note: 'dnf' works with the aws/codebuild/amazonlinux-x86_64-standard:5.0 image but
+                        # does not seem to work with the :corretto11 image
+                        - sudo dnf -y update && sudo dnf install -y mariadb105
+                    build:
+                      commands:
+                        # At this point the AWS role is codebuild-plfm9092-service-role, the service role associated with the Code Build project
+                        - aws sts get-caller-identity
+                        - STS_CREDENTIALS=$(curl -L http://169.254.170.2/$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI)
+                        - export org_sagebionetworks_stack_iam_id=$(echo $STS_CREDENTIALS | jq -r '.AccessKeyId')
+                        - export org_sagebionetworks_stack_iam_key=$(echo $STS_CREDENTIALS | jq -r '.SecretAccessKey')
+                        - export org_sagebionetworks_stack_iam_session_token=$(echo $STS_CREDENTIALS | jq -r '.Token')
+                        - echo Credential Expiration **Duration should be 8 hours**
+                        - echo $STS_CREDENTIALS | jq -r '.Expiration'
+                        - export org_sagebionetworks_repository_database_connection_url=dev-${user}-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
+                        - export org_sagebionetworks_table_cluster_endpoint_0=dev-${user}-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
+                        # TODO remove the following line after testing
+                        - export EXTRA_ARGS=-Dmaven.test.skip=true
+                        - ./docker_build.sh
               RunOrder: 2
   # A CodeBuild project that can be used to run the stack builder or to build the Synapse back-end
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name:  !Sub 'CodeBuild-${GitHubUser}'
       Source:
         Type: CODEPIPELINE
       Artifacts:

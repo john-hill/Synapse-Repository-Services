@@ -1,11 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: CloudFormation template to create AWS CodeBuild project
 Parameters:
-# TODO this stack should define its execution role
-  RoleArn:
-    Type: String
-    Description: ARN of the IAM role to be used by CodePipeline
-    Default: arn:aws:iam::449435941126:role/service-role/codebuild-plfm9092-service-role
   SynapseRepository:
     Type: String
     Default: Synapse-Repository-Services
@@ -50,6 +45,18 @@ Parameters:
     Description: Security group IDs for CodeBuild to use.  Default is a security group for synapse-dev.
     Default: sg-0818ba0f1872103d4
 Resources:
+  # 
+#  CodePipelineExecutionRole:
+#    Type: AWS::IAM::Role
+#    ????
+#  CodeBuildExecutionRole:
+#    Type: AWS::IAM::Role
+#    ????
+# TODO this stack should define its execution role
+  RoleArn:
+    Type: String
+    Description: ARN of the IAM role to be used by CodePipeline
+    Default: arn:aws:iam::449435941126:role/service-role/codebuild-plfm9092-service-role
   PipelineOutputBucket:
     Type: AWS::S3::Bucket
     Properties:

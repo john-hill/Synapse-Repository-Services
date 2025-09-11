@@ -47,7 +47,7 @@ Parameters:
 Outputs:
   PipelineName:
     Value:
-      Ref: CodePipeline.Name
+      Ref: !GetAtt CodePipeline.Name
     Export:
       Name:
         Fn::Sub: ${AWS::StackName}-pipeline-name

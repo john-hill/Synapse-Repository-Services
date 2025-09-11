@@ -46,7 +46,7 @@ Parameters:
     Default: sg-0818ba0f1872103d4
 Outputs:
   PipelineName:
-    Value: !GetAtt CodePipeline.Name
+    Value: !Ref CodePipeline
     Export:
       Name:
         Fn::Sub: ${AWS::StackName}-pipeline-name

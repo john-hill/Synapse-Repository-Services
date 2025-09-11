@@ -9,7 +9,7 @@ on:
 env:
   # TODO make unique
   pipeline_name: SynapseCodePipeline
-  
+
 jobs:
   build_and_test:
     permissions:

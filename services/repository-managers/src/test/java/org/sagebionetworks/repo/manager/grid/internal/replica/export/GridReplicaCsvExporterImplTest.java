@@ -79,6 +79,8 @@ public class GridReplicaCsvExporterImplTest {
     @Mock
     private AsyncJobProgressCallback mockJobProgressCallback;
     @Mock
+    private RowViewCallbackHandler mockRowViewCallbackHandler;
+    @Mock
     Iterator<RowView> mockRowViewIterator;
     @Captor
     private ArgumentCaptor<LocalFileUploadRequest> fileUploadCaptor;
@@ -121,6 +123,7 @@ public class GridReplicaCsvExporterImplTest {
                 new Column().setName("col1"),
                 new Column().setName("col2")
         ));
+        when(mockJobProgressCallback.getJobId()).thenReturn(jobId);
         when(mockGridReplicaViewManager.getQueryIterator(eq(mockGridHeader), any())).thenReturn(mockRowViewIterator);
         when(mockRowViewIterator.hasNext()).thenReturn(true, true, false);
         when(mockRowViewIterator.next()).thenReturn(rowViews.get(0), rowViews.get(1));
@@ -128,8 +131,8 @@ public class GridReplicaCsvExporterImplTest {
         when(mockFileHandleManager.uploadLocalFile(any())).thenReturn(new S3FileHandle().setId(fileHandleId));
 
         // Call under test
-        DownloadFromGridResult result = exporter.exportGridAsCsv(jobId, userInfo, request, mockJobProgressCallback);
-
+        DownloadFromGridResult result = exporter.exportGridAsCsv(userInfo, request, mockJobProgressCallback, mockRowViewCallbackHandler);
+        
         assertEquals(request.getSessionId(), result.getSessionId());
         assertEquals(fileHandleId, result.getResultsFileHandleId());
         ArgumentCaptor<String[]> captor = ArgumentCaptor.forClass(String[].class);
@@ -146,6 +149,52 @@ public class GridReplicaCsvExporterImplTest {
         verify(mockGridManager).getGridSession(userInfo, sessionId);
         verify(mockGridManager).getDefaultInternalConnection(sessionId);
         verify(mockGridReplicaViewManager).readHeader(sessionId, replicaId);
+        rowViews.forEach(verify(mockRowViewCallbackHandler)::next);
+        
+        verifyFileUpload();
+    }
+    
+    @Test
+    public void testExportGridAsCsvWithNoViewHandler() throws IOException {
+        when(mockGridManager.getGridSession(userInfo, sessionId)).thenReturn(mockGridSession);
+        when(mockGridManager.getDefaultInternalConnection(sessionId)).thenReturn(Optional.of(mockGridConnectionInfo));
+        when(mockGridConnectionInfo.getSessionId()).thenReturn(sessionId);
+        when(mockGridConnectionInfo.getReplicaId()).thenReturn(replicaId);
+        when(mockReplicaPatchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId)).thenReturn(Optional.of(new LogicalTimestamp()));
+        when(mockGridReplicaViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(mockGridHeader));
+        when(mockGridHeader.getOrderedColumns()).thenReturn(List.of(
+                new Column().setName("col1"),
+                new Column().setName("col2")
+        ));
+        when(mockJobProgressCallback.getJobId()).thenReturn(jobId);
+        when(mockGridReplicaViewManager.getQueryIterator(eq(mockGridHeader), any())).thenReturn(mockRowViewIterator);
+        when(mockRowViewIterator.hasNext()).thenReturn(true, true, false);
+        when(mockRowViewIterator.next()).thenReturn(rowViews.get(0), rowViews.get(1));
+        when(mockCsvWriterProvider.createWriter(any(), any())).thenReturn(mockCsvWriter);
+        when(mockFileHandleManager.uploadLocalFile(any())).thenReturn(new S3FileHandle().setId(fileHandleId));
+
+        mockRowViewCallbackHandler = null;
+        
+        // Call under test
+        DownloadFromGridResult result = exporter.exportGridAsCsv(userInfo, request, mockJobProgressCallback, mockRowViewCallbackHandler);
+        
+        assertEquals(request.getSessionId(), result.getSessionId());
+        assertEquals(fileHandleId, result.getResultsFileHandleId());
+        ArgumentCaptor<String[]> captor = ArgumentCaptor.forClass(String[].class);
+        verify(mockCsvWriter, times(3)).writeNext(captor.capture());
+        List<String[]> writtenRows = captor.getAllValues();
+        assertArrayEquals(
+                new String[]{
+                        "ROW_ID", "ROW_VERSION", "etag", "col1", "col2",
+                        "1", "2", "etag1", "a", "b",
+                        "3", "4", "etag2", "c", "d"
+                },
+                writtenRows.toArray()
+        );
+        verify(mockGridManager).getGridSession(userInfo, sessionId);
+        verify(mockGridManager).getDefaultInternalConnection(sessionId);
+        verify(mockGridReplicaViewManager).readHeader(sessionId, replicaId);
+        
         verifyFileUpload();
     }
 
@@ -159,6 +208,7 @@ public class GridReplicaCsvExporterImplTest {
         when(mockGridConnectionInfo.getReplicaId()).thenReturn(replicaId);
         when(mockReplicaPatchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId)).thenReturn(Optional.of(new LogicalTimestamp()));
         when(mockGridReplicaViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(mockGridHeader));
+        when(mockJobProgressCallback.getJobId()).thenReturn(jobId);
         when(mockGridReplicaViewManager.getQueryIterator(eq(mockGridHeader), any())).thenReturn(mockRowViewIterator);
         when(mockRowViewIterator.hasNext()).thenReturn(true, true, false);
         when(mockRowViewIterator.next()).thenReturn(rowViews.get(0), rowViews.get(1));
@@ -166,7 +216,7 @@ public class GridReplicaCsvExporterImplTest {
         when(mockFileHandleManager.uploadLocalFile(any())).thenReturn(new S3FileHandle().setId(fileHandleId));
 
         // Call under test
-        exporter.exportGridAsCsv(jobId, userInfo, request, mockJobProgressCallback);
+        exporter.exportGridAsCsv(userInfo, request, mockJobProgressCallback, mockRowViewCallbackHandler);
 
         ArgumentCaptor<String[]> captor = ArgumentCaptor.forClass(String[].class);
         verify(mockCsvWriter, times(2)).writeNext(captor.capture());
@@ -178,6 +228,9 @@ public class GridReplicaCsvExporterImplTest {
                 },
                 writtenRows.toArray()
         );
+        
+        rowViews.forEach(verify(mockRowViewCallbackHandler)::next);
+        
         verifyFileUpload();
     }
 
@@ -195,6 +248,7 @@ public class GridReplicaCsvExporterImplTest {
                 new Column().setName("col1"),
                 new Column().setName("col2")
         ));
+        when(mockJobProgressCallback.getJobId()).thenReturn(jobId);
         when(mockGridReplicaViewManager.getQueryIterator(eq(mockGridHeader), any())).thenReturn(mockRowViewIterator);
         when(mockRowViewIterator.hasNext()).thenReturn(true, true, false);
         when(mockRowViewIterator.next()).thenReturn(rowViews.get(0), rowViews.get(1));
@@ -202,7 +256,7 @@ public class GridReplicaCsvExporterImplTest {
         when(mockFileHandleManager.uploadLocalFile(any())).thenReturn(new S3FileHandle().setId(fileHandleId));
 
         // Call under test
-        exporter.exportGridAsCsv(jobId, userInfo, request, mockJobProgressCallback);
+        exporter.exportGridAsCsv(userInfo, request, mockJobProgressCallback, mockRowViewCallbackHandler);
 
         ArgumentCaptor<String[]> captor = ArgumentCaptor.forClass(String[].class);
         verify(mockCsvWriter, times(3)).writeNext(captor.capture());
@@ -215,6 +269,8 @@ public class GridReplicaCsvExporterImplTest {
                 },
                 writtenRows.toArray()
         );
+        rowViews.forEach(verify(mockRowViewCallbackHandler)::next);
+        
         verifyFileUpload();
     }
 
@@ -232,6 +288,7 @@ public class GridReplicaCsvExporterImplTest {
                 new Column().setName("col1"),
                 new Column().setName("col2")
         ));
+        when(mockJobProgressCallback.getJobId()).thenReturn(jobId);
         when(mockGridReplicaViewManager.getQueryIterator(eq(mockGridHeader), any())).thenReturn(mockRowViewIterator);
         when(mockRowViewIterator.hasNext()).thenReturn(true, true, false);
         when(mockRowViewIterator.next()).thenReturn(rowViews.get(0), rowViews.get(1));
@@ -239,7 +296,7 @@ public class GridReplicaCsvExporterImplTest {
         when(mockFileHandleManager.uploadLocalFile(any())).thenReturn(new S3FileHandle().setId(fileHandleId));
 
         // Call under test
-        exporter.exportGridAsCsv(jobId, userInfo, request, mockJobProgressCallback);
+        exporter.exportGridAsCsv(userInfo, request, mockJobProgressCallback, mockRowViewCallbackHandler);
 
         ArgumentCaptor<String[]> captor = ArgumentCaptor.forClass(String[].class);
         verify(mockCsvWriter, times(3)).writeNext(captor.capture());
@@ -252,6 +309,9 @@ public class GridReplicaCsvExporterImplTest {
                 },
                 writtenRows.toArray()
         );
+        
+        rowViews.forEach(verify(mockRowViewCallbackHandler)::next);
+        
         verifyFileUpload();
     }
 
@@ -270,6 +330,7 @@ public class GridReplicaCsvExporterImplTest {
                 new Column().setName("col1"),
                 new Column().setName("col2")
         ));
+        when(mockJobProgressCallback.getJobId()).thenReturn(jobId);
         when(mockGridReplicaViewManager.getQueryIterator(eq(mockGridHeader), any())).thenReturn(mockRowViewIterator);
         when(mockRowViewIterator.hasNext()).thenReturn(true, true, false);
         when(mockRowViewIterator.next()).thenReturn(rowViews.get(0), rowViews.get(1));
@@ -277,7 +338,7 @@ public class GridReplicaCsvExporterImplTest {
         when(mockFileHandleManager.uploadLocalFile(any())).thenReturn(new S3FileHandle().setId(fileHandleId));
 
         // Call under test
-        exporter.exportGridAsCsv(jobId, userInfo, request, mockJobProgressCallback);
+        exporter.exportGridAsCsv(userInfo, request, mockJobProgressCallback, mockRowViewCallbackHandler);
 
         ArgumentCaptor<String[]> captor = ArgumentCaptor.forClass(String[].class);
         verify(mockCsvWriter, times(3)).writeNext(captor.capture());
@@ -290,6 +351,9 @@ public class GridReplicaCsvExporterImplTest {
                 },
                 writtenRows.toArray()
         );
+        
+        rowViews.forEach(verify(mockRowViewCallbackHandler)::next);
+        
         verifyFileUpload();
     }
 
@@ -299,7 +363,7 @@ public class GridReplicaCsvExporterImplTest {
         when(mockGridManager.getDefaultInternalConnection(sessionId)).thenReturn(Optional.empty());
 
         assertThrows(RecoverableMessageException.class, () -> {
-            exporter.exportGridAsCsv(jobId, userInfo, request, mockJobProgressCallback);
+            exporter.exportGridAsCsv(userInfo, request, mockJobProgressCallback, mockRowViewCallbackHandler);
         }, "No internal connection found for session: " + sessionId);
         verifyNoFileUpload();
     }
@@ -313,7 +377,7 @@ public class GridReplicaCsvExporterImplTest {
         when(mockReplicaPatchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId)).thenReturn(Optional.empty());
 
         assertThrows(RecoverableMessageException.class, () -> {
-            exporter.exportGridAsCsv(jobId, userInfo, request, mockJobProgressCallback);
+            exporter.exportGridAsCsv(userInfo, request, mockJobProgressCallback, mockRowViewCallbackHandler);
         }, "Current clock could not be retrieved, patches are still being applied to sessionId: " + sessionId + ", replicaId: " + replicaId);
         verifyNoFileUpload();
     }
@@ -328,7 +392,7 @@ public class GridReplicaCsvExporterImplTest {
         when(mockGridReplicaViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.empty());
 
         assertThrows(RecoverableMessageException.class, () -> {
-            exporter.exportGridAsCsv(jobId, userInfo, request, mockJobProgressCallback);
+            exporter.exportGridAsCsv(userInfo, request, mockJobProgressCallback, mockRowViewCallbackHandler);
         }, "Grid header has not yet been instantiated for sessionId: " + sessionId);
         verifyNoFileUpload();
     }

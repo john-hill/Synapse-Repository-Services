@@ -180,7 +180,8 @@
 		<ref bean="gridReplicaValidationWorkerTrigger"/>
 		<ref bean="gridReplicaPatchBuilderWorkerTrigger"/>
         <ref bean="gridCSVDownloaderWorkerTrigger" />
-
+		<ref bean="gridRecordSetExportWorkerTrigger" />
+		
 		<ref bean="inactiveUsersWorkerTrigger"/>
 		
 	</util:list>

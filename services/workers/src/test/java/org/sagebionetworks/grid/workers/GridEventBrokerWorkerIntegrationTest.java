@@ -265,10 +265,11 @@ public class GridEventBrokerWorkerIntegrationTest {
 		// Two's clock is currently empty so start a synchronize.
 		wsTwo.send("[1,99,\"synchronize-clock\",[]]");
 
-		List<LogicalTimestamp> patchIds = new ArrayList<>();
+		List<LogicalTimestamp> clock = new ArrayList<>();
 		assertTrue(waitForMessage((a) -> {
 			if (a.optInt(0) == 4 && a.optInt(1) == 99) {
-				patchIds.add(PatchCompactSerializable.peekPatchId(a.getJSONArray(2)));
+				Patch p = PatchCompactSerializable.deserialize(a.getJSONArray(2));
+				clock.add(LogicalTimestamp.newIncrement(p.getPatchId(), p.getSpan()));
 				return true;
 			} else {
 				return false;
@@ -276,13 +277,14 @@ public class GridEventBrokerWorkerIntegrationTest {
 		}, incomingMessagesTwo));
 
 		// after applying the patch update the clock and synchronize again.
-		String newClock = LogicalTimestampCompactSerializable.serializeClock(patchIds).toString();
+		String newClock = LogicalTimestampCompactSerializable.serializeClock(clock).toString();
 		wsTwo.send(String.format("[1,99,\"synchronize-clock\",%s]", newClock));
 
-		patchIds.clear();
+		clock.clear();
 		assertTrue(waitForMessage((a) -> {
 			if (a.optInt(0) == 4 && a.optInt(1) == 99) {
-				patchIds.add(PatchCompactSerializable.peekPatchId(a.getJSONArray(2)));
+				Patch p = PatchCompactSerializable.deserialize(a.getJSONArray(2));
+				clock.add(LogicalTimestamp.newIncrement(p.getPatchId(), p.getSpan()));
 				return true;
 			} else {
 				return false;
@@ -290,7 +292,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 		}, incomingMessagesTwo));
 
 		// after the second snych, replica two should be up-to-date.
-		newClock = LogicalTimestampCompactSerializable.serializeClock(patchIds).toString();
+		newClock = LogicalTimestampCompactSerializable.serializeClock(clock).toString();
 		wsTwo.send(String.format("[1,99,\"synchronize-clock\",%s]", newClock));
 
 		assertTrue(waitForMessage((a) -> a.optInt(0) == 5 && a.optInt(1) == 99, incomingMessagesTwo));

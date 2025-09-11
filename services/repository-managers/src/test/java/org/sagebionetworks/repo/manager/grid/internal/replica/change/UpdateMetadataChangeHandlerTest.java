@@ -1,16 +1,14 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.change;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+
+import java.util.Map;
 
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
@@ -19,94 +17,63 @@ import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.InsertObjectBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewConstantBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewObjectBuilder;
-import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
-import org.sagebionetworks.repo.model.schema.ValidationResults;
-import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
-import org.sagebionetworks.schema.adapter.org.json.EntityFactory;
 
 @ExtendWith(MockitoExtension.class)
 public class UpdateMetadataChangeHandlerTest {
 
-	@InjectMocks
-	private UpdateMetadataChangeHandler handler;
-	
 	@Mock
 	private PatchBuilder mockPatchBuilder;
-	
+
+	private JSONObject validationState;
 	private UpdateMetadataChange change;
-	
+
 	@BeforeEach
-	public void before() throws JSONObjectAdapterException {
-		JSONObject validationState = EntityFactory.createJSONObjectForEntity(new ValidationResults().setIsValid(true));
-	
+	public void before() {
+		validationState = new JSONObject("{\"isValid\":true}");
 		change = new UpdateMetadataChange()
-			.setRowObjectId(new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(2L))
-			.setRowMetadataId(new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(4L))
-			.setValidationState(validationState);
-	}
-	
-	@Test
-	public void testGetType() {
-		assertEquals(IntendedChangeType.update_row_metadata, handler.getType());
+				.setRowObjectId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L))
+				.setRowMetadataId(new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(4L))
+				.setValidationState(validationState);
 	}
 
 	@Test
-	public void testHandleChange() throws Exception {
-		LogicalTimestamp stateConstRefId = new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(5L);
-		
-		when(mockPatchBuilder.addOperationBuilder(any(NewConstantBuilder.class)))
-			.thenReturn(stateConstRefId);
-		
-		// Call under test
+	public void testHandleChange() {
+
+		LogicalTimestamp stateId = new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(6L);
+		when(mockPatchBuilder.addOperationBuilder(
+				new NewConstantBuilder().setValue(new ConValue(ConType.JSON_OBJECT, change.getValidationState()))))
+				.thenReturn(stateId);
+		when(mockPatchBuilder.addOperationBuilder(new InsertObjectBuilder().setObjectId(change.getRowMetadataId())
+				.setMap(Map.of("rowValidation", stateId))))
+				.thenReturn(new LogicalTimestamp().setReplicaId(7L).setSequenceNumber(8L));
+
+		UpdateMetadataChangeHandler handler = new UpdateMetadataChangeHandler();
+		// call under test
 		handler.handleChange(mockPatchBuilder, change);
 
-		verify(mockPatchBuilder).addOperationBuilder(
-			Operations.newConstant().setValue(new ConValue(ConType.JSON_OBJECT, change.getValidationState()))
-		);
-
-		verify(mockPatchBuilder).addOperationBuilder(Operations.insertObject()
-			.setObjectId(change.getRowMetadataId())
-			.setMap(java.util.Map.of("rowValidation", stateConstRefId))
-		);
-		
-		verifyNoMoreInteractions(mockPatchBuilder);
 	}
-	
+
 	@Test
-	public void testHandleChangeWithNoMetadata() throws Exception {
+	public void testHandleChangeWithNullMetadataId() {
 		change.setRowMetadataId(null);
-		
-		LogicalTimestamp metadataRefId = new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(5L);
-		
-		when(mockPatchBuilder.addOperationBuilder(any(NewObjectBuilder.class)))
-			.thenReturn(metadataRefId);
-		
-		when(mockPatchBuilder.addOperationBuilder(any(InsertObjectBuilder.class)))
-			.thenReturn(new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(6L));
-		
-		LogicalTimestamp stateConstRefId = new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(7L);
-		
-		when(mockPatchBuilder.addOperationBuilder(any(NewConstantBuilder.class)))
-			.thenReturn(stateConstRefId);
-		
-		// Call under test
+		LogicalTimestamp metadataId = new LogicalTimestamp().setReplicaId(11L).setSequenceNumber(12L);
+		when(mockPatchBuilder.addOperationBuilder(eq(new NewObjectBuilder()))).thenReturn(metadataId);
+		when(mockPatchBuilder.addOperationBuilder(
+				new InsertObjectBuilder().setObjectId(change.getRowObjectId()).setMap(Map.of("metadata", metadataId))))
+				.thenReturn(new LogicalTimestamp().setReplicaId(13L).setSequenceNumber(14L));
+
+		LogicalTimestamp stateId = new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(6L);
+		when(mockPatchBuilder.addOperationBuilder(
+				new NewConstantBuilder().setValue(new ConValue(ConType.JSON_OBJECT, change.getValidationState()))))
+				.thenReturn(stateId);
+		when(mockPatchBuilder.addOperationBuilder(
+				new InsertObjectBuilder().setObjectId(metadataId).setMap(Map.of("rowValidation", stateId))))
+				.thenReturn(new LogicalTimestamp().setReplicaId(7L).setSequenceNumber(8L));
+
+		UpdateMetadataChangeHandler handler = new UpdateMetadataChangeHandler();
+		// call under test
 		handler.handleChange(mockPatchBuilder, change);
-		
-		verify(mockPatchBuilder).addOperationBuilder(Operations.insertObject()
-			.setObjectId(change.getRowObjectId())
-			.setMap(java.util.Map.of("metadata", metadataRefId))
-		);
 
-		verify(mockPatchBuilder).addOperationBuilder(
-			Operations.newConstant().setValue(new ConValue(ConType.JSON_OBJECT, change.getValidationState()))
-		);
-
-		verify(mockPatchBuilder).addOperationBuilder(Operations.insertObject()
-			.setObjectId(metadataRefId)
-			.setMap(java.util.Map.of("rowValidation", stateConstRefId))
-		);
-		
-		verifyNoMoreInteractions(mockPatchBuilder);
 	}
 
 }

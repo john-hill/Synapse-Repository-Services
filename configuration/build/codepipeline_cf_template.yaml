@@ -45,7 +45,7 @@ Parameters:
     Description: Security group IDs for CodeBuild to use.  Default is a security group for synapse-dev.
     Default: sg-0818ba0f1872103d4
 Resources:
-  # 
+#
 #  CodePipelineExecutionRole:
 #    Type: AWS::IAM::Role
 #    ????

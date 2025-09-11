@@ -1,10 +1,12 @@
 package org.sagebionetworks.repo.manager.grid.create;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -58,6 +60,7 @@ import org.sagebionetworks.repo.model.schema.JsonSchemaVersionInfo;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
+import org.sagebionetworks.repo.model.table.Query;
 import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.table.cluster.utils.TableModelUtils;
 
@@ -137,6 +140,13 @@ public class RecordSetCreateGridHandlerTest {
 
 		recordSet = new RecordSet().setId("syn456").setDataFileHandleId(csvFile.getId())
 				.setCsvDescriptor(csvDescriptor);
+	}
+	
+	@Test
+	public void testCanCreate() {
+		assertFalse(handler.canCreate(new CreateGridRequest()));
+		assertTrue(handler.canCreate(new CreateGridRequest().setRecordSetId("syn123")));
+		assertFalse(handler.canCreate(new CreateGridRequest().setInitialQuery(new Query())));
 	}
 
 	@Test

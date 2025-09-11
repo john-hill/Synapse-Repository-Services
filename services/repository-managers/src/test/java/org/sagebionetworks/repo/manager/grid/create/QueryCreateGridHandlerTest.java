@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.grid.create;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -145,6 +146,13 @@ public class QueryCreateGridHandlerTest {
 		schemaBinding = new JsonSchemaObjectBinding()
 				.setJsonSchemaVersionInfo(new JsonSchemaVersionInfo().set$id(schema$id));
 		
+	}
+	
+	@Test
+	public void testCanCreate() {
+		assertFalse(handler.canCreate(new CreateGridRequest()));
+		assertFalse(handler.canCreate(new CreateGridRequest().setRecordSetId("syn123")));
+		assertTrue(handler.canCreate(new CreateGridRequest().setInitialQuery(new Query())));
 	}
 
 	@Test

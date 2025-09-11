@@ -50,3 +50,9 @@ jobs:
             SynapseRepoOwner=${{ github.repository_owner }},
             GitHubToken=${{ secrets.GITHUB_TOKEN }},
             BuildParamUser=${{ env.user }}
+
+#      - name: Trigger CodePipeline
+#        run: |
+#          aws codepipeline start-pipeline-execution \
+#            --name CodePipeline \
+#            --source-revisions actionName=SourceAction,revisionType=COMMIT_ID,revisionValue=${{ github.sha }}

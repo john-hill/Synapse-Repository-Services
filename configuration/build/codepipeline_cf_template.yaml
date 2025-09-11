@@ -116,7 +116,6 @@ Resources:
     Type: AWS::CodePipeline::Pipeline
     Properties:
       RoleArn: !GetAtt CodePipelineServiceRole.Arn
-      Triggers: []
       ArtifactStore:
         Type: S3
         Location: !Ref PipelineOutputBucket
@@ -137,6 +136,7 @@ Resources:
                 Repo: !Ref SynapseRepository
                 Branch: !Ref SynapseBranch
                 OAuthToken: !Ref GitHubToken
+                DetectChanges: false # instead we will trigger from GitHub workflow
               RunOrder: 1
         - Name: BuildSynapseRepo
           Actions:

@@ -56,7 +56,7 @@ jobs:
         run: |
           EXECUTION_ID=$(aws codepipeline start-pipeline-execution \
             --name ${{ steps.pipeline-deploy.outputs.PipelineName }} \
-            --source-revisions actionName=SourceAction,revisionType=COMMIT_ID,revisionValue=${{ github.sha }} \
+            --source-revisions actionName=CheckoutSynapseRepo,revisionType=COMMIT_ID,revisionValue=${{ github.sha }} \
             --query 'pipelineExecutionId' --output text)
 
           echo "Pipeline execution ID: $EXECUTION_ID"

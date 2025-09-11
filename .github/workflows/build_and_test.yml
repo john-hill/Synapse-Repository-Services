@@ -29,6 +29,10 @@ jobs:
           aws-region: us-east-1
           # eight hours
           role-duration-seconds: 28800
+
+      - name: checkout
+        uses: actions/checkout@v5
+
       - name: Deploy CodePipeline to AWS CloudFormation
         uses: aws-actions/aws-cloudformation-github-deploy@v1
         with:

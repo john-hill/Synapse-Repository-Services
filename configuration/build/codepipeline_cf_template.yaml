@@ -1,11 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: CloudFormation template to create AWS CodeBuild project
 Parameters:
-  PipelineName:
-    Type: String
-    Description: Name for the Pipeline
-    AllowedPattern: ".+"
-    ConstraintDescription: Parameter cannot be empty.
   SynapseRepository:
     Type: String
     Default: Synapse-Repository-Services
@@ -49,6 +44,13 @@ Parameters:
     Type: CommaDelimitedList
     Description: Security group IDs for CodeBuild to use.  Default is a security group for synapse-dev.
     Default: sg-0818ba0f1872103d4
+Outputs:
+  PipelineName:
+    Value:
+      Ref: CodePipeline.Name
+    Export:
+      Name:
+        Fn::Sub: ${AWS::StackName}-pipeline-name
 Resources:
   CodePipelineServiceRole:
     Type: AWS::IAM::Role

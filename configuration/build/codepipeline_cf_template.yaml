@@ -136,7 +136,7 @@ Resources:
                 Repo: !Ref SynapseRepository
                 Branch: !Ref SynapseBranch
                 OAuthToken: !Ref GitHubToken
-                DetectChanges: false # instead we will trigger from GitHub workflow
+                PollForSourceChanges: false # instead we will trigger from GitHub workflow
               RunOrder: 1
         - Name: BuildSynapseRepo
           Actions:

@@ -1,6 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: CloudFormation template to create AWS CodeBuild project
 Parameters:
+  PipelineName:
+    Type: String
+    Description: Name for the Pipeline
+    AllowedPattern: ".+"
+    ConstraintDescription: Parameter cannot be empty.
   SynapseRepository:
     Type: String
     Default: Synapse-Repository-Services

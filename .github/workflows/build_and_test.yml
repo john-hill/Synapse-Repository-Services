@@ -6,6 +6,10 @@ on:
   push:
     branches: ['*']
 
+env:
+  # TODO make unique
+  pipeline_name: SynapseCodePipeline
+  
 jobs:
   build_and_test:
     permissions:
@@ -47,17 +51,16 @@ jobs:
           name: CodePipeline
           template: configuration/build/codepipeline_cf_template.yaml
           parameter-overrides: >-
+            PipelineName=${{ env.pipeline_name }},
             SynapseBranch=${{ env.branch }},
             SynapseRepoOwner=${{ github.repository_owner }},
             GitHubToken=${{ secrets.GITHUB_TOKEN }},
             BuildParamUser=${{ env.user }}
-        outputs:
-          - name: CodePipeline
 
       - name: Trigger CodePipeline
         run: |
           EXECUTION_ID=$(aws codepipeline start-pipeline-execution \
-            --name ${{ steps.pipeline.outputs.name }} \
+            --name ${{ env.pipeline_name }} \
             --source-revisions actionName=SourceAction,revisionType=COMMIT_ID,revisionValue=${{ github.sha }} \
             --query 'pipelineExecutionId' --output text)
 
@@ -65,5 +68,5 @@ jobs:
 
           # Wait for completion (optional)
           aws codepipeline wait pipeline-execution-succeeded \
-            --pipeline-name ${{ steps.pipeline.outputs.name }} \
+            --pipeline-name ${{ env.pipeline_name }} \
             --pipeline-execution-id $EXECUTION_ID

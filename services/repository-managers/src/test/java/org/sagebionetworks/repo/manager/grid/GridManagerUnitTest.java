@@ -187,6 +187,7 @@ public class GridManagerUnitTest {
 		listGridSessionRequest = new ListGridSessionsRequest().setSourceId(tableId);
 		gridSession = new GridSession();
 		gridSessions = List.of(gridSession);
+		recordSet = new RecordSet().setId("987");
 	}
 
 	@Test

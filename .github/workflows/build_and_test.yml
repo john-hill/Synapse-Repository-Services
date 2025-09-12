@@ -61,7 +61,19 @@ jobs:
 
           echo "Pipeline execution ID: $EXECUTION_ID"
 
-          # Wait for completion (optional)
-          aws codepipeline wait pipeline-execution-succeeded \
-            --pipeline-name ${{ steps.pipeline-deploy.outputs.PipelineName }} \
-            --pipeline-execution-id $EXECUTION_ID
+          # Wait for completion
+          while true; do
+            STATUS=$(aws codepipeline get-pipeline-state --name ${{ steps.pipeline-deploy.outputs.PipelineName }} --query "stageStates[?latestExecution.pipelineExecutionId=='$EXECUTION_ID'].latestExecution.status" --output text | tr '\t' '\n' | sort | uniq)
+
+            if [[ "$STATUS" == "Succeeded" ]]; then
+              echo "Pipeline execution $EXECUTION_ID succeeded."
+              break
+            elif [[ "$STATUS" == "Failed" || "$STATUS" == "Stopped" ]]; then
+              echo "Pipeline execution $EXECUTION_ID finished with status: $STATUS"
+              exit 1
+            else
+              echo "Pipeline execution $EXECUTION_ID is still in progress. Current status: $STATUS. Waiting..."
+              sleep 30 # Wait for 30 seconds before checking again
+            fi
+          done
+

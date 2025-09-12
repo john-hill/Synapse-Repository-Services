@@ -80,7 +80,7 @@ jobs:
           while true; do
             STATUS_RECORD=$(aws codepipeline get-pipeline-state --name ${{ steps.pipeline-deploy.outputs.PipelineName }} --query "stageStates[?latestExecution.pipelineExecutionId=='$EXECUTION_ID'].latestExecution.status" --output text)
             echo STATUS_RECORD ${STATUS_RECORD}
-            STATUS=$(${STATUS_RECORD} | tr '\t' '\n' | sort | uniq)
+            STATUS=$(echo ${STATUS_RECORD} | tr '\t' '\n' | sort | uniq)
 
             if [[ "$STATUS" =~ "Failed" || "$STATUS" =~ "Stopped" ]]; then
               echo "Pipeline execution $EXECUTION_ID finished with status: $STATUS"

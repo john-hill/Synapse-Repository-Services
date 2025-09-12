@@ -263,6 +263,8 @@ import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
 import org.sagebionetworks.repo.model.grid.CreateReplicaResponse;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridRequest;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
+import org.sagebionetworks.repo.model.grid.GridRecordSetExportRequest;
+import org.sagebionetworks.repo.model.grid.GridRecordSetExportResponse;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
@@ -6532,6 +6534,16 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
     @Override
     public DownloadFromGridResult exportGridAsCsvAsyncGet(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException {
         return (DownloadFromGridResult) getAsyncResult(AsynchJobType.GridCsvDownload, asyncJobToken);
+    }
+    
+    @Override
+    public String exportGridRecordSetAsyncStart(GridRecordSetExportRequest request) throws SynapseException {
+    	return startAsynchJob(AsynchJobType.GridExportRecordSet, request);
+    }
+    
+    @Override
+    public GridRecordSetExportResponse exportGridRecordSetAsyncGet(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException {
+    	return (GridRecordSetExportResponse) getAsyncResult(AsynchJobType.GridExportRecordSet, asyncJobToken);
     }
 
     @Override

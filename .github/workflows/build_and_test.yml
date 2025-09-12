@@ -1,4 +1,4 @@
---
+---
 #
 # This workflow runs the Synapse Stack Builder and then builds and runs the tests
 # for the Synapse Repository Services.
@@ -86,4 +86,4 @@ jobs:
               sleep 30 # Wait for 30 seconds before checking again
             fi
           done
-
+...

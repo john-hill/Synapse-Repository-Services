@@ -3,11 +3,11 @@
 # This workflow runs the Synapse Stack Builder and then builds and runs the tests
 # for the Synapse Repository Services.
 #
-# These parameters can be overridden with repo's environment variables:
+# These parameters can be overridden with repo's action variables:
 #
-# - user (the 'user' parameter for the Synapse build): defaults to repo' owner
-# - stack_builder_repo_owner: defaults to Sage-Bionetworks
-# - stack_builder_branch: defaults to develop
+# - USER (the 'user' parameter for the Synapse build): defaults to repo' owner
+# - STACK_BUILDER_REPO_OWNER: defaults to Sage-Bionetworks
+# - STACK_BUILDER_BRANCH: defaults to develop
 #
 name: main
 
@@ -32,13 +32,13 @@ jobs:
     steps:
       - run: |
           # get the 'user' parameter, either from the repo' env or repo' owner if not set
-          if [ ! ${{ env.user }} ]; then
+          if [ ! ${{ vars.USER }} ]; then
             echo "user=$GITHUB_REPOSITORY_OWNER" >> $GITHUB_ENV
           fi
           # capture the current branch as an environment variable
           echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
-          echo "stack_builder_branch=${{ env.stack_builder_branch }}" >> $GITHUB_ENV
-          echo "stack_builder_repo_owner=${{ env.stack_builder_repo_owner }}" >> $GITHUB_ENV
+          echo "stack_builder_branch=${{ vars.STACK_BUILDER_BRANCH }}" >> $GITHUB_ENV
+          echo "stack_builder_repo_owner=${{ vars.STACK_BUILDER_REPO_OWNER }}" >> $GITHUB_ENV
 
       - uses: aws-actions/configure-aws-credentials@v1
         with:
@@ -62,8 +62,8 @@ jobs:
             SynapseRepoOwner=${{ github.repository_owner }},
             GitHubToken=${{ secrets.GITHUB_TOKEN }},
             BuildParamUser=${{ env.user }},
-            StackBuilderBranch=${{ env.stack_builder_repo_owner }},
-            StackBuilderRepoOwner=${{ env.stack_builder_branch }}
+            StackBuilderBranch=${{ env.stack_builder_branch }},
+            StackBuilderRepoOwner=${{ env.stack_builder_repo_owner }}
 
       - name: Trigger CodePipeline
         run: |

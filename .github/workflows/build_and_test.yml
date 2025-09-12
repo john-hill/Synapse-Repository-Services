@@ -54,6 +54,7 @@ jobs:
         id: pipeline-deploy
         with:
           template: configuration/build/codepipeline_cf_template.yaml
+          name: Synapse-Build-${{ env.user }}
           parameter-overrides: >-
             SynapseBranch=${{ env.branch }},
             SynapseRepoOwner=${{ github.repository_owner }},

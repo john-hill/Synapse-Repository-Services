@@ -37,6 +37,8 @@ jobs:
           fi
           # capture the current branch as an environment variable
           echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
+          echo "stack_builder_branch=${{ env.stack_builder_branch }}" >> $GITHUB_ENV
+          echo "stack_builder_repo_owner=${{ env.stack_builder_repo_owner }}" >> $GITHUB_ENV
 
       - uses: aws-actions/configure-aws-credentials@v1
         with:

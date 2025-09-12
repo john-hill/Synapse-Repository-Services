@@ -35,6 +35,8 @@ import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.schema.ValidationSummaryStatistics;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.repo.service.EntityService;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @ExtendWith(MockitoExtension.class)
 public class GridRecordSetExporterImplTest {
@@ -47,6 +49,8 @@ public class GridRecordSetExporterImplTest {
 	private EntityService mockEntityService;
 	@Mock
 	private EntitySchemaValidationResultDao mockValidationResultDao;
+	@Mock
+	private TransactionTemplate mockTxTemplate;
 	
 	@InjectMocks
 	private GridRecordSetExporterImpl exporter;
@@ -114,6 +118,12 @@ public class GridRecordSetExporterImplTest {
 				return new DownloadFromGridResult()
 					.setResultsFileHandleId(fileHandleId);
 			});
+		
+		when(mockTxTemplate.execute(any())).then(invocation -> {
+			// Simulate the transaction callback
+			TransactionCallback<RecordSet> callback = invocation.getArgument(0);
+			return callback.doInTransaction(null);
+		});
 		
 		when(mockEntityService.updateEntity(userId, recordSet, true, null))
 			.then(invocation -> {

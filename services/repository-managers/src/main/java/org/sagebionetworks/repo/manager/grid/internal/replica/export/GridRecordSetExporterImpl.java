@@ -20,9 +20,9 @@ import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.schema.ValidationSummaryStatistics;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.repo.service.EntityService;
+import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class GridRecordSetExporterImpl implements GridRecordSetExporter {
@@ -31,17 +31,16 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 	private final EntityService entityService;
 	private final GridReplicaCsvExporter csvExporter;
 	private final EntitySchemaValidationResultDao validationResultDao;
-	private final TransactionTemplate transactionTemplate;
 	
-	public GridRecordSetExporterImpl(GridManager gridManager, EntityService entityService, GridReplicaCsvExporter csvExporter, EntitySchemaValidationResultDao validationResultDao, TransactionTemplate readCommitedTransactionTemplate) {
+	public GridRecordSetExporterImpl(GridManager gridManager, EntityService entityService, GridReplicaCsvExporter csvExporter, EntitySchemaValidationResultDao validationResultDao) {
 		this.gridManager = gridManager;
 		this.entityService = entityService;
 		this.csvExporter = csvExporter;
 		this.validationResultDao = validationResultDao;
-		this.transactionTemplate = readCommitedTransactionTemplate;
 	}
 	
 	@Override
+	@WriteTransaction
 	public GridRecordSetExportResponse exportGrid(UserInfo user, GridRecordSetExportRequest request, AsyncJobProgressCallback jobCallback) {
 		ValidateArgument.required(user, "user");
 		ValidateArgument.required(request, "request");
@@ -60,7 +59,7 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 		// First export to a CSV file
 		String exportedFileId = exportToCsv(user, gridSession.getSessionId(), recordSet.getCsvDescriptor(), jobCallback, validationSummaryBuilder);
 		
-		// Creates a new version of the record set that points to the new file
+		// Creates a new version of the record set that points to the new file and persist the validation summary
 		recordSet = createNewVersion(user, recordSet, exportedFileId, validationSummaryBuilder.getValidationSummary());
 		
 		return new GridRecordSetExportResponse()
@@ -89,25 +88,22 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 	}
 	
 	RecordSet createNewVersion(UserInfo user, RecordSet recordSet, String newFileHandleId, ValidationSummaryStatistics validationSummary) {
-		return transactionTemplate.execute(status -> {
-			
-			recordSet.setDataFileHandleId(newFileHandleId);
-			recordSet.setVersionLabel(null);
-			
-			// Updates the entity
-			RecordSet updated = entityService.updateEntity(user.getId(), recordSet, true, null);
-			
-			Long recordSetId = KeyFactory.stringToKey(recordSet.getId());
-			Long recordSetVersion = recordSet.getVersionNumber();
-			
-			// Persists the validation summary 
-			validationResultDao.setRecordSetValidationSummaryStatistics(recordSetId, recordSetVersion, validationSummary);
-			
-			// We set this manually to avoid reading the entity again
-			updated.setValidationSummary(validationSummary);
-			
-			return updated;
-		});
+		recordSet.setDataFileHandleId(newFileHandleId);
+		recordSet.setVersionLabel(null);
+		
+		// Updates the entity
+		RecordSet updated = entityService.updateEntity(user.getId(), recordSet, true, null);
+		
+		Long recordSetId = KeyFactory.stringToKey(recordSet.getId());
+		Long recordSetVersion = updated.getVersionNumber();
+		
+		// Persists the validation summary 
+		validationResultDao.setRecordSetValidationSummaryStatistics(recordSetId, recordSetVersion, validationSummary);
+		
+		// We set this manually to avoid reading the entity again
+		updated.setValidationSummary(validationSummary);
+		
+		return updated;
 	}
 	
 	final class ValidationSummaryBuilder implements RowViewCallbackHandler {

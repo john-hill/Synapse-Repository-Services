@@ -32,7 +32,9 @@ jobs:
     steps:
       - run: |
           # get the 'user' parameter, either from the repo' env or repo' owner if not set
-          if [ ! ${{ vars.USER }} ]; then
+          if [ ${{ vars.USER }} ]; then
+            echo "user=${{ vars.USER }}" >> $GITHUB_ENV
+          elif
             echo "user=$GITHUB_REPOSITORY_OWNER" >> $GITHUB_ENV
           fi
           # capture the current branch as an environment variable

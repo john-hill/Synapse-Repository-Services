@@ -14,6 +14,18 @@ Parameters:
     Description: Owner of the Synapse Repo to build
     AllowedPattern: ".+"
     ConstraintDescription: Parameter cannot be empty.
+  StackBuilderRepository:
+    Type: String
+    Default: Synapse-Stack-Builder
+    Description: Stack Builder repository name
+  StackBuilderBranch:
+    Type: String
+    Default: develop
+    Description: Branch of the StackBuilder repo to build
+  StackBuilderRepoOwner:
+    Type: String
+    Default: Sage-Bionetworks
+    Description: Owner of the StackBuilder Repo
   GitHubToken:
     Type: String
     Description: Token to authorize GitHub requests
@@ -127,6 +139,39 @@ Resources:
         Location: !Ref PipelineOutputBucket
       PipelineType: V2
       Stages:
+        - Name: CheckoutStackBuilderRepo
+          Actions:
+            - Name: CheckoutStackBuilderRepo
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Provider: GitHub
+                Version: 1
+              OutputArtifacts:
+                - Name: StackBuilderRepoSource
+              Configuration:
+                Owner: !Ref StackBuilderRepoOwner
+                Repo: !Ref StackBuilderRepository
+                Branch: !Ref StackBuilderBranch
+                OAuthToken: !Ref GitHubToken
+                PollForSourceChanges: false # instead we will trigger from GitHub workflow
+        - Name: RunStackBuilder
+          Actions:
+            - Name: RunStackBuilder
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              InputArtifacts:
+                - Name: StackBuilderRepoSource
+              OutputArtifacts:
+                - Name: StackBuilderRepoBuildOutput
+              Configuration:
+                ProjectName: !Ref CodeBuildProject
+                # TODO what env vars and build spec does the StackBuilder need
+                EnvironmentVariables: !Sub '[{"name":"user","type":"PLAINTEXT","value": "${BuildParamUser}"}]'
+                BuildspecOverride: configuration/build/buildspec.yml
         - Name: CheckoutSynapseRepo
           Actions:
             - Name: CheckoutSynapseRepo
@@ -143,10 +188,9 @@ Resources:
                 Branch: !Ref SynapseBranch
                 OAuthToken: !Ref GitHubToken
                 PollForSourceChanges: false # instead we will trigger from GitHub workflow
-              RunOrder: 1
         - Name: BuildSynapseRepo
           Actions:
-            - Name: Build
+            - Name: BuildSynapseRepo
               ActionTypeId:
                 Category: Build
                 Owner: AWS
@@ -160,7 +204,6 @@ Resources:
                 ProjectName: !Ref CodeBuildProject
                 EnvironmentVariables: !Sub '[{"name":"user","type":"PLAINTEXT","value": "${BuildParamUser}"}]'
                 BuildspecOverride: configuration/build/buildspec.yml
-              RunOrder: 2
   # A CodeBuild project that can be used to run the stack builder or to build the Synapse back-end
   CodeBuildProject:
     Type: AWS::CodeBuild::Project

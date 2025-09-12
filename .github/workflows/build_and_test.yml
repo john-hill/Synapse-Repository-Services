@@ -1,3 +1,14 @@
+--
+#
+# This workflow runs the Synapse Stack Builder and then builds and runs the tests
+# for the Synapse Repository Services.
+#
+# These parameters can be overridden with repo's environment variables:
+#
+# - user (the 'user' parameter for the Synapse build): defaults to repo' owner
+# - stack_builder_repo_owner: defaults to Sage-Bionetworks
+# - stack_builder_branch: defaults to develop
+#
 name: main
 
 on:
@@ -20,17 +31,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          if [ ${{ env.user }} ]; then
-            echo "user=${{ env.user }}" >> $GITHUB_ENV
-          else
-            echo "user=p3bhoff" >> $GITHUB_ENV
-            # echo "user=$GITHUB_REPOSITORY_OWNER" >> $GITHUB_ENV
+          # get the 'user' parameter, either from the repo' env or repo' owner if not set
+          if [ ! ${{ env.user }} ]; then
+            echo "user=$GITHUB_REPOSITORY_OWNER" >> $GITHUB_ENV
           fi
+          # capture the current branch as an environment variable
           echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
 
       - uses: aws-actions/configure-aws-credentials@v1
         with:
-          # TODO we should create a role for dev' repo's to use
+          # TODO create a dedicated role
           role-to-assume: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev
           aws-region: us-east-1
           # eight hours
@@ -43,14 +53,14 @@ jobs:
         uses: aws-actions/aws-cloudformation-github-deploy@v1
         id: pipeline-deploy
         with:
-          # TODO give it a unique name
-          name: CodePipeline
           template: configuration/build/codepipeline_cf_template.yaml
           parameter-overrides: >-
             SynapseBranch=${{ env.branch }},
             SynapseRepoOwner=${{ github.repository_owner }},
             GitHubToken=${{ secrets.GITHUB_TOKEN }},
-            BuildParamUser=${{ env.user }}
+            BuildParamUser=${{ env.user }},
+            StackBuilderBranch=${{ env.stack_builder_repo_owner }},
+            StackBuilderRepoOwner=${{ env.stack_builder_branch }}
 
       - name: Trigger CodePipeline
         run: |

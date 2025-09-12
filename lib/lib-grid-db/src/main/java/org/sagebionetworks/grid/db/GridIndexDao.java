@@ -285,4 +285,12 @@ public interface GridIndexDao extends ConstantProvider {
 	 */
 	void truncateAll();
 
+	/**
+	 * The maximum sequence number from the replica's clock.
+	 * @param gridSessionId
+	 * @param replicaId
+	 * @return
+	 */
+	Long getClockSequenceMaximum(String gridSessionId, Long replicaId);
+
 }

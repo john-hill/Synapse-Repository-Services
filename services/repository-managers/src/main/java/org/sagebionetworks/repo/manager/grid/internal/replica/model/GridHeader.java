@@ -16,6 +16,7 @@ public class GridHeader {
 	private LogicalTimestamp rowsId;
 	private LogicalTimestamp columnOrderArrId;
 	private LogicalTimestamp columnNamesVecId;
+	private Long clockSequenceMaximum;
 
 	public LogicalTimestamp getColumnOrderArrId() {
 		return columnOrderArrId;
@@ -89,10 +90,31 @@ public class GridHeader {
 		return nodeId;
 	}
 
+	/**
+	 * The maximum sequence number from the replica's clock at the time of the
+	 * query.
+	 * 
+	 * @return
+	 */
+	public Long getClockSequenceMaximum() {
+		return clockSequenceMaximum;
+	}
+
+	/**
+	 * The maximum sequence number from the replica's clock at the time of the
+	 * query.
+	 * 
+	 * @return
+	 */
+	public GridHeader setClockSequenceMaximum(Long clockSequenceMaximum) {
+		this.clockSequenceMaximum = clockSequenceMaximum;
+		return this;
+	}
+
 	@Override
 	public int hashCode() {
-		return Objects.hash(columnNamesVecId, columnOrderArrId, documentVersion, nodeId, orderedColumns, replicaId,
-				rowsId, sessionId);
+		return Objects.hash(clockSequenceMaximum, columnNamesVecId, columnOrderArrId, documentVersion, nodeId,
+				orderedColumns, replicaId, rowsId, sessionId);
 	}
 
 	@Override
@@ -104,7 +126,8 @@ public class GridHeader {
 		if (getClass() != obj.getClass())
 			return false;
 		GridHeader other = (GridHeader) obj;
-		return Objects.equals(columnNamesVecId, other.columnNamesVecId)
+		return Objects.equals(clockSequenceMaximum, other.clockSequenceMaximum)
+				&& Objects.equals(columnNamesVecId, other.columnNamesVecId)
 				&& Objects.equals(columnOrderArrId, other.columnOrderArrId)
 				&& Objects.equals(documentVersion, other.documentVersion) && Objects.equals(nodeId, other.nodeId)
 				&& Objects.equals(orderedColumns, other.orderedColumns) && Objects.equals(replicaId, other.replicaId)
@@ -115,7 +138,8 @@ public class GridHeader {
 	public String toString() {
 		return "GridHeader [sessionId=" + sessionId + ", replicaId=" + replicaId + ", nodeId=" + nodeId
 				+ ", documentVersion=" + documentVersion + ", orderedColumns=" + orderedColumns + ", rowsId=" + rowsId
-				+ ", columnOrderArrId=" + columnOrderArrId + ", columnNamesVecId=" + columnNamesVecId + "]";
+				+ ", columnOrderArrId=" + columnOrderArrId + ", columnNamesVecId=" + columnNamesVecId
+				+ ", clockSequenceMaximum=" + clockSequenceMaximum + "]";
 	}
 
 }

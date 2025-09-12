@@ -2,6 +2,7 @@ package org.sagebionetworks.grid.workers;
 
 import java.util.Set;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.asynchronous.workers.sqs.MessageUtils;
@@ -41,7 +42,7 @@ public class GridReplicaValidationWorker implements MessageDrivenRunner {
 			return;
 		}
 		try {
-			log.info("New changeSet: {}", changeSet);
+			log.info("New changeSet: {}", StringUtils.truncate(changeSet.toJson(), 200));
 			manager.validateChanges(changeSet.getSessionId(), changeSet.getReplicaId(), changeSet.getConnectionId(),
 					changedVectorIds);
 		} catch (RecoverableMessageException e) {

@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.repo.manager.grid.GridManager;
@@ -51,7 +52,7 @@ public class GridReplicaWorker implements MessageDrivenRunner {
 				return;
 			}
 			GridConnectionInfo connection = conOption.get();
-			log.info("New message for connectionId: {}, body: {}", connectionId, body);
+			log.info("New message for connectionId: {}, body: {}", connectionId, StringUtils.truncate(body, 200));
 			dispatcher.dispatchMessage(new JsonRxMessageBundle(new JsonRxMessage(body), connection, progressCallback));
 		} catch (RecoverableMessageException e) {
 			log.info("Will retry message for connectionId: {}, body: {}", connectionId, body);

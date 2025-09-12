@@ -125,6 +125,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
         - arn:aws:iam::aws:policy/SecretsManagerReadWrite
+        # TODO provide admin access, much like we do today
       Policies:
         - PolicyName: CodeBuildPolicy
           PolicyDocument:

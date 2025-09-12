@@ -82,10 +82,10 @@ public class GridRecordSetExportWorkerTest {
         
         when(mockSemaphore.tryRunWithWriteLock(eq(writeLockRequest), any())).thenThrow(ex);
         
-        assertEquals(ex, assertThrows(IllegalArgumentException.class, () -> {        	
+        assertEquals(ex, assertThrows(RecoverableMessageException.class, () -> {        	
         	// call under test
         	worker.run(jobId, userInfo, request, mockJobProgressCallback);
-        }, "The grid cannot be exported at this time, an export job is already in progress.").getCause());
+        }).getCause());
     }
 
     @Test
@@ -103,7 +103,7 @@ public class GridRecordSetExportWorkerTest {
         assertEquals(ex, assertThrows(RecoverableMessageException.class, () -> {
             // call under test
             worker.run(jobId, userInfo, request, mockJobProgressCallback);
-        }, "recoverable"));
+        }));
     }
 
     @Test
@@ -121,7 +121,7 @@ public class GridRecordSetExportWorkerTest {
         assertEquals(ex, assertThrows(RuntimeException.class, () -> {
             // call under test
             worker.run(jobId, userInfo, request, mockJobProgressCallback);
-        }, "Bad stuff happened"));
+        }));
     }
 
 }

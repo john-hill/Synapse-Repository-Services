@@ -54,8 +54,8 @@ public class GridRecordSetExportWorker implements AsyncJobRunner<GridRecordSetEx
 		} catch (RecoverableMessageException e) {
 			throw e;
 		} catch (LockUnavilableException e) {
-			LOGGER.warn("Could not export a record set grid, an export job is already in progress: " + e.getMessage(), e);
-			throw new IllegalArgumentException("The grid cannot be exported at this time, an export job is already in progress.", e);
+			LOGGER.warn("Failed to export a record set grid (will retry): " + e.getMessage());
+			throw new RecoverableMessageException(e);
 		} catch (Exception e) {
 			LOGGER.error("Failed to export a record set grid: " + e.getMessage(), e);
 			throw e;

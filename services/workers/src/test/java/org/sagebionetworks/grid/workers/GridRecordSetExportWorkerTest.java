@@ -31,7 +31,7 @@ public class GridRecordSetExportWorkerTest {
     @Mock
     private AsyncJobProgressCallback mockJobProgressCallback;
     @Mock
-    private WriteReadSemaphore mockSempahore;
+    private WriteReadSemaphore mockSemaphore;
 
     @InjectMocks
     private GridRecordSetExportWorker worker;
@@ -62,7 +62,7 @@ public class GridRecordSetExportWorkerTest {
 
     @Test
     public void testRun() throws Exception {        
-        when(mockSempahore.tryRunWithWriteLock(eq(writeLockRequest), any())).thenAnswer(i -> {
+        when(mockSemaphore.tryRunWithWriteLock(eq(writeLockRequest), any())).thenAnswer(i -> {
 			ProgressingCallable<GridRecordSetExportResponse> callable = i.getArgument(1);			
 			return callable.call(mockJobProgressCallback);
 		});
@@ -80,7 +80,7 @@ public class GridRecordSetExportWorkerTest {
         
         LockUnavilableException ex = new LockUnavilableException(LockType.Write, "key", "context");
         
-        when(mockSempahore.tryRunWithWriteLock(eq(writeLockRequest), any())).thenThrow(ex);
+        when(mockSemaphore.tryRunWithWriteLock(eq(writeLockRequest), any())).thenThrow(ex);
         
         assertEquals(ex, assertThrows(IllegalArgumentException.class, () -> {        	
         	// call under test
@@ -91,7 +91,7 @@ public class GridRecordSetExportWorkerTest {
     @Test
     public void testRunWithRecoverableMessageException() throws Exception {
         when(mockJobProgressCallback.getLockTimeoutSeconds()).thenReturn(60L);
-        when(mockSempahore.tryRunWithWriteLock(eq(writeLockRequest), any())).thenAnswer(i -> {
+        when(mockSemaphore.tryRunWithWriteLock(eq(writeLockRequest), any())).thenAnswer(i -> {
 			ProgressingCallable<GridRecordSetExportResponse> callable = i.getArgument(1);			
 			return callable.call(mockJobProgressCallback);
 		});
@@ -109,7 +109,7 @@ public class GridRecordSetExportWorkerTest {
     @Test
     public void testRunWithUnknownException() throws Exception {
     	when(mockJobProgressCallback.getLockTimeoutSeconds()).thenReturn(60L);
-        when(mockSempahore.tryRunWithWriteLock(eq(writeLockRequest), any())).thenAnswer(i -> {
+        when(mockSemaphore.tryRunWithWriteLock(eq(writeLockRequest), any())).thenAnswer(i -> {
 			ProgressingCallable<GridRecordSetExportResponse> callable = i.getArgument(1);			
 			return callable.call(mockJobProgressCallback);
 		});

@@ -127,17 +127,7 @@ Resources:
         # TODO REMOVE - arn:aws:iam::aws:policy/SecretsManagerReadWrite
         # provide admin access, as in the "synapse-dev-cmk-SynapseDeploymentRole" we used previously
         - arn:aws:iam::aws:policy/AdministratorAccess
-      Policies:
-        - PolicyName: KMSPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              # Permission to access KMS
-              - Effect: Allow
-                Action:
-                  - kms:*
-                Resource:
-                  - '*'
+#      Policies:
 # TODO Remove
 #        - PolicyName: CodeBuildPolicy
 #          PolicyDocument:

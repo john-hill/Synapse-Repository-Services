@@ -158,7 +158,7 @@ Resources:
         Location: !Ref PipelineOutputBucket
       PipelineType: V2
       Stages:
-        - Name: CheckoutStackBuilderRepo
+        - Name: CheckoutRepos
           Actions:
             - Name: CheckoutStackBuilderRepo
               ActionTypeId:
@@ -172,6 +172,20 @@ Resources:
                 Owner: !Ref StackBuilderRepoOwner
                 Repo: !Ref StackBuilderRepository
                 Branch: !Ref StackBuilderBranch
+                OAuthToken: !Ref GitHubToken
+                PollForSourceChanges: false # instead we will trigger from GitHub workflow
+            - Name: CheckoutSynapseRepo
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Provider: GitHub
+                Version: 1
+              OutputArtifacts:
+                - Name: SynapseRepoSource
+              Configuration:
+                Owner: !Ref SynapseRepoOwner
+                Repo: !Ref SynapseRepository
+                Branch: !Ref SynapseBranch
                 OAuthToken: !Ref GitHubToken
                 PollForSourceChanges: false # instead we will trigger from GitHub workflow
         - Name: RunStackBuilder
@@ -191,22 +205,6 @@ Resources:
                 # TODO what env vars and build spec does the StackBuilder need
                 EnvironmentVariables: !Sub '[{"name":"user","type":"PLAINTEXT","value": "${BuildParamUser}"}]'
                 BuildspecOverride: configuration/build/buildspec.yml
-        - Name: CheckoutSynapseRepo
-          Actions:
-            - Name: CheckoutSynapseRepo
-              ActionTypeId:
-                Category: Source
-                Owner: ThirdParty
-                Provider: GitHub
-                Version: 1
-              OutputArtifacts:
-                - Name: SynapseRepoSource
-              Configuration:
-                Owner: !Ref SynapseRepoOwner
-                Repo: !Ref SynapseRepository
-                Branch: !Ref SynapseBranch
-                OAuthToken: !Ref GitHubToken
-                PollForSourceChanges: false # instead we will trigger from GitHub workflow
         - Name: BuildSynapseRepo
           Actions:
             - Name: BuildSynapseRepo

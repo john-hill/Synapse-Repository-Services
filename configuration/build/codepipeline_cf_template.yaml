@@ -115,6 +115,8 @@ Resources:
   CodeBuildServiceRole:
     Type: AWS::IAM::Role
     Properties:
+      # Note: This name is referenced in the Stack Builder too
+      Name: !Sub 'Synapse-Build-${BuildParamUser}-CodeBuildServiceRole'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:

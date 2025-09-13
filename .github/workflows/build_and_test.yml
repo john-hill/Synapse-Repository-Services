@@ -86,7 +86,6 @@ jobs:
             # this is the status of just the final stage, or an empty sting if it hasn't started
             FINAL_STAGE_STATUS=$(aws codepipeline get-pipeline-state --name ${{ steps.pipeline-deploy.outputs.PipelineName }} \
               --query "stageStates[?(latestExecution.pipelineExecutionId=='$EXECUTION_ID' && stageName=='$FINAL_STAGE')].latestExecution.status" --output text)
-            echo ALL_STAGE_STATUSES ${ALL_STAGE_STATUSES} FINAL_STAGE_STATUS ${FINAL_STAGE_STATUS}
 
             if [[ "$ALL_STAGE_STATUSES" =~ "Failed" || "$ALL_STAGE_STATUSES" =~ "Stopped" ]]; then
               # if there is a failure in any stage we stop

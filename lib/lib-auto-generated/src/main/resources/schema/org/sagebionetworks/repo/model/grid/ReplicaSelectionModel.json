@@ -1,5 +1,5 @@
 {
-	"description": "Defines a user's selection of columns and rows for a replica",
+	"description": "Defines a user's selection of columns and rows for a replica.",
 	"properties": {
 		"columnSelection": {
 			"description": "Each SelectionId is an arr node's id from the 'columnOrder' array",
@@ -14,6 +14,6 @@
 			"items": {
 				"$ref": "org.sagebionetworks.repo.model.grid.CrdtId"
 			}
-		},
+		}
 	}
 }

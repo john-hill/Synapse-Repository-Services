@@ -1,3 +1,6 @@
+#
+# Buildspec referenced in codepipeline_cf_template.yaml
+#
 version: 0.2
 env:
   variables:
@@ -23,7 +26,6 @@ phases:
       - sudo dnf -y update && sudo dnf install -y mariadb105
   build:
     commands:
-      # At this point the AWS role is codebuild-plfm9092-service-role, the service role associated with the Code Build project
       - aws sts get-caller-identity
       - STS_CREDENTIALS=$(curl -L http://169.254.170.2/$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI)
       - export org_sagebionetworks_stack_iam_id=$(echo $STS_CREDENTIALS | jq -r '.AccessKeyId')

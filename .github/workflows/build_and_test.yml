@@ -78,19 +78,26 @@ jobs:
           echo "Pipeline execution ID: $EXECUTION_ID"
 
           # Wait for completion
+          FINAL_STAGE="BuildSynapseRepo"
           while true; do
-            FINAL_STAGE="BuildSynapseRepo"
-            STATUS_RECORD=$(aws codepipeline get-pipeline-state --name ${{ steps.pipeline-deploy.outputs.PipelineName }} --query "stageStates[?(latestExecution.pipelineExecutionId=='$EXECUTION_ID' && stageName=='$FINAL_STAGE')].latestExecution.status" --output text)
-            echo STATUS_RECORD ${STATUS_RECORD}
-            STATUS=$(echo ${STATUS_RECORD} | tr '\t' '\n' | sort | uniq)
+            # this is a list of the statuses of all the stages that have started
+            ALL_STAGE_STATUSES=$(aws codepipeline get-pipeline-state --name ${{ steps.pipeline-deploy.outputs.PipelineName }} \
+              --query "stageStates[?(latestExecution.pipelineExecutionId=='$EXECUTION_ID')].latestExecution.status" --output text)
+            # this is the status of just the final stage, or an empty sting if it hasn't started
+            FINAL_STAGE_STATUS=$(aws codepipeline get-pipeline-state --name ${{ steps.pipeline-deploy.outputs.PipelineName }} \
+              --query "stageStates[?(latestExecution.pipelineExecutionId=='$EXECUTION_ID' && stageName=='$FINAL_STAGE')].latestExecution.status" --output text)
+            echo ALL_STAGE_STATUSES ${ALL_STAGE_STATUSES} FINAL_STAGE_STATUS ${FINAL_STAGE_STATUS}
 
-            if [[ "$STATUS" == "Failed" || "$STATUS" == "Stopped" ]]; then
-              echo "Pipeline execution $EXECUTION_ID finished with status: $STATUS"
+            if [[ "$ALL_STAGE_STATUSES" =~ "Failed" || "$ALL_STAGE_STATUSES" =~ "Stopped" ]]; then
+              # if there is a failure in any stage we stop
+              echo "Pipeline execution $EXECUTION_ID finished with stage statuses: $ALL_STAGE_STATUSES"
               exit 1
-            elif [[ "$STATUS" == "InProgress" ]]; then
+            elif [[ "$FINAL_STAGE_STATUS" == "InProgress" || "$FINAL_STAGE_STATUS" == "" ]]; then
+              # if the final stage hasn't started yet or is in progress, we continue
               echo "Pipeline execution $EXECUTION_ID is still in progress. Current status: $STATUS. Waiting..."
               sleep 30 # Wait for 30 seconds before checking again
-            elif [[ "$STATUS" == "Succeeded" ]]; then
+            elif [[ "$FINAL_STAGE_STATUS" == "Succeeded" ]]; then
+              # if the final stage has succeeded then we're done
               echo "Pipeline execution $EXECUTION_ID succeeded."
               break
             else

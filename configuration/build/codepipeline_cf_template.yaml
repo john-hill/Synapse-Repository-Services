@@ -125,27 +125,7 @@ Resources:
               Service: codebuild.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
-        # TODO REMOVE - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
-        # TODO REMOVE - arn:aws:iam::aws:policy/SecretsManagerReadWrite
-        # provide admin access, as in the "synapse-dev-cmk-SynapseDeploymentRole" we used previously
         - arn:aws:iam::aws:policy/AdministratorAccess
-#      Policies:
-# TODO Remove
-#        - PolicyName: CodeBuildPolicy
-#          PolicyDocument:
-#            Version: '2012-10-17'
-#            Statement:
-#              # Permission to access artifacts
-#              - Effect: Allow
-#                Action:
-#                  - s3:GetObject
-#                  - s3:PutObject
-#                Resource: !Sub "${PipelineOutputBucket.Arn}/*"
-#              - Effect: Allow
-#                Action:
-#                  - ec2:*
-#                Resource:
-#                  - '*'
   PipelineOutputBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -207,7 +187,6 @@ Resources:
                 - Name: StackBuilderRepoBuildOutput
               Configuration:
                 ProjectName: !Ref CodeBuildProject
-                # TODO what env vars and build spec does the StackBuilder need
                 EnvironmentVariables: !Sub '[{"name":"user","type":"PLAINTEXT","value": "${BuildParamUser}"}]'
                 BuildspecOverride: configuration/build/buildspec.yml
         - Name: BuildSynapseRepo

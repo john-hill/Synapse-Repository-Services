@@ -82,9 +82,6 @@ public class GridIndexManagerImplTest {
 		verify(mockDao).saveIndex(sessionId, replicaId, IndexType.val, List.of(rootValueId));
 		verify(mockDao).saveValues(sessionId, replicaId, List.of(new ValueNode().setId(rootValueId)));
 		verify(mockOperationDispatcher).processAll(sessionId, replicaId, patch.getOperations());
-		verify(mockDao, times(2)).setClock(any(), any(), any());
-		verify(mockDao).setClock(sessionId, replicaId,
-				new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(8L));
 		verify(mockDao).setClock(sessionId, replicaId, new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(8L));
 	}
 
@@ -98,9 +95,6 @@ public class GridIndexManagerImplTest {
 		verify(mockDao, never()).saveIndex(sessionId, replicaId, IndexType.val, List.of(rootValueId));
 		verify(mockDao, never()).saveValues(sessionId, replicaId, List.of(new ValueNode().setId(rootValueId)));
 		verify(mockOperationDispatcher).processAll(sessionId, replicaId, patch.getOperations());
-		verify(mockDao, times(2)).setClock(any(), any(), any());
-		verify(mockDao).setClock(sessionId, replicaId,
-				new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(8L));
 		verify(mockDao).setClock(sessionId, replicaId, new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(8L));
 	}
 

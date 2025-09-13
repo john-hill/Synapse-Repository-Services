@@ -43,8 +43,7 @@ public class GridReplicaValidationWorker implements MessageDrivenRunner {
 		}
 		try {
 			log.info("New changeSet: {}", StringUtils.truncate(changeSet.toJson(), 200));
-			manager.validateChanges(changeSet.getSessionId(), changeSet.getReplicaId(), changeSet.getConnectionId(),
-					changedVectorIds);
+			manager.validateChanges(changeSet.getSessionId(), changeSet.getReplicaId(),	changedVectorIds);
 		} catch (RecoverableMessageException e) {
 			log.info("Recoverable message: '{}' changeSet: {}", e.getMessage(), changeSet);
 			throw e;

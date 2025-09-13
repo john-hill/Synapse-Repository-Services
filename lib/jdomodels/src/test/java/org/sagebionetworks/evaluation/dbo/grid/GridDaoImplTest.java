@@ -246,8 +246,8 @@ public class GridDaoImplTest {
 		assertEquals(info1.getConnectionId(), f1.getConnectionId());
 
         // call under test
-        Optional<GridConnectionInfo> defaultInternalConnection = dao.getDefaultInternalConnection(info1.getSessionId());
-        if (source.equals(EventSource.INTERNAL)) {
+        Optional<GridConnectionInfo> defaultInternalConnection = dao.getSingletonConnection(info1.getSessionId(), source);
+        if (source.isSingleton()) {
             assertEquals(f1, defaultInternalConnection.get());
         } else {
             assertTrue(defaultInternalConnection.isEmpty());
@@ -263,8 +263,8 @@ public class GridDaoImplTest {
 		assertEquals(adminUserId, f2.getCreatedBy());
 		assertEquals(info2.getConnectionId(), f2.getConnectionId());
         // call under test
-        defaultInternalConnection = dao.getDefaultInternalConnection(info1.getSessionId());
-        if (source.equals(EventSource.INTERNAL)) {
+        defaultInternalConnection = dao.getSingletonConnection(info1.getSessionId(), source);
+        if (source.isSingleton()) {
             assertEquals(f1, defaultInternalConnection.get());
         } else {
             assertTrue(defaultInternalConnection.isEmpty());
@@ -296,8 +296,8 @@ public class GridDaoImplTest {
 		// should still be able to get the second
 		assertEquals(f2, dao.getConnection(info2.getConnectionId()).get());
         // call under test - if internal, default connection should now be f2
-        defaultInternalConnection = dao.getDefaultInternalConnection(info1.getSessionId());
-        if (source.equals(EventSource.INTERNAL)) {
+        defaultInternalConnection = dao.getSingletonConnection(info1.getSessionId(), source);
+        if (source.isSingleton()) {
             assertEquals(f2, defaultInternalConnection.get());
         } else {
             assertTrue(defaultInternalConnection.isEmpty());

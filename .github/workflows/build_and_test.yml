@@ -59,9 +59,7 @@ jobs:
         with:
           template: configuration/build/codepipeline_cf_template.yaml
           name: Synapse-Build-${{ env.user }}
-          capabilities:
-            - CAPABILITY_IAM
-            - CAPABILITY_NAMED_IAM
+          capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM
           parameter-overrides: >-
             SynapseBranch=${{ env.branch }},
             SynapseRepoOwner=${{ github.repository_owner }},

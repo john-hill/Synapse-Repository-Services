@@ -79,18 +79,18 @@ jobs:
 
           # Wait for completion
           while true; do
-            STATUS_RECORD=$(aws codepipeline get-pipeline-state --name ${{ steps.pipeline-deploy.outputs.PipelineName }} --query "stageStates[?latestExecution.pipelineExecutionId=='$EXECUTION_ID'].latestExecution.status" --output text)
+            FINAL_STAGE="BuildSynapseRepo"
+            STATUS_RECORD=$(aws codepipeline get-pipeline-state --name ${{ steps.pipeline-deploy.outputs.PipelineName }} --query "stageStates[?(latestExecution.pipelineExecutionId=='$EXECUTION_ID' && stageName=='$FINAL_STAGE')].latestExecution.status" --output text)
             echo STATUS_RECORD ${STATUS_RECORD}
             STATUS=$(echo ${STATUS_RECORD} | tr '\t' '\n' | sort | uniq)
 
-            if [[ "$STATUS" =~ "Failed" || "$STATUS" =~ "Stopped" ]]; then
+            if [[ "$STATUS" == "Failed" || "$STATUS" == "Stopped" ]]; then
               echo "Pipeline execution $EXECUTION_ID finished with status: $STATUS"
               exit 1
-            elif [[ "$STATUS" =~ "InProgress" ]]; then
+            elif [[ "$STATUS" == "InProgress" ]]; then
               echo "Pipeline execution $EXECUTION_ID is still in progress. Current status: $STATUS. Waiting..."
               sleep 30 # Wait for 30 seconds before checking again
-            elif [[ "$STATUS" =~ "Succeeded" ]]; then
-              # Succeeded
+            elif [[ "$STATUS" == "Succeeded" ]]; then
               echo "Pipeline execution $EXECUTION_ID succeeded."
               break
             else

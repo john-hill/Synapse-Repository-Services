@@ -52,6 +52,32 @@ jobs:
           role-duration-seconds: 28800
           output-credentials: true
 
+      - name: Capture Session Credentials
+        run: |
+          # We will capture the long-lived session token to use for the build
+          SECRET_NAME="/build/session-token/${{ env.user }}"
+          SECRET_VALUE='{"AwsAccessKeyId":"${{ steps.oidc.outputs.aws-access-key-id }}",\
+            "AwsSecretAccessKey":"${{ steps.oidc.outputs.aws-secret-access-key }}",\
+            "AwsSessionToken":"${{ steps.oidc.outputs.aws-session-token }}"}'
+          # Try to update the secret value first
+          if aws secretsmanager put-secret-value \
+              --secret-id "$SECRET_NAME" \
+              --secret-string "$SECRET_VALUE" \
+              2>/dev/null; then
+              echo "Secret updated successfully"
+          else
+              echo "Secret doesn't exist, creating new secret..."
+              if aws secretsmanager create-secret \
+                  --name "$SECRET_NAME" \
+                  --secret-string "$SECRET_VALUE" \
+                  --description "Build credentials for ${{ env.user }}"; then
+                  echo "Secret created successfully"
+              else
+                  echo "Failed to create secret"
+                  exit 1
+              fi
+          fi
+
       - name: checkout
         uses: actions/checkout@v5
 
@@ -78,9 +104,6 @@ jobs:
           EXECUTION_ID=$(aws codepipeline start-pipeline-execution \
             --name ${{ steps.pipeline-deploy.outputs.PipelineName }} \
             --source-revisions actionName=CheckoutSynapseRepo,revisionType=COMMIT_ID,revisionValue=${{ github.sha }} \
-            --variables name=AwsAccessKeyId,value=${{ steps.oidc.outputs.aws-access-key-id }} \
-              name=AwsSecretAccessKey,value=${{ steps.oidc.outputs.aws-secret-access-key }} \
-              name=AwsSessionToken,value=${{ steps.oidc.outputs.aws-session-token }} \
             --query 'pipelineExecutionId' --output text)
 
           echo "Pipeline execution ID: $EXECUTION_ID"

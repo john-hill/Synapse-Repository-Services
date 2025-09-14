@@ -126,6 +126,9 @@ Resources:
             Principal:
               Service: codebuild.amazonaws.com
             Action: sts:AssumeRole
+          - Effect: Allow
+            Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/Synapse-Build-${BuildParamUser}-CodeBuildServiceRole"
+            Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
   PipelineOutputBucket:

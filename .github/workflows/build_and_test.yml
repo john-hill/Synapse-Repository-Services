@@ -57,9 +57,7 @@ jobs:
           # Note: We cannot pass the credentials as inputs to code pipeline
           # since the token exceeded the 1000 character limit for input variables.
           SECRET_NAME="/build/session-token/${{ env.user }}"
-          SECRET_VALUE='{"AwsAccessKeyId":"${{ env.AWS_ACCESS_KEY_ID }}",\
-            "AwsSecretAccessKey":"${{ env.AWS_SECRET_ACCESS_KEY }}",\
-            "AwsSessionToken":"${{ env.AWS_SESSION_TOKEN }}"}'
+          SECRET_VALUE='{"AwsAccessKeyId":"${{ env.AWS_ACCESS_KEY_ID }}", "AwsSecretAccessKey":"${{ env.AWS_SECRET_ACCESS_KEY }}", "AwsSessionToken":"${{ env.AWS_SESSION_TOKEN }}"}'
           # Try to update the secret value first
           if aws secretsmanager put-secret-value \
               --secret-id "$SECRET_NAME" \

@@ -29,7 +29,7 @@ phases:
       # CodeBuild creates an STS session of one hour duration and there is no way to override.
       # The Synapse build needs a longer lived session.  So we use a long lived token stored in secrets manager
       # by the GitHub workflow.
-      - STS_CREDENTIALS=$(aws secretsmanager get-secret-value --secret-id "/build/session-token/${user}")
+      - STS_CREDENTIALS=$(aws secretsmanager get-secret-value --secret-id "/build/session-token/${user}" | jq -r '.SecretString')
       - export org_sagebionetworks_stack_iam_id=$(echo $STS_CREDENTIALS | jq -r '.AwsAccessKeyId')
       - export org_sagebionetworks_stack_iam_key=$(echo $STS_CREDENTIALS | jq -r '.AwsSecretAccessKey')
       - export org_sagebionetworks_stack_iam_session_token=$(echo $STS_CREDENTIALS | jq -r '.AwsSessionToken')

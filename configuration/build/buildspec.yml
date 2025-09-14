@@ -28,13 +28,13 @@ phases:
     commands:
       # CodeBuild creates an STS session of one hour duration and there is no way to override.
       # The Synapse build needs a longer lived session.  So we use a long lived token stored in secrets manager
+      # by the GitHub workflow.
       - STS_CREDENTIALS=$(aws secretsmanager get-secret-value --secret-id "/build/session-token/${user}")
-      # TODO get OIDC session token from secrets manager
       - export org_sagebionetworks_stack_iam_id=$(echo $STS_CREDENTIALS | jq -r '.AwsAccessKeyId')
       - export org_sagebionetworks_stack_iam_key=$(echo $STS_CREDENTIALS | jq -r '.AwsSecretAccessKey')
       - export org_sagebionetworks_stack_iam_session_token=$(echo $STS_CREDENTIALS | jq -r '.AwsSessionToken')
       - export org_sagebionetworks_repository_database_connection_url=dev-${user}-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
       - export org_sagebionetworks_table_cluster_endpoint_0=dev-${user}-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
       # TODO remove the following line after testing
-      - export EXTRA_ARGS=-Dmaven.test.skip=true
+      #- export EXTRA_ARGS=-Dmaven.test.skip=true
       - ./docker_build.sh

@@ -43,7 +43,7 @@ jobs:
           echo "stack_builder_repo_owner=${{ vars.STACK_BUILDER_REPO_OWNER }}" >> $GITHUB_ENV
 
       - id: oidc
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           # TODO create a dedicated role
           role-to-assume: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev

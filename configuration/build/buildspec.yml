@@ -27,20 +27,10 @@ phases:
   build:
     commands:
       # CodeBuild creates an STS session of one hour duration and there is no way to override.
-      # The Synapse build needs a longer lived session.  So we create a new session here
-      # by having the role assume itself (but with a longer duration):
-      # Get the current role ARN (remove the assumed-role part)
-      - STS_ARN=$(aws sts get-caller-identity --query Arn --output text)
-      - ROLE_ARN=$(echo $STS_ARN | sed 's/:assumed-role\//:role\//' | sed 's/\/[^\/]*$//')
-      - echo "Role ARN $ROLE_ARN"
-      # Assume the same role with 8-hour duration
-      - echo "Assuming role with 8-hour session..."
-      - LONG_LIVED_STS_TOKEN=$(aws sts assume-role --role-arn "$ROLE_ARN" --role-session-name "ExtendedCodeBuildSession-$(date +%s)" --duration-seconds 28800)
-      - export org_sagebionetworks_stack_iam_id=$(echo $LONG_LIVED_STS_TOKEN | jq -r '.Credentials.AccessKeyId')
-      - export org_sagebionetworks_stack_iam_key=$(echo $LONG_LIVED_STS_TOKEN | jq -r '.Credentials.SecretAccessKey')
-      - export org_sagebionetworks_stack_iam_session_token=$(echo $LONG_LIVED_STS_TOKEN | jq -r '.Credentials.SessionToken')
-      - echo Credential Expiration **Duration should be 8 hours**
-      - echo $LONG_LIVED_STS_TOKEN | jq -r '.Credentials.Expiration'
+      # The Synapse build needs a longer lived session.  So we use a passed in token.
+      - export org_sagebionetworks_stack_iam_id=$AwsAccessKeyId
+      - export org_sagebionetworks_stack_iam_key=$AwsSecretAccessKey
+      - export org_sagebionetworks_stack_iam_session_token=$AwsSessionToken
       - export org_sagebionetworks_repository_database_connection_url=dev-${user}-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
       - export org_sagebionetworks_table_cluster_endpoint_0=dev-${user}-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
       # TODO remove the following line after testing

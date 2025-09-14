@@ -42,7 +42,8 @@ jobs:
           echo "stack_builder_branch=${{ vars.STACK_BUILDER_BRANCH }}" >> $GITHUB_ENV
           echo "stack_builder_repo_owner=${{ vars.STACK_BUILDER_REPO_OWNER }}" >> $GITHUB_ENV
 
-      - uses: aws-actions/configure-aws-credentials@v1
+      - id: oidc
+        uses: aws-actions/configure-aws-credentials@v1
         with:
           # TODO create a dedicated role
           role-to-assume: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-ops-dev
@@ -73,6 +74,9 @@ jobs:
           EXECUTION_ID=$(aws codepipeline start-pipeline-execution \
             --name ${{ steps.pipeline-deploy.outputs.PipelineName }} \
             --source-revisions actionName=CheckoutSynapseRepo,revisionType=COMMIT_ID,revisionValue=${{ github.sha }} \
+            --variables name=AwsAccessKeyId,value=${{ steps.oidc.outputs.aws-access-key-id }} \
+              name=AwsSecretAccessKey,value=${{ steps.oidc.outputs.aws-secret-access-key }} \
+              name=AwsSessionToken,value=${{ steps.oidc.outputs.aws-session-token }}\
             --query 'pipelineExecutionId' --output text)
 
           echo "Pipeline execution ID: $EXECUTION_ID"

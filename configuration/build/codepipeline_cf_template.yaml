@@ -129,6 +129,14 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
+      Policies:
+        - PolicyName: AssumeRolePermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: sts:AssumeRole
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/Synapse-Build-${BuildParamUser}-CodeBuildServiceRole"
   PipelineOutputBucket:
     Type: AWS::S3::Bucket
     Properties:

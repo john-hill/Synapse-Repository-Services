@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.sagebionetworks.grid.db.GridTransaction;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChange;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangeSet;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.PatchBuilderPublisher;
@@ -48,6 +49,7 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 		this.patchBuilderPublisher = patchBuilderPublisher;
 	}
 
+	@GridTransaction (readOnly = true)
 	@Override
 	public void validateChanges(String sessionId, Long replicaId, String connectionId,
 			Collection<LogicalTimestamp> changedVectorIds) {

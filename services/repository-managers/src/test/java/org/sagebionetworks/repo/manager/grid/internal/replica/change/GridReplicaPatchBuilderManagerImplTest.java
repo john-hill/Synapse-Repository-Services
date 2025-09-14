@@ -134,8 +134,7 @@ public class GridReplicaPatchBuilderManagerImplTest {
 		verify(mockChangeHandler).handleChange(mockChangePatchBuilder,
 				(UpdateMetadataChange) changeSet.getChanges().get(0));
 	}
-
-//<<<<<<< HEAD
+	
 	@Test
 	public void testGetCurrentClock() {
 		Long last = 101L;

@@ -495,8 +495,16 @@
 			"description": "Table that tracks grid replica patches."
 		},
 		{
+		  "name": "CURATION_TASK",
+		  "description": "Table that stores curation task information."
+		},
+		{
 			"name": "USER_STATUS",
 			"description": "Table that stores user status information"
+		},
+		{
+			"name": "RECORDSET_VALIDATION_STATS",
+            "description": "Table that stores validation stats for record sets"
 		},
 		{
 			"name": "CHANGE",

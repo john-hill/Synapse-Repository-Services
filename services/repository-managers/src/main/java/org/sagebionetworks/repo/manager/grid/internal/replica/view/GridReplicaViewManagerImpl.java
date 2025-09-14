@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 import org.apache.commons.io.IOUtils;
 import org.json.JSONArray;
 import org.sagebionetworks.grid.db.GridIndexDao;
+import org.sagebionetworks.grid.db.GridTransaction;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowData;
@@ -40,6 +41,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Repository;
 
 @Repository
+@GridTransaction(readOnly = true)
 public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 
 	private static final String GRID_INDEX_VIEW_TEMPLATE = loadStringFromClasspath("grid/grid-index-view-template.sql");
@@ -191,11 +193,14 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 			String columnName = (String) columnNames.getValues().get("c" + vectorIndex).getValue();
 			return new Column().setVectorIndex(vectorIndex).setName(columnName);
 		}).collect(Collectors.toList());
+		
+		Long clockSequenceMaximum = gridIndexDao.getClockSequenceMaximum(gridSessionId, replicaId);
 
 		LogicalTimestamp rowsId = root.getValue().get("rows");
 		return Optional.of(new GridHeader().setSessionId(gridSessionId).setReplicaId(replicaId).setRowsId(rowsId)
 				.setDocumentVersion(semver).setNodeId(root.getId()).setOrderedColumns(columns)
-				.setColumnOrderArrId(columnOrderArrId).setColumnNamesVecId(columnNames.getId()));
+				.setColumnOrderArrId(columnOrderArrId).setColumnNamesVecId(columnNames.getId())
+				.setClockSequenceMaximum(clockSequenceMaximum));
 	}
 
 	/**

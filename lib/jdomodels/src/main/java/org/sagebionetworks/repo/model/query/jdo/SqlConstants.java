@@ -1436,6 +1436,28 @@ public class SqlConstants {
 	public static final String COL_USER_STATUS_DISABLED				= "DISABLED";
 	public static final String DDL_USER_STATUS 						= "schema/UserStatus-ddl.sql";
 
+    public static final String TABLE_CURATION_TASK = "CURATION_TASK";
+    public static final String COL_CURATION_TASK_ID = "ID";
+    public static final String COL_CURATION_TASK_DATA_TYPE = "DATA_TYPE";
+    public static final String COL_CURATION_TASK_INSTRUCTIONS = "INSTRUCTIONS";
+    public static final String COL_CURATION_TASK_ETAG = "ETAG";
+    public static final String COL_CURATION_TASK_PROJECT_ID = "PROJECT_ID";
+    public static final String COL_CURATION_TASK_CREATED_BY = "CREATED_BY";
+    public static final String COL_CURATION_TASK_CREATED_ON = "CREATED_ON";
+    public static final String COL_CURATION_TASK_MODIFIED_ON = "MODIFIED_ON";
+    public static final String COL_CURATION_TASK_MODIFIED_BY = "MODIFIED_BY";
+    public static final String COL_CURATION_TASK_TASK_PROPERTIES = "TASK_PROPERTIES";
+    public static final String DDL_CURATION_TASK = "schema/CurationTask-ddl.sql";
+    
+    // Table to track a record set validation summary for a specific version
+ 	public static final String TABLE_RECORDSET_VALIDATION_STATS					= "RECORDSET_VALIDATION_STATS";
+ 	public static final String COL_RECORDSET_VALIDATION_STATS_ID				= "ID";
+ 	public static final String COL_RECORDSET_VALIDATION_STATS_ETAG				= "ETAG";
+ 	public static final String COL_RECORDSET_VALIDATION_STATS_RECORDSET_ID		= "RECORDSET_ID";
+ 	public static final String COL_RECORDSET_VALIDATION_STATS_RECORDSET_VERSION	= "RECORDSET_VERSION";
+ 	public static final String COL_RECORDSET_VALIDATION_STATS_JSON				= "STATS_JSON";
+ 	public static final String DDL_FILE_RECORDSET_VALIDATION_STATS				= "schema/RecordSetValidationStats-ddl.sql";
+
 	// This seems to be the name of the id column for all tables.
 	public static final String COLUMN_ID		= "id";
 	

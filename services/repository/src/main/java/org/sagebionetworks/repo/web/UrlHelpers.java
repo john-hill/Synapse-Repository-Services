@@ -457,6 +457,9 @@ public class UrlHelpers {
     public static final String GRID_DOWNLOAD_CSV = GRID_DOWNLOAD+"/csv";
     public static final String GRID_DOWNLOAD_CSV_ASYNC_START = GRID_DOWNLOAD_CSV+ASYNC_START_REQUEST;
     public static final String GRID_DOWNLOAD_CSV_ASYNC_GET = GRID_DOWNLOAD_CSV+ASYNC_GET_REQUEST;
+    
+    public static final String GRID_EXPORT_RECORDSET_ASYNC_START = GRID+"/export/recordset"+ASYNC_START_REQUEST;
+    public static final String GRID_EXPORT_RECORDSET_ASYNC_GET = GRID+"/export/recordset"+ASYNC_GET_REQUEST;
 
     public static final String GRID_SESSION_ID_PRESIGNED_URL = GRID_SESSION_ID+"/presigned/url";
 	
@@ -1284,7 +1287,11 @@ public class UrlHelpers {
 	public static final String PORTAL_ID = PORTAL + "/{portalId}";
 	public static final String PORTAL_ACL = PORTAL_ID + "/acl";
 	public static final String PORTAL_PERMISSIONS = PORTAL_ID + "/permissions";
-	
+
+    // Endpoint for curation tasks
+    public static final String CURATION_TASK = "/curation/task";
+    public static final String CURATION_TASK_ID = CURATION_TASK + "/{taskId}";
+    public static final String CURATION_TASK_LIST = CURATION_TASK + LIST;
 	
 	/**
 	 * API for creating integration test users

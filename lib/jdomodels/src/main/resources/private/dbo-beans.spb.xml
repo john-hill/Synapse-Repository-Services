@@ -193,8 +193,13 @@
 				<bean class="org.sagebionetworks.repo.model.dbo.grid.DBOGridReplica"/>
 				<bean class="org.sagebionetworks.repo.model.dbo.grid.DBOGridConnection"/>
 				<bean class="org.sagebionetworks.repo.model.dbo.grid.DBOGridPatch"/>
-				
-				<bean class="org.sagebionetworks.repo.model.dbo.auth.DBOUserStatus"/>	
+
+                <!-- Curation tasks -->
+                <bean class="org.sagebionetworks.repo.model.dbo.curation.DBOCurationTask"/>
+
+                <bean class="org.sagebionetworks.repo.model.dbo.auth.DBOUserStatus"/>
+                
+                <bean class="org.sagebionetworks.repo.model.dbo.schema.DBORecordSetValidationStats"/>
 			</list>
 		</property>
 		<!-- MySQL Functions to be created/updated -->
@@ -353,7 +358,11 @@
 				<bean class="org.sagebionetworks.repo.model.dbo.grid.DBOGridConnection"/>
 				<bean class="org.sagebionetworks.repo.model.dbo.grid.DBOGridPatch"/>
 
+                <bean class="org.sagebionetworks.repo.model.dbo.curation.DBOCurationTask"/>
+
 				<bean class="org.sagebionetworks.repo.model.dbo.auth.DBOUserStatus"/>
+				
+				<bean class="org.sagebionetworks.repo.model.dbo.schema.DBORecordSetValidationStats"/>
 
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOChange" /> <!-- THIS MUST ALWAYS BE THE LAST BEAN -->
 			</list>

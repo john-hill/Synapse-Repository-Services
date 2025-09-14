@@ -35,12 +35,9 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Isolation;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 @Repository
-@Transactional(readOnly = true, propagation = Propagation.REQUIRED, isolation = Isolation.READ_COMMITTED, transactionManager = "gridTransactionManager")
+@GridTransaction(readOnly = true)
 public class GridIndexDaoImpl implements GridIndexDao {
 
 	private static final Logger log = LogManager.getLogger(GridIndexDaoImpl.class);
@@ -106,7 +103,6 @@ public class GridIndexDaoImpl implements GridIndexDao {
 
 	public GridIndexDaoImpl(@Qualifier("gridDatabaseJdbcTemplate") JdbcTemplate gridDatabaseJdbcTemplate,
 			@Qualifier("gridDatabaseNamedParameterJdbcTemplate") NamedParameterJdbcTemplate gridDatabaseNamedParameterJdbcTemplate) {
-		super();
 		this.jdbcTemplate = gridDatabaseJdbcTemplate;
 		this.namedTemplate = gridDatabaseNamedParameterJdbcTemplate;
 		createTables(List.of("schema/Grid-Replica-ddl.sql", "schema/Grid-Clock-ddl.sql", "schema/Grid-Index-ddl.sql",
@@ -150,8 +146,8 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		return GridUtils.gridSessionIdAsLong(sessionId);
 	}
 
-	@Transactional(readOnly = false)
 	@Override
+	@GridTransaction(readOnly = false)
 	public boolean createReplicaIfNotExists(String sessionIdString, Long replicaId) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
 
@@ -161,8 +157,8 @@ public class GridIndexDaoImpl implements GridIndexDao {
 
 	}
 
-	@Transactional(readOnly = false)
 	@Override
+	@GridTransaction(readOnly = false)
 	public void deleteReplica(String sessionIdString, Long replicaId) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
 		jdbcTemplate.update("DELETE FROM GRID_REPLICA WHERE SESSION_ID = ? AND REPLICA_ID = ?", sessionId, replicaId);
@@ -180,8 +176,8 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		}
 	}
 
-	@Transactional(readOnly = false)
 	@Override
+	@GridTransaction(readOnly = false)
 	public void saveIndex(String sessionIdString, Long replicaId, IndexType type, List<LogicalTimestamp> batch) {
 		ValidateArgument.required(type, "type");
 		Long sessionId = validateReplica(sessionIdString, replicaId);
@@ -213,8 +209,8 @@ public class GridIndexDaoImpl implements GridIndexDao {
 				params, INDEX_NODE_MAPPER);
 	}
 
-	@Transactional(readOnly = false)
 	@Override
+	@GridTransaction(readOnly = false)
 	public void setClock(String sessionIdString, Long replicaId, LogicalTimestamp clock) {
 		ValidateArgument.required(clock, "clock");
 		ValidateArgument.required(clock.getReplicaId(), "clock.replicaId");
@@ -288,8 +284,8 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		return params;
 	}
 
-	@Transactional(readOnly = false)
 	@Override
+	@GridTransaction(readOnly = false)
 	public void saveNewConstants(String sessionIdString, Long replicaId, List<ConstantNode> batch) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
 		if (batch == null || batch.isEmpty()) {
@@ -307,14 +303,14 @@ public class GridIndexDaoImpl implements GridIndexDao {
 
 	}
 
-	@Transactional(readOnly = false)
 	@Override
+	@GridTransaction(readOnly = false)
 	public void truncateAll() {
 		jdbcTemplate.update("DELETE FROM GRID_REPLICA WHERE SESSION_ID > -1 AND REPLICA_ID > -1");
 	}
 
-	@Transactional(readOnly = false)
 	@Override
+	@GridTransaction(readOnly = false)
 	public void saveObjects(String sessionIdString, Long replicaId, List<ObjectNode> batch) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
 		if (batch == null || batch.isEmpty()) {
@@ -345,8 +341,8 @@ public class GridIndexDaoImpl implements GridIndexDao {
 				params, OBJECT_NODE_MAPPER);
 	}
 
-	@Transactional(readOnly = false)
 	@Override
+	@GridTransaction(readOnly = false)
 	public void saveValues(String sessionIdString, Long replicaId, List<ValueNode> batch) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
 		if (batch == null || batch.isEmpty()) {
@@ -377,8 +373,8 @@ public class GridIndexDaoImpl implements GridIndexDao {
 				params, VALUE_NODE_MAPPER);
 	}
 
-	@Transactional(readOnly = false)
 	@Override
+	@GridTransaction(readOnly = false)
 	public void saveVectors(String sessionIdString, Long replicaId, List<VectorNode> batch) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
 		if (batch == null || batch.isEmpty()) {
@@ -408,8 +404,8 @@ public class GridIndexDaoImpl implements GridIndexDao {
 				params, VECTOR_NODE_MAPPER);
 	}
 
-	@Transactional(readOnly = false)
 	@Override
+	@GridTransaction(readOnly = false)
 	public void createArrayBatch(String sessionIdString, Long replicaId, List<LogicalTimestamp> arrayIds) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
 		if (arrayIds == null || arrayIds.isEmpty()) {
@@ -426,8 +422,8 @@ public class GridIndexDaoImpl implements GridIndexDao {
 
 	}
 
-	@Transactional(readOnly = false)
 	@Override
+	@GridTransaction(readOnly = false)
 	public void insertIntoArray(String sessionIdString, Long replicaId, ArrayNode toInsert) {
 		ValidateArgument.required(toInsert, "toInsert");
 		ValidateArgument.required(toInsert.getDataId(), "toInsert.datatId");
@@ -493,7 +489,8 @@ public class GridIndexDaoImpl implements GridIndexDao {
 				.addValue("dataRep", node.getDataId() != null ? node.getDataId().getReplicaId() : null)
 				.addValue("dataSeq", node.getDataId() != null ? node.getDataId().getSequenceNumber() : null)
 				.addValue("refRep", node.getReferenceNodeId() != null ? node.getReferenceNodeId().getReplicaId() : null)
-				.addValue("refSeq", node.getReferenceNodeId() != null ? node.getReferenceNodeId().getSequenceNumber() : null)
+				.addValue("refSeq",
+						node.getReferenceNodeId() != null ? node.getReferenceNodeId().getSequenceNumber() : null)
 				.addValue("isDeleted", node.getIsDeleted() == null ? false : node.getIsDeleted());
 	}
 
@@ -553,21 +550,22 @@ public class GridIndexDaoImpl implements GridIndexDao {
 			return Optional.of(toInsert.getReferenceNodeId());
 		}
 	}
-	
+
 	@Override
-	@Transactional(readOnly = false)
-	public void deleteArrayNodes(String sessionIdString, Long replicaId, LogicalTimestamp arrayId, List<Timespan> idRangeBatch) {
+	@GridTransaction(readOnly = false)
+	public void deleteArrayNodes(String sessionIdString, Long replicaId, LogicalTimestamp arrayId,
+			List<Timespan> idRangeBatch) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
-		
+
 		String sql = "UPDATE GRID_REPLICA_ARR SET IS_DELETED = TRUE WHERE SESSION_ID = ? AND REPLICA_ID = ?"
 				+ " AND ARR_REP = ? AND ARR_SEQ = ? AND NODE_REP =? AND NODE_SEQ BETWEEN ? AND ?";
-		
+
 		jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
-			
+
 			@Override
 			public void setValues(PreparedStatement ps, int i) throws SQLException {
 				Timespan timespan = idRangeBatch.get(i);
-				
+
 				Long startReplicaId = timespan.getStart().getReplicaId();
 				Long startSequenceNumber = timespan.getStart().getSequenceNumber();
 				Long endSequenceNumber = startSequenceNumber + timespan.getLength() - 1;
@@ -575,23 +573,23 @@ public class GridIndexDaoImpl implements GridIndexDao {
 				ps.setLong(1, sessionId);
 				ps.setLong(2, replicaId);
 				ps.setLong(3, arrayId.getReplicaId());
-				ps.setLong(4, arrayId.getSequenceNumber());				
+				ps.setLong(4, arrayId.getSequenceNumber());
 				ps.setLong(5, startReplicaId);
 				ps.setLong(6, startSequenceNumber);
 				ps.setLong(7, endSequenceNumber);
-				
+
 			}
-			
+
 			@Override
 			public int getBatchSize() {
 				return idRangeBatch.size();
 			}
 		});
-		
+
 	}
 
-	@Transactional(readOnly = false)
 	@Override
+	@GridTransaction(readOnly = false)
 	public Integer createNextMessageId(String sessionIdString, Long replicaId, int maxValue) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
 		Integer current = jdbcTemplate.queryForObject(
@@ -606,8 +604,8 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		return next;
 	}
 
-	@Transactional(readOnly = false)
 	@Override
+	@GridTransaction(readOnly = false)
 	public MessageChain createMessageChain(MessageChain chain) {
 		ValidateArgument.required(chain, "chain");
 		ValidateArgument.required(chain.getId(), "chain.id");
@@ -635,8 +633,8 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		}
 	}
 
-	@Transactional(readOnly = false)
 	@Override
+	@GridTransaction(readOnly = false)
 	public void deleteMessageChain(String sessionIdString, Long replicaId, Integer chainId) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
 		ValidateArgument.required(chainId, "chainId");
@@ -653,11 +651,10 @@ public class GridIndexDaoImpl implements GridIndexDao {
 			return Optional.empty();
 		}
 		ValueNode root = roots.get(0);
-		if(root == null || root.getValue() == null) {
+		if (root == null || root.getValue() == null) {
 			return Optional.empty();
 		}
-		List<ObjectNode> rootObjects = getObjects(gridSessionId, replicaId,
-				List.of(root.getValue()));
+		List<ObjectNode> rootObjects = getObjects(gridSessionId, replicaId, List.of(root.getValue()));
 		if (rootObjects.isEmpty()) {
 			return Optional.empty();
 		}
@@ -671,18 +668,26 @@ public class GridIndexDaoImpl implements GridIndexDao {
 
 	@Override
 	public Optional<LogicalTimestamp> findExistingConstant(String sessionIdString, Long replicaId, String jsonValue) {
-	    Long sessionId = validateReplica(sessionIdString, replicaId);
-	    try {
-	        return Optional.of(jdbcTemplate.queryForObject(
-	            "SELECT CON_REP, CON_SEQ FROM GRID_REPLICA_CON " +
-	            "WHERE SESSION_ID = ? AND REPLICA_ID = ? AND CON_VAL_HASH = CRC32(JSON_EXTRACT(?, '$')) " +
-	            "AND JSON_EXTRACT(CON_VAL, '$') = JSON_EXTRACT(?, '$') LIMIT 1",
-	            (rs, rowNum) -> new LogicalTimestamp()
-	                .setReplicaId(rs.getLong("CON_REP"))
-	                .setSequenceNumber(rs.getLong("CON_SEQ")),
-	            sessionId, replicaId, jsonValue, jsonValue));
-	    } catch (EmptyResultDataAccessException e) {
-	        return Optional.empty();
-	    }
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		try {
+			return Optional.of(jdbcTemplate.queryForObject(
+					"SELECT CON_REP, CON_SEQ FROM GRID_REPLICA_CON "
+							+ "WHERE SESSION_ID = ? AND REPLICA_ID = ? AND CON_VAL_HASH = CRC32(JSON_EXTRACT(?, '$')) "
+							+ "AND JSON_EXTRACT(CON_VAL, '$') = JSON_EXTRACT(?, '$') LIMIT 1",
+					(rs, rowNum) -> new LogicalTimestamp().setReplicaId(rs.getLong("CON_REP"))
+							.setSequenceNumber(rs.getLong("CON_SEQ")),
+					sessionId, replicaId, jsonValue, jsonValue));
+		} catch (EmptyResultDataAccessException e) {
+			return Optional.empty();
+		}
+	}
+
+	@Override
+	public Long getClockSequenceMaximum(String sessionIdString, Long replicaId) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		Long max = jdbcTemplate.queryForObject(
+				"SELECT MAX(CLOCK_ID_SEQ) FROM GRID_REPLICA_CLOCK WHERE SESSION_ID = ? AND REPLICA_ID = ?",
+				Long.class, sessionId, replicaId);
+		return max != null ? max : 1L;
 	}
 }

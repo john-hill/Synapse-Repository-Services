@@ -77,7 +77,7 @@ jobs:
             --source-revisions actionName=CheckoutSynapseRepo,revisionType=COMMIT_ID,revisionValue=${{ github.sha }} \
             --variables name=AwsAccessKeyId,value=${{ steps.oidc.outputs.aws-access-key-id }} \
               name=AwsSecretAccessKey,value=${{ steps.oidc.outputs.aws-secret-access-key }} \
-              name=AwsSessionToken,value=${{ steps.oidc.outputs.aws-session-token }}\
+              name=AwsSessionToken,value=${{ steps.oidc.outputs.aws-session-token }} \
             --query 'pipelineExecutionId' --output text)
 
           echo "Pipeline execution ID: $EXECUTION_ID"

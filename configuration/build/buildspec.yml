@@ -28,6 +28,7 @@ phases:
     commands:
       # CodeBuild creates an STS session of one hour duration and there is no way to override.
       # The Synapse build needs a longer lived session.  So we use a passed in token.
+      # TODO get OIDC session token from secrets manager
       - export org_sagebionetworks_stack_iam_id=$AwsAccessKeyId
       - export org_sagebionetworks_stack_iam_key=$AwsSecretAccessKey
       - export org_sagebionetworks_stack_iam_session_token=$AwsSessionToken

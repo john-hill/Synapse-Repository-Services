@@ -72,6 +72,9 @@ jobs:
 
       - name: Trigger CodePipeline
         run: |
+          sts_token=${{ steps.oidc.outputs.aws-session-token }}
+          echo "token length ${#sts_token}"
+          # TODO write STS token to secrets manager.  need some sort of unique key
           EXECUTION_ID=$(aws codepipeline start-pipeline-execution \
             --name ${{ steps.pipeline-deploy.outputs.PipelineName }} \
             --source-revisions actionName=CheckoutSynapseRepo,revisionType=COMMIT_ID,revisionValue=${{ github.sha }} \

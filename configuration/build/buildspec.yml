@@ -35,10 +35,7 @@ phases:
       - echo "Role ARN $ROLE_ARN"
       # Assume the same role with 8-hour duration
       - echo "Assuming role with 8-hour session..."
-      - LONG_LIVED_STS_TOKEN=$(aws sts assume-role \
-        --role-arn "$ROLE_ARN" \
-        --role-session-name "ExtendedCodeBuildSession-$(date +%s)" \
-        --duration-seconds 28800)
+      - LONG_LIVED_STS_TOKEN=$(aws sts assume-role --role-arn "$ROLE_ARN" --role-session-name "ExtendedCodeBuildSession-$(date +%s)" --duration-seconds 28800)
       - export org_sagebionetworks_stack_iam_id=$(echo $LONG_LIVED_STS_TOKEN | jq -r '.Credentials.AccessKeyId')
       - export org_sagebionetworks_stack_iam_key=$(echo $LONG_LIVED_STS_TOKEN | jq -r '.Credentials.SecretAccessKey')
       - export org_sagebionetworks_stack_iam_session_token=$(echo $LONG_LIVED_STS_TOKEN | jq -r '.Credentials.SessionToken')

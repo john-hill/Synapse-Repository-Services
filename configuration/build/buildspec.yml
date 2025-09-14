@@ -32,7 +32,7 @@ phases:
       # Get the current role ARN (remove the assumed-role part)
       - STS_ARN=$(aws sts get-caller-identity --query Arn --output text)
       - ROLE_ARN=$(echo $STS_ARN | sed 's/:assumed-role\//:role\//' | sed 's/\/[^\/]*$//')
-      - echo "Role ARN: $ROLE_ARN"
+      - echo "Role ARN $ROLE_ARN"
       # Assume the same role with 8-hour duration
       - echo "Assuming role with 8-hour session..."
       - LONG_LIVED_STS_TOKEN=$(aws sts assume-role \

@@ -193,6 +193,7 @@ Resources:
                 - Name: StackBuilderRepoBuildOutput
               Configuration:
                 ProjectName: !Ref CodeBuildProject
+                # TODO how do you break the following across multiple lines? (> didn't work)
                 EnvironmentVariables: !Sub '[{"name":"user","type":"PLAINTEXT","value":"${BuildParamUser}"}, {"name":"AwsAccessKeyId","type":"PLAINTEXT","value":"#{variables.AwsAccessKeyId}"}, {"name":"AwsSecretAccessKey","type":"PLAINTEXT","value":"#{variables.AwsSecretAccessKey}"}, {"name":"AwsSessionToken","type":"PLAINTEXT","value":"#{variables.AwsSessionToken}"}]'
                 BuildspecOverride: configuration/build/buildspec.yml
         - Name: BuildSynapseRepo

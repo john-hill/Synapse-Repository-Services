@@ -85,6 +85,7 @@ Resources:
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
     Properties:
+      MaxSessionDuration: 28800
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -117,6 +118,7 @@ Resources:
     Properties:
       # Note: This name is referenced in the Stack Builder too
       RoleName: !Sub 'Synapse-Build-${BuildParamUser}-CodeBuildServiceRole'
+      MaxSessionDuration: 28800
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:

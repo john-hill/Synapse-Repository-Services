@@ -98,7 +98,7 @@ public interface GridDao {
      * @param sessionId
      * @return
      */
-    Optional<GridConnectionInfo> getDefaultInternalConnection(String sessionId);
+    Optional<GridConnectionInfo> getSingletonConnection(String sessionId, EventSource source);
     
 	/**
 	 * Remove an actvie connection.

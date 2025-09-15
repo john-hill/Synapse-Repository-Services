@@ -28,6 +28,8 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -215,6 +217,51 @@ public class GridManagerUnitTest {
 		String connectionId = capturedContext.getConnectionId();
 		assertNotNull(connectionId);
 		assertDoesNotThrow(() -> UUID.fromString(connectionId));
+		verifyNoMoreInteractions(mockInternalEventPublisher);
+	}
+	
+	@Test
+	public void testCreateGridWithSchema() {
+		when(mockUser.getId()).thenReturn(userId);
+		CreateGridRequest request = new CreateGridRequest();
+		when(mockCreateGridHandler.canCreate(request)).thenReturn(true);
+
+		GridSession expected = new GridSession().setSessionId(gridSessionId).setGridJsonSchema$Id("someSchemaId");
+		GridReplica replica = new GridReplica().setGridSessionId(expected.getSessionId()).setReplicaId(replicaId);
+		when(mockCreateGridHandler.createGrid(mockCallback, mockUser, request, gridManager))
+				.thenReturn(new CreateGridHandlerResult().setGridSession(expected).setGridReplica(replica));
+		GridReplica validationReplica = new GridReplica().setGridSessionId(gridSessionId).setReplicaId(replicaId + 1L);
+		when(mockGridDao.createReplica(userId, gridSessionId, false, EventSource.VALIDATION))
+				.thenReturn(validationReplica);
+
+		// call under test
+		CreateGridResponse result = gridManager.createGrid(mockCallback, mockUser, request);
+		assertNotNull(result);
+		assertEquals(expected, result.getGridSession());
+		verify(mockInternalEventPublisher).publishEventAfterCommit(eventContextCaptor.capture(),
+				eq(JsonRxMessageType.Notification), eq("connection"),
+				eq(new Connection().setGridSessionId(gridSessionIdLong).setReplicaId(replicaId).setUserId(userId)));
+
+		EventContext capturedContext = eventContextCaptor.getValue();
+		assertEquals(EventType.CONNECT, capturedContext.getEventType());
+		assertEquals(EventSource.INTERNAL, capturedContext.getEventSource());
+		String connectionId = capturedContext.getConnectionId();
+		assertNotNull(connectionId);
+		assertDoesNotThrow(() -> UUID.fromString(connectionId));
+		
+		// validation connection.
+		verify(mockInternalEventPublisher).publishEventAfterCommit(eventContextCaptor.capture(),
+				eq(JsonRxMessageType.Notification), eq("connection"),
+				eq(new Connection().setGridSessionId(gridSessionIdLong).setReplicaId(validationReplica.getReplicaId()).setUserId(userId)));
+
+		capturedContext = eventContextCaptor.getValue();
+		assertEquals(EventType.CONNECT, capturedContext.getEventType());
+		assertEquals(EventSource.VALIDATION, capturedContext.getEventSource());
+		String connectionId2 = capturedContext.getConnectionId();
+		assertNotNull(connectionId);
+		assertDoesNotThrow(() -> UUID.fromString(connectionId2));
+		
+		verifyNoMoreInteractions(mockInternalEventPublisher);
 	}
 	
 	@Test
@@ -1088,14 +1135,16 @@ public class GridManagerUnitTest {
 		verify(mockGridDao).deleteGridSession(gridSessionId);
 	}
 
-    @Test
-    public void testGetDefaultInternalConnection() {
-        when(mockGridDao.getDefaultInternalConnection(gridSessionId)).thenReturn(
+	@ParameterizedTest
+	@EnumSource(value = EventSource.class)
+    public void testGetDefaultInternalConnection(EventSource source) {
+        when(mockGridDao.getSingletonConnection(gridSessionId, source)).thenReturn(
                 Optional.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)));
 
         // call under test
-        Optional<GridConnectionInfo> actual = gridManager.getDefaultInternalConnection(gridSessionId);
+        Optional<GridConnectionInfo> actual = gridManager.getDefaultInternalConnection(gridSessionId,source);
         assertEquals(Optional.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)), actual);
         verifyNoMoreInteractions(mockGridDao);
     }
+	
 }

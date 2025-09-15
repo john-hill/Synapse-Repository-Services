@@ -206,7 +206,7 @@ public class GridReplicaManagerImplTest {
 		manager.sendChangesToTopic(connection, patch.getPatchId(), changes);
 		verify(mockSnsClient).publish(PublishRequest.builder().targetArn(topicArn)
 				.message(
-						"{\"connectionId\":\"con123\",\"sessionId\":\"session456\",\"replicaId\":111,\"patchId\":[3,4],"
+						"{\"sessionId\":\"session456\",\"replicaId\":111,\"patchId\":[3,4],"
 								+ "\"changes\":{\"arr\":[[111,55]]}}")
 				.build());
 	}

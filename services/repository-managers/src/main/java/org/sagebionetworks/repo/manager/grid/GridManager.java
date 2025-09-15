@@ -110,9 +110,10 @@ public interface GridManager extends PatchStore {
 	 * Retrieves the default internal connection for a given grid session ID.
 	 *
 	 * @param sessionId
+	 * @param source
 	 * @return
 	 */
-	Optional<GridConnectionInfo> getDefaultInternalConnection(String sessionId);
+	Optional<GridConnectionInfo> getDefaultInternalConnection(String sessionId, EventSource source);
 
 	/**
 	 * Save a patch.

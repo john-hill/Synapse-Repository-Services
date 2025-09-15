@@ -14,6 +14,14 @@
 			"items": {
 				"$ref": "org.sagebionetworks.repo.model.grid.CrdtId"
 			}
+		},
+		"columnSelectAll": {
+			"description": "When true, all columns are selected and 'columnSelection' will be ignored.",
+			"type": "boolean"
+		},
+		"rowSelectAll": {
+			"description": "When true, all rows are selected, and 'rowSelection' will be ignored.",
+			"type": "boolean"
 		}
 	}
 }

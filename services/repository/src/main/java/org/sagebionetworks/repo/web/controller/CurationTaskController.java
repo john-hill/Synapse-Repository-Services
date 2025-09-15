@@ -102,7 +102,7 @@ public class CurationTaskController {
     public @ResponseBody
     CurationTask updateCurationTask(
             @RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
-            @RequestBody CurationTask curationTask) throws DatastoreException, UnauthorizedException, NotFoundException, InvalidModelException, IOException {
+            @PathVariable Long taskId, @RequestBody CurationTask curationTask) throws DatastoreException, UnauthorizedException, NotFoundException, InvalidModelException, IOException {
         return service.updateCurationTask(userId, curationTask);
     }
 

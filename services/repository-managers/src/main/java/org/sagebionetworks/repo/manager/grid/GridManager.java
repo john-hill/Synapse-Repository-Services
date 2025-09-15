@@ -113,7 +113,7 @@ public interface GridManager extends PatchStore {
 	 * @param source
 	 * @return
 	 */
-	Optional<GridConnectionInfo> getDefaultInternalConnection(String sessionId, EventSource source);
+	Optional<GridConnectionInfo> getSingletonConnection(String sessionId, EventSource source);
 
 	/**
 	 * Save a patch.

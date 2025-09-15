@@ -1142,7 +1142,7 @@ public class GridManagerUnitTest {
                 Optional.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)));
 
         // call under test
-        Optional<GridConnectionInfo> actual = gridManager.getDefaultInternalConnection(gridSessionId,source);
+        Optional<GridConnectionInfo> actual = gridManager.getSingletonConnection(gridSessionId,source);
         assertEquals(Optional.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)), actual);
         verifyNoMoreInteractions(mockGridDao);
     }

@@ -273,7 +273,7 @@ public class GridManagerImpl implements GridManager {
 	}
 
 	@Override
-	public Optional<GridConnectionInfo> getDefaultInternalConnection(String sessionId, EventSource source) {
+	public Optional<GridConnectionInfo> getSingletonConnection(String sessionId, EventSource source) {
 		ValidateArgument.required(sessionId, "sessionId");
 		ValidateArgument.required(source, "source");
 		return gridDao.getSingletonConnection(sessionId, source);

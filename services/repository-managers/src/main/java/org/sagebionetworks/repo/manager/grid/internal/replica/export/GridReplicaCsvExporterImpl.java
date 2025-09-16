@@ -22,6 +22,7 @@ import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridRequest;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
+import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.table.TableConstants;
 import org.sagebionetworks.table.cluster.utils.CSVUtils;
@@ -101,7 +102,7 @@ public class GridReplicaCsvExporterImpl implements GridReplicaCsvExporter {
         // Get the grid session (and verify that the userInfo has access to it)
         gridManager.getGridSession(userInfo, gridSessionId);
 
-        GridConnectionInfo connectionInfo = gridManager.getDefaultInternalConnection(gridSessionId)
+        GridConnectionInfo connectionInfo = gridManager.getSingletonConnection(gridSessionId, EventSource.INTERNAL)
                 .orElseThrow(() -> new RecoverableMessageException("No internal connection found for session: " + gridSessionId));
 
         replicaPatchBuilderManager.getCurrentClockIfAllPatchesApplied(connectionInfo.getSessionId(), connectionInfo.getReplicaId())

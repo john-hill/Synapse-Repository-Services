@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.AsynchronousJobWorkerHelper;
+import org.sagebionetworks.grid.db.GridIndexDao;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.file.LocalFileUploadRequest;
@@ -71,6 +72,8 @@ public class GridScaleIntegrationTest {
 	private GridService gridService;
 	@Autowired
 	private GridReplicaViewManager gridReplicaViewManager;
+	@Autowired
+	private GridIndexDao gridIndexDao;
 
 	private UserInfo admin;
 	private CsvTableDescriptor csvDescriptor;
@@ -83,6 +86,7 @@ public class GridScaleIntegrationTest {
 
 	@BeforeEach
 	public void beforeAll() throws IOException {
+		gridIndexDao.truncateAll();
 		admin = userManager.getUserInfo(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId());
 		numberRows = 100;
 		numberColumns = 100;
@@ -162,9 +166,11 @@ public class GridScaleIntegrationTest {
 				return Pair.create(false, null);
 			}
 			List<RowView> rows = gridReplicaViewManager.querySinglePage(header.get(), 100L, 0L);
+			System.out.println("row count: "+rows.size());
 			int invalidRows = (int) rows.stream()
 					.filter(r -> r.getRowValidationResults() != null && !r.getRowValidationResults().getIsValid())
 					.count();
+			System.out.println("invalid count: "+invalidRows);
 			if (invalidRows != numberRows) {
 				return Pair.create(false, null);
 			}

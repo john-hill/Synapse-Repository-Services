@@ -21,6 +21,8 @@ import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaValidationManager;
 import org.sagebionetworks.repo.manager.schema.JsonSubject;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
+import org.sagebionetworks.repo.model.grid.EventSource;
+import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
@@ -49,13 +51,11 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 		this.patchBuilderPublisher = patchBuilderPublisher;
 	}
 
-	@GridTransaction (readOnly = true)
+	@GridTransaction(readOnly = true)
 	@Override
-	public void validateChanges(String sessionId, Long replicaId, String connectionId,
-			Collection<LogicalTimestamp> changedVectorIds) {
+	public void validateChanges(String sessionId, Long replicaId, Collection<LogicalTimestamp> changedVectorIds) {
 		ValidateArgument.required(sessionId, "sessionId");
 		ValidateArgument.required(replicaId, "replicaId");
-		ValidateArgument.required(connectionId, "connectionId");
 
 		if (changedVectorIds == null || changedVectorIds.isEmpty()) {
 			return;
@@ -63,6 +63,12 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 
 		Optional<GridSession> gridSession = gridDao.getGridSession(sessionId);
 		if (!hasValidSession(gridSession)) {
+			return;
+		}
+
+		Optional<GridConnectionInfo> validationConnectionOpt = gridDao.getSingletonConnection(sessionId,
+				EventSource.VALIDATION);
+		if (validationConnectionOpt.isEmpty()) {
 			return;
 		}
 
@@ -84,7 +90,9 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 
 		// send the changes to the patch builder.
 		patchBuilderPublisher.sendChangesToPatchBuilder(new IntendedChangeSet().setChanges(intendedChanges)
-				.setSessionId(sessionId).setReplicaId(replicaId).setConnectionId(connectionId));
+				.setSessionId(sessionId).setReplicaId(validationConnectionOpt.get().getReplicaId())
+				.setConnectionId(validationConnectionOpt.get().getConnectionId())
+				.setClockSequenceMaximum(header.get().getClockSequenceMaximum()));
 	}
 
 	boolean hasValidSession(Optional<GridSession> gridSession) {
@@ -116,17 +124,16 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 		JsonSchema schema = jsonSchemaManager.getValidationSchema(schemaId);
 
 		List<JsonSubject> subjects = rowsToValidate.stream()
-				.map(row -> new RowJsonSubject(header.getOrderedColumns(), row))
-				.collect(Collectors.toList());
+				.map(row -> new RowJsonSubject(header.getOrderedColumns(), row)).collect(Collectors.toList());
 
 		List<ValidationResults> results = jsonSchemaValidationManager.validateBatch(schema, subjects);
-		
+
 		List<IntendedChange> changes = new ArrayList<>();
 
 		for (int i = 0; i < results.size(); i++) {
 			ValidationResults validationResults = results.get(i);
 			RowView row = rowsToValidate.get(i);
-			
+
 			cleanupValidationResults(validationResults);
 
 			if (!validationResults.equals(row.getRowValidationResults())) {

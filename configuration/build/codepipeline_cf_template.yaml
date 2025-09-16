@@ -193,7 +193,7 @@ Resources:
               Configuration:
                 ProjectName: !Ref CodeBuildProject
                 EnvironmentVariables: !Sub '[{"name":"user","type":"PLAINTEXT","value":"${BuildParamUser}"}]'
-                BuildspecOverride: !If [!Ref FullBuild, "configuration/build/full_buildspec.yml", "configuration/build/feature_buildspec.ymlz']
+                BuildspecOverride: configuration/build/buildspec.yml
         - Name: BuildSynapseRepo
           Actions:
             - Name: BuildSynapseRepo
@@ -209,7 +209,7 @@ Resources:
               Configuration:
                 ProjectName: !Ref CodeBuildProject
                 EnvironmentVariables: !Sub '[{"name":"user","type":"PLAINTEXT","value": "${BuildParamUser}"}]'
-                BuildspecOverride: configuration/build/buildspec.yml
+                BuildspecOverride: !If [!Ref FullBuild, "configuration/build/full_buildspec.yml", "configuration/build/feature_buildspec.ymlz"]
   # A CodeBuild project that can be used to run the stack builder or to build the Synapse back-end
   CodeBuildProject:
     Type: AWS::CodeBuild::Project

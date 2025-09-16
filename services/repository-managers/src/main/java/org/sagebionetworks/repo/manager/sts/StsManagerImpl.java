@@ -38,7 +38,7 @@ import com.google.common.collect.ImmutableMap;
 
 @Component
 public class StsManagerImpl implements StsManager {
-	static final int DURATION_SECONDS = 12 * 60 * 60; // 12 hours
+	static final int DURATION_SECONDS = 1 * 60 * 60; // 1 hour
 	private static final String POLICY_TEMPLATE_FILENAME = "sts-policy-template.json.vtp";
 
 	// The AWS IAM policy string for the actions the user is allowed to do.

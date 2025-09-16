@@ -36,23 +36,25 @@ phases:
       export org_sagebionetworks_stack_iam_session_token=$(echo $STS_CREDENTIALS | jq -r '.AwsSessionToken')
       export org_sagebionetworks_repository_database_connection_url=dev-${user}-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
       export org_sagebionetworks_table_cluster_endpoint_0=dev-${user}-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
-      export org_sagebionetworks_stackEncryptionKey=$(get_secret "/build/stack/encryption/key")
-      export rds_password=$(get_secret "build.rds.password")
-      export build_deploy=true
-      ARTIFACTORY_CREDS=$(get_secret "/build/artifactory")
-      export artifactory_username=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_username')
-      export artifactory_password=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_password')
-      export org_sagebionetworks_datacite_enabled=true
-      export org_sagebionetworks_doi_prefix=10.33627
-      export org_sagebionetworks_doi_datacite_api_endpoint=mds.test.datacite.org
-      DATACITE_CREDS=$(get_secret "/build/datacite")
-      export org_sagebionetworks_datacite_username=$(echo $DATACITE_CREDS | jq -r '.datacite_username')
-      export org_sagebionetworks_datacite_password=$(echo $DATACITE_CREDS | jq -r '.datacite_password')
-      export org_sagebionetworks_google_cloud_enabled=true
-      export org_sagebionetworks_google_cloud_key=$(get_secret "/build/google/cloud/key")
-      export org_sagebionetworks_sts_iam_arn=$(aws --region us-east-1 cloudformation describe-stacks --stack-name dev-${user}-shared-resources --query 'Stacks[0].Outputs[?OutputKey==`TempCredentialsServiceRoleArn`].OutputValue' --output text)
-      export org_sagebionetworks_cloudfront_domainname=data.dev.sagebase.org
-      # misnomer: "keypair" on the next line is actually just the key id
-      export org_sagebionetworks_cloudfront_keypair=$(get_secret "org.sagebionetworks.cloudfront.private.key.id")
-      export org_sagebionetworks_cloudfront_private_key_secret=$(get_secret "build.org.sagebionetworks.cloudfront.private.key.secret")
+      if [ ${FULL_BUILD} == "true" ]; then
+        export org_sagebionetworks_stackEncryptionKey=$(get_secret "/build/stack/encryption/key")
+        export rds_password=$(get_secret "build.rds.password")
+        export build_deploy=true
+        ARTIFACTORY_CREDS=$(get_secret "/build/artifactory")
+        export artifactory_username=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_username')
+        export artifactory_password=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_password')
+        export org_sagebionetworks_datacite_enabled=true
+        export org_sagebionetworks_doi_prefix=10.33627
+        export org_sagebionetworks_doi_datacite_api_endpoint=mds.test.datacite.org
+        DATACITE_CREDS=$(get_secret "/build/datacite")
+        export org_sagebionetworks_datacite_username=$(echo $DATACITE_CREDS | jq -r '.datacite_username')
+        export org_sagebionetworks_datacite_password=$(echo $DATACITE_CREDS | jq -r '.datacite_password')
+        export org_sagebionetworks_google_cloud_enabled=true
+        export org_sagebionetworks_google_cloud_key=$(get_secret "/build/google/cloud/key")
+        export org_sagebionetworks_sts_iam_arn=$(aws --region us-east-1 cloudformation describe-stacks --stack-name dev-${user}-shared-resources --query 'Stacks[0].Outputs[?OutputKey==`TempCredentialsServiceRoleArn`].OutputValue' --output text)
+        export org_sagebionetworks_cloudfront_domainname=data.dev.sagebase.org
+        # misnomer: "keypair" on the next line is actually just the key id
+        export org_sagebionetworks_cloudfront_keypair=$(get_secret "org.sagebionetworks.cloudfront.private.key.id")
+        export org_sagebionetworks_cloudfront_private_key_secret=$(get_secret "build.org.sagebionetworks.cloudfront.private.key.secret")
+      fi
       ./docker_build.sh

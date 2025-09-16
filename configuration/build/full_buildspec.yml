@@ -26,7 +26,7 @@ phases:
       - sudo dnf -y update && sudo dnf install -y mariadb105
   build:
     commands:
-      - get_secret() { aws secretsmanager get-secret-value --secret-id $1 | jq -r ".SecretString"; }
+      - function get_secret() { aws secretsmanager get-secret-value --secret-id $1 | jq -r ".SecretString"; }
       # CodeBuild creates an STS session of one hour duration and there is no way to override.
       # The Synapse build needs a longer lived session.  So we use a long lived token stored in secrets manager
       # by the GitHub workflow.

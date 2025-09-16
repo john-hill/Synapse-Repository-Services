@@ -25,7 +25,7 @@ public class GridIndexManagerImpl implements GridIndexManager {
 
 	private final GridIndexDao dao;
 	private final OperationDispatcher operationDispatcher;
-	
+
 	public GridIndexManagerImpl(GridIndexDao dao, OperationDispatcher operationDispatcher) {
 		super();
 		this.dao = dao;
@@ -54,13 +54,13 @@ public class GridIndexManagerImpl implements GridIndexManager {
 
 		LogicalTimestamp patchClock = LogicalTimestamp.newIncrement(patch.getPatchId(), patch.getSpan());
 
-		// unconditionally increment this replica's clock by the new sequence.
-		dao.setClock(sessionId, replicaId,
-				new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(patchClock.getSequenceNumber()));
-		if (patchClock.getReplicaId() != replicaId) {
-			// The patch is from another replica, so add it to this replica's clock.
-			dao.setClock(sessionId, replicaId, patchClock);
-		}
+		/*
+		 * Set the replica's clock to reflect the applied patch. For bootstrap patches
+		 * (created during grid initialization), we must be careful not to increment
+		 * this replica's sequence beyond other replicas' sequences, as this could
+		 * cause outstanding bootstrap patches to be ignored during synchronization.
+		 */
+		dao.setClock(sessionId, replicaId, patchClock);
 		return changes;
 	}
 
@@ -86,12 +86,12 @@ public class GridIndexManagerImpl implements GridIndexManager {
 		return dao.getClockSequenceNumber(sessionId, replicaId, patchId.getReplicaId())
 				.map(seq -> patchId.getSequenceNumber() < seq).orElse(false);
 	}
-	
+
 	@Override
 	public List<LogicalTimestamp> getClock(String sessionId, Long replicaId) {
 		return dao.getClock(sessionId, replicaId);
 	}
-	
+
 	@Override
 	@GridTransaction(readOnly = false)
 	public MessageChain startMessageChain(String sessionId, Long replicaId, String method) {

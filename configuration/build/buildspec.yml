@@ -39,7 +39,8 @@ phases:
       if [ ${FULL_BUILD} == "true" ]; then
         export org_sagebionetworks_stackEncryptionKey=$(get_secret "/build/stack/encryption/key")
         export rds_password=$(get_secret "build.rds.password")
-        export build_deploy=true
+        # TODO should build_deploy be set to true?
+        # export build_deploy=false
         ARTIFACTORY_CREDS=$(get_secret "/build/artifactory")
         export artifactory_username=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_username')
         export artifactory_password=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_password')

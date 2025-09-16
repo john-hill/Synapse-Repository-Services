@@ -39,8 +39,6 @@ phases:
       if [ ${FULL_BUILD} == "true" ]; then
         export org_sagebionetworks_stackEncryptionKey=$(get_secret "/build/stack/encryption/key")
         export rds_password=$(get_secret "build.rds.password")
-        # TODO should build_deploy be set to true?
-        # export build_deploy=false
         ARTIFACTORY_CREDS=$(get_secret "/build/artifactory")
         export artifactory_username=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_username')
         export artifactory_password=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_password')
@@ -53,6 +51,7 @@ phases:
         export org_sagebionetworks_google_cloud_enabled=true
         export org_sagebionetworks_google_cloud_key=$(get_secret "/build/google/cloud/key")
         export org_sagebionetworks_sts_iam_arn=$(aws --region us-east-1 cloudformation describe-stacks --stack-name dev-${user}-shared-resources --query 'Stacks[0].Outputs[?OutputKey==`TempCredentialsServiceRoleArn`].OutputValue' --output text)
+        export org_sagebionetworks_sts_duration_seconds=300
         export org_sagebionetworks_cloudfront_domainname=data.dev.sagebase.org
         # misnomer: "keypair" on the next line is actually just the key id
         export org_sagebionetworks_cloudfront_keypair=$(get_secret "org.sagebionetworks.cloudfront.private.key.id")

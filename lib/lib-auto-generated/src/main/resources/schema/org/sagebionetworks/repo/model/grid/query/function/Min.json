@@ -1,0 +1,19 @@
+{
+	"description": "Returns the minimum value of column_name. MIN() may take a string argument; in such cases, it returns the minimum string value.  Will translate to: MIN([DISTINCT] column_name)",
+	"type": "object",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.grid.query.SelectItem"
+		}
+	],
+	"properties": {
+		"distinct": {
+			"type": "boolean",
+			"description": "Optional. When true, DISTINCT will be used."
+		},
+		"columnName": {
+			"type": "string",
+			"description": "The name of a column."
+		}
+	}
+}

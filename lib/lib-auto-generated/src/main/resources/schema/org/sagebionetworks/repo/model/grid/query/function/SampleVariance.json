@@ -1,0 +1,15 @@
+{
+	"description": "Returns the sample variance of column_name. That is, the denominator is the number of rows minus one.  Will translate to: VAR_SAMP(column_name).",
+	"type": "object",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.grid.query.SelectItem"
+		}
+	],
+	"properties": {
+		"columnName": {
+			"type": "string",
+			"description": "The name of a column."
+		}
+	}
+}

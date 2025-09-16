@@ -1,0 +1,19 @@
+{
+	"description": "Returns the sum of column_name. If the return set has no rows, SUM() returns NULL. The DISTINCT keyword can be used to sum only the distinct values of column_name.  Will translate to: SUM([DISTINCT] column_name)",
+	"type": "object",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.grid.query.SelectItem"
+		}
+	],
+	"properties": {
+		"distinct": {
+			"type": "boolean",
+			"description": "Optional. When true, DISTINCT will be used."
+		},
+		"columnName": {
+			"type": "string",
+			"description": "The name of a column."
+		}
+	}
+}

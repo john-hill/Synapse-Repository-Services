@@ -3,7 +3,7 @@
 	"properties": {
 		"isValid": {
 			"type": "boolean",
-			"description": "True if the object is currently valid according to the schema."
+			"description": "Will be 'true' if the row is valid according to the JSON schema. Will be 'false' when the row is invalid."
 		},
 		"validationErrorMessage": {
 			"type": "string",

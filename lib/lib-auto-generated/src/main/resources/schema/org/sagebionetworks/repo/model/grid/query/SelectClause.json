@@ -1,0 +1,16 @@
+{
+	"description": "Will translate to: SELECT [DISTINCT] select_item, [ select_item...]",
+	"properties": {
+		"distinct": {
+			"type": "boolean",
+			"description": "Optional. When true, DISTINCT will be used."
+		},
+		"selectList": {
+			"description": "One ore more select items.",
+			"type": "array",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.grid.query.SelectItem"
+			}
+		}
+	}
+}

@@ -1,5 +1,5 @@
 {
-	"description": "A generic SQL expression.",
+	"description": "A generic filter.",
 	"type": "interface",
 	"properties": {
 		"concreteType": {

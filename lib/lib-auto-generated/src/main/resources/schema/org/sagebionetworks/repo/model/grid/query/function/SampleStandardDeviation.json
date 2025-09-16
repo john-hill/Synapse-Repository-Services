@@ -1,0 +1,15 @@
+{
+	"description": "Returns the sample standard deviation of column_name (the square root of VAR_SAMP().  Will translate to: STDDEV_SAMP(column_name)",
+	"type": "object",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.grid.query.SelectItem"
+		}
+	],
+	"properties": {
+		"columnName": {
+			"type": "string",
+			"description": "The name of a column."
+		}
+	}
+}

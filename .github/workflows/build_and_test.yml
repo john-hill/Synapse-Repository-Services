@@ -8,7 +8,7 @@
 # - USER (the 'user' parameter for the Synapse build): defaults to repo' owner
 # - STACK_BUILDER_REPO_OWNER: defaults to Sage-Bionetworks
 # - STACK_BUILDER_BRANCH: defaults to develop
-# - FULL_BUILD: if non-empty, will do a full build, vs. an abbreviated "feature build"
+# - FULL_BUILD: if true, will do a full build, vs. an abbreviated "feature build"
 #
 name: main
 

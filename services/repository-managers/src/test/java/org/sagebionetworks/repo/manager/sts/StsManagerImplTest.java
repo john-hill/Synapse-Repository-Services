@@ -358,6 +358,7 @@ public class StsManagerImplTest {
 	private void mockSts() {
 		// Mock config needed to set up the call.
 		when(mockStackConfiguration.getTempCredentialsIamRoleArn()).thenReturn(AWS_ROLE_ARN);
+		when(mockStackConfiguration.getSTSTokenDurationSeconds()).thenReturn(null); // without this, it returns 0
 
 		// Mock the actual STS call.
 		Credentials credentials = new Credentials(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_SESSION_TOKEN,

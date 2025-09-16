@@ -45,6 +45,9 @@ Parameters:
     Description: The 'user' param for the Synapse build, e.g. 'pjmhill'
     AllowedPattern: ".+"
     ConstraintDescription: Parameter cannot be empty.
+  FullBuild:
+    Type: String
+    Description: Set to non-empty (e.g. to true) to do a full build
   BuildImage:
     Type: String
     Description: CodeBuild image to use for the build
@@ -190,7 +193,7 @@ Resources:
               Configuration:
                 ProjectName: !Ref CodeBuildProject
                 EnvironmentVariables: !Sub '[{"name":"user","type":"PLAINTEXT","value":"${BuildParamUser}"}]'
-                BuildspecOverride: configuration/build/buildspec.yml
+                BuildspecOverride: !If [!Ref FullBuild, "configuration/build/full_buildspec.yml", "configuration/build/feature_buildspec.ymlz']
         - Name: BuildSynapseRepo
           Actions:
             - Name: BuildSynapseRepo

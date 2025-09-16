@@ -8,6 +8,7 @@
 # - USER (the 'user' parameter for the Synapse build): defaults to repo' owner
 # - STACK_BUILDER_REPO_OWNER: defaults to Sage-Bionetworks
 # - STACK_BUILDER_BRANCH: defaults to develop
+# - FULL_BUILD: if non-empty, will do a full build, vs. an abbreviated "feature build"
 #
 name: main
 
@@ -39,8 +40,10 @@ jobs:
           fi
           # capture the current branch as an environment variable
           echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
-          echo "stack_builder_branch=${{ vars.STACK_BUILDER_BRANCH }}" >> $GITHUB_ENV
+          # get repo' and branch specifying the version of the stack builder to use
           echo "stack_builder_repo_owner=${{ vars.STACK_BUILDER_REPO_OWNER }}" >> $GITHUB_ENV
+          echo "stack_builder_branch=${{ vars.STACK_BUILDER_BRANCH }}" >> $GITHUB_ENV
+          echo "full_build=${{ vars.FULL_BUILD }}" >> $GITHUB_ENV
 
       - id: oidc
         uses: aws-actions/configure-aws-credentials@v5
@@ -93,7 +96,8 @@ jobs:
             GitHubToken=${{ secrets.GITHUB_TOKEN }},
             BuildParamUser=${{ env.user }},
             StackBuilderBranch=${{ env.stack_builder_branch }},
-            StackBuilderRepoOwner=${{ env.stack_builder_repo_owner }}
+            StackBuilderRepoOwner=${{ env.stack_builder_repo_owner }},
+            FullBuild=${{ env.full_build }}
 
       - name: Trigger CodePipeline
         run: |

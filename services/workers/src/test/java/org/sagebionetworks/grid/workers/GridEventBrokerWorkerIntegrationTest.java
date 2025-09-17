@@ -65,6 +65,8 @@ import org.sagebionetworks.repo.model.grid.CreateGridResponse;
 import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridRequest;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
+import org.sagebionetworks.repo.model.grid.GridCsvImportRequest;
+import org.sagebionetworks.repo.model.grid.GridCsvImportResponse;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportRequest;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportResponse;
 import org.sagebionetworks.repo.model.grid.GridReplica;
@@ -89,6 +91,7 @@ import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.schema.ValidationSummaryStatistics;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
+import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.repo.model.table.EntityView;
 import org.sagebionetworks.repo.model.table.Query;
 import org.sagebionetworks.repo.model.table.Row;
@@ -720,6 +723,27 @@ public class GridEventBrokerWorkerIntegrationTest {
 		
 		assertNotEquals(recordSetV2.getDataFileHandleId(), recordSetV3.getDataFileHandleId());
 		assertEquals(validationStats, recordSetV3.getValidationSummary());
+	
+		// Now update the record set from a CSV file
+		try (InputStream is = GridEventBrokerWorkerIntegrationTest.class.getClassLoader().getResourceAsStream("recordset_upsert.csv")) {
+			csvContents = IOUtils.toByteArray(is);
+		}
+		
+		S3FileHandle upsertFileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(), csvContents, "recordset_upsert.csv", ContentType.create("text/csv"), null);
+		
+		GridCsvImportRequest csvImportRequest = new GridCsvImportRequest()
+			.setSessionId(session.getSessionId())
+			.setFileHandleId(upsertFileHandle.getId())
+			.setCsvDescriptor(new CsvTableDescriptor().setIsFirstLineHeader(true));
+		
+		asynchronousJobWorkerHelper.assertJobResponse(admin, csvImportRequest, (GridCsvImportResponse response) -> {
+			assertEquals(request.getSessionId(), response.getSessionId());
+			assertEquals(5, response.getTotalCount());
+			assertEquals(2, response.getUpdatedCount());
+			assertEquals(3, response.getCreatedCount());
+		}, MAX_WAIT_MS).getResponse();
+		
+		// TODO check that the grid actually updates eventually
 	}
 
 	List<String[]> createAndDownloadCsvFromGrid(DownloadFromGridRequest request)

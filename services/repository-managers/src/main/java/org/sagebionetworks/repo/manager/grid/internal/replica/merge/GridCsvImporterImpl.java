@@ -1,41 +1,46 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.merge;
 
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.file.BucketObjectReader;
 import org.sagebionetworks.repo.manager.file.BucketObjectReaderProvider;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.grid.GridManager;
+import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
 import org.sagebionetworks.repo.model.Entity;
 import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.file.CloudProviderFileHandleInterface;
 import org.sagebionetworks.repo.model.file.FileHandle;
+import org.sagebionetworks.repo.model.grid.EventSource;
+import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridCsvImportRequest;
 import org.sagebionetworks.repo.model.grid.GridCsvImportResponse;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.table.cluster.utils.CSVUtils;
 import org.sagebionetworks.util.ValidateArgument;
+import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.springframework.stereotype.Service;
 
 import au.com.bytecode.opencsv.CSVReader;
 
 @Service
 public class GridCsvImporterImpl implements GridCsvImporter {
-
+	
 	private final GridManager gridManager;
+	private final GridReplicaViewManager gridViewManager;
 	private final EntityManager entityManager;
 	private final FileHandleManager fileHandleManager;
 	private final BucketObjectReaderProvider fileReaderProvider;
 	
-	public GridCsvImporterImpl(GridManager gridManager, EntityManager entityManager, FileHandleManager fileHandleManager, BucketObjectReaderProvider fileReaderProvider) {
+	public GridCsvImporterImpl(GridManager gridManager, GridReplicaViewManager gridViewManager, EntityManager entityManager, FileHandleManager fileHandleManager, BucketObjectReaderProvider fileReaderProvider) {
 		this.gridManager = gridManager;
+		this.gridViewManager = gridViewManager;
 		this.entityManager = entityManager;
 		this.fileHandleManager = fileHandleManager;
 		this.fileReaderProvider = fileReaderProvider;
@@ -47,6 +52,8 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 		ValidateArgument.required(request, "request");
 		ValidateArgument.required(request.getSessionId(), "request.sessionId");
 		ValidateArgument.required(request.getFileHandleId(), "request.fileHandleId");
+		ValidateArgument.required(request.getCsvDescriptor(), "request.csvDescriptor");
+		ValidateArgument.requirement(Boolean.TRUE.equals(request.getCsvDescriptor().getIsFirstLineHeader()), "The request.csvDescriptor.isFirstLineHeader must be true.");
 		
 		GridSession gridSession = gridManager.getGridSession(user, request.getSessionId());
 		
@@ -54,20 +61,44 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 		
 		ValidateArgument.requirement(entity instanceof RecordSet, "Unsupported grid session: only a grid created from a record set is supported.");
 		
-		RecordSet recordSet = (RecordSet) entity;
-		List<String> upsertKey = recordSet.getUpsertKey();
+		CsvTableDescriptor csvDescriptor = request.getCsvDescriptor();
 		
-		try (CSVReader csvReader = getCsvReader(fileHandleManager.getRawFileHandle(user, recordSet.getDataFileHandleId()), recordSet.getCsvDescriptor())) {
-			// TODO
+		RecordSet recordSet = (RecordSet) entity;
+		
+		GridHeader gridHeader = getGridHeader(gridSession);
+		
+		BatchMergeProcessor batchProcessor;
+
+		try (CSVReader csvReader = getCsvReader(fileHandleManager.getRawFileHandle(user, recordSet.getDataFileHandleId()), csvDescriptor)) {
+			String[] headerRow = csvReader.readNext();
+
+			batchProcessor = getBatchProcessor(gridHeader, headerRow, recordSet);
 			
-			// Option 1: Read a chunk and check against the grid in a batch query?
-			// Option 2: Save the CSV in a temporary table and use a LEFT JOIN?
+			String[] row;
 			
-		} catch (IOException ex) {
+			while ((row = csvReader.readNext()) != null) {
+				batchProcessor.next(row);
+			}
+			
+		} catch (Exception ex) {
 			throw new IllegalStateException(ex);
 		}
 		
-		return null;
+		batchProcessor.flush();
+		
+		return new GridCsvImportResponse()
+			.setSessionId(request.getSessionId())
+			.setTotalCount(Long.valueOf(batchProcessor.getProcessedCount()))
+			.setCreatedCount(Long.valueOf(batchProcessor.getCreatedCount()))
+			.setUpdatedCount(Long.valueOf(batchProcessor.getUpdatedCount()));
+	}
+	
+	GridHeader getGridHeader(GridSession gridSession) {
+		GridConnectionInfo connectionInfo = gridManager.getSingletonConnection(gridSession.getSessionId(), EventSource.INTERNAL)
+			.orElseThrow(() -> new RecoverableMessageException("No internal connection found for session: " + gridSession.getSessionId()));
+		
+		return gridViewManager.readHeader(connectionInfo.getSessionId(), connectionInfo.getReplicaId())
+			.orElseThrow(() -> new RecoverableMessageException("Grid header has not yet been instantiated for sessionId: " + gridSession.getSessionId()));
 	}
 	
 	CSVReader getCsvReader(FileHandle fileHandle, CsvTableDescriptor csvDescriptor) {
@@ -82,5 +113,8 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 						StandardCharsets.UTF_8),
 				csvDescriptor, null);
 	}
-
+	
+	BatchMergeProcessor getBatchProcessor(GridHeader gridHeader, String[] csvHeader, RecordSet recordSet) {
+		return new BatchMergeProcessor(gridViewManager, gridHeader, csvHeader, recordSet.getUpsertKey());
+	}
 }

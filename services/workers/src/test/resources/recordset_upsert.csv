@@ -1,0 +1,6 @@
+integer_column,string_column,double_column,boolean_column
+1,"test_1_updated",1.1,false
+3,"test_3_updated",3.3,true
+4,"test_4",4.4,true
+5,"test_5",5.5,true
+6,"test_6",5.6,false

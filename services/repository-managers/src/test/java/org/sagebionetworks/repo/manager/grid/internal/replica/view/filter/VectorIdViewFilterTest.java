@@ -8,7 +8,6 @@ import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.VectorIdViewFilter;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
 public class VectorIdViewFilterTest {

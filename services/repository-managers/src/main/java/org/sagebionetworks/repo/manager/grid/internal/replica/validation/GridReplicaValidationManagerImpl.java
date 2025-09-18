@@ -16,7 +16,7 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowMetadata;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowObject;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
-import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.VectorIdViewFilter;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.VectorIdFilterElement;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaValidationManager;
 import org.sagebionetworks.repo.manager.schema.JsonSubject;
@@ -109,7 +109,7 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 	List<RowView> getRowsToValidate(GridHeader header, Collection<LogicalTimestamp> changedVectorIds) {
 		List<LogicalTimestamp> vectorList = changedVectorIds.stream().collect(Collectors.toList());
 		Long limit = (long) (changedVectorIds.size() + 1);
-		return gridReplicaViewManager.querySinglePage(header, List.of(new VectorIdViewFilter(vectorList)), limit, 0L);
+		return gridReplicaViewManager.querySinglePage(header, List.of(new VectorIdFilterElement(vectorList)), limit, 0L);
 	}
 
 	/**

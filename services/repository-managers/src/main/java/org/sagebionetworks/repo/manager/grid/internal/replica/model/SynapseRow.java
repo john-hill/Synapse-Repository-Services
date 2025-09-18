@@ -71,6 +71,17 @@ public class SynapseRow implements HasConstantIds {
 			this.etag = jsonArray.isNull(2) ? null : jsonArray.getString(2);
 		}
 	}
+	
+	public SynapseRow setFromJSON(String json) {
+		if(json == null) {
+			return this;
+		}
+		JSONArray jsonArray = new JSONArray(json);
+		this.rowId = jsonArray.isNull(0) ? null : jsonArray.getLong(0);
+		this.versionNumber = jsonArray.isNull(1) ? null : jsonArray.getLong(1);
+		this.etag = jsonArray.isNull(2) ? null : jsonArray.getString(2);
+		return this;
+	}
 
 	@Override
 	public int hashCode() {

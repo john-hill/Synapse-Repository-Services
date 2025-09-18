@@ -28,6 +28,10 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.CellVa
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.Operator;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.VectorIdViewFilter;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.ViewFilter;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.CellValueFilterElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.CellValueOperatorElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.FilterElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.VectorIdFilterElement;
 import org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils;
 import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
@@ -255,8 +259,8 @@ public class GridReplicaViewManagerImplAutowireTest {
 
 		List<RowView> allRows = gridViewManager.querySinglePage(header, limit, offset);
 
-		List<ViewFilter> filters = List
-				.of(new VectorIdViewFilter(List.of(allRows.get(1).getRowObject().getData().getVectorId(),
+		List<FilterElement> filters = List
+				.of(new VectorIdFilterElement(List.of(allRows.get(1).getRowObject().getData().getVectorId(),
 						allRows.get(4).getRowObject().getData().getVectorId())));
 
 		// call under test
@@ -277,15 +281,15 @@ public class GridReplicaViewManagerImplAutowireTest {
 
 		List<RowView> allRows = gridViewManager.querySinglePage(header, limit, offset);
 
-		List<ViewFilter> filters = List.of(
+		List<FilterElement> filters = List.of(
 				// filter 4 rows by their vector id.
-				new VectorIdViewFilter(List.of(allRows.get(1).getRowObject().getData().getVectorId(),
+				new VectorIdFilterElement(List.of(allRows.get(1).getRowObject().getData().getVectorId(),
 						allRows.get(4).getRowObject().getData().getVectorId(),
 						allRows.get(5).getRowObject().getData().getVectorId(),
 						allRows.get(9).getRowObject().getData().getVectorId())),
 				// of those four rows only include rows with a cell value greater than 103004.
-				new CellValueViewFilter().setColumn(header.getOrderedColumns().get(1)).setOperator(Operator.gt)
-						.setValue(103004L));
+				new CellValueFilterElement().setColumnName(header.getOrderedColumns().get(1).getName())
+						.setOperator(CellValueOperatorElement.GREATER_THAN).setValue(List.of(103004L)));
 
 		// call under test
 		List<RowView> page = gridViewManager.querySinglePage(header, filters, limit, offset);
@@ -331,8 +335,8 @@ public class GridReplicaViewManagerImplAutowireTest {
 
 		gridIndexManger.applyPatch(sessionId, replicaId, patch);
 
-		List<ViewFilter> filters = List
-				.of(new VectorIdViewFilter(List.of(four.getRowObject().getData().getVectorId())));
+		List<FilterElement> filters = List
+				.of(new VectorIdFilterElement(List.of(four.getRowObject().getData().getVectorId())));
 
 		// call under test
 		List<RowView> page = gridViewManager.querySinglePage(header, filters, limit, offset);

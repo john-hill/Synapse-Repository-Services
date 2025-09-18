@@ -31,8 +31,8 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowObject;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowValidation;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
-import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.VectorIdViewFilter;
-import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.ViewFilter;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.FilterElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.VectorIdFilterElement;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaValidationManager;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
@@ -210,7 +210,7 @@ public class GridReplicaValidationManagerImplTest {
 	public void testGetRowsToValidate() {
 		// call under test
 		manager.getRowsToValidate(gridHeader, changedVectorIds);
-		List<ViewFilter> filter = List.of(new VectorIdViewFilter(changedVectorIds));
+		List<FilterElement> filter = List.of(new VectorIdFilterElement(changedVectorIds));
 		verify(mockGridReplicaViewManager).querySinglePage(gridHeader, filter, 3L, 0L);
 	}
 

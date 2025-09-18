@@ -9,10 +9,10 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_CURATION
 
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
@@ -25,10 +25,12 @@ import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.query.jdo.SqlConstants;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -44,19 +46,17 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
         this.basicDao = basicDao;
     }
 
-    private static final RowMapper<CurationTask> CURATION_TASK_ROW_MAPPER = (rs, rowNum) ->
-            new CurationTask().setTaskId(rs.getLong(COL_CURATION_TASK_ID))
+    private static final RowMapper<DBOCurationTask> CURATION_TASK_ROW_MAPPER = (rs, rowNum) ->
+            new DBOCurationTask().setId(rs.getLong(COL_CURATION_TASK_ID))
                     .setDataType(rs.getString(SqlConstants.COL_CURATION_TASK_DATA_TYPE))
-                    .setProjectId(KeyFactory.keyToString(rs.getLong(SqlConstants.COL_CURATION_TASK_PROJECT_ID)))
+                    .setProjectId(rs.getLong(SqlConstants.COL_CURATION_TASK_PROJECT_ID))
                     .setInstructions(rs.getString(SqlConstants.COL_CURATION_TASK_INSTRUCTIONS))
                     .setEtag(rs.getString(COL_CURATION_TASK_ETAG))
-                    .setCreatedBy(rs.getString(COL_CURATION_TASK_CREATED_BY))
-                    .setCreatedOn(new Date(rs.getTimestamp(COL_CURATION_TASK_CREATED_ON).getTime()))
-                    .setModifiedBy(rs.getString(COL_CURATION_TASK_MODIFIED_BY))
-                    .setModifiedOn(new Date(rs.getTimestamp(COL_CURATION_TASK_MODIFIED_ON).getTime()))
-                    .setTaskProperties(
-                            JDOSecondaryPropertyUtils.createObjectFromJSON(CurationTaskProperties.class, rs.getString(SqlConstants.COL_CURATION_TASK_TASK_PROPERTIES))
-                    );
+                    .setCreatedBy(rs.getLong(COL_CURATION_TASK_CREATED_BY))
+                    .setCreatedOn(new Timestamp(rs.getTimestamp(COL_CURATION_TASK_CREATED_ON).getTime()))
+                    .setModifiedBy(rs.getLong(COL_CURATION_TASK_MODIFIED_BY))
+                    .setModifiedOn(new Timestamp(rs.getTimestamp(COL_CURATION_TASK_MODIFIED_ON).getTime()))
+                    .setTaskPropertiesJson(rs.getString(SqlConstants.COL_CURATION_TASK_TASK_PROPERTIES));
 
 
     @Override
@@ -87,16 +87,21 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
     @Override
     @WriteTransaction
     public CurationTask updateCurationTask(Long userId, CurationTask toUpdate) {
-        String currentEtag = getEtagForCurationTaskForUpdate(toUpdate.getTaskId());
+        CurationTask currentTask = getCurationTaskForUpdate(toUpdate.getTaskId())
+                .orElseThrow(() -> new NotFoundException("A curation task with ID " + toUpdate.getTaskId() + " does not exist."));
 
-        if (!currentEtag.equals(toUpdate.getEtag())) {
+
+        if (!currentTask.getEtag().equals(toUpdate.getEtag())) {
             throw new ConflictingUpdateException("The curation task was updated since you last fetched it, please fetch it again and reapply your changes.");
         }
 
-        DBOCurationTask dbo = mapToDbo(toUpdate)
+        toUpdate.setCreatedBy(currentTask.getCreatedBy())
+                .setCreatedOn(currentTask.getCreatedOn())
                 .setEtag(UUID.randomUUID().toString())
-                .setModifiedBy(userId)
+                .setModifiedBy(userId.toString())
                 .setModifiedOn(Timestamp.from(Instant.now()));
+
+        DBOCurationTask dbo = mapToDbo(toUpdate);
 
         try {
             basicDao.update(dbo);
@@ -108,11 +113,11 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
 
     @Override
     public Optional<CurationTask> getCurationTask(Long taskId) {
-        String sql = "SELECT * FROM " + SqlConstants.TABLE_CURATION_TASK + " WHERE "
-                + SqlConstants.COL_CURATION_TASK_ID + " = ?";
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("id", taskId);
 
         try {
-            return Optional.ofNullable(jdbcTemplate.queryForObject(sql, CURATION_TASK_ROW_MAPPER, taskId));
+            return basicDao.getObjectByPrimaryKey(DBOCurationTask.class, param).map(CurationTaskDaoImpl::mapToDto);
         } catch (EmptyResultDataAccessException e) {
             return Optional.empty();
         }
@@ -130,16 +135,21 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
                 + SqlConstants.COL_CURATION_TASK_PROJECT_ID + " = ? "
                 + "ORDER BY " + SqlConstants.COL_CURATION_TASK_ID + " LIMIT ? OFFSET ?";
 
-        return jdbcTemplate.query(sql, CURATION_TASK_ROW_MAPPER, projectId, limit, offset);
+        List<DBOCurationTask> dbos = jdbcTemplate.query(sql, CURATION_TASK_ROW_MAPPER, projectId, limit, offset);
+        return dbos.stream().map(CurationTaskDaoImpl::mapToDto).collect(Collectors.toList());
     }
 
     @WriteTransaction
-    String getEtagForCurationTaskForUpdate(Long taskId) {
-        String sql = "SELECT " + COL_CURATION_TASK_ETAG + " FROM " + SqlConstants.TABLE_CURATION_TASK + " WHERE "
-                + COL_CURATION_TASK_ID + " = ? "
-                + "FOR UPDATE";
+    private Optional<CurationTask> getCurationTaskForUpdate(Long taskId) {
+        MapSqlParameterSource param = new MapSqlParameterSource();
+        param.addValue("id", taskId);
 
-        return jdbcTemplate.queryForObject(sql, (rs, rowNum) -> rs.getString(COL_CURATION_TASK_ETAG), taskId);
+        try {
+            return basicDao.getObjectByPrimaryKeyWithUpdateLock(DBOCurationTask.class, param).map(CurationTaskDaoImpl::mapToDto);
+        } catch (EmptyResultDataAccessException e) {
+            return Optional.empty();
+        }
+
     }
 
     private static void handleUniquenessConstraintViolation(IllegalArgumentException e) {
@@ -151,7 +161,7 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
     }
 
     private static DBOCurationTask mapToDbo(CurationTask dto) {
-        DBOCurationTask dbo = new DBOCurationTask()
+        return new DBOCurationTask()
                 .setId(dto.getTaskId())
                 .setDataType(dto.getDataType())
                 .setProjectId(KeyFactory.stringToKey(dto.getProjectId()))
@@ -162,7 +172,19 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
                 .setModifiedBy(Long.parseLong(dto.getModifiedBy()))
                 .setModifiedOn(new Timestamp(dto.getModifiedOn().getTime()))
                 .setTaskPropertiesJson(JDOSecondaryPropertyUtils.createJSONFromObject(dto.getTaskProperties()));
+    }
 
-        return dbo;
+    private static CurationTask mapToDto(DBOCurationTask dbo) {
+        return new CurationTask()
+                .setTaskId(dbo.getId())
+                .setDataType(dbo.getDataType())
+                .setProjectId(KeyFactory.keyToString(dbo.getProjectId()))
+                .setInstructions(dbo.getInstructions())
+                .setEtag(dbo.getEtag())
+                .setCreatedBy(dbo.getCreatedBy().toString())
+                .setCreatedOn(dbo.getCreatedOn())
+                .setModifiedBy(dbo.getModifiedBy().toString())
+                .setModifiedOn(dbo.getModifiedOn())
+                .setTaskProperties(JDOSecondaryPropertyUtils.createObjectFromJSON(CurationTaskProperties.class, dbo.getTaskPropertiesJson()));
     }
 }

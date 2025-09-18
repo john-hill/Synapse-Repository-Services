@@ -109,6 +109,9 @@ jobs:
             --source-revisions actionName=CheckoutSynapseRepo,revisionType=COMMIT_ID,revisionValue=${{ github.sha }} \
             --query 'pipelineExecutionId' --output text)
 
+          # if the status check is too soon, the executing pipeline is not found and the workflow fails
+          sleep 10
+
           # Wait for completion
           while true; do
             STATUS=$(aws codepipeline get-pipeline-execution --pipeline-name ${{ steps.pipeline-deploy.outputs.PipelineName }} \

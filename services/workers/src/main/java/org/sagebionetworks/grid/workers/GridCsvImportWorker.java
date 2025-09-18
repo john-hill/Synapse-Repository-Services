@@ -17,7 +17,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class GridCsvImportWorker implements AsyncJobRunner<GridCsvImportRequest, GridCsvImportResponse> {
 
-	private static final Logger LOGGER = LogManager.getLogger(GridRecordSetExportWorker.class);
+	private static final Logger LOGGER = LogManager.getLogger(GridCsvImportWorker.class);
 	private static final String SEMAPHORE_KEY_PREFIX = "gridCsvImport-";
 	
 	private GridCsvImporter importer;

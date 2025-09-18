@@ -369,7 +369,7 @@ public class GridController {
     
 	/**
 	 * Asynchronously get the results of a CSV import job started with 
-	 * <a href="${POST.grid.export.recordset.async.start}">POST /grid/import/csv/async/start</a>.
+	 * <a href="${POST.grid.import.csv.async.start}">POST /grid/import/csv/async/start</a>.
 	 *
 	 * <p>
 	 * Note: When the result is not ready yet, this method will return a status code of 202 (ACCEPTED) and the response body

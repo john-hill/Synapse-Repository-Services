@@ -70,9 +70,9 @@ public class GridCsvImportWorkerTest {
         when(mockGridCsvImporter.importCsv(userInfo, request, mockJobProgressCallback)).thenReturn(response);
         
         // call under test
-        GridCsvImportResponse response = worker.run(jobId, userInfo, request, mockJobProgressCallback);
+        GridCsvImportResponse result = worker.run(jobId, userInfo, request, mockJobProgressCallback);
 
-        assertEquals(response, response);
+        assertEquals(response, result);
     }
     
     @Test

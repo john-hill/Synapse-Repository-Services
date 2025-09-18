@@ -6,10 +6,8 @@ import java.util.Optional;
 
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
-import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.ViewFilter;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.FilterElement;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.QueryElement;
-import org.sagebionetworks.repo.model.grid.query.Query;
 
 /**
  * Provides a paginated “view” of a grid replica using a specialized query that

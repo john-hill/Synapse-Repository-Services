@@ -1,7 +1,9 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.view.query;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
@@ -24,6 +26,34 @@ public class VectorIdFilterElement implements FilterElement {
 		String bind = String.format("vectorIds%d", index);
 		sqlBuilder.append(String.format(" (VEC_REP, VEC_SEQ) IN (:%s)", bind));
 		params.put(bind, idTuples);
+	}
+
+	@Override
+	public int hashCode() {
+		return Objects.hash(idTuples);
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		VectorIdFilterElement other = (VectorIdFilterElement) obj;
+		if (idTuples.size() != other.idTuples.size())
+			return false;
+		for (int i = 0; i < idTuples.size(); i++) {
+			if (!Arrays.equals(idTuples.get(i), other.idTuples.get(i)))
+				return false;
+		}
+		return true;
+	}
+
+	@Override
+	public String toString() {
+		return "VectorIdFilterElement [idTuples=" + idTuples + "]";
 	}
 
 }

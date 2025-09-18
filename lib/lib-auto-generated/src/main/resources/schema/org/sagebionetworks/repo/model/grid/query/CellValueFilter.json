@@ -56,6 +56,14 @@
 				{
 					"name": "NOT_LIKE",
 					"description": ""
+				},
+				{
+					"name": "IS_NULL",
+					"description": ""
+				},
+				{
+					"name": "IS_NOT_NULL",
+					"description": ""
 				}
 			]
 		},
@@ -64,7 +72,7 @@
 			"items": {
 				"type": "object"
 			},
-			"description": "For the operators: 'LIKE' and 'NOT_LIKE', more then one value may be provided.  For all other operators, a single value is required. When using either 'LIKE' or 'NOT_LIKE', the wildcard character: '%' is used to represents zero or more characters, and '_' is used to represents a single character."
+			"description": "A filter used to select rows based on a specific column's cell value. Use operators like 'EQUALS' or 'LIKE' with the 'value' array for standard comparisons. For user requests about finding 'empty', 'blank', or 'null' values, use the 'IS_NULL' operator and omit the 'value' property. To find rows that are not empty, use the 'IS_NOT_NULL' operator. When using either 'LIKE' or 'NOT_LIKE', the wildcard character: '%' is used to represents zero or more characters, and '_' is used to represents a single character."
 		}
 	}
 }

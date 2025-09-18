@@ -1,25 +1,45 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.view.query;
 
 public enum CellValueOperatorElement {
+	//
+	EQUALS("=", ValueMultiplicity.one),
+	//
+	NOT_EQUALS("<>", ValueMultiplicity.one),
+	//
+	GREATER_THAN(">", ValueMultiplicity.one),
+	//
+	LESS_THAN("<", ValueMultiplicity.one),
+	//
+	GREATER_THAN_OR_EQUALS(">=", ValueMultiplicity.one),
+	//
+	LESS_THAN_OR_EQUALS("<=", ValueMultiplicity.one),
+	//
+	LIKE("LIKE", ValueMultiplicity.one),
+	//
+	NOT_LIKE("NOT LIKE", ValueMultiplicity.one),
+	//
+	IN("IN", ValueMultiplicity.many),
+	//
+	NOT_IN("NOT IN", ValueMultiplicity.many),
+	//
+	IS_NULL("IS NULL", ValueMultiplicity.none),
+	//
+	IS_NOT_NULL("IS NOT NULL", ValueMultiplicity.none);
 
-	EQUALS(" ="),
-	NOT_EQUALS(" <>"),
-	GREATER_THAN(" >"),
-	LESS_THAN(" <"),
-	GREATER_THAN_OR_EQUALS(" >="),
-	LESS_THAN_OR_EQUALS(" <="),
-	IN(" IN"),
-	NOT_IN(" NOT IN"),
-	LIKE(" LIKE"),
-	NOT_LIKE(" NOT LIKE");
+	final private String sql;
+	final private ValueMultiplicity valueMultiplicity;
 
-	private String sql;
-
-	CellValueOperatorElement(String sql) {
+	CellValueOperatorElement(String sql, ValueMultiplicity valueMultiplicity) {
 		this.sql = sql;
+		this.valueMultiplicity = valueMultiplicity;
 	}
-	
+
 	public String toSql() {
 		return sql;
 	}
+
+	public ValueMultiplicity getValueMultiplicity() {
+		return valueMultiplicity;
+	}
+
 }

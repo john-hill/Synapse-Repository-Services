@@ -5,20 +5,16 @@ version: 0.2
 env:
   variables:
     stack: dev
+    org_sagebionetworks_search_enabled: false
+    org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
     m2_cache_parent_folder: .
     src_folder: .
-    org_sagebionetworks_sts_duration_seconds: 900
-    org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
   secrets-manager:
+    org_sagebionetworks_stackEncryptionKey: org.sagebionetworks.stackEncryptionKey
     rds_password: build.rds.password
     # misnomer: "keypair" on the next line is actually just the key id
     org_sagebionetworks_cloudfront_keypair: org.sagebionetworks.cloudfront.private.key.id
     org_sagebionetworks_cloudfront_private_key_secret: build.org.sagebionetworks.cloudfront.private.key.secret
-    org_sagebionetworks_stackEncryptionKey: /build/stack/encryption/key
-    org_sagebionetworks_google_cloud_key: /build/google/cloud/key
-    STS_CREDENTIALS: /build/session-token/${user}
-    ARTIFACTORY_CREDS: /build/artifactory
-    DATACITE_CREDS: /build/datacite
 phases:
   install:
     runtime-versions:
@@ -31,30 +27,31 @@ phases:
       sudo dnf -y update && sudo dnf install -y mariadb105
   build:
     commands: |
+      function get_secret() { aws secretsmanager get-secret-value --secret-id $1 | jq -r ".SecretString"; }
       # CodeBuild creates an STS session of one hour duration and there is no way to override.
       # The Synapse build needs a longer lived session.  So we use a long lived token stored in secrets manager
       # by the GitHub workflow.
+      STS_CREDENTIALS=$(get_secret "/build/session-token/${user}")
       export org_sagebionetworks_stack_iam_id=$(echo $STS_CREDENTIALS | jq -r '.AwsAccessKeyId')
       export org_sagebionetworks_stack_iam_key=$(echo $STS_CREDENTIALS | jq -r '.AwsSecretAccessKey')
       export org_sagebionetworks_stack_iam_session_token=$(echo $STS_CREDENTIALS | jq -r '.AwsSessionToken')
-      export org_sagebionetworks_repository_database_connection_url=dev-${user}-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
-      export org_sagebionetworks_table_cluster_endpoint_0=dev-${user}-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
       if [ ${FULL_BUILD} == "true" ]; then
+        export org_sagebionetworks_stackEncryptionKey=$(get_secret "/build/stack/encryption/key")
+        export rds_password=$(get_secret "build.rds.password")
+        ARTIFACTORY_CREDS=$(get_secret "/build/artifactory")
         export artifactory_username=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_username')
         export artifactory_password=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_password')
         export org_sagebionetworks_datacite_enabled=true
         export org_sagebionetworks_doi_prefix=10.33627
         export org_sagebionetworks_doi_datacite_api_endpoint=mds.test.datacite.org
+        DATACITE_CREDS=$(get_secret "/build/datacite")
         export org_sagebionetworks_datacite_username=$(echo $DATACITE_CREDS | jq -r '.datacite_username')
         export org_sagebionetworks_datacite_password=$(echo $DATACITE_CREDS | jq -r '.datacite_password')
-        export org_sagebionetworks_sts_iam_arn=$(aws --region us-east-1 cloudformation describe-stacks --stack-name dev-${user}-shared-resources --query 'Stacks[0].Outputs[?OutputKey==`TempCredentialsServiceRoleArn`].OutputValue' --output text)
-        export org_sagebionetworks_search_enabled=true
         export org_sagebionetworks_google_cloud_enabled=true
-      else
-        export org_sagebionetworks_search_enabled=false
-        unset org_sagebionetworks_cloudfront_keypair
-        unset org_sagebionetworks_cloudfront_private_key_secret
-        unset org_sagebionetworks_google_cloud_key
+        export org_sagebionetworks_sts_iam_arn=$(aws --region us-east-1 cloudformation describe-stacks --stack-name dev-${user}-shared-resources --query 'Stacks[0].Outputs[?OutputKey==`TempCredentialsServiceRoleArn`].OutputValue' --output text)
+        export org_sagebionetworks_sts_duration_seconds=900
+        export org_sagebionetworks_cloudfront_domainname=data.dev.sagebase.org
+        export org_sagebionetworks_google_cloud_key=$(get_secret "/build/google/cloud/key")
       fi
       export EXTRA_ARGS=" -rf :integration-test "
       ./docker_build.sh

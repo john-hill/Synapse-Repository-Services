@@ -1,4 +1,4 @@
-package org.sagebionetworks.repo.manager.grid.internal.replica.view.query;
+package org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter;
 
 import java.util.Arrays;
 import java.util.List;
@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.Context;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.util.ValidateArgument;
 

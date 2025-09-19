@@ -1,9 +1,0 @@
-{
-	"description": "Used to select all columns from the grid. Use this option when to get a general understanding of all of the columns of the grid.",
-	"type": "object",
-	"implements": [
-		{
-			"$ref": "org.sagebionetworks.repo.model.grid.query.SelectItem"
-		}
-	]
-}

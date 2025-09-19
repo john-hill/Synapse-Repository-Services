@@ -16,7 +16,7 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowMetadata;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowObject;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
-import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.VectorIdFilterElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.VectorIdFilterElement;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaValidationManager;
 import org.sagebionetworks.repo.manager.schema.JsonSubject;

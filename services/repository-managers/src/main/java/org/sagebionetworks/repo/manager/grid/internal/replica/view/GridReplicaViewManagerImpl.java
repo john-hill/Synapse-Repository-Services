@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -12,10 +13,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.StringJoiner;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.IOUtils;
 import org.json.JSONArray;
+import org.json.JSONObject;
 import org.sagebionetworks.grid.db.GridIndexDao;
 import org.sagebionetworks.grid.db.GridTransaction;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
@@ -27,18 +30,17 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowValidatio
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.SynapseRow;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.Context;
-import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.FilterElement;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.QueryElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.FilterElement;
 import org.sagebionetworks.repo.model.grid.GridUtils;
+import org.sagebionetworks.repo.model.grid.ReplicaSelectionModel;
 import org.sagebionetworks.repo.model.grid.node.ArrayNode;
 import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.ObjectNode;
 import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
-
 import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.schema.ValidationResults;
-import org.sagebionetworks.schema.adapter.JSONObjectAdapter;
 import org.sagebionetworks.util.PaginationIterator;
 import org.sagebionetworks.util.ValidateArgument;
 import org.semver4j.Semver;
@@ -163,10 +165,31 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 			return Optional.empty();
 		}
 		ObjectNode root = rootOpt.get();
-		ConstantNode docVersion = gridIndexDao
-				.getConstants(gridSessionId, replicaId, List.of(root.getValue().get("doc_version"))).get(0);
-		docVersion.getValue();
+		List<LogicalTimestamp> constatntIds = new ArrayList<>();
+		LogicalTimestamp selectionId = root.getValue().get("selection");
+		LogicalTimestamp selectionConId = null;
+		if(selectionId != null) {
+			List<ObjectNode> selections =  gridIndexDao.getObjects(gridSessionId, replicaId, List.of(selectionId));
+			if(selections.size() == 1) {
+				ObjectNode selectionNode = selections.get(0);
+				selectionConId = selectionNode.getValue().get(replicaId.toString());
+				constatntIds.add(selectionConId);
+			}
+		}
+		LogicalTimestamp docVersionConId = root.getValue().get("doc_version");
+		constatntIds.add(docVersionConId);
+		
+		Map<LogicalTimestamp, ConstantNode> constants = gridIndexDao.getConstants(gridSessionId, replicaId, constatntIds)
+		.stream().collect(Collectors.toMap(ConstantNode::getId, Function.identity()));
+		
+		ConstantNode selectionCon = constants.get(selectionConId);
+		ReplicaSelectionModel selectionModel = null;
+		if (selectionCon != null) {
+			selectionModel = JDOSecondaryPropertyUtils.createEntityFromJSONObject((JSONObject) selectionCon.getValue(),
+					ReplicaSelectionModel.class);
+		}
 
+		ConstantNode docVersion = constants.get(docVersionConId);
 		Semver semver = new Semver((String) docVersion.getValue());
 		if (semver.isGreaterThan(new Semver("0.1.0"))) {
 			throw new IllegalArgumentException("Cannot read a document version of: " + semver.toString());
@@ -195,7 +218,7 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		return Optional.of(new GridHeader().setSessionId(gridSessionId).setReplicaId(replicaId).setRowsId(rowsId)
 				.setDocumentVersion(semver).setNodeId(root.getId()).setOrderedColumns(columns)
 				.setColumnOrderArrId(columnOrderArrId).setColumnNamesVecId(columnNames.getId())
-				.setClockSequenceMaximum(clockSequenceMaximum));
+				.setClockSequenceMaximum(clockSequenceMaximum).setReplicaSelectionModel(selectionModel));
 	}
 
 	/**

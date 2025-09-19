@@ -24,19 +24,24 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowObject;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowValidation;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.SynapseRow;
-import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.CellValueFilterElement;
-import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.CellValueOperatorElement;
-import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.FilterElement;
-import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.VectorIdFilterElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.CellValueFilterElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.CellValueOperatorElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.FilterElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.VectorIdFilterElement;
 import org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils;
 import org.sagebionetworks.repo.model.grid.GridUtils;
+import org.sagebionetworks.repo.model.grid.ReplicaSelectionModel;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
 import org.sagebionetworks.repo.model.grid.patch.Timespan;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
+import org.sagebionetworks.repo.model.grid.patch.operation.builder.InsertObjectBuilder;
+import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewConstantBuilder;
+import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewObjectBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
+import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
@@ -134,8 +139,37 @@ public class GridReplicaViewManagerImplAutowireTest {
 		expected.setClockSequenceMaximum(patch.getPatchId().getSequenceNumber() + patch.getSpan());
 		// call under test
 		assertEquals(Optional.of(expected), gridViewManager.readHeader(sessionId, replicaId));
+		
+		// add a selection model to the gird
+		ReplicaSelectionModel selection = new ReplicaSelectionModel().setRowSelectAll(true).setColumnSelectAll(false);
+		Long maxSeq = setSelection(expected.getNodeId(), selection);
+		
+		expected.setReplicaSelectionModel(selection);
+		expected.setClockSequenceMaximum(maxSeq);
+		// call under test
+		assertEquals(Optional.of(expected), gridViewManager.readHeader(sessionId, replicaId));
 
 	}
+	
+	/**
+	 * Helper to set the selection model of the grid session.
+	 * @param rootObjectId
+	 * @param selection
+	 * @return
+	 */
+	public Long setSelection(LogicalTimestamp rootObjectId, ReplicaSelectionModel selection) {
+		Patch patch = new Patch()
+				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
+		LogicalTimestamp selectionConId = patch.addNewOperation(new NewConstantBuilder().setValue(
+				new ConValue(ConType.JSON_OBJECT, JDOSecondaryPropertyUtils.createJSONObjectForEntity(selection))));
+		LogicalTimestamp selectionObId = patch.addNewOperation(new NewObjectBuilder());
+		patch.addNewOperation(new InsertObjectBuilder().setMap(Map.of(replicaId.toString(), selectionConId))
+				.setObjectId(selectionObId));
+		patch.addNewOperation(new InsertObjectBuilder().setObjectId(rootObjectId).setMap(Map.of("selection",selectionObId)));
+		gridIndexManger.applyPatch(sessionId, replicaId, patch);
+		return patch.getPatchId().getSequenceNumber() + patch.getSpan();
+	}
+
 
 	@Test
 	public void testQuerySinglePage() throws IOException {
@@ -291,6 +325,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 		List<RowView> page = gridViewManager.querySinglePage(header, filters, limit, offset);
 		List<RowView> expected = List.of(allRows.get(5), allRows.get(9));
 		assertEquals(expected, page);
+		
 	}
 
 	@Test

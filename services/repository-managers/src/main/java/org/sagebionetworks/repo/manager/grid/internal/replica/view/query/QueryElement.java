@@ -5,6 +5,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.FilterElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.FilterTranslation;
 import org.sagebionetworks.repo.model.grid.query.Query;
 
 public class QueryElement implements Element {
@@ -22,7 +24,7 @@ public class QueryElement implements Element {
 	public QueryElement(Query query) {
 		this.selectClause = new SelectClauseElement(query.getSelect());
 		if (query.getWhere() != null) {
-			where = query.getWhere().stream().map(f -> Filters.createElement(f)).collect(Collectors.toList());
+			where = query.getWhere().stream().map(f -> FilterTranslation.translate(f)).collect(Collectors.toList());
 		}
 		if (query.getGroupBy() != null) {
 			groupBy = query.getGroupBy().stream().map(c -> new ColumnNameElement(c)).collect(Collectors.toList());

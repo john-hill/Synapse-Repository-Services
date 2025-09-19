@@ -1,4 +1,4 @@
-package org.sagebionetworks.repo.manager.grid.internal.replica.view.query;
+package org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -14,6 +14,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.Context;
 import org.sagebionetworks.repo.model.grid.query.CellValueFilter;
 import org.sagebionetworks.repo.model.grid.query.CellValueOperator;
 

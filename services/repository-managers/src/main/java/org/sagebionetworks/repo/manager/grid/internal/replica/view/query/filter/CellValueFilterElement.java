@@ -1,4 +1,4 @@
-package org.sagebionetworks.repo.manager.grid.internal.replica.view.query;
+package org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -6,7 +6,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.Context;
 import org.sagebionetworks.repo.model.grid.query.CellValueFilter;
+import org.sagebionetworks.repo.model.grid.query.Filter;
 import org.sagebionetworks.util.ValidateArgument;
 
 public class CellValueFilterElement implements FilterElement {
@@ -14,6 +16,10 @@ public class CellValueFilterElement implements FilterElement {
 	private String columnName;
 	private CellValueOperatorElement operator;
 	private List<Object> value;
+	
+	public CellValueFilterElement(Filter filter) {
+		this((CellValueFilter) filter);
+	}
 
 	public CellValueFilterElement(CellValueFilter filter) {
 		ValidateArgument.required(filter, "filter");

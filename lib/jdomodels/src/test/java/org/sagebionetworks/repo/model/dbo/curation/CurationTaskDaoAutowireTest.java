@@ -135,7 +135,8 @@ class CurationTaskDaoAutowireTest {
         created.setModifiedOn(new Date(0));
 
         // call under test
-        CurationTask updated = dao.updateCurationTask(modifiedByUserId, created);
+        dao.updateCurationTask(modifiedByUserId, created);
+        CurationTask updated = dao.getCurationTask(created.getTaskId()).get();
 
         assertEquals(newInstructions, updated.getInstructions());
         assertNotEquals(fetched.get().getEtag(), updated.getEtag());

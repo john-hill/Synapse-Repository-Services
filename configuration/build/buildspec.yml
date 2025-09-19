@@ -5,13 +5,13 @@ version: 0.2
 env:
   variables:
     stack: dev
-    org_sagebionetworks_search_enabled: false
     org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
     m2_cache_parent_folder: .
     src_folder: .
   secrets-manager:
     org_sagebionetworks_stackEncryptionKey: org.sagebionetworks.stackEncryptionKey
     rds_password: build.rds.password
+    # misnomer: "keypair" on the next line is actually just the key id
     org_sagebionetworks_cloudfront_keypair: org.sagebionetworks.cloudfront.private.key.id
     org_sagebionetworks_cloudfront_private_key_secret: build.org.sagebionetworks.cloudfront.private.key.secret
 phases:
@@ -54,7 +54,11 @@ phases:
         export org_sagebionetworks_sts_duration_seconds=900
         export org_sagebionetworks_cloudfront_domainname=data.dev.sagebase.org
         # misnomer: "keypair" on the next line is actually just the key id
-        export org_sagebionetworks_cloudfront_keypair=$(get_secret "org.sagebionetworks.cloudfront.private.key.id")
-        export org_sagebionetworks_cloudfront_private_key_secret=$(get_secret "build.org.sagebionetworks.cloudfront.private.key.secret")
+        export org_sagebionetworks_search_enabled=true
+      else
+        export org_sagebionetworks_search_enabled=false
+        unset org_sagebionetworks_cloudfront_keypair
+        unset org_sagebionetworks_cloudfront_private_key_secret
+        unset org_sagebionetworks_google_cloud_key
       fi
       ./docker_build.sh

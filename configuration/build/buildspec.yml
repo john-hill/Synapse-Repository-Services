@@ -10,7 +10,6 @@ env:
     org_sagebionetworks_sts_duration_seconds: 900
     org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
   secrets-manager:
-    # TODO delete org_sagebionetworks_stackEncryptionKey: org.sagebionetworks.stackEncryptionKey
     rds_password: build.rds.password
     org_sagebionetworks_cloudfront_keypair: org.sagebionetworks.cloudfront.private.key.id
     org_sagebionetworks_cloudfront_private_key_secret: build.org.sagebionetworks.cloudfront.private.key.secret
@@ -36,10 +35,6 @@ phases:
       # by the GitHub workflow.
       export org_sagebionetworks_repository_database_connection_url=dev-${user}-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
       export org_sagebionetworks_table_cluster_endpoint_0=dev-${user}-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
-      # TODO remove the next three debugging lines
-      echo org_sagebionetworks_repository_database_connection_url $org_sagebionetworks_repository_database_connection_url
-      echo org_sagebionetworks_table_cluster_endpoint_0 $org_sagebionetworks_table_cluster_endpoint_0
-      echo STS_CREDENTIALS $STS_CREDENTIALS
       export org_sagebionetworks_stack_iam_id=$(echo $STS_CREDENTIALS | jq -r '.AwsAccessKeyId')
       export org_sagebionetworks_stack_iam_key=$(echo $STS_CREDENTIALS | jq -r '.AwsSecretAccessKey')
       export org_sagebionetworks_stack_iam_session_token=$(echo $STS_CREDENTIALS | jq -r '.AwsSessionToken')
@@ -60,7 +55,8 @@ phases:
         org_sagebionetworks_search_enabled=true
       else
         org_sagebionetworks_search_enabled=false
+        unset org_sagebionetworks_cloudfront_keypair
+        unset org_sagebionetworks_cloudfront_private_key_secret
+        unset org_sagebionetworks_google_cloud_key
       fi
-      # TODO remove the next debug line
-      echo **** About to run docker_build.sh ****
       ./docker_build.sh

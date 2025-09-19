@@ -29,6 +29,7 @@ import org.sagebionetworks.repo.model.curation.CurationTaskProperties;
 import org.sagebionetworks.repo.model.curation.metadata.FileBasedMetadataTaskProperties;
 import org.sagebionetworks.repo.model.curation.metadata.RecordBasedMetadataTaskProperties;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -128,11 +129,22 @@ class CurationTaskDaoAutowireTest {
         // Update
         String newInstructions = "new instructions";
         created.setInstructions(newInstructions);
-        CurationTask updated = dao.updateCurationTask(modifiedByUserId, created);
+        created.setCreatedBy("123456789012"); // changes to created/modified By/On should be ignored
+        created.setCreatedOn(null);
+        created.setModifiedBy("1");
+        created.setModifiedOn(new Date(0));
+
+        // call under test
+        dao.updateCurationTask(modifiedByUserId, created);
+        CurationTask updated = dao.getCurationTask(created.getTaskId()).get();
+
         assertEquals(newInstructions, updated.getInstructions());
-        assertNotEquals(created.getEtag(), updated.getEtag());
-        assertNotEquals(created.getModifiedOn(), updated.getModifiedOn());
+        assertNotEquals(fetched.get().getEtag(), updated.getEtag());
+        assertNotNull(updated.getModifiedOn());
+        assertNotEquals(fetched.get().getModifiedOn(), updated.getModifiedOn());
         assertEquals(modifiedByUserId.toString(), updated.getModifiedBy());
+        assertEquals(fetched.get().getCreatedBy(), updated.getCreatedBy());
+        assertEquals(fetched.get().getCreatedOn(), updated.getCreatedOn());
 
         // Delete
         dao.deleteCurationTask(created.getTaskId());
@@ -167,6 +179,17 @@ class CurationTaskDaoAutowireTest {
         // Cleanup
         dao.deleteCurationTask(created1.getTaskId());
         dao.deleteCurationTask(created2.getTaskId());
+    }
+
+    @Test
+    public void testUpdateWithNotFound() {
+        CurationTask task = new CurationTask()
+                .setTaskId(9999999L);
+
+        // Call under test
+        NotFoundException ex = assertThrows(NotFoundException.class, () -> dao.updateCurationTask(userId, task));
+
+        assertEquals("A curation task with ID 9999999 does not exist.", ex.getMessage());
     }
 
     @Test
@@ -227,8 +250,8 @@ class CurationTaskDaoAutowireTest {
         // call under test - get all tasks for project 1, ensure project 2 task is not included
         List<CurationTask> tasksForProject1 = dao.getCurationTasks(KeyFactory.stringToKey(project1.getId()), 10, 0);
         assertEquals(2, tasksForProject1.size());
-        assertTrue(tasksForProject1.contains(projectOneTask1));
-        assertTrue(tasksForProject1.contains(projectOneTask2));
+        assertEquals(tasksForProject1.get(0), projectOneTask1);
+        assertEquals(tasksForProject1.get(1), projectOneTask2);
 
         // Test limit and offset
         List<CurationTask> tasks = dao.getCurationTasks(KeyFactory.stringToKey(project1.getId()), 1, 0);

@@ -127,5 +127,6 @@ jobs:
               echo "Pipeline execution $EXECUTION_ID terminated with: $STATUS"
               exit 1
             fi
+
           done
 ...

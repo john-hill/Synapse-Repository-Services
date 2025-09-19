@@ -1,0 +1,19 @@
+{
+	"description": "Returns the average value of column_name. The DISTINCT option can be used to return the average of the distinct values of column_name. Will translate to: AVG([DISTINCT] column_name)",
+	"type": "object",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.grid.query.SelectItem"
+		}
+	],
+	"properties": {
+		"distinct": {
+			"type": "boolean",
+			"description": "Optional. When true, DISTINCT will be used."
+		},
+		"columnName": {
+			"type": "string",
+			"description": "The name of a column."
+		}
+	}
+}

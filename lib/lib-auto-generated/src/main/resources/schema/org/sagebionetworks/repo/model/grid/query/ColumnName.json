@@ -1,0 +1,15 @@
+{
+	"description": "A SelectItem that is the name of a column.",
+	"type": "object",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.grid.query.SelectItem"
+		}
+	],
+	"properties": {
+		"columnName": {
+			"type": "string",
+			"description": "Name of a column."
+		}
+	}
+}

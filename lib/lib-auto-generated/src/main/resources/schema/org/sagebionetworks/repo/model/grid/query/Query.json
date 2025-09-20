@@ -1,0 +1,38 @@
+{
+	"description": "Defines a SQL 'like' query to be run against the current grid.",
+	"properties": {
+		"select": {
+			"$ref": "org.sagebionetworks.repo.model.grid.query.SelectClause"
+		},
+		"where": {
+			"type": "array",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.grid.query.Filter"
+			},
+			"description": "Optional WHERE clause. There will be an implicit 'AND' between each provided filter."
+		},
+		"groupBy": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			},
+			"description": "Optional GROUP BY clause. A list of one or more column names."
+		},
+		"orderBy": {
+			"type": "array",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.grid.query.OrderByItem"
+			},
+			"description": "Optional ORDER BY clause."
+		},
+		"limit": {
+			"type": "integer",
+			"description": "Required. Limit of the number of rows returned to avoid loading more data than needed into your context window.",
+			"maximum": 100
+		},
+		"offset": {
+			"type": "integer",
+			"description": "Optional. specifies the offset of the first row to return."
+		}
+	}
+}

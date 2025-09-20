@@ -1,0 +1,33 @@
+{
+	"description": "This function returns a string result with the concatenated non-NULL values from a group. It returns NULL if there are no non-NULL values. Will translate to: GROUP_CONCAT([DISTINCT] column_name [,column_name ...][ORDER BY col_name[ASC | DESC] [,col_name ...]][SEPARATOR str_val])",
+	"type": "object",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.grid.query.SelectItem"
+		}
+	],
+	"properties": {
+		"distinct": {
+			"type": "boolean",
+			"description": "Optional. When true, DISTINCT will be used."
+		},
+		"columnNames": {
+			"type": "array",
+			"description": "One or more column name.",
+			"items": {
+				"type": "string"
+			}
+		},
+		"orderBy": {
+			"type": "array",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.grid.query.OrderByItem"
+			},
+			"description": "Optional ORDER BY clause."
+		},
+		"separator": {
+			"type": "string",
+			"description": "The SEPARATOR character."
+		}
+	}
+}

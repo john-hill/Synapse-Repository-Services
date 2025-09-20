@@ -6,7 +6,8 @@ import java.util.Optional;
 
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
-import org.sagebionetworks.repo.manager.grid.internal.replica.view.filter.ViewFilter;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.QueryElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.FilterElement;
 
 /**
  * Provides a paginated “view” of a grid replica using a specialized query that
@@ -46,7 +47,15 @@ public interface GridReplicaViewManager {
 	 * @param offset
 	 * @return
 	 */
-	List<RowView> querySinglePage(GridHeader header, List<ViewFilter> filters, Long limit, Long offset);
+	List<RowView> querySinglePage(GridHeader header, List<FilterElement> filters, Long limit, Long offset);
+	
+	/**
+	 * Query for a single page of rows using the provided query.
+	 * @param header
+	 * @param query
+	 * @return
+	 */
+	List<RowView> querySinglePage(GridHeader header, QueryElement query);
 
 
     /**
@@ -55,6 +64,6 @@ public interface GridReplicaViewManager {
      * @param filters
      * @return
      */
-    Iterator<RowView> getQueryIterator(GridHeader header, List<ViewFilter> filters);
+    Iterator<RowView> getQueryIterator(GridHeader header, List<FilterElement> filters);
 
 }

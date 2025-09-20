@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -555,13 +556,13 @@ public class GridEventBrokerWorkerIntegrationTest {
 	public void testGridWithRecordSet() throws Exception {
 		Project project = entityService.createEntity(admin.getId(), new Project().setName("RecordSet Test"), null);
 		
-		byte[] csvContents;
+		String csvContent = 
+			"integer_column,string_column,double_column,boolean_column" + System.lineSeparator() +
+			"1,test_1,1.1,true" 										+ System.lineSeparator() +
+			"2,test_2,,true" 											+ System.lineSeparator() +
+			"3,test_3,3.3,false";
 		
-		try (InputStream is = GridEventBrokerWorkerIntegrationTest.class.getClassLoader().getResourceAsStream("recordset.csv")) {
-			csvContents = IOUtils.toByteArray(is);
-		}
-		
-		S3FileHandle fileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(), csvContents, "recordset.csv", ContentType.create("text/csv"), null);
+		S3FileHandle fileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(), csvContent.getBytes(StandardCharsets.UTF_8), "recordset.csv", ContentType.create("text/csv"), null);
 		
 		RecordSet recordSet = entityService.createEntity(admin.getId(), new RecordSet()
 			.setParentId(project.getId())
@@ -725,11 +726,16 @@ public class GridEventBrokerWorkerIntegrationTest {
 		assertEquals(validationStats, recordSetV3.getValidationSummary());
 	
 		// Now update the record set from a CSV file
-		try (InputStream is = GridEventBrokerWorkerIntegrationTest.class.getClassLoader().getResourceAsStream("recordset_upsert.csv")) {
-			csvContents = IOUtils.toByteArray(is);
-		}
+		String csvContents = 
+			"integer_column,string_column,double_column,boolean_column" + System.lineSeparator() +
+			"1,test_1_updated,1.1,false" 								+ System.lineSeparator() + // update
+																								   // Skip line 2
+			"3,test_3_updated,3.3,true" 								+ System.lineSeparator() + // update
+			"4,test_4,4.4,true"										   	+ System.lineSeparator() + // new row
+			"5,test_5,5.5,true"										   	+ System.lineSeparator() + // new row
+			"6,test_6,5.6,false";																   // new row
 		
-		S3FileHandle upsertFileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(), csvContents, "recordset_upsert.csv", ContentType.create("text/csv"), null);
+		S3FileHandle upsertFileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(), csvContents.getBytes(StandardCharsets.UTF_8), "recordset_upsert.csv", ContentType.create("text/csv"), null);
 		
 		GridCsvImportRequest csvImportRequest = new GridCsvImportRequest()
 			.setSessionId(session.getSessionId())

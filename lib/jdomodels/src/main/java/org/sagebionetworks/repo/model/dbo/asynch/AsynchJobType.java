@@ -27,6 +27,8 @@ import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridResponse;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridRequest;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
+import org.sagebionetworks.repo.model.grid.GridCsvImportRequest;
+import org.sagebionetworks.repo.model.grid.GridCsvImportResponse;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportRequest;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportResponse;
 import org.sagebionetworks.repo.model.migration.AsyncMigrationRequest;
@@ -104,8 +106,9 @@ public enum AsynchJobType {
 
     DOWNLOAD_CSV_FROM_GRID(DownloadFromGridRequest.class, DownloadFromGridResult.class),
     
-    GRID_EXPORT_RECORDSET(GridRecordSetExportRequest.class, GridRecordSetExportResponse.class)
-    ;
+    GRID_EXPORT_RECORDSET(GridRecordSetExportRequest.class, GridRecordSetExportResponse.class),
+    
+    GRID_IMPORT_CSV(GridCsvImportRequest.class, GridCsvImportResponse.class);
 
 	private Class<? extends AsynchronousRequestBody> requestClass;
 	private Class<? extends AsynchronousResponseBody> responseClass;

@@ -58,6 +58,8 @@ public class GridCsvImportDaoImplTest {
 		// First create some data in a grid
 		String sessionId = GridUtils.gridSessionIdAsString(123L);
 		Long replicaId = 987L;
+		int gridRowCount = 500;
+		int csvRowCount = 750;
 		
 		List<ColumnModel> schema = List.of(
 			new ColumnModel().setName("a").setColumnType(ColumnType.INTEGER),
@@ -69,7 +71,6 @@ public class GridCsvImportDaoImplTest {
 		// Note that the upsert key has a different order than the schema
 		List<String> upsertKey = List.of("b", "a");
 		
-		int gridRowCount = 500;
 		
 		List<Row> rows = new ArrayList<>(gridRowCount);
 		
@@ -119,8 +120,6 @@ public class GridCsvImportDaoImplTest {
 		
 		// Now import the CSV data (contains a subset of the grid data, with additional columns and different order)
 		StringBuilder csv = new StringBuilder();
-
-		int csvRowCount = 750;
 		
 		csv.append("b,a,d,c,e").append(System.lineSeparator());
 		
@@ -187,8 +186,8 @@ public class GridCsvImportDaoImplTest {
 			rowVecId+=9;
 		}
 		
-		// The grid has 500 rows, the CSV 750 rows but the CSV only matches 50% of the grid rows
-		assertEquals(500, notMatchedCount);
+		// The CSV has only 50% of the rows in commong with the grid
+		assertEquals(gridRowCount/2 + (csvRowCount - gridRowCount), notMatchedCount);
 	}
 	
 	void writeRowsAsPatches(List<Row> rows, String sessionId, Long replicaId, List<ColumnModel> schema) throws IOException {

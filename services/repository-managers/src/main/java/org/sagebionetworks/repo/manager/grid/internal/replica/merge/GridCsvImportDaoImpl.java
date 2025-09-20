@@ -118,10 +118,9 @@ public class GridCsvImportDaoImpl implements GridCsvImportDao {
 	Object[] mapRow(Object[] row, int upsertKeyLength, ColumnMapping[] columnMapping) {
 		Object[] mappedRow = new Object[upsertKeyLength + 1];
 		
+		int i = 0;
 		
-		int i;
-		
-		for (i = 0; i < upsertKeyLength; i++) {
+		for (; i < upsertKeyLength; i++) {
 			mappedRow[i] = row[i];			
 		}
 		
@@ -158,14 +157,12 @@ public class GridCsvImportDaoImpl implements GridCsvImportDao {
 		StringJoiner columnNames = new StringJoiner(",");
 		StringJoiner valuePlaceholders = new StringJoiner(",");
 		
-		int i = 0;
-		for (ColumnMapping mapping : columnMapping) {
-			if (!mapping.isUpsertColumn()) {
-				continue;
+		for (int i = 0; i < columnMapping.length; i++) {
+			if (!columnMapping[i].isUpsertColumn()) {
+				break;
 			}
 			columnNames.add(getUpsertKeyColumnName(i));
 			valuePlaceholders.add("?");
-			i++;
 		}
 		
 		columnNames.add(COL_EXTRA);
@@ -188,7 +185,7 @@ public class GridCsvImportDaoImpl implements GridCsvImportDao {
 			
 			// We only normalize the upsert key columns that are indexes and used for the join
 			if (!mapping.isUpsertColumn()) {
-				continue;
+				break;
 			}
 			
 			String columnName = getUpsertKeyColumnName(index);

@@ -84,8 +84,6 @@ Outputs:
     Export:
       Name:
         Fn::Sub: ${AWS::StackName}-pipeline-name
-Conditions:
-  IsFullBuild: !Equals [!Ref FullBuild, "true"]
 Resources:
   CodePipelineServiceRole:
     Type: AWS::IAM::Role

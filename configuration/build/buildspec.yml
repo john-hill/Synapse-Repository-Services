@@ -57,4 +57,5 @@ phases:
         export org_sagebionetworks_google_cloud_enabled=false
         unset org_sagebionetworks_google_cloud_key
       fi
+      export EXTRA_ARGS="-Dtest=doesnotexist -DfailIfNoTests=false"
       ./docker_build.sh

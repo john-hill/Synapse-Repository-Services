@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.grid.internal.replica.merge;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -176,16 +177,32 @@ public class GridCsvImportDaoImplTest {
 		
 		while (joinIt.hasNext()) {
 			
-			Object[] expectedCsvData = new Object[] { rowId, rowId % 5, false, "bar" + rowId };
-			Object[] expectedGridData = null;
+			Object[] expectedCsvData = new Object[] { rowId, rowId % 5, false , "bar" + rowId };
+			String[] expectedGridArray = null;
 			
 			if (rowId % 10 < 5 && rowId < gridRowCount) {
-				expectedGridData = new Object[] { "[" + replicaId + "," + arrId + "]", "[" + replicaId + "," + rowVecId + "]" };
+				expectedGridArray = new String[] {
+					"[" + replicaId + "," + arrId + "]",
+					"[" + replicaId + "," + rowVecId + "]"
+				};
 			} else {
 				notMatchedCount++;
 			}
 			
-			assertEquals(new JoinedRow(expectedCsvData, expectedGridData), joinIt.next());
+			JoinedRow next = joinIt.next();
+			
+			assertArrayEquals(expectedCsvData, next.getCsvData());
+			
+			if (expectedGridArray == null) {
+				assertNull(next.getGridData());
+			} else {
+				assertEquals(2, next.getGridData().length);
+				// The logical timestamps are automatically converted to JSONArray (which unfortunately does not implement hashcode/equals)
+				assertArrayEquals(expectedGridArray, new String[] {
+					next.getGridData()[0].toString(),
+					next.getGridData()[1].toString()
+				});
+			}
 			
 			rowId++;
 			arrId+=9;

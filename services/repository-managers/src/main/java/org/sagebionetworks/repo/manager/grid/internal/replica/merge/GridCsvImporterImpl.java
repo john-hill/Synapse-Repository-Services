@@ -97,9 +97,7 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 		while (joinResult.hasNext()) {
 			JoinedRow joinedRow = joinResult.next();
 			
-			Object[] gridData = joinedRow.getGridData();
-			
-			if (gridData != null) {
+			if (joinedRow.getGridData() != null) {
 				updatedCount++;
 			} else {
 				createdCount++;

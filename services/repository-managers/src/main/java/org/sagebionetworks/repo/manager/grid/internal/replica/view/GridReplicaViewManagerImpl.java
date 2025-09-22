@@ -165,7 +165,7 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 			return Optional.empty();
 		}
 		ObjectNode root = rootOpt.get();
-		List<LogicalTimestamp> constatntIds = new ArrayList<>();
+		List<LogicalTimestamp> constantIds = new ArrayList<>();
 		LogicalTimestamp selectionId = root.getValue().get("selection");
 		LogicalTimestamp selectionConId = null;
 		if(selectionId != null) {
@@ -173,13 +173,13 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 			if(selections.size() == 1) {
 				ObjectNode selectionNode = selections.get(0);
 				selectionConId = selectionNode.getValue().get(replicaId.toString());
-				constatntIds.add(selectionConId);
+				constantIds.add(selectionConId);
 			}
 		}
 		LogicalTimestamp docVersionConId = root.getValue().get("doc_version");
-		constatntIds.add(docVersionConId);
+		constantIds.add(docVersionConId);
 		
-		Map<LogicalTimestamp, ConstantNode> constants = gridIndexDao.getConstants(gridSessionId, replicaId, constatntIds)
+		Map<LogicalTimestamp, ConstantNode> constants = gridIndexDao.getConstants(gridSessionId, replicaId, constantIds)
 		.stream().collect(Collectors.toMap(ConstantNode::getId, Function.identity()));
 		
 		ConstantNode selectionCon = constants.get(selectionConId);

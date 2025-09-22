@@ -1,27 +1,90 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.Context;
+import org.sagebionetworks.repo.model.grid.ReplicaSelectionModel;
 import org.sagebionetworks.repo.model.grid.query.Filter;
 import org.sagebionetworks.repo.model.grid.query.RowSelectionFilter;
+import org.sagebionetworks.util.ValidateArgument;
 
 public class RowSelectionFilterElement implements FilterElement {
 
-	private Boolean isSelected;
+	private Boolean filterSelected;
 
 	public RowSelectionFilterElement(Filter filter) {
 		this((RowSelectionFilter) filter);
 	}
 
 	public RowSelectionFilterElement(RowSelectionFilter filter) {
-		this.isSelected = filter.getIsSelected();
+		this.filterSelected = filter.getIsSelected();
 	}
 
 	@Override
 	public void toSql(StringBuilder sqlBuilder, Map<String, Object> params, Context context) {
-		// TODO add real logic instead of appending a '1' acts as a no-op 
-		sqlBuilder.append(" 1");
+		ValidateArgument.required(context, "context");
+		ValidateArgument.required(context.getHeader(), "context.header");
+		if(filterSelected == null) {
+			filterSelected = true;
+		}
+		
+		ReplicaSelectionModel model = context.getHeader().getReplicaSelectionModel();
+		if (model == null) {
+			sqlBuilder.append(filterSelected ? " 1=0" : " 1");
+			return;
+		}
+
+		if (model.getRowSelectAll() != null && model.getRowSelectAll()) {
+			sqlBuilder.append(filterSelected ? " 1" : " 1=0");
+			return;
+		}
+
+		if (model.getRowSelection() == null || model.getRowSelection().isEmpty()) {
+			sqlBuilder.append(filterSelected ? " 1=0" : " 1");
+			return;
+		}
+
+		List<Object[]> arrIdTuples = model.getRowSelection().stream().map(s -> new Object[] { s.getRep(), s.getSeq() })
+				.collect(Collectors.toList());
+
+		String bind = "arrIds" + params.size();
+		sqlBuilder.append(" (AN_REP, AN_SEC) ").append(filterSelected ? " IN" : " NOT IN").append("(:").append(bind)
+				.append(")");
+
+		params.put(bind, arrIdTuples);
+	}
+
+	public Boolean getFilterSelected() {
+		return filterSelected;
+	}
+
+	public void setFilterSelected(Boolean filterSelected) {
+		this.filterSelected = filterSelected;
+	}
+
+	@Override
+	public int hashCode() {
+		return Objects.hash(filterSelected);
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		RowSelectionFilterElement other = (RowSelectionFilterElement) obj;
+		return Objects.equals(filterSelected, other.filterSelected);
+	}
+
+	@Override
+	public String toString() {
+		return "RowSelectionFilterElement [filterSelected=" + filterSelected + "]";
 	}
 
 }

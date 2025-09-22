@@ -47,35 +47,35 @@ public class QueryElement implements Element {
 		sqlBuilder.append(" FROM GRID");
 		if (where != null && !where.isEmpty()) {
 			sqlBuilder.append(" WHERE");
-			boolean isFrist = true;
+			boolean isFirst = true;
 			for (FilterElement filter : where) {
-				if (!isFrist) {
+				if (!isFirst) {
 					sqlBuilder.append(" AND");
 				}
 				filter.toSql(sqlBuilder, params, context);
-				isFrist = false;
+				isFirst = false;
 			}
 		}
 		if (groupBy != null) {
 			sqlBuilder.append(" GROUP BY");
-			boolean isFrist = true;
+			boolean isFirst = true;
 			for (ColumnNameElement column : groupBy) {
-				if (!isFrist) {
+				if (!isFirst) {
 					sqlBuilder.append(" , ");
 				}
 				column.toSql(sqlBuilder, params, context);
-				isFrist = false;
+				isFirst = false;
 			}
 		}
 		sqlBuilder.append(" ORDER BY");
 		if (orderBy != null) {
-			boolean isFrist = true;
+			boolean isFirst = true;
 			for (OrderByItemElement order : orderBy) {
-				if (!isFrist) {
+				if (!isFirst) {
 					sqlBuilder.append(" , ");
 				}
 				order.toSql(sqlBuilder, params, context);
-				isFrist = false;
+				isFirst = false;
 			}
 		} else {
 			sqlBuilder.append(" `INDEX` ASC");

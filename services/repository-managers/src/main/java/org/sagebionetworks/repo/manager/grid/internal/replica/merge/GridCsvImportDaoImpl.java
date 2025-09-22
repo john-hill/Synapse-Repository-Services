@@ -115,6 +115,7 @@ public class GridCsvImportDaoImpl implements GridCsvImportDao {
 				flushBatch(tableName, upsertKey, batch);
 			}
 		}
+		
 		flushBatch(tableName, upsertKey, batch);
 	}
 

@@ -71,7 +71,7 @@ class ColumnMapping {
 		return "ColumnMapping [columnName=" + columnName + ", type=" + type + ", csvIndex=" + csvIndex + ", gridIndex=" + gridIndex + ", isUpsertColumn=" + isUpsertColumn + "]";
 	}
 	
-	// Compute an ordered mapping by upsert key first and then the rest of the columns of the CSV that exist in the grid.
+	// Computes an ordered mapping by upsert key first and then the rest of the columns of the CSV that exist in the grid.
 	static ColumnMapping[] getColumnMapping(List<ColumnModel> csvSchema, List<Column> gridSchema, List<String> upsertKey) {
 		List<ColumnMapping> columnMapping = new ArrayList<>();
 		

@@ -72,8 +72,8 @@ public class CsvDataStreamTest {
 			Object[] row = dataStream.next();
 			
 			assertArrayEquals(new Object[] {
-				rowId + 1,					// b
-				rowId,						// a
+				rowId + 1,		// b
+				rowId,			// a
 				"data"+ rowId	// c
 			}, row);
 			

@@ -116,17 +116,15 @@ public class GridCsvImportDaoImplTest {
 		Iterator<Object[]> it = importDao.getGridTempTableIterator();
 		
 		long rowId = 0;
-		Long arrId = 29L;
 		Long rowVecId = 22L;
 		
 		while (it.hasNext()) {
 			Object[] row = it.next();
 			// This is the extra column with information from the grid (logical ids)
-			String extraData = "[[" + replicaId + "," + arrId + "],[" + replicaId + "," + rowVecId + "]]";
+			String extraData = "[[" + replicaId + "," + rowVecId + "]]";
 			// Note that the data has been reordered by the upsert key (b,a) and only contains the upsert keys plus the extra data column
 			assertArrayEquals(new Object[] { rowId, rowId % 10, extraData }, row);
 			rowId++;
-			arrId+=9;
 			rowVecId+=9;
 		}
 		
@@ -162,7 +160,6 @@ public class GridCsvImportDaoImplTest {
 		Iterator<JoinedRow> joinIt = importDao.getJoinedTempTableIterator(columnMapping);
 		
 		rowId = 0;
-		arrId = 29L;
 		rowVecId = 22L;
 		int notMatchedCount = 0;
 		
@@ -173,7 +170,6 @@ public class GridCsvImportDaoImplTest {
 			
 			if (rowId % 10 < 5 && rowId < gridRowCount) {
 				expectedGridArray = new String[] {
-					"[" + replicaId + "," + arrId + "]",
 					"[" + replicaId + "," + rowVecId + "]"
 				};
 			} else {
@@ -187,16 +183,14 @@ public class GridCsvImportDaoImplTest {
 			if (expectedGridArray == null) {
 				assertNull(next.getGridData());
 			} else {
-				assertEquals(2, next.getGridData().length);
+				assertEquals(1, next.getGridData().length);
 				// The logical timestamps are automatically converted to JSONArray (which unfortunately does not implement hashcode/equals)
 				assertArrayEquals(expectedGridArray, new String[] {
-					next.getGridData()[0].toString(),
-					next.getGridData()[1].toString()
+					next.getGridData()[0].toString()
 				});
 			}
 			
 			rowId++;
-			arrId+=9;
 			rowVecId+=9;
 		}
 		

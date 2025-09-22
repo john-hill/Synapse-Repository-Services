@@ -7,13 +7,13 @@ public interface GridCsvImportDao {
 	String TEMP_TABLE_CSV_DATA = "TEMP_CSV_DATA";
 	String TEMP_TABLE_GRID_DATA = "TEMP_GRID_DATA";
 	
-	void streamToCsvTempTable(DataStream dataIterator);
+	void streamToCsvTempTable(DataStream dataIterator, ColumnMapping[] columnMapping);
 	
-	void streamToGridTempTable(DataStream dataIterator);
+	void streamToGridTempTable(DataStream dataIterator, ColumnMapping[] columnMapping);
 	
 	PaginationIterator<Object[]> getCsvTempTableIterator();
 	
 	PaginationIterator<Object[]> getGridTempTableIterator();
 	
-	PaginationIterator<JoinedRow> getJoinedTempTableIterator(ColumnMapping[] csvColumnMapping);
+	PaginationIterator<JoinedRow> getJoinedTempTableIterator(ColumnMapping[] columnMapping);
 }

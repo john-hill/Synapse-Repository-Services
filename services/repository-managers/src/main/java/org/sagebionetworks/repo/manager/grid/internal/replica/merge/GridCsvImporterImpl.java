@@ -4,7 +4,6 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 
 import org.sagebionetworks.grid.db.GridTransaction;
 import org.sagebionetworks.repo.manager.EntityManager;
@@ -61,34 +60,38 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 		ValidateArgument.required(request.getFileHandleId(), "request.fileHandleId");
 		ValidateArgument.required(request.getCsvDescriptor(), "request.csvDescriptor");
 		ValidateArgument.required(request.getSchema(), "request.schema");
-		
-		ValidateArgument.requirement(Boolean.TRUE.equals(request.getCsvDescriptor().getIsFirstLineHeader()), "The request.csvDescriptor.isFirstLineHeader must be true.");
-		
+	
 		GridSession gridSession = gridManager.getGridSession(user, request.getSessionId());
 		
 		RecordSet recordSet = getRecordSet(user, gridSession);
 		
 		GridHeader gridHeader = getGridHeader(gridSession);
 		
-		List<String> upsertKey = recordSet.getUpsertKey();
+		ColumnMapping[] columnMapping = ColumnMapping.getColumnMapping(request.getSchema(), gridHeader.getOrderedColumns(), recordSet.getUpsertKey());
 		
 		// First create a temporary table containing the CSV data
 		DataStream csvStream;
 		
-		try (CSVReader csvReader = getCsvReader(fileHandleManager.getRawFileHandle(user, request.getFileHandleId()), recordSet.getCsvDescriptor())) {
-			csvStream = new CsvDataStream(csvReader, request.getSchema(), gridHeader, upsertKey);
-			importDao.streamToCsvTempTable(csvStream);
+		try (CSVReader csvReader = getCsvReader(fileHandleManager.getRawFileHandle(user, request.getFileHandleId()), request.getCsvDescriptor())) {
+			
+			if (Boolean.TRUE.equals(request.getCsvDescriptor().getIsFirstLineHeader())) {
+				csvReader.readNext();
+			}
+			
+			csvStream = new CsvDataStream(csvReader, columnMapping);
+			
+			importDao.streamToCsvTempTable(csvStream, columnMapping);
 		} catch (Exception ex) {
 			throw new IllegalStateException(ex);
 		}
 		
 		// Now create a temporary table containing the grid data
-		DataStream gridStream = new GridDataStream(gridViewManager.getQueryIterator(gridHeader, Collections.emptyList()), gridHeader, upsertKey);
+		DataStream gridStream = new GridDataStream(gridViewManager.getQueryIterator(gridHeader, Collections.emptyList()), columnMapping);
 		
-		importDao.streamToGridTempTable(gridStream);
+		importDao.streamToGridTempTable(gridStream, columnMapping);
 		
 		// Now join the two temporary tables
-		Iterator<JoinedRow> joinResult = importDao.getJoinedTempTableIterator(csvStream.getColumnMapping());
+		Iterator<JoinedRow> joinResult = importDao.getJoinedTempTableIterator(columnMapping);
 		
 		long rowCount = 0;
 		long updatedCount = 0;
@@ -141,4 +144,6 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 						StandardCharsets.UTF_8),
 				csvDescriptor, null);
 	}
+
+	
 }

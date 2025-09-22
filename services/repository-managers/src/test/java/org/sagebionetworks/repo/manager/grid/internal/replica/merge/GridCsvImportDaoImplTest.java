@@ -44,9 +44,51 @@ public class GridCsvImportDaoImplTest {
 	@Autowired
 	private GridCsvImportDao importDao;
 	
+	private String sessionId = GridUtils.gridSessionIdAsString(123L);
+	private Long replicaId = 987L;
+	
+	int gridRowCount = 500;
+	int csvRowCount = 750;
+	
+	private List<Row> gridRows;
+	private String csvContent;
+	private ColumnMapping[] columnMapping;
+	
 	@BeforeEach
 	public void before() {
 		gridIndexManger.truncateAll();
+		
+		gridRows = new ArrayList<>(gridRowCount);
+		
+		for (int i = 0; i < gridRowCount; i++) {
+			gridRows.add(new Row().setValues(List.of(
+				String.valueOf(i%10), 			// a
+				String.valueOf(i), 				// b
+				"foo" + i, 						// c	
+				String.valueOf(i%2 == 0) 		// d
+			)));
+		}
+		
+		StringBuilder csv = new StringBuilder();
+		
+		for (int i=0; i < csvRowCount; i++) {
+			csv
+				.append(i).append(",") 						// b
+				.append(i%5).append(",") 					// a, note that the grid uses mod 10, so we do not match half the upserts
+				.append(false).append(",")					// d
+				.append("bar" + i).append(",")				// c
+				.append("extra" + i)						// e, this is not in the grid
+				.append(System.lineSeparator());
+		}
+
+		this.csvContent = csv.toString();
+		
+		columnMapping = new ColumnMapping[] {
+			new ColumnMapping("b", ColumnType.INTEGER, 0, 1, true),
+			new ColumnMapping("a", ColumnType.INTEGER, 1, 0, true),
+			new ColumnMapping("d", ColumnType.BOOLEAN, 2, 3, false),
+			new ColumnMapping("c", ColumnType.STRING, 3, 2, false),
+		};
 	}
 	
 	@AfterEach
@@ -56,48 +98,18 @@ public class GridCsvImportDaoImplTest {
 	
 	@Test
 	public void testImportAndJoin() throws IOException {
-		// First create some data in a grid
-		String sessionId = GridUtils.gridSessionIdAsString(123L);
-		Long replicaId = 987L;
-		int gridRowCount = 500;
-		int csvRowCount = 750;
 		
-		List<ColumnModel> schema = List.of(
-			new ColumnModel().setName("a").setColumnType(ColumnType.INTEGER),
-			new ColumnModel().setName("b").setColumnType(ColumnType.INTEGER),
-			new ColumnModel().setName("c").setColumnType(ColumnType.STRING),
-			new ColumnModel().setName("d").setColumnType(ColumnType.BOOLEAN)
-		);
-		
-		// Note that the upsert key has a different order than the schema
-		List<String> upsertKey = List.of("b", "a");		
-		
-		List<Row> rows = new ArrayList<>(gridRowCount);
-		
-		for (int i = 0; i < gridRowCount; i++) {
-			rows.add(new Row().setValues(List.of(
-				String.valueOf(i%10), 			// a
-				String.valueOf(i), 				// b
-				"foo" + i, 						// c	
-				String.valueOf(i%2 == 0) 		// d
-			)));
-		}
-
-		long start = System.currentTimeMillis();
-		
-		writeRowsAsPatches(rows, sessionId, replicaId, schema);
-		
-		System.out.println("Grid storage took: " + (System.currentTimeMillis() - start) + "ms");
+		writeGridData();
 		
 		GridHeader gridHeader = gridViewManager.readHeader(sessionId, replicaId).orElseThrow();
 		
-		start = System.currentTimeMillis();
+		long start = System.currentTimeMillis();
 		
 		Iterator<RowView> rowView = gridViewManager.getQueryIterator(gridHeader, Collections.emptyList());
 		
-		DataStream gridDataStream = new GridDataStream(rowView, gridHeader, upsertKey);
+		DataStream gridDataStream = new GridDataStream(rowView, columnMapping);
 		
-		importDao.streamToGridTempTable(gridDataStream);
+		importDao.streamToGridTempTable(gridDataStream, columnMapping);
 		
 		System.out.println("Grid import took: " + (System.currentTimeMillis() - start) + "ms");
 		
@@ -119,35 +131,14 @@ public class GridCsvImportDaoImplTest {
 		}
 		
 		// Now import the CSV data (contains a subset of the grid data, with additional columns and different order)
-		StringBuilder csv = new StringBuilder();
-		
-		csv.append("b,a,d,c,e").append(System.lineSeparator());
-		
-		for (int i=0; i < csvRowCount; i++) {
-			csv
-				.append(i).append(",") 						// b
-				.append(i%5).append(",") 					// a, note that the grid uses mod 10, so we do not match half the upserts
-				.append(false).append(",")					// d
-				.append("bar" + i).append(",")				// c
-				.append("extra" + i)						// e, this is not in the grid
-				.append(System.lineSeparator());
-		}
-		
-		List<ColumnModel> csvSchema = List.of(
-			new ColumnModel().setName("b").setColumnType(ColumnType.INTEGER),
-			new ColumnModel().setName("a").setColumnType(ColumnType.INTEGER),
-			new ColumnModel().setName("d").setColumnType(ColumnType.BOOLEAN),
-			new ColumnModel().setName("c").setColumnType(ColumnType.STRING),
-			new ColumnModel().setName("e").setColumnType(ColumnType.STRING)
-		);
 		
 		start = System.currentTimeMillis();
 		
-		CSVReader reader = CSVUtils.createCSVReader(new StringReader(csv.toString()), null, null);
-		CsvDataStream csvDataStream = new CsvDataStream(reader, csvSchema, gridHeader, upsertKey);
+		CSVReader reader = CSVUtils.createCSVReader(new StringReader(csvContent), null, null);
+		CsvDataStream csvDataStream = new CsvDataStream(reader, columnMapping);
 		
 		try (reader) {
-			importDao.streamToCsvTempTable(csvDataStream);
+			importDao.streamToCsvTempTable(csvDataStream, columnMapping);
 		}
 
 		System.out.println("CSV import took: " + (System.currentTimeMillis() - start) + "ms");
@@ -168,7 +159,7 @@ public class GridCsvImportDaoImplTest {
 			rowId++;
 		}
 	
-		Iterator<JoinedRow> joinIt = importDao.getJoinedTempTableIterator(csvDataStream.getColumnMapping());
+		Iterator<JoinedRow> joinIt = importDao.getJoinedTempTableIterator(columnMapping);
 		
 		rowId = 0;
 		arrId = 29L;
@@ -213,7 +204,15 @@ public class GridCsvImportDaoImplTest {
 		assertEquals(gridRowCount/2 + (csvRowCount - gridRowCount), notMatchedCount);
 	}
 	
-	void writeRowsAsPatches(List<Row> rows, String sessionId, Long replicaId, List<ColumnModel> schema) throws IOException {
+	void writeGridData() throws IOException {
+		long start = System.currentTimeMillis();
+		
+		List<ColumnModel> schema = List.of(
+			new ColumnModel().setName("a").setColumnType(ColumnType.INTEGER),
+			new ColumnModel().setName("b").setColumnType(ColumnType.INTEGER),
+			new ColumnModel().setName("c").setColumnType(ColumnType.STRING),
+			new ColumnModel().setName("d").setColumnType(ColumnType.BOOLEAN)
+		);
 		
 		PatchRowHandler patchRowHandler = new PatchRowHandler((s, pid, body) -> {
 			gridIndexManger.applyPatch(sessionId, pid.getReplicaId(), PatchCompactSerializable.deserialize(new JSONArray(body)));
@@ -221,10 +220,12 @@ public class GridCsvImportDaoImplTest {
 		}, sessionId, replicaId, schema, 100L);
 		
 		try (patchRowHandler) {
-			rows.stream().forEach(r -> {
+			gridRows.stream().forEach(r -> {
 				patchRowHandler.nextRow(r);
 			});
 		}
+		
+		System.out.println("Grid storage took: " + (System.currentTimeMillis() - start) + "ms");
 	}
 		
 

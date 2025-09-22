@@ -15,5 +15,5 @@ public interface GridCsvImportDao {
 	
 	PaginationIterator<Object[]> getGridTempTableIterator();
 	
-	PaginationIterator<JoinedRow> getJoinedTempTableIterator(ColumnMapping[] csvColumnMapping, ColumnMapping[] gridColumnMapping);
+	PaginationIterator<JoinedRow> getJoinedTempTableIterator(ColumnMapping[] csvColumnMapping);
 }

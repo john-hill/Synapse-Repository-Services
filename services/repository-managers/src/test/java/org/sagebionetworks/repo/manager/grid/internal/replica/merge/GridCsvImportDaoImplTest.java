@@ -69,8 +69,7 @@ public class GridCsvImportDaoImplTest {
 		);
 		
 		// Note that the upsert key has a different order than the schema
-		List<String> upsertKey = List.of("b", "a");
-		
+		List<String> upsertKey = List.of("b", "a");		
 		
 		List<Row> rows = new ArrayList<>(gridRowCount);
 		
@@ -133,10 +132,18 @@ public class GridCsvImportDaoImplTest {
 				.append(System.lineSeparator());
 		}
 		
+		List<ColumnModel> csvSchema = List.of(
+			new ColumnModel().setName("b").setColumnType(ColumnType.INTEGER),
+			new ColumnModel().setName("a").setColumnType(ColumnType.INTEGER),
+			new ColumnModel().setName("d").setColumnType(ColumnType.BOOLEAN),
+			new ColumnModel().setName("c").setColumnType(ColumnType.STRING),
+			new ColumnModel().setName("e").setColumnType(ColumnType.STRING)
+		);
+		
 		start = System.currentTimeMillis();
 		
 		CSVReader reader = CSVUtils.createCSVReader(new StringReader(csv.toString()), null, null);
-		CsvDataStream csvDataStream = new CsvDataStream(reader, gridHeader, upsertKey);
+		CsvDataStream csvDataStream = new CsvDataStream(reader, csvSchema, gridHeader, upsertKey);
 		
 		try (reader) {
 			importDao.streamToCsvTempTable(csvDataStream);
@@ -148,7 +155,7 @@ public class GridCsvImportDaoImplTest {
 		rowId = 0;
 		
 		while (it.hasNext()) {
-			String expectedCsvJson = "[\"false\",\"bar" + rowId + "\"]";
+			String expectedCsvJson = "[false,\"bar" + rowId + "\"]";
 			
 			assertArrayEquals(
 				// Note that column e is omitted as not present in the grid and the columns that are not
@@ -160,7 +167,7 @@ public class GridCsvImportDaoImplTest {
 			rowId++;
 		}
 	
-		Iterator<JoinedRow> joinIt = importDao.getJoinedTempTableIterator(csvDataStream.getColumnMapping(), gridDataStream.getColumnMapping());
+		Iterator<JoinedRow> joinIt = importDao.getJoinedTempTableIterator(csvDataStream.getColumnMapping());
 		
 		rowId = 0;
 		arrId = 29L;
@@ -169,17 +176,16 @@ public class GridCsvImportDaoImplTest {
 		
 		while (joinIt.hasNext()) {
 			
-			Object[] expectedUpsertKeys = new Object[] { rowId, rowId % 5 };
-			String expectedCsvJson = "[\"false\",\"bar" + rowId + "\"]";
-			String expectedGridJson = null;
+			Object[] expectedCsvData = new Object[] { rowId, rowId % 5, false, "bar" + rowId };
+			Object[] expectedGridData = null;
 			
 			if (rowId % 10 < 5 && rowId < gridRowCount) {
-				expectedGridJson = "[[" + replicaId + "," + arrId + "],[" + replicaId + "," + rowVecId + "]]";
+				expectedGridData = new Object[] { "[" + replicaId + "," + arrId + "]", "[" + replicaId + "," + rowVecId + "]" };
 			} else {
 				notMatchedCount++;
 			}
 			
-			assertEquals(new JoinedRow(expectedUpsertKeys, expectedCsvJson, expectedGridJson), joinIt.next());
+			assertEquals(new JoinedRow(expectedCsvData, expectedGridData), joinIt.next());
 			
 			rowId++;
 			arrId+=9;

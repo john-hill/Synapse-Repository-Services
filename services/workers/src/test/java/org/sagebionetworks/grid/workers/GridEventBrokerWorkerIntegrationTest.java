@@ -738,7 +738,13 @@ public class GridEventBrokerWorkerIntegrationTest {
 		GridCsvImportRequest csvImportRequest = new GridCsvImportRequest()
 			.setSessionId(session.getSessionId())
 			.setFileHandleId(upsertFileHandle.getId())
-			.setCsvDescriptor(new CsvTableDescriptor().setIsFirstLineHeader(true));
+			.setCsvDescriptor(new CsvTableDescriptor().setIsFirstLineHeader(true))
+			.setSchema(List.of(
+				new ColumnModel().setName("integer_column").setColumnType(ColumnType.INTEGER),
+				new ColumnModel().setName("string_column").setColumnType(ColumnType.STRING),
+				new ColumnModel().setName("double_column").setColumnType(ColumnType.DOUBLE),
+				new ColumnModel().setName("boolean_column").setColumnType(ColumnType.BOOLEAN)
+			));
 		
 		asynchronousJobWorkerHelper.assertJobResponse(admin, csvImportRequest, (GridCsvImportResponse response) -> {
 			assertEquals(request.getSessionId(), response.getSessionId());

@@ -6,7 +6,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-import org.json.JSONArray;
 import org.sagebionetworks.grid.db.GridTransaction;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.file.BucketObjectReader;
@@ -61,6 +60,7 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 		ValidateArgument.required(request.getSessionId(), "request.sessionId");
 		ValidateArgument.required(request.getFileHandleId(), "request.fileHandleId");
 		ValidateArgument.required(request.getCsvDescriptor(), "request.csvDescriptor");
+		ValidateArgument.required(request.getSchema(), "request.schema");
 		
 		ValidateArgument.requirement(Boolean.TRUE.equals(request.getCsvDescriptor().getIsFirstLineHeader()), "The request.csvDescriptor.isFirstLineHeader must be true.");
 		
@@ -76,7 +76,7 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 		DataStream csvStream;
 		
 		try (CSVReader csvReader = getCsvReader(fileHandleManager.getRawFileHandle(user, request.getFileHandleId()), recordSet.getCsvDescriptor())) {
-			csvStream = new CsvDataStream(csvReader, gridHeader, upsertKey);
+			csvStream = new CsvDataStream(csvReader, request.getSchema(), gridHeader, upsertKey);
 			importDao.streamToCsvTempTable(csvStream);
 		} catch (Exception ex) {
 			throw new IllegalStateException(ex);
@@ -88,7 +88,7 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 		importDao.streamToGridTempTable(gridStream);
 		
 		// Now join the two temporary tables
-		Iterator<JoinedRow> joinResult = importDao.getJoinedTempTableIterator(csvStream.getColumnMapping(), gridStream.getColumnMapping());
+		Iterator<JoinedRow> joinResult = importDao.getJoinedTempTableIterator(csvStream.getColumnMapping());
 		
 		long rowCount = 0;
 		long updatedCount = 0;
@@ -97,9 +97,7 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 		while (joinResult.hasNext()) {
 			JoinedRow joinedRow = joinResult.next();
 			
-			// Object[] upsertKeyValues = joinedRow.getUpsertKeyValues();
-			// JSONArray csvData = joinedRow.getCsvData();
-			JSONArray gridData = joinedRow.getGridData();
+			Object[] gridData = joinedRow.getGridData();
 			
 			if (gridData != null) {
 				updatedCount++;

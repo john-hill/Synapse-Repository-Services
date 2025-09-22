@@ -17,6 +17,13 @@
 		"csvDescriptor": {
 			"description": "The CSV descriptor that define how to read the CSV file.",
 			"$ref": "org.sagebionetworks.repo.model.table.CsvTableDescriptor"
+		},
+		"schema": {
+		    "description":"The list of ColumnModel that describe the CSV file. Currently this is is required.",
+			"type": "array",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.table.ColumnModel"
+			}
 		}
 	}
 }

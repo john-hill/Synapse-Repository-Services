@@ -2,29 +2,21 @@ package org.sagebionetworks.repo.manager.grid.internal.replica.merge;
 
 import java.util.Arrays;
 
-import org.json.JSONArray;
-
 public class JoinedRow {
-	
-	private Object[] upsertKeyValues;
-	private JSONArray csvData;
-	private JSONArray gridData;
-	
-	public JoinedRow(Object[] upsertKeyValues, String csvData, String gridData) {
-		this.upsertKeyValues = upsertKeyValues;
-		this.csvData = csvData == null ? null : new JSONArray(csvData);
-		this.gridData = gridData == null ? null : new JSONArray(gridData);
+
+	private Object[] csvData;
+	private Object[] gridData;
+
+	public JoinedRow(Object[] csvData, Object[] gridData) {
+		this.csvData = csvData;
+		this.gridData = gridData;
 	}
-	
-	public Object[] getUpsertKeyValues() {
-		return upsertKeyValues;
-	}
-	
-	public JSONArray getCsvData() {
+
+	public Object[] getCsvData() {
 		return csvData;
 	}
-	
-	public JSONArray getGridData() {
+
+	public Object[] getGridData() {
 		return gridData;
 	}
 
@@ -32,9 +24,8 @@ public class JoinedRow {
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
-		result = prime * result + ((csvData == null) ? 0 : csvData.toString().hashCode());
-		result = prime * result + ((gridData == null) ? 0 : gridData.toString().hashCode());
-		result = prime * result + Arrays.deepHashCode(upsertKeyValues);
+		result = prime * result + Arrays.deepHashCode(csvData);
+		result = prime * result + Arrays.deepHashCode(gridData);
 		return result;
 	}
 
@@ -50,25 +41,13 @@ public class JoinedRow {
 			return false;
 		}
 		JoinedRow other = (JoinedRow) obj;
-		if (csvData == null) {
-			if (other.csvData != null) {
-				return false;
-			}
-		} else if (!csvData.toString().equals(other.csvData.toString())) {
+		if (!Arrays.deepEquals(csvData, other.csvData)) {
 			return false;
 		}
-		if (gridData == null) {
-			if (other.gridData != null) {
-				return false;
-			}
-		} else if (!gridData.toString().equals(other.gridData.toString())) {
-			return false;
-		}
-		if (!Arrays.deepEquals(upsertKeyValues, other.upsertKeyValues)) {
+		if (!Arrays.deepEquals(gridData, other.gridData)) {
 			return false;
 		}
 		return true;
 	}
 
-	
 }

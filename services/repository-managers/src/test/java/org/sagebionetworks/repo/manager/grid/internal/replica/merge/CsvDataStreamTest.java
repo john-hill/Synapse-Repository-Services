@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
+import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 
 import au.com.bytecode.opencsv.CSVReader;
@@ -18,6 +19,7 @@ import au.com.bytecode.opencsv.CSVReader;
 public class CsvDataStreamTest {
 
 	private CSVReader csvReader;
+	private List<ColumnModel> csvSchema;
 	private GridHeader gridHeader;
 	private List<String> upsertKey;
 	
@@ -42,16 +44,23 @@ public class CsvDataStreamTest {
 			"3,4,data3,extra3" 	+ System.lineSeparator() +
 			"4,5,data4,extra4" 	+ System.lineSeparator()
 		));
+		
+		csvSchema = List.of(
+			new ColumnModel().setName("a").setColumnType(ColumnType.INTEGER),
+			new ColumnModel().setName("b").setColumnType(ColumnType.INTEGER),
+			new ColumnModel().setName("c").setColumnType(ColumnType.STRING),
+			new ColumnModel().setName("d").setColumnType(ColumnType.STRING)
+		);
 	}
 	
 	@Test
 	public void testStream() {
-		dataStream = new CsvDataStream(csvReader, gridHeader, upsertKey);
+		dataStream = new CsvDataStream(csvReader, csvSchema, gridHeader, upsertKey);
 		
 		assertArrayEquals(new ColumnMapping[] {
 			new ColumnMapping("a", ColumnType.INTEGER, 0, true),
-			new ColumnMapping("b", null, 1, false),
-			new ColumnMapping("c", null, 2, false)
+			new ColumnMapping("b", ColumnType.INTEGER, 1, false),
+			new ColumnMapping("c", ColumnType.STRING, 2, false)
 		}, dataStream.getColumnMapping());
 		
 		long rowId = 0;
@@ -60,9 +69,9 @@ public class CsvDataStreamTest {
 			Object[] row = dataStream.next();
 			
 			assertArrayEquals(new Object[] {
-				rowId,						// a
-				String.valueOf(rowId + 1),	// b
-				"data"+ rowId				// c
+				rowId,				// a
+				rowId + 1L,			// b
+				"data"+ rowId		// c
 			}, row);
 			
 			rowId++;
@@ -73,12 +82,12 @@ public class CsvDataStreamTest {
 	public void testStreamWithOutOfOrderUpsertKey() {
 		upsertKey = List.of("b", "a");
 		
-		dataStream = new CsvDataStream(csvReader, gridHeader, upsertKey);
+		dataStream = new CsvDataStream(csvReader, csvSchema, gridHeader, upsertKey);
 		
 		assertArrayEquals(new ColumnMapping[] {
 			new ColumnMapping("b", ColumnType.INTEGER, 1, true),
 			new ColumnMapping("a", ColumnType.INTEGER, 0, true),
-			new ColumnMapping("c", null, 2, false)
+			new ColumnMapping("c", ColumnType.STRING, 2, false)
 		}, dataStream.getColumnMapping());
 		
 		long rowId = 0;
@@ -106,12 +115,12 @@ public class CsvDataStreamTest {
 		
 		upsertKey = List.of("a");
 		
-		dataStream = new CsvDataStream(csvReader, gridHeader, upsertKey);
+		dataStream = new CsvDataStream(csvReader, csvSchema, gridHeader, upsertKey);
 		
 		assertArrayEquals(new ColumnMapping[] {
 			new ColumnMapping("a", ColumnType.INTEGER, 0, true),
-			new ColumnMapping("b", null, 1, false),
-			new ColumnMapping("c", null, 2, false)
+			new ColumnMapping("b", ColumnType.INTEGER, 1, false),
+			new ColumnMapping("c", ColumnType.STRING, 2, false)
 		}, dataStream.getColumnMapping());
 		
 		long rowId = 0;
@@ -120,9 +129,9 @@ public class CsvDataStreamTest {
 			Object[] row = dataStream.next();
 			
 			assertArrayEquals(new Object[] {
-				rowId,						// a
-				String.valueOf(rowId + 1),	// b
-				"data" + rowId				// c
+				rowId,			// a
+				rowId + 1L,		// b
+				"data" + rowId	// c
 			}, row);
 			
 			rowId++;
@@ -146,14 +155,21 @@ public class CsvDataStreamTest {
 			"data4,5,4,extra4" 	+ System.lineSeparator()
 		));
 		
+		csvSchema = List.of(
+			new ColumnModel().setName("c").setColumnType(ColumnType.STRING),
+			new ColumnModel().setName("b").setColumnType(ColumnType.INTEGER),
+			new ColumnModel().setName("a").setColumnType(ColumnType.INTEGER),
+			new ColumnModel().setName("d").setColumnType(ColumnType.STRING)
+		);
+		
 		upsertKey = List.of("a");
 		
-		dataStream = new CsvDataStream(csvReader, gridHeader, upsertKey);
+		dataStream = new CsvDataStream(csvReader, csvSchema, gridHeader, upsertKey);
 		
 		assertArrayEquals(new ColumnMapping[] {
 			new ColumnMapping("a", ColumnType.INTEGER, 2, true),
-			new ColumnMapping("c", null, 0, false),
-			new ColumnMapping("b", null, 1, false)
+			new ColumnMapping("c", ColumnType.STRING, 0, false),
+			new ColumnMapping("b", ColumnType.INTEGER, 1, false)
 		}, dataStream.getColumnMapping());
 		
 		long rowId = 0;
@@ -162,9 +178,9 @@ public class CsvDataStreamTest {
 			Object[] row = dataStream.next();
 			
 			assertArrayEquals(new Object[] {
-				rowId,						// a
-				"data"+ rowId, 				// c
-				String.valueOf(rowId + 1)	// b
+				rowId,			// a
+				"data"+ rowId, 	// c
+				rowId + 1L		// b
 			}, row);
 			
 			rowId++;
@@ -188,14 +204,21 @@ public class CsvDataStreamTest {
 			"data4,5,4,extra4" 	+ System.lineSeparator()
 		));
 		
+		csvSchema = List.of(
+			new ColumnModel().setName("c").setColumnType(ColumnType.STRING),
+			new ColumnModel().setName("b").setColumnType(ColumnType.INTEGER),
+			new ColumnModel().setName("a").setColumnType(ColumnType.INTEGER),
+			new ColumnModel().setName("d").setColumnType(ColumnType.STRING)
+		);
+		
 		upsertKey = List.of("a");
 		
-		dataStream = new CsvDataStream(csvReader, gridHeader, upsertKey);
+		dataStream = new CsvDataStream(csvReader, csvSchema, gridHeader, upsertKey);
 		
 		assertArrayEquals(new ColumnMapping[] {
 			new ColumnMapping("a", ColumnType.INTEGER, 2, true),
-			new ColumnMapping("c", null, 0, false),
-			new ColumnMapping("b", null, 1, false)
+			new ColumnMapping("c", ColumnType.STRING, 0, false),
+			new ColumnMapping("b", ColumnType.INTEGER, 1, false)
 		}, dataStream.getColumnMapping());
 		
 		long rowId = 0;
@@ -204,9 +227,9 @@ public class CsvDataStreamTest {
 			Object[] row = dataStream.next();
 			
 			assertArrayEquals(new Object[] {
-				rowId,						// a
-				"data"+ rowId, 				// c
-				String.valueOf(rowId + 1)	// b
+				rowId,			// a
+				"data"+ rowId, 	// c
+				rowId + 1L		// b
 			}, row);
 			
 			rowId++;
@@ -232,11 +255,17 @@ public class CsvDataStreamTest {
 			"4,5,extra4" 	+ System.lineSeparator()
 		));
 		
-		dataStream = new CsvDataStream(csvReader, gridHeader, upsertKey);
+		csvSchema = List.of(
+			new ColumnModel().setName("a").setColumnType(ColumnType.INTEGER),
+			new ColumnModel().setName("b").setColumnType(ColumnType.INTEGER),
+			new ColumnModel().setName("d").setColumnType(ColumnType.STRING)
+		);
+		
+		dataStream = new CsvDataStream(csvReader, csvSchema, gridHeader, upsertKey);
 		
 		assertArrayEquals(new ColumnMapping[] {
 			new ColumnMapping("a", ColumnType.INTEGER, 0, true),
-			new ColumnMapping("b", null, 1, false)
+			new ColumnMapping("b", ColumnType.INTEGER, 1, false)
 		}, dataStream.getColumnMapping());
 		
 		long rowId = 0;
@@ -245,8 +274,8 @@ public class CsvDataStreamTest {
 			Object[] row = dataStream.next();
 			
 			assertArrayEquals(new Object[] {
-				rowId,						// a
-				String.valueOf(rowId + 1) 	// b
+				rowId,		// a
+				rowId + 1L 	// b
 			}, row);
 			
 			rowId++;
@@ -272,8 +301,13 @@ public class CsvDataStreamTest {
 			"5,extra4" 	+ System.lineSeparator()
 		));
 		
+		csvSchema = List.of(
+			new ColumnModel().setName("b").setColumnType(ColumnType.INTEGER),
+			new ColumnModel().setName("d").setColumnType(ColumnType.STRING)
+		);
+		
 		assertEquals("The upsert key column \"a\" does not exist in the CSV file.", assertThrows(IllegalArgumentException.class, () -> {
-			new CsvDataStream(csvReader, gridHeader, upsertKey);
+			new CsvDataStream(csvReader, csvSchema, gridHeader, upsertKey);
 		}).getMessage());
 		
 	}
@@ -287,20 +321,7 @@ public class CsvDataStreamTest {
 		));
 		
 		upsertKey = List.of("a");
-		
-		csvReader = new CSVReader(new StringReader(
-			"a,b,d" 		+ System.lineSeparator() +
-			",1,extra0"	+ System.lineSeparator() +
-			"1,2,etxra1" 	+ System.lineSeparator() +
-			"2,3,extra2" 	+ System.lineSeparator() +
-			"3,4,extra3" 	+ System.lineSeparator() +
-			"4,5,extra4" 	+ System.lineSeparator()
-		));
-		
-		assertEquals("The upsert key cannot have null or empty values.", assertThrows(IllegalArgumentException.class, () -> {
-			new CsvDataStream(csvReader, gridHeader, upsertKey);
-		}).getMessage());
-		
+				
 		csvReader = new CSVReader(new StringReader(
 			"a,b,d" 		+ System.lineSeparator() +
 			"0,1,extra0"	+ System.lineSeparator() +
@@ -309,8 +330,15 @@ public class CsvDataStreamTest {
 			"3,4,extra3" 	+ System.lineSeparator() +
 			"4,5,extra4" 	+ System.lineSeparator()
 		));
+
+		csvSchema = List.of(
+			new ColumnModel().setName("a").setColumnType(ColumnType.INTEGER),
+			new ColumnModel().setName("b").setColumnType(ColumnType.INTEGER),
+			new ColumnModel().setName("d").setColumnType(ColumnType.STRING)
+		);
 		
-		dataStream = new CsvDataStream(csvReader, gridHeader, upsertKey);
+		
+		dataStream = new CsvDataStream(csvReader, csvSchema, gridHeader, upsertKey);
 		
 		assertEquals("The upsert key cannot have null or empty values.", assertThrows(IllegalArgumentException.class, () -> {
 			while(dataStream.hasNext()) {
@@ -331,19 +359,39 @@ public class CsvDataStreamTest {
 		upsertKey = List.of("a");
 		
 		csvReader = new CSVReader(new StringReader(
-			"a,b,d"
+			"a,b,c,d"
 		));
 		
 		assertEquals("The CSV file cannot be empty.", assertThrows(IllegalArgumentException.class, () -> {
-			new CsvDataStream(csvReader, gridHeader, upsertKey);
+			new CsvDataStream(csvReader, csvSchema, gridHeader, upsertKey);
 		}).getMessage());
 		
 		csvReader = new CSVReader(new StringReader(""));
 		
 		assertEquals("The CSV file cannot be empty.", assertThrows(IllegalArgumentException.class, () -> {
-			new CsvDataStream(csvReader, gridHeader, upsertKey);
+			new CsvDataStream(csvReader, csvSchema, gridHeader, upsertKey);
 		}).getMessage());
 		
 	}
-
+	
+	@Test
+	public void testStreamWithMistmatchingSchemaLength() {
+		gridHeader = new GridHeader().setOrderedColumns(List.of(
+			new Column().setName("a"),
+			new Column().setName("b"),
+			new Column().setName("c")
+		));
+		
+		upsertKey = List.of("a");
+		
+		csvReader = new CSVReader(new StringReader(
+			"a,b,c" 	+ System.lineSeparator() +
+			"0,1,data0" + System.lineSeparator()
+		));		
+		
+		assertEquals("The number of columns in the CSV file does not match the schema.", assertThrows(IllegalArgumentException.class, () -> {
+			new CsvDataStream(csvReader, csvSchema, gridHeader, upsertKey);
+		}).getMessage());
+		
+	}
 }

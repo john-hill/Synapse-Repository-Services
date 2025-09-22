@@ -13,7 +13,6 @@ import org.sagebionetworks.repo.model.table.ColumnConstants;
 import org.sagebionetworks.table.cluster.ColumnTypeInfo;
 import org.sagebionetworks.table.cluster.MySqlColumnType;
 import org.sagebionetworks.util.PaginationIterator;
-import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -60,16 +59,10 @@ public class GridCsvImportDaoImpl implements GridCsvImportDao {
 	
 	@Override
 	@GridTransaction(readOnly = true)
-	public PaginationIterator<JoinedRow> getJoinedTempTableIterator(ColumnMapping[] csvColumnMapping, ColumnMapping[] gridColumnMapping) {
+	public PaginationIterator<JoinedRow> getJoinedTempTableIterator(ColumnMapping[] csvColumnMapping) {
 		List<ColumnMapping> csvUpsertColumns = Arrays.stream(csvColumnMapping)
 			.filter(ColumnMapping::isUpsertColumn)
 			.collect(Collectors.toList());
-		
-		List<ColumnMapping> gridUpsertColumns = Arrays.stream(gridColumnMapping)
-			.filter(ColumnMapping::isUpsertColumn)
-			.collect(Collectors.toList());
-		
-		ValidateArgument.requirement(csvUpsertColumns.size() == gridUpsertColumns.size(), "The CSV and the Grid upsert key must have the same number of columns.");
 		
 		StringJoiner joinConditions = new StringJoiner(" AND ");
 		
@@ -84,17 +77,34 @@ public class GridCsvImportDaoImpl implements GridCsvImportDao {
 		
 		return new PaginationIterator<>((limit, offset) -> 
 			jdbcTemplate.query(sql.toString(), (rs, rowNum) -> {
-				Object[] upsertKeyValues = new Object[csvUpsertColumns.size()];
-				
-				int i;
-				for (i=1; i <= csvUpsertColumns.size(); i++) {
-					upsertKeyValues[i - 1] = rs.getObject(i);
-				}				
+				Object[] csvData = new Object[csvColumnMapping.length];
 
-				String csvData = rs.getString(i++);
-				String gridData = rs.getString(i++);
+				// Add the upsert columns first
+				for (int i = 0; i < csvUpsertColumns.size(); i++) {
+					csvData[i] = rs.getObject(i + 1);
+				}
 				
-				return new JoinedRow(upsertKeyValues, csvData, gridData);
+				// Unpack the remaining CSV columns from the extra column
+				JSONArray csvExtraArray = new JSONArray(rs.getString(csvUpsertColumns.size() + 1));
+				
+				for (int i = 0; i < csvExtraArray.length(); i++) {
+					csvData[i + csvUpsertColumns.size()] = csvExtraArray.get(i);
+				}
+				
+				Object[] gridData = null;
+				
+				// The grid data can be null if there is no match
+				String gridExtraStr = rs.getString(csvUpsertColumns.size() + 2);
+				
+				if (gridExtraStr != null) {
+					JSONArray gridExtraArray = new JSONArray(gridExtraStr);
+					gridData = new Object[gridExtraArray.length()];
+					for (int i = 0; i < gridExtraArray.length(); i++) {
+						gridData[i] = gridExtraArray.get(i);
+					}
+				}
+				
+				return new JoinedRow(csvData, gridData);
 			}, limit, offset)
 		, BATCH_SIZE);
 	}

@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.grid.internal.replica.merge;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,8 +11,10 @@ import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
+import org.sagebionetworks.repo.manager.grid.row.translator.ColumnTypeToConType;
+import org.sagebionetworks.repo.manager.grid.row.translator.Translator;
+import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
-import org.sagebionetworks.table.cluster.utils.CSVUtils;
 import org.sagebionetworks.util.ValidateArgument;
 
 import au.com.bytecode.opencsv.CSVReader;
@@ -22,15 +25,20 @@ public class CsvDataStream implements DataStream {
 	private String[] currentRow;
 	private String[] csvHeader;
 	private ColumnMapping[] columnMapping;
-	private Set<String> gridColumnNames;
+	private Translator[] columnTranslators;
 	
-	public CsvDataStream(CSVReader csvReader, GridHeader gridHeader, List<String> upsertKey) {
+	public CsvDataStream(CSVReader csvReader, List<ColumnModel> schema, GridHeader gridHeader, List<String> upsertKey) {
 		this.csvReader = csvReader;
+		// Skip the header
 		this.csvHeader = getNextRow();
+		// Move the cursor to the first row
 		this.currentRow = getNextRow();
 		ValidateArgument.requirement(currentRow != null, "The CSV file cannot be empty.");
-		this.gridColumnNames = gridHeader.getOrderedColumns().stream().map(Column::getName).collect(Collectors.toSet());
-		this.columnMapping = getColumnMapping(upsertKey);
+		ValidateArgument.requirement(csvHeader.length == schema.size(), "The number of columns in the CSV file does not match the schema.");
+		this.columnMapping = getColumnMapping(gridHeader, upsertKey, schema);
+		this.columnTranslators = Arrays.stream(columnMapping).map(mapping -> 
+			ColumnTypeToConType.lookUpType(mapping.getType()).getTranslator()
+		).toArray(Translator[]::new);
 	}
 
 	@Override
@@ -73,18 +81,13 @@ public class CsvDataStream implements DataStream {
 				stringValue = checkUpsertKeyValue(stringValue);
 			}
 			
-			if (mapping.getTranslator() == null) {
-				values[i] = stringValue;
-			} else {
-				values[i] = mapping.getTranslator().translateNullable(stringValue).getValue();
-			}
+			values[i] = columnTranslators[i].translateNullable(stringValue).getValue();
 		}
 		
 		return values;
 	}
 	
-	ColumnMapping[] getColumnMapping(List<String> upsertKey) {
-		String[] sampleRow = currentRow;
+	ColumnMapping[] getColumnMapping(GridHeader gridHeader, List<String> upsertKey, List<ColumnModel> schema) {
 		
 		Map<String, Integer> csvColumnIndex = new HashMap<>();
 		
@@ -92,7 +95,7 @@ public class CsvDataStream implements DataStream {
 			csvColumnIndex.put(csvHeader[i], i);
 		}
 		
-		List<ColumnMapping> columnMapping = new ArrayList<>();		
+		List<ColumnMapping> columnMapping = new ArrayList<>();	
 		
 		boolean[] mapped = new boolean[csvHeader.length];
 		
@@ -103,15 +106,14 @@ public class CsvDataStream implements DataStream {
 			
 			ValidateArgument.requirement(csvIndex >= 0, "The upsert key column \"" + columnName + "\" does not exist in the CSV file.");
 			
-			String value = checkUpsertKeyValue(sampleRow[csvIndex]);
-			
-			ColumnType columnType = CSVUtils.checkType(value, null).getColumnType();
+			ColumnType columnType = schema.get(csvIndex).getColumnType();
 			
 			columnMapping.add(new ColumnMapping(columnName, columnType, csvIndex, true));
 			
 			mapped[csvIndex] = true;
 		}
 		
+		Set<String> gridColumnNames = gridHeader.getOrderedColumns().stream().map(Column::getName).collect(Collectors.toSet());
 		// Now maps the remaining columns in order
 		for (int i = 0; i < csvHeader.length; i++) {
 			String columnName = csvHeader[i];
@@ -123,9 +125,10 @@ public class CsvDataStream implements DataStream {
 			if (!gridColumnNames.contains(columnName)) {
 				continue;
 			}
+
+			ColumnType columnType = schema.get(i).getColumnType();
 			
-			// We do not need the type at this time
-			columnMapping.add(new ColumnMapping(columnName, null, i, false));
+			columnMapping.add(new ColumnMapping(columnName, columnType, i, false));
 		}
 		
 		return columnMapping.toArray(new ColumnMapping[0]);

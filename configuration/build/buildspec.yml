@@ -49,10 +49,11 @@ phases:
         export org_sagebionetworks_datacite_password=$(echo $DATACITE_CREDS | jq -r '.datacite_password')
         export org_sagebionetworks_sts_iam_arn=$(aws --region us-east-1 cloudformation describe-stacks --stack-name dev-${user}-shared-resources --query 'Stacks[0].Outputs[?OutputKey==`TempCredentialsServiceRoleArn`].OutputValue' --output text)
         export org_sagebionetworks_search_enabled=true
-        # TODO reenable google cloud
-        #export org_sagebionetworks_google_cloud_enabled=true
-        export org_sagebionetworks_google_cloud_enabled=false
-        unset org_sagebionetworks_google_cloud_key
+        # TODO clean up debug
+        export org_sagebionetworks_google_cloud_enabled=true
+        #export org_sagebionetworks_google_cloud_enabled=false
+        #unset org_sagebionetworks_google_cloud_key
+        org_sagebionetworks_google_cloud_key='${org_sagebionetworks_google_cloud_key}'
         # TODO remove next line
         export EXTRA_ARGS="-Dtest=doesnotexist -DfailIfNoTests=false"
       else

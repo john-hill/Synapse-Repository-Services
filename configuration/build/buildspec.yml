@@ -10,7 +10,7 @@ env:
     org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
     org_sagebionetworks_sts_duration_seconds: 900
   secrets-manager:
-    org_sagebionetworks_stackEncryptionKey: org.sagebionetworks.stackEncryptionKey
+    org_sagebionetworks_stackEncryptionKey: /build/stack/encryption/key
     rds_password: build.rds.password
     # misnomer: "keypair" on the next line is actually just the key id
     org_sagebionetworks_cloudfront_keypair: org.sagebionetworks.cloudfront.private.key.id

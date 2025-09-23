@@ -1,11 +1,15 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.Context;
 import org.sagebionetworks.repo.model.grid.query.CellValueFilter;
 import org.sagebionetworks.repo.model.grid.query.Filter;
@@ -16,7 +20,7 @@ public class CellValueFilterElement implements FilterElement {
 	private String columnName;
 	private CellValueOperatorElement operator;
 	private List<Object> value;
-	
+
 	public CellValueFilterElement(Filter filter) {
 		this((CellValueFilter) filter);
 	}
@@ -75,35 +79,52 @@ public class CellValueFilterElement implements FilterElement {
 
 		int index = params.size();
 		String bind = String.format("val%d", index);
-		Integer columnIndex = context.getHeader().getOrderedColumns().stream()
-				.filter(c -> c.getName().equals(columnName)).map(c -> c.getVectorIndex()).findFirst()
-				.orElseThrow(() -> new IllegalArgumentException("Column name not found: " + columnName));
-
-		sqlBuilder.append(" VALS->>'$[").append(columnIndex).append("]' ").append(operator.toSql());
+		Integer columnIndex = context.getColumnIndexForName(columnName);
 
 		switch (operator.getValueMultiplicity()) {
 		case one:
 			if (value == null || value.size() != 1) {
 				throw new IllegalArgumentException("Expected exactly one value for operation: " + operator);
 			}
-			sqlBuilder.append(" :").append(bind);
-			params.put(bind, value.get(0));
+			Object valOb = value.get(0);
+			String function = isString(valOb)? "->>":"->";
+			sqlBuilder.append(" VALS").append(function).append("'$[").append(columnIndex).append("]' ").append(operator.toSql());
+
+			if (isJsonType(valOb)) {
+				sqlBuilder.append(" CAST(:").append(bind).append(" AS JSON)");
+				params.put(bind, value.get(0).toString());
+			} else {
+				sqlBuilder.append(" :").append(bind);
+				params.put(bind, value.get(0));
+			}
+
 			break;
 		case many:
 			if (value == null || value.isEmpty()) {
 				throw new IllegalArgumentException("Expected at least one value for operation: " + operator);
 			}
+			sqlBuilder.append(" VALS->'$[").append(columnIndex).append("]' ").append(operator.toSql());
 			sqlBuilder.append(String.format(" (:%s)", bind));
-			params.put(bind, value);
+			List<Object> toBind = value.stream().map(o -> isJsonType(o) ? o.toString() : o).collect(Collectors.toList());
+			params.put(bind, toBind);
 			break;
 		case none:
 			if (value != null && !value.isEmpty()) {
 				throw new IllegalArgumentException("Expected no value for operator: " + operator);
 			}
+			sqlBuilder.append(" JSON_VALUE(VALS, '$[").append(columnIndex).append("]') ").append(operator.toSql());
 			break;
 		default:
 			throw new IllegalArgumentException("Unknown operation: " + operator);
 		}
+	}
+
+	boolean isJsonType(Object val) {
+		return (val instanceof JSONArray) || (val instanceof Boolean) || (val instanceof JSONObject);
+	}
+	
+	boolean isString(Object val) {
+		return (val instanceof String);
 	}
 
 	@Override

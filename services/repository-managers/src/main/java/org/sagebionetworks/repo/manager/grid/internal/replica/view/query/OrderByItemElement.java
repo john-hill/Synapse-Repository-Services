@@ -20,9 +20,7 @@ public class OrderByItemElement implements Element {
 
 	@Override
 	public void toSql(StringBuilder sqlBuilder, Map<String, Object> params, Context context) {
-		Integer columnIndex = context.getHeader().getOrderedColumns().stream()
-				.filter(c -> c.getName().equals(columnName)).map(c -> c.getVectorIndex()).findFirst()
-				.orElseThrow(() -> new IllegalArgumentException("Column name not found: " + columnName));
+		Integer columnIndex = context.getColumnIndexForName(columnName);
 		
 	}
 

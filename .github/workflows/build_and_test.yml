@@ -45,8 +45,16 @@ jobs:
           # capture the current branch as an environment variable
           echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
           # get repo' and branch specifying the version of the stack builder to use
-          echo "stack_builder_repo_owner=${{ vars.STACK_BUILDER_REPO_OWNER }}" >> $GITHUB_ENV
-          echo "stack_builder_branch=${{ vars.STACK_BUILDER_BRANCH }}" >> $GITHUB_ENV
+          if [ ${{ vars.STACK_BUILDER_REPO_OWNER }} ]; then
+            echo "stack_builder_repo_owner=${{ vars.STACK_BUILDER_REPO_OWNER }}" >> $GITHUB_ENV
+           else
+            echo "stack_builder_repo_owner=Sage-Bionetworks" >> $GITHUB_ENV
+          fi
+          if [ ${{ vars.STACK_BUILDER_BRANCH }} ]; then
+            echo "stack_builder_branch=${{ vars.STACK_BUILDER_BRANCH }}" >> $GITHUB_ENV
+          else
+            echo "stack_builder_branch=develop" >> $GITHUB_ENV
+          fi
           echo "full_build=${{ vars.FULL_BUILD }}" >> $GITHUB_ENV
 
       - id: oidc

@@ -17,7 +17,6 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.grid.GridCsvImportRequest;
 import org.sagebionetworks.repo.model.grid.GridCsvImportResponse;
-import org.sagebionetworks.repo.model.grid.GridRecordSetExportResponse;
 import org.sagebionetworks.util.progress.ProgressingCallable;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.sagebionetworks.workers.util.semaphore.LockType;
@@ -111,7 +110,7 @@ public class GridCsvImportWorkerTest {
     public void testRunWithUnknownException() throws Exception {
     	when(mockJobProgressCallback.getLockTimeoutSeconds()).thenReturn(60L);
         when(mockSemaphore.tryRunWithWriteLock(eq(writeLockRequest), any())).thenAnswer(i -> {
-			ProgressingCallable<GridRecordSetExportResponse> callable = i.getArgument(1);			
+			ProgressingCallable<GridCsvImportResponse> callable = i.getArgument(1);			
 			return callable.call(mockJobProgressCallback);
 		});
         

@@ -2,7 +2,6 @@ package org.sagebionetworks.repo.manager.grid.internal.replica.merge;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -120,8 +119,8 @@ public class GridCsvImportDaoImplTest {
 		
 		while (it.hasNext()) {
 			Object[] row = it.next();
-			// This is the extra column with information from the grid (logical ids)
-			String extraData = "[[" + replicaId + "," + rowVecId + "]]";
+			// This is the extra column with information from the grid (serialized vector id)
+			String extraData = "[\"[" + replicaId + "," + rowVecId + "]\"]";
 			// Note that the data has been reordered by the upsert key (b,a) and only contains the upsert keys plus the extra data column
 			assertArrayEquals(new Object[] { rowId, rowId % 10, extraData }, row);
 			rowId++;
@@ -166,12 +165,10 @@ public class GridCsvImportDaoImplTest {
 		while (joinIt.hasNext()) {
 			
 			Object[] expectedCsvData = new Object[] { rowId, rowId % 5, false , "bar" + rowId };
-			String[] expectedGridArray = null;
+			Object[] expectedGridData = null;
 			
 			if (rowId % 10 < 5 && rowId < gridRowCount) {
-				expectedGridArray = new String[] {
-					"[" + replicaId + "," + rowVecId + "]"
-				};
+				expectedGridData = new Object[] { "[" + replicaId + "," + rowVecId + "]" };
 			} else {
 				notMatchedCount++;
 			}
@@ -179,22 +176,13 @@ public class GridCsvImportDaoImplTest {
 			JoinedRow next = joinIt.next();
 			
 			assertArrayEquals(expectedCsvData, next.getCsvData());
-			
-			if (expectedGridArray == null) {
-				assertNull(next.getGridData());
-			} else {
-				assertEquals(1, next.getGridData().length);
-				// The logical timestamps are automatically converted to JSONArray (which unfortunately does not implement hashcode/equals)
-				assertArrayEquals(expectedGridArray, new String[] {
-					next.getGridData()[0].toString()
-				});
-			}
+			assertArrayEquals(expectedGridData, next.getGridData());
 			
 			rowId++;
 			rowVecId+=9;
 		}
 		
-		// The CSV has only 50% of the rows in commong with the grid
+		// The CSV has only 50% of the rows in common with the grid
 		assertEquals(gridRowCount/2 + (csvRowCount - gridRowCount), notMatchedCount);
 	}
 	

@@ -1,6 +1,6 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.merge;
 
-import org.sagebionetworks.util.PaginationIterator;
+import java.util.Iterator;
 
 public interface GridCsvImportDao {
 	
@@ -11,9 +11,9 @@ public interface GridCsvImportDao {
 	
 	void streamToGridTempTable(DataStream dataIterator, ColumnMapping[] columnMapping);
 	
-	PaginationIterator<Object[]> getCsvTempTableIterator();
+	Iterator<Object[]> getCsvTempTableIterator();
 	
-	PaginationIterator<Object[]> getGridTempTableIterator();
+	Iterator<Object[]> getGridTempTableIterator();
 	
-	PaginationIterator<JoinedRow> getJoinedTempTableIterator(ColumnMapping[] columnMapping);
+	Iterator<JoinedRow> getJoinedTempTableIterator(ColumnMapping[] columnMapping);
 }

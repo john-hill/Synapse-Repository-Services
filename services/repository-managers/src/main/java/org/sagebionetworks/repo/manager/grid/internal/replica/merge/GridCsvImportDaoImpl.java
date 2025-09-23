@@ -103,7 +103,9 @@ public class GridCsvImportDaoImpl implements GridCsvImportDao {
 	}
 
 	void streamToTempTable(String tableName, DataStream dataStream, ColumnMapping[] columnMapping) {
-		List<ColumnMapping> upsertKey = Arrays.stream(columnMapping).filter(ColumnMapping::isUpsertColumn).collect(Collectors.toList());
+		List<ColumnMapping> upsertKey = Arrays.stream(columnMapping)
+			.filter(ColumnMapping::isUpsertColumn)
+			.collect(Collectors.toList());
 
 		createTemporaryTable(tableName, upsertKey);
 

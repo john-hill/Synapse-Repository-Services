@@ -1,9 +1,17 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.merge;
 
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.sagebionetworks.grid.db.GridTransaction;
 import org.sagebionetworks.repo.manager.EntityManager;
@@ -11,7 +19,9 @@ import org.sagebionetworks.repo.manager.file.BucketObjectReader;
 import org.sagebionetworks.repo.manager.file.BucketObjectReaderProvider;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.grid.GridManager;
+import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
+import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
 import org.sagebionetworks.repo.model.Entity;
 import org.sagebionetworks.repo.model.RecordSet;
@@ -24,6 +34,7 @@ import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridCsvImportRequest;
 import org.sagebionetworks.repo.model.grid.GridCsvImportResponse;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.table.cluster.utils.CSVUtils;
 import org.sagebionetworks.util.ValidateArgument;
@@ -63,34 +74,34 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 	
 		GridSession gridSession = gridManager.getGridSession(user, request.getSessionId());
 		
-		RecordSet recordSet = getRecordSet(user, gridSession);
-		
 		GridHeader gridHeader = getGridHeader(gridSession);
 		
-		ColumnMapping[] columnMapping = ColumnMapping.getColumnMapping(request.getSchema(), gridHeader.getOrderedColumns(), recordSet.getUpsertKey());
+		List<String> upsertKey = getUpsertKey(user, gridSession);
+		
+		ColumnMapping[] columnMapping;
 		
 		// First create a temporary table containing the CSV data
-		DataStream csvStream;
-		
 		try (CSVReader csvReader = getCsvReader(fileHandleManager.getRawFileHandle(user, request.getFileHandleId()), request.getCsvDescriptor())) {
 			
-			if (Boolean.TRUE.equals(request.getCsvDescriptor().getIsFirstLineHeader())) {
-				csvReader.readNext();
-			}
+			// We need to make sure that the schema is sorted according to the potential CSV header
+			List<ColumnModel> csvSchema = getSortedSchema(csvReader, request.getCsvDescriptor(), request.getSchema());
 			
-			csvStream = new CsvDataStream(csvReader, columnMapping);
+			// Computes the driving column mapping
+			columnMapping = getColumnMapping(upsertKey, csvSchema, gridHeader.getOrderedColumns());
 			
-			importDao.streamToCsvTempTable(csvStream, columnMapping);
-		} catch (Exception ex) {
+			importDao.streamToCsvTempTable(new CsvDataStream(csvReader, columnMapping), columnMapping);
+		} catch(IllegalArgumentException e) {
+			throw e;
+		} catch (IOException ex) {
 			throw new IllegalStateException(ex);
 		}
 		
+		Iterator<RowView> gridDataIterator = gridViewManager.getQueryIterator(gridHeader, Collections.emptyList());
+		
 		// Now create a temporary table containing the grid data
-		DataStream gridStream = new GridDataStream(gridViewManager.getQueryIterator(gridHeader, Collections.emptyList()), columnMapping);
+		importDao.streamToGridTempTable(new GridDataStream(gridDataIterator, columnMapping), columnMapping);
 		
-		importDao.streamToGridTempTable(gridStream, columnMapping);
-		
-		// Now join the two temporary tables
+		// Now join the two temporary tables to determine which rows are new and which rows are updates
 		Iterator<JoinedRow> joinResult = importDao.getJoinedTempTableIterator(columnMapping);
 		
 		long rowCount = 0;
@@ -116,6 +127,80 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 			.setSessionId(request.getSessionId());
 	}
 	
+	List<ColumnModel> getSortedSchema(CSVReader reader, CsvTableDescriptor descriptor, List<ColumnModel> schema) throws IOException {
+		if (Boolean.TRUE.equals(descriptor.getIsFirstLineHeader())) {
+			String[] header = reader.readNext();
+			
+			ValidateArgument.requirement(header != null, "The CSV file cannot be empty.");
+			ValidateArgument.requirement(header.length == schema.size(), "The CSV header does not match the schema size.");
+
+			Map<String, ColumnModel> csvSchemaMap = schema.stream()
+				.collect(Collectors.toMap(ColumnModel::getName, Function.identity()));
+			
+			List<ColumnModel> sortedSchema = new ArrayList<>(schema.size());
+		
+			for (String columnName : header) {
+				ColumnModel cm = csvSchemaMap.get(columnName);
+				ValidateArgument.requirement(cm != null, "The CSV header column \"" + columnName + "\" does not exist in the schema.");
+				sortedSchema.add(cm);
+			}
+			
+			return sortedSchema;
+		} else {
+			return schema;
+		}
+	}
+	
+	// Computes an ordered mapping by upsert key first and then the rest of the columns of the CSV that exist in the grid.
+	ColumnMapping[] getColumnMapping(List<String> upsertKey, List<ColumnModel> csvSchema, List<Column> gridSchema) throws IOException {
+		List<ColumnMapping> columnMapping = new ArrayList<>();
+		
+		Map<String, Integer> csvColumnIndex = new HashMap<>(csvSchema.size());
+		
+		IntStream.range(0, csvSchema.size())
+			.forEach(i -> csvColumnIndex.put(csvSchema.get(i).getName(), i));
+		
+		Map<String, Integer> gridColumnIndex = new HashMap<>();
+		
+		IntStream.range(0, gridSchema.size())
+			.forEach(i -> gridColumnIndex.put(gridSchema.get(i).getName(), i));
+			
+		// We first map by the upsert key order
+		for (int i = 0; i < upsertKey.size(); i++) {
+			String columnName = upsertKey.get(i);
+			
+			int csvIndex = csvColumnIndex.getOrDefault(columnName, -1);
+			
+			ValidateArgument.requirement(csvIndex >= 0, "The upsert key column \"" + columnName + "\" does not exist in the CSV schema.");
+			
+			int gridIndex = gridColumnIndex.getOrDefault(columnName, -1);
+			
+			ValidateArgument.requirement(gridIndex >= 0, "The upsert key column \"" + columnName + "\" does not exist in the grid schema.");
+			
+			columnMapping.add(new ColumnMapping(columnName, csvSchema.get(csvIndex).getColumnType(), csvIndex, gridIndex, true));
+		}
+		
+		// Now maps the rest of the columns
+		for (int csvIndex = 0; csvIndex < csvSchema.size(); csvIndex++) {
+			String columnName = csvSchema.get(csvIndex).getName();
+			
+			if (upsertKey.contains(columnName)) {
+				continue;
+			}
+			
+			int gridIndex = gridColumnIndex.getOrDefault(columnName, -1);
+			
+			// We ignore columns that do not exist in the grid
+			if (gridIndex < 0) {
+				continue;
+			}
+			
+			columnMapping.add(new ColumnMapping(columnName, csvSchema.get(csvIndex).getColumnType(), csvIndex, gridIndex, false));
+		}
+		
+		return columnMapping.toArray(new ColumnMapping[0]);
+	}
+	
 	GridHeader getGridHeader(GridSession gridSession) {
 		GridConnectionInfo connectionInfo = gridManager.getSingletonConnection(gridSession.getSessionId(), EventSource.INTERNAL)
 			.orElseThrow(() -> new RecoverableMessageException("No internal connection found for session: " + gridSession.getSessionId()));
@@ -124,12 +209,12 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 			.orElseThrow(() -> new RecoverableMessageException("Grid header has not yet been instantiated for sessionId: " + gridSession.getSessionId()));
 	}
 	
-	RecordSet getRecordSet(UserInfo user, GridSession gridSession) {
+	List<String> getUpsertKey(UserInfo user, GridSession gridSession) {
 		Entity entity = entityManager.getEntity(user, gridSession.getSourceEntityId());
 		
 		ValidateArgument.requirement(entity instanceof RecordSet, "Unsupported grid session: only a grid created from a record set is supported.");
 		
-		return (RecordSet) entity;
+		return ((RecordSet) entity).getUpsertKey();
 	}
 	
 	CSVReader getCsvReader(FileHandle fileHandle, CsvTableDescriptor csvDescriptor) {

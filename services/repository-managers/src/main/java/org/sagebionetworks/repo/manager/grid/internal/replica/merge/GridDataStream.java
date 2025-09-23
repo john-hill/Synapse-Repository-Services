@@ -33,7 +33,7 @@ public class GridDataStream implements DataStream {
 		// The actual JSON array of cell values
 		JSONArray cellValues = row.getRowObject().getData().getCells();
 
-		Object[] values = new Object[upsertKey.length + 2];
+		Object[] values = new Object[upsertKey.length + 1];
 
 		// First we map the upsert key columns
 		for (int i = 0; i < upsertKey.length; i++) {

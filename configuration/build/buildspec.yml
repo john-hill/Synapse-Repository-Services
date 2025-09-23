@@ -54,7 +54,7 @@ phases:
         #export org_sagebionetworks_google_cloud_enabled=false
         #unset org_sagebionetworks_google_cloud_key
         echo length of google cloud key is ${#org_sagebionetworks_google_cloud_key}
-        export org_sagebionetworks_google_cloud_key='${org_sagebionetworks_google_cloud_key}'
+        export org_sagebionetworks_google_cloud_key=\'${org_sagebionetworks_google_cloud_key}\'
         # TODO remove next line
         export EXTRA_ARGS="-Dtest=doesnotexist -DfailIfNoTests=false"
       else

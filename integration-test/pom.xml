@@ -59,9 +59,6 @@
 				<version>2.22.2</version>
 				<configuration>
 					<runOrder>alphabetical</runOrder>
-										      <includes>
-        <include>**/ITV2WikiPageTest.java</include>
-      </includes>
 				</configuration>
 				<executions>
 					<execution>

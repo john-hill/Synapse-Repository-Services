@@ -29,8 +29,12 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.QueryEl
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.CellValueFilterElement;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.CellValueOperatorElement;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.FilterElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.RowIsValidFilterElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.RowSelectionFilterElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.RowValidationResultFilterElement;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.VectorIdFilterElement;
 import org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils;
+import org.sagebionetworks.repo.model.grid.CrdtId;
 import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.ReplicaSelectionModel;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
@@ -43,13 +47,13 @@ import org.sagebionetworks.repo.model.grid.patch.operation.builder.InsertObjectB
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewConstantBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewObjectBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
+import org.sagebionetworks.repo.model.grid.query.ValidationOperator;
 import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
-import org.sagebionetworks.schema.adapter.org.json.EntityFactory;
 import org.sagebionetworks.util.ClasspathUtil;
 import org.semver4j.Semver;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -344,30 +348,8 @@ public class GridReplicaViewManagerImplAutowireTest {
 		List<RowView> allRows = gridViewManager.querySinglePage(header, limit, offset);
 
 		RowView four = allRows.get(4);
-
-		Patch patch = new Patch()
-				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
-
 		ValidationResults validation = new ValidationResults().setIsValid(true);
-
-		JSONObject validationJson = EntityFactory.createJSONObjectForEntity(validation);
-
-		// Since the row doesn't have any metadata yet we need to create the object
-		LogicalTimestamp metadataRef = patch.addNewOperation(Operations.newObject());
-
-		// We also need to update the row object with the metadata now
-		LogicalTimestamp rowObjectRef = four.getRowObject().getObjectId();
-
-		patch.addNewOperation(
-				Operations.insertObject().setObjectId(rowObjectRef).setMap(Map.of("metadata", metadataRef)));
-
-		LogicalTimestamp conId = patch
-				.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.JSON_OBJECT, validationJson)));
-
-		patch.addNewOperation(
-				Operations.insertObject().setObjectId(metadataRef).setMap(Map.of("rowValidation", conId)));
-
-		gridIndexManger.applyPatch(sessionId, replicaId, patch);
+		setValidationResult(four, validation);
 
 		List<FilterElement> filters = List
 				.of(new VectorIdFilterElement(List.of(four.getRowObject().getData().getVectorId())));
@@ -377,6 +359,28 @@ public class GridReplicaViewManagerImplAutowireTest {
 		assertEquals(1, page.size());
 		RowView fourUpdated = page.get(0);
 		assertEquals(validation, fourUpdated.getRowValidationResults());
+	}
+
+	/**
+	 * Helper to set the validation results for a row.
+	 * 
+	 * @param row
+	 * @param validation
+	 */
+	void setValidationResult(RowView row, ValidationResults validation) {
+		Patch patch = new Patch()
+				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
+
+		JSONObject validationJson = JDOSecondaryPropertyUtils.createJSONObjectForEntity(validation);
+		LogicalTimestamp metadataRef = patch.addNewOperation(Operations.newObject());
+		LogicalTimestamp rowObjectRef = row.getRowObject().getObjectId();
+		patch.addNewOperation(
+				Operations.insertObject().setObjectId(rowObjectRef).setMap(Map.of("metadata", metadataRef)));
+		LogicalTimestamp conId = patch
+				.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.JSON_OBJECT, validationJson)));
+		patch.addNewOperation(
+				Operations.insertObject().setObjectId(metadataRef).setMap(Map.of("rowValidation", conId)));
+		gridIndexManger.applyPatch(sessionId, replicaId, patch);
 	}
 
 	@Test
@@ -480,70 +484,69 @@ public class GridReplicaViewManagerImplAutowireTest {
 										.setOperator(CellValueOperatorElement.EQUALS).setValue(List.of(1L))))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(allRows.get(0),allRows.get(1),allRows.get(3)),
+		assertEquals(List.of(allRows.get(0), allRows.get(1), allRows.get(3)),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("anInt")
 										.setOperator(CellValueOperatorElement.LESS_THAN).setValue(List.of(2L))))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(allRows.get(0),allRows.get(1),allRows.get(2),allRows.get(3)),
+		assertEquals(List.of(allRows.get(0), allRows.get(1), allRows.get(2), allRows.get(3)),
 				gridViewManager.querySinglePage(header,
-						new QueryElement()
-								.setWhere(List.of(new CellValueFilterElement().setColumnName("anInt")
-										.setOperator(CellValueOperatorElement.LESS_THAN_OR_EQUALS).setValue(List.of(2L))))
+						new QueryElement().setWhere(List.of(new CellValueFilterElement().setColumnName("anInt")
+								.setOperator(CellValueOperatorElement.LESS_THAN_OR_EQUALS).setValue(List.of(2L))))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(allRows.get(4),allRows.get(5)),
+		assertEquals(List.of(allRows.get(4), allRows.get(5)),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("anInt")
 										.setOperator(CellValueOperatorElement.GREATER_THAN).setValue(List.of(2L))))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(allRows.get(2),allRows.get(4),allRows.get(5)),
+		assertEquals(List.of(allRows.get(2), allRows.get(4), allRows.get(5)),
 				gridViewManager.querySinglePage(header,
-						new QueryElement()
-								.setWhere(List.of(new CellValueFilterElement().setColumnName("anInt")
-										.setOperator(CellValueOperatorElement.GREATER_THAN_OR_EQUALS).setValue(List.of(2L))))
+						new QueryElement().setWhere(List.of(new CellValueFilterElement().setColumnName("anInt")
+								.setOperator(CellValueOperatorElement.GREATER_THAN_OR_EQUALS).setValue(List.of(2L))))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(allRows.get(0),allRows.get(1), allRows.get(3),allRows.get(4),allRows.get(5)),
+		assertEquals(List.of(allRows.get(0), allRows.get(1), allRows.get(3), allRows.get(4), allRows.get(5)),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("anInt")
 										.setOperator(CellValueOperatorElement.NOT_EQUALS).setValue(List.of(2L))))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(allRows.get(0),allRows.get(3)),
-				gridViewManager.querySinglePage(header,
-						new QueryElement()
-								.setWhere(List.of(new CellValueFilterElement().setColumnName("anInt")
-										.setOperator(CellValueOperatorElement.IS_NULL)))
-								.setLimit(100L).setOffset(0L)));
+		assertEquals(List.of(allRows.get(0), allRows.get(3)),
+				gridViewManager
+						.querySinglePage(header,
+								new QueryElement()
+										.setWhere(List.of(new CellValueFilterElement().setColumnName("anInt")
+												.setOperator(CellValueOperatorElement.IS_NULL)))
+										.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(allRows.get(1),allRows.get(2),allRows.get(4),allRows.get(5)),
+		assertEquals(List.of(allRows.get(1), allRows.get(2), allRows.get(4), allRows.get(5)),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("anInt")
 										.setOperator(CellValueOperatorElement.IS_NOT_NULL)))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(allRows.get(1),allRows.get(5)),
+		assertEquals(List.of(allRows.get(1), allRows.get(5)),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("anInt")
-										.setOperator(CellValueOperatorElement.IN).setValue(1L,4L)))
+										.setOperator(CellValueOperatorElement.IN).setValue(1L, 4L)))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(allRows.get(0),allRows.get(2),allRows.get(3),allRows.get(4)),
+		assertEquals(List.of(allRows.get(0), allRows.get(2), allRows.get(3), allRows.get(4)),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("anInt")
-										.setOperator(CellValueOperatorElement.NOT_IN).setValue(1L,4L)))
+										.setOperator(CellValueOperatorElement.NOT_IN).setValue(1L, 4L)))
 								.setLimit(100L).setOffset(0L)));
 	}
-	
+
 	@Test
 	public void testFilterWithEachOperationAndString() throws IOException {
 		schema = List.of(new ColumnModel().setName("aString").setColumnType(ColumnType.STRING).setMaximumSize(100L));
@@ -570,63 +573,62 @@ public class GridReplicaViewManagerImplAutowireTest {
 										.setOperator(CellValueOperatorElement.LESS_THAN).setValue(List.of("b"))))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(allRows.get(1),allRows.get(2)),
+		assertEquals(List.of(allRows.get(1), allRows.get(2)),
 				gridViewManager.querySinglePage(header,
-						new QueryElement()
-								.setWhere(List.of(new CellValueFilterElement().setColumnName("aString")
-										.setOperator(CellValueOperatorElement.LESS_THAN_OR_EQUALS).setValue(List.of("b"))))
+						new QueryElement().setWhere(List.of(new CellValueFilterElement().setColumnName("aString")
+								.setOperator(CellValueOperatorElement.LESS_THAN_OR_EQUALS).setValue(List.of("b"))))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(allRows.get(0), allRows.get(3), allRows.get(4),allRows.get(5)),
+		assertEquals(List.of(allRows.get(0), allRows.get(3), allRows.get(4), allRows.get(5)),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("aString")
 										.setOperator(CellValueOperatorElement.GREATER_THAN).setValue(List.of("b"))))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(allRows.get(0), allRows.get(2), allRows.get(3), allRows.get(4),allRows.get(5)),
+		assertEquals(List.of(allRows.get(0), allRows.get(2), allRows.get(3), allRows.get(4), allRows.get(5)),
 				gridViewManager.querySinglePage(header,
-						new QueryElement()
-								.setWhere(List.of(new CellValueFilterElement().setColumnName("aString")
-										.setOperator(CellValueOperatorElement.GREATER_THAN_OR_EQUALS).setValue(List.of("b"))))
+						new QueryElement().setWhere(List.of(new CellValueFilterElement().setColumnName("aString")
+								.setOperator(CellValueOperatorElement.GREATER_THAN_OR_EQUALS).setValue(List.of("b"))))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(allRows.get(0),allRows.get(1), allRows.get(3),allRows.get(4),allRows.get(5)),
+		assertEquals(List.of(allRows.get(0), allRows.get(1), allRows.get(3), allRows.get(4), allRows.get(5)),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("aString")
 										.setOperator(CellValueOperatorElement.NOT_EQUALS).setValue(List.of("b"))))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(allRows.get(0),allRows.get(3)),
-				gridViewManager.querySinglePage(header,
-						new QueryElement()
-								.setWhere(List.of(new CellValueFilterElement().setColumnName("aString")
-										.setOperator(CellValueOperatorElement.IS_NULL)))
-								.setLimit(100L).setOffset(0L)));
+		assertEquals(List.of(allRows.get(0), allRows.get(3)),
+				gridViewManager
+						.querySinglePage(header,
+								new QueryElement()
+										.setWhere(List.of(new CellValueFilterElement().setColumnName("aString")
+												.setOperator(CellValueOperatorElement.IS_NULL)))
+										.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(allRows.get(1),allRows.get(2),allRows.get(4),allRows.get(5)),
+		assertEquals(List.of(allRows.get(1), allRows.get(2), allRows.get(4), allRows.get(5)),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("aString")
 										.setOperator(CellValueOperatorElement.IS_NOT_NULL)))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(allRows.get(1),allRows.get(4)),
+		assertEquals(List.of(allRows.get(1), allRows.get(4)),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("aString")
-										.setOperator(CellValueOperatorElement.IN).setValue("a","c")))
+										.setOperator(CellValueOperatorElement.IN).setValue("a", "c")))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(allRows.get(0),allRows.get(2),allRows.get(3),allRows.get(5)),
+		assertEquals(List.of(allRows.get(0), allRows.get(2), allRows.get(3), allRows.get(5)),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("aString")
-										.setOperator(CellValueOperatorElement.NOT_IN).setValue("a","c")))
+										.setOperator(CellValueOperatorElement.NOT_IN).setValue("a", "c")))
 								.setLimit(100L).setOffset(0L)));
 	}
-	
+
 	@Test
 	public void testFilterWithEachLikeOperation() throws IOException {
 		schema = List.of(new ColumnModel().setName("aString").setColumnType(ColumnType.STRING).setMaximumSize(100L));
@@ -639,27 +641,181 @@ public class GridReplicaViewManagerImplAutowireTest {
 		List<RowView> allRows = gridViewManager.querySinglePage(header,
 				new QueryElement().setLimit(100L).setOffset(0L));
 		// call under test
-		assertEquals(List.of(allRows.get(1),allRows.get(2)),
+		assertEquals(List.of(allRows.get(1), allRows.get(2)),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("aString")
 										.setOperator(CellValueOperatorElement.LIKE).setValue("this is%")))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(allRows.get(1),allRows.get(2),allRows.get(4)),
+		assertEquals(List.of(allRows.get(1), allRows.get(2), allRows.get(4)),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("aString")
 										.setOperator(CellValueOperatorElement.LIKE).setValue("%this%")))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(allRows.get(0),allRows.get(3),allRows.get(4)),
+		assertEquals(List.of(allRows.get(0), allRows.get(3), allRows.get(4)),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("aString")
 										.setOperator(CellValueOperatorElement.NOT_LIKE).setValue("this is%")))
 								.setLimit(100L).setOffset(0L)));
 
+	}
+
+	@Test
+	public void testFilterValidationResults() throws IOException {
+		schema = List.of(new ColumnModel().setName("aString").setColumnType(ColumnType.STRING).setMaximumSize(100L));
+
+		rows = List.of(new Row().setValues(Collections.emptyList()), new Row().setValues(List.of("a")),
+				new Row().setValues(List.of("b")), new Row().setValues(List.of("c")),
+				new Row().setValues(List.of("d")));
+		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
+		GridHeader header = gridViewManager.readHeader(sessionId, replicaId).get();
+		List<RowView> allRows = gridViewManager.querySinglePage(header,
+				new QueryElement().setLimit(100L).setOffset(0L));
+
+		setValidationResult(allRows.get(0),
+				new ValidationResults().setIsValid(false)
+						.setValidationErrorMessage("#: only 1 subschema matches out of 2")
+						.setAllValidationMessages(List.of("aString cannot be null", "another value")));
+		setValidationResult(allRows.get(1), new ValidationResults().setIsValid(true));
+		setValidationResult(allRows.get(2),
+				new ValidationResults().setIsValid(false)
+						.setValidationErrorMessage("#: only 2 subschema matches out of 3")
+						.setAllValidationMessages(List.of("aString cannot be 'b'", "nore can it be c")));
+		setValidationResult(allRows.get(3), new ValidationResults().setIsValid(true));
+		allRows = gridViewManager.querySinglePage(header, new QueryElement().setLimit(100L).setOffset(0L));
+
+		// call under test
+		assertEquals(List.of(allRows.get(1), allRows.get(3)), gridViewManager.querySinglePage(header, new QueryElement()
+				.setWhere(List.of(new RowIsValidFilterElement().setValue(true))).setLimit(100L).setOffset(0L)));
+		// call under test
+		assertEquals(List.of(allRows.get(0), allRows.get(2)), gridViewManager.querySinglePage(header, new QueryElement()
+				.setWhere(List.of(new RowIsValidFilterElement().setValue(false))).setLimit(100L).setOffset(0L)));
+
+		// call under test
+		assertEquals(List.of(allRows.get(0), allRows.get(2)), gridViewManager.querySinglePage(header,
+				new QueryElement().setWhere(List.of(new RowValidationResultFilterElement()
+						.setOperator(ValidationOperator.LIKE).setValidationResultValue("aString cannot be%")))
+						.setLimit(100L).setOffset(0L)));
+
+		// call under test
+		assertEquals(List.of(allRows.get(0)),
+				gridViewManager.querySinglePage(header,
+						new QueryElement()
+								.setWhere(List.of(new RowValidationResultFilterElement()
+										.setOperator(ValidationOperator.LIKE).setValidationResultValue("%another%")))
+								.setLimit(100L).setOffset(0L)));
+
+		// call under test
+		assertEquals(List.of(allRows.get(1), allRows.get(2), allRows.get(3), allRows.get(4)),
+				gridViewManager.querySinglePage(header,
+						new QueryElement().setWhere(List.of(new RowValidationResultFilterElement()
+								.setOperator(ValidationOperator.NOT_LIKE).setValidationResultValue("%another%")))
+								.setLimit(100L).setOffset(0L)));
+		// call under test
+		assertEquals(List.of(allRows.get(2)),
+				gridViewManager.querySinglePage(header,
+						new QueryElement()
+								.setWhere(List.of(new RowValidationResultFilterElement()
+										.setOperator(ValidationOperator.LIKE).setValidationResultValue("#: only 2%")))
+								.setLimit(100L).setOffset(0L)));
+		// call under test
+		assertEquals(List.of(allRows.get(0)),
+				gridViewManager.querySinglePage(header,
+						new QueryElement()
+								.setWhere(List.of(new RowValidationResultFilterElement()
+										.setOperator(ValidationOperator.LIKE).setValidationResultValue("#: only 1%")))
+								.setLimit(100L).setOffset(0L)));
+	}
+
+	@Test
+	public void testFilterSelected() throws IOException {
+		schema = List.of(new ColumnModel().setName("aString").setColumnType(ColumnType.STRING).setMaximumSize(100L));
+
+		rows = List.of(new Row().setValues(Collections.emptyList()), new Row().setValues(List.of("a")),
+				new Row().setValues(List.of("b")), new Row().setValues(List.of("c")),
+				new Row().setValues(List.of("d")));
+		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
+		GridHeader header = gridViewManager.readHeader(sessionId, replicaId).get();
+		List<RowView> allRows = gridViewManager.querySinglePage(header,
+				new QueryElement().setLimit(100L).setOffset(0L));
+		// no selection set at this point
+		// call under test
+		assertEquals(Collections.emptyList(),
+				gridViewManager.querySinglePage(header,
+						new QueryElement().setWhere(List.of(new RowSelectionFilterElement().setFilterSelected(true)))
+								.setLimit(100L).setOffset(0L)));
+		// call under test
+		assertEquals(allRows,
+				gridViewManager.querySinglePage(header,
+						new QueryElement().setWhere(List.of(new RowSelectionFilterElement().setFilterSelected(false)))
+								.setLimit(100L).setOffset(0L)));
+
+		ReplicaSelectionModel selection = new ReplicaSelectionModel()
+				.setRowSelection(List.of(createCrdtIdFromLogica(allRows.get(1).getArrNodeId()),
+						createCrdtIdFromLogica(allRows.get(3).getArrNodeId())));
+		setSelection(header.getNodeId(), selection);
+		header = gridViewManager.readHeader(sessionId, replicaId).get();
+
+		// call under test
+		assertEquals(List.of(allRows.get(1), allRows.get(3)),
+				gridViewManager.querySinglePage(header,
+						new QueryElement().setWhere(List.of(new RowSelectionFilterElement().setFilterSelected(true)))
+								.setLimit(100L).setOffset(0L)));
+
+		// call under test
+		assertEquals(List.of(allRows.get(0), allRows.get(2), allRows.get(4)),
+				gridViewManager.querySinglePage(header,
+						new QueryElement().setWhere(List.of(new RowSelectionFilterElement().setFilterSelected(false)))
+								.setLimit(100L).setOffset(0L)));
+
+		selection = new ReplicaSelectionModel().setRowSelectAll(true);
+		setSelection(header.getNodeId(), selection);
+		header = gridViewManager.readHeader(sessionId, replicaId).get();
+
+		assertEquals(allRows,
+				gridViewManager.querySinglePage(header,
+						new QueryElement().setWhere(List.of(new RowSelectionFilterElement().setFilterSelected(true)))
+								.setLimit(100L).setOffset(0L)));
+
+		assertEquals(Collections.emptyList(),
+				gridViewManager.querySinglePage(header,
+						new QueryElement().setWhere(List.of(new RowSelectionFilterElement().setFilterSelected(false)))
+								.setLimit(100L).setOffset(0L)));
+		
+		// null selection
+		header.setReplicaSelectionModel(new ReplicaSelectionModel());
+		// call under test
+		assertEquals(Collections.emptyList(),
+				gridViewManager.querySinglePage(header,
+						new QueryElement().setWhere(List.of(new RowSelectionFilterElement().setFilterSelected(true)))
+								.setLimit(100L).setOffset(0L)));
+		// call under test
+		assertEquals(allRows,
+				gridViewManager.querySinglePage(header,
+						new QueryElement().setWhere(List.of(new RowSelectionFilterElement().setFilterSelected(false)))
+								.setLimit(100L).setOffset(0L)));
+		
+		// empty selection.
+		header.setReplicaSelectionModel(new ReplicaSelectionModel().setRowSelection(Collections.emptyList()));
+		// call under test
+		assertEquals(Collections.emptyList(),
+				gridViewManager.querySinglePage(header,
+						new QueryElement().setWhere(List.of(new RowSelectionFilterElement().setFilterSelected(true)))
+								.setLimit(100L).setOffset(0L)));
+		// call under test
+		assertEquals(allRows,
+				gridViewManager.querySinglePage(header,
+						new QueryElement().setWhere(List.of(new RowSelectionFilterElement().setFilterSelected(false)))
+								.setLimit(100L).setOffset(0L)));
+
+	}
+
+	public static CrdtId createCrdtIdFromLogica(LogicalTimestamp timestamp) {
+		return new CrdtId().setRep(timestamp.getReplicaId()).setSeq(timestamp.getSequenceNumber());
 	}
 
 	/**

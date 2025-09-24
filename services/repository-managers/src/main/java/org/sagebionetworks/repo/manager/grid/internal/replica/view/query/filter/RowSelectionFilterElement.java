@@ -12,7 +12,6 @@ import org.sagebionetworks.repo.model.grid.query.RowSelectionFilter;
 import org.sagebionetworks.util.ValidateArgument;
 
 public class RowSelectionFilterElement implements FilterElement {
-
 	private Boolean filterSelected;
 
 	public RowSelectionFilterElement(Filter filter) {
@@ -23,21 +22,26 @@ public class RowSelectionFilterElement implements FilterElement {
 		this.filterSelected = filter.getIsSelected();
 	}
 
+	public RowSelectionFilterElement() {
+	}
+
 	@Override
 	public void toSql(StringBuilder sqlBuilder, Map<String, Object> params, Context context) {
 		ValidateArgument.required(context, "context");
 		ValidateArgument.required(context.getHeader(), "context.header");
-		if(filterSelected == null) {
+
+		if (filterSelected == null) {
 			filterSelected = true;
 		}
-		
+
 		ReplicaSelectionModel model = context.getHeader().getReplicaSelectionModel();
+
 		if (model == null) {
 			sqlBuilder.append(filterSelected ? " 1=0" : " 1");
 			return;
 		}
 
-		if (model.getRowSelectAll() != null && model.getRowSelectAll()) {
+		if (Boolean.TRUE.equals(model.getRowSelectAll())) {
 			sqlBuilder.append(filterSelected ? " 1" : " 1=0");
 			return;
 		}
@@ -51,7 +55,7 @@ public class RowSelectionFilterElement implements FilterElement {
 				.collect(Collectors.toList());
 
 		String bind = "arrIds" + params.size();
-		sqlBuilder.append(" (AN_REP, AN_SEC) ").append(filterSelected ? " IN" : " NOT IN").append("(:").append(bind)
+		sqlBuilder.append(" (AN_REP, AN_SEQ) ").append(filterSelected ? " IN" : " NOT IN").append("(:").append(bind)
 				.append(")");
 
 		params.put(bind, arrIdTuples);
@@ -61,8 +65,9 @@ public class RowSelectionFilterElement implements FilterElement {
 		return filterSelected;
 	}
 
-	public void setFilterSelected(Boolean filterSelected) {
+	public RowSelectionFilterElement setFilterSelected(Boolean filterSelected) {
 		this.filterSelected = filterSelected;
+		return this;
 	}
 
 	@Override
@@ -74,9 +79,7 @@ public class RowSelectionFilterElement implements FilterElement {
 	public boolean equals(Object obj) {
 		if (this == obj)
 			return true;
-		if (obj == null)
-			return false;
-		if (getClass() != obj.getClass())
+		if (obj == null || getClass() != obj.getClass())
 			return false;
 		RowSelectionFilterElement other = (RowSelectionFilterElement) obj;
 		return Objects.equals(filterSelected, other.filterSelected);
@@ -86,5 +89,4 @@ public class RowSelectionFilterElement implements FilterElement {
 	public String toString() {
 		return "RowSelectionFilterElement [filterSelected=" + filterSelected + "]";
 	}
-
 }

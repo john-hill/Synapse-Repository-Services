@@ -483,7 +483,8 @@ public class GridIndexDaoImpl implements GridIndexDao {
 
 	MapSqlParameterSource createArrayNodeParameter(Long sessionId, Long replicaId, ArrayNode node) {
 		return new MapSqlParameterSource().addValue("sessionId", sessionId).addValue("replicaId", replicaId)
-				.addValue("nodeRep", node.getId().getReplicaId()).addValue("nodeSeq", node.getId().getSequenceNumber())
+				.addValue("nodeRep", node.getId().getReplicaId())
+				.addValue("nodeSeq", node.getId().getSequenceNumber())
 				.addValue("arrRep", node.getArrayId().getReplicaId())
 				.addValue("arrSeq", node.getArrayId().getSequenceNumber())
 				.addValue("dataRep", node.getDataId() != null ? node.getDataId().getReplicaId() : null)
@@ -506,7 +507,23 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		params.addValue("limit", limit);
 		params.addValue("offset", offset);
 
-		return namedTemplate.query(LIST_ARRAY_ORDER_SQL, params, ARRAY_NODE_MAPPER);
+		return namedTemplate.query(String.format(LIST_ARRAY_ORDER_SQL, "ASC"), params, ARRAY_NODE_MAPPER);
+	}
+	
+	@Override
+	public Optional<ArrayNode> getArrayLastNode(String sessionIdString, Long replicaId, LogicalTimestamp arrayId) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		MapSqlParameterSource params = new MapSqlParameterSource();
+		params.addValue("sessionId", sessionId);
+		params.addValue("replicaId", replicaId);
+		params.addValue("arrRep", arrayId.getReplicaId());
+		params.addValue("arrSeq", arrayId.getSequenceNumber());
+		params.addValue("limit", 1L);
+		params.addValue("offset", 0L);
+
+		return namedTemplate.query(String.format(LIST_ARRAY_ORDER_SQL, "DESC"), params, ARRAY_NODE_MAPPER)
+			.stream()
+			.findFirst();
 	}
 
 	@Override

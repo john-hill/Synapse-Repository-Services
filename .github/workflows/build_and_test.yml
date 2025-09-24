@@ -33,8 +33,16 @@ jobs:
       statuses: write
       actions: write
       checks: write
+
     runs-on: ubuntu-latest
+
     steps:
+      - name: checkout
+        uses: actions/checkout@v5
+
+      - name: Static Analysis
+        uses: pre-commit/action@v3.0.0
+
       - run: |
           # get the 'user' parameter, either from the repo' env or repo' owner if not set
           if [ ${{ vars.USER }} ]; then
@@ -90,9 +98,6 @@ jobs:
                   exit 1
               fi
           fi
-
-      - name: checkout
-        uses: actions/checkout@v5
 
       - name: Deploy CodePipeline to AWS CloudFormation
         uses: aws-actions/aws-cloudformation-github-deploy@v1

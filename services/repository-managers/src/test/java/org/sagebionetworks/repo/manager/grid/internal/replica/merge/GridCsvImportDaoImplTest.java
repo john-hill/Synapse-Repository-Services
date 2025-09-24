@@ -21,6 +21,7 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
 import org.sagebionetworks.repo.model.grid.GridUtils;
+import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
@@ -120,7 +121,7 @@ public class GridCsvImportDaoImplTest {
 		while (it.hasNext()) {
 			Object[] row = it.next();
 			// This is the extra column with information from the grid (serialized vector id)
-			String extraData = "[\"[" + replicaId + "," + rowVecId + "]\"]";
+			String extraData = "[[" + replicaId + "," + rowVecId + "]]";
 			// Note that the data has been reordered by the upsert key (b,a) and only contains the upsert keys plus the extra data column
 			assertArrayEquals(new Object[] { rowId, rowId % 10, extraData }, row);
 			rowId++;
@@ -164,19 +165,19 @@ public class GridCsvImportDaoImplTest {
 		
 		while (joinIt.hasNext()) {
 			
-			Object[] expectedCsvData = new Object[] { rowId, rowId % 5, false , "bar" + rowId };
-			Object[] expectedGridData = null;
+			String expectedCsvData = "[" + rowId + "," + rowId % 5 + "," + false + ",\"" + "bar" + rowId + "\"]";
+			LogicalTimestamp expectedGridRowVecId = null;
 			
 			if (rowId % 10 < 5 && rowId < gridRowCount) {
-				expectedGridData = new Object[] { "[" + replicaId + "," + rowVecId + "]" };
+				expectedGridRowVecId = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(rowVecId);
 			} else {
 				notMatchedCount++;
 			}
 			
 			JoinedRow next = joinIt.next();
 			
-			assertArrayEquals(expectedCsvData, next.getCsvData());
-			assertArrayEquals(expectedGridData, next.getGridData());
+			assertEquals(expectedCsvData, next.getCsvData().toString());
+			assertEquals(expectedGridRowVecId, next.getGridRowVecId());
 			
 			rowId++;
 			rowVecId+=9;

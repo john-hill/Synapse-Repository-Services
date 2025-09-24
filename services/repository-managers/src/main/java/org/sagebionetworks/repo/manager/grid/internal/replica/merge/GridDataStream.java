@@ -40,7 +40,7 @@ public class GridDataStream implements DataStream {
 			values[i] = cellValues.get(upsertKey[i].getGridIndex());
 		}
 
-		values[upsertKey.length] = LogicalTimestampCompactSerializable.serialize(rowVecId).toString();
+		values[upsertKey.length] = LogicalTimestampCompactSerializable.serialize(rowVecId);
 
 		return values;
 	}

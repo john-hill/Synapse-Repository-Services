@@ -9,6 +9,8 @@ import java.util.stream.IntStream;
 
 import org.json.JSONArray;
 import org.sagebionetworks.grid.db.GridTransaction;
+import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.grid.patch.compact.LogicalTimestampCompactSerializable;
 import org.sagebionetworks.repo.model.table.ColumnConstants;
 import org.sagebionetworks.table.cluster.ColumnTypeInfo;
 import org.sagebionetworks.table.cluster.MySqlColumnType;
@@ -71,34 +73,31 @@ public class GridCsvImportDaoImpl implements GridCsvImportDao {
 			joinConditions.toString());
 
 		return new PaginationIterator<>((limit, offset) -> jdbcTemplate.query(sql.toString(), (rs, rowNum) -> {
-			Object[] csvData = new Object[columnMapping.length];
+			JSONArray csvData = new JSONArray();
 
 			// Add the upsert columns first
 			for (int i = 0; i < csvUpsertColumns.size(); i++) {
-				csvData[i] = rs.getObject(i + 1);
+				csvData.put(rs.getObject(i + 1));
 			}
 
 			// Unpack the remaining CSV columns from the extra column
 			JSONArray csvExtraArray = new JSONArray(rs.getString(csvUpsertColumns.size() + 1));
 
 			for (int i = 0; i < csvExtraArray.length(); i++) {
-				csvData[i + csvUpsertColumns.size()] = csvExtraArray.get(i);
+				csvData.put(i + csvUpsertColumns.size(), csvExtraArray.get(i));
 			}
 
-			Object[] gridData = null;
+			LogicalTimestamp gridRowVecId = null;
 
 			// The grid data can be null if there is no match
 			String gridExtraStr = rs.getString(csvUpsertColumns.size() + 2);
 
 			if (gridExtraStr != null) {
-				JSONArray gridExtraArray = new JSONArray(gridExtraStr);
-				gridData = new Object[gridExtraArray.length()];
-				for (int i = 0; i < gridExtraArray.length(); i++) {
-					gridData[i] = gridExtraArray.get(i);
-				}
+				// We only need the row vector id from the grid data
+				gridRowVecId = LogicalTimestampCompactSerializable.deserialize(new JSONArray(gridExtraStr).getJSONArray(0));
 			}
 
-			return new JoinedRow(csvData, gridData);
+			return new JoinedRow(csvData, gridRowVecId);
 		}, limit, offset), BATCH_SIZE);
 	}
 

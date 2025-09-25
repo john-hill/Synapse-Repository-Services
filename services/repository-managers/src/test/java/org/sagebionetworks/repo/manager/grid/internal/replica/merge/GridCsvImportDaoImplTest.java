@@ -157,20 +157,31 @@ public class GridCsvImportDaoImplTest {
 			rowId++;
 		}
 	
+		start = System.currentTimeMillis();
+		
 		Iterator<JoinedRow> joinIt = importDao.getJoinedTempTableIterator(columnMapping);
 		
-		rowId = 0;
-		rowVecId = 22L;
 		int notMatchedCount = 0;
 		
 		while (joinIt.hasNext()) {
+			// The join is in upsert key reverse order
+			rowId--;
 			
 			String expectedCsvData = "[" + rowId + "," + rowId % 5 + "," + false + ",\"" + "bar" + rowId + "\"]";
+			
 			LogicalTimestamp expectedGridRowVecId = null;
 			
-			if (rowId % 10 < 5 && rowId < gridRowCount) {
-				expectedGridRowVecId = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(rowVecId);
-			} else {
+			if (rowId < gridRowCount) {
+				// We enter the grid data range, adjust the vec seq accordingly
+				rowVecId-=9;
+				
+				if (rowId % 10 < 5) {
+					// Only half the rows in the grid match the upsert key in the csv (mod % 10 vs mod % 5)
+					expectedGridRowVecId = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(rowVecId);
+				}
+			}
+			
+			if (expectedGridRowVecId == null) {
 				notMatchedCount++;
 			}
 			
@@ -178,10 +189,9 @@ public class GridCsvImportDaoImplTest {
 			
 			assertEquals(expectedCsvData, next.getCsvData().toString());
 			assertEquals(expectedGridRowVecId, next.getGridRowVecId());
-			
-			rowId++;
-			rowVecId+=9;
 		}
+		
+		System.out.println("Join took: " + (System.currentTimeMillis() - start) + "ms");
 		
 		// The CSV has only 50% of the rows in common with the grid
 		assertEquals(gridRowCount/2 + (csvRowCount - gridRowCount), notMatchedCount);

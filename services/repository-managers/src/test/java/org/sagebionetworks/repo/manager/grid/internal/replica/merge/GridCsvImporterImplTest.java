@@ -11,7 +11,9 @@ import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 
@@ -48,6 +50,7 @@ import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridCsvImportRequest;
 import org.sagebionetworks.repo.model.grid.GridCsvImportResponse;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
@@ -68,6 +71,8 @@ public class GridCsvImporterImplTest {
 	private BucketObjectReaderProvider mockFileReaderProvider;
 	@Mock
 	private GridCsvImportDao mockImportDao;
+	@Mock
+	private JoinedRowChangePublisher mockChangePublisher;
 	
 	@InjectMocks
 	private GridCsvImporterImpl importer;
@@ -86,6 +91,7 @@ public class GridCsvImporterImplTest {
 	private String csvContent;
 	private List<RowView> gridRows;
 	private List<JoinedRow> joinedRows;
+	private GridCsvImportResponse response;
 	
 	@Mock
 	private AsyncJobProgressCallback mockCallback;
@@ -93,7 +99,10 @@ public class GridCsvImporterImplTest {
 	private BucketObjectReader mockObjReader;
 	
 	@Captor
-	private ArgumentCaptor<DataStream> streamCaptor = ArgumentCaptor.forClass(DataStream.class);
+	private ArgumentCaptor<DataStream> streamCaptor;
+	
+	@Captor
+	private ArgumentCaptor<Iterator<JoinedRow>> joinedRowCaptor;
 	
 	@BeforeEach
 	public void before() {
@@ -146,10 +155,16 @@ public class GridCsvImporterImplTest {
 		);
 		
 		joinedRows = List.of(
-			new JoinedRow(new Object[] {0, 0, false}, new Object[] {0, 1, true}),
-			new JoinedRow(new Object[] {1, 1, false}, null),
-			new JoinedRow(new Object[] {2, 2, false}, new Object[] {2, 3, true})
+			new JoinedRow(new JSONArray(new Object[] {0, 0, false}), new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(1L)),
+			new JoinedRow(new JSONArray(new Object[] {1, 1, false}), null),
+			new JoinedRow(new JSONArray(new Object[] {2, 2, false}), new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(2L))
 		);
+		
+		response = new GridCsvImportResponse()
+			.setSessionId(sessionId)
+			.setTotalCount(3L)
+			.setUpdatedCount(2L)
+			.setCreatedCount(1L);
 	}
 	
 	@Test
@@ -159,13 +174,7 @@ public class GridCsvImporterImplTest {
 		// Call under test
 		GridCsvImportResponse result = importer.importCsv(user, request, mockCallback);
 		
-		assertEquals(new GridCsvImportResponse()
-			.setSessionId(sessionId)
-			.setTotalCount(3L)
-			.setUpdatedCount(2L)
-			.setCreatedCount(1L), 
-			result
-		);
+		assertEquals(response, result);
 		
 		ColumnMapping[] expectedMapping = new ColumnMapping[] {
 			new ColumnMapping("a", ColumnType.INTEGER, 0, 0, true),
@@ -173,15 +182,7 @@ public class GridCsvImporterImplTest {
 			new ColumnMapping("c", ColumnType.BOOLEAN, 2, 2, false)
 		};
 		
-		verify(mockImportDao).streamToCsvTempTable(streamCaptor.capture(), eq(expectedMapping));
-		
-		assertTrue(streamCaptor.getValue() instanceof CsvDataStream);
-
-		verify(mockImportDao).streamToGridTempTable(streamCaptor.capture(), eq(expectedMapping));
-
-		assertTrue(streamCaptor.getValue() instanceof GridDataStream);
-		
-		verify(mockImportDao).getJoinedTempTableIterator(expectedMapping);
+		verifyImportSequence(expectedMapping);
 	}
 	
 	@Test
@@ -197,13 +198,7 @@ public class GridCsvImporterImplTest {
 		// Call under test
 		GridCsvImportResponse result = importer.importCsv(user, request, mockCallback);
 		
-		assertEquals(new GridCsvImportResponse()
-			.setSessionId(sessionId)
-			.setTotalCount(3L)
-			.setUpdatedCount(2L)
-			.setCreatedCount(1L), 
-			result
-		);
+		assertEquals(response, result);
 		
 		ColumnMapping[] expectedMapping = new ColumnMapping[] {
 			new ColumnMapping("a", ColumnType.INTEGER, 1, 0, true),
@@ -211,15 +206,7 @@ public class GridCsvImporterImplTest {
 			new ColumnMapping("c", ColumnType.BOOLEAN, 2, 2, false)
 		};
 		
-		verify(mockImportDao).streamToCsvTempTable(streamCaptor.capture(), eq(expectedMapping));
-		
-		assertTrue(streamCaptor.getValue() instanceof CsvDataStream);
-
-		verify(mockImportDao).streamToGridTempTable(streamCaptor.capture(), eq(expectedMapping));
-
-		assertTrue(streamCaptor.getValue() instanceof GridDataStream);
-		
-		verify(mockImportDao).getJoinedTempTableIterator(expectedMapping);
+		verifyImportSequence(expectedMapping);
 	}
 	
 	@Test
@@ -236,13 +223,7 @@ public class GridCsvImporterImplTest {
 		// Call under test
 		GridCsvImportResponse result = importer.importCsv(user, request, mockCallback);
 		
-		assertEquals(new GridCsvImportResponse()
-			.setSessionId(sessionId)
-			.setTotalCount(3L)
-			.setUpdatedCount(2L)
-			.setCreatedCount(1L), 
-			result
-		);
+		assertEquals(response, result);
 		
 		ColumnMapping[] expectedMapping = new ColumnMapping[] {
 			new ColumnMapping("a", ColumnType.INTEGER, 0, 0, true),
@@ -250,15 +231,7 @@ public class GridCsvImporterImplTest {
 			new ColumnMapping("c", ColumnType.BOOLEAN, 2, 2, false)
 		};
 		
-		verify(mockImportDao).streamToCsvTempTable(streamCaptor.capture(), eq(expectedMapping));
-		
-		assertTrue(streamCaptor.getValue() instanceof CsvDataStream);
-
-		verify(mockImportDao).streamToGridTempTable(streamCaptor.capture(), eq(expectedMapping));
-
-		assertTrue(streamCaptor.getValue() instanceof GridDataStream);
-		
-		verify(mockImportDao).getJoinedTempTableIterator(expectedMapping);
+		verifyImportSequence(expectedMapping);
 	}
 	
 	@Test
@@ -275,13 +248,7 @@ public class GridCsvImporterImplTest {
 		// Call under test
 		GridCsvImportResponse result = importer.importCsv(user, request, mockCallback);
 		
-		assertEquals(new GridCsvImportResponse()
-			.setSessionId(sessionId)
-			.setTotalCount(3L)
-			.setUpdatedCount(2L)
-			.setCreatedCount(1L), 
-			result
-		);
+		assertEquals(response, result);
 		
 		ColumnMapping[] expectedMapping = new ColumnMapping[] {
 			new ColumnMapping("a", ColumnType.INTEGER, 0, 1, true),
@@ -289,15 +256,7 @@ public class GridCsvImporterImplTest {
 			new ColumnMapping("c", ColumnType.BOOLEAN, 2, 2, false)
 		};
 		
-		verify(mockImportDao).streamToCsvTempTable(streamCaptor.capture(), eq(expectedMapping));
-		
-		assertTrue(streamCaptor.getValue() instanceof CsvDataStream);
-
-		verify(mockImportDao).streamToGridTempTable(streamCaptor.capture(), eq(expectedMapping));
-
-		assertTrue(streamCaptor.getValue() instanceof GridDataStream);
-		
-		verify(mockImportDao).getJoinedTempTableIterator(expectedMapping);
+		verifyImportSequence(expectedMapping);
 	}
 	
 	@Test
@@ -309,13 +268,7 @@ public class GridCsvImporterImplTest {
 		// Call under test
 		GridCsvImportResponse result = importer.importCsv(user, request, mockCallback);
 		
-		assertEquals(new GridCsvImportResponse()
-			.setSessionId(sessionId)
-			.setTotalCount(3L)
-			.setUpdatedCount(2L)
-			.setCreatedCount(1L), 
-			result
-		);
+		assertEquals(response, result);
 		
 		ColumnMapping[] expectedMapping = new ColumnMapping[] {
 			new ColumnMapping("b", ColumnType.STRING, 1, 1, true),
@@ -323,15 +276,7 @@ public class GridCsvImporterImplTest {
 			new ColumnMapping("c", ColumnType.BOOLEAN, 2, 2, false)
 		};
 		
-		verify(mockImportDao).streamToCsvTempTable(streamCaptor.capture(), eq(expectedMapping));
-		
-		assertTrue(streamCaptor.getValue() instanceof CsvDataStream);
-
-		verify(mockImportDao).streamToGridTempTable(streamCaptor.capture(), eq(expectedMapping));
-
-		assertTrue(streamCaptor.getValue() instanceof GridDataStream);
-		
-		verify(mockImportDao).getJoinedTempTableIterator(expectedMapping);
+		verifyImportSequence(expectedMapping);
 	}
 	
 	@Test
@@ -355,13 +300,7 @@ public class GridCsvImporterImplTest {
 		// Call under test
 		GridCsvImportResponse result = importer.importCsv(user, request, mockCallback);
 		
-		assertEquals(new GridCsvImportResponse()
-			.setSessionId(sessionId)
-			.setTotalCount(3L)
-			.setUpdatedCount(2L)
-			.setCreatedCount(1L), 
-			result
-		);
+		assertEquals(response, result);
 		
 		ColumnMapping[] expectedMapping = new ColumnMapping[] {
 			new ColumnMapping("a", ColumnType.INTEGER, 0, 0, true),
@@ -369,15 +308,7 @@ public class GridCsvImporterImplTest {
 			new ColumnMapping("c", ColumnType.BOOLEAN, 2, 2, false)
 		};
 		
-		verify(mockImportDao).streamToCsvTempTable(streamCaptor.capture(), eq(expectedMapping));
-		
-		assertTrue(streamCaptor.getValue() instanceof CsvDataStream);
-
-		verify(mockImportDao).streamToGridTempTable(streamCaptor.capture(), eq(expectedMapping));
-
-		assertTrue(streamCaptor.getValue() instanceof GridDataStream);
-		
-		verify(mockImportDao).getJoinedTempTableIterator(expectedMapping);
+		verifyImportSequence(expectedMapping);
 	}
 	
 	@Test
@@ -385,6 +316,22 @@ public class GridCsvImporterImplTest {
 				
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
 		when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.empty());
+		
+		assertEquals("No internal connection found for session: sessionId", assertThrows(RecoverableMessageException.class, () -> {	
+			// Call under test
+			importer.importCsv(user, request, mockCallback);
+		}).getMessage());
+		
+		verifyNoMoreInteractions(mockImportDao);
+	}
+	
+	@Test
+	public void testImportCsvWithNoValidationConnectionInfo() {
+				
+		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
+		when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(connectionInfo));
+		when(mockGridViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(gridHeader));
+		when(mockGridManager.getSingletonConnection(sessionId, EventSource.VALIDATION)).thenReturn(Optional.empty());
 		
 		assertEquals("No internal connection found for session: sessionId", assertThrows(RecoverableMessageException.class, () -> {	
 			// Call under test
@@ -414,6 +361,7 @@ public class GridCsvImporterImplTest {
 				
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
 		when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(connectionInfo));
+		when(mockGridManager.getSingletonConnection(sessionId, EventSource.VALIDATION)).thenReturn(Optional.of(connectionInfo));
 		when(mockGridViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(gridHeader));
 		when(mockEntityManager.getEntity(user, session.getSourceEntityId())).thenReturn(Mockito.mock(FileEntity.class));
 		
@@ -430,6 +378,7 @@ public class GridCsvImporterImplTest {
 				
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
 		when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(connectionInfo));
+		when(mockGridManager.getSingletonConnection(sessionId, EventSource.VALIDATION)).thenReturn(Optional.of(connectionInfo));
 		when(mockGridViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(gridHeader));
 		when(mockEntityManager.getEntity(user, session.getSourceEntityId())).thenReturn(recordSet);
 		when(mockFileHandleManager.getRawFileHandle(user, request.getFileHandleId())).thenReturn(Mockito.mock(FileHandle.class));
@@ -448,6 +397,7 @@ public class GridCsvImporterImplTest {
 		
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
 		when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(connectionInfo));
+		when(mockGridManager.getSingletonConnection(sessionId, EventSource.VALIDATION)).thenReturn(Optional.of(connectionInfo));
 		when(mockGridViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(gridHeader));
 		when(mockEntityManager.getEntity(user, session.getSourceEntityId())).thenReturn(recordSet);
 		when(mockFileHandleManager.getRawFileHandle(user, request.getFileHandleId())).thenReturn(fileHandle);
@@ -474,6 +424,7 @@ public class GridCsvImporterImplTest {
 		
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
 		when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(connectionInfo));
+		when(mockGridManager.getSingletonConnection(sessionId, EventSource.VALIDATION)).thenReturn(Optional.of(connectionInfo));
 		when(mockGridViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(gridHeader));
 		when(mockEntityManager.getEntity(user, session.getSourceEntityId())).thenReturn(recordSet);
 		when(mockFileHandleManager.getRawFileHandle(user, request.getFileHandleId())).thenReturn(fileHandle);
@@ -501,6 +452,7 @@ public class GridCsvImporterImplTest {
 		
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
 		when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(connectionInfo));
+		when(mockGridManager.getSingletonConnection(sessionId, EventSource.VALIDATION)).thenReturn(Optional.of(connectionInfo));
 		when(mockGridViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(gridHeader));
 		when(mockEntityManager.getEntity(user, session.getSourceEntityId())).thenReturn(recordSet);
 		when(mockFileHandleManager.getRawFileHandle(user, request.getFileHandleId())).thenReturn(fileHandle);
@@ -523,6 +475,7 @@ public class GridCsvImporterImplTest {
 		
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
 		when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(connectionInfo));
+		when(mockGridManager.getSingletonConnection(sessionId, EventSource.VALIDATION)).thenReturn(Optional.of(connectionInfo));
 		when(mockGridViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(gridHeader));
 		when(mockEntityManager.getEntity(user, session.getSourceEntityId())).thenReturn(recordSet);
 		when(mockFileHandleManager.getRawFileHandle(user, request.getFileHandleId())).thenReturn(fileHandle);
@@ -549,6 +502,7 @@ public class GridCsvImporterImplTest {
 		
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
 		when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(connectionInfo));
+		when(mockGridManager.getSingletonConnection(sessionId, EventSource.VALIDATION)).thenReturn(Optional.of(connectionInfo));
 		when(mockGridViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(gridHeader));
 		when(mockEntityManager.getEntity(user, session.getSourceEntityId())).thenReturn(recordSet);
 		when(mockFileHandleManager.getRawFileHandle(user, request.getFileHandleId())).thenReturn(fileHandle);
@@ -568,6 +522,7 @@ public class GridCsvImporterImplTest {
 	private void setupFullMocks() {
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
 		when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(connectionInfo));
+		when(mockGridManager.getSingletonConnection(sessionId, EventSource.VALIDATION)).thenReturn(Optional.of(connectionInfo));
 		when(mockGridViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(gridHeader));
 		when(mockEntityManager.getEntity(user, session.getSourceEntityId())).thenReturn(recordSet);
 		when(mockFileHandleManager.getRawFileHandle(user, request.getFileHandleId())).thenReturn(fileHandle);
@@ -577,6 +532,27 @@ public class GridCsvImporterImplTest {
 		);
 		when(mockGridViewManager.getQueryIterator(gridHeader, Collections.emptyList())).thenReturn(gridRows.iterator());
 		when(mockImportDao.getJoinedTempTableIterator(any())).thenReturn(joinedRows.iterator());
+		when(mockChangePublisher.processJoinedRows(eq(gridHeader), eq(connectionInfo), any(), any())).thenReturn(response);
+	}
+
+	private void verifyImportSequence(ColumnMapping[] expectedMapping) {
+		verify(mockImportDao).streamToCsvTempTable(streamCaptor.capture(), eq(expectedMapping));
+		
+		assertTrue(streamCaptor.getValue() instanceof CsvDataStream);
+
+		verify(mockImportDao).streamToGridTempTable(streamCaptor.capture(), eq(expectedMapping));
+
+		assertTrue(streamCaptor.getValue() instanceof GridDataStream);
+		
+		verify(mockImportDao).getJoinedTempTableIterator(expectedMapping);
+	
+		verify(mockChangePublisher).processJoinedRows(eq(gridHeader), eq(connectionInfo), joinedRowCaptor.capture(), eq(expectedMapping));
+		
+		List<JoinedRow> capturedJoinedRows = new ArrayList<>();
+		
+		joinedRowCaptor.getValue().forEachRemaining(capturedJoinedRows::add);
+
+		assertEquals(joinedRows, capturedJoinedRows);
 	}
 
 }

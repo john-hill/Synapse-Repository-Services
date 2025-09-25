@@ -52,14 +52,16 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 	private final FileHandleManager fileHandleManager;
 	private final BucketObjectReaderProvider fileReaderProvider;
 	private final GridCsvImportDao importDao;
+	private final JoinedRowChangePublisher changePublisher;
 	
-	public GridCsvImporterImpl(GridCsvImportDao importDao, GridManager gridManager, GridReplicaViewManager gridViewManager, EntityManager entityManager, FileHandleManager fileHandleManager, BucketObjectReaderProvider fileReaderProvider) {
+	public GridCsvImporterImpl(GridCsvImportDao importDao, GridManager gridManager, GridReplicaViewManager gridViewManager, EntityManager entityManager, FileHandleManager fileHandleManager, BucketObjectReaderProvider fileReaderProvider, JoinedRowChangePublisher changePublisher) {
 		this.importDao = importDao;
 		this.gridManager = gridManager;
 		this.gridViewManager = gridViewManager;
 		this.entityManager = entityManager;
 		this.fileHandleManager = fileHandleManager;
 		this.fileReaderProvider = fileReaderProvider;
+		this.changePublisher = changePublisher;
 	}
 	
 	@Override
@@ -75,6 +77,11 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 		GridSession gridSession = gridManager.getGridSession(user, request.getSessionId());
 		
 		GridHeader gridHeader = getGridHeader(gridSession);
+		
+		// Gets the connection info for the publisher now so that we fail fast, note that we cannot
+		// reuse the INTERNAL connection for writes for now, so we fallback to the VALIDATION connection
+		GridConnectionInfo publisherConnInfo = gridManager.getSingletonConnection(gridSession.getSessionId(), EventSource.VALIDATION)
+			.orElseThrow(() -> new RecoverableMessageException("No internal connection found for session: " + gridSession.getSessionId()));
 		
 		List<String> upsertKey = getUpsertKey(user, gridSession);
 		
@@ -104,27 +111,7 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 		// Now join the two temporary tables to determine which rows are new and which rows are updates
 		Iterator<JoinedRow> joinResult = importDao.getJoinedTempTableIterator(columnMapping);
 		
-		long rowCount = 0;
-		long updatedCount = 0;
-		long createdCount = 0;
-		
-		while (joinResult.hasNext()) {
-			JoinedRow joinedRow = joinResult.next();
-			
-			if (joinedRow.getGridData() != null) {
-				updatedCount++;
-			} else {
-				createdCount++;
-			}
-			
-			rowCount++;
-		}
-		
-		return new GridCsvImportResponse()
-			.setTotalCount(rowCount)
-			.setUpdatedCount(updatedCount)
-			.setCreatedCount(createdCount)
-			.setSessionId(request.getSessionId());
+		return changePublisher.processJoinedRows(gridHeader, publisherConnInfo, joinResult, columnMapping);
 	}
 	
 	List<ColumnModel> getSortedSchema(CSVReader reader, CsvTableDescriptor descriptor, List<ColumnModel> schema) throws IOException {

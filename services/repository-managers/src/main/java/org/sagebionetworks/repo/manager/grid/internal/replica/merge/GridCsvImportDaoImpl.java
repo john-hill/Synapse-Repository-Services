@@ -58,19 +58,26 @@ public class GridCsvImportDaoImpl implements GridCsvImportDao {
 	public PaginationIterator<Object[]> getGridTempTableIterator() {
 		return getTempTableIterator(TEMP_TABLE_GRID_DATA);
 	}
-
+	
 	@Override
 	@GridTransaction(readOnly = true)
 	public PaginationIterator<JoinedRow> getJoinedTempTableIterator(ColumnMapping[] columnMapping) {
 		List<ColumnMapping> csvUpsertColumns = Arrays.stream(columnMapping).filter(ColumnMapping::isUpsertColumn).collect(Collectors.toList());
 
 		StringJoiner joinConditions = new StringJoiner(" AND ");
+		StringJoiner orderByColumns = new StringJoiner(" DESC,", "", " DESC");
 
-		IntStream.range(0, csvUpsertColumns.size()).mapToObj(index -> getUpsertKeyColumnName(index)).map(columnName -> "C." + columnName + " = G." + columnName)
-			.forEach(joinConditions::add);
-
-		String sql = String.format("SELECT C.*, G." + COL_EXTRA + " FROM " + TEMP_TABLE_CSV_DATA + " C LEFT JOIN " + TEMP_TABLE_GRID_DATA + " G ON (%s) LIMIT ? OFFSET ?",
-			joinConditions.toString());
+		IntStream.range(0, csvUpsertColumns.size()).forEach( columnIndex -> {
+			String columnName = getUpsertKeyColumnName(columnIndex);
+			joinConditions.add("C." + columnName + " = G." + columnName);
+			// We order by descending so that we can create rows in reverse order without having to
+			// get the last node of the array for each insert
+			orderByColumns.add("C." + columnName);
+		});
+		
+		String sql = String.format("SELECT C.*, G." + COL_EXTRA + " FROM " 
+				+ TEMP_TABLE_CSV_DATA + " C LEFT JOIN " + TEMP_TABLE_GRID_DATA + " G ON (%s) ORDER BY %s"
+				+ " LIMIT ? OFFSET ?", joinConditions.toString(), orderByColumns.toString());
 
 		return new PaginationIterator<>((limit, offset) -> jdbcTemplate.query(sql.toString(), (rs, rowNum) -> {
 			JSONArray csvData = new JSONArray();
@@ -180,7 +187,7 @@ public class GridCsvImportDaoImpl implements GridCsvImportDao {
 
 	void createTemporaryTable(String tableName, List<ColumnMapping> upsertKey) {
 		StringJoiner columnDefinitions = new StringJoiner(",");
-		StringJoiner upsertKeyColumns = new StringJoiner("`,`", "`", "`");
+		StringJoiner upsertKeyColumns = new StringJoiner(",");
 
 		int index = 0;
 
@@ -190,14 +197,13 @@ public class GridCsvImportDaoImpl implements GridCsvImportDao {
 
 			StringBuilder columnDefinition = new StringBuilder();
 
-			columnDefinition.append("`");
 			columnDefinition.append(columnName);
-			columnDefinition.append("` ");
 
 			MySqlColumnType sqlType;
 
 			sqlType = ColumnTypeInfo.getInfoForType(mapping.getType()).getMySqlType();
 
+			columnDefinition.append(" ");
 			columnDefinition.append(sqlType.name());
 
 			if (sqlType.hasSize()) {
@@ -215,7 +221,7 @@ public class GridCsvImportDaoImpl implements GridCsvImportDao {
 		}
 
 		// Add extra TEXT column to hold any additional data
-		columnDefinitions.add("`EXTRA` " + MySqlColumnType.TEXT.name() + " NOT NULL");
+		columnDefinitions.add(COL_EXTRA + " " + MySqlColumnType.TEXT.name() + " NOT NULL");
 
 		// Add an index on the upsert key columns
 		columnDefinitions.add("INDEX upsertKeyIndex(" + upsertKeyColumns.toString() + ")");

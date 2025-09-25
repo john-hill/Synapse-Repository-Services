@@ -56,6 +56,9 @@ public class JoinedRow {
 		return true;
 	}
 
-	
+	@Override
+	public String toString() {
+		return "JoinedRow [csvData=" + csvData + ", gridRowVecId=" + gridRowVecId + "]";
+	}
 
 }

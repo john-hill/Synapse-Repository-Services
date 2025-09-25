@@ -9,6 +9,7 @@
 # - STACK_BUILDER_REPO_OWNER: defaults to Sage-Bionetworks
 # - STACK_BUILDER_BRANCH: defaults to develop
 # - FULL_BUILD: if true, will do a full build, vs. an abbreviated "feature build"
+# - PUBLISH_ARTIFIACTS: if true, will perform a FULL_BUILD and will publish build artifacts to Artifactory
 #
 name: main
 
@@ -64,6 +65,7 @@ jobs:
             echo "stack_builder_branch=develop" >> $GITHUB_ENV
           fi
           echo "full_build=${{ vars.FULL_BUILD }}" >> $GITHUB_ENV
+          echo "publish_artifacts=${{ vars.PUBLISH_ARTIFIACTS }}" >> $GITHUB_ENV
 
       - id: oidc
         uses: aws-actions/configure-aws-credentials@v5
@@ -113,7 +115,8 @@ jobs:
             BuildParamUser=${{ env.user }},
             StackBuilderBranch=${{ env.stack_builder_branch }},
             StackBuilderRepoOwner=${{ env.stack_builder_repo_owner }},
-            FullBuild=${{ env.full_build }}
+            FullBuild=${{ env.full_build }},
+            PublishArtifacts=${{ env.publish_artifacts }}
 
       - name: Trigger CodePipeline
         run: |

@@ -48,6 +48,9 @@ Parameters:
   FullBuild:
     Type: String
     Description: Set to true to do a full build
+  PublishArtifacts:
+    Type: String
+    Description: Set to true to do a full build and publish artifacts to Artifactory
   BuildImage:
     Type: String
     Description: CodeBuild image to use for the build
@@ -208,7 +211,7 @@ Resources:
                 - Name: SynapseRepoBuildOutput
               Configuration:
                 ProjectName: !Ref CodeBuildProject
-                EnvironmentVariables: !Sub '[{"name":"user","type":"PLAINTEXT","value": "${BuildParamUser}"},{"name":"FULL_BUILD","type":"PLAINTEXT","value": "${FullBuild}"}]'
+                EnvironmentVariables: !Sub '[{"name":"user","type":"PLAINTEXT","value": "${BuildParamUser}"},{"name":"FULL_BUILD","type":"PLAINTEXT","value": "${FullBuild}"},{"name":"PUBLISH_ARTIFACTS","type":"PLAINTEXT","value": "${PublishArtifacts}"}]'
                 BuildspecOverride: configuration/build/buildspec.yml
   # A CodeBuild project that can be used to run the stack builder or to build the Synapse back-end
   CodeBuildProject:

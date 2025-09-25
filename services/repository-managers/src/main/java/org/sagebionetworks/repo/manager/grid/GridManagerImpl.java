@@ -103,38 +103,51 @@ public class GridManagerImpl implements GridManager {
 		// Must authenticate to create a grid session.
 		AuthorizationUtils.disallowAnonymous(user);
 
-		Optional<CreateGridHandler> handler = createGridHandlers.stream().filter(h -> h.canCreate(request)).findFirst();
-		if (handler.isEmpty()) {
-			throw new IllegalArgumentException("Cannot find a handler for: " + request);
-		}
-		CreateGridHandlerResult result = handler.get().createGrid(callback, user, request, this);
+		CreateGridHandler handler = createGridHandlers.stream()
+			.filter(h -> h.canCreate(request))
+			.findFirst()
+			.orElseThrow(() -> new IllegalArgumentException("Cannot find a handler for: " + request));
+		
+		CreateGridHandlerResult result = handler.createGrid(callback, user, request, this);
+		
 		if (result == null || result.getGridSession() == null) {
 			throw new IllegalStateException("Handler must provide a grid session");
 		}
+		
 		GridSession session = result.getGridSession();
+		
 		if (result.getGridReplica() != null) {
 			GridReplica replica = result.getGridReplica();
 			/*
 			 * This call will establish a new internal connection to this replica. It will
 			 * also trigger a new [8,"connected"] event to be sent to the replica's worker.
 			 */
-			internalEventPublisher.publishEventAfterCommit(
-					new EventContext(EventType.CONNECT, EventSource.INTERNAL, UUID.randomUUID().toString()),
-					JsonRxMessageType.Notification, "connection",
-					new Connection().setGridSessionId(GridUtils.gridSessionIdAsLong(session.getSessionId()))
-							.setReplicaId(replica.getReplicaId()).setUserId(user.getId()));
+			sendInternalConnectEvent(user, session, replica, EventSource.INTERNAL);
 		}
+		
 		if (session.getGridJsonSchema$Id() != null) {
 			// establish the connection to be used the validation worker.
-			GridReplica validationReplica = gridDao.createReplica(user.getId(), session.getSessionId(), false,
-					EventSource.VALIDATION);
-			internalEventPublisher.publishEventAfterCommit(
-					new EventContext(EventType.CONNECT, EventSource.VALIDATION, UUID.randomUUID().toString()),
-					JsonRxMessageType.Notification, "connection",
-					new Connection().setGridSessionId(GridUtils.gridSessionIdAsLong(session.getSessionId()))
-							.setReplicaId(validationReplica.getReplicaId()).setUserId(user.getId()));
+			GridReplica validationReplica = gridDao.createReplica(user.getId(), session.getSessionId(), false, EventSource.VALIDATION);
+			
+			sendInternalConnectEvent(user, session, validationReplica, EventSource.VALIDATION);
 		}
+		
+		// establish the connection to be used for jobs triggered by the user
+
+		GridReplica supportReplica = gridDao.createReplica(user.getId(), session.getSessionId(), false, EventSource.USER_SUPPORT);
+		
+		sendInternalConnectEvent(user, session, supportReplica, EventSource.USER_SUPPORT);
+		
 		return new CreateGridResponse().setGridSession(session);
+	}
+	
+	void sendInternalConnectEvent(UserInfo user, GridSession session, GridReplica replica, EventSource source) {
+		// establish the connection to be used the validation worker.
+		internalEventPublisher.publishEventAfterCommit(
+				new EventContext(EventType.CONNECT, source, UUID.randomUUID().toString()),
+				JsonRxMessageType.Notification, "connection",
+				new Connection().setGridSessionId(GridUtils.gridSessionIdAsLong(session.getSessionId()))
+						.setReplicaId(replica.getReplicaId()).setUserId(user.getId()));
 	}
 
 	/**
@@ -277,6 +290,14 @@ public class GridManagerImpl implements GridManager {
 		ValidateArgument.required(sessionId, "sessionId");
 		ValidateArgument.required(source, "source");
 		return gridDao.getSingletonConnection(sessionId, source);
+	}
+	
+	@Override
+	public Optional<GridConnectionInfo> getSingletonUserConnection(String sessionId, UserInfo user, EventSource source) {
+		ValidateArgument.required(sessionId, "sessionId");
+		ValidateArgument.required(user, "user");
+		ValidateArgument.required(source, "source");
+		return gridDao.getSingletonUserConnection(sessionId, user.getId(), source);
 	}
 
 	@WriteTransaction

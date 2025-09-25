@@ -65,9 +65,8 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 		
 		GridHeader gridHeader = replicaSupport.getGridHeaderOrThrow(gridSession);
 		
-		// Gets the connection info for the publisher now so that we fail fast, note that we cannot
-		// reuse the INTERNAL connection for writes for now, so we fallback to the VALIDATION connection
-		GridConnectionInfo publisherConnInfo = gridManager.getSingletonConnection(gridSession.getSessionId(), EventSource.VALIDATION)
+		// Gets the connection info for the publisher now so that we fail fast
+		GridConnectionInfo publisherConnInfo = gridManager.getSingletonUserConnection(gridSession.getSessionId(), user, EventSource.USER_SUPPORT)
 			.orElseThrow(() -> new RecoverableMessageException("No internal connection found for session: " + gridSession.getSessionId()));
 		
 		List<String> upsertKey = replicaSupport.getRecordSetOrThrow(user, gridSession).getUpsertKey();

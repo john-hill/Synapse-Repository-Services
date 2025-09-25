@@ -200,23 +200,21 @@ public class GridManagerUnitTest {
 
 		GridSession expected = new GridSession().setSessionId(gridSessionId);
 		GridReplica replica = new GridReplica().setGridSessionId(expected.getSessionId()).setReplicaId(replicaId);
+		
 		when(mockCreateGridHandler.createGrid(mockCallback, mockUser, request, gridManager))
 				.thenReturn(new CreateGridHandlerResult().setGridSession(expected).setGridReplica(replica));
+		
+		when(mockGridDao.createReplica(userId, gridSessionId, false, EventSource.USER_SUPPORT))
+			.thenReturn(new GridReplica().setGridSessionId(gridSessionId).setReplicaId(replicaId - 1));
 
 		// call under test
 		CreateGridResponse result = gridManager.createGrid(mockCallback, mockUser, request);
 		assertNotNull(result);
 		assertEquals(expected, result.getGridSession());
-		verify(mockInternalEventPublisher).publishEventAfterCommit(eventContextCaptor.capture(),
-				eq(JsonRxMessageType.Notification), eq("connection"),
-				eq(new Connection().setGridSessionId(gridSessionIdLong).setReplicaId(replicaId).setUserId(userId)));
-
-		EventContext capturedContext = eventContextCaptor.getValue();
-		assertEquals(EventType.CONNECT, capturedContext.getEventType());
-		assertEquals(EventSource.INTERNAL, capturedContext.getEventSource());
-		String connectionId = capturedContext.getConnectionId();
-		assertNotNull(connectionId);
-		assertDoesNotThrow(() -> UUID.fromString(connectionId));
+		
+		verifyConnectionEvent(EventSource.INTERNAL, replicaId);
+		verifyConnectionEvent(EventSource.USER_SUPPORT, replicaId - 1);
+		
 		verifyNoMoreInteractions(mockInternalEventPublisher);
 	}
 	
@@ -231,35 +229,21 @@ public class GridManagerUnitTest {
 		when(mockCreateGridHandler.createGrid(mockCallback, mockUser, request, gridManager))
 				.thenReturn(new CreateGridHandlerResult().setGridSession(expected).setGridReplica(replica));
 		GridReplica validationReplica = new GridReplica().setGridSessionId(gridSessionId).setReplicaId(replicaId + 1L);
+		
 		when(mockGridDao.createReplica(userId, gridSessionId, false, EventSource.VALIDATION))
 				.thenReturn(validationReplica);
+		
+		when(mockGridDao.createReplica(userId, gridSessionId, false, EventSource.USER_SUPPORT))
+			.thenReturn(new GridReplica().setGridSessionId(gridSessionId).setReplicaId(replicaId - 1));
 
 		// call under test
 		CreateGridResponse result = gridManager.createGrid(mockCallback, mockUser, request);
-		assertNotNull(result);
+
 		assertEquals(expected, result.getGridSession());
-		verify(mockInternalEventPublisher).publishEventAfterCommit(eventContextCaptor.capture(),
-				eq(JsonRxMessageType.Notification), eq("connection"),
-				eq(new Connection().setGridSessionId(gridSessionIdLong).setReplicaId(replicaId).setUserId(userId)));
 
-		EventContext capturedContext = eventContextCaptor.getValue();
-		assertEquals(EventType.CONNECT, capturedContext.getEventType());
-		assertEquals(EventSource.INTERNAL, capturedContext.getEventSource());
-		String connectionId = capturedContext.getConnectionId();
-		assertNotNull(connectionId);
-		assertDoesNotThrow(() -> UUID.fromString(connectionId));
-		
-		// validation connection.
-		verify(mockInternalEventPublisher).publishEventAfterCommit(eventContextCaptor.capture(),
-				eq(JsonRxMessageType.Notification), eq("connection"),
-				eq(new Connection().setGridSessionId(gridSessionIdLong).setReplicaId(validationReplica.getReplicaId()).setUserId(userId)));
-
-		capturedContext = eventContextCaptor.getValue();
-		assertEquals(EventType.CONNECT, capturedContext.getEventType());
-		assertEquals(EventSource.VALIDATION, capturedContext.getEventSource());
-		String connectionId2 = capturedContext.getConnectionId();
-		assertNotNull(connectionId);
-		assertDoesNotThrow(() -> UUID.fromString(connectionId2));
+		verifyConnectionEvent(EventSource.INTERNAL, replicaId);
+		verifyConnectionEvent(EventSource.VALIDATION, replicaId + 1);
+		verifyConnectionEvent(EventSource.USER_SUPPORT, replicaId - 1);
 		
 		verifyNoMoreInteractions(mockInternalEventPublisher);
 	}
@@ -275,11 +259,17 @@ public class GridManagerUnitTest {
 		when(mockCreateGridHandler.createGrid(mockCallback, mockUser, request, gridManager))
 				.thenReturn(new CreateGridHandlerResult().setGridSession(expected).setGridReplica(replica));
 
+		when(mockGridDao.createReplica(userId, gridSessionId, false, EventSource.USER_SUPPORT))
+			.thenReturn(new GridReplica().setGridSessionId(gridSessionId).setReplicaId(replicaId - 1));
+		
 		// call under test
 		CreateGridResponse result = gridManager.createGrid(mockCallback, mockUser, request);
-		assertNotNull(result);
+
 		assertEquals(expected, result.getGridSession());
-		verifyZeroInteractions(mockInternalEventPublisher);
+		
+		verifyConnectionEvent(EventSource.USER_SUPPORT, replicaId - 1);
+		
+		verifyNoMoreInteractions(mockInternalEventPublisher);
 	}
 	
 	
@@ -1147,4 +1137,29 @@ public class GridManagerUnitTest {
         verifyNoMoreInteractions(mockGridDao);
     }
 	
+	@ParameterizedTest
+	@EnumSource(value = EventSource.class)
+    public void testGetDefaultUserInternalConnection(EventSource source) {
+		when(mockUser.getId()).thenReturn(userId);
+        when(mockGridDao.getSingletonUserConnection(gridSessionId, userId, source)).thenReturn(
+                Optional.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)));
+
+        // call under test
+        Optional<GridConnectionInfo> actual = gridManager.getSingletonUserConnection(gridSessionId, mockUser, source);
+        assertEquals(Optional.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)), actual);
+        verifyNoMoreInteractions(mockGridDao);
+    }
+
+	void verifyConnectionEvent(EventSource expectedSource, Long replicaId) {
+		verify(mockInternalEventPublisher).publishEventAfterCommit(eventContextCaptor.capture(),
+				eq(JsonRxMessageType.Notification), eq("connection"),
+				eq(new Connection().setGridSessionId(gridSessionIdLong).setReplicaId(replicaId).setUserId(userId)));
+
+		EventContext capturedContext = eventContextCaptor.getValue();
+		assertEquals(EventType.CONNECT, capturedContext.getEventType());
+		assertEquals(expectedSource, capturedContext.getEventSource());
+		String connectionId = capturedContext.getConnectionId();
+		assertNotNull(connectionId);
+		assertDoesNotThrow(() -> UUID.fromString(connectionId));
+	}
 }

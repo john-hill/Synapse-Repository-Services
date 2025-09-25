@@ -57,7 +57,7 @@ public class JoinedRowChangePublisherTest {
 			.setSessionId("sessionId")
 			.setReplicaId(repId)
 			.setClockSequenceMaximum(234L)
-			.setRowsId(new LogicalTimestamp().setReplicaId(repId).setReplicaId(33L))
+			.setRowsId(new LogicalTimestamp().setReplicaId(repId).setSequenceNumber(33L))
 			.setOrderedColumns(List.of(
 				new Column().setName("b").setVectorIndex(3),
 				new Column().setName("a").setVectorIndex(4),

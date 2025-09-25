@@ -11,7 +11,7 @@ import java.util.List;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.file.LocalFileUploadRequest;
 import org.sagebionetworks.repo.manager.grid.GridManager;
-import org.sagebionetworks.repo.manager.grid.internal.replica.change.GridReplicaPatchBuilderManager;
+import org.sagebionetworks.repo.manager.grid.internal.replica.GridReplicaSupport;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
@@ -22,13 +22,10 @@ import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridRequest;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
-import org.sagebionetworks.repo.model.grid.EventSource;
-import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.table.TableConstants;
 import org.sagebionetworks.table.cluster.utils.CSVUtils;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.csv.CSVWriterProvider;
-import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.springframework.stereotype.Service;
 
 import au.com.bytecode.opencsv.CSVWriter;
@@ -36,20 +33,20 @@ import au.com.bytecode.opencsv.CSVWriter;
 @Service
 public class GridReplicaCsvExporterImpl implements GridReplicaCsvExporter {
     private final GridManager gridManager;
-    private final GridReplicaPatchBuilderManager replicaPatchBuilderManager;
+    private final GridReplicaSupport gridReplicaSupport;
     private final GridReplicaViewManager gridReplicaViewManager;
     private final CSVWriterProvider csvWriterProvider;
     private final FileHandleManager fileHandleManager;
 
     public GridReplicaCsvExporterImpl(
             GridManager gridManager,
-            GridReplicaPatchBuilderManager replicaPatchBuilderManager,
+            GridReplicaSupport gridReplicaSupport,
             GridReplicaViewManager gridReplicaViewManager,
             CSVWriterProvider csvWriterProvider,
             FileHandleManager fileHandleManager
     ) {
         this.gridManager = gridManager;
-        this.replicaPatchBuilderManager = replicaPatchBuilderManager;
+        this.gridReplicaSupport = gridReplicaSupport;
         this.gridReplicaViewManager = gridReplicaViewManager;
         this.csvWriterProvider = csvWriterProvider;
         this.fileHandleManager = fileHandleManager;
@@ -61,7 +58,7 @@ public class GridReplicaCsvExporterImpl implements GridReplicaCsvExporter {
         ValidateArgument.required(request.getSessionId(), "request.sessionId");
         ValidateArgument.required(jobProgressCallback, "jobProgressCallback");
         
-        GridHeader header = checkSessionAndGetHeader(userInfo, request.getSessionId());
+        GridHeader header = gridReplicaSupport.getGridHeaderOrThrow(gridManager.getGridSession(userInfo, request.getSessionId()));
 
         String fileName = "Job-" + jobProgressCallback.getJobId();
         File temp = null;
@@ -96,20 +93,6 @@ public class GridReplicaCsvExporterImpl implements GridReplicaCsvExporter {
                 temp.delete();
             }
         }
-    }
-
-    GridHeader checkSessionAndGetHeader(UserInfo userInfo, String gridSessionId) {
-        // Get the grid session (and verify that the userInfo has access to it)
-        gridManager.getGridSession(userInfo, gridSessionId);
-
-        GridConnectionInfo connectionInfo = gridManager.getSingletonConnection(gridSessionId, EventSource.INTERNAL)
-                .orElseThrow(() -> new RecoverableMessageException("No internal connection found for session: " + gridSessionId));
-
-        replicaPatchBuilderManager.getCurrentClockIfAllPatchesApplied(connectionInfo.getSessionId(), connectionInfo.getReplicaId())
-                .orElseThrow(() -> new RecoverableMessageException("Current clock could not be retrieved, patches are still being applied to sessionId: " + connectionInfo.getSessionId() + ", replicaId: " + connectionInfo.getReplicaId()));
-        return gridReplicaViewManager.readHeader(connectionInfo.getSessionId(), connectionInfo.getReplicaId())
-                .orElseThrow(() -> new RecoverableMessageException("Grid header has not yet been instantiated for sessionId: " + gridSessionId));
-
     }
 
     void writeToCsv(GridHeader header, DownloadFromGridRequest request, CSVWriter writer, RowViewCallbackHandler rowCallback) {

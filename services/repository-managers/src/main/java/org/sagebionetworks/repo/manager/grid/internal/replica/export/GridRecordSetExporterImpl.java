@@ -4,8 +4,8 @@ import java.io.IOException;
 import java.util.Date;
 
 import org.sagebionetworks.repo.manager.grid.GridManager;
+import org.sagebionetworks.repo.manager.grid.internal.replica.GridReplicaSupport;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
-import org.sagebionetworks.repo.model.Entity;
 import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
@@ -28,12 +28,14 @@ import org.springframework.stereotype.Service;
 public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 
 	private final GridManager gridManager;
+	private final GridReplicaSupport gridReplicaSupport;
 	private final EntityService entityService;
 	private final GridReplicaCsvExporter csvExporter;
 	private final EntitySchemaValidationResultDao validationResultDao;
 	
-	public GridRecordSetExporterImpl(GridManager gridManager, EntityService entityService, GridReplicaCsvExporter csvExporter, EntitySchemaValidationResultDao validationResultDao) {
+	public GridRecordSetExporterImpl(GridManager gridManager, GridReplicaSupport gridReplicaSupport, EntityService entityService, GridReplicaCsvExporter csvExporter, EntitySchemaValidationResultDao validationResultDao) {
 		this.gridManager = gridManager;
+		this.gridReplicaSupport = gridReplicaSupport;
 		this.entityService = entityService;
 		this.csvExporter = csvExporter;
 		this.validationResultDao = validationResultDao;
@@ -48,11 +50,7 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 		
 		GridSession gridSession = gridManager.getGridSession(user, request.getSessionId());
 		
-		Entity entity = entityService.getEntity(user.getId(), gridSession.getSourceEntityId());
-		
-		ValidateArgument.requirement(entity instanceof RecordSet, "Unsupported grid session: only a grid created from a record set is supported.");
-		
-		RecordSet recordSet = (RecordSet) entity;
+		RecordSet recordSet = gridReplicaSupport.getRecordSetOrThrow(user, gridSession);
 		
 		ValidationSummaryBuilder validationSummaryBuilder = new ValidationSummaryBuilder(recordSet.getId());
 		

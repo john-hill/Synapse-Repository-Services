@@ -1,10 +1,8 @@
 package org.sagebionetworks.repo.manager.grid.create;
 
 import static org.junit.Assert.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -15,9 +13,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -31,12 +27,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.EntityManager;
-import org.sagebionetworks.repo.manager.file.BucketObjectReader;
-import org.sagebionetworks.repo.manager.file.BucketObjectReaderProvider;
+import org.sagebionetworks.repo.manager.file.CsvFileHandleProvider;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.grid.PatchRowHandler;
 import org.sagebionetworks.repo.manager.grid.PatchStore;
@@ -45,7 +39,6 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.dbo.grid.CreateGridSession;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
-import org.sagebionetworks.repo.model.file.FileHandle;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.EventSource;
@@ -86,10 +79,9 @@ public class RecordSetCreateGridHandlerTest {
 
 	@Mock
 	private FileHandleManager mockFileHandleManager;
+	
 	@Mock
-	private BucketObjectReaderProvider mockFileReaderProvider;
-	@Mock
-	private BucketObjectReader mockObjectReader;
+	private CsvFileHandleProvider mockCsvProvider;
 
 	@Captor
 	private ArgumentCaptor<String> patchCaptor;
@@ -169,7 +161,7 @@ public class RecordSetCreateGridHandlerTest {
 		Long maxRowSize = (long) TableModelUtils.calculateMaxRowSize(csvSchema);
 
 		doReturn(csvSchema).when(handler).getSchemaFromCsv(csvFile, csvDescriptor);
-		doReturn(mockCsvReader).when(handler).getCsvReader(csvFile, csvDescriptor);
+		doReturn(mockCsvReader).when(mockCsvProvider).getCsvReader(csvFile, csvDescriptor);
 		doReturn(mockRowHandler).when(handler).getPatchRowHandler(mockPatchStore, gridSession, replica, csvSchema,
 				maxRowSize);
 
@@ -210,7 +202,7 @@ public class RecordSetCreateGridHandlerTest {
 		Long maxRowSize = (long) TableModelUtils.calculateMaxRowSize(csvSchema);
 
 		doReturn(csvSchema).when(handler).getSchemaFromCsv(csvFile, csvDescriptor);
-		doReturn(mockCsvReader).when(handler).getCsvReader(csvFile, csvDescriptor);
+		doReturn(mockCsvReader).when(mockCsvProvider).getCsvReader(csvFile, csvDescriptor);
 
 		doReturn(mockRowHandler).when(handler).getPatchRowHandler(mockPatchStore, gridSession, replica, csvSchema,
 				maxRowSize);
@@ -255,7 +247,7 @@ public class RecordSetCreateGridHandlerTest {
 		csvDescriptor = new CsvTableDescriptor().setIsFirstLineHeader(true);
 
 		doReturn(csvSchema).when(handler).getSchemaFromCsv(csvFile, csvDescriptor);
-		doReturn(mockCsvReader).when(handler).getCsvReader(csvFile, csvDescriptor);
+		doReturn(mockCsvReader).when(mockCsvProvider).getCsvReader(csvFile, csvDescriptor);
 		doReturn(mockRowHandler).when(handler).getPatchRowHandler(mockPatchStore, gridSession, replica, csvSchema,
 				maxRowSize);
 
@@ -273,34 +265,6 @@ public class RecordSetCreateGridHandlerTest {
 		verify(mockRowHandler).nextRow(new Row().setValues(Arrays.asList("2", "two")));
 		verify(mockRowHandler).nextRow(new Row().setValues(Arrays.asList(null, "three")));
 		verify(mockRowHandler).close();
-
-		verifyNoMoreInteractions(mockCsvReader, mockRowHandler);
-	}
-
-	@Test
-	public void testBuildSessionFromRecordSetWithWrongFileHandle() throws IOException {
-		when(mockUser.getId()).thenReturn(userId);
-		when(mockEntityManager.getEntity(mockUser, recordSet.getId(), RecordSet.class)).thenReturn(recordSet);
-		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.empty());
-
-		gridSession = new GridSession().setSessionId(gridSessionId);
-
-		when(mockGridDao.createGridSession(new CreateGridSession().setUserId(userId).setSourceId(recordSet.getId())))
-				.thenReturn(gridSession);
-
-		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
-
-		FileHandle badFile = Mockito.mock(FileHandle.class);
-
-		when(mockFileHandleManager.getRawFileHandle(mockUser, recordSet.getDataFileHandleId())).thenReturn(badFile);
-
-		String errorMessage = assertThrows(IllegalArgumentException.class, () -> {
-			// Call under test
-			handler.createGrid(mockCallback, mockUser, new CreateGridRequest().setRecordSetId(recordSet.getId()),
-					mockPatchStore);
-		}).getMessage();
-
-		assertEquals("Only S3 and Google Cloud Storage files that Synapse can access are supported.", errorMessage);
 
 		verifyNoMoreInteractions(mockCsvReader, mockRowHandler);
 	}
@@ -325,7 +289,7 @@ public class RecordSetCreateGridHandlerTest {
 		Long maxRowSize = (long) TableModelUtils.calculateMaxRowSize(csvSchema);
 
 		doReturn(csvSchema).when(handler).getSchemaFromCsv(csvFile, csvDescriptor);
-		doReturn(mockCsvReader).when(handler).getCsvReader(csvFile, csvDescriptor);
+		doReturn(mockCsvReader).when(mockCsvProvider).getCsvReader(csvFile, csvDescriptor);
 		doReturn(mockRowHandler).when(handler).getPatchRowHandler(mockPatchStore, gridSession, replica, csvSchema,
 				maxRowSize);
 
@@ -400,39 +364,25 @@ public class RecordSetCreateGridHandlerTest {
 	}
 
 	@Test
-	public void testGetCsvReader() throws IOException {
+	public void testGetSchemaFromCsv() throws IOException {
 		csvDescriptor = new CsvTableDescriptor().setIsFirstLineHeader(true);
-
-		when(mockFileReaderProvider.getBucketObjectReader(csvFile.getClass())).thenReturn(mockObjectReader);
-		when(mockObjectReader.openStream(csvFile.getBucketName(), csvFile.getKey())).thenReturn(
-				new ByteArrayInputStream("foo,bar\n1,\"one\"\n2,\"two\"\n,\"three\"".getBytes(StandardCharsets.UTF_8)));
-
-		// Call under test
-		CSVReader reader = handler.getCsvReader(csvFile, csvDescriptor);
-
-		assertNotNull(reader);
-
-		assertArrayEquals(new String[] { "foo", "bar" }, reader.readNext());
-		assertArrayEquals(new String[] { "1", "one" }, reader.readNext());
-		assertArrayEquals(new String[] { "2", "two" }, reader.readNext());
-		assertArrayEquals(new String[] { null, "three" }, reader.readNext());
-
-		assertNull(reader.readNext());
-	}
-
-	@Test
-	public void testgetSchemaFromCsv() throws IOException {
-		csvDescriptor = new CsvTableDescriptor().setIsFirstLineHeader(true);
-
-		when(mockFileReaderProvider.getBucketObjectReader(csvFile.getClass())).thenReturn(mockObjectReader);
-		when(mockObjectReader.openStream(csvFile.getBucketName(), csvFile.getKey())).thenReturn(
-				new ByteArrayInputStream("foo,bar\n1,\"one\"\n2,\"two\"\n,\"three\"".getBytes(StandardCharsets.UTF_8)));
+		
+		doReturn(mockCsvReader).when(mockCsvProvider).getCsvReader(csvFile, csvDescriptor);
+		
+		when(mockCsvReader.readNext()).thenReturn(
+			new String[] { "foo", "bar" }, 
+			new String[] { "1", "one" },
+			new String[] { "2", "two" }, 
+			new String[] { null, "three" }, 
+			null);
 
 		// Call under test
 		List<ColumnModel> schema = handler.getSchemaFromCsv(csvFile, csvDescriptor);
 
-		assertEquals(List.of(new ColumnModel().setName("foo").setColumnType(ColumnType.INTEGER),
-				new ColumnModel().setName("bar").setColumnType(ColumnType.STRING).setMaximumSize(5L)), schema);
+		assertEquals(List.of(
+			new ColumnModel().setName("foo").setColumnType(ColumnType.INTEGER),
+			new ColumnModel().setName("bar").setColumnType(ColumnType.STRING).setMaximumSize(5L)
+			), schema);
 
 	}
 

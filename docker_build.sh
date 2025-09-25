@@ -83,7 +83,6 @@ fi
 mysql -u${rds_user_name} -p${rds_password} -h ${org_sagebionetworks_repository_database_connection_url} -sN -e "DROP DATABASE ${db_name};CREATE DATABASE ${db_name};"
 mysql -u${rds_user_name} -p${rds_password} -h ${org_sagebionetworks_table_cluster_endpoint_0} -sN -e "DROP DATABASE ${db_name};CREATE DATABASE ${db_name};"
 
-
 # create build container and run build
 docker run --user "$(id -u):$(id -g)" -i --rm --name ${build_container_name} \
 -m 5500M \
@@ -114,6 +113,7 @@ ${AWS_CREDS} \
 -Dorg.sagebionetworks.doi.datacite.api.endpoint=${org_sagebionetworks_doi_datacite_api_endpoint} \
 -Dorg.sagebionetworks.google.cloud.enabled=${org_sagebionetworks_google_cloud_enabled} \
 -Dorg.sagebionetworks.sts.iam.arn=${org_sagebionetworks_sts_iam_arn} \
+-Dorg.sagebionetworks.sts.duration.seconds=${org_sagebionetworks_sts_duration_seconds} \
 -Dorg.sagebionetworks.google.cloud.key="${org_sagebionetworks_google_cloud_key}" \
 -Dorg.sagebionetworks.cloudfront.keypair="${org_sagebionetworks_cloudfront_keypair}" \
 -Dorg.sagebionetworks.cloudfront.domainname="${org_sagebionetworks_cloudfront_domainname}" \

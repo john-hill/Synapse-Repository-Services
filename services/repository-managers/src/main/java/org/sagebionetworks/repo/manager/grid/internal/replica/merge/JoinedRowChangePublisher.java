@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 
 import org.sagebionetworks.grid.db.GridIndexDao;
+import org.sagebionetworks.repo.manager.grid.PatchUtils;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.InsertRowChange;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChange;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangePublisher;
@@ -41,7 +42,7 @@ public class JoinedRowChangePublisher {
 			.map(m -> header.getOrderedColumns().get(m.getGridIndex()).getVectorIndex())
 			.toArray(Integer[]::new);
 		
-		try (IntendedChangePublisher changePublisher = new IntendedChangePublisher(connInfo, header.getClockSequenceMaximum(), patchBuilderPublisher)) {
+		try (IntendedChangePublisher changePublisher = new IntendedChangePublisher(connInfo, header.getClockSequenceMaximum(), patchBuilderPublisher, PatchUtils.MAX_CHANGE_SET_SIZE)) {
 			LogicalTimestamp rowsArrayId = header.getRowsId();
 			
 			// The iterator of joined rows is sorted by upsert key descending, this allows us to use the current last row id

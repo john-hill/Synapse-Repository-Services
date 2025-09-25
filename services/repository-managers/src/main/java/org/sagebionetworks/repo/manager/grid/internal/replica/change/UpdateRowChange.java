@@ -1,5 +1,7 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.change;
 
+import java.util.Arrays;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
@@ -55,6 +57,50 @@ public class UpdateRowChange implements IntendedChange {
 
 	public Integer[] getRowVectorIndex() {
 		return rowVectorIndex;
+	}
+
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + ((rowData == null) ? 0 : rowData.toString().hashCode());
+		result = prime * result + ((rowVectorId == null) ? 0 : rowVectorId.hashCode());
+		result = prime * result + Arrays.hashCode(rowVectorIndex);
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj) {
+			return true;
+		}
+		if (!(obj instanceof UpdateRowChange)) {
+			return false;
+		}
+		UpdateRowChange other = (UpdateRowChange) obj;
+		if (rowData == null) {
+			if (other.rowData != null) {
+				return false;
+			}
+		} else if (!rowData.toString().equals(other.rowData.toString())) {
+			return false;
+		}
+		if (rowVectorId == null) {
+			if (other.rowVectorId != null) {
+				return false;
+			}
+		} else if (!rowVectorId.equals(other.rowVectorId)) {
+			return false;
+		}
+		if (!Arrays.equals(rowVectorIndex, other.rowVectorIndex)) {
+			return false;
+		}
+		return true;
+	}
+
+	@Override
+	public String toString() {
+		return "UpdateRowChange [rowVectorId=" + rowVectorId + ", rowData=" + rowData + ", rowVectorIndex=" + Arrays.toString(rowVectorIndex) + "]";
 	}
 
 }

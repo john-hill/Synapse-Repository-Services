@@ -12,9 +12,9 @@ import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
 import org.springframework.stereotype.Component;
 
 @Component
-public class InsertRowChangeHanddler implements ChangeHandler<InsertRowChange> {
+public class InsertRowChangeHandler implements ChangeHandler<InsertRowChange> {
 
-	public InsertRowChangeHanddler() {}
+	public InsertRowChangeHandler() {}
 
 	@Override
 	public IntendedChangeType getType() {

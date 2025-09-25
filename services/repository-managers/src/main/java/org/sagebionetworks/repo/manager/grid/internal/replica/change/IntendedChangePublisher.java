@@ -14,25 +14,23 @@ public class IntendedChangePublisher implements AutoCloseable {
 	private static int getChangeSize(IntendedChange change) {
 		return change.toJson().toString().getBytes(StandardCharsets.UTF_8).length + CHANGE_OVERHEAD_BYTES;
 	}
-
-	// 1MB is the max size, See
-	// https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/quotas-messages.html
-	// Set it to 768KB so that we do not have to worry about the overhead of the message wrapper.
-	private static final int MAX_CHANGE_SET_SIZE = (1024 * 1024) - 256; // 768KB
+	
 	private static final int CHANGE_OVERHEAD_BYTES = 4; // Overhead for JSON array commas and brackets.
 
 	private final GridConnectionInfo connInfo;
 	private final Long maxClockSeq;
 	private final PatchBuilderPublisher publisher;
+	private final int maxChangeSetSize;
 	
 	private List<IntendedChange> currentChanges;
 	private IntendedChangeSet currentChangeSet;
 	private int currentSizeBytes;
 
-	public IntendedChangePublisher(GridConnectionInfo connInfo, Long maxClockSeq, PatchBuilderPublisher publisher) {
+	public IntendedChangePublisher(GridConnectionInfo connInfo, Long maxClockSeq, PatchBuilderPublisher publisher, int maxChangeSetSize) {
 		this.connInfo = connInfo;
 		this.maxClockSeq = maxClockSeq;
 		this.publisher = publisher;
+		this.maxChangeSetSize = maxChangeSetSize;
 		this.resetCurrentChangeSet();
 	}
 
@@ -40,10 +38,10 @@ public class IntendedChangePublisher implements AutoCloseable {
 		
 		int changeSize = getChangeSize(change);
 
-		if (currentSizeBytes + changeSize > MAX_CHANGE_SET_SIZE) {
+		if (currentSizeBytes + changeSize > this.maxChangeSetSize) {
 			if (currentChanges.isEmpty()) {
 				// A single change is too big to fit in a change set.
-				throw new IllegalArgumentException("A single change cannot be larger than " + MAX_CHANGE_SET_SIZE + " bytes.");
+				throw new IllegalArgumentException("A single change cannot be larger than " + this.maxChangeSetSize + " bytes.");
 			}
 			// publish the current set
 			publisher.sendChangesToPatchBuilder(currentChangeSet);

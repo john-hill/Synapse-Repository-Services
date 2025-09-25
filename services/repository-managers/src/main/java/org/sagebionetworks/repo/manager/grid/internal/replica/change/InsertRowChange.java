@@ -1,5 +1,7 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.change;
 
+import java.util.Arrays;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
@@ -70,6 +72,58 @@ public class InsertRowChange implements IntendedChange {
 	
 	public Integer[] getRowVectorIndex() {
 		return rowVectorIndex;
+	}
+
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + ((nodeRefId == null) ? 0 : nodeRefId.hashCode());
+		result = prime * result + ((rowData == null) ? 0 : rowData.toString().hashCode());
+		result = prime * result + Arrays.hashCode(rowVectorIndex);
+		result = prime * result + ((rowsArrayId == null) ? 0 : rowsArrayId.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj) {
+			return true;
+		}
+		if (!(obj instanceof InsertRowChange)) {
+			return false;
+		}
+		InsertRowChange other = (InsertRowChange) obj;
+		if (nodeRefId == null) {
+			if (other.nodeRefId != null) {
+				return false;
+			}
+		} else if (!nodeRefId.equals(other.nodeRefId)) {
+			return false;
+		}
+		if (rowData == null) {
+			if (other.rowData != null) {
+				return false;
+			}
+		} else if (!rowData.toString().equals(other.rowData.toString())) {
+			return false;
+		}
+		if (!Arrays.equals(rowVectorIndex, other.rowVectorIndex)) {
+			return false;
+		}
+		if (rowsArrayId == null) {
+			if (other.rowsArrayId != null) {
+				return false;
+			}
+		} else if (!rowsArrayId.equals(other.rowsArrayId)) {
+			return false;
+		}
+		return true;
+	}
+
+	@Override
+	public String toString() {
+		return "InsertRowChange [rowsArrayId=" + rowsArrayId + ", nodeRefId=" + nodeRefId + ", rowData=" + rowData + ", rowVectorIndex=" + Arrays.toString(rowVectorIndex) + "]";
 	}
 	
 }

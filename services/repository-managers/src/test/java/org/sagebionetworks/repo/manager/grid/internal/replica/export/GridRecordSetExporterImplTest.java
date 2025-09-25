@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -18,9 +17,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.grid.GridManager;
+import org.sagebionetworks.repo.manager.grid.internal.replica.GridReplicaSupport;
 import org.sagebionetworks.repo.manager.grid.internal.replica.export.GridRecordSetExporterImpl.ValidationSummaryBuilder;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
-import org.sagebionetworks.repo.model.Entity;
 import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
@@ -41,6 +40,8 @@ public class GridRecordSetExporterImplTest {
 
 	@Mock
 	private GridManager mockGridManager;
+	@Mock
+	private GridReplicaSupport mockGridReplicaSupport;
 	@Mock
 	private GridReplicaCsvExporter mockCsvExporter;
 	@Mock
@@ -88,8 +89,7 @@ public class GridRecordSetExporterImplTest {
 	public void testExportGrid() throws Exception {
 		when(mockGridSession.getSessionId()).thenReturn(sessionId);
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(mockGridSession);
-		when(mockGridSession.getSourceEntityId()).thenReturn(recordSetId);
-		when(mockEntityService.getEntity(userId, recordSetId)).thenReturn(recordSet);
+		when(mockGridReplicaSupport.getRecordSetOrThrow(user, mockGridSession)).thenReturn(recordSet);
 		
 		when(mockRow.getRowValidationResults()).thenReturn(
 			new ValidationResults().setIsValid(true),
@@ -153,9 +153,8 @@ public class GridRecordSetExporterImplTest {
 	@Test
 	public void testExportGridWithIOException() throws Exception {
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(mockGridSession);
-		when(mockGridSession.getSourceEntityId()).thenReturn(recordSetId);
-		when(mockEntityService.getEntity(userId, recordSetId)).thenReturn(recordSet);
-		when(mockCsvExporter.exportGridAsCsv(any(), any(), any(), any()))
+		when(mockGridReplicaSupport.getRecordSetOrThrow(user, mockGridSession)).thenReturn(recordSet);
+		when(mockCsvExporter.exportGridAsCsv(any(), any(), any(), any()))		
 			.thenThrow(new IOException("nope"));
 
 		IllegalStateException ex = assertThrows(IllegalStateException.class, () -> {
@@ -163,20 +162,6 @@ public class GridRecordSetExporterImplTest {
 		});
 		
 		assertEquals("Could not export the grid to a CSV file.", ex.getMessage());
-	}
-
-	@Test
-	public void testExportGridWithNonRecordSetSource() {
-		Entity nonRecordSet = mock(Entity.class); // Not a RecordSet
-		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(mockGridSession);
-		when(mockGridSession.getSourceEntityId()).thenReturn("otherId");
-		when(mockEntityService.getEntity(userId, "otherId")).thenReturn(nonRecordSet);
-
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
-			exporter.exportGrid(user, request, mockJobCallback);
-		});
-		
-		assertEquals("Unsupported grid session: only a grid created from a record set is supported.", ex.getMessage());
 	}
 
 	@Test

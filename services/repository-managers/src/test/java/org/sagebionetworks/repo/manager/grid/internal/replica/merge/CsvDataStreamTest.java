@@ -91,7 +91,8 @@ public class CsvDataStreamTest {
 			"data3,4,3,extra3" 	+ System.lineSeparator() +
 			"data4,5,4,extra4" 	+ System.lineSeparator()
 		));
-				columnMapping = new ColumnMapping[] {
+		
+		columnMapping = new ColumnMapping[] {
 			new ColumnMapping("a", ColumnType.INTEGER, 2, 0, true),
 			new ColumnMapping("c", ColumnType.STRING, 0, 2, false),
 			new ColumnMapping("b", ColumnType.INTEGER, 1, 1, false)

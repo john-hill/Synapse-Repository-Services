@@ -10,10 +10,10 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 import org.json.JSONArray;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,35 +23,28 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.sagebionetworks.repo.manager.EntityManager;
-import org.sagebionetworks.repo.manager.file.BucketObjectReader;
-import org.sagebionetworks.repo.manager.file.BucketObjectReaderProvider;
-import org.sagebionetworks.repo.manager.file.FileHandleManager;
+import org.sagebionetworks.repo.manager.file.CsvFileHandleProvider;
 import org.sagebionetworks.repo.manager.grid.GridManager;
+import org.sagebionetworks.repo.manager.grid.internal.replica.GridReplicaSupport;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowData;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowObject;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
-import org.sagebionetworks.repo.model.FileEntity;
 import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
-import org.sagebionetworks.repo.model.file.CloudProviderFileHandleInterface;
-import org.sagebionetworks.repo.model.file.FileHandle;
-import org.sagebionetworks.repo.model.file.S3FileHandle;
-import org.sagebionetworks.repo.model.grid.EventSource;
-import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridCsvImportRequest;
 import org.sagebionetworks.repo.model.grid.GridCsvImportResponse;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
-import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
+import org.sagebionetworks.table.cluster.utils.CSVUtils;
+
+import au.com.bytecode.opencsv.CSVReader;
 
 @ExtendWith(MockitoExtension.class)
 public class GridCsvImporterImplTest {
@@ -61,11 +54,9 @@ public class GridCsvImporterImplTest {
 	@Mock
 	private GridReplicaViewManager mockGridViewManager;
 	@Mock
-	private EntityManager mockEntityManager;
+	private GridReplicaSupport mockGridReplicaSupport;
 	@Mock
-	private FileHandleManager mockFileHandleManager;
-	@Mock
-	private BucketObjectReaderProvider mockFileReaderProvider;
+	private CsvFileHandleProvider mockCsvProvider;
 	@Mock
 	private GridCsvImportDao mockImportDao;
 	
@@ -73,24 +64,19 @@ public class GridCsvImporterImplTest {
 	private GridCsvImporterImpl importer;
 
 	private UserInfo user;
-	private Long replicaId = 456L;
 	private String sessionId = "sessionId";
 	private CsvTableDescriptor descriptor;
 	private GridCsvImportRequest request;
 	private GridSession session;
-	private GridConnectionInfo connectionInfo;
 	private GridHeader gridHeader;
 	private List<String> upsertKey;
 	private RecordSet recordSet;
-	private CloudProviderFileHandleInterface fileHandle;
 	private String csvContent;
 	private List<RowView> gridRows;
 	private List<JoinedRow> joinedRows;
 	
 	@Mock
 	private AsyncJobProgressCallback mockCallback;
-	@Mock
-	private BucketObjectReader mockObjReader;
 	
 	@Captor
 	private ArgumentCaptor<DataStream> streamCaptor = ArgumentCaptor.forClass(DataStream.class);
@@ -114,9 +100,7 @@ public class GridCsvImporterImplTest {
 		session = new GridSession()
 			.setSessionId(sessionId)
 			.setSourceEntityId("syn123");
-		connectionInfo = new GridConnectionInfo()
-			.setSessionId(sessionId)
-			.setReplicaId(replicaId);
+		
 		gridHeader = new GridHeader().setOrderedColumns(List.of(
 			new Column().setName("a").setVectorIndex(0),
 			new Column().setName("b").setVectorIndex(1),
@@ -124,11 +108,9 @@ public class GridCsvImporterImplTest {
 		));
 		
 		upsertKey = List.of("a");
-		recordSet = new RecordSet().setUpsertKey(upsertKey);
-		
-		fileHandle = new S3FileHandle()
-			.setBucketName("bucket")
-			.setKey("key");
+		recordSet = new RecordSet()
+			.setUpsertKey(upsertKey)
+			.setDataFileHandleId("syn123");
 		
 		csvContent = 
 			"a,b,c" + System.lineSeparator() +
@@ -170,122 +152,6 @@ public class GridCsvImporterImplTest {
 		ColumnMapping[] expectedMapping = new ColumnMapping[] {
 			new ColumnMapping("a", ColumnType.INTEGER, 0, 0, true),
 			new ColumnMapping("b", ColumnType.STRING, 1, 1, false),
-			new ColumnMapping("c", ColumnType.BOOLEAN, 2, 2, false)
-		};
-		
-		verify(mockImportDao).streamToCsvTempTable(streamCaptor.capture(), eq(expectedMapping));
-		
-		assertTrue(streamCaptor.getValue() instanceof CsvDataStream);
-
-		verify(mockImportDao).streamToGridTempTable(streamCaptor.capture(), eq(expectedMapping));
-
-		assertTrue(streamCaptor.getValue() instanceof GridDataStream);
-		
-		verify(mockImportDao).getJoinedTempTableIterator(expectedMapping);
-	}
-	
-	@Test
-	public void testImportCsvWithDifferentHeaderOrder() {
-		csvContent = 
-			"b,a,c" + System.lineSeparator() +
-			"0,0,false" + System.lineSeparator() +
-			"1,1,false" + System.lineSeparator() + 
-			"2,2,false" + System.lineSeparator();
-		
-		setupFullMocks();
-				
-		// Call under test
-		GridCsvImportResponse result = importer.importCsv(user, request, mockCallback);
-		
-		assertEquals(new GridCsvImportResponse()
-			.setSessionId(sessionId)
-			.setTotalCount(3L)
-			.setUpdatedCount(2L)
-			.setCreatedCount(1L), 
-			result
-		);
-		
-		ColumnMapping[] expectedMapping = new ColumnMapping[] {
-			new ColumnMapping("a", ColumnType.INTEGER, 1, 0, true),
-			new ColumnMapping("b", ColumnType.STRING, 0, 1, false),
-			new ColumnMapping("c", ColumnType.BOOLEAN, 2, 2, false)
-		};
-		
-		verify(mockImportDao).streamToCsvTempTable(streamCaptor.capture(), eq(expectedMapping));
-		
-		assertTrue(streamCaptor.getValue() instanceof CsvDataStream);
-
-		verify(mockImportDao).streamToGridTempTable(streamCaptor.capture(), eq(expectedMapping));
-
-		assertTrue(streamCaptor.getValue() instanceof GridDataStream);
-		
-		verify(mockImportDao).getJoinedTempTableIterator(expectedMapping);
-	}
-	
-	@Test
-	public void testImportCsvWithNoCsvHeader() {
-		descriptor.setIsFirstLineHeader(false);
-		
-		csvContent =
-			"0,0,false" + System.lineSeparator() +
-			"1,1,false" + System.lineSeparator() + 
-			"2,2,false" + System.lineSeparator();
-		
-		setupFullMocks();
-				
-		// Call under test
-		GridCsvImportResponse result = importer.importCsv(user, request, mockCallback);
-		
-		assertEquals(new GridCsvImportResponse()
-			.setSessionId(sessionId)
-			.setTotalCount(3L)
-			.setUpdatedCount(2L)
-			.setCreatedCount(1L), 
-			result
-		);
-		
-		ColumnMapping[] expectedMapping = new ColumnMapping[] {
-			new ColumnMapping("a", ColumnType.INTEGER, 0, 0, true),
-			new ColumnMapping("b", ColumnType.STRING, 1, 1, false),
-			new ColumnMapping("c", ColumnType.BOOLEAN, 2, 2, false)
-		};
-		
-		verify(mockImportDao).streamToCsvTempTable(streamCaptor.capture(), eq(expectedMapping));
-		
-		assertTrue(streamCaptor.getValue() instanceof CsvDataStream);
-
-		verify(mockImportDao).streamToGridTempTable(streamCaptor.capture(), eq(expectedMapping));
-
-		assertTrue(streamCaptor.getValue() instanceof GridDataStream);
-		
-		verify(mockImportDao).getJoinedTempTableIterator(expectedMapping);
-	}
-	
-	@Test
-	public void testImportCsvWithDifferentGridOrder() {
-		
-		gridHeader = new GridHeader().setOrderedColumns(List.of(
-			new Column().setName("b").setVectorIndex(0),
-			new Column().setName("a").setVectorIndex(1),
-			new Column().setName("c").setVectorIndex(2)
-		));
-		
-		setupFullMocks();
-				
-		// Call under test
-		GridCsvImportResponse result = importer.importCsv(user, request, mockCallback);
-		
-		assertEquals(new GridCsvImportResponse()
-			.setSessionId(sessionId)
-			.setTotalCount(3L)
-			.setUpdatedCount(2L)
-			.setCreatedCount(1L), 
-			result
-		);
-		
-		ColumnMapping[] expectedMapping = new ColumnMapping[] {
-			new ColumnMapping("a", ColumnType.INTEGER, 0, 1, true),
-			new ColumnMapping("b", ColumnType.STRING, 1, 0, false),
 			new ColumnMapping("c", ColumnType.BOOLEAN, 2, 2, false)
 		};
 		
@@ -381,80 +247,13 @@ public class GridCsvImporterImplTest {
 	}
 	
 	@Test
-	public void testImportCsvWithNoConnectionInfo() {
-				
-		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
-		when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.empty());
-		
-		assertEquals("No internal connection found for session: sessionId", assertThrows(RecoverableMessageException.class, () -> {	
-			// Call under test
-			importer.importCsv(user, request, mockCallback);
-		}).getMessage());
-		
-		verifyNoMoreInteractions(mockImportDao);
-	}
-	
-	@Test
-	public void testImportCsvWithNoGridHeader() {
-				
-		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
-		when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(connectionInfo));
-		when(mockGridViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.empty());
-		
-		assertEquals("Grid header has not yet been instantiated for sessionId: sessionId", assertThrows(RecoverableMessageException.class, () -> {	
-			// Call under test
-			importer.importCsv(user, request, mockCallback);
-		}).getMessage());
-		
-		verifyNoMoreInteractions(mockImportDao);
-	}
-	
-	@Test
-	public void testImportCsvWithUnsupportedSourceEntity() {
-				
-		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
-		when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(connectionInfo));
-		when(mockGridViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(gridHeader));
-		when(mockEntityManager.getEntity(user, session.getSourceEntityId())).thenReturn(Mockito.mock(FileEntity.class));
-		
-		assertEquals("Unsupported grid session: only a grid created from a record set is supported.", assertThrows(IllegalArgumentException.class, () -> {	
-			// Call under test
-			importer.importCsv(user, request, mockCallback);
-		}).getMessage());
-		
-		verifyNoMoreInteractions(mockImportDao);
-	}
-	
-	@Test
-	public void testImportCsvWithUnsupportedFile() {
-				
-		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
-		when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(connectionInfo));
-		when(mockGridViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(gridHeader));
-		when(mockEntityManager.getEntity(user, session.getSourceEntityId())).thenReturn(recordSet);
-		when(mockFileHandleManager.getRawFileHandle(user, request.getFileHandleId())).thenReturn(Mockito.mock(FileHandle.class));
-		
-		assertEquals("Only S3 and Google Cloud Storage files that Synapse can access are supported.", assertThrows(IllegalArgumentException.class, () -> {	
-			// Call under test
-			importer.importCsv(user, request, mockCallback);
-		}).getMessage());
-		
-		verifyNoMoreInteractions(mockImportDao);
-	}
-	
-	@Test
 	public void testImportCsvWithEmptyCsv() {
-		csvContent = "a,b,c" + System.lineSeparator();
+		csvContent = "" + System.lineSeparator();
 		
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
-		when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(connectionInfo));
-		when(mockGridViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(gridHeader));
-		when(mockEntityManager.getEntity(user, session.getSourceEntityId())).thenReturn(recordSet);
-		when(mockFileHandleManager.getRawFileHandle(user, request.getFileHandleId())).thenReturn(fileHandle);
-		when(mockFileReaderProvider.getBucketObjectReader(fileHandle.getClass())).thenReturn(mockObjReader);
-		when(mockObjReader.openStream(fileHandle.getBucketName(), fileHandle.getKey())).thenReturn(
-			new ByteArrayInputStream(csvContent.getBytes(StandardCharsets.UTF_8))
-		);
+		when(mockGridReplicaSupport.getGridHeaderOrThrow(session)).thenReturn(gridHeader);
+		when(mockGridReplicaSupport.getRecordSetOrThrow(user, session)).thenReturn(recordSet);
+		when(mockCsvProvider.getCsvReader(user, request.getFileHandleId(), descriptor)).thenReturn(csvReader(csvContent));
 		
 		assertEquals("The CSV file cannot be empty.", assertThrows(IllegalArgumentException.class, () -> {	
 			// Call under test
@@ -473,14 +272,9 @@ public class GridCsvImporterImplTest {
 		));
 		
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
-		when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(connectionInfo));
-		when(mockGridViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(gridHeader));
-		when(mockEntityManager.getEntity(user, session.getSourceEntityId())).thenReturn(recordSet);
-		when(mockFileHandleManager.getRawFileHandle(user, request.getFileHandleId())).thenReturn(fileHandle);
-		when(mockFileReaderProvider.getBucketObjectReader(fileHandle.getClass())).thenReturn(mockObjReader);
-		when(mockObjReader.openStream(fileHandle.getBucketName(), fileHandle.getKey())).thenReturn(
-			new ByteArrayInputStream(csvContent.getBytes(StandardCharsets.UTF_8))
-		);
+		when(mockGridReplicaSupport.getGridHeaderOrThrow(session)).thenReturn(gridHeader);
+		when(mockGridReplicaSupport.getRecordSetOrThrow(user, session)).thenReturn(recordSet);
+		when(mockCsvProvider.getCsvReader(user, request.getFileHandleId(), descriptor)).thenReturn(csvReader(csvContent));
 		
 		assertEquals("The CSV header does not match the schema size.", assertThrows(IllegalArgumentException.class, () -> {	
 			// Call under test
@@ -500,16 +294,11 @@ public class GridCsvImporterImplTest {
 		));
 		
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
-		when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(connectionInfo));
-		when(mockGridViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(gridHeader));
-		when(mockEntityManager.getEntity(user, session.getSourceEntityId())).thenReturn(recordSet);
-		when(mockFileHandleManager.getRawFileHandle(user, request.getFileHandleId())).thenReturn(fileHandle);
-		when(mockFileReaderProvider.getBucketObjectReader(fileHandle.getClass())).thenReturn(mockObjReader);
-		when(mockObjReader.openStream(fileHandle.getBucketName(), fileHandle.getKey())).thenReturn(
-			new ByteArrayInputStream(csvContent.getBytes(StandardCharsets.UTF_8))
-		);
+		when(mockGridReplicaSupport.getGridHeaderOrThrow(session)).thenReturn(gridHeader);
+		when(mockGridReplicaSupport.getRecordSetOrThrow(user, session)).thenReturn(recordSet);
+		when(mockCsvProvider.getCsvReader(user, request.getFileHandleId(), descriptor)).thenReturn(csvReader(csvContent));
 		
-		assertEquals("The CSV header column \"c\" does not exist in the schema.", assertThrows(IllegalArgumentException.class, () -> {	
+		assertEquals("The CSV header column \"c\" does not match the schema column \"d\" at index: 2", assertThrows(IllegalArgumentException.class, () -> {	
 			// Call under test
 			importer.importCsv(user, request, mockCallback);
 		}).getMessage());
@@ -522,14 +311,9 @@ public class GridCsvImporterImplTest {
 		recordSet.setUpsertKey(List.of("d"));
 		
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
-		when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(connectionInfo));
-		when(mockGridViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(gridHeader));
-		when(mockEntityManager.getEntity(user, session.getSourceEntityId())).thenReturn(recordSet);
-		when(mockFileHandleManager.getRawFileHandle(user, request.getFileHandleId())).thenReturn(fileHandle);
-		when(mockFileReaderProvider.getBucketObjectReader(fileHandle.getClass())).thenReturn(mockObjReader);
-		when(mockObjReader.openStream(fileHandle.getBucketName(), fileHandle.getKey())).thenReturn(
-			new ByteArrayInputStream(csvContent.getBytes(StandardCharsets.UTF_8))
-		);
+		when(mockGridReplicaSupport.getGridHeaderOrThrow(session)).thenReturn(gridHeader);
+		when(mockGridReplicaSupport.getRecordSetOrThrow(user, session)).thenReturn(recordSet);
+		when(mockCsvProvider.getCsvReader(user, request.getFileHandleId(), descriptor)).thenReturn(csvReader(csvContent));
 		
 		assertEquals("The upsert key column \"d\" does not exist in the CSV schema.", assertThrows(IllegalArgumentException.class, () -> {	
 			// Call under test
@@ -548,14 +332,9 @@ public class GridCsvImporterImplTest {
 		));
 		
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
-		when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(connectionInfo));
-		when(mockGridViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(gridHeader));
-		when(mockEntityManager.getEntity(user, session.getSourceEntityId())).thenReturn(recordSet);
-		when(mockFileHandleManager.getRawFileHandle(user, request.getFileHandleId())).thenReturn(fileHandle);
-		when(mockFileReaderProvider.getBucketObjectReader(fileHandle.getClass())).thenReturn(mockObjReader);
-		when(mockObjReader.openStream(fileHandle.getBucketName(), fileHandle.getKey())).thenReturn(
-			new ByteArrayInputStream(csvContent.getBytes(StandardCharsets.UTF_8))
-		);
+		when(mockGridReplicaSupport.getGridHeaderOrThrow(session)).thenReturn(gridHeader);
+		when(mockGridReplicaSupport.getRecordSetOrThrow(user, session)).thenReturn(recordSet);
+		when(mockCsvProvider.getCsvReader(user, request.getFileHandleId(), descriptor)).thenReturn(csvReader(csvContent));
 		
 		assertEquals("The upsert key column \"a\" does not exist in the grid schema.", assertThrows(IllegalArgumentException.class, () -> {	
 			// Call under test
@@ -567,16 +346,17 @@ public class GridCsvImporterImplTest {
 	
 	private void setupFullMocks() {
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
-		when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(connectionInfo));
-		when(mockGridViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(gridHeader));
-		when(mockEntityManager.getEntity(user, session.getSourceEntityId())).thenReturn(recordSet);
-		when(mockFileHandleManager.getRawFileHandle(user, request.getFileHandleId())).thenReturn(fileHandle);
-		when(mockFileReaderProvider.getBucketObjectReader(fileHandle.getClass())).thenReturn(mockObjReader);
-		when(mockObjReader.openStream(fileHandle.getBucketName(), fileHandle.getKey())).thenReturn(
-			new ByteArrayInputStream(csvContent.getBytes(StandardCharsets.UTF_8))
-		);
+		when(mockGridReplicaSupport.getGridHeaderOrThrow(session)).thenReturn(gridHeader);
+		when(mockGridReplicaSupport.getRecordSetOrThrow(user, session)).thenReturn(recordSet);
+		when(mockCsvProvider.getCsvReader(user, request.getFileHandleId(), descriptor)).thenReturn(csvReader(csvContent));
 		when(mockGridViewManager.getQueryIterator(gridHeader, Collections.emptyList())).thenReturn(gridRows.iterator());
 		when(mockImportDao.getJoinedTempTableIterator(any())).thenReturn(joinedRows.iterator());
+	}
+	
+	private CSVReader csvReader(String csvContent) {
+		return CSVUtils.createCSVReader(new InputStreamReader(
+			new ByteArrayInputStream(csvContent.getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8
+			), descriptor, null);
 	}
 
 }

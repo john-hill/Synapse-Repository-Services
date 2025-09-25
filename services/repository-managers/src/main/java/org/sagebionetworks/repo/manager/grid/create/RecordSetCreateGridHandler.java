@@ -1,15 +1,12 @@
 package org.sagebionetworks.repo.manager.grid.create;
 
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
 import org.sagebionetworks.repo.manager.EntityManager;
-import org.sagebionetworks.repo.manager.file.BucketObjectReader;
-import org.sagebionetworks.repo.manager.file.BucketObjectReaderProvider;
+import org.sagebionetworks.repo.manager.file.CsvFileHandleProvider;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.grid.PatchRowHandler;
 import org.sagebionetworks.repo.manager.grid.PatchStore;
@@ -19,7 +16,6 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.dbo.grid.CreateGridSession;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
-import org.sagebionetworks.repo.model.file.CloudProviderFileHandleInterface;
 import org.sagebionetworks.repo.model.file.FileHandle;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.EventSource;
@@ -29,9 +25,7 @@ import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.repo.model.table.UploadToTablePreviewRequest;
-import org.sagebionetworks.table.cluster.utils.CSVUtils;
 import org.sagebionetworks.table.cluster.utils.TableModelUtils;
-import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.stereotype.Service;
 
 import au.com.bytecode.opencsv.CSVReader;
@@ -42,15 +36,14 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 	private final GridDao gridDao;
 	private final EntityManager entityManager;
 	private final FileHandleManager fileHandleManager;
-	private final BucketObjectReaderProvider fileReaderProvider;
+	private final CsvFileHandleProvider csvProvider;
 
-	public RecordSetCreateGridHandler(GridDao gridDao, EntityManager entityManager, FileHandleManager fileHandleManager,
-			BucketObjectReaderProvider fileReaderProvider) {
+	public RecordSetCreateGridHandler(GridDao gridDao, EntityManager entityManager, FileHandleManager fileHandleManager, CsvFileHandleProvider csvProvider) {
 		super();
 		this.gridDao = gridDao;
 		this.entityManager = entityManager;
 		this.fileHandleManager = fileHandleManager;
-		this.fileReaderProvider = fileReaderProvider;
+		this.csvProvider = csvProvider;
 	}
 
 	@Override
@@ -74,11 +67,6 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 
 		FileHandle fileHandle = fileHandleManager.getRawFileHandle(user, recordSet.getDataFileHandleId());
 
-		ValidateArgument.requirement(fileHandle instanceof CloudProviderFileHandleInterface,
-				"Only S3 and Google Cloud Storage files that Synapse can access are supported.");
-
-		CloudProviderFileHandleInterface cpFileHandle = (CloudProviderFileHandleInterface) fileHandle;
-
 		CsvTableDescriptor csvDescriptor = recordSet.getCsvDescriptor();
 
 		if (csvDescriptor == null) {
@@ -94,18 +82,19 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 		// In order to determine the correct schema and size we first scan the CSV file
 		// reusing the UploadPreviewBuilder
 		// that allows to compute a suggested schema from a CSV file.
-		List<ColumnModel> schema = getSchemaFromCsv(cpFileHandle, csvDescriptor);
+		List<ColumnModel> schema = getSchemaFromCsv(fileHandle, csvDescriptor);
 
 		if (schema == null || schema.isEmpty()) {
-			throw new IllegalArgumentException(
-					"Cannot determine the schema from the CSV file, at least one column header must be present.");
+			throw new IllegalArgumentException("Cannot determine the schema from the CSV file, at least one column header must be present.");
 		}
 
 		Long maxBytesPerRow = (long) TableModelUtils.calculateMaxRowSize(schema);
 
 		// We can now read the CSV file again and reuse the PatchRowHandler.
-		try (CSVReader csvReader = getCsvReader(((CloudProviderFileHandleInterface) fileHandle), csvDescriptor);
-				PatchRowHandler rowHandler = getPatchRowHandler(patchStore, session, replica, schema, maxBytesPerRow)) {
+		CSVReader csvReader = csvProvider.getCsvReader(fileHandle, csvDescriptor);
+		PatchRowHandler rowHandler = getPatchRowHandler(patchStore, session, replica, schema, maxBytesPerRow);
+		
+		try (csvReader; rowHandler) {
 
 			// Skip the header
 			csvReader.readNext();
@@ -123,17 +112,8 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 		return new CreateGridHandlerResult().setGridSession(session).setGridReplica(replica);
 	}
 
-	CSVReader getCsvReader(CloudProviderFileHandleInterface fileHandle, CsvTableDescriptor csvDescriptor) {
-		BucketObjectReader fileReader = fileReaderProvider.getBucketObjectReader(fileHandle.getClass());
-
-		return CSVUtils.createCSVReader(
-				new InputStreamReader(fileReader.openStream(fileHandle.getBucketName(), fileHandle.getKey()),
-						StandardCharsets.UTF_8),
-				csvDescriptor, null);
-	}
-
-	List<ColumnModel> getSchemaFromCsv(CloudProviderFileHandleInterface fileHandle, CsvTableDescriptor csvDescriptor) {
-		try (CSVReader csvReader = getCsvReader(fileHandle, csvDescriptor)) {
+	List<ColumnModel> getSchemaFromCsv(FileHandle fileHandle, CsvTableDescriptor csvDescriptor) {
+		try (CSVReader csvReader = csvProvider.getCsvReader(fileHandle, csvDescriptor)) {
 
 			// Reuse the CSV preview builder to extract the schema
 			UploadToTablePreviewRequest request = new UploadToTablePreviewRequest().setCsvTableDescriptor(csvDescriptor)

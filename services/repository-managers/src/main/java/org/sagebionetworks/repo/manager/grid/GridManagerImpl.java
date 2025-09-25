@@ -138,6 +138,9 @@ public class GridManagerImpl implements GridManager {
 		
 		sendInternalConnectEvent(user, session, supportReplica, EventSource.USER_SUPPORT);
 		
+		// Creating replicas modify the session ETAG, so we reload it from the database
+		session = gridDao.getGridSession(session.getSessionId()).orElseThrow();
+		
 		return new CreateGridResponse().setGridSession(session);
 	}
 	

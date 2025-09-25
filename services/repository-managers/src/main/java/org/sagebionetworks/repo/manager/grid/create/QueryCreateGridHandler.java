@@ -37,11 +37,11 @@ public class QueryCreateGridHandler implements CreateGridHandler {
 	private final TableQueryManager tableQueryManager;
 	private final EntityManager entityManager;
 
-	public QueryCreateGridHandler(GridDao gridDao, TableQueryManager tableQueryManager, EntityManager entityManager) {
+	public QueryCreateGridHandler(GridDao gridDao, EntityManager entityManager, TableQueryManager tableQueryManager) {
 		super();
 		this.gridDao = gridDao;
-		this.tableQueryManager = tableQueryManager;
 		this.entityManager = entityManager;
+		this.tableQueryManager = tableQueryManager;
 	}
 
 	@Override

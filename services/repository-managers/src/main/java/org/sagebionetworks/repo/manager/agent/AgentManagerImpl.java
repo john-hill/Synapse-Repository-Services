@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.Logger;
@@ -375,9 +376,6 @@ public class AgentManagerImpl implements AgentManager {
 	 */
 	String handleEvent(AgentAccessLevel accessLevel, ReturnControlHandler handler, ReturnControlEvent event) {
 		try {
-			if(event.getException() != null) {
-				throw event.getException();
-			}
 			if (handler.needsWriteAccess()) {
 				if (!featureManager.isFeatureEnabled(Feature.ALLOW_AGENT_WRITES)) {
 					throw new UnsupportedOperationException(
@@ -438,39 +436,19 @@ public class AgentManagerImpl implements AgentManager {
 		input.parameters().forEach(p -> {
 			params.add(new Parameter(p.name(), p.type(), p.value()));
 		});
-		try {
-			String requestBody = getRequestBody(input.requestBody());
-			return new ReturnControlEvent(userId, input.actionGroup(), function, params, requestBody, context);
-		}catch (Exception e) {
-			return new ReturnControlEvent(userId, input.actionGroup(), function, params, null, context).setException(e);
-		}
+		List<Parameter> requestBodyParams = getRequestBody(input.requestBody());
+		return new ReturnControlEvent(userId, input.actionGroup(), function, params, requestBodyParams, context);
 	}
 
-	String getRequestBody(ApiRequestBody body) {
+	List<Parameter> getRequestBody(ApiRequestBody body) {
 		if (body == null) {
 			return null;
 		}
 		PropertyParameters jsonBody = body.content().get("application/json");
-		JSONObject object = new JSONObject();
-		try {
-			jsonBody.properties().forEach(p -> {
-				if ("object".equals(p.type())) {
-					object.put(p.name(), new JSONObject(p.value()));
-				} else if ("string".equals(p.type())) {
-					object.put(p.name(), p.value());
-				} else if ("integer".equals(p.type())) {
-					object.put(p.name(), p.value());
-				} else if ("array".equals(p.type())) {
-					object.put(p.name(), new JSONArray(p.value()));
-				} else {
-					throw new IllegalArgumentException("Unknown type: " + p.type());
-				}
-			});
-			return object.toString();
-		} catch (JSONException e) {
-			throw new IllegalArgumentException("Failed to parse the JSON request body: "+e.getMessage(),e);
-		}
+		return jsonBody.properties().stream().map(p -> new Parameter(p.name(), p.type(), p.value()))
+				.collect(Collectors.toList());
 	}
+	
 
 	@Override
 	public TraceEventsResponse getChatTrace(UserInfo userInfo, TraceEventsRequest request) {

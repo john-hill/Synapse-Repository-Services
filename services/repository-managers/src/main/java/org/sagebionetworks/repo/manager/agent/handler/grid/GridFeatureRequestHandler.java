@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class GridFeatureRequestHandler implements OpenApiReturnControlHandler {
 	
-	private static final Logger log = LogManager.getLogger(GridQueryRequestHandler.class);
+	private static final Logger log = LogManager.getLogger(GridFeatureRequestHandler.class);
 
 	@Override
 	public String getActionGroup() {

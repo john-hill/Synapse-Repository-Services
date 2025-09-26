@@ -759,8 +759,8 @@ public class GridReplicaViewManagerImplAutowireTest {
 								.setLimit(100L).setOffset(0L)));
 
 		ReplicaSelectionModel selection = new ReplicaSelectionModel()
-				.setRowSelection(List.of(createCrdtIdFromLogica(allRows.get(1).getArrNodeId()),
-						createCrdtIdFromLogica(allRows.get(3).getArrNodeId())));
+				.setRowSelection(List.of(createCrdtIdFromLogical(allRows.get(1).getArrNodeId()),
+						createCrdtIdFromLogical(allRows.get(3).getArrNodeId())));
 		setSelection(header.getNodeId(), selection);
 		header = gridViewManager.readHeader(sessionId, replicaId).get();
 
@@ -899,7 +899,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 						new QueryElement().setSelect(new SelectAllElement())));
 	}
 
-	public static CrdtId createCrdtIdFromLogica(LogicalTimestamp timestamp) {
+	public static CrdtId createCrdtIdFromLogical(LogicalTimestamp timestamp) {
 		return new CrdtId().setRep(timestamp.getReplicaId()).setSeq(timestamp.getSequenceNumber());
 	}
 

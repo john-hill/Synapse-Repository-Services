@@ -73,5 +73,17 @@ public class RetrunControlEventTest {
 				"Failed to parse the JSON request body: A JSONObject text must begin with '{' at 1 [character 2 line 1]",
 				message);
 	}
+	
+	@Test
+	public void testGetRequestBodyWithUnknowType() {
+		requestBodyParameters = List.of(new Parameter("three", "boolean", "true"));
+		event = new ReturnControlEvent(runAsUserId, actionGroup, function, parameters, requestBodyParameters, context);
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			event.getRequestBody();
+		}).getMessage();
+		assertEquals(
+				"Unknown type: boolean",
+				message);
+	}
 
 }

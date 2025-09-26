@@ -1437,22 +1437,4 @@ public class AgentManagerImplUnitTest {
 		assertNull(result);
 	}
 
-	@Test
-	public void testGetRequestBodyWithUnknowType() {
-
-		ApiRequestBody body = ApiRequestBody.builder()
-				.content(Map.of("application/json",
-						PropertyParameters.builder()
-								.properties(software.amazon.awssdk.services.bedrockagentruntime.model.Parameter
-										.builder().name("baseOne").type("boolean").value("true").build())
-								.build()))
-				.build();
-
-		String message = assertThrows(IllegalArgumentException.class, () -> {
-			// call under test
-			manager.getRequestBody(body);
-		}).getMessage();
-		assertEquals("Unknown type: boolean", message);
-	}
-
 }

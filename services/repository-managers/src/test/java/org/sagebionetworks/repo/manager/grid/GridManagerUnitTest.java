@@ -206,7 +206,9 @@ public class GridManagerUnitTest {
 		
 		when(mockGridDao.createReplica(userId, gridSessionId, false, EventSource.USER_SUPPORT))
 			.thenReturn(new GridReplica().setGridSessionId(gridSessionId).setReplicaId(replicaId - 1));
-
+		
+		when(mockGridDao.getGridSession(gridSessionId)).thenReturn(Optional.of(expected));
+		
 		// call under test
 		CreateGridResponse result = gridManager.createGrid(mockCallback, mockUser, request);
 		assertNotNull(result);
@@ -235,6 +237,8 @@ public class GridManagerUnitTest {
 		
 		when(mockGridDao.createReplica(userId, gridSessionId, false, EventSource.USER_SUPPORT))
 			.thenReturn(new GridReplica().setGridSessionId(gridSessionId).setReplicaId(replicaId - 1));
+		
+		when(mockGridDao.getGridSession(gridSessionId)).thenReturn(Optional.of(expected));
 
 		// call under test
 		CreateGridResponse result = gridManager.createGrid(mockCallback, mockUser, request);
@@ -261,6 +265,8 @@ public class GridManagerUnitTest {
 
 		when(mockGridDao.createReplica(userId, gridSessionId, false, EventSource.USER_SUPPORT))
 			.thenReturn(new GridReplica().setGridSessionId(gridSessionId).setReplicaId(replicaId - 1));
+		
+		when(mockGridDao.getGridSession(gridSessionId)).thenReturn(Optional.of(expected));
 		
 		// call under test
 		CreateGridResponse result = gridManager.createGrid(mockCallback, mockUser, request);

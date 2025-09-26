@@ -12,10 +12,6 @@
 		"validationResults": {
 			"$ref": "org.sagebionetworks.repo.model.grid.query.result.ValidationResults",
 			"description": "When a grid is bound to a JSON schema, each row will be validated against the schema. This represents the validation results of a single row.  Will be excluded for queries that contain any type of aggregation (count, group by...)."
-		},
-		"isSelected": {
-			"type": "boolean",
-		"description": "When true, this row is currently selected by the user.  Will be excluded for queries that contain any type of aggregation (count, group by...)."
 		}
 	}
 }

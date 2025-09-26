@@ -8,6 +8,8 @@ import java.util.concurrent.CompletableFuture;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.Logger;
+import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.sagebionetworks.LoggerProvider;
 import org.sagebionetworks.repo.manager.agent.context.AgentContextValidator;
@@ -373,7 +375,9 @@ public class AgentManagerImpl implements AgentManager {
 	 */
 	String handleEvent(AgentAccessLevel accessLevel, ReturnControlHandler handler, ReturnControlEvent event) {
 		try {
-
+			if(event.getException() != null) {
+				throw event.getException();
+			}
 			if (handler.needsWriteAccess()) {
 				if (!featureManager.isFeatureEnabled(Feature.ALLOW_AGENT_WRITES)) {
 					throw new UnsupportedOperationException(
@@ -429,13 +433,17 @@ public class AgentManagerImpl implements AgentManager {
 	}
 
 	ReturnControlEvent fromApiInvocationInput(Long userId, SessionContext context, ApiInvocationInput input) {
-		String requestBody = getRequestBody(input.requestBody());
+		String function = String.format("%s %s", input.httpMethod().toUpperCase(), input.apiPath());
 		List<Parameter> params = new ArrayList<>();
 		input.parameters().forEach(p -> {
 			params.add(new Parameter(p.name(), p.type(), p.value()));
 		});
-		String function = String.format("%s %s", input.httpMethod().toUpperCase(), input.apiPath());
-		return new ReturnControlEvent(userId, input.actionGroup(), function, params, requestBody, context);
+		try {
+			String requestBody = getRequestBody(input.requestBody());
+			return new ReturnControlEvent(userId, input.actionGroup(), function, params, requestBody, context);
+		}catch (Exception e) {
+			return new ReturnControlEvent(userId, input.actionGroup(), function, params, null, context).setException(e);
+		}
 	}
 
 	String getRequestBody(ApiRequestBody body) {
@@ -444,16 +452,24 @@ public class AgentManagerImpl implements AgentManager {
 		}
 		PropertyParameters jsonBody = body.content().get("application/json");
 		JSONObject object = new JSONObject();
-		jsonBody.properties().forEach(p -> {
-			if ("object".equals(p.type())) {
-				object.put(p.name(), new JSONObject(p.value()));
-			} else if ("string".equals(p.type())) {
-				object.put(p.name(), p.value());
-			} else {
-				throw new IllegalArgumentException("Unknown type: " + p.type());
-			}
-		});
-		return object.toString();
+		try {
+			jsonBody.properties().forEach(p -> {
+				if ("object".equals(p.type())) {
+					object.put(p.name(), new JSONObject(p.value()));
+				} else if ("string".equals(p.type())) {
+					object.put(p.name(), p.value());
+				} else if ("integer".equals(p.type())) {
+					object.put(p.name(), p.value());
+				} else if ("array".equals(p.type())) {
+					object.put(p.name(), new JSONArray(p.value()));
+				} else {
+					throw new IllegalArgumentException("Unknown type: " + p.type());
+				}
+			});
+			return object.toString();
+		} catch (JSONException e) {
+			throw new IllegalArgumentException("Failed to parse the JSON request body: "+e.getMessage(),e);
+		}
 	}
 
 	@Override

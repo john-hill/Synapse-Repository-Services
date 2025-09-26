@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.view.query;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -7,30 +8,30 @@ import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.FilterElement;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.FilterTranslation;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.select.SelectAllElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.select.SelectItemElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.select.SelectItemTranslator;
 import org.sagebionetworks.repo.model.grid.query.Query;
 
 public class QueryElement implements Element {
 
-	private SelectClauseElement selectClause;
+	private List<SelectItemElement> select;
 	private List<FilterElement> where;
 	private List<ColumnNameElement> groupBy;
 	private List<OrderByItemElement> orderBy;
 	private Long limit;
 	private Long offset;
-	
+
 	public QueryElement() {
+		select = List.of(new SelectAllElement());
 	}
 
 	public QueryElement(Query query) {
-		this.selectClause = new SelectClauseElement(query.getSelect());
-		if (query.getWhere() != null) {
-			where = query.getWhere().stream().map(f -> FilterTranslation.translate(f)).collect(Collectors.toList());
-		}
-		if (query.getGroupBy() != null) {
-			groupBy = query.getGroupBy().stream().map(c -> new ColumnNameElement(c)).collect(Collectors.toList());
-		}
-		if (query.getOrderBy() != null) {
-			orderBy = query.getOrderBy().stream().map(o -> new OrderByItemElement(o)).collect(Collectors.toList());
+		select = query.getColumnSelection() != null ? query.getColumnSelection().stream()
+				.map(s -> SelectItemTranslator.translate(s)).collect(Collectors.toList())
+				: List.of(new SelectAllElement());
+		if (query.getFilters() != null) {
+			where = query.getFilters().stream().map(f -> FilterTranslation.translate(f)).collect(Collectors.toList());
 		}
 		this.limit = query.getLimit();
 		this.offset = query.getOffset();
@@ -39,11 +40,15 @@ public class QueryElement implements Element {
 	@Override
 	public void toSql(StringBuilder sqlBuilder, Map<String, Object> params, Context context) {
 		sqlBuilder.append("SELECT");
-		if(selectClause == null) {
-			sqlBuilder.append(" *");
-		}else {
-			selectClause.toSql(sqlBuilder, params, context);
+		boolean isFirstSelect = true;
+		for (SelectItemElement item : select) {
+			if (!isFirstSelect) {
+				sqlBuilder.append(" ,");
+			}
+			item.toSql(sqlBuilder, params, context);
+			isFirstSelect = false;
 		}
+
 		sqlBuilder.append(" FROM GRID");
 		if (where != null && !where.isEmpty()) {
 			sqlBuilder.append(" WHERE");
@@ -90,12 +95,17 @@ public class QueryElement implements Element {
 		}
 	}
 
-	public SelectClauseElement getSelectClause() {
-		return selectClause;
+	public List<SelectItemElement> getSelect() {
+		return select;
 	}
 
-	public QueryElement setSelectClause(SelectClauseElement selectClause) {
-		this.selectClause = selectClause;
+	public QueryElement setSelect(List<SelectItemElement> select) {
+		this.select = select;
+		return this;
+	}
+
+	public QueryElement setSelect(SelectItemElement... item) {
+		this.select = Arrays.asList(item);
 		return this;
 	}
 
@@ -146,7 +156,7 @@ public class QueryElement implements Element {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(groupBy, limit, offset, orderBy, selectClause, where);
+		return Objects.hash(groupBy, limit, offset, orderBy, select, where);
 	}
 
 	@Override
@@ -160,13 +170,17 @@ public class QueryElement implements Element {
 		QueryElement other = (QueryElement) obj;
 		return Objects.equals(groupBy, other.groupBy) && Objects.equals(limit, other.limit)
 				&& Objects.equals(offset, other.offset) && Objects.equals(orderBy, other.orderBy)
-				&& Objects.equals(selectClause, other.selectClause) && Objects.equals(where, other.where);
+				&& select == other.select && Objects.equals(where, other.where);
 	}
 
 	@Override
 	public String toString() {
-		return "QueryElement [selectClause=" + selectClause + ", where=" + where + ", groupBy=" + groupBy + ", orderBy="
-				+ orderBy + ", limit=" + limit + ", offset=" + offset + "]";
+		return "QueryElement [select=" + select + ", where=" + where + ", groupBy=" + groupBy + ", orderBy=" + orderBy
+				+ ", limit=" + limit + ", offset=" + offset + "]";
+	}
+
+	public boolean isAggregate() {
+		return select.stream().filter(SelectItemElement::isAggregate).findFirst().isPresent();
 	}
 
 }

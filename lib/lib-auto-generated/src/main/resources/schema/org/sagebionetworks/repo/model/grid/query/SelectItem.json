@@ -5,10 +5,6 @@
 		"concreteType": {
 			"type": "string",
 			"description": "Required. Full name of the exact type used."
-		},
-		"alias": {
-			"type": "string",
-			"description": "Optional. Provides an alias to the column selection. For example, 'count(*)' can be aliased as 'count'. The alias should be provided for aggregate functions that are to be used in the 'ORDER BY' clause."
 		}
 	}
 }

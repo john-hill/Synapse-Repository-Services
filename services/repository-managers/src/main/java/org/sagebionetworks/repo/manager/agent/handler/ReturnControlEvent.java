@@ -15,6 +15,7 @@ public class ReturnControlEvent {
 	private final List<Parameter> parameters;
 	private final String requestBody;
 	private final SessionContext context;
+	private Exception exception;
 
 	public ReturnControlEvent(Long runAsUserId, String actionGroup, String function, List<Parameter> parameters,
 			String requestBody, SessionContext context) {
@@ -88,6 +89,15 @@ public class ReturnControlEvent {
 		return "ReturnControlEvent [runAsUserId=" + runAsUserId + ", actionGroup=" + actionGroup + ", function="
 				+ function + ", parameters=" + parameters + ", requestBody=" + requestBody + ", context=" + context
 				+ "]";
+	}
+
+	public ReturnControlEvent setException(Exception e2) {
+		exception = e2;
+		return this;
+	}
+
+	public Exception getException() {
+		return exception;
 	}
 
 }

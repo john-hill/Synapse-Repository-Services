@@ -33,6 +33,8 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.RowSelectionFilterElement;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.RowValidationResultFilterElement;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.VectorIdFilterElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.select.CountStartElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.select.SelectAllElement;
 import org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils;
 import org.sagebionetworks.repo.model.grid.CrdtId;
 import org.sagebionetworks.repo.model.grid.GridUtils;
@@ -48,6 +50,8 @@ import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewConstantBu
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewObjectBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
 import org.sagebionetworks.repo.model.grid.query.ValidationOperator;
+import org.sagebionetworks.repo.model.grid.query.result.QueryResult;
+import org.sagebionetworks.repo.model.grid.query.result.SelectColumn;
 import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.table.ColumnModel;
@@ -785,7 +789,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 				gridViewManager.querySinglePage(header,
 						new QueryElement().setWhere(List.of(new RowSelectionFilterElement().setFilterSelected(false)))
 								.setLimit(100L).setOffset(0L)));
-		
+
 		// null selection
 		header.setReplicaSelectionModel(new ReplicaSelectionModel());
 		// call under test
@@ -798,7 +802,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 				gridViewManager.querySinglePage(header,
 						new QueryElement().setWhere(List.of(new RowSelectionFilterElement().setFilterSelected(false)))
 								.setLimit(100L).setOffset(0L)));
-		
+
 		// empty selection.
 		header.setReplicaSelectionModel(new ReplicaSelectionModel().setRowSelection(Collections.emptyList()));
 		// call under test
@@ -812,6 +816,87 @@ public class GridReplicaViewManagerImplAutowireTest {
 						new QueryElement().setWhere(List.of(new RowSelectionFilterElement().setFilterSelected(false)))
 								.setLimit(100L).setOffset(0L)));
 
+	}
+
+	@Test
+	public void testQueryWithCount() throws IOException {
+		schema = List.of(new ColumnModel().setName("aString").setColumnType(ColumnType.STRING).setMaximumSize(100L));
+
+		rows = List.of(new Row().setValues(Collections.emptyList()), new Row().setValues(List.of("a")),
+				new Row().setValues(List.of("b")), new Row().setValues(List.of("c")),
+				new Row().setValues(List.of("d")));
+		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
+		GridHeader header = gridViewManager.readHeader(sessionId, replicaId).get();
+
+		// call under test
+		List<RowView> r = gridViewManager.querySinglePage(header,
+				new QueryElement().setSelect(new CountStartElement()));
+		List<RowView> expected = List
+				.of(new RowView().setRowObject(new RowObject().setData(new RowData().setCells(new JSONArray("[5]")))));
+		assertEquals(expected, r);
+	}
+
+	@Test
+	public void testQueryAsResult() throws IOException {
+		schema = List.of(new ColumnModel().setName("aString").setColumnType(ColumnType.STRING).setMaximumSize(100L),
+				new ColumnModel().setName("anInt").setColumnType(ColumnType.INTEGER));
+
+		rows = List.of(new Row().setValues(Collections.emptyList()), new Row().setValues(List.of("a", "123")),
+				new Row().setValues(List.of("b", "456")), new Row().setValues(List.of("c", "789")),
+				new Row().setValues(List.of("d", "333")));
+		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
+		GridHeader header = gridViewManager.readHeader(sessionId, replicaId).get();
+		List<RowView> allRows = gridViewManager.querySinglePage(header,
+				new QueryElement().setLimit(100L).setOffset(0L));
+
+		setValidationResult(allRows.get(0), new ValidationResults().setIsValid(false)
+				.setValidationErrorMessage("required").setAllValidationMessages(List.of("abc", "efg")));
+		setValidationResult(allRows.get(1), new ValidationResults().setIsValid(true));
+		setValidationResult(allRows.get(2), new ValidationResults().setIsValid(false).setValidationErrorMessage("naw"));
+		setValidationResult(allRows.get(3), new ValidationResults().setIsValid(true));
+		allRows = gridViewManager.querySinglePage(header, new QueryElement().setLimit(100L).setOffset(0L));
+
+		// call under test
+		assertEquals(
+				new QueryResult()
+						.setSelectColumns(List.of(new SelectColumn().setColumnIndex(0L).setColumnName("count")))
+						.setRows(List.of(
+								new org.sagebionetworks.repo.model.grid.query.result.Row().setCellValues(List.of(5L)))),
+				gridViewManager.querySinglePageAsQueryResult(header,
+						new QueryElement().setSelect(new CountStartElement())));
+
+		List<Object> nullList = new ArrayList<>();
+		nullList.add(null);
+		nullList.add(null);
+
+		// call under test
+		assertEquals(
+				new QueryResult()
+						.setSelectColumns(List.of(new SelectColumn().setColumnIndex(0L).setColumnName("aString"),
+								new SelectColumn().setColumnIndex(1L).setColumnName("anInt")))
+						.setRows(List.of(
+								new org.sagebionetworks.repo.model.grid.query.result.Row().setValidationResults(
+										new org.sagebionetworks.repo.model.grid.query.result.ValidationResults()
+												.setIsValid(false).setValidationErrorMessage("required")
+												.setAllValidationMessages(List.of("abc", "efg")))
+										.setCellValues(nullList),
+								new org.sagebionetworks.repo.model.grid.query.result.Row().setValidationResults(
+										new org.sagebionetworks.repo.model.grid.query.result.ValidationResults()
+												.setIsValid(true))
+										.setCellValues(List.of("a", 123)),
+								new org.sagebionetworks.repo.model.grid.query.result.Row()
+										.setValidationResults(
+												new org.sagebionetworks.repo.model.grid.query.result.ValidationResults()
+														.setIsValid(false).setValidationErrorMessage("naw"))
+										.setCellValues(List.of("b", 456)),
+								new org.sagebionetworks.repo.model.grid.query.result.Row().setValidationResults(
+										new org.sagebionetworks.repo.model.grid.query.result.ValidationResults()
+												.setIsValid(true))
+										.setCellValues(List.of("c", 789)),
+								new org.sagebionetworks.repo.model.grid.query.result.Row()
+										.setCellValues(List.of("d", 333)))),
+				gridViewManager.querySinglePageAsQueryResult(header,
+						new QueryElement().setSelect(new SelectAllElement())));
 	}
 
 	public static CrdtId createCrdtIdFromLogica(LogicalTimestamp timestamp) {

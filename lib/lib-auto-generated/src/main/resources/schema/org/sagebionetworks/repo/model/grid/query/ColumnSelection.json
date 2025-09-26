@@ -1,9 +1,0 @@
-{
-	"description": "Defines the columns that will be included in the query result. Must be a complete JSON object with the required 'concreteType' property. IMPORTANT: Do not use SQL syntax - use the predefined SelectItem objects. ",
-	"type": "interface",
-	"properties": {
-		"concreteType": {
-			"type": "string",
-			"description": "Required. Must be a properly quoted JSON string matching one of: \"org.sagebionetworks.repo.model.grid.query.RowValidationResultFilter\", \"org.sagebionetworks.repo.model.grid.query.RowSelectionFilter\", \"org.sagebionetworks.repo.model.grid.query.RowIsValidFilter\", or \"org.sagebionetworks.repo.model.grid.query.CellValueFilter\""		}
-	}
-}

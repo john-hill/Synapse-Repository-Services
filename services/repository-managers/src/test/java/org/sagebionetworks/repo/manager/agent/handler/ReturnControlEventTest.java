@@ -12,7 +12,7 @@ import org.sagebionetworks.repo.manager.agent.parameter.Parameter;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.sagebionetworks.repo.model.agent.SessionContext;
 
-public class RetrunControlEventTest {
+public class ReturnControlEventTest {
 
 	private Long runAsUserId;
 	private String actionGroup;
@@ -62,6 +62,10 @@ public class RetrunControlEventTest {
 		assertEquals(Optional.empty(), event.getRequestBody());
 	}
 
+	/**
+	 * We added this test because the Agents were occasionally providing JSON without quotes.  It was unexpected 
+	 * that such a case can be parsed correctly.  Do we need to guarantee that we can parse invalid JSON?
+	 */
 	@Test
 	public void testGetRequestBodyWithInvalidJson() {
 		requestBodyParameters = List.of(new Parameter("three", "object", "[123]"));
@@ -76,13 +80,13 @@ public class RetrunControlEventTest {
 	
 	@Test
 	public void testGetRequestBodyWithUnknowType() {
-		requestBodyParameters = List.of(new Parameter("three", "boolean", "true"));
+		requestBodyParameters = List.of(new Parameter("three", "other", "true"));
 		event = new ReturnControlEvent(runAsUserId, actionGroup, function, parameters, requestBodyParameters, context);
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			event.getRequestBody();
 		}).getMessage();
 		assertEquals(
-				"Unknown type: boolean",
+				"Unknown type: other",
 				message);
 	}
 

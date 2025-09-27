@@ -114,7 +114,7 @@ jobs:
             StackBuilderBranch=${{ env.stack_builder_branch }},
             StackBuilderRepoOwner=${{ env.stack_builder_repo_owner }},
             FullBuild=${{ env.full_build }},
-            EXTRA_ARGS=${{ env.EXTRA_ARGS }}
+            MavenExtraArgs=${{ env.EXTRA_ARGS }}
 
       - name: Trigger CodePipeline
         id: pipeline-run

@@ -69,7 +69,7 @@ phases:
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Content-Type: application/json" \
             -X POST \
-            -d "{\"state\": \"$1\", \"description\": \"$2\", \"context\": \"AWS Code Pipeline\"}"
+            -d "{\"state\": \"$1\", \"description\": \"$2\"}"
         fi
       }
 

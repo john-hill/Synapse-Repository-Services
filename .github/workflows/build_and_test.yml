@@ -9,6 +9,7 @@
 # - STACK_BUILDER_REPO_OWNER: defaults to Sage-Bionetworks
 # - STACK_BUILDER_BRANCH: defaults to develop
 # - FULL_BUILD: if true, will do a full build, vs. an abbreviated "feature build"
+# - EXTRA_ARGS: pass extra arguments to maven build
 #
 name: main
 
@@ -62,6 +63,7 @@ jobs:
             echo "stack_builder_branch=develop" >> $GITHUB_ENV
           fi
           echo "full_build=${{ vars.FULL_BUILD }}" >> $GITHUB_ENV
+          echo "EXTRA_ARGS=${{ vars.EXTRA_ARGS }}" >> $GITHUB_ENV
 
       - id: oidc
         uses: aws-actions/configure-aws-credentials@v5
@@ -111,14 +113,18 @@ jobs:
             BuildParamUser=${{ env.user }},
             StackBuilderBranch=${{ env.stack_builder_branch }},
             StackBuilderRepoOwner=${{ env.stack_builder_repo_owner }},
-            FullBuild=${{ env.full_build }}
+            FullBuild=${{ env.full_build }},
+            EXTRA_ARGS=${{ env.EXTRA_ARGS }}
 
       - name: Trigger CodePipeline
+        id: pipeline-run
         run: |
           EXECUTION_ID=$(aws codepipeline start-pipeline-execution \
             --name ${{ steps.pipeline-deploy.outputs.PipelineName }} \
             --source-revisions actionName=CheckoutSynapseRepo,revisionType=COMMIT_ID,revisionValue=${{ github.sha }} \
             --query 'pipelineExecutionId' --output text)
+
+          echo "EXECUTION_ID=${{ vars.EXECUTION_ID }}" >> $GITHUB_ENV
 
           # if the status check is too soon, the executing pipeline is not found and the workflow fails
           sleep 10
@@ -139,5 +145,13 @@ jobs:
               exit 1
             fi
           done
+
+      - name: Stop CodePipeline on Workflow Cancellation
+        if: cancelled()
+        run: |
+          aws codepipeline stop-pipeline-execution \
+            --pipeline-name ${{ steps.pipeline-deploy.outputs.PipelineName }} \
+            --pipeline-execution-id ${{ env.EXECUTION_ID }} \
+            --abandon
 
 ...

@@ -56,4 +56,29 @@ phases:
         unset org_sagebionetworks_google_cloud_key
       fi
 
+      # Post status in Sage-Bionetworks repo'.  In this way we mark a PR as
+      # having passed based on a build in a developer's fork.
+      # usage: github_status $STATUS $DESCRIPTION
+      # status must be one of pending, success, error, or failure
+      function post_github_status() {
+        if [[ $GITHUB_TOKEN && $GIT_COMMIT ]]; then
+          curl "https://api.github.com/repos/Sage-Bionetworks/Synapse-Repository-Services/statuses/$GIT_COMMIT" \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Content-Type: application/json" \
+            -X POST \
+            -d "{\"state\": \"$1\", \"description\": \"$2\", \"context\": \"AWS Code Pipeline\"}"
+        fi
+      }
+
+      post_github_status pending "Build in Progress"
+
       ./docker_build.sh
+
+      # TODO the following steps should run even if docker_build.sh fails
+      if [[ $? -eq 0 ]]; then
+        post_github_status success "Build Succeeded"
+      else
+        post_github_status failure "Build Failed"
+        exit 1
+      fi
+

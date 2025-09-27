@@ -8,10 +8,6 @@
 		"columnIndex": {
 			"type": "integer",
 			"description": "The index of this column. The first column will have an index of zero."
-		},
-		"isSelected": {
-			"type": "boolean",
-			"description": "When true, this column is currently selected by the user."
 		}
 	}
 }

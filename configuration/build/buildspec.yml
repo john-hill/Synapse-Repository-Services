@@ -39,7 +39,7 @@ phases:
       export org_sagebionetworks_stack_iam_session_token=$(echo $STS_CREDENTIALS | jq -r '.AwsSessionToken')
       export org_sagebionetworks_repository_database_connection_url=dev-${user}-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
       export org_sagebionetworks_table_cluster_endpoint_0=dev-${user}-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
-      if [ ${FULL_BUILD} == "true" ]; then
+      if [ "${FULL_BUILD}" == "true" ]; then
         export artifactory_username=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_username')
         export artifactory_password=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_password')
         export org_sagebionetworks_datacite_enabled=true
@@ -77,11 +77,9 @@ phases:
 
       ./docker_build.sh
 
-      # TODO the following steps should run even if docker_build.sh fails
       if [[ $? -eq 0 ]]; then
         post_github_status success "Build Succeeded"
       else
         post_github_status failure "Build Failed"
         exit 1
       fi
-

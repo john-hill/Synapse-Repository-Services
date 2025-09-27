@@ -32,6 +32,7 @@ jobs:
       statuses: write
       actions: write
       checks: write
+      pull-requests: write
 
     runs-on: ubuntu-latest
 
@@ -149,9 +150,48 @@ jobs:
       - name: Stop CodePipeline on Workflow Cancellation
         if: cancelled()
         run: |
+          PIPELINE_NAME=${{ steps.pipeline-deploy.outputs.PipelineName }}
           aws codepipeline stop-pipeline-execution \
-            --pipeline-name ${{ steps.pipeline-deploy.outputs.PipelineName }} \
+            --pipeline-name  $PIPELINE_NAME \
             --pipeline-execution-id ${{ env.EXECUTION_ID }} \
             --abandon
+
+          # Wait a moment for the pipeline to process
+          sleep 5
+
+          # Get pipeline structure to find CodeBuild projects
+          CODEBUILD_PROJECTS=$(aws codepipeline get-pipeline \
+              --name "$PIPELINE_NAME" \
+              --query 'pipeline.stages[].actions[?actionTypeId.provider==`CodeBuild`].configuration.ProjectName' \
+              --output text)
+
+          echo "Found CodeBuild projects: $CODEBUILD_PROJECTS"
+
+          # Stop running builds for each CodeBuild project
+          for project in $CODEBUILD_PROJECTS; do
+              echo "Checking builds for project: $project"
+
+              # Get running builds for this project
+              RUNNING_BUILDS=$(aws codebuild list-builds-for-project \
+                  --project-name "$project" \
+                  --sort-order DESCENDING \
+                  --query 'ids[0:5]' \
+                  --output text)
+
+              for build_id in $RUNNING_BUILDS; do
+                  if [ -n "$build_id" ]; then
+                      # Check if build is still running
+                      BUILD_STATUS=$(aws codebuild batch-get-builds \
+                          --ids "$build_id" \
+                          --query 'builds[0].buildStatus' \
+                          --output text)
+
+                      if [ "$BUILD_STATUS" = "IN_PROGRESS" ]; then
+                          echo "Stopping running build: $build_id"
+                          aws codebuild stop-build --id "$build_id"
+                      fi
+                  fi
+              done
+          done
 
 ...

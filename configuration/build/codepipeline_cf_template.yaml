@@ -173,6 +173,7 @@ Resources:
                 OAuthToken: !Ref GitHubToken
                 PollForSourceChanges: false # instead we will trigger from GitHub workflow
             - Name: CheckoutSynapseRepo
+              Namespace: CheckoutSynapseRepo
               ActionTypeId:
                 Category: Source
                 Owner: ThirdParty

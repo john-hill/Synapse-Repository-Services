@@ -11,6 +11,9 @@
 # - FULL_BUILD: if true, will do a full build, vs. an abbreviated "feature build"
 # - EXTRA_ARGS: pass extra arguments to maven build
 #
+# To post the build status to a PR, add this repository secret:
+# - WRITE_STATUS_TOKEN: A GitHub token with "repo:status" and "public_repo" permissions
+#
 name: main
 
 on:
@@ -111,6 +114,7 @@ jobs:
             SynapseBranch=${{ env.branch }},
             SynapseRepoOwner=${{ github.repository_owner }},
             GitHubToken=${{ secrets.GITHUB_TOKEN }},
+            WriteStatusToken=${{ secrets.WRITE_STATUS_TOKEN }},
             BuildParamUser=${{ env.user }},
             StackBuilderBranch=${{ env.stack_builder_branch }},
             StackBuilderRepoOwner=${{ env.stack_builder_repo_owner }},

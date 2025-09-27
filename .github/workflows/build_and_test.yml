@@ -124,7 +124,7 @@ jobs:
             --source-revisions actionName=CheckoutSynapseRepo,revisionType=COMMIT_ID,revisionValue=${{ github.sha }} \
             --query 'pipelineExecutionId' --output text)
 
-          echo "EXECUTION_ID=${{ vars.EXECUTION_ID }}" >> $GITHUB_ENV
+          echo "EXECUTION_ID=$EXECUTION_ID" >> $GITHUB_ENV
 
           # if the status check is too soon, the executing pipeline is not found and the workflow fails
           sleep 10

@@ -61,9 +61,9 @@ phases:
       # usage: github_status $STATUS $DESCRIPTION
       # status must be one of pending, success, error, or failure
       function post_github_status() {
+        echo GITHUB_TOKEN length ${#GITHUB_TOKEN}
+        echo GIT_COMMIT $GIT_COMMIT
         if [[ -z $GITHUB_TOKEN && -z $GIT_COMMIT ]]; then
-          echo GITHUB_TOKEN $GITHUB_TOKEN
-          echo GIT_COMMIT $GIT_COMMIT
           curl "https://api.github.com/repos/Sage-Bionetworks/Synapse-Repository-Services/statuses/$GIT_COMMIT" \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Content-Type: application/json" \

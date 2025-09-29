@@ -127,7 +127,7 @@ jobs:
         run: |
           echo "PIPELINE_CONSOLE_URL=https://us-east-1.console.aws.amazon.com/codesuite/codepipeline/pipelines/${{ steps.pipeline-deploy.outputs.PipelineName }}/view" >> $GITHUB_ENV
 
-      - name: Post Pending Status
+      - name: Pending Status
         if: ${{ env.WRITE_STATUS_TOKEN_EXISTS }}
         env:
           GITHUB_TOKEN: ${{ secrets.WRITE_STATUS_TOKEN }}
@@ -168,43 +168,42 @@ jobs:
             fi
           done
 
-      - uses: octokit/request-action@v2.4.0
-        name: Post Success Status
+      - name: Success Status
         if: ${{ env.WRITE_STATUS_TOKEN_EXISTS }}
-        with:
-          route: POST /repos/{owner}/{repo}/statuses/${{ github.sha }}
-          owner: Sage-Bionetworks
-          repo: Synapse-Repository-Services
-          body: "{\"state\": \"success\", \"description\": \"Build Succeeded\", \"target_url\": \"${{ env.PIPELINE_CONSOLE_URL }}\"}"
         env:
           GITHUB_TOKEN: ${{ secrets.WRITE_STATUS_TOKEN }}
+        run: |
+          gh api --method POST \
+          /repos/Sage-Bionetworks/Synapse-Repository-Services/statuses/${{ github.sha }} \
+          -f "state=success" \
+          -f "description=Build Succeeded" \
+          -f "target_url=${{ env.PIPELINE_CONSOLE_URL }}"
 
-      - uses: octokit/request-action@v2.4.0
-        name: Post Failed Status
+      - name: Failed Status
         if: ${{ env.WRITE_STATUS_TOKEN_EXISTS && failure()}}
-        with:
-          route: POST /repos/{owner}/{repo}/statuses/${{ github.sha }}
-          owner: Sage-Bionetworks
-          repo: Synapse-Repository-Services
-          body: "{\"state\": \"failure\", \"description\": \"Build Faiiled\", \"target_url\": \"${{ env.PIPELINE_CONSOLE_URL }}\"}"
         env:
           GITHUB_TOKEN: ${{ secrets.WRITE_STATUS_TOKEN }}
+        run: |
+          gh api --method POST \
+          /repos/Sage-Bionetworks/Synapse-Repository-Services/statuses/${{ github.sha }} \
+          -f "state=failure" \
+          -f "description=Build Failed" \
+          -f "target_url=${{ env.PIPELINE_CONSOLE_URL }}"
 
-      - uses: octokit/request-action@v2.4.0
-        name: Post Cancelled Status
-        if: ${{ env.WRITE_STATUS_TOKEN_EXISTS && cancelled() }}
-        with:
-          route: POST /repos/{owner}/{repo}/statuses/${{ github.sha }}
-          owner: Sage-Bionetworks
-          repo: Synapse-Repository-Services
-          body: "{\"state\": \"failure\", \"description\": \"Cancelled\", \"target_url\": \"${{ env.PIPELINE_CONSOLE_URL }}\"}"
+      - name: Cancelled Status
+        if: ${{ env.WRITE_STATUS_TOKEN_EXISTS && cancelled()}}
         env:
           GITHUB_TOKEN: ${{ secrets.WRITE_STATUS_TOKEN }}
+        run: |
+          gh api --method POST \
+          /repos/Sage-Bionetworks/Synapse-Repository-Services/statuses/${{ github.sha }} \
+          -f "state=failure" \
+          -f "description=Build Cancelled" \
+          -f "target_url=${{ env.PIPELINE_CONSOLE_URL }}"
 
       - name: Stop CodePipeline on Workflow Cancellation
         if: cancelled()
         run: |
-
           PIPELINE_NAME=${{ steps.pipeline-deploy.outputs.PipelineName }}
           aws codepipeline stop-pipeline-execution \
             --pipeline-name  $PIPELINE_NAME \

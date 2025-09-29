@@ -64,6 +64,12 @@ public class IntendedChangeSerializable {
 			case update_row_metadata:
 				list.add(new UpdateMetadataChange(sub.getJSONObject(1)));
 				break;
+			case insert_row:
+				list.add(new InsertRowChange(sub.getJSONObject(1)));
+				break;
+			case update_row:
+				list.add(new UpdateRowChange(sub.getJSONObject(1)));
+				break;
 			default:
 				throw new IllegalArgumentException("Unknown type:" + type);
 			}

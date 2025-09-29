@@ -19,11 +19,14 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
+import org.sagebionetworks.repo.model.grid.EventSource;
+import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridCsvImportRequest;
 import org.sagebionetworks.repo.model.grid.GridCsvImportResponse;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.util.ValidateArgument;
+import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.springframework.stereotype.Service;
 
 import au.com.bytecode.opencsv.CSVReader;
@@ -36,13 +39,15 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 	private final GridReplicaSupport replicaSupport;
 	private final GridCsvImportDao importDao;
 	private final CsvFileHandleProvider csvProvider;
+	private final JoinedRowChangePublisher changePublisher;
 	
-	public GridCsvImporterImpl(GridCsvImportDao importDao, GridManager gridManager, GridReplicaViewManager gridViewManager, GridReplicaSupport replicaSupport, CsvFileHandleProvider csvProvider) {
+	public GridCsvImporterImpl(GridCsvImportDao importDao, GridManager gridManager, GridReplicaViewManager gridViewManager, GridReplicaSupport replicaSupport, CsvFileHandleProvider csvProvider, JoinedRowChangePublisher changePublisher) {
 		this.importDao = importDao;
 		this.gridManager = gridManager;
 		this.replicaSupport = replicaSupport;
 		this.gridViewManager = gridViewManager;
 		this.csvProvider = csvProvider;
+		this.changePublisher = changePublisher;
 	}
 	
 	@Override
@@ -60,8 +65,12 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 		
 		GridHeader gridHeader = replicaSupport.getGridHeaderOrThrow(gridSession);
 		
-		List<String> upsertKey = replicaSupport.getRecordSetOrThrow(user, gridSession).getUpsertKey();
+		// Gets the connection info for the publisher now so that we fail fast
+		GridConnectionInfo publisherConnInfo = gridManager.getSingletonUserConnection(gridSession.getSessionId(), user, EventSource.USER_SUPPORT)
+			.orElseThrow(() -> new RecoverableMessageException("No internal connection found for session: " + gridSession.getSessionId()));
 		
+		List<String> upsertKey = replicaSupport.getRecordSetOrThrow(user, gridSession).getUpsertKey();
+
 		ColumnMapping[] columnMapping;
 		
 		// First create a temporary table containing the CSV data
@@ -88,27 +97,7 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 		// Now join the two temporary tables to determine which rows are new and which rows are updates
 		Iterator<JoinedRow> joinResult = importDao.getJoinedTempTableIterator(columnMapping);
 		
-		long rowCount = 0;
-		long updatedCount = 0;
-		long createdCount = 0;
-		
-		while (joinResult.hasNext()) {
-			JoinedRow joinedRow = joinResult.next();
-			
-			if (joinedRow.getGridData() != null) {
-				updatedCount++;
-			} else {
-				createdCount++;
-			}
-			
-			rowCount++;
-		}
-		
-		return new GridCsvImportResponse()
-			.setTotalCount(rowCount)
-			.setUpdatedCount(updatedCount)
-			.setCreatedCount(createdCount)
-			.setSessionId(request.getSessionId());
+		return changePublisher.processJoinedRows(gridHeader, publisherConnInfo, joinResult, columnMapping);
 	}
 	
 	void validateHeader(CSVReader reader, List<ColumnModel> schema) throws IOException {		

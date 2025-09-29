@@ -729,9 +729,9 @@ public class GridEventBrokerWorkerIntegrationTest {
 			"1,test_1_updated,1.1,false" 								+ System.lineSeparator() + // update
 																								   // Skip line 2
 			"3,test_3_updated,3.3,true" 								+ System.lineSeparator() + // update
-			"4,test_4,4.4,true"										   	+ System.lineSeparator() + // new row
-			"5,test_5,5.5,true"										   	+ System.lineSeparator() + // new row
-			"6,test_6,5.6,false";																   // new row
+			"4,test_4_created,4.4,true"									+ System.lineSeparator() + // new row
+			"5,test_5_created,5.5,true"									+ System.lineSeparator() + // new row
+			"6,test_6_created,6.6,false";														   // new row
 		
 		S3FileHandle upsertFileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(), csvContents.getBytes(StandardCharsets.UTF_8), "recordset_upsert.csv", ContentType.create("text/csv"), null);
 		
@@ -753,7 +753,31 @@ public class GridEventBrokerWorkerIntegrationTest {
 			assertEquals(3, response.getCreatedCount());
 		}, MAX_WAIT_MS).getResponse();
 		
-		// TODO check that the grid actually updates eventually
+		rowsView = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+			List<RowView> page = gridViewManager.querySinglePage(header, 100L, 0L);
+			
+			if (page.size() != 6) {
+				return Pair.create(false, page);
+			}
+			
+			// Also wait for the validation results to be set, the last row should be valid
+			return Pair.create(
+				new ValidationResults().setIsValid(true).equals(page.get(5).getRowValidationResults()), 
+				page
+			);
+		});
+		
+		assertEquals(
+			List.of(
+				"[1,\"test_1_updated\",1.1,false]",
+				"[2,\"test_2\",2.2,true]",
+				"[3,\"test_3_updated\",3.3,true]",
+				"[4,\"test_4_created\",4.4,true]",
+				"[5,\"test_5_created\",5.5,true]",
+				"[6,\"test_6_created\",6.6,false]"
+			),
+			rowsView.stream().map(r -> r.getRowObject().getData().getCells().toString()).collect(Collectors.toList())
+		);
 	}
 
 	List<String[]> createAndDownloadCsvFromGrid(DownloadFromGridRequest request)

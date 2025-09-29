@@ -1,6 +1,6 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.merge;
 
-import static org.junit.Assert.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.Arrays;
 import java.util.List;
@@ -47,11 +47,9 @@ public class GridDataStreamTest {
         
         while (stream.hasNext()) {
         	Object[] row = stream.next();
-			assertArrayEquals(new Object[] {
-				String.valueOf(rowId),			// a
-				rowId,							// b
-				"[20," + (200 + rowId) + "]" 	// vectorId
-			}, row);
+        	assertEquals(String.valueOf(rowId), row[0]);					// a
+        	assertEquals(rowId, row[1]);									// b	
+        	assertEquals("[20," + (200 + rowId) + "]", row[2].toString());	// c (vectorId)
 			rowId++;
 		}
     }

@@ -1,0 +1,59 @@
+package org.sagebionetworks.repo.manager.grid.internal.replica.change;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.json.JSONArray;
+import org.sagebionetworks.repo.manager.grid.PatchUtils;
+import org.sagebionetworks.repo.model.grid.patch.ConValue;
+import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
+import org.springframework.stereotype.Component;
+
+@Component
+public class InsertRowChangeHandler implements ChangeHandler<InsertRowChange> {
+
+	public InsertRowChangeHandler() {}
+
+	@Override
+	public IntendedChangeType getType() {
+		return IntendedChangeType.insert_row;
+	}
+
+	@Override
+	public void handleChange(PatchBuilder builder, InsertRowChange change) {
+		JSONArray rowData = change.getRowData();
+		Integer[] rowVectorIndex = change.getRowVectorIndex();
+	
+		// First creates the vector that represents the new row
+		LogicalTimestamp rowVecId = builder.addOperationBuilder(Operations.newVector());
+		Map<Integer, LogicalTimestamp> newVecConstantMap = new HashMap<>(rowData.length());
+		
+		for (int i = 0; i < rowData.length(); i++) {
+			Object value = rowData.get(i);
+			Integer vectorIndex = rowVectorIndex[i];
+			LogicalTimestamp cellConstId = builder.addOperationBuilder(Operations.newConstant().setValue(
+				new ConValue(PatchUtils.getConType(value), value))
+			);
+			newVecConstantMap.put(vectorIndex, cellConstId);
+		}
+		// Add the data to the vector
+		builder.addOperationBuilder(Operations.insertVector().setVectorId(rowVecId).setMap(newVecConstantMap));
+		
+		// The vector is wrapped into an object
+		LogicalTimestamp rowObjectId = builder.addOperationBuilder(Operations.newObject());
+		
+		builder.addOperationBuilder(Operations.insertObject()
+			.setObjectId(rowObjectId)
+			.setMap(Map.of("data", rowVecId))
+		);
+		
+		// Finally add the row object to the array
+		builder.addOperationBuilder(Operations.insertArray()
+			.setArrayId(change.getRowsArrayId())
+			.setReferenceId(change.getNodeRefId())
+			.setElementIds(List.of(rowObjectId))
+		);
+	}
+}

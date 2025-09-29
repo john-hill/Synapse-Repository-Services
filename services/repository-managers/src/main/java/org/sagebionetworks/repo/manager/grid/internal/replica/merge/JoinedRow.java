@@ -1,31 +1,32 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.merge;
 
-import java.util.Arrays;
+import org.json.JSONArray;
+import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
 public class JoinedRow {
 
-	private Object[] csvData;
-	private Object[] gridData;
+	private JSONArray csvData;
+	private LogicalTimestamp gridRowVecId;
 
-	public JoinedRow(Object[] csvData, Object[] gridData) {
+	public JoinedRow(JSONArray csvData, LogicalTimestamp rowVectorId) {
 		this.csvData = csvData;
-		this.gridData = gridData;
+		this.gridRowVecId = rowVectorId;
 	}
 
-	public Object[] getCsvData() {
+	public JSONArray getCsvData() {
 		return csvData;
 	}
 
-	public Object[] getGridData() {
-		return gridData;
+	public LogicalTimestamp getGridRowVecId() {
+		return gridRowVecId;
 	}
 
 	@Override
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
-		result = prime * result + Arrays.deepHashCode(csvData);
-		result = prime * result + Arrays.deepHashCode(gridData);
+		result = prime * result + ((csvData == null) ? 0 : csvData.toString().hashCode());
+		result = prime * result + ((gridRowVecId == null) ? 0 : gridRowVecId.hashCode());
 		return result;
 	}
 
@@ -34,20 +35,30 @@ public class JoinedRow {
 		if (this == obj) {
 			return true;
 		}
-		if (obj == null) {
-			return false;
-		}
-		if (getClass() != obj.getClass()) {
+		if (!(obj instanceof JoinedRow)) {
 			return false;
 		}
 		JoinedRow other = (JoinedRow) obj;
-		if (!Arrays.deepEquals(csvData, other.csvData)) {
+		if (csvData == null) {
+			if (other.csvData != null) {
+				return false;
+			}
+		} else if (!csvData.toString().equals(other.csvData.toString())) {
 			return false;
 		}
-		if (!Arrays.deepEquals(gridData, other.gridData)) {
+		if (gridRowVecId == null) {
+			if (other.gridRowVecId != null) {
+				return false;
+			}
+		} else if (!gridRowVecId.equals(other.gridRowVecId)) {
 			return false;
 		}
 		return true;
+	}
+
+	@Override
+	public String toString() {
+		return "JoinedRow [csvData=" + csvData + ", gridRowVecId=" + gridRowVecId + "]";
 	}
 
 }

@@ -1,5 +1,9 @@
 package org.sagebionetworks.repo.manager.grid;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.sagebionetworks.repo.model.grid.patch.ConType;
+
 public class PatchUtils {
 
 	/**
@@ -7,6 +11,11 @@ public class PatchUtils {
 	 * "https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-execution-service-websocket-limits-table.html">apigateway-execution-service-websocket-limits-table</a>
 	 */
 	public static long MAX_BYTES_PER_PATCH = 128_000L;
+	
+	// 1MB is the max size for SQS messages, See
+	// https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/quotas-messages.html
+	// Set it to 768KB so that we do not have to worry about the overhead of the message wrapper.
+	public static final int MAX_CHANGE_SET_SIZE = (1024 * 1024) - (256 * 1024); // 768KB
 
 	/**
 	 * Given an expected maximum row size, calculate the number of rows that can be
@@ -29,6 +38,31 @@ public class PatchUtils {
 	 */
 	public static Long plusTenPerent(Long value) {
 		return value + Double.valueOf(value * 0.1).longValue();
+	}
+	
+	public static ConType getConType(Object value) {
+		if (value == null) {
+			return ConType.NULL;
+		}
+		if (value instanceof Boolean) {
+			return ConType.BOOLEAN;
+		}
+		if (value instanceof Long || value instanceof Integer) {
+			return ConType.LONG;
+		}
+		if (value instanceof Double || value instanceof Float) {
+			return ConType.DOUBLE;
+		}
+		if (value instanceof String) {
+			return ConType.STRING;
+		}
+		if (value instanceof JSONArray) {
+			return ConType.JSON_ARRAY;
+		}
+		if (value instanceof JSONObject) {
+			return ConType.JSON_OBJECT;
+		}
+		return ConType.UNDEFINED;
 	}
 
 }

@@ -974,6 +974,50 @@ public class GridIndexDaoImplTest {
 		
 	}
 	
+	@Test
+	public void testGetArrayLastNode() {
+		// Creates an empty array
+		LogicalTimestamp arrOneId = new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(44L);
+		
+		createArray(sessionIdOne, replicaIdOne, arrOneId);
+		
+		// Call under test
+		Optional<ArrayNode> lastNode = gridIndexDao.getArrayLastNode(sessionIdOne, replicaIdOne, arrOneId);
+		
+		assertTrue(lastNode.isEmpty());
+		
+		ArrayNode firstNode = new ArrayNode()
+			.setArrayId(arrOneId)
+			.setNodeId(ids.get(4))
+			.setDataId(ids.get(1))
+			.setReferenceNodeId(arrOneId)
+			.setIsDeleted(false);
+		
+		gridIndexDao.insertIntoArray(sessionIdOne, replicaIdOne, firstNode);
+		
+		// Call under test
+		assertEquals(Optional.of(firstNode), gridIndexDao.getArrayLastNode(sessionIdOne, replicaIdOne, arrOneId));
+		
+		ArrayNode secondNode = new ArrayNode()
+			.setArrayId(arrOneId)
+			.setNodeId(ids.get(5))
+			.setDataId(ids.get(3))
+			.setReferenceNodeId(firstNode.getNodeId())
+			.setIsDeleted(false);
+		
+		gridIndexDao.insertIntoArray(sessionIdOne, replicaIdOne, secondNode);
+		
+		// Call under test
+		assertEquals(Optional.of(secondNode), gridIndexDao.getArrayLastNode(sessionIdOne, replicaIdOne, arrOneId));
+		
+		// Deletes the first node
+		gridIndexDao.deleteArrayNodes(sessionIdOne, replicaIdOne, arrOneId, List.of(
+			new Timespan(firstNode.getNodeId(), 1L)
+		));
+		
+		// Call under test
+		assertEquals(Optional.of(secondNode), gridIndexDao.getArrayLastNode(sessionIdOne, replicaIdOne, arrOneId));
+	}
 	
 	@Test
 	public void testGetClockSequenceMaximum() {

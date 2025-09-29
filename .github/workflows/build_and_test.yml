@@ -127,18 +127,16 @@ jobs:
         run: |
           echo "PIPELINE_CONSOLE_URL=https://us-east-1.console.aws.amazon.com/codesuite/codepipeline/pipelines/${{ steps.pipeline-deploy.outputs.PipelineName }}/view" >> $GITHUB_ENV
 
-      - uses: octokit/request-action@v2.4.0
-        name: Post Pending Status
-        id: post-pending
+      - name: Post Pending Status
         if: ${{ env.WRITE_STATUS_TOKEN_EXISTS }}
-        with:
-          route: POST /repos/{owner}/{repo}/statuses/${{ github.sha }}
-          owner: Sage-Bionetworks
-          repo: Synapse-Repository-Services
-#          body: "{\"state\": \"pending\", \"description\": \"Build in Progress\", \"target_url\": \"${{ env.PIPELINE_CONSOLE_URL }}\"}"
-          body: "{\"state\": \"pending\"}"
         env:
           GITHUB_TOKEN: ${{ secrets.WRITE_STATUS_TOKEN }}
+        run: |
+          gh api --method POST \
+          /repos/Sage-Bionetworks/Synapse-Repository-Services/statuses/${{ github.sha }} \
+          -f "state=pending" \
+          -f "description=Build in Progress" \
+          -f "target_url=${{ env.PIPELINE_CONSOLE_URL }}"
 
       - name: Trigger CodePipeline
         id: pipeline-run

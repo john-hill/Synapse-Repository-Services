@@ -67,6 +67,8 @@ jobs:
           fi
           echo "full_build=${{ vars.FULL_BUILD }}" >> $GITHUB_ENV
           echo "EXTRA_ARGS=${{ vars.EXTRA_ARGS }}" >> $GITHUB_ENV
+          if [ ${{ secrets.WRITE_STATUS_TOKEN }} ]; then
+            echo "WRITE_STATUS_TOKEN_EXISTS=true" >> $GITHUB_ENV
 
       - id: oidc
         uses: aws-actions/configure-aws-credentials@v5
@@ -126,7 +128,7 @@ jobs:
 
       - uses: octokit/request-action@v2.4.0
         name: Post Pending Status
-        if: ${{ secrets.WRITE_STATUS_TOKEN }}
+        if: ${{ env.WRITE_STATUS_TOKEN_EXISTS }}
         with:
           route: POST /repos/{owner}/{repo}/statuses/${{ github.sha }}
           owner: Sage-Bionetworks
@@ -167,7 +169,7 @@ jobs:
 
       - uses: octokit/request-action@v2.4.0
         name: Post Success Status
-        if: ${{ secrets.WRITE_STATUS_TOKEN }}
+        if: ${{ env.WRITE_STATUS_TOKEN_EXISTS }}
         with:
           route: POST /repos/{owner}/{repo}/statuses/${{ github.sha }}
           owner: Sage-Bionetworks
@@ -178,7 +180,7 @@ jobs:
 
       - uses: octokit/request-action@v2.4.0
         name: Post Failed Status
-        if: ${{ secrets.WRITE_STATUS_TOKEN }} && failure()
+        if: ${{ env.WRITE_STATUS_TOKEN_EXISTS }} && failure()
         with:
           route: POST /repos/{owner}/{repo}/statuses/${{ github.sha }}
           owner: Sage-Bionetworks
@@ -189,7 +191,7 @@ jobs:
 
       - uses: octokit/request-action@v2.4.0
         name: Post Cancelled Status
-        if: ${{ secrets.WRITE_STATUS_TOKEN }} && cancelled()
+        if: ${{ env.WRITE_STATUS_TOKEN_EXISTS }} && cancelled()
         with:
           route: POST /repos/{owner}/{repo}/statuses/${{ github.sha }}
           owner: Sage-Bionetworks

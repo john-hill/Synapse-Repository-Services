@@ -136,8 +136,11 @@ jobs:
           owner: Sage-Bionetworks
           repo: Synapse-Repository-Services
           inputs: |
-            state: pending
-            description: Build in Progress
+            {
+              "state": "pending",
+              "description": "Build in Progress",
+              "target_url": "${{ env.PIPELINE_CONSOLE_URL }}"
+            }
 #          body: "{\"state\": \"pending\", \"description\": \"Build in Progress\", \"target_url\": \"${{ env.PIPELINE_CONSOLE_URL }}\"}"
 #          body: "{\"state\": \"pending\", \"description\": \"Build in Progress\"}"
 #          body: "{\"state\": \"pending\"}" <<< THIS WORKS

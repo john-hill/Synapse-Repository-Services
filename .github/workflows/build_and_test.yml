@@ -129,6 +129,7 @@ jobs:
 
       - uses: octokit/request-action@v2.4.0
         name: Post Pending Status
+        id: post-pending
         if: ${{ env.WRITE_STATUS_TOKEN_EXISTS }}
         with:
           route: POST /repos/{owner}/{repo}/statuses/${{ github.sha }}
@@ -137,6 +138,9 @@ jobs:
           body: "{\"state\": \"pending\", \"description\": \"Build in Progress\", \"target_url\": \"${{ env.PIPELINE_CONSOLE_URL }}\"}"
         env:
           GITHUB_TOKEN: ${{ secrets.WRITE_STATUS_TOKEN }}
+
+      - run: "echo GitHub status post failed. Error: '${{ steps.post-pending.outputs.data }}'"
+        if: ${{ failure() }}
 
       - name: Trigger CodePipeline
         id: pipeline-run
@@ -181,7 +185,7 @@ jobs:
 
       - uses: octokit/request-action@v2.4.0
         name: Post Failed Status
-        if: ${{ env.WRITE_STATUS_TOKEN_EXISTS }} && failure()
+        if: ${{ env.WRITE_STATUS_TOKEN_EXISTS && failure()}}
         with:
           route: POST /repos/{owner}/{repo}/statuses/${{ github.sha }}
           owner: Sage-Bionetworks
@@ -192,7 +196,7 @@ jobs:
 
       - uses: octokit/request-action@v2.4.0
         name: Post Cancelled Status
-        if: ${{ env.WRITE_STATUS_TOKEN_EXISTS }} && cancelled()
+        if: ${{ env.WRITE_STATUS_TOKEN_EXISTS && cancelled() }}
         with:
           route: POST /repos/{owner}/{repo}/statuses/${{ github.sha }}
           owner: Sage-Bionetworks

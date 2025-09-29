@@ -135,7 +135,7 @@ jobs:
           route: POST /repos/{owner}/{repo}/statuses/${{ github.sha }}
           owner: Sage-Bionetworks
           repo: Synapse-Repository-Services
-          inputs: |
+          body: |
             {
               "state": "pending",
               "description": "Build in Progress",

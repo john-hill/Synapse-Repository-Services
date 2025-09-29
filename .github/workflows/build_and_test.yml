@@ -137,9 +137,9 @@ jobs:
           repo: Synapse-Repository-Services
           body: |
             {
-              "state": "pending",
-              "description": "Build in Progress",
-              "target_url": "${{ env.PIPELINE_CONSOLE_URL }}"
+              "state": "pending"
+#             "description": "Build in Progress",
+#              "target_url": "${{ env.PIPELINE_CONSOLE_URL }}"
             }
 #          body: "{\"state\": \"pending\", \"description\": \"Build in Progress\", \"target_url\": \"${{ env.PIPELINE_CONSOLE_URL }}\"}"
 #          body: "{\"state\": \"pending\", \"description\": \"Build in Progress\"}"

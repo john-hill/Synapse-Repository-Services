@@ -69,6 +69,7 @@ jobs:
           echo "EXTRA_ARGS=${{ vars.EXTRA_ARGS }}" >> $GITHUB_ENV
           if [ ${{ secrets.WRITE_STATUS_TOKEN }} ]; then
             echo "WRITE_STATUS_TOKEN_EXISTS=true" >> $GITHUB_ENV
+          fi
 
       - id: oidc
         uses: aws-actions/configure-aws-credentials@v5

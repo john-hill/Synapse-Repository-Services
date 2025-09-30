@@ -128,7 +128,7 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	}
 
 	@Override
-	public Optional<MessageChain> getNonExpiredMessageChain(String sesionId, Long replicaId, String method) {
-		return dao.getNonExpiredMessageChain(sesionId, replicaId, method);
+	public Optional<MessageChain> getNonExpiredMessageChain(String sessionId, Long replicaId, String method) {
+		return dao.getNonExpiredMessageChain(sessionId, replicaId, method);
 	}
 }

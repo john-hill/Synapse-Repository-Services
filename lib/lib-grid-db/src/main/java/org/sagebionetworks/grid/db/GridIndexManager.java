@@ -75,12 +75,12 @@ public interface GridIndexManager {
 	/**
 	 * Determine if a non-expired message chain already exists for the given method name.
 	 * 
-	 * @param sesionId
+	 * @param sessionId
 	 * @param replicaId
 	 * @param method
 	 * @return
 	 */
-	Optional<MessageChain> getNonExpiredMessageChain(String sesionId, Long replicaId, String method);
+	Optional<MessageChain> getNonExpiredMessageChain(String sessionId, Long replicaId, String method);
 	
 	void truncateAll();
 }

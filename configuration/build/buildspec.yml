@@ -40,6 +40,8 @@ phases:
       export org_sagebionetworks_repository_database_connection_url=dev-${user}-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
       export org_sagebionetworks_table_cluster_endpoint_0=dev-${user}-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
       if [ ${FULL_BUILD} == "true" ||  ${PUBLISH_ARTIFACTS} == "true" ]; then
+        export artifactory_username=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_username')
+        export artifactory_password=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_password')
         export org_sagebionetworks_datacite_enabled=true
         export org_sagebionetworks_doi_prefix=10.33627
         export org_sagebionetworks_doi_datacite_api_endpoint=mds.test.datacite.org

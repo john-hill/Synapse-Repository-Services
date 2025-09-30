@@ -201,6 +201,17 @@ public interface GridIndexDao extends ConstantProvider {
 	List<ArrayNode> getArrayNodesInOrder(String sessionIdString, Long replicaId, LogicalTimestamp arrayId, Long limit,
 			Long offset);
 
+
+	/**
+	 * 
+	 * @param sessionIdString
+	 * @param replicaId
+	 * @param arrayId
+	 * 
+	 * @return The last node in the given array, empty if the array has no nodes.
+	 */
+	Optional<ArrayNode> getArrayLastNode(String sessionIdString, Long replicaId, LogicalTimestamp arrayId);
+	
 	/**
 	 * Given a new {@link ArrayNode} to insert, find the location where the node
 	 * should actually be inserted following the RGA insert algorithm (specifically

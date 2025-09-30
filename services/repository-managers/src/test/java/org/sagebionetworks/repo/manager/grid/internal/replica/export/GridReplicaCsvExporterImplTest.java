@@ -4,10 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -16,7 +14,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Optional;
 
 import org.json.JSONArray;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,7 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.file.LocalFileUploadRequest;
 import org.sagebionetworks.repo.manager.grid.GridManager;
-import org.sagebionetworks.repo.manager.grid.internal.replica.change.GridReplicaPatchBuilderManager;
+import org.sagebionetworks.repo.manager.grid.internal.replica.GridReplicaSupport;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowData;
@@ -44,12 +41,9 @@ import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridRequest;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
-import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridSession;
-import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.util.csv.CSVWriterProvider;
-import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 
 import au.com.bytecode.opencsv.CSVWriter;
 
@@ -58,7 +52,7 @@ public class GridReplicaCsvExporterImplTest {
     @Mock
     private GridManager mockGridManager;
     @Mock
-    private GridReplicaPatchBuilderManager mockReplicaPatchBuilderManager;
+    private GridReplicaSupport gridReplicaSupport;
     @Mock
     private GridReplicaViewManager mockGridReplicaViewManager;
     @Mock
@@ -90,11 +84,9 @@ public class GridReplicaCsvExporterImplTest {
     private List<RowView> rowViews;
     private String jobId = "1234";
     private String sessionId = "fakeGridSessionId";
-    private Long replicaId = 999L;
     private String fileHandleId = "8888";
     private Long userId = 987L;
     private UserInfo userInfo;
-    private EventSource source;
 
     @BeforeEach
     public void before() {
@@ -111,17 +103,12 @@ public class GridReplicaCsvExporterImplTest {
         rowViews.add(new RowView().setRowObject(new RowObject()
                 .setMetadata(new RowMetadata().setSynapseRow(new SynapseRow().setRowId(3L).setVersionNumber(4L).setEtag("etag2")))
                 .setData(new RowData().setCells(new JSONArray(List.of("c", "d"))))));
-        source = EventSource.INTERNAL;
     }
 
     @Test
     public void testExportGridAsCsv() throws IOException {
         when(mockGridManager.getGridSession(userInfo, sessionId)).thenReturn(mockGridSession);
-        when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(mockGridConnectionInfo));
-        when(mockGridConnectionInfo.getSessionId()).thenReturn(sessionId);
-        when(mockGridConnectionInfo.getReplicaId()).thenReturn(replicaId);
-        when(mockReplicaPatchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId)).thenReturn(Optional.of(new LogicalTimestamp()));
-        when(mockGridReplicaViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(mockGridHeader));
+        when(gridReplicaSupport.getGridHeaderOrThrow(mockGridSession)).thenReturn(mockGridHeader);
         when(mockGridHeader.getOrderedColumns()).thenReturn(List.of(
                 new Column().setName("col1"),
                 new Column().setName("col2")
@@ -150,8 +137,6 @@ public class GridReplicaCsvExporterImplTest {
                 writtenRows.toArray()
         );
         verify(mockGridManager).getGridSession(userInfo, sessionId);
-        verify(mockGridManager).getSingletonConnection(sessionId, EventSource.INTERNAL);
-        verify(mockGridReplicaViewManager).readHeader(sessionId, replicaId);
         rowViews.forEach(verify(mockRowViewCallbackHandler)::next);
         
         verifyFileUpload();
@@ -160,11 +145,7 @@ public class GridReplicaCsvExporterImplTest {
     @Test
     public void testExportGridAsCsvWithNoViewHandler() throws IOException {
         when(mockGridManager.getGridSession(userInfo, sessionId)).thenReturn(mockGridSession);
-        when(mockGridManager.getSingletonConnection(sessionId, source)).thenReturn(Optional.of(mockGridConnectionInfo));
-        when(mockGridConnectionInfo.getSessionId()).thenReturn(sessionId);
-        when(mockGridConnectionInfo.getReplicaId()).thenReturn(replicaId);
-        when(mockReplicaPatchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId)).thenReturn(Optional.of(new LogicalTimestamp()));
-        when(mockGridReplicaViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(mockGridHeader));
+        when(gridReplicaSupport.getGridHeaderOrThrow(mockGridSession)).thenReturn(mockGridHeader);
         when(mockGridHeader.getOrderedColumns()).thenReturn(List.of(
                 new Column().setName("col1"),
                 new Column().setName("col2")
@@ -195,8 +176,6 @@ public class GridReplicaCsvExporterImplTest {
                 writtenRows.toArray()
         );
         verify(mockGridManager).getGridSession(userInfo, sessionId);
-        verify(mockGridManager).getSingletonConnection(sessionId, source);
-        verify(mockGridReplicaViewManager).readHeader(sessionId, replicaId);
         
         verifyFileUpload();
     }
@@ -206,11 +185,7 @@ public class GridReplicaCsvExporterImplTest {
         request.setWriteHeader(false);
 
         when(mockGridManager.getGridSession(userInfo, sessionId)).thenReturn(mockGridSession);
-        when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(mockGridConnectionInfo));
-        when(mockGridConnectionInfo.getSessionId()).thenReturn(sessionId);
-        when(mockGridConnectionInfo.getReplicaId()).thenReturn(replicaId);
-        when(mockReplicaPatchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId)).thenReturn(Optional.of(new LogicalTimestamp()));
-        when(mockGridReplicaViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(mockGridHeader));
+        when(gridReplicaSupport.getGridHeaderOrThrow(mockGridSession)).thenReturn(mockGridHeader);
         when(mockJobProgressCallback.getJobId()).thenReturn(jobId);
         when(mockGridReplicaViewManager.getQueryIterator(eq(mockGridHeader), any())).thenReturn(mockRowViewIterator);
         when(mockRowViewIterator.hasNext()).thenReturn(true, true, false);
@@ -242,11 +217,7 @@ public class GridReplicaCsvExporterImplTest {
         request.setIncludeRowIdAndRowVersion(false);
 
         when(mockGridManager.getGridSession(userInfo, sessionId)).thenReturn(mockGridSession);
-        when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(mockGridConnectionInfo));
-        when(mockGridConnectionInfo.getSessionId()).thenReturn(sessionId);
-        when(mockGridConnectionInfo.getReplicaId()).thenReturn(replicaId);
-        when(mockReplicaPatchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId)).thenReturn(Optional.of(new LogicalTimestamp()));
-        when(mockGridReplicaViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(mockGridHeader));
+        when(gridReplicaSupport.getGridHeaderOrThrow(mockGridSession)).thenReturn(mockGridHeader);
         when(mockGridHeader.getOrderedColumns()).thenReturn(List.of(
                 new Column().setName("col1"),
                 new Column().setName("col2")
@@ -282,11 +253,7 @@ public class GridReplicaCsvExporterImplTest {
         request.setIncludeEtag(false);
 
         when(mockGridManager.getGridSession(userInfo, sessionId)).thenReturn(mockGridSession);
-        when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(mockGridConnectionInfo));
-        when(mockGridConnectionInfo.getSessionId()).thenReturn(sessionId);
-        when(mockGridConnectionInfo.getReplicaId()).thenReturn(replicaId);
-        when(mockReplicaPatchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId)).thenReturn(Optional.of(new LogicalTimestamp()));
-        when(mockGridReplicaViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(mockGridHeader));
+        when(gridReplicaSupport.getGridHeaderOrThrow(mockGridSession)).thenReturn(mockGridHeader);
         when(mockGridHeader.getOrderedColumns()).thenReturn(List.of(
                 new Column().setName("col1"),
                 new Column().setName("col2")
@@ -324,11 +291,7 @@ public class GridReplicaCsvExporterImplTest {
         rowViews.get(0).getRowObject().getData().setCells(new JSONArray("[\"a\",\"\"]"));
 
         when(mockGridManager.getGridSession(userInfo, sessionId)).thenReturn(mockGridSession);
-        when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(mockGridConnectionInfo));
-        when(mockGridConnectionInfo.getSessionId()).thenReturn(sessionId);
-        when(mockGridConnectionInfo.getReplicaId()).thenReturn(replicaId);
-        when(mockReplicaPatchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId)).thenReturn(Optional.of(new LogicalTimestamp()));
-        when(mockGridReplicaViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(mockGridHeader));
+        when(gridReplicaSupport.getGridHeaderOrThrow(mockGridSession)).thenReturn(mockGridHeader);
         when(mockGridHeader.getOrderedColumns()).thenReturn(List.of(
                 new Column().setName("col1"),
                 new Column().setName("col2")
@@ -360,46 +323,6 @@ public class GridReplicaCsvExporterImplTest {
         verifyFileUpload();
     }
 
-    @Test
-    public void testExportGridAsCsvWithNoConnection() {
-        when(mockGridManager.getGridSession(userInfo, sessionId)).thenReturn(mockGridSession);
-        when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.empty());
-
-        assertThrows(RecoverableMessageException.class, () -> {
-            exporter.exportGridAsCsv(userInfo, request, mockJobProgressCallback, mockRowViewCallbackHandler);
-        }, "No internal connection found for session: " + sessionId);
-        verifyNoFileUpload();
-    }
-
-    @Test
-    public void testExportGridAsCsvClockNotReady() {
-        when(mockGridManager.getGridSession(userInfo, sessionId)).thenReturn(mockGridSession);
-        when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(mockGridConnectionInfo));
-        when(mockGridConnectionInfo.getSessionId()).thenReturn(sessionId);
-        when(mockGridConnectionInfo.getReplicaId()).thenReturn(replicaId);
-        when(mockReplicaPatchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId)).thenReturn(Optional.empty());
-
-        assertThrows(RecoverableMessageException.class, () -> {
-            exporter.exportGridAsCsv(userInfo, request, mockJobProgressCallback, mockRowViewCallbackHandler);
-        }, "Current clock could not be retrieved, patches are still being applied to sessionId: " + sessionId + ", replicaId: " + replicaId);
-        verifyNoFileUpload();
-    }
-
-    @Test
-    public void testExportGridAsCsvWithNoHeaderFound() {
-        when(mockGridManager.getGridSession(userInfo, sessionId)).thenReturn(mockGridSession);
-        when(mockGridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)).thenReturn(Optional.of(mockGridConnectionInfo));
-        when(mockGridConnectionInfo.getSessionId()).thenReturn(sessionId);
-        when(mockGridConnectionInfo.getReplicaId()).thenReturn(replicaId);
-        when(mockReplicaPatchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId)).thenReturn(Optional.of(new LogicalTimestamp()));
-        when(mockGridReplicaViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.empty());
-
-        assertThrows(RecoverableMessageException.class, () -> {
-            exporter.exportGridAsCsv(userInfo, request, mockJobProgressCallback, mockRowViewCallbackHandler);
-        }, "Grid header has not yet been instantiated for sessionId: " + sessionId);
-        verifyNoFileUpload();
-    }
-
     private void verifyFileUpload() {
         verify(mockFileHandleManager).uploadLocalFile(fileUploadCaptor.capture());
         LocalFileUploadRequest fileUploadRequest = fileUploadCaptor.getValue();
@@ -408,10 +331,5 @@ public class GridReplicaCsvExporterImplTest {
         assertEquals("text/csv", fileUploadRequest.getContentType());
         assertNull(fileUploadRequest.getFileName());
     }
-
-    private void verifyNoFileUpload() {
-        verify(mockFileHandleManager, never()).uploadLocalFile(any());
-    }
-
 
 }

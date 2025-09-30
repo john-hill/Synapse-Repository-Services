@@ -181,6 +181,7 @@
 		<ref bean="gridReplicaPatchBuilderWorkerTrigger"/>
         <ref bean="gridCSVDownloaderWorkerTrigger" />
 		<ref bean="gridRecordSetExportWorkerTrigger" />
+		<ref bean="gridCsvImportWorkerTrigger" />
 		
 		<ref bean="inactiveUsersWorkerTrigger"/>
 		

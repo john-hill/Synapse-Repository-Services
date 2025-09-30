@@ -9,9 +9,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -23,7 +23,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import org.apache.commons.io.IOUtils;
 import org.apache.http.entity.ContentType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -65,6 +64,8 @@ import org.sagebionetworks.repo.model.grid.CreateGridResponse;
 import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridRequest;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
+import org.sagebionetworks.repo.model.grid.GridCsvImportRequest;
+import org.sagebionetworks.repo.model.grid.GridCsvImportResponse;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportRequest;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportResponse;
 import org.sagebionetworks.repo.model.grid.GridReplica;
@@ -89,6 +90,7 @@ import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.schema.ValidationSummaryStatistics;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
+import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.repo.model.table.EntityView;
 import org.sagebionetworks.repo.model.table.Query;
 import org.sagebionetworks.repo.model.table.Row;
@@ -552,13 +554,13 @@ public class GridEventBrokerWorkerIntegrationTest {
 	public void testGridWithRecordSet() throws Exception {
 		Project project = entityService.createEntity(admin.getId(), new Project().setName("RecordSet Test"), null);
 		
-		byte[] csvContents;
+		String csvContent = 
+			"integer_column,string_column,double_column,boolean_column" + System.lineSeparator() +
+			"1,test_1,1.1,true" 										+ System.lineSeparator() +
+			"2,test_2,,true" 											+ System.lineSeparator() +
+			"3,test_3,3.3,false";
 		
-		try (InputStream is = GridEventBrokerWorkerIntegrationTest.class.getClassLoader().getResourceAsStream("recordset.csv")) {
-			csvContents = IOUtils.toByteArray(is);
-		}
-		
-		S3FileHandle fileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(), csvContents, "recordset.csv", ContentType.create("text/csv"), null);
+		S3FileHandle fileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(), csvContent.getBytes(StandardCharsets.UTF_8), "recordset.csv", ContentType.create("text/csv"), null);
 		
 		RecordSet recordSet = entityService.createEntity(admin.getId(), new RecordSet()
 			.setParentId(project.getId())
@@ -720,6 +722,62 @@ public class GridEventBrokerWorkerIntegrationTest {
 		
 		assertNotEquals(recordSetV2.getDataFileHandleId(), recordSetV3.getDataFileHandleId());
 		assertEquals(validationStats, recordSetV3.getValidationSummary());
+	
+		// Now update the record set from a CSV file
+		String csvContents = 
+			"integer_column,string_column,double_column,boolean_column" + System.lineSeparator() +
+			"1,test_1_updated,1.1,false" 								+ System.lineSeparator() + // update
+																								   // Skip line 2
+			"3,test_3_updated,3.3,true" 								+ System.lineSeparator() + // update
+			"4,test_4_created,4.4,true"									+ System.lineSeparator() + // new row
+			"5,test_5_created,5.5,true"									+ System.lineSeparator() + // new row
+			"6,test_6_created,6.6,false";														   // new row
+		
+		S3FileHandle upsertFileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(), csvContents.getBytes(StandardCharsets.UTF_8), "recordset_upsert.csv", ContentType.create("text/csv"), null);
+		
+		GridCsvImportRequest csvImportRequest = new GridCsvImportRequest()
+			.setSessionId(session.getSessionId())
+			.setFileHandleId(upsertFileHandle.getId())
+			.setCsvDescriptor(new CsvTableDescriptor().setIsFirstLineHeader(true))
+			.setSchema(List.of(
+				new ColumnModel().setName("integer_column").setColumnType(ColumnType.INTEGER),
+				new ColumnModel().setName("string_column").setColumnType(ColumnType.STRING),
+				new ColumnModel().setName("double_column").setColumnType(ColumnType.DOUBLE),
+				new ColumnModel().setName("boolean_column").setColumnType(ColumnType.BOOLEAN)
+			));
+		
+		asynchronousJobWorkerHelper.assertJobResponse(admin, csvImportRequest, (GridCsvImportResponse response) -> {
+			assertEquals(request.getSessionId(), response.getSessionId());
+			assertEquals(5, response.getTotalCount());
+			assertEquals(2, response.getUpdatedCount());
+			assertEquals(3, response.getCreatedCount());
+		}, MAX_WAIT_MS).getResponse();
+		
+		rowsView = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+			List<RowView> page = gridViewManager.querySinglePage(header, 100L, 0L);
+			
+			if (page.size() != 6) {
+				return Pair.create(false, page);
+			}
+			
+			// Also wait for the validation results to be set, the last row should be valid
+			return Pair.create(
+				new ValidationResults().setIsValid(true).equals(page.get(5).getRowValidationResults()), 
+				page
+			);
+		});
+		
+		assertEquals(
+			List.of(
+				"[1,\"test_1_updated\",1.1,false]",
+				"[2,\"test_2\",2.2,true]",
+				"[3,\"test_3_updated\",3.3,true]",
+				"[4,\"test_4_created\",4.4,true]",
+				"[5,\"test_5_created\",5.5,true]",
+				"[6,\"test_6_created\",6.6,false]"
+			),
+			rowsView.stream().map(r -> r.getRowObject().getData().getCells().toString()).collect(Collectors.toList())
+		);
 	}
 
 	List<String[]> createAndDownloadCsvFromGrid(DownloadFromGridRequest request)

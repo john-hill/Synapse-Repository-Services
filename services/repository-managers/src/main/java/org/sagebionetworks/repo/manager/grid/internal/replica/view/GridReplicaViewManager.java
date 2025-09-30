@@ -8,6 +8,7 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.QueryElement;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.FilterElement;
+import org.sagebionetworks.repo.model.grid.query.result.QueryResult;
 
 /**
  * Provides a paginated “view” of a grid replica using a specialized query that
@@ -56,6 +57,15 @@ public interface GridReplicaViewManager {
 	 * @return
 	 */
 	List<RowView> querySinglePage(GridHeader header, QueryElement query);
+	
+	/**
+	 * Query for a single page with the results return as a query result.
+	 * @param header
+	 * @param query
+	 * @return
+	 */
+	QueryResult querySinglePageAsQueryResult(GridHeader header, QueryElement query);
+	
 
 
     /**

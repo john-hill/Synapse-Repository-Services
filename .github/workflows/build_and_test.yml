@@ -9,7 +9,6 @@
 # - STACK_BUILDER_REPO_OWNER: defaults to Sage-Bionetworks
 # - STACK_BUILDER_BRANCH: defaults to develop
 # - FULL_BUILD: if true, will do a full build, vs. an abbreviated "feature build"
-# - PUBLISH_ARTIFIACTS: if true, will perform a FULL_BUILD and will publish build artifacts to Artifactory
 # - EXTRA_ARGS: pass extra arguments to maven build
 #
 # To post the build status to a PR, add this repository secret:
@@ -73,6 +72,13 @@ jobs:
             echo "WRITE_STATUS_TOKEN_EXISTS=true" >> $GITHUB_ENV
           fi
 
+      - name: Find latest tag
+        id: find_tag
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          dry_run: true #setting to 'true' means no new version is created
+
       - id: oidc
         uses: aws-actions/configure-aws-credentials@v5
         with:
@@ -122,8 +128,8 @@ jobs:
             StackBuilderBranch=${{ env.stack_builder_branch }},
             StackBuilderRepoOwner=${{ env.stack_builder_repo_owner }},
             FullBuild=${{ env.full_build }},
-            PublishArtifacts=${{ env.publish_artifacts }},
-            MavenExtraArgs="${{ env.EXTRA_ARGS }}"
+            MavenExtraArgs="${{ env.EXTRA_ARGS }},
+            LatestSynapseTag=${{ steps.find_tag.outputs.previous_version }}"
 
       - name: Output Pipeline Console URL
         run: |

@@ -4,13 +4,14 @@
 # to
 #<version>GitTag</version>
 # The new version number is the last Git tag
+newVersion=$1
+if [ -z "$newVersion" ] ;
+  newVersion=`git describe --tags`
+fi
 
-newVersion=`git describe --tags`
 echo "Changing all pom.xml to version=$newVersion"
 for f in `find . -name "pom.xml"` ; do
      echo "Changing version of $f"
      #We are using sed to replaces all 'develop-SNAPSHOT' versions with the new
      sed "s|<version>develop-SNAPSHOT</version>|<version>${newVersion}</version>|g" -i $f
 done
-
-

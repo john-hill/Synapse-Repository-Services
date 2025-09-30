@@ -11,7 +11,6 @@ fi
 echo $buildNumber
 abbreviatedCommitHash="<version>"$(date +%Y-%m-%d)"-"$buildNumber"-"`git log -n 1 --pretty=format:%h`"</version>"
 echo "Changing all pom.xml to version=$abbreviatedCommitHash"
-#sed "s|<version>develop-SNAPSHOT</version>|$abbreviatedCommitHash|g" pom.xml > temp-pom.xml
 for f in `find -name "pom.xml"` ; do
      echo "Changing version of $f"
      #We are using sed to replaces all 'develop-SNAPSHOT' verions with the new

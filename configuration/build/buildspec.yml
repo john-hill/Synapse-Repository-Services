@@ -39,7 +39,17 @@ phases:
       export org_sagebionetworks_stack_iam_session_token=$(echo $STS_CREDENTIALS | jq -r '.AwsSessionToken')
       export org_sagebionetworks_repository_database_connection_url=dev-${user}-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
       export org_sagebionetworks_table_cluster_endpoint_0=dev-${user}-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
-      if [ "${FULL_BUILD}" == "true" ||  "${PUBLISH_ARTIFACTS}" == "true" ]; then
+
+      if [ $REPO_OWNER == "Sage-Bionetworks" ]; then
+        FULL_BUILD=true
+        if [ $REPO_BRANCH == "develop" ]; then
+          PUBLISH_ARTIFACTS=develop
+        else if [ $branch =~ "release-*" ]; then
+          PUBLISH_ARTIFACTS=release
+        fi
+      fi
+
+      if [ "${FULL_BUILD}" == "true" ]; then
         export artifactory_username=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_username')
         export artifactory_password=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_password')
         export org_sagebionetworks_datacite_enabled=true
@@ -56,14 +66,15 @@ phases:
         unset org_sagebionetworks_google_cloud_key
       fi
 
-      if [ "${PUBLISH_ARTIFACTS}" == "true" ]; then
+      if [ "${PUBLISH_ARTIFACTS}" ]; then
         export build_deploy=true
         export artifactory_username=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_username')
         export artifactory_password=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_password')
-        if [ "???" ]; then # TODO if it's the develop branch
-          ./pomSnapshotToGitHash.sh ${SHORT_HASH} #TODO pass in short hash from env
-        else
-          ./pomSnapshotToLastGitTag.sh # can this run a git command?
+        if [ "${PUBLISH_ARTIFACTS}" == "develop" ]; then
+          SHORT_HASH=${GIT_COMMIT:0:7}
+          ./pomSnapshotToGitHash.sh ${SHORT_HASH}
+        elif [ "${PUBLISH_ARTIFACTS}" == "release" ]; then
+          ./pomSnapshotToLastGitTag.sh ${LATEST_TAG}
         fi
       fi
 

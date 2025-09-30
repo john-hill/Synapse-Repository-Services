@@ -50,8 +50,8 @@ jobs:
           if [ ${{ vars.USER }} ]; then
             echo "user=${{ vars.USER }}" >> $GITHUB_ENV
           else
-            alpha_only_repo_name="${GITHUB_REPOSITORY_OWNER//[^[:alnum:]]/}"
-            echo "user=$alpha_only_repo_name" >> $GITHUB_ENV
+            alpha_only_trunc_repo_name=$(echo "${GITHUB_REPOSITORY_OWNER//[^[:alnum:]]/}" | cut -c1-7)
+            echo "user=$alpha_only_trunc_repo_name" >> $GITHUB_ENV
           fi
           # capture the current branch as an environment variable
           echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV

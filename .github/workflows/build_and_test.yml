@@ -66,7 +66,6 @@ jobs:
             echo "stack_builder_branch=develop" >> $GITHUB_ENV
           fi
           echo "full_build=${{ vars.FULL_BUILD }}" >> $GITHUB_ENV
-          echo "publish_artifacts=${{ vars.PUBLISH_ARTIFIACTS }}" >> $GITHUB_ENV
           echo "EXTRA_ARGS=${{ vars.EXTRA_ARGS }}" >> $GITHUB_ENV
           if [ ${{ secrets.WRITE_STATUS_TOKEN }} ]; then
             echo "WRITE_STATUS_TOKEN_EXISTS=true" >> $GITHUB_ENV
@@ -128,8 +127,8 @@ jobs:
             StackBuilderBranch=${{ env.stack_builder_branch }},
             StackBuilderRepoOwner=${{ env.stack_builder_repo_owner }},
             FullBuild=${{ env.full_build }},
-            MavenExtraArgs="${{ env.EXTRA_ARGS }},
-            LatestSynapseTag=${{ steps.find_tag.outputs.previous_version }}"
+            MavenExtraArgs=${{ env.EXTRA_ARGS }},
+            LatestSynapseTag=${{ steps.find_tag.outputs.previous_version }}
 
       - name: Output Pipeline Console URL
         run: |

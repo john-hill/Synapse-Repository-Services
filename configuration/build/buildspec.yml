@@ -40,11 +40,11 @@ phases:
       export org_sagebionetworks_repository_database_connection_url=dev-${user}-db.cdusmwdhqvso.us-east-1.rds.amazonaws.com
       export org_sagebionetworks_table_cluster_endpoint_0=dev-${user}-table-0.cdusmwdhqvso.us-east-1.rds.amazonaws.com
 
-      if [ $REPO_OWNER == "Sage-Bionetworks" ]; then
+      if [[ $REPO_OWNER == "Sage-Bionetworks" ]]; then
         FULL_BUILD=true
-        if [ $REPO_BRANCH == "develop" ]; then
+        if [[ $REPO_BRANCH == "develop" ]]; then
           PUBLISH_ARTIFACTS=develop
-        else if [ $branch =~ "release-*" ]; then
+        elif [[ $branch =~ "release-" ]]; then
           PUBLISH_ARTIFACTS=release
         fi
       fi
@@ -66,14 +66,14 @@ phases:
         unset org_sagebionetworks_google_cloud_key
       fi
 
-      if [ "${PUBLISH_ARTIFACTS}" ]; then
+      if [[ "${PUBLISH_ARTIFACTS}" ]]; then
         export build_deploy=true
         export artifactory_username=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_username')
         export artifactory_password=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_password')
-        if [ "${PUBLISH_ARTIFACTS}" == "develop" ]; then
+        if [[ "${PUBLISH_ARTIFACTS}" == "develop" ]]; then
           SHORT_HASH=${GIT_COMMIT:0:7}
           ./pomSnapshotToGitHash.sh ${SHORT_HASH}
-        elif [ "${PUBLISH_ARTIFACTS}" == "release" ]; then
+        elif [[ "${PUBLISH_ARTIFACTS}" == "release" ]]; then
           ./pomSnapshotToLastGitTag.sh ${LATEST_TAG}
         fi
       fi

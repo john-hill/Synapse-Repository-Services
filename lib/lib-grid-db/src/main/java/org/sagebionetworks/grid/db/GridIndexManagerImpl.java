@@ -1,5 +1,6 @@
 package org.sagebionetworks.grid.db;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 @GridTransaction(readOnly = true)
 public class GridIndexManagerImpl implements GridIndexManager {
 
+	public static final Duration MAX_MESSAGE_DURATION = Duration.ofSeconds(60);
 	public static final int MAX_MESSAGE_ID = 65535;
 
 	private static final Logger log = LogManager.getLogger(GridIndexManagerImpl.class);
@@ -57,8 +59,8 @@ public class GridIndexManagerImpl implements GridIndexManager {
 		/*
 		 * Set the replica's clock to reflect the applied patch. For bootstrap patches
 		 * (created during grid initialization), we must be careful not to increment
-		 * this replica's sequence beyond other replicas' sequences, as this could
-		 * cause outstanding bootstrap patches to be ignored during synchronization.
+		 * this replica's sequence beyond other replicas' sequences, as this could cause
+		 * outstanding bootstrap patches to be ignored during synchronization.
 		 */
 		dao.setClock(sessionId, replicaId, patchClock);
 		return changes;
@@ -98,7 +100,8 @@ public class GridIndexManagerImpl implements GridIndexManager {
 		createReplicaIfNotExist(sessionId, replicaId);
 		Integer id = dao.createNextMessageId(sessionId, replicaId, MAX_MESSAGE_ID);
 		return dao.createMessageChain(
-				new MessageChain().setSessionId(sessionId).setReplicaId(replicaId).setMethod(method).setId(id));
+				new MessageChain().setSessionId(sessionId).setReplicaId(replicaId).setMethod(method).setId(id),
+				MAX_MESSAGE_DURATION);
 	}
 
 	@Override
@@ -116,5 +119,16 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	@GridTransaction(readOnly = false)
 	public void truncateAll() {
 		dao.truncateAll();
+	}
+
+	@Override
+	@GridTransaction(readOnly = false)
+	public boolean refreshMessageChain(String sessionId, Long replicaId, Integer chainId) {
+		return dao.refreshMessageChain(sessionId, replicaId, chainId, MAX_MESSAGE_DURATION);
+	}
+
+	@Override
+	public Optional<MessageChain> getNonExpiredMessageChain(String sesionId, Long replicaId, String method) {
+		return dao.getNonExpiredMessageChain(sesionId, replicaId, method);
 	}
 }

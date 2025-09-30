@@ -32,7 +32,7 @@ public class PatchBuilderPublisherImpl implements PatchBuilderPublisher {
 		 * sequentially.
 		 */
 		String groupId = String.format("%s-%d", changeSet.getSessionId(), changeSet.getReplicaId());
-		sqsClient.sendMessage(SendMessageRequest.builder().queueUrl(queueUrl)
+		sqsClient.sendMessage(SendMessageRequest.builder().queueUrl(queueUrl).messageGroupId(changeSet.getConnectionId())
 				.messageDeduplicationId(DigestUtils.md5Hex(body)).messageGroupId(groupId).messageBody(body).build());
 	}
 

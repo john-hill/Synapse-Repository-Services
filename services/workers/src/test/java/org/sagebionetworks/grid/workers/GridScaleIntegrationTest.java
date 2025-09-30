@@ -86,6 +86,7 @@ public class GridScaleIntegrationTest {
 
 	@BeforeEach
 	public void beforeAll() throws IOException {
+		entityService.truncateAll();
 		gridIndexDao.truncateAll();
 		admin = userManager.getUserInfo(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId());
 		numberRows = 100;
@@ -165,7 +166,7 @@ public class GridScaleIntegrationTest {
 			if (header.isEmpty()) {
 				return Pair.create(false, null);
 			}
-			List<RowView> rows = gridReplicaViewManager.querySinglePage(header.get(), 100L, 0L);
+			List<RowView> rows = gridReplicaViewManager.querySinglePage(header.get(), Long.valueOf(numberRows+1), 0L);
 			System.out.println("row count: "+rows.size());
 			int invalidRows = (int) rows.stream()
 					.filter(r -> r.getRowValidationResults() != null && !r.getRowValidationResults().getIsValid())

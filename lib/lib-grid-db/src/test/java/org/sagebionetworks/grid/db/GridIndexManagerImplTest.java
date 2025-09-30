@@ -57,10 +57,8 @@ public class GridIndexManagerImplTest {
 	public void before() {
 		sessionId = "sessionOne";
 		replicaId = 123L;
-		newConstant = new NewConstant(
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L),
-				new ConValue(ConType.BOOLEAN, true)
-		);
+		newConstant = new NewConstant(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L),
+				new ConValue(ConType.BOOLEAN, true));
 		newVector = new NewVector(new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(4L));
 		patch = new Patch().setPatchId(new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(6L))
 				.setOperations(List.of(newConstant, newVector));
@@ -208,6 +206,27 @@ public class GridIndexManagerImplTest {
 
 		// call under test
 		assertTrue(manager.isPatchAlreadyApplied(sessionId, replicaId, patch.getPatchId()));
+	}
+
+	@Test
+	public void testStartMessageChain() {
+		int nextId = 101;
+		String methodName = "some-method";
+		when(mockDao.createNextMessageId(sessionId, replicaId, GridIndexManagerImpl.MAX_MESSAGE_ID)).thenReturn(nextId);
+		MessageChain chain = new MessageChain().setId(nextId).setSessionId(sessionId).setReplicaId(replicaId)
+				.setMethod(methodName);
+		when(mockDao.createMessageChain(chain, GridIndexManagerImpl.MAX_MESSAGE_DURATION)).thenReturn(chain);
+		// call under test
+		assertEquals(chain, manager.startMessageChain(sessionId, replicaId, methodName));
+	}
+	
+	@Test
+	public void testRefreshMessageChain() {
+		int chainId = 111;
+		when(mockDao.refreshMessageChain(sessionId, replicaId, chainId, GridIndexManagerImpl.MAX_MESSAGE_DURATION))
+				.thenReturn(true);
+		// call under test
+		assertTrue(manager.refreshMessageChain(sessionId, replicaId, chainId));
 	}
 
 }

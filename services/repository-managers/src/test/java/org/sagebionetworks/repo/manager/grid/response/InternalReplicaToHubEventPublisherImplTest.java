@@ -44,8 +44,8 @@ public class InternalReplicaToHubEventPublisherImplTest {
 
 	@BeforeEach
 	public void before() {
-		String queueName = "DEV_GRID_WEBSOCKET_MESSAGE";
-		when(mockConfig.getQueueName("GRID_WEBSOCKET_MESSAGE")).thenReturn(queueName);
+		String queueName = "DEV_GRID_WEBSOCKET_MESSAGE.fifo";
+		when(mockConfig.getQueueName("GRID_WEBSOCKET_MESSAGE.fifo")).thenReturn(queueName);
 		queueUrl = "https://aws.com/sqs/grid_queue";
 		when(mockSqsClient.getQueueUrl(GetQueueUrlRequest.builder().queueName(queueName).build()))
 				.thenReturn(GetQueueUrlResponse.builder().queueUrl(queueUrl).build());

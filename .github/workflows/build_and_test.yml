@@ -122,7 +122,7 @@ jobs:
             StackBuilderBranch=${{ env.stack_builder_branch }},
             StackBuilderRepoOwner=${{ env.stack_builder_repo_owner }},
             FullBuild=${{ env.full_build }},
-            PublishArtifacts=${{ env.publish_artifacts }}
+            PublishArtifacts=${{ env.publish_artifacts }},
             MavenExtraArgs="${{ env.EXTRA_ARGS }}"
 
       - name: Output Pipeline Console URL

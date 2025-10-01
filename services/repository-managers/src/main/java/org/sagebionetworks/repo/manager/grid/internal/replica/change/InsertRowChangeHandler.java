@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.json.JSONArray;
-import org.sagebionetworks.repo.manager.grid.PatchUtils;
+import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
@@ -34,7 +34,7 @@ public class InsertRowChangeHandler implements ChangeHandler<InsertRowChange> {
 			Object value = rowData.get(i);
 			Integer vectorIndex = rowVectorIndex[i];
 			LogicalTimestamp cellConstId = builder.addOperationBuilder(Operations.newConstant().setValue(
-				new ConValue(PatchUtils.getConType(value), value))
+				new ConValue(ConType.fromValue(value), value))
 			);
 			newVecConstantMap.put(vectorIndex, cellConstId);
 		}

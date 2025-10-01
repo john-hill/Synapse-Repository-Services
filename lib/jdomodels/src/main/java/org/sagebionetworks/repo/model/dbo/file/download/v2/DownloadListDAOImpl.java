@@ -695,7 +695,7 @@ public class DownloadListDAOImpl implements DownloadListDAO {
 
 	@WriteTransaction
 	@Override
-	public Long addDatasetItemsToDownloadList(Long userId, List<EntityRef> items, long limit) {
+	public Long addFileEntityRefToDownloadList(Long userId, List<EntityRef> items, long limit) {
 		createOrUpdateDownloadList(userId);
 		String sql = "INSERT IGNORE INTO " + TABLE_DOWNLOAD_LIST_ITEM_V2 + " ("
 				+ COL_DOWNLOAD_LIST_ITEM_V2_PRINCIPAL_ID + ", " + COL_DOWNLOAD_LIST_ITEM_V2_ENTITY_ID + ", "

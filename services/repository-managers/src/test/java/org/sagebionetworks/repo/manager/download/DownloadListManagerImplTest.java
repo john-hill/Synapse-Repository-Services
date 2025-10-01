@@ -1085,7 +1085,7 @@ public class DownloadListManagerImplTest {
 				new EntityRef().setEntityId("234"));
 		when(mockNodeDao.getNodeTypeById(parentId)).thenReturn(EntityType.dataset);
 		when(mockNodeDao.getNodeItems(any())).thenReturn(items);
-		when(mockDownloadListDao.addDatasetItemsToDownloadList(any(), any(), anyLong()))
+		when(mockDownloadListDao.addFileEntityRefToDownloadList(any(), any(), anyLong()))
 				.thenReturn(count);
 		when(mockEntityAuthorizationManager.hasAccess(any(), any(), any()))
 				.thenReturn(AuthorizationStatus.authorized());
@@ -1094,7 +1094,7 @@ public class DownloadListManagerImplTest {
 		AddToDownloadListResponse expected = new AddToDownloadListResponse().setNumberOfFilesAdded(count);
 		assertEquals(expected, response);
 		verify(mockNodeDao).getNodeItems(123L);
-		verify(mockDownloadListDao).addDatasetItemsToDownloadList(userOne.getId(), items, limit);
+		verify(mockDownloadListDao).addFileEntityRefToDownloadList(userOne.getId(), items, limit);
 		verify(mockEntityAuthorizationManager).hasAccess(userOne, parentId, ACCESS_TYPE.READ);
 	}
 	

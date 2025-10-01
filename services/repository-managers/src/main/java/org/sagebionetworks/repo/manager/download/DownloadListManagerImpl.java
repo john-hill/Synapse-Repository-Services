@@ -385,10 +385,12 @@ public class DownloadListManagerImpl implements DownloadListManager {
 		
 		Long numberOfFilesAdded;
 		
-		if (nodeDao.getNodeTypeById(parentId).equals(EntityType.dataset)) {
+		EntityType parentType = nodeDao.getNodeTypeById(parentId);
+		
+		if (EntityType.dataset.equals(parentType)) {
 			ValidateArgument.requirement(!recursive, "The recursive option is not supported for a dataset.");
-			List<EntityRef> items = nodeDao.getNodeItems(parentIdKey);
-			numberOfFilesAdded = this.downloadListDao.addDatasetItemsToDownloadList(userInfo.getId(), items, limit);
+			List<EntityRef> files = nodeDao.getNodeItems(parentIdKey);
+			numberOfFilesAdded = this.downloadListDao.addFileEntityRefToDownloadList(userInfo.getId(), files, limit);
 		} else if (recursive) {
 			numberOfFilesAdded = this.downloadListDao.addDescendantsToDownloadList(userInfo.getId(), parentIdKey, useVersion, limit);
 		} else {

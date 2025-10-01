@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -778,23 +779,30 @@ public class GridIndexDaoImplTest {
 	}
 
 	@Test
-	public void testMessageChainCRUD() {
+	public void testMessageChainCRUD() throws InterruptedException {
 		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
 		gridIndexDao.createReplicaIfNotExists(sessionIdTwo, replicaIdTwo);
 		int maxValues = 100;
+		Duration expires = Duration.ofSeconds(2);
 		// one
 		Integer idOne = gridIndexDao.createNextMessageId(sessionIdOne, replicaIdOne, maxValues);
 		assertEquals(Optional.empty(), gridIndexDao.getMessageChain(sessionIdOne, replicaIdOne, idOne));
 		MessageChain chainOne = new MessageChain().setSessionId(sessionIdOne).setReplicaId(replicaIdOne).setId(idOne)
 				.setMethod("methodOne");
-		MessageChain backOne = gridIndexDao.createMessageChain(chainOne);
+		MessageChain backOne = gridIndexDao.createMessageChain(chainOne, expires);
 		MessageChain expected = new MessageChain().setSessionId(sessionIdOne).setReplicaId(replicaIdOne).setId(idOne)
 				.setMethod("methodOne").setCreatedOn(backOne.getCreatedOn());
 		assertEquals(expected, backOne);
 		assertEquals(Optional.of(expected), gridIndexDao.getMessageChain(sessionIdOne, replicaIdOne, idOne));
+		assertEquals(Optional.of(expected),
+				gridIndexDao.getNonExpiredMessageChain(sessionIdOne, replicaIdOne, chainOne.getMethod()));
+		Thread.sleep(2001L);
+		assertEquals(Optional.empty(),
+				gridIndexDao.getNonExpiredMessageChain(sessionIdOne, replicaIdOne, chainOne.getMethod()));
+		
 		// update
 		chainOne.setMethod("updatedMethod");
-		backOne = gridIndexDao.createMessageChain(chainOne);
+		backOne = gridIndexDao.createMessageChain(chainOne, expires);
 		expected = new MessageChain().setSessionId(sessionIdOne).setReplicaId(replicaIdOne).setId(idOne)
 				.setMethod("updatedMethod").setCreatedOn(backOne.getCreatedOn());
 		assertEquals(expected, backOne);
@@ -803,7 +811,7 @@ public class GridIndexDaoImplTest {
 		Integer idTwo = gridIndexDao.createNextMessageId(sessionIdTwo, replicaIdTwo, maxValues);
 		MessageChain chainTwo = new MessageChain().setSessionId(sessionIdTwo).setReplicaId(replicaIdTwo).setId(idTwo)
 				.setMethod("methodTwo");
-		backOne = gridIndexDao.createMessageChain(chainTwo);
+		backOne = gridIndexDao.createMessageChain(chainTwo, expires);
 		expected = new MessageChain().setSessionId(sessionIdTwo).setReplicaId(replicaIdTwo).setId(idTwo)
 				.setMethod("methodTwo").setCreatedOn(backOne.getCreatedOn());
 		assertEquals(expected, backOne);
@@ -813,6 +821,28 @@ public class GridIndexDaoImplTest {
 		gridIndexDao.deleteMessageChain(sessionIdOne, replicaIdOne, idOne);
 		assertEquals(Optional.empty(), gridIndexDao.getMessageChain(sessionIdOne, replicaIdOne, idOne));
 		assertEquals(Optional.of(expected), gridIndexDao.getMessageChain(sessionIdTwo, replicaIdTwo, idTwo));
+	}
+	
+	@Test
+	public void testMessageChainExpiration() throws InterruptedException {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		int maxValues = 100;
+		Duration expires = Duration.ofSeconds(1);
+		// one
+		Integer idOne = gridIndexDao.createNextMessageId(sessionIdOne, replicaIdOne, maxValues);
+		assertEquals(Optional.empty(), gridIndexDao.getMessageChain(sessionIdOne, replicaIdOne, idOne));
+		MessageChain chainOne = new MessageChain().setSessionId(sessionIdOne).setReplicaId(replicaIdOne).setId(idOne)
+				.setMethod("methodOne");
+		// call under test
+		MessageChain backOne = gridIndexDao.createMessageChain(chainOne, expires);
+		Thread.sleep(1000L);
+		expires = Duration.ofSeconds(10);
+		// call under test
+		assertTrue(gridIndexDao.refreshMessageChain(sessionIdOne, replicaIdOne, idOne, expires));
+		Thread.sleep(1000L);
+		// all under test
+		assertEquals(Optional.of(backOne),
+				gridIndexDao.getNonExpiredMessageChain(sessionIdOne, replicaIdOne, chainOne.getMethod()));
 	}
 
 	@Test

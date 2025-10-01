@@ -1116,6 +1116,29 @@ public class DownloadListManagerImplTest {
 		verifyZeroInteractions(mockNodeDao, mockDownloadListDao);
 		verify(mockEntityAuthorizationManager).hasAccess(userOne, parentId, ACCESS_TYPE.READ);
 	}
+	
+	@Test
+	public void testAddToDownloadListWithDatasetCollectionAsParentId() {
+		Long count = 2L;
+		String parentId = "syn123";
+		boolean recursive = false;
+		long limit = 100L;
+		List<EntityRef> items = Arrays.asList(new EntityRef().setEntityId("123"),
+				new EntityRef().setEntityId("234"));
+		when(mockNodeDao.getNodeTypeById(parentId)).thenReturn(EntityType.datasetcollection);
+		when(mockNodeDao.getNodeItems(any())).thenReturn(items);
+		when(mockDownloadListDao.addDatasetEntityRefFilesToDownloadList(any(), any(), anyLong()))
+				.thenReturn(count);
+		when(mockEntityAuthorizationManager.hasAccess(any(), any(), any()))
+				.thenReturn(AuthorizationStatus.authorized());
+		// Call under test
+		AddToDownloadListResponse response = manager.addToDownloadList(userOne, parentId, true, recursive, limit);
+		AddToDownloadListResponse expected = new AddToDownloadListResponse().setNumberOfFilesAdded(count);
+		assertEquals(expected, response);
+		verify(mockNodeDao).getNodeItems(123L);
+		verify(mockDownloadListDao).addDatasetEntityRefFilesToDownloadList(userOne.getId(), items, limit);
+		verify(mockEntityAuthorizationManager).hasAccess(userOne, parentId, ACCESS_TYPE.READ);
+	}
 
 	@Test
 	public void testAddToDownloadListFolderWithUnauthorized() {

@@ -18,6 +18,7 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_PAR
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_TYPE;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REVISION_FILE_HANDLE_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REVISION_NUMBER;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REVISION_ITEMS;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REVISION_OWNER_NODE;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REVISION_USER_ANNOS_JSON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_DERIVED_ANNOTATIONS;
@@ -36,6 +37,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -72,7 +74,7 @@ import com.google.common.base.Objects;
 
 @Repository
 public class DownloadListDAOImpl implements DownloadListDAO {
-
+	
 	public static final String ACTUAL_VERSION = "ACTUAL_VERSION";
 	public static final String PROJECT_ID = "PROJECT_ID";
 	public static final String PROJECT_NAME = "PROJECT_NAME";
@@ -695,14 +697,14 @@ public class DownloadListDAOImpl implements DownloadListDAO {
 
 	@WriteTransaction
 	@Override
-	public Long addFileEntityRefToDownloadList(Long userId, List<EntityRef> items, long limit) {
+	public Long addFileEntityRefToDownloadList(Long userId, List<EntityRef> fileRefs, long limit) {
 		createOrUpdateDownloadList(userId);
 		String sql = "INSERT IGNORE INTO " + TABLE_DOWNLOAD_LIST_ITEM_V2 + " ("
 				+ COL_DOWNLOAD_LIST_ITEM_V2_PRINCIPAL_ID + ", " + COL_DOWNLOAD_LIST_ITEM_V2_ENTITY_ID + ", "
 				+ COL_DOWNLOAD_LIST_ITEM_V2_VERSION_NUMBER + ", " + COL_DOWNLOAD_LIST_ITEM_V2_ADDED_ON + ") "
 				+ "VALUES(?, ?, ?, NOW(3))";
-		items = items.subList(0, Math.min((int)limit, items.size()));
-		EntityRef[] itemsArray = items.toArray(new EntityRef[items.size()]);
+		fileRefs = fileRefs.subList(0, Math.min((int)limit, fileRefs.size()));
+		EntityRef[] itemsArray = fileRefs.toArray(new EntityRef[fileRefs.size()]);
 		int[] updates = jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
 			@Override
 			public void setValues(PreparedStatement ps, int i) throws SQLException {
@@ -718,5 +720,46 @@ public class DownloadListDAOImpl implements DownloadListDAO {
 		});
 		return (long)IntStream.of(updates).sum();
 	}
-
+	
+	@Override
+	@WriteTransaction
+	public Long addDatasetEntityRefFilesToDownloadList(Long userId, List<EntityRef> datasetRefs, long limit) {
+		createOrUpdateDownloadList(userId);
+		
+		String sql = "INSERT IGNORE INTO " + TABLE_DOWNLOAD_LIST_ITEM_V2 + " ("
+			+ COL_DOWNLOAD_LIST_ITEM_V2_PRINCIPAL_ID + ", " 
+			+ COL_DOWNLOAD_LIST_ITEM_V2_ENTITY_ID + ", "
+			+ COL_DOWNLOAD_LIST_ITEM_V2_VERSION_NUMBER + ", " 
+			+ COL_DOWNLOAD_LIST_ITEM_V2_ADDED_ON + ") " 
+			+ "SELECT "
+				+ ":userId,"
+				+ "D_FILES." + COL_REVISION_OWNER_NODE + ","
+				+ "D_FILES." + COL_REVISION_NUMBER + ","
+				+ "NOW(3) " 
+			+ "FROM " + TABLE_REVISION + " AS D "
+			// We need to expand the "items" JSON (array) column so that we can join on the files
+			+ "JOIN JSON_TABLE(D. " + COL_REVISION_ITEMS + ","
+			+ "'$[*]' COLUMNS ("
+				// The entityId might be stored with the 'syn' prefix
+		    	+ "id VARCHAR(30) PATH '$.entityId',"
+		        + "version BIGINT PATH '$.versionNumber')"
+		    + ") AS D_FILES_REF "
+			+ "JOIN " + TABLE_REVISION + " AS D_FILES ON ("
+				+ "D_FILES." + COL_REVISION_OWNER_NODE + " = CAST(REPLACE(D_FILES_REF.id, 'syn', '') AS UNSIGNED) AND "
+				+ "D_FILES." + COL_REVISION_NUMBER + " = D_FILES_REF.version) "
+			+ "WHERE (D." + COL_REVISION_OWNER_NODE + ", D." + COL_REVISION_NUMBER + ") IN (:datasets) LIMIT :limit";
+		
+		List<Long[]> datasetParam = datasetRefs.stream().map( dataset -> new Long[] {
+			KeyFactory.stringToKey(dataset.getEntityId()), dataset.getVersionNumber()
+		}).collect(Collectors.toList());
+		
+		Map<String, ?> params = Map.of(
+			"userId", userId,
+			"datasets", datasetParam,
+			"limit", limit
+		);
+		
+		return (long) namedJdbcTemplate.update(sql, params);
+	}
+	
 }

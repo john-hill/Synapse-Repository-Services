@@ -208,7 +208,7 @@ jobs:
           -f "target_url=${{ env.PIPELINE_CONSOLE_URL }}"
 
       - name: Failed Status
-        if: ßfailure()
+        if: failure()
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |

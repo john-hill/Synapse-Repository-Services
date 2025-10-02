@@ -6,11 +6,13 @@ import java.util.List;
 import java.util.Optional;
 
 import org.sagebionetworks.repo.manager.EntityManager;
+import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
 import org.sagebionetworks.repo.manager.file.CsvFileHandleProvider;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.grid.PatchRowHandler;
 import org.sagebionetworks.repo.manager.grid.PatchStore;
 import org.sagebionetworks.repo.manager.table.UploadPreviewBuilder;
+import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
@@ -36,13 +38,15 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 	private final GridDao gridDao;
 	private final EntityManager entityManager;
 	private final FileHandleManager fileHandleManager;
+	private final EntityAuthorizationManager authorizationManager;
 	private final CsvFileHandleProvider csvProvider;
 
-	public RecordSetCreateGridHandler(GridDao gridDao, EntityManager entityManager, FileHandleManager fileHandleManager, CsvFileHandleProvider csvProvider) {
+	public RecordSetCreateGridHandler(GridDao gridDao, EntityManager entityManager, FileHandleManager fileHandleManager, EntityAuthorizationManager authorizationManager, CsvFileHandleProvider csvProvider) {
 		super();
 		this.gridDao = gridDao;
 		this.entityManager = entityManager;
 		this.fileHandleManager = fileHandleManager;
+		this.authorizationManager = authorizationManager;
 		this.csvProvider = csvProvider;
 	}
 
@@ -55,8 +59,12 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 	public CreateGridHandlerResult createGrid(AsyncJobProgressCallback callback, UserInfo user, CreateGridRequest request,
 			PatchStore patchStore) {
 		String recordSetId = request.getRecordSetId();
+		
 		RecordSet recordSet = entityManager.getEntity(user, recordSetId, RecordSet.class);
-
+		
+		// Makes sure the user has download access
+		authorizationManager.hasAccess(user, recordSet.getId(), ACCESS_TYPE.DOWNLOAD).checkAuthorizationOrElseThrow();
+		
 		Optional<String> validationSchemaId = entityManager.findBoundSchema(recordSetId)
 				.map(binding -> binding.getJsonSchemaVersionInfo().get$id());
 
@@ -65,7 +73,8 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 
 		GridReplica replica = gridDao.createReplica(user.getId(), session.getSessionId(), false, EventSource.INTERNAL);
 
-		FileHandle fileHandle = fileHandleManager.getRawFileHandle(user, recordSet.getDataFileHandleId());
+		// We already checked that the user has download access
+		FileHandle fileHandle = fileHandleManager.getRawFileHandleUnchecked(recordSet.getDataFileHandleId());
 
 		CsvTableDescriptor csvDescriptor = recordSet.getCsvDescriptor();
 

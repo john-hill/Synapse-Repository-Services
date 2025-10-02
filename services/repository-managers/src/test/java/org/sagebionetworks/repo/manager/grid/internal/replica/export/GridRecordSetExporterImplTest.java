@@ -100,6 +100,8 @@ public class GridRecordSetExporterImplTest {
 		DownloadFromGridRequest expectdDownloadRequest = new DownloadFromGridRequest()
 			.setSessionId(sessionId)
 			.setWriteHeader(true)
+			.setIncludeEtag(false)
+			.setIncludeRowIdAndRowVersion(false)
 			.setCsvTableDescriptor(csvDescriptor);
 		
 		when(mockCsvExporter.exportGridAsCsv(eq(user), eq(expectdDownloadRequest), eq(mockJobCallback), any(ValidationSummaryBuilder.class)))

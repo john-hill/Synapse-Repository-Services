@@ -74,7 +74,7 @@ public class ReturnControlEventTest {
 			event.getRequestBody();
 		}).getMessage();
 		assertEquals(
-				"Failed to parse the JSON request body: A JSONObject text must begin with '{' at 1 [character 2 line 1]",
+				"Failed to parse the JSON value for parameter 'three' with value: [123]. Error: A JSONObject text must begin with '{' at 1 [character 2 line 1]",
 				message);
 	}
 	

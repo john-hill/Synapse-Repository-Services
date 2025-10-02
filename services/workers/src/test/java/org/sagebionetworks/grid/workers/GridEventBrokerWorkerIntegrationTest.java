@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -19,15 +18,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.apache.http.entity.ContentType;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.java_websocket.WebSocket;
-import org.java_websocket.client.WebSocketClient;
 import org.json.JSONArray;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -113,8 +108,6 @@ import au.com.bytecode.opencsv.CSVReader;
 public class GridEventBrokerWorkerIntegrationTest {
 
 	private static final long INTERNAL_REPLICA_ID = 66534L;
-
-	private static final Logger LOG = LogManager.getLogger(GridEventBrokerWorkerIntegrationTest.class);
 
 	public static final long MAX_WAIT_MS = 120_000;
 
@@ -836,18 +829,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 	 */
 	boolean waitForMessage(Predicate<JSONArray> handler, BlockingQueue<String> incomingMessages)
 			throws InterruptedException {
-		String message = null;
-		do {
-			message = incomingMessages.poll(10, TimeUnit.SECONDS);
-			if (message == null) {
-				return false;
-			}
-			JSONArray array = new JSONArray(message);
-			if (handler.test(array)) {
-				return true;
-			}
-		} while (message != null);
-		return false;
+		return asynchronousJobWorkerHelper.waitForMessage(handler, incomingMessages);
 	}
 
 	/**
@@ -861,52 +843,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 	 */
 	public WebSocket createConnection(String presignedUrl, BlockingQueue<String> incomingMessages)
 			throws URISyntaxException {
-		WebSocketImpl client = new WebSocketImpl(presignedUrl, incomingMessages);
-
-		try {
-			client.connectBlocking();
-		} catch (InterruptedException e) {
-			throw new RuntimeException("Failed to connect to WebSocket: " + presignedUrl, e);
-		}
-
-		return client;
-	}
-
-	public static class WebSocketImpl extends WebSocketClient {
-
-		private BlockingQueue<String> incomingMessages;
-
-		public WebSocketImpl(String url, BlockingQueue<String> incomingMessages) {
-			super(URI.create(url));
-			this.incomingMessages = incomingMessages;
-		}
-
-		@Override
-		public void onOpen(org.java_websocket.handshake.ServerHandshake handshakedata) {
-			LOG.info("WebSocket connection opened: {}, ", handshakedata.getHttpStatusMessage());
-		}
-
-		@Override
-		public void onClose(int code, String reason, boolean remote) {
-			LOG.info("WebSocket connection closed with code: {}, reason: {}", code, reason);
-		}
-
-		@Override
-		public void onError(Exception ex) {
-			LOG.error("WebSocket error: ", ex);
-		}
-
-		@Override
-		public void onMessage(String message) {
-			LOG.info("Message received: {}", message);
-			try {
-				incomingMessages.put(message);
-			} catch (InterruptedException e) {
-				this.close(4999);
-				throw new RuntimeException(e);
-			}
-		}
-
+		return asynchronousJobWorkerHelper.createConnection(presignedUrl, incomingMessages);
 	}
 
 }

@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.manager.grid.internal.replica.model;
 import java.util.Objects;
 
 import org.json.JSONArray;
+import org.sagebionetworks.repo.model.grid.CrdtId;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.schema.ValidationResults;
 
@@ -68,6 +69,10 @@ public class RowView {
 
 	public SynapseRow getSynapseRow() {
 		return rowObject != null ? rowObject.getSynapseRow() : null;
+	}
+	
+	public static CrdtId createCrdtIdFromLogical(LogicalTimestamp timestamp) {
+		return new CrdtId().setRep(timestamp.getReplicaId()).setSeq(timestamp.getSequenceNumber());
 	}
 
 	@Override

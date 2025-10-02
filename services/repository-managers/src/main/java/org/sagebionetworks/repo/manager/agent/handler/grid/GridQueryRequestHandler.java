@@ -52,14 +52,14 @@ public class GridQueryRequestHandler implements OpenApiReturnControlHandler {
 				event.getRequestBody().get());
 		ValidateArgument.required(request.getQuery(), "request.query");
 		QueryElement element = new QueryElement(request.getQuery());
-		
+
 		GridAgentSessionContext context = event.getSessionContext(GridAgentSessionContext.class)
 				.orElseThrow(() -> new IllegalArgumentException("GridAgentSessionContext cannot be null"));
-		GridConnectionInfo connection = gridDao
-				.getSingletonConnection(context.getGridSessionId(), EventSource.INTERNAL)
+		GridConnectionInfo connection = gridDao.getSingletonConnection(context.getGridSessionId(), EventSource.INTERNAL)
 				.orElseThrow(() -> new IllegalArgumentException("Cannot get a grid connection."));
 
-		GridHeader header = viewManager.readHeader(context.getGridSessionId(), connection.getReplicaId())
+		GridHeader header = viewManager
+				.readHeader(context.getGridSessionId(), connection.getReplicaId(), context.getUsersReplicaId())
 				.orElseThrow(() -> new IllegalArgumentException("Grid session does not exist"));
 		QueryResult results = viewManager.querySinglePageAsQueryResult(header, element);
 		String json = JDOSecondaryPropertyUtils.createJSONFromObject(results);

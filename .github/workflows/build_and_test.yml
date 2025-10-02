@@ -45,6 +45,13 @@ jobs:
       - name: Static Analysis
         uses: pre-commit/action@v3.0.0
 
+      - name: Find latest tag
+        id: find_tag
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          dry_run: true #setting to 'true' means no new version is created
+
       - run: |
           # get the 'user' parameter, either from the repo' env or repo' owner if not set
           if [ ${{ vars.USER }} ]; then
@@ -54,7 +61,8 @@ jobs:
             echo "user=$alpha_only_trunc_repo_name" >> $GITHUB_ENV
           fi
           # capture the current branch as an environment variable
-          echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
+          branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          echo "branch=$branch" >> $GITHUB_ENV
           # get repo' and branch specifying the version of the stack builder to use
           if [ ${{ vars.STACK_BUILDER_REPO_OWNER }} ]; then
             echo "stack_builder_repo_owner=${{ vars.STACK_BUILDER_REPO_OWNER }}" >> $GITHUB_ENV
@@ -70,6 +78,21 @@ jobs:
           echo "EXTRA_ARGS=${{ vars.EXTRA_ARGS }}" >> $GITHUB_ENV
           if [ ${{ secrets.WRITE_STATUS_TOKEN }} ]; then
             echo "WRITE_STATUS_TOKEN_EXISTS=true" >> $GITHUB_ENV
+          fi
+          # for builds in Sage-Bionetworks repo', publish build artifacts
+          if [[ $GITHUB_REPOSITORY_OWNER == "Sage-Bionetworks" ]]; then
+            if [[ $branch == "develop" ]]; then
+              GIT_COMMIT=${{ github.sha }}
+              ARTIFACT_VERSION=$(date +%Y-%m-%d)"-"${GIT_COMMIT:0:7}
+            elif [[ $branch =~ "release-" ]]; then
+              ARTIFACT_VERSION=${{ steps.find_tag.outputs.previous_version }}
+            fi
+          fi
+          if [[ $ARTIFACT_VERSION ]]; then
+            echo Build will publish artifacts with version $ARTIFACT_VERSION
+            echo "ARTIFACT_VERSION=$ARTIFACT_VERSION" >> $GITHUB_ENV
+          else
+            echo "Build will not publish artifacts"
           fi
 
       - id: oidc
@@ -121,7 +144,8 @@ jobs:
             StackBuilderBranch=${{ env.stack_builder_branch }},
             StackBuilderRepoOwner=${{ env.stack_builder_repo_owner }},
             FullBuild=${{ env.full_build }},
-            MavenExtraArgs=${{ env.EXTRA_ARGS }}
+            MavenExtraArgs=${{ env.EXTRA_ARGS }},
+            ArtifactVersion=${{ env.ARTIFACT_VERSION }}
 
       - name: Output Pipeline Console URL
         run: |

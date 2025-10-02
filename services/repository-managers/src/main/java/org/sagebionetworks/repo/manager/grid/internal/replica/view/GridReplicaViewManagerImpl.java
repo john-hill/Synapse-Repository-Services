@@ -178,7 +178,9 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 			if (selections.size() == 1) {
 				ObjectNode selectionNode = selections.get(0);
 				selectionConId = selectionNode.getValue().get(replicaId.toString());
-				constantIds.add(selectionConId);
+				if(selectionConId != null) {
+					constantIds.add(selectionConId);
+				}
 			}
 		}
 		LogicalTimestamp docVersionConId = root.getValue().get("doc_version");

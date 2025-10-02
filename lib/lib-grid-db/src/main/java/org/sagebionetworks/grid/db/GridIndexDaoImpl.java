@@ -10,6 +10,7 @@ import java.sql.Timestamp;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -275,6 +276,9 @@ public class GridIndexDaoImpl implements GridIndexDao {
 	}
 
 	MapSqlParameterSource createParameters(Long sessionId, Long replicaId, List<LogicalTimestamp> ids) {
+		if (ids.stream().anyMatch(Objects::isNull)) {
+		    throw new IllegalArgumentException("ids list cannot contain null values");
+		}
 		List<Object[]> idTuples = ids.stream().map(ts -> new Object[] { ts.getReplicaId(), ts.getSequenceNumber() })
 				.collect(Collectors.toList());
 

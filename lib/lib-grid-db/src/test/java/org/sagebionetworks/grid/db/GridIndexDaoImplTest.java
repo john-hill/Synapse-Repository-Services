@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.sql.Timestamp;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -319,6 +320,18 @@ public class GridIndexDaoImplTest {
 		List<ConstantNode> constants1 = Collections.emptyList();
 		// call under test
 		gridIndexDao.saveNewConstants(sessionIdOne, replicaIdOne, constants1);
+	}
+	
+	@Test
+	public void testGetConstantsWithIdsHasNull() {
+		ids = new ArrayList<>();
+		ids.add(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L));
+		ids.add(null);
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridIndexDao.getConstants(sessionIdOne, replicaIdOne, ids);
+		}).getMessage();
+		assertEquals("ids list cannot contain null values", message);
 	}
 
 	@Test

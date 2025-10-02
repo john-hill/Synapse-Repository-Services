@@ -139,8 +139,8 @@ jobs:
         with:
           app-id: ${{ steps.app-creds.outputs.APP_CLIENT_ID }}
           private-key: ${{ steps.app-creds.outputs.APP_CLIENT_SECRET }}
-          owner: Sage-Bionetworks
-          repositories: Synapse-Repository-Services
+#          owner: Sage-Bionetworks
+#          repositories: Synapse-Repository-Services
 
       - name: Deploy CodePipeline to AWS CloudFormation
         uses: aws-actions/aws-cloudformation-github-deploy@v1

@@ -13,4 +13,4 @@ WHERE
 	gp.SESSION_ID = ?
 	AND (rc.seq IS NULL OR gp.PATCH_ID_SEQ >= rc.seq)
 ORDER BY
-  gp.PATCH_ID_REP, gp.PATCH_ID_SEQ LIMIT ?;
+  gp.PATCH_ID_SEQ, gp.PATCH_ID_REP LIMIT ?;

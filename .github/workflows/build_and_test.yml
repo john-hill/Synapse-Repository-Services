@@ -130,7 +130,7 @@ jobs:
           echo "APP_CLIENT_ID=$(echo $github_app_credentials | jq -r '.CLIENT_ID')" >> $GITHUB_ENV
           # Note, in Secrets Manager the secret is a pem file, but with new lines represented as spaces
           # So here we replace the spaces with new lines
-          echo "APP_CLIENT_SECRET=$(echo $github_app_credentials | jq -r '.CLIENT_SECRET' | sed 's/ /\n/g')" >> $GITHUB_ENV
+          echo "APP_CLIENT_SECRET=$(echo $github_app_credentials | jq -r '.CLIENT_SECRET' | sed 's/_/\n/g')" >> $GITHUB_ENV
 
       - uses: actions/create-github-app-token@v2
         id: app-token

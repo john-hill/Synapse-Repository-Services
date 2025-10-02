@@ -123,6 +123,23 @@ jobs:
               fi
           fi
 
+      - name: get app credentials
+        run: |
+          github_app_credentials=$(aws secretsmanager get-secret-value --secret-id "/build/github/app/credentials" --query SecretString --output text)
+          echo "APP_ID=$(echo $github_app_credentials | jq -r '.APP_ID')" >> $GITHUB_ENV
+          echo "APP_CLIENT_ID=$(echo $github_app_credentials | jq -r '.CLIENT_ID')" >> $GITHUB_ENV
+          # Note, in Secrets Manager the secret is a pem file, but with new lines represented as spaces
+          # So here we replace the spaces with new lines
+          echo "APP_CLIENT_SECRET=$(echo $github_app_credentials | jq -r '.CLIENT_SECRET' | sed 's/ /\n/g')" >> $GITHUB_ENV
+
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ env.APP_ID }}
+          private-key: ${{ env.APP_CLIENT_SECRET }}
+          owner: Sage-Bionetworks
+          repositories: Synapse-Repository-Services
+
       - name: Deploy CodePipeline to AWS CloudFormation
         uses: aws-actions/aws-cloudformation-github-deploy@v1
         id: pipeline-deploy
@@ -144,21 +161,6 @@ jobs:
       - name: Output Pipeline Console URL
         run: |
           echo "PIPELINE_CONSOLE_URL=https://us-east-1.console.aws.amazon.com/codesuite/codepipeline/pipelines/${{ steps.pipeline-deploy.outputs.PipelineName }}/view" >> $GITHUB_ENV
-
-      - name: get app credentials
-        run: |
-          github_app_credentials=$(aws secretsmanager get-secret-value --secret-id "/build/github/app/credentials" --query SecretString --output text)
-          echo "APP_ID=$(echo $github_app_credentials | jq -r '.APP_ID')" >> $GITHUB_ENV
-          echo "APP_CLIENT_ID=$(echo $github_app_credentials | jq -r '.CLIENT_ID')" >> $GITHUB_ENV
-          echo "APP_CLIENT_SECRET=$(echo $github_app_credentials | jq -r '.CLIENT_SECRET')" >> $GITHUB_ENV
-
-      - uses: actions/create-github-app-token@v2
-        id: app-token
-        with:
-          app-id: ${{ env.APP_ID }}
-          private-key: ${{ env.APP_CLIENT_SECRET }}
-          owner: Sage-Bionetworks
-          repositories: Synapse-Repository-Services
 
       - name: Pending Status
         env:

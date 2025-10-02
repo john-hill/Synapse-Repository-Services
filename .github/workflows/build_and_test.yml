@@ -124,19 +124,22 @@ jobs:
           fi
 
       - name: get app credentials
+        id: app-creds
         run: |
           github_app_credentials=$(aws secretsmanager get-secret-value --secret-id "/build/github/app/credentials" --query SecretString --output text)
-          echo "APP_ID=$(echo $github_app_credentials | jq -r '.APP_ID')" >> $GITHUB_ENV
-          echo "APP_CLIENT_ID=$(echo $github_app_credentials | jq -r '.CLIENT_ID')" >> $GITHUB_ENV
-          # Note, in Secrets Manager the secret is a pem file, but with new lines represented as spaces
-          # So here we replace the spaces with new lines
-          echo "APP_CLIENT_SECRET=$(echo $github_app_credentials | jq -r '.CLIENT_SECRET' | sed 's/_/\n/g')" >> $GITHUB_ENV
+          echo "APP_ID=$(echo $github_app_credentials | jq -r '.APP_ID')" >> $GITHUB_OUTPUT
+          echo "APP_CLIENT_ID=$(echo $github_app_credentials | jq -r '.CLIENT_ID')" >> $GITHUB_OUTPUT
+          # Note, in Secrets Manager the secret is a pem file, but with new lines represented as underscores
+          # So here we replace the underscores with new lines
+          echo "APP_CLIENT_SECRET=\"" >> $GITHUB_OUTPUT
+          echo $github_app_credentials | jq -r '.CLIENT_SECRET' | sed 's/_/\n/g' >> $GITHUB_OUTPUT
+          echo "\"" >> $GITHUB_OUTPUT
 
       - uses: actions/create-github-app-token@v2
         id: app-token
         with:
-          app-id: ${{ env.APP_ID }}
-          private-key: ${{ env.APP_CLIENT_SECRET }}
+          app-id: ${{ steps.app-creds.outputs.APP_ID }}
+          private-key: ${{ steps.app-creds.outputs.APP_CLIENT_SECRET }}
           owner: Sage-Bionetworks
           repositories: Synapse-Repository-Services
 

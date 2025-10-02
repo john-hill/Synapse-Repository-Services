@@ -155,7 +155,7 @@ jobs:
       - uses: actions/create-github-app-token@v2
         id: app-token
         with:
-          app-id: ${{ env.APP_CLIENT_ID }}
+          app-id: ${{ env.APP_ID }}
           private-key: ${{ env.APP_CLIENT_SECRET }}
           owner: Sage-Bionetworks
           repositories: Synapse-Repository-Services

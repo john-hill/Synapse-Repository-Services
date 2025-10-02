@@ -131,16 +131,16 @@ jobs:
           echo "APP_CLIENT_ID=$(echo $github_app_credentials | jq -r '.CLIENT_ID')" >> $GITHUB_OUTPUT
           # Note, in Secrets Manager the secret is a pem file, but with new lines represented as underscores
           # So here we replace the underscores with new lines
-          CLIENT_SECRET_WITH_UNDERSCORES=$(echo $github_app_credentials | jq -r '.CLIENT_SECRET')
-          echo "APP_CLIENT_SECRET=$(echo $CLIENT_SECRET_WITH_UNDERSCORES | sed s/_/'\\n'/g)" >> $GITHUB_OUTPUT
+          APP_PRIVATE_KEY_WITH_UNDERSCORES=$(echo $github_app_credentials | jq -r '.PRIVATE_KEY')
+          echo "APP_PRIVATE_KEY=$(echo $APP_PRIVATE_KEY_WITH_UNDERSCORES | sed s/_/'\\n'/g)" >> $GITHUB_OUTPUT
 
       - uses: actions/create-github-app-token@v2
         id: app-token
         with:
-          app-id: ${{ steps.app-creds.outputs.APP_CLIENT_ID }}
-          private-key: ${{ steps.app-creds.outputs.APP_CLIENT_SECRET }}
-#          owner: Sage-Bionetworks
-#          repositories: Synapse-Repository-Services
+          app-id: ${{ steps.app-creds.outputs.APP_ID }}
+          private-key: ${{ steps.app-creds.outputs.APP_PRIVATE_KEY }}
+          owner: Sage-Bionetworks
+          repositories: Synapse-Repository-Services
 
       - name: Deploy CodePipeline to AWS CloudFormation
         uses: aws-actions/aws-cloudformation-github-deploy@v1

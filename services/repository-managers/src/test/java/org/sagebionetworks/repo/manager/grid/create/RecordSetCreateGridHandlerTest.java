@@ -30,12 +30,15 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.EntityManager;
+import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
 import org.sagebionetworks.repo.manager.file.CsvFileHandleProvider;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.grid.PatchRowHandler;
 import org.sagebionetworks.repo.manager.grid.PatchStore;
+import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.dbo.grid.CreateGridSession;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
@@ -79,6 +82,9 @@ public class RecordSetCreateGridHandlerTest {
 
 	@Mock
 	private FileHandleManager mockFileHandleManager;
+	
+	@Mock
+	private EntityAuthorizationManager mockAuthorizationManager;
 	
 	@Mock
 	private CsvFileHandleProvider mockCsvProvider;
@@ -145,6 +151,7 @@ public class RecordSetCreateGridHandlerTest {
 	public void testBuildSessionFromRecordSet() throws IOException {
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockEntityManager.getEntity(mockUser, recordSet.getId(), RecordSet.class)).thenReturn(recordSet);
+		when(mockAuthorizationManager.hasAccess(mockUser, recordSet.getId(), ACCESS_TYPE.DOWNLOAD)).thenReturn(AuthorizationStatus.authorized());
 		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.of(
 				new JsonSchemaObjectBinding().setJsonSchemaVersionInfo(new JsonSchemaVersionInfo().set$id(schema$id))));
 
@@ -156,7 +163,7 @@ public class RecordSetCreateGridHandlerTest {
 
 		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
 
-		when(mockFileHandleManager.getRawFileHandle(mockUser, recordSet.getDataFileHandleId())).thenReturn(csvFile);
+		when(mockFileHandleManager.getRawFileHandleUnchecked(recordSet.getDataFileHandleId())).thenReturn(csvFile);
 
 		Long maxRowSize = (long) TableModelUtils.calculateMaxRowSize(csvSchema);
 
@@ -188,6 +195,7 @@ public class RecordSetCreateGridHandlerTest {
 	public void testBuildSessionFromRecordSetWithNoValidationSchema() throws IOException {
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockEntityManager.getEntity(mockUser, recordSet.getId(), RecordSet.class)).thenReturn(recordSet);
+		when(mockAuthorizationManager.hasAccess(mockUser, recordSet.getId(), ACCESS_TYPE.DOWNLOAD)).thenReturn(AuthorizationStatus.authorized());
 		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.empty());
 
 		gridSession = new GridSession().setSessionId(gridSessionId);
@@ -197,7 +205,7 @@ public class RecordSetCreateGridHandlerTest {
 
 		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
 
-		when(mockFileHandleManager.getRawFileHandle(mockUser, recordSet.getDataFileHandleId())).thenReturn(csvFile);
+		when(mockFileHandleManager.getRawFileHandleUnchecked(recordSet.getDataFileHandleId())).thenReturn(csvFile);
 
 		Long maxRowSize = (long) TableModelUtils.calculateMaxRowSize(csvSchema);
 
@@ -231,6 +239,7 @@ public class RecordSetCreateGridHandlerTest {
 
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockEntityManager.getEntity(mockUser, recordSet.getId(), RecordSet.class)).thenReturn(recordSet);
+		when(mockAuthorizationManager.hasAccess(mockUser, recordSet.getId(), ACCESS_TYPE.DOWNLOAD)).thenReturn(AuthorizationStatus.authorized());
 		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.empty());
 
 		gridSession = new GridSession().setSessionId(gridSessionId);
@@ -240,7 +249,7 @@ public class RecordSetCreateGridHandlerTest {
 
 		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
 
-		when(mockFileHandleManager.getRawFileHandle(mockUser, recordSet.getDataFileHandleId())).thenReturn(csvFile);
+		when(mockFileHandleManager.getRawFileHandleUnchecked(recordSet.getDataFileHandleId())).thenReturn(csvFile);
 
 		Long maxRowSize = (long) TableModelUtils.calculateMaxRowSize(csvSchema);
 
@@ -273,6 +282,7 @@ public class RecordSetCreateGridHandlerTest {
 	public void testBuildSessionFromRecordSetWithIOException() throws IOException {
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockEntityManager.getEntity(mockUser, recordSet.getId(), RecordSet.class)).thenReturn(recordSet);
+		when(mockAuthorizationManager.hasAccess(mockUser, recordSet.getId(), ACCESS_TYPE.DOWNLOAD)).thenReturn(AuthorizationStatus.authorized());
 		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.empty());
 
 		gridSession = new GridSession().setSessionId(gridSessionId);
@@ -282,7 +292,7 @@ public class RecordSetCreateGridHandlerTest {
 
 		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
 
-		when(mockFileHandleManager.getRawFileHandle(mockUser, recordSet.getDataFileHandleId())).thenReturn(csvFile);
+		when(mockFileHandleManager.getRawFileHandleUnchecked(recordSet.getDataFileHandleId())).thenReturn(csvFile);
 
 		IOException ioe = new IOException("nope");
 
@@ -313,6 +323,7 @@ public class RecordSetCreateGridHandlerTest {
 	public void testBuildSessionFromRecordSetWithEmptyCsvSchema() throws IOException {
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockEntityManager.getEntity(mockUser, recordSet.getId(), RecordSet.class)).thenReturn(recordSet);
+		when(mockAuthorizationManager.hasAccess(mockUser, recordSet.getId(), ACCESS_TYPE.DOWNLOAD)).thenReturn(AuthorizationStatus.authorized());
 		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.empty());
 
 		gridSession = new GridSession().setSessionId(gridSessionId);
@@ -322,7 +333,7 @@ public class RecordSetCreateGridHandlerTest {
 
 		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
 
-		when(mockFileHandleManager.getRawFileHandle(mockUser, recordSet.getDataFileHandleId())).thenReturn(csvFile);
+		when(mockFileHandleManager.getRawFileHandleUnchecked(recordSet.getDataFileHandleId())).thenReturn(csvFile);
 
 		csvSchema = Collections.emptyList();
 

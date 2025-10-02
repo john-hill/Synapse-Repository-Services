@@ -14,6 +14,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -364,7 +366,7 @@ public class GridDaoImplTest {
 	}
 
 	@Test
-	public void testListMissingPatchs() {
+	public void testListMissingPatches() {
 		GridSession sessionOne = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		GridSession sessionTwo = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		Duration expires = Duration.ofSeconds(100L);
@@ -376,10 +378,18 @@ public class GridDaoImplTest {
 			assertTrue(dao.savePatch(sessionTwo.getSessionId(), p, s3Key, expires));
 		});
 
+		List<LogicalTimestamp> patchIdsSortedBySeq = patchIds.stream().sorted((p1, p2) -> {
+			if (!p1.getSequenceNumber().equals(p2.getSequenceNumber())) {
+				return p1.getSequenceNumber().compareTo(p2.getSequenceNumber());
+			} else {
+				return p1.getReplicaId().compareTo(p2.getReplicaId());
+			}
+		}).collect(Collectors.toList());
+
 		// call under test
 		List<LogicalTimestamp> list = dao.listMissingPatchIdsForClock(sessionOne.getSessionId(), List.of(), 100);
 		// empty clock should return all patches
-		assertEquals(patchIds, list);
+		assertEquals(patchIdsSortedBySeq, list);
 
 		// call under test
 		list = dao.listMissingPatchIdsForClock(sessionOne.getSessionId(),
@@ -411,11 +421,11 @@ public class GridDaoImplTest {
 				100);
 
 		expected = List.of(
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(8L),
 				new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(4L),
 				new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(6L),
-				new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(8L),
 				new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(6L),
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(8L),
+				new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(8L),
 				new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(8L));
 
 		assertEquals(expected, list);
@@ -616,11 +626,22 @@ public class GridDaoImplTest {
 
 	List<LogicalTimestamp> createTestPatchIds(int replicaCount, int sequenceCount) {
 		List<LogicalTimestamp> ids = new ArrayList<>(replicaCount * sequenceCount);
-		for (long rep = 1; rep < replicaCount + 1; rep++) {
+		List<Integer> replicaIds = IntStream.range(1, replicaCount + 1).boxed().sorted((num1, num2) -> {
+			// Put even replicas before odd replicas to verify that the patch list is sorted by sequence number before sorting by replica ID
+			boolean num1Even = num1 % 2 == 0;
+            boolean num2Even = num2 % 2 == 0;
+            if (num1Even && !num2Even) {
+                return -1;
+            } else if (!num1Even && num2Even) {
+                return 1;
+            }
+            return Integer.compare(num1, num2);
+        }).collect(Collectors.toList());
+		replicaIds.forEach(rep -> {
 			for (long seq = 1; seq < sequenceCount + 1; seq++) {
-				ids.add(new LogicalTimestamp().setReplicaId(rep).setSequenceNumber(seq * 2));
+				ids.add(new LogicalTimestamp().setReplicaId(rep.longValue()).setSequenceNumber(seq * 2));
 			}
-		}
+		});
 		return ids;
 	}
 

@@ -72,6 +72,8 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 		DownloadFromGridRequest request = new DownloadFromGridRequest()
 			.setSessionId(sessionId)
 			.setWriteHeader(true)
+			.setIncludeEtag(false)
+			.setIncludeRowIdAndRowVersion(false)
 			.setCsvTableDescriptor(csvDescriptor);
 		
 		DownloadFromGridResult result;

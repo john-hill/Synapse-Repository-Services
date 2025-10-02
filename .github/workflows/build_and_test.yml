@@ -11,9 +11,6 @@
 # - FULL_BUILD: if true, will do a full build, vs. an abbreviated "feature build"
 # - EXTRA_ARGS: pass extra arguments to maven build
 #
-# To post the build status to a PR, add this repository secret:
-# - WRITE_STATUS_TOKEN: A GitHub token with "repo:status" and "public_repo" permissions
-#
 name: main
 
 on:
@@ -76,9 +73,6 @@ jobs:
           fi
           echo "full_build=${{ vars.FULL_BUILD }}" >> $GITHUB_ENV
           echo "EXTRA_ARGS=${{ vars.EXTRA_ARGS }}" >> $GITHUB_ENV
-          if [ ${{ secrets.WRITE_STATUS_TOKEN }} ]; then
-            echo "WRITE_STATUS_TOKEN_EXISTS=true" >> $GITHUB_ENV
-          fi
           # for builds in Sage-Bionetworks repo', publish build artifacts
           if [[ $GITHUB_REPOSITORY_OWNER == "Sage-Bionetworks" ]]; then
             if [[ $branch == "develop" ]]; then
@@ -151,10 +145,21 @@ jobs:
         run: |
           echo "PIPELINE_CONSOLE_URL=https://us-east-1.console.aws.amazon.com/codesuite/codepipeline/pipelines/${{ steps.pipeline-deploy.outputs.PipelineName }}/view" >> $GITHUB_ENV
 
+      - name: get app credentials
+        run: |
+          github_app_credentials=$(aws secretsmanager get-secret-value --secret-id "/build/github/app/credentials" --query SecretString --output text)
+          echo "APP_ID=$(echo $github_app_credentials | jq -r '.APP_ID')" >> $GITHUB_ENV
+          echo "APP_CLIENT_SECRET=$(echo $github_app_credentials | jq -r '.CLIENT_SECRET')" >> $GITHUB_ENV
+
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ env.APP_ID }}
+          private-key: ${{ env.APP_CLIENT_SECRET }}
+
       - name: Pending Status
-        if: ${{ env.WRITE_STATUS_TOKEN_EXISTS }}
         env:
-          GITHUB_TOKEN: ${{ secrets.WRITE_STATUS_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh api --method POST \
           /repos/Sage-Bionetworks/Synapse-Repository-Services/statuses/${{ github.sha }} \
@@ -193,9 +198,8 @@ jobs:
           done
 
       - name: Success Status
-        if: ${{ env.WRITE_STATUS_TOKEN_EXISTS }}
         env:
-          GITHUB_TOKEN: ${{ secrets.WRITE_STATUS_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh api --method POST \
           /repos/Sage-Bionetworks/Synapse-Repository-Services/statuses/${{ github.sha }} \
@@ -204,9 +208,9 @@ jobs:
           -f "target_url=${{ env.PIPELINE_CONSOLE_URL }}"
 
       - name: Failed Status
-        if: ${{ env.WRITE_STATUS_TOKEN_EXISTS && failure()}}
+        if: ßfailure()
         env:
-          GITHUB_TOKEN: ${{ secrets.WRITE_STATUS_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh api --method POST \
           /repos/Sage-Bionetworks/Synapse-Repository-Services/statuses/${{ github.sha }} \
@@ -215,9 +219,9 @@ jobs:
           -f "target_url=${{ env.PIPELINE_CONSOLE_URL }}"
 
       - name: Cancelled Status
-        if: ${{ env.WRITE_STATUS_TOKEN_EXISTS && cancelled()}}
+        if: cancelled()
         env:
-          GITHUB_TOKEN: ${{ secrets.WRITE_STATUS_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh api --method POST \
           /repos/Sage-Bionetworks/Synapse-Repository-Services/statuses/${{ github.sha }} \

@@ -7,8 +7,10 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -274,6 +276,9 @@ public class GridIndexDaoImpl implements GridIndexDao {
 	}
 
 	MapSqlParameterSource createParameters(Long sessionId, Long replicaId, List<LogicalTimestamp> ids) {
+		if (ids.stream().anyMatch(Objects::isNull)) {
+		    throw new IllegalArgumentException("ids list cannot contain null values");
+		}
 		List<Object[]> idTuples = ids.stream().map(ts -> new Object[] { ts.getReplicaId(), ts.getSequenceNumber() })
 				.collect(Collectors.toList());
 
@@ -623,17 +628,20 @@ public class GridIndexDaoImpl implements GridIndexDao {
 
 	@Override
 	@GridTransaction(readOnly = false)
-	public MessageChain createMessageChain(MessageChain chain) {
+	public MessageChain createMessageChain(MessageChain chain, Duration expires) {
 		ValidateArgument.required(chain, "chain");
 		ValidateArgument.required(chain.getId(), "chain.id");
 		ValidateArgument.required(chain.getSessionId(), "chain.sessionId");
 		ValidateArgument.required(chain.getReplicaId(), "chain.replicaId");
 		ValidateArgument.required(chain.getMethod(), "chain.method");
+		ValidateArgument.required(expires, "chain.expires");
 		Long sessionId = validateReplica(chain.getSessionId(), chain.getReplicaId());
 		jdbcTemplate.update(
-				"INSERT INTO GRID_REPLICA_MESSAGE (SESSION_ID, REPLICA_ID, MESSAGE_ID, METHOD_NAME, CREATED_ON)"
-						+ " VALUES (?,?,?,?,NOW()) ON DUPLICATE KEY UPDATE METHOD_NAME = ?, CREATED_ON = NOW()",
-				sessionId, chain.getReplicaId(), chain.getId(), chain.getMethod(), chain.getMethod());
+				"INSERT INTO GRID_REPLICA_MESSAGE (SESSION_ID, REPLICA_ID, MESSAGE_ID, METHOD_NAME, CREATED_ON, EXPIRES_On)"
+						+ " VALUES (?,?,?,?,NOW(),NOW() + INTERVAL ? SECOND) ON DUPLICATE KEY"
+						+ " UPDATE METHOD_NAME = ?, CREATED_ON = NOW(), EXPIRES_ON = NOW() + INTERVAL ? SECOND",
+				sessionId, chain.getReplicaId(), chain.getId(), chain.getMethod(), expires.getSeconds(),
+				chain.getMethod(), expires.getSeconds());
 		return getMessageChain(chain.getSessionId(), chain.getReplicaId(), chain.getId()).get();
 	}
 
@@ -645,6 +653,31 @@ public class GridIndexDaoImpl implements GridIndexDao {
 			return Optional.of(jdbcTemplate.queryForObject(
 					"SELECT * FROM GRID_REPLICA_MESSAGE WHERE SESSION_ID = ? AND REPLICA_ID = ? AND MESSAGE_ID = ?",
 					MESSAGE_CHAIN_MAPPER, sessionId, replicaId, chainId));
+		} catch (EmptyResultDataAccessException e) {
+			return Optional.empty();
+		}
+	}
+
+	@Override
+	@GridTransaction(readOnly = false)
+	public boolean refreshMessageChain(String sessionIdString, Long replicaId, Integer chainId, Duration expires) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		ValidateArgument.required(expires, "expires");
+		return jdbcTemplate.update(
+				"UPDATE GRID_REPLICA_MESSAGE SET EXPIRES_ON = NOW() + INTERVAL ? SECOND WHERE"
+						+ " SESSION_ID = ? AND REPLICA_ID = ? AND MESSAGE_ID = ?",
+				expires.getSeconds(), sessionId, replicaId, chainId) > 0;
+	}
+
+	@Override
+	public Optional<MessageChain> getNonExpiredMessageChain(String sessionIdString, Long replicaId, String method) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		ValidateArgument.required(method, "method");
+		try {
+			return jdbcTemplate
+					.query("SELECT * FROM GRID_REPLICA_MESSAGE WHERE SESSION_ID = ? AND REPLICA_ID = ? AND METHOD_NAME = ?"
+							+ " AND EXPIRES_ON > NOW() LIMIT 1", MESSAGE_CHAIN_MAPPER, sessionId, replicaId, method)
+					.stream().findFirst();
 		} catch (EmptyResultDataAccessException e) {
 			return Optional.empty();
 		}
@@ -707,4 +740,6 @@ public class GridIndexDaoImpl implements GridIndexDao {
 				Long.class, sessionId, replicaId);
 		return max != null ? max : 1L;
 	}
+
+
 }

@@ -53,7 +53,7 @@ public class PatchBuilderPublisherImplTest {
 		publisher.sendChangesToPatchBuilder(changeSet);
 		verify(mockSqsClient).sendMessage(SendMessageRequest.builder().queueUrl(queueUrl)
 				.messageBody("{\"con\":\"con123\",\"ses\":\"session99\",\"rep\":33,\"max\":43,\"set\":[[0,{\"m\":[1,2]}]]}")
-				.messageGroupId("session99-33").messageDeduplicationId("d3e4b78f2bec942e32e56640a2a49cb6").build());
+				.messageGroupId("con123").messageDeduplicationId("d3e4b78f2bec942e32e56640a2a49cb6").build());
 	}
 
 }

@@ -152,9 +152,17 @@ public class GridReplicaViewManagerImplAutowireTest {
 
 		// add a selection model to the gird
 		ReplicaSelectionModel selection = new ReplicaSelectionModel().setRowSelectAll(true).setColumnSelectAll(false);
-		Long maxSeq = setSelection(expected.getNodeId(), selection);
+		Long maxSeq = setSelection(expected.getNodeId(), selection, replicaId);
 
 		expected.setReplicaSelectionModel(selection);
+		expected.setClockSequenceMaximum(maxSeq);
+		// call under test
+		assertEquals(Optional.of(expected), gridViewManager.readHeader(sessionId, replicaId));
+		
+		// set a different replica to be selected.
+		maxSeq = setSelection(expected.getNodeId(), selection, 333L);
+
+		expected.setReplicaSelectionModel(null);
 		expected.setClockSequenceMaximum(maxSeq);
 		// call under test
 		assertEquals(Optional.of(expected), gridViewManager.readHeader(sessionId, replicaId));
@@ -168,13 +176,13 @@ public class GridReplicaViewManagerImplAutowireTest {
 	 * @param selection
 	 * @return
 	 */
-	public Long setSelection(LogicalTimestamp rootObjectId, ReplicaSelectionModel selection) {
+	public Long setSelection(LogicalTimestamp rootObjectId, ReplicaSelectionModel selection, Long otherReplica) {
 		Patch patch = new Patch()
 				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
 		LogicalTimestamp selectionConId = patch.addNewOperation(new NewConstantBuilder().setValue(
 				new ConValue(ConType.JSON_OBJECT, JDOSecondaryPropertyUtils.createJSONObjectForEntity(selection))));
 		LogicalTimestamp selectionObId = patch.addNewOperation(new NewObjectBuilder());
-		patch.addNewOperation(new InsertObjectBuilder().setMap(Map.of(replicaId.toString(), selectionConId))
+		patch.addNewOperation(new InsertObjectBuilder().setMap(Map.of(otherReplica.toString(), selectionConId))
 				.setObjectId(selectionObId));
 		patch.addNewOperation(
 				new InsertObjectBuilder().setObjectId(rootObjectId).setMap(Map.of("selection", selectionObId)));
@@ -761,7 +769,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 		ReplicaSelectionModel selection = new ReplicaSelectionModel()
 				.setRowSelection(List.of(createCrdtIdFromLogical(allRows.get(1).getArrNodeId()),
 						createCrdtIdFromLogical(allRows.get(3).getArrNodeId())));
-		setSelection(header.getNodeId(), selection);
+		setSelection(header.getNodeId(), selection, replicaId);
 		header = gridViewManager.readHeader(sessionId, replicaId).get();
 
 		// call under test
@@ -777,7 +785,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 								.setLimit(100L).setOffset(0L)));
 
 		selection = new ReplicaSelectionModel().setRowSelectAll(true);
-		setSelection(header.getNodeId(), selection);
+		setSelection(header.getNodeId(), selection, replicaId);
 		header = gridViewManager.readHeader(sessionId, replicaId).get();
 
 		assertEquals(allRows,

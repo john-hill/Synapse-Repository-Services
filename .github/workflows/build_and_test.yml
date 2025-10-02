@@ -5,7 +5,7 @@
 #
 # These parameters can be overridden with repo's action variables:
 #
-# - USER (the 'user' parameter for the Synapse build): defaults to repo' owner
+# - USER (the 'user' parameter for the Synapse build): defaults to repo' owner.  Should be alphanumeric only.
 # - STACK_BUILDER_REPO_OWNER: defaults to Sage-Bionetworks
 # - STACK_BUILDER_BRANCH: defaults to develop
 # - FULL_BUILD: if true, will do a full build, vs. an abbreviated "feature build"
@@ -57,7 +57,8 @@ jobs:
           if [ ${{ vars.USER }} ]; then
             echo "user=${{ vars.USER }}" >> $GITHUB_ENV
           else
-            echo "user=$GITHUB_REPOSITORY_OWNER" >> $GITHUB_ENV
+            alpha_only_trunc_repo_name=$(echo "${GITHUB_REPOSITORY_OWNER//[^[:alnum:]]/}" | cut -c1-7)
+            echo "user=$alpha_only_trunc_repo_name" >> $GITHUB_ENV
           fi
           # capture the current branch as an environment variable
           branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}

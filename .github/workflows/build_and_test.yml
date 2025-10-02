@@ -149,12 +149,13 @@ jobs:
         run: |
           github_app_credentials=$(aws secretsmanager get-secret-value --secret-id "/build/github/app/credentials" --query SecretString --output text)
           echo "APP_ID=$(echo $github_app_credentials | jq -r '.APP_ID')" >> $GITHUB_ENV
+          echo "APP_CLIENT_ID=$(echo $github_app_credentials | jq -r '.CLIENT_ID')" >> $GITHUB_ENV
           echo "APP_CLIENT_SECRET=$(echo $github_app_credentials | jq -r '.CLIENT_SECRET')" >> $GITHUB_ENV
 
       - uses: actions/create-github-app-token@v2
         id: app-token
         with:
-          app-id: ${{ env.APP_ID }}
+          app-id: ${{ env.APP_CLIENT_ID }}
           private-key: ${{ env.APP_CLIENT_SECRET }}
           owner: Sage-Bionetworks
           repositories: Synapse-Repository-Services

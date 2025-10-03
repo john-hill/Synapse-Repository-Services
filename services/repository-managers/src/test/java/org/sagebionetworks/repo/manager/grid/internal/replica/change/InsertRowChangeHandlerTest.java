@@ -44,6 +44,10 @@ public class InsertRowChangeHandlerTest {
 	public void testHandleChange() {
 		Long repId = 5L;
 		
+		LogicalTimestamp rowObjId = new LogicalTimestamp().setReplicaId(repId).setSequenceNumber(5L);
+		
+		when(mockPatchBuilder.addOperationBuilder(Operations.newObject())).thenReturn(rowObjId);
+		
 		LogicalTimestamp rowVecId = new LogicalTimestamp().setReplicaId(repId).setSequenceNumber(6L);
 		
 		when(mockPatchBuilder.addOperationBuilder(Operations.newVector())).thenReturn(rowVecId);
@@ -53,7 +57,7 @@ public class InsertRowChangeHandlerTest {
 		for (int i=0; i<change.getRowData().length(); i++) {
 			Object value = change.getRowData().get(i);
 			
-			LogicalTimestamp constId = new LogicalTimestamp().setReplicaId(repId).setSequenceNumber(20L + i);
+			LogicalTimestamp constId = new LogicalTimestamp().setReplicaId(repId).setSequenceNumber(7L + i);
 		
 			when(mockPatchBuilder.addOperationBuilder(Operations.newConstant().setValue(new ConValue(ConType.STRING, value))))
 				.thenReturn(constId);
@@ -63,10 +67,6 @@ public class InsertRowChangeHandlerTest {
 		
 		when(mockPatchBuilder.addOperationBuilder(Operations.insertVector().setVectorId(rowVecId).setMap(constMap)))
 			.thenReturn(new LogicalTimestamp().setReplicaId(repId).setSequenceNumber(30L));
-		
-		LogicalTimestamp rowObjId = new LogicalTimestamp().setReplicaId(repId).setSequenceNumber(40L);
-		
-		when(mockPatchBuilder.addOperationBuilder(Operations.newObject())).thenReturn(rowObjId);
 		
 		when(mockPatchBuilder.addOperationBuilder(Operations.insertObject()
 				.setObjectId(rowObjId)

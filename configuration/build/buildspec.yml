@@ -46,6 +46,8 @@ phases:
         export build_deploy=true
         export artifactory_username=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_username')
         export artifactory_password=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_password')
+        echo len of artifactory_username is ${#artifactory_username}
+        echo len of artifactory_password is ${#artifactory_password}
         # now update the pom.xml files to use the version
         echo "Changing all pom.xml to version=$ARTIFACT_VERSION"
         for f in `find . -name "pom.xml"` ; do
@@ -56,8 +58,6 @@ phases:
       fi
 
       if [ "${FULL_BUILD}" == "true" ]; then
-        export artifactory_username=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_username')
-        export artifactory_password=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_password')
         export org_sagebionetworks_datacite_enabled=true
         export org_sagebionetworks_doi_prefix=10.33627
         export org_sagebionetworks_doi_datacite_api_endpoint=mds.test.datacite.org

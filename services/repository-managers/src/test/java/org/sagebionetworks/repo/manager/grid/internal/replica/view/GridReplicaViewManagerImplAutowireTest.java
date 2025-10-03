@@ -152,12 +152,13 @@ public class GridReplicaViewManagerImplAutowireTest {
 
 		// add a selection model to the gird
 		ReplicaSelectionModel selection = new ReplicaSelectionModel().setRowSelectAll(true).setColumnSelectAll(false);
-		Long maxSeq = setSelection(expected.getNodeId(), selection, replicaId);
+		Long otherReplica = 765L;
+		Long maxSeq = setSelection(expected.getNodeId(), selection, otherReplica);
 
 		expected.setReplicaSelectionModel(selection);
 		expected.setClockSequenceMaximum(maxSeq);
 		// call under test
-		assertEquals(Optional.of(expected), gridViewManager.readHeader(sessionId, replicaId));
+		assertEquals(Optional.of(expected), gridViewManager.readHeader(sessionId, replicaId, otherReplica));
 		
 		// set a different replica to be selected.
 		maxSeq = setSelection(expected.getNodeId(), selection, 333L);
@@ -769,8 +770,9 @@ public class GridReplicaViewManagerImplAutowireTest {
 		ReplicaSelectionModel selection = new ReplicaSelectionModel()
 				.setRowSelection(List.of(createCrdtIdFromLogical(allRows.get(1).getArrNodeId()),
 						createCrdtIdFromLogical(allRows.get(3).getArrNodeId())));
-		setSelection(header.getNodeId(), selection, replicaId);
-		header = gridViewManager.readHeader(sessionId, replicaId).get();
+		Long otherReplica = 987L;
+		setSelection(header.getNodeId(), selection, otherReplica);
+		header = gridViewManager.readHeader(sessionId, replicaId, otherReplica).get();
 
 		// call under test
 		assertEquals(List.of(allRows.get(1), allRows.get(3)),
@@ -785,8 +787,8 @@ public class GridReplicaViewManagerImplAutowireTest {
 								.setLimit(100L).setOffset(0L)));
 
 		selection = new ReplicaSelectionModel().setRowSelectAll(true);
-		setSelection(header.getNodeId(), selection, replicaId);
-		header = gridViewManager.readHeader(sessionId, replicaId).get();
+		setSelection(header.getNodeId(), selection, otherReplica);
+		header = gridViewManager.readHeader(sessionId, replicaId, otherReplica).get();
 
 		assertEquals(allRows,
 				gridViewManager.querySinglePage(header,

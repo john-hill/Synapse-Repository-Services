@@ -7,8 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.File;
 import java.io.FileWriter;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
+import org.java_websocket.WebSocket;
+import org.json.JSONObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,12 +38,25 @@ import org.sagebionetworks.repo.model.agent.CreateAgentSessionRequest;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.sagebionetworks.repo.model.entity.BindSchemaToEntityRequest;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
+import org.sagebionetworks.repo.model.grid.CrdtId;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridResponse;
 import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.ReplicaSelectionModel;
+import org.sagebionetworks.repo.model.grid.message.JsonRxMessage;
+import org.sagebionetworks.repo.model.grid.message.JsonRxMessageType;
+import org.sagebionetworks.repo.model.grid.patch.ConType;
+import org.sagebionetworks.repo.model.grid.patch.ConValue;
+import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.grid.patch.Patch;
+import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
+import org.sagebionetworks.repo.model.grid.patch.operation.builder.InsertObjectBuilder;
+import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewConstantBuilder;
+import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewObjectBuilder;
+import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.schema.CreateSchemaRequest;
 import org.sagebionetworks.repo.model.schema.CreateSchemaResponse;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
@@ -173,6 +191,8 @@ public class GridAgentChatWorkerIntegrationTest {
 						.setGridSessionId(gridSession.getSessionId()).setReplicaId(replicaOne.getReplicaId()))
 				.getPresignedUrl();
 		assertNotNull(urlOne);
+		BlockingQueue<String> incomingMessages = new LinkedBlockingQueue<>();
+		WebSocket websoceket = asynchronousJobWorkerHelper.createConnection(urlOne, incomingMessages);
 
 		GridAgentSessionContext context = new GridAgentSessionContext().setGridSessionId(replicaOne.getGridSessionId())
 				.setUsersReplicaId(replicaOne.getReplicaId());
@@ -208,6 +228,53 @@ public class GridAgentChatWorkerIntegrationTest {
 							assertTrue(response.getResponseText().toLowerCase().contains("4"));
 						}, MAX_WAIT_MS)
 				.getResponse();
+
+		// setup the user's selection.
+		GridHeader header = gridReplicaViewManager.readHeader(gridSession.getSessionId(), INTERNAL_REPLICA_ID).get();
+		List<RowView> rows = gridReplicaViewManager.querySinglePage(header, 100L, 0L);
+
+		JsonRxMessage message = createSetSelectionMessage(header,
+				new ReplicaSelectionModel()
+						.setRowSelection(List.of(RowView.createCrdtIdFromLogical(rows.get(2).getArrNodeId()))),
+				new LogicalTimestamp().setReplicaId(context.getUsersReplicaId()).setSequenceNumber(1L));
+		websoceket.send(message.toJson());
+		asynchronousJobWorkerHelper.waitForMessage((a) -> a.optInt(0) == 5 && a.optInt(1) == message.getId().get(),
+				incomingMessages);
+		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+			ReplicaSelectionModel curSelection = gridReplicaViewManager
+					.readHeader(gridSession.getSessionId(), INTERNAL_REPLICA_ID, context.getUsersReplicaId()).get().getReplicaSelectionModel();
+			return Pair.create(curSelection != null, null);
+		});
+		
+		chatRequest = "I want to focus on my currently selected row.  Why is this row invalid?";
+		asynchronousJobWorkerHelper
+				.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
+						.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {
+							assertNotNull(response);
+							assertEquals(agentSession.getSessionId(), response.getSessionId());
+							assertNotNull(response.getResponseText());
+							System.out.println(response.getResponseText());
+							assertTrue(response.getResponseText().toLowerCase().contains("null"));
+							assertTrue(response.getResponseText().toLowerCase().contains("no id"));
+						}, MAX_WAIT_MS)
+				.getResponse();
+	}
+
+	public JsonRxMessage createSetSelectionMessage(GridHeader header, ReplicaSelectionModel selection,
+			LogicalTimestamp clock) {
+		LogicalTimestamp rootObjId = header.getNodeId();
+		Patch patch = new Patch();
+		patch.setPatchId(clock);
+		LogicalTimestamp selectionObj = patch.addNewOperation(new NewObjectBuilder());
+		JSONObject selectionJson = JDOSecondaryPropertyUtils.createJSONObjectForEntity(selection);
+		LogicalTimestamp conId = patch
+				.addNewOperation(new NewConstantBuilder().setValue(new ConValue(ConType.JSON_OBJECT, selectionJson)));
+		patch.addNewOperation(new InsertObjectBuilder().setObjectId(selectionObj)
+				.setMap(Map.of(clock.getReplicaId().toString(), conId)));
+		patch.addNewOperation(
+				new InsertObjectBuilder().setObjectId(rootObjId).setMap(Map.of("selection", selectionObj)));
+		return new JsonRxMessage(JsonRxMessageType.RequestData).setBody(PatchCompactSerializable.serialize(patch))
+				.setId(987).setMethod("patch");
 	}
 
 	/**

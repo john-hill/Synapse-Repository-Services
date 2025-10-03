@@ -2217,7 +2217,7 @@ public class DownloadListDaoImplTest {
 	}
 	
 	@Test
-	public void testAddDatasetItemsToDownloadList() {
+	public void testAddFileEntityRefToDownloadList() {
 		int numberOfProject = 1;
 		int foldersPerProject = 1;
 		int filesPerFolder = 3;
@@ -2237,7 +2237,7 @@ public class DownloadListDaoImplTest {
 		});
 		List<EntityRef> toAdd = nodeDao.getNodeItems(KeyFactory.stringToKey(dataset.getId()));
 		// call under test
-		Long count = downloadListDao.addDatasetItemsToDownloadList(userOneIdLong, toAdd, limit);
+		Long count = downloadListDao.addFileEntityRefToDownloadList(userOneIdLong, toAdd, limit);
 		assertEquals(2L, count);
 		
 		List<DownloadListItem> expected = Arrays.asList(
@@ -2249,7 +2249,7 @@ public class DownloadListDaoImplTest {
 	}
 	
 	@Test
-	public void testAddDatasetItemsToDownloadListWithLimit() {
+	public void testAddFileEntityRefToDownloadListWithLimit() {
 		int numberOfProject = 1;
 		int foldersPerProject = 1;
 		int filesPerFolder = 3;
@@ -2271,7 +2271,7 @@ public class DownloadListDaoImplTest {
 		});
 		List<EntityRef> toAdd = nodeDao.getNodeItems(KeyFactory.stringToKey(dataset.getId()));
 		// call under test
-		Long count = downloadListDao.addDatasetItemsToDownloadList(userOneIdLong, toAdd, limit);
+		Long count = downloadListDao.addFileEntityRefToDownloadList(userOneIdLong, toAdd, limit);
 		assertEquals(1L, count);
 		
 		List<DownloadListItem> expected = Arrays.asList(
@@ -2282,7 +2282,7 @@ public class DownloadListDaoImplTest {
 	}
 	
 	@Test
-	public void testAddDatasetItemsToDownloadListWithFilesAlreadyOnListSameVersion() {
+	public void testAddFileEntityRefToDownloadListWithFilesAlreadyOnListSameVersion() {
 		int numberOfProject = 1;
 		int foldersPerProject = 1;
 		int filesPerFolder = 2;
@@ -2307,7 +2307,7 @@ public class DownloadListDaoImplTest {
 		});
 		List<EntityRef> toAdd = nodeDao.getNodeItems(KeyFactory.stringToKey(dataset.getId()));
 		// call under test
-		Long count = downloadListDao.addDatasetItemsToDownloadList(userOneIdLong, toAdd, limit);
+		Long count = downloadListDao.addFileEntityRefToDownloadList(userOneIdLong, toAdd, limit);
 		// only adds 1 now because the other file was already there
 		assertEquals(1L, count);
 		
@@ -2320,7 +2320,7 @@ public class DownloadListDaoImplTest {
 	}
 	
 	@Test
-	public void testAddDatasetItemsToDownloadListWithFilesAlreadyOnListDifferentVersion() {
+	public void testAddFileEntityRefToDownloadListWithFilesAlreadyOnListDifferentVersion() {
 		int numberOfProject = 1;
 		int foldersPerProject = 1;
 		int filesPerFolder = 2;
@@ -2345,7 +2345,7 @@ public class DownloadListDaoImplTest {
 		});
 		List<EntityRef> toAdd = nodeDao.getNodeItems(KeyFactory.stringToKey(dataset.getId()));
 		// call under test
-		Long count = downloadListDao.addDatasetItemsToDownloadList(userOneIdLong, toAdd, limit);
+		Long count = downloadListDao.addFileEntityRefToDownloadList(userOneIdLong, toAdd, limit);
 		assertEquals(2L, count);
 		
 		List<DownloadListItem> expected = Arrays.asList(
@@ -2358,12 +2358,122 @@ public class DownloadListDaoImplTest {
 	}
 	
 	@Test
-	public void testAddDatasetItemsToDownloadListWithEmpty() {
+	public void testAddFileEntityRefToDownloadListWithEmpty() {
 		List<EntityRef> toAdd = Collections.emptyList();
 		
 		// call under test
-		Long count = downloadListDao.addDatasetItemsToDownloadList(userOneIdLong, toAdd, limit);
+		Long count = downloadListDao.addFileEntityRefToDownloadList(userOneIdLong, toAdd, limit);
 		assertEquals(0L, count);
+	}
+	
+	@Test
+	public void testAddDatasetEntityRefFilesToDownloadList() {
+		int numberOfProject = 1;
+		int foldersPerProject = 2;
+		int filesPerFolder = 10;
+		int filesPerDataset = 5;
+		
+		List<Node> files = createFileHierarchy(numberOfProject, foldersPerProject, filesPerFolder);
+		List<EntityRef> datasets = createDatasets(files, filesPerDataset);
+		
+		// call under test
+		Long count = downloadListDao.addDatasetEntityRefFilesToDownloadList(userOneIdLong, datasets, limit);
+		assertEquals(files.size(), count);
+		
+		List<DownloadListItem> expected = files.stream().map(file -> 
+			new DownloadListItem().setFileEntityId(file.getId()).setVersionNumber(file.getVersionNumber())
+		).collect(Collectors.toList());
+		
+		compareIdAndVersionToListItem(userOneIdLong, expected, downloadListDao.getDBODownloadListItems(userOneIdLong));
+	}
+	
+	@Test
+	public void testAddDatasetEntityRefFilesToDownloadListWithLimit() {
+		int numberOfProject = 1;
+		int foldersPerProject = 1;
+		int filesPerFolder = 10;
+		int filesPerDataset = 2;
+		
+		List<Node> files = createFileHierarchy(numberOfProject, foldersPerProject, filesPerFolder);
+		List<EntityRef> datasets = createDatasets(files, filesPerDataset);
+		
+		limit = 2;
+		
+		// call under test
+		Long count = downloadListDao.addDatasetEntityRefFilesToDownloadList(userOneIdLong, datasets, limit);
+		
+		assertEquals(limit, count);
+		
+		List<DownloadListItem> expected = files.subList(0, (int) limit).stream().map(file -> 
+			new DownloadListItem().setFileEntityId(file.getId()).setVersionNumber(file.getVersionNumber())
+		).collect(Collectors.toList());
+		
+		compareIdAndVersionToListItem(userOneIdLong, expected, downloadListDao.getDBODownloadListItems(userOneIdLong));
+	}
+	
+	@Test
+	public void testAddDatasetEntityRefFilesToDownloadListWithFilesAlreadyInDownloadList() {
+		int numberOfProject = 1;
+		int foldersPerProject = 1;
+		int filesPerFolder = 10;
+		int filesPerDataset = 2;
+		
+		List<Node> files = createFileHierarchy(numberOfProject, foldersPerProject, filesPerFolder);
+		
+		List<Node> filesAlreadyOnDownloadList = List.of(
+			files.get(1),
+			files.get(2),
+			files.get(4)
+		);
+		
+		// Add some of the files in the download list	
+		downloadListDao.addBatchOfFilesToDownloadList(userOneIdLong, filesAlreadyOnDownloadList.stream().map( file ->
+			new DownloadListItem().setFileEntityId(file.getId()).setVersionNumber(file.getVersionNumber())
+		).collect(Collectors.toList()));
+		
+		List<EntityRef> datasets = createDatasets(files, filesPerDataset);
+		
+		// call under test
+		Long count = downloadListDao.addDatasetEntityRefFilesToDownloadList(userOneIdLong, datasets, limit);
+		
+		assertEquals(files.size() - filesAlreadyOnDownloadList.size(), count);
+		
+		List<DownloadListItem> expected = files.stream().map(file -> 
+			new DownloadListItem().setFileEntityId(file.getId()).setVersionNumber(file.getVersionNumber())
+		).collect(Collectors.toList());
+		
+		compareIdAndVersionToListItem(userOneIdLong, expected, downloadListDao.getDBODownloadListItems(userOneIdLong));
+	}
+	
+	@Test
+	public void testAddDatasetEntityRefFilesToDownloadListWithFilesAlreadyInDownloadListAndDifferentVersion() {
+		int numberOfProject = 1;
+		int foldersPerProject = 1;
+		int filesPerFolder = 10;
+		int filesPerDataset = 2;
+		
+		List<Node> files = createFileHierarchy(numberOfProject, foldersPerProject, filesPerFolder);
+		
+		DownloadListItem item = new DownloadListItem().setFileEntityId(files.get(0).getId()).setVersionNumber(1L);
+		
+		// Add an old version of one of the files (not present in the files list)	
+		downloadListDao.addBatchOfFilesToDownloadList(userOneIdLong, List.of(item));
+		
+		List<EntityRef> datasets = createDatasets(files, filesPerDataset);
+		
+		// call under test
+		Long count = downloadListDao.addDatasetEntityRefFilesToDownloadList(userOneIdLong, datasets, limit);
+		
+		assertEquals(files.size(), count);
+		
+		List<DownloadListItem> expected = new ArrayList<>();
+		
+		expected.add(item);
+		expected.addAll(files.stream().map(file -> 
+			new DownloadListItem().setFileEntityId(file.getId()).setVersionNumber(file.getVersionNumber())
+		).collect(Collectors.toList()));
+		
+		compareIdAndVersionToListItem(userOneIdLong, expected, downloadListDao.getDBODownloadListItems(userOneIdLong));
 	}
 	
 	@Test
@@ -2733,5 +2843,26 @@ public class DownloadListDaoImplTest {
 		for(String key: one.keySet()) {
 			assertEquals(one.getString(key), two.getString(key), "key: "+key);
 		}
+	}
+	
+	private List<EntityRef> createDatasets(List<Node> files, int filesPerDataset) {
+		List<EntityRef> datasets = new ArrayList<>();
+		List<EntityRef> currentItems = new ArrayList<>();
+		
+		for (Node file : files) {
+			currentItems.add(new EntityRef().setEntityId(file.getId()).setVersionNumber(file.getVersionNumber()));
+			if (currentItems.size() >= filesPerDataset) {
+				List<EntityRef> datasetItems = currentItems;
+				Node dataset = nodeDaoHelper.create(n -> {
+					n.setName("aDataset_" + datasets.size());
+					n.setParentId(file.getParentId());
+					n.setNodeType(EntityType.dataset);
+					n.setItems(datasetItems);
+				});
+				datasets.add(new EntityRef().setEntityId(dataset.getId()).setVersionNumber(dataset.getVersionNumber()));
+				currentItems = new ArrayList<>();
+			}
+		}
+		return datasets;
 	}
 }

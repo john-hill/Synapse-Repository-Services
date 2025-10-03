@@ -163,13 +163,22 @@ public interface DownloadListDAO {
 
 
 	/**
-	 * Adds all of the files in the list of dataset items to the user's download list.
+	 * Adds all of the files referenced in the given list of {@link EntityRef} to the user's download list.
 	 * 
 	 * @param userId
-	 * @param items
-	 * @param limit		 Limit the number of files that can be added.
+	 * @param fileRefs
+	 * @param limit	Limit the number of files that can be added.
 	 * @return The total number of files added.
 	 */
-	Long addDatasetItemsToDownloadList(Long userId, List<EntityRef> items, long limit);
+	Long addFileEntityRefToDownloadList(Long userId, List<EntityRef> fileRefs, long limit);
+	
+	/**
+	 * Add all the files that are reference by each of the data set referenced in the given list of {@link EntityRef} to the user's download list.
+	 * @param userId
+	 * @param datasetRefs
+	 * @param limit Limit the number of files that can be added.
+	 * @return
+	 */
+	Long addDatasetEntityRefFilesToDownloadList(Long userId, List<EntityRef> datasetRefs, long limit);
 
 }

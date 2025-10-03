@@ -1085,7 +1085,7 @@ public class DownloadListManagerImplTest {
 				new EntityRef().setEntityId("234"));
 		when(mockNodeDao.getNodeTypeById(parentId)).thenReturn(EntityType.dataset);
 		when(mockNodeDao.getNodeItems(any())).thenReturn(items);
-		when(mockDownloadListDao.addDatasetItemsToDownloadList(any(), any(), anyLong()))
+		when(mockDownloadListDao.addFileEntityRefToDownloadList(any(), any(), anyLong()))
 				.thenReturn(count);
 		when(mockEntityAuthorizationManager.hasAccess(any(), any(), any()))
 				.thenReturn(AuthorizationStatus.authorized());
@@ -1094,7 +1094,7 @@ public class DownloadListManagerImplTest {
 		AddToDownloadListResponse expected = new AddToDownloadListResponse().setNumberOfFilesAdded(count);
 		assertEquals(expected, response);
 		verify(mockNodeDao).getNodeItems(123L);
-		verify(mockDownloadListDao).addDatasetItemsToDownloadList(userOne.getId(), items, limit);
+		verify(mockDownloadListDao).addFileEntityRefToDownloadList(userOne.getId(), items, limit);
 		verify(mockEntityAuthorizationManager).hasAccess(userOne, parentId, ACCESS_TYPE.READ);
 	}
 	
@@ -1114,6 +1114,29 @@ public class DownloadListManagerImplTest {
 		assertEquals("The recursive option is not supported for a dataset.", errorMessage);
 		
 		verifyZeroInteractions(mockNodeDao, mockDownloadListDao);
+		verify(mockEntityAuthorizationManager).hasAccess(userOne, parentId, ACCESS_TYPE.READ);
+	}
+	
+	@Test
+	public void testAddToDownloadListWithDatasetCollectionAsParentId() {
+		Long count = 2L;
+		String parentId = "syn123";
+		boolean recursive = false;
+		long limit = 100L;
+		List<EntityRef> items = Arrays.asList(new EntityRef().setEntityId("123"),
+				new EntityRef().setEntityId("234"));
+		when(mockNodeDao.getNodeTypeById(parentId)).thenReturn(EntityType.datasetcollection);
+		when(mockNodeDao.getNodeItems(any())).thenReturn(items);
+		when(mockDownloadListDao.addDatasetEntityRefFilesToDownloadList(any(), any(), anyLong()))
+				.thenReturn(count);
+		when(mockEntityAuthorizationManager.hasAccess(any(), any(), any()))
+				.thenReturn(AuthorizationStatus.authorized());
+		// Call under test
+		AddToDownloadListResponse response = manager.addToDownloadList(userOne, parentId, true, recursive, limit);
+		AddToDownloadListResponse expected = new AddToDownloadListResponse().setNumberOfFilesAdded(count);
+		assertEquals(expected, response);
+		verify(mockNodeDao).getNodeItems(123L);
+		verify(mockDownloadListDao).addDatasetEntityRefFilesToDownloadList(userOne.getId(), items, limit);
 		verify(mockEntityAuthorizationManager).hasAccess(userOne, parentId, ACCESS_TYPE.READ);
 	}
 

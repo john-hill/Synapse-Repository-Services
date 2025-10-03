@@ -79,21 +79,26 @@ public class ReturnControlEvent {
 		JSONObject object = new JSONObject();
 		try {
 			requestBodyParameters.forEach(p -> {
-				if ("object".equals(p.getType())) {
-					object.put(p.getName(), new JSONObject(p.getValue()));
-				} else if ("string".equals(p.getType())) {
-					object.put(p.getName(), p.getValue());
-				} else if ("integer".equals(p.getType())) {
-					object.put(p.getName(), p.getValue());
-				} else if ("array".equals(p.getType())) {
-					object.put(p.getName(), new JSONArray(p.getValue()));
-				} else {
-					throw new IllegalArgumentException("Unknown type: " + p.getType());
+				try {
+					if ("object".equals(p.getType())) {
+						object.put(p.getName(), new JSONObject(p.getValue()));
+					} else if ("string".equals(p.getType())) {
+						object.put(p.getName(), p.getValue());
+					} else if ("integer".equals(p.getType())) {
+						object.put(p.getName(), p.getValue());
+					} else if ("array".equals(p.getType())) {
+						object.put(p.getName(), new JSONArray(p.getValue()));
+					} else {
+						throw new IllegalArgumentException("Unknown type: " + p.getType());
+					}
+				} catch (JSONException e) {
+					throw new IllegalArgumentException("Failed to parse the JSON value for parameter '" 
+						+ p.getName() + "' with value: " + p.getValue() + ". Error: " + e.getMessage(), e);
 				}
 			});
 			return object.toString();
-		} catch (JSONException e) {
-			throw new IllegalArgumentException("Failed to parse the JSON request body: " + e.getMessage(), e);
+		} catch (IllegalArgumentException e) {
+			throw e;
 		}
 	}
 

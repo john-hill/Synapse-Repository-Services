@@ -162,9 +162,14 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		return new PaginationIterator<>(
 				(long limit, long offset) -> this.querySinglePage(header, filters, limit, offset), ROWS_PER_PAGE);
 	}
-
+	
 	@Override
 	public Optional<GridHeader> readHeader(String gridSessionId, Long replicaId) {
+		return readHeader(gridSessionId, replicaId, null);
+	}
+
+	@Override
+	public Optional<GridHeader> readHeader(String gridSessionId, Long replicaId, Long usersReplicaId) {
 		Optional<ObjectNode> rootOpt = gridIndexDao.getRootObject(gridSessionId, replicaId);
 		if (rootOpt.isEmpty()) {
 			return Optional.empty();
@@ -173,11 +178,11 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		List<LogicalTimestamp> constantIds = new ArrayList<>();
 		LogicalTimestamp selectionId = root.getValue().get("selection");
 		LogicalTimestamp selectionConId = null;
-		if (selectionId != null) {
+		if (selectionId != null && usersReplicaId != null) {
 			List<ObjectNode> selections = gridIndexDao.getObjects(gridSessionId, replicaId, List.of(selectionId));
 			if (selections.size() == 1) {
 				ObjectNode selectionNode = selections.get(0);
-				selectionConId = selectionNode.getValue().get(replicaId.toString());
+				selectionConId = selectionNode.getValue().get(usersReplicaId.toString());
 				if(selectionConId != null) {
 					constantIds.add(selectionConId);
 				}
@@ -284,5 +289,7 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		}
 		return obs;
 	}
+
+
 
 }

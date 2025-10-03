@@ -73,31 +73,36 @@ public class GridCsvImporterImpl implements GridCsvImporter {
 
 		ColumnMapping[] columnMapping;
 		
-		// First create a temporary table containing the CSV data
-		try (CSVReader csvReader = csvProvider.getCsvReader(user, request.getFileHandleId(), request.getCsvDescriptor())) {
+		try {
+			// First create a temporary table containing the CSV data
+			try (CSVReader csvReader = csvProvider.getCsvReader(user, request.getFileHandleId(), request.getCsvDescriptor())) {
+				
+				// We need to make sure that the schema is sorted according to the potential CSV header
+				validateHeader(csvReader, request.getSchema());
+				
+				// Computes the driving column mapping
+				columnMapping = getColumnMapping(upsertKey, request.getSchema(), gridHeader.getOrderedColumns());
+				
+				importDao.streamToCsvTempTable(gridSession.getSessionId(), new CsvDataStream(csvReader, columnMapping), columnMapping);
+			} catch(IllegalArgumentException e) {
+				throw e;
+			} catch (IOException ex) {
+				throw new IllegalStateException(ex);
+			}
 			
-			// We need to make sure that the schema is sorted according to the potential CSV header
-			validateHeader(csvReader, request.getSchema());
+			Iterator<RowView> gridDataIterator = gridViewManager.getQueryIterator(gridHeader, Collections.emptyList());
 			
-			// Computes the driving column mapping
-			columnMapping = getColumnMapping(upsertKey, request.getSchema(), gridHeader.getOrderedColumns());
+			// Now create a temporary table containing the grid data
+			importDao.streamToGridTempTable(gridSession.getSessionId(), new GridDataStream(gridDataIterator, columnMapping), columnMapping);
 			
-			importDao.streamToCsvTempTable(new CsvDataStream(csvReader, columnMapping), columnMapping);
-		} catch(IllegalArgumentException e) {
-			throw e;
-		} catch (IOException ex) {
-			throw new IllegalStateException(ex);
+			// Now join the two temporary tables to determine which rows are new and which rows are updates
+			Iterator<JoinedRow> joinResult = importDao.getJoinedTempTableIterator(gridSession.getSessionId(), columnMapping);
+			
+			return changePublisher.processJoinedRows(gridHeader, publisherConnInfo, joinResult, columnMapping);
+		
+		} finally {
+			importDao.dropTemporaryTables(gridSession.getSessionId());
 		}
-		
-		Iterator<RowView> gridDataIterator = gridViewManager.getQueryIterator(gridHeader, Collections.emptyList());
-		
-		// Now create a temporary table containing the grid data
-		importDao.streamToGridTempTable(new GridDataStream(gridDataIterator, columnMapping), columnMapping);
-		
-		// Now join the two temporary tables to determine which rows are new and which rows are updates
-		Iterator<JoinedRow> joinResult = importDao.getJoinedTempTableIterator(columnMapping);
-		
-		return changePublisher.processJoinedRows(gridHeader, publisherConnInfo, joinResult, columnMapping);
 	}
 	
 	void validateHeader(CSVReader reader, List<ColumnModel> schema) throws IOException {		

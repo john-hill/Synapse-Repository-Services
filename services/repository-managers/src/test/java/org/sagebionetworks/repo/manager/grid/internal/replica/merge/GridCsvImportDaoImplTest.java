@@ -109,11 +109,11 @@ public class GridCsvImportDaoImplTest {
 		
 		DataStream gridDataStream = new GridDataStream(rowView, columnMapping);
 		
-		importDao.streamToGridTempTable(gridDataStream, columnMapping);
+		importDao.streamToGridTempTable(sessionId, gridDataStream, columnMapping);
 		
 		System.out.println("Grid import took: " + (System.currentTimeMillis() - start) + "ms");
 		
-		Iterator<Object[]> it = importDao.getGridTempTableIterator();
+		Iterator<Object[]> it = importDao.getGridTempTableIterator(sessionId);
 		
 		long rowId = 0;
 		Long rowVecId = 22L;
@@ -136,12 +136,12 @@ public class GridCsvImportDaoImplTest {
 		CsvDataStream csvDataStream = new CsvDataStream(reader, columnMapping);
 		
 		try (reader) {
-			importDao.streamToCsvTempTable(csvDataStream, columnMapping);
+			importDao.streamToCsvTempTable(sessionId, csvDataStream, columnMapping);
 		}
 
 		System.out.println("CSV import took: " + (System.currentTimeMillis() - start) + "ms");
 		
-		it = importDao.getCsvTempTableIterator();
+		it = importDao.getCsvTempTableIterator(sessionId);
 		rowId = 0;
 		
 		while (it.hasNext()) {
@@ -159,7 +159,7 @@ public class GridCsvImportDaoImplTest {
 	
 		start = System.currentTimeMillis();
 		
-		Iterator<JoinedRow> joinIt = importDao.getJoinedTempTableIterator(columnMapping);
+		Iterator<JoinedRow> joinIt = importDao.getJoinedTempTableIterator(sessionId, columnMapping);
 		
 		int notMatchedCount = 0;
 		
@@ -195,6 +195,8 @@ public class GridCsvImportDaoImplTest {
 		
 		// The CSV has only 50% of the rows in common with the grid
 		assertEquals(gridRowCount/2 + (csvRowCount - gridRowCount), notMatchedCount);
+		
+		importDao.dropTemporaryTables(sessionId);
 	}
 	
 	void writeGridData() throws IOException {

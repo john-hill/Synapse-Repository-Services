@@ -9,6 +9,7 @@ import java.util.stream.IntStream;
 
 import org.json.JSONArray;
 import org.sagebionetworks.grid.db.GridTransaction;
+import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.compact.LogicalTimestampCompactSerializable;
 import org.sagebionetworks.repo.model.table.ColumnConstants;
@@ -20,7 +21,16 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public class GridCsvImportDaoImpl implements GridCsvImportDao {
-
+	
+	private static enum TempTableType {
+		CSV,
+		GRID;
+		
+		String tableName(String sessionId) {
+			return "T_" + name() + "_" + GridUtils.gridSessionIdAsLong(sessionId);
+		}
+	}
+	
 	private static final String COL_EXTRA = "EXTRA";
 
 	private static String getUpsertKeyColumnName(int index) {
@@ -37,31 +47,31 @@ public class GridCsvImportDaoImpl implements GridCsvImportDao {
 
 	@Override
 	@GridTransaction(readOnly = false)
-	public void streamToCsvTempTable(DataStream dataStream, ColumnMapping[] columnMapping) {
-		streamToTempTable(TEMP_TABLE_CSV_DATA, dataStream, columnMapping);
+	public void streamToCsvTempTable(String sessionId, DataStream dataStream, ColumnMapping[] columnMapping) {
+		streamToTempTable(TempTableType.CSV.tableName(sessionId), dataStream, columnMapping);
 	}
 
 	@Override
 	@GridTransaction(readOnly = false)
-	public void streamToGridTempTable(DataStream dataStream, ColumnMapping[] columnMapping) {
-		streamToTempTable(TEMP_TABLE_GRID_DATA, dataStream, columnMapping);
+	public void streamToGridTempTable(String sessionId, DataStream dataStream, ColumnMapping[] columnMapping) {
+		streamToTempTable(TempTableType.GRID.tableName(sessionId), dataStream, columnMapping);
 	}
 
 	@Override
 	@GridTransaction(readOnly = true)
-	public PaginationIterator<Object[]> getCsvTempTableIterator() {
-		return getTempTableIterator(TEMP_TABLE_CSV_DATA);
+	public PaginationIterator<Object[]> getCsvTempTableIterator(String sessionId) {
+		return getTempTableIterator(TempTableType.CSV.tableName(sessionId));
 	}
 
 	@Override
 	@GridTransaction(readOnly = true)
-	public PaginationIterator<Object[]> getGridTempTableIterator() {
-		return getTempTableIterator(TEMP_TABLE_GRID_DATA);
+	public PaginationIterator<Object[]> getGridTempTableIterator(String sessionId) {
+		return getTempTableIterator(TempTableType.GRID.tableName(sessionId));
 	}
 	
 	@Override
 	@GridTransaction(readOnly = true)
-	public PaginationIterator<JoinedRow> getJoinedTempTableIterator(ColumnMapping[] columnMapping) {
+	public PaginationIterator<JoinedRow> getJoinedTempTableIterator(String sessionId, ColumnMapping[] columnMapping) {
 		List<ColumnMapping> csvUpsertColumns = Arrays.stream(columnMapping).filter(ColumnMapping::isUpsertColumn).collect(Collectors.toList());
 
 		StringJoiner joinConditions = new StringJoiner(" AND ");
@@ -76,7 +86,7 @@ public class GridCsvImportDaoImpl implements GridCsvImportDao {
 		});
 		
 		String sql = String.format("SELECT C.*, G." + COL_EXTRA + " FROM " 
-				+ TEMP_TABLE_CSV_DATA + " C LEFT JOIN " + TEMP_TABLE_GRID_DATA + " G ON (%s) ORDER BY %s"
+				+ TempTableType.CSV.tableName(sessionId) + " C LEFT JOIN " + TempTableType.GRID.tableName(sessionId) + " G ON (%s) ORDER BY %s"
 				+ " LIMIT ? OFFSET ?", joinConditions.toString(), orderByColumns.toString());
 
 		return new PaginationIterator<>((limit, offset) -> jdbcTemplate.query(sql.toString(), (rs, rowNum) -> {
@@ -106,6 +116,14 @@ public class GridCsvImportDaoImpl implements GridCsvImportDao {
 
 			return new JoinedRow(csvData, gridRowVecId);
 		}, limit, offset), BATCH_SIZE);
+	}
+	
+	@Override
+	@GridTransaction(readOnly = false)
+	public void dropTemporaryTables(String sessionId) {
+		for (TempTableType type : TempTableType.values()) {
+			dropTemporaryTable(type.tableName(sessionId));
+		}
 	}
 
 	void streamToTempTable(String tableName, DataStream dataStream, ColumnMapping[] columnMapping) {
@@ -229,6 +247,10 @@ public class GridCsvImportDaoImpl implements GridCsvImportDao {
 		String sql = "CREATE TEMPORARY TABLE " + tableName + " (" + columnDefinitions.toString() + ")";
 
 		jdbcTemplate.update(sql);
+	}
+	
+	void dropTemporaryTable(String tableName) {
+		jdbcTemplate.update("DROP TEMPORARY TABLE IF EXISTS " + tableName);
 	}
 
 }

@@ -266,6 +266,8 @@ public class GridCsvImporterImplTest {
 			importer.importCsv(user, request, mockCallback);
 		}).getMessage());
 		
+		verify(mockImportDao).dropTemporaryTables(sessionId);
+		
 		verifyNoMoreInteractions(mockImportDao);
 	}
 	
@@ -287,6 +289,8 @@ public class GridCsvImporterImplTest {
 			// Call under test
 			importer.importCsv(user, request, mockCallback);
 		}).getMessage());
+		
+		verify(mockImportDao).dropTemporaryTables(sessionId);
 		
 		verifyNoMoreInteractions(mockImportDao);
 	}
@@ -311,6 +315,8 @@ public class GridCsvImporterImplTest {
 			importer.importCsv(user, request, mockCallback);
 		}).getMessage());
 		
+		verify(mockImportDao).dropTemporaryTables(sessionId);
+		
 		verifyNoMoreInteractions(mockImportDao);
 	}
 	
@@ -328,6 +334,8 @@ public class GridCsvImporterImplTest {
 			// Call under test
 			importer.importCsv(user, request, mockCallback);
 		}).getMessage());
+		
+		verify(mockImportDao).dropTemporaryTables(sessionId);
 		
 		verifyNoMoreInteractions(mockImportDao);
 	}
@@ -351,6 +359,8 @@ public class GridCsvImporterImplTest {
 			importer.importCsv(user, request, mockCallback);
 		}).getMessage());
 		
+		verify(mockImportDao).dropTemporaryTables(sessionId);
+		
 		verifyNoMoreInteractions(mockImportDao);
 	}
 	
@@ -361,20 +371,20 @@ public class GridCsvImporterImplTest {
 		when(mockGridReplicaSupport.getRecordSetOrThrow(user, session)).thenReturn(recordSet);
 		when(mockCsvProvider.getCsvReader(user, request.getFileHandleId(), descriptor)).thenReturn(csvReader(csvContent));
 		when(mockGridViewManager.getQueryIterator(gridHeader, Collections.emptyList())).thenReturn(gridRows.iterator());
-		when(mockImportDao.getJoinedTempTableIterator(any())).thenReturn(joinedRows.iterator());
+		when(mockImportDao.getJoinedTempTableIterator(eq(sessionId), any())).thenReturn(joinedRows.iterator());
 		when(mockChangePublisher.processJoinedRows(eq(gridHeader), eq(connectionInfo), any(), any())).thenReturn(response);
 	}
 
 	private void verifyImportSequence(ColumnMapping[] expectedMapping) {
-		verify(mockImportDao).streamToCsvTempTable(streamCaptor.capture(), eq(expectedMapping));
+		verify(mockImportDao).streamToCsvTempTable(eq(sessionId), streamCaptor.capture(), eq(expectedMapping));
 		
 		assertTrue(streamCaptor.getValue() instanceof CsvDataStream);
 
-		verify(mockImportDao).streamToGridTempTable(streamCaptor.capture(), eq(expectedMapping));
+		verify(mockImportDao).streamToGridTempTable(eq(sessionId), streamCaptor.capture(), eq(expectedMapping));
 
 		assertTrue(streamCaptor.getValue() instanceof GridDataStream);
 		
-		verify(mockImportDao).getJoinedTempTableIterator(expectedMapping);
+		verify(mockImportDao).getJoinedTempTableIterator(sessionId, expectedMapping);
 	
 		verify(mockChangePublisher).processJoinedRows(eq(gridHeader), eq(connectionInfo), joinedRowCaptor.capture(), eq(expectedMapping));
 		
@@ -383,6 +393,8 @@ public class GridCsvImporterImplTest {
 		joinedRowCaptor.getValue().forEachRemaining(capturedJoinedRows::add);
 
 		assertEquals(joinedRows, capturedJoinedRows);
+		
+		verify(mockImportDao).dropTemporaryTables(sessionId);
 	}
 	
 	private CSVReader csvReader(String csvContent) {

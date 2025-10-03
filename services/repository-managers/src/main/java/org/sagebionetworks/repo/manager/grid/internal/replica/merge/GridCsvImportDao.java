@@ -4,16 +4,15 @@ import java.util.Iterator;
 
 public interface GridCsvImportDao {
 	
-	String TEMP_TABLE_CSV_DATA = "TEMP_CSV_DATA";
-	String TEMP_TABLE_GRID_DATA = "TEMP_GRID_DATA";
+	void streamToCsvTempTable(String sessionId, DataStream dataIterator, ColumnMapping[] columnMapping);
 	
-	void streamToCsvTempTable(DataStream dataIterator, ColumnMapping[] columnMapping);
+	void streamToGridTempTable(String sessionId, DataStream dataIterator, ColumnMapping[] columnMapping);
 	
-	void streamToGridTempTable(DataStream dataIterator, ColumnMapping[] columnMapping);
+	Iterator<Object[]> getCsvTempTableIterator(String sessionId);
 	
-	Iterator<Object[]> getCsvTempTableIterator();
+	Iterator<Object[]> getGridTempTableIterator(String sessionId);
 	
-	Iterator<Object[]> getGridTempTableIterator();
+	Iterator<JoinedRow> getJoinedTempTableIterator(String sessionId, ColumnMapping[] columnMapping);
 	
-	Iterator<JoinedRow> getJoinedTempTableIterator(ColumnMapping[] columnMapping);
+	void dropTemporaryTables(String sessionId);
 }

@@ -25,7 +25,13 @@ public class InsertRowChangeHandler implements ChangeHandler<InsertRowChange> {
 	public void handleChange(PatchBuilder builder, InsertRowChange change) {
 		JSONArray rowData = change.getRowData();
 		Integer[] rowVectorIndex = change.getRowVectorIndex();
-	
+		
+		// The vector that contains the row data is wrapped into an object as the "data" key value.
+		// We need to create the object before the vector because the row object node id needs to be 
+		// smaller than the vector id for the LWW insertion routine to succeed 
+		// (See https://jsonjoy.com/specs/json-crdt/model-document/crdt-algorithms#Last-Write-Wins-(LWW)-CRDT-Algorithm)
+		LogicalTimestamp rowObjectId = builder.addOperationBuilder(Operations.newObject());
+		
 		// First creates the vector that represents the new row
 		LogicalTimestamp rowVecId = builder.addOperationBuilder(Operations.newVector());
 		Map<Integer, LogicalTimestamp> newVecConstantMap = new HashMap<>(rowData.length());
@@ -40,9 +46,6 @@ public class InsertRowChangeHandler implements ChangeHandler<InsertRowChange> {
 		}
 		// Add the data to the vector
 		builder.addOperationBuilder(Operations.insertVector().setVectorId(rowVecId).setMap(newVecConstantMap));
-		
-		// The vector is wrapped into an object
-		LogicalTimestamp rowObjectId = builder.addOperationBuilder(Operations.newObject());
 		
 		builder.addOperationBuilder(Operations.insertObject()
 			.setObjectId(rowObjectId)

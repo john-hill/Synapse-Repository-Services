@@ -9,7 +9,6 @@ env:
     src_folder: .
     org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
     org_sagebionetworks_sts_duration_seconds: 900
-    m2_cache_parent_folder: "."
   secrets-manager:
     org_sagebionetworks_stackEncryptionKey: /build/stack/encryption/key
     rds_password: build.rds.password

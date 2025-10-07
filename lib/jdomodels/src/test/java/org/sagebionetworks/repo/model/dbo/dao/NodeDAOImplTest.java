@@ -5625,7 +5625,7 @@ public class NodeDAOImplTest {
 
 	@Test
 	public void testGetFileSummaryWithEmptyList() {
-		FileSummary expectedFileSummary = new FileSummary(null, 0, 0);
+		FileSummary expectedFileSummary = new FileSummary(0, 0);
 		FileSummary fileSummary = nodeDao.getFileSummary(Collections.emptyList());
 		assertEquals(expectedFileSummary, fileSummary);
 	}
@@ -5638,16 +5638,127 @@ public class NodeDAOImplTest {
 		file1.setFileHandleId(fileHandle.getId());
 		String file1Id = nodeDao.createNew(file1);
 		toDelete.add(file1Id);
-		FileSummary expectedFileSummary = new FileSummary(null, 0, 0);
+		FileSummary expectedFileSummary = new FileSummary(0, 0);
 		FileSummary fileSummary = nodeDao.getFileSummary(Collections.singletonList(new EntityRef().setEntityId(file1Id).setVersionNumber(null)));
 		assertEquals(expectedFileSummary, fileSummary);
 	}
 
 	@Test
 	public void testGetFileSummaryWithEntityRefIdNull() {
-		FileSummary expectedFileSummary = new FileSummary(null, 0, 0);
+		FileSummary expectedFileSummary = new FileSummary(0, 0);
 		FileSummary fileSummary = nodeDao.getFileSummary(Collections.singletonList(new EntityRef().setEntityId(null).setVersionNumber(1L)));
 		assertEquals(expectedFileSummary, fileSummary);
+	}
+	
+	@Test
+	public void testGetDatasetFileSummary() {
+		String file1 = nodeDao.createNew(privateCreateNew("file1")
+			.setNodeType(EntityType.file)
+			.setFileHandleId(fileHandle.getId())
+		);
+		
+		String file2 = nodeDao.createNew(privateCreateNew("file2")
+			.setNodeType(EntityType.file)
+			.setFileHandleId(fileHandle2.getId())
+		);
+
+		String file3 = nodeDao.createNew(privateCreateNew("file3")
+			.setNodeType(EntityType.file)
+			.setFileHandleId(fileHandle3.getId())
+		);
+		
+		String dataset1 = nodeDao.createNew(privateCreateNew("dataset1")
+			.setNodeType(EntityType.dataset)
+			.setItems(List.of(
+				new EntityRef().setEntityId(file1).setVersionNumber(1L),
+				new EntityRef().setEntityId(file2).setVersionNumber(1L)
+			))
+		);
+
+		String dataset2 = nodeDao.createNew(privateCreateNew("dataset2")
+			.setNodeType(EntityType.dataset)
+			.setItems(List.of(
+				new EntityRef().setEntityId(file3).setVersionNumber(1L)
+			))
+		);
+		
+		toDelete.addAll(List.of(file1, file2, file3, dataset1, dataset2));
+
+		long expectedTotalSize = fileHandle.getContentSize() + fileHandle2.getContentSize() + fileHandle3.getContentSize();
+
+		FileSummary fileSummary = nodeDao.getDatasetFileSummary(List.of(
+			new EntityRef().setEntityId(dataset1).setVersionNumber(1L),
+			new EntityRef().setEntityId(dataset2).setVersionNumber(1L))
+		);
+	
+		assertEquals(new FileSummary(null, expectedTotalSize, 3), fileSummary);
+	}
+	
+	@Test
+	public void testGetDatasetFileSummaryWithOverlap() {
+		String file1 = nodeDao.createNew(privateCreateNew("file1")
+			.setNodeType(EntityType.file)
+			.setFileHandleId(fileHandle.getId())
+		);
+		
+		String file2 = nodeDao.createNew(privateCreateNew("file2")
+			.setNodeType(EntityType.file)
+			.setFileHandleId(fileHandle2.getId())
+		);
+
+		String file3 = nodeDao.createNew(privateCreateNew("file3")
+			.setNodeType(EntityType.file)
+			.setFileHandleId(fileHandle3.getId())
+		);
+		
+		String dataset1 = nodeDao.createNew(privateCreateNew("dataset1")
+			.setNodeType(EntityType.dataset)
+			.setItems(List.of(
+				new EntityRef().setEntityId(file1).setVersionNumber(1L),
+				new EntityRef().setEntityId(file2).setVersionNumber(1L)
+			))
+		);
+
+		String dataset2 = nodeDao.createNew(privateCreateNew("dataset2")
+			.setNodeType(EntityType.dataset)
+			.setItems(List.of(
+				new EntityRef().setEntityId(file2).setVersionNumber(1L),
+				new EntityRef().setEntityId(file3).setVersionNumber(1L)
+			))
+		);
+		
+		toDelete.addAll(List.of(file1, file2, file3, dataset1, dataset2));
+
+		long expectedTotalSize = fileHandle.getContentSize() + fileHandle2.getContentSize() + fileHandle3.getContentSize();
+		
+		FileSummary fileSummary = nodeDao.getDatasetFileSummary(List.of(
+			new EntityRef().setEntityId(dataset1).setVersionNumber(1L),
+			new EntityRef().setEntityId(dataset2).setVersionNumber(1L))
+		);
+	
+		assertEquals(new FileSummary(null, expectedTotalSize, 3), fileSummary);
+	}
+	
+	@Test
+	public void testGetDatasetFileSummaryWithEmptyDataset() {		
+		String dataset1 = nodeDao.createNew(privateCreateNew("dataset1")
+			.setNodeType(EntityType.dataset)
+			.setItems(Collections.emptyList())
+		);
+		
+		toDelete.addAll(List.of(dataset1));
+		
+		FileSummary fileSummary = nodeDao.getDatasetFileSummary(List.of(
+			new EntityRef().setEntityId(dataset1).setVersionNumber(1L)
+		));
+	
+		assertEquals(new FileSummary(0, 0), fileSummary);
+	}
+	
+	@Test
+	public void testGetDatasetFileSummaryWithEmptyList() {
+		FileSummary fileSummary = nodeDao.getDatasetFileSummary(Collections.emptyList());
+		assertEquals(new FileSummary(0, 0), fileSummary);
 	}
 
 	@Test

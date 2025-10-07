@@ -718,6 +718,12 @@ public interface NodeDAO {
 	FileSummary getFileSummary(List<EntityRef> entityRefs);
 	
 	/**
+	 * @param datasetRefs
+	 * @return The total size and count of files contained in the given list of dataset refs
+	 */
+	FileSummary getDatasetFileSummary(List<EntityRef> datasetRefs);
+	
+	/**
 	 * Get the defining SQL, if it exits, for the given ID.
 	 * @param idAndVersion
 	 * @return

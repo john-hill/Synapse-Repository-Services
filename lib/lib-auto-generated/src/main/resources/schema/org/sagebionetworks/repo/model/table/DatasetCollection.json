@@ -12,6 +12,14 @@
 			"items": {
 				"$ref": "org.sagebionetworks.repo.model.EntityRef"
 			}
+		},
+		"fileSize": {
+			"description": "The cumulative size, in bytes, of all files referenced by each dataset. This is computed by the backend on create/update. Note that if an underlying dataset is updated this value won't automatically update.",
+			"type": "integer"
+		},
+		"fileCount": {
+			"description": "The sum of files referenced each dataset in the collection. This is computed by the backend on create/update. Note that if an underlying dataset is updated this value won't automatically update.",
+			"type": "integer"
 		}
 	}
 }

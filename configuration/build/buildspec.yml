@@ -5,7 +5,6 @@ version: 0.2
 env:
   variables:
     stack: dev
-    m2_cache_parent_folder: .
     src_folder: .
     org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
     org_sagebionetworks_sts_duration_seconds: 900
@@ -47,7 +46,7 @@ phases:
         export build_deploy=true
         export artifactory_username=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_username')
         export artifactory_password=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_password')
-        export m2_cache_parent_folder="."
+        export m2_cache_parent_folder=$(pwd)
         # now update the pom.xml files to use the version
         echo "Changing all pom.xml to version=$ARTIFACT_VERSION"
         for f in `find . -name "pom.xml"` ; do

@@ -9,6 +9,7 @@ env:
     src_folder: .
     org_sagebionetworks_cloudfront_domainname: data.dev.sagebase.org
     org_sagebionetworks_sts_duration_seconds: 900
+    m2_cache_parent_folder: "."
   secrets-manager:
     org_sagebionetworks_stackEncryptionKey: /build/stack/encryption/key
     rds_password: build.rds.password
@@ -19,6 +20,7 @@ env:
     STS_CREDENTIALS: /build/session-token/${user}
     ARTIFACTORY_CREDS: /build/artifactory
     DATACITE_CREDS: /build/datacite
+
 phases:
   install:
     runtime-versions:
@@ -46,8 +48,7 @@ phases:
         export build_deploy=true
         export artifactory_username=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_username')
         export artifactory_password=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_password')
-        echo len of artifactory_username is ${#artifactory_username}
-        echo len of artifactory_password is ${#artifactory_password}
+        export m2_cache_parent_folder="."
         # now update the pom.xml files to use the version
         echo "Changing all pom.xml to version=$ARTIFACT_VERSION"
         for f in `find . -name "pom.xml"` ; do

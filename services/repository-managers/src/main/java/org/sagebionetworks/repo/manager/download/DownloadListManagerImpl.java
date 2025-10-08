@@ -44,6 +44,8 @@ import org.sagebionetworks.repo.model.download.AddBatchOfFilesToDownloadListRequ
 import org.sagebionetworks.repo.model.download.AddBatchOfFilesToDownloadListResponse;
 import org.sagebionetworks.repo.model.download.AddToDownloadListRequest;
 import org.sagebionetworks.repo.model.download.AddToDownloadListResponse;
+import org.sagebionetworks.repo.model.download.AddToDownloadListStatsRequest;
+import org.sagebionetworks.repo.model.download.AddToDownloadListStatsResponse;
 import org.sagebionetworks.repo.model.download.AvailableFilesRequest;
 import org.sagebionetworks.repo.model.download.AvailableFilesResponse;
 import org.sagebionetworks.repo.model.download.AvailableFilter;
@@ -337,21 +339,9 @@ public class DownloadListManagerImpl implements DownloadListManager {
 
 	@WriteTransaction
 	@Override
-	public AddToDownloadListResponse addToDownloadList(ProgressCallback progressCallback, UserInfo userInfo,
-			AddToDownloadListRequest requestBody) {
+	public AddToDownloadListResponse addToDownloadList(ProgressCallback progressCallback, UserInfo userInfo, AddToDownloadListRequest requestBody) {
 		validateUser(userInfo);
-		ValidateArgument.required(requestBody, "requestBody");
-		if (requestBody.getParentId() != null && requestBody.getQuery() != null) {
-			throw new IllegalArgumentException("Please provide request.parentId or request.query() but not both.");
-		}
-		
-		boolean recursive = Boolean.TRUE.equals(requestBody.getRecursive());
-		
-		if (recursive && requestBody.getParentId() == null) {
-			throw new IllegalArgumentException("The recursive option is only supported when specifying a parentId.");
-		}
-		
-		boolean useVersionNumber = requestBody.getUseVersionNumber() == null ? DEFAULT_USE_VERSION : requestBody.getUseVersionNumber();
+		validateAddToDownloadListRequest(requestBody);
 		
 		long usersDownloadListCapacity = MAX_FILES_PER_USER - downloadListDao.getTotalNumberOfFilesOnDownloadList(userInfo.getId());
 		
@@ -360,14 +350,51 @@ public class DownloadListManagerImpl implements DownloadListManager {
 		}
 		
 		if (requestBody.getQuery() != null) {
-			return addQueryResultsToDownloadList(progressCallback, userInfo, requestBody.getQuery(), useVersionNumber, MAX_QUERY_PAGE_SIZE, usersDownloadListCapacity);
-		} else if (requestBody.getParentId() != null) {
-			return addToDownloadList(userInfo, requestBody.getParentId(), useVersionNumber, recursive, usersDownloadListCapacity);
+			return addQueryResultsToDownloadList(progressCallback, userInfo, requestBody.getQuery(), requestBody.getUseVersionNumber(), MAX_QUERY_PAGE_SIZE, usersDownloadListCapacity);
 		} else {
-			throw new IllegalArgumentException("Must include either request.parentId or request.query().");
+			return addToDownloadList(userInfo, requestBody.getParentId(), requestBody.getUseVersionNumber(), requestBody.getRecursive(), usersDownloadListCapacity);
 		}
 	}
-
+	
+	@Override
+	public AddToDownloadListStatsResponse getAddToDownloadListStats(ProgressCallback callback, UserInfo userInfo, AddToDownloadListStatsRequest requestBody) {
+		validateUser(userInfo);
+		ValidateArgument.required(requestBody, "requestBody");
+		ValidateArgument.required(requestBody.getRequest(), "requestBody.request");
+		
+		validateAddToDownloadListRequest(requestBody.getRequest());
+		
+		if (requestBody.getRequest().getQuery() != null) {
+			return getAddToDownLoadListStatsFromQuery(callback, userInfo, requestBody.getRequest().getQuery());
+		} else {
+			return getAddToDownLoadListStatsFromParentId(userInfo, requestBody.getRequest().getParentId(), requestBody.getRequest().getRecursive());
+		}
+	}
+	
+	private void validateAddToDownloadListRequest(AddToDownloadListRequest requestBody) {
+	
+		ValidateArgument.required(requestBody, "requestBody");
+		
+		if (requestBody.getParentId() != null && requestBody.getQuery() != null) {
+			throw new IllegalArgumentException("Please provide request.parentId or request.query() but not both.");
+		}
+		
+		if (requestBody.getParentId() == null && requestBody.getQuery() == null) {
+			throw new IllegalArgumentException("Must include either request.parentId or request.query().");
+		}
+		
+		boolean recursive = Boolean.TRUE.equals(requestBody.getRecursive());
+				
+		if (recursive && requestBody.getParentId() == null) {
+			throw new IllegalArgumentException("The recursive option is only supported when specifying a parentId.");
+		}
+		
+		boolean useVersionNumber = requestBody.getUseVersionNumber() == null ? DEFAULT_USE_VERSION : requestBody.getUseVersionNumber();
+		
+		requestBody.setRecursive(recursive);
+		requestBody.setUseVersionNumber(useVersionNumber);
+	}	
+	
 	/**
 	 * Add all of the files from the given parentId to the user's download list.
 	 * 
@@ -377,11 +404,8 @@ public class DownloadListManagerImpl implements DownloadListManager {
 	 * @return
 	 */
 	AddToDownloadListResponse addToDownloadList(UserInfo userInfo, String parentId, boolean useVersion, boolean recursive, long limit) {
-		Long parentIdKey = KeyFactory.stringToKey(parentId);
 		
-		ValidateArgument.requirement(!NodeConstants.BOOTSTRAP_NODES.getAllBootstrapIds().contains(parentIdKey), "Invalid parentId.");
-		
-		entityAuthorizationManager.hasAccess(userInfo, parentId, ACCESS_TYPE.READ).checkAuthorizationOrElseThrow();
+		Long parentIdKey = validateAddToDownloadListFromParentId(userInfo, parentId);
 		
 		Long numberOfFilesAdded;
 		
@@ -401,6 +425,34 @@ public class DownloadListManagerImpl implements DownloadListManager {
 		}
 		
 		return new AddToDownloadListResponse().setNumberOfFilesAdded(numberOfFilesAdded);
+	}
+	
+	AddToDownloadListStatsResponse getAddToDownLoadListStatsFromParentId(UserInfo userInfo, String parentId, boolean recursive) {
+		Long parentIdKey = validateAddToDownloadListFromParentId(userInfo, parentId);
+
+		EntityType parentType = nodeDao.getNodeTypeById(parentId);
+		
+		if (EntityType.dataset.equals(parentType)) {
+			List<EntityRef> files = nodeDao.getNodeItems(parentIdKey);
+			return this.downloadListDao.getAddFileEntityRefToDownloadListStats(userInfo.getId(), files);
+		} else if (EntityType.datasetcollection.equals(parentType)) {
+			List<EntityRef> datasets = nodeDao.getNodeItems(parentIdKey);
+			return this.downloadListDao.getAddDatasetEntityRefFilesToDownloadListStats(userInfo.getId(), datasets);
+		} else if (recursive) {
+			return this.downloadListDao.getAddDescendantsToDownloadListStats(userInfo.getId(), parentIdKey);
+		} else {
+			return this.downloadListDao.getAddChildrenToDownloadListStats(userInfo.getId(), parentIdKey);
+		}
+	}
+	
+	private Long validateAddToDownloadListFromParentId(UserInfo user, String parentId) {
+		Long parentIdKey = KeyFactory.stringToKey(parentId);
+		
+		ValidateArgument.requirement(!NodeConstants.BOOTSTRAP_NODES.getAllBootstrapIds().contains(parentIdKey), "Invalid parentId.");
+		
+		entityAuthorizationManager.hasAccess(user, parentId, ACCESS_TYPE.READ).checkAuthorizationOrElseThrow();
+		
+		return parentIdKey;
 	}
 
 	/**
@@ -469,6 +521,32 @@ public class DownloadListManagerImpl implements DownloadListManager {
 
 			return new AddToDownloadListResponse().setNumberOfFilesAdded(totalFilesAdded);
 
+		} catch (LockUnavilableException | TableUnavailableException e) {
+			// can re-try when the view becomes available.
+			throw new RecoverableMessageException();
+		} catch (ParseException e) {
+			throw new IllegalArgumentException(e);
+		} catch (DatastoreException | TableFailedException e) {
+			throw new RuntimeException(e);
+		}
+	}
+	
+	AddToDownloadListStatsResponse getAddToDownLoadListStatsFromQuery(ProgressCallback progressCallback, UserInfo userInfo, Query query) {
+		ValidateArgument.required(query, "query");
+		
+		QueryOptions queryOptions = new QueryOptions()
+			.withRunCount(true)
+			.withRunSumFileSizes(true);
+		
+		try {
+			QueryResultBundle result = tableQueryManager.querySinglePage(progressCallback, userInfo, query, queryOptions);
+			
+			return new AddToDownloadListStatsResponse()
+				.setFileCount(result.getQueryCount())
+				.setFileCountGreaterThan(false)
+				.setFileSize(result.getSumFileSizes().getSumFileSizesBytes())
+				.setFileSizeGreaterThan(result.getSumFileSizes().getGreaterThan());
+			
 		} catch (LockUnavilableException | TableUnavailableException e) {
 			// can re-try when the view becomes available.
 			throw new RecoverableMessageException();

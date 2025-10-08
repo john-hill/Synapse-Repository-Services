@@ -10,7 +10,7 @@ WITH ALL_FILES AS (
         )
     ) AS D_FILES_REF
     JOIN NODE_REVISION AS D_FILES ON (
-        -- The items array might conaint entity ids with the syn prefix
+        -- The items array might contain entity ids with the syn prefix
         D_FILES.OWNER_NODE_ID = CAST(REPLACE(D_FILES_REF.id, 'syn', '') AS UNSIGNED)
         AND D_FILES.NUMBER = D_FILES_REF.version
     )

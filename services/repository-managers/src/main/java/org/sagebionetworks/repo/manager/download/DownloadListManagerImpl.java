@@ -128,6 +128,11 @@ public class DownloadListManagerImpl implements DownloadListManager {
 	 * The maximum number of files that a user can have on their download list.
 	 */
 	public static long MAX_FILES_PER_USER = 100 * 1000;
+	
+	/**
+	 * The max number of container to use when computing file stats for descendants or dataset collections
+	 */
+	public static final int FILE_STATS_MAX_CONTAINERS_COUNT = 500;
 
 	private EntityAuthorizationManager entityAuthorizationManager;
 	private DownloadListDAO downloadListDao;
@@ -434,14 +439,24 @@ public class DownloadListManagerImpl implements DownloadListManager {
 		
 		if (EntityType.dataset.equals(parentType)) {
 			List<EntityRef> files = nodeDao.getNodeItems(parentIdKey);
-			return this.downloadListDao.getAddFileEntityRefToDownloadListStats(userInfo.getId(), files);
+			return this.downloadListDao.getAddFileEntityRefToDownloadListStats(files);
 		} else if (EntityType.datasetcollection.equals(parentType)) {
 			List<EntityRef> datasets = nodeDao.getNodeItems(parentIdKey);
-			return this.downloadListDao.getAddDatasetEntityRefFilesToDownloadListStats(userInfo.getId(), datasets);
+			
+			boolean isEstimate = false;
+			
+			if (datasets.size() > FILE_STATS_MAX_CONTAINERS_COUNT) {
+				datasets = datasets.subList(0, FILE_STATS_MAX_CONTAINERS_COUNT);
+				isEstimate = true;
+			}
+			
+			return this.downloadListDao.getAddDatasetEntityRefFilesToDownloadListStats(datasets)
+				.setIsFileCountAndSizeEstimate(isEstimate);
+			
 		} else if (recursive) {
-			return this.downloadListDao.getAddDescendantsToDownloadListStats(userInfo.getId(), parentIdKey);
+			return this.downloadListDao.getAddDescendantsToDownloadListStats(parentIdKey, FILE_STATS_MAX_CONTAINERS_COUNT);
 		} else {
-			return this.downloadListDao.getAddChildrenToDownloadListStats(userInfo.getId(), parentIdKey);
+			return this.downloadListDao.getAddChildrenToDownloadListStats(parentIdKey);
 		}
 	}
 	
@@ -543,9 +558,8 @@ public class DownloadListManagerImpl implements DownloadListManager {
 			
 			return new AddToDownloadListStatsResponse()
 				.setFileCount(result.getQueryCount())
-				.setFileCountGreaterThan(false)
 				.setFileSize(result.getSumFileSizes().getSumFileSizesBytes())
-				.setFileSizeGreaterThan(result.getSumFileSizes().getGreaterThan());
+				.setIsFileCountAndSizeEstimate(result.getSumFileSizes().getGreaterThan());
 			
 		} catch (LockUnavilableException | TableUnavailableException e) {
 			// can re-try when the view becomes available.

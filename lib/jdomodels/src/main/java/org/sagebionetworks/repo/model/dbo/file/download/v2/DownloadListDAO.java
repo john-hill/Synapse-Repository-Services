@@ -145,13 +145,10 @@ public interface DownloadListDAO {
 	Long addChildrenToDownloadList(Long userId, Long parentId, boolean useVersion, long limit);
 	
 	/**
-	 * 
-	 * @param id
-	 * @param parentIdKey
-	 * @param useVersion
+	 * @param parentId
 	 * @return The count and size of files that are children of the container with the given parentId
 	 */
-	AddToDownloadListStatsResponse getAddChildrenToDownloadListStats(Long id, Long parentId);
+	AddToDownloadListStatsResponse getAddChildrenToDownloadListStats(Long parentId);
 	
 	/**
 	 * Add all the files in the tree rooted in the given parentId to the user's download list.
@@ -165,13 +162,12 @@ public interface DownloadListDAO {
 	Long addDescendantsToDownloadList(Long userId, Long parentId, boolean useVersion, long limit);
 
 	/**
-	 * 
-	 * @param id
 	 * @param parentId
-	 * @param useVersion
-	 * @return The count and size of files contained in the given parent container 
+	 * @param maxContainers The max number of containers to use in the computation, if the container size is exceeded will
+	 *                      set the {@link AddToDownloadListStatsResponse#getIsFileCountAndSizeEstimate()} to true.
+	 * @return The count and size of files contained in the given parent container
 	 */
-	AddToDownloadListStatsResponse getAddDescendantsToDownloadListStats(Long id, Long parentId);
+	AddToDownloadListStatsResponse getAddDescendantsToDownloadListStats(Long parentId, int maxContainers);
 	
 	/**
 	 * For the given item load all of the details needed to write to a manifest
@@ -179,7 +175,6 @@ public interface DownloadListDAO {
 	 * @return
 	 */
 	JSONObject getItemManifestDetails(DownloadListItem item);
-
 
 	/**
 	 * Adds all of the files referenced in the given list of {@link EntityRef} to the user's download list.
@@ -192,15 +187,14 @@ public interface DownloadListDAO {
 	Long addFileEntityRefToDownloadList(Long userId, List<EntityRef> fileRefs, long limit);
 	
 	/**
-	 * 
-	 * @param id
-	 * @param files
+	 * @param fileRefs
 	 * @return The total count and size of files referenced by the given list of {@link EntityRef}
 	 */
-	AddToDownloadListStatsResponse getAddFileEntityRefToDownloadListStats(Long id, List<EntityRef> fileRefs);
+	AddToDownloadListStatsResponse getAddFileEntityRefToDownloadListStats(List<EntityRef> fileRefs);
 	
 	/**
 	 * Add all the files that are reference by each of the data set referenced in the given list of {@link EntityRef} to the user's download list.
+	 * 
 	 * @param userId
 	 * @param datasetRefs
 	 * @param limit Limit the number of files that can be added.
@@ -209,10 +203,9 @@ public interface DownloadListDAO {
 	Long addDatasetEntityRefFilesToDownloadList(Long userId, List<EntityRef> datasetRefs, long limit);
 
 	/**
-	 * @param id
 	 * @param datasets
 	 * @return The total count and size of files referenced by each dataset in the given list of {@link EntityRef}
 	 */
-	AddToDownloadListStatsResponse getAddDatasetEntityRefFilesToDownloadListStats(Long id, List<EntityRef> datasetRefs);
+	AddToDownloadListStatsResponse getAddDatasetEntityRefFilesToDownloadListStats(List<EntityRef> datasetRefs);
 
 }

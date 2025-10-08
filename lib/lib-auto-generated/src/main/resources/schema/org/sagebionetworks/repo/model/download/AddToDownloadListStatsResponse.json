@@ -10,16 +10,12 @@
 			"description": "The number of files that a AddToDownloadListRequest request would attempt to add to the download list. Note that this might exceed the maximum number of files that can be added to the download list.",
 			"type": "integer"
 		},
-		"fileCountGreaterThan": {
-			"decription": "When true the actual count might be greater than reported.",
-			"type": "boolean"
-		},
 		"fileSize": {
 			"decription": "The total size that a AddToDownloadListRequest would attempt to add to the download list.",
 			"type": "integer"
 		},
-		"fileSizeGreaterThan": {
-			"description": "When true the actual size might be greater than reported.",
+		"isFileCountAndSizeEstimate": {
+			"description": "When true the actual count and size might be greater than reported.",
 			"type": "boolean"
 		}
 	}

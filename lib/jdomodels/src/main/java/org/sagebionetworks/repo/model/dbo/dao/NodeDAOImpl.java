@@ -456,8 +456,6 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 			"SUM(F." + COL_FILES_CONTENT_SIZE + ") AS SIZE " +
 			" FROM " + TABLE_REVISION + " R JOIN " + TABLE_FILES + " F ON R." + COL_REVISION_FILE_HANDLE_ID + " = F." + COL_FILES_ID +
 			" WHERE (R." + COL_REVISION_OWNER_NODE + ", R." + COL_REVISION_NUMBER + ") IN (:pairs)";
-	
-	private static final String SELECT_DATASET_FILE_SUMMARY = DDLUtilsImpl.loadSQLFromClasspath("sql/GetDatasetFileSummary.sql");
 
 	private static final RowMapper<FileSummary> FILE_SUMMARY_ROW_MAPPER = (rs, rowNum) -> {
 		String checksum = rs.getString("CHECKSUM");
@@ -2337,27 +2335,6 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 		}
 	}
 	
-	@Override
-	@WriteTransaction
-	public FileSummary getDatasetFileSummary(List<EntityRef> entityRefs) {
-		List<Long[]> idAndVersionPairs = entityRefs.stream()
-			.filter(Objects::nonNull)
-			.filter(ref -> ref.getEntityId() != null)
-			.map(ref -> new Long[]{ KeyFactory.stringToKey(ref.getEntityId()), ref.getVersionNumber() })
-			.collect(Collectors.toList());
-
-		if (idAndVersionPairs.isEmpty()) {
-			return new FileSummary(0, 0);
-		}
-
-		Map<String, List<Long[]>> params = Collections.singletonMap("datasetRefs", idAndVersionPairs);
-		
-		return namedParameterJdbcTemplate.queryForObject(SELECT_DATASET_FILE_SUMMARY, params, (rs, i) -> 
-			new FileSummary(rs.getLong("size"), rs.getLong("count"))
-		);
-		
-	}
-
 	@Override
 	public Optional<String> getDefiningSql(IdAndVersion id) {
 		return selectRevisionColumnValue(id, COL_REVISION_DEFINING_SQL, String.class);

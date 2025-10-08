@@ -10,7 +10,6 @@ import org.sagebionetworks.repo.manager.table.TableViewManager;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.EntityHeader;
 import org.sagebionetworks.repo.model.EntityRef;
-import org.sagebionetworks.repo.model.FileSummary;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.UnauthorizedException;
@@ -65,11 +64,6 @@ public class DatasetCollectionMetadataProvider extends ViewMetadataProvider<Data
 				.ifPresent(firstNonDataset -> {
 					throw new IllegalArgumentException(String.format("Only dataset entities can be included in a dataset collection. %s is '%s'", firstNonDataset.getId(), firstNonDataset.getType()));	
 				});
-			
-			FileSummary summary = nodeDao.getDatasetFileSummary(entity.getItems());
-			
-			entity.setFileSize(summary.getSize());
-			entity.setFileCount(summary.getCount());
 			
 		}
 		

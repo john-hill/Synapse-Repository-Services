@@ -2,7 +2,6 @@ package org.sagebionetworks.repo.service.metadata;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -22,7 +21,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.table.TableViewManager;
 import org.sagebionetworks.repo.model.EntityHeader;
 import org.sagebionetworks.repo.model.EntityRef;
-import org.sagebionetworks.repo.model.FileSummary;
 import org.sagebionetworks.repo.model.Folder;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.table.Dataset;
@@ -30,6 +28,8 @@ import org.sagebionetworks.repo.model.table.DatasetCollection;
 import org.sagebionetworks.repo.model.table.ViewEntityType;
 import org.sagebionetworks.repo.model.table.ViewScope;
 import org.sagebionetworks.repo.model.table.ViewTypeMask;
+import org.sagebionetworks.repo.service.metadata.DatasetCollectionMetadataProvider;
+import org.sagebionetworks.repo.service.metadata.EntityEvent;
 
 @ExtendWith(MockitoExtension.class)
 public class DatasetCollectionMetadataProviderTest {
@@ -66,16 +66,10 @@ public class DatasetCollectionMetadataProviderTest {
 			new EntityHeader().setId("syn222").setType(datasetType)
 		);
 		
-		FileSummary fileSummary = new FileSummary(1024, 12);
-		
 		when(mockNodeDao.getEntityHeader(anySet())).thenReturn(header);
-		when(mockNodeDao.getDatasetFileSummary(anyList())).thenReturn(fileSummary);
 		
 		// call under test
 		provider.validateEntity(datasetCollection, event);
-		
-		assertEquals(fileSummary.getSize(), datasetCollection.getFileSize());
-		assertEquals(fileSummary.getCount(), datasetCollection.getFileCount());
 
 		verify(mockTableViewManger).validateViewSchemaAndScope(
 			List.of("1", "2", "3"), 
@@ -85,7 +79,6 @@ public class DatasetCollectionMetadataProviderTest {
 		);
 		
 		verify(mockNodeDao).getEntityHeader(Set.of(111L, 222L));
-		verify(mockNodeDao).getDatasetFileSummary(datasetCollection.getItems());
 	}
 
 	@Test

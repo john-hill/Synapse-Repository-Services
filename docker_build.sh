@@ -52,7 +52,10 @@ fi
 MVN_GOAL=install
 if [ ${build_deploy} ]; then
 	MVN_GOAL=deploy
+	echo length of artifactory_username is ${#artifactory_username}
+	echo length of artifactory_password is ${#artifactory_password}
 	SETTINGS_XML="<settings><servers><server><id>sagebionetworks</id><username>${artifactory_username}</username><password>${artifactory_password}</password></server></servers></settings>"
+	echo length of SETTINGS_XML is ${#SETTINGS_XML}
 fi
 
 # the containers are ${JOB_NAME}-rds and ${JOB_NAME}-build

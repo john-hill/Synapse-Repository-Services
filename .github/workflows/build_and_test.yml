@@ -128,7 +128,6 @@ jobs:
         run: |
           github_app_credentials=$(aws secretsmanager get-secret-value --secret-id "/build/github/app/credentials" --query SecretString --output text)
           echo "APP_ID=$(echo $github_app_credentials | jq -r '.APP_ID')" >> $GITHUB_OUTPUT
-          echo "APP_CLIENT_ID=$(echo $github_app_credentials | jq -r '.CLIENT_ID')" >> $GITHUB_OUTPUT
           # Note, in Secrets Manager the secret is a pem file, but with new lines represented as underscores
           # So here we replace the underscores with new lines
           APP_PRIVATE_KEY_WITH_UNDERSCORES=$(echo $github_app_credentials | jq -r '.PRIVATE_KEY')
@@ -204,9 +203,20 @@ jobs:
             fi
           done
 
+        # since app credentials only last an hour we have to get new ones
+      - uses: actions/create-github-app-token@v2
+        id: app-token-2
+        if: always()
+        with:
+          app-id: ${{ steps.app-creds.outputs.APP_ID }}
+          private-key: ${{ steps.app-creds.outputs.APP_PRIVATE_KEY }}
+          owner: Sage-Bionetworks
+          repositories: Synapse-Repository-Services
+
+
       - name: Success Status
         env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.app-token-2.outputs.token }}
         run: |
           gh api --method POST \
           /repos/Sage-Bionetworks/Synapse-Repository-Services/statuses/${{ github.sha }} \
@@ -217,7 +227,7 @@ jobs:
       - name: Failed Status
         if: failure()
         env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.app-token-2.outputs.token }}
         run: |
           gh api --method POST \
           /repos/Sage-Bionetworks/Synapse-Repository-Services/statuses/${{ github.sha }} \
@@ -228,7 +238,7 @@ jobs:
       - name: Cancelled Status
         if: cancelled()
         env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.app-token-2.outputs.token }}
         run: |
           gh api --method POST \
           /repos/Sage-Bionetworks/Synapse-Repository-Services/statuses/${{ github.sha }} \

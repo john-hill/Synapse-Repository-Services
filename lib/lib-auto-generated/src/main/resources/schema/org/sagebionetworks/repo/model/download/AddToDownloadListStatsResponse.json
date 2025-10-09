@@ -11,7 +11,7 @@
 			"type": "integer"
 		},
 		"fileSize": {
-			"decription": "The total size that a AddToDownloadListRequest would attempt to add to the download list.",
+			"description": "The total size that a AddToDownloadListRequest would attempt to add to the download list.",
 			"type": "integer"
 		},
 		"isFileCountAndSizeEstimate": {

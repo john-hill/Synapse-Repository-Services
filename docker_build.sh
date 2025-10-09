@@ -77,6 +77,12 @@ clean_up_volumes
 mkdir -p ${m2_cache_parent_folder}/.m2/
 if [ ${SETTINGS_XML} ]; then
   echo ${SETTINGS_XML} > ${m2_cache_parent_folder}/.m2/settings.xml
+  echo ****** SETTINGS_XML exists ************
+  echo path to file:
+  echo ${m2_cache_parent_folder}/.m2/settings.xml
+  echo settings.xml content:
+  cat ${m2_cache_parent_folder}/.m2/settings.xml
+  echo ****** end SETTINGS_XML exists ************
 fi
 
 

@@ -56,8 +56,6 @@ phases:
       fi
 
       if [ "${FULL_BUILD}" == "true" ]; then
-        export artifactory_username=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_username')
-        export artifactory_password=$(echo $ARTIFACTORY_CREDS | jq -r '.artifactory_password')
         export org_sagebionetworks_datacite_enabled=true
         export org_sagebionetworks_doi_prefix=10.33627
         export org_sagebionetworks_doi_datacite_api_endpoint=mds.test.datacite.org

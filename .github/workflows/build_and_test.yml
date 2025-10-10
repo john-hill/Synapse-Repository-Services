@@ -77,7 +77,7 @@ jobs:
           if [[ $GITHUB_REPOSITORY_OWNER == "Sage-Bionetworks" ]]; then
             if [[ $branch == "develop" ]]; then
               GIT_COMMIT=${{ github.sha }}
-              ARTIFACT_VERSION=$(date +%Y-%m-%d)"-"${GIT_COMMIT:0:7}
+              ARTIFACT_VERSION=$(date +%Y-%m-%d_%H-%M)"_"${GIT_COMMIT:0:7}
             elif [[ $branch =~ "release-" ]]; then
               ARTIFACT_VERSION=${{ steps.find_tag.outputs.previous_version }}
             fi

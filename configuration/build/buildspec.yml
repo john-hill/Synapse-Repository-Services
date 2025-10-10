@@ -19,7 +19,6 @@ env:
     STS_CREDENTIALS: /build/session-token/${user}
     ARTIFACTORY_CREDS: /build/artifactory
     DATACITE_CREDS: /build/datacite
-
 phases:
   install:
     runtime-versions:

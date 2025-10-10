@@ -130,8 +130,8 @@ jobs:
           echo "APP_ID=$(echo $github_app_credentials | jq -r '.APP_ID')" >> $GITHUB_OUTPUT
           # Note, in Secrets Manager the secret is a pem file, but with new lines represented as underscores
           # So here we replace the underscores with new lines
-          APP_PRIVATE_KEY_WITH_ESCAPED_NEWLINES=$(echo $github_app_credentials | jq -r '.PRIVATE_KEY')
-          echo "APP_PRIVATE_KEY=$APP_PRIVATE_KEY_WITH_ESCAPED_NEWLINES" >> $GITHUB_OUTPUT
+          APP_PRIVATE_KEY_WITH_UNDERSCORES=$(echo $github_app_credentials | jq -r '.PRIVATE_KEY')
+          echo "APP_PRIVATE_KEY=$(echo $APP_PRIVATE_KEY_WITH_UNDERSCORES | sed s/_/'\\n'/g)" >> $GITHUB_OUTPUT
 
       - uses: actions/create-github-app-token@v2
         id: app-token

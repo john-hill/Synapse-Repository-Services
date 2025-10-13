@@ -786,6 +786,27 @@ public class StackConfigurationImpl implements StackConfiguration {
 	 * 
 	 * @return
 	 */
+	public String getOAuth2ArcusBioClientId() {
+		return stackEncrypter.getDecryptedProperty("org.sagebionetworks.oauth2.arcusbio.client.id");
+	}
+
+	/**
+	 * 
+	 * @return
+	 */
+	public String getOAuth2ArcusBioClientSecret() {
+		return stackEncrypter.getDecryptedProperty("org.sagebionetworks.oauth2.arcusbio.client.secret");
+	}
+
+	@Override
+	public String getOAuth2ArcusBioDiscoveryDocument() {
+		return configuration.getProperty("org.sagebionetworks.oauth2.arcusbio.discoveryDocument");
+	}
+	
+	/**
+	 * 
+	 * @return
+	 */
 	public String getOAuth2ORCIDClientId() {
 		return stackEncrypter.getDecryptedProperty("org.sagebionetworks.oauth2.orcid.client.id.v2");
 	}

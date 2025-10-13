@@ -10,13 +10,10 @@ import java.net.http.HttpClient;
 import java.net.http.HttpClient.Redirect;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.StringJoiner;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -45,6 +42,7 @@ import org.sagebionetworks.repo.manager.file.scanner.RowMapperSupplier;
 import org.sagebionetworks.repo.manager.file.scanner.SerializedFieldRowMapperSupplier;
 import org.sagebionetworks.repo.manager.file.scanner.tables.TableFileHandleScanner;
 import org.sagebionetworks.repo.manager.limits.ProjectStorageLimitsManager;
+import org.sagebionetworks.repo.manager.oauth.ArcusBioProvider;
 import org.sagebionetworks.repo.manager.oauth.GoogleOAuth2Provider;
 import org.sagebionetworks.repo.manager.oauth.OAuthProviderBinding;
 import org.sagebionetworks.repo.manager.oauth.OIDCConfig;
@@ -278,8 +276,10 @@ public class ManagerConfiguration {
 	@Bean
 	public Map<OAuthProvider, OAuthProviderBinding> oauthProvidersBindingMap(StackConfiguration config,
 			SimpleHttpClient client) {
-		return Map.of(OAuthProvider.GOOGLE_OAUTH_2_0, googleOAuthProvider(config, client), OAuthProvider.ORCID,
-				orcidOAuthProvider(config, client));
+		return Map.of(OAuthProvider.GOOGLE_OAUTH_2_0, googleOAuthProvider(config, client), 
+				OAuthProvider.ORCID, orcidOAuthProvider(config, client),
+				OAuthProvider.ARCUS_BIOSCIENCES, arcusBioOAuthProvider(config, client)
+				);
 	}
 
 	@Bean
@@ -292,6 +292,12 @@ public class ManagerConfiguration {
 	public OrcidOAuth2Provider orcidOAuthProvider(StackConfiguration config, SimpleHttpClient client) {
 		return new OrcidOAuth2Provider(config.getOAuth2ORCIDClientId(), config.getOAuth2ORCIDClientSecret(),
 				new OIDCConfig(client, config.getOAuth2ORCIDDiscoveryDocument()));
+	}
+
+	@Bean
+	public ArcusBioProvider arcusBioOAuthProvider(StackConfiguration config, SimpleHttpClient client) {
+		return new ArcusBioProvider(config.getOAuth2ArcusBioClientId(), config.getOAuth2ArcusBioClientSecret(),
+				new OIDCConfig(client, config.getOAuth2ArcusBioDiscoveryDocument()));
 	}
 
 	@Bean

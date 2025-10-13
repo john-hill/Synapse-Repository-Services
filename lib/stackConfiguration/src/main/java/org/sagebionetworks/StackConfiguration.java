@@ -500,6 +500,20 @@ public interface StackConfiguration {
 	 * 
 	 * @return
 	 */
+	public String getOAuth2ArcusBioClientId();
+
+	/**
+	 * 
+	 * @return
+	 */
+	public String getOAuth2ArcusBioClientSecret();
+	
+	public String getOAuth2ArcusBioDiscoveryDocument();
+
+	/**
+	 * 
+	 * @return
+	 */
 	public String getOAuth2ORCIDClientId();
 
 	/**

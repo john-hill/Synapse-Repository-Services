@@ -16,6 +16,7 @@ name: main
 on:
   push:
     branches: ['*']
+    tags: ['*']
 
 # let only one copy of the workflow run at a time
 concurrency:
@@ -42,13 +43,6 @@ jobs:
       - name: Static Analysis
         uses: pre-commit/action@v3.0.0
 
-      - name: Find latest tag
-        id: find_tag
-        uses: mathieudutour/github-tag-action@v6.2
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          dry_run: true #setting to 'true' means no new version is created
-
       - run: |
           # get the 'user' parameter, either from the repo' env or repo' owner if not set
           if [ ${{ vars.USER }} ]; then
@@ -74,19 +68,28 @@ jobs:
           echo "full_build=${{ vars.FULL_BUILD }}" >> $GITHUB_ENV
           echo "EXTRA_ARGS=${{ vars.EXTRA_ARGS }}" >> $GITHUB_ENV
           # for builds in Sage-Bionetworks repo', publish build artifacts
-          if [[ $GITHUB_REPOSITORY_OWNER == "Sage-Bionetworks" ]]; then
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          # if [[ $GITHUB_REPOSITORY_OWNER == "Sage-Bionetworks" ]]; then
+          if [[ true ]]; then
             if [[ $branch == "develop" ]]; then
               GIT_COMMIT=${{ github.sha }}
               ARTIFACT_VERSION=$(date +%Y-%m-%d_%H-%M)"_"${GIT_COMMIT:0:7}
-            elif [[ $branch =~ "release-" ]]; then
-              ARTIFACT_VERSION=${{ steps.find_tag.outputs.previous_version }}
+            fi
+            if [[ $TAG_NAME ]]; then
+              ARTIFACT_VERSION=$TAG_NAME
             fi
           fi
           if [[ $ARTIFACT_VERSION ]]; then
-            echo Build will publish artifacts with version $ARTIFACT_VERSION
             echo "ARTIFACT_VERSION=$ARTIFACT_VERSION" >> $GITHUB_ENV
+          fi
+
+      - id: display-artifact-version
+        name: Display Artifact Version
+        run: |
+          if [[ $ARTIFACT_VERSION ]]; then
+            echo "Build will publish artifacts with version" $ARTIFACT_VERSION
           else
-            echo "Build will not publish artifacts"
+            echo "Artifacts will not be published for this build"
           fi
 
       - id: oidc

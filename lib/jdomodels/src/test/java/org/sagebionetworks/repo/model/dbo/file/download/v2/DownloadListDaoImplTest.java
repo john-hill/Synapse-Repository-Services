@@ -52,6 +52,7 @@ import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValue;
 import org.sagebionetworks.repo.model.dbo.file.FileHandleDao;
 import org.sagebionetworks.repo.model.dbo.schema.DerivedAnnotationDao;
 import org.sagebionetworks.repo.model.download.ActionRequiredCount;
+import org.sagebionetworks.repo.model.download.AddToDownloadListStatsResponse;
 import org.sagebionetworks.repo.model.download.AvailableFilter;
 import org.sagebionetworks.repo.model.download.DownloadListItem;
 import org.sagebionetworks.repo.model.download.DownloadListItemResult;
@@ -2829,7 +2830,116 @@ public class DownloadListDaoImplTest {
 		
 		assertJSONEquals(expected, object);
 	}
+	
+	@Test
+	public void testGetAddChildrenToDownloadListStats() {
+		int numberOfProject = 1;
+		int foldersPerProject = 2;
+		int filesPerFolder = 3;
+		
+		List<Node> files = createFileHierarchy(numberOfProject, foldersPerProject, filesPerFolder);
+		
+		long parentId = KeyFactory.stringToKey(files.get(0).getParentId());
+		
+		AddToDownloadListStatsResponse expectedResponse = new AddToDownloadListStatsResponse()
+			.setFileCount(3L)
+			.setFileSize(12L)
+			.setIsFileCountAndSizeEstimate(false);
+		
+		// call under test
+		AddToDownloadListStatsResponse result = downloadListDao.getAddChildrenToDownloadListStats(parentId);
 
+		assertEquals(expectedResponse, result);
+	}
+	
+	@Test
+	public void testGetAddDescendantToDownloadListStats() {
+		int numberOfProject = 1;
+		int foldersPerProject = 3;
+		int filesPerFolder = 3;
+		int maxContainers = 10;
+		
+		List<Node> files = createFileHierarchy(numberOfProject, foldersPerProject, filesPerFolder);
+		
+		long parentId = KeyFactory.stringToKey(nodeDao.getProjectId(files.get(0).getId()).get());
+		
+		AddToDownloadListStatsResponse expectedResponse = new AddToDownloadListStatsResponse()
+			.setFileCount(9L)
+			.setFileSize(36L)
+			.setIsFileCountAndSizeEstimate(false);
+		
+		// call under test
+		AddToDownloadListStatsResponse result = downloadListDao.getAddDescendantsToDownloadListStats(parentId, maxContainers);
+
+		assertEquals(expectedResponse, result);
+	}
+	
+	@Test
+	public void testGetAddDescendantToDownloadListStatsWithMaxContainers() {
+		int numberOfProject = 1;
+		int foldersPerProject = 3;
+		int filesPerFolder = 3;
+		int maxContainers = 3;
+		
+		List<Node> files = createFileHierarchy(numberOfProject, foldersPerProject, filesPerFolder);
+		
+		long parentId = KeyFactory.stringToKey(nodeDao.getProjectId(files.get(0).getId()).get());
+		
+		AddToDownloadListStatsResponse expectedResponse = new AddToDownloadListStatsResponse()
+			.setFileCount(6L) // The project (that count as a container) does not contain any file
+			.setFileSize(24L)
+			.setIsFileCountAndSizeEstimate(true);
+		
+		// call under test
+		AddToDownloadListStatsResponse result = downloadListDao.getAddDescendantsToDownloadListStats(parentId, maxContainers);
+
+		assertEquals(expectedResponse, result);
+	}
+	
+	@Test
+	public void testGetAddFileEntityRefToDownloadListStats() {
+		int numberOfProject = 1;
+		int foldersPerProject = 1;
+		int filesPerFolder = 3;
+		
+		List<Node> files = createFileHierarchy(numberOfProject, foldersPerProject, filesPerFolder);		
+		
+		List<EntityRef> items = List.of(
+			new EntityRef().setEntityId(files.get(0).getId()).setVersionNumber(files.get(0).getVersionNumber()),
+			new EntityRef().setEntityId(files.get(1).getId()).setVersionNumber(files.get(1).getVersionNumber())
+		);
+		
+		AddToDownloadListStatsResponse expected = new AddToDownloadListStatsResponse()
+			.setFileCount(Long.valueOf(items.size()))
+			.setFileSize(6L)
+			.setIsFileCountAndSizeEstimate(false);
+		
+		// call under test
+		AddToDownloadListStatsResponse result = downloadListDao.getAddFileEntityRefToDownloadListStats(items);
+		
+		assertEquals(expected, result);
+	}
+	
+	@Test
+	public void testGetAddDatasetEntityRefFilesToDownloadListStats() {
+		int numberOfProject = 1;
+		int foldersPerProject = 2;
+		int filesPerFolder = 10;
+		int filesPerDataset = 5;
+		
+		List<Node> files = createFileHierarchy(numberOfProject, foldersPerProject, filesPerFolder);
+		List<EntityRef> datasets = createDatasets(files, filesPerDataset);
+		
+		AddToDownloadListStatsResponse expected = new AddToDownloadListStatsResponse()
+			.setFileCount(20L)
+			.setFileSize(220L)
+			.setIsFileCountAndSizeEstimate(false);
+		
+		// call under test
+		AddToDownloadListStatsResponse result = downloadListDao.getAddDatasetEntityRefFilesToDownloadListStats(datasets);
+		
+		assertEquals(expected, result);
+	}
 	
 	/**
 	 * Helper to compare two JSON objects.

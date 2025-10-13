@@ -17,8 +17,8 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_PARENT_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_TYPE;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REVISION_FILE_HANDLE_ID;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REVISION_NUMBER;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REVISION_ITEMS;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REVISION_NUMBER;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REVISION_OWNER_NODE;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REVISION_USER_ANNOS_JSON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_DERIVED_ANNOTATIONS;
@@ -52,6 +52,7 @@ import org.sagebionetworks.repo.model.annotation.v2.AnnotationsV2Utils;
 import org.sagebionetworks.repo.model.dao.FileHandleMetadataType;
 import org.sagebionetworks.repo.model.dbo.DDLUtilsImpl;
 import org.sagebionetworks.repo.model.download.ActionRequiredCount;
+import org.sagebionetworks.repo.model.download.AddToDownloadListStatsResponse;
 import org.sagebionetworks.repo.model.download.AvailableFilter;
 import org.sagebionetworks.repo.model.download.DownloadListItem;
 import org.sagebionetworks.repo.model.download.DownloadListItemResult;
@@ -95,6 +96,9 @@ public class DownloadListDAOImpl implements DownloadListDAO {
 	
 	public static final String TEMP_ACTION_REQUIRED_TEMPLATE = DDLUtilsImpl
 			.loadSQLFromClasspath("sql/TempActionRequired-ddl.sql");
+	
+	public static final String GET_DATASET_COLLECTION_FILE_STATS = DDLUtilsImpl
+		.loadSQLFromClasspath("sql/GetDatasetFileStats.sql");
 
 	private static final int BATCH_SIZE = 10000;
 
@@ -647,10 +651,32 @@ public class DownloadListDAOImpl implements DownloadListDAO {
 		return (long) jdbcTemplate.update(sql, userId, parentId, limit);
 	}
 	
+	@Override
+	public AddToDownloadListStatsResponse getAddChildrenToDownloadListStats(Long parentId) {
+		List<String> fileTypeNames = EntityTypeUtils.getFileTypes().stream().map(EntityType::name).collect(Collectors.toList());
+		
+		String sql = "SELECT COUNT(N." + COL_NODE_ID + ") AS count, COALESCE(SUM(F." + COL_FILES_CONTENT_SIZE + "), 0) as size " 
+			+ "FROM " + TABLE_NODE + " N "
+			+ "JOIN " + TABLE_REVISION + " R ON (N." + COL_NODE_ID + "=R." + COL_REVISION_OWNER_NODE + " AND N." + COL_NODE_CURRENT_REV + "=R." + COL_REVISION_NUMBER + ") "
+			+ "JOIN " + TABLE_FILES + " F ON (R." + COL_REVISION_FILE_HANDLE_ID + "=F." + COL_FILES_ID + ")"
+			+ "WHERE N." + COL_NODE_PARENT_ID + " = ? AND N."
+			+ COL_NODE_TYPE + " IN ('" + String.join("','", fileTypeNames)  + "')";
+		
+		return jdbcTemplate.queryForObject(sql, (rs, i) -> 
+			new AddToDownloadListStatsResponse()
+				.setFileCount(rs.getLong("count"))
+				.setFileSize(rs.getLong("size"))
+				.setIsFileCountAndSizeEstimate(false)
+		, parentId);
+		
+	}
+	
 	@WriteTransaction
 	@Override
 	public Long addDescendantsToDownloadList(Long userId, Long parentId, boolean useVersion, long limit) {
 		String versionString = useVersion ? "N." + COL_NODE_CURRENT_REV : "-1";
+		
+		List<String> fileTypeNames = EntityTypeUtils.getFileTypes().stream().map(EntityType::name).collect(Collectors.toList());
 		
 		String sql = String.format("INSERT IGNORE INTO " + TABLE_DOWNLOAD_LIST_ITEM_V2 + " ("
 				+ COL_DOWNLOAD_LIST_ITEM_V2_PRINCIPAL_ID + "," 
@@ -662,12 +688,36 @@ public class DownloadListDAOImpl implements DownloadListDAO {
 				+ " UNION DISTINCT"
 				+ " SELECT N." + COL_NODE_ID + ", CONTAINERS.DIST + 1 FROM CONTAINERS JOIN " + TABLE_NODE + " AS N ON (CONTAINERS.ID = N." + COL_NODE_PARENT_ID + " AND N."+COL_NODE_TYPE + " IN ('project', 'folder'))"
 				+ ") "
-				+ "SELECT ?, N." + COL_NODE_ID + ", %s, NOW(3) FROM " + TABLE_NODE + " N JOIN CONTAINERS ON (N." + COL_NODE_PARENT_ID + " = CONTAINERS.ID AND N." + COL_NODE_TYPE + "= 'file') "
+				+ "SELECT ?, N." + COL_NODE_ID + ", %s, NOW(3) FROM " + TABLE_NODE + " N JOIN CONTAINERS ON (N." + COL_NODE_PARENT_ID + " = CONTAINERS.ID AND N." + COL_NODE_TYPE + " IN ('" + String.join("','", fileTypeNames)  + "')) "
 				+ "ORDER BY CONTAINERS.DIST, CONTAINERS.ID, N." + COL_NODE_ID + " LIMIT ?", versionString);
 		
 		createOrUpdateDownloadList(userId);
 		
 		return (long) jdbcTemplate.update(sql, parentId, userId, limit);
+	}
+	
+	@Override
+	public AddToDownloadListStatsResponse getAddDescendantsToDownloadListStats(Long parentId, int maxContainers) {
+
+		List<String> fileTypeNames = EntityTypeUtils.getFileTypes().stream().map(EntityType::name).collect(Collectors.toList());
+		
+		String sql = "WITH RECURSIVE CONTAINERS (ID, DIST) AS ("
+			+ " SELECT " + COL_NODE_ID + ", 0 FROM " + TABLE_NODE + " WHERE " + COL_NODE_ID + "=? AND " + COL_NODE_TYPE + " IN ('project', 'folder')"
+			+ " UNION ALL"
+			+ " SELECT N." + COL_NODE_ID + ", CONTAINERS.DIST + 1 FROM CONTAINERS JOIN " + TABLE_NODE + " AS N ON (CONTAINERS.ID = N." + COL_NODE_PARENT_ID + " AND N."+COL_NODE_TYPE + " IN ('project', 'folder'))"
+			// We limit the number of containers that we do the computation against to avoid overloading the database
+			+ " LIMIT ?)"
+			+ "SELECT COUNT(N." + COL_NODE_ID + ") AS count, COALESCE(SUM(F." + COL_FILES_CONTENT_SIZE + "), 0) as size, (SELECT COUNT(ID) FROM CONTAINERS) >= ? as isEstimate " 
+			+ "FROM CONTAINERS "
+			+ "JOIN " + TABLE_NODE + " N ON (N." + COL_NODE_PARENT_ID + " = CONTAINERS.ID AND N." + COL_NODE_TYPE + " IN ('" + String.join("','", fileTypeNames)  + "')) "
+			+ "JOIN " + TABLE_REVISION + " R ON (N." + COL_NODE_ID + "=R." + COL_REVISION_OWNER_NODE + " AND N." + COL_NODE_CURRENT_REV + "=R." + COL_REVISION_NUMBER + ") "
+			+ "JOIN " + TABLE_FILES + " F ON (R." + COL_REVISION_FILE_HANDLE_ID + "=F." + COL_FILES_ID + ")";
+		
+		return jdbcTemplate.queryForObject(sql, (rs, i) -> new AddToDownloadListStatsResponse()
+			.setFileCount(rs.getLong("count"))
+			.setFileSize(rs.getLong("size"))
+			.setIsFileCountAndSizeEstimate(rs.getBoolean("isEstimate"))
+		, parentId, maxContainers, maxContainers);
 	}
 
 	@Override
@@ -722,6 +772,29 @@ public class DownloadListDAOImpl implements DownloadListDAO {
 	}
 	
 	@Override
+	public AddToDownloadListStatsResponse getAddFileEntityRefToDownloadListStats(List<EntityRef> fileRefs) {
+		String sql = "SELECT COUNT(R." + COL_REVISION_OWNER_NODE + ") AS count, SUM(F." + COL_FILES_CONTENT_SIZE + ") as size "
+			+ "FROM " + TABLE_REVISION + " R "
+			+ "JOIN " + TABLE_FILES + " F ON (R." + COL_REVISION_FILE_HANDLE_ID + "=F." + COL_FILES_ID + ") "
+			+ "WHERE (R." + COL_REVISION_OWNER_NODE + ", R." + COL_REVISION_NUMBER + ") IN (:fileRefs)";
+		
+		List<Long[]> fileRefsParam = fileRefs.stream().map( fileRef -> new Long[] {
+			KeyFactory.stringToKey(fileRef.getEntityId()), fileRef.getVersionNumber()
+		}).collect(Collectors.toList());
+		
+		Map<String, ?> params = Map.of(
+			"fileRefs", fileRefsParam
+		);
+		
+		return namedJdbcTemplate.queryForObject(sql, params, (rs, i) -> 
+			new AddToDownloadListStatsResponse()
+				.setFileCount(rs.getLong("count"))
+				.setFileSize(rs.getLong("size"))
+				.setIsFileCountAndSizeEstimate(false)
+		);
+	}
+	
+	@Override
 	@WriteTransaction
 	public Long addDatasetEntityRefFilesToDownloadList(Long userId, List<EntityRef> datasetRefs, long limit) {
 		createOrUpdateDownloadList(userId);
@@ -760,6 +833,28 @@ public class DownloadListDAOImpl implements DownloadListDAO {
 		);
 		
 		return (long) namedJdbcTemplate.update(sql, params);
+	}
+	
+	@Override
+	public AddToDownloadListStatsResponse getAddDatasetEntityRefFilesToDownloadListStats(List<EntityRef> datasetRefs) {
+				
+		List<Long[]> datasetParam = datasetRefs
+			.stream()
+			.map( dataset -> new Long[] {
+				KeyFactory.stringToKey(dataset.getEntityId()), dataset.getVersionNumber()
+			})
+			.collect(Collectors.toList());
+		
+		Map<String, ?> params = Map.of(
+			"datasetRefs", datasetParam
+		);
+		
+		return namedJdbcTemplate.queryForObject(GET_DATASET_COLLECTION_FILE_STATS, params, (rs, i) ->
+			new AddToDownloadListStatsResponse()
+				.setFileCount(rs.getLong("count"))
+				.setFileSize(rs.getLong("size"))
+				.setIsFileCountAndSizeEstimate(false)
+		);
 	}
 	
 }

@@ -79,7 +79,7 @@ if [ ${SETTINGS_XML} ]; then
   echo ${SETTINGS_XML} > ${m2_cache_parent_folder}/.m2/settings.xml
 fi
 
-if [ -n "${HOME_DIR_WITHIN_CONTAINER}" ]; then
+if [ -z ${HOME_DIR_WITHIN_CONTAINER+x} ]; then
   HOME_DIR_WITHIN_CONTAINER="/root"
 fi
 

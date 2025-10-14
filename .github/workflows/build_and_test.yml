@@ -18,7 +18,8 @@ on:
     branches:
       - '*'
     tags:
-      - '*'
+      - '[0-9]+'
+      - '[0-9]+\.[0-9]'
 
 # let only one copy of the workflow run at a time
 concurrency:

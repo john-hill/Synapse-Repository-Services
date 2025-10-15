@@ -38,6 +38,8 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # Fetch all history for git commands to work correctly
 
       - name: Static Analysis
         uses: pre-commit/action@v3.0.0
@@ -74,7 +76,8 @@ jobs:
               ARTIFACT_VERSION=$(date +%Y-%m-%d_%H-%M)"_"${GIT_COMMIT:0:7}
             #elif [[ $branch =~ "release-" ]]; then
             elif [[ $branch =~ "PLFM-9253" ]]; then
-              ARTIFACT_VERSION=$(git describe --tags)
+              git fetch --tags
+              ARTIFACT_VERSION=$(git describe --tags --abbrev=0)
             fi
           fi
           if [[ $ARTIFACT_VERSION ]]; then

@@ -69,13 +69,11 @@ jobs:
           echo "full_build=${{ vars.FULL_BUILD }}" >> $GITHUB_ENV
           echo "EXTRA_ARGS=${{ vars.EXTRA_ARGS }}" >> $GITHUB_ENV
           # for builds in Sage-Bionetworks repo', publish build artifacts
-          #if [[ $GITHUB_REPOSITORY_OWNER == "Sage-Bionetworks" ]]; then
-          if [[ "true" ]]; then
+          if [[ $GITHUB_REPOSITORY_OWNER == "Sage-Bionetworks" ]]; then
             if [[ $branch == "develop" ]]; then
               GIT_COMMIT=${{ github.sha }}
               ARTIFACT_VERSION=$(date +%Y-%m-%d_%H-%M)"_"${GIT_COMMIT:0:7}
-            #elif [[ $branch =~ "release-" ]]; then
-            elif [[ $branch =~ "PLFM-9253" ]]; then
+            elif [[ $branch =~ "release-" ]]; then
               git fetch --tags
               ARTIFACT_VERSION=$(git describe --tags --abbrev=0)
             fi

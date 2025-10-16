@@ -22,7 +22,7 @@ BASEDIR=$(dirname "$0")
 
 export stack=dev
 export HOME_DIR_WITHIN_CONTAINER="/tmp"
-export DOCKER_USER_OPTION="--user \"$(id -u):$(id -g)\""
+#export DOCKER_USER_OPTION="--user \"$(id -u):$(id -g)\""
 
 ${BASEDIR}/before.sh
 ${BASEDIR}/docker_build.sh

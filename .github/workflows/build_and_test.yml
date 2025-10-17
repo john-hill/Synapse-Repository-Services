@@ -24,15 +24,7 @@ concurrency:
 jobs:
   build_and_test:
     permissions:
-      # TODO remove permissions which are unnecessary after refactor
-      # https://graphite.dev/guides/github-actions-permissions
-      id-token: write
       contents: read
-      deployments: write
-      security-events: write
-      statuses: write
-      actions: write
-      checks: write
 
     runs-on: ubuntu-latest
 
@@ -143,16 +135,6 @@ jobs:
     outputs:
       USER: ${{ steps.pipeline-params.outputs.USER }}
       PIPELINE_PARAMETERS: ${{ steps.pipeline-params.outputs.PIPELINE_PARAMETERS }}
-      DELETEME: just-a-test
-
-  debug:
-    needs: build_and_test
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          echo USER ${{ needs.build_and_test.outputs.USER }}
-          echo PIPELINE_PARAMETERS ${{ needs.build_and_test.outputs.PIPELINE_PARAMETERS }}
-          echo DELETEME ${{ needs.build_and_test.outputs.DELETEME }}
 
   invoke_workflow:
     needs: build_and_test
@@ -166,4 +148,13 @@ jobs:
       STATUS_REPO_OWNER: Sage-Bionetworks
       STATUS_REPOSITORY: Synapse-Repository-Services
     secrets: inherit
+    permissions:
+      # https://graphite.dev/guides/github-actions-permissions
+      id-token: write
+      contents: read
+      deployments: write
+      security-events: write
+      statuses: write
+      actions: write
+      checks: write
 ...

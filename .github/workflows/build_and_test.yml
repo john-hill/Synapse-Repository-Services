@@ -95,6 +95,8 @@ jobs:
             MavenExtraArgs=$EXTRA_ARGS,\
             ArtifactVersion=$ARTIFACT_VERSION
           echo "PIPELINE_PARAMETERS=$PIPELINE_PARAMETERS" >> $GITHUB_ENV
+          echo USER $USER
+          echo PIPELINE_PARAMETERS $PIPELINE_PARAMETERS
 
       - id: display-artifact-version
         name: Display Artifact Version
@@ -149,7 +151,7 @@ jobs:
     with:
       CODE_PIPELINE_CF_TEMPLATE: configuration/build/codepipeline_cf_template.yaml
       PIPELINE_NAME: Synapse-Build-${{ needs.build_and_test.outputs.USER }}
-      CODE_PIPELINE_SOURCE_REVISIONS: actionName=CheckoutSynapseRepo,revisionType=COMMIT_ID,revisionValue=${{ github.sha }}
+      CODE_PIPELINE_SOURCE_REVISIONS: "actionName=CheckoutSynapseRepo,revisionType=COMMIT_ID,revisionValue=${{ github.sha }}"
       PIPELINE_PARAMETERS: ${{ needs.build_and_test.outputs.PIPELINE_PARAMETERS }}
       ROLE_TO_ASSUME: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-build
       STATUS_REPO_OWNER: Sage-Bionetworks

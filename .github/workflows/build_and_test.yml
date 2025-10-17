@@ -144,6 +144,7 @@ jobs:
     outputs:
       USER: ${{ steps.pipeline-params.outputs.USER }}
       PIPELINE_PARAMETERS: ${{ steps.pipeline-params.outputs.PIPELINE_PARAMETERS }}
+      DELETEME: just-a-test
 
   debug:
     needs: build_and_test
@@ -152,6 +153,7 @@ jobs:
       - run: |
           echo USER ${{ needs.build_and_test.outputs.USER }}
           echo PIPELINE_PARAMETERS ${{ needs.build_and_test.outputs.PIPELINE_PARAMETERS }}
+          echo DELETEME ${{ needs.build_and_test.outputs.DELETEME }}
 
   invoke_workflow:
     needs: build_and_test

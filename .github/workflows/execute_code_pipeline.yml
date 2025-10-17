@@ -137,9 +137,8 @@ jobs:
 
         # since app credentials only last an hour we have to get new ones
       - uses: actions/create-github-app-token@v2
-        if: ${{ github.event.inputs.STATUS_REPO_OWNER != '' && github.event.inputs.STATUS_REPOSITORY != '' }}
+        if: ${{ always() && github.event.inputs.STATUS_REPO_OWNER != '' && github.event.inputs.STATUS_REPOSITORY != '' }}
         id: app-token-2
-        if: always()
         with:
           app-id: ${{ steps.app-creds.outputs.APP_ID }}
           private-key: ${{ steps.app-creds.outputs.APP_PRIVATE_KEY }}

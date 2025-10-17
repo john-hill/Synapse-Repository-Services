@@ -117,6 +117,14 @@ jobs:
                   exit 1
               fi
           fi
+    outputs:
+      BRANCH: ${{ env.BRANCH }}
+      USER: ${{ env.USER }}
+      STACK_BUILDER_BRANCH: ${{ env.STACK_BUILDER_BRANCH }}
+      STACK_BUILDER_REPO_OWNER: ${{ env.STACK_BUILDER_REPO_OWNER }}
+      FULL_BUILD: ${{ env.FULL_BUILD }}
+      EXTRA_ARGS: ${{ env.EXTRA_ARGS }}
+      ARTIFACT_VERSION: ${{ env.ARTIFACT_VERSION }}
 
   invoke_workflow:
     needs: build_and_test
@@ -126,15 +134,15 @@ jobs:
       PIPELINE_NAME: Synapse-Build-${{ env.user }}
       CODE_PIPELINE_SOURCE_REVISIONS: actionName=CheckoutSynapseRepo,revisionType=COMMIT_ID,revisionValue=${{ github.sha }}
       PIPELINE_PARAMETERS: >-
-            SynapseBranch=${{ env.branch }},
+            SynapseBranch=${{ needs.build_and_test.outputs.BRANCH }},
             SynapseRepoOwner=${{ github.repository_owner }},
             GitHubToken=${{ secrets.GITHUB_TOKEN }},
-            BuildParamUser=${{ env.user }},
-            StackBuilderBranch=${{ env.stack_builder_branch }},
-            StackBuilderRepoOwner=${{ env.stack_builder_repo_owner }},
-            FullBuild=${{ env.full_build }},
-            MavenExtraArgs=${{ env.EXTRA_ARGS }},
-            ArtifactVersion=${{ env.ARTIFACT_VERSION }}
+            BuildParamUser=${{ needs.build_and_test.outputs.USER }},
+            StackBuilderBranch=${{ needs.build_and_test.outputs.STACK_BUILDER_BRANCH }},
+            StackBuilderRepoOwner=${{ needs.build_and_test.outputs.STACK_BUILDER_REPO_OWNER }},
+            FullBuild=${{ needs.build_and_test.outputs.FULL_BUILD }},
+            MavenExtraArgs=${{ needs.build_and_test.outputs.EXTRA_ARGS }},
+            ArtifactVersion=${{ needs.build_and_test.outputs.ARTIFACT_VERSION }}
       ROLE_TO_ASSUME: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-build
       STATUS_REPO_OWNER: Sage-Bionetworks
       STATUS_REPOSITORY: Synapse-Repository-Services

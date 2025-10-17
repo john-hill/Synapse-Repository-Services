@@ -45,36 +45,38 @@ jobs:
       - name: Static Analysis
         uses: pre-commit/action@v3.0.0
 
-      - run: |
+      - name: Determine Pipeline Parameters
+        id: pipeline-params
+        run: |
           # get the 'user' parameter, either from the repo' env or repo' owner if not set
           if [ ${{ vars.USER }} ]; then
-            echo "user=${{ vars.USER }}" >> $GITHUB_ENV
+            USER=${{ vars.USER }}
           else
             alpha_only_trunc_repo_name=$(echo "${GITHUB_REPOSITORY_OWNER//[^[:alnum:]]/}" | cut -c1-7)
-            echo "user=$alpha_only_trunc_repo_name" >> $GITHUB_ENV
+            USER=$alpha_only_trunc_repo_name
           fi
+          echo "USER=$USER" >> $GITHUB_ENV
           # capture the current branch as an environment variable
-          branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
-          echo "branch=$branch" >> $GITHUB_ENV
+          BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
           # get repo' and branch specifying the version of the stack builder to use
           if [ ${{ vars.STACK_BUILDER_REPO_OWNER }} ]; then
-            echo "stack_builder_repo_owner=${{ vars.STACK_BUILDER_REPO_OWNER }}" >> $GITHUB_ENV
+            STACK_BUILDER_REPO_OWNER=${{ vars.STACK_BUILDER_REPO_OWNER }}
            else
-            echo "stack_builder_repo_owner=Sage-Bionetworks" >> $GITHUB_ENV
+            STACK_BUILDER_REPO_OWNER=Sage-Bionetworks
           fi
           if [ ${{ vars.STACK_BUILDER_BRANCH }} ]; then
-            echo "stack_builder_branch=${{ vars.STACK_BUILDER_BRANCH }}" >> $GITHUB_ENV
+            STACK_BUILDER_BRANCH=${{ vars.STACK_BUILDER_BRANCH }}
           else
-            echo "stack_builder_branch=develop" >> $GITHUB_ENV
+            STACK_BUILDER_BRANCH=develop
           fi
-          echo "full_build=${{ vars.FULL_BUILD }}" >> $GITHUB_ENV
-          echo "EXTRA_ARGS=${{ vars.EXTRA_ARGS }}" >> $GITHUB_ENV
+          FULL_BUILD=${{ vars.FULL_BUILD }}
+          EXTRA_ARGS=${{ vars.EXTRA_ARGS }}
           # for builds in Sage-Bionetworks repo', publish build artifacts
           if [[ $GITHUB_REPOSITORY_OWNER == "Sage-Bionetworks" ]]; then
-            if [[ $branch == "develop" ]]; then
+            if [[ $BRANCH == "develop" ]]; then
               GIT_COMMIT=${{ github.sha }}
               ARTIFACT_VERSION=$(date +%Y-%m-%d_%H-%M)"_"${GIT_COMMIT:0:7}
-            elif [[ $branch =~ "release-" ]]; then
+            elif [[ $BRANCH =~ "release-" ]]; then
               git fetch --tags
               ARTIFACT_VERSION=$(git describe --tags --abbrev=0)
             fi
@@ -82,6 +84,17 @@ jobs:
           if [[ $ARTIFACT_VERSION ]]; then
             echo "ARTIFACT_VERSION=$ARTIFACT_VERSION" >> $GITHUB_ENV
           fi
+          PIPELINE_PARAMETERS=\
+            SynapseBranch=$BRANCH,\
+            SynapseRepoOwner=${{ github.repository_owner }},\
+            GitHubToken=${{ secrets.GITHUB_TOKEN }},\
+            BuildParamUser=$USER,\
+            StackBuilderBranch=$STACK_BUILDER_BRANCH,\
+            StackBuilderRepoOwner=$STACK_BUILDER_REPO_OWNER,\
+            FullBuild=$FULL_BUILD,\
+            MavenExtraArgs=$EXTRA_ARGS,\
+            ArtifactVersion=$ARTIFACT_VERSION
+          echo "PIPELINE_PARAMETERS=$PIPELINE_PARAMETERS" >> $GITHUB_ENV
 
       - id: display-artifact-version
         name: Display Artifact Version
@@ -125,27 +138,10 @@ jobs:
                   exit 1
               fi
           fi
-          PIPELINE_PARAMETERS=\
-            SynapseBranch=$BRANCH,\
-            SynapseRepoOwner=${{ github.repository_owner }},\
-            GitHubToken=${{ secrets.GITHUB_TOKEN }},\
-            BuildParamUser=$USER,\
-            StackBuilderBranch=$STACK_BUILDER_BRANCH,\
-            StackBuilderRepoOwner=$STACK_BUILDER_REPO_OWNER,\
-            FullBuild=$FULL_BUILD,\
-            MavenExtraArgs=$EXTRA_ARGS,\
-            ArtifactVersion=$ARTIFACT_VERSION
-          echo "PIPELINE_PARAMETERS=$PIPELINE_PARAMETERS" >> $GITHUB_ENV
+
     outputs:
-      # TODOR remove extraneous outputs
-      BRANCH: ${{ env.BRANCH }}
-      USER: ${{ env.USER }}
-      STACK_BUILDER_BRANCH: ${{ env.STACK_BUILDER_BRANCH }}
-      STACK_BUILDER_REPO_OWNER: ${{ env.STACK_BUILDER_REPO_OWNER }}
-      FULL_BUILD: ${{ env.FULL_BUILD }}
-      EXTRA_ARGS: ${{ env.EXTRA_ARGS }}
-      ARTIFACT_VERSION: ${{ env.ARTIFACT_VERSION }}
-      PIPELINE_PARAMETERS: ${{ env.PIPELINE_PARAMETERS }}
+      USER: ${{ steps.pipeline-params.outputs.USER }}
+      PIPELINE_PARAMETERS: ${{ steps.pipeline-params.outputs.PIPELINE_PARAMETERS }}
 
   invoke_workflow:
     needs: build_and_test

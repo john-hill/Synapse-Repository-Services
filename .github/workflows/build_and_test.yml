@@ -85,15 +85,15 @@ jobs:
             echo "ARTIFACT_VERSION=$ARTIFACT_VERSION" >> $GITHUB_ENV
           fi
           PIPELINE_PARAMETERS=\
-            SynapseBranch=$BRANCH,\
-            SynapseRepoOwner=${{ github.repository_owner }},\
-            GitHubToken=${{ secrets.GITHUB_TOKEN }},\
-            BuildParamUser=$USER,\
-            StackBuilderBranch=$STACK_BUILDER_BRANCH,\
-            StackBuilderRepoOwner=$STACK_BUILDER_REPO_OWNER,\
-            FullBuild=$FULL_BUILD,\
-            MavenExtraArgs=$EXTRA_ARGS,\
-            ArtifactVersion=$ARTIFACT_VERSION
+          "SynapseBranch=$BRANCH,\
+          SynapseRepoOwner=${{ github.repository_owner }},\
+          GitHubToken=${{ secrets.GITHUB_TOKEN }},\
+          BuildParamUser=$USER,\
+          StackBuilderBranch=$STACK_BUILDER_BRANCH,\
+          StackBuilderRepoOwner=$STACK_BUILDER_REPO_OWNER,\
+          FullBuild=$FULL_BUILD,\
+          MavenExtraArgs=$EXTRA_ARGS,\
+          ArtifactVersion=$ARTIFACT_VERSION"
           echo "PIPELINE_PARAMETERS=$PIPELINE_PARAMETERS" >> $GITHUB_ENV
           echo USER $USER
           echo PIPELINE_PARAMETERS $PIPELINE_PARAMETERS
@@ -144,6 +144,14 @@ jobs:
     outputs:
       USER: ${{ steps.pipeline-params.outputs.USER }}
       PIPELINE_PARAMETERS: ${{ steps.pipeline-params.outputs.PIPELINE_PARAMETERS }}
+
+  debug:
+    needs: build_and_test
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo USER ${{ needs.build_and_test.outputs.USER }}
+          echo PIPELINE_PARAMETERS ${{ needs.build_and_test.outputs.PIPELINE_PARAMETERS }}
 
   invoke_workflow:
     needs: build_and_test

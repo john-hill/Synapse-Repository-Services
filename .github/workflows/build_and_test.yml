@@ -117,7 +117,19 @@ jobs:
                   exit 1
               fi
           fi
+          PIPELINE_PARAMETERS=\
+            SynapseBranch=$BRANCH,\
+            SynapseRepoOwner=${{ github.repository_owner }},\
+            GitHubToken=${{ secrets.GITHUB_TOKEN }},\
+            BuildParamUser=$USER,\
+            StackBuilderBranch=$STACK_BUILDER_BRANCH,\
+            StackBuilderRepoOwner=$STACK_BUILDER_REPO_OWNER,\
+            FullBuild=$FULL_BUILD,\
+            MavenExtraArgs=$EXTRA_ARGS,\
+            ArtifactVersion=$ARTIFACT_VERSION
+          echo "PIPELINE_PARAMETERS=$PIPELINE_PARAMETERS" >> $GITHUB_ENV
     outputs:
+      # TODOR remove extraneous outputs
       BRANCH: ${{ env.BRANCH }}
       USER: ${{ env.USER }}
       STACK_BUILDER_BRANCH: ${{ env.STACK_BUILDER_BRANCH }}
@@ -125,6 +137,7 @@ jobs:
       FULL_BUILD: ${{ env.FULL_BUILD }}
       EXTRA_ARGS: ${{ env.EXTRA_ARGS }}
       ARTIFACT_VERSION: ${{ env.ARTIFACT_VERSION }}
+      PIPELINE_PARAMETERS: ${{ env.PIPELINE_PARAMETERS }}
 
   invoke_workflow:
     needs: build_and_test
@@ -133,16 +146,7 @@ jobs:
       CODE_PIPELINE_CF_TEMPLATE: configuration/build/codepipeline_cf_template.yaml
       PIPELINE_NAME: Synapse-Build-${{ needs.build_and_test.outputs.USER }}
       CODE_PIPELINE_SOURCE_REVISIONS: actionName=CheckoutSynapseRepo,revisionType=COMMIT_ID,revisionValue=${{ github.sha }}
-      PIPELINE_PARAMETERS: >-
-            SynapseBranch=${{ needs.build_and_test.outputs.BRANCH }},
-            SynapseRepoOwner=${{ github.repository_owner }},
-            GitHubToken=${{ secrets.GITHUB_TOKEN }},
-            BuildParamUser=${{ needs.build_and_test.outputs.USER }},
-            StackBuilderBranch=${{ needs.build_and_test.outputs.STACK_BUILDER_BRANCH }},
-            StackBuilderRepoOwner=${{ needs.build_and_test.outputs.STACK_BUILDER_REPO_OWNER }},
-            FullBuild=${{ needs.build_and_test.outputs.FULL_BUILD }},
-            MavenExtraArgs=${{ needs.build_and_test.outputs.EXTRA_ARGS }},
-            ArtifactVersion=${{ needs.build_and_test.outputs.ARTIFACT_VERSION }}
+      PIPELINE_PARAMETERS: ${{ needs.build_and_test.outputs.PIPELINE_PARAMETERS }}
       ROLE_TO_ASSUME: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-build
       STATUS_REPO_OWNER: Sage-Bionetworks
       STATUS_REPOSITORY: Synapse-Repository-Services

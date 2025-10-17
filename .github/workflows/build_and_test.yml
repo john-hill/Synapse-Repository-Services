@@ -93,7 +93,7 @@ jobs:
           FullBuild=$FULL_BUILD,\
           MavenExtraArgs=$EXTRA_ARGS,\
           ArtifactVersion=$ARTIFACT_VERSION"
-          echo "PIPELINE_PARAMETERS=\"$PIPELINE_PARAMETERS\"" >> $GITHUB_OUTPUT
+          echo "PIPELINE_PARAMETERS=$PIPELINE_PARAMETERS" >> $GITHUB_OUTPUT
           echo USER $USER
           echo PIPELINE_PARAMETERS $PIPELINE_PARAMETERS
 

@@ -18,6 +18,10 @@ on:
         required: true
         type: string
         description: name of pipeline
+      PIPELINE_PARAMETERS:
+        required: true
+        type: string
+        description: parameters for pipeline
       CODE_PIPELINE_SOURCE_REVISIONS:
         required: false
         type: string

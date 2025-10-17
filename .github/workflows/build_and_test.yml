@@ -87,7 +87,6 @@ jobs:
           PIPELINE_PARAMETERS=\
           "SynapseBranch=$BRANCH,\
           SynapseRepoOwner=${{ github.repository_owner }},\
-          GitHubToken=${{ secrets.GITHUB_TOKEN }},\
           BuildParamUser=$USER,\
           StackBuilderBranch=$STACK_BUILDER_BRANCH,\
           StackBuilderRepoOwner=$STACK_BUILDER_REPO_OWNER,\

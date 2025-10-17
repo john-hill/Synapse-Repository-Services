@@ -131,7 +131,7 @@ jobs:
     uses: "./.github/workflows/execute_code_pipeline.yml"
     with:
       CODE_PIPELINE_CF_TEMPLATE: configuration/build/codepipeline_cf_template.yaml
-      PIPELINE_NAME: Synapse-Build-${{ env.user }}
+      PIPELINE_NAME: Synapse-Build-${{ needs.build_and_test.outputs.USER }}
       CODE_PIPELINE_SOURCE_REVISIONS: actionName=CheckoutSynapseRepo,revisionType=COMMIT_ID,revisionValue=${{ github.sha }}
       PIPELINE_PARAMETERS: >-
             SynapseBranch=${{ needs.build_and_test.outputs.BRANCH }},

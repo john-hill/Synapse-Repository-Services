@@ -92,6 +92,14 @@ jobs:
             echo "Artifacts will not be published for this build"
           fi
 
+      - id: oidc
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::449435941126:role/sagebase-github-oidc-sage-bionetworks-synapse-build
+          aws-region: us-east-1
+          # eight hours
+          role-duration-seconds: 28800
+
       - name: Capture Session Credentials
         run: |
           # We will capture the long-lived session token to use for the build

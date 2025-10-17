@@ -55,7 +55,7 @@ jobs:
             alpha_only_trunc_repo_name=$(echo "${GITHUB_REPOSITORY_OWNER//[^[:alnum:]]/}" | cut -c1-7)
             USER=$alpha_only_trunc_repo_name
           fi
-          echo "USER=$USER" >> $GITHUB_ENV
+          echo "USER=$USER" >> $GITHUB_OUTPUT
           # capture the current branch as an environment variable
           BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
           # get repo' and branch specifying the version of the stack builder to use
@@ -82,7 +82,7 @@ jobs:
             fi
           fi
           if [[ $ARTIFACT_VERSION ]]; then
-            echo "ARTIFACT_VERSION=$ARTIFACT_VERSION" >> $GITHUB_ENV
+            echo "ARTIFACT_VERSION=$ARTIFACT_VERSION" >> $GITHUB_OUTPUT
           fi
           PIPELINE_PARAMETERS=\
           "SynapseBranch=$BRANCH,\
@@ -94,7 +94,7 @@ jobs:
           FullBuild=$FULL_BUILD,\
           MavenExtraArgs=$EXTRA_ARGS,\
           ArtifactVersion=$ARTIFACT_VERSION"
-          echo "PIPELINE_PARAMETERS=$PIPELINE_PARAMETERS" >> $GITHUB_ENV
+          echo "PIPELINE_PARAMETERS=$PIPELINE_PARAMETERS" >> $GITHUB_OUTPUT
           echo USER $USER
           echo PIPELINE_PARAMETERS $PIPELINE_PARAMETERS
 
@@ -102,7 +102,7 @@ jobs:
         name: Display Artifact Version
         run: |
           if [[ $ARTIFACT_VERSION ]]; then
-            echo "Build will publish artifacts with version" $ARTIFACT_VERSION
+            echo "Build will publish artifacts with version" ${{ steps.pipeline-params.outputs.ARTIFACT_VERSION }}
           else
             echo "Artifacts will not be published for this build"
           fi

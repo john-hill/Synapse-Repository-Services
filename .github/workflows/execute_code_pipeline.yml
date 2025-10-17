@@ -85,6 +85,10 @@ jobs:
           owner: ${{ inputs.STATUS_REPO_OWNER }}
           repositories: ${{ inputs.STATUS_REPOSITORY }}
 
+      # 'checkout' is required to be able to reference 'CODE_PIPELINE_CF_TEMPLATE' in the next step
+      - name: checkout
+        uses: actions/checkout@v5
+
       - name: Deploy CodePipeline to AWS CloudFormation
         uses: aws-actions/aws-cloudformation-github-deploy@v1
         id: pipeline-deploy

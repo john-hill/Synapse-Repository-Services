@@ -783,21 +783,27 @@ public class StackConfigurationImpl implements StackConfiguration {
 	}
 	
 	/**
-	 * 
+	 * OIDC Client ID for Arcus Bio Identity Provider
 	 * @return
 	 */
+	@Override
 	public String getOAuth2ArcusBioClientId() {
 		return stackEncrypter.getDecryptedProperty("org.sagebionetworks.oauth2.arcusbio.client.id");
 	}
 
 	/**
-	 * 
+	 * OIDC Client Secret for Arcus Bio Identity Provider
 	 * @return
 	 */
+	@Override
 	public String getOAuth2ArcusBioClientSecret() {
 		return stackEncrypter.getDecryptedProperty("org.sagebionetworks.oauth2.arcusbio.client.secret");
 	}
 
+	/**
+	 * URL for the OIDC server discovery/configuration JSON document
+	 * @return
+	 */
 	@Override
 	public String getOAuth2ArcusBioDiscoveryDocument() {
 		return configuration.getProperty("org.sagebionetworks.oauth2.arcusbio.discoveryDocument");

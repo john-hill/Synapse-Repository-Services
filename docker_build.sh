@@ -79,7 +79,7 @@ if [ ${SETTINGS_XML} ]; then
   echo ${SETTINGS_XML} > ${m2_cache_parent_folder}/.m2/settings.xml
 fi
 
-if [ -n "${HOME_DIR_WITHIN_CONTAINER}" ]; then
+if [ -z ${HOME_DIR_WITHIN_CONTAINER+x} ]; then
   HOME_DIR_WITHIN_CONTAINER="/root"
 fi
 
@@ -87,7 +87,7 @@ mysql -u${rds_user_name} -p${rds_password} -h ${org_sagebionetworks_repository_d
 mysql -u${rds_user_name} -p${rds_password} -h ${org_sagebionetworks_table_cluster_endpoint_0} -sN -e "DROP DATABASE ${db_name};CREATE DATABASE ${db_name};"
 
 # create build container and run build
-docker run --user "$(id -u):$(id -g)" -i --rm --name ${build_container_name} \
+docker run ${DOCKER_USER_OPTION} -i --rm --name ${build_container_name} \
 -m 5500M \
 -v ${m2_cache_parent_folder}/.m2:${HOME_DIR_WITHIN_CONTAINER}/.m2 \
 -v ${src_folder}:/repo \

@@ -38,16 +38,11 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # Fetch all history for git commands to work correctly
 
       - name: Static Analysis
         uses: pre-commit/action@v3.0.0
-
-      - name: Find latest tag
-        id: find_tag
-        uses: mathieudutour/github-tag-action@v6.2
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          dry_run: true #setting to 'true' means no new version is created
 
       - run: |
           # get the 'user' parameter, either from the repo' env or repo' owner if not set
@@ -79,14 +74,21 @@ jobs:
               GIT_COMMIT=${{ github.sha }}
               ARTIFACT_VERSION=$(date +%Y-%m-%d_%H-%M)"_"${GIT_COMMIT:0:7}
             elif [[ $branch =~ "release-" ]]; then
-              ARTIFACT_VERSION=${{ steps.find_tag.outputs.previous_version }}
+              git fetch --tags
+              ARTIFACT_VERSION=$(git describe --tags --abbrev=0)
             fi
           fi
           if [[ $ARTIFACT_VERSION ]]; then
-            echo Build will publish artifacts with version $ARTIFACT_VERSION
             echo "ARTIFACT_VERSION=$ARTIFACT_VERSION" >> $GITHUB_ENV
+          fi
+
+      - id: display-artifact-version
+        name: Display Artifact Version
+        run: |
+          if [[ $ARTIFACT_VERSION ]]; then
+            echo "Build will publish artifacts with version" $ARTIFACT_VERSION
           else
-            echo "Build will not publish artifacts"
+            echo "Artifacts will not be published for this build"
           fi
 
       - id: oidc

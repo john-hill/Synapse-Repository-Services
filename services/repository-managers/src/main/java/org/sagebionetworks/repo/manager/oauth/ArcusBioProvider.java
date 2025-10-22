@@ -8,23 +8,17 @@ import org.scribe.model.OAuthConfig;
 import org.scribe.model.Verifier;
 
 /**
- * Google OAuth 2.0 implementation of OAuthProvider.
- * 
- * This class requires an apiKey and apiSecret provided by the <a
- * href="https://console.developers.google.com/project">Google developer
- * console</a>.
- * 
- * @author John
+ * OAuthProvider for Arcus Bio's OpenID Connect server
  * 
  */
-public class GoogleOAuth2Provider implements OAuthProviderBinding {
+public class ArcusBioProvider implements OAuthProviderBinding {
 
-	private static final String AUTH_URL_DEFAULT_PARAMS = "?response_type=code&client_id=%s&redirect_uri=%s&prompt=select_account";
+	private static final String AUTH_URL_DEFAULT_PARAMS = "?response_type=code&client_id=%s&redirect_uri=%s";
 	
 	/*
-	 * To be OIDC compliant we need the openid scope (See https://developers.google.com/identity/protocols/oauth2/openid-connect#sendauthrequest)
+	 * To be OIDC compliant we need the openid scope.
 	 */
-	private static final String OIDC_SCOPES = "openid profile email";
+	private static final String OIDC_SCOPES = "openid email";
 
 	private String apiKey;
 	private String apiSecret;
@@ -32,12 +26,12 @@ public class GoogleOAuth2Provider implements OAuthProviderBinding {
 	private String tokenUrl;
 	
 	/**
-	 * Thread safe Google provider.
+	 * Thread safe OAuth 2.0 provider.
 	 * 
-	 * @param apiKey Client ID provided by Google developer console.
-	 * @param apiSecret Client Secret provided by Google developer console.
+	 * @param apiKey Client ID provided by Arcus Bio.
+	 * @param apiSecret Client Secret provided by Arcus Bio.
 	 */
-	public GoogleOAuth2Provider(String apiKey, String apiSecret, OIDCConfig oidcConfig) {
+	public ArcusBioProvider(String apiKey, String apiSecret, OIDCConfig oidcConfig) {
 		this.apiKey = apiKey;
 		this.apiSecret = apiSecret;
 		this.authUrl = oidcConfig.getAuthorizationEndpoint() + AUTH_URL_DEFAULT_PARAMS;
@@ -69,11 +63,11 @@ public class GoogleOAuth2Provider implements OAuthProviderBinding {
 
 	@Override
 	public AliasAndType retrieveProvidersId(String authorizationCode, String redirectUrl) {
-		throw new IllegalArgumentException("Retrieving alias is not supported in Synapse for the Google OAuth provider.");
+		throw new IllegalArgumentException("Retrieving alias is not supported in Synapse for the Arcus Bio OAuth provider.");
 	}
 
 	@Override
 	public AliasType getAliasType() {
-		throw new IllegalArgumentException("Retrieving alias is not supported in Synapse for the Google OAuth provider.");
+		throw new IllegalArgumentException("Retrieving alias is not supported in Synapse for the Arcus Bio OAuth provider.");
 	}
 }

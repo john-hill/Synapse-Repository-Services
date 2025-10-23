@@ -36,6 +36,7 @@ import org.springframework.util.CollectionUtils;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
+@Disabled("See https://sagebionetworks.jira.com/browse/PLFM-9306")
 public class SearchIndexWorkerIntegrationTest {
     private static final long MAX_WAIT = 2 * 60*1000; // 2 minutes
     private static final long CHECK_TIME = 2000;

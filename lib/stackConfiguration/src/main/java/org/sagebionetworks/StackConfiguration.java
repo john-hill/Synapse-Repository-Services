@@ -497,6 +497,24 @@ public interface StackConfiguration {
 	public String getOAuth2GoogleDiscoveryDocument();
 
 	/**
+	 * OIDC Client ID for Arcus Bio Identity Provider
+	 * @return
+	 */
+	public String getOAuth2ArcusBioClientId();
+
+	/**
+	 * OIDC Client Secret for Arcus Bio Identity Provider
+	 * @return
+	 */
+	public String getOAuth2ArcusBioClientSecret();
+	
+	/**
+	 * URL for the OIDC server discovery/configuration JSON document
+	 * @return
+	 */
+	public String getOAuth2ArcusBioDiscoveryDocument();
+
+	/**
 	 * 
 	 * @return
 	 */

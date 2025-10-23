@@ -1,0 +1,10 @@
+{
+	"description": "Response summarizing the outcome of a grid update operation.",
+	"type": "object",
+	"properties": {
+		"rowsUpdated": {
+			"type": "integer",
+			"description": "Number of rows actually updated (after applying any limit)."
+		}
+	}
+}

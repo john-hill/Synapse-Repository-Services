@@ -1,0 +1,9 @@
+{
+	"description": "Request to update the cells of the current grid session.",
+	"properties": {
+		"update": {
+			"description": "The the update.",
+			"$ref": "org.sagebionetworks.repo.model.grid.update.Update"
+		}
+	}
+}

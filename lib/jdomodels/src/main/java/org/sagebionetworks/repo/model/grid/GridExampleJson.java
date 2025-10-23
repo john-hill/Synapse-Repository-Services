@@ -13,6 +13,8 @@ import org.sagebionetworks.repo.model.grid.query.RowValidationResultFilter;
 import org.sagebionetworks.repo.model.grid.query.SelectAll;
 import org.sagebionetworks.repo.model.grid.query.ValidationOperator;
 import org.sagebionetworks.repo.model.grid.query.function.CountStar;
+import org.sagebionetworks.repo.model.grid.update.SetValue;
+import org.sagebionetworks.repo.model.grid.update.Update;
 import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 
 /**
@@ -22,37 +24,9 @@ import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 public class GridExampleJson {
 
 	public static void main(String[] args) {
-		CellValueFilter cell = new CellValueFilter().setColumnName("someInt").setValue(List.of(12L))
-				.setOperator(CellValueOperator.GREATER_THAN);
-		System.out.println(JDOSecondaryPropertyUtils.createJSONFromObject(cell));
-
-		RowIsValidFilter rowIsValid = new RowIsValidFilter().setValue(false);
-		System.out.println(JDOSecondaryPropertyUtils.createJSONFromObject(rowIsValid));
-
-		RowValidationResultFilter val2 = new RowValidationResultFilter().setOperator(ValidationOperator.LIKE)
-				.setValidationResultValue("%expected type%");
-		System.out.println(JDOSecondaryPropertyUtils.createJSONFromObject(val2));
-		RowSelectionFilter sel = new RowSelectionFilter().setIsSelected(true);
-		System.out.println(JDOSecondaryPropertyUtils.createJSONFromObject(sel));
-
-		Query query = new Query().setColumnSelection(List.of(new CountStar()))
-				.setFilters(
-						List.of(new CellValueFilter().setColumnName("age").setOperator(CellValueOperator.GREATER_THAN)
-								.setValue(List.of(25L)), new RowIsValidFilter().setValue(false)))
-				.setLimit(1L);
-		System.out.println(JDOSecondaryPropertyUtils.createJSONFromObject(query));
-
-		query = new Query().setColumnSelection(List.of(new SelectAll()))
-				.setFilters(
-						List.of(new CellValueFilter().setColumnName("age").setOperator(CellValueOperator.GREATER_THAN)
-								.setValue(List.of(25L)), new RowIsValidFilter().setValue(false)))
-				.setLimit(1L);
-		System.out.println(JDOSecondaryPropertyUtils.createJSONFromObject(query));
-
-		System.out.println(JDOSecondaryPropertyUtils.createJSONFromObject(query));
-
 		UnmodifiableXStream X_STREAM = UnmodifiableXStream.builder().allowTypes(QueryExamples.class, QueryExample.class)
-				.alias("query_examples", QueryExamples.class).alias("query_example", QueryExample.class).build();
+				.alias("query_examples", QueryExamples.class).alias("query_example", QueryExample.class)
+				.alias("update_examples", UpdateExamples.class).alias("update_example", UpdateExample.class).build();
 		StringWriter writer = new StringWriter();
 		X_STREAM.toXML(new QueryExamples().setExamples(
 				//
@@ -83,8 +57,37 @@ public class GridExampleJson {
 		//
 		//
 		), writer);
-		String unquoted = writer.toString().replaceAll("&quot;", "\"").replaceAll("&apos;", "'");
-		System.out.print(unquoted);
+		System.out.println(writer.toString().replaceAll("&quot;", "\"").replaceAll("&apos;", "'"));
+
+		writer = new StringWriter();
+		X_STREAM.toXML(new UpdateExamples().setExamples(
+				//
+				new UpdateExample()
+						.setDescription(
+								"For each row where the value for the 'age' column is null, set a default value of 25.")
+						.setUpdate_json(JDOSecondaryPropertyUtils.createJSONFromObject(
+								new Update().setSet(List.of(new SetValue().setColumnName("age").setValue(25)))
+										.setFilters(List.of(new CellValueFilter().setColumnName("age")
+												.setOperator(CellValueOperator.IS_NULL))))),
+				//
+				new UpdateExample().setDescription(
+						"For each row where the 'height' column is greater than 12, set the 'type' to be 'tall' and 'footing' to be null.  Add a limit of 10 to ensure that no more than 10 rows are updated.")
+						.setUpdate_json(JDOSecondaryPropertyUtils.createJSONFromObject(new Update()
+								.setSet(List.of(new SetValue().setColumnName("type").setValue("tall"),
+										new SetValue().setColumnName("footing").setValue(null)))
+								.setFilters(List.of(new CellValueFilter().setColumnName("height")
+										.setOperator(CellValueOperator.GREATER_THAN).setValue(List.of(12))))
+								.setLimit(10L))),
+				//
+				new UpdateExample().setDescription(
+						"For each row that the user currently has selected, set the value of the 'name' column to be 'Dave'.")
+						.setUpdate_json(JDOSecondaryPropertyUtils.createJSONFromObject(
+								new Update().setSet(List.of(new SetValue().setColumnName("name").setValue("Dave")))
+										.setFilters(List.of(new RowSelectionFilter().setIsSelected(true)))))
+
+		), writer);
+
+		System.out.println(writer.toString().replaceAll("&quot;", "\"").replaceAll("&apos;", "'"));
 
 	}
 
@@ -121,6 +124,44 @@ public class GridExampleJson {
 
 		public QueryExample setQuery_json(String query_json) {
 			this.query_json = query_json;
+			return this;
+		}
+
+	}
+
+	public static class UpdateExamples {
+		private UpdateExample[] examples;
+
+		public UpdateExample[] getExamples() {
+			return examples;
+		}
+
+		public UpdateExamples setExamples(UpdateExample... examples) {
+			this.examples = examples;
+			return this;
+		}
+
+	}
+
+	public static class UpdateExample {
+		private String description;
+		private String update_json;
+
+		public String getDescription() {
+			return description;
+		}
+
+		public UpdateExample setDescription(String description) {
+			this.description = description;
+			return this;
+		}
+
+		public String getUpdate_json() {
+			return update_json;
+		}
+
+		public UpdateExample setUpdate_json(String update_json) {
+			this.update_json = update_json;
 			return this;
 		}
 

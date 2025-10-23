@@ -47,6 +47,7 @@ import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.util.ValidateArgument;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -213,13 +214,13 @@ public class GridDaoImpl implements GridDao {
 	}
 
 	@Override
-	public Optional<Long> getReplicaCreatedBy(String sessionId, Long replicaId, boolean isAgentReplica) {
+	public Optional<Long> getReplicaCreatedBy(String sessionId, Long replicaId) {
 		ValidateArgument.required(sessionId, "sessionId");
 		ValidateArgument.required(replicaId, "replicaId");
 		try {
 			return Optional.of(jdbcTemplate.queryForObject(
-					"SELECT CREATED_BY FROM GRID_REPLICA WHERE SESSION_ID = ? AND REPLICA_ID = ? AND IS_AGENT = ?",
-					Long.class, sessionId, replicaId, isAgentReplica));
+					"SELECT CREATED_BY FROM GRID_REPLICA WHERE SESSION_ID = ? AND REPLICA_ID = ?",
+					Long.class, sessionId, replicaId));
 		} catch (EmptyResultDataAccessException e) {
 			return Optional.empty();
 		}
@@ -296,6 +297,19 @@ public class GridDaoImpl implements GridDao {
 		
 		return jdbcTemplate.query("SELECT * FROM GRID_CONNECTION WHERE SESSION_ID = ? AND CREATED_BY = ? AND SOURCE = ? ORDER BY REPLICA_ID DESC LIMIT 1",
 				CONNECTION_MAPPER, sessionId, userId, source.name()).stream().findFirst();
+	}
+    
+	@Override
+	public Optional<GridConnectionInfo> getConnection(String sessionId, Long replicaId) {
+		ValidateArgument.required(sessionId, "sessionId");
+		ValidateArgument.required(replicaId, "replicaId");
+		try {
+			return Optional.of(
+					jdbcTemplate.queryForObject("SELECT * FROM GRID_CONNECTION WHERE SESSION_ID = ? AND REPLICA_ID = ?",
+							CONNECTION_MAPPER, sessionId, replicaId));
+		} catch (EmptyResultDataAccessException e) {
+			return Optional.empty();
+		}
 	}
 
 	@Override

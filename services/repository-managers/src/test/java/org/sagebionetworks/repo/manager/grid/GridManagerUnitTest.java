@@ -556,7 +556,7 @@ public class GridManagerUnitTest {
 	public void testValidateReplicaOwnerWithOwner() {
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockUser.isAdmin()).thenReturn(false);
-		when(mockGridDao.getReplicaCreatedBy(gridSessionId, replicaId, false)).thenReturn(Optional.of(userId));
+		when(mockGridDao.getReplicaCreatedBy(gridSessionId, replicaId)).thenReturn(Optional.of(userId));
 		// call under test
 		gridManager.validateRepicaOwner(mockUser, gridSessionId, replicaId);
 	}
@@ -565,7 +565,7 @@ public class GridManagerUnitTest {
 	public void testValidateReplicaOwnerWithOther() {
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockUser.isAdmin()).thenReturn(false);
-		when(mockGridDao.getReplicaCreatedBy(gridSessionId, replicaId, false)).thenReturn(Optional.of(77777L));
+		when(mockGridDao.getReplicaCreatedBy(gridSessionId, replicaId)).thenReturn(Optional.of(77777L));
 
 		String message = assertThrows(UnauthorizedException.class, () -> {
 			// call under test
@@ -577,14 +577,14 @@ public class GridManagerUnitTest {
 	@Test
 	public void testValidateReplicaOwnerWithOtherAdmin() {
 		when(mockUser.isAdmin()).thenReturn(true);
-		when(mockGridDao.getReplicaCreatedBy(gridSessionId, replicaId, false)).thenReturn(Optional.of(555L));
+		when(mockGridDao.getReplicaCreatedBy(gridSessionId, replicaId)).thenReturn(Optional.of(555L));
 		// call under test
 		gridManager.validateRepicaOwner(mockUser, gridSessionId, replicaId);
 	}
 
 	@Test
 	public void testValidateReplicaOwnerWithNotFound() {
-		when(mockGridDao.getReplicaCreatedBy(gridSessionId, replicaId, false)).thenReturn(Optional.empty());
+		when(mockGridDao.getReplicaCreatedBy(gridSessionId, replicaId)).thenReturn(Optional.empty());
 		String message = assertThrows(NotFoundException.class, () -> {
 			// call under test
 			gridManager.validateRepicaOwner(mockUser, gridSessionId, replicaId);

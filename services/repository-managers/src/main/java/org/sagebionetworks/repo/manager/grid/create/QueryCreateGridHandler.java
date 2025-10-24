@@ -1,7 +1,9 @@
 package org.sagebionetworks.repo.manager.grid.create;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -29,6 +31,7 @@ import org.sagebionetworks.repo.model.table.QueryOptions;
 import org.sagebionetworks.repo.model.table.QueryResultBundle;
 import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.repo.model.table.RowSet;
+import org.sagebionetworks.repo.model.table.SelectColumn;
 import org.sagebionetworks.repo.model.table.TableUnavailableException;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
@@ -89,9 +92,14 @@ public class QueryCreateGridHandler implements CreateGridHandler {
 					.map(JsonSchema::getRequired)
 					.orElse(new ArrayList<>());
 
-			final List<Integer> columnsRequiredBySchemaIndices = pre.getSelectColumns().stream()
+			final Map<String, Integer> columnNameToIndex = new HashMap<>();
+			List<SelectColumn> selectColumns = pre.getSelectColumns();
+			for (int i = 0; i < selectColumns.size(); i++) {
+				columnNameToIndex.put(selectColumns.get(i).getName(), i);
+			}
+			final List<Integer> columnsRequiredBySchemaIndices = selectColumns.stream()
 					.filter(cm -> columnsRequiredBySchema.contains(cm.getName()))
-					.map(cm -> pre.getSelectColumns().indexOf(cm))
+					.map(cm -> columnNameToIndex.get(cm.getName()))
 					.collect(Collectors.toList());
 
 			// The second query is a full query to build all of the patches from the query

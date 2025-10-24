@@ -4,7 +4,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -105,10 +108,15 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 				.map(JsonSchema::getRequired)
 				.orElse(new ArrayList<>());
 
-		final List<Integer> columnsRequiredByJsonSchemaIndices = schema.stream()
-				.filter(cm -> columnsRequiredByJsonSchema.contains(cm.getName()))
-				.map(schema::indexOf)
+		final Map<String, Integer> columnNameToIndex = new HashMap<>();
+		for (int i = 0; i < schema.size(); i++) {
+			columnNameToIndex.put(schema.get(i).getName(), i);
+		}
+		final List<Integer> columnsRequiredByJsonSchemaIndices = columnsRequiredByJsonSchema.stream()
+				.map(columnNameToIndex::get)
+				.filter(Objects::nonNull)
 				.collect(Collectors.toList());
+
 
 
 		if (schema == null || schema.isEmpty()) {

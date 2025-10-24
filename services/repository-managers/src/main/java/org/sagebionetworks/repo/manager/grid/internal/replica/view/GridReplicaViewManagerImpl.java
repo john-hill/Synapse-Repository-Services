@@ -158,9 +158,14 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 
 	@Override
 	public Iterator<RowView> getQueryIterator(GridHeader header, List<FilterElement> filters) {
+		return getQueryIterator(header, new QueryElement().setWhere(filters));
+	}
+	
+	@Override
+	public Iterator<RowView> getQueryIterator(GridHeader header, QueryElement query) {
 		final long ROWS_PER_PAGE = 1_000L;
 		return new PaginationIterator<>(
-				(long limit, long offset) -> this.querySinglePage(header, filters, limit, offset), ROWS_PER_PAGE);
+				(long limit, long offset) -> this.querySinglePage(header, query), ROWS_PER_PAGE);
 	}
 	
 	@Override
@@ -255,7 +260,8 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		List<RowView> rowViews = querySinglePage(header, query);
 		List<Row> rows = rowViews.stream()
 				.map(v -> new Row().setValidationResults(translateValidation(v.getRowValidationResults()))
-						.setCellValues(toList(v.getRowObject().getCells())))
+						.setCellValues(toList(v.getRowObject().getCells()))
+						.setRowId(v.getRowId()))
 				.collect(Collectors.toList());
 		return new QueryResult().setRows(rows).setSelectColumns(translateSelect(header, query.getSelect()));
 	}
@@ -289,7 +295,5 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		}
 		return obs;
 	}
-
-
 
 }

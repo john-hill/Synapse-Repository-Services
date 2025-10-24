@@ -220,8 +220,7 @@ public class GridManagerImpl implements GridManager {
 		ValidateArgument.required(sesisonId, "gridSessionId");
 		ValidateArgument.required(replicaId, "replicaId");
 
-		boolean isAgentReplica = false;
-		Long replicaCreatedBy = gridDao.getReplicaCreatedBy(sesisonId, replicaId, isAgentReplica)
+		Long replicaCreatedBy = gridDao.getReplicaCreatedBy(sesisonId, replicaId)
 				.orElseThrow(() -> new NotFoundException(GRID_REPLICA_NOT_FOUND));
 		if (!AuthorizationUtils.isUserCreatorOrAdmin(user, replicaCreatedBy.toString())) {
 			throw new UnauthorizedException("You are not authorized to access this resource.");
@@ -397,6 +396,18 @@ public class GridManagerImpl implements GridManager {
 	@Override
 	public Optional<GridConnectionInfo> getConnectionInfoOptional(String connectionId) {
 		return gridDao.getConnection(connectionId);
+	}
+
+	@Override
+	public GridReplica createAgentReplica(UserInfo user, GridSession session) {
+		GridReplica replica = gridDao.createReplica(user.getId(), session.getSessionId(), true, EventSource.AGENT);
+		sendInternalConnectEvent(user, session, replica, EventSource.AGENT);
+		return replica;
+	}
+
+	@Override
+	public Optional<GridConnectionInfo> getConnection(String gridSessionId, Long agentsReplicaId) {
+		return gridDao.getConnection(gridSessionId, agentsReplicaId);
 	}
 
 }

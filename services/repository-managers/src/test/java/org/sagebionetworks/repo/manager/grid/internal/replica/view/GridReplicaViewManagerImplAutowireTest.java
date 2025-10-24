@@ -889,22 +889,27 @@ public class GridReplicaViewManagerImplAutowireTest {
 										new org.sagebionetworks.repo.model.grid.query.result.ValidationResults()
 												.setIsValid(false).setValidationErrorMessage("required")
 												.setAllValidationMessages(List.of("abc", "efg")))
-										.setCellValues(nullList),
+										.setCellValues(nullList)
+										.setRowId(allRows.get(0).getRowId()),
 								new org.sagebionetworks.repo.model.grid.query.result.Row().setValidationResults(
 										new org.sagebionetworks.repo.model.grid.query.result.ValidationResults()
 												.setIsValid(true))
-										.setCellValues(List.of("a", 123)),
+										.setCellValues(List.of("a", 123))
+										.setRowId(allRows.get(1).getRowId()),
 								new org.sagebionetworks.repo.model.grid.query.result.Row()
 										.setValidationResults(
 												new org.sagebionetworks.repo.model.grid.query.result.ValidationResults()
 														.setIsValid(false).setValidationErrorMessage("naw"))
-										.setCellValues(List.of("b", 456)),
+										.setCellValues(List.of("b", 456))
+										.setRowId(allRows.get(2).getRowId()),
 								new org.sagebionetworks.repo.model.grid.query.result.Row().setValidationResults(
 										new org.sagebionetworks.repo.model.grid.query.result.ValidationResults()
 												.setIsValid(true))
-										.setCellValues(List.of("c", 789)),
+										.setCellValues(List.of("c", 789))
+										.setRowId(allRows.get(3).getRowId()),
 								new org.sagebionetworks.repo.model.grid.query.result.Row()
-										.setCellValues(List.of("d", 333)))),
+										.setCellValues(List.of("d", 333))
+										.setRowId(allRows.get(4).getRowId()))),
 				gridViewManager.querySinglePageAsQueryResult(header,
 						new QueryElement().setSelect(new SelectAllElement())));
 	}

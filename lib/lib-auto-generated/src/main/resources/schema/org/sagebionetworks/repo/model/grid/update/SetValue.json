@@ -1,0 +1,14 @@
+{
+	"description": "Represents a single column assignment (one entry of the SQL SET clause).",
+	"type": "object",
+	"properties": {
+		"columnName": {
+			"type": "string",
+			"description": "Target column name or ID to update."
+		},
+		"value": {
+			"type": "object",
+			"description": "Literal JSON value to assign to the column for all selected rows. Supports string, number, boolean, object, array, or null (use null to clear)"
+		}
+	}
+}

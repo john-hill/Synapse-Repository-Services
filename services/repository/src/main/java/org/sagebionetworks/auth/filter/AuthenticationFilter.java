@@ -86,27 +86,26 @@ public class AuthenticationFilter implements Filter {
 		
 		Long userId = null;
 
-		if (!isTokenEmptyOrNull(accessToken)) {
-			try {
-				// validate token and get userid parameter
-				userId = Long.parseLong(oidcManager.validateAccessToken(accessToken));
-				if (authenticationMethod == null) { // accessToken came in as sessionToken
-					authenticationMethod = AuthenticationMethod.BEARERTOKEN;
+			if (!isTokenEmptyOrNull(accessToken)) {
+				try {
+					// validate token and get userid parameter
+					userId = Long.parseLong(oidcManager.validateAccessToken(accessToken));
+					if (authenticationMethod == null) { // accessToken came in as sessionToken
+						authenticationMethod = AuthenticationMethod.BEARERTOKEN;
+					}
+				} catch (IllegalArgumentException | ForbiddenException | OAuthClientNotVerifiedException e) {
+					String failureReason = "Invalid access token";
+					HttpAuthUtil.reject((HttpServletResponse)servletResponse, failureReason);
+					log.warn(failureReason + ": " + e.getMessage());
+					return;
+				} catch (OAuthException e) {
+					HttpAuthUtil.rejectWithOAuthError((HttpServletResponse)servletResponse, e.getError(), e.getErrorDescription(), HttpStatus.UNAUTHORIZED);
+					log.warn(e.getMessage());
+					return;
 				}
-			} catch (IllegalArgumentException | ForbiddenException | OAuthClientNotVerifiedException e) {
-				String failureReason = "Invalid access token";
-				HttpAuthUtil.reject((HttpServletResponse) servletResponse, failureReason);
-				log.warn(failureReason + ": " + e.getMessage());
-				return;
-			} catch (OAuthException e) {
-				HttpAuthUtil.rejectWithOAuthError((HttpServletResponse) servletResponse, e.getError(),
-						e.getErrorDescription(), HttpStatus.UNAUTHORIZED);
-				log.warn(e.getMessage());
-				return;
+			} else { // anonymous
+				userId = BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId();
 			}
-		} else { // anonymous
-			userId = BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId();
-		}
 
 		if (authenticationMethod == null && HttpAuthUtil.usesBasicAuthentication(req)) {
 			authenticationMethod = AuthenticationMethod.BASIC;

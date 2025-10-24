@@ -6,16 +6,23 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.PrintWriter;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import javax.servlet.FilterChain;
 import javax.servlet.FilterConfig;
 import javax.servlet.ServletContext;
+import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -36,6 +43,8 @@ import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.principal.PrincipalAlias;
 import org.sagebionetworks.repo.service.auth.AuthenticationService;
+import org.sagebionetworks.repo.web.OAuthErrorCode;
+import org.sagebionetworks.repo.web.OAuthUnauthenticatedException;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -78,8 +87,11 @@ public class AuthenticationFilterTest {
 	@InjectMocks
 	private AuthenticationFilter filter;
 
+	private static final String sessionToken = UUID.randomUUID().toString();
 	private static final Long userId = 123456789L;
 	private static final String BEARER_TOKEN;
+	private static final String BEARER_TOKEN_HEADER;
+	private static final List<String> HEADER_NAMES = Collections.singletonList("Authorization");
 	private PrincipalAlias pa;
 	
 	static {
@@ -87,6 +99,7 @@ public class AuthenticationFilterTest {
 		claims.setSubject("userId");
 		BEARER_TOKEN = Jwts.builder().setClaims(claims).
 				setHeaderParam(Header.TYPE, Header.JWT_TYPE).compact() + "signature";
+		BEARER_TOKEN_HEADER = "Bearer "+BEARER_TOKEN;
 	}
 	
 	
@@ -172,6 +185,27 @@ public class AuthenticationFilterTest {
 	}
 	
 	@Test
+	public void testFilter_validCredentials() throws Exception {
+		when(mockHttpRequest.getHeader(AuthorizationConstants.SESSION_TOKEN_PARAM)).thenReturn(null);
+		when(mockHttpRequest.getHeader(AuthorizationConstants.AUTHORIZATION_HEADER_NAME)).thenReturn(BEARER_TOKEN_HEADER);
+		when(mockHttpRequest.getHeaderNames()).thenReturn(Collections.enumeration(HEADER_NAMES));
+		when(mockHttpRequest.getHeaders("Authorization")).thenReturn(Collections.enumeration(Collections.singletonList(BEARER_TOKEN_HEADER)));
+		when(mockOidcManager.validateAccessToken(anyString())).thenReturn(""+userId);
+
+		// by default the mocked oidcTokenHelper.validateJWT(bearerToken) won't throw any exception, so the token is deemed valid
+
+		// method under test
+		filter.doFilter(mockHttpRequest, mockHttpResponse, mockFilterChain);
+		
+		verify(mockOidcManager).validateAccessToken(BEARER_TOKEN);
+		verify(mockFilterChain).doFilter(requestCaptor.capture(), (ServletResponse)any());
+		
+		assertEquals(""+userId, requestCaptor.getValue().getParameter(AuthorizationConstants.USER_ID_PARAM));
+		assertEquals("Bearer "+BEARER_TOKEN, requestCaptor.getValue().getHeader(AuthorizationConstants.SYNAPSE_AUTHORIZATION_HEADER_NAME));
+		assertEquals(AuthenticationMethod.BEARERTOKEN.name(), requestCaptor.getValue().getHeader(AuthorizationConstants.SYNAPSE_AUTHENTICATION_METHOD_HEADER_NAME));
+	}
+
+	@Test
 	public void testFilter_AccessTokenPassedAsSessionToken() throws Exception {
 		when(mockHttpRequest.getHeader(AuthorizationConstants.SESSION_TOKEN_PARAM)).thenReturn(BEARER_TOKEN);
 		when(mockHttpRequest.getHeaderNames()).thenReturn(Collections.enumeration(Collections.singletonList("sessionToken")));
@@ -187,4 +221,68 @@ public class AuthenticationFilterTest {
 		assertEquals("Bearer "+BEARER_TOKEN, requestCaptor.getValue().getHeader(AuthorizationConstants.SYNAPSE_AUTHORIZATION_HEADER_NAME));
 		assertEquals(AuthenticationMethod.SESSIONTOKEN.name(), requestCaptor.getValue().getHeader(AuthorizationConstants.SYNAPSE_AUTHENTICATION_METHOD_HEADER_NAME));
 	}
+
+	@Test
+	public void noExternalUserIdParameter() throws Exception {
+		Map<String, String[]> requestParams = new HashMap<String, String[]>();
+		 // user is trying to 'sneak in' a validated userId
+		requestParams.put(AuthorizationConstants.USER_ID_PARAM, new String[] {"101010101"});
+		when(mockHttpRequest.getParameterMap()).thenReturn(requestParams);
+		when(mockHttpRequest.getHeader(AuthorizationConstants.SESSION_TOKEN_PARAM)).thenReturn(null);
+		when(mockHttpRequest.getHeader(AuthorizationConstants.AUTHORIZATION_HEADER_NAME)).thenReturn(BEARER_TOKEN_HEADER);
+		when(mockHttpRequest.getHeaderNames()).thenReturn(Collections.enumeration(HEADER_NAMES));
+		when(mockHttpRequest.getHeaders("Authorization")).thenReturn(Collections.enumeration(Collections.singletonList(BEARER_TOKEN_HEADER)));
+		when(mockOidcManager.validateAccessToken(anyString())).thenReturn(""+userId);
+
+		// method under test
+		filter.doFilter(mockHttpRequest, mockHttpResponse, mockFilterChain);
+	
+		verify(mockFilterChain).doFilter(requestCaptor.capture(), (ServletResponse)any());
+		
+		// Make sure the userId param has been removed
+		assertEquals(""+userId, requestCaptor.getValue().getParameter(AuthorizationConstants.USER_ID_PARAM));
+		
+		
+		
+	}
+
+	@Test
+	public void testFilter_invalid_AccessToken() throws Exception {
+		when(mockHttpRequest.getHeader(AuthorizationConstants.SESSION_TOKEN_PARAM)).thenReturn(null);
+		when(mockHttpRequest.getHeader(AuthorizationConstants.AUTHORIZATION_HEADER_NAME)).thenReturn(BEARER_TOKEN_HEADER);
+		when(mockHttpResponse.getWriter()).thenReturn(mockPrintWriter);
+
+		OAuthErrorCode code = OAuthErrorCode.invalid_token;
+		String description = "The token is invalid.";
+		doThrow(new OAuthUnauthenticatedException(code, description)).when(mockOidcManager).validateAccessToken(BEARER_TOKEN);
+
+		// method under test
+		filter.doFilter(mockHttpRequest, mockHttpResponse, mockFilterChain);
+		
+		verify(mockOidcManager).validateAccessToken(BEARER_TOKEN);
+		verify(mockFilterChain, never()).doFilter((ServletRequest)any(), (ServletResponse)any());
+		verify(mockHttpResponse).setStatus(401);
+		verify(mockHttpResponse).setContentType("application/json");
+		verify(mockPrintWriter).println("{\"concreteType\":\"org.sagebionetworks.repo.model.ErrorResponse\",\"reason\":\"" + code.name() + ". " + description + "\",\"error\":\"" + code.name() + "\",\"error_description\":\"" + description + "\"}");
+	}
+
+	@Test
+	public void testFilter_no_Credentials() throws Exception {
+		when(mockHttpRequest.getHeader(AuthorizationConstants.SESSION_TOKEN_PARAM)).thenReturn(null);
+		when(mockHttpRequest.getHeader(AuthorizationConstants.AUTHORIZATION_HEADER_NAME)).thenReturn(null);
+		when(mockHttpRequest.getHeaderNames()).thenReturn(Collections.enumeration(HEADER_NAMES));
+		when(mockHttpRequest.getHeaders("Authorization")).thenReturn(Collections.emptyEnumeration());
+
+		// method under test
+		filter.doFilter(mockHttpRequest, mockHttpResponse, mockFilterChain);
+		
+		verify(mockFilterChain).doFilter(requestCaptor.capture(), (ServletResponse)any());
+		verify(mockOidcManager, never()).validateAccessToken(BEARER_TOKEN);
+		
+		assertEquals("273950", requestCaptor.getValue().getParameter(AuthorizationConstants.USER_ID_PARAM));
+		assertNull(requestCaptor.getValue().getHeader(AuthorizationConstants.SYNAPSE_AUTHORIZATION_HEADER_NAME));
+		assertNull(requestCaptor.getValue().getHeader(AuthorizationConstants.SYNAPSE_AUTHENTICATION_METHOD_HEADER_NAME));
+	}
+
+
 }

@@ -182,7 +182,6 @@ public class UserManagerImpl implements UserManager {
 			DBOCredential credential = new DBOCredential();
 			credential.setEtag(UUID.randomUUID().toString());
 			credential.setPrincipalId(principalId);
-			credential.setSecretKey(HMACUtils.newHMACSHA1Key());
 			
 			if (password != null) {
 				credential.setPassHash(PBKDF2Utils.hashPassword(password, null));

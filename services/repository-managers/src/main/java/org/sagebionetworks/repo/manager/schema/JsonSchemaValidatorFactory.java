@@ -1,5 +1,7 @@
 package org.sagebionetworks.repo.manager.schema;
 
+import java.io.UncheckedIOException;
+
 import org.apache.commons.lang.StringUtils;
 import org.everit.json.schema.Schema;
 import org.everit.json.schema.SchemaException;
@@ -59,7 +61,7 @@ public class JsonSchemaValidatorFactory {
 				.build();
 			
 			return loader.load().build();
-		} catch (SchemaException e) {
+		} catch (SchemaException | UncheckedIOException e) {
 			// The error message when the version is not supported is not very user friendly
 			if ("#: could not determine version".equals(e.getMessage())) {
 				throw new IllegalArgumentException("Unsupported JSON schema version: " + jsonSchema.get$schema(), e);

@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.util.List;
+
 import org.everit.json.schema.Schema;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -101,6 +103,28 @@ public class JsonSchemaValidatorFactoryTest {
 		jsonSchema.set$schema("https://json-schema.org/draft/2019-09/schema");
 		
 		assertEquals("Unsupported JSON schema version: https://json-schema.org/draft/2019-09/schema", assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			factory.buildValidator(jsonSchema, false);	
+		}).getMessage());
+	}
+	
+	@Test
+	public void testBuildValidatorWithInvalidRefUrl() throws JSONObjectAdapterException {
+		jsonSchema.set$schema("http://json-schema.org/draft-07/schema#");
+		jsonSchema.setAllOf(List.of(new JsonSchema().set$ref("invalid-ref")));
+		
+		assertEquals("Invalid JSON schema: java.net.MalformedURLException: no protocol: invalid-ref", assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			factory.buildValidator(jsonSchema, false);	
+		}).getMessage());
+	}
+	
+	@Test
+	public void testBuildValidatorWithInvalidSchema() throws JSONObjectAdapterException {
+		jsonSchema.set$schema("http://json-schema.org/draft-07/schema#");
+		jsonSchema.setAllOf(List.of(new JsonSchema().set$ref("#/definitions/invalid-ref")));
+		
+		assertEquals("Invalid JSON schema: #: key [definitions] not found", assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
 			factory.buildValidator(jsonSchema, false);	
 		}).getMessage());

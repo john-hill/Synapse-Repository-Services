@@ -1213,7 +1213,6 @@ public class UrlHelpers {
 
 	public static final String AUTH_TERMS_OF_USE = "/termsOfUse";
 	public static final String AUTH_TERMS_OF_USE_V2 = "/termsOfUse2";
-	public static final String AUTH_SECRET_KEY = "/secretKey";
 
 	public static final String AUTH_PERSONAL_ACCESS_TOKEN = "/personalAccessToken";
 	public static final String AUTH_PERSONAL_ACCESS_TOKEN_ID = AUTH_PERSONAL_ACCESS_TOKEN + ID;

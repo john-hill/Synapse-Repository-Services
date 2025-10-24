@@ -7,7 +7,6 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_CREDENTI
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_CREDENTIAL_MODIFIED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_CREDENTIAL_PASS_HASH;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_CREDENTIAL_PRINCIPAL_ID;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_CREDENTIAL_SECRET_KEY;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_TOS_AGREEMENT_CREATED_BY;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_TOS_AGREEMENT_CREATED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_TOS_AGREEMENT_ID;
@@ -44,7 +43,6 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.sagebionetworks.StackConfigurationSingleton;
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
@@ -60,7 +58,6 @@ import org.sagebionetworks.repo.model.principal.BootstrapGroup;
 import org.sagebionetworks.repo.model.principal.BootstrapPrincipal;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
-import org.sagebionetworks.securitytools.HMACUtils;
 import org.sagebionetworks.securitytools.PBKDF2Utils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -103,24 +100,12 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 			" SET "+COL_CREDENTIAL_PASS_HASH+"= ?, " + COL_CREDENTIAL_ETAG + " = UUID(), " + COL_CREDENTIAL_MODIFIED_ON +" = NOW(), " + COL_CREDENTIAL_EXPIRES_ON + " = NOW() + INTERVAL ? DAY" +
 			" WHERE "+COL_CREDENTIAL_PRINCIPAL_ID+"= ?";
 	
-	private static final String SELECT_SECRET_KEY = 
-			"SELECT "+COL_CREDENTIAL_SECRET_KEY+
-			" FROM "+TABLE_CREDENTIAL+
-			" WHERE "+COL_CREDENTIAL_PRINCIPAL_ID+"= ?";
-	
-	private static final String UPDATE_SECRET_KEY = 
-			"UPDATE "+TABLE_CREDENTIAL+
-			// Note that we do not update the "MODIFIED_ON" since that applies only to passwords and the secret_key is deprecated
-			" SET "+COL_CREDENTIAL_SECRET_KEY+"= ?, " + COL_CREDENTIAL_ETAG + " = UUID()" +
-			" WHERE "+COL_CREDENTIAL_PRINCIPAL_ID+"= ?";
-	
 	@Override
 	public void createNew(long principalId) {
 		DBOCredential cred = new DBOCredential();
 		cred.setPrincipalId(principalId);
-		cred.setSecretKey(HMACUtils.newHMACSHA1Key());
 		cred.setEtag(UUID.randomUUID().toString());
-		// Note that we do not set a modified_on date since that refers to the user password and we are just creating a secret_key (which is deprecated)
+		// Note that we do not set a modified_on date since that refers to the user password
 		basicDAO.createNew(cred);
 	}
 	
@@ -170,27 +155,6 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 	@WriteTransaction
 	public void changePassword(long principalId, String passHash) {
 		jdbcTemplate.update(UPDATE_PASSWORD, passHash, DBOCredential.MAX_PASSWORD_VALIDITY_DAYS, principalId);
-	}
-	
-	@Override
-	public String getSecretKey(long principalId) throws NotFoundException {
-		try {
-			return jdbcTemplate.queryForObject(SELECT_SECRET_KEY, String.class, principalId);
-		} catch (EmptyResultDataAccessException e) {
-			throw new NotFoundException("");
-		}
-	}
-	
-	@Override
-	@WriteTransaction
-	public void changeSecretKey(long principalId) {
-		changeSecretKey(principalId, HMACUtils.newHMACSHA1Key());
-	}
-	
-	@Override
-	@WriteTransaction
-	public void changeSecretKey(long principalId, String secretKey) {
-		jdbcTemplate.update(UPDATE_SECRET_KEY, secretKey, principalId);
 	}
 
 	@Override
@@ -386,17 +350,14 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 				continue;
 			}
 			
-			// If the user has a secret key, then the user has a row in the credentials table
 			try {
-				getSecretKey(abs.getId());
-			} catch (NotFoundException e) {
 				createNew(abs.getId());
+			} catch (IllegalArgumentException e) {
+				// if alteady exists, just contiunue
 			}
 		}
 		// The migration admin should only be used in specific, non-development stacks
 		Long migrationAdminId = BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
-		
-		changeSecretKey(migrationAdminId, StackConfigurationSingleton.singleton().getMigrationAdminAPIKey());
 		
 		// Makes sure the the 2fa flag is enabled for the administrator user, this makes sure that we can run migration and integration tests
 		// since admins are now required to have 2fa enabled (See the TwoFactorAuthRequiredFilter and https://sagebionetworks.jira.com/browse/PLFM-8839). 

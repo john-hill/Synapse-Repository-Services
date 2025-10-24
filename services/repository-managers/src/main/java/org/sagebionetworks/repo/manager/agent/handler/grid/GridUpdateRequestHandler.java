@@ -122,7 +122,8 @@ public class GridUpdateRequestHandler implements OpenApiReturnControlHandler {
 
 	GridUpdateRequest extractRequest(ReturnControlEvent event) {
 		ValidateArgument.required(event, "event");
-		String body = event.getRequestBody().orElseThrow(()-> new IllegalArgumentException("Request body cannot be null."));		
+		String body = event.getRequestBody()
+				.orElseThrow(() -> new IllegalArgumentException("Request body cannot be null."));
 		log.info("request body: {}", body);
 		return JDOSecondaryPropertyUtils.createObjectFromJSON(GridUpdateRequest.class, body);
 	}

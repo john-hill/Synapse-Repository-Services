@@ -17,8 +17,9 @@
 		},
 		"limit": {
 			"type": "integer",
-      "description": "Optional. Maximum number of matching rows to update (analogous to SQL LIMIT). Use only when the user explicitly requests a cap (e.g., limit 10). If omitted, all filtered rows are updated. Valid range: 1-100.",
-      "minimum": 1,
-      "maximum": 100		}
+			"description": "Optional. Maximum number of matching rows to update (analogous to SQL LIMIT). Use only when the user explicitly requests a cap (e.g., limit 10). If omitted, all filtered rows are updated. Valid range: 1-100.",
+			"minimum": 1,
+			"maximum": 100
+		}
 	}
 }

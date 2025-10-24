@@ -260,7 +260,8 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		List<RowView> rowViews = querySinglePage(header, query);
 		List<Row> rows = rowViews.stream()
 				.map(v -> new Row().setValidationResults(translateValidation(v.getRowValidationResults()))
-						.setCellValues(toList(v.getRowObject().getCells())))
+						.setCellValues(toList(v.getRowObject().getCells()))
+						.setRowId(v.getRowId()))
 				.collect(Collectors.toList());
 		return new QueryResult().setRows(rows).setSelectColumns(translateSelect(header, query.getSelect()));
 	}

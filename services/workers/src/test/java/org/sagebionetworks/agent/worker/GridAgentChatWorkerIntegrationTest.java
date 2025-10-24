@@ -262,7 +262,7 @@ public class GridAgentChatWorkerIntegrationTest {
 						}, MAX_WAIT_MS)
 				.getResponse();
 
-		chatRequest = "Can you fix my currently selected row by setting a=4 and b to null?";
+		chatRequest = "Can you fix my currently selected row by setting a=4 and b to null (using the rowId)?";
 		AgentChatResponse acr = asynchronousJobWorkerHelper
 				.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
 						.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {

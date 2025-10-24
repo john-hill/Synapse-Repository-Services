@@ -3,7 +3,6 @@ package org.sagebionetworks.repo.manager.agent.handler.grid;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -94,7 +93,7 @@ public class GridUpdateRequestHandlerTest {
 	@Test
 	public void testHandleEventWithSuccessAndNoFiltersAndMultipleRows() throws Exception {
 		List<SetValue> setValues = List.of(new SetValue().setColumnName("colA").setValue("A1"),
-				new SetValue().setColumnName("colB)").setValue("B1"));
+				new SetValue().setColumnName("colB").setValue("B1"));
 		GridUpdateRequest request = new GridUpdateRequest()
 				.setUpdate(new Update().setSet(setValues).setFilters(null).setLimit(10L));
 
@@ -226,7 +225,6 @@ public class GridUpdateRequestHandlerTest {
 	@Test
 	public void testHandleEventWithMissingInternalConnection() throws Exception {
 		GridUpdateRequest request = new GridUpdateRequest().setUpdate(new Update());
-		;
 		doReturn(request).when(handler).extractRequest(event);
 		when(mockGridManager.getSingletonConnection(gridSessionId, EventSource.INTERNAL)).thenReturn(Optional.empty());
 		// call under test

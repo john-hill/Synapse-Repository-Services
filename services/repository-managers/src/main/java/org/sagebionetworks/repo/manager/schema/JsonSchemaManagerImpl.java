@@ -94,6 +94,9 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 	
 	@Autowired
 	private TransactionalMessenger transactionalMessenger;
+	
+	@Autowired
+	private JsonSchemaValidatorFactory validatorFactory;
 
 	public static final Set<ACCESS_TYPE> ADMIN_PERMISSIONS = Sets.newHashSet(READ, CREATE, CHANGE_PERMISSIONS, UPDATE,
 			DELETE);
@@ -275,7 +278,11 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 	SchemaId validateSchema(JsonSchema schema) {
 		ValidateArgument.required(schema, "schema");
 		ValidateArgument.required(schema.get$id(), "schema.$id");
+		
+		
+		
 		SchemaId schemaId = SchemaIdParser.parseSchemaId(schema.get$id());
+		
 		if (schemaId.getSemanticVersion() != null) {
 			/*
 			 * Any schema that includes a semantic version in its $id must be immutable.
@@ -293,6 +300,13 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 				}
 			}
 		}
+		
+		/*
+		 * Validate that the schema can actually be loaded by the validation library.
+		 * This uses the same logic as JsonSchemaValidationManagerImpl to ensure
+		 * the schema is compatible with the SchemaLoader.
+		 */
+		validatorFactory.buildValidator(schema, false);
 
 		return schemaId;
 	}

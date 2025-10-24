@@ -9,8 +9,13 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -27,6 +32,7 @@ import java.util.Map;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.collections4.IteratorUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.everit.json.schema.Schema;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -104,6 +110,9 @@ public class JsonSchemaManagerImplTest {
 	
 	@Mock
 	TransactionalMessenger mockTransactionalMessenger;
+	
+	@Mock
+	JsonSchemaValidatorFactory mockValidatorFactory;
 
 	@Captor
 	ArgumentCaptor<AccessControlList> aclCaptor;
@@ -944,6 +953,8 @@ public class JsonSchemaManagerImplTest {
 	
 	@Test
 	public void testValidateSchemaWithNoSubSchema() {
+		when(mockValidatorFactory.buildValidator(schema, false)).thenReturn(mock(Schema.class));
+		
 		// call under test
 		SchemaId id = manager.validateSchema(schema);
 		assertEquals(SchemaIdParser.parseSchemaId(schema.get$id()), id);
@@ -954,6 +965,9 @@ public class JsonSchemaManagerImplTest {
 		JsonSchema subSchema = new JsonSchema();
 		subSchema.set$ref(null);
 		schema.setAllOf(Lists.newArrayList(subSchema));
+		
+		when(mockValidatorFactory.buildValidator(schema, false)).thenReturn(mock(Schema.class));
+		
 		// call under test
 		SchemaId id = manager.validateSchema(schema);
 		assertEquals(SchemaIdParser.parseSchemaId(schema.get$id()), id);
@@ -965,6 +979,9 @@ public class JsonSchemaManagerImplTest {
 		JsonSchema subSchema = new JsonSchema();
 		subSchema.set$ref("org-other");
 		schema.setAllOf(Lists.newArrayList(subSchema));
+		
+		when(mockValidatorFactory.buildValidator(schema, false)).thenReturn(mock(Schema.class));
+		
 		// call under test
 		SchemaId id = manager.validateSchema(schema);
 		assertEquals(SchemaIdParser.parseSchemaId(schema.get$id()), id);
@@ -976,6 +993,8 @@ public class JsonSchemaManagerImplTest {
 		JsonSchema subSchema = new JsonSchema();
 		subSchema.set$ref("org-other-2.0.4");
 		schema.setAllOf(Lists.newArrayList(subSchema));
+		
+		when(mockValidatorFactory.buildValidator(schema, false)).thenReturn(mock(Schema.class));
 		// call under test
 		SchemaId id = manager.validateSchema(schema);
 		assertEquals(SchemaIdParser.parseSchemaId(schema.get$id()), id);
@@ -987,6 +1006,9 @@ public class JsonSchemaManagerImplTest {
 		JsonSchema subSchema = new JsonSchema();
 		subSchema.set$ref("org-other-2.0.4");
 		schema.setAllOf(Lists.newArrayList(subSchema));
+		
+		when(mockValidatorFactory.buildValidator(schema, false)).thenReturn(mock(Schema.class));
+		
 		// call under test
 		SchemaId id = manager.validateSchema(schema);
 		assertEquals(SchemaIdParser.parseSchemaId(schema.get$id()), id);
@@ -1027,6 +1049,23 @@ public class JsonSchemaManagerImplTest {
 			manager.validateSchema(schema);
 		}).getMessage();
 		assertEquals("schema.$id is required.", message);
+	}
+	
+	@Test
+	public void testValidateSchemaWithCannotBeLoaded() throws Exception {
+		// Setup a schema with invalid JSON schema syntax
+		schema.set$id("org-name-1.0.0");
+		schema.setDescription("Invalid schema");
+		
+		when(mockValidatorFactory.buildValidator(schema, false))
+			.thenThrow(new IllegalArgumentException("Schema has invalid syntax"));
+		
+		// call under test
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			manager.validateSchema(schema);
+		}).getMessage();
+		
+		assertEquals("Schema has invalid syntax", message);
 	}
 
 	@Test

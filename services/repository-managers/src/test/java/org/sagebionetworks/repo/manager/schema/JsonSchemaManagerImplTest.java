@@ -11,7 +11,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -32,7 +31,6 @@ import java.util.Map;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.collections4.IteratorUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.everit.json.schema.Schema;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -842,6 +840,7 @@ public class JsonSchemaManagerImplTest {
 		verify(mockSchemaDao).createNewSchemaVersion(expectedNewSchemaRequest);
 		verify(managerSpy).createOrUpdateValidationSchemaIndex(versionInfo.getVersionId());
 		verify(managerSpy).validateSchema(schema);
+		verify(mockValidatorFactory).buildValidator(validationSchema, false);
 	}
 
 	@Test
@@ -865,6 +864,7 @@ public class JsonSchemaManagerImplTest {
 				.withJsonSchema(schema).withSemanticVersion(null).withDependencies(new ArrayList<SchemaDependency>());
 		verify(mockSchemaDao).createNewSchemaVersion(expectedNewSchemaRequest);
 		verify(managerSpy).validateSchema(schema);
+		verify(mockValidatorFactory).buildValidator(validationSchema, false);
 	}
 	
 	@Test
@@ -892,6 +892,7 @@ public class JsonSchemaManagerImplTest {
 		verify(mockTransactionalMessenger, never()).sendMessageAfterCommit(any(), any(), any());
 		verify(managerSpy).buildValidationSchema(versionInfo.get$id());
 		verify(managerSpy).validateSchema(schema);
+		verify(mockValidatorFactory).buildValidator(validationSchema, false);
 		verify(mockSchemaDao).deleteSchemaVersion(versionInfo.getVersionId());
 	}
 	
@@ -920,6 +921,7 @@ public class JsonSchemaManagerImplTest {
 		verify(managerSpy).createOrUpdateValidationSchemaIndex(versionId);
 		verify(managerSpy).buildValidationSchema(versionInfo.get$id());
 		verify(managerSpy).validateSchema(schema);
+		verify(mockValidatorFactory).buildValidator(validationSchema, false);
 		verify(mockSchemaDao, never()).deleteSchemaVersion(any());
 	}
 	
@@ -948,13 +950,12 @@ public class JsonSchemaManagerImplTest {
 		verify(managerSpy).createOrUpdateValidationSchemaIndex(versionId);
 		verify(managerSpy).buildValidationSchema(versionInfo.get$id());
 		verify(managerSpy).validateSchema(schema);
+		verify(mockValidatorFactory).buildValidator(validationSchema, false);
 		verify(mockSchemaDao, never()).deleteSchemaVersion(any());
 	}
 	
 	@Test
 	public void testValidateSchemaWithNoSubSchema() {
-		when(mockValidatorFactory.buildValidator(schema, false)).thenReturn(mock(Schema.class));
-		
 		// call under test
 		SchemaId id = manager.validateSchema(schema);
 		assertEquals(SchemaIdParser.parseSchemaId(schema.get$id()), id);
@@ -965,8 +966,6 @@ public class JsonSchemaManagerImplTest {
 		JsonSchema subSchema = new JsonSchema();
 		subSchema.set$ref(null);
 		schema.setAllOf(Lists.newArrayList(subSchema));
-		
-		when(mockValidatorFactory.buildValidator(schema, false)).thenReturn(mock(Schema.class));
 		
 		// call under test
 		SchemaId id = manager.validateSchema(schema);
@@ -980,8 +979,6 @@ public class JsonSchemaManagerImplTest {
 		subSchema.set$ref("org-other");
 		schema.setAllOf(Lists.newArrayList(subSchema));
 		
-		when(mockValidatorFactory.buildValidator(schema, false)).thenReturn(mock(Schema.class));
-		
 		// call under test
 		SchemaId id = manager.validateSchema(schema);
 		assertEquals(SchemaIdParser.parseSchemaId(schema.get$id()), id);
@@ -994,7 +991,6 @@ public class JsonSchemaManagerImplTest {
 		subSchema.set$ref("org-other-2.0.4");
 		schema.setAllOf(Lists.newArrayList(subSchema));
 		
-		when(mockValidatorFactory.buildValidator(schema, false)).thenReturn(mock(Schema.class));
 		// call under test
 		SchemaId id = manager.validateSchema(schema);
 		assertEquals(SchemaIdParser.parseSchemaId(schema.get$id()), id);
@@ -1006,8 +1002,6 @@ public class JsonSchemaManagerImplTest {
 		JsonSchema subSchema = new JsonSchema();
 		subSchema.set$ref("org-other-2.0.4");
 		schema.setAllOf(Lists.newArrayList(subSchema));
-		
-		when(mockValidatorFactory.buildValidator(schema, false)).thenReturn(mock(Schema.class));
 		
 		// call under test
 		SchemaId id = manager.validateSchema(schema);
@@ -1049,23 +1043,6 @@ public class JsonSchemaManagerImplTest {
 			manager.validateSchema(schema);
 		}).getMessage();
 		assertEquals("schema.$id is required.", message);
-	}
-	
-	@Test
-	public void testValidateSchemaWithCannotBeLoaded() throws Exception {
-		// Setup a schema with invalid JSON schema syntax
-		schema.set$id("org-name-1.0.0");
-		schema.setDescription("Invalid schema");
-		
-		when(mockValidatorFactory.buildValidator(schema, false))
-			.thenThrow(new IllegalArgumentException("Schema has invalid syntax"));
-		
-		// call under test
-		String message = assertThrows(IllegalArgumentException.class, () -> {
-			manager.validateSchema(schema);
-		}).getMessage();
-		
-		assertEquals("Schema has invalid syntax", message);
 	}
 
 	@Test
@@ -1683,6 +1660,7 @@ public class JsonSchemaManagerImplTest {
 		CreateSchemaResponse response = managerSpy.createJsonSchema(user, createSchemaRequest);
 		assertNotNull(response);
 		assertEquals(versionInfo, response.getNewVersionInfo());
+		verify(mockValidatorFactory).buildValidator(validationSchema, false);
 		verify(mockNodeDao, times(3)).isNodeAvailable(nodeIdCaptor.capture());
 		assertEquals(nodeIds, nodeIdCaptor.getAllValues());
 		verify(mockTransactionalMessenger).sendMessageAfterCommit(fileId.toString(), ObjectType.ENTITY, ChangeType.UPDATE);
@@ -1716,6 +1694,7 @@ public class JsonSchemaManagerImplTest {
 		verify(mockSchemaDao).createNewSchemaVersion(expectedNewSchemaRequest);
 		verify(managerSpy).buildValidationSchema(versionInfo.get$id());
 		verify(managerSpy).validateSchema(schema);
+		verify(mockValidatorFactory).buildValidator(validationSchema, false);
 		verify(mockTransactionalMessenger).sendMessageAfterCommit(versionId, ObjectType.JSON_SCHEMA_DEPENDANT, ChangeType.UPDATE);
 	}
 	

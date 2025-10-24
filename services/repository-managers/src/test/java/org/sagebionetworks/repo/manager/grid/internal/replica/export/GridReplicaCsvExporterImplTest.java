@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -114,7 +115,7 @@ public class GridReplicaCsvExporterImplTest {
                 new Column().setName("col2")
         ));
         when(mockJobProgressCallback.getJobId()).thenReturn(jobId);
-        when(mockGridReplicaViewManager.getQueryIterator(eq(mockGridHeader), any())).thenReturn(mockRowViewIterator);
+        when(mockGridReplicaViewManager.getQueryIterator(eq(mockGridHeader), anyList())).thenReturn(mockRowViewIterator);
         when(mockRowViewIterator.hasNext()).thenReturn(true, true, false);
         when(mockRowViewIterator.next()).thenReturn(rowViews.get(0), rowViews.get(1));
         when(mockCsvWriterProvider.createWriter(any(), any())).thenReturn(mockCsvWriter);
@@ -151,7 +152,7 @@ public class GridReplicaCsvExporterImplTest {
                 new Column().setName("col2")
         ));
         when(mockJobProgressCallback.getJobId()).thenReturn(jobId);
-        when(mockGridReplicaViewManager.getQueryIterator(eq(mockGridHeader), any())).thenReturn(mockRowViewIterator);
+        when(mockGridReplicaViewManager.getQueryIterator(eq(mockGridHeader), anyList())).thenReturn(mockRowViewIterator);
         when(mockRowViewIterator.hasNext()).thenReturn(true, true, false);
         when(mockRowViewIterator.next()).thenReturn(rowViews.get(0), rowViews.get(1));
         when(mockCsvWriterProvider.createWriter(any(), any())).thenReturn(mockCsvWriter);
@@ -187,7 +188,7 @@ public class GridReplicaCsvExporterImplTest {
         when(mockGridManager.getGridSession(userInfo, sessionId)).thenReturn(mockGridSession);
         when(gridReplicaSupport.getGridHeaderOrThrow(mockGridSession)).thenReturn(mockGridHeader);
         when(mockJobProgressCallback.getJobId()).thenReturn(jobId);
-        when(mockGridReplicaViewManager.getQueryIterator(eq(mockGridHeader), any())).thenReturn(mockRowViewIterator);
+        when(mockGridReplicaViewManager.getQueryIterator(eq(mockGridHeader), anyList())).thenReturn(mockRowViewIterator);
         when(mockRowViewIterator.hasNext()).thenReturn(true, true, false);
         when(mockRowViewIterator.next()).thenReturn(rowViews.get(0), rowViews.get(1));
         when(mockCsvWriterProvider.createWriter(any(), any())).thenReturn(mockCsvWriter);
@@ -223,7 +224,7 @@ public class GridReplicaCsvExporterImplTest {
                 new Column().setName("col2")
         ));
         when(mockJobProgressCallback.getJobId()).thenReturn(jobId);
-        when(mockGridReplicaViewManager.getQueryIterator(eq(mockGridHeader), any())).thenReturn(mockRowViewIterator);
+        when(mockGridReplicaViewManager.getQueryIterator(eq(mockGridHeader), anyList())).thenReturn(mockRowViewIterator);
         when(mockRowViewIterator.hasNext()).thenReturn(true, true, false);
         when(mockRowViewIterator.next()).thenReturn(rowViews.get(0), rowViews.get(1));
         when(mockCsvWriterProvider.createWriter(any(), any())).thenReturn(mockCsvWriter);
@@ -259,7 +260,7 @@ public class GridReplicaCsvExporterImplTest {
                 new Column().setName("col2")
         ));
         when(mockJobProgressCallback.getJobId()).thenReturn(jobId);
-        when(mockGridReplicaViewManager.getQueryIterator(eq(mockGridHeader), any())).thenReturn(mockRowViewIterator);
+        when(mockGridReplicaViewManager.getQueryIterator(eq(mockGridHeader), anyList())).thenReturn(mockRowViewIterator);
         when(mockRowViewIterator.hasNext()).thenReturn(true, true, false);
         when(mockRowViewIterator.next()).thenReturn(rowViews.get(0), rowViews.get(1));
         when(mockCsvWriterProvider.createWriter(any(), any())).thenReturn(mockCsvWriter);
@@ -297,7 +298,7 @@ public class GridReplicaCsvExporterImplTest {
                 new Column().setName("col2")
         ));
         when(mockJobProgressCallback.getJobId()).thenReturn(jobId);
-        when(mockGridReplicaViewManager.getQueryIterator(eq(mockGridHeader), any())).thenReturn(mockRowViewIterator);
+        when(mockGridReplicaViewManager.getQueryIterator(eq(mockGridHeader), anyList())).thenReturn(mockRowViewIterator);
         when(mockRowViewIterator.hasNext()).thenReturn(true, true, false);
         when(mockRowViewIterator.next()).thenReturn(rowViews.get(0), rowViews.get(1));
         when(mockCsvWriterProvider.createWriter(any(), any())).thenReturn(mockCsvWriter);

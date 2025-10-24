@@ -60,8 +60,8 @@ public class VectorNode implements Node, HasJsonValue<VectorNode>, CanInsert<Vec
 			if (v != null) {
 				JSONObject sub = new JSONObject();
 				ob.put(k, sub);
-				if (v.getValue() != null) {
-					sub.put("v", v.getValue());
+				if (!v.getConValue().isUndefined()) {
+					sub.put("v", v.getConValue().getValue());
 				}
 				sub.put("i", LogicalTimestampCompactSerializable.serialize(v.getId()));
 			}

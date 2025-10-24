@@ -38,7 +38,6 @@ import org.sagebionetworks.repo.model.agent.CreateAgentSessionRequest;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.sagebionetworks.repo.model.entity.BindSchemaToEntityRequest;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
-import org.sagebionetworks.repo.model.grid.CrdtId;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridResponse;
@@ -170,7 +169,7 @@ public class GridAgentChatWorkerIntegrationTest {
 					.filter(r -> r.getRowValidationResults() != null && !r.getRowValidationResults().getIsValid())
 					.count();
 			System.out.println("invalid count: " + invalidRows);
-			if (rows.size() != 9 || invalidRows != 4) {
+			if (rows.size() != 9 || invalidRows != 2) {
 				return Pair.create(false, null);
 			}
 			return Pair.create(true, header.get());
@@ -225,7 +224,7 @@ public class GridAgentChatWorkerIntegrationTest {
 							assertEquals(agentSession.getSessionId(), response.getSessionId());
 							assertNotNull(response.getResponseText());
 							System.out.println(response.getResponseText());
-							assertTrue(response.getResponseText().toLowerCase().contains("4"));
+							assertTrue(response.getResponseText().toLowerCase().contains("2"));
 						}, MAX_WAIT_MS)
 				.getResponse();
 

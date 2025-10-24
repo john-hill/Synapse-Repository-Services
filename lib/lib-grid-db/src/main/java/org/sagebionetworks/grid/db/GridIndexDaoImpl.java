@@ -114,7 +114,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 
 	/**
 	 * Create all of the tables from the classpath.
-	 * 
+	 *
 	 * @param tables
 	 */
 	private void createTables(List<String> tables) {
@@ -127,7 +127,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 
 	/**
 	 * Helper to load a string from a file on the classpath.
-	 * 
+	 *
 	 * @param name
 	 * @return
 	 */
@@ -467,7 +467,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 	/**
 	 * Get the ID of the {@link ArrayNode} currently pointing to the provided
 	 * reference.
-	 * 
+	 *
 	 * @param params
 	 * @return
 	 */
@@ -514,7 +514,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 
 		return namedTemplate.query(String.format(LIST_ARRAY_ORDER_SQL, "ASC"), params, ARRAY_NODE_MAPPER);
 	}
-	
+
 	@Override
 	public Optional<ArrayNode> getArrayLastNode(String sessionIdString, Long replicaId, LogicalTimestamp arrayId) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
@@ -719,14 +719,23 @@ public class GridIndexDaoImpl implements GridIndexDao {
 	@Override
 	public Optional<LogicalTimestamp> findExistingConstant(String sessionIdString, Long replicaId, String jsonValue) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
+		String sql = "SELECT CON_REP, CON_SEQ FROM GRID_REPLICA_CON "
+				+ "WHERE SESSION_ID = :sessionId AND REPLICA_ID = :replicaId AND " +
+				"(" +
+				"(:jsonValue IS NOT NULL AND CON_VAL_HASH = CRC32(JSON_EXTRACT(:jsonValue, '$')) AND JSON_EXTRACT(CON_VAL, '$') = JSON_EXTRACT(:jsonValue, '$'))" +
+				"OR " +
+				"(:jsonValue IS NULL AND CON_VAL IS NULL)) " +
+				"LIMIT 1";
+		MapSqlParameterSource params = new MapSqlParameterSource();
+		params.addValue("sessionId", sessionId);
+		params.addValue("replicaId", replicaId);
+		params.addValue("jsonValue", jsonValue);
+
 		try {
-			return Optional.of(jdbcTemplate.queryForObject(
-					"SELECT CON_REP, CON_SEQ FROM GRID_REPLICA_CON "
-							+ "WHERE SESSION_ID = ? AND REPLICA_ID = ? AND CON_VAL_HASH = CRC32(JSON_EXTRACT(?, '$')) "
-							+ "AND JSON_EXTRACT(CON_VAL, '$') = JSON_EXTRACT(?, '$') LIMIT 1",
+			return Optional.ofNullable(
+					namedTemplate.queryForObject(sql, params,
 					(rs, rowNum) -> new LogicalTimestamp().setReplicaId(rs.getLong("CON_REP"))
-							.setSequenceNumber(rs.getLong("CON_SEQ")),
-					sessionId, replicaId, jsonValue, jsonValue));
+							.setSequenceNumber(rs.getLong("CON_SEQ"))));
 		} catch (EmptyResultDataAccessException e) {
 			return Optional.empty();
 		}

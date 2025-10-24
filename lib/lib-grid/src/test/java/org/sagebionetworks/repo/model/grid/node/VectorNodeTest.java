@@ -14,6 +14,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.sagebionetworks.repo.model.grid.patch.ConType;
+import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
 public class VectorNodeTest {
@@ -59,8 +61,8 @@ public class VectorNodeTest {
 	@Test
 	public void testGetValueAsJson() {
 		VectorNode vec = new VectorNode().setId(id).setValues(new LinkedHashMap<>());
-		vec.getValues().put("c1", new ConstantNode().setId(id2).setValue(new JSONArray("[1,2,3]")));
-		vec.getValues().put("c2", new ConstantNode().setId(id3).setValue("other value"));
+		vec.getValues().put("c1", new ConstantNode().setId(id2).setValue(new ConValue(ConType.JSON_ARRAY, new JSONArray("[1,2,3]"))));
+		vec.getValues().put("c2", new ConstantNode().setId(id3).setValue(new ConValue(ConType.STRING, "other value")));
 		String json = vec.getValueAsJson();
 		assertEquals("{\"c1\":{\"v\":[1,2,3],\"i\":[3,4]},\"c2\":{\"v\":\"other value\",\"i\":[5,6]}}", json);
 		VectorNode other = new VectorNode().setId(id).setValueFromJson(json);

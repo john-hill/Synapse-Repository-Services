@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.view;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -210,7 +211,8 @@ public class GridReplicaViewManagerImplAutowireTest {
 								.setData(new RowData()
 										.setVectorId(
 												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(37L))
-										.setCells(new JSONArray("[\"string3\",103003]")))
+										.setCells(new JSONArray("[\"string3\",103003]"))
+										.setRowJsonDocument(new JSONObject("{\"a\":\"string3\",\"b\":103003}")))
 								.setMetadata(new RowMetadata().setRowValidation(new RowValidation())
 										.setSynapseRow(new SynapseRow()))),
 				new RowView().setArrNodeId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(49L))
@@ -220,7 +222,8 @@ public class GridReplicaViewManagerImplAutowireTest {
 								.setData(new RowData()
 										.setVectorId(
 												new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(44L))
-										.setCells(new JSONArray("[\"string4\",103004]")))
+										.setCells(new JSONArray("[\"string4\",103004]"))
+										.setRowJsonDocument(new JSONObject("{\"a\":\"string4\",\"b\":103004}")))
 								.setMetadata(new RowMetadata().setRowValidation(new RowValidation())
 										.setSynapseRow(new SynapseRow()))));
 		assertEquals(expected, page);
@@ -295,6 +298,36 @@ public class GridReplicaViewManagerImplAutowireTest {
 		List<RowView> page = gridViewManager.querySinglePage(header, limit, offset);
 
 		assertEquals(expected, page);
+	}
+
+	@Test
+	public void testQuerySinglePageWithNullOrUndefinedValues() throws IOException {
+		writeRowsAsPatches(rows.subList(0, 1), sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
+
+		Long limit = 100L;
+		Long offset = 0L;
+
+		GridHeader header = gridViewManager.readHeader(sessionId, replicaId).get();
+
+		// Update the first row to include an undefined value and a null value
+		Patch newPatch = new Patch()
+				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
+		LogicalTimestamp undefinedConst = newPatch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.UNDEFINED, null)));
+		LogicalTimestamp nullConst = newPatch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.NULL, null)));
+		LogicalTimestamp vectorToUpdate = new LogicalTimestamp().setReplicaId(111L).setSequenceNumber(16L);
+		newPatch.addNewOperation(Operations.insertVector().setVectorId(vectorToUpdate)
+				.setMap(Map.of(0, undefinedConst, 1, nullConst)));
+
+		gridIndexManger.applyPatch(sessionId, replicaId, newPatch);
+
+		// Call under test -- verify that `null`/`undefined` return expected results
+		List<RowView> allRows = gridViewManager.querySinglePage(header, limit, offset);
+
+		assertEquals(allRows.size(), 1);
+		// "a" is undefined, so it is omitted from the JSON document
+		assertEquals(allRows.get(0).getRowObject().getData().getRowJsonDocument().toString(), "{\"b\":null}");
+		// `undefined` is not a valid JSON array value, so it is represented as `null` in the cells array
+		assertEquals(allRows.get(0).getRowObject().getCells().toString(), "[null,null]");
 	}
 
 	@Test
@@ -955,7 +988,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 			Patch patch = PatchCompactSerializable.deserialize(new JSONArray(body));
 			gridIndexManger.applyPatch(sessionId, pid.getReplicaId(), patch);
 			return true;
-		}, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES)) {
+		}, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES, Collections.emptyList())) {
 			rows.stream().forEach(r -> {
 				patchRowHandler.nextRow(r);
 			});

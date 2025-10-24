@@ -2,20 +2,29 @@ package org.sagebionetworks.repo.model.grid.node;
 
 import java.util.Objects;
 
-import org.json.JSONArray;
+import org.sagebionetworks.repo.model.grid.patch.ConType;
+import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
 public class ConstantNode implements Node, HasJsonValue<ConstantNode> {
 
+	/** a timestamp, which is the ID of the con node. */
 	private LogicalTimestamp id;
-	private Object value;
+	/** an optional JSON/CBOR value, which is the value of the con node when it is not undefined and is not a timestamp.
+	 * Implementation note: when the value is `undefined`, this will be a Java `null`. When the value is a JSON `null`, this will be a JSONObject.NULL.
+	 */
+	private ConValue value;
 
-	public Object getValue() {
+	public ConValue getConValue() {
 		return value;
 	}
 
 	public ConstantNode setValue(Object value) {
-		this.value = value;
+		if (value instanceof ConValue) {
+			this.value = (ConValue) value;
+			return this;
+		}
+		this.value = new ConValue(ConType.fromValue(value), value);
 		return this;
 	}
 
@@ -24,15 +33,16 @@ public class ConstantNode implements Node, HasJsonValue<ConstantNode> {
 		return this;
 	}
 
+
 	@Override
-	public ConstantNode setValueFromJson(String json) {
-		this.value = "[]".equals(json) ? null : new JSONArray(json).get(0);
+	public ConstantNode setValueFromJson(String jsonString) {
+		this.value = ConValue.fromJsonString(jsonString);
 		return this;
 	}
 
 	@Override
 	public String getValueAsJson() {
-		return ConstantUtils.constantValueToJson(value);
+		return value.toJson();
 	}
 
 	@Override
@@ -42,7 +52,7 @@ public class ConstantNode implements Node, HasJsonValue<ConstantNode> {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(id, getValueAsJson());
+		return Objects.hash(id, value);
 	}
 
 	@Override
@@ -54,7 +64,7 @@ public class ConstantNode implements Node, HasJsonValue<ConstantNode> {
 		if (getClass() != obj.getClass())
 			return false;
 		ConstantNode other = (ConstantNode) obj;
-		return Objects.equals(id, other.id) && Objects.equals(getValueAsJson(), other.getValueAsJson());
+		return Objects.equals(id, other.id) && Objects.equals(value, other.value);
 	}
 
 	@Override

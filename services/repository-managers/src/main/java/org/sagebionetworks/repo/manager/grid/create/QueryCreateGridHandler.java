@@ -1,11 +1,15 @@
 package org.sagebionetworks.repo.manager.grid.create;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.manager.EntityManager;
+import org.sagebionetworks.repo.manager.SchemaManager;
 import org.sagebionetworks.repo.manager.grid.PatchRowHandler;
 import org.sagebionetworks.repo.manager.grid.PatchStore;
+import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.manager.table.TableQueryManager;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -17,6 +21,7 @@ import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
+import org.sagebionetworks.repo.model.schema.JsonSchema;
 import org.sagebionetworks.repo.model.schema.JsonSchemaObjectBinding;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.Query;
@@ -36,12 +41,14 @@ public class QueryCreateGridHandler implements CreateGridHandler {
 	private final GridDao gridDao;
 	private final TableQueryManager tableQueryManager;
 	private final EntityManager entityManager;
+	private final JsonSchemaManager schemaManager;
 
-	public QueryCreateGridHandler(GridDao gridDao, EntityManager entityManager, TableQueryManager tableQueryManager) {
+	public QueryCreateGridHandler(GridDao gridDao, EntityManager entityManager, TableQueryManager tableQueryManager, JsonSchemaManager schemaManager) {
 		super();
 		this.gridDao = gridDao;
 		this.entityManager = entityManager;
 		this.tableQueryManager = tableQueryManager;
+		this.schemaManager = schemaManager;
 	}
 
 	@Override
@@ -77,12 +84,22 @@ public class QueryCreateGridHandler implements CreateGridHandler {
 			// grid data back into a Synapse Table or View
 			initialQuery.setIncludeEntityEtag(true);
 
+			final List<String> columnsRequiredBySchema = schemaIdOp
+					.map(schemaManager::getValidationSchema)
+					.map(JsonSchema::getRequired)
+					.orElse(new ArrayList<>());
+
+			final List<Integer> columnsRequiredBySchemaIndices = pre.getSelectColumns().stream()
+					.filter(cm -> columnsRequiredBySchema.contains(cm.getName()))
+					.map(cm -> pre.getSelectColumns().indexOf(cm))
+					.collect(Collectors.toList());
+
 			// The second query is a full query to build all of the patches from the query
 			// results.
 			tableQueryManager.runQueryAsStream(callback, user, initialQuery, t -> {
 				List<ColumnModel> schema = t.getMainQuery().getTranslator().getSchemaOfSelect();
 				return new PatchRowHandler(patchStore, session.getSessionId(), replica.getReplicaId(), schema,
-						maxRowSizeBytes);
+						maxRowSizeBytes, columnsRequiredBySchemaIndices);
 			});
 			return new CreateGridHandlerResult().setGridSession(session).setGridReplica(replica);
 		} catch (LockUnavilableException | TableUnavailableException e) {

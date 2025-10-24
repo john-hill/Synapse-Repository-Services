@@ -137,10 +137,10 @@ public class GridEventBrokerWorkerIntegrationTest {
 
 	@Autowired
 	private SynapseS3Client s3Client;
-	
+
 	@Autowired
 	private JsonSchemaManager jsonSchemaManager;
-	
+
 	@Autowired
 	private EntitySchemaValidationResultDao schemaValidationResultDao;
 
@@ -303,7 +303,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 		List<String> colIds = schema.stream().map(c -> c.getId()).collect(Collectors.toList());
 
 		TableEntity table = asynchronousJobWorkerHelper.createTable(admin, "testTable", projectId, colIds, false);
-		
+
 		List<Row> rows = List.of(
 			new Row().setValues(List.of("7070")),
 			new Row().setValues(List.of("8080")),
@@ -341,7 +341,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 
 		// start the synchronize
 		wsOne.send("[1,99,\"synchronize-clock\",[]]");
-		
+
 		assertTrue(waitForMessage((a) -> {
 			if (a.optInt(0) == 4 && a.optInt(1) == 99) {
 				Patch patch = PatchCompactSerializable.deserialize(a.getJSONArray(2));
@@ -358,13 +358,13 @@ public class GridEventBrokerWorkerIntegrationTest {
 				return false;
 			}
 		}, incomingMessagesOne));
-		
-		GridHeader header = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> 
+
+		GridHeader header = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () ->
 			gridViewManager.readHeader(session.getSessionId(), INTERNAL_REPLICA_ID)
 				.map(h -> Pair.create(true, h))
 				.orElse(Pair.create(false, null))
 		);
-		
+
 		List<RowView> rowsView = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
 			List<RowView> page = gridViewManager.querySinglePage(header, 100L, 0L);
 			if (page.size() == 3) {
@@ -372,32 +372,32 @@ public class GridEventBrokerWorkerIntegrationTest {
 			}
 			return Pair.create(false, null);
 		});
-		
+
 		// Deletes the first two rows:
 		Patch updatePatch = new Patch()
 			.setPatchId(new LogicalTimestamp().setReplicaId(replicaOne.getReplicaId()).setSequenceNumber(25L));
-		
+
 		updatePatch.addNewOperation(Operations.delete()
 			.setNodeId(header.getRowsId())
 			.setTimespans(List.of(
 				new Timespan(
 					// Start node
-					rowsView.get(0).getArrNodeId(), 
+					rowsView.get(0).getArrNodeId(),
 					// Length of the span (Gap between the second and first node seq)
 					rowsView.get(1).getArrNodeId().getSequenceNumber() - rowsView.get(0).getArrNodeId().getSequenceNumber() + 1
 				))
 			)
 		);
-		
+
 		JSONArray patchBody = PatchCompactSerializable.serialize(updatePatch);
-		
+
 		wsOne.send(String.format("[1,102,\"patch\", %s]", patchBody.toString()));
-		
+
 		assertTrue(waitForMessage((a) -> a.optInt(0) == 5 && a.optInt(1) == 102, incomingMessagesOne));
 
 		DownloadFromGridRequest csvDownloadRequest = new DownloadFromGridRequest().setSessionId(session.getSessionId())
 			.setIncludeEtag(false);
-		
+
 		// Now create and validate the CSV exported form the grid
 		List<String[]> csvContents = createAndDownloadCsvFromGrid(csvDownloadRequest);
 
@@ -413,9 +413,16 @@ public class GridEventBrokerWorkerIntegrationTest {
 		Folder folder = entityService.createEntity(admin.getId(),
 				new Folder().setName("folder").setParentId(project.getId()), null);
 
-		String annotationName = "anInt";
-		String jsonSchem$id = createJsonSchema(Map.of(annotationName, new JsonSchema().setType(Type.integer)))
-				.getNewVersionInfo().get$id();
+		String requiredAnnotationName = "anInt";
+		String optionalAnnotationName = "anOptionalString";
+		String jsonSchem$id = createJsonSchema(
+                Map.of(
+                    requiredAnnotationName, new JsonSchema().setType(Type.integer),
+                    optionalAnnotationName, new JsonSchema().setType(Type.string)
+                ),
+				List.of(requiredAnnotationName)
+            )
+            .getNewVersionInfo().get$id();
 
 		ExternalFileHandle fh = fileHandleManager.createExternalFileHandle(admin, new ExternalFileHandle()
 				.setContentType("text/plain").setFileName("foo.bar").setExternalURL("https://something.org"));
@@ -423,7 +430,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 				new FileEntity().setName("file").setParentId(folder.getId()).setDataFileHandleId(fh.getId()), null);
 
 		Annotations annos = entityService.getEntityAnnotations(admin.getId(), file.getId());
-		annos.setAnnotations(Map.of(annotationName,
+		annos.setAnnotations(Map.of(requiredAnnotationName,
 				new AnnotationsValue().setType(AnnotationsValueType.LONG).setValue(List.of("9090"))));
 		entityService.updateEntityAnnotations(admin.getId(), file.getId(), annos);
 		asynchronousJobWorkerHelper.waitForEntityReplication(admin, file.getId(), MAX_WAIT_MS);
@@ -433,7 +440,10 @@ public class GridEventBrokerWorkerIntegrationTest {
 		entityService.bindSchemaToEntity(admin.getId(),
 				new BindSchemaToEntityRequest().setEntityId(file.getId()).setSchema$id(jsonSchem$id));
 
-		List<ColumnModel> schema = List.of(new ColumnModel().setName("anInt").setColumnType(ColumnType.INTEGER));
+		List<ColumnModel> schema = List.of(
+				new ColumnModel().setName(requiredAnnotationName).setColumnType(ColumnType.INTEGER),
+				new ColumnModel().setName(optionalAnnotationName).setColumnType(ColumnType.STRING)
+		);
 		schema = columnManager.createColumnModels(admin, schema);
 		List<String> colIds = schema.stream().map(c -> c.getId()).collect(Collectors.toList());
 		EntityView view = entityService
@@ -477,7 +487,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 				assertNotNull(patch);
 				assertEquals(new LogicalTimestamp().setReplicaId(INTERNAL_REPLICA_ID).setSequenceNumber(1L),
 						patch.getPatchId());
-				assertEquals(20L, patch.getSpan());
+				assertEquals(24L, patch.getSpan());
 				// find the constant that contains the table's value
 				Optional<NewConstant> op = patch.getOperations().stream().filter(o -> (o instanceof NewConstant))
 						.map(c -> (NewConstant) c).filter(c -> ConType.LONG.equals(c.getValue().getType()))
@@ -538,39 +548,39 @@ public class GridEventBrokerWorkerIntegrationTest {
 		List<String[]> csvContents = createAndDownloadCsvFromGrid(csvDownloadRequest);
 
 		assertEquals(2, csvContents.size());
-		assertArrayEquals(new String[] { "ROW_ID", "ROW_VERSION", "etag", "anInt" }, csvContents.get(0));
+		assertArrayEquals(new String[] { "ROW_ID", "ROW_VERSION", "etag", "anInt", "anOptionalString" }, csvContents.get(0));
 		assertArrayEquals(new String[] { file.getId().substring("syn".length()), file.getVersionNumber().toString(),
-				file.getEtag(), updateValue }, csvContents.get(1));
+				file.getEtag(), updateValue, null }, csvContents.get(1));
 	}
-	
+
 	@Test
 	public void testGridWithRecordSet() throws Exception {
 		Project project = entityService.createEntity(admin.getId(), new Project().setName("RecordSet Test"), null);
-		
-		String csvContent = 
+
+		String csvContent =
 			"integer_column,string_column,double_column,boolean_column" + System.lineSeparator() +
 			"1,test_1,1.1,true" 										+ System.lineSeparator() +
 			"2,test_2,,true" 											+ System.lineSeparator() +
 			"3,test_3,3.3,false";
-		
+
 		S3FileHandle fileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(), csvContent.getBytes(StandardCharsets.UTF_8), "recordset.csv", ContentType.create("text/csv"), null);
-		
+
 		RecordSet recordSet = entityService.createEntity(admin.getId(), new RecordSet()
 			.setParentId(project.getId())
 			.setName("recordSet")
 			.setDataFileHandleId(fileHandle.getId())
 			.setUpsertKey(List.of("integer_column")), null);
-		
+
 		String schemaId = createJsonSchema(Map.of(
 			"integer_column", new JsonSchema().setType(Type.integer),
 			"string_column", new JsonSchema().setType(Type.string),
 			"double_column", new JsonSchema().setType(Type.number),
 			"boolean_column", new JsonSchema().setType(Type._boolean)
-		)).getNewVersionInfo().get$id();
-		
+		), List.of("double_column")).getNewVersionInfo().get$id();
+
 		entityService.bindSchemaToEntity(admin.getId(),
 			new BindSchemaToEntityRequest().setEntityId(recordSet.getId()).setSchema$id(schemaId));
-		
+
 		GridSession session = asynchronousJobWorkerHelper.assertJobResponse(admin,
 			new CreateGridRequest().setRecordSetId(recordSet.getId()), (CreateGridResponse response) -> {
 				assertNotNull(response);
@@ -596,7 +606,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 
 		// start the synchronize
 		wsOne.send("[1,99,\"synchronize-clock\",[]]");
-		
+
 		assertTrue(waitForMessage((a) -> {
 			if (a.optInt(0) == 4 && a.optInt(1) == 99) {
 				return true;
@@ -604,32 +614,32 @@ public class GridEventBrokerWorkerIntegrationTest {
 				return false;
 			}
 		}, incomingMessagesOne));
-		
-		GridHeader header = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> 
+
+		GridHeader header = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () ->
 			gridViewManager.readHeader(session.getSessionId(), INTERNAL_REPLICA_ID)
 				.map(h -> Pair.create(true, h))
 				.orElse(Pair.create(false, null))
 		);
-		
+
 		assertEquals(
-			List.of("integer_column", "string_column", "double_column", "boolean_column"), 
+			List.of("integer_column", "string_column", "double_column", "boolean_column"),
 			header.getOrderedColumns().stream().map(Column::getName).collect(Collectors.toList())
 		);
-		
+
 		List<RowView> rowsView = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
 			List<RowView> page = gridViewManager.querySinglePage(header, 100L, 0L);
-			
+
 			if (page.size() != 3) {
 				return Pair.create(false, page);
 			}
-			
+
 			// Also wait for the validation results to be set, the first row should be valid
 			return Pair.create(
-				new ValidationResults().setIsValid(true).equals(page.get(0).getRowValidationResults()), 
+				new ValidationResults().setIsValid(true).equals(page.get(0).getRowValidationResults()),
 				page
 			);
 		});
-		
+
 		assertEquals(
 			List.of(
 				"[1,\"test_1\",1.1,true]",
@@ -638,11 +648,11 @@ public class GridEventBrokerWorkerIntegrationTest {
 			),
 			rowsView.stream().map(r -> r.getRowObject().getData().getCells().toString()).collect(Collectors.toList())
 		);
-		
-		// Now export the grid back to the record set		
+
+		// Now export the grid back to the record set
 		GridRecordSetExportRequest request = new GridRecordSetExportRequest()
 			.setSessionId(session.getSessionId());
-		
+
 		ValidationSummaryStatistics validationStats = asynchronousJobWorkerHelper.assertJobResponse(admin, request, (GridRecordSetExportResponse response) -> {
 			assertEquals(request.getSessionId(), response.getSessionId());
 			assertEquals(recordSet.getId(), response.getRecordSetId());
@@ -653,43 +663,43 @@ public class GridEventBrokerWorkerIntegrationTest {
 			assertEquals(1L, response.getValidationSummaryStatistics().getNumberOfInvalidChildren());
 			assertEquals(0L, response.getValidationSummaryStatistics().getNumberOfUnknownChildren());
 		}, MAX_WAIT_MS).getResponse().getValidationSummaryStatistics();
-		
+
 		RecordSet recordSetV2 = entityService.getEntity(admin.getId(), recordSet.getId(), RecordSet.class);
 
 		assertNotEquals(recordSet.getDataFileHandleId(), recordSetV2.getDataFileHandleId());
 		assertEquals(validationStats, recordSetV2.getValidationSummary());
-		
+
 		// Now fix the grid by changing the double value in the second row from null to 2.2
 		Patch patch = new Patch().setPatchId(
 			new LogicalTimestamp().setReplicaId(replicaOne.getReplicaId()).setSequenceNumber(60L)
 		);
-		
+
 		RowView secondRow = rowsView.get(1);
-		
+
 		patch.addNewOperation(new InsertVectorBuilder()
 			.setVectorId(secondRow.getRowObject().getData().getVectorId())
 			.setMap(Map.of(
 				2, patch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.DOUBLE, 2.2)))
 			))
 		);
-		
+
 		wsOne.send(String.format("[1,102,\"patch\", %s]", PatchCompactSerializable.serialize(patch).toString()));
-		
+
 		// Wait for response complete: [5,102]
 		assertTrue(waitForMessage((a) -> a.optInt(0) == 5 && a.optInt(1) == 102, incomingMessagesOne));
-		
+
 		rowsView = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
 			List<RowView> page = gridViewManager.querySinglePage(header, 100L, 0L);
-			
+
 			// Wait for the updated validation results, all the rows should now be valid
 			return Pair.create(
 				new ValidationResults().setIsValid(true).equals(page.get(0).getRowValidationResults()) &&
 				new ValidationResults().setIsValid(true).equals(page.get(1).getRowValidationResults()) &&
-				new ValidationResults().setIsValid(true).equals(page.get(2).getRowValidationResults()), 
+				new ValidationResults().setIsValid(true).equals(page.get(2).getRowValidationResults()),
 				page
 			);
 		});
-		
+
 		assertEquals(
 			List.of(
 				"[1,\"test_1\",1.1,true]",
@@ -698,8 +708,8 @@ public class GridEventBrokerWorkerIntegrationTest {
 			),
 			rowsView.stream().map(r -> r.getRowObject().getData().getCells().toString()).collect(Collectors.toList())
 		);
-		
-		// Now export the grid again		
+
+		// Now export the grid again
 		validationStats = asynchronousJobWorkerHelper.assertJobResponse(admin, request, (GridRecordSetExportResponse response) -> {
 			assertEquals(request.getSessionId(), response.getSessionId());
 			assertEquals(recordSet.getId(), response.getRecordSetId());
@@ -712,12 +722,12 @@ public class GridEventBrokerWorkerIntegrationTest {
 		}, MAX_WAIT_MS).getResponse().getValidationSummaryStatistics();
 
 		RecordSet recordSetV3 = entityService.getEntity(admin.getId(), recordSet.getId(), RecordSet.class);
-		
+
 		assertNotEquals(recordSetV2.getDataFileHandleId(), recordSetV3.getDataFileHandleId());
 		assertEquals(validationStats, recordSetV3.getValidationSummary());
-	
+
 		// Now update the record set from a CSV file
-		String csvContents = 
+		String csvContents =
 			"integer_column,string_column,double_column,boolean_column" + System.lineSeparator() +
 			"1,test_1_updated,1.1,false" 								+ System.lineSeparator() + // update
 																								   // Skip line 2
@@ -725,9 +735,9 @@ public class GridEventBrokerWorkerIntegrationTest {
 			"4,test_4_created,4.4,true"									+ System.lineSeparator() + // new row
 			"5,test_5_created,5.5,true"									+ System.lineSeparator() + // new row
 			"6,test_6_created,6.6,false";														   // new row
-		
+
 		S3FileHandle upsertFileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(), csvContents.getBytes(StandardCharsets.UTF_8), "recordset_upsert.csv", ContentType.create("text/csv"), null);
-		
+
 		GridCsvImportRequest csvImportRequest = new GridCsvImportRequest()
 			.setSessionId(session.getSessionId())
 			.setFileHandleId(upsertFileHandle.getId())
@@ -738,28 +748,28 @@ public class GridEventBrokerWorkerIntegrationTest {
 				new ColumnModel().setName("double_column").setColumnType(ColumnType.DOUBLE),
 				new ColumnModel().setName("boolean_column").setColumnType(ColumnType.BOOLEAN)
 			));
-		
+
 		asynchronousJobWorkerHelper.assertJobResponse(admin, csvImportRequest, (GridCsvImportResponse response) -> {
 			assertEquals(request.getSessionId(), response.getSessionId());
 			assertEquals(5, response.getTotalCount());
 			assertEquals(2, response.getUpdatedCount());
 			assertEquals(3, response.getCreatedCount());
 		}, MAX_WAIT_MS).getResponse();
-		
+
 		rowsView = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
 			List<RowView> page = gridViewManager.querySinglePage(header, 100L, 0L);
-			
+
 			if (page.size() != 6) {
 				return Pair.create(false, page);
 			}
-			
+
 			// Also wait for the validation results to be set, the last row should be valid
 			return Pair.create(
-				new ValidationResults().setIsValid(true).equals(page.get(5).getRowValidationResults()), 
+				new ValidationResults().setIsValid(true).equals(page.get(5).getRowValidationResults()),
 				page
 			);
 		});
-		
+
 		assertEquals(
 			List.of(
 				"[1,\"test_1_updated\",1.1,false]",
@@ -803,14 +813,17 @@ public class GridEventBrokerWorkerIntegrationTest {
 
 	/**
 	 * Helper to create a schema
-	 * 
+	 *
 	 * @return
 	 * @throws Exception
 	 */
-	CreateSchemaResponse createJsonSchema(Map<String, JsonSchema> properties) throws Exception {
+	CreateSchemaResponse createJsonSchema(Map<String, JsonSchema> properties, List<String> requiredProperties) throws Exception {
 		Organization org = asynchronousJobWorkerHelper.getOrCreateOrganization(admin.getId(), "gridtestorg");
 		String jsonSchemaName = "exampleSchema";
-		JsonSchema jsonSchema = new JsonSchema().set$id(org.getName() + "-" + jsonSchemaName).setProperties(properties);
+		JsonSchema jsonSchema = new JsonSchema()
+				.set$id(org.getName() + "-" + jsonSchemaName)
+				.setProperties(properties)
+				.setRequired(requiredProperties);
 
 		return asynchronousJobWorkerHelper.assertJobResponse(admin,
 				new CreateSchemaRequest().setDryRun(false).setSchema(jsonSchema), (CreateSchemaResponse response) -> {
@@ -820,7 +833,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 
 	/**
 	 * Wait for the given message to appear on the queue.
-	 * 
+	 *
 	 * @param code
 	 * @param key
 	 * @param incomingMessages
@@ -835,7 +848,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 	/**
 	 * Create a websocket connection that will post all received messages to the
 	 * passed queue.
-	 * 
+	 *
 	 * @param presignedUrl
 	 * @param incomingMessages
 	 * @return

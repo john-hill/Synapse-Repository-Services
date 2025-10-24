@@ -18,17 +18,8 @@ public class RowJsonSubject implements JsonSubject {
 
 	private final JSONObject json;
 
-	public RowJsonSubject(List<Column> orderedColumns, RowView rowView) {
-		json = new JSONObject();
-		JSONArray cells = rowView.getCells();
-		if (cells != null) {
-			orderedColumns.forEach(column -> {
-				Object cellValue = cells.opt(column.getVectorIndex());
-				if (cellValue != null) {
-					json.put(column.getName(), cellValue);
-				}
-			});
-		}
+	public RowJsonSubject(RowView rowView) {
+		json = rowView.getRowObject().getData().getRowJsonDocument();
 	}
 
 	@Override

@@ -222,7 +222,8 @@ public class GridIndexDaoImplTest {
 				new ConstantNode().setId(ids.get(4)).setValue("Hello World"),
 				new ConstantNode().setId(ids.get(5)).setValue(new JSONArray("[1,2,3]")),
 				new ConstantNode().setId(ids.get(6)).setValue(new JSONObject("{\"key\":99}")),
-				new ConstantNode().setId(ids.get(7)).setValue(null));
+				new ConstantNode().setId(ids.get(7)).setValue(JSONObject.NULL),
+				new ConstantNode().setId(ids.get(8)).setValue(null));
 
 		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.con, ids);
 		// call under test

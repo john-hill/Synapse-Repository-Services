@@ -10,6 +10,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.sagebionetworks.repo.model.grid.patch.ConType;
+import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
 public class ConstantNodeTest {
@@ -24,7 +26,7 @@ public class ConstantNodeTest {
 	@ParameterizedTest
 	@MethodSource("validValues")
 	public void testToAndFromJSON(Object value) {
-		ConstantNode con = new ConstantNode().setId(id).setValue(value);
+		ConstantNode con = new ConstantNode().setId(id).setValue(new ConValue(ConType.fromValue(value), value));
 		// call under test
 		String json = con.getValueAsJson();
 		// call under test
@@ -33,23 +35,37 @@ public class ConstantNodeTest {
 	}
 
 	public static Stream<Object> validValues() {
-		Object[] object = { 123, true, false, 4569999999999L, 3.14, "hello", new JSONArray("[1,2,3]"),
+		Object[] object = { null, JSONObject.NULL, 123, true, false, 4569999999999L, 3.14, "hello", new JSONArray("[1,2,3]"),
 				new JSONObject("{\"key\":99}"), null };
 		return Stream.of(object);
 	}
-	
+
 	@Test
-	public void testGetValueAsJson() {
-		ConstantNode con = new ConstantNode().setId(id).setValue(new JSONObject("{\"key\":99}"));
+	public void testGetValueAsJsonWithObject() {
+		ConstantNode con = new ConstantNode().setId(id).setValue(new ConValue(ConType.JSON_OBJECT, new JSONObject("{\"key\":99}")));
 		// call under test
-		assertEquals("[{\"key\":99}]", con.getValueAsJson());
+		assertEquals("{\"key\":99}", con.getValueAsJson());
 	}
-	
+
+	@Test
+	public void testGetValueAsJsonWithString() {
+		ConstantNode con = new ConstantNode().setId(id).setValue(new ConValue(ConType.STRING, "foo"));
+		// call under test
+		assertEquals("\"foo\"", con.getValueAsJson());
+	}
+
 	@Test
 	public void testGetValueAsJsonWithNull() {
-		ConstantNode con = new ConstantNode().setId(id).setValue(null);
+		ConstantNode con = new ConstantNode().setId(id).setValue(new ConValue(ConType.NULL, JSONObject.NULL));
 		// call under test
-		assertEquals("[]", con.getValueAsJson());
+		assertEquals("null", con.getValueAsJson());
+	}
+
+	@Test
+	public void testGetValueAsJsonWithUndefined() {
+		ConstantNode con = new ConstantNode().setId(id).setValue(new ConValue(ConType.UNDEFINED, null));
+		// call under test
+		assertEquals(null, con.getValueAsJson());
 	}
 
 }

@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 import org.apache.commons.io.IOUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.json.JSONTokener;
 import org.sagebionetworks.grid.db.GridIndexDao;
 import org.sagebionetworks.grid.db.GridTransaction;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
@@ -61,7 +62,8 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 	private static RowMapper<RowView> ROW_VIEW_MAPPER = (ResultSet rs, int rowNum) -> {
 		return new RowView().setArrNodeId(readNullableTimestamp(rs, "AN_REP", "AN_SEQ"))
 				.setRowIndex(rs.getLong("INDEX"))
-				.setRowObject(new RowObject().setObjectId(readNullableTimestamp(rs, "RO_REP", "RO_SEQ"))
+				.setRowObject(new RowObject()
+						.setObjectId(readNullableTimestamp(rs, "RO_REP", "RO_SEQ"))
 						.setMetadata(new RowMetadata().setObjectId(readNullableTimestamp(rs, "MO_REP", "MO_SEQ"))
 								.setRowValidation(new RowValidation()
 										.setValidationResults(JDOSecondaryPropertyUtils
@@ -70,7 +72,8 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 								.setSynapseRow(new SynapseRow().setFromJSON(rs.getString("SYN_ROW"))
 										.setConstantId(readNullableTimestamp(rs, "SRC_REP", "SRC_SEQ"))))
 						.setData(new RowData().setVectorId(readNullableTimestamp(rs, "VEC_REP", "VEC_SEQ"))
-								.setCells(new JSONArray(rs.getString("VALS")))));
+								.setCells(new JSONArray(rs.getString("VALS")))
+								.setRowJsonDocument(new JSONObject(new JSONTokener(rs.getString("VALS_JSON"))))));
 	};
 
 	private static RowMapper<RowView> ROW_VIEW_AGGREGATION_MAPPER = (ResultSet rs, int rowNum) -> {
@@ -140,6 +143,8 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		params.put("replicaId", header.getReplicaId());
 		params.put("arrayRep", header.getRowsId().getReplicaId());
 		params.put("arraySeq", header.getRowsId().getSequenceNumber());
+		params.put("colNamesVecRep", header.getColumnNamesVecId().getReplicaId());
+		params.put("colNamesVecSeq", header.getColumnNamesVecId().getSequenceNumber());
 
 		StringJoiner joiner = new StringJoiner(",");
 		// read the values out of each array in the order defined in the header.
@@ -197,12 +202,12 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		ConstantNode selectionCon = constants.get(selectionConId);
 		ReplicaSelectionModel selectionModel = null;
 		if (selectionCon != null) {
-			selectionModel = JDOSecondaryPropertyUtils.createEntityFromJSONObject((JSONObject) selectionCon.getValue(),
+			selectionModel = JDOSecondaryPropertyUtils.createEntityFromJSONObject((JSONObject) selectionCon.getConValue().getValue(),
 					ReplicaSelectionModel.class);
 		}
 
 		ConstantNode docVersion = constants.get(docVersionConId);
-		Semver semver = new Semver((String) docVersion.getValue());
+		Semver semver = new Semver((String) docVersion.getConValue().getValue());
 		if (semver.isGreaterThan(new Semver("0.1.0"))) {
 			throw new IllegalArgumentException("Cannot read a document version of: " + semver.toString());
 		}
@@ -213,15 +218,15 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		List<ArrayNode> columnOrder = gridIndexDao.getArrayNodesInOrder(gridSessionId, replicaId, columnOrderArrId,
 				1000L, 0l);
 
-		Map<LogicalTimestamp, Integer> columnOrderValues = gridIndexDao
+		Map<LogicalTimestamp, Long> columnOrderValues = gridIndexDao
 				.getConstants(gridSessionId, replicaId,
 						columnOrder.stream().map(ArrayNode::getDataId).collect(Collectors.toList()))
-				.stream().collect(Collectors.toMap(ConstantNode::getId, (c) -> (Integer) c.getValue()));
+				.stream().collect(Collectors.toMap(ConstantNode::getId, (c) -> ((Long) c.getConValue().getValue())));
 
 		List<Column> columns = columnOrder.stream().map(a -> {
-			Integer vectorIndex = columnOrderValues.get(a.getDataId());
-			String columnName = (String) columnNames.getValues().get("c" + vectorIndex).getValue();
-			return new Column().setVectorIndex(vectorIndex).setName(columnName);
+			Long vectorIndex = columnOrderValues.get(a.getDataId());
+			String columnName = (String) columnNames.getValues().get("c" + vectorIndex).getConValue().getValue();
+			return new Column().setVectorIndex(vectorIndex.intValue()).setName(columnName);
 		}).collect(Collectors.toList());
 
 		Long clockSequenceMaximum = gridIndexDao.getClockSequenceMaximum(gridSessionId, replicaId);

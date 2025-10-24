@@ -53,7 +53,7 @@ public class GridCsvImportDaoImplTest {
 	private List<Row> gridRows;
 	private String csvContent;
 	private ColumnMapping[] columnMapping;
-	
+
 	@BeforeEach
 	public void before() {
 		gridIndexManger.truncateAll();
@@ -212,7 +212,7 @@ public class GridCsvImportDaoImplTest {
 		PatchRowHandler patchRowHandler = new PatchRowHandler((s, pid, body) -> {
 			gridIndexManger.applyPatch(sessionId, pid.getReplicaId(), PatchCompactSerializable.deserialize(new JSONArray(body)));
 			return true;
-		}, sessionId, replicaId, schema, 100L);
+		}, sessionId, replicaId, schema, 100L, Collections.emptyList());
 		
 		try (patchRowHandler) {
 			gridRows.stream().forEach(r -> {

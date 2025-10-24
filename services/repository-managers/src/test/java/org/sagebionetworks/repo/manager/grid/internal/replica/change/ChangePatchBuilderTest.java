@@ -65,7 +65,7 @@ public class ChangePatchBuilderTest {
 	@Test
 	public void testAddOperationBuilder() throws IOException {
 
-		when(mockConstantProvider.findExistingConstant(sessionId, replicaId, "[\"foo\"]")).thenReturn(Optional.empty());
+		when(mockConstantProvider.findExistingConstant(sessionId, replicaId, "\"foo\"")).thenReturn(Optional.empty());
 
 		// call under test
 		LogicalTimestamp conId = builder
@@ -81,7 +81,7 @@ public class ChangePatchBuilderTest {
 	@Test
 	public void testAddOperationBuilderWithConstantInIndex() throws IOException {
 		LogicalTimestamp existing = new LogicalTimestamp().setReplicaId(33L).setSequenceNumber(401L);
-		when(mockConstantProvider.findExistingConstant(sessionId, replicaId, "[\"foo\"]"))
+		when(mockConstantProvider.findExistingConstant(sessionId, replicaId, "\"foo\""))
 				.thenReturn(Optional.of(existing));
 
 		// call under test
@@ -97,7 +97,7 @@ public class ChangePatchBuilderTest {
 	@Test
 	public void testAddOperationBuilderWithConstantsTwice() throws IOException {
 		LogicalTimestamp fooId = new LogicalTimestamp().setReplicaId(33L).setSequenceNumber(401L);
-		when(mockConstantProvider.findExistingConstant(sessionId, replicaId, "[\"foo\"]"))
+		when(mockConstantProvider.findExistingConstant(sessionId, replicaId, "\"foo\""))
 				.thenReturn(Optional.of(fooId));
 
 		// call under test
@@ -117,9 +117,9 @@ public class ChangePatchBuilderTest {
 	@Test
 	public void testAddOperationBuilderWithMultipleTypes() throws IOException {
 		LogicalTimestamp fooId = new LogicalTimestamp().setReplicaId(33L).setSequenceNumber(401L);
-		when(mockConstantProvider.findExistingConstant(sessionId, replicaId, "[\"foo\"]"))
+		when(mockConstantProvider.findExistingConstant(sessionId, replicaId, "\"foo\""))
 				.thenReturn(Optional.of(fooId));
-		when(mockConstantProvider.findExistingConstant(sessionId, replicaId, "[\"bar\"]")).thenReturn(Optional.empty());
+		when(mockConstantProvider.findExistingConstant(sessionId, replicaId, "\"bar\"")).thenReturn(Optional.empty());
 
 		// call under test
 		LogicalTimestamp fooResult = builder

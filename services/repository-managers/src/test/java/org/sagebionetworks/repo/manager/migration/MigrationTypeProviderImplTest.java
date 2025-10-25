@@ -39,14 +39,12 @@ public class MigrationTypeProviderImplTest {
 		credentialOne.setEtag("etag");
 		credentialOne.setExpiresOn(new Date(10011));
 		credentialOne.setPassHash("adminHash");
-		credentialOne.setSecretKey("adminKey");
 		credentialOne.setPrincipalId(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId());
 
 		credentialTwo = new DBOCredential();
 		credentialTwo.setEtag("etag2");
 		credentialTwo.setExpiresOn(new Date(20011));
 		credentialTwo.setPassHash("hashTwo");
-		credentialTwo.setSecretKey("keyTwo");
 		credentialTwo.setPrincipalId(456L);
 		credentials = Lists.newArrayList(credentialOne, credentialTwo);
 

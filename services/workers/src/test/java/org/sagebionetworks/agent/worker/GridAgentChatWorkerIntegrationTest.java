@@ -13,6 +13,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import org.java_websocket.WebSocket;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +27,7 @@ import org.sagebionetworks.repo.manager.file.LocalFileUploadRequest;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.RowSelectionFilterElement;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.RecordSet;
@@ -38,7 +40,6 @@ import org.sagebionetworks.repo.model.agent.CreateAgentSessionRequest;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.sagebionetworks.repo.model.entity.BindSchemaToEntityRequest;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
-import org.sagebionetworks.repo.model.grid.CrdtId;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridResponse;
@@ -200,6 +201,7 @@ public class GridAgentChatWorkerIntegrationTest {
 				.setSessionContext(context).setAgentAccessLevel(AgentAccessLevel.WRITE_YOUR_PRIVATE_DATA));
 		assertNotNull(agentSession);
 		assertEquals(context, agentSession.getSessionContext());
+		assertNotNull(context.getAgentsReplicaId());
 
 		String chatRequest = "Can you help me understand the validation error: '#/a: expected type: Integer, found: Null'?";
 		// the agent is expected to read the grid's schema and help the user understand
@@ -242,10 +244,11 @@ public class GridAgentChatWorkerIntegrationTest {
 				incomingMessages);
 		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
 			ReplicaSelectionModel curSelection = gridReplicaViewManager
-					.readHeader(gridSession.getSessionId(), INTERNAL_REPLICA_ID, context.getUsersReplicaId()).get().getReplicaSelectionModel();
+					.readHeader(gridSession.getSessionId(), INTERNAL_REPLICA_ID, context.getUsersReplicaId()).get()
+					.getReplicaSelectionModel();
 			return Pair.create(curSelection != null, null);
 		});
-		
+
 		chatRequest = "I want to focus on my currently selected row.  Why is this row invalid?";
 		asynchronousJobWorkerHelper
 				.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
@@ -258,6 +261,47 @@ public class GridAgentChatWorkerIntegrationTest {
 							assertTrue(response.getResponseText().toLowerCase().contains("no id"));
 						}, MAX_WAIT_MS)
 				.getResponse();
+
+		chatRequest = "Can you fix my currently selected row by setting a=4 and b to null (using the rowId)?";
+		AgentChatResponse acr = asynchronousJobWorkerHelper
+				.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
+						.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {
+							assertNotNull(response);
+							assertEquals(agentSession.getSessionId(), response.getSessionId());
+							assertNotNull(response.getResponseText());
+							System.out.println(response.getResponseText());
+						}, MAX_WAIT_MS)
+				.getResponse();
+		// the agent is likely to ask if it should proceed....
+		if (acr.getResponseText().contains("?")) {
+			chatRequest = "You may proceed with making the change.";
+			acr = asynchronousJobWorkerHelper
+					.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
+							.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {
+								assertNotNull(response);
+								assertEquals(agentSession.getSessionId(), response.getSessionId());
+								assertNotNull(response.getResponseText());
+								System.out.println(response.getResponseText());
+							}, MAX_WAIT_MS)
+					.getResponse();
+		}
+
+		TimeUtils.waitFor(MAX_WAIT_MS, 2000L, () -> {
+			System.out.println("Waiting for agent's changes to appear...");
+			GridHeader h = gridReplicaViewManager
+					.readHeader(gridSession.getSessionId(), INTERNAL_REPLICA_ID, context.getUsersReplicaId()).get();
+			List<RowView> r = gridReplicaViewManager.querySinglePage(h,
+					List.of(new RowSelectionFilterElement().setFilterSelected(true)), 100L, 0L);
+			System.out.println("row count: " + r.size());
+			if (r.size() == 1 && r.get(0) != null) {
+				JSONArray cells = r.get(0).getCells();
+				System.out.println("current row cells: " + cells.toString());
+				if (cells.opt(0).equals(4) && cells.isNull(1)) {
+					return Pair.create(true, null);
+				}
+			}
+			return Pair.create(false, null);
+		});
 	}
 
 	public JsonRxMessage createSetSelectionMessage(GridHeader header, ReplicaSelectionModel selection,

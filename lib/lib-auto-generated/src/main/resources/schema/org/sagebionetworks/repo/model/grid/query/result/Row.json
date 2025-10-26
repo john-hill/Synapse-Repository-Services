@@ -12,6 +12,10 @@
 		"validationResults": {
 			"$ref": "org.sagebionetworks.repo.model.grid.query.result.ValidationResults",
 			"description": "When a grid is bound to a JSON schema, each row will be validated against the schema. This represents the validation results of a single row.  Will be excluded for queries that contain any type of aggregation (count, group by...)."
+		},
+		"rowId": {
+			"type": "string",
+			"description": "Logical timestamp identifying the row in compact form `replicaId.sequenceNumber` (e.g. `123.456`). Used in filters (RowIdFilter) and patch/update operations."
 		}
 	}
 }

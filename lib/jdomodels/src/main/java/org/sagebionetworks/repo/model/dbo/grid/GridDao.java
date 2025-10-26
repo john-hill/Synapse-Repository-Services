@@ -67,7 +67,7 @@ public interface GridDao {
 	 * @param isAgent
 	 * @return
 	 */
-	Optional<Long> getReplicaCreatedBy(String sessionId, Long replicaId, boolean isAgentReplica);
+	Optional<Long> getReplicaCreatedBy(String sessionId, Long replicaId);
 
 	/**
 	 * Crete a new connection.
@@ -163,5 +163,13 @@ public interface GridDao {
 	void deleteGridSession(String sessionId);
 	
 	void truncateAll();
+
+	/**
+	 * Get the connection for a given session and replica.
+	 * @param sessionId
+	 * @param replicaId
+	 * @return
+	 */
+	Optional<GridConnectionInfo> getConnection(String sessionId, Long replicaId);
 
 }

@@ -51,6 +51,7 @@ import org.sagebionetworks.repo.model.auth.AuthenticationDAO;
 import org.sagebionetworks.repo.model.auth.TermsOfServiceAgreement;
 import org.sagebionetworks.repo.model.auth.TermsOfServiceRequirements;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
+import org.sagebionetworks.repo.model.dbo.DatabaseObject;
 import org.sagebionetworks.repo.model.dbo.SinglePrimaryKeySqlParameterSource;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOAuthenticatedOn;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOCredential;
@@ -62,6 +63,7 @@ import org.sagebionetworks.securitytools.PBKDF2Utils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 
 public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 	
@@ -350,10 +352,10 @@ public class DBOAuthenticationDAOImpl implements AuthenticationDAO {
 				continue;
 			}
 			
-			try {
+			MapSqlParameterSource key = new MapSqlParameterSource("principalId", abs.getId());
+			Optional<DBOCredential> optionalObject = basicDAO.getObjectByPrimaryKeyIfExists(DBOCredential.class, key);
+			if (optionalObject.isEmpty()) {
 				createNew(abs.getId());
-			} catch (IllegalArgumentException e) {
-				// if alteady exists, just contiunue
 			}
 		}
 		// The migration admin should only be used in specific, non-development stacks

@@ -92,10 +92,10 @@ mysql -u${rds_user_name} -p${rds_password} -h ${org_sagebionetworks_table_cluste
 # the RDS host is 'localhost' but within the container it's 'host.docker.internal'.
 #
 if [ -z ${org_sagebionetworks_repository_database_connection_url_in_container+x} ]; then
-  org_sagebionetworks_repository_database_connection_url_in_container=org_sagebionetworks_repository_database_connection_url
+  org_sagebionetworks_repository_database_connection_url_in_container=${org_sagebionetworks_repository_database_connection_url}
 fi
 if [ -z ${org_sagebionetworks_table_cluster_endpoint_in_container+x} ]; then
-  org_sagebionetworks_table_cluster_endpoint_in_container=org_sagebionetworks_table_cluster_endpoint_0
+  org_sagebionetworks_table_cluster_endpoint_in_container=${org_sagebionetworks_table_cluster_endpoint_0}
 fi
 
 # create build container and run build

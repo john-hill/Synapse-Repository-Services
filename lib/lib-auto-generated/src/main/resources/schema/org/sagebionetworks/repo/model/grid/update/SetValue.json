@@ -8,7 +8,7 @@
 		},
 		"value": {
 			"type": "object",
-			"description": "Literal JSON value to assign to the column for all selected rows. Supports string, number, boolean, object, array, or null (use null to clear)"
+			"description": "Literal JSON value to assign to the column for all selected rows. Supports string, number, boolean, object, array, or null, or you may omit this property to clear the value."
 		}
 	}
 }

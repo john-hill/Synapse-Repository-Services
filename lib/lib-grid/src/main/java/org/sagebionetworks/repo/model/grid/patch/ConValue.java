@@ -73,11 +73,8 @@ public class ConValue {
 		if (getClass() != obj.getClass())
 			return false;
 		ConValue other = (ConValue) obj;
-
 		Object otherValue = ((ConValue) obj).value;
-
-
-		return type == other.type && valueEquals(value, other.value);
+		return type == other.type && valueEquals(value, otherValue);
 	}
 
 	@Override
@@ -114,5 +111,46 @@ public class ConValue {
 
 		return new ConValue(type, value);
 	}
-	
+
+	/**
+	 * Returns the 'partial' compact serialization of this ConValue (the last 1-2 parts).
+	 *
+	 * This omits the non-value-related information that is stored in a Constant node (i.e. prefix indicating that the node is a constant, and ID of the node).
+	 * @return
+	 */
+	public JSONArray toCompact() {
+		if (ConType.UNDEFINED.equals(type)) {
+			return new JSONArray("[0,0]");
+		} else if (ConType.NULL.equals(type) || this.value == null) {
+			return new JSONArray("[null]");
+		}
+
+		JSONArray compact = new JSONArray();
+		if (ConType.TIMESTAMP.equals(type)) {
+			compact.put(0);
+		}
+		compact.put(value);
+		return compact;
+	}
+
+	public static ConValue fromCompact(JSONArray json) {
+		if (json.length() == 2) {
+			// It is either timestamp or undefined
+			if (json.optInt(0) == 0 && json.optJSONArray(1) != null) {
+				JSONArray timestampVal = json.getJSONArray(1);
+				LogicalTimestamp ts = new LogicalTimestamp().setReplicaId(timestampVal.getLong(0)).setSequenceNumber(timestampVal.getLong(1));
+				return new ConValue(ConType.TIMESTAMP, ts);
+			}  else if (json.optInt(0) == 0 && json.optInt(1) == 0) {
+				return new ConValue(ConType.UNDEFINED, null);
+
+			} else{
+				throw new IllegalArgumentException("Invalid compact ConValue: " + json);
+			}
+		} else if (json.length() == 1) {
+			// could be null or other value
+			return new ConValue(ConType.fromValue(json.get(0)), json.get(0));
+		}
+		throw new IllegalArgumentException("Invalid compact ConValue: " + json);
+	}
+
 }

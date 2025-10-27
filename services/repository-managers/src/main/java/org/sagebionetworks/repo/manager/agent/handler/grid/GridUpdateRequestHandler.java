@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.agent.handler.grid;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -29,6 +30,8 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
+import org.sagebionetworks.repo.model.grid.patch.ConType;
+import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.update.GridUpdateRequest;
 import org.sagebionetworks.repo.model.grid.update.GridUpdateResponse;
 import org.sagebionetworks.repo.model.grid.update.SetValue;
@@ -93,13 +96,26 @@ public class GridUpdateRequestHandler implements OpenApiReturnControlHandler {
 		Iterator<RowView> rows = gridViewManager.getQueryIterator(header,
 				new QueryElement().setWhere(filters).setLimit(update.getLimit()));
 
+		// The auto-generated class loses the raw JSON null vs undefined info, which we need because it has semantic meaning for updates.
+		// We can re-construct that by getting the raw JSON object.
+		JSONObject updateRequestRaw = new JSONObject(event.getRequestBody().get());
+
 		try (IntendedChangePublisher icp = newIntendedChangePublisher(agentConnection, header.getClockSequenceMaximum(),
 				patchBuilderPublisher)) {
 			while (rows.hasNext()) {
 				RowView row = rows.next();
-				JSONArray updates = new JSONArray(
-						set.stream().map(sv -> sv.getValue() == null ? JSONObject.NULL : sv.getValue())
-								.collect(Collectors.toList()));
+				List<ConValue> updates = new ArrayList<>();
+				for (int i = 0; i < set.size(); i++) {
+					SetValue sv = set.get(i);
+					ConValue toAdd = new ConValue(ConType.fromValue(sv.getValue()), sv.getValue());
+					JSONObject rawSetValue = updateRequestRaw.optJSONObject("update").optJSONArray("set").optJSONObject(i);
+					if (rawSetValue.opt("value") == JSONObject.NULL) {
+						toAdd = new ConValue(ConType.NULL, null);
+					} else if (rawSetValue == null) {
+						toAdd = new ConValue(ConType.UNDEFINED, null);
+					}
+					updates.add(toAdd);
+				}
 				icp.publish(new UpdateRowChange(row.getRowObject().getData().getVectorId(), updates, indexArray));
 				updateCount++;
 			}

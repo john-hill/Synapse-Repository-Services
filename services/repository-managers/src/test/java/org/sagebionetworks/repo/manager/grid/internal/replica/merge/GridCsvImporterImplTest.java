@@ -44,6 +44,8 @@ import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridCsvImportRequest;
 import org.sagebionetworks.repo.model.grid.GridCsvImportResponse;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.patch.ConType;
+import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
@@ -144,9 +146,9 @@ public class GridCsvImporterImplTest {
 		);
 		
 		joinedRows = List.of(
-			new JoinedRow(new JSONArray(new Object[] {0, 0, false}), new LogicalTimestamp().setReplicaId(123L).setSequenceNumber(1L)),
-			new JoinedRow(new JSONArray(new Object[] {1, 1, false}), null),
-			new JoinedRow(new JSONArray(new Object[] {2, 2, false}), new LogicalTimestamp().setReplicaId(123L).setSequenceNumber(2L))
+			new JoinedRow(List.of(new ConValue(ConType.LONG, 0), new ConValue(ConType.LONG, 0), new ConValue(ConType.BOOLEAN, false)), new LogicalTimestamp().setReplicaId(123L).setSequenceNumber(1L)),
+			new JoinedRow(List.of(new ConValue(ConType.LONG, 1), new ConValue(ConType.LONG, 1), new ConValue(ConType.BOOLEAN, false)), null),
+			new JoinedRow(List.of(new ConValue(ConType.LONG, 2), new ConValue(ConType.LONG, 2), new ConValue(ConType.BOOLEAN, false)), new LogicalTimestamp().setReplicaId(123L).setSequenceNumber(2L))
 		);
 		
 		response = new GridCsvImportResponse()

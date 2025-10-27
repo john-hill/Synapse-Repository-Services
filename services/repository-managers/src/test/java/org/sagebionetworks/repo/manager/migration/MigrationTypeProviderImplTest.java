@@ -59,7 +59,7 @@ public class MigrationTypeProviderImplTest {
 		// call under test
 		typeProvider.writeObjects(credentials, writer);
 		assertEquals(
-				"[{\"principalId\":1,\"etag\":\"etag\",\"expiresOn\":10011,\"passHash\":\"adminHash\",\"secretKey\":\"adminKey\"},{\"principalId\":456,\"etag\":\"etag2\",\"expiresOn\":20011,\"passHash\":\"hashTwo\",\"secretKey\":\"keyTwo\"}]",
+				"[{\"principalId\":1,\"etag\":\"etag\",\"expiresOn\":10011,\"passHash\":\"adminHash\"},{\"principalId\":456,\"etag\":\"etag2\",\"expiresOn\":20011,\"passHash\":\"hashTwo\"}]",
 				new JSONArray(writer.toString()).toString(0));
 	}
 
@@ -79,7 +79,7 @@ public class MigrationTypeProviderImplTest {
 		// call under test
 		typeProvider.writeObjects(List.of(new DBOCredential(), credentialOne), writer);
 		assertEquals(
-				"[{\"principalId\":1,\"etag\":\"etag\",\"expiresOn\":10011,\"passHash\":\"adminHash\",\"secretKey\":\"adminKey\"}]",
+				"[{\"principalId\":1,\"etag\":\"etag\",\"expiresOn\":10011,\"passHash\":\"adminHash\"}]",
 				new JSONArray(writer.toString()).toString(0));
 	}
 

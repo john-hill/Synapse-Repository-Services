@@ -111,7 +111,7 @@ public class GridUpdateRequestHandler implements OpenApiReturnControlHandler {
 					JSONObject rawSetValue = updateRequestRaw.optJSONObject("update").optJSONArray("set").optJSONObject(i);
 					if (rawSetValue.opt("value") == JSONObject.NULL) {
 						toAdd = new ConValue(ConType.NULL, null);
-					} else if (rawSetValue == null) {
+					} else if (!rawSetValue.has("value")) {
 						toAdd = new ConValue(ConType.UNDEFINED, null);
 					}
 					updates.add(toAdd);

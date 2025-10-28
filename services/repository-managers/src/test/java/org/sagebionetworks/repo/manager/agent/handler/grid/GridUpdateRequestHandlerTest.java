@@ -370,4 +370,36 @@ public class GridUpdateRequestHandlerTest {
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> handler.extractRequest(event));
 		assertEquals("Request body cannot be null.", ex.getMessage());
 	}
+
+	@Test
+	public void testHandleEventWithCellValueFilterNullValue() throws Exception {
+		String json = "{\"set\":[{\"columnName\":\"lastFed\",\"value\":\"2024-01-15\"}],\"filters\":[{\"concreteType\":\"org.sagebionetworks.repo.model.grid.query.CellValueFilter\",\"columnName\":\"favoriteFoods\",\"operator\":\"IS_NOT_NULL\"}]}";
+		event = new ReturnControlEvent(1L, "group", "function", null, List.of(new Parameter("update", "object", json)),
+				new GridAgentSessionContext().setGridSessionId(gridSessionId).setUsersReplicaId(usersReplicaId)
+						.setAgentsReplicaId(agentsReplicaId));
+
+		GridConnectionInfo internalConn = new GridConnectionInfo().setReplicaId(11L).setSessionId(gridSessionId)
+				.setConnectionId("int-1").setSource(EventSource.INTERNAL);
+		when(mockGridManager.getSingletonConnection(gridSessionId, EventSource.INTERNAL))
+				.thenReturn(Optional.of(internalConn));
+		GridConnectionInfo agentConn = new GridConnectionInfo().setReplicaId(agentsReplicaId)
+				.setSessionId(gridSessionId).setConnectionId("agent-1").setSource(EventSource.AGENT);
+		when(mockGridManager.getConnection(gridSessionId, agentsReplicaId)).thenReturn(Optional.of(agentConn));
+		GridHeader header = buildHeader(List.of(new Column().setName("lastFed").setVectorIndex(0),
+				new Column().setName("colB").setVectorIndex(1)));
+		when(mockGridViewManager.readHeader(gridSessionId, internalConn.getReplicaId(), usersReplicaId))
+				.thenReturn(Optional.of(header));
+		List<RowView> rows = List.of(buildRow(1L, 100L), buildRow(1L, 101L));
+		when(mockGridViewManager.getQueryIterator(eq(header), any(QueryElement.class))).thenReturn(rows.iterator());
+		doReturn(mockIntendedChangePublisher).when(handler).newIntendedChangePublisher(agentConn,
+				header.getClockSequenceMaximum(), mockPatchBuilderPublisher);
+
+		// call under test
+		String result = handler.handleEvent(event);
+
+		assertEquals("{\"rowsUpdated\":2}", result);
+		verify(mockIntendedChangePublisher, times(2)).publish(any());
+		verify(mockIntendedChangePublisher).close();
+
+	}
 }

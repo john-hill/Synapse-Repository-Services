@@ -21,6 +21,8 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
 import org.sagebionetworks.repo.model.grid.GridUtils;
+import org.sagebionetworks.repo.model.grid.patch.ConType;
+import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
 import org.sagebionetworks.repo.model.table.ColumnModel;
@@ -167,7 +169,7 @@ public class GridCsvImportDaoImplTest {
 			// The join is in upsert key reverse order
 			rowId--;
 			
-			String expectedCsvData = "[" + rowId + "," + rowId % 5 + "," + false + ",\"" + "bar" + rowId + "\"]";
+			List<ConValue> expectedCsvData = List.of(new ConValue(ConType.LONG, rowId), new ConValue(ConType.LONG, rowId % 5), new ConValue(ConType.BOOLEAN, false), new ConValue(ConType.STRING, "bar" + rowId));
 			
 			LogicalTimestamp expectedGridRowVecId = null;
 			
@@ -187,7 +189,7 @@ public class GridCsvImportDaoImplTest {
 			
 			JoinedRow next = joinIt.next();
 			
-			assertEquals(expectedCsvData, next.getCsvData().toString());
+			assertEquals(expectedCsvData, next.getCsvData());
 			assertEquals(expectedGridRowVecId, next.getGridRowVecId());
 		}
 		

@@ -28,11 +28,13 @@ public class QueryElement implements Element {
 
 	public QueryElement(Query query) {
 		select = query.getColumnSelection() != null ? query.getColumnSelection().stream()
-				.map(s -> SelectItemTranslator.translate(s)).collect(Collectors.toList())
-				: List.of(new SelectAllElement());
+				.map(SelectItemTranslator::translate)
+				.collect(Collectors.toList()) : List.of(new SelectAllElement());
+		
 		if (query.getFilters() != null) {
-			where = query.getFilters().stream().map(f -> FilterTranslation.translate(f)).collect(Collectors.toList());
+			where = query.getFilters().stream().map(FilterTranslation::translate).collect(Collectors.toList());
 		}
+		
 		this.limit = query.getLimit();
 		this.offset = query.getOffset();
 	}
@@ -40,15 +42,33 @@ public class QueryElement implements Element {
 	@Override
 	public void toSql(StringBuilder sqlBuilder, Map<String, Object> params, Context context) {
 		sqlBuilder.append("SELECT");
-		boolean isFirstSelect = true;
-		for (SelectItemElement item : select) {
-			if (!isFirstSelect) {
-				sqlBuilder.append(" ,");
+		
+		if (!isAggregate()) {
+			// For non-aggregate queries, always include all metadata columns
+			sqlBuilder.append(" AN_REP, AN_SEQ, `INDEX`, RO_REP, RO_SEQ, VEC_REP, VEC_SEQ,");
+			sqlBuilder.append(" MO_REP, MO_SEQ, SRC_REP, SRC_SEQ, RVC_REP, RVC_SEQ, VAL_RES, SYN_ROW,");
+			
+			// Build a SELECTED_VALS array from the selected columns extracted directly from the CTE VALS array
+			sqlBuilder.append(" JSON_ARRAY(");
+			boolean isFirst = true;
+			for (SelectItemElement item : select) {
+				if (!isFirst) {
+					sqlBuilder.append(",");
+				}
+				item.toSql(sqlBuilder, params, context);
+				isFirst = false;
 			}
-			item.toSql(sqlBuilder, params, context);
-			isFirstSelect = false;
+			sqlBuilder.append(") AS SELECTED_VALS");
+		} else {
+			boolean isFirst = true;
+			for (SelectItemElement item : select) {
+				if (!isFirst) {
+					sqlBuilder.append(",");
+				}
+				item.toSql(sqlBuilder, params, context);
+				isFirst = false;
+			}
 		}
-
 		sqlBuilder.append(" FROM GRID");
 		if (where != null && !where.isEmpty()) {
 			sqlBuilder.append(" WHERE");
@@ -66,7 +86,7 @@ public class QueryElement implements Element {
 			boolean isFirst = true;
 			for (ColumnNameElement column : groupBy) {
 				if (!isFirst) {
-					sqlBuilder.append(" , ");
+					sqlBuilder.append(",");
 				}
 				column.toSql(sqlBuilder, params, context);
 				isFirst = false;
@@ -77,7 +97,7 @@ public class QueryElement implements Element {
 			boolean isFirst = true;
 			for (OrderByItemElement order : orderBy) {
 				if (!isFirst) {
-					sqlBuilder.append(" , ");
+					sqlBuilder.append(",");
 				}
 				order.toSql(sqlBuilder, params, context);
 				isFirst = false;

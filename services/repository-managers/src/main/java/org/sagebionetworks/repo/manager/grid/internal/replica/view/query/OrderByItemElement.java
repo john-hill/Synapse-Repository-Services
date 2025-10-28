@@ -20,7 +20,7 @@ public class OrderByItemElement implements Element {
 
 	@Override
 	public void toSql(StringBuilder sqlBuilder, Map<String, Object> params, Context context) {
-		Integer columnIndex = context.getColumnIndexForName(columnName);
+		Integer columnIndex = context.getColumnVectorIndexForName(columnName);
 		
 	}
 

@@ -1,7 +1,6 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.model;
 
 import java.util.Objects;
-import java.util.Optional;
 
 import org.json.JSONArray;
 import org.sagebionetworks.repo.model.grid.CrdtId;

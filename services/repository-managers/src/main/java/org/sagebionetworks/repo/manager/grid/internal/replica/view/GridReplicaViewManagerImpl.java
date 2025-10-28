@@ -70,7 +70,7 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 								.setSynapseRow(new SynapseRow().setFromJSON(rs.getString("SYN_ROW"))
 										.setConstantId(readNullableTimestamp(rs, "SRC_REP", "SRC_SEQ"))))
 						.setData(new RowData().setVectorId(readNullableTimestamp(rs, "VEC_REP", "VEC_SEQ"))
-								.setCells(new JSONArray(rs.getString("VALS")))));
+								.setCells(new JSONArray(rs.getString("SELECTED_VALS")))));
 	};
 
 	private static RowMapper<RowView> ROW_VIEW_AGGREGATION_MAPPER = (ResultSet rs, int rowNum) -> {
@@ -146,13 +146,16 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		header.getOrderedColumns().forEach(c -> {
 			joiner.add(String.format("JSON_EXTRACT(V1.VEC_VAL, '$.c%d.v')", c.getVectorIndex()));
 		});
+		
 		String select = joiner.toString();
+		
 		StringBuilder sqlBuilder = new StringBuilder();
 		query.toSql(sqlBuilder, params, new Context(header));
 
 		String sql = String.format(GRID_INDEX_VIEW_TEMPLATE, select, sqlBuilder.toString());
 
 		RowMapper<RowView> mapper = query.isAggregate() ? ROW_VIEW_AGGREGATION_MAPPER : ROW_VIEW_MAPPER;
+		
 		return gridIndexDao.query(sql, new MapSqlParameterSource(params), mapper);
 	}
 
@@ -270,7 +273,7 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		List<SelectColumn> cols = new ArrayList<>();
 		for(int i=0; i<items.size(); i++) {
 			SelectItemElement item = items.get(i);
-			item.setSelect(header, Long.valueOf(i), cols);
+			item.setSelect(new Context(header), Long.valueOf(i), cols);
 		}
 		return cols;
 	}

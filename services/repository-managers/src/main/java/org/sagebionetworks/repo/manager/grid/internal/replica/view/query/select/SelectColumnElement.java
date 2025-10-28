@@ -4,15 +4,16 @@ import java.util.List;
 import java.util.Map;
 
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.Context;
-import org.sagebionetworks.repo.model.grid.query.SelectColumn;
+import org.sagebionetworks.repo.model.grid.query.SelectByName;
 import org.sagebionetworks.repo.model.grid.query.SelectItem;
+import org.sagebionetworks.repo.model.grid.query.result.SelectColumn;
 
 public class SelectColumnElement implements SelectItemElement {
 	
 	private String columnName;
 
 	public SelectColumnElement(SelectItem item) {
-		this.columnName = ((SelectColumn) item).getColumnName();
+		this.columnName = ((SelectByName) item).getColumnName();
 	}
 
 	@Override
@@ -29,9 +30,10 @@ public class SelectColumnElement implements SelectItemElement {
 	@Override
 	public void setSelect(Context context, Long index, List<org.sagebionetworks.repo.model.grid.query.result.SelectColumn> selectColumns) {
 		Integer vectorIndex = context.getColumnVectorIndexForName(columnName);		
-		selectColumns.add(new org.sagebionetworks.repo.model.grid.query.result.SelectColumn()
+		selectColumns.add(new SelectColumn()
 			.setColumnName(columnName)
-			.setColumnIndex(Long.valueOf(vectorIndex)));
+			.setColumnIndex(Long.valueOf(vectorIndex))
+		);
 	}
 
 }

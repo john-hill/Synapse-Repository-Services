@@ -1,5 +1,5 @@
 {
-	"description": "A SelectItem that will result in the selection of a single column by name.",
+	"description": "A SelectItem that will result in the selection of a single column by its name.",
 	"type": "object",
 	"implements": [{ "$ref": "org.sagebionetworks.repo.model.grid.query.SelectItem" }],
 	"properties": {

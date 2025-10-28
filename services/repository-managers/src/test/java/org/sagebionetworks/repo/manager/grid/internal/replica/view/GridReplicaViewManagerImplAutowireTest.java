@@ -51,6 +51,7 @@ import org.sagebionetworks.repo.model.grid.patch.operation.builder.InsertObjectB
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewConstantBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewObjectBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
+import org.sagebionetworks.repo.model.grid.query.SelectByName;
 import org.sagebionetworks.repo.model.grid.query.ValidationOperator;
 import org.sagebionetworks.repo.model.grid.query.result.QueryResult;
 import org.sagebionetworks.repo.model.grid.query.result.SelectColumn;
@@ -868,7 +869,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 		// call under test		
 		assertEquals("Column name not found: invalid", assertThrows(IllegalArgumentException.class, () -> {
 			gridViewManager.querySinglePage(header, new QueryElement().setSelect(
-				new SelectColumnElement(new org.sagebionetworks.repo.model.grid.query.SelectColumn().setColumnName("invalid"))
+				new SelectColumnElement(new SelectByName().setColumnName("invalid"))
 			));
 		}).getMessage());
 		
@@ -880,7 +881,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 		
 		// call under test		
 		assertEquals(allRows, gridViewManager.querySinglePage(header, new QueryElement().setSelect(
-			new SelectColumnElement(new org.sagebionetworks.repo.model.grid.query.SelectColumn().setColumnName("anInt"))
+			new SelectColumnElement(new SelectByName().setColumnName("anInt"))
 		)));
 		
 		allRows.get(0).getRowObject().getData().setCells(new JSONArray("[null]"));
@@ -889,7 +890,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 		
 		// call under test		
 		assertEquals(allRows, gridViewManager.querySinglePage(header, new QueryElement().setSelect(
-			new SelectColumnElement(new org.sagebionetworks.repo.model.grid.query.SelectColumn().setColumnName("aString"))
+			new SelectColumnElement(new SelectByName().setColumnName("aString"))
 		)));
 		
 		allRows.get(0).getRowObject().getData().setCells(new JSONArray("[null, null]"));
@@ -898,8 +899,8 @@ public class GridReplicaViewManagerImplAutowireTest {
 		
 		// call under test		
 		assertEquals(allRows, gridViewManager.querySinglePage(header, new QueryElement().setSelect(
-			new SelectColumnElement(new org.sagebionetworks.repo.model.grid.query.SelectColumn().setColumnName("anInt")),
-			new SelectColumnElement(new org.sagebionetworks.repo.model.grid.query.SelectColumn().setColumnName("aString"))
+			new SelectColumnElement(new SelectByName().setColumnName("anInt")),
+			new SelectColumnElement(new SelectByName().setColumnName("aString"))
 		)));
 	}
 

@@ -17,39 +17,21 @@ WITH RECURSIVE D AS
 	AND D.NODE_SEQ = D1.REF_SEQ
 	)
 ),
-COLNAMES AS (SELECT V1.VEC_VAL -> '$.*.v' AS COL_NAME
-            FROM GRID_REPLICA_VEC V1
-            WHERE V1.SESSION_ID = :sessionId
-              AND V1.REPLICA_ID = :replicaId
-              AND V1.VEC_REP = :colNamesVecRep
-              AND V1.VEC_SEQ = :colNamesVecSeq),
 GRID AS (
   SELECT D.DEPTH AS `INDEX`,
 	D.NODE_REP AS AN_REP, D.NODE_SEQ AS AN_SEQ,
     O1.OBJ_REP AS RO_REP, O1.OBJ_SEQ AS RO_SEQ,
     V1.VEC_REP AS VEC_REP, V1.VEC_SEQ AS VEC_SEQ,
 	JSON_ARRAY(%s) AS VALS,
-    COALESCE((SELECT JSON_OBJECTAGG(
-                 jt.name,
-                 JSON_EXTRACT(V1.VEC_VAL, CONCAT('$.c', jt.idx - 1, '.v'))
-         )
-    FROM JSON_TABLE(
-               JSON_EXTRACT(COLNAMES.COL_NAME, '$'),
-               '$[*]' COLUMNS (
-                   `idx` FOR ORDINALITY,
-                   `name` VARCHAR(255) PATH '$'
-                   )
-       ) AS jt
-    WHERE JSON_CONTAINS_PATH(V1.VEC_VAL, 'one', CONCAT('$.c', jt.idx - 1, '.v'))), JSON_OBJECT()) AS VALS_JSON,
-    O2.OBJ_REP AS MO_REP, O2.OBJ_SEQ AS MO_SEQ,
+    JSON_MERGE_PRESERVE(JSON_OBJECT(), %s) as VALS_JSON,
+	O2.OBJ_REP AS MO_REP, O2.OBJ_SEQ AS MO_SEQ,
 	O2.OBJ_VAL->>'$.synapseRow[0]' AS SRC_REP,
 	O2.OBJ_VAL->>'$.synapseRow[1]' AS SRC_SEQ,
 	O2.OBJ_VAL->>'$.rowValidation[0]' AS RVC_REP,
 	O2.OBJ_VAL->>'$.rowValidation[1]' AS RVC_SEQ,
-	CO1.CON_VAL->>'$' AS VAL_RES,
-    CO2.CON_VAL->>'$' AS SYN_ROW
-  FROM D JOIN COLNAMES ON (1 = 1)
-  JOIN GRID_REPLICA_OBJ O1 ON  (
+	CO1.CON_VAL->>'$[0]' AS VAL_RES,
+    CO2.CON_VAL->>'$[0]' AS SYN_ROW
+  FROM D JOIN GRID_REPLICA_OBJ O1 ON  (
 	D.SESSION_ID = O1.SESSION_ID
     AND D.REPLICA_ID = O1.REPLICA_ID
     AND D.DATA_REP = O1.OBJ_REP

@@ -29,11 +29,7 @@ public class SelectByNameElement implements SelectItemElement {
 
 	@Override
 	public void setSelect(Context context, Long index, List<org.sagebionetworks.repo.model.grid.query.result.SelectColumn> selectColumns) {
-		Integer vectorIndex = context.getColumnVectorIndexForName(columnName);		
-		selectColumns.add(new SelectColumn()
-			.setColumnName(columnName)
-			.setColumnIndex(Long.valueOf(vectorIndex))
-		);
+		selectColumns.add(new SelectColumn().setColumnName(columnName));
 	}
 
 }

@@ -34,8 +34,9 @@ public class SelectAllElement implements SelectItemElement {
 	@Override
 	public void setSelect(Context context, Long index, List<SelectColumn> selectColumns) {
 		selectColumns.addAll(context.getHeader().getOrderedColumns().stream()
-			.map(oc -> new SelectColumn().setColumnName(oc.getName()).setColumnIndex(Long.valueOf(oc.getVectorIndex())))
-			.collect(Collectors.toList()));
+			.map(oc -> new SelectColumn().setColumnName(oc.getName()))
+			.collect(Collectors.toList())
+		);
 	}
 
 }

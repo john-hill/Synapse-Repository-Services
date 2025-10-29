@@ -73,7 +73,7 @@ public class CellValueFilterElement implements FilterElement {
 		validateInputs(sqlBuilder, params, context);
 
 		String bind = "val" + params.size();
-		Integer columnIndex = context.getColumnVectorIndexForName(columnName);
+		Integer columnIndex = context.getColumnIndexForName(columnName);
 
 		switch (operator.getValueMultiplicity()) {
 		case one:

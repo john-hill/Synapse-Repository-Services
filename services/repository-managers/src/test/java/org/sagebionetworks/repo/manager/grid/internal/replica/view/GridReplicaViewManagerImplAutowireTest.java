@@ -927,7 +927,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 		// call under test
 		assertEquals(
 				new QueryResult()
-						.setSelectColumns(List.of(new SelectColumn().setColumnIndex(0L).setColumnName("count")))
+						.setSelectColumns(List.of(new SelectColumn().setColumnName("count")))
 						.setRows(List.of(
 								new org.sagebionetworks.repo.model.grid.query.result.Row().setCellValues(List.of(5L)))),
 				gridViewManager.querySinglePageAsQueryResult(header,
@@ -940,8 +940,8 @@ public class GridReplicaViewManagerImplAutowireTest {
 		// call under test
 		assertEquals(
 				new QueryResult()
-						.setSelectColumns(List.of(new SelectColumn().setColumnIndex(0L).setColumnName("aString"),
-								new SelectColumn().setColumnIndex(1L).setColumnName("anInt")))
+						.setSelectColumns(List.of(new SelectColumn().setColumnName("aString"),
+								new SelectColumn().setColumnName("anInt")))
 						.setRows(List.of(
 								new org.sagebionetworks.repo.model.grid.query.result.Row().setValidationResults(
 										new org.sagebionetworks.repo.model.grid.query.result.ValidationResults()

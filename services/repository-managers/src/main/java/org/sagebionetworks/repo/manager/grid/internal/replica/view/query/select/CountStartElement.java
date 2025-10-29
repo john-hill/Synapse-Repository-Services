@@ -27,7 +27,7 @@ public class CountStartElement implements SelectItemElement {
 
 	@Override
 	public void setSelect(Context context, Long index, List<SelectColumn> selectColumns) {
-		selectColumns.add(new SelectColumn().setColumnIndex(index).setColumnName("count"));
+		selectColumns.add(new SelectColumn().setColumnName("count"));
 	}
 
 }

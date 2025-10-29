@@ -14,6 +14,17 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.select.
 import org.sagebionetworks.repo.model.grid.query.Query;
 
 public class QueryElement implements Element {
+	
+	private static void appendElementList(StringBuilder sqlBuilder, Map<String, Object> params, Context context, List<? extends Element> elements, String separator) {
+		boolean isFirst = true;
+		for (Element element : elements) {
+			if (!isFirst) {
+				sqlBuilder.append(separator);
+			}
+			element.toSql(sqlBuilder, params, context);
+			isFirst = false;
+		}
+	}
 
 	private List<SelectItemElement> select;
 	private List<FilterElement> where;
@@ -44,64 +55,30 @@ public class QueryElement implements Element {
 		sqlBuilder.append("SELECT");
 		
 		if (!isAggregate()) {
-			// For non-aggregate queries, always include all metadata columns
+			// For non-aggregate queries, always include all metadata columns that are needed to map a row into a RowView
 			sqlBuilder.append(" AN_REP, AN_SEQ, `INDEX`, RO_REP, RO_SEQ, VEC_REP, VEC_SEQ,");
 			sqlBuilder.append(" MO_REP, MO_SEQ, SRC_REP, SRC_SEQ, RVC_REP, RVC_SEQ, VAL_RES, SYN_ROW,");
-			
-			// Build a SELECTED_VALS array from the selected columns extracted directly from the CTE VALS array
-			sqlBuilder.append(" JSON_ARRAY(");
-			boolean isFirst = true;
-			for (SelectItemElement item : select) {
-				if (!isFirst) {
-					sqlBuilder.append(",");
-				}
-				item.toSql(sqlBuilder, params, context);
-				isFirst = false;
-			}
-			sqlBuilder.append(") AS SELECTED_VALS");
-		} else {
-			boolean isFirst = true;
-			for (SelectItemElement item : select) {
-				if (!isFirst) {
-					sqlBuilder.append(",");
-				}
-				item.toSql(sqlBuilder, params, context);
-				isFirst = false;
-			}
 		}
+			
+		// Build a SELECTED_VALS sub-array from the selected columns extracted directly from the CTE VALS array
+		sqlBuilder.append(" JSON_ARRAY(");
+		
+		appendElementList(sqlBuilder, params, context, select, ",");
+		
+		sqlBuilder.append(") AS SELECTED_VALS");
+	
 		sqlBuilder.append(" FROM GRID");
 		if (where != null && !where.isEmpty()) {
 			sqlBuilder.append(" WHERE");
-			boolean isFirst = true;
-			for (FilterElement filter : where) {
-				if (!isFirst) {
-					sqlBuilder.append(" AND");
-				}
-				filter.toSql(sqlBuilder, params, context);
-				isFirst = false;
-			}
+			appendElementList(sqlBuilder, params, context, where, " AND");
 		}
 		if (groupBy != null) {
 			sqlBuilder.append(" GROUP BY");
-			boolean isFirst = true;
-			for (ColumnNameElement column : groupBy) {
-				if (!isFirst) {
-					sqlBuilder.append(",");
-				}
-				column.toSql(sqlBuilder, params, context);
-				isFirst = false;
-			}
+			appendElementList(sqlBuilder, params, context, groupBy, ",");
 		}
 		sqlBuilder.append(" ORDER BY");
 		if (orderBy != null) {
-			boolean isFirst = true;
-			for (OrderByItemElement order : orderBy) {
-				if (!isFirst) {
-					sqlBuilder.append(",");
-				}
-				order.toSql(sqlBuilder, params, context);
-				isFirst = false;
-			}
+			appendElementList(sqlBuilder, params, context, orderBy, ",");
 		} else {
 			sqlBuilder.append(" `INDEX` ASC");
 		}

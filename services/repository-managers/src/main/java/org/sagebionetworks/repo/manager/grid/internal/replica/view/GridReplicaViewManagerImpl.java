@@ -74,9 +74,7 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 	};
 
 	private static RowMapper<RowView> ROW_VIEW_AGGREGATION_MAPPER = (ResultSet rs, int rowNum) -> {
-		JSONArray cells = new JSONArray();
-		cells.put(rs.getLong("C"));
-		return new RowView().setRowObject(new RowObject().setData(new RowData().setCells(cells)));
+		return new RowView().setRowObject(new RowObject().setData(new RowData().setCells(new JSONArray(rs.getString("SELECTED_VALS")))));
 	};
 
 	/**

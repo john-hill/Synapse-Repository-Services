@@ -929,7 +929,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 				new QueryResult()
 						.setSelectColumns(List.of(new SelectColumn().setColumnName("count")))
 						.setRows(List.of(
-								new org.sagebionetworks.repo.model.grid.query.result.Row().setCellValues(List.of(5L)))),
+								new org.sagebionetworks.repo.model.grid.query.result.Row().setCellValues(List.of(5)))),
 				gridViewManager.querySinglePageAsQueryResult(header,
 						new QueryElement().setSelect(new CountStartElement())));
 

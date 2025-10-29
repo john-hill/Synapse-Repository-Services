@@ -17,7 +17,7 @@ public class CountStartElement implements SelectItemElement {
 
 	@Override
 	public void toSql(StringBuilder sqlBuilder, Map<String, Object> params, Context context) {
-		sqlBuilder.append(" COUNT(*) AS C");
+		sqlBuilder.append("COUNT(*)");
 	}
 
 	@Override

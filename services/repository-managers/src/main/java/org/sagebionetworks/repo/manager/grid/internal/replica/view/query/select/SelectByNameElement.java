@@ -28,7 +28,7 @@ public class SelectByNameElement implements SelectItemElement {
 	}
 
 	@Override
-	public void setSelect(Context context, Long index, List<org.sagebionetworks.repo.model.grid.query.result.SelectColumn> selectColumns) {
+	public void setSelect(Context context, Long index, List<SelectColumn> selectColumns) {
 		selectColumns.add(new SelectColumn().setColumnName(columnName));
 	}
 

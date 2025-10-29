@@ -5,12 +5,14 @@ import java.util.function.Function;
 import org.sagebionetworks.repo.model.grid.query.SelectAll;
 import org.sagebionetworks.repo.model.grid.query.SelectByName;
 import org.sagebionetworks.repo.model.grid.query.SelectItem;
+import org.sagebionetworks.repo.model.grid.query.SelectSelection;
 import org.sagebionetworks.repo.model.grid.query.function.CountStar;
 
 public enum SelectItemTranslator {
 	CountStar(CountStar.class, CountStartElement::new),
 	SelectAll(SelectAll.class, SelectAllElement::new),
-	SelectByName(SelectByName.class, SelectByNameElement::new);
+	SelectByName(SelectByName.class, SelectByNameElement::new),
+	SelectSelection(SelectSelection.class, SelectSelectionElement::new);
 
 	private final Class<? extends SelectItem> itemClass;
 	private final Function<SelectItem, SelectItemElement> factory;

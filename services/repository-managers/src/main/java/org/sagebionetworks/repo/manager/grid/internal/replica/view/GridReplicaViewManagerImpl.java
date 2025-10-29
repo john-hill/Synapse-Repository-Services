@@ -33,6 +33,7 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.Context
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.QueryElement;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.FilterElement;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.select.SelectItemElement;
+import org.sagebionetworks.repo.model.grid.CrdtId;
 import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.ReplicaSelectionModel;
 import org.sagebionetworks.repo.model.grid.node.ArrayNode;
@@ -227,7 +228,13 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		List<Column> columns = columnOrder.stream().map(a -> {
 			Integer vectorIndex = columnOrderValues.get(a.getDataId());
 			String columnName = (String) columnNames.getValues().get("c" + vectorIndex).getValue();
-			return new Column().setVectorIndex(vectorIndex).setName(columnName);
+			return new Column()
+				.setVectorIndex(vectorIndex)
+				.setName(columnName)
+				.setColumnOrderNodeId(new CrdtId()
+					.setRep(a.getId().getReplicaId())
+					.setSeq(a.getId().getSequenceNumber())
+				);
 		}).collect(Collectors.toList());
 
 		Long clockSequenceMaximum = gridIndexDao.getClockSequenceMaximum(gridSessionId, replicaId);

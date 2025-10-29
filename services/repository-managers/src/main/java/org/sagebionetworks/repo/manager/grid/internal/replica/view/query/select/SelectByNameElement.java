@@ -8,11 +8,11 @@ import org.sagebionetworks.repo.model.grid.query.SelectByName;
 import org.sagebionetworks.repo.model.grid.query.SelectItem;
 import org.sagebionetworks.repo.model.grid.query.result.SelectColumn;
 
-public class SelectColumnElement implements SelectItemElement {
+public class SelectByNameElement implements SelectItemElement {
 	
 	private String columnName;
 
-	public SelectColumnElement(SelectItem item) {
+	public SelectByNameElement(SelectItem item) {
 		this.columnName = ((SelectByName) item).getColumnName();
 	}
 

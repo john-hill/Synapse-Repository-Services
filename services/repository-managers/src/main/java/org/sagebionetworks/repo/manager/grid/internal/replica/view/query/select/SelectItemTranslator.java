@@ -10,7 +10,7 @@ import org.sagebionetworks.repo.model.grid.query.function.CountStar;
 public enum SelectItemTranslator {
 	CountStar(CountStar.class, CountStartElement::new),
 	SelectAll(SelectAll.class, SelectAllElement::new),
-	SelectColumn(SelectByName.class, SelectColumnElement::new);
+	SelectByName(SelectByName.class, SelectByNameElement::new);
 
 	private final Class<? extends SelectItem> itemClass;
 	private final Function<SelectItem, SelectItemElement> factory;

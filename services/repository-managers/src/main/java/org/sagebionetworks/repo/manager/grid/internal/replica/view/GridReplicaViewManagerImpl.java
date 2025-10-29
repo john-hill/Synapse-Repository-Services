@@ -150,7 +150,11 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		header.getOrderedColumns().forEach(c -> {
 			valsArrayJoiner.add(String.format("JSON_EXTRACT(V1.VEC_VAL, '$.c%d.v')", c.getVectorIndex()));
 			// We must check if VEC_VAL contains the path, otherwise JSON_EXTRACT will coalesce an undefined/missing value to a JSON `null` value, which we want to avoid.
-			valsJsonJoiner.add(String.format("CASE WHEN JSON_CONTAINS_PATH(V1.VEC_VAL, 'one', '$.c%d.v') = 1 THEN JSON_OBJECT('%s', JSON_EXTRACT(V1.VEC_VAL, '$.c%d.v')) ELSE JSON_OBJECT() END", c.getVectorIndex(), c.getName(), c.getVectorIndex()));
+			valsJsonJoiner.add(String.format("CASE " +
+					"WHEN JSON_CONTAINS_PATH(V1.VEC_VAL, 'one', '$.c%d.v') = 1 " +
+					"THEN JSON_OBJECT('%s', JSON_EXTRACT(V1.VEC_VAL, '$.c%d.v')) " +
+					"ELSE JSON_OBJECT() " +
+					"END", c.getVectorIndex(), c.getName(), c.getVectorIndex()));
 		});
 		String selectArray = valsArrayJoiner.toString();
 		String selectJson = valsJsonJoiner.toString();

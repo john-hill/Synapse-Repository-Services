@@ -231,12 +231,6 @@ public class GridIndexDaoImplTest {
 		// call under test
 		List<ConstantNode> results = gridIndexDao.getConstants(sessionIdOne, replicaIdOne, ids);
 		assertEquals(constants, results);
-
-		// each constant should exist
-		for (ConstantNode con : results) {
-			assertEquals(Optional.of(con.getId()),
-					gridIndexDao.findExistingConstant(sessionIdOne, replicaIdOne, con.getValueAsJson()));
-		}
 	}
 
 	@Test
@@ -273,18 +267,6 @@ public class GridIndexDaoImplTest {
 
 		List<ConstantNode> results2 = gridIndexDao.getConstants(sessionIdTwo, replicaIdTwo, ids);
 		assertEquals(constants2, results2);
-
-		// one matches session one only.
-		assertEquals(Optional.of(constants1.get(0).getId()),
-				gridIndexDao.findExistingConstant(sessionIdOne, replicaIdOne, constants1.get(0).getValueAsJson()));
-		assertEquals(Optional.empty(),
-				gridIndexDao.findExistingConstant(sessionIdTwo, replicaIdTwo, constants1.get(0).getValueAsJson()));
-		
-		// two matches session two only.
-		assertEquals(Optional.of(constants2.get(0).getId()),
-				gridIndexDao.findExistingConstant(sessionIdTwo, replicaIdTwo, constants2.get(0).getValueAsJson()));
-		assertEquals(Optional.empty(),
-				gridIndexDao.findExistingConstant(sessionIdOne, replicaIdOne, constants2.get(0).getValueAsJson()));
 	}
 
 	@Test

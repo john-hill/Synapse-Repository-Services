@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.view;
 
+import static org.junit.Assert.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -970,6 +971,34 @@ public class GridReplicaViewManagerImplAutowireTest {
 										.setRowId(allRows.get(4).getRowId()))),
 				gridViewManager.querySinglePageAsQueryResult(header,
 						new QueryElement().setSelect(new SelectAllElement())));
+	}
+	
+	
+	@Test
+	public void testQueryAsResultWithArraysAndObjects() throws IOException {
+		schema = List.of(new ColumnModel().setName("anObject").setColumnType(ColumnType.JSON).setMaximumSize(100L),
+				new ColumnModel().setName("anArray").setColumnType(ColumnType.INTEGER_LIST));
+
+		rows = List.of(
+				//
+				new Row().setValues(Collections.emptyList()),
+				//
+				new Row().setValues(List.of("{\"arr\":[1,2,[4,5]]}", "[6,7]")),
+				//
+				new Row().setValues(List.of("{\"simple\":true}", "[]")));
+		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
+
+		GridHeader header = gridViewManager.readHeader(sessionId, replicaId).get();
+		QueryResult qr = gridViewManager.querySinglePageAsQueryResult(header, new QueryElement().setLimit(100L).setOffset(0L));
+		// The agent will receive a JSON sting of this result.
+		String json = JDOSecondaryPropertyUtils.createJSONFromObject(qr);
+		JSONObject resultJson = new JSONObject(json);
+		JSONArray rows= resultJson.getJSONArray("rows");
+		assertEquals(3, rows.length());
+		assertEquals("[null,null]", rows.getJSONObject(0).get("cellValues").toString());
+		assertEquals("[{\"arr\":[1,2,[4,5]]},[6,7]]", rows.getJSONObject(1).get("cellValues").toString());
+		assertEquals("[{\"simple\":true},[]]", rows.getJSONObject(2).get("cellValues").toString());
+
 	}
 
 	public static CrdtId createCrdtIdFromLogical(LogicalTimestamp timestamp) {

@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.grid.internal.replica.view;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,6 +37,8 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.VectorIdFilterElement;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.select.CountStartElement;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.select.SelectAllElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.select.SelectByNameElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.select.SelectSelectionElement;
 import org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils;
 import org.sagebionetworks.repo.model.grid.CrdtId;
 import org.sagebionetworks.repo.model.grid.GridUtils;
@@ -50,6 +53,7 @@ import org.sagebionetworks.repo.model.grid.patch.operation.builder.InsertObjectB
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewConstantBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewObjectBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
+import org.sagebionetworks.repo.model.grid.query.SelectByName;
 import org.sagebionetworks.repo.model.grid.query.ValidationOperator;
 import org.sagebionetworks.repo.model.grid.query.result.QueryResult;
 import org.sagebionetworks.repo.model.grid.query.result.SelectColumn;
@@ -109,8 +113,10 @@ public class GridReplicaViewManagerImplAutowireTest {
 
 		GridHeader expected = new GridHeader().setSessionId(sessionId).setReplicaId(replicaId)
 				.setDocumentVersion(new Semver("0.1.0"))
-				.setOrderedColumns(List.of(new Column().setName("a").setVectorIndex(0),
-						new Column().setName("b").setVectorIndex(1)))
+				.setOrderedColumns(List.of(
+					new Column().setName("a").setVectorIndex(0).setColumnOrderNodeId(new CrdtId().setRep(replicaId).setSeq(13L)),
+					new Column().setName("b").setVectorIndex(1).setColumnOrderNodeId(new CrdtId().setRep(replicaId).setSeq(14L))
+				))
 				.setNodeId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(1L))
 				.setRowsId(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(5L))
 				.setColumnOrderArrId(columnOrderArrayId).setColumnNamesVecId(columnNamesVecId)
@@ -145,8 +151,11 @@ public class GridReplicaViewManagerImplAutowireTest {
 		assertEquals(List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(93L)),
 				gridIndexManger.getClock(sessionId, replicaId));
 
-		expected.setOrderedColumns(List.of(new Column().setName("c").setVectorIndex(2),
-				new Column().setName("a").setVectorIndex(0), new Column().setName("b2").setVectorIndex(1)));
+		expected.setOrderedColumns(List.of(
+			new Column().setName("c").setVectorIndex(2).setColumnOrderNodeId(new CrdtId().setRep(replicaId).setSeq(92L)),
+			new Column().setName("a").setVectorIndex(0).setColumnOrderNodeId(new CrdtId().setRep(replicaId).setSeq(13L)), 
+			new Column().setName("b2").setVectorIndex(1).setColumnOrderNodeId(new CrdtId().setRep(replicaId).setSeq(14L))
+		));
 		expected.setClockSequenceMaximum(patch.getPatchId().getSequenceNumber() + patch.getSpan());
 		// call under test
 		assertEquals(Optional.of(expected), gridViewManager.readHeader(sessionId, replicaId));
@@ -878,6 +887,146 @@ public class GridReplicaViewManagerImplAutowireTest {
 				.of(new RowView().setRowObject(new RowObject().setData(new RowData().setCells(new JSONArray("[5]")))));
 		assertEquals(expected, r);
 	}
+	
+	@Test
+	public void testQueryWithColumnsSubset() throws IOException {
+		schema = List.of(
+			new ColumnModel().setName("aString").setColumnType(ColumnType.STRING).setMaximumSize(100L),
+			new ColumnModel().setName("anInt").setColumnType(ColumnType.INTEGER)
+		);
+
+		rows = List.of(
+			new Row().setValues(Collections.emptyList()),
+			new Row().setValues(List.of("a", "1")),
+			new Row().setValues(List.of("b", "2"))
+		);
+		
+		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
+		
+		GridHeader header = gridViewManager.readHeader(sessionId, replicaId).get();
+		
+		// call under test		
+		assertEquals("Column name not found: invalid", assertThrows(IllegalArgumentException.class, () -> {
+			gridViewManager.querySinglePage(header, new QueryElement().setSelect(
+				new SelectByNameElement(new SelectByName().setColumnName("invalid"))
+			));
+		}).getMessage());
+		
+		List<RowView> allRows = gridViewManager.querySinglePage(header, new QueryElement().setLimit(100L).setOffset(0L));
+
+		allRows.get(0).getRowObject().getData().setCells(new JSONArray("[null]"));
+		allRows.get(1).getRowObject().getData().setCells(new JSONArray("[1]"));
+		allRows.get(2).getRowObject().getData().setCells(new JSONArray("[2]"));
+		
+		// call under test		
+		assertEquals(allRows, gridViewManager.querySinglePage(header, new QueryElement().setSelect(
+			new SelectByNameElement(new SelectByName().setColumnName("anInt"))
+		)));
+		
+		allRows.get(0).getRowObject().getData().setCells(new JSONArray("[null]"));
+		allRows.get(1).getRowObject().getData().setCells(new JSONArray("[\"a\"]"));
+		allRows.get(2).getRowObject().getData().setCells(new JSONArray("[\"b\"]"));
+		
+		// call under test		
+		assertEquals(allRows, gridViewManager.querySinglePage(header, new QueryElement().setSelect(
+			new SelectByNameElement(new SelectByName().setColumnName("aString"))
+		)));
+		
+		allRows.get(0).getRowObject().getData().setCells(new JSONArray("[null, null]"));
+		allRows.get(1).getRowObject().getData().setCells(new JSONArray("[1,\"a\"]"));
+		allRows.get(2).getRowObject().getData().setCells(new JSONArray("[2,\"b\"]"));
+		
+		// call under test		
+		assertEquals(allRows, gridViewManager.querySinglePage(header, new QueryElement().setSelect(
+			new SelectByNameElement(new SelectByName().setColumnName("anInt")),
+			new SelectByNameElement(new SelectByName().setColumnName("aString"))
+		)));
+	}
+	
+	@Test
+	public void testQueryWithSelectedColumns() throws IOException {
+		schema = List.of(
+			new ColumnModel().setName("aString").setColumnType(ColumnType.STRING).setMaximumSize(100L),
+			new ColumnModel().setName("anInt").setColumnType(ColumnType.INTEGER)
+		);
+
+		rows = List.of(
+			new Row().setValues(Collections.emptyList()),
+			new Row().setValues(List.of("a", "1")),
+			new Row().setValues(List.of("b", "2"))
+		);
+		
+		writeRowsAsPatches(rows, sessionId, replicaId, schema, MAX_ROW_SIZE_BYTES);
+		
+		GridHeader header = gridViewManager.readHeader(sessionId, replicaId).orElseThrow();
+		
+		List<RowView> expectedRows = gridViewManager.querySinglePage(header, new QueryElement());
+		
+		// Nothing selected, we expect empty cells
+		expectedRows.forEach(row -> row.getRowObject().getData().setCells(new JSONArray()));
+		
+		// call under test
+		assertEquals(expectedRows, gridViewManager.querySinglePage(header, new QueryElement().setSelect(
+			new SelectSelectionElement()
+		)));
+		
+		// Add a "all columns selected" model to the gird
+		ReplicaSelectionModel selection = new ReplicaSelectionModel().setColumnSelectAll(true);
+		
+		Long otherReplica = 987L;
+		
+		setSelection(header.getNodeId(), selection, otherReplica);
+		
+		header = gridViewManager.readHeader(sessionId, replicaId, otherReplica).orElseThrow();
+		
+		// All columns selected, we expect all cells
+		expectedRows.get(0).getRowObject().getData().setCells(new JSONArray("[null, null]"));
+		expectedRows.get(1).getRowObject().getData().setCells(new JSONArray("[\"a\",1]"));
+		expectedRows.get(2).getRowObject().getData().setCells(new JSONArray("[\"b\",2]"));
+		
+		// call under test	
+		assertEquals(expectedRows, gridViewManager.querySinglePage(header, new QueryElement().setSelect(
+			new SelectSelectionElement()
+		)));
+		
+		// Add a "column anInt selected" model to the gird
+		selection = new ReplicaSelectionModel().setColumnSelection(List.of(
+			header.getOrderedColumns().get(1).getColumnOrderNodeId()
+		));
+		
+		setSelection(header.getNodeId(), selection, otherReplica);
+		
+		header = gridViewManager.readHeader(sessionId, replicaId, otherReplica).orElseThrow();
+		
+		// Only the second column selected
+		expectedRows.get(0).getRowObject().getData().setCells(new JSONArray("[null]"));
+		expectedRows.get(1).getRowObject().getData().setCells(new JSONArray("[1]"));
+		expectedRows.get(2).getRowObject().getData().setCells(new JSONArray("[2]"));
+		
+		assertEquals(expectedRows, gridViewManager.querySinglePage(header, new QueryElement().setSelect(
+			new SelectSelectionElement()
+		)));
+		
+		// Add a "column anInt,aString selected" model to the gird
+		selection = new ReplicaSelectionModel().setColumnSelection(List.of(
+			header.getOrderedColumns().get(1).getColumnOrderNodeId(), header.getOrderedColumns().get(0).getColumnOrderNodeId()
+		));
+		
+		setSelection(header.getNodeId(), selection, otherReplica);
+		
+		header = gridViewManager.readHeader(sessionId, replicaId, otherReplica).orElseThrow();
+		
+		expectedRows = gridViewManager.querySinglePage(header, new QueryElement().setLimit(100L).setOffset(0L));
+		
+		// both columns selected in reverse order
+		expectedRows.get(0).getRowObject().getData().setCells(new JSONArray("[null, null]"));
+		expectedRows.get(1).getRowObject().getData().setCells(new JSONArray("[1,\"a\"]"));
+		expectedRows.get(2).getRowObject().getData().setCells(new JSONArray("[2,\"b\"]"));
+		
+		assertEquals(expectedRows, gridViewManager.querySinglePage(header, new QueryElement().setSelect(
+			new SelectSelectionElement()
+		)));
+	}
 
 	@Test
 	public void testQueryAsResult() throws IOException {
@@ -902,9 +1051,9 @@ public class GridReplicaViewManagerImplAutowireTest {
 		// call under test
 		assertEquals(
 				new QueryResult()
-						.setSelectColumns(List.of(new SelectColumn().setColumnIndex(0L).setColumnName("count")))
+						.setSelectColumns(List.of(new SelectColumn().setColumnName("count")))
 						.setRows(List.of(
-								new org.sagebionetworks.repo.model.grid.query.result.Row().setCellValues(List.of(5L)))),
+								new org.sagebionetworks.repo.model.grid.query.result.Row().setCellValues(List.of(5)))),
 				gridViewManager.querySinglePageAsQueryResult(header,
 						new QueryElement().setSelect(new CountStartElement())));
 
@@ -915,8 +1064,8 @@ public class GridReplicaViewManagerImplAutowireTest {
 		// call under test
 		assertEquals(
 				new QueryResult()
-						.setSelectColumns(List.of(new SelectColumn().setColumnIndex(0L).setColumnName("aString"),
-								new SelectColumn().setColumnIndex(1L).setColumnName("anInt")))
+						.setSelectColumns(List.of(new SelectColumn().setColumnName("aString"),
+								new SelectColumn().setColumnName("anInt")))
 						.setRows(List.of(
 								new org.sagebionetworks.repo.model.grid.query.result.Row().setValidationResults(
 										new org.sagebionetworks.repo.model.grid.query.result.ValidationResults()

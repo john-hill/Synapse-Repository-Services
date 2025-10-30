@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.stream.Collectors;
 
 import org.java_websocket.WebSocket;
 import org.json.JSONArray;
@@ -24,6 +25,7 @@ import org.sagebionetworks.grid.db.GridIndexDao;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.file.LocalFileUploadRequest;
+import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
@@ -38,6 +40,8 @@ import org.sagebionetworks.repo.model.agent.AgentChatResponse;
 import org.sagebionetworks.repo.model.agent.AgentSession;
 import org.sagebionetworks.repo.model.agent.CreateAgentSessionRequest;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
+import org.sagebionetworks.repo.model.agent.TraceEvent;
+import org.sagebionetworks.repo.model.agent.TraceEventsRequest;
 import org.sagebionetworks.repo.model.entity.BindSchemaToEntityRequest;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
@@ -237,7 +241,9 @@ public class GridAgentChatWorkerIntegrationTest {
 
 		JsonRxMessage message = createSetSelectionMessage(header,
 				new ReplicaSelectionModel()
-						.setRowSelection(List.of(RowView.createCrdtIdFromLogical(rows.get(2).getArrNodeId()))),
+						.setRowSelection(List.of(RowView.createCrdtIdFromLogical(rows.get(2).getArrNodeId())))
+						// Manually select all the columns
+						.setColumnSelection(header.getOrderedColumns().stream().map(Column::getColumnOrderNodeId).collect(Collectors.toList())),
 				new LogicalTimestamp().setReplicaId(context.getUsersReplicaId()).setSequenceNumber(1L));
 		websoceket.send(message.toJson());
 		asynchronousJobWorkerHelper.waitForMessage((a) -> a.optInt(0) == 5 && a.optInt(1) == message.getId().get(),
@@ -302,6 +308,40 @@ public class GridAgentChatWorkerIntegrationTest {
 			}
 			return Pair.create(false, null);
 		});
+		
+		chatRequest = "Can you provide the value of column b for the currently selected row?";
+		
+		String jobId = asynchronousJobWorkerHelper.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
+			.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {
+				assertNotNull(response);
+				assertEquals(agentSession.getSessionId(), response.getSessionId());
+				assertNotNull(response.getResponseText());
+				System.out.println(response.getResponseText());
+				assertTrue(response.getResponseText().toLowerCase().contains("null"));
+			}, MAX_WAIT_MS).getJobToken();
+		
+		String jobTraceText = agentService.getChatTrace(admin.getId(), new TraceEventsRequest().setJobId(jobId)).getPage()
+			.stream().map(TraceEvent::getMessage).reduce(String::concat).orElseThrow();
+		
+		// Verifies that the agent used a SelectByName to get the value of column b
+		assertTrue(jobTraceText.contains("org.sagebionetworks.repo.model.grid.query.SelectByName"));
+
+		chatRequest = "Can you now provide the values for the first row for the columns that the user selected?";
+		
+		jobId = asynchronousJobWorkerHelper.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
+			.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {
+				assertNotNull(response);
+				assertEquals(agentSession.getSessionId(), response.getSessionId());
+				assertNotNull(response.getResponseText());
+				System.out.println(response.getResponseText());
+				assertTrue(response.getResponseText().toLowerCase().contains("one"));
+			}, MAX_WAIT_MS).getJobToken();
+		
+		jobTraceText = agentService.getChatTrace(admin.getId(), new TraceEventsRequest().setJobId(jobId)).getPage()
+			.stream().map(TraceEvent::getMessage).reduce(String::concat).orElseThrow();
+		
+		// Verifies that the agent used a SelectSelection in its query
+		assertTrue(jobTraceText.contains("org.sagebionetworks.repo.model.grid.query.SelectSelection"));
 	}
 
 	public JsonRxMessage createSetSelectionMessage(GridHeader header, ReplicaSelectionModel selection,

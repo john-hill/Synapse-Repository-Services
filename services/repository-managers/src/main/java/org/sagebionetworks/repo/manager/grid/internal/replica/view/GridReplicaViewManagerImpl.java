@@ -20,6 +20,7 @@ import org.apache.commons.io.IOUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
+import org.json.JSONTokener;
 import org.sagebionetworks.grid.db.GridIndexDao;
 import org.sagebionetworks.grid.db.GridTransaction;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
@@ -34,6 +35,7 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.Context
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.QueryElement;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.FilterElement;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.select.SelectItemElement;
+import org.sagebionetworks.repo.model.grid.CrdtId;
 import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.ReplicaSelectionModel;
 import org.sagebionetworks.repo.model.grid.node.ArrayNode;
@@ -72,14 +74,12 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 								.setSynapseRow(new SynapseRow().setFromJSON(rs.getString("SYN_ROW"))
 										.setConstantId(readNullableTimestamp(rs, "SRC_REP", "SRC_SEQ"))))
 						.setData(new RowData().setVectorId(readNullableTimestamp(rs, "VEC_REP", "VEC_SEQ"))
-								.setCells(new JSONArray(rs.getString("VALS")))
+								.setCells(new JSONArray(rs.getString("SELECTED_VALS")))
 								.setRowJsonDocument(new JSONObject(new JSONTokener(rs.getString("VALS_JSON"))))));
 	};
 
 	private static RowMapper<RowView> ROW_VIEW_AGGREGATION_MAPPER = (ResultSet rs, int rowNum) -> {
-		JSONArray cells = new JSONArray();
-		cells.put(rs.getLong("C"));
-		return new RowView().setRowObject(new RowObject().setData(new RowData().setCells(cells)));
+		return new RowView().setRowObject(new RowObject().setData(new RowData().setCells(new JSONArray(rs.getString("SELECTED_VALS")))));
 	};
 
 	/**
@@ -156,15 +156,16 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 					"ELSE JSON_OBJECT() " +
 					"END", c.getVectorIndex(), c.getName(), c.getVectorIndex()));
 		});
+
 		String selectArray = valsArrayJoiner.toString();
 		String selectJson = valsJsonJoiner.toString();
-
 		StringBuilder sqlBuilder = new StringBuilder();
 		query.toSql(sqlBuilder, params, new Context(header));
 
 		String sql = String.format(GRID_INDEX_VIEW_TEMPLATE, selectArray, selectJson, sqlBuilder.toString());
 
 		RowMapper<RowView> mapper = query.isAggregate() ? ROW_VIEW_AGGREGATION_MAPPER : ROW_VIEW_MAPPER;
+
 		return gridIndexDao.query(sql, new MapSqlParameterSource(params), mapper);
 	}
 
@@ -238,7 +239,13 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		List<Column> columns = columnOrder.stream().map(a -> {
 			Long vectorIndex = columnOrderValues.get(a.getDataId());
 			String columnName = (String) columnNames.getValues().get("c" + vectorIndex).getConValue().getValue();
-			return new Column().setVectorIndex(vectorIndex.intValue()).setName(columnName);
+			return new Column()
+				.setVectorIndex(vectorIndex.intValue())
+				.setName(columnName)
+				.setColumnOrderNodeId(new CrdtId()
+					.setRep(a.getId().getReplicaId())
+					.setSeq(a.getId().getSequenceNumber())
+				);
 		}).collect(Collectors.toList());
 
 		Long clockSequenceMaximum = gridIndexDao.getClockSequenceMaximum(gridSessionId, replicaId);
@@ -282,7 +289,7 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		List<SelectColumn> cols = new ArrayList<>();
 		for(int i=0; i<items.size(); i++) {
 			SelectItemElement item = items.get(i);
-			item.setSelect(header, Long.valueOf(i), cols);
+			item.setSelect(new Context(header), Long.valueOf(i), cols);
 		}
 		return cols;
 	}

@@ -3,26 +3,25 @@ package org.sagebionetworks.repo.manager.grid.internal.replica.view.query.select
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
-import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.Context;
 import org.sagebionetworks.repo.model.grid.query.SelectItem;
 import org.sagebionetworks.repo.model.grid.query.result.SelectColumn;
 
-public class SelectAllElement implements SelectItemElement {
+public class SelectSelectionElement implements SelectItemElement {
 
-	public SelectAllElement(SelectItem item) {
-	}
-
-	public SelectAllElement() {
-	}
+	public SelectSelectionElement(SelectItem item) { }
+	
+	public SelectSelectionElement() { }
 
 	@Override
 	public void toSql(StringBuilder sqlBuilder, Map<String, Object> params, Context context) {
 		StringJoiner joiner = new StringJoiner(",");
-		for (int i=0; i<context.getHeader().getOrderedColumns().size(); i++) {
-			joiner.add(String.format("VALS->'$[%d]'", i));
-		}
+		
+		context.getSelectedColumnIndices().forEach( colIndex -> 
+			joiner.add(String.format("VALS->'$[%d]'", colIndex))
+		);
+		
 		sqlBuilder.append(joiner.toString());
 	}
 
@@ -33,9 +32,8 @@ public class SelectAllElement implements SelectItemElement {
 
 	@Override
 	public void setSelect(Context context, Long index, List<SelectColumn> selectColumns) {
-		selectColumns.addAll(context.getHeader().getOrderedColumns().stream()
-			.map(oc -> new SelectColumn().setColumnName(oc.getName()))
-			.collect(Collectors.toList())
+		context.getSelectedColumnIndices().forEach(colIndex -> 
+			selectColumns.add(new SelectColumn().setColumnName(context.getHeader().getOrderedColumns().get(colIndex).getName()))
 		);
 	}
 

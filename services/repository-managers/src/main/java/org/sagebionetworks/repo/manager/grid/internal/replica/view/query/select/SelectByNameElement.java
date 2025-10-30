@@ -2,28 +2,24 @@ package org.sagebionetworks.repo.manager.grid.internal.replica.view.query.select
 
 import java.util.List;
 import java.util.Map;
-import java.util.StringJoiner;
-import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.Context;
+import org.sagebionetworks.repo.model.grid.query.SelectByName;
 import org.sagebionetworks.repo.model.grid.query.SelectItem;
 import org.sagebionetworks.repo.model.grid.query.result.SelectColumn;
 
-public class SelectAllElement implements SelectItemElement {
+public class SelectByNameElement implements SelectItemElement {
+	
+	private String columnName;
 
-	public SelectAllElement(SelectItem item) {
-	}
-
-	public SelectAllElement() {
+	public SelectByNameElement(SelectItem item) {
+		this.columnName = ((SelectByName) item).getColumnName();
 	}
 
 	@Override
 	public void toSql(StringBuilder sqlBuilder, Map<String, Object> params, Context context) {
-		StringJoiner joiner = new StringJoiner(",");
-		for (int i=0; i<context.getHeader().getOrderedColumns().size(); i++) {
-			joiner.add(String.format("VALS->'$[%d]'", i));
-		}
-		sqlBuilder.append(joiner.toString());
+		Integer columnIndex = context.getColumnIndexForName(columnName);
+		sqlBuilder.append(String.format("VALS->'$[%d]'", columnIndex));
 	}
 
 	@Override
@@ -33,10 +29,7 @@ public class SelectAllElement implements SelectItemElement {
 
 	@Override
 	public void setSelect(Context context, Long index, List<SelectColumn> selectColumns) {
-		selectColumns.addAll(context.getHeader().getOrderedColumns().stream()
-			.map(oc -> new SelectColumn().setColumnName(oc.getName()))
-			.collect(Collectors.toList())
-		);
+		selectColumns.add(new SelectColumn().setColumnName(columnName));
 	}
 
 }

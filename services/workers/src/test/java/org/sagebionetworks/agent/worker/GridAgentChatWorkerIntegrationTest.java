@@ -38,6 +38,8 @@ import org.sagebionetworks.repo.model.agent.AgentChatResponse;
 import org.sagebionetworks.repo.model.agent.AgentSession;
 import org.sagebionetworks.repo.model.agent.CreateAgentSessionRequest;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
+import org.sagebionetworks.repo.model.agent.TraceEvent;
+import org.sagebionetworks.repo.model.agent.TraceEventsRequest;
 import org.sagebionetworks.repo.model.entity.BindSchemaToEntityRequest;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
@@ -302,6 +304,23 @@ public class GridAgentChatWorkerIntegrationTest {
 			}
 			return Pair.create(false, null);
 		});
+		
+		chatRequest = "Can you provide the value of column b for the currently selected row?";
+		
+		String jobId = asynchronousJobWorkerHelper.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
+			.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {
+				assertNotNull(response);
+				assertEquals(agentSession.getSessionId(), response.getSessionId());
+				assertNotNull(response.getResponseText());
+				System.out.println(response.getResponseText());
+				assertTrue(response.getResponseText().toLowerCase().contains("null"));
+			}, MAX_WAIT_MS).getJobToken();
+		
+		String jobTraceText = agentService.getChatTrace(admin.getId(), new TraceEventsRequest().setJobId(jobId)).getPage()
+			.stream().map(TraceEvent::getMessage).reduce(String::concat).orElseThrow();
+		
+		// Verifies that the agent used a SelectByName to get the value of column b
+		assertTrue(jobTraceText.contains("org.sagebionetworks.repo.model.grid.query.SelectByName"));
 	}
 
 	public JsonRxMessage createSetSelectionMessage(GridHeader header, ReplicaSelectionModel selection,

@@ -13,6 +13,7 @@ import org.sagebionetworks.repo.model.grid.query.RowIsValidFilter;
 import org.sagebionetworks.repo.model.grid.query.RowSelectionFilter;
 import org.sagebionetworks.repo.model.grid.query.RowValidationResultFilter;
 import org.sagebionetworks.repo.model.grid.query.SelectAll;
+import org.sagebionetworks.repo.model.grid.query.SelectByName;
 import org.sagebionetworks.repo.model.grid.query.ValidationOperator;
 import org.sagebionetworks.repo.model.grid.query.function.CountStar;
 import org.sagebionetworks.repo.model.grid.update.SetValue;
@@ -37,11 +38,18 @@ public class GridExampleJson {
 						.setQuery_json(JDOSecondaryPropertyUtils.createJSONFromObject(
 								new Query().setColumnSelection(List.of(new SelectAll())).setLimit(10L))),
 				// Example 2
+				new QueryExample().setDescription("Return up to 10 rows selecting two columns by their name (no filters).")
+						.setQuery_json(JDOSecondaryPropertyUtils.createJSONFromObject(
+							new Query().setColumnSelection(
+								List.of(new SelectByName().setColumnName("name"),
+										new SelectByName().setColumnName("age"))
+							).setLimit(10L))),
+				// Example 3
 				new QueryExample()
 						.setDescription("Return the total number of rows currently in the grid (single count value).")
 						.setQuery_json(JDOSecondaryPropertyUtils.createJSONFromObject(
 								new Query().setColumnSelection(List.of(new CountStar())).setLimit(1L))),
-				// Example 3
+				// Example 4
 				new QueryExample().setDescription(
 						"Return up to 50 rows selecting all columns where age > 25 AND JSON schema validation is invalid (isValid = false).")
 						.setQuery_json(JDOSecondaryPropertyUtils
@@ -50,7 +58,7 @@ public class GridExampleJson {
 												.setColumnName("age").setOperator(CellValueOperator.GREATER_THAN)
 												.setValue(List.of(25)), new RowIsValidFilter().setValue(false)))
 										.setLimit(50L))),
-				// Example 4
+				// Example 5
 				new QueryExample().setDescription(
 						"Count the currently selected rows whose validation error message contains 'expected type' (SQL LIKE pattern using % wildcards).")
 						.setQuery_json(JDOSecondaryPropertyUtils

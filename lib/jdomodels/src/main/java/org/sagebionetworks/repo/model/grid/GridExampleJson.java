@@ -14,6 +14,7 @@ import org.sagebionetworks.repo.model.grid.query.RowSelectionFilter;
 import org.sagebionetworks.repo.model.grid.query.RowValidationResultFilter;
 import org.sagebionetworks.repo.model.grid.query.SelectAll;
 import org.sagebionetworks.repo.model.grid.query.SelectByName;
+import org.sagebionetworks.repo.model.grid.query.SelectSelection;
 import org.sagebionetworks.repo.model.grid.query.ValidationOperator;
 import org.sagebionetworks.repo.model.grid.query.function.CountStar;
 import org.sagebionetworks.repo.model.grid.update.SetValue;
@@ -66,7 +67,14 @@ public class GridExampleJson {
 										.setFilters(List.of(new RowSelectionFilter().setIsSelected(true),
 												new RowValidationResultFilter().setOperator(ValidationOperator.LIKE)
 														.setValidationResultValue("%expected type%")))
-										.setLimit(1L)))),
+										.setLimit(1L))),
+				// Example 6
+				new QueryExample().setDescription(
+						"Return up to 10 rows selecting only the columns currently selected by the user.")
+						.setQuery_json(JDOSecondaryPropertyUtils
+								.createJSONFromObject(new Query().setColumnSelection(List.of(new SelectSelection()))
+										.setLimit(10L)))
+				),
 				writer);
 
 		System.out.println(writerToString(writer));

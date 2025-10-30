@@ -71,6 +71,16 @@ public class RowView {
 		return rowObject != null ? rowObject.getSynapseRow() : null;
 	}
 	
+	/**
+	 * Get the compact logical timestamp string for this row, or null if any link is null.
+	 */
+	public String getRowId() {
+		if (rowObject == null || rowObject.getData() == null || rowObject.getData().getVectorId() == null) {
+			return null;
+		}
+		return rowObject.getData().getVectorId().toCompact();
+	}
+	
 	public static CrdtId createCrdtIdFromLogical(LogicalTimestamp timestamp) {
 		return new CrdtId().setRep(timestamp.getReplicaId()).setSeq(timestamp.getSequenceNumber());
 	}

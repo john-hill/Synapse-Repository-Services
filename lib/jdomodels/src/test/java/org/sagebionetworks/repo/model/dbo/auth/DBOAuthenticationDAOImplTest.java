@@ -24,7 +24,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.sagebionetworks.StackConfigurationSingleton;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.UserGroup;
@@ -83,7 +82,6 @@ public class DBOAuthenticationDAOImplTest {
 		credential = new DBOCredential();
 		credential.setPrincipalId(userId);
 		credential.setPassHash("{PKCS5S2}1234567890abcdefghijklmnopqrstuvwxyz");
-		credential.setSecretKey("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
 		credential.setEtag(UUID.randomUUID().toString());
 		credential = basicDAO.createNew(credential);
 		
@@ -137,18 +135,6 @@ public class DBOAuthenticationDAOImplTest {
 	}
 	
 	@Test
-	public void testSecretKey() throws Exception {
-		Long userId = credential.getPrincipalId();
-		
-		// Getter should work
-		assertEquals(credential.getSecretKey(), authDAO.getSecretKey(userId));
-		
-		// Setter should work
-		authDAO.changeSecretKey(userId);
-		assertFalse(credential.getSecretKey().equals(authDAO.getSecretKey(userId)));
-	}
-	
-	@Test
 	public void testGetPasswordSalt() throws Exception {
 		String passHash = PBKDF2Utils.hashPassword("password", null);
 		byte[] salt = PBKDF2Utils.extractSalt(passHash);
@@ -181,9 +167,6 @@ public class DBOAuthenticationDAOImplTest {
 			}
 		}
 		
-		// Migration admin should have a specific API key
-		String secretKey = authDAO.getSecretKey(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId());
-		assertEquals(StackConfigurationSingleton.singleton().getMigrationAdminAPIKey(), secretKey);
 		assertTrue(authDAO.isTwoFactorAuthEnabled(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId()));
 		TermsOfServiceRequirements requirements = authDAO.getCurrentTermsOfServiceRequirements();
 		assertEquals(requirements.getMinimumTermsOfServiceVersion(), authDAO.getTermsOfServiceLatestVersion());

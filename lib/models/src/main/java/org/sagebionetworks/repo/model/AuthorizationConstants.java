@@ -58,15 +58,6 @@ public class AuthorizationConstants {
 		GRANT_CREATOR_ALL,
 		INHERIT_FROM_PARENT,
 	}
-	
-	/**
-	 * Per http://sagebionetworks.jira.com/browse/PLFM-192
-	 * authenticated requests made with an API key have the following
-	 * three header fields
-	 */
-	public static final String USER_ID_HEADER = "userId";
-	public static final String SIGNATURE_TIMESTAMP = "signatureTimestamp";
-	public static final String SIGNATURE = "signature";
 
 	// A header indicating the method of authorization used that's injected by the Authentication filter
 	public static final String SYNAPSE_AUTHENTICATION_METHOD_HEADER_NAME = "authenticationMethod";

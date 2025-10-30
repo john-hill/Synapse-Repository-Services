@@ -436,6 +436,7 @@ public class AgentManagerImplUnitTest {
 		when(mockAgentDao.createOrGetRegistration(AgentType.BASELINE, new AgentRegistrationRequest()
 				.setAwsAgentId(stackBedrockGridAgentId).setAwsAliasId(AgentManagerImpl.TSTALIASID)))
 				.thenReturn(agentRegistration);
+		when(mockContextValidator.validate(nonSageNonAdmin, createRequest.getSessionContext())).thenReturn(createRequest.getSessionContext());
 		when(mockAgentDao.createSession(nonSageNonAdmin.getId(), createRequest.getAgentAccessLevel(),
 				agentRegistration.getAgentRegistrationId(), createRequest.getSessionContext())).thenReturn(session);
 		
@@ -453,10 +454,10 @@ public class AgentManagerImplUnitTest {
 				agentRegistration.getAgentRegistrationId(), createRequest.getSessionContext())).thenReturn(session);
 		when(mockAgentDao.getRegeistration(agentRegistration.getAgentRegistrationId()))
 				.thenReturn(Optional.of(agentRegistration));
+		when(mockContextValidator.validate(nonSageNonAdmin, createRequest.getSessionContext())).thenReturn(createRequest.getSessionContext());
 		// call under test
 		AgentSession result = manager.createSession(nonSageNonAdmin, createRequest);
 		assertEquals(session, result);
-		verify(mockContextValidator).validate(nonSageNonAdmin, createRequest.getSessionContext());
 	}
 
 	@Test

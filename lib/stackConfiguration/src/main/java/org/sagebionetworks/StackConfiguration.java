@@ -166,11 +166,6 @@ public interface StackConfiguration {
 	public String getMigrationAdminUsername();
 
 	/**
-	 * @return The API key of the migration admin
-	 */
-	public String getMigrationAdminAPIKey();
-
-	/**
 	 * @return whether controller logging is enabled or not.
 	 */
 	public boolean getControllerLoggingEnabled();

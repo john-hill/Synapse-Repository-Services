@@ -183,17 +183,6 @@ public class AuthenticationManagerImpl implements AuthenticationManager {
 			throw new TwoFactorAuthRequiredException(user.getId(), twoFaManager.generate2FaToken(user, TwoFactorAuthTokenContext.PASSWORD_CHANGE));
 		}
 	}
-
-	@Override
-	public String getSecretKey(Long principalId) throws NotFoundException {
-		return authDAO.getSecretKey(principalId);
-	}
-
-	@Override
-	@WriteTransaction
-	public void changeSecretKey(Long principalId) {
-		authDAO.changeSecretKey(principalId);
-	}
 	
 	@Override
 	public PasswordResetSignedToken createPasswordResetToken(long userId) throws NotFoundException {

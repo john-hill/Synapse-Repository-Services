@@ -9,8 +9,6 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.Logger;
-import org.json.JSONArray;
-import org.json.JSONException;
 import org.json.JSONObject;
 import org.sagebionetworks.LoggerProvider;
 import org.sagebionetworks.repo.manager.agent.context.AgentContextValidator;
@@ -121,9 +119,10 @@ public class AgentManagerImpl implements AgentManager {
 		ValidateArgument.required(request.getAgentAccessLevel(), "request.agentAccessLevel");
 		// only authenticated users can start a chat session.
 		AuthorizationUtils.disallowAnonymous(userInfo);
-		if (request.getSessionContext() != null) {
-			contextValidator.validate(userInfo, request.getSessionContext());
-		}
+		SessionContext context = request.getSessionContext() != null
+				? contextValidator.validate(userInfo, request.getSessionContext())
+				: null;
+
 		String baselineAgentId = request.getSessionContext() instanceof GridAgentSessionContext
 				? stackBedrockGridAgentId
 				: stackBedrockAgentId;
@@ -134,7 +133,7 @@ public class AgentManagerImpl implements AgentManager {
 								new AgentRegistrationRequest().setAwsAgentId(baselineAgentId).setAwsAliasId(TSTALIASID))
 						: getAgentRegistration(request.getAgentRegistrationId());
 		return agentDao.createSession(userInfo.getId(), request.getAgentAccessLevel(),
-				registration.getAgentRegistrationId(), request.getSessionContext());
+				registration.getAgentRegistrationId(), context);
 	}
 
 	@WriteTransaction

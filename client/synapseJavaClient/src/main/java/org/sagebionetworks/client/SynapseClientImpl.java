@@ -126,7 +126,6 @@ import org.sagebionetworks.repo.model.auth.ChangePasswordWithCurrentPassword;
 import org.sagebionetworks.repo.model.auth.JSONWebTokenHelper;
 import org.sagebionetworks.repo.model.auth.LoginResponse;
 import org.sagebionetworks.repo.model.auth.NewUser;
-import org.sagebionetworks.repo.model.auth.SecretKey;
 import org.sagebionetworks.repo.model.auth.TermsOfServiceInfo;
 import org.sagebionetworks.repo.model.auth.TermsOfServiceRequirements;
 import org.sagebionetworks.repo.model.auth.TermsOfServiceSignRequest;
@@ -420,6 +419,7 @@ import org.sagebionetworks.util.FileProviderImpl;
 import org.sagebionetworks.util.ValidateArgument;
 
 import com.google.common.base.Joiner;
+
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwsHeader;
 import io.jsonwebtoken.Jwt;
@@ -3777,11 +3777,6 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 		ValidateArgument.required(md5, "md5");
 		String url = ENTITY + "/md5/" + md5;
 		return getPaginatedResults(getRepoEndpoint(), url, EntityHeader.class).getResults();
-	}
-
-	@Override
-	public String retrieveApiKey() throws SynapseException {
-		return getJSONEntity(getAuthEndpoint(),"/secretKey", SecretKey.class).getSecretKey();
 	}
 
 	@Override

@@ -11,8 +11,6 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.EnumSource.Mode;
-import org.sagebionetworks.repo.model.grid.patch.compact.LogicalTimestampCompactSerializable;
 
 public class ConValueTest {
 
@@ -86,49 +84,6 @@ public class ConValueTest {
     }
 
     @Test
-    public void testToCompactUndefinedNullAndOther() {
-        ConValue undefined = new ConValue(ConType.UNDEFINED, null);
-        assertTrue(new JSONArray("[0,0]").similar(undefined.toCompact()));
-
-        ConValue n = new ConValue(ConType.NULL, null);
-        assertTrue(new JSONArray("[null]").similar(n.toCompact()));
-
-        ConValue l = new ConValue(ConType.LONG, 123L);
-        assertTrue(new JSONArray().put(123L).similar(l.toCompact()));
-    }
-
-    @Test
-    public void testTimestampToCompactAndFromCompact() {
-        LogicalTimestamp ts = new LogicalTimestamp().setReplicaId(10L).setSequenceNumber(20L);
-        // use the compact serializer to create the JSONArray timestamp representation
-        JSONArray tsArray = LogicalTimestampCompactSerializable.serialize(ts);
-        ConValue cv = new ConValue(ConType.TIMESTAMP, tsArray);
-        JSONArray compact = cv.toCompact();
-        // should be [0, <tsArray>]
-        assertEquals(2, compact.length());
-        assertEquals(0, compact.getInt(0));
-        // second element is the timestamp array
-        assertTrue(compact.get(1) instanceof JSONArray);
-
-        // fromCompact should reconstruct a ConValue with a LogicalTimestamp value
-        ConValue reconstructed = ConValue.fromCompact(compact);
-        assertEquals(ConType.TIMESTAMP, reconstructed.getType());
-        assertTrue(reconstructed.getValue() instanceof LogicalTimestamp);
-        assertEquals(ts, reconstructed.getValue());
-    }
-
-    @Test
-    public void testFromCompactPrimitivesAndNull() {
-        ConValue vNull = ConValue.fromCompact(new JSONArray("[null]"));
-        assertEquals(ConType.NULL, vNull.getType());
-        assertEquals(JSONObject.NULL, vNull.getValue());
-
-        ConValue vNum = ConValue.fromCompact(new JSONArray("[123]"));
-        assertEquals(ConType.LONG, vNum.getType());
-        assertEquals(Long.valueOf(123), vNum.getValue());
-    }
-
-    @Test
     public void testFromCompactInvalidThrows() {
         // length 2 but second element not timestamp array
         JSONArray bad = new JSONArray();
@@ -182,16 +137,79 @@ public class ConValueTest {
         assertNotEquals(s1.hashCode(), s2.hashCode());
     }
 
+    enum ConValueTestCase {
+        NULL(ConType.NULL, null, "[null]"),
+        NULL_WITH_JSON_NULL(ConType.NULL, JSONObject.NULL, "[null]"),
+        UNDEFINED(ConType.UNDEFINED, null, "[0,0]"),
+        TIMESTAMP(ConType.TIMESTAMP, new LogicalTimestamp().setReplicaId(123L).setSequenceNumber(456L), "[0,[123,456]]"),
+        STRING_WITH_NULL_VALUE(ConType.STRING, null, "[null]", new ConValue(ConType.NULL, null)), // null value for STRING becomes NULL type after deserialization
+        EMPTY_STRING(ConType.STRING, "", "[\"\"]"),
+        STRING(ConType.STRING, "hello", "[\"hello\"]"),
+        LONG_ZERO(ConType.LONG, 0L, "[0]"),
+        LONG(ConType.LONG, 123L, "[123]"),
+        LONG_WITH_INT(ConType.LONG, 4, "[4]"),
+        DOUBLE(ConType.DOUBLE, 1.25, "[1.25]"),
+        DOUBLE_ZERO(ConType.DOUBLE, 0.0, "[0]"),
+        BOOLEAN_TRUE(ConType.BOOLEAN, true, "[true]"),
+        BOOLEAN_FALSE(ConType.BOOLEAN, false, "[false]"),
+        ARRAY(ConType.JSON_ARRAY, new JSONArray("[1,2,3]"),"[[1,2,3]]"),
+        ARRAY_EMPTU(ConType.JSON_ARRAY, new JSONArray("[]"),"[[]]"),
+        OBJECT(ConType.JSON_OBJECT, new JSONObject("{\"key\":99}"),"[{\"key\":99}]"),
+        OBJECT_EMPTY(ConType.JSON_OBJECT, new JSONObject("{}"),"[{}]");
+
+
+        ConType type;
+        Object value;
+        String expectedSerializationValue;
+        // Optionally define the expected ConValue after deserialization, if different from the original
+        ConValue expectedConValueAfterDeserialize = null;
+
+        ConValueTestCase(ConType type, Object value, String expectedSerializationValue) {
+            this.type = type;
+            this.value = value;
+            this.expectedSerializationValue = expectedSerializationValue;
+        }
+
+        ConValueTestCase(ConType type, Object value, String expectedSerializationValue, ConValue expectedConValueAfterDeserialize) {
+            this.type = type;
+            this.value = value;
+            this.expectedSerializationValue = expectedSerializationValue;
+            this.expectedConValueAfterDeserialize = expectedConValueAfterDeserialize;
+        }
+    }
+
     @ParameterizedTest
-    @EnumSource(value = ConType.class, mode = Mode.EXCLUDE, names = { "NULL", "UNDEFINED" })
-    public void testGetTypeAndValueRoundtrip(ConType expectedType) {
+    @EnumSource(ConValueTestCase.class)
+    public void testGetTypeAndValueFromConTypeRoundTrip(ConValueTestCase testCase) {
+        // create a representative value for each supported class
+        ConValue v = new ConValue(testCase.type, testCase.value);
+
+        JSONArray compact = v.toCompact();
+        assertEquals(testCase.expectedSerializationValue, compact.toString());
+
+        ConValue reconstructed = ConValue.fromCompact(compact);
+        ConValue expected = v;
+        if (testCase.expectedConValueAfterDeserialize != null) {
+            expected = testCase.expectedConValueAfterDeserialize;
+        }
+        assertEquals(expected, reconstructed);
+    }
+
+
+    @ParameterizedTest
+    @EnumSource(value = ConType.class, mode = EnumSource.Mode.EXCLUDE, names = { "NULL", "UNDEFINED" })
+    public void testGetTypeAndValueFromJavaClassRoundtrip(ConType expectedType) {
         // create a representative value for each supported class
         Object testVal = getTestValue(expectedType);
         ConValue v = new ConValue(expectedType, testVal);
         assertEquals(expectedType, v.getType());
         assertEquals(testVal instanceof Integer && expectedType == ConType.LONG ? Long.valueOf((Integer) testVal) : testVal,
                 v.getValue());
+
+        // Test compact serialization round trip is not lossy
+        assertEquals(ConValue.fromCompact(v.toCompact()) ,v);
     }
+
 
     private Object getTestValue(ConType type) {
         Class<?>[] classes = type.getSupportedClasses();

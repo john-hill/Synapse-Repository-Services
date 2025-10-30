@@ -19,11 +19,12 @@ public class ConstantNode implements Node, HasJsonValue<ConstantNode> {
 		return value;
 	}
 
+	public ConstantNode setValue(ConValue value) {
+		this.value = value;
+		return this;
+	}
+
 	public ConstantNode setValue(Object value) {
-		if (value instanceof ConValue) {
-			this.value = (ConValue) value;
-			return this;
-		}
 		this.value = new ConValue(ConType.fromValue(value), value);
 		return this;
 	}

@@ -119,15 +119,27 @@ public class ConValue {
 	 * @return
 	 */
 	public JSONArray toCompact() {
-		if (ConType.UNDEFINED.equals(type)) {
-			return new JSONArray("[0,0]");
-		} else if (ConType.NULL.equals(type) || this.value == null) {
-			return new JSONArray("[null]");
+		JSONArray compact = new JSONArray();
+
+		// UNDEFINED and TIMESTAMP always have first element 0
+		if (ConType.UNDEFINED.equals(type) || ConType.TIMESTAMP.equals(type)) {
+			compact.put(0);
 		}
 
-		JSONArray compact = new JSONArray();
-		if (ConType.TIMESTAMP.equals(type)) {
-			compact.put(0);
+		// Append the value
+		Object value = this.value;
+		if (ConType.UNDEFINED.equals(type)) {
+			// Value for UNDEFINED is always 0
+			value = 0;
+		} else if (ConType.TIMESTAMP.equals(type)) {
+			// Serialize the TIMESTAMP to a JSONArray
+			LogicalTimestamp ts = (LogicalTimestamp) this.value;
+			JSONArray timestamp =  new JSONArray();
+			timestamp.put(ts.getReplicaId());
+			timestamp.put(ts.getSequenceNumber());
+			value = timestamp;
+		} else if (ConType.NULL.equals(type) || this.value == null) {
+			value = JSONObject.NULL;
 		}
 		compact.put(value);
 		return compact;

@@ -20,6 +20,10 @@ public class ConstantNode implements Node, HasJsonValue<ConstantNode> {
 	}
 
 	public ConstantNode setValue(ConValue value) {
+		if (value == null) {
+			this.value = new ConValue(ConType.UNDEFINED, null);
+			return this;
+		}
 		this.value = value;
 		return this;
 	}
@@ -43,6 +47,9 @@ public class ConstantNode implements Node, HasJsonValue<ConstantNode> {
 
 	@Override
 	public String getValueAsJson() {
+		if (value == null) {
+			return null;
+		}
 		return value.toJson();
 	}
 

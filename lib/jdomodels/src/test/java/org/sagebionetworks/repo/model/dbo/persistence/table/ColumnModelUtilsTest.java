@@ -25,7 +25,6 @@ import org.sagebionetworks.repo.model.table.ColumnConstants;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.FacetSortConfig;
-import org.sagebionetworks.repo.model.table.FacetSortDirection;
 import org.sagebionetworks.repo.model.table.FacetType;
 import org.sagebionetworks.repo.model.table.JsonSubColumnModel;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;

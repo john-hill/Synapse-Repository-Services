@@ -100,6 +100,7 @@ import org.sagebionetworks.repo.model.table.FacetColumnResultRange;
 import org.sagebionetworks.repo.model.table.FacetColumnResultValueCount;
 import org.sagebionetworks.repo.model.table.FacetColumnResultValues;
 import org.sagebionetworks.repo.model.table.FacetColumnValuesRequest;
+import org.sagebionetworks.repo.model.table.FacetSortConfig;
 import org.sagebionetworks.repo.model.table.FacetType;
 import org.sagebionetworks.repo.model.table.PartialRow;
 import org.sagebionetworks.repo.model.table.PartialRowSet;
@@ -2196,7 +2197,41 @@ public class TableWorkerIntegrationTest {
 			assertEquals(expected, facets);
 		});
 	}
+	
+	@Test
+	public void testFacetWithSorting() throws Exception {
+		schema = columnManager.createColumnModels(adminUserInfo, List.of(
+			new ColumnModel().setName("foo").setColumnType(ColumnType.INTEGER).setFacetType(FacetType.enumeration).setFacetSortConfig(FacetSortConfig.VALUE_DESC))
+		);
+		
+		createTableWithSchema();
 
+		referenceSet = appendRows(adminUserInfo, tableId, new RowSet().setRows(List.of(
+				new Row().setValues(List.of("2021")),
+				new Row().setValues(List.of("2021")),
+				new Row().setValues(List.of("2022")),
+				new Row().setValues(List.of("2025"))
+			)).setHeaders(TableModelUtils.getSelectColumns(schema)).setTableId(tableId), mockProgressCallback
+		);
+		
+		simpleSql = "select * from " + tableId;
+
+		query.setSql(simpleSql);
+		
+		queryOptions.withReturnFacets(true).withRunQuery(false).withRunCount(false);
+
+		waitForConsistentQueryBundle(adminUserInfo, query, queryOptions, (queryResultBundle) -> {
+			List<FacetColumnResult> facets = queryResultBundle.getFacets();
+			List<FacetColumnResult> expected = List.of(
+				new FacetColumnResultValues().setColumnName("foo").setFacetType(FacetType.enumeration).setFacetValues(List.of(
+					new FacetColumnResultValueCount().setIsSelected(false).setValue("2025").setCount(1L),
+					new FacetColumnResultValueCount().setIsSelected(false).setValue("2022").setCount(1L),
+					new FacetColumnResultValueCount().setIsSelected(false).setValue("2021").setCount(2L)	
+				))
+			);
+			assertEquals(expected, facets);
+		});
+	}
 
 	@Test
 	public void testUnnest_returnCount() throws Exception{

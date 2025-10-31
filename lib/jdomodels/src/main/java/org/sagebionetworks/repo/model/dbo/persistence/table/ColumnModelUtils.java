@@ -20,7 +20,9 @@ import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.table.ColumnChange;
 import org.sagebionetworks.repo.model.table.ColumnConstants;
 import org.sagebionetworks.repo.model.table.ColumnModel;
+import org.sagebionetworks.repo.model.table.ColumnModelInterface;
 import org.sagebionetworks.repo.model.table.ColumnType;
+import org.sagebionetworks.repo.model.table.FacetType;
 import org.sagebionetworks.repo.model.table.JsonSubColumnModel;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 import org.sagebionetworks.schema.adapter.org.json.EntityFactory;
@@ -262,9 +264,20 @@ public class ColumnModelUtils {
 					});
 				}
 			}
+			
+			validateFacetSortConfig(clone);
+			
 			return clone;
 		} catch (JSONObjectAdapterException e) {
 			throw new RuntimeException(e);
+		}
+	}
+	
+	static void validateFacetSortConfig(ColumnModelInterface model) {
+		if (model.getFacetSortConfig() != null) {
+			if (!FacetType.enumeration.equals(model.getFacetType()) ) {
+				throw new IllegalArgumentException("Only columns with FacetType.enumeration can have a facetSortConfig.");
+			}
 		}
 	}
 	
@@ -279,6 +292,7 @@ public class ColumnModelUtils {
 		if (ColumnTypeListMappings.isList(sub.getColumnType())) {
 			throw new IllegalArgumentException("The columnType of a JsonSubColumnModel cannot be a list.");
 		}
+		validateFacetSortConfig(sub);
 	}
 
 	static void validateListLengthForClone(ColumnModel clone){

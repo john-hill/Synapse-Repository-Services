@@ -24,6 +24,8 @@ import org.sagebionetworks.repo.model.table.ColumnChange;
 import org.sagebionetworks.repo.model.table.ColumnConstants;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
+import org.sagebionetworks.repo.model.table.FacetSortConfig;
+import org.sagebionetworks.repo.model.table.FacetSortDirection;
 import org.sagebionetworks.repo.model.table.FacetType;
 import org.sagebionetworks.repo.model.table.JsonSubColumnModel;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
@@ -441,6 +443,40 @@ public class ColumnModelUtilsTest {
 	}
 	
 	@Test
+	public void testNormalizedCloneWithFacetSortDirection() {
+		ColumnModel column = new ColumnModel()
+			.setName("column")
+			.setColumnType(ColumnType.STRING)
+			.setFacetType(FacetType.enumeration)
+			.setFacetSortConfig(FacetSortConfig.FREQ_DESC);
+		
+			// call under test
+			ColumnModelUtils.createNormalizedClone(column, StackConfigurationSingleton.singleton().getTableMaxEnumValues());
+	}
+	
+	@Test
+	public void testNormalizedCloneWithInvalidFacetSortDirection() {
+		ColumnModel column = new ColumnModel()
+			.setName("column")
+			.setColumnType(ColumnType.STRING)
+			.setFacetSortConfig(FacetSortConfig.FREQ_DESC);
+		
+		column.setFacetType(null);
+
+		assertEquals("Only columns with FacetType.enumeration can have a facetSortConfig.", assertThrows(IllegalArgumentException.class, ()-> {
+			// call under test
+			ColumnModelUtils.createNormalizedClone(column, StackConfigurationSingleton.singleton().getTableMaxEnumValues());
+		}).getMessage());
+		
+		column.setFacetType(FacetType.range);
+		
+		assertEquals("Only columns with FacetType.enumeration can have a facetSortConfig.", assertThrows(IllegalArgumentException.class, ()-> {
+			// call under test
+			ColumnModelUtils.createNormalizedClone(column, StackConfigurationSingleton.singleton().getTableMaxEnumValues());
+		}).getMessage());
+	}
+	
+	@Test
 	public void testValidateJsonSubColumn() {
 		JsonSubColumnModel sub = new JsonSubColumnModel().setName("a").setJsonPath("$.a").setColumnType(ColumnType.INTEGER);
 		// call under test
@@ -505,6 +541,42 @@ public class ColumnModelUtilsTest {
 			ColumnModelUtils.validateJsonSubColumn(sub);
 		}).getMessage();
 		assertEquals("The columnType of a JsonSubColumnModel cannot be a list.", message);
+	}
+	
+	@Test
+	public void testValidateJsonSubColumnWithFacetSortDirection() {
+		JsonSubColumnModel sub = new JsonSubColumnModel()
+			.setName("a")
+			.setJsonPath("$.a")
+			.setColumnType(ColumnType.INTEGER)
+			.setFacetType(FacetType.enumeration)
+			.setFacetSortConfig(FacetSortConfig.FREQ_DESC);
+		
+		// call under test
+		ColumnModelUtils.validateJsonSubColumn(sub);
+	}
+
+	@Test
+	public void testValidateJsonSubColumnWithInvalidFacetSortDirection() {
+		JsonSubColumnModel sub = new JsonSubColumnModel()
+			.setName("a")
+			.setJsonPath("$.a")
+			.setColumnType(ColumnType.INTEGER)
+			.setFacetSortConfig(FacetSortConfig.FREQ_DESC);
+		
+		sub.setFacetType(null);
+		
+		assertEquals("Only columns with FacetType.enumeration can have a facetSortConfig.", assertThrows(IllegalArgumentException.class, () -> {			
+			// call under test
+			ColumnModelUtils.validateJsonSubColumn(sub);
+		}).getMessage());
+		
+		sub.setFacetType(FacetType.range);
+		
+		assertEquals("Only columns with FacetType.enumeration can have a facetSortConfig.", assertThrows(IllegalArgumentException.class, () -> {			
+			// call under test
+			ColumnModelUtils.validateJsonSubColumn(sub);
+		}).getMessage());
 	}
 
 	@Test

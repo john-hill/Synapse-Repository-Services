@@ -73,8 +73,20 @@ public class GridExampleJson {
 						"Return up to 10 rows selecting only the columns currently selected by the user.")
 						.setQuery_json(JDOSecondaryPropertyUtils
 								.createJSONFromObject(new Query().setColumnSelection(List.of(new SelectSelection()))
-										.setLimit(10L)))
-				),
+										.setLimit(10L))),
+				// Example 7
+				new QueryExample().setDescription(
+								"Return up to 10 rows where subspecies is undefined and species is not null.")
+						// Hard-coded JSON because our auto-generated models do not distinguish between null and undefined
+						.setQuery_json(JDOSecondaryPropertyUtils
+								.createJSONFromObject(new Query()
+										.setColumnSelection(List.of(new SelectAll()))
+										.setFilters(List.of(
+												new CellValueFilter().setColumnName("subspecies")
+														.setOperator(CellValueOperator.IS_UNDEFINED),
+												new CellValueFilter().setColumnName("species")
+														.setOperator(CellValueOperator.IS_NOT_NULL)))
+										.setLimit(10L)))),
 				writer);
 
 		System.out.println(writerToString(writer));
@@ -90,12 +102,11 @@ public class GridExampleJson {
 				// Update Example 2
 				new UpdateExample().setDescription(
 						"For rows where height > 12, set type = 'tall' and footing = null; cap updates at 10 rows.")
-						.setUpdate_json(JDOSecondaryPropertyUtils.createJSONFromObject(new Update()
-								.setSet(List.of(new SetValue().setColumnName("type").setValue("tall"),
-										new SetValue().setColumnName("footing").setValue(null)))
-								.setFilters(List.of(new CellValueFilter().setColumnName("height")
-										.setOperator(CellValueOperator.GREATER_THAN).setValue(List.of(12))))
-								.setLimit(10L))),
+						// Hard-coded JSON because our auto-generated models do not distinguish between null and undefined
+						.setUpdate_json("{" +
+								"\"set\":[{\"columnName\":\"type\",\"value\":\"tall\"},{\"columnName\":\"footing\",\"value\":null}]," +
+								"\"filters\":[{\"concreteType\":\"org.sagebionetworks.repo.model.grid.query.CellValueFilter\",\"columnName\":\"height\",\"operator\":\"GREATER_THAN\",\"value\":[12]}]," +
+								"\"limit\":10}"),
 				// Update Example 3
 				new UpdateExample().setDescription("Set name = 'Dave' for all currently selected rows.")
 						.setUpdate_json(JDOSecondaryPropertyUtils.createJSONFromObject(
@@ -106,7 +117,15 @@ public class GridExampleJson {
 						"Set status = true only for rows with IDs r2 and r5 (explicit RowIdFilter targeting previously retrieved IDs).")
 						.setUpdate_json(JDOSecondaryPropertyUtils.createJSONFromObject(
 								new Update().setSet(List.of(new SetValue().setColumnName("status").setValue(true)))
-										.setFilters(List.of(new RowIdFilter().setRowIdsIn(List.of("r2", "r5"))))))),
+										.setFilters(List.of(new RowIdFilter().setRowIdsIn(List.of("r2", "r5")))))),
+				// Update Example 5
+				new UpdateExample().setDescription(
+						"Set color to undefined for rows where material is null.")
+						// Hard-coded JSON because our auto-generated models do not distinguish between null and undefined
+						.setUpdate_json("{" +
+								"\"set\":[{\"columnName\":\"color\"}]," +
+								"\"filters\":[{\"concreteType\":\"org.sagebionetworks.repo.model.grid.query.CellValueFilter\",\"columnName\":\"material\",\"operator\":\"IS_NULL\"}]" +
+							"}")),
 				writer);
 
 		System.out.println(writerToString(writer));

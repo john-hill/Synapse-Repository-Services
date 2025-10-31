@@ -64,6 +64,14 @@
 				{
 					"name": "IS_NOT_NULL",
 					"description": ""
+				},
+				{
+					"name": "IS_UNDEFINED",
+					"description": ""
+				},
+				{
+					"name": "IS_NOT_UNDEFINED",
+					"description": ""
 				}
 			]
 		},

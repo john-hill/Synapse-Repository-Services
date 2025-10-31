@@ -26,7 +26,11 @@ public enum CellValueOperatorElement {
 	//
 	IS_NULL("IS NULL", ValueMultiplicity.none),
 	//
-	IS_NOT_NULL("IS NOT NULL", ValueMultiplicity.none);
+	IS_NOT_NULL("IS NOT NULL", ValueMultiplicity.none),
+	//
+	IS_UNDEFINED("", ValueMultiplicity.none),
+	//
+	IS_NOT_UNDEFINED("", ValueMultiplicity.none);
 
 	final private String sql;
 	final private ValueMultiplicity valueMultiplicity;

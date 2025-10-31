@@ -147,15 +147,17 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		StringJoiner valsArrayJoiner = new StringJoiner(",");
 		StringJoiner valsJsonJoiner = new StringJoiner(",");
 		// read the values out of each array in the order defined in the header.
-		header.getOrderedColumns().forEach(c -> {
-			valsArrayJoiner.add(String.format("JSON_EXTRACT(V1.VEC_VAL, '$.c%d.v')", c.getVectorIndex()));
-			// We must check if VEC_VAL contains the path, otherwise JSON_EXTRACT will coalesce an undefined/missing value to a JSON `null` value, which we want to avoid.
-			valsJsonJoiner.add(String.format("CASE " +
-					"WHEN JSON_CONTAINS_PATH(V1.VEC_VAL, 'one', '$.c%d.v') = 1 " +
-					"THEN JSON_OBJECT('%s', JSON_EXTRACT(V1.VEC_VAL, '$.c%d.v')) " +
-					"ELSE JSON_OBJECT() " +
-					"END", c.getVectorIndex(), c.getName(), c.getVectorIndex()));
-		});
+		for (int i = 0; i < header.getOrderedColumns().size(); i++) {
+			Column c = header.getOrderedColumns().get(i);
+				valsArrayJoiner.add(String.format("JSON_EXTRACT(V1.VEC_VAL, '$.c%d.v')", c.getVectorIndex()));
+				// We must check if VEC_VAL contains the path, otherwise JSON_EXTRACT will coalesce an undefined/missing value to a JSON `null` value, which we want to avoid.
+				valsJsonJoiner.add(String.format("CASE " +
+						"WHEN JSON_CONTAINS_PATH(V1.VEC_VAL, 'one', '$.c%d.v') = 1 " +
+						"THEN JSON_OBJECT(:colName%d, JSON_EXTRACT(V1.VEC_VAL, '$.c%d.v')) " +
+						"ELSE JSON_OBJECT() " +
+						"END", c.getVectorIndex(), i, c.getVectorIndex()));
+				params.put("colName" + i, c.getName());
+		}
 
 		String selectArray = valsArrayJoiner.toString();
 		String selectJson = valsJsonJoiner.toString();

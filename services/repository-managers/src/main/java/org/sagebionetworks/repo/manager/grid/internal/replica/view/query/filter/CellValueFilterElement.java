@@ -83,7 +83,7 @@ public class CellValueFilterElement implements FilterElement {
 			handleMultipleValues(sqlBuilder, params, bind, columnIndex);
 			break;
 		case none:
-			handleNoValue(sqlBuilder, columnIndex);
+			handleNoValue(sqlBuilder, params, bind, columnName);
 			break;
 		default:
 			throw new IllegalArgumentException("Unknown operation: " + operator);
@@ -133,11 +133,26 @@ public class CellValueFilterElement implements FilterElement {
 		params.put(bind, toBind);
 	}
 
-	private void handleNoValue(StringBuilder sqlBuilder, Integer columnIndex) {
+	private void handleNoValue(StringBuilder sqlBuilder, Map<String, Object> params, String bind, String columnName) {
 		if (value != null && !value.isEmpty()) {
 			throw new IllegalArgumentException("Expected no value for operator: " + operator);
 		}
-		sqlBuilder.append(" JSON_VALUE(VALS, '$[").append(columnIndex).append("]') ").append(operator.toSql());
+
+		if (CellValueOperatorElement.IS_UNDEFINED.equals(operator) || CellValueOperatorElement.IS_NOT_UNDEFINED.equals(operator)) {
+			if (CellValueOperatorElement.IS_UNDEFINED.equals(operator)) {
+				sqlBuilder.append(" NOT");
+			}
+			// Check if the property is missing from the JSON document
+			sqlBuilder.append(" JSON_CONTAINS_PATH(VALS_JSON, 'one', CONCAT('$.', :" + bind + ")) ");
+		} else if (CellValueOperatorElement.IS_NULL.equals(operator) || CellValueOperatorElement.IS_NOT_NULL.equals(operator)) {
+			if (CellValueOperatorElement.IS_NOT_NULL.equals(operator)) {
+				sqlBuilder.append(" NOT ");
+			}
+			// Check if the JSON document explicitly has a null value for this property
+			sqlBuilder.append(" JSON_OVERLAPS(VALS_JSON, CONCAT('{\"', :" + bind + ", '\": null}')) ");
+		}
+
+		params.put(bind, columnName);
 	}
 
 	private boolean isJsonType(Object val) {

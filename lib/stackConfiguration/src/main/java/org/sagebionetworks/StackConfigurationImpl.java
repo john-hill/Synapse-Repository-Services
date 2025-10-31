@@ -306,13 +306,6 @@ public class StackConfigurationImpl implements StackConfiguration {
 	}
 
 	/**
-	 * @return The API key of the migration admin
-	 */
-	public String getMigrationAdminAPIKey() {
-		return stackEncrypter.getDecryptedProperty("org.sagebionetworks.migration.admin.apikey");
-	}
-
-	/**
 	 * @return whether controller logging is enabled or not.
 	 */
 	public boolean getControllerLoggingEnabled() {

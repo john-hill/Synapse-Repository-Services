@@ -122,17 +122,6 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 	}
 	
 	@Override
-	public String getSecretKey(Long principalId) throws NotFoundException {
-		return authManager.getSecretKey(principalId);
-	}
-	
-	@Override
-	@WriteTransaction
-	public void deleteSecretKey(Long principalId) throws NotFoundException {
-		authManager.changeSecretKey(principalId);
-	}
-	
-	@Override
 	public boolean hasUserAcceptedTermsOfService(Long userId) throws NotFoundException {
 		return tosManager.hasUserAcceptedTermsOfService(userId);
 	}

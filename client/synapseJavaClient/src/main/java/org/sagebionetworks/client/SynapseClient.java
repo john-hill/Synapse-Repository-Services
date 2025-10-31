@@ -1216,8 +1216,6 @@ public interface SynapseClient extends BaseClient {
 
 	public List<EntityHeader> getEntityHeaderByMd5(String md5) throws SynapseException;
 
-	public String retrieveApiKey() throws SynapseException;
-
 	public String createPersonalAccessToken(AccessTokenGenerationRequest request) throws SynapseException;
 
 	public AccessTokenRecord retrievePersonalAccessTokenRecord(String tokenId) throws SynapseException;

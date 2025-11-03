@@ -623,7 +623,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("anInt")
-										.setOperator(CellValueOperatorElement.IS_NOT_UNDEFINED)))
+										.setOperator(CellValueOperatorElement.IS_DEFINED)))
 								.setLimit(100L).setOffset(0L)));
 	}
 
@@ -732,7 +732,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("aString")
-										.setOperator(CellValueOperatorElement.IS_NOT_UNDEFINED)))
+										.setOperator(CellValueOperatorElement.IS_DEFINED)))
 								.setLimit(100L).setOffset(0L)));
 	}
 

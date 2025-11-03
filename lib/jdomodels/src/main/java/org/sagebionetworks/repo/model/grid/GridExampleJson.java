@@ -39,11 +39,11 @@ public class GridExampleJson {
 						.setQuery_json(JDOSecondaryPropertyUtils.createJSONFromObject(
 								new Query().setColumnSelection(List.of(new SelectAll())).setLimit(10L))),
 				// Example 2
-				new QueryExample().setDescription("Return up to 10 rows selecting two columns by their name (no filters).")
+				new QueryExample().setDescription("Return up to 10 rows selecting the species and weight columns by name (no filters).")
 						.setQuery_json(JDOSecondaryPropertyUtils.createJSONFromObject(
 							new Query().setColumnSelection(
-								List.of(new SelectByName().setColumnName("name"),
-										new SelectByName().setColumnName("age"))
+								List.of(new SelectByName().setColumnName("species"),
+										new SelectByName().setColumnName("weight"))
 							).setLimit(10L))),
 				// Example 3
 				new QueryExample()

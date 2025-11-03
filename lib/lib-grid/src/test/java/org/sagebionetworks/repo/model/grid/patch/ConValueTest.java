@@ -34,10 +34,17 @@ public class ConValueTest {
     }
 
     @Test
-    public void testStringToJsonUsesQuoting() {
+    public void testStringToJson() {
         ConValue s = new ConValue(ConType.STRING, "abc");
         // ObjectMapper will produce a JSON string with quotes
         assertEquals("\"abc\"", s.toJson());
+    }
+
+    @Test
+    public void testStringToJsonWithEscapedQuote() {
+        ConValue s = new ConValue(ConType.STRING, "a\"bc");
+        // ObjectMapper will produce a JSON string with quotes
+        assertEquals("\"a\\\"bc\"", s.toJson());
     }
 
     @Test
@@ -68,9 +75,9 @@ public class ConValueTest {
         assertEquals(Long.valueOf(123), v3.getValue());
 
         // string
-        ConValue v4 = ConValue.fromJsonString("\"hello\"");
+        ConValue v4 = ConValue.fromJsonString("\"he\\\"llo\"");
         assertEquals(ConType.STRING, v4.getType());
-        assertEquals("hello", v4.getValue());
+        assertEquals("he\"llo", v4.getValue());
 
         // object
         ConValue v5 = ConValue.fromJsonString("{}");

@@ -30,7 +30,7 @@ public enum CellValueOperatorElement {
 	//
 	IS_UNDEFINED("", ValueMultiplicity.none),
 	//
-	IS_NOT_UNDEFINED("", ValueMultiplicity.none);
+	IS_DEFINED("", ValueMultiplicity.none);
 
 	final private String sql;
 	final private ValueMultiplicity valueMultiplicity;

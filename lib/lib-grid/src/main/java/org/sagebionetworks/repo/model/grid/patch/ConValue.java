@@ -5,6 +5,7 @@ import java.util.Objects;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
+import org.json.JSONWriter;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -86,18 +87,7 @@ public class ConValue {
 		if (ConType.UNDEFINED.equals(type)) {
 			return null;
 		}
-		if (ConType.NULL.equals(type)) {
-			return "null";
-		}
-		if (value instanceof String) {
-			ObjectMapper mapper = new ObjectMapper();
-			try {
-				return mapper.writeValueAsString(value);
-			} catch (JsonProcessingException e) {
-				throw new RuntimeException("Failed to convert constant value to JSON", e);
-			}
-		}
-		return value.toString();
+		return JSONWriter.valueToString(value);
 	}
 
 	public static ConValue fromJsonString(String json) {

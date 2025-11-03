@@ -138,7 +138,7 @@ public class CellValueFilterElement implements FilterElement {
 			throw new IllegalArgumentException("Expected no value for operator: " + operator);
 		}
 
-		if (CellValueOperatorElement.IS_UNDEFINED.equals(operator) || CellValueOperatorElement.IS_NOT_UNDEFINED.equals(operator)) {
+		if (CellValueOperatorElement.IS_UNDEFINED.equals(operator) || CellValueOperatorElement.IS_DEFINED.equals(operator)) {
 			if (CellValueOperatorElement.IS_UNDEFINED.equals(operator)) {
 				sqlBuilder.append(" NOT");
 			}

@@ -232,8 +232,11 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 		ProvidedUserInfo providedInfo = oauthManager.validateUserWithProvider(
 				request.getProvider(), request.getAuthenticationCode(), request.getRedirectUrl());
 		
-		if (providedInfo.getUsersVerifiedEmail() == null){
-			throw new IllegalArgumentException("OAuthProvider: "+request.getProvider().name()+" did not provide a user email");
+		if (providedInfo.getUsersVerifiedEmail() == null) {
+			throw new IllegalArgumentException("OAuthProvider: "+request.getProvider().name()+
+					" did not provide a verified user email.  Email value is: "+
+					providedInfo.getEmail()+". and email_verified value is: "+
+					providedInfo.getEmailVerified());
 		}
 		
 		if (providedInfo.getSubject() == null) {

@@ -99,28 +99,8 @@
 			"$ref": "org.sagebionetworks.repo.model.table.FacetType"
 		},
 		"facetSortConfig": {
-			"type": "string",
-			"description": "For a column whose facet is an enumeration type, defines the order in which the facet values are returned. If not specified, the default order is FREQ_DESC (frequency, descending with a secondary sort by value ascending). This property is ignored for columns whose facet is of range type.",
-			"name": "FacetSortConfig",
-			"id": "org.sagebionetworks.repo.model.table.FacetSortConfig",
-			"enum": [
-				{
-					"name": "FREQ_DESC",
-					"description": "(Default) Sort by frequency, descending. Secondary sort by value, ascending."
-				},
-				{
-					"name": "FREQ_ASC",
-					"description": "Sort by frequency, ascending. Secondary sort by value, ascending."
-				},
-				{
-					"name": "VALUE_DESC",
-					"description": "Sort by the facet value, descending."
-				},
-				{
-					"name": "VALUE_ASC",
-					"description": "Sort by the facet value, ascending."
-				}
-			]
+			"description": "Configuration for sorting the facets of this column, only allowed if facetType is enumeration.",
+			"$ref": "org.sagebionetworks.repo.model.table.FacetColumnSortConfig"
 		}
 	}
 }

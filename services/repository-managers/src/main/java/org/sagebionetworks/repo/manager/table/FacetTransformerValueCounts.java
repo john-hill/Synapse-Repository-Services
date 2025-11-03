@@ -10,7 +10,9 @@ import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.FacetColumnResult;
 import org.sagebionetworks.repo.model.table.FacetColumnResultValueCount;
 import org.sagebionetworks.repo.model.table.FacetColumnResultValues;
-import org.sagebionetworks.repo.model.table.FacetSortConfig;
+import org.sagebionetworks.repo.model.table.FacetColumnSortConfig;
+import org.sagebionetworks.repo.model.table.FacetColumnSortDirection;
+import org.sagebionetworks.repo.model.table.FacetColumnSortProperty;
 import org.sagebionetworks.repo.model.table.FacetType;
 import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.repo.model.table.RowSet;
@@ -32,27 +34,28 @@ import org.sagebionetworks.util.ValidateArgument;
 
 public class FacetTransformerValueCounts implements FacetTransformer {
 	
-	static String getOrderBy(FacetSortConfig sortConfig) {
-		switch (sortConfig) {
-		case FREQ_DESC:
-			return COUNT_ALIAS + " DESC, " + VALUE_ALIAS + " ASC ";
-		case FREQ_ASC:
-			return COUNT_ALIAS + " ASC, " + VALUE_ALIAS + " ASC ";
-		case VALUE_DESC:
-			return VALUE_ALIAS + " DESC ";
-		case VALUE_ASC:
-			return VALUE_ALIAS + " ASC ";
-		default:
-			throw new IllegalArgumentException("Unsupported FacetSortConfig: " + sortConfig);
+	static final FacetColumnSortConfig DEFAULT_SORT_CONFIG = new FacetColumnSortConfig()
+		.setProperty(FacetColumnSortProperty.FREQUENCY)
+		.setDirection(FacetColumnSortDirection.DESC);	
+	
+	public static final String VALUE_ALIAS = FacetColumnSortProperty.VALUE.toString().toLowerCase();
+	public static final String COUNT_ALIAS = FacetColumnSortProperty.FREQUENCY.toString().toLowerCase();
+	
+	public static final long MAX_NUM_FACET_CATEGORIES = 500;	
+
+	static String getOrderBy(FacetColumnSortConfig sortConfig) {
+		String orderBy = sortConfig.getProperty().toString().toLowerCase() + " " + sortConfig.getDirection().toString();
+		
+		if (FacetColumnSortProperty.FREQUENCY.equals(sortConfig.getProperty())) {
+			// Add a second order by on value to make the sort order deterministic when there are ties on frequency
+			orderBy += ", " + VALUE_ALIAS + " " + FacetColumnSortDirection.ASC;
 		}
+		
+		return orderBy;
 	}
 	
-	public static final String VALUE_ALIAS = "value";
-	public static final String COUNT_ALIAS = "frequency";
-	public static final long MAX_NUM_FACET_CATEGORIES = 500;
-	
 	private String columnName;
-	private FacetSortConfig sortConfig;
+	private FacetColumnSortConfig sortConfig;
 	private String jsonPath;
 	private ColumnType jsonPathType;
 	private List<FacetRequestColumnModel> facets;
@@ -60,14 +63,14 @@ public class FacetTransformerValueCounts implements FacetTransformer {
 	private QueryTranslator generatedFacetSqlQuery;
 	private Set<String> selectedValues;
 	
-	public FacetTransformerValueCounts(String columnName, FacetSortConfig sortConfig, String jsonPath, ColumnType jsonPathType, boolean columnTypeIsList, List<FacetRequestColumnModel> facets,
+	public FacetTransformerValueCounts(String columnName, FacetColumnSortConfig sortConfig, String jsonPath, ColumnType jsonPathType, boolean columnTypeIsList, List<FacetRequestColumnModel> facets,
 			QueryExpression originalQuery, TranslationDependencies dependencies, Set<String> selectedValues){
 		ValidateArgument.required(columnName, "columnName");
 		ValidateArgument.required(facets, "facets");
 		ValidateArgument.required(originalQuery, "originalQuery");
 		this.columnName = columnName;
-		// The sort config is optional for a ColumnModel and can be null, we default to the historical behavior of FREQ_DESC
-		this.sortConfig = sortConfig == null ? FacetSortConfig.FREQ_DESC : sortConfig;
+		// The sort config is optional for a ColumnModel and can be null, we default to the historical behavior of FREQUENCY, DESC
+		this.sortConfig = sortConfig == null ? DEFAULT_SORT_CONFIG : sortConfig;
 		this.jsonPath = jsonPath;
 		this.jsonPathType = jsonPathType;
 		this.facets = facets;
@@ -111,7 +114,7 @@ public class FacetTransformerValueCounts implements FacetTransformer {
 		builder.append(columnToUse);
 		builder.append(" ORDER BY ");
 		
-		builder.append(getOrderBy(sortConfig));	
+		builder.append(getOrderBy(sortConfig)).append(" ");
 		
 		builder.append(pagination.toSql());
 		

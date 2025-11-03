@@ -23,8 +23,10 @@ import org.sagebionetworks.repo.model.table.ColumnSingleValueFilterOperator;
 import org.sagebionetworks.repo.model.table.ColumnSingleValueQueryFilter;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.FacetColumnRangeRequest;
+import org.sagebionetworks.repo.model.table.FacetColumnSortConfig;
+import org.sagebionetworks.repo.model.table.FacetColumnSortDirection;
+import org.sagebionetworks.repo.model.table.FacetColumnSortProperty;
 import org.sagebionetworks.repo.model.table.FacetColumnValuesRequest;
-import org.sagebionetworks.repo.model.table.FacetSortConfig;
 import org.sagebionetworks.repo.model.table.FacetType;
 import org.sagebionetworks.table.cluster.SchemaProvider;
 import org.sagebionetworks.table.cluster.description.IndexDescription;
@@ -160,7 +162,10 @@ public class FacetQueriesTest {
 		builder.setAdditionalFilters(null);
 		builder.setSelectedFacets(null);
 
-		schema.get(0).setFacetSortConfig(FacetSortConfig.VALUE_DESC);
+		schema.get(0).setFacetSortConfig(new FacetColumnSortConfig()
+			.setProperty(FacetColumnSortProperty.VALUE)
+			.setDirection(FacetColumnSortDirection.DESC)
+		);
 		
 		// call under test
 		FacetQueries facet = new FacetQueries(builder.build());

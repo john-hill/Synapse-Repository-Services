@@ -99,8 +99,10 @@ import org.sagebionetworks.repo.model.table.FacetColumnResult;
 import org.sagebionetworks.repo.model.table.FacetColumnResultRange;
 import org.sagebionetworks.repo.model.table.FacetColumnResultValueCount;
 import org.sagebionetworks.repo.model.table.FacetColumnResultValues;
+import org.sagebionetworks.repo.model.table.FacetColumnSortConfig;
+import org.sagebionetworks.repo.model.table.FacetColumnSortDirection;
+import org.sagebionetworks.repo.model.table.FacetColumnSortProperty;
 import org.sagebionetworks.repo.model.table.FacetColumnValuesRequest;
-import org.sagebionetworks.repo.model.table.FacetSortConfig;
 import org.sagebionetworks.repo.model.table.FacetType;
 import org.sagebionetworks.repo.model.table.PartialRow;
 import org.sagebionetworks.repo.model.table.PartialRowSet;
@@ -2201,7 +2203,9 @@ public class TableWorkerIntegrationTest {
 	@Test
 	public void testFacetWithSorting() throws Exception {
 		schema = columnManager.createColumnModels(adminUserInfo, List.of(
-			new ColumnModel().setName("foo").setColumnType(ColumnType.INTEGER).setFacetType(FacetType.enumeration).setFacetSortConfig(FacetSortConfig.VALUE_DESC))
+			new ColumnModel().setName("foo").setColumnType(ColumnType.INTEGER).setFacetType(FacetType.enumeration).setFacetSortConfig(
+				new FacetColumnSortConfig().setProperty(FacetColumnSortProperty.VALUE).setDirection(FacetColumnSortDirection.DESC))
+			)
 		);
 		
 		createTableWithSchema();

@@ -22,6 +22,7 @@ import org.sagebionetworks.repo.model.table.ColumnConstants;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnModelInterface;
 import org.sagebionetworks.repo.model.table.ColumnType;
+import org.sagebionetworks.repo.model.table.FacetColumnSortConfig;
 import org.sagebionetworks.repo.model.table.FacetType;
 import org.sagebionetworks.repo.model.table.JsonSubColumnModel;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
@@ -274,11 +275,15 @@ public class ColumnModelUtils {
 	}
 	
 	static void validateFacetSortConfig(ColumnModelInterface model) {
-		if (model.getFacetSortConfig() != null) {
-			if (!FacetType.enumeration.equals(model.getFacetType()) ) {
-				throw new IllegalArgumentException("Only columns with FacetType.enumeration can have a facetSortConfig.");
-			}
+		FacetColumnSortConfig sortConfig = model.getFacetSortConfig();
+		
+		if (sortConfig == null) {
+			return;
 		}
+		
+		ValidateArgument.required(sortConfig.getProperty(), "The facetSortConfig.property");
+		ValidateArgument.required(sortConfig.getDirection(), "The facetSortConfig.direction");
+		ValidateArgument.requirement(FacetType.enumeration.equals(model.getFacetType()), "Only columns with FacetType.enumeration can define a facetSortConfig.");
 	}
 	
 	static void validateJsonSubColumn(JsonSubColumnModel sub) {

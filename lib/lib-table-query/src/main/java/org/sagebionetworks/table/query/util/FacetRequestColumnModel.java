@@ -9,8 +9,8 @@ import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.FacetColumnRangeRequest;
 import org.sagebionetworks.repo.model.table.FacetColumnRequest;
+import org.sagebionetworks.repo.model.table.FacetColumnSortConfig;
 import org.sagebionetworks.repo.model.table.FacetColumnValuesRequest;
-import org.sagebionetworks.repo.model.table.FacetSortConfig;
 import org.sagebionetworks.repo.model.table.FacetType;
 import org.sagebionetworks.repo.model.table.JsonSubColumnModel;
 import org.sagebionetworks.util.ValidateArgument;
@@ -23,7 +23,7 @@ import org.sagebionetworks.util.ValidateArgument;
 public class FacetRequestColumnModel {
 	private String columnName;
 	private FacetType facetType;
-	private FacetSortConfig facetSortConfig;
+	private FacetColumnSortConfig facetSortConfig;
 	private FacetColumnRequest facetColumnRequest;
 	private String searchConditionString;
 	private boolean columnTypeIsList;
@@ -104,7 +104,7 @@ public class FacetRequestColumnModel {
 		return this.facetType;
 	}
 	
-	public FacetSortConfig getFacetSortConfig() {
+	public FacetColumnSortConfig getFacetSortConfig() {
 		return facetSortConfig;
 	}
 

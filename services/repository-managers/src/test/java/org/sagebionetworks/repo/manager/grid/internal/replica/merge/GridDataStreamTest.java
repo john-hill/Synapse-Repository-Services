@@ -29,7 +29,7 @@ public class GridDataStreamTest {
         			.setCells(Arrays.asList(
 							new ConValue(ConType.STRING, "1"),
 							new ConValue(ConType.STRING, "more1"),
-							new ConValue(ConType.LONG, 1)
+							new ConValue(ConType.LONG, 1L)
 					))
 			)),
 			new RowView().setRowObject(new RowObject().setData(
@@ -37,7 +37,7 @@ public class GridDataStreamTest {
         			.setCells(Arrays.asList(
 							new ConValue(ConType.STRING, "2"),
 							new ConValue(ConType.STRING, "more2"),
-							new ConValue(ConType.LONG, 2)
+							new ConValue(ConType.LONG, 2L)
 					))
 			)),
 			new RowView().setRowObject(new RowObject().setData(
@@ -45,7 +45,7 @@ public class GridDataStreamTest {
         			.setCells(Arrays.asList(
 							new ConValue(ConType.STRING, "3"),
 							new ConValue(ConType.STRING, "more3"),
-							new ConValue(ConType.LONG, 3)
+							new ConValue(ConType.LONG, 3L)
 					))
 			))			
 		);
@@ -58,12 +58,12 @@ public class GridDataStreamTest {
 
         GridDataStream stream = new GridDataStream(rows.iterator(), mapping);
         
-        int rowId = 1;
+        long rowId = 1L;
         
         while (stream.hasNext()) {
         	Object[] row = stream.next();
         	assertEquals(String.valueOf(rowId), row[0]);					// a
-        	assertEquals(rowId, row[1]);									// b	
+        	assertEquals(rowId, row[1]);									// b
         	assertEquals("[20," + (200 + rowId) + "]", row[2].toString());	// c (vectorId)
 			rowId++;
 		}

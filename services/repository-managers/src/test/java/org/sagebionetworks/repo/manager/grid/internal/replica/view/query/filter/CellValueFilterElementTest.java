@@ -15,7 +15,7 @@ public class CellValueFilterElementTest {
 	 * This is case that failed for PLFM-9309.
 	 */
 	@Test
-	public void testTransalteWithNullValue() {
+	public void testTranslateWithNullValue() {
 		CellValueFilter toClone = new CellValueFilter().setColumnName("c1").setOperator(CellValueOperator.IS_NOT_NULL);
 		// call under test
 		CellValueFilterElement clone = new CellValueFilterElement(toClone);
@@ -25,14 +25,14 @@ public class CellValueFilterElementTest {
 	}
 
 	@Test
-	public void testTransalte() {
+	public void testTranslate() {
 		CellValueFilter toClone = new CellValueFilter().setColumnName("c1").setOperator(CellValueOperator.EQUALS)
-				.setValue(List.of("one"));
+				.setValue("one");
 		// call under test
 		CellValueFilterElement clone = new CellValueFilterElement(toClone);
 
 		assertEquals(new CellValueFilterElement().setColumnName("c1").setOperator(CellValueOperatorElement.EQUALS)
-				.setValue(List.of("one")), clone);
+				.setValue("one"), clone);
 	}
 
 	@Test

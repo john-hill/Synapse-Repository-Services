@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.model.grid.node;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.stream.Stream;
 
@@ -44,28 +45,29 @@ public class ConstantNodeTest {
 	public void testGetValueAsJsonWithObject() {
 		ConstantNode con = new ConstantNode().setId(id).setValue(new ConValue(ConType.JSON_OBJECT, new JSONObject("{\"key\":99}")));
 		// call under test
-		assertEquals("{\"key\":99}", con.getValueAsJson());
+		assertEquals("[0,[1,2],{\"key\":99}]", con.getValueAsJson().toString());
 	}
 
 	@Test
 	public void testGetValueAsJsonWithString() {
 		ConstantNode con = new ConstantNode().setId(id).setValue(new ConValue(ConType.STRING, "foo"));
 		// call under test
-		assertEquals("\"foo\"", con.getValueAsJson());
+		assertEquals("[0,[1,2],\"foo\"]", con.getValueAsJson().toString());
+
 	}
 
 	@Test
 	public void testGetValueAsJsonWithNull() {
 		ConstantNode con = new ConstantNode().setId(id).setValue(new ConValue(ConType.NULL, JSONObject.NULL));
 		// call under test
-		assertEquals("null", con.getValueAsJson());
+		assertEquals("[0,[1,2],null]", con.getValueAsJson().toString());
 	}
 
 	@Test
 	public void testGetValueAsJsonWithUndefined() {
 		ConstantNode con = new ConstantNode().setId(id).setValue(new ConValue(ConType.UNDEFINED, null));
 		// call under test
-		assertEquals(null, con.getValueAsJson());
+		assertEquals("[0,[1,2],0,0]", con.getValueAsJson().toString());
 	}
 
 }

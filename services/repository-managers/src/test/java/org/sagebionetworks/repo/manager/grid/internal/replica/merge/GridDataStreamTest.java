@@ -10,6 +10,9 @@ import org.junit.Test;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowData;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowObject;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
+import org.sagebionetworks.repo.model.grid.node.ConstantNode;
+import org.sagebionetworks.repo.model.grid.patch.ConType;
+import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.table.ColumnType;
 
@@ -23,15 +26,27 @@ public class GridDataStreamTest {
         List<RowView> rows = List.of(
 			new RowView().setRowObject(new RowObject().setData(
         		new RowData().setVectorId(LogicalTimestamp.newIncrement(vectorId, 1))
-        			.setCells(new JSONArray(Arrays.asList("1", "more1", 1)))
+        			.setCells(Arrays.asList(
+							new ConValue(ConType.STRING, "1"),
+							new ConValue(ConType.STRING, "more1"),
+							new ConValue(ConType.LONG, 1)
+					))
 			)),
 			new RowView().setRowObject(new RowObject().setData(
         		new RowData().setVectorId(LogicalTimestamp.newIncrement(vectorId, 2))
-        			.setCells(new JSONArray(Arrays.asList("2", "more2", 2)))
+        			.setCells(Arrays.asList(
+							new ConValue(ConType.STRING, "2"),
+							new ConValue(ConType.STRING, "more2"),
+							new ConValue(ConType.LONG, 2)
+					))
 			)),
 			new RowView().setRowObject(new RowObject().setData(
         		new RowData().setVectorId(LogicalTimestamp.newIncrement(vectorId, 3))
-        			.setCells(new JSONArray(Arrays.asList("3", "more3", 3)))
+        			.setCells(Arrays.asList(
+							new ConValue(ConType.STRING, "3"),
+							new ConValue(ConType.STRING, "more3"),
+							new ConValue(ConType.LONG, 3)
+					))
 			))			
 		);
         

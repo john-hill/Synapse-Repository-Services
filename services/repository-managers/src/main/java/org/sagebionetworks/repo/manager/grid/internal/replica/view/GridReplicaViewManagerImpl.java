@@ -19,8 +19,6 @@ import java.util.stream.Collectors;
 import org.apache.commons.io.IOUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import org.json.JSONTokener;
-import org.json.JSONTokener;
 import org.sagebionetworks.grid.db.GridIndexDao;
 import org.sagebionetworks.grid.db.GridTransaction;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
@@ -42,6 +40,7 @@ import org.sagebionetworks.repo.model.grid.node.ArrayNode;
 import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.ObjectNode;
 import org.sagebionetworks.repo.model.grid.node.VectorNode;
+import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.query.result.QueryResult;
 import org.sagebionetworks.repo.model.grid.query.result.Row;
@@ -61,7 +60,30 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 
 	private static final String GRID_INDEX_VIEW_TEMPLATE = loadStringFromClasspath("grid/grid-index-view-template.sql");
 
-	private static RowMapper<RowView> ROW_VIEW_MAPPER = (ResultSet rs, int rowNum) -> {
+
+	/**
+	 * Transforms the database representation of the list of constant nodes to the Java representation
+	 */
+	private static List<ConValue> getConstantValuesFromString(String jsonStr) {
+		JSONArray selectedVals = new JSONArray(jsonStr);
+		List<ConValue> cells = new ArrayList<>();
+		for (int i = 0; i < selectedVals.length(); i++) {
+			if (selectedVals.optJSONArray(i) != null) {
+				ConValue cn = ConValue.fromCompact(selectedVals.getJSONArray(i));
+				cells.add(cn);
+			}
+		}
+		return cells;
+	}
+
+	private static final Function<List<String>, RowMapper<RowView>> createRowViewMapper = (List<String> orderedColumnNames) -> (ResultSet rs, int rowNum) -> {
+		List<ConValue> cells = new ArrayList<>();
+		JSONArray selectedVals = new JSONArray(rs.getString("SELECTED_VALS"));
+		for (int i = 0; i < selectedVals.length(); i++) {
+			if (selectedVals.optJSONArray(i) != null) {
+				cells.add(ConValue.fromCompact(selectedVals.getJSONArray(i)));
+			}
+		}
 		return new RowView().setArrNodeId(readNullableTimestamp(rs, "AN_REP", "AN_SEQ"))
 				.setRowIndex(rs.getLong("INDEX"))
 				.setRowObject(new RowObject()
@@ -73,13 +95,15 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 										.setConstantId(readNullableTimestamp(rs, "RVC_REP", "RVC_SEQ")))
 								.setSynapseRow(new SynapseRow().setFromJSON(rs.getString("SYN_ROW"))
 										.setConstantId(readNullableTimestamp(rs, "SRC_REP", "SRC_SEQ"))))
-						.setData(new RowData().setVectorId(readNullableTimestamp(rs, "VEC_REP", "VEC_SEQ"))
-								.setCells(new JSONArray(rs.getString("SELECTED_VALS")))
-								.setRowJsonDocument(new JSONObject(new JSONTokener(rs.getString("VALS_JSON"))))));
+						.setData(new RowData()
+								.setVectorId(readNullableTimestamp(rs, "VEC_REP", "VEC_SEQ"))
+								.setCells(cells)
+								.setRowJsonDocument(gridRowToJsonObject(orderedColumnNames, cells))));
 	};
 
-	private static RowMapper<RowView> ROW_VIEW_AGGREGATION_MAPPER = (ResultSet rs, int rowNum) -> {
-		return new RowView().setRowObject(new RowObject().setData(new RowData().setCells(new JSONArray(rs.getString("SELECTED_VALS")))));
+	private static final Function<List<String>, RowMapper<RowView>> createRowViewAggregationMapper = (List<String> columnNames) -> (ResultSet rs, int rowNum) -> {
+		JSONArray rawValues = new JSONArray(rs.getString("SELECTED_VALS"));
+		return new RowView().setRowObject(new RowObject().setData(new RowData().setRowJsonDocument(gridRowToJsonObject(columnNames, rawValues))));
 	};
 
 	/**
@@ -144,29 +168,27 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 		params.put("arrayRep", header.getRowsId().getReplicaId());
 		params.put("arraySeq", header.getRowsId().getSequenceNumber());
 
-		StringJoiner valsArrayJoiner = new StringJoiner(",");
-		StringJoiner valsJsonJoiner = new StringJoiner(",");
+		StringJoiner joiner = new StringJoiner(",");
 		// read the values out of each array in the order defined in the header.
-		for (int i = 0; i < header.getOrderedColumns().size(); i++) {
-			Column c = header.getOrderedColumns().get(i);
-				valsArrayJoiner.add(String.format("JSON_EXTRACT(V1.VEC_VAL, '$.c%d.v')", c.getVectorIndex()));
-				// We must check if VEC_VAL contains the path, otherwise JSON_EXTRACT will coalesce an undefined/missing value to a JSON `null` value, which we want to avoid.
-				valsJsonJoiner.add(String.format("CASE " +
-						"WHEN JSON_CONTAINS_PATH(V1.VEC_VAL, 'one', '$.c%d.v') = 1 " +
-						"THEN JSON_OBJECT(:colName%d, JSON_EXTRACT(V1.VEC_VAL, '$.c%d.v')) " +
-						"ELSE JSON_OBJECT() " +
-						"END", c.getVectorIndex(), i, c.getVectorIndex()));
-				params.put("colName" + i, c.getName());
-		}
+		header.getOrderedColumns().forEach(c -> {
+			joiner.add(String.format("JSON_EXTRACT(V1.VEC_VAL, '$.c%d.v')", c.getVectorIndex()));
+		});
 
-		String selectArray = valsArrayJoiner.toString();
-		String selectJson = valsJsonJoiner.toString();
+		String select = joiner.toString();
 		StringBuilder sqlBuilder = new StringBuilder();
 		query.toSql(sqlBuilder, params, new Context(header));
 
-		String sql = String.format(GRID_INDEX_VIEW_TEMPLATE, selectArray, selectJson, sqlBuilder.toString());
+		String sql = String.format(GRID_INDEX_VIEW_TEMPLATE, select, sqlBuilder.toString());
 
-		RowMapper<RowView> mapper = query.isAggregate() ? ROW_VIEW_AGGREGATION_MAPPER : ROW_VIEW_MAPPER;
+		// Choose the appropriate mapper based on whether the query is aggregate
+		RowMapper<RowView> mapper;
+		List<SelectColumn> selectColumns = translateSelect(header, query.getSelect());
+		List<String> columnNames = selectColumns.stream().map(SelectColumn::getColumnName).collect(Collectors.toList());
+		if (query.isAggregate()) {
+			mapper = createRowViewAggregationMapper.apply(columnNames);
+		} else {
+			mapper = createRowViewMapper.apply(columnNames);
+		}
 
 		return gridIndexDao.query(sql, new MapSqlParameterSource(params), mapper);
 	}
@@ -279,12 +301,13 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 	@Override
 	public QueryResult querySinglePageAsQueryResult(GridHeader header, QueryElement query) {
 		List<RowView> rowViews = querySinglePage(header, query);
+		List<SelectColumn> selectColumns = translateSelect(header, query.getSelect());
 		List<Row> rows = rowViews.stream()
 				.map(v -> new Row().setValidationResults(translateValidation(v.getRowValidationResults()))
-						.setCellValues(toList(v.getRowObject().getCells()))
+						.setData(v.getRowObject().getData().getRowJsonDocument())
 						.setRowId(v.getRowId()))
 				.collect(Collectors.toList());
-		return new QueryResult().setRows(rows).setSelectColumns(translateSelect(header, query.getSelect()));
+		return new QueryResult().setRows(rows).setSelectColumns(selectColumns);
 	}
 	
 	List<SelectColumn> translateSelect(GridHeader header, List<SelectItemElement> items){
@@ -305,16 +328,40 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 				.setAllValidationMessages(r.getAllValidationMessages()).setIsValid(r.getIsValid());
 	}
 
-	List<Object> toList(JSONArray cells) {
-		if (cells == null) {
-			return Collections.emptyList();
-		}
-		ArrayList<Object> obs = new ArrayList<>();
+	/**
+	 * Transforms a list of ordered column names and a list of CRDT ConstantNode values into a JSON object
+	 */
+	public static JSONObject gridRowToJsonObject(List<String> orderedColumnNames, List<ConValue> constantNodeValues) {
+		ValidateArgument.required(orderedColumnNames, "orderedColumnNames");
+		ValidateArgument.required(constantNodeValues, "constantNodeValues");
 
-		for (int i = 0; i < cells.length(); i++) {
-			obs.add(cells.isNull(i) ? null : cells.get(i));
+		if (constantNodeValues.isEmpty()) {
+			return new JSONObject();
 		}
-		return obs;
+
+		JSONObject json = new JSONObject();
+		for (int i = 0; i < orderedColumnNames.size() && i < constantNodeValues.size(); i++) {
+			String col = orderedColumnNames.get(i);
+			if (constantNodeValues.get(i) == null || constantNodeValues.get(i).isUndefined()) {
+				// The JSON Joy CRDT spec allows 'undefined' values; omit these from the JSON object
+				continue;
+			}
+			json.put(col, constantNodeValues.get(i).getValue());
+		}
+		return json;
 	}
 
+	/**
+	 * Transforms a list of ordered column names and a list of raw JSON values into a JSON object
+	 */
+	public static JSONObject gridRowToJsonObject(List<String> orderedColumnNames, JSONArray values) {
+		ValidateArgument.required(orderedColumnNames, "orderedColumnNames");
+		ValidateArgument.required(values, "values");
+
+		JSONObject json = new JSONObject();
+		for (int i = 0; i < orderedColumnNames.size() && i < values.length(); i++) {
+			json.put(orderedColumnNames.get(i), values.get(i));
+		}
+		return json;
+	}
 }

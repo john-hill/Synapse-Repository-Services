@@ -13,6 +13,7 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -138,10 +139,10 @@ public class GridCsvImporterImplTest {
 		
 		gridRows = List.of(
 			new RowView().setRowObject(new RowObject().setData(new RowData().setCells(
-				new JSONArray("[0,1,true]")
+				Arrays.asList(new ConValue(ConType.LONG, 0), new ConValue(ConType.LONG, 1), new ConValue(ConType.BOOLEAN, true))
 			))),
 			new RowView().setRowObject(new RowObject().setData(new RowData().setCells(
-				new JSONArray("[2,3,true]")
+				Arrays.asList(new ConValue(ConType.LONG, 2), new ConValue(ConType.LONG, 3), new ConValue(ConType.BOOLEAN, true))
 			)))
 		);
 		

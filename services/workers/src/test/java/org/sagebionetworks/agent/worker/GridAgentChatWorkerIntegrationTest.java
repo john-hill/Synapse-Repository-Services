@@ -14,7 +14,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.stream.Collectors;
 
 import org.java_websocket.WebSocket;
-import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -92,7 +91,7 @@ public class GridAgentChatWorkerIntegrationTest {
 	@Autowired
 	private AgentService agentService;
 	@Autowired
-	private GridService gridServie;
+	private GridService gridService;
 	@Autowired
 	private UserManager userManager;
 	@Autowired
@@ -187,11 +186,11 @@ public class GridAgentChatWorkerIntegrationTest {
 	public void testViewWithSchemaAndAgentChat() throws Exception {
 
 		// Create replica One
-		GridReplica replicaOne = gridServie
+		GridReplica replicaOne = gridService
 				.createReplica(admin.getId(), new CreateReplicaRequest().setGridSessionId(gridSession.getSessionId()))
 				.getReplica();
 
-		String urlOne = gridServie
+		String urlOne = gridService
 				.createPresignedUrl(admin.getId(), new CreateGridPresignedUrlRequest()
 						.setGridSessionId(gridSession.getSessionId()).setReplicaId(replicaOne.getReplicaId()))
 				.getPresignedUrl();
@@ -300,9 +299,9 @@ public class GridAgentChatWorkerIntegrationTest {
 					List.of(new RowSelectionFilterElement().setFilterSelected(true)), 100L, 0L);
 			System.out.println("row count: " + r.size());
 			if (r.size() == 1 && r.get(0) != null) {
-				JSONArray cells = r.get(0).getCells();
-				System.out.println("current row cells: " + cells.toString());
-				if (cells.opt(0).equals(4) && cells.isNull(1)) {
+				JSONObject rowData = r.get(0).getRowObject().getData().getRowJsonDocument();
+				System.out.println("current row cells: " + rowData.toString());
+				if (rowData.opt("a").equals(4L) && rowData.isNull("b")) {
 					return Pair.create(true, null);
 				}
 			}

@@ -4,8 +4,6 @@ import java.util.Objects;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
-import org.json.JSONTokener;
-import org.json.JSONWriter;
 
 public class ConValue {
 	
@@ -78,25 +76,6 @@ public class ConValue {
 	@Override
 	public String toString() {
 		return "ConValue [type=" + type + ", value=" + value + "]";
-	}
-
-	public String toJson() {
-		if (ConType.UNDEFINED.equals(type)) {
-			return null;
-		}
-		return JSONWriter.valueToString(value);
-	}
-
-	public static ConValue fromJsonString(String json) {
-		Object value;
-		if (json == null) {
-			value = null;
-		} else {
-			value = (new JSONTokener(json).nextValue());
-		}
-		ConType type = ConType.fromValue(value);
-
-		return new ConValue(type, value);
 	}
 
 	/**

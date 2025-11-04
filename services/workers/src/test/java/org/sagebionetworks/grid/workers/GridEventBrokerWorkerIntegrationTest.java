@@ -642,11 +642,11 @@ public class GridEventBrokerWorkerIntegrationTest {
 
 		assertEquals(
 			List.of(
-				"[1,\"test_1\",1.1,true]",
-				"[2,\"test_2\",null,true]",
-				"[3,\"test_3\",3.3,false]"
+				"{\"integer_column\":1,\"string_column\":\"test_1\",\"double_column\":1.1,\"boolean_column\":true}",
+				"{\"integer_column\":2,\"string_column\":\"test_2\",\"double_column\":null,\"boolean_column\":true}",
+				"{\"integer_column\":3,\"string_column\":\"test_3\",\"double_column\":3.3,\"boolean_column\":false}"
 			),
-			rowsView.stream().map(r -> r.getRowObject().getData().getCells().toString()).collect(Collectors.toList())
+			rowsView.stream().map(r -> r.getRowObject().getData().getRowJsonDocument().toString()).collect(Collectors.toList())
 		);
 
 		// Now export the grid back to the record set
@@ -702,11 +702,11 @@ public class GridEventBrokerWorkerIntegrationTest {
 
 		assertEquals(
 			List.of(
-				"[1,\"test_1\",1.1,true]",
-				"[2,\"test_2\",2.2,true]",
-				"[3,\"test_3\",3.3,false]"
+				"{\"integer_column\":1,\"string_column\":\"test_1\",\"double_column\":1.1,\"boolean_column\":true}",
+				"{\"integer_column\":2,\"string_column\":\"test_2\",\"double_column\":2.2,\"boolean_column\":true}",
+				"{\"integer_column\":3,\"string_column\":\"test_3\",\"double_column\":3.3,\"boolean_column\":false}"
 			),
-			rowsView.stream().map(r -> r.getRowObject().getData().getCells().toString()).collect(Collectors.toList())
+			rowsView.stream().map(r -> r.getRowObject().getData().getRowJsonDocument().toString()).collect(Collectors.toList())
 		);
 
 		// Now export the grid again
@@ -772,14 +772,14 @@ public class GridEventBrokerWorkerIntegrationTest {
 
 		assertEquals(
 			List.of(
-				"[1,\"test_1_updated\",1.1,false]",
-				"[2,\"test_2\",2.2,true]",
-				"[3,\"test_3_updated\",3.3,true]",
-				"[4,\"test_4_created\",4.4,true]",
-				"[5,\"test_5_created\",5.5,true]",
-				"[6,\"test_6_created\",6.6,false]"
+				"{\"integer_column\":1,\"string_column\":\"test_1_updated\",\"double_column\":1.1,\"boolean_column\":false}",
+				"{\"integer_column\":2,\"string_column\":\"test_2\"," +    "\"double_column\":2.2,\"boolean_column\":true}",
+				"{\"integer_column\":3,\"string_column\":\"test_3_updated\",\"double_column\":3.3,\"boolean_column\":true}",
+				"{\"integer_column\":4,\"string_column\":\"test_4_created\",\"double_column\":4.4,\"boolean_column\":true}",
+				"{\"integer_column\":5,\"string_column\":\"test_5_created\",\"double_column\":5.5,\"boolean_column\":true}",
+				"{\"integer_column\":6,\"string_column\":\"test_6_created\",\"double_column\":6.6,\"boolean_column\":false}"
 			),
-			rowsView.stream().map(r -> r.getRowObject().getData().getCells().toString()).collect(Collectors.toList())
+			rowsView.stream().map(r -> r.getRowObject().getData().getRowJsonDocument().toString()).collect(Collectors.toList())
 		);
 	}
 

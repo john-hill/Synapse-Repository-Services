@@ -1,11 +1,10 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.validation;
 
-import java.util.List;
+import static org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManagerImpl.gridRowToJsonObject;
+
 import java.util.Objects;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
-import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.schema.JsonSubject;
 import org.sagebionetworks.repo.model.schema.ObjectType;

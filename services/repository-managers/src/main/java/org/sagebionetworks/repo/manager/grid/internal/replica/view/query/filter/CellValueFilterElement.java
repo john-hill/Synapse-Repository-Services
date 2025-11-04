@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -18,7 +19,7 @@ public class CellValueFilterElement implements FilterElement {
 
 	private String columnName;
 	private CellValueOperatorElement operator;
-	private List<Object> value;
+	private Object value;
 
 	public CellValueFilterElement(Filter filter) {
 		this((CellValueFilter) filter);
@@ -29,7 +30,7 @@ public class CellValueFilterElement implements FilterElement {
 		ValidateArgument.required(filter.getOperator(), "filter.operator");
 		this.columnName = filter.getColumnName();
 		this.operator = CellValueOperatorElement.valueOf(filter.getOperator().name());
-		this.value = filter.getValue() != null ? Collections.unmodifiableList(filter.getValue()) : null;
+		this.value = filter.getValue();
 	}
 
 	public CellValueFilterElement() {
@@ -54,17 +55,17 @@ public class CellValueFilterElement implements FilterElement {
 		return this;
 	}
 
-	public List<Object> getValue() {
+	public Object getValue() {
 		return value;
 	}
 
-	public CellValueFilterElement setValue(Object... value) {
-		this.value = Arrays.asList(value);
+	public CellValueFilterElement setValue(Object value) {
+		this.value = value;
 		return this;
 	}
 
 	public CellValueFilterElement setValue(List<Object> value) {
-		this.value = value;
+		this.value = new JSONArray(value);
 		return this;
 	}
 
@@ -83,7 +84,7 @@ public class CellValueFilterElement implements FilterElement {
 			handleMultipleValues(sqlBuilder, params, bind, columnIndex);
 			break;
 		case none:
-			handleNoValue(sqlBuilder, params, bind, columnName);
+			handleNoValue(sqlBuilder, columnIndex);
 			break;
 		default:
 			throw new IllegalArgumentException("Unknown operation: " + operator);
@@ -102,57 +103,70 @@ public class CellValueFilterElement implements FilterElement {
 
 	private void handleSingleValue(StringBuilder sqlBuilder, Map<String, Object> params, String bind,
 			Integer columnIndex) {
-		if (value == null || value.size() != 1) {
+		if (value == null) {
 			throw new IllegalArgumentException("Expected exactly one value for operation: " + operator);
 		}
+		sqlBuilder.append("(");
+		if (CellValueOperatorElement.NOT_EQUALS.equals(operator)) {
+			// If the check is "!=", then we want to include undefined/timestamp values, which will never equal the passed value
+			sqlBuilder.append(" JSON_LENGTH(VALS, '$[").append(columnIndex).append("]') != 1 OR");
+		} else {
+			// For all other operators, we want to exclude undefined/timestamp values, which cannot be compared to the passed value
+			sqlBuilder.append(" JSON_LENGTH(VALS, '$[").append(columnIndex).append("]') = 1 AND");
+		}
 
-		Object val = value.get(0);
-		String function = isString(val) ? "->>" : "->";
-		sqlBuilder.append(" VALS").append(function).append("'$[").append(columnIndex).append("]' ")
-				.append(operator.toSql());
+		String function = isString(value) ? "->>" : "->";
+		sqlBuilder.append(" VALS").append(function).append("'$[").append(columnIndex).append("][0]' ").append(operator.toSql());
 
-		if (isJsonType(val)) {
+		if (isJsonType(value)) {
 			sqlBuilder.append(" CAST(:").append(bind).append(" AS JSON)");
-			params.put(bind, val.toString());
+			params.put(bind, value.toString());
 		} else {
 			sqlBuilder.append(" :").append(bind);
-			params.put(bind, val);
+			params.put(bind, value);
 		}
+		sqlBuilder.append(")");
 	}
 
 	private void handleMultipleValues(StringBuilder sqlBuilder, Map<String, Object> params, String bind,
 			Integer columnIndex) {
-		if (value == null || value.isEmpty()) {
+		if (!(value instanceof JSONArray) || ((JSONArray) value).length() == 0) {
 			throw new IllegalArgumentException("Expected at least one value for operation: " + operator);
 		}
 
-		sqlBuilder.append(" VALS->'$[").append(columnIndex).append("]' ").append(operator.toSql());
+		sqlBuilder.append("(");
+
+		if (CellValueOperatorElement.NOT_IN.equals(operator)) {
+			// If the check is "NOT IN", then we want to include undefined/timestamp values, which will never match the passed values
+			sqlBuilder.append(" JSON_LENGTH(VALS, '$[").append(columnIndex).append("]') != 1 OR");
+		} else {
+			// For all other operators ("IN"), we want to exclude undefined/timestamp values, which cannot be compared to the passed value
+			sqlBuilder.append(" JSON_LENGTH(VALS, '$[").append(columnIndex).append("]') = 1 AND");
+		}
+
+
+		sqlBuilder.append(" VALS->'$[").append(columnIndex).append("][0]' ").append(operator.toSql());
 		sqlBuilder.append(" (:").append(bind).append(")");
 
-		List<Object> toBind = value.stream().map(o -> isJsonType(o) ? o.toString() : o).collect(Collectors.toList());
+		List<Object> toBind = new ArrayList<>();
+		((JSONArray) value).forEach(o -> {
+			if (isJsonType(o)) {
+				toBind.add(o.toString());
+			} else {
+				toBind.add(o);
+			}
+		});
 		params.put(bind, toBind);
+		sqlBuilder.append(")");
 	}
 
-	private void handleNoValue(StringBuilder sqlBuilder, Map<String, Object> params, String bind, String columnName) {
-		if (value != null && !value.isEmpty()) {
+	private void handleNoValue(StringBuilder sqlBuilder, Integer columnIndex) {
+		if (value != null && !JSONObject.NULL.equals(value)) {
 			throw new IllegalArgumentException("Expected no value for operator: " + operator);
 		}
 
-		if (CellValueOperatorElement.IS_UNDEFINED.equals(operator) || CellValueOperatorElement.IS_DEFINED.equals(operator)) {
-			if (CellValueOperatorElement.IS_UNDEFINED.equals(operator)) {
-				sqlBuilder.append(" NOT");
-			}
-			// Check if the property is missing from the JSON document
-			sqlBuilder.append(" JSON_CONTAINS_PATH(VALS_JSON, 'one', CONCAT('$.', :" + bind + ")) ");
-		} else if (CellValueOperatorElement.IS_NULL.equals(operator) || CellValueOperatorElement.IS_NOT_NULL.equals(operator)) {
-			if (CellValueOperatorElement.IS_NOT_NULL.equals(operator)) {
-				sqlBuilder.append(" NOT ");
-			}
-			// Check if the JSON document explicitly has a null value for this property
-			sqlBuilder.append(" JSON_OVERLAPS(VALS_JSON, CONCAT('{\"', :" + bind + ", '\": null}')) ");
-		}
-
-		params.put(bind, columnName);
+		// NOTE: These operators check the entire array, not just the first element.
+		sqlBuilder.append(" VALS->'$[").append(columnIndex).append("]' ").append(operator.toSql());
 	}
 
 	private boolean isJsonType(Object val) {

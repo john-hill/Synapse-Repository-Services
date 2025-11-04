@@ -56,7 +56,7 @@ public class QueryElement implements Element {
 		
 		if (!isAggregate()) {
 			// For non-aggregate queries, always include all metadata columns that are needed to map a row into a RowView
-			sqlBuilder.append(" AN_REP, AN_SEQ, `INDEX`, RO_REP, RO_SEQ, VEC_REP, VEC_SEQ, VALS_JSON,");
+			sqlBuilder.append(" AN_REP, AN_SEQ, `INDEX`, RO_REP, RO_SEQ, VEC_REP, VEC_SEQ,");
 			sqlBuilder.append(" MO_REP, MO_SEQ, SRC_REP, SRC_SEQ, RVC_REP, RVC_SEQ, VAL_RES, SYN_ROW,");
 		}
 			

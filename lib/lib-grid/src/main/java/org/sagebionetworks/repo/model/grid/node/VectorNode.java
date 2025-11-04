@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import org.json.JSONObject;
+import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.compact.LogicalTimestampCompactSerializable;
 import org.sagebionetworks.util.ValidateArgument;
@@ -45,7 +46,7 @@ public class VectorNode implements Node, HasJsonValue<VectorNode>, CanInsert<Vec
 			JSONObject sub = ob.getJSONObject(k);
 			values.put(k,
 					new ConstantNode().setId(LogicalTimestampCompactSerializable.deserialize(sub.getJSONArray("i")))
-							.setValue(sub.opt("v")));
+							.setValue(ConValue.fromCompact(sub.optJSONArray("v"))));
 		});
 		return this;
 	}
@@ -60,9 +61,7 @@ public class VectorNode implements Node, HasJsonValue<VectorNode>, CanInsert<Vec
 			if (v != null) {
 				JSONObject sub = new JSONObject();
 				ob.put(k, sub);
-				if (!v.getConValue().isUndefined()) {
-					sub.put("v", v.getConValue().getValue());
-				}
+				sub.put("v", v.getConValue().toCompact());
 				sub.put("i", LogicalTimestampCompactSerializable.serialize(v.getId()));
 			}
 		});

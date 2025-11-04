@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.model.grid.patch;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -23,71 +24,15 @@ public class ConValueTest {
     }
 
     @Test
-    public void testNullAndUndefinedToJson() {
+    public void testIsUndefined() {
         ConValue undefined = new ConValue(ConType.UNDEFINED, null);
         assertTrue(undefined.isUndefined());
-        assertEquals(null, undefined.toJson());
 
         ConValue n = new ConValue(ConType.NULL, null);
-        assertEquals(ConType.NULL, n.getType());
-        assertEquals("null", n.toJson());
-    }
+        assertFalse(n.isUndefined());
 
-    @Test
-    public void testStringToJson() {
-        ConValue s = new ConValue(ConType.STRING, "abc");
-        // ObjectMapper will produce a JSON string with quotes
-        assertEquals("\"abc\"", s.toJson());
-    }
-
-    @Test
-    public void testStringToJsonWithEscapedQuote() {
-        ConValue s = new ConValue(ConType.STRING, "a\"bc");
-        // ObjectMapper will produce a JSON string with quotes
-        assertEquals("\"a\\\"bc\"", s.toJson());
-    }
-
-    @Test
-    public void testNumberToJsonUsesToString() {
-        ConValue l = new ConValue(ConType.LONG, 123L);
-        assertEquals("123", l.toJson());
-
-        ConValue d = new ConValue(ConType.DOUBLE, 12.5D);
-        // Double.toString
-        assertEquals(String.valueOf(12.5D), d.toJson());
-    }
-
-    @Test
-    public void testFromJsonStringVarious() {
-        // null input -> undefined
-        ConValue v1 = ConValue.fromJsonString(null);
-        assertEquals(ConType.UNDEFINED, v1.getType());
-        assertEquals(null, v1.getValue());
-
-        // literal null -> ConType.NULL
-        ConValue v2 = ConValue.fromJsonString("null");
-        assertEquals(ConType.NULL, v2.getType());
-        assertEquals(JSONObject.NULL, v2.getValue());
-
-        // integer number -> LONG and value converted to Long
-        ConValue v3 = ConValue.fromJsonString("123");
-        assertEquals(ConType.LONG, v3.getType());
-        assertEquals(Long.valueOf(123), v3.getValue());
-
-        // string
-        ConValue v4 = ConValue.fromJsonString("\"he\\\"llo\"");
-        assertEquals(ConType.STRING, v4.getType());
-        assertEquals("he\"llo", v4.getValue());
-
-        // object
-        ConValue v5 = ConValue.fromJsonString("{}");
-        assertEquals(ConType.JSON_OBJECT, v5.getType());
-        assertTrue(v5.getValue() instanceof JSONObject);
-
-        // array
-        ConValue v6 = ConValue.fromJsonString("[]");
-        assertEquals(ConType.JSON_ARRAY, v6.getType());
-        assertTrue(v6.getValue() instanceof JSONArray);
+        ConValue str = new ConValue(ConType.STRING, "foo");
+        assertFalse(str.isUndefined());
     }
 
     @Test

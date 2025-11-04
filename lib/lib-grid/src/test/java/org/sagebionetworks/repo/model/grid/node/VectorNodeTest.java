@@ -127,6 +127,18 @@ public class VectorNodeTest {
 				.setValueFromJson("{\"c0\":{\"v\":111,\"i\":[3,4]},\"c1\":{\"v\":222,\"i\":[4,4]}}");
 		assertEquals(expected, vec);
 	}
+	
+	@Test
+	public void testAttemptInsertWithNewNodeIdLesserThanContainerId() {
+		VectorNode vec = new VectorNode().setId(id).setValueFromJson("{\"c0\":{\"v\":111,\"i\":[3,4]}}");
+		// The new node ID is less than the container node ID
+		VectorNode update = new VectorNode().setId(id).setValueFromJson("{\"c1\":{\"v\":222,\"i\":[1,1]}}");
+		// call under test
+		assertFalse(vec.attemptInsert(update));
+		VectorNode expected = new VectorNode().setId(id)
+				.setValueFromJson("{\"c0\":{\"v\":111,\"i\":[3,4]}}");
+		assertEquals(expected, vec);
+	}
 
 	@Test
 	public void testAttemptInsertWithWrongId() {

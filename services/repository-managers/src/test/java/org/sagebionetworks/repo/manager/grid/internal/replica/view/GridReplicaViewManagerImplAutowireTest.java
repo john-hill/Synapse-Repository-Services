@@ -190,9 +190,9 @@ public class GridReplicaViewManagerImplAutowireTest {
 	public Long setSelection(LogicalTimestamp rootObjectId, ReplicaSelectionModel selection, Long otherReplica) {
 		Patch patch = new Patch()
 				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
-		LogicalTimestamp selectionConId = patch.addNewOperation(new NewConstantBuilder().setValue(
-				new ConValue(ConType.JSON_OBJECT, JDOSecondaryPropertyUtils.createJSONObjectForEntity(selection))));
 		LogicalTimestamp selectionObId = patch.addNewOperation(new NewObjectBuilder());
+		LogicalTimestamp selectionConId = patch.addNewOperation(new NewConstantBuilder().setValue(
+			new ConValue(ConType.JSON_OBJECT, JDOSecondaryPropertyUtils.createJSONObjectForEntity(selection))));
 		patch.addNewOperation(new InsertObjectBuilder().setMap(Map.of(otherReplica.toString(), selectionConId))
 				.setObjectId(selectionObId));
 		patch.addNewOperation(
@@ -240,12 +240,13 @@ public class GridReplicaViewManagerImplAutowireTest {
 		Patch newPatch = new Patch()
 				.setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
 
-		LogicalTimestamp synapseRowRef = newPatch.addNewOperation(Operations.newConstant()
-				.setValue(new ConValue(ConType.JSON_ARRAY, new JSONArray().put(111L).put(333L).put("etag88"))));
 
 		// Since the row doesn't have any metadata yet we need to create the object
 		LogicalTimestamp metadataRef = newPatch.addNewOperation(Operations.newObject());
 
+		LogicalTimestamp synapseRowRef = newPatch.addNewOperation(Operations.newConstant()
+			.setValue(new ConValue(ConType.JSON_ARRAY, new JSONArray().put(111L).put(333L).put("etag88"))));
+		
 		newPatch.addNewOperation(
 				Operations.insertObject().setObjectId(metadataRef).setMap(Map.of("synapseRow", synapseRowRef)));
 

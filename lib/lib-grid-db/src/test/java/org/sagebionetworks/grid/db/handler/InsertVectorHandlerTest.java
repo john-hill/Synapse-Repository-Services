@@ -74,7 +74,7 @@ public class InsertVectorHandlerTest {
 				new ConstantNode().setId(ids.get(2)).setValue("one"));
 
 		currentVectors = List.of(new VectorNode().setId(ids.get(0)),
-				new VectorNode().setId(ids.get(3)).setValueFromJson("{\"c1\":{\"v\":\"one\",\"i\":[5,6]}}"));
+				new VectorNode().setId(ids.get(3)).setValueFromJson("{\"c1\":{\"v\":[\"one\"],\"i\":[5,6]}}"));
 	}
 
 	@Test
@@ -95,7 +95,7 @@ public class InsertVectorHandlerTest {
 		verify(mockDao).saveVectors(eq(sessionId), eq(replicaId), captor.capture());
 
 		List<VectorNode> expected = List.of(new VectorNode().setId(ids.get(0))
-				.setValueFromJson("{\"c2\":{\"v\":111,\"i\":[3,4]},\"c0\":{\"v\":\"one\",\"i\":[5,6]}}"));
+				.setValueFromJson("{\"c2\":{\"v\":[111],\"i\":[3,4]},\"c0\":{\"v\":[\"one\"],\"i\":[5,6]}}"));
 
 		assertEquals(expected, captor.getValue());
 	}

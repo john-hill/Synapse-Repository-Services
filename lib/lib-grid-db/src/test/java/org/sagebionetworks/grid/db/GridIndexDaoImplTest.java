@@ -32,6 +32,8 @@ import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.node.ObjectNode;
 import org.sagebionetworks.repo.model.grid.node.ValueNode;
 import org.sagebionetworks.repo.model.grid.node.VectorNode;
+import org.sagebionetworks.repo.model.grid.patch.ConType;
+import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Timespan;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -564,14 +566,14 @@ public class GridIndexDaoImplTest {
 
 		List<VectorNode> valuesOne = List.of(
 				new VectorNode().setId(ids.get(0))
-						.setValueFromJson("{\"c0\":{\"v\":123,\"i\":[3,4]},\"c1\":{\"v\":\"one\",\"i\":[5,6]}}"),
+						.setValueFromJson("{\"c0\":{\"v\":[123],\"i\":[3,4]},\"c1\":{\"v\":[\"one\"],\"i\":[5,6]}}"),
 				new VectorNode().setId(ids.get(1))
-						.setValueFromJson("{\"c0\":{\"v\":456,\"i\":[7,8]},\"c1\":{\"v\":\"two\",\"i\":[9,10]}}"));
+						.setValueFromJson("{\"c0\":{\"v\":[456],\"i\":[7,8]},\"c1\":{\"v\":[\"two\"],\"i\":[9,10]}}"));
 		List<VectorNode> valuesTwo = List.of(
 				new VectorNode().setId(ids.get(2))
-						.setValueFromJson("{\"c0\":{\"v\":111,\"i\":[11,12]},\"c1\":{\"v\":\"one\",\"i\":[13,14]}}"),
+						.setValueFromJson("{\"c0\":{\"v\":[111],\"i\":[11,12]},\"c1\":{\"v\":[\"one\"],\"i\":[13,14]}}"),
 				new VectorNode().setId(ids.get(3))
-						.setValueFromJson("{\"c0\":{\"v\":222,\"i\":[15,16]},\"c1\":{\"v\":\"two\",\"i\":[17,18]}}"));
+						.setValueFromJson("{\"c0\":{\"v\":[222],\"i\":[15,16]},\"c1\":{\"v\":[\"two\"],\"i\":[17,18]}}"));
 		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.vec,
 				valuesOne.stream().map(VectorNode::getId).collect(Collectors.toList()));
 		gridIndexDao.saveIndex(sessionIdTwo, replicaIdTwo, IndexType.vec,
@@ -584,7 +586,7 @@ public class GridIndexDaoImplTest {
 		assertEquals(valuesTwo, gridIndexDao.getVectors(sessionIdTwo, replicaIdTwo, List.of(ids.get(2), ids.get(3))));
 
 		VectorNode updated = new VectorNode().setId(ids.get(0))
-				.setValueFromJson("{\"c0\":{\"v\":888,\"i\":[3,4]},\"c1\":{\"v\":\"three\",\"i\":[5,6]}}");
+				.setValueFromJson("{\"c0\":{\"v\":[888],\"i\":[3,4]},\"c1\":{\"v\":[\"three\"],\"i\":[5,6]}}");
 		// update the first object
 		gridIndexDao.saveVectors(sessionIdOne, replicaIdOne, List.of(updated));
 		assertEquals(List.of(updated, valuesOne.get(1)),
@@ -844,7 +846,7 @@ public class GridIndexDaoImplTest {
 	@Test
 	public void testGetRootObject() {
 		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
-		ConstantNode con = new ConstantNode().setId(ids.get(0)).setValueFromJson("[123]");
+		ConstantNode con = new ConstantNode().setId(ids.get(0)).setValue(new ConValue(ConType.LONG, 123L));
 		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.con, List.of(con.getId()));
 		gridIndexDao.saveNewConstants(sessionIdOne, replicaIdOne, List.of(con));
 		ObjectNode rootObj = new ObjectNode().setId(ids.get(1)).setValue(Map.of("aCon", con.getId()));
@@ -880,7 +882,7 @@ public class GridIndexDaoImplTest {
 	@Test
 	public void testGetRootObjectWithRootNotAnObject() {
 		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
-		ConstantNode con = new ConstantNode().setId(ids.get(0)).setValueFromJson("[123]");
+		ConstantNode con = new ConstantNode().setId(ids.get(0)).setValue(new ConValue(ConType.LONG, 123L));
 		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.con, List.of(con.getId()));
 		gridIndexDao.saveNewConstants(sessionIdOne, replicaIdOne, List.of(con));
 		ValueNode root = new ValueNode().setId(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L))

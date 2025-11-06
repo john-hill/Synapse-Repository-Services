@@ -33,6 +33,7 @@ import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.grid.PatchRowHandler;
 import org.sagebionetworks.repo.manager.grid.PatchStore;
 import org.sagebionetworks.repo.manager.grid.PatchUtils;
+import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.manager.table.RowHandlerProvider;
 import org.sagebionetworks.repo.manager.table.TableQueryManager;
 import org.sagebionetworks.repo.manager.table.query.MainQuery;
@@ -50,6 +51,7 @@ import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
 import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
+import org.sagebionetworks.repo.model.schema.JsonSchema;
 import org.sagebionetworks.repo.model.schema.JsonSchemaObjectBinding;
 import org.sagebionetworks.repo.model.schema.JsonSchemaVersionInfo;
 import org.sagebionetworks.repo.model.table.ColumnModel;
@@ -60,6 +62,7 @@ import org.sagebionetworks.repo.model.table.QueryResult;
 import org.sagebionetworks.repo.model.table.QueryResultBundle;
 import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.repo.model.table.RowSet;
+import org.sagebionetworks.repo.model.table.SelectColumn;
 import org.sagebionetworks.repo.model.table.TableStatus;
 import org.sagebionetworks.repo.model.table.TableUnavailableException;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -91,6 +94,8 @@ public class QueryCreateGridHandlerTest {
 	private QueryTranslator mockTranslator;
 	@Mock
 	private EntityManager mockEntityManager;
+	@Mock
+	private JsonSchemaManager mockSchemaManager;
 	
 	@Mock
 	PatchStore mockPatchStore;
@@ -114,6 +119,7 @@ public class QueryCreateGridHandlerTest {
 	private Query query;
 	private String tableId;
 	private List<Row> rows;
+	private List<SelectColumn> tableColumnSchema;
 	private QueryResult queryResults;
 	private QueryResultBundle queryResultBundle;
 	private String schema$id;
@@ -138,7 +144,8 @@ public class QueryCreateGridHandlerTest {
 		rows = List.of(new Row().setRowId(10101L));
 		maxRowsPerPage = 78L;
 		queryResults = new QueryResult().setQueryResults(new RowSet().setTableId(tableId).setRows(rows));
-		queryResultBundle = new QueryResultBundle().setQueryResult(queryResults).setMaxRowsPerPage(maxRowsPerPage);
+		tableColumnSchema = List.of(new SelectColumn().setName("foo").setColumnType(ColumnType.INTEGER));
+		queryResultBundle = new QueryResultBundle().setQueryResult(queryResults).setMaxRowsPerPage(maxRowsPerPage).setSelectColumns(tableColumnSchema);
 		schema$id = "someorg-somename";
 		queryOptions = new QueryOptions().withReturnMaxRowsPerPage(true).withRunQuery(true)
 				.withReturnSelectColumns(true);
@@ -163,6 +170,7 @@ public class QueryCreateGridHandlerTest {
 		when(mockQueryManager.runQueryAsStream(eq(mockCallback), eq(mockUser), eq(query),
 				rowHandlerProviderCaptor.capture())).thenReturn(new QueryResultBundle());
 		doReturn(Optional.of(schema$id)).when(handler).getSchemaId(mockUser, tableId, rows);
+		when(mockSchemaManager.getValidationSchema(schema$id)).thenReturn(new JsonSchema().setRequired(List.of("foo")));
 
 		GridSession expected = new GridSession().setSessionId(gridSessionId);
 		when(mockGridDao.createGridSession(

@@ -32,6 +32,8 @@ import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.node.ObjectNode;
 import org.sagebionetworks.repo.model.grid.node.ValueNode;
 import org.sagebionetworks.repo.model.grid.node.VectorNode;
+import org.sagebionetworks.repo.model.grid.patch.ConType;
+import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Timespan;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -222,7 +224,8 @@ public class GridIndexDaoImplTest {
 				new ConstantNode().setId(ids.get(4)).setValue("Hello World"),
 				new ConstantNode().setId(ids.get(5)).setValue(new JSONArray("[1,2,3]")),
 				new ConstantNode().setId(ids.get(6)).setValue(new JSONObject("{\"key\":99}")),
-				new ConstantNode().setId(ids.get(7)).setValue(null));
+				new ConstantNode().setId(ids.get(7)).setValue(JSONObject.NULL),
+				new ConstantNode().setId(ids.get(8)).setValue(null));
 
 		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.con, ids);
 		// call under test
@@ -230,12 +233,6 @@ public class GridIndexDaoImplTest {
 		// call under test
 		List<ConstantNode> results = gridIndexDao.getConstants(sessionIdOne, replicaIdOne, ids);
 		assertEquals(constants, results);
-
-		// each constant should exist
-		for (ConstantNode con : results) {
-			assertEquals(Optional.of(con.getId()),
-					gridIndexDao.findExistingConstant(sessionIdOne, replicaIdOne, con.getValueAsJson()));
-		}
 	}
 
 	@Test
@@ -272,18 +269,6 @@ public class GridIndexDaoImplTest {
 
 		List<ConstantNode> results2 = gridIndexDao.getConstants(sessionIdTwo, replicaIdTwo, ids);
 		assertEquals(constants2, results2);
-
-		// one matches session one only.
-		assertEquals(Optional.of(constants1.get(0).getId()),
-				gridIndexDao.findExistingConstant(sessionIdOne, replicaIdOne, constants1.get(0).getValueAsJson()));
-		assertEquals(Optional.empty(),
-				gridIndexDao.findExistingConstant(sessionIdTwo, replicaIdTwo, constants1.get(0).getValueAsJson()));
-		
-		// two matches session two only.
-		assertEquals(Optional.of(constants2.get(0).getId()),
-				gridIndexDao.findExistingConstant(sessionIdTwo, replicaIdTwo, constants2.get(0).getValueAsJson()));
-		assertEquals(Optional.empty(),
-				gridIndexDao.findExistingConstant(sessionIdOne, replicaIdOne, constants2.get(0).getValueAsJson()));
 	}
 
 	@Test
@@ -581,14 +566,14 @@ public class GridIndexDaoImplTest {
 
 		List<VectorNode> valuesOne = List.of(
 				new VectorNode().setId(ids.get(0))
-						.setValueFromJson("{\"c0\":{\"v\":123,\"i\":[3,4]},\"c1\":{\"v\":\"one\",\"i\":[5,6]}}"),
+						.setValueFromJson("{\"c0\":{\"v\":[123],\"i\":[3,4]},\"c1\":{\"v\":[\"one\"],\"i\":[5,6]}}"),
 				new VectorNode().setId(ids.get(1))
-						.setValueFromJson("{\"c0\":{\"v\":456,\"i\":[7,8]},\"c1\":{\"v\":\"two\",\"i\":[9,10]}}"));
+						.setValueFromJson("{\"c0\":{\"v\":[456],\"i\":[7,8]},\"c1\":{\"v\":[\"two\"],\"i\":[9,10]}}"));
 		List<VectorNode> valuesTwo = List.of(
 				new VectorNode().setId(ids.get(2))
-						.setValueFromJson("{\"c0\":{\"v\":111,\"i\":[11,12]},\"c1\":{\"v\":\"one\",\"i\":[13,14]}}"),
+						.setValueFromJson("{\"c0\":{\"v\":[111],\"i\":[11,12]},\"c1\":{\"v\":[\"one\"],\"i\":[13,14]}}"),
 				new VectorNode().setId(ids.get(3))
-						.setValueFromJson("{\"c0\":{\"v\":222,\"i\":[15,16]},\"c1\":{\"v\":\"two\",\"i\":[17,18]}}"));
+						.setValueFromJson("{\"c0\":{\"v\":[222],\"i\":[15,16]},\"c1\":{\"v\":[\"two\"],\"i\":[17,18]}}"));
 		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.vec,
 				valuesOne.stream().map(VectorNode::getId).collect(Collectors.toList()));
 		gridIndexDao.saveIndex(sessionIdTwo, replicaIdTwo, IndexType.vec,
@@ -601,7 +586,7 @@ public class GridIndexDaoImplTest {
 		assertEquals(valuesTwo, gridIndexDao.getVectors(sessionIdTwo, replicaIdTwo, List.of(ids.get(2), ids.get(3))));
 
 		VectorNode updated = new VectorNode().setId(ids.get(0))
-				.setValueFromJson("{\"c0\":{\"v\":888,\"i\":[3,4]},\"c1\":{\"v\":\"three\",\"i\":[5,6]}}");
+				.setValueFromJson("{\"c0\":{\"v\":[888],\"i\":[3,4]},\"c1\":{\"v\":[\"three\"],\"i\":[5,6]}}");
 		// update the first object
 		gridIndexDao.saveVectors(sessionIdOne, replicaIdOne, List.of(updated));
 		assertEquals(List.of(updated, valuesOne.get(1)),
@@ -861,7 +846,7 @@ public class GridIndexDaoImplTest {
 	@Test
 	public void testGetRootObject() {
 		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
-		ConstantNode con = new ConstantNode().setId(ids.get(0)).setValueFromJson("[123]");
+		ConstantNode con = new ConstantNode().setId(ids.get(0)).setValue(new ConValue(ConType.LONG, 123L));
 		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.con, List.of(con.getId()));
 		gridIndexDao.saveNewConstants(sessionIdOne, replicaIdOne, List.of(con));
 		ObjectNode rootObj = new ObjectNode().setId(ids.get(1)).setValue(Map.of("aCon", con.getId()));
@@ -897,7 +882,7 @@ public class GridIndexDaoImplTest {
 	@Test
 	public void testGetRootObjectWithRootNotAnObject() {
 		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
-		ConstantNode con = new ConstantNode().setId(ids.get(0)).setValueFromJson("[123]");
+		ConstantNode con = new ConstantNode().setId(ids.get(0)).setValue(new ConValue(ConType.LONG, 123L));
 		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.con, List.of(con.getId()));
 		gridIndexDao.saveNewConstants(sessionIdOne, replicaIdOne, List.of(con));
 		ValueNode root = new ValueNode().setId(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L))

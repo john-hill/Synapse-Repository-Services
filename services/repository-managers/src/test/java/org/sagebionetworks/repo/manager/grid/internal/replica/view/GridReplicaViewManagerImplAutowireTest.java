@@ -542,16 +542,16 @@ public class GridReplicaViewManagerImplAutowireTest {
 
 		// Also write a row with a `null` value, which we cannot express via the Row model.
 		Patch patch = new Patch().setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
-		LogicalTimestamp vecWithNullRef = patch.addNewOperation(Operations.newVector());
 		LogicalTimestamp objectWithNullRef = patch.addNewOperation(Operations.newObject());
+		LogicalTimestamp vecWithNullRef = patch.addNewOperation(Operations.newVector());
 		patch.addNewOperation(Operations.insertObject().setObjectId(objectWithNullRef).setMap(Map.of("data", vecWithNullRef)));
 		LogicalTimestamp nullConRef = patch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.NULL, null)));
 		patch.addNewOperation(Operations.insertVector().setVectorId(vecWithNullRef).setMap(Map.of(0, nullConRef)));
 		LogicalTimestamp nullRowInsRef = patch.addNewOperation(Operations.insertArray().setArrayId(header.getRowsId()).setReferenceId(new LogicalTimestamp().setReplicaId(111L).setSequenceNumber(39L)).setElementIds(List.of(objectWithNullRef)));
 
 		// Add a row with an `undefined` value
-		LogicalTimestamp vecWithUndefinedRef = patch.addNewOperation(Operations.newVector());
 		LogicalTimestamp objectWithUndefinedRef = patch.addNewOperation(Operations.newObject());
+		LogicalTimestamp vecWithUndefinedRef = patch.addNewOperation(Operations.newVector());
 		patch.addNewOperation(Operations.insertObject().setObjectId(objectWithUndefinedRef).setMap(Map.of("data", vecWithUndefinedRef)));
 		LogicalTimestamp undefinedConRef = patch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.UNDEFINED, null)));
 		patch.addNewOperation(Operations.insertVector().setVectorId(vecWithUndefinedRef).setMap(Map.of(0, undefinedConRef)));
@@ -664,16 +664,16 @@ public class GridReplicaViewManagerImplAutowireTest {
 
 		// Also write a row with a `null` value, which we cannot express via the Row model.
 		Patch patch = new Patch().setPatchId(LogicalTimestamp.newIncrement(gridIndexManger.getClock(sessionId, replicaId).get(0), 1));
-		LogicalTimestamp vecWithNullRef = patch.addNewOperation(Operations.newVector());
 		LogicalTimestamp objectWithNullRef = patch.addNewOperation(Operations.newObject());
+		LogicalTimestamp vecWithNullRef = patch.addNewOperation(Operations.newVector());
 		patch.addNewOperation(Operations.insertObject().setObjectId(objectWithNullRef).setMap(Map.of("data", vecWithNullRef)));
 		LogicalTimestamp nullConRef = patch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.NULL, null)));
 		patch.addNewOperation(Operations.insertVector().setVectorId(vecWithNullRef).setMap(Map.of(0, nullConRef)));
 		LogicalTimestamp nullRowInsRef = patch.addNewOperation(Operations.insertArray().setArrayId(header.getRowsId()).setReferenceId(new LogicalTimestamp().setReplicaId(111L).setSequenceNumber(39L)).setElementIds(List.of(objectWithNullRef)));
 
 		// Add a row with an `undefined` value
-		LogicalTimestamp vecWithUndefinedRef = patch.addNewOperation(Operations.newVector());
 		LogicalTimestamp objectWithUndefinedRef = patch.addNewOperation(Operations.newObject());
+		LogicalTimestamp vecWithUndefinedRef = patch.addNewOperation(Operations.newVector());
 		patch.addNewOperation(Operations.insertObject().setObjectId(objectWithUndefinedRef).setMap(Map.of("data", vecWithUndefinedRef)));
 		LogicalTimestamp undefinedConRef = patch.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.UNDEFINED, null)));
 		patch.addNewOperation(Operations.insertVector().setVectorId(vecWithUndefinedRef).setMap(Map.of(0, undefinedConRef)));

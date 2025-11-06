@@ -84,11 +84,16 @@ public class VectorNode implements Node, HasJsonValue<VectorNode>, CanInsert<Vec
 		boolean wasChanged = false;
 		for (Map.Entry<String, ConstantNode> entry : change.getValues().entrySet()) {
 			String key = entry.getKey();
-			ConstantNode changeNode = entry.getValue();
+			ConstantNode changeNode = entry.getValue();			
 			if (changeNode == null) {
 				throw new IllegalArgumentException("Cannot set a vector index to null");
-			}
+			}			
+			// The ID of the new value must be greater than the container node (to avoid circular references), otherwise the insertion is ignored (See https://sagebionetworks.jira.com/browse/PLFM-9273).
+			if (changeNode.getId().compareTo(this.id) <= 0) {
+				continue;
+			}	
 			ConstantNode thisNode = this.values.get(key);
+			// The ID of the new value must be greater than the logical clock of the current value, otherwise the insertion is ignored.
 			if (thisNode == null || changeNode.getId().compareTo(thisNode.getId()) > 0) {
 				this.values.put(key, changeNode);
 				wasChanged = true;

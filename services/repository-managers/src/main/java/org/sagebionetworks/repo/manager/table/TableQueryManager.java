@@ -4,11 +4,8 @@ import java.io.IOException;
 import java.util.List;
 
 import org.sagebionetworks.repo.model.DatastoreException;
-import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.table.RowHandler;
-import org.sagebionetworks.repo.model.dao.table.TableType;
-import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.DownloadFromTableRequest;
 import org.sagebionetworks.repo.model.table.DownloadFromTableResult;
@@ -48,7 +45,7 @@ public interface TableQueryManager {
 	 * @throws ParseException 
 	 * @throws TableLockUnavailableException 
 	 */
-	public QueryResultBundle querySinglePage(ProgressCallback progressCallback, UserInfo user, Query query,	QueryOptions options) throws DatastoreException, NotFoundException, TableUnavailableException,
+	QueryResultBundle querySinglePage(ProgressCallback progressCallback, UserInfo user, Query query,	QueryOptions options) throws DatastoreException, NotFoundException, TableUnavailableException,
 			TableFailedException, ParseException, LockUnavilableException;
 
 	/**
@@ -64,7 +61,7 @@ public interface TableQueryManager {
 	 * @throws ParseException 
 	 * @throws TableLockUnavailableException 
 	 */
-	public QueryResult queryNextPage(ProgressCallback progressCallback, UserInfo user, QueryNextPageToken nextPageToken) throws DatastoreException, NotFoundException,
+	QueryResult queryNextPage(ProgressCallback progressCallback, UserInfo user, QueryNextPageToken nextPageToken) throws DatastoreException, NotFoundException,
 			TableUnavailableException, TableFailedException, ParseException, LockUnavilableException;
 
 	/**
@@ -80,7 +77,7 @@ public interface TableQueryManager {
 	 * @throws ParseException 
 	 * @throws TableLockUnavailableException 
 	 */
-	public QueryResultBundle queryBundle(ProgressCallback progressCallback, UserInfo user, QueryBundleRequest queryBundle) throws DatastoreException, NotFoundException,
+	QueryResultBundle queryBundle(ProgressCallback progressCallback, UserInfo user, QueryBundleRequest queryBundle) throws DatastoreException, NotFoundException,
 			TableUnavailableException, TableFailedException, ParseException, LockUnavilableException;
 
 	/**
@@ -146,6 +143,6 @@ public interface TableQueryManager {
 			RowHandlerProvider provider) throws TableUnavailableException, NotFoundException, TableFailedException,
 			LockUnavilableException, IOException;
 
-	public Long getMaxBytesPerRequest();
+	Long getMaxBytesPerRequest();
 	
 }

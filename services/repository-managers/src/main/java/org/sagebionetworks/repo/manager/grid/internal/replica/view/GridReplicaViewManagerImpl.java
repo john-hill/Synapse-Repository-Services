@@ -60,23 +60,7 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 
 	private static final String GRID_INDEX_VIEW_TEMPLATE = loadStringFromClasspath("grid/grid-index-view-template.sql");
 
-
-	/**
-	 * Transforms the database representation of the list of constant nodes to the Java representation
-	 */
-	private static List<ConValue> getConstantValuesFromString(String jsonStr) {
-		JSONArray selectedVals = new JSONArray(jsonStr);
-		List<ConValue> cells = new ArrayList<>();
-		for (int i = 0; i < selectedVals.length(); i++) {
-			if (selectedVals.optJSONArray(i) != null) {
-				ConValue cn = ConValue.fromCompact(selectedVals.getJSONArray(i));
-				cells.add(cn);
-			}
-		}
-		return cells;
-	}
-
-	private static final Function<List<String>, RowMapper<RowView>> createRowViewMapper = (List<String> orderedColumnNames) -> (ResultSet rs, int rowNum) -> {
+	private static final Function<List<String>, RowMapper<RowView>> createRowViewMapper = (List<String> orderedSelectColumnName) -> (ResultSet rs, int rowNum) -> {
 		List<ConValue> cells = new ArrayList<>();
 		JSONArray selectedVals = new JSONArray(rs.getString("SELECTED_VALS"));
 		for (int i = 0; i < selectedVals.length(); i++) {
@@ -98,7 +82,7 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 						.setData(new RowData()
 								.setVectorId(readNullableTimestamp(rs, "VEC_REP", "VEC_SEQ"))
 								.setCells(cells)
-								.setRowJsonDocument(gridRowToJsonObject(orderedColumnNames, cells))));
+								.setRowJsonDocument(gridRowToJsonObject(orderedSelectColumnName, cells))));
 	};
 
 	private static final Function<List<String>, RowMapper<RowView>> createRowViewAggregationMapper = (List<String> columnNames) -> (ResultSet rs, int rowNum) -> {
@@ -180,16 +164,12 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 
 		String sql = String.format(GRID_INDEX_VIEW_TEMPLATE, select, sqlBuilder.toString());
 
-		// Choose the appropriate mapper based on whether the query is aggregate
-		RowMapper<RowView> mapper;
 		List<SelectColumn> selectColumns = translateSelect(header, query.getSelect());
 		List<String> columnNames = selectColumns.stream().map(SelectColumn::getColumnName).collect(Collectors.toList());
-		if (query.isAggregate()) {
-			mapper = createRowViewAggregationMapper.apply(columnNames);
-		} else {
-			mapper = createRowViewMapper.apply(columnNames);
-		}
-
+		// Choose the appropriate mapper based on whether the query is aggregate
+		RowMapper<RowView> mapper = query.isAggregate()
+				? createRowViewAggregationMapper.apply(columnNames)
+				: createRowViewMapper.apply(columnNames);
 		return gridIndexDao.query(sql, new MapSqlParameterSource(params), mapper);
 	}
 

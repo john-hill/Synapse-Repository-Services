@@ -56,7 +56,6 @@ public class InsertRowChangeHandlerTest {
 		
 		for (int i=0; i<change.getRowData().size(); i++) {
 			ConValue value = change.getRowData().get(i);
-			 
 			LogicalTimestamp constId = new LogicalTimestamp().setReplicaId(repId).setSequenceNumber(7L + i);
 		
 			when(mockPatchBuilder.addOperationBuilder(Operations.newConstant().setValue(value)))

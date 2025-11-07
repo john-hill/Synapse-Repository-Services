@@ -164,9 +164,6 @@ public class OAuth2Api extends DefaultApi20 {
 
 		@Override
 		public ProvidedUserInfo getUserInfo(String accessToken) {
-			if (null==userInfoEndpoint) {
-				throw new IllegalStateException("userinfo endpoint has not been configued.");
-			}
 			OAuthRequest request = new OAuthRequest(Verb.GET, userInfoEndpoint);
 			request.addHeader("Authorization", "Bearer: "+accessToken);
 			Response response = request.send();

@@ -136,6 +136,8 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 
 			cleanupValidationResults(validationResults);
 
+			// Always apply the new validation results, even if the value did not change.
+			// The client uses the timestamp to determine if results are up-to-date with its local changes.
 			changes.add(createChange(row, validationResults));
 		}
 

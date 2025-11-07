@@ -54,4 +54,15 @@ class OAuth2ApiTest {
 		assertEquals("Email was not verified and should not have been returned.",null, info.getUsersVerifiedEmail());
 	}
 
+	@Test
+	public void testParserResponseBodyInvalidEmailVerified() throws JSONException{
+		JSONObject json = new JSONObject();
+		// email not verified.
+		json.put(EMAIL_VERIFIED, "invalid-value");
+		json.put(EMAIL, "first.last@domain.com");
+		ProvidedUserInfo info = OAuth2Api.parseUserInfo(json.toString());
+		assertNotNull(info);
+		assertEquals("Email was not verified and should not have been returned.",null, info.getUsersVerifiedEmail());
+	}
+
 }

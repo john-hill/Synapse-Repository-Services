@@ -116,8 +116,14 @@ public class OAuth2Api extends DefaultApi20 {
 			if (json.has(EMAIL_VERIFIED)) {
 				info.setEmailVerified(json.getString(EMAIL_VERIFIED));
 			}
-			if (json.has(EMAIL_VERIFIED) && json.getBoolean(EMAIL_VERIFIED) && json.has(EMAIL)) {
-				info.setUsersVerifiedEmail(json.getString(EMAIL));
+			if (json.has(EMAIL_VERIFIED) && json.has(EMAIL)) {
+				try {
+					if (json.getBoolean(EMAIL_VERIFIED)) {
+						info.setUsersVerifiedEmail(json.getString(EMAIL));
+					}
+				} catch (JSONException e) {
+					// don't set the value
+				}
 			}
 			return info;
 		} catch (JSONException e) {

@@ -46,7 +46,7 @@ public class GoogleOAuth2Provider implements OAuthProviderBinding {
 	
 	@Override
 	public String getAuthorizationUrl(String redirectUrl) {
-		return new OAuth2Api(authUrl, tokenUrl).
+		return new OAuth2Api(authUrl, tokenUrl, null).
 				getAuthorizationUrl(new OAuthConfig(apiKey, null, redirectUrl, null, OIDC_SCOPES, null));
 	}
 
@@ -56,7 +56,7 @@ public class GoogleOAuth2Provider implements OAuthProviderBinding {
 		ValidateArgument.required(redirectUrl, "The redirectUrl");
 		
 		try {
-			OAuth2Service service = (new OAuth2Api(authUrl, tokenUrl)).
+			OAuth2Service service = (new OAuth2Api(authUrl, tokenUrl, null)).
 					createService(new OAuthConfig(apiKey, apiSecret, redirectUrl, null, null, null));
 			
 			AccessTokenResponse accessTokenResponse = service.getAccessToken(null, new Verifier(authorizationCode));

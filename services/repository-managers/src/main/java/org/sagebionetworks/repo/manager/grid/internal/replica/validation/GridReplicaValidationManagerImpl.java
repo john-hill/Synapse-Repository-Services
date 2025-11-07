@@ -136,9 +136,7 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 
 			cleanupValidationResults(validationResults);
 
-			if (!validationResults.equals(row.getRowValidationResults())) {
-				changes.add(createChange(row, validationResults));
-			}
+			changes.add(createChange(row, validationResults));
 		}
 
 		return changes;

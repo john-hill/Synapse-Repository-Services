@@ -70,7 +70,7 @@ public class ArcusBioProvider implements OAuthProviderBinding {
 						
 			ProvidedUserInfo providedUserInfo =  accessTokenResponse.parseIdToken();
 			// if the IdP fails to provide the required claims in the ID Token, then
-			// a request is made to the /userinfo endooint
+			// a request is made to the /userinfo endpoint
 			if (StringUtils.isEmpty(providedUserInfo.getUsersVerifiedEmail())) {
 				providedUserInfo = service.getUserInfo(accessTokenResponse.getToken());
 			}

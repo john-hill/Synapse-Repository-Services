@@ -44,7 +44,7 @@ class OAuth2ApiTest {
 	}
 	
 	@Test
-	public void testParserResponseBodyEmailNotVerifeid() throws JSONException{
+	public void testParserResponseBodyEmailNotVerified() throws JSONException{
 		JSONObject json = new JSONObject();
 		// email not verified.
 		json.put(EMAIL_VERIFIED, false);

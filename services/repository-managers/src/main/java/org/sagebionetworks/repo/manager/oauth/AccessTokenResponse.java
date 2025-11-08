@@ -61,8 +61,14 @@ public class AccessTokenResponse extends Token {
 			if (json.has(OIDCClaimName.email_verified.name())) {
 				info.setEmailVerified(json.getString(OIDCClaimName.email_verified.name()));
 			}
-			if (json.has(OIDCClaimName.email_verified.name()) && json.getBoolean(OIDCClaimName.email_verified.name()) && json.has(OIDCClaimName.email.name())) {
-				info.setUsersVerifiedEmail(json.getString(OIDCClaimName.email.name()));
+			if (json.has(OIDCClaimName.email.name()) && json.has(OIDCClaimName.email_verified.name())) {
+				try {
+					if (json.getBoolean(OIDCClaimName.email_verified.name())) {
+						info.setUsersVerifiedEmail(json.getString(OIDCClaimName.email.name()));
+					}
+				} catch (JSONException e) {
+					// don't set the value
+				}
 			}
 			return info;
 		} catch (JSONException | IllegalArgumentException e) {

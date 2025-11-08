@@ -64,7 +64,7 @@ public class AccessTokenResponse extends Token {
 			if (json.has(OIDCClaimName.email.name()) && json.has(OIDCClaimName.email_verified.name())) {
 				try {
 					if (json.getBoolean(OIDCClaimName.email_verified.name())) {
-						info.setUsersVerifiedEmail(json.getString(OIDCClaimName.email_verified.name()));
+						info.setUsersVerifiedEmail(json.getString(OIDCClaimName.email.name()));
 					}
 				} catch (JSONException e) {
 					// don't set the value

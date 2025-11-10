@@ -4,6 +4,7 @@ import java.io.StringWriter;
 import java.io.Writer;
 import java.util.List;
 
+import org.json.JSONArray;
 import org.sagebionetworks.repo.model.UnmodifiableXStream;
 import org.sagebionetworks.repo.model.grid.query.CellValueFilter;
 import org.sagebionetworks.repo.model.grid.query.CellValueOperator;
@@ -39,11 +40,11 @@ public class GridExampleJson {
 						.setQuery_json(JDOSecondaryPropertyUtils.createJSONFromObject(
 								new Query().setColumnSelection(List.of(new SelectAll())).setLimit(10L))),
 				// Example 2
-				new QueryExample().setDescription("Return up to 10 rows selecting two columns by their name (no filters).")
+				new QueryExample().setDescription("Return up to 10 rows selecting the species and weight columns by name (no filters).")
 						.setQuery_json(JDOSecondaryPropertyUtils.createJSONFromObject(
 							new Query().setColumnSelection(
-								List.of(new SelectByName().setColumnName("name"),
-										new SelectByName().setColumnName("age"))
+								List.of(new SelectByName().setColumnName("species"),
+										new SelectByName().setColumnName("weight"))
 							).setLimit(10L))),
 				// Example 3
 				new QueryExample()
@@ -52,14 +53,23 @@ public class GridExampleJson {
 								new Query().setColumnSelection(List.of(new CountStar())).setLimit(1L))),
 				// Example 4
 				new QueryExample().setDescription(
-						"Return up to 50 rows selecting all columns where age > 25 AND JSON schema validation is invalid (isValid = false).")
+								"Return up to 50 rows selecting all columns where age > 25 AND JSON schema validation is invalid (isValid = false).")
 						.setQuery_json(JDOSecondaryPropertyUtils
 								.createJSONFromObject(new Query().setColumnSelection(List.of(new SelectAll()))
 										.setFilters(List.of(new CellValueFilter()
 												.setColumnName("age").setOperator(CellValueOperator.GREATER_THAN)
-												.setValue(List.of(25)), new RowIsValidFilter().setValue(false)))
+												.setValue(25), new RowIsValidFilter().setValue(false)))
 										.setLimit(50L))),
 				// Example 5
+				new QueryExample().setDescription(
+								"Return up to 5 rows selecting all columns where color is one of \"red\", or \"green\".")
+						.setQuery_json(JDOSecondaryPropertyUtils
+								.createJSONFromObject(new Query().setColumnSelection(List.of(new SelectAll()))
+										.setFilters(List.of(new CellValueFilter()
+												.setColumnName("color").setOperator(CellValueOperator.IN)
+												.setValue(new JSONArray(List.of("red", "green")))))
+										.setLimit(50L))),
+				// Example 6
 				new QueryExample().setDescription(
 						"Count the currently selected rows whose validation error message contains 'expected type' (SQL LIKE pattern using % wildcards).")
 						.setQuery_json(JDOSecondaryPropertyUtils
@@ -73,8 +83,20 @@ public class GridExampleJson {
 						"Return up to 10 rows selecting only the columns currently selected by the user.")
 						.setQuery_json(JDOSecondaryPropertyUtils
 								.createJSONFromObject(new Query().setColumnSelection(List.of(new SelectSelection()))
-										.setLimit(10L)))
-				),
+										.setLimit(10L))),
+				// Example 7
+				new QueryExample().setDescription(
+								"Return up to 10 rows where subspecies is undefined and species is not null.")
+						// Hard-coded JSON because our auto-generated models do not distinguish between null and undefined
+						.setQuery_json(JDOSecondaryPropertyUtils
+								.createJSONFromObject(new Query()
+										.setColumnSelection(List.of(new SelectAll()))
+										.setFilters(List.of(
+												new CellValueFilter().setColumnName("subspecies")
+														.setOperator(CellValueOperator.IS_UNDEFINED),
+												new CellValueFilter().setColumnName("species")
+														.setOperator(CellValueOperator.IS_NOT_NULL)))
+										.setLimit(10L)))),
 				writer);
 
 		System.out.println(writerToString(writer));
@@ -90,12 +112,11 @@ public class GridExampleJson {
 				// Update Example 2
 				new UpdateExample().setDescription(
 						"For rows where height > 12, set type = 'tall' and footing = null; cap updates at 10 rows.")
-						.setUpdate_json(JDOSecondaryPropertyUtils.createJSONFromObject(new Update()
-								.setSet(List.of(new SetValue().setColumnName("type").setValue("tall"),
-										new SetValue().setColumnName("footing").setValue(null)))
-								.setFilters(List.of(new CellValueFilter().setColumnName("height")
-										.setOperator(CellValueOperator.GREATER_THAN).setValue(List.of(12))))
-								.setLimit(10L))),
+						// Hard-coded JSON because our auto-generated models do not distinguish between null and undefined
+						.setUpdate_json("{" +
+								"\"set\":[{\"columnName\":\"type\",\"value\":\"tall\"},{\"columnName\":\"footing\",\"value\":null}]," +
+								"\"filters\":[{\"concreteType\":\"org.sagebionetworks.repo.model.grid.query.CellValueFilter\",\"columnName\":\"height\",\"operator\":\"GREATER_THAN\",\"value\":12}]," +
+								"\"limit\":10}"),
 				// Update Example 3
 				new UpdateExample().setDescription("Set name = 'Dave' for all currently selected rows.")
 						.setUpdate_json(JDOSecondaryPropertyUtils.createJSONFromObject(
@@ -106,7 +127,15 @@ public class GridExampleJson {
 						"Set status = true only for rows with IDs r2 and r5 (explicit RowIdFilter targeting previously retrieved IDs).")
 						.setUpdate_json(JDOSecondaryPropertyUtils.createJSONFromObject(
 								new Update().setSet(List.of(new SetValue().setColumnName("status").setValue(true)))
-										.setFilters(List.of(new RowIdFilter().setRowIdsIn(List.of("r2", "r5"))))))),
+										.setFilters(List.of(new RowIdFilter().setRowIdsIn(List.of("r2", "r5")))))),
+				// Update Example 5
+				new UpdateExample().setDescription(
+						"Set color to undefined for rows where material is null.")
+						// Hard-coded JSON because our auto-generated models do not distinguish between null and undefined
+						.setUpdate_json("{" +
+								"\"set\":[{\"columnName\":\"color\"}]," +
+								"\"filters\":[{\"concreteType\":\"org.sagebionetworks.repo.model.grid.query.CellValueFilter\",\"columnName\":\"material\",\"operator\":\"IS_NULL\"}]" +
+							"}")),
 				writer);
 
 		System.out.println(writerToString(writer));

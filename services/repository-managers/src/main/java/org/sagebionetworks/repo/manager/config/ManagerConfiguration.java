@@ -443,9 +443,9 @@ public class ManagerConfiguration {
 
 	@Bean
 	public RowPFBWriterProvider createRowPFBWriterProvider() {
-		return (String tableName, List<ColumnModel> columns, Metadata metadata, File file) -> {
-			return new RowPFBWriter(tableName, columns, metadata, new FileOutputStream(file));
-		};
+		return (String tableName, List<ColumnModel> columns, List<String> entityIdColumnNames, Metadata metadata, File file) -> 
+			new RowPFBWriter(tableName, columns, entityIdColumnNames, metadata, new FileOutputStream(file)
+		);
 	}
 
 	@Bean

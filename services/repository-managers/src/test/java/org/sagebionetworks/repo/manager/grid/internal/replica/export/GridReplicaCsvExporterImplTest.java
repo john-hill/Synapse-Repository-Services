@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
@@ -44,6 +45,8 @@ import org.sagebionetworks.repo.model.grid.DownloadFromGridRequest;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.patch.ConType;
+import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.util.csv.CSVWriterProvider;
 
 import au.com.bytecode.opencsv.CSVWriter;
@@ -100,10 +103,10 @@ public class GridReplicaCsvExporterImplTest {
         rowViews = new ArrayList<>();
         rowViews.add(new RowView().setRowObject(new RowObject()
                 .setMetadata(new RowMetadata().setSynapseRow(new SynapseRow().setRowId(1L).setVersionNumber(2L).setEtag("etag1")))
-                .setData(new RowData().setCells(new JSONArray(List.of("a", "b"))))));
+                .setData(new RowData().setCells(Arrays.asList(new ConValue(ConType.STRING, "a"), new ConValue(ConType.STRING, "b"))))));
         rowViews.add(new RowView().setRowObject(new RowObject()
                 .setMetadata(new RowMetadata().setSynapseRow(new SynapseRow().setRowId(3L).setVersionNumber(4L).setEtag("etag2")))
-                .setData(new RowData().setCells(new JSONArray(List.of("c", "d"))))));
+                .setData(new RowData().setCells(Arrays.asList(new ConValue(ConType.STRING, "c"), new ConValue(ConType.STRING, "d"))))));
     }
 
     @Test
@@ -289,7 +292,7 @@ public class GridReplicaCsvExporterImplTest {
     @Test
     public void testExportGridAsCsvWithNullOrEmptyValues() throws IOException {
         rowViews.get(0).getRowObject().getMetadata().getSynapseRow().setRowId(null).setVersionNumber(null).setEtag(null);
-        rowViews.get(0).getRowObject().getData().setCells(new JSONArray("[\"a\",\"\"]"));
+        rowViews.get(0).getRowObject().getData().setCells(Arrays.asList(new ConValue(ConType.STRING, "a"), new ConValue(ConType.STRING, "")));
 
         when(mockGridManager.getGridSession(userInfo, sessionId)).thenReturn(mockGridSession);
         when(gridReplicaSupport.getGridHeaderOrThrow(mockGridSession)).thenReturn(mockGridHeader);

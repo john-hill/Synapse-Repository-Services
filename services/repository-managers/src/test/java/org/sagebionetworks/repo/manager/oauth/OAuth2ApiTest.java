@@ -8,9 +8,13 @@ import static org.sagebionetworks.repo.manager.oauth.OAuth2Api.FAMILY_NAME;
 import static org.sagebionetworks.repo.manager.oauth.OAuth2Api.GIVEN_NAME;
 import static org.sagebionetworks.repo.manager.oauth.OAuth2Api.SUB;
 
+import java.io.OutputStream;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
+import org.scribe.model.OAuthConfig;
+import org.scribe.model.SignatureType;
 
 
 
@@ -63,6 +67,26 @@ class OAuth2ApiTest {
 		ProvidedUserInfo info = OAuth2Api.parseUserInfo(json.toString());
 		assertNotNull(info);
 		assertEquals("Email was not verified and should not have been returned.",null, info.getUsersVerifiedEmail());
+	}
+	
+	@Test
+	public void testEndpoints() throws Exception {
+		String authorizationEndpoint="auth-endpoint?client_id=%s&callback_uri=%s";
+		String accessTokenEndpoint="token-endpoint";
+		String userInfoEndpoint="userinfo-endpoint";
+		
+		OAuth2Api api = new OAuth2Api(authorizationEndpoint, accessTokenEndpoint, userInfoEndpoint);
+		
+		assertEquals(authorizationEndpoint, api.authorizationEndpoint);
+		assertEquals(accessTokenEndpoint, api.getAccessTokenEndpoint());
+		assertEquals(userInfoEndpoint, api.userInfoEndpoint);
+		
+		OAuthConfig config = new OAuthConfig("clientid", null, "synapse.org", null, "openid", null);
+		String expectedAuthUrl="auth-endpoint?client_id=clientid&callback_uri=synapse.org&scope=openid";
+		assertEquals(expectedAuthUrl, api.getAuthorizationUrl(config));
+		
+		
+
 	}
 
 }

@@ -54,8 +54,9 @@ public class RecordSetMetadataProvider implements EntityValidator<RecordSet>, Ty
 		Long recordSetId = KeyFactory.stringToKey(entity.getId());
 		Long recordSetVersion = entity.getVersionNumber();
 		
-		validationResultDao.getRecordSetValidationSummaryStatistics(recordSetId, recordSetVersion).ifPresent( stats -> 
-			entity.setValidationSummary(stats)
+		validationResultDao.getRecordSetValidationResult(recordSetId, recordSetVersion).ifPresent( result -> entity
+			.setValidationSummary(result.getSummaryStatistics())
+			.setValidationFileHandleId(result.getDetailsFileHandleId() == null ? null : result.getDetailsFileHandleId().toString())
 		);
 	}
 

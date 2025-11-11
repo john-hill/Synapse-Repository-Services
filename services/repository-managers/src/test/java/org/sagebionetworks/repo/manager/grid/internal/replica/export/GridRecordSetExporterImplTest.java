@@ -24,6 +24,7 @@ import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.dbo.schema.EntitySchemaValidationResultDao;
+import org.sagebionetworks.repo.model.dbo.schema.RecordSetValidationResult;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridRequest;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportRequest;
@@ -147,8 +148,8 @@ public class GridRecordSetExporterImplTest {
 		
 		assertEquals(2L, recordSet.getVersionNumber());
 		
-		verify(mockValidationResultDao).setRecordSetValidationSummaryStatistics(
-			KeyFactory.stringToKey(recordSetId), 2L, expectedResponse.getValidationSummaryStatistics()
+		verify(mockValidationResultDao).setRecordSetValidationResult(
+			KeyFactory.stringToKey(recordSetId), 2L, new RecordSetValidationResult(expectedResponse.getValidationSummaryStatistics(), null)
 		);
 	}
 

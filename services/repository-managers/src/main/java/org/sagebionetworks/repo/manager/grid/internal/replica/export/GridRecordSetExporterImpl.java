@@ -10,6 +10,7 @@ import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.dbo.schema.EntitySchemaValidationResultDao;
+import org.sagebionetworks.repo.model.dbo.schema.RecordSetValidationResult;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridRequest;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportRequest;
@@ -23,6 +24,8 @@ import org.sagebionetworks.repo.service.EntityService;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.stereotype.Service;
+
+import au.com.bytecode.opencsv.CSVWriter;
 
 @Service
 public class GridRecordSetExporterImpl implements GridRecordSetExporter {
@@ -57,8 +60,13 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 		// First export to a CSV file
 		String exportedFileId = exportToCsv(user, gridSession.getSessionId(), recordSet.getCsvDescriptor(), jobCallback, validationSummaryBuilder);
 		
+		// TODO
+		Long validationFileHandleId = null;
+		
+		RecordSetValidationResult validationResult = new RecordSetValidationResult(validationSummaryBuilder.getValidationSummary(), validationFileHandleId);
+		
 		// Creates a new version of the record set that points to the new file and persist the validation summary
-		recordSet = createNewVersion(user, recordSet, exportedFileId, validationSummaryBuilder.getValidationSummary());
+		recordSet = createNewVersion(user, recordSet, exportedFileId, validationResult);
 		
 		return new GridRecordSetExportResponse()
 			.setSessionId(request.getSessionId())
@@ -87,7 +95,7 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 		return result.getResultsFileHandleId();
 	}
 	
-	RecordSet createNewVersion(UserInfo user, RecordSet recordSet, String newFileHandleId, ValidationSummaryStatistics validationSummary) {
+	RecordSet createNewVersion(UserInfo user, RecordSet recordSet, String newFileHandleId, RecordSetValidationResult validationResult) {
 		recordSet.setDataFileHandleId(newFileHandleId);
 		recordSet.setVersionLabel(null);
 		
@@ -98,10 +106,11 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 		Long recordSetVersion = updated.getVersionNumber();
 		
 		// Persists the validation summary 
-		validationResultDao.setRecordSetValidationSummaryStatistics(recordSetId, recordSetVersion, validationSummary);
+		validationResultDao.setRecordSetValidationResult(recordSetId, recordSetVersion, validationResult);
 		
 		// We set this manually to avoid reading the entity again
-		updated.setValidationSummary(validationSummary);
+		updated.setValidationSummary(validationResult.getSummaryStatistics());
+		updated.setValidationFileHandleId(validationResult.getDetailsFileHandleId() == null ? null : validationResult.getDetailsFileHandleId().toString());
 		
 		return updated;
 	}

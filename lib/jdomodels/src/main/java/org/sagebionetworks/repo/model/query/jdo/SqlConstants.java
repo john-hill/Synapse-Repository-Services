@@ -1455,6 +1455,7 @@ public class SqlConstants {
  	public static final String COL_RECORDSET_VALIDATION_STATS_RECORDSET_ID		= "RECORDSET_ID";
  	public static final String COL_RECORDSET_VALIDATION_STATS_RECORDSET_VERSION	= "RECORDSET_VERSION";
  	public static final String COL_RECORDSET_VALIDATION_STATS_JSON				= "STATS_JSON";
+ 	public static final String COL_RECORDSET_VALIDATION_STATS_FILE_HANDLE_ID	= "FILE_HANDLE_ID";
  	public static final String DDL_FILE_RECORDSET_VALIDATION_STATS				= "schema/RecordSetValidationStats-ddl.sql";
 
 	// This seems to be the name of the id column for all tables.

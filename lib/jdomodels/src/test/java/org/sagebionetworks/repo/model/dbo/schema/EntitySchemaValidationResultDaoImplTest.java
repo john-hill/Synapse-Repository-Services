@@ -397,24 +397,31 @@ public class EntitySchemaValidationResultDaoImplTest {
 		stats.setNumberOfUnknownChildren(3L);
 		stats.setTotalNumberOfChildren(6L);
 		
-		// Call under test
-		assertEquals(Optional.empty(), entitySchemaValidationResultDao.getRecordSetValidationSummaryStatistics(recordSetId, recordSetVersion));
+		Long fileHandleId = null;
+		
+		RecordSetValidationResult result = new RecordSetValidationResult(stats, fileHandleId);
 		
 		// Call under test
-		entitySchemaValidationResultDao.setRecordSetValidationSummaryStatistics(recordSetId, recordSetVersion, stats);
+		assertEquals(Optional.empty(), entitySchemaValidationResultDao.getRecordSetValidationResult(recordSetId, recordSetVersion));
+		
+		// Call under test
+		entitySchemaValidationResultDao.setRecordSetValidationResult(recordSetId, recordSetVersion, result);
 		
 		// call under test
-		assertEquals(stats, entitySchemaValidationResultDao.getRecordSetValidationSummaryStatistics(recordSetId, recordSetVersion).get());
+		assertEquals(result, entitySchemaValidationResultDao.getRecordSetValidationResult(recordSetId, recordSetVersion).get());
 	
 		stats.setGeneratedOn(new Date());
 		stats.setTotalNumberOfChildren(7L);
 		stats.setNumberOfValidChildren(2L);
 		
+		fileHandleId = 456L;
+		result = new RecordSetValidationResult(stats, fileHandleId);
+		
 		// Call under test
-		entitySchemaValidationResultDao.setRecordSetValidationSummaryStatistics(recordSetId, recordSetVersion, stats);
+		entitySchemaValidationResultDao.setRecordSetValidationResult(recordSetId, recordSetVersion, result);
 		
 		// call under test
-		assertEquals(stats, entitySchemaValidationResultDao.getRecordSetValidationSummaryStatistics(recordSetId, recordSetVersion).get());
+		assertEquals(result, entitySchemaValidationResultDao.getRecordSetValidationResult(recordSetId, recordSetVersion).get());
 				
 	}
 	

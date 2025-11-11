@@ -29,6 +29,11 @@
 			"description": "Summary of validation results from a grid session that was exported to this record set. Generated only from a grid session export, cannot be changed by the user.",
 			"$ref": "org.sagebionetworks.repo.model.schema.ValidationSummaryStatistics",
 			"transient": true
-		}
+		},
+		"validationFileHandleId": {
+            "type": "string",
+            "description": "Pointer to a CSV file that contains the detailed validation results for each row in the record set. Generated only from a grid session export, cannot be changed by the user.",
+			"transient": true
+        }
 	}
 }

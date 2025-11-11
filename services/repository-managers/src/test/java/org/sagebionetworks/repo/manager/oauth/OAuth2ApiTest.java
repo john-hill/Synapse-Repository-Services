@@ -8,13 +8,10 @@ import static org.sagebionetworks.repo.manager.oauth.OAuth2Api.FAMILY_NAME;
 import static org.sagebionetworks.repo.manager.oauth.OAuth2Api.GIVEN_NAME;
 import static org.sagebionetworks.repo.manager.oauth.OAuth2Api.SUB;
 
-import java.io.OutputStream;
-
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 import org.scribe.model.OAuthConfig;
-import org.scribe.model.SignatureType;
 
 
 
@@ -84,9 +81,6 @@ class OAuth2ApiTest {
 		OAuthConfig config = new OAuthConfig("clientid", null, "synapse.org", null, "openid", null);
 		String expectedAuthUrl="auth-endpoint?client_id=clientid&callback_uri=synapse.org&scope=openid";
 		assertEquals(expectedAuthUrl, api.getAuthorizationUrl(config));
-		
-		
-
 	}
 
 }

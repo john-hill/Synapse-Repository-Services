@@ -17,6 +17,7 @@ import org.sagebionetworks.repo.manager.agent.handler.OpenApiReturnControlHandle
 import org.sagebionetworks.repo.manager.agent.handler.ReturnControlEvent;
 import org.sagebionetworks.repo.manager.grid.GridManager;
 import org.sagebionetworks.repo.manager.grid.PatchUtils;
+import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChange;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangePublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.PatchBuilderPublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.UpdateRowChange;
@@ -32,7 +33,6 @@ import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
-import org.sagebionetworks.repo.model.grid.update.GridUpdateRequest;
 import org.sagebionetworks.repo.model.grid.update.GridUpdateResponse;
 import org.sagebionetworks.repo.model.grid.update.SetValue;
 import org.sagebionetworks.repo.model.grid.update.Update;
@@ -68,61 +68,89 @@ public class GridUpdateRequestHandler implements OpenApiReturnControlHandler {
 
 	@Override
 	public String handleEvent(ReturnControlEvent event) throws Exception {
-		GridUpdateRequest request = extractRequest(event);
-		ValidateArgument.required(request.getUpdate(), "update");
-		Update update = request.getUpdate();
+		JSONObject updateRequestRaw = extractRequest(event);
+		GridAgentSessionContext context = getSessionContext(event);
+		GridConnectionInfo internalConnection = getInternalConnection(context);
+		GridHeader header = getGridHeader(context, internalConnection);
+		GridConnectionInfo agentConnection = getAgentConnection(context);
+
+		JSONArray updateBatch = updateRequestRaw.getJSONArray("updateBatch");
+		List<Long> updateCounts = new ArrayList<>();
+		for (int i = 0; i < updateBatch.length(); i++) {
+			updateCounts.add(executeUpdate(header, agentConnection, updateBatch.getJSONObject(i)));
+		}
+		return buildResponseJSON(updateCounts);
+	}
+
+	long executeUpdate(GridHeader header, GridConnectionInfo agentConnection, JSONObject updateObject)
+			throws Exception {
+		Update update = extractUpdate(updateObject);
+		JSONArray rawSetValueArray = updateObject.getJSONArray("set");
 		List<SetValue> set = update.getSet();
-
-		GridAgentSessionContext context = event.getSessionContext(GridAgentSessionContext.class)
-				.orElseThrow(() -> new IllegalArgumentException("GridAgentSessionContext cannot be null"));
-
-		GridConnectionInfo internalConnection = gridManager
-				.getSingletonConnection(context.getGridSessionId(), EventSource.INTERNAL)
-				.orElseThrow(() -> new IllegalArgumentException("Cannot get a grid connection."));
-
-		GridHeader header = gridViewManager
-				.readHeader(context.getGridSessionId(), internalConnection.getReplicaId(), context.getUsersReplicaId())
-				.orElseThrow(() -> new IllegalArgumentException("Grid session does not exist"));
-
-		List<FilterElement> filters = update.getFilters() == null ? Collections.emptyList()
-				: update.getFilters().stream().map(FilterTranslation::translate).collect(Collectors.toList());
-
-		GridConnectionInfo agentConnection = gridManager
-				.getConnection(context.getGridSessionId(), context.getAgentsReplicaId()).orElseThrow(
-						() -> new IllegalArgumentException("Grid connection does not exist for the agent replica."));
-
+		List<FilterElement> filters = getFilters(update);
 		Integer[] indexArray = createIndexArray(set, header);
+
 		long updateCount = 0;
 		Iterator<RowView> rows = gridViewManager.getQueryIterator(header,
 				new QueryElement().setWhere(filters).setLimit(update.getLimit()));
 
-		// The auto-generated class loses the raw JSON null vs undefined info, which we need because it has semantic meaning for updates.
-		// We can re-construct that by getting the raw JSON object.
-		JSONObject updateRequestRaw = new JSONObject(event.getRequestBody().get());
-
 		try (IntendedChangePublisher icp = newIntendedChangePublisher(agentConnection, header.getClockSequenceMaximum(),
 				patchBuilderPublisher)) {
 			while (rows.hasNext()) {
-				RowView row = rows.next();
-				List<ConValue> updates = new ArrayList<>();
-				JSONArray rawSetValueArray =  updateRequestRaw.optJSONObject("update").optJSONArray("set");
-				for (int i = 0; i < set.size(); i++) {
-					SetValue sv = set.get(i);
-					ConValue toAdd = new ConValue(ConType.fromValue(sv.getValue()), sv.getValue());
-					JSONObject rawSetValue = rawSetValueArray.optJSONObject(i);
-					if (!rawSetValue.has("value")) {
-						toAdd = new ConValue(ConType.UNDEFINED, null);
-					} else if (rawSetValue.isNull("value")) {
-						toAdd = new ConValue(ConType.NULL, null);
-					}
-					updates.add(toAdd);
-				}
-				icp.publish(new UpdateRowChange(row.getRowObject().getData().getVectorId(), updates, indexArray));
+				icp.publish(buildChange(rows.next(), set, rawSetValueArray, indexArray));
 				updateCount++;
 			}
 		}
+		return updateCount;
+	}
+	
+	IntendedChange buildChange(RowView row, List<SetValue> set, JSONArray rawSetValueArray, Integer[] indexArray) {
+		List<ConValue> updates = new ArrayList<>();
+		for (int i = 0; i < set.size(); i++) {
+			SetValue sv = set.get(i);
+			JSONObject rawSetValue = rawSetValueArray.optJSONObject(i);
+			ConValue toAdd = createConValue(sv, rawSetValue);
+			updates.add(toAdd);
+		}
+		return new UpdateRowChange(row.getRowObject().getData().getVectorId(), updates, indexArray);
+	}
+	
 
-		return buildResponseJSON(updateCount);
+	GridAgentSessionContext getSessionContext(ReturnControlEvent event) {
+		return event.getSessionContext(GridAgentSessionContext.class)
+				.orElseThrow(() -> new IllegalArgumentException("GridAgentSessionContext cannot be null"));
+	}
+
+	GridConnectionInfo getInternalConnection(GridAgentSessionContext context) {
+		return gridManager.getSingletonConnection(context.getGridSessionId(), EventSource.INTERNAL)
+				.orElseThrow(() -> new IllegalArgumentException("Cannot get an internal grid connection."));
+	}
+
+	GridHeader getGridHeader(GridAgentSessionContext context, GridConnectionInfo internalConnection) {
+		return gridViewManager
+				.readHeader(context.getGridSessionId(), internalConnection.getReplicaId(), context.getUsersReplicaId())
+				.orElseThrow(() -> new IllegalArgumentException("Cannot read the grid header."));
+	}
+
+	GridConnectionInfo getAgentConnection(GridAgentSessionContext context) {
+		return gridManager.getConnection(context.getGridSessionId(), context.getAgentsReplicaId()).orElseThrow(
+				() -> new IllegalArgumentException("Cannot get an agent grid connection."));
+	}
+
+	List<FilterElement> getFilters(Update update) {
+		return update.getFilters() == null ? Collections.emptyList()
+				: update.getFilters().stream().map(FilterTranslation::translate).collect(Collectors.toList());
+	}
+
+
+	ConValue createConValue(SetValue sv, JSONObject rawSetValue) {
+		if (!rawSetValue.has("value")) {
+			return new ConValue(ConType.UNDEFINED, null);
+		}
+		if (rawSetValue.isNull("value")) {
+			return new ConValue(ConType.NULL, null);
+		}
+		return new ConValue(ConType.fromValue(sv.getValue()), sv.getValue());
 	}
 
 	IntendedChangePublisher newIntendedChangePublisher(GridConnectionInfo connInfo, Long maxClockSeq,
@@ -130,19 +158,24 @@ public class GridUpdateRequestHandler implements OpenApiReturnControlHandler {
 		return new IntendedChangePublisher(connInfo, maxClockSeq, publisher, PatchUtils.MAX_CHANGE_SET_SIZE);
 	}
 
-	String buildResponseJSON(Long updateCount) {
+	Update extractUpdate(JSONObject updateObject) {
+		return JDOSecondaryPropertyUtils.createEntityFromJSONObject(updateObject, Update.class);
+	}
+
+	String buildResponseJSON(List<Long> updateCount) {
 		String json = JDOSecondaryPropertyUtils
-				.createJSONFromObject(new GridUpdateResponse().setRowsUpdated(updateCount));
+				.createJSONFromObject(new GridUpdateResponse().setUpdateResults(updateCount)
+						.setTotalRowsUpdated(updateCount.stream().mapToLong(Long::longValue).sum()));
 		log.info("response JSON: {}", json);
 		return json;
 	}
 
-	GridUpdateRequest extractRequest(ReturnControlEvent event) {
+	JSONObject extractRequest(ReturnControlEvent event) {
 		ValidateArgument.required(event, "event");
 		String body = event.getRequestBody()
 				.orElseThrow(() -> new IllegalArgumentException("Request body cannot be null."));
 		log.info("request body: {}", body);
-		return JDOSecondaryPropertyUtils.createObjectFromJSON(GridUpdateRequest.class, body);
+		return new JSONObject(body);
 	}
 
 	Integer[] createIndexArray(List<SetValue> set, GridHeader header) {

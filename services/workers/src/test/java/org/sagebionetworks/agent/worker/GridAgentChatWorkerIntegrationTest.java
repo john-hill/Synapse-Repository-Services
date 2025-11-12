@@ -28,6 +28,9 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.QueryElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.CellValueFilterElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.CellValueOperatorElement;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.RowSelectionFilterElement;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.Project;
@@ -60,6 +63,9 @@ import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializabl
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.InsertObjectBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewConstantBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewObjectBuilder;
+import org.sagebionetworks.repo.model.grid.query.CellValueFilter;
+import org.sagebionetworks.repo.model.grid.query.CellValueOperator;
+import org.sagebionetworks.repo.model.grid.query.result.QueryResult;
 import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.schema.CreateSchemaRequest;
 import org.sagebionetworks.repo.model.schema.CreateSchemaResponse;
@@ -341,6 +347,47 @@ public class GridAgentChatWorkerIntegrationTest {
 		
 		// Verifies that the agent used a SelectSelection in its query
 		assertTrue(jobTraceText.contains("org.sagebionetworks.repo.model.grid.query.SelectSelection"));
+		
+		chatRequest = "I would like to do a batch of updates, for the row where 'a'=99 set the value of 'b' to be 'a was 99' and for the row where 'a'=101 set 'b' to be 'a was 101'";
+		acr = asynchronousJobWorkerHelper
+				.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
+						.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {
+							assertNotNull(response);
+							assertEquals(agentSession.getSessionId(), response.getSessionId());
+							assertNotNull(response.getResponseText());
+							System.out.println(response.getResponseText());
+						}, MAX_WAIT_MS)
+				.getResponse();
+		// the agent is likely to ask if it should proceed....
+		if (acr.getResponseText().contains("?")) {
+			chatRequest = "You may proceed with making the change.";
+			acr = asynchronousJobWorkerHelper
+					.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
+							.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {
+								assertNotNull(response);
+								assertEquals(agentSession.getSessionId(), response.getSessionId());
+								assertNotNull(response.getResponseText());
+								System.out.println(response.getResponseText());
+							}, MAX_WAIT_MS)
+					.getResponse();
+		}
+
+		TimeUtils.waitFor(MAX_WAIT_MS, 2000L, () -> {
+			System.out.println("Waiting for agent's changes to appear...");
+			GridHeader h = gridReplicaViewManager
+					.readHeader(gridSession.getSessionId(), INTERNAL_REPLICA_ID, context.getUsersReplicaId()).get();
+			QueryResult qr = gridReplicaViewManager.querySinglePageAsQueryResult(h,
+					new QueryElement().setWhere(
+					List.of(new CellValueFilterElement().setColumnName("a").setOperator(CellValueOperatorElement.IN).setValue(List.of(99,101)))));
+			String json = JDOSecondaryPropertyUtils.createJSONFromObject(qr);
+			System.out.println("Query result: "+json);
+			if(json.contains("a was 99") && json.contains("a was 101")){
+				return Pair.create(true, null);
+			}else {
+				return Pair.create(false, null);
+			}
+		});
+		
 	}
 
 	public JsonRxMessage createSetSelectionMessage(GridHeader header, ReplicaSelectionModel selection,

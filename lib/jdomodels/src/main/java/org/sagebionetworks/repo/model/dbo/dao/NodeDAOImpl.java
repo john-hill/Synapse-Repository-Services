@@ -127,6 +127,7 @@ import org.sagebionetworks.repo.model.message.ChangeType;
 import org.sagebionetworks.repo.model.message.MessageToSend;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
 import org.sagebionetworks.repo.model.query.QueryTools;
+import org.sagebionetworks.repo.model.query.jdo.SqlConstants;
 import org.sagebionetworks.repo.model.schema.BoundObjectType;
 import org.sagebionetworks.repo.model.table.ObjectAnnotationDTO;
 import org.sagebionetworks.repo.model.table.ObjectDataDTO;
@@ -533,9 +534,14 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 	private static final String SQL_COUNT_REVISON_ID = "SELECT COUNT("+COL_REVISION_OWNER_NODE+") FROM "+TABLE_REVISION+" WHERE "+COL_REVISION_OWNER_NODE +" = ? AND "+COL_REVISION_NUMBER+" = ?";
 
 	private static final String SQL_GET_FILE_HANDLE_IDS =
-			"SELECT DISTINCT "+COL_REVISION_FILE_HANDLE_ID
-			+" FROM "+TABLE_REVISION
-			+" WHERE "+COL_REVISION_OWNER_NODE+" = ?";
+			"SELECT DISTINCT " + COL_REVISION_FILE_HANDLE_ID
+			+ " FROM " + TABLE_REVISION
+			+ " WHERE " + COL_REVISION_OWNER_NODE + " = ?"
+			+ " UNION " +
+			// Record sets potentially store another file handle containing validation data in a different table
+			"SELECT DISTINCT " + SqlConstants.COL_RECORDSET_VALIDATION_STATS_FILE_HANDLE_ID
+			+ " FROM " + SqlConstants.TABLE_RECORDSET_VALIDATION_STATS
+			+ " WHERE " + SqlConstants.COL_RECORDSET_VALIDATION_STATS_RECORDSET_ID + " = ?";
 	
 	private static final String SQL_DELETE_BY_ID = "DELETE FROM " + TABLE_NODE + " WHERE ID = ?";
 	
@@ -1807,7 +1813,7 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 			return results;
 		}
 		results.addAll(fileHandleIds);
-		List<Long> foundFileHandleIds = jdbcTemplate.queryForList(SQL_GET_FILE_HANDLE_IDS, Long.class, entityId);
+		List<Long> foundFileHandleIds = jdbcTemplate.queryForList(SQL_GET_FILE_HANDLE_IDS, Long.class, entityId, entityId);
 		results.retainAll(foundFileHandleIds);
 		return results;
 	}

@@ -88,7 +88,9 @@ import org.sagebionetworks.repo.model.dbo.file.FileHandleDao;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableDAO;
 import org.sagebionetworks.repo.model.dbo.persistence.DBORevision;
 import org.sagebionetworks.repo.model.dbo.schema.DerivedAnnotationDao;
+import org.sagebionetworks.repo.model.dbo.schema.EntitySchemaValidationResultDao;
 import org.sagebionetworks.repo.model.dbo.schema.JsonSchemaTestHelper;
+import org.sagebionetworks.repo.model.dbo.schema.RecordSetValidationResult;
 import org.sagebionetworks.repo.model.entity.Direction;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.entity.NameIdType;
@@ -109,6 +111,7 @@ import org.sagebionetworks.repo.model.query.jdo.SqlConstants;
 import org.sagebionetworks.repo.model.schema.BoundObjectType;
 import org.sagebionetworks.repo.model.schema.JsonSchemaObjectBinding;
 import org.sagebionetworks.repo.model.schema.JsonSchemaVersionInfo;
+import org.sagebionetworks.repo.model.schema.ValidationSummaryStatistics;
 import org.sagebionetworks.repo.model.table.AnnotationType;
 import org.sagebionetworks.repo.model.table.ObjectAnnotationDTO;
 import org.sagebionetworks.repo.model.table.ObjectDataDTO;
@@ -187,6 +190,9 @@ public class NodeDAOImplTest {
 	
 	@Autowired
 	private TransactionTemplate readCommitedTransactionTemplate;
+	
+	@Autowired
+	private EntitySchemaValidationResultDao schemaValidationResultDao;
 
 	// the datasets that must be deleted at the end of each test.
 	List<String> toDelete = new ArrayList<String>();
@@ -254,6 +260,7 @@ public class NodeDAOImplTest {
 
 		groupMembersDAO.addMembers(group, Lists.newArrayList(user1));
 		groupMembersDAO.addMembers(group, Lists.newArrayList(user3));
+		schemaValidationResultDao.truncateAll();
 	}
 	
 	@AfterEach
@@ -286,6 +293,7 @@ public class NodeDAOImplTest {
 		}
 		nodeDao.truncateAll();
 		derivedAnnotationsDao.clearAll();
+		schemaValidationResultDao.truncateAll();
 	}
 	
 	private Node privateCreateNew(String name) {
@@ -3142,6 +3150,28 @@ public class NodeDAOImplTest {
 		assertNotNull(foundFileHandleIds);
 		assertEquals(1L, foundFileHandleIds.size());
 		assertTrue(foundFileHandleIds.contains(fileHanldeId));
+
+		nodeDao.delete(id);
+		fileHandleDao.delete(fileHandle.getId());
+	}
+	
+	@Test
+	public void testGetFileHandleIdsAssociatedWithRecordSet(){
+		Node node = NodeTestUtils.createNew("testGetFileHandleIdsForFileEntity", creatorUserGroupId);
+		node.setFileHandleId(fileHandle.getId());
+		String id = nodeDao.createNew(node);
+		toDelete.add(id);
+		
+		long fileHanldeId = Long.parseLong(fileHandle.getId());
+		
+		schemaValidationResultDao.setRecordSetValidationResult(KeyFactory.stringToKey(id), 1L, new RecordSetValidationResult(new ValidationSummaryStatistics(), "456"));
+		schemaValidationResultDao.setRecordSetValidationResult(KeyFactory.stringToKey(id), 2L, new RecordSetValidationResult(new ValidationSummaryStatistics(), "789"));
+		
+		List<Long> fileHandleIds = Arrays.asList(fileHanldeId, 456L, 789L);
+		
+		Set<Long> foundFileHandleIds = nodeDao.getFileHandleIdsAssociatedWithFileEntity(fileHandleIds, KeyFactory.stringToKey(id));
+		
+		assertTrue(foundFileHandleIds.containsAll(fileHandleIds));
 
 		nodeDao.delete(id);
 		fileHandleDao.delete(fileHandle.getId());

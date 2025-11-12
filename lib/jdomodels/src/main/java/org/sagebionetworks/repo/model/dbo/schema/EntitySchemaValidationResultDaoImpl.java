@@ -51,7 +51,7 @@ public class EntitySchemaValidationResultDaoImpl implements EntitySchemaValidati
 
 	private static final RowMapper<RecordSetValidationResult> RECORD_SET_VALIDATION_STATS_MAPPER = (ResultSet rs, int i) -> {
 		ValidationSummaryStatistics stats = JDOSecondaryPropertyUtils.createObjectFromJSON(ValidationSummaryStatistics.class, rs.getString(COL_RECORDSET_VALIDATION_STATS_JSON));
-		Long fileHandleId = rs.getLong(COL_RECORDSET_VALIDATION_STATS_FILE_HANDLE_ID);
+		String fileHandleId = String.valueOf(rs.getLong(COL_RECORDSET_VALIDATION_STATS_FILE_HANDLE_ID));
 		
 		if (rs.wasNull()) {
 			fileHandleId = null;
@@ -169,7 +169,7 @@ public class EntitySchemaValidationResultDaoImpl implements EntitySchemaValidati
 			recordSetId,
 			recordSetVersion,
 			JDOSecondaryPropertyUtils.createJSONFromObject(result.getSummaryStatistics()),
-			result.getDetailsFileHandleId()
+			Long.valueOf(result.getDetailsFileHandleId())
 		);
 		
 	}

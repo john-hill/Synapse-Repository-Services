@@ -397,7 +397,7 @@ public class EntitySchemaValidationResultDaoImplTest {
 		stats.setNumberOfUnknownChildren(3L);
 		stats.setTotalNumberOfChildren(6L);
 		
-		Long fileHandleId = null;
+		String fileHandleId = null;
 		
 		RecordSetValidationResult result = new RecordSetValidationResult(stats, fileHandleId);
 		
@@ -414,7 +414,7 @@ public class EntitySchemaValidationResultDaoImplTest {
 		stats.setTotalNumberOfChildren(7L);
 		stats.setNumberOfValidChildren(2L);
 		
-		fileHandleId = 456L;
+		fileHandleId = "456";
 		result = new RecordSetValidationResult(stats, fileHandleId);
 		
 		// Call under test

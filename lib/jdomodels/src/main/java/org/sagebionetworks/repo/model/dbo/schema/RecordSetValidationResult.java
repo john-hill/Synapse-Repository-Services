@@ -7,9 +7,9 @@ import org.sagebionetworks.repo.model.schema.ValidationSummaryStatistics;
 public class RecordSetValidationResult {
 	
 	private ValidationSummaryStatistics summaryStatistics;
-	private Long detailsFileHandleId;
+	private String detailsFileHandleId;
 
-	public RecordSetValidationResult(ValidationSummaryStatistics summaryStatistics, Long detailsFileHandleId) {
+	public RecordSetValidationResult(ValidationSummaryStatistics summaryStatistics, String detailsFileHandleId) {
 		this.summaryStatistics = summaryStatistics;
 		this.detailsFileHandleId = detailsFileHandleId;
 	}
@@ -18,7 +18,7 @@ public class RecordSetValidationResult {
 		return summaryStatistics;
 	}
 	
-	public Long getDetailsFileHandleId() {
+	public String getDetailsFileHandleId() {
 		return detailsFileHandleId;
 	}
 

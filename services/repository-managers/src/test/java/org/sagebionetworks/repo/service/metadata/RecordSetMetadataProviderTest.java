@@ -173,7 +173,7 @@ public class RecordSetMetadataProviderTest {
 	@EnumSource(value = EventType.class)
 	public void testAddTypeSpecificMetadata(EventType eventType) throws Exception {
 		when(mockValidationResultDao.getRecordSetValidationResult(KeyFactory.stringToKey(recordSet.getId()), recordSet.getVersionNumber())).thenReturn(
-			Optional.of(new RecordSetValidationResult(mockValidationStats, 123L))
+			Optional.of(new RecordSetValidationResult(mockValidationStats, "123"))
 		);
 		
 		// Call under test

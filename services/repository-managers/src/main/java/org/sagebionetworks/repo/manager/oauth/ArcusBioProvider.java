@@ -28,8 +28,8 @@ public class ArcusBioProvider implements OAuthProviderBinding {
 	private String apiKey;
 	private String apiSecret;
 	private String authUrl;
-	private String tokenUrl;
-	private String userInfoUrl;
+	String tokenUrl;
+	String userInfoUrl;
 	
 	/**
 	 * Thread safe OAuth 2.0 provider.

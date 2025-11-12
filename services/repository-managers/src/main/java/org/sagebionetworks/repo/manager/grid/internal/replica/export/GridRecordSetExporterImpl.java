@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.manager.grid.internal.replica.export;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
@@ -70,28 +71,30 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 		RecordSet recordSet = gridReplicaSupport.getRecordSetOrThrow(user, gridSession);
 		
 		String exportedFileId;
-		RecordSetValidationResult validationResult;
 		File tmpValidationFile = null;
+		ValidationSummaryStatistics validationSummary;
+		String validationFileId;
 		
 		try {
-			tmpValidationFile = File.createTempFile(jobCallback.getJobId() + "_validation_details", "csv");
 			
-			try (CSVWriter validationCsvWriter = csvWriterProvider.createWriter(new FileWriter(tmpValidationFile), null)) {
+			tmpValidationFile = File.createTempFile(jobCallback.getJobId() + "_validation_details", ".csv");
+			
+			try (CSVWriter validationCsvWriter = csvWriterProvider.createWriter(new FileWriter(tmpValidationFile, StandardCharsets.UTF_8), null)) {
 				ValidationSummaryBuilder validationSummaryBuilder = new ValidationSummaryBuilder(recordSet.getId(), validationCsvWriter);
 				
 				// First export to a CSV file
 				exportedFileId = exportToCsv(user, gridSession.getSessionId(), recordSet.getCsvDescriptor(), jobCallback, validationSummaryBuilder);
 				
-				// Uploads the validation details as a file handle
-				String validationFileHandleId = fileHandleManager.uploadLocalFile(new LocalFileUploadRequest()
-					.withUserId(user.getId().toString())
-					.withFileName("grid_validation_details.csv")
-					.withContentType("text/csv")
-					.withFileToUpload(tmpValidationFile)					
-				).getId();
-				
-				validationResult = new RecordSetValidationResult(validationSummaryBuilder.getValidationSummary(), validationFileHandleId);
+				validationSummary = validationSummaryBuilder.getValidationSummary();
 			}
+			
+			// Uploads the validation details as a file handle
+			validationFileId = fileHandleManager.uploadLocalFile(new LocalFileUploadRequest()
+				.withUserId(user.getId().toString())
+				.withFileName("grid_validation_details.csv")
+				.withContentType("text/csv")
+				.withFileToUpload(tmpValidationFile)					
+			).getId();
 		
 		} catch (IOException e) {
 			throw new IllegalStateException("Could not export the grid to a new record set version.", e);
@@ -102,7 +105,7 @@ public class GridRecordSetExporterImpl implements GridRecordSetExporter {
 		}
 		
 		// Creates a new version of the record set that points to the new file and persist the validation summary
-		recordSet = createNewVersion(user, recordSet, exportedFileId, validationResult);
+		recordSet = createNewVersion(user, recordSet, exportedFileId, new RecordSetValidationResult(validationSummary, validationFileId));
 		
 		return new GridRecordSetExportResponse()
 			.setSessionId(request.getSessionId())

@@ -221,12 +221,15 @@ public class ITGridControllerTest {
 				GridRecordSetExportResponse r = (GridRecordSetExportResponse) body;
 				assertTrue(r.getRecordSetVersionNumber() > currentVersion);
 				assertNotNull(r.getValidationSummaryStatistics());
+				assertNotNull(r.getValidationFileHandleId());
 		}, MAX_TME_MS, AsyncJobHelper.INFINITE_RETRIES).getResponse();
 		
 		recordSet = synapse.getEntity(recordSet.getId(), RecordSet.class);
 		
 		assertNotEquals(currentVersion, recordSet.getVersionNumber());
 		assertNotEquals(currentFileHandleId, recordSet.getDataFileHandleId());
+		assertNotNull(recordSet.getValidationSummary());
+		assertNotNull(recordSet.getValidationFileHandleId());
     }
 
     private TableEntity createTableForInitialGrid() throws Exception {

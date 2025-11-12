@@ -167,7 +167,7 @@ public class QueryElement implements Element {
 		QueryElement other = (QueryElement) obj;
 		return Objects.equals(groupBy, other.groupBy) && Objects.equals(limit, other.limit)
 				&& Objects.equals(offset, other.offset) && Objects.equals(orderBy, other.orderBy)
-				&& select == other.select && Objects.equals(where, other.where);
+				&& Objects.equals(select, other.select) && Objects.equals(where, other.where);
 	}
 
 	@Override

@@ -38,5 +38,26 @@ public class SelectAllElement implements SelectItemElement {
 			.collect(Collectors.toList())
 		);
 	}
+	
+	@Override
+	public int hashCode() {
+		return getClass().hashCode();
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj) {
+			return true;
+		}
+		if (obj == null) {
+			return false;
+		}
+		return getClass() == obj.getClass();
+	}
+
+	@Override
+	public String toString() {
+		return "SelectAllElement []";
+	}
 
 }

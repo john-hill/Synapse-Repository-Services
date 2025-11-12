@@ -384,7 +384,7 @@ public class EntitySchemaValidationResultDaoImplTest {
 	}
 	
 	@Test
-	public void testGetAndSetRecordSetValidationSummaryStatistics() {
+	public void testGetAndSetRecordSetValidationResult() {
 		Long recordSetId = 123L;
 		Long recordSetVersion = 1L;
 		

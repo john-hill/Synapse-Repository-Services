@@ -169,7 +169,7 @@ public class EntitySchemaValidationResultDaoImpl implements EntitySchemaValidati
 			recordSetId,
 			recordSetVersion,
 			JDOSecondaryPropertyUtils.createJSONFromObject(result.getSummaryStatistics()),
-			Long.valueOf(result.getDetailsFileHandleId())
+			result.getDetailsFileHandleId() == null ? null : Long.valueOf(result.getDetailsFileHandleId())
 		);
 		
 	}

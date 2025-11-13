@@ -538,6 +538,10 @@ public class NodeDAOImpl implements NodeDAO, InitializingBean {
 	private static final String SQL_GET_FILE_HANDLE_IDS =
 			"SELECT DISTINCT " + COL_REVISION_FILE_HANDLE_ID
 			+ " FROM " + TABLE_REVISION
+			+ " WHERE " + COL_REVISION_OWNER_NODE + " = ?"
+			+ " UNION " + 
+			"SELECT DISTINCT " + COL_REVISION_VALIDATION_RES_FILE_HANDLE_ID
+			+ " FROM " + TABLE_REVISION
 			+ " WHERE " + COL_REVISION_OWNER_NODE + " = ?";
 	
 	private static final String SQL_DELETE_BY_ID = "DELETE FROM " + TABLE_NODE + " WHERE ID = ?";

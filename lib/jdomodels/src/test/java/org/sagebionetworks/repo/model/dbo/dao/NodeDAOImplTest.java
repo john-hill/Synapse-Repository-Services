@@ -3154,6 +3154,27 @@ public class NodeDAOImplTest {
 	}
 	
 	@Test
+	public void testGetFileHandleIdsAssociatedWithFileEntityWithValidationFile(){
+		Node node = NodeTestUtils.createNew("testGetFileHandleIdsForFileEntityWithValidationFile", creatorUserGroupId);
+		node.setFileHandleId(fileHandle.getId());
+		node.setValidationResultFileHandleId(fileHandle2.getId());
+		
+		String id = nodeDao.createNew(node);
+		
+		toDelete.add(id);
+		
+		List<Long> fileHandleIds = List.of(Long.parseLong(fileHandle.getId()), Long.parseLong(fileHandle2.getId()));
+		
+ 		Set<Long> foundFileHandleIds = nodeDao.getFileHandleIdsAssociatedWithFileEntity(fileHandleIds, KeyFactory.stringToKey(id));
+		
+		assertTrue(foundFileHandleIds.containsAll(fileHandleIds));
+
+		nodeDao.delete(id);
+		
+		fileHandleDao.delete(fileHandle.getId());
+	}
+	
+	@Test
 	public void testGetFileHandleAssociationsForCurrentVersion(){
 		Node node = NodeTestUtils.createNew("getFileHandleAssociationsForCurrentVersion", creatorUserGroupId);
 		node.setFileHandleId(fileHandle.getId());

@@ -20,8 +20,7 @@ public class DBORecordSetValidationStats implements MigratableDatabaseObject<DBO
 		new FieldColumn("etag", SqlConstants.COL_RECORDSET_VALIDATION_STATS_ETAG).withIsEtag(true),
 		new FieldColumn("recordSetId", SqlConstants.COL_RECORDSET_VALIDATION_STATS_RECORDSET_ID),
 		new FieldColumn("recordSetVersion", SqlConstants.COL_RECORDSET_VALIDATION_STATS_RECORDSET_VERSION),
-		new FieldColumn("validationStatsJson", SqlConstants.COL_RECORDSET_VALIDATION_STATS_JSON),
-		new FieldColumn("fileHandleId", SqlConstants.COL_RECORDSET_VALIDATION_STATS_FILE_HANDLE_ID).withHasFileHandleRef(true)
+		new FieldColumn("validationStatsJson", SqlConstants.COL_RECORDSET_VALIDATION_STATS_JSON)
 	};
 	
 	private Long id;
@@ -29,7 +28,6 @@ public class DBORecordSetValidationStats implements MigratableDatabaseObject<DBO
 	private Long recordSetId;
 	private Long recordSetVersion;
 	private String validationStatsJson;
-	private String fileHandleId;
 	
 	public Long getId() {
 		return id;
@@ -75,15 +73,6 @@ public class DBORecordSetValidationStats implements MigratableDatabaseObject<DBO
 		this.validationStatsJson = validationStatsJson;
 		return this;
 	}
-	
-	public String getFileHandleId() {
-		return fileHandleId;
-	}
-	
-	public DBORecordSetValidationStats setFileHandleId(String fileHandleId) {
-		this.fileHandleId = fileHandleId;
-		return this;
-	}
 
 	@Override
 	public TableMapping<DBORecordSetValidationStats> getTableMapping() {
@@ -96,8 +85,7 @@ public class DBORecordSetValidationStats implements MigratableDatabaseObject<DBO
 					.setEtag(rs.getString(SqlConstants.COL_RECORDSET_VALIDATION_STATS_ETAG))
 					.setRecordSetId(rs.getLong(SqlConstants.COL_RECORDSET_VALIDATION_STATS_RECORDSET_ID))
 					.setRecordSetVersion(rs.getLong(SqlConstants.COL_RECORDSET_VALIDATION_STATS_RECORDSET_VERSION))
-					.setValidationStatsJson(rs.getString(SqlConstants.COL_RECORDSET_VALIDATION_STATS_JSON))
-					.setFileHandleId(rs.getString(SqlConstants.COL_RECORDSET_VALIDATION_STATS_FILE_HANDLE_ID));
+					.setValidationStatsJson(rs.getString(SqlConstants.COL_RECORDSET_VALIDATION_STATS_JSON));
 			}
 			
 			@Override
@@ -149,7 +137,7 @@ public class DBORecordSetValidationStats implements MigratableDatabaseObject<DBO
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(etag, fileHandleId, id, recordSetId, recordSetVersion, validationStatsJson);
+		return Objects.hash(etag, id, recordSetId, recordSetVersion, validationStatsJson);
 	}
 
 	@Override
@@ -164,7 +152,7 @@ public class DBORecordSetValidationStats implements MigratableDatabaseObject<DBO
 			return false;
 		}
 		DBORecordSetValidationStats other = (DBORecordSetValidationStats) obj;
-		return Objects.equals(etag, other.etag) && Objects.equals(fileHandleId, other.fileHandleId) && Objects.equals(id, other.id)
+		return Objects.equals(etag, other.etag) && Objects.equals(id, other.id)
 			&& Objects.equals(recordSetId, other.recordSetId) && Objects.equals(recordSetVersion, other.recordSetVersion)
 			&& Objects.equals(validationStatsJson, other.validationStatsJson);
 	}
@@ -172,7 +160,7 @@ public class DBORecordSetValidationStats implements MigratableDatabaseObject<DBO
 	@Override
 	public String toString() {
 		return "DBORecordSetValidationStats [id=" + id + ", etag=" + etag + ", recordSetId=" + recordSetId + ", recordSetVersion=" + recordSetVersion + ", validationStatsJson="
-			+ validationStatsJson + ", fileHandleId=" + fileHandleId + "]";
+			+ validationStatsJson + "]";
 	}
 	
 }

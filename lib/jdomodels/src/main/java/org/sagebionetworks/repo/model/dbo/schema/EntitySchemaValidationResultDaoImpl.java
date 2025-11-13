@@ -10,7 +10,6 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_RECORDSE
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_RECORDSET_VALIDATION_STATS_JSON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_RECORDSET_VALIDATION_STATS_RECORDSET_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_RECORDSET_VALIDATION_STATS_RECORDSET_VERSION;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_RECORDSET_VALIDATION_STATS_FILE_HANDLE_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_NODE;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_RECORDSET_VALIDATION_STATS;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_SCHEMA_VALIDATION_RESULTS;
@@ -49,16 +48,8 @@ public class EntitySchemaValidationResultDaoImpl implements EntitySchemaValidati
 
 	public static final String CONTAINER_ID = "containerId";
 
-	private static final RowMapper<RecordSetValidationResult> RECORD_SET_VALIDATION_STATS_MAPPER = (ResultSet rs, int i) -> {
-		ValidationSummaryStatistics stats = JDOSecondaryPropertyUtils.createObjectFromJSON(ValidationSummaryStatistics.class, rs.getString(COL_RECORDSET_VALIDATION_STATS_JSON));
-		String fileHandleId = String.valueOf(rs.getLong(COL_RECORDSET_VALIDATION_STATS_FILE_HANDLE_ID));
-		
-		if (rs.wasNull()) {
-			fileHandleId = null;
-		}
-		
-		return new RecordSetValidationResult(stats, fileHandleId);
-	};	
+	private static final RowMapper<ValidationSummaryStatistics> RECORD_SET_VALIDATION_STATS_MAPPER = (ResultSet rs, int i) -> 
+		JDOSecondaryPropertyUtils.createObjectFromJSON(ValidationSummaryStatistics.class, rs.getString(COL_RECORDSET_VALIDATION_STATS_JSON));
 	
 	private NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 	private SchemaValidationResultDao schemaValidationResultDao;
@@ -148,7 +139,7 @@ public class EntitySchemaValidationResultDaoImpl implements EntitySchemaValidati
 
 	@Override
 	@WriteTransaction
-	public void setRecordSetValidationResult(Long recordSetId, Long recordSetVersion, RecordSetValidationResult result) {
+	public void setRecordSetValidationSummaryStatistics(Long recordSetId, Long recordSetVersion, ValidationSummaryStatistics stats) {
 		
 		Long id = idGenerator.generateNewId(IdType.RECORDSET_VALIDATION_STATS_ID);
 		
@@ -157,25 +148,22 @@ public class EntitySchemaValidationResultDaoImpl implements EntitySchemaValidati
 			+ COL_RECORDSET_VALIDATION_STATS_ETAG + ", "
 			+ COL_RECORDSET_VALIDATION_STATS_RECORDSET_ID + ", "
 			+ COL_RECORDSET_VALIDATION_STATS_RECORDSET_VERSION + ", "
-			+ COL_RECORDSET_VALIDATION_STATS_JSON + ", " 
-			+ COL_RECORDSET_VALIDATION_STATS_FILE_HANDLE_ID + ") VALUES (?,UUID(),?,?,?,?) AS record "
+			+ COL_RECORDSET_VALIDATION_STATS_JSON + ") VALUES (?,UUID(),?,?,?) AS record "
 			+ "ON DUPLICATE KEY UPDATE " 
 			+ COL_RECORDSET_VALIDATION_STATS_JSON + " = record." + COL_RECORDSET_VALIDATION_STATS_JSON + ", "
-			+ COL_RECORDSET_VALIDATION_STATS_FILE_HANDLE_ID + " = record." + COL_RECORDSET_VALIDATION_STATS_FILE_HANDLE_ID + ", "
 			+ COL_RECORDSET_VALIDATION_STATS_ETAG + " = record." + COL_RECORDSET_VALIDATION_STATS_ETAG;
 
 		namedParameterJdbcTemplate.getJdbcOperations().update(sql, 
 			id,
 			recordSetId,
 			recordSetVersion,
-			JDOSecondaryPropertyUtils.createJSONFromObject(result.getSummaryStatistics()),
-			result.getDetailsFileHandleId() == null ? null : Long.valueOf(result.getDetailsFileHandleId())
+			JDOSecondaryPropertyUtils.createJSONFromObject(stats)
 		);
 		
 	}
 
 	@Override
-	public Optional<RecordSetValidationResult> getRecordSetValidationResult(Long recordSetId, Long recordSetVersion) {
+	public Optional<ValidationSummaryStatistics> getRecordSetValidationSummaryStatistics(Long recordSetId, Long recordSetVersion) {
 		String sql = "SELECT * FROM " + TABLE_RECORDSET_VALIDATION_STATS + " WHERE "
 				+ COL_RECORDSET_VALIDATION_STATS_RECORDSET_ID + " = ? AND "
 				+ COL_RECORDSET_VALIDATION_STATS_RECORDSET_VERSION + " = ?";

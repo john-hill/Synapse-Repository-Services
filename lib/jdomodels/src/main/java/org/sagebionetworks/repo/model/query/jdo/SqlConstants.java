@@ -50,6 +50,7 @@ public class SqlConstants {
 	public static final String COL_REVISION_DEFINING_SQL	= "DEFINING_SQL";
 	public static final String COL_REVISION_UPSERT_KEY		= "UPSERT_KEY";
 	public static final String COL_REVISION_CSV_DESCRIPTOR	= "CSV_DESCRIPTOR";
+	public static final String COL_REVISION_VALIDATION_RES_FILE_HANDLE_ID	= "VALIDATION_RES_FILE_HANDLE_ID";
 	public static final String DDL_FILE_REVISION			="schema/Revision-ddl.sql";
 	
 	public static final String TABLE_STACK_STATUS		= "STACK_STATUS";
@@ -1455,7 +1456,6 @@ public class SqlConstants {
  	public static final String COL_RECORDSET_VALIDATION_STATS_RECORDSET_ID		= "RECORDSET_ID";
  	public static final String COL_RECORDSET_VALIDATION_STATS_RECORDSET_VERSION	= "RECORDSET_VERSION";
  	public static final String COL_RECORDSET_VALIDATION_STATS_JSON				= "STATS_JSON";
- 	public static final String COL_RECORDSET_VALIDATION_STATS_FILE_HANDLE_ID	= "FILE_HANDLE_ID";
  	public static final String DDL_FILE_RECORDSET_VALIDATION_STATS				= "schema/RecordSetValidationStats-ddl.sql";
 
 	// This seems to be the name of the id column for all tables.

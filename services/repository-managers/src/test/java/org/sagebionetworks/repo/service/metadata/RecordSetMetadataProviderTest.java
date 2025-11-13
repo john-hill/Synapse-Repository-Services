@@ -27,7 +27,6 @@ import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.schema.EntitySchemaValidationResultDao;
-import org.sagebionetworks.repo.model.dbo.schema.RecordSetValidationResult;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.schema.ValidationSummaryStatistics;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
@@ -172,21 +171,20 @@ public class RecordSetMetadataProviderTest {
 	@ParameterizedTest
 	@EnumSource(value = EventType.class)
 	public void testAddTypeSpecificMetadata(EventType eventType) throws Exception {
-		when(mockValidationResultDao.getRecordSetValidationResult(KeyFactory.stringToKey(recordSet.getId()), recordSet.getVersionNumber())).thenReturn(
-			Optional.of(new RecordSetValidationResult(mockValidationStats, "123"))
+		when(mockValidationResultDao.getRecordSetValidationSummaryStatistics(KeyFactory.stringToKey(recordSet.getId()), recordSet.getVersionNumber())).thenReturn(
+			Optional.of(mockValidationStats)
 		);
 		
 		// Call under test
 		recordSetMetadataProvider.addTypeSpecificMetadata(recordSet, userInfo, eventType);
 	
 		assertEquals(mockValidationStats, recordSet.getValidationSummary());
-		assertEquals("123", recordSet.getValidationFileHandleId());
 	}
 	
 	@ParameterizedTest
 	@EnumSource(value = EventType.class)
 	public void testAddTypeSpecificMetadataWithNoValidationStats(EventType eventType) throws Exception {
-		when(mockValidationResultDao.getRecordSetValidationResult(KeyFactory.stringToKey(recordSet.getId()), recordSet.getVersionNumber())).thenReturn(
+		when(mockValidationResultDao.getRecordSetValidationSummaryStatistics(KeyFactory.stringToKey(recordSet.getId()), recordSet.getVersionNumber())).thenReturn(
 			Optional.empty()
 		);
 		
@@ -194,6 +192,5 @@ public class RecordSetMetadataProviderTest {
 		recordSetMetadataProvider.addTypeSpecificMetadata(recordSet, userInfo, eventType);
 	
 		assertNull(recordSet.getValidationSummary());
-		assertNull(recordSet.getValidationFileHandleId());
 	}
 }

@@ -43,21 +43,21 @@ public interface EntitySchemaValidationResultDao {
 			long limit, long offset);
 	
 	/**
-	 * The validation results for the content of a record set is computed in a grid session and is stored 
+	 * The validation summary statistics for the content of a record set is computed in a grid session and is stored 
 	 * separately from the validation results of a normal entity.
 	 * 
 	 * @param recordSetId
 	 * @param recordSetVersion
 	 * @param stats
 	 */
-	void setRecordSetValidationResult(Long recordSetId, Long recordSetVersion, RecordSetValidationResult result);
+	void setRecordSetValidationSummaryStatistics(Long recordSetId, Long recordSetVersion, ValidationSummaryStatistics stats);
 
 	/**
 	 * @param recordSetId
 	 * @param recordSetVersion
-	 * @return The {@link RecordSetValidationResult} for the record set with the given id and version if such stats exist
+	 * @return The {@link ValidationSummaryStatistics} for the record set with the given id and version if such stats exist
 	 */
-	Optional<RecordSetValidationResult> getRecordSetValidationResult(Long recordSetId, Long recordSetVersion);
+	Optional<ValidationSummaryStatistics> getRecordSetValidationSummaryStatistics(Long recordSetId, Long recordSetVersion);
 	
 	void truncateAll();
 }

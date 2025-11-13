@@ -53,10 +53,6 @@
         {
             "name": "FormData",
             "description": "A file containing the data of a form."
-        },
-		{
-			"name": "RecordSetValidationDetails",
-			"description": "A file containing validation details for a RecordSet exported from the grid."
-		}
+        }
     ]
 }

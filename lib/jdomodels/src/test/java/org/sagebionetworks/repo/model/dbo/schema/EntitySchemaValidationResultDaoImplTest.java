@@ -384,7 +384,7 @@ public class EntitySchemaValidationResultDaoImplTest {
 	}
 	
 	@Test
-	public void testGetAndSetRecordSetValidationResult() {
+	public void testGetAndSetRecordSetValidationSummaryStatistics() {
 		Long recordSetId = 123L;
 		Long recordSetVersion = 1L;
 		
@@ -397,31 +397,24 @@ public class EntitySchemaValidationResultDaoImplTest {
 		stats.setNumberOfUnknownChildren(3L);
 		stats.setTotalNumberOfChildren(6L);
 		
-		String fileHandleId = null;
-		
-		RecordSetValidationResult result = new RecordSetValidationResult(stats, fileHandleId);
+		// Call under test
+		assertEquals(Optional.empty(), entitySchemaValidationResultDao.getRecordSetValidationSummaryStatistics(recordSetId, recordSetVersion));
 		
 		// Call under test
-		assertEquals(Optional.empty(), entitySchemaValidationResultDao.getRecordSetValidationResult(recordSetId, recordSetVersion));
-		
-		// Call under test
-		entitySchemaValidationResultDao.setRecordSetValidationResult(recordSetId, recordSetVersion, result);
+		entitySchemaValidationResultDao.setRecordSetValidationSummaryStatistics(recordSetId, recordSetVersion, stats);
 		
 		// call under test
-		assertEquals(result, entitySchemaValidationResultDao.getRecordSetValidationResult(recordSetId, recordSetVersion).get());
+		assertEquals(stats, entitySchemaValidationResultDao.getRecordSetValidationSummaryStatistics(recordSetId, recordSetVersion).get());
 	
 		stats.setGeneratedOn(new Date());
 		stats.setTotalNumberOfChildren(7L);
 		stats.setNumberOfValidChildren(2L);
 		
-		fileHandleId = "456";
-		result = new RecordSetValidationResult(stats, fileHandleId);
-		
 		// Call under test
-		entitySchemaValidationResultDao.setRecordSetValidationResult(recordSetId, recordSetVersion, result);
+		entitySchemaValidationResultDao.setRecordSetValidationSummaryStatistics(recordSetId, recordSetVersion, stats);
 		
 		// call under test
-		assertEquals(result, entitySchemaValidationResultDao.getRecordSetValidationResult(recordSetId, recordSetVersion).get());
+		assertEquals(stats, entitySchemaValidationResultDao.getRecordSetValidationSummaryStatistics(recordSetId, recordSetVersion).get());
 				
 	}
 	

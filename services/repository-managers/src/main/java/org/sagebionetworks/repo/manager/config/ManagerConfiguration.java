@@ -63,7 +63,6 @@ import org.sagebionetworks.repo.model.dbo.persistence.DBORevision;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOTeam;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOUserProfile;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOVerificationSubmissionFile;
-import org.sagebionetworks.repo.model.dbo.schema.DBORecordSetValidationStats;
 import org.sagebionetworks.repo.model.dbo.wikiV2.V2DBOWikiAttachmentReservation;
 import org.sagebionetworks.repo.model.dbo.wikiV2.V2DBOWikiMarkdown;
 import org.sagebionetworks.repo.model.file.FileHandleAssociateType;
@@ -181,7 +180,6 @@ public class ManagerConfiguration {
 		scannerMap.put(FileHandleAssociateType.AccessRequirementAttachment, accessRequirementFileScanner(jdbcTemplate));
 		scannerMap.put(FileHandleAssociateType.DataAccessRequestAttachment, accessRequestFileScanner(jdbcTemplate));
 		scannerMap.put(FileHandleAssociateType.DataAccessSubmissionAttachment, accessSubmissionFileScanner(jdbcTemplate));
-		scannerMap.put(FileHandleAssociateType.RecordSetValidationDetails, recordSetValidationFileScanner(jdbcTemplate));
 
 		return scannerMap;
 	}
@@ -272,11 +270,6 @@ public class ManagerConfiguration {
 
 		return new BasicFileHandleAssociationScanner(jdbcTemplate, new DBOSubmission().getTableMapping(),
 				DEFAULT_BATCH_SIZE, rowMapperSupplier);
-	}
-	
-	@Bean
-	public FileHandleAssociationScanner recordSetValidationFileScanner(NamedParameterJdbcTemplate jdbcTemplate) {
-		return new BasicFileHandleAssociationScanner(jdbcTemplate, new DBORecordSetValidationStats().getTableMapping());
 	}
 
 	@Bean

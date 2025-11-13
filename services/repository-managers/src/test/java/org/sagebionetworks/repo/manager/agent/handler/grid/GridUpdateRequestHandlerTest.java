@@ -312,7 +312,7 @@ public class GridUpdateRequestHandlerTest {
 	@Test
 	public void testCreateConValueWithJSONArray() {
 		SetValue sv = new SetValue().setColumnName("a").setValue("a string");
-		JSONObject svRaw = new JSONObject("{\"columln\":\"a\", \"value\":\"a string\"}");
+		JSONObject svRaw = new JSONObject("{\"column\":\"a\", \"value\":\"a string\"}");
 	    
 	    // call under test
 	    ConValue result = handler.createConValue(sv, svRaw);
@@ -324,7 +324,7 @@ public class GridUpdateRequestHandlerTest {
 	@Test
 	public void testCreateConValueWithNull() {
 		SetValue sv = new SetValue().setColumnName("a").setValue(null);
-		JSONObject svRaw = new JSONObject("{\"columln\":\"a\", \"value\":null}");
+		JSONObject svRaw = new JSONObject("{\"column\":\"a\", \"value\":null}");
 	    
 	    // call under test
 	    ConValue result = handler.createConValue(sv, svRaw);
@@ -336,7 +336,7 @@ public class GridUpdateRequestHandlerTest {
 	@Test
 	public void testCreateConValueWithUndefined() {
 		SetValue sv = new SetValue().setColumnName("a").setValue(null);
-		JSONObject svRaw = new JSONObject("{\"columln\":\"a\"}");
+		JSONObject svRaw = new JSONObject("{\"column\":\"a\"}");
 	    
 	    // call under test
 	    ConValue result = handler.createConValue(sv, svRaw);

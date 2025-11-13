@@ -179,8 +179,7 @@ public class ManagerConfiguration {
 
 		scannerMap.put(FileHandleAssociateType.AccessRequirementAttachment, accessRequirementFileScanner(jdbcTemplate));
 		scannerMap.put(FileHandleAssociateType.DataAccessRequestAttachment, accessRequestFileScanner(jdbcTemplate));
-		scannerMap.put(FileHandleAssociateType.DataAccessSubmissionAttachment,
-				accessSubmissionFileScanner(jdbcTemplate));
+		scannerMap.put(FileHandleAssociateType.DataAccessSubmissionAttachment, accessSubmissionFileScanner(jdbcTemplate));
 
 		return scannerMap;
 	}

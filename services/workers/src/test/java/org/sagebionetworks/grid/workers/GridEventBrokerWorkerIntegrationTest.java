@@ -657,6 +657,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 			assertEquals(request.getSessionId(), response.getSessionId());
 			assertEquals(recordSet.getId(), response.getRecordSetId());
 			assertTrue(response.getRecordSetVersionNumber() > recordSet.getVersionNumber());
+			assertNotNull(response.getValidationFileHandleId());
 			assertNotNull(response.getValidationSummaryStatistics());
 			assertEquals(3L, response.getValidationSummaryStatistics().getTotalNumberOfChildren());
 			assertEquals(2L, response.getValidationSummaryStatistics().getNumberOfValidChildren());
@@ -667,6 +668,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 		RecordSet recordSetV2 = entityService.getEntity(admin.getId(), recordSet.getId(), RecordSet.class);
 
 		assertNotEquals(recordSet.getDataFileHandleId(), recordSetV2.getDataFileHandleId());
+		assertNotEquals(recordSet.getValidationFileHandleId(), recordSetV2.getValidationFileHandleId());
 		assertEquals(validationStats, recordSetV2.getValidationSummary());
 
 		// Now fix the grid by changing the double value in the second row from null to 2.2
@@ -714,6 +716,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 			assertEquals(request.getSessionId(), response.getSessionId());
 			assertEquals(recordSet.getId(), response.getRecordSetId());
 			assertTrue(response.getRecordSetVersionNumber() > recordSetV2.getVersionNumber());
+			assertNotNull(response.getValidationFileHandleId());
 			assertNotNull(response.getValidationSummaryStatistics());
 			assertEquals(3L, response.getValidationSummaryStatistics().getTotalNumberOfChildren());
 			assertEquals(3L, response.getValidationSummaryStatistics().getNumberOfValidChildren());
@@ -724,6 +727,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 		RecordSet recordSetV3 = entityService.getEntity(admin.getId(), recordSet.getId(), RecordSet.class);
 
 		assertNotEquals(recordSetV2.getDataFileHandleId(), recordSetV3.getDataFileHandleId());
+		assertNotEquals(recordSetV2.getValidationFileHandleId(), recordSetV3.getValidationFileHandleId());
 		assertEquals(validationStats, recordSetV3.getValidationSummary());
 
 		// Now update the record set from a CSV file

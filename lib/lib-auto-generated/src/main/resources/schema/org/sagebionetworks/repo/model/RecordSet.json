@@ -32,8 +32,7 @@
 		},
 		"validationFileHandleId": {
             "type": "string",
-            "description": "Pointer to a CSV file that contains the detailed validation results for each row in the record set. The CSV file will contain for each row the following columns: row_index, is_valid, validation_error_message, all_validation_messages. Generated only from a grid session export, cannot be changed by the user.",
-			"transient": true
+            "description": "Pointer to a CSV file that contains the detailed validation results for each row in the record set. The CSV file will contain for each row the following columns: row_index, is_valid, validation_error_message, all_validation_messages. Generated only from a grid session export, cannot be changed by the user."
         }
 	}
 }

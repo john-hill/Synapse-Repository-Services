@@ -172,7 +172,7 @@ public class OAuth2Api extends DefaultApi20 {
 		@Override
 		public ProvidedUserInfo getUserInfo(String accessToken) {
 			OAuthRequest request = new OAuthRequest(Verb.GET, userInfoEndpoint);
-			request.addHeader("Authorization", "Bearer: "+accessToken);
+			request.addHeader("Authorization", "Bearer "+accessToken);
 			Response response = request.send();
 			if (!response.isSuccessful()) {
 				throw new UnauthorizedException("Failed to get user's information from provider (Code: " + response.getCode() + ", Message: " + response.getMessage() + ")");

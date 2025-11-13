@@ -3,16 +3,15 @@ package org.sagebionetworks.repo.manager.agent.handler.grid;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,11 +23,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.agent.handler.ReturnControlEvent;
 import org.sagebionetworks.repo.manager.agent.parameter.Parameter;
 import org.sagebionetworks.repo.manager.grid.GridManager;
+import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChange;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangePublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.PatchBuilderPublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.UpdateRowChange;
@@ -39,12 +40,16 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowObject;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.QueryElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.FilterElement;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.grid.query.CellValueFilter;
+import org.sagebionetworks.repo.model.grid.query.CellValueOperator;
+import org.sagebionetworks.repo.model.grid.query.RowSelectionFilter;
 import org.sagebionetworks.repo.model.grid.update.GridUpdateRequest;
 import org.sagebionetworks.repo.model.grid.update.SetValue;
 import org.sagebionetworks.repo.model.grid.update.Update;
@@ -70,6 +75,11 @@ public class GridUpdateRequestHandlerTest {
 	private String gridSessionId;
 	private Long usersReplicaId;
 	private Long agentsReplicaId;
+	private GridUpdateRequest updateRequest;
+	private JSONObject updateRequestRaw;
+	private GridConnectionInfo internalConnection;
+	private GridConnectionInfo agentConnection;
+	private GridHeader header;
 
 	@BeforeEach
 	public void before() {
@@ -79,6 +89,20 @@ public class GridUpdateRequestHandlerTest {
 		agentContext = new GridAgentSessionContext().setGridSessionId(gridSessionId).setUsersReplicaId(usersReplicaId)
 				.setAgentsReplicaId(agentsReplicaId);
 		event = new ReturnControlEvent(123L, "action", "function", List.<Parameter>of(), null, agentContext);
+		updateRequest = new GridUpdateRequest().setUpdateBatch(List.of(
+				// one
+				new Update().setSet(List.of(new SetValue().setColumnName("a").setValue(true)))
+						.setFilters(List.of(new RowSelectionFilter().setIsSelected(true))).setLimit(10L),
+				// two
+				new Update().setSet(List.of(new SetValue().setColumnName("b").setValue(1))).setFilters(
+						List.of(new CellValueFilter().setColumnName("b").setOperator(CellValueOperator.IS_UNDEFINED)))
+		// end
+		));
+		updateRequestRaw = JDOSecondaryPropertyUtils.createJSONObjectForEntity(updateRequest);
+		internalConnection = new GridConnectionInfo().setConnectionId("internal");
+		agentConnection = new GridConnectionInfo().setConnectionId("agent");
+		header = new GridHeader().setClockSequenceMaximum(123L);
+
 	}
 
 	private RowView buildRow(long rep, long seq) {
@@ -92,236 +116,233 @@ public class GridUpdateRequestHandlerTest {
 	}
 
 	@Test
-	public void testHandleEventWithSuccessAndNoFiltersAndMultipleRows() throws Exception {
-		String json = "{" +
-				"\"set\": [{\"columnName\": \"colA\", \"value\": \"A1\"},{\"columnName\":\"colB\",\"value\":\"B1\"}]" +
-				"}";
-		event = new ReturnControlEvent(1L, "group", "function", null, List.of(new Parameter("update", "object", json)),
-				new GridAgentSessionContext().setGridSessionId(gridSessionId).setUsersReplicaId(usersReplicaId)
-						.setAgentsReplicaId(agentsReplicaId));
+	public void testHandleEvent() throws Exception {
+		doReturn(updateRequestRaw).when(handler).extractRequest(event);
+		doReturn(agentContext).when(handler).getSessionContext(event);
+		doReturn(internalConnection).when(handler).getInternalConnection(agentContext);
+		doReturn(header).when(handler).getGridHeader(agentContext, internalConnection);
+		doReturn(agentConnection).when(handler).getAgentConnection(agentContext);
 
-		List<SetValue> setValues = List.of(new SetValue().setColumnName("colA").setValue("A1"),
-				new SetValue().setColumnName("colB").setValue("B1"));
-		GridConnectionInfo internalConn = new GridConnectionInfo().setReplicaId(11L).setSessionId(gridSessionId)
-				.setConnectionId("int-1").setSource(EventSource.INTERNAL);
-		when(mockGridManager.getSingletonConnection(gridSessionId, EventSource.INTERNAL))
-				.thenReturn(Optional.of(internalConn));
-		GridConnectionInfo agentConn = new GridConnectionInfo().setReplicaId(agentsReplicaId)
-				.setSessionId(gridSessionId).setConnectionId("agent-1").setSource(EventSource.AGENT);
-		when(mockGridManager.getConnection(gridSessionId, agentsReplicaId)).thenReturn(Optional.of(agentConn));
-		GridHeader header = buildHeader(List.of(new Column().setName("colA").setVectorIndex(0),
-				new Column().setName("colB").setVectorIndex(1)));
-		when(mockGridViewManager.readHeader(gridSessionId, internalConn.getReplicaId(), usersReplicaId))
-				.thenReturn(Optional.of(header));
-		List<RowView> rows = List.of(buildRow(1L, 100L), buildRow(1L, 101L));
-		when(mockGridViewManager.getQueryIterator(eq(header), any(QueryElement.class))).thenReturn(rows.iterator());
-		Integer[] idxArr = new Integer[] { 4, 1 };
-		doReturn(idxArr).when(handler).createIndexArray(setValues, header);
-		doReturn(mockIntendedChangePublisher).when(handler).newIntendedChangePublisher(agentConn,
-				header.getClockSequenceMaximum(), mockPatchBuilderPublisher);
-		doAnswer(inv -> "response:" + inv.getArgument(0)).when(handler).buildResponseJSON(anyLong());
+		doReturn(2L).doReturn(3L).when(handler).executeUpdate(eq(header), eq(agentConnection), any(JSONObject.class));
 
 		// call under test
 		String result = handler.handleEvent(event);
 
-		assertEquals("response:2", result);
-		ArgumentCaptor<UpdateRowChange> cap = ArgumentCaptor.forClass(UpdateRowChange.class);
-		verify(mockIntendedChangePublisher, times(2)).publish(cap.capture());
-		for (int i = 0; i < cap.getAllValues().size(); i++) {
-			UpdateRowChange c = cap.getAllValues().get(i);
-			assertArrayEquals(idxArr, c.getRowVectorIndex());
-			assertEquals(rows.get(i).getRowObject().getData().getVectorId(), c.getRowVectorId());
-			List<ConValue> u = c.getRowData();
-			assertEquals(2, u.size());
-			assertEquals(new ConValue(ConType.STRING, "A1"), u.get(0));
-			assertEquals(new ConValue(ConType.STRING, "B1"), u.get(1));
-		}
-		verify(mockIntendedChangePublisher).close();
+		assertEquals("{\"updateResults\":[2,3],\"totalRowsUpdated\":5}", result);
+
+		ArgumentCaptor<JSONObject> jsonCaptor = ArgumentCaptor.forClass(JSONObject.class);
+		verify(handler, times(2)).executeUpdate(eq(header), eq(agentConnection), jsonCaptor.capture());
+
+		List<JSONObject> capturedJsons = jsonCaptor.getAllValues();
+		assertEquals(2, capturedJsons.size());
+
+		assertEquals(updateRequest.getUpdateBatch().get(0),
+				JDOSecondaryPropertyUtils.createObjectFromJSON(Update.class, capturedJsons.get(0).toString()));
+		assertEquals(updateRequest.getUpdateBatch().get(1),
+				JDOSecondaryPropertyUtils.createObjectFromJSON(Update.class, capturedJsons.get(1).toString()));
 	}
 
 	@Test
-	public void testHandleEventWithSuccessWithNullValueAndNonNullFilters() throws Exception {
-		String json = "{" +
-				"\"set\": [{\"columnName\": \"colA\", \"value\": null}]," +
-				"\"filters\": [{\"concreteType\": \"org.sagebionetworks.repo.model.grid.query.RowIsValidFilter\",\"value\": true}]," +
-				"\"limit\": 5" +
-				"}";
-		event = new ReturnControlEvent(1L, "group", "function", null, List.of(new Parameter("update", "object", json)),
-				new GridAgentSessionContext().setGridSessionId(gridSessionId).setUsersReplicaId(usersReplicaId)
-						.setAgentsReplicaId(agentsReplicaId));
-
-		List<SetValue> setValues = List.of(new SetValue().setColumnName("colA").setValue(null));
-		GridConnectionInfo internalConn = new GridConnectionInfo().setReplicaId(11L).setSessionId(gridSessionId)
-				.setConnectionId("int-2").setSource(EventSource.INTERNAL);
-		when(mockGridManager.getSingletonConnection(gridSessionId, EventSource.INTERNAL))
-				.thenReturn(Optional.of(internalConn));
-		GridConnectionInfo agentConn = new GridConnectionInfo().setReplicaId(agentsReplicaId)
-				.setSessionId(gridSessionId).setConnectionId("agent-2").setSource(EventSource.AGENT);
-		when(mockGridManager.getConnection(gridSessionId, agentsReplicaId)).thenReturn(Optional.of(agentConn));
-		GridHeader header = buildHeader(List.of(new Column().setName("colA").setVectorIndex(5)));
-		when(mockGridViewManager.readHeader(gridSessionId, internalConn.getReplicaId(), usersReplicaId))
-				.thenReturn(Optional.of(header));
-		List<RowView> rows = List.of(buildRow(2L, 200L));
-		when(mockGridViewManager.getQueryIterator(eq(header), any(QueryElement.class))).thenReturn(rows.iterator());
-		Integer[] idxArr = new Integer[] { 7 };
-		doReturn(idxArr).when(handler).createIndexArray(setValues, header);
-		doReturn(mockIntendedChangePublisher).when(handler).newIntendedChangePublisher(agentConn,
+	public void testExecutUpdate() throws Exception {
+		Update update = updateRequest.getUpdateBatch().get(0);
+		update.setLimit(123L);
+		JSONObject updateObj = JDOSecondaryPropertyUtils.createJSONObjectForEntity(update);
+		doReturn(update).when(handler).extractUpdate(updateObj);
+		doReturn(mockIntendedChangePublisher).when(handler).newIntendedChangePublisher(agentConnection,
 				header.getClockSequenceMaximum(), mockPatchBuilderPublisher);
-		doAnswer(inv -> "resp:" + inv.getArgument(0)).when(handler).buildResponseJSON(anyLong());
+		Integer[] index = new Integer[] { 1, 2 };
+		doReturn(index).when(handler).createIndexArray(update.getSet(), header);
+		List<RowView> rows = List.of(new RowView().setRowIndex(1L), new RowView().setRowIndex(2L));
+		List<FilterElement> filter = handler.getFilters(update);
+		when(mockGridViewManager.getQueryIterator(header, new QueryElement().setWhere(filter).setLimit(123L)))
+				.thenReturn(rows.iterator());
+
+		IntendedChange one = Mockito.mock(IntendedChange.class);
+		IntendedChange two = Mockito.mock(IntendedChange.class);
+		doReturn(one).when(handler).buildChange(eq(rows.get(0)), eq(update.getSet()), any(JSONArray.class), eq(index));
+		doReturn(two).when(handler).buildChange(eq(rows.get(1)), eq(update.getSet()), any(JSONArray.class), eq(index));
 
 		// call under test
-		String result = handler.handleEvent(event);
+		long count = handler.executeUpdate(header, agentConnection, updateObj);
+		assertEquals(2L, count);
 
-		assertEquals("resp:1", result);
-		ArgumentCaptor<UpdateRowChange> cap = ArgumentCaptor.forClass(UpdateRowChange.class);
-		verify(mockIntendedChangePublisher).publish(cap.capture());
-		UpdateRowChange c = cap.getValue();
-		assertEquals(rows.get(0).getRowObject().getData().getVectorId(), c.getRowVectorId());
-		assertArrayEquals(idxArr, c.getRowVectorIndex());
-		assertEquals(1, c.getRowData().size());
-		assertEquals(new ConValue(ConType.NULL, null), c.getRowData().get(0));
+		ArgumentCaptor<JSONArray> jsonCaptor = ArgumentCaptor.forClass(JSONArray.class);
+		verify(handler, times(2)).buildChange(any(), eq(update.getSet()), jsonCaptor.capture(), eq(index));
+		String arrayValue = "[{\"columnName\":\"a\",\"value\":true}]";
+		assertEquals(arrayValue, jsonCaptor.getAllValues().get(0).toString());
+		assertEquals(arrayValue, jsonCaptor.getAllValues().get(1).toString());
+		System.out.println(jsonCaptor.getAllValues().get(0).toString());
+
+		verify(mockIntendedChangePublisher, times(2)).publish(any());
+		verify(mockIntendedChangePublisher).publish(one);
+		verify(mockIntendedChangePublisher).publish(two);
 		verify(mockIntendedChangePublisher).close();
+
 	}
 
 	@Test
-	public void testHandleEventWithSuccessWithUndefinedValue() throws Exception {
-		String json = "{" +
-				"\"set\": [{\"columnName\": \"colA\"}]," +
-				"\"filters\": [{\"concreteType\": \"org.sagebionetworks.repo.model.grid.query.RowIsValidFilter\",\"value\": true}]," +
-				"\"limit\": 5" +
-				"}";
-		event = new ReturnControlEvent(1L, "group", "function", null, List.of(new Parameter("update", "object", json)),
-				new GridAgentSessionContext().setGridSessionId(gridSessionId).setUsersReplicaId(usersReplicaId)
-						.setAgentsReplicaId(agentsReplicaId));
+	public void testBuildChange() {
+		LogicalTimestamp vectorId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L);
+		RowView row = new RowView().setRowIndex(1L)
+				.setRowObject(new RowObject().setData(new RowData().setVectorId(vectorId)));
+		List<SetValue> set = List.of(new SetValue().setColumnName("a").setValue(123),
+				new SetValue().setColumnName("b").setValue(false));
+		JSONArray arraySet = new JSONArray(JDOSecondaryPropertyUtils.writeEntityListToJson(set));
+		Integer[] index = new Integer[] { 1, 2 };
 
-		List<SetValue> setValues = List.of(new SetValue().setColumnName("colA").setValue(null));
-		GridConnectionInfo internalConn = new GridConnectionInfo().setReplicaId(11L).setSessionId(gridSessionId)
-				.setConnectionId("int-2").setSource(EventSource.INTERNAL);
+		// call under test
+		IntendedChange change = handler.buildChange(row, set, arraySet, index);
+		UpdateRowChange expected = new UpdateRowChange(vectorId,
+				List.of(new ConValue(ConType.LONG, 123L), new ConValue(ConType.BOOLEAN, false)), index);
+		assertEquals(expected, change);
+	}
+
+	@Test
+	public void testGetSessionContext() {
+		// call under test
+		GridAgentSessionContext context = handler.getSessionContext(event);
+		assertEquals(agentContext, context);
+	}
+
+	@Test
+	public void testGetSessionContextWithNoContext() {
+		event = new ReturnControlEvent(123L, "action", "function", List.<Parameter>of(), null, null);
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			handler.getSessionContext(event);
+		}).getMessage();
+
+		assertEquals("GridAgentSessionContext cannot be null", message);
+	}
+	
+	@Test
+	public void testGetInternalConnection() {
 		when(mockGridManager.getSingletonConnection(gridSessionId, EventSource.INTERNAL))
-				.thenReturn(Optional.of(internalConn));
-		GridConnectionInfo agentConn = new GridConnectionInfo().setReplicaId(agentsReplicaId)
-				.setSessionId(gridSessionId).setConnectionId("agent-2").setSource(EventSource.AGENT);
-		when(mockGridManager.getConnection(gridSessionId, agentsReplicaId)).thenReturn(Optional.of(agentConn));
-		GridHeader header = buildHeader(List.of(new Column().setName("colA").setVectorIndex(5)));
-		when(mockGridViewManager.readHeader(gridSessionId, internalConn.getReplicaId(), usersReplicaId))
-				.thenReturn(Optional.of(header));
-		List<RowView> rows = List.of(buildRow(2L, 200L));
-		when(mockGridViewManager.getQueryIterator(eq(header), any(QueryElement.class))).thenReturn(rows.iterator());
-		Integer[] idxArr = new Integer[] { 7 };
-		doReturn(idxArr).when(handler).createIndexArray(setValues, header);
-		doReturn(mockIntendedChangePublisher).when(handler).newIntendedChangePublisher(agentConn,
-				header.getClockSequenceMaximum(), mockPatchBuilderPublisher);
-		doAnswer(inv -> "resp:" + inv.getArgument(0)).when(handler).buildResponseJSON(anyLong());
+				.thenReturn(Optional.of(internalConnection));
 
 		// call under test
-		String result = handler.handleEvent(event);
-
-		assertEquals("resp:1", result);
-		ArgumentCaptor<UpdateRowChange> cap = ArgumentCaptor.forClass(UpdateRowChange.class);
-		verify(mockIntendedChangePublisher).publish(cap.capture());
-		UpdateRowChange c = cap.getValue();
-		assertEquals(rows.get(0).getRowObject().getData().getVectorId(), c.getRowVectorId());
-		assertArrayEquals(idxArr, c.getRowVectorIndex());
-		assertEquals(1, c.getRowData().size());
-		assertEquals(new ConValue(ConType.UNDEFINED, null), c.getRowData().get(0));
-		verify(mockIntendedChangePublisher).close();
+		GridConnectionInfo connection = handler.getInternalConnection(agentContext);
+		assertEquals(internalConnection, connection);
 	}
 
-
 	@Test
-	public void testHandleEventWithSuccess_ZeroRows_NoPublish() throws Exception {
-		String json = "{" +
-				"\"set\": [{\"columnName\": \"colA\", \"value\": \"v\"}]," +
-				"\"limit\": 10" +
-				"}";
-		event = new ReturnControlEvent(1L, "group", "function", null, List.of(new Parameter("update", "object", json)),
-				new GridAgentSessionContext().setGridSessionId(gridSessionId).setUsersReplicaId(usersReplicaId)
-						.setAgentsReplicaId(agentsReplicaId));
-
-		GridConnectionInfo internalConn = new GridConnectionInfo().setReplicaId(11L).setSessionId(gridSessionId)
-				.setConnectionId("int-3").setSource(EventSource.INTERNAL);
+	public void testGetInternalConnectionWithNoConnection() {
 		when(mockGridManager.getSingletonConnection(gridSessionId, EventSource.INTERNAL))
-				.thenReturn(Optional.of(internalConn));
-		GridConnectionInfo agentConn = new GridConnectionInfo().setReplicaId(agentsReplicaId)
-				.setSessionId(gridSessionId).setConnectionId("agent-3").setSource(EventSource.AGENT);
-		when(mockGridManager.getConnection(gridSessionId, agentsReplicaId)).thenReturn(Optional.of(agentConn));
-		GridHeader header = buildHeader(List.of(new Column().setName("colA").setVectorIndex(0)));
-		when(mockGridViewManager.readHeader(gridSessionId, internalConn.getReplicaId(), usersReplicaId))
-				.thenReturn(Optional.of(header));
-		when(mockGridViewManager.getQueryIterator(eq(header), any(QueryElement.class)))
-				.thenReturn(List.<RowView>of().iterator());
-		doReturn(new Integer[] { 0 }).when(handler).createIndexArray(any(), eq(header));
-		doReturn(mockIntendedChangePublisher).when(handler).newIntendedChangePublisher(agentConn,
-				header.getClockSequenceMaximum(), mockPatchBuilderPublisher);
-		doAnswer(inv -> "res:" + inv.getArgument(0)).when(handler).buildResponseJSON(anyLong());
-
-		// call under test
-		String result = handler.handleEvent(event);
-
-		assertEquals("res:0", result);
-		verify(mockIntendedChangePublisher, never()).publish(any());
-		verify(mockIntendedChangePublisher).close();
-	}
-
-	@Test
-	public void testHandleEventWithMissingContext() throws Exception {
-		ReturnControlEvent bad = new ReturnControlEvent(123L, "ag", "fn", List.<Parameter>of(), null, null);
-		GridUpdateRequest request = new GridUpdateRequest().setUpdate(new Update());
-		doReturn(request).when(handler).extractRequest(bad);
-		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> handler.handleEvent(bad));
-		assertEquals("GridAgentSessionContext cannot be null", ex.getMessage());
-	}
-
-	@Test
-	public void testHandleEventWithMissingUpdate() throws Exception {
-		GridUpdateRequest request = new GridUpdateRequest().setUpdate(null);
-		doReturn(request).when(handler).extractRequest(event);
-		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> handler.handleEvent(event));
-		assertEquals("update is required.", ex.getMessage());
-	}
-
-	@Test
-	public void testHandleEventWithMissingInternalConnection() throws Exception {
-		GridUpdateRequest request = new GridUpdateRequest().setUpdate(new Update());
-		doReturn(request).when(handler).extractRequest(event);
-		when(mockGridManager.getSingletonConnection(gridSessionId, EventSource.INTERNAL)).thenReturn(Optional.empty());
-		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> handler.handleEvent(event));
-		assertEquals("Cannot get a grid connection.", ex.getMessage());
-	}
-
-	@Test
-	public void testHandleEventWithMissingHeader() throws Exception {
-		GridUpdateRequest request = new GridUpdateRequest().setUpdate(new Update());
-		doReturn(request).when(handler).extractRequest(event);
-		GridConnectionInfo internalConn = new GridConnectionInfo().setReplicaId(11L).setSessionId(gridSessionId)
-				.setConnectionId("int-4").setSource(EventSource.INTERNAL);
-		when(mockGridManager.getSingletonConnection(gridSessionId, EventSource.INTERNAL))
-				.thenReturn(Optional.of(internalConn));
-		when(mockGridViewManager.readHeader(gridSessionId, internalConn.getReplicaId(), usersReplicaId))
 				.thenReturn(Optional.empty());
-		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> handler.handleEvent(event));
-		assertEquals("Grid session does not exist", ex.getMessage());
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			handler.getInternalConnection(agentContext);
+		}).getMessage();
+
+		assertEquals("Cannot get an internal grid connection.", message);
+	}
+	
+	@Test
+	public void testGetAgentConnection() {
+	    when(mockGridManager.getConnection(gridSessionId, agentsReplicaId))
+	        .thenReturn(Optional.of(agentConnection));
+
+	    // call under test
+	    GridConnectionInfo connection = handler.getAgentConnection(agentContext);
+	    assertEquals(agentConnection, connection);
 	}
 
 	@Test
-	public void testHandleEventWithMissingAgentConnection() throws Exception {
-		GridUpdateRequest request = new GridUpdateRequest().setUpdate(new Update());
-		doReturn(request).when(handler).extractRequest(event);
-		GridConnectionInfo internalConn = new GridConnectionInfo().setReplicaId(11L).setSessionId(gridSessionId)
-				.setConnectionId("int-5").setSource(EventSource.INTERNAL);
-		when(mockGridManager.getSingletonConnection(gridSessionId, EventSource.INTERNAL))
-				.thenReturn(Optional.of(internalConn));
-		GridHeader header = buildHeader(List.of());
-		when(mockGridViewManager.readHeader(gridSessionId, internalConn.getReplicaId(), usersReplicaId))
-				.thenReturn(Optional.of(header));
-		when(mockGridManager.getConnection(gridSessionId, agentsReplicaId)).thenReturn(Optional.empty());
-		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> handler.handleEvent(event));
-		assertEquals("Grid connection does not exist for the agent replica.", ex.getMessage());
+	public void testGetAgentConnectionWithNoConnection() {
+	    when(mockGridManager.getConnection(gridSessionId, agentsReplicaId))
+	        .thenReturn(Optional.empty());
+
+	    String message = assertThrows(IllegalArgumentException.class, () -> {
+	        // call under test
+	        handler.getAgentConnection(agentContext);
+	    }).getMessage();
+
+	    assertEquals("Cannot get an agent grid connection.", message);
+	}
+	
+	@Test
+	public void testGetGridHeader() {
+	    when(mockGridViewManager.readHeader(gridSessionId, internalConnection.getReplicaId(), usersReplicaId))
+	        .thenReturn(Optional.of(header));
+
+	    // call under test
+	    GridHeader result = handler.getGridHeader(agentContext, internalConnection);
+	    assertEquals(header, result);
+	}
+
+	@Test
+	public void testGetGridHeaderWithNoHeader() {
+	    when(mockGridViewManager.readHeader(gridSessionId, internalConnection.getReplicaId(), usersReplicaId))
+	        .thenReturn(Optional.empty());
+
+	    String message = assertThrows(IllegalArgumentException.class, () -> {
+	        // call under test
+	        handler.getGridHeader(agentContext, internalConnection);
+	    }).getMessage();
+
+	    assertEquals("Cannot read the grid header.", message);
+	}
+	
+	@Test
+	public void testGetFilters() {
+	    Update update = new Update()
+	        .setFilters(List.of(
+	            new RowSelectionFilter().setIsSelected(true),
+	            new CellValueFilter().setColumnName("a").setOperator(CellValueOperator.IS_UNDEFINED)
+	        ));
+
+	    // call under test
+	    List<FilterElement> result = handler.getFilters(update);
+	    
+	    assertEquals(2, result.size());
+	}
+
+	@Test
+	public void testGetFiltersWithNull() {
+	    Update update = new Update().setFilters(null);
+
+	    // call under test
+	    List<FilterElement> result = handler.getFilters(update);
+	    
+	    assertEquals(Collections.emptyList(), result);
+	}
+	
+	@Test
+	public void testCreateConValueWithJSONArray() {
+		SetValue sv = new SetValue().setColumnName("a").setValue("a string");
+		JSONObject svRaw = new JSONObject("{\"column\":\"a\", \"value\":\"a string\"}");
+	    
+	    // call under test
+	    ConValue result = handler.createConValue(sv, svRaw);
+	    
+	    assertEquals(ConType.STRING, result.getType());
+	    assertEquals("a string", result.getValue());
+	}
+
+	@Test
+	public void testCreateConValueWithNull() {
+		SetValue sv = new SetValue().setColumnName("a").setValue(null);
+		JSONObject svRaw = new JSONObject("{\"column\":\"a\", \"value\":null}");
+	    
+	    // call under test
+	    ConValue result = handler.createConValue(sv, svRaw);
+	    
+	    assertEquals(ConType.NULL, result.getType());
+	    assertEquals(JSONObject.NULL, result.getValue());
+	}
+	
+	@Test
+	public void testCreateConValueWithUndefined() {
+		SetValue sv = new SetValue().setColumnName("a").setValue(null);
+		JSONObject svRaw = new JSONObject("{\"column\":\"a\"}");
+	    
+	    // call under test
+	    ConValue result = handler.createConValue(sv, svRaw);
+	    
+	    assertEquals(ConType.UNDEFINED, result.getType());
+	    assertEquals(null, result.getValue());
 	}
 
 	@Test
@@ -385,41 +406,43 @@ public class GridUpdateRequestHandlerTest {
 	@Test
 	public void testExtractRequest() {
 		GridUpdateRequest expected = new GridUpdateRequest()
-				.setUpdate(new Update().setSet(List.of(new SetValue().setColumnName("a").setValue(1))));
-		String json = JDOSecondaryPropertyUtils.createJSONFromObject(expected.getUpdate());
-		event = new ReturnControlEvent(1L, "group", "function", null, List.of(new Parameter("update", "object", json)),
+				.setUpdateBatch(List.of(new Update().setSet(List.of(new SetValue().setColumnName("a").setValue(1)))));
+		JSONObject rawExpected = JDOSecondaryPropertyUtils.createJSONObjectForEntity(expected);
+		JSONArray batch = rawExpected.getJSONArray("updateBatch");
+		event = new ReturnControlEvent(1L, "group", "function", null,
+				List.of(new Parameter("updateBatch", "array", batch.toString())),
 				new GridAgentSessionContext().setAgentsReplicaId(123L));
 		// call under test
-		GridUpdateRequest result = handler.extractRequest(event);
-		assertEquals(expected, result);
+		JSONObject result = handler.extractRequest(event);
+		assertTrue(rawExpected.similar(result));
 	}
 
 	@Test
 	public void testExtractRequestWithJsonArrayValue() {
-		GridUpdateRequest expected = new GridUpdateRequest().setUpdate(
-				new Update().setSet(List.of(new SetValue().setColumnName("a").setValue(new JSONArray("[1,2,3]")))));
-		// the agent can provide a value that is
-		String json = "{\"set\":[{\"columnName\":\"a\",\"value\":[1,2,3]}]}";
-		event = new ReturnControlEvent(1L, "group", "function", null, List.of(new Parameter("update", "object", json)),
+		GridUpdateRequest expected = new GridUpdateRequest().setUpdateBatch(List.of(
+				new Update().setSet(List.of(new SetValue().setColumnName("a").setValue(new JSONArray("[1,2,3]"))))));
+		JSONObject rawExpected = JDOSecondaryPropertyUtils.createJSONObjectForEntity(expected);
+		JSONArray batch = rawExpected.getJSONArray("updateBatch");
+		event = new ReturnControlEvent(1L, "group", "function", null,
+				List.of(new Parameter("updateBatch", "array", batch.toString())),
 				new GridAgentSessionContext().setAgentsReplicaId(123L));
 		// call under test
-		GridUpdateRequest result = handler.extractRequest(event);
-		assertEquals(expected.toString(), result.toString());
-		Object value = result.getUpdate().getSet().get(0).getValue();
-		assertEquals("[1,2,3]", value.toString());
+		JSONObject result = handler.extractRequest(event);
+		assertTrue(rawExpected.similar(result));
 	}
 
 	@Test
 	public void testExtractRequestWithJsonObjectValue() {
-		GridUpdateRequest expected = new GridUpdateRequest().setUpdate(new Update()
-				.setSet(List.of(new SetValue().setColumnName("a").setValue(new JSONObject("{\"key\":true}")))));
-		// the agent can provide a value that is
-		String json = "{\"set\":[{\"columnName\":\"a\",\"value\":{\"key\":true}}]}";
-		event = new ReturnControlEvent(1L, "group", "function", null, List.of(new Parameter("update", "object", json)),
+		GridUpdateRequest expected = new GridUpdateRequest().setUpdateBatch(List.of(new Update()
+				.setSet(List.of(new SetValue().setColumnName("a").setValue(new JSONObject("{\"key\":true}"))))));
+		JSONObject rawExpected = JDOSecondaryPropertyUtils.createJSONObjectForEntity(expected);
+		JSONArray batch = rawExpected.getJSONArray("updateBatch");
+		event = new ReturnControlEvent(1L, "group", "function", null,
+				List.of(new Parameter("updateBatch", "array", batch.toString())),
 				new GridAgentSessionContext().setAgentsReplicaId(123L));
 		// call under test
-		GridUpdateRequest result = handler.extractRequest(event);
-		assertEquals(expected.toString(), result.toString());
+		JSONObject result = handler.extractRequest(event);
+		assertTrue(rawExpected.similar(result));
 	}
 
 	@Test
@@ -433,8 +456,9 @@ public class GridUpdateRequestHandlerTest {
 
 	@Test
 	public void testHandleEventWithCellValueFilterNullValue() throws Exception {
-		String json = "{\"set\":[{\"columnName\":\"lastFed\",\"value\":\"2024-01-15\"}],\"filters\":[{\"concreteType\":\"org.sagebionetworks.repo.model.grid.query.CellValueFilter\",\"columnName\":\"favoriteFoods\",\"operator\":\"IS_NOT_NULL\"}]}";
-		event = new ReturnControlEvent(1L, "group", "function", null, List.of(new Parameter("update", "object", json)),
+		String json = "[{\"set\":[{\"columnName\":\"lastFed\",\"value\":\"2024-01-15\"}],\"filters\":[{\"concreteType\":\"org.sagebionetworks.repo.model.grid.query.CellValueFilter\",\"columnName\":\"favoriteFoods\",\"operator\":\"IS_NOT_NULL\"}]}]";
+		event = new ReturnControlEvent(1L, "group", "function", null,
+				List.of(new Parameter("updateBatch", "array", json)),
 				new GridAgentSessionContext().setGridSessionId(gridSessionId).setUsersReplicaId(usersReplicaId)
 						.setAgentsReplicaId(agentsReplicaId));
 
@@ -457,7 +481,7 @@ public class GridUpdateRequestHandlerTest {
 		// call under test
 		String result = handler.handleEvent(event);
 
-		assertEquals("{\"rowsUpdated\":2}", result);
+		assertEquals("{\"updateResults\":[2],\"totalRowsUpdated\":2}", result);
 		verify(mockIntendedChangePublisher, times(2)).publish(any());
 		verify(mockIntendedChangePublisher).close();
 

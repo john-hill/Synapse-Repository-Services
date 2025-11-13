@@ -37,13 +37,14 @@ public class OAuth2Api extends DefaultApi20 {
 	public static final String FAMILY_NAME = "family_name";	
 	public static final String SUB = "sub";
 	
-	private String authorizationEndpoint;
-	private String accessTokenEndpoint;
-	private String userInfoEndpoint;
+	String authorizationEndpoint;
+	String accessTokenEndpoint;
+	String userInfoEndpoint;
 	
 	public OAuth2Api(String authorizationEndpoint, String accessTokenEndpoint, String userInfoEndpoint) {
 		this.authorizationEndpoint = authorizationEndpoint;
 		this.accessTokenEndpoint = accessTokenEndpoint;
+		this.userInfoEndpoint = userInfoEndpoint;
 	}
 	
     @Override

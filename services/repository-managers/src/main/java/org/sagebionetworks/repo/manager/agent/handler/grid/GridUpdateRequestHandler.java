@@ -48,12 +48,14 @@ public class GridUpdateRequestHandler implements OpenApiReturnControlHandler {
 	private final GridManager gridManager;
 	private final GridReplicaViewManager gridViewManager;
 	private final PatchBuilderPublisher patchBuilderPublisher;
+	private final SetValueProcessorFactory factory;
 
 	public GridUpdateRequestHandler(GridManager gridManager, GridReplicaViewManager gridViewManager,
-			PatchBuilderPublisher patchBuilderPublisher) {
+			PatchBuilderPublisher patchBuilderPublisher, SetValueProcessorFactory factory) {
 		this.gridManager = gridManager;
 		this.gridViewManager = gridViewManager;
 		this.patchBuilderPublisher = patchBuilderPublisher;
+		this.factory = factory;
 	}
 
 	@Override

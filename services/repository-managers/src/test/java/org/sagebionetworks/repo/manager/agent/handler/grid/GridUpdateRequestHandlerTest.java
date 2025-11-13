@@ -51,6 +51,7 @@ import org.sagebionetworks.repo.model.grid.query.CellValueFilter;
 import org.sagebionetworks.repo.model.grid.query.CellValueOperator;
 import org.sagebionetworks.repo.model.grid.query.RowSelectionFilter;
 import org.sagebionetworks.repo.model.grid.update.GridUpdateRequest;
+import org.sagebionetworks.repo.model.grid.update.LiteralSetValue;
 import org.sagebionetworks.repo.model.grid.update.SetValue;
 import org.sagebionetworks.repo.model.grid.update.Update;
 import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
@@ -91,10 +92,10 @@ public class GridUpdateRequestHandlerTest {
 		event = new ReturnControlEvent(123L, "action", "function", List.<Parameter>of(), null, agentContext);
 		updateRequest = new GridUpdateRequest().setUpdateBatch(List.of(
 				// one
-				new Update().setSet(List.of(new SetValue().setColumnName("a").setValue(true)))
+				new Update().setSet(List.of(new LiteralSetValue().setColumnName("a").setValue(true)))
 						.setFilters(List.of(new RowSelectionFilter().setIsSelected(true))).setLimit(10L),
 				// two
-				new Update().setSet(List.of(new SetValue().setColumnName("b").setValue(1))).setFilters(
+				new Update().setSet(List.of(new LiteralSetValue().setColumnName("b").setValue(1))).setFilters(
 						List.of(new CellValueFilter().setColumnName("b").setOperator(CellValueOperator.IS_UNDEFINED)))
 		// end
 		));
@@ -185,8 +186,8 @@ public class GridUpdateRequestHandlerTest {
 		LogicalTimestamp vectorId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L);
 		RowView row = new RowView().setRowIndex(1L)
 				.setRowObject(new RowObject().setData(new RowData().setVectorId(vectorId)));
-		List<SetValue> set = List.of(new SetValue().setColumnName("a").setValue(123),
-				new SetValue().setColumnName("b").setValue(false));
+		List<SetValue> set = List.of(new LiteralSetValue().setColumnName("a").setValue(123),
+				new LiteralSetValue().setColumnName("b").setValue(false));
 		JSONArray arraySet = new JSONArray(JDOSecondaryPropertyUtils.writeEntityListToJson(set));
 		Integer[] index = new Integer[] { 1, 2 };
 
@@ -311,7 +312,7 @@ public class GridUpdateRequestHandlerTest {
 	
 	@Test
 	public void testCreateConValueWithJSONArray() {
-		SetValue sv = new SetValue().setColumnName("a").setValue("a string");
+		SetValue sv = new LiteralSetValue().setColumnName("a").setValue("a string");
 		JSONObject svRaw = new JSONObject("{\"column\":\"a\", \"value\":\"a string\"}");
 	    
 	    // call under test
@@ -323,7 +324,7 @@ public class GridUpdateRequestHandlerTest {
 
 	@Test
 	public void testCreateConValueWithNull() {
-		SetValue sv = new SetValue().setColumnName("a").setValue(null);
+		SetValue sv = new LiteralSetValue().setColumnName("a").setValue(null);
 		JSONObject svRaw = new JSONObject("{\"column\":\"a\", \"value\":null}");
 	    
 	    // call under test
@@ -335,7 +336,7 @@ public class GridUpdateRequestHandlerTest {
 	
 	@Test
 	public void testCreateConValueWithUndefined() {
-		SetValue sv = new SetValue().setColumnName("a").setValue(null);
+		SetValue sv = new LiteralSetValue().setColumnName("a").setValue(null);
 		JSONObject svRaw = new JSONObject("{\"column\":\"a\"}");
 	    
 	    // call under test
@@ -347,8 +348,8 @@ public class GridUpdateRequestHandlerTest {
 
 	@Test
 	public void testCreateIndexArray() {
-		List<SetValue> set = List.of(new SetValue().setColumnName("a").setValue("1"),
-				new SetValue().setColumnName("b").setValue(3));
+		List<SetValue> set = List.of(new LiteralSetValue().setColumnName("a").setValue("1"),
+				new LiteralSetValue().setColumnName("b").setValue(3));
 		GridHeader header = new GridHeader().setOrderedColumns(List.of(new Column().setName("a").setVectorIndex(2),
 				new Column().setName("c").setVectorIndex(0), new Column().setName("b").setVectorIndex(1)));
 
@@ -371,8 +372,8 @@ public class GridUpdateRequestHandlerTest {
 
 	@Test
 	public void testCreateIndexArrayWithNullHeader() {
-		List<SetValue> set = List.of(new SetValue().setColumnName("a").setValue("1"),
-				new SetValue().setColumnName("b").setValue(3));
+		List<SetValue> set = List.of(new LiteralSetValue().setColumnName("a").setValue("1"),
+				new LiteralSetValue().setColumnName("b").setValue(3));
 		GridHeader header = null;
 		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
@@ -382,8 +383,8 @@ public class GridUpdateRequestHandlerTest {
 
 	@Test
 	public void testCreateIndexArrayWithHeaderColumnsNull() {
-		List<SetValue> set = List.of(new SetValue().setColumnName("a").setValue("1"),
-				new SetValue().setColumnName("b").setValue(3));
+		List<SetValue> set = List.of(new LiteralSetValue().setColumnName("a").setValue("1"),
+				new LiteralSetValue().setColumnName("b").setValue(3));
 		GridHeader header = new GridHeader().setOrderedColumns(null);
 		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
@@ -393,8 +394,8 @@ public class GridUpdateRequestHandlerTest {
 
 	@Test
 	public void testCreateIndexArrayWithNotFound() {
-		List<SetValue> set = List.of(new SetValue().setColumnName("a").setValue("1"),
-				new SetValue().setColumnName("x").setValue(3));
+		List<SetValue> set = List.of(new LiteralSetValue().setColumnName("a").setValue("1"),
+				new LiteralSetValue().setColumnName("x").setValue(3));
 		GridHeader header = new GridHeader().setOrderedColumns(List.of(new Column().setName("a").setVectorIndex(2),
 				new Column().setName("c").setVectorIndex(0), new Column().setName("b").setVectorIndex(1)));
 		// call under test
@@ -406,7 +407,7 @@ public class GridUpdateRequestHandlerTest {
 	@Test
 	public void testExtractRequest() {
 		GridUpdateRequest expected = new GridUpdateRequest()
-				.setUpdateBatch(List.of(new Update().setSet(List.of(new SetValue().setColumnName("a").setValue(1)))));
+				.setUpdateBatch(List.of(new Update().setSet(List.of(new LiteralSetValue().setColumnName("a").setValue(1)))));
 		JSONObject rawExpected = JDOSecondaryPropertyUtils.createJSONObjectForEntity(expected);
 		JSONArray batch = rawExpected.getJSONArray("updateBatch");
 		event = new ReturnControlEvent(1L, "group", "function", null,
@@ -420,7 +421,7 @@ public class GridUpdateRequestHandlerTest {
 	@Test
 	public void testExtractRequestWithJsonArrayValue() {
 		GridUpdateRequest expected = new GridUpdateRequest().setUpdateBatch(List.of(
-				new Update().setSet(List.of(new SetValue().setColumnName("a").setValue(new JSONArray("[1,2,3]"))))));
+				new Update().setSet(List.of(new LiteralSetValue().setColumnName("a").setValue(new JSONArray("[1,2,3]"))))));
 		JSONObject rawExpected = JDOSecondaryPropertyUtils.createJSONObjectForEntity(expected);
 		JSONArray batch = rawExpected.getJSONArray("updateBatch");
 		event = new ReturnControlEvent(1L, "group", "function", null,
@@ -434,7 +435,7 @@ public class GridUpdateRequestHandlerTest {
 	@Test
 	public void testExtractRequestWithJsonObjectValue() {
 		GridUpdateRequest expected = new GridUpdateRequest().setUpdateBatch(List.of(new Update()
-				.setSet(List.of(new SetValue().setColumnName("a").setValue(new JSONObject("{\"key\":true}"))))));
+				.setSet(List.of(new LiteralSetValue().setColumnName("a").setValue(new JSONObject("{\"key\":true}"))))));
 		JSONObject rawExpected = JDOSecondaryPropertyUtils.createJSONObjectForEntity(expected);
 		JSONArray batch = rawExpected.getJSONArray("updateBatch");
 		event = new ReturnControlEvent(1L, "group", "function", null,

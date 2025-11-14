@@ -51,16 +51,21 @@ public class PrincipalOIDCBindingDaoImplTest {
 	
 	@Test
 	public void testBindPrincipalToSubjectAndFind() {
-		
+
 		String subject = "subject";
-		
-		// Call under test
-		dao.bindPrincipalToSubject(alias.getPrincipalId(), alias.getAliasId(), OAuthProvider.GOOGLE_OAUTH_2_0, subject);
-		
-		PrincipalOidcBinding binding = dao.findBindingForSubject(OAuthProvider.GOOGLE_OAUTH_2_0, subject).get();
-		
-		assertEquals(alias.getPrincipalId(), binding.getUserId());
-		assertEquals(alias.getAliasId(), binding.getAliasId());
+
+		// Note we try all providers in the OAuthProvider enum to ensure that they are in the DB schema:
+		for (OAuthProvider provider : OAuthProvider.values()) {
+
+			// Call under test
+			dao.bindPrincipalToSubject(alias.getPrincipalId(), alias.getAliasId(), provider, subject);
+
+			PrincipalOidcBinding binding = dao.findBindingForSubject(provider, subject).get();
+
+			assertEquals(alias.getPrincipalId(), binding.getUserId());
+			assertEquals(alias.getAliasId(), binding.getAliasId());
+
+		}
 	}
 	
 	@Test

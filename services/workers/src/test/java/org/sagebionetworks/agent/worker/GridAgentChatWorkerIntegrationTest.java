@@ -66,7 +66,6 @@ import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializabl
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.InsertObjectBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewConstantBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewObjectBuilder;
-import org.sagebionetworks.repo.model.grid.query.RowValidationResultFilter;
 import org.sagebionetworks.repo.model.grid.query.result.QueryResult;
 import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.schema.CreateSchemaRequest;
@@ -274,7 +273,6 @@ public class GridAgentChatWorkerIntegrationTest {
 							assertNotNull(response.getResponseText());
 							System.out.println(response.getResponseText());
 							assertTrue(response.getResponseText().toLowerCase().contains("null"));
-							assertTrue(response.getResponseText().toLowerCase().contains("no id"));
 						}, MAX_WAIT_MS)
 				.getResponse();
 

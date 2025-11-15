@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,7 +32,9 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaVi
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.QueryElement;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.CellValueFilterElement;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.CellValueOperatorElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.RowIsValidFilterElement;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.RowSelectionFilterElement;
+import org.sagebionetworks.repo.model.AsynchJobFailedException;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.RecordSet;
@@ -63,8 +66,7 @@ import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializabl
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.InsertObjectBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewConstantBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewObjectBuilder;
-import org.sagebionetworks.repo.model.grid.query.CellValueFilter;
-import org.sagebionetworks.repo.model.grid.query.CellValueOperator;
+import org.sagebionetworks.repo.model.grid.query.RowValidationResultFilter;
 import org.sagebionetworks.repo.model.grid.query.result.QueryResult;
 import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.schema.CreateSchemaRequest;
@@ -128,6 +130,9 @@ public class GridAgentChatWorkerIntegrationTest {
 		entityService.truncateAll();
 		gridIndexDao.truncateAll();
 		admin = userManager.getUserInfo(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId());
+	}
+
+	void setGrid() throws IOException, Exception, AssertionError, AsynchJobFailedException {
 		File temp = File.createTempFile("GridScaleIntegrationTest", ".csv", null);
 
 		csvDescriptor = new CsvTableDescriptor().setIsFirstLineHeader(true);
@@ -153,7 +158,7 @@ public class GridAgentChatWorkerIntegrationTest {
 		recordSet = entityService.createEntity(admin.getId(), new RecordSet().setName("aRecordSet")
 				.setParentId(project.getId()).setDataFileHandleId(fh.getId()).setUpsertKey(List.of("a")), null);
 
-		schema$id = createJsonSchema();
+		schema$id = createJsonSchema("schema/ConditionalRequirement.json", "conditionalrequirement");
 
 		entityService.bindSchemaToEntity(admin.getId(),
 				new BindSchemaToEntityRequest().setEntityId(recordSet.getId()).setSchema$id(schema$id));
@@ -185,12 +190,11 @@ public class GridAgentChatWorkerIntegrationTest {
 			}
 			return Pair.create(true, header.get());
 		});
-
 	}
 
 	@Test
 	public void testViewWithSchemaAndAgentChat() throws Exception {
-
+		setGrid();
 		// Create replica One
 		GridReplica replicaOne = gridService
 				.createReplica(admin.getId(), new CreateReplicaRequest().setGridSessionId(gridSession.getSessionId()))
@@ -248,7 +252,8 @@ public class GridAgentChatWorkerIntegrationTest {
 				new ReplicaSelectionModel()
 						.setRowSelection(List.of(RowView.createCrdtIdFromLogical(rows.get(2).getArrNodeId())))
 						// Manually select all the columns
-						.setColumnSelection(header.getOrderedColumns().stream().map(Column::getColumnOrderNodeId).collect(Collectors.toList())),
+						.setColumnSelection(header.getOrderedColumns().stream().map(Column::getColumnOrderNodeId)
+								.collect(Collectors.toList())),
 				new LogicalTimestamp().setReplicaId(context.getUsersReplicaId()).setSequenceNumber(1L));
 		websoceket.send(message.toJson());
 		asynchronousJobWorkerHelper.waitForMessage((a) -> a.optInt(0) == 5 && a.optInt(1) == message.getId().get(),
@@ -313,41 +318,45 @@ public class GridAgentChatWorkerIntegrationTest {
 			}
 			return Pair.create(false, null);
 		});
-		
+
 		chatRequest = "Can you provide the value of column b for the currently selected row?";
-		
-		String jobId = asynchronousJobWorkerHelper.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
-			.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {
-				assertNotNull(response);
-				assertEquals(agentSession.getSessionId(), response.getSessionId());
-				assertNotNull(response.getResponseText());
-				System.out.println(response.getResponseText());
-				assertTrue(response.getResponseText().toLowerCase().contains("null"));
-			}, MAX_WAIT_MS).getJobToken();
-		
-		String jobTraceText = agentService.getChatTrace(admin.getId(), new TraceEventsRequest().setJobId(jobId)).getPage()
-			.stream().map(TraceEvent::getMessage).reduce(String::concat).orElseThrow();
-		
+
+		String jobId = asynchronousJobWorkerHelper
+				.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
+						.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {
+							assertNotNull(response);
+							assertEquals(agentSession.getSessionId(), response.getSessionId());
+							assertNotNull(response.getResponseText());
+							System.out.println(response.getResponseText());
+							assertTrue(response.getResponseText().toLowerCase().contains("null"));
+						}, MAX_WAIT_MS)
+				.getJobToken();
+
+		String jobTraceText = agentService.getChatTrace(admin.getId(), new TraceEventsRequest().setJobId(jobId))
+				.getPage().stream().map(TraceEvent::getMessage).reduce(String::concat).orElseThrow();
+
 		// Verifies that the agent used a SelectByName to get the value of column b
 		assertTrue(jobTraceText.contains("org.sagebionetworks.repo.model.grid.query.SelectByName"));
 
 		chatRequest = "Can you now provide the values for the first row for the columns that the user selected?";
-		
-		jobId = asynchronousJobWorkerHelper.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
-			.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {
-				assertNotNull(response);
-				assertEquals(agentSession.getSessionId(), response.getSessionId());
-				assertNotNull(response.getResponseText());
-				System.out.println(response.getResponseText());
-				assertTrue(response.getResponseText().toLowerCase().contains("one"));
-			}, MAX_WAIT_MS).getJobToken();
-		
+
+		jobId = asynchronousJobWorkerHelper
+				.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
+						.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {
+							assertNotNull(response);
+							assertEquals(agentSession.getSessionId(), response.getSessionId());
+							assertNotNull(response.getResponseText());
+							System.out.println(response.getResponseText());
+							assertTrue(response.getResponseText().toLowerCase().contains("one"));
+						}, MAX_WAIT_MS)
+				.getJobToken();
+
 		jobTraceText = agentService.getChatTrace(admin.getId(), new TraceEventsRequest().setJobId(jobId)).getPage()
-			.stream().map(TraceEvent::getMessage).reduce(String::concat).orElseThrow();
-		
+				.stream().map(TraceEvent::getMessage).reduce(String::concat).orElseThrow();
+
 		// Verifies that the agent used a SelectSelection in its query
 		assertTrue(jobTraceText.contains("org.sagebionetworks.repo.model.grid.query.SelectSelection"));
-		
+
 		chatRequest = "I would like to do a batch of updates, for the row where 'a'=99 set the value of 'b' to be 'a was 99' and for the row where 'a'=101 set 'b' to be 'a was 101'";
 		acr = asynchronousJobWorkerHelper
 				.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
@@ -377,17 +386,151 @@ public class GridAgentChatWorkerIntegrationTest {
 			GridHeader h = gridReplicaViewManager
 					.readHeader(gridSession.getSessionId(), INTERNAL_REPLICA_ID, context.getUsersReplicaId()).get();
 			QueryResult qr = gridReplicaViewManager.querySinglePageAsQueryResult(h,
-					new QueryElement().setWhere(
-					List.of(new CellValueFilterElement().setColumnName("a").setOperator(CellValueOperatorElement.IN).setValue(List.of(99,101)))));
+					new QueryElement().setWhere(List.of(new CellValueFilterElement().setColumnName("a")
+							.setOperator(CellValueOperatorElement.IN).setValue(List.of(99, 101)))));
 			String json = JDOSecondaryPropertyUtils.createJSONFromObject(qr);
-			System.out.println("Query result: "+json);
-			if(json.contains("a was 99") && json.contains("a was 101")){
+			System.out.println("Query result: " + json);
+			if (json.contains("a was 99") && json.contains("a was 101")) {
 				return Pair.create(true, null);
-			}else {
+			} else {
 				return Pair.create(false, null);
 			}
 		});
-		
+
+	}
+
+	void setupGridRegex() throws IOException, Exception, AssertionError, AsynchJobFailedException {
+		File temp = File.createTempFile("GridScaleIntegrationTest", ".csv", null);
+
+		csvDescriptor = new CsvTableDescriptor().setIsFirstLineHeader(true);
+		try (CSVWriter writer = new CSVWriterProviderImpl().createWriter(new FileWriter(temp), csvDescriptor)) {
+			writer.writeNext(new String[] { "path", "name", "size", "id" });
+			writer.writeNext(new String[] { "one/small/123", "one", "small", "123" });
+			writer.writeNext(new String[] { "two/large/456", null, null, null });
+			writer.writeNext(new String[] { "three/medium/789", null, null, null });
+			writer.writeNext(new String[] { "ten/small/999", null, null, null });
+			writer.writeNext(new String[] { "frank/large/12", null, null, null });
+			writer.writeNext(new String[] { "square/small/454", null, null, null });
+			writer.writeNext(new String[] { "nine/small/18", null, null, null });
+			writer.writeNext(new String[] { "loop/medium/8889", null, null, null });
+		}
+
+		S3FileHandle fh = fileHandleManager.uploadLocalFile(new LocalFileUploadRequest().withFileToUpload(temp)
+				.withContentType("text/csv").withFileName(temp.getName()).withUserId(admin.getId().toString()));
+		temp.delete();
+
+		project = entityService.createEntity(admin.getId(), new Project().setName("GridScaleIntegrationTest"), null);
+
+		recordSet = entityService.createEntity(admin.getId(), new RecordSet().setName("aRecordSet")
+				.setParentId(project.getId()).setDataFileHandleId(fh.getId()).setUpsertKey(List.of("a")), null);
+
+		schema$id = createJsonSchema("schema/PathSchema.json", "pathschema");
+
+		entityService.bindSchemaToEntity(admin.getId(),
+				new BindSchemaToEntityRequest().setEntityId(recordSet.getId()).setSchema$id(schema$id));
+
+		gridSession = asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new CreateGridRequest().setRecordSetId(recordSet.getId()), (CreateGridResponse response) -> {
+					assertNotNull(response);
+					assertNotNull(response.getGridSession());
+				}, MAX_WAIT_MS).getResponse().getGridSession();
+		assertNotNull(gridSession);
+		assertEquals(recordSet.getId(), gridSession.getSourceEntityId());
+		assertEquals(schema$id, gridSession.getGridJsonSchema$Id());
+
+		TimeUtils.waitFor(MAX_WAIT_MS, 2000L, () -> {
+			System.out.println("Waiting for row validation results to change...");
+			Optional<GridHeader> header = gridReplicaViewManager.readHeader(gridSession.getSessionId(),
+					INTERNAL_REPLICA_ID);
+			if (header.isEmpty()) {
+				return Pair.create(false, null);
+			}
+			List<RowView> rows = gridReplicaViewManager.querySinglePage(header.get(), 100L, 0L);
+			System.out.println("row count: " + rows.size());
+			int invalidRows = (int) rows.stream()
+					.filter(r -> r.getRowValidationResults() != null && !r.getRowValidationResults().getIsValid())
+					.count();
+			System.out.println("invalid count: " + invalidRows);
+			if (rows.size() != 8 || invalidRows != 7) {
+				return Pair.create(false, null);
+			}
+			return Pair.create(true, header.get());
+		});
+	}
+
+	@Test
+	public void testRegularExpression() throws IOException, AssertionError, AsynchJobFailedException, Exception {
+		setupGridRegex();
+
+		// Create replica One
+		GridReplica replicaOne = gridService
+				.createReplica(admin.getId(), new CreateReplicaRequest().setGridSessionId(gridSession.getSessionId()))
+				.getReplica();
+
+		GridAgentSessionContext context = new GridAgentSessionContext().setGridSessionId(replicaOne.getGridSessionId())
+				.setUsersReplicaId(replicaOne.getReplicaId());
+		AgentSession agentSession = agentService.createSession(admin.getId(), new CreateAgentSessionRequest()
+				.setSessionContext(context).setAgentAccessLevel(AgentAccessLevel.WRITE_YOUR_PRIVATE_DATA));
+		assertNotNull(agentSession);
+		assertEquals(context, agentSession.getSessionContext());
+		assertNotNull(context.getAgentsReplicaId());
+
+		String chatRequest = "Can you help me understand the invalid rows in this grid?";
+		asynchronousJobWorkerHelper
+				.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
+						.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {
+							assertNotNull(response);
+							assertEquals(agentSession.getSessionId(), response.getSessionId());
+							assertNotNull(response.getResponseText());
+							System.out.println(response.getResponseText());
+							assertTrue(response.getResponseText().toLowerCase().contains("schema"));
+						}, MAX_WAIT_MS)
+				.getResponse();
+
+		chatRequest = "The 'path' column encodes the values for the other three columns.  See the first row as an example.  Can you fix all of the invalid rows by extracting the correct information from the row's 'path'?";
+		AgentChatResponse acr = asynchronousJobWorkerHelper
+				.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
+						.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {
+							assertNotNull(response);
+							assertEquals(agentSession.getSessionId(), response.getSessionId());
+							assertNotNull(response.getResponseText());
+							System.out.println(response.getResponseText());
+						}, MAX_WAIT_MS)
+				.getResponse();
+
+		// the agent is likely to ask if it should proceed....
+		if (acr.getResponseText().contains("?")) {
+			chatRequest = "You may proceed with making the change.";
+			acr = asynchronousJobWorkerHelper
+					.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
+							.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {
+								assertNotNull(response);
+								assertEquals(agentSession.getSessionId(), response.getSessionId());
+								assertNotNull(response.getResponseText());
+								System.out.println(response.getResponseText());
+							}, MAX_WAIT_MS)
+					.getResponse();
+		}
+
+		TimeUtils.waitFor(MAX_WAIT_MS, 2000L, () -> {
+			System.out.println("Waiting for agent's changes to appear...");
+			GridHeader h = gridReplicaViewManager
+					.readHeader(gridSession.getSessionId(), INTERNAL_REPLICA_ID, context.getUsersReplicaId()).get();
+			// all rows should be valid after the change
+			QueryResult qr = gridReplicaViewManager.querySinglePageAsQueryResult(h,
+					new QueryElement().setWhere(List.of(new RowIsValidFilterElement().setValue(true))));
+			String json = JDOSecondaryPropertyUtils.createJSONFromObject(qr);
+			System.out.println("Query result: " + json);
+			if (qr.getRows().size() == 8) {
+				JSONObject lastRow = (JSONObject) qr.getRows().get(7).getData();
+				String lastRowJson = lastRow.toString();
+				System.out.println("lastRow: " + lastRowJson);
+				String expected =  "{\"path\":\"loop/medium/8889\",\"name\":\"loop\",\"size\":\"medium\",\"id\":8889}";
+				return Pair.create(expected.equals(lastRow.toString()), null);
+			} else {
+				return Pair.create(false, null);
+			}
+		});
 	}
 
 	public JsonRxMessage createSetSelectionMessage(GridHeader header, ReplicaSelectionModel selection,
@@ -413,12 +556,12 @@ public class GridAgentChatWorkerIntegrationTest {
 	 * @return
 	 * @throws Exception
 	 */
-	String createJsonSchema() throws Exception {
+	String createJsonSchema(String schemaPath, String shortName) throws Exception {
 		Organization org = asynchronousJobWorkerHelper.getOrCreateOrganization(admin.getId(),
 				"GridAgentChatWorkerIntegrationTest");
-		JsonSchema jsonSchema = JsonEntityUtils.fromJsonString(
-				ClasspathUtil.loadFromClasspath("schema/ConditionalRequirement.json"), JsonSchema.class);
-		jsonSchema.set$id(org.getName() + "-conditionalrequirement");
+		JsonSchema jsonSchema = JsonEntityUtils.fromJsonString(ClasspathUtil.loadFromClasspath(schemaPath),
+				JsonSchema.class);
+		jsonSchema.set$id(org.getName() + "-" + shortName);
 
 		return asynchronousJobWorkerHelper.assertJobResponse(admin,
 				new CreateSchemaRequest().setDryRun(false).setSchema(jsonSchema), (CreateSchemaResponse response) -> {

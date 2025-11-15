@@ -50,6 +50,7 @@ public class SqlConstants {
 	public static final String COL_REVISION_DEFINING_SQL	= "DEFINING_SQL";
 	public static final String COL_REVISION_UPSERT_KEY		= "UPSERT_KEY";
 	public static final String COL_REVISION_CSV_DESCRIPTOR	= "CSV_DESCRIPTOR";
+	public static final String COL_REVISION_VALIDATION_RES_FILE_HANDLE_ID	= "VALIDATION_RES_FILE_HANDLE_ID";
 	public static final String DDL_FILE_REVISION			="schema/Revision-ddl.sql";
 	
 	public static final String TABLE_STACK_STATUS		= "STACK_STATUS";

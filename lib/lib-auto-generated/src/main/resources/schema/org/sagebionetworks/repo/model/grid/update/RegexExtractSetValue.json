@@ -1,0 +1,41 @@
+{
+	"type": "object",
+	"description": "Sets the column's value by extracting a capture group from a regex pattern applied to a source column.",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.grid.update.SetValue"
+		}
+	],
+	"properties": {
+		"sourceColumnName": {
+			"type": "string",
+			"description": "The name of the column to read the value from (e.g., 'fileName')."
+		},
+		"pattern": {
+			"type": "string",
+			"description": "The regular expression to apply. Must include at least one capture group (e.g., 'site-\\d+/(\\w+)/.*')."
+		},
+		"groupIndex": {
+			"type": "integer",
+			"description": "The 1-based index of the capture group to extract.",
+			"minimum": 1
+		},
+		"onMatchFailure": {
+			"type": "string",
+			"description": "Action to take if the regex does not match the source value. Default SET_NULL.",
+			"name": "OnMatchFailure",
+			"id": "org.sagebionetworks.repo.model.grid.update.OnMatchFailure",
+			"enum": [
+				{
+					"name": "SET_NULL",
+					"description": ""
+				},
+				{
+					"name": "SKIP_UPDATE",
+					"description": ""
+				}
+			],
+			"deddfault": "SET_NULL"
+		}
+	}
+}

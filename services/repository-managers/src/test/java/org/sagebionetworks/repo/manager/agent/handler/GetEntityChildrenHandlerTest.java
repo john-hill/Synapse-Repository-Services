@@ -1,4 +1,4 @@
-package org.sagebionetworks.repo.manager.agent;
+package org.sagebionetworks.repo.manager.agent.handler;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

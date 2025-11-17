@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class SearchHandler implements ReturnControlHandler {
 	
-	private static final int MAX_NUM_CHARS = 200;
+	static final int MAX_NUM_CHARS = 200;
 	private final SearchService serchService;
 	
 	@Autowired

@@ -1,4 +1,4 @@
-package org.sagebionetworks.repo.manager.agent;
+package org.sagebionetworks.repo.manager.agent.parameter;
 
 import org.json.JSONException;
 import org.junit.jupiter.api.BeforeEach;

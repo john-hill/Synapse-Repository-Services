@@ -31,7 +31,6 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
-import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.update.GridUpdateResponse;
 import org.sagebionetworks.repo.model.grid.update.SetValue;
@@ -48,12 +47,14 @@ public class GridUpdateRequestHandler implements OpenApiReturnControlHandler {
 	private final GridManager gridManager;
 	private final GridReplicaViewManager gridViewManager;
 	private final PatchBuilderPublisher patchBuilderPublisher;
+	private final SetValueProcessorFactory factory;
 
 	public GridUpdateRequestHandler(GridManager gridManager, GridReplicaViewManager gridViewManager,
-			PatchBuilderPublisher patchBuilderPublisher) {
+			PatchBuilderPublisher patchBuilderPublisher, SetValueProcessorFactory factory) {
 		this.gridManager = gridManager;
 		this.gridViewManager = gridViewManager;
 		this.patchBuilderPublisher = patchBuilderPublisher;
+		this.factory = factory;
 	}
 
 	@Override
@@ -109,8 +110,7 @@ public class GridUpdateRequestHandler implements OpenApiReturnControlHandler {
 		for (int i = 0; i < set.size(); i++) {
 			SetValue sv = set.get(i);
 			JSONObject rawSetValue = rawSetValueArray.optJSONObject(i);
-			ConValue toAdd = createConValue(sv, rawSetValue);
-			updates.add(toAdd);
+			updates.add(factory.createConValue(row, sv, rawSetValue));
 		}
 		return new UpdateRowChange(row.getRowObject().getData().getVectorId(), updates, indexArray);
 	}
@@ -140,17 +140,6 @@ public class GridUpdateRequestHandler implements OpenApiReturnControlHandler {
 	List<FilterElement> getFilters(Update update) {
 		return update.getFilters() == null ? Collections.emptyList()
 				: update.getFilters().stream().map(FilterTranslation::translate).collect(Collectors.toList());
-	}
-
-
-	ConValue createConValue(SetValue sv, JSONObject rawSetValue) {
-		if (!rawSetValue.has("value")) {
-			return new ConValue(ConType.UNDEFINED, null);
-		}
-		if (rawSetValue.isNull("value")) {
-			return new ConValue(ConType.NULL, null);
-		}
-		return new ConValue(ConType.fromValue(sv.getValue()), sv.getValue());
 	}
 
 	IntendedChangePublisher newIntendedChangePublisher(GridConnectionInfo connInfo, Long maxClockSeq,

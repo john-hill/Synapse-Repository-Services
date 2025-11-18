@@ -75,7 +75,7 @@ public class GridUpdateRequestHandler implements OpenApiReturnControlHandler {
 		GridHeader header = getGridHeader(context, internalConnection);
 		GridConnectionInfo agentConnection = getAgentConnection(context);
 
-		JSONArray updateBatch = updateRequestRaw.getJSONArray("updateBatch");
+		JSONArray updateBatch = updateRequestRaw.getJSONObject("update").getJSONArray("batch");
 		List<Long> updateCounts = new ArrayList<>();
 		for (int i = 0; i < updateBatch.length(); i++) {
 			updateCounts.add(executeUpdate(header, agentConnection, updateBatch.getJSONObject(i)));

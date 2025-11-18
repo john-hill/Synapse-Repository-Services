@@ -5,6 +5,7 @@ import java.io.Writer;
 import java.util.List;
 
 import org.json.JSONArray;
+import org.json.JSONObject;
 import org.sagebionetworks.repo.model.UnmodifiableXStream;
 import org.sagebionetworks.repo.model.grid.query.CellValueFilter;
 import org.sagebionetworks.repo.model.grid.query.CellValueOperator;
@@ -24,7 +25,9 @@ import org.sagebionetworks.repo.model.grid.update.LiteralSetValue;
 import org.sagebionetworks.repo.model.grid.update.OnMatchFailure;
 import org.sagebionetworks.repo.model.grid.update.RegexExtractSetValue;
 import org.sagebionetworks.repo.model.grid.update.Update;
+import org.sagebionetworks.repo.model.grid.update.UpdateBatch;
 import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
+import org.sagebionetworks.schema.adapter.JSONEntity;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapter;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 
@@ -33,6 +36,26 @@ import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
  * instructions.
  */
 public class GridExampleJson {
+
+	static String transformRequestObjectToEscapeObjectString(String originalRequest) {
+		/* Bedrock Agent action groups do not support nested JSON objects in the request body crafted by the agent.
+		 * As a workaround, we can instruct the agent to craft the nested request body properties as escaped JSON
+		 * strings, which our JSON parser can handle. For more information, see PLFM-9355.
+		 */
+		JSONObject jsonObject = new JSONObject(originalRequest);
+
+		// For each top-level JSON property key, if it is an object, transform it to a string (Bedrock Agent action groups do not support nested objects)
+		for (String key : jsonObject.keySet()) {
+			Object value = jsonObject.get(key);
+			if (value instanceof JSONObject) {
+				JSONObject nestedObject = (JSONObject) value;
+				jsonObject.put(key, nestedObject.toString());
+			} else {
+				jsonObject.put(key, value);
+			}
+		}
+		return jsonObject.toString();
+	}
 
 	public static void main(String[] args) {
 		UnmodifiableXStream X_STREAM = UnmodifiableXStream.builder().allowTypes(QueryExamples.class, QueryExample.class)
@@ -122,17 +145,17 @@ public class GridExampleJson {
 		X_STREAM.toXML(new UpdateExamples().setExamples(
 				// Update Example 1
 				new UpdateExample().setDescription("Set age = 25 for rows where age is currently null.").setUpdate_json(
-						JDOSecondaryPropertyUtils.createJSONFromObject(new GridUpdateRequest().setUpdateBatch(List.of(
+						JDOSecondaryPropertyUtils.createJSONFromObject(new GridUpdateRequest().setUpdate(new UpdateBatch().setBatch(List.of(
 								new Update().setSet(List.of(new LiteralSetValue().setColumnName("age").setValue(25)))
 										.setFilters(List.of(new CellValueFilter().setColumnName("age")
-												.setOperator(CellValueOperator.IS_NULL))))))),
+												.setOperator(CellValueOperator.IS_NULL)))))))),
 				// Update Example 2
 				new UpdateExample().setDescription(
 						"For rows where height > 12, set type = 'tall' and footing = null; cap updates at 10 rows.")
 						.setUpdate_json(
 								JDOSecondaryPropertyUtils
 										.createJSONFromObject(new GridUpdateRequest()
-												.setUpdateBatch(List.of(new Update()
+												.setUpdate(new UpdateBatch().setBatch(List.of(new Update()
 														.setSet(List.of(
 																new LiteralSetValue().setColumnName("type")
 																		.setValue("tall"),
@@ -141,32 +164,32 @@ public class GridExampleJson {
 																List.of(new CellValueFilter().setColumnName("height")
 																		.setOperator(CellValueOperator.GREATER_THAN)
 																		.setValue(12)))
-														.setLimit(10L))))),
+														.setLimit(10L)))))),
 				// Update Example 3
 				new UpdateExample().setDescription("Set name = 'Dave' for all currently selected rows.")
 						.setUpdate_json(JDOSecondaryPropertyUtils
-								.createJSONFromObject(new GridUpdateRequest().setUpdateBatch(List.of(new Update()
+								.createJSONFromObject(new GridUpdateRequest().setUpdate(new UpdateBatch().setBatch(List.of(new Update()
 										.setSet(List.of(new LiteralSetValue().setColumnName("name").setValue("Dave")))
-										.setFilters(List.of(new RowSelectionFilter().setIsSelected(true))))))),
+										.setFilters(List.of(new RowSelectionFilter().setIsSelected(true)))))))),
 				// Update Example 4
 				new UpdateExample().setDescription(
 						"Set status = true only for rows with IDs r2 and r5 (explicit RowIdFilter targeting previously retrieved IDs).")
 						.setUpdate_json(JDOSecondaryPropertyUtils
-								.createJSONFromObject(new GridUpdateRequest().setUpdateBatch(List.of(new Update()
+								.createJSONFromObject(new GridUpdateRequest().setUpdate(new UpdateBatch().setBatch(List.of(new Update()
 										.setSet(List.of(new LiteralSetValue().setColumnName("status").setValue(true)))
-										.setFilters(List.of(new RowIdFilter().setRowIdsIn(List.of("r2", "r5")))))))),
+										.setFilters(List.of(new RowIdFilter().setRowIdsIn(List.of("r2", "r5"))))))))),
 				// Update Example 5
 				new UpdateExample().setDescription("Set color to undefined for rows where material is null.")
 						.setUpdate_json(JDOSecondaryPropertyUtils
-								.createJSONFromObject(new GridUpdateRequest().setUpdateBatch(List
+								.createJSONFromObject(new GridUpdateRequest().setUpdate(new UpdateBatch().setBatch(List
 										.of(new Update().setSet(List.of(new LiteralSetValue().setColumnName("color")))
 												.setFilters(List.of(new CellValueFilter().setColumnName("material")
-														.setOperator(CellValueOperator.IS_NULL))))))),
+														.setOperator(CellValueOperator.IS_NULL)))))))),
 				// Update Example 6
 				new UpdateExample().setDescription(
 						"Batch update: (1) Set status = 'active' where age > 18, (2) Set category = 'senior' where age >= 65, (3) Set discount = 0.15 for all selected rows.")
 						.setUpdate_json(JDOSecondaryPropertyUtils
-								.createJSONFromObject(new GridUpdateRequest().setUpdateBatch(List.of(
+								.createJSONFromObject(new GridUpdateRequest().setUpdate(new UpdateBatch().setBatch(List.of(
 										// 1
 										new Update()
 												.setSet(List.of(new LiteralSetValue().setColumnName("status")
@@ -184,17 +207,17 @@ public class GridExampleJson {
 										new Update()
 												.setSet(List.of(
 														new LiteralSetValue().setColumnName("discount").setValue(0.15)))
-												.setFilters(List.of(new RowSelectionFilter().setIsSelected(true))))))),
+												.setFilters(List.of(new RowSelectionFilter().setIsSelected(true)))))))),
 				// Update Example 7
 				new UpdateExample().setDescription(
 						"Extract participant ID from fileName column using regex pattern 'participant-(\\d+)' and set it to the participantId column. If the pattern doesn't match, set participantId to null.")
 						.setUpdate_json(JDOSecondaryPropertyUtils
-								.createJSONFromObject(new GridUpdateRequest().setUpdateBatch(List.of(new Update()
+								.createJSONFromObject(new GridUpdateRequest().setUpdate(new UpdateBatch().setBatch(List.of(new Update()
 										.setSet(List.of(new RegexExtractSetValue().setColumnName("participantId")
 												.setSourceColumnName("fileName").setPattern("participant-(\\d+)")
 												.setGroupIndex(1L).setOnMatchFailure(OnMatchFailure.SET_NULL)))
 										.setFilters(List.of(new CellValueFilter().setColumnName("fileName")
-												.setOperator(CellValueOperator.IS_NOT_NULL)))))))
+												.setOperator(CellValueOperator.IS_NOT_NULL))))))))
 
 		// end
 		), writer);
@@ -237,7 +260,7 @@ public class GridExampleJson {
 		}
 
 		public QueryExample setQuery_json(String query_json) {
-			this.query_json = query_json;
+			this.query_json = transformRequestObjectToEscapeObjectString(query_json);
 			return this;
 		}
 	}
@@ -273,7 +296,7 @@ public class GridExampleJson {
 		}
 
 		public UpdateExample setUpdate_json(String update_json) {
-			this.update_json = update_json;
+			this.update_json = transformRequestObjectToEscapeObjectString(update_json);
 			return this;
 		}
 	}

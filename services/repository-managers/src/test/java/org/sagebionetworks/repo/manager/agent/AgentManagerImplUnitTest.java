@@ -32,6 +32,8 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.reactivestreams.Subscription;
 import org.sagebionetworks.LoggerProvider;
+import org.sagebionetworks.cloudwatch.Consumer;
+import org.sagebionetworks.cloudwatch.ProfileData;
 import org.sagebionetworks.repo.manager.agent.AgentManagerImpl.AgentResponse;
 import org.sagebionetworks.repo.manager.agent.context.AgentContextValidator;
 import org.sagebionetworks.repo.manager.agent.handler.HttpCode;
@@ -145,6 +147,9 @@ public class AgentManagerImplUnitTest {
 	@Mock
 	private AgentContextValidator mockContextValidator;
 
+	@Mock
+	private Consumer mockCloudwatchConsumer;
+
 	private AgentManagerImpl manager;
 
 	private String stackBedrockAgentId;
@@ -213,7 +218,7 @@ public class AgentManagerImplUnitTest {
 				stackBedrockGridAgentId);
 
 		manager = Mockito.spy(new AgentManagerImpl(mockAgentDao, mockAgentClientProvider, idMap,
-				mockReturnControlHandlerProvider, mockClock, mockStatusDao, mockFeatureManager, mockContextValidator));
+				mockReturnControlHandlerProvider, mockClock, mockStatusDao, mockFeatureManager, mockContextValidator, mockCloudwatchConsumer));
 
 		when(mockLoggerProvider.getLogger(AgentManagerImpl.class.getName())).thenReturn(mockLogger);
 		manager.setLoggerProvider(mockLoggerProvider);
@@ -1382,6 +1387,8 @@ public class AgentManagerImplUnitTest {
 		ReturnControlEvent event = manager.fromInvocationInputMember(adminId,null, member);
 		ReturnControlEvent expected = new ReturnControlEvent(adminId, actionGroup, functionOne, params);
 		assertEquals(expected, event);
+
+		verify(manager).logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, null, member, null);
 	}
 
 	@Test
@@ -1395,16 +1402,30 @@ public class AgentManagerImplUnitTest {
 		ReturnControlEvent event = manager.fromInvocationInputMember(adminId,null, member);
 		ReturnControlEvent expected = new ReturnControlEvent(adminId, actionGroup, "GET /foo/one/{id}", params);
 		assertEquals(expected, event);
+
+		verify(manager).logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, null, member, null);
 	}
 
 	@Test
-	public void testFromInvocationInputMemberWithUnknowtype() {
+	public void testFromInvocationInputMemberWithUnknownType() {
 		InvocationInputMember member = InvocationInputMember.builder().build();
-		String message = assertThrows(IllegalArgumentException.class, () -> {
+		Exception e = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
 			manager.fromInvocationInputMember(adminId,null, member);
-		}).getMessage();
-		assertEquals("Expected either function or api invocation", message);
+		});
+		assertEquals("Expected either function or api invocation", e.getMessage());
+
+		verify(manager).logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, null, member, null);
+		verify(manager).logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInputFailure, null, member, e);
+	}
+
+	@Test
+	public void testLogInvocationEventToCloudWatch() {
+		InvocationInputMember member = createInvocationInputMember(actionGroup, functionOne);
+		GridAgentSessionContext ctx = new GridAgentSessionContext();
+		// call under test
+		manager.logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, ctx, member, null);
+		verify(mockCloudwatchConsumer).addProfileData(any(ProfileData.class));
 	}
 
 	@Test

@@ -11,6 +11,8 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.Logger;
 import org.json.JSONObject;
 import org.sagebionetworks.LoggerProvider;
+import org.sagebionetworks.cloudwatch.Consumer;
+import org.sagebionetworks.cloudwatch.ProfileData;
 import org.sagebionetworks.repo.manager.agent.context.AgentContextValidator;
 import org.sagebionetworks.repo.manager.agent.handler.OpenApiReturnControlHandler;
 import org.sagebionetworks.repo.manager.agent.handler.ReturnControlEvent;
@@ -83,11 +85,13 @@ public class AgentManagerImpl implements AgentManager {
 	private final FeatureManager featureManager;
 	private final AgentContextValidator contextValidator;
 	private Logger logger;
+	private final Consumer cloudWatchConsumer;
 
 	@Autowired
 	public AgentManagerImpl(AgentDao agentDao, AgentClientProvider agentClientProvider,
 			Map<AgentSuffix, String> stackBedrockAgentIds, ReturnControlHandlerProvider handlerProvider, Clock clock,
-			AsynchronousJobStatusDAO statusDao, FeatureManager featureManager, AgentContextValidator contextValidator) {
+			AsynchronousJobStatusDAO statusDao, FeatureManager featureManager, AgentContextValidator contextValidator,
+			Consumer consumer) {
 		super();
 		this.agentDao = agentDao;
 		this.agentClientProvider = agentClientProvider;
@@ -104,6 +108,7 @@ public class AgentManagerImpl implements AgentManager {
 		this.handlerProvider = handlerProvider;
 		this.featureManager = featureManager;
 		this.contextValidator = contextValidator;
+		this.cloudWatchConsumer = consumer;
 	}
 
 	@Autowired
@@ -413,12 +418,24 @@ public class AgentManagerImpl implements AgentManager {
 	}
 
 	ReturnControlEvent fromInvocationInputMember(Long userId, SessionContext context, InvocationInputMember member) {
-		if (member.functionInvocationInput() != null) {
-			return fromFunctionInvocationInput(userId, member.functionInvocationInput());
-		} else if (member.apiInvocationInput() != null) {
-			return fromApiInvocationInput(userId, context, member.apiInvocationInput());
+		try {
+			logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, context, member, null);
+			if (member.functionInvocationInput() != null) {
+				return fromFunctionInvocationInput(userId, member.functionInvocationInput());
+			} else if (member.apiInvocationInput() != null) {
+				return fromApiInvocationInput(userId, context, member.apiInvocationInput());
+			}
+			throw new IllegalArgumentException("Expected either function or api invocation");
+		} catch (Exception e) {
+			// Add CloudWatch metric and rethrow
+			logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInputFailure, context, member, e);
+			throw e;
 		}
-		throw new IllegalArgumentException("Expected either function or api invocation");
+	}
+
+	void logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName eventName, SessionContext context, InvocationInputMember member, Exception optionalException) {
+		ProfileData event = AgentCloudwatchUtils.generateCloudwatchProfileDataForInvocationInput(eventName, this.getClass().getName(), context, member, optionalException);
+		cloudWatchConsumer.addProfileData(event);
 	}
 
 	ReturnControlEvent fromFunctionInvocationInput(Long userId, FunctionInvocationInput input) {

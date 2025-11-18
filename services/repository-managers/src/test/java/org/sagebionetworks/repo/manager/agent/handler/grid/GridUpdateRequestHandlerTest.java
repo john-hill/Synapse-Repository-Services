@@ -195,15 +195,76 @@ public class GridUpdateRequestHandlerTest {
 		JSONArray arraySet = new JSONArray(JDOSecondaryPropertyUtils.writeEntityListToJson(set));
 		Integer[] index = new Integer[] { 1, 2 };
 		when(mockSetValueProcessorFactory.createConValue(row, set.get(0), arraySet.getJSONObject(0)))
-				.thenReturn(new ConValue(ConType.LONG, 123L));
+				.thenReturn(Optional.of(new ConValue(ConType.LONG, 123L)));
 		when(mockSetValueProcessorFactory.createConValue(row, set.get(1), arraySet.getJSONObject(1)))
-				.thenReturn(new ConValue(ConType.BOOLEAN, false));
+				.thenReturn(Optional.of(new ConValue(ConType.BOOLEAN, false)));
 
 		// call under test
-		IntendedChange change = handler.buildChange(row, set, arraySet, index);
+		Optional<IntendedChange> change = handler.buildChange(row, set, arraySet, index);
 		UpdateRowChange expected = new UpdateRowChange(vectorId,
 				List.of(new ConValue(ConType.LONG, 123L), new ConValue(ConType.BOOLEAN, false)), index);
-		assertEquals(expected, change);
+		assertEquals(expected, change.get());
+	}
+	
+	@Test
+	public void testBuildChangeWithOneEmpty() {
+		LogicalTimestamp vectorId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L);
+		RowView row = new RowView().setRowIndex(1L)
+				.setRowObject(new RowObject().setData(new RowData().setVectorId(vectorId)));
+		List<SetValue> set = List.of(new LiteralSetValue().setColumnName("a").setValue(123),
+				new LiteralSetValue().setColumnName("b").setValue(false));
+		JSONArray arraySet = new JSONArray(JDOSecondaryPropertyUtils.writeEntityListToJson(set));
+		Integer[] index = new Integer[] { 1, 2 };
+		when(mockSetValueProcessorFactory.createConValue(row, set.get(0), arraySet.getJSONObject(0)))
+				.thenReturn(Optional.of(new ConValue(ConType.LONG, 123L)));
+		when(mockSetValueProcessorFactory.createConValue(row, set.get(1), arraySet.getJSONObject(1)))
+				.thenReturn(Optional.empty());
+
+		// call under test
+		Optional<IntendedChange> change = handler.buildChange(row, set, arraySet, index);
+		UpdateRowChange expected = new UpdateRowChange(vectorId, List.of(new ConValue(ConType.LONG, 123L)),
+				new Integer[] { 1 });
+		assertEquals(expected, change.get());
+	}
+	
+	@Test
+	public void testBuildChangeWithOtherEmpty() {
+		LogicalTimestamp vectorId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L);
+		RowView row = new RowView().setRowIndex(1L)
+				.setRowObject(new RowObject().setData(new RowData().setVectorId(vectorId)));
+		List<SetValue> set = List.of(new LiteralSetValue().setColumnName("a").setValue(123),
+				new LiteralSetValue().setColumnName("b").setValue(false));
+		JSONArray arraySet = new JSONArray(JDOSecondaryPropertyUtils.writeEntityListToJson(set));
+		Integer[] index = new Integer[] { 1, 4 };
+		when(mockSetValueProcessorFactory.createConValue(row, set.get(0), arraySet.getJSONObject(0)))
+				.thenReturn(Optional.empty());
+		when(mockSetValueProcessorFactory.createConValue(row, set.get(1), arraySet.getJSONObject(1)))
+				.thenReturn(Optional.of(new ConValue(ConType.BOOLEAN, false)));
+
+		// call under test
+		Optional<IntendedChange> change = handler.buildChange(row, set, arraySet, index);
+		UpdateRowChange expected = new UpdateRowChange(vectorId, List.of(new ConValue(ConType.BOOLEAN, false)),
+				new Integer[] { 4 });
+		assertEquals(expected, change.get());
+	}
+	
+	@Test
+	public void testBuildChangeWithAllEmpty() {
+		LogicalTimestamp vectorId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L);
+		RowView row = new RowView().setRowIndex(1L)
+				.setRowObject(new RowObject().setData(new RowData().setVectorId(vectorId)));
+		List<SetValue> set = List.of(new LiteralSetValue().setColumnName("a").setValue(123),
+				new LiteralSetValue().setColumnName("b").setValue(false));
+		JSONArray arraySet = new JSONArray(JDOSecondaryPropertyUtils.writeEntityListToJson(set));
+		Integer[] index = new Integer[] { 1, 4 };
+		when(mockSetValueProcessorFactory.createConValue(row, set.get(0), arraySet.getJSONObject(0)))
+				.thenReturn(Optional.empty());
+		when(mockSetValueProcessorFactory.createConValue(row, set.get(1), arraySet.getJSONObject(1)))
+				.thenReturn(Optional.empty());
+
+		// call under test
+		Optional<IntendedChange> change = handler.buildChange(row, set, arraySet, index);
+		assertEquals(Optional.empty(), change);
 	}
 
 	@Test

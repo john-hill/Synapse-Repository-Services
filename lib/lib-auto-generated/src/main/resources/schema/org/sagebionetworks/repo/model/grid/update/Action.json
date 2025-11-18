@@ -1,0 +1,14 @@
+{
+	"type": "string",
+	"description": "Action to take if one or more of the condtion for setting a value is not met. Default SET_NULL.",
+	"enum": [
+		{
+			"name": "SET_NULL",
+			"description": ""
+		},
+		{
+			"name": "SKIP_UPDATE",
+			"description": ""
+		}
+	]
+}

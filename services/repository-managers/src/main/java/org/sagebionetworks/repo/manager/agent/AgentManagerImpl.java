@@ -392,8 +392,10 @@ public class AgentManagerImpl implements AgentManager {
 							accessLevel, AgentAccessLevel.WRITE_YOUR_PRIVATE_DATA));
 				}
 			}
+			logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, event.getSessionContext(SessionContext.class).orElse(null), event, null);
 			return handler.handleEvent(event);
 		} catch (Exception e) {
+			logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInputFailure, event.getSessionContext(SessionContext.class).orElse(null), event, e);
 			logger.error("Return_control event execution failed. Will send the following message to the agent: '{}'",
 					e.getMessage());
 			// on failure provide the error message to the agent in JSON.
@@ -418,24 +420,17 @@ public class AgentManagerImpl implements AgentManager {
 	}
 
 	ReturnControlEvent fromInvocationInputMember(Long userId, SessionContext context, InvocationInputMember member) {
-		try {
-			logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, context, member, null);
-			if (member.functionInvocationInput() != null) {
-				return fromFunctionInvocationInput(userId, member.functionInvocationInput());
-			} else if (member.apiInvocationInput() != null) {
-				return fromApiInvocationInput(userId, context, member.apiInvocationInput());
-			}
-			throw new IllegalArgumentException("Expected either function or api invocation");
-		} catch (Exception e) {
-			// Add CloudWatch metric and rethrow
-			logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInputFailure, context, member, e);
-			throw e;
+		if (member.functionInvocationInput() != null) {
+			return fromFunctionInvocationInput(userId, member.functionInvocationInput());
+		} else if (member.apiInvocationInput() != null) {
+			return fromApiInvocationInput(userId, context, member.apiInvocationInput());
 		}
+		throw new IllegalArgumentException("Expected either function or api invocation");
 	}
 
-	void logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName eventName, SessionContext context, InvocationInputMember member, Exception optionalException) {
-		ProfileData event = AgentCloudwatchUtils.generateCloudwatchProfileDataForInvocationInput(eventName, this.getClass().getName(), context, member, optionalException);
-		cloudWatchConsumer.addProfileData(event);
+	void logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName eventName, SessionContext sessionContext, ReturnControlEvent event, Exception optionalException) {
+		ProfileData cloudWatchEvent = AgentCloudwatchUtils.generateCloudwatchProfileDataForInvocationInput(eventName, this.getClass().getName(), sessionContext, event, optionalException);
+		cloudWatchConsumer.addProfileData(cloudWatchEvent);
 	}
 
 	ReturnControlEvent fromFunctionInvocationInput(Long userId, FunctionInvocationInput input) {

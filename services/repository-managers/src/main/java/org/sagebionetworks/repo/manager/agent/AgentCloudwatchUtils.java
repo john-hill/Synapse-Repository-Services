@@ -5,11 +5,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.sagebionetworks.cloudwatch.ProfileData;
+import org.sagebionetworks.repo.manager.agent.handler.ReturnControlEvent;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.sagebionetworks.repo.model.agent.SessionContext;
 import org.sagebionetworks.util.ValidateArgument;
-
-import software.amazon.awssdk.services.bedrockagentruntime.model.InvocationInputMember;
 
 class AgentCloudwatchUtils {
 
@@ -18,18 +17,24 @@ class AgentCloudwatchUtils {
         InvocationInputFailure,
     }
 
-    public static ProfileData generateCloudwatchProfileDataForInvocationInput(AgentCloudwatchEventName eventName, String namespace, SessionContext context, InvocationInputMember member, Exception optionalException){
+    public static ProfileData generateCloudwatchProfileDataForInvocationInput(AgentCloudwatchEventName eventName, String namespace, SessionContext context, ReturnControlEvent returnControlEvent, Exception optionalException) {
         ValidateArgument.required(eventName, "eventName");
-        ValidateArgument.required(member, "member");
 
-        ProfileData event = new ProfileData();
-        event.setNamespace(namespace);
-        event.setName(eventName.toString());
-        event.setValue(1.0);
-        event.setUnit("Count");
-        event.setTimestamp(new Date());
+        ProfileData cloudWatchEvent = new ProfileData();
+        cloudWatchEvent.setNamespace(namespace);
+        cloudWatchEvent.setName(eventName.toString());
+        cloudWatchEvent.setValue(1.0);
+        cloudWatchEvent.setUnit("Count");
+        cloudWatchEvent.setTimestamp(new Date());
 
         Map<String, String> dimensions = new HashMap<>();
+        if (returnControlEvent != null) {
+            dimensions.put("ActionGroup", returnControlEvent.getActionGroup());
+            dimensions.put("FunctionName", returnControlEvent.getFunction());
+            if (returnControlEvent.getParameters() != null) {
+                dimensions.put("Parameters", returnControlEvent.getParameters().toString());
+            }
+        }
         if (context != null) {
             dimensions.put("SessionContextType", context.getConcreteType());
             if (context instanceof GridAgentSessionContext) {
@@ -38,24 +43,15 @@ class AgentCloudwatchUtils {
                 dimensions.put("GridAgentReplicaId", String.valueOf(ctx.getAgentsReplicaId()));
             }
         }
-        if (member.functionInvocationInput() != null) {
-            dimensions.put("InvocationType", "Function");
-            dimensions.put("FunctionName", member.functionInvocationInput().function());
-        }
 
-        if (member.apiInvocationInput() != null) {
-            dimensions.put("InvocationType", "API");
-            dimensions.put("ApiPath", member.apiInvocationInput().apiPath());
-            dimensions.put("HttpMethod", member.apiInvocationInput().httpMethod());
-        }
 
         if (optionalException != null) {
             dimensions.put("ExceptionType", optionalException.getClass().getSimpleName());
             dimensions.put("ExceptionMessage", optionalException.getMessage());
         }
 
-        event.setDimension(dimensions);
+        cloudWatchEvent.setDimension(dimensions);
 
-        return event;
+        return cloudWatchEvent;
     }
 }

@@ -1,72 +1,79 @@
 package org.sagebionetworks.repo.manager.agent;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.util.List;
 import java.util.Map;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sagebionetworks.cloudwatch.ProfileData;
+import org.sagebionetworks.repo.manager.agent.handler.ReturnControlEvent;
+import org.sagebionetworks.repo.manager.agent.parameter.Parameter;
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
+import org.sagebionetworks.repo.model.agent.SessionContext;
 
-import software.amazon.awssdk.services.bedrockagentruntime.model.ApiInvocationInput;
 import software.amazon.awssdk.services.bedrockagentruntime.model.FunctionInvocationInput;
 import software.amazon.awssdk.services.bedrockagentruntime.model.InvocationInputMember;
 
 class AgentCloudwatchUtilsTest {
+    SessionContext context;
+    String namespace;
+    String actionGroup;
+    String functionName;
+    List<Parameter> parameters;
+    ReturnControlEvent returnControlEvent;
+    Exception exception;
+
+    @BeforeEach
+    public void before() {
+        context = null;
+        namespace = "ns";
+        actionGroup = "testActionGroup";
+        functionName = "testFunction";
+        returnControlEvent = new ReturnControlEvent(123L, actionGroup, functionName, parameters);
+        exception = null;
+    }
 
     @Test
     public void testNullEventName() {
-        InvocationInputMember member = InvocationInputMember.builder().build();
-
-        assertThrows(IllegalArgumentException.class, () -> AgentCloudwatchUtils.generateCloudwatchProfileDataForInvocationInput(null, "ns", null, member, null));
+        assertThrows(IllegalArgumentException.class, () -> AgentCloudwatchUtils.generateCloudwatchProfileDataForInvocationInput(null, namespace, context, returnControlEvent, exception));
     }
 
     @Test
-    public void testNullInvocationInputMember() {
-        assertThrows(IllegalArgumentException.class, () -> AgentCloudwatchUtils.generateCloudwatchProfileDataForInvocationInput(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, "ns", null, null, null));
-    }
+    public void testWithParameters() {
+        parameters = List.of(new Parameter("param1", "string", "value1"), new Parameter("param2", "number", "42"));
+        returnControlEvent = new ReturnControlEvent(123L, actionGroup, functionName, parameters);
 
-    @Test
-    public void testFunctionInvocation() {
-        FunctionInvocationInput fin = FunctionInvocationInput.builder().actionGroup("action").function("myFunction").build();
-        InvocationInputMember member = InvocationInputMember.builder().functionInvocationInput(fin).build();
-
-        ProfileData pd = AgentCloudwatchUtils.generateCloudwatchProfileDataForInvocationInput(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, "myNamespace", null, member, null);
+        ProfileData pd = AgentCloudwatchUtils.generateCloudwatchProfileDataForInvocationInput(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, namespace, context, returnControlEvent, exception);
         assertNotNull(pd);
-        assertEquals("myNamespace", pd.getNamespace());
+        assertEquals(namespace, pd.getNamespace());
         assertEquals(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput.toString(), pd.getName());
         assertEquals(1.0, pd.getValue());
         assertEquals("Count", pd.getUnit());
         assertNotNull(pd.getTimestamp());
-
         Map<String, String> dims = pd.getDimension();
-        assertNotNull(dims);
-        assertEquals("Function", dims.get("InvocationType"));
-        assertEquals("myFunction", dims.get("FunctionName"));
-        assertFalse(dims.containsKey("ApiPath"));
-        assertFalse(dims.containsKey("HttpMethod"));
-        assertFalse(dims.containsKey("ExceptionType"));
+        assertEquals(actionGroup, dims.get("ActionGroup"));
+        assertEquals(functionName, dims.get("FunctionName"));
+        assertEquals(parameters.toString(), dims.get("Parameters"));
     }
 
     @Test
-    public void testApiInvocation() {
-        ApiInvocationInput api = ApiInvocationInput.builder().actionGroup("ag").apiPath("/v1/resource").httpMethod("GET").build();
-        InvocationInputMember member = InvocationInputMember.builder().apiInvocationInput(api).build();
+    public void testNullParameters() {
+        parameters = null;
 
-        ProfileData pd = AgentCloudwatchUtils.generateCloudwatchProfileDataForInvocationInput(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, "nsApi", null, member, null);
+        ProfileData pd = AgentCloudwatchUtils.generateCloudwatchProfileDataForInvocationInput(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, namespace, context, returnControlEvent, exception);
         Map<String, String> dims = pd.getDimension();
-        assertEquals("API", dims.get("InvocationType"));
-        assertEquals("/v1/resource", dims.get("ApiPath"));
-        assertEquals("GET", dims.get("HttpMethod"));
+        assertEquals(null, dims.get("Parameters"));
     }
+
 
     @Test
     public void testInvocationInputException() {
-        FunctionInvocationInput fin = FunctionInvocationInput.builder().actionGroup("action").function("gridFn").build();
-        InvocationInputMember member = InvocationInputMember.builder().functionInvocationInput(fin).build();
-
-        Exception ex = new RuntimeException("something bad");
-        ProfileData pd = AgentCloudwatchUtils.generateCloudwatchProfileDataForInvocationInput(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInputFailure, "gridNs", null, member, ex);
+        exception = new RuntimeException("something bad");
+        ProfileData pd = AgentCloudwatchUtils.generateCloudwatchProfileDataForInvocationInput(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInputFailure, namespace, context, returnControlEvent, exception);
 
         Map<String, String> dims = pd.getDimension();
         assertEquals("RuntimeException", dims.get("ExceptionType"));
@@ -80,10 +87,12 @@ class AgentCloudwatchUtilsTest {
         gridContext.setGridSessionId("grid-123");
         gridContext.setAgentsReplicaId(42L);
 
+        context = gridContext;
+
         FunctionInvocationInput fin = FunctionInvocationInput.builder().actionGroup("action").function("gridFn").build();
         InvocationInputMember member = InvocationInputMember.builder().functionInvocationInput(fin).build();
 
-        ProfileData pd = AgentCloudwatchUtils.generateCloudwatchProfileDataForInvocationInput(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, "gridNs", gridContext, member, null);
+        ProfileData pd = AgentCloudwatchUtils.generateCloudwatchProfileDataForInvocationInput(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, namespace, context, returnControlEvent, exception);
 
         Map<String, String> dims = pd.getDimension();
         assertEquals("org.sagebionetworks.repo.model.agent.GridAgentSessionContext", dims.get("SessionContextType"));

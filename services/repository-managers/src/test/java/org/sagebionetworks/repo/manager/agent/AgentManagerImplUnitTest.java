@@ -4,9 +4,11 @@ import static org.junit.Assert.assertNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -1033,6 +1035,8 @@ public class AgentManagerImplUnitTest {
 		// call under test
 		String result = manager.handleEvent(level, mockReturnControlHandlerOne, returnControlEventOne);
 		assertEquals("one", result);
+		verify(manager).logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, null, returnControlEventOne, null);
+		verify(manager, never()).logInvocationEventToCloudWatch(eq(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInputFailure), any(), any(), any());
 	}
 
 	@ParameterizedTest
@@ -1046,6 +1050,9 @@ public class AgentManagerImplUnitTest {
 		// call under test
 		String result = manager.handleEvent(level, mockReturnControlHandlerOne, returnControlEventOne);
 		assertEquals("one", result);
+
+		verify(manager).logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, null, returnControlEventOne, null);
+		verify(manager, never()).logInvocationEventToCloudWatch(eq(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInputFailure), any(), any(), any());
 	}
 
 	@ParameterizedTest
@@ -1063,6 +1070,8 @@ public class AgentManagerImplUnitTest {
 		verify(mockLogger).error(
 				"Return_control event execution failed. Will send the following message to the agent: '{}'",
 				expectedMessage);
+
+		verify(manager).logInvocationEventToCloudWatch(eq(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInputFailure), eq(null), eq(returnControlEventOne), any(UnauthorizedException.class));
 	}
 
 	@ParameterizedTest
@@ -1075,6 +1084,7 @@ public class AgentManagerImplUnitTest {
 		String result = manager.handleEvent(level, mockReturnControlHandlerOne, returnControlEventOne);
 		assertEquals("{\"errorMessage\":\"The feature to allow agents to write to Synapse is currently disabled.\"}",
 				result);
+		verify(manager).logInvocationEventToCloudWatch(eq(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInputFailure), eq(null), eq(returnControlEventOne), any(UnsupportedOperationException.class));
 	}
 
 	@ParameterizedTest
@@ -1091,6 +1101,9 @@ public class AgentManagerImplUnitTest {
 		verify(mockLogger).error(
 				"Return_control event execution failed. Will send the following message to the agent: '{}'",
 				e.getMessage());
+
+		verify(manager).logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, null, returnControlEventOne, null);
+		verify(manager).logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInputFailure, null, returnControlEventOne, e);
 	}
 
 	@Test
@@ -1387,8 +1400,6 @@ public class AgentManagerImplUnitTest {
 		ReturnControlEvent event = manager.fromInvocationInputMember(adminId,null, member);
 		ReturnControlEvent expected = new ReturnControlEvent(adminId, actionGroup, functionOne, params);
 		assertEquals(expected, event);
-
-		verify(manager).logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, null, member, null);
 	}
 
 	@Test
@@ -1402,8 +1413,6 @@ public class AgentManagerImplUnitTest {
 		ReturnControlEvent event = manager.fromInvocationInputMember(adminId,null, member);
 		ReturnControlEvent expected = new ReturnControlEvent(adminId, actionGroup, "GET /foo/one/{id}", params);
 		assertEquals(expected, event);
-
-		verify(manager).logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, null, member, null);
 	}
 
 	@Test
@@ -1414,17 +1423,13 @@ public class AgentManagerImplUnitTest {
 			manager.fromInvocationInputMember(adminId,null, member);
 		});
 		assertEquals("Expected either function or api invocation", e.getMessage());
-
-		verify(manager).logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, null, member, null);
-		verify(manager).logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInputFailure, null, member, e);
 	}
 
 	@Test
 	public void testLogInvocationEventToCloudWatch() {
-		InvocationInputMember member = createInvocationInputMember(actionGroup, functionOne);
 		GridAgentSessionContext ctx = new GridAgentSessionContext();
 		// call under test
-		manager.logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, ctx, member, null);
+		manager.logInvocationEventToCloudWatch(AgentCloudwatchUtils.AgentCloudwatchEventName.InvocationInput, ctx, returnControlEventApi, null);
 		verify(mockCloudwatchConsumer).addProfileData(any(ProfileData.class));
 	}
 

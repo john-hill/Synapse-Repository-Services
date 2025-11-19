@@ -55,7 +55,7 @@ public class SearchHandlerTest {
 	public void testSearchHandler() throws Exception {
 		String searchTerm = "test search";
 		
-		when(mockSearchService.proxySearch(USER_ID, true, new SearchQuery().setQueryTerm(List.of(searchTerm))))
+		when(mockSearchService.proxySearch(USER_ID, new SearchQuery().setQueryTerm(List.of(searchTerm))))
 			.thenReturn(searchResults);
 		
 		ReturnControlEvent returnControlEvent = new ReturnControlEvent(USER_ID, ACTION_GROUP, FUNCTION, List.of(new Parameter("term", "string", searchTerm)));
@@ -72,7 +72,7 @@ public class SearchHandlerTest {
 		searchResults = new SearchResults()
 			.setHits(List.of(new Hit().setDescription("A".repeat(SearchHandler.MAX_NUM_CHARS + 1))));
 		
-		when(mockSearchService.proxySearch(USER_ID, true, new SearchQuery().setQueryTerm(List.of(searchTerm))))
+		when(mockSearchService.proxySearch(USER_ID, new SearchQuery().setQueryTerm(List.of(searchTerm))))
 			.thenReturn(searchResults);
 		
 		ReturnControlEvent returnControlEvent = new ReturnControlEvent(USER_ID, ACTION_GROUP, FUNCTION, List.of(new Parameter("term", "string", searchTerm)));

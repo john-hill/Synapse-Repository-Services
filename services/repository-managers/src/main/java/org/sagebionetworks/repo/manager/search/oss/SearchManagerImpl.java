@@ -34,7 +34,7 @@ import org.sagebionetworks.repo.model.search.SearchResults;
 import org.sagebionetworks.repo.model.search.query.SearchQuery;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.repo.web.TemporarilyUnavailableException;
-import org.sagebionetworks.search.SearchConstants;
+import org.sagebionetworks.repo.manager.search.SearchConstants;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.springframework.stereotype.Service;
 

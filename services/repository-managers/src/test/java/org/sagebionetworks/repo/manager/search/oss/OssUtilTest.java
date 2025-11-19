@@ -33,7 +33,7 @@ import org.sagebionetworks.repo.model.search.query.SearchFacetOption;
 import org.sagebionetworks.repo.model.search.query.SearchFacetSort;
 import org.sagebionetworks.repo.model.search.query.SearchFieldName;
 import org.sagebionetworks.repo.model.search.query.SearchQuery;
-import org.sagebionetworks.search.SearchConstants;
+import org.sagebionetworks.repo.manager.search.SearchConstants;
 
 import java.io.StringWriter;
 import java.util.ArrayList;
@@ -44,7 +44,7 @@ import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.sagebionetworks.search.SearchConstants.FIELD_ACL;
+import static org.sagebionetworks.repo.manager.search.SearchConstants.FIELD_ACL;
 
 public class OssUtilTest {
     List<Long> userGroups;

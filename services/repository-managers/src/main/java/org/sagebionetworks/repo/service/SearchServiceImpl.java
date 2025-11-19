@@ -1,7 +1,6 @@
 package org.sagebionetworks.repo.service;
 
 import org.sagebionetworks.repo.manager.UserManager;
-import org.sagebionetworks.repo.manager.search.SearchManager;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.search.SearchResults;
 import org.sagebionetworks.repo.model.search.query.SearchQuery;
@@ -16,8 +15,6 @@ import org.springframework.web.bind.annotation.ResponseBody;
  */
 @Service
 public class SearchServiceImpl implements SearchService {
-	@Autowired
-	SearchManager searchManager;
 
 	@Autowired
 	org.sagebionetworks.repo.manager.search.oss.SearchManager ossSearchManager;
@@ -31,14 +28,10 @@ public class SearchServiceImpl implements SearchService {
 	 */
 	@Override
 	public @ResponseBody
-	SearchResults proxySearch(Long userId, boolean isOpenSearchEnable, SearchQuery searchQuery) {
+	SearchResults proxySearch(Long userId, SearchQuery searchQuery) {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 
-		if (isOpenSearchEnable) {
-			return ossSearchManager.search(userInfo, searchQuery);
-		}
-
-		return searchManager.proxySearch(userInfo, searchQuery);
+		return ossSearchManager.search(userInfo, searchQuery);
 	}
 
 

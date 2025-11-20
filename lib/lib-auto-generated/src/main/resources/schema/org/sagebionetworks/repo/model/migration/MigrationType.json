@@ -4,15 +4,15 @@
 	"enum": [
 		{
 			"name": "PRINCIPAL",
-			"description": "TODO: Auto-generated description"
+			"description": "A user or team principal object."
 		},
 		{
 			"name": "GROUP_MEMBERS",
-			"description": "TODO: Auto-generated description"
+			"description": "Membership information for groups."
 		},
 		{
 			"name": "CREDENTIAL",
-			"description": "TODO: Auto-generated description"
+			"description": "User credential information."
 		},
 		{
 			"name": "AUTHENTICATED_ON",
@@ -20,111 +20,111 @@
 		},
 		{
 			"name": "PRINCIPAL_ALIAS",
-			"description": "TODO: Auto-generated description"
+			"description": "Alias information for a principal."
 		},
 		{
 			"name": "NOTIFICATION_EMAIL",
-			"description": "TODO: Auto-generated description"
+			"description": "Notification email address for a user."
 		},
 		{
 			"name": "USER_PROFILE",
-			"description": "TODO: Auto-generated description"
+			"description": "User profile information."
 		},
 		{
 			"name": "STORAGE_LOCATION",
-			"description": "TODO: Auto-generated description"
+			"description": "Storage location information."
 		},
 		{
 			"name": "FILE_HANDLE",
-			"description": "TODO: Auto-generated description"
+			"description": "File handle metadata."
 		},
 		{
 			"name": "MULTIPART_UPLOAD",
-			"description": "TODO: Auto-generated description"
+			"description": "Multipart upload session information."
 		},
 		{
 			"name": "MULTIPART_UPLOAD_PART_STATE",
-			"description": "TODO: Auto-generated description"
+			"description": "State of a part in a multipart upload."
 		},
 		{
 			"name": "MULTIPART_UPLOAD_COMPOSER_PART_STATE",
-			"description": "TODO: Auto-generated description"
+			"description": "State of a composer part in a multipart upload."
 		},
 		{
 			"name": "MESSAGE_CONTENT",
-			"description": "TODO: Auto-generated description"
+			"description": "Content of a message."
 		},
 		{
 			"name": "MESSAGE_TO_USER",
-			"description": "TODO: Auto-generated description"
+			"description": "Message sent to a user."
 		},
 		{
 			"name": "MESSAGE_RECIPIENT",
-			"description": "TODO: Auto-generated description"
+			"description": "Recipient of a message."
 		},
 		{
 			"name": "MESSAGE_STATUS",
-			"description": "TODO: Auto-generated description"
+			"description": "Status of a message."
 		},
 		{
 			"name": "COMMENT",
-			"description": "TODO: Auto-generated description"
+			"description": "A comment on a discussion thread or entity."
 		},
 		{
 			"name": "V2_WIKI_PAGE",
-			"description": "TODO: Auto-generated description"
+			"description": "A version 2 wiki page."
 		},
 		{
 			"name": "V2_WIKI_ATTACHMENT_RESERVATION",
-			"description": "TODO: Auto-generated description"
+			"description": "Attachment reservation for a v2 wiki page."
 		},
 		{
 			"name": "V2_WIKI_MARKDOWN",
-			"description": "TODO: Auto-generated description"
+			"description": "Markdown content for a v2 wiki page."
 		},
 		{
 			"name": "V2_WIKI_OWNERS",
-			"description": "TODO: Auto-generated description"
+			"description": "Owners of a v2 wiki page."
 		},
 		{
 			"name": "ACTIVITY",
-			"description": "TODO: Auto-generated description"
+			"description": "Provenance activity information."
 		},
 		{
 			"name": "NODE",
-			"description": "TODO: Auto-generated description"
+			"description": "A Synapse entity node."
 		},
 		{
 			"name": "NODE_REVISION",
-			"description": "TODO: Auto-generated description"
+			"description": "Revision information for a node."
 		},
 		{
 			"name": "NODE_ACCESS_REQUIRMENT",
-			"description": "TODO: Auto-generated description"
+			"description": "Access requirement for a node."
 		},
 		{
 			"name": "DOCKER_REPOSITORY_NAME",
-			"description": "TODO: Auto-generated description"
+			"description": "Name of a Docker repository."
 		},
 		{
 			"name": "DOCKER_COMMIT",
-			"description": "TODO: Auto-generated description"
+			"description": "A commit in a Docker repository."
 		},
 		{
 			"name": "TEAM",
-			"description": "TODO: Auto-generated description"
+			"description": "A Synapse team object."
 		},
 		{
 			"name": "MEMBERSHIP_INVITATION_SUBMISSION",
-			"description": "TODO: Auto-generated description"
+			"description": "A membership invitation submission."
 		},
 		{
 			"name": "MEMBERSHIP_REQUEST_SUBMISSION",
-			"description": "TODO: Auto-generated description"
+			"description": "A membership request submission."
 		},
 		{
 			"name": "EVALUATION",
-			"description": "TODO: Auto-generated description"
+			"description": "An evaluation object, such as a challenge or competition."
 		},
 		{
 			"name": "EVALUATION_ROUND",
@@ -132,83 +132,79 @@
 		},
 		{
 			"name": "EVALUATION_SUBMISSIONS",
-			"description": "TODO: Auto-generated description"
+			"description": "A collection of submissions for an evaluation."
 		},
 		{
 			"name": "SUBMISSION",
-			"description": "TODO: Auto-generated description"
+			"description": "A submission to an evaluation."
 		},
 		{
 			"name": "SUBMISSION_CONTRIBUTOR",
-			"description": "TODO: Auto-generated description"
+			"description": "A contributor to a submission."
 		},
 		{
 			"name": "SUBMISSION_FILE",
-			"description": "TODO: Auto-generated description"
+			"description": "A file associated with a submission."
 		},
 		{
 			"name": "SUBMISSION_STATUS",
-			"description": "TODO: Auto-generated description"
+			"description": "Status of a submission."
 		},
 		{
 			"name": "PROJECT_SETTINGS",
-			"description": "TODO: Auto-generated description"
+			"description": "Settings for a Synapse project."
 		},
 		{
 			"name": "PROJECT_STATS",
-			"description": "TODO: Auto-generated description"
+			"description": "Statistics for a Synapse project."
 		},
 		{
 			"name": "ACCESS_REQUIREMENT",
-			"description": "TODO: Auto-generated description"
+			"description": "Access requirement for an entity or evaluation."
 		},
 		{
 			"name": "ACCESS_REQUIREMENT_REVISION",
-			"description": "TODO: Auto-generated description"
+			"description": "Revision of an access requirement."
 		},
 		{
 			"name": "ACCESS_APPROVAL",
-			"description": "TODO: Auto-generated description"
+			"description": "Approval for an access requirement."
 		},
 		{
 			"name": "ACL",
-			"description": "TODO: Auto-generated description"
+			"description": "Access control list for an entity or evaluation."
 		},
 		{
 			"name": "ACL_ACCESS",
-			"description": "TODO: Auto-generated description"
+			"description": "Access permissions in an ACL."
 		},
 		{
 			"name": "ACL_ACCESS_TYPE",
-			"description": "TODO: Auto-generated description"
+			"description": "Type of access in an ACL."
 		},
 		{
 			"name": "FAVORITE",
-			"description": "TODO: Auto-generated description"
+			"description": "A user's favorite entity or object."
 		},
 		{
 			"name": "TRASH_CAN",
-			"description": "TODO: Auto-generated description"
-		},
-		{
-			"name": "PORTAL",
-			"description": "Table that stores portal information"
+			"description": "A trashed entity or object."
 		},
 		{
 			"name": "DOI",
-			"description": "TODO: Auto-generated description"
+			"description": "Digital Object Identifier metadata."
 		},
 		{
 			"name": "CHALLENGE",
-			"description": "TODO: Auto-generated description"
+			"description": "A challenge object."
 		},
 		{
 			"name": "CHALLENGE_TEAM",
-			"description": "TODO: Auto-generated description"
+			"description": "A team participating in a challenge."
 		},
 		{
 			"name": "COLUMN_MODEL",
-			"description": "TODO: Auto-generated description"
+			"description": "Column model for a table."
 		},
 		{
 			"name": "BOUND_COLUMN_OWNER",
@@ -228,63 +224,63 @@
 		},
 		{
 			"name": "TABLE_SEQUENCE",
-			"description": "TODO: Auto-generated description"
+			"description": "Sequence information for a table."
 		},
 		{
 			"name": "TABLE_CHANGE",
-			"description": "TODO: Auto-generated description"
+			"description": "Change record for a table."
 		},
 		{
 			"name": "QUIZ_RESPONSE",
-			"description": "TODO: Auto-generated description"
+			"description": "A user's response to a quiz."
 		},
 		{
 			"name": "VERIFICATION_SUBMISSION",
-			"description": "TODO: Auto-generated description"
+			"description": "A submission for user or team verification."
 		},
 		{
 			"name": "VERIFICATION_STATE",
-			"description": "TODO: Auto-generated description"
+			"description": "State of a verification submission."
 		},
 		{
 			"name": "VERIFICATION_FILE",
-			"description": "TODO: Auto-generated description"
+			"description": "A file associated with a verification submission."
 		},
 		{
 			"name": "FORUM",
-			"description": "TODO: Auto-generated description"
+			"description": "A discussion forum object."
 		},
 		{
 			"name": "DISCUSSION_THREAD",
-			"description": "TODO: Auto-generated description"
+			"description": "A discussion thread in a forum."
 		},
 		{
 			"name": "DISCUSSION_THREAD_VIEW",
-			"description": "TODO: Auto-generated description"
+			"description": "A view of a discussion thread."
 		},
 		{
 			"name": "DISCUSSION_THREAD_ENTITY_REFERENCE",
-			"description": "TODO: Auto-generated description"
+			"description": "Entity reference in a discussion thread."
 		},
 		{
 			"name": "DISCUSSION_REPLY",
-			"description": "TODO: Auto-generated description"
+			"description": "A reply to a discussion thread."
 		},
 		{
 			"name": "SUBSCRIPTION",
-			"description": "TODO: Auto-generated description"
+			"description": "A subscription to notifications or updates."
 		},
 		{
 			"name": "BROADCAST_MESSAGE",
-			"description": "TODO: Auto-generated description"
+			"description": "A broadcast message sent to users."
 		},
 		{
 			"name": "VIEW_TYPE",
-			"description": "TODO: Auto-generated description"
+			"description": "Type of a view object."
 		},
 		{
 			"name": "VIEW_SCOPE",
-			"description": "TODO: Auto-generated description"
+			"description": "Scope of a view object."
 		},
 		{
 			"name": "VIEW_SNAPSHOT",
@@ -380,7 +376,7 @@
 		},
 		{
 			"name": "DATA_TYPE",
-			"description": "TODO: Auto-generated description"
+			"description": "Type of data stored in Synapse."
 		},
 		{
 			"name": "OAUTH_SECTOR_IDENTIFIER",

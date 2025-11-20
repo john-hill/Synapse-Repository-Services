@@ -288,27 +288,27 @@
 		},
 		{
 			"name": "THROTTLE_RULE",
-			"description": "TODO: Auto-generated description"
+			"description": "Rules that define limits or throttling for API usage or other system resources."
 		},
 		{
 			"name": "RESEARCH_PROJECT",
-			"description": "TODO: Auto-generated description"
+			"description": "Metadata and information about a research project."
 		},
 		{
 			"name": "DATA_ACCESS_REQUEST",
-			"description": "TODO: Auto-generated description"
+			"description": "A request for access to restricted data."
 		},
 		{
 			"name": "DATA_ACCESS_SUBMISSION",
-			"description": "TODO: Auto-generated description"
+			"description": "A submission in response to a data access request."
 		},
 		{
 			"name": "DATA_ACCESS_SUBMISSION_SUBMITTER",
-			"description": "TODO: Auto-generated description"
+			"description": "Information about the submitter of a data access submission."
 		},
 		{
 			"name": "DATA_ACCESS_SUBMISSION_STATUS",
-			"description": "TODO: Auto-generated description"
+			"description": "The status of a data access submission, such as pending, approved, or rejected."
 		},
 		{
 			"name": "DATA_ACCESS_SUBMISSION_ACCESSOR_CHANGE",
@@ -504,7 +504,7 @@
 		},
 		{
 			"name": "CHANGE",
-			"description": "TODO: Auto-generated description"
+			"description": "A record of a change event in the system, used for migration tracking."
 		}
 	]
 }

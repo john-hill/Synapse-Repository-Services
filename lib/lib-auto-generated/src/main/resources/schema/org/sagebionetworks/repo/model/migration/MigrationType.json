@@ -191,6 +191,10 @@
 			"description": "A trashed entity or object."
 		},
 		{
+			"name": "PORTAL",
+			"description": "Table that stores portal information"
+		},
+		{
 			"name": "DOI",
 			"description": "Digital Object Identifier metadata."
 		},

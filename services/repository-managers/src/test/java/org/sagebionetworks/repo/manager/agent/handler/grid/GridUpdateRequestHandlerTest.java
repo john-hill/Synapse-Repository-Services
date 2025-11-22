@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -164,8 +165,8 @@ public class GridUpdateRequestHandlerTest {
 
 		IntendedChange one = Mockito.mock(IntendedChange.class);
 		IntendedChange two = Mockito.mock(IntendedChange.class);
-		doReturn(one).when(handler).buildChange(eq(rows.get(0)), eq(update.getSet()), any(JSONArray.class), eq(index));
-		doReturn(two).when(handler).buildChange(eq(rows.get(1)), eq(update.getSet()), any(JSONArray.class), eq(index));
+		doReturn(Optional.of(one)).when(handler).buildChange(eq(rows.get(0)), eq(update.getSet()), any(JSONArray.class), eq(index));
+		doReturn(Optional.of(two)).when(handler).buildChange(eq(rows.get(1)), eq(update.getSet()), any(JSONArray.class), eq(index));
 
 		// call under test
 		long count = handler.executeUpdate(header, agentConnection, updateObj);
@@ -181,6 +182,45 @@ public class GridUpdateRequestHandlerTest {
 		verify(mockIntendedChangePublisher, times(2)).publish(any());
 		verify(mockIntendedChangePublisher).publish(one);
 		verify(mockIntendedChangePublisher).publish(two);
+		verify(mockIntendedChangePublisher).close();
+
+	}
+	
+
+	@Test
+	public void testExecutUpdateWithOptionalEmpty() throws Exception {
+		Update update = updateRequest.getUpdateBatch().get(0);
+		update.setLimit(123L);
+		JSONObject updateObj = JDOSecondaryPropertyUtils.createJSONObjectForEntity(update);
+		doReturn(update).when(handler).extractUpdate(updateObj);
+		doReturn(mockIntendedChangePublisher).when(handler).newIntendedChangePublisher(agentConnection,
+				header.getClockSequenceMaximum(), mockPatchBuilderPublisher);
+		Integer[] index = new Integer[] { 1, 2 };
+		doReturn(index).when(handler).createIndexArray(update.getSet(), header);
+		List<RowView> rows = List.of(new RowView().setRowIndex(1L), new RowView().setRowIndex(2L));
+		List<FilterElement> filter = handler.getFilters(update);
+		when(mockGridViewManager.getQueryIterator(header, new QueryElement().setWhere(filter).setLimit(123L)))
+				.thenReturn(rows.iterator());
+
+		IntendedChange one = Mockito.mock(IntendedChange.class);
+		IntendedChange two = Mockito.mock(IntendedChange.class);
+		doReturn(Optional.of(one)).when(handler).buildChange(eq(rows.get(0)), eq(update.getSet()), any(JSONArray.class), eq(index));
+		doReturn(Optional.empty()).when(handler).buildChange(eq(rows.get(1)), eq(update.getSet()), any(JSONArray.class), eq(index));
+
+		// call under test
+		long count = handler.executeUpdate(header, agentConnection, updateObj);
+		assertEquals(1L, count);
+
+		ArgumentCaptor<JSONArray> jsonCaptor = ArgumentCaptor.forClass(JSONArray.class);
+		verify(handler, times(2)).buildChange(any(), eq(update.getSet()), jsonCaptor.capture(), eq(index));
+		String arrayValue = "[{\"concreteType\":\"org.sagebionetworks.repo.model.grid.update.LiteralSetValue\",\"columnName\":\"a\",\"value\":true}]";
+		assertEquals(arrayValue, jsonCaptor.getAllValues().get(0).toString());
+		assertEquals(arrayValue, jsonCaptor.getAllValues().get(1).toString());
+		System.out.println(jsonCaptor.getAllValues().get(0).toString());
+
+		verify(mockIntendedChangePublisher, times(1)).publish(any());
+		verify(mockIntendedChangePublisher).publish(one);
+		verify(mockIntendedChangePublisher, never()).publish(two);
 		verify(mockIntendedChangePublisher).close();
 
 	}

@@ -3,13 +3,18 @@ package org.sagebionetworks.repo.model.grid.patch;
 import java.util.Objects;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
+import org.json.JSONTokener;
 
 public class ConValue {
-	
+
 	private final ConType type;
-	/** an optional JSON/CBOR value, which is the value of the con node when it is not undefined and is not a timestamp.
-	 * Implementation note: when the value is `undefined`, this will be a Java `null`. When the value is a JSON `null`, this will be a JSONObject.NULL.
+	/**
+	 * an optional JSON/CBOR value, which is the value of the con node when it is
+	 * not undefined and is not a timestamp. Implementation note: when the value is
+	 * `undefined`, this will be a Java `null`. When the value is a JSON `null`,
+	 * this will be a JSONObject.NULL.
 	 */
 	private final Object value;
 
@@ -42,14 +47,14 @@ public class ConValue {
 		return ConType.UNDEFINED.equals(type);
 	}
 
-
 	@Override
 	public int hashCode() {
 		return Objects.hash(type, value);
 	}
 
 	private static boolean valueEquals(Object value, Object otherValue) {
-		// For JSONObject and JSONArray, `equals` does not work; use `similar` to do a deep comparison.
+		// For JSONObject and JSONArray, `equals` does not work; use `similar` to do a
+		// deep comparison.
 		if (value instanceof JSONObject && otherValue instanceof JSONObject) {
 			return ((JSONObject) value).similar(otherValue);
 		}
@@ -79,9 +84,13 @@ public class ConValue {
 	}
 
 	/**
-	 * Returns the 'partial' compact serialization of this ConValue (the last 1-2 parts).
+	 * Returns the 'partial' compact serialization of this ConValue (the last 1-2
+	 * parts).
 	 *
-	 * This omits the non-value-related information that is stored in a Constant node (i.e. prefix indicating that the node is a constant, and ID of the node).
+	 * This omits the non-value-related information that is stored in a Constant
+	 * node (i.e. prefix indicating that the node is a constant, and ID of the
+	 * node).
+	 * 
 	 * @return
 	 */
 	public JSONArray toCompact() {
@@ -100,7 +109,7 @@ public class ConValue {
 		} else if (ConType.TIMESTAMP.equals(type)) {
 			// Serialize the TIMESTAMP to a JSONArray
 			LogicalTimestamp ts = (LogicalTimestamp) this.value;
-			JSONArray timestamp =  new JSONArray();
+			JSONArray timestamp = new JSONArray();
 			timestamp.put(ts.getReplicaId());
 			timestamp.put(ts.getSequenceNumber());
 			value = timestamp;
@@ -111,17 +120,56 @@ public class ConValue {
 		return compact;
 	}
 
+	/**
+	 * Attempt to read the provided string as JSON value. If value is not a JSON
+	 * value, it will be treated as a string.
+	 * 
+	 * @param value
+	 * @return
+	 */
+	public static ConValue fromString(String value) {
+		if (value == null) {
+			return new ConValue(ConType.NULL, value);
+		}
+		JSONTokener t = new JSONTokener(value);
+		char n = t.nextClean();
+		if (0 == n) {
+			return new ConValue(ConType.STRING, value);
+		}
+		t.back();
+		try {
+			Object o = t.nextValue();
+			n = t.nextClean();
+			String oString = o.toString();
+			if (n == oString.charAt(oString.length() - 1)) {
+				n = t.nextClean();
+			}
+
+			if (0 == n) {
+				// at eof so this is a JSON type.
+				return new ConValue(ConType.fromValue(o), o);
+			} else {
+				// Not JSON type so it is a string.
+				return new ConValue(ConType.STRING, value);
+			}
+		} catch (JSONException e) {
+			// Not JSON type so it is a string.
+			return new ConValue(ConType.STRING, value);
+		}
+	}
+
 	public static ConValue fromCompact(JSONArray json) {
 		if (json.length() == 2) {
 			// It is either timestamp or undefined
 			if (json.optInt(0) == 0 && json.optJSONArray(1) != null) {
 				JSONArray timestampVal = json.getJSONArray(1);
-				LogicalTimestamp ts = new LogicalTimestamp().setReplicaId(timestampVal.getLong(0)).setSequenceNumber(timestampVal.getLong(1));
+				LogicalTimestamp ts = new LogicalTimestamp().setReplicaId(timestampVal.getLong(0))
+						.setSequenceNumber(timestampVal.getLong(1));
 				return new ConValue(ConType.TIMESTAMP, ts);
-			}  else if (json.optInt(0) == 0 && json.optInt(1) == 0) {
+			} else if (json.optInt(0) == 0 && json.optInt(1) == 0) {
 				return new ConValue(ConType.UNDEFINED, null);
 
-			} else{
+			} else {
 				throw new IllegalArgumentException("Invalid compact ConValue: " + json);
 			}
 		} else if (json.length() == 1) {

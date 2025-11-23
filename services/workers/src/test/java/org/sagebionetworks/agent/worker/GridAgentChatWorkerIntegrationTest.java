@@ -402,15 +402,12 @@ public class GridAgentChatWorkerIntegrationTest {
 
 		csvDescriptor = new CsvTableDescriptor().setIsFirstLineHeader(true);
 		try (CSVWriter writer = new CSVWriterProviderImpl().createWriter(new FileWriter(temp), csvDescriptor)) {
-			writer.writeNext(new String[] { "path", "name", "size", "id" });
-			writer.writeNext(new String[] { "one/small/123", "one", "small", "123" });
-			writer.writeNext(new String[] { "two/large/456", null, null, null });
-			writer.writeNext(new String[] { "three/medium/789", null, null, null });
-			writer.writeNext(new String[] { "ten/small/999", null, null, null });
-			writer.writeNext(new String[] { "frank/large/12", null, null, null });
-			writer.writeNext(new String[] { "square/small/454", null, null, null });
-			writer.writeNext(new String[] { "nine/small/18", null, null, null });
-			writer.writeNext(new String[] { "loop/medium/8889", null, null, null });
+			writer.writeNext(new String[] { "firstName", "lastName", "phone", "formattedName", "cleanPhone" });
+			writer.writeNext(new String[] { "John", "Smith", "(555) 123-4567", "Smith, John", "555-123-4567" });
+			writer.writeNext(new String[] { "Alice", "Johnson", "(555) 987-6543", null, null });
+			writer.writeNext(new String[] { "Bob", "Williams", "(555) 456-7890", null, null });
+			writer.writeNext(new String[] { "Carol", "Davis", "(555) 321-0987", null, null });
+			writer.writeNext(new String[] { "David", "Miller", "(555) 789-0123", null, null });
 		}
 
 		S3FileHandle fh = fileHandleManager.uploadLocalFile(new LocalFileUploadRequest().withFileToUpload(temp)
@@ -449,7 +446,7 @@ public class GridAgentChatWorkerIntegrationTest {
 					.filter(r -> r.getRowValidationResults() != null && !r.getRowValidationResults().getIsValid())
 					.count();
 			System.out.println("invalid count: " + invalidRows);
-			if (rows.size() != 8 || invalidRows != 7) {
+			if (rows.size() != 5 || invalidRows != 4) {
 				return Pair.create(false, null);
 			}
 			return Pair.create(true, header.get());
@@ -485,7 +482,7 @@ public class GridAgentChatWorkerIntegrationTest {
 						}, MAX_WAIT_MS)
 				.getResponse();
 
-		chatRequest = "The 'path' column encodes the values for the other three columns.  See the first row as an example.  Can you fix all of the invalid rows by extracting the correct information from the row's 'path'?";
+		chatRequest = "For all rows where 'formattedName' is null, please set 'formattedName' to the pattern 'LastName, FirstName' (combining lastName and firstName columns). Also, for rows where 'cleanPhone' is null, transform the phone number by removing parentheses and spaces to create a clean format like '555-123-4567'. See the first row as an example of the expected output.";
 		AgentChatResponse acr = asynchronousJobWorkerHelper
 				.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
 						.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {
@@ -519,11 +516,11 @@ public class GridAgentChatWorkerIntegrationTest {
 					new QueryElement().setWhere(List.of(new RowIsValidFilterElement().setValue(true))));
 			String json = JDOSecondaryPropertyUtils.createJSONFromObject(qr);
 			System.out.println("Query result: " + json);
-			if (qr.getRows().size() == 8) {
-				JSONObject lastRow = (JSONObject) qr.getRows().get(7).getData();
+			if (qr.getRows().size() == 5) {
+				JSONObject lastRow = (JSONObject) qr.getRows().get(4).getData();
 				String lastRowJson = lastRow.toString();
 				System.out.println("lastRow: " + lastRowJson);
-				String expected =  "{\"path\":\"loop/medium/8889\",\"name\":\"loop\",\"size\":\"medium\",\"id\":8889}";
+				String expected =  "{\"firstName\":\"David\",\"lastName\":\"Miller\",\"phone\":\"(555) 789-0123\",\"formattedName\":\"Miller, David\",\"cleanPhone\":\"555-789-0123\"}";
 				return Pair.create(expected.equals(lastRow.toString()), null);
 			} else {
 				return Pair.create(false, null);

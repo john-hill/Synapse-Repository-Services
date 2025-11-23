@@ -11,10 +11,10 @@ import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.update.LiteralSetValue;
 
 public class LiteralSetValueProcessorTest {
-	
+
 	private LiteralSetValueProcessor handler;
 	private RowView row;
-	
+
 	@BeforeEach
 	public void before() {
 		handler = new LiteralSetValueProcessor();
@@ -25,36 +25,36 @@ public class LiteralSetValueProcessorTest {
 	public void testCreateConValueWithJSONArray() {
 		LiteralSetValue sv = new LiteralSetValue().setColumnName("a").setValue("a string");
 		JSONObject svRaw = new JSONObject("{\"columnName\":\"a\", \"value\":\"a string\"}");
-	    
-	    // call under test
-	    ConValue result = handler.createConValue(row, sv, svRaw);
-	    
-	    assertEquals(ConType.STRING, result.getType());
-	    assertEquals("a string", result.getValue());
+
+		// call under test
+		ConValue result = handler.createConValue(row, sv, svRaw).get();
+
+		assertEquals(ConType.STRING, result.getType());
+		assertEquals("a string", result.getValue());
 	}
 
 	@Test
 	public void testCreateConValueWithNull() {
 		LiteralSetValue sv = new LiteralSetValue().setColumnName("a").setValue(null);
 		JSONObject svRaw = new JSONObject("{\"columnName\":\"a\", \"value\":null}");
-	    
-	    // call under test
-	    ConValue result = handler.createConValue(row, sv, svRaw);
-	    
-	    assertEquals(ConType.NULL, result.getType());
-	    assertEquals(JSONObject.NULL, result.getValue());
+
+		// call under test
+		ConValue result = handler.createConValue(row, sv, svRaw).get();
+
+		assertEquals(ConType.NULL, result.getType());
+		assertEquals(JSONObject.NULL, result.getValue());
 	}
-	
+
 	@Test
 	public void testCreateConValueWithUndefined() {
 		LiteralSetValue sv = new LiteralSetValue().setColumnName("a").setValue(null);
 		JSONObject svRaw = new JSONObject("{\"columnName\":\"a\"}");
-	    
-	    // call under test
-	    ConValue result = handler.createConValue(row, sv, svRaw);
-	    
-	    assertEquals(ConType.UNDEFINED, result.getType());
-	    assertEquals(null, result.getValue());
+
+		// call under test
+		ConValue result = handler.createConValue(row, sv, svRaw).get();
+
+		assertEquals(ConType.UNDEFINED, result.getType());
+		assertEquals(null, result.getValue());
 	}
 
 }

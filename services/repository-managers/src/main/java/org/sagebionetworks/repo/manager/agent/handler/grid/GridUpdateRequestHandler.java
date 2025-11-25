@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -31,7 +32,6 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.
 import org.sagebionetworks.repo.model.agent.GridAgentSessionContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
-import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.update.GridUpdateResponse;
 import org.sagebionetworks.repo.model.grid.update.SetValue;
@@ -48,12 +48,14 @@ public class GridUpdateRequestHandler implements OpenApiReturnControlHandler {
 	private final GridManager gridManager;
 	private final GridReplicaViewManager gridViewManager;
 	private final PatchBuilderPublisher patchBuilderPublisher;
+	private final SetValueProcessorFactory factory;
 
 	public GridUpdateRequestHandler(GridManager gridManager, GridReplicaViewManager gridViewManager,
-			PatchBuilderPublisher patchBuilderPublisher) {
+			PatchBuilderPublisher patchBuilderPublisher, SetValueProcessorFactory factory) {
 		this.gridManager = gridManager;
 		this.gridViewManager = gridViewManager;
 		this.patchBuilderPublisher = patchBuilderPublisher;
+		this.factory = factory;
 	}
 
 	@Override
@@ -74,7 +76,7 @@ public class GridUpdateRequestHandler implements OpenApiReturnControlHandler {
 		GridHeader header = getGridHeader(context, internalConnection);
 		GridConnectionInfo agentConnection = getAgentConnection(context);
 
-		JSONArray updateBatch = updateRequestRaw.getJSONArray("updateBatch");
+		JSONArray updateBatch = updateRequestRaw.getJSONObject("update").getJSONArray("batch");
 		List<Long> updateCounts = new ArrayList<>();
 		for (int i = 0; i < updateBatch.length(); i++) {
 			updateCounts.add(executeUpdate(header, agentConnection, updateBatch.getJSONObject(i)));
@@ -97,24 +99,35 @@ public class GridUpdateRequestHandler implements OpenApiReturnControlHandler {
 		try (IntendedChangePublisher icp = newIntendedChangePublisher(agentConnection, header.getClockSequenceMaximum(),
 				patchBuilderPublisher)) {
 			while (rows.hasNext()) {
-				icp.publish(buildChange(rows.next(), set, rawSetValueArray, indexArray));
-				updateCount++;
+				Optional<IntendedChange> change = buildChange(rows.next(), set, rawSetValueArray, indexArray);
+				if (change.isPresent()) {
+					icp.publish(change.get());
+					updateCount++;
+				}
 			}
 		}
 		return updateCount;
 	}
 	
-	IntendedChange buildChange(RowView row, List<SetValue> set, JSONArray rawSetValueArray, Integer[] indexArray) {
+	Optional<IntendedChange> buildChange(RowView row, List<SetValue> set, JSONArray rawSetValueArray,
+			Integer[] indexArray) {
 		List<ConValue> updates = new ArrayList<>();
+		List<Integer> finalIndex = new ArrayList<>();
 		for (int i = 0; i < set.size(); i++) {
 			SetValue sv = set.get(i);
 			JSONObject rawSetValue = rawSetValueArray.optJSONObject(i);
-			ConValue toAdd = createConValue(sv, rawSetValue);
-			updates.add(toAdd);
+			Optional<ConValue> op = factory.createConValue(row, sv, rawSetValue);
+			if (op.isPresent()) {
+				finalIndex.add(indexArray[i]);
+				updates.add(op.get());
+			}
 		}
-		return new UpdateRowChange(row.getRowObject().getData().getVectorId(), updates, indexArray);
+		if (updates.isEmpty()) {
+			return Optional.empty();
+		}
+		return Optional.of(new UpdateRowChange(row.getRowObject().getData().getVectorId(), updates,
+				finalIndex.toArray(new Integer[finalIndex.size()])));
 	}
-	
 
 	GridAgentSessionContext getSessionContext(ReturnControlEvent event) {
 		return event.getSessionContext(GridAgentSessionContext.class)
@@ -140,17 +153,6 @@ public class GridUpdateRequestHandler implements OpenApiReturnControlHandler {
 	List<FilterElement> getFilters(Update update) {
 		return update.getFilters() == null ? Collections.emptyList()
 				: update.getFilters().stream().map(FilterTranslation::translate).collect(Collectors.toList());
-	}
-
-
-	ConValue createConValue(SetValue sv, JSONObject rawSetValue) {
-		if (!rawSetValue.has("value")) {
-			return new ConValue(ConType.UNDEFINED, null);
-		}
-		if (rawSetValue.isNull("value")) {
-			return new ConValue(ConType.NULL, null);
-		}
-		return new ConValue(ConType.fromValue(sv.getValue()), sv.getValue());
 	}
 
 	IntendedChangePublisher newIntendedChangePublisher(GridConnectionInfo connInfo, Long maxClockSeq,

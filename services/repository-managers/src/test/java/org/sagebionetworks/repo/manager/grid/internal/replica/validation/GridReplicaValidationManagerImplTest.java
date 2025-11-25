@@ -220,12 +220,14 @@ public class GridReplicaValidationManagerImplTest {
 	@Test
 	public void testValidateRows() {
 		when(mockJsonSchemaManager.getValidationSchema(schemaId)).thenReturn(jsonSchema);
-		rows.get(0).setRowObject(new RowObject().setData(new RowData().setRowJsonDocument(new JSONObject("{\"key\":\"value1\"}"))));
+		rows.get(0).setRowObject(new RowObject()
+				.setData(new RowData().setRowJsonDocument(new JSONObject("{\"key\":\"value1\"}"))));
 		// Sets an existing and equal validation result for the second row
 		rows.get(1).setRowObject(new RowObject()
 						.setData(new RowData().setRowJsonDocument(new JSONObject("{\"key\":\"value2\"}")))
 				.setMetadata(
 				new RowMetadata().setRowValidation(new RowValidation().setValidationResults(validationResult))));
+		IntendedChange intendedChange2 = new UpdateMetadataChange().setRowMetadataId(rows.get(1).getArrNodeId());
 
 		when(mockJsonSchemaValidationManager.validateBatch(jsonSchema,
 				List.of(new RowJsonSubject(rows.get(0)), new RowJsonSubject(rows.get(1)))))
@@ -233,14 +235,13 @@ public class GridReplicaValidationManagerImplTest {
 
 		doNothing().when(manager).cleanupValidationResults(validationResult);
 
-		// The change is created only for the first row that does not contain any
-		// validation result yet
 		doReturn(intendedChange).when(manager).createChange(rows.get(0), validationResult);
+		doReturn(intendedChange2).when(manager).createChange(rows.get(1), validationResult);
 
 		// call under test
 		List<IntendedChange> changes = manager.validateRows(gridHeader, schemaId, rows);
 
-		assertEquals(List.of(intendedChange), changes);
+		assertEquals(List.of(intendedChange, intendedChange2), changes);
 	}
 
 	@Test

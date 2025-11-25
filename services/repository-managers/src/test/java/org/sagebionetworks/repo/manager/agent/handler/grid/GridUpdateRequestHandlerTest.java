@@ -57,6 +57,7 @@ import org.sagebionetworks.repo.model.grid.update.GridUpdateRequest;
 import org.sagebionetworks.repo.model.grid.update.LiteralSetValue;
 import org.sagebionetworks.repo.model.grid.update.SetValue;
 import org.sagebionetworks.repo.model.grid.update.Update;
+import org.sagebionetworks.repo.model.grid.update.UpdateBatch;
 import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -95,7 +96,7 @@ public class GridUpdateRequestHandlerTest {
 		agentContext = new GridAgentSessionContext().setGridSessionId(gridSessionId).setUsersReplicaId(usersReplicaId)
 				.setAgentsReplicaId(agentsReplicaId);
 		event = new ReturnControlEvent(123L, "action", "function", List.<Parameter>of(), null, agentContext);
-		updateRequest = new GridUpdateRequest().setUpdateBatch(List.of(
+		updateRequest = new GridUpdateRequest().setUpdate(new UpdateBatch().setBatch(List.of(
 				// one
 				new Update().setSet(List.of(new LiteralSetValue().setColumnName("a").setValue(true)))
 						.setFilters(List.of(new RowSelectionFilter().setIsSelected(true))).setLimit(10L),
@@ -103,7 +104,7 @@ public class GridUpdateRequestHandlerTest {
 				new Update().setSet(List.of(new LiteralSetValue().setColumnName("b").setValue(1))).setFilters(
 						List.of(new CellValueFilter().setColumnName("b").setOperator(CellValueOperator.IS_UNDEFINED)))
 		// end
-		));
+		)));
 		updateRequestRaw = JDOSecondaryPropertyUtils.createJSONObjectForEntity(updateRequest);
 		internalConnection = new GridConnectionInfo().setConnectionId("internal");
 		agentConnection = new GridConnectionInfo().setConnectionId("agent");
@@ -142,15 +143,15 @@ public class GridUpdateRequestHandlerTest {
 		List<JSONObject> capturedJsons = jsonCaptor.getAllValues();
 		assertEquals(2, capturedJsons.size());
 
-		assertEquals(updateRequest.getUpdateBatch().get(0),
+		assertEquals(updateRequest.getUpdate().getBatch().get(0),
 				JDOSecondaryPropertyUtils.createObjectFromJSON(Update.class, capturedJsons.get(0).toString()));
-		assertEquals(updateRequest.getUpdateBatch().get(1),
+		assertEquals(updateRequest.getUpdate().getBatch().get(1),
 				JDOSecondaryPropertyUtils.createObjectFromJSON(Update.class, capturedJsons.get(1).toString()));
 	}
 
 	@Test
 	public void testExecutUpdate() throws Exception {
-		Update update = updateRequest.getUpdateBatch().get(0);
+		Update update = updateRequest.getUpdate().getBatch().get(0);
 		update.setLimit(123L);
 		JSONObject updateObj = JDOSecondaryPropertyUtils.createJSONObjectForEntity(update);
 		doReturn(update).when(handler).extractUpdate(updateObj);
@@ -189,7 +190,7 @@ public class GridUpdateRequestHandlerTest {
 
 	@Test
 	public void testExecutUpdateWithOptionalEmpty() throws Exception {
-		Update update = updateRequest.getUpdateBatch().get(0);
+		Update update = updateRequest.getUpdate().getBatch().get(0);
 		update.setLimit(123L);
 		JSONObject updateObj = JDOSecondaryPropertyUtils.createJSONObjectForEntity(update);
 		doReturn(update).when(handler).extractUpdate(updateObj);
@@ -473,12 +474,12 @@ public class GridUpdateRequestHandlerTest {
 
 	@Test
 	public void testExtractRequest() {
-		GridUpdateRequest expected = new GridUpdateRequest().setUpdateBatch(
-				List.of(new Update().setSet(List.of(new LiteralSetValue().setColumnName("a").setValue(1)))));
+		GridUpdateRequest expected = new GridUpdateRequest().setUpdate(new UpdateBatch().setBatch(
+				List.of(new Update().setSet(List.of(new LiteralSetValue().setColumnName("a").setValue(1))))));
 		JSONObject rawExpected = JDOSecondaryPropertyUtils.createJSONObjectForEntity(expected);
-		JSONArray batch = rawExpected.getJSONArray("updateBatch");
+		JSONObject update = rawExpected.getJSONObject("update");
 		event = new ReturnControlEvent(1L, "group", "function", null,
-				List.of(new Parameter("updateBatch", "array", batch.toString())),
+				List.of(new Parameter("update", "object", update.toString())),
 				new GridAgentSessionContext().setAgentsReplicaId(123L));
 		// call under test
 		JSONObject result = handler.extractRequest(event);
@@ -487,12 +488,12 @@ public class GridUpdateRequestHandlerTest {
 
 	@Test
 	public void testExtractRequestWithJsonArrayValue() {
-		GridUpdateRequest expected = new GridUpdateRequest().setUpdateBatch(List.of(new Update()
-				.setSet(List.of(new LiteralSetValue().setColumnName("a").setValue(new JSONArray("[1,2,3]"))))));
+		GridUpdateRequest expected = new GridUpdateRequest().setUpdate(new UpdateBatch().setBatch(List.of(new Update()
+				.setSet(List.of(new LiteralSetValue().setColumnName("a").setValue(new JSONArray("[1,2,3]")))))));
 		JSONObject rawExpected = JDOSecondaryPropertyUtils.createJSONObjectForEntity(expected);
-		JSONArray batch = rawExpected.getJSONArray("updateBatch");
+		JSONObject update = rawExpected.getJSONObject("update");
 		event = new ReturnControlEvent(1L, "group", "function", null,
-				List.of(new Parameter("updateBatch", "array", batch.toString())),
+				List.of(new Parameter("update", "object", update.toString())),
 				new GridAgentSessionContext().setAgentsReplicaId(123L));
 		// call under test
 		JSONObject result = handler.extractRequest(event);
@@ -501,12 +502,12 @@ public class GridUpdateRequestHandlerTest {
 
 	@Test
 	public void testExtractRequestWithJsonObjectValue() {
-		GridUpdateRequest expected = new GridUpdateRequest().setUpdateBatch(List.of(new Update()
-				.setSet(List.of(new LiteralSetValue().setColumnName("a").setValue(new JSONObject("{\"key\":true}"))))));
+		GridUpdateRequest expected = new GridUpdateRequest().setUpdate(new UpdateBatch().setBatch(List.of(new Update()
+				.setSet(List.of(new LiteralSetValue().setColumnName("a").setValue(new JSONObject("{\"key\":true}")))))));
 		JSONObject rawExpected = JDOSecondaryPropertyUtils.createJSONObjectForEntity(expected);
-		JSONArray batch = rawExpected.getJSONArray("updateBatch");
+		JSONObject update = rawExpected.getJSONObject("update");
 		event = new ReturnControlEvent(1L, "group", "function", null,
-				List.of(new Parameter("updateBatch", "array", batch.toString())),
+				List.of(new Parameter("update", "object", update.toString())),
 				new GridAgentSessionContext().setAgentsReplicaId(123L));
 		// call under test
 		JSONObject result = handler.extractRequest(event);

@@ -190,7 +190,7 @@ public class GridUpdateRequestHandlerTest {
 
 	@Test
 	public void testExecutUpdateWithOptionalEmpty() throws Exception {
-		Update update = updateRequest.getUpdateBatch().get(0);
+		Update update = updateRequest.getUpdate().getBatch().get(0);
 		update.setLimit(123L);
 		JSONObject updateObj = JDOSecondaryPropertyUtils.createJSONObjectForEntity(update);
 		doReturn(update).when(handler).extractUpdate(updateObj);

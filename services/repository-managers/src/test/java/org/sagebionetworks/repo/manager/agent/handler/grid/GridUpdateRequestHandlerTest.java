@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -165,8 +166,8 @@ public class GridUpdateRequestHandlerTest {
 
 		IntendedChange one = Mockito.mock(IntendedChange.class);
 		IntendedChange two = Mockito.mock(IntendedChange.class);
-		doReturn(one).when(handler).buildChange(eq(rows.get(0)), eq(update.getSet()), any(JSONArray.class), eq(index));
-		doReturn(two).when(handler).buildChange(eq(rows.get(1)), eq(update.getSet()), any(JSONArray.class), eq(index));
+		doReturn(Optional.of(one)).when(handler).buildChange(eq(rows.get(0)), eq(update.getSet()), any(JSONArray.class), eq(index));
+		doReturn(Optional.of(two)).when(handler).buildChange(eq(rows.get(1)), eq(update.getSet()), any(JSONArray.class), eq(index));
 
 		// call under test
 		long count = handler.executeUpdate(header, agentConnection, updateObj);
@@ -185,6 +186,45 @@ public class GridUpdateRequestHandlerTest {
 		verify(mockIntendedChangePublisher).close();
 
 	}
+	
+
+	@Test
+	public void testExecutUpdateWithOptionalEmpty() throws Exception {
+		Update update = updateRequest.getUpdateBatch().get(0);
+		update.setLimit(123L);
+		JSONObject updateObj = JDOSecondaryPropertyUtils.createJSONObjectForEntity(update);
+		doReturn(update).when(handler).extractUpdate(updateObj);
+		doReturn(mockIntendedChangePublisher).when(handler).newIntendedChangePublisher(agentConnection,
+				header.getClockSequenceMaximum(), mockPatchBuilderPublisher);
+		Integer[] index = new Integer[] { 1, 2 };
+		doReturn(index).when(handler).createIndexArray(update.getSet(), header);
+		List<RowView> rows = List.of(new RowView().setRowIndex(1L), new RowView().setRowIndex(2L));
+		List<FilterElement> filter = handler.getFilters(update);
+		when(mockGridViewManager.getQueryIterator(header, new QueryElement().setWhere(filter).setLimit(123L)))
+				.thenReturn(rows.iterator());
+
+		IntendedChange one = Mockito.mock(IntendedChange.class);
+		IntendedChange two = Mockito.mock(IntendedChange.class);
+		doReturn(Optional.of(one)).when(handler).buildChange(eq(rows.get(0)), eq(update.getSet()), any(JSONArray.class), eq(index));
+		doReturn(Optional.empty()).when(handler).buildChange(eq(rows.get(1)), eq(update.getSet()), any(JSONArray.class), eq(index));
+
+		// call under test
+		long count = handler.executeUpdate(header, agentConnection, updateObj);
+		assertEquals(1L, count);
+
+		ArgumentCaptor<JSONArray> jsonCaptor = ArgumentCaptor.forClass(JSONArray.class);
+		verify(handler, times(2)).buildChange(any(), eq(update.getSet()), jsonCaptor.capture(), eq(index));
+		String arrayValue = "[{\"concreteType\":\"org.sagebionetworks.repo.model.grid.update.LiteralSetValue\",\"columnName\":\"a\",\"value\":true}]";
+		assertEquals(arrayValue, jsonCaptor.getAllValues().get(0).toString());
+		assertEquals(arrayValue, jsonCaptor.getAllValues().get(1).toString());
+		System.out.println(jsonCaptor.getAllValues().get(0).toString());
+
+		verify(mockIntendedChangePublisher, times(1)).publish(any());
+		verify(mockIntendedChangePublisher).publish(one);
+		verify(mockIntendedChangePublisher, never()).publish(two);
+		verify(mockIntendedChangePublisher).close();
+
+	}
 
 	@Test
 	public void testBuildChange() {
@@ -196,15 +236,76 @@ public class GridUpdateRequestHandlerTest {
 		JSONArray arraySet = new JSONArray(JDOSecondaryPropertyUtils.writeEntityListToJson(set));
 		Integer[] index = new Integer[] { 1, 2 };
 		when(mockSetValueProcessorFactory.createConValue(row, set.get(0), arraySet.getJSONObject(0)))
-				.thenReturn(new ConValue(ConType.LONG, 123L));
+				.thenReturn(Optional.of(new ConValue(ConType.LONG, 123L)));
 		when(mockSetValueProcessorFactory.createConValue(row, set.get(1), arraySet.getJSONObject(1)))
-				.thenReturn(new ConValue(ConType.BOOLEAN, false));
+				.thenReturn(Optional.of(new ConValue(ConType.BOOLEAN, false)));
 
 		// call under test
-		IntendedChange change = handler.buildChange(row, set, arraySet, index);
+		Optional<IntendedChange> change = handler.buildChange(row, set, arraySet, index);
 		UpdateRowChange expected = new UpdateRowChange(vectorId,
 				List.of(new ConValue(ConType.LONG, 123L), new ConValue(ConType.BOOLEAN, false)), index);
-		assertEquals(expected, change);
+		assertEquals(expected, change.get());
+	}
+	
+	@Test
+	public void testBuildChangeWithOneEmpty() {
+		LogicalTimestamp vectorId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L);
+		RowView row = new RowView().setRowIndex(1L)
+				.setRowObject(new RowObject().setData(new RowData().setVectorId(vectorId)));
+		List<SetValue> set = List.of(new LiteralSetValue().setColumnName("a").setValue(123),
+				new LiteralSetValue().setColumnName("b").setValue(false));
+		JSONArray arraySet = new JSONArray(JDOSecondaryPropertyUtils.writeEntityListToJson(set));
+		Integer[] index = new Integer[] { 1, 2 };
+		when(mockSetValueProcessorFactory.createConValue(row, set.get(0), arraySet.getJSONObject(0)))
+				.thenReturn(Optional.of(new ConValue(ConType.LONG, 123L)));
+		when(mockSetValueProcessorFactory.createConValue(row, set.get(1), arraySet.getJSONObject(1)))
+				.thenReturn(Optional.empty());
+
+		// call under test
+		Optional<IntendedChange> change = handler.buildChange(row, set, arraySet, index);
+		UpdateRowChange expected = new UpdateRowChange(vectorId, List.of(new ConValue(ConType.LONG, 123L)),
+				new Integer[] { 1 });
+		assertEquals(expected, change.get());
+	}
+	
+	@Test
+	public void testBuildChangeWithOtherEmpty() {
+		LogicalTimestamp vectorId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L);
+		RowView row = new RowView().setRowIndex(1L)
+				.setRowObject(new RowObject().setData(new RowData().setVectorId(vectorId)));
+		List<SetValue> set = List.of(new LiteralSetValue().setColumnName("a").setValue(123),
+				new LiteralSetValue().setColumnName("b").setValue(false));
+		JSONArray arraySet = new JSONArray(JDOSecondaryPropertyUtils.writeEntityListToJson(set));
+		Integer[] index = new Integer[] { 1, 4 };
+		when(mockSetValueProcessorFactory.createConValue(row, set.get(0), arraySet.getJSONObject(0)))
+				.thenReturn(Optional.empty());
+		when(mockSetValueProcessorFactory.createConValue(row, set.get(1), arraySet.getJSONObject(1)))
+				.thenReturn(Optional.of(new ConValue(ConType.BOOLEAN, false)));
+
+		// call under test
+		Optional<IntendedChange> change = handler.buildChange(row, set, arraySet, index);
+		UpdateRowChange expected = new UpdateRowChange(vectorId, List.of(new ConValue(ConType.BOOLEAN, false)),
+				new Integer[] { 4 });
+		assertEquals(expected, change.get());
+	}
+	
+	@Test
+	public void testBuildChangeWithAllEmpty() {
+		LogicalTimestamp vectorId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L);
+		RowView row = new RowView().setRowIndex(1L)
+				.setRowObject(new RowObject().setData(new RowData().setVectorId(vectorId)));
+		List<SetValue> set = List.of(new LiteralSetValue().setColumnName("a").setValue(123),
+				new LiteralSetValue().setColumnName("b").setValue(false));
+		JSONArray arraySet = new JSONArray(JDOSecondaryPropertyUtils.writeEntityListToJson(set));
+		Integer[] index = new Integer[] { 1, 4 };
+		when(mockSetValueProcessorFactory.createConValue(row, set.get(0), arraySet.getJSONObject(0)))
+				.thenReturn(Optional.empty());
+		when(mockSetValueProcessorFactory.createConValue(row, set.get(1), arraySet.getJSONObject(1)))
+				.thenReturn(Optional.empty());
+
+		// call under test
+		Optional<IntendedChange> change = handler.buildChange(row, set, arraySet, index);
+		assertEquals(Optional.empty(), change);
 	}
 
 	@Test

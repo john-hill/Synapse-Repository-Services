@@ -47,6 +47,72 @@ public class ConValueTest {
         assertThrows(IllegalArgumentException.class, () -> ConValue.fromCompact(new JSONArray("[]")));
         assertThrows(IllegalArgumentException.class, () -> ConValue.fromCompact(new JSONArray("[1,2,3]")));
     }
+    
+	@Test
+	public void testFromString() {
+	    // Existing cases - null and strings
+	    assertEquals(new ConValue(ConType.NULL, null), ConValue.fromString("null"));
+	    assertEquals(new ConValue(ConType.NULL, null), ConValue.fromString(null));
+	    assertEquals(new ConValue(ConType.STRING, ""), ConValue.fromString(""));
+	    assertEquals(new ConValue(ConType.STRING, "basic"), ConValue.fromString("basic"));
+	    assertEquals(new ConValue(ConType.STRING, "basic/complex"), ConValue.fromString("basic/complex"));
+	    assertEquals(new ConValue(ConType.STRING, "slash/"), ConValue.fromString("slash/"));
+	    assertEquals(new ConValue(ConType.STRING, "First, Last"), ConValue.fromString("First, Last"));
+	    assertEquals(new ConValue(ConType.STRING, "123, 456"), ConValue.fromString("123, 456"));
+	    assertEquals(new ConValue(ConType.STRING, "true:false"), ConValue.fromString("true:false"));
+	    
+	    // Numbers - positive, negative, zero, scientific notation
+	    assertEquals(new ConValue(ConType.LONG, 1234L), ConValue.fromString("1234"));
+	    assertEquals(new ConValue(ConType.LONG, -123L), ConValue.fromString("-123"));
+	    assertEquals(new ConValue(ConType.LONG, 0L), ConValue.fromString("0"));
+	    assertEquals(new ConValue(ConType.DOUBLE, 3.14), ConValue.fromString("3.14"));
+	    assertEquals(new ConValue(ConType.DOUBLE, -3.14), ConValue.fromString("-3.14"));
+	    assertEquals(new ConValue(ConType.DOUBLE, 0.0), ConValue.fromString("0.0"));
+	    assertEquals(new ConValue(ConType.DOUBLE, 1.23e10), ConValue.fromString("1.23e10"));
+	    assertEquals(new ConValue(ConType.DOUBLE, 1E-5), ConValue.fromString("1E-5"));
+	    
+	    // Booleans
+	    assertEquals(new ConValue(ConType.BOOLEAN, true), ConValue.fromString("true"));
+	    assertEquals(new ConValue(ConType.BOOLEAN, false), ConValue.fromString("false"));
+	    
+	    // Whitespace handling - should trim and parse correctly
+	    assertEquals(new ConValue(ConType.LONG, 123L), ConValue.fromString("  123  "));
+	    assertEquals(new ConValue(ConType.BOOLEAN, true), ConValue.fromString("  true  "));
+	    assertEquals(new ConValue(ConType.NULL, null), ConValue.fromString("  null  "));
+	    
+	    // Arrays and Objects
+	    assertEquals(new ConValue(ConType.JSON_ARRAY, new JSONArray("[1,2,3]")), ConValue.fromString("[1,2,3]"));
+	    assertEquals(new ConValue(ConType.JSON_ARRAY, new JSONArray("[]")), ConValue.fromString("[]"));
+	    assertEquals(new ConValue(ConType.JSON_OBJECT, new JSONObject("{\"a\":true}")), ConValue.fromString("{\"a\":true}"));
+	    assertEquals(new ConValue(ConType.JSON_OBJECT, new JSONObject("{}")), ConValue.fromString("{}"));
+	    
+	    // Nested structures
+	    assertEquals(new ConValue(ConType.JSON_OBJECT, new JSONObject("{\"a\":{\"b\":1}}")), ConValue.fromString("{\"a\":{\"b\":1}}"));
+	    assertEquals(new ConValue(ConType.JSON_ARRAY, new JSONArray("[[1,2],[3,4]]")), ConValue.fromString("[[1,2],[3,4]]"));
+	    assertEquals(new ConValue(ConType.JSON_ARRAY, new JSONArray("[{\"a\":1},2,\"three\"]")), ConValue.fromString("[{\"a\":1},2,\"three\"]"));
+	    
+	    // Strings that look like JSON but have extra content (not valid JSON)
+	    assertEquals(new ConValue(ConType.STRING, "123 extra"), ConValue.fromString("123 extra"));
+	    assertEquals(new ConValue(ConType.STRING, "true extra"), ConValue.fromString("true extra"));
+	    assertEquals(new ConValue(ConType.STRING, "[1,2] extra"), ConValue.fromString("[1,2] extra"));
+	    
+	    // Strings containing JSON-like characters (but are actual strings)
+	    // Note: For this case the JSONTokener we use will accept this as a valid JSONArray
+	    assertEquals(new ConValue(ConType.JSON_ARRAY, new JSONArray("[\"hello\"]")), ConValue.fromString("[hello]"));
+	    assertEquals(new ConValue(ConType.STRING, "{world}"), ConValue.fromString("{world}"));
+	    
+	    // Numbers as strings (quoted)
+	    assertEquals(new ConValue(ConType.STRING, "123"), ConValue.fromString("\"123\""));
+	    
+	    // Unicode and escaped characters
+	    assertEquals(new ConValue(ConType.STRING, "hello world"), ConValue.fromString("\"hello\\u0020world\""));
+	    assertEquals(new ConValue(ConType.STRING, "line\nbreak"), ConValue.fromString("\"line\\nbreak\""));
+	    
+	    // Invalid/incomplete JSON - should be treated as strings
+	    assertEquals(new ConValue(ConType.STRING, "[1,2"), ConValue.fromString("[1,2"));
+	    assertEquals(new ConValue(ConType.STRING, "{\"a\":"), ConValue.fromString("{\"a\":"));
+	    assertEquals(new ConValue(ConType.STRING, "["), ConValue.fromString("["));
+	}
 
     @Test
     public void testEqualsWithJsonStructures() {

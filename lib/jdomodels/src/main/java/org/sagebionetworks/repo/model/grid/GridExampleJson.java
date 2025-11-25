@@ -23,11 +23,11 @@ import org.sagebionetworks.repo.model.grid.query.function.CountStar;
 import org.sagebionetworks.repo.model.grid.update.GridUpdateRequest;
 import org.sagebionetworks.repo.model.grid.update.LiteralSetValue;
 import org.sagebionetworks.repo.model.grid.update.OnMatchFailure;
-import org.sagebionetworks.repo.model.grid.update.RegexExtractSetValue;
+import org.sagebionetworks.repo.model.grid.update.OnMissingValue;
+import org.sagebionetworks.repo.model.grid.update.TemplateSetValue;
 import org.sagebionetworks.repo.model.grid.update.Update;
 import org.sagebionetworks.repo.model.grid.update.UpdateBatch;
 import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
-import org.sagebionetworks.schema.adapter.JSONEntity;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapter;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 
@@ -210,14 +210,52 @@ public class GridExampleJson {
 												.setFilters(List.of(new RowSelectionFilter().setIsSelected(true)))))))),
 				// Update Example 7
 				new UpdateExample().setDescription(
-						"Extract participant ID from fileName column using regex pattern 'participant-(\\d+)' and set it to the participantId column. If the pattern doesn't match, set participantId to null.")
+						"Use a template to combine firstName and lastName columns into fullName with a space separator.")
 						.setUpdate_json(JDOSecondaryPropertyUtils
 								.createJSONFromObject(new GridUpdateRequest().setUpdate(new UpdateBatch().setBatch(List.of(new Update()
-										.setSet(List.of(new RegexExtractSetValue().setColumnName("participantId")
-												.setSourceColumnName("fileName").setPattern("participant-(\\d+)")
-												.setGroupIndex(1L).setOnMatchFailure(OnMatchFailure.SET_NULL)))
-										.setFilters(List.of(new CellValueFilter().setColumnName("fileName")
-												.setOperator(CellValueOperator.IS_NOT_NULL))))))))
+										.setSet(List.of(new TemplateSetValue().setColumnName("fullName")
+												.setSourceTemplate("{firstName} {lastName}")
+												.setOnMatchFailure(OnMatchFailure.SET_NULL)))
+										.setFilters(List.of(new CellValueFilter().setColumnName("firstName")
+												.setOperator(CellValueOperator.IS_NOT_NULL)))))))),
+				// Update Example 8
+				new UpdateExample().setDescription(
+						"Extract domain from email using regex pattern, treating missing email values as empty strings (which won't match the pattern)")
+						.setUpdate_json(JDOSecondaryPropertyUtils
+								.createJSONFromObject(new GridUpdateRequest().setUpdate(new UpdateBatch().setBatch(List.of(new Update()
+										.setSet(List.of(new TemplateSetValue().setColumnName("domain")
+												.setSourceTemplate("{email}").setPattern("@(.+)$")
+												.setOnMatchFailure(OnMatchFailure.SET_NULL)
+												.setOnMissingValue(OnMissingValue.USE_EMPTY_STRING)))
+										.setFilters(List.of(new CellValueFilter().setColumnName("email")
+												.setOperator(CellValueOperator.IS_NOT_NULL)))))))),
+				// Update Example 9
+				new UpdateExample().setDescription(
+						"Build full file path from bucket, folder, and filename columns; skip updating rows where any source column is missing.")
+						.setUpdate_json(
+								JDOSecondaryPropertyUtils
+										.createJSONFromObject(
+												new GridUpdateRequest()
+														.setUpdate(new UpdateBatch(). setBatch(List.of(new Update()
+																.setSet(List.of(new TemplateSetValue()
+																		.setColumnName("fullPath")
+																		.setSourceTemplate(
+																				"{bucket}/{folder}/{filename}")
+																		.setOnMissingValue(OnMissingValue.SKIP_UPDATE)))
+																.setFilters(List.of(new CellValueFilter()
+																		.setColumnName("fullPath")
+																		.setOperator(CellValueOperator.IS_NULL)))))))),
+				// Update Example 10
+				new UpdateExample().setDescription(
+						"Reformat phone numbers from '(555) 123-4567' to '555-123-4567' by removing parentheses using regex replacement.  Note: This pattern assumes consistent formatting; rows with different formats will trigger onMatchFailure behavior. ")
+						.setUpdate_json(JDOSecondaryPropertyUtils
+								.createJSONFromObject(new GridUpdateRequest().setUpdate(new UpdateBatch().setBatch(List.of(new Update()
+										.setSet(List.of(new TemplateSetValue().setColumnName("phone")
+												.setSourceTemplate("{phone}")
+												.setPattern("\\((\\d{3})\\)\\s*(\\d{3}-\\d{4})").setReplacement("$1-$2")
+												.setOnMatchFailure(OnMatchFailure.SKIP_UPDATE)))
+										.setFilters(List.of(new CellValueFilter().setColumnName("phone")
+												.setOperator(CellValueOperator.LIKE).setValue("(%"))))))))
 
 		// end
 		), writer);

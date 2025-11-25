@@ -1,4 +1,4 @@
-package org.sagebionetworks.repo.manager.agent;
+package org.sagebionetworks.repo.manager.agent.handler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;

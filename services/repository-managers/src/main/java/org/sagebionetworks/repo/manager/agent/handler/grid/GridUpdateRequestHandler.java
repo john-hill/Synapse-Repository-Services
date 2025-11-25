@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -98,23 +99,35 @@ public class GridUpdateRequestHandler implements OpenApiReturnControlHandler {
 		try (IntendedChangePublisher icp = newIntendedChangePublisher(agentConnection, header.getClockSequenceMaximum(),
 				patchBuilderPublisher)) {
 			while (rows.hasNext()) {
-				icp.publish(buildChange(rows.next(), set, rawSetValueArray, indexArray));
-				updateCount++;
+				Optional<IntendedChange> change = buildChange(rows.next(), set, rawSetValueArray, indexArray);
+				if (change.isPresent()) {
+					icp.publish(change.get());
+					updateCount++;
+				}
 			}
 		}
 		return updateCount;
 	}
 	
-	IntendedChange buildChange(RowView row, List<SetValue> set, JSONArray rawSetValueArray, Integer[] indexArray) {
+	Optional<IntendedChange> buildChange(RowView row, List<SetValue> set, JSONArray rawSetValueArray,
+			Integer[] indexArray) {
 		List<ConValue> updates = new ArrayList<>();
+		List<Integer> finalIndex = new ArrayList<>();
 		for (int i = 0; i < set.size(); i++) {
 			SetValue sv = set.get(i);
 			JSONObject rawSetValue = rawSetValueArray.optJSONObject(i);
-			updates.add(factory.createConValue(row, sv, rawSetValue));
+			Optional<ConValue> op = factory.createConValue(row, sv, rawSetValue);
+			if (op.isPresent()) {
+				finalIndex.add(indexArray[i]);
+				updates.add(op.get());
+			}
 		}
-		return new UpdateRowChange(row.getRowObject().getData().getVectorId(), updates, indexArray);
+		if (updates.isEmpty()) {
+			return Optional.empty();
+		}
+		return Optional.of(new UpdateRowChange(row.getRowObject().getData().getVectorId(), updates,
+				finalIndex.toArray(new Integer[finalIndex.size()])));
 	}
-	
 
 	GridAgentSessionContext getSessionContext(ReturnControlEvent event) {
 		return event.getSessionContext(GridAgentSessionContext.class)

@@ -30,7 +30,7 @@ import org.sagebionetworks.repo.model.search.query.KeyValue;
 import org.sagebionetworks.repo.model.search.query.SearchFacetOption;
 import org.sagebionetworks.repo.model.search.query.SearchFacetSort;
 import org.sagebionetworks.repo.model.search.query.SearchQuery;
-import org.sagebionetworks.search.SearchConstants;
+import org.sagebionetworks.repo.manager.search.SearchConstants;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.util.CollectionUtils;
 
@@ -42,7 +42,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.sagebionetworks.search.SearchConstants.FIELD_ACL;
+import static org.sagebionetworks.repo.manager.search.SearchConstants.FIELD_ACL;
 
 
 public class OssUtil {

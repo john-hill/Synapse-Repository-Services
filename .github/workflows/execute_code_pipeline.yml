@@ -10,6 +10,14 @@ name: main
 on:
   workflow_call:
     inputs:
+      REPOSITORY_NAME:
+        required: false
+        type: string
+        description: Repository containing the pipeline CloudFormation definition, defaults to current repo'
+      REPOSITORY_BRANCH:
+        required: false
+        type: string
+        description: Branch containing the pipeline CloudFormation definition, defaults to current branch
       CODE_PIPELINE_CF_TEMPLATE:
         required: true
         type: string
@@ -21,7 +29,7 @@ on:
       PIPELINE_PARAMETERS:
         required: true
         type: string
-        description: parameters for pipeline
+        description: cloudformation parameters for pipeline set-up
       CODE_PIPELINE_SOURCE_REVISIONS:
         required: false
         type: string
@@ -88,6 +96,9 @@ jobs:
       # 'checkout' is required to be able to reference 'CODE_PIPELINE_CF_TEMPLATE' in the next step
       - name: checkout
         uses: actions/checkout@v5
+        with:
+          repository: ${{ inputs.REPOSITORY_NAME }}
+          ref: ${{ inputs.REPOSITORY_BRANCH }}
 
       - name: Deploy CodePipeline to AWS CloudFormation
         uses: aws-actions/aws-cloudformation-github-deploy@v1

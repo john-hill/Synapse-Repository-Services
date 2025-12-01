@@ -5,6 +5,8 @@ import static org.sagebionetworks.repo.model.oauth.OAuthScope.view;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.search.SearchResults;
 import org.sagebionetworks.repo.model.search.query.SearchQuery;
+import org.sagebionetworks.repo.model.search.query.SuggestionQuery;
+import org.sagebionetworks.repo.model.search.query.SuggestionResults;
 import org.sagebionetworks.repo.service.ServiceProvider;
 import org.sagebionetworks.repo.web.RequiredScope;
 import org.sagebionetworks.repo.web.UrlHelpers;
@@ -46,5 +48,23 @@ public class SearchController {
 	SearchResults proxySearch(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@RequestBody SearchQuery searchQuery) {
 		return serviceProvider.getSearchService().proxySearch(userId, searchQuery);
+	}
+
+	/**
+	 * Suggestions for <a href="${org.sagebionetworks.repo.model.Entity}">Entity</a>s that are accessible by the current user.
+	 * If not authenticated, only public result will be shown.
+	 * See <a href="${org.sagebionetworks.repo.model.search.query.SuggestionQuery}">SuggestionQuery</a> for the list of options used to get suggestions.
+	 *
+	 * @param userId
+	 * @param suggestionQuery
+	 * @return SuggestionResults
+	 */
+	@RequiredScope({view})
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = "/suggestion", method = RequestMethod.POST)
+	public @ResponseBody SuggestionResults getObjectStatistics(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@RequestBody SuggestionQuery suggestionQuery) {
+		return serviceProvider.getSearchService().getSuggestions(userId, suggestionQuery);
 	}
 }

@@ -1,24 +1,29 @@
 package org.sagebionetworks.repo.manager.search.oss;
 
 
+import org.apache.commons.lang3.StringUtils;
 import org.opensearch.client.json.JsonData;
 import org.opensearch.client.opensearch._types.FieldValue;
 import org.opensearch.client.opensearch._types.SortOrder;
+import org.opensearch.client.opensearch._types.SuggestMode;
 import org.opensearch.client.opensearch._types.aggregations.Aggregate;
 import org.opensearch.client.opensearch._types.aggregations.Aggregation;
+import org.opensearch.client.opensearch._types.aggregations.FiltersAggregation;
+import org.opensearch.client.opensearch._types.aggregations.FiltersBucket;
 import org.opensearch.client.opensearch._types.aggregations.LongTermsAggregate;
 import org.opensearch.client.opensearch._types.aggregations.LongTermsBucket;
 import org.opensearch.client.opensearch._types.aggregations.StringTermsAggregate;
 import org.opensearch.client.opensearch._types.aggregations.StringTermsBucket;
 import org.opensearch.client.opensearch._types.query_dsl.BoolQuery;
 import org.opensearch.client.opensearch._types.query_dsl.MatchAllQuery;
-import org.opensearch.client.opensearch._types.query_dsl.MultiMatchQuery;
 import org.opensearch.client.opensearch._types.query_dsl.Query;
 import org.opensearch.client.opensearch._types.query_dsl.RangeQuery;
 import org.opensearch.client.opensearch._types.query_dsl.TermQuery;
 import org.opensearch.client.opensearch.core.SearchRequest;
 import org.opensearch.client.opensearch.core.SearchResponse;
 import org.opensearch.client.opensearch.core.search.Hit;
+import org.opensearch.client.opensearch.core.search.Suggest;
+import org.opensearch.client.opensearch.core.search.Suggester;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.search.DocumentFields;
 import org.sagebionetworks.repo.model.search.Facet;
@@ -27,9 +32,13 @@ import org.sagebionetworks.repo.model.search.FacetTypeNames;
 import org.sagebionetworks.repo.model.search.SearchResults;
 import org.sagebionetworks.repo.model.search.query.KeyRange;
 import org.sagebionetworks.repo.model.search.query.KeyValue;
+import org.sagebionetworks.repo.model.search.query.Option;
 import org.sagebionetworks.repo.model.search.query.SearchFacetOption;
 import org.sagebionetworks.repo.model.search.query.SearchFacetSort;
 import org.sagebionetworks.repo.model.search.query.SearchQuery;
+import org.sagebionetworks.repo.model.search.query.Suggestion;
+import org.sagebionetworks.repo.model.search.query.SuggestionQuery;
+import org.sagebionetworks.repo.model.search.query.SuggestionResults;
 import org.sagebionetworks.repo.manager.search.SearchConstants;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.util.CollectionUtils;
@@ -37,6 +46,7 @@ import org.springframework.util.CollectionUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,6 +56,152 @@ import static org.sagebionetworks.repo.manager.search.SearchConstants.FIELD_ACL;
 
 
 public class OssUtil {
+    public final static String NAME_FIELD = "name";
+    public final static String DESCRIPTION_FIELD = "description";
+    public final static String TERM_NAME_SUGGESTION = "term_name_suggestion";
+    public final static String TERM_DESCRIPTION_SUGGESTION = "term_description_suggestion";
+
+    public static SearchRequest generateSearchRequestForSuggestion(SuggestionQuery suggestionQuery) {
+        ValidateArgument.required(suggestionQuery, "suggestionQuery");
+        ValidateArgument.requiredNotEmpty(suggestionQuery.getSearchTerm(), "suggestionQuery.searchTerm");
+        List<String> terms = suggestionQuery.getSearchTerm();
+        List<String> quotedList = new ArrayList<>();
+        List<String> unquotedList = new ArrayList<>();
+        int size = suggestionQuery.getSize() != null ? Math.toIntExact(suggestionQuery.getSize()) : 5;
+        int maxEdits = suggestionQuery.getMaxEdit() != null ? Math.toIntExact(suggestionQuery.getMaxEdit()) : 2;
+
+        SearchRequest.Builder searchBuilder = new SearchRequest.Builder()
+                .index(SearchConstants.OPEN_SEARCH_INDEX_NAME).size(0);
+        Suggester.Builder suggesterBuilder = new Suggester.Builder();
+
+        terms.forEach(term -> {
+            term = term.trim();
+            int length = term.length();
+            if (length > 2 && term.startsWith("\"") && term.endsWith("\"")) {
+                // Safe removal of quotes
+                quotedList.add(term.substring(1, length - 1));
+            } else {
+                unquotedList.add(term);
+            }
+        });
+
+        addTermSuggester(suggesterBuilder, size, maxEdits);
+        suggesterBuilder.text(String.join(" ", unquotedList));
+
+        Suggester suggester = suggesterBuilder.build();
+        return searchBuilder.suggest(suggester).build();
+    }
+
+    public static void addTermSuggester(Suggester.Builder suggesterBuilder, int size, int maxEdits) {
+        suggesterBuilder.suggesters(TERM_NAME_SUGGESTION, s -> s.term(
+                ts -> ts
+                        .field(NAME_FIELD)
+                        .size(size)
+                        .maxEdits(maxEdits)
+                        .suggestMode(SuggestMode.Missing)
+        ));
+        suggesterBuilder.suggesters(TERM_DESCRIPTION_SUGGESTION, s -> s.term(
+                ts -> ts
+                        .field(DESCRIPTION_FIELD)
+                        .size(size)
+                        .maxEdits(maxEdits)
+                        .suggestMode(SuggestMode.Missing
+                        )));
+    }
+
+    public static SuggestionResults convertToSynapseSuggestionResult(Map<String, List<Suggest<DocumentFields>>> suggestions) {
+        ValidateArgument.required(suggestions, "suggestions");
+        SuggestionResults results = new SuggestionResults();
+        Map<String, Set<Option>> map1 = new HashMap<>();
+
+        suggestions.entrySet().stream()
+                .map(Map.Entry::getValue)
+                .filter(suggestList -> !suggestList.isEmpty())
+                .flatMap(List::stream)
+                .filter(suggest -> suggest != null && suggest.term() != null)
+                .forEach(suggest -> {
+                    Set<Option> optionSet = map1.computeIfAbsent(suggest.term().text(), k -> new HashSet<>());
+                    suggest.term().options().stream()
+                            .filter(option -> option != null && StringUtils.isNotEmpty(option.text()))
+                            .map(option -> new Option()
+                                    .setTerm(option.text())
+                                    .setScore(option.score()))
+                            .forEach(optionSet::add);
+                });
+
+
+        List<Suggestion> suggestionList = map1.entrySet()
+                .stream()
+                .map(entry -> { // 2. Transform each entry into a Suggestion object
+                    return new Suggestion()
+                            .setKey(entry.getKey())
+                            .setValues(entry.getValue());
+                })
+                .collect(Collectors.toList());
+
+        return results.setSuggestions(suggestionList);
+
+    }
+
+    public static SuggestionResults eliminateSuggestionWithAccessDenied(SuggestionResults suggestionResults, Map<String, Aggregate> aggregateResponse) {
+        ValidateArgument.required(suggestionResults, "suggestionResults");
+        ValidateArgument.required(aggregateResponse, "aggregateResponse");
+
+        Aggregate aggregate = aggregateResponse.get("query_counts");
+        Map<String, FiltersBucket> filteredBucketMap = aggregate.filters().buckets().keyed();
+        for (Suggestion suggestion : suggestionResults.getSuggestions()) {
+
+            // Stream over the existing options (suggestion.getValues()),
+            // filter them, and collect the valid ones.
+            if (suggestion.getValues() == null || suggestion.getValues().isEmpty()) {
+                continue;
+            }
+            List<Option> filteredOptions = suggestion.getValues().stream()
+                    .filter(option -> {
+                        String term = option.getTerm();
+
+                        // Check if the term exists in the map AND its docCount is > 0.
+                        return term != null && filteredBucketMap.containsKey(term) &&
+                                filteredBucketMap.get(term).docCount() > 0;
+                    })
+                    .map(option -> {
+                        String term = option.getTerm();
+                        option.setFrequency(filteredBucketMap.get(term).docCount());
+                        return option;
+                    })
+                    .collect(Collectors.toList());
+            suggestion.setValues(new HashSet<>(filteredOptions));
+        }
+        return suggestionResults;
+    }
+
+    public static SearchRequest generateAggregationRequestToLimitAccess(UserInfo userInfo, SuggestionResults suggestionResults) {
+        SearchRequest.Builder searchBuilder = new SearchRequest.Builder()
+                .index(SearchConstants.OPEN_SEARCH_INDEX_NAME);
+        BoolQuery.Builder boolBuilder = new BoolQuery.Builder();
+        Set<Long> userGroups = getAuthorizedUserGroups(userInfo);
+        Map<String, Query> aggregations = new HashMap<>();
+        if (!CollectionUtils.isEmpty(userGroups)) {
+            boolBuilder.filter(
+                    Query.of(tq -> tq.terms(t -> t
+                            .field(FIELD_ACL)
+                            .terms(queryTerm -> queryTerm.value(
+                                    userGroups.stream()
+                                            .map(FieldValue::of)
+                                            .collect(Collectors.toList())
+                            )))));
+        }
+        for (Suggestion suggestion : suggestionResults.getSuggestions()) {
+            for (Option option : suggestion.getValues()) {
+                aggregations.put(option.getTerm(), Query.of(q -> q.simpleQueryString(simpleQuery -> simpleQuery.query(option.getTerm()))));
+            }
+        }
+
+        FiltersAggregation fs = FiltersAggregation.of(f -> f.filters(bc -> bc.keyed(aggregations)));
+        searchBuilder.aggregations("query_counts", Aggregation.of(a -> a.filters(fs)));
+        return searchBuilder
+                .query(boolBuilder.build()._toQuery()).build();
+    }
 
     public static SearchRequest generateSearchRequest(UserInfo userInfo, SearchQuery searchQuery) {
         ValidateArgument.required(searchQuery, "searchQuery");
@@ -74,7 +230,7 @@ public class OssUtil {
 
         if (!CollectionUtils.isEmpty(terms)) {
             String queryTerms = String.join(" ", terms);
-            boolBuilder.must(m ->m.simpleQueryString(sqs ->sqs.query(queryTerms)));
+            boolBuilder.must(m -> m.simpleQueryString(sqs -> sqs.query(queryTerms)));
         } else {
             // If no terms, use match_all
             boolBuilder.must(
@@ -106,7 +262,7 @@ public class OssUtil {
                 }
 
                 RangeQuery.Builder builder = new RangeQuery.Builder().field(query.getKey());
-                if (query.getMin() != null){
+                if (query.getMin() != null) {
                     builder.gte(JsonData.of(query.getMin()));
                 }
                 if (query.getMax() != null) {

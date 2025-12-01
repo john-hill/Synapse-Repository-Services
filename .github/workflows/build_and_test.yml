@@ -110,7 +110,7 @@ jobs:
           # We will capture the long-lived session token to use for the build
           # Note: We cannot pass the credentials as inputs to code pipeline
           # since the token exceeded the 1000 character limit for input variables.
-          SECRET_NAME="/build/session-token/${{ env.user }}"
+          SECRET_NAME="/build/session-token/${{ steps.pipeline-params.outputs.USER }}"
           SECRET_VALUE='{"AwsAccessKeyId":"${{ env.AWS_ACCESS_KEY_ID }}", "AwsSecretAccessKey":"${{ env.AWS_SECRET_ACCESS_KEY }}", "AwsSessionToken":"${{ env.AWS_SESSION_TOKEN }}"}'
           # Try to update the secret value first
           if aws secretsmanager put-secret-value \
@@ -123,7 +123,7 @@ jobs:
               if aws secretsmanager create-secret \
                   --name "$SECRET_NAME" \
                   --secret-string "$SECRET_VALUE" \
-                  --description "Build credentials for ${{ env.user }}"; then
+                  --description "Build credentials for ${{ steps.pipeline-params.outputs.USER }}"; then
                   echo "Secret created successfully"
               else
                   echo "Failed to create secret"

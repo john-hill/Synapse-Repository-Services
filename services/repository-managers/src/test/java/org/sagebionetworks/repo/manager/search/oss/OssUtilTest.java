@@ -53,6 +53,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
@@ -420,7 +421,7 @@ public class OssUtilTest {
             //call under test
             OssUtil.generateSearchRequestForSuggestion(query);
         }).getMessage();
-        assertEquals("suggestionQuery.searchTerm is required and must not be empty.", message);
+        assertEquals("At least one search term should be provided for suggestion.", message);
     }
 
     @Test
@@ -430,7 +431,17 @@ public class OssUtilTest {
             //call under test
             OssUtil.generateSearchRequestForSuggestion(query);
         }).getMessage();
-        assertEquals("suggestionQuery.searchTerm is required and must not be empty.", message);
+        assertEquals("At least one search term should be provided for suggestion.", message);
+    }
+
+    @Test
+    public void generateSearchRequestForSuggestionThrowsOnEmptySearchTerm() {
+        SuggestionQuery query = new SuggestionQuery().setSearchTerm(List.of(""));
+        String message = assertThrows(IllegalArgumentException.class, () -> {
+            //call under test
+            OssUtil.generateSearchRequestForSuggestion(query);
+        }).getMessage();
+        assertEquals("At least one search term should be provided for suggestion.", message);
     }
 
     @Test
@@ -442,8 +453,8 @@ public class OssUtilTest {
         assertNotNull(request.suggest());
         assertTrue(request.suggest().suggesters().containsKey(TERM_NAME_SUGGESTION));
         assertTrue(request.suggest().suggesters().containsKey(TERM_DESCRIPTION_SUGGESTION));
-        assertEquals("cancer", request.suggest().text());
-        assertEquals("cancer", request.suggest().text());
+        assertEquals("cancer", request.suggest().suggesters().get(TERM_NAME_SUGGESTION).text());
+        assertEquals("cancer", request.suggest().suggesters().get(TERM_DESCRIPTION_SUGGESTION).text());
     }
 
     @Test
@@ -455,8 +466,8 @@ public class OssUtilTest {
         assertNotNull(request.suggest());
         assertTrue(request.suggest().suggesters().containsKey(TERM_NAME_SUGGESTION));
         assertTrue(request.suggest().suggesters().containsKey(TERM_DESCRIPTION_SUGGESTION));
-        assertEquals("cancer tumor", request.suggest().text());
-        assertEquals("cancer tumor", request.suggest().text());
+        assertEquals("cancer tumor", request.suggest().suggesters().get(TERM_NAME_SUGGESTION).text());
+        assertEquals("cancer tumor", request.suggest().suggesters().get(TERM_NAME_SUGGESTION).text());
     }
 
     @Test
@@ -465,7 +476,8 @@ public class OssUtilTest {
         //call under test
         SearchRequest request = OssUtil.generateSearchRequestForSuggestion(query);
         assertNotNull(request);
-        assertEquals("cancer tumor", request.suggest().text());
+        assertEquals("cancer tumor", request.suggest().suggesters().get(TERM_NAME_SUGGESTION).text());
+        assertEquals("cancer tumor", request.suggest().suggesters().get(TERM_DESCRIPTION_SUGGESTION).text());
     }
 
     @Test
@@ -474,7 +486,46 @@ public class OssUtilTest {
         //call under test
         SearchRequest request = OssUtil.generateSearchRequestForSuggestion(query);
         assertNotNull(request);
-        assertEquals("c@ncer tu#mor", request.suggest().text());
+        assertEquals("c@ncer tu#mor", request.suggest().suggesters().get(TERM_NAME_SUGGESTION).text());
+        assertEquals("c@ncer tu#mor", request.suggest().suggesters().get(TERM_DESCRIPTION_SUGGESTION).text());
+    }
+
+    @Test
+    public void generateSearchRequestForSuggestionBuildsRequestForSinglePhrase() {
+        SuggestionQuery query = new SuggestionQuery().setSearchTerm(List.of("\"cancr patient\""));
+        //call under test
+        SearchRequest request = OssUtil.generateSearchRequestForSuggestion(query);
+        assertNotNull(request);
+        assertNotNull(request.suggest());
+        assertTrue(request.suggest().suggesters().containsKey("phrase_name_suggestion_cancr_patient"));
+        assertTrue(request.suggest().suggesters().containsKey("phrase_description_suggestion_cancr_patient"));
+        assertEquals("cancr patient", request.suggest().suggesters().get("phrase_name_suggestion_cancr_patient").text());
+        assertEquals("cancr patient", request.suggest().suggesters().get("phrase_description_suggestion_cancr_patient").text());
+    }
+
+    @Test
+    public void generateSearchRequestForSuggestionBuildsRequestForMultiplePhrase() {
+        SuggestionQuery query = new SuggestionQuery().setSearchTerm(List.of("\"cancr patient\"", "\"tum@r size3\""));
+        //call under test
+        SearchRequest request = OssUtil.generateSearchRequestForSuggestion(query);
+        assertNotNull(request);
+        assertNotNull(request.suggest());
+        assertTrue(request.suggest().suggesters().containsKey("phrase_description_suggestion_tum@r_size3"));
+        assertTrue(request.suggest().suggesters().containsKey("phrase_name_suggestion_tum@r_size3"));
+        assertTrue(request.suggest().suggesters().containsKey("phrase_name_suggestion_cancr_patient"));
+        assertTrue(request.suggest().suggesters().containsKey("phrase_description_suggestion_cancr_patient"));
+        assertEquals("cancr patient", request.suggest().suggesters().get("phrase_name_suggestion_cancr_patient").text());
+        assertEquals("tum@r size3", request.suggest().suggesters().get("phrase_description_suggestion_tum@r_size3").text());
+    }
+
+    @Test
+    public void generateSearchRequestForSuggestionBuildsRequestForEmptyPhraseList() {
+        SuggestionQuery query = new SuggestionQuery().setSearchTerm(List.of("\"\""));
+        //call under test
+        SearchRequest request = OssUtil.generateSearchRequestForSuggestion(query);
+        assertNotNull(request.suggest());
+        assertFalse(request.suggest().suggesters().containsKey("phrase_description_suggestion"));
+        assertFalse(request.suggest().suggesters().containsKey("phrase_name_suggestion"));
     }
 
     @Test
@@ -586,23 +637,27 @@ public class OssUtilTest {
     public void testConvertToSynapseSuggestionResultWithTermAndOptions() {
         TermSuggestOption opt1 = createOption("opt1", 2, 1.5f);
         TermSuggestOption opt2 = createOption("opt2", 3, 2.5f);
-        Suggest<DocumentFields> suggest = makeSuggest("term1", List.of(opt1, opt2));
-        Map<String, List<Suggest<DocumentFields>>> suggestions = Map.of("key1", List.of(suggest));
+        Suggest<DocumentFields> termSuggest = makeSuggest("term1", List.of(opt1));
+        Suggest<DocumentFields> phraseSuggest = makeSuggest("\"term2\"", List.of(opt2));
+        Map<String, List<Suggest<DocumentFields>>> suggestions = Map.of("key1", List.of(termSuggest), "key2", List.of(phraseSuggest));
 
         //call under test
         SuggestionResults results = OssUtil.convertToSynapseSuggestionResult(suggestions);
         assertNotNull(results);
-        assertEquals(1, results.getSuggestions().size());
-        Suggestion synSuggestion = results.getSuggestions().get(0);
-        assertEquals("term1", synSuggestion.getKey());
-        assertEquals(2, synSuggestion.getValues().size());
+        assertEquals(2, results.getSuggestions().size());
 
-        Set<String> optionTerms = new HashSet<>();
-        for (Option o : synSuggestion.getValues()) {
-            optionTerms.add(o.getTerm());
-        }
-        assertTrue(optionTerms.contains("opt1"));
-        assertTrue(optionTerms.contains("opt2"));
+        Map<String, Suggestion> resultKeys = results.getSuggestions().stream()
+                .collect(Collectors.toMap(Suggestion::getKey, Function.identity()));
+
+        Suggestion synSuggestion = resultKeys.get("term1");
+        Option expectedOpt1 = new Option().setTerm("opt1").setScore(1.5).setFrequency(null);
+        assertEquals(1, synSuggestion.getValues().size());
+        assertTrue(synSuggestion.getValues().contains(expectedOpt1));
+
+        Suggestion synSuggestion2 = resultKeys.get("\"term2\"");
+        Option expectedOpt2 = new Option().setTerm("opt2").setScore(2.5).setFrequency(null);
+        assertEquals(1, synSuggestion2.getValues().size());
+        assertTrue(synSuggestion2.getValues().contains(expectedOpt2));
     }
 
     @Test
@@ -748,9 +803,8 @@ public class OssUtilTest {
         assertNotNull(boolQuery.filter());
 
         // Verify Aggregation is present but empty
-        Aggregation queryCountsAgg = request.aggregations().get("query_counts");
-        assertNotNull(queryCountsAgg);
-        assertEquals(0, queryCountsAgg.filters().filters().keyed().size());
+        assertNotNull(request.aggregations());
+        assertTrue(request.aggregations().isEmpty());
     }
 
 

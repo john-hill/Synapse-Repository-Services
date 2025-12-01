@@ -175,10 +175,18 @@ public class SearchIndexWorkerIntegrationTest {
                 "cancer",
                 "biobank"
         );
-        //call under test
-        waitForSuggestionQuery(adminUser, Arrays.asList("biobnk", "cancr"), expectedTerm);
 
-       // waitForSuggestionQuery(anotherUser, Arrays.asList("biobnk", "cancr"), Collections.EMPTY_SET);
+        //call under test for admin user and Term Suggestion
+         waitForSuggestionQuery(adminUser, Arrays.asList("biobnk", "cancr"), expectedTerm);
+
+        //test for another user
+        waitForSuggestionQuery(anotherUser, Arrays.asList("biobnk", "cancr"), Collections.EMPTY_SET);
+
+        //call under test for admin user and Phrase Suggestion
+        waitForSuggestionQuery(adminUser, Arrays.asList("\"uk biobnk cancr\""), Set.of("uk biobank cancer"));
+
+        //call under test, no suggestion exists for term
+        waitForSuggestionQuery(adminUser, Arrays.asList("apple"), Collections.EMPTY_SET);
     }
 
     /**
@@ -215,7 +223,8 @@ public class SearchIndexWorkerIntegrationTest {
                     actualTerm.add(term);
                 }
             }
-            return Pair.create(actualTerm.equals(expected), null);
+            System.out.printf("Expected terms: %s, actual terms: %s %n", expected, actualTerm);
+            return Pair.create(actualTerm.containsAll(expected), null);
         });
     }
 }

@@ -58,17 +58,30 @@ import static org.sagebionetworks.repo.manager.search.SearchConstants.FIELD_ACL;
 public class OssUtil {
     public final static String NAME_FIELD = "name";
     public final static String DESCRIPTION_FIELD = "description";
+    public final static String NAME_TRIGRAM_FIELD = "name.trigram";
+    public final static String DESCRIPTION_TRIGRAM_FIELD = "description.trigram";
     public final static String TERM_NAME_SUGGESTION = "term_name_suggestion";
     public final static String TERM_DESCRIPTION_SUGGESTION = "term_description_suggestion";
+    public final static String PHRASE_NAME_SUGGESTION = "phrase_name_suggestion";
+    public final static String PHRASE_DESCRIPTION_SUGGESTION = "phrase_description_suggestion";
+    public final static String AGG_KEY = "query_counts";
 
     public static SearchRequest generateSearchRequestForSuggestion(SuggestionQuery suggestionQuery) {
         ValidateArgument.required(suggestionQuery, "suggestionQuery");
-        ValidateArgument.requiredNotEmpty(suggestionQuery.getSearchTerm(), "suggestionQuery.searchTerm");
         List<String> terms = suggestionQuery.getSearchTerm();
         List<String> quotedList = new ArrayList<>();
         List<String> unquotedList = new ArrayList<>();
         int size = suggestionQuery.getSize() != null ? Math.toIntExact(suggestionQuery.getSize()) : 5;
         int maxEdits = suggestionQuery.getMaxEdit() != null ? Math.toIntExact(suggestionQuery.getMaxEdit()) : 2;
+
+        if (terms != null && terms.size() == 1 && ("".equals(terms.get(0)))) {
+            terms = null;
+        }
+
+        if (CollectionUtils.isEmpty(terms)) {
+            throw new IllegalArgumentException(
+                    "At least one search term should be provided for suggestion.");
+        }
 
         SearchRequest.Builder searchBuilder = new SearchRequest.Builder()
                 .index(SearchConstants.OPEN_SEARCH_INDEX_NAME).size(0);
@@ -85,28 +98,53 @@ public class OssUtil {
             }
         });
 
-        addTermSuggester(suggesterBuilder, size, maxEdits);
-        suggesterBuilder.text(String.join(" ", unquotedList));
+        addTermSuggester(suggesterBuilder, size, maxEdits, String.join(" ", unquotedList));
+        addPhraseSuggester(suggesterBuilder, size, quotedList);
 
         Suggester suggester = suggesterBuilder.build();
         return searchBuilder.suggest(suggester).build();
     }
 
-    public static void addTermSuggester(Suggester.Builder suggesterBuilder, int size, int maxEdits) {
-        suggesterBuilder.suggesters(TERM_NAME_SUGGESTION, s -> s.term(
-                ts -> ts
-                        .field(NAME_FIELD)
-                        .size(size)
-                        .maxEdits(maxEdits)
-                        .suggestMode(SuggestMode.Missing)
-        ));
-        suggesterBuilder.suggesters(TERM_DESCRIPTION_SUGGESTION, s -> s.term(
-                ts -> ts
-                        .field(DESCRIPTION_FIELD)
-                        .size(size)
-                        .maxEdits(maxEdits)
-                        .suggestMode(SuggestMode.Missing
-                        )));
+    public static void addTermSuggester(Suggester.Builder suggesterBuilder, int size, int maxEdits, String text) {
+        suggesterBuilder.suggesters(TERM_NAME_SUGGESTION, s -> s.text(text)
+                .term(
+                        ts -> ts
+                                .field(NAME_FIELD)
+                                .size(size)
+                                .maxEdits(maxEdits)
+                                .suggestMode(SuggestMode.Missing)
+                ));
+        suggesterBuilder.suggesters(TERM_DESCRIPTION_SUGGESTION, s -> s.text(text)
+                .term(
+                        ts -> ts
+                                .field(DESCRIPTION_FIELD)
+                                .size(size)
+                                .maxEdits(maxEdits)
+                                .suggestMode(SuggestMode.Missing
+                                )));
+    }
+
+    public static void addPhraseSuggester(Suggester.Builder suggesterBuilder, int size, List<String> phrases) {
+        if (phrases.isEmpty()) {
+            return;
+        }
+        phrases.forEach(txt -> {
+            String text = txt.replaceAll("\\s", "_");
+            String nameSuggestor = PHRASE_NAME_SUGGESTION + "_" + text;
+            String descriptionSuggestor = PHRASE_DESCRIPTION_SUGGESTION + "_" + text;
+            suggesterBuilder.suggesters(nameSuggestor, s -> s.text(txt)
+                    .phrase(
+                            ps -> ps
+                                    .field(NAME_TRIGRAM_FIELD)
+                                    .size(size)
+                    ));
+            suggesterBuilder.suggesters(descriptionSuggestor, s -> s.text(txt)
+                    .phrase(
+                            ps -> ps
+                                    .field(DESCRIPTION_TRIGRAM_FIELD)
+                                    .size(size)
+                    ));
+        });
     }
 
     public static SuggestionResults convertToSynapseSuggestionResult(Map<String, List<Suggest<DocumentFields>>> suggestions) {
@@ -118,7 +156,7 @@ public class OssUtil {
                 .map(Map.Entry::getValue)
                 .filter(suggestList -> !suggestList.isEmpty())
                 .flatMap(List::stream)
-                .filter(suggest -> suggest != null && suggest.term() != null)
+                .filter(suggest -> suggest != null && suggest.isTerm() && (suggest.term() != null))
                 .forEach(suggest -> {
                     Set<Option> optionSet = map1.computeIfAbsent(suggest.term().text(), k -> new HashSet<>());
                     suggest.term().options().stream()
@@ -129,6 +167,20 @@ public class OssUtil {
                             .forEach(optionSet::add);
                 });
 
+        suggestions.entrySet().stream()
+                .map(Map.Entry::getValue)
+                .filter(suggestList -> !suggestList.isEmpty())
+                .flatMap(List::stream)
+                .filter(suggest -> suggest != null && suggest.isPhrase() && (suggest.phrase() != null))
+                .forEach(suggest -> {
+                    Set<Option> optionSet = map1.computeIfAbsent(suggest.phrase().text(), k -> new HashSet<>());
+                    suggest.phrase().options().stream()
+                            .filter(option -> option != null && StringUtils.isNotEmpty(option.text()))
+                            .map(option -> new Option()
+                                    .setTerm("\"" + option.text() + "\"")
+                                    .setScore(option.score()))
+                            .forEach(optionSet::add);
+                });
 
         List<Suggestion> suggestionList = map1.entrySet()
                 .stream()
@@ -147,8 +199,23 @@ public class OssUtil {
         ValidateArgument.required(suggestionResults, "suggestionResults");
         ValidateArgument.required(aggregateResponse, "aggregateResponse");
 
-        Aggregate aggregate = aggregateResponse.get("query_counts");
-        Map<String, FiltersBucket> filteredBucketMap = aggregate.filters().buckets().keyed();
+        if (!aggregateResponse.containsKey("query_counts")) {
+            // Since we cannot verify access without the aggregation data,
+            // we assume access cannot be granted and return an empty set of suggestions.
+            return new SuggestionResults().setSuggestions(Collections.emptyList());
+        }
+
+        boolean isAggregationValid = aggregateResponse.containsKey(AGG_KEY) &&
+                aggregateResponse.get(AGG_KEY) != null &&
+                aggregateResponse.get(AGG_KEY).filters() != null &&
+                aggregateResponse.get(AGG_KEY).filters().buckets() != null;
+
+        if (!isAggregationValid) {
+            // If the required aggregation for access verification is missing or malformed return an empty result.
+            return new SuggestionResults().setSuggestions(Collections.emptyList());
+        }
+
+        Map<String, FiltersBucket> filteredBucketMap = aggregateResponse.get(AGG_KEY).filters().buckets().keyed();
         for (Suggestion suggestion : suggestionResults.getSuggestions()) {
 
             // Stream over the existing options (suggestion.getValues()),
@@ -167,6 +234,7 @@ public class OssUtil {
                     .map(option -> {
                         String term = option.getTerm();
                         option.setFrequency(filteredBucketMap.get(term).docCount());
+                        option.setTerm(term.replace("\"", ""));
                         return option;
                     })
                     .collect(Collectors.toList());
@@ -197,8 +265,12 @@ public class OssUtil {
             }
         }
 
-        FiltersAggregation fs = FiltersAggregation.of(f -> f.filters(bc -> bc.keyed(aggregations)));
-        searchBuilder.aggregations("query_counts", Aggregation.of(a -> a.filters(fs)));
+        // Aggregation filter should be added only for non empty values otherwise throws OpenSearch Exception
+        if (!aggregations.isEmpty()) {
+            FiltersAggregation fs = FiltersAggregation.of(f -> f.filters(bc -> bc.keyed(aggregations)));
+            searchBuilder.aggregations("query_counts", Aggregation.of(a -> a.filters(fs)));
+        }
+
         return searchBuilder
                 .query(boolBuilder.build()._toQuery()).build();
     }

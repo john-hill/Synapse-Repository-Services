@@ -1,17 +1,17 @@
 {
-    "description":"JSON schema for a suggestion.",
+    "description":"JSON schema for a suggested replacement term.",
     "properties":{
-        "key":{
+        "term":{
             "type":"string",
-            "description":"The free text search terms. The suggestion will be provided for these terms."
+            "description":"The suggested term."
         },
-        "values":{
-            "type":"array",
-            "description":"The suggested values for search term.",
-            "uniqueItems":true,
-            "items":{
-                "$ref": "org.sagebionetworks.repo.model.search.query.Option"
-            }
+        "score":{
+            "type":"number",
+            "description":"The relative score of suggested term."
+        },
+        "frequency":{
+            "type":"integer",
+            "description":"The count of documents that contain the specified term."
         }
     }
 }

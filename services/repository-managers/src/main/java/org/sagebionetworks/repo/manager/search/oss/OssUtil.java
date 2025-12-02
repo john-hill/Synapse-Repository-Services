@@ -32,11 +32,11 @@ import org.sagebionetworks.repo.model.search.FacetTypeNames;
 import org.sagebionetworks.repo.model.search.SearchResults;
 import org.sagebionetworks.repo.model.search.query.KeyRange;
 import org.sagebionetworks.repo.model.search.query.KeyValue;
-import org.sagebionetworks.repo.model.search.query.Option;
 import org.sagebionetworks.repo.model.search.query.SearchFacetOption;
 import org.sagebionetworks.repo.model.search.query.SearchFacetSort;
 import org.sagebionetworks.repo.model.search.query.SearchQuery;
 import org.sagebionetworks.repo.model.search.query.Suggestion;
+import org.sagebionetworks.repo.model.search.query.SuggestionList;
 import org.sagebionetworks.repo.model.search.query.SuggestionQuery;
 import org.sagebionetworks.repo.model.search.query.SuggestionResults;
 import org.sagebionetworks.repo.manager.search.SearchConstants;
@@ -65,14 +65,16 @@ public class OssUtil {
     public final static String PHRASE_NAME_SUGGESTION = "phrase_name_suggestion";
     public final static String PHRASE_DESCRIPTION_SUGGESTION = "phrase_description_suggestion";
     public final static String AGG_KEY = "query_counts";
+    public final static int DEFAULT_SUGGEST_COUNT = 5;
+    public final static int DEFAULT_MAX_Edit = 2;
 
     public static SearchRequest generateSearchRequestForSuggestion(SuggestionQuery suggestionQuery) {
         ValidateArgument.required(suggestionQuery, "suggestionQuery");
         List<String> terms = suggestionQuery.getSearchTerm();
         List<String> quotedList = new ArrayList<>();
         List<String> unquotedList = new ArrayList<>();
-        int size = suggestionQuery.getSize() != null ? Math.toIntExact(suggestionQuery.getSize()) : 5;
-        int maxEdits = suggestionQuery.getMaxEdit() != null ? Math.toIntExact(suggestionQuery.getMaxEdit()) : 2;
+        int size = suggestionQuery.getSize() != null ? Math.toIntExact(suggestionQuery.getSize()) : DEFAULT_SUGGEST_COUNT;
+        int maxEdits = suggestionQuery.getMaxEdit() != null ? Math.toIntExact(suggestionQuery.getMaxEdit()) : DEFAULT_MAX_Edit;
 
         if (terms != null && terms.size() == 1 && ("".equals(terms.get(0)))) {
             terms = null;
@@ -150,7 +152,7 @@ public class OssUtil {
     public static SuggestionResults convertToSynapseSuggestionResult(Map<String, List<Suggest<DocumentFields>>> suggestions) {
         ValidateArgument.required(suggestions, "suggestions");
         SuggestionResults results = new SuggestionResults();
-        Map<String, Set<Option>> map1 = new HashMap<>();
+        Map<String, Set<Suggestion>> map1 = new HashMap<>();
 
         suggestions.entrySet().stream()
                 .map(Map.Entry::getValue)
@@ -158,10 +160,10 @@ public class OssUtil {
                 .flatMap(List::stream)
                 .filter(suggest -> suggest != null && suggest.isTerm() && (suggest.term() != null))
                 .forEach(suggest -> {
-                    Set<Option> optionSet = map1.computeIfAbsent(suggest.term().text(), k -> new HashSet<>());
+                    Set<Suggestion> optionSet = map1.computeIfAbsent(suggest.term().text(), k -> new HashSet<>());
                     suggest.term().options().stream()
                             .filter(option -> option != null && StringUtils.isNotEmpty(option.text()))
-                            .map(option -> new Option()
+                            .map(option -> new Suggestion()
                                     .setTerm(option.text())
                                     .setScore(option.score()))
                             .forEach(optionSet::add);
@@ -173,19 +175,19 @@ public class OssUtil {
                 .flatMap(List::stream)
                 .filter(suggest -> suggest != null && suggest.isPhrase() && (suggest.phrase() != null))
                 .forEach(suggest -> {
-                    Set<Option> optionSet = map1.computeIfAbsent(suggest.phrase().text(), k -> new HashSet<>());
+                    Set<Suggestion> optionSet = map1.computeIfAbsent(suggest.phrase().text(), k -> new HashSet<>());
                     suggest.phrase().options().stream()
                             .filter(option -> option != null && StringUtils.isNotEmpty(option.text()))
-                            .map(option -> new Option()
+                            .map(option -> new Suggestion()
                                     .setTerm("\"" + option.text() + "\"")
                                     .setScore(option.score()))
                             .forEach(optionSet::add);
                 });
 
-        List<Suggestion> suggestionList = map1.entrySet()
+        List<SuggestionList> suggestionList = map1.entrySet()
                 .stream()
                 .map(entry -> { // 2. Transform each entry into a Suggestion object
-                    return new Suggestion()
+                    return new SuggestionList()
                             .setKey(entry.getKey())
                             .setValues(entry.getValue());
                 })
@@ -195,11 +197,23 @@ public class OssUtil {
 
     }
 
+    /**
+     * Filters suggestion results to return only the results which appear in a document the user can see
+     * (represented in 'aggregateResponse').
+     * * This function uses a pre-calculated aggregation map (aggregateResponse)
+     * to verify if each suggestion term exists in at least one document
+     * that the current user has access to. Suggestions tied only to inaccessible documents are removed.
+     *
+     * @param suggestionResults The initial list of suggestions from the search engine.
+     * @param aggregateResponse A Map containing the aggregation results (AGG_KEY) which provides
+     * document counts for each suggestion term scoped to the user's access rights.
+     * @return The filtered SuggestionResults, containing only terms the user is authorized to see.
+     */
     public static SuggestionResults eliminateSuggestionWithAccessDenied(SuggestionResults suggestionResults, Map<String, Aggregate> aggregateResponse) {
         ValidateArgument.required(suggestionResults, "suggestionResults");
         ValidateArgument.required(aggregateResponse, "aggregateResponse");
 
-        if (!aggregateResponse.containsKey("query_counts")) {
+        if (!aggregateResponse.containsKey(AGG_KEY)) {
             // Since we cannot verify access without the aggregation data,
             // we assume access cannot be granted and return an empty set of suggestions.
             return new SuggestionResults().setSuggestions(Collections.emptyList());
@@ -216,14 +230,14 @@ public class OssUtil {
         }
 
         Map<String, FiltersBucket> filteredBucketMap = aggregateResponse.get(AGG_KEY).filters().buckets().keyed();
-        for (Suggestion suggestion : suggestionResults.getSuggestions()) {
+        for (SuggestionList suggestionList : suggestionResults.getSuggestions()) {
 
             // Stream over the existing options (suggestion.getValues()),
             // filter them, and collect the valid ones.
-            if (suggestion.getValues() == null || suggestion.getValues().isEmpty()) {
+            if (suggestionList.getValues() == null || suggestionList.getValues().isEmpty()) {
                 continue;
             }
-            List<Option> filteredOptions = suggestion.getValues().stream()
+            List<Suggestion> filteredOptions = suggestionList.getValues().stream()
                     .filter(option -> {
                         String term = option.getTerm();
 
@@ -234,11 +248,12 @@ public class OssUtil {
                     .map(option -> {
                         String term = option.getTerm();
                         option.setFrequency(filteredBucketMap.get(term).docCount());
+                        //quotes were added so simple query treat quoted as phrase and otherwise term. Remove quotes from final result.
                         option.setTerm(term.replace("\"", ""));
                         return option;
                     })
                     .collect(Collectors.toList());
-            suggestion.setValues(new HashSet<>(filteredOptions));
+            suggestionList.setValues(new HashSet<>(filteredOptions));
         }
         return suggestionResults;
     }
@@ -259,16 +274,16 @@ public class OssUtil {
                                             .collect(Collectors.toList())
                             )))));
         }
-        for (Suggestion suggestion : suggestionResults.getSuggestions()) {
-            for (Option option : suggestion.getValues()) {
-                aggregations.put(option.getTerm(), Query.of(q -> q.simpleQueryString(simpleQuery -> simpleQuery.query(option.getTerm()))));
+        for (SuggestionList suggestionList : suggestionResults.getSuggestions()) {
+            for (Suggestion suggestion : suggestionList.getValues()) {
+                aggregations.put(suggestion.getTerm(), Query.of(q -> q.simpleQueryString(simpleQuery -> simpleQuery.query(suggestion.getTerm()))));
             }
         }
 
         // Aggregation filter should be added only for non empty values otherwise throws OpenSearch Exception
         if (!aggregations.isEmpty()) {
             FiltersAggregation fs = FiltersAggregation.of(f -> f.filters(bc -> bc.keyed(aggregations)));
-            searchBuilder.aggregations("query_counts", Aggregation.of(a -> a.filters(fs)));
+            searchBuilder.aggregations(AGG_KEY, Aggregation.of(a -> a.filters(fs)));
         }
 
         return searchBuilder

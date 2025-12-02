@@ -34,13 +34,13 @@ import org.sagebionetworks.repo.model.search.FacetConstraint;
 import org.sagebionetworks.repo.model.search.SearchResults;
 import org.sagebionetworks.repo.model.search.query.KeyRange;
 import org.sagebionetworks.repo.model.search.query.KeyValue;
-import org.sagebionetworks.repo.model.search.query.Option;
 import org.sagebionetworks.repo.model.search.query.SearchFacetOption;
 import org.sagebionetworks.repo.model.search.query.SearchFacetSort;
 import org.sagebionetworks.repo.model.search.query.SearchFieldName;
 import org.sagebionetworks.repo.model.search.query.SearchQuery;
 import org.sagebionetworks.repo.manager.search.SearchConstants;
 import org.sagebionetworks.repo.model.search.query.Suggestion;
+import org.sagebionetworks.repo.model.search.query.SuggestionList;
 import org.sagebionetworks.repo.model.search.query.SuggestionQuery;
 import org.sagebionetworks.repo.model.search.query.SuggestionResults;
 
@@ -234,13 +234,13 @@ public class OssUtilTest {
 
     @Test
     public void testEliminateSuggestionWithAccessDeniedRemovesOptionsWithNoAccess() {
-        Suggestion suggestion = new Suggestion()
+        SuggestionList suggestionList = new SuggestionList()
                 .setKey("term1")
                 .setValues(new HashSet<>(List.of(
-                        new Option().setTerm("allowed"),
-                        new Option().setTerm("denied")
+                       new Suggestion().setTerm("allowed"),
+                       new Suggestion().setTerm("denied")
                 )));
-        SuggestionResults suggestionResults = new SuggestionResults().setSuggestions(List.of(suggestion));
+        SuggestionResults suggestionResults = new SuggestionResults().setSuggestions(List.of(suggestionList));
 
         FiltersBucket allowedBucket = FiltersBucket.of(b -> b.docCount(5L));
         Map<String, FiltersBucket> filteredBucketMap = Map.of("allowed", allowedBucket);
@@ -250,21 +250,21 @@ public class OssUtilTest {
         //call under test
         SuggestionResults filtered = OssUtil.eliminateSuggestionWithAccessDenied(suggestionResults, aggregateResponse);
         assertEquals(1, filtered.getSuggestions().size());
-        Suggestion filteredSuggestion = filtered.getSuggestions().get(0);
+        SuggestionList filteredSuggestion = filtered.getSuggestions().get(0);
         assertEquals(1, filteredSuggestion.getValues().size());
-        Option onlyOption = filteredSuggestion.getValues().iterator().next();
-        assertEquals("allowed", onlyOption.getTerm());
-        assertEquals(5L, onlyOption.getFrequency().longValue());
+        Suggestion onlySuggestion = filteredSuggestion.getValues().iterator().next();
+        assertEquals("allowed", onlySuggestion.getTerm());
+        assertEquals(5L, onlySuggestion.getFrequency().longValue());
     }
 
     @Test
     public void testEliminateSuggestionWithAccessDeniedWithNoMatchingBuckets() {
-        Suggestion suggestion = new Suggestion()
+        SuggestionList suggestionList = new SuggestionList()
                 .setKey("term1")
                 .setValues(new HashSet<>(List.of(
-                        new Option().setTerm("denied")
+                       new Suggestion().setTerm("denied")
                 )));
-        SuggestionResults suggestionResults = new SuggestionResults().setSuggestions(List.of(suggestion));
+        SuggestionResults suggestionResults = new SuggestionResults().setSuggestions(List.of(suggestionList));
 
         Map<String, FiltersBucket> filteredBucketMap = Map.of();
         Aggregate aggregate = Aggregate.of(a -> a.filters(f -> f.buckets(b -> b.keyed(filteredBucketMap))));
@@ -278,11 +278,11 @@ public class OssUtilTest {
 
     @Test
     public void testEliminateSuggestionWithAccessDeniedUpdatesFrequencyForMultipleOptions() {
-        Suggestion suggestion = new Suggestion()
+        SuggestionList suggestionList = new SuggestionList()
                 .setKey("term1")
                 .setValues(new HashSet<>(List.of(
-                        new Option().setTerm("a"),
-                        new Option().setTerm("b")
+                       new Suggestion().setTerm("a"),
+                       new Suggestion().setTerm("b")
                 )));
         FiltersBucket bucketA = FiltersBucket.of(b -> b.docCount(2L));
         FiltersBucket bucketB = FiltersBucket.of(b -> b.docCount(3L));
@@ -292,23 +292,23 @@ public class OssUtilTest {
 
         //call under test
         SuggestionResults filtered = OssUtil.eliminateSuggestionWithAccessDenied(
-                new SuggestionResults().setSuggestions(List.of(suggestion)), aggregateResponse);
+                new SuggestionResults().setSuggestions(List.of(suggestionList)), aggregateResponse);
         assertEquals(1, filtered.getSuggestions().size());
-        Set<Option> options = filtered.getSuggestions().get(0).getValues();
-        assertEquals(2, options.size());
-        for (Option o : options) {
-            if ("a".equals(o.getTerm())) {
-                assertEquals(2L, o.getFrequency().longValue());
-            } else if ("b".equals(o.getTerm())) {
-                assertEquals(3L, o.getFrequency().longValue());
+        Set<Suggestion> suggestions = filtered.getSuggestions().get(0).getValues();
+        assertEquals(2, suggestions.size());
+        for (Suggestion s : suggestions) {
+            if ("a".equals(s.getTerm())) {
+                assertEquals(2L, s.getFrequency().longValue());
+            } else if ("b".equals(s.getTerm())) {
+                assertEquals(3L, s.getFrequency().longValue());
             }
         }
     }
 
     @Test
     public void testEliminateSuggestionWithAccessDeniedWithNullAggregateResponse() {
-        Suggestion suggestion = new Suggestion().setKey("term1").setValues(new HashSet<>(List.of(new Option().setTerm("a"))));
-        SuggestionResults suggestionResults = new SuggestionResults().setSuggestions(List.of(suggestion));
+        SuggestionList suggestionList = new SuggestionList().setKey("term1").setValues(new HashSet<>(List.of(new Suggestion().setTerm("a"))));
+        SuggestionResults suggestionResults = new SuggestionResults().setSuggestions(List.of(suggestionList));
         String message = assertThrows(IllegalArgumentException.class, () -> {
             //call under test
             OssUtil.eliminateSuggestionWithAccessDenied(suggestionResults, null);
@@ -318,8 +318,8 @@ public class OssUtilTest {
 
     @Test
     public void testEliminateSuggestionWithAccessDeniedWithNullValuesSet() {
-        Suggestion suggestion = new Suggestion().setKey("term1").setValues(null);
-        SuggestionResults suggestionResults = new SuggestionResults().setSuggestions(List.of(suggestion));
+        SuggestionList suggestionList = new SuggestionList().setKey("term1").setValues(null);
+        SuggestionResults suggestionResults = new SuggestionResults().setSuggestions(List.of(suggestionList));
         Map<String, FiltersBucket> filteredBucketMap = Map.of("a", FiltersBucket.of(b -> b.docCount(1L)));
         Aggregate aggregate = Aggregate.of(a -> a.filters(f -> f.buckets(b -> b.keyed(filteredBucketMap))));
         Map<String, Aggregate> aggregateResponse = Map.of("query_counts", aggregate);
@@ -330,8 +330,8 @@ public class OssUtilTest {
 
     @Test
     public void testEliminateSuggestionWithAccessDeniedWithNullTerm() {
-        Suggestion suggestion = new Suggestion().setKey("term1").setValues(new HashSet<>(List.of(new Option().setTerm(null))));
-        SuggestionResults suggestionResults = new SuggestionResults().setSuggestions(List.of(suggestion));
+        SuggestionList suggestionList = new SuggestionList().setKey("term1").setValues(new HashSet<>(List.of(new Suggestion().setTerm(null))));
+        SuggestionResults suggestionResults = new SuggestionResults().setSuggestions(List.of(suggestionList));
         Map<String, FiltersBucket> filteredBucketMap = Map.of("a", FiltersBucket.of(b -> b.docCount(1L)));
         Aggregate aggregate = Aggregate.of(a -> a.filters(f -> f.buckets(b -> b.keyed(filteredBucketMap))));
         Map<String, Aggregate> aggregateResponse = Map.of("query_counts", aggregate);
@@ -342,8 +342,8 @@ public class OssUtilTest {
 
     @Test
     public void testEliminateSuggestionWithAccessDeniedWithTermNotInBucketMap() {
-        Suggestion suggestion = new Suggestion().setKey("term1").setValues(new HashSet<>(List.of(new Option().setTerm("notfound"))));
-        SuggestionResults suggestionResults = new SuggestionResults().setSuggestions(List.of(suggestion));
+        SuggestionList suggestionList = new SuggestionList().setKey("term1").setValues(new HashSet<>(List.of(new Suggestion().setTerm("notfound"))));
+        SuggestionResults suggestionResults = new SuggestionResults().setSuggestions(List.of(suggestionList));
         Map<String, FiltersBucket> filteredBucketMap = Map.of("a", FiltersBucket.of(b -> b.docCount(1L)));
         Aggregate aggregate = Aggregate.of(a -> a.filters(f -> f.buckets(b -> b.keyed(filteredBucketMap))));
         Map<String, Aggregate> aggregateResponse = Map.of("query_counts", aggregate);
@@ -354,11 +354,11 @@ public class OssUtilTest {
 
     @Test
     public void testEliminateSuggestionWithAccessDeniedHandlesMultipleBucketsWithMixedDocCounts() {
-        Suggestion suggestion = new Suggestion().setKey("disease").setValues(new HashSet<>(List.of(
-                new Option().setTerm("cancer"),
-                new Option().setTerm("tumor"),
-                new Option().setTerm("leukemia"),
-                new Option().setTerm("unknown")
+        SuggestionList suggestionList = new SuggestionList().setKey("disease").setValues(new HashSet<>(List.of(
+               new Suggestion().setTerm("cancer"),
+               new Suggestion().setTerm("tumor"),
+               new Suggestion().setTerm("leukemia"),
+               new Suggestion().setTerm("unknown")
         )));
         Map<String, FiltersBucket> filteredBucketMap = new HashMap<>();
         filteredBucketMap.put("cancer", FiltersBucket.of(b -> b.docCount(5L)));
@@ -367,37 +367,37 @@ public class OssUtilTest {
         Aggregate aggregate = Aggregate.of(a -> a.filters(f -> f.buckets(b -> b.keyed(filteredBucketMap))));
         Map<String, Aggregate> aggregateResponse = Map.of("query_counts", aggregate);
 
-        SuggestionResults suggestionResults = new SuggestionResults().setSuggestions(List.of(suggestion));
+        SuggestionResults suggestionResults = new SuggestionResults().setSuggestions(List.of(suggestionList));
 
         //call under test
         SuggestionResults filtered = OssUtil.eliminateSuggestionWithAccessDenied(suggestionResults, aggregateResponse);
 
-        Set<String> terms = filtered.getSuggestions().get(0).getValues().stream().map(Option::getTerm).collect(java.util.stream.Collectors.toSet());
+        Set<String> terms = filtered.getSuggestions().get(0).getValues().stream().map(Suggestion::getTerm).collect(java.util.stream.Collectors.toSet());
         assertTrue(terms.contains("cancer"));
         assertTrue(terms.contains("tumor"));
         assertFalse(terms.contains("leukemia"));
         assertFalse(terms.contains("unknown"));
-        for (Option o : filtered.getSuggestions().get(0).getValues()) {
-            if ("cancer".equals(o.getTerm())) {
-                assertEquals(5L, o.getFrequency().longValue());
+        for (Suggestion s : filtered.getSuggestions().get(0).getValues()) {
+            if ("cancer".equals(s.getTerm())) {
+                assertEquals(5L, s.getFrequency().longValue());
             }
-            if ("tumor".equals(o.getTerm())) {
-                assertEquals(3L, o.getFrequency().longValue());
+            if ("tumor".equals(s.getTerm())) {
+                assertEquals(3L, s.getFrequency().longValue());
             }
         }
     }
 
     @Test
     public void eliminateSuggestionWithAccessDeniedHandlesEmptyFilteredBucketMap() {
-        Suggestion suggestion = new Suggestion().setKey("disease").setValues(new HashSet<>(List.of(
-                new Option().setTerm("cancer"),
-                new Option().setTerm("tumor")
+        SuggestionList suggestionList = new SuggestionList().setKey("disease").setValues(new HashSet<>(List.of(
+               new Suggestion().setTerm("cancer"),
+               new Suggestion().setTerm("tumor")
         )));
         Map<String, FiltersBucket> filteredBucketMap = Collections.emptyMap();
         Aggregate aggregate = Aggregate.of(a -> a.filters(f -> f.buckets(b -> b.keyed(filteredBucketMap))));
         Map<String, Aggregate> aggregateResponse = Map.of("query_counts", aggregate);
 
-        SuggestionResults suggestionResults = new SuggestionResults().setSuggestions(List.of(suggestion));
+        SuggestionResults suggestionResults = new SuggestionResults().setSuggestions(List.of(suggestionList));
         //call under test
         SuggestionResults filtered = OssUtil.eliminateSuggestionWithAccessDenied(suggestionResults, aggregateResponse);
 
@@ -556,19 +556,6 @@ public class OssUtilTest {
     }
 
     @Test
-    public void convertToSynapseSuggestionResultWithDuplicateOptions() {
-        TermSuggestOption opt1 = createOption("dup", 1, 1.0f);
-        TermSuggestOption opt2 = createOption("dup", 1, 1.0f);
-        Suggest<DocumentFields> suggest = makeSuggest("term1", List.of(opt1, opt2));
-        Map<String, List<Suggest<DocumentFields>>> suggestions = Map.of("key1", List.of(suggest));
-        //call under test
-        SuggestionResults results = OssUtil.convertToSynapseSuggestionResult(suggestions);
-        assertNotNull(results);
-        assertEquals(1, results.getSuggestions().size());
-        assertEquals(1, results.getSuggestions().get(0).getValues().size());
-    }
-
-    @Test
     public void testConvertToSynapseSuggestionResultWithNull() {
         String message = assertThrows(IllegalArgumentException.class, () -> {
             //call under test
@@ -646,18 +633,18 @@ public class OssUtilTest {
         assertNotNull(results);
         assertEquals(2, results.getSuggestions().size());
 
-        Map<String, Suggestion> resultKeys = results.getSuggestions().stream()
-                .collect(Collectors.toMap(Suggestion::getKey, Function.identity()));
+        Map<String, SuggestionList> resultKeys = results.getSuggestions().stream()
+                .collect(Collectors.toMap(SuggestionList::getKey, Function.identity()));
 
-        Suggestion synSuggestion = resultKeys.get("term1");
-        Option expectedOpt1 = new Option().setTerm("opt1").setScore(1.5).setFrequency(null);
+        SuggestionList synSuggestion = resultKeys.get("term1");
+        Suggestion expectedSug1 =new Suggestion().setTerm("opt1").setScore(1.5).setFrequency(null);
         assertEquals(1, synSuggestion.getValues().size());
-        assertTrue(synSuggestion.getValues().contains(expectedOpt1));
+        assertTrue(synSuggestion.getValues().contains(expectedSug1));
 
-        Suggestion synSuggestion2 = resultKeys.get("\"term2\"");
-        Option expectedOpt2 = new Option().setTerm("opt2").setScore(2.5).setFrequency(null);
+        SuggestionList synSuggestion2 = resultKeys.get("\"term2\"");
+        Suggestion expectedSug2 =new Suggestion().setTerm("opt2").setScore(2.5).setFrequency(null);
         assertEquals(1, synSuggestion2.getValues().size());
-        assertTrue(synSuggestion2.getValues().contains(expectedOpt2));
+        assertTrue(synSuggestion2.getValues().contains(expectedSug2));
     }
 
     @Test
@@ -670,7 +657,7 @@ public class OssUtilTest {
         SuggestionResults results = OssUtil.convertToSynapseSuggestionResult(suggestions);
         assertNotNull(results);
         Set<String> terms = new HashSet<>();
-        for (Suggestion s : results.getSuggestions()) {
+        for (SuggestionList s : results.getSuggestions()) {
             terms.add(s.getKey());
         }
         assertTrue(terms.contains("term1"));
@@ -690,7 +677,7 @@ public class OssUtilTest {
         SuggestionResults results = OssUtil.convertToSynapseSuggestionResult(suggestions);
         assertNotNull(results);
         Set<String> terms = new HashSet<>();
-        for (Suggestion s : results.getSuggestions()) {
+        for (SuggestionList s : results.getSuggestions()) {
             terms.add(s.getKey());
         }
         assertTrue(terms.contains("term1"));
@@ -708,27 +695,9 @@ public class OssUtilTest {
         SuggestionResults results = OssUtil.convertToSynapseSuggestionResult(suggestions);
         assertNotNull(results);
         assertEquals(1, results.getSuggestions().size());
-        Suggestion synSuggestion = results.getSuggestions().get(0);
+        SuggestionList synSuggestion = results.getSuggestions().get(0);
         assertEquals(1, synSuggestion.getValues().size());
         assertEquals("dup", synSuggestion.getValues().iterator().next().getTerm());
-    }
-
-    @Test
-    public void testConvertToSynapseSuggestionResultOptionFieldsEdgeValues() {
-        TermSuggestOption opt1 = createOption("", 0, 0.0f);
-        TermSuggestOption opt2 = createOption("opt", -1, Float.MAX_VALUE);
-        Suggest<DocumentFields> suggest = makeSuggest("term1", List.of(opt1, opt2));
-        Map<String, List<Suggest<DocumentFields>>> suggestions = Map.of("key1", List.of(suggest));
-
-        //call under test
-        SuggestionResults results = OssUtil.convertToSynapseSuggestionResult(suggestions);
-        assertNotNull(results);
-        Suggestion synSuggestion = results.getSuggestions().get(0);
-        Set<String> terms = new HashSet<>();
-        for (Option o : synSuggestion.getValues()) {
-            terms.add(o.getTerm());
-        }
-        assertTrue(terms.contains("opt"));
     }
 
     private TermSuggestOption createOption(String text, long freq, float score) {
@@ -741,11 +710,11 @@ public class OssUtilTest {
 
     @Test
     void testAuthorizedUserAndSuggestionsPresent() {
-        Suggestion suggestion = new Suggestion().setKey("disease").setValues(new HashSet<>(List.of(
-                new Option().setTerm("cancer"),
-                new Option().setTerm("tumor")
+        SuggestionList suggestionList = new SuggestionList().setKey("disease").setValues(new HashSet<>(List.of(
+               new Suggestion().setTerm("cancer"),
+               new Suggestion().setTerm("tumor")
         )));
-        SuggestionResults suggestionResults = new SuggestionResults().setSuggestions(List.of(suggestion));
+        SuggestionResults suggestionResults = new SuggestionResults().setSuggestions(List.of(suggestionList));
 
         //call under test
         SearchRequest request = OssUtil.generateAggregationRequestToLimitAccess(userInfo, suggestionResults);
@@ -772,11 +741,11 @@ public class OssUtilTest {
 
     @Test
     void testAdminUserAndSuggestionsPresent() {
-        Suggestion suggestion = new Suggestion().setKey("disease").setValues(new HashSet<>(List.of(
-                new Option().setTerm("cancer"),
-                new Option().setTerm("tumor")
+        SuggestionList suggestionList = new SuggestionList().setKey("disease").setValues(new HashSet<>(List.of(
+               new Suggestion().setTerm("cancer"),
+               new Suggestion().setTerm("tumor")
         )));
-        SuggestionResults suggestionResults = new SuggestionResults().setSuggestions(List.of(suggestion));
+        SuggestionResults suggestionResults = new SuggestionResults().setSuggestions(List.of(suggestionList));
 
         UserInfo userInfo = new UserInfo(true);
         //call under test

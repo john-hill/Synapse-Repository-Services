@@ -403,7 +403,7 @@ public class SearchManagerImplTest {
         SuggestionQuery query = new SuggestionQuery().setSearchTerm(List.of("cancr"));
 
         //call under test
-        SuggestionResults results = mockSearchManager.getSuggestion(new UserInfo(true), query);
+        SuggestionResults results = mockSearchManager.getSuggestions(new UserInfo(true), query);
         assertEquals(1L, results.getSuggestions().size());
         assertEquals("cancr", results.getSuggestions().get(0).getKey());
         assertEquals(1, results.getSuggestions().get(0).getValues().size());
@@ -420,7 +420,7 @@ public class SearchManagerImplTest {
 
         SuggestionQuery query = new SuggestionQuery().setSearchTerm(List.of("cancr"));
         //call under test
-        assertThrows(TemporarilyUnavailableException.class, () -> mockSearchManager.getSuggestion(new UserInfo(true), query));
+        assertThrows(TemporarilyUnavailableException.class, () -> mockSearchManager.getSuggestions(new UserInfo(true), query));
     }
 
     @Test
@@ -455,7 +455,7 @@ public class SearchManagerImplTest {
 
         SuggestionQuery query = new SuggestionQuery().setSearchTerm(List.of("cancr"));
         //call under test
-        assertThrows(TemporarilyUnavailableException.class, () -> mockSearchManager.getSuggestion(new UserInfo(true), query));
+        assertThrows(TemporarilyUnavailableException.class, () -> mockSearchManager.getSuggestions(new UserInfo(true), query));
     }
 
     @Test
@@ -484,7 +484,7 @@ public class SearchManagerImplTest {
 
         SuggestionQuery query = new SuggestionQuery().setSearchTerm(List.of("cancr"));
         //call under test
-        SuggestionResults results = mockSearchManager.getSuggestion(new UserInfo(true), query);
+        SuggestionResults results = mockSearchManager.getSuggestions(new UserInfo(true), query);
         assertTrue(results.getSuggestions().isEmpty());
         verify(mockSearchClient, times(2)).search(any(SearchRequest.class), eq(DocumentFields.class));
     }
@@ -537,7 +537,7 @@ public class SearchManagerImplTest {
 
         SuggestionQuery query = new SuggestionQuery().setSearchTerm(List.of("cancr"));
         //call under test
-        SuggestionResults results = mockSearchManager.getSuggestion(new UserInfo(true), query);
+        SuggestionResults results = mockSearchManager.getSuggestions(new UserInfo(true), query);
         assertTrue(results.getSuggestions().get(0).getValues().isEmpty());
         verify(mockSearchClient, times(2)).search(any(SearchRequest.class), eq(DocumentFields.class));
     }

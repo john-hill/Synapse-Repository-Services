@@ -39,7 +39,7 @@ public class SearchServiceImpl implements SearchService {
 	@Override
 	public @ResponseBody SuggestionResults getSuggestions(Long userId,  SuggestionQuery suggestionQuery) {
 		UserInfo userInfo = userManager.getUserInfo(userId);
-		return ossSearchManager.getSuggestion(userInfo, suggestionQuery);
+		return ossSearchManager.getSuggestions(userInfo, suggestionQuery);
 	}
 
 }

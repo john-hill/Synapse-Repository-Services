@@ -11,11 +11,11 @@
         },
         "maxEdit":{
             "type":"integer",
-            "description":"The maximum edit distance for suggestions. Valid values are in the [1, 2] range. Default is 2."
+            "description":"The maximum number of single-character edits (insertions, deletions, or substitutions) allowed between the input query and a suggested term. Must be 1 or 2. Default is 2."
         },
         "size":{
             "type":"integer",
-            "description":"The maximum number of suggestions to return for each token in the input text. The default is 5."
+            "description":"The maximum number of suggestions to return for each term in the input text. The default is 5."
         },
         "sort": {
             "type": "string",

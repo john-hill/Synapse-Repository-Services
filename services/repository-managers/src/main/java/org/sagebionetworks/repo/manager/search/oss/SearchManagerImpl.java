@@ -166,14 +166,17 @@ public class SearchManagerImpl implements SearchManager {
 
 
     @Override
-    public SuggestionResults getSuggestion(UserInfo userInfo, SuggestionQuery suggestionQuery) {
+    public SuggestionResults getSuggestions(UserInfo userInfo, SuggestionQuery suggestionQuery) {
         SearchRequest searchRequest = OssUtil.generateSearchRequestForSuggestion(suggestionQuery);
         try {
+            //get suggestions from OpenSearch regardless of user access to documents
             Map<String, List<Suggest<DocumentFields>>> suggestions =
                     openSearchClient.search(searchRequest, DocumentFields.class).suggest();
             SuggestionResults results = OssUtil.convertToSynapseSuggestionResult(suggestions);
             SearchRequest aggregationRequest = OssUtil.generateAggregationRequestToLimitAccess(userInfo, results);
+            //find out which suggestions appear in documents the user can see.
             Map<String, Aggregate> aggregations = openSearchClient.search(aggregationRequest, DocumentFields.class).aggregations();
+            //filter the suggestions to return only those which appear in document(s) the user can see
             return OssUtil.eliminateSuggestionWithAccessDenied(results, aggregations);
         } catch (OpenSearchException | IOException exception) {
             log.error(exception);

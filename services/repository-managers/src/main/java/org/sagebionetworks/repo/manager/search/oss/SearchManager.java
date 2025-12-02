@@ -45,6 +45,6 @@ public interface SearchManager {
      * @param suggestionQuery
      * @return the results of the suggestion
      */
-    SuggestionResults getSuggestion(UserInfo userInfo, SuggestionQuery suggestionQuery);
+    SuggestionResults getSuggestions(UserInfo userInfo, SuggestionQuery suggestionQuery);
 
 }

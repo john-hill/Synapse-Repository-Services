@@ -9,6 +9,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,9 +28,9 @@ import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.search.SearchResults;
-import org.sagebionetworks.repo.model.search.query.Option;
 import org.sagebionetworks.repo.model.search.query.SearchQuery;
 import org.sagebionetworks.repo.model.search.query.Suggestion;
+import org.sagebionetworks.repo.model.search.query.SuggestionList;
 import org.sagebionetworks.repo.model.search.query.SuggestionQuery;
 import org.sagebionetworks.repo.model.search.query.SuggestionResults;
 import org.sagebionetworks.util.Pair;
@@ -131,15 +132,15 @@ public class SearchIndexWorkerIntegrationTest {
 
         //There should be 1 result with "diabetes genomics" phrase search
         String phrase = "\"diabetes" + userName + " genomics" + userName + "\"";
-        waitForSearchQuery(adminUser, phrase, 1);
+        waitForSearchQuery(adminUser, phrase, List.of(project.getId()));
 
         //There should be 2 result with diabetes term search
         String termOne = "diabetes" + userName;
-        waitForSearchQuery(adminUser, termOne, 2);
+        waitForSearchQuery(adminUser, termOne, List.of(project.getId(), fileOne.getId()));
 
         //There should be 2 result with "diabetes genomics" phrase and genomics term search
         String termTwo = fileTwo.getName();
-        waitForSearchQuery(adminUser, phrase + termTwo, 2);
+        waitForSearchQuery(adminUser, phrase + termTwo, List.of(project.getId(), fileTwo.getId()));
     }
 
     @Test
@@ -150,7 +151,7 @@ public class SearchIndexWorkerIntegrationTest {
 
         // The admin should find the project and the files
         String term = project.getName() + " " + fileOne.getName() + " " + fileTwo.getName();
-        waitForSearchQuery(adminUser, term, 3);
+        waitForSearchQuery(adminUser, term, List.of(project.getId(), fileOne.getId(), fileTwo.getId()));
 
         // No results for the user since the project and files are not shared
         SearchResults results1 = searchManager.search(anotherUser, searchQueryByTerm(term));
@@ -165,7 +166,7 @@ public class SearchIndexWorkerIntegrationTest {
         entityAclManager.updateACL(acl, adminUser);
 
         // The user should eventually find the file
-        waitForSearchQuery(anotherUser, term, 1);
+        waitForSearchQuery(anotherUser, term, List.of(fileOne.getId()));
     }
 
     @Test
@@ -200,13 +201,14 @@ public class SearchIndexWorkerIntegrationTest {
         });
     }
 
-    public void waitForSearchQuery(UserInfo user, String term, long expected) throws Exception {
+    public void waitForSearchQuery(UserInfo user, String term, List<String> expectedIds) throws Exception {
         SearchQuery searchQuery = new SearchQuery().setQueryTerm(Arrays.asList(term));
         TimeUtils.waitFor(MAX_WAIT, CHECK_TIME, () -> {
             System.out.println("Waiting for search query: " + searchQuery);
             SearchResults results = searchManager.search(user, searchQuery);
             System.out.printf("%s result found for term %s: %n", results.getFound(), term);
-            return Pair.create(results.getFound() == expected, null);
+            List<String> ids =results.getHits().stream().map(hit -> hit.getId()).collect(Collectors.toList());
+            return Pair.create(ids.containsAll(expectedIds), null);
         });
     }
 
@@ -215,11 +217,11 @@ public class SearchIndexWorkerIntegrationTest {
         SuggestionQuery suggestionQuery = new SuggestionQuery().setSearchTerm(terms);
         TimeUtils.waitFor(MAX_WAIT, CHECK_TIME, () -> {
             System.out.println("Waiting for suggestion query: " + suggestionQuery);
-            SuggestionResults results = searchManager.getSuggestion(user, suggestionQuery);
-            for (Suggestion suggestion : results.getSuggestions()) {
-                Set<Option> options = suggestion.getValues();
-                for (Option option : options) {
-                    String term = option.getTerm();
+            SuggestionResults results = searchManager.getSuggestions(user, suggestionQuery);
+            for (SuggestionList suggestionList : results.getSuggestions()) {
+                Set<Suggestion> suggestions = suggestionList.getValues();
+                for (Suggestion suggestion : suggestions) {
+                    String term = suggestion.getTerm();
                     actualTerm.add(term);
                 }
             }

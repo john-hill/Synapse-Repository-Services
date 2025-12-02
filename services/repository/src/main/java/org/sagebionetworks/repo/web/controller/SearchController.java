@@ -62,7 +62,7 @@ public class SearchController {
 	@RequiredScope({view})
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = "/suggestion", method = RequestMethod.POST)
-	public @ResponseBody SuggestionResults getObjectStatistics(
+	public @ResponseBody SuggestionResults getSuggestions(
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@RequestBody SuggestionQuery suggestionQuery) {
 		return serviceProvider.getSearchService().getSuggestions(userId, suggestionQuery);

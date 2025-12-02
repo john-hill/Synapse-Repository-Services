@@ -34,6 +34,7 @@ import org.opensearch.client.opensearch.core.search.TotalHits;
 import org.opensearch.client.opensearch.core.search.TotalHitsRelation;
 import org.sagebionetworks.LoggerProvider;
 import org.sagebionetworks.repo.manager.search.SearchDocumentDriver;
+import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.EntityPath;
 import org.sagebionetworks.repo.model.IdAndAlias;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -420,7 +421,7 @@ public class SearchManagerImplTest {
 
         SuggestionQuery query = new SuggestionQuery().setSearchTerm(List.of("cancr"));
         //call under test
-        assertThrows(TemporarilyUnavailableException.class, () -> mockSearchManager.getSuggestions(new UserInfo(true), query));
+        assertThrows(DatastoreException.class, () -> mockSearchManager.getSuggestions(new UserInfo(true), query));
     }
 
     @Test
@@ -455,7 +456,7 @@ public class SearchManagerImplTest {
 
         SuggestionQuery query = new SuggestionQuery().setSearchTerm(List.of("cancr"));
         //call under test
-        assertThrows(TemporarilyUnavailableException.class, () -> mockSearchManager.getSuggestions(new UserInfo(true), query));
+        assertThrows(DatastoreException.class, () -> mockSearchManager.getSuggestions(new UserInfo(true), query));
     }
 
     @Test

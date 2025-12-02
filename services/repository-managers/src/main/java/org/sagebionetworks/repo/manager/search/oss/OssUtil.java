@@ -286,6 +286,9 @@ public class OssUtil {
             searchBuilder.aggregations(AGG_KEY, Aggregation.of(a -> a.filters(fs)));
         }
 
+        // we are setting size to zero because we only need aggregation results.
+        searchBuilder.size(0);
+
         return searchBuilder
                 .query(boolBuilder.build()._toQuery()).build();
     }

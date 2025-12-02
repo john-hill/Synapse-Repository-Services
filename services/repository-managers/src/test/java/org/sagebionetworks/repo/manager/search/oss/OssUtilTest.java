@@ -23,6 +23,8 @@ import org.opensearch.client.opensearch._types.query_dsl.RangeQuery;
 import org.opensearch.client.opensearch._types.query_dsl.TermQuery;
 import org.opensearch.client.opensearch.core.SearchRequest;
 import org.opensearch.client.opensearch.core.SearchResponse;
+import org.opensearch.client.opensearch.core.search.PhraseSuggest;
+import org.opensearch.client.opensearch.core.search.PhraseSuggestOption;
 import org.opensearch.client.opensearch.core.search.Suggest;
 import org.opensearch.client.opensearch.core.search.TermSuggest;
 import org.opensearch.client.opensearch.core.search.TermSuggestOption;
@@ -530,7 +532,7 @@ public class OssUtilTest {
 
     @Test
     public void convertToSynapseSuggestionResultWithNullKeyInMap() {
-        Suggest<DocumentFields> suggest = makeSuggest("term1", List.of(createOption("opt", 1, 1.0f)));
+        Suggest<DocumentFields> suggest = createTermSuggest("term1", List.of(createOption("opt", 1, 1.0f)));
         Map<String, List<Suggest<DocumentFields>>> suggestions = new HashMap<>();
         suggestions.put(null, List.of(suggest));
         //call under test
@@ -546,7 +548,7 @@ public class OssUtilTest {
         List<TermSuggestOption> options = new ArrayList<>();
         options.add(opt1);
         options.add(null);
-        Suggest<DocumentFields> suggest = makeSuggest("term1", options);
+        Suggest<DocumentFields> suggest = createTermSuggest("term1", options);
         Map<String, List<Suggest<DocumentFields>>> suggestions = Map.of("key1", List.of(suggest));
         //call under test
         SuggestionResults results = OssUtil.convertToSynapseSuggestionResult(suggestions);
@@ -597,11 +599,7 @@ public class OssUtilTest {
 
     @Test
     public void convertToSynapseSuggestionResultHandlesSuggestWithOutOptions() {
-        Suggest<DocumentFields> suggest = Suggest.of(s -> s.term(TermSuggest.of(ts -> ts.
-                text("term1")
-                .length(5)
-                .offset(0).
-                options(Collections.emptyList()))));
+        Suggest<DocumentFields> suggest = createTermSuggest("term1", Collections.emptyList());
 
         Map<String, List<Suggest<DocumentFields>>> suggestions = Map.of("key1", List.of(suggest));
         //call under test
@@ -623,9 +621,9 @@ public class OssUtilTest {
     @Test
     public void testConvertToSynapseSuggestionResultWithTermAndOptions() {
         TermSuggestOption opt1 = createOption("opt1", 2, 1.5f);
-        TermSuggestOption opt2 = createOption("opt2", 3, 2.5f);
-        Suggest<DocumentFields> termSuggest = makeSuggest("term1", List.of(opt1));
-        Suggest<DocumentFields> phraseSuggest = makeSuggest("\"term2\"", List.of(opt2));
+        PhraseSuggestOption opt2 = PhraseSuggestOption.of(o -> o.text("opt2").score(2.5f));
+        Suggest<DocumentFields> termSuggest = createTermSuggest("term1", List.of(opt1));
+        Suggest<DocumentFields> phraseSuggest = createPhraseSuggest("\"term2\"", List.of(opt2));
         Map<String, List<Suggest<DocumentFields>>> suggestions = Map.of("key1", List.of(termSuggest), "key2", List.of(phraseSuggest));
 
         //call under test
@@ -642,15 +640,15 @@ public class OssUtilTest {
         assertTrue(synSuggestion.getValues().contains(expectedSug1));
 
         SuggestionList synSuggestion2 = resultKeys.get("\"term2\"");
-        Suggestion expectedSug2 =new Suggestion().setTerm("opt2").setScore(2.5).setFrequency(null);
+        Suggestion expectedSug2 =new Suggestion().setTerm("\"opt2\"").setScore(2.5).setFrequency(null);
         assertEquals(1, synSuggestion2.getValues().size());
         assertTrue(synSuggestion2.getValues().contains(expectedSug2));
     }
 
     @Test
     public void testConvertToSynapseSuggestionResultMultipleSuggestsPerList() {
-        Suggest<DocumentFields> suggest1 = makeSuggest("term1", List.of(createOption("opt1", 1, 1.0f)));
-        Suggest<DocumentFields> suggest2 = makeSuggest("term2", List.of(createOption("opt2", 2, 2.0f)));
+        Suggest<DocumentFields> suggest1 = createTermSuggest("term1", List.of(createOption("opt1", 1, 1.0f)));
+        Suggest<DocumentFields> suggest2 = createTermSuggest("term2", List.of(createOption("opt2", 2, 2.0f)));
         Map<String, List<Suggest<DocumentFields>>> suggestions = Map.of("key1", List.of(suggest1, suggest2));
 
         //call under test
@@ -666,8 +664,8 @@ public class OssUtilTest {
 
     @Test
     public void testConvertToSynapseSuggestionResultMultipleKeys() {
-        Suggest<DocumentFields> suggest1 = makeSuggest("term1", List.of(createOption("opt1", 1, 1.0f)));
-        Suggest<DocumentFields> suggest2 = makeSuggest("term2", List.of(createOption("opt2", 2, 2.0f)));
+        Suggest<DocumentFields> suggest1 = createTermSuggest("term1", List.of(createOption("opt1", 1, 1.0f)));
+        Suggest<DocumentFields> suggest2 = createTermSuggest("term2", List.of(createOption("opt2", 2, 2.0f)));
         Map<String, List<Suggest<DocumentFields>>> suggestions = Map.of(
                 "key1", List.of(suggest1),
                 "key2", List.of(suggest2)
@@ -688,7 +686,7 @@ public class OssUtilTest {
     public void testConvertToSynapseSuggestionResultDuplicateOptionsForSameTerm() {
         TermSuggestOption opt1 = createOption("dup", 1, 1.0f);
         TermSuggestOption opt2 = createOption("dup", 1, 1.0f);
-        Suggest<DocumentFields> suggest = makeSuggest("term1", List.of(opt1, opt2));
+        Suggest<DocumentFields> suggest = createTermSuggest("term1", List.of(opt1, opt2));
         Map<String, List<Suggest<DocumentFields>>> suggestions = Map.of("key1", List.of(suggest));
 
         //call under test
@@ -704,8 +702,12 @@ public class OssUtilTest {
         return TermSuggestOption.of(o -> o.text(text).freq(freq).score(score));
     }
 
-    private Suggest<DocumentFields> makeSuggest(String termText, List<TermSuggestOption> options) {
+    private Suggest<DocumentFields> createTermSuggest(String termText, List<TermSuggestOption> options) {
         return Suggest.of(s -> s.term(TermSuggest.of(ts -> ts.text(termText).length(termText.length()).offset(0).options(options))));
+    }
+
+    private Suggest<DocumentFields> createPhraseSuggest(String termText, List<PhraseSuggestOption> options) {
+        return Suggest.of(s -> s.phrase(PhraseSuggest.of(ts -> ts.text(termText).length(termText.length()).offset(0).options(options))));
     }
 
     @Test

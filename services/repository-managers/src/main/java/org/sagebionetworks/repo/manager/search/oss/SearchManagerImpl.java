@@ -24,6 +24,7 @@ import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.opensearch.client.opensearch.core.search.Suggest;
 import org.sagebionetworks.LoggerProvider;
 import org.sagebionetworks.repo.manager.search.SearchDocumentDriver;
+import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.EntityPath;
 import org.sagebionetworks.repo.model.IdAndAlias;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -180,7 +181,7 @@ public class SearchManagerImpl implements SearchManager {
             return OssUtil.eliminateSuggestionWithAccessDenied(results, aggregations);
         } catch (OpenSearchException | IOException exception) {
             log.error(exception);
-            throw new TemporarilyUnavailableException(exception.getMessage());
+            throw new DatastoreException(exception.getMessage());
         }
     }
 

@@ -137,8 +137,7 @@ jobs:
 
   invoke_workflow:
     needs: build_and_test
-    uses: brucehoff/Synapse-Code-Pipeline/.github/workflows/execute_code_pipeline.yml@main
-    # TODO revert uses: Sage-Bionetworks/Synapse-Code-Pipeline/.github/workflows/execute_code_pipeline.yml@main
+    uses: Sage-Bionetworks/Synapse-Code-Pipeline/.github/workflows/execute_code_pipeline.yml@main
     with:
       CODE_PIPELINE_CF_TEMPLATE: configuration/build/codepipeline_cf_template.yaml
       PIPELINE_NAME: Synapse-Build-${{ needs.build_and_test.outputs.USER }}

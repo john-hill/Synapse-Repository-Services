@@ -34,7 +34,6 @@ import org.opensearch.client.opensearch.core.search.TotalHits;
 import org.opensearch.client.opensearch.core.search.TotalHitsRelation;
 import org.sagebionetworks.LoggerProvider;
 import org.sagebionetworks.repo.manager.search.SearchDocumentDriver;
-import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.EntityPath;
 import org.sagebionetworks.repo.model.IdAndAlias;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -48,7 +47,6 @@ import org.sagebionetworks.repo.model.search.query.SuggestionQuery;
 import org.sagebionetworks.repo.model.search.query.SuggestionResults;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.repo.manager.search.SearchConstants;
-import org.sagebionetworks.repo.web.TemporarilyUnavailableException;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 
 import java.io.IOException;
@@ -415,17 +413,17 @@ public class SearchManagerImplTest {
     }
 
     @Test
-    public void testGetSuggestionThrowsTemporarilyUnavailableExceptionWhenSuggestionFails() throws IOException {
+    public void testGetSuggestionThrowsIllegalStateExceptionWhenSuggestionFails() throws IOException {
         when(mockSearchClient.search(any(SearchRequest.class), eq(DocumentFields.class)))
                 .thenThrow(new IOException("Simulated IO error"));
 
         SuggestionQuery query = new SuggestionQuery().setSearchTerm(List.of("cancr"));
         //call under test
-        assertThrows(DatastoreException.class, () -> mockSearchManager.getSuggestions(new UserInfo(true), query));
+        assertThrows(IllegalStateException.class, () -> mockSearchManager.getSuggestions(new UserInfo(true), query));
     }
 
     @Test
-    public void testGetSuggestionThrowsTemporarilyUnavailableExceptionOnAggregationCall() throws IOException {
+    public void testGetSuggestionThrowsIllegalStateExceptionOnAggregationCall() throws IOException {
         // First call returns a valid response, second call throws IOException
         Suggest<DocumentFields> suggest = Suggest.of(s -> s.term(
                 TermSuggest.of(ts -> ts.length(1).offset(1)
@@ -456,7 +454,7 @@ public class SearchManagerImplTest {
 
         SuggestionQuery query = new SuggestionQuery().setSearchTerm(List.of("cancr"));
         //call under test
-        assertThrows(DatastoreException.class, () -> mockSearchManager.getSuggestions(new UserInfo(true), query));
+        assertThrows(IllegalStateException.class, () -> mockSearchManager.getSuggestions(new UserInfo(true), query));
     }
 
     @Test

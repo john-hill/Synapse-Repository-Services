@@ -91,7 +91,7 @@ jobs:
       - id: display-artifact-version
         name: Display Artifact Version
         run: |
-          if [[ $ARTIFACT_VERSION ]]; then
+          if [[ "${{ steps.pipeline-params.outputs.ARTIFACT_VERSION }}" ]]; then
             echo "Build will publish artifacts with version" ${{ steps.pipeline-params.outputs.ARTIFACT_VERSION }}
           else
             echo "Artifacts will not be published for this build"

@@ -1,0 +1,5 @@
+{
+	"title": "Identity Provider",
+	"type": "interface",
+	"description": "Interface for an identity provider",
+}

@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.repo.manager.AuthenticationManager;
+import org.sagebionetworks.repo.manager.RealmManager;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.message.MessageSyndication;
 import org.sagebionetworks.repo.manager.password.InvalidPasswordException;
@@ -32,6 +34,7 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.admin.ExpireQuarantinedEmailRequest;
 import org.sagebionetworks.repo.model.auth.LoginResponse;
 import org.sagebionetworks.repo.model.auth.NewIntegrationTestUser;
+import org.sagebionetworks.repo.model.auth.Realm;
 import org.sagebionetworks.repo.model.dbo.dao.DBOChangeDAO;
 import org.sagebionetworks.repo.model.dbo.ses.EmailQuarantineDao;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
@@ -65,6 +68,8 @@ public class AdministrationServiceImplTest {
 	private PasswordValidator mockPasswordValidator;
 	@Mock
 	private EmailQuarantineDao mockEmailQuarantineDao;
+	@Mock
+	private RealmManager mockRealmManager;
 
 	@InjectMocks
 	private AdministrationServiceImpl adminService;
@@ -270,5 +275,33 @@ public class AdministrationServiceImplTest {
 		assertEquals("The request.email is required and must not be the empty string.", result);
 		
 		verifyZeroInteractions(mockEmailQuarantineDao);
+	}
+	
+	@Test
+	public void testCreateRealm() {
+		Realm realm = new Realm();
+		Realm createdRealm = new Realm();
+		when(mockRealmManager.createRealm(realm)).thenReturn(createdRealm);
+		Realm result = adminService.createRealm(realm);
+		assertEquals(createdRealm, result);
+		verify(mockRealmManager).createRealm(realm);
+	}
+
+	@Test
+	public void testListRealms() {
+		Realm realm1 = new Realm();
+		Realm realm2 = new Realm();
+		List<Realm> realms = List.of(realm1, realm2);
+		when(mockRealmManager.listRealms()).thenReturn(realms);
+		List<Realm> result = adminService.listRealms();
+		assertEquals(realms, result);
+		verify(mockRealmManager).listRealms();
+	}
+
+	@Test
+	public void testDeleteRealm() {
+		String realmId = "testRealmId";
+		adminService.deleteRealm(realmId);
+		verify(mockRealmManager).deleteRealm(realmId);
 	}
 }

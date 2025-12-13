@@ -86,7 +86,8 @@ public enum IdType {
 	GRID_CONNECTION_ID(null),
 	GRID_PATCH_ID(null),
     CURATION_TASK_ID(1000L),
-    RECORDSET_VALIDATION_STATS_ID(null)
+    RECORDSET_VALIDATION_STATS_ID(null),
+    REALM(null)
 	;
 	
 	Long startingId;

@@ -1,0 +1,11 @@
+{
+	"description": "List of realms",
+	"properties": {
+		"realms":{
+			"type": "array",
+			"items":{
+				"$ref": "org.sagebionetworks.repo.model.auth.Realm"
+			}
+		}
+	}
+}

@@ -3,6 +3,10 @@
 	"type": "string",
 	"enum": [
 		{
+			"name": "REALM",
+			"description": "Security Realm"
+		},
+		{
 			"name": "PRINCIPAL",
 			"description": "TODO: Auto-generated description"
 		},

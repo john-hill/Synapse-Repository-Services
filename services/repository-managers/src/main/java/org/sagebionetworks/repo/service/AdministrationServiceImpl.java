@@ -6,6 +6,7 @@ import java.util.Date;
 
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.repo.manager.AuthenticationManager;
+import org.sagebionetworks.repo.manager.RealmManager;
 import org.sagebionetworks.repo.manager.SemaphoreManager;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.doi.DoiAdminManager;
@@ -22,6 +23,8 @@ import org.sagebionetworks.repo.model.admin.ExpireQuarantinedEmailRequest;
 import org.sagebionetworks.repo.model.auth.LoginResponse;
 import org.sagebionetworks.repo.model.auth.NewIntegrationTestUser;
 import org.sagebionetworks.repo.model.auth.NewUser;
+import org.sagebionetworks.repo.model.auth.Realm;
+import org.sagebionetworks.repo.model.auth.RealmList;
 import org.sagebionetworks.repo.model.dbo.dao.DBOChangeDAO;
 import org.sagebionetworks.repo.model.dbo.ses.EmailQuarantineDao;
 import org.sagebionetworks.repo.model.dbo.verification.VerificationDAO;
@@ -88,6 +91,9 @@ public class AdministrationServiceImpl implements AdministrationService  {
 	
 	@Autowired
 	private EmailQuarantineDao emailQuarantineDao;
+
+	@Autowired
+	private RealmManager realmManager;
 
 	/* (non-Javadoc)
 	 * @see org.sagebionetworks.repo.web.service.AdministrationService#getStackStatus(java.lang.String, org.springframework.http.HttpHeaders, javax.servlet.http.HttpServletRequest)
@@ -253,6 +259,24 @@ public class AdministrationServiceImpl implements AdministrationService  {
 		adminCheck(userId);
 		
 		emailQuarantineDao.expireQuarantinedEmail(request.getEmail());		
+	}
+
+	@Override
+	public Realm createRealm(Long userId, Realm realm) {
+		adminCheck(userId);
+		return realmManager.createRealm(realm);
+	}
+
+	@Override
+	public RealmList listRealms(Long userId) {
+		adminCheck(userId);
+		return realmManager.listRealms();
+	}
+
+	@Override
+	public void deleteRealm(Long userId, String realmId) {
+		adminCheck(userId);
+		realmManager.deleteRealm(realmId);
 	}
 
 }

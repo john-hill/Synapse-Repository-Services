@@ -15,8 +15,6 @@ import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
-import org.sagebionetworks.repo.model.auth.AuthenticationDAO;
-import org.sagebionetworks.repo.model.dbo.portals.PortalDao;
 import org.sagebionetworks.repo.model.AuthorizationConstants.ACL_SCHEME;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.DatastoreException;
@@ -25,9 +23,13 @@ import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeConstants;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.RealmDao;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.UserProfileDAO;
+import org.sagebionetworks.repo.model.auth.AuthenticationDAO;
+import org.sagebionetworks.repo.model.auth.Realm;
+import org.sagebionetworks.repo.model.dbo.portals.PortalDao;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -69,6 +71,9 @@ public class EntityBootstrapperImpl implements EntityBootstrapper {
 	
 	@Autowired
 	private PortalDao portalDao;
+	
+	@Autowired
+	private RealmDao realmDao;
 
 	private List<EntityBootstrapData> bootstrapEntities;
 	/**
@@ -110,9 +115,12 @@ public class EntityBootstrapperImpl implements EntityBootstrapper {
 
 	private void doBootstrap() throws Exception, NotFoundException {
 		// Make sure users have been bootstrapped
+		Realm defaultRealm = realmDao.bootstrapDefaultRealm();
 		userGroupDAO.bootstrapUsers();
 		userProfileDAO.bootstrapProfiles();
 		groupMembersDAO.bootstrapGroups();
+		// TODO need to update default realm with principals
+		realmDao.updateRealm(defaultRealm);
 		authDAO.bootstrap();
 		accessRequirementDao.bootstrap();
 		portalDao.bootstrap();

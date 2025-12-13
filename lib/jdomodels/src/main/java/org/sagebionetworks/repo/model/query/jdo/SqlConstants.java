@@ -1457,6 +1457,23 @@ public class SqlConstants {
  	public static final String COL_RECORDSET_VALIDATION_STATS_RECORDSET_VERSION	= "RECORDSET_VERSION";
  	public static final String COL_RECORDSET_VALIDATION_STATS_JSON				= "STATS_JSON";
  	public static final String DDL_FILE_RECORDSET_VALIDATION_STATS				= "schema/RecordSetValidationStats-ddl.sql";
+ 	
+ 	// Tables to represent security Realms
+ 	public static final String TABLE_REALM = "REALM";
+ 	public static final String COL_REALM_ID = "ID";
+ 	public static final String COL_REALM_CREATED_ON = "CREATED_ON";
+ 	public static final String COL_REALM_E_TAG = "ETAG";
+ 	public static final String COL_REALM_NAME = "NAME";
+ 	public static final String COL_REALM_ANONYMOUS = "";
+ 	public static final String COL_REALM_PUBLIC = "";
+ 	public static final String COL_REALM_AUTHENTICATED = "";
+ 	public static final String COL_REALM_ADMINISTRATOR = "";
+ 	public static final String DDL_FILE_REALM = "schema/Realm-ddl.sql";
+ 	
+ 	public static final String TABLE_REALM_IDP = "REALM_IDP";
+	public static final String COL_REALM_IDP_REALM_ID = "REALM_ID";
+	public static final String COL_REALM_IDP_PROVIDER = "PROVIDER";
+	public static final String DDL_FILE_REALM_IDP = "schema/RealmIdentityProvider-ddl.sql";
 
 	// This seems to be the name of the id column for all tables.
 	public static final String COLUMN_ID		= "id";

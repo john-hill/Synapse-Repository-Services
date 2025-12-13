@@ -1,0 +1,46 @@
+{
+	"description": "Security realm for partitioning principals and resources",
+	"properties": {
+		"name": {
+			"type": "string",
+			"description": "Unique name of the realm"
+		},
+		"id": {
+			"type": "string",
+			"description": "Unique identifier of the realm"
+		},
+		"etag": {
+			"type": "string",
+			"description": "Synapse employs an Optimistic Concurrency Control (OCC) scheme to handle concurrent updates. Since the E-Tag changes every time an entity is updated it is used to detect when a client's current representation of an entity is out-of-date."
+		},
+		"createdOn": {
+			"type": "string",
+			"format": "date-time",
+			"description": "The date this realm was created."
+		},
+		
+		"identityProvider":{
+			"type": "array",
+			"description": "Identity providers which may be used in the realm. No two realms may share an identity provider.",
+			"items":{
+				"$ref": "org.sagebionetworks.repo.model.auth.IdentityProvider"
+			}
+		},
+		"anonymousUser": {
+			"type": "string",
+			"description": "The principal id representing an anonymous user in the realm"
+		},
+		"publicGroup": {
+			"type": "string",
+			"description": "The principal id representing all users, including unauthenticated ones, in the realm"
+		},
+		"authenticatedUsers": {
+			"type": "string",
+			"description": "The principal id representing all authenticated users in the realm"
+		},
+		"administrativeGroup": {
+			"type": "string",
+			"description": "The principal id representing the administrative Group in the realm"
+		},
+	}
+}

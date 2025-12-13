@@ -20,6 +20,8 @@ import org.sagebionetworks.repo.model.asynch.AsynchronousAdminRequestBody;
 import org.sagebionetworks.repo.model.asynch.AsynchronousJobStatus;
 import org.sagebionetworks.repo.model.auth.LoginResponse;
 import org.sagebionetworks.repo.model.auth.NewIntegrationTestUser;
+import org.sagebionetworks.repo.model.auth.Realm;
+import org.sagebionetworks.repo.model.auth.RealmList;
 import org.sagebionetworks.repo.model.feature.Feature;
 import org.sagebionetworks.repo.model.feature.FeatureStatus;
 import org.sagebionetworks.repo.model.message.ChangeMessages;
@@ -400,6 +402,39 @@ public class AdministrationController {
 	public @ResponseBody void removeQuarantinedEmail(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @RequestBody ExpireQuarantinedEmailRequest request)
 			throws NotFoundException, UnauthorizedException {
 		serviceProvider.getAdministrationService().expireQuarantinedEmail(userId, request);
+	}
+
+	/**
+	 * Create a new realm
+	 * @param realm
+	 * @return
+	 */
+	@ResponseStatus(HttpStatus.CREATED)
+	@RequestMapping(value = UrlHelpers.REALM, method = RequestMethod.POST)
+	@ResponseBody
+	public Realm createRealm(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @RequestBody Realm realm) {
+		return serviceProvider.getAdministrationService().createRealm(userId, realm);
+	}
+
+	/**
+	 * List the existing realms.
+	 * @return list of existing realms
+	 */
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.REALM_LIST, method = RequestMethod.GET)
+	@ResponseBody
+	public RealmList listRealms(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId) {
+		return serviceProvider.getAdministrationService().listRealms(userId);
+	}
+
+	/**
+	 * Delete a realm.
+	 * @param realmId
+	 */
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.REALM_ID, method = RequestMethod.DELETE)
+	public void deleteRealm(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable("id") String id) {
+		serviceProvider.getAdministrationService().deleteRealm(userId, id);
 	}
 
 }

@@ -35,6 +35,7 @@ import org.sagebionetworks.repo.model.admin.ExpireQuarantinedEmailRequest;
 import org.sagebionetworks.repo.model.auth.LoginResponse;
 import org.sagebionetworks.repo.model.auth.NewIntegrationTestUser;
 import org.sagebionetworks.repo.model.auth.Realm;
+import org.sagebionetworks.repo.model.auth.RealmIdList;
 import org.sagebionetworks.repo.model.dbo.dao.DBOChangeDAO;
 import org.sagebionetworks.repo.model.dbo.ses.EmailQuarantineDao;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
@@ -282,26 +283,27 @@ public class AdministrationServiceImplTest {
 		Realm realm = new Realm();
 		Realm createdRealm = new Realm();
 		when(mockRealmManager.createRealm(realm)).thenReturn(createdRealm);
-		Realm result = adminService.createRealm(realm);
+		Realm result = adminService.createRealm(adminUserId, realm);
 		assertEquals(createdRealm, result);
 		verify(mockRealmManager).createRealm(realm);
 	}
 
 	@Test
 	public void testListRealms() {
-		Realm realm1 = new Realm();
-		Realm realm2 = new Realm();
-		List<Realm> realms = List.of(realm1, realm2);
-		when(mockRealmManager.listRealms()).thenReturn(realms);
-		List<Realm> result = adminService.listRealms();
-		assertEquals(realms, result);
-		verify(mockRealmManager).listRealms();
+		String realmId1 = "1";
+		String realmId2 = "2";
+		RealmIdList realmIdList = new RealmIdList();
+		realmIdList.setRealms(List.of(realmId1, realmId2));
+		when(mockRealmManager.listRealmIds()).thenReturn(realmIdList);
+		RealmIdList result = adminService.listRealmIds(adminUserId);
+		assertEquals(realmIdList, result);
+		verify(mockRealmManager).listRealmIds();
 	}
 
 	@Test
 	public void testDeleteRealm() {
 		String realmId = "testRealmId";
-		adminService.deleteRealm(realmId);
+		adminService.deleteRealm(adminUserId, realmId);
 		verify(mockRealmManager).deleteRealm(realmId);
 	}
 }

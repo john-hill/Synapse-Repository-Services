@@ -1,27 +1,40 @@
 package org.sagebionetworks.repo.model.dbo.auth;
 
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_IDP_PROVIDER;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_IDP_REALM_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_REALM;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_REALM_IDP;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
-import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.RealmDao;
 import org.sagebionetworks.repo.model.auth.IdentityProvider;
 import org.sagebionetworks.repo.model.auth.OAuthIdentityProvider;
 import org.sagebionetworks.repo.model.auth.Realm;
-import org.sagebionetworks.repo.model.auth.RealmList;
+import org.sagebionetworks.repo.model.auth.RealmIdList;
 import org.sagebionetworks.repo.model.auth.SynapseIdentityProvider;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
+import org.sagebionetworks.repo.model.dbo.SinglePrimaryKeySqlParameterSource;
 import org.sagebionetworks.repo.model.dbo.persistence.DBORealm;
 import org.sagebionetworks.repo.model.dbo.persistence.DBORealmIdentityProvider;
-import org.sagebionetworks.repo.model.message.TransactionalMessenger;
 import org.sagebionetworks.repo.model.oauth.OAuthProvider;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 
 public class RealmDaoImpl implements RealmDao {
 	
@@ -32,9 +45,6 @@ public class RealmDaoImpl implements RealmDao {
 	private IdGenerator idGenerator;
 	
 	@Autowired
-	private TransactionalMessenger transactionalMessenger;
-	
-	@Autowired
 	private NamedParameterJdbcTemplate namedJdbcTemplate;
 	
 	@Autowired
@@ -42,15 +52,27 @@ public class RealmDaoImpl implements RealmDao {
 	
 	private static final String SYNAPSE_IDENTITY_PROVIDER = "SYNAPSE";
 	
+	private static final String DEFAULT_REALM_NAME = "SYNAPSE";
+	private static final String DEFAULT_REALM_ID = "0";
+	
+	private static final String DELETE_IDPS_SQL = "DELETE FROM "+
+		TABLE_REALM_IDP+" WHERE "+COL_REALM_IDP_REALM_ID+" = ?";
+	
+	private static final String REALM_IDP_SQL = "SELECT * FROM "+TABLE_REALM_IDP+" WHERE "+COL_REALM_IDP_REALM_ID+"=?";
+	
+	private static final String SELECT_ALL_IDS_SQL = "SELECT "+COL_REALM_ID+" FROM "+TABLE_REALM;
+	
+	private static final String DELETE_REALM_SQL = "DELETE FROM "+TABLE_REALM+" WHERE "+COL_REALM_ID+"=?";
+	
 
-	Long stringToLong(String s) {
+	static Long stringToLong(String s) {
 		Long result = null;
 		if (s!=null) {
 			result = Long.parseLong(s);
 		}
 		return result;
 	}
-	DBORealm copyRealmToDBORealm(Realm realm) {
+	static DBORealm copyRealmToDBORealm(Realm realm) {
 		DBORealm dbo = new DBORealm();
 		dbo.setId(stringToLong(realm.getId()));
 		dbo.setEtag(realm.getEtag());
@@ -63,7 +85,20 @@ public class RealmDaoImpl implements RealmDao {
 		return dbo;
 	}
 	
-	List<DBORealmIdentityProvider> copyRealmToRealmIdps(Realm realm) {
+	static Realm copyDBORealmToRealm(DBORealm dbo) {
+		Realm result = new Realm();
+		result.setId(dbo.getId().toString());
+		result.setEtag(dbo.getEtag());
+		result.setName(dbo.getName());
+		result.setCreatedOn(dbo.getCreationDate());
+		result.setAdministrativeGroup(dbo.getAdministrativeGroup().toString());
+		result.setAnonymousUser(dbo.getAnonymousUserId().toString());
+		result.setAuthenticatedUsers(dbo.getAuthenticatedUsers().toString());
+		result.setPublicGroup(dbo.getPublicGroup().toString());
+		return result;
+	}
+	
+	static List<DBORealmIdentityProvider> copyRealmToRealmIdps(Realm realm) {
 		List<DBORealmIdentityProvider> result = new ArrayList<DBORealmIdentityProvider>();
 		if (realm.getIdentityProvider()!=null) {
 			for (IdentityProvider idp : realm.getIdentityProvider()) {
@@ -81,25 +116,33 @@ public class RealmDaoImpl implements RealmDao {
 		}
 		return result;
 	}
+	
+	static void copyRealmIdpsToRealm(List<DBORealmIdentityProvider> dboList, Realm realm) {
+		List<IdentityProvider> dtoList = new ArrayList<IdentityProvider>();
+		for (DBORealmIdentityProvider dbo : dboList) {
+			if (SYNAPSE_IDENTITY_PROVIDER.equals(dbo.getIdentityProvider())) {
+				dtoList.add(new SynapseIdentityProvider());
+			} else {
+				OAuthIdentityProvider dto = new OAuthIdentityProvider();
+				dto.setProvider(OAuthProvider.valueOf(dbo.getIdentityProvider()));
+				dtoList.add(dto);
+			}
+		}
+		realm.setIdentityProvider(dtoList);
+	}
 
 	private DBORealm createPrivate(Realm dto) {
+		dto.setEtag(UUID.randomUUID().toString());
+		dto.setCreatedOn(new Date());
 		DBORealm dbo = copyRealmToDBORealm(dto);
-		dbo.setEtag(UUID.randomUUID().toString());
-		// Bootstrapped realm will have ID already assigned.
-		if(dbo.getId() == null){
-			// We allow the ID generator to create all other IDs
-			dbo.setId(idGenerator.generateNewId(IdType.REALM));
-		}
-		
-		try {
-			dbo = basicDao.createNew(dbo);
-		} catch (Exception e) {
-			throw new DatastoreException("id=" + dbo.getId(), e);
-		}	
+		dbo = basicDao.createNew(dbo);
 		
 		List<DBORealmIdentityProvider> realmIdpList = copyRealmToRealmIdps(dto);
-		// TODO recreate the records
-		
+		// remove existing IDPs for this realm
+		jdbcTemplate.update(DELETE_IDPS_SQL, dto.getId()); // TODO if we are creating, do we need to do this delete?
+		// create the IDPs
+		List<DBORealmIdentityProvider> idps = copyRealmToRealmIdps(dto);
+		basicDao.createBatch(idps);
 		return dbo;
 	}
 
@@ -107,8 +150,7 @@ public class RealmDaoImpl implements RealmDao {
 	@WriteTransaction
 	@Override
 	public Realm createRealm(Realm dto) {
-		// The public version unconditionally clears the ID so a new one will be assigned
-		dto.setId(null);
+		dto.setId(""+idGenerator.generateNewId(IdType.REALM));
 		DBORealm dbo = createPrivate(dto);
 		return dto;
 	}
@@ -123,28 +165,64 @@ public class RealmDaoImpl implements RealmDao {
 
 	@Override
 	public Realm getRealm(String id) {
-		// TODO Auto-generated method stub
-		return null;
+		SqlParameterSource param = new SinglePrimaryKeySqlParameterSource(id);
+		Optional<DBORealm> dboOptional = basicDao.getObjectByPrimaryKeyIfExists(DBORealm.class, param);
+		if (dboOptional.isEmpty()) {
+			throw new NotFoundException(id);
+		}
+		DBORealm dbo = dboOptional.get();
+		Realm result = copyDBORealmToRealm(dbo);
+		List<DBORealmIdentityProvider> idps = namedJdbcTemplate.query(REALM_IDP_SQL, new RowMapper<DBORealmIdentityProvider>(){
+			@Override
+			public DBORealmIdentityProvider mapRow(ResultSet rs, int rowNum) throws SQLException {
+				DBORealmIdentityProvider dboRealmIdp = new DBORealmIdentityProvider();
+				dboRealmIdp.setRealmId(rs.getLong(COL_REALM_IDP_REALM_ID));
+				dboRealmIdp.setIdentityProvider(rs.getString(COL_REALM_IDP_PROVIDER));
+				return dboRealmIdp;
+			}});
+		copyRealmIdpsToRealm(idps, result);
+		return result;
 	}
 
 	@Override
-	public RealmList listRealms() {
-		// TODO Auto-generated method stub
-		return null;
+	public RealmIdList listRealmIds() {
+		RealmIdList result = new RealmIdList();
+		result.setRealms(
+			namedJdbcTemplate.queryForList(SELECT_ALL_IDS_SQL, new MapSqlParameterSource(), String.class)
+		);
+		return result;
 	}
 
 	@WriteTransaction
 	@Override
 	public void deleteRealm(long id) {
-		// TODO Auto-generated method stub
+		jdbcTemplate.update(DELETE_REALM_SQL, id);
+
 
 	}
 
 	@WriteTransaction
 	@Override
 	public Realm bootstrapDefaultRealm() {
-		// TODO Auto-generated method stub
-		return null;
+		Realm defaultRealm = new Realm();
+		defaultRealm.setId(DEFAULT_REALM_ID);
+		defaultRealm.setName(DEFAULT_REALM_NAME);
+		List<IdentityProvider> idps = new ArrayList<IdentityProvider>();
+		SynapseIdentityProvider synapseIdp = new SynapseIdentityProvider();
+		idps.add(synapseIdp);
+		OAuthIdentityProvider googleIdp = new OAuthIdentityProvider();
+		googleIdp.setProvider(OAuthProvider.GOOGLE_OAUTH_2_0);
+		idps.add(googleIdp);
+		OAuthIdentityProvider orcidIdp = new OAuthIdentityProvider();
+		orcidIdp.setProvider(OAuthProvider.ORCID);
+		idps.add(orcidIdp);
+		defaultRealm.setIdentityProvider(idps);
+		// Note that we create the realm without the four realm principals. This
+		// is because each principal has to reference its realm.  So we create
+		// the realm, then create the principals, and then, finally, update
+		// the realm to reference its principals.
+		createPrivate(defaultRealm);
+		return defaultRealm;
 	}
 
 }

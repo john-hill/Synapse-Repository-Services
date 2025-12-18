@@ -4,7 +4,7 @@ import org.sagebionetworks.repo.model.RealmDao;
 import org.sagebionetworks.repo.model.UserGroup;
 import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.auth.Realm;
-import org.sagebionetworks.repo.model.auth.RealmList;
+import org.sagebionetworks.repo.model.auth.RealmIdList;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,8 +40,8 @@ public class RealmManagerImpl implements RealmManager {
 	}
 
 	@Override
-	public RealmList listRealms() {
-		return realmDao.listRealms();
+	public RealmIdList listRealmIds() {
+		return realmDao.listRealmIds();
 	}
 
 	@Override

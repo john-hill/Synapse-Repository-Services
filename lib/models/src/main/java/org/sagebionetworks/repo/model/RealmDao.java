@@ -1,7 +1,7 @@
 package org.sagebionetworks.repo.model;
 
 import org.sagebionetworks.repo.model.auth.Realm;
-import org.sagebionetworks.repo.model.auth.RealmList;
+import org.sagebionetworks.repo.model.auth.RealmIdList;
 
 public interface RealmDao {
 	
@@ -29,10 +29,10 @@ public interface RealmDao {
 	public Realm getRealm(String id);
 	
 	/**
-	 * List the existing realms.  Note, since the number of realms is small, this is not paginated.
+	 * List the IDs of the existing realms.  Note, since the number of realms is small, this is not paginated.
 	 * @return
 	 */
-	public RealmList listRealms();
+	public RealmIdList listRealmIds();
 	
 	/**
 	 * Delete the given realm

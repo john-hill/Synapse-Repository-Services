@@ -11,7 +11,7 @@ import org.sagebionetworks.repo.model.admin.ExpireQuarantinedEmailRequest;
 import org.sagebionetworks.repo.model.auth.LoginResponse;
 import org.sagebionetworks.repo.model.auth.NewIntegrationTestUser;
 import org.sagebionetworks.repo.model.auth.Realm;
-import org.sagebionetworks.repo.model.auth.RealmList;
+import org.sagebionetworks.repo.model.auth.RealmIdList;
 import org.sagebionetworks.repo.model.feature.Feature;
 import org.sagebionetworks.repo.model.feature.FeatureStatus;
 import org.sagebionetworks.repo.model.message.ChangeMessages;
@@ -185,7 +185,7 @@ public interface AdministrationService {
 	 * 
 	 * @return
 	 */
-	RealmList listRealms(Long userId);
+	RealmIdList listRealmIds(Long userId);
 	
 	/**
 	 * 

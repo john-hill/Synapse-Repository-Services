@@ -1,7 +1,7 @@
 package org.sagebionetworks.repo.manager;
 
 import org.sagebionetworks.repo.model.auth.Realm;
-import org.sagebionetworks.repo.model.auth.RealmList;
+import org.sagebionetworks.repo.model.auth.RealmIdList;
 
 public interface RealmManager {
 
@@ -13,10 +13,10 @@ public interface RealmManager {
 	Realm createRealm(Realm realm);
 	
 	/**
-	 * List the existing realms.
+	 * List the IDS of the existing realms.
 	 * @return
 	 */
-	RealmList listRealms();
+	RealmIdList listRealmIds();
 	
 	/**
 	 * Delete a realm.

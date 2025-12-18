@@ -24,7 +24,7 @@ import org.sagebionetworks.repo.model.auth.LoginResponse;
 import org.sagebionetworks.repo.model.auth.NewIntegrationTestUser;
 import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.auth.Realm;
-import org.sagebionetworks.repo.model.auth.RealmList;
+import org.sagebionetworks.repo.model.auth.RealmIdList;
 import org.sagebionetworks.repo.model.dbo.dao.DBOChangeDAO;
 import org.sagebionetworks.repo.model.dbo.ses.EmailQuarantineDao;
 import org.sagebionetworks.repo.model.dbo.verification.VerificationDAO;
@@ -268,9 +268,9 @@ public class AdministrationServiceImpl implements AdministrationService  {
 	}
 
 	@Override
-	public RealmList listRealms(Long userId) {
+	public RealmIdList listRealmIds(Long userId) {
 		adminCheck(userId);
-		return realmManager.listRealms();
+		return realmManager.listRealmIds();
 	}
 
 	@Override

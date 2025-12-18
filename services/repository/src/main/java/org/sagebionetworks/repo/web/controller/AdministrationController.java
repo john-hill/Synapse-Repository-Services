@@ -21,7 +21,7 @@ import org.sagebionetworks.repo.model.asynch.AsynchronousJobStatus;
 import org.sagebionetworks.repo.model.auth.LoginResponse;
 import org.sagebionetworks.repo.model.auth.NewIntegrationTestUser;
 import org.sagebionetworks.repo.model.auth.Realm;
-import org.sagebionetworks.repo.model.auth.RealmList;
+import org.sagebionetworks.repo.model.auth.RealmIdList;
 import org.sagebionetworks.repo.model.feature.Feature;
 import org.sagebionetworks.repo.model.feature.FeatureStatus;
 import org.sagebionetworks.repo.model.message.ChangeMessages;
@@ -417,14 +417,15 @@ public class AdministrationController {
 	}
 
 	/**
-	 * List the existing realms.
-	 * @return list of existing realms
+	 * List the IDs of the current realms.
+	 * @return list of the IDs of the existing realms
 	 */
+	// TODO not an admin service
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = UrlHelpers.REALM_LIST, method = RequestMethod.GET)
 	@ResponseBody
-	public RealmList listRealms(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId) {
-		return serviceProvider.getAdministrationService().listRealms(userId);
+	public RealmIdList listRealmIds(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId) {
+		return serviceProvider.getAdministrationService().listRealmIds(userId);
 	}
 
 	/**

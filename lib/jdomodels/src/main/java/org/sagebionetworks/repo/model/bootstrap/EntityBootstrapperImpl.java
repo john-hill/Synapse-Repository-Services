@@ -119,7 +119,12 @@ public class EntityBootstrapperImpl implements EntityBootstrapper {
 		userGroupDAO.bootstrapUsers();
 		userProfileDAO.bootstrapProfiles();
 		groupMembersDAO.bootstrapGroups();
-		// TODO need to update default realm with principals
+		// Note, that the Synapse Administrator group is doing 'double duty' here by also being the
+		// administrative group for the default realm. 
+		defaultRealm.setAdministrativeGroup(BOOTSTRAP_PRINCIPAL.ADMINISTRATORS_GROUP.getPrincipalId().toString());
+		defaultRealm.setAnonymousUser(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId().toString());
+		defaultRealm.setAuthenticatedUsers(BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId().toString());
+		defaultRealm.setPublicGroup(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId().toString());
 		realmDao.updateRealm(defaultRealm);
 		authDAO.bootstrap();
 		accessRequirementDao.bootstrap();

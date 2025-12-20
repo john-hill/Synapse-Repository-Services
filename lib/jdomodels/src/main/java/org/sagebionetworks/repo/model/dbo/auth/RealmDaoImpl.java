@@ -137,9 +137,8 @@ public class RealmDaoImpl implements RealmDao {
 		DBORealm dbo = copyRealmToDBORealm(dto);
 		dbo = basicDao.createNew(dbo);
 		
-		List<DBORealmIdentityProvider> realmIdpList = copyRealmToRealmIdps(dto);
 		// remove existing IDPs for this realm
-		jdbcTemplate.update(DELETE_IDPS_SQL, dto.getId()); // TODO if we are creating, do we need to do this delete?
+		jdbcTemplate.update(DELETE_IDPS_SQL, dto.getId());
 		// create the IDPs
 		List<DBORealmIdentityProvider> idps = copyRealmToRealmIdps(dto);
 		basicDao.createBatch(idps);
@@ -157,10 +156,18 @@ public class RealmDaoImpl implements RealmDao {
 	
 	@WriteTransaction
 	@Override
-	public Realm updateRealm(Realm realm) {
-		// TODO Auto-generated method stub
-		// TODO don't forget to delete the existing IDP records before creating the new ones
-		return null;
+	public Realm updateRealm(Realm dto) {
+		// TODO compare dto.getEtag() to current etag
+		dto.setEtag(UUID.randomUUID().toString());
+		// TODO don't allow changing ID or createdOn
+		// TODO four principals cannot be null
+		DBORealm dbo = copyRealmToDBORealm(dto);
+		// remove existing IDPs for this realm
+		jdbcTemplate.update(DELETE_IDPS_SQL, dto.getId());
+		// create the IDPs
+		List<DBORealmIdentityProvider> idps = copyRealmToRealmIdps(dto);
+		basicDao.createBatch(idps);
+		return dto;
 	}
 
 	@Override

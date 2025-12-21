@@ -258,7 +258,7 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 	@Override
 	@WriteTransaction
 	public void bootstrapUsers() throws Exception {
-		// Reserver an ID well above the current
+		// Reserve an ID well above the current
 		idGenerator.reserveId(START_OF_USER_IDS, IdType.PRINCIPAL_ID);
 		
 		// Boot strap all users and groups
@@ -280,6 +280,7 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 				}else{
 					newUg.setIsIndividual(false);
 				}
+				newUg.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
 				this.createPrivate(newUg);
 			}
 		}

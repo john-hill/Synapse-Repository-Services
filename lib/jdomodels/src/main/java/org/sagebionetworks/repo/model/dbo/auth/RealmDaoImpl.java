@@ -16,6 +16,7 @@ import java.util.UUID;
 
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.RealmDao;
 import org.sagebionetworks.repo.model.auth.IdentityProvider;
 import org.sagebionetworks.repo.model.auth.OAuthIdentityProvider;
@@ -53,7 +54,6 @@ public class RealmDaoImpl implements RealmDao {
 	private static final String SYNAPSE_IDENTITY_PROVIDER = "SYNAPSE";
 	
 	private static final String DEFAULT_REALM_NAME = "SYNAPSE";
-	private static final String DEFAULT_REALM_ID = "0";
 	
 	private static final String DELETE_IDPS_SQL = "DELETE FROM "+
 		TABLE_REALM_IDP+" WHERE "+COL_REALM_IDP_REALM_ID+" = ?";
@@ -212,7 +212,7 @@ public class RealmDaoImpl implements RealmDao {
 	@Override
 	public Realm bootstrapDefaultRealm() {
 		Realm defaultRealm = new Realm();
-		defaultRealm.setId(DEFAULT_REALM_ID);
+		defaultRealm.setId(AuthorizationConstants.DEFAULT_REALM_ID);
 		defaultRealm.setName(DEFAULT_REALM_NAME);
 		List<IdentityProvider> idps = new ArrayList<IdentityProvider>();
 		SynapseIdentityProvider synapseIdp = new SynapseIdentityProvider();

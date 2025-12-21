@@ -5,6 +5,8 @@ package org.sagebionetworks.repo.model;
  */
 public class AuthorizationConstants {
 
+	public static final String DEFAULT_REALM_ID = "0";
+	
 	/**
 	 * These are default users and groups that are guaranteed to be initialized by the system
 	 * 

@@ -28,7 +28,6 @@ import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.UserProfileDAO;
 import org.sagebionetworks.repo.model.auth.AuthenticationDAO;
-import org.sagebionetworks.repo.model.auth.Realm;
 import org.sagebionetworks.repo.model.dbo.portals.PortalDao;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -71,9 +70,6 @@ public class EntityBootstrapperImpl implements EntityBootstrapper {
 	
 	@Autowired
 	private PortalDao portalDao;
-	
-	@Autowired
-	private RealmDao realmDao;
 
 	private List<EntityBootstrapData> bootstrapEntities;
 	/**
@@ -115,17 +111,9 @@ public class EntityBootstrapperImpl implements EntityBootstrapper {
 
 	private void doBootstrap() throws Exception, NotFoundException {
 		// Make sure users have been bootstrapped
-		Realm defaultRealm = realmDao.bootstrapDefaultRealm();
 		userGroupDAO.bootstrapUsers();
 		userProfileDAO.bootstrapProfiles();
 		groupMembersDAO.bootstrapGroups();
-		// Note, that the Synapse Administrator group is doing 'double duty' here by also being the
-		// administrative group for the default realm. 
-		defaultRealm.setAdministrativeGroup(BOOTSTRAP_PRINCIPAL.ADMINISTRATORS_GROUP.getPrincipalId().toString());
-		defaultRealm.setAnonymousUser(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId().toString());
-		defaultRealm.setAuthenticatedUsers(BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId().toString());
-		defaultRealm.setPublicGroup(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId().toString());
-		realmDao.updateRealm(defaultRealm);
 		authDAO.bootstrap();
 		accessRequirementDao.bootstrap();
 		portalDao.bootstrap();

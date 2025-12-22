@@ -43,6 +43,11 @@ public interface RealmDao {
 	/**
 	 * Create default realm, with id 0
 	 */
-	public Realm bootstrapDefaultRealm();
+	public void bootstrapDefaultRealm();
+
+	/**
+	 * Add principals to default realm
+	 */
+	public void addPrincipalsToDefaultRealm();
 
 }

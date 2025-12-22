@@ -18,6 +18,7 @@ import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.RealmDao;
+import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.auth.IdentityProvider;
 import org.sagebionetworks.repo.model.auth.OAuthIdentityProvider;
 import org.sagebionetworks.repo.model.auth.Realm;
@@ -210,7 +211,7 @@ public class RealmDaoImpl implements RealmDao {
 
 	@WriteTransaction
 	@Override
-	public Realm bootstrapDefaultRealm() {
+	public void bootstrapDefaultRealm() {
 		Realm defaultRealm = new Realm();
 		defaultRealm.setId(AuthorizationConstants.DEFAULT_REALM_ID);
 		defaultRealm.setName(DEFAULT_REALM_NAME);
@@ -227,9 +228,25 @@ public class RealmDaoImpl implements RealmDao {
 		// Note that we create the realm without the four realm principals. This
 		// is because each principal has to reference its realm.  So we create
 		// the realm, then create the principals, and then, finally, update
-		// the realm to reference its principals.
+		// the realm to reference its principals (below).
 		createPrivate(defaultRealm);
-		return defaultRealm;
+	}
+
+	@WriteTransaction
+	@Override
+	public void addPrincipalsToDefaultRealm() {
+		Realm defaultRealm = getRealm(AuthorizationConstants.DEFAULT_REALM_ID);
+		// Note that we create the realm without the four realm principals. This
+		// is because each principal has to reference its realm.  So we create
+		// the realm, then create the principals, and then, finally, update
+		// the realm to reference its principals.
+		// Note, that the Synapse Administrator group is doing 'double duty' here by also being the
+		// administrative group for the default realm. 
+		defaultRealm.setAdministrativeGroup(BOOTSTRAP_PRINCIPAL.ADMINISTRATORS_GROUP.getPrincipalId().toString());
+		defaultRealm.setAnonymousUser(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId().toString());
+		defaultRealm.setAuthenticatedUsers(BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId().toString());
+		defaultRealm.setPublicGroup(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId().toString());
+		updateRealm(defaultRealm);
 	}
 
 }

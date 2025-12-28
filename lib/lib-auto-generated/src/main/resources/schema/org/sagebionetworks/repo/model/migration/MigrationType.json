@@ -7,6 +7,10 @@
 			"description": "Security Realm"
 		},
 		{
+			"name": "REALM_PRINCIPAL",
+			"description": "System-generated principals for security realm"
+		},
+		{
 			"name": "PRINCIPAL",
 			"description": "TODO: Auto-generated description"
 		},

@@ -3,14 +3,10 @@
  */
 package org.sagebionetworks.repo.model.dbo.persistence;
 
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_ADMINISTRATOR;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_ANONYMOUS;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_AUTHENTICATED;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_CREATED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_E_TAG;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_NAME;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_PUBLIC;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.DDL_FILE_REALM;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_REALM;
 
@@ -37,21 +33,13 @@ public class DBORealm implements MigratableDatabaseObject<DBORealm, DBORealm> {
 	private Date creationDate;
 	private String etag;
 	private String name;
-	private Long anonymousUserId;
-	private Long publicGroup;
-	private Long authenticatedUsers;
-	private Long administrativeGroup;
 
 
 	private static FieldColumn[] FIELDS = new FieldColumn[] {
 		new FieldColumn("id", COL_REALM_ID, true).withIsBackupId(true),
 		new FieldColumn("etag", COL_REALM_E_TAG).withIsEtag(true),
 		new FieldColumn("creationDate", COL_REALM_CREATED_ON),
-		new FieldColumn("name", COL_REALM_NAME),
-		new FieldColumn("anonymousUserId", COL_REALM_ANONYMOUS),
-		new FieldColumn("publicGroup", COL_REALM_PUBLIC),
-		new FieldColumn("authenticatedUsers", COL_REALM_AUTHENTICATED),
-		new FieldColumn("administrativeGroup", COL_REALM_ADMINISTRATOR)
+		new FieldColumn("name", COL_REALM_NAME)
 		};
 
 	@Override
@@ -66,10 +54,6 @@ public class DBORealm implements MigratableDatabaseObject<DBORealm, DBORealm> {
 				realm.setCreationDate(new Date(ts.getTime()));
 				realm.setName(rs.getString(COL_REALM_NAME));
 				realm.setEtag(rs.getString(COL_REALM_E_TAG));
-				realm.setAnonymousUserId(rs.getLong(COL_REALM_ANONYMOUS));
-				realm.setPublicGroup(rs.getLong(COL_REALM_PUBLIC));
-				realm.setAuthenticatedUsers(rs.getLong(COL_REALM_AUTHENTICATED));
-				realm.setAdministrativeGroup(rs.getLong(COL_REALM_ADMINISTRATOR));
 				return realm;
 			}
 
@@ -152,50 +136,14 @@ public class DBORealm implements MigratableDatabaseObject<DBORealm, DBORealm> {
 		this.name = name;
 	}
 
-	public Long getAnonymousUserId() {
-		return anonymousUserId;
-	}
-
-	public void setAnonymousUserId(Long anonymousUserId) {
-		this.anonymousUserId = anonymousUserId;
-	}
-
-	public Long getPublicGroup() {
-		return publicGroup;
-	}
-
-	public void setPublicGroup(Long publicGroup) {
-		this.publicGroup = publicGroup;
-	}
-
-	public Long getAuthenticatedUsers() {
-		return authenticatedUsers;
-	}
-
-	public void setAuthenticatedUsers(Long authenticatedUsers) {
-		this.authenticatedUsers = authenticatedUsers;
-	}
-
-	public Long getAdministrativeGroup() {
-		return administrativeGroup;
-	}
-
-	public void setAdministrativeGroup(Long administrativeGroup) {
-		this.administrativeGroup = administrativeGroup;
-	}
-
 	@Override
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
-		result = prime * result + ((administrativeGroup == null) ? 0 : administrativeGroup.hashCode());
-		result = prime * result + ((anonymousUserId == null) ? 0 : anonymousUserId.hashCode());
-		result = prime * result + ((authenticatedUsers == null) ? 0 : authenticatedUsers.hashCode());
 		result = prime * result + ((creationDate == null) ? 0 : creationDate.hashCode());
 		result = prime * result + ((etag == null) ? 0 : etag.hashCode());
 		result = prime * result + ((id == null) ? 0 : id.hashCode());
 		result = prime * result + ((name == null) ? 0 : name.hashCode());
-		result = prime * result + ((publicGroup == null) ? 0 : publicGroup.hashCode());
 		return result;
 	}
 
@@ -208,21 +156,6 @@ public class DBORealm implements MigratableDatabaseObject<DBORealm, DBORealm> {
 		if (getClass() != obj.getClass())
 			return false;
 		DBORealm other = (DBORealm) obj;
-		if (administrativeGroup == null) {
-			if (other.administrativeGroup != null)
-				return false;
-		} else if (!administrativeGroup.equals(other.administrativeGroup))
-			return false;
-		if (anonymousUserId == null) {
-			if (other.anonymousUserId != null)
-				return false;
-		} else if (!anonymousUserId.equals(other.anonymousUserId))
-			return false;
-		if (authenticatedUsers == null) {
-			if (other.authenticatedUsers != null)
-				return false;
-		} else if (!authenticatedUsers.equals(other.authenticatedUsers))
-			return false;
 		if (creationDate == null) {
 			if (other.creationDate != null)
 				return false;
@@ -243,12 +176,12 @@ public class DBORealm implements MigratableDatabaseObject<DBORealm, DBORealm> {
 				return false;
 		} else if (!name.equals(other.name))
 			return false;
-		if (publicGroup == null) {
-			if (other.publicGroup != null)
-				return false;
-		} else if (!publicGroup.equals(other.publicGroup))
-			return false;
 		return true;
+	}
+
+	@Override
+	public String toString() {
+		return "DBORealm [id=" + id + ", creationDate=" + creationDate + ", etag=" + etag + ", name=" + name + "]";
 	}
 
 

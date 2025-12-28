@@ -41,6 +41,6 @@
 		"administrativeGroup": {
 			"type": "string",
 			"description": "The principal id representing the administrative Group in the realm"
-		},
+		}
 	}
 }

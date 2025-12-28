@@ -22,8 +22,8 @@ import org.sagebionetworks.repo.model.migration.MigrationType;
 public class DBORealmIdentityProvider implements MigratableDatabaseObject<DBORealmIdentityProvider, DBORealmIdentityProvider> {
 
 	private static FieldColumn[] FIELDS = new FieldColumn[] {
-			new FieldColumn("realmId", COL_REALM_IDP_REALM_ID).withIsBackupId(true),
-			new FieldColumn("identityProvider", COL_REALM_IDP_PROVIDER)
+			new FieldColumn("realmId", COL_REALM_IDP_REALM_ID, true).withIsBackupId(true),
+			new FieldColumn("identityProvider", COL_REALM_IDP_PROVIDER, true)
 	};
 
 	private Long realmId;

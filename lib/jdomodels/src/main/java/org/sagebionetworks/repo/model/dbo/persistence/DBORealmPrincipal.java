@@ -30,7 +30,7 @@ public class DBORealmPrincipal implements MigratableDatabaseObject<DBORealmPrinc
 	private String principalType;
 
 	private static FieldColumn[] FIELDS = new FieldColumn[] {
-			new FieldColumn("id", COL_REALM_PRINCIPAL_ID).withIsBackupId(true),
+			new FieldColumn("id", COL_REALM_PRINCIPAL_ID, true).withIsBackupId(true),
 			new FieldColumn("realmId", COL_REALM_PRINCIPAL_REALM_ID),
 			new FieldColumn("principalId", COL_REALM_PRINCIPAL_PRINCIPAL_ID),
 			new FieldColumn("principalType", COL_REALM_PRINCIPAL_PRINCIPAL_TYPE)

@@ -65,7 +65,7 @@ public class DBORealmIdentityProvider implements MigratableDatabaseObject<DBORea
 
 	@Override
 	public MigrationType getMigratableTableType() {
-		return MigrationType.REALM;
+		return MigrationType.REALM_IDP;
 	}
 
 	@Override

@@ -7,12 +7,16 @@
 			"description": "Security Realm"
 		},
 		{
-			"name": "REALM_PRINCIPAL",
-			"description": "System-generated principals for security realm"
+			"name": "REALM_IDP",
+			"description": "Identity provider for a security realm"
 		},
 		{
 			"name": "PRINCIPAL",
 			"description": "TODO: Auto-generated description"
+		},
+		{
+			"name": "REALM_PRINCIPAL",
+			"description": "System-generated principals for security realm"
 		},
 		{
 			"name": "GROUP_MEMBERS",

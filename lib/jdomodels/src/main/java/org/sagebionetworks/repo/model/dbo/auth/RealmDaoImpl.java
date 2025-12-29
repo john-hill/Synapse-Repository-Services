@@ -63,13 +63,13 @@ public class RealmDaoImpl implements RealmDao {
 	private static final String DELETE_PRINCIPALS_SQL = "DELETE FROM "+
 			TABLE_REALM_PRINCIPAL+" WHERE "+COL_REALM_PRINCIPAL_REALM_ID+" = ?";
 	
-	private static final String REALM_IDP_SQL = "SELECT * FROM "+TABLE_REALM_IDP+" WHERE "+COL_REALM_IDP_REALM_ID+"=?";
+	private static final String REALM_IDP_SQL = "SELECT * FROM "+TABLE_REALM_IDP+" WHERE "+COL_REALM_IDP_REALM_ID+" = ?";
 	
-	private static final String REALM_PRINCIPAL_SQL = "SELECT * FROM "+TABLE_REALM_PRINCIPAL+" WHERE "+COL_REALM_PRINCIPAL_REALM_ID+"=?";
+	private static final String REALM_PRINCIPAL_SQL = "SELECT * FROM "+TABLE_REALM_PRINCIPAL+" WHERE "+COL_REALM_PRINCIPAL_REALM_ID+" = ?";
 	
 	private static final String SELECT_ALL_IDS_SQL = "SELECT "+COL_REALM_ID+" FROM "+TABLE_REALM;
 	
-	private static final String DELETE_REALM_SQL = "DELETE FROM "+TABLE_REALM+" WHERE "+COL_REALM_ID+"=?";
+	private static final String DELETE_REALM_SQL = "DELETE FROM "+TABLE_REALM+" WHERE "+COL_REALM_ID+" = ?";
 	
 
 	static Long stringToLong(String s) {
@@ -249,16 +249,16 @@ public class RealmDaoImpl implements RealmDao {
 		}
 		DBORealm dbo = dboOptional.get();
 		Realm result = copyDBORealmToRealm(dbo);
-		List<DBORealmIdentityProvider> idps = namedJdbcTemplate.query(REALM_IDP_SQL, new RowMapper<DBORealmIdentityProvider>(){
+		List<DBORealmIdentityProvider> idps = jdbcTemplate.query(REALM_IDP_SQL, new RowMapper<DBORealmIdentityProvider>(){
 			@Override
 			public DBORealmIdentityProvider mapRow(ResultSet rs, int rowNum) throws SQLException {
 				DBORealmIdentityProvider dboRealmIdp = new DBORealmIdentityProvider();
 				dboRealmIdp.setRealmId(rs.getLong(COL_REALM_IDP_REALM_ID));
 				dboRealmIdp.setIdentityProvider(rs.getString(COL_REALM_IDP_PROVIDER));
 				return dboRealmIdp;
-			}});
+			}}, id);
 		copyRealmIdpsToRealm(idps, result);
-		List<DBORealmPrincipal> principals = namedJdbcTemplate.query(REALM_PRINCIPAL_SQL, (new DBORealmPrincipal()).getTableMapping());
+		List<DBORealmPrincipal> principals = jdbcTemplate.query(REALM_PRINCIPAL_SQL, (new DBORealmPrincipal()).getTableMapping(), id);
 		copyRealmPrincipalsToRealm(principals, result);
 		return result;
 	}
@@ -282,6 +282,11 @@ public class RealmDaoImpl implements RealmDao {
 	@WriteTransaction
 	@Override
 	public void bootstrapDefaultRealm() {
+		SqlParameterSource param = new SinglePrimaryKeySqlParameterSource(AuthorizationConstants.DEFAULT_REALM_ID);
+		Optional<DBORealm> dboOptional = basicDao.getObjectByPrimaryKeyIfExists(DBORealm.class, param);
+		if (dboOptional.isPresent()) {
+			return;
+		}
 		Realm defaultRealm = new Realm();
 		defaultRealm.setId(AuthorizationConstants.DEFAULT_REALM_ID);
 		defaultRealm.setName(DEFAULT_REALM_NAME);
@@ -312,7 +317,8 @@ public class RealmDaoImpl implements RealmDao {
 		// the realm to reference its principals.
 		// Note, that the Synapse Administrator group is doing 'double duty' here by also being the
 		// administrative group for the default realm. 
-		defaultRealm.setAdministrativeGroup(BOOTSTRAP_PRINCIPAL.ADMINISTRATORS_GROUP.getPrincipalId().toString());
+		// TODO need to bootstrap admin group (ID=2) before doing this
+		//defaultRealm.setAdministrativeGroup(BOOTSTRAP_PRINCIPAL.ADMINISTRATORS_GROUP.getPrincipalId().toString());
 		defaultRealm.setAnonymousUser(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId().toString());
 		defaultRealm.setAuthenticatedUsers(BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId().toString());
 		defaultRealm.setPublicGroup(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId().toString());

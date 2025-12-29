@@ -18,6 +18,7 @@ import org.junit.runner.RunWith;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.ObjectType;
@@ -79,6 +80,7 @@ public class DBOUserGroupDAOImplTest {
 		// Give it an ID
 		String startingId = "123";
 		group.setId("" + startingId);
+		group.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
 		long initialCount = userGroupDAO.getCount();
 		String groupId = userGroupDAO.create(group).toString();
 		assertNotNull(groupId);

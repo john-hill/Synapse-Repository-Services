@@ -5,8 +5,8 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_PR
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_PRINCIPAL_PRINCIPAL_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_PRINCIPAL_PRINCIPAL_TYPE;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_PRINCIPAL_REALM_ID;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.DDL_FILE_REALM_IDP;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_REALM_IDP;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.DDL_FILE_REALM_PRINCIPAL;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_REALM_PRINCIPAL;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -52,7 +52,7 @@ public class DBORealmPrincipal implements MigratableDatabaseObject<DBORealmPrinc
 			
 			@Override
 			public String getTableName() {
-				return TABLE_REALM_IDP;
+				return TABLE_REALM_PRINCIPAL;
 			}
 			
 			@Override
@@ -62,7 +62,7 @@ public class DBORealmPrincipal implements MigratableDatabaseObject<DBORealmPrinc
 			
 			@Override
 			public String getDDLFileName() {
-				return DDL_FILE_REALM_IDP;
+				return DDL_FILE_REALM_PRINCIPAL;
 			}
 			
 			@Override

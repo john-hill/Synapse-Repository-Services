@@ -1460,22 +1460,22 @@ public class SqlConstants {
  	public static final String DDL_FILE_RECORDSET_VALIDATION_STATS				= "schema/RecordSetValidationStats-ddl.sql";
  	
  	// Tables to represent security Realms
- 	public static final String TABLE_REALM = "REALM";
+ 	public static final String TABLE_REALM = "SYNAPSE_REALM";
  	public static final String COL_REALM_ID = "ID";
  	public static final String COL_REALM_CREATED_ON = "CREATED_ON";
  	public static final String COL_REALM_E_TAG = "ETAG";
  	public static final String COL_REALM_NAME = "NAME";
  	public static final String DDL_FILE_REALM = "schema/Realm-ddl.sql";
  	
-	public static final String TABLE_REALM_IDP = "REALM_IDP";
+	public static final String TABLE_REALM_IDP = "SYNAPSE_REALM_IDP";
 	public static final String COL_REALM_IDP_REALM_ID = "REALM_ID";
 	public static final String COL_REALM_IDP_PROVIDER = "PROVIDER";
 	public static final String DDL_FILE_REALM_IDP = "schema/RealmIdentityProvider-ddl.sql";
 
-	public static final String TABLE_REALM_PRINCIPAL = "REALM_PRINCIPAL";
+	public static final String TABLE_REALM_PRINCIPAL = "SYNAPSE_REALM_PRINCIPAL";
 	public static final String COL_REALM_PRINCIPAL_ID = "ID";
-	public static final String COL_REALM_PRINCIPAL_REALM_ID = "REALM";
-	public static final String COL_REALM_PRINCIPAL_PRINCIPAL_ID = "PRINCIPAL";
+	public static final String COL_REALM_PRINCIPAL_REALM_ID = "REALM_ID";
+	public static final String COL_REALM_PRINCIPAL_PRINCIPAL_ID = "PRINCIPAL_ID";
 	public static final String COL_REALM_PRINCIPAL_PRINCIPAL_TYPE = "TYPE";
 	public static final String REALM_PRINCIPAL_TYPE_ANONYMOUS = "ANONYMOUS";
 	public static final String REALM_PRINCIPAL_TYPE_PUBLIC = "PUBLIC";

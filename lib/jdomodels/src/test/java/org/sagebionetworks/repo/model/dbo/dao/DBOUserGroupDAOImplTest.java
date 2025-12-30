@@ -77,6 +77,7 @@ public class DBOUserGroupDAOImplTest {
 	public void testRoundTrip() throws Exception {
 		UserGroup group = new UserGroup();
 		group.setIsIndividual(false);
+		group.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
 		// Give it an ID
 		String startingId = "123";
 		group.setId("" + startingId);
@@ -101,6 +102,7 @@ public class DBOUserGroupDAOImplTest {
 	public void testIsIndividualTrue() throws Exception {
 		UserGroup group = new UserGroup();
 		group.setIsIndividual(true);
+		group.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
 		Long principalId = userGroupDAO.create(group);
 		assertNotNull(principalId);
 		groupsToDelete.add(principalId.toString());
@@ -111,6 +113,7 @@ public class DBOUserGroupDAOImplTest {
 	public void testIsIndividualFalse() throws Exception {
 		UserGroup group = new UserGroup();
 		group.setIsIndividual(false);
+		group.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
 		Long principalId = userGroupDAO.create(group);
 		assertNotNull(principalId);
 		groupsToDelete.add(principalId.toString());

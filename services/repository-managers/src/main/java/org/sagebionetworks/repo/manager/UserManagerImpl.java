@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.sagebionetworks.repo.manager.principal.NewUserUtils;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.DatastoreException;
@@ -106,6 +107,8 @@ public class UserManagerImpl implements UserManager {
 		UserGroup individualGroup = new UserGroup();
 		individualGroup.setIsIndividual(true);
 		individualGroup.setCreationDate(createdOn);
+		// TODO Ultimately the realm will come from the NewUser object
+		individualGroup.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
 		Long principalId = userGroupDAO.create(individualGroup);
 		
 		// Make some credentials for this user

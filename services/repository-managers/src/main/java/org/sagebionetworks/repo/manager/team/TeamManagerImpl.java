@@ -264,6 +264,8 @@ public class TeamManagerImpl implements TeamManager {
 		UserGroup ug = new UserGroup();
 		ug.setIsIndividual(false);
 		ug.setCreationDate(new Date());
+		// TODO Ultimately the realm ID will come from the UserInfo
+		ug.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
 		Long id = userGroupDAO.create(ug);
 		// bind the team name to this principal
 		bindTeamName(team.getName(), id);
@@ -326,6 +328,7 @@ public class TeamManagerImpl implements TeamManager {
 		dbo.setEtag(UUID.randomUUID().toString());
 		dbo.setIsIndividual(false);
 		dbo.setCreationDate(now);
+		dbo.setRealmId(Long.parseLong(AuthorizationConstants.DEFAULT_REALM_ID));
 		basicDao.createOrUpdate(dbo);
 		
 		// bind the team name to this principal. 

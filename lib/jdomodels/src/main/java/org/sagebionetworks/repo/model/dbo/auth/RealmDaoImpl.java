@@ -188,6 +188,9 @@ public class RealmDaoImpl implements RealmDao {
 		return result;
 	}
 
+	// Note, this does NOT create the principals, which need to be
+	// added only after the realm object is created, since principals
+	// have FKs to the realm
 	private DBORealm createPrivate(Realm dto) {
 		dto.setEtag(UUID.randomUUID().toString());
 		dto.setCreatedOn(new Date());
@@ -199,13 +202,6 @@ public class RealmDaoImpl implements RealmDao {
 		// create the IDPs
 		List<DBORealmIdentityProvider> idps = copyRealmToRealmIdps(dto);
 		basicDao.createBatch(idps);
-		// remove existing principals for this realm
-		jdbcTemplate.update(DELETE_PRINCIPALS_SQL, dto.getId());
-		// create realm principals
-		List<DBORealmPrincipal> principals = copyRealmPrincipalsToDBOList(dto);
-		if (!principals.isEmpty()) {
-			basicDao.createBatch(principals);
-		}
 		return dbo;
 	}
 

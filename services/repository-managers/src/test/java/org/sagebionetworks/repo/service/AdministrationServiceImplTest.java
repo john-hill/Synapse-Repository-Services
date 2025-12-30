@@ -280,6 +280,7 @@ public class AdministrationServiceImplTest {
 	
 	@Test
 	public void testCreateRealm() {
+		when(mockUserManager.getUserInfo(any())).thenReturn(admin);
 		Realm realm = new Realm();
 		Realm createdRealm = new Realm();
 		when(mockRealmManager.createRealm(realm)).thenReturn(createdRealm);
@@ -290,6 +291,7 @@ public class AdministrationServiceImplTest {
 
 	@Test
 	public void testListRealms() {
+		when(mockUserManager.getUserInfo(any())).thenReturn(admin);
 		String realmId1 = "1";
 		String realmId2 = "2";
 		RealmIdList realmIdList = new RealmIdList();
@@ -302,6 +304,7 @@ public class AdministrationServiceImplTest {
 
 	@Test
 	public void testDeleteRealm() {
+		when(mockUserManager.getUserInfo(any())).thenReturn(admin);
 		String realmId = "testRealmId";
 		adminService.deleteRealm(adminUserId, realmId);
 		verify(mockRealmManager).deleteRealm(realmId);

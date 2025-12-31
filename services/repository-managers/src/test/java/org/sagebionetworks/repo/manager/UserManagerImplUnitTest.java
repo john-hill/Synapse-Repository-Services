@@ -461,7 +461,9 @@ public class UserManagerImplUnitTest {
 		
 		verify(mockUserGroupDAO).create(ugCaptor.capture());
 		
-		assertEquals(expectedGroup.setCreationDate(ugCaptor.getValue().getCreationDate()), ugCaptor.getValue());
+		assertEquals(
+				expectedGroup.setCreationDate(ugCaptor.getValue().getCreationDate()).setRealmId(AuthorizationConstants.DEFAULT_REALM_ID), 
+				ugCaptor.getValue());
 		
 		verify(mockAuthDAO).createNew(userId);
 		verify(mockUserStatusDao).setLastSeenOn(List.of(userId), ugCaptor.getValue().getCreationDate());
@@ -601,7 +603,9 @@ public class UserManagerImplUnitTest {
 		
 		verify(mockUserGroupDAO).create(ugCaptor.capture());
 		
-		assertEquals(expectedGroup.setCreationDate(ugCaptor.getValue().getCreationDate()), ugCaptor.getValue());
+		assertEquals(expectedGroup.setCreationDate(
+			ugCaptor.getValue().getCreationDate()).setRealmId(AuthorizationConstants.DEFAULT_REALM_ID), 
+			ugCaptor.getValue());
 		
 		verify(mockAuthDAO).createNew(userId);
 		

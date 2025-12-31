@@ -409,6 +409,7 @@ public class AdministrationController {
 	 * @param realm
 	 * @return
 	 */
+	@RequiredScope({modify})
 	@ResponseStatus(HttpStatus.CREATED)
 	@RequestMapping(value = UrlHelpers.REALM, method = RequestMethod.POST)
 	@ResponseBody
@@ -421,6 +422,7 @@ public class AdministrationController {
 	 * @return list of the IDs of the existing realms
 	 */
 	// TODO not an admin service
+	@RequiredScope({view})
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = UrlHelpers.REALM_LIST, method = RequestMethod.GET)
 	@ResponseBody
@@ -432,6 +434,7 @@ public class AdministrationController {
 	 * Delete a realm.
 	 * @param realmId
 	 */
+	@RequiredScope({modify})
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = UrlHelpers.REALM_ID, method = RequestMethod.DELETE)
 	public void deleteRealm(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable("id") String id) {

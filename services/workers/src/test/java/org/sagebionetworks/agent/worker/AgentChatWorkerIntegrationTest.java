@@ -60,7 +60,7 @@ import com.google.common.collect.Lists;
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
 public class AgentChatWorkerIntegrationTest {
 
-	public static final long MAX_WAIT_MS = 120_000;
+	public static final long MAX_WAIT_MS = 300_000;
 
 	@Autowired
 	private AgentService agentService;

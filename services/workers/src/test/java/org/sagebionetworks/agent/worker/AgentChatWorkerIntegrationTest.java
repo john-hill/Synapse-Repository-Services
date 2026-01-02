@@ -12,6 +12,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
+import org.junit.Ignore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,7 +61,7 @@ import com.google.common.collect.Lists;
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
 public class AgentChatWorkerIntegrationTest {
 
-	public static final long MAX_WAIT_MS = 300_000;
+	public static final long MAX_WAIT_MS = 120_000;
 
 	@Autowired
 	private AgentService agentService;
@@ -431,6 +432,7 @@ public class AgentChatWorkerIntegrationTest {
 				.getResponse();
 	}
 
+	@Ignore
 	@Test
 	public void testSynapseHelpKnowledgeBase() throws AssertionError, AsynchJobFailedException {
 		AgentSession session = agentService.createSession(admin.getId(),

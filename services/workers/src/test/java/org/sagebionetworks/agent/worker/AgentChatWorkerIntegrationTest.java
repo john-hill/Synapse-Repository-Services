@@ -12,9 +12,9 @@ import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
-import org.junit.Ignore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.AsynchronousJobWorkerHelper;
@@ -432,7 +432,7 @@ public class AgentChatWorkerIntegrationTest {
 				.getResponse();
 	}
 
-	@Ignore
+	@Disabled
 	@Test
 	public void testSynapseHelpKnowledgeBase() throws AssertionError, AsynchJobFailedException {
 		AgentSession session = agentService.createSession(admin.getId(),

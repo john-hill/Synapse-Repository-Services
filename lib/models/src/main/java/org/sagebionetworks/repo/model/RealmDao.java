@@ -6,8 +6,8 @@ import org.sagebionetworks.repo.model.auth.RealmIdList;
 public interface RealmDao {
 	
 	/**
-	 * Create a new Realm and associated identity providers, ensuring the identity providers are unique.
-	 * TODO name and IdPs are unique
+	 * Create a new Realm and associated identity providers, ensuring the name and identity providers are unique.
+	 * This method does NOT add the four principals, which are added in a later update.
 	 * @param realm
 	 * @return
 	 */

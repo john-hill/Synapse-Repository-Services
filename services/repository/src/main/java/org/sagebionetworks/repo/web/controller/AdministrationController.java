@@ -21,7 +21,6 @@ import org.sagebionetworks.repo.model.asynch.AsynchronousJobStatus;
 import org.sagebionetworks.repo.model.auth.LoginResponse;
 import org.sagebionetworks.repo.model.auth.NewIntegrationTestUser;
 import org.sagebionetworks.repo.model.auth.Realm;
-import org.sagebionetworks.repo.model.auth.RealmIdList;
 import org.sagebionetworks.repo.model.feature.Feature;
 import org.sagebionetworks.repo.model.feature.FeatureStatus;
 import org.sagebionetworks.repo.model.message.ChangeMessages;
@@ -405,29 +404,16 @@ public class AdministrationController {
 	}
 
 	/**
-	 * Create a new realm
+	 * Create a new realm.  The client may only specify the name and the list of identity providers.
 	 * @param realm
 	 * @return
 	 */
 	@RequiredScope({modify})
 	@ResponseStatus(HttpStatus.CREATED)
-	@RequestMapping(value = UrlHelpers.REALM, method = RequestMethod.POST)
+	@RequestMapping(value = UrlHelpers.ADMIN_REALM, method = RequestMethod.POST)
 	@ResponseBody
 	public Realm createRealm(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @RequestBody Realm realm) {
 		return serviceProvider.getAdministrationService().createRealm(userId, realm);
-	}
-
-	/**
-	 * List the IDs of the current realms.
-	 * @return list of the IDs of the existing realms
-	 */
-	// TODO not an admin service
-	@RequiredScope({view})
-	@ResponseStatus(HttpStatus.OK)
-	@RequestMapping(value = UrlHelpers.REALM_LIST, method = RequestMethod.GET)
-	@ResponseBody
-	public RealmIdList listRealmIds(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId) {
-		return serviceProvider.getAdministrationService().listRealmIds(userId);
 	}
 
 	/**
@@ -436,7 +422,7 @@ public class AdministrationController {
 	 */
 	@RequiredScope({modify})
 	@ResponseStatus(HttpStatus.OK)
-	@RequestMapping(value = UrlHelpers.REALM_ID, method = RequestMethod.DELETE)
+	@RequestMapping(value = UrlHelpers.ADMIN_REALM_ID, method = RequestMethod.DELETE)
 	public void deleteRealm(@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId, @PathVariable("id") String id) {
 		serviceProvider.getAdministrationService().deleteRealm(userId, id);
 	}

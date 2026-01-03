@@ -17,6 +17,7 @@ import java.util.UUID;
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.RealmDao;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.auth.IdentityProvider;
@@ -216,16 +217,27 @@ public class RealmDaoImpl implements RealmDao {
 	@WriteTransaction
 	@Override
 	public Realm updateRealm(Realm dto) {
-		// TODO compare dto.getEtag() to current etag (should that be done here, or in the manager)?
-		dto.setEtag(UUID.randomUUID().toString());
-		// TODO don't allow changing ID or createdOn (should that be done here, or in the manager)?
-		copyRealmToDBORealm(dto);
-		// TODO perform the update
+		SqlParameterSource param = new SinglePrimaryKeySqlParameterSource(dto.getId());
+		Optional<DBORealm> dboOptional = basicDao.getObjectByPrimaryKeyWithUpdateLock(DBORealm.class, param);
+		if (dboOptional.isEmpty()) {
+			throw new NotFoundException("Realm "+dto.getId()+" is not found.");
+		}
+		DBORealm dbo = dboOptional.get();
+		if (!dbo.getEtag().equals(dto.getEtag())) {
+			throw new ConflictingUpdateException(
+				"Realm was updated since you last fetched it.  Retrieve it again and reapply the update.");
+		}
+		dbo.setEtag(UUID.randomUUID().toString());
+		// the only field the client can change in the DBO is the name
+		dbo.setName(dto.getName());
+		basicDao.update(dbo);
 		// remove existing IDPs for this realm
 		jdbcTemplate.update(DELETE_IDPS_SQL, dto.getId());
 		// create the IDPs
 		List<DBORealmIdentityProvider> idps = copyRealmToRealmIdps(dto);
-		basicDao.createBatch(idps);
+		if (!idps.isEmpty()) {
+			basicDao.createBatch(idps);
+		}
 		// remove existing principals for this realm
 		jdbcTemplate.update(DELETE_PRINCIPALS_SQL, dto.getId());
 		// create realm principals

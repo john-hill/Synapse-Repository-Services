@@ -183,12 +183,6 @@ public interface AdministrationService {
 	
 	/**
 	 * 
-	 * @return
-	 */
-	RealmIdList listRealmIds(Long userId);
-	
-	/**
-	 * 
 	 * @param realmId
 	 */
 	void deleteRealm(Long userId, String realmId);

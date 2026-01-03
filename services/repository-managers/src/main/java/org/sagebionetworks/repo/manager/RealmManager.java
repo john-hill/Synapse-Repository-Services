@@ -7,10 +7,27 @@ public interface RealmManager {
 
 	/**
 	 * Create a new realm.
-	 * @param realm
+	 * @param realm the client can only specify the name and the list of identity providers.
+	 *   The name must be unique, as must be each identity provider listed.
 	 * @return
 	 */
 	Realm createRealm(Realm realm);
+	
+	/**
+	 * 
+	 * @param id
+	 * @return
+	 */
+	Realm getRealm(String id);
+	
+	
+	/**
+	 * Update a Realm
+	 * @param realm 
+	 * @return
+	 */
+	Realm updateRealm(Realm realm);
+	
 	
 	/**
 	 * List the IDS of the existing realms.

@@ -268,12 +268,6 @@ public class AdministrationServiceImpl implements AdministrationService  {
 	}
 
 	@Override
-	public RealmIdList listRealmIds(Long userId) {
-		adminCheck(userId);
-		return realmManager.listRealmIds();
-	}
-
-	@Override
 	public void deleteRealm(Long userId, String realmId) {
 		adminCheck(userId);
 		realmManager.deleteRealm(realmId);

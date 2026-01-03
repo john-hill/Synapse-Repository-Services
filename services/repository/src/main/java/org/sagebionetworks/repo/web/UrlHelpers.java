@@ -1321,10 +1321,11 @@ public class UrlHelpers {
 	
 	public static final String ADMIN_EMAIL_QUARANTINE_EXPIRE = ADMIN + "/emailQuarantine/expire";
 	
-	public static final String REALM = ADMIN+"/realm";
+	public static final String REALM = "/realm";
+	public static final String ADMIN_REALM = ADMIN+REALM;
 	public static final String REALM_LIST = REALM + "/list";
-	public static final String REALM_ID = REALM + "/{id}";
-
+	public static final String REALM_ID = REALM + ID;
+	public static final String ADMIN_REALM_ID = ADMIN_REALM + ID;
 	
 	/**
 	 * Request paramter to specify a target user id

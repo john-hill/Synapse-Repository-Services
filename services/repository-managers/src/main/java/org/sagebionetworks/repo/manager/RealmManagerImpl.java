@@ -17,7 +17,6 @@ public class RealmManagerImpl implements RealmManager {
 	@Autowired
 	private UserGroupDAO userGroupDAO;
 	
-	
 	String createRealmPrincipal(String realmId, boolean isIndvidual) {
 		UserGroup userGroup = new UserGroup();
 		userGroup.setIsIndividual(isIndvidual);
@@ -49,6 +48,16 @@ public class RealmManagerImpl implements RealmManager {
 	public void deleteRealm(String realmId) {
 		realmDao.deleteRealm(Long.parseLong(realmId));
 		// TODO delete principals
+	}
+
+	@Override
+	public Realm getRealm(String id) {
+		return realmDao.getRealm(id);
+	}
+
+	@Override
+	public Realm updateRealm(Realm realm) {
+		return realmDao.updateRealm(realm);
 	}
 
 }

@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.web.controller;
 
 import static org.sagebionetworks.repo.model.oauth.OAuthScope.view;
+import static org.sagebionetworks.repo.web.UrlHelpers.ID_PATH_VARIABLE;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -10,6 +11,8 @@ import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.ServiceConstants;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.auth.Realm;
+import org.sagebionetworks.repo.model.auth.RealmIdList;
 import org.sagebionetworks.repo.service.ServiceProvider;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.repo.web.RequiredScope;
@@ -18,6 +21,7 @@ import org.sagebionetworks.repo.web.rest.doc.ControllerInfo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -51,5 +55,29 @@ public class UserGroupController {
 			@RequestParam(value = ServiceConstants.ASCENDING_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_ASCENDING_PARAM) Boolean ascending
 			) throws DatastoreException, UnauthorizedException, NotFoundException {
 		return serviceProvider.getUserGroupService().getUserGroups(userId, offset, limit, sort, ascending);
+	}
+	
+	/**
+	 * List the IDs of the current realms.
+	 * @return list of the IDs of the existing realms
+	 */
+	@RequiredScope({view})
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.REALM_LIST, method = RequestMethod.GET)
+	@ResponseBody
+	public RealmIdList listRealmIds() {
+		return serviceProvider.getUserGroupService().listRealmIds();
+	}
+
+	/**
+	 * Retrieve a realm by its ID
+	 * @param userId
+	 */
+	@RequiredScope({view})
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.REALM_ID, method = RequestMethod.GET)
+	@ResponseBody
+	public Realm getRealm(@PathVariable(ID_PATH_VARIABLE) String realmId) {
+		return serviceProvider.getUserGroupService().getRealm(realmId);
 	}
 }

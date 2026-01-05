@@ -10,7 +10,7 @@ public class AuthorizationConstants {
 	/**
 	 * These are default users and groups that are guaranteed to be initialized by the system
 	 * 
-	 * The values reflect that of dao-beans.spb.xml  
+	 * The values reflect those of dao-beans.spb.xml  
 	 */
 	public enum BOOTSTRAP_PRINCIPAL {
 		THE_ADMIN_USER(1L), 

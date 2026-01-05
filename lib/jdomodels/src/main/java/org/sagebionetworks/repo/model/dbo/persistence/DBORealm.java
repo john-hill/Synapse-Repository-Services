@@ -4,7 +4,6 @@
 package org.sagebionetworks.repo.model.dbo.persistence;
 
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_CREATED_ON;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_E_TAG;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_NAME;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.DDL_FILE_REALM;
@@ -31,13 +30,11 @@ import org.sagebionetworks.repo.model.migration.MigrationType;
 public class DBORealm implements MigratableDatabaseObject<DBORealm, DBORealm> {
 	private Long id;
 	private Date creationDate;
-	private String etag;
 	private String name;
 
 
 	private static FieldColumn[] FIELDS = new FieldColumn[] {
 		new FieldColumn("id", COL_REALM_ID, true).withIsBackupId(true),
-		new FieldColumn("etag", COL_REALM_E_TAG).withIsEtag(true),
 		new FieldColumn("creationDate", COL_REALM_CREATED_ON),
 		new FieldColumn("name", COL_REALM_NAME)
 		};
@@ -53,7 +50,6 @@ public class DBORealm implements MigratableDatabaseObject<DBORealm, DBORealm> {
 				Timestamp ts = rs.getTimestamp(COL_REALM_CREATED_ON);
 				realm.setCreationDate(new Date(ts.getTime()));
 				realm.setName(rs.getString(COL_REALM_NAME));
-				realm.setEtag(rs.getString(COL_REALM_E_TAG));
 				return realm;
 			}
 
@@ -120,14 +116,6 @@ public class DBORealm implements MigratableDatabaseObject<DBORealm, DBORealm> {
 		this.creationDate = creationDate;
 	}
 
-	public String getEtag() {
-		return etag;
-	}
-
-	public void setEtag(String etag) {
-		this.etag = etag;
-	}
-
 	public String getName() {
 		return name;
 	}
@@ -141,7 +129,6 @@ public class DBORealm implements MigratableDatabaseObject<DBORealm, DBORealm> {
 		final int prime = 31;
 		int result = 1;
 		result = prime * result + ((creationDate == null) ? 0 : creationDate.hashCode());
-		result = prime * result + ((etag == null) ? 0 : etag.hashCode());
 		result = prime * result + ((id == null) ? 0 : id.hashCode());
 		result = prime * result + ((name == null) ? 0 : name.hashCode());
 		return result;
@@ -161,11 +148,6 @@ public class DBORealm implements MigratableDatabaseObject<DBORealm, DBORealm> {
 				return false;
 		} else if (!creationDate.equals(other.creationDate))
 			return false;
-		if (etag == null) {
-			if (other.etag != null)
-				return false;
-		} else if (!etag.equals(other.etag))
-			return false;
 		if (id == null) {
 			if (other.id != null)
 				return false;
@@ -181,7 +163,7 @@ public class DBORealm implements MigratableDatabaseObject<DBORealm, DBORealm> {
 
 	@Override
 	public String toString() {
-		return "DBORealm [id=" + id + ", creationDate=" + creationDate + ", etag=" + etag + ", name=" + name + "]";
+		return "DBORealm [id=" + id + ", creationDate=" + creationDate + ", name=" + name + "]";
 	}
 
 

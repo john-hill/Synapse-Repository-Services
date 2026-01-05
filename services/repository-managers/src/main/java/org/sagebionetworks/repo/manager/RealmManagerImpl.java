@@ -1,10 +1,19 @@
 package org.sagebionetworks.repo.manager;
 
+import org.sagebionetworks.repo.manager.team.TeamManager;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.RealmDao;
+import org.sagebionetworks.repo.model.Team;
+import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserGroup;
 import org.sagebionetworks.repo.model.UserGroupDAO;
+import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.Realm;
 import org.sagebionetworks.repo.model.auth.RealmIdList;
+import org.sagebionetworks.repo.model.auth.RealmPrincipal;
+import org.sagebionetworks.repo.model.principal.AliasType;
+import org.sagebionetworks.repo.model.principal.PrincipalAlias;
+import org.sagebionetworks.repo.model.principal.PrincipalAliasDAO;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,24 +26,60 @@ public class RealmManagerImpl implements RealmManager {
 	@Autowired
 	private UserGroupDAO userGroupDAO;
 	
-	String createRealmPrincipal(String realmId, boolean isIndvidual) {
+	@Autowired
+	private PrincipalAliasDAO principalAliasDAO;
+	
+	@Autowired
+	private TeamManager teamManager;
+	
+	static final String ANONYMOUS_SUFFIX = " Anonymous";
+	static final String PUBLIC_SUFFIX = " Public";
+	static final String AUTH_USERS_SUFFIX = " Authenticated Users";
+	static final String ADMINISTRATORS_SUFFIX = " Administrators";
+	
+	String createRealmPrincipal(String realmId, String alias, boolean isIndvidual) {
+		if (!principalAliasDAO.isAliasAvailable(alias)) {
+			throw new IllegalArgumentException("Alias "+alias+" is not available.");
+		}
 		UserGroup userGroup = new UserGroup();
 		userGroup.setIsIndividual(isIndvidual);
 		userGroup.setRealmId(realmId);
-		return String.valueOf(userGroupDAO.create(userGroup));
+		Long principalId = userGroupDAO.create(userGroup);
+		PrincipalAlias principalAlias = new PrincipalAlias();
+		principalAlias.setPrincipalId(principalId);
+		principalAlias.setType(isIndvidual ? AliasType.USER_NAME : AliasType.TEAM_NAME);
+		principalAlias.setAlias(alias);
+		principalAliasDAO.bindAliasToPrincipal(principalAlias);
+		return String.valueOf(principalId);
+	}
+	
+	String createRealmAdminTeam(UserInfo userInfo, String realmId, String realmName) {
+		Team adminTeam = new Team();
+		adminTeam.setCanPublicJoin(false);
+		adminTeam.setDescription("Administration team for "+realmName);
+		adminTeam.setName(realmName+ADMINISTRATORS_SUFFIX);
+		// TODO ultimately we will pass the realm id, to create the team in the realm
+		adminTeam = teamManager.create(userInfo, adminTeam);
+		return adminTeam.getId();
 	}
 
 	@Override
 	@WriteTransaction
-	public Realm createRealm(Realm realm) {
-		ValidateArgument.required(realm.getName(), "name");
+	public Realm createRealm(UserInfo userInfo, Realm realm) {
+		if (!userInfo.isAdmin()) {
+			throw new UnauthorizedException("Only an administrator can perform this action.");
+		}
+		String name = realm.getName();
+		ValidateArgument.required(name, "name");
 		ValidateArgument.requiredNotEmpty(realm.getIdentityProvider(), "identity providers");
 		realm = realmDao.createRealm(realm);
-		realm.setAnonymousUser(createRealmPrincipal(realm.getId(), true));
-		realm.setPublicGroup(createRealmPrincipal(realm.getId(), false));
-		realm.setAuthenticatedUsers(createRealmPrincipal(realm.getId(), false));
-		realm.setAdministrativeGroup(createRealmPrincipal(realm.getId(), false)); /// TODO this should be a team, not just a group
-		realm = realmDao.updateRealm(realm);
+		RealmPrincipal realmPrincipal = new RealmPrincipal();
+		realmPrincipal.setRealmId(realm.getId());
+		realmPrincipal.setAnonymousUser(createRealmPrincipal(realm.getId(), name+ANONYMOUS_SUFFIX, true));
+		realmPrincipal.setPublicGroup(createRealmPrincipal(realm.getId(), name+PUBLIC_SUFFIX, false));
+		realmPrincipal.setAuthenticatedUsers(createRealmPrincipal(realm.getId(), name+AUTH_USERS_SUFFIX, false));
+		realmPrincipal.setAdministrativeGroup(createRealmAdminTeam(userInfo, realm.getId(), name));
+		realmPrincipal = realmDao.createRealmPrincipals(realmPrincipal);
 		return realm;
 	}
 
@@ -44,20 +89,42 @@ public class RealmManagerImpl implements RealmManager {
 	}
 
 	@Override
-	@WriteTransaction
-	public void deleteRealm(String realmId) {
-		realmDao.deleteRealm(Long.parseLong(realmId));
-		// TODO delete principals
-	}
-
-	@Override
 	public Realm getRealm(String id) {
 		return realmDao.getRealm(id);
 	}
 
 	@Override
-	public Realm updateRealm(Realm realm) {
-		return realmDao.updateRealm(realm);
+	public RealmPrincipal getRealmPrincipals(String id) {
+		return realmDao.getRealmPrincipals(id);
+	}
+
+	void removeUserGroup(String id) {
+		if (id==null) return;
+		principalAliasDAO.removeAllAliasFromPrincipal(Long.parseLong(id));
+		userGroupDAO.delete(id);
+	}
+	
+	@Override
+	@WriteTransaction
+	public void deleteRealm(UserInfo userInfo, String realmId) {
+		if (AuthorizationConstants.DEFAULT_REALM_ID.equals(realmId)) {
+			throw new IllegalArgumentException("Cannot delete default realm.");
+		}
+		if (!userInfo.isAdmin()) {
+			throw new UnauthorizedException("Only an administrator can perform this action.");
+		}
+		RealmPrincipal realmPrincipal = realmDao.getRealmPrincipals(realmId);
+		// first, delete the realm-principal association
+		realmDao.deleteRealmPrincipals(realmId);
+		// next, delete the principals
+		if (realmPrincipal.getAdministrativeGroup() != null) {
+			teamManager.delete(userInfo, realmPrincipal.getAdministrativeGroup());
+		}
+		removeUserGroup(realmPrincipal.getAnonymousUser());
+		removeUserGroup(realmPrincipal.getAuthenticatedUsers());
+		removeUserGroup(realmPrincipal.getPublicGroup());
+		// finally, delete the realm
+		realmDao.deleteRealm(realmId);
 	}
 
 }

@@ -1463,7 +1463,6 @@ public class SqlConstants {
  	public static final String TABLE_REALM = "SYNAPSE_REALM";
  	public static final String COL_REALM_ID = "ID";
  	public static final String COL_REALM_CREATED_ON = "CREATED_ON";
- 	public static final String COL_REALM_E_TAG = "ETAG";
  	public static final String COL_REALM_NAME = "NAME";
  	public static final String DDL_FILE_REALM = "schema/Realm-ddl.sql";
  	

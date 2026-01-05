@@ -13,6 +13,7 @@ import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserGroup;
 import org.sagebionetworks.repo.model.auth.Realm;
 import org.sagebionetworks.repo.model.auth.RealmIdList;
+import org.sagebionetworks.repo.model.auth.RealmPrincipal;
 import org.sagebionetworks.repo.service.ServiceProvider;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.repo.web.RequiredScope;
@@ -71,7 +72,7 @@ public class UserGroupController {
 
 	/**
 	 * Retrieve a realm by its ID
-	 * @param userId
+	 * @param realmId
 	 */
 	@RequiredScope({view})
 	@ResponseStatus(HttpStatus.OK)
@@ -79,5 +80,16 @@ public class UserGroupController {
 	@ResponseBody
 	public Realm getRealm(@PathVariable(ID_PATH_VARIABLE) String realmId) {
 		return serviceProvider.getUserGroupService().getRealm(realmId);
+	}
+	/**
+	 * Retrieve the principals for a realm
+	 * @param realmId
+	 */
+	@RequiredScope({view})
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.REALM_ID_PRINCIPALS, method = RequestMethod.GET)
+	@ResponseBody
+	public RealmPrincipal getRealmPrincipals(@PathVariable(ID_PATH_VARIABLE) String realmId) {
+		return serviceProvider.getUserGroupService().getRealmPrincipals(realmId);
 	}
 }

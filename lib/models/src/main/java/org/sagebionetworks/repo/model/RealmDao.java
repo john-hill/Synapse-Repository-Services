@@ -2,24 +2,23 @@ package org.sagebionetworks.repo.model;
 
 import org.sagebionetworks.repo.model.auth.Realm;
 import org.sagebionetworks.repo.model.auth.RealmIdList;
+import org.sagebionetworks.repo.model.auth.RealmPrincipal;
 
 public interface RealmDao {
 	
 	/**
 	 * Create a new Realm and associated identity providers, ensuring the name and identity providers are unique.
-	 * This method does NOT add the four principals, which are added in a later update.
 	 * @param realm
 	 * @return
 	 */
 	public Realm createRealm(Realm realm);
 	
-	
 	/**
+	 * Set the principals for the Realm
 	 * 
-	 * @param realm
-	 * @return
+	 * @param dto list of principals to associate with the realm
 	 */
-	public Realm updateRealm(Realm realm);
+	public RealmPrincipal createRealmPrincipals(RealmPrincipal dto);
 	
 	/**
 	 * 
@@ -29,16 +28,29 @@ public interface RealmDao {
 	public Realm getRealm(String id);
 	
 	/**
+	 * 
+	 * @param id
+	 * @return
+	 */
+	public RealmPrincipal getRealmPrincipals(String id);
+	
+	/**
 	 * List the IDs of the existing realms.  Note, since the number of realms is small, this is not paginated.
 	 * @return
 	 */
 	public RealmIdList listRealmIds();
 	
+	
+	/**
+	 * Disassociate the Realm's principals, a necessary step ahead of deleting the realm itself
+	 * @param id
+	 */
+	public void deleteRealmPrincipals(String id);
+	
 	/**
 	 * Delete the given realm
 	 */
-	public void deleteRealm(long id);
-	
+	public void deleteRealm(String id);
 	
 	/**
 	 * Create default realm, with id 0

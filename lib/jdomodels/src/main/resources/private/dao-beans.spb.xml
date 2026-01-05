@@ -60,6 +60,15 @@
 			</property>
 		</bean>
 		<bean class="org.sagebionetworks.repo.model.principal.BootstrapGroup">
+			<property name="id" value="2" />
+			<property name="groupAlias">
+			   	<bean class="org.sagebionetworks.repo.model.principal.BootstrapAlias">
+			   		<property name="aliasName" value="Administrators" />
+			   		<property name="aliasId" value="2" />
+			   	</bean>
+			</property>
+		</bean>
+		<bean class="org.sagebionetworks.repo.model.principal.BootstrapGroup">
 			<property name="id" value="273948" />
 			<property name="groupAlias">
 			   	<bean class="org.sagebionetworks.repo.model.principal.BootstrapAlias">

@@ -1,10 +1,16 @@
 package org.sagebionetworks.repo.model.dbo.auth;
 
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_ID;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.*;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_IDP_PROVIDER;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_IDP_REALM_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_REALM_PRINCIPAL_REALM_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.REALM_PRINCIPAL_TYPE_ADMINISTRATORS;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.REALM_PRINCIPAL_TYPE_ANONYMOUS;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.REALM_PRINCIPAL_TYPE_AUTHENTICATED;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.REALM_PRINCIPAL_TYPE_PUBLIC;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_REALM;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_REALM_IDP;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_REALM_PRINCIPAL;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -12,18 +18,17 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
-import org.sagebionetworks.repo.model.ConflictingUpdateException;
-import org.sagebionetworks.repo.model.RealmDao;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
+import org.sagebionetworks.repo.model.RealmDao;
 import org.sagebionetworks.repo.model.auth.IdentityProvider;
 import org.sagebionetworks.repo.model.auth.OAuthIdentityProvider;
 import org.sagebionetworks.repo.model.auth.Realm;
 import org.sagebionetworks.repo.model.auth.RealmIdList;
+import org.sagebionetworks.repo.model.auth.RealmPrincipal;
 import org.sagebionetworks.repo.model.auth.SynapseIdentityProvider;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.dbo.SinglePrimaryKeySqlParameterSource;
@@ -83,7 +88,6 @@ public class RealmDaoImpl implements RealmDao {
 	static DBORealm copyRealmToDBORealm(Realm realm) {
 		DBORealm dbo = new DBORealm();
 		dbo.setId(stringToLong(realm.getId()));
-		dbo.setEtag(realm.getEtag());
 		dbo.setName(realm.getName());
 		dbo.setCreationDate(realm.getCreatedOn());
 		return dbo;
@@ -92,7 +96,6 @@ public class RealmDaoImpl implements RealmDao {
 	static Realm copyDBORealmToRealm(DBORealm dbo) {
 		Realm result = new Realm();
 		result.setId(dbo.getId().toString());
-		result.setEtag(dbo.getEtag());
 		result.setName(dbo.getName());
 		result.setCreatedOn(dbo.getCreationDate());
 		return result;
@@ -131,20 +134,20 @@ public class RealmDaoImpl implements RealmDao {
 		realm.setIdentityProvider(dtoList);
 	}
 	
-	static void copyRealmPrincipalsToRealm(List<DBORealmPrincipal> principals, Realm realm) {
+	static void copyRealmPrincipalsToRealm(List<DBORealmPrincipal> principals, RealmPrincipal realmPrincipal) {
 		for (DBORealmPrincipal principal : principals) {
 			switch (principal.getPrincipalType()) {
 				case REALM_PRINCIPAL_TYPE_ANONYMOUS:
-					realm.setAnonymousUser(principal.getPrincipalId().toString());
+					realmPrincipal.setAnonymousUser(principal.getPrincipalId().toString());
 					break;
 				case REALM_PRINCIPAL_TYPE_PUBLIC:
-					realm.setPublicGroup(principal.getPrincipalId().toString());
+					realmPrincipal.setPublicGroup(principal.getPrincipalId().toString());
 					break;
 				case REALM_PRINCIPAL_TYPE_AUTHENTICATED:
-					realm.setAuthenticatedUsers(principal.getPrincipalId().toString());
+					realmPrincipal.setAuthenticatedUsers(principal.getPrincipalId().toString());
 					break;
 				case REALM_PRINCIPAL_TYPE_ADMINISTRATORS:
-					realm.setAdministrativeGroup(principal.getPrincipalId().toString());
+					realmPrincipal.setAdministrativeGroup(principal.getPrincipalId().toString());
 					break;
 				default:
 					throw new IllegalStateException("Unexpected type" +principal.getPrincipalType());
@@ -152,48 +155,44 @@ public class RealmDaoImpl implements RealmDao {
 		}
 	}
 	
-	List<DBORealmPrincipal> copyRealmPrincipalsToDBOList(Realm realm) {
+	List<DBORealmPrincipal> copyRealmPrincipalsToDBOList(RealmPrincipal realmPrincipal) {
 		List<DBORealmPrincipal> result = new ArrayList<DBORealmPrincipal>();
-		if (null != realm.getAnonymousUser()) {
+		if (null != realmPrincipal.getAnonymousUser()) {
 			DBORealmPrincipal dbo = new DBORealmPrincipal();
-			dbo.setRealmId(stringToLong(realm.getId()));
+			dbo.setRealmId(stringToLong(realmPrincipal.getRealmId()));
 			dbo.setId(idGenerator.generateNewId(IdType.REALM_PRINCIPAL));
-			dbo.setPrincipalId(stringToLong(realm.getAnonymousUser()));
+			dbo.setPrincipalId(stringToLong(realmPrincipal.getAnonymousUser()));
 			dbo.setPrincipalType(REALM_PRINCIPAL_TYPE_ANONYMOUS);
 			result.add(dbo);
 		}
-		if (null != realm.getPublicGroup()) {
+		if (null != realmPrincipal.getPublicGroup()) {
 			DBORealmPrincipal dbo = new DBORealmPrincipal();
-			dbo.setRealmId(stringToLong(realm.getId()));
+			dbo.setRealmId(stringToLong(realmPrincipal.getRealmId()));
 			dbo.setId(idGenerator.generateNewId(IdType.REALM_PRINCIPAL));
-			dbo.setPrincipalId(stringToLong(realm.getPublicGroup()));
+			dbo.setPrincipalId(stringToLong(realmPrincipal.getPublicGroup()));
 			dbo.setPrincipalType(REALM_PRINCIPAL_TYPE_PUBLIC);
 			result.add(dbo);
 		}
-		if (null != realm.getAuthenticatedUsers()) {
+		if (null != realmPrincipal.getAuthenticatedUsers()) {
 			DBORealmPrincipal dbo = new DBORealmPrincipal();
-			dbo.setRealmId(stringToLong(realm.getId()));
+			dbo.setRealmId(stringToLong(realmPrincipal.getRealmId()));
 			dbo.setId(idGenerator.generateNewId(IdType.REALM_PRINCIPAL));
-			dbo.setPrincipalId(stringToLong(realm.getAuthenticatedUsers()));
+			dbo.setPrincipalId(stringToLong(realmPrincipal.getAuthenticatedUsers()));
 			dbo.setPrincipalType(REALM_PRINCIPAL_TYPE_AUTHENTICATED);
 			result.add(dbo);
 		}
-		if (null != realm.getAdministrativeGroup()) {
+		if (null != realmPrincipal.getAdministrativeGroup()) {
 			DBORealmPrincipal dbo = new DBORealmPrincipal();
-			dbo.setRealmId(stringToLong(realm.getId()));
+			dbo.setRealmId(stringToLong(realmPrincipal.getRealmId()));
 			dbo.setId(idGenerator.generateNewId(IdType.REALM_PRINCIPAL));
-			dbo.setPrincipalId(stringToLong(realm.getAdministrativeGroup()));
+			dbo.setPrincipalId(stringToLong(realmPrincipal.getAdministrativeGroup()));
 			dbo.setPrincipalType(REALM_PRINCIPAL_TYPE_ADMINISTRATORS);
 			result.add(dbo);
 		}
 		return result;
 	}
 
-	// Note, this does NOT create the principals, which need to be
-	// added only after the realm object is created, since principals
-	// have FKs to the realm
 	private DBORealm createPrivate(Realm dto) {
-		dto.setEtag(UUID.randomUUID().toString());
 		dto.setCreatedOn(new Date());
 		DBORealm dbo = copyRealmToDBORealm(dto);
 		dbo = basicDao.createNew(dbo);
@@ -216,30 +215,9 @@ public class RealmDaoImpl implements RealmDao {
 	
 	@WriteTransaction
 	@Override
-	public Realm updateRealm(Realm dto) {
-		SqlParameterSource param = new SinglePrimaryKeySqlParameterSource(dto.getId());
-		Optional<DBORealm> dboOptional = basicDao.getObjectByPrimaryKeyWithUpdateLock(DBORealm.class, param);
-		if (dboOptional.isEmpty()) {
-			throw new NotFoundException("Realm "+dto.getId()+" is not found.");
-		}
-		DBORealm dbo = dboOptional.get();
-		if (!dbo.getEtag().equals(dto.getEtag())) {
-			throw new ConflictingUpdateException(
-				"Realm was updated since you last fetched it.  Retrieve it again and reapply the update.");
-		}
-		dbo.setEtag(UUID.randomUUID().toString());
-		// the only field the client can change in the DBO is the name
-		dbo.setName(dto.getName());
-		basicDao.update(dbo);
-		// remove existing IDPs for this realm
-		jdbcTemplate.update(DELETE_IDPS_SQL, dto.getId());
-		// create the IDPs
-		List<DBORealmIdentityProvider> idps = copyRealmToRealmIdps(dto);
-		if (!idps.isEmpty()) {
-			basicDao.createBatch(idps);
-		}
-		// remove existing principals for this realm
-		jdbcTemplate.update(DELETE_PRINCIPALS_SQL, dto.getId());
+	public RealmPrincipal createRealmPrincipals(RealmPrincipal dto) {
+		// remove the principals for the realm, prior to recreating them
+		jdbcTemplate.update(DELETE_PRINCIPALS_SQL, dto.getRealmId());
 		// create realm principals
 		List<DBORealmPrincipal> principals = copyRealmPrincipalsToDBOList(dto);
 		if (!principals.isEmpty()) {
@@ -266,6 +244,12 @@ public class RealmDaoImpl implements RealmDao {
 				return dboRealmIdp;
 			}}, id);
 		copyRealmIdpsToRealm(idps, result);
+		return result;
+	}
+
+	@Override
+	public RealmPrincipal getRealmPrincipals(String id) {
+		RealmPrincipal result = new RealmPrincipal();
 		List<DBORealmPrincipal> principals = jdbcTemplate.query(REALM_PRINCIPAL_SQL, (new DBORealmPrincipal()).getTableMapping(), id);
 		copyRealmPrincipalsToRealm(principals, result);
 		return result;
@@ -282,9 +266,17 @@ public class RealmDaoImpl implements RealmDao {
 
 	@WriteTransaction
 	@Override
-	public void deleteRealm(long id) {
+	public void deleteRealmPrincipals(String id) {
+		jdbcTemplate.update(DELETE_PRINCIPALS_SQL, id);
+	}
+
+	@WriteTransaction
+	@Override
+	public void deleteRealm(String id) {
+		// remove the IDPs for this realm
+		jdbcTemplate.update(DELETE_IDPS_SQL, id);
+		// remove the realm
 		jdbcTemplate.update(DELETE_REALM_SQL, id);
-		// TODO delete IDPs and principals too
 	}
 
 	@WriteTransaction
@@ -308,29 +300,21 @@ public class RealmDaoImpl implements RealmDao {
 		orcidIdp.setProvider(OAuthProvider.ORCID);
 		idps.add(orcidIdp);
 		defaultRealm.setIdentityProvider(idps);
-		// Note that we create the realm without the four realm principals. This
-		// is because each principal has to reference its realm.  So we create
-		// the realm, then create the principals, and then, finally, update
-		// the realm to reference its principals (below).
 		createPrivate(defaultRealm);
 	}
 
 	@WriteTransaction
 	@Override
 	public void addPrincipalsToDefaultRealm() {
-		Realm defaultRealm = getRealm(AuthorizationConstants.DEFAULT_REALM_ID);
-		// Note that we create the realm without the four realm principals. This
-		// is because each principal has to reference its realm.  So we create
-		// the realm, then create the principals, and then, finally, update
-		// the realm to reference its principals.
+		RealmPrincipal realmPrincipal = new RealmPrincipal();
+		realmPrincipal.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
 		// Note, that the Synapse Administrator group is doing 'double duty' here by also being the
-		// administrative group for the default realm. 
-		// TODO need to bootstrap admin group (ID=2) before doing this
-		//defaultRealm.setAdministrativeGroup(BOOTSTRAP_PRINCIPAL.ADMINISTRATORS_GROUP.getPrincipalId().toString());
-		defaultRealm.setAnonymousUser(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId().toString());
-		defaultRealm.setAuthenticatedUsers(BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId().toString());
-		defaultRealm.setPublicGroup(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId().toString());
-		updateRealm(defaultRealm);
+		// administrative group for the default realm.
+		realmPrincipal.setAdministrativeGroup(BOOTSTRAP_PRINCIPAL.ADMINISTRATORS_GROUP.getPrincipalId().toString());
+		realmPrincipal.setAnonymousUser(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId().toString());
+		realmPrincipal.setAuthenticatedUsers(BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId().toString());
+		realmPrincipal.setPublicGroup(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId().toString());
+		createRealmPrincipals(realmPrincipal);
 	}
 
 }

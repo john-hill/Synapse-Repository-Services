@@ -11,6 +11,7 @@ import org.sagebionetworks.repo.model.UserGroup;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.Realm;
 import org.sagebionetworks.repo.model.auth.RealmIdList;
+import org.sagebionetworks.repo.model.auth.RealmPrincipal;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -43,5 +44,11 @@ public class UserGroupServiceImpl implements UserGroupService {
 	@Override
 	public Realm getRealm(String realmId) {
 		return realmManager.getRealm(realmId);
+	}
+
+	@Override
+	public RealmPrincipal getRealmPrincipals(String realmId) {
+		return realmManager.getRealmPrincipals(realmId);
+
 	}
 }

@@ -24,7 +24,6 @@ import org.sagebionetworks.repo.model.auth.LoginResponse;
 import org.sagebionetworks.repo.model.auth.NewIntegrationTestUser;
 import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.auth.Realm;
-import org.sagebionetworks.repo.model.auth.RealmIdList;
 import org.sagebionetworks.repo.model.dbo.dao.DBOChangeDAO;
 import org.sagebionetworks.repo.model.dbo.ses.EmailQuarantineDao;
 import org.sagebionetworks.repo.model.dbo.verification.VerificationDAO;
@@ -138,12 +137,13 @@ public class AdministrationServiceImpl implements AdministrationService  {
 		return res;
 	}
 
-	void adminCheck(Long userId) {
+	UserInfo adminCheck(Long userId) {
 		ValidateArgument.required(userId, "userid");
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		if (!userInfo.isAdmin()) {
 			throw new UnauthorizedException("Only an administrator may access this service.");
 		}
+		return userInfo;
 	}
 
 	@Override
@@ -263,14 +263,14 @@ public class AdministrationServiceImpl implements AdministrationService  {
 
 	@Override
 	public Realm createRealm(Long userId, Realm realm) {
-		adminCheck(userId);
-		return realmManager.createRealm(realm);
+		UserInfo userInfo = adminCheck(userId);
+		return realmManager.createRealm(userInfo, realm);
 	}
 
 	@Override
 	public void deleteRealm(Long userId, String realmId) {
-		adminCheck(userId);
-		realmManager.deleteRealm(realmId);
+		UserInfo userInfo = adminCheck(userId);
+		realmManager.deleteRealm(userInfo, realmId);
 	}
 
 }

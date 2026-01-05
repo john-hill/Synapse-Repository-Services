@@ -11,7 +11,6 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
-import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,7 +34,6 @@ import org.sagebionetworks.repo.model.admin.ExpireQuarantinedEmailRequest;
 import org.sagebionetworks.repo.model.auth.LoginResponse;
 import org.sagebionetworks.repo.model.auth.NewIntegrationTestUser;
 import org.sagebionetworks.repo.model.auth.Realm;
-import org.sagebionetworks.repo.model.auth.RealmIdList;
 import org.sagebionetworks.repo.model.dbo.dao.DBOChangeDAO;
 import org.sagebionetworks.repo.model.dbo.ses.EmailQuarantineDao;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
@@ -283,23 +281,10 @@ public class AdministrationServiceImplTest {
 		when(mockUserManager.getUserInfo(any())).thenReturn(admin);
 		Realm realm = new Realm();
 		Realm createdRealm = new Realm();
-		when(mockRealmManager.createRealm(realm)).thenReturn(createdRealm);
+		when(mockRealmManager.createRealm(admin, realm)).thenReturn(createdRealm);
 		Realm result = adminService.createRealm(adminUserId, realm);
 		assertEquals(createdRealm, result);
-		verify(mockRealmManager).createRealm(realm);
-	}
-
-	@Test
-	public void testListRealms() {
-		when(mockUserManager.getUserInfo(any())).thenReturn(admin);
-		String realmId1 = "1";
-		String realmId2 = "2";
-		RealmIdList realmIdList = new RealmIdList();
-		realmIdList.setRealms(List.of(realmId1, realmId2));
-		when(mockRealmManager.listRealmIds()).thenReturn(realmIdList);
-		RealmIdList result = adminService.listRealmIds(adminUserId);
-		assertEquals(realmIdList, result);
-		verify(mockRealmManager).listRealmIds();
+		verify(mockRealmManager).createRealm(admin, realm);
 	}
 
 	@Test
@@ -307,6 +292,6 @@ public class AdministrationServiceImplTest {
 		when(mockUserManager.getUserInfo(any())).thenReturn(admin);
 		String realmId = "testRealmId";
 		adminService.deleteRealm(adminUserId, realmId);
-		verify(mockRealmManager).deleteRealm(realmId);
+		verify(mockRealmManager).deleteRealm(admin, realmId);
 	}
 }

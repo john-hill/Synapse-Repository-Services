@@ -107,7 +107,7 @@ public class UserManagerImpl implements UserManager {
 		UserGroup individualGroup = new UserGroup();
 		individualGroup.setIsIndividual(true);
 		individualGroup.setCreationDate(createdOn);
-		// TODO Ultimately the realm will come from the NewUser object
+		// TODO Ultimately the realm will come from the NewUser object see PLFM-9324
 		individualGroup.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
 		Long principalId = userGroupDAO.create(individualGroup);
 		

@@ -58,7 +58,7 @@ public class RealmManagerImpl implements RealmManager {
 		adminTeam.setCanPublicJoin(false);
 		adminTeam.setDescription("Administration team for "+realmName);
 		adminTeam.setName(realmName+ADMINISTRATORS_SUFFIX);
-		// TODO ultimately we will pass the realm id, to create the team in the realm
+		// TODO ultimately we will pass the realm id, to create the team in the realm PLFM-9329
 		adminTeam = teamManager.create(userInfo, adminTeam);
 		return adminTeam.getId();
 	}

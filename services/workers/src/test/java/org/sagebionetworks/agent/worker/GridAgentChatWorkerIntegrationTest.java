@@ -131,33 +131,41 @@ public class GridAgentChatWorkerIntegrationTest {
 		admin = userManager.getUserInfo(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId());
 	}
 
-	void setGrid() throws IOException, Exception, AssertionError, AsynchJobFailedException {
+	/**
+	 * Helper to create a grid session from CSV rows and bind the provided schema.
+	 * This consolidates duplicated setup code so tests can call with different
+	 * datasets and schemas.
+	 *
+	 * @param csvHeader                the CSV header columns (first line)
+	 * @param csvRows                  the CSV data rows (each row is a String[] matching header length)
+	 * @param schemaPath            classpath path to the JSON schema
+	 * @param shortName             short name used when creating the schema id
+	 * @param expectedTotalRows     expected total row count to wait for
+	 * @param expectedInvalidRows   expected invalid row count to wait for
+	 */
+	void createGridSessionFromCsv(String[] csvHeader, List<String[]> csvRows, String schemaPath, String shortName, int expectedTotalRows, int expectedInvalidRows) throws Exception {
 		File temp = File.createTempFile("GridScaleIntegrationTest", ".csv", null);
 
 		csvDescriptor = new CsvTableDescriptor().setIsFirstLineHeader(true);
 		try (CSVWriter writer = new CSVWriterProviderImpl().createWriter(new FileWriter(temp), csvDescriptor)) {
-			writer.writeNext(new String[] { "a", "b" });
-			writer.writeNext(new String[] { "1", "one" });
-			writer.writeNext(new String[] { "2" });
-			writer.writeNext(new String[] { null, "no id" });
-			writer.writeNext(new String[] { "3", "true" });
-			writer.writeNext(new String[] { "98", "ninety eight" });
-			writer.writeNext(new String[] { "99" });
-			writer.writeNext(new String[] { "101" });
-			writer.writeNext(new String[] { "102", "one hundred two" });
-			writer.writeNext(new String[] { "103", "3.41" });
+			writer.writeNext(csvHeader);
+			for (String[] r : csvRows) {
+				writer.writeNext(r);
+			}
 		}
 
-		S3FileHandle fh = fileHandleManager.uploadLocalFile(new LocalFileUploadRequest().withFileToUpload(temp)
-				.withContentType("text/csv").withFileName(temp.getName()).withUserId(admin.getId().toString()));
+		S3FileHandle fh = fileHandleManager
+				.uploadLocalFile(new LocalFileUploadRequest().withFileToUpload(temp).withContentType("text/csv")
+						.withFileName(temp.getName()).withUserId(admin.getId().toString()));
 		temp.delete();
 
 		project = entityService.createEntity(admin.getId(), new Project().setName("GridScaleIntegrationTest"), null);
 
+		// use the first column as the upsert key
 		recordSet = entityService.createEntity(admin.getId(), new RecordSet().setName("aRecordSet")
-				.setParentId(project.getId()).setDataFileHandleId(fh.getId()).setUpsertKey(List.of("a")), null);
+				.setParentId(project.getId()).setDataFileHandleId(fh.getId()).setUpsertKey(List.of(csvHeader[0])), null);
 
-		schema$id = createJsonSchema("schema/ConditionalRequirement.json", "conditionalrequirement");
+		schema$id = createJsonSchema(schemaPath, shortName);
 
 		entityService.bindSchemaToEntity(admin.getId(),
 				new BindSchemaToEntityRequest().setEntityId(recordSet.getId()).setSchema$id(schema$id));
@@ -184,7 +192,7 @@ public class GridAgentChatWorkerIntegrationTest {
 					.filter(r -> r.getRowValidationResults() != null && !r.getRowValidationResults().getIsValid())
 					.count();
 			System.out.println("invalid count: " + invalidRows);
-			if (rows.size() != 9 || invalidRows != 2) {
+			if (rows.size() != expectedTotalRows || invalidRows != expectedInvalidRows) {
 				return Pair.create(false, null);
 			}
 			return Pair.create(true, header.get());
@@ -193,7 +201,25 @@ public class GridAgentChatWorkerIntegrationTest {
 
 	@Test
 	public void testViewWithSchemaAndAgentChat() throws Exception {
-		setGrid();
+		createGridSessionFromCsv(
+				new String[] { "a", "b" },
+				List.of(
+						new String[] { "1", "one" },
+						new String[] { "2" },
+						new String[] { null, "no id" },
+						new String[] { "3", "true" },
+						new String[] { "98", "ninety eight" },
+						new String[] { "99" },
+						new String[] { "101" },
+						new String[] { "102", "one hundred two" },
+						new String[] { "103", "3.41" }
+				),
+				"schema/ConditionalRequirement.json",
+				"conditionalrequirement",
+				9,
+				2
+		);
+
 		// Create replica One
 		GridReplica replicaOne = gridService
 				.createReplica(admin.getId(), new CreateReplicaRequest().setGridSessionId(gridSession.getSessionId()))
@@ -394,68 +420,24 @@ public class GridAgentChatWorkerIntegrationTest {
 				return Pair.create(false, null);
 			}
 		});
-
-	}
-
-	void setupGridRegex() throws IOException, Exception, AssertionError, AsynchJobFailedException {
-		File temp = File.createTempFile("GridScaleIntegrationTest", ".csv", null);
-
-		csvDescriptor = new CsvTableDescriptor().setIsFirstLineHeader(true);
-		try (CSVWriter writer = new CSVWriterProviderImpl().createWriter(new FileWriter(temp), csvDescriptor)) {
-			writer.writeNext(new String[] { "firstName", "lastName", "phone", "formattedName", "cleanPhone" });
-			writer.writeNext(new String[] { "John", "Smith", "(555) 123-4567", "Smith, John", "555-123-4567" });
-			writer.writeNext(new String[] { "Alice", "Johnson", "(555) 987-6543", null, null });
-			writer.writeNext(new String[] { "Bob", "Williams", "(555) 456-7890", null, null });
-			writer.writeNext(new String[] { "Carol", "Davis", "(555) 321-0987", null, null });
-			writer.writeNext(new String[] { "David", "Miller", "(555) 789-0123", null, null });
-		}
-
-		S3FileHandle fh = fileHandleManager.uploadLocalFile(new LocalFileUploadRequest().withFileToUpload(temp)
-				.withContentType("text/csv").withFileName(temp.getName()).withUserId(admin.getId().toString()));
-		temp.delete();
-
-		project = entityService.createEntity(admin.getId(), new Project().setName("GridScaleIntegrationTest"), null);
-
-		recordSet = entityService.createEntity(admin.getId(), new RecordSet().setName("aRecordSet")
-				.setParentId(project.getId()).setDataFileHandleId(fh.getId()).setUpsertKey(List.of("a")), null);
-
-		schema$id = createJsonSchema("schema/PathSchema.json", "pathschema");
-
-		entityService.bindSchemaToEntity(admin.getId(),
-				new BindSchemaToEntityRequest().setEntityId(recordSet.getId()).setSchema$id(schema$id));
-
-		gridSession = asynchronousJobWorkerHelper.assertJobResponse(admin,
-				new CreateGridRequest().setRecordSetId(recordSet.getId()), (CreateGridResponse response) -> {
-					assertNotNull(response);
-					assertNotNull(response.getGridSession());
-				}, MAX_WAIT_MS).getResponse().getGridSession();
-		assertNotNull(gridSession);
-		assertEquals(recordSet.getId(), gridSession.getSourceEntityId());
-		assertEquals(schema$id, gridSession.getGridJsonSchema$Id());
-
-		TimeUtils.waitFor(MAX_WAIT_MS, 2000L, () -> {
-			System.out.println("Waiting for row validation results to change...");
-			Optional<GridHeader> header = gridReplicaViewManager.readHeader(gridSession.getSessionId(),
-					INTERNAL_REPLICA_ID);
-			if (header.isEmpty()) {
-				return Pair.create(false, null);
-			}
-			List<RowView> rows = gridReplicaViewManager.querySinglePage(header.get(), 100L, 0L);
-			System.out.println("row count: " + rows.size());
-			int invalidRows = (int) rows.stream()
-					.filter(r -> r.getRowValidationResults() != null && !r.getRowValidationResults().getIsValid())
-					.count();
-			System.out.println("invalid count: " + invalidRows);
-			if (rows.size() != 5 || invalidRows != 4) {
-				return Pair.create(false, null);
-			}
-			return Pair.create(true, header.get());
-		});
 	}
 
 	@Test
-	public void testRegularExpression() throws IOException, AssertionError, AsynchJobFailedException, Exception {
-		setupGridRegex();
+	public void testRegularExpression() throws AssertionError, Exception {
+		createGridSessionFromCsv(
+				new String[] { "firstName", "lastName", "phone", "formattedName", "cleanPhone" },
+				List.of(
+						new String[] { "John", "Smith", "(555) 123-4567", "Smith, John", "555-123-4567" },
+						new String[] { "Alice", "Johnson", "(555) 987-6543", null, null },
+						new String[] { "Bob", "Williams", "(555) 456-7890", null, null },
+						new String[] { "Carol", "Davis", "(555) 321-0987", null, null },
+						new String[] { "David", "Miller", "(555) 789-0123", null, null }
+				),
+				"schema/PathSchema.json",
+				"pathschema",
+				5,
+				4
+		);
 
 		// Create replica One
 		GridReplica replicaOne = gridService
@@ -528,6 +510,81 @@ public class GridAgentChatWorkerIntegrationTest {
 		});
 	}
 
+	@Test
+	public void testArrays() throws Exception {
+		createGridSessionFromCsv(
+				new String[] { "arrayColumn", },
+				List.of(
+						new String[] { "abc", },
+						new String[] { "def" },
+						new String[] { "ghi" },
+						new String[] { "jkl" }
+				),
+				"schema/ArrayProperty.json",
+				"arrayproperty",
+				4,
+				4
+		);
+
+		GridReplica replicaOne = gridService
+				.createReplica(admin.getId(), new CreateReplicaRequest().setGridSessionId(gridSession.getSessionId()))
+				.getReplica();
+
+		String urlOne = gridService
+				.createPresignedUrl(admin.getId(), new CreateGridPresignedUrlRequest()
+						.setGridSessionId(gridSession.getSessionId()).setReplicaId(replicaOne.getReplicaId()))
+				.getPresignedUrl();
+		assertNotNull(urlOne);
+		BlockingQueue<String> incomingMessages = new LinkedBlockingQueue<>();
+		asynchronousJobWorkerHelper.createConnection(urlOne, incomingMessages);
+
+		GridAgentSessionContext context = new GridAgentSessionContext().setGridSessionId(replicaOne.getGridSessionId())
+				.setUsersReplicaId(replicaOne.getReplicaId());
+		AgentSession agentSession = agentService.createSession(admin.getId(), new CreateAgentSessionRequest()
+				.setSessionContext(context).setAgentAccessLevel(AgentAccessLevel.WRITE_YOUR_PRIVATE_DATA));
+		assertNotNull(agentSession);
+		assertEquals(context, agentSession.getSessionContext());
+		assertNotNull(context.getAgentsReplicaId());
+
+		String chatRequest = "Set the arrayColumn column to be \"abc\", \"xyz\" for all rows in the grid";
+		AgentChatResponse acr = asynchronousJobWorkerHelper
+				.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
+						.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {
+					assertNotNull(response);
+					assertEquals(agentSession.getSessionId(), response.getSessionId());
+					assertNotNull(response.getResponseText());
+					System.out.println(response.getResponseText());
+				}, MAX_WAIT_MS)
+				.getResponse();
+		// the agent is likely to ask if it should proceed....
+		if (acr.getResponseText().contains("?")) {
+			chatRequest = "You may proceed with making the change.";
+			acr = asynchronousJobWorkerHelper
+					.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
+							.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {
+						assertNotNull(response);
+						assertEquals(agentSession.getSessionId(), response.getSessionId());
+						assertNotNull(response.getResponseText());
+						System.out.println(response.getResponseText());
+					}, MAX_WAIT_MS)
+					.getResponse();
+		}
+
+		TimeUtils.waitFor(MAX_WAIT_MS, 2000L, () -> {
+			System.out.println("Waiting for agent's changes to appear...");
+			GridHeader h = gridReplicaViewManager
+					.readHeader(gridSession.getSessionId(), INTERNAL_REPLICA_ID, context.getUsersReplicaId()).get();
+			QueryResult qr = gridReplicaViewManager.querySinglePageAsQueryResult(h,
+					new QueryElement().setWhere(List.of(new CellValueFilterElement().setColumnName("arrayColumn")
+							.setOperator(CellValueOperatorElement.EQUALS).setValue(List.of("abc", "xyz")))));
+			if (qr.getRows().size() == 4L) {
+				return Pair.create(true, null);
+			} else {
+				return Pair.create(false, null);
+			}
+		});
+	}
+
 	public JsonRxMessage createSetSelectionMessage(GridHeader header, ReplicaSelectionModel selection,
 			LogicalTimestamp clock) {
 		LogicalTimestamp rootObjId = header.getNodeId();
@@ -565,5 +622,6 @@ public class GridAgentChatWorkerIntegrationTest {
 					assertNotNull(response.getNewVersionInfo().get$id());
 				}, MAX_WAIT_MS).getResponse().getNewVersionInfo().get$id();
 	}
+
 
 }

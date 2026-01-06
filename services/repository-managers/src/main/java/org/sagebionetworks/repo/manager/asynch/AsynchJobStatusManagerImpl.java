@@ -27,6 +27,7 @@ import org.sagebionetworks.repo.model.asynch.CacheableRequestBody;
 import org.sagebionetworks.repo.model.asynch.ReadOnlyRequestBody;
 import org.sagebionetworks.repo.model.dao.asynch.AsynchronousJobStatusDAO;
 import org.sagebionetworks.repo.model.dbo.asynch.AsynchJobType;
+import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.status.StatusEnum;
 import org.sagebionetworks.repo.transactions.NewWriteTransaction;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
@@ -138,8 +139,8 @@ public class AsynchJobStatusManagerImpl implements AsynchJobStatusManager {
 			 * Therefore, we only check the cache if the user still has access to the table.
 			 * See: PLFM-9391.
 			 */
-			if (authorizationManager.canAccess(user, TableQueryUtils.getTableIdFromRequestBody(cacheable),
-					ObjectType.ENTITY, ACCESS_TYPE.DOWNLOAD).isAuthorized()) {
+			String tableId = TableQueryUtils.getTableIdFromRequestBodyAsIdAndVersion(cacheable).getId().toString();
+			if (authorizationManager.canAccess(user, tableId, ObjectType.ENTITY, ACCESS_TYPE.DOWNLOAD).isAuthorized()) {
 				/*
 				 * Before we start a CacheableRequestBody job, we need to determine if a job
 				 * already exists for this request and user.

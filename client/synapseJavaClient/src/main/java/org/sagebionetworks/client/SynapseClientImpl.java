@@ -126,6 +126,9 @@ import org.sagebionetworks.repo.model.auth.ChangePasswordWithCurrentPassword;
 import org.sagebionetworks.repo.model.auth.JSONWebTokenHelper;
 import org.sagebionetworks.repo.model.auth.LoginResponse;
 import org.sagebionetworks.repo.model.auth.NewUser;
+import org.sagebionetworks.repo.model.auth.Realm;
+import org.sagebionetworks.repo.model.auth.RealmIdList;
+import org.sagebionetworks.repo.model.auth.RealmPrincipal;
 import org.sagebionetworks.repo.model.auth.TermsOfServiceInfo;
 import org.sagebionetworks.repo.model.auth.TermsOfServiceRequirements;
 import org.sagebionetworks.repo.model.auth.TermsOfServiceSignRequest;
@@ -750,6 +753,8 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public static final String VIEW_COLUMNS = "/column/view/scope/";
 	
 	public static final String FILE_HANDLE_RESTORE = FILE_HANDLE + "/restore";
+	
+	protected static final String REALM = "/realm";
 	
 
 	/**
@@ -6565,4 +6570,19 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
     public ListCurationTaskResponse listMetadataTasks(ListCurationTaskRequest request) throws SynapseException {
         return postJSONEntity(getRepoEndpoint(), "/curation/task/list", request, ListCurationTaskResponse.class);
     }
+
+	@Override
+	public RealmIdList listRealmIds() throws SynapseException {
+	       return getJSONEntity(getRepoEndpoint(), REALM+"/list", RealmIdList.class);
+	}
+
+	@Override
+	public Realm getRealm(String id) throws SynapseException {
+	       return getJSONEntity(getRepoEndpoint(), REALM+"/"+id, Realm.class);
+	}
+
+	@Override
+	public RealmPrincipal getRealmPrincipals(String id) throws SynapseException {
+	       return getJSONEntity(getRepoEndpoint(), REALM+"/"+id+"/principals", RealmPrincipal.class);
+	}
 }

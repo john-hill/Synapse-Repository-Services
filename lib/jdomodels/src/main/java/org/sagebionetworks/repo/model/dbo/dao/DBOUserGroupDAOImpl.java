@@ -176,7 +176,7 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 		UserGroupUtils.copyDtoToDbo(dto, dbo);
 		// If the create is successful, it should have a new etag
 		dbo.setEtag(UUID.randomUUID().toString());
-		// Bootstraped users will have IDs already assigned.
+		// Bootstrapped users will have IDs already assigned.
 		if(dbo.getId() == null){
 			// We allow the ID generator to create all other IDs
 			dbo.setId(idGenerator.generateNewId(IdType.PRINCIPAL_ID));

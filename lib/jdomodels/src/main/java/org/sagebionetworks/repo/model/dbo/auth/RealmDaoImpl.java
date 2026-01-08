@@ -252,6 +252,7 @@ public class RealmDaoImpl implements RealmDao {
 		RealmPrincipal result = new RealmPrincipal();
 		List<DBORealmPrincipal> principals = jdbcTemplate.query(REALM_PRINCIPAL_SQL, (new DBORealmPrincipal()).getTableMapping(), id);
 		copyRealmPrincipalsToRealm(principals, result);
+		result.setRealmId(id);
 		return result;
 	}
 

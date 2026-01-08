@@ -76,8 +76,8 @@ public class RealmManagerImpl implements RealmManager {
 		RealmPrincipal realmPrincipal = new RealmPrincipal();
 		realmPrincipal.setRealmId(realm.getId());
 		realmPrincipal.setAnonymousUser(createRealmPrincipal(realm.getId(), name+ANONYMOUS_SUFFIX, true));
-		realmPrincipal.setPublicGroup(createRealmPrincipal(realm.getId(), name+PUBLIC_SUFFIX, false));
 		realmPrincipal.setAuthenticatedUsers(createRealmPrincipal(realm.getId(), name+AUTH_USERS_SUFFIX, false));
+		realmPrincipal.setPublicGroup(createRealmPrincipal(realm.getId(), name+PUBLIC_SUFFIX, false));
 		realmPrincipal.setAdministrativeGroup(createRealmAdminTeam(userInfo, realm.getId(), name));
 		realmPrincipal = realmDao.createRealmPrincipals(realmPrincipal);
 		return realm;

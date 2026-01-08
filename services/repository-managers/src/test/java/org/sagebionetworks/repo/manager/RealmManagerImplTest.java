@@ -68,10 +68,10 @@ class RealmManagerImplTest {
 	private static final String REALM_NAME ="realm-name";
 	private static final List<IdentityProvider> IDP_LIST = List.of(new OAuthIdentityProvider().
 			setProvider(OAuthProvider.GOOGLE_OAUTH_2_0));
-	private static final String REALM_ANONYMOUS_PRINCIPAL_ALIAS = REALM_NAME+" Anonymous";
-	private static final String REALM_AUTHENTICATED_PRINCIPAL_ALIAS = REALM_NAME+" Authenticated Users";
-	private static final String REALM_PUBLIC_PRINCIPAL_ALIAS = REALM_NAME+" Public";
-	private static final String REALM_ADMIN_PRINCIPAL_ALIAS = REALM_NAME+" Administrators";
+	private static final String REALM_ANONYMOUS_PRINCIPAL_ALIAS = REALM_NAME+"-Anonymous";
+	private static final String REALM_AUTHENTICATED_PRINCIPAL_ALIAS = REALM_NAME+" Authenticated_Users";
+	private static final String REALM_PUBLIC_PRINCIPAL_ALIAS = REALM_NAME+"-Public";
+	private static final String REALM_ADMIN_PRINCIPAL_ALIAS = REALM_NAME+"-Administrators";
 	private static final Long ANONYMOUS_ID = 101L;
 	private static final Long AUTHENTICATED_ID = 102L;
 	private static final Long PUBLIC_ID = 103L;
@@ -168,6 +168,18 @@ class RealmManagerImplTest {
 			// method under test
 			realmManager.createRealm(adminUserInfo, realm);
 		});
+	}
+	
+	@Test
+	void testCreateRealmIllegalName() {
+		Realm realm = new Realm();
+		realm.setName(REALM_NAME+"$"); // illegal name
+		realm.setIdentityProvider(IDP_LIST);
+		assertThrows(IllegalArgumentException.class, ()->{
+			// method under test
+			realmManager.createRealm(adminUserInfo, realm);
+		});
+
 	}
 	
 	@Test

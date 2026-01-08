@@ -1,5 +1,8 @@
 package org.sagebionetworks.repo.manager;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import org.sagebionetworks.repo.manager.team.TeamManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.RealmDao;
@@ -32,10 +35,10 @@ public class RealmManagerImpl implements RealmManager {
 	@Autowired
 	private TeamManager teamManager;
 	
-	static final String ANONYMOUS_SUFFIX = " Anonymous";
-	static final String PUBLIC_SUFFIX = " Public";
-	static final String AUTH_USERS_SUFFIX = " Authenticated Users";
-	static final String ADMINISTRATORS_SUFFIX = " Administrators";
+	static final String ANONYMOUS_SUFFIX = "-Anonymous";
+	static final String PUBLIC_SUFFIX = "-Public";
+	static final String AUTH_USERS_SUFFIX = " Authenticated_Users";
+	static final String ADMINISTRATORS_SUFFIX = "-Administrators";
 	
 	String createRealmPrincipal(String realmId, String alias, boolean isIndvidual) {
 		if (!principalAliasDAO.isAliasAvailable(alias)) {
@@ -62,6 +65,11 @@ public class RealmManagerImpl implements RealmManager {
 		adminTeam = teamManager.create(userInfo, adminTeam);
 		return adminTeam.getId();
 	}
+	
+	// Since the realm name will become the prefix for the aliases of the 
+	// realm's principals, we apply the same constraint that we do for those 
+	// names.
+	private static final String REALM_NAME_REGEX = "^[a-z0-9._-]{3,}";
 
 	@Override
 	@WriteTransaction
@@ -71,6 +79,8 @@ public class RealmManagerImpl implements RealmManager {
 		}
 		String name = realm.getName();
 		ValidateArgument.required(name, "name");
+		Matcher matcher = Pattern.compile(REALM_NAME_REGEX).matcher(name);
+		ValidateArgument.requirement(matcher.matches(), "Realm name can only contain letters, numbers, dots, dashes and underscores, and must be at least three characters.");
 		ValidateArgument.requiredNotEmpty(realm.getIdentityProvider(), "identity providers");
 		realm = realmDao.createRealm(realm);
 		RealmPrincipal realmPrincipal = new RealmPrincipal();

@@ -57,39 +57,4 @@ public class UserGroupController {
 			) throws DatastoreException, UnauthorizedException, NotFoundException {
 		return serviceProvider.getUserGroupService().getUserGroups(userId, offset, limit, sort, ascending);
 	}
-	
-	/**
-	 * List the IDs of the current realms.
-	 * @return list of the IDs of the existing realms
-	 */
-	@RequiredScope({view})
-	@ResponseStatus(HttpStatus.OK)
-	@RequestMapping(value = UrlHelpers.REALM_LIST, method = RequestMethod.GET)
-	@ResponseBody
-	public RealmIdList listRealmIds() {
-		return serviceProvider.getUserGroupService().listRealmIds();
-	}
-
-	/**
-	 * Retrieve a realm by its ID
-	 * @param realmId
-	 */
-	@RequiredScope({view})
-	@ResponseStatus(HttpStatus.OK)
-	@RequestMapping(value = UrlHelpers.REALM_ID, method = RequestMethod.GET)
-	@ResponseBody
-	public Realm getRealm(@PathVariable(ID_PATH_VARIABLE) String realmId) {
-		return serviceProvider.getUserGroupService().getRealm(realmId);
-	}
-	/**
-	 * Retrieve the principals for a realm
-	 * @param realmId
-	 */
-	@RequiredScope({view})
-	@ResponseStatus(HttpStatus.OK)
-	@RequestMapping(value = UrlHelpers.REALM_ID_PRINCIPALS, method = RequestMethod.GET)
-	@ResponseBody
-	public RealmPrincipal getRealmPrincipals(@PathVariable(ID_PATH_VARIABLE) String realmId) {
-		return serviceProvider.getUserGroupService().getRealmPrincipals(realmId);
-	}
 }

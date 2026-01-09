@@ -4,9 +4,6 @@ import org.sagebionetworks.reflection.model.PaginatedResults;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.auth.Realm;
-import org.sagebionetworks.repo.model.auth.RealmIdList;
-import org.sagebionetworks.repo.model.auth.RealmPrincipal;
 import org.sagebionetworks.repo.web.NotFoundException;
 
 /**
@@ -27,18 +24,4 @@ public interface UserGroupService {
 			Boolean ascending) throws DatastoreException,
 			UnauthorizedException, NotFoundException;
 
-	/**
-	 * 
-	 * @return
-	 */
-	public RealmIdList listRealmIds();
-
-	/**
-	 * 
-	 * @param realmId
-	 * @return
-	 */
-	public Realm getRealm(String realmId);
-	
-	public RealmPrincipal getRealmPrincipals(String realmId);
 }

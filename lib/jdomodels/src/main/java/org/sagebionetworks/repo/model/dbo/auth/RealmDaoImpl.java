@@ -157,38 +157,30 @@ public class RealmDaoImpl implements RealmDao {
 	
 	List<DBORealmPrincipal> copyRealmPrincipalsToDBOList(RealmPrincipal realmPrincipal) {
 		List<DBORealmPrincipal> result = new ArrayList<DBORealmPrincipal>();
-		if (null != realmPrincipal.getAnonymousUser()) {
-			DBORealmPrincipal dbo = new DBORealmPrincipal();
-			dbo.setRealmId(stringToLong(realmPrincipal.getRealmId()));
-			dbo.setId(idGenerator.generateNewId(IdType.REALM_PRINCIPAL));
-			dbo.setPrincipalId(stringToLong(realmPrincipal.getAnonymousUser()));
-			dbo.setPrincipalType(REALM_PRINCIPAL_TYPE_ANONYMOUS);
-			result.add(dbo);
-		}
-		if (null != realmPrincipal.getPublicGroup()) {
-			DBORealmPrincipal dbo = new DBORealmPrincipal();
-			dbo.setRealmId(stringToLong(realmPrincipal.getRealmId()));
-			dbo.setId(idGenerator.generateNewId(IdType.REALM_PRINCIPAL));
-			dbo.setPrincipalId(stringToLong(realmPrincipal.getPublicGroup()));
-			dbo.setPrincipalType(REALM_PRINCIPAL_TYPE_PUBLIC);
-			result.add(dbo);
-		}
-		if (null != realmPrincipal.getAuthenticatedUsers()) {
-			DBORealmPrincipal dbo = new DBORealmPrincipal();
-			dbo.setRealmId(stringToLong(realmPrincipal.getRealmId()));
-			dbo.setId(idGenerator.generateNewId(IdType.REALM_PRINCIPAL));
-			dbo.setPrincipalId(stringToLong(realmPrincipal.getAuthenticatedUsers()));
-			dbo.setPrincipalType(REALM_PRINCIPAL_TYPE_AUTHENTICATED);
-			result.add(dbo);
-		}
-		if (null != realmPrincipal.getAdministrativeGroup()) {
-			DBORealmPrincipal dbo = new DBORealmPrincipal();
-			dbo.setRealmId(stringToLong(realmPrincipal.getRealmId()));
-			dbo.setId(idGenerator.generateNewId(IdType.REALM_PRINCIPAL));
-			dbo.setPrincipalId(stringToLong(realmPrincipal.getAdministrativeGroup()));
-			dbo.setPrincipalType(REALM_PRINCIPAL_TYPE_ADMINISTRATORS);
-			result.add(dbo);
-		}
+		DBORealmPrincipal dbo = new DBORealmPrincipal();
+		dbo.setRealmId(stringToLong(realmPrincipal.getRealmId()));
+		dbo.setId(idGenerator.generateNewId(IdType.REALM_PRINCIPAL));
+		dbo.setPrincipalId(stringToLong(realmPrincipal.getAnonymousUser()));
+		dbo.setPrincipalType(REALM_PRINCIPAL_TYPE_ANONYMOUS);
+		result.add(dbo);
+		dbo = new DBORealmPrincipal();
+		dbo.setRealmId(stringToLong(realmPrincipal.getRealmId()));
+		dbo.setId(idGenerator.generateNewId(IdType.REALM_PRINCIPAL));
+		dbo.setPrincipalId(stringToLong(realmPrincipal.getPublicGroup()));
+		dbo.setPrincipalType(REALM_PRINCIPAL_TYPE_PUBLIC);
+		result.add(dbo);
+		dbo = new DBORealmPrincipal();
+		dbo.setRealmId(stringToLong(realmPrincipal.getRealmId()));
+		dbo.setId(idGenerator.generateNewId(IdType.REALM_PRINCIPAL));
+		dbo.setPrincipalId(stringToLong(realmPrincipal.getAuthenticatedUsers()));
+		dbo.setPrincipalType(REALM_PRINCIPAL_TYPE_AUTHENTICATED);
+		result.add(dbo);
+		dbo = new DBORealmPrincipal();
+		dbo.setRealmId(stringToLong(realmPrincipal.getRealmId()));
+		dbo.setId(idGenerator.generateNewId(IdType.REALM_PRINCIPAL));
+		dbo.setPrincipalId(stringToLong(realmPrincipal.getAdministrativeGroup()));
+		dbo.setPrincipalType(REALM_PRINCIPAL_TYPE_ADMINISTRATORS);
+		result.add(dbo);
 		return result;
 	}
 

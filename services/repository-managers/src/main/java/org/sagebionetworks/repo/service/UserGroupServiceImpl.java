@@ -3,15 +3,11 @@ package org.sagebionetworks.repo.service;
 import java.util.List;
 
 import org.sagebionetworks.reflection.model.PaginatedResults;
-import org.sagebionetworks.repo.manager.RealmManager;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserGroup;
 import org.sagebionetworks.repo.model.UserInfo;
-import org.sagebionetworks.repo.model.auth.Realm;
-import org.sagebionetworks.repo.model.auth.RealmIdList;
-import org.sagebionetworks.repo.model.auth.RealmPrincipal;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -22,9 +18,6 @@ public class UserGroupServiceImpl implements UserGroupService {
 	@Autowired
 	UserManager userManager;
 	
-	@Autowired
-	RealmManager realmManager;
-	
 	@Override
 	public PaginatedResults<UserGroup> getUserGroups(
 			Long userId, Integer offset, Integer limit, String sort, Boolean ascending) 
@@ -34,21 +27,5 @@ public class UserGroupServiceImpl implements UserGroupService {
 		List<UserGroup> results = userManager.getGroupsInRange(userInfo, offset, endExcl, sort, ascending);
 		int totalNumberOfResults = userManager.getGroups().size();
 		return PaginatedResults.createWithLimitAndOffset(results, (long)limit, (long)offset);
-	}
-
-	@Override
-	public RealmIdList listRealmIds() {
-		return realmManager.listRealmIds();
-	}
-
-	@Override
-	public Realm getRealm(String realmId) {
-		return realmManager.getRealm(realmId);
-	}
-
-	@Override
-	public RealmPrincipal getRealmPrincipals(String realmId) {
-		return realmManager.getRealmPrincipals(realmId);
-
 	}
 }

@@ -5,7 +5,7 @@ import org.sagebionetworks.repo.model.auth.RealmIdList;
 import org.sagebionetworks.repo.model.auth.RealmPrincipal;
 
 /**
- * Generic service class to support controllers accessing UserGroups.
+ * Generic service class to support controllers accessing Realms.
  *
  */
 public interface RealmService {
@@ -22,5 +22,10 @@ public interface RealmService {
 	 */
 	public Realm getRealm(String realmId);
 	
+	/**
+	 * 
+	 * @param realmId
+	 * @return
+	 */
 	public RealmPrincipal getRealmPrincipals(String realmId);
 }

@@ -13,6 +13,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_REALM_ID;
 import static org.sagebionetworks.repo.model.docker.RegistryEventAction.pull;
 import static org.sagebionetworks.repo.model.docker.RegistryEventAction.push;
 import static org.sagebionetworks.repo.model.oauth.OAuthScope.download;
@@ -52,6 +53,7 @@ import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessRequirement;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.ActivityDAO;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.DockerNodeDao;
@@ -84,7 +86,6 @@ import org.sagebionetworks.repo.model.oauth.OAuthScope;
 import org.sagebionetworks.repo.model.subscription.SubscriptionObjectType;
 import org.sagebionetworks.repo.model.v2.dao.V2WikiPageDao;
 import org.sagebionetworks.repo.web.NotFoundException;
-import org.springframework.beans.factory.annotation.Autowired;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
@@ -160,8 +161,8 @@ public class AuthorizationManagerImplUnitTest {
 	
 	private static final long USER_ID = 111L;
 
-	private static final UserInfo USER_INFO = new UserInfo(false, USER_ID);
-	private static final UserInfo ADMIN_INFO = new UserInfo(true, 1L);
+	private static final UserInfo USER_INFO = new UserInfo(false, USER_ID, DEFAULT_REALM_ID);
+	private static final UserInfo ADMIN_INFO = new UserInfo(true, 1L, DEFAULT_REALM_ID);
 	
 	private static final String REGISTRY_HOST = "docker.synapse.org";
 	private static final String SERVICE = REGISTRY_HOST;
@@ -195,10 +196,10 @@ public class AuthorizationManagerImplUnitTest {
 
 	@BeforeEach
 	public void setUp() throws Exception {
-		userInfo = new UserInfo(false, USER_PRINCIPAL_ID);
-		adminUser = new UserInfo(true, 456L);
+		userInfo = new UserInfo(false, USER_PRINCIPAL_ID, DEFAULT_REALM_ID);
+		adminUser = new UserInfo(true, 456L, DEFAULT_REALM_ID);
 		
-		anonymousUserInfo = new UserInfo(false, BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
+		anonymousUserInfo = new UserInfo(false, BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId(), AuthorizationConstants.DEFAULT_REALM_ID);
 
 		evaluation = new Evaluation();
 		evaluation.setId(EVAL_ID);

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_REALM_ID;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -119,10 +120,10 @@ public class DBOAccessControlListDAOImplTest {
 		
 		UserGroup ug = new UserGroup();
 		ug.setIsIndividual(true);
-		ug.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
+		ug.setRealmId(DEFAULT_REALM_ID);
 		Long userId = userGroupDAO.create(ug);
 		boolean isAdmin = false;
-		userInfo = new UserInfo(isAdmin, userId);
+		userInfo = new UserInfo(isAdmin, userId, DEFAULT_REALM_ID);
 		userInfo.setGroups(Sets.newHashSet(userId, groupOneId, groupTwoId));
 
 		// Create an ACL for this node
@@ -672,8 +673,8 @@ public class DBOAccessControlListDAOImplTest {
 		Node visibleToOne = nodeDAO.createNewNode(NodeTestUtils.createNewFolder("visibleToOne", createdById, modifiedById, node.getId()));
 		Node visibleToTwo = nodeDAO.createNewNode(NodeTestUtils.createNewFolder("visibleToTwo", createdById, modifiedById, node.getId()));
 		
-		UserInfo userOne = new UserInfo(false, group.getId());
-		UserInfo userTwo = new UserInfo(false, group2.getId());
+		UserInfo userOne = new UserInfo(false, group.getId(), DEFAULT_REALM_ID);
+		UserInfo userTwo = new UserInfo(false, group2.getId(), DEFAULT_REALM_ID);
 		
 		AccessControlList acl1 = AccessControlListUtil.createACLToGrantEntityAdminAccess(visibleToOne.getId(), userOne, new Date());
 		createAcl(acl1, ObjectType.ENTITY);
@@ -713,8 +714,8 @@ public class DBOAccessControlListDAOImplTest {
 		Node visibleToOne = nodeDAO.createNewNode(NodeTestUtils.createNewFolder("visibleToOne", createdById, modifiedById, node.getId()));
 		Node visibleToTwo = nodeDAO.createNewNode(NodeTestUtils.createNewFolder("visibleToTwo", createdById, modifiedById, node.getId()));
 
-		UserInfo userOne = new UserInfo(false, group.getId());
-		UserInfo userTwo = new UserInfo(false, group2.getId());
+		UserInfo userOne = new UserInfo(false, group.getId(), DEFAULT_REALM_ID);
+		UserInfo userTwo = new UserInfo(false, group2.getId(), DEFAULT_REALM_ID);
 		
 		AccessControlList acl1 = AccessControlListUtil.createACLToGrantEntityAdminAccess(visibleToOne.getId(), userOne, new Date());
 		createAcl(acl1, ObjectType.ENTITY);
@@ -760,7 +761,7 @@ public class DBOAccessControlListDAOImplTest {
 		
 		Node node2 = nodeDAO.createNewNode(NodeTestUtils.createNewFolder("node2", createdById, modifiedById, node.getId()));
 		
-		AccessControlList acl2 = AccessControlListUtil.createACLToGrantEntityAdminAccess(node2.getId(), new UserInfo(false, group2.getId()), new Date());
+		AccessControlList acl2 = AccessControlListUtil.createACLToGrantEntityAdminAccess(node2.getId(), new UserInfo(false, group2.getId(), DEFAULT_REALM_ID), new Date());
 		acl2.getResourceAccess().add(new ResourceAccess().setPrincipalId(Long.valueOf(group.getId())).setAccessType(Set.of(ACCESS_TYPE.READ)));
 		createAcl(acl2, ObjectType.ENTITY);
 		

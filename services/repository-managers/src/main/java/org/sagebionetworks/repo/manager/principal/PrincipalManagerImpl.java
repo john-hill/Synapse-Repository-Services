@@ -16,6 +16,7 @@ import org.sagebionetworks.repo.manager.SendRawEmailRequestBuilder.BodyType;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.message.PrincipalNameProvider;
 import org.sagebionetworks.repo.manager.token.TokenGenerator;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.NameConflictException;
@@ -140,7 +141,6 @@ public class PrincipalManagerImpl implements PrincipalManager, PrincipalNameProv
 		newUser.setLastName(accountSetupInfo.getLastName());
 		newUser.setUserName(accountSetupInfo.getUsername());
 		long newPrincipalId = userManager.createUser(newUser);
-		
 		authManager.setPassword(newPrincipalId, accountSetupInfo.getPassword());
 		return authManager.loginWithNoPasswordCheck(newPrincipalId, tokenIssuer);
 	}

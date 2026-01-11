@@ -17,6 +17,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_REALM_ID;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -157,7 +158,7 @@ public class TeamManagerImplTest {
 	}
 	
 	private static UserInfo createUserInfo(boolean isAdmin, String principalId) {
-		UserInfo userInfo = new UserInfo(isAdmin, principalId);
+		UserInfo userInfo = new UserInfo(isAdmin, principalId, DEFAULT_REALM_ID);
 		return userInfo;
 	}
 	

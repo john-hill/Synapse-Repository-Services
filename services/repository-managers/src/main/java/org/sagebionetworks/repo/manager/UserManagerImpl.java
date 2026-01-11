@@ -29,6 +29,7 @@ import org.sagebionetworks.repo.model.auth.CallersContext;
 import org.sagebionetworks.repo.model.auth.IdentityProvider;
 import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.auth.OAuthIdentityProvider;
+import org.sagebionetworks.repo.model.auth.RealmPrincipal;
 import org.sagebionetworks.repo.model.dao.NotificationEmailDAO;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.dbo.auth.UserStatusDao;
@@ -216,19 +217,21 @@ public class UserManagerImpl implements UserManager {
 	public UserInfo getUserInfo(Long principalId) throws NotFoundException {
 		UserGroup principal = userGroupDAO.get(principalId);
 		if(!principal.getIsIndividual()) throw new IllegalArgumentException("Principal: "+principalId+" is not a User");
-		// Lookup the user's name
-		// Check which group(s) of Anonymous, Public, or Authenticated the user belongs to  
+
+		RealmPrincipal realmPrincipals = realmDao.getRealmPrincipals(principal.getRealmId());
+
+		// Check which group(s) of Anonymous, Public, or Authenticated the user belongs to
 		Set<Long> groups = new HashSet<Long>();
-		boolean isUserAnonymous = AuthorizationUtils.isUserAnonymous(principalId);
+		boolean isUserAnonymous = (principalId==Long.parseLong(realmPrincipals.getAnonymousUser()));
 		// Everyone except the anonymous users belongs to "authenticated users"
 		if (!isUserAnonymous) {
 			// All authenticated users belong to the authenticated user group
-			groups.add(BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId());
+			groups.add(Long.parseLong(realmPrincipals.getAuthenticatedUsers()));
 		}
 		
 		// Everyone belongs to their own group and to Public
 		groups.add(principalId);
-		groups.add(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId());
+		groups.add(Long.parseLong(realmPrincipals.getPublicGroup()));
 		// Add all groups the user belongs to
 		List<UserGroup> groupFromDAO = groupMembersDAO.getUsersGroups(principal.getId());
 		// Add each group

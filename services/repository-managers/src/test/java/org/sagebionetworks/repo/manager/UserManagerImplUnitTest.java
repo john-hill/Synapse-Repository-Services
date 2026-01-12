@@ -36,6 +36,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.GroupMembersDAO;
 import org.sagebionetworks.repo.model.NameConflictException;
+import org.sagebionetworks.repo.model.RealmDao;
 import org.sagebionetworks.repo.model.SessionIdThreadLocal;
 import org.sagebionetworks.repo.model.TeamConstants;
 import org.sagebionetworks.repo.model.UnauthorizedException;
@@ -46,7 +47,10 @@ import org.sagebionetworks.repo.model.UserProfile;
 import org.sagebionetworks.repo.model.UserProfileDAO;
 import org.sagebionetworks.repo.model.auth.AuthenticationDAO;
 import org.sagebionetworks.repo.model.auth.CallersContext;
+import org.sagebionetworks.repo.model.auth.IdentityProvider;
 import org.sagebionetworks.repo.model.auth.NewUser;
+import org.sagebionetworks.repo.model.auth.OAuthIdentityProvider;
+import org.sagebionetworks.repo.model.auth.RealmPrincipal;
 import org.sagebionetworks.repo.model.dao.NotificationEmailDAO;
 import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.dbo.auth.UserStatusDao;
@@ -66,6 +70,8 @@ public class UserManagerImplUnitTest {
 
 	@Mock
 	private UserGroupDAO mockUserGroupDAO;
+	@Mock
+	private RealmDao mockRealmDao;
 	@Mock
 	private UserProfileDAO userProfileDAO;
 	@Mock
@@ -96,6 +102,7 @@ public class UserManagerImplUnitTest {
 	private String alias;
 	private PrincipalAlias principalAlias;
 	private String sessionId;
+	private RealmPrincipal realmPrincipals;
 	
 	@BeforeEach
 	public void setUp() throws Exception {
@@ -109,6 +116,11 @@ public class UserManagerImplUnitTest {
 		principalAlias.setPrincipalId(123L);
 		principalAlias.setType(AliasType.USER_NAME);
 		sessionId = SessionIdThreadLocal.createNewSessionIdForThread();
+		realmPrincipals = new RealmPrincipal();
+		realmPrincipals.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
+		realmPrincipals.setAnonymousUser(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId().toString());
+		realmPrincipals.setAuthenticatedUsers(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId().toString());
+		realmPrincipals.setPublicGroup(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId().toString());
 	}
 	
 	@AfterEach
@@ -129,7 +141,8 @@ public class UserManagerImplUnitTest {
 		someGroup.setId("222");
 		when(mockGroupMembersDAO.getUsersGroups(principalId.toString())).thenReturn(Collections.singletonList(someGroup));
 		when(mockAuthDAO.isTwoFactorAuthEnabled(anyLong())).thenReturn(true);
-		
+		when(mockRealmDao.getRealmPrincipals(any())).thenReturn(realmPrincipals);
+				
 		
 		// method under test
 		UserInfo userInfo = userManager.getUserInfo(principalId);
@@ -163,6 +176,7 @@ public class UserManagerImplUnitTest {
 		someGroup.setId("222");
 		when(mockGroupMembersDAO.getUsersGroups(principalId.toString())).thenReturn(Collections.singletonList(someGroup));
 		when(mockAuthDAO.isTwoFactorAuthEnabled(anyLong())).thenReturn(true);
+		when(mockRealmDao.getRealmPrincipals(any())).thenReturn(realmPrincipals);
 		
 		SessionIdThreadLocal.clearThreadsSessionId();
 		
@@ -185,7 +199,8 @@ public class UserManagerImplUnitTest {
 		adminGroup.setId(TeamConstants.ADMINISTRATORS_TEAM_ID.toString());
 		when(mockGroupMembersDAO.getUsersGroups(principalId.toString())).thenReturn(Collections.singletonList(adminGroup));
 		when(mockAuthDAO.isTwoFactorAuthEnabled(anyLong())).thenReturn(true);
-		
+		when(mockRealmDao.getRealmPrincipals(any())).thenReturn(realmPrincipals);
+				
 		// method under test
 		UserInfo userInfo = userManager.getUserInfo(principalId);
 		
@@ -228,7 +243,8 @@ public class UserManagerImplUnitTest {
 		nu.setUserName(username);
 		nu.setEmail(email);
 		when(mockPrincipalAliasDAO.findPrincipalWithAlias(username)).thenReturn(alias);
-		
+		when(mockRealmDao.getRealmPrincipals(any())).thenReturn(realmPrincipals);
+				
 		// method under test
 		UserInfo userInfo = userManager.createOrGetTestUser(admin, nu, null, true);
 		// we get back the principal ID for the existing user
@@ -576,11 +592,14 @@ public class UserManagerImplUnitTest {
 	@Test
 	public void testCreateUserWithOauthProvider() {
 		Long userId = 123L;
+		String realmId="3";
 		
 		when(mockUserGroupDAO.create(any())).thenReturn(userId);
 		when(mockPrincipalAliasDAO.bindAliasToPrincipal(any())).thenReturn(principalAlias);
 		when(mockPrincipalOidcDao.findBindingForSubject(any(), any())).thenReturn(Optional.empty(), Optional.of(new PrincipalOidcBinding()));
-		
+		IdentityProvider identityProvider = new OAuthIdentityProvider().setProvider(OAuthProvider.GOOGLE_OAUTH_2_0);
+		when(mockRealmDao.getRealmIdForIdentityProvider(identityProvider)).thenReturn(Optional.of(realmId));
+				
 		NewUser user = new NewUser()
 			.setUserName(UUID.randomUUID().toString())
 			.setEmail(UUID.randomUUID().toString())
@@ -597,14 +616,14 @@ public class UserManagerImplUnitTest {
 		verify(mockPrincipalOidcDao, times(2)).findBindingForSubject(user.getOauthProvider(), user.getSubject());
 		
 		UserGroup expectedGroup = new UserGroup()
-			.setIsIndividual(true);
+			.setIsIndividual(true).setRealmId(realmId);
 		
 		ArgumentCaptor<UserGroup> ugCaptor = ArgumentCaptor.forClass(UserGroup.class);
 		
 		verify(mockUserGroupDAO).create(ugCaptor.capture());
 		
 		assertEquals(expectedGroup.setCreationDate(
-			ugCaptor.getValue().getCreationDate()).setRealmId(AuthorizationConstants.DEFAULT_REALM_ID), 
+			ugCaptor.getValue().getCreationDate()).setRealmId(realmId), 
 			ugCaptor.getValue());
 		
 		verify(mockAuthDAO).createNew(userId);

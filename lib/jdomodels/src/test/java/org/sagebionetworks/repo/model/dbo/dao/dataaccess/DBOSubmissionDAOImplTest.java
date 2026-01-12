@@ -26,6 +26,7 @@ import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.AccessRequirement;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.ManagedACTAccessRequirement;
 import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeDAO;
@@ -122,11 +123,13 @@ public class DBOSubmissionDAOImplTest {
 		user1 = new UserGroup();
 		user1.setIsIndividual(true);
 		user1.setCreationDate(new Date());
+		user1.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
 		user1.setId(userGroupDAO.create(user1).toString());
 
 		user2 = new UserGroup();
 		user2.setIsIndividual(true);
 		user2.setCreationDate(new Date());
+		user2.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
 		user2.setId(userGroupDAO.create(user2).toString());
 
 		// create a node

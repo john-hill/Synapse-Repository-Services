@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.Node;
@@ -64,10 +65,12 @@ class CurationTaskDaoAutowireTest {
         UserGroup user1 = new UserGroup();
         user1.setIsIndividual(true);
         user1.setCreationDate(new Date());
+		user1.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
         userId = userGroupDAO.create(user1);
         UserGroup user2 = new UserGroup();
         user2.setIsIndividual(true);
         user2.setCreationDate(new Date());
+		user2.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
         modifiedByUserId = userGroupDAO.create(user2);
 
         Node project = new Node();

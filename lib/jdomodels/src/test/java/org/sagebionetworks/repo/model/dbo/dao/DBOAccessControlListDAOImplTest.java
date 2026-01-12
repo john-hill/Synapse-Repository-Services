@@ -26,6 +26,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.EntityType;
@@ -101,6 +102,7 @@ public class DBOAccessControlListDAOImplTest {
 		// create a group to give the permissions to
 		group = new UserGroup();
 		group.setIsIndividual(false);
+		group.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
 		Long groupOneId = userGroupDAO.create(group);
 		group.setId(groupOneId.toString());
 		assertNotNull(group.getId());
@@ -109,6 +111,7 @@ public class DBOAccessControlListDAOImplTest {
 		// Create a second user
 		group2 = new UserGroup();
 		group2.setIsIndividual(false);
+		group2.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
 		Long groupTwoId = userGroupDAO.create(group2);
 		group2.setId(groupTwoId.toString());
 		assertNotNull(group2.getId());
@@ -116,6 +119,7 @@ public class DBOAccessControlListDAOImplTest {
 		
 		UserGroup ug = new UserGroup();
 		ug.setIsIndividual(true);
+		ug.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
 		Long userId = userGroupDAO.create(ug);
 		boolean isAdmin = false;
 		userInfo = new UserInfo(isAdmin, userId);
@@ -632,6 +636,7 @@ public class DBOAccessControlListDAOImplTest {
 		
 		UserGroup ug = new UserGroup();
 		ug.setIsIndividual(false);
+		ug.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
 		ug.setId(userGroupDAO.create(ug).toString());
 		assertNotNull(ug.getId());
 		groupList.add(ug);

@@ -7,6 +7,7 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_GRO
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_GROUP_E_TAG;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_GROUP_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_GROUP_IS_INDIVIDUAL;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_GROUP_REALM;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.DDL_FILE_USER_GROUP;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_USER_GROUP;
 
@@ -17,6 +18,7 @@ import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.dbo.FieldColumn;
 import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
 import org.sagebionetworks.repo.model.dbo.TableMapping;
@@ -34,13 +36,15 @@ public class DBOUserGroup implements MigratableDatabaseObject<DBOUserGroup, DBOU
 	private Date creationDate;
 	private Boolean isIndividual = false;
 	private String etag;
+	private Long realmId;
 
 
 	private static FieldColumn[] FIELDS = new FieldColumn[] {
 		new FieldColumn("id", COL_USER_GROUP_ID, true).withIsBackupId(true),
 		new FieldColumn("creationDate", COL_USER_GROUP_CREATION_DATE),
 		new FieldColumn("isIndividual", COL_USER_GROUP_IS_INDIVIDUAL), 
-		new FieldColumn("etag", COL_USER_GROUP_E_TAG).withIsEtag(true)
+		new FieldColumn("etag", COL_USER_GROUP_E_TAG).withIsEtag(true),
+		new FieldColumn("realmId", COL_USER_GROUP_REALM)
 		};
 
 
@@ -56,6 +60,7 @@ public class DBOUserGroup implements MigratableDatabaseObject<DBOUserGroup, DBOU
 				ug.setCreationDate(ts==null ? null : new Date(ts.getTime()));
 				ug.setIsIndividual(rs.getBoolean(COL_USER_GROUP_IS_INDIVIDUAL));
 				ug.setEtag(rs.getString(COL_USER_GROUP_E_TAG));
+				ug.setRealmId(rs.getLong(COL_USER_GROUP_REALM));
 				return ug;
 			}
 
@@ -142,12 +147,18 @@ public class DBOUserGroup implements MigratableDatabaseObject<DBOUserGroup, DBOU
 	}
 
 
+	public Long getRealmId() {
+		return realmId;
+	}
+
+	public void setRealmId(Long realmId) {
+		this.realmId = realmId;
+	}
+
 	@Override
 	public MigrationType getMigratableTableType() {
 		return MigrationType.PRINCIPAL;
 	}
-
-
 
 	@Override
 	public Class<? extends DBOUserGroup> getBackupClass() {
@@ -171,19 +182,44 @@ public class DBOUserGroup implements MigratableDatabaseObject<DBOUserGroup, DBOU
 
 	@Override
 	public MigratableTableTranslation<DBOUserGroup, DBOUserGroup> getTranslator() {
-		return new BasicMigratableTableTranslation<DBOUserGroup>();
+		// TODO Revert this change after the one-time migration to add Realms to all
+		// TODO existing UserGroups.
+		return new MigratableTableTranslation<DBOUserGroup, DBOUserGroup>() {
+
+			@Override
+			public DBOUserGroup createDatabaseObjectFromBackup(DBOUserGroup backup) {
+				if (backup.getRealmId()==null) {
+					backup.setRealmId(Long.parseLong(AuthorizationConstants.DEFAULT_REALM_ID));
+				}
+				return backup;
+			}
+
+			@Override
+			public DBOUserGroup createBackupFromDatabaseObject(DBOUserGroup dbo) {
+				if (dbo.getRealmId()==null) {
+					dbo.setRealmId(Long.parseLong(AuthorizationConstants.DEFAULT_REALM_ID));
+				}
+				return dbo;
+			}
+			
+		};
+	}
+
+	@Override
+	public String toString() {
+		return "DBOUserGroup [id=" + id + ", creationDate=" + creationDate + ", isIndividual=" + isIndividual
+				+ ", etag=" + etag + ", realmId=" + realmId + "]";
 	}
 
 	@Override
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
-		result = prime * result
-				+ ((creationDate == null) ? 0 : creationDate.hashCode());
+		result = prime * result + ((creationDate == null) ? 0 : creationDate.hashCode());
 		result = prime * result + ((etag == null) ? 0 : etag.hashCode());
 		result = prime * result + ((id == null) ? 0 : id.hashCode());
-		result = prime * result
-				+ ((isIndividual == null) ? 0 : isIndividual.hashCode());
+		result = prime * result + ((isIndividual == null) ? 0 : isIndividual.hashCode());
+		result = prime * result + ((realmId == null) ? 0 : realmId.hashCode());
 		return result;
 	}
 
@@ -216,6 +252,11 @@ public class DBOUserGroup implements MigratableDatabaseObject<DBOUserGroup, DBOU
 			if (other.isIndividual != null)
 				return false;
 		} else if (!isIndividual.equals(other.isIndividual))
+			return false;
+		if (realmId == null) {
+			if (other.realmId != null)
+				return false;
+		} else if (!realmId.equals(other.realmId))
 			return false;
 		return true;
 	}

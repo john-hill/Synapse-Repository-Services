@@ -11,6 +11,10 @@
 # - FULL_BUILD: if true, will do a full build, vs. an abbreviated "feature build"
 # - EXTRA_ARGS: pass extra arguments to maven build
 #
+# The place to set The page where you set the "repository variables" is
+# https://github.com/<owner>/Synapse-Repository-Services/settings/variables/actions
+# where <owner> is the name of one's fork of this repository.
+#
 name: main
 
 on:

@@ -421,6 +421,7 @@ public class SqlConstants {
 	public static final String COL_USER_GROUP_IS_INDIVIDUAL = "ISINDIVIDUAL";
 	public static final String COL_USER_GROUP_E_TAG         = "ETAG";
 	public static final String COL_USER_GROUP_CREATION_DATE = "CREATION_DATE";
+	public static final String COL_USER_GROUP_REALM = "REALM";
 	public static final String DDL_FILE_USER_GROUP			="schema/UserGroup-ddl.sql";
 
     // The group members table
@@ -1457,6 +1458,29 @@ public class SqlConstants {
  	public static final String COL_RECORDSET_VALIDATION_STATS_RECORDSET_VERSION	= "RECORDSET_VERSION";
  	public static final String COL_RECORDSET_VALIDATION_STATS_JSON				= "STATS_JSON";
  	public static final String DDL_FILE_RECORDSET_VALIDATION_STATS				= "schema/RecordSetValidationStats-ddl.sql";
+ 	
+ 	// Tables to represent security Realms
+ 	public static final String TABLE_REALM = "SYNAPSE_REALM";
+ 	public static final String COL_REALM_ID = "ID";
+ 	public static final String COL_REALM_CREATED_ON = "CREATED_ON";
+ 	public static final String COL_REALM_NAME = "NAME";
+ 	public static final String DDL_FILE_REALM = "schema/Realm-ddl.sql";
+ 	
+	public static final String TABLE_REALM_IDP = "SYNAPSE_REALM_IDP";
+	public static final String COL_REALM_IDP_REALM_ID = "REALM_ID";
+	public static final String COL_REALM_IDP_PROVIDER = "PROVIDER";
+	public static final String DDL_FILE_REALM_IDP = "schema/RealmIdentityProvider-ddl.sql";
+
+	public static final String TABLE_REALM_PRINCIPAL = "SYNAPSE_REALM_PRINCIPAL";
+	public static final String COL_REALM_PRINCIPAL_ID = "ID";
+	public static final String COL_REALM_PRINCIPAL_REALM_ID = "REALM_ID";
+	public static final String COL_REALM_PRINCIPAL_PRINCIPAL_ID = "PRINCIPAL_ID";
+	public static final String COL_REALM_PRINCIPAL_PRINCIPAL_TYPE = "TYPE";
+	public static final String REALM_PRINCIPAL_TYPE_ANONYMOUS = "ANONYMOUS";
+	public static final String REALM_PRINCIPAL_TYPE_PUBLIC = "PUBLIC";
+	public static final String REALM_PRINCIPAL_TYPE_AUTHENTICATED = "AUTHENTICATED";
+	public static final String REALM_PRINCIPAL_TYPE_ADMINISTRATORS = "ADMINISTRATORS";
+	public static final String DDL_FILE_REALM_PRINCIPAL = "schema/RealmPrincipal-ddl.sql";
 
 	// This seems to be the name of the id column for all tables.
 	public static final String COLUMN_ID		= "id";

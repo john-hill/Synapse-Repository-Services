@@ -31,6 +31,7 @@ import org.sagebionetworks.repo.manager.oauth.OIDCTokenManager;
 import org.sagebionetworks.repo.manager.oauth.OpenIDConnectManager;
 import org.sagebionetworks.repo.manager.oauth.ProvidedUserInfo;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.RealmDao;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.ChangePasswordWithToken;
@@ -59,6 +60,8 @@ public class AuthenticationServiceImplTest {
 	
 	@Mock
 	private UserManager mockUserManager;
+	@Mock
+	private RealmDao mockRealmDao;
 	@Mock
 	private AuthenticationManager mockAuthenticationManager;
 	@Mock
@@ -94,8 +97,7 @@ public class AuthenticationServiceImplTest {
 		credential.setEmail(username);
 		credential.setPassword(password);
 		
-		userInfo = new UserInfo(false);
-		userInfo.setId(userId);
+		userInfo = new UserInfo(false, userId);
 		
 
 		alias = "alias";
@@ -580,6 +582,8 @@ public class AuthenticationServiceImplTest {
 	
 	@Test
 	public void testBindExternalID() throws NotFoundException{
+		String realmId = "3";
+		userInfo = new UserInfo(false, userId, realmId);
 		OAuthValidationRequest request = new OAuthValidationRequest();
 		request.setAuthenticationCode("some code");
 		request.setProvider(OAuthProvider.ORCID);
@@ -596,6 +600,10 @@ public class AuthenticationServiceImplTest {
 		when(mockOAuthManager.retrieveProvidersId(
 				request.getProvider(), request.getAuthenticationCode(), request.getRedirectUrl())).thenReturn(aliasAndType);
 
+		when(mockUserManager.getUserInfo(principalId)).thenReturn(userInfo);
+		when(mockRealmDao.getRealmIdForIdentityProvider(any())).thenReturn(Optional.of(realmId));
+		
+		// method under test
 		PrincipalAlias result = service.bindExternalID(principalId, request);
 		assertEquals(principalAlias, result);
 	}

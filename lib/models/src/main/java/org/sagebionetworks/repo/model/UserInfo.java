@@ -50,6 +50,7 @@ public class UserInfo {
 		this.id = id;
 		this.groups = new LinkedHashSet<Long>();
 		this.groups.add(this.id);
+		this.realmId=realmId;
 	}
 
 	public Set<Long> getGroups() {

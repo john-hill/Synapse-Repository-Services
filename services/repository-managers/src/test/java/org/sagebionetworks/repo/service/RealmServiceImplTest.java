@@ -12,6 +12,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.RealmManager;
+import org.sagebionetworks.repo.manager.UserManager;
+import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.Realm;
 import org.sagebionetworks.repo.model.auth.RealmIdList;
 import org.sagebionetworks.repo.model.auth.RealmPrincipal;
@@ -22,10 +24,15 @@ class RealmServiceImplTest {
 	@Mock
 	private RealmManager mockRealmManager;
 	
+	@Mock
+	private UserManager mockUserManager;
+	
 	@InjectMocks
 	private RealmServiceImpl realmService;
 	
 	private static final String REALM_ID = "1";
+	
+	private static final Long USER_ID = 101L;
 	
 	@Test
 	public void testListRealms() {
@@ -54,13 +61,28 @@ class RealmServiceImplTest {
 	}
 
 	@Test
-	public void testGetRealmPrincipals() {
+	public void testGetRealmPrincipalsGivenId() {
 		RealmPrincipal expected = new RealmPrincipal();
 		expected.setRealmId(REALM_ID);
 		when (mockRealmManager.getRealmPrincipals(REALM_ID)).thenReturn(expected);
 		
 		// method under test
 		RealmPrincipal actual = realmService.getRealmPrincipals(REALM_ID);
+		
+		assertEquals(expected, actual);
+		verify(mockRealmManager).getRealmPrincipals(REALM_ID);
+	}
+
+	@Test
+	public void testGetRealmPrincipals() {
+		RealmPrincipal expected = new RealmPrincipal();
+		expected.setRealmId(REALM_ID);
+		when (mockRealmManager.getRealmPrincipals(REALM_ID)).thenReturn(expected);
+		UserInfo userInfo = new UserInfo(false, USER_ID, REALM_ID);
+		when(mockUserManager.getUserInfo(USER_ID)).thenReturn(userInfo);
+		
+		// method under test
+		RealmPrincipal actual = realmService.getRealmPrincipals(USER_ID);
 		
 		assertEquals(expected, actual);
 		verify(mockRealmManager).getRealmPrincipals(REALM_ID);

@@ -469,6 +469,7 @@ public class DBOSubmissionDAOImpl implements SubmissionDAO {
 		case DELEGATED_ONLY:
 			// Only submissions where there is an ACL with at least one REVIEW_SUBMISSIONS permission
 			additionalFilters.add(hasReviewSubmissionsPermission);
+			break;
 		default:
 			break;
 		}

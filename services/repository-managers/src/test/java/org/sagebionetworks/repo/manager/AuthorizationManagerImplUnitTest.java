@@ -149,7 +149,7 @@ public class AuthorizationManagerImplUnitTest {
 	private AuthorizationManagerImpl authorizationManagerSpy;
 
 
-	private static String USER_PRINCIPAL_ID = "123";
+	private static long USER_PRINCIPAL_ID = 123L;
 	private static String EVAL_OWNER_PRINCIPAL_ID = "987";
 	private static String EVAL_ID = "1234567";
 	

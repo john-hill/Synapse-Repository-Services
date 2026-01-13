@@ -195,8 +195,8 @@ public class SubmissionManagerTest {
     @BeforeEach
     public void setUp() throws Exception {
 		// User Info
-    	ownerInfo = new UserInfo(false, OWNER_ID, DEFAULT_REALM_ID);
-    	userInfo = new UserInfo(false, USER_ID, DEFAULT_REALM_ID);
+    	ownerInfo = new UserInfo(false, Long.parseLong(OWNER_ID), DEFAULT_REALM_ID);
+    	userInfo = new UserInfo(false, Long.parseLong(USER_ID), DEFAULT_REALM_ID);
     	
     	// FileHandles
 		List<FileHandle> handles = new ArrayList<FileHandle>();

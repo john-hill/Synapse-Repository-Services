@@ -673,8 +673,8 @@ public class DBOAccessControlListDAOImplTest {
 		Node visibleToOne = nodeDAO.createNewNode(NodeTestUtils.createNewFolder("visibleToOne", createdById, modifiedById, node.getId()));
 		Node visibleToTwo = nodeDAO.createNewNode(NodeTestUtils.createNewFolder("visibleToTwo", createdById, modifiedById, node.getId()));
 		
-		UserInfo userOne = new UserInfo(false, group.getId(), DEFAULT_REALM_ID);
-		UserInfo userTwo = new UserInfo(false, group2.getId(), DEFAULT_REALM_ID);
+		UserInfo userOne = new UserInfo(false, Long.parseLong(group.getId()), DEFAULT_REALM_ID);
+		UserInfo userTwo = new UserInfo(false, Long.parseLong(group2.getId()), DEFAULT_REALM_ID);
 		
 		AccessControlList acl1 = AccessControlListUtil.createACLToGrantEntityAdminAccess(visibleToOne.getId(), userOne, new Date());
 		createAcl(acl1, ObjectType.ENTITY);
@@ -714,8 +714,8 @@ public class DBOAccessControlListDAOImplTest {
 		Node visibleToOne = nodeDAO.createNewNode(NodeTestUtils.createNewFolder("visibleToOne", createdById, modifiedById, node.getId()));
 		Node visibleToTwo = nodeDAO.createNewNode(NodeTestUtils.createNewFolder("visibleToTwo", createdById, modifiedById, node.getId()));
 
-		UserInfo userOne = new UserInfo(false, group.getId(), DEFAULT_REALM_ID);
-		UserInfo userTwo = new UserInfo(false, group2.getId(), DEFAULT_REALM_ID);
+		UserInfo userOne = new UserInfo(false, Long.parseLong(group.getId()), DEFAULT_REALM_ID);
+		UserInfo userTwo = new UserInfo(false, Long.parseLong(group2.getId()), DEFAULT_REALM_ID);
 		
 		AccessControlList acl1 = AccessControlListUtil.createACLToGrantEntityAdminAccess(visibleToOne.getId(), userOne, new Date());
 		createAcl(acl1, ObjectType.ENTITY);
@@ -761,7 +761,7 @@ public class DBOAccessControlListDAOImplTest {
 		
 		Node node2 = nodeDAO.createNewNode(NodeTestUtils.createNewFolder("node2", createdById, modifiedById, node.getId()));
 		
-		AccessControlList acl2 = AccessControlListUtil.createACLToGrantEntityAdminAccess(node2.getId(), new UserInfo(false, group2.getId(), DEFAULT_REALM_ID), new Date());
+		AccessControlList acl2 = AccessControlListUtil.createACLToGrantEntityAdminAccess(node2.getId(), new UserInfo(false, Long.parseLong(group2.getId()), DEFAULT_REALM_ID), new Date());
 		acl2.getResourceAccess().add(new ResourceAccess().setPrincipalId(Long.valueOf(group.getId())).setAccessType(Set.of(ACCESS_TYPE.READ)));
 		createAcl(acl2, ObjectType.ENTITY);
 		

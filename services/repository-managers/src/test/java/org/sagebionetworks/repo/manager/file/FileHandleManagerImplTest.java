@@ -280,7 +280,7 @@ public class FileHandleManagerImplTest {
 		key = BASE_KEY + "/some-key";
 
 		// The user is not really a mock
-		mockUser = new UserInfo(false,"987",DEFAULT_REALM_ID);
+		mockUser = new UserInfo(false,987L,DEFAULT_REALM_ID);
 		sessionId = UUID.randomUUID().toString();
 		mockUser.setContext(new CallersContext().setSessionId(sessionId));
 		

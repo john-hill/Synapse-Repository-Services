@@ -96,7 +96,7 @@ public class AccessRequirementManagerImplUnitTest {
 	@Mock
 	private JiraClient jiraClient;
 
-	private static final String TEST_PRINCIPAL_ID = "1010101";
+	private static final long TEST_PRINCIPAL_ID = 1010101L;
 	private static final String TEST_ENTITY_ID = "syn98786543";
 
 	@Mock

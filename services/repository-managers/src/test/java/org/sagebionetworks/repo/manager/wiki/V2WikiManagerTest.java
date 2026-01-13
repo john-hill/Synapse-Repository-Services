@@ -73,7 +73,7 @@ public class V2WikiManagerTest {
 	
 	@Before
 	public void before() {
-		user = new UserInfo(false, "987", DEFAULT_REALM_ID);
+		user = new UserInfo(false, 987L, DEFAULT_REALM_ID);
 		ownerId = "123";
 		ownerType = ObjectType.EVALUATION;
 		wikiId = "345";

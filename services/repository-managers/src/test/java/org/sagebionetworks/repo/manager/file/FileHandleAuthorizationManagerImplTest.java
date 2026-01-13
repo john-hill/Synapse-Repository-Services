@@ -45,7 +45,7 @@ public class FileHandleAuthorizationManagerImplTest {
 		assertTrue(manager.canAccessRawFileHandleById(adminUser, fileHandlId).isAuthorized(), "Admin should have access to all FileHandles");
 		assertTrue(manager.canAccessRawFileHandleById(userInfo, fileHandlId).isAuthorized(), "Creator should have access to their own FileHandles");
 		// change the users id
-		UserInfo notTheCreatoro = new UserInfo(false, "999999", DEFAULT_REALM_ID);
+		UserInfo notTheCreatoro = new UserInfo(false, 999999L, DEFAULT_REALM_ID);
 		assertFalse(manager.canAccessRawFileHandleById(notTheCreatoro, fileHandlId).isAuthorized(), "Only the creator (or admin) should have access a FileHandle");
 		verify(fileHandleDao, times(2)).getHandleCreator(fileHandlId);
 	}

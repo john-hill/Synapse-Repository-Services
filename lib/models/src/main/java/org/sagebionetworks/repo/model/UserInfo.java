@@ -170,8 +170,8 @@ public class UserInfo {
 
 	@Override
 	public String toString() {
-		return "UserInfo [groups=" + groups + ", isAdmin=" + isAdmin + ", id=" + id + ", creationDate=" + creationDate
-				+ ", hasTwoFactorAuthEnabled=" + hasTwoFactorAuthEnabled
+		return "UserInfo [groups=" + groups + ", isAdmin=" + isAdmin + ", id=" + id + ", realmId=" + realmId
+				+ ", creationDate=" + creationDate + ", hasTwoFactorAuthEnabled=" + hasTwoFactorAuthEnabled
 				+ ", context=" + context + "]";
 	}
 	

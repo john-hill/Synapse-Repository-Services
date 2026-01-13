@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
-@ControllerInfo(displayName="User & Group Services", path="repo/v1")
+@ControllerInfo(displayName="Realm Services", path="repo/v1")
 @Controller
 @RequestMapping(UrlHelpers.REPO_PATH)
 public class RealmController {

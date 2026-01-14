@@ -30,7 +30,11 @@ public interface RealmDao {
 	 */
 	public Realm getRealm(String id);
 	
-	
+	/**
+	 * 
+	 * @param identityProvider
+	 * @return the ID of realm associated with the given identity provider, or null if there is none
+	 */
 	public Optional<String> getRealmIdForIdentityProvider(IdentityProvider identityProvider);
 	
 	/**

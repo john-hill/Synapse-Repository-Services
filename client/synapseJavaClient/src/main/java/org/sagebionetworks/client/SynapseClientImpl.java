@@ -6577,6 +6577,11 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	}
 
 	@Override
+	public Realm getRealm() throws SynapseException {
+	       return getJSONEntity(getRepoEndpoint(), REALM, Realm.class);
+	}
+
+	@Override
 	public Realm getRealm(String id) throws SynapseException {
 	       return getJSONEntity(getRepoEndpoint(), REALM+"/"+id, Realm.class);
 	}

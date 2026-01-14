@@ -46,7 +46,10 @@ public class ITRealm {
 		
 		// get realm by id
 		Realm retrieved = synapse.getRealm(id);
+		assertEquals(created, retrieved);
 		
+		// can also determine the realm from the user, thrpugh the access token:
+		retrieved = synapse.getRealm();
 		assertEquals(created, retrieved);
 		
 		// get realm principals

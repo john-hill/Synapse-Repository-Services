@@ -613,7 +613,56 @@ public class AuthenticationServiceImplTest {
 		assertThrows(UnauthorizedException.class, ()->service.bindExternalID(
 				AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId(), null));
 	}
+
+	@Test
+	public void testBindExternalIDWrongRealm() throws NotFoundException{
+		String userRealmId = "3";
+		String requestRealmId = "4";
+		userInfo = new UserInfo(false, userId, userRealmId);
+		OAuthValidationRequest request = new OAuthValidationRequest();
+		request.setAuthenticationCode("some code");
+		request.setProvider(OAuthProvider.ORCID);
+		request.setRedirectUrl("https://domain.com");
+		String aliasName = "name";
+		Long principalId = 101L;
+		AliasAndType aliasAndType = new AliasAndType(aliasName, AliasType.USER_ORCID);
+		when(mockOAuthManager.retrieveProvidersId(
+				request.getProvider(), request.getAuthenticationCode(), request.getRedirectUrl())).thenReturn(aliasAndType);
+
+		when(mockUserManager.getUserInfo(principalId)).thenReturn(userInfo);
+		when(mockRealmDao.getRealmIdForIdentityProvider(any())).thenReturn(Optional.of(requestRealmId));
+		
+		// method under test
+		assertThrows(IllegalArgumentException.class, ()->{
+			service.bindExternalID(principalId, request);
+		});
+	}
 	
+
+	@Test
+	public void testBindExternalIDNoRealm() throws NotFoundException{
+		String userRealmId = "3";
+		userInfo = new UserInfo(false, userId, userRealmId);
+		OAuthValidationRequest request = new OAuthValidationRequest();
+		request.setAuthenticationCode("some code");
+		request.setProvider(OAuthProvider.ORCID);
+		request.setRedirectUrl("https://domain.com");
+		String aliasName = "name";
+		Long principalId = 101L;
+		AliasAndType aliasAndType = new AliasAndType(aliasName, AliasType.USER_ORCID);
+		when(mockOAuthManager.retrieveProvidersId(
+				request.getProvider(), request.getAuthenticationCode(), request.getRedirectUrl())).thenReturn(aliasAndType);
+
+		when(mockUserManager.getUserInfo(principalId)).thenReturn(userInfo);
+		when(mockRealmDao.getRealmIdForIdentityProvider(any())).thenReturn(Optional.empty());
+		
+		// method under test
+		assertThrows(IllegalArgumentException.class, ()->{
+			service.bindExternalID(principalId, request);
+		});
+	}
+	
+
 	@Test
 	public void testUnbindExternalID() throws NotFoundException{
 		Long principalId = 101L;

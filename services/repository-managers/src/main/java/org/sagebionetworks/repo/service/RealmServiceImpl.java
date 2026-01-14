@@ -39,6 +39,5 @@ public class RealmServiceImpl implements RealmService {
 	public RealmPrincipal getRealmPrincipals(Long userId) {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		return realmManager.getRealmPrincipals(userInfo.getRealmId());
-
 	}
 }

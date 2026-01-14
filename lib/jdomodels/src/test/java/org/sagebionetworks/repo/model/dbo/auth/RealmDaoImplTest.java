@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -113,6 +114,10 @@ class RealmDaoImplTest {
 
 	@Test
 	void testRoundtrip() {
+		// method under test
+		Optional<String> realmIdForProvider = realmDao.getRealmIdForIdentityProvider(IDP_LIST.get(0));
+		assertTrue(realmIdForProvider.isEmpty());
+		
 		// create a realm
 		Realm realm = new Realm();
 		realm.setName(NAME); 
@@ -134,6 +139,10 @@ class RealmDaoImplTest {
 		// method under test
 		Realm retrievedRealm = realmDao.getRealm(id);
 		assertEquals(created, retrievedRealm);
+		
+		// method under test
+		realmIdForProvider= realmDao.getRealmIdForIdentityProvider(IDP_LIST.get(0));
+		assertEquals(id, realmIdForProvider.get());
 	
 		RealmPrincipal realmPrincipal = new RealmPrincipal();
 		realmPrincipal.setRealmId(id);

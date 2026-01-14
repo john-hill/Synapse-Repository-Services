@@ -1295,4 +1295,35 @@ public class AnnotationsTranslatorImplTest {
 		assertEquals("-Infinity", array.getString(5));
 		assertEquals("-Infinity", array.getString(6));
 	}
+<<<<<<< Updated upstream
+=======
+	
+	@Test
+	public void testWriteToJsonObjectWithColumnModelSchema() {
+		
+		List<ColumnModel> schema = List.of(new ColumnModel().setName("aString").setColumnType(ColumnType.STRING),
+				new ColumnModel().setName("listOfLongs").setColumnType(ColumnType.INTEGER_LIST));
+		// call under test
+		JSONObject json = translator.writeToJsonObject(project, annotations, schema);
+		assertNotNull(json);
+		assertEquals(project.getName(), json.getString("name"));
+		assertEquals(project.getId(), json.getString("id"));
+		assertEquals(project.getEtag(), json.getString("etag"));
+		assertEquals(project.getParentId(), json.getString("parentId"));
+		assertEquals(project.getCreatedBy(), json.getString("createdBy"));
+		assertEquals(project.getModifiedBy(), json.getString("modifiedBy"));
+		assertEquals(JsonDateUtils.convertDateToString(FORMAT.DATE_TIME, project.getCreatedOn()),
+				json.getString("createdOn"));
+		assertEquals(JsonDateUtils.convertDateToString(FORMAT.DATE_TIME, project.getModifiedOn()),
+				json.getString("modifiedOn"));
+		assertEquals(Project.class.getName(), json.getString("concreteType"));
+		// annotations
+		assertEquals("some string!", json.getString("aString"));
+		JSONArray array = json.getJSONArray("listOfLongs");
+		assertNotNull(array);
+		assertEquals(2, array.length());
+		assertEquals(222L, array.getLong(0));
+		assertEquals(333L, array.getLong(1));
+	}
+>>>>>>> Stashed changes
 }

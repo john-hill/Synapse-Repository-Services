@@ -26,7 +26,8 @@ public interface AnnotationsTranslator {
 	 * @return
 	 */
 	Annotations readFromJsonObject(Class<? extends Entity> entityClass, JSONObject jsonObject);
-
+	
+	
 	/**
 	 * Translate the given key and JSONObject into an AnnotationsValue
 	 * @param key

@@ -1,0 +1,44 @@
+{
+	"description": "The status of the synchronization of a single entity.",
+	"properties": {
+		"entityId": {
+			"description": "The synId of the Entity.",
+			"type": "string"
+		},
+		"finalEntityEtag": {
+			"description": "The final entity ETag after the synchronization of this entity.",
+			"type": "string"
+		},
+		"externalChangesPulledIn": {
+			"description": "When true, external changes to the entity were pulled into the working copy (grid).",
+			"type": "boolean"
+		},
+		"gridChangesPushedOut": {
+			"description": "When true, changes to one or more cells for this entity in the working copy (grid) were pushed to the external truth.",
+			"type": "boolean"
+		},
+		"errorType": {
+			"description": "If synchronization fails, this will contain the error type.",
+			"name": "SynchronizationErrorType",
+			"enum": [
+				{
+					"name": "unauthorized",
+					"description": "The user was unauthorized to update this entity."
+				},
+				{
+					"name": "not_found",
+					"description": "The entity could not be found."
+				},
+				{
+					"name": "undefined",
+					"description": "Catch-all for all other types of errors."
+				}
+			],
+			"type": "string"
+		},
+		"errorMessage": {
+			"description": "If synchronization fails, this will contain the failure message. Only present when errorType is set.",
+			"type": "string"
+		}
+	}
+}

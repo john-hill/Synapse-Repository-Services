@@ -108,11 +108,24 @@ public enum AsynchJobType {
 	
 	GRID_CREATE(CreateGridRequest.class, CreateGridResponse.class),
 
+<<<<<<< Updated upstream
     DOWNLOAD_CSV_FROM_GRID(DownloadFromGridRequest.class, DownloadFromGridResult.class),
     
     GRID_EXPORT_RECORDSET(GridRecordSetExportRequest.class, GridRecordSetExportResponse.class),
     
     GRID_IMPORT_CSV(GridCsvImportRequest.class, GridCsvImportResponse.class);
+=======
+	DOWNLOAD_CSV_FROM_GRID(DownloadFromGridRequest.class, DownloadFromGridResult.class),
+
+	GRID_EXPORT_RECORDSET(GridRecordSetExportRequest.class, GridRecordSetExportResponse.class),
+
+	GRID_IMPORT_CSV(GridCsvImportRequest.class, GridCsvImportResponse.class),
+	
+	
+
+	GRID_VIEW_SYNCHRONIZATION(GridViewSynchronizationRequest.class, GridViewSynchronizationResponse.class,
+			new GridViewSynchronizationProvider());
+>>>>>>> Stashed changes
 
 	private Class<? extends AsynchronousRequestBody> requestClass;
 	private Class<? extends AsynchronousResponseBody> responseClass;

@@ -40,6 +40,8 @@ public class AnnotationsTranslatorImpl implements AnnotationsTranslator {
 	private static final String ID = "id";
 	private static final String ETAG = "etag";
 	public static final String CONCRETE_TYPE = "concreteType";
+	
+	
 
 	@Override
 	public JSONObject writeToJsonObject(Entity entity, Annotations annotations, JsonSchema schema) {

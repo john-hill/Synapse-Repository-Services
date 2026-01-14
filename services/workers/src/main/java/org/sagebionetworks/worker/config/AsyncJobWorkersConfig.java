@@ -688,5 +688,32 @@ public class AsyncJobWorkersConfig {
                 .withStartDelay(2563)
                 .build();
     }
+<<<<<<< Updated upstream
+=======
+    
+    @Bean
+    public SimpleTriggerFactoryBean gridViewSynchronizationWorkerTrigger(GridViewSynchronizationWorker worker) {
+    	
+    	String queueName = stackConfig.getQueueName("GRID_VIEW_SYNCHRONIZATION.fifo");
+        MessageDrivenRunner runner = new AsyncJobRunnerAdapter<>(jobStatusManager, userManager, worker);
+
+        MessageDrivenWorkerStackConfiguration config = new MessageDrivenWorkerStackConfiguration();
+
+        config.setGate(stackStatusGate);
+        config.setQueueName(queueName);
+        config.setRunner(runner);
+        config.setSemaphoreLockAndMessageVisibilityTimeoutSec(60);
+        config.setSemaphoreMaxLockCount(4);
+        config.setSemaphoreLockKey("gridViewSynchronizationWorker");
+
+        MessageDrivenWorkerStack stack = new MessageDrivenWorkerStack(countingSemaphore, amazonSQSClient, config);
+
+        return new WorkerTriggerBuilder()
+                .withStack(stack)
+                .withRepeatInterval(1368)
+                .withStartDelay(1305)
+                .build();
+    }
+>>>>>>> Stashed changes
 
 }

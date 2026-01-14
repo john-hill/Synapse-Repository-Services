@@ -1,0 +1,29 @@
+{
+	"description": "A request to synchronize the state of the grid's working copy with the original source view's entity annotations. This request triggers a server-side transaction that resolves conflicts between user edits and background source updates, returning the resulting state as CRDT patches.",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.asynch.AsynchronousRequestBody"
+		}
+	],
+	"properties": {
+		"sessionId": {
+			"description": "The unique identifier for the current grid session.",
+			"type": "string"
+		},
+		"operation": {
+			"name": "SynchronizationOperation",
+			"description": "The direction of the synchronization: either pulling external updates into the grid or publishing grid changes to the source.",
+			"enum": [
+				{
+					"name": "merge_external_updates",
+					"description": "Pulls non-conflicting changes from the source view data into the grid. It compares row ETags and updates any cell where the CRDT Replica ID matches the initialization ID (indicating the user has not modified it). Returns CRDT patches to update the client's view without overwriting local user edits."
+				},
+				{
+					"name": "publish_to_source",
+					"description": "Pushes user-modified cells from the grid to the source view's entity annotations. This operation implicitly executes the merge_external_updates logic first to preserve non-conflicting background updates. Conflicting cells are resolved using a 'Grid Wins' strategy. On success, it returns CRDT patches that reflect the fully merged state (user edits + background updates) and resets the grid's cell authorship to the System ID."
+				}
+			],
+			"type": "string"
+		}
+	}
+}

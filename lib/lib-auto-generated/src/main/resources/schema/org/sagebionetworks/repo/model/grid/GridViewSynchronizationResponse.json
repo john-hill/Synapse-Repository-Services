@@ -1,0 +1,21 @@
+{
+	"description": "The results of a GridViewSynchronizationRequest.",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.asynch.AsynchronousResponseBody"
+		}
+	],
+	"properties": {
+		"sessionId": {
+			"description": "The session ID of the exported grid.",
+			"type": "string"
+		},
+		"rowStatus": {
+			"description": "The synchronization status of each row.",
+			"type": "array",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.grid.EntitySynchronizationStatus"
+			}
+		}
+	}
+}

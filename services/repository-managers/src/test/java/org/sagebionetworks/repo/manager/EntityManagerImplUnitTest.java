@@ -138,6 +138,7 @@ public class EntityManagerImplUnitTest {
 
 	@Captor
 	private ArgumentCaptor<ChildStatsRequest> statsRequestCaptor;
+	
 
 	@InjectMocks
 	private EntityManagerImpl entityManager;

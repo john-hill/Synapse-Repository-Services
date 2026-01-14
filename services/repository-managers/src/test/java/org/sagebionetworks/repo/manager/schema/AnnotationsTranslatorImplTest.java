@@ -1,6 +1,20 @@
 package org.sagebionetworks.repo.manager.schema;
 
-import com.google.common.collect.Lists;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import java.io.StringWriter;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,24 +31,13 @@ import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValue;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValueType;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
 import org.sagebionetworks.repo.model.schema.Type;
+import org.sagebionetworks.repo.model.table.ColumnModel;
+import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.schema.FORMAT;
 import org.sagebionetworks.schema.adapter.org.json.JsonDateUtils;
 import org.sagebionetworks.util.doubles.DoubleJSONStringWrapper;
 
-import java.io.StringWriter;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import com.google.common.collect.Lists;
 
 @ExtendWith(MockitoExtension.class)
 public class AnnotationsTranslatorImplTest {
@@ -1294,5 +1297,32 @@ public class AnnotationsTranslatorImplTest {
 		assertEquals("-Infinity", array.getString(4));
 		assertEquals("-Infinity", array.getString(5));
 		assertEquals("-Infinity", array.getString(6));
+	}
+	
+	@Test
+	public void testWriteToJsonObjectWithColumnModelSchema() {
+		List<ColumnModel> schema = List.of(new ColumnModel().setName("aString").setColumnType(ColumnType.STRING),
+				new ColumnModel().setName("listOfLongs").setColumnType(ColumnType.INTEGER_LIST));
+		// call under test
+		JSONObject json = translator.writeToJsonObject(project, annotations, schema);
+		assertNotNull(json);
+		assertEquals(project.getName(), json.getString("name"));
+		assertEquals(project.getId(), json.getString("id"));
+		assertEquals(project.getEtag(), json.getString("etag"));
+		assertEquals(project.getParentId(), json.getString("parentId"));
+		assertEquals(project.getCreatedBy(), json.getString("createdBy"));
+		assertEquals(project.getModifiedBy(), json.getString("modifiedBy"));
+		assertEquals(JsonDateUtils.convertDateToString(FORMAT.DATE_TIME, project.getCreatedOn()),
+				json.getString("createdOn"));
+		assertEquals(JsonDateUtils.convertDateToString(FORMAT.DATE_TIME, project.getModifiedOn()),
+				json.getString("modifiedOn"));
+		assertEquals(Project.class.getName(), json.getString("concreteType"));
+		// annotations
+		assertEquals("some string!", json.getString("aString"));
+		JSONArray array = json.getJSONArray("listOfLongs");
+		assertNotNull(array);
+		assertEquals(2, array.length());
+		assertEquals(222L, array.getLong(0));
+		assertEquals(333L, array.getLong(1));
 	}
 }

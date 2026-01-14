@@ -76,11 +76,12 @@ public class GridManagerImpl implements GridManager {
 	private final S3Client s3Client;
 	private final InternalReplicaToHubEventPublisher internalEventPublisher;
 	private final List<CreateGridHandler> createGridHandlers;
+	private final GridAuthorizationManager gridAuthorizationManager;
 
 	@Autowired
 	public GridManagerImpl(AwsCredentialsProvider awsCredentialsProvider, WebsocketApi websocketApi, GridDao gridDao,
 			StackConfiguration config, S3Client s3Client, InternalReplicaToHubEventPublisher internalEventPublisher,
-			List<CreateGridHandler> createHandlers) {
+			List<CreateGridHandler> createHandlers, GridAuthorizationManager gridAuthorizationManager) {
 		super();
 		this.awsCredentialsProvider = awsCredentialsProvider;
 		this.websocketApi = websocketApi;
@@ -89,6 +90,7 @@ public class GridManagerImpl implements GridManager {
 		this.s3Client = s3Client;
 		this.internalEventPublisher = internalEventPublisher;
 		this.createGridHandlers = createHandlers;
+		this.gridAuthorizationManager = gridAuthorizationManager;
 	}
 
 	@WriteTransaction
@@ -100,8 +102,8 @@ public class GridManagerImpl implements GridManager {
 		ValidateArgument.requirement(request.getInitialQuery() == null || request.getRecordSetId() == null,
 				"Cannot set both initialQuery and recordSetId.");
 
-		// Must authenticate to create a grid session.
-		AuthorizationUtils.disallowAnonymous(user);
+		Long ownerId = gridAuthorizationManager.validateGridOwner(user, request.getOwnerPrincipalId());
+		request.setOwnerPrincipalId(ownerId.toString());
 
 		CreateGridHandler handler = createGridHandlers.stream()
 			.filter(h -> h.canCreate(request))
@@ -152,9 +154,10 @@ public class GridManagerImpl implements GridManager {
 				new Connection().setGridSessionId(GridUtils.gridSessionIdAsLong(session.getSessionId()))
 						.setReplicaId(replica.getReplicaId()).setUserId(user.getId()));
 	}
+	
 
 	/**
-	 * Currently, only the user that started the session may access it.
+	 * If the grid owner is a team, the user must belong to the team, or the user must be the owner user.
 	 * 
 	 * @param user
 	 * @param gridSessionId
@@ -162,12 +165,7 @@ public class GridManagerImpl implements GridManager {
 	void validGridSessionAccess(UserInfo user, String gridSessionId) {
 		ValidateArgument.required(user, "user");
 		ValidateArgument.required(gridSessionId, "gridSessionId");
-
-		Long startedBy = gridDao.getGridSessionStartedBy(gridSessionId)
-				.orElseThrow(() -> new NotFoundException(GRID_SESSION_NOT_FOUND));
-		if (!AuthorizationUtils.isUserCreatorOrAdmin(user, startedBy.toString())) {
-			throw new UnauthorizedException("You are not authorized to access this resource.");
-		}
+		gridAuthorizationManager.hasGridSessionAccess(user, gridSessionId).checkAuthorizationOrElseThrow();
 	}
 
 	@Override

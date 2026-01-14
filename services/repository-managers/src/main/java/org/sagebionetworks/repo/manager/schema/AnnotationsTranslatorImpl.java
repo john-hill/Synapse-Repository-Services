@@ -12,10 +12,13 @@ import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValueType;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
 import org.sagebionetworks.repo.model.schema.SubSchemaIterable;
 import org.sagebionetworks.repo.model.schema.Type;
+import org.sagebionetworks.repo.model.table.ColumnModel;
+import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.schema.FORMAT;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 import org.sagebionetworks.schema.adapter.org.json.JSONObjectAdapterImpl;
 import org.sagebionetworks.schema.adapter.org.json.JsonDateUtils;
+import org.sagebionetworks.table.query.util.ColumnTypeListMappings;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.doubles.DoubleUtils;
 import org.springframework.stereotype.Service;
@@ -31,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
@@ -43,10 +47,29 @@ public class AnnotationsTranslatorImpl implements AnnotationsTranslator {
 
 	@Override
 	public JSONObject writeToJsonObject(Entity entity, Annotations annotations, JsonSchema schema) {
+		Map<String, SchemaDataType> schemaDataTypeMap = schema == null ? Collections.emptyMap()
+				: buildJsonSchemaIsSingleMap(schema);
+		return writeToJsonObject(entity, annotations, schemaDataTypeMap);
+	}
+	
+	@Override
+	public JSONObject writeToJsonObject(Entity entity, Annotations annotations, List<ColumnModel> schema) {
+		ValidateArgument.required(schema, "schema");
+		Map<String, SchemaDataType> map = schema.stream()
+				.collect(Collectors.toMap(ColumnModel::getName, c -> columnTypeToSchemaDataType(c.getColumnType())));
+		return writeToJsonObject(entity, annotations, map);
+	}
+	
+	static SchemaDataType columnTypeToSchemaDataType(ColumnType type) {
+		return  ColumnTypeListMappings.isList(type)? SchemaDataType.ARRAY: SchemaDataType.SINGLE;
+	}
+	
+	
+	JSONObject writeToJsonObject(Entity entity, Annotations annotations, Map<String, SchemaDataType> schemaDataTypeMap) {
 		ValidateArgument.required(entity, "entity");
 		ValidateArgument.required(annotations, "annotations");
 		JSONObject jsonObject = new JSONObject();
-		writeAnnotationsToJSONObject(annotations, jsonObject, schema);
+		writeAnnotationsToJSONObject(annotations, jsonObject, schemaDataTypeMap);
 		JSONObjectAdapterImpl adapter = new JSONObjectAdapterImpl(jsonObject);
 		try {
 			// write the entity second to override any conflicts.
@@ -415,6 +438,12 @@ public class AnnotationsTranslatorImpl implements AnnotationsTranslator {
 			throw new RuntimeException(e);
 		}
 	}
+	
+	void writeAnnotationsToJSONObject(Annotations toWrite, JSONObject jsonObject, JsonSchema schema) {
+		Map<String, SchemaDataType> schemaDataTypeMap = schema == null ? Collections.emptyMap()
+				: buildJsonSchemaIsSingleMap(schema);
+		writeAnnotationsToJSONObject(toWrite, jsonObject, schemaDataTypeMap);
+	}
 
 	/**
 	 * Write the provided annotations to the provided JSONObject. Note: The
@@ -424,11 +453,7 @@ public class AnnotationsTranslatorImpl implements AnnotationsTranslator {
 	 * @param toWrite
 	 * @param jsonObject
 	 */
-	void writeAnnotationsToJSONObject(Annotations toWrite, JSONObject jsonObject, JsonSchema schema) {
-		Map<String, SchemaDataType> schemaDataTypeMap = Collections.emptyMap();
-		if (schema != null) {
-			schemaDataTypeMap = buildJsonSchemaIsSingleMap(schema);
-		}
+	void writeAnnotationsToJSONObject(Annotations toWrite, JSONObject jsonObject, Map<String, SchemaDataType> schemaDataTypeMap) {
 		for (Entry<String, AnnotationsValue> entry : toWrite.getAnnotations().entrySet()) {
 			writeAnnotationValue(entry.getKey(), entry.getValue(), jsonObject, schemaDataTypeMap);
 		}
@@ -529,4 +554,5 @@ public class AnnotationsTranslatorImpl implements AnnotationsTranslator {
 			throw new IllegalArgumentException("Unknown annotation type: " + type);
 		}
 	}
+
 }

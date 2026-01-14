@@ -43,8 +43,14 @@ public class AsynchJobQueuePublisherImpl implements AsynchJobQueuePublisher {
 		 * Since PLFM-3645, we no longer push the JSON of the request to the SQS.  Instead, we only
 		 * publish the jobId and expect the workers to lookup the request from the database.
 		 */
+		SendMessageRequest request = new SendMessageRequest(url, status.getJobId());
+		if(type.getFifoProvider() != null) {
+			request.setMessageGroupId(type.getFifoProvider().getMessageGroupId(status.getRequestBody()));
+			request.setMessageDeduplicationId(type.getFifoProvider().getMessageDeduplicationId(status.getRequestBody()));
+		}
+
 		// publish the message
-		awsSQSClient.sendMessage(new SendMessageRequest(url, status.getJobId()));
+		awsSQSClient.sendMessage(request);
 	}
 	
 	/**

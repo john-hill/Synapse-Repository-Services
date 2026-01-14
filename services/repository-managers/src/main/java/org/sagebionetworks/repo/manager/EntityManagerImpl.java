@@ -679,7 +679,7 @@ public class EntityManagerImpl implements EntityManager {
 
 		// We explicitly pass a null schema since schema are not bound to specific versions. Additionally, no derived
 		// annotations are included because those are computed only for the latest version.
-		JSONObject json = annotationsTranslator.writeToJsonObject(entity, annotations, (JsonSchema) null);
+		JSONObject json = annotationsTranslator.writeToJsonObject(entity, annotations, null);
 
 		return new EntityJsonSubject(entity, json).toJson();
 	}
@@ -717,7 +717,7 @@ public class EntityManagerImpl implements EntityManager {
 					.getValidationSchema(boundSchema.get().getJsonSchemaVersionInfo().get$id());
 			json = annotationsTranslator.writeToJsonObject(entity, annotations, schema);
 		} else {
-			json = annotationsTranslator.writeToJsonObject(entity, annotations, (JsonSchema) null);
+			json = annotationsTranslator.writeToJsonObject(entity, annotations, null);
 		}
 		return new EntityJsonSubject(entity, json);
 	}

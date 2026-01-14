@@ -33,8 +33,6 @@ import org.sagebionetworks.repo.model.grid.GridCsvImportRequest;
 import org.sagebionetworks.repo.model.grid.GridCsvImportResponse;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportRequest;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportResponse;
-import org.sagebionetworks.repo.model.grid.GridViewSynchronizationRequest;
-import org.sagebionetworks.repo.model.grid.GridViewSynchronizationResponse;
 import org.sagebionetworks.repo.model.migration.AsyncMigrationRequest;
 import org.sagebionetworks.repo.model.migration.AsyncMigrationResponse;
 import org.sagebionetworks.repo.model.report.DownloadStorageReportRequest;
@@ -93,48 +91,36 @@ public enum AsynchJobType {
 	QUERY_DOWNLOAD_LIST(DownloadListQueryRequest.class, DownloadListQueryResponse.class),
 
 	ADD_TO_DOWNLOAD_LIST(AddToDownloadListRequest.class, AddToDownloadListResponse.class),
-
+	
 	ADD_TO_DOWNLOAD_LIST_STATS(AddToDownloadListStatsRequest.class, AddToDownloadListStatsResponse.class),
-
+	
 	DOWNLOAD_LIST_PACKAGE(DownloadListPackageRequest.class, DownloadListPackageResponse.class),
-
+	
 	DOWNLOAD_LIST_MANIFEST(DownloadListManifestRequest.class, DownloadListManifestResponse.class),
-
+	
 	FILE_HANDLE_ARCHIVAL_REQUEST(FileHandleArchivalRequest.class, FileHandleArchivalResponse.class),
-
+	
 	FILE_HANDLE_RESTORE_REQUEST(FileHandleRestoreRequest.class, FileHandleRestoreResponse.class),
-
+	
 	AGENT_CHAT(AgentChatRequest.class, AgentChatResponse.class),
-
+	
 	QUERY_AS_PFB(DownloadPFBRequest.class, DownloadPFBResult.class),
-
+	
 	GRID_CREATE(CreateGridRequest.class, CreateGridResponse.class),
 
-	DOWNLOAD_CSV_FROM_GRID(DownloadFromGridRequest.class, DownloadFromGridResult.class),
-
-	GRID_EXPORT_RECORDSET(GridRecordSetExportRequest.class, GridRecordSetExportResponse.class),
-
-	GRID_IMPORT_CSV(GridCsvImportRequest.class, GridCsvImportResponse.class),
-
-	GRID_VIEW_SYNCHRONIZATION(GridViewSynchronizationRequest.class, GridViewSynchronizationResponse.class,
-			new GridViewSynchronizationProvider());
+    DOWNLOAD_CSV_FROM_GRID(DownloadFromGridRequest.class, DownloadFromGridResult.class),
+    
+    GRID_EXPORT_RECORDSET(GridRecordSetExportRequest.class, GridRecordSetExportResponse.class),
+    
+    GRID_IMPORT_CSV(GridCsvImportRequest.class, GridCsvImportResponse.class);
 
 	private Class<? extends AsynchronousRequestBody> requestClass;
 	private Class<? extends AsynchronousResponseBody> responseClass;
-	private final FifoRequestProvider<? extends AsynchronousRequestBody> fifoRequestProvider;
 
 	AsynchJobType(Class<? extends AsynchronousRequestBody> requestClass,
 			Class<? extends AsynchronousResponseBody> responseClass) {
 		this.requestClass = requestClass;
 		this.responseClass = responseClass;
-		this.fifoRequestProvider = null;
-	}
-
-	<T extends AsynchronousRequestBody> AsynchJobType(Class<T> requestClass,
-			Class<? extends AsynchronousResponseBody> responseClass, FifoRequestProvider<T> fifoRequestProvider) {
-		this.requestClass = requestClass;
-		this.responseClass = responseClass;
-		this.fifoRequestProvider = fifoRequestProvider;
 	}
 
 	/**
@@ -165,17 +151,12 @@ public enum AsynchJobType {
 		return this.responseClass;
 	}
 
-	public <T extends AsynchronousRequestBody> FifoRequestProvider<T> getFifoProvider() {
-		return (FifoRequestProvider<T>) this.fifoRequestProvider;
-	}
-
 	/**
 	 * The suffix of the queue name where jobs of this type are published.
 	 * 
 	 * @return
 	 */
 	public String getQueueName() {
-		String baseName = this.fifoRequestProvider == null ? this.name() : this.name() + ".fifo";
-		return StackConfigurationSingleton.singleton().getQueueName(baseName);
+		return StackConfigurationSingleton.singleton().getQueueName(this.name());
 	}
 }

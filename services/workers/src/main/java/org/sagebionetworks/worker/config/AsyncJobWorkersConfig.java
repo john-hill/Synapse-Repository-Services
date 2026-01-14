@@ -19,7 +19,6 @@ import org.sagebionetworks.grid.workers.GridCSVDownloadWorker;
 import org.sagebionetworks.grid.workers.GridCreateWorker;
 import org.sagebionetworks.grid.workers.GridCsvImportWorker;
 import org.sagebionetworks.grid.workers.GridRecordSetExportWorker;
-import org.sagebionetworks.grid.workers.GridViewSynchronizationWorker;
 import org.sagebionetworks.migration.worker.MigrationWorker;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.asynch.AsynchJobStatusManager;
@@ -687,30 +686,6 @@ public class AsyncJobWorkersConfig {
                 .withStack(stack)
                 .withRepeatInterval(1421)
                 .withStartDelay(2563)
-                .build();
-    }
-    
-    @Bean
-    public SimpleTriggerFactoryBean gridViewSynchronizationWorkerTrigger(GridViewSynchronizationWorker worker) {
-
-        String queueName = stackConfig.getQueueName("GRID_VIEW_SYNCHRONIZATION.fifo");
-        MessageDrivenRunner runner = new AsyncJobRunnerAdapter<>(jobStatusManager, userManager, worker);
-
-        MessageDrivenWorkerStackConfiguration config = new MessageDrivenWorkerStackConfiguration();
-
-        config.setGate(stackStatusGate);
-        config.setQueueName(queueName);
-        config.setRunner(runner);
-        config.setSemaphoreLockAndMessageVisibilityTimeoutSec(60);
-        config.setSemaphoreMaxLockCount(4);
-        config.setSemaphoreLockKey("gridViewSynchronizationWorker");
-
-        MessageDrivenWorkerStack stack = new MessageDrivenWorkerStack(countingSemaphore, amazonSQSClient, config);
-
-        return new WorkerTriggerBuilder()
-                .withStack(stack)
-                .withRepeatInterval(1368)
-                .withStartDelay(1305)
                 .build();
     }
 

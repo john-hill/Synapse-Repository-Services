@@ -1,13 +1,10 @@
 package org.sagebionetworks.repo.manager.schema;
 
-import java.util.List;
-
 import org.json.JSONObject;
 import org.sagebionetworks.repo.model.Entity;
 import org.sagebionetworks.repo.model.annotation.v2.Annotations;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValue;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
-import org.sagebionetworks.repo.model.table.ColumnModel;
 
 public interface AnnotationsTranslator {
 
@@ -21,16 +18,6 @@ public interface AnnotationsTranslator {
 	 * @return
 	 */
 	JSONObject writeToJsonObject(Entity entity, Annotations annotations, JsonSchema schema);
-	
-	/**
-	 * Create a new JSONObject containing all of the data from the given Entity and
-	 * its annotations.
-	 * @param entity
-	 * @param annotations
-	 * @param schema
-	 * @return
-	 */
-	JSONObject writeToJsonObject(Entity entity, Annotations annotations, List<ColumnModel> schema);
 
 	/**
 	 * Given a JSONObject containing all data from an Entity, extract only the Annotations.

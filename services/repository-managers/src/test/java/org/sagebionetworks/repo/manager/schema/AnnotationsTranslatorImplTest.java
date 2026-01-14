@@ -17,6 +17,8 @@ import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValue;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValueType;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
 import org.sagebionetworks.repo.model.schema.Type;
+import org.sagebionetworks.repo.model.table.ColumnModel;
+import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.schema.FORMAT;
 import org.sagebionetworks.schema.adapter.org.json.JsonDateUtils;
 import org.sagebionetworks.util.doubles.DoubleJSONStringWrapper;
@@ -1295,8 +1297,6 @@ public class AnnotationsTranslatorImplTest {
 		assertEquals("-Infinity", array.getString(5));
 		assertEquals("-Infinity", array.getString(6));
 	}
-<<<<<<< Updated upstream
-=======
 	
 	@Test
 	public void testWriteToJsonObjectWithColumnModelSchema() {
@@ -1325,5 +1325,5 @@ public class AnnotationsTranslatorImplTest {
 		assertEquals(222L, array.getLong(0));
 		assertEquals(333L, array.getLong(1));
 	}
->>>>>>> Stashed changes
+
 }

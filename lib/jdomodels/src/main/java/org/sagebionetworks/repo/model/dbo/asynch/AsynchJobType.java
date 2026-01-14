@@ -33,6 +33,8 @@ import org.sagebionetworks.repo.model.grid.GridCsvImportRequest;
 import org.sagebionetworks.repo.model.grid.GridCsvImportResponse;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportRequest;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportResponse;
+import org.sagebionetworks.repo.model.grid.GridViewSynchronizationRequest;
+import org.sagebionetworks.repo.model.grid.GridViewSynchronizationResponse;
 import org.sagebionetworks.repo.model.migration.AsyncMigrationRequest;
 import org.sagebionetworks.repo.model.migration.AsyncMigrationResponse;
 import org.sagebionetworks.repo.model.report.DownloadStorageReportRequest;
@@ -108,24 +110,14 @@ public enum AsynchJobType {
 	
 	GRID_CREATE(CreateGridRequest.class, CreateGridResponse.class),
 
-<<<<<<< Updated upstream
-    DOWNLOAD_CSV_FROM_GRID(DownloadFromGridRequest.class, DownloadFromGridResult.class),
-    
-    GRID_EXPORT_RECORDSET(GridRecordSetExportRequest.class, GridRecordSetExportResponse.class),
-    
-    GRID_IMPORT_CSV(GridCsvImportRequest.class, GridCsvImportResponse.class);
-=======
 	DOWNLOAD_CSV_FROM_GRID(DownloadFromGridRequest.class, DownloadFromGridResult.class),
 
 	GRID_EXPORT_RECORDSET(GridRecordSetExportRequest.class, GridRecordSetExportResponse.class),
 
 	GRID_IMPORT_CSV(GridCsvImportRequest.class, GridCsvImportResponse.class),
-	
-	
 
 	GRID_VIEW_SYNCHRONIZATION(GridViewSynchronizationRequest.class, GridViewSynchronizationResponse.class,
 			new GridViewSynchronizationProvider());
->>>>>>> Stashed changes
 
 	private Class<? extends AsynchronousRequestBody> requestClass;
 	private Class<? extends AsynchronousResponseBody> responseClass;

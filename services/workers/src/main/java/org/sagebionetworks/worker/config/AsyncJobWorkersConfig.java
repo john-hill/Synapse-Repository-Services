@@ -19,6 +19,7 @@ import org.sagebionetworks.grid.workers.GridCSVDownloadWorker;
 import org.sagebionetworks.grid.workers.GridCreateWorker;
 import org.sagebionetworks.grid.workers.GridCsvImportWorker;
 import org.sagebionetworks.grid.workers.GridRecordSetExportWorker;
+import org.sagebionetworks.grid.workers.GridViewSynchronizationWorker;
 import org.sagebionetworks.migration.worker.MigrationWorker;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.asynch.AsynchJobStatusManager;
@@ -688,8 +689,6 @@ public class AsyncJobWorkersConfig {
                 .withStartDelay(2563)
                 .build();
     }
-<<<<<<< Updated upstream
-=======
     
     @Bean
     public SimpleTriggerFactoryBean gridViewSynchronizationWorkerTrigger(GridViewSynchronizationWorker worker) {
@@ -714,6 +713,5 @@ public class AsyncJobWorkersConfig {
                 .withStartDelay(1305)
                 .build();
     }
->>>>>>> Stashed changes
 
 }

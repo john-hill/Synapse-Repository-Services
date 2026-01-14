@@ -48,10 +48,6 @@ public class ITRealm {
 		Realm retrieved = synapse.getRealm(id);
 		assertEquals(created, retrieved);
 		
-		// can also determine the realm from the user, thrpugh the access token:
-		retrieved = synapse.getRealm();
-		assertEquals(created, retrieved);
-		
 		// get realm principals
 		RealmPrincipal principals = synapse.getRealmPrincipals(id);
 		assertEquals(id, principals.getRealmId());
@@ -59,6 +55,10 @@ public class ITRealm {
 		assertNotNull(principals.getAuthenticatedUsers());
 		assertNotNull(principals.getPublicGroup());
 		assertNotNull(principals.getAdministrativeGroup());
+		
+		// can also determine the realm's principals from the user, inferring the realm through their access token:
+		RealmPrincipal principals2 = synapse.getRealmPrincipals();
+		assertEquals(principals, principals2);
 		
 		// delete realm
 		adminSynapse.deleteRealm(id);

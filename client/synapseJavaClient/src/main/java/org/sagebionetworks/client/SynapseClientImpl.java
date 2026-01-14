@@ -755,6 +755,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public static final String FILE_HANDLE_RESTORE = FILE_HANDLE + "/restore";
 	
 	protected static final String REALM = "/realm";
+	protected static final String PRINCIPALS = "/principals";
 	
 
 	/**
@@ -6577,17 +6578,17 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	}
 
 	@Override
-	public Realm getRealm() throws SynapseException {
-	       return getJSONEntity(getRepoEndpoint(), REALM, Realm.class);
-	}
-
-	@Override
 	public Realm getRealm(String id) throws SynapseException {
 	       return getJSONEntity(getRepoEndpoint(), REALM+"/"+id, Realm.class);
 	}
 
 	@Override
 	public RealmPrincipal getRealmPrincipals(String id) throws SynapseException {
-	       return getJSONEntity(getRepoEndpoint(), REALM+"/"+id+"/principals", RealmPrincipal.class);
+	       return getJSONEntity(getRepoEndpoint(), REALM+"/"+id+PRINCIPALS, RealmPrincipal.class);
+	}
+	
+	@Override
+	public RealmPrincipal getRealmPrincipals() throws SynapseException {
+		return getJSONEntity(getRepoEndpoint(), REALM+PRINCIPALS, RealmPrincipal.class);
 	}
 }

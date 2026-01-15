@@ -7,11 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import java.util.UUID;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.client.SynapseAdminClient;
 import org.sagebionetworks.client.SynapseClient;
 import org.sagebionetworks.client.SynapseClientImpl;
+import org.sagebionetworks.client.exceptions.SynapseException;
 import org.sagebionetworks.repo.model.auth.IdentityProvider;
 import org.sagebionetworks.repo.model.auth.OAuthIdentityProvider;
 import org.sagebionetworks.repo.model.auth.Realm;
@@ -36,6 +38,20 @@ public class ITRealm {
     private static final String USER_NAME_IN_REALM = UUID.randomUUID().toString();
     private static final String PASSWORD_IN_REALM = "password"+UUID.randomUUID().toString();
     private static final String EMNAIL_IN_REALM = UUID.randomUUID().toString() + "@sagebase.org";
+    
+    private Realm realmToDelete;
+    
+    
+    @AfterEach
+    public void after() throws Exception {
+    	try {
+    		if (realmToDelete!=null) {
+    			adminSynapse.deleteRealm(realmToDelete.getId());
+    		}
+    	} catch (Exception e) {
+    		// fall through
+    	}
+    }
 
 
 	@Test
@@ -47,6 +63,7 @@ public class ITRealm {
 		Realm created = adminSynapse.createRealm(realm);
 		String id = created.getId();
 		assertNotNull(id);
+		realmToDelete=realm;
 		
 		// list realms
 		List<String> realms = synapse.listRealmIds().getRealms();
@@ -64,17 +81,14 @@ public class ITRealm {
 		assertNotNull(principals.getPublicGroup());
 		assertNotNull(principals.getAdministrativeGroup());
 		
-		Long userIdInRealm = null;
-		try {
-			SynapseClientImpl synapseClientInNewRealm = new SynapseClientImpl();
-			userIdInRealm = SynapseClientHelper.createUser(adminSynapse, synapseClientInNewRealm,
-					USER_NAME_IN_REALM, PASSWORD_IN_REALM, EMNAIL_IN_REALM, true, false, IDPS.get(0));
-			// can also determine the realm's principals from the user, inferring the realm through their access token:
-			RealmPrincipal principals2 = synapseClientInNewRealm.getRealmPrincipals();
-			assertEquals(principals, principals2);
-		} finally {
-			adminSynapse.deleteUser(userIdInRealm);
-		}
+		// can also determine the realm's principals from the user, inferring the realm through their access token:
+		principals = synapse.getRealmPrincipals();
+		assertEquals("0", principals.getRealmId()); // default realm
+		assertNotNull(principals.getAnonymousUser());
+		assertNotNull(principals.getAuthenticatedUsers());
+		assertNotNull(principals.getPublicGroup());
+		assertNotNull(principals.getAdministrativeGroup());
+		
 		// delete realm
 		adminSynapse.deleteRealm(id);
 	}

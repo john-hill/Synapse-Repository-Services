@@ -1,17 +1,15 @@
 package org.sagebionetworks;
 
-import java.util.UUID;
-
 import org.sagebionetworks.client.SynapseAdminClient;
 import org.sagebionetworks.client.SynapseClient;
 import org.sagebionetworks.client.SynapseClientImpl;
 import org.sagebionetworks.client.exceptions.SynapseException;
-import org.sagebionetworks.repo.model.auth.IdentityProvider;
 import org.sagebionetworks.repo.model.auth.JSONWebTokenHelper;
 import org.sagebionetworks.repo.model.auth.LoginResponse;
 import org.sagebionetworks.repo.model.auth.NewIntegrationTestUser;
-import org.sagebionetworks.repo.model.auth.SynapseIdentityProvider;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
+
+import java.util.UUID;
 
 /**
  * Holds helpers for setting up integration tests
@@ -49,12 +47,7 @@ public class SynapseClientHelper {
 	
 	public static Long createUser(SynapseAdminClient client, SynapseClient newUserClient, 
 			String username, String password, String email, boolean acceptsTermsOfUse, boolean validateUser) throws SynapseException, JSONObjectAdapterException {
-		return createUser(client, newUserClient, username, password, email, acceptsTermsOfUse, validateUser, new SynapseIdentityProvider());
-	}
-	
-	public static Long createUser(SynapseAdminClient client, SynapseClient newUserClient, 
-					String username, String password, String email, boolean acceptsTermsOfUse, boolean validateUser, IdentityProvider identityProvider) throws SynapseException, JSONObjectAdapterException {
-				if (newUserClient == null) {
+		if (newUserClient == null) {
 			newUserClient = new SynapseClientImpl();
 		}
 		setEndpoints(newUserClient);
@@ -65,7 +58,6 @@ public class SynapseClientHelper {
 		nu.setUsername(username);
 		nu.setPassword(password);
 		nu.setValidatedUser(validateUser);
-		nu.setIdentityProvider(identityProvider);
 		LoginResponse loginResponse = client.createIntegrationTestUser(nu);
 		
 		String accessTokenSubject = JSONWebTokenHelper.getSubjectFromJWTAccessToken(loginResponse.getAccessToken());

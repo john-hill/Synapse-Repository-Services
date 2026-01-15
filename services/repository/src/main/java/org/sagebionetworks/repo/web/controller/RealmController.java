@@ -73,8 +73,7 @@ public class RealmController {
 	@RequestMapping(value = UrlHelpers.REALM_PRINCIPALS, method = RequestMethod.GET)
 	@ResponseBody
 	public RealmPrincipal getRealmPrincipals(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
-			@PathVariable(ID_PATH_VARIABLE) String realmId) {
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId) {
 		return serviceProvider.getRealmService().getRealmPrincipals(userId);
 	}
 }

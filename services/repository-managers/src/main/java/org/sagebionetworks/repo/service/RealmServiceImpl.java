@@ -15,7 +15,6 @@ public class RealmServiceImpl implements RealmService {
 	@Autowired
 	RealmManager realmManager;
 	
-
 	@Autowired
 	private UserManager userManager;
 

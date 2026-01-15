@@ -20,7 +20,6 @@ import org.sagebionetworks.repo.model.oauth.OAuthProvider;
 
 @ExtendWith(ITTestExtension.class)
 public class ITRealm {
-
 	private SynapseClient synapse;
 	private SynapseAdminClient adminSynapse;
 

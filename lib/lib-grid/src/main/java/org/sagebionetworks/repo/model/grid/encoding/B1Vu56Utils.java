@@ -6,25 +6,25 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
- * Utility class for encoding and decoding b1u56 (Boolean and Variable Length Unsigned 56-bit Integer).
+ * Utility class for encoding and decoding b1vu56 (Boolean and Variable-Length Unsigned 56-bit Integer).
  * <p>
- * b1vu56 is a single boolean bit flag, followed by a variable length unsigned 56-bit integer. Each b1vu56 value is
+ * b1vu56 is a single boolean bit flag, followed by a variable-length unsigned 56-bit integer. Each b1vu56 value is
  * encoded as a variable number—from 1 to 8—of bytes.
  */
-public class B1u56Utils {
-    private static final int B1U56_FLAG_BIT = 0x80;              // 10000000 - flag bit in first byte
-    private static final int B1U56_FIRST_CONTINUATION = 0x40;   // 01000000 - continuation bit in first byte
-    private static final int B1U56_FIRST_DATA_MASK = 0x3F;      // 00111111 - 6 data bits in first byte
-    private static final long MAX_B1U56_VALUE = (1L << 56) - 1; // 2^56 - 1
+public class B1Vu56Utils {
+    private static final int B1VU56_FLAG_BIT = 0x80;              // 10000000 - flag bit in first byte
+    private static final int B1VU56_FIRST_CONTINUATION = 0x40;   // 01000000 - continuation bit in first byte
+    private static final int B1VU56_FIRST_DATA_MASK = 0x3F;      // 00111111 - 6 data bits in first byte
+    private static final long MAX_B1VU56_VALUE = (1L << 56) - 1; // 2^56 - 1
 
     /**
-     * Result of decoding a b1u56 value.
+     * Result of decoding a b1vu56 value.
      */
-    public static class B1u56Result {
+    public static class B1Vu56Result {
         private final boolean flag;
         private final long value;
 
-        public B1u56Result(boolean flag, long value) {
+        public B1Vu56Result(boolean flag, long value) {
             this.flag = flag;
             this.value = value;
         }
@@ -38,19 +38,19 @@ public class B1u56Utils {
         }
     }
 
-    private static void validateB1u56Value(long value) {
+    private static void validateB1Vu56Value(long value) {
         if (value < 0) {
             throw new IllegalArgumentException("Value must be non-negative: " + value);
         }
-        if (value > MAX_B1U56_VALUE) {
+        if (value > MAX_B1VU56_VALUE) {
             throw new IllegalArgumentException("Value exceeds 56 bits: " + value);
         }
     }
 
     /**
-     * Encodes a boolean flag and a long value as b1u56 and writes it to the output stream.
+     * Encodes a boolean flag and a long value as b1vu56 and writes it to the output stream.
      * <p>
-     * b1u56 encoding:
+     * b1vu56 encoding:
      * - Byte 1: flag bit (bit 7), continuation bit (bit 6), 6 data bits (bits 0-5)
      * - Bytes 2-7: continuation bit (bit 7), 7 data bits (bits 0-6)
      * - Byte 8: 8 data bits (no continuation bit)
@@ -61,12 +61,12 @@ public class B1u56Utils {
      * @throws IOException              if an I/O error occurs
      * @throws IllegalArgumentException if value is negative or exceeds 56 bits
      */
-    public static void encodeB1u56(boolean flag, long value, OutputStream out) throws IOException {
-        validateB1u56Value(value);
+    public static void encodeB1Vu56(boolean flag, long value, OutputStream out) throws IOException {
+        validateB1Vu56Value(value);
 
         // First byte: flag | continuation | 6 data bits
-        int firstByte = flag ? B1U56_FLAG_BIT : 0;
-        int dataBits = (int) (value & B1U56_FIRST_DATA_MASK);
+        int firstByte = flag ? B1VU56_FLAG_BIT : 0;
+        int dataBits = (int) (value & B1VU56_FIRST_DATA_MASK);
         value >>>= 6;
 
         if (value == 0) {
@@ -77,7 +77,7 @@ public class B1u56Utils {
         }
 
         // More bytes follow - set continuation bit
-        firstByte |= B1U56_FIRST_CONTINUATION | dataBits;
+        firstByte |= B1VU56_FIRST_CONTINUATION | dataBits;
         out.write(firstByte);
 
         // Encode remaining bits using 7-bit chunks (bytes 2-7)
@@ -93,16 +93,16 @@ public class B1u56Utils {
     }
 
     /**
-     * Encodes a boolean flag and a long value as b1u56 and returns it as a byte array.
+     * Encodes a boolean flag and a long value as b1vu56 and returns it as a byte array.
      *
      * @param flag  the boolean flag to encode
      * @param value the unsigned 56-bit integer to encode (must be in range [0, 2^56-1])
      * @return the encoded byte array
      * @throws IllegalArgumentException if value is negative or exceeds 56 bits
      */
-    public static byte[] encodeB1u56(boolean flag, long value) {
+    public static byte[] encodeB1Vu56(boolean flag, long value) {
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream(8)) {
-            encodeB1u56(flag, value, baos);
+            encodeB1Vu56(flag, value, baos);
             return baos.toByteArray();
         } catch (IOException e) {
             throw new RuntimeException("Unexpected IOException", e);
@@ -110,25 +110,25 @@ public class B1u56Utils {
     }
 
     /**
-     * Decodes a b1u56 encoded value from the input stream.
+     * Decodes a b1vu56 encoded value from the input stream.
      *
      * @param in the input stream to read from
-     * @return the decoded B1u56Result containing the flag and value
+     * @return the decoded B1Vu56Result containing the flag and value
      * @throws IOException              if an I/O error occurs or end of stream is reached unexpectedly
      * @throws IllegalArgumentException if the encoded value exceeds 56 bits
      */
-    public static B1u56Result decodeB1u56(InputStream in) throws IOException {
+    public static B1Vu56Result decodeB1Vu56(InputStream in) throws IOException {
         int firstByte = in.read();
         if (firstByte == -1) {
-            throw new IOException("Unexpected end of stream while decoding b1u56");
+            throw new IOException("Unexpected end of stream while decoding b1vu56");
         }
 
-        boolean flag = (firstByte & B1U56_FLAG_BIT) != 0;
-        boolean hasContinuation = (firstByte & B1U56_FIRST_CONTINUATION) != 0;
-        long result = firstByte & B1U56_FIRST_DATA_MASK;
+        boolean flag = (firstByte & B1VU56_FLAG_BIT) != 0;
+        boolean hasContinuation = (firstByte & B1VU56_FIRST_CONTINUATION) != 0;
+        long result = firstByte & B1VU56_FIRST_DATA_MASK;
 
         if (!hasContinuation) {
-            return new B1u56Result(flag, result);
+            return new B1Vu56Result(flag, result);
         }
 
         int shift = 6;
@@ -137,7 +137,7 @@ public class B1u56Utils {
         while (true) {
             int b = in.read();
             if (b == -1) {
-                throw new IOException("Unexpected end of stream while decoding b1u56");
+                throw new IOException("Unexpected end of stream while decoding b1vu56");
             }
 
             byteCount++;
@@ -161,24 +161,24 @@ public class B1u56Utils {
             shift += 7;
         }
 
-        return new B1u56Result(flag, result);
+        return new B1Vu56Result(flag, result);
     }
 
     /**
-     * Decodes a b1u56 encoded value from a byte array.
+     * Decodes a b1vu56 encoded value from a byte array.
      *
      * @param bytes the byte array containing the encoded value
-     * @return the decoded B1u56Result containing the flag and value
+     * @return the decoded B1Vu56Result containing the flag and value
      * @throws IllegalArgumentException if the encoded value is invalid or exceeds 56 bits
      */
-    public static B1u56Result decodeB1u56(byte[] bytes) {
+    public static B1Vu56Result decodeB1Vu56(byte[] bytes) {
         int firstByte = bytes[0];
-        boolean flag = (firstByte & B1U56_FLAG_BIT) != 0;
-        boolean hasContinuation = (firstByte & B1U56_FIRST_CONTINUATION) != 0;
-        long result = firstByte & B1U56_FIRST_DATA_MASK;
+        boolean flag = (firstByte & B1VU56_FLAG_BIT) != 0;
+        boolean hasContinuation = (firstByte & B1VU56_FIRST_CONTINUATION) != 0;
+        long result = firstByte & B1VU56_FIRST_DATA_MASK;
 
         if (!hasContinuation) {
-            return new B1u56Result(flag, result);
+            return new B1Vu56Result(flag, result);
         }
 
         int shift = 6;
@@ -208,7 +208,7 @@ public class B1u56Utils {
             shift += 7;
         }
 
-        return new B1u56Result(flag, result);
+        return new B1Vu56Result(flag, result);
     }
 
 }

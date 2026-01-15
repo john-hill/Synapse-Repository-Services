@@ -13,11 +13,11 @@ import java.io.IOException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.sagebionetworks.repo.model.grid.encoding.B1u56Utils;
+import org.sagebionetworks.repo.model.grid.encoding.B1Vu56Utils;
 
-public class B1u56UtilsTest {
+public class B1Vu56UtilsTest {
 
-  public enum B1u56TestCase {
+  public enum B1Vu56TestCase {
     FALSE(false, 0L, new byte[]{0x00}),
     TRUE(true, 0L, new byte[]{(byte) 0x80}),
     SMALL_VALUE_FALSE(false, 1L, new byte[]{0x01}),
@@ -42,7 +42,7 @@ public class B1u56UtilsTest {
     final long value;
     final byte[] expectedEncoding;
 
-    B1u56TestCase(boolean flag, long value, byte[] expectedEncoding) {
+    B1Vu56TestCase(boolean flag, long value, byte[] expectedEncoding) {
       this.flag = flag;
       this.value = value;
       this.expectedEncoding = expectedEncoding;
@@ -50,35 +50,35 @@ public class B1u56UtilsTest {
   }
 
   @ParameterizedTest
-  @EnumSource(B1u56TestCase.class)
-  public void testEncodeDecodeB1u56(B1u56TestCase testCase) throws IOException {
+  @EnumSource(B1Vu56TestCase.class)
+  public void testEncodeDecodeB1Vu56(B1Vu56TestCase testCase) throws IOException {
     boolean flag = testCase.flag;
     long value = testCase.value;
-    byte[] encoded = B1u56Utils.encodeB1u56(flag, value);
+    byte[] encoded = B1Vu56Utils.encodeB1Vu56(flag, value);
     assertArrayEquals(testCase.expectedEncoding, encoded);
-    B1u56Utils.B1u56Result decoded = B1u56Utils.decodeB1u56(encoded);
+    B1Vu56Utils.B1Vu56Result decoded = B1Vu56Utils.decodeB1Vu56(encoded);
     assertEquals(flag, decoded.getFlag());
     assertEquals(value, decoded.getValue());
 
     ByteArrayInputStream in = new ByteArrayInputStream(encoded);
-    decoded = B1u56Utils.decodeB1u56(in);
+    decoded = B1Vu56Utils.decodeB1Vu56(in);
     assertEquals(flag, decoded.getFlag());
     assertEquals(value, decoded.getValue());
   }
 
   @Test
-  public void testEncodeB1u56NegativeValue() {
-    assertThrows(IllegalArgumentException.class, () -> B1u56Utils.encodeB1u56(false, -1L));
+  public void testEncodeB1Vu56NegativeValue() {
+    assertThrows(IllegalArgumentException.class, () -> B1Vu56Utils.encodeB1Vu56(false, -1L));
   }
 
   @Test
-  public void testEncodeB1u56ExceedsMaxValue() {
+  public void testEncodeB1Vu56ExceedsMaxValue() {
     long tooLarge = (1L << 56);
-    assertThrows(IllegalArgumentException.class, () -> B1u56Utils.encodeB1u56(false, tooLarge));
+    assertThrows(IllegalArgumentException.class, () -> B1Vu56Utils.encodeB1Vu56(false, tooLarge));
   }
 
   @Test
-  public void testB1u56RoundTrip() throws IOException {
+  public void testB1Vu56RoundTrip() throws IOException {
     long[] testValues = {
       0L,
       1L,
@@ -96,13 +96,13 @@ public class B1u56UtilsTest {
 
     for (long value : testValues) {
       for (boolean flag : new boolean[]{false, true}) {
-        byte[] encoded = B1u56Utils.encodeB1u56(flag, value);
-        B1u56Utils.B1u56Result result = B1u56Utils.decodeB1u56(encoded);
+        byte[] encoded = B1Vu56Utils.encodeB1Vu56(flag, value);
+        B1Vu56Utils.B1Vu56Result result = B1Vu56Utils.decodeB1Vu56(encoded);
         assertEquals(flag, result.getFlag(), "Round trip failed for flag: " + flag + ", value: " + value);
         assertEquals(value, result.getValue(), "Round trip failed for flag: " + flag + ", value: " + value);
 
         ByteArrayInputStream in = new ByteArrayInputStream(encoded);
-        result = B1u56Utils.decodeB1u56(in);
+        result = B1Vu56Utils.decodeB1Vu56(in);
         assertEquals(flag, result.getFlag(), "Round trip with InputStream failed for flag: " + flag + ", value: " + value);
         assertEquals(value, result.getValue(), "Round trip with InputStream failed for flag: " + flag + ", value: " + value);
       }
@@ -110,32 +110,32 @@ public class B1u56UtilsTest {
   }
 
   @Test
-  public void testDecodeB1u56UnexpectedEndOfStream() {
+  public void testDecodeB1Vu56UnexpectedEndOfStream() {
     byte[] incomplete = new byte[]{0x40};
 
     assertThrows(IOException.class, () -> {
       ByteArrayInputStream in = new ByteArrayInputStream(incomplete);
-      B1u56Utils.decodeB1u56(in);
+      B1Vu56Utils.decodeB1Vu56(in);
     });
   }
 
   @Test
-  public void testB1u56MultipleValuesInStream() throws IOException {
+  public void testB1Vu56MultipleValuesInStream() throws IOException {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
-    B1u56Utils.encodeB1u56(true, 100L, out);
-    B1u56Utils.encodeB1u56(false, 200L, out);
-    B1u56Utils.encodeB1u56(true, 300L, out);
+    B1Vu56Utils.encodeB1Vu56(true, 100L, out);
+    B1Vu56Utils.encodeB1Vu56(false, 200L, out);
+    B1Vu56Utils.encodeB1Vu56(true, 300L, out);
 
     ByteArrayInputStream in = new ByteArrayInputStream(out.toByteArray());
-    B1u56Utils.B1u56Result result1 = B1u56Utils.decodeB1u56(in);
+    B1Vu56Utils.B1Vu56Result result1 = B1Vu56Utils.decodeB1Vu56(in);
     assertTrue(result1.getFlag());
     assertEquals(100L, result1.getValue());
 
-    B1u56Utils.B1u56Result result2 = B1u56Utils.decodeB1u56(in);
+    B1Vu56Utils.B1Vu56Result result2 = B1Vu56Utils.decodeB1Vu56(in);
     assertFalse(result2.getFlag());
     assertEquals(200L, result2.getValue());
 
-    B1u56Utils.B1u56Result result3 = B1u56Utils.decodeB1u56(in);
+    B1Vu56Utils.B1Vu56Result result3 = B1Vu56Utils.decodeB1Vu56(in);
     assertTrue(result3.getFlag());
     assertEquals(300L, result3.getValue());
   }

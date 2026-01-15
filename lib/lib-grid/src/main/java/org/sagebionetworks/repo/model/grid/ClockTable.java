@@ -8,7 +8,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
-import org.sagebionetworks.repo.model.grid.encoding.B1u56Utils;
+import org.sagebionetworks.repo.model.grid.encoding.B1Vu56Utils;
 import org.sagebionetworks.repo.model.grid.encoding.Base36Utils;
 import org.sagebionetworks.repo.model.grid.encoding.Vu57Utils;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
@@ -111,7 +111,7 @@ public class ClockTable {
 
         // Use multi-byte encoding
         try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-            B1u56Utils.encodeB1u56(true, sessionIndex, outputStream);
+            B1Vu56Utils.encodeB1Vu56(true, sessionIndex, outputStream);
             outputStream.write(Vu57Utils.encodeVu57(valueToEncode));
             return outputStream.toByteArray();
         } catch (IOException e) {
@@ -143,8 +143,8 @@ public class ClockTable {
             // Multi-byte encoding
             java.io.ByteArrayInputStream tempIn = new java.io.ByteArrayInputStream(new byte[] { (byte) firstByte });
             java.io.SequenceInputStream combinedIn = new java.io.SequenceInputStream(tempIn, in);
-            B1u56Utils.B1u56Result b1u56Result = B1u56Utils.decodeB1u56(combinedIn);
-            sessionIndex = b1u56Result.getValue();
+            B1Vu56Utils.B1Vu56Result b1Vu56Result = B1Vu56Utils.decodeB1Vu56(combinedIn);
+            sessionIndex = b1Vu56Result.getValue();
             encodedValue = Vu57Utils.decodeVu57(in);
         }
 

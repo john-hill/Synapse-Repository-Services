@@ -44,12 +44,17 @@ public class SynapseClientHelper {
 	}
 	
 	public static Long createUser(SynapseAdminClient client, SynapseClient newUserClient, String username, String password, boolean acceptsTermsOfUse, boolean validateUser) throws SynapseException, JSONObjectAdapterException {
-		return createUser(client, newUserClient, username, password, UUID.randomUUID().toString() + "@sagebase.org", acceptsTermsOfUse, validateUser, new SynapseIdentityProvider());
+		return createUser(client, newUserClient, username, password, UUID.randomUUID().toString() + "@sagebase.org", acceptsTermsOfUse, validateUser);
 	}
 	
 	public static Long createUser(SynapseAdminClient client, SynapseClient newUserClient, 
-			String username, String password, String email, boolean acceptsTermsOfUse, boolean validateUser, IdentityProvider identityProvider) throws SynapseException, JSONObjectAdapterException {
-		if (newUserClient == null) {
+			String username, String password, String email, boolean acceptsTermsOfUse, boolean validateUser) throws SynapseException, JSONObjectAdapterException {
+		return createUser(client, newUserClient, username, password, email, acceptsTermsOfUse, validateUser, new SynapseIdentityProvider());
+	}
+	
+	public static Long createUser(SynapseAdminClient client, SynapseClient newUserClient, 
+					String username, String password, String email, boolean acceptsTermsOfUse, boolean validateUser, IdentityProvider identityProvider) throws SynapseException, JSONObjectAdapterException {
+				if (newUserClient == null) {
 			newUserClient = new SynapseClientImpl();
 		}
 		setEndpoints(newUserClient);

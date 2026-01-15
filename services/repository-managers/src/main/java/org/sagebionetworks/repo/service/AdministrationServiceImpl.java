@@ -23,6 +23,7 @@ import org.sagebionetworks.repo.model.admin.ExpireQuarantinedEmailRequest;
 import org.sagebionetworks.repo.model.auth.LoginResponse;
 import org.sagebionetworks.repo.model.auth.NewIntegrationTestUser;
 import org.sagebionetworks.repo.model.auth.NewUser;
+import org.sagebionetworks.repo.model.auth.OAuthIdentityProvider;
 import org.sagebionetworks.repo.model.auth.Realm;
 import org.sagebionetworks.repo.model.dbo.dao.DBOChangeDAO;
 import org.sagebionetworks.repo.model.dbo.ses.EmailQuarantineDao;
@@ -172,6 +173,10 @@ public class AdministrationServiceImpl implements AdministrationService  {
 		NewUser nu = new NewUser();
 		nu.setEmail(userSpecs.getEmail());
 		nu.setUserName(userSpecs.getUsername());
+		if (userSpecs.getIdentityProvider() instanceof OAuthIdentityProvider) {
+			OAuthIdentityProvider oidp = (OAuthIdentityProvider)userSpecs.getIdentityProvider();
+			nu.setOauthProvider(oidp.getProvider());
+		}
 		
 		// If null, do not sign
 		boolean signTermsOfService = Boolean.TRUE.equals(userSpecs.getTou());

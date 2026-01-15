@@ -4635,5 +4635,7 @@ public interface SynapseClient extends BaseClient {
     Realm getRealm(String id) throws SynapseException ;
     
     RealmPrincipal getRealmPrincipals(String id) throws SynapseException ;
+    
+    RealmPrincipal getRealmPrincipals() throws SynapseException;
 }
 

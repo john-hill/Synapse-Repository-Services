@@ -39,6 +39,7 @@ import org.sagebionetworks.repo.model.oauth.OAuthProvider;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -71,6 +72,9 @@ public class RealmDaoImpl implements RealmDao {
 	
 	private static final String REALM_IDP_SQL = "SELECT * FROM "+TABLE_REALM_IDP+" WHERE "+COL_REALM_IDP_REALM_ID+" = ?";
 	
+	private static final String REALM_FOR_IDP_SQL = "SELECT "+COL_REALM_IDP_REALM_ID+" FROM "+TABLE_REALM_IDP+
+			" WHERE "+COL_REALM_IDP_PROVIDER+" = ?";
+	
 	private static final String REALM_PRINCIPAL_SQL = "SELECT * FROM "+TABLE_REALM_PRINCIPAL+" WHERE "+COL_REALM_PRINCIPAL_REALM_ID+" = ?";
 	
 	private static final String SELECT_ALL_IDS_SQL = "SELECT "+COL_REALM_ID+" FROM "+TABLE_REALM;
@@ -101,19 +105,23 @@ public class RealmDaoImpl implements RealmDao {
 		return result;
 	}
 	
+	static String identityProviderName(IdentityProvider idp) {
+		if (idp instanceof SynapseIdentityProvider) {
+			return SYNAPSE_IDENTITY_PROVIDER;
+		} else if (idp instanceof OAuthIdentityProvider) {
+			return ((OAuthIdentityProvider)idp).getProvider().name();
+		} else {
+			throw new IllegalArgumentException("Unexpected type "+idp.getClass().getName());
+		}
+	}
+	
 	static List<DBORealmIdentityProvider> copyRealmToRealmIdps(Realm realm) {
 		List<DBORealmIdentityProvider> result = new ArrayList<DBORealmIdentityProvider>();
 		if (realm.getIdentityProvider()!=null) {
 			for (IdentityProvider idp : realm.getIdentityProvider()) {
 				DBORealmIdentityProvider realmIdp = new DBORealmIdentityProvider();
 				realmIdp.setRealmId(stringToLong(realm.getId()));
-				if (idp instanceof SynapseIdentityProvider) {
-					realmIdp.setIdentityProvider(SYNAPSE_IDENTITY_PROVIDER);
-				} else if (idp instanceof OAuthIdentityProvider) {
-					realmIdp.setIdentityProvider(((OAuthIdentityProvider)idp).getProvider().name());
-				} else {
-					throw new IllegalArgumentException("Unexpected type "+idp.getClass().getName());
-				}
+				realmIdp.setIdentityProvider(identityProviderName(idp));
 				result.add(realmIdp);
 			}
 		}
@@ -246,6 +254,15 @@ public class RealmDaoImpl implements RealmDao {
 		copyRealmPrincipalsToRealm(principals, result);
 		result.setRealmId(id);
 		return result;
+	}
+	
+	@Override
+	public Optional<String> getRealmIdForIdentityProvider(IdentityProvider identityProvider) {
+		try {
+			return Optional.of(jdbcTemplate.queryForObject(REALM_FOR_IDP_SQL, String.class, identityProviderName(identityProvider)));
+		} catch (EmptyResultDataAccessException e) {
+			return Optional.empty();
+		}
 	}
 
 	@Override

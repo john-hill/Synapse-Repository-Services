@@ -1447,6 +1447,7 @@ public class SqlConstants {
     public static final String COL_CURATION_TASK_CREATED_ON = "CREATED_ON";
     public static final String COL_CURATION_TASK_MODIFIED_ON = "MODIFIED_ON";
     public static final String COL_CURATION_TASK_MODIFIED_BY = "MODIFIED_BY";
+    public static final String COL_CURATION_TASK_ASSIGNEE = "ASSIGNEE";
     public static final String COL_CURATION_TASK_TASK_PROPERTIES = "TASK_PROPERTIES";
     public static final String DDL_CURATION_TASK = "schema/CurationTask-ddl.sql";
     

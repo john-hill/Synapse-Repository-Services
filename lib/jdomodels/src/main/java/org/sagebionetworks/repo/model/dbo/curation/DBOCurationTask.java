@@ -29,7 +29,7 @@ public class DBOCurationTask implements MigratableDatabaseObject<DBOCurationTask
             new FieldColumn("modifiedBy", SqlConstants.COL_CURATION_TASK_MODIFIED_BY),
             new FieldColumn("modifiedOn", SqlConstants.COL_CURATION_TASK_MODIFIED_ON),
             new FieldColumn("taskPropertiesJson", SqlConstants.COL_CURATION_TASK_TASK_PROPERTIES),
-            new FieldColumn("assignee", SqlConstants.COL_CURATION_TASK_ASSIGNEE)
+            new FieldColumn("assigneeId", SqlConstants.COL_CURATION_TASK_ASSIGNEE)
     };
 
     private static final TableMapping<DBOCurationTask> TABLE_MAPPING = new TableMapping<>() {

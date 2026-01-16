@@ -30,6 +30,7 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.EntityManager;
+import org.sagebionetworks.repo.manager.grid.GridAuthorizationManager;
 import org.sagebionetworks.repo.manager.grid.PatchRowHandler;
 import org.sagebionetworks.repo.manager.grid.PatchStore;
 import org.sagebionetworks.repo.manager.grid.PatchUtils;
@@ -79,6 +80,9 @@ public class QueryCreateGridHandlerTest {
 
 	@Mock
 	private UserInfo mockUser;
+	
+	@Mock
+	private UserInfo mockSessionOwnerUser;
 
 	@Mock
 	private TableQueryManager mockQueryManager;
@@ -96,6 +100,8 @@ public class QueryCreateGridHandlerTest {
 	private EntityManager mockEntityManager;
 	@Mock
 	private JsonSchemaManager mockSchemaManager;
+	@Mock
+	private GridAuthorizationManager mockGridAuthorizationManager;
 	
 	@Mock
 	PatchStore mockPatchStore;
@@ -164,10 +170,12 @@ public class QueryCreateGridHandlerTest {
 
 	@Test
 	public void testBuildSessionFromQuery() throws Exception {
+		
+		when(mockGridAuthorizationManager.getRowLevelFilterUserInfo(mockUser, gridSessionId)).thenReturn(mockSessionOwnerUser);
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockQueryManager.querySinglePage(mockCallback, mockUser, new Query().setSql(query.getSql()).setLimit(1L),
 				queryOptions)).thenReturn(queryResultBundle);
-		when(mockQueryManager.runQueryAsStream(eq(mockCallback), eq(mockUser), eq(query),
+		when(mockQueryManager.runQueryAsStream(eq(mockCallback), eq(mockSessionOwnerUser), eq(query),
 				rowHandlerProviderCaptor.capture())).thenReturn(new QueryResultBundle());
 		doReturn(Optional.of(schema$id)).when(handler).getSchemaId(mockUser, tableId, rows);
 		when(mockSchemaManager.getValidationSchema(schema$id)).thenReturn(new JsonSchema().setRequired(List.of("foo")));
@@ -199,10 +207,11 @@ public class QueryCreateGridHandlerTest {
 
 	@Test
 	public void testBuildSessionFromQueryWithNoSchema() throws Exception {
+		when(mockGridAuthorizationManager.getRowLevelFilterUserInfo(mockUser, gridSessionId)).thenReturn(mockSessionOwnerUser);
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockQueryManager.querySinglePage(mockCallback, mockUser, new Query().setSql(query.getSql()).setLimit(1L),
 				queryOptions)).thenReturn(queryResultBundle);
-		when(mockQueryManager.runQueryAsStream(eq(mockCallback), eq(mockUser), eq(query),
+		when(mockQueryManager.runQueryAsStream(eq(mockCallback), eq(mockSessionOwnerUser), eq(query),
 				rowHandlerProviderCaptor.capture())).thenReturn(new QueryResultBundle());
 		doReturn(Optional.empty()).when(handler).getSchemaId(mockUser, tableId, rows);
 
@@ -233,6 +242,7 @@ public class QueryCreateGridHandlerTest {
 
 	@Test
 	public void testBuildSessionFromQueryWithLockUnavilableException() throws Exception {
+		when(mockGridAuthorizationManager.getRowLevelFilterUserInfo(mockUser, gridSessionId)).thenReturn(mockSessionOwnerUser);
 		when(mockUser.getId()).thenReturn(userId);
 		GridSession expected = new GridSession().setSessionId(gridSessionId);
 		when(mockGridDao.createGridSession(
@@ -243,7 +253,7 @@ public class QueryCreateGridHandlerTest {
 		LockUnavilableException e = new LockUnavilableException(LockType.Read, "key", "context");
 		when(mockQueryManager.querySinglePage(mockCallback, mockUser, new Query().setSql(query.getSql()).setLimit(1L),
 				queryOptions)).thenReturn(queryResultBundle);
-		when(mockQueryManager.runQueryAsStream(eq(mockCallback), eq(mockUser), eq(query), any())).thenThrow(e);
+		when(mockQueryManager.runQueryAsStream(eq(mockCallback), eq(mockSessionOwnerUser), eq(query), any())).thenThrow(e);
 
 		String message = assertThrows(RecoverableMessageException.class, () -> {
 			// call under test
@@ -257,6 +267,7 @@ public class QueryCreateGridHandlerTest {
 
 	@Test
 	public void testBuildSessionFromQueryWithTableUnavailableException() throws Exception {
+		when(mockGridAuthorizationManager.getRowLevelFilterUserInfo(mockUser, gridSessionId)).thenReturn(mockSessionOwnerUser);
 		when(mockUser.getId()).thenReturn(userId);
 		GridSession expected = new GridSession().setSessionId(gridSessionId);
 		when(mockGridDao.createGridSession(
@@ -267,7 +278,7 @@ public class QueryCreateGridHandlerTest {
 		TableUnavailableException e = new TableUnavailableException(new TableStatus().setTableId("syn123"));
 		when(mockQueryManager.querySinglePage(mockCallback, mockUser, new Query().setSql(query.getSql()).setLimit(1L),
 				queryOptions)).thenReturn(queryResultBundle);
-		when(mockQueryManager.runQueryAsStream(eq(mockCallback), eq(mockUser), eq(query), any())).thenThrow(e);
+		when(mockQueryManager.runQueryAsStream(eq(mockCallback), eq(mockSessionOwnerUser), eq(query), any())).thenThrow(e);
 
 		String message = assertThrows(RecoverableMessageException.class, () -> {
 			// call under test
@@ -279,6 +290,7 @@ public class QueryCreateGridHandlerTest {
 
 	@Test
 	public void testBuildSessionFromQueryWithOhterException() throws Exception {
+		when(mockGridAuthorizationManager.getRowLevelFilterUserInfo(mockUser, gridSessionId)).thenReturn(mockSessionOwnerUser);
 		when(mockUser.getId()).thenReturn(userId);
 		GridSession expected = new GridSession().setSessionId(gridSessionId);
 		when(mockGridDao.createGridSession(
@@ -289,7 +301,7 @@ public class QueryCreateGridHandlerTest {
 		IOException e = new IOException("not connected");
 		when(mockQueryManager.querySinglePage(mockCallback, mockUser, new Query().setSql(query.getSql()).setLimit(1L),
 				queryOptions)).thenReturn(queryResultBundle);
-		when(mockQueryManager.runQueryAsStream(eq(mockCallback), eq(mockUser), eq(query), any())).thenThrow(e);
+		when(mockQueryManager.runQueryAsStream(eq(mockCallback), eq(mockSessionOwnerUser), eq(query), any())).thenThrow(e);
 
 		String message = assertThrows(RuntimeException.class, () -> {
 			// call under test

@@ -4,8 +4,8 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
-import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.EventSource;
+import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.PatchInfo;
@@ -24,12 +24,12 @@ public interface GridDao {
 	GridSession createGridSession(CreateGridSession create);
 
 	/**
-	 * Get the user that started the grid session.
+	 * Get the user/team that owns the the grid session.
 	 * 
 	 * @param gridSessionId
 	 * @return
 	 */
-	Optional<Long> getGridSessionStartedBy(String gridSessionId);
+	Optional<Long> getGridSessionOnwer(String gridSessionId);
 
 	/**
 	 * Get session by ID.
@@ -171,5 +171,12 @@ public interface GridDao {
 	 * @return
 	 */
 	Optional<GridConnectionInfo> getConnection(String sessionId, Long replicaId);
+	
+	/**
+	 * Get the grid session source information.
+	 * @param sessionId
+	 * @return Optional.empty() if the session does not have a source.
+	 */
+	Optional<GridSource> getSessionSource(String sessionId);
 
 }

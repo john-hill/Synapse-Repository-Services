@@ -8,7 +8,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.manager.EntityManager;
-import org.sagebionetworks.repo.manager.SchemaManager;
+import org.sagebionetworks.repo.manager.grid.GridAuthorizationManager;
 import org.sagebionetworks.repo.manager.grid.PatchRowHandler;
 import org.sagebionetworks.repo.manager.grid.PatchStore;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
@@ -45,13 +45,15 @@ public class QueryCreateGridHandler implements CreateGridHandler {
 	private final TableQueryManager tableQueryManager;
 	private final EntityManager entityManager;
 	private final JsonSchemaManager schemaManager;
+	private final GridAuthorizationManager gridAuthorizationManager;
 
-	public QueryCreateGridHandler(GridDao gridDao, EntityManager entityManager, TableQueryManager tableQueryManager, JsonSchemaManager schemaManager) {
+	public QueryCreateGridHandler(GridDao gridDao, EntityManager entityManager, TableQueryManager tableQueryManager, JsonSchemaManager schemaManager, GridAuthorizationManager gridAuthorizationManager) {
 		super();
 		this.gridDao = gridDao;
 		this.entityManager = entityManager;
 		this.tableQueryManager = tableQueryManager;
 		this.schemaManager = schemaManager;
+		this.gridAuthorizationManager = gridAuthorizationManager;
 	}
 
 	@Override
@@ -78,7 +80,7 @@ public class QueryCreateGridHandler implements CreateGridHandler {
 			Long maxRowSizeBytes = getMaxRowSizeBytes(pre.getMaxRowsPerPage());
 
 			GridSession session = gridDao.createGridSession(new CreateGridSession().setUserId(user.getId())
-					.setSourceId(tableId).setSchemaId(schemaIdOp.orElse(null)));
+					.setSourceId(tableId).setSchemaId(schemaIdOp.orElse(null)).setOwner(request.getOwnerPrincipalId()));
 			GridReplica replica = gridDao.createReplica(user.getId(), session.getSessionId(), false,
 					EventSource.INTERNAL);
 
@@ -101,10 +103,13 @@ public class QueryCreateGridHandler implements CreateGridHandler {
 					.filter(cm -> columnsRequiredBySchema.contains(cm.getName()))
 					.map(cm -> columnNameToIndex.get(cm.getName()))
 					.collect(Collectors.toList());
+			
+			// ensure only rows are added that the owner can see.
+			UserInfo sessionOwner = gridAuthorizationManager.getRowLevelFilterUserInfo(user, session.getSessionId());
 
 			// The second query is a full query to build all of the patches from the query
 			// results.
-			tableQueryManager.runQueryAsStream(callback, user, initialQuery, t -> {
+			tableQueryManager.runQueryAsStream(callback, sessionOwner, initialQuery, t -> {
 				List<ColumnModel> schema = t.getMainQuery().getTranslator().getSchemaOfSelect();
 				return new PatchRowHandler(patchStore, session.getSessionId(), replica.getReplicaId(), schema,
 						maxRowSizeBytes, columnsRequiredBySchemaIndices);

@@ -153,6 +153,62 @@ class CurationTaskDaoAutowireTest {
         dao.deleteCurationTask(created.getTaskId());
         assertTrue(dao.getCurationTask(created.getTaskId()).isEmpty());
     }
+    
+    @ParameterizedTest
+    @EnumSource(CurationTaskPropertiesType.class)
+    public void testCRUDWithAssignee(CurationTaskPropertiesType taskType) {
+        CurationTask toCreate = new CurationTask()
+                .setProjectId(project1.getId())
+                .setDataType("fastq")
+                .setInstructions("these are the instructions")
+                .setTaskProperties(createTaskProperties(taskType))
+                .setAssigneePrincipalId(userId.toString());
+
+        // Create
+        CurationTask created = dao.createCurationTask(userId, toCreate);
+        assertNotNull(created.getTaskId());
+        assertEquals(project1.getId(), created.getProjectId());
+        assertEquals("fastq", created.getDataType());
+        assertEquals("these are the instructions", created.getInstructions());
+        assertEquals(userId.toString(), created.getCreatedBy());
+        assertNotNull(created.getCreatedOn());
+        assertEquals(userId.toString(), created.getModifiedBy());
+        assertNotNull(created.getModifiedOn());
+        assertNotNull(created.getEtag());
+        assertEquals(created.getTaskProperties(), toCreate.getTaskProperties());
+        assertEquals(userId.toString(), toCreate.getAssigneePrincipalId());
+
+        // Read
+        Optional<CurationTask> fetched = dao.getCurationTask(created.getTaskId());
+        assertTrue(fetched.isPresent());
+        assertEquals(created, fetched.get());
+
+        // Update
+        String newInstructions = "new instructions";
+        created.setInstructions(newInstructions);
+        created.setCreatedBy("123456789012"); // changes to created/modified By/On should be ignored
+        created.setCreatedOn(null);
+        created.setModifiedBy("1");
+        created.setModifiedOn(new Date(0));
+        created.setAssigneePrincipalId(modifiedByUserId.toString());
+
+        // call under test
+        dao.updateCurationTask(modifiedByUserId, created);
+        CurationTask updated = dao.getCurationTask(created.getTaskId()).get();
+
+        assertEquals(newInstructions, updated.getInstructions());
+        assertNotEquals(fetched.get().getEtag(), updated.getEtag());
+        assertNotNull(updated.getModifiedOn());
+        assertNotEquals(fetched.get().getModifiedOn(), updated.getModifiedOn());
+        assertEquals(modifiedByUserId.toString(), updated.getModifiedBy());
+        assertEquals(fetched.get().getCreatedBy(), updated.getCreatedBy());
+        assertEquals(fetched.get().getCreatedOn(), updated.getCreatedOn());
+        assertEquals(modifiedByUserId.toString(), updated.getAssigneePrincipalId());
+
+        // Delete
+        dao.deleteCurationTask(created.getTaskId());
+        assertTrue(dao.getCurationTask(created.getTaskId()).isEmpty());
+    }
 
     @Test
     public void testNoDuplicateDataTypeWithinProject_onCreate() {

@@ -24,10 +24,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
+import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.dbo.grid.CreateGridSession;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
+import org.sagebionetworks.repo.model.dbo.grid.GridSource;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridConstants;
@@ -35,6 +37,7 @@ import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.PatchInfo;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.jdo.NodeTestUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -46,6 +49,7 @@ public class GridDaoImplTest {
 
 	private Long adminUserId = BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
 	private Long otherUser = BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId();
+	private Long teamId = BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId();
 
 	@Autowired
 	private GridDao dao;
@@ -85,15 +89,39 @@ public class GridDaoImplTest {
 		assertEquals(GridConstants.START_REPLICA_ID_SERVICE, session.getLastReplicaIdService());
 		assertNull(session.getSourceEntityId());
 		assertNull(session.getGridJsonSchema$Id());
+		assertEquals(adminUserId.toString(), session.getOwnerPrincipalId());
 
 		// call under test
 		GridSession back = dao.getGridSession(session.getSessionId()).get();
 		assertEquals(session, back);
 	}
+	
+	@Test
+	public void testCreateGridSessionWithOwner() {
+
+		// call under test
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId).setOwner(teamId));
+		assertNotNull(session);
+		assertEquals(adminUserId.toString(), session.getStartedBy());
+		assertNotNull(session.getSessionId());
+		assertNotNull(session.getStartedOn());
+		assertNotNull(session.getEtag());
+		assertEquals(GridConstants.START_REPLICA_ID_CLIENT, session.getLastReplicaIdClient());
+		assertEquals(GridConstants.START_REPLICA_ID_SERVICE, session.getLastReplicaIdService());
+		assertNull(session.getSourceEntityId());
+		assertNull(session.getGridJsonSchema$Id());
+		assertEquals(teamId.toString(), session.getOwnerPrincipalId());
+
+		// call under test
+		GridSession back = dao.getGridSession(session.getSessionId()).get();
+		assertEquals(session, back);
+		assertEquals(Optional.empty(), dao.getSessionSource(session.getSessionId()));
+	}
 
 	@Test
 	public void testCreateGridSessionWithTableIdAndSchema() {
 		Node node = nodeDao.createNewNode(NodeTestUtils.createNew("source", adminUserId));
+		GridSource expectedSource = new GridSource(KeyFactory.stringToKey(node.getId()), EntityType.project);
 		// call under test
 		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId)
 				.setSourceId(node.getId()).setSchemaId("someorg-someschema"));
@@ -111,6 +139,8 @@ public class GridDaoImplTest {
 		GridSession back = dao.getGridSession(session.getSessionId()).get();
 		assertEquals(session, back);
 		assertEquals(session, back);
+		
+		assertEquals(Optional.of(expectedSource), dao.getSessionSource(session.getSessionId()));
 	}
 
 	@Test
@@ -120,16 +150,23 @@ public class GridDaoImplTest {
 	}
 
 	@Test
-	public void testGetGridSessionStartedBy() {
+	public void testGetGridSessionOwner() {
 		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		// call under test
-		assertEquals(Optional.of(adminUserId), dao.getGridSessionStartedBy(session.getSessionId()));
+		assertEquals(Optional.of(adminUserId), dao.getGridSessionOnwer(session.getSessionId()));
+	}
+	
+	@Test
+	public void testGetGridSessionOwnerWithTeam() {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId).setOwner(teamId));
+		// call under test
+		assertEquals(Optional.of(teamId), dao.getGridSessionOnwer(session.getSessionId()));
 	}
 
 	@Test
 	public void testGetGridSessionStartedByDoesNotExist() {
 		// call under test
-		assertEquals(Optional.empty(), dao.getGridSessionStartedBy("doesnotexist"));
+		assertEquals(Optional.empty(), dao.getGridSessionOnwer("doesnotexist"));
 	}
 
 	@Test

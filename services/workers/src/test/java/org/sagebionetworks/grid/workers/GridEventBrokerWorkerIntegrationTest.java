@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.sagebionetworks.repo.model.util.AccessControlListUtil.createResourceAccess;
 
 import java.io.File;
 import java.io.FileReader;
@@ -16,6 +18,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Predicate;
@@ -39,16 +42,22 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.manager.table.ColumnModelManager;
+import org.sagebionetworks.repo.manager.team.TeamManager;
+import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AsynchJobFailedException;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.FileEntity;
 import org.sagebionetworks.repo.model.Folder;
+import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.RecordSet;
+import org.sagebionetworks.repo.model.Team;
+import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.annotation.v2.Annotations;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValue;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValueType;
+import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.dbo.schema.EntitySchemaValidationResultDao;
 import org.sagebionetworks.repo.model.entity.BindSchemaToEntityRequest;
 import org.sagebionetworks.repo.model.file.ExternalFileHandle;
@@ -76,6 +85,8 @@ import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.InsertVectorBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewConstantBuilder;
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
+import org.sagebionetworks.repo.model.helper.AccessControlListObjectHelper;
+import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.schema.CreateSchemaRequest;
 import org.sagebionetworks.repo.model.schema.CreateSchemaResponse;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
@@ -88,6 +99,8 @@ import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.repo.model.table.EntityView;
 import org.sagebionetworks.repo.model.table.Query;
+import org.sagebionetworks.repo.model.table.QueryResultBundle;
+import org.sagebionetworks.repo.model.table.ReplicationType;
 import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.repo.model.table.TableEntity;
 import org.sagebionetworks.repo.service.EntityService;
@@ -143,6 +156,12 @@ public class GridEventBrokerWorkerIntegrationTest {
 
 	@Autowired
 	private EntitySchemaValidationResultDao schemaValidationResultDao;
+	
+	@Autowired
+	private TeamManager teamManager;
+	
+	@Autowired
+	private AccessControlListObjectHelper aclHelper;
 
 	private UserInfo admin;
 
@@ -554,6 +573,158 @@ public class GridEventBrokerWorkerIntegrationTest {
 	}
 
 	@Test
+	public void testGridViewWithTeamOwner() throws Exception {
+		UserInfo userOne = createUser();
+		UserInfo userTwo = createUser();
+		UserInfo userThree = createUser();
+		Team curatorsTeam = teamManager.create(admin, new Team().setName(UUID.randomUUID().toString()));
+		Long curatorsTreamId = Long.parseLong(curatorsTeam.getId());
+		teamManager.addMember(admin, curatorsTeam.getId(), userOne);
+		teamManager.addMember(admin, curatorsTeam.getId(), userTwo);
+
+		Project project = entityService.createEntity(admin.getId(), new Project().setName("test"), null);
+		Folder folder = entityService.createEntity(admin.getId(),
+				new Folder().setName("folder").setParentId(project.getId()), null);
+
+		ExternalFileHandle fh = fileHandleManager.createExternalFileHandle(admin, new ExternalFileHandle()
+				.setContentType("text/plain").setFileName("foo.bar").setExternalURL("https://something.org"));
+
+		int fileCount = 6;
+		List<FileEntity> files = createFiles(fileCount, folder.getId(), fh.getId());
+		
+		aclHelper.update(project.getId(),ObjectType.ENTITY, (a) -> {
+			a.setId(project.getId());
+			a.getResourceAccess().add(createResourceAccess(admin.getId(), ACCESS_TYPE.READ));
+			a.getResourceAccess().add(createResourceAccess(admin.getId(), ACCESS_TYPE.CHANGE_PERMISSIONS));
+			a.getResourceAccess().add(createResourceAccess(admin.getId(), ACCESS_TYPE.UPDATE));
+			a.getResourceAccess().add(createResourceAccess(userOne.getId(), ACCESS_TYPE.READ));
+			a.getResourceAccess().add(createResourceAccess(userTwo.getId(), ACCESS_TYPE.READ));
+			a.getResourceAccess().add(createResourceAccess(userThree.getId(), ACCESS_TYPE.READ));
+			a.getResourceAccess().add(createResourceAccess(curatorsTreamId, ACCESS_TYPE.READ));
+		});
+		
+		aclHelper.create((a) -> {
+			a.setId(files.get(0).getId());
+			a.getResourceAccess().add(createResourceAccess(curatorsTreamId, ACCESS_TYPE.READ));
+			a.getResourceAccess().add(createResourceAccess(curatorsTreamId, ACCESS_TYPE.UPDATE));
+		});
+		
+		aclHelper.create((a) -> {
+			a.setId(files.get(1).getId());
+			a.getResourceAccess().add(createResourceAccess(userOne.getId(), ACCESS_TYPE.READ));
+			a.getResourceAccess().add(createResourceAccess(userOne.getId(), ACCESS_TYPE.UPDATE));
+		});
+		
+		aclHelper.create((a) -> {
+			a.setId(files.get(2).getId());
+			a.getResourceAccess().add(createResourceAccess(userTwo.getId(), ACCESS_TYPE.READ));
+			a.getResourceAccess().add(createResourceAccess(userTwo.getId(), ACCESS_TYPE.UPDATE));
+		});
+		
+		aclHelper.create((a) -> {
+			a.setId(files.get(3).getId());
+			a.getResourceAccess().add(createResourceAccess(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId(), ACCESS_TYPE.READ));
+			a.getResourceAccess().add(createResourceAccess(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId(), ACCESS_TYPE.UPDATE));
+		});
+		
+		aclHelper.create((a) -> {
+			a.setId(files.get(4).getId());
+			a.getResourceAccess().add(createResourceAccess(BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId(), ACCESS_TYPE.READ));
+			a.getResourceAccess().add(createResourceAccess(BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId(), ACCESS_TYPE.UPDATE));
+		});
+		
+		/*
+		 * By updating each file and waiting for the new etag we can ensure that the
+		 * object_replication table contains correct benefactor for each file. This will
+		 * ensure the view includes the correct benefactor ids.
+		 * 
+		 */
+		for (FileEntity f : files) {
+			FileEntity current = entityManager.getEntity(admin, f.getId(), FileEntity.class);
+			current.setName(current.getName() + "updated");
+			entityManager.updateEntity(admin, current, false, null);
+			current = entityManager.getEntity(admin, f.getId(), FileEntity.class);
+
+			asynchronousJobWorkerHelper.waitForObjectReplication(ReplicationType.ENTITY,
+					KeyFactory.stringToKey(current.getId()), current.getEtag(), MAX_WAIT_MS);
+		}
+
+		
+		List<ColumnModel> schema = List.of(
+				new ColumnModel().setName("anInt").setColumnType(ColumnType.INTEGER)
+		);
+		schema = columnManager.createColumnModels(admin, schema);
+		List<String> colIds = schema.stream().map(c -> c.getId()).collect(Collectors.toList());
+		EntityView view = entityService
+				.createEntity(
+						admin.getId(), new EntityView().setParentId(project.getId()).setName("aView")
+								.setColumnIds(colIds).setScopeIds(List.of(folder.getId())).setViewTypeMask(0x01L),
+						null);
+
+		String sql = String.format("select * from %s", view.getId());
+		
+		asynchronousJobWorkerHelper.assertQueryResult(admin, sql, (QueryResultBundle result) -> {
+			assertEquals((long)fileCount, result.getQueryResult().getQueryResults().getRows().size());
+		}, MAX_WAIT_MS);
+		
+		// create a grid using the table
+		GridSession session = asynchronousJobWorkerHelper
+				.assertJobResponse(userOne, new CreateGridRequest().setOwnerPrincipalId(curatorsTeam.getId())
+						.setInitialQuery(new Query().setSql(sql)), (CreateGridResponse response) -> {
+							assertNotNull(response);
+							assertNotNull(response.getGridSession());
+						}, MAX_WAIT_MS)
+				.getResponse().getGridSession();
+		assertNotNull(session);
+		assertEquals(view.getId(), session.getSourceEntityId());
+
+		// both users one and two can join the grid.
+		GridReplica replicaOne = gridService
+				.createReplica(userOne.getId(), new CreateReplicaRequest().setGridSessionId(session.getSessionId()))
+				.getReplica();
+		
+		GridReplica replicaTwo = gridService
+				.createReplica(userTwo.getId(), new CreateReplicaRequest().setGridSessionId(session.getSessionId()))
+				.getReplica();
+		
+		assertThrows(UnauthorizedException.class, () -> {
+			gridService.createReplica(userThree.getId(),
+					new CreateReplicaRequest().setGridSessionId(session.getSessionId())).getReplica();
+		});
+		
+		// the grid must only contain data visible to the curator team.
+		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+			Optional<GridHeader> header = gridViewManager.readHeader(session.getSessionId(), INTERNAL_REPLICA_ID);
+			if (header.isEmpty()) {
+				return Pair.create(false, null);
+			}
+			List<RowView> rows = gridViewManager.querySinglePage(header.get(), 100L, 0L);
+			System.out.println("row count" + rows.size());
+			List<String> results = rows.stream().map(r -> r.getRowObject().getData().getRowJsonDocument().toString())
+					.collect(Collectors.toList());
+			System.out.println(results);
+			List<String> expected = List.of("{\"anInt\":0}", "{\"anInt\":3}", "{\"anInt\":4}", "{\"anInt\":5}");
+			return Pair.create(expected.equals(results), null);
+		});
+
+	}
+	
+	List<FileEntity> createFiles(int count, String folderId, String fileHandleId) {
+		List<FileEntity> files = new ArrayList<>();
+		for (int i = 0; i < count; i++) {
+			FileEntity file = entityService.createEntity(admin.getId(),
+					new FileEntity().setName("file" + i).setParentId(folderId).setDataFileHandleId(fileHandleId), null);
+			Annotations annos = entityService.getEntityAnnotations(admin.getId(), file.getId());
+			annos.setAnnotations(Map.of("anInt",
+					new AnnotationsValue().setType(AnnotationsValueType.LONG).setValue(List.of("" + i))));
+			entityService.updateEntityAnnotations(admin.getId(), file.getId(), annos);
+			file = (FileEntity) entityService.getEntity(admin.getId(), file.getId());
+			files.add(file);
+		}
+		return files;
+	}
+
+	@Test
 	public void testGridWithRecordSet() throws Exception {
 		Project project = entityService.createEntity(admin.getId(), new Project().setName("RecordSet Test"), null);
 
@@ -786,7 +957,13 @@ public class GridEventBrokerWorkerIntegrationTest {
 			rowsView.stream().map(r -> r.getRowObject().getData().getRowJsonDocument().toString()).collect(Collectors.toList())
 		);
 	}
-
+	
+	UserInfo createUser(){
+		NewUser newUser = new NewUser();
+		newUser.setEmail(UUID.randomUUID().toString() + "@test.com");
+		newUser.setUserName(UUID.randomUUID().toString());
+		return userManager.createOrGetTestUser(admin, newUser);
+	}
 	List<String[]> createAndDownloadCsvFromGrid(DownloadFromGridRequest request)
 			throws AsynchJobFailedException, IOException {
 		DownloadFromGridResult downloadFromGridResult = asynchronousJobWorkerHelper

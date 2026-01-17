@@ -10,6 +10,7 @@ import org.sagebionetworks.repo.manager.feature.FeatureManager;
 import org.sagebionetworks.repo.manager.oauth.OIDCTokenManager;
 import org.sagebionetworks.repo.manager.password.InvalidPasswordException;
 import org.sagebionetworks.repo.manager.password.PasswordValidator;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.UnauthenticatedException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
@@ -108,6 +109,11 @@ public class AuthenticationManagerImpl implements AuthenticationManager {
 			throw new IllegalArgumentException("Unknown implementation of ChangePasswordInterface");
 		}
 
+		UserInfo userInfo = userManager.getUserInfo(userId);
+		// changing a password is only allowed if the user is in the default Synapse realm
+		if (!AuthorizationConstants.DEFAULT_REALM_ID.equals(userInfo.getRealmId())) {
+			throw new IllegalArgumentException("Cannot change user email for realm "+userInfo.getRealmId());
+		}
 		setPassword(userId, changePasswordInterface.getNewPassword());
 		userCredentialValidator.forceResetLoginThrottle(userId);
 		return userId;

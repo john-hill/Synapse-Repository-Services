@@ -97,7 +97,7 @@ public class AuthenticationServiceImplTest {
 		credential.setEmail(username);
 		credential.setPassword(password);
 		
-		userInfo = new UserInfo(false, userId);
+		userInfo = new UserInfo(false, userId, AuthorizationConstants.DEFAULT_REALM_ID);
 		
 
 		alias = "alias";
@@ -693,6 +693,7 @@ public class AuthenticationServiceImplTest {
 		String passwordResetUrlPrefix = "synapse.org";
 		PasswordResetSignedToken token = new PasswordResetSignedToken();
 		when(mockUserManager.lookupUserByUsernameOrEmail(email)).thenReturn(principalAlias);
+		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
 		when(mockAuthenticationManager.createPasswordResetToken(principalAlias.getPrincipalId())).thenReturn(token);
 
 		//method under test
@@ -721,6 +722,7 @@ public class AuthenticationServiceImplTest {
 	@Test
 	public void testSendPasswordResetEmailWithEmailAlias() {
 		when(mockUserManager.lookupUserByUsernameOrEmail(aliasEmail)).thenReturn(principalEmailAlias);
+		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
 
 		String passwordResetUrlPrefix = "synapse.org";
 		

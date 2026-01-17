@@ -14,6 +14,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
+import static org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_REALM_ID;
 
 import java.io.ByteArrayInputStream;
 import java.util.Collections;
@@ -272,6 +273,8 @@ public class PrincipalManagerImplUnitTest {
 		accountSetupInfo.setPassword(PASSWORD);
 		accountSetupInfo.setUsername(USER_NAME);
 		when(mockUserManager.createUser((NewUser)any())).thenReturn(USER_ID);
+		UserInfo userInfo = new UserInfo(false, USER_ID, DEFAULT_REALM_ID);
+		when(mockUserManager.getUserInfo(USER_ID)).thenReturn(userInfo);
 		
 		// method under test
 		manager.createNewAccount(accountSetupInfo, ISSUER);
@@ -307,7 +310,7 @@ public class PrincipalManagerImplUnitTest {
 
 	@Test
 	public void testAdditionalEmailValidation() throws Exception {
-		UserInfo userInfo = new UserInfo(false, USER_ID);
+		UserInfo userInfo = new UserInfo(false, USER_ID, DEFAULT_REALM_ID);
 		Username email = new Username();
 		email.setEmail(EMAIL);
 		when(mockPrincipalAliasDAO.isAliasAvailable(EMAIL)).thenReturn(true);
@@ -339,7 +342,7 @@ public class PrincipalManagerImplUnitTest {
 	
 	@Test
 	public void testAdditionalEmailWithQuarantinedAddress() throws Exception {
-		UserInfo userInfo = new UserInfo(false, USER_ID);
+		UserInfo userInfo = new UserInfo(false, USER_ID, DEFAULT_REALM_ID);
 		Username email = new Username();
 		email.setEmail(EMAIL);
 		
@@ -358,7 +361,7 @@ public class PrincipalManagerImplUnitTest {
 
 	@Test
 	public void testAdditionalEmailEmailAlreadyUsed() throws Exception {
-		UserInfo userInfo = new UserInfo(false, USER_ID);
+		UserInfo userInfo = new UserInfo(false, USER_ID, DEFAULT_REALM_ID);
 		Username email = new Username();
 		email.setEmail(EMAIL);
 		// the following line simulates that the email is already used
@@ -402,7 +405,7 @@ public class PrincipalManagerImplUnitTest {
 	
 	@Test
 	public void testAddEmail() throws Exception {
-		UserInfo userInfo = new UserInfo(false, USER_ID);
+		UserInfo userInfo = new UserInfo(false, USER_ID, DEFAULT_REALM_ID);
 
 		EmailValidationSignedToken emailValidationSignedToken = PrincipalUtils.createEmailValidationSignedToken(USER_ID, EMAIL, now, mockTokenGenerator);
 
@@ -423,7 +426,7 @@ public class PrincipalManagerImplUnitTest {
 	
 	@Test
 	public void testAddEmailNoSetNotification() throws Exception {
-		UserInfo userInfo = new UserInfo(false, USER_ID);
+		UserInfo userInfo = new UserInfo(false, USER_ID, DEFAULT_REALM_ID);
 		
 		EmailValidationSignedToken emailValidationSignedToken = PrincipalUtils.createEmailValidationSignedToken(USER_ID, EMAIL, now, mockTokenGenerator);
 

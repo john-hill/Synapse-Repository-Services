@@ -56,7 +56,7 @@ public class B1Vu56UtilsTest {
     long value = testCase.value;
     byte[] encoded = B1Vu56Utils.encodeB1Vu56(flag, value);
     assertArrayEquals(testCase.expectedEncoding, encoded);
-    B1Vu56Utils.B1Vu56Result decoded = B1Vu56Utils.decodeB1Vu56(encoded);
+    B1Vu56Utils.B1Vu56Result decoded = B1Vu56Utils.decodeB1Vu56(new ByteArrayInputStream(encoded));
     assertEquals(flag, decoded.getFlag());
     assertEquals(value, decoded.getValue());
 
@@ -97,7 +97,7 @@ public class B1Vu56UtilsTest {
     for (long value : testValues) {
       for (boolean flag : new boolean[]{false, true}) {
         byte[] encoded = B1Vu56Utils.encodeB1Vu56(flag, value);
-        B1Vu56Utils.B1Vu56Result result = B1Vu56Utils.decodeB1Vu56(encoded);
+        B1Vu56Utils.B1Vu56Result result = B1Vu56Utils.decodeB1Vu56(new ByteArrayInputStream(encoded));
         assertEquals(flag, result.getFlag(), "Round trip failed for flag: " + flag + ", value: " + value);
         assertEquals(value, result.getValue(), "Round trip failed for flag: " + flag + ", value: " + value);
 

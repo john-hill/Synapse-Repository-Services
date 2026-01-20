@@ -10,6 +10,8 @@ import java.io.OutputStream;
  * <p>
  * b1vu56 is a single boolean bit flag, followed by a variable-length unsigned 56-bit integer. Each b1vu56 value is
  * encoded as a variable number—from 1 to 8—of bytes.
+ * <p>
+ * Adheres to the b1vu56 encoding defined in the <a href="https://jsonjoy.com/specs/json-crdt/encoding/structural-encoding/binary-structural-format#b1vu56-Encoding">JSON CRDT Binary Encoding specification</a>.
  */
 public class B1Vu56Utils {
     private static final int B1VU56_FLAG_BIT = 0x80;              // 10000000 - flag bit in first byte
@@ -163,52 +165,4 @@ public class B1Vu56Utils {
 
         return new B1Vu56Result(flag, result);
     }
-
-    /**
-     * Decodes a b1vu56 encoded value from a byte array.
-     *
-     * @param bytes the byte array containing the encoded value
-     * @return the decoded B1Vu56Result containing the flag and value
-     * @throws IllegalArgumentException if the encoded value is invalid or exceeds 56 bits
-     */
-    public static B1Vu56Result decodeB1Vu56(byte[] bytes) {
-        int firstByte = bytes[0];
-        boolean flag = (firstByte & B1VU56_FLAG_BIT) != 0;
-        boolean hasContinuation = (firstByte & B1VU56_FIRST_CONTINUATION) != 0;
-        long result = firstByte & B1VU56_FIRST_DATA_MASK;
-
-        if (!hasContinuation) {
-            return new B1Vu56Result(flag, result);
-        }
-
-        int shift = 6;
-        int byteCount = 1;
-
-        int offset = 1;
-        while (offset < bytes.length) {
-            int b = bytes[offset++] & 0xFF;
-            byteCount++;
-
-            // For the 8th byte, use all 8 bits (it never has a continuation bit)
-            if (byteCount == 8) {
-                long dataBits = b & 0xFF;
-                result |= (dataBits << shift);
-                break;
-            }
-
-            // Bytes 2-7: check continuation bit and extract 7 data bits
-            boolean nextHasContinuation = (b & EncodingConstants.CONTINUATION_BIT) != 0;
-            long dataBits = b & EncodingConstants.DATA_MASK;
-            result |= (dataBits << shift);
-
-            if (!nextHasContinuation) {
-                break;
-            }
-
-            shift += 7;
-        }
-
-        return new B1Vu56Result(flag, result);
-    }
-
 }

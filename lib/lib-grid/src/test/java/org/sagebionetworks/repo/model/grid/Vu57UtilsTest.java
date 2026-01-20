@@ -43,7 +43,7 @@ public class Vu57UtilsTest {
     long value = testCase.value;
     byte[] encoded = Vu57Utils.encodeVu57(value);
     assertArrayEquals(testCase.expectedEncoding, encoded);
-    long decoded = Vu57Utils.decodeVu57(encoded);
+    long decoded = Vu57Utils.decodeVu57(new ByteArrayInputStream(encoded));
     assertEquals(value, decoded);
 
     ByteArrayInputStream in = new ByteArrayInputStream(encoded);

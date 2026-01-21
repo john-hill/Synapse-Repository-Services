@@ -290,6 +290,27 @@ public class PrincipalManagerImplUnitTest {
 		verify(mockAuthManager).loginWithNoPasswordCheck(USER_ID, ISSUER);
 	}
 
+	@Test
+	public void testCreateNewAccountNotInSynapseRealm() throws Exception {
+		AccountSetupInfo accountSetupInfo = new AccountSetupInfo();
+		EmailValidationSignedToken emailValidationSignedToken = new EmailValidationSignedToken();
+		emailValidationSignedToken.setEmail(user.getEmail());
+		emailValidationSignedToken.setCreatedOn(now);
+		emailValidationSignedToken.setHmac("signed");
+		accountSetupInfo.setEmailValidationSignedToken(emailValidationSignedToken);
+		accountSetupInfo.setPassword(PASSWORD);
+		when(mockUserManager.createUser((NewUser)any())).thenReturn(USER_ID);
+		String nonSynapseRealmId = "5";
+		UserInfo userInfo = new UserInfo(false, USER_ID, nonSynapseRealmId);
+		when(mockUserManager.getUserInfo(USER_ID)).thenReturn(userInfo);
+		
+		// Cannot create a new user with a password in a non-Synapse realm
+		assertThrows(IllegalStateException.class, ()->{
+			// method under test
+			manager.createNewAccount(accountSetupInfo, ISSUER);
+		});
+	}
+
 	// token is OK 23 hours from now
 	@Test
 	public void testValidateAdditionalEmailNOTtooOLDTimestamp() {
@@ -373,12 +394,12 @@ public class PrincipalManagerImplUnitTest {
 	}
 	
 	@Test
-	public void testAdditionalEmailValidationAnonymous() throws Exception {
-		Long anonId = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId();
-		UserInfo userInfo = new UserInfo(false, anonId);
+	public void testAdditionalEmailValidationNotInSynapseRealm() throws Exception {
+		String nonSynapseRealmId = "5";
+		UserInfo userInfo = new UserInfo(false, USER_ID, nonSynapseRealmId);
 		Username email = new Username();
 		email.setEmail(EMAIL);
-		Assertions.assertThrows(UnauthorizedException.class, ()-> {	
+		Assertions.assertThrows(IllegalArgumentException.class, ()-> {	
 			manager.additionalEmailValidation(userInfo, email, PORTAL_ENDPOINT, now);
 		});
 	}	
@@ -399,6 +420,17 @@ public class PrincipalManagerImplUnitTest {
 		Username email = new Username();
 		email.setEmail(EMAIL);
 		Assertions.assertThrows(IllegalArgumentException.class, ()-> {	
+			manager.additionalEmailValidation(userInfo, email, PORTAL_ENDPOINT, now);
+		});
+	}	
+	
+	@Test
+	public void testAdditionalEmailValidationAnonymous() throws Exception {
+		Long anonId = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId();
+		UserInfo userInfo = new UserInfo(false, anonId);
+		Username email = new Username();
+		email.setEmail(EMAIL);
+		Assertions.assertThrows(UnauthorizedException.class, ()-> {	
 			manager.additionalEmailValidation(userInfo, email, PORTAL_ENDPOINT, now);
 		});
 	}	
@@ -455,6 +487,16 @@ public class PrincipalManagerImplUnitTest {
 	public void testAddEmailWrongUser() throws Exception {
 		UserInfo userInfo = new UserInfo(false, USER_ID);
 		EmailValidationSignedToken emailValidationSignedToken = PrincipalUtils.createEmailValidationSignedToken(222L, EMAIL, now, mockTokenGenerator);
+		Assertions.assertThrows(IllegalArgumentException.class, ()-> {	
+			manager.addEmail(userInfo, emailValidationSignedToken, null);
+		});
+	}
+	
+	@Test
+	public void testAddEmailNotSynapseRealm() throws Exception {
+		String nonSynapseRealmId = "5";
+		UserInfo userInfo = new UserInfo(false, USER_ID, nonSynapseRealmId);
+		EmailValidationSignedToken emailValidationSignedToken = PrincipalUtils.createEmailValidationSignedToken(USER_ID, EMAIL, now, mockTokenGenerator);
 		Assertions.assertThrows(IllegalArgumentException.class, ()-> {	
 			manager.addEmail(userInfo, emailValidationSignedToken, null);
 		});

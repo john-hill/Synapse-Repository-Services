@@ -867,6 +867,20 @@ public class AuthenticationManagerImplUnitTest {
 	}
 	
 	@Test
+	public void testChangePasswordNotInSynapseRealm(){
+		when(mockUserCredentialValidator.checkPasswordWithThrottling(userId, password)).thenReturn(true);
+		setupMockPrincipalAliasDAO();
+		String nonSynapseRealmId = "5";
+		UserInfo otherUserInfo = new UserInfo(false, userId, nonSynapseRealmId);
+		when(mockUserManager.getUserInfo(any())).thenReturn(otherUserInfo);
+		
+		// method under test
+		assertThrows(IllegalArgumentException.class, ()->{
+			authManager.changePassword(changePasswordWithCurrentPassword);
+		});
+	}
+
+	@Test
 	public void testLoginWith2Fa() {
 		
 		AuthenticationManagerImpl authManagerSpy = Mockito.spy(authManager);

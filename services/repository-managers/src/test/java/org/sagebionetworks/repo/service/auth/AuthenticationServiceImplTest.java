@@ -738,6 +738,23 @@ public class AuthenticationServiceImplTest {
 	}
 	
 	@Test
+	public void testSendPasswordResetEmailNotInSynapseRealm() {
+		String nonSynapseRealmId = "5";
+		UserInfo nonSynapseRealmUserInfo = new UserInfo(false, userId, nonSynapseRealmId);
+		
+		String email = "user@test.com";
+		String passwordResetUrlPrefix = "synapse.org";
+		PasswordResetSignedToken token = new PasswordResetSignedToken();
+		when(mockUserManager.lookupUserByUsernameOrEmail(email)).thenReturn(principalAlias);
+		when(mockUserManager.getUserInfo(userId)).thenReturn(nonSynapseRealmUserInfo);
+
+		assertThrows(IllegalArgumentException.class, ()->{
+			//method under test
+			service.sendPasswordResetEmail(passwordResetUrlPrefix, email);
+		});
+	}
+
+	@Test
 	public void testHasUserAcceptedTermsOfService() {
 		when(mockTosManager.hasUserAcceptedTermsOfService(userId)).thenReturn(true);
 		

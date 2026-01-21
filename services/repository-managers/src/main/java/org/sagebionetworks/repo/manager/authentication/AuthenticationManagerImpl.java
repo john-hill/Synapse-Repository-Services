@@ -112,7 +112,7 @@ public class AuthenticationManagerImpl implements AuthenticationManager {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		// changing a password is only allowed if the user is in the default Synapse realm
 		if (!AuthorizationConstants.DEFAULT_REALM_ID.equals(userInfo.getRealmId())) {
-			throw new IllegalArgumentException("Cannot change user email for realm "+userInfo.getRealmId());
+			throw new IllegalArgumentException("Cannot set user password in realm "+userInfo.getRealmId());
 		}
 		setPassword(userId, changePasswordInterface.getNewPassword());
 		userCredentialValidator.forceResetLoginThrottle(userId);

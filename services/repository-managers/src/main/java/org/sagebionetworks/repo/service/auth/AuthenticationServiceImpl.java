@@ -140,7 +140,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 			UserInfo userInfo = userManager.getUserInfo(principalAlias.getPrincipalId());
 			// can only reset password if user is in the default Synapse realm
 			if (!AuthorizationConstants.DEFAULT_REALM_ID.equals(userInfo.getRealmId())) {
-				throw new IllegalArgumentException("Cannot reset user email for realm "+userInfo.getRealmId());
+				throw new IllegalArgumentException("Cannot reset password for users in realm "+userInfo.getRealmId());
 			}
 			PasswordResetSignedToken passwordRestToken = authManager.createPasswordResetToken(principalAlias.getPrincipalId());
 			messageManager.sendNewPasswordResetEmail(passwordResetUrlPrefix, passwordRestToken, principalAlias);

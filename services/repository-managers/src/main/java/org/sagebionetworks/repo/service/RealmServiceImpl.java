@@ -1,6 +1,8 @@
 package org.sagebionetworks.repo.service;
 
 import org.sagebionetworks.repo.manager.RealmManager;
+import org.sagebionetworks.repo.manager.UserManager;
+import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.Realm;
 import org.sagebionetworks.repo.model.auth.RealmIdList;
 import org.sagebionetworks.repo.model.auth.RealmPrincipal;
@@ -12,6 +14,9 @@ public class RealmServiceImpl implements RealmService {
 	
 	@Autowired
 	RealmManager realmManager;
+	
+	@Autowired
+	private UserManager userManager;
 
 	@Override
 	public RealmIdList listRealmIds() {
@@ -27,5 +32,11 @@ public class RealmServiceImpl implements RealmService {
 	public RealmPrincipal getRealmPrincipals(String realmId) {
 		return realmManager.getRealmPrincipals(realmId);
 
+	}	
+	
+	@Override
+	public RealmPrincipal getRealmPrincipals(Long userId) {
+		UserInfo userInfo = userManager.getUserInfo(userId);
+		return realmManager.getRealmPrincipals(userInfo.getRealmId());
 	}
 }

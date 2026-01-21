@@ -1,5 +1,8 @@
 package org.sagebionetworks.repo.model;
 
+import java.util.Optional;
+
+import org.sagebionetworks.repo.model.auth.IdentityProvider;
 import org.sagebionetworks.repo.model.auth.Realm;
 import org.sagebionetworks.repo.model.auth.RealmIdList;
 import org.sagebionetworks.repo.model.auth.RealmPrincipal;
@@ -26,6 +29,13 @@ public interface RealmDao {
 	 * @return
 	 */
 	public Realm getRealm(String id);
+	
+	/**
+	 * 
+	 * @param identityProvider
+	 * @return the ID of realm associated with the given identity provider, or null if there is none
+	 */
+	public Optional<String> getRealmIdForIdentityProvider(IdentityProvider identityProvider);
 	
 	/**
 	 * 

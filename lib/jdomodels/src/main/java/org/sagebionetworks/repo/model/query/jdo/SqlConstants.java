@@ -1399,6 +1399,7 @@ public class SqlConstants {
 	public static final String COL_GRID_SESSION_REP_ID_SERVICE =	"REP_ID_SERVICE";
 	public static final String COL_GRID_SESSION_SOURCE_ID =			"SOURCE_ID";
 	public static final String COL_GRID_SESSION_SCHEMA_ID =			"SCHEMA_ID";
+	public static final String COL_GRID_SESSION_OWNER =				"OWNER_ID";
 	public static final String DDL_GRID_SESSION = "schema/grid/Grid-Session-ddl.sql";
 	
 	public static final String TABLE_GRID_REPLICA =					"GRID_REPLICA";
@@ -1447,6 +1448,7 @@ public class SqlConstants {
     public static final String COL_CURATION_TASK_CREATED_ON = "CREATED_ON";
     public static final String COL_CURATION_TASK_MODIFIED_ON = "MODIFIED_ON";
     public static final String COL_CURATION_TASK_MODIFIED_BY = "MODIFIED_BY";
+    public static final String COL_CURATION_TASK_ASSIGNEE = "ASSIGNEE";
     public static final String COL_CURATION_TASK_TASK_PROPERTIES = "TASK_PROPERTIES";
     public static final String DDL_CURATION_TASK = "schema/CurationTask-ddl.sql";
     

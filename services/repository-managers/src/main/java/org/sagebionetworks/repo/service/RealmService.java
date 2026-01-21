@@ -28,4 +28,11 @@ public interface RealmService {
 	 * @return
 	 */
 	public RealmPrincipal getRealmPrincipals(String realmId);
+	
+	/**
+	 * 
+	 * @param userId
+	 * @return
+	 */
+	public RealmPrincipal getRealmPrincipals(Long userId);
 }

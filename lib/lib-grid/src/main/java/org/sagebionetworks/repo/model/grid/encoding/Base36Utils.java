@@ -1,6 +1,5 @@
 package org.sagebionetworks.repo.model.grid.encoding;
 
-import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.util.ValidateArgument;
 
 /**
@@ -12,7 +11,7 @@ import org.sagebionetworks.util.ValidateArgument;
  */
 public class Base36Utils {
 
-	private static final String BASE36_CHARS = "0123456789abcdefghijklmnopqrstuvwxyz";
+	private static int RADIX = 36;
 
 	/**
 	 * Encode a long value to Base36 string.
@@ -24,16 +23,7 @@ public class Base36Utils {
 		if (value < 0) {
 			throw new IllegalArgumentException("Value must be non-negative: " + value);
 		}
-		if (value == 0) {
-			return "0";
-		}
-
-		StringBuilder sb = new StringBuilder();
-		while (value > 0) {
-			sb.insert(0, BASE36_CHARS.charAt((int) (value % 36)));
-			value /= 36;
-		}
-		return sb.toString();
+		return Long.toString(value, RADIX);
 	}
 
 	/**
@@ -48,15 +38,6 @@ public class Base36Utils {
 			throw new IllegalArgumentException("Encoded string cannot be empty");
 		}
 
-		long result = 0;
-		for (int i = 0; i < encoded.length(); i++) {
-			char c = Character.toLowerCase(encoded.charAt(i));
-			int digit = BASE36_CHARS.indexOf(c);
-			if (digit < 0) {
-				throw new IllegalArgumentException("Invalid Base36 character: " + c);
-			}
-			result = result * 36 + digit;
-		}
-		return result;
+		return Long.parseLong(encoded, RADIX);
 	}
 }

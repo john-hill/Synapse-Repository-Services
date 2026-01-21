@@ -15,6 +15,7 @@ import org.sagebionetworks.repo.manager.oauth.OAuthManager;
 import org.sagebionetworks.repo.manager.oauth.OIDCTokenManager;
 import org.sagebionetworks.repo.manager.oauth.OpenIDConnectManager;
 import org.sagebionetworks.repo.manager.oauth.ProvidedUserInfo;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.RealmDao;
 import org.sagebionetworks.repo.model.UnauthorizedException;
@@ -136,6 +137,11 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 	public void sendPasswordResetEmail(String passwordResetUrlPrefix, String usernameOrEmail) {
 		try {
 			PrincipalAlias principalAlias = userManager.lookupUserByUsernameOrEmail(usernameOrEmail);
+			UserInfo userInfo = userManager.getUserInfo(principalAlias.getPrincipalId());
+			// can only reset password if user is in the default Synapse realm
+			if (!AuthorizationConstants.DEFAULT_REALM_ID.equals(userInfo.getRealmId())) {
+				throw new IllegalArgumentException("Cannot reset password for users in realm "+userInfo.getRealmId());
+			}
 			PasswordResetSignedToken passwordRestToken = authManager.createPasswordResetToken(principalAlias.getPrincipalId());
 			messageManager.sendNewPasswordResetEmail(passwordResetUrlPrefix, passwordRestToken, principalAlias);
 		} catch (NotFoundException e) {

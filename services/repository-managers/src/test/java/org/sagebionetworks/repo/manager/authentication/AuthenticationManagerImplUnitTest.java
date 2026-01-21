@@ -153,8 +153,7 @@ public class AuthenticationManagerImplUnitTest {
 		changePasswordWithToken.setPasswordChangeToken(passwordResetSignedToken);
 		passwordResetSignedToken.setUserId(userId.toString());
 		
-		userInfo = new UserInfo(false, userId);
-		userInfo.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
+		userInfo = new UserInfo(false, userId, AuthorizationConstants.DEFAULT_REALM_ID);
 	}
 
 	@Test

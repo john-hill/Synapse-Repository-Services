@@ -20,7 +20,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.BooleanUtils;
 import org.apache.http.entity.ContentType;
 import org.sagebionetworks.manager.util.Validate;
 import org.sagebionetworks.reflection.model.PaginatedResults;
@@ -246,6 +245,16 @@ public class TeamManagerImpl implements TeamManager {
 		return false;
 	}
 	
+	@Override
+	@WriteTransaction
+	public Team create(UserInfo userInfo, Team team, String realmId) throws DatastoreException,
+			InvalidModelException, UnauthorizedException, NotFoundException {
+		if (!userInfo.isAdmin()) {
+			throw new UnauthorizedException("Only a Synapse admin' may create a team in a different realm.");
+		}
+		return createInternal(userInfo, team, realmId);
+	}
+	
 	/* (non-Javadoc)
 	 * @see org.sagebionetworks.repo.manager.team.TeamManager#create(org.sagebionetworks.repo.model.UserInfo, org.sagebionetworks.repo.model.Team)
 	 * 
@@ -254,7 +263,12 @@ public class TeamManagerImpl implements TeamManager {
 	@Override
 	@WriteTransaction
 	public Team create(UserInfo userInfo, Team team) throws DatastoreException,
-			InvalidModelException, UnauthorizedException, NotFoundException {
+	InvalidModelException, UnauthorizedException, NotFoundException {
+		return createInternal(userInfo, team, userInfo.getRealmId());
+	}
+
+	private Team createInternal(UserInfo userInfo, Team team, String realmId) throws DatastoreException,
+		InvalidModelException, UnauthorizedException, NotFoundException {
 		if (AuthorizationUtils.isUserAnonymous(userInfo)) {
 				throw new UnauthorizedException("Anonymous user cannot create Team.");
 		}
@@ -264,8 +278,7 @@ public class TeamManagerImpl implements TeamManager {
 		UserGroup ug = new UserGroup();
 		ug.setIsIndividual(false);
 		ug.setCreationDate(new Date());
-		// TODO Ultimately the realm ID will come from the UserInfo See PLFM-9329
-		ug.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
+		ug.setRealmId(realmId);
 		Long id = userGroupDAO.create(ug);
 		// bind the team name to this principal
 		bindTeamName(team.getName(), id);

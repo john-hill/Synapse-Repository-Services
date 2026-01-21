@@ -136,6 +136,7 @@ public class TeamManagerImplTest {
 	private static final String MEMBER_PRINCIPAL_ID = "999";
 	private static final Long MEMBER_PRINCIPAL_ID_LONG = Long.parseLong(MEMBER_PRINCIPAL_ID);
 	private static final String TEAM_ID = "123";
+	private static final String REALM_ID = "10";
 
 	private RestrictionInformationRequest restrictionInfoRqst;
 	private RestrictionInformationResponse hasUnmetAccessRqmtResponse;
@@ -143,12 +144,12 @@ public class TeamManagerImplTest {
 
 	@BeforeEach
 	public void setUp() {
-		userInfo = createUserInfo(false, MEMBER_PRINCIPAL_ID_LONG);
+		userInfo = createUserInfo(false, MEMBER_PRINCIPAL_ID_LONG, REALM_ID);
 		up = new UserProfile();
 		up.setFirstName("foo");
 		up.setLastName("bar");
 		up.setUserName("userName");
-		adminInfo = createUserInfo(true, -1L);
+		adminInfo = createUserInfo(true, -1L, DEFAULT_REALM_ID);
 		restrictionInfoRqst = new RestrictionInformationRequest();
 		restrictionInfoRqst.setRestrictableObjectType(RestrictableObjectType.TEAM);
 		restrictionInfoRqst.setObjectId(TEAM_ID);
@@ -158,8 +159,8 @@ public class TeamManagerImplTest {
 		noUnmetAccessRqmtResponse.setHasUnmetAccessRequirement(false);
 	}
 	
-	private static UserInfo createUserInfo(boolean isAdmin, Long principalId) {
-		UserInfo userInfo = new UserInfo(isAdmin, principalId, DEFAULT_REALM_ID);
+	private static UserInfo createUserInfo(boolean isAdmin, Long principalId, String realmId) {
+		UserInfo userInfo = new UserInfo(isAdmin, principalId, realmId);
 		return userInfo;
 	}
 	
@@ -316,6 +317,7 @@ public class TeamManagerImplTest {
 		UserGroup ug = captor.getValue();
 		assertNotNull(ug);
 		assertNotNull(ug.getCreationDate());
+		assertEquals(REALM_ID, ug.getRealmId()); // team is created in the user's realm
 
 		// verify that group, acl were created
 		assertEquals(TEAM_ID, created.getId());
@@ -328,6 +330,34 @@ public class TeamManagerImplTest {
 		assertNotNull(created.getModifiedOn());
 		assertEquals(MEMBER_PRINCIPAL_ID, created.getCreatedBy());
 		assertEquals(MEMBER_PRINCIPAL_ID, created.getModifiedBy());
+	}
+	
+	@Test
+	public void testCreateInOtherRealm() {
+		Team team = createTeam(null, "name", "description", null, "101", null, null, null, null);
+
+		when(mockAuthorizationManager.canAccessRawFileHandleById(any(), any())).thenReturn(AuthorizationStatus.authorized());
+		when(mockUserGroupDAO.create(any(UserGroup.class))).thenReturn(Long.parseLong(TEAM_ID));
+		when(mockTeamDAO.create(team)).thenReturn(team);
+		
+		// Call under test
+		// Create the team in the specified realm
+		Team created = teamManagerImpl.create(adminInfo,team,REALM_ID);
+		assertEquals(team, created);
+		ArgumentCaptor<UserGroup> captor = ArgumentCaptor.forClass(UserGroup.class);
+		verify(mockUserGroupDAO).create(captor.capture());
+		UserGroup ug = captor.getValue();
+		assertEquals(REALM_ID, ug.getRealmId()); // team is created in the specified realm
+	}
+	
+	@Test
+	public void testCreateInOtherRealmNonAdmin() {
+		Team team = createTeam(null, "name", "description", null, "101", null, null, null, null);
+		// Call under test
+		// can't call this method as a non-admin
+		Assertions.assertThrows(UnauthorizedException.class, ()-> {
+			teamManagerImpl.create(userInfo,team,REALM_ID);
+		});
 	}
 	
 	@Test
@@ -677,7 +707,7 @@ public class TeamManagerImplTest {
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		//	 there has been no membership request
 		Long otherPrincipalId = 987L;
-		UserInfo otherUserInfo = createUserInfo(false, otherPrincipalId);
+		UserInfo otherUserInfo = createUserInfo(false, otherPrincipalId, REALM_ID);
 		when(mockRestrictionInformationManager.
 				getRestrictionInformation(otherUserInfo, restrictionInfoRqst)).
 					thenReturn(noUnmetAccessRqmtResponse);
@@ -715,7 +745,7 @@ public class TeamManagerImplTest {
 		// 'userInfo' is a team admin and there is a membership request from 987
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		Long principalId = 987L;
-		UserInfo principalUserInfo = createUserInfo(false, principalId);
+		UserInfo principalUserInfo = createUserInfo(false, principalId, REALM_ID);
 		when(mockMembershipRequestDAO.getOpenByTeamAndRequesterCount(eq(Long.parseLong(TEAM_ID)), eq(principalId), anyLong())).thenReturn(1L);
 		when(mockRestrictionInformationManager.
 				getRestrictionInformation(principalUserInfo, restrictionInfoRqst)).
@@ -733,7 +763,7 @@ public class TeamManagerImplTest {
 	public void testAddMemberAlreadyOnTeam() {
 		// 'userInfo' is a team admin and there is a membership request from 987
 		Long principalId = 987L;
-		UserInfo principalUserInfo = createUserInfo(false, principalId);
+		UserInfo principalUserInfo = createUserInfo(false, principalId, REALM_ID);
 		when(mockGroupMembersDAO.getMemberIdsForUpdate(Long.valueOf(TEAM_ID))).thenReturn(ImmutableSet.of(Long.valueOf(principalId)));
 		boolean added = teamManagerImpl.addMember(userInfo, TEAM_ID, principalUserInfo);
 		assertFalse(added);
@@ -1267,7 +1297,7 @@ public class TeamManagerImplTest {
 		when(mockTeamDAO.getState(TEAM_ID)).thenReturn(TeamState.CLOSED);
 		
 		Long principalId = MEMBER_PRINCIPAL_ID_LONG;
-		UserInfo principalUserInfo = createUserInfo(false, principalId);
+		UserInfo principalUserInfo = createUserInfo(false, principalId, REALM_ID);
 		
 		when(mockGroupMembersDAO.areMemberOf(TEAM_ID, Collections.singleton(principalId.toString()))).thenReturn(true);
 		
@@ -1414,7 +1444,7 @@ public class TeamManagerImplTest {
 		Long otherPrincipalId = 987L;
 		String teamEndpoint = "https://synapse.org/#Team:";
 		String notificationUnsubscribeEndpoint = "https://synapse.org/#notificationUnsubscribeEndpoint:";
-		UserInfo otherUserInfo = createUserInfo(false, otherPrincipalId);
+		UserInfo otherUserInfo = createUserInfo(false, otherPrincipalId, REALM_ID);
 		List<MessageToUserAndBody> resultList = 
 				teamManagerImpl.createJoinedTeamNotifications(userInfo, 
 						otherUserInfo, TEAM_ID, teamEndpoint,

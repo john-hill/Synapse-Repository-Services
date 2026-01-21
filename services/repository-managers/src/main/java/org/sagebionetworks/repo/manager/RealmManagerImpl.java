@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager;
 
+import java.util.Date;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -47,6 +48,7 @@ public class RealmManagerImpl implements RealmManager {
 		UserGroup userGroup = new UserGroup();
 		userGroup.setIsIndividual(isIndvidual);
 		userGroup.setRealmId(realmId);
+		userGroup.setCreationDate(new Date());
 		Long principalId = userGroupDAO.create(userGroup);
 		PrincipalAlias principalAlias = new PrincipalAlias();
 		principalAlias.setPrincipalId(principalId);
@@ -61,15 +63,14 @@ public class RealmManagerImpl implements RealmManager {
 		adminTeam.setCanPublicJoin(false);
 		adminTeam.setDescription("Administration team for "+realmName);
 		adminTeam.setName(realmName+ADMINISTRATORS_SUFFIX);
-		// TODO ultimately we will pass the realm id, to create the team in the realm PLFM-9329
-		adminTeam = teamManager.create(userInfo, adminTeam);
+		adminTeam = teamManager.create(userInfo, adminTeam, realmId);
 		return adminTeam.getId();
 	}
 	
 	// Since the realm name will become the prefix for the aliases of the 
 	// realm's principals, we apply the same constraint that we do for those 
 	// names.
-	private static final String REALM_NAME_REGEX = "^[a-z0-9._-]{3,}";
+	private static final String REALM_NAME_REGEX = "^[A-Za-z0-9._-]{3,}";
 
 	@Override
 	@WriteTransaction

@@ -347,7 +347,7 @@ public class TeamManagerImplTest {
 		ArgumentCaptor<UserGroup> captor = ArgumentCaptor.forClass(UserGroup.class);
 		verify(mockUserGroupDAO).create(captor.capture());
 		UserGroup ug = captor.getValue();
-		assertEquals(REALM_ID, ug.getRealmId()); // team is created in the user's realm
+		assertEquals(REALM_ID, ug.getRealmId()); // team is created in the specified realm
 	}
 	
 	@Test

@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
+import static org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_REALM_ID;
 
 import java.util.Optional;
 
@@ -97,7 +98,7 @@ public class AuthenticationServiceImplTest {
 		credential.setEmail(username);
 		credential.setPassword(password);
 		
-		userInfo = new UserInfo(false, userId);
+		userInfo = new UserInfo(false, userId, DEFAULT_REALM_ID);
 		
 
 		alias = "alias";
@@ -221,6 +222,9 @@ public class AuthenticationServiceImplTest {
 		
 		when(mockAuthenticationManager.loginWithNoPasswordCheck(anyLong(), any())).thenReturn(authMgrLoginResponse);
 		
+		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
+		when(mockRealmDao.getRealmIdForIdentityProvider(any())).thenReturn(Optional.of(DEFAULT_REALM_ID));
+		
 		//call under test
 		LoginResponse result = service.validateOAuthAuthenticationCodeAndLogin(request, ISSUER);
 		
@@ -256,6 +260,9 @@ public class AuthenticationServiceImplTest {
 		authMgrLoginResponse.setAuthenticationReceipt("authentication-receipt");
 		
 		when(mockAuthenticationManager.loginWithNoPasswordCheck(anyLong(), any())).thenReturn(authMgrLoginResponse);
+		
+		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
+		when(mockRealmDao.getRealmIdForIdentityProvider(any())).thenReturn(Optional.of(DEFAULT_REALM_ID));
 		
 		//call under test
 		LoginResponse result = service.validateOAuthAuthenticationCodeAndLogin(request, ISSUER);
@@ -295,6 +302,9 @@ public class AuthenticationServiceImplTest {
 		authMgrLoginResponse.setAuthenticationReceipt("authentication-receipt");
 		
 		when(mockAuthenticationManager.loginWithNoPasswordCheck(anyLong(), any())).thenReturn(authMgrLoginResponse);
+		
+		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
+		when(mockRealmDao.getRealmIdForIdentityProvider(any())).thenReturn(Optional.of(DEFAULT_REALM_ID));
 		
 		//call under test
 		LoginResponse result = service.validateOAuthAuthenticationCodeAndLogin(request, ISSUER);
@@ -369,6 +379,9 @@ public class AuthenticationServiceImplTest {
 		authMgrLoginResponse.setAccessToken(ACCESS_TOKEN);
 		authMgrLoginResponse.setAuthenticationReceipt("authentication-receipt");
 		
+		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
+		when(mockRealmDao.getRealmIdForIdentityProvider(any())).thenReturn(Optional.of(DEFAULT_REALM_ID));
+		
 		//call under test
 		service.validateOAuthAuthenticationCodeAndLogin(request, ISSUER);
 				
@@ -403,6 +416,9 @@ public class AuthenticationServiceImplTest {
 		authMgrLoginResponse.setAuthenticationReceipt("authentication-receipt");
 
 		when(mockAuthenticationManager.loginWithNoPasswordCheck(anyLong(), any())).thenReturn(authMgrLoginResponse);
+		
+		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
+		when(mockRealmDao.getRealmIdForIdentityProvider(any())).thenReturn(Optional.of(DEFAULT_REALM_ID));
 		
 		//call under test
 		LoginResponse result = service.validateOAuthAuthenticationCodeAndLogin(request, ISSUER);
@@ -439,6 +455,9 @@ public class AuthenticationServiceImplTest {
 		authMgrLoginResponse.setAuthenticationReceipt("authentication-receipt");
 
 		when(mockAuthenticationManager.loginWithNoPasswordCheck(anyLong(), any())).thenReturn(authMgrLoginResponse);
+		
+		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
+		when(mockRealmDao.getRealmIdForIdentityProvider(any())).thenReturn(Optional.of(DEFAULT_REALM_ID));
 		
 		//call under test
 		LoginResponse result = service.validateOAuthAuthenticationCodeAndLogin(request, ISSUER);
@@ -477,6 +496,9 @@ public class AuthenticationServiceImplTest {
 		authMgrLoginResponse.setAuthenticationReceipt("authentication-receipt");
 
 		when(mockAuthenticationManager.loginWithNoPasswordCheck(anyLong(), any())).thenReturn(authMgrLoginResponse);
+		
+		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
+		when(mockRealmDao.getRealmIdForIdentityProvider(any())).thenReturn(Optional.of(DEFAULT_REALM_ID));
 		
 		//call under test
 		LoginResponse result = service.validateOAuthAuthenticationCodeAndLogin(request, ISSUER);

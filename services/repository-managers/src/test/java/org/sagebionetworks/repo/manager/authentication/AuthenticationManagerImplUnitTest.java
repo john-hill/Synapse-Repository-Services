@@ -11,10 +11,12 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
+import static org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_REALM_ID;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -153,7 +155,7 @@ public class AuthenticationManagerImplUnitTest {
 		changePasswordWithToken.setPasswordChangeToken(passwordResetSignedToken);
 		passwordResetSignedToken.setUserId(userId.toString());
 		
-		userInfo = new UserInfo(false, userId);
+		userInfo = new UserInfo(false, userId, DEFAULT_REALM_ID);
 
 	}
 
@@ -293,7 +295,7 @@ public class AuthenticationManagerImplUnitTest {
 		assertEquals("2faToken", result.getTwoFaToken());
 		
 		verify(mockReceiptTokenGenerator).isReceiptValid(userId, receipt);
-		verify(mockUserManager).getUserInfo(userId);
+		verify(mockUserManager, times(2)).getUserInfo(userId);
 		verify(mock2FaManager).generate2FaToken(userInfo, TwoFactorAuthTokenContext.AUTHENTICATION);
 		verify(mockUserCredentialValidator, never()).checkPasswordWithThrottling(userId, password);
 	}

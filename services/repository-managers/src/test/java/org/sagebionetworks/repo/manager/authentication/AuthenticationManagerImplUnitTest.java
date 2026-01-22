@@ -369,6 +369,21 @@ public class AuthenticationManagerImplUnitTest {
 	}
 	
 	@Test
+	public void testLoginFromWrongRealm() {
+		when(mockUserCredentialValidator.checkPassword(userId, password)).thenReturn(true);
+		setupMockPrincipalAliasDAO();
+		String nonSynapseRealmId = "5";
+		UserInfo nonSynapseRealmUser = new UserInfo(false, 123L, nonSynapseRealmId);
+		when(mockUserManager.getUserInfo(any())).thenReturn(nonSynapseRealmUser);
+		when(mockReceiptTokenGenerator.isReceiptValid(userId, receipt)).thenReturn(true);
+
+		assertThrows(UnauthorizedException.class, ()-> {
+			// call under test
+			authManager.login(loginRequest, issuer);
+		});
+	}
+	
+	@Test
 	public void testAuthenticatedOn() {
 		UserInfo userInfo = new UserInfo(false);
 		userInfo.setId(userId);

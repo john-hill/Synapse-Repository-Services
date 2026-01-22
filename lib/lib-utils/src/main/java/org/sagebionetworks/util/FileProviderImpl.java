@@ -1,19 +1,18 @@
 package org.sagebionetworks.util;
 
+import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Reader;
-import java.io.UnsupportedEncodingException;
 import java.io.Writer;
 import java.nio.charset.Charset;
 import java.util.zip.GZIPInputStream;
@@ -43,8 +42,8 @@ public class FileProviderImpl implements FileProvider {
 	 * org.sagebionetworks.util.FileProvider#createFileOutputStream(java.io.File)
 	 */
 	@Override
-	public FileOutputStream createFileOutputStream(File file) throws FileNotFoundException {
-		return new FileOutputStream(file);
+	public OutputStream createFileOutputStream(File file) throws FileNotFoundException {
+		return new BufferedOutputStream(new FileOutputStream(file));
 	}
 
 	/*

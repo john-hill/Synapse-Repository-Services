@@ -1,27 +1,18 @@
 package org.sagebionetworks.repo.model.grid.encoding;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.util.List;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.sagebionetworks.repo.model.grid.ClockTable;
-import org.sagebionetworks.repo.model.grid.encoding.CBORUtils;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
-
-import com.fasterxml.jackson.dataformat.cbor.CBORGenerator;
 
 public class CBORUtilsTest {
 

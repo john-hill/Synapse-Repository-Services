@@ -1,9 +1,10 @@
 package org.sagebionetworks.repo.model.grid.encoding;
 
-import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PushbackInputStream;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -11,6 +12,7 @@ import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.util.ValidateArgument;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
@@ -33,6 +35,47 @@ public class CBORUtils {
     }
 
 
+    public static JsonNode parseJsonNode(InputStream in) {
+        // 1. Create the wrapper to prevent Jackson/Buffering over-reads
+        InputStream unbufferedIn = new NonClosingSingleByteInputStream(in);
+        // Use Jackson CBOR to decode the value
+        try {
+            return getCBORMapper().readTree(unbufferedIn);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to decode ConValue from CBOR", e);
+        }
+    }
+
+    /**
+     * A FilterInputStream that only allows reading one byte at a time, and does not
+     * close the underlying stream when closed.
+     *
+     * We use this to prevent Jackson from over-reading and closing our shared InputStream when
+     * decoding CBOR values.
+     */
+    static class NonClosingSingleByteInputStream extends FilterInputStream {
+        public NonClosingSingleByteInputStream(InputStream in) {
+            super(in);
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            // NOTE: Reading only one byte at a time can dramatically slow down Jackson (10-100x), but is the most
+            // straightforward way to prevent over-reads.
+            // Alternative approaches (e.g. using PushbackInputStream to "unread" excess bytes) add significant
+            // complexity and potential for bugs.
+            int result = in.read();
+            if (result == -1) return -1;
+            b[off] = (byte) result;
+            return 1; // Force 1 byte at a time
+        }
+
+        @Override
+        public void close() throws IOException {
+            // No-op to protect 'in'
+        }
+    }
+
 
     /**
      * Decode a ConValue from CBOR/binary format.
@@ -43,6 +86,9 @@ public class CBORUtils {
      * @return the decoded ConValue
      */
     public static ConValue decodeConValue(InputStream in, ClockTable clockTable, boolean isTimestamp) {
+        ValidateArgument.required(in, "in");
+        ValidateArgument.required(clockTable, "clockTable");
+
         // If the node header indicated this is a timestamp (e=1), decode it as such
         if (isTimestamp) {
             try {
@@ -53,33 +99,21 @@ public class CBORUtils {
             }
         }
 
-        // Wrap in BufferedInputStream to support mark/reset if needed
-        if (!in.markSupported()) {
-            in = new BufferedInputStream(in, 1);
-        }
-
-        // Check for CBOR undefined (0xF7) before parsing
+        // Check for CBOR undefined before parsing
         // Jackson treats undefined as null, so we need to detect it manually
+        PushbackInputStream pb = new PushbackInputStream(in, 1);
         try {
-            // An undefined value is a single byte (0xF7)
-            in.mark(1);
-            int firstByte = in.read();
+            int firstByte = pb.read();
             if (firstByte == UNDEFINED_BYTE) {
-                // CBOR undefined
                 return new ConValue(ConType.UNDEFINED, null);
             }
-            in.reset();
+            pb.unread(firstByte); // Put it back for Jackson to read
         } catch (IOException e) {
             throw new RuntimeException("Failed to read from stream", e);
         }
 
         // Use Jackson CBOR to decode the value
-        JsonNode jsonNode;
-        try {
-            jsonNode = getCBORMapper().readTree(in);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to decode ConValue from CBOR", e);
-        }
+        JsonNode jsonNode = parseJsonNode(pb);
 
         if (jsonNode.isNull()) {
             return new ConValue(ConType.NULL, null);
@@ -157,8 +191,7 @@ public class CBORUtils {
                 // For timestamps, use raw encoding (not difference encoding) for indexed format
                 return clockTable.encodeTimestamp((LogicalTimestamp) value);
             } else if (ConType.UNDEFINED.equals(type)) {
-                // CBOR undefined is encoded as 0xf7
-                return new byte[] { (byte) 0xf7 };
+                return new byte[] { (byte) UNDEFINED_BYTE };
             } else {
                 // Use CBOR for other types
                 try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {

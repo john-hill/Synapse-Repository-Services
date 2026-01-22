@@ -156,7 +156,6 @@ public class AuthenticationManagerImplUnitTest {
 		passwordResetSignedToken.setUserId(userId.toString());
 		
 		userInfo = new UserInfo(false, userId, DEFAULT_REALM_ID);
-
 	}
 
 	@Test
@@ -868,6 +867,20 @@ public class AuthenticationManagerImplUnitTest {
 		verify(mockAuthDAO, never()).changePassword(anyLong(), anyString());
 	}
 	
+	@Test
+	public void testChangePasswordNotInSynapseRealm(){
+		when(mockUserCredentialValidator.checkPasswordWithThrottling(userId, password)).thenReturn(true);
+		setupMockPrincipalAliasDAO();
+		String nonSynapseRealmId = "5";
+		UserInfo otherUserInfo = new UserInfo(false, userId, nonSynapseRealmId);
+		when(mockUserManager.getUserInfo(any())).thenReturn(otherUserInfo);
+		
+		// method under test
+		assertThrows(IllegalArgumentException.class, ()->{
+			authManager.changePassword(changePasswordWithCurrentPassword);
+		});
+	}
+
 	@Test
 	public void testLoginWith2Fa() {
 		

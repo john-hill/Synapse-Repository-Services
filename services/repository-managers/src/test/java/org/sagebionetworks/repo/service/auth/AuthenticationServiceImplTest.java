@@ -100,7 +100,6 @@ public class AuthenticationServiceImplTest {
 		
 		userInfo = new UserInfo(false, userId, DEFAULT_REALM_ID);
 		
-
 		alias = "alias";
 		principalAlias = new PrincipalAlias();
 		principalAlias.setPrincipalId(userId);
@@ -715,6 +714,7 @@ public class AuthenticationServiceImplTest {
 		String passwordResetUrlPrefix = "synapse.org";
 		PasswordResetSignedToken token = new PasswordResetSignedToken();
 		when(mockUserManager.lookupUserByUsernameOrEmail(email)).thenReturn(principalAlias);
+		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
 		when(mockAuthenticationManager.createPasswordResetToken(principalAlias.getPrincipalId())).thenReturn(token);
 
 		//method under test
@@ -743,6 +743,7 @@ public class AuthenticationServiceImplTest {
 	@Test
 	public void testSendPasswordResetEmailWithEmailAlias() {
 		when(mockUserManager.lookupUserByUsernameOrEmail(aliasEmail)).thenReturn(principalEmailAlias);
+		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
 
 		String passwordResetUrlPrefix = "synapse.org";
 		
@@ -757,6 +758,23 @@ public class AuthenticationServiceImplTest {
 		verify(mockMessageManager).sendNewPasswordResetEmail(passwordResetUrlPrefix, token, principalEmailAlias);	
 	}
 	
+	@Test
+	public void testSendPasswordResetEmailNotInSynapseRealm() {
+		String nonSynapseRealmId = "5";
+		UserInfo nonSynapseRealmUserInfo = new UserInfo(false, userId, nonSynapseRealmId);
+		
+		String email = "user@test.com";
+		String passwordResetUrlPrefix = "synapse.org";
+		PasswordResetSignedToken token = new PasswordResetSignedToken();
+		when(mockUserManager.lookupUserByUsernameOrEmail(email)).thenReturn(principalAlias);
+		when(mockUserManager.getUserInfo(userId)).thenReturn(nonSynapseRealmUserInfo);
+
+		assertThrows(IllegalArgumentException.class, ()->{
+			//method under test
+			service.sendPasswordResetEmail(passwordResetUrlPrefix, email);
+		});
+	}
+
 	@Test
 	public void testHasUserAcceptedTermsOfService() {
 		when(mockTosManager.hasUserAcceptedTermsOfService(userId)).thenReturn(true);

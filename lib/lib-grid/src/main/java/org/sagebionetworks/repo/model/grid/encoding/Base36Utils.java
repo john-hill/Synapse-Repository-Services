@@ -11,7 +11,7 @@ import org.sagebionetworks.util.ValidateArgument;
  */
 public class Base36Utils {
 
-	private static int RADIX = 36;
+	private static final int RADIX = 36;
 
 	/**
 	 * Encode a long value to Base36 string.

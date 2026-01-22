@@ -96,8 +96,8 @@ public class RGANode {
 
 	@Override
 	public String toString() {
-		return "RGANode [arrayId=" + nodeId + ", dataId=" + dataId + ", referenceNodeId="
-				+ refId + ", isDeleted=" + isDeleted + ", containerId=" + containerId + "]";
+		return "RGANode [nodeId=" + nodeId + ", dataId=" + dataId + ", refId=" + refId + ", isDeleted=" + isDeleted +
+				", containerId=" + containerId + "]";
 	}
 
 }

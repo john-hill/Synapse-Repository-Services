@@ -13,18 +13,18 @@ import org.sagebionetworks.util.ValidateArgument;
 public class VectorNode implements Node, HasJsonValue<VectorNode>, CanInsert<VectorNode> {
 
 	private LogicalTimestamp id;
-	private Map<String, ConstantNode> values;
+	private Map<Integer, ConstantNode> values;
 
 	@Override
 	public LogicalTimestamp getId() {
 		return id;
 	}
 
-	public Map<String, ConstantNode> getValues() {
+	public Map<Integer, ConstantNode> getValues() {
 		return values;
 	}
 
-	public VectorNode setValues(Map<String, ConstantNode> values) {
+	public VectorNode setValues(Map<Integer, ConstantNode> values) {
 		this.values = values;
 		return this;
 	}
@@ -44,7 +44,7 @@ public class VectorNode implements Node, HasJsonValue<VectorNode>, CanInsert<Vec
 		this.values = new LinkedHashMap<>(ob.length());
 		ob.keySet().forEach(k -> {
 			JSONObject sub = ob.getJSONObject(k);
-			values.put(k,
+			values.put(Integer.valueOf(k.substring(1)),
 					new ConstantNode().setId(LogicalTimestampCompactSerializable.deserialize(sub.getJSONArray("i")))
 							.setValue(ConValue.fromCompact(sub.optJSONArray("v"))));
 		});
@@ -60,7 +60,7 @@ public class VectorNode implements Node, HasJsonValue<VectorNode>, CanInsert<Vec
 		values.forEach((k, v) -> {
 			if (v != null) {
 				JSONObject sub = new JSONObject();
-				ob.put(k, sub);
+				ob.put(String.format("c%s", k), sub);
 				sub.put("v", v.getConValue().toCompact());
 				sub.put("i", LogicalTimestampCompactSerializable.serialize(v.getId()));
 			}
@@ -82,8 +82,8 @@ public class VectorNode implements Node, HasJsonValue<VectorNode>, CanInsert<Vec
 			this.values = new LinkedHashMap<>();
 		}
 		boolean wasChanged = false;
-		for (Map.Entry<String, ConstantNode> entry : change.getValues().entrySet()) {
-			String key = entry.getKey();
+		for (Map.Entry<Integer, ConstantNode> entry : change.getValues().entrySet()) {
+			Integer key = entry.getKey();
 			ConstantNode changeNode = entry.getValue();			
 			if (changeNode == null) {
 				throw new IllegalArgumentException("Cannot set a vector index to null");

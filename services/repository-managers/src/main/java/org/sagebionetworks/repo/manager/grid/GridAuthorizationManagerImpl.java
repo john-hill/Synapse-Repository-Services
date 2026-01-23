@@ -1,7 +1,10 @@
 package org.sagebionetworks.repo.manager.grid;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -64,8 +67,8 @@ public class GridAuthorizationManagerImpl implements GridAuthorizationManager {
 	}
 
 	private Long getGridOwner(String gridSessionId) {
-		return gridDao.getGridSessionOnwer(gridSessionId)
-				.orElseThrow(() -> new NotFoundException("Grid session not found: "+gridSessionId));
+		return gridDao.getGridSessionOwner(gridSessionId)
+				.orElseThrow(() -> new NotFoundException("Grid session not found: " + gridSessionId));
 	}
 
 	@Override
@@ -96,7 +99,7 @@ public class GridAuthorizationManagerImpl implements GridAuthorizationManager {
 		case recordset:
 		case table:
 			return entityAuthorizationManager.hasAccess(user, source.getSourceId().toString(), ACCESS_TYPE.READ,
-					ACCESS_TYPE.DOWNLOAD);
+					ACCESS_TYPE.DOWNLOAD, ACCESS_TYPE.UPDATE);
 		default:
 			throw new IllegalArgumentException("Unsupported grid source type: " + source.getType());
 		}
@@ -124,5 +127,17 @@ public class GridAuthorizationManagerImpl implements GridAuthorizationManager {
 		} catch (NumberFormatException e) {
 			throw new IllegalArgumentException(String.format("Invalid ownerPrincipalId: '%s'", ownerPrincipalId));
 		}
+	}
+
+	@Override
+	public Set<Long> getEntitiesWithUpdateAccess(UserInfo user, List<Long> entityIds) {
+		ValidateArgument.required(user, "user");
+		ValidateArgument.required(entityIds, "entityIds");
+		if (entityIds.isEmpty()) {
+			return Collections.emptySet();
+		}
+		return entityAuthorizationManager.batchHasAccess(user, entityIds, ACCESS_TYPE.UPDATE).stream()
+				.filter(r -> r.doesEntityExist() && r.getAuthorizationStatus().isAuthorized()).map(r -> r.getEntityId())
+				.collect(Collectors.toSet());
 	}
 }

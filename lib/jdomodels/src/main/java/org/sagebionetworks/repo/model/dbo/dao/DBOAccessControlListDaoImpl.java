@@ -81,26 +81,6 @@ public class DBOAccessControlListDaoImpl implements AccessControlListDAO {
 	private static final String BIND_PARENT_ID = "bParentId";
 	private static final String BIND_GROUP_IDS = "bGroupIds";
 	
-	private static final String SELECT_RESOURCE_INTERSECTION = "SELECT acl."
-			+ COL_ACL_OWNER_ID
-			+ " as "+COL_ACL_OWNER_ID+" FROM "
-			+ AUTHORIZATION_SQL_TABLES
-			+ " WHERE "
-			+ AUTHORIZATION_SQL_JOIN
-			+ " AND ra."
-			+ COL_RESOURCE_ACCESS_GROUP_ID
-			+ " IN (:"
-			+ PRINCIPAL_IDS_BIND_VAR
-			+ ") AND at."
-			+ COL_RESOURCE_ACCESS_TYPE_ELEMENT
-			+ "=:"
-			+ ACCESS_TYPE_BIND_VAR
-			+ " AND acl."
-			+ COL_ACL_OWNER_ID
-			+ " IN (:"
-			+ RESOURCE_ID_BIND_VAR
-			+ ") AND acl." + COL_ACL_OWNER_TYPE + "=:" + RESOURCE_TYPE_BIND_VAR;
-	
 	private static final String SELECT_HAS_ACCESS_TYPE = "SELECT COUNT(*) = 1 FROM (SELECT acl." + COL_ACL_OWNER_ID + " FROM "
 			+ AUTHORIZATION_SQL_TABLES
 			+ " WHERE "
@@ -543,12 +523,12 @@ public class DBOAccessControlListDaoImpl implements AccessControlListDAO {
 	@Override
 	public Set<Long> getAccessibleBenefactors(Set<Long> groups,
 			Set<Long> benefactors, ObjectType resourceType,
-			ACCESS_TYPE accessType) {
+			ACCESS_TYPE...accessType) {
 		ValidateArgument.required(groups, "groups");
 		ValidateArgument.required(benefactors, "benefactors");
 		ValidateArgument.required(resourceType, "resourceType");
 		ValidateArgument.required(accessType, "accessType");
-		if (groups.isEmpty() || benefactors.isEmpty()) {
+		if (groups.isEmpty() || benefactors.isEmpty() || accessType == null || accessType.length < 1) {
 			// there will be no matches for empty inputs.
 			return new HashSet<Long>(0);
 		}
@@ -559,11 +539,9 @@ public class DBOAccessControlListDaoImpl implements AccessControlListDAO {
 				.put(PRINCIPAL_IDS_BIND_VAR, groups);
 		namedParameters.put(RESOURCE_TYPE_BIND_VAR,
 				resourceType.name());
-		namedParameters.put(ACCESS_TYPE_BIND_VAR,
-				accessType.name());
 		// query
 		List<Long> result = namedParameterJdbcTemplate.query(
-				SELECT_RESOURCE_INTERSECTION,
+				getAccessibleBenefactorsSql(accessType),
 				namedParameters, new RowMapper<Long>() {
 
 					@Override
@@ -574,6 +552,23 @@ public class DBOAccessControlListDaoImpl implements AccessControlListDAO {
 				});
 		return new HashSet<Long>(result);
 	}
+	
+	static String getAccessibleBenefactorsSql(ACCESS_TYPE... accessType) {
+		StringBuilder builder = new StringBuilder();
+		builder.append("SELECT acl.OWNER_ID as OWNER_ID FROM ACL acl");
+		for (int i = 0; i < accessType.length; i++) {
+			builder.append(" JOIN ACL_RESOURCE_ACCESS ra"+i+" ON (acl.ID = ra"+i+".OWNER_ID AND");
+			if (i == 0) {
+				builder.append(" ra0.GROUP_ID IN (:principalIds) AND acl.OWNER_ID IN (:resourceId) AND acl.OWNER_TYPE = :OWNER_TYPE )");
+			} else {
+				builder.append(" ra0.GROUP_ID = ra"+i+".GROUP_ID)");
+			}
+			builder.append(" JOIN ACL_RESOURCE_ACCESS_TYPE at" + i + " on (at" + i + ".ID_OID = ra" + i + ".ID and at" + i
+					+ ".STRING_ELE = '" + accessType[i].name() + "')");
+		}
+		return builder.toString();
+	}
+	
 
 	@Override
 	public Set<String> getPrincipalIds(String objectId, ObjectType objectType,

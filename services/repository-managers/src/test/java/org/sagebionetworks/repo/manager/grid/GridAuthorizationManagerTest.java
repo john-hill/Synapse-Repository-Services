@@ -60,10 +60,10 @@ public class GridAuthorizationManagerTest {
 	public void testHasGridSessionAccessWithDownloadTypes(EntityType type) {
 		gridSource = new GridSource(entityId, type);
 		when(mockUser.getId()).thenReturn(userId);
-		when(mockGridDao.getGridSessionOnwer(gridSessionId)).thenReturn(Optional.of(userId));
+		when(mockGridDao.getGridSessionOwner(gridSessionId)).thenReturn(Optional.of(userId));
 		when(mockGridDao.getSessionSource(gridSessionId)).thenReturn(Optional.of(gridSource));
 		when(mockEntityAuthorizationManager.hasAccess(mockUser, entityId.toString(), ACCESS_TYPE.READ,
-				ACCESS_TYPE.DOWNLOAD)).thenReturn(AuthorizationStatus.authorized());
+				ACCESS_TYPE.DOWNLOAD, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
 
 		// call under test
 		AuthorizationStatus status = manager.hasGridSessionAccess(mockUser, gridSessionId);
@@ -74,7 +74,7 @@ public class GridAuthorizationManagerTest {
 	public void testHasGridSessionAccessWithReadTypes() {
 		gridSource = new GridSource(entityId, EntityType.entityview);
 		when(mockUser.getId()).thenReturn(userId);
-		when(mockGridDao.getGridSessionOnwer(gridSessionId)).thenReturn(Optional.of(userId));
+		when(mockGridDao.getGridSessionOwner(gridSessionId)).thenReturn(Optional.of(userId));
 		when(mockGridDao.getSessionSource(gridSessionId)).thenReturn(Optional.of(gridSource));
 		when(mockEntityAuthorizationManager.hasAccess(mockUser, entityId.toString(), ACCESS_TYPE.READ))
 				.thenReturn(AuthorizationStatus.authorized());
@@ -89,7 +89,7 @@ public class GridAuthorizationManagerTest {
 	public void testHasGridSessionAccessWithUnsupportedTypes(EntityType type) {
 		gridSource = new GridSource(entityId, type);
 		when(mockUser.getId()).thenReturn(userId);
-		when(mockGridDao.getGridSessionOnwer(gridSessionId)).thenReturn(Optional.of(userId));
+		when(mockGridDao.getGridSessionOwner(gridSessionId)).thenReturn(Optional.of(userId));
 		when(mockGridDao.getSessionSource(gridSessionId)).thenReturn(Optional.of(gridSource));
 
 		String message = assertThrows(IllegalArgumentException.class, () -> {
@@ -105,7 +105,7 @@ public class GridAuthorizationManagerTest {
 	@Test
 	public void testHasGridSessionAccessWithNoSource() {
 		when(mockUser.getId()).thenReturn(userId);
-		when(mockGridDao.getGridSessionOnwer(gridSessionId)).thenReturn(Optional.of(userId));
+		when(mockGridDao.getGridSessionOwner(gridSessionId)).thenReturn(Optional.of(userId));
 		when(mockGridDao.getSessionSource(gridSessionId)).thenReturn(Optional.empty());
 
 		// call under test
@@ -117,7 +117,7 @@ public class GridAuthorizationManagerTest {
 
 	@Test
 	public void testHasGridSessionAccessWithGridOwnerEmpty() {
-		when(mockGridDao.getGridSessionOnwer(gridSessionId)).thenReturn(Optional.empty());
+		when(mockGridDao.getGridSessionOwner(gridSessionId)).thenReturn(Optional.empty());
 
 		String message = assertThrows(NotFoundException.class, () -> {
 			// call under test
@@ -134,7 +134,7 @@ public class GridAuthorizationManagerTest {
 		Long ownerGroup = 444L;
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockUser.getGroups()).thenReturn(Set.of(userId, 333L));
-		when(mockGridDao.getGridSessionOnwer(gridSessionId)).thenReturn(Optional.of(ownerGroup));
+		when(mockGridDao.getGridSessionOwner(gridSessionId)).thenReturn(Optional.of(ownerGroup));
 
 		String message = assertThrows(UnauthorizedException.class, () -> {
 			// call under test
@@ -151,7 +151,7 @@ public class GridAuthorizationManagerTest {
 		Long ownerGroup = 444L;
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockUser.getGroups()).thenReturn(Set.of(userId, ownerGroup));
-		when(mockGridDao.getGridSessionOnwer(gridSessionId)).thenReturn(Optional.of(ownerGroup));
+		when(mockGridDao.getGridSessionOwner(gridSessionId)).thenReturn(Optional.of(ownerGroup));
 
 		// call under test
 		AuthorizationStatus status = manager.hasGridSessionAccess(mockUser, gridSessionId);
@@ -241,7 +241,7 @@ public class GridAuthorizationManagerTest {
 		when(mockUser.getId()).thenReturn(userId);
 		gridSource = new GridSource(entityId, EntityType.entityview);
 		when(mockGridDao.getSessionSource(gridSessionId)).thenReturn(Optional.of(gridSource));
-		when(mockGridDao.getGridSessionOnwer(gridSessionId)).thenReturn(Optional.of(userId));
+		when(mockGridDao.getGridSessionOwner(gridSessionId)).thenReturn(Optional.of(userId));
 
 		// call under test
 		UserInfo user = manager.getRowLevelFilterUserInfo(mockUser, gridSessionId);
@@ -254,7 +254,7 @@ public class GridAuthorizationManagerTest {
 		when(mockUser.getId()).thenReturn(userId);
 		gridSource = new GridSource(entityId, EntityType.entityview);
 		when(mockGridDao.getSessionSource(gridSessionId)).thenReturn(Optional.of(gridSource));
-		when(mockGridDao.getGridSessionOnwer(gridSessionId)).thenReturn(Optional.of(groupOwnerId));
+		when(mockGridDao.getGridSessionOwner(gridSessionId)).thenReturn(Optional.of(groupOwnerId));
 
 		// call under test
 		UserInfo user = manager.getRowLevelFilterUserInfo(mockUser, gridSessionId);
@@ -281,7 +281,7 @@ public class GridAuthorizationManagerTest {
 	public void testGetRowLevelFilterUserInfoWithOwnerEmpty() {
 		gridSource = new GridSource(entityId, EntityType.entityview);
 		when(mockGridDao.getSessionSource(gridSessionId)).thenReturn(Optional.of(gridSource));
-		when(mockGridDao.getGridSessionOnwer(gridSessionId)).thenReturn(Optional.empty());
+		when(mockGridDao.getGridSessionOwner(gridSessionId)).thenReturn(Optional.empty());
 		
 		String message = assertThrows(NotFoundException.class, () -> {
 			// call under test

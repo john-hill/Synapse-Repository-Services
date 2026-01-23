@@ -1,5 +1,8 @@
 package org.sagebionetworks.repo.manager.grid;
 
+import java.util.List;
+import java.util.Set;
+
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 
@@ -30,5 +33,13 @@ public interface GridAuthorizationManager {
 	 * @param ownerString
 	 */
 	Long validateGridOwner(UserInfo user, String ownerString);
+	
+	/**
+	 * Get the sub-set of entity ids that the user has update access too.
+	 * @param user
+	 * @param entityIds
+	 * @return
+	 */
+	Set<Long> getEntitiesWithUpdateAccess(UserInfo user, List<Long> entityIds);
 
 }

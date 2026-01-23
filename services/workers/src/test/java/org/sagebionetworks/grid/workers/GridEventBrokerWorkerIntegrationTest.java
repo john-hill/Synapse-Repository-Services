@@ -18,6 +18,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -578,7 +579,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 		UserInfo userTwo = createUser();
 		UserInfo userThree = createUser();
 		Team curatorsTeam = teamManager.create(admin, new Team().setName(UUID.randomUUID().toString()));
-		Long curatorsTreamId = Long.parseLong(curatorsTeam.getId());
+		Long curatorsTeamId = Long.parseLong(curatorsTeam.getId());
 		teamManager.addMember(admin, curatorsTeam.getId(), userOne);
 		teamManager.addMember(admin, curatorsTeam.getId(), userTwo);
 
@@ -600,13 +601,14 @@ public class GridEventBrokerWorkerIntegrationTest {
 			a.getResourceAccess().add(createResourceAccess(userOne.getId(), ACCESS_TYPE.READ));
 			a.getResourceAccess().add(createResourceAccess(userTwo.getId(), ACCESS_TYPE.READ));
 			a.getResourceAccess().add(createResourceAccess(userThree.getId(), ACCESS_TYPE.READ));
-			a.getResourceAccess().add(createResourceAccess(curatorsTreamId, ACCESS_TYPE.READ));
+			a.getResourceAccess().add(createResourceAccess(curatorsTeamId, ACCESS_TYPE.READ));
+			a.getResourceAccess().add(createResourceAccess(curatorsTeamId, ACCESS_TYPE.UPDATE));
 		});
 		
 		aclHelper.create((a) -> {
 			a.setId(files.get(0).getId());
-			a.getResourceAccess().add(createResourceAccess(curatorsTreamId, ACCESS_TYPE.READ));
-			a.getResourceAccess().add(createResourceAccess(curatorsTreamId, ACCESS_TYPE.UPDATE));
+			a.getResourceAccess().add(createResourceAccess(curatorsTeamId, ACCESS_TYPE.READ));
+			a.getResourceAccess().add(createResourceAccess(curatorsTeamId, ACCESS_TYPE.UPDATE));
 		});
 		
 		aclHelper.create((a) -> {
@@ -623,14 +625,14 @@ public class GridEventBrokerWorkerIntegrationTest {
 		
 		aclHelper.create((a) -> {
 			a.setId(files.get(3).getId());
-			a.getResourceAccess().add(createResourceAccess(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId(), ACCESS_TYPE.READ));
-			a.getResourceAccess().add(createResourceAccess(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId(), ACCESS_TYPE.UPDATE));
+			a.getResourceAccess().add(createResourceAccess(curatorsTeamId, ACCESS_TYPE.READ));
 		});
 		
 		aclHelper.create((a) -> {
 			a.setId(files.get(4).getId());
 			a.getResourceAccess().add(createResourceAccess(BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId(), ACCESS_TYPE.READ));
-			a.getResourceAccess().add(createResourceAccess(BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId(), ACCESS_TYPE.UPDATE));
+			a.getResourceAccess().add(createResourceAccess(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId(), ACCESS_TYPE.READ));
+			a.getResourceAccess().add(createResourceAccess(curatorsTeamId, ACCESS_TYPE.UPDATE));
 		});
 		
 		/*
@@ -700,10 +702,10 @@ public class GridEventBrokerWorkerIntegrationTest {
 			}
 			List<RowView> rows = gridViewManager.querySinglePage(header.get(), 100L, 0L);
 			System.out.println("row count" + rows.size());
-			List<String> results = rows.stream().map(r -> r.getRowObject().getData().getRowJsonDocument().toString())
-					.collect(Collectors.toList());
+			Set<String> results = rows.stream().map(r -> r.getRowObject().getData().getRowJsonDocument().toString())
+					.collect(Collectors.toSet());
 			System.out.println(results);
-			List<String> expected = List.of("{\"anInt\":0}", "{\"anInt\":3}", "{\"anInt\":4}", "{\"anInt\":5}");
+			Set<String> expected = Set.of("{\"anInt\":0}", "{\"anInt\":5}");
 			return Pair.create(expected.equals(results), null);
 		});
 

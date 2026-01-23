@@ -35,12 +35,12 @@ public class CBORUtils {
     }
 
 
-    public static JsonNode parseJsonNode(InputStream in) {
+    public static JsonNode parseJsonNode(InputStream inputStream) {
         // 1. Create the wrapper to prevent Jackson/Buffering over-reads
-        InputStream unbufferedIn = new NonClosingSingleByteInputStream(in);
+        InputStream unbufferedStream = new NonClosingSingleByteInputStream(inputStream);
         // Use Jackson CBOR to decode the value
         try {
-            return getCBORMapper().readTree(unbufferedIn);
+            return getCBORMapper().readTree(unbufferedStream);
         } catch (IOException e) {
             throw new RuntimeException("Failed to decode ConValue from CBOR", e);
         }
@@ -76,45 +76,79 @@ public class CBORUtils {
         }
     }
 
+    /**
+     * Decode a timestamp ConValue from the input stream.
+     *
+     * @param inputStream the input stream containing the encoded timestamp
+     * @param clockTable the clock table for decoding timestamps
+     * @return the decoded timestamp ConValue
+     */
+    private static ConValue decodeTimestamp(InputStream inputStream, ClockTable clockTable) {
+        try {
+            LogicalTimestamp ts = clockTable.decodeTimestamp(inputStream);
+            return new ConValue(ConType.TIMESTAMP, ts);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to decode timestamp from binary", e);
+        }
+    }
+
+    /**
+     * Check if the input stream starts with a CBOR undefined byte.
+     * If it does, return an UNDEFINED ConValue. Otherwise, unread the byte and return null.
+     *
+     * @param pushbackStream the pushback input stream to check
+     * @return a ConValue with UNDEFINED type if the stream starts with an undefined byte, null otherwise
+     */
+    private static ConValue checkForUndefined(PushbackInputStream pushbackStream) {
+        try {
+            int firstByte = pushbackStream.read();
+            if (firstByte == UNDEFINED_BYTE) {
+                return new ConValue(ConType.UNDEFINED, null);
+            }
+            pushbackStream.unread(firstByte); // Put it back for Jackson to read
+            return null;
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read from stream", e);
+        }
+    }
 
     /**
      * Decode a ConValue from CBOR/binary format.
      *
-     * @param in the input stream containing the encoded value
+     * @param inputStream the input stream containing the encoded value
      * @param clockTable the clock table for decoding timestamps
      * @param isTimestamp true if the value is a logical timestamp (indicated by e=1 in node header)
      * @return the decoded ConValue
      */
-    public static ConValue decodeConValue(InputStream in, ClockTable clockTable, boolean isTimestamp) {
-        ValidateArgument.required(in, "in");
+    public static ConValue decodeConValue(InputStream inputStream, ClockTable clockTable, boolean isTimestamp) {
+        ValidateArgument.required(inputStream, "inputStream");
         ValidateArgument.required(clockTable, "clockTable");
 
         // If the node header indicated this is a timestamp (e=1), decode it as such
         if (isTimestamp) {
-            try {
-                LogicalTimestamp ts = clockTable.decodeTimestamp(in);
-                return new ConValue(ConType.TIMESTAMP, ts);
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to decode timestamp from binary", e);
-            }
+            return decodeTimestamp(inputStream, clockTable);
         }
 
         // Check for CBOR undefined before parsing
         // Jackson treats undefined as null, so we need to detect it manually
-        PushbackInputStream pb = new PushbackInputStream(in, 1);
-        try {
-            int firstByte = pb.read();
-            if (firstByte == UNDEFINED_BYTE) {
-                return new ConValue(ConType.UNDEFINED, null);
-            }
-            pb.unread(firstByte); // Put it back for Jackson to read
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to read from stream", e);
+        PushbackInputStream pushbackStream = new PushbackInputStream(inputStream, 1);
+        ConValue undefinedValue = checkForUndefined(pushbackStream);
+        if (undefinedValue != null) {
+            return undefinedValue;
         }
 
         // Use Jackson CBOR to decode the value
-        JsonNode jsonNode = parseJsonNode(pb);
+        JsonNode jsonNode = parseJsonNode(pushbackStream);
+        return convertJsonNodeToConValue(jsonNode);
+    }
 
+    /**
+     * Convert a Jackson JsonNode to a ConValue with the appropriate type.
+     *
+     * @param jsonNode the JsonNode to convert
+     * @return the corresponding ConValue
+     */
+    private static ConValue convertJsonNodeToConValue(JsonNode jsonNode) {
         if (jsonNode.isNull()) {
             return new ConValue(ConType.NULL, null);
         } else if (jsonNode.isBoolean()) {
@@ -188,14 +222,13 @@ public class CBORUtils {
         Object value = conValue.getValue();
         try {
             if (ConType.TIMESTAMP.equals(type)) {
-                // For timestamps, use raw encoding (not difference encoding) for indexed format
                 return clockTable.encodeTimestamp((LogicalTimestamp) value);
             } else if (ConType.UNDEFINED.equals(type)) {
                 return new byte[] { (byte) UNDEFINED_BYTE };
             } else {
                 // Use CBOR for other types
                 try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-                     try (CBORGenerator generator = getCBORFactory().createGenerator(baos)){
+                    try (CBORGenerator generator = getCBORFactory().createGenerator(baos)) {
                         if (ConType.NULL.equals(type)) {
                             generator.writeNull();
                         } else {
@@ -204,7 +237,6 @@ public class CBORUtils {
                     }
                     return baos.toByteArray();
                 }
-
             }
         } catch (IOException e) {
             throw new RuntimeException("Failed to encode ConValue to binary", e);

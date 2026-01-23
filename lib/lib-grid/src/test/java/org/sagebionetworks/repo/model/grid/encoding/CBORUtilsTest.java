@@ -34,6 +34,7 @@ public class CBORUtilsTest {
         BOOLEAN_FALSE(ConType.BOOLEAN, false),
         ARRAY(ConType.JSON_ARRAY, new JSONArray("[1,2,3]")),
         ARRAY_EMPTY(ConType.JSON_ARRAY, new JSONArray("[]")),
+        ARRAY_VARIOUS_INTERNAL_TYPES(ConType.JSON_ARRAY, new JSONArray("[\"str\", 42, 1.5, true, null, [1,2], {\"a\": \"b\"}]")),
         OBJECT(ConType.JSON_OBJECT, new JSONObject("{\"key\":99}")),
         OBJECT_EMPTY(ConType.JSON_OBJECT, new JSONObject("{}")),
         OBJECT_VARIOUS_INTERNAL_TYPES(ConType.JSON_OBJECT, new JSONObject("{\"str\": \"foo\", \"int\": 42, \"float\": 1.5, \"bool\": true, \"null\": null, \"arr\": [1,2], \"obj\": {\"a\": \"b\"}}"));

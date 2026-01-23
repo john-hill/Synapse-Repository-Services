@@ -705,7 +705,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 			Set<String> results = rows.stream().map(r -> r.getRowObject().getData().getRowJsonDocument().toString())
 					.collect(Collectors.toSet());
 			System.out.println(results);
-			Set<String> expected = Set.of("{\"anInt\":0}", "{\"anInt\":5}");
+			Set<String> expected = Set.of("{\"anInt\":0}","{\"anInt\":4}","{\"anInt\":5}");
 			return Pair.create(expected.equals(results), null);
 		});
 

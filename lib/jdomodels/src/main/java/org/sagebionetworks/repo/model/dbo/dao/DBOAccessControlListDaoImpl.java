@@ -24,6 +24,7 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_RESOUR
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -521,54 +522,37 @@ public class DBOAccessControlListDaoImpl implements AccessControlListDAO {
 	}
 
 	@Override
-	public Set<Long> getAccessibleBenefactors(Set<Long> groups,
-			Set<Long> benefactors, ObjectType resourceType,
-			ACCESS_TYPE...accessType) {
+	public Set<Long> getAccessibleBenefactors(Set<Long> groups, Set<Long> benefactors, ObjectType ownerType,
+			ACCESS_TYPE... accessTypes) {
 		ValidateArgument.required(groups, "groups");
 		ValidateArgument.required(benefactors, "benefactors");
-		ValidateArgument.required(resourceType, "resourceType");
-		ValidateArgument.required(accessType, "accessType");
-		if (groups.isEmpty() || benefactors.isEmpty() || accessType == null || accessType.length < 1) {
+		ValidateArgument.required(ownerType, "ownerType");
+		if (accessTypes == null || accessTypes.length < 1) {
+			accessTypes = new ACCESS_TYPE[] { ACCESS_TYPE.READ };
+		}
+		if (groups.isEmpty() || benefactors.isEmpty()) {
 			// there will be no matches for empty inputs.
 			return new HashSet<Long>(0);
 		}
 		Map<String, Object> namedParameters = new HashMap<String, Object>(4);
-		namedParameters.put(RESOURCE_ID_BIND_VAR,
-				benefactors);
-		namedParameters
-				.put(PRINCIPAL_IDS_BIND_VAR, groups);
-		namedParameters.put(RESOURCE_TYPE_BIND_VAR,
-				resourceType.name());
-		// query
-		List<Long> result = namedParameterJdbcTemplate.query(
-				getAccessibleBenefactorsSql(accessType),
-				namedParameters, new RowMapper<Long>() {
+		namedParameters.put("resourceId", benefactors);
+		namedParameters.put("principalIds", groups);
+		namedParameters.put("ownerType", ownerType.name());
+		Set<String> accessTypeNames = Arrays.stream(accessTypes).map(ACCESS_TYPE::name).collect(Collectors.toSet());
+		namedParameters.put("requiredAccessTypes", accessTypeNames);
+		namedParameters.put("numberOfRequiredTypes", accessTypes.length);
 
-					@Override
-					public Long mapRow(ResultSet rs, int rowNum)
-							throws SQLException {
-						return rs.getLong(COL_ACL_OWNER_ID);
-					}
-				});
+		String sql = "SELECT acl.OWNER_ID FROM ACL acl JOIN ACL_RESOURCE_ACCESS ra ON acl.ID = ra.OWNER_ID"
+				+ " JOIN ACL_RESOURCE_ACCESS_TYPE at ON ra.ID = at.ID_OID"
+				+ " WHERE ra.GROUP_ID IN (:principalIds) AND acl.OWNER_ID IN (:resourceId)"
+				+ " AND acl.OWNER_TYPE = :ownerType AND at.STRING_ELE IN (:requiredAccessTypes)"
+				+ " GROUP BY acl.OWNER_ID HAVING COUNT(DISTINCT at.STRING_ELE) = :numberOfRequiredTypes";
+		// query
+		List<Long> result = namedParameterJdbcTemplate.query(sql, namedParameters, (ResultSet rs, int rowNum) -> {
+			return rs.getLong(COL_ACL_OWNER_ID);
+		});
 		return new HashSet<Long>(result);
 	}
-	
-	static String getAccessibleBenefactorsSql(ACCESS_TYPE... accessType) {
-		StringBuilder builder = new StringBuilder();
-		builder.append("SELECT acl.OWNER_ID as OWNER_ID FROM ACL acl");
-		for (int i = 0; i < accessType.length; i++) {
-			builder.append(" JOIN ACL_RESOURCE_ACCESS ra"+i+" ON (acl.ID = ra"+i+".OWNER_ID AND");
-			if (i == 0) {
-				builder.append(" ra0.GROUP_ID IN (:principalIds) AND acl.OWNER_ID IN (:resourceId) AND acl.OWNER_TYPE = :OWNER_TYPE )");
-			} else {
-				builder.append(" ra0.GROUP_ID = ra"+i+".GROUP_ID)");
-			}
-			builder.append(" JOIN ACL_RESOURCE_ACCESS_TYPE at" + i + " on (at" + i + ".ID_OID = ra" + i + ".ID and at" + i
-					+ ".STRING_ELE = '" + accessType[i].name() + "')");
-		}
-		return builder.toString();
-	}
-	
 
 	@Override
 	public Set<String> getPrincipalIds(String objectId, ObjectType objectType,

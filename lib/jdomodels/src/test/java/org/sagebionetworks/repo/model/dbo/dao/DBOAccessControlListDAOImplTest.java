@@ -265,7 +265,8 @@ public class DBOAccessControlListDAOImplTest {
 		createACL(444L, ObjectType.ENTITY,
 				AccessControlListUtil.createResourceAccess(createdById, ACCESS_TYPE.CREATE, ACCESS_TYPE.DELETE));
 		createACL(555L, ObjectType.ENTITY,
-				AccessControlListUtil.createResourceAccess(modifiedById, ACCESS_TYPE.CREATE));
+				AccessControlListUtil.createResourceAccess(modifiedById, ACCESS_TYPE.CREATE),
+				AccessControlListUtil.createResourceAccess(createdById, ACCESS_TYPE.DELETE));
 
 		// call under test
 		assertEquals(Set.of(111L, 222L, 444L), aclDAO.getAccessibleBenefactors(Set.of(createdById),
@@ -282,8 +283,8 @@ public class DBOAccessControlListDAOImplTest {
 		// call under test
 		assertEquals(Set.of(333L), aclDAO.getAccessibleBenefactors(Set.of(modifiedById),
 				Set.of(111L, 222L, 333L, 444L, 555L), ObjectType.TEAM, ACCESS_TYPE.CREATE));
-		// call under test
-		assertEquals(Set.of(444L), aclDAO.getAccessibleBenefactors(Set.of(createdById, modifiedById),
+		// 555 requires both principals for both create and delete.
+		assertEquals(Set.of(444L, 555L), aclDAO.getAccessibleBenefactors(Set.of(createdById, modifiedById),
 				Set.of(111L, 222L, 333L, 444L, 555L), ObjectType.ENTITY, ACCESS_TYPE.CREATE, ACCESS_TYPE.DELETE));
 		// call under test
 		assertEquals(Set.of(444L), aclDAO.getAccessibleBenefactors(Set.of(createdById),
@@ -292,7 +293,7 @@ public class DBOAccessControlListDAOImplTest {
 		assertEquals(Set.of(), aclDAO.getAccessibleBenefactors(Set.of(modifiedById),
 				Set.of(111L, 222L, 333L, 444L, 555L), ObjectType.ENTITY, ACCESS_TYPE.CREATE, ACCESS_TYPE.DELETE));
 		// call under test
-		assertEquals(Set.of(), aclDAO.getAccessibleBenefactors(Set.of(modifiedById),
+		assertEquals(Set.of(222L), aclDAO.getAccessibleBenefactors(Set.of(modifiedById),
 				Set.of(111L, 222L, 333L, 444L, 555L), ObjectType.ENTITY));
 
 	}
@@ -907,25 +908,4 @@ public class DBOAccessControlListDAOImplTest {
 		assertEquals(expected, result);
 	}
 	
-	@Test
-	public void testGetAccessibleBenefactorsSqlWithSingle() {
-		String sql = DBOAccessControlListDaoImpl.getAccessibleBenefactorsSql(ACCESS_TYPE.READ);
-		String expected = "SELECT acl.OWNER_ID as OWNER_ID FROM ACL acl"
-				+ " JOIN ACL_RESOURCE_ACCESS ra0 ON (acl.ID = ra0.OWNER_ID AND ra0.GROUP_ID IN (:principalIds) AND acl.OWNER_ID IN (:resourceId) AND acl.OWNER_TYPE = :OWNER_TYPE )"
-				+ " JOIN ACL_RESOURCE_ACCESS_TYPE at0 on (at0.ID_OID = ra0.ID and at0.STRING_ELE = 'READ')";
-		assertEquals(expected, sql);
-	}
-	
-	@Test
-	public void testGetAccessibleBenefactorsSqlWithMultiple() {
-		String sql = DBOAccessControlListDaoImpl.getAccessibleBenefactorsSql(ACCESS_TYPE.CREATE, ACCESS_TYPE.UPDATE, ACCESS_TYPE.READ);
-		String expected = "SELECT acl.OWNER_ID as OWNER_ID FROM ACL acl"
-				+ " JOIN ACL_RESOURCE_ACCESS ra0 ON (acl.ID = ra0.OWNER_ID AND ra0.GROUP_ID IN (:principalIds) AND acl.OWNER_ID IN (:resourceId) AND acl.OWNER_TYPE = :OWNER_TYPE )"
-				+ " JOIN ACL_RESOURCE_ACCESS_TYPE at0 on (at0.ID_OID = ra0.ID and at0.STRING_ELE = 'CREATE')"
-				+ " JOIN ACL_RESOURCE_ACCESS ra1 ON (acl.ID = ra1.OWNER_ID AND ra0.GROUP_ID = ra1.GROUP_ID)"
-				+ " JOIN ACL_RESOURCE_ACCESS_TYPE at1 on (at1.ID_OID = ra1.ID and at1.STRING_ELE = 'UPDATE')"
-				+ " JOIN ACL_RESOURCE_ACCESS ra2 ON (acl.ID = ra2.OWNER_ID AND ra0.GROUP_ID = ra2.GROUP_ID)"
-				+ " JOIN ACL_RESOURCE_ACCESS_TYPE at2 on (at2.ID_OID = ra2.ID and at2.STRING_ELE = 'READ')";
-		assertEquals(expected, sql);
-	}
 }

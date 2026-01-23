@@ -539,9 +539,6 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 
 	@Override
 	public Set<Long> getAccessibleBenefactors(UserInfo user, ObjectType benefactorType, Set<Long> benefactorIds, ACCESS_TYPE...types) {
-		if(types == null) {
-			types = new ACCESS_TYPE[] {ACCESS_TYPE.READ};
-		}
 		return authorizationManager.getAccessibleBenefactors(user, benefactorType, benefactorIds, types);
 	}
 

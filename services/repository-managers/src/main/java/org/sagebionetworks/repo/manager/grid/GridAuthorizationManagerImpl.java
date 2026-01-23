@@ -1,10 +1,7 @@
 package org.sagebionetworks.repo.manager.grid;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -129,15 +126,4 @@ public class GridAuthorizationManagerImpl implements GridAuthorizationManager {
 		}
 	}
 
-	@Override
-	public Set<Long> getEntitiesWithUpdateAccess(UserInfo user, List<Long> entityIds) {
-		ValidateArgument.required(user, "user");
-		ValidateArgument.required(entityIds, "entityIds");
-		if (entityIds.isEmpty()) {
-			return Collections.emptySet();
-		}
-		return entityAuthorizationManager.batchHasAccess(user, entityIds, ACCESS_TYPE.UPDATE).stream()
-				.filter(r -> r.doesEntityExist() && r.getAuthorizationStatus().isAuthorized()).map(r -> r.getEntityId())
-				.collect(Collectors.toSet());
-	}
 }

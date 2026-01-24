@@ -153,20 +153,20 @@ public class GridDaoImplTest {
 	public void testGetGridSessionOwner() {
 		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		// call under test
-		assertEquals(Optional.of(adminUserId), dao.getGridSessionOnwer(session.getSessionId()));
+		assertEquals(Optional.of(adminUserId), dao.getGridSessionOwner(session.getSessionId()));
 	}
 	
 	@Test
 	public void testGetGridSessionOwnerWithTeam() {
 		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId).setOwner(teamId));
 		// call under test
-		assertEquals(Optional.of(teamId), dao.getGridSessionOnwer(session.getSessionId()));
+		assertEquals(Optional.of(teamId), dao.getGridSessionOwner(session.getSessionId()));
 	}
 
 	@Test
 	public void testGetGridSessionStartedByDoesNotExist() {
 		// call under test
-		assertEquals(Optional.empty(), dao.getGridSessionOnwer("doesnotexist"));
+		assertEquals(Optional.empty(), dao.getGridSessionOwner("doesnotexist"));
 	}
 
 	@Test

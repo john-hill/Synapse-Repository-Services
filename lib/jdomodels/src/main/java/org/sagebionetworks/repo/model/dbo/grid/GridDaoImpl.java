@@ -139,7 +139,7 @@ public class GridDaoImpl implements GridDao {
 	}
 
 	@Override
-	public Optional<Long> getGridSessionOnwer(String gridSessionId) {
+	public Optional<Long> getGridSessionOwner(String gridSessionId) {
 		ValidateArgument.required(gridSessionId, "gridSessionId");
 		try {
 			return Optional.of(jdbcTemplate.queryForObject(

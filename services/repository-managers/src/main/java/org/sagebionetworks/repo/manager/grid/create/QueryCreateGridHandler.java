@@ -13,6 +13,7 @@ import org.sagebionetworks.repo.manager.grid.PatchRowHandler;
 import org.sagebionetworks.repo.manager.grid.PatchStore;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.manager.table.TableQueryManager;
+import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
@@ -113,7 +114,7 @@ public class QueryCreateGridHandler implements CreateGridHandler {
 				List<ColumnModel> schema = t.getMainQuery().getTranslator().getSchemaOfSelect();
 				return new PatchRowHandler(patchStore, session.getSessionId(), replica.getReplicaId(), schema,
 						maxRowSizeBytes, columnsRequiredBySchemaIndices);
-			});
+			}, ACCESS_TYPE.READ, ACCESS_TYPE.UPDATE);
 			return new CreateGridHandlerResult().setGridSession(session).setGridReplica(replica);
 		} catch (LockUnavilableException | TableUnavailableException e) {
 			callback.updateProgress("Waiting for table/view to become available...", 1L, 100L);

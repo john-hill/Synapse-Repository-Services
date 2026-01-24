@@ -30,5 +30,5 @@ public interface GridAuthorizationManager {
 	 * @param ownerString
 	 */
 	Long validateGridOwner(UserInfo user, String ownerString);
-
+	
 }

@@ -29,7 +29,8 @@ public interface GridDao {
 	 * @param gridSessionId
 	 * @return
 	 */
-	Optional<Long> getGridSessionOnwer(String gridSessionId);
+	Optional<Long> getGridSessionOwner(String gridSessionId);
+
 
 	/**
 	 * Get session by ID.

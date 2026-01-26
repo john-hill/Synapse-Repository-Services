@@ -261,7 +261,7 @@ public class EvaluationPermissionsManagerImpl implements EvaluationPermissionsMa
 	}
 	
 	private static boolean isAnonymousWithNonReadAccess(UserInfo userInfo, ACCESS_TYPE accessType) {
-		return AuthorizationUtils.isUserAnonymous(userInfo) && !READ.equals(accessType);
+		return userInfo.isUserAnonymous() && !READ.equals(accessType);
 	}
 
 	private boolean isEvalOwner(final UserInfo userInfo, final Evaluation eval) {

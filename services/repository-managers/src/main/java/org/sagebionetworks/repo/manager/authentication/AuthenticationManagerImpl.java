@@ -11,7 +11,6 @@ import org.sagebionetworks.repo.manager.oauth.OIDCTokenManager;
 import org.sagebionetworks.repo.manager.password.InvalidPasswordException;
 import org.sagebionetworks.repo.manager.password.PasswordValidator;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
-import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.UnauthenticatedException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -226,19 +225,19 @@ public class AuthenticationManagerImpl implements AuthenticationManager {
 			throw new TwoFactorAuthRequiredException(principalId, twoFaManager.generate2FaToken(user, TwoFactorAuthTokenContext.AUTHENTICATION));
 		}
 		
-		return getLoginResponseAfterSuccessfulAuthentication(principalId, issuer);
+		return getLoginResponseAfterSuccessfulAuthentication(user, issuer);
 	}
 	
 	@Override
-	public LoginResponse loginWithNoPasswordOrTwoFaCheck(long principalId, String issuer) {
-		return getLoginResponseAfterSuccessfulAuthentication(principalId, issuer);
+	public LoginResponse loginWithNoPasswordOrTwoFaCheck(UserInfo user, String issuer) {
+		return getLoginResponseAfterSuccessfulAuthentication(user, issuer);
 	}
 	
 	@Override
 	public LoginResponse loginWith2Fa(TwoFactorAuthLoginRequest request, String issuer) {
 		validateTwoFactorAuthTokenRequest(request, TwoFactorAuthTokenContext.AUTHENTICATION);
-				
-		return getLoginResponseAfterSuccessfulAuthentication(request.getUserId(), issuer);
+		UserInfo user = userManager.getUserInfo(request.getUserId());
+		return getLoginResponseAfterSuccessfulAuthentication(user, issuer);
 	}
 	
 	@Override
@@ -331,7 +330,7 @@ public class AuthenticationManagerImpl implements AuthenticationManager {
 	}
 	
 	public AuthenticatedOn getAuthenticatedOn(UserInfo userInfo) {
-		if (AuthorizationUtils.isUserAnonymous(userInfo)) {
+		if (userInfo.isUserAnonymous()) {
 			throw new UnauthenticatedException("Cannot retrieve authentication time stamp for anonymous user.");
 		}
 		// Note the date will be null if the user has not logged in
@@ -372,12 +371,13 @@ public class AuthenticationManagerImpl implements AuthenticationManager {
 		}
 	}
 
-	LoginResponse getLoginResponseAfterSuccessfulAuthentication(long principalId, String issuer) {
+	LoginResponse getLoginResponseAfterSuccessfulAuthentication(UserInfo userInfo, String issuer) {
+		long principalId = userInfo.getId();
 		validateAccountStatus(principalId);
 		
 		String newAuthenticationReceipt = authenticationReceiptTokenGenerator.createNewAuthenticationReciept(principalId);
 		String accessToken = oidcTokenManager.createClientTotalAccessToken(principalId, issuer);
-		boolean acceptsTermsOfService = tosManager.hasUserAcceptedTermsOfService(principalId);
+		boolean acceptsTermsOfService = tosManager.hasUserAcceptedTermsOfService(userInfo);
 		authDAO.setAuthenticatedOn(principalId, clock.now());
 		return createLoginResponse(accessToken, acceptsTermsOfService, newAuthenticationReceipt);
 	}

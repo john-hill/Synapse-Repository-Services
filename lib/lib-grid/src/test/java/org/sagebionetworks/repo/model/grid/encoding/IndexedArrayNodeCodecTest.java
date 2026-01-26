@@ -193,8 +193,8 @@ public class IndexedArrayNodeCodecTest {
         InputStream byteStream = new ByteArrayInputStream(bytes);
 
         // call under test - decode header
-        IndexedNodeHeader nodeHeader = IndexedEncodingUtils.readNodeTypeAndLength(byteStream);
-        assertEquals(IndexedEncodingUtils.NODE_TYPE_ARRAY, nodeHeader.getNodeType());
+        IndexedNodeHeader nodeHeader = IndexedEncodingUtils.readNodeHeader(byteStream);
+        assertEquals(IndexedNodeCodecMapper.ARRAY.code, nodeHeader.getNodeType());
         assertTrue(nodeHeader.getLength() >= 0L);
 
         // call under test - decode body using the original node id

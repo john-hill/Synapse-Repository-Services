@@ -18,7 +18,6 @@ import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 
-import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.dbo.FieldColumn;
 import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
 import org.sagebionetworks.repo.model.dbo.TableMapping;
@@ -182,27 +181,7 @@ public class DBOUserGroup implements MigratableDatabaseObject<DBOUserGroup, DBOU
 
 	@Override
 	public MigratableTableTranslation<DBOUserGroup, DBOUserGroup> getTranslator() {
-		// TODO Revert this change after the one-time migration to add Realms to all
-		// TODO existing UserGroups.
-		return new MigratableTableTranslation<DBOUserGroup, DBOUserGroup>() {
-
-			@Override
-			public DBOUserGroup createDatabaseObjectFromBackup(DBOUserGroup backup) {
-				if (backup.getRealmId()==null) {
-					backup.setRealmId(Long.parseLong(AuthorizationConstants.DEFAULT_REALM_ID));
-				}
-				return backup;
-			}
-
-			@Override
-			public DBOUserGroup createBackupFromDatabaseObject(DBOUserGroup dbo) {
-				if (dbo.getRealmId()==null) {
-					dbo.setRealmId(Long.parseLong(AuthorizationConstants.DEFAULT_REALM_ID));
-				}
-				return dbo;
-			}
-			
-		};
+		return new BasicMigratableTableTranslation<DBOUserGroup>();
 	}
 
 	@Override

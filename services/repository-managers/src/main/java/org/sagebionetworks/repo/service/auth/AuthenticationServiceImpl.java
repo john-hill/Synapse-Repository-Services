@@ -177,7 +177,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 		});
 		
 		Long loggedInUserId = oidcBinding.getUserId();
-				
+		
 		// In https://sagebionetworks.jira.com/browse/PLFM-8198 we added the alias FK and we need to backfill	
 		if (oidcBinding.getAliasId() == null) {
 						
@@ -207,6 +207,18 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 				userManager.setOidcBindingAlias(oidcBinding, alias);
 			}
 			
+		}
+		
+		// the realm of the user must match the realm of the OAuth Provider
+		IdentityProvider identityProvider = new OAuthIdentityProvider().setProvider(request.getProvider());
+		Optional<String> optionalRealmId = realmDao.getRealmIdForIdentityProvider(identityProvider);
+		if (optionalRealmId.isEmpty()) {
+			throw new IllegalStateException("There is no security realm associated with "+request.getProvider().name());
+		}
+		UserInfo user = userManager.getUserInfo(loggedInUserId);
+		if (!user.getRealmId().equals(optionalRealmId.get())) {
+			throw new IllegalArgumentException("Cannot authenticate user "+loggedInUserId+
+				" using OAuth provider "+request.getProvider().name()+" since they are associated with different security realms.");
 		}
 		
 		// Return the user's access token

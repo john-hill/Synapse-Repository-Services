@@ -52,7 +52,7 @@ public interface TeamService {
 	 * @throws DatastoreException
 	 * @throws NotFoundException 
 	 */
-	public PaginatedResults<Team> get(String fragment, long limit, long offset)
+	public PaginatedResults<Team> get(Long userId, String fragment, long limit, long offset)
 			throws DatastoreException, NotFoundException;
 	
 	/**

@@ -117,8 +117,11 @@ public class UserManagerImplTest {
 	}
 		
 	@Test
-	public void testGetAnonymousUserInfo() throws Exception {
-		userManager.getUserInfo(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
+	public void testGetAnonymousUserInfoAndRealm() throws Exception {
+		UserInfo userInfo = userManager.getUserInfo(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
+		assertNotNull(userInfo.getId());
+		String realmId = userManager.getUserRealm(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
+		assertEquals(userInfo.getRealmId(), realmId);
 	}
 
 	@Test

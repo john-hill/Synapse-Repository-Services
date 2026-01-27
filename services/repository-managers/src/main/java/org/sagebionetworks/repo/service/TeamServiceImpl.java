@@ -99,7 +99,7 @@ public class TeamServiceImpl implements TeamService {
 	 * @see org.sagebionetworks.repo.web.service.TeamService#get(java.lang.String, long, long)
 	 */
 	@Override
-	public PaginatedResults<Team> get(String fragment, long limit, long offset)
+	public PaginatedResults<Team> get(Long userId, String fragment, long limit, long offset)
 			throws DatastoreException, NotFoundException  {
 
 		ValidateArgument.requirement(limit > 0 && limit <= MAX_LIMIT, "limit must be between 1 and "+MAX_LIMIT);
@@ -108,7 +108,8 @@ public class TeamServiceImpl implements TeamService {
 		if (fragment==null || fragment.trim().length()==0) {
 			return teamManager.list(limit, offset);
 		}
-		List<Long> teamIds = principalPrefixDAO.listTeamsForPrefix(fragment, limit, offset);
+		String userRealmId = userManager.getUserRealm(userId);
+		List<Long> teamIds = principalPrefixDAO.listTeamsForPrefix(Long.parseLong(userRealmId), fragment, limit, offset);
 		List<Team> teams = teamManager.list(teamIds).getList();
 		return PaginatedResults.createWithLimitAndOffset(teams, limit, offset);
 	}
@@ -259,6 +260,8 @@ public class TeamServiceImpl implements TeamService {
 			NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		UserInfo memberUserInfo = userManager.getUserInfo(Long.parseLong(principalId));
+		String teamRealmId = userManager.getUserRealm(Long.parseLong(teamId));
+		isUserAndTeamAndMemberRealmEqual(userInfo.getRealmId(), memberUserInfo.getRealmId(), teamRealmId);
 		// note:  this must be done _before_ adding the member, which cleans up the invitation information
 		// needed to determine who to notify
 		List<MessageToUserAndBody> messages = teamManager.createJoinedTeamNotifications(userInfo, memberUserInfo, teamId, teamEndpoint, notificationUnsubscribeEndpoint);
@@ -271,6 +274,12 @@ public class TeamServiceImpl implements TeamService {
 		}
 		
 		return memberAdded;
+	}
+
+	private void isUserAndTeamAndMemberRealmEqual(String userRealmId, String memberRealmId, String teamRealmId) {
+		if (!userRealmId.equals(teamRealmId) || !memberRealmId.equals(teamRealmId)) {
+			throw new IllegalArgumentException("User, member and team must be in the same realm.");
+		}
 	}
 	
 	/* (non-Javadoc)

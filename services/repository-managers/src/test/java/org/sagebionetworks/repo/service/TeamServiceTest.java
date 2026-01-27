@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.service;
 
+import org.junit.Assert;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -80,23 +81,23 @@ public class TeamServiceTest {
 		List<Long> listWithTeam = Arrays.asList(99L);
 		List<Long> emptyList = new LinkedList<>();
 
-		when(mockPrincipalPrefixDAO.listTeamsForPrefix("foo", 1L, 0L)).thenReturn(listWithTeam);
-		when(mockPrincipalPrefixDAO.listTeamsForPrefix("ba", 1L, 0L)).thenReturn(listWithTeam);
-		when(mockPrincipalPrefixDAO.listTeamsForPrefix("bas", 1L, 0L)).thenReturn(emptyList);
-
+		when(mockPrincipalPrefixDAO.listTeamsForPrefix(0L,"foo", 1L, 0L)).thenReturn(listWithTeam);
+		when(mockPrincipalPrefixDAO.listTeamsForPrefix(0L,"ba", 1L, 0L)).thenReturn(listWithTeam);
+		when(mockPrincipalPrefixDAO.listTeamsForPrefix(0L, "bas", 1L, 0L)).thenReturn(emptyList);
+		when(mockUserManager.getUserRealm(123L)).thenReturn("0");
 		List<Team> expected = new ArrayList<Team>(); expected.add(team);
 		ListWrapper<Team> wrapped = new ListWrapper<Team>();
 		wrapped.setList(expected);
 		when(mockTeamManager.list(any(List.class))).thenReturn(wrapped);
-		PaginatedResults<Team> pr = teamService.get("foo", 1, 0);
+		PaginatedResults<Team> pr = teamService.get(123L, "foo", 1, 0);
 		assertEquals(2L, pr.getTotalNumberOfResults());
 		assertEquals(expected, pr.getResults());
-		pr = teamService.get("ba", 1, 0);
+		pr = teamService.get(123L,"ba", 1, 0);
 		assertEquals(2L, pr.getTotalNumberOfResults());
 		assertEquals(expected, pr.getResults());
 		
 		// no match
-		pr = teamService.get("bas", 1, 0);
+		pr = teamService.get(123L,"bas", 1, 0);
 		assertEquals(2L, pr.getTotalNumberOfResults());
 	}
 	
@@ -138,14 +139,14 @@ public class TeamServiceTest {
 	
 	@Test
 	public void testGetTeamNoFragment() throws Exception {
-		teamService.get(null, 1, 0);
+		teamService.get(123L,null, 1, 0);
 		verify(mockTeamManager).list(1, 0);
 	}
 
 	@Test
 	public void testGetTeamWithUnderMinLimit() {
 		IllegalArgumentException ex = Assertions.assertThrows(IllegalArgumentException.class, ()-> {
-			teamService.get(null, 0, 0);
+			teamService.get(123L,null, 0, 0);
 		});
 		assertEquals("limit must be between 1 and 50", ex.getMessage());
 	}
@@ -153,7 +154,7 @@ public class TeamServiceTest {
 	@Test
 	public void testGetTeamWithOverMaxLimit() {
 		IllegalArgumentException ex = Assertions.assertThrows(IllegalArgumentException.class, ()-> {
-			teamService.get(null, 51, 0);
+			teamService.get(123L,null, 51, 0);
 		});
 		assertEquals("limit must be between 1 and 50", ex.getMessage());
 	}
@@ -161,7 +162,7 @@ public class TeamServiceTest {
 	@Test
 	public void testGetTeamWithNegativeOffset() {
 		IllegalArgumentException ex = Assertions.assertThrows(IllegalArgumentException.class, ()-> {
-			teamService.get(null, 50, -1);
+			teamService.get(123L,null, 50, -1);
 		});
 		assertEquals("'offset' may not be negative", ex.getMessage());
 	}
@@ -221,10 +222,15 @@ public class TeamServiceTest {
 		Long principalId = 333L;
 		String teamEndpoint = "teamEndpoint:";
 		String notificationUnsubscribeEndpoint = "notificationUnsubscribeEndpoint:";
-		UserInfo userInfo1 = new UserInfo(false); userInfo1.setId(userId);
-		UserInfo userInfo2 = new UserInfo(false); userInfo2.setId(principalId);
+		UserInfo userInfo1 = new UserInfo(false);
+		userInfo1.setId(userId);
+		userInfo1.setRealmId("0");
+		UserInfo userInfo2 = new UserInfo(false);
+		userInfo2.setId(principalId);
+		userInfo2.setRealmId("0");
 		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo1);
 		when(mockUserManager.getUserInfo(principalId)).thenReturn(userInfo2);
+		when(mockUserManager.getUserRealm(Long.parseLong(teamId))).thenReturn("0");
 		MessageToUser mtu = new MessageToUser();
 		mtu.setRecipients(Collections.singleton(principalId.toString()));
 		String content = "foo";
@@ -244,6 +250,30 @@ public class TeamServiceTest {
 		assertEquals(result, messageArg.getValue().get(0));		
 
 	}
+
+	@Test
+	public void testAddMemberInWrongRealm() throws Exception {
+		Long userId = 111L;
+		String teamId = "222";
+		Long principalId = 333L;
+		String teamEndpoint = "teamEndpoint:";
+		String notificationUnsubscribeEndpoint = "notificationUnsubscribeEndpoint:";
+		UserInfo userInfo1 = new UserInfo(false);
+		userInfo1.setId(userId);
+		userInfo1.setRealmId("0");
+		UserInfo userInfo2 = new UserInfo(false);
+		userInfo2.setId(principalId);
+		userInfo2.setRealmId("1");
+		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo1);
+		when(mockUserManager.getUserInfo(principalId)).thenReturn(userInfo2);
+		when(mockUserManager.getUserRealm(Long.parseLong(teamId))).thenReturn("0");
+
+
+		String message = Assertions.assertThrows(IllegalArgumentException.class, ()-> {
+			teamService.addMember(userId, teamId, principalId.toString(), teamEndpoint, notificationUnsubscribeEndpoint);
+		}).getMessage();
+		assertEquals("User, member and team must be in the same realm.", message);
+	}
 	
 	@Test
 	public void testAddMemberByJoinTeamSignedToken() throws Exception {
@@ -252,10 +282,15 @@ public class TeamServiceTest {
 		Long principalId = 333L;
 		String teamEndpoint = "teamEndpoint:";
 		String notificationUnsubscribeEndpoint = "notificationUnsubscribeEndpoint:";
-		UserInfo userInfo1 = new UserInfo(false); userInfo1.setId(userId);
-		UserInfo userInfo2 = new UserInfo(false); userInfo2.setId(principalId);
+		UserInfo userInfo1 = new UserInfo(false);
+		userInfo1.setId(userId);
+		userInfo1.setRealmId("0");
+		UserInfo userInfo2 = new UserInfo(false);
+		userInfo2.setId(principalId);
+		userInfo2.setRealmId("0");
 		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo1);
 		when(mockUserManager.getUserInfo(principalId)).thenReturn(userInfo2);
+		when(mockUserManager.getUserRealm(Long.parseLong(teamId))).thenReturn("0");
 		MessageToUser mtu = new MessageToUser();
 		mtu.setRecipients(Collections.singleton(principalId.toString()));
 		String content = "foo";
@@ -296,10 +331,15 @@ public class TeamServiceTest {
 		Long principalId = 333L;
 		String teamEndpoint = "teamEndpoint:";
 		String notificationUnsubscribeEndpoint = "notificationUnsubscribeEndpoint:";
-		UserInfo userInfo1 = new UserInfo(false); userInfo1.setId(userId);
-		UserInfo userInfo2 = new UserInfo(false); userInfo2.setId(principalId);
+		UserInfo userInfo1 = new UserInfo(false);
+		userInfo1.setId(userId);
+		userInfo1.setRealmId("0");
+		UserInfo userInfo2 = new UserInfo(false);
+		userInfo2.setId(principalId);
+		userInfo2.setRealmId("0");
 		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo1);
 		when(mockUserManager.getUserInfo(principalId)).thenReturn(userInfo2);
+		when(mockUserManager.getUserRealm(Long.parseLong(teamId))).thenReturn("0");
 		MessageToUser mtu = new MessageToUser();
 		mtu.setRecipients(Collections.singleton(principalId.toString()));
 		String content = "foo";

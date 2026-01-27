@@ -143,7 +143,7 @@ public class UserManagerImpl implements UserManager {
 	
 	/**
 	 * This method is idempotent.
-	 * @param profile
+	 * @param user
 	 * @param principalId
 	 */
 	private void bindAllAliases(NewUser user, Long principalId) {
@@ -252,6 +252,11 @@ public class UserManagerImpl implements UserManager {
 		ui.setTwoFactorAuthEnabled(authDAO.isTwoFactorAuthEnabled(principalId));
 		ui.setContext(new CallersContext().setSessionId(SessionIdThreadLocal.getThreadsSessionId().orElse("missing")));
 		return ui;
+	}
+
+	@Override
+	public String getUserRealm(Long principalId) throws NotFoundException {
+		return userGroupDAO.get(principalId).getRealmId();
 	}
 
 	@WriteTransaction

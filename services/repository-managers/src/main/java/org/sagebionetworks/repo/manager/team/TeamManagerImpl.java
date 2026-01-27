@@ -497,6 +497,12 @@ public class TeamManagerImpl implements TeamManager {
 	@WriteTransaction
 	public Team put(UserInfo userInfo, Team team) throws InvalidModelException,
 			DatastoreException, UnauthorizedException, NotFoundException {
+		String realmIdOfTeam = userGroupDAO.get(Long.parseLong(team.getId())).getRealmId();
+
+		if (!userInfo.getRealmId().equals(realmIdOfTeam)) {
+			throw new IllegalArgumentException("User can only update the team of it's own realm.");
+		}
+
 		authorizationManager.canAccess(userInfo, team.getId(), ObjectType.TEAM, ACCESS_TYPE.UPDATE).checkAuthorizationOrElseThrow();
 		validateForUpdate(team);
 		populateUpdateFields(userInfo, team, new Date());
@@ -738,6 +744,7 @@ public class TeamManagerImpl implements TeamManager {
 	public AccessControlList updateACL(UserInfo userInfo, AccessControlList acl)
 			throws DatastoreException, UnauthorizedException, NotFoundException {
 		authorizationManager.canAccess(userInfo, acl.getId(), ObjectType.TEAM, ACCESS_TYPE.UPDATE).checkAuthorizationOrElseThrow();
+		//TODO PLFM-9327 before updating ACL ,it should be verified that user is upating ACL in the correct realm
 		aclDAO.update(acl, ObjectType.TEAM);
 		return aclDAO.get(acl.getId(), ObjectType.TEAM);
 	}

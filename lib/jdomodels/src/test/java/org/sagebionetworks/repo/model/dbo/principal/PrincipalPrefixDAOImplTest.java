@@ -554,7 +554,7 @@ public class PrincipalPrefixDAOImplTest {
 		assertEquals(teamOddId, results.get(2));
 
 		// All the teams are in default realm, passing realm 1 should give Zero results
-		principalPrefixDao.listTeamsForPrefix(1L, "r", 1000L, 0L);
+		results = principalPrefixDao.listTeamsForPrefix(1L, "r", 1000L, 0L);
 		assertNotNull(results);
 		assertEquals(0, results.size());
 		

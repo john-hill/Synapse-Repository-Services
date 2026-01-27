@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
+import java.util.ArrayList;
 
 import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.node.Node;
@@ -50,20 +51,16 @@ public class IndexedModelEncoder implements Closeable {
 	 * Create a new IndexedModelEncoder.
 	 *
 	 * @param out the output stream to write to
-	 * @param clockTable the clock table for the model. For the indexed encoder, the initial clock table MUST include
-	 *                     all replica IDs in the correct order. However, the clock table does not need to have the
-	 *                     latest sequence numbers, as timestamps are encoded using raw sequence numbers. To update the
-	 *                     clock table, use {@link #setClockTable(ClockTable)}.
 	 * @param rootNodeId the ID of the root node
 	 * @throws IOException if an I/O error occurs
 	 */
-	public IndexedModelEncoder(OutputStream out, ClockTable clockTable, LogicalTimestamp rootNodeId) {
+	public IndexedModelEncoder(OutputStream out, LogicalTimestamp rootNodeId) {
 		ValidateArgument.required(out, "out");
-		ValidateArgument.required(clockTable, "clockTable");
 		ValidateArgument.required(rootNodeId, "rootNodeId");
 
-		this.clockTable = clockTable;
 		this.rootNodeId = rootNodeId;
+		this.clockTable = new ClockTable(new ArrayList<>());
+		clockTable.updateClockTable(rootNodeId);
 		this.nodeCodec = new IndexedNodeCodec();
 
 		try {
@@ -87,6 +84,9 @@ public class IndexedModelEncoder implements Closeable {
 		}
 		ValidateArgument.required(node, "node");
 		ValidateArgument.required(node.getId(), "node.id");
+
+		// Update the clock table with the node.
+		clockTable.processNode(node);
 
 		// Generate the node key
 		String nodeKey = clockTable.encodeNodeKey(node.getId());
@@ -129,42 +129,5 @@ public class IndexedModelEncoder implements Closeable {
 			closed = true;
 			generator.close();
 		}
-	}
-
-    /**
-     * Sets a new clock table for this encoder. The index of each replica in the clock table is used to encode nodes,
-     * so the new clock table must have the same replica IDs in the same order as the existing clock table.
-     * <p>
-     * This method simplifies instantiating a new CRDT document where the replica ID(s) are known beforehand, but the number
-     * of nodes in the document is not known. For example, when instantiating a data grid, you may perform a sequence like:
-     * </p>
-     * <ol>
-     * <li>Create an IndexedModelEncoder with a clock table containing only the internal replica ID.</li>
-     * <li>Write nodes to the encoder for an unknown number of rows in the grid. The internal replica is the creator of
-     * each node.</li>
-     * <li>Once all nodes are written, update the clock table such that it properly captures the sequence number of the
-     * internal replica.</li>
-     * </ol>
-     *
-     * @param clockTable
-     */
-	public void setClockTable(ClockTable clockTable) {
-		ValidateArgument.required(clockTable, "clockTable");
-		if (closed) {
-			throw new IllegalStateException("Encoder has been closed");
-		}
-
-		// Verify the clock tables have the same replica IDs in the same order
-		if (this.clockTable.getClocks().size() != clockTable.getClocks().size()) {
-			throw new IllegalArgumentException("New clock table must have the same replica IDs in the same order. The clock table sizes differ.");
-		}
-		for (int i = 0; i < this.clockTable.getClocks().size(); i++) {
-            if (!this.clockTable.getClocks().get(i).getReplicaId()
-                    .equals(clockTable.getClocks().get(i).getReplicaId())) {
-                throw new IllegalArgumentException("New clock table must have the same replica IDs in the same order");
-            }
-        }
-
-        this.clockTable = clockTable;
 	}
 }

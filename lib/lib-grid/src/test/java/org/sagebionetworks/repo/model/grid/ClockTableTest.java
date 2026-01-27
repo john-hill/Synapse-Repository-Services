@@ -3,14 +3,21 @@ package org.sagebionetworks.repo.model.grid;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 import org.sagebionetworks.repo.model.grid.encoding.Vu57Utils;
+import org.sagebionetworks.repo.model.grid.node.ArrayNode;
+import org.sagebionetworks.repo.model.grid.node.ConstantNode;
+import org.sagebionetworks.repo.model.grid.node.ObjectNode;
+import org.sagebionetworks.repo.model.grid.node.RGANode;
+import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
 import com.google.common.primitives.Bytes;
@@ -284,6 +291,129 @@ public class ClockTableTest {
         });
     }
 
+    @Test
+    public void testProcessNodeSimpleNode() {
+        ClockTable clockTable = new ClockTable(new ArrayList<>());
+
+        ConstantNode node = new ConstantNode()
+            .setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(10L))
+            .setValue("test");
+
+        // call under test
+        clockTable.processNode(node);
+
+        assertEquals(1, clockTable.getClocks().size());
+        assertEquals(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(10L), clockTable.getClocks().get(0));
+    }
+
+    @Test
+    public void testProcessNodeArrayNode() {
+        ClockTable clockTable = new ClockTable(new ArrayList<>());
+
+        RGANode element1 = new RGANode()
+            .setNodeId(new LogicalTimestamp().setReplicaId(101L).setSequenceNumber(11L))
+            .setDataId(new LogicalTimestamp().setReplicaId(102L).setSequenceNumber(12L));
+
+        RGANode element2 = new RGANode()
+            .setNodeId(new LogicalTimestamp().setReplicaId(103L).setSequenceNumber(13L))
+            .setDataId(new LogicalTimestamp().setReplicaId(104L).setSequenceNumber(14L));
+
+        ArrayNode node = new ArrayNode()
+            .setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(10L))
+            .setElements(List.of(element1, element2));
+
+        // call under test
+        clockTable.processNode(node);
+
+        assertEquals(5, clockTable.getClocks().size());
+        assertEquals(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(10L), clockTable.getClocks().get(0));
+        assertEquals(new LogicalTimestamp().setReplicaId(101L).setSequenceNumber(11L), clockTable.getClocks().get(1));
+        assertEquals(new LogicalTimestamp().setReplicaId(102L).setSequenceNumber(12L), clockTable.getClocks().get(2));
+        assertEquals(new LogicalTimestamp().setReplicaId(103L).setSequenceNumber(13L), clockTable.getClocks().get(3));
+        assertEquals(new LogicalTimestamp().setReplicaId(104L).setSequenceNumber(14L), clockTable.getClocks().get(4));
+    }
+
+    @Test
+    public void testProcessNodeVectorNode() {
+        ClockTable clockTable = new ClockTable(new ArrayList<>());
+
+        ConstantNode value1 = new ConstantNode()
+            .setId(new LogicalTimestamp().setReplicaId(201L).setSequenceNumber(21L))
+            .setValue("value1");
+
+        ConstantNode value2 = new ConstantNode()
+            .setId(new LogicalTimestamp().setReplicaId(202L).setSequenceNumber(22L))
+            .setValue("value2");
+
+        Map<Integer, ConstantNode> values = new LinkedHashMap<>();
+        values.put(0, value1);
+        values.put(1, value2);
+
+        VectorNode node = new VectorNode()
+            .setId(new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(20L))
+            .setValues(values);
+
+        // call under test
+        clockTable.processNode(node);
+
+        assertEquals(3, clockTable.getClocks().size());
+        assertEquals(new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(20L), clockTable.getClocks().get(0));
+        assertEquals(new LogicalTimestamp().setReplicaId(201L).setSequenceNumber(21L), clockTable.getClocks().get(1));
+        assertEquals(new LogicalTimestamp().setReplicaId(202L).setSequenceNumber(22L), clockTable.getClocks().get(2));
+    }
+
+    @Test
+    public void testProcessNodeObjectNode() {
+        ClockTable clockTable = new ClockTable(new ArrayList<>());
+
+        Map<String, LogicalTimestamp> objectValues = new LinkedHashMap<>();
+        objectValues.put("key1", new LogicalTimestamp().setReplicaId(301L).setSequenceNumber(31L));
+        objectValues.put("key2", new LogicalTimestamp().setReplicaId(302L).setSequenceNumber(32L));
+
+        ObjectNode node = new ObjectNode()
+            .setId(new LogicalTimestamp().setReplicaId(300L).setSequenceNumber(30L))
+            .setValue(objectValues);
+
+        // call under test
+        clockTable.processNode(node);
+
+        assertEquals(3, clockTable.getClocks().size());
+        assertEquals(new LogicalTimestamp().setReplicaId(300L).setSequenceNumber(30L), clockTable.getClocks().get(0));
+        assertEquals(new LogicalTimestamp().setReplicaId(301L).setSequenceNumber(31L), clockTable.getClocks().get(1));
+        assertEquals(new LogicalTimestamp().setReplicaId(302L).setSequenceNumber(32L), clockTable.getClocks().get(2));
+    }
+
+    @Test
+    public void testProcessNodeUpdatesExistingEntries() {
+        ClockTable clockTable = new ClockTable(new ArrayList<>(List.of(
+            new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(10L),
+            new LogicalTimestamp().setReplicaId(101L).setSequenceNumber(11L)
+        )));
+
+        RGANode element1 = new RGANode()
+            .setNodeId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(50L))
+            .setDataId(new LogicalTimestamp().setReplicaId(101L).setSequenceNumber(51L));
+
+        ArrayNode node = new ArrayNode()
+            .setId(new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(20L))
+            .setElements(List.of(element1));
+
+        // call under test
+        clockTable.processNode(node);
+
+        assertEquals(3, clockTable.getClocks().size());
+        assertEquals(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(50L), clockTable.getClocks().get(0));
+        assertEquals(new LogicalTimestamp().setReplicaId(101L).setSequenceNumber(51L), clockTable.getClocks().get(1));
+        assertEquals(new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(20L), clockTable.getClocks().get(2));
+    }
+
+    @Test
+    public void testProcessNodeNullNode() {
+        ClockTable clockTable = new ClockTable(new ArrayList<>());
+
+        // call under test
+        assertThrows(IllegalArgumentException.class, () -> clockTable.processNode(null));
+    }
 
 }
 

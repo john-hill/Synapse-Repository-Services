@@ -13,6 +13,10 @@ import java.util.Objects;
 import org.sagebionetworks.repo.model.grid.encoding.B1Vu56Utils;
 import org.sagebionetworks.repo.model.grid.encoding.Base36Utils;
 import org.sagebionetworks.repo.model.grid.encoding.Vu57Utils;
+import org.sagebionetworks.repo.model.grid.node.ArrayNode;
+import org.sagebionetworks.repo.model.grid.node.Node;
+import org.sagebionetworks.repo.model.grid.node.ObjectNode;
+import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.util.ValidateArgument;
 
@@ -32,6 +36,50 @@ public class ClockTable {
 
     public ClockTable(List<LogicalTimestamp> clocks) {
         this.clocks = clocks;
+    }
+
+    /**
+     * Process a node to update the clock table as needed.
+     */
+    public void processNode(Node node) {
+        ValidateArgument.required(node, "node");
+
+        updateClockTable(node.getId());
+
+        // For nodes that reference other nodes, also process those references
+        if (node instanceof ArrayNode) {
+            ((ArrayNode) node).getElements().forEach(rgaNode -> {
+                updateClockTable(rgaNode.getNodeId());
+                updateClockTable(rgaNode.getDataId());
+            });
+        } else if (node instanceof VectorNode) {
+            ((VectorNode) node).getValues().values().forEach(n -> updateClockTable(n.getId()));
+        } else if (node instanceof ObjectNode) {
+            ((ObjectNode) node).getValue().values().forEach(this::updateClockTable);
+        }
+    }
+
+    /**
+     * Update the clock table with the given timestamp.
+     */
+    public void updateClockTable(LogicalTimestamp timestamp) {
+        ValidateArgument.required(timestamp, "timestamp");
+
+        // Check if the replica ID is already in the clock table
+        for (LogicalTimestamp clock : clocks) {
+            if (clock.getReplicaId().equals(timestamp.getReplicaId())) {
+                // Update the sequence number if the new timestamp is greater
+                if (timestamp.getSequenceNumber() > clock.getSequenceNumber()) {
+                    clock.setSequenceNumber(timestamp.getSequenceNumber());
+                }
+                return;
+            }
+        }
+
+        // If not found, add a new entry to the clock table
+        clocks.add(new LogicalTimestamp()
+                .setReplicaId(timestamp.getReplicaId())
+                .setSequenceNumber(timestamp.getSequenceNumber()));
     }
 
     /**
@@ -252,5 +300,12 @@ public class ClockTable {
     @Override
     public int hashCode() {
         return Objects.hashCode(clocks);
+    }
+
+    @Override
+    public String toString() {
+        return "ClockTable{" +
+                "clocks=" + clocks +
+                '}';
     }
 }

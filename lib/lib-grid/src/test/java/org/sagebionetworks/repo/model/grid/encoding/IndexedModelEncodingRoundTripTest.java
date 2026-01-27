@@ -37,10 +37,6 @@ public class IndexedModelEncodingRoundTripTest {
         // Encode and decode a JSON CRDT model. If making changes to this test, also consider attempting to read the
         // file using the json-joy JavaScript library.
 
-        ClockTable testClockTable = new ClockTable(List.of(
-                new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(14L),
-                new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(14L)
-        ));
         LogicalTimestamp testRootNodeId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(2L);
 
         List<Node> nodes = new ArrayList<>();
@@ -98,7 +94,7 @@ public class IndexedModelEncodingRoundTripTest {
         Path outputFile = Files.createTempFile("indexed-model-", ".cbor");
 
         try (FileOutputStream fos = new FileOutputStream(outputFile.toFile())) {
-            try (IndexedModelEncoder encoder = new IndexedModelEncoder(fos, testClockTable, testRootNodeId)) {
+            try (IndexedModelEncoder encoder = new IndexedModelEncoder(fos, testRootNodeId)) {
                 nodes.forEach(node -> {
                     try {
                         encoder.writeNode(node);
@@ -119,10 +115,15 @@ public class IndexedModelEncodingRoundTripTest {
         byte[] fileBytes = Files.readAllBytes(outputFile);
         Supplier<ByteArrayInputStream> supplier = () -> new ByteArrayInputStream(fileBytes);
 
+        ClockTable expectedClockTable = new ClockTable(List.of(
+                new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(12L),
+                new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(13L)
+        ));
+
         List<Node> decodedNodes = new ArrayList<>();
         try (IndexedModelDecoder decoder = new IndexedModelDecoder(supplier)) {
             assertEquals(testRootNodeId, decoder.getRootNodeId(), "Root node ID should match");
-            assertEquals(testClockTable, decoder.getClockTable(), "Clock table should match");
+            assertEquals(expectedClockTable, decoder.getClockTable(), "Clock table should match");
             decoder.iterator().forEachRemaining(decodedNodes::add);
         }
 

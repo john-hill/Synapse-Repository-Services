@@ -3,7 +3,9 @@ package org.sagebionetworks.repo.model.grid;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -16,7 +18,7 @@ import com.google.common.primitives.Bytes;
 public class ClockTableTest {
 
     @Test
-    public void testToBinaryRealClockTable() {
+    public void testToBinaryRealClockTable() throws IOException {
         // Created a model in json-joy, encoded as compact and binary and printed it to the JavaScript console.
         // The compact model provided human-readable values for the clocks
         // The binary model provided the expected binary output (as unsigned integers).
@@ -35,6 +37,10 @@ public class ClockTableTest {
         // Convert signed bytes to unsigned integers for comparison
         List<Integer> actualAsUnsigned = Bytes.asList(binary).stream().map(Byte::toUnsignedInt).collect(Collectors.toList());
         assertEquals(expectedBytes, actualAsUnsigned);
+
+        // call under test - decode and verify round-trip
+        ClockTable decodedClockTable = ClockTable.fromBinary(binary);
+        assertEquals(clockTable.getClocks(), decodedClockTable.getClocks());
     }
 
     @Test

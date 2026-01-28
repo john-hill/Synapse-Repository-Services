@@ -64,8 +64,8 @@ public class GridAuthorizationManagerImpl implements GridAuthorizationManager {
 	}
 
 	private Long getGridOwner(String gridSessionId) {
-		return gridDao.getGridSessionOnwer(gridSessionId)
-				.orElseThrow(() -> new NotFoundException("Grid session not found: "+gridSessionId));
+		return gridDao.getGridSessionOwner(gridSessionId)
+				.orElseThrow(() -> new NotFoundException("Grid session not found: " + gridSessionId));
 	}
 
 	@Override
@@ -96,7 +96,7 @@ public class GridAuthorizationManagerImpl implements GridAuthorizationManager {
 		case recordset:
 		case table:
 			return entityAuthorizationManager.hasAccess(user, source.getSourceId().toString(), ACCESS_TYPE.READ,
-					ACCESS_TYPE.DOWNLOAD);
+					ACCESS_TYPE.DOWNLOAD, ACCESS_TYPE.UPDATE);
 		default:
 			throw new IllegalArgumentException("Unsupported grid source type: " + source.getType());
 		}
@@ -125,4 +125,5 @@ public class GridAuthorizationManagerImpl implements GridAuthorizationManager {
 			throw new IllegalArgumentException(String.format("Invalid ownerPrincipalId: '%s'", ownerPrincipalId));
 		}
 	}
+
 }

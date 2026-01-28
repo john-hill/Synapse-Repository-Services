@@ -2,7 +2,9 @@ package org.sagebionetworks.repo.manager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
@@ -25,6 +27,7 @@ import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.RealmDao;
 import org.sagebionetworks.repo.model.Team;
 import org.sagebionetworks.repo.model.UnauthorizedException;
+import org.sagebionetworks.repo.model.UserGroup;
 import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.IdentityProvider;
@@ -65,7 +68,7 @@ class RealmManagerImplTest {
 	}
 	
 	private static final String ID ="101";
-	private static final String REALM_NAME ="realm-name";
+	private static final String REALM_NAME ="Realm-Name";
 	private static final List<IdentityProvider> IDP_LIST = List.of(new OAuthIdentityProvider().
 			setProvider(OAuthProvider.GOOGLE_OAUTH_2_0));
 	private static final String REALM_ANONYMOUS_PRINCIPAL_ALIAS = REALM_NAME+"-Anonymous";
@@ -92,7 +95,7 @@ class RealmManagerImplTest {
 
 		when(userGroupDAO.create(any())).thenReturn(ANONYMOUS_ID, AUTHENTICATED_ID, PUBLIC_ID);
 		
-		when(teamManager.create(any(), any())).thenAnswer(invocation -> {
+		when(teamManager.create(any(), any(), eq(ID))).thenAnswer(invocation -> {
             // Retrieve the argument at index 1 (which is a Team)
             Team team = invocation.getArgument(1); 
             team.setId(ADMIN_TEAM_ID);
@@ -102,10 +105,28 @@ class RealmManagerImplTest {
 		Realm realm = new Realm();
 		realm.setName(REALM_NAME);
 		realm.setIdentityProvider(IDP_LIST);
+		
 		// method under test
 		Realm created = realmManager.createRealm(adminUserInfo, realm);
 		assertEquals(mockCreated, created);
 		verify(realmDao).createRealm(realm);
+		
+		ArgumentCaptor<UserGroup> userGroupCaptor = ArgumentCaptor.forClass(UserGroup.class);
+		verify(userGroupDAO, times(3)).create(userGroupCaptor.capture());
+		List<UserGroup> ugs = userGroupCaptor.getAllValues();
+		assertEquals(3, ugs.size());
+		UserGroup anonymousUg = ugs.get(0);
+		assertTrue(anonymousUg.getIsIndividual());
+		assertEquals(ID, anonymousUg.getRealmId());
+		assertNotNull(anonymousUg.getCreationDate());
+		UserGroup authenticatedUg = ugs.get(1);
+		assertFalse(authenticatedUg.getIsIndividual());
+		assertEquals(ID, authenticatedUg.getRealmId());
+		assertNotNull(authenticatedUg.getCreationDate());
+		UserGroup publicUg = ugs.get(2);
+		assertFalse(publicUg.getIsIndividual());
+		assertEquals(ID, publicUg.getRealmId());
+		assertNotNull(publicUg.getCreationDate());
 		
 		ArgumentCaptor<PrincipalAlias> principalAliasCaptor = ArgumentCaptor.forClass(PrincipalAlias.class);
 		verify(principalAliasDAO, times(3)).bindAliasToPrincipal(principalAliasCaptor.capture());
@@ -122,7 +143,7 @@ class RealmManagerImplTest {
 		assertEquals(AliasType.TEAM_NAME, publicAlias.getType());
 		
 		ArgumentCaptor<Team> teamCaptor = ArgumentCaptor.forClass(Team.class);
-		verify(teamManager).create(eq(adminUserInfo), teamCaptor.capture());
+		verify(teamManager).create(eq(adminUserInfo), teamCaptor.capture(), eq(ID));
 		Team adminTeam = teamCaptor.getValue();
 		assertEquals(REALM_ADMIN_PRINCIPAL_ALIAS, adminTeam.getName());
 		assertFalse(adminTeam.getCanPublicJoin());

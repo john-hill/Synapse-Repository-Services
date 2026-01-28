@@ -38,8 +38,8 @@ public class VectorNodeTest {
 	@MethodSource("validValues")
 	public void testToAndFromJSON(Object value) {
 		VectorNode vec = new VectorNode().setId(id).setValues(new LinkedHashMap<>());
-		vec.getValues().put("c1", new ConstantNode().setId(id2).setValue(value));
-		vec.getValues().put("c2", new ConstantNode().setId(id3).setValue("other value"));
+		vec.getValues().put(1, new ConstantNode().setId(id2).setValue(value));
+		vec.getValues().put(2, new ConstantNode().setId(id3).setValue("other value"));
 		// call under test
 		String json = vec.getValueAsJson();
 		// call under test
@@ -65,10 +65,10 @@ public class VectorNodeTest {
 	@Test
 	public void testGetValueAsJson() {
 		VectorNode vec = new VectorNode().setId(id).setValues(new LinkedHashMap<>());
-		vec.getValues().put("c1", new ConstantNode().setId(id2).setValue(new ConValue(ConType.JSON_ARRAY, new JSONArray("[1,2,3]"))));
-		vec.getValues().put("c2", new ConstantNode().setId(id3).setValue(new ConValue(ConType.STRING, "other value")));
-		vec.getValues().put("c3", new ConstantNode().setId(id4).setValue(new ConValue(ConType.NULL, null)));
-		vec.getValues().put("c4", new ConstantNode().setId(id5).setValue(new ConValue(ConType.UNDEFINED, null)));
+		vec.getValues().put(1, new ConstantNode().setId(id2).setValue(new ConValue(ConType.JSON_ARRAY, new JSONArray("[1,2,3]"))));
+		vec.getValues().put(2, new ConstantNode().setId(id3).setValue(new ConValue(ConType.STRING, "other value")));
+		vec.getValues().put(3, new ConstantNode().setId(id4).setValue(new ConValue(ConType.NULL, null)));
+		vec.getValues().put(4, new ConstantNode().setId(id5).setValue(new ConValue(ConType.UNDEFINED, null)));
 		String json = vec.getValueAsJson();
 		assertEquals("{\"c1\":{\"v\":[[1,2,3]],\"i\":[3,4]},\"c2\":{\"v\":[\"other value\"],\"i\":[5,6]},\"c3\":{\"v\":[null],\"i\":[7,8]},\"c4\":{\"v\":[0,0],\"i\":[9,10]}}", json);
 		VectorNode other = new VectorNode().setId(id).setValueFromJson(json);
@@ -164,7 +164,7 @@ public class VectorNodeTest {
 	public void testAttemptInsertWithNullValue() {
 		VectorNode vec = new VectorNode().setId(id).setValueFromJson("{\"c0\":{\"v\":[111],\"i\":[3,4]}}");
 		VectorNode update = new VectorNode().setId(id).setValues(new LinkedHashMap<>());
-		update.getValues().put("c1", null);
+		update.getValues().put(1, null);
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
 			assertTrue(vec.attemptInsert(update));

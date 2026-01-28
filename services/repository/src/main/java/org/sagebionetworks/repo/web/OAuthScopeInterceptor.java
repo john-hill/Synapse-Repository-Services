@@ -16,6 +16,7 @@ import org.sagebionetworks.auth.HttpAuthUtil;
 import org.sagebionetworks.repo.manager.oauth.ClaimsJsonUtil;
 import org.sagebionetworks.repo.manager.oauth.OIDCTokenManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.oauth.OAuthScope;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.MethodParameter;
@@ -55,11 +56,10 @@ public class OAuthScopeInterceptor implements HandlerInterceptor {
 		return false;
 	}
 	
-	public static boolean isAnonymous(HttpServletRequest request) {
+	public static boolean isUnAuthenticated(HttpServletRequest request) {
+		// will only be Default-Realm-Anonymous-User if the requested is completely unauthenticated
 		String userIdRequestParameter = request.getParameter(AuthorizationConstants.USER_ID_PARAM);
-		return userIdRequestParameter == null ||
-				AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId()
-					.equals(Long.parseLong(userIdRequestParameter));
+		return AuthorizationUtils.isDefaultRealmAnonymousId(Long.parseLong(userIdRequestParameter));
 	}
 	
 	public static boolean isServiceCall(HttpServletRequest request) {
@@ -76,9 +76,8 @@ public class OAuthScopeInterceptor implements HandlerInterceptor {
 			return true;
 		}
 		
-		// anonymous requests do not need to have scope checked, they have the same 
-		// access that unauthenticated requests have
-		if (isAnonymous(request)) {
+		// unauthenticated requests can't have scope checked, as there is no access token defining scopes
+		if (isUnAuthenticated(request)) {
 			return true;
 		}
 		

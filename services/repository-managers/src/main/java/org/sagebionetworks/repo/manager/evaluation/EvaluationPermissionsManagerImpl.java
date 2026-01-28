@@ -105,7 +105,7 @@ public class EvaluationPermissionsManagerImpl implements EvaluationPermissionsMa
 		final Long evalOwnerId = KeyFactory.stringToKey(eval.getOwnerId());
 		PermissionsManagerUtils.validateACLContent(acl, userInfo, evalOwnerId);
 
-		validateUserGroupPermissions(acl.getResourceAccess());
+		validateUserGroupPermissions(acl.getResourceAccess(), userInfo.getRealmAnonymousUserId());
 
 		aclDAO.update(acl, ObjectType.EVALUATION);
 		return aclDAO.get(evalId, ObjectType.EVALUATION);
@@ -223,7 +223,7 @@ public class EvaluationPermissionsManagerImpl implements EvaluationPermissionsMa
 		permission.setOwnerPrincipalId(KeyFactory.stringToKey(eval.getOwnerId()));
 
 		// Public read
-		UserInfo anonymousUser = userManager.getUserInfo(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
+		UserInfo anonymousUser = userManager.getUserInfo(userInfo.getRealmAnonymousUserId());
 		permission.setCanPublicRead(hasAccess(anonymousUser, evalId, READ).isAuthorized());
 
 		// Other permissions
@@ -242,13 +242,18 @@ public class EvaluationPermissionsManagerImpl implements EvaluationPermissionsMa
 	/*
 	 * Ensures that public/anonymous users are not given more permissions than they should be allowed to have on an evaluation
 	 */
-	private static void validateUserGroupPermissions(Set<ResourceAccess> resourceAccess) {
+	private static void validateUserGroupPermissions(Set<ResourceAccess> resourceAccess, Long anonymousPrincipalId) {
 		for (ResourceAccess ra : resourceAccess) {
 			if (ra.getPrincipalId().equals(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId())) {
 				if (!CollectionUtils.isSubCollection(ra.getAccessType(), ModelConstants.EVALUATION_PUBLIC_MAXIMUM_ACCESS_PERMISSIONS)) {
 					throw new InvalidModelException("Public users may only have read access on an evaluation.");
 				}
-			} else if (ra.getPrincipalId().equals(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId())) {
+			} else if (ra.getPrincipalId().equals(anonymousPrincipalId)) {
+				// Note, we need to check all anonymous users (from all realms) are rejected
+				// however anonymous users from other realms will be addressed by the constraint
+				// that all ACL entries must be from the same realm
+				//
+				// PLFM-9438 TODO Anonymous should not be in an ACL AT ALL
 				if (!CollectionUtils.isSubCollection(ra.getAccessType(), ModelConstants.EVALUATION_ANONYMOUS_MAXIMUM_ACCESS_PERMISSIONS)) {
 					throw new InvalidModelException("Anonymous users may only have read access on an evaluation.");
 				}

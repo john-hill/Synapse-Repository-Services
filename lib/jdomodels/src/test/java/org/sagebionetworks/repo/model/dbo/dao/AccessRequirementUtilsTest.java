@@ -342,7 +342,7 @@ public class AccessRequirementUtilsTest {
 		));
 		
 		// Call under test
-		AccessRequirementUtils.validateAccessRequirementAcl(acl);
+		AccessRequirementUtils.validateAccessRequirementAcl(acl, BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 	}
 	
 	@Test
@@ -351,7 +351,7 @@ public class AccessRequirementUtilsTest {
 		
 		String message = assertThrows(IllegalArgumentException.class, () -> {			
 			// Call under test
-			AccessRequirementUtils.validateAccessRequirementAcl(acl);
+			AccessRequirementUtils.validateAccessRequirementAcl(acl, BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 		}).getMessage();
 		
 		assertEquals("acl is required.", message);
@@ -363,7 +363,7 @@ public class AccessRequirementUtilsTest {
 		
 		String message = assertThrows(IllegalArgumentException.class, () -> {			
 			// Call under test
-			AccessRequirementUtils.validateAccessRequirementAcl(acl);
+			AccessRequirementUtils.validateAccessRequirementAcl(acl, BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 		}).getMessage();
 		
 		assertEquals("acl.resourceAccess is required and must not be empty.", message);
@@ -375,7 +375,7 @@ public class AccessRequirementUtilsTest {
 		
 		String message = assertThrows(IllegalArgumentException.class, () -> {			
 			// Call under test
-			AccessRequirementUtils.validateAccessRequirementAcl(acl);
+			AccessRequirementUtils.validateAccessRequirementAcl(acl, BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 		}).getMessage();
 		
 		assertEquals("acl.resourceAccess is required and must not be empty.", message);
@@ -389,7 +389,7 @@ public class AccessRequirementUtilsTest {
 		
 		String message = assertThrows(IllegalArgumentException.class, () -> {			
 			// Call under test
-			AccessRequirementUtils.validateAccessRequirementAcl(acl);
+			AccessRequirementUtils.validateAccessRequirementAcl(acl, BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 		}).getMessage();
 		
 		assertEquals("Cannot assign permissions to the anonmous user.", message);
@@ -403,7 +403,7 @@ public class AccessRequirementUtilsTest {
 		
 		String message = assertThrows(IllegalArgumentException.class, () -> {			
 			// Call under test
-			AccessRequirementUtils.validateAccessRequirementAcl(acl);
+			AccessRequirementUtils.validateAccessRequirementAcl(acl, BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 		}).getMessage();
 		
 		assertEquals("Cannot assign permissions to the public group.", message);

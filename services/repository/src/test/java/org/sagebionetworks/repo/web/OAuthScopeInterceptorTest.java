@@ -160,18 +160,18 @@ class OAuthScopeInterceptorTest {
 	void testIsAnonymous_anonymousId() {
 		when(mockRequest.getParameter(AuthorizationConstants.USER_ID_PARAM)).
 			thenReturn(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId().toString());
-		assertTrue(OAuthScopeInterceptor.isAnonymous(mockRequest));
+		assertTrue(OAuthScopeInterceptor.isUnAuthenticated(mockRequest));
 	}
 	
 	@Test
 	void testIsAnonymous_missingId() {
-		assertTrue(OAuthScopeInterceptor.isAnonymous(mockRequest));
+		assertTrue(OAuthScopeInterceptor.isUnAuthenticated(mockRequest));
 	}
 	
 	@Test
 	void testIsAnonymous_NOT_anonymous() {
 		when(mockRequest.getParameter(AuthorizationConstants.USER_ID_PARAM)).thenReturn("123");
-		assertFalse(OAuthScopeInterceptor.isAnonymous(mockRequest));
+		assertFalse(OAuthScopeInterceptor.isUnAuthenticated(mockRequest));
 	}
 	
 	@Test

@@ -220,16 +220,16 @@ public class AuthenticationManagerImpl implements AuthenticationManager {
 			throw new UnauthorizedException("Cannot log in using a password.  Use the designated identity provider instead.");
 		}
 		
-		return loginWithNoPasswordCheck(userId, tokenIssuer);
+		return loginWithNoPasswordCheckInternal(user, tokenIssuer);
 	}
 
 	@Override
 	public LoginResponse loginWithNoPasswordCheck(long principalId, String issuer) {
 		UserInfo user = userManager.getUserInfo(principalId);
-		return loginWithNoPasswordCheck(user, issuer);
+		return loginWithNoPasswordCheckInternal(user, issuer);
 	}
 	
-	private LoginResponse loginWithNoPasswordCheck(UserInfo user, String issuer) {
+	private LoginResponse loginWithNoPasswordCheckInternal(UserInfo user, String issuer) {
 		long principalId = user.getId();
 		if (user.hasTwoFactorAuthEnabled()) {
 			throw new TwoFactorAuthRequiredException(principalId, twoFaManager.generate2FaToken(user, TwoFactorAuthTokenContext.AUTHENTICATION));

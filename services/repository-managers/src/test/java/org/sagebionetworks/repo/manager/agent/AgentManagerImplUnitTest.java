@@ -36,6 +36,7 @@ import org.reactivestreams.Subscription;
 import org.sagebionetworks.LoggerProvider;
 import org.sagebionetworks.cloudwatch.Consumer;
 import org.sagebionetworks.cloudwatch.ProfileData;
+import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.agent.AgentManagerImpl.AgentResponse;
 import org.sagebionetworks.repo.manager.agent.context.AgentContextValidator;
 import org.sagebionetworks.repo.manager.agent.handler.HttpCode;
@@ -151,6 +152,9 @@ public class AgentManagerImplUnitTest {
 
 	@Mock
 	private Consumer mockCloudwatchConsumer;
+	
+	@Mock
+	private UserManager mockUserManager;
 
 	private AgentManagerImpl manager;
 
@@ -220,7 +224,7 @@ public class AgentManagerImplUnitTest {
 				stackBedrockGridAgentId);
 
 		manager = Mockito.spy(new AgentManagerImpl(mockAgentDao, mockAgentClientProvider, idMap,
-				mockReturnControlHandlerProvider, mockClock, mockStatusDao, mockFeatureManager, mockContextValidator, mockCloudwatchConsumer));
+				mockReturnControlHandlerProvider, mockClock, mockStatusDao, mockFeatureManager, mockContextValidator, mockCloudwatchConsumer, mockUserManager));
 
 		when(mockLoggerProvider.getLogger(AgentManagerImpl.class.getName())).thenReturn(mockLogger);
 		manager.setLoggerProvider(mockLoggerProvider);

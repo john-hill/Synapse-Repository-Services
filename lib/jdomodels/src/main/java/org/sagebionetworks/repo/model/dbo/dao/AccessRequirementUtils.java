@@ -193,13 +193,15 @@ public class AccessRequirementUtils {
 		return Collections.emptySet();
 	}
 
-	public static void validateAccessRequirementAcl(AccessControlList acl) {
+	public static void validateAccessRequirementAcl(AccessControlList acl, Long anonymousPrincipalId) {
 		ValidateArgument.required(acl, "acl");
 		ValidateArgument.requiredNotEmpty(acl.getResourceAccess(), "acl.resourceAccess");
 
 		acl.getResourceAccess().forEach(access -> {
 			ValidateArgument.required(access.getPrincipalId(), "acl.resourceAccess.principalId");
-			ValidateArgument.requirement(!BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId().equals(access.getPrincipalId()), "Cannot assign permissions to the anonmous user.");
+			// Note we need reject anonymous user from ANY realm, but principals from other
+			// realms are taken care of by the check that all ACL principals must be in the same realm.
+			ValidateArgument.requirement(!anonymousPrincipalId.equals(access.getPrincipalId()), "Cannot assign permissions to the anonmous user.");
 			ValidateArgument.requirement(!BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId().equals(access.getPrincipalId()), "Cannot assign permissions to the public group.");
 		});
 	}

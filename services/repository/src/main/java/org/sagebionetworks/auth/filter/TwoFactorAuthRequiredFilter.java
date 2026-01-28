@@ -12,6 +12,7 @@ import org.sagebionetworks.repo.manager.feature.FeatureManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.GroupMembersDAO;
+import org.sagebionetworks.repo.model.RealmDao;
 import org.sagebionetworks.repo.model.auth.AuthenticationDAO;
 import org.sagebionetworks.repo.model.feature.Feature;
 import org.sagebionetworks.repo.web.TwoFactorAuthEnabledRequiredException;
@@ -27,11 +28,14 @@ public class TwoFactorAuthRequiredFilter extends OncePerRequestFilter {
 	private GroupMembersDAO groupMemberDao;
 	private AuthenticationDAO authDao;
 	private FeatureManager featureManager;
+	private RealmDao realmDao;
 	
-	public TwoFactorAuthRequiredFilter(GroupMembersDAO groupMemberDao, AuthenticationDAO authDao, FeatureManager featureManager) {
+	
+	public TwoFactorAuthRequiredFilter(GroupMembersDAO groupMemberDao, AuthenticationDAO authDao, FeatureManager featureManager, RealmDao realmDao) {
 		this.groupMemberDao = groupMemberDao;
 		this.authDao = authDao;
 		this.featureManager = featureManager;
+		this.realmDao = realmDao;
 	}
 
 	@Override
@@ -41,7 +45,7 @@ public class TwoFactorAuthRequiredFilter extends OncePerRequestFilter {
 		Long userId = Long.parseLong(userIdParam);
 		
 		// The anonymous user is not a conventional user and cannot enable 2fa
-		if (BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId().equals(userId)) {
+		if (realmDao.getRealmForAnonymousPrincipal(userId.toString()).isPresent()) {
 			filterChain.doFilter(httpRequest, httpResponse);
 			return;
 		}

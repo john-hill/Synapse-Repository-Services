@@ -10,13 +10,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import org.json.JSONArray;
 import org.sagebionetworks.repo.model.grid.encoding.B1Vu56Utils;
 import org.sagebionetworks.repo.model.grid.encoding.Base36Utils;
 import org.sagebionetworks.repo.model.grid.encoding.Vu57Utils;
-import org.sagebionetworks.repo.model.grid.node.ArrayNode;
 import org.sagebionetworks.repo.model.grid.node.Node;
-import org.sagebionetworks.repo.model.grid.node.ObjectNode;
-import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.util.ValidateArgument;
 
@@ -44,19 +42,8 @@ public class ClockTable {
     public void processNode(Node node) {
         ValidateArgument.required(node, "node");
 
-        updateClockTable(node.getId());
-
-        // For nodes that reference other nodes, also process those references
-        if (node instanceof ArrayNode) {
-            ((ArrayNode) node).getElements().forEach(rgaNode -> {
-                updateClockTable(rgaNode.getNodeId());
-                updateClockTable(rgaNode.getDataId());
-            });
-        } else if (node instanceof VectorNode) {
-            ((VectorNode) node).getValues().values().forEach(n -> updateClockTable(n.getId()));
-        } else if (node instanceof ObjectNode) {
-            ((ObjectNode) node).getValue().values().forEach(this::updateClockTable);
-        }
+        node.streamReferencedTimestamps()
+                .forEach(this::updateClockTable);
     }
 
     /**

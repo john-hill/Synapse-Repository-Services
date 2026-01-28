@@ -5,11 +5,13 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.node.Node;
@@ -65,7 +67,6 @@ public class IndexedModelDecoder implements Closeable, Iterable<Node> {
 
 	private CBORParser parser;
 	private boolean parserInitialized = false;
-	private boolean closed = false;
 
 	/**
 	 * Create a new IndexedModelDecoder.
@@ -295,6 +296,13 @@ public class IndexedModelDecoder implements Closeable, Iterable<Node> {
         };
 	}
 
+	public Stream<Node> stream() {
+		return StreamSupport.stream(
+				Spliterators.spliteratorUnknownSize(iterator(), Spliterator.DISTINCT | Spliterator.IMMUTABLE | Spliterator.ORDERED | Spliterator.NONNULL),
+				false  // not parallel
+		);
+	}
+
 	/**
 	 * Close the decoder.
 	 *
@@ -302,59 +310,8 @@ public class IndexedModelDecoder implements Closeable, Iterable<Node> {
 	 */
 	@Override
 	public void close() throws IOException {
-		if (!closed) {
-			if (parser != null) {
-				parser.close();
-			}
-			closed = true;
-		}
-	}
-
-	/**
-	 * Convenience method to decode a model and collect all nodes.
-	 * Note: This loads all nodes into memory, defeating the streaming purpose.
-	 * Use the iterator or forEachNode for streaming.
-	 *
-	 * @param streamProvider a supplier that provides a fresh InputStream for each call
-	 * @return a result containing the clock table, root node ID, and all nodes
-	 * @throws UncheckedIOException if an I/O error occurs
-	 */
-	public static DecodedModel decodeModel(Supplier<InputStream> streamProvider) {
-		try (IndexedModelDecoder decoder = new IndexedModelDecoder(streamProvider)) {
-			ClockTable clockTable = decoder.getClockTable();
-			LogicalTimestamp rootNodeId = decoder.getRootNodeId();
-			List<Node> nodes = new ArrayList<>();
-			decoder.iterator().forEachRemaining(nodes::add);
-			return new DecodedModel(clockTable, rootNodeId, nodes);
-		} catch (IOException e) {
-			throw new UncheckedIOException("Failed to decode model", e);
-		}
-	}
-
-	/**
-	 * Result of decoding a complete model.
-	 */
-	public static class DecodedModel {
-		private final ClockTable clockTable;
-		private final LogicalTimestamp rootNodeId;
-		private final List<Node> nodes;
-
-		public DecodedModel(ClockTable clockTable, LogicalTimestamp rootNodeId, List<Node> nodes) {
-			this.clockTable = clockTable;
-			this.rootNodeId = rootNodeId;
-			this.nodes = nodes;
-		}
-
-		public ClockTable getClockTable() {
-			return clockTable;
-		}
-
-		public LogicalTimestamp getRootNodeId() {
-			return rootNodeId;
-		}
-
-		public List<Node> getNodes() {
-			return nodes;
+		if (parser != null) {
+			parser.close();
 		}
 	}
 }

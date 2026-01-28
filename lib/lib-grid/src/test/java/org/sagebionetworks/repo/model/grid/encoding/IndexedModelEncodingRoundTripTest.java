@@ -4,10 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
-import java.io.FileOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -90,11 +88,10 @@ public class IndexedModelEncodingRoundTripTest {
                 .setId(new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(13L))
                 .setValue(new ConValue(ConType.NULL, null)));
 
-        // Write to test resources directory
-        Path outputFile = Files.createTempFile("indexed-model-", ".cbor");
 
-        try (FileOutputStream fos = new FileOutputStream(outputFile.toFile())) {
-            try (IndexedModelEncoder encoder = new IndexedModelEncoder(fos, testRootNodeId)) {
+        byte[] encodedBytes;
+        try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
+            try (IndexedModelEncoder encoder = new IndexedModelEncoder(byteArrayOutputStream, testRootNodeId)) {
                 nodes.forEach(node -> {
                     try {
                         encoder.writeNode(node);
@@ -103,17 +100,12 @@ public class IndexedModelEncodingRoundTripTest {
                     }
                 });
             }
+            encodedBytes = byteArrayOutputStream.toByteArray();
         }
-
-        // Verify the file was written
-        assertTrue(Files.exists(outputFile));
-        assertTrue(Files.size(outputFile) > 0);
-
-        System.out.println("Wrote indexed model to: " + outputFile.toAbsolutePath());
+        assertTrue(encodedBytes.length > 0);
 
         // Now read back the file and verify the nodes
-        byte[] fileBytes = Files.readAllBytes(outputFile);
-        Supplier<ByteArrayInputStream> supplier = () -> new ByteArrayInputStream(fileBytes);
+        Supplier<ByteArrayInputStream> supplier = () -> new ByteArrayInputStream(encodedBytes);
 
         ClockTable expectedClockTable = new ClockTable(List.of(
                 new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(12L),

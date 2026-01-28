@@ -1,11 +1,9 @@
 package org.sagebionetworks.repo.model.grid.encoding;
 
+import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.PipedInputStream;
-import java.io.PipedOutputStream;
 import java.util.ArrayList;
 
 import org.sagebionetworks.repo.model.grid.ClockTable;
@@ -43,9 +41,9 @@ public class IndexedModelEncoder implements Closeable {
 	private final LogicalTimestamp rootNodeId;
 	private final NodeCodec nodeCodec;
 	private final CBORGenerator generator;
+    private final ClockTable clockTable;
 
-    private ClockTable clockTable;
-    private boolean closed = false;
+	private boolean closed = false;
 
 	/**
 	 * Create a new IndexedModelEncoder.
@@ -92,18 +90,13 @@ public class IndexedModelEncoder implements Closeable {
 		String nodeKey = clockTable.encodeNodeKey(node.getId());
 
 		// Encode the node to binary
-		// Use a Piped stream to avoid buffering the entire node in memory
-		final PipedInputStream in = new PipedInputStream();
-		final PipedOutputStream out = new PipedOutputStream(in);
-		int length = nodeCodec.encode(node, clockTable, out);
+		try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+			nodeCodec.encode(node, clockTable, baos);
 
-		// Write the entry to the output file
-		writeNodeEntry(nodeKey, in, length);
-	}
-
-	private void writeNodeEntry(String key, InputStream byteStream, int length) throws IOException {
-		generator.writeFieldName(key);
-		generator.writeBinary(byteStream, length);
+			// Write the entry to the output file
+			generator.writeFieldName(nodeKey);
+			generator.writeBinary(baos.toByteArray());
+		}
 	}
 
 	/**

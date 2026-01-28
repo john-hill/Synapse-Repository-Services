@@ -16,7 +16,6 @@ import java.util.function.Supplier;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 import org.sagebionetworks.repo.model.grid.ClockTable;
-import org.sagebionetworks.repo.model.grid.encoding.IndexedModelDecoder.DecodedModel;
 import org.sagebionetworks.repo.model.grid.node.ArrayNode;
 import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.Node;
@@ -71,11 +70,13 @@ public class IndexedModelDecoderTest {
 			// Verify clock table
 			ClockTable clockTable = decoder.getClockTable();
 			assertNotNull(clockTable);
-			assertEquals(1, clockTable.getClocks().size());
-			assertEquals(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(8L), clockTable.getClocks().get(0));
+			assertEquals(3, clockTable.getClocks().size());
+			assertEquals(new LogicalTimestamp().setReplicaId(100002L).setSequenceNumber(6L), clockTable.getClocks().get(0));
+			assertEquals(new LogicalTimestamp().setReplicaId(100001L).setSequenceNumber(4L), clockTable.getClocks().get(1));
+			assertEquals(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(2L), clockTable.getClocks().get(2));
 
 			// Verify root node ID
-			assertEquals(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(5L), decoder.getRootNodeId());
+			assertEquals(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(1L), decoder.getRootNodeId());
 
 			// Verify nodes
 			List<Node> nodes = new ArrayList<>();
@@ -83,19 +84,26 @@ public class IndexedModelDecoderTest {
 			while ((node = decoder.readNode()) != null) {
 				nodes.add(node);
 			}
-			assertEquals(2, nodes.size());
+			assertEquals(3, nodes.size());
 
 			// Node 0: ObjectNode with "rep2" key
 			ObjectNode expectedObj = new ObjectNode()
-				.setId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(5L))
-				.setValue(java.util.Map.of("rep2", new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(6L)));
+				.setId(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(1L))
+				.setValue(java.util.Map.of("rep1", new LogicalTimestamp().setReplicaId(100001L).setSequenceNumber(3L),
+						"rep2", new LogicalTimestamp().setReplicaId(100002L).setSequenceNumber(5L)));
 			assertEquals(expectedObj, nodes.get(0));
 
 			// Node 1: ConstantNode with string value
-			ConstantNode expectedConst = new ConstantNode()
-				.setId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(6L))
-				.setValue(new ConValue(ConType.STRING, "From replica 2"));
-			assertEquals(expectedConst, nodes.get(1));
+			ConstantNode expectedConst1 = new ConstantNode()
+				.setId(new LogicalTimestamp().setReplicaId(100001L).setSequenceNumber(3L))
+				.setValue(new ConValue(ConType.STRING, "From replica 1"));
+			assertEquals(expectedConst1, nodes.get(1));
+
+			ConstantNode expectedConst2 = new ConstantNode()
+					.setId(new LogicalTimestamp().setReplicaId(100002L).setSequenceNumber(5L))
+					.setValue(new ConValue(ConType.STRING, "From replica 2"));
+			assertEquals(expectedConst2, nodes.get(2));
+
 		}
 	}
 
@@ -253,20 +261,6 @@ public class IndexedModelDecoderTest {
 			// Should throw when trying to get next after exhausted
 			assertThrows(NoSuchElementException.class, () -> iter.next());
 		}
-	}
-
-	@Test
-	public void testDecodeModelStaticMethod() throws IOException {
-		DecodedModel result = IndexedModelDecoder.decodeModel(loadResource("/indexed-model/multiple-replicas.cbor"));
-
-		assertNotNull(result);
-		assertNotNull(result.getClockTable());
-		assertNotNull(result.getRootNodeId());
-		assertNotNull(result.getNodes());
-
-		assertEquals(2, result.getNodes().size());
-		assertEquals(1L, result.getRootNodeId().getReplicaId());
-		assertEquals(5L, result.getRootNodeId().getSequenceNumber());
 	}
 
 	@Test

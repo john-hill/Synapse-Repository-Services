@@ -202,7 +202,7 @@ public class AdministrationServiceImplTest {
 		LoginResponse expected = new LoginResponse().setAccessToken("token");
 		
 		when(mockUserManager.getUserInfo(any())).thenReturn(admin);
-		when(mockAuthManager.loginWithNoPasswordOrTwoFaCheck(anyLong(), any())).thenReturn(expected);
+		when(mockAuthManager.loginWithNoPasswordOrTwoFaCheck(any(UserInfo.class), any())).thenReturn(expected);
 		
 		// Call under test
 		LoginResponse result = adminService.getUserAccessToken(adminUserId, nonAdminUserId);
@@ -210,7 +210,7 @@ public class AdministrationServiceImplTest {
 		assertEquals(expected, result);
 		
 		verify(mockUserManager).getUserInfo(adminUserId);
-		verify(mockAuthManager).loginWithNoPasswordOrTwoFaCheck(nonAdminUserId, null);
+		verify(mockAuthManager).loginWithNoPasswordOrTwoFaCheck(nonAdmin, null);
 	}
 	
 	@Test

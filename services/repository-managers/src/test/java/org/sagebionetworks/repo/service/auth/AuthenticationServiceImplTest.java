@@ -169,7 +169,7 @@ public class AuthenticationServiceImplTest {
 	public void testGetUserTermsOfServiceStatus() {
 		TermsOfServiceStatus status = new TermsOfServiceStatus();
 		
-		when(mockTosManager.getUserTermsOfServiceStatus(userId)).thenReturn(status);
+		when(mockTosManager.getUserTermsOfServiceStatus(userInfo)).thenReturn(status);
 		
 		assertEquals(status, service.getUserTermsOfServiceStatus(userId));
 	}
@@ -833,7 +833,7 @@ public class AuthenticationServiceImplTest {
 
 	@Test
 	public void testHasUserAcceptedTermsOfService() {
-		when(mockTosManager.hasUserAcceptedTermsOfService(userId)).thenReturn(true);
+		when(mockTosManager.hasUserAcceptedTermsOfService(userInfo)).thenReturn(true);
 		
 		// method under test
 		assertTrue(service.hasUserAcceptedTermsOfService(userId));		

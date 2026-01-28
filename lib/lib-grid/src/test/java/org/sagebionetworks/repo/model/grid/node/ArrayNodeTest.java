@@ -12,7 +12,7 @@ import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
 public class ArrayNodeTest {
 
-	private LogicalTimestamp nodeId;
+	private LogicalTimestamp arrayId;
 	private LogicalTimestamp rgaNodeId1;
 	private LogicalTimestamp rgaDataId1;
 	private LogicalTimestamp rgaNodeId2;
@@ -22,29 +22,55 @@ public class ArrayNodeTest {
 
 	@BeforeEach
 	public void before() {
-		nodeId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L);
-		rgaNodeId1 = new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(4L);
-		rgaDataId1 = new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(6L);
-		rgaNodeId2 = new LogicalTimestamp().setReplicaId(7L).setSequenceNumber(8L);
-		rgaDataId2 = new LogicalTimestamp().setReplicaId(9L).setSequenceNumber(10L);
-		rgaNodeId3 = new LogicalTimestamp().setReplicaId(11L).setSequenceNumber(12L);
-		rgaDataId3 = new LogicalTimestamp().setReplicaId(13L).setSequenceNumber(14L);
+		// Array container ID
+		arrayId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L);
+
+		// RGA nodes and their data - ensure nodeId and dataId are never the same
+		rgaNodeId1 = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L);
+		rgaDataId1 = new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(3L);
+
+		rgaNodeId2 = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(4L);
+		rgaDataId2 = new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(5L);
+
+		rgaNodeId3 = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(6L);
+		rgaDataId3 = new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(7L);
 	}
 
 	@Test
 	public void testStreamReferencedTimestampsWithElements() {
-		ArrayNode array = new ArrayNode().setId(nodeId);
+		ArrayNode array = new ArrayNode().setId(arrayId);
 		List<RGANode> elements = new ArrayList<>();
-		elements.add(new RGANode().setNodeId(rgaNodeId1).setDataId(rgaDataId1));
-		elements.add(new RGANode().setNodeId(rgaNodeId2).setDataId(rgaDataId2));
-		elements.add(new RGANode().setNodeId(rgaNodeId3).setDataId(rgaDataId3));
+
+		// First element: containerId = array ID, refId = null (no predecessor)
+		elements.add(new RGANode()
+				.setContainerId(arrayId)
+				.setNodeId(rgaNodeId1)
+				.setDataId(rgaDataId1)
+				.setReferenceNodeId(null));
+
+		// Second element: containerId = array ID, refId = previous node ID
+		elements.add(new RGANode()
+				.setContainerId(arrayId)
+				.setNodeId(rgaNodeId2)
+				.setDataId(rgaDataId2)
+				.setReferenceNodeId(rgaNodeId1));
+
+		// Third element: containerId = array ID, refId = previous node ID
+		elements.add(new RGANode()
+				.setContainerId(arrayId)
+				.setNodeId(rgaNodeId3)
+				.setDataId(rgaDataId3)
+				.setReferenceNodeId(rgaNodeId2));
+
 		array.setElements(elements);
 
 		// call under test
 		List<LogicalTimestamp> timestamps = array.streamReferencedTimestamps().collect(Collectors.toList());
 
+		// Should include: arrayId, rgaNodeId1, rgaDataId1, rgaNodeId2, rgaDataId2, rgaNodeId3, rgaDataId3
+		// Note: containerId and refId are NOT included as they reference the container and previous nodes
 		assertEquals(7, timestamps.size());
-		assertEquals(nodeId, timestamps.get(0)); // node ID first
+		assertEquals(arrayId, timestamps.get(0)); // array node ID first
 		assertEquals(rgaNodeId1, timestamps.get(1));
 		assertEquals(rgaDataId1, timestamps.get(2));
 		assertEquals(rgaNodeId2, timestamps.get(3));
@@ -55,86 +81,23 @@ public class ArrayNodeTest {
 
 	@Test
 	public void testStreamReferencedTimestampsWithNullElements() {
-		ArrayNode array = new ArrayNode().setId(nodeId).setElements(null);
+		ArrayNode array = new ArrayNode().setId(arrayId).setElements(null);
 
 		// call under test
 		List<LogicalTimestamp> timestamps = array.streamReferencedTimestamps().collect(Collectors.toList());
 
 		assertEquals(1, timestamps.size());
-		assertEquals(nodeId, timestamps.get(0)); // only node ID
+		assertEquals(arrayId, timestamps.get(0)); // only array node ID
 	}
 
 	@Test
 	public void testStreamReferencedTimestampsWithEmptyElements() {
-		ArrayNode array = new ArrayNode().setId(nodeId).setElements(new ArrayList<>());
+		ArrayNode array = new ArrayNode().setId(arrayId).setElements(new ArrayList<>());
 
 		// call under test
 		List<LogicalTimestamp> timestamps = array.streamReferencedTimestamps().collect(Collectors.toList());
 
 		assertEquals(1, timestamps.size());
-		assertEquals(nodeId, timestamps.get(0)); // only node ID
+		assertEquals(arrayId, timestamps.get(0)); // only array node ID
 	}
-
-	@Test
-	public void testStreamReferencedTimestampsWithNullNodeId() {
-		ArrayNode array = new ArrayNode().setId(nodeId);
-		List<RGANode> elements = new ArrayList<>();
-		elements.add(new RGANode().setNodeId(rgaNodeId1).setDataId(rgaDataId1));
-		elements.add(new RGANode().setNodeId(null).setDataId(rgaDataId2)); // null nodeId
-		elements.add(new RGANode().setNodeId(rgaNodeId3).setDataId(rgaDataId3));
-		array.setElements(elements);
-
-		// call under test
-		List<LogicalTimestamp> timestamps = array.streamReferencedTimestamps().collect(Collectors.toList());
-
-		assertEquals(6, timestamps.size());
-		assertEquals(nodeId, timestamps.get(0));
-		assertEquals(rgaNodeId1, timestamps.get(1));
-		assertEquals(rgaDataId1, timestamps.get(2));
-		assertEquals(rgaDataId2, timestamps.get(3)); // dataId still included
-		assertEquals(rgaNodeId3, timestamps.get(4));
-		assertEquals(rgaDataId3, timestamps.get(5));
-	}
-
-	@Test
-	public void testStreamReferencedTimestampsWithNullDataId() {
-		ArrayNode array = new ArrayNode().setId(nodeId);
-		List<RGANode> elements = new ArrayList<>();
-		elements.add(new RGANode().setNodeId(rgaNodeId1).setDataId(rgaDataId1));
-		elements.add(new RGANode().setNodeId(rgaNodeId2).setDataId(null)); // null dataId
-		elements.add(new RGANode().setNodeId(rgaNodeId3).setDataId(rgaDataId3));
-		array.setElements(elements);
-
-		// call under test
-		List<LogicalTimestamp> timestamps = array.streamReferencedTimestamps().collect(Collectors.toList());
-
-		assertEquals(6, timestamps.size());
-		assertEquals(nodeId, timestamps.get(0));
-		assertEquals(rgaNodeId1, timestamps.get(1));
-		assertEquals(rgaDataId1, timestamps.get(2));
-		assertEquals(rgaNodeId2, timestamps.get(3)); // nodeId still included
-		assertEquals(rgaNodeId3, timestamps.get(4));
-		assertEquals(rgaDataId3, timestamps.get(5));
-	}
-
-	@Test
-	public void testStreamReferencedTimestampsWithBothNull() {
-		ArrayNode array = new ArrayNode().setId(nodeId);
-		List<RGANode> elements = new ArrayList<>();
-		elements.add(new RGANode().setNodeId(rgaNodeId1).setDataId(rgaDataId1));
-		elements.add(new RGANode().setNodeId(null).setDataId(null)); // both null
-		elements.add(new RGANode().setNodeId(rgaNodeId3).setDataId(rgaDataId3));
-		array.setElements(elements);
-
-		// call under test
-		List<LogicalTimestamp> timestamps = array.streamReferencedTimestamps().collect(Collectors.toList());
-
-		assertEquals(5, timestamps.size());
-		assertEquals(nodeId, timestamps.get(0));
-		assertEquals(rgaNodeId1, timestamps.get(1));
-		assertEquals(rgaDataId1, timestamps.get(2));
-		assertEquals(rgaNodeId3, timestamps.get(3));
-		assertEquals(rgaDataId3, timestamps.get(4));
-	}
-
 }

@@ -294,7 +294,7 @@ public class AuthenticationManagerImplUnitTest {
 		assertEquals("2faToken", result.getTwoFaToken());
 		
 		verify(mockReceiptTokenGenerator).isReceiptValid(userId, receipt);
-		verify(mockUserManager, times(2)).getUserInfo(userId);
+		verify(mockUserManager).getUserInfo(userId);
 		verify(mock2FaManager).generate2FaToken(userInfo, TwoFactorAuthTokenContext.AUTHENTICATION);
 		verify(mockUserCredentialValidator, never()).checkPasswordWithThrottling(userId, password);
 	}
@@ -350,11 +350,9 @@ public class AuthenticationManagerImplUnitTest {
 		String newReceipt = "newReceipt";
 		when(mockReceiptTokenGenerator.createNewAuthenticationReciept(userId)).thenReturn(newReceipt);
 		when(mockOIDCTokenHelper.createClientTotalAccessToken(userId, issuer)).thenReturn(synapseAccessToken);
-		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
 		when(mockTosManager.hasUserAcceptedTermsOfService(eq(userInfo))).thenReturn(true);
 		Date now = new Date(12345);		
 		when(mockClock.now()).thenReturn(now);
-		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
 
 		LoginResponse expected = new LoginResponse();
 		expected.setAcceptsTermsOfUse(true);
@@ -404,6 +402,7 @@ public class AuthenticationManagerImplUnitTest {
 	public void testAuthenticatedOnAnonymous() {
 		UserInfo userInfo = new UserInfo(false);
 		userInfo.setId(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
+		userInfo.setRealmAnonymousUserId(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 
 		// method under test
 		assertThrows(UnauthenticatedException.class, ()->{
@@ -420,7 +419,6 @@ public class AuthenticationManagerImplUnitTest {
 		String newReceipt = "uwu";
 		when(mockReceiptTokenGenerator.createNewAuthenticationReciept(userId)).thenReturn(newReceipt);
 		when(mockOIDCTokenHelper.createClientTotalAccessToken(userId, issuer)).thenReturn(synapseAccessToken);
-		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
 		when(mockTosManager.hasUserAcceptedTermsOfService(eq(userInfo))).thenReturn(true);
 		Date authTime = new Date(12345L);
 		when(mockClock.now()).thenReturn(authTime);
@@ -428,7 +426,6 @@ public class AuthenticationManagerImplUnitTest {
 		expected.setAcceptsTermsOfUse(true);
 		expected.setAccessToken(synapseAccessToken);
 		expected.setAuthenticationReceipt(newReceipt);
-		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
 
 		//method under test
 		LoginResponse loginResponse = authManager.getLoginResponseAfterSuccessfulAuthentication(userInfo, issuer);
@@ -443,7 +440,6 @@ public class AuthenticationManagerImplUnitTest {
 	@Test
 	public void testGetLoginResponseAfterSuccessfulAuthenticationWithDisabledUser(){
 		when(mockUserStatusDao.isDisabled(userId)).thenReturn(true);
-		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
 		
 		assertEquals("Your account has been disabled. Please contact support for assistance.", assertThrows(UnauthorizedException.class, () -> {
 			authManager.getLoginResponseAfterSuccessfulAuthentication(userInfo, issuer);	

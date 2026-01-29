@@ -254,9 +254,11 @@ public class OpenIDConnectManagerImplUnitTest {
 	public void setUp() throws Exception {
 		userInfo = new UserInfo(false, USER_ID_LONG, DEFAULT_REALM_ID);
 		userInfo.setGroups(Collections.singleton(USER_ID_LONG));
+		userInfo.setRealmAnonymousUserId(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 
 		anonymousUserInfo = new UserInfo(false);
 		anonymousUserInfo.setId(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
+		anonymousUserInfo.setRealmAnonymousUserId(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 		
 		oauthClient = new OAuthClient();
 		oauthClient.setClient_name(OAUTH_CLIENT_NAME);
@@ -831,6 +833,7 @@ public class OpenIDConnectManagerImplUnitTest {
 		when(mockUserProfileManager.getUserProfile(USER_ID)).thenReturn(userProfile);
 		when(mockUserProfileManager.getCurrentVerificationSubmission(USER_ID_LONG)).thenReturn(verificationSubmission);
 		when(mockPrincipalAliasDao.getUserName(USER_ID_LONG)).thenReturn(USER_NAME);
+		when(mockUserManager.getUserInfo(USER_ID_LONG)).thenReturn(userInfo);
 
 		boolean includeIdToken = true;
 		boolean includeUserInfo = true;

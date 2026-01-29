@@ -190,7 +190,6 @@ public class AgentManagerImplUnitTest {
 	private ReturnControlEvent returnControlEventTwo;
 	private ReturnControlEvent returnControlEventApi;
 	private JSONObject requestBody;
-	private String requestBodyString;
 	private List<ReturnControlEvent> returnControlEvents;
 	private String invocationId;
 
@@ -240,6 +239,7 @@ public class AgentManagerImplUnitTest {
 
 		anonymous = new UserInfo(false);
 		anonymous.setId(anonymousUserId);
+		anonymous.setRealmAnonymousUserId(anonymousUserId);
 
 		admin = new UserInfo(true);
 		admin.setId(adminId);
@@ -288,7 +288,6 @@ public class AgentManagerImplUnitTest {
 
 		requestBody = new JSONObject();
 		requestBody.put("someKey", "someValue");
-		requestBodyString = requestBody.toString();
 		List<Parameter> requestBodyParams = List.of(new Parameter("someKey", "string", "someValue"));
 		sessionContext = new GridAgentSessionContext().setGridSessionId("98765");
 		returnControlEventApi = new ReturnControlEvent(session.getStartedBy(), actionGroup, apiFunction,
@@ -960,6 +959,7 @@ public class AgentManagerImplUnitTest {
 	@EnumSource(value = AgentAccessLevel.class, names = { "PUBLICLY_ACCESSIBLE" })
 	public void testGetRunAsUserWithPublic(AgentAccessLevel level) {
 		session.setAgentAccessLevel(level);
+		when(mockUserManager.getUserInfo(session.getStartedBy())).thenReturn(anonymous);
 		// call under test
 		assertEquals(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId(),
 				manager.getRunAsUser(session));

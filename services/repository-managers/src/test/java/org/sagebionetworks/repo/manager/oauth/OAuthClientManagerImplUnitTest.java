@@ -129,6 +129,7 @@ public class OAuthClientManagerImplUnitTest {
 
 		anonymousUserInfo = new UserInfo(false);
 		anonymousUserInfo.setId(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
+		anonymousUserInfo.setRealmAnonymousUserId(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 
 		sector_identifier_uri = new URI(SECTOR_IDENTIFIER_URI_JSON_FILE_URL);		
 	}

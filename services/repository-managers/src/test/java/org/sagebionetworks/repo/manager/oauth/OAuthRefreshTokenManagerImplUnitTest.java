@@ -116,6 +116,7 @@ public class OAuthRefreshTokenManagerImplUnitTest {
 	public void testCreateRefreshToken_anonymousUser() {
 		Long anonymousUser = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId();
 		UserInfo anonInfo = new UserInfo(false, anonymousUser, DEFAULT_REALM_ID);
+		anonInfo.setRealmAnonymousUserId(anonymousUser);
 
 		List<OAuthScope> scopes = Arrays.asList(OAuthScope.authorize, OAuthScope.openid);
 		OIDCClaimsRequest claimsRequest = new OIDCClaimsRequest();

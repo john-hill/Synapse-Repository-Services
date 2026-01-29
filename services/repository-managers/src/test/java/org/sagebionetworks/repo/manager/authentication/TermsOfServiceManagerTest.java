@@ -28,6 +28,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.database.semaphore.CountingSemaphore;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -72,6 +73,7 @@ public class TermsOfServiceManagerTest {
 	public void beforeEach() {
 		userId = 123;
 		user = new UserInfo(false, userId, DEFAULT_REALM_ID);
+		user.setRealmAnonymousUserId(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 		adminUser = new UserInfo(true, 1L);
 	}
 	
@@ -308,7 +310,7 @@ public class TermsOfServiceManagerTest {
 	
 	@Test
 	public void testGetUserTermsOfServiceStatusWithAnonymousUser() {
-		userId = BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId();
+		user.setRealmAnonymousUserId(user.getId());
 		
 		assertEquals("Cannot get terms of service status for the anonymous user.", assertThrows(IllegalArgumentException.class, () -> {			
 			// Call under test
@@ -322,6 +324,7 @@ public class TermsOfServiceManagerTest {
 	@EnumSource(mode = Mode.EXCLUDE, value = BOOTSTRAP_PRINCIPAL.class, names = {"ANONYMOUS_USER"})
 	public void testGetUserTermsOfServiceStatusWithBootstrapPrincipals(BOOTSTRAP_PRINCIPAL principal) {
 		userId = principal.getPrincipalId();
+		user.setId(userId);
 		
 		TermsOfServiceStatus expected = new TermsOfServiceStatus()
 				.setUserId(String.valueOf(userId))

@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -26,6 +25,7 @@ import org.sagebionetworks.repo.manager.message.MessageSyndication;
 import org.sagebionetworks.repo.manager.password.InvalidPasswordException;
 import org.sagebionetworks.repo.manager.password.PasswordValidator;
 import org.sagebionetworks.repo.manager.stack.StackStatusManager;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
@@ -210,7 +210,7 @@ public class AdministrationServiceImplTest {
 		assertEquals(expected, result);
 		
 		verify(mockUserManager).getUserInfo(adminUserId);
-		verify(mockAuthManager).loginWithNoPasswordOrTwoFaCheck(nonAdmin, null);
+		verify(mockAuthManager).loginWithNoPasswordOrTwoFaCheck(admin, null);
 	}
 	
 	@Test

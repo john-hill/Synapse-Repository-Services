@@ -114,6 +114,7 @@ public class FormManagerTest {
 		changeRequest.setFileHandleId(dataFileHandleId);
 
 		anonymousUser = new UserInfo(isAdmin, BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
+		anonymousUser.setRealmAnonymousUserId(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 
 		submittedStatus = new SubmissionStatus();
 		submittedStatus.setSubmittedOn(new Date(123));

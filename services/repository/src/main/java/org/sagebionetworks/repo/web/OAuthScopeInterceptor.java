@@ -43,14 +43,16 @@ public class OAuthScopeInterceptor implements HandlerInterceptor {
 	private OIDCTokenManager oidcTokenManager;
 	
 	public static boolean hasUserIdParameterOrAccessTokenHeader(HandlerMethod handlerMethod) {
-		for (MethodParameter methodParameter : handlerMethod.getMethodParameters()) {
-			RequestParam requestParam = methodParameter.getParameterAnnotation(RequestParam.class);
-			if (requestParam!=null && requestParam.value().equals(AuthorizationConstants.USER_ID_PARAM)) {
-				return true;
-			}
-			RequestHeader requestHeader = methodParameter.getParameterAnnotation(RequestHeader.class);
-			if (requestHeader!=null && requestHeader.value().equals(SYNAPSE_AUTHORIZATION_HEADER_NAME)) {
-				return true;
+		if (handlerMethod.getMethodParameters()!=null) {
+			for (MethodParameter methodParameter : handlerMethod.getMethodParameters()) {
+				RequestParam requestParam = methodParameter.getParameterAnnotation(RequestParam.class);
+				if (requestParam!=null && requestParam.value().equals(AuthorizationConstants.USER_ID_PARAM)) {
+					return true;
+				}
+				RequestHeader requestHeader = methodParameter.getParameterAnnotation(RequestHeader.class);
+				if (requestHeader!=null && requestHeader.value().equals(SYNAPSE_AUTHORIZATION_HEADER_NAME)) {
+					return true;
+				}
 			}
 		}
 		return false;
@@ -59,7 +61,9 @@ public class OAuthScopeInterceptor implements HandlerInterceptor {
 	public static boolean isUnAuthenticated(HttpServletRequest request) {
 		// will only be Default-Realm-Anonymous-User if the requested is completely unauthenticated
 		String userIdRequestParameter = request.getParameter(AuthorizationConstants.USER_ID_PARAM);
-		return AuthorizationUtils.isDefaultRealmAnonymousId(Long.parseLong(userIdRequestParameter));
+
+		return userIdRequestParameter==null ||
+			AuthorizationUtils.isDefaultRealmAnonymousId(Long.parseLong(userIdRequestParameter));
 	}
 	
 	public static boolean isServiceCall(HttpServletRequest request) {

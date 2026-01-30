@@ -37,7 +37,7 @@ public class SynchRow {
 		this.hash = generateHash();
 		this.data = generateDataFromBytes();
 	}
-	
+
 	public Map<String, ConValue> getData() {
 		return data;
 	}
@@ -124,6 +124,5 @@ public class SynchRow {
 		return Arrays.equals(bytes, other.bytes) && Objects.equals(data, other.data) && Arrays.equals(hash, other.hash)
 				&& Objects.equals(key, other.key);
 	}
-	
-	
+
 }

@@ -12,6 +12,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.io.RandomAccessFile;
 import java.io.Reader;
 import java.io.Writer;
 import java.nio.charset.Charset;
@@ -95,6 +96,11 @@ public class FileProviderImpl implements FileProvider {
 	@Override
 	public BufferedReader createBufferedReader(File file, Charset charset) throws FileNotFoundException {
 		return new BufferedReader(new InputStreamReader(new FileInputStream(file), charset));
+	}
+
+	@Override
+	public RandomAccessFile createRandomAccessFile(File file, String mode) throws FileNotFoundException {
+		return new RandomAccessFile(file, mode);
 	}
 
 }

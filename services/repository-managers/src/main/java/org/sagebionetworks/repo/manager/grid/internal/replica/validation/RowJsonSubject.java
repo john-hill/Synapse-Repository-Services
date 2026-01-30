@@ -1,7 +1,5 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica.validation;
 
-import static org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManagerImpl.gridRowToJsonObject;
-
 import java.util.Objects;
 
 import org.json.JSONObject;

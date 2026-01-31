@@ -10,11 +10,9 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
-import java.util.Calendar;
 
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;

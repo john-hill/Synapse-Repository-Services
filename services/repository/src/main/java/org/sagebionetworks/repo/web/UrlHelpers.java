@@ -1330,7 +1330,7 @@ public class UrlHelpers {
 	public static final String ADMIN_REALM_ID = ADMIN_REALM + ID;
 
 	public static final String RESET_USER_STATUS = "/resetuserstatus";
-	public static final String ADMIN_RESET_USER_STATUS = ADMIN + RESET_USER_STATUS;
+	public static final String ADMIN_RESET_USER_STATUS = ADMIN + RESET_USER_STATUS + "/{targetUserId}";
 	
 	/**
 	 * Request paramter to specify a target user id

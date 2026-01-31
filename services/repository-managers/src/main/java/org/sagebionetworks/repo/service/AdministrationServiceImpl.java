@@ -283,9 +283,9 @@ public class AdministrationServiceImpl implements AdministrationService  {
 	}
 
 	@Override
-	public void resetUserStatusToEnabled(Long userId, Long targetuserId) {
+	public void resetUserStatusToEnabled(Long userId, Long targetUserId) {
 		UserInfo userInfo = adminCheck(userId);
-		userStatusManager.resetUserStatusToEnabled(targetuserId);
+		userStatusManager.resetUserStatusToEnabled(targetUserId);
 	}
 
 }

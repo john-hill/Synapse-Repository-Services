@@ -7,6 +7,6 @@ public interface UserStatusManager {
 
 	int disableInactiveUsers(int maxBatchSize);
 
-	void resetUserStatusToEnabled(Long targetUserid);
+	void resetUserStatusToEnabled(Long targetUserId);
 	
 }

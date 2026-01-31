@@ -83,20 +83,19 @@ public class UserStatusDaoImpl implements UserStatusDao {
 	@WriteTransaction
 	@Override
 	public void resetStatusToEnabled(long principalId) {
-		Instant resetLastSeenOn = Instant.now();
 
 		String sql = "INSERT INTO " + TABLE_USER_STATUS + " ("
 				+ COL_USER_STATUS_PRINCIPAL_ID + ", "
 				+ COL_USER_STATUS_ETAG + ","
 				+ COL_USER_STATUS_LAST_SEEN_ON + ","
 				+ COL_USER_STATUS_DISABLED + ") "
-				+ "VALUES (?, UUID(), ?, false) "
+				+ "VALUES (?, UUID(), NOW(), false) "
 				+ "ON DUPLICATE KEY UPDATE "
 				+ COL_USER_STATUS_ETAG + " = UUID(),"
-				+ COL_USER_STATUS_LAST_SEEN_ON + " = ?,"
+				+ COL_USER_STATUS_LAST_SEEN_ON + " = NOW(),"
 				+ COL_USER_STATUS_DISABLED + " = false";
 
-		jdbcTemplate.update(sql, principalId, Date.from(resetLastSeenOn), Date.from(resetLastSeenOn));
+		jdbcTemplate.update(sql, principalId);
 	}
 	
 	@Override

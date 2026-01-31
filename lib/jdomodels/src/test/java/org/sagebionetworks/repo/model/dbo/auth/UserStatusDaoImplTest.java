@@ -88,7 +88,7 @@ public class UserStatusDaoImplTest {
 		// call under test
 		userStatusDao.resetStatusToEnabled(userId);
 
-        assertFalse(userStatusDao.isDisabled(userId));
+		assertFalse(userStatusDao.isDisabled(userId));
 		Date updatedLastSeenOn = userStatusDao.getLastSeenOn(userId).orElseThrow();
 		Duration d = Duration.between(instantNow, updatedLastSeenOn.toInstant());
 		assertFalse(d.isNegative(), "updatedLastSeenOn > instantNow");

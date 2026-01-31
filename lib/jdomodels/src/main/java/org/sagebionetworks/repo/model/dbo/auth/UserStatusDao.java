@@ -14,7 +14,6 @@ public interface UserStatusDao {
 	
 	void setDisabled(long principalId, boolean disabled);
 
-	@WriteTransaction
 	void resetStatusToEnabled(long principalId);
 
 	boolean isDisabled(long principalId);

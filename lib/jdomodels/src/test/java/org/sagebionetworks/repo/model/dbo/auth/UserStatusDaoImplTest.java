@@ -75,7 +75,7 @@ public class UserStatusDaoImplTest {
 	}
 
 	@Test
-	public void testResetStatusToEnabled() {
+	public void testResetStatusToEnabled() throws InterruptedException {
 		Instant instantNow = Instant.now();
 		// set realistic disabled status (last seen more than 180 days ago and set disabled by worker)
 		Date lastSeenOn = Date.from(instantNow.minus(181, ChronoUnit.DAYS));
@@ -84,6 +84,8 @@ public class UserStatusDaoImplTest {
 
 		assertTrue(userStatusDao.isDisabled(userId));
 		assertEquals(lastSeenOn, userStatusDao.getLastSeenOn(userId).orElseThrow());
+
+		Thread.sleep(1000);
 
 		// call under test
 		userStatusDao.resetStatusToEnabled(userId);

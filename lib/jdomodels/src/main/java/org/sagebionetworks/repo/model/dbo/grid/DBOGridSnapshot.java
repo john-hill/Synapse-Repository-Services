@@ -15,7 +15,6 @@ import java.sql.Timestamp;
 import java.util.List;
 import java.util.Objects;
 
-import org.json.JSONArray;
 import org.sagebionetworks.repo.model.dbo.FieldColumn;
 import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
 import org.sagebionetworks.repo.model.dbo.TableMapping;
@@ -27,7 +26,7 @@ public class DBOGridSnapshot implements MigratableDatabaseObject<DBOGridSnapshot
 
 	private Long id;
 	private String sessionId;
-	private JSONArray clockTable;
+	private String clockTable;
 	private Timestamp createdOn;
 	private Long createdBy;
 	private String s3Key;
@@ -50,7 +49,7 @@ public class DBOGridSnapshot implements MigratableDatabaseObject<DBOGridSnapshot
 				DBOGridSnapshot dbo = new DBOGridSnapshot();
 				dbo.setId(rs.getLong(COL_GRID_SNAPSHOT_ID));
 				dbo.setSessionId(rs.getString(COL_GRID_SNAPSHOT_SESSION_ID));
-				dbo.setClockTable(new JSONArray(rs.getString(COL_GRID_SNAPSHOT_CLOCK_TABLE)));
+				dbo.setClockTable(rs.getString(COL_GRID_SNAPSHOT_CLOCK_TABLE));
 				dbo.setCreatedBy(rs.getLong(COL_GRID_SNAPSHOT_CREATED_BY));
 				dbo.setCreatedOn(rs.getTimestamp(COL_GRID_SNAPSHOT_CREATED_ON));
 				dbo.setS3Key(rs.getString(COL_GRID_SNAPSHOT_S3_KEY));
@@ -120,11 +119,11 @@ public class DBOGridSnapshot implements MigratableDatabaseObject<DBOGridSnapshot
 		this.sessionId = sessionId;
 	}
 
-	public JSONArray getClockTable() {
+	public String getClockTable() {
 		return clockTable;
 	}
 
-	public void setClockTable(JSONArray clockTable) {
+	public void setClockTable(String clockTable) {
 		this.clockTable = clockTable;
 	}
 

@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.model.grid.node;
 
 import java.util.Objects;
+import java.util.stream.Stream;
 
 import org.json.JSONArray;
 import org.json.JSONWriter;
@@ -91,6 +92,11 @@ public class ConstantNode implements Node, HasJsonValue<ConstantNode> {
 	@Override
 	public LogicalTimestamp getId() {
 		return id;
+	}
+
+	@Override
+	public Stream<LogicalTimestamp> streamReferencedTimestamps() {
+		return Stream.of(getId());
 	}
 
 	@Override

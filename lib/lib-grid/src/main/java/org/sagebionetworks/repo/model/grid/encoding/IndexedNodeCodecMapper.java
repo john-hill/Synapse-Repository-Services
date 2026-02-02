@@ -4,6 +4,7 @@ import org.sagebionetworks.repo.model.grid.node.ArrayNode;
 import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.Node;
 import org.sagebionetworks.repo.model.grid.node.ObjectNode;
+import org.sagebionetworks.repo.model.grid.node.ValueNode;
 import org.sagebionetworks.repo.model.grid.node.VectorNode;
 
 /**
@@ -12,6 +13,7 @@ import org.sagebionetworks.repo.model.grid.node.VectorNode;
 public enum IndexedNodeCodecMapper {
 
     CONSTANT(0b000, new IndexedConstantNodeCodec(), ConstantNode.class),
+    VAL(0b001, new IndexedValueNodeCodec(), ValueNode.class),
     OBJECT(0b010, new IndexedObjectNodeCodec(), ObjectNode.class),
     VECTOR(0b011, new IndexedVectorNodeCodec(), VectorNode.class),
     ARRAY(0b110, new IndexedArrayNodeCodec(), ArrayNode.class);

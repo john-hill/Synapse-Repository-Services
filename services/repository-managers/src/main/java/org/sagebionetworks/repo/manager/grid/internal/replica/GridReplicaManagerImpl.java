@@ -78,13 +78,12 @@ public class GridReplicaManagerImpl implements GridReplicaManager {
 				connection.getReplicaId(), patch);
 		List<LogicalTimestamp> clock = gridIndexManager.getClock(connection.getSessionId(), connection.getReplicaId());
 		sendClockMessage(messageId, connection.getConnectionId(), clock);
-		sendChangesToTopic(connection, patch.getPatchId(), changes);
+		sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, patch.getPatchId(), changes));
 	}
 
-	void sendChangesToTopic(GridConnectionInfo connection, LogicalTimestamp patchId,
-			Map<IndexType, Set<LogicalTimestamp>> changes) {
-		snsClient.publish(PublishRequest.builder().targetArn(topicArn)
-				.message(new ReplicaChangeSet(connection, patchId, changes).toJson()).build());
+	void sendChangesToTopic(ReplicaChangeSet changeSet) {
+		log.info("Publishing replica change set to topic: {} changeSet: {}", topicArn, changeSet);
+		snsClient.publish(PublishRequest.builder().targetArn(topicArn).message(changeSet.toJson()).build());
 	}
 
 	@Override

@@ -120,7 +120,7 @@ public class GridReplicaManagerImplTest {
 	@Test
 	public void testOnApplyPatch() {
 		when(mockGridIndexManager.applyPatch(sessionId, replicaId, patch)).thenReturn(changes);
-		doNothing().when(manager).sendChangesToTopic(connection, patch.getPatchId(), changes);
+		doNothing().when(manager).sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, patch.getPatchId(), changes));
 
 		// Mock the gridIndexManager calls
 		when(mockGridIndexManager.getClock(sessionId, replicaId)).thenReturn(clock);
@@ -167,9 +167,9 @@ public class GridReplicaManagerImplTest {
 	@Test
 	public void testSendChangesToTopic() {
 		// call under test
-		manager.sendChangesToTopic(connection, patch.getPatchId(), changes);
+		manager.sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, patch.getPatchId(), changes));
 		verify(mockSnsClient).publish(PublishRequest.builder().targetArn(topicArn)
-				.message("{\"sessionId\":\"session456\",\"replicaId\":111,\"patchId\":[3,4],"
+				.message("{\"sessionId\":\"session456\",\"replicaId\":111,\"changeSource\":\"PATCH\",\"patchId\":[3,4],"
 						+ "\"changes\":{\"arr\":[[111,55]]}}")
 				.build());
 	}

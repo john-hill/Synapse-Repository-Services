@@ -1,6 +1,5 @@
 package org.sagebionetworks.repo.service;
 
-import org.junit.Assert;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,7 +26,6 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.UserProfile;
 import org.sagebionetworks.repo.model.dbo.principal.PrincipalPrefixDAO;
 import org.sagebionetworks.repo.model.message.MessageToUser;
-import org.sagebionetworks.repo.service.TeamServiceImpl;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -45,6 +43,7 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 public class TeamServiceTest {
+	private static final Long USER_ID =123L;
 	
 	@Mock
 	private UserManager mockUserManager;
@@ -63,6 +62,7 @@ public class TeamServiceTest {
 	
 	private Team team = null;
 	private TeamMember member = null;
+	private UserInfo userInfo = null;
 	
 	@BeforeEach
 	public void before() throws Exception {
@@ -74,6 +74,7 @@ public class TeamServiceTest {
 		UserGroupHeader ugh = new UserGroupHeader();
 		ugh.setUserName("John Smith");
 		member.setMember(ugh);
+		userInfo = new UserInfo(false, USER_ID, "0");
 	}
 	
 	@Test
@@ -84,7 +85,7 @@ public class TeamServiceTest {
 		when(mockPrincipalPrefixDAO.listTeamsForPrefix(0L,"foo", 1L, 0L)).thenReturn(listWithTeam);
 		when(mockPrincipalPrefixDAO.listTeamsForPrefix(0L,"ba", 1L, 0L)).thenReturn(listWithTeam);
 		when(mockPrincipalPrefixDAO.listTeamsForPrefix(0L, "bas", 1L, 0L)).thenReturn(emptyList);
-		when(mockUserManager.getUserRealm(123L)).thenReturn("0");
+		when(mockUserManager.getUserInfo(USER_ID)).thenReturn(userInfo);
 		List<Team> expected = new ArrayList<Team>(); expected.add(team);
 		ListWrapper<Team> wrapped = new ListWrapper<Team>();
 		wrapped.setList(expected);
@@ -136,11 +137,12 @@ public class TeamServiceTest {
 
 		assertEquals(0L, teamService.getMemberCount("101", "bas").getCount().longValue());
 }
-	
+
 	@Test
 	public void testGetTeamNoFragment() throws Exception {
-		teamService.get(123L,null, 1, 0);
-		verify(mockTeamManager).list(1, 0);
+		when(mockUserManager.getUserInfo(123L)).thenReturn(userInfo);
+		teamService.get(123L, null, 1, 0);
+		verify(mockTeamManager).list(userInfo, 1, 0);
 	}
 
 	@Test
@@ -230,7 +232,6 @@ public class TeamServiceTest {
 		userInfo2.setRealmId("0");
 		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo1);
 		when(mockUserManager.getUserInfo(principalId)).thenReturn(userInfo2);
-		when(mockUserManager.getUserRealm(Long.parseLong(teamId))).thenReturn("0");
 		MessageToUser mtu = new MessageToUser();
 		mtu.setRecipients(Collections.singleton(principalId.toString()));
 		String content = "foo";
@@ -250,30 +251,6 @@ public class TeamServiceTest {
 		assertEquals(result, messageArg.getValue().get(0));		
 
 	}
-
-	@Test
-	public void testAddMemberInWrongRealm() throws Exception {
-		Long userId = 111L;
-		String teamId = "222";
-		Long principalId = 333L;
-		String teamEndpoint = "teamEndpoint:";
-		String notificationUnsubscribeEndpoint = "notificationUnsubscribeEndpoint:";
-		UserInfo userInfo1 = new UserInfo(false);
-		userInfo1.setId(userId);
-		userInfo1.setRealmId("0");
-		UserInfo userInfo2 = new UserInfo(false);
-		userInfo2.setId(principalId);
-		userInfo2.setRealmId("1");
-		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo1);
-		when(mockUserManager.getUserInfo(principalId)).thenReturn(userInfo2);
-		when(mockUserManager.getUserRealm(Long.parseLong(teamId))).thenReturn("0");
-
-
-		String message = Assertions.assertThrows(IllegalArgumentException.class, ()-> {
-			teamService.addMember(userId, teamId, principalId.toString(), teamEndpoint, notificationUnsubscribeEndpoint);
-		}).getMessage();
-		assertEquals("User, member and team must be in the same realm.", message);
-	}
 	
 	@Test
 	public void testAddMemberByJoinTeamSignedToken() throws Exception {
@@ -290,7 +267,6 @@ public class TeamServiceTest {
 		userInfo2.setRealmId("0");
 		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo1);
 		when(mockUserManager.getUserInfo(principalId)).thenReturn(userInfo2);
-		when(mockUserManager.getUserRealm(Long.parseLong(teamId))).thenReturn("0");
 		MessageToUser mtu = new MessageToUser();
 		mtu.setRecipients(Collections.singleton(principalId.toString()));
 		String content = "foo";
@@ -339,7 +315,6 @@ public class TeamServiceTest {
 		userInfo2.setRealmId("0");
 		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo1);
 		when(mockUserManager.getUserInfo(principalId)).thenReturn(userInfo2);
-		when(mockUserManager.getUserRealm(Long.parseLong(teamId))).thenReturn("0");
 		MessageToUser mtu = new MessageToUser();
 		mtu.setRecipients(Collections.singleton(principalId.toString()));
 		String content = "foo";

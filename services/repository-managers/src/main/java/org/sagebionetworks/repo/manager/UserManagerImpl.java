@@ -254,11 +254,6 @@ public class UserManagerImpl implements UserManager {
 		return ui;
 	}
 
-	@Override
-	public String getUserRealm(Long principalId) throws NotFoundException {
-		return userGroupDAO.get(principalId).getRealmId();
-	}
-
 	@WriteTransaction
 	@Override
 	public void deletePrincipal(UserInfo adminUserInfo, Long principalId) throws NotFoundException {

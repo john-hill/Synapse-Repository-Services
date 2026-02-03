@@ -32,16 +32,6 @@ public interface TeamService {
 	 */
 	public Team create(Long userId,
 			Team team) throws UnauthorizedException, InvalidModelException, DatastoreException, NotFoundException;
-
-	/**
-	 * 
-	 * @param limit
-	 * @param offset
-	 * @return
-	 * @throws DatastoreException
-	 */
-	public PaginatedResults<Team> get(long limit, long offset)
-			throws DatastoreException;
 	
 	/**
 	 * 

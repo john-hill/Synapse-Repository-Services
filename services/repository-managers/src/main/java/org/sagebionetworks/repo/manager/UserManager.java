@@ -24,13 +24,6 @@ public interface UserManager {
 	 * @param principalId the ID of the user of interest
 	 */
 	UserInfo getUserInfo(Long principalId) throws NotFoundException;
-
-	/**
-	 * Get the realm for the given user ID.
-	 *
-	 * @param principalId the ID of the user of interest
-	 */
-	String getUserRealm(Long principalId) throws NotFoundException;
 	
 	/**
 	 * Creates a new user

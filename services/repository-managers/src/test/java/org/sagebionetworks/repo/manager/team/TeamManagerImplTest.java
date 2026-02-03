@@ -492,8 +492,8 @@ public class TeamManagerImplTest {
 	public void testGetBatch() {
 		Team team = createTeam(TEAM_ID, "name", "description", "etag", "101", null, null, null, null);
 		ListWrapper<Team> teamList = ListWrapper.wrap(Arrays.asList(new Team[]{team}), Team.class);
-		when(mockTeamDAO.getInRange(10, 0)).thenReturn(teamList.getList());
-		PaginatedResults<Team> result = teamManagerImpl.list(10,0);
+		when(mockTeamDAO.getInRange(userInfo.getRealmId(), 10, 0)).thenReturn(teamList.getList());
+		PaginatedResults<Team> result = teamManagerImpl.list(userInfo, 10,0);
 		assertEquals(teamList.getList(), result.getResults());
 		assertEquals(1L, result.getTotalNumberOfResults());
 		
@@ -630,7 +630,7 @@ public class TeamManagerImplTest {
 		String message = Assertions.assertThrows(IllegalArgumentException.class, () -> {
 			teamManagerImpl.put(userInfo, team);
 		}).getMessage();
-		assertEquals("User can only update the team of it's own realm.", message);
+		assertEquals("User can only update the team of their own realm.", message);
 	}
 	
 	@Test
@@ -665,6 +665,7 @@ public class TeamManagerImplTest {
 		
 		// I can add myself if I'm an admin on the Team
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)).thenReturn(AuthorizationStatus.authorized());
+		when(mockUserGroupDAO.get(Long.parseLong(TEAM_ID))).thenReturn(new UserGroup().setRealmId(REALM_ID));
 		assertEquals(teamManagerImpl.canAddTeamMember(userInfo, TEAM_ID, userInfo, false), TeamManagerImpl.AUTHORIZED_ADD_TEAM_MEMBER);
 
 		// I canNOT add myself if I'm not an admin on the Team if I haven't been invited...
@@ -710,7 +711,27 @@ public class TeamManagerImplTest {
 		assertEquals(teamManagerImpl.canAddTeamMember(userInfo, TEAM_ID, userInfo, false), TeamManagerImpl.UNAUTHORIZED_ADD_TEAM_MEMBER_UNMET_AR_SELF);
 		verify(mockTeamDAO, times(7)).getState(TEAM_ID);
 	}
-	
+
+	@Test
+	public void testCanAddTeamMemberToDifferentRealm() {
+		Long otherPrincipalId = 987L;
+		UserInfo otherUserInfo = createUserInfo(false, otherPrincipalId, REALM_ID);
+		when(mockUserGroupDAO.get(Long.parseLong(TEAM_ID))).thenReturn(new UserGroup().setRealmId(REALM_ID));
+		when(mockUserGroupDAO.get(234L)).thenReturn(new UserGroup().setRealmId("11"));
+
+		//test when team is in different realm
+		assertEquals(teamManagerImpl.canAddTeamMember(userInfo, "234", otherUserInfo, false), TeamManagerImpl.UNAUTHORIZED_ADD_TEAM_MEMBER_UNMET_REALM);
+
+		//test member to be added in different realm
+		otherUserInfo.setRealmId("11");
+		assertEquals(teamManagerImpl.canAddTeamMember(userInfo, TEAM_ID, otherUserInfo, false), TeamManagerImpl.UNAUTHORIZED_ADD_TEAM_MEMBER_UNMET_REALM);
+
+		//test user adding member is in different realm
+		otherUserInfo.setRealmId(REALM_ID);
+		userInfo.setRealmId("11");
+		assertEquals(teamManagerImpl.canAddTeamMember(userInfo, TEAM_ID, otherUserInfo, false), TeamManagerImpl.UNAUTHORIZED_ADD_TEAM_MEMBER_UNMET_REALM);
+	}
+
 	@Test
 	public void testCanAddTeamMemberOTHER() {
 		// I can add someone else if I'm a Synapse admin
@@ -727,6 +748,7 @@ public class TeamManagerImplTest {
 					thenReturn(noUnmetAccessRqmtResponse);
 
 		when(mockMembershipRequestDAO.getOpenByTeamAndRequesterCount(eq(Long.parseLong(TEAM_ID)), eq(otherPrincipalId), anyLong())).thenReturn(0L);
+		when(mockUserGroupDAO.get(Long.parseLong(TEAM_ID))).thenReturn(new UserGroup().setRealmId(REALM_ID));
 		assertEquals(teamManagerImpl.canAddTeamMember(userInfo, TEAM_ID, otherUserInfo, false), TeamManagerImpl.UNAUTHORIZED_ADD_TEAM_MEMBER_MUST_HAVE_REQUEST);
 		// but the check returns true if I'm already on the Team
 		assertEquals(teamManagerImpl.canAddTeamMember(userInfo, TEAM_ID, otherUserInfo, true), TeamManagerImpl.AUTHORIZED_ADD_TEAM_MEMBER);
@@ -764,7 +786,7 @@ public class TeamManagerImplTest {
 		when(mockRestrictionInformationManager.
 				getRestrictionInformation(principalUserInfo, restrictionInfoRqst)).
 					thenReturn(noUnmetAccessRqmtResponse);
-		
+		when(mockUserGroupDAO.get(Long.parseLong(TEAM_ID))).thenReturn(new UserGroup().setRealmId(REALM_ID));
 		boolean added = teamManagerImpl.addMember(userInfo, TEAM_ID, principalUserInfo);
 		assertTrue(added);
 		verify(mockGroupMembersDAO).addMembers(TEAM_ID, Arrays.asList(new String[]{principalId.toString()}));
@@ -1350,6 +1372,7 @@ public class TeamManagerImplTest {
 		when(mockGroupMembersDAO.areMemberOf(TEAM_ID, Collections.singleton(principalId.toString()))).thenReturn(false);
 		when(mockMembershipInvitationDAO.getOpenByTeamAndUserCount(eq(Long.parseLong(TEAM_ID)), eq(Long.parseLong(MEMBER_PRINCIPAL_ID)), anyLong())).thenReturn(0L);
 		when(mockMembershipRequestDAO.getOpenByTeamAndRequesterCount(eq(Long.parseLong(TEAM_ID)), eq(Long.parseLong(MEMBER_PRINCIPAL_ID)), anyLong())).thenReturn(0L);
+		when(mockUserGroupDAO.get(Long.parseLong(TEAM_ID))).thenReturn(new UserGroup().setRealmId(REALM_ID));
 		tms = teamManagerImpl.getTeamMembershipStatus(userInfo, TEAM_ID, principalUserInfo);
 		assertEquals(TEAM_ID, tms.getTeamId());
 		assertEquals(principalId.toString(), tms.getUserId());

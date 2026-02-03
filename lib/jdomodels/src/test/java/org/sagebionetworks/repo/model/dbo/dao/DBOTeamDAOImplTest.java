@@ -58,7 +58,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:jdomodels-test-context.xml" })
 public class DBOTeamDAOImplTest {
-	
+	public static final String DEFAULT_REALM_ID = "0";
 	@Autowired
 	private TeamDAO teamDAO;
 
@@ -89,7 +89,7 @@ public class DBOTeamDAOImplTest {
 	
 	@BeforeEach
 	public void setup() {
-		List<Team> teams = teamDAO.getInRange(1000, 0);
+		List<Team> teams = teamDAO.getInRange(DEFAULT_REALM_ID, 1000, 0);
 		for (Team team : teams) {
 			teamDAO.delete(team.getId());
 		}
@@ -167,10 +167,19 @@ public class DBOTeamDAOImplTest {
 		team.setEtag(createdTeam.getEtag()); // Fill in the missing eTag on the object we created
 		assertEquals(team, createdTeam);
 
+		UserGroup groupInOtherRealm = new UserGroup();
+		groupInOtherRealm.setRealmId("1");
+		groupInOtherRealm.setId(userGroupDAO.create(groupInOtherRealm).toString());
+		teamsToDelete.add(groupInOtherRealm.getId());
+		Team teamInOtherRealm = new Team();
+		teamInOtherRealm.setId(groupInOtherRealm.getId());
+		teamInOtherRealm.setCanPublicJoin(false);
+		teamInOtherRealm.setCanRequestMembership(true);
+		teamDAO.create(teamInOtherRealm);
+
 		// Test all of the methods that retrieve teams
-		assertEquals(1, teamDAO.getInRange(1, 0).size());
-		assertEquals(0, teamDAO.getInRange(2, 1).size()); // Pagination
-		assertEquals(1, teamDAO.getCount());
+		assertEquals(1, teamDAO.getInRange(DEFAULT_REALM_ID, 2,0).size());
+		assertEquals(2, teamDAO.getCount());
 
 		// Make sure the team isn't counted as a user in the team
 		assertEquals(0, teamDAO.getForMemberInRange(""+id, 1, 0).size());

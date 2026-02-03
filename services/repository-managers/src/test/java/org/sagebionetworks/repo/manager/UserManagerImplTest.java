@@ -18,7 +18,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.UserInfo;
-import org.sagebionetworks.repo.model.auth.AuthenticationDAO;
 import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.principal.AliasType;
 import org.sagebionetworks.repo.model.principal.PrincipalAlias;
@@ -33,9 +32,6 @@ public class UserManagerImplTest {
 	
 	@Autowired
 	private UserManager userManager;
-	
-	@Autowired
-	private AuthenticationDAO authDAO;
 	
 	@Autowired
 	private PrincipalAliasDAO principalAliasDAO;
@@ -117,11 +113,8 @@ public class UserManagerImplTest {
 	}
 		
 	@Test
-	public void testGetAnonymousUserInfoAndRealm() throws Exception {
-		UserInfo userInfo = userManager.getUserInfo(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
-		assertNotNull(userInfo.getId());
-		String realmId = userManager.getUserRealm(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
-		assertEquals(userInfo.getRealmId(), realmId);
+	public void testGetAnonymousUserInfo() throws Exception {
+		userManager.getUserInfo(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 	}
 
 	@Test

@@ -73,16 +73,6 @@ public class TeamServiceImpl implements TeamService {
 		return teamMember;
 	}
 
-
-	/* (non-Javadoc)
-	 * @see org.sagebionetworks.repo.web.service.TeamService#get(long, long)
-	 */
-	@Override
-	public PaginatedResults<Team> get(long limit, long offset)
-			throws DatastoreException {
-		return teamManager.list(limit, offset);
-	}
-
 	@Override
 	public ListWrapper<Team> list(List<Long> ids) throws DatastoreException, NotFoundException {
 		return teamManager.list(ids);
@@ -104,12 +94,13 @@ public class TeamServiceImpl implements TeamService {
 
 		ValidateArgument.requirement(limit > 0 && limit <= MAX_LIMIT, "limit must be between 1 and "+MAX_LIMIT);
 		ValidateArgument.requirement(offset >= 0, "'offset' may not be negative");
+		UserInfo userInfo = userManager.getUserInfo(userId);
 
 		if (fragment==null || fragment.trim().length()==0) {
-			return teamManager.list(limit, offset);
+			return teamManager.list(userInfo, limit, offset);
 		}
-		String userRealmId = userManager.getUserRealm(userId);
-		List<Long> teamIds = principalPrefixDAO.listTeamsForPrefix(Long.parseLong(userRealmId), fragment, limit, offset);
+
+		List<Long> teamIds = principalPrefixDAO.listTeamsForPrefix(Long.parseLong(userInfo.getRealmId()), fragment, limit, offset);
 		List<Team> teams = teamManager.list(teamIds).getList();
 		return PaginatedResults.createWithLimitAndOffset(teams, limit, offset);
 	}
@@ -260,8 +251,6 @@ public class TeamServiceImpl implements TeamService {
 			NotFoundException {
 		UserInfo userInfo = userManager.getUserInfo(userId);
 		UserInfo memberUserInfo = userManager.getUserInfo(Long.parseLong(principalId));
-		String teamRealmId = userManager.getUserRealm(Long.parseLong(teamId));
-		isUserAndTeamAndMemberRealmEqual(userInfo.getRealmId(), memberUserInfo.getRealmId(), teamRealmId);
 		// note:  this must be done _before_ adding the member, which cleans up the invitation information
 		// needed to determine who to notify
 		List<MessageToUserAndBody> messages = teamManager.createJoinedTeamNotifications(userInfo, memberUserInfo, teamId, teamEndpoint, notificationUnsubscribeEndpoint);
@@ -274,12 +263,6 @@ public class TeamServiceImpl implements TeamService {
 		}
 		
 		return memberAdded;
-	}
-
-	private void isUserAndTeamAndMemberRealmEqual(String userRealmId, String memberRealmId, String teamRealmId) {
-		if (!userRealmId.equals(teamRealmId) || !memberRealmId.equals(teamRealmId)) {
-			throw new IllegalArgumentException("User, member and team must be in the same realm.");
-		}
 	}
 	
 	/* (non-Javadoc)

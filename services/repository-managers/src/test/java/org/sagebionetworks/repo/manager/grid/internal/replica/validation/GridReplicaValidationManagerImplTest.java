@@ -283,4 +283,97 @@ public class GridReplicaValidationManagerImplTest {
 				.setValidationState(EntityFactory.createJSONObjectForEntity(validationResult));
 		assertEquals(change, expected);
 	}
+
+	@Test
+	public void testIsDataNewerThanValidationResultWithNullMetadata() {
+		RowView rowView = new RowView().setRowObject(new RowObject().setData(new RowData()));
+		rowView.getRowObject().setMetadata(null);
+
+		// call under test
+		boolean result = manager.isDataNewerThanValidationResult(rowView);
+
+		assertEquals(true, result);
+	}
+
+	@Test
+	public void testIsDataNewerThanValidationResultWithNullRowValidation() {
+		RowView rowView = new RowView().setRowObject(
+				new RowObject()
+						.setData(new RowData())
+						.setMetadata(new RowMetadata()));
+
+		// call under test
+		boolean result = manager.isDataNewerThanValidationResult(rowView);
+
+		assertEquals(true, result);
+	}
+
+	@Test
+	public void testIsDataNewerThanValidationResultWithNullValidationConstantId() {
+		RowView rowView = new RowView().setRowObject(
+				new RowObject()
+						.setData(new RowData())
+						.setMetadata(new RowMetadata().setRowValidation(new RowValidation())));
+
+		// call under test
+		boolean result = manager.isDataNewerThanValidationResult(rowView);
+
+		assertEquals(true, result);
+	}
+
+	@Test
+	public void testIsDataNewerThanValidationResultWithNewerData() {
+		LogicalTimestamp validationTimestamp = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L);
+		LogicalTimestamp newerDataTimestamp = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(20L);
+
+		RowView rowView = new RowView().setRowObject(
+				new RowObject()
+						.setData(new RowData().setNodes(List.of(
+								new org.sagebionetworks.repo.model.grid.node.ConstantNode()
+										.setId(newerDataTimestamp))))
+						.setMetadata(new RowMetadata()
+								.setRowValidation(new RowValidation().setConstantId(validationTimestamp))));
+
+		// call under test
+		boolean result = manager.isDataNewerThanValidationResult(rowView);
+
+		assertEquals(true, result);
+	}
+
+	@Test
+	public void testIsDataNewerThanValidationResultWithOlderData() {
+		LogicalTimestamp validationTimestamp = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(20L);
+		LogicalTimestamp olderDataTimestamp = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L);
+
+		RowView rowView = new RowView().setRowObject(
+				new RowObject()
+						.setData(new RowData().setNodes(List.of(
+								new org.sagebionetworks.repo.model.grid.node.ConstantNode()
+										.setId(olderDataTimestamp))))
+						.setMetadata(new RowMetadata()
+								.setRowValidation(new RowValidation().setConstantId(validationTimestamp))));
+
+		// call under test
+		boolean result = manager.isDataNewerThanValidationResult(rowView);
+
+		assertEquals(false, result);
+	}
+
+	@Test
+	public void testIsDataNewerThanValidationResultWithNullConstantId() {
+		LogicalTimestamp validationTimestamp = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L);
+
+		RowView rowView = new RowView().setRowObject(
+				new RowObject()
+						.setData(new RowData().setNodes(List.of(
+								new org.sagebionetworks.repo.model.grid.node.ConstantNode()
+										.setId(null))))
+						.setMetadata(new RowMetadata()
+								.setRowValidation(new RowValidation().setConstantId(validationTimestamp))));
+
+		// call under test - should return false because null IDs are filtered out
+		boolean result = manager.isDataNewerThanValidationResult(rowView);
+
+		assertEquals(false, result);
+	}
 }

@@ -131,7 +131,7 @@ public class TeamManagerImpl implements TeamManager {
 	public static final AuthorizationStatus UNAUTHORIZED_ADD_TEAM_MEMBER_MUST_HAVE_REQUEST = AuthorizationStatus.accessDenied("The prospective member must request to join the team.");
 	public static final AuthorizationStatus UNAUTHORIZED_ADD_TEAM_MEMBER_MUST_HAVE_INVITATION = AuthorizationStatus.accessDenied("An invitation is required to join the team.");
 	public static final AuthorizationStatus UNAUTHORIZED_ADD_TEAM_MEMBER_UNMET_AR_SELF = AuthorizationStatus.accessDenied("You can't join the team until you meet the Access Requirements");
-	public static final AuthorizationStatus UNAUTHORIZED_ADD_TEAM_MEMBER_UNMET_REALM = AuthorizationStatus.accessDenied("User adding a team member to the team, the member to be added to the team and the team must be in the same realm.");
+	public static final AuthorizationStatus UNAUTHORIZED_ADD_TEAM_MEMBER_UNMET_REALM = AuthorizationStatus.accessDenied("The user adding a team member to the team, the member to be added to the team, and the team must be in the same realm.");
 	private static final String MSG_CANNOT_ADD_TEAM_MEMBER_UNMET_AR = "Cannot add member to team because they have not met all access restrictions. " +
 			"Please remove the pending request and then invite the member again. " +
 			"They will then be prompted to meet the requirement(s) before joining the team.";
@@ -498,12 +498,6 @@ public class TeamManagerImpl implements TeamManager {
 	@WriteTransaction
 	public Team put(UserInfo userInfo, Team team) throws InvalidModelException,
 			DatastoreException, UnauthorizedException, NotFoundException {
-		String realmIdOfTeam = userGroupDAO.get(Long.parseLong(team.getId())).getRealmId();
-
-		if (!userInfo.getRealmId().equals(realmIdOfTeam)) {
-			throw new IllegalArgumentException("User can only update the team of their own realm.");
-		}
-
 		authorizationManager.canAccess(userInfo, team.getId(), ObjectType.TEAM, ACCESS_TYPE.UPDATE).checkAuthorizationOrElseThrow();
 		validateForUpdate(team);
 		populateUpdateFields(userInfo, team, new Date());

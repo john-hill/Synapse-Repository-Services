@@ -52,7 +52,6 @@ import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.UserProfile;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
-import org.sagebionetworks.repo.model.jdo.KeyFactory;
 
 @ExtendWith(MockitoExtension.class)
 public class MembershipRequestManagerImplTest {
@@ -80,7 +79,7 @@ public class MembershipRequestManagerImplTest {
 	private UserInfo adminInfo = null;
 	private static final String TEAM_ID = "111";
 	private static final String MEMBER_PRINCIPAL_ID = "999";
-	private static final String REALML_ID = "10";
+	private static final String REALM_ID = "10";
 	private RestrictionInformationRequest restrictionInfoRqst;
 	private RestrictionInformationResponse noUnmetAccessRqmtResponse;
 	private RestrictionInformationResponse hasUnmetAccessRqmtResponse;
@@ -90,7 +89,7 @@ public class MembershipRequestManagerImplTest {
 		userInfo = new UserInfo(false);
 		userInfo.setId(Long.parseLong(MEMBER_PRINCIPAL_ID));
 		userInfo.setGroups(Collections.singleton(Long.parseLong(MEMBER_PRINCIPAL_ID)));
-		userInfo.setRealmId(REALML_ID);
+		userInfo.setRealmId(REALM_ID);
 		// admin
 		adminInfo = new UserInfo(true);
 		adminInfo.setId(-1l);
@@ -193,7 +192,7 @@ public class MembershipRequestManagerImplTest {
 		MembershipRequest mrs = new MembershipRequest();
 		mrs.setTeamId(TEAM_ID);
 		when(mockMembershipRequestDAO.create((MembershipRequest)any())).thenReturn(mrs);
-		when(mockUserGroupDao.get(Long.parseLong(TEAM_ID))).thenReturn(new UserGroup().setRealmId(REALML_ID));
+		when(mockUserGroupDao.get(Long.parseLong(TEAM_ID))).thenReturn(new UserGroup().setRealmId(REALM_ID));
 		when(mockTeamDAO.getState(TEAM_ID)).thenReturn(TeamState.OPEN);
 		assertEquals(mrs, membershipRequestManagerImpl.create(userInfo, mrs));
 	}
@@ -217,7 +216,7 @@ public class MembershipRequestManagerImplTest {
 		when(mockRestrictionInformationManager.
 				getRestrictionInformation(userInfo, restrictionInfoRqst)).
 					thenReturn(hasUnmetAccessRqmtResponse);
-		when(mockUserGroupDao.get(Long.parseLong(TEAM_ID))).thenReturn(new UserGroup().setRealmId(REALML_ID));
+		when(mockUserGroupDao.get(Long.parseLong(TEAM_ID))).thenReturn(new UserGroup().setRealmId(REALM_ID));
 		Assertions.assertThrows(UnauthorizedException.class, ()-> {
 			// should throw UnauthorizedException
 			membershipRequestManagerImpl.create(userInfo, mrs);
@@ -483,7 +482,7 @@ public class MembershipRequestManagerImplTest {
 		when(mockRestrictionInformationManager.
 				getRestrictionInformation(userInfo, restrictionInfoRqst)).
 					thenReturn(noUnmetAccessRqmtResponse);
-		when(mockUserGroupDao.get(Long.parseLong(TEAM_ID))).thenReturn(new UserGroup().setRealmId(REALML_ID));
+		when(mockUserGroupDao.get(Long.parseLong(TEAM_ID))).thenReturn(new UserGroup().setRealmId(REALM_ID));
 
 		String errorMessage = Assertions.assertThrows(IllegalArgumentException.class, () -> {
 			// Call under test
@@ -502,7 +501,7 @@ public class MembershipRequestManagerImplTest {
 		when(mockRestrictionInformationManager.
 				getRestrictionInformation(userInfo, restrictionInfoRqst)).
 				thenReturn(noUnmetAccessRqmtResponse);
-		when(mockUserGroupDao.get(Long.parseLong(TEAM_ID))).thenReturn(new UserGroup().setRealmId(REALML_ID));
+		when(mockUserGroupDao.get(Long.parseLong(TEAM_ID))).thenReturn(new UserGroup().setRealmId(REALM_ID));
 
 		String errorMessage = Assertions.assertThrows(IllegalArgumentException.class, () -> {
 			// Call under test

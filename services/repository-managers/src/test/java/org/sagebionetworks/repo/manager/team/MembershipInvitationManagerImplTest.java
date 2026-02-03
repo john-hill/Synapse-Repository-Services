@@ -205,12 +205,11 @@ public class MembershipInvitationManagerImplTest {
 	public void testValidateForRealmWithWrongTeam() {
 		MembershipInvitation mis = createMembershipInvtnSubmission(null);
 		when(mockUserGroupDAO.get(Long.parseLong(mis.getTeamId()))).thenReturn(new UserGroup().setRealmId("1"));
-		when(mockUserGroupDAO.get(Long.parseLong(mis.getInviteeId()))).thenReturn(new UserGroup().setRealmId("0"));
 
 		String message = Assertions.assertThrows(UnauthorizedException.class, () -> {
 			membershipInvitationManagerImpl.create(userInfo, mis);
 		}).getMessage();
-		assertEquals("For a team invitation team, invitee and host should be in same realm.", message);
+		assertEquals("Inviter must be in the team's realm.", message);
 	}
 
 	@Test
@@ -222,33 +221,33 @@ public class MembershipInvitationManagerImplTest {
 		String message = Assertions.assertThrows(UnauthorizedException.class, () -> {
 			membershipInvitationManagerImpl.create(userInfo, mis);
 		}).getMessage();
-		assertEquals("For a team invitation team, invitee and host should be in same realm.", message);
+		assertEquals("Invitee and the team should be in same realm.", message);
 	}
 
 	@Test
-	public void testValidateForRealmWithWrongHost() {
+	public void testValidateForRealmWithWrongInviter() {
 		userInfo.setRealmId("1");
 		MembershipInvitation mis = createMembershipInvtnSubmission(null);
 		when(mockUserGroupDAO.get(Long.parseLong(mis.getTeamId()))).thenReturn(new UserGroup().setRealmId("0"));
-		when(mockUserGroupDAO.get(Long.parseLong(mis.getInviteeId()))).thenReturn(new UserGroup().setRealmId("0"));
 
 		String message = Assertions.assertThrows(UnauthorizedException.class, () -> {
 			membershipInvitationManagerImpl.create(userInfo, mis);
 		}).getMessage();
-		assertEquals("For a team invitation team, invitee and host should be in same realm.", message);
+		assertEquals("Inviter must be in the team's realm.", message);
 	}
 
 	@Test
-	public void testValidateForRealmWithHostNotInDefaultRealm() {
+	public void testValidateForEmailInvitationFromNonDefaultRealm() {
 		userInfo.setRealmId("1");
 		MembershipInvitation mis = createMembershipInvtnSubmission(null);
+		mis.setInviteeId(null);
+		mis.setInviteeEmail("abc@gmail.com");
 		when(mockUserGroupDAO.get(Long.parseLong(mis.getTeamId()))).thenReturn(new UserGroup().setRealmId("1"));
-		when(mockUserGroupDAO.get(Long.parseLong(mis.getInviteeId()))).thenReturn(new UserGroup().setRealmId("1"));
 
 		String message = Assertions.assertThrows(UnauthorizedException.class, () -> {
 			membershipInvitationManagerImpl.create(userInfo, mis);
 		}).getMessage();
-		assertEquals("Team invitation to new invitee can only send by default realm host.", message);
+		assertEquals("Cannot invite user by email unless in the default realm", message);
 	}
 
 	@Test

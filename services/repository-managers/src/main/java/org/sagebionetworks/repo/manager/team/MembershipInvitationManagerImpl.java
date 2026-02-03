@@ -102,14 +102,17 @@ public class MembershipInvitationManagerImpl implements MembershipInvitationMana
 
 	void validateForRealm(UserInfo userInfo, MembershipInvitation mi) {
 		String teamRealmId = userGroupDAO.get(Long.parseLong(mi.getTeamId())).getRealmId();
+		if (!userInfo.getRealmId().equals(teamRealmId)) {
+			throw new UnauthorizedException("Inviter must be in the team's realm.");
+		}
 		if (mi.getInviteeId() != null) {
 			String memberRealmId = userGroupDAO.get(Long.parseLong(mi.getInviteeId())).getRealmId();
-			if (!userInfo.getRealmId().equals(teamRealmId) || !memberRealmId.equals(teamRealmId)) {
-				throw new UnauthorizedException("For a team invitation team, invitee and host should be in same realm.");
+			if (!memberRealmId.equals(teamRealmId)) {
+				throw new UnauthorizedException("Invitee and the team should be in same realm.");
 			}
 		}
-		if (!userInfo.getRealmId().equals(AuthorizationConstants.DEFAULT_REALM_ID)) {
-			throw new UnauthorizedException("Team invitation to new invitee can only send by default realm host.");
+		if (mi.getInviteeEmail() != null && !userInfo.getRealmId().equals(AuthorizationConstants.DEFAULT_REALM_ID)) {
+			throw new UnauthorizedException("Cannot invite user by email unless in the default realm");
 		}
 	}
 

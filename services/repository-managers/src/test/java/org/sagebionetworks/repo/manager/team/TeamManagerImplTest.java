@@ -540,7 +540,6 @@ public class TeamManagerImplTest {
 		Team team = createTeam(TEAM_ID, "name", "description", "etag", "101", null, null, null, null);
 		when(mockTeamDAO.get(any())).thenReturn(team);
 		when(mockTeamDAO.update(team)).thenReturn(team);
-		when(mockUserGroupDAO.get(Long.parseLong(TEAM_ID))).thenReturn(new UserGroup().setRealmId(REALM_ID));
 		// Call under test
 		Team updated = teamManagerImpl.put(userInfo, team);
 		
@@ -558,7 +557,6 @@ public class TeamManagerImplTest {
 		Team existingTeam = createTeam(TEAM_ID, "name", "description", "etag", "101", null, null, null, null);
 		Team team = createTeam(TEAM_ID, "name", "description", "etag", null, null, null, null, null);
 
-		when(mockUserGroupDAO.get(Long.parseLong(TEAM_ID))).thenReturn(new UserGroup().setRealmId(REALM_ID));
 		when(mockTeamDAO.get(any())).thenReturn(existingTeam);
 		when(mockTeamDAO.update(team)).thenReturn(team);
 		// Call under test
@@ -577,7 +575,6 @@ public class TeamManagerImplTest {
 		Team team = createTeam(TEAM_ID, "name", "description", "etag", "102", null, null, null, null);
 		
 		when(mockTeamDAO.get(any())).thenReturn(existingTeam);
-		when(mockUserGroupDAO.get(Long.parseLong(TEAM_ID))).thenReturn(new UserGroup().setRealmId(REALM_ID));
 		when(mockAuthorizationManager.canAccessRawFileHandleById(any(), any())).thenReturn(AuthorizationStatus.authorized());
 		when(mockTeamDAO.update(team)).thenReturn(team);
 		
@@ -598,7 +595,6 @@ public class TeamManagerImplTest {
 		
 		when(mockTeamDAO.get(any())).thenReturn(existingTeam);
 		when(mockAuthorizationManager.canAccessRawFileHandleById(any(), any())).thenReturn(AuthorizationStatus.accessDenied("Denied"));
-		when(mockUserGroupDAO.get(Long.parseLong(TEAM_ID))).thenReturn(new UserGroup().setRealmId(REALM_ID));
 
 		String errorMessage = assertThrows(UnauthorizedException.class, () -> {			
 			// Call under test
@@ -613,24 +609,12 @@ public class TeamManagerImplTest {
 	
 	@Test
 	public void testUnathorizedPut() {
-		when(mockUserGroupDAO.get(Long.parseLong(TEAM_ID))).thenReturn(new UserGroup().setRealmId(REALM_ID));
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.accessDenied(""));
 		Team team = new Team();
 		team.setId(TEAM_ID);
 		Assertions.assertThrows(UnauthorizedException.class, ()-> {
 			teamManagerImpl.put(userInfo, team);
 		});
-	}
-
-	@Test
-	public void testPutWithWrongRealm() {
-		when(mockUserGroupDAO.get(Long.parseLong(TEAM_ID))).thenReturn(new UserGroup().setRealmId("2"));
-		Team team = new Team();
-		team.setId(TEAM_ID);
-		String message = Assertions.assertThrows(IllegalArgumentException.class, () -> {
-			teamManagerImpl.put(userInfo, team);
-		}).getMessage();
-		assertEquals("User can only update the team of their own realm.", message);
 	}
 	
 	@Test

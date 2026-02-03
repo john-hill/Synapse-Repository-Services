@@ -371,7 +371,7 @@ public class GridDaoImpl implements GridDao {
 
 		Long id = idGenerator.generateNewId(IdType.GRID_SNAPSHOT_ID);
 		return jdbcTemplate.update(
-				"INSERT IGNORE INTO GRID_SNAPSHOT "
+				"INSERT INTO GRID_SNAPSHOT "
 						+ "(ID, SESSION_ID, CLOCK_TABLE, CREATED_ON, CREATED_BY, S3_KEY)"
 						+ " VALUES (?,?,?,NOW(),?,?)",
 				id, sessionId, clockTable.toJsonArray().toString(), createdByPrincipalId, s3Key) > 0;

@@ -36,7 +36,7 @@ public class ArrayNode implements Node {
 				))
 				.filter(Objects::nonNull);
 
-		return java.util.stream.Stream.concat(nodeIdStream, rgaStream);
+		return Stream.concat(nodeIdStream, rgaStream);
 	}
 
 	public ArrayNode setId(LogicalTimestamp nodeId) {

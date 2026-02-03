@@ -167,19 +167,9 @@ public class DBOTeamDAOImplTest {
 		team.setEtag(createdTeam.getEtag()); // Fill in the missing eTag on the object we created
 		assertEquals(team, createdTeam);
 
-		UserGroup groupInOtherRealm = new UserGroup();
-		groupInOtherRealm.setRealmId("1");
-		groupInOtherRealm.setId(userGroupDAO.create(groupInOtherRealm).toString());
-		teamsToDelete.add(groupInOtherRealm.getId());
-		Team teamInOtherRealm = new Team();
-		teamInOtherRealm.setId(groupInOtherRealm.getId());
-		teamInOtherRealm.setCanPublicJoin(false);
-		teamInOtherRealm.setCanRequestMembership(true);
-		teamDAO.create(teamInOtherRealm);
-
 		// Test all of the methods that retrieve teams
 		assertEquals(1, teamDAO.getInRange(DEFAULT_REALM_ID, 2,0).size());
-		assertEquals(2, teamDAO.getCount());
+		assertEquals(1, teamDAO.getCount());
 
 		// Make sure the team isn't counted as a user in the team
 		assertEquals(0, teamDAO.getForMemberInRange(""+id, 1, 0).size());

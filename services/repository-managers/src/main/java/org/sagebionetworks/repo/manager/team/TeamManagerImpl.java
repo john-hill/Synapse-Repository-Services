@@ -131,6 +131,7 @@ public class TeamManagerImpl implements TeamManager {
 	public static final AuthorizationStatus UNAUTHORIZED_ADD_TEAM_MEMBER_MUST_HAVE_REQUEST = AuthorizationStatus.accessDenied("The prospective member must request to join the team.");
 	public static final AuthorizationStatus UNAUTHORIZED_ADD_TEAM_MEMBER_MUST_HAVE_INVITATION = AuthorizationStatus.accessDenied("An invitation is required to join the team.");
 	public static final AuthorizationStatus UNAUTHORIZED_ADD_TEAM_MEMBER_UNMET_AR_SELF = AuthorizationStatus.accessDenied("You can't join the team until you meet the Access Requirements");
+	public static final AuthorizationStatus UNAUTHORIZED_ADD_TEAM_MEMBER_UNMET_REALM = AuthorizationStatus.accessDenied("The user adding a team member to the team, the member to be added to the team, and the team must be in the same realm.");
 	private static final String MSG_CANNOT_ADD_TEAM_MEMBER_UNMET_AR = "Cannot add member to team because they have not met all access restrictions. " +
 			"Please remove the pending request and then invite the member again. " +
 			"They will then be prompted to meet the requirement(s) before joining the team.";
@@ -369,9 +370,9 @@ public class TeamManagerImpl implements TeamManager {
 	 * @see org.sagebionetworks.repo.manager.team.TeamManager#get(long, long)
 	 */
 	@Override
-	public PaginatedResults<Team> list(long limit, long offset)
+	public PaginatedResults<Team> list(UserInfo userInfo, long limit, long offset)
 			throws DatastoreException {
-		List<Team> results = teamDAO.getInRange(limit, offset);
+		List<Team> results = teamDAO.getInRange(userInfo.getRealmId(), limit, offset);
 		return PaginatedResults.createWithLimitAndOffset(results, limit, offset);
 	}
 
@@ -578,6 +579,11 @@ public class TeamManagerImpl implements TeamManager {
 		if (userInfo.isAdmin()) return AUTHORIZED_ADD_TEAM_MEMBER;
 		if (alreadyInTeam) return AUTHORIZED_ADD_TEAM_MEMBER;
 
+		String teamRealmId = userGroupDAO.get(Long.parseLong(teamId)).getRealmId();
+		if (!isAllInSameRealm(userInfo.getRealmId(), principalUserInfo.getRealmId(), teamRealmId)){
+			return UNAUTHORIZED_ADD_TEAM_MEMBER_UNMET_REALM;
+		}
+
 		String principalId = principalUserInfo.getId().toString();
 		boolean principalIsSelf = userInfo.equals(principalUserInfo);
 		boolean amTeamAdmin = authorizationManager.canAccess(userInfo, teamId, ObjectType.TEAM, ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE).isAuthorized();
@@ -601,6 +607,13 @@ public class TeamManagerImpl implements TeamManager {
 			}
 		};
 		return AUTHORIZED_ADD_TEAM_MEMBER;
+	}
+
+	private boolean isAllInSameRealm(String userRealmId, String memberRealmId, String teamRealmId) {
+		if (!userRealmId.equals(teamRealmId) || !memberRealmId.equals(teamRealmId)) {
+			return false;
+		}
+		return true;
 	}
 	
 	@Override
@@ -738,6 +751,7 @@ public class TeamManagerImpl implements TeamManager {
 	public AccessControlList updateACL(UserInfo userInfo, AccessControlList acl)
 			throws DatastoreException, UnauthorizedException, NotFoundException {
 		authorizationManager.canAccess(userInfo, acl.getId(), ObjectType.TEAM, ACCESS_TYPE.UPDATE).checkAuthorizationOrElseThrow();
+		//TODO PLFM-9327 before updating ACL ,it should be verified that user is upating ACL in the correct realm
 		aclDAO.update(acl, ObjectType.TEAM);
 		return aclDAO.get(acl.getId(), ObjectType.TEAM);
 	}

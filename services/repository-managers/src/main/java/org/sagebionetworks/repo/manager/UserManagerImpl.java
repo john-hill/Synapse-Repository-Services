@@ -143,7 +143,7 @@ public class UserManagerImpl implements UserManager {
 	
 	/**
 	 * This method is idempotent.
-	 * @param profile
+	 * @param user
 	 * @param principalId
 	 */
 	private void bindAllAliases(NewUser user, Long principalId) {

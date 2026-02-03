@@ -9,7 +9,9 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -215,21 +217,42 @@ public class GridIndexDaoImpl implements GridIndexDao {
 
 	@Override
 	@GridTransaction(readOnly = false)
-	public void setClock(String sessionIdString, Long replicaId, LogicalTimestamp clock) {
+	public void setClock(String sessionId, Long replicaId, LogicalTimestamp clock) {
+		ValidateArgument.required(sessionId, "sessionId");
+		ValidateArgument.required(replicaId, "replicaId");
 		ValidateArgument.required(clock, "clock");
-		ValidateArgument.required(clock.getReplicaId(), "clock.replicaId");
-		ValidateArgument.required(clock.getSequenceNumber(), "clock.sequenceNumber");
-		Long sessionId = validateReplica(sessionIdString, replicaId);
-		MapSqlParameterSource params = new MapSqlParameterSource();
-		params.addValue("sessionId", sessionId);
-		params.addValue("replicaId", replicaId);
-		params.addValue("clockRep", clock.getReplicaId());
-		params.addValue("clockSeq", clock.getSequenceNumber());
+		this.setClocks(sessionId, replicaId, List.of(clock));
+	}
 
-		namedTemplate.update(
+	@Override
+	@GridTransaction(readOnly = false)
+	public void setClocks(String sessionIdString, Long replicaId, List<LogicalTimestamp> clocks) {
+		ValidateArgument.required(sessionIdString, "sessionId");
+		ValidateArgument.required(replicaId, "replicaId");
+		ValidateArgument.required(clocks, "clocks");
+		for (int i = 0; i < clocks.size(); i++) {
+			ValidateArgument.required(clocks.get(i), "clocks[" + i + "]");
+			ValidateArgument.required(clocks.get(i).getReplicaId(), "clocks[" + i + "].replicaId");
+			ValidateArgument.required(clocks.get(i).getSequenceNumber(), "clocks[" + i + "].sequenceNumber");
+		}
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+
+		if (clocks.isEmpty()) {
+			return;
+		}
+
+		SqlParameterSource[] batchArgs = clocks.stream()
+				.map(clock -> new MapSqlParameterSource()
+						.addValue("sessionId", sessionId)
+						.addValue("replicaId", replicaId)
+						.addValue("clockRep", clock.getReplicaId())
+						.addValue("clockSeq", clock.getSequenceNumber()))
+				.toArray(SqlParameterSource[]::new);
+
+		namedTemplate.batchUpdate(
 				"INSERT INTO GRID_REPLICA_CLOCK (SESSION_ID, REPLICA_ID, CLOCK_ID_REP, CLOCK_ID_SEQ) VALUES"
 						+ " (:sessionId,:replicaId,:clockRep,:clockSeq) ON DUPLICATE KEY UPDATE CLOCK_ID_SEQ = :clockSeq",
-				params);
+				batchArgs);
 	}
 
 	@Override
@@ -463,6 +486,86 @@ public class GridIndexDaoImpl implements GridIndexDao {
 							+ "AND REPLICA_ID = :replicaId AND CTR_REP = :ctrRep AND CTR_SEQ = :ctrSeq "
 							+ "AND NODE_REP = :currentNodeRep AND NODE_SEQ = :currentNodeSeq",
 					params);
+		}
+	}
+
+	/**
+	 * Check if an RGA array contains only the head node (is empty).
+	 */
+	boolean isArrayEmpty(Long sessionId, Long replicaId, LogicalTimestamp arrayId) {
+		MapSqlParameterSource params = new MapSqlParameterSource()
+				.addValue("sessionId", sessionId)
+				.addValue("replicaId", replicaId)
+				.addValue("ctrRep", arrayId.getReplicaId())
+				.addValue("ctrSeq", arrayId.getSequenceNumber());
+
+		// Count nodes in array excluding the head node (where NODE = CTR)
+		Long count = namedTemplate.queryForObject(
+				"SELECT COUNT(*) FROM GRID_REPLICA_RGA WHERE SESSION_ID = :sessionId "
+						+ "AND REPLICA_ID = :replicaId AND CTR_REP = :ctrRep AND CTR_SEQ = :ctrSeq "
+						+ "AND NOT (NODE_REP = CTR_REP AND NODE_SEQ = CTR_SEQ)",
+				params, Long.class);
+		return count == null || count == 0;
+	}
+
+	/**
+	 * Batch insert RGA nodes directly without conflict resolution.
+	 * Use only when array is empty or nodes have correct references.
+	 */
+	void batchInsertRgaNodes(Long sessionId, Long replicaId, List<RGANode> nodes) {
+		SqlParameterSource[] batchArgs = nodes.stream()
+				.map(node -> createRgaNodeParameter(sessionId, replicaId, node))
+				.toArray(SqlParameterSource[]::new);
+
+		namedTemplate.batchUpdate(
+				"INSERT INTO GRID_REPLICA_RGA (SESSION_ID, REPLICA_ID, NODE_REP, NODE_SEQ, "
+						+ "CTR_REP, CTR_SEQ, DATA_REP, DATA_SEQ, REF_REP, REF_SEQ, IS_DELETED) "
+						+ "VALUES (:sessionId, :replicaId, :nodeRep, :nodeSeq, :ctrRep, :ctrSeq, "
+						+ ":dataRep, :dataSeq, :refRep, :refSeq, :isDeleted)",
+				batchArgs);
+	}
+
+	@Override
+	@GridTransaction(readOnly = false)
+	public void insertIntoRepeatedGrowableArrayBatch(String sessionIdString, Long replicaId, List<RGANode> batch) {
+		if (batch == null || batch.isEmpty()) {
+			return;
+		}
+
+		// Validate all nodes
+		for (int i = 0; i < batch.size(); i++) {
+			RGANode node = batch.get(i);
+			ValidateArgument.required(node, "batch[" + i + "]");
+			ValidateArgument.required(node.getDataId(), "batch[" + i + "].dataId");
+			ValidateArgument.required(node.getReferenceNodeId(), "batch[" + i + "].referenceNodeId");
+		}
+
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+
+		// Sort by nodeId for deterministic ordering
+		List<RGANode> sorted = batch.stream()
+				.sorted(Comparator
+						.comparing((RGANode n) -> n.getNodeId().getReplicaId())
+						.thenComparing(n -> n.getNodeId().getSequenceNumber()))
+				.collect(Collectors.toList());
+
+		// Group by containerId (array)
+		Map<LogicalTimestamp, List<RGANode>> byContainer = sorted.stream()
+				.collect(Collectors.groupingBy(RGANode::getContainerId));
+
+		for (Map.Entry<LogicalTimestamp, List<RGANode>> entry : byContainer.entrySet()) {
+			LogicalTimestamp containerId = entry.getKey();
+			List<RGANode> nodes = entry.getValue();
+
+			if (isArrayEmpty(sessionId, replicaId, containerId)) {
+				// Fast path: array is empty, just batch insert
+				batchInsertRgaNodes(sessionId, replicaId, nodes);
+			} else {
+				// Slow path: array has existing nodes, need conflict resolution
+				for (RGANode node : nodes) {
+					insertIntoRepeatedGrowableArray(sessionIdString, replicaId, node);
+				}
+			}
 		}
 	}
 

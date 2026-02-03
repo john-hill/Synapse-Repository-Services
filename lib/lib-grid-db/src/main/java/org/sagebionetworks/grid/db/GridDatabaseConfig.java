@@ -1,5 +1,9 @@
 package org.sagebionetworks.grid.db;
 
+import java.net.http.HttpClient;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+
 import org.apache.commons.dbcp2.BasicDataSource;
 import org.sagebionetworks.StackConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -60,6 +64,12 @@ public class GridDatabaseConfig {
 	@Bean
 	public PlatformTransactionManager gridTransactionManager(BasicDataSource gridDatabaseConnectionPool) {
 		return new DataSourceTransactionManager(gridDatabaseConnectionPool);
+	}
+
+	@Bean
+	public HttpClient httpClient() {
+		return HttpClient.newBuilder().connectTimeout(Duration.of(5, ChronoUnit.SECONDS))
+				.followRedirects(HttpClient.Redirect.NORMAL).build();
 	}
 
 }

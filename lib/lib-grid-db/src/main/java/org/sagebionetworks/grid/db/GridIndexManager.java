@@ -1,6 +1,6 @@
 package org.sagebionetworks.grid.db;
 
-import java.time.Duration;
+import java.net.URL;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -22,6 +22,8 @@ public interface GridIndexManager {
 	 *         patch.
 	 */
 	Map<IndexType, Set<LogicalTimestamp>> applyPatch(String sessionId, Long replicaId, Patch patch);
+
+	Map<IndexType, Set<LogicalTimestamp>> applySnapshot(String sessionId, Long replicaId, URL snapshotPresignedUrl);
 
 	/**
 	 * Get the a replica's full clock.

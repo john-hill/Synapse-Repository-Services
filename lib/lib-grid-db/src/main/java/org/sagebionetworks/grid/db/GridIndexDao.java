@@ -127,12 +127,21 @@ public interface GridIndexDao {
 
 	/**
 	 * Set a single clock value for a replica.
-	 * 
+	 *
 	 * @param sessionId
 	 * @param replicaId
 	 * @param clock
 	 */
 	void setClock(String sessionId, Long replicaId, LogicalTimestamp clock);
+
+	/**
+	 * Set a batch of clock values for a replica.
+	 *
+	 * @param sessionId
+	 * @param replicaId
+	 * @param clocks
+	 */
+	void setClocks(String sessionId, Long replicaId, List<LogicalTimestamp> clocks);
 
 	/**
 	 * Save a batch of {@link ValueNode} to a replica.
@@ -189,6 +198,18 @@ public interface GridIndexDao {
 	 * @param toInsert
 	 */
 	void insertIntoRepeatedGrowableArray(String sessionIdString, Long replicaId, RGANode toInsert);
+
+	/**
+	 * Insert a batch of {@link RGANode} into arrays. The batch will be pre-sorted
+	 * by nodeId (replica ID first, then sequence number) before processing to
+	 * ensure deterministic ordering. Nodes are processed sequentially to maintain
+	 * correct RGA link state.
+	 *
+	 * @param sessionIdString
+	 * @param replicaId
+	 * @param batch the list of RGANodes to insert
+	 */
+	void insertIntoRepeatedGrowableArrayBatch(String sessionIdString, Long replicaId, List<RGANode> batch);
 
 	/**
 	 * Get a single page of ordered {@link RGANode}.

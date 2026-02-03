@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica;
 
+import java.net.URL;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -79,6 +80,16 @@ public class GridReplicaManagerImpl implements GridReplicaManager {
 		List<LogicalTimestamp> clock = gridIndexManager.getClock(connection.getSessionId(), connection.getReplicaId());
 		sendClockMessage(messageId, connection.getConnectionId(), clock);
 		sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, patch.getPatchId(), changes));
+	}
+
+	@Override
+	public void onApplySnapshot(ProgressCallback callback, GridConnectionInfo connection, Integer messageId, URL snapshotPresignedUrl) {
+		gridIndexManager.refreshMessageChain(connection.getSessionId(), connection.getReplicaId(), messageId);
+		// Download the file here
+		Map<IndexType, Set<LogicalTimestamp>> changes = gridIndexManager.applySnapshot(connection.getSessionId(), connection.getReplicaId(), snapshotPresignedUrl);
+		List<LogicalTimestamp> clock = gridIndexManager.getClock(connection.getSessionId(), connection.getReplicaId());
+		sendClockMessage(messageId, connection.getConnectionId(), clock);
+		sendChangesToTopic(ReplicaChangeSet.fromSnapshot(connection, changes));
 	}
 
 	void sendChangesToTopic(ReplicaChangeSet changeSet) {

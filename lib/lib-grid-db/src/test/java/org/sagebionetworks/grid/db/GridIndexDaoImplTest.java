@@ -1081,6 +1081,132 @@ public class GridIndexDaoImplTest {
 	}
 	
 	@Test
+	public void testInsertIntoRepeatedGrowableArrayBatchWithEmptyArray() {
+		LogicalTimestamp arrOneId = new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(44L);
+		createArray(sessionIdOne, replicaIdOne, arrOneId);
+
+		List<RGANode> batch = List.of(
+				new RGANode().setContainerId(arrOneId).setNodeId(ids.get(0)).setDataId(ids.get(1))
+						.setReferenceNodeId(arrOneId).setIsDeleted(false),
+				new RGANode().setContainerId(arrOneId).setNodeId(ids.get(2)).setDataId(ids.get(3))
+						.setReferenceNodeId(ids.get(0)).setIsDeleted(false),
+				new RGANode().setContainerId(arrOneId).setNodeId(ids.get(4)).setDataId(ids.get(5))
+						.setReferenceNodeId(ids.get(2)).setIsDeleted(false));
+
+		// call under test
+		gridIndexDao.insertIntoRepeatedGrowableArrayBatch(sessionIdOne, replicaIdOne, batch);
+
+		ArrayNode result = gridIndexDao.getArrayNode(sessionIdOne, replicaIdOne, arrOneId, false, limit, offset);
+		assertEquals(new ArrayNode().setId(arrOneId).setElements(batch), result);
+	}
+
+	@Test
+	public void testInsertIntoRepeatedGrowableArrayBatchWithExistingArray() {
+		LogicalTimestamp arrOneId = new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(44L);
+		createArray(sessionIdOne, replicaIdOne, arrOneId);
+
+		// Insert first node individually
+		RGANode firstNode = new RGANode().setContainerId(arrOneId).setNodeId(ids.get(0)).setDataId(ids.get(1))
+				.setReferenceNodeId(arrOneId).setIsDeleted(false);
+		gridIndexDao.insertIntoRepeatedGrowableArray(sessionIdOne, replicaIdOne, firstNode);
+
+		// Now batch insert additional nodes (should use slow path)
+		List<RGANode> batch = List.of(
+				new RGANode().setContainerId(arrOneId).setNodeId(ids.get(2)).setDataId(ids.get(3))
+						.setReferenceNodeId(ids.get(0)).setIsDeleted(false),
+				new RGANode().setContainerId(arrOneId).setNodeId(ids.get(4)).setDataId(ids.get(5))
+						.setReferenceNodeId(ids.get(2)).setIsDeleted(false));
+
+		// call under test
+		gridIndexDao.insertIntoRepeatedGrowableArrayBatch(sessionIdOne, replicaIdOne, batch);
+
+		ArrayNode result = gridIndexDao.getArrayNode(sessionIdOne, replicaIdOne, arrOneId, false, limit, offset);
+		List<RGANode> expected = List.of(firstNode, batch.get(0), batch.get(1));
+		assertEquals(new ArrayNode().setId(arrOneId).setElements(expected), result);
+	}
+
+	@Test
+	public void testInsertIntoRepeatedGrowableArrayBatchMultipleArrays() {
+		LogicalTimestamp arrOneId = new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(44L);
+		LogicalTimestamp arrTwoId = new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(55L);
+		createArray(sessionIdOne, replicaIdOne, arrOneId);
+		createArray(sessionIdOne, replicaIdOne, arrTwoId);
+
+		List<RGANode> batch = List.of(
+				// Array one nodes
+				new RGANode().setContainerId(arrOneId).setNodeId(ids.get(0)).setDataId(ids.get(1))
+						.setReferenceNodeId(arrOneId).setIsDeleted(false),
+				new RGANode().setContainerId(arrOneId).setNodeId(ids.get(2)).setDataId(ids.get(3))
+						.setReferenceNodeId(ids.get(0)).setIsDeleted(false),
+				// Array two nodes
+				new RGANode().setContainerId(arrTwoId).setNodeId(ids.get(4)).setDataId(ids.get(5))
+						.setReferenceNodeId(arrTwoId).setIsDeleted(false),
+				new RGANode().setContainerId(arrTwoId).setNodeId(ids.get(6)).setDataId(ids.get(7))
+						.setReferenceNodeId(ids.get(4)).setIsDeleted(false));
+
+		// call under test
+		gridIndexDao.insertIntoRepeatedGrowableArrayBatch(sessionIdOne, replicaIdOne, batch);
+
+		ArrayNode resultOne = gridIndexDao.getArrayNode(sessionIdOne, replicaIdOne, arrOneId, false, limit, offset);
+		assertEquals(new ArrayNode().setId(arrOneId).setElements(List.of(batch.get(0), batch.get(1))), resultOne);
+
+		ArrayNode resultTwo = gridIndexDao.getArrayNode(sessionIdOne, replicaIdOne, arrTwoId, false, limit, offset);
+		assertEquals(new ArrayNode().setId(arrTwoId).setElements(List.of(batch.get(2), batch.get(3))), resultTwo);
+	}
+
+	@Test
+	public void testInsertIntoRepeatedGrowableArrayBatchWithNullBatch() {
+		// call under test - should not throw
+		gridIndexDao.insertIntoRepeatedGrowableArrayBatch(sessionIdOne, replicaIdOne, null);
+	}
+
+	@Test
+	public void testInsertIntoRepeatedGrowableArrayBatchWithEmptyBatch() {
+		// call under test - should not throw
+		gridIndexDao.insertIntoRepeatedGrowableArrayBatch(sessionIdOne, replicaIdOne, Collections.emptyList());
+	}
+
+	@Test
+	public void testInsertIntoRepeatedGrowableArrayBatchWithNullNode() {
+		List<RGANode> batch = new ArrayList<>();
+		batch.add(null);
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridIndexDao.insertIntoRepeatedGrowableArrayBatch(sessionIdOne, replicaIdOne, batch);
+		}).getMessage();
+		assertEquals("batch[0] is required.", message);
+	}
+
+	@Test
+	public void testInsertIntoRepeatedGrowableArrayBatchWithNullDataId() {
+		LogicalTimestamp arrOneId = new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(44L);
+		List<RGANode> batch = List.of(
+				new RGANode().setContainerId(arrOneId).setNodeId(ids.get(0)).setDataId(null)
+						.setReferenceNodeId(arrOneId));
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridIndexDao.insertIntoRepeatedGrowableArrayBatch(sessionIdOne, replicaIdOne, batch);
+		}).getMessage();
+		assertEquals("batch[0].dataId is required.", message);
+	}
+
+	@Test
+	public void testInsertIntoRepeatedGrowableArrayBatchWithNullReferenceNodeId() {
+		LogicalTimestamp arrOneId = new LogicalTimestamp().setReplicaId(4L).setSequenceNumber(44L);
+		List<RGANode> batch = List.of(
+				new RGANode().setContainerId(arrOneId).setNodeId(ids.get(0)).setDataId(ids.get(1))
+						.setReferenceNodeId(null));
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridIndexDao.insertIntoRepeatedGrowableArrayBatch(sessionIdOne, replicaIdOne, batch);
+		}).getMessage();
+		assertEquals("batch[0].referenceNodeId is required.", message);
+	}
+
+	@Test
 	public void testGetClockSequenceMaximum() {
 		// call under test
 		assertEquals(1L, gridIndexDao.getClockSequenceMaximum(sessionIdOne, replicaIdOne));
@@ -1107,7 +1233,7 @@ public class GridIndexDaoImplTest {
 
 	/**
 	 * Helper to create a new array.
-	 * 
+	 *
 	 * @param sessionId
 	 * @param replicaId
 	 * @param arrayId

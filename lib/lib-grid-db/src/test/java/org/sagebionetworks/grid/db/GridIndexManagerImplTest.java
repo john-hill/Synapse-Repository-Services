@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -13,6 +14,7 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -21,12 +23,16 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.node.ValueNode;
+import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
@@ -45,6 +51,9 @@ public class GridIndexManagerImplTest {
 	@Spy
 	@InjectMocks
 	private GridIndexManagerImpl manager;
+
+	@Captor
+	private ArgumentCaptor<List<VectorNode>> vectorCaptor;
 
 	private String sessionId;
 	private Long replicaId;
@@ -227,6 +236,118 @@ public class GridIndexManagerImplTest {
 				.thenReturn(true);
 		// call under test
 		assertTrue(manager.refreshMessageChain(sessionId, replicaId, chainId));
+	}
+
+	@Test
+	public void testSaveVectorsWithResolvedConstants() {
+		// Setup: Create a vector that references two constants
+		LogicalTimestamp vectorId = new LogicalTimestamp().setReplicaId(10L).setSequenceNumber(100L);
+		LogicalTimestamp constantId1 = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L);
+		LogicalTimestamp constantId2 = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L);
+
+		// Create vector with stub constant references (no values, only IDs)
+		Map<Integer, ConstantNode> stubValues = new LinkedHashMap<>();
+		stubValues.put(0, new ConstantNode().setId(constantId1)); // No value set
+		stubValues.put(1, new ConstantNode().setId(constantId2)); // No value set
+		VectorNode vector = new VectorNode().setId(vectorId).setValues(stubValues);
+
+		// Setup: Mock the DAO to return full constants with values
+		ConValue value1 = new ConValue(ConType.STRING, "hello");
+		ConValue value2 = new ConValue(ConType.LONG, 42L);
+		ConstantNode fullConstant1 = new ConstantNode().setId(constantId1).setValue(value1);
+		ConstantNode fullConstant2 = new ConstantNode().setId(constantId2).setValue(value2);
+
+		when(mockDao.getConstants(eq(sessionId), eq(replicaId), any())).thenReturn(List.of(fullConstant1, fullConstant2));
+
+		// call under test
+		manager.saveVectorsWithResolvedConstants(sessionId, replicaId, List.of(vector));
+
+		// Verify: Constants were fetched
+		verify(mockDao).getConstants(eq(sessionId), eq(replicaId), any());
+
+		// Verify: Vector was saved with index and values
+		verify(mockDao).saveIndex(sessionId, replicaId, IndexType.vec, List.of(vectorId));
+		verify(mockDao).saveVectors(eq(sessionId), eq(replicaId), vectorCaptor.capture());
+
+		// Verify: The saved vector has resolved constant values
+		List<VectorNode> savedVectors = vectorCaptor.getValue();
+		assertEquals(1, savedVectors.size());
+		VectorNode savedVector = savedVectors.get(0);
+		assertEquals(vectorId, savedVector.getId());
+		assertEquals(value1, savedVector.getValues().get(0).getConValue());
+		assertEquals(value2, savedVector.getValues().get(1).getConValue());
+	}
+
+	@Test
+	public void testSaveVectorsWithResolvedConstantsWithEmptyValues() {
+		// Setup: Vector with null values map
+		LogicalTimestamp vectorId = new LogicalTimestamp().setReplicaId(10L).setSequenceNumber(100L);
+		VectorNode vector = new VectorNode().setId(vectorId).setValues(null);
+
+		// call under test
+		manager.saveVectorsWithResolvedConstants(sessionId, replicaId, List.of(vector));
+
+		// Verify: Empty constants list was fetched (since no constant IDs to lookup)
+		verify(mockDao).getConstants(eq(sessionId), eq(replicaId), eq(List.of()));
+
+		// Verify: Vector was still saved
+		verify(mockDao).saveIndex(sessionId, replicaId, IndexType.vec, List.of(vectorId));
+		verify(mockDao).saveVectors(sessionId, replicaId, List.of(vector));
+	}
+
+	@Test
+	public void testSaveVectorsWithResolvedConstantsWithMissingConstant() {
+		// Setup: Vector references a constant that doesn't exist in DB
+		LogicalTimestamp vectorId = new LogicalTimestamp().setReplicaId(10L).setSequenceNumber(100L);
+		LogicalTimestamp constantId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L);
+
+		Map<Integer, ConstantNode> stubValues = new LinkedHashMap<>();
+		stubValues.put(0, new ConstantNode().setId(constantId));
+		VectorNode vector = new VectorNode().setId(vectorId).setValues(stubValues);
+
+		// Setup: Mock returns empty list (constant not found)
+		when(mockDao.getConstants(eq(sessionId), eq(replicaId), any())).thenReturn(List.of());
+
+		// call under test
+		manager.saveVectorsWithResolvedConstants(sessionId, replicaId, List.of(vector));
+
+		// Verify: Vector was saved (the stub retains null value)
+		verify(mockDao).saveVectors(eq(sessionId), eq(replicaId), vectorCaptor.capture());
+		VectorNode savedVector = vectorCaptor.getValue().get(0);
+		// The constant value should still be null since it wasn't found
+		assertEquals(null, savedVector.getValues().get(0).getConValue());
+	}
+
+	@Test
+	public void testSaveVectorsWithResolvedConstantsWithMultipleVectors() {
+		// Setup: Two vectors referencing the same constant
+		LogicalTimestamp vectorId1 = new LogicalTimestamp().setReplicaId(10L).setSequenceNumber(100L);
+		LogicalTimestamp vectorId2 = new LogicalTimestamp().setReplicaId(10L).setSequenceNumber(101L);
+		LogicalTimestamp constantId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L);
+
+		Map<Integer, ConstantNode> stubValues1 = new LinkedHashMap<>();
+		stubValues1.put(0, new ConstantNode().setId(constantId));
+		VectorNode vector1 = new VectorNode().setId(vectorId1).setValues(stubValues1);
+
+		Map<Integer, ConstantNode> stubValues2 = new LinkedHashMap<>();
+		stubValues2.put(0, new ConstantNode().setId(constantId));
+		VectorNode vector2 = new VectorNode().setId(vectorId2).setValues(stubValues2);
+
+		// Setup: Mock returns the constant
+		ConValue value = new ConValue(ConType.STRING, "shared");
+		ConstantNode fullConstant = new ConstantNode().setId(constantId).setValue(value);
+		when(mockDao.getConstants(eq(sessionId), eq(replicaId), any())).thenReturn(List.of(fullConstant));
+
+		// call under test
+		manager.saveVectorsWithResolvedConstants(sessionId, replicaId, List.of(vector1, vector2));
+
+		// Verify: Constants were fetched only once (batch fetch)
+		verify(mockDao, times(1)).getConstants(eq(sessionId), eq(replicaId), any());
+
+		// Verify: Both vectors were saved
+		verify(mockDao).saveIndex(sessionId, replicaId, IndexType.vec, List.of(vectorId1));
+		verify(mockDao).saveIndex(sessionId, replicaId, IndexType.vec, List.of(vectorId2));
+		verify(mockDao, times(2)).saveVectors(eq(sessionId), eq(replicaId), any());
 	}
 
 }

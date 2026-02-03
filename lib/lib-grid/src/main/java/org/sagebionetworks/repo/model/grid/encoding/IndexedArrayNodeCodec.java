@@ -179,7 +179,7 @@ public class IndexedArrayNodeCodec implements IndexedNodeTypeCodec<ArrayNode> {
 		long numChunks = length;
 
 		List<RGANode> elements = new ArrayList<>();
-		LogicalTimestamp lastNodeId = null;
+		LogicalTimestamp lastNodeId = arrayNodeId;
 
 		// Read chunks - the header length indicates the number of chunks, not elements
 		for (long chunksRead = 0; chunksRead < numChunks; chunksRead++) {

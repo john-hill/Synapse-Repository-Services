@@ -36,6 +36,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.aws.SynapseS3Client;
 import org.sagebionetworks.repo.manager.config.WebsocketApi;
 import org.sagebionetworks.repo.manager.grid.create.CreateGridHandler;
 import org.sagebionetworks.repo.manager.grid.create.CreateGridHandlerResult;
@@ -98,6 +99,9 @@ public class GridManagerUnitTest {
 
 	@Mock
 	private S3Client mockS3Client;
+
+	@Mock
+	private SynapseS3Client mockSynapseS3Client;
 
 	@Mock
 	private UserInfo mockUser;
@@ -182,7 +186,7 @@ public class GridManagerUnitTest {
 
 		when(mockConfig.getStack()).thenReturn("dev");
 		gridManager = new GridManagerImpl(mockCredentialsProvider, mockWebsocketApi, mockGridDao, mockConfig,
-			mockS3Client, mockInternalEventPublisher, List.of(mockCreateGridHandler),mockGridAuthManager
+			mockS3Client, mockSynapseS3Client, mockInternalEventPublisher, List.of(mockCreateGridHandler),mockGridAuthManager
 		);
 		
 		gridManager = Mockito.spy(gridManager);

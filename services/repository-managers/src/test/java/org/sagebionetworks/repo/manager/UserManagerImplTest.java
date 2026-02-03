@@ -18,7 +18,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.UserInfo;
-import org.sagebionetworks.repo.model.auth.AuthenticationDAO;
 import org.sagebionetworks.repo.model.auth.NewUser;
 import org.sagebionetworks.repo.model.principal.AliasType;
 import org.sagebionetworks.repo.model.principal.PrincipalAlias;
@@ -33,9 +32,6 @@ public class UserManagerImplTest {
 	
 	@Autowired
 	private UserManager userManager;
-	
-	@Autowired
-	private AuthenticationDAO authDAO;
 	
 	@Autowired
 	private PrincipalAliasDAO principalAliasDAO;

@@ -58,7 +58,7 @@ public interface TeamManager {
 	 * @return
 	 * @throws DatastoreException
 	 */
-	public PaginatedResults<Team> list(long limit, long offset) throws DatastoreException;
+	public PaginatedResults<Team> list(UserInfo userInfo, long limit, long offset) throws DatastoreException;
 	
 	/**
 	 * 

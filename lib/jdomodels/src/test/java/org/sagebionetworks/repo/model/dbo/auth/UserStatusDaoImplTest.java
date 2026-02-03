@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
@@ -71,6 +72,29 @@ public class UserStatusDaoImplTest {
 		userStatusDao.setDisabled(userId, false);
 
 		assertFalse(userStatusDao.isDisabled(userId));
+	}
+
+	@Test
+	public void testResetStatusToEnabled() throws InterruptedException {
+		Instant instantNow = Instant.now();
+		// set realistic disabled status (last seen more than 180 days ago and set disabled by worker)
+		Date lastSeenOn = Date.from(instantNow.minus(181, ChronoUnit.DAYS));
+		userStatusDao.setLastSeenOn(List.of(userId), lastSeenOn);
+		userStatusDao.setDisabled(userId, true);
+
+		assertTrue(userStatusDao.isDisabled(userId));
+		assertEquals(lastSeenOn, userStatusDao.getLastSeenOn(userId).orElseThrow());
+
+		Thread.sleep(1000);
+
+		// call under test
+		userStatusDao.resetStatusToEnabled(userId);
+
+		assertFalse(userStatusDao.isDisabled(userId));
+		Date updatedLastSeenOn = userStatusDao.getLastSeenOn(userId).orElseThrow();
+		Duration d = Duration.between(instantNow, updatedLastSeenOn.toInstant());
+		assertFalse(d.isNegative(), "updatedLastSeenOn > instantNow");
+		assertTrue(d.compareTo(Duration.ofDays(1)) < 0, "updatedLastSeenOn should be within 1 day of instantNow");
 	}
 	
 	@Test

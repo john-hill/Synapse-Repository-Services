@@ -1,8 +1,9 @@
 package org.sagebionetworks.repo.model.grid.node;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.json.JSONArray;
@@ -68,6 +69,17 @@ public class ConstantNodeTest {
 		ConstantNode con = new ConstantNode().setId(id).setValue(new ConValue(ConType.UNDEFINED, null));
 		// call under test
 		assertEquals("[0,[1,2],0,0]", con.getValueAsJson());
+	}
+
+	@Test
+	public void testStreamReferencedTimestamps() {
+		ConstantNode con = new ConstantNode().setId(id).setValue("test");
+
+		// call under test
+		List<LogicalTimestamp> timestamps = con.streamReferencedTimestamps().collect(Collectors.toList());
+
+		assertEquals(1, timestamps.size());
+		assertEquals(id, timestamps.get(0)); // only node ID
 	}
 
 }

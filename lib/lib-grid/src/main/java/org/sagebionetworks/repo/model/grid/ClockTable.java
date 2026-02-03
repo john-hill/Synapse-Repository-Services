@@ -6,11 +6,15 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
+import org.json.JSONArray;
 import org.sagebionetworks.repo.model.grid.encoding.B1Vu56Utils;
 import org.sagebionetworks.repo.model.grid.encoding.Base36Utils;
 import org.sagebionetworks.repo.model.grid.encoding.Vu57Utils;
+import org.sagebionetworks.repo.model.grid.node.Node;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.util.ValidateArgument;
 
@@ -30,6 +34,39 @@ public class ClockTable {
 
     public ClockTable(List<LogicalTimestamp> clocks) {
         this.clocks = clocks;
+    }
+
+    /**
+     * Process a node to update the clock table as needed.
+     */
+    public void processNode(Node node) {
+        ValidateArgument.required(node, "node");
+
+        node.streamReferencedTimestamps()
+                .forEach(this::updateClockTable);
+    }
+
+    /**
+     * Update the clock table with the given timestamp.
+     */
+    public void updateClockTable(LogicalTimestamp timestamp) {
+        ValidateArgument.required(timestamp, "timestamp");
+
+        // Check if the replica ID is already in the clock table
+        for (LogicalTimestamp clock : clocks) {
+            if (clock.getReplicaId().equals(timestamp.getReplicaId())) {
+                // Update the sequence number if the new timestamp is greater
+                if (timestamp.getSequenceNumber() > clock.getSequenceNumber()) {
+                    clock.setSequenceNumber(timestamp.getSequenceNumber());
+                }
+                return;
+            }
+        }
+
+        // If not found, add a new entry to the clock table
+        clocks.add(new LogicalTimestamp()
+                .setReplicaId(timestamp.getReplicaId())
+                .setSequenceNumber(timestamp.getSequenceNumber()));
     }
 
     /**
@@ -56,6 +93,24 @@ public class ClockTable {
         } catch (IOException e) {
             throw new RuntimeException("Failed to encode ClockTable to binary", e);
         }
+    }
+
+    public static ClockTable fromBinary(byte[] bytes) throws IOException {
+        ByteArrayInputStream in = new ByteArrayInputStream(bytes);
+        // First, read the number of clocks
+        long numClocks = Vu57Utils.decodeVu57(in);
+
+        List<LogicalTimestamp> clocks = new ArrayList<>((int) numClocks);
+        for (int i = 0; i < numClocks; i++) {
+            // Each clock is two vu57 integers: session ID and sequence number
+            long sessionId = Vu57Utils.decodeVu57(in);
+            long sequenceNumber = Vu57Utils.decodeVu57(in);
+            clocks.add(new LogicalTimestamp()
+                    .setReplicaId(sessionId)
+                    .setSequenceNumber(sequenceNumber));
+        }
+
+        return new ClockTable(clocks);
     }
 
     /**
@@ -220,5 +275,24 @@ public class ClockTable {
             }
         }
         throw new IllegalArgumentException("Timestamp replicaId not found in clock table: " + replicaId);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        ClockTable that = (ClockTable) o;
+        return Objects.equals(clocks, that.clocks);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(clocks);
+    }
+
+    @Override
+    public String toString() {
+        return "ClockTable{" +
+                "clocks=" + clocks +
+                '}';
     }
 }

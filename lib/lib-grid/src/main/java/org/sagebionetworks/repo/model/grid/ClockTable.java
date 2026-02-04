@@ -261,6 +261,29 @@ public class ClockTable {
                 .setSequenceNumber(sequenceNumber);
     }
 
+    public JSONArray toJsonArray() {
+        JSONArray jsonArray = new JSONArray();
+        for (LogicalTimestamp clock : clocks) {
+            JSONArray clockJson = new JSONArray();
+            clockJson.put(clock.getReplicaId());
+            clockJson.put(clock.getSequenceNumber());
+            jsonArray.put(clockJson);
+        }
+        return jsonArray;
+    }
+
+    public static ClockTable fromJsonArray(JSONArray jsonArray) {
+        ValidateArgument.required(jsonArray, "jsonArray");
+        List<LogicalTimestamp> clocks = new ArrayList<>();
+        for (int i = 0; i < jsonArray.length(); i++) {
+            JSONArray clockJson = jsonArray.getJSONArray(i);
+            Long replicaId = clockJson.getLong(0);
+            Long sequenceNumber = clockJson.getLong(1);
+            clocks.add(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(sequenceNumber));
+        }
+        return new ClockTable(clocks);
+    }
+
     /**
      * Finds the session index for a given replica ID.
      *

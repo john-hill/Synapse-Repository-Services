@@ -191,14 +191,25 @@ public class GridIndexDaoImpl implements GridIndexDao {
 			// Nothing to save, so we can return early.
 			return;
 		}
-		SqlParameterSource[] batchArgs = batch.stream()
-				.map(ts -> new MapSqlParameterSource().addValue("sessionId", sessionId).addValue("replicaId", replicaId)
-						.addValue("nodeRep", ts.getReplicaId()).addValue("nodeSeq", ts.getSequenceNumber())
-						.addValue("kind", type.name()))
-				.toArray(SqlParameterSource[]::new);
 
-		namedTemplate.batchUpdate("INSERT INTO GRID_REPLICA_INDEX (SESSION_ID, REPLICA_ID, NODE_REP, NODE_SEQ, KIND) "
-				+ "VALUES (:sessionId, :replicaId, :nodeRep, :nodeSeq, :kind)", batchArgs);
+		jdbcTemplate.batchUpdate("INSERT INTO GRID_REPLICA_INDEX (SESSION_ID, REPLICA_ID, NODE_REP, NODE_SEQ, KIND) "
+				+ "VALUES (?, ?, ?, ?, ?)", new BatchPreparedStatementSetter() {
+
+			@Override
+			public void setValues(PreparedStatement ps, int i) throws SQLException {
+				LogicalTimestamp id = batch.get(i);
+				ps.setLong(1, sessionId);
+				ps.setLong(2, replicaId);
+				ps.setLong(3, id.getReplicaId());
+				ps.setLong(4, id.getSequenceNumber());
+				ps.setString(5, type.name());
+			}
+
+			@Override
+			public int getBatchSize() {
+				return batch.size();
+			}
+		});
 	}
 
 	@Override

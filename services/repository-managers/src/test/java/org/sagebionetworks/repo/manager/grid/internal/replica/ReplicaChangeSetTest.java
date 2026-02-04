@@ -69,7 +69,7 @@ public class ReplicaChangeSetTest {
 	public void testSnapshot() {
 
 		// call under test
-		ReplicaChangeSet rcs = ReplicaChangeSet.fromSnapshot(connection, map);
+		ReplicaChangeSet rcs = ReplicaChangeSet.fromSnapshot(connection);
 		// call under test
 		String json = rcs.toJson();
 		assertEquals("{\"sessionId\":\"session444\",\"replicaId\":2,\"changeSource\":\"SNAPSHOT\","

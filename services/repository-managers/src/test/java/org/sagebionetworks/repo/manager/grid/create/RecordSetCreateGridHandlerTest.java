@@ -140,6 +140,7 @@ public class RecordSetCreateGridHandlerTest {
 	private CsvTableDescriptor csvDescriptor;
 	private List<ColumnModel> csvSchema;
 	private RecordSet recordSet;
+	private JsonSchema jsonSchema;
 
 	@Mock
 	private CSVReader mockCsvReader;
@@ -157,6 +158,7 @@ public class RecordSetCreateGridHandlerTest {
 		replicaId = 88L;
 		replica = new GridReplica().setReplicaId(replicaId);
 		schema$id = "someorg-somename";
+		jsonSchema = new JsonSchema().setRequired(List.of("bar"));
 
 		gridSession = new GridSession();
 
@@ -188,7 +190,7 @@ public class RecordSetCreateGridHandlerTest {
 		when(mockAuthorizationManager.hasAccess(mockUser, recordSet.getId(), ACCESS_TYPE.DOWNLOAD)).thenReturn(AuthorizationStatus.authorized());
 		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.of(
 				new JsonSchemaObjectBinding().setJsonSchemaVersionInfo(new JsonSchemaVersionInfo().set$id(schema$id))));
-		when(mockJsonSchemaManager.getValidationSchema(schema$id)).thenReturn(new JsonSchema().setRequired(List.of("bar")));
+		when(mockJsonSchemaManager.getValidationSchema(schema$id)).thenReturn(jsonSchema);
 
 		gridSession = new GridSession().setSessionId(gridSessionId);
 
@@ -203,7 +205,7 @@ public class RecordSetCreateGridHandlerTest {
 		doReturn(csvSchema).when(handler).getSchemaFromCsv(csvFile, csvDescriptor);
 		doReturn(mockCsvReader).when(mockCsvProvider).getCsvReader(csvFile, csvDescriptor);
 		doReturn(mockRowHandler).when(handler).getSnapshotRowHandler(mockSnapshotStore, gridSession, replica, csvSchema,
-				 List.of(1), mockFileProvider, mockS3Client, mockStackConfig, userId);
+				 List.of(1), mockFileProvider, mockS3Client, mockStackConfig, userId, jsonSchema);
 
 		when(mockCsvReader.readNext()).thenReturn(new String[] { "foo", "bar" }, new String[] { "1", "one" },
 				new String[] { "2", "two" }, new String[] { null, "three" }, null);
@@ -244,7 +246,7 @@ public class RecordSetCreateGridHandlerTest {
 		doReturn(mockCsvReader).when(mockCsvProvider).getCsvReader(csvFile, csvDescriptor);
 
 		doReturn(mockRowHandler).when(handler).getSnapshotRowHandler(mockSnapshotStore, gridSession, replica, csvSchema,
-				List.of(), mockFileProvider, mockS3Client, mockStackConfig, userId);
+				List.of(), mockFileProvider, mockS3Client, mockStackConfig, userId, jsonSchema);
 
 		when(mockCsvReader.readNext()).thenReturn(new String[] { "foo", "bar" }, new String[] { "1", "one" },
 				new String[] { "2", "two" }, new String[] { null, "three" }, null);
@@ -287,7 +289,7 @@ public class RecordSetCreateGridHandlerTest {
 		doReturn(csvSchema).when(handler).getSchemaFromCsv(csvFile, csvDescriptor);
 		doReturn(mockCsvReader).when(mockCsvProvider).getCsvReader(csvFile, csvDescriptor);
 		doReturn(mockRowHandler).when(handler).getSnapshotRowHandler(mockSnapshotStore, gridSession, replica, csvSchema,
-				List.of(), mockFileProvider, mockS3Client, mockStackConfig, userId);
+				List.of(), mockFileProvider, mockS3Client, mockStackConfig, userId, jsonSchema);
 
 		when(mockCsvReader.readNext()).thenReturn(new String[] { "foo", "bar" }, new String[] { "1", "one" },
 				new String[] { "2", "two" }, new String[] { null, "three" }, null);
@@ -328,7 +330,7 @@ public class RecordSetCreateGridHandlerTest {
 		doReturn(csvSchema).when(handler).getSchemaFromCsv(csvFile, csvDescriptor);
 		doReturn(mockCsvReader).when(mockCsvProvider).getCsvReader(csvFile, csvDescriptor);
 		doReturn(mockRowHandler).when(handler).getSnapshotRowHandler(mockSnapshotStore, gridSession, replica, csvSchema,
-				List.of(), mockFileProvider, mockS3Client, mockStackConfig, userId);
+				List.of(), mockFileProvider, mockS3Client, mockStackConfig, userId, jsonSchema);
 
 		when(mockCsvReader.readNext()).thenThrow(ioe);
 
@@ -387,7 +389,7 @@ public class RecordSetCreateGridHandlerTest {
 
 		// Call under test
 		SnapshotRowHandler snapshotHandler = handler.getSnapshotRowHandler(mockSnapshotStore, gridSession, replica, csvSchema,
-				List.of(), mockFileProvider, mockS3Client, mockStackConfig, userId);
+				List.of(), mockFileProvider, mockS3Client, mockStackConfig, userId, jsonSchema);
 
 
 		assertNotNull(snapshotHandler);

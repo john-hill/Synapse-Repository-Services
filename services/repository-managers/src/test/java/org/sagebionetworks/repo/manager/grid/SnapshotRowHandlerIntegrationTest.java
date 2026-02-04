@@ -12,10 +12,8 @@ import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -30,13 +28,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.aws.SynapseS3Client;
+import org.sagebionetworks.repo.manager.schema.JsonSchemaValidationManager;
 import org.sagebionetworks.repo.model.grid.encoding.IndexedModelDecoder;
 import org.sagebionetworks.repo.model.grid.node.ArrayNode;
-import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.Node;
 import org.sagebionetworks.repo.model.grid.node.ObjectNode;
+import org.sagebionetworks.repo.model.grid.node.ValueNode;
 import org.sagebionetworks.repo.model.grid.node.VectorNode;
-import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
@@ -71,6 +69,9 @@ public class SnapshotRowHandlerIntegrationTest {
 
 	@Mock
 	private StackConfiguration mockConfig;
+
+	@Mock
+	private JsonSchemaValidationManager mockValidationManager;
 
 	@TempDir
 	File tempDir;
@@ -137,7 +138,7 @@ public class SnapshotRowHandlerIntegrationTest {
 
 		// Write snapshot file
 		try (SnapshotRowHandler handler = new SnapshotRowHandler(mockSnapshotStore, sessionId, replicaId, schema,
-				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId)) {
+				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId, mockValidationManager, null)) {
 			handler.nextRow(new Row().setValues(Arrays.asList("one", "101"))
 					.setRowId(1L).setVersionNumber(4L).setEtag("fake-etag-1"));
 			handler.nextRow(new Row().setValues(Arrays.asList("two", "202"))
@@ -159,7 +160,6 @@ public class SnapshotRowHandlerIntegrationTest {
 			// Verify root node ID
 			LogicalTimestamp rootId = decoder.getRootNodeId();
 			assertNotNull(rootId, "Root node ID should not be null");
-			assertEquals(replicaId, rootId.getReplicaId(), "Root node should have correct replica ID");
 
 			// Collect all nodes
 			List<Node> nodes = StreamSupport.stream(decoder.spliterator(), false)
@@ -168,8 +168,12 @@ public class SnapshotRowHandlerIntegrationTest {
 			assertTrue(nodes.size() > 0, "Should have at least one node");
 
 			// Find the root object node
-			ObjectNode rootObject = findNodeById(nodes, rootId, ObjectNode.class);
+			ValueNode rootValue = findNodeById(nodes, decoder.getRootNodeId(), ValueNode.class);
+			assertEquals(0, rootId.getReplicaId(), "Root ValueNode should have correct replica ID");
+
+			ObjectNode rootObject = findNodeById(nodes, rootValue.getValue(), ObjectNode.class);
 			assertNotNull(rootObject, "Root object should exist");
+			assertEquals(replicaId, rootObject.getId().getReplicaId(), "Root ObjectNode should have correct replica ID");
 
 			// Verify root object has expected fields
 			assertTrue(rootObject.getValue().containsKey("doc_version"), "Root should have doc_version");
@@ -209,7 +213,7 @@ public class SnapshotRowHandlerIntegrationTest {
 
 		// Write snapshot with specific data
 		try (SnapshotRowHandler handler = new SnapshotRowHandler(mockSnapshotStore, sessionId, replicaId, schema,
-				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId)) {
+				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId, mockValidationManager, null)) {
 			handler.nextRow(new Row().setValues(Arrays.asList("testValue", "42"))
 					.setRowId(100L).setVersionNumber(1L).setEtag("test-etag"));
 		}
@@ -219,7 +223,8 @@ public class SnapshotRowHandlerIntegrationTest {
 			List<Node> nodes = StreamSupport.stream(decoder.spliterator(), false)
 					.collect(Collectors.toList());
 
-			ObjectNode rootObject = findNodeById(nodes, decoder.getRootNodeId(), ObjectNode.class);
+			ValueNode rootValue = findNodeById(nodes, decoder.getRootNodeId(), ValueNode.class);
+			ObjectNode rootObject = findNodeById(nodes, rootValue.getValue(), ObjectNode.class);
 			ArrayNode rowsArray = findNodeById(nodes, rootObject.getValue().get("rows"), ArrayNode.class);
 
 			// Get the first row
@@ -259,7 +264,7 @@ public class SnapshotRowHandlerIntegrationTest {
 
 		// Write empty snapshot
 		try (SnapshotRowHandler handler = new SnapshotRowHandler(mockSnapshotStore, sessionId, replicaId, schema,
-				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId)) {
+				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId, mockValidationManager, null)) {
 			// No rows added
 		}
 
@@ -271,7 +276,8 @@ public class SnapshotRowHandlerIntegrationTest {
 			List<Node> nodes = StreamSupport.stream(decoder.spliterator(), false)
 					.collect(Collectors.toList());
 
-			ObjectNode rootObject = findNodeById(nodes, decoder.getRootNodeId(), ObjectNode.class);
+			ValueNode rootValue = findNodeById(nodes, decoder.getRootNodeId(), ValueNode.class);
+			ObjectNode rootObject = findNodeById(nodes, rootValue.getValue(), ObjectNode.class);
 			ArrayNode rowsArray = findNodeById(nodes, rootObject.getValue().get("rows"), ArrayNode.class);
 
 			assertNotNull(rowsArray, "Rows array should exist even when empty");
@@ -300,7 +306,7 @@ public class SnapshotRowHandlerIntegrationTest {
 		// Write many rows to create a larger snapshot
 		int rowCount = 100; // Use 100 for faster test
 		try (SnapshotRowHandler handler = new SnapshotRowHandler(mockSnapshotStore, sessionId, replicaId, schema,
-				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId)) {
+				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId, mockValidationManager, null)) {
 			for (int i = 0; i < rowCount; i++) {
 				handler.nextRow(new Row().setValues(Arrays.asList("value" + i, String.valueOf(i)))
 						.setRowId((long) i).setVersionNumber((long) i + 1).setEtag("etag-" + i));
@@ -315,7 +321,8 @@ public class SnapshotRowHandlerIntegrationTest {
 			List<Node> nodes = StreamSupport.stream(decoder.spliterator(), false)
 					.collect(Collectors.toList());
 
-			ObjectNode rootObject = findNodeById(nodes, decoder.getRootNodeId(), ObjectNode.class);
+			ValueNode rootValue = findNodeById(nodes, decoder.getRootNodeId(), ValueNode.class);
+			ObjectNode rootObject = findNodeById(nodes, rootValue.getValue(), ObjectNode.class);
 			ArrayNode rowsArray = findNodeById(nodes, rootObject.getValue().get("rows"), ArrayNode.class);
 
 			assertNotNull(rowsArray, "Rows array should exist");

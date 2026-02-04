@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -27,8 +28,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.aws.SynapseS3Client;
+import org.sagebionetworks.repo.manager.schema.JsonSchemaValidationManager;
+import org.sagebionetworks.repo.manager.schema.JsonSubject;
 import org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils;
 import org.sagebionetworks.repo.model.grid.ClockTable;
+import org.sagebionetworks.repo.model.schema.JsonSchema;
+import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.Row;
@@ -56,6 +61,9 @@ public class SnapshotRowHandlerTest {
 
 	@Mock
 	private StackConfiguration mockConfig;
+
+	@Mock
+	private JsonSchemaValidationManager mockValidationManager;
 
 	@TempDir
 	File tempDir;
@@ -92,7 +100,7 @@ public class SnapshotRowHandlerTest {
 
 		// call under test
 		try (SnapshotRowHandler handler = new SnapshotRowHandler(mockSnapshotStore, sessionId, replicaId, schema,
-				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId)) {
+				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId, mockValidationManager, null)) {
 			// no row to add
 		}
 
@@ -106,7 +114,7 @@ public class SnapshotRowHandlerTest {
 
 		// call under test
 		try (SnapshotRowHandler handler = new SnapshotRowHandler(mockSnapshotStore, sessionId, replicaId, schema,
-				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId)) {
+				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId, mockValidationManager, null)) {
 			// no row to add
 		}
 
@@ -120,7 +128,7 @@ public class SnapshotRowHandlerTest {
 
 		// call under test
 		try (SnapshotRowHandler handler = new SnapshotRowHandler(mockSnapshotStore, sessionId, replicaId, schema,
-				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId)) {
+				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId, mockValidationManager, null)) {
 			handler.nextRow(
 					new Row().setValues(Arrays.asList("one", "101")).setRowId(1L).setVersionNumber(4L).setEtag("fake-etag-1"));
 			handler.nextRow(
@@ -139,7 +147,7 @@ public class SnapshotRowHandlerTest {
 
 		// call under test
 		try (SnapshotRowHandler handler = new SnapshotRowHandler(mockSnapshotStore, sessionId, replicaId, schema,
-				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId)) {
+				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId, mockValidationManager, null)) {
 			// Row with partial metadata
 			handler.nextRow(new Row().setValues(Arrays.asList("four", "404")).setRowId(3L).setEtag("fake-etag-4"));
 			// Row with no metadata
@@ -161,7 +169,7 @@ public class SnapshotRowHandlerTest {
 
 		// call under test
 		try (SnapshotRowHandler handler = new SnapshotRowHandler(mockSnapshotStore, sessionId, replicaId, schema,
-				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId)) {
+				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId, mockValidationManager, null)) {
 			rows.forEach(r -> {
 				handler.nextRow(r);
 			});
@@ -179,7 +187,7 @@ public class SnapshotRowHandlerTest {
 
 		// call under test
 		try (SnapshotRowHandler handler = new SnapshotRowHandler(mockSnapshotStore, sessionId, replicaId, schema,
-				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId)) {
+				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId, mockValidationManager, null)) {
 			handler.nextRow(
 					new Row().setValues(Arrays.asList(null, null)).setRowId(1L).setVersionNumber(4L).setEtag("fake-etag-1"));
 		}
@@ -194,7 +202,7 @@ public class SnapshotRowHandlerTest {
 
 		// call under test
 		try (SnapshotRowHandler handler = new SnapshotRowHandler(mockSnapshotStore, sessionId, replicaId, schema,
-				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId)) {
+				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId, mockValidationManager, null)) {
 			handler.nextRow(new Row().setValues(Arrays.asList("one", "101")));
 		}
 
@@ -213,7 +221,7 @@ public class SnapshotRowHandlerTest {
 
 		// call under test
 		try (SnapshotRowHandler handler = new SnapshotRowHandler(mockSnapshotStore, sessionId, replicaId, schema,
-				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId)) {
+				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId, mockValidationManager, null)) {
 			handler.nextRow(new Row().setValues(Arrays.asList("one", "101")));
 		}
 
@@ -232,7 +240,7 @@ public class SnapshotRowHandlerTest {
 		// call under test
 		assertThrows(IllegalArgumentException.class, () -> {
 			new SnapshotRowHandler(null, sessionId, replicaId, schema, requiredColumnIndices, mockFileProvider,
-					mockS3Client, mockConfig, createdByUserId);
+					mockS3Client, mockConfig, createdByUserId, mockValidationManager, null);
 		});
 	}
 
@@ -243,7 +251,7 @@ public class SnapshotRowHandlerTest {
 		// call under test
 		RuntimeException ex = assertThrows(RuntimeException.class, () -> {
 			new SnapshotRowHandler(mockSnapshotStore, sessionId, replicaId, schema, requiredColumnIndices,
-					mockFileProvider, mockS3Client, mockConfig, createdByUserId);
+					mockFileProvider, mockS3Client, mockConfig, createdByUserId, mockValidationManager, null);
 		});
 
 		assertEquals("Failed to create temporary file for snapshot", ex.getMessage());
@@ -255,7 +263,7 @@ public class SnapshotRowHandlerTest {
 				.thenThrow(new RuntimeException("S3 initiate upload failed"));
 
 		SnapshotRowHandler handler = new SnapshotRowHandler(mockSnapshotStore, sessionId, replicaId, schema,
-				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId);
+				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId, mockValidationManager, null);
 		handler.nextRow(new Row().setValues(Arrays.asList("one", "101")));
 
 		// call under test - close should propagate exception
@@ -288,7 +296,7 @@ public class SnapshotRowHandlerTest {
 				.thenThrow(new RuntimeException("Upload part failed"));
 
 		SnapshotRowHandler handler = new SnapshotRowHandler(mockSnapshotStore, sessionId, replicaId, schema,
-				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId);
+				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId, mockValidationManager, null);
 		handler.nextRow(new Row().setValues(Arrays.asList("one", "101")));
 
 		// call under test - close should propagate exception
@@ -319,6 +327,83 @@ public class SnapshotRowHandlerTest {
 
 		// Verify completeMultipartUpload was NOT called
 		verify(mockS3Client, never()).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
+	}
+
+	@Test
+	public void testWithValidationSchema() throws IOException {
+		setupS3Mocks();
+
+		// Setup validation schema and manager
+		JsonSchema validationSchema = new JsonSchema();
+		ValidationResults validResults = new ValidationResults();
+		validResults.setIsValid(true);
+		validResults.setObjectId("test-id");
+		validResults.setObjectType(null);
+		validResults.setObjectEtag("test-etag");
+
+		when(mockValidationManager.validate(eq(validationSchema), any(JsonSubject.class)))
+				.thenReturn(validResults);
+
+		// call under test
+		try (SnapshotRowHandler handler = new SnapshotRowHandler(mockSnapshotStore, sessionId, replicaId, schema,
+				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId,
+				mockValidationManager, validationSchema)) {
+			handler.nextRow(new Row().setValues(Arrays.asList("one", "101"))
+					.setRowId(1L).setVersionNumber(4L).setEtag("fake-etag-1"));
+		}
+
+		verifyFileCreatedUploadedAndDeleted();
+		verifySnapshotSaved();
+
+		// Verify validation was called once
+		verify(mockValidationManager, times(1)).validate(eq(validationSchema), any(JsonSubject.class));
+	}
+
+	@Test
+	public void testWithNullValidationSchema() throws IOException {
+		setupS3Mocks();
+
+		// call under test - null validation schema should skip validation
+		try (SnapshotRowHandler handler = new SnapshotRowHandler(mockSnapshotStore, sessionId, replicaId, schema,
+				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId,
+				mockValidationManager, null)) {
+			handler.nextRow(new Row().setValues(Arrays.asList("one", "101"))
+					.setRowId(1L).setVersionNumber(4L).setEtag("fake-etag-1"));
+		}
+
+		verifyFileCreatedUploadedAndDeleted();
+		verifySnapshotSaved();
+
+		// Verify validation was NOT called
+		verify(mockValidationManager, never()).validate(any(), any());
+	}
+
+	@Test
+	public void testValidationWithMultipleRows() throws IOException {
+		setupS3Mocks();
+
+		// Setup validation
+		JsonSchema validationSchema = new JsonSchema();
+		ValidationResults validResults = new ValidationResults();
+		validResults.setIsValid(true);
+
+		when(mockValidationManager.validate(eq(validationSchema), any(JsonSubject.class)))
+				.thenReturn(validResults);
+
+		// call under test - multiple rows should each get validated
+		try (SnapshotRowHandler handler = new SnapshotRowHandler(mockSnapshotStore, sessionId, replicaId, schema,
+				requiredColumnIndices, mockFileProvider, mockS3Client, mockConfig, createdByUserId,
+				mockValidationManager, validationSchema)) {
+			handler.nextRow(new Row().setValues(Arrays.asList("one", "101")));
+			handler.nextRow(new Row().setValues(Arrays.asList("two", "202")));
+			handler.nextRow(new Row().setValues(Arrays.asList("three", "303")));
+		}
+
+		verifyFileCreatedUploadedAndDeleted();
+		verifySnapshotSaved();
+
+		// Verify validation was called 3 times (once per row)
+		verify(mockValidationManager, times(3)).validate(eq(validationSchema), any(JsonSubject.class));
 	}
 
 	/**

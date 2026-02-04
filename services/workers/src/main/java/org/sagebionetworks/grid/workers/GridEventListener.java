@@ -113,8 +113,11 @@ public class GridEventListener {
 					message.getRequestId());
 		} else {
 			// The caller needs to apply the provided patch
+			JSONObject messageBody = new JSONObject();
+			messageBody.put("type", "patch");
+			messageBody.put("body", optional.get());
 			publisher.publishEventResponse(message.getContext(), JsonRxMessageType.ResponseData,
-					message.getRequestId(), "{\"type\":\"patch\",\"body\":"+optional.get()+"}");
+					message.getRequestId(), messageBody.toString());
 		}
 
 	}

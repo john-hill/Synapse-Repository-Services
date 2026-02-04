@@ -1,5 +1,7 @@
 package org.sagebionetworks.repo.manager.grid;
 
+import static org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManagerImpl.gridRowToJsonObject;
+
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -13,6 +15,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,6 +26,8 @@ import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.aws.SynapseS3Client;
 import org.sagebionetworks.repo.manager.grid.row.translator.ColumnTypeToConType;
 import org.sagebionetworks.repo.manager.grid.row.translator.Translator;
+import org.sagebionetworks.repo.manager.schema.JsonSchemaValidationManager;
+import org.sagebionetworks.repo.manager.schema.JsonSubject;
 import org.sagebionetworks.repo.model.dao.table.RowHandler;
 import org.sagebionetworks.repo.model.grid.encoding.IndexedModelEncoder;
 import org.sagebionetworks.repo.model.grid.node.ArrayNode;
@@ -34,8 +40,13 @@ import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.schema.JsonSchema;
+import org.sagebionetworks.repo.model.schema.ObjectType;
+import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.Row;
+import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
+import org.sagebionetworks.schema.adapter.org.json.EntityFactory;
 import org.sagebionetworks.util.FileProvider;
 import org.sagebionetworks.util.ValidateArgument;
 
@@ -55,6 +66,7 @@ public class SnapshotRowHandler implements RowHandler {
     private static final long MULTIPART_MAX_PART_SIZE = 5 * 1024 * 1024;
 
     public static final String FIELD_SYNAPSE_ROW = "synapseRow";
+    public static final String FIELD_ROW_VALIDATION = "rowValidation";
     public static final String FIELD_DOC_VERSION = "doc_version";
     public static final String FIELD_COLUMN_NAMES = "columnNames";
     public static final String FIELD_COLUMN_ORDER = "columnOrder";
@@ -76,6 +88,11 @@ public class SnapshotRowHandler implements RowHandler {
     private final SnapshotStore snapshotStore;
     private final Long replicaId;
     private final Long createdByUserId;
+
+    // Optional validation fields
+    private final JsonSchema validationSchema;
+    private final JsonSchemaValidationManager jsonSchemaValidationManager;
+    private final List<String> columnNames;
 
     private long nextNodeSequenceNumber = 1;
 
@@ -117,8 +134,9 @@ public class SnapshotRowHandler implements RowHandler {
         }
     }
 
-    public SnapshotRowHandler(SnapshotStore snapshotStore, String sessionId, Long replicaId, List<ColumnModel> schema, List<Integer> requiredColumnIndices, FileProvider fileProvider, SynapseS3Client s3Client, StackConfiguration config,
-                              Long createdByUserId) {
+    public SnapshotRowHandler(SnapshotStore snapshotStore, String sessionId, Long replicaId, List<ColumnModel> schema,
+                              List<Integer> requiredColumnIndices, FileProvider fileProvider, SynapseS3Client s3Client,
+                              StackConfiguration config, Long createdByUserId, JsonSchemaValidationManager jsonSchemaValidationManager, JsonSchema validationSchema) {
         super();
         ValidateArgument.required(snapshotStore, "snapshotStore");
 
@@ -130,6 +148,11 @@ public class SnapshotRowHandler implements RowHandler {
         this.requiredColumnIndices = requiredColumnIndices;
         this.gridSnapshotBucket = String.format("%s.grid.snapshot.sagebase.org", config.getStack());
         this.createdByUserId = createdByUserId;
+
+        // Validation fields
+        this.validationSchema = validationSchema;
+        this.jsonSchemaValidationManager = jsonSchemaValidationManager;
+        this.columnNames = schema.stream().map(ColumnModel::getName).collect(Collectors.toList());
 
         // Create temporary file
         try {
@@ -301,37 +324,99 @@ public class SnapshotRowHandler implements RowHandler {
      * synapseRow: s.const(json_array) | undefined
      * })
      * ```
-     * The rowValidation metadata is not included during this boostrap phase.
+     * The rowValidation metadata is included when a validation schema is provided.
      * The synapseRow metadata is a constant with a serialized JSON array that contains 3 values in order:
      * <p>
      * [<rowId>, <versionNumber>, <etag>]
      *
      * @param row the table query Row for which metadata should be extracted
+     * @param rowDataNode the VectorNode containing the row data ConstantNodes (used for validation)
+     * @param nodeConsumer consumer to collect created nodes
      * @return a reference to the object node containing the row metadata if metadata is present, an empty Optional otherwise.
      */
-    private Optional<ObjectNode> getRowMetadata(Row row, Consumer<Node> nodeConsumer) {
+    private Optional<ObjectNode> getRowMetadata(Row row, VectorNode rowDataNode, Consumer<Node> nodeConsumer) {
+        boolean hasSynapseRow = row.getRowId() != null || row.getVersionNumber() != null || row.getEtag() != null;
+        boolean hasValidation = validationSchema != null && jsonSchemaValidationManager != null;
 
-        // The synapse row information is the only metadata that might be included during this bootstrap phase.
-        // The validation state is computed later on when the patches are applied
-        if (row.getRowId() == null && row.getVersionNumber() == null && row.getEtag() == null) {
+        if (!hasSynapseRow && !hasValidation) {
             return Optional.empty();
         }
 
         ObjectNode metadataObject = new ObjectNode().setId(nextTimestamp());
         nodeConsumer.accept(metadataObject);
 
-        // Create the "synapseRow" JSON_ARRAY constant
-        // Note: Use explicit null handling to ensure the JSONArray is properly populated
-        JSONArray synapseRowArray = new JSONArray();
-        synapseRowArray.put(row.getRowId() != null ? row.getRowId() : JSONObject.NULL);
-        synapseRowArray.put(row.getVersionNumber() != null ? row.getVersionNumber() : JSONObject.NULL);
-        synapseRowArray.put(row.getEtag() != null ? row.getEtag() : JSONObject.NULL);
-        ConstantNode synapseRowMetadata = new ConstantNode().setId(nextTimestamp()).setValue(new ConValue(ConType.JSON_ARRAY, synapseRowArray));
-        nodeConsumer.accept(synapseRowMetadata);
+        Map<String, LogicalTimestamp> metadataMap = new LinkedHashMap<>();
 
-        // Attach the "synapseRow" constant to the row metadata map
-        metadataObject.setValue(Collections.singletonMap(FIELD_SYNAPSE_ROW, synapseRowMetadata.getId()));
+        // Add synapseRow if present
+        if (hasSynapseRow) {
+            JSONArray synapseRowArray = new JSONArray();
+            synapseRowArray.put(row.getRowId() != null ? row.getRowId() : JSONObject.NULL);
+            synapseRowArray.put(row.getVersionNumber() != null ? row.getVersionNumber() : JSONObject.NULL);
+            synapseRowArray.put(row.getEtag() != null ? row.getEtag() : JSONObject.NULL);
+            ConstantNode synapseRowMetadata = new ConstantNode()
+                    .setId(nextTimestamp())
+                    .setValue(new ConValue(ConType.JSON_ARRAY, synapseRowArray));
+            nodeConsumer.accept(synapseRowMetadata);
+            metadataMap.put(FIELD_SYNAPSE_ROW, synapseRowMetadata.getId());
+        }
+
+        // Add validation result - MUST be after all data constants to have a higher timestamp
+        if (hasValidation) {
+            ConstantNode validationConstant = createValidationConstant(rowDataNode.getValues());
+            nodeConsumer.accept(validationConstant);
+            metadataMap.put(FIELD_ROW_VALIDATION, validationConstant.getId());
+        }
+
+        metadataObject.setValue(metadataMap);
         return Optional.of(metadataObject);
+    }
+
+    /**
+     * Creates a validation constant node by validating the row data against the schema.
+     * The timestamp of this constant will be greater than all data constant timestamps,
+     * which prevents unnecessary re-validation by GridReplicaValidationWorker.
+     *
+     * @param cellValues the map of column index to ConstantNode values
+     * @return a ConstantNode containing the validation results as a JSON object
+     */
+    private ConstantNode createValidationConstant(Map<Integer, ConstantNode> cellValues) {
+        // Convert Map<Integer, ConstantNode> to List<ConstantNode> ordered by index
+        List<ConstantNode> orderedNodes = IntStream.range(0, columnNames.size())
+                .mapToObj(i -> cellValues.get(i))
+                .collect(Collectors.toList());
+
+        // Build JSON from constants
+        JSONObject rowJson = gridRowToJsonObject(columnNames, orderedNodes);
+
+        // Create JsonSubject for validation
+        JsonSubject subject = new JsonSubject() {
+            @Override
+            public String getObjectId() { return null; }
+            @Override
+            public ObjectType getObjectType() { return null; }
+            @Override
+            public String getObjectEtag() { return null; }
+            @Override
+            public JSONObject toJson() { return rowJson; }
+        };
+
+        // Validate
+        ValidationResults results = jsonSchemaValidationManager.validate(validationSchema, subject);
+
+        // Cleanup validation results (match GridReplicaValidationManagerImpl.cleanupValidationResults)
+        results.setValidatedOn(null);
+        results.setSchema$id(null);
+        results.setValidationException(null);
+
+        // Serialize and create constant - timestamp will be > all data constants
+        try {
+            JSONObject validationJson = EntityFactory.createJSONObjectForEntity(results);
+            return new ConstantNode()
+                    .setId(nextTimestamp())
+                    .setValue(new ConValue(ConType.JSON_OBJECT, validationJson));
+        } catch (JSONObjectAdapterException e) {
+            throw new RuntimeException("Failed to serialize validation results", e);
+        }
     }
 
     /**
@@ -363,14 +448,15 @@ public class SnapshotRowHandler implements RowHandler {
         ObjectNode rowObject = new ObjectNode().setId(nextTimestamp());
         newNodes.add(rowObject);
 
-
         VectorNode rowDataNode = getRowData(row, newNodes::add);
 
         Map<String, LogicalTimestamp> rowObjectMap = new LinkedHashMap<>();
 
         rowObjectMap.put(FIELD_DATA, rowDataNode.getId());
 
-        getRowMetadata(row, newNodes::add).ifPresent(rowMetadata -> rowObjectMap.put(FIELD_METADATA, rowMetadata.getId()));
+        // Pass VectorNode for validation - it contains the ConstantNodes via getValues()
+        getRowMetadata(row, rowDataNode, newNodes::add)
+                .ifPresent(rowMetadata -> rowObjectMap.put(FIELD_METADATA, rowMetadata.getId()));
 
         rowObject.setValue(rowObjectMap);
 

@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.grid.internal.replica.validation;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -9,8 +10,9 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.grid.db.GridTransaction;
+import org.sagebionetworks.repo.manager.grid.PatchUtils;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChange;
-import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangeSet;
+import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangePublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.PatchBuilderPublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.UpdateMetadataChange;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
@@ -36,6 +38,8 @@ import org.sagebionetworks.schema.adapter.org.json.EntityFactory;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.stereotype.Service;
 
+import com.google.common.collect.Iterators;
+
 @Service
 public class GridReplicaValidationManagerImpl implements GridReplicaValidationManager {
 
@@ -55,6 +59,62 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 		this.gridDao = gridDao;
 		this.jsonSchemaValidationManager = jsonSchemaValidationManager;
 		this.patchBuilderPublisher = patchBuilderPublisher;
+	}
+
+	@GridTransaction(readOnly = true)
+	@Override
+	public void validateAllRows(String sessionId, Long replicaId) {
+		ValidateArgument.required(sessionId, "sessionId");
+		ValidateArgument.required(replicaId, "replicaId");
+
+		Optional<GridSession> gridSession = gridDao.getGridSession(sessionId);
+		if (!hasValidSession(gridSession)) {
+			log.info("No valid grid session found for sessionId: {}, skipping validation", sessionId);
+			return;
+		}
+
+		Optional<GridConnectionInfo> validationConnectionOpt = gridDao.getSingletonConnection(sessionId,
+				EventSource.VALIDATION);
+		if (validationConnectionOpt.isEmpty()) {
+			log.info("No validation connection found for sessionId: {}, skipping validation", sessionId);
+			return;
+		}
+
+		Optional<GridHeader> header = gridReplicaViewManager.readHeader(sessionId, replicaId);
+		if (header.isEmpty()) {
+			log.info("No grid header found for sessionId: {}, replicaId: {}, skipping validation", sessionId, replicaId);
+			return;
+		}
+
+
+		// For each row in the replica, validate if the data is newer than the validation result.
+		// But we should batch the rowViews!
+		Iterator<RowView> rowViewIterator = gridReplicaViewManager.getQueryIterator(header.get(), List.of());
+
+		try (IntendedChangePublisher publisher = new IntendedChangePublisher(
+				validationConnectionOpt.get(),
+				header.get().getClockSequenceMaximum(),
+				patchBuilderPublisher,
+				PatchUtils.MAX_CHANGE_SET_SIZE)) {
+
+			Iterators.partition(rowViewIterator, 1000).forEachRemaining(batch -> {
+				List<RowView> changedRows = batch.stream()
+						.filter(this::isDataNewerThanValidationResult)
+						.collect(Collectors.toList());
+				if (changedRows.isEmpty()) {
+					return;
+				}
+
+				List<IntendedChange> intendedChanges = validateRows(header.get(),
+						gridSession.get().getGridJsonSchema$Id(), changedRows);
+
+				for (IntendedChange change : intendedChanges) {
+					publisher.publish(change);
+				}
+			});
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	@GridTransaction(readOnly = true)
@@ -101,11 +161,18 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 			return;
 		}
 
-		// send the changes to the patch builder.
-		patchBuilderPublisher.sendChangesToPatchBuilder(new IntendedChangeSet().setChanges(intendedChanges)
-				.setSessionId(sessionId).setReplicaId(validationConnectionOpt.get().getReplicaId())
-				.setConnectionId(validationConnectionOpt.get().getConnectionId())
-				.setClockSequenceMaximum(header.get().getClockSequenceMaximum()));
+		try (IntendedChangePublisher publisher = new IntendedChangePublisher(
+				validationConnectionOpt.get(),
+				header.get().getClockSequenceMaximum(),
+				patchBuilderPublisher,
+				PatchUtils.MAX_CHANGE_SET_SIZE)) {
+
+			for (IntendedChange change : intendedChanges) {
+				publisher.publish(change);
+			}
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	boolean hasValidSession(Optional<GridSession> gridSession) {
@@ -201,7 +268,7 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 	 * 
 	 * @param validationResults
 	 */
-	void cleanupValidationResults(ValidationResults validationResults) {
+	public static void cleanupValidationResults(ValidationResults validationResults) {
 		validationResults.setValidatedOn(null);
 		validationResults.setSchema$id(null);
 		validationResults.setValidationException(null);

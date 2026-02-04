@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -43,8 +44,8 @@ public class ReplicaChangeSet {
 		return new ReplicaChangeSet(connection.getSessionId(), connection.getReplicaId(), patchId, changes,	ChangeSource.PATCH);
 	}
 
-	public static ReplicaChangeSet fromSnapshot(GridConnectionInfo connection, Map<IndexType, Set<LogicalTimestamp>> changes) {
-		return new ReplicaChangeSet(connection.getSessionId(), connection.getReplicaId(), null, changes, ChangeSource.SNAPSHOT);
+	public static ReplicaChangeSet fromSnapshot(GridConnectionInfo connection) {
+		return new ReplicaChangeSet(connection.getSessionId(), connection.getReplicaId(), null, Collections.emptyMap(), ChangeSource.SNAPSHOT);
 	}
 
 	public ReplicaChangeSet(String jsonString) {

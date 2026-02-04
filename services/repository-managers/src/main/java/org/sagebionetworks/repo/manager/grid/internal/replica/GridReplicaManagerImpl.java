@@ -86,10 +86,10 @@ public class GridReplicaManagerImpl implements GridReplicaManager {
 	public void onApplySnapshot(ProgressCallback callback, GridConnectionInfo connection, Integer messageId, URL snapshotPresignedUrl) {
 		gridIndexManager.refreshMessageChain(connection.getSessionId(), connection.getReplicaId(), messageId);
 		// Download the file here
-		Map<IndexType, Set<LogicalTimestamp>> changes = gridIndexManager.applySnapshot(connection.getSessionId(), connection.getReplicaId(), snapshotPresignedUrl);
+		gridIndexManager.applySnapshot(connection.getSessionId(), connection.getReplicaId(), snapshotPresignedUrl);
 		List<LogicalTimestamp> clock = gridIndexManager.getClock(connection.getSessionId(), connection.getReplicaId());
 		sendClockMessage(messageId, connection.getConnectionId(), clock);
-		sendChangesToTopic(ReplicaChangeSet.fromSnapshot(connection, changes));
+		sendChangesToTopic(ReplicaChangeSet.fromSnapshot(connection));
 	}
 
 	void sendChangesToTopic(ReplicaChangeSet changeSet) {

@@ -5,15 +5,16 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.function.Supplier;
+import java.util.Map;
 
-import org.json.JSONObject;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.node.ArrayNode;
@@ -21,260 +22,190 @@ import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.Node;
 import org.sagebionetworks.repo.model.grid.node.ObjectNode;
 import org.sagebionetworks.repo.model.grid.node.RGANode;
+import org.sagebionetworks.repo.model.grid.node.ValueNode;
 import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
-/**
- * Test files were created using json-joy's indexed model encoder.
- */
 public class IndexedModelDecoderTest {
 
-	private Supplier<InputStream> loadResource(String resourcePath) {
-		return () -> getClass().getResourceAsStream(resourcePath);
+	private Path tempFile;
+
+	@BeforeEach
+	public void setUp() throws IOException {
+		tempFile = Files.createTempFile("snapshot-index-test-", ".cbor");
 	}
 
-	@Test
-	public void testDecodeEmptyObject() throws IOException {
-		try (IndexedModelDecoder decoder = new IndexedModelDecoder(loadResource("/indexed-model/empty-object.cbor"))) {
-			// Verify clock table
-			ClockTable clockTable = decoder.getClockTable();
-			assertNotNull(clockTable);
-			assertEquals(1, clockTable.getClocks().size());
-			assertEquals(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L), clockTable.getClocks().get(0));
-
-			// Verify root node ID
-			LogicalTimestamp expectedRootId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L);
-			assertEquals(expectedRootId, decoder.getRootNodeId());
-
-			// Verify nodes
-			List<Node> nodes = new ArrayList<>();
-			Node node;
-			while ((node = decoder.readNode()) != null) {
-				nodes.add(node);
-			}
-			assertEquals(1, nodes.size());
-
-			// Empty object
-			ObjectNode expected = new ObjectNode()
-				.setId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L))
-				.setValue(java.util.Map.of());
-			assertEquals(expected, nodes.get(0));
+	@AfterEach
+	public void tearDown() throws IOException {
+		if (tempFile != null) {
+			Files.deleteIfExists(tempFile);
 		}
 	}
 
 	@Test
-	public void testDecodeMultipleReplicas() throws IOException {
-		try (IndexedModelDecoder decoder = new IndexedModelDecoder(loadResource("/indexed-model/multiple-replicas.cbor"))) {
-			// Verify clock table
-			ClockTable clockTable = decoder.getClockTable();
-			assertNotNull(clockTable);
-			assertEquals(3, clockTable.getClocks().size());
-			assertEquals(new LogicalTimestamp().setReplicaId(100002L).setSequenceNumber(6L), clockTable.getClocks().get(0));
-			assertEquals(new LogicalTimestamp().setReplicaId(100001L).setSequenceNumber(4L), clockTable.getClocks().get(1));
-			assertEquals(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(2L), clockTable.getClocks().get(2));
+	public void testBuildIndexWithAllNodeTypes() throws IOException {
+		// Create a snapshot with all node types
+		LogicalTimestamp rootId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(1L);
+		LogicalTimestamp objectId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(4L);
 
-			// Verify root node ID
-			assertEquals(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(1L), decoder.getRootNodeId());
-
-			// Verify nodes
-			List<Node> nodes = new ArrayList<>();
-			Node node;
-			while ((node = decoder.readNode()) != null) {
-				nodes.add(node);
-			}
-			assertEquals(3, nodes.size());
-
-			// Node 0: ObjectNode with "rep2" key
-			ObjectNode expectedObj = new ObjectNode()
-				.setId(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(1L))
-				.setValue(java.util.Map.of("rep1", new LogicalTimestamp().setReplicaId(100001L).setSequenceNumber(3L),
-						"rep2", new LogicalTimestamp().setReplicaId(100002L).setSequenceNumber(5L)));
-			assertEquals(expectedObj, nodes.get(0));
-
-			// Node 1: ConstantNode with string value
-			ConstantNode expectedConst1 = new ConstantNode()
-				.setId(new LogicalTimestamp().setReplicaId(100001L).setSequenceNumber(3L))
-				.setValue(new ConValue(ConType.STRING, "From replica 1"));
-			assertEquals(expectedConst1, nodes.get(1));
-
-			ConstantNode expectedConst2 = new ConstantNode()
-					.setId(new LogicalTimestamp().setReplicaId(100002L).setSequenceNumber(5L))
-					.setValue(new ConValue(ConType.STRING, "From replica 2"));
-			assertEquals(expectedConst2, nodes.get(2));
-
-		}
-	}
-
-	@Test
-	public void testDecodeAllTypes() throws IOException {
-		try (IndexedModelDecoder decoder = new IndexedModelDecoder(loadResource("/indexed-model/all-types.cbor"))) {
-			// Verify clock table
-			ClockTable clockTable = decoder.getClockTable();
-			assertNotNull(clockTable);
-			assertEquals(1, clockTable.getClocks().size());
-			assertEquals(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(24L), clockTable.getClocks().get(0));
-
-			// Verify root node ID
-			assertEquals(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L), decoder.getRootNodeId());
-
-			// Verify nodes
-			List<Node> nodes = new ArrayList<>();
-			Node node;
-			while ((node = decoder.readNode()) != null) {
-				nodes.add(node);
-			}
-			assertEquals(17, nodes.size());
-
-			// Node 0: Root ObjectNode with 8 keys
-			assertTrue(nodes.get(0) instanceof ObjectNode);
-			ObjectNode rootObj = (ObjectNode) nodes.get(0);
-			assertEquals(1L, rootObj.getId().getSequenceNumber());
-			assertNotNull(rootObj.getValue());
-			assertEquals(8, rootObj.getValue().size());
-			assertTrue(rootObj.getValue().containsKey("str"));
-			assertTrue(rootObj.getValue().containsKey("num"));
-			assertTrue(rootObj.getValue().containsKey("bool"));
-			assertTrue(rootObj.getValue().containsKey("nil"));
-			assertTrue(rootObj.getValue().containsKey("undf"));
-			assertTrue(rootObj.getValue().containsKey("arr"));
-			assertTrue(rootObj.getValue().containsKey("vec"));
-			assertTrue(rootObj.getValue().containsKey("obj"));
-
-			// Node 1-5: Various ConstantNode types
-			assertEquals(new ConstantNode()
-				.setId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L))
-				.setValue(new ConValue(ConType.STRING, "Hello, json-joy!")), nodes.get(1));
-
-			assertEquals(new ConstantNode()
-				.setId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(3L))
-				.setValue(new ConValue(ConType.LONG, 42L)), nodes.get(2));
-
-			assertEquals(new ConstantNode()
-				.setId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(4L))
-				.setValue(new ConValue(ConType.BOOLEAN, true)), nodes.get(3));
-
-			assertEquals(new ConstantNode()
-				.setId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(5L))
-				.setValue(new ConValue(ConType.NULL, JSONObject.NULL)), nodes.get(4));
-
-			assertEquals(new ConstantNode()
-				.setId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(6L))
-				.setValue(new ConValue(ConType.UNDEFINED, null)), nodes.get(5));
-
-			// Node 6: ArrayNode with 3 elements
-			ArrayNode expectedArray = new ArrayNode()
-				.setId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(7L))
+		List<Node> nodes = new ArrayList<>();
+		nodes.add(new ConstantNode()
+				.setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(2L))
+				.setValue(new ConValue(ConType.LONG, 42L)));
+		nodes.add(new ConstantNode()
+				.setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(3L))
+				.setValue(new ConValue(ConType.STRING, "hello")));
+		nodes.add(new ObjectNode()
+				.setId(objectId)
+				.setValue(Map.of("key", new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(2L))));
+		nodes.add(new ValueNode()
+				.setId(rootId)
+				.setValue(objectId));  // ValueNode points to the object
+		nodes.add(new VectorNode()
+				.setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(5L))
+				.setValues(Map.of(0, new ConstantNode().setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(2L)))));
+		nodes.add(new ArrayNode()
+				.setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(6L))
 				.setElements(List.of(
-					new RGANode()
-						.setNodeId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(11L))
-						.setContainerId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(7L))
-						.setDataId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(8L))
-						.setReferenceNodeId(null),
-					new RGANode()
-						.setNodeId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(12L))
-						.setContainerId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(7L))
-						.setDataId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(9L))
-						.setReferenceNodeId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(11L)),
-					new RGANode()
-						.setNodeId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(13L))
-						.setContainerId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(7L))
-						.setDataId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L))
-						.setReferenceNodeId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(12L))
-				));
-			assertEquals(expectedArray, nodes.get(6));
+						new RGANode()
+								.setContainerId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(6L))
+								.setNodeId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(6L))
+								.setDataId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(2L))
+								.setIsDeleted(false)
+				)));
 
-			// Node 7-9: Array element ConstantNodes
-			assertEquals(new ConstantNode()
-				.setId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(8L))
-				.setValue(new ConValue(ConType.LONG, 1L)), nodes.get(7));
+		// Write the snapshot to a file
+		createSnapshot(tempFile, rootId, nodes);
 
-			assertEquals(new ConstantNode()
-				.setId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(9L))
-				.setValue(new ConValue(ConType.STRING, "two")), nodes.get(8));
+		// call under test
+		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
 
-			assertEquals(new ConstantNode()
-				.setId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L))
-				.setValue(new ConValue(ConType.BOOLEAN, false)), nodes.get(9));
+		// Verify the index
+		assertNotNull(index);
+		assertEquals(rootId, index.getRootNodeId());
+		assertEquals(6, index.getTotalNodeCount());
 
-			// Node 10: VectorNode with 3 values
-			assertTrue(nodes.get(10) instanceof VectorNode);
-			VectorNode vecNode = (VectorNode) nodes.get(10);
-			assertEquals(14L, vecNode.getId().getSequenceNumber());
-			assertNotNull(vecNode.getValues());
-			assertEquals(3, vecNode.getValues().size());
+		// Verify constants (2 nodes)
+		Map<LogicalTimestamp, IndexedModelDecoder.Entry> constants = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
+		assertEquals(2, constants.size());
+		assertEquals(2, index.getCountForType(IndexedNodeCodecMapper.CONSTANT));
 
-			// Node 11-13: Vector element ConstantNodes
-			assertEquals(new ConstantNode()
-				.setId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(15L))
-				.setValue(new ConValue(ConType.LONG, 1L)), nodes.get(11));
+		// Verify objects (1 node)
+		Map<LogicalTimestamp, IndexedModelDecoder.Entry> objects = index.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
+		assertEquals(1, objects.size());
 
-			assertEquals(new ConstantNode()
-				.setId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(16L))
-				.setValue(new ConValue(ConType.LONG, 2L)), nodes.get(12));
+		// Verify values (1 node)
+		Map<LogicalTimestamp, IndexedModelDecoder.Entry> values = index.getEntriesForType(IndexedNodeCodecMapper.VAL);
+		assertEquals(1, values.size());
 
-			assertEquals(new ConstantNode()
-				.setId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(17L))
-				.setValue(new ConValue(ConType.LONG, 3L)), nodes.get(13));
+		// Verify vectors (1 node)
+		Map<LogicalTimestamp, IndexedModelDecoder.Entry> vectors = index.getEntriesForType(IndexedNodeCodecMapper.VECTOR);
+		assertEquals(1, vectors.size());
 
-			// Node 14: Nested ObjectNode with 2 keys
-			ObjectNode expectedNestedObj = new ObjectNode()
-				.setId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(19L))
-				.setValue(java.util.Map.of(
-					"a", new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(20L),
-					"b", new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(21L)
-				));
-			assertEquals(expectedNestedObj, nodes.get(14));
+		// Verify arrays (1 node)
+		Map<LogicalTimestamp, IndexedModelDecoder.Entry> arrays = index.getEntriesForType(IndexedNodeCodecMapper.ARRAY);
+		assertEquals(1, arrays.size());
 
-			// Node 15-16: Object value ConstantNodes
-			assertEquals(new ConstantNode()
-				.setId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(20L))
-				.setValue(new ConValue(ConType.STRING, "A")), nodes.get(15));
-
-			assertEquals(new ConstantNode()
-				.setId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(21L))
-				.setValue(new ConValue(ConType.STRING, "B")), nodes.get(16));
+		// Verify each entry has valid offset and length
+		for (Map.Entry<LogicalTimestamp, IndexedModelDecoder.Entry> entry : constants.entrySet()) {
+			assertNotNull(entry.getKey());
+			assertTrue(entry.getValue().byteOffset() > 0, "Byte offset should be positive");
+			assertTrue(entry.getValue().binaryLength() > 0, "Binary length should be positive");
+			assertEquals(IndexedNodeCodecMapper.CONSTANT, entry.getValue().type());
 		}
 	}
 
 	@Test
-	public void testIteratorWithEmptyObject() throws IOException {
-		try (IndexedModelDecoder decoder = new IndexedModelDecoder(loadResource("/indexed-model/empty-object.cbor"))) {
-			int count = 0;
-			for (Node node : decoder) {
-				assertNotNull(node);
-				count++;
+	public void testBuildIndexWithMinimalFile() throws IOException {
+		// Create a minimal snapshot (just root value + constant)
+		LogicalTimestamp rootId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(1L);
+		LogicalTimestamp constId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(2L);
+		List<Node> nodes = List.of(
+				new ConstantNode().setId(constId).setValue(new ConValue(ConType.LONG, 42L)),
+				new ValueNode().setId(rootId).setValue(constId)
+		);
+
+		createSnapshot(tempFile, rootId, nodes);
+
+		// call under test
+		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
+
+		assertEquals(rootId, index.getRootNodeId());
+		assertEquals(2, index.getTotalNodeCount());
+		assertEquals(1, index.getCountForType(IndexedNodeCodecMapper.VAL));
+		assertEquals(1, index.getCountForType(IndexedNodeCodecMapper.CONSTANT));
+		assertEquals(0, index.getCountForType(IndexedNodeCodecMapper.OBJECT));
+		assertEquals(0, index.getCountForType(IndexedNodeCodecMapper.VECTOR));
+		assertEquals(0, index.getCountForType(IndexedNodeCodecMapper.ARRAY));
+	}
+
+	@Test
+	public void testBuildIndexWithNullPath() {
+		// call under test
+		assertThrows(IllegalArgumentException.class, () ->
+				IndexedModelDecoder.build(null)
+		);
+	}
+
+	@Test
+	public void testGetClockTable() throws IOException {
+		LogicalTimestamp rootId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(1L);
+		LogicalTimestamp constId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(2L);
+		List<Node> nodes = List.of(
+				new ConstantNode().setId(constId).setValue(new ConValue(ConType.LONG, 42L)),
+				new ValueNode().setId(rootId).setValue(constId)
+		);
+
+		ClockTable expectedClockTable = createSnapshot(tempFile, rootId, nodes);
+
+		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
+
+		// call under test
+		assertEquals(expectedClockTable, index.getClockTable());
+		assertEquals(rootId, index.getRootNodeId());
+	}
+
+	@Test
+	public void testGetEntriesForTypeWithNullType() throws IOException {
+		LogicalTimestamp rootId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(1L);
+		LogicalTimestamp constId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(2L);
+		List<Node> nodes = List.of(
+				new ConstantNode().setId(constId).setValue(new ConValue(ConType.LONG, 42L)),
+				new ValueNode().setId(rootId).setValue(constId)
+		);
+		createSnapshot(tempFile, rootId, nodes);
+
+		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
+
+		// call under test
+		assertThrows(IllegalArgumentException.class, () ->
+				index.getEntriesForType(null)
+		);
+	}
+
+	/**
+	 * Helper to create a snapshot file and return its clock table.
+	 */
+	private ClockTable createSnapshot(Path file, LogicalTimestamp rootId, List<Node> nodes) throws IOException {
+		byte[] encodedBytes;
+		try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+			 IndexedModelEncoder encoder = new IndexedModelEncoder(baos, rootId)) {
+			for (Node node : nodes) {
+				encoder.writeNode(node);
 			}
-			assertEquals(1, count);
+			encoder.close();
+			encodedBytes = baos.toByteArray();
 		}
-	}
 
-	@Test
-	public void testIteratorNoSuchElement() throws IOException {
-		try (IndexedModelDecoder decoder = new IndexedModelDecoder(loadResource("/indexed-model/empty-object.cbor"))) {
-			Iterator<Node> iter = decoder.iterator();
-			// Consume all nodes
-			while (iter.hasNext()) {
-				iter.next();
-			}
-			// Should throw when trying to get next after exhausted
-			assertThrows(NoSuchElementException.class, () -> iter.next());
+		Files.write(file, encodedBytes);
+
+		// Extract clock table from the encoded data
+		ClockTable clockTable = new ClockTable(new ArrayList<>());
+		for (Node node : nodes) {
+			clockTable.processNode(node);
 		}
-	}
-
-	@Test
-	public void testNullInputStream() {
-		assertThrows(IllegalArgumentException.class, () -> {
-			new IndexedModelDecoder(null);
-		});
-	}
-
-	@Test
-	public void testInvalidCBORData() {
-		byte[] invalidData = new byte[] { 0x00, 0x01, 0x02 };
-		assertThrows(RuntimeException.class, () -> {
-			new IndexedModelDecoder(() -> new java.io.ByteArrayInputStream(invalidData));
-		});
+		return clockTable;
 	}
 }

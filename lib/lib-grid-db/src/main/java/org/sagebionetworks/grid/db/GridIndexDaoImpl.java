@@ -519,11 +519,21 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		return count == null || count == 0;
 	}
 
+	@Override
+	@GridTransaction(readOnly = false)
+	public void batchInsertRgaNodes(String sessionIdString, Long replicaId, List<RGANode> nodes) {
+		if (nodes == null || nodes.isEmpty()) {
+			return;
+		}
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		batchInsertRgaNodesInternal(sessionId, replicaId, nodes);
+	}
+
 	/**
-	 * Batch insert RGA nodes directly without conflict resolution.
+	 * Internal method for batch inserting RGA nodes directly without conflict resolution.
 	 * Use only when array is empty or nodes have correct references.
 	 */
-	void batchInsertRgaNodes(Long sessionId, Long replicaId, List<RGANode> nodes) {
+	void batchInsertRgaNodesInternal(Long sessionId, Long replicaId, List<RGANode> nodes) {
 		SqlParameterSource[] batchArgs = nodes.stream()
 				.map(node -> createRgaNodeParameter(sessionId, replicaId, node))
 				.toArray(SqlParameterSource[]::new);
@@ -570,7 +580,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 
 			if (isArrayEmpty(sessionId, replicaId, containerId)) {
 				// Fast path: array is empty, just batch insert
-				batchInsertRgaNodes(sessionId, replicaId, nodes);
+				batchInsertRgaNodesInternal(sessionId, replicaId, nodes);
 			} else {
 				// Slow path: array has existing nodes, need conflict resolution
 				for (RGANode node : nodes) {

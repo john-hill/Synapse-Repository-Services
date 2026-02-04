@@ -1,10 +1,6 @@
 package org.sagebionetworks.grid.db;
 
-import java.io.BufferedInputStream;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.http.HttpClient;
@@ -12,28 +8,27 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.EnumMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.encoding.IndexedModelDecoder;
+import org.sagebionetworks.repo.model.grid.encoding.IndexedModelDecoder.Entry;
+import org.sagebionetworks.repo.model.grid.encoding.IndexedNodeCodecMapper;
+import org.sagebionetworks.repo.model.grid.encoding.SeekingNodeReader;
 import org.sagebionetworks.repo.model.grid.node.ArrayNode;
 import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
-import org.sagebionetworks.repo.model.grid.node.Node;
 import org.sagebionetworks.repo.model.grid.node.ObjectNode;
 import org.sagebionetworks.repo.model.grid.node.RGANode;
 import org.sagebionetworks.repo.model.grid.node.ValueNode;
@@ -41,10 +36,9 @@ import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
 import org.sagebionetworks.util.ValidateArgument;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
+
+import com.google.common.collect.Iterables;
 
 @Service
 @GridTransaction(readOnly = true)
@@ -53,7 +47,7 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	public static final Duration MAX_MESSAGE_DURATION = Duration.ofSeconds(60);
 	public static final int MAX_MESSAGE_ID = 65535;
 
-	private static final int MAX_IMPORT_NODE_BATCH_SIZE = 500;
+	private static final int SNAPSHOT_BATCH_SIZE = 1000;
 	private static final int MAX_VECTOR_NODE_BATCH_SIZE_FOR_CONSTANT_DENORMALIZE = 100;
 
 	private static final Logger log = LogManager.getLogger(GridIndexManagerImpl.class);
@@ -61,15 +55,12 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	private final GridIndexDao dao;
 	private final OperationDispatcher operationDispatcher;
 	private final HttpClient httpClient;
-	private final TransactionTemplate transactionTemplate;
 
-	public GridIndexManagerImpl(GridIndexDao dao, OperationDispatcher operationDispatcher, HttpClient httpClient,
-			@Qualifier("gridTransactionManager") PlatformTransactionManager transactionManager) {
+	public GridIndexManagerImpl(GridIndexDao dao, OperationDispatcher operationDispatcher, HttpClient httpClient) {
 		super();
 		this.dao = dao;
 		this.operationDispatcher = operationDispatcher;
 		this.httpClient = httpClient;
-		this.transactionTemplate = new TransactionTemplate(transactionManager);
 	}
 
 	@Override
@@ -106,7 +97,7 @@ public class GridIndexManagerImpl implements GridIndexManager {
 
 	@Override
 	@GridTransaction(readOnly = false)
-	public Map<IndexType, Set<LogicalTimestamp>> applySnapshot(String sessionId, Long replicaId, URL snapshotPresignedUrl) {
+	public void applySnapshot(String sessionId, Long replicaId, URL snapshotPresignedUrl) {
 		ValidateArgument.required(sessionId, "sessionId");
 		ValidateArgument.required(replicaId, "replicaId");
 		ValidateArgument.required(snapshotPresignedUrl, "snapshotPresignedUrl");
@@ -114,7 +105,7 @@ public class GridIndexManagerImpl implements GridIndexManager {
 		Path snapshotFile = null;
 		try {
 			snapshotFile = downloadSnapshotFile(snapshotPresignedUrl);
-			return importSnapshot(sessionId, replicaId, snapshotFile);
+			importSnapshot(sessionId, replicaId, snapshotFile);
 		} finally {
 			if (snapshotFile != null) {
 				try {
@@ -137,7 +128,7 @@ public class GridIndexManagerImpl implements GridIndexManager {
 					.GET()
 					.build();
 
-			HttpResponse<Path> response = httpClient.send(request, HttpResponse.BodyHandlers.ofFile(tempFile));
+			HttpResponse<Path> response = httpClient.send(request, HttpResponse.BodyHandlers.ofFile(tempFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE));
 
 			if (response.statusCode() != 200) {
 				throw new RuntimeException("Failed to download snapshot. Status: " + response.statusCode());
@@ -154,7 +145,17 @@ public class GridIndexManagerImpl implements GridIndexManager {
 		}
     }
 
-	Map<IndexType, Set<LogicalTimestamp>> importSnapshot(String sessionId, Long replicaId, Path snapshotFile) {
+	/**
+	 * Import a snapshot using type-based batch processing for optimized database operations.
+	 * This method builds an index of nodes grouped by type, then processes each type in a single
+	 * batch operation to minimize database round-trips.
+	 *
+	 * @param sessionId the session ID
+	 * @param replicaId the replica ID
+	 * @param snapshotFile the path to the snapshot CBOR file
+	 * @return a map of index types to the set of node IDs that were imported
+	 */
+	void importSnapshot(String sessionId, Long replicaId, Path snapshotFile) {
 		// Delete the replica to clear the index; the snapshot will repopulate the index.
 		dao.deleteReplica(sessionId, replicaId);
 
@@ -162,144 +163,185 @@ public class GridIndexManagerImpl implements GridIndexManager {
 		boolean insertRootNode = false;
 		createReplicaIfNotExist(sessionId, replicaId, insertRootNode);
 
-		Map<IndexType, Set<LogicalTimestamp>> changes = new EnumMap<>(IndexType.class);
-		List<VectorNode> deferredVectors = new ArrayList<>();
-
-		Supplier<InputStream> streamSupplier = () -> {
-			try {
-				return new BufferedInputStream(new FileInputStream(snapshotFile.toFile()));
-			} catch (FileNotFoundException e) {
-				throw new RuntimeException(e);
-			}
-		};
-		ClockTable snapshotClockTable;
-		try (IndexedModelDecoder decoder = new IndexedModelDecoder(streamSupplier)) {
-			snapshotClockTable = decoder.getClockTable();
-			AtomicInteger counter = new AtomicInteger();
-			decoder.stream()
-				.collect(Collectors.groupingBy(node -> counter.getAndIncrement() / MAX_VECTOR_NODE_BATCH_SIZE_FOR_CONSTANT_DENORMALIZE))
-				.values()
-				.forEach(batch -> {
-					List<ConstantNode> constantNodeBatch = new ArrayList<>();
-					List<ObjectNode> objectNodeBatch = new ArrayList<>();
-					List<ValueNode> valueNodeBatch = new ArrayList<>();
-					List<ArrayNode> arrayNodeBatch = new ArrayList<>();
-
-					batch.forEach(node -> {
-						if (node instanceof ConstantNode) {
-							constantNodeBatch.add((ConstantNode) node);
-						} else if (node instanceof ObjectNode) {
-							objectNodeBatch.add((ObjectNode) node);
-						} else if (node instanceof ValueNode) {
-							valueNodeBatch.add((ValueNode) node);
-						} else if (node instanceof ArrayNode) {
-							arrayNodeBatch.add((ArrayNode) node);
-						} else if (node instanceof VectorNode) {
-							deferredVectors.add((VectorNode) node);
-						} else {
-							throw new IllegalArgumentException("Unsupported node type in batch: " + node.getClass().getName());
-						}
-						IndexType type = getIndexType(node);
-						changes.computeIfAbsent(type, k -> new HashSet<>()).add(node.getId());
-					});
-
-					if (!constantNodeBatch.isEmpty()) {
-						dao.saveIndex(sessionId, replicaId, IndexType.con, constantNodeBatch.stream().map(ConstantNode::getId).collect(Collectors.toList()));
-						dao.saveNewConstants(sessionId, replicaId, constantNodeBatch);
-					}
-					if (!objectNodeBatch.isEmpty()) {
-						dao.saveIndex(sessionId, replicaId, IndexType.obj, objectNodeBatch.stream().map(ObjectNode::getId).collect(Collectors.toList()));
-						dao.saveObjects(sessionId, replicaId, objectNodeBatch);
-					}
-					if (!valueNodeBatch.isEmpty()) {
-						dao.saveIndex(sessionId, replicaId, IndexType.val, valueNodeBatch.stream().map(ValueNode::getId).collect(Collectors.toList()));
-						dao.saveValues(sessionId, replicaId, valueNodeBatch);
-					}
-					if (!arrayNodeBatch.isEmpty()) {
-						dao.saveIndex(sessionId, replicaId, IndexType.arr, arrayNodeBatch.stream().map(ArrayNode::getId).collect(Collectors.toList()));
-						dao.createArrayBatch(sessionId, replicaId, arrayNodeBatch.stream().map(ArrayNode::getId).collect(Collectors.toList()));
-						List<RGANode> arrayElements = arrayNodeBatch.stream().flatMap((arrayNode) -> arrayNode.getElements().stream()).collect(Collectors.toList());
-						if (!arrayElements.isEmpty()) {
-							dao.insertIntoRepeatedGrowableArrayBatch(sessionId, replicaId, arrayElements);
-						}
-					} else {
-						throw new IllegalArgumentException("Unsupported node type: " + batch.getClass().getName());
-					}
-				});
+		// Build the decoder (extracts ClockTable and rootNodeId, and builds a node index in a single pass)
+		IndexedModelDecoder index;
+		try {
+			index = IndexedModelDecoder.build(snapshotFile);
 		} catch (IOException e) {
-			throw new RuntimeException("Failed to import snapshot from file: " + snapshotFile.toString(), e);
+			throw new RuntimeException("Failed to build snapshot index: " + snapshotFile, e);
 		}
 
-		// Process deferred vectors - constants are now in DB
-		if (!deferredVectors.isEmpty()) {
-			saveVectorsWithResolvedConstants(sessionId, replicaId, deferredVectors);
+		ClockTable snapshotClockTable = index.getClockTable();
+
+		// Process each type in order using seeking reads
+		try (SeekingNodeReader reader = new SeekingNodeReader(snapshotFile, snapshotClockTable)) {
+			// Process constants FIRST (so vectors can reference them)
+			processConstants(sessionId, replicaId, index, reader);
+
+			// Process objects
+			processObjects(sessionId, replicaId, index, reader);
+
+			// Process values
+			processValues(sessionId, replicaId, index, reader);
+
+			// Process arrays (with RGA elements)
+			processArrays(sessionId, replicaId, index, reader);
+
+			// Process vectors LAST (constants already in DB - no deferred processing!)
+			processVectors(sessionId, replicaId, index, reader);
+		} catch (IOException e) {
+			throw new RuntimeException("Failed to import snapshot from file: " + snapshotFile, e);
 		}
 
 		// Update the replica clock
 		dao.setClocks(sessionId, replicaId, snapshotClockTable.getClocks());
-
-		return changes;
 	}
 
 	/**
-	 * Resolves constant values for deferred vectors and saves them to the database.
-	 * This is called after all constants have been imported, ensuring constant values
-	 * are available for lookup.
+	 * Process all constant nodes from the snapshot.
 	 */
-	void saveVectorsWithResolvedConstants(String sessionId, Long replicaId, List<VectorNode> vectors) {
-		AtomicInteger counter = new AtomicInteger();
-		vectors.stream()
-			// Maximum number of vectors to process at once to avoid loading all constant data in memory
-			.collect(Collectors.groupingBy(node -> counter.getAndIncrement() / MAX_VECTOR_NODE_BATCH_SIZE_FOR_CONSTANT_DENORMALIZE))
-			.values().forEach(batch -> {
-				// Collect ALL constant IDs referenced in the batch
-				Set<LogicalTimestamp> allConstantIds = batch.stream()
-						.filter(v -> v.getValues() != null)
-						.flatMap(v -> v.getValues().values().stream())
-						.filter(Objects::nonNull)
-						.map(ConstantNode::getId)
-						.collect(Collectors.toSet());
+	private void processConstants(String sessionId, Long replicaId, IndexedModelDecoder index, SeekingNodeReader reader) throws IOException {
+		Map<LogicalTimestamp, Entry> entries = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
+		if (entries.isEmpty()) {
+			return;
+		}
 
-				// Get the constant values
-				Map<LogicalTimestamp, ConstantNode> constantMap = dao
-						.getConstants(sessionId, replicaId, new ArrayList<>(allConstantIds)).stream()
-						.collect(Collectors.toMap(ConstantNode::getId, c -> c));
+		// Save the nodes to the index
+		dao.saveIndex(sessionId, replicaId, IndexType.con, new ArrayList<>(entries.keySet()));
 
-				// Populate each vector with resolved constant values
-				for (VectorNode vector : batch) {
-					if (vector.getValues() != null) {
-						vector.getValues().forEach((index, stub) -> {
-							if (stub != null) {
-								ConstantNode full = constantMap.get(stub.getId());
-								if (full != null) {
-									stub.setValue(full.getConValue());
-								}
-							}
-						});
-					}
-				}
-
-				// Save the batch
-				dao.saveIndex(sessionId, replicaId, IndexType.vec, batch.stream().map(VectorNode::getId).collect(Collectors.toList()));
-				dao.saveVectors(sessionId, replicaId, batch);
-			});
-
-
+		// Save the node data
+		for (List<Map.Entry<LogicalTimestamp, Entry>> batch : Iterables.partition(entries.entrySet(), SNAPSHOT_BATCH_SIZE)) {
+			List<ConstantNode> nodes = reader.readNodes(batch).stream()
+				.map(n -> (ConstantNode) n)
+				.collect(Collectors.toList());
+			dao.saveNewConstants(sessionId, replicaId, nodes);
+		}
 	}
 
-	private IndexType getIndexType(Node node) {
-		if (node instanceof ConstantNode) {
-			return IndexType.con;
-		} else if (node instanceof ObjectNode) {
-			return IndexType.obj;
-		} else if (node instanceof ValueNode) {
-			return IndexType.val;
-		} else if (node instanceof VectorNode) {
-			return IndexType.vec;
-		} else if (node instanceof ArrayNode) {
-			return IndexType.arr;
+	/**
+	 * Process all object nodes from the snapshot.
+	 */
+	private void processObjects(String sessionId, Long replicaId, IndexedModelDecoder index, SeekingNodeReader reader) throws IOException {
+		Map<LogicalTimestamp, Entry> entries = index.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
+		if (entries.isEmpty()) {
+			return;
 		}
-		throw new IllegalArgumentException("Unknown node type: " + node.getClass().getName());
+
+		dao.saveIndex(sessionId, replicaId, IndexType.obj, new ArrayList<>(entries.keySet()));
+
+		for (List<Map.Entry<LogicalTimestamp, Entry>> batch : Iterables.partition(entries.entrySet(), SNAPSHOT_BATCH_SIZE)) {
+			// Save data for this batch
+			List<ObjectNode> nodes = reader.readNodes(batch).stream()
+				.map(n -> (ObjectNode) n)
+				.collect(Collectors.toList());
+			dao.saveObjects(sessionId, replicaId, nodes);
+		}
+	}
+
+	/**
+	 * Process all value nodes from the snapshot.
+	 */
+	private void processValues(String sessionId, Long replicaId, IndexedModelDecoder index, SeekingNodeReader reader) throws IOException {
+		Map<LogicalTimestamp, Entry> entries = index.getEntriesForType(IndexedNodeCodecMapper.VAL);
+		if (entries.isEmpty()) {
+			return;
+		}
+		dao.saveIndex(sessionId, replicaId, IndexType.val, new ArrayList<>(entries.keySet()));
+
+		for (List<Map.Entry<LogicalTimestamp, Entry>> batch : Iterables.partition(entries.entrySet(), SNAPSHOT_BATCH_SIZE)) {
+			// Save data for this batch
+			List<ValueNode> nodes = reader.readNodes(batch).stream()
+				.map(n -> (ValueNode) n)
+				.collect(Collectors.toList());
+			dao.saveValues(sessionId, replicaId, nodes);
+		}
+	}
+
+	/**
+	 * Process all array nodes from the snapshot.
+	 */
+	private void processArrays(String sessionId, Long replicaId, IndexedModelDecoder index, SeekingNodeReader reader) throws IOException {
+		Map<LogicalTimestamp, Entry> entries = index.getEntriesForType(IndexedNodeCodecMapper.ARRAY);
+		if (entries.isEmpty()) {
+			return;
+		}
+
+		List<LogicalTimestamp> ids = new ArrayList<>(entries.keySet());
+		dao.saveIndex(sessionId, replicaId, IndexType.arr, ids);
+		dao.createArrayBatch(sessionId, replicaId, ids);
+
+		for (List<Map.Entry<LogicalTimestamp, Entry>> batch : Iterables.partition(entries.entrySet(), SNAPSHOT_BATCH_SIZE)) {
+			// Read nodes and insert RGA elements for this batch
+			List<ArrayNode> nodes = reader.readNodes(batch).stream()
+				.map(n -> (ArrayNode) n)
+				.collect(Collectors.toList());
+
+			List<RGANode> allElements = nodes.stream()
+				.flatMap(arr -> arr.getElements().stream())
+				.collect(Collectors.toList());
+
+			if (!allElements.isEmpty()) {
+				// Arrays are guaranteed empty (fresh import) - use fast path directly
+				dao.batchInsertRgaNodes(sessionId, replicaId, allElements);
+			}
+		}
+	}
+
+	/**
+	 * Process all vector nodes from the snapshot.
+	 * This is called AFTER constants are processed, so constant values can be resolved.
+	 */
+	private void processVectors(String sessionId, Long replicaId, IndexedModelDecoder index, SeekingNodeReader reader) throws IOException {
+		Map<LogicalTimestamp, Entry> entries = index.getEntriesForType(IndexedNodeCodecMapper.VECTOR);
+		Map<LogicalTimestamp, Entry> constantEntries = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
+		if (entries.isEmpty()) {
+			return;
+		}
+
+		dao.saveIndex(sessionId, replicaId, IndexType.vec, new ArrayList<>(entries.keySet()));
+
+
+		// Process in batches to limit constant lookup memory
+		for (List<Map.Entry<LogicalTimestamp, Entry>> batch : Iterables.partition(entries.entrySet(), SNAPSHOT_BATCH_SIZE)) {
+			List<VectorNode> nodes = reader.readNodes(batch).stream()
+				.map(n -> (VectorNode) n)
+				.collect(Collectors.toList());
+
+			// Collect ALL constant IDs referenced in this batch
+			Set<LogicalTimestamp> allConstantIds = nodes.stream()
+				.filter(v -> v.getValues() != null)
+				.flatMap(v -> v.getValues().values().stream())
+				.filter(Objects::nonNull)
+				.map(ConstantNode::getId)
+				.collect(Collectors.toSet());
+
+			// Get the constant values from the file
+			Map<LogicalTimestamp, ConstantNode> constantMap = dao
+				.getConstants(sessionId, replicaId, new ArrayList<>(allConstantIds)).stream()
+				.collect(Collectors.toMap(ConstantNode::getId, c -> c));
+
+			// Populate each vector with resolved constant values
+			for (VectorNode vector : nodes) {
+				if (vector.getValues() != null) {
+					vector.getValues().forEach((idx, stub) -> {
+						if (stub != null) {
+                            ConstantNode full = null;
+                            try {
+                                full = (ConstantNode) reader.readNode(stub.getId(), constantEntries.get(stub.getId()));
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                            if (full != null) {
+								stub.setValue(full.getConValue());
+							}
+						}
+					});
+				}
+			}
+
+			// Save the batch
+			dao.saveVectors(sessionId, replicaId, nodes);
+		}
 	}
 
 	void createReplicaIfNotExist(String sessionId, Long replicaId) {

@@ -212,6 +212,17 @@ public interface GridIndexDao {
 	void insertIntoRepeatedGrowableArrayBatch(String sessionIdString, Long replicaId, List<RGANode> batch);
 
 	/**
+	 * Batch insert RGA nodes directly without conflict resolution.
+	 * Use only when array is guaranteed empty or nodes have correct references already set.
+	 * This is a fast path for snapshot imports where arrays are known to be freshly created.
+	 *
+	 * @param sessionIdString the session ID
+	 * @param replicaId the replica ID
+	 * @param nodes the list of RGANodes to insert
+	 */
+	void batchInsertRgaNodes(String sessionIdString, Long replicaId, List<RGANode> nodes);
+
+	/**
 	 * Get a single page of ordered {@link RGANode}.
 	 * 
 	 * @param sessionIdString

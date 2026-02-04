@@ -39,6 +39,11 @@ public enum IndexedNodeCodecMapper {
         throw new IllegalArgumentException("Unsupported node type code: " + code);
     }
 
+    public static IndexedNodeCodecMapper getByFirstByte(byte firstByte) {
+        int code = (firstByte & 0xFF) >> 5;
+        return getByCode(code);
+    }
+
     public static IndexedNodeCodecMapper getByNodeClass(Class<? extends Node> nodeClass) {
         for (IndexedNodeCodecMapper mapper : values()) {
             if (mapper.nodeClass.equals(nodeClass)) {

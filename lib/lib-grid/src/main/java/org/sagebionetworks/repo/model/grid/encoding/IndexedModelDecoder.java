@@ -1,20 +1,19 @@
 package org.sagebionetworks.repo.model.grid.encoding;
 
-import java.io.ByteArrayInputStream;
-import java.io.Closeable;
+import java.io.BufferedInputStream;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.util.Iterator;
-import java.util.NoSuchElementException;
-import java.util.Spliterator;
-import java.util.Spliterators;
-import java.util.function.Supplier;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.TreeMap;
 
 import org.sagebionetworks.repo.model.grid.ClockTable;
-import org.sagebionetworks.repo.model.grid.node.Node;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.util.ValidateArgument;
 
@@ -22,10 +21,10 @@ import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.dataformat.cbor.CBORParser;
 
 /**
- * Streaming decoder for indexed model format.
+ * Decoder for the JSON CRDT Indexed Binary format.
  *
  * <p>
- * The indexed model format is a CBOR map containing:
+ * The indexed binary format is a CBOR map containing:
  * <ul>
  *   <li>"c" — the clock table (binary encoded)</li>
  *   <li>"r" — the root node ID (binary encoded timestamp)</li>
@@ -33,163 +32,195 @@ import com.fasterxml.jackson.dataformat.cbor.CBORParser;
  * </ul>
  * </p>
  * <p>
- * This decoder uses a two-pass approach to support arbitrary field ordering without buffering:
- * <ol>
- *   <li>Scans the entire stream to extract the clock table ("c") and root node ID ("r"),
- *   skipping over node entries.</li>
- *   <li>Streams nodes one at a time, skipping the "c" and "r" fields.</li>
- * </ol>
+ * The {@link IndexedModelDecoder#build } method scans the file to retrieve the clock table and root node, and builds an
+ * index of nodes grouped by type. The index optimizes reading batches of nodes to insert them into the database,
+ * minimizing the number of database round-trips. This index is built by scanning the CBOR file and recording the byte
+ * offset and length of each node's binary data, allowing for efficient random access.
  * </p>
- * <p>
- * This approach enables true streaming decode for large files  without loading the entire model into memory.
- * </p>
- * Usage:
- * <pre>
- * Supplier&lt;InputStream&gt; streamProvider = () -&gt; new FileInputStream("model.cbor");
- * try (IndexedModelDecoder decoder = new IndexedModelDecoder(streamProvider)) {
- *     ClockTable clockTable = decoder.getClockTable();
- *     LogicalTimestamp rootNodeId = decoder.getRootNodeId();
- *
- *     for (DecodedNode node : decoder) {
- *         // Process node
- *     }
- * }
- * </pre>
  *
  * @see <a href="https://jsonjoy.com/specs/json-crdt/encoding/indexed-encoding">Indexed Encoding</a>
  */
-public class IndexedModelDecoder implements Closeable, Iterable<Node> {
-
-	private final Supplier<? extends InputStream> streamProvider;
-	private final NodeCodec nodeDecoder;
-	private final ClockTable clockTable;
-	private final LogicalTimestamp rootNodeId;
-
-	private CBORParser parser;
-	private boolean parserInitialized = false;
+public class IndexedModelDecoder {
 
 	/**
-	 * Create a new IndexedModelDecoder.
-	 *
-	 * @param streamProvider a supplier that provides a fresh InputStream for each call.
-	 *                       The supplier will be called twice: once to scan for metadata,
-	 *                       and once to stream nodes.
+	 * An entry in the index representing a single node.
 	 */
-	public IndexedModelDecoder(Supplier<? extends InputStream> streamProvider) {
-		ValidateArgument.required(streamProvider, "streamProvider");
+	public static class Entry {
+		private final IndexedNodeCodecMapper type;
+		private final long byteOffset;
+		private final int binaryLength;
 
-		this.streamProvider = streamProvider;
-		this.nodeDecoder = new IndexedNodeCodec();
+		public Entry(IndexedNodeCodecMapper type, long byteOffset, int binaryLength) {
+			this.type = type;
+			this.byteOffset = byteOffset;
+			this.binaryLength = binaryLength;
+		}
 
-		// Pass 1: Scan for metadata (clock table and root node ID)
-		Metadata metadata = scanForMetadata();
-		this.clockTable = metadata.clockTable;
-		this.rootNodeId = metadata.rootNodeId;
+		public IndexedNodeCodecMapper type() {
+			return type;
+		}
+
+		public long byteOffset() {
+			return byteOffset;
+		}
+
+		public int binaryLength() {
+			return binaryLength;
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (o == null || getClass() != o.getClass()) return false;
+			Entry entry = (Entry) o;
+			return byteOffset == entry.byteOffset && binaryLength == entry.binaryLength
+					&& type == entry.type;
+		}
+
+		@Override
+		public int hashCode() {
+			return Objects.hash(type, byteOffset, binaryLength);
+		}
+
+		@Override
+		public String toString() {
+			return "Entry{type=" + type + ", byteOffset=" + byteOffset + ", binaryLength=" + binaryLength + "}";
+		}
+	}
+
+	private final Map<IndexedNodeCodecMapper, Map<LogicalTimestamp, Entry>> entriesByType;
+	private final ClockTable clockTable;
+	private final LogicalTimestamp rootNodeId;
+	private final int totalNodeCount;
+
+	/**
+	 * Private constructor - use {@link #build(Path)} to create a decoder.
+	 */
+	private IndexedModelDecoder(Map<IndexedNodeCodecMapper, Map<LogicalTimestamp, Entry>> entriesByType, ClockTable clockTable,
+								LogicalTimestamp rootNodeId, int totalNodeCount) {
+		this.entriesByType = entriesByType;
+		this.clockTable = clockTable;
+		this.rootNodeId = rootNodeId;
+		this.totalNodeCount = totalNodeCount;
 	}
 
 	/**
-	 * Metadata extracted during the first pass. The metadata is required to decode nodes.
+	 * Temporary holder for raw node entry data before clock table is available.
 	 */
-	private static class Metadata {
-		final ClockTable clockTable;
-		final LogicalTimestamp rootNodeId;
+	private static class RawNodePointer {
+		final String fieldName;
+		final long byteOffset;
+		final int binaryLength;
+		final byte firstByte;
 
-		Metadata(ClockTable clockTable, LogicalTimestamp rootNodeId) {
-			this.clockTable = clockTable;
-			this.rootNodeId = rootNodeId;
+		RawNodePointer(String fieldName, long byteOffset, int binaryLength, byte firstByte) {
+			this.fieldName = fieldName;
+			this.byteOffset = byteOffset;
+			this.binaryLength = binaryLength;
+			this.firstByte = firstByte;
 		}
 	}
 
 	/**
-	 * Pass 1: Scan the stream to extract the clock table and root node ID.
-	 * Skips over all node entries without decoding them.
+	 * Build a decoder by scanning the CBOR file.
+	 * This method extracts the ClockTable and rootNodeId from the file, then builds
+	 * an index of all nodes grouped by type.
 	 *
-	 * @return the extracted metadata
-	 * @throws UncheckedIOException if an I/O error occurs
+	 * @param snapshotFile the path to the snapshot CBOR file
+	 * @return the built decoder
+	 * @throws IOException if an I/O error occurs
 	 */
-	private Metadata scanForMetadata() {
-		try (InputStream in = streamProvider.get();
-			 CBORParser scanParser = CBORUtils.getCBORFactory().createParser(in)) {
+	public static IndexedModelDecoder build(Path snapshotFile) throws IOException {
+		ValidateArgument.required(snapshotFile, "snapshotFile");
 
-			ClockTable clockTable = null;
-			LogicalTimestamp rootNodeId = null;
-			byte[] rootNodeBytes = null; // Store temporarily if "r" comes before "c"
+		Map<IndexedNodeCodecMapper, Map<LogicalTimestamp, Entry>> entriesByType = new EnumMap<>(IndexedNodeCodecMapper.class);
+		for (IndexedNodeCodecMapper type : IndexedNodeCodecMapper.values()) {
+			entriesByType.put(type, new TreeMap<>());
+		}
+
+		ClockTable clockTable = null;
+		LogicalTimestamp rootNodeId = null;
+		byte[] rootNodeBytes = null; // Store if "r" comes before "c"
+		List<RawNodePointer> pendingNodes = new ArrayList<>(); // Buffer node pointers until clockTable is available
+		int totalCount = 0;
+
+		try (InputStream in = new BufferedInputStream(new FileInputStream(snapshotFile.toFile()));
+			 CBORParser parser = CBORUtils.getCBORFactory().createParser(in)) {
 
 			// Expect start of object
-			JsonToken token = scanParser.nextToken();
+			JsonToken token = parser.nextToken();
 			if (token != JsonToken.START_OBJECT) {
 				throw new IOException("Expected CBOR map, got: " + token);
 			}
 
 			// Scan all fields
-			while ((token = scanParser.nextToken()) != null && token != JsonToken.END_OBJECT) {
+			while ((token = parser.nextToken()) != null && token != JsonToken.END_OBJECT) {
 				if (token != JsonToken.FIELD_NAME) {
 					throw new IOException("Expected field name, got: " + token);
 				}
 
-				String fieldName = scanParser.currentName();
-				scanParser.nextToken(); // Move to value
+				String fieldName = parser.currentName();
+				parser.nextToken();
 
 				if ("c".equals(fieldName)) {
-					byte[] clockTableBytes = scanParser.getBinaryValue();
+					// Clock table field
+					byte[] clockTableBytes = parser.getBinaryValue();
 					clockTable = ClockTable.fromBinary(clockTableBytes);
-
-					// If we already have root node bytes, decode them now
+					// Decode rootNodeId if we already have the bytes
 					if (rootNodeBytes != null) {
 						rootNodeId = clockTable.decodeTimestamp(rootNodeBytes);
 						rootNodeBytes = null;
 					}
+					// Process any pending nodes now that we have the clock table
+					for (RawNodePointer raw : pendingNodes) {
+						LogicalTimestamp nodeId = clockTable.decodeNodeKey(raw.fieldName);
+						IndexedNodeCodecMapper nodeType = IndexedNodeCodecMapper.getByFirstByte(raw.firstByte);
+						Entry entry = new Entry(nodeType, raw.byteOffset, raw.binaryLength);
+						entriesByType.get(nodeType).put(nodeId, entry);
+						totalCount++;
+					}
+					pendingNodes.clear();
 				} else if ("r".equals(fieldName)) {
-					byte[] bytes = scanParser.getBinaryValue();
+					// Root node ID field
+					byte[] bytes = parser.getBinaryValue();
 					if (clockTable != null) {
 						rootNodeId = clockTable.decodeTimestamp(bytes);
 					} else {
-						// Store for later when clock table is available
-						rootNodeBytes = bytes;
+						rootNodeBytes = bytes; // Store for later
 					}
 				} else {
-					// Node entry - skip the binary value
-					scanParser.skipChildren();
+					// Node entry
+					byte[] nodeBytes = parser.getBinaryValue();
+					int binaryLength = nodeBytes.length;
+					long byteOffset = parser.currentLocation().getByteOffset() - binaryLength;
+
+					if (clockTable != null) {
+						// Clock table already available - process immediately
+						LogicalTimestamp nodeId = clockTable.decodeNodeKey(fieldName);
+						IndexedNodeCodecMapper nodeType = IndexedNodeCodecMapper.getByFirstByte(nodeBytes[0]);
+						Entry entry = new Entry(nodeType, byteOffset, binaryLength);
+						entriesByType.get(nodeType).put(nodeId, entry);
+						totalCount++;
+					} else {
+						// Buffer until clock table is available
+						pendingNodes.add(new RawNodePointer(fieldName, byteOffset, binaryLength, nodeBytes[0]));
+					}
 				}
 			}
-
-			if (clockTable == null) {
-				throw new RuntimeException("Clock table ('c') not found in model");
-			}
-			if (rootNodeId == null) {
-				throw new RuntimeException("Root node ID ('r') not found in model");
-			}
-
-			return new Metadata(clockTable, rootNodeId);
-
-		} catch (IOException e) {
-			throw new RuntimeException("Failed to scan model metadata", e);
 		}
+
+		if (clockTable == null) {
+			throw new IOException("Clock table ('c') not found in snapshot");
+		}
+		if (rootNodeId == null) {
+			throw new IOException("Root node ID ('r') not found in snapshot");
+		}
+
+		return new IndexedModelDecoder(entriesByType, clockTable, rootNodeId, totalCount);
 	}
 
 	/**
-	 * Initialize the pass 2 parser for streaming nodes.
-	 */
-	private void ensureParserInitialized() throws IOException {
-		if (parserInitialized) {
-			return;
-		}
-
-		// Open pass 2 stream
-		InputStream in = streamProvider.get();
-		this.parser = CBORUtils.getCBORFactory().createParser(in);
-
-		// Skip to the first node entry
-		JsonToken token = parser.nextToken();
-		if (token != JsonToken.START_OBJECT) {
-			throw new IOException("Expected CBOR map, got: " + token);
-		}
-
-		parserInitialized = true;
-	}
-
-	/**
-	 * Get the clock table for this model.
+	 * Get the clock table extracted from the snapshot file.
 	 *
 	 * @return the clock table
 	 */
@@ -198,7 +229,7 @@ public class IndexedModelDecoder implements Closeable, Iterable<Node> {
 	}
 
 	/**
-	 * Get the root node ID for this model.
+	 * Get the root node ID extracted from the snapshot file.
 	 *
 	 * @return the root node ID
 	 */
@@ -207,111 +238,33 @@ public class IndexedModelDecoder implements Closeable, Iterable<Node> {
 	}
 
 	/**
-	 * Read the next node from the model.
+	 * Get all entries for a specific node type.
 	 *
-	 * @return the next decoded node, or null if no more nodes
-	 * @throws IOException if an I/O error occurs
+	 * @param type the node type
+	 * @return an unmodifiable list of entries for that type, never null
 	 */
-	public Node readNode() throws IOException {
-		ensureParserInitialized();
-
-		while (true) {
-			JsonToken token = parser.nextToken();
-			if (token == null || token == JsonToken.END_OBJECT) {
-				return null;
-			}
-
-			if (token != JsonToken.FIELD_NAME) {
-				throw new IOException("Expected field name, got: " + token);
-			}
-
-			String fieldName = parser.currentName();
-			parser.nextToken(); // Move to value
-
-			// Skip "c" and "r" fields (already processed in pass 1)
-			if ("c".equals(fieldName) || "r".equals(fieldName)) {
-				parser.skipChildren();
-				continue;
-			}
-
-			// Decode the node key to get the node ID
-			LogicalTimestamp nodeId = this.clockTable.decodeNodeKey(fieldName);
-
-			// Read the node binary
-			byte[] nodeBytes = parser.getBinaryValue();
-
-			// Decode the node
-			ByteArrayInputStream nodeIn = new ByteArrayInputStream(nodeBytes);
-			return nodeDecoder.decode(nodeId, clockTable, nodeIn);
-		}
+	public Map<LogicalTimestamp, Entry> getEntriesForType(IndexedNodeCodecMapper type) {
+		ValidateArgument.required(type, "type");
+		return Collections.unmodifiableMap(entriesByType.getOrDefault(type, Collections.emptyMap()));
 	}
 
 	/**
-	 * Returns an iterator over the nodes in this model.
-	 * Note: This iterator wraps IOExceptions in RuntimeExceptions.
+	 * Get the total number of nodes in the index.
 	 *
-	 * @return an iterator over decoded nodes
+	 * @return the total node count
 	 */
-	@Override
-	public Iterator<Node> iterator() {
-		try {
-			ensureParserInitialized();
-		} catch (IOException e) {
-			throw new UncheckedIOException("Failed to initialize parser for node streaming", e);
-		}
-
-		return new Iterator<>() {
-            private Node next = null;
-            private boolean done = false;
-
-            @Override
-            public boolean hasNext() {
-                if (done) {
-                    return false;
-                }
-                if (next != null) {
-                    return true;
-                }
-                try {
-                    next = readNode();
-                    if (next == null) {
-                        done = true;
-                        return false;
-                    }
-                    return true;
-                } catch (IOException e) {
-                    throw new UncheckedIOException("Failed to read node", e);
-                }
-            }
-
-            @Override
-            public Node next() {
-                if (!hasNext()) {
-                    throw new NoSuchElementException();
-                }
-                Node result = next;
-                next = null;
-                return result;
-            }
-        };
-	}
-
-	public Stream<Node> stream() {
-		return StreamSupport.stream(
-				Spliterators.spliteratorUnknownSize(iterator(), Spliterator.DISTINCT | Spliterator.IMMUTABLE | Spliterator.ORDERED | Spliterator.NONNULL),
-				false  // not parallel
-		);
+	public int getTotalNodeCount() {
+		return totalNodeCount;
 	}
 
 	/**
-	 * Close the decoder.
+	 * Get the count of nodes for a specific type.
 	 *
-	 * @throws IOException if an I/O error occurs
+	 * @param type the node type
+	 * @return the count of nodes of that type
 	 */
-	@Override
-	public void close() throws IOException {
-		if (parser != null) {
-			parser.close();
-		}
+	public int getCountForType(IndexedNodeCodecMapper type) {
+		ValidateArgument.required(type, "type");
+		return entriesByType.getOrDefault(type, Collections.emptyMap()).size();
 	}
 }

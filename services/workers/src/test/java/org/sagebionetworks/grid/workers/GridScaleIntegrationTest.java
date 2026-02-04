@@ -54,7 +54,7 @@ import au.com.bytecode.opencsv.CSVWriter;
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
 public class GridScaleIntegrationTest {
 
-	public static final long MAX_WAIT_MS = 120_000;
+	public static final long MAX_WAIT_MS = 120_000_000;
 
 	private static final long INTERNAL_REPLICA_ID = 66534L;
 
@@ -89,7 +89,7 @@ public class GridScaleIntegrationTest {
 		entityService.truncateAll();
 		gridIndexDao.truncateAll();
 		admin = userManager.getUserInfo(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId());
-		numberRows = 100;
+		numberRows = 10_000;
 		numberColumns = 100;
 		File temp = File.createTempFile("GridScaleIntegrationTest", ".csv", null);
 		// Create column names

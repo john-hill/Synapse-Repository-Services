@@ -23,7 +23,7 @@ public interface GridIndexManager {
 	 */
 	Map<IndexType, Set<LogicalTimestamp>> applyPatch(String sessionId, Long replicaId, Patch patch);
 
-	Map<IndexType, Set<LogicalTimestamp>> applySnapshot(String sessionId, Long replicaId, URL snapshotPresignedUrl);
+	void applySnapshot(String sessionId, Long replicaId, URL snapshotPresignedUrl);
 
 	/**
 	 * Get the a replica's full clock.

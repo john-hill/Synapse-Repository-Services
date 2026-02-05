@@ -74,7 +74,7 @@ public class UserManagerImplTest {
 		NewUser user = new NewUser();
 		user.setEmail(UUID.randomUUID().toString() + "@test.com");
 		user.setUserName(UUID.randomUUID().toString());
-		Long principalId = userManager.createUser(user);;
+		Long principalId = userManager.createUser(user);
 		groupsToDelete.add(principalId.toString());
 		
 		// Check that the UserInfo is populated
@@ -97,6 +97,10 @@ public class UserManagerImplTest {
 		// Should include Public and authenticated users' group.
 		assertTrue(ui.getGroups().contains(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId()));
 		assertTrue(ui.getGroups().contains(BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId()));
+		
+		assertEquals(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId(), ui.getRealmAnonymousUserId());
+		assertEquals(BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId(), ui.getRealmAuthenticatedUsersId());
+		assertEquals(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId(), ui.getRealmPublicUsersId());
 	}
 	
 	@Test

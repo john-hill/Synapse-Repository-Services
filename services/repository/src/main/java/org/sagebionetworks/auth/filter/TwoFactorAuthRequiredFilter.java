@@ -45,6 +45,7 @@ public class TwoFactorAuthRequiredFilter extends OncePerRequestFilter {
 		Long userId = Long.parseLong(userIdParam);
 		
 		// The anonymous user is not a conventional user and cannot enable 2fa
+		// we check to see if the given user is the anonymous user in any realm
 		if (realmDao.getRealmForAnonymousPrincipal(userId.toString()).isPresent()) {
 			filterChain.doFilter(httpRequest, httpResponse);
 			return;

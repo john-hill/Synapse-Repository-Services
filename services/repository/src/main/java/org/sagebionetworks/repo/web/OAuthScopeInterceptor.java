@@ -43,16 +43,17 @@ public class OAuthScopeInterceptor implements HandlerInterceptor {
 	private OIDCTokenManager oidcTokenManager;
 	
 	public static boolean hasUserIdParameterOrAccessTokenHeader(HandlerMethod handlerMethod) {
-		if (handlerMethod.getMethodParameters()!=null) {
-			for (MethodParameter methodParameter : handlerMethod.getMethodParameters()) {
-				RequestParam requestParam = methodParameter.getParameterAnnotation(RequestParam.class);
-				if (requestParam!=null && requestParam.value().equals(AuthorizationConstants.USER_ID_PARAM)) {
-					return true;
-				}
-				RequestHeader requestHeader = methodParameter.getParameterAnnotation(RequestHeader.class);
-				if (requestHeader!=null && requestHeader.value().equals(SYNAPSE_AUTHORIZATION_HEADER_NAME)) {
-					return true;
-				}
+		if (handlerMethod.getMethodParameters()==null) {
+			return false;
+		}
+		for (MethodParameter methodParameter : handlerMethod.getMethodParameters()) {
+			RequestParam requestParam = methodParameter.getParameterAnnotation(RequestParam.class);
+			if (requestParam!=null && requestParam.value().equals(AuthorizationConstants.USER_ID_PARAM)) {
+				return true;
+			}
+			RequestHeader requestHeader = methodParameter.getParameterAnnotation(RequestHeader.class);
+			if (requestHeader!=null && requestHeader.value().equals(SYNAPSE_AUTHORIZATION_HEADER_NAME)) {
+				return true;
 			}
 		}
 		return false;

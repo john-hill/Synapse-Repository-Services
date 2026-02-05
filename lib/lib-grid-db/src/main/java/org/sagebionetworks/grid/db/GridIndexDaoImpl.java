@@ -9,9 +9,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -21,11 +19,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.node.ArrayNode;
-import org.sagebionetworks.repo.model.grid.node.RGANode;
 import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.IndexNode;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.node.ObjectNode;
+import org.sagebionetworks.repo.model.grid.node.RGANode;
 import org.sagebionetworks.repo.model.grid.node.ValueNode;
 import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
@@ -500,25 +498,6 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		}
 	}
 
-	/**
-	 * Check if an RGA array contains only the head node (is empty).
-	 */
-	boolean isArrayEmpty(Long sessionId, Long replicaId, LogicalTimestamp arrayId) {
-		MapSqlParameterSource params = new MapSqlParameterSource()
-				.addValue("sessionId", sessionId)
-				.addValue("replicaId", replicaId)
-				.addValue("ctrRep", arrayId.getReplicaId())
-				.addValue("ctrSeq", arrayId.getSequenceNumber());
-
-		// Count nodes in array excluding the head node (where NODE = CTR)
-		Long count = namedTemplate.queryForObject(
-				"SELECT COUNT(*) FROM GRID_REPLICA_RGA WHERE SESSION_ID = :sessionId "
-						+ "AND REPLICA_ID = :replicaId AND CTR_REP = :ctrRep AND CTR_SEQ = :ctrSeq "
-						+ "AND NOT (NODE_REP = CTR_REP AND NODE_SEQ = CTR_SEQ)",
-				params, Long.class);
-		return count == null || count == 0;
-	}
-
 	@Override
 	@GridTransaction(readOnly = false)
 	public void batchInsertRgaNodes(String sessionIdString, Long replicaId, List<RGANode> nodes) {
@@ -546,49 +525,6 @@ public class GridIndexDaoImpl implements GridIndexDao {
 				batchArgs);
 	}
 
-	@Override
-	@GridTransaction(readOnly = false)
-	public void insertIntoRepeatedGrowableArrayBatch(String sessionIdString, Long replicaId, List<RGANode> batch) {
-		if (batch == null || batch.isEmpty()) {
-			return;
-		}
-
-		// Validate all nodes
-		for (int i = 0; i < batch.size(); i++) {
-			RGANode node = batch.get(i);
-			ValidateArgument.required(node, "batch[" + i + "]");
-			ValidateArgument.required(node.getDataId(), "batch[" + i + "].dataId");
-			ValidateArgument.required(node.getReferenceNodeId(), "batch[" + i + "].referenceNodeId");
-		}
-
-		Long sessionId = validateReplica(sessionIdString, replicaId);
-
-		// Sort by nodeId for deterministic ordering
-		List<RGANode> sorted = batch.stream()
-				.sorted(Comparator
-						.comparing((RGANode n) -> n.getNodeId().getReplicaId())
-						.thenComparing(n -> n.getNodeId().getSequenceNumber()))
-				.collect(Collectors.toList());
-
-		// Group by containerId (array)
-		Map<LogicalTimestamp, List<RGANode>> byContainer = sorted.stream()
-				.collect(Collectors.groupingBy(RGANode::getContainerId));
-
-		for (Map.Entry<LogicalTimestamp, List<RGANode>> entry : byContainer.entrySet()) {
-			LogicalTimestamp containerId = entry.getKey();
-			List<RGANode> nodes = entry.getValue();
-
-			if (isArrayEmpty(sessionId, replicaId, containerId)) {
-				// Fast path: array is empty, just batch insert
-				batchInsertRgaNodesInternal(sessionId, replicaId, nodes);
-			} else {
-				// Slow path: array has existing nodes, need conflict resolution
-				for (RGANode node : nodes) {
-					insertIntoRepeatedGrowableArray(sessionIdString, replicaId, node);
-				}
-			}
-		}
-	}
 
 	/**
 	 * Get the ID of the {@link RGANode} currently pointing to the provided

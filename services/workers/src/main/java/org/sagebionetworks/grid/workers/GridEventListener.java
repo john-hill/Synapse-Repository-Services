@@ -115,7 +115,7 @@ public class GridEventListener {
 			// The caller needs to apply the provided patch
 			String messageBody = "{\"type\":\"patch\",\"body\":" + optional.get() + "}"; // directly inline the patch body (it is always a JSON array)
 			publisher.publishEventResponse(message.getContext(), JsonRxMessageType.ResponseData,
-					message.getRequestId(), messageBody.toString());
+					message.getRequestId(), messageBody);
 		}
 
 	}

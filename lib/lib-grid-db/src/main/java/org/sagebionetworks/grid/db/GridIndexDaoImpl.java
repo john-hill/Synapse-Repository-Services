@@ -505,14 +505,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 			return;
 		}
 		Long sessionId = validateReplica(sessionIdString, replicaId);
-		batchInsertRgaNodesInternal(sessionId, replicaId, nodes);
-	}
 
-	/**
-	 * Internal method for batch inserting RGA nodes directly without conflict resolution.
-	 * Use only when array is empty or nodes have correct references.
-	 */
-	void batchInsertRgaNodesInternal(Long sessionId, Long replicaId, List<RGANode> nodes) {
 		SqlParameterSource[] batchArgs = nodes.stream()
 				.map(node -> createRgaNodeParameter(sessionId, replicaId, node))
 				.toArray(SqlParameterSource[]::new);

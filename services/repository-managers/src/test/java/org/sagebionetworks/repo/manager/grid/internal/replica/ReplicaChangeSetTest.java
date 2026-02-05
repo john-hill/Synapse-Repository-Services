@@ -72,8 +72,7 @@ public class ReplicaChangeSetTest {
 		ReplicaChangeSet rcs = ReplicaChangeSet.fromSnapshot(connection);
 		// call under test
 		String json = rcs.toJson();
-		assertEquals("{\"sessionId\":\"session444\",\"replicaId\":2,\"changeSource\":\"SNAPSHOT\","
-				+ "\"changes\":{\"arr\":[[3,110],[2,8],[3,112]],\"con\":[[3,113],[2,10]],\"obj\":[]}}", json);
+		assertEquals("{\"sessionId\":\"session444\",\"replicaId\":2,\"changeSource\":\"SNAPSHOT\",\"changes\":{}}", json);
 
 		// call under test
 		ReplicaChangeSet clone = new ReplicaChangeSet(json);

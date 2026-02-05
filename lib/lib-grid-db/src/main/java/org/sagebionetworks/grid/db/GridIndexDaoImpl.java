@@ -467,7 +467,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 	@GridTransaction(readOnly = false)
 	public void insertIntoRepeatedGrowableArray(String sessionIdString, Long replicaId, RGANode toInsert) {
 		ValidateArgument.required(toInsert, "toInsert");
-		ValidateArgument.required(toInsert.getDataId(), "toInsert.datatId");
+		ValidateArgument.required(toInsert.getDataId(), "toInsert.dataId");
 		ValidateArgument.required(toInsert.getReferenceNodeId(), "toInsert.referenceNodeId");
 
 		Long sessionId = validateReplica(sessionIdString, replicaId);

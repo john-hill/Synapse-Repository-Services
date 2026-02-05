@@ -246,7 +246,7 @@ public class RecordSetCreateGridHandlerTest {
 		doReturn(mockCsvReader).when(mockCsvProvider).getCsvReader(csvFile, csvDescriptor);
 
 		doReturn(mockRowHandler).when(handler).getSnapshotRowHandler(mockSnapshotStore, gridSession, replica, csvSchema,
-				List.of(), mockFileProvider, mockS3Client, mockStackConfig, userId, jsonSchema);
+				List.of(), mockFileProvider, mockS3Client, mockStackConfig, userId, null);
 
 		when(mockCsvReader.readNext()).thenReturn(new String[] { "foo", "bar" }, new String[] { "1", "one" },
 				new String[] { "2", "two" }, new String[] { null, "three" }, null);
@@ -274,10 +274,13 @@ public class RecordSetCreateGridHandlerTest {
 		when(mockEntityManager.getEntity(mockUser, recordSet.getId(), RecordSet.class)).thenReturn(recordSet);
 		when(mockAuthorizationManager.hasAccess(mockUser, recordSet.getId(), ACCESS_TYPE.DOWNLOAD)).thenReturn(AuthorizationStatus.authorized());
 		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.empty());
+		when(mockJsonSchemaManager.getValidationSchema(schema$id)).thenReturn(jsonSchema);
+		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.of(
+				new JsonSchemaObjectBinding().setJsonSchemaVersionInfo(new JsonSchemaVersionInfo().set$id(schema$id))));
 
 		gridSession = new GridSession().setSessionId(gridSessionId);
 
-		when(mockGridDao.createGridSession(new CreateGridSession().setUserId(userId).setSourceId(recordSet.getId())))
+		when(mockGridDao.createGridSession(new CreateGridSession().setUserId(userId).setSchemaId(schema$id).setSourceId(recordSet.getId())))
 				.thenReturn(gridSession);
 
 		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
@@ -289,7 +292,7 @@ public class RecordSetCreateGridHandlerTest {
 		doReturn(csvSchema).when(handler).getSchemaFromCsv(csvFile, csvDescriptor);
 		doReturn(mockCsvReader).when(mockCsvProvider).getCsvReader(csvFile, csvDescriptor);
 		doReturn(mockRowHandler).when(handler).getSnapshotRowHandler(mockSnapshotStore, gridSession, replica, csvSchema,
-				List.of(), mockFileProvider, mockS3Client, mockStackConfig, userId, jsonSchema);
+				List.of(1), mockFileProvider, mockS3Client, mockStackConfig, userId, jsonSchema);
 
 		when(mockCsvReader.readNext()).thenReturn(new String[] { "foo", "bar" }, new String[] { "1", "one" },
 				new String[] { "2", "two" }, new String[] { null, "three" }, null);
@@ -315,10 +318,13 @@ public class RecordSetCreateGridHandlerTest {
 		when(mockEntityManager.getEntity(mockUser, recordSet.getId(), RecordSet.class)).thenReturn(recordSet);
 		when(mockAuthorizationManager.hasAccess(mockUser, recordSet.getId(), ACCESS_TYPE.DOWNLOAD)).thenReturn(AuthorizationStatus.authorized());
 		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.empty());
+		when(mockJsonSchemaManager.getValidationSchema(schema$id)).thenReturn(jsonSchema);
+		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.of(
+				new JsonSchemaObjectBinding().setJsonSchemaVersionInfo(new JsonSchemaVersionInfo().set$id(schema$id))));
 
 		gridSession = new GridSession().setSessionId(gridSessionId);
 
-		when(mockGridDao.createGridSession(new CreateGridSession().setUserId(userId).setSourceId(recordSet.getId())))
+		when(mockGridDao.createGridSession(new CreateGridSession().setUserId(userId).setSchemaId(schema$id).setSourceId(recordSet.getId())))
 				.thenReturn(gridSession);
 
 		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
@@ -330,7 +336,7 @@ public class RecordSetCreateGridHandlerTest {
 		doReturn(csvSchema).when(handler).getSchemaFromCsv(csvFile, csvDescriptor);
 		doReturn(mockCsvReader).when(mockCsvProvider).getCsvReader(csvFile, csvDescriptor);
 		doReturn(mockRowHandler).when(handler).getSnapshotRowHandler(mockSnapshotStore, gridSession, replica, csvSchema,
-				List.of(), mockFileProvider, mockS3Client, mockStackConfig, userId, jsonSchema);
+				List.of(1), mockFileProvider, mockS3Client, mockStackConfig, userId, jsonSchema);
 
 		when(mockCsvReader.readNext()).thenThrow(ioe);
 

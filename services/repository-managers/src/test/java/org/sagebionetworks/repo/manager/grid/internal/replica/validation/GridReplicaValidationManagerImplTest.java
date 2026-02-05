@@ -233,8 +233,6 @@ public class GridReplicaValidationManagerImplTest {
 				List.of(new RowJsonSubject(rows.get(0)), new RowJsonSubject(rows.get(1)))))
 				.thenReturn(List.of(validationResult, validationResult));
 
-		doNothing().when(manager).cleanupValidationResults(validationResult);
-
 		doReturn(intendedChange).when(manager).createChange(rows.get(0), validationResult);
 		doReturn(intendedChange2).when(manager).createChange(rows.get(1), validationResult);
 

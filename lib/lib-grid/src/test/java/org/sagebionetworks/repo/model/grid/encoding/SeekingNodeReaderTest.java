@@ -7,12 +7,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.logging.Log;
+import org.json.JSONObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -306,6 +308,237 @@ public class SeekingNodeReaderTest {
 		);
 	}
 
+	@Test
+	public void testDecodeJsonJoySnapshotEmptyObject() throws IOException {
+		Path resourceFile = copyResourceToTempFile("/indexed-model/empty-object.cbor");
+		try {
+			IndexedModelDecoder decoder = IndexedModelDecoder.build(resourceFile);
+
+			// Verify clock table
+			ClockTable clockTable = decoder.getClockTable();
+			assertNotNull(clockTable);
+			assertEquals(1, clockTable.getClocks().size());
+			assertEquals(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L), clockTable.getClocks().get(0));
+
+			// Verify root node ID
+			LogicalTimestamp expectedRootId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L);
+			assertEquals(expectedRootId, decoder.getRootNodeId());
+
+			// Verify node counts
+			assertEquals(1, decoder.getTotalNodeCount());
+			assertEquals(1, decoder.getCountForType(IndexedNodeCodecMapper.OBJECT));
+
+			// Verify we can read the node using SeekingNodeReader
+			try (SeekingNodeReader reader = new SeekingNodeReader(resourceFile, clockTable)) {
+				Map<LogicalTimestamp, IndexedModelDecoder.Entry> objects = decoder.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
+				List<Node> nodes = reader.readNodes(objects.entrySet());
+				assertEquals(1, nodes.size());
+
+				// Empty object
+				ObjectNode expected = new ObjectNode()
+						.setId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L))
+						.setValue(java.util.Map.of());
+				assertEquals(expected, nodes.get(0));
+			}
+		} finally {
+			Files.deleteIfExists(resourceFile);
+		}
+	}
+
+	@Test
+	public void testDecodeJsonJoySnapshotMultipleReplicas() throws IOException {
+		Path resourceFile = copyResourceToTempFile("/indexed-model/multiple-replicas.cbor");
+		try {
+			IndexedModelDecoder decoder = IndexedModelDecoder.build(resourceFile);
+
+			// Verify clock table
+			ClockTable clockTable = decoder.getClockTable();
+			assertNotNull(clockTable);
+			assertEquals(3, clockTable.getClocks().size());
+			assertEquals(new LogicalTimestamp().setReplicaId(100002L).setSequenceNumber(6L), clockTable.getClocks().get(0));
+			assertEquals(new LogicalTimestamp().setReplicaId(100001L).setSequenceNumber(4L), clockTable.getClocks().get(1));
+			assertEquals(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(2L), clockTable.getClocks().get(2));
+
+			// Verify root node ID
+			assertEquals(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(1L), decoder.getRootNodeId());
+
+			// Verify node counts
+			assertEquals(3, decoder.getTotalNodeCount());
+			assertEquals(1, decoder.getCountForType(IndexedNodeCodecMapper.OBJECT));
+			assertEquals(2, decoder.getCountForType(IndexedNodeCodecMapper.CONSTANT));
+
+			// Verify we can read the nodes using SeekingNodeReader
+			try (SeekingNodeReader reader = new SeekingNodeReader(resourceFile, clockTable)) {
+				// Read the object node
+				Map<LogicalTimestamp, IndexedModelDecoder.Entry> objects = decoder.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
+				List<Node> objectNodes = reader.readNodes(objects.entrySet());
+				assertEquals(1, objectNodes.size());
+
+				ObjectNode expectedObj = new ObjectNode()
+						.setId(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(1L))
+						.setValue(java.util.Map.of("rep1", new LogicalTimestamp().setReplicaId(100001L).setSequenceNumber(3L),
+								"rep2", new LogicalTimestamp().setReplicaId(100002L).setSequenceNumber(5L)));
+				assertEquals(expectedObj, objectNodes.get(0));
+
+				// Read constant nodes
+				Map<LogicalTimestamp, IndexedModelDecoder.Entry> constants = decoder.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
+				assertEquals(2, constants.size());
+
+				// Read specific constant by ID
+				LogicalTimestamp const1Id = new LogicalTimestamp().setReplicaId(100001L).setSequenceNumber(3L);
+				Node const1 = reader.readNode(const1Id, constants.get(const1Id));
+				ConstantNode expectedConst1 = new ConstantNode()
+						.setId(const1Id)
+						.setValue(new ConValue(ConType.STRING, "From replica 1"));
+				assertEquals(expectedConst1, const1);
+
+				LogicalTimestamp const2Id = new LogicalTimestamp().setReplicaId(100002L).setSequenceNumber(5L);
+				Node const2 = reader.readNode(const2Id, constants.get(const2Id));
+				ConstantNode expectedConst2 = new ConstantNode()
+						.setId(const2Id)
+						.setValue(new ConValue(ConType.STRING, "From replica 2"));
+				assertEquals(expectedConst2, const2);
+			}
+		} finally {
+			Files.deleteIfExists(resourceFile);
+		}
+	}
+
+	@Test
+	public void testDecodeJsonJoySnapshotAllTypes() throws IOException {
+		Path resourceFile = copyResourceToTempFile("/indexed-model/all-types.cbor");
+		try {
+			IndexedModelDecoder decoder = IndexedModelDecoder.build(resourceFile);
+
+			// Verify clock table
+			ClockTable clockTable = decoder.getClockTable();
+			assertNotNull(clockTable);
+			assertEquals(1, clockTable.getClocks().size());
+			assertEquals(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(24L), clockTable.getClocks().get(0));
+
+			// Verify root node ID
+			assertEquals(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L), decoder.getRootNodeId());
+
+			// Verify node counts by type
+			assertEquals(17, decoder.getTotalNodeCount());
+			assertEquals(2, decoder.getCountForType(IndexedNodeCodecMapper.OBJECT)); // Root + nested
+			assertEquals(13, decoder.getCountForType(IndexedNodeCodecMapper.CONSTANT)); // Various constants
+			assertEquals(1, decoder.getCountForType(IndexedNodeCodecMapper.ARRAY));
+			assertEquals(1, decoder.getCountForType(IndexedNodeCodecMapper.VECTOR));
+
+			// Verify we can read all nodes using SeekingNodeReader
+			try (SeekingNodeReader reader = new SeekingNodeReader(resourceFile, clockTable)) {
+				// Read root object
+				Map<LogicalTimestamp, IndexedModelDecoder.Entry> objects = decoder.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
+				LogicalTimestamp rootId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L);
+				Node rootNode = reader.readNode(rootId, objects.get(rootId));
+				assertTrue(rootNode instanceof ObjectNode);
+				ObjectNode rootObj = (ObjectNode) rootNode;
+				assertEquals(1L, rootObj.getId().getSequenceNumber());
+				assertNotNull(rootObj.getValue());
+				assertEquals(8, rootObj.getValue().size());
+				assertTrue(rootObj.getValue().containsKey("str"));
+				assertTrue(rootObj.getValue().containsKey("num"));
+				assertTrue(rootObj.getValue().containsKey("bool"));
+				assertTrue(rootObj.getValue().containsKey("nil"));
+				assertTrue(rootObj.getValue().containsKey("undf"));
+				assertTrue(rootObj.getValue().containsKey("arr"));
+				assertTrue(rootObj.getValue().containsKey("vec"));
+				assertTrue(rootObj.getValue().containsKey("obj"));
+
+				// Read constant nodes and verify various types
+				Map<LogicalTimestamp, IndexedModelDecoder.Entry> constants = decoder.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
+
+				// String constant
+				LogicalTimestamp strId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L);
+				assertEquals(new ConstantNode()
+						.setId(strId)
+						.setValue(new ConValue(ConType.STRING, "Hello, json-joy!")),
+						reader.readNode(strId, constants.get(strId)));
+
+				// Long constant
+				LogicalTimestamp numId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(3L);
+				assertEquals(new ConstantNode()
+						.setId(numId)
+						.setValue(new ConValue(ConType.LONG, 42L)),
+						reader.readNode(numId, constants.get(numId)));
+
+				// Boolean constant
+				LogicalTimestamp boolId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(4L);
+				assertEquals(new ConstantNode()
+						.setId(boolId)
+						.setValue(new ConValue(ConType.BOOLEAN, true)),
+						reader.readNode(boolId, constants.get(boolId)));
+
+				// Null constant
+				LogicalTimestamp nilId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(5L);
+				assertEquals(new ConstantNode()
+						.setId(nilId)
+						.setValue(new ConValue(ConType.NULL, JSONObject.NULL)),
+						reader.readNode(nilId, constants.get(nilId)));
+
+				// Undefined constant
+				LogicalTimestamp undfId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(6L);
+				assertEquals(new ConstantNode()
+						.setId(undfId)
+						.setValue(new ConValue(ConType.UNDEFINED, null)),
+						reader.readNode(undfId, constants.get(undfId)));
+
+				// Array node
+				Map<LogicalTimestamp, IndexedModelDecoder.Entry> arrays = decoder.getEntriesForType(IndexedNodeCodecMapper.ARRAY);
+				LogicalTimestamp arrId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(7L);
+				Node arrNode = reader.readNode(arrId, arrays.get(arrId));
+				assertTrue(arrNode instanceof ArrayNode);
+				ArrayNode arrayNode = (ArrayNode) arrNode;
+				assertEquals(3, arrayNode.getElements().size());
+
+				// Note: The decoder sets referenceNodeId to the array head (containerId) for the first element
+				ArrayNode expectedArray = new ArrayNode()
+						.setId(arrId)
+						.setElements(List.of(
+								new RGANode()
+										.setNodeId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(11L))
+										.setContainerId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(7L))
+										.setDataId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(8L))
+										.setReferenceNodeId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(7L)),
+								new RGANode()
+										.setNodeId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(12L))
+										.setContainerId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(7L))
+										.setDataId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(9L))
+										.setReferenceNodeId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(11L)),
+								new RGANode()
+										.setNodeId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(13L))
+										.setContainerId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(7L))
+										.setDataId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L))
+										.setReferenceNodeId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(12L))
+						));
+				assertEquals(expectedArray, arrayNode);
+
+				// Vector node
+				Map<LogicalTimestamp, IndexedModelDecoder.Entry> vectors = decoder.getEntriesForType(IndexedNodeCodecMapper.VECTOR);
+				LogicalTimestamp vecId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(14L);
+				Node vecNode = reader.readNode(vecId, vectors.get(vecId));
+				assertTrue(vecNode instanceof VectorNode);
+				VectorNode vectorNode = (VectorNode) vecNode;
+				assertEquals(14L, vectorNode.getId().getSequenceNumber());
+				assertNotNull(vectorNode.getValues());
+				assertEquals(3, vectorNode.getValues().size());
+
+				// Nested object
+				LogicalTimestamp nestedObjId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(19L);
+				ObjectNode expectedNestedObj = new ObjectNode()
+						.setId(nestedObjId)
+						.setValue(java.util.Map.of(
+								"a", new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(20L),
+								"b", new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(21L)
+						));
+				assertEquals(expectedNestedObj, reader.readNode(nestedObjId, objects.get(nestedObjId)));
+			}
+		} finally {
+			Files.deleteIfExists(resourceFile);
+		}
+	}
+
 	/**
 	 * Helper to create a snapshot file.
 	 */
@@ -321,5 +554,19 @@ public class SeekingNodeReaderTest {
 		}
 
 		Files.write(file, encodedBytes);
+	}
+
+	/**
+	 * Helper to copy a resource file to a temporary file.
+	 */
+	private Path copyResourceToTempFile(String resourcePath) throws IOException {
+		Path temp = Files.createTempFile("resource-test-", ".cbor");
+		try (InputStream in = getClass().getResourceAsStream(resourcePath)) {
+			if (in == null) {
+				throw new IOException("Resource not found: " + resourcePath);
+			}
+			Files.copy(in, temp, StandardCopyOption.REPLACE_EXISTING);
+		}
+		return temp;
 	}
 }

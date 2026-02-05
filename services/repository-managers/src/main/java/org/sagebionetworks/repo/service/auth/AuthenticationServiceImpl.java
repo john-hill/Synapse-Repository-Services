@@ -119,7 +119,8 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 	
 	@Override
 	public TermsOfServiceStatus getUserTermsOfServiceStatus(Long userId) {
-		return tosManager.getUserTermsOfServiceStatus(userId);
+		UserInfo userInfo = userManager.getUserInfo(userId);
+		return tosManager.getUserTermsOfServiceStatus(userInfo);
 	}
 	
 	@Override
@@ -130,7 +131,8 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 	
 	@Override
 	public boolean hasUserAcceptedTermsOfService(Long userId) throws NotFoundException {
-		return tosManager.hasUserAcceptedTermsOfService(userId);
+		UserInfo userInfo = userManager.getUserInfo(userId);
+		return tosManager.hasUserAcceptedTermsOfService(userInfo);
 	}
 
 	@Override
@@ -286,11 +288,11 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 	@Override
 	public PrincipalAlias bindExternalID(Long userId, OAuthValidationRequest validationRequest) {
 		
-		if (AuthorizationUtils.isUserAnonymous(userId)) {
+		UserInfo user = userManager.getUserInfo(userId);
+		
+		if (user.isUserAnonymous()) {
 			throw new UnauthorizedException("User ID is required.");
 		}
-		
-		UserInfo user = userManager.getUserInfo(userId);
 		
 		AliasAndType providersUserId = oauthManager.retrieveProvidersId(
 				validationRequest.getProvider(), 
@@ -312,7 +314,8 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 	
 	@Override
 	public void unbindExternalID(Long userId, OAuthProvider provider, String aliasName) {
-		if (AuthorizationUtils.isUserAnonymous(userId)) throw new UnauthorizedException("User ID is required.");
+		UserInfo userInfo = userManager.getUserInfo(userId);
+		if (userInfo.isUserAnonymous()) throw new UnauthorizedException("User ID is required.");
 		AliasType aliasType = oauthManager.getAliasTypeForProvider(provider);
 		userManager.unbindAlias(aliasName, aliasType, userId);
 	}

@@ -173,7 +173,7 @@ public class OAuthClientManagerImpl implements OAuthClientManager {
 	}
 
 	public static boolean canCreate(UserInfo userInfo) {
-		return !AuthorizationUtils.isUserAnonymous(userInfo);
+		return !userInfo.isUserAnonymous();
 	}
 	
 	AccessControlList createAccessControlList(Long creatorId, String oauthClientId) {

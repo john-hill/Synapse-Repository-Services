@@ -203,8 +203,7 @@ public class GridAuthorizationManagerTest {
 
 	@Test
 	public void testValidateGridOwnerWithAnonymous() {
-		userId = BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId();
-		when(mockUser.getId()).thenReturn(userId);
+		when(mockUser.isUserAnonymous()).thenReturn(true);
 
 		String message = assertThrows(UnauthorizedException.class, () -> {
 			// call under test
@@ -216,8 +215,8 @@ public class GridAuthorizationManagerTest {
 
 	@Test
 	public void testValidateGridOwnerWithInvalidOwner() {
-		when(mockUser.getId()).thenReturn(userId);
-
+		when(mockUser.isUserAnonymous()).thenReturn(false);
+		
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
 			manager.validateGridOwner(mockUser, "not a number");

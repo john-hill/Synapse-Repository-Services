@@ -99,6 +99,8 @@ public class EntityAuthorizationManagerUnitTest {
 	@Test
 	public void testGetUserPermissionsForEntityWithNoPermissions() {
 		userInfo = new UserInfo(false, BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
+		userInfo.setRealmAnonymousUserId(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
+		
 		when(mockUsersEntityPermissionsDao.getEntityPermissionsAsMap(any(), any())).thenReturn(mapIdToState);
 		when(mockAccessRestrictionStatusDao.getEntityStatusAsMap(any(), any(), any())).thenReturn(mapIdToAccess);
 		
@@ -441,6 +443,7 @@ public class EntityAuthorizationManagerUnitTest {
 	@Test
 	public void testGetUserPermissionsForEntityWithCanUploadFalse() {
 		userInfo = new UserInfo(false, BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
+		userInfo.setRealmAnonymousUserId(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 		
 		when(mockUsersEntityPermissionsDao.getEntityPermissionsAsMap(any(), any())).thenReturn(mapIdToState);
 		when(mockAccessRestrictionStatusDao.getEntityStatusAsMap(any(), any(), any())).thenReturn(mapIdToAccess);

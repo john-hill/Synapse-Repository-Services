@@ -294,7 +294,7 @@ public class AuthenticationManagerImplUnitTest {
 		assertEquals("2faToken", result.getTwoFaToken());
 		
 		verify(mockReceiptTokenGenerator).isReceiptValid(userId, receipt);
-		verify(mockUserManager, times(2)).getUserInfo(userId);
+		verify(mockUserManager).getUserInfo(userId);
 		verify(mock2FaManager).generate2FaToken(userInfo, TwoFactorAuthTokenContext.AUTHENTICATION);
 		verify(mockUserCredentialValidator, never()).checkPasswordWithThrottling(userId, password);
 	}
@@ -306,7 +306,8 @@ public class AuthenticationManagerImplUnitTest {
 		String newReceipt = "newReceipt";
 		when(mockReceiptTokenGenerator.createNewAuthenticationReciept(userId)).thenReturn(newReceipt);
 		when(mockOIDCTokenHelper.createClientTotalAccessToken(userId, issuer)).thenReturn(synapseAccessToken);
-		when(mockTosManager.hasUserAcceptedTermsOfService(eq(userId))).thenReturn(true);
+		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
+		when(mockTosManager.hasUserAcceptedTermsOfService(eq(userInfo))).thenReturn(true);
 		Date now = new Date(12345);		
 		when(mockClock.now()).thenReturn(now);
 
@@ -349,7 +350,7 @@ public class AuthenticationManagerImplUnitTest {
 		String newReceipt = "newReceipt";
 		when(mockReceiptTokenGenerator.createNewAuthenticationReciept(userId)).thenReturn(newReceipt);
 		when(mockOIDCTokenHelper.createClientTotalAccessToken(userId, issuer)).thenReturn(synapseAccessToken);
-		when(mockTosManager.hasUserAcceptedTermsOfService(eq(userId))).thenReturn(true);
+		when(mockTosManager.hasUserAcceptedTermsOfService(eq(userInfo))).thenReturn(true);
 		Date now = new Date(12345);		
 		when(mockClock.now()).thenReturn(now);
 
@@ -359,7 +360,7 @@ public class AuthenticationManagerImplUnitTest {
 		expected.setAuthenticationReceipt(newReceipt);
 		
 		// call under test
-		LoginResponse response = authManager.loginWithNoPasswordOrTwoFaCheck(userId, issuer);
+		LoginResponse response = authManager.loginWithNoPasswordOrTwoFaCheck(userInfo, issuer);
 
 		assertEquals(expected, response);
 		
@@ -401,6 +402,7 @@ public class AuthenticationManagerImplUnitTest {
 	public void testAuthenticatedOnAnonymous() {
 		UserInfo userInfo = new UserInfo(false);
 		userInfo.setId(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
+		userInfo.setRealmAnonymousUserId(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 
 		// method under test
 		assertThrows(UnauthenticatedException.class, ()->{
@@ -417,7 +419,7 @@ public class AuthenticationManagerImplUnitTest {
 		String newReceipt = "uwu";
 		when(mockReceiptTokenGenerator.createNewAuthenticationReciept(userId)).thenReturn(newReceipt);
 		when(mockOIDCTokenHelper.createClientTotalAccessToken(userId, issuer)).thenReturn(synapseAccessToken);
-		when(mockTosManager.hasUserAcceptedTermsOfService(eq(userId))).thenReturn(true);
+		when(mockTosManager.hasUserAcceptedTermsOfService(eq(userInfo))).thenReturn(true);
 		Date authTime = new Date(12345L);
 		when(mockClock.now()).thenReturn(authTime);
 		LoginResponse expected = new LoginResponse();
@@ -426,7 +428,7 @@ public class AuthenticationManagerImplUnitTest {
 		expected.setAuthenticationReceipt(newReceipt);
 
 		//method under test
-		LoginResponse loginResponse = authManager.getLoginResponseAfterSuccessfulAuthentication(userId, issuer);
+		LoginResponse loginResponse = authManager.getLoginResponseAfterSuccessfulAuthentication(userInfo, issuer);
 		
 		assertEquals(loginResponse, loginResponse);
 		verifyZeroInteractions(mock2FaManager);
@@ -440,7 +442,7 @@ public class AuthenticationManagerImplUnitTest {
 		when(mockUserStatusDao.isDisabled(userId)).thenReturn(true);
 		
 		assertEquals("Your account has been disabled. Please contact support for assistance.", assertThrows(UnauthorizedException.class, () -> {
-			authManager.getLoginResponseAfterSuccessfulAuthentication(userId, issuer);	
+			authManager.getLoginResponseAfterSuccessfulAuthentication(userInfo, issuer);	
 		}).getMessage());
 		
 		verifyZeroInteractions(mock2FaManager, mockAuthDAO);
@@ -908,8 +910,9 @@ public class AuthenticationManagerImplUnitTest {
 		loginResponse.setAcceptsTermsOfUse(true);
 		loginResponse.setAccessToken(synapseAccessToken);
 		loginResponse.setAuthenticationReceipt("authReceipt");
+		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
 		
-		doReturn(loginResponse).when(authManagerSpy).getLoginResponseAfterSuccessfulAuthentication(anyLong(), any());
+		doReturn(loginResponse).when(authManagerSpy).getLoginResponseAfterSuccessfulAuthentication(any(UserInfo.class), any());
 		
 		TwoFactorAuthLoginRequest loginRequest = new TwoFactorAuthLoginRequest()
 			.setUserId(userId)
@@ -923,7 +926,7 @@ public class AuthenticationManagerImplUnitTest {
 		assertEquals(loginResponse, result);
 		
 		verify(authManagerSpy).validateTwoFactorAuthTokenRequest(loginRequest, TwoFactorAuthTokenContext.AUTHENTICATION);
-		verify(authManagerSpy).getLoginResponseAfterSuccessfulAuthentication(userId, issuer);
+		verify(authManagerSpy).getLoginResponseAfterSuccessfulAuthentication(userInfo, issuer);
 	}
 	
 	@ParameterizedTest

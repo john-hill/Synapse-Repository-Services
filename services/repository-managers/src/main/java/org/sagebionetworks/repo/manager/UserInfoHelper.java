@@ -21,7 +21,7 @@ public class UserInfoHelper {
 	
 	public static UserInfo createAnonymousUserInfo() {
 		UserInfo result = new UserInfo(false, BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId(), DEFAULT_REALM_ID);
-		
+		result.setRealmAnonymousUserId(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 		Set<Long> groups = new HashSet<Long>();
 		// Everyone belongs to their own group and to Public
 		groups.add(result.getId());

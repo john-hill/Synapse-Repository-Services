@@ -2,7 +2,9 @@ package org.sagebionetworks.repo.manager.grid.internal.replica.validation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.mockito.Mockito.doNothing;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -10,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 
@@ -207,6 +210,137 @@ public class GridReplicaValidationManagerImplTest {
 		// call under test
 		manager.validateChanges(sessionId, replicaId, changedVectorIds);
 		verifyZeroInteractions(mockPatchBuilderPublisher);
+	}
+
+	@Test
+	public void testValidateAllRows() {
+		when(mockGridDao.getGridSession(sessionId)).thenReturn(Optional.of(gridSession));
+		when(mockGridDao.getSingletonConnection(sessionId, EventSource.VALIDATION))
+				.thenReturn(Optional.of(validationConnection));
+		when(mockGridReplicaViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(gridHeader));
+
+		RowView rowToValidate = new RowView()
+				.setArrNodeId(new LogicalTimestamp().setReplicaId(9L).setSequenceNumber(10L));
+		Iterator<RowView> rowIterator = List.of(rowToValidate).iterator();
+		when(mockGridReplicaViewManager.getQueryIterator(eq(gridHeader), anyList())).thenReturn(rowIterator);
+
+		doReturn(true).when(manager).isDataNewerThanValidationResult(rowToValidate);
+		List<IntendedChange> changes = List.of(new UpdateMetadataChange()
+				.setRowMetadataId(new LogicalTimestamp().setReplicaId(7L).setSequenceNumber(8L)));
+		doReturn(changes).when(manager).validateRows(eq(gridHeader), eq(schemaId), any());
+
+		// call under test
+		manager.validateAllRows(sessionId, replicaId);
+
+		verify(mockPatchBuilderPublisher).sendChangesToPatchBuilder(
+				new IntendedChangeSet().setConnectionId(validationConnection.getConnectionId()).setChanges(changes)
+						.setReplicaId(replicaId).setSessionId(sessionId));
+	}
+
+	@Test
+	public void testValidateAllRowsWithNoSession() {
+		when(mockGridDao.getGridSession(sessionId)).thenReturn(Optional.empty());
+
+		// call under test
+		manager.validateAllRows(sessionId, replicaId);
+		verifyZeroInteractions(mockPatchBuilderPublisher, mockGridReplicaViewManager);
+	}
+
+	@Test
+	public void testValidateAllRowsWithNoSchema() {
+		gridSession.setGridJsonSchema$Id(null);
+		when(mockGridDao.getGridSession(sessionId)).thenReturn(Optional.of(gridSession));
+
+		// call under test
+		manager.validateAllRows(sessionId, replicaId);
+		verifyZeroInteractions(mockPatchBuilderPublisher, mockGridReplicaViewManager);
+	}
+
+	@Test
+	public void testValidateAllRowsWithNoConnection() {
+		when(mockGridDao.getGridSession(sessionId)).thenReturn(Optional.of(gridSession));
+		when(mockGridDao.getSingletonConnection(sessionId, EventSource.VALIDATION))
+				.thenReturn(Optional.empty());
+
+		// call under test
+		manager.validateAllRows(sessionId, replicaId);
+		verifyZeroInteractions(mockGridReplicaViewManager, mockPatchBuilderPublisher);
+	}
+
+	@Test
+	public void testValidateAllRowsWithNullHeader() {
+		when(mockGridDao.getGridSession(sessionId)).thenReturn(Optional.of(gridSession));
+		when(mockGridDao.getSingletonConnection(sessionId, EventSource.VALIDATION))
+				.thenReturn(Optional.of(validationConnection));
+		when(mockGridReplicaViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.empty());
+
+		// call under test
+		manager.validateAllRows(sessionId, replicaId);
+		verifyZeroInteractions(mockPatchBuilderPublisher);
+	}
+
+	@Test
+	public void testValidateAllRowsWithEmptyRows() {
+		when(mockGridDao.getGridSession(sessionId)).thenReturn(Optional.of(gridSession));
+		when(mockGridDao.getSingletonConnection(sessionId, EventSource.VALIDATION))
+				.thenReturn(Optional.of(validationConnection));
+		when(mockGridReplicaViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(gridHeader));
+
+		Iterator<RowView> emptyIterator = Collections.emptyIterator();
+		when(mockGridReplicaViewManager.getQueryIterator(eq(gridHeader), anyList())).thenReturn(emptyIterator);
+
+		// call under test
+		manager.validateAllRows(sessionId, replicaId);
+		verifyZeroInteractions(mockPatchBuilderPublisher);
+	}
+
+	@Test
+	public void testValidateAllRowsFiltersByDataNewerThanValidation() {
+		when(mockGridDao.getGridSession(sessionId)).thenReturn(Optional.of(gridSession));
+		when(mockGridDao.getSingletonConnection(sessionId, EventSource.VALIDATION))
+				.thenReturn(Optional.of(validationConnection));
+		when(mockGridReplicaViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(gridHeader));
+
+		RowView newerRow = new RowView()
+				.setArrNodeId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L));
+		RowView olderRow = new RowView()
+				.setArrNodeId(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(2L));
+		Iterator<RowView> rowIterator = List.of(newerRow, olderRow).iterator();
+		when(mockGridReplicaViewManager.getQueryIterator(eq(gridHeader), anyList())).thenReturn(rowIterator);
+
+		doReturn(true).when(manager).isDataNewerThanValidationResult(newerRow);
+		doReturn(false).when(manager).isDataNewerThanValidationResult(olderRow);
+
+		List<IntendedChange> changes = List.of(new UpdateMetadataChange()
+				.setRowMetadataId(newerRow.getArrNodeId()));
+		doReturn(changes).when(manager).validateRows(eq(gridHeader), eq(schemaId), eq(List.of(newerRow)));
+
+		// call under test
+		manager.validateAllRows(sessionId, replicaId);
+
+		verify(mockPatchBuilderPublisher).sendChangesToPatchBuilder(
+				new IntendedChangeSet().setConnectionId(validationConnection.getConnectionId()).setChanges(changes)
+						.setReplicaId(replicaId).setSessionId(sessionId));
+	}
+
+	@Test
+	public void testValidateAllRowsSkipsBatchWhenAllRowsFiltered() {
+		when(mockGridDao.getGridSession(sessionId)).thenReturn(Optional.of(gridSession));
+		when(mockGridDao.getSingletonConnection(sessionId, EventSource.VALIDATION))
+				.thenReturn(Optional.of(validationConnection));
+		when(mockGridReplicaViewManager.readHeader(sessionId, replicaId)).thenReturn(Optional.of(gridHeader));
+
+		RowView olderRow = new RowView()
+				.setArrNodeId(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L));
+		Iterator<RowView> rowIterator = List.of(olderRow).iterator();
+		when(mockGridReplicaViewManager.getQueryIterator(eq(gridHeader), anyList())).thenReturn(rowIterator);
+
+		doReturn(false).when(manager).isDataNewerThanValidationResult(olderRow);
+
+		// call under test
+		manager.validateAllRows(sessionId, replicaId);
+
+		verifyZeroInteractions(mockPatchBuilderPublisher, mockJsonSchemaManager, mockJsonSchemaValidationManager);
 	}
 
 	@Test

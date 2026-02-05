@@ -15,23 +15,15 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.joda.time.DateTime;
-import org.joda.time.Minutes;
 import org.sagebionetworks.auth.HttpAuthUtil;
 import org.sagebionetworks.authutil.ModHttpServletRequest;
-import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.oauth.OAuthClientNotVerifiedException;
-import org.sagebionetworks.repo.manager.oauth.OIDCTokenManager;
 import org.sagebionetworks.repo.manager.oauth.OpenIDConnectManager;
 import org.sagebionetworks.repo.model.AuthenticationMethod;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
-import org.sagebionetworks.repo.service.auth.AuthenticationService;
-import org.sagebionetworks.repo.model.UnauthenticatedException;
 import org.sagebionetworks.repo.web.ForbiddenException;
-import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.repo.web.OAuthException;
-import org.sagebionetworks.securitytools.HMACUtils;
 import org.sagebionetworks.util.ThreadLocalProvider;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,15 +43,6 @@ public class AuthenticationFilter implements Filter {
 	private static final Log log = LogFactory.getLog(AuthenticationFilter.class);
 	
 	private static final ThreadLocal<Long> currentUserIdThreadLocal = ThreadLocalProvider.getInstance(AuthorizationConstants.USER_ID_PARAM, Long.class);
-
-	@Autowired
-	private AuthenticationService authenticationService;
-
-	@Autowired
-	private UserManager userManager;
-
-	@Autowired
-	private OIDCTokenManager oidcTokenManager;
 
 	@Autowired
 	private OpenIDConnectManager oidcManager;

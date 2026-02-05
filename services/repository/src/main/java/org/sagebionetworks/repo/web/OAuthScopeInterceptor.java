@@ -60,7 +60,8 @@ public class OAuthScopeInterceptor implements HandlerInterceptor {
 	}
 	
 	public static boolean isUnAuthenticated(HttpServletRequest request) {
-		// will only be Default-Realm-Anonymous-User if the requested is completely unauthenticated
+		// if a request is unauthenticated then AuthenticationFilter will fill in
+		// user-id with the id of the default anonymous user
 		String userIdRequestParameter = request.getParameter(AuthorizationConstants.USER_ID_PARAM);
 
 		return userIdRequestParameter==null ||

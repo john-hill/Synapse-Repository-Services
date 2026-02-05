@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
-import org.sagebionetworks.repo.model.table.ColumnModel;
 
 /**
  * Handler for synchronizing changes between a copy (replica) and its source.
@@ -39,7 +38,7 @@ public interface SourceHandler extends AutoCloseable {
 	 * Get the ColumnModel schema that defines the current columns form the source.
 	 * @return
 	 */
-	List<ColumnModel> getCurrentSourceSchema();
+	List<String> getCurrentSourceSchema();
 
 	
 	/**
@@ -59,5 +58,7 @@ public interface SourceHandler extends AutoCloseable {
 	 *                     changed in the copy)
 	 */
 	void applyCellChangesFromCopyToSource(String rowId, Map<String, ConValue> changedCells);
+
+	void deleteColumn(String columnName);
 
 }

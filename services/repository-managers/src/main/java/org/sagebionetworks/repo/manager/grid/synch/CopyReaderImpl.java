@@ -1,7 +1,12 @@
 package org.sagebionetworks.repo.manager.grid.synch;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
 import org.sagebionetworks.grid.db.GridIndexDao;
@@ -19,7 +24,6 @@ import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.RGANode;
 import org.sagebionetworks.repo.model.grid.node.VectorNode;
-import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.web.NotFoundException;
 
@@ -77,20 +81,6 @@ public class CopyReaderImpl implements CopyReader {
 	@Override
 	public Iterator<CopyRow> getRows() {
 		return new BatchingCopyRowIterator(gridReplicaViewManager.getQueryIterator(header, new QueryElement()));
-	}
-
-	private Map<String, ConValue> buildDataMap(RowView rowView) {
-		List<ConValue> cells = rowView.getRowObject().getData().getCells();
-		if (cells.size() != header.getOrderedColumns().size()) {
-			throw new IllegalStateException(String.format("Row has %d cells but header defines %d columns",
-					cells.size(), header.getOrderedColumns().size()));
-		}
-
-		Map<String, ConValue> dataMap = new HashMap<>(cells.size());
-		for (int i = 0; i < cells.size(); i++) {
-			dataMap.put(indexToColumnMap.get(i), cells.get(i));
-		}
-		return dataMap;
 	}
 
 	@Override
@@ -172,19 +162,17 @@ public class CopyReaderImpl implements CopyReader {
 					throw new NotFoundException(
 							"Vector not found: " + vectorId + " for grid: " + gridSession.getSessionId());
 				}
-
-				Map<String, ConValue> dataMap = buildDataMap(rowView);
-				Map<String, LogicalTimestamp> cellTimestamps = new HashMap<>();
-
+				List<CopyCell> cells = new ArrayList<>();
 				for (Entry<Integer, ConstantNode> entry : vectorNode.getValues().entrySet()) {
-					String columnName = indexToColumnMap.get(entry.getKey());
-					if (columnName != null) {
-						cellTimestamps.put(columnName, entry.getValue().getId());
-					}
+					Integer index = entry.getKey();
+					ConstantNode node = entry.getValue();
+					String columnName = indexToColumnMap.get(index);
+					boolean chagnedByUser = !connection.getReplicaId().equals(node.getId().getReplicaId());
+					cells.add(new CopyCell().setName(columnName).setValue(node.getConValue())
+							.setWasChangedByUser(chagnedByUser));
 				}
-
-				currentBatch
-						.add(new CopyRowImpl(rowView.getSynapseRow(), dataMap, rowView.getArrNodeId(), cellTimestamps));
+				currentBatch.add(new CopyRowImpl().setCells(cells).setRgaNodeId(rowView.getArrNodeId())
+						.setVectorNodeId(vectorId));
 			}
 		}
 
@@ -193,5 +181,10 @@ public class CopyReaderImpl implements CopyReader {
 				throw new IllegalStateException("RowView missing data for grid: " + gridSession.getSessionId());
 			}
 		}
+	}
+
+	@Override
+	public Long getInternalReplicaId() {
+		return connection.getReplicaId();
 	}
 }

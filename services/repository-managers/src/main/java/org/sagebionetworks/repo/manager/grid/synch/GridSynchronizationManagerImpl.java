@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.grid.synch;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -11,7 +12,6 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.bouncycastle.util.Arrays;
 import org.sagebionetworks.repo.manager.grid.PatchUtils;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.AddColumn;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.DeleteColumn;
@@ -30,7 +30,6 @@ import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
-import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.stereotype.Service;
 
@@ -70,23 +69,18 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 		return columns.stream().collect(Collectors.toMap(keyMapper, Function.identity()));
 	}
 
-	private List<Column> synchronizeSchema(SourceHandler sourceHandler, CopyReader copyReader,
-			IntendedChangePublisher icp) {
+	List<Column> synchronizeSchema(SourceHandler sourceHandler, CopyReader copyReader, IntendedChangePublisher icp) {
 		GridHeader header = copyReader.getHeader();
-		Map<String, ColumnModel> sourceSchema = toMap(sourceHandler.getCurrentSourceSchema(), ColumnModel::getName);
+		List<String> sourceSchema = sourceHandler.getCurrentSourceSchema();
 		List<Column> finalSchema = new ArrayList<>();
-		int maxColumnIndex = header.getOrderedColumns().stream().mapToInt(Column::getVectorIndex).max().orElse(0);
-
 		for (Column copyColumn : header.getOrderedColumns()) {
-			ColumnModel sourceColumn = sourceSchema.remove(copyColumn.getName());
-			if (sourceColumn == null) {
+			if (!sourceSchema.remove(copyColumn.getName())) {
 				handleMissingSourceColumn(sourceHandler, copyReader, icp, copyColumn, finalSchema);
 			} else {
 				finalSchema.add(copyColumn);
 			}
 		}
-
-		maxColumnIndex = addNewColumns(sourceSchema, copyReader, icp, finalSchema, maxColumnIndex);
+		addNewColumns(sourceSchema, copyReader, icp, finalSchema);
 		updateColumnNames(copyReader, icp, finalSchema);
 		return finalSchema;
 	}
@@ -98,8 +92,7 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 	private void handleMissingSourceColumn(SourceHandler sourceHandler, CopyReader copyReader,
 			IntendedChangePublisher icp, Column copyColumn, List<Column> finalSchema) {
 		GridHeader header = copyReader.getHeader();
-		GridConnectionInfo con = copyReader.getConnectionInfo();
-		if (wasChangedInCopy(copyColumn.getColumnOrderNodeId().getRep(), con.getReplicaId())) {
+		if (wasChangedInCopy(copyColumn.getColumnOrderNodeId().getRep(), copyReader.getInternalReplicaId())) {
 			sourceHandler.addColumnToSource(copyColumn.getName());
 			finalSchema.add(copyColumn);
 		} else {
@@ -107,15 +100,15 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 		}
 	}
 
-	private int addNewColumns(Map<String, ColumnModel> sourceSchema, CopyReader copyReader, IntendedChangePublisher icp,
-			List<Column> finalSchema, int maxColumnIndex) {
+	private void addNewColumns(List<String> sourceSchema, CopyReader copyReader,
+			IntendedChangePublisher icp, List<Column> finalSchema) {
 		GridHeader header = copyReader.getHeader();
-		for (Entry<String, ColumnModel> e : sourceSchema.entrySet()) {
+		int maxColumnIndex = header.getOrderedColumns().stream().mapToInt(Column::getVectorIndex).max().orElse(-1) + 1;
+		for (String columnName : sourceSchema) {
 			icp.publish(new AddColumn(header.getColumnOrderArrId(), new ConValue(ConType.LONG, maxColumnIndex)));
-			finalSchema.add(new Column().setName(e.getKey()).setVectorIndex(maxColumnIndex));
+			finalSchema.add(new Column().setName(columnName).setVectorIndex(maxColumnIndex));
 			maxColumnIndex++;
 		}
-		return maxColumnIndex;
 	}
 
 	private void updateColumnNames(CopyReader copyReader, IntendedChangePublisher icp, List<Column> finalSchema) {
@@ -129,46 +122,45 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 		}
 	}
 
-	private void synchronizeExistingRows(CopyReader copyReader, SourceHandler sourceHandler,
-	        IntendedChangePublisher icp, Map<String, Column> columnNameMap, RowReader sourceReader) throws IOException {
-	    Iterator<CopyRow> iterator = copyReader.getRows();
+	void synchronizeExistingRows(CopyReader copyReader, SourceHandler sourceHandler, IntendedChangePublisher icp,
+			Map<String, Column> columnNameMap, RowReader sourceReader) throws IOException {
+		Iterator<CopyRow> iterator = copyReader.getRows();
 
-	    while (iterator.hasNext()) {
-	        CopyRow copyRow = iterator.next();
-	        String key = sourceHandler.getRowKey(copyRow);
+		while (iterator.hasNext()) {
+			CopyRow copyRow = iterator.next();
+			String key = sourceHandler.getRowKey(copyRow);
 
-	        Optional<RowHeader> sourceOp = sourceReader.removeRow(key);
-	        if (sourceOp.isPresent()) {
-	            RowHeader sourceRowHeader = sourceOp.get();
-	            byte[] copyHash = new SynchRow(copyRow.getData(), key).getHash();
-	            
-	            if (!Arrays.areEqual(sourceRowHeader.getHash(), copyHash)) {
-	                handleMatchingRow(sourceHandler, copyReader, icp, columnNameMap, copyRow, sourceRowHeader);
-	            }
-	        } else {
-	            handleMissingSourceRow(sourceHandler, copyReader, icp, copyRow, key);
-	        }
-	    }
+			Optional<RowHeader> sourceOp = sourceReader.removeRow(key);
+			if (sourceOp.isPresent()) {
+				RowHeader sourceRowHeader = sourceOp.get();
+				byte[] copyHash = new SynchRow(getCopyCellValueMap(copyRow), key).getHash();
+
+				if (Arrays.compare(sourceRowHeader.getHash(), copyHash) != 0) {
+					handleMatchingRow(sourceHandler, copyReader, icp, columnNameMap, copyRow,
+							sourceRowHeader.fetchRow());
+				}
+			} else {
+				handleMissingSourceRow(sourceHandler, copyReader, icp, copyRow, key);
+			}
+		}
 	}
 
-	private void handleMatchingRow(SourceHandler sourceHandler, CopyReader copyReader, IntendedChangePublisher icp,
-	        Map<String, Column> columnNameMap, CopyRow copyRow, RowHeader sourceRowHeader)
-	        throws IOException {
-	    GridConnectionInfo con = copyReader.getConnectionInfo();
-	    SynchRow sourceRow = sourceRowHeader.fetchRow();
-	    Map<String, ConValue> mergedRow = mergeChanges(con.getReplicaId(), copyRow, sourceRow);
-	    Map<String, ConValue> copyOnlyChanges = getCopyOnlyChanges(con.getReplicaId(), copyRow, sourceRow);
-
-	    try {
-	        sourceHandler.applyCellChangesFromCopyToSource(sourceRow.getKey(), copyOnlyChanges);
-	        publishRowUpdate(icp, copyRow, mergedRow, columnNameMap);
-	    } catch (NotFoundException | UnauthorizedException e) {
-	        icp.publish(new DeleteRowChange(copyRow.getArrNodeId()));
-	    }
+	void handleMatchingRow(SourceHandler sourceHandler, CopyReader copyReader, IntendedChangePublisher icp,
+			Map<String, Column> columnNameMap, CopyRow copyRow, SynchRow sourceRow) throws IOException {
+		Map<String, ConValue> mergedRow = mergeChanges(copyReader.getInternalReplicaId(), copyRow, sourceRow);
+		Map<String, ConValue> copyOnlyChanges = getCopyOnlyChanges(copyReader.getInternalReplicaId(), copyRow,
+				sourceRow);
+		try {
+			if (!copyOnlyChanges.isEmpty()) {
+				sourceHandler.applyCellChangesFromCopyToSource(sourceRow.getKey(), copyOnlyChanges);
+			}
+			publishRowUpdate(icp, copyRow, mergedRow, columnNameMap);
+		} catch (NotFoundException | UnauthorizedException e) {
+			icp.publish(new DeleteRowChange(copyRow.getRgaNodeId()));
+		}
 	}
 
-
-	private void publishRowUpdate(IntendedChangePublisher icp, CopyRow copyRow, Map<String, ConValue> mergedRow,
+	void publishRowUpdate(IntendedChangePublisher icp, CopyRow copyRow, Map<String, ConValue> mergedRow,
 			Map<String, Column> columnNameMap) {
 		List<ConValue> values = new ArrayList<>();
 		List<Integer> valueIndex = new ArrayList<>();
@@ -177,35 +169,31 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 			values.add(e.getValue());
 			valueIndex.add(column.getVectorIndex());
 		}
-		icp.publish(new UpdateRowChange(copyRow.getArrNodeId(), values, valueIndex.toArray(Integer[]::new)));
+		icp.publish(new UpdateRowChange(copyRow.getVectorNodeId(), values, valueIndex.toArray(Integer[]::new)));
 	}
 
 	static Map<String, ConValue> getCopyOnlyChanges(Long replicaId, CopyRow copyRow, SynchRow source) {
 		Map<String, ConValue> copyChanges = new HashMap<>();
-		Map<String, LogicalTimestamp> cellTimestamps = copyRow.getCellTimestamps();
-
-		for (Entry<String, ConValue> e : copyRow.getData().entrySet()) {
-			String columnName = e.getKey();
-			LogicalTimestamp timestamp = cellTimestamps.get(columnName);
-			if (timestamp != null && wasChangedInCopy(timestamp.getReplicaId(), replicaId)) {
-				copyChanges.put(columnName, e.getValue());
+		for (CopyCell cell : copyRow.getCells()) {
+			source.getData().get(cell.getName());
+			if (cell.isWasChangedByUser()) {
+				copyChanges.put(cell.getName(), cell.getValue());
 			}
 		}
 		return copyChanges;
 	}
 
-	private void handleMissingSourceRow(SourceHandler sourceHandler, CopyReader copyReader, IntendedChangePublisher icp,
-	        CopyRow copyRow, String key) {
-	    GridConnectionInfo con = copyReader.getConnectionInfo();
-	    if (wasChangedInCopy(copyRow.getArrNodeId().getReplicaId(), con.getReplicaId())) {
-	        SynchRow copy = new SynchRow(copyRow.getData(), key);
-	        sourceHandler.addNewRowToSource(copy);
-	    } else {
-	        icp.publish(new DeleteRowChange(copyRow.getArrNodeId()));
-	    }
+	void handleMissingSourceRow(SourceHandler sourceHandler, CopyReader copyReader, IntendedChangePublisher icp,
+			CopyRow copyRow, String key) {
+		if (wasChangedInCopy(copyRow.getRgaNodeId().getReplicaId(), copyReader.getInternalReplicaId())) {
+			SynchRow copy = new SynchRow(getCopyCellValueMap(copyRow), key);
+			sourceHandler.addNewRowToSource(copy);
+		} else {
+			icp.publish(new DeleteRowChange(copyRow.getRgaNodeId()));
+		}
 	}
 
-	private void addRemainingSourceRows(CopyReader copyReader, RowReader sourceReader, IntendedChangePublisher icp,
+	void addRemainingSourceRows(CopyReader copyReader, RowReader sourceReader, IntendedChangePublisher icp,
 			Map<String, Column> columnNameMap) throws IOException {
 		Iterator<RowHeader> remainingRows = sourceReader.remainingRows();
 		LogicalTimestamp rowsArrayId = copyReader.getHeader().getRowsId();
@@ -230,21 +218,17 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 		icp.publish(new InsertRowChange(rowsArrayId, lastRowId, values, valueIndex.toArray(Integer[]::new)));
 	}
 
-	static Map<String, ConValue> mergeChanges(Long replicaId, CopyRow copyRow, SynchRow source) {
+	private static Map<String, ConValue> mergeChanges(Long replicaId, CopyRow copyRow, SynchRow source) {
 		Map<String, ConValue> merged = new HashMap<>();
 		Map<String, ConValue> sourceMap = new HashMap<>(source.getData());
-		Map<String, LogicalTimestamp> cellTimestamps = copyRow.getCellTimestamps();
 
-		for (Entry<String, ConValue> e : copyRow.getData().entrySet()) {
-			String columnName = e.getKey();
-			ConValue copyValue = e.getValue();
-			ConValue sourceValue = sourceMap.remove(columnName);
-			LogicalTimestamp timestamp = cellTimestamps.get(columnName);
+		for (CopyCell cell : copyRow.getCells()) {
+			ConValue sourceValue = sourceMap.remove(cell.getName());
 
-			if (timestamp != null && wasChangedInCopy(timestamp.getReplicaId(), replicaId)) {
-				merged.put(columnName, copyValue);
-			} else if (sourceValue != null) {
-				merged.put(columnName, sourceValue);
+			if (sourceValue == null || cell.isWasChangedByUser()) {
+				merged.put(cell.getName(), cell.getValue());
+			} else {
+				merged.put(cell.getName(), sourceValue);
 			}
 		}
 		merged.putAll(sourceMap);
@@ -253,6 +237,10 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 
 	static boolean wasChangedInCopy(Long nodeReplicaId, Long copyReplicaId) {
 		return !nodeReplicaId.equals(copyReplicaId);
+	}
+
+	static Map<String, ConValue> getCopyCellValueMap(CopyRow copy) {
+		return copy.getCells().stream().collect(Collectors.toMap(CopyCell::getName, CopyCell::getValue));
 	}
 
 	IntendedChangePublisher newIntendedChangePublisher(CopyReader copyReader) {

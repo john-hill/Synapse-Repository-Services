@@ -14,6 +14,8 @@ public interface CopyReader extends AutoCloseable {
 	GridHeader getHeader();
 
 	GridConnectionInfo getConnectionInfo();
+	
+	Long getInternalReplicaId();
 
 	Iterator<CopyRow> getRows();
 

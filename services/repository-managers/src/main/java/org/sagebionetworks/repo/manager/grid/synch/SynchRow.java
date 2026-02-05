@@ -125,4 +125,10 @@ public class SynchRow {
 				&& Objects.equals(key, other.key);
 	}
 
+	@Override
+	public String toString() {
+		return "SynchRow [data=" + data + ", key=" + key + ", hash=" + Arrays.toString(hash) + ", bytes="
+				+ Arrays.toString(bytes) + "]";
+	}
+
 }

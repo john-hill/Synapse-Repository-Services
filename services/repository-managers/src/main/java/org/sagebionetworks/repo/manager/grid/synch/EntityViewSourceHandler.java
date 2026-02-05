@@ -25,6 +25,7 @@ import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValue;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.Query;
@@ -108,20 +109,14 @@ public class EntityViewSourceHandler implements SourceHandler {
 	}
 
 	@Override
-	public void close() {
-		if (tempFile != null) {
-			tempFile.delete();
-		}
-	}
-
-	@Override
 	public RowReader getSourceRowReader() throws IOException {
 		return new RowReader(diskPointers, fileProvider.createRandomAccessFile(tempFile, "r"));
 	}
 
 	@Override
 	public String getRowKey(CopyRow rowView) {
-		SynapseRow synRow = rowView.getSynapseRow().orElseThrow(()->new IllegalArgumentException("Expected Synapse rows"));
+		SynapseRow synRow = rowView.getSynapseRow()
+				.orElseThrow(() -> new IllegalArgumentException("Expected Synapse rows"));
 		return IdAndVersion.newBuilder().setId(synRow.getRowId()).toString();
 	}
 
@@ -131,8 +126,8 @@ public class EntityViewSourceHandler implements SourceHandler {
 	}
 
 	@Override
-	public List<ColumnModel> getCurrentSourceSchema() {
-		return schema;
+	public List<String> getCurrentSourceSchema() {
+		return schema.stream().map(ColumnModel::getName).collect(Collectors.toList());
 	}
 
 	@Override
@@ -144,10 +139,27 @@ public class EntityViewSourceHandler implements SourceHandler {
 	public void applyCellChangesFromCopyToSource(String rowId, Map<String, ConValue> changes) {
 		Map<String, AnnotationsValue> changedCells = new HashMap<>();
 		for (Map.Entry<String, ConValue> e : changes.entrySet()) {
-			JSONObject json = new JSONObject();
-			json.put(e.getKey(), e.getValue().getValue());
-			changedCells.put(e.getKey(), annotationsTranslator.getAnnotationValueFromJsonObject(e.getKey(), json));
+			ConValue cv = e.getValue();
+			if (cv == null || ConType.UNDEFINED.equals(cv.getType()) || ConType.NULL.equals(cv.getType())) {
+				changedCells.put(e.getKey(), null);
+			} else {
+				JSONObject json = new JSONObject();
+				json.put(e.getKey(), cv.getValue());
+				changedCells.put(e.getKey(), annotationsTranslator.getAnnotationValueFromJsonObject(e.getKey(), json));
+			}
 		}
 		annotationWriter.updateChangedAnnotations(user, rowId, changedCells);
+	}
+
+	@Override
+	public void close() {
+		if (tempFile != null) {
+			tempFile.delete();
+		}
+	}
+
+	@Override
+	public void deleteColumn(String columnName) {
+		throw new IllegalArgumentException("Cannot delete a column of an entity view.");
 	}
 }

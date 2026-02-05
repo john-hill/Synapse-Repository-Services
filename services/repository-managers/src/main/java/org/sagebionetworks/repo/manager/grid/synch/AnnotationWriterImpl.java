@@ -35,13 +35,19 @@ public class AnnotationWriterImpl implements AnnotationWriter {
 		// the call to get the annotations and the call to update the annotations.
 		String currentEtag = nodeDao.lockNode(key);
 		Annotations annos = nodeManger.getUserAnnotations(user, key);
+		Map<String, AnnotationsValue> annoMap = annos.getAnnotations();
 
 		// Only update annotations that actually changed in the copy. This prevents
 		// data loss if external changes occurred in the source after we read it but
 		// before we push our changes. Unchanged annotations retain their current
 		// values.
 		for (Entry<String, AnnotationsValue> e : changedCells.entrySet()) {
-			annos.getAnnotations().put(e.getKey(), e.getValue());
+			AnnotationsValue value = e.getValue();
+			if (value == null) {
+				annoMap.remove(e.getKey());
+			} else {
+				annoMap.put(e.getKey(), e.getValue());
+			}
 		}
 		return nodeManger.updateUserAnnotations(user, key, annos);
 	}

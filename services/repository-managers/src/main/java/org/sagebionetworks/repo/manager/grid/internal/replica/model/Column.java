@@ -43,6 +43,11 @@ public class Column {
 		return this;
 	}
 
+	public Column setColumnOrderNodeId(LogicalTimestamp id) {
+		this.columnOrderNodeId = new CrdtId().setRep(id.getReplicaId()).setSeq(id.getSequenceNumber());
+		return this;
+	}
+
 	@Override
 	public int hashCode() {
 		return Objects.hash(name, vectorIndex, columnOrderNodeId);

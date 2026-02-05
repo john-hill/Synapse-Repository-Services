@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -47,20 +46,25 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	public static final Duration MAX_MESSAGE_DURATION = Duration.ofSeconds(60);
 	public static final int MAX_MESSAGE_ID = 65535;
 
+	// The maximum number of nodes to process in a single batch during snapshot import.
 	private static final int SNAPSHOT_BATCH_SIZE = 1000;
-	private static final int MAX_VECTOR_NODE_BATCH_SIZE_FOR_CONSTANT_DENORMALIZE = 100;
 
 	private static final Logger log = LogManager.getLogger(GridIndexManagerImpl.class);
 
 	private final GridIndexDao dao;
 	private final OperationDispatcher operationDispatcher;
 	private final HttpClient httpClient;
+	private final IndexedModelDecoderProvider decoderProvider;
+	private final SeekingNodeReaderProvider readerProvider;
 
-	public GridIndexManagerImpl(GridIndexDao dao, OperationDispatcher operationDispatcher, HttpClient httpClient) {
+	public GridIndexManagerImpl(GridIndexDao dao, OperationDispatcher operationDispatcher, HttpClient httpClient,
+			IndexedModelDecoderProvider decoderProvider, SeekingNodeReaderProvider readerProvider) {
 		super();
 		this.dao = dao;
 		this.operationDispatcher = operationDispatcher;
 		this.httpClient = httpClient;
+		this.decoderProvider = decoderProvider;
+		this.readerProvider = readerProvider;
 	}
 
 	@Override
@@ -166,7 +170,7 @@ public class GridIndexManagerImpl implements GridIndexManager {
 		// Build the decoder (extracts ClockTable and rootNodeId, and builds a node index in a single pass)
 		IndexedModelDecoder index;
 		try {
-			index = IndexedModelDecoder.build(snapshotFile);
+			index = decoderProvider.build(snapshotFile);
 		} catch (IOException e) {
 			throw new RuntimeException("Failed to build snapshot index: " + snapshotFile, e);
 		}
@@ -174,21 +178,13 @@ public class GridIndexManagerImpl implements GridIndexManager {
 		ClockTable snapshotClockTable = index.getClockTable();
 
 		// Process each type in order using seeking reads
-		try (SeekingNodeReader reader = new SeekingNodeReader(snapshotFile, snapshotClockTable)) {
-			// Process constants FIRST (so vectors can reference them)
-			processConstants(sessionId, replicaId, index, reader);
-
-			// Process objects
-			processObjects(sessionId, replicaId, index, reader);
-
-			// Process values
-			processValues(sessionId, replicaId, index, reader);
-
-			// Process arrays (with RGA elements)
-			processArrays(sessionId, replicaId, index, reader);
-
-			// Process vectors LAST (constants already in DB - no deferred processing!)
-			processVectors(sessionId, replicaId, index, reader);
+		try (SeekingNodeReader reader = readerProvider.create(snapshotFile, snapshotClockTable)) {
+			// Nodes are batched by type to minimize database round-trips.
+			importConstantsFromSnapshot(sessionId, replicaId, index, reader);
+			importObjectsFromSnapshot(sessionId, replicaId, index, reader);
+			importValuesFromSnapshot(sessionId, replicaId, index, reader);
+			importArraysFromSnapshot(sessionId, replicaId, index, reader);
+			importVectorsFromSnapshot(sessionId, replicaId, index, reader);
 		} catch (IOException e) {
 			throw new RuntimeException("Failed to import snapshot from file: " + snapshotFile, e);
 		}
@@ -198,9 +194,9 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	}
 
 	/**
-	 * Process all constant nodes from the snapshot.
+	 * Import constant nodes in a snapshot into the database.
 	 */
-	private void processConstants(String sessionId, Long replicaId, IndexedModelDecoder index, SeekingNodeReader reader) throws IOException {
+	private void importConstantsFromSnapshot(String sessionId, Long replicaId, IndexedModelDecoder index, SeekingNodeReader reader) throws IOException {
 		Map<LogicalTimestamp, Entry> entries = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
 		if (entries.isEmpty()) {
 			return;
@@ -219,9 +215,9 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	}
 
 	/**
-	 * Process all object nodes from the snapshot.
+	 * Import object nodes in a snapshot into the database.
 	 */
-	private void processObjects(String sessionId, Long replicaId, IndexedModelDecoder index, SeekingNodeReader reader) throws IOException {
+	private void importObjectsFromSnapshot(String sessionId, Long replicaId, IndexedModelDecoder index, SeekingNodeReader reader) throws IOException {
 		Map<LogicalTimestamp, Entry> entries = index.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
 		if (entries.isEmpty()) {
 			return;
@@ -239,9 +235,9 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	}
 
 	/**
-	 * Process all value nodes from the snapshot.
+	 * Import value nodes in a snapshot into the database.
 	 */
-	private void processValues(String sessionId, Long replicaId, IndexedModelDecoder index, SeekingNodeReader reader) throws IOException {
+	private void importValuesFromSnapshot(String sessionId, Long replicaId, IndexedModelDecoder index, SeekingNodeReader reader) throws IOException {
 		Map<LogicalTimestamp, Entry> entries = index.getEntriesForType(IndexedNodeCodecMapper.VAL);
 		if (entries.isEmpty()) {
 			return;
@@ -258,9 +254,9 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	}
 
 	/**
-	 * Process all array nodes from the snapshot.
+	 * Import array nodes in a snapshot into the database.
 	 */
-	private void processArrays(String sessionId, Long replicaId, IndexedModelDecoder index, SeekingNodeReader reader) throws IOException {
+	private void importArraysFromSnapshot(String sessionId, Long replicaId, IndexedModelDecoder index, SeekingNodeReader reader) throws IOException {
 		Map<LogicalTimestamp, Entry> entries = index.getEntriesForType(IndexedNodeCodecMapper.ARRAY);
 		if (entries.isEmpty()) {
 			return;
@@ -281,17 +277,16 @@ public class GridIndexManagerImpl implements GridIndexManager {
 				.collect(Collectors.toList());
 
 			if (!allElements.isEmpty()) {
-				// Arrays are guaranteed empty (fresh import) - use fast path directly
+				// Since this Arrays are guaranteed empty (fresh import) - use fast path directly
 				dao.batchInsertRgaNodes(sessionId, replicaId, allElements);
 			}
 		}
 	}
 
 	/**
-	 * Process all vector nodes from the snapshot.
-	 * This is called AFTER constants are processed, so constant values can be resolved.
+	 * Import vector nodes in a snapshot into the database.
 	 */
-	private void processVectors(String sessionId, Long replicaId, IndexedModelDecoder index, SeekingNodeReader reader) throws IOException {
+	private void importVectorsFromSnapshot(String sessionId, Long replicaId, IndexedModelDecoder index, SeekingNodeReader reader) throws IOException {
 		Map<LogicalTimestamp, Entry> entries = index.getEntriesForType(IndexedNodeCodecMapper.VECTOR);
 		Map<LogicalTimestamp, Entry> constantEntries = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
 		if (entries.isEmpty()) {
@@ -301,45 +296,30 @@ public class GridIndexManagerImpl implements GridIndexManager {
 		dao.saveIndex(sessionId, replicaId, IndexType.vec, new ArrayList<>(entries.keySet()));
 
 
-		// Process in batches to limit constant lookup memory
 		for (List<Map.Entry<LogicalTimestamp, Entry>> batch : Iterables.partition(entries.entrySet(), SNAPSHOT_BATCH_SIZE)) {
 			List<VectorNode> nodes = reader.readNodes(batch).stream()
 				.map(n -> (VectorNode) n)
 				.collect(Collectors.toList());
 
-			// Collect ALL constant IDs referenced in this batch
-			Set<LogicalTimestamp> allConstantIds = nodes.stream()
-				.filter(v -> v.getValues() != null)
-				.flatMap(v -> v.getValues().values().stream())
-				.filter(Objects::nonNull)
-				.map(ConstantNode::getId)
-				.collect(Collectors.toSet());
-
-			// Get the constant values from the file
-			Map<LogicalTimestamp, ConstantNode> constantMap = dao
-				.getConstants(sessionId, replicaId, new ArrayList<>(allConstantIds)).stream()
-				.collect(Collectors.toMap(ConstantNode::getId, c -> c));
-
-			// Populate each vector with resolved constant values
+			// Populate each vector with its constant values
 			for (VectorNode vector : nodes) {
 				if (vector.getValues() != null) {
-					vector.getValues().forEach((idx, stub) -> {
-						if (stub != null) {
-                            ConstantNode full = null;
+					vector.getValues().forEach((idx, constantNodeStub) -> {
+						if (constantNodeStub != null) {
+                            ConstantNode constantNodeWithData;
                             try {
-                                full = (ConstantNode) reader.readNode(stub.getId(), constantEntries.get(stub.getId()));
+                                constantNodeWithData = (ConstantNode) reader.readNode(constantNodeStub.getId(), constantEntries.get(constantNodeStub.getId()));
                             } catch (IOException e) {
                                 throw new RuntimeException(e);
                             }
-                            if (full != null) {
-								stub.setValue(full.getConValue());
+                            if (constantNodeWithData != null) {
+								constantNodeStub.setValue(constantNodeWithData.getConValue());
 							}
 						}
 					});
 				}
 			}
 
-			// Save the batch
 			dao.saveVectors(sessionId, replicaId, nodes);
 		}
 	}

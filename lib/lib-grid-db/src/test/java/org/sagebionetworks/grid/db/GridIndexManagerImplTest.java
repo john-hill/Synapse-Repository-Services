@@ -2,17 +2,31 @@ package org.sagebionetworks.grid.db;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
+import java.net.URL;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -25,8 +39,18 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.model.grid.ClockTable;
+import org.sagebionetworks.repo.model.grid.encoding.IndexedModelDecoder;
+import org.sagebionetworks.repo.model.grid.encoding.IndexedModelDecoder.Entry;
+import org.sagebionetworks.repo.model.grid.encoding.IndexedNodeCodecMapper;
+import org.sagebionetworks.repo.model.grid.encoding.SeekingNodeReader;
+import org.sagebionetworks.repo.model.grid.node.ArrayNode;
+import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
+import org.sagebionetworks.repo.model.grid.node.ObjectNode;
+import org.sagebionetworks.repo.model.grid.node.RGANode;
 import org.sagebionetworks.repo.model.grid.node.ValueNode;
+import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
@@ -41,6 +65,24 @@ public class GridIndexManagerImplTest {
 
 	@Mock
 	private OperationDispatcher mockOperationDispatcher;
+
+	@Mock
+	private HttpClient mockHttpClient;
+
+	@Mock
+	private IndexedModelDecoderProvider mockDecoderProvider;
+
+	@Mock
+	private SeekingNodeReaderProvider mockReaderProvider;
+
+	@Mock
+	private IndexedModelDecoder mockDecoder;
+
+	@Mock
+	private SeekingNodeReader mockReader;
+
+	@Mock
+	private HttpResponse<Path> mockHttpResponse;
 
 	@Spy
 	@InjectMocks
@@ -227,6 +269,300 @@ public class GridIndexManagerImplTest {
 				.thenReturn(true);
 		// call under test
 		assertTrue(manager.refreshMessageChain(sessionId, replicaId, chainId));
+	}
+
+	@Test
+	public void testApplySnapshotWithNullSessionId() {
+		sessionId = null;
+		URL snapshotUrl;
+		try {
+			snapshotUrl = new URL("https://example.com/snapshot.cbor");
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			manager.applySnapshot(sessionId, replicaId, snapshotUrl);
+		}).getMessage();
+		assertEquals("sessionId is required.", message);
+		verifyZeroInteractions(mockDao);
+	}
+
+	@Test
+	public void testApplySnapshotWithNullReplicaId() {
+		replicaId = null;
+		URL snapshotUrl;
+		try {
+			snapshotUrl = new URL("https://example.com/snapshot.cbor");
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			manager.applySnapshot(sessionId, replicaId, snapshotUrl);
+		}).getMessage();
+		assertEquals("replicaId is required.", message);
+		verifyZeroInteractions(mockDao);
+	}
+
+	@Test
+	public void testApplySnapshotWithNullUrl() {
+		URL snapshotUrl = null;
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			manager.applySnapshot(sessionId, replicaId, snapshotUrl);
+		}).getMessage();
+		assertEquals("snapshotPresignedUrl is required.", message);
+		verifyZeroInteractions(mockDao);
+	}
+
+	@Test
+	public void testApplySnapshot() throws Exception {
+		URL snapshotUrl = new URL("https://example.com/snapshot.cbor");
+		Path tempFile = Files.createTempFile("test-snapshot-", ".cbor");
+
+		try {
+			doReturn(tempFile).when(manager).downloadSnapshotFile(snapshotUrl);
+			doNothing().when(manager).importSnapshot(sessionId, replicaId, tempFile);
+
+			// call under test
+			manager.applySnapshot(sessionId, replicaId, snapshotUrl);
+
+			verify(manager).downloadSnapshotFile(snapshotUrl);
+			verify(manager).importSnapshot(sessionId, replicaId, tempFile);
+
+			// Verify cleanup occurred
+			assertFalse(Files.exists(tempFile), "Temp file should be deleted after success");
+		} finally {
+			Files.deleteIfExists(tempFile);
+		}
+	}
+
+	@Test
+	public void testApplySnapshotCleansUpOnImportFailure() throws Exception {
+		URL snapshotUrl = new URL("https://example.com/snapshot.cbor");
+		Path tempFile = Files.createTempFile("test-snapshot-", ".cbor");
+		assertTrue(Files.exists(tempFile), "Temp file should exist before test");
+
+		doReturn(tempFile).when(manager).downloadSnapshotFile(snapshotUrl);
+		doThrow(new RuntimeException("Import failed")).when(manager).importSnapshot(sessionId, replicaId, tempFile);
+
+		// call under test
+		assertThrows(RuntimeException.class, () -> {
+			manager.applySnapshot(sessionId, replicaId, snapshotUrl);
+		});
+
+		// Verify cleanup occurred
+		assertFalse(Files.exists(tempFile), "Temp file should be deleted after failure");
+	}
+
+	@Test
+	public void testDownloadSnapshotFileWithNullUrl() {
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			manager.downloadSnapshotFile(null);
+		}).getMessage();
+		assertEquals("snapshotPresignedUrl is required.", message);
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testDownloadSnapshotFileSuccess() throws Exception {
+		URL snapshotUrl = new URL("https://example.com/snapshot.cbor");
+		Path expectedPath = Path.of("/tmp/test-snapshot.cbor");
+
+		when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+				.thenReturn(mockHttpResponse);
+		when(mockHttpResponse.statusCode()).thenReturn(200);
+		when(mockHttpResponse.body()).thenReturn(expectedPath);
+
+		// call under test
+		Path result = manager.downloadSnapshotFile(snapshotUrl);
+
+		assertEquals(expectedPath, result);
+		verify(mockHttpClient).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testDownloadSnapshotFileWithNon200Status() throws Exception {
+		URL snapshotUrl = new URL("https://example.com/snapshot.cbor");
+
+		when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+				.thenReturn(mockHttpResponse);
+		when(mockHttpResponse.statusCode()).thenReturn(404);
+
+		// call under test
+		RuntimeException ex = assertThrows(RuntimeException.class, () -> {
+			manager.downloadSnapshotFile(snapshotUrl);
+		});
+		assertTrue(ex.getMessage().contains("Failed to download snapshot. Status: 404"));
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testDownloadSnapshotFileWithIOException() throws Exception {
+		URL snapshotUrl = new URL("https://example.com/snapshot.cbor");
+
+		when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+				.thenThrow(new IOException("Network error"));
+
+		// call under test
+		RuntimeException ex = assertThrows(RuntimeException.class, () -> {
+			manager.downloadSnapshotFile(snapshotUrl);
+		});
+		assertTrue(ex.getMessage().contains("Failed to download snapshot from"));
+		assertTrue(ex.getCause() instanceof IOException);
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testDownloadSnapshotFileWithInterruptedException() throws Exception {
+		URL snapshotUrl = new URL("https://example.com/snapshot.cbor");
+
+		when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+				.thenThrow(new InterruptedException("Interrupted"));
+
+		// call under test
+		RuntimeException ex = assertThrows(RuntimeException.class, () -> {
+			manager.downloadSnapshotFile(snapshotUrl);
+		});
+		assertTrue(ex.getMessage().contains("Interrupted while downloading snapshot"));
+		assertTrue(Thread.currentThread().isInterrupted());
+		// Clear the interrupted status for other tests
+		Thread.interrupted();
+	}
+
+	@Test
+	public void testImportSnapshotWithAllNodeTypes() throws Exception {
+		Path snapshotFile = Path.of("/tmp/snapshot.cbor");
+		LogicalTimestamp rootId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(1L);
+		LogicalTimestamp constId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(2L);
+		LogicalTimestamp objectId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(3L);
+		LogicalTimestamp arrayId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(4L);
+		LogicalTimestamp arrayElementId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(5L);
+		LogicalTimestamp vectorId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(6L);
+		LogicalTimestamp vectorConstId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(7L);
+		ClockTable clockTable = new ClockTable(List.of(rootId));
+
+		// Create nodes
+		ConstantNode constantNode = new ConstantNode().setId(constId).setValue(new ConValue(ConType.LONG, 42L));
+		ConstantNode vectorConstNode = new ConstantNode().setId(vectorConstId).setValue(new ConValue(ConType.STRING, "vec"));
+		ObjectNode objectNode = new ObjectNode().setId(objectId).setValue(Map.of("key", constId));
+		ValueNode valueNode = new ValueNode().setId(rootId).setValue(objectId);
+		RGANode rgaElement = new RGANode()
+				.setContainerId(arrayId)
+				.setNodeId(arrayElementId)
+				.setDataId(constId)
+				.setIsDeleted(false);
+		ArrayNode arrayNode = new ArrayNode().setId(arrayId).setElements(List.of(rgaElement));
+		ConstantNode vectorConstStub = new ConstantNode().setId(vectorConstId);
+		VectorNode vectorNode = new VectorNode().setId(vectorId).setValues(Map.of(0, vectorConstStub));
+
+		// Create entries
+		Map<LogicalTimestamp, Entry> constantEntries = new LinkedHashMap<>();
+		constantEntries.put(constId, new Entry(IndexedNodeCodecMapper.CONSTANT, 100L, 50));
+		constantEntries.put(vectorConstId, new Entry(IndexedNodeCodecMapper.CONSTANT, 150L, 50));
+
+		Map<LogicalTimestamp, Entry> objectEntries = new LinkedHashMap<>();
+		objectEntries.put(objectId, new Entry(IndexedNodeCodecMapper.OBJECT, 200L, 50));
+
+		Map<LogicalTimestamp, Entry> valueEntries = new LinkedHashMap<>();
+		valueEntries.put(rootId, new Entry(IndexedNodeCodecMapper.VAL, 250L, 50));
+
+		Map<LogicalTimestamp, Entry> arrayEntries = new LinkedHashMap<>();
+		arrayEntries.put(arrayId, new Entry(IndexedNodeCodecMapper.ARRAY, 300L, 50));
+
+		Map<LogicalTimestamp, Entry> vectorEntries = new LinkedHashMap<>();
+		vectorEntries.put(vectorId, new Entry(IndexedNodeCodecMapper.VECTOR, 350L, 50));
+
+		when(mockDecoderProvider.build(snapshotFile)).thenReturn(mockDecoder);
+		when(mockDecoder.getClockTable()).thenReturn(clockTable);
+		when(mockReaderProvider.create(snapshotFile, clockTable)).thenReturn(mockReader);
+		when(mockDecoder.getEntriesForType(IndexedNodeCodecMapper.CONSTANT)).thenReturn(constantEntries);
+		when(mockDecoder.getEntriesForType(IndexedNodeCodecMapper.OBJECT)).thenReturn(objectEntries);
+		when(mockDecoder.getEntriesForType(IndexedNodeCodecMapper.VAL)).thenReturn(valueEntries);
+		when(mockDecoder.getEntriesForType(IndexedNodeCodecMapper.ARRAY)).thenReturn(arrayEntries);
+		when(mockDecoder.getEntriesForType(IndexedNodeCodecMapper.VECTOR)).thenReturn(vectorEntries);
+
+		// readNodes is called once per type that has entries (constants, objects, values, arrays, vectors)
+		when(mockReader.readNodes(any()))
+				.thenReturn(List.of(constantNode, vectorConstNode))  // constants
+				.thenReturn(List.of(objectNode))                     // objects
+				.thenReturn(List.of(valueNode))                      // values
+				.thenReturn(List.of(arrayNode))                      // arrays
+				.thenReturn(List.of(vectorNode));                    // vectors
+		when(mockReader.readNode(eq(vectorConstId), any())).thenReturn(vectorConstNode);
+		when(mockDao.createReplicaIfNotExists(sessionId, replicaId)).thenReturn(true);
+
+		// call under test
+		manager.importSnapshot(sessionId, replicaId, snapshotFile);
+
+		// Verify replica setup
+		verify(mockDao).deleteReplica(sessionId, replicaId);
+		verify(mockDao).createReplicaIfNotExists(sessionId, replicaId);
+
+		// Verify constants
+		verify(mockDao).saveIndex(sessionId, replicaId, IndexType.con, new ArrayList<>(constantEntries.keySet()));
+		verify(mockDao).saveNewConstants(sessionId, replicaId, List.of(constantNode, vectorConstNode));
+
+		// Verify objects
+		verify(mockDao).saveIndex(sessionId, replicaId, IndexType.obj, List.of(objectId));
+		verify(mockDao).saveObjects(sessionId, replicaId, List.of(objectNode));
+
+		// Verify values
+		verify(mockDao).saveIndex(sessionId, replicaId, IndexType.val, List.of(rootId));
+		verify(mockDao).saveValues(sessionId, replicaId, List.of(valueNode));
+
+		// Verify arrays
+		verify(mockDao).saveIndex(sessionId, replicaId, IndexType.arr, List.of(arrayId));
+		verify(mockDao).createArrayBatch(sessionId, replicaId, List.of(arrayId));
+		verify(mockDao).batchInsertRgaNodes(sessionId, replicaId, List.of(rgaElement));
+
+		// Verify vectors
+		verify(mockDao).saveIndex(sessionId, replicaId, IndexType.vec, List.of(vectorId));
+		verify(mockDao).saveVectors(eq(sessionId), eq(replicaId), eq(List.of(new VectorNode().setId(vectorId).setValues(Map.of(0, vectorConstNode)))));
+
+		// Verify clocks
+		verify(mockDao).setClocks(sessionId, replicaId, clockTable.getClocks());
+		verify(mockReader).close();
+	}
+
+	@Test
+	public void testImportSnapshotWithDecoderBuildFailure() throws Exception {
+		Path snapshotFile = Path.of("/tmp/snapshot.cbor");
+
+		when(mockDecoderProvider.build(snapshotFile)).thenThrow(new IOException("Failed to read file"));
+		when(mockDao.createReplicaIfNotExists(sessionId, replicaId)).thenReturn(true);
+
+		// call under test
+		RuntimeException ex = assertThrows(RuntimeException.class, () -> {
+			manager.importSnapshot(sessionId, replicaId, snapshotFile);
+		});
+		assertTrue(ex.getMessage().contains("Failed to build snapshot index"));
+		assertTrue(ex.getCause() instanceof IOException);
+	}
+
+	@Test
+	public void testImportSnapshotWithReaderCreateFailure() throws Exception {
+		Path snapshotFile = Path.of("/tmp/snapshot.cbor");
+		LogicalTimestamp rootId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(1L);
+		ClockTable clockTable = new ClockTable(List.of(rootId));
+
+		when(mockDecoderProvider.build(snapshotFile)).thenReturn(mockDecoder);
+		when(mockDecoder.getClockTable()).thenReturn(clockTable);
+		when(mockReaderProvider.create(snapshotFile, clockTable)).thenThrow(new IOException("Failed to open file"));
+		when(mockDao.createReplicaIfNotExists(sessionId, replicaId)).thenReturn(true);
+
+		// call under test
+		RuntimeException ex = assertThrows(RuntimeException.class, () -> {
+			manager.importSnapshot(sessionId, replicaId, snapshotFile);
+		});
+		assertTrue(ex.getMessage().contains("Failed to import snapshot"));
+		assertTrue(ex.getCause() instanceof IOException);
 	}
 
 }

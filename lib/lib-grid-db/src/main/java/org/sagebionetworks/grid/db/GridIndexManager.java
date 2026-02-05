@@ -23,6 +23,13 @@ public interface GridIndexManager {
 	 */
 	Map<IndexType, Set<LogicalTimestamp>> applyPatch(String sessionId, Long replicaId, Patch patch);
 
+	/**
+	 * Apply the snapshot in a transaction.
+	 *
+	 * @param sessionId
+	 * @param replicaId
+	 * @param snapshotPresignedUrl
+	 */
 	void applySnapshot(String sessionId, Long replicaId, URL snapshotPresignedUrl);
 
 	/**

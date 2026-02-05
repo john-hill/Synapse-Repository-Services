@@ -5,6 +5,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -134,6 +136,25 @@ public class GridReplicaManagerImplTest {
 		verify(mockGridIndexManager).getClock(sessionId, replicaId);
 		verify(manager).sendClockMessage(methodId, connectionId, clock);
 		verify(mockGridIndexManager).refreshMessageChain(sessionId, replicaId, methodId);
+	}
+
+	@Test
+	public void testOnApplySnapshot() throws MalformedURLException {
+		URL snapshotUrl = new URL("https://example.com/snapshot.bin");
+
+		when(mockGridIndexManager.getClock(sessionId, replicaId)).thenReturn(clock);
+		doNothing().when(manager).sendClockMessage(methodId, connectionId, clock);
+		doNothing().when(manager).sendChangesToTopic(ReplicaChangeSet.fromSnapshot(connection));
+
+		// call under test
+		manager.onApplySnapshot(mockCallback, connection, methodId, snapshotUrl);
+
+		// verify interactions
+		verify(mockGridIndexManager).refreshMessageChain(sessionId, replicaId, methodId);
+		verify(mockGridIndexManager).applySnapshot(sessionId, replicaId, snapshotUrl);
+		verify(mockGridIndexManager).getClock(sessionId, replicaId);
+		verify(manager).sendClockMessage(methodId, connectionId, clock);
+		verify(manager).sendChangesToTopic(ReplicaChangeSet.fromSnapshot(connection));
 	}
 
 	@Test

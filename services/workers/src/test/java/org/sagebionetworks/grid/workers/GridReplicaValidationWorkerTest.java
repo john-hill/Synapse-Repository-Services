@@ -150,4 +150,13 @@ public class GridReplicaValidationWorkerTest {
 		worker.run(mockCallback, message);
 		verify(mockValidationManager).validateChanges(sessionId, replicaId, Set.of(vectorId));
 	}
+
+	@Test
+	public void testRunWithSnapshotMessage() throws RecoverableMessageException, Exception {
+		changeSet = ReplicaChangeSet.fromSnapshot(connectionInfo);
+		message = new Message().withBody(changeSet.toJson());
+		// call under test
+		worker.run(mockCallback, message);
+		verify(mockValidationManager).validateAllRows(sessionId, replicaId);
+	}
 }

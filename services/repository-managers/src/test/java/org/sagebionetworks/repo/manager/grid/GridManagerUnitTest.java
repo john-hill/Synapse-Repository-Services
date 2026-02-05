@@ -16,6 +16,8 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.Collections;
@@ -59,9 +61,11 @@ import org.sagebionetworks.repo.model.grid.CreateReplicaResponse;
 import org.sagebionetworks.repo.model.grid.EventContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.EventType;
+import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.GridSnapshot;
 import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
@@ -71,6 +75,8 @@ import org.sagebionetworks.repo.model.grid.message.JsonRxMessageType;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.table.Query;
 import org.sagebionetworks.repo.web.NotFoundException;
+
+import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 
 import au.com.bytecode.opencsv.CSVReader;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -1158,5 +1164,114 @@ public class GridManagerUnitTest {
 		String connectionId = capturedContext.getConnectionId();
 		assertNotNull(connectionId);
 		assertDoesNotThrow(() -> UUID.fromString(connectionId));
+	}
+
+	@Test
+	public void testSaveSnapshot() {
+		ClockTable clockTable = new ClockTable(List.of(patchId));
+		String s3Key = "snapshot-key-123";
+		Long createdBy = userId;
+
+		// call under test
+		gridManager.saveSnapshot(gridSessionId, clockTable, s3Key, createdBy);
+
+		verify(mockGridDao).saveSnapshot(gridSessionId, clockTable, s3Key, createdBy);
+	}
+
+	@Test
+	public void testSaveSnapshotWithNullSessionId() {
+		ClockTable clockTable = new ClockTable(List.of(patchId));
+		String s3Key = "snapshot-key-123";
+		Long createdBy = userId;
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.saveSnapshot(null, clockTable, s3Key, createdBy);
+		}).getMessage();
+		assertEquals("sessionId is required.", message);
+		verifyZeroInteractions(mockGridDao);
+	}
+
+	@Test
+	public void testSaveSnapshotWithNullClockTable() {
+		String s3Key = "snapshot-key-123";
+		Long createdBy = userId;
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.saveSnapshot(gridSessionId, null, s3Key, createdBy);
+		}).getMessage();
+		assertEquals("clockTable is required.", message);
+		verifyZeroInteractions(mockGridDao);
+	}
+
+	@Test
+	public void testSaveSnapshotWithNullS3Key() {
+		ClockTable clockTable = new ClockTable(List.of(patchId));
+		Long createdBy = userId;
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.saveSnapshot(gridSessionId, clockTable, null, createdBy);
+		}).getMessage();
+		assertEquals("s3Key is required.", message);
+		verifyZeroInteractions(mockGridDao);
+	}
+
+	@Test
+	public void testSaveSnapshotWithNullCreatedBy() {
+		ClockTable clockTable = new ClockTable(List.of(patchId));
+		String s3Key = "snapshot-key-123";
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.saveSnapshot(gridSessionId, clockTable, s3Key, null);
+		}).getMessage();
+		assertEquals("createdBy is required.", message);
+		verifyZeroInteractions(mockGridDao);
+	}
+
+	@Test
+	public void testGetLatestSnapshotPresignedUrl() throws MalformedURLException {
+		when(mockGridDao.getConnection(connectionId)).thenReturn(
+				Optional.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)));
+
+		GridSnapshot snapshot = new GridSnapshot().setS3Key("snapshot-key-123");
+		when(mockGridDao.getLatestSnapshot(gridSessionId)).thenReturn(Optional.of(snapshot));
+
+		URL presignedUrl = new URL("https://example.com/snapshot");
+		when(mockSynapseS3Client.generatePresignedUrl(any(GeneratePresignedUrlRequest.class))).thenReturn(presignedUrl);
+
+		// call under test
+		Optional<URL> result = gridManager.getLatestSnapshotPresignedUrl(eventContext);
+
+		assertTrue(result.isPresent());
+		assertEquals(presignedUrl, result.get());
+	}
+
+	@Test
+	public void testGetLatestSnapshotPresignedUrlWithNoSnapshot() {
+		when(mockGridDao.getConnection(connectionId)).thenReturn(
+				Optional.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)));
+
+		when(mockGridDao.getLatestSnapshot(gridSessionId)).thenReturn(Optional.empty());
+
+		// call under test
+		Optional<URL> result = gridManager.getLatestSnapshotPresignedUrl(eventContext);
+
+		assertTrue(result.isEmpty());
+		verifyZeroInteractions(mockSynapseS3Client);
+	}
+
+	@Test
+	public void testGetLatestSnapshotPresignedUrlWithNullContext() {
+		eventContext = null;
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.getLatestSnapshotPresignedUrl(eventContext);
+		}).getMessage();
+		assertEquals("context is required.", message);
+		verifyZeroInteractions(mockGridDao, mockSynapseS3Client);
 	}
 }

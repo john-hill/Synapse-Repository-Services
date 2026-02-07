@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,8 +39,9 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.grid.ClockTable;
-import org.sagebionetworks.repo.model.grid.encoding.IndexedModelDecoder;
-import org.sagebionetworks.repo.model.grid.encoding.IndexedModelDecoder.NodePointer;
+import org.sagebionetworks.repo.model.grid.encoding.SnapshotFileIndex;
+import org.sagebionetworks.repo.model.grid.encoding.SnapshotFileIndexBuilder;
+import org.sagebionetworks.repo.model.grid.encoding.SnapshotFileIndex.NodePointer;
 import org.sagebionetworks.repo.model.grid.encoding.IndexedNodeCodecMapper;
 import org.sagebionetworks.repo.model.grid.encoding.SeekingNodeReader;
 import org.sagebionetworks.repo.model.grid.node.ArrayNode;
@@ -68,13 +70,13 @@ public class GridIndexManagerImplTest {
 	private HttpClient mockHttpClient;
 
 	@Mock
-	private IndexedModelDecoderProvider mockDecoderProvider;
+	private SnapshotFileIndexBuilder mockIndexBuilder;
 
 	@Mock
 	private SeekingNodeReaderProvider mockReaderProvider;
 
 	@Mock
-	private IndexedModelDecoder mockDecoder;
+	private SnapshotFileIndex mockIndex;
 
 	@Mock
 	private SeekingNodeReader mockReader;
@@ -462,38 +464,20 @@ public class GridIndexManagerImplTest {
 
 		// Create entries
 		Map<LogicalTimestamp, NodePointer> constantEntries = new LinkedHashMap<>();
-		constantEntries.put(constId, new IndexedModelDecoder.NodePointer(100L, 50));
-		constantEntries.put(vectorConstId, new IndexedModelDecoder.NodePointer(150L, 50));
+		constantEntries.put(constId, new NodePointer(100L, 50));
+		constantEntries.put(vectorConstId, new NodePointer(150L, 50));
 
-		Map<LogicalTimestamp, NodePointer> objectEntries = new LinkedHashMap<>();
-		objectEntries.put(objectId, new IndexedModelDecoder.NodePointer(200L, 50));
-
-		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> valueEntries = new LinkedHashMap<>();
-		valueEntries.put(rootId, new IndexedModelDecoder.NodePointer(250L, 50));
-
-		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> arrayEntries = new LinkedHashMap<>();
-		arrayEntries.put(arrayId, new IndexedModelDecoder.NodePointer(300L, 50));
-
-		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> vectorEntries = new LinkedHashMap<>();
-		vectorEntries.put(vectorId, new IndexedModelDecoder.NodePointer(350L, 50));
-
-		when(mockDecoderProvider.build(snapshotFile)).thenReturn(mockDecoder);
-		when(mockDecoder.getClockTable()).thenReturn(clockTable);
-		when(mockReaderProvider.create(snapshotFile, clockTable)).thenReturn(mockReader);
-		when(mockDecoder.getEntriesForType(IndexedNodeCodecMapper.CONSTANT)).thenReturn(constantEntries);
-		when(mockDecoder.getEntriesForType(IndexedNodeCodecMapper.OBJECT)).thenReturn(objectEntries);
-		when(mockDecoder.getEntriesForType(IndexedNodeCodecMapper.VAL)).thenReturn(valueEntries);
-		when(mockDecoder.getEntriesForType(IndexedNodeCodecMapper.ARRAY)).thenReturn(arrayEntries);
-		when(mockDecoder.getEntriesForType(IndexedNodeCodecMapper.VECTOR)).thenReturn(vectorEntries);
+		when(mockIndexBuilder.build(snapshotFile)).thenReturn(mockIndex);
+		when(mockIndex.getClockTable()).thenReturn(clockTable);
+		when(mockReaderProvider.create(snapshotFile, mockIndex)).thenReturn(mockReader);
 
 		// readNodes is called once per type that has entries (constants, objects, values, arrays, vectors)
-		when(mockReader.readNodes(any()))
-				.thenReturn(List.of(constantNode, vectorConstNode))  // constants
-				.thenReturn(List.of(objectNode))                     // objects
-				.thenReturn(List.of(valueNode))                      // values
-				.thenReturn(List.of(arrayNode))                      // arrays
-				.thenReturn(List.of(vectorNode));                    // vectors
-		when(mockReader.readNode(eq(vectorConstId), any())).thenReturn(vectorConstNode);
+		when(mockReader.streamConstantNodes()).thenReturn(Stream.of(constantNode, vectorConstNode)); // constants
+		when(mockReader.streamObjectNodes()).thenReturn(Stream.of(objectNode));                    	// objects
+		when(mockReader.streamValueNodes()).thenReturn(Stream.of(valueNode));                      	// values
+		when(mockReader.streamArrayNodes()).thenReturn(Stream.of(arrayNode));                    	// arrays
+		when(mockReader.streamVectorNodes()).thenReturn(Stream.of(vectorNode));                   	// vectors
+		when(mockReader.readNode(eq(IndexedNodeCodecMapper.CONSTANT), eq(vectorConstId))).thenReturn(vectorConstNode);
 		when(mockDao.createReplicaIfNotExists(sessionId, replicaId)).thenReturn(true);
 
 		// call under test
@@ -533,7 +517,7 @@ public class GridIndexManagerImplTest {
 	public void testImportSnapshotWithDecoderBuildFailure() throws Exception {
 		Path snapshotFile = Path.of("/tmp/snapshot.cbor");
 
-		when(mockDecoderProvider.build(snapshotFile)).thenThrow(new IOException("Failed to read file"));
+		when(mockIndexBuilder.build(snapshotFile)).thenThrow(new IOException("Failed to read file"));
 		when(mockDao.createReplicaIfNotExists(sessionId, replicaId)).thenReturn(true);
 
 		// call under test
@@ -550,9 +534,9 @@ public class GridIndexManagerImplTest {
 		LogicalTimestamp rootId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(1L);
 		ClockTable clockTable = new ClockTable(List.of(rootId));
 
-		when(mockDecoderProvider.build(snapshotFile)).thenReturn(mockDecoder);
-		when(mockDecoder.getClockTable()).thenReturn(clockTable);
-		when(mockReaderProvider.create(snapshotFile, clockTable)).thenThrow(new IOException("Failed to open file"));
+		when(mockIndexBuilder.build(snapshotFile)).thenReturn(mockIndex);
+		when(mockIndex.getClockTable()).thenReturn(clockTable);
+		when(mockReaderProvider.create(snapshotFile, mockIndex)).thenThrow(new IOException("Failed to open file"));
 		when(mockDao.createReplicaIfNotExists(sessionId, replicaId)).thenReturn(true);
 
 		// call under test

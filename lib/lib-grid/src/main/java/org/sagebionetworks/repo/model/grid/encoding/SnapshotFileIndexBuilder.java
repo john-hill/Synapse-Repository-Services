@@ -5,12 +5,8 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.EnumMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.TreeMap;
 
 import org.sagebionetworks.repo.model.grid.ClockTable;
@@ -21,7 +17,7 @@ import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.dataformat.cbor.CBORParser;
 
 /**
- * Decoder for the JSON CRDT Indexed Binary format.
+ * Parses a file formatted in the JSON CRDT Indexed Binary format and builds an index that can be used to scan the file.
  *
  * <p>
  * The indexed binary format is a CBOR map containing:
@@ -32,7 +28,7 @@ import com.fasterxml.jackson.dataformat.cbor.CBORParser;
  * </ul>
  * </p>
  * <p>
- * The {@link IndexedModelDecoder#build } method scans the file to retrieve the clock table and root node, and builds an
+ * The {@link SnapshotFileIndexBuilder#build } method scans the file to retrieve the clock table and root node, and builds an
  * index of nodes grouped by type. The index optimizes reading batches of nodes to insert them into the database,
  * minimizing the number of database round-trips. This index is built by scanning the CBOR file and recording the byte
  * offset and length of each node's binary data, allowing for efficient random access.
@@ -40,62 +36,7 @@ import com.fasterxml.jackson.dataformat.cbor.CBORParser;
  *
  * @see <a href="https://jsonjoy.com/specs/json-crdt/encoding/indexed-encoding">Indexed Encoding</a>
  */
-public class IndexedModelDecoder {
-
-	/**
-	 * An entry in the index representing a single node.
-	 */
-	public static class NodePointer {
-		private final long byteOffset;
-		private final int binaryLength;
-
-		public NodePointer(long byteOffset, int binaryLength) {
-			this.byteOffset = byteOffset;
-			this.binaryLength = binaryLength;
-		}
-
-		public long byteOffset() {
-			return byteOffset;
-		}
-
-		public int binaryLength() {
-			return binaryLength;
-		}
-
-		@Override
-		public boolean equals(Object o) {
-			if (this == o) return true;
-			if (o == null || getClass() != o.getClass()) return false;
-			NodePointer nodePointer = (NodePointer) o;
-			return byteOffset == nodePointer.byteOffset && binaryLength == nodePointer.binaryLength;
-		}
-
-		@Override
-		public int hashCode() {
-			return Objects.hash(byteOffset, binaryLength);
-		}
-
-		@Override
-		public String toString() {
-			return "Entry{byteOffset=" + byteOffset + ", binaryLength=" + binaryLength + "}";
-		}
-	}
-
-	private final Map<IndexedNodeCodecMapper, Map<LogicalTimestamp, NodePointer>> entriesByType;
-	private final ClockTable clockTable;
-	private final LogicalTimestamp rootNodeId;
-	private final int totalNodeCount;
-
-	/**
-	 * Private constructor - use {@link #build(Path)} to create a decoder.
-	 */
-	private IndexedModelDecoder(Map<IndexedNodeCodecMapper, Map<LogicalTimestamp, NodePointer>> entriesByType, ClockTable clockTable,
-								LogicalTimestamp rootNodeId, int totalNodeCount) {
-		this.entriesByType = entriesByType;
-		this.clockTable = clockTable;
-		this.rootNodeId = rootNodeId;
-		this.totalNodeCount = totalNodeCount;
-	}
+public class SnapshotFileIndexBuilder {
 
 	private static class ClockTableAndRootNodeId {
 		final ClockTable clockTable;
@@ -116,17 +57,16 @@ public class IndexedModelDecoder {
 	 * @return the built decoder
 	 * @throws IOException if an I/O error occurs
 	 */
-	public static IndexedModelDecoder build(Path snapshotFile) throws IOException {
+	public SnapshotFileIndex build(Path snapshotFile) throws IOException {
 		ValidateArgument.required(snapshotFile, "snapshotFile");
 
 		// Pass 1: Get the clock table and root node ID.
 		ClockTableAndRootNodeId clockTableAndRoot = scanFileForClockTableAndRoot(snapshotFile);
 
 		// Pass 2: Build the index of nodes by type, now that we have the clock table to decode node keys
-		Map<IndexedNodeCodecMapper, Map<LogicalTimestamp, NodePointer>> entriesByType = buildNodeIndex(snapshotFile, clockTableAndRoot.clockTable);
+		Map<IndexedNodeCodecMapper, Map<LogicalTimestamp, SnapshotFileIndex.NodePointer>> entriesByType = buildNodeIndex(snapshotFile, clockTableAndRoot.clockTable);
 
-		int totalCount = entriesByType.values().stream().mapToInt(Map::size).sum();
-		return new IndexedModelDecoder(entriesByType, clockTableAndRoot.clockTable, clockTableAndRoot.rootNodeId, totalCount);
+		return new SnapshotFileIndex(clockTableAndRoot.rootNodeId, clockTableAndRoot.clockTable, entriesByType);
 	}
 
 	static ClockTableAndRootNodeId scanFileForClockTableAndRoot(Path snapshotFile) throws IOException {
@@ -186,8 +126,8 @@ public class IndexedModelDecoder {
 		return new ClockTableAndRootNodeId(clockTable, rootNodeId);
 	}
 
-	static Map<IndexedNodeCodecMapper, Map<LogicalTimestamp, NodePointer>> buildNodeIndex(Path snapshotFile, ClockTable clockTable) throws IOException {
-		Map<IndexedNodeCodecMapper, Map<LogicalTimestamp, NodePointer>> entriesByType = new EnumMap<>(IndexedNodeCodecMapper.class);
+	static Map<IndexedNodeCodecMapper, Map<LogicalTimestamp, SnapshotFileIndex.NodePointer>> buildNodeIndex(Path snapshotFile, ClockTable clockTable) throws IOException {
+		Map<IndexedNodeCodecMapper, Map<LogicalTimestamp, SnapshotFileIndex.NodePointer>> entriesByType = new EnumMap<>(IndexedNodeCodecMapper.class);
 		for (IndexedNodeCodecMapper type : IndexedNodeCodecMapper.values()) {
 			entriesByType.put(type, new TreeMap<>());
 		}
@@ -222,62 +162,12 @@ public class IndexedModelDecoder {
 					// Clock table already available - process immediately
 					LogicalTimestamp nodeId = clockTable.decodeNodeKey(fieldName);
 					IndexedNodeCodecMapper nodeType = IndexedNodeCodecMapper.getByFirstByte(nodeBytes[0]);
-					NodePointer nodePointer = new NodePointer(byteOffset, binaryLength);
+					SnapshotFileIndex.NodePointer nodePointer = new SnapshotFileIndex.NodePointer(byteOffset, binaryLength);
 					entriesByType.get(nodeType).put(nodeId, nodePointer);
 				}
 			}
 		}
 
 		return entriesByType;
-	}
-
-
-	/**
-	 * Get the clock table extracted from the snapshot file.
-	 *
-	 * @return the clock table
-	 */
-	public ClockTable getClockTable() {
-		return clockTable;
-	}
-
-	/**
-	 * Get the root node ID extracted from the snapshot file.
-	 *
-	 * @return the root node ID
-	 */
-	public LogicalTimestamp getRootNodeId() {
-		return rootNodeId;
-	}
-
-	/**
-	 * Get all entries for a specific node type.
-	 *
-	 * @param type the node type
-	 * @return an unmodifiable list of entries for that type, never null
-	 */
-	public Map<LogicalTimestamp, NodePointer> getEntriesForType(IndexedNodeCodecMapper type) {
-		ValidateArgument.required(type, "type");
-		return Collections.unmodifiableMap(entriesByType.getOrDefault(type, Collections.emptyMap()));
-	}
-
-	/**
-	 * Get the total number of nodes in the index.
-	 *
-	 * @return the total node count
-	 */
-	public int getTotalNodeCount() {
-		return totalNodeCount;
-	}
-
-	/**
-	 * Get the count of nodes for a specific type.
-	 *
-	 * @param type the node type
-	 * @return the count of nodes of that type
-	 */
-	public int getCountForType(IndexedNodeCodecMapper type) {
-		ValidateArgument.required(type, "type");
-		return entriesByType.getOrDefault(type, Collections.emptyMap()).size();
 	}
 }

@@ -28,13 +28,16 @@ import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
-public class IndexedModelDecoderTest {
+public class SnapshotFileIndexBuilderTest {
 
 	private Path tempFile;
+
+	private SnapshotFileIndexBuilder indexBuilder;
 
 	@BeforeEach
 	public void setUp() throws IOException {
 		tempFile = Files.createTempFile("snapshot-index-test-", ".cbor");
+		indexBuilder = new SnapshotFileIndexBuilder();
 	}
 
 	@AfterEach
@@ -80,7 +83,7 @@ public class IndexedModelDecoderTest {
 		createSnapshot(tempFile, rootId, nodes);
 
 		// call under test
-		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
+		SnapshotFileIndex index = indexBuilder.build(tempFile);
 
 		// Verify the index
 		assertNotNull(index);
@@ -88,28 +91,27 @@ public class IndexedModelDecoderTest {
 		assertEquals(6, index.getTotalNodeCount());
 
 		// Verify constants (2 nodes)
-		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> constants = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
+		Map<LogicalTimestamp, SnapshotFileIndex.NodePointer> constants = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
 		assertEquals(2, constants.size());
-		assertEquals(2, index.getCountForType(IndexedNodeCodecMapper.CONSTANT));
 
 		// Verify objects (1 node)
-		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> objects = index.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
+		Map<LogicalTimestamp, SnapshotFileIndex.NodePointer> objects = index.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
 		assertEquals(1, objects.size());
 
 		// Verify values (1 node)
-		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> values = index.getEntriesForType(IndexedNodeCodecMapper.VAL);
+		Map<LogicalTimestamp, SnapshotFileIndex.NodePointer> values = index.getEntriesForType(IndexedNodeCodecMapper.VAL);
 		assertEquals(1, values.size());
 
 		// Verify vectors (1 node)
-		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> vectors = index.getEntriesForType(IndexedNodeCodecMapper.VECTOR);
+		Map<LogicalTimestamp, SnapshotFileIndex.NodePointer> vectors = index.getEntriesForType(IndexedNodeCodecMapper.VECTOR);
 		assertEquals(1, vectors.size());
 
 		// Verify arrays (1 node)
-		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> arrays = index.getEntriesForType(IndexedNodeCodecMapper.ARRAY);
+		Map<LogicalTimestamp, SnapshotFileIndex.NodePointer> arrays = index.getEntriesForType(IndexedNodeCodecMapper.ARRAY);
 		assertEquals(1, arrays.size());
 
 		// Verify each entry has valid offset and length
-		for (Map.Entry<LogicalTimestamp, IndexedModelDecoder.NodePointer> entry : constants.entrySet()) {
+		for (Map.Entry<LogicalTimestamp, SnapshotFileIndex.NodePointer> entry : constants.entrySet()) {
 			assertNotNull(entry.getKey());
 			assertTrue(entry.getValue().byteOffset() > 0, "Byte offset should be positive");
 			assertTrue(entry.getValue().binaryLength() > 0, "Binary length should be positive");
@@ -129,22 +131,22 @@ public class IndexedModelDecoderTest {
 		createSnapshot(tempFile, rootId, nodes);
 
 		// call under test
-		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
+		SnapshotFileIndex index = indexBuilder.build(tempFile);
 
 		assertEquals(rootId, index.getRootNodeId());
 		assertEquals(2, index.getTotalNodeCount());
-		assertEquals(1, index.getCountForType(IndexedNodeCodecMapper.VAL));
-		assertEquals(1, index.getCountForType(IndexedNodeCodecMapper.CONSTANT));
-		assertEquals(0, index.getCountForType(IndexedNodeCodecMapper.OBJECT));
-		assertEquals(0, index.getCountForType(IndexedNodeCodecMapper.VECTOR));
-		assertEquals(0, index.getCountForType(IndexedNodeCodecMapper.ARRAY));
+		assertEquals(1, index.getEntriesForType(IndexedNodeCodecMapper.VAL).size());
+		assertEquals(1, index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT).size());
+		assertEquals(0, index.getEntriesForType(IndexedNodeCodecMapper.OBJECT).size());
+		assertEquals(0, index.getEntriesForType(IndexedNodeCodecMapper.VECTOR).size());
+		assertEquals(0, index.getEntriesForType(IndexedNodeCodecMapper.ARRAY).size());
 	}
 
 	@Test
 	public void testBuildIndexWithNullPath() {
 		// call under test
 		assertThrows(IllegalArgumentException.class, () ->
-				IndexedModelDecoder.build(null)
+				indexBuilder.build(null)
 		);
 	}
 
@@ -159,7 +161,7 @@ public class IndexedModelDecoderTest {
 
 		ClockTable expectedClockTable = createSnapshot(tempFile, rootId, nodes);
 
-		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
+		SnapshotFileIndex index = indexBuilder.build(tempFile);
 
 		// call under test
 		assertEquals(expectedClockTable, index.getClockTable());
@@ -167,7 +169,7 @@ public class IndexedModelDecoderTest {
 	}
 
 	@Test
-	public void testGetEntriesForTypeWithNullType() throws IOException {
+	public void testGetIndex() throws IOException {
 		LogicalTimestamp rootId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(1L);
 		LogicalTimestamp constId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(2L);
 		List<Node> nodes = List.of(
@@ -176,11 +178,11 @@ public class IndexedModelDecoderTest {
 		);
 		createSnapshot(tempFile, rootId, nodes);
 
-		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
+		SnapshotFileIndex index = indexBuilder.build(tempFile);
 
 		// call under test
 		assertThrows(IllegalArgumentException.class, () ->
-				index.getEntriesForType(null)
+				index.getPointer(null, null)
 		);
 	}
 

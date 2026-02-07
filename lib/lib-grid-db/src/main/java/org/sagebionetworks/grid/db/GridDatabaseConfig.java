@@ -6,6 +6,7 @@ import java.time.temporal.ChronoUnit;
 
 import org.apache.commons.dbcp2.BasicDataSource;
 import org.sagebionetworks.StackConfiguration;
+import org.sagebionetworks.repo.model.grid.encoding.SnapshotFileIndexBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -64,6 +65,11 @@ public class GridDatabaseConfig {
 	@Bean
 	public PlatformTransactionManager gridTransactionManager(BasicDataSource gridDatabaseConnectionPool) {
 		return new DataSourceTransactionManager(gridDatabaseConnectionPool);
+	}
+
+	@Bean
+	public SnapshotFileIndexBuilder snapshotFileIndexBuilder() {
+		return new SnapshotFileIndexBuilder();
 	}
 
 	@Bean

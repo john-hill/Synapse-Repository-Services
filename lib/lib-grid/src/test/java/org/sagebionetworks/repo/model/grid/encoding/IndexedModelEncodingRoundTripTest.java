@@ -34,10 +34,12 @@ import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 public class IndexedModelEncodingRoundTripTest {
 
     private Path tempFile;
+    private SnapshotFileIndexBuilder indexBuilder;
 
     @BeforeEach
     public void setUp() throws IOException {
         tempFile = Files.createTempFile("round-trip-test-", ".cbor");
+        indexBuilder = new SnapshotFileIndexBuilder();
     }
 
     @AfterEach
@@ -133,19 +135,19 @@ public class IndexedModelEncodingRoundTripTest {
         ));
 
         // Build the decoder index and verify metadata
-        IndexedModelDecoder decoder = IndexedModelDecoder.build(tempFile);
-        assertEquals(testRootNodeId, decoder.getRootNodeId(), "Root node ID should match");
-        assertEquals(expectedClockTable, decoder.getClockTable(), "Clock table should match");
-        assertEquals(nodes.size(), decoder.getTotalNodeCount(), "Total node count should match");
+        SnapshotFileIndex index = indexBuilder.build(tempFile);
+        assertEquals(testRootNodeId, index.getRootNodeId(), "Root node ID should match");
+        assertEquals(expectedClockTable, index.getClockTable(), "Clock table should match");
+        assertEquals(nodes.size(), index.getTotalNodeCount(), "Total node count should match");
 
         // Read all nodes back using SeekingNodeReader and verify they match
         List<Node> decodedNodes = new ArrayList<>();
-        try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, decoder.getClockTable())) {
+        try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index)) {
             // Read nodes in type order (same order they were indexed)
             for (IndexedNodeCodecMapper type : IndexedNodeCodecMapper.values()) {
-                Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> entries = decoder.getEntriesForType(type);
-                for (Map.Entry<LogicalTimestamp, IndexedModelDecoder.NodePointer> entry : entries.entrySet()) {
-                    decodedNodes.add(reader.readNode(entry.getKey(), entry.getValue()));
+                Map<LogicalTimestamp, SnapshotFileIndex.NodePointer> entries = index.getEntriesForType(type);
+                for (LogicalTimestamp nodeId : entries.keySet()) {
+                    decodedNodes.add(reader.readNode(type, nodeId));
                 }
             }
         }

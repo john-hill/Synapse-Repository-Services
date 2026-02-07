@@ -11,8 +11,10 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.json.JSONObject;
 import org.junit.jupiter.api.AfterEach;
@@ -34,10 +36,12 @@ public class SeekingNodeReaderTest {
 
 	private Path tempFile;
 	private List<Node> originalNodes;
+	private SnapshotFileIndexBuilder indexBuilder;
 
 	@BeforeEach
 	public void setUp() throws IOException {
 		tempFile = Files.createTempFile("seeking-reader-test-", ".cbor");
+		indexBuilder = new SnapshotFileIndexBuilder();
 	}
 
 	@AfterEach
@@ -57,13 +61,13 @@ public class SeekingNodeReaderTest {
 		originalNodes = List.of(constant, new ValueNode().setId(rootId).setValue(constant.getId()));
 		createSnapshot(tempFile, rootId, originalNodes);
 
-		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
-		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> constantEntries = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
+		SnapshotFileIndex index = indexBuilder.build(tempFile);
+		Map<LogicalTimestamp, SnapshotFileIndex.NodePointer> constantEntries = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
 		assertEquals(1, constantEntries.size());
 
-		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index.getClockTable())) {
+		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index)) {
 			// call under test
-			Node readNode = reader.readNode(constant.getId(), constantEntries.get(constant.getId()));
+			Node readNode = reader.readNode(IndexedNodeCodecMapper.CONSTANT, constant.getId());
 
 			assertNotNull(readNode);
 			assertTrue(readNode instanceof ConstantNode);
@@ -86,13 +90,13 @@ public class SeekingNodeReaderTest {
 		);
 		createSnapshot(tempFile, rootId, originalNodes);
 
-		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
-		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> objectEntries = index.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
+		SnapshotFileIndex index = indexBuilder.build(tempFile);
+		Map<LogicalTimestamp, SnapshotFileIndex.NodePointer> objectEntries = index.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
 		assertEquals(1, objectEntries.size());
 
-		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index.getClockTable())) {
+		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index)) {
 			// call under test
-			Node readNode = reader.readNode(object.getId(), objectEntries.get(object.getId()));
+			Node readNode = reader.readNode(IndexedNodeCodecMapper.OBJECT, object.getId());
 
 			assertNotNull(readNode);
 			assertTrue(readNode instanceof ObjectNode);
@@ -110,13 +114,13 @@ public class SeekingNodeReaderTest {
 		originalNodes = List.of(constant, value);
 		createSnapshot(tempFile, rootId, originalNodes);
 
-		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
-		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> valueEntries = index.getEntriesForType(IndexedNodeCodecMapper.VAL);
+		SnapshotFileIndex index = indexBuilder.build(tempFile);
+		Map<LogicalTimestamp, SnapshotFileIndex.NodePointer> valueEntries = index.getEntriesForType(IndexedNodeCodecMapper.VAL);
 		assertEquals(1, valueEntries.size());
 
-		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index.getClockTable())) {
+		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index)) {
 			// call under test
-			Node readNode = reader.readNode(rootId, valueEntries.get(rootId));
+			Node readNode = reader.readNode(IndexedNodeCodecMapper.VAL, rootId);
 
 			assertNotNull(readNode);
 			assertTrue(readNode instanceof ValueNode);
@@ -140,13 +144,13 @@ public class SeekingNodeReaderTest {
 		);
 		createSnapshot(tempFile, rootId, originalNodes);
 
-		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
-		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> vectorEntries = index.getEntriesForType(IndexedNodeCodecMapper.VECTOR);
+		SnapshotFileIndex index = indexBuilder.build(tempFile);
+		Map<LogicalTimestamp, SnapshotFileIndex.NodePointer> vectorEntries = index.getEntriesForType(IndexedNodeCodecMapper.VECTOR);
 		assertEquals(1, vectorEntries.size());
 
-		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index.getClockTable())) {
+		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index)) {
 			// call under test
-			Node readNode = reader.readNode(vecId, vectorEntries.get(vecId));
+			Node readNode = reader.readNode(IndexedNodeCodecMapper.VECTOR, vecId);
 
 			assertNotNull(readNode);
 			assertTrue(readNode instanceof VectorNode);
@@ -179,13 +183,13 @@ public class SeekingNodeReaderTest {
 		);
 		createSnapshot(tempFile, rootId, originalNodes);
 
-		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
-		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> arrayEntries = index.getEntriesForType(IndexedNodeCodecMapper.ARRAY);
+		SnapshotFileIndex index = indexBuilder.build(tempFile);
+		Map<LogicalTimestamp, SnapshotFileIndex.NodePointer> arrayEntries = index.getEntriesForType(IndexedNodeCodecMapper.ARRAY);
 		assertEquals(1, arrayEntries.size());
 
-		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index.getClockTable())) {
+		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index)) {
 			// call under test
-			Node readNode = reader.readNode(arrayId, arrayEntries.get(arrayId));
+			Node readNode = reader.readNode(IndexedNodeCodecMapper.ARRAY, arrayId);
 
 			assertNotNull(readNode);
 			assertTrue(readNode instanceof ArrayNode);
@@ -194,7 +198,7 @@ public class SeekingNodeReaderTest {
 	}
 
 	@Test
-	public void testReadNodes() throws IOException {
+	public void testStreamNodes() throws IOException {
 		LogicalTimestamp rootId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(1L);
 		ConstantNode const1 = new ConstantNode()
 				.setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(2L))
@@ -209,13 +213,13 @@ public class SeekingNodeReaderTest {
 		originalNodes = List.of(const1, const2, const3, new ValueNode().setId(rootId).setValue(const1.getId()));
 		createSnapshot(tempFile, rootId, originalNodes);
 
-		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
-		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> constantEntries = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
+		SnapshotFileIndex index = indexBuilder.build(tempFile);
+		Map<LogicalTimestamp, SnapshotFileIndex.NodePointer> constantEntries = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
 		assertEquals(3, constantEntries.size());
 
-		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index.getClockTable())) {
+		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index)) {
 			// call under test
-			List<Node> readNodes = reader.readNodes(constantEntries.entrySet());
+			List<Node> readNodes = reader.streamConstantNodes().collect(Collectors.toList());
 
 			assertEquals(3, readNodes.size());
 			// The order matches the entry order, which is the file order
@@ -237,13 +241,11 @@ public class SeekingNodeReaderTest {
 		originalNodes = List.of(const1, const2, new ValueNode().setId(rootId).setValue(const1.getId()));
 		createSnapshot(tempFile, rootId, originalNodes);
 
-		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
-		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> constantEntries = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
-
-		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index.getClockTable())) {
+		SnapshotFileIndex index = indexBuilder.build(tempFile);
+		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index)) {
 			// Read in reverse order
-			Node second = reader.readNode(const2.getId(), constantEntries.get(const2.getId()));
-			Node first = reader.readNode(const1.getId(), constantEntries.get(const1.getId()));
+			Node second = reader.readNode(IndexedNodeCodecMapper.CONSTANT, const2.getId());
+			Node first = reader.readNode(IndexedNodeCodecMapper.CONSTANT, const1.getId());
 
 			assertEquals(const2, second);
 			assertEquals(const1, first);
@@ -260,8 +262,8 @@ public class SeekingNodeReaderTest {
 		);
 		createSnapshot(tempFile, rootId, originalNodes);
 
-		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
-		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index.getClockTable())) {
+		SnapshotFileIndex index = indexBuilder.build(tempFile);
+		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index)) {
 			// call under test
 			assertThrows(IllegalArgumentException.class, () ->
 					reader.readNode(null, null)
@@ -270,29 +272,11 @@ public class SeekingNodeReaderTest {
 	}
 
 	@Test
-	public void testReadNodesWithNullList() throws IOException {
-		LogicalTimestamp rootId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(1L);
-		LogicalTimestamp constId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(2L);
-		originalNodes = List.of(
-				new ConstantNode().setId(constId).setValue(new ConValue(ConType.LONG, 42L)),
-				new ValueNode().setId(rootId).setValue(constId)
-		);
-		createSnapshot(tempFile, rootId, originalNodes);
-
-		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
-		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index.getClockTable())) {
-			// call under test
-			assertThrows(IllegalArgumentException.class, () ->
-					reader.readNodes(null)
-			);
-		}
-	}
-
-	@Test
 	public void testConstructorWithNullPath() {
-		ClockTable ct = new ClockTable(List.of(
-				new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(1L)
-		));
+		SnapshotFileIndex ct = new SnapshotFileIndex(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L),
+				new ClockTable(List.of(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(1L))),
+				Collections.emptyMap()
+		);
 
 		// call under test
 		assertThrows(IllegalArgumentException.class, () ->
@@ -312,26 +296,25 @@ public class SeekingNodeReaderTest {
 	public void testDecodeJsonJoySnapshotEmptyObject() throws IOException {
 		Path resourceFile = copyResourceToTempFile("/indexed-model/empty-object.cbor");
 		try {
-			IndexedModelDecoder decoder = IndexedModelDecoder.build(resourceFile);
+			SnapshotFileIndex index = indexBuilder.build(resourceFile);
 
 			// Verify clock table
-			ClockTable clockTable = decoder.getClockTable();
+			ClockTable clockTable = index.getClockTable();
 			assertNotNull(clockTable);
 			assertEquals(1, clockTable.getClocks().size());
 			assertEquals(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L), clockTable.getClocks().get(0));
 
 			// Verify root node ID
 			LogicalTimestamp expectedRootId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L);
-			assertEquals(expectedRootId, decoder.getRootNodeId());
+			assertEquals(expectedRootId, index.getRootNodeId());
 
 			// Verify node counts
-			assertEquals(1, decoder.getTotalNodeCount());
-			assertEquals(1, decoder.getCountForType(IndexedNodeCodecMapper.OBJECT));
+			assertEquals(1, index.getTotalNodeCount());
+			assertEquals(1, index.getEntriesForType(IndexedNodeCodecMapper.OBJECT).size());
 
 			// Verify we can read the node using SeekingNodeReader
-			try (SeekingNodeReader reader = new SeekingNodeReader(resourceFile, clockTable)) {
-				Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> objects = decoder.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
-				List<Node> nodes = reader.readNodes(objects.entrySet());
+			try (SeekingNodeReader reader = new SeekingNodeReader(resourceFile, index)) {
+				List<Node> nodes = reader.streamObjectNodes().collect(Collectors.toList());
 				assertEquals(1, nodes.size());
 
 				// Empty object
@@ -349,10 +332,10 @@ public class SeekingNodeReaderTest {
 	public void testDecodeJsonJoySnapshotMultipleReplicas() throws IOException {
 		Path resourceFile = copyResourceToTempFile("/indexed-model/multiple-replicas.cbor");
 		try {
-			IndexedModelDecoder decoder = IndexedModelDecoder.build(resourceFile);
+			SnapshotFileIndex index = indexBuilder.build(resourceFile);
 
 			// Verify clock table
-			ClockTable clockTable = decoder.getClockTable();
+			ClockTable clockTable = index.getClockTable();
 			assertNotNull(clockTable);
 			assertEquals(3, clockTable.getClocks().size());
 			assertEquals(new LogicalTimestamp().setReplicaId(100002L).setSequenceNumber(6L), clockTable.getClocks().get(0));
@@ -360,18 +343,17 @@ public class SeekingNodeReaderTest {
 			assertEquals(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(2L), clockTable.getClocks().get(2));
 
 			// Verify root node ID
-			assertEquals(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(1L), decoder.getRootNodeId());
+			assertEquals(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(1L), index.getRootNodeId());
 
 			// Verify node counts
-			assertEquals(3, decoder.getTotalNodeCount());
-			assertEquals(1, decoder.getCountForType(IndexedNodeCodecMapper.OBJECT));
-			assertEquals(2, decoder.getCountForType(IndexedNodeCodecMapper.CONSTANT));
+			assertEquals(3, index.getTotalNodeCount());
+			assertEquals(1, index.getEntriesForType(IndexedNodeCodecMapper.OBJECT).size());
+			assertEquals(2, index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT).size());
 
 			// Verify we can read the nodes using SeekingNodeReader
-			try (SeekingNodeReader reader = new SeekingNodeReader(resourceFile, clockTable)) {
+			try (SeekingNodeReader reader = new SeekingNodeReader(resourceFile, index)) {
 				// Read the object node
-				Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> objects = decoder.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
-				List<Node> objectNodes = reader.readNodes(objects.entrySet());
+				List<Node> objectNodes = reader.streamObjectNodes().collect(Collectors.toList());
 				assertEquals(1, objectNodes.size());
 
 				ObjectNode expectedObj = new ObjectNode()
@@ -381,19 +363,19 @@ public class SeekingNodeReaderTest {
 				assertEquals(expectedObj, objectNodes.get(0));
 
 				// Read constant nodes
-				Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> constants = decoder.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
+				Map<LogicalTimestamp, SnapshotFileIndex.NodePointer> constants = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
 				assertEquals(2, constants.size());
 
 				// Read specific constant by ID
 				LogicalTimestamp const1Id = new LogicalTimestamp().setReplicaId(100001L).setSequenceNumber(3L);
-				Node const1 = reader.readNode(const1Id, constants.get(const1Id));
+				Node const1 = reader.readNode(IndexedNodeCodecMapper.CONSTANT, const1Id);
 				ConstantNode expectedConst1 = new ConstantNode()
 						.setId(const1Id)
 						.setValue(new ConValue(ConType.STRING, "From replica 1"));
 				assertEquals(expectedConst1, const1);
 
 				LogicalTimestamp const2Id = new LogicalTimestamp().setReplicaId(100002L).setSequenceNumber(5L);
-				Node const2 = reader.readNode(const2Id, constants.get(const2Id));
+				Node const2 = reader.readNode(IndexedNodeCodecMapper.CONSTANT, const2Id);
 				ConstantNode expectedConst2 = new ConstantNode()
 						.setId(const2Id)
 						.setValue(new ConValue(ConType.STRING, "From replica 2"));
@@ -408,30 +390,30 @@ public class SeekingNodeReaderTest {
 	public void testDecodeJsonJoySnapshotAllTypes() throws IOException {
 		Path resourceFile = copyResourceToTempFile("/indexed-model/all-types.cbor");
 		try {
-			IndexedModelDecoder decoder = IndexedModelDecoder.build(resourceFile);
+			SnapshotFileIndex index = indexBuilder.build(resourceFile);
 
 			// Verify clock table
-			ClockTable clockTable = decoder.getClockTable();
+			ClockTable clockTable = index.getClockTable();
 			assertNotNull(clockTable);
 			assertEquals(1, clockTable.getClocks().size());
 			assertEquals(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(24L), clockTable.getClocks().get(0));
 
 			// Verify root node ID
-			assertEquals(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L), decoder.getRootNodeId());
+			assertEquals(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L), index.getRootNodeId());
 
 			// Verify node counts by type
-			assertEquals(17, decoder.getTotalNodeCount());
-			assertEquals(2, decoder.getCountForType(IndexedNodeCodecMapper.OBJECT)); // Root + nested
-			assertEquals(13, decoder.getCountForType(IndexedNodeCodecMapper.CONSTANT)); // Various constants
-			assertEquals(1, decoder.getCountForType(IndexedNodeCodecMapper.ARRAY));
-			assertEquals(1, decoder.getCountForType(IndexedNodeCodecMapper.VECTOR));
+			assertEquals(17, index.getTotalNodeCount());
+			assertEquals(2, index.getEntriesForType(IndexedNodeCodecMapper.OBJECT).size()); // Root + nested
+			assertEquals(13, index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT).size()); // Various constants
+			assertEquals(1, index.getEntriesForType(IndexedNodeCodecMapper.ARRAY).size());
+			assertEquals(1, index.getEntriesForType(IndexedNodeCodecMapper.VECTOR).size());
 
 			// Verify we can read all nodes using SeekingNodeReader
-			try (SeekingNodeReader reader = new SeekingNodeReader(resourceFile, clockTable)) {
+			try (SeekingNodeReader reader = new SeekingNodeReader(resourceFile, index)) {
 				// Read root object
-				Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> objects = decoder.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
+				Map<LogicalTimestamp, SnapshotFileIndex.NodePointer> objects = index.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
 				LogicalTimestamp rootId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L);
-				Node rootNode = reader.readNode(rootId, objects.get(rootId));
+				Node rootNode = reader.readNode(IndexedNodeCodecMapper.OBJECT, rootId);
 				assertTrue(rootNode instanceof ObjectNode);
 				ObjectNode rootObj = (ObjectNode) rootNode;
 				assertEquals(1L, rootObj.getId().getSequenceNumber());
@@ -447,47 +429,46 @@ public class SeekingNodeReaderTest {
 				assertTrue(rootObj.getValue().containsKey("obj"));
 
 				// Read constant nodes and verify various types
-				Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> constants = decoder.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
+				Map<LogicalTimestamp, SnapshotFileIndex.NodePointer> constants = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
 
 				// String constant
 				LogicalTimestamp strId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L);
 				assertEquals(new ConstantNode()
 						.setId(strId)
 						.setValue(new ConValue(ConType.STRING, "Hello, json-joy!")),
-						reader.readNode(strId, constants.get(strId)));
+						reader.readNode(IndexedNodeCodecMapper.CONSTANT, strId));
 
 				// Long constant
 				LogicalTimestamp numId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(3L);
 				assertEquals(new ConstantNode()
 						.setId(numId)
 						.setValue(new ConValue(ConType.LONG, 42L)),
-						reader.readNode(numId, constants.get(numId)));
+						reader.readNode(IndexedNodeCodecMapper.CONSTANT, numId));
 
 				// Boolean constant
 				LogicalTimestamp boolId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(4L);
 				assertEquals(new ConstantNode()
 						.setId(boolId)
 						.setValue(new ConValue(ConType.BOOLEAN, true)),
-						reader.readNode(boolId, constants.get(boolId)));
+						reader.readNode(IndexedNodeCodecMapper.CONSTANT, boolId));
 
 				// Null constant
 				LogicalTimestamp nilId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(5L);
 				assertEquals(new ConstantNode()
 						.setId(nilId)
 						.setValue(new ConValue(ConType.NULL, JSONObject.NULL)),
-						reader.readNode(nilId, constants.get(nilId)));
+						reader.readNode(IndexedNodeCodecMapper.CONSTANT, nilId));
 
 				// Undefined constant
 				LogicalTimestamp undfId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(6L);
 				assertEquals(new ConstantNode()
 						.setId(undfId)
 						.setValue(new ConValue(ConType.UNDEFINED, null)),
-						reader.readNode(undfId, constants.get(undfId)));
+						reader.readNode(IndexedNodeCodecMapper.CONSTANT, undfId));
 
 				// Array node
-				Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> arrays = decoder.getEntriesForType(IndexedNodeCodecMapper.ARRAY);
 				LogicalTimestamp arrId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(7L);
-				Node arrNode = reader.readNode(arrId, arrays.get(arrId));
+				Node arrNode = reader.readNode(IndexedNodeCodecMapper.ARRAY, arrId);
 				assertTrue(arrNode instanceof ArrayNode);
 				ArrayNode arrayNode = (ArrayNode) arrNode;
 				assertEquals(3, arrayNode.getElements().size());
@@ -515,9 +496,8 @@ public class SeekingNodeReaderTest {
 				assertEquals(expectedArray, arrayNode);
 
 				// Vector node
-				Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> vectors = decoder.getEntriesForType(IndexedNodeCodecMapper.VECTOR);
 				LogicalTimestamp vecId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(14L);
-				Node vecNode = reader.readNode(vecId, vectors.get(vecId));
+				Node vecNode = reader.readNode(IndexedNodeCodecMapper.VECTOR, vecId);
 				assertTrue(vecNode instanceof VectorNode);
 				VectorNode vectorNode = (VectorNode) vecNode;
 				assertEquals(14L, vectorNode.getId().getSequenceNumber());
@@ -532,7 +512,7 @@ public class SeekingNodeReaderTest {
 								"a", new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(20L),
 								"b", new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(21L)
 						));
-				assertEquals(expectedNestedObj, reader.readNode(nestedObjId, objects.get(nestedObjId)));
+				assertEquals(expectedNestedObj, reader.readNode(IndexedNodeCodecMapper.OBJECT, nestedObjId));
 			}
 		} finally {
 			Files.deleteIfExists(resourceFile);

@@ -1,249 +1,69 @@
 package org.sagebionetworks.repo.manager.grid.synch;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Optional;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-
 import org.sagebionetworks.repo.manager.grid.PatchUtils;
-import org.sagebionetworks.repo.manager.grid.internal.replica.change.AddColumn;
-import org.sagebionetworks.repo.manager.grid.internal.replica.change.DeleteColumn;
-import org.sagebionetworks.repo.manager.grid.internal.replica.change.DeleteRowChange;
-import org.sagebionetworks.repo.manager.grid.internal.replica.change.InsertRowChange;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangePublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.PatchBuilderPublisher;
-import org.sagebionetworks.repo.manager.grid.internal.replica.change.UpdateRowChange;
-import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
-import org.sagebionetworks.repo.model.UnauthorizedException;
+import org.sagebionetworks.repo.manager.grid.synch.core.Merge;
+import org.sagebionetworks.repo.manager.grid.synch.handler.CopyHandler;
+import org.sagebionetworks.repo.manager.grid.synch.handler.CopyHandlerProvider;
+import org.sagebionetworks.repo.manager.grid.synch.handler.SourceHandler;
+import org.sagebionetworks.repo.manager.grid.synch.handler.SourceHandlerProvider;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowReader;
+import org.sagebionetworks.repo.manager.grid.synch.row.RowCopy;
+import org.sagebionetworks.repo.manager.grid.synch.row.RowMerge;
+import org.sagebionetworks.repo.manager.grid.synch.row.RowSource;
+import org.sagebionetworks.repo.manager.grid.synch.schema.SchemaCopy;
+import org.sagebionetworks.repo.manager.grid.synch.schema.SchemaSource;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridSession;
-import org.sagebionetworks.repo.model.grid.patch.ConType;
-import org.sagebionetworks.repo.model.grid.patch.ConValue;
-import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
-import org.sagebionetworks.repo.web.NotFoundException;
-import org.springframework.stereotype.Service;
 
-@Service
 public class GridSynchronizationManagerImpl implements GridSynchronizationManager {
 
 	private final PatchBuilderPublisher patchBuilderPublisher;
-	private final SourceHandlerProvdier sourceHandlerProvdier;
-	private final CopyReaderProvider copyReaderProvider;
+	private final SourceHandlerProvider sourceHandlerProvdier;
+	private final CopyHandlerProvider copyReaderProvider;
+	private final SynchronizationLogic logic;
+	private final SynchronizeProvider synchronizeProvider;
 
-	public GridSynchronizationManagerImpl(PatchBuilderPublisher patchBuilderPublisher,
-			SourceHandlerProvdier synchronizeHandlerProvdier, CopyReaderProvider copyReaderProvider) {
+	public GridSynchronizationManagerImpl(SourceHandlerProvider sourceHandlerProvdier,
+			CopyHandlerProvider copyReaderProvider, SynchronizationLogic logic, SynchronizeProvider synchronizeProvider,
+			PatchBuilderPublisher patchBuilderPublisher) {
+		super();
 		this.patchBuilderPublisher = patchBuilderPublisher;
-		this.sourceHandlerProvdier = synchronizeHandlerProvdier;
+		this.sourceHandlerProvdier = sourceHandlerProvdier;
 		this.copyReaderProvider = copyReaderProvider;
+		this.logic = logic;
+		this.synchronizeProvider = synchronizeProvider;
 	}
 
 	@Override
 	public void synchronizeCopyWithSource(AsyncJobProgressCallback callback, UserInfo user, GridSession session)
 			throws Exception {
-		try (CopyReader copyReader = copyReaderProvider.createCopyReader(session);
+		try (CopyHandler copyReader = copyReaderProvider.createCopyReader(session);
 				SourceHandler sourceHandler = sourceHandlerProvdier.createNewProvider(callback, user, session,
 						copyReader.getGridSource());
 				RowReader sourceReader = sourceHandler.getSourceRowReader()) {
 
 			try (IntendedChangePublisher icp = newIntendedChangePublisher(copyReader)) {
-				List<Column> finalSchema = synchronizeSchema(sourceHandler, copyReader, icp);
-				Map<String, Column> columnNameMap = toColumnMap(finalSchema, Column::getName);
+				// Phase one synchronize the schema
+				SchemaCopy schemaCopy = synchronizeProvider.getSchemaCopy(icp, copyReader);
+				SchemaSource schemaSource = synchronizeProvider.getSchemaSource(sourceHandler);
+				logic.synchronize(schemaCopy, schemaSource, Merge.noOp());
 
-				synchronizeExistingRows(copyReader, sourceHandler, icp, columnNameMap, sourceReader);
-				addRemainingSourceRows(copyReader, sourceReader, icp, columnNameMap);
+				// Phase two synchronize the rows
+				RowCopy rowCopy = synchronizeProvider.getRowCopy(icp, schemaCopy.getFinalSchema(), copyReader);
+				RowSource rowSource = synchronizeProvider.getRowSource(sourceReader, sourceHandler);
+				RowMerge rowMerge = synchronizeProvider.getRowMerge(logic, icp, schemaCopy.getFinalSchema(), copyReader,
+						sourceHandler);
+				logic.synchronize(rowCopy, rowSource, rowMerge);
 			}
 		}
 	}
 
-	private <K> Map<K, Column> toColumnMap(List<Column> columns, Function<Column, K> keyMapper) {
-		return columns.stream().collect(Collectors.toMap(keyMapper, Function.identity()));
-	}
-
-	List<Column> synchronizeSchema(SourceHandler sourceHandler, CopyReader copyReader, IntendedChangePublisher icp) {
-		GridHeader header = copyReader.getHeader();
-		List<String> sourceSchema = sourceHandler.getCurrentSourceSchema();
-		List<Column> finalSchema = new ArrayList<>();
-		for (Column copyColumn : header.getOrderedColumns()) {
-			if (!sourceSchema.remove(copyColumn.getName())) {
-				handleMissingSourceColumn(sourceHandler, copyReader, icp, copyColumn, finalSchema);
-			} else {
-				finalSchema.add(copyColumn);
-			}
-		}
-		addNewColumns(sourceSchema, copyReader, icp, finalSchema);
-		updateColumnNames(copyReader, icp, finalSchema);
-		return finalSchema;
-	}
-
-	private <K, V> Map<K, V> toMap(List<V> items, Function<V, K> keyMapper) {
-		return items.stream().collect(Collectors.toMap(keyMapper, Function.identity()));
-	}
-
-	private void handleMissingSourceColumn(SourceHandler sourceHandler, CopyReader copyReader,
-			IntendedChangePublisher icp, Column copyColumn, List<Column> finalSchema) {
-		GridHeader header = copyReader.getHeader();
-		if (wasChangedInCopy(copyColumn.getColumnOrderNodeId().getRep(), copyReader.getInternalReplicaId())) {
-			sourceHandler.addColumnToSource(copyColumn.getName());
-			finalSchema.add(copyColumn);
-		} else {
-			icp.publish(new DeleteColumn(header.getColumnOrderArrId(), copyColumn.getColumnOrderNodeIdAsLogical()));
-		}
-	}
-
-	private void addNewColumns(List<String> sourceSchema, CopyReader copyReader,
-			IntendedChangePublisher icp, List<Column> finalSchema) {
-		GridHeader header = copyReader.getHeader();
-		int maxColumnIndex = header.getOrderedColumns().stream().mapToInt(Column::getVectorIndex).max().orElse(-1) + 1;
-		for (String columnName : sourceSchema) {
-			icp.publish(new AddColumn(header.getColumnOrderArrId(), new ConValue(ConType.LONG, maxColumnIndex)));
-			finalSchema.add(new Column().setName(columnName).setVectorIndex(maxColumnIndex));
-			maxColumnIndex++;
-		}
-	}
-
-	private void updateColumnNames(CopyReader copyReader, IntendedChangePublisher icp, List<Column> finalSchema) {
-		GridHeader header = copyReader.getHeader();
-		boolean hasNewColumns = finalSchema.stream().anyMatch(column -> column.getColumnOrderNodeId() == null);
-		if (hasNewColumns) {
-			List<ConValue> updatedValues = finalSchema.stream().map(c -> new ConValue(ConType.STRING, c.getName()))
-					.collect(Collectors.toList());
-			Integer[] updatedIndex = finalSchema.stream().map(Column::getVectorIndex).toArray(Integer[]::new);
-			icp.publish(new UpdateRowChange(header.getColumnNamesVecId(), updatedValues, updatedIndex));
-		}
-	}
-
-	void synchronizeExistingRows(CopyReader copyReader, SourceHandler sourceHandler, IntendedChangePublisher icp,
-			Map<String, Column> columnNameMap, RowReader sourceReader) throws IOException {
-		Iterator<CopyRow> iterator = copyReader.getRows();
-
-		while (iterator.hasNext()) {
-			CopyRow copyRow = iterator.next();
-			String key = sourceHandler.getRowKey(copyRow);
-
-			Optional<RowHeader> sourceOp = sourceReader.removeRow(key);
-			if (sourceOp.isPresent()) {
-				RowHeader sourceRowHeader = sourceOp.get();
-				byte[] copyHash = new SynchRow(getCopyCellValueMap(copyRow), key).getHash();
-
-				if (Arrays.compare(sourceRowHeader.getHash(), copyHash) != 0) {
-					handleMatchingRow(sourceHandler, copyReader, icp, columnNameMap, copyRow,
-							sourceRowHeader.fetchRow());
-				}
-			} else {
-				handleMissingSourceRow(sourceHandler, copyReader, icp, copyRow, key);
-			}
-		}
-	}
-
-	void handleMatchingRow(SourceHandler sourceHandler, CopyReader copyReader, IntendedChangePublisher icp,
-			Map<String, Column> columnNameMap, CopyRow copyRow, SynchRow sourceRow) throws IOException {
-		Map<String, ConValue> mergedRow = mergeChanges(copyReader.getInternalReplicaId(), copyRow, sourceRow);
-		Map<String, ConValue> copyOnlyChanges = getCopyOnlyChanges(copyReader.getInternalReplicaId(), copyRow,
-				sourceRow);
-		try {
-			if (!copyOnlyChanges.isEmpty()) {
-				sourceHandler.applyCellChangesFromCopyToSource(sourceRow.getKey(), copyOnlyChanges);
-			}
-			publishRowUpdate(icp, copyRow, mergedRow, columnNameMap);
-		} catch (NotFoundException | UnauthorizedException e) {
-			icp.publish(new DeleteRowChange(copyRow.getRgaNodeId()));
-		}
-	}
-
-	void publishRowUpdate(IntendedChangePublisher icp, CopyRow copyRow, Map<String, ConValue> mergedRow,
-			Map<String, Column> columnNameMap) {
-		List<ConValue> values = new ArrayList<>();
-		List<Integer> valueIndex = new ArrayList<>();
-		for (Entry<String, ConValue> e : mergedRow.entrySet()) {
-			Column column = columnNameMap.get(e.getKey());
-			values.add(e.getValue());
-			valueIndex.add(column.getVectorIndex());
-		}
-		icp.publish(new UpdateRowChange(copyRow.getVectorNodeId(), values, valueIndex.toArray(Integer[]::new)));
-	}
-
-	static Map<String, ConValue> getCopyOnlyChanges(Long replicaId, CopyRow copyRow, SynchRow source) {
-		Map<String, ConValue> copyChanges = new HashMap<>();
-		for (CopyCell cell : copyRow.getCells()) {
-			source.getData().get(cell.getName());
-			if (cell.isWasChangedByUser()) {
-				copyChanges.put(cell.getName(), cell.getValue());
-			}
-		}
-		return copyChanges;
-	}
-
-	void handleMissingSourceRow(SourceHandler sourceHandler, CopyReader copyReader, IntendedChangePublisher icp,
-			CopyRow copyRow, String key) {
-		if (wasChangedInCopy(copyRow.getRgaNodeId().getReplicaId(), copyReader.getInternalReplicaId())) {
-			SynchRow copy = new SynchRow(getCopyCellValueMap(copyRow), key);
-			sourceHandler.addNewRowToSource(copy);
-		} else {
-			icp.publish(new DeleteRowChange(copyRow.getRgaNodeId()));
-		}
-	}
-
-	void addRemainingSourceRows(CopyReader copyReader, RowReader sourceReader, IntendedChangePublisher icp,
-			Map<String, Column> columnNameMap) throws IOException {
-		Iterator<RowHeader> remainingRows = sourceReader.remainingRows();
-		LogicalTimestamp rowsArrayId = copyReader.getHeader().getRowsId();
-		LogicalTimestamp lastRowId = copyReader.getLastRgaNodeId();
-
-		while (remainingRows.hasNext()) {
-			RowHeader remainingRow = remainingRows.next();
-			SynchRow toAdd = remainingRow.fetchRow();
-			publishInsertRow(icp, rowsArrayId, lastRowId, toAdd, columnNameMap);
-		}
-	}
-
-	private void publishInsertRow(IntendedChangePublisher icp, LogicalTimestamp rowsArrayId, LogicalTimestamp lastRowId,
-			SynchRow toAdd, Map<String, Column> columnNameMap) {
-		List<ConValue> values = new ArrayList<>();
-		List<Integer> valueIndex = new ArrayList<>();
-		for (Entry<String, ConValue> e : toAdd.getData().entrySet()) {
-			Column column = columnNameMap.get(e.getKey());
-			values.add(e.getValue());
-			valueIndex.add(column.getVectorIndex());
-		}
-		icp.publish(new InsertRowChange(rowsArrayId, lastRowId, values, valueIndex.toArray(Integer[]::new)));
-	}
-
-	private static Map<String, ConValue> mergeChanges(Long replicaId, CopyRow copyRow, SynchRow source) {
-		Map<String, ConValue> merged = new HashMap<>();
-		Map<String, ConValue> sourceMap = new HashMap<>(source.getData());
-
-		for (CopyCell cell : copyRow.getCells()) {
-			ConValue sourceValue = sourceMap.remove(cell.getName());
-
-			if (sourceValue == null || cell.isWasChangedByUser()) {
-				merged.put(cell.getName(), cell.getValue());
-			} else {
-				merged.put(cell.getName(), sourceValue);
-			}
-		}
-		merged.putAll(sourceMap);
-		return merged;
-	}
-
-	static boolean wasChangedInCopy(Long nodeReplicaId, Long copyReplicaId) {
-		return !nodeReplicaId.equals(copyReplicaId);
-	}
-
-	static Map<String, ConValue> getCopyCellValueMap(CopyRow copy) {
-		return copy.getCells().stream().collect(Collectors.toMap(CopyCell::getName, CopyCell::getValue));
-	}
-
-	IntendedChangePublisher newIntendedChangePublisher(CopyReader copyReader) {
+	IntendedChangePublisher newIntendedChangePublisher(CopyHandler copyReader) {
 		GridHeader header = copyReader.getHeader();
 		GridConnectionInfo connInfo = copyReader.getConnectionInfo();
 		return new IntendedChangePublisher(connInfo, header.getClockSequenceMaximum(), patchBuilderPublisher,

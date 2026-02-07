@@ -15,6 +15,11 @@ import java.util.Optional;
 import java.util.TreeMap;
 
 import org.junit.jupiter.api.Test;
+import org.sagebionetworks.repo.manager.grid.synch.io.DiskPointer;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowHeader;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowReader;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowWriter;
+import org.sagebionetworks.repo.manager.grid.synch.io.SynchRow;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 
@@ -42,7 +47,7 @@ public class RowWriterReaderTest {
 			try (RowReader reader = new RowReader(dp, new RandomAccessFile(temp, "r"))) {
 
 				for (SynchRow row : rows) {
-					Optional<RowHeader> header = reader.removeRow(row.getKey());
+					Optional<RowHeader> header = reader.consumeRow(row.getKey());
 					if (header.isPresent()) {
 						fetched.add(header.get().fetchRow());
 					}

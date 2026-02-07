@@ -4,15 +4,16 @@ import java.util.Objects;
 
 import org.json.JSONObject;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
-import org.sagebionetworks.repo.model.grid.patch.compact.LogicalTimestampCompactSerializable;
 
 public class DeleteRowChange implements IntendedChange {
 
 	private final LogicalTimestamp arrId;
+	private final LogicalTimestamp rgaNodeId;
 
-	public DeleteRowChange(LogicalTimestamp arrId) {
+	public DeleteRowChange(LogicalTimestamp arrId, LogicalTimestamp rgaNodeId) {
 		super();
 		this.arrId = arrId;
+		this.rgaNodeId = rgaNodeId;
 	}
 
 	@Override
@@ -22,14 +23,12 @@ public class DeleteRowChange implements IntendedChange {
 
 	@Override
 	public JSONObject toJson() {
-		JSONObject json = new JSONObject();
-		json.put("a", LogicalTimestampCompactSerializable.serialize(arrId));
-		return json;
+		return null;
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(arrId);
+		return Objects.hash(arrId, rgaNodeId);
 	}
 
 	@Override
@@ -41,12 +40,12 @@ public class DeleteRowChange implements IntendedChange {
 		if (getClass() != obj.getClass())
 			return false;
 		DeleteRowChange other = (DeleteRowChange) obj;
-		return Objects.equals(arrId, other.arrId);
+		return Objects.equals(arrId, other.arrId) && Objects.equals(rgaNodeId, other.rgaNodeId);
 	}
 
 	@Override
 	public String toString() {
-		return "DeleteRowChange [arrId=" + arrId + "]";
+		return "DeleteRowChange [arrId=" + arrId + ", rgaNodeId=" + rgaNodeId + "]";
 	}
 
 }

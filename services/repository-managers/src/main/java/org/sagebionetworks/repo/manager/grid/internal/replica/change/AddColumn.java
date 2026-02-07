@@ -11,12 +11,14 @@ public class AddColumn implements IntendedChange {
 
 	private final LogicalTimestamp columnOrderArrId;
 	private final ConValue columnIndex;
+	private final ConValue columnName;
 
-	public AddColumn(LogicalTimestamp columnOrderArrId, ConValue columnIndex) {
+	public AddColumn(LogicalTimestamp columnOrderArrId, ConValue columnIndex, ConValue columnName) {
 		ValidateArgument.required(columnIndex, "colulmnIndex");
 		ValidateArgument.required(columnOrderArrId, "columnOrderArrId");
 		this.columnOrderArrId = columnOrderArrId;
 		this.columnIndex = columnIndex;
+		this.columnName = columnName;
 	}
 
 	@Override
@@ -33,7 +35,7 @@ public class AddColumn implements IntendedChange {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(columnIndex, columnOrderArrId);
+		return Objects.hash(columnIndex, columnName, columnOrderArrId);
 	}
 
 	@Override
@@ -45,13 +47,14 @@ public class AddColumn implements IntendedChange {
 		if (getClass() != obj.getClass())
 			return false;
 		AddColumn other = (AddColumn) obj;
-		return Objects.equals(columnIndex, other.columnIndex)
+		return Objects.equals(columnIndex, other.columnIndex) && Objects.equals(columnName, other.columnName)
 				&& Objects.equals(columnOrderArrId, other.columnOrderArrId);
 	}
 
 	@Override
 	public String toString() {
-		return "AddColumn [columnOrderArrId=" + columnOrderArrId + ", columnIndex=" + columnIndex + "]";
+		return "AddColumn [columnOrderArrId=" + columnOrderArrId + ", columnIndex=" + columnIndex + ", columnName="
+				+ columnName + "]";
 	}
 
 }

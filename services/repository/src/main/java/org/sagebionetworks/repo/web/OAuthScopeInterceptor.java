@@ -16,7 +16,6 @@ import org.sagebionetworks.auth.HttpAuthUtil;
 import org.sagebionetworks.repo.manager.oauth.ClaimsJsonUtil;
 import org.sagebionetworks.repo.manager.oauth.OIDCTokenManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
-import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.oauth.OAuthScope;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.MethodParameter;
@@ -59,15 +58,6 @@ public class OAuthScopeInterceptor implements HandlerInterceptor {
 		return false;
 	}
 	
-	public static boolean isUnAuthenticated(HttpServletRequest request) {
-		// if a request is unauthenticated then AuthenticationFilter will fill in
-		// user-id with the id of the default anonymous user
-		String userIdRequestParameter = request.getParameter(AuthorizationConstants.USER_ID_PARAM);
-
-		return userIdRequestParameter==null ||
-			AuthorizationUtils.isDefaultRealmAnonymousId(Long.parseLong(userIdRequestParameter));
-	}
-	
 	public static boolean isServiceCall(HttpServletRequest request) {
 		String serviceName = request.getHeader(AuthorizationConstants.SYNAPSE_HEADER_SERVICE_NAME);
 		return serviceName != null;
@@ -83,7 +73,7 @@ public class OAuthScopeInterceptor implements HandlerInterceptor {
 		}
 		
 		// unauthenticated requests can't have scope checked, as there is no access token defining scopes
-		if (isUnAuthenticated(request)) {
+		if (HttpAuthUtil.isAnonymous(request)) {
 			return true;
 		}
 		

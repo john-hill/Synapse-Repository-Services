@@ -37,9 +37,6 @@ public class TwoFactorAuthRequiredFilterTest {
 	private AuthenticationDAO mockAuthDao;
 	
 	@Mock
-	private RealmDao mockRealmDao;
-	
-	@Mock
 	private FeatureManager mockFeatureManager;
 	
 	@InjectMocks
@@ -60,7 +57,7 @@ public class TwoFactorAuthRequiredFilterTest {
 	public void testDoFilterWithAnonymousUser() throws Exception {
 		String anonId = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId().toString();
 		when(mockHttpRequest.getParameter(AuthorizationConstants.USER_ID_PARAM)).thenReturn(anonId);
-		when(mockRealmDao.getRealmForAnonymousPrincipal(anonId)).thenReturn(Optional.of("0"));
+		when(mockHttpRequest.getParameter(AuthorizationConstants.ANONYMOUS_PARAM)).thenReturn("true");
 				
 		// Call under test
 		filter.doFilter(mockHttpRequest, mockHttpResponse, mockFilterChain);
@@ -120,7 +117,6 @@ public class TwoFactorAuthRequiredFilterTest {
 		when(mockHttpRequest.getParameter(AuthorizationConstants.USER_ID_PARAM)).thenReturn(USER_ID);
 		when(mockFeatureManager.isFeatureEnabled(Feature.DISABLE_2FA_REQUIREMENT)).thenReturn(false);
 		when(mockAuthDao.isTwoFactorAuthEnabled(123L)).thenReturn(true);
-		when(mockRealmDao.getRealmForAnonymousPrincipal(USER_ID)).thenReturn(Optional.empty());
 		
 		// Call under test
 		filter.doFilter(mockHttpRequest, mockHttpResponse, mockFilterChain);

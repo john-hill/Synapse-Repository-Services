@@ -3,6 +3,7 @@ package org.sagebionetworks.auth.filter;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;
@@ -22,6 +23,7 @@ import org.sagebionetworks.repo.manager.oauth.OpenIDConnectManager;
 import org.sagebionetworks.repo.model.AuthenticationMethod;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
+import org.sagebionetworks.repo.model.RealmDao;
 import org.sagebionetworks.repo.web.ForbiddenException;
 import org.sagebionetworks.repo.web.OAuthException;
 import org.sagebionetworks.util.ThreadLocalProvider;
@@ -46,6 +48,9 @@ public class AuthenticationFilter implements Filter {
 
 	@Autowired
 	private OpenIDConnectManager oidcManager;
+	
+	@Autowired
+	private RealmDao realmDao;
 
 	@Override
 	public void destroy() { }
@@ -68,6 +73,7 @@ public class AuthenticationFilter implements Filter {
 		}
 		
 		Long userId = null;
+		boolean isAnonymous = false;
 
 			if (!isTokenEmptyOrNull(accessToken)) {
 				try {
@@ -76,6 +82,8 @@ public class AuthenticationFilter implements Filter {
 					if (authenticationMethod == null) { // accessToken came in as sessionToken
 						authenticationMethod = AuthenticationMethod.BEARERTOKEN;
 					}
+					Optional<String> anonymousUserRealm = realmDao.getRealmForAnonymousPrincipal(userId.toString());
+					isAnonymous = anonymousUserRealm.isPresent(); // true if userId is the anonymous user in some realm
 				} catch (IllegalArgumentException | ForbiddenException | OAuthClientNotVerifiedException e) {
 					String failureReason = "Invalid access token";
 					HttpAuthUtil.reject((HttpServletResponse)servletResponse, failureReason);
@@ -88,6 +96,7 @@ public class AuthenticationFilter implements Filter {
 				}
 			} else { // anonymous
 				userId = BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId();
+				isAnonymous = true;
 			}
 
 		if (authenticationMethod == null && HttpAuthUtil.usesBasicAuthentication(req)) {
@@ -104,6 +113,7 @@ public class AuthenticationFilter implements Filter {
 		try {
 			Map<String, String[]> modParams = new HashMap<String, String[]>(req.getParameterMap());
 			modParams.put(AuthorizationConstants.USER_ID_PARAM, new String[] { userId.toString() });
+			modParams.put(AuthorizationConstants.ANONYMOUS_PARAM, new String[] { ""+isAnonymous });
 			Map<String, String[]> modHeaders = HttpAuthUtil.filterAuthorizationHeaders(req);
 			if (accessToken!=null) {
 				HttpAuthUtil.setBearerTokenHeader(modHeaders, accessToken);

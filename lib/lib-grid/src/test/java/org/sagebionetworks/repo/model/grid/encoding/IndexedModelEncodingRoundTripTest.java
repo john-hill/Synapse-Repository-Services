@@ -143,8 +143,8 @@ public class IndexedModelEncodingRoundTripTest {
         try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, decoder.getClockTable())) {
             // Read nodes in type order (same order they were indexed)
             for (IndexedNodeCodecMapper type : IndexedNodeCodecMapper.values()) {
-                Map<LogicalTimestamp, IndexedModelDecoder.Entry> entries = decoder.getEntriesForType(type);
-                for (Map.Entry<LogicalTimestamp, IndexedModelDecoder.Entry> entry : entries.entrySet()) {
+                Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> entries = decoder.getEntriesForType(type);
+                for (Map.Entry<LogicalTimestamp, IndexedModelDecoder.NodePointer> entry : entries.entrySet()) {
                     decodedNodes.add(reader.readNode(entry.getKey(), entry.getValue()));
                 }
             }

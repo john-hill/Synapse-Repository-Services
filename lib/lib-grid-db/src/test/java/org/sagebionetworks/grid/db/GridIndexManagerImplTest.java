@@ -2,7 +2,6 @@ package org.sagebionetworks.grid.db;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -13,7 +12,6 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
@@ -41,7 +39,7 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.encoding.IndexedModelDecoder;
-import org.sagebionetworks.repo.model.grid.encoding.IndexedModelDecoder.Entry;
+import org.sagebionetworks.repo.model.grid.encoding.IndexedModelDecoder.NodePointer;
 import org.sagebionetworks.repo.model.grid.encoding.IndexedNodeCodecMapper;
 import org.sagebionetworks.repo.model.grid.encoding.SeekingNodeReader;
 import org.sagebionetworks.repo.model.grid.node.ArrayNode;
@@ -463,21 +461,21 @@ public class GridIndexManagerImplTest {
 		VectorNode vectorNode = new VectorNode().setId(vectorId).setValues(Map.of(0, vectorConstStub));
 
 		// Create entries
-		Map<LogicalTimestamp, Entry> constantEntries = new LinkedHashMap<>();
-		constantEntries.put(constId, new Entry(IndexedNodeCodecMapper.CONSTANT, 100L, 50));
-		constantEntries.put(vectorConstId, new Entry(IndexedNodeCodecMapper.CONSTANT, 150L, 50));
+		Map<LogicalTimestamp, NodePointer> constantEntries = new LinkedHashMap<>();
+		constantEntries.put(constId, new IndexedModelDecoder.NodePointer(100L, 50));
+		constantEntries.put(vectorConstId, new IndexedModelDecoder.NodePointer(150L, 50));
 
-		Map<LogicalTimestamp, Entry> objectEntries = new LinkedHashMap<>();
-		objectEntries.put(objectId, new Entry(IndexedNodeCodecMapper.OBJECT, 200L, 50));
+		Map<LogicalTimestamp, NodePointer> objectEntries = new LinkedHashMap<>();
+		objectEntries.put(objectId, new IndexedModelDecoder.NodePointer(200L, 50));
 
-		Map<LogicalTimestamp, Entry> valueEntries = new LinkedHashMap<>();
-		valueEntries.put(rootId, new Entry(IndexedNodeCodecMapper.VAL, 250L, 50));
+		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> valueEntries = new LinkedHashMap<>();
+		valueEntries.put(rootId, new IndexedModelDecoder.NodePointer(250L, 50));
 
-		Map<LogicalTimestamp, Entry> arrayEntries = new LinkedHashMap<>();
-		arrayEntries.put(arrayId, new Entry(IndexedNodeCodecMapper.ARRAY, 300L, 50));
+		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> arrayEntries = new LinkedHashMap<>();
+		arrayEntries.put(arrayId, new IndexedModelDecoder.NodePointer(300L, 50));
 
-		Map<LogicalTimestamp, Entry> vectorEntries = new LinkedHashMap<>();
-		vectorEntries.put(vectorId, new Entry(IndexedNodeCodecMapper.VECTOR, 350L, 50));
+		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> vectorEntries = new LinkedHashMap<>();
+		vectorEntries.put(vectorId, new IndexedModelDecoder.NodePointer(350L, 50));
 
 		when(mockDecoderProvider.build(snapshotFile)).thenReturn(mockDecoder);
 		when(mockDecoder.getClockTable()).thenReturn(clockTable);

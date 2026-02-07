@@ -58,7 +58,7 @@ public class SeekingNodeReaderTest {
 		createSnapshot(tempFile, rootId, originalNodes);
 
 		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
-		Map<LogicalTimestamp, IndexedModelDecoder.Entry> constantEntries = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
+		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> constantEntries = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
 		assertEquals(1, constantEntries.size());
 
 		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index.getClockTable())) {
@@ -87,7 +87,7 @@ public class SeekingNodeReaderTest {
 		createSnapshot(tempFile, rootId, originalNodes);
 
 		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
-		Map<LogicalTimestamp, IndexedModelDecoder.Entry> objectEntries = index.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
+		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> objectEntries = index.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
 		assertEquals(1, objectEntries.size());
 
 		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index.getClockTable())) {
@@ -111,7 +111,7 @@ public class SeekingNodeReaderTest {
 		createSnapshot(tempFile, rootId, originalNodes);
 
 		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
-		Map<LogicalTimestamp, IndexedModelDecoder.Entry> valueEntries = index.getEntriesForType(IndexedNodeCodecMapper.VAL);
+		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> valueEntries = index.getEntriesForType(IndexedNodeCodecMapper.VAL);
 		assertEquals(1, valueEntries.size());
 
 		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index.getClockTable())) {
@@ -141,7 +141,7 @@ public class SeekingNodeReaderTest {
 		createSnapshot(tempFile, rootId, originalNodes);
 
 		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
-		Map<LogicalTimestamp, IndexedModelDecoder.Entry> vectorEntries = index.getEntriesForType(IndexedNodeCodecMapper.VECTOR);
+		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> vectorEntries = index.getEntriesForType(IndexedNodeCodecMapper.VECTOR);
 		assertEquals(1, vectorEntries.size());
 
 		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index.getClockTable())) {
@@ -180,7 +180,7 @@ public class SeekingNodeReaderTest {
 		createSnapshot(tempFile, rootId, originalNodes);
 
 		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
-		Map<LogicalTimestamp, IndexedModelDecoder.Entry> arrayEntries = index.getEntriesForType(IndexedNodeCodecMapper.ARRAY);
+		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> arrayEntries = index.getEntriesForType(IndexedNodeCodecMapper.ARRAY);
 		assertEquals(1, arrayEntries.size());
 
 		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index.getClockTable())) {
@@ -210,7 +210,7 @@ public class SeekingNodeReaderTest {
 		createSnapshot(tempFile, rootId, originalNodes);
 
 		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
-		Map<LogicalTimestamp, IndexedModelDecoder.Entry> constantEntries = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
+		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> constantEntries = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
 		assertEquals(3, constantEntries.size());
 
 		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index.getClockTable())) {
@@ -238,7 +238,7 @@ public class SeekingNodeReaderTest {
 		createSnapshot(tempFile, rootId, originalNodes);
 
 		IndexedModelDecoder index = IndexedModelDecoder.build(tempFile);
-		Map<LogicalTimestamp, IndexedModelDecoder.Entry> constantEntries = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
+		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> constantEntries = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
 
 		try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index.getClockTable())) {
 			// Read in reverse order
@@ -330,7 +330,7 @@ public class SeekingNodeReaderTest {
 
 			// Verify we can read the node using SeekingNodeReader
 			try (SeekingNodeReader reader = new SeekingNodeReader(resourceFile, clockTable)) {
-				Map<LogicalTimestamp, IndexedModelDecoder.Entry> objects = decoder.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
+				Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> objects = decoder.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
 				List<Node> nodes = reader.readNodes(objects.entrySet());
 				assertEquals(1, nodes.size());
 
@@ -370,7 +370,7 @@ public class SeekingNodeReaderTest {
 			// Verify we can read the nodes using SeekingNodeReader
 			try (SeekingNodeReader reader = new SeekingNodeReader(resourceFile, clockTable)) {
 				// Read the object node
-				Map<LogicalTimestamp, IndexedModelDecoder.Entry> objects = decoder.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
+				Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> objects = decoder.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
 				List<Node> objectNodes = reader.readNodes(objects.entrySet());
 				assertEquals(1, objectNodes.size());
 
@@ -381,7 +381,7 @@ public class SeekingNodeReaderTest {
 				assertEquals(expectedObj, objectNodes.get(0));
 
 				// Read constant nodes
-				Map<LogicalTimestamp, IndexedModelDecoder.Entry> constants = decoder.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
+				Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> constants = decoder.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
 				assertEquals(2, constants.size());
 
 				// Read specific constant by ID
@@ -429,7 +429,7 @@ public class SeekingNodeReaderTest {
 			// Verify we can read all nodes using SeekingNodeReader
 			try (SeekingNodeReader reader = new SeekingNodeReader(resourceFile, clockTable)) {
 				// Read root object
-				Map<LogicalTimestamp, IndexedModelDecoder.Entry> objects = decoder.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
+				Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> objects = decoder.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
 				LogicalTimestamp rootId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L);
 				Node rootNode = reader.readNode(rootId, objects.get(rootId));
 				assertTrue(rootNode instanceof ObjectNode);
@@ -447,7 +447,7 @@ public class SeekingNodeReaderTest {
 				assertTrue(rootObj.getValue().containsKey("obj"));
 
 				// Read constant nodes and verify various types
-				Map<LogicalTimestamp, IndexedModelDecoder.Entry> constants = decoder.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
+				Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> constants = decoder.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
 
 				// String constant
 				LogicalTimestamp strId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L);
@@ -485,7 +485,7 @@ public class SeekingNodeReaderTest {
 						reader.readNode(undfId, constants.get(undfId)));
 
 				// Array node
-				Map<LogicalTimestamp, IndexedModelDecoder.Entry> arrays = decoder.getEntriesForType(IndexedNodeCodecMapper.ARRAY);
+				Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> arrays = decoder.getEntriesForType(IndexedNodeCodecMapper.ARRAY);
 				LogicalTimestamp arrId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(7L);
 				Node arrNode = reader.readNode(arrId, arrays.get(arrId));
 				assertTrue(arrNode instanceof ArrayNode);
@@ -515,7 +515,7 @@ public class SeekingNodeReaderTest {
 				assertEquals(expectedArray, arrayNode);
 
 				// Vector node
-				Map<LogicalTimestamp, IndexedModelDecoder.Entry> vectors = decoder.getEntriesForType(IndexedNodeCodecMapper.VECTOR);
+				Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> vectors = decoder.getEntriesForType(IndexedNodeCodecMapper.VECTOR);
 				LogicalTimestamp vecId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(14L);
 				Node vecNode = reader.readNode(vecId, vectors.get(vecId));
 				assertTrue(vecNode instanceof VectorNode);

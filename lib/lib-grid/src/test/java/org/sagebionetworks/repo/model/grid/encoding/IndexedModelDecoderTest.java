@@ -88,32 +88,31 @@ public class IndexedModelDecoderTest {
 		assertEquals(6, index.getTotalNodeCount());
 
 		// Verify constants (2 nodes)
-		Map<LogicalTimestamp, IndexedModelDecoder.Entry> constants = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
+		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> constants = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
 		assertEquals(2, constants.size());
 		assertEquals(2, index.getCountForType(IndexedNodeCodecMapper.CONSTANT));
 
 		// Verify objects (1 node)
-		Map<LogicalTimestamp, IndexedModelDecoder.Entry> objects = index.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
+		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> objects = index.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
 		assertEquals(1, objects.size());
 
 		// Verify values (1 node)
-		Map<LogicalTimestamp, IndexedModelDecoder.Entry> values = index.getEntriesForType(IndexedNodeCodecMapper.VAL);
+		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> values = index.getEntriesForType(IndexedNodeCodecMapper.VAL);
 		assertEquals(1, values.size());
 
 		// Verify vectors (1 node)
-		Map<LogicalTimestamp, IndexedModelDecoder.Entry> vectors = index.getEntriesForType(IndexedNodeCodecMapper.VECTOR);
+		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> vectors = index.getEntriesForType(IndexedNodeCodecMapper.VECTOR);
 		assertEquals(1, vectors.size());
 
 		// Verify arrays (1 node)
-		Map<LogicalTimestamp, IndexedModelDecoder.Entry> arrays = index.getEntriesForType(IndexedNodeCodecMapper.ARRAY);
+		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> arrays = index.getEntriesForType(IndexedNodeCodecMapper.ARRAY);
 		assertEquals(1, arrays.size());
 
 		// Verify each entry has valid offset and length
-		for (Map.Entry<LogicalTimestamp, IndexedModelDecoder.Entry> entry : constants.entrySet()) {
+		for (Map.Entry<LogicalTimestamp, IndexedModelDecoder.NodePointer> entry : constants.entrySet()) {
 			assertNotNull(entry.getKey());
 			assertTrue(entry.getValue().byteOffset() > 0, "Byte offset should be positive");
 			assertTrue(entry.getValue().binaryLength() > 0, "Binary length should be positive");
-			assertEquals(IndexedNodeCodecMapper.CONSTANT, entry.getValue().type());
 		}
 	}
 

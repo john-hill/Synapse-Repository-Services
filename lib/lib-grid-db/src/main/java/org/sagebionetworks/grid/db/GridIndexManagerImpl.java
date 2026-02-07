@@ -22,7 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.encoding.IndexedModelDecoder;
-import org.sagebionetworks.repo.model.grid.encoding.IndexedModelDecoder.Entry;
+import org.sagebionetworks.repo.model.grid.encoding.IndexedModelDecoder.NodePointer;
 import org.sagebionetworks.repo.model.grid.encoding.IndexedNodeCodecMapper;
 import org.sagebionetworks.repo.model.grid.encoding.SeekingNodeReader;
 import org.sagebionetworks.repo.model.grid.node.ArrayNode;
@@ -197,7 +197,7 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	 * Import constant nodes in a snapshot into the database.
 	 */
 	private void importConstantsFromSnapshot(String sessionId, Long replicaId, IndexedModelDecoder index, SeekingNodeReader reader) throws IOException {
-		Map<LogicalTimestamp, Entry> entries = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
+		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> entries = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
 		if (entries.isEmpty()) {
 			return;
 		}
@@ -206,7 +206,7 @@ public class GridIndexManagerImpl implements GridIndexManager {
 		dao.saveIndex(sessionId, replicaId, IndexType.con, new ArrayList<>(entries.keySet()));
 
 		// Save the node data
-		for (List<Map.Entry<LogicalTimestamp, Entry>> batch : Iterables.partition(entries.entrySet(), SNAPSHOT_BATCH_SIZE)) {
+		for (List<Map.Entry<LogicalTimestamp, IndexedModelDecoder.NodePointer>> batch : Iterables.partition(entries.entrySet(), SNAPSHOT_BATCH_SIZE)) {
 			List<ConstantNode> nodes = reader.readNodes(batch).stream()
 				.map(n -> (ConstantNode) n)
 				.collect(Collectors.toList());
@@ -218,14 +218,14 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	 * Import object nodes in a snapshot into the database.
 	 */
 	private void importObjectsFromSnapshot(String sessionId, Long replicaId, IndexedModelDecoder index, SeekingNodeReader reader) throws IOException {
-		Map<LogicalTimestamp, Entry> entries = index.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
+		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> entries = index.getEntriesForType(IndexedNodeCodecMapper.OBJECT);
 		if (entries.isEmpty()) {
 			return;
 		}
 
 		dao.saveIndex(sessionId, replicaId, IndexType.obj, new ArrayList<>(entries.keySet()));
 
-		for (List<Map.Entry<LogicalTimestamp, Entry>> batch : Iterables.partition(entries.entrySet(), SNAPSHOT_BATCH_SIZE)) {
+		for (List<Map.Entry<LogicalTimestamp, IndexedModelDecoder.NodePointer>> batch : Iterables.partition(entries.entrySet(), SNAPSHOT_BATCH_SIZE)) {
 			// Save data for this batch
 			List<ObjectNode> nodes = reader.readNodes(batch).stream()
 				.map(n -> (ObjectNode) n)
@@ -238,13 +238,13 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	 * Import value nodes in a snapshot into the database.
 	 */
 	private void importValuesFromSnapshot(String sessionId, Long replicaId, IndexedModelDecoder index, SeekingNodeReader reader) throws IOException {
-		Map<LogicalTimestamp, Entry> entries = index.getEntriesForType(IndexedNodeCodecMapper.VAL);
+		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> entries = index.getEntriesForType(IndexedNodeCodecMapper.VAL);
 		if (entries.isEmpty()) {
 			return;
 		}
 		dao.saveIndex(sessionId, replicaId, IndexType.val, new ArrayList<>(entries.keySet()));
 
-		for (List<Map.Entry<LogicalTimestamp, Entry>> batch : Iterables.partition(entries.entrySet(), SNAPSHOT_BATCH_SIZE)) {
+		for (List<Map.Entry<LogicalTimestamp, IndexedModelDecoder.NodePointer>> batch : Iterables.partition(entries.entrySet(), SNAPSHOT_BATCH_SIZE)) {
 			// Save data for this batch
 			List<ValueNode> nodes = reader.readNodes(batch).stream()
 				.map(n -> (ValueNode) n)
@@ -257,7 +257,7 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	 * Import array nodes in a snapshot into the database.
 	 */
 	private void importArraysFromSnapshot(String sessionId, Long replicaId, IndexedModelDecoder index, SeekingNodeReader reader) throws IOException {
-		Map<LogicalTimestamp, Entry> entries = index.getEntriesForType(IndexedNodeCodecMapper.ARRAY);
+		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> entries = index.getEntriesForType(IndexedNodeCodecMapper.ARRAY);
 		if (entries.isEmpty()) {
 			return;
 		}
@@ -266,7 +266,7 @@ public class GridIndexManagerImpl implements GridIndexManager {
 		dao.saveIndex(sessionId, replicaId, IndexType.arr, ids);
 		dao.createArrayBatch(sessionId, replicaId, ids);
 
-		for (List<Map.Entry<LogicalTimestamp, Entry>> batch : Iterables.partition(entries.entrySet(), SNAPSHOT_BATCH_SIZE)) {
+		for (List<Map.Entry<LogicalTimestamp, IndexedModelDecoder.NodePointer>> batch : Iterables.partition(entries.entrySet(), SNAPSHOT_BATCH_SIZE)) {
 			// Read nodes and insert RGA elements for this batch
 			List<ArrayNode> nodes = reader.readNodes(batch).stream()
 				.map(n -> (ArrayNode) n)
@@ -287,8 +287,8 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	 * Import vector nodes in a snapshot into the database.
 	 */
 	private void importVectorsFromSnapshot(String sessionId, Long replicaId, IndexedModelDecoder index, SeekingNodeReader reader) throws IOException {
-		Map<LogicalTimestamp, Entry> entries = index.getEntriesForType(IndexedNodeCodecMapper.VECTOR);
-		Map<LogicalTimestamp, Entry> constantEntries = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
+		Map<LogicalTimestamp, IndexedModelDecoder.NodePointer> entries = index.getEntriesForType(IndexedNodeCodecMapper.VECTOR);
+		Map<LogicalTimestamp, NodePointer> constantEntries = index.getEntriesForType(IndexedNodeCodecMapper.CONSTANT);
 		if (entries.isEmpty()) {
 			return;
 		}
@@ -296,7 +296,7 @@ public class GridIndexManagerImpl implements GridIndexManager {
 		dao.saveIndex(sessionId, replicaId, IndexType.vec, new ArrayList<>(entries.keySet()));
 
 
-		for (List<Map.Entry<LogicalTimestamp, Entry>> batch : Iterables.partition(entries.entrySet(), SNAPSHOT_BATCH_SIZE)) {
+		for (List<Map.Entry<LogicalTimestamp, IndexedModelDecoder.NodePointer>> batch : Iterables.partition(entries.entrySet(), SNAPSHOT_BATCH_SIZE)) {
 			List<VectorNode> nodes = reader.readNodes(batch).stream()
 				.map(n -> (VectorNode) n)
 				.collect(Collectors.toList());

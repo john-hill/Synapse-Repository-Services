@@ -48,18 +48,18 @@ public class SeekingNodeReader implements Closeable {
 	/**
 	 * Read a single node from the file at the offset specified by the entry.
 	 *
-	 * @param entry the index entry containing the byte offset and length
+	 * @param nodePointer the index entry containing the byte offset and length
 	 * @return the decoded node
 	 * @throws IOException if an I/O error occurs
 	 */
-	public Node readNode(LogicalTimestamp nodeId, IndexedModelDecoder.Entry entry) throws IOException {
-		ValidateArgument.required(entry, "entry");
+	public Node readNode(LogicalTimestamp nodeId, IndexedModelDecoder.NodePointer nodePointer) throws IOException {
+		ValidateArgument.required(nodePointer, "entry");
 
 		// Seek directly to the binary content (offset points to content, not CBOR header)
-		raf.seek(entry.byteOffset());
+		raf.seek(nodePointer.byteOffset());
 
 		// Read the binary content
-		byte[] nodeBytes = new byte[entry.binaryLength()];
+		byte[] nodeBytes = new byte[nodePointer.binaryLength()];
 		raf.readFully(nodeBytes);
 
 		// Decode the node
@@ -75,11 +75,11 @@ public class SeekingNodeReader implements Closeable {
 	 * @return the list of decoded nodes in the same order as entries
 	 * @throws IOException if an I/O error occurs
 	 */
-	public List<Node> readNodes(Collection<Map.Entry<LogicalTimestamp, IndexedModelDecoder.Entry>> entries) throws IOException {
+	public List<Node> readNodes(Collection<Map.Entry<LogicalTimestamp, IndexedModelDecoder.NodePointer>> entries) throws IOException {
 		ValidateArgument.required(entries, "entries");
 
 		List<Node> nodes = new ArrayList<>(entries.size());
-		for (Map.Entry<LogicalTimestamp, IndexedModelDecoder.Entry> entry : entries) {
+		for (Map.Entry<LogicalTimestamp, IndexedModelDecoder.NodePointer> entry : entries) {
 			nodes.add(readNode(entry.getKey(), entry.getValue()));
 		}
 		return nodes;

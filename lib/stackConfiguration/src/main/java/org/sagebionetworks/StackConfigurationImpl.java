@@ -1,4 +1,3 @@
-package org.sagebionetworks;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -800,6 +799,33 @@ public class StackConfigurationImpl implements StackConfiguration {
 	@Override
 	public String getOAuth2ArcusBioDiscoveryDocument() {
 		return configuration.getProperty("org.sagebionetworks.oauth2.arcusbio.discoveryDocument");
+	}
+	
+	/**
+	 * OIDC Client ID for Sage Bio Identity Provider
+	 * @return
+	 */
+	@Override
+	public String getOAuth2SageBioClientId() {
+		return stackEncrypter.getDecryptedProperty("org.sagebionetworks.oauth2.sagebio.client.id");
+	}
+
+	/**
+	 * OIDC Client Secret for Sage Bio Identity Provider
+	 * @return
+	 */
+	@Override
+	public String getOAuth2SageBioClientSecret() {
+		return stackEncrypter.getDecryptedProperty("org.sagebionetworks.oauth2.sagebio.client.secret");
+	}
+
+	/**
+	 * URL for the OIDC server discovery/configuration JSON document
+	 * @return
+	 */
+	@Override
+	public String getOAuth2SageBioDiscoveryDocument() {
+		return configuration.getProperty("org.sagebionetworks.oauth2.sagebio.discoveryDocument");
 	}
 	
 	/**

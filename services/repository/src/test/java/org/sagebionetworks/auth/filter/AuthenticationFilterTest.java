@@ -133,6 +133,7 @@ public class AuthenticationFilterTest {
 		String anonymous = modRequest.getParameter(AuthorizationConstants.USER_ID_PARAM);
 		assertEquals(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId().toString(), anonymous);
 		assertNull(modRequest.getHeader(AuthorizationConstants.SYNAPSE_AUTHENTICATION_METHOD_HEADER_NAME));
+		assertEquals("true", modRequest.getParameter(AuthorizationConstants.ANONYMOUS_PARAM));
 	}
 	
 	/**
@@ -193,6 +194,7 @@ public class AuthenticationFilterTest {
 		verify(mockFilterChain).doFilter(requestCaptor.capture(), (ServletResponse)any());
 		
 		assertEquals(""+userId, requestCaptor.getValue().getParameter(AuthorizationConstants.USER_ID_PARAM));
+		assertEquals("false", requestCaptor.getValue().getParameter(AuthorizationConstants.ANONYMOUS_PARAM));
 		assertEquals("Bearer "+BEARER_TOKEN, requestCaptor.getValue().getHeader(AuthorizationConstants.SYNAPSE_AUTHORIZATION_HEADER_NAME));
 		assertEquals(AuthenticationMethod.BEARERTOKEN.name(), requestCaptor.getValue().getHeader(AuthorizationConstants.SYNAPSE_AUTHENTICATION_METHOD_HEADER_NAME));
 	}
@@ -274,6 +276,7 @@ public class AuthenticationFilterTest {
 		verify(mockOidcManager, never()).validateAccessToken(BEARER_TOKEN);
 		
 		assertEquals("273950", requestCaptor.getValue().getParameter(AuthorizationConstants.USER_ID_PARAM));
+		assertEquals("true", requestCaptor.getValue().getParameter(AuthorizationConstants.ANONYMOUS_PARAM));
 		assertNull(requestCaptor.getValue().getHeader(AuthorizationConstants.SYNAPSE_AUTHORIZATION_HEADER_NAME));
 		assertNull(requestCaptor.getValue().getHeader(AuthorizationConstants.SYNAPSE_AUTHENTICATION_METHOD_HEADER_NAME));
 	}

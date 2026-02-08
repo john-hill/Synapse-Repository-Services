@@ -54,16 +54,14 @@ public class GridIndexManagerImpl implements GridIndexManager {
 
 	private final GridIndexDao dao;
 	private final OperationDispatcher operationDispatcher;
-	private final HttpClient httpClient;
 	private final SnapshotFileIndexBuilder snapshotIndexBuilder;
 	private final SeekingNodeReaderProvider readerProvider;
 
-	public GridIndexManagerImpl(GridIndexDao dao, OperationDispatcher operationDispatcher, HttpClient httpClient,
-								SnapshotFileIndexBuilder snapshotIndexBuilder, SeekingNodeReaderProvider readerProvider) {
+	public GridIndexManagerImpl(GridIndexDao dao, OperationDispatcher operationDispatcher, SnapshotFileIndexBuilder snapshotIndexBuilder,
+								SeekingNodeReaderProvider readerProvider) {
 		super();
 		this.dao = dao;
 		this.operationDispatcher = operationDispatcher;
-		this.httpClient = httpClient;
 		this.snapshotIndexBuilder = snapshotIndexBuilder;
 		this.readerProvider = readerProvider;
 	}
@@ -102,65 +100,11 @@ public class GridIndexManagerImpl implements GridIndexManager {
 
 	@Override
 	@GridTransaction(readOnly = false)
-	public void applySnapshot(String sessionId, Long replicaId, URL snapshotPresignedUrl) {
+	public void applySnapshot(String sessionId, Long replicaId, Path snapshotFile) {
 		ValidateArgument.required(sessionId, "sessionId");
 		ValidateArgument.required(replicaId, "replicaId");
-		ValidateArgument.required(snapshotPresignedUrl, "snapshotPresignedUrl");
+		ValidateArgument.required(snapshotFile, "snapshotFile");
 
-		Path snapshotFile = null;
-		try {
-			snapshotFile = downloadSnapshotFile(snapshotPresignedUrl);
-			importSnapshot(sessionId, replicaId, snapshotFile);
-		} finally {
-			if (snapshotFile != null) {
-				try {
-					Files.deleteIfExists(snapshotFile);
-				} catch (IOException e) {
-					log.warn("Failed to delete temp file: {}", snapshotFile, e);
-				}
-			}
-		}
-	}
-
-    Path downloadSnapshotFile(URL snapshotPresignedUrl) {
-		ValidateArgument.required(snapshotPresignedUrl, "snapshotPresignedUrl");
-		Path tempFile;
-		try {
-			tempFile = Files.createTempFile("grid-snapshot-", ".cbor");
-
-			HttpRequest request = HttpRequest.newBuilder()
-					.uri(snapshotPresignedUrl.toURI())
-					.GET()
-					.build();
-
-			HttpResponse<Path> response = httpClient.send(request, HttpResponse.BodyHandlers.ofFile(tempFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE));
-
-			if (response.statusCode() != 200) {
-				throw new RuntimeException("Failed to download snapshot. Status: " + response.statusCode());
-			}
-
-			return response.body();
-		} catch (IOException e) {
-			throw new RuntimeException("Failed to download snapshot from: " + snapshotPresignedUrl, e);
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-			throw new RuntimeException("Interrupted while downloading snapshot from: " + snapshotPresignedUrl, e);
-		} catch (URISyntaxException e) {
-			throw new IllegalArgumentException("Invalid snapshot URL: " + snapshotPresignedUrl, e);
-		}
-    }
-
-	/**
-	 * Import a snapshot using type-based batch processing for optimized database operations.
-	 * This method builds an index of nodes grouped by type, then processes each type in a single
-	 * batch operation to minimize database round-trips.
-	 *
-	 * @param sessionId the session ID
-	 * @param replicaId the replica ID
-	 * @param snapshotFile the path to the snapshot CBOR file
-	 * @return a map of index types to the set of node IDs that were imported
-	 */
-	void importSnapshot(String sessionId, Long replicaId, Path snapshotFile) {
 		// Delete the replica to clear the index; the snapshot will repopulate the index.
 		dao.deleteReplica(sessionId, replicaId);
 

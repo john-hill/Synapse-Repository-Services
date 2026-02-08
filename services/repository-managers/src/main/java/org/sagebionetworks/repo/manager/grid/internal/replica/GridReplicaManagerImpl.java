@@ -1,6 +1,14 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica;
 
+import java.io.IOException;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -21,6 +29,7 @@ import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
 import org.sagebionetworks.repo.model.grid.patch.compact.LogicalTimestampCompactSerializable;
+import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.springframework.stereotype.Component;
 
@@ -36,13 +45,15 @@ public class GridReplicaManagerImpl implements GridReplicaManager {
 	private final InternalReplicaToHubEventPublisher publisher;
 	private final SnsClient snsClient;
 	private final String topicArn;
+	private final HttpClient httpClient;
 
 	public GridReplicaManagerImpl(GridIndexManager gridIndexManager, InternalReplicaToHubEventPublisher publisher,
-			SnsClient snsClient, String gridReplicaChangeTopicArn) {
+			SnsClient snsClient, String gridReplicaChangeTopicArn, HttpClient httpClient) {
 		this.gridIndexManager = gridIndexManager;
 		this.publisher = publisher;
 		this.snsClient = snsClient;
 		this.topicArn = gridReplicaChangeTopicArn;
+		this.httpClient = httpClient;
 
 	}
 
@@ -85,12 +96,55 @@ public class GridReplicaManagerImpl implements GridReplicaManager {
 	@Override
 	public void onApplySnapshot(ProgressCallback callback, GridConnectionInfo connection, Integer messageId, URL snapshotPresignedUrl) {
 		gridIndexManager.refreshMessageChain(connection.getSessionId(), connection.getReplicaId(), messageId);
-		// Download the file here
-		gridIndexManager.applySnapshot(connection.getSessionId(), connection.getReplicaId(), snapshotPresignedUrl);
+
+		Path snapshotFile = null;
+		try {
+			snapshotFile = downloadSnapshotFile(snapshotPresignedUrl);
+			// if applySnapshot/applyPatch throws a recoverable error, then we can send the clock again.
+			// but we do not want to put the message on the queue!
+			gridIndexManager.applySnapshot(connection.getSessionId(), connection.getReplicaId(), snapshotFile);
+		} finally {
+			if (snapshotFile != null) {
+				try {
+					Files.deleteIfExists(snapshotFile);
+				} catch (IOException e) {
+					log.warn("Failed to delete temp file: {}", snapshotFile, e);
+				}
+			}
+		}
 		List<LogicalTimestamp> clock = gridIndexManager.getClock(connection.getSessionId(), connection.getReplicaId());
 		sendClockMessage(messageId, connection.getConnectionId(), clock);
 		sendChangesToTopic(ReplicaChangeSet.fromSnapshot(connection));
 	}
+
+	Path downloadSnapshotFile(URL snapshotPresignedUrl) {
+		ValidateArgument.required(snapshotPresignedUrl, "snapshotPresignedUrl");
+		Path tempFile;
+		try {
+			tempFile = Files.createTempFile("grid-snapshot-", ".cbor");
+
+			HttpRequest request = HttpRequest.newBuilder()
+					.uri(snapshotPresignedUrl.toURI())
+					.GET()
+					.build();
+
+			HttpResponse<Path> response = httpClient.send(request, HttpResponse.BodyHandlers.ofFile(tempFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE));
+
+			if (response.statusCode() != 200) {
+				throw new RuntimeException("Failed to download snapshot. Status: " + response.statusCode());
+			}
+
+			return response.body();
+		} catch (IOException e) {
+			throw new RuntimeException("Failed to download snapshot from: " + snapshotPresignedUrl, e);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new RuntimeException("Interrupted while downloading snapshot from: " + snapshotPresignedUrl, e);
+		} catch (URISyntaxException e) {
+			throw new IllegalArgumentException("Invalid snapshot URL: " + snapshotPresignedUrl, e);
+		}
+	}
+
 
 	void sendChangesToTopic(ReplicaChangeSet changeSet) {
 		log.info("Publishing replica change set to topic: {} changeSet: {}", topicArn, changeSet);

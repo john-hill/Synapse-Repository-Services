@@ -1,6 +1,6 @@
 package org.sagebionetworks.grid.db;
 
-import java.net.URL;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -28,9 +28,9 @@ public interface GridIndexManager {
 	 *
 	 * @param sessionId
 	 * @param replicaId
-	 * @param snapshotPresignedUrl
+	 * @param snapshotFile
 	 */
-	void applySnapshot(String sessionId, Long replicaId, URL snapshotPresignedUrl);
+	void applySnapshot(String sessionId, Long replicaId, Path snapshotFile);
 
 	/**
 	 * Get the a replica's full clock.

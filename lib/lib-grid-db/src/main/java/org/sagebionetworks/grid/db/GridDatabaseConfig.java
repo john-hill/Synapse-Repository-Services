@@ -71,11 +71,4 @@ public class GridDatabaseConfig {
 	public SnapshotFileIndexBuilder snapshotFileIndexBuilder() {
 		return new SnapshotFileIndexBuilder();
 	}
-
-	@Bean
-	public HttpClient httpClient() {
-		return HttpClient.newBuilder().connectTimeout(Duration.of(5, ChronoUnit.SECONDS))
-				.followRedirects(HttpClient.Redirect.NORMAL).build();
-	}
-
 }

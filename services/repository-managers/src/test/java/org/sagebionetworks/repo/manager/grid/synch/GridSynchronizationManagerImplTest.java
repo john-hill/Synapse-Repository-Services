@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.grid.synch;
 
+import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -19,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangePublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.PatchBuilderPublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
+import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.synch.core.SynchronizationLogic;
 import org.sagebionetworks.repo.manager.grid.synch.handler.CopyHandler;
 import org.sagebionetworks.repo.manager.grid.synch.handler.CopyHandlerProvider;
@@ -34,6 +36,7 @@ import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.dbo.grid.GridSource;
+import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridSession;
 
 @ExtendWith(MockitoExtension.class)
@@ -71,6 +74,10 @@ public class GridSynchronizationManagerImplTest {
 	private AsyncJobProgressCallback mockCallback;
 	@Mock
 	private UserInfo mockUser;
+	@Mock
+	private GridHeader mockHeader;
+	@Mock
+	private GridConnectionInfo mockConnection;
 
 	@Spy
 	@InjectMocks
@@ -119,6 +126,15 @@ public class GridSynchronizationManagerImplTest {
 		verifyNoMoreInteractions(mockCopyHandlerProvider, mockCopyHandler, mockSourceHandler, mockSourceHandlerProvdier,
 				mockSourceReader, mockPatchBuilderPublisher, mockSynchronizeProvider, mockSchemaCopy, mockSchemaSource,
 				mockRowCopy, mockRowSource, mockRowMerge, mockIntendedChangePublisher, mockLogic);
+	}
+
+	@Test
+	public void testNewIntendedChangePublisher() {
+		when(mockCopyHandler.getHeader()).thenReturn(mockHeader);
+		when(mockCopyHandler.getConnectionInfo()).thenReturn(mockConnection);
+		// call under test
+		IntendedChangePublisher icp = manager.newIntendedChangePublisher(mockCopyHandler);
+		assertNotNull(icp);
 	}
 
 }

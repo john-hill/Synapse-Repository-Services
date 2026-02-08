@@ -32,8 +32,8 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 	private final SynchronizeProvider synchronizeProvider;
 
 	public GridSynchronizationManagerImpl(SourceHandlerProvider sourceHandlerProvdier,
-			CopyHandlerProvider copyHandlerProvider, SynchronizationLogic logic, SynchronizeProvider synchronizeProvider,
-			PatchBuilderPublisher patchBuilderPublisher) {
+			CopyHandlerProvider copyHandlerProvider, SynchronizationLogic logic,
+			SynchronizeProvider synchronizeProvider, PatchBuilderPublisher patchBuilderPublisher) {
 		super();
 		this.patchBuilderPublisher = patchBuilderPublisher;
 		this.sourceHandlerProvdier = sourceHandlerProvdier;
@@ -48,21 +48,20 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 		try (CopyHandler copyHandler = copyHandlerProvider.createCopyHandler(session);
 				SourceHandler sourceHandler = sourceHandlerProvdier.createNewProvider(callback, user, session,
 						copyHandler.getGridSource());
-				RowReader sourceReader = sourceHandler.getSourceRowReader()) {
+				RowReader sourceReader = sourceHandler.getSourceRowReader();
+				IntendedChangePublisher icp = newIntendedChangePublisher(copyHandler)) {
+			
+			// Phase one synchronize the schema
+			SchemaCopy schemaCopy = synchronizeProvider.getSchemaCopy(icp, copyHandler);
+			SchemaSource schemaSource = synchronizeProvider.getSchemaSource(sourceHandler);
+			logic.synchronize(schemaCopy, schemaSource, Merge.noOp());
 
-			try (IntendedChangePublisher icp = newIntendedChangePublisher(copyHandler)) {
-				// Phase one synchronize the schema
-				SchemaCopy schemaCopy = synchronizeProvider.getSchemaCopy(icp, copyHandler);
-				SchemaSource schemaSource = synchronizeProvider.getSchemaSource(sourceHandler);
-				logic.synchronize(schemaCopy, schemaSource, Merge.noOp());
-
-				// Phase two synchronize the rows
-				RowCopy rowCopy = synchronizeProvider.getRowCopy(icp, schemaCopy.getFinalSchema(), copyHandler);
-				RowSource rowSource = synchronizeProvider.getRowSource(sourceReader, sourceHandler);
-				RowMerge rowMerge = synchronizeProvider.getRowMerge(logic, icp, schemaCopy.getFinalSchema(), copyHandler,
-						sourceHandler);
-				logic.synchronize(rowCopy, rowSource, rowMerge);
-			}
+			// Phase two synchronize the rows
+			RowCopy rowCopy = synchronizeProvider.getRowCopy(icp, schemaCopy.getFinalSchema(), copyHandler);
+			RowSource rowSource = synchronizeProvider.getRowSource(sourceReader, sourceHandler);
+			RowMerge rowMerge = synchronizeProvider.getRowMerge(logic, icp, schemaCopy.getFinalSchema(), copyHandler,
+					sourceHandler);
+			logic.synchronize(rowCopy, rowSource, rowMerge);
 		}
 	}
 

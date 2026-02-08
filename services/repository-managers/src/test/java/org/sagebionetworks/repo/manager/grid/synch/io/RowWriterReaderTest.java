@@ -1,4 +1,4 @@
-package org.sagebionetworks.repo.manager.grid.synch;
+package org.sagebionetworks.repo.manager.grid.synch.io;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -15,11 +15,6 @@ import java.util.Optional;
 import java.util.TreeMap;
 
 import org.junit.jupiter.api.Test;
-import org.sagebionetworks.repo.manager.grid.synch.io.DiskPointer;
-import org.sagebionetworks.repo.manager.grid.synch.io.RowHeader;
-import org.sagebionetworks.repo.manager.grid.synch.io.RowReader;
-import org.sagebionetworks.repo.manager.grid.synch.io.RowWriter;
-import org.sagebionetworks.repo.manager.grid.synch.io.SynchRow;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 

@@ -25,7 +25,7 @@ public class CopyHandlerProviderImpl implements CopyHandlerProvider {
 	}
 
 	@Override
-	public CopyHandler createCopyReader(GridSession session) {
+	public CopyHandler createCopyHandler(GridSession session) {
 		return new CopyHandlerImpl(gridReplicaViewManager, gridReplicaSupport, gridIndexDao, gridManager, session);
 	}
 

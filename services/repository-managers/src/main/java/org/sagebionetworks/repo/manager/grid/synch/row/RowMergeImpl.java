@@ -15,9 +15,9 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.change.DeleteRowCh
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangePublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.UpdateRowChange;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
-import org.sagebionetworks.repo.manager.grid.synch.SynchronizationLogic;
 import org.sagebionetworks.repo.manager.grid.synch.core.Copy;
 import org.sagebionetworks.repo.manager.grid.synch.core.Source;
+import org.sagebionetworks.repo.manager.grid.synch.core.SynchronizationLogic;
 import org.sagebionetworks.repo.manager.grid.synch.handler.CopyHandler;
 import org.sagebionetworks.repo.manager.grid.synch.handler.SourceHandler;
 import org.sagebionetworks.repo.manager.grid.synch.io.RowHeader;

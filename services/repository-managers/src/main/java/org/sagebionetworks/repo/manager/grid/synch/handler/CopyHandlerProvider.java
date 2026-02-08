@@ -19,5 +19,5 @@ public interface CopyHandlerProvider {
 	 *                context for accessing the copy
 	 * @return a CopyHandler instance for reading from the specified copy
 	 */
-	CopyHandler createCopyReader(GridSession session);
+	CopyHandler createCopyHandler(GridSession session);
 }

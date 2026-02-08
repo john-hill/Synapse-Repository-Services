@@ -1,18 +1,16 @@
-package org.sagebionetworks.repo.manager.grid.synch;
+package org.sagebionetworks.repo.manager.grid.synch.core;
 
 import java.util.Optional;
 
-import org.sagebionetworks.repo.manager.grid.synch.core.Copy;
-import org.sagebionetworks.repo.manager.grid.synch.core.CopyItem;
-import org.sagebionetworks.repo.manager.grid.synch.core.Merge;
-import org.sagebionetworks.repo.manager.grid.synch.core.Source;
-import org.sagebionetworks.repo.manager.grid.synch.core.SourceItem;
+import org.sagebionetworks.util.ValidateArgument;
+import org.springframework.stereotype.Component;
 
 /**
  * Implements bidirectional synchronization logic between a copy (CRDT replica)
  * and a source of truth. The synchronization process compares items in both
  * directions and resolves conflicts by merging changes together.
  */
+@Component
 public class SynchronizationLogic {
 
 	/**
@@ -22,18 +20,20 @@ public class SynchronizationLogic {
 	 * <p>
 	 * Phase 1: Process all items in the copy
 	 * <ul>
-	 * <li>For each item in the copy, consume the matching item from the source
-	 * (if it exists)</li>
+	 * <li>For each item in the copy, consume the matching item from the source (if
+	 * it exists)</li>
 	 * <li>If matching source item exists:
 	 * <ul>
 	 * <li>If items match → no action needed</li>
-	 * <li>If items don't match → merge changes together using the merge strategy</li>
+	 * <li>If items don't match → merge changes together using the merge
+	 * strategy</li>
 	 * </ul>
 	 * </li>
 	 * <li>If no matching source item exists:
 	 * <ul>
 	 * <li>If changed by user → add to source (push user's addition)</li>
-	 * <li>If not changed by user → remove from copy (item was deleted from source)</li>
+	 * <li>If not changed by user → remove from copy (item was deleted from
+	 * source)</li>
 	 * </ul>
 	 * </li>
 	 * </ul>
@@ -45,7 +45,8 @@ public class SynchronizationLogic {
 	 * that don't exist in the copy</li>
 	 * <li>For each remaining source item:
 	 * <ul>
-	 * <li>If deleted by user in copy → remove from source (push user's deletion)</li>
+	 * <li>If deleted by user in copy → remove from source (push user's
+	 * deletion)</li>
 	 * <li>If not deleted by user → add to copy (item was added to source)</li>
 	 * </ul>
 	 * </li>
@@ -59,10 +60,14 @@ public class SynchronizationLogic {
 	 */
 	public <C extends CopyItem, S extends SourceItem> void synchronize(Copy<C, S> copy, Source<C, S> source,
 			Merge<C, S> merge) {
+		ValidateArgument.required(copy, "copy");
+		ValidateArgument.required(source, "source");
+		ValidateArgument.required(merge, "merge");
 
 		// Phase 1: Process all items in the copy
 		copy.streamItems().forEach(copyItem -> {
 			String key = source.getKey(copyItem);
+			ValidateArgument.required(key, "key");
 			Optional<S> sourceValue = source.consume(key);
 			if (sourceValue.isPresent()) {
 				// Item exists in both copy and source

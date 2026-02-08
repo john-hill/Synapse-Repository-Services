@@ -250,18 +250,25 @@ public class GridIndexDaoImpl implements GridIndexDao {
 			return;
 		}
 
-		SqlParameterSource[] batchArgs = clocks.stream()
-				.map(clock -> new MapSqlParameterSource()
-						.addValue("sessionId", sessionId)
-						.addValue("replicaId", replicaId)
-						.addValue("clockRep", clock.getReplicaId())
-						.addValue("clockSeq", clock.getSequenceNumber()))
-				.toArray(SqlParameterSource[]::new);
-
-		namedTemplate.batchUpdate(
+		jdbcTemplate.batchUpdate(
 				"INSERT INTO GRID_REPLICA_CLOCK (SESSION_ID, REPLICA_ID, CLOCK_ID_REP, CLOCK_ID_SEQ) VALUES"
-						+ " (:sessionId,:replicaId,:clockRep,:clockSeq) ON DUPLICATE KEY UPDATE CLOCK_ID_SEQ = :clockSeq",
-				batchArgs);
+						+ " (?,?,?,?) ON DUPLICATE KEY UPDATE CLOCK_ID_SEQ = ?",
+				new BatchPreparedStatementSetter() {
+					@Override
+					public void setValues(PreparedStatement ps, int i) throws SQLException {
+						LogicalTimestamp clock = clocks.get(i);
+						ps.setLong(1, sessionId);
+						ps.setLong(2, replicaId);
+						ps.setLong(3, clock.getReplicaId());
+						ps.setLong(4, clock.getSequenceNumber());
+						ps.setLong(5, clock.getSequenceNumber());
+					}
+
+					@Override
+					public int getBatchSize() {
+						return clocks.size();
+					}
+				});
 	}
 
 	@Override

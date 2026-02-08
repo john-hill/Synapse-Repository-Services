@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -279,7 +280,28 @@ public class GridReplicaManagerImplTest {
 		RuntimeException ex = assertThrows(RuntimeException.class, () -> {
 			manager.downloadSnapshotFile(snapshotUrl);
 		});
-		assertTrue(ex.getMessage().contains("Failed to download snapshot. Status: 404"));
+		assertTrue(ex.getMessage().contains("Failed to download snapshot from"));
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testDownloadSnapshotFileWithRetry() throws Exception {
+		URL snapshotUrl = new URL("https://example.com/snapshot.cbor");
+		Path expectedPath = Path.of("/tmp/test-snapshot.cbor");
+
+		when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+				.thenReturn(mockHttpResponse);
+		when(mockHttpResponse.statusCode())
+				.thenReturn(429)
+				.thenReturn(503)
+				.thenReturn(200);
+		when(mockHttpResponse.body()).thenReturn(expectedPath);
+
+		// call under test
+		Path result = manager.downloadSnapshotFile(snapshotUrl);
+
+		assertEquals(expectedPath, result);
+		verify(mockHttpClient, times(3)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
 	}
 
 	@SuppressWarnings("unchecked")

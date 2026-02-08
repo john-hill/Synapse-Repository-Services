@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica;
 
 import java.io.IOException;
+import java.net.SocketTimeoutException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.http.HttpClient;
@@ -14,6 +15,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import org.apache.http.HttpStatus;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.grid.db.GridIndexManager;
@@ -29,6 +31,9 @@ import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
 import org.sagebionetworks.repo.model.grid.patch.compact.LogicalTimestampCompactSerializable;
+import org.sagebionetworks.simpleHttpClient.SimpleHttpResponse;
+import org.sagebionetworks.util.RetryException;
+import org.sagebionetworks.util.TimeUtils;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.springframework.stereotype.Component;
@@ -100,8 +105,6 @@ public class GridReplicaManagerImpl implements GridReplicaManager {
 		Path snapshotFile = null;
 		try {
 			snapshotFile = downloadSnapshotFile(snapshotPresignedUrl);
-			// if applySnapshot/applyPatch throws a recoverable error, then we can send the clock again.
-			// but we do not want to put the message on the queue!
 			gridIndexManager.applySnapshot(connection.getSessionId(), connection.getReplicaId(), snapshotFile);
 		} finally {
 			if (snapshotFile != null) {
@@ -128,20 +131,30 @@ public class GridReplicaManagerImpl implements GridReplicaManager {
 					.GET()
 					.build();
 
-			HttpResponse<Path> response = httpClient.send(request, HttpResponse.BodyHandlers.ofFile(tempFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE));
+			return TimeUtils.waitForExponentialMaxRetry(5, 1000, () -> {
+				final Set<Integer> RETRY_STATUS_CODES = Set.of(429, 500, 502, 503, 504, 509);
+				HttpResponse<Path> response;
+				try {
+					response = httpClient.send(request, HttpResponse.BodyHandlers.ofFile(tempFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE));
+					int statusCode = response.statusCode();
+					if (RETRY_STATUS_CODES.contains(statusCode)) {
+						throw new RetryException("Failed to download snapshot. Status: " + statusCode);
+					} else if (statusCode >= 300) {
+						throw new RuntimeException("Failed to download snapshot. Status: " + statusCode);
+					}
+					return response.body();
+				} catch (SocketTimeoutException ste) {
+					throw new RetryException(ste);
+				}
+			});
 
-			if (response.statusCode() != 200) {
-				throw new RuntimeException("Failed to download snapshot. Status: " + response.statusCode());
-			}
-
-			return response.body();
-		} catch (IOException e) {
-			throw new RuntimeException("Failed to download snapshot from: " + snapshotPresignedUrl, e);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 			throw new RuntimeException("Interrupted while downloading snapshot from: " + snapshotPresignedUrl, e);
 		} catch (URISyntaxException e) {
 			throw new IllegalArgumentException("Invalid snapshot URL: " + snapshotPresignedUrl, e);
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to download snapshot from: " + snapshotPresignedUrl, e);
 		}
 	}
 

@@ -364,7 +364,9 @@ public class GridReplicaValidationManagerImplTest {
 		IntendedChange intendedChange2 = new UpdateMetadataChange().setRowMetadataId(rows.get(1).getArrNodeId());
 
 		when(mockJsonSchemaValidationManager.validateBatch(jsonSchema,
-				List.of(new RowJsonSubject(rows.get(0)), new RowJsonSubject(rows.get(1)))))
+				List.of(new JsonObjectSubject(rows.get(0).getRowObject().getData().getRowJsonDocument()),
+						new JsonObjectSubject(rows.get(1).getRowObject().getData().getRowJsonDocument())
+				)))
 				.thenReturn(List.of(validationResult, validationResult));
 
 		doReturn(intendedChange).when(manager).createChange(rows.get(0), validationResult);

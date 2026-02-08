@@ -243,7 +243,7 @@ public class GridReplicaValidationManagerImpl implements GridReplicaValidationMa
 		JsonSchema schema = jsonSchemaManager.getValidationSchema(schemaId);
 
 		List<JsonSubject> subjects = rowsToValidate.stream()
-				.map(row -> new RowJsonSubject(row)).collect(Collectors.toList());
+				.map(row -> new JsonObjectSubject(row.getRowObject().getData().getRowJsonDocument())).collect(Collectors.toList());
 
 		List<ValidationResults> results = jsonSchemaValidationManager.validateBatch(schema, subjects);
 

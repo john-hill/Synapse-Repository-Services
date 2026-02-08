@@ -24,6 +24,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.aws.SynapseS3Client;
+import org.sagebionetworks.repo.manager.grid.internal.replica.validation.JsonObjectSubject;
 import org.sagebionetworks.repo.manager.grid.row.translator.ColumnTypeToConType;
 import org.sagebionetworks.repo.manager.grid.row.translator.Translator;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaValidationManager;
@@ -41,7 +42,6 @@ import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
-import org.sagebionetworks.repo.model.schema.ObjectType;
 import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.Row;
@@ -309,10 +309,6 @@ public class SnapshotRowHandler implements RowHandler {
         }
     }
 
-    private long getNextSequenceNumber() {
-        return nextNodeSequenceNumber++;
-    }
-
 
     /**
      * Adds the RowMetadata object to the patch. The row metadata has the following pseudo-schema. Fields that can be
@@ -389,16 +385,7 @@ public class SnapshotRowHandler implements RowHandler {
         JSONObject rowJson = gridRowToJsonObject(columnNames, orderedNodes);
 
         // Create JsonSubject for validation
-        JsonSubject subject = new JsonSubject() {
-            @Override
-            public String getObjectId() { return null; }
-            @Override
-            public ObjectType getObjectType() { return null; }
-            @Override
-            public String getObjectEtag() { return null; }
-            @Override
-            public JSONObject toJson() { return rowJson; }
-        };
+        JsonSubject subject = new JsonObjectSubject(rowJson);
 
         // Validate
         ValidationResults results = jsonSchemaValidationManager.validate(validationSchema, subject);
@@ -561,7 +548,7 @@ public class SnapshotRowHandler implements RowHandler {
     private LogicalTimestamp nextTimestamp() {
         return new LogicalTimestamp()
                 .setReplicaId(this.replicaId)
-                .setSequenceNumber(getNextSequenceNumber());
+                .setSequenceNumber(this.nextNodeSequenceNumber++);
     }
 
 }

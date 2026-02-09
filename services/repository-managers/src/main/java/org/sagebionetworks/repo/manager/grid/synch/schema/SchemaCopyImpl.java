@@ -2,16 +2,18 @@ package org.sagebionetworks.repo.manager.grid.synch.schema;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.AddColumn;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.DeleteColumn;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangePublisher;
+import org.sagebionetworks.repo.manager.grid.internal.replica.change.UpdateColumnNames;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
+import org.sagebionetworks.repo.manager.grid.synch.core.SynchronizationLogic;
 import org.sagebionetworks.repo.manager.grid.synch.handler.CopyHandler;
-import org.sagebionetworks.repo.model.grid.patch.ConType;
-import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
 /**
@@ -64,7 +66,10 @@ public class SchemaCopyImpl implements SchemaCopy {
 	private final List<ColumnCopyItem> schema;
 	private final List<Column> finalSchema;
 	private final LogicalTimestamp columnOrderArrId;
+	private final LogicalTimestamp columnNamesVecId;
 	private int nextColumnIndex;
+	private boolean hasSchemaChange;
+	private boolean hasUpdatedColumnNameVec;
 
 	/**
 	 * Creates a new schema copy implementation for synchronization with the CRDT
@@ -78,14 +83,15 @@ public class SchemaCopyImpl implements SchemaCopy {
 	 *
 	 * @param intendedChangePublisher the publisher for applying schema changes to
 	 *                                the CRDT
-	 * @param copyReader              the reader providing access to the current
+	 * @param copyHandler             the reader providing access to the current
 	 *                                copy state
 	 */
-	public SchemaCopyImpl(IntendedChangePublisher intendedChangePublisher, CopyHandler copyReader) {
+	public SchemaCopyImpl(IntendedChangePublisher intendedChangePublisher, CopyHandler copyHandler) {
 		this.intendedChangePublisher = intendedChangePublisher;
-		GridHeader header = copyReader.getHeader();
-		this.columnOrderArrId = header.getColumnOrderArrId();
-		long internalReplica = copyReader.getConnectionInfo().getReplicaId();
+		GridHeader header = copyHandler.getHeader();
+		columnOrderArrId = header.getColumnOrderArrId();
+		columnNamesVecId = header.getColumnNamesVecId();
+		long internalReplica = copyHandler.getConnectionInfo().getReplicaId();
 
 		this.schema = new ArrayList<>();
 		for (Column c : header.getOrderedColumns()) {
@@ -97,6 +103,8 @@ public class SchemaCopyImpl implements SchemaCopy {
 
 		this.finalSchema = new ArrayList<>(header.getOrderedColumns());
 		nextColumnIndex = calculateNextColumnIndex();
+		hasSchemaChange = false;
+		hasUpdatedColumnNameVec = false;
 	}
 
 	/**
@@ -106,7 +114,7 @@ public class SchemaCopyImpl implements SchemaCopy {
 	 *
 	 * @return the next available vector index for a new column
 	 */
-	private int calculateNextColumnIndex() {
+	int calculateNextColumnIndex() {
 		return finalSchema.stream().mapToInt(Column::getVectorIndex).max().orElse(-1) + 1;
 	}
 
@@ -163,6 +171,7 @@ public class SchemaCopyImpl implements SchemaCopy {
 	public void removeItem(ColumnCopyItem item) {
 		intendedChangePublisher.publish(new DeleteColumn(columnOrderArrId, item.getColumnOrderNodeId()));
 		finalSchema.removeIf(column -> column.getName().equals(item.getColumnName()));
+		hasSchemaChange = true;
 	}
 
 	/**
@@ -182,13 +191,12 @@ public class SchemaCopyImpl implements SchemaCopy {
 	@Override
 	public void addItem(ColumnSourceItem item) {
 		Column newColumn = new Column().setName(item.getColumnName()).setVectorIndex(nextColumnIndex);
-
-		intendedChangePublisher.publish(new AddColumn(columnOrderArrId, new ConValue(ConType.LONG, nextColumnIndex),
-				new ConValue(ConType.STRING, item.getColumnName())));
-
+		intendedChangePublisher.publish(new AddColumn(columnOrderArrId, columnOrderArrId, (long) nextColumnIndex));
 		finalSchema.add(newColumn);
 		nextColumnIndex++;
+		hasSchemaChange = true;
 	}
+	
 
 	/**
 	 * Gets the final synchronized schema after Phase 1 schema synchronization
@@ -205,6 +213,25 @@ public class SchemaCopyImpl implements SchemaCopy {
 	@Override
 	public List<Column> getFinalSchema() {
 		return finalSchema;
+	}
+	
+	/**
+	 * Finalizes schema synchronization by publishing column name updates to the CRDT.
+	 * Must be called after Phase 1 schema synchronization completes and before using
+	 * the final schema in Phase 2.
+	 * 
+	 * <p>
+	 * This ensures the CRDT's column name vector is synchronized with any schema
+	 * changes (additions/deletions) made during Phase 1.
+	 */
+	@Override
+	public void close() throws Exception {
+	    if (hasSchemaChange && !hasUpdatedColumnNameVec) {
+	        Map<Integer, String> indexToNameMap = finalSchema.stream()
+	                .collect(Collectors.toMap(Column::getVectorIndex, Column::getName));
+	        intendedChangePublisher.publish(new UpdateColumnNames(columnNamesVecId, indexToNameMap));
+	        hasUpdatedColumnNameVec = true;
+	    }
 	}
 
 }

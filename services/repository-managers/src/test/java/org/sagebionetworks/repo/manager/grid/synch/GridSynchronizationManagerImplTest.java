@@ -123,6 +123,7 @@ public class GridSynchronizationManagerImplTest {
 		verify(mockSourceHandler).close();
 		verify(mockSourceReader).close();
 		verify(mockIntendedChangePublisher).close();
+		verify(mockSchemaCopy).close();
 		verifyNoMoreInteractions(mockCopyHandlerProvider, mockCopyHandler, mockSourceHandler, mockSourceHandlerProvdier,
 				mockSourceReader, mockPatchBuilderPublisher, mockSynchronizeProvider, mockSchemaCopy, mockSchemaSource,
 				mockRowCopy, mockRowSource, mockRowMerge, mockIntendedChangePublisher, mockLogic);

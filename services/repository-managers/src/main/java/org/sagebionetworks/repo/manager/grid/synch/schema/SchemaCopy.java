@@ -46,7 +46,7 @@ import org.sagebionetworks.repo.manager.grid.synch.core.Copy;
  * @see SchemaCopyImpl the implementation that bridges with
  *      {@link IntendedChangePublisher}
  */
-public interface SchemaCopy extends Copy<ColumnCopyItem, ColumnSourceItem> {
+public interface SchemaCopy extends Copy<ColumnCopyItem, ColumnSourceItem>, AutoCloseable {
 
 	/**
 	 * Gets the final synchronized schema after Phase 1 schema synchronization
@@ -74,4 +74,5 @@ public interface SchemaCopy extends Copy<ColumnCopyItem, ColumnSourceItem> {
 	 * @return ordered list of columns in the synchronized schema
 	 */
 	List<Column> getFinalSchema();
+
 }

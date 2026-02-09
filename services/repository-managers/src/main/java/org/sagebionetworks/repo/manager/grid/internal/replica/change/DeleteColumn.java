@@ -8,12 +8,12 @@ import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 public class DeleteColumn implements IntendedChange {
 
 	private final LogicalTimestamp getColumnOrderArrId;
-	private final LogicalTimestamp columnOrderNodeId;
+	private final LogicalTimestamp toDeleteId;
 
-	public DeleteColumn(LogicalTimestamp getColumnOrderArrId, LogicalTimestamp columnOrderNodeId) {
+	public DeleteColumn(LogicalTimestamp getColumnOrderArrId, LogicalTimestamp toDeleteId) {
 		super();
 		this.getColumnOrderArrId = getColumnOrderArrId;
-		this.columnOrderNodeId = columnOrderNodeId;
+		this.toDeleteId = toDeleteId;
 	}
 
 	@Override
@@ -28,9 +28,17 @@ public class DeleteColumn implements IntendedChange {
 		return null;
 	}
 
+	public LogicalTimestamp getGetColumnOrderArrId() {
+		return getColumnOrderArrId;
+	}
+
+	public LogicalTimestamp getToDeleteId() {
+		return toDeleteId;
+	}
+
 	@Override
 	public int hashCode() {
-		return Objects.hash(columnOrderNodeId, getColumnOrderArrId);
+		return Objects.hash(getColumnOrderArrId, toDeleteId);
 	}
 
 	@Override
@@ -42,14 +50,13 @@ public class DeleteColumn implements IntendedChange {
 		if (getClass() != obj.getClass())
 			return false;
 		DeleteColumn other = (DeleteColumn) obj;
-		return Objects.equals(columnOrderNodeId, other.columnOrderNodeId)
-				&& Objects.equals(getColumnOrderArrId, other.getColumnOrderArrId);
+		return Objects.equals(getColumnOrderArrId, other.getColumnOrderArrId)
+				&& Objects.equals(toDeleteId, other.toDeleteId);
 	}
 
 	@Override
 	public String toString() {
-		return "DeleteColumn [getColumnOrderArrId=" + getColumnOrderArrId + ", columnOrderNodeId=" + columnOrderNodeId
-				+ "]";
+		return "DeleteColumn [getColumnOrderArrId=" + getColumnOrderArrId + ", toDeleteId=" + toDeleteId + "]";
 	}
 
 }

@@ -191,7 +191,7 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		}
 
 		jdbcTemplate.batchUpdate("INSERT INTO GRID_REPLICA_INDEX (SESSION_ID, REPLICA_ID, NODE_REP, NODE_SEQ, KIND) "
-				+ "VALUES (?, ?, ?, ?, ?)", new BatchPreparedStatementSetter() {
+				+ "VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE KIND = VALUES(KIND)", new BatchPreparedStatementSetter() {
 
 			@Override
 			public void setValues(PreparedStatement ps, int i) throws SQLException {

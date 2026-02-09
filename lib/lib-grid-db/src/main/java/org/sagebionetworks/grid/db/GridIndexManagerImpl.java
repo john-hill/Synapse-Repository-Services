@@ -110,7 +110,7 @@ public class GridIndexManagerImpl implements GridIndexManager {
 
 		// Recreate the replica. Exclude the root node, which is included in the snapshot.
 		boolean insertRootNode = false;
-		createReplicaIfNotExist(sessionId, replicaId, insertRootNode);
+		createReplicaIfNotExist(sessionId, replicaId);
 
 		// Build the decoder (extracts ClockTable and rootNodeId, and builds a node index in a single pass)
 		SnapshotFileIndex index;
@@ -229,17 +229,12 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	}
 
 	void createReplicaIfNotExist(String sessionId, Long replicaId) {
-	 		createReplicaIfNotExist(sessionId, replicaId, true);
-	}
-	void createReplicaIfNotExist(String sessionId, Long replicaId, boolean insertRootNode) {
 		if (dao.createReplicaIfNotExists(sessionId, replicaId)) {
 			// this is the first patch of a replica.
 			LogicalTimestamp rootId = new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L);
-			if (insertRootNode) {
-				// create the root value of the document.
-				dao.saveIndex(sessionId, replicaId, IndexType.val, List.of(rootId));
-				dao.saveValues(sessionId, replicaId, List.of(new ValueNode().setId(rootId)));
-			}
+			// create the root value of the document.
+			dao.saveIndex(sessionId, replicaId, IndexType.val, List.of(rootId));
+			dao.saveValues(sessionId, replicaId, List.of(new ValueNode().setId(rootId)));
 		}
 	}
 

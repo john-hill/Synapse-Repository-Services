@@ -13,7 +13,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -22,8 +21,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import org.sagebionetworks.StackConfiguration;
-import org.sagebionetworks.aws.SynapseS3Client;
 import org.sagebionetworks.repo.manager.grid.internal.replica.validation.JsonObjectSubject;
 import org.sagebionetworks.repo.manager.grid.row.translator.ColumnTypeToConType;
 import org.sagebionetworks.repo.manager.grid.row.translator.Translator;
@@ -36,7 +33,6 @@ import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.Node;
 import org.sagebionetworks.repo.model.grid.node.ObjectNode;
 import org.sagebionetworks.repo.model.grid.node.RGANode;
-import org.sagebionetworks.repo.model.grid.node.ValueNode;
 import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
@@ -49,15 +45,6 @@ import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 import org.sagebionetworks.schema.adapter.org.json.EntityFactory;
 import org.sagebionetworks.util.FileProvider;
 import org.sagebionetworks.util.ValidateArgument;
-
-import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
-import com.amazonaws.services.s3.model.CannedAccessControlList;
-import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
-import com.amazonaws.services.s3.model.CompleteMultipartUploadResult;
-import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PartETag;
-import com.amazonaws.services.s3.model.UploadPartRequest;
 
 /**
  * A handler that can build and save a snapshot from a table row query.
@@ -98,18 +85,16 @@ public class SnapshotRowHandler implements RowHandler {
      * Simple holder class for document structure nodes
      */
     private static class DocumentStructure {
-        final ValueNode rootValueNode;
-        final ObjectNode topLevelObjectNode;
+        final ObjectNode rootObjectNode;
         final ConstantNode documentVersionNode;
         final VectorNode columnNamesNode;
         final ArrayNode columnOrderNode;
         final ArrayNode rowsNode;
 
-        DocumentStructure(ValueNode rootValueNode, ObjectNode topLevelObjectNode, ConstantNode documentVersionNode,
+        DocumentStructure(ObjectNode rootObjectNode, ConstantNode documentVersionNode,
                           VectorNode columnNamesNode, ArrayNode columnOrderNode,
                           ArrayNode rowsNode) {
-            this.rootValueNode = rootValueNode;
-            this.topLevelObjectNode = topLevelObjectNode;
+            this.rootObjectNode = rootObjectNode;
             this.documentVersionNode = documentVersionNode;
             this.columnNamesNode = columnNamesNode;
             this.columnOrderNode = columnOrderNode;
@@ -191,10 +176,6 @@ public class SnapshotRowHandler implements RowHandler {
      */
     private DocumentStructure buildDocumentStructure() {
         ObjectNode rootObjectNode = new ObjectNode().setId(nextTimestamp());
-        ValueNode rootValueNode = new ValueNode()
-                .setId(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L))
-                .setValue(rootObjectNode.getId());
-
         ConstantNode documentVersionNode = new ConstantNode()
             .setId(nextTimestamp())
             .setValue(new ConValue(ConType.STRING, "0.1.0"));
@@ -216,7 +197,6 @@ public class SnapshotRowHandler implements RowHandler {
         rootObjectNode.setValue(objectMap);
 
         return new DocumentStructure(
-            rootValueNode,
             rootObjectNode,
             documentVersionNode,
             columnNamesNode,
@@ -288,11 +268,10 @@ public class SnapshotRowHandler implements RowHandler {
     private void initializeEncoderAndWriteInitialNodes(DocumentStructure documentStructure,
                                                         List<Node> columnSchemaNodes) throws IOException {
         this.encoderOutputStream = new BufferedOutputStream(new FileOutputStream(snapshotFile));
-        this.encoder = new IndexedModelEncoder(encoderOutputStream, documentStructure.rootValueNode.getId());
+        this.encoder = new IndexedModelEncoder(encoderOutputStream, documentStructure.rootObjectNode.getId());
 
         // Write initial document structure nodes (excluding rowsNode which is written at the end)
-        encoder.writeNode(documentStructure.rootValueNode);
-        encoder.writeNode(documentStructure.topLevelObjectNode);
+        encoder.writeNode(documentStructure.rootObjectNode);
         encoder.writeNode(documentStructure.documentVersionNode);
         encoder.writeNode(documentStructure.columnNamesNode);
         encoder.writeNode(documentStructure.columnOrderNode);

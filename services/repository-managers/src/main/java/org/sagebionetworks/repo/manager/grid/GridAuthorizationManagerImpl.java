@@ -59,6 +59,9 @@ public class GridAuthorizationManagerImpl implements GridAuthorizationManager {
 		UserInfo filterUser = new UserInfo(false, ownerId, realmContext.getRealmId());
 		filterUser.setGroups(Set.of(ownerId, realmContext.getRealmAuthenticatedUsersId(),
 				realmContext.getRealmPublicUsersId()));
+		filterUser.setRealmAnonymousUserId(realmContext.getRealmAnonymousUserId());
+		filterUser.setRealmAuthenticatedUsersId(realmContext.getRealmAuthenticatedUsersId());
+		filterUser.setRealmPublicUsersId(realmContext.getRealmPublicUsersId());
 		return filterUser;
 	}
 

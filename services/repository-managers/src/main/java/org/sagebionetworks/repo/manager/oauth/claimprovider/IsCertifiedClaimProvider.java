@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.oauth.claimprovider;
 
-import org.sagebionetworks.repo.manager.UserInfoTestHelper;
+
+import org.sagebionetworks.repo.manager.UserInfoHelper;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.model.oauth.OIDCClaimName;
 import org.sagebionetworks.repo.model.oauth.OIDCClaimsRequestDetails;
@@ -24,7 +25,7 @@ public class IsCertifiedClaimProvider implements OIDCClaimProvider {
 
 	@Override
 	public Object getClaim(String userId, String subject, OIDCClaimsRequestDetails details, String oauthEndpoint) {
-		return UserInfoTestHelper.isCertified(userManager.getUserInfo(Long.parseLong(userId)));
+		return UserInfoHelper.isCertified(userManager.getUserInfo(Long.parseLong(userId)));
 	}
 
 }

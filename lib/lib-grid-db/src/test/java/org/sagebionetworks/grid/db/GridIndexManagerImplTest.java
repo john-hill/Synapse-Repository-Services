@@ -12,6 +12,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
@@ -335,6 +336,7 @@ public class GridIndexManagerImplTest {
 
 		when(mockIndexBuilder.build(snapshotFile)).thenReturn(mockIndex);
 		when(mockIndex.getClockTable()).thenReturn(clockTable);
+		when(mockIndex.getRootNodeId()).thenReturn(rootId);
 		when(mockReaderProvider.create(snapshotFile, mockIndex)).thenReturn(mockReader);
 
 		// readNodes is called once per type that has entries (constants, objects, values, arrays, vectors)
@@ -348,6 +350,12 @@ public class GridIndexManagerImplTest {
 
 		// call under test
 		manager.applySnapshot(sessionId, replicaId, snapshotFile);
+
+		// Verify delete and re-create replica
+		verify(mockDao).deleteReplica(sessionId, replicaId);
+		verify(mockDao).createReplicaIfNotExists(sessionId, replicaId);
+		verify(mockDao).saveIndex(sessionId, replicaId, IndexType.val, List.of(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L)));
+		verify(mockDao).saveValues(sessionId, replicaId, List.of(new ValueNode().setId(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L))));
 
 		// Verify replica setup
 		verify(mockDao).deleteReplica(sessionId, replicaId);
@@ -374,9 +382,16 @@ public class GridIndexManagerImplTest {
 		verify(mockDao).saveIndex(sessionId, replicaId, IndexType.vec, List.of(vectorId));
 		verify(mockDao).saveVectors(eq(sessionId), eq(replicaId), eq(List.of(new VectorNode().setId(vectorId).setValues(Map.of(0, vectorConstNode)))));
 
+		// Verify update the root value node
+		verify(mockDao).saveValues(sessionId, replicaId,
+				List.of(new ValueNode().setId(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L)).setValue(rootId))
+		);
+
 		// Verify clocks
 		verify(mockDao).setClocks(sessionId, replicaId, clockTable.getClocks());
 		verify(mockReader).close();
+
+		verifyNoMoreInteractions(mockDao, mockIndexBuilder, mockReaderProvider, mockReader);
 	}
 
 	@Test

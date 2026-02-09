@@ -109,7 +109,6 @@ public class GridIndexManagerImpl implements GridIndexManager {
 		dao.deleteReplica(sessionId, replicaId);
 
 		// Recreate the replica. Exclude the root node, which is included in the snapshot.
-		boolean insertRootNode = false;
 		createReplicaIfNotExist(sessionId, replicaId);
 
 		// Build the decoder (extracts ClockTable and rootNodeId, and builds a node index in a single pass)
@@ -133,6 +132,12 @@ public class GridIndexManagerImpl implements GridIndexManager {
 		} catch (IOException e) {
 			throw new RuntimeException("Failed to import snapshot from file: " + snapshotFile, e);
 		}
+
+		// Update the root val node (which always has ID 0.0) to point to the root object from the snapshot.
+		dao.saveValues(sessionId, replicaId, List.of(new ValueNode()
+				.setId(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L))
+				.setValue(index.getRootNodeId()))
+		);
 
 		// Update the replica clock
 		dao.setClocks(sessionId, replicaId, snapshotClockTable.getClocks());

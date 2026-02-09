@@ -63,8 +63,6 @@ import com.amazonaws.services.s3.model.UploadPartRequest;
  * A handler that can build and save a snapshot from a table row query.
  */
 public class SnapshotRowHandler implements RowHandler {
-    private static final long MULTIPART_MAX_PART_SIZE = 5 * 1024 * 1024;
-
     public static final String FIELD_SYNAPSE_ROW = "synapseRow";
     public static final String FIELD_ROW_VALIDATION = "rowValidation";
     public static final String FIELD_DOC_VERSION = "doc_version";
@@ -82,8 +80,6 @@ public class SnapshotRowHandler implements RowHandler {
     private final List<RGANode> rowRgaNodes = new ArrayList<>();
     private LogicalTimestamp lastRowRef;
     private final List<Integer> requiredColumnIndices;
-    private final SynapseS3Client s3Client;
-    private final String gridSnapshotBucket;
     private final File snapshotFile;
     private final SnapshotStore snapshotStore;
     private final Long replicaId;
@@ -135,18 +131,16 @@ public class SnapshotRowHandler implements RowHandler {
     }
 
     public SnapshotRowHandler(SnapshotStore snapshotStore, String sessionId, Long replicaId, List<ColumnModel> schema,
-                              List<Integer> requiredColumnIndices, FileProvider fileProvider, SynapseS3Client s3Client,
-                              StackConfiguration config, Long createdByUserId, JsonSchemaValidationManager jsonSchemaValidationManager, JsonSchema validationSchema) {
+                              List<Integer> requiredColumnIndices, FileProvider fileProvider, Long createdByUserId,
+                              JsonSchemaValidationManager jsonSchemaValidationManager, JsonSchema validationSchema) {
         super();
         ValidateArgument.required(snapshotStore, "snapshotStore");
 
         // Initialize fields
         this.replicaId = replicaId;
         this.snapshotStore = snapshotStore;
-        this.s3Client = s3Client;
         this.sessionId = sessionId;
         this.requiredColumnIndices = requiredColumnIndices;
-        this.gridSnapshotBucket = String.format("%s.grid.snapshot.sagebase.org", config.getStack());
         this.createdByUserId = createdByUserId;
 
         // Validation fields
@@ -491,52 +485,14 @@ public class SnapshotRowHandler implements RowHandler {
         }
     }
 
-    CompleteMultipartUploadResult uploadToS3() {
-        String s3Key = String.format("snapshot/%s/%d-%s.cbor", sessionId, System.currentTimeMillis(), UUID.randomUUID());
-        ObjectMetadata objectMetadata = new ObjectMetadata();
-        objectMetadata.setContentType("application/cbor");
-
-        InitiateMultipartUploadRequest multipartRequest = new InitiateMultipartUploadRequest(gridSnapshotBucket, s3Key, objectMetadata).withCannedACL(CannedAccessControlList.BucketOwnerFullControl);
-
-        String uploadId = s3Client.initiateMultipartUpload(multipartRequest).getUploadId();
-
-        try {
-            long contentLength = snapshotFile.length();
-            long currentPartSize = MULTIPART_MAX_PART_SIZE;
-            long filePosition = 0;
-            List<PartETag> partETags = new ArrayList<PartETag>();
-
-            for (int partNumber = 1; filePosition < contentLength; partNumber++) {
-                currentPartSize = Math.min(currentPartSize, (contentLength - filePosition));
-
-                UploadPartRequest uploadPartRequest = new UploadPartRequest().withBucketName(gridSnapshotBucket).withKey(s3Key).withUploadId(uploadId).withPartNumber(partNumber).withFileOffset(filePosition).withFile(snapshotFile).withPartSize(currentPartSize);
-
-                partETags.add(s3Client.uploadPart(uploadPartRequest).getPartETag());
-
-                filePosition += currentPartSize;
-            }
-
-            // Complete the multipart upload.
-            CompleteMultipartUploadRequest multipartCompleteRequest = new CompleteMultipartUploadRequest(gridSnapshotBucket, s3Key, uploadId, partETags);
-
-            return s3Client.completeMultipartUpload(multipartCompleteRequest);
-        } catch (Exception e) {
-            log.error("Failed to upload snapshot to S3, aborting multipart upload: " + s3Key, e);
-            AbortMultipartUploadRequest abortUploadRequest = new AbortMultipartUploadRequest(gridSnapshotBucket, s3Key, uploadId);
-            s3Client.abortMultipartUpload(abortUploadRequest);
-
-            throw new RuntimeException("Failed to upload snapshot to S3", e);
-        }
-    }
-
 
     @Override
     public void close() throws IOException {
         try {
             finalizeEncoding();
-            CompleteMultipartUploadResult result = uploadToS3();
-            snapshotStore.saveSnapshot(this.sessionId, this.encoder.getClockTable(), result.getKey(), createdByUserId);
+            snapshotStore.saveSnapshot(this.sessionId, this.encoder.getClockTable(), createdByUserId, snapshotFile);
         } finally {
+            // Delete the file on disk
             if (snapshotFile != null && snapshotFile.exists()) {
                 if (!snapshotFile.delete()) {
                     log.error("Failed to delete temporary snapshot file: " + snapshotFile.getAbsolutePath());

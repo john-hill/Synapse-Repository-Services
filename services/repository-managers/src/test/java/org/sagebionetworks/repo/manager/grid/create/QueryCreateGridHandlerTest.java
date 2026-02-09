@@ -115,14 +115,8 @@ public class QueryCreateGridHandlerTest {
 	private SnapshotStore mockSnapshotStore;
 	@Mock
 	private FileProvider mockFileProvider;
-	@Mock
-	private SynapseS3Client mockSynapseS3Client;
-	@Mock
-	private StackConfiguration mockStackConfig;
 	@Captor
 	private ArgumentCaptor<RowHandlerProvider> rowHandlerProviderCaptor;
-	@Captor
-	private ArgumentCaptor<String> patchCaptor;
 
 	@Spy
 	@InjectMocks
@@ -196,7 +190,7 @@ public class QueryCreateGridHandlerTest {
 				rowHandlerProviderCaptor.capture(), eq(ACCESS_TYPE.READ), eq(ACCESS_TYPE.UPDATE))).thenReturn(new QueryResultBundle());
 		doReturn(Optional.of(schema$id)).when(handler).getSchemaId(mockUser, tableId, rows);
 		when(mockSchemaManager.getValidationSchema(schema$id)).thenReturn(new JsonSchema().setRequired(List.of("foo")));
-		setupSnapshotRowHandlerMocks();
+		when(mockFileProvider.createTempFile("snapshot", ".cbor")).thenReturn(tempFile);
 
 		GridSession expected = new GridSession().setSessionId(gridSessionId);
 		when(mockGridDao.createGridSession(
@@ -216,7 +210,7 @@ public class QueryCreateGridHandlerTest {
 		SnapshotRowHandler snapshotHandler = (SnapshotRowHandler) rp.getHandler(mockQueryTranslattion);
 		snapshotHandler.close();
 
-		verify(mockSnapshotStore).saveSnapshot(eq(gridSessionId), any(), anyString(), eq(userId));
+		verify(mockSnapshotStore).saveSnapshot(eq(gridSessionId), any(), eq(userId), eq(tempFile));
 	}
 
 	@Test
@@ -228,7 +222,7 @@ public class QueryCreateGridHandlerTest {
 		when(mockQueryManager.runQueryAsStream(eq(mockCallback), eq(mockSessionOwnerUser), eq(query),
 				rowHandlerProviderCaptor.capture(), eq(ACCESS_TYPE.READ), eq(ACCESS_TYPE.UPDATE))).thenReturn(new QueryResultBundle());
 		doReturn(Optional.empty()).when(handler).getSchemaId(mockUser, tableId, rows);
-		setupSnapshotRowHandlerMocks();
+		when(mockFileProvider.createTempFile("snapshot", ".cbor")).thenReturn(tempFile);
 
 		GridSession expected = new GridSession().setSessionId(gridSessionId);
 		when(mockGridDao
@@ -246,7 +240,7 @@ public class QueryCreateGridHandlerTest {
 		when(mockTranslator.getSchemaOfSelect()).thenReturn(schema);
 		SnapshotRowHandler snapshotHandler = (SnapshotRowHandler) rp.getHandler(mockQueryTranslattion);
 		snapshotHandler.close();
-		verify(mockSnapshotStore).saveSnapshot(eq(gridSessionId), any(), anyString(), eq(userId));
+		verify(mockSnapshotStore).saveSnapshot(eq(gridSessionId), any(), eq(userId), eq(tempFile));
 	}
 
 	@Test
@@ -391,33 +385,5 @@ public class QueryCreateGridHandlerTest {
 		// call under test
 		assertEquals(Optional.empty(), handler.getSchemaId(mockUser, tableId, rows));
 		verifyNoMoreInteractions(mockEntityManager);
-	}
-
-
-	/**
-	 * Helper to set up mocks for SnapshotRowHandler
-	 */
-	private void setupSnapshotRowHandlerMocks() throws IOException {
-		when(mockStackConfig.getStack()).thenReturn(mockStackName);
-		when(mockFileProvider.createTempFile("snapshot", ".cbor")).thenReturn(tempFile);
-
-
-		String uploadId = "test-upload-id";
-		String s3Key = "snapshot/test/file.cbor";
-
-		InitiateMultipartUploadResult initiateResult = new InitiateMultipartUploadResult();
-		initiateResult.setUploadId(uploadId);
-
-		UploadPartResult uploadResult = new UploadPartResult();
-		uploadResult.setETag("etag-1");
-		uploadResult.setPartNumber(1);
-
-		CompleteMultipartUploadResult completeResult = new CompleteMultipartUploadResult();
-		completeResult.setKey(s3Key);
-		completeResult.setBucketName(mockStackName + ".grid.snapshot.sagebase.org");
-
-		when(mockSynapseS3Client.initiateMultipartUpload(any(InitiateMultipartUploadRequest.class))).thenReturn(initiateResult);
-		when(mockSynapseS3Client.uploadPart(any(UploadPartRequest.class))).thenReturn(uploadResult);
-		when(mockSynapseS3Client.completeMultipartUpload(any(CompleteMultipartUploadRequest.class))).thenReturn(completeResult);
 	}
 }

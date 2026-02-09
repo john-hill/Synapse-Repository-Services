@@ -129,8 +129,8 @@ public class QueryCreateGridHandler implements CreateGridHandler {
 			tableQueryManager.runQueryAsStream(callback, sessionOwner, initialQuery, t -> {
 				List<ColumnModel> schema = t.getMainQuery().getTranslator().getSchemaOfSelect();
 				return new SnapshotRowHandler(snapshotStore, session.getSessionId(), replica.getReplicaId(), schema,
-						columnsRequiredBySchemaIndices, fileProvider, synapseS3Client, stackConfig, user.getId(),
-						jsonSchemaValidationManager, validationSchema.orElse(null));
+						columnsRequiredBySchemaIndices, fileProvider, user.getId(),	jsonSchemaValidationManager,
+						validationSchema.orElse(null));
 			}, ACCESS_TYPE.READ, ACCESS_TYPE.UPDATE);
 			return new CreateGridHandlerResult().setGridSession(session).setGridReplica(replica);
 		} catch (LockUnavilableException | TableUnavailableException e) {

@@ -140,7 +140,7 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 		// We can now read the CSV file again and reuse the PatchRowHandler.
 		CSVReader csvReader = csvProvider.getCsvReader(fileHandle, csvDescriptor);
 		SnapshotRowHandler rowHandler = getSnapshotRowHandler(snapshotStore, session, replica, schema, columnsRequiredByJsonSchemaIndices,
-				fileProvider, s3Client, stackConfig, user.getId(), validationSchema.orElse(null));
+				fileProvider, user.getId(), validationSchema.orElse(null));
 		
 		try (csvReader; rowHandler) {
 
@@ -177,10 +177,9 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 
 	SnapshotRowHandler getSnapshotRowHandler(SnapshotStore snapshotStore, GridSession session, GridReplica replica,
 											 List<ColumnModel> schema, List<Integer> requiredColumnIndices, FileProvider fileProvider,
-											 SynapseS3Client s3Client, StackConfiguration stackConfig, Long createdByUserId,
-											 JsonSchema validationSchema) {
+											 Long createdByUserId, JsonSchema validationSchema) {
 		return new SnapshotRowHandler(snapshotStore, session.getSessionId(), replica.getReplicaId(), schema, requiredColumnIndices,
-				fileProvider, s3Client, stackConfig, createdByUserId, jsonSchemaValidationManager, validationSchema);
+				fileProvider, createdByUserId, jsonSchemaValidationManager, validationSchema);
 	}
 
 }

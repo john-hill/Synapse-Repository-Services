@@ -77,6 +77,9 @@ import org.sagebionetworks.repo.model.table.Query;
 import org.sagebionetworks.repo.web.NotFoundException;
 
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
+import com.amazonaws.services.s3.transfer.TransferManager;
+import com.amazonaws.services.s3.transfer.Upload;
+import com.amazonaws.services.s3.transfer.model.UploadResult;
 
 import au.com.bytecode.opencsv.CSVReader;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -87,6 +90,8 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+
+import java.io.File;
 
 @ExtendWith(MockitoExtension.class)
 public class GridManagerUnitTest {
@@ -124,6 +129,15 @@ public class GridManagerUnitTest {
 	@Mock
 	private GridAuthorizationManager mockGridAuthManager;
 	
+	@Mock
+	private TransferManager mockTransferManager;
+
+	@Mock
+	private Upload mockUpload;
+
+	@Mock
+	private File mockSnapshotFile;
+
 	@Captor
 	private ArgumentCaptor<PutObjectRequest> putCaptor;
 
@@ -192,7 +206,7 @@ public class GridManagerUnitTest {
 
 		when(mockConfig.getStack()).thenReturn("dev");
 		gridManager = new GridManagerImpl(mockCredentialsProvider, mockWebsocketApi, mockGridDao, mockConfig,
-			mockS3Client, mockSynapseS3Client, mockInternalEventPublisher, List.of(mockCreateGridHandler),mockGridAuthManager
+			mockS3Client, mockSynapseS3Client, mockInternalEventPublisher, List.of(mockCreateGridHandler), mockGridAuthManager, mockTransferManager
 		);
 		
 		gridManager = Mockito.spy(gridManager);
@@ -1167,26 +1181,32 @@ public class GridManagerUnitTest {
 	}
 
 	@Test
-	public void testSaveSnapshot() {
+	public void testSaveSnapshot() throws Exception {
 		ClockTable clockTable = new ClockTable(List.of(patchId));
-		String s3Key = "snapshot-key-123";
 		Long createdBy = userId;
+		String expectedS3Key = "snapshot-key-123";
+
+		UploadResult uploadResult = new UploadResult();
+		uploadResult.setKey(expectedS3Key);
+
+		when(mockTransferManager.upload(any(String.class), any(String.class), any(File.class))).thenReturn(mockUpload);
+		when(mockUpload.waitForUploadResult()).thenReturn(uploadResult);
 
 		// call under test
-		gridManager.saveSnapshot(gridSessionId, clockTable, s3Key, createdBy);
+		gridManager.saveSnapshot(gridSessionId, clockTable, createdBy, mockSnapshotFile);
 
-		verify(mockGridDao).saveSnapshot(gridSessionId, clockTable, s3Key, createdBy);
+		verify(mockGridDao).saveSnapshot(eq(gridSessionId), eq(clockTable), any(String.class), eq(createdBy));
+		verify(mockTransferManager).upload(eq("dev.grid.snapshot.sagebase.org"), any(String.class), eq(mockSnapshotFile));
 	}
 
 	@Test
 	public void testSaveSnapshotWithNullSessionId() {
 		ClockTable clockTable = new ClockTable(List.of(patchId));
-		String s3Key = "snapshot-key-123";
 		Long createdBy = userId;
 
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			gridManager.saveSnapshot(null, clockTable, s3Key, createdBy);
+			gridManager.saveSnapshot(null, clockTable, createdBy, mockSnapshotFile);
 		}).getMessage();
 		assertEquals("sessionId is required.", message);
 		verifyZeroInteractions(mockGridDao);
@@ -1194,40 +1214,53 @@ public class GridManagerUnitTest {
 
 	@Test
 	public void testSaveSnapshotWithNullClockTable() {
-		String s3Key = "snapshot-key-123";
 		Long createdBy = userId;
 
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			gridManager.saveSnapshot(gridSessionId, null, s3Key, createdBy);
+			gridManager.saveSnapshot(gridSessionId, null, createdBy, mockSnapshotFile);
 		}).getMessage();
 		assertEquals("clockTable is required.", message);
 		verifyZeroInteractions(mockGridDao);
 	}
 
 	@Test
-	public void testSaveSnapshotWithNullS3Key() {
+	public void testSaveSnapshotWithNullCreatedBy() {
+		ClockTable clockTable = new ClockTable(List.of(patchId));
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.saveSnapshot(gridSessionId, clockTable, null, mockSnapshotFile);
+		}).getMessage();
+		assertEquals("createdBy is required.", message);
+		verifyZeroInteractions(mockGridDao);
+	}
+
+	@Test
+	public void testSaveSnapshotWithNullSnapshotFile() {
 		ClockTable clockTable = new ClockTable(List.of(patchId));
 		Long createdBy = userId;
 
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			gridManager.saveSnapshot(gridSessionId, clockTable, null, createdBy);
+			gridManager.saveSnapshot(gridSessionId, clockTable, createdBy, null);
 		}).getMessage();
-		assertEquals("s3Key is required.", message);
+		assertEquals("snapshotFile is required.", message);
 		verifyZeroInteractions(mockGridDao);
 	}
 
-	@Test
-	public void testSaveSnapshotWithNullCreatedBy() {
-		ClockTable clockTable = new ClockTable(List.of(patchId));
-		String s3Key = "snapshot-key-123";
 
-		String message = assertThrows(IllegalArgumentException.class, () -> {
+	@Test
+	public void testSaveSnapshotWithException() {
+		when(mockTransferManager.upload(any(String.class), any(String.class), any(File.class)))
+				.thenThrow(new RuntimeException("Upload failed"));
+		ClockTable clockTable = new ClockTable(List.of(patchId));
+		Long createdBy = userId;
+
+		assertThrows(RuntimeException.class, () -> {
 			// call under test
-			gridManager.saveSnapshot(gridSessionId, clockTable, s3Key, null);
-		}).getMessage();
-		assertEquals("createdBy is required.", message);
+			gridManager.saveSnapshot(gridSessionId, clockTable, createdBy, mockSnapshotFile);
+		});
 		verifyZeroInteractions(mockGridDao);
 	}
 

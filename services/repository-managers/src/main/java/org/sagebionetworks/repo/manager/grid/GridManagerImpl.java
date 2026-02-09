@@ -2,10 +2,12 @@ package org.sagebionetworks.repo.manager.grid;
 
 import static org.sagebionetworks.repo.manager.file.FileHandleManagerImpl.PRESIGNED_URL_EXPIRE_TIME_MS;
 
+import java.io.File;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -51,7 +53,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.amazonaws.HttpMethod;
+import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
+import com.amazonaws.services.s3.model.CannedAccessControlList;
+import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
+import com.amazonaws.services.s3.model.CompleteMultipartUploadResult;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
+import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
+import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.PartETag;
+import com.amazonaws.services.s3.model.UploadPartRequest;
+import com.amazonaws.services.s3.transfer.TransferManager;
+import com.amazonaws.services.s3.transfer.Upload;
+import com.amazonaws.services.s3.transfer.model.UploadResult;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.SdkHttpMethod;
@@ -88,11 +101,12 @@ public class GridManagerImpl implements GridManager {
 	private final InternalReplicaToHubEventPublisher internalEventPublisher;
 	private final List<CreateGridHandler> createGridHandlers;
 	private final GridAuthorizationManager gridAuthorizationManager;
+	private final TransferManager transferManager;
 
 	@Autowired
 	public GridManagerImpl(AwsCredentialsProvider awsCredentialsProvider, WebsocketApi websocketApi, GridDao gridDao,
 	   StackConfiguration config, S3Client s3Client, SynapseS3Client synapseS3Client, InternalReplicaToHubEventPublisher internalEventPublisher,
-	   List<CreateGridHandler> createHandlers, GridAuthorizationManager gridAuthorizationManager) {
+	   List<CreateGridHandler> createHandlers, GridAuthorizationManager gridAuthorizationManager, TransferManager transferManager) {
 		super();
 		this.awsCredentialsProvider = awsCredentialsProvider;
 		this.websocketApi = websocketApi;
@@ -104,6 +118,7 @@ public class GridManagerImpl implements GridManager {
 		this.internalEventPublisher = internalEventPublisher;
 		this.createGridHandlers = createHandlers;
 		this.gridAuthorizationManager = gridAuthorizationManager;
+		this.transferManager = transferManager;
 	}
 
 	@WriteTransaction
@@ -440,12 +455,26 @@ public class GridManagerImpl implements GridManager {
 
 	@WriteTransaction
 	@Override
-	public void saveSnapshot(String sessionId, ClockTable clockTable, String s3Key, Long createdBy) {
+	public void saveSnapshot(String sessionId, ClockTable clockTable, Long createdBy, File snapshotFile) {
 		ValidateArgument.required(sessionId, "sessionId");
 		ValidateArgument.required(clockTable, "clockTable");
-		ValidateArgument.required(s3Key, "s3Key");
 		ValidateArgument.required(createdBy, "createdBy");
-		gridDao.saveSnapshot(sessionId, clockTable, s3Key, createdBy);
+		ValidateArgument.required(snapshotFile, "snapshotFile");
+
+		String s3Key = String.format("snapshot/%s/%d-%s.cbor", sessionId, System.currentTimeMillis(), UUID.randomUUID());
+		ObjectMetadata objectMetadata = new ObjectMetadata();
+		objectMetadata.setContentType("application/cbor");
+
+		UploadResult uploadResult;
+		try {
+			uploadResult = transferManager.upload(gridSnapshotBucket, s3Key, snapshotFile).waitForUploadResult();
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new RuntimeException("Snapshot upload was interrupted", e);
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to upload snapshot to S3", e);
+		}
+		gridDao.saveSnapshot(sessionId, clockTable, uploadResult.getKey(), createdBy);
 	}
 
 }

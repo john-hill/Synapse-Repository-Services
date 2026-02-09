@@ -14,10 +14,10 @@ import org.junit.jupiter.api.Test;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.UserInfo;
-import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -30,12 +30,12 @@ public class PermissionsManagerUtilsTest {
 	@BeforeEach
 	public void setUp(){
 		ownerId = 1234L;
-		userInfo = new UserInfo(false, ownerId);
-		userInfo.setRealmAnonymousUserId(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
-		userInfo.setRealmPublicUsersId(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId());
-		otherUserInfo = new UserInfo(false, 56789L);
-		adminUserInfo = new UserInfo(true, 1L);
+		userInfo = UserInfoTestHelper.createUserInfo(false, ownerId);
+		
+		otherUserInfo = UserInfoTestHelper.createUserInfo(false, 56789L);
 		otherUserInfo.getGroups().add(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId());
+		
+		adminUserInfo = UserInfoTestHelper.createUserInfo(true, 1L);
 	}
 
 	@Test

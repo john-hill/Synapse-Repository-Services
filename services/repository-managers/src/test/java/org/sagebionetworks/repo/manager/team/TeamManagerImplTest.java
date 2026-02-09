@@ -17,7 +17,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_REALM_ID;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -41,6 +40,7 @@ import org.sagebionetworks.repo.manager.AuthorizationManager;
 import org.sagebionetworks.repo.manager.EmailUtils;
 import org.sagebionetworks.repo.manager.MessageToUserAndBody;
 import org.sagebionetworks.repo.manager.ProjectStatsManager;
+import org.sagebionetworks.repo.manager.UserInfoTestHelper;
 import org.sagebionetworks.repo.manager.UserProfileManager;
 import org.sagebionetworks.repo.manager.dataaccess.RestrictionInformationManager;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
@@ -144,12 +144,12 @@ public class TeamManagerImplTest {
 
 	@BeforeEach
 	public void setUp() {
-		userInfo = createUserInfo(false, MEMBER_PRINCIPAL_ID_LONG, REALM_ID);
+		userInfo = UserInfoTestHelper.createUserInfo(false, MEMBER_PRINCIPAL_ID_LONG, REALM_ID);
 		up = new UserProfile();
 		up.setFirstName("foo");
 		up.setLastName("bar");
 		up.setUserName("userName");
-		adminInfo = createUserInfo(true, -1L, DEFAULT_REALM_ID);
+		adminInfo = UserInfoTestHelper.createUserInfo(true, -1L);
 		restrictionInfoRqst = new RestrictionInformationRequest();
 		restrictionInfoRqst.setRestrictableObjectType(RestrictableObjectType.TEAM);
 		restrictionInfoRqst.setObjectId(TEAM_ID);
@@ -157,11 +157,6 @@ public class TeamManagerImplTest {
 		hasUnmetAccessRqmtResponse.setHasUnmetAccessRequirement(true);
 		noUnmetAccessRqmtResponse = new RestrictionInformationResponse();
 		noUnmetAccessRqmtResponse.setHasUnmetAccessRequirement(false);
-	}
-	
-	private static UserInfo createUserInfo(boolean isAdmin, Long principalId, String realmId) {
-		UserInfo userInfo = new UserInfo(isAdmin, principalId, realmId);
-		return userInfo;
 	}
 	
 	private static Team createTeam(String id, String name, String description, String etag, String icon, 
@@ -699,7 +694,7 @@ public class TeamManagerImplTest {
 	@Test
 	public void testCanAddTeamMemberToDifferentRealm() {
 		Long otherPrincipalId = 987L;
-		UserInfo otherUserInfo = createUserInfo(false, otherPrincipalId, REALM_ID);
+		UserInfo otherUserInfo = UserInfoTestHelper.createUserInfo(false, otherPrincipalId, REALM_ID);
 		when(mockUserGroupDAO.get(Long.parseLong(TEAM_ID))).thenReturn(new UserGroup().setRealmId(REALM_ID));
 		when(mockUserGroupDAO.get(234L)).thenReturn(new UserGroup().setRealmId("11"));
 
@@ -726,7 +721,7 @@ public class TeamManagerImplTest {
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		//	 there has been no membership request
 		Long otherPrincipalId = 987L;
-		UserInfo otherUserInfo = createUserInfo(false, otherPrincipalId, REALM_ID);
+		UserInfo otherUserInfo = UserInfoTestHelper.createUserInfo(false, otherPrincipalId, REALM_ID);
 		when(mockRestrictionInformationManager.
 				getRestrictionInformation(otherUserInfo, restrictionInfoRqst)).
 					thenReturn(noUnmetAccessRqmtResponse);
@@ -765,7 +760,7 @@ public class TeamManagerImplTest {
 		// 'userInfo' is a team admin and there is a membership request from 987
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		Long principalId = 987L;
-		UserInfo principalUserInfo = createUserInfo(false, principalId, REALM_ID);
+		UserInfo principalUserInfo = UserInfoTestHelper.createUserInfo(false, principalId, REALM_ID);
 		when(mockMembershipRequestDAO.getOpenByTeamAndRequesterCount(eq(Long.parseLong(TEAM_ID)), eq(principalId), anyLong())).thenReturn(1L);
 		when(mockRestrictionInformationManager.
 				getRestrictionInformation(principalUserInfo, restrictionInfoRqst)).
@@ -783,7 +778,7 @@ public class TeamManagerImplTest {
 	public void testAddMemberAlreadyOnTeam() {
 		// 'userInfo' is a team admin and there is a membership request from 987
 		Long principalId = 987L;
-		UserInfo principalUserInfo = createUserInfo(false, principalId, REALM_ID);
+		UserInfo principalUserInfo = UserInfoTestHelper.createUserInfo(false, principalId, REALM_ID);
 		when(mockGroupMembersDAO.getMemberIdsForUpdate(Long.valueOf(TEAM_ID))).thenReturn(ImmutableSet.of(Long.valueOf(principalId)));
 		boolean added = teamManagerImpl.addMember(userInfo, TEAM_ID, principalUserInfo);
 		assertFalse(added);
@@ -1317,7 +1312,7 @@ public class TeamManagerImplTest {
 		when(mockTeamDAO.getState(TEAM_ID)).thenReturn(TeamState.CLOSED);
 		
 		Long principalId = MEMBER_PRINCIPAL_ID_LONG;
-		UserInfo principalUserInfo = createUserInfo(false, principalId, REALM_ID);
+		UserInfo principalUserInfo = UserInfoTestHelper.createUserInfo(false, principalId, REALM_ID);
 		
 		when(mockGroupMembersDAO.areMemberOf(TEAM_ID, Collections.singleton(principalId.toString()))).thenReturn(true);
 		
@@ -1465,7 +1460,7 @@ public class TeamManagerImplTest {
 		Long otherPrincipalId = 987L;
 		String teamEndpoint = "https://synapse.org/#Team:";
 		String notificationUnsubscribeEndpoint = "https://synapse.org/#notificationUnsubscribeEndpoint:";
-		UserInfo otherUserInfo = createUserInfo(false, otherPrincipalId, REALM_ID);
+		UserInfo otherUserInfo = UserInfoTestHelper.createUserInfo(false, otherPrincipalId, REALM_ID);
 		List<MessageToUserAndBody> resultList = 
 				teamManagerImpl.createJoinedTeamNotifications(userInfo, 
 						otherUserInfo, TEAM_ID, teamEndpoint,

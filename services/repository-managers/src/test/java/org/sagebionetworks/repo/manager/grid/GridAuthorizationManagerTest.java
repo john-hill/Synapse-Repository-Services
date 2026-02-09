@@ -17,6 +17,7 @@ import org.junit.jupiter.params.provider.EnumSource.Mode;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.manager.UserInfoTestHelper;
 import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.EntityType;
@@ -257,7 +258,7 @@ public class GridAuthorizationManagerTest {
 
 		// call under test
 		UserInfo user = manager.getRowLevelFilterUserInfo(mockUser, gridSessionId);
-		UserInfo expected = new UserInfo(false, groupOwnerId);
+		UserInfo expected = UserInfoTestHelper.createUserInfo(false, groupOwnerId);
 		expected.setGroups(Set.of(groupOwnerId, BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId(),
 				BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId()));
 		assertEquals(expected, user);

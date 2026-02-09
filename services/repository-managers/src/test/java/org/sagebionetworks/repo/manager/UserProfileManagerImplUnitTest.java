@@ -115,11 +115,13 @@ public class UserProfileManagerImplUnitTest {
 	private static final Long LIMIT_FOR_QUERY = NextPageToken.DEFAULT_LIMIT+1;
 	private static final Long OFFSET = NextPageToken.DEFAULT_OFFSET;
 
+
+
 	@BeforeEach
 	public void before() throws Exception {
-		userInfo = new UserInfo(false, userId);
+		userInfo = UserInfoTestHelper.createUserInfo(false, userId);
 
-		adminUserInfo = new UserInfo(true, adminUserId);
+		adminUserInfo = UserInfoTestHelper.createUserInfo(true, adminUserId);
 		
 		userProfile = new UserProfile();
 		userProfile.setOwnerId(userInfo.getId().toString());
@@ -148,7 +150,7 @@ public class UserProfileManagerImplUnitTest {
 		alias.setPrincipalId(userId);
 		alias.setType(AliasType.USER_OPEN_ID);
 		aliases.add(alias);
-		caller = new UserInfo(false, 123L);
+		caller = UserInfoTestHelper.createUserInfo(false, 123L);
 		callersGroups = Sets.newHashSet(1L, 2L, 3L, caller.getId(),
 				BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId(),
 				BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId(),

@@ -40,29 +40,20 @@ public class AccessControlListManagerImpl implements AccessControlListManager {
 
 	@Override
 	public void create(UserInfo userInfo, AccessControlList acl, ObjectType objectType, Long ownerId) {
-		PermissionsManagerUtils.validateACLContent(acl, userInfo, ownerId);
-		validateRealm(userInfo, acl);
+		PermissionsManagerUtils.validateACLContent(acl, userInfo, getRealmForPrincipalIds(acl), ownerId);
 		this.aclDao.create(acl, objectType);
 	}
 
-	private void validateRealm(UserInfo userInfo, AccessControlList acl) {
+	private Set<String> getRealmForPrincipalIds(AccessControlList acl) {
 		List<String> principalIds = acl.getResourceAccess().stream().map(ResourceAccess::getPrincipalId)
 				.map(String::valueOf).collect(Collectors.toList());
 
-		Set<String> realmIds = new HashSet<>(userGroupDAO.getUserRealm(principalIds).keySet());
-
-		if (realmIds.size() > 1) {
-			throw new IllegalArgumentException("All principals in the ACL must be from the same realm.");
-		}
-		if (realmIds.size() == 1 && !realmIds.contains(userInfo.getRealmId())) { //should we allow admins to set ACLs for other realms?
-			throw new IllegalArgumentException("All principals in the ACL must be from the same realm as the user.");
-		}
+		return new HashSet<>(userGroupDAO.getUserRealm(principalIds).keySet());
 	}
 
 	@Override
 	public void update(UserInfo userInfo, AccessControlList acl, ObjectType objectType, Long ownerId) {
-		PermissionsManagerUtils.validateACLContent(acl, userInfo, ownerId);
-		validateRealm(userInfo, acl);
+		PermissionsManagerUtils.validateACLContent(acl, userInfo, getRealmForPrincipalIds(acl), ownerId);
 		aclDao.update(acl, objectType);
 	}
 

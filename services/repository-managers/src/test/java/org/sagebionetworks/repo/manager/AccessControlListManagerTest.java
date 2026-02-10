@@ -28,6 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
+import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.UserGroupDAO;
@@ -138,7 +139,7 @@ public class AccessControlListManagerTest {
 		when(userGroupDAO.getUserRealm(anyList())).thenReturn(Map.of("1", Set.of("1"), "0", Set.of("123")));
 
 		// call under test
-		String message = assertThrows(IllegalArgumentException.class, ()-> {
+		String message = assertThrows(InvalidModelException.class, ()-> {
 			aclManager.create(userInfo, acl, ObjectType.ENTITY , userInfo.getId());
 		}).getMessage();
 		assertEquals("All principals in the ACL must be from the same realm.", message);
@@ -151,10 +152,10 @@ public class AccessControlListManagerTest {
 
 		// call under test
 		adminUser.setRealmId("1");
-		String message = assertThrows(IllegalArgumentException.class, ()-> {
+		String message = assertThrows(InvalidModelException.class, ()-> {
 			aclManager.create(adminUser, acl, ObjectType.ENTITY, userInfo.getId());
 		}).getMessage();
-		assertEquals("All principals in the ACL must be from the same realm as the user.", message);
+		assertEquals("All principals in the ACL must be from the same realm as the caller principal.", message);
 		verifyZeroInteractions(aclDao);
 	}
 

@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager;
 
 import java.util.Date;
 import java.util.HashSet;
+import java.util.Set;
 
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
@@ -16,7 +17,7 @@ public class PermissionsManagerUtils {
 	/**
 	 * Verifies that the caller does not lose the right to change permissions.
 	 */
-	public static void validateACLContent(AccessControlList acl, UserInfo userInfo, Long ownerId) throws InvalidModelException {
+	public static void validateACLContent(AccessControlList acl, UserInfo userInfo, Set<String> realmIds, Long ownerId) throws InvalidModelException {
 
 		if (acl.getId() == null) {
 			throw new InvalidModelException("Resource ID is null");
@@ -62,6 +63,13 @@ public class PermissionsManagerUtils {
 		
 		if (!foundCallerInAcl && !userInfo.isAdmin() && !callerIsOwner) {
 			throw new InvalidModelException("Caller is trying to revoke their own ACL editing permissions.");
+		}
+
+		if (realmIds.size() > 1) {
+			throw new InvalidModelException("All principals in the ACL must be from the same realm.");
+		}
+		if (realmIds.size() == 1 && !realmIds.contains(userInfo.getRealmId())) { //should we allow admins to set ACLs for other realms?
+			throw new InvalidModelException("All principals in the ACL must be from the same realm as the caller principal.");
 		}
 	}
 }

@@ -19,12 +19,12 @@ import org.sagebionetworks.repo.transactions.NewWriteTransaction;
 public class AnnotationWriterImpl implements AnnotationWriter {
 
 	private final NodeDAO nodeDao;
-	private final NodeManager nodeManger;
+	private final NodeManager nodeManager;
 
-	public AnnotationWriterImpl(NodeDAO nodeDao, NodeManager nodeManger) {
+	public AnnotationWriterImpl(NodeDAO nodeDao, NodeManager nodeManager) {
 		super();
 		this.nodeDao = nodeDao;
-		this.nodeManger = nodeManger;
+		this.nodeManager = nodeManager;
 	}
 
 	@NewWriteTransaction
@@ -34,7 +34,7 @@ public class AnnotationWriterImpl implements AnnotationWriter {
 		// By locking the node we can ensure that the annotations cannot change between
 		// the call to get the annotations and the call to update the annotations.
 		String currentEtag = nodeDao.lockNode(key);
-		Annotations annos = nodeManger.getUserAnnotations(user, key);
+		Annotations annos = nodeManager.getUserAnnotations(user, key);
 		Map<String, AnnotationsValue> annoMap = annos.getAnnotations();
 
 		// Only update annotations that actually changed in the copy. This prevents
@@ -49,7 +49,7 @@ public class AnnotationWriterImpl implements AnnotationWriter {
 				annoMap.put(e.getKey(), e.getValue());
 			}
 		}
-		return nodeManger.updateUserAnnotations(user, key, annos);
+		return nodeManager.updateUserAnnotations(user, key, annos);
 	}
 
 }

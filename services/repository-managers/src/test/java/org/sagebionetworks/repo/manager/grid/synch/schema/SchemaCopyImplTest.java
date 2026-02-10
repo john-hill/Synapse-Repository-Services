@@ -48,8 +48,8 @@ public class SchemaCopyImplTest {
 
 	@BeforeEach
 	public void before() {
-		internalReplicaId = 0xffL;
-		userReplicaId = 0xabcL;
+		internalReplicaId = 5555L;
+		userReplicaId = 88888L;
 
 		columnOrderArrId = new LogicalTimestamp().setReplicaId(internalReplicaId).setSequenceNumber(0L);
 		columnNamesVecId = new LogicalTimestamp().setReplicaId(internalReplicaId).setSequenceNumber(99L);

@@ -8,7 +8,7 @@ import org.springframework.beans.factory.annotation.Lookup;
 import org.springframework.stereotype.Service;
 
 @Service
-public abstract class SourceHandlerProvdierImpl implements SourceHandlerProvider {
+public abstract class SourceHandlerProviderImpl implements SourceHandlerProvider {
 
 	@Override
 	public SourceHandler createNewProvider(AsyncJobProgressCallback callback, UserInfo user, GridSession session,

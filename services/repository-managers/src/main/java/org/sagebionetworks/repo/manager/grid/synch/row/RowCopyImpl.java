@@ -74,7 +74,7 @@ public class RowCopyImpl implements RowCopy {
 		this.intendedChangePublisher = intendedChangePublisher;
 		this.copyReader = copyReader;
 		this.rowsArrayId = copyReader.getHeader().getRowsId();
-		this.lastRowId = copyReader.getLastRgaNodeId();
+		this.lastRowId = copyReader.getLastRowsRgaNodeId();
 		this.columnNameMap = finalSchema.stream().collect(Collectors.toMap(Column::getName, Functions.identity()));
 	}
 
@@ -91,8 +91,8 @@ public class RowCopyImpl implements RowCopy {
 	 */
 	@Override
 	public Stream<CopyRow> streamItems() {
-		return StreamSupport.stream(Spliterators.spliteratorUnknownSize(copyReader.getRows(), Spliterator.ORDERED),
-				false);
+		return StreamSupport.stream(Spliterators.spliteratorUnknownSize(copyReader.getRows(),
+				Spliterator.ORDERED | Spliterator.NONNULL | Spliterator.IMMUTABLE), false);
 	}
 
 	/**

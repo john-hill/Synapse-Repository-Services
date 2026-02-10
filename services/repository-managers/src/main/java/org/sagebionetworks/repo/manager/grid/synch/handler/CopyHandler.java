@@ -65,5 +65,5 @@ public interface CopyHandler extends AutoCloseable {
 	 *
 	 * @return the most recent RGA node timestamp
 	 */
-	LogicalTimestamp getLastRgaNodeId();
+	LogicalTimestamp getLastRowsRgaNodeId();
 }

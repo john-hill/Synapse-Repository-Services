@@ -1272,7 +1272,13 @@ public class UrlHelpers {
 
 	public static final String AUTH_LOGIN = "/login";
 	public static final String AUTH_LOGIN_2 = "/login2";
+	public static final String ANONYMOUS_TOKEN = "/anonymousToken";
 	public static final String AUTHENTICATED_ON = "/authenticatedOn";
+	
+	/**
+	 * Request parameter to specify a security realm
+	 */
+	public static final String PARAM_REALM_ID = "realm";
 	
 	// Endpoint for webhook management
 	public static final String WEBHOOK = "/webhook";

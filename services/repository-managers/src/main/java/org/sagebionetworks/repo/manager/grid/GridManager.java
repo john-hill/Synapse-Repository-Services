@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
+import org.sagebionetworks.repo.model.dbo.grid.GridSource;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlResponse;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
@@ -168,5 +169,12 @@ public interface GridManager extends PatchStore {
 	GridReplica createAgentReplica(UserInfo user, GridSession session);
 
 	Optional<GridConnectionInfo> getConnection(String gridSessionId, Long agentsReplicaId);
+	
+	/**
+	 * Get the grid session source information.
+	 * @param sessionId
+	 * @return Optional.empty() if the session does not have a source.
+	 */
+	Optional<GridSource> getSessionSource(String sessionId);
 
 }

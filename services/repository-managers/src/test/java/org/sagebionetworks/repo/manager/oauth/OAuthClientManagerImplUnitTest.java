@@ -405,7 +405,7 @@ public class OAuthClientManagerImplUnitTest {
 		);
 		
 		// make sure the ACL was created
-		verify(mockAclManager).create(eq(userInfo), aclCaptor.capture(), eq(ObjectType.OAUTH_CLIENT));
+		verify(mockAclManager).create(eq(userInfo), aclCaptor.capture(), eq(ObjectType.OAUTH_CLIENT), eq(Long.parseLong(oauthClient.getCreatedBy())));
 		AccessControlList acl = aclCaptor.getValue();
 		
 		assertEquals(OAUTH_CLIENT_ID, acl.getId());
@@ -427,7 +427,8 @@ public class OAuthClientManagerImplUnitTest {
 		
 		when(mockOauthClientDao.createOAuthClient((OAuthClient)any())).then(returnsFirstArg());	
 		when(mockOauthClientDao.doesSectorIdentifierExistForURI(anyString())).thenReturn(false);
-		doNothing().when(mockAclManager).create(eq(userInfo), any(AccessControlList.class), eq(ObjectType.OAUTH_CLIENT));
+		doNothing().when(mockAclManager).create(eq(userInfo), any(AccessControlList.class), eq(ObjectType.OAUTH_CLIENT),
+				eq(Long.parseLong(oauthClient.getCreatedBy())));
 		// method under test
 		OAuthClient result = oauthClientManagerImpl.createOpenIDConnectClient(userInfo, oauthClient);
 		
@@ -449,7 +450,7 @@ public class OAuthClientManagerImplUnitTest {
 		OAuthClient oauthClient = createOAuthClient(USER_ID);
 		
 		when(mockOauthClientDao.doesSectorIdentifierExistForURI(anyString())).thenReturn(true);
-
+		when(mockOauthClientDao.createOAuthClient((OAuthClient)any())).then(returnsFirstArg());
 		// method under test
 		oauthClientManagerImpl.createOpenIDConnectClient(userInfo, oauthClient);
 		

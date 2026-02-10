@@ -12,7 +12,7 @@ import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 
 public interface AccessControlListManager {
 
-	void create(UserInfo userInfo, AccessControlList acl, ObjectType objectType);
+	void create(UserInfo userInfo, AccessControlList acl, ObjectType objectType, Long ownerId);
 
 	void update(UserInfo userInfo, AccessControlList acl, ObjectType objectType, Long ownerId);
 

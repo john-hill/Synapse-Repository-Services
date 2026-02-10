@@ -51,11 +51,15 @@ public class AccessControlListManagerTest {
 	
 	private UserInfo userInfo;
 	private UserInfo adminUser;
-	
+	private AccessControlList acl;
+
 	@BeforeEach
 	public void before() {
 		userInfo = new UserInfo(false, 123L, DEFAULT_REALM);
 		adminUser = new UserInfo(true, 456L, DEFAULT_REALM);
+		acl = new AccessControlList().setId("222").setCreationDate(new Date());
+		acl.setResourceAccess(Set.of(new ResourceAccess().setPrincipalId(1L).setAccessType(Set.of(ACCESS_TYPE.READ)),
+				new ResourceAccess().setPrincipalId(123L).setAccessType(Set.of(ACCESS_TYPE.READ)) ));
 	}
 
 	@Test
@@ -122,26 +126,20 @@ public class AccessControlListManagerTest {
 
 	@Test
 	public void testCreate(){
-		AccessControlList acl = new AccessControlList();
-		acl.setResourceAccess(Set.of(new ResourceAccess().setPrincipalId(1L).setAccessType(Set.of(ACCESS_TYPE.READ)),
-				new ResourceAccess().setPrincipalId(2L).setAccessType(Set.of(ACCESS_TYPE.READ)) ));
-		when(userGroupDAO.getUserRealm(anyList())).thenReturn(Map.of("0", Set.of("1", "2")));
+		when(userGroupDAO.getUserRealm(anyList())).thenReturn(Map.of("0", Set.of("1", "123")));
 
 		// call under test
-		aclManager.create(userInfo, acl, ObjectType.ENTITY);
+		aclManager.create(userInfo, acl, ObjectType.ENTITY, userInfo.getId());
 		verify(aclDao, times(1)).create(acl, ObjectType.ENTITY);
 	}
 
 	@Test
 	public void testCreateWithDifferentRealmPrincipalInACL(){
-		AccessControlList acl = new AccessControlList();
-		acl.setResourceAccess(Set.of(new ResourceAccess().setPrincipalId(1L).setAccessType(Set.of(ACCESS_TYPE.READ)),
-				new ResourceAccess().setPrincipalId(2L).setAccessType(Set.of(ACCESS_TYPE.READ)) ));
-		when(userGroupDAO.getUserRealm(anyList())).thenReturn(Map.of("0", Set.of("1"), "1", Set.of("2")));
+		when(userGroupDAO.getUserRealm(anyList())).thenReturn(Map.of("1", Set.of("1"), "0", Set.of("123")));
 
 		// call under test
 		String message = assertThrows(IllegalArgumentException.class, ()-> {
-			aclManager.create(userInfo, acl, ObjectType.ENTITY);
+			aclManager.create(userInfo, acl, ObjectType.ENTITY , userInfo.getId());
 		}).getMessage();
 		assertEquals("All principals in the ACL must be from the same realm.", message);
 		verifyZeroInteractions(aclDao);
@@ -149,15 +147,12 @@ public class AccessControlListManagerTest {
 
 	@Test
 	public void testCreateWithDifferentRealmUser(){
-		AccessControlList acl = new AccessControlList();
-		acl.setResourceAccess(Set.of(new ResourceAccess().setPrincipalId(1L).setAccessType(Set.of(ACCESS_TYPE.READ)),
-				new ResourceAccess().setPrincipalId(2L).setAccessType(Set.of(ACCESS_TYPE.READ)) ));
-		when(userGroupDAO.getUserRealm(anyList())).thenReturn(Map.of("0", Set.of("1", "2")));
+		when(userGroupDAO.getUserRealm(anyList())).thenReturn(Map.of("0", Set.of("1", "123")));
 
 		// call under test
-		userInfo.setRealmId("1");
+		adminUser.setRealmId("1");
 		String message = assertThrows(IllegalArgumentException.class, ()-> {
-			aclManager.create(userInfo, acl, ObjectType.ENTITY);
+			aclManager.create(adminUser, acl, ObjectType.ENTITY, userInfo.getId());
 		}).getMessage();
 		assertEquals("All principals in the ACL must be from the same realm as the user.", message);
 		verifyZeroInteractions(aclDao);
@@ -171,7 +166,7 @@ public class AccessControlListManagerTest {
 		when(userGroupDAO.getUserRealm(anyList())).thenReturn(Map.of("0", Set.of("1", "2")));
 
 		// call under test
-		aclManager.update(userInfo, acl, ObjectType.ENTITY, 123L);
+		aclManager.update(userInfo, acl, ObjectType.ENTITY, userInfo.getId());
 		verify(aclDao, times(1)).update(acl, ObjectType.ENTITY);
 	}
 

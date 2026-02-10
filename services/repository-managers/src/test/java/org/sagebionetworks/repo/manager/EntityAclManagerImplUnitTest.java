@@ -292,8 +292,6 @@ public class EntityAclManagerImplUnitTest {
 		when(mockNodeDao.getBenefactor(projectId)).thenReturn(benefactorId);
 
 		when(mockUser.getId()).thenReturn(userId);
-		when(mockUser.isAdmin()).thenReturn(false);
-		when(mockUser.getGroups()).thenReturn(mockUsersGroups);
 
 		when(mockEntityAuthorizationManager.hasAccess(any(), any(), any(ACCESS_TYPE.class))).thenReturn(AuthorizationStatus.authorized());
 		
@@ -313,8 +311,6 @@ public class EntityAclManagerImplUnitTest {
 		when(mockNodeDao.getBenefactor(folderId)).thenReturn(benefactorId);
 
 		when(mockUser.getId()).thenReturn(userId);
-		when(mockUser.isAdmin()).thenReturn(false);
-		when(mockUser.getGroups()).thenReturn(mockUsersGroups);
 
 		when(mockEntityAuthorizationManager.hasAccess(any(), any(), any(ACCESS_TYPE.class))).thenReturn(AuthorizationStatus.authorized());
 		
@@ -334,8 +330,6 @@ public class EntityAclManagerImplUnitTest {
 		when(mockNodeDao.getBenefactor(fileId)).thenReturn(benefactorId);
 
 		when(mockUser.getId()).thenReturn(userId);
-		when(mockUser.isAdmin()).thenReturn(false);
-		when(mockUser.getGroups()).thenReturn(mockUsersGroups);
 
 		when(mockEntityAuthorizationManager.hasAccess(any(), any(), any(ACCESS_TYPE.class))).thenReturn(AuthorizationStatus.authorized());
 		AccessControlList acl = AccessControlListUtil.createACLToGrantEntityAdminAccess(fileId, mockUser, new Date());
@@ -354,8 +348,6 @@ public class EntityAclManagerImplUnitTest {
 		when(mockNodeDao.getBenefactor(fileId)).thenReturn(benefactorId);
 
 		when(mockUser.getId()).thenReturn(userId);
-		when(mockUser.isAdmin()).thenReturn(false);
-		when(mockUser.getGroups()).thenReturn(mockUsersGroups);
 
 		when(mockEntityAuthorizationManager.hasAccess(any(), any(), any(ACCESS_TYPE.class))).thenReturn(AuthorizationStatus.authorized());
 		
@@ -375,8 +367,6 @@ public class EntityAclManagerImplUnitTest {
 		when(mockNodeDao.getBenefactor(folderId)).thenReturn(benefactorId);
 
 		when(mockUser.getId()).thenReturn(userId);
-		when(mockUser.isAdmin()).thenReturn(false);
-		when(mockUser.getGroups()).thenReturn(mockUsersGroups);
 
 		when(mockEntityAuthorizationManager.hasAccess(any(), any(), any(ACCESS_TYPE.class))).thenReturn(AuthorizationStatus.authorized());
 		AccessControlList acl = AccessControlListUtil.createACLToGrantEntityAdminAccess(folderId, mockUser, new Date());
@@ -389,7 +379,7 @@ public class EntityAclManagerImplUnitTest {
 		// Call under test.
 		AccessControlList result = entityAclManager.overrideInheritance(acl, mockUser);
 		assertSame(acl, result);
-		verify(mockAclManager).create(mockUser, acl, ObjectType.ENTITY);
+		verify(mockAclManager).create(mockUser, acl, ObjectType.ENTITY, folder.getCreatedByPrincipalId());
 	}
 
 	@Test
@@ -399,8 +389,6 @@ public class EntityAclManagerImplUnitTest {
 		when(mockNodeDao.getBenefactor(fileId)).thenReturn(benefactorId);
 
 		when(mockUser.getId()).thenReturn(userId);
-		when(mockUser.isAdmin()).thenReturn(false);
-		when(mockUser.getGroups()).thenReturn(mockUsersGroups);
 
 		when(mockEntityAuthorizationManager.hasAccess(any(), any(), any(ACCESS_TYPE.class))).thenReturn(AuthorizationStatus.authorized());
 		AccessControlList acl = AccessControlListUtil.createACLToGrantEntityAdminAccess(fileId, mockUser, new Date());
@@ -411,7 +399,7 @@ public class EntityAclManagerImplUnitTest {
 		// Call under test.
 		AccessControlList result = entityAclManager.overrideInheritance(acl, mockUser);
 		assertSame(acl, result);
-		verify(mockAclManager).create(mockUser, acl, ObjectType.ENTITY);
+		verify(mockAclManager).create(mockUser, acl, ObjectType.ENTITY, file.getCreatedByPrincipalId());
 	}
 
 	@Test

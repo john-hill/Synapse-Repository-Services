@@ -83,9 +83,8 @@ public class EvaluationPermissionsManagerImpl implements EvaluationPermissionsMa
 		}
 
 		final String evalOwerId = eval.getOwnerId();
-		PermissionsManagerUtils.validateACLContent(acl, userInfo, Long.parseLong(evalOwerId));
 
-		aclManager.create(userInfo, acl, ObjectType.EVALUATION);
+		aclManager.create(userInfo, acl, ObjectType.EVALUATION, Long.parseLong(evalOwerId));
 		acl = aclManager.getAcl(evalId, ObjectType.EVALUATION).orElseThrow(() ->
 				new NotFoundException(String.format(ACL_DOES_NOT_EXIST, evalId, ObjectType.EVALUATION)));
 		return acl;

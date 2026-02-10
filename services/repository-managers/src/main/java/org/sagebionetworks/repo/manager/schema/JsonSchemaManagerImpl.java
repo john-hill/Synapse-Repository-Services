@@ -115,7 +115,7 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 
 		// Create an ACL for the
 		AccessControlList acl = AccessControlListUtil.createACL(org.getId(), user, ADMIN_PERMISSIONS, new Date());
-		aclManager.create(user, acl, ObjectType.ORGANIZATION);
+		aclManager.create(user, acl, ObjectType.ORGANIZATION, Long.parseLong(org.getId()));
 
 		return org;
 	}

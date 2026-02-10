@@ -296,7 +296,7 @@ public class TeamManagerImpl implements TeamManager {
 		groupMembersDAO.addMembers(id.toString(), Arrays.asList(new String[]{userInfo.getId().toString()}));
 		// create ACL, adding the current user to the team, as an admin
 		AccessControlList acl = createInitialAcl(userInfo, id.toString(), now);
-		aclManager.create(userInfo, acl, ObjectType.TEAM);
+		aclManager.create(userInfo, acl, ObjectType.TEAM, Long.parseLong(created.getId()));
 		return created;
 	}
 	

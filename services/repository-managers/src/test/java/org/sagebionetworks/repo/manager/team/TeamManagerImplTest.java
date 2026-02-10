@@ -327,7 +327,7 @@ public class TeamManagerImplTest {
 		assertEquals(TEAM_ID, created.getId());
 		verify(mockAuthorizationManager).canAccessRawFileHandleById(userInfo, "101");
 		verify(mockTeamDAO).create(team);
-		verify(mockAclManager).create(eq(userInfo), any(AccessControlList.class), eq(ObjectType.TEAM));
+		verify(mockAclManager).create(eq(userInfo), any(AccessControlList.class), eq(ObjectType.TEAM), eq(Long.parseLong(TEAM_ID)));
 		verify(mockGroupMembersDAO).addMembers(TEAM_ID, Arrays.asList(new String[]{MEMBER_PRINCIPAL_ID}));
 		// verify that ID and dates are set in returned team
 		assertNotNull(created.getCreatedOn());
@@ -343,7 +343,7 @@ public class TeamManagerImplTest {
 		when(mockAuthorizationManager.canAccessRawFileHandleById(any(), any())).thenReturn(AuthorizationStatus.authorized());
 		when(mockUserGroupDAO.create(any(UserGroup.class))).thenReturn(Long.parseLong(TEAM_ID));
 		when(mockTeamDAO.create(team)).thenReturn(team);
-		doNothing().when(mockAclManager).create(eq(adminInfo), any(AccessControlList.class), eq(ObjectType.TEAM));
+		doNothing().when(mockAclManager).create(eq(adminInfo), any(AccessControlList.class), eq(ObjectType.TEAM), eq(Long.parseLong(TEAM_ID)));
 		// Call under test
 		// Create the team in the specified realm
 		Team created = teamManagerImpl.create(adminInfo,team,REALM_ID);

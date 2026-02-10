@@ -75,11 +75,11 @@ public class PortalManagerUnitTest {
 	public void testCreatePortalWithAdmin() {
 
 		when(mockPortalDao.createPortal(user.getId(), request.getName(), request.getUrl())).thenReturn(portal);
-		doNothing().when(mockAclManager).create(eq(user), any(AccessControlList.class), eq(ObjectType.PORTAL));
+		doNothing().when(mockAclManager).create(eq(user), any(AccessControlList.class), eq(ObjectType.PORTAL), eq(Long.parseLong(portal.getId())));
 		// Call under test
 		assertEquals(portal, manager.createPortal(user, request));
 
-		verify(mockAclManager).create(user, acl, ObjectType.PORTAL);
+		verify(mockAclManager).create(user, acl, ObjectType.PORTAL, Long.parseLong(portal.getId()));
 	}
 
 	@Test

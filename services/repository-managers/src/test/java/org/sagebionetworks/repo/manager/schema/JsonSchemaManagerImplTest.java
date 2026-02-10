@@ -351,7 +351,7 @@ public class JsonSchemaManagerImplTest {
 	public void testCreateOrganziation() {
 		when(mockOrganizationDao.createOrganization(createOrganizationRequest.getOrganizationName(), user.getId()))
 				.thenReturn(organization);
-		doNothing().when(mockAclManager).create(eq(user), any(AccessControlList.class), eq(ObjectType.ORGANIZATION));
+		doNothing().when(mockAclManager).create(eq(user), any(AccessControlList.class), eq(ObjectType.ORGANIZATION), eq(Long.parseLong(organization.getId())));
 		// call under test
 		Organization returned = manager.createOrganziation(user, createOrganizationRequest);
 		assertNotNull(returned);
@@ -359,7 +359,7 @@ public class JsonSchemaManagerImplTest {
 
 		verify(mockOrganizationDao).createOrganization(createOrganizationRequest.getOrganizationName(), user.getId());
 
-		verify(mockAclManager).create(eq(user), aclCaptor.capture(), eq(ObjectType.ORGANIZATION));
+		verify(mockAclManager).create(eq(user), aclCaptor.capture(), eq(ObjectType.ORGANIZATION), eq(Long.parseLong(organization.getId())));
 		AccessControlList acl = aclCaptor.getValue();
 		assertNotNull(acl);
 		assertEquals(returned.getId(), acl.getId());

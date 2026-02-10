@@ -93,7 +93,7 @@ public class FormManagerImpl implements FormManager {
 		// Create an ACL for the
 		AccessControlList acl = AccessControlListUtil.createACL(group.getGroupId(), user, FORM_GROUP_ADMIN_PERMISSIONS,
 				new Date());
-		aclManager.create(user, acl, ObjectType.FORM_GROUP);
+		aclManager.create(user, acl, ObjectType.FORM_GROUP, Long.parseLong(group.getGroupId()));
 		return group;
 	}
 

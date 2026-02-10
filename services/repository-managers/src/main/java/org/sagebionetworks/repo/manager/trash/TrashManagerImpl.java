@@ -208,7 +208,7 @@ public class TrashManagerImpl implements TrashManager {
 		if(NodeUtils.isRootEntityId(newParentId)){
 			// Create an ACL for this entity.
 			AccessControlList acl = AccessControlListUtil.createACLToGrantEntityAdminAccess(nodeId, currentUser, new Date());
-			aclManager.create(currentUser, acl, ObjectType.ENTITY);
+			aclManager.create(currentUser, acl, ObjectType.ENTITY, node.getCreatedByPrincipalId());
 		}
 
 		// Update the trash can table

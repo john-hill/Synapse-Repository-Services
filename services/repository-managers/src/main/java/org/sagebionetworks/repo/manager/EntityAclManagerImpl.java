@@ -138,9 +138,6 @@ public class EntityAclManagerImpl implements EntityAclManager {
 		}
 		// check permissions of user to change permissions for the resource
 		entityAuthorizationManager.hasAccess(userInfo, benefactorId, CHANGE_PERMISSIONS).checkAuthorizationOrElseThrow();
-		
-		// validate the Entity owners will still have access.
-		PermissionsManagerUtils.validateACLContent(acl, userInfo, node.getCreatedByPrincipalId());
 
 		// Can't override ACL inheritance if the entity lives inside an STS-enabled folder.
 		// If the project setting is defined on the current entity, you can still override ACL inheritance.
@@ -152,7 +149,7 @@ public class EntityAclManagerImpl implements EntityAclManager {
 		// Before we can update the ACL we must grab the lock on the node.
 		String newEtag = nodeDao.touch(userInfo.getId(), entityId);
 		// validate the acl and persist acl
-		aclManager.create(userInfo, acl, ObjectType.ENTITY);
+		aclManager.create(userInfo, acl, ObjectType.ENTITY, node.getCreatedByPrincipalId());
 		acl = aclManager.getAcl(entityId, ObjectType.ENTITY).orElseThrow(() ->
 				new NotFoundException(String.format(ACL_DOES_NOT_EXIST, entityId, ObjectType.ENTITY)));
 		// Send a container message for projects or folders.

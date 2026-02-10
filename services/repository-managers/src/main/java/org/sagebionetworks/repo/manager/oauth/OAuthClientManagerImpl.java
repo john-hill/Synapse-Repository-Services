@@ -211,7 +211,7 @@ public class OAuthClientManagerImpl implements OAuthClientManager {
 		OAuthClient client = oauthClientDao.createOAuthClient(oauthClient);
 		
 		AccessControlList acl = createAccessControlList(userInfo.getId(), oauthClient.getClient_id());
-		aclManager.create(userInfo, acl, ObjectType.OAUTH_CLIENT);
+		aclManager.create(userInfo, acl, ObjectType.OAUTH_CLIENT, Long.parseLong(client.getCreatedBy()));
 		
 		Map<String, Object> notificationContext = new HashMap<>();
 		

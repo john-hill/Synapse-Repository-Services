@@ -174,7 +174,7 @@ public class FormManagerTest {
 		verify(mockFormDao).createFormGroup(user.getId(), groupName);
 		verify(mockFormDao).lookupGroupByName(groupName);
 		// should create an ACL
-		verify(mockAclManager).create(eq(user), aclCaptor.capture(), eq(ObjectType.FORM_GROUP));
+		verify(mockAclManager).create(eq(user), aclCaptor.capture(), eq(ObjectType.FORM_GROUP), eq(Long.parseLong(group.getGroupId())));
 		verify(mockAclManager, never()).canAccess(any(UserInfo.class), anyString(), any(ObjectType.class),
 				any(ACCESS_TYPE.class));
 		AccessControlList acl = aclCaptor.getValue();
@@ -209,7 +209,7 @@ public class FormManagerTest {
 		assertEquals(groupToReturn, group);
 		verify(mockAclManager).canAccess(user, groupToReturn.getGroupId(), ObjectType.FORM_GROUP, ACCESS_TYPE.READ);
 		verify(mockFormDao, never()).createFormGroup(anyLong(), anyString());
-		verify(mockAclManager, never()).create(any(UserInfo.class), any(AccessControlList.class), any(ObjectType.class));
+		verify(mockAclManager, never()).create(any(UserInfo.class), any(AccessControlList.class), any(ObjectType.class), anyLong());
 	}
 
 	/**
@@ -230,7 +230,7 @@ public class FormManagerTest {
 		assertEquals("The group name: someName is unavailable, please chooser another name.", exception.getMessage());
 		verify(mockAclManager).canAccess(user, groupToReturn.getGroupId(), ObjectType.FORM_GROUP, ACCESS_TYPE.READ);
 		verify(mockFormDao, never()).createFormGroup(anyLong(), anyString());
-		verify(mockAclManager, never()).create(any(UserInfo.class), any(AccessControlList.class), any(ObjectType.class));
+		verify(mockAclManager, never()).create(any(UserInfo.class), any(AccessControlList.class), any(ObjectType.class), anyLong());
 	}
 
 	@Test

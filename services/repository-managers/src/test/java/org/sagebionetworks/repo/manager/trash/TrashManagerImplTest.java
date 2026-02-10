@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
@@ -122,6 +123,7 @@ public class TrashManagerImplTest {
 		testNode.setName(nodeName);
 		testNode.setParentId(nodeParentID);
 		testNode.setFileHandleId(FILE_HANDLE_ID);
+		testNode.setCreatedByPrincipalId(userID);
 		testNode.setNodeType(EntityType.file);
 		nodeTrashedEntity = spy(new TrashedEntity());
 		nodeTrashedEntity.setOriginalParentId(nodeParentID);
@@ -376,7 +378,7 @@ public class TrashManagerImplTest {
 
 		verify(mockNodeDAO, times(1)).updateNode(testNode);
 		verify(mockTrashCanDao).delete(Collections.singletonList(KeyFactory.stringToKey(nodeID)));
-		verify(mockAclManager, never()).create(any(UserInfo.class), any(AccessControlList.class), any(ObjectType.class));
+		verify(mockAclManager, never()).create(any(UserInfo.class), any(AccessControlList.class), any(ObjectType.class), anyLong());
 	}
 
 	/**
@@ -398,7 +400,7 @@ public class TrashManagerImplTest {
 
 		when(mockNodeDAO.getNode(nodeID)).thenReturn(testNode);
 
-		doNothing().when(mockAclManager).create(eq(userInfo), any(AccessControlList.class), eq(ObjectType.ENTITY));
+		doNothing().when(mockAclManager).create(eq(userInfo), any(AccessControlList.class), eq(ObjectType.ENTITY),eq(testNode.getCreatedByPrincipalId()));
 
 		testNode.setNodeType(EntityType.project);
 		// call under test - move the entity to root.
@@ -407,7 +409,7 @@ public class TrashManagerImplTest {
 		verify(mockNodeDAO, times(1)).updateNode(testNode);
 		verify(mockTrashCanDao).delete(Collections.singletonList(KeyFactory.stringToKey(nodeID)));
 		// An ACL should be created for the project
-		verify(mockAclManager).create(eq(userInfo), any(AccessControlList.class), eq(ObjectType.ENTITY));
+		verify(mockAclManager).create(eq(userInfo), any(AccessControlList.class), eq(ObjectType.ENTITY), eq(testNode.getCreatedByPrincipalId()));
 	}
 
 	/**

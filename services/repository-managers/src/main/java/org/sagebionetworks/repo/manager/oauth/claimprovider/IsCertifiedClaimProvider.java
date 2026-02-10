@@ -1,6 +1,5 @@
 package org.sagebionetworks.repo.manager.oauth.claimprovider;
 
-
 import org.sagebionetworks.repo.manager.UserInfoHelper;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.model.oauth.OIDCClaimName;

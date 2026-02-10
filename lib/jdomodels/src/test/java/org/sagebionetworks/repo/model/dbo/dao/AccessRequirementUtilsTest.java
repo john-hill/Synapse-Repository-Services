@@ -411,13 +411,16 @@ public class AccessRequirementUtilsTest {
 	
 	@Test
 	public void testValidateAccessRequirementAclAccessWithWrongPublicGroup() {
+		Long publicGroupId = 99999L; // show that the logic works for any public id
+		UserInfo userInfo = createUserInfo();
+		userInfo.setRealmPublicUsersId(publicGroupId);
 		AccessControlList acl = new AccessControlList().setResourceAccess(Set.of(
-			new ResourceAccess().setPrincipalId(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId()).setAccessType(Set.of(ACCESS_TYPE.READ))
+			new ResourceAccess().setPrincipalId(publicGroupId).setAccessType(Set.of(ACCESS_TYPE.READ))
 		));
 		
-		String message = assertThrows(IllegalArgumentException.class, () -> {			
+		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// Call under test
-			AccessRequirementUtils.validateAccessRequirementAcl(acl, createUserInfo());
+			AccessRequirementUtils.validateAccessRequirementAcl(acl, userInfo);
 		}).getMessage();
 		
 		assertEquals("Cannot assign permissions to the public group.", message);

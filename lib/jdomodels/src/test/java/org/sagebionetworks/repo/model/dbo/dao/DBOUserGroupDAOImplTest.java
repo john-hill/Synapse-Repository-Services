@@ -10,6 +10,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.junit.After;
 import org.junit.Before;
@@ -27,7 +29,6 @@ import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.jdo.NodeTestUtils;
 import org.sagebionetworks.repo.model.principal.BootstrapPrincipal;
-import org.sagebionetworks.repo.model.principal.PrincipalAliasDAO;
 import org.sagebionetworks.repo.model.util.AccessControlListUtil;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,9 +47,6 @@ public class DBOUserGroupDAOImplTest {
 
 	@Autowired
 	private AccessControlListDAO aclDAO;
-
-	@Autowired
-	private PrincipalAliasDAO principalAliasDAO;
 
 	@Autowired
 	private NodeDAO nodeDao;
@@ -186,6 +184,36 @@ public class DBOUserGroupDAOImplTest {
 
 		// Call under test
 		userGroupDAO.delete(groupId.toString());
+	}
+
+	@Test
+	public void testGetUserRealm() {
+		//User in default realm
+		UserGroup group = new UserGroup();
+		group.setIsIndividual(false);
+		group.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
+		String groupId = userGroupDAO.create(group).toString();
+		assertNotNull(groupId);
+		groupsToDelete.add(groupId);
+
+		//User in another realm
+		UserGroup groupTwo = new UserGroup();
+		groupTwo.setIsIndividual(true);
+		groupTwo.setRealmId("1");
+		String groupIdTwo = userGroupDAO.create(groupTwo).toString();
+		assertNotNull(groupIdTwo);
+		groupsToDelete.add(groupIdTwo);
+
+		Map<String, Set<String>> userRealms = userGroupDAO.getUserRealm(List.of(groupId, groupIdTwo));
+		assertNotNull(userRealms);
+		assertEquals(2, userRealms.size());
+		userRealms.entrySet().stream().forEach(entry -> {
+			if (entry.getKey().equals(AuthorizationConstants.DEFAULT_REALM_ID)) {
+				assertEquals(groupId, entry.getValue().iterator().next());
+			} else if (entry.getKey().equals("1")) {
+				assertEquals(groupIdTwo, entry.getValue().iterator().next());
+			}
+		});
 	}
 
 }

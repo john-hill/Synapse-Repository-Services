@@ -31,6 +31,7 @@ import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import org.apache.commons.lang3.RandomStringUtils;
@@ -43,6 +44,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.manager.AccessControlListManager;
 import org.sagebionetworks.repo.manager.AuthorizationManager;
 import org.sagebionetworks.repo.manager.ProjectSettingsManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -102,15 +104,13 @@ public class AccessRequirementManagerImplUnitTest {
 	@Mock
 	private AccessRequirementDAO accessRequirementDAO;
 	@Mock
-	private AccessApprovalDAO accessApprovalDAO;
-	@Mock
 	private NodeDAO nodeDao;
 	@Mock
 	private AuthorizationManager authorizationManager;
 	@Mock
 	private TransactionalMessenger mockTransactionalMessenger;
 	@Mock
-	private AccessControlListDAO mockAclDao;
+	private AccessControlListManager mockAclManager;
 	@Mock
 	private DataAccessAuthorizationManager mockDaAuthManager;
 
@@ -896,7 +896,7 @@ public class AccessRequirementManagerImplUnitTest {
 		when(authorizationManager.isACTTeamMemberOrAdmin(userInfo)).thenReturn(true);
 		when(accessRequirementDAO.get("1")).thenReturn(expectedAr);
 		arm.deleteAccessRequirement(userInfo, "1");
-		verify(mockAclDao).delete("1", ObjectType.ACCESS_REQUIREMENT);
+		verify(mockAclManager).delete("1", ObjectType.ACCESS_REQUIREMENT);
 		verify(accessRequirementDAO).delete("1");
 		verify(mockTransactionalMessenger).sendMessageAfterCommit(TEST_ENTITY_ID, ObjectType.ENTITY, ChangeType.UPDATE);
 		verify(mockTransactionalMessenger).sendMessageAfterCommit(
@@ -1482,7 +1482,7 @@ public class AccessRequirementManagerImplUnitTest {
 		AccessControlList expected = generateArAcl(2L);
 		
 		when(accessRequirementDAO.get(any())).thenReturn(ar);
-		when(mockAclDao.get(any(), any())).thenReturn(expected);
+		when(mockAclManager.getAcl(any(), any())).thenReturn(Optional.ofNullable(expected));
 		
 		// Call under test
 		AccessControlList result = arm.getAccessRequirementAcl(userInfo, arId.toString());
@@ -1490,7 +1490,7 @@ public class AccessRequirementManagerImplUnitTest {
 		assertEquals(expected, result);
 		
 		verify(accessRequirementDAO).get(arId.toString());
-		verify(mockAclDao).get(arId.toString(), ObjectType.ACCESS_REQUIREMENT);
+		verify(mockAclManager).getAcl(arId.toString(), ObjectType.ACCESS_REQUIREMENT);
 	}
 	
 	@Test
@@ -1506,7 +1506,7 @@ public class AccessRequirementManagerImplUnitTest {
 		assertEquals("userInfo is required.", message);
 
 		verifyZeroInteractions(accessRequirementDAO);
-		verifyZeroInteractions(mockAclDao);
+		verifyZeroInteractions(mockAclManager);
 	}
 	
 	@Test
@@ -1520,7 +1520,7 @@ public class AccessRequirementManagerImplUnitTest {
 		assertEquals("accessRequirementId is required.", message);
 		
 		verifyZeroInteractions(accessRequirementDAO);
-		verifyZeroInteractions(mockAclDao);
+		verifyZeroInteractions(mockAclManager);
 	}
 	
 	@Test
@@ -1532,7 +1532,7 @@ public class AccessRequirementManagerImplUnitTest {
 		
 		when(authorizationManager.isACTTeamMemberOrAdmin(any())).thenReturn(true);
 		when(accessRequirementDAO.get(any())).thenReturn(ar);
-		when(mockAclDao.get(any(), any())).thenReturn(acl);
+		when(mockAclManager.getAcl(any(), any())).thenReturn(Optional.ofNullable(acl));
 		
 		// Call under test
 		arm.createAccessRequirementAcl(userInfo, arId.toString(), acl);
@@ -1541,8 +1541,8 @@ public class AccessRequirementManagerImplUnitTest {
 		assertNotNull(acl.getCreationDate());
 		
 		verify(authorizationManager).isACTTeamMemberOrAdmin(userInfo);
-		verify(mockAclDao).create(acl, ObjectType.ACCESS_REQUIREMENT);
-		verify(mockAclDao).get(arId.toString(), ObjectType.ACCESS_REQUIREMENT);
+		verify(mockAclManager).create(userInfo, acl, ObjectType.ACCESS_REQUIREMENT);
+		verify(mockAclManager).getAcl(arId.toString(), ObjectType.ACCESS_REQUIREMENT);
 	}
 
 	@Test
@@ -1562,7 +1562,7 @@ public class AccessRequirementManagerImplUnitTest {
 		
 		verify(authorizationManager).isACTTeamMemberOrAdmin(userInfo);
 		verifyZeroInteractions(accessRequirementDAO);
-		verifyZeroInteractions(mockAclDao);
+		verifyZeroInteractions(mockAclManager);
 	}
 	
 	@Test
@@ -1580,7 +1580,7 @@ public class AccessRequirementManagerImplUnitTest {
 		
 		verifyZeroInteractions(authorizationManager);
 		verifyZeroInteractions(accessRequirementDAO);
-		verifyZeroInteractions(mockAclDao);
+		verifyZeroInteractions(mockAclManager);
 	}
 	
 	@Test
@@ -1597,7 +1597,7 @@ public class AccessRequirementManagerImplUnitTest {
 		
 		verifyZeroInteractions(authorizationManager);
 		verifyZeroInteractions(accessRequirementDAO);
-		verifyZeroInteractions(mockAclDao);
+		verifyZeroInteractions(mockAclManager);
 	}
 	
 	@Test
@@ -1615,7 +1615,7 @@ public class AccessRequirementManagerImplUnitTest {
 		
 		verifyZeroInteractions(authorizationManager);
 		verifyZeroInteractions(accessRequirementDAO);
-		verifyZeroInteractions(mockAclDao);
+		verifyZeroInteractions(mockAclManager);
 	}
 	
 	@Test
@@ -1627,7 +1627,7 @@ public class AccessRequirementManagerImplUnitTest {
 		
 		when(authorizationManager.isACTTeamMemberOrAdmin(any())).thenReturn(true);
 		when(accessRequirementDAO.get(any())).thenReturn(ar);
-		when(mockAclDao.get(any(), any())).thenReturn(acl);
+		when(mockAclManager.getAcl(any(), any())).thenReturn(Optional.ofNullable(acl));
 		
 		// Call under test
 		arm.updateAccessRequirementAcl(userInfo, arId.toString(), acl);
@@ -1635,8 +1635,8 @@ public class AccessRequirementManagerImplUnitTest {
 		assertEquals(acl.getId(), arId.toString());
 		
 		verify(authorizationManager).isACTTeamMemberOrAdmin(userInfo);
-		verify(mockAclDao).update(acl, ObjectType.ACCESS_REQUIREMENT);
-		verify(mockAclDao).get(arId.toString(), ObjectType.ACCESS_REQUIREMENT);
+		verify(mockAclManager).update(userInfo, acl, ObjectType.ACCESS_REQUIREMENT, arId);
+		verify(mockAclManager).getAcl(arId.toString(), ObjectType.ACCESS_REQUIREMENT);
 	}
 
 	@Test
@@ -1655,7 +1655,7 @@ public class AccessRequirementManagerImplUnitTest {
 		assertEquals("Only an ACT member can update the ACL of an access requirement.", message);
 
 		verifyZeroInteractions(accessRequirementDAO);
-		verifyZeroInteractions(mockAclDao);
+		verifyZeroInteractions(mockAclManager);
 	}
 	
 	@Test
@@ -1673,7 +1673,7 @@ public class AccessRequirementManagerImplUnitTest {
 
 		verifyZeroInteractions(authorizationManager);
 		verifyZeroInteractions(accessRequirementDAO);
-		verifyZeroInteractions(mockAclDao);
+		verifyZeroInteractions(mockAclManager);
 	}
 	
 	@Test
@@ -1690,7 +1690,7 @@ public class AccessRequirementManagerImplUnitTest {
 
 		verifyZeroInteractions(authorizationManager);
 		verifyZeroInteractions(accessRequirementDAO);
-		verifyZeroInteractions(mockAclDao);
+		verifyZeroInteractions(mockAclManager);
 	}
 	
 	@Test
@@ -1708,7 +1708,7 @@ public class AccessRequirementManagerImplUnitTest {
 
 		verifyZeroInteractions(authorizationManager);
 		verifyZeroInteractions(accessRequirementDAO);
-		verifyZeroInteractions(mockAclDao);
+		verifyZeroInteractions(mockAclManager);
 	}
 	
 	@Test
@@ -1725,7 +1725,7 @@ public class AccessRequirementManagerImplUnitTest {
 		
 		verify(authorizationManager).isACTTeamMemberOrAdmin(userInfo);
 		verify(accessRequirementDAO).get(arId.toString());
-		verify(mockAclDao).delete(arId.toString(), ObjectType.ACCESS_REQUIREMENT);
+		verify(mockAclManager).delete(arId.toString(), ObjectType.ACCESS_REQUIREMENT);
 	}
 	
 	@Test
@@ -1744,7 +1744,7 @@ public class AccessRequirementManagerImplUnitTest {
 		
 		verify(authorizationManager).isACTTeamMemberOrAdmin(userInfo);
 		verifyZeroInteractions(accessRequirementDAO);
-		verifyZeroInteractions(mockAclDao);
+		verifyZeroInteractions(mockAclManager);
 	}
 	
 	@Test
@@ -1761,7 +1761,7 @@ public class AccessRequirementManagerImplUnitTest {
 		
 		verifyZeroInteractions(authorizationManager);
 		verifyZeroInteractions(accessRequirementDAO);
-		verifyZeroInteractions(mockAclDao);
+		verifyZeroInteractions(mockAclManager);
 	}
 	
 	@Test
@@ -1776,7 +1776,7 @@ public class AccessRequirementManagerImplUnitTest {
 		
 		verifyZeroInteractions(authorizationManager);
 		verifyZeroInteractions(accessRequirementDAO);
-		verifyZeroInteractions(mockAclDao);
+		verifyZeroInteractions(mockAclManager);
 	}
 	
 	private AccessControlList generateArAcl(Long userId) {

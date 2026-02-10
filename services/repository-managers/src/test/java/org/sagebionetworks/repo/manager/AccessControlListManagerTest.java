@@ -5,12 +5,18 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.Date;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -20,17 +26,25 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
+import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.ResourceAccess;
+import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 
 import com.google.common.collect.Sets;
+import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 
 @ExtendWith(MockitoExtension.class)
 public class AccessControlListManagerTest {
+	public static final String DEFAULT_REALM = "0";
 	
 	@Mock
 	private AccessControlListDAO aclDao;
+
+	@Mock
+	private UserGroupDAO userGroupDAO;
 	
 	@InjectMocks
 	private AccessControlListManagerImpl aclManager;
@@ -40,8 +54,8 @@ public class AccessControlListManagerTest {
 	
 	@BeforeEach
 	public void before() {
-		userInfo = new UserInfo(false, 123L);
-		adminUser = new UserInfo(true, 456L);
+		userInfo = new UserInfo(false, 123L, DEFAULT_REALM);
+		adminUser = new UserInfo(true, 456L, DEFAULT_REALM);
 	}
 
 	@Test
@@ -104,5 +118,118 @@ public class AccessControlListManagerTest {
 		assertThrows(IllegalArgumentException.class, ()-> {
 			aclManager.getAccessibleProjectIds(principalIds);
 		});
+	}
+
+	@Test
+	public void testCreate(){
+		AccessControlList acl = new AccessControlList();
+		acl.setResourceAccess(Set.of(new ResourceAccess().setPrincipalId(1L).setAccessType(Set.of(ACCESS_TYPE.READ)),
+				new ResourceAccess().setPrincipalId(2L).setAccessType(Set.of(ACCESS_TYPE.READ)) ));
+		when(userGroupDAO.getUserRealm(anyList())).thenReturn(Map.of("0", Set.of("1", "2")));
+
+		// call under test
+		aclManager.create(userInfo, acl, ObjectType.ENTITY);
+		verify(aclDao, times(1)).create(acl, ObjectType.ENTITY);
+	}
+
+	@Test
+	public void testCreateWithDifferentRealmPrincipalInACL(){
+		AccessControlList acl = new AccessControlList();
+		acl.setResourceAccess(Set.of(new ResourceAccess().setPrincipalId(1L).setAccessType(Set.of(ACCESS_TYPE.READ)),
+				new ResourceAccess().setPrincipalId(2L).setAccessType(Set.of(ACCESS_TYPE.READ)) ));
+		when(userGroupDAO.getUserRealm(anyList())).thenReturn(Map.of("0", Set.of("1"), "1", Set.of("2")));
+
+		// call under test
+		String message = assertThrows(IllegalArgumentException.class, ()-> {
+			aclManager.create(userInfo, acl, ObjectType.ENTITY);
+		}).getMessage();
+		assertEquals("All principals in the ACL must be from the same realm.", message);
+		verifyZeroInteractions(aclDao);
+	}
+
+	@Test
+	public void testCreateWithDifferentRealmUser(){
+		AccessControlList acl = new AccessControlList();
+		acl.setResourceAccess(Set.of(new ResourceAccess().setPrincipalId(1L).setAccessType(Set.of(ACCESS_TYPE.READ)),
+				new ResourceAccess().setPrincipalId(2L).setAccessType(Set.of(ACCESS_TYPE.READ)) ));
+		when(userGroupDAO.getUserRealm(anyList())).thenReturn(Map.of("0", Set.of("1", "2")));
+
+		// call under test
+		userInfo.setRealmId("1");
+		String message = assertThrows(IllegalArgumentException.class, ()-> {
+			aclManager.create(userInfo, acl, ObjectType.ENTITY);
+		}).getMessage();
+		assertEquals("All principals in the ACL must be from the same realm as the user.", message);
+		verifyZeroInteractions(aclDao);
+	}
+
+	@Test
+	public void testUpdate(){
+		AccessControlList acl = new AccessControlList().setId("222").setCreationDate(new Date());
+		acl.setResourceAccess(Set.of(new ResourceAccess().setPrincipalId(1L).setAccessType(Set.of(ACCESS_TYPE.READ)),
+				new ResourceAccess().setPrincipalId(2L).setAccessType(Set.of(ACCESS_TYPE.READ)) ));
+		when(userGroupDAO.getUserRealm(anyList())).thenReturn(Map.of("0", Set.of("1", "2")));
+
+		// call under test
+		aclManager.update(userInfo, acl, ObjectType.ENTITY, 123L);
+		verify(aclDao, times(1)).update(acl, ObjectType.ENTITY);
+	}
+
+	@Test
+	public void testCanAccess(){
+		String objectId = "123";
+		when(aclDao.canAccess(userInfo, objectId, ObjectType.ENTITY, ACCESS_TYPE.READ)).thenReturn(AuthorizationStatus.authorized());
+		AuthorizationStatus canAccess = aclManager.canAccess(userInfo, objectId, ObjectType.ENTITY, ACCESS_TYPE.READ);
+		assertNotNull(canAccess);
+		verify(aclDao, times(1)).canAccess(userInfo, objectId, ObjectType.ENTITY, ACCESS_TYPE.READ);
+	}
+
+	@Test
+	public void testGetAcl(){
+		String objectId = "123";
+		AccessControlList expected = new AccessControlList().setId(objectId);
+		when(aclDao.getAcl(objectId, ObjectType.ENTITY)).thenReturn(Optional.ofNullable(expected));
+		Optional<AccessControlList> result = aclManager.getAcl(objectId, ObjectType.ENTITY);
+		assertTrue(result.isPresent());
+		assertEquals(expected, result.get());
+		verify(aclDao, times(1)).getAcl(objectId, ObjectType.ENTITY);
+	}
+
+	@Test
+	public void testGetChildrenEntitiesWithAcls(){
+		List<Long> parentIds = List.of(123L, 456L);
+		List<Long> expected = List.of(789L, 101L);
+		when(aclDao.getChildrenEntitiesWithAcls(parentIds)).thenReturn(expected);
+		List<Long> result = aclManager.getChildrenEntitiesWithAcls(parentIds);
+		assertEquals(expected, result);
+		verify(aclDao, times(1)).getChildrenEntitiesWithAcls(parentIds);
+	}
+
+	@Test
+	public void testGetNonVisibleChildrenOfEntity(){
+		Set<Long> groups = Set.of(123L, 456L);
+		String parentId = "789";
+		Set<Long> expected = Set.of(101L, 102L);
+		when(aclDao.getNonVisibleChilrenOfEntity(groups, parentId)).thenReturn(expected);
+		Set<Long> result = aclManager.getNonVisibleChilrenOfEntity(groups, parentId);
+		assertEquals(expected, result);
+		verify(aclDao, times(1)).getNonVisibleChilrenOfEntity(groups, parentId);
+	}
+
+	@Test
+	public void testDeleteWithIds(){
+		Long id1 = 123L;
+		Long id2 = 456L;
+		when(aclDao.delete(any(List.class), any(ObjectType.class))).thenReturn(2);
+		int count = aclManager.delete(List.of(id1, id2), ObjectType.ENTITY);
+		assertEquals(2, count);
+		verify(aclDao, times(1)).delete(List.of(id1, id2), ObjectType.ENTITY);
+	}
+
+	@Test
+	public void testTruncateALL(){
+		// call under test
+		aclManager.truncateAll();
+		verify(aclDao, times(1)).truncateAll();
 	}
 }

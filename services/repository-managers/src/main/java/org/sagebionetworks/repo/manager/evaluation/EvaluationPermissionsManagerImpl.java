@@ -19,11 +19,11 @@ import org.sagebionetworks.evaluation.dao.EvaluationDAO;
 import org.sagebionetworks.evaluation.dao.SubmissionDAO;
 import org.sagebionetworks.evaluation.model.Evaluation;
 import org.sagebionetworks.evaluation.model.UserEvaluationPermissions;
+import org.sagebionetworks.repo.manager.AccessControlListManager;
 import org.sagebionetworks.repo.manager.PermissionsManagerUtils;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
-import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
@@ -43,14 +43,22 @@ import org.springframework.stereotype.Service;
 @Service
 public class EvaluationPermissionsManagerImpl implements EvaluationPermissionsManager {
 
+	public static final String ACL_DOES_NOT_EXIST = "ACL for '%s' of type '%s' does not exist";
+
+	private final EvaluationDAO evaluationDAO;
+	private final UserManager userManager;
+	private final AccessControlListManager aclManager;
+	private final SubmissionDAO submissionDAO;
+
 	@Autowired
-	private AccessControlListDAO aclDAO;
-	@Autowired
-	private EvaluationDAO evaluationDAO;
-	@Autowired
-	private UserManager userManager;
-	@Autowired
-	private SubmissionDAO submissionDAO;
+	public EvaluationPermissionsManagerImpl(EvaluationDAO evaluationDAO,
+											UserManager userManager, AccessControlListManager aclManager,
+											SubmissionDAO submissionDAO) {
+		this.evaluationDAO = evaluationDAO;
+		this.userManager = userManager;
+		this.aclManager = aclManager;
+		this.submissionDAO = submissionDAO;
+	}
 
 	@Override
 	public AccessControlList createAcl(UserInfo userInfo, AccessControlList acl)
@@ -77,8 +85,9 @@ public class EvaluationPermissionsManagerImpl implements EvaluationPermissionsMa
 		final String evalOwerId = eval.getOwnerId();
 		PermissionsManagerUtils.validateACLContent(acl, userInfo, Long.parseLong(evalOwerId));
 
-		final String aclId = aclDAO.create(acl, ObjectType.EVALUATION);
-		acl = aclDAO.get(aclId, ObjectType.EVALUATION);
+		aclManager.create(userInfo, acl, ObjectType.EVALUATION);
+		acl = aclManager.getAcl(evalId, ObjectType.EVALUATION).orElseThrow(() ->
+				new NotFoundException(String.format(ACL_DOES_NOT_EXIST, evalId, ObjectType.EVALUATION)));
 		return acl;
 	}
 
@@ -103,12 +112,12 @@ public class EvaluationPermissionsManagerImpl implements EvaluationPermissionsMa
 		hasAccess(userInfo, evalId, CHANGE_PERMISSIONS).checkAuthorizationOrElseThrow();
 
 		final Long evalOwnerId = KeyFactory.stringToKey(eval.getOwnerId());
-		PermissionsManagerUtils.validateACLContent(acl, userInfo, evalOwnerId);
 
 		validateUserGroupPermissions(acl.getResourceAccess());
 
-		aclDAO.update(acl, ObjectType.EVALUATION);
-		return aclDAO.get(evalId, ObjectType.EVALUATION);
+		aclManager.update(userInfo, acl, ObjectType.EVALUATION, evalOwnerId);
+		return aclManager.getAcl(evalId, ObjectType.EVALUATION).orElseThrow(() ->
+				new NotFoundException(String.format(ACL_DOES_NOT_EXIST, evalId, ObjectType.EVALUATION)));
 	}
 
 	@Override
@@ -125,7 +134,7 @@ public class EvaluationPermissionsManagerImpl implements EvaluationPermissionsMa
 			throw new UnauthorizedException("User " + userInfo.getId().toString()
 					+ " not authorized to change permissions on evaluation " + evalId);
 		}
-		aclDAO.delete(evalId, ObjectType.EVALUATION);
+		aclManager.delete(evalId, ObjectType.EVALUATION);
 	}
 
 	@Override
@@ -138,8 +147,8 @@ public class EvaluationPermissionsManagerImpl implements EvaluationPermissionsMa
 			throw new IllegalArgumentException("Evaluation ID cannot be null or empty.");
 		}
 
-		AccessControlList acl = aclDAO.get(evalId, ObjectType.EVALUATION);
-		return acl;
+		return aclManager.getAcl(evalId, ObjectType.EVALUATION).orElseThrow(() ->
+				new NotFoundException(String.format(ACL_DOES_NOT_EXIST, evalId, ObjectType.EVALUATION)));
 	}
 
 	/**
@@ -154,7 +163,7 @@ public class EvaluationPermissionsManagerImpl implements EvaluationPermissionsMa
 		}
 
 		return hasAccess(userInfo, accessType).orElseGet(() -> {
-			if (!aclDAO.canAccess(userInfo.getGroups(), evalId, ObjectType.EVALUATION, accessType)) {
+			if (!aclManager.canAccess(userInfo.getGroups(), evalId, ObjectType.EVALUATION, accessType)) {
 				return AuthorizationStatus.accessDenied("User lacks "+accessType+" access to Evaluation "+evalId);
 			}
 			
@@ -174,7 +183,7 @@ public class EvaluationPermissionsManagerImpl implements EvaluationPermissionsMa
 				.collect(Collectors.toSet());
 		
 		return hasAccess(userInfo, accessType).orElseGet(() -> {
-			Set<Long> accessibleSet = aclDAO.getAccessibleBenefactors(userInfo.getGroups(), benefactorIds, ObjectType.EVALUATION, accessType);
+			Set<Long> accessibleSet = aclManager.getAccessibleBenefactors(userInfo, ObjectType.EVALUATION, benefactorIds, accessType);
 			
 			if (accessibleSet.size() != benefactorIds.size()) {
 				return AuthorizationStatus.accessDenied("User lacks "+accessType+" access to all the evaluations in the set.");

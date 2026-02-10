@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import org.junit.jupiter.api.Assertions;
@@ -37,6 +38,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.reflection.model.PaginatedResults;
+import org.sagebionetworks.repo.manager.AccessControlListManager;
 import org.sagebionetworks.repo.manager.AuthorizationManager;
 import org.sagebionetworks.repo.manager.EmailUtils;
 import org.sagebionetworks.repo.manager.MessageToUserAndBody;
@@ -125,6 +127,8 @@ public class TeamManagerImplTest {
 	private UserProfileManager mockUserProfileManager;
 	@Mock
 	private ProjectStatsManager mockProjectStatsManager;
+	@Mock
+	private AccessControlListManager mockAclManager;
 
 	@InjectMocks
 	TeamManagerImpl teamManagerImpl;
@@ -323,7 +327,7 @@ public class TeamManagerImplTest {
 		assertEquals(TEAM_ID, created.getId());
 		verify(mockAuthorizationManager).canAccessRawFileHandleById(userInfo, "101");
 		verify(mockTeamDAO).create(team);
-		verify(mockAclDAO).create((AccessControlList)any(), eq(ObjectType.TEAM));
+		verify(mockAclManager).create(eq(userInfo), any(AccessControlList.class), eq(ObjectType.TEAM));
 		verify(mockGroupMembersDAO).addMembers(TEAM_ID, Arrays.asList(new String[]{MEMBER_PRINCIPAL_ID}));
 		// verify that ID and dates are set in returned team
 		assertNotNull(created.getCreatedOn());
@@ -339,7 +343,7 @@ public class TeamManagerImplTest {
 		when(mockAuthorizationManager.canAccessRawFileHandleById(any(), any())).thenReturn(AuthorizationStatus.authorized());
 		when(mockUserGroupDAO.create(any(UserGroup.class))).thenReturn(Long.parseLong(TEAM_ID));
 		when(mockTeamDAO.create(team)).thenReturn(team);
-		
+		doNothing().when(mockAclManager).create(eq(adminInfo), any(AccessControlList.class), eq(ObjectType.TEAM));
 		// Call under test
 		// Create the team in the specified realm
 		Team created = teamManagerImpl.create(adminInfo,team,REALM_ID);
@@ -434,7 +438,7 @@ public class TeamManagerImplTest {
 		verify(mockTeamDAO, times(2)).create(any(Team.class));
 		verify(mockAclDAO, times(2)).create(any(AccessControlList.class), eq(ObjectType.TEAM));
 	}
-	
+
 	@Test
 	public void testRerunBootstrapTeamsIdempotent() {
 		BootstrapTeam team1 = createBootstrapTeam("32","Bootstrap Team 1");
@@ -442,21 +446,21 @@ public class TeamManagerImplTest {
 		List<BootstrapTeam> toBootstrap = Lists.newArrayList();
 		toBootstrap.add(team1);
 		toBootstrap.add(team2);
-		
+
 		when(mockTeamDAO.get(team1.getId())).thenReturn(new Team());
 		when(mockTeamDAO.get(team2.getId())).thenReturn(new Team());
 		when(mockPrincipalManager.isAliasValid(any(String.class), eq(AliasType.TEAM_NAME))).thenReturn(true);
 		Mockito.verifyZeroInteractions(mockTeamDAO);
 		Mockito.verifyZeroInteractions(mockBasicDAO);
 		Mockito.verifyZeroInteractions(mockPrincipalAliasDAO);
-		Mockito.verifyZeroInteractions(mockAclDAO);
+		Mockito.verifyZeroInteractions(mockAclManager);
 
 		teamManagerImpl.setTeamsToBootstrap(toBootstrap);
 		teamManagerImpl.bootstrapTeams();
-		
+
 		verify(mockTeamDAO, times(2)).get(any(String.class));
 	}
-	
+
 	// verify that an invalid team creates an exception
 	@Test
 	public void testCreateInvalidTeam() {
@@ -466,20 +470,20 @@ public class TeamManagerImplTest {
 			teamManagerImpl.create(userInfo,team);
 		});
 	}
-	
+
 	// verify that an invalid team creates an exception
 	@Test
 	public void testCreateExistingTeam() {
 		// not allowed to specify ID of team being created
 		Team team = createTeam(null, "name", "description", null, "101", null, null, null, null);
 		when(mockPrincipalAliasDAO.bindAliasToPrincipal(any(PrincipalAlias.class))).thenThrow(new NameConflictException());
-		
+
 		Assertions.assertThrows(NameConflictException.class, ()-> {
 			teamManagerImpl.create(userInfo,team);
 		});
 	}
-	
-	
+
+
 	@Test
 	public void testGetById() {
 		Team team = createTeam(TEAM_ID, "name", "description", "etag", "101", null, null, null, null);
@@ -487,7 +491,7 @@ public class TeamManagerImplTest {
 		assertEquals(team, teamManagerImpl.get(TEAM_ID));
 		verify(mockTeamDAO).get(TEAM_ID);
 	}
-	
+
 	@Test
 	public void testGetBatch() {
 		Team team = createTeam(TEAM_ID, "name", "description", "etag", "101", null, null, null, null);
@@ -496,11 +500,11 @@ public class TeamManagerImplTest {
 		PaginatedResults<Team> result = teamManagerImpl.list(userInfo, 10,0);
 		assertEquals(teamList.getList(), result.getResults());
 		assertEquals(1L, result.getTotalNumberOfResults());
-		
+
 		when(mockTeamDAO.list(Collections.singletonList(101L))).thenReturn(teamList);
 		assertEquals(teamList, teamManagerImpl.list(Collections.singletonList(101L)));
 	}
-	
+
 	@Test
 	public void testGetByMember() {
 		Team team = createTeam(TEAM_ID, "name", "description", "etag", "101", null, null, null, null);
@@ -533,7 +537,7 @@ public class TeamManagerImplTest {
 		assertEquals(expected, result.getTeamIds());
 		assertEquals(new NextPageToken(1, 1).toToken(), result.getNextPageToken());
 	}
-	
+
 	@Test
 	public void testPut() {
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
@@ -542,15 +546,15 @@ public class TeamManagerImplTest {
 		when(mockTeamDAO.update(team)).thenReturn(team);
 		// Call under test
 		Team updated = teamManagerImpl.put(userInfo, team);
-		
+
 		assertEquals(updated, team);
 		assertNotNull(updated.getModifiedBy());
 		assertNotNull(updated.getModifiedOn());
-		
+
 		verify(mockTeamDAO).get(TEAM_ID);
 		verify(mockTeamDAO).update(team);
 	}
-	
+
 	@Test
 	public void testPutWithNoIcon() {
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
@@ -561,42 +565,42 @@ public class TeamManagerImplTest {
 		when(mockTeamDAO.update(team)).thenReturn(team);
 		// Call under test
 		Team updated = teamManagerImpl.put(userInfo, team);
-		
+
 		assertEquals(updated, team);
-		
+
 		verify(mockTeamDAO).get(TEAM_ID);
 		verify(mockAuthorizationManager, never()).canAccessRawFileHandleById(any(), any());
 	}
-	
+
 	@Test
 	public void testPutWithNewIcon() {
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		Team existingTeam = createTeam(TEAM_ID, "name", "description", "etag", "101", null, null, null, null);
 		Team team = createTeam(TEAM_ID, "name", "description", "etag", "102", null, null, null, null);
-		
+
 		when(mockTeamDAO.get(any())).thenReturn(existingTeam);
 		when(mockAuthorizationManager.canAccessRawFileHandleById(any(), any())).thenReturn(AuthorizationStatus.authorized());
 		when(mockTeamDAO.update(team)).thenReturn(team);
-		
+
 		// Call under test
 		Team updated = teamManagerImpl.put(userInfo, team);
-		
+
 		assertEquals(updated, team);
-		
+
 		verify(mockTeamDAO).get(TEAM_ID);
 		verify(mockAuthorizationManager).canAccessRawFileHandleById(userInfo, "102");
 	}
-	
+
 	@Test
 	public void testPutWithNotAllowedIcon() {
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		Team existingTeam = createTeam(TEAM_ID, "name", "description", "etag", "101", null, null, null, null);
 		Team team = createTeam(TEAM_ID, "name", "description", "etag", "102", null, null, null, null);
-		
+
 		when(mockTeamDAO.get(any())).thenReturn(existingTeam);
 		when(mockAuthorizationManager.canAccessRawFileHandleById(any(), any())).thenReturn(AuthorizationStatus.accessDenied("Denied"));
 
-		String errorMessage = assertThrows(UnauthorizedException.class, () -> {			
+		String errorMessage = assertThrows(UnauthorizedException.class, () -> {
 			// Call under test
 			teamManagerImpl.put(userInfo, team);
 		}).getMessage();
@@ -606,7 +610,7 @@ public class TeamManagerImplTest {
 		verify(mockAuthorizationManager).canAccessRawFileHandleById(userInfo, "102");
 
 	}
-	
+
 	@Test
 	public void testUnathorizedPut() {
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.accessDenied(""));
@@ -616,7 +620,7 @@ public class TeamManagerImplTest {
 			teamManagerImpl.put(userInfo, team);
 		});
 	}
-	
+
 	@Test
 	public void testDelete() {
 		Team retrievedTeam = new Team();
@@ -626,11 +630,11 @@ public class TeamManagerImplTest {
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.DELETE)).thenReturn(AuthorizationStatus.authorized());
 		teamManagerImpl.delete(userInfo, TEAM_ID);
 		verify(mockTeamDAO).delete(TEAM_ID);
-		verify(mockAclDAO).delete(TEAM_ID, ObjectType.TEAM);
+		verify(mockAclManager).delete(TEAM_ID, ObjectType.TEAM);
 		verify(mockUserGroupDAO).delete(TEAM_ID);
 		verify(mockTeamDAO).get(TEAM_ID);
 	}
-	
+
 	@Test
 	public void testUnauthorizedDelete() {
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.DELETE)).thenReturn(AuthorizationStatus.accessDenied(""));
@@ -638,7 +642,7 @@ public class TeamManagerImplTest {
 			teamManagerImpl.delete(userInfo, TEAM_ID);
 		});
 	}
-	
+
 	@Test
 	public void testCanAddTeamMemberSELF() {
 		when(mockRestrictionInformationManager.
@@ -646,7 +650,7 @@ public class TeamManagerImplTest {
 					thenReturn(noUnmetAccessRqmtResponse);
 		// let the team be a non-Open team (which it is by default)
 		when(mockTeamDAO.getState(TEAM_ID)).thenReturn(TeamState.CLOSED);
-		
+
 		// I can add myself if I'm an admin on the Team
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		when(mockUserGroupDAO.get(Long.parseLong(TEAM_ID))).thenReturn(new UserGroup().setRealmId(REALM_ID));
@@ -658,7 +662,7 @@ public class TeamManagerImplTest {
 		assertEquals(teamManagerImpl.canAddTeamMember(userInfo, TEAM_ID, userInfo, false), TeamManagerImpl.UNAUTHORIZED_ADD_TEAM_MEMBER_MUST_HAVE_INVITATION);
 		// ... but it returns true if I'm already on the team...
 		assertEquals(teamManagerImpl.canAddTeamMember(userInfo, TEAM_ID, userInfo, true), TeamManagerImpl.AUTHORIZED_ADD_TEAM_MEMBER);
-		
+
 		// ...or if the team is Open
 		when(mockTeamDAO.getState(TEAM_ID)).thenReturn(TeamState.PUBLIC);
 		assertEquals(teamManagerImpl.canAddTeamMember(userInfo, TEAM_ID, userInfo, false), TeamManagerImpl.AUTHORIZED_ADD_TEAM_MEMBER);
@@ -667,12 +671,12 @@ public class TeamManagerImplTest {
 		when(mockTeamDAO.getState(TEAM_ID)).thenReturn(TeamState.CLOSED);
 		when(mockMembershipInvitationDAO.getOpenByTeamAndUserCount(eq(Long.parseLong(TEAM_ID)), eq(MEMBER_PRINCIPAL_ID_LONG), anyLong())).thenReturn(1L);
 		assertEquals(teamManagerImpl.canAddTeamMember(userInfo, TEAM_ID, userInfo, false), TeamManagerImpl.AUTHORIZED_ADD_TEAM_MEMBER);
-		
+
 		// I can't add myself if I'm invited to some other team...
 		when(mockMembershipInvitationDAO.getOpenByTeamAndUserCount(
 				eq(Long.parseLong(TEAM_ID)), eq(MEMBER_PRINCIPAL_ID_LONG), anyLong())).thenReturn(1L);
 		assertEquals(teamManagerImpl.canAddTeamMember(userInfo, TEAM_ID, userInfo, false),  TeamManagerImpl.AUTHORIZED_ADD_TEAM_MEMBER);
-		
+
 		when(mockMembershipInvitationDAO.getOpenByTeamAndUserCount(
 				eq(Long.parseLong(TEAM_ID)), eq(MEMBER_PRINCIPAL_ID_LONG), anyLong())).thenReturn(0L);
 		assertEquals(teamManagerImpl.canAddTeamMember(userInfo, TEAM_ID, userInfo, false), TeamManagerImpl.UNAUTHORIZED_ADD_TEAM_MEMBER_MUST_HAVE_INVITATION);
@@ -720,7 +724,7 @@ public class TeamManagerImplTest {
 	public void testCanAddTeamMemberOTHER() {
 		// I can add someone else if I'm a Synapse admin
 		assertEquals(teamManagerImpl.canAddTeamMember(adminInfo, TEAM_ID, adminInfo, false), TeamManagerImpl.AUTHORIZED_ADD_TEAM_MEMBER);
-		
+
 		// I can't add someone else if they haven't requested it
 		//	 I am an admin for the team
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)).thenReturn(AuthorizationStatus.authorized());
@@ -736,11 +740,11 @@ public class TeamManagerImplTest {
 		assertEquals(teamManagerImpl.canAddTeamMember(userInfo, TEAM_ID, otherUserInfo, false), TeamManagerImpl.UNAUTHORIZED_ADD_TEAM_MEMBER_MUST_HAVE_REQUEST);
 		// but the check returns true if I'm already on the Team
 		assertEquals(teamManagerImpl.canAddTeamMember(userInfo, TEAM_ID, otherUserInfo, true), TeamManagerImpl.AUTHORIZED_ADD_TEAM_MEMBER);
-		
+
 		//	 now there IS a membership request
 		when(mockMembershipRequestDAO.getOpenByTeamAndRequesterCount(eq(Long.parseLong(TEAM_ID)), eq(otherPrincipalId), anyLong())).thenReturn(3L);
 		assertEquals(teamManagerImpl.canAddTeamMember(userInfo, TEAM_ID, otherUserInfo, false), TeamManagerImpl.AUTHORIZED_ADD_TEAM_MEMBER);
-		
+
 		// also, I can't add them even though there's a request if I'm not an admin on the team
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)).thenReturn(AuthorizationStatus.accessDenied(""));
 		assertEquals(teamManagerImpl.canAddTeamMember(userInfo, TEAM_ID, otherUserInfo, false), TeamManagerImpl.UNAUTHORIZED_ADD_TEAM_MEMBER_MUST_BE_TEAM_MANAGER);
@@ -759,7 +763,7 @@ public class TeamManagerImplTest {
 		// ...I can no longer add him
 		assertEquals(teamManagerImpl.canAddTeamMember(userInfo, TEAM_ID, otherUserInfo, false), TeamManagerImpl.UNAUTHORIZED_ADD_TEAM_MEMBER_UNMET_AR_OTHER);
 	}
-	
+
 	@Test
 	public void testAddMember() {
 		// 'userInfo' is a team admin and there is a membership request from 987
@@ -778,7 +782,7 @@ public class TeamManagerImplTest {
 		verify(mockMembershipRequestDAO).deleteByTeamAndRequester(Long.parseLong(TEAM_ID), principalId);
 		verify(mockProjectStatsManager).memberAddedToTeam(eq(Long.parseLong(TEAM_ID)), eq(principalId), any(Date.class));
 	}
-	
+
 	@Test
 	public void testAddMemberAlreadyOnTeam() {
 		// 'userInfo' is a team admin and there is a membership request from 987
@@ -791,7 +795,7 @@ public class TeamManagerImplTest {
 		verify(mockMembershipInvitationDAO).deleteByTeamAndUser(Long.parseLong(TEAM_ID), principalId);
 		verify(mockMembershipRequestDAO).deleteByTeamAndRequester(Long.parseLong(TEAM_ID), principalId);
 	}
-	
+
     @Test
     public void testCanRemoveTeamMember() {
             // admin can do anything
@@ -806,7 +810,7 @@ public class TeamManagerImplTest {
             when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)).thenReturn(AuthorizationStatus.accessDenied(""));
             assertFalse(teamManagerImpl.canRemoveTeamMember(userInfo, TEAM_ID, "987"));
     }
-	
+
 	@Test
 	public void testRemoveMember() {
 		String memberPrincipalId = "987";
@@ -816,13 +820,13 @@ public class TeamManagerImplTest {
 		acl.setResourceAccess(new HashSet<ResourceAccess>());
 		acl.getResourceAccess().add(TeamManagerImpl.createResourceAccess(Long.parseLong(memberPrincipalId), Collections.singleton(ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)));
 		acl.getResourceAccess().add(TeamManagerImpl.createResourceAccess(Long.parseLong("000"), Collections.singleton(ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)));
-		when(mockAclDAO.get(TEAM_ID, ObjectType.TEAM)).thenReturn(acl);
+		when(mockAclManager.getAcl(TEAM_ID, ObjectType.TEAM)).thenReturn(Optional.of(acl));
 		teamManagerImpl.removeMember(userInfo, TEAM_ID, memberPrincipalId);
 		verify(mockGroupMembersDAO).removeMembers(TEAM_ID, Arrays.asList(new String[]{memberPrincipalId}));
-		verify(mockAclDAO).update((AccessControlList)any(), eq(ObjectType.TEAM));
+		verify(mockAclManager).update(eq(userInfo), (AccessControlList)any(), eq(ObjectType.TEAM), eq(Long.parseLong(TEAM_ID)));
 		assertEquals(1, acl.getResourceAccess().size());
 	}
-	
+
 	@Test
 	public void testRemoveLastAdminMember() {
 		String memberPrincipalId = "987";
@@ -832,13 +836,13 @@ public class TeamManagerImplTest {
 		AccessControlList acl = new AccessControlList();
 		acl.setResourceAccess(new HashSet<ResourceAccess>());
 		acl.getResourceAccess().add(TeamManagerImpl.createResourceAccess(Long.parseLong(memberPrincipalId), Collections.singleton(ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)));
-		when(mockAclDAO.get(TEAM_ID, ObjectType.TEAM)).thenReturn(acl);
-		
+		when(mockAclManager.getAcl(TEAM_ID, ObjectType.TEAM)).thenReturn(Optional.of(acl));
+
 		Assertions.assertThrows(InvalidModelException.class, ()-> {
 			teamManagerImpl.removeMember(userInfo, TEAM_ID, memberPrincipalId);
 		});
 	}
-	
+
 	/*
 	 * create team T
 	in the team ACL, set the team to administrator
@@ -854,16 +858,16 @@ public class TeamManagerImplTest {
 			teamManagerImpl.removeMember(userInfo, TEAM_ID, MEMBER_PRINCIPAL_ID);
 		});
 	}
-	
+
 	@Test
 	public void testRemoveMemberUnauthorized() {
 		String memberPrincipalId = "987";
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)).thenReturn(AuthorizationStatus.accessDenied(""));
 		Assertions.assertThrows(UnauthorizedException.class, ()-> {
-			teamManagerImpl.removeMember(userInfo, TEAM_ID, memberPrincipalId);		
+			teamManagerImpl.removeMember(userInfo, TEAM_ID, memberPrincipalId);
 		});
 	}
-	
+
 	@Test
 	public void testRemoveMemberNotInTeam() {
 		String memberPrincipalId = "987";
@@ -871,16 +875,18 @@ public class TeamManagerImplTest {
 		when(mockGroupMembersDAO.getMemberIdsForUpdate(Long.valueOf(TEAM_ID))).thenReturn(Collections.singleton(123L));
 		teamManagerImpl.removeMember(userInfo, TEAM_ID, memberPrincipalId);
 		verify(mockGroupMembersDAO, times(0)).removeMembers(TEAM_ID, Arrays.asList(new String[]{memberPrincipalId}));
-		verify(mockAclDAO, times(0)).update((AccessControlList)any(), eq(ObjectType.TEAM));
+		verify(mockAclManager, times(0)).update(eq(userInfo), any(AccessControlList.class),
+				eq(ObjectType.TEAM), eq(Long.parseLong(TEAM_ID)));
 	}
-	
+
 	@Test
 	public void testGetACL() {
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.READ)).thenReturn(AuthorizationStatus.authorized());
+		when(mockAclManager.getAcl(TEAM_ID, ObjectType.TEAM)).thenReturn(Optional.of(new AccessControlList()));
 		teamManagerImpl.getACL(userInfo, TEAM_ID);
-		verify(mockAclDAO).get(TEAM_ID, ObjectType.TEAM);
+		verify(mockAclManager).getAcl(TEAM_ID, ObjectType.TEAM);
 	}
-	
+
 	@Test
 	public void testGetACLUnAuthorized() {
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.READ)).thenReturn(AuthorizationStatus.accessDenied(""));
@@ -888,16 +894,17 @@ public class TeamManagerImplTest {
 			teamManagerImpl.getACL(userInfo, TEAM_ID);
 		});
 	}
-	
+
 	@Test
 	public void testUpdateACL() {
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		AccessControlList acl = new AccessControlList();
 		acl.setId(TEAM_ID);
+		when(mockAclManager.getAcl(TEAM_ID, ObjectType.TEAM)).thenReturn(Optional.of(acl));
 		teamManagerImpl.updateACL(userInfo, acl);
-		verify(mockAclDAO).update(acl, ObjectType.TEAM);
+		verify(mockAclManager).update(userInfo, acl, ObjectType.TEAM, Long.parseLong(TEAM_ID));
 	}
-	
+
 	@Test
 	public void testUpdateACLUnAuthorized() {
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.accessDenied(""));
@@ -907,23 +914,23 @@ public class TeamManagerImplTest {
 			teamManagerImpl.updateACL(userInfo, acl);
 		});
 	}
-	
+
 	@Test
 	public void testGetIconURL() {
 		String iconFileHandleId = "101";
-		
+
 		Team team = createTeam(null, "name", "description", null, iconFileHandleId, null, null, null, null);
 		when(mockTeamDAO.get(TEAM_ID)).thenReturn(team);
-		
+
 		FileHandleUrlRequest urlRequest = new FileHandleUrlRequest(userInfo, iconFileHandleId)
 				.withAssociation(FileHandleAssociateType.TeamAttachment, TEAM_ID);
-		
+
 		String expectedUrl = "https://testurl.org";
-		
+
 		when(mockFileHandleManager.getRedirectURLForFileHandle(eq(urlRequest))).thenReturn(expectedUrl);
-		
+
 		String url = teamManagerImpl.getIconURL(userInfo, TEAM_ID);
-		
+
 		verify(mockFileHandleManager).getRedirectURLForFileHandle(eq(urlRequest));
 		verify(mockTeamDAO).get(TEAM_ID);
 		assertEquals(expectedUrl, url);
@@ -1028,7 +1035,7 @@ public class TeamManagerImplTest {
 		assertEquals(iconFileHandleId, result);
 		verify(mockTeamDAO).get(TEAM_ID);
 	}
-	
+
 	@Test
 	public void testGetAllTeamsAndMembers() {
 		teamManagerImpl.listAllTeamsAndMembers();
@@ -1128,7 +1135,7 @@ public class TeamManagerImplTest {
 		adminIds.add("101");
 		String prefix = "pfx";
 
-		when(mockPrincipalPrefixDao.listTeamMembersForPrefix(prefix, Long.parseLong(TEAM_ID),10L, 0L)).thenReturn(Arrays.asList(adminMemberId, nonAdminMemberId));		
+		when(mockPrincipalPrefixDao.listTeamMembersForPrefix(prefix, Long.parseLong(TEAM_ID),10L, 0L)).thenReturn(Arrays.asList(adminMemberId, nonAdminMemberId));
 		when(mockTeamDAO.listMembers(Collections.singletonList(Long.parseLong(TEAM_ID)), Arrays.asList(adminMemberId, nonAdminMemberId))).thenReturn(ListWrapper.wrap(Arrays.asList(adminMember, nonAdminMember), TeamMember.class));
 		doNothing().when(mockTeamDAO).validateTeamExists(TEAM_ID);
 		// Call under test
@@ -1238,10 +1245,10 @@ public class TeamManagerImplTest {
 	public void testSetPermissions() {
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		AccessControlList acl = TeamManagerImpl.createInitialAcl(userInfo, TEAM_ID, new Date());
-		when(mockAclDAO.get(TEAM_ID, ObjectType.TEAM)).thenReturn(acl);
+		when(mockAclManager.getAcl(TEAM_ID, ObjectType.TEAM)).thenReturn(Optional.of(acl));
 		String principalId = "321";
 		teamManagerImpl.setPermissions(userInfo, TEAM_ID, principalId, true);
-		verify(mockAclDAO).update((AccessControlList)any(), eq(ObjectType.TEAM));
+		verify(mockAclManager).update(userInfo, acl, ObjectType.TEAM, Long.parseLong(TEAM_ID));
 		// now check that user is actually an admin
 		boolean foundRA=false;
 		for (ResourceAccess ra: acl.getResourceAccess()) {
@@ -1253,7 +1260,7 @@ public class TeamManagerImplTest {
 			}
 		}
 		assertTrue(foundRA);
-		
+
 		// now remove admin permissions
 		teamManagerImpl.setPermissions(userInfo, TEAM_ID, principalId, false);
 		foundRA=false;
@@ -1264,22 +1271,22 @@ public class TeamManagerImplTest {
 		}
 		assertFalse(foundRA);
 	}
-	
+
 	@Test
 	public void testSetRemoveOwnPermissions() {
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		AccessControlList acl = TeamManagerImpl.createInitialAcl(userInfo, TEAM_ID, new Date());
-		when(mockAclDAO.get(TEAM_ID, ObjectType.TEAM)).thenReturn(acl);
+		when(mockAclManager.getAcl(TEAM_ID, ObjectType.TEAM)).thenReturn(Optional.of(acl));
 		String principalId = MEMBER_PRINCIPAL_ID; // add SELF as admin
-		
+
 		teamManagerImpl.setPermissions(userInfo, TEAM_ID, principalId, true);
-		
+
 		Assertions.assertThrows(InvalidModelException.class, ()-> {
 			// now try to remove own admin permissions
 			teamManagerImpl.setPermissions(userInfo, TEAM_ID, principalId, false);
 		});
 	}
-	
+
 	@Test
 	public void testSetPermissionsUnauthorized()  {
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.accessDenied(""));
@@ -1288,7 +1295,7 @@ public class TeamManagerImplTest {
 			teamManagerImpl.setPermissions(userInfo, TEAM_ID, principalId, true);
 		});
 	}
-	
+
 	@Test
 	public void testIsMembershipApprovalRequired() {
 		// admin doesn't require approval
@@ -1296,7 +1303,7 @@ public class TeamManagerImplTest {
 
 		// let the team be a non-Open team (which it is by default)
 		when(mockTeamDAO.getState(TEAM_ID)).thenReturn(TeamState.CLOSED);
-			
+
 		// a team-admin doesn't require approval
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		assertFalse(teamManagerImpl.isMembershipApprovalRequired(userInfo, TEAM_ID));
@@ -1304,23 +1311,23 @@ public class TeamManagerImplTest {
 		// a non-team-admin requires approval
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)).thenReturn(AuthorizationStatus.accessDenied(""));
 		assertTrue(teamManagerImpl.isMembershipApprovalRequired(userInfo, TEAM_ID));
-		
+
 		// unless it's an open team
 		when(mockTeamDAO.getState(TEAM_ID)).thenReturn(TeamState.PUBLIC);
 		assertFalse(teamManagerImpl.isMembershipApprovalRequired(userInfo, TEAM_ID));
 		verify(mockTeamDAO, times(2)).getState(TEAM_ID);
 	}
-	
+
 	@Test
 	public void testGetTeamMembershipStatus() {
 		// let the team be a non-Open team (which it is by default)
 		when(mockTeamDAO.getState(TEAM_ID)).thenReturn(TeamState.CLOSED);
-		
+
 		Long principalId = MEMBER_PRINCIPAL_ID_LONG;
 		UserInfo principalUserInfo = createUserInfo(false, principalId, REALM_ID);
-		
+
 		when(mockGroupMembersDAO.areMemberOf(TEAM_ID, Collections.singleton(principalId.toString()))).thenReturn(true);
-		
+
 		when(mockMembershipInvitationDAO.getOpenByTeamAndUserCount(eq(Long.parseLong(TEAM_ID)), eq(MEMBER_PRINCIPAL_ID_LONG), anyLong())).thenReturn(1L);
 		when(mockMembershipRequestDAO.getOpenByTeamAndRequesterCount(eq(Long.parseLong(TEAM_ID)), eq(MEMBER_PRINCIPAL_ID_LONG), anyLong())).thenReturn(1L);
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)).thenReturn(AuthorizationStatus.accessDenied(""));
@@ -1328,7 +1335,7 @@ public class TeamManagerImplTest {
 		when(mockRestrictionInformationManager.
 				getRestrictionInformation(principalUserInfo, restrictionInfoRqst)).
 					thenReturn(noUnmetAccessRqmtResponse);
-		
+
 		TeamMembershipStatus tms = teamManagerImpl.getTeamMembershipStatus(userInfo, TEAM_ID, principalUserInfo);
 		assertEquals(TEAM_ID, tms.getTeamId());
 		assertEquals(principalId.toString(), tms.getUserId());
@@ -1339,9 +1346,9 @@ public class TeamManagerImplTest {
 		assertTrue(tms.getMembershipApprovalRequired());
 		assertFalse(tms.getHasUnmetAccessRequirement());
 		assertFalse(tms.getCanSendEmail());
-		
+
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.SEND_MESSAGE)).thenReturn(AuthorizationStatus.authorized());
-		
+
 		tms = teamManagerImpl.getTeamMembershipStatus(userInfo, TEAM_ID, principalUserInfo);
 		assertEquals(TEAM_ID, tms.getTeamId());
 		assertEquals(principalId.toString(), tms.getUserId());
@@ -1352,7 +1359,7 @@ public class TeamManagerImplTest {
 		assertTrue(tms.getMembershipApprovalRequired());
 		assertFalse(tms.getHasUnmetAccessRequirement());
 		assertTrue(tms.getCanSendEmail());
-		
+
 		when(mockGroupMembersDAO.areMemberOf(TEAM_ID, Collections.singleton(principalId.toString()))).thenReturn(false);
 		when(mockMembershipInvitationDAO.getOpenByTeamAndUserCount(eq(Long.parseLong(TEAM_ID)), eq(Long.parseLong(MEMBER_PRINCIPAL_ID)), anyLong())).thenReturn(0L);
 		when(mockMembershipRequestDAO.getOpenByTeamAndRequesterCount(eq(Long.parseLong(TEAM_ID)), eq(Long.parseLong(MEMBER_PRINCIPAL_ID)), anyLong())).thenReturn(0L);
@@ -1367,7 +1374,7 @@ public class TeamManagerImplTest {
 		assertTrue(tms.getMembershipApprovalRequired());
 		assertFalse(tms.getHasUnmetAccessRequirement());
 		assertTrue(tms.getCanSendEmail());
-		
+
 		// if the team is open the user 'can join' even if they have no invitation
 		when(mockTeamDAO.getState(TEAM_ID)).thenReturn(TeamState.PUBLIC);
 		tms = teamManagerImpl.getTeamMembershipStatus(userInfo, TEAM_ID, principalUserInfo);
@@ -1380,7 +1387,7 @@ public class TeamManagerImplTest {
 		assertFalse(tms.getMembershipApprovalRequired());
 		assertFalse(tms.getHasUnmetAccessRequirement());
 		assertTrue(tms.getCanSendEmail());
-		
+
 		when(mockRestrictionInformationManager.
 				getRestrictionInformation(principalUserInfo, restrictionInfoRqst)).
 					thenReturn(hasUnmetAccessRqmtResponse);
@@ -1392,7 +1399,7 @@ public class TeamManagerImplTest {
 		assertTrue(tms.getHasUnmetAccessRequirement());
 		assertTrue(tms.getCanSendEmail());
 	}
-	
+
 	@Test
 	public void testCreateJoinedTeamNotificationSelf() {
 		when(mockUserProfileManager.getUserProfile(userInfo.getId().toString())).thenReturn(up);
@@ -1410,13 +1417,13 @@ public class TeamManagerImplTest {
 		}
 		String teamEndpoint = "https://synapse.org/#Team:";
 		String notificationUnsubscribeEndpoint = "https://synapse.org/#notificationUnsubscribeEndpoint:";
-		
+
 		when(mockMembershipInvitationDAO.getInvitersByTeamAndUser(eq(Long.parseLong(TEAM_ID)), eq(Long.parseLong(MEMBER_PRINCIPAL_ID)),
 				anyLong())).
 			thenReturn(inviterPrincipalIds);
 
-		List<MessageToUserAndBody> resultList = 
-				teamManagerImpl.createJoinedTeamNotifications(userInfo, userInfo, TEAM_ID, 
+		List<MessageToUserAndBody> resultList =
+				teamManagerImpl.createJoinedTeamNotifications(userInfo, userInfo, TEAM_ID,
 						teamEndpoint, notificationUnsubscribeEndpoint);
 		assertEquals(inviterPrincipalIds.size(), resultList.size());
 		for (int i=0; i<inviterPrincipalIds.size(); i++) {
@@ -1428,36 +1435,36 @@ public class TeamManagerImplTest {
 			String displayName = EmailUtils.getDisplayNameWithUsername(userProfile);
 			String teamWebLink = teamEndpoint + TEAM_ID;
 			String teamName = "test-name";
-			String expected = "<html style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;font-size: 10px;-webkit-tap-highlight-color: rgba(0, 0, 0, 0);\">\r\n" + 
-					"  <body style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;font-family: &quot;Helvetica Neue&quot;, Helvetica, Arial, sans-serif;font-size: 14px;line-height: 1.42857143;color: #333333;background-color: #ffffff;\">\r\n" + 
-					"    <div style=\"margin: 10px;-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;\">\r\n" + 
-					"      <p style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;margin: 0 0 10px;margin-bottom: 20px;font-size: 16px;font-weight: 300;line-height: 1.4;\">Hello,</p>\r\n" + 
-					"      <p style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;margin: 0 0 10px;\">\r\n" + 
-					"        <strong style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;font-weight: bold;\"><a href=\"https://www.synapse.org/#!Profile:" + userId + "\">" + displayName + "</a></strong>\r\n" + 
-					"        has joined team\r\n" + 
-					"        <strong style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;font-weight: bold;\"><a href=\"" + teamWebLink + "\">" + teamName + "</a></strong>.\r\n" + 
-					"        </p>\r\n" + 
-					"      <p style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;margin: 0 0 10px;\">For further information, visit the <a href=\"" + teamWebLink + "\" style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;background-color: transparent;color: #337ab7;text-decoration: none;\">team page</a>.</p>\r\n" + 
-					"      <br style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;\">\r\n" + 
-					"      <p style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;margin: 0 0 10px;\">\r\n" + 
-					"        Sincerely,\r\n" + 
-					"      </p>\r\n" + 
-					"      <p style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;margin: 0 0 10px;\">\r\n" + 
-					"        <img src=\"https://s3.amazonaws.com/static.synapse.org/images/SynapseLogo2.png\" style=\"display: inline;width: 40px;height: 40px;-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;border: 0;vertical-align: middle;\"> Synapse Administration\r\n" + 
-					"      </p>\r\n" + 
-					"    </div>\r\n" + 
-					"  </body>\r\n" + 
+			String expected = "<html style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;font-size: 10px;-webkit-tap-highlight-color: rgba(0, 0, 0, 0);\">\r\n" +
+					"  <body style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;font-family: &quot;Helvetica Neue&quot;, Helvetica, Arial, sans-serif;font-size: 14px;line-height: 1.42857143;color: #333333;background-color: #ffffff;\">\r\n" +
+					"    <div style=\"margin: 10px;-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;\">\r\n" +
+					"      <p style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;margin: 0 0 10px;margin-bottom: 20px;font-size: 16px;font-weight: 300;line-height: 1.4;\">Hello,</p>\r\n" +
+					"      <p style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;margin: 0 0 10px;\">\r\n" +
+					"        <strong style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;font-weight: bold;\"><a href=\"https://www.synapse.org/#!Profile:" + userId + "\">" + displayName + "</a></strong>\r\n" +
+					"        has joined team\r\n" +
+					"        <strong style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;font-weight: bold;\"><a href=\"" + teamWebLink + "\">" + teamName + "</a></strong>.\r\n" +
+					"        </p>\r\n" +
+					"      <p style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;margin: 0 0 10px;\">For further information, visit the <a href=\"" + teamWebLink + "\" style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;background-color: transparent;color: #337ab7;text-decoration: none;\">team page</a>.</p>\r\n" +
+					"      <br style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;\">\r\n" +
+					"      <p style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;margin: 0 0 10px;\">\r\n" +
+					"        Sincerely,\r\n" +
+					"      </p>\r\n" +
+					"      <p style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;margin: 0 0 10px;\">\r\n" +
+					"        <img src=\"https://s3.amazonaws.com/static.synapse.org/images/SynapseLogo2.png\" style=\"display: inline;width: 40px;height: 40px;-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;border: 0;vertical-align: middle;\"> Synapse Administration\r\n" +
+					"      </p>\r\n" +
+					"    </div>\r\n" +
+					"  </body>\r\n" +
 					"</html>\r\n";
 			assertEquals(expected, result.getBody());
 		}
 		verify(mockTeamDAO).get(TEAM_ID);
 	}
-	
+
 	@Test
 	public void testCreateJoinedTeamNotificationOther() {
 
 		when(mockUserProfileManager.getUserProfile(userInfo.getId().toString())).thenReturn(up);
-		
+
 		Team team = new Team();
 		team.setName("test-name");
 		when(mockTeamDAO.get(TEAM_ID)).thenReturn(team);
@@ -1466,8 +1473,8 @@ public class TeamManagerImplTest {
 		String teamEndpoint = "https://synapse.org/#Team:";
 		String notificationUnsubscribeEndpoint = "https://synapse.org/#notificationUnsubscribeEndpoint:";
 		UserInfo otherUserInfo = createUserInfo(false, otherPrincipalId, REALM_ID);
-		List<MessageToUserAndBody> resultList = 
-				teamManagerImpl.createJoinedTeamNotifications(userInfo, 
+		List<MessageToUserAndBody> resultList =
+				teamManagerImpl.createJoinedTeamNotifications(userInfo,
 						otherUserInfo, TEAM_ID, teamEndpoint,
 						notificationUnsubscribeEndpoint);
 		assertEquals(1, resultList.size());
@@ -1479,30 +1486,30 @@ public class TeamManagerImplTest {
 		String displayName = EmailUtils.getDisplayNameWithUsername(userProfile);
 		String teamWebLink = teamEndpoint + TEAM_ID;
 		String teamName = "test-name";
-		String expected = "<html style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;font-size: 10px;-webkit-tap-highlight-color: rgba(0, 0, 0, 0);\">\r\n" + 
-				"  <body style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;font-family: &quot;Helvetica Neue&quot;, Helvetica, Arial, sans-serif;font-size: 14px;line-height: 1.42857143;color: #333333;background-color: #ffffff;\">\r\n" + 
-				"    <div style=\"margin: 10px;-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;\">\r\n" + 
-				"      <p style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;margin: 0 0 10px;margin-bottom: 20px;font-size: 16px;font-weight: 300;line-height: 1.4;\">Hello,</p>\r\n" + 
-				"      <p style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;margin: 0 0 10px;\">\r\n" + 
-				"        <strong style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;font-weight: bold;\"><a href=\"https://www.synapse.org/#!Profile:" + userId + "\">" + displayName + "</a></strong>\r\n" + 
-				"        has accepted you into team\r\n" + 
-				"        <strong style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;font-weight: bold;\"><a href=\"" + teamWebLink + "\">" + teamName + "</a></strong>.\r\n" + 
-				"      </p>\r\n" + 
-				"      <p style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;margin: 0 0 10px;\">For further information, visit the <a href=\"" + teamWebLink + "\" style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;background-color: transparent;color: #337ab7;text-decoration: none;\">team page</a>.</p>\r\n" + 
-				"      <br style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;\">\r\n" + 
-				"      <p style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;margin: 0 0 10px;\">\r\n" + 
-				"        Sincerely,\r\n" + 
-				"      </p>\r\n" + 
-				"      <p style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;margin: 0 0 10px;\">\r\n" + 
-				"        <img src=\"https://s3.amazonaws.com/static.synapse.org/images/SynapseLogo2.png\" style=\"display: inline;width: 40px;height: 40px;-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;border: 0;vertical-align: middle;\"> Synapse Administration\r\n" + 
-				"      </p>\r\n" + 
-				"    </div>\r\n" + 
-				"  </body>\r\n" + 
+		String expected = "<html style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;font-size: 10px;-webkit-tap-highlight-color: rgba(0, 0, 0, 0);\">\r\n" +
+				"  <body style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;font-family: &quot;Helvetica Neue&quot;, Helvetica, Arial, sans-serif;font-size: 14px;line-height: 1.42857143;color: #333333;background-color: #ffffff;\">\r\n" +
+				"    <div style=\"margin: 10px;-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;\">\r\n" +
+				"      <p style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;margin: 0 0 10px;margin-bottom: 20px;font-size: 16px;font-weight: 300;line-height: 1.4;\">Hello,</p>\r\n" +
+				"      <p style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;margin: 0 0 10px;\">\r\n" +
+				"        <strong style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;font-weight: bold;\"><a href=\"https://www.synapse.org/#!Profile:" + userId + "\">" + displayName + "</a></strong>\r\n" +
+				"        has accepted you into team\r\n" +
+				"        <strong style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;font-weight: bold;\"><a href=\"" + teamWebLink + "\">" + teamName + "</a></strong>.\r\n" +
+				"      </p>\r\n" +
+				"      <p style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;margin: 0 0 10px;\">For further information, visit the <a href=\"" + teamWebLink + "\" style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;background-color: transparent;color: #337ab7;text-decoration: none;\">team page</a>.</p>\r\n" +
+				"      <br style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;\">\r\n" +
+				"      <p style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;margin: 0 0 10px;\">\r\n" +
+				"        Sincerely,\r\n" +
+				"      </p>\r\n" +
+				"      <p style=\"-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;margin: 0 0 10px;\">\r\n" +
+				"        <img src=\"https://s3.amazonaws.com/static.synapse.org/images/SynapseLogo2.png\" style=\"display: inline;width: 40px;height: 40px;-webkit-box-sizing: border-box;-moz-box-sizing: border-box;box-sizing: border-box;border: 0;vertical-align: middle;\"> Synapse Administration\r\n" +
+				"      </p>\r\n" +
+				"    </div>\r\n" +
+				"  </body>\r\n" +
 				"</html>\r\n";
 		assertEquals(expected, result.getBody());
 		verify(mockTeamDAO).get(TEAM_ID);
 	}
-	
+
 	@Test
 	public void testCreateJoinedTeamNotificationWithNullOptionalParameters() {
 		String teamEndpoint = "https://synapse.org/#Team:";
@@ -1514,7 +1521,7 @@ public class TeamManagerImplTest {
 		resultList = teamManagerImpl.createJoinedTeamNotifications(userInfo, userInfo, TEAM_ID, null, notificationUnsubscribeEndpoint);
 		assertTrue(resultList.size() == 0);
 	}
-	
+
 	@Test
 	public void testCountMembers() {
 		Count expected = new Count();
@@ -1541,7 +1548,7 @@ public class TeamManagerImplTest {
 			assertTrue(e.getCause() instanceof DataIntegrityViolationException);
 		}
 		verify(mockTeamDAO).delete(TEAM_ID);
-		verify(mockAclDAO).delete(TEAM_ID, ObjectType.TEAM);
+		verify(mockAclManager).delete(TEAM_ID, ObjectType.TEAM);
 		verify(mockUserGroupDAO).delete(TEAM_ID);
 		verify(mockTeamDAO).get(TEAM_ID);
 

@@ -320,17 +320,6 @@ public class EvaluationPermissionsManagerImplAutowiredTest {
 		String evalId = createEval(evalName, nodeId, adminUserInfo);
 		evaluationPermissionsManager.deleteAcl(adminUserInfo, evalId);
 
-		// ACL does not exist yet (e-tag is null)
-		try {
-			AccessControlList acl = new AccessControlList();
-			acl.setId(evalId);
-			acl = evaluationPermissionsManager.updateAcl(adminUserInfo, acl);
-			aclsToDelete.add(acl.getId());
-			fail();
-		} catch (IllegalArgumentException e) {
-			assertTrue(true);
-		}
-
 		// Not authorized
 		try {
 			AccessControlList acl = createAcl(evalId, adminUserInfo);

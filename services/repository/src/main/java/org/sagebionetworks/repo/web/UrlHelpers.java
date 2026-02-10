@@ -1280,8 +1280,6 @@ public class UrlHelpers {
 	 */
 	public static final String PARAM_REALM_ID = "realm";
 	
-
-	
 	// Endpoint for webhook management
 	public static final String WEBHOOK = "/webhook";
 	public static final String WEBHOOK_LIST = WEBHOOK + "/list";

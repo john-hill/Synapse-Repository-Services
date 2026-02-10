@@ -6320,7 +6320,13 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	
 	@Override
 	public AccessTokenResponse getAnonymousAccessToken(String realmId) throws SynapseException {
-		return getJSONEntity(getAuthEndpoint(),"/anonymousToken", AccessTokenResponse.class);
+		try {
+			return getJSONEntity(getAuthEndpoint(),
+					"/anonymousToken?realm="+URLEncoder.encode(realmId, "UTF-8"), 
+					AccessTokenResponse.class);
+		} catch (UnsupportedEncodingException  e) {
+			throw new SynapseClientException(e);
+		}
 	}
 	
 	@Override

@@ -6320,7 +6320,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	
 	@Override
 	public AccessTokenResponse getAnonymousAccessToken(String realmId) throws SynapseException {
-		return getJSONEntity(getAuthEndpoint(),"TODO", AccessTokenResponse.class);
+		return getJSONEntity(getAuthEndpoint(),"/anonymousToken", AccessTokenResponse.class);
 	}
 	
 	@Override

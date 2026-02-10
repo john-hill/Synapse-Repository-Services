@@ -327,7 +327,7 @@ public class TeamManagerImplTest {
 		assertEquals(TEAM_ID, created.getId());
 		verify(mockAuthorizationManager).canAccessRawFileHandleById(userInfo, "101");
 		verify(mockTeamDAO).create(team);
-		verify(mockAclManager).create(eq(userInfo), any(AccessControlList.class), eq(ObjectType.TEAM), eq(Long.parseLong(TEAM_ID)));
+		verify(mockAclManager).create(eq(userInfo), any(AccessControlList.class), eq(ObjectType.TEAM), eq(userInfo.getId()));
 		verify(mockGroupMembersDAO).addMembers(TEAM_ID, Arrays.asList(new String[]{MEMBER_PRINCIPAL_ID}));
 		// verify that ID and dates are set in returned team
 		assertNotNull(created.getCreatedOn());
@@ -343,7 +343,7 @@ public class TeamManagerImplTest {
 		when(mockAuthorizationManager.canAccessRawFileHandleById(any(), any())).thenReturn(AuthorizationStatus.authorized());
 		when(mockUserGroupDAO.create(any(UserGroup.class))).thenReturn(Long.parseLong(TEAM_ID));
 		when(mockTeamDAO.create(team)).thenReturn(team);
-		doNothing().when(mockAclManager).create(eq(adminInfo), any(AccessControlList.class), eq(ObjectType.TEAM), eq(Long.parseLong(TEAM_ID)));
+		doNothing().when(mockAclManager).create(eq(adminInfo), any(AccessControlList.class), eq(ObjectType.TEAM), eq(adminInfo.getId()));
 		// Call under test
 		// Create the team in the specified realm
 		Team created = teamManagerImpl.create(adminInfo,team,REALM_ID);
@@ -900,9 +900,11 @@ public class TeamManagerImplTest {
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		AccessControlList acl = new AccessControlList();
 		acl.setId(TEAM_ID);
+		Team team = new Team().setId(TEAM_ID).setCreatedBy(adminInfo.getId().toString());
 		when(mockAclManager.getAcl(TEAM_ID, ObjectType.TEAM)).thenReturn(Optional.of(acl));
+		when(mockTeamDAO.get(TEAM_ID)).thenReturn(team);
 		teamManagerImpl.updateACL(userInfo, acl);
-		verify(mockAclManager).update(userInfo, acl, ObjectType.TEAM, Long.parseLong(TEAM_ID));
+		verify(mockAclManager).update(userInfo, acl, ObjectType.TEAM, adminInfo.getId());
 	}
 
 	@Test

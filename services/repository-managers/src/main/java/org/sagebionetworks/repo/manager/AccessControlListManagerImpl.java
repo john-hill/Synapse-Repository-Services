@@ -45,6 +45,10 @@ public class AccessControlListManagerImpl implements AccessControlListManager {
 	}
 
 	private Set<String> getRealmForPrincipalIds(AccessControlList acl) {
+		if(acl.getResourceAccess() == null || acl.getResourceAccess().isEmpty()){
+			return new HashSet<>(0);
+		}
+
 		List<String> principalIds = acl.getResourceAccess().stream().map(ResourceAccess::getPrincipalId)
 				.map(String::valueOf).collect(Collectors.toList());
 

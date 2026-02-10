@@ -296,7 +296,7 @@ public class TeamManagerImpl implements TeamManager {
 		groupMembersDAO.addMembers(id.toString(), Arrays.asList(new String[]{userInfo.getId().toString()}));
 		// create ACL, adding the current user to the team, as an admin
 		AccessControlList acl = createInitialAcl(userInfo, id.toString(), now);
-		aclManager.create(userInfo, acl, ObjectType.TEAM, Long.parseLong(created.getId()));
+		aclManager.create(userInfo, acl, ObjectType.TEAM, Long.parseLong(created.getCreatedBy()));
 		return created;
 	}
 	
@@ -754,7 +754,8 @@ public class TeamManagerImpl implements TeamManager {
 	public AccessControlList updateACL(UserInfo userInfo, AccessControlList acl)
 			throws DatastoreException, UnauthorizedException, NotFoundException {
 		authorizationManager.canAccess(userInfo, acl.getId(), ObjectType.TEAM, ACCESS_TYPE.UPDATE).checkAuthorizationOrElseThrow();
-		aclManager.update(userInfo, acl, ObjectType.TEAM, Long.parseLong(acl.getId()));
+		Team team = teamDAO.get(acl.getId());
+		aclManager.update(userInfo, acl, ObjectType.TEAM, Long.parseLong(team.getCreatedBy()));
 		return aclManager.getAcl(acl.getId(), ObjectType.TEAM).orElseThrow(() -> new NotFoundException("ACL not found for team " + acl.getId()));
 	}
 

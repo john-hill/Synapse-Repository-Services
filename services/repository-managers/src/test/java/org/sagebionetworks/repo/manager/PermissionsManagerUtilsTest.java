@@ -31,6 +31,8 @@ public class PermissionsManagerUtilsTest {
 	public void setUp(){
 		ownerId = 1234L;
 		userInfo = new UserInfo(false, ownerId);
+		userInfo.setRealmAnonymousUserId(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
+		userInfo.setRealmPublicUsersId(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId());
 		otherUserInfo = new UserInfo(false, 56789L);
 		adminUserInfo = new UserInfo(true, 1L);
 		otherUserInfo.getGroups().add(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId());

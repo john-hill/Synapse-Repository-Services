@@ -342,7 +342,7 @@ public class AccessRequirementUtilsTest {
 		));
 		
 		// Call under test
-		AccessRequirementUtils.validateAccessRequirementAcl(acl);
+		AccessRequirementUtils.validateAccessRequirementAcl(acl, BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 	}
 	
 	@Test
@@ -351,7 +351,7 @@ public class AccessRequirementUtilsTest {
 		
 		String message = assertThrows(IllegalArgumentException.class, () -> {			
 			// Call under test
-			AccessRequirementUtils.validateAccessRequirementAcl(acl);
+			AccessRequirementUtils.validateAccessRequirementAcl(acl, BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 		}).getMessage();
 		
 		assertEquals("acl is required.", message);
@@ -363,7 +363,7 @@ public class AccessRequirementUtilsTest {
 		
 		String message = assertThrows(IllegalArgumentException.class, () -> {			
 			// Call under test
-			AccessRequirementUtils.validateAccessRequirementAcl(acl);
+			AccessRequirementUtils.validateAccessRequirementAcl(acl, BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 		}).getMessage();
 		
 		assertEquals("acl.resourceAccess is required and must not be empty.", message);
@@ -375,7 +375,7 @@ public class AccessRequirementUtilsTest {
 		
 		String message = assertThrows(IllegalArgumentException.class, () -> {			
 			// Call under test
-			AccessRequirementUtils.validateAccessRequirementAcl(acl);
+			AccessRequirementUtils.validateAccessRequirementAcl(acl, BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 		}).getMessage();
 		
 		assertEquals("acl.resourceAccess is required and must not be empty.", message);
@@ -383,16 +383,17 @@ public class AccessRequirementUtilsTest {
 	
 	@Test
 	public void testValidateAccessRequirementAclAccessWithWrongAnonymousUser() {
+		Long anonymousUserId = 99999L; // show that the logic works for any anonymous id
 		AccessControlList acl = new AccessControlList().setResourceAccess(Set.of(
-			new ResourceAccess().setPrincipalId(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId()).setAccessType(Set.of(ACCESS_TYPE.READ))
+			new ResourceAccess().setPrincipalId(anonymousUserId).setAccessType(Set.of(ACCESS_TYPE.READ))
 		));
 		
-		String message = assertThrows(IllegalArgumentException.class, () -> {			
+		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// Call under test
-			AccessRequirementUtils.validateAccessRequirementAcl(acl);
+			AccessRequirementUtils.validateAccessRequirementAcl(acl, anonymousUserId);
 		}).getMessage();
 		
-		assertEquals("Cannot assign permissions to the anonmous user.", message);
+		assertEquals("Cannot assign permissions to the anonymous user.", message);
 	}
 	
 	@Test
@@ -403,7 +404,7 @@ public class AccessRequirementUtilsTest {
 		
 		String message = assertThrows(IllegalArgumentException.class, () -> {			
 			// Call under test
-			AccessRequirementUtils.validateAccessRequirementAcl(acl);
+			AccessRequirementUtils.validateAccessRequirementAcl(acl, BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 		}).getMessage();
 		
 		assertEquals("Cannot assign permissions to the public group.", message);

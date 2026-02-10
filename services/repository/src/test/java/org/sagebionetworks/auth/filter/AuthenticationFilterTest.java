@@ -35,14 +35,11 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.sagebionetworks.repo.manager.UserManager;
-import org.sagebionetworks.repo.manager.oauth.OIDCTokenManager;
 import org.sagebionetworks.repo.manager.oauth.OpenIDConnectManager;
 import org.sagebionetworks.repo.model.AuthenticationMethod;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.principal.PrincipalAlias;
-import org.sagebionetworks.repo.service.auth.AuthenticationService;
 import org.sagebionetworks.repo.web.OAuthErrorCode;
 import org.sagebionetworks.repo.web.OAuthUnauthenticatedException;
 import org.springframework.mock.web.MockFilterChain;
@@ -70,24 +67,14 @@ public class AuthenticationFilterTest {
 	private FilterChain mockFilterChain;
 	
 	@Mock
-	private OIDCTokenManager oidcTokenManager;
-	
-	@Mock
 	private OpenIDConnectManager mockOidcManager;
 	
 	@Captor
 	private ArgumentCaptor<HttpServletRequest> requestCaptor;
-
-	@Mock
-	private AuthenticationService mockAuthService;
-	
-	@Mock
-	private UserManager mockUserManager;
 	
 	@InjectMocks
 	private AuthenticationFilter filter;
 
-	private static final String sessionToken = UUID.randomUUID().toString();
 	private static final Long userId = 123456789L;
 	private static final String BEARER_TOKEN;
 	private static final String BEARER_TOKEN_HEADER;

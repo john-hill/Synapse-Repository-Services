@@ -34,7 +34,7 @@ public class RequestThrottleFilter implements Filter {
 		HttpRequestIdentifier httpRequestIdentifier = HttpRequestIdentifierUtils.getRequestIdentifier(request);
 
 		//TODO: remove exception for anonymous users once java client has a way to get session id from cookies
-		if ( isMigrationAdmin(httpRequestIdentifier.getUserId()) || AuthorizationUtils.isUserAnonymous(httpRequestIdentifier.getUserId())) { //do not throttle the admin responsible for migration.
+		if (isMigrationAdmin(httpRequestIdentifier.getUserId()) || AuthorizationUtils.isDefaultRealmAnonymousId(httpRequestIdentifier.getUserId())) { //do not throttle the admin responsible for migration.
 			//proceed to next filter and exit early
 			chain.doFilter(request, response);
 			return;

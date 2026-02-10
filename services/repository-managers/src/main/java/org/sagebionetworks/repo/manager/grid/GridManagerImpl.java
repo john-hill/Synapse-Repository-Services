@@ -25,6 +25,7 @@ import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
+import org.sagebionetworks.repo.model.dbo.grid.GridSource;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlResponse;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
@@ -451,6 +452,11 @@ public class GridManagerImpl implements GridManager {
 	@Override
 	public Optional<GridConnectionInfo> getConnection(String gridSessionId, Long agentsReplicaId) {
 		return gridDao.getConnection(gridSessionId, agentsReplicaId);
+	}
+
+	@Override
+	public Optional<GridSource> getSessionSource(String sessionId) {
+		return gridDao.getSessionSource(sessionId);
 	}
 
 	@WriteTransaction

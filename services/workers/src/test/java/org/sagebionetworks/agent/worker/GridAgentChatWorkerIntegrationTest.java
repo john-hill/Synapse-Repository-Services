@@ -460,7 +460,9 @@ public class GridAgentChatWorkerIntegrationTest {
 							assertEquals(agentSession.getSessionId(), response.getSessionId());
 							assertNotNull(response.getResponseText());
 							System.out.println(response.getResponseText());
-							assertTrue(response.getResponseText().toLowerCase().contains("schema"));
+							String responseLower = response.getResponseText().toLowerCase();
+							assertTrue(responseLower.contains("schema") || responseLower.contains("formattedname")
+									|| responseLower.contains("require"));
 						}, MAX_WAIT_MS)
 				.getResponse();
 

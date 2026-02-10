@@ -270,7 +270,7 @@ public class TeamManagerImpl implements TeamManager {
 
 	private Team createInternal(UserInfo userInfo, Team team, String realmId) throws DatastoreException,
 		InvalidModelException, UnauthorizedException, NotFoundException {
-		if (AuthorizationUtils.isUserAnonymous(userInfo)) {
+		if (userInfo.isUserAnonymous()) {
 				throw new UnauthorizedException("Anonymous user cannot create Team.");
 		}
 		validateForCreate(team);

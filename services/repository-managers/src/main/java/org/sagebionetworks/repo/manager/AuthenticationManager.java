@@ -64,7 +64,7 @@ public interface AuthenticationManager {
 	 * @param principalId
 	 * @return
 	 */
-	LoginResponse loginWithNoPasswordOrTwoFaCheck(long principalId, String tokenIssuer);
+	LoginResponse loginWithNoPasswordOrTwoFaCheck(UserInfo userInfo, String tokenIssuer);
 	
 	/**
 	 * Performs the login through 2FA, the request can be built out of the TwoFactorAuthRequiredException and an otp code

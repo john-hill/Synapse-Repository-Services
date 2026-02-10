@@ -1047,8 +1047,8 @@ public class GridManagerUnitTest {
 
 	@Test
 	public void testListGridSessionsWithAnonymous() {
-		userId = BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId();
-		when(mockUser.getId()).thenReturn(userId);
+		when(mockUser.isUserAnonymous()).thenReturn(true);
+		
 		String message = assertThrows(UnauthorizedException.class, () -> {
 			// call under test
 			gridManager.listActiveGridSessions(mockUser, listGridSessionRequest);

@@ -1,6 +1,6 @@
 package org.sagebionetworks.repo.model.dbo.dao;
 
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NOTIFICATION_EMAIL_ALIAS_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.*;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_PRINCIPAL_ALIAS_DISPLAY;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_PRINCIPAL_ALIAS_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_PRINCIPAL_ALIAS_PRINCIPAL_ID;
@@ -77,15 +77,18 @@ public class DBOUserProfileDAOImpl implements UserProfileDAO {
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
 	
+	private static final String REALM_PARAM_NAME = "realm";
+	
 	private static final String SQL_SELECT_USER_PROFILE = "SELECT G."+COL_USER_GROUP_CREATION_DATE+", P.* FROM "+TABLE_USER_GROUP+" G JOIN "+TABLE_USER_PROFILE+" P ON (G."+COL_USER_GROUP_ID+" = P."+COL_USER_PROFILE_ID+")";
 
 	private static final String SQL_SELECT_PROFILE_BY_ID = SQL_SELECT_USER_PROFILE+" WHERE G."+COL_USER_GROUP_ID+" = ?";
 
-	private static final String SELECT_PAGINATED = SQL_SELECT_USER_PROFILE + " LIMIT :" + LIMIT_PARAM_NAME + " OFFSET :"
-			+ OFFSET_PARAM_NAME;
+	private static final String SELECT_PAGINATED = SQL_SELECT_USER_PROFILE +
+			" WHERE G."+ COL_USER_GROUP_REALM + "= :"+REALM_PARAM_NAME+
+			" LIMIT :" + LIMIT_PARAM_NAME + " OFFSET :"+ OFFSET_PARAM_NAME;
 
 	private static final String LIST_FOR_IDS = SQL_SELECT_USER_PROFILE + " WHERE P." + COL_USER_PROFILE_ID + " in (:"
-			+ COL_USER_PROFILE_ID + ")";
+			+ COL_USER_PROFILE_ID + ") and G."+ COL_USER_GROUP_REALM + "= :"+REALM_PARAM_NAME;
 
 	private static final String SQL_SELECT_PROFILE_PIC_ID = "SELECT "
 			+ COL_USER_PROFILE_PICTURE_ID + " FROM " + TABLE_USER_PROFILE
@@ -191,10 +194,11 @@ public class DBOUserProfileDAOImpl implements UserProfileDAO {
 	}
 
 	@Override
-	public List<UserProfile> getInRange(long fromIncl, long toExcl)
+	public List<UserProfile> getInRange(long fromIncl, long toExcl, String realmId)
 			throws DatastoreException {
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(OFFSET_PARAM_NAME, fromIncl);
+		param.addValue(REALM_PARAM_NAME, realmId);
 		long limit = toExcl - fromIncl;
 		if (limit <= 0)
 			throw new IllegalArgumentException(
@@ -210,10 +214,11 @@ public class DBOUserProfileDAOImpl implements UserProfileDAO {
 		return dtos;
 	}
 	
-	public List<UserProfile> list(List<Long> ids) throws DatastoreException, NotFoundException {
+	public List<UserProfile> list(List<Long> ids, String realmId) throws DatastoreException, NotFoundException {
 		if (ids==null || ids.size()<1) return Collections.emptyList();
 		MapSqlParameterSource param = new MapSqlParameterSource();		
 		param.addValue(COL_USER_PROFILE_ID, ids);
+		param.addValue(REALM_PARAM_NAME, realmId);
 		List<DBOUserProfile> dbos = namedJdbcTemplate.query(LIST_FOR_IDS, param, USER_PROFILE_ROW_MAPPER);
 		Map<String,UserProfile> map = new HashMap<String,UserProfile>();
 		for (DBOUserProfile dbo : dbos) {

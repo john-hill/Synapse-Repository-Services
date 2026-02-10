@@ -32,7 +32,7 @@ public class ITRealm {
     
     private static final String NAME = "test-realm";
     private static final List<IdentityProvider> IDPS = 
-    		List.of(new OAuthIdentityProvider().setProvider(OAuthProvider.ARCUS_BIOSCIENCES));
+    		List.of(new OAuthIdentityProvider().setProvider(OAuthProvider.SAGE_BIONETWORKS));
     
     // parameters for a new user, created inside the realm
     private static final String USER_NAME_IN_REALM = UUID.randomUUID().toString();

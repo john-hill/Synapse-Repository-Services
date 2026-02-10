@@ -1,7 +1,6 @@
 package org.sagebionetworks.repo.web.controller;
 
 import static org.sagebionetworks.repo.model.oauth.OAuthScope.view;
-import static org.sagebionetworks.repo.web.UrlHelpers.ID_PATH_VARIABLE;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -11,9 +10,6 @@ import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.ServiceConstants;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.auth.Realm;
-import org.sagebionetworks.repo.model.auth.RealmIdList;
-import org.sagebionetworks.repo.model.auth.RealmPrincipal;
 import org.sagebionetworks.repo.service.ServiceProvider;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.repo.web.RequiredScope;
@@ -22,7 +18,6 @@ import org.sagebionetworks.repo.web.rest.doc.ControllerInfo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;

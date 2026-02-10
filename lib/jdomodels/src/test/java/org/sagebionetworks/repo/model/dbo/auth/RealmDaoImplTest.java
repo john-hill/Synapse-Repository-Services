@@ -35,7 +35,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 class RealmDaoImplTest {
 	
 	private static final List<IdentityProvider> IDP_LIST = List.of(new OAuthIdentityProvider().
-			setProvider(OAuthProvider.ARCUS_BIOSCIENCES));
+			setProvider(OAuthProvider.SAGE_BIONETWORKS));
 	
 	@Autowired
 	private RealmDao realmDao;

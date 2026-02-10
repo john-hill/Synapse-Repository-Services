@@ -22,12 +22,15 @@ import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.RealmDao;
 import org.sagebionetworks.repo.model.UserGroup;
 import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.OAuthIdentityProvider;
+import org.sagebionetworks.repo.model.auth.Realm;
 import org.sagebionetworks.repo.model.jdo.NodeTestUtils;
+import org.sagebionetworks.repo.model.oauth.OAuthProvider;
 import org.sagebionetworks.repo.model.principal.BootstrapPrincipal;
-import org.sagebionetworks.repo.model.principal.PrincipalAliasDAO;
 import org.sagebionetworks.repo.model.util.AccessControlListUtil;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,7 +51,7 @@ public class DBOUserGroupDAOImplTest {
 	private AccessControlListDAO aclDAO;
 
 	@Autowired
-	private PrincipalAliasDAO principalAliasDAO;
+	private RealmDao realmDao;
 
 	@Autowired
 	private NodeDAO nodeDao;
@@ -56,6 +59,7 @@ public class DBOUserGroupDAOImplTest {
 	private List<String> groupsToDelete;
 	private String aclToDelete;
 	private String projectToDelete;
+	private String realmId;
 
 
 	@Before
@@ -70,6 +74,10 @@ public class DBOUserGroupDAOImplTest {
 		if (projectToDelete != null) nodeDao.delete(projectToDelete);
 		for (String toDelete : groupsToDelete) {
 			userGroupDAO.delete(toDelete);
+		}
+		if (realmId!=null) {
+			realmDao.deleteRealm(realmId);
+			realmId=null;
 		}
 	}
 
@@ -91,6 +99,25 @@ public class DBOUserGroupDAOImplTest {
 		assertEquals(groupId, clone.getId());
 		assertEquals(group.getIsIndividual(), clone.getIsIndividual());
 		assertEquals(1 + initialCount, userGroupDAO.getCount());
+	}
+	
+	@Test
+	public void testGetAll() throws Exception {
+		// create a second realm
+		Realm testRealm = new Realm();
+		testRealm.setName("test");
+		testRealm.setIdentityProvider(List.of(new OAuthIdentityProvider().setProvider(OAuthProvider.SAGE_BIONETWORKS)));
+		testRealm = realmDao.createRealm(testRealm);
+		this.realmId=testRealm.getId();
+		
+		// create an individual and non-individual user in each realm
+		UserGroup individualInRealm0;
+		UserGroup teamInRealm0;
+		UserGroup individualInRealm1;
+		UserGroup teamInRealm1;
+		
+		// method under test
+		userGroupDAO.getAll(false, aclToDelete);
 	}
 
 	@Test(expected = NotFoundException.class)

@@ -363,12 +363,13 @@ public class PrincipalAliasDaoImpl implements PrincipalAliasDAO {
 	}
 
 	@Override
-	public List<UserGroupHeader> listPrincipalHeaders(List<Long> principalIds) {
+	public List<UserGroupHeader> listPrincipalHeaders(List<Long> principalIds, String realmId) {
 		ValidateArgument.required(principalIds, "principalIds");
 		if (principalIds.isEmpty()) {
 			return new LinkedList<>();
 		}
 		final Map<Long, UserGroupHeader> headerMap = new HashMap<>(principalIds.size());
+		// TODO filter on realmId
 		MapSqlParameterSource parameters = new MapSqlParameterSource("principalIds", principalIds);
 		namedTemplate.query(SQL_SELECT_USER_GROUP_HEADERS, parameters, new RowCallbackHandler() {
 

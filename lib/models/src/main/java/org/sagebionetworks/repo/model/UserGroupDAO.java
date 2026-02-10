@@ -17,7 +17,7 @@ public interface UserGroupDAO {
 	 * a variant of the generic 'getAll' query, this allows the caller to
 	 * separately retrieve the individual and non-individual groups.
 	 */	
-	public Collection<UserGroup> getAll(boolean isIndividual) throws DatastoreException;
+	public Collection<UserGroup> getAll(boolean isIndividual, String realmId) throws DatastoreException;
 
 
 	/**
@@ -25,7 +25,7 @@ public interface UserGroupDAO {
 	 * separately retrieve the individual and non-individual groups.
 	 */
 
-	public List<UserGroup> getInRange(long fromIncl, long toExcl, boolean isIndividual) throws DatastoreException;
+	public List<UserGroup> getInRange(long fromIncl, long toExcl, boolean isIndividual, String realmId) throws DatastoreException;
 
 	
 	/**

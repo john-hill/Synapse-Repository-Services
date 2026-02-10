@@ -234,7 +234,7 @@ public class UserProfileController {
 	
 	/**
 	 * Batch get UserGroupHeaders.
-	 * This fetches information about a collection of users or groups, specified by Synapse IDs.
+	 * This fetches information about a collection of users or groups, specified by their principal IDs.
 	 * 
 	 * @param ids IDs are specified as request parameters at the end of the URL, separated by commas.  <p>For example: <pre class="prettyprint">ids=1001,819</pre></p>
 	 */
@@ -254,14 +254,11 @@ public class UserProfileController {
 			longList.add(Long.parseLong(stringId));
 		}
 		// convert to a list of longs
-		return serviceProvider.getUserProfileService().getUserGroupHeadersByIds(longList);
+		return serviceProvider.getUserProfileService().getUserGroupHeadersByIds(userId, longList);
 	}
 
 	/**
-	 * Batch get UserGroupHeaders.
-	 * This fetches information about a collection of users or groups, specified by Synapse IDs.
-	 *
-	 * @param ids IDs are specified as request parameters at the end of the URL, separated by commas. <p>For example: <pre class="prettyprint">ids=1001,819</pre></p>
+	 * Batch get user profiles. This fetches information about a collection of users, specified by Synapse IDs.
 	 */
 	@RequiredScope({view})
 	@ResponseStatus(HttpStatus.OK)

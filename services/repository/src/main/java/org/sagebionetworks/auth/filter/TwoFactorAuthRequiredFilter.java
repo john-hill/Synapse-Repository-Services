@@ -8,11 +8,11 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.sagebionetworks.auth.HttpAuthUtil;
 import org.sagebionetworks.repo.manager.feature.FeatureManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.GroupMembersDAO;
-import org.sagebionetworks.repo.model.RealmDao;
 import org.sagebionetworks.repo.model.auth.AuthenticationDAO;
 import org.sagebionetworks.repo.model.feature.Feature;
 import org.sagebionetworks.repo.web.TwoFactorAuthEnabledRequiredException;
@@ -28,14 +28,12 @@ public class TwoFactorAuthRequiredFilter extends OncePerRequestFilter {
 	private GroupMembersDAO groupMemberDao;
 	private AuthenticationDAO authDao;
 	private FeatureManager featureManager;
-	private RealmDao realmDao;
 	
 	
-	public TwoFactorAuthRequiredFilter(GroupMembersDAO groupMemberDao, AuthenticationDAO authDao, FeatureManager featureManager, RealmDao realmDao) {
+	public TwoFactorAuthRequiredFilter(GroupMembersDAO groupMemberDao, AuthenticationDAO authDao, FeatureManager featureManager) {
 		this.groupMemberDao = groupMemberDao;
 		this.authDao = authDao;
 		this.featureManager = featureManager;
-		this.realmDao = realmDao;
 	}
 
 	@Override
@@ -46,7 +44,7 @@ public class TwoFactorAuthRequiredFilter extends OncePerRequestFilter {
 		
 		// The anonymous user is not a conventional user and cannot enable 2fa
 		// we check to see if the given user is the anonymous user in any realm
-		if (realmDao.getRealmForAnonymousPrincipal(userId.toString()).isPresent()) {
+		if (HttpAuthUtil.isAnonymous(httpRequest)) {
 			filterChain.doFilter(httpRequest, httpResponse);
 			return;
 		}

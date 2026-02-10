@@ -38,8 +38,6 @@ class AcceptTermsOfUseFilterTest {
 	private FilterChain mockFilterChain;
 	@Mock
 	private PrintWriter mockPrintWriter;
-	@Mock
-	private UserManager mockUserManager;
 	
 	@Mock
 	private AuthenticationService mockAuthService;
@@ -59,8 +57,8 @@ class AcceptTermsOfUseFilterTest {
 	@Test
 	void testHASAcceptedTermsOfUse() throws Exception {
 		when(mockRequest.getParameter("userId")).thenReturn(userId.toString());
+		when(mockRequest.getParameter("anonymous")).thenReturn("false");
 		when(mockAuthService.hasUserAcceptedTermsOfService(userId)).thenReturn(true);
-		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
 		
 		// method under test
 		filter.doFilter(mockRequest, mockResponse, mockFilterChain);
@@ -73,9 +71,7 @@ class AcceptTermsOfUseFilterTest {
 	void testAnonymous() throws Exception {
 		Long anonId = BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId();
 		when(mockRequest.getParameter("userId")).thenReturn(anonId.toString());
-		UserInfo anonUserInfo = new UserInfo(false, anonId, "0");
-		anonUserInfo.setRealmAnonymousUserId(anonId);
-		when(mockUserManager.getUserInfo(anonId)).thenReturn(anonUserInfo);
+		when(mockRequest.getParameter("anonymous")).thenReturn("true");
 		
 		// method under test
 		filter.doFilter(mockRequest, mockResponse, mockFilterChain);
@@ -87,8 +83,8 @@ class AcceptTermsOfUseFilterTest {
 	@Test
 	public void testHasNOTAcceptedTermsOfUse() throws Exception {
 		when(mockRequest.getParameter("userId")).thenReturn(userId.toString());
+		when(mockRequest.getParameter("anonymous")).thenReturn("false");
 		when(mockResponse.getWriter()).thenReturn(mockPrintWriter);
-		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
 
 		// method under test
 		filter.doFilter(mockRequest, mockResponse, mockFilterChain);

@@ -121,6 +121,7 @@ import org.sagebionetworks.repo.model.auth.AccessTokenGenerationRequest;
 import org.sagebionetworks.repo.model.auth.AccessTokenGenerationResponse;
 import org.sagebionetworks.repo.model.auth.AccessTokenRecord;
 import org.sagebionetworks.repo.model.auth.AccessTokenRecordList;
+import org.sagebionetworks.repo.model.auth.AccessTokenResponse;
 import org.sagebionetworks.repo.model.auth.ChangePasswordInterface;
 import org.sagebionetworks.repo.model.auth.ChangePasswordWithCurrentPassword;
 import org.sagebionetworks.repo.model.auth.JSONWebTokenHelper;
@@ -6315,6 +6316,11 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 		LoginResponse response = postJSONEntity(getAuthEndpoint(), "/2fa/token", request, LoginResponse.class);
 		setBearerAuthorizationToken(response.getAccessToken());
 		return response;
+	}
+	
+	@Override
+	public AccessTokenResponse getAnonymousAccessToken(String realmId) throws SynapseException {
+		return getJSONEntity(getAuthEndpoint(),"TODO", AccessTokenResponse.class);
 	}
 	
 	@Override

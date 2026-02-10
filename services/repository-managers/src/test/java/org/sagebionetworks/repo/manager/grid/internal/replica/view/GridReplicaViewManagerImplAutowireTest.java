@@ -582,14 +582,14 @@ public class GridReplicaViewManagerImplAutowireTest {
 										.setOperator(CellValueOperatorElement.EQUALS).setValue(0L)))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(rowWithZero),
+		assertEquals(List.of(rowWithZero, rowWithNull),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("anInt")
 										.setOperator(CellValueOperatorElement.LESS_THAN).setValue(1L)))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(rowWithZero, rowWithOne),
+		assertEquals(List.of(rowWithZero, rowWithOne, rowWithNull),
 				gridViewManager.querySinglePage(header,
 						new QueryElement().setWhere(List.of(new CellValueFilterElement().setColumnName("anInt")
 								.setOperator(CellValueOperatorElement.LESS_THAN_OR_EQUALS).setValue(1L)))
@@ -608,7 +608,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 								.setOperator(CellValueOperatorElement.GREATER_THAN_OR_EQUALS).setValue(1L)))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(rowWithNoCells, rowWithZero, rowWithTwo, rowWithThree, rowWithNull, rowWithUndefined),
+		assertEquals(List.of(rowWithZero, rowWithTwo, rowWithThree, rowWithNull, rowWithUndefined),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("anInt")
@@ -622,7 +622,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 										.setOperator(CellValueOperatorElement.IS_NULL)))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(rowWithNoCells, rowWithZero, rowWithOne, rowWithTwo, rowWithThree, rowWithUndefined),
+		assertEquals(List.of(rowWithZero, rowWithOne, rowWithTwo, rowWithThree, rowWithUndefined),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("anInt")
@@ -636,14 +636,14 @@ public class GridReplicaViewManagerImplAutowireTest {
 										.setOperator(CellValueOperatorElement.IN).setValue(List.of(0L, 3L))))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(rowWithNoCells, rowWithOne, rowWithTwo, rowWithNull, rowWithUndefined),
+		assertEquals(List.of(rowWithOne, rowWithTwo, rowWithNull, rowWithUndefined),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("anInt")
 										.setOperator(CellValueOperatorElement.NOT_IN).setValue(List.of(0L, 3L))))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(rowWithNoCells, rowWithUndefined),
+		assertEquals(List.of(rowWithUndefined),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("anInt")
@@ -726,20 +726,20 @@ public class GridReplicaViewManagerImplAutowireTest {
 								.setOperator(CellValueOperatorElement.LESS_THAN_OR_EQUALS).setValue("b")))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(rowWithC, rowWithD),
+		assertEquals(List.of(rowWithC, rowWithD, rowWithNull),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("aString")
 										.setOperator(CellValueOperatorElement.GREATER_THAN).setValue("b")))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(rowWithB, rowWithC, rowWithD),
+		assertEquals(List.of(rowWithB, rowWithC, rowWithD, rowWithNull),
 				gridViewManager.querySinglePage(header,
 						new QueryElement().setWhere(List.of(new CellValueFilterElement().setColumnName("aString")
 								.setOperator(CellValueOperatorElement.GREATER_THAN_OR_EQUALS).setValue("b")))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(rowWithNoCells, rowWithA, rowWithC, rowWithD, rowWithNull, rowWithUndefined),
+		assertEquals(List.of(rowWithA, rowWithC, rowWithD, rowWithNull, rowWithUndefined),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("aString")
@@ -753,7 +753,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 										.setOperator(CellValueOperatorElement.IS_NULL)))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(rowWithNoCells, rowWithA, rowWithB, rowWithC, rowWithD, rowWithUndefined),
+		assertEquals(List.of(rowWithA, rowWithB, rowWithC, rowWithD, rowWithUndefined),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("aString")
@@ -767,14 +767,14 @@ public class GridReplicaViewManagerImplAutowireTest {
 										.setOperator(CellValueOperatorElement.IN).setValue(List.of("a", "c"))))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(rowWithNoCells, rowWithB,rowWithD, rowWithNull, rowWithUndefined),
+		assertEquals(List.of(rowWithB,rowWithD, rowWithNull, rowWithUndefined),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("aString")
 										.setOperator(CellValueOperatorElement.NOT_IN).setValue(List.of("a", "c"))))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(rowWithNoCells, rowWithUndefined),
+		assertEquals(List.of(rowWithUndefined),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("aString")
@@ -822,7 +822,7 @@ public class GridReplicaViewManagerImplAutowireTest {
 										.setOperator(CellValueOperatorElement.LIKE).setValue("%this%")))
 								.setLimit(100L).setOffset(0L)));
 		// call under test
-		assertEquals(List.of(rowWithNoCells, rowWithNoCells2, rowWithThreeThisIs),
+		assertEquals(List.of(rowWithThreeThisIs),
 				gridViewManager.querySinglePage(header,
 						new QueryElement()
 								.setWhere(List.of(new CellValueFilterElement().setColumnName("aString")

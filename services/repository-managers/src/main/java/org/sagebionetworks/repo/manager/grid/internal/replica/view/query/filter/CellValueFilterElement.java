@@ -104,15 +104,12 @@ public class CellValueFilterElement implements FilterElement {
 			throw new IllegalArgumentException("Expected exactly one value for operation: " + operator);
 		}
 		sqlBuilder.append("(");
-		if (CellValueOperatorElement.NOT_EQUALS.equals(operator) || CellValueOperatorElement.NOT_LIKE.equals(operator)) {
-			// If the check is "!=" or "NOT LIKE", then we want to include undefined/null/empty values, which will never match the passed value
-			sqlBuilder.append(" VALS->'$[").append(columnIndex).append("].v' IS NULL OR");
+		if (CellValueOperatorElement.NOT_EQUALS.equals(operator)) {
+			// If the check is "!=", then we want to include undefined/timestamp values, which will never equal the passed value
 			sqlBuilder.append(" JSON_LENGTH(VALS, '$[").append(columnIndex).append("].v') != 1 OR");
-			sqlBuilder.append(" JSON_TYPE(VALS->'$[").append(columnIndex).append("].v[0]') = 'NULL' OR");
 		} else {
-			// For all other operators, we want to exclude undefined/null values, which cannot be compared to the passed value
+			// For all other operators, we want to exclude undefined/timestamp values, which cannot be compared to the passed value
 			sqlBuilder.append(" JSON_LENGTH(VALS, '$[").append(columnIndex).append("].v') = 1 AND");
-			sqlBuilder.append(" JSON_TYPE(VALS->'$[").append(columnIndex).append("].v[0]') != 'NULL' AND");
 		}
 
 		String function = isString(value) ? "->>" : "->";
@@ -129,7 +126,7 @@ public class CellValueFilterElement implements FilterElement {
 	}
 
 	private void handleMultipleValues(StringBuilder sqlBuilder, Map<String, Object> params, String bind,
-			Integer columnIndex) {
+									  Integer columnIndex) {
 		if (!(value instanceof JSONArray) || ((JSONArray) value).length() == 0) {
 			throw new IllegalArgumentException("Expected at least one value for operation: " + operator);
 		}
@@ -137,14 +134,11 @@ public class CellValueFilterElement implements FilterElement {
 		sqlBuilder.append("(");
 
 		if (CellValueOperatorElement.NOT_IN.equals(operator)) {
-			// If the check is "NOT IN", then we want to include undefined/null/empty values, which will never match the passed values
-			sqlBuilder.append(" VALS->'$[").append(columnIndex).append("].v' IS NULL OR");
+			// If the check is "NOT IN", then we want to include undefined/timestamp values, which will never match the passed values
 			sqlBuilder.append(" JSON_LENGTH(VALS, '$[").append(columnIndex).append("].v') != 1 OR");
-			sqlBuilder.append(" JSON_TYPE(VALS->'$[").append(columnIndex).append("].v[0]') = 'NULL' OR");
 		} else {
-			// For all other operators ("IN"), we want to exclude undefined/null values, which cannot be compared to the passed value
+			// For all other operators ("IN"), we want to exclude undefined/timestamp values, which cannot be compared to the passed value
 			sqlBuilder.append(" JSON_LENGTH(VALS, '$[").append(columnIndex).append("].v') = 1 AND");
-			sqlBuilder.append(" JSON_TYPE(VALS->'$[").append(columnIndex).append("].v[0]') != 'NULL' AND");
 		}
 
 
@@ -168,35 +162,8 @@ public class CellValueFilterElement implements FilterElement {
 			throw new IllegalArgumentException("Expected no value for operator: " + operator);
 		}
 
-		if (CellValueOperatorElement.IS_NOT_NULL.equals(operator)) {
-			// IS_NOT_NULL matches empty/undefined cells (they are "not null", just missing)
-			sqlBuilder.append("(");
-			sqlBuilder.append(" VALS->'$[").append(columnIndex).append("].v' IS NULL OR");
-			sqlBuilder.append(" JSON_LENGTH(VALS, '$[").append(columnIndex).append("].v') != 1 OR");
-			sqlBuilder.append(" JSON_TYPE(VALS->'$[").append(columnIndex).append("].v[0]') != 'NULL'");
-			sqlBuilder.append(")");
-		} else if (CellValueOperatorElement.IS_NULL.equals(operator)) {
-			// IS_NULL only matches explicit JSON null values
-			sqlBuilder.append("(");
-			sqlBuilder.append(" JSON_LENGTH(VALS, '$[").append(columnIndex).append("].v') = 1 AND");
-			sqlBuilder.append(" JSON_TYPE(VALS->'$[").append(columnIndex).append("].v[0]') = 'NULL'");
-			sqlBuilder.append(")");
-		} else if (CellValueOperatorElement.IS_UNDEFINED.equals(operator)) {
-			// IS_UNDEFINED matches empty/missing cells or explicit undefined values
-			sqlBuilder.append("(");
-			sqlBuilder.append(" VALS->'$[").append(columnIndex).append("].v' IS NULL OR");
-			sqlBuilder.append(" JSON_LENGTH(VALS, '$[").append(columnIndex).append("].v') != 1");
-			sqlBuilder.append(")");
-		} else if (CellValueOperatorElement.IS_DEFINED.equals(operator)) {
-			// IS_DEFINED matches cells with actual values (not empty, not undefined)
-			sqlBuilder.append("(");
-			sqlBuilder.append(" VALS->'$[").append(columnIndex).append("].v' IS NOT NULL AND");
-			sqlBuilder.append(" JSON_LENGTH(VALS, '$[").append(columnIndex).append("].v') = 1");
-			sqlBuilder.append(")");
-		} else {
-			// Other no-value operators
-			sqlBuilder.append(" VALS->'$[").append(columnIndex).append("].v' ").append(operator.toSql());
-		}
+		// NOTE: These operators check the entire array, not just the first element.
+		sqlBuilder.append(" VALS->'$[").append(columnIndex).append("].v' ").append(operator.toSql());
 	}
 
 	private boolean isJsonType(Object val) {

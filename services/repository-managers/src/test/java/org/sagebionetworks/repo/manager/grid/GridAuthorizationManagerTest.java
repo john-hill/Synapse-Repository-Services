@@ -17,8 +17,10 @@ import org.junit.jupiter.params.provider.EnumSource.Mode;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.manager.UserInfoTestHelper;
 import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -251,13 +253,17 @@ public class GridAuthorizationManagerTest {
 	public void testGetRowLevelFilterUserInfoWithEntityViewAndGroupOwner() {
 		Long groupOwnerId = 555L;
 		when(mockUser.getId()).thenReturn(userId);
+		when(mockUser.getRealmAuthenticatedUsersId()).thenReturn(BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId());
+		when(mockUser.getRealmPublicUsersId()).thenReturn(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId());
+		when(mockUser.getRealmId()).thenReturn(AuthorizationConstants.DEFAULT_REALM_ID);
+		when(mockUser.getRealmAnonymousUserId()).thenReturn(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 		gridSource = new GridSource(entityId, EntityType.entityview);
 		when(mockGridDao.getSessionSource(gridSessionId)).thenReturn(Optional.of(gridSource));
 		when(mockGridDao.getGridSessionOwner(gridSessionId)).thenReturn(Optional.of(groupOwnerId));
 
 		// call under test
 		UserInfo user = manager.getRowLevelFilterUserInfo(mockUser, gridSessionId);
-		UserInfo expected = new UserInfo(false, groupOwnerId);
+		UserInfo expected = UserInfoTestHelper.createUserInfo(false, groupOwnerId);
 		expected.setGroups(Set.of(groupOwnerId, BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId(),
 				BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId()));
 		assertEquals(expected, user);

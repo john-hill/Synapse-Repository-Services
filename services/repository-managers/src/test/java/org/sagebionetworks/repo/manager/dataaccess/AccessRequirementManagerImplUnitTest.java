@@ -46,6 +46,7 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.AuthorizationManager;
 import org.sagebionetworks.repo.manager.ProjectSettingsManager;
+import org.sagebionetworks.repo.manager.UserInfoTestHelper;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.ACTAccessRequirement;
 import org.sagebionetworks.repo.model.AccessApprovalDAO;
@@ -133,7 +134,7 @@ public class AccessRequirementManagerImplUnitTest {
 
 	@BeforeEach
 	public void setUp() throws Exception {
-		userInfo = new UserInfo(false, TEST_PRINCIPAL_ID, DEFAULT_REALM_ID);
+		userInfo = UserInfoTestHelper.createUserInfo(false, TEST_PRINCIPAL_ID);
 		userInfo.setRealmAnonymousUserId(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 	}
 

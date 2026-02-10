@@ -50,13 +50,16 @@ public class PermissionsManagerUtils {
 				throw new InvalidModelException("Cannot assign permissions to anonymous. To share resources with anonymous users, use the PUBLIC group id (" + userInfo.getRealmPublicUsersId() + ")");
 			}
 			// Does not allow anything other than READ for the public group
-			if (ra.getPrincipalId().equals(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId())) {
+			// As explained above, we don't have to check for Public Groups in other realms
+			if (ra.getPrincipalId().equals(userInfo.getRealmPublicUsersId())) {
 				long notReadCount = ra.getAccessType().stream().filter( type -> !ACCESS_TYPE.READ.equals(type)).count();
 				if (notReadCount != 0) {
 					throw new InvalidModelException("Only READ permissions can be assigned to the public group");
 				}
 			}
-			if (ra.getPrincipalId().equals(BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId())
+			// Note that we don't have to check 'authenticated users' groups in other realms, since
+			// there is the constraint that all ACL members must be in the same realm
+			if (ra.getPrincipalId().equals(userInfo.getRealmAuthenticatedUsersId())
 					&& ra.getAccessType().contains(ACCESS_TYPE.DOWNLOAD)
 					&& !AuthorizationUtils.isCertifiedUser(userInfo)) {
 				throw new UserCertificationRequiredException("Only certified users can allow authenticated users to download.");

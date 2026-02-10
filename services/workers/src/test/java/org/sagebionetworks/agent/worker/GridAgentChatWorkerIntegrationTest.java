@@ -479,7 +479,7 @@ public class GridAgentChatWorkerIntegrationTest {
 
 		// the agent is likely to ask if it should proceed....
 		if (acr.getResponseText().contains("?")) {
-			chatRequest = "You may proceed with making the change.";
+			chatRequest = "You may proceed with making all necessary changes.";
 			acr = asynchronousJobWorkerHelper
 					.assertJobResponse(admin, new AgentChatRequest().setSessionId(agentSession.getSessionId())
 							.setChatText(chatRequest).setEnableTrace(true), (AgentChatResponse response) -> {

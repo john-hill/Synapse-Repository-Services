@@ -821,6 +821,7 @@ public class TeamManagerImplTest {
 		acl.getResourceAccess().add(TeamManagerImpl.createResourceAccess(Long.parseLong(memberPrincipalId), Collections.singleton(ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)));
 		acl.getResourceAccess().add(TeamManagerImpl.createResourceAccess(Long.parseLong("000"), Collections.singleton(ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)));
 		when(mockAclManager.getAcl(TEAM_ID, ObjectType.TEAM)).thenReturn(Optional.of(acl));
+		when(mockTeamDAO.get(TEAM_ID)).thenReturn(new Team().setId(TEAM_ID).setCreatedBy(userInfo.getId().toString()));
 		teamManagerImpl.removeMember(userInfo, TEAM_ID, memberPrincipalId);
 		verify(mockGroupMembersDAO).removeMembers(TEAM_ID, Arrays.asList(new String[]{memberPrincipalId}));
 		verify(mockAclManager).update(eq(userInfo), (AccessControlList)any(), eq(ObjectType.TEAM), eq(Long.parseLong(TEAM_ID)));
@@ -1248,9 +1249,10 @@ public class TeamManagerImplTest {
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		AccessControlList acl = TeamManagerImpl.createInitialAcl(userInfo, TEAM_ID, new Date());
 		when(mockAclManager.getAcl(TEAM_ID, ObjectType.TEAM)).thenReturn(Optional.of(acl));
+		when(mockTeamDAO.get(TEAM_ID)).thenReturn(new Team().setId(TEAM_ID).setCreatedBy(userInfo.getId().toString()));
 		String principalId = "321";
 		teamManagerImpl.setPermissions(userInfo, TEAM_ID, principalId, true);
-		verify(mockAclManager).update(userInfo, acl, ObjectType.TEAM, Long.parseLong(TEAM_ID));
+		verify(mockAclManager).update(userInfo, acl, ObjectType.TEAM, userInfo.getId());
 		// now check that user is actually an admin
 		boolean foundRA=false;
 		for (ResourceAccess ra: acl.getResourceAccess()) {
@@ -1279,6 +1281,7 @@ public class TeamManagerImplTest {
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		AccessControlList acl = TeamManagerImpl.createInitialAcl(userInfo, TEAM_ID, new Date());
 		when(mockAclManager.getAcl(TEAM_ID, ObjectType.TEAM)).thenReturn(Optional.of(acl));
+		when(mockTeamDAO.get(TEAM_ID)).thenReturn(new Team().setId(TEAM_ID).setCreatedBy(userInfo.getId().toString()));
 		String principalId = MEMBER_PRINCIPAL_ID; // add SELF as admin
 
 		teamManagerImpl.setPermissions(userInfo, TEAM_ID, principalId, true);

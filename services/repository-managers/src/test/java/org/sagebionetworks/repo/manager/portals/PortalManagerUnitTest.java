@@ -2,8 +2,6 @@ package org.sagebionetworks.repo.manager.portals;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -25,6 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.AccessControlListManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.NextPageToken;
 import org.sagebionetworks.repo.model.ObjectType;
@@ -63,11 +62,11 @@ public class PortalManagerUnitTest {
 
 	@BeforeEach
 	public void before() {
-		user = new UserInfo(false, 1234L);
+		user = new UserInfo(false, 1234L, AuthorizationConstants.DEFAULT_REALM_ID);
 		user.setGroups(Set.of(user.getId(), BOOTSTRAP_PRINCIPAL.PORTAL_MANAGERS.getPrincipalId()));
 		
 		request = new CreateOrUpdatePortalRequest().setName("My Portal").setUrl("https://myportal.synapse.org");
-		portal = new Portal().setId("123").setCreatedOn(new Date());
+		portal = new Portal().setId("123").setCreatedOn(new Date()).setCreatedBy(user.getId().toString());
 		acl = AccessControlListUtil.createACL(portal.getId().toString(), user, PortalManager.DEFAULT_PERMISSIONS, portal.getCreatedOn());
 	}
 
@@ -75,11 +74,11 @@ public class PortalManagerUnitTest {
 	public void testCreatePortalWithAdmin() {
 
 		when(mockPortalDao.createPortal(user.getId(), request.getName(), request.getUrl())).thenReturn(portal);
-		doNothing().when(mockAclManager).create(eq(user), any(AccessControlList.class), eq(ObjectType.PORTAL), eq(Long.parseLong(portal.getId())));
+
 		// Call under test
 		assertEquals(portal, manager.createPortal(user, request));
 
-		verify(mockAclManager).create(user, acl, ObjectType.PORTAL, Long.parseLong(portal.getId()));
+		verify(mockAclManager).create(user, acl, ObjectType.PORTAL, Long.parseLong(portal.getCreatedBy()));
 	}
 
 	@Test
@@ -460,9 +459,9 @@ public class PortalManagerUnitTest {
 	
 	@Test
 	public void testUpdatePortalAclWithAdmin() {
-		doNothing().when(mockAclManager).update(user, acl, ObjectType.PORTAL, Long.parseLong(portal.getId()));
+		doNothing().when(mockAclManager).update(user, acl, ObjectType.PORTAL, Long.parseLong(portal.getCreatedBy()));
 		when(mockAclManager.getAcl(portal.getId(), ObjectType.PORTAL)).thenReturn(Optional.of(acl));
-		
+		when(mockPortalDao.getPortal(portal.getId())).thenReturn(Optional.of(portal));
 		// Call under test
 		assertEquals(acl, manager.updatePortalAcl(user, portal.getId(), acl));
 		
@@ -472,11 +471,11 @@ public class PortalManagerUnitTest {
 	@Test
 	public void testUpdatePortalAclWithNotAdminAndAuthorized() {
 		user.setGroups(Set.of(user.getId()));
-		
+
 		when(mockAclManager.canAccess(user, portal.getId(), ObjectType.PORTAL, ACCESS_TYPE.CHANGE_PERMISSIONS)).thenReturn(AuthorizationStatus.authorized());
-		doNothing().when(mockAclManager).update(user, acl, ObjectType.PORTAL, Long.parseLong(portal.getId()));
+		doNothing().when(mockAclManager).update(user, acl, ObjectType.PORTAL, Long.parseLong(portal.getCreatedBy()));
 		when(mockAclManager.getAcl(portal.getId(), ObjectType.PORTAL)).thenReturn(Optional.of(acl));
-		
+		when(mockPortalDao.getPortal(portal.getId())).thenReturn(Optional.of(portal));
 		// Call under test
 		assertEquals(acl, manager.updatePortalAcl(user, portal.getId(), acl));
 		

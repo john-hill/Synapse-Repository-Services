@@ -52,7 +52,7 @@ public class AccessControlListManagerImpl implements AccessControlListManager {
 		List<String> principalIds = acl.getResourceAccess().stream().map(ResourceAccess::getPrincipalId)
 				.map(String::valueOf).collect(Collectors.toList());
 
-		return new HashSet<>(userGroupDAO.getUserRealm(principalIds).keySet());
+		return new HashSet<>(userGroupDAO.getUsersRealms(principalIds).keySet());
 	}
 
 	@Override
@@ -91,7 +91,7 @@ public class AccessControlListManagerImpl implements AccessControlListManager {
 
 	@Override
 	public boolean canAccess(Set<Long> groups, String objectId, ObjectType objectType, ACCESS_TYPE accessType) {
-		//if the acl belongs the realm and user is admin of that realm its authorized to access
+		//Todo PLFM-9460
 		return aclDao.canAccess(groups, objectId, objectType, accessType);
 	}
 

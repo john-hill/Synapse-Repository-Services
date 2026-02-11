@@ -77,7 +77,7 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 			"SELECT * FROM "+SqlConstants.TABLE_USER_GROUP+
 			" WHERE "+SqlConstants.COL_USER_GROUP_ID+" IN (:"+ID_PARAM_NAME+")";
 
-	private static final String SELECT_REALM_FOR_PRINCIPAL_IDS =
+	private static final String SELECT_REALMS_FOR_PRINCIPAL_IDS =
 			"SELECT ID, REALM FROM " + SqlConstants.TABLE_USER_GROUP +
 					" WHERE " + SqlConstants.COL_USER_GROUP_ID + " IN (:" + ID_PARAM_NAME + ")";
 	
@@ -245,7 +245,7 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 	}
 
 	@Override
-	public Map<String, Set<String>> getUserRealm(List<String> ids) throws DatastoreException {
+	public Map<String, Set<String>> getUsersRealms(List<String> ids) throws DatastoreException {
 		Map<String, Set<String>> realmMap = new HashMap<>();
 		if (ids.isEmpty()) {
 			return realmMap;
@@ -253,7 +253,7 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 
 		MapSqlParameterSource param = new MapSqlParameterSource();
 		param.addValue(ID_PARAM_NAME, ids);
-		realmMap = namedJdbcTemplate.query(SELECT_REALM_FOR_PRINCIPAL_IDS, param, realmToUserIdsMapper);
+		realmMap = namedJdbcTemplate.query(SELECT_REALMS_FOR_PRINCIPAL_IDS, param, realmToUserIdsMapper);
 		return realmMap;
 	}
 

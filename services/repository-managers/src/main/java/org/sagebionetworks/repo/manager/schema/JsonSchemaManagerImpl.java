@@ -115,7 +115,7 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 
 		// Create an ACL for the
 		AccessControlList acl = AccessControlListUtil.createACL(org.getId(), user, ADMIN_PERMISSIONS, new Date());
-		aclManager.create(user, acl, ObjectType.ORGANIZATION, Long.parseLong(org.getId()));
+		aclManager.create(user, acl, ObjectType.ORGANIZATION, Long.parseLong(org.getCreatedBy()));
 
 		return org;
 	}
@@ -165,20 +165,18 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 		ValidateArgument.required(user, "UserInfo");
 		ValidateArgument.required(organziationId, "organziationId");
 		ValidateArgument.required(acl, "acl");
-		Long organziationIdLong;
-		try {
-			organziationIdLong = Long.parseLong(organziationId);
-		} catch (NumberFormatException e) {
-			throw new IllegalArgumentException("Invalid organziationId: " + organziationId);
-		}
+
+		Organization org = organizationDao.getOrganizationById(organziationId).orElseThrow(() ->
+				new NotFoundException("Organization with id: " + organziationId + " does not exists."));
+
 		// id must match the value from the URL path.
-		acl.setId(organziationId);
+		acl.setId(org.getId());
 
 		// Validate CHANGE_PERMISSIONS
 		aclManager.canAccess(user, organziationId, ObjectType.ORGANIZATION, ACCESS_TYPE.CHANGE_PERMISSIONS)
 				.checkAuthorizationOrElseThrow();
 
-		aclManager.update(user, acl, ObjectType.ORGANIZATION, organziationIdLong);
+		aclManager.update(user, acl, ObjectType.ORGANIZATION, Long.parseLong(org.getCreatedBy()));
 		return aclManager.getAcl(organziationId, ObjectType.ORGANIZATION).orElseThrow(() ->
 				new NotFoundException(String.format(ACL_DOES_NOT_EXIST, organziationId, ObjectType.ORGANIZATION)));
 	}

@@ -47,7 +47,7 @@ public class PortalManagerImpl implements PortalManager {
 		Portal portal = portalsDao.createPortal(user.getId(), request.getName(), request.getUrl());
 				
 		aclManager.create(user, AccessControlListUtil.createACL(portal.getId(), user,
-				DEFAULT_PERMISSIONS, portal.getCreatedOn()), ObjectType.PORTAL, Long.valueOf(portal.getId()));
+				DEFAULT_PERMISSIONS, portal.getCreatedOn()), ObjectType.PORTAL, Long.valueOf(portal.getCreatedBy()));
 		
 		return portal;
 	}
@@ -118,8 +118,9 @@ public class PortalManagerImpl implements PortalManager {
 		if (!AuthorizationUtils.isPortalManagerOrAdmin(user)) {
 			aclManager.canAccess(user, portalId, ObjectType.PORTAL, ACCESS_TYPE.CHANGE_PERMISSIONS).checkAuthorizationOrElseThrow();
 		}
-		
-		aclManager.update(user, acl, ObjectType.PORTAL, Long.valueOf(portalId));
+
+		Portal portal = getPortal(portalId);
+		aclManager.update(user, acl, ObjectType.PORTAL, Long.valueOf(portal.getCreatedBy()));
 
 		return getPortalAcl(portalId);
 	}

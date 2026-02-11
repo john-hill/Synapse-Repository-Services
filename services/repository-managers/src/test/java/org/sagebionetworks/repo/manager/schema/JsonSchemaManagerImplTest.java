@@ -1,15 +1,14 @@
 package org.sagebionetworks.repo.manager.schema;
 
-import static org.junit.Assert.assertNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -351,7 +350,6 @@ public class JsonSchemaManagerImplTest {
 	public void testCreateOrganziation() {
 		when(mockOrganizationDao.createOrganization(createOrganizationRequest.getOrganizationName(), user.getId()))
 				.thenReturn(organization);
-		doNothing().when(mockAclManager).create(eq(user), any(AccessControlList.class), eq(ObjectType.ORGANIZATION), eq(Long.parseLong(organization.getId())));
 		// call under test
 		Organization returned = manager.createOrganziation(user, createOrganizationRequest);
 		assertNotNull(returned);
@@ -359,7 +357,7 @@ public class JsonSchemaManagerImplTest {
 
 		verify(mockOrganizationDao).createOrganization(createOrganizationRequest.getOrganizationName(), user.getId());
 
-		verify(mockAclManager).create(eq(user), aclCaptor.capture(), eq(ObjectType.ORGANIZATION), eq(Long.parseLong(organization.getId())));
+		verify(mockAclManager).create(eq(user), aclCaptor.capture(), eq(ObjectType.ORGANIZATION), eq(Long.parseLong(organization.getCreatedBy())));
 		AccessControlList acl = aclCaptor.getValue();
 		assertNotNull(acl);
 		assertEquals(returned.getId(), acl.getId());
@@ -482,12 +480,13 @@ public class JsonSchemaManagerImplTest {
 		when(mockAclManager.canAccess(user, organization.getId(), ObjectType.ORGANIZATION, ACCESS_TYPE.CHANGE_PERMISSIONS))
 				.thenReturn(AuthorizationStatus.authorized());
 		when(mockAclManager.getAcl(organization.getId(), ObjectType.ORGANIZATION)).thenReturn(Optional.of(acl));
+		when(mockOrganizationDao.getOrganizationById(organization.getId())).thenReturn(Optional.of(organization));
 		// call under test
 		AccessControlList result = manager.updateOrganizationAcl(user, organization.getId(), acl);
 		assertEquals(acl, result);
 		verify(mockAclManager).canAccess(user, organization.getId(), ObjectType.ORGANIZATION,
 				ACCESS_TYPE.CHANGE_PERMISSIONS);
-		verify(mockAclManager).update(user, acl, ObjectType.ORGANIZATION, Long.parseLong(organization.getId()));
+		verify(mockAclManager).update(user, acl, ObjectType.ORGANIZATION, Long.parseLong(organization.getCreatedBy()));
 	}
 
 	@Test
@@ -499,13 +498,15 @@ public class JsonSchemaManagerImplTest {
 		when(mockAclManager.canAccess(user, passedId, ObjectType.ORGANIZATION, ACCESS_TYPE.CHANGE_PERMISSIONS))
 				.thenReturn(AuthorizationStatus.authorized());
 		when(mockAclManager.getAcl(passedId, ObjectType.ORGANIZATION)).thenReturn(Optional.of(acl));
+		when(mockOrganizationDao.getOrganizationById(passedId)).thenReturn(
+				Optional.of(new Organization().setId(passedId).setCreatedBy(user.getId().toString())));
 
 		// call under test
 		AccessControlList result = manager.updateOrganizationAcl(user, passedId, acl);
 		assertEquals(acl, result);
 		// the
 		verify(mockAclManager).canAccess(user, passedId, ObjectType.ORGANIZATION, ACCESS_TYPE.CHANGE_PERMISSIONS);
-		verify(mockAclManager).update( eq(user), aclCaptor.capture(), eq(ObjectType.ORGANIZATION), eq(Long.parseLong(passedId)));
+		verify(mockAclManager).update( eq(user), aclCaptor.capture(), eq(ObjectType.ORGANIZATION), eq(Long.parseLong(organization.getCreatedBy())));
 		// passed ACL should have the ID from the paths
 		AccessControlList capturedAcl = aclCaptor.getValue();
 		assertEquals(passedId, capturedAcl.getId());
@@ -514,6 +515,7 @@ public class JsonSchemaManagerImplTest {
 
 	@Test
 	public void testUpdateOrganizationAclUnauthorized() {
+		when(mockOrganizationDao.getOrganizationById(organization.getId())).thenReturn(Optional.of(organization));
 		when(mockAclManager.canAccess(user, organization.getId(), ObjectType.ORGANIZATION, ACCESS_TYPE.CHANGE_PERMISSIONS))
 				.thenReturn(AuthorizationStatus.accessDenied("not allowed"));
 		assertThrows(UnauthorizedException.class, () -> {
@@ -545,7 +547,7 @@ public class JsonSchemaManagerImplTest {
 	@Test
 	public void testUpdateOrganizationAclIdNotNumber() {
 		String id = "not a number";
-		assertThrows(IllegalArgumentException.class, () -> {
+		assertThrows(NotFoundException.class, () -> {
 			// call under test
 			manager.updateOrganizationAcl(user, id, acl);
 		});

@@ -12,6 +12,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import org.junit.After;
 import org.junit.Before;
@@ -218,7 +219,7 @@ public class DBOUserGroupDAOImplTest {
 		assertNotNull(groupIdTwo);
 		groupsToDelete.add(groupIdTwo);
 
-		Map<String, Set<String>> userRealms = userGroupDAO.getUserRealm(List.of(groupId, groupIdTwo));
+		Map<String, Set<String>> userRealms = userGroupDAO.getUsersRealms(List.of(groupId, groupIdTwo));
 		assertNotNull(userRealms);
 		assertEquals(2, userRealms.size());
 		userRealms.entrySet().stream().forEach(entry -> {
@@ -228,6 +229,13 @@ public class DBOUserGroupDAOImplTest {
 				assertEquals(groupIdTwo, entry.getValue().iterator().next());
 			}
 		});
+	}
+
+	@Test
+	public void testGetUsersRealmsForNonExistingUserIds() {
+		Map<String, Set<String>> userRealms = userGroupDAO.getUsersRealms(List.of("-999", "-998"));
+		assertNotNull(userRealms);
+		assertEquals(0, userRealms.size());
 	}
 
 }

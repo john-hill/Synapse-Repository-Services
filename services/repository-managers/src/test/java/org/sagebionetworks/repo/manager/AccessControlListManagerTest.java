@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -127,7 +128,7 @@ public class AccessControlListManagerTest {
 
 	@Test
 	public void testCreate(){
-		when(userGroupDAO.getUserRealm(anyList())).thenReturn(Map.of("0", Set.of("1", "123")));
+		when(userGroupDAO.getUsersRealms(anyList())).thenReturn(Map.of("0", Set.of("1", "123")));
 
 		// call under test
 		aclManager.create(userInfo, acl, ObjectType.ENTITY, userInfo.getId());
@@ -136,7 +137,7 @@ public class AccessControlListManagerTest {
 
 	@Test
 	public void testCreateWithDifferentRealmPrincipalInACL(){
-		when(userGroupDAO.getUserRealm(anyList())).thenReturn(Map.of("1", Set.of("1"), "0", Set.of("123")));
+		when(userGroupDAO.getUsersRealms(anyList())).thenReturn(Map.of("1", Set.of("1"), "0", Set.of("123")));
 
 		// call under test
 		String message = assertThrows(InvalidModelException.class, ()-> {
@@ -148,15 +149,30 @@ public class AccessControlListManagerTest {
 
 	@Test
 	public void testCreateWithDifferentRealmUser(){
-		when(userGroupDAO.getUserRealm(anyList())).thenReturn(Map.of("0", Set.of("1", "123")));
+		when(userGroupDAO.getUsersRealms(anyList())).thenReturn(Map.of("0", Set.of("1", "123")));
 
 		// call under test
-		adminUser.setRealmId("1");
-		String message = assertThrows(InvalidModelException.class, ()-> {
-			aclManager.create(adminUser, acl, ObjectType.ENTITY, userInfo.getId());
+		userInfo.setRealmId("1");
+		String message = assertThrows(InvalidModelException.class, () -> {
+			aclManager.create(userInfo, acl, ObjectType.ENTITY, userInfo.getId());
 		}).getMessage();
+
 		assertEquals("All principals in the ACL must be from the same realm as the caller principal.", message);
 		verifyZeroInteractions(aclDao);
+
+		//admin is allowed to change other realm acl
+		adminUser.setRealmId("1");
+		userInfo.setRealmId("0");
+		aclManager.create(adminUser, acl, ObjectType.ENTITY, userInfo.getId());
+	}
+
+	@Test
+	public void testCreateWithInvalidPrincipalIdsInACL() {
+		when(userGroupDAO.getUsersRealms(anyList())).thenReturn(Map.of("0", Set.of("55", "66")));
+		when(userGroupDAO.getUsersRealms(anyList())).thenReturn(Collections.emptyMap());
+
+		// call under test
+		aclManager.create(userInfo, acl, ObjectType.ENTITY, userInfo.getId());
 	}
 
 	@Test
@@ -164,7 +180,7 @@ public class AccessControlListManagerTest {
 		AccessControlList acl = new AccessControlList().setId("222").setCreationDate(new Date());
 		acl.setResourceAccess(Set.of(new ResourceAccess().setPrincipalId(1L).setAccessType(Set.of(ACCESS_TYPE.READ)),
 				new ResourceAccess().setPrincipalId(2L).setAccessType(Set.of(ACCESS_TYPE.READ)) ));
-		when(userGroupDAO.getUserRealm(anyList())).thenReturn(Map.of("0", Set.of("1", "2")));
+		when(userGroupDAO.getUsersRealms(anyList())).thenReturn(Map.of("0", Set.of("1", "2")));
 
 		// call under test
 		aclManager.update(userInfo, acl, ObjectType.ENTITY, userInfo.getId());

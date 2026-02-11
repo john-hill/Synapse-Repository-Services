@@ -733,7 +733,8 @@ public class TeamManagerImpl implements TeamManager {
 				throw new InvalidModelException(MSG_TEAM_MUST_HAVE_AT_LEAST_ONE_TEAM_MANAGER);
 			}
 			groupMembersDAO.removeMembers(teamId, Collections.singletonList(principalId));
-			aclManager.update(userInfo, acl, ObjectType.TEAM, Long.parseLong(teamId));
+			Team team = get(teamId);
+			aclManager.update(userInfo, acl, ObjectType.TEAM, Long.parseLong(team.getId()));
 		}
 	}
 
@@ -754,7 +755,7 @@ public class TeamManagerImpl implements TeamManager {
 	public AccessControlList updateACL(UserInfo userInfo, AccessControlList acl)
 			throws DatastoreException, UnauthorizedException, NotFoundException {
 		authorizationManager.canAccess(userInfo, acl.getId(), ObjectType.TEAM, ACCESS_TYPE.UPDATE).checkAuthorizationOrElseThrow();
-		Team team = teamDAO.get(acl.getId());
+		Team team = get(acl.getId());
 		aclManager.update(userInfo, acl, ObjectType.TEAM, Long.parseLong(team.getCreatedBy()));
 		return aclManager.getAcl(acl.getId(), ObjectType.TEAM).orElseThrow(() -> new NotFoundException("ACL not found for team " + acl.getId()));
 	}
@@ -823,7 +824,8 @@ public class TeamManagerImpl implements TeamManager {
 		}
 		if (!userInfo.isAdmin() && !aclHasTeamAdmin(acl)) throw new InvalidModelException(MSG_TEAM_MUST_HAVE_AT_LEAST_ONE_TEAM_MANAGER);
 		// finally, update the ACL
-		aclManager.update(userInfo, acl, ObjectType.TEAM, Long.parseLong(teamId));
+		Team team = get(teamId);
+		aclManager.update(userInfo, acl, ObjectType.TEAM, Long.parseLong(team.getCreatedBy()));
 	}
 	
 	// answers the question about whether membership approval is required to add principal to team

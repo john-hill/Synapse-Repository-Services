@@ -1,14 +1,6 @@
 package org.sagebionetworks.repo.manager;
 
-import static org.junit.Assert.assertTrue;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.stream.Collectors;
-
+import com.google.common.collect.ImmutableSet;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -17,12 +9,19 @@ import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.UserInfo;
-import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 
-import com.google.common.collect.ImmutableSet;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_REALM_ID;
 
 public class PermissionsManagerUtilsTest {
-	private final static String DEFAULT_REALM = "0";
 	private UserInfo adminUserInfo;
 	private UserInfo userInfo;
 	private UserInfo otherUserInfo;
@@ -32,11 +31,11 @@ public class PermissionsManagerUtilsTest {
 	@BeforeEach
 	public void setUp(){
 		ownerId = 1234L;
-		userInfo = new UserInfo(false, ownerId,DEFAULT_REALM);
-		otherUserInfo = new UserInfo(false, 56789L, DEFAULT_REALM);
-		adminUserInfo = new UserInfo(true, 1L, DEFAULT_REALM);
+		userInfo = new UserInfo(false, ownerId, DEFAULT_REALM_ID);
+		otherUserInfo = new UserInfo(false, 56789L, DEFAULT_REALM_ID);
+		adminUserInfo = new UserInfo(true, 1L, DEFAULT_REALM_ID);
 		otherUserInfo.getGroups().add(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId());
-		realmIds = Set.of(DEFAULT_REALM);
+		realmIds = Set.of(DEFAULT_REALM_ID);
 	}
 
 	@Test
@@ -207,7 +206,7 @@ public class PermissionsManagerUtilsTest {
 			PermissionsManagerUtils.validateACLContent(acl, userInfo, realmIds, ownerId);
 		});
 
-		assertEquals("Cannot assign permissions to anonymous. To share resources with anonymous users, use the PUBLIC group id (" + BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId() + ")", ex.getMessage());
+		assertEquals("Cannot assign permissions to anonymous. To share resources with anonymous users, use the PUBLIC group id (" + AuthorizationConstants.BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId() + ")", ex.getMessage());
 	}
 
 	@Test
@@ -262,7 +261,7 @@ public class PermissionsManagerUtilsTest {
 		AccessControlList acl = new AccessControlList();
 		acl.setId("resource id");
 		acl.setResourceAccess(ras);
-		Set<String> realmIdSet = Set.of(DEFAULT_REALM, "1"); // add a different realm to the set of realms
+		Set<String> realmIdSet = Set.of(DEFAULT_REALM_ID, "1"); // add a different realm to the set of realms
 
 		// Should not throw any exceptions
 		InvalidModelException ex = assertThrows(InvalidModelException.class, () -> {
@@ -274,7 +273,7 @@ public class PermissionsManagerUtilsTest {
 	}
 
 	@Test
-	public void testValidateACLContenttRealmACLPrincipalAreDifferentThenCaller() {
+	public void testValidateACLContentForACLPrincipalRealmIsDifferentThenCaller() {
 		ResourceAccess userRA = new ResourceAccess();
 		userRA.setPrincipalId(userInfo.getId());
 		Set<ACCESS_TYPE> ats = new HashSet<ACCESS_TYPE>();
@@ -296,6 +295,30 @@ public class PermissionsManagerUtilsTest {
 		});
 
 		assertEquals("All principals in the ACL must be from the same realm as the caller principal.", ex.getMessage());
+
+		// Admin caller can change ACL principal in different realm
+		PermissionsManagerUtils.validateACLContent(acl, adminUserInfo, realmIdSet, ownerId);
+	}
+
+	@Test
+	public void testValidateACLContentForEmptyRealSet() {
+		ResourceAccess userRA = new ResourceAccess();
+		userRA.setPrincipalId(userInfo.getId());
+		Set<ACCESS_TYPE> ats = new HashSet<ACCESS_TYPE>();
+		ats.add(ACCESS_TYPE.CHANGE_PERMISSIONS);
+		userRA.setAccessType(ats);
+
+		Set<ResourceAccess> ras = new HashSet<ResourceAccess>();
+		ras.add(userRA);
+
+		AccessControlList acl = new AccessControlList();
+		acl.setId("resource id");
+		acl.setResourceAccess(ras);
+		Set<String> realmIdSet = Collections.emptySet();
+
+		// Call under test
+		PermissionsManagerUtils.validateACLContent(acl, userInfo, realmIdSet, ownerId);
+
 	}
 
 }

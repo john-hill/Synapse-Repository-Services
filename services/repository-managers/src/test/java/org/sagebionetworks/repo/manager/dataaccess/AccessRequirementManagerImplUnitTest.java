@@ -1622,7 +1622,7 @@ public class AccessRequirementManagerImplUnitTest {
 	public void testUpdateAccessRequirementAcl() {
 		
 		Long arId = 1L;		
-		AccessRequirement ar = new ManagedACTAccessRequirement().setId(arId);
+		AccessRequirement ar = new ManagedACTAccessRequirement().setId(arId).setCreatedBy(userInfo.getId().toString());
 		AccessControlList acl = generateArAcl(2L);
 		
 		when(authorizationManager.isACTTeamMemberOrAdmin(any())).thenReturn(true);
@@ -1635,7 +1635,7 @@ public class AccessRequirementManagerImplUnitTest {
 		assertEquals(acl.getId(), arId.toString());
 		
 		verify(authorizationManager).isACTTeamMemberOrAdmin(userInfo);
-		verify(mockAclManager).update(userInfo, acl, ObjectType.ACCESS_REQUIREMENT, arId);
+		verify(mockAclManager).update(userInfo, acl, ObjectType.ACCESS_REQUIREMENT, userInfo.getId());
 		verify(mockAclManager).getAcl(arId.toString(), ObjectType.ACCESS_REQUIREMENT);
 	}
 

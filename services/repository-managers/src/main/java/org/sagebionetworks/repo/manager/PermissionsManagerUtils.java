@@ -16,6 +16,10 @@ public class PermissionsManagerUtils {
 
 	/**
 	 * Verifies that the caller does not lose the right to change permissions.
+	 * @param acl the acl to be created or updated
+	 * @param userInfo the caller's user info
+	 * @param realmIds realmIds is the list of realm ids for the principals listed in the TENTATIVE ACL.
+	 * @param ownerId the principal(user) id of the owner of the resource.
 	 */
 	public static void validateACLContent(AccessControlList acl, UserInfo userInfo, Set<String> realmIds, Long ownerId) throws InvalidModelException {
 
@@ -68,7 +72,7 @@ public class PermissionsManagerUtils {
 		if (realmIds.size() > 1) {
 			throw new InvalidModelException("All principals in the ACL must be from the same realm.");
 		}
-		if (realmIds.size() == 1 && !realmIds.contains(userInfo.getRealmId())) { //should we allow admins to set ACLs for other realms?
+		if (!userInfo.isAdmin() && realmIds.size() == 1 && !realmIds.contains(userInfo.getRealmId())) {
 			throw new InvalidModelException("All principals in the ACL must be from the same realm as the caller principal.");
 		}
 	}

@@ -15,7 +15,7 @@ public interface UserGroupDAO {
 	 */
 	public List<UserGroup> get(List<String> ids) throws DatastoreException;
 
-	 Map<String, Set<String>> getUserRealm(List<String> ids) throws DatastoreException;
+	 Map<String, Set<String>> getUsersRealms(List<String> ids) throws DatastoreException;
 
 	/**
 	 * a variant of the generic 'getAll' query, this allows the caller to

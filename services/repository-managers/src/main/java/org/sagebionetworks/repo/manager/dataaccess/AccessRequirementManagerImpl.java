@@ -551,12 +551,13 @@ public class AccessRequirementManagerImpl implements AccessRequirementManager {
 		if (!authorizationManager.isACTTeamMemberOrAdmin(userInfo)) {
 			throw new UnauthorizedException("Only an ACT member can update the ACL of an access requirement.");
 		}
-		
-		String aclArId = getAccessRequirement(accessRequirementId).getId().toString();
+
+		AccessRequirement accessRequirement = getAccessRequirement(accessRequirementId);
+		String aclArId = accessRequirement.getId().toString();
 		
 		acl.setId(aclArId);		
 				
-		aclManager.update(userInfo, acl, ObjectType.ACCESS_REQUIREMENT, Long.parseLong(aclArId));
+		aclManager.update(userInfo, acl, ObjectType.ACCESS_REQUIREMENT, Long.parseLong(accessRequirement.getCreatedBy()));
 
 		return aclManager.getAcl(aclArId, ObjectType.ACCESS_REQUIREMENT).orElseThrow(() ->
 				new NotFoundException(String.format(ACL_DOES_NOT_EXIST, aclArId, ObjectType.ACCESS_REQUIREMENT.name())));

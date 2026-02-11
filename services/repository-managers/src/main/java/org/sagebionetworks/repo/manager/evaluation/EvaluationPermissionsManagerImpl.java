@@ -9,6 +9,7 @@ import static org.sagebionetworks.repo.model.ACCESS_TYPE.SUBMIT;
 import static org.sagebionetworks.repo.model.ACCESS_TYPE.UPDATE;
 import static org.sagebionetworks.repo.model.ACCESS_TYPE.UPDATE_SUBMISSION;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -105,6 +106,10 @@ public class EvaluationPermissionsManagerImpl implements EvaluationPermissionsMa
 		final String evalId = acl.getId();
 		if (evalId == null || evalId.isEmpty()) {
 			throw new IllegalArgumentException("ACL's evaluation ID must not be null or empty.");
+		}
+
+		if(acl.getResourceAccess() == null) {
+			acl.setResourceAccess(Collections.emptySet());
 		}
 
 		final Evaluation eval = getEvaluation(evalId);

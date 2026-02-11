@@ -262,7 +262,7 @@ class RealmDaoImplTest {
 		idsToDelete.add(created.getId());
 
 		// 'createRealm' may not raise an exception when it fails
-		// but the following will raise an exception if it fails
+		// but the following will
 		realmDao.getRealm(created.getId());
 	}
 	

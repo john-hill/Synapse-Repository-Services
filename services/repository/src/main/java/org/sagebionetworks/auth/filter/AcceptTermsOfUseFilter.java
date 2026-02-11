@@ -32,9 +32,6 @@ public class AcceptTermsOfUseFilter implements Filter {
 	
 	@Autowired
 	private AuthenticationService authenticationService;
-	
-	@Autowired
-	private UserManager userManager;
 
 	@Override
 	public void doFilter(ServletRequest request, ServletResponse response, FilterChain filterChain)
@@ -58,8 +55,8 @@ public class AcceptTermsOfUseFilter implements Filter {
 		Long userId = Long.parseLong(userIdParam);
 		
 		// If the user is not anonymous, check if they have accepted the terms of use
-		UserInfo userInfo = userManager.getUserInfo(userId);
-		if (!userInfo.isUserAnonymous()) {
+		boolean isAnonymous = HttpAuthUtil.isAnonymous(httpRequest);
+		if (!isAnonymous) {
 			if (!authenticationService.hasUserAcceptedTermsOfService(userId)) {
 				HttpAuthUtil.rejectWithErrorResponse(httpResponse, TOU_UNSIGNED_REASON, HttpStatus.FORBIDDEN);
 				return;

@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.grid;
 
+import java.net.URL;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,7 +24,7 @@ import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
-public interface GridManager extends PatchStore {
+public interface GridManager extends PatchStore, SnapshotStore {
 
 	/**
 	 * Create a new grid session.
@@ -152,6 +153,13 @@ public interface GridManager extends PatchStore {
 	 * @return {@link Optional#empty()} If the replica is up-to-date.
 	 */
 	Optional<String> getNextMissingPatch(EventContext context, List<LogicalTimestamp> clock);
+
+	/**
+	 * Retrieve a pre-signed URL that can be used to download the latest snapshot data for a grid session.
+	 * @param context
+	 * @return
+	 */
+	Optional<URL> getLatestSnapshotPresignedUrl(EventContext context);
 
 	ListGridSessionsResponse listActiveGridSessions(UserInfo user, ListGridSessionsRequest request);
 

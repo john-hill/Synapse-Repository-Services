@@ -60,12 +60,16 @@ public class VectorNode implements Node, HasJsonValue<VectorNode>, CanInsert<Vec
 		JSONObject ob = new JSONObject(json);
 		this.values = new LinkedHashMap<>(ob.length());
 		ob.keySet().forEach(k -> {
-			JSONObject sub = ob.getJSONObject(k);
-			values.put(Integer.valueOf(k.substring(1)),
-					new ConstantNode().setId(LogicalTimestampCompactSerializable.deserialize(sub.getJSONArray("i")))
-							.setValue(ConValue.fromCompact(sub.optJSONArray("v"))));
+			JSONObject constantNodeAsJson = ob.getJSONObject(k);
+			Integer intKey = Integer.valueOf(k.substring(1));
+			values.put(intKey, getConstantNodeFromVectorNodeJson(constantNodeAsJson));
 		});
 		return this;
+	}
+
+	public static ConstantNode getConstantNodeFromVectorNodeJson(JSONObject constantNode) {
+		return new ConstantNode().setId(LogicalTimestampCompactSerializable.deserialize(constantNode.getJSONArray("i")))
+				.setValue(ConValue.fromCompact(constantNode.optJSONArray("v")));
 	}
 
 	@Override

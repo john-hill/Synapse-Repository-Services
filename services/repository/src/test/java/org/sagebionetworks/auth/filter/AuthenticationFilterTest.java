@@ -17,7 +17,7 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
+import java.util.Optional;
 
 import javax.servlet.FilterChain;
 import javax.servlet.FilterConfig;
@@ -39,6 +39,7 @@ import org.sagebionetworks.repo.manager.oauth.OpenIDConnectManager;
 import org.sagebionetworks.repo.model.AuthenticationMethod;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
+import org.sagebionetworks.repo.model.RealmDao;
 import org.sagebionetworks.repo.model.principal.PrincipalAlias;
 import org.sagebionetworks.repo.web.OAuthErrorCode;
 import org.sagebionetworks.repo.web.OAuthUnauthenticatedException;
@@ -68,6 +69,9 @@ public class AuthenticationFilterTest {
 	
 	@Mock
 	private OpenIDConnectManager mockOidcManager;
+	
+	@Mock
+	private RealmDao mockRealmDao;
 	
 	@Captor
 	private ArgumentCaptor<HttpServletRequest> requestCaptor;
@@ -129,6 +133,7 @@ public class AuthenticationFilterTest {
 		String anonymous = modRequest.getParameter(AuthorizationConstants.USER_ID_PARAM);
 		assertEquals(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId().toString(), anonymous);
 		assertNull(modRequest.getHeader(AuthorizationConstants.SYNAPSE_AUTHENTICATION_METHOD_HEADER_NAME));
+		assertEquals("true", modRequest.getParameter(AuthorizationConstants.ANONYMOUS_PARAM));
 	}
 	
 	/**
@@ -178,8 +183,9 @@ public class AuthenticationFilterTest {
 		when(mockHttpRequest.getHeaderNames()).thenReturn(Collections.enumeration(HEADER_NAMES));
 		when(mockHttpRequest.getHeaders("Authorization")).thenReturn(Collections.enumeration(Collections.singletonList(BEARER_TOKEN_HEADER)));
 		when(mockOidcManager.validateAccessToken(anyString())).thenReturn(""+userId);
-
 		// by default the mocked oidcTokenHelper.validateJWT(bearerToken) won't throw any exception, so the token is deemed valid
+		
+		when(mockRealmDao.getRealmForAnonymousPrincipal(""+userId)).thenReturn(Optional.empty()); // userId is not anonymous
 
 		// method under test
 		filter.doFilter(mockHttpRequest, mockHttpResponse, mockFilterChain);
@@ -188,6 +194,7 @@ public class AuthenticationFilterTest {
 		verify(mockFilterChain).doFilter(requestCaptor.capture(), (ServletResponse)any());
 		
 		assertEquals(""+userId, requestCaptor.getValue().getParameter(AuthorizationConstants.USER_ID_PARAM));
+		assertEquals("false", requestCaptor.getValue().getParameter(AuthorizationConstants.ANONYMOUS_PARAM));
 		assertEquals("Bearer "+BEARER_TOKEN, requestCaptor.getValue().getHeader(AuthorizationConstants.SYNAPSE_AUTHORIZATION_HEADER_NAME));
 		assertEquals(AuthenticationMethod.BEARERTOKEN.name(), requestCaptor.getValue().getHeader(AuthorizationConstants.SYNAPSE_AUTHENTICATION_METHOD_HEADER_NAME));
 	}
@@ -197,7 +204,8 @@ public class AuthenticationFilterTest {
 		when(mockHttpRequest.getHeader(AuthorizationConstants.SESSION_TOKEN_PARAM)).thenReturn(BEARER_TOKEN);
 		when(mockHttpRequest.getHeaderNames()).thenReturn(Collections.enumeration(Collections.singletonList("sessionToken")));
 		when(mockOidcManager.validateAccessToken(anyString())).thenReturn(""+userId);
-
+		when(mockRealmDao.getRealmForAnonymousPrincipal(""+userId)).thenReturn(Optional.empty()); // userId is not anonymous
+		
 		// method under test
 		filter.doFilter(mockHttpRequest, mockHttpResponse, mockFilterChain);
 		
@@ -220,6 +228,7 @@ public class AuthenticationFilterTest {
 		when(mockHttpRequest.getHeaderNames()).thenReturn(Collections.enumeration(HEADER_NAMES));
 		when(mockHttpRequest.getHeaders("Authorization")).thenReturn(Collections.enumeration(Collections.singletonList(BEARER_TOKEN_HEADER)));
 		when(mockOidcManager.validateAccessToken(anyString())).thenReturn(""+userId);
+		when(mockRealmDao.getRealmForAnonymousPrincipal(""+userId)).thenReturn(Optional.empty()); // userId is not anonymous
 
 		// method under test
 		filter.doFilter(mockHttpRequest, mockHttpResponse, mockFilterChain);
@@ -267,6 +276,7 @@ public class AuthenticationFilterTest {
 		verify(mockOidcManager, never()).validateAccessToken(BEARER_TOKEN);
 		
 		assertEquals("273950", requestCaptor.getValue().getParameter(AuthorizationConstants.USER_ID_PARAM));
+		assertEquals("true", requestCaptor.getValue().getParameter(AuthorizationConstants.ANONYMOUS_PARAM));
 		assertNull(requestCaptor.getValue().getHeader(AuthorizationConstants.SYNAPSE_AUTHORIZATION_HEADER_NAME));
 		assertNull(requestCaptor.getValue().getHeader(AuthorizationConstants.SYNAPSE_AUTHENTICATION_METHOD_HEADER_NAME));
 	}

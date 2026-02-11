@@ -11,9 +11,11 @@ import org.sagebionetworks.repo.manager.oauth.OIDCTokenManager;
 import org.sagebionetworks.repo.manager.password.InvalidPasswordException;
 import org.sagebionetworks.repo.manager.password.PasswordValidator;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.RealmDao;
 import org.sagebionetworks.repo.model.UnauthenticatedException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.AccessTokenResponse;
 import org.sagebionetworks.repo.model.auth.AuthenticatedOn;
 import org.sagebionetworks.repo.model.auth.AuthenticationDAO;
 import org.sagebionetworks.repo.model.auth.ChangePasswordInterface;
@@ -24,6 +26,7 @@ import org.sagebionetworks.repo.model.auth.HasTwoFactorAuthToken;
 import org.sagebionetworks.repo.model.auth.LoginRequest;
 import org.sagebionetworks.repo.model.auth.LoginResponse;
 import org.sagebionetworks.repo.model.auth.PasswordResetSignedToken;
+import org.sagebionetworks.repo.model.auth.RealmPrincipal;
 import org.sagebionetworks.repo.model.auth.TwoFactorAuthDisableRequest;
 import org.sagebionetworks.repo.model.auth.TwoFactorAuthLoginRequest;
 import org.sagebionetworks.repo.model.auth.TwoFactorAuthOtpType;
@@ -83,6 +86,9 @@ public class AuthenticationManagerImpl implements AuthenticationManager {
 	
 	@Autowired
 	private UserStatusDao userStatusDao;
+	
+	@Autowired
+	private RealmDao realmDao;
 	
 	@Override
 	@WriteTransaction
@@ -248,6 +254,17 @@ public class AuthenticationManagerImpl implements AuthenticationManager {
 		validateTwoFactorAuthTokenRequest(request, TwoFactorAuthTokenContext.AUTHENTICATION);
 		UserInfo user = userManager.getUserInfo(request.getUserId());
 		return getLoginResponseAfterSuccessfulAuthentication(user, issuer);
+	}
+	
+	@Override
+	public AccessTokenResponse getAnonymousAccessToken(String realmId, String issuer) {
+		RealmPrincipal realmPrincipals = realmDao.getRealmPrincipals(realmId);
+		String principalId = realmPrincipals.getAnonymousUser();
+		// this is the same type of token created at log-in, except it's for the 'anonymous' user
+		String accessToken = oidcTokenManager.createClientTotalAccessToken(Long.parseLong(principalId), issuer);
+		AccessTokenResponse response = new AccessTokenResponse();
+		response.setAccessToken(accessToken);
+		return response;
 	}
 	
 	@Override

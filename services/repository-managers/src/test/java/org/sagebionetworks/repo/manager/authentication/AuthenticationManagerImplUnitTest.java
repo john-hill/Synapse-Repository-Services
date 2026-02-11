@@ -11,7 +11,6 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -42,11 +41,13 @@ import org.sagebionetworks.repo.manager.oauth.OIDCTokenManager;
 import org.sagebionetworks.repo.manager.password.InvalidPasswordException;
 import org.sagebionetworks.repo.manager.password.PasswordValidatorImpl;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.RealmDao;
 import org.sagebionetworks.repo.model.UnauthenticatedException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserGroup;
 import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.auth.AccessTokenResponse;
 import org.sagebionetworks.repo.model.auth.AuthenticatedOn;
 import org.sagebionetworks.repo.model.auth.AuthenticationDAO;
 import org.sagebionetworks.repo.model.auth.ChangePasswordInterface;
@@ -57,6 +58,7 @@ import org.sagebionetworks.repo.model.auth.HasTwoFactorAuthToken;
 import org.sagebionetworks.repo.model.auth.LoginRequest;
 import org.sagebionetworks.repo.model.auth.LoginResponse;
 import org.sagebionetworks.repo.model.auth.PasswordResetSignedToken;
+import org.sagebionetworks.repo.model.auth.RealmPrincipal;
 import org.sagebionetworks.repo.model.auth.TwoFactorAuthDisableRequest;
 import org.sagebionetworks.repo.model.auth.TwoFactorAuthLoginRequest;
 import org.sagebionetworks.repo.model.auth.TwoFactorAuthOtpType;
@@ -106,6 +108,8 @@ public class AuthenticationManagerImplUnitTest {
 	private TermsOfServiceManager mockTosManager;
 	@Mock
 	private UserStatusDao mockUserStatusDao;
+	@Mock
+	private RealmDao mockRealmDao;
 	
 	final Long userId = 12345L;
 	final String username = "AuthManager@test.org";
@@ -1465,6 +1469,25 @@ public class AuthenticationManagerImplUnitTest {
 		
 		verifyNoMoreInteractions(mock2FaManager);
 		
+	}
+	
+	@Test
+	public void testGetAnonymousAccessToken() {
+		String realmId = "10";
+		String issuer = "issuer";
+		Long anonymousUserId = 101L;
+		String anonymousToken = "token";
+		
+		RealmPrincipal realmPrincipals = new RealmPrincipal();
+		realmPrincipals.setAnonymousUser(anonymousUserId.toString());
+		
+		when(mockRealmDao.getRealmPrincipals(realmId)).thenReturn(realmPrincipals);
+		when(mockOIDCTokenHelper.createClientTotalAccessToken(anonymousUserId, issuer)).thenReturn(anonymousToken);
+		
+		// method under test
+		AccessTokenResponse response = authManager.getAnonymousAccessToken(realmId, issuer);
+		
+		assertEquals(anonymousToken, response.getAccessToken());
 	}
 	
 }

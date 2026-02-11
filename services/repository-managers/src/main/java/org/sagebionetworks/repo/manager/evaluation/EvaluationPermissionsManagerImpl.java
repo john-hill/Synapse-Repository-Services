@@ -24,8 +24,6 @@ import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
-import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
-import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.InvalidModelException;
@@ -105,7 +103,7 @@ public class EvaluationPermissionsManagerImpl implements EvaluationPermissionsMa
 		final Long evalOwnerId = KeyFactory.stringToKey(eval.getOwnerId());
 		PermissionsManagerUtils.validateACLContent(acl, userInfo, evalOwnerId);
 
-		validateUserGroupPermissions(acl.getResourceAccess(), userInfo.getRealmAnonymousUserId());
+		validateUserGroupPermissions(acl.getResourceAccess(), userInfo);
 
 		aclDAO.update(acl, ObjectType.EVALUATION);
 		return aclDAO.get(evalId, ObjectType.EVALUATION);
@@ -242,22 +240,23 @@ public class EvaluationPermissionsManagerImpl implements EvaluationPermissionsMa
 	/*
 	 * Ensures that public/anonymous users are not given more permissions than they should be allowed to have on an evaluation
 	 */
-	private static void validateUserGroupPermissions(Set<ResourceAccess> resourceAccess, Long anonymousPrincipalId) {
+	private static void validateUserGroupPermissions(Set<ResourceAccess> resourceAccess, UserInfo userInfo) {
 		for (ResourceAccess ra : resourceAccess) {
-			if (ra.getPrincipalId().equals(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId())) {
+			if (ra.getPrincipalId().equals(userInfo.getRealmPublicUsersId())) {
 				if (!CollectionUtils.isSubCollection(ra.getAccessType(), ModelConstants.EVALUATION_PUBLIC_MAXIMUM_ACCESS_PERMISSIONS)) {
 					throw new InvalidModelException("Public users may only have read access on an evaluation.");
 				}
-			} else if (ra.getPrincipalId().equals(anonymousPrincipalId)) {
+			} else if (ra.getPrincipalId().equals(userInfo.getRealmAnonymousUserId())) {
 				// Note, we need to check all anonymous users (from all realms) are rejected
 				// however anonymous users from other realms will be addressed by the constraint
 				// that all ACL entries must be from the same realm
+				// (Ditto for authenticted users and the public group.)
 				//
 				// PLFM-9438 TODO Anonymous should not be in an ACL AT ALL
 				if (!CollectionUtils.isSubCollection(ra.getAccessType(), ModelConstants.EVALUATION_ANONYMOUS_MAXIMUM_ACCESS_PERMISSIONS)) {
 					throw new InvalidModelException("Anonymous users may only have read access on an evaluation.");
 				}
-			} else if (ra.getPrincipalId().equals(BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId())) {
+			} else if (ra.getPrincipalId().equals(userInfo.getRealmAuthenticatedUsersId())) {
 				if (!CollectionUtils.isSubCollection(ra.getAccessType(), ModelConstants.EVALUATION_AUTH_USER_MAXIMUM_ACCESS_PERMISSIONS)) {
 					throw new InvalidModelException("Only read access on an evaluation can be granted to all authenticated Synapse users.");
 				}

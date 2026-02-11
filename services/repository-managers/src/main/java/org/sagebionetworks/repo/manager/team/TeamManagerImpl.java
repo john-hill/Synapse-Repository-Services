@@ -215,7 +215,7 @@ public class TeamManagerImpl implements TeamManager {
 				ModelConstants.TEAM_MESSENGER_PERMISSIONS));
 		// let public send messages to team by default
 		acl.getResourceAccess().add(createResourceAccess(
-				AuthorizationConstants.BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId(),
+				creator.getRealmAuthenticatedUsersId(),
 				ModelConstants.TEAM_MESSENGER_PERMISSIONS));
 
 		return acl;

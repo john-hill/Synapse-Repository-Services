@@ -56,8 +56,8 @@ public class UserManagerImplTest {
 	public void testGetAnonymous() throws Exception {
 		UserInfo ui = userManager.getUserInfo(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 		assertTrue(ui.isUserAnonymous());
-		assertTrue(AuthorizationUtils.isDefaultRealmAnonymousId(ui.getId()));
-		assertTrue(AuthorizationUtils.isDefaultRealmAnonymousId(Long.parseLong(ui.getId().toString())));
+		assertEquals(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId(), ui.getId());
+		assertEquals(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId(), Long.parseLong(ui.getId().toString()));
 		assertNotNull(ui.getId());
 		assertEquals(2, ui.getGroups().size());
 		assertTrue(ui.getGroups().contains(ui.getId()));

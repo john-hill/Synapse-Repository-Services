@@ -255,9 +255,15 @@ class RealmDaoImplTest {
 		Realm realm = new Realm();
 		realm.setName(NAME);
 		realm.setIdentityProvider(idps);
+		
 		// method under test
 		Realm created = realmDao.createRealm(realm);
+		
 		idsToDelete.add(created.getId());
+
+		// 'createRealm' may not raise an exception when it fails
+		// but the following will
+		realmDao.getRealm(created.getId());
 	}
 	
 	@Test

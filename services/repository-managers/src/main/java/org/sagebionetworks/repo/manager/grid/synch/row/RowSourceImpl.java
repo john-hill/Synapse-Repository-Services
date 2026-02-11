@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -178,8 +179,8 @@ public class RowSourceImpl implements RowSource {
 	 * @return a SynchRow representation suitable for source operations
 	 */
 	private SynchRow createSynchRow(CopyRow copy, String key) {
-		return new SynchRow(copy.getCells().stream().collect(Collectors.toMap(CopyCell::getName, CopyCell::getValue)),
-				key);
+		return new SynchRow(copy.getCells().stream()
+				.collect(Collectors.toMap(CopyCell::getName, CopyCell::getValue, (v1, v2) -> v2, TreeMap::new)), key);
 	}
 
 }

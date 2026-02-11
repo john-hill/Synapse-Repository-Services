@@ -44,7 +44,7 @@ import org.sagebionetworks.repo.model.grid.patch.ConValue;
  */
 public class SynchRow implements SourceItem {
 
-	private final Map<String, ConValue> data;
+	private final TreeMap<String, ConValue> data;
 	private final String key;
 	private final byte[] hash;
 	private final byte[] bytes;
@@ -57,7 +57,7 @@ public class SynchRow implements SourceItem {
 	 * @param data the row's cell data (column name to value mappings)
 	 * @param key  the unique identifier for this row
 	 */
-	public SynchRow(Map<String, ConValue> data, String key) {
+	public SynchRow(TreeMap<String, ConValue> data, String key) {
 		super();
 		this.data = data;
 		this.key = key;
@@ -128,11 +128,11 @@ public class SynchRow implements SourceItem {
 	 * @return the reconstructed data map
 	 * @throws RuntimeException if deserialization fails
 	 */
-	private Map<String, ConValue> generateDataFromBytes() {
+	private TreeMap<String, ConValue> generateDataFromBytes() {
 		try (ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
 				DataInputStream dis = new DataInputStream(bais)) {
 
-			Map<String, ConValue> result = new TreeMap<>();
+			TreeMap<String, ConValue> result = new TreeMap<>();
 
 			while (dis.available() > 0) {
 				String mapKey = dis.readUTF();
@@ -158,10 +158,7 @@ public class SynchRow implements SourceItem {
 		try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
 				DataOutputStream dos = new DataOutputStream(baos)) {
 
-			// Sort keys alphabetically for consistent serialization
-			TreeMap<String, ConValue> sortedData = new TreeMap<>(data);
-
-			for (Map.Entry<String, ConValue> entry : sortedData.entrySet()) {
+			for (Map.Entry<String, ConValue> entry : data.entrySet()) {
 				dos.writeUTF(entry.getKey());
 				dos.writeUTF(entry.getValue().toCompact().toString());
 			}

@@ -90,7 +90,7 @@ public interface SourceHandler extends AutoCloseable {
 	 *
 	 * @param columnName the name of the column to delete
 	 */
-	void deleteColumn(String columnName);
+	void removeColumn(String columnName);
 
 	/**
 	 * Removes a row from the source. Called during synchronization when a row

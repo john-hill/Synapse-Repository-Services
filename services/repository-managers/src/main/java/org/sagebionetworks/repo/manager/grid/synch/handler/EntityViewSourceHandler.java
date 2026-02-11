@@ -9,6 +9,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -89,7 +90,7 @@ public class EntityViewSourceHandler implements SourceHandler {
 				? new HashSet<>(jsonSchemaManager.getValidationSchema(session.getGridJsonSchema$Id()).getRequired())
 				: Collections.emptySet();
 
-		tempFile = fileProvider.createTempFile("Source" + session.getSourceEntityId(), ".bin");
+		tempFile = fileProvider.createTempFile("Source-" + session.getSourceEntityId(), ".bin");
 		diskPointers = new ArrayList<>();
 		try (RowWriter writer = new RowWriter(fileProvider.createFileOutputStream(tempFile))) {
 			UserInfo sessionOwner = gridAuthorizationManager.getRowLevelFilterUserInfo(user, session.getSessionId());
@@ -106,8 +107,8 @@ public class EntityViewSourceHandler implements SourceHandler {
 	}
 
 	SynchRow createSynchRow(Row row) {
-		String key = IdAndVersion.newBuilder().setId(row.getRowId()).toString();
-		Map<String, ConValue> data = new HashMap<>();
+		String key = IdAndVersion.newBuilder().setId(row.getRowId()).build().toString();
+		TreeMap<String, ConValue> data = new TreeMap<>();
 		for (int i = 0; i < schema.size(); i++) {
 			String columnName = schema.get(i).getName();
 			ConValue conValue = translators.get(columnName).translateNullable(row.getValues().get(i),
@@ -126,7 +127,7 @@ public class EntityViewSourceHandler implements SourceHandler {
 	public String getRowKey(CopyRow rowView) {
 		SynapseRow synRow = rowView.getSynapseRow()
 				.orElseThrow(() -> new IllegalArgumentException("Expected Synapse rows"));
-		return IdAndVersion.newBuilder().setId(synRow.getRowId()).toString();
+		return IdAndVersion.newBuilder().setId(synRow.getRowId()).build().toString();
 	}
 
 	@Override
@@ -145,7 +146,7 @@ public class EntityViewSourceHandler implements SourceHandler {
 	}
 
 	@Override
-	public void deleteColumn(String columnName) {
+	public void removeColumn(String columnName) {
 		log.warn("call to deleteColumn() will be ignored for columnName: {}", columnName);
 	}
 

@@ -3,14 +3,18 @@ package org.sagebionetworks.repo.model.grid.encoding;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.node.ArrayNode;
@@ -29,6 +33,21 @@ import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
  */
 public class IndexedModelEncodingRoundTripTest {
 
+    private Path tempFile;
+    private SnapshotFileIndexBuilder indexBuilder;
+
+    @BeforeEach
+    public void setUp() throws IOException {
+        tempFile = Files.createTempFile("round-trip-test-", ".cbor");
+        indexBuilder = new SnapshotFileIndexBuilder();
+    }
+
+    @AfterEach
+    public void tearDown() throws IOException {
+        if (tempFile != null) {
+            Files.deleteIfExists(tempFile);
+        }
+    }
 
     @Test
     public void testWriteModelToFile() throws IOException {
@@ -66,26 +85,29 @@ public class IndexedModelEncodingRoundTripTest {
                 .setId(new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(8L))
                 .setValue(new ConValue(ConType.UNDEFINED, null)));
 
+        // Note: The decoder sets referenceNodeId to the array head (containerId) for the first element
+        LogicalTimestamp arrayId = new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(10L);
         nodes.add(new ArrayNode()
-                .setId(new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(10L))
+                .setId(arrayId)
                 .setElements(List.of(
                         new RGANode()
-                                .setContainerId(new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(10L))
-                                .setNodeId(new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(10L))
+                                .setContainerId(arrayId)
+                                .setNodeId(new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(11L))
+                                .setReferenceNodeId(arrayId)  // First element references the array head
                                 .setDataId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(12L))
                                 .setIsDeleted(false),
                         new RGANode()
-                                .setContainerId(new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(10L))
-                                .setNodeId(new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(11L))
-                                .setDataId(new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(13L))
-                                .setReferenceNodeId(new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(10L))
+                                .setContainerId(arrayId)
+                                .setNodeId(new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(13L))
+                                .setDataId(new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(14L))
+                                .setReferenceNodeId(new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(11L))
                                 .setIsDeleted(false)
                 )));
         nodes.add(new ConstantNode()
-                .setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(12L))
+                .setId(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(15L))
                 .setValue(new ConValue(ConType.BOOLEAN, true)));
         nodes.add(new ConstantNode()
-                .setId(new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(13L))
+                .setId(new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(16L))
                 .setValue(new ConValue(ConType.NULL, null)));
 
 
@@ -104,21 +126,38 @@ public class IndexedModelEncodingRoundTripTest {
         }
         assertTrue(encodedBytes.length > 0);
 
-        // Now read back the file and verify the nodes
-        Supplier<ByteArrayInputStream> supplier = () -> new ByteArrayInputStream(encodedBytes);
+        // Write to temp file for the decoder
+        Files.write(tempFile, encodedBytes);
 
         ClockTable expectedClockTable = new ClockTable(List.of(
-                new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(12L),
-                new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(13L)
+                new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(15L),
+                new LogicalTimestamp().setReplicaId(200L).setSequenceNumber(16L)
         ));
 
+        // Build the decoder index and verify metadata
+        SnapshotFileIndex index = indexBuilder.build(tempFile);
+        assertEquals(testRootNodeId, index.getRootNodeId(), "Root node ID should match");
+        assertEquals(expectedClockTable, index.getClockTable(), "Clock table should match");
+        assertEquals(nodes.size(), index.getTotalNodeCount(), "Total node count should match");
+
+        // Read all nodes back using SeekingNodeReader and verify they match
         List<Node> decodedNodes = new ArrayList<>();
-        try (IndexedModelDecoder decoder = new IndexedModelDecoder(supplier)) {
-            assertEquals(testRootNodeId, decoder.getRootNodeId(), "Root node ID should match");
-            assertEquals(expectedClockTable, decoder.getClockTable(), "Clock table should match");
-            decoder.iterator().forEachRemaining(decodedNodes::add);
+        try (SeekingNodeReader reader = new SeekingNodeReader(tempFile, index)) {
+            // Read nodes in type order (same order they were indexed)
+            for (IndexedNodeCodecMapper type : IndexedNodeCodecMapper.values()) {
+                Map<LogicalTimestamp, SnapshotFileIndex.NodePointer> entries = index.getEntriesForType(type);
+                for (LogicalTimestamp nodeId : entries.keySet()) {
+                    decodedNodes.add(reader.readNode(type, nodeId));
+                }
+            }
         }
 
-        assertEquals(nodes, decodedNodes, "Decoded nodes should match original nodes");
+        // Sort the node lists by timestamp and compare
+        Comparator<Node> byId = Comparator.comparing(Node::getId);
+        assertEquals(
+                nodes.stream().sorted(byId).collect(Collectors.toList()),
+                decodedNodes.stream().sorted(byId).collect(Collectors.toList()),
+                "Original and decoded are equal"
+        );
     }
 }

@@ -11,6 +11,7 @@ import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.aws.SynapseS3Client;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.grid.GridAuthorizationManager;
+import org.sagebionetworks.repo.manager.grid.IndexedModelEncoderProvider;
 import org.sagebionetworks.repo.manager.grid.SnapshotRowHandler;
 import org.sagebionetworks.repo.manager.grid.SnapshotStore;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
@@ -53,13 +54,15 @@ public class QueryCreateGridHandler implements CreateGridHandler {
 	private final JsonSchemaValidationManager jsonSchemaValidationManager;
 	private final GridAuthorizationManager gridAuthorizationManager;
 	private final FileProvider fileProvider;
+	private final IndexedModelEncoderProvider encoderProvider;
 	private final SynapseS3Client synapseS3Client;
 	private final StackConfiguration stackConfig;
 
 	public QueryCreateGridHandler(GridDao gridDao, EntityManager entityManager, TableQueryManager tableQueryManager,
 								  JsonSchemaManager schemaManager, JsonSchemaValidationManager jsonSchemaValidationManager,
 								  GridAuthorizationManager gridAuthorizationManager, FileProvider fileProvider,
-								  SynapseS3Client synapseS3Client, StackConfiguration stackConfig) {
+								  IndexedModelEncoderProvider encoderProvider, SynapseS3Client synapseS3Client,
+								  StackConfiguration stackConfig) {
 		super();
 		this.gridDao = gridDao;
 		this.entityManager = entityManager;
@@ -68,6 +71,7 @@ public class QueryCreateGridHandler implements CreateGridHandler {
 		this.jsonSchemaValidationManager = jsonSchemaValidationManager;
 		this.gridAuthorizationManager = gridAuthorizationManager;
 		this.fileProvider = fileProvider;
+		this.encoderProvider = encoderProvider;
 		this.synapseS3Client = synapseS3Client;
 		this.stackConfig = stackConfig;
 	}
@@ -129,8 +133,8 @@ public class QueryCreateGridHandler implements CreateGridHandler {
 			tableQueryManager.runQueryAsStream(callback, sessionOwner, initialQuery, t -> {
 				List<ColumnModel> schema = t.getMainQuery().getTranslator().getSchemaOfSelect();
 				return new SnapshotRowHandler(snapshotStore, session.getSessionId(), replica.getReplicaId(), schema,
-						columnsRequiredBySchemaIndices, fileProvider, user.getId(),	jsonSchemaValidationManager,
-						validationSchema.orElse(null));
+						columnsRequiredBySchemaIndices, fileProvider, encoderProvider, user.getId(),
+						jsonSchemaValidationManager, validationSchema.orElse(null));
 			}, ACCESS_TYPE.READ, ACCESS_TYPE.UPDATE);
 			return new CreateGridHandlerResult().setGridSession(session).setGridReplica(replica);
 		} catch (LockUnavilableException | TableUnavailableException e) {

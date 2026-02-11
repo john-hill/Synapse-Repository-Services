@@ -306,6 +306,23 @@ public class GridReplicaManagerImplTest {
 
 	@SuppressWarnings("unchecked")
 	@Test
+	public void testDownloadSnapshotFileWithMaxRetries() throws Exception {
+		URL snapshotUrl = new URL("https://example.com/snapshot.cbor");
+
+		when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+				.thenReturn(mockHttpResponse);
+		when(mockHttpResponse.statusCode())
+				.thenReturn(429);
+
+		// call under test
+		assertThrows(RuntimeException.class, () -> manager.downloadSnapshotFile(snapshotUrl));
+
+		verify(mockHttpClient, times(5)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+	}
+
+
+	@SuppressWarnings("unchecked")
+	@Test
 	public void testDownloadSnapshotFileWithIOException() throws Exception {
 		URL snapshotUrl = new URL("https://example.com/snapshot.cbor");
 

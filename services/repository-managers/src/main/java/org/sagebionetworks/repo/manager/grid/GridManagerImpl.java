@@ -7,12 +7,12 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.json.JSONObject;
 import org.sagebionetworks.StackConfiguration;
 import org.sagebionetworks.aws.SynapseS3Client;
 import org.sagebionetworks.repo.manager.config.WebsocketApi;
@@ -26,6 +26,7 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.dbo.grid.GridSource;
+import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlResponse;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
@@ -35,7 +36,6 @@ import org.sagebionetworks.repo.model.grid.CreateReplicaResponse;
 import org.sagebionetworks.repo.model.grid.EventContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.EventType;
-import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
@@ -54,17 +54,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.amazonaws.HttpMethod;
-import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
-import com.amazonaws.services.s3.model.CannedAccessControlList;
-import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
-import com.amazonaws.services.s3.model.CompleteMultipartUploadResult;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
-import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PartETag;
-import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.transfer.TransferManager;
-import com.amazonaws.services.s3.transfer.Upload;
 import com.amazonaws.services.s3.transfer.model.UploadResult;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -355,6 +347,29 @@ public class GridManagerImpl implements GridManager {
 		// Lookup the grid session for the provide connection Id.
 		GridConnectionInfo thisCon = getConnectionInfo(connectionId);
 		return gridDao.listConnections(thisCon.getSessionId());
+	}
+
+	@Override
+	public Optional<String> getNextSynchronizeResponse(EventContext context, List<LogicalTimestamp> clock) {
+		// Always start a new replica with a snapshot
+		boolean getSnapshot = clock == null || clock.isEmpty();
+
+		if (getSnapshot) {
+			Optional<URL> snapshotPresignedUrl = this.getLatestSnapshotPresignedUrl(context);
+			if (snapshotPresignedUrl.isPresent()) {
+				// Send the snapshot URL to the caller
+				JSONObject messageBody = new JSONObject();
+				messageBody.put("type", "snapshot");
+				messageBody.put("body", snapshotPresignedUrl.get().toString());
+				return Optional.of(messageBody.toString());
+			}
+		}
+
+		// Otherwise, find and send the next missing patch
+		// If this is empty. then the replica is up-to-date.
+		Optional<String> optional = this.getNextMissingPatch(context, clock);
+        // directly inline the patch body (it is always a JSON array)
+        return optional.map(patchBody -> "{\"type\":\"patch\",\"body\":" + patchBody + "}");
 	}
 
 	GridConnectionInfo getConnectionInfo(String connectionId) {

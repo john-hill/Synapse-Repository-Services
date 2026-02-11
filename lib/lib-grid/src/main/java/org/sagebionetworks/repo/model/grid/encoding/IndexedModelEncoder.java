@@ -99,6 +99,10 @@ public class IndexedModelEncoder implements Closeable {
 		}
 	}
 
+	public ClockTable getClockTable() {
+		return clockTable;
+	}
+
 	/**
 	 * Close the encoder, writing the complete CBOR map.
 	 * This must be called to produce valid output.

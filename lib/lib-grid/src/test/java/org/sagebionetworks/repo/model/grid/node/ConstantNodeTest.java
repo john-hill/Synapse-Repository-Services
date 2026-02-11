@@ -46,14 +46,14 @@ public class ConstantNodeTest {
 	public void testGetValueAsJsonWithObject() {
 		ConstantNode con = new ConstantNode().setId(id).setValue(new ConValue(ConType.JSON_OBJECT, new JSONObject("{\"key\":99}")));
 		// call under test
-		assertEquals("[0,[1,2],{\"key\":99}]", con.getValueAsJson());
+		assertEquals("[{\"key\":99}]", con.getValueAsJson());
 	}
 
 	@Test
 	public void testGetValueAsJsonWithString() {
 		ConstantNode con = new ConstantNode().setId(id).setValue(new ConValue(ConType.STRING, "foo"));
 		// call under test
-		assertEquals("[0,[1,2],\"foo\"]", con.getValueAsJson());
+		assertEquals("[\"foo\"]", con.getValueAsJson());
 
 	}
 
@@ -61,14 +61,14 @@ public class ConstantNodeTest {
 	public void testGetValueAsJsonWithNull() {
 		ConstantNode con = new ConstantNode().setId(id).setValue(new ConValue(ConType.NULL, JSONObject.NULL));
 		// call under test
-		assertEquals("[0,[1,2],null]", con.getValueAsJson());
+		assertEquals("[null]", con.getValueAsJson());
 	}
 
 	@Test
 	public void testGetValueAsJsonWithUndefined() {
 		ConstantNode con = new ConstantNode().setId(id).setValue(new ConValue(ConType.UNDEFINED, null));
 		// call under test
-		assertEquals("[0,[1,2],0,0]", con.getValueAsJson());
+		assertEquals("[0,0]", con.getValueAsJson());
 	}
 
 	@Test

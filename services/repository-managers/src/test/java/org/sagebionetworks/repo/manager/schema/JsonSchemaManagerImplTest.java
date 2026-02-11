@@ -165,6 +165,7 @@ public class JsonSchemaManagerImplTest {
 		adminUser = new UserInfo(isAdmin, 456L);
 
 		anonymousUser = new UserInfo(isAdmin, BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
+		anonymousUser.setRealmAnonymousUserId(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 
 		now = new Date(1L);
 

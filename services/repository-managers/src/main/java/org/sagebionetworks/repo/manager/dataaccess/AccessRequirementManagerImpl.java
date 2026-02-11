@@ -518,7 +518,7 @@ public class AccessRequirementManagerImpl implements AccessRequirementManager {
 	public AccessControlList createAccessRequirementAcl(UserInfo userInfo, String accessRequirementId, AccessControlList acl) {
 		ValidateArgument.required(userInfo, "userInfo");
 		ValidateArgument.required(accessRequirementId, "accessRequirementId");
-		AccessRequirementUtils.validateAccessRequirementAcl(acl);
+		AccessRequirementUtils.validateAccessRequirementAcl(acl, userInfo);
 		
 		// The only permission check we do is that the user is part of ACT, note that we do not check/require CHANGE_PERMISSIONS 
 		// since the ARs do not have any ACL when created
@@ -544,7 +544,7 @@ public class AccessRequirementManagerImpl implements AccessRequirementManager {
 			throws NotFoundException, UnauthorizedException {
 		ValidateArgument.required(userInfo, "userInfo");
 		ValidateArgument.required(accessRequirementId, "accessRequirementId");
-		AccessRequirementUtils.validateAccessRequirementAcl(acl);
+		AccessRequirementUtils.validateAccessRequirementAcl(acl, userInfo);
 		
 		// The only permission check we do is that the user is part of ACT, note that we do not check/require CHANGE_PERMISSIONS 
 		// since the ARs do not have any ACL when created

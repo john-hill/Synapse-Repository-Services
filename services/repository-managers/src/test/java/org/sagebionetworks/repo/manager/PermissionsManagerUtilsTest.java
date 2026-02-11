@@ -31,10 +31,12 @@ public class PermissionsManagerUtilsTest {
 	@BeforeEach
 	public void setUp(){
 		ownerId = 1234L;
-		userInfo = new UserInfo(false, ownerId, DEFAULT_REALM_ID);
-		otherUserInfo = new UserInfo(false, 56789L, DEFAULT_REALM_ID);
-		adminUserInfo = new UserInfo(true, 1L, DEFAULT_REALM_ID);
+		userInfo = UserInfoTestHelper.createUserInfo(false, ownerId);
+
+		otherUserInfo = UserInfoTestHelper.createUserInfo(false, 56789L);
 		otherUserInfo.getGroups().add(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId());
+
+		adminUserInfo = UserInfoTestHelper.createUserInfo(true, 1L);
 		realmIds = Set.of(DEFAULT_REALM_ID);
 	}
 

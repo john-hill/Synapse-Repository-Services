@@ -218,7 +218,7 @@ public class TeamManagerImpl implements TeamManager {
 				ModelConstants.TEAM_MESSENGER_PERMISSIONS));
 		// let public send messages to team by default
 		acl.getResourceAccess().add(createResourceAccess(
-				AuthorizationConstants.BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId(),
+				creator.getRealmAuthenticatedUsersId(),
 				ModelConstants.TEAM_MESSENGER_PERMISSIONS));
 
 		return acl;
@@ -273,7 +273,7 @@ public class TeamManagerImpl implements TeamManager {
 
 	private Team createInternal(UserInfo userInfo, Team team, String realmId) throws DatastoreException,
 		InvalidModelException, UnauthorizedException, NotFoundException {
-		if (AuthorizationUtils.isUserAnonymous(userInfo)) {
+		if (userInfo.isUserAnonymous()) {
 				throw new UnauthorizedException("Anonymous user cannot create Team.");
 		}
 		validateForCreate(team);

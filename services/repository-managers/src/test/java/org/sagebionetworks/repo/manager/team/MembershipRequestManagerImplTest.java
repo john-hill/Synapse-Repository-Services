@@ -175,8 +175,8 @@ public class MembershipRequestManagerImplTest {
 	
 	@Test
 	public void testAnonymousCreate() throws Exception {
-		UserInfo anonymousInfo = new UserInfo(false);
-		anonymousInfo.setId(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
+		UserInfo anonymousInfo = new UserInfo(false, BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
+		anonymousInfo.setRealmAnonymousUserId(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 		MembershipRequest mrs = new MembershipRequest();
 		
 		Assertions.assertThrows(UnauthorizedException.class, ()-> {

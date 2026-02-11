@@ -105,7 +105,7 @@ public class MembershipRequestManagerImpl implements MembershipRequestManager {
 	public MembershipRequest create(UserInfo userInfo,
 	                                MembershipRequest mr) throws DatastoreException,
 			InvalidModelException, UnauthorizedException {
-		if (AuthorizationUtils.isUserAnonymous(userInfo)) 
+		if (userInfo.isUserAnonymous()) 
 			throw new UnauthorizedException("anonymous user cannot create membership request.");
 		validateForCreate(mr, userInfo);
 		String teamRealmId = userGroupDAO.get(Long.parseLong(mr.getTeamId())).getRealmId();

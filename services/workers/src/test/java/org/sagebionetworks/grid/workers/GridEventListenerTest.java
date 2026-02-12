@@ -238,7 +238,7 @@ public class GridEventListenerTest {
 
 	@Test
 	public void testOnSynchronizeClockEmptyMessage() {
-		when(mockManager.getNextMissingPatch(context, clock)).thenReturn(Optional.empty());
+		when(mockManager.getNextSynchronizeResponse(context, clock)).thenReturn(Optional.empty());
 
 		// call under test
 		listener.onSynchronizeClock(synchronizeClockMessage);

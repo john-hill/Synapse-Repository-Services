@@ -7,8 +7,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import org.sagebionetworks.StackConfiguration;
-import org.sagebionetworks.aws.SynapseS3Client;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.grid.GridAuthorizationManager;
 import org.sagebionetworks.repo.manager.grid.IndexedModelEncoderProvider;
@@ -55,14 +53,11 @@ public class QueryCreateGridHandler implements CreateGridHandler {
 	private final GridAuthorizationManager gridAuthorizationManager;
 	private final FileProvider fileProvider;
 	private final IndexedModelEncoderProvider encoderProvider;
-	private final SynapseS3Client synapseS3Client;
-	private final StackConfiguration stackConfig;
 
 	public QueryCreateGridHandler(GridDao gridDao, EntityManager entityManager, TableQueryManager tableQueryManager,
 								  JsonSchemaManager schemaManager, JsonSchemaValidationManager jsonSchemaValidationManager,
 								  GridAuthorizationManager gridAuthorizationManager, FileProvider fileProvider,
-								  IndexedModelEncoderProvider encoderProvider, SynapseS3Client synapseS3Client,
-								  StackConfiguration stackConfig) {
+								  IndexedModelEncoderProvider encoderProvider) {
 		super();
 		this.gridDao = gridDao;
 		this.entityManager = entityManager;
@@ -72,8 +67,6 @@ public class QueryCreateGridHandler implements CreateGridHandler {
 		this.gridAuthorizationManager = gridAuthorizationManager;
 		this.fileProvider = fileProvider;
 		this.encoderProvider = encoderProvider;
-		this.synapseS3Client = synapseS3Client;
-		this.stackConfig = stackConfig;
 	}
 
 	@Override

@@ -23,7 +23,6 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.InjectMocks;
@@ -32,6 +31,7 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.grid.GridAuthorizationManager;
+import org.sagebionetworks.repo.manager.grid.IndexedModelEncoderProvider;
 import org.sagebionetworks.repo.manager.grid.SnapshotRowHandler;
 import org.sagebionetworks.repo.manager.grid.SnapshotStore;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
@@ -50,6 +50,7 @@ import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridUtils;
+import org.sagebionetworks.repo.model.grid.encoding.IndexedModelEncoder;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
 import org.sagebionetworks.repo.model.schema.JsonSchemaObjectBinding;
 import org.sagebionetworks.repo.model.schema.JsonSchemaVersionInfo;
@@ -109,15 +110,18 @@ public class QueryCreateGridHandlerTest {
 	@Captor
 	private ArgumentCaptor<RowHandlerProvider> rowHandlerProviderCaptor;
 
+	@Mock
+	private IndexedModelEncoderProvider mockEncoderProvider;
+	@Mock
+	private IndexedModelEncoder mockEncoder;
+
+	@Mock
+	private File mockFile;
+
 	@Spy
 	@InjectMocks
 	QueryCreateGridHandler handler;
 
-	@TempDir
-	File tempDir;
-	private File tempFile;
-
-	private static final String mockStackName = "test";
 	private Long userId;
 	private String gridSessionId;
 	private Long gridSessionIdLong;
@@ -159,8 +163,6 @@ public class QueryCreateGridHandlerTest {
 
 		schemaBinding = new JsonSchemaObjectBinding()
 				.setJsonSchemaVersionInfo(new JsonSchemaVersionInfo().set$id(schema$id));
-		// Create a real temp file for testing
-		tempFile = new File(tempDir, "snapshot-test.cbor");
 	}
 	
 	@Test
@@ -181,7 +183,8 @@ public class QueryCreateGridHandlerTest {
 				rowHandlerProviderCaptor.capture(), eq(ACCESS_TYPE.READ), eq(ACCESS_TYPE.UPDATE))).thenReturn(new QueryResultBundle());
 		doReturn(Optional.of(schema$id)).when(handler).getSchemaId(mockUser, tableId, rows);
 		when(mockSchemaManager.getValidationSchema(schema$id)).thenReturn(new JsonSchema().setRequired(List.of("foo")));
-		when(mockFileProvider.createTempFile("snapshot", ".cbor")).thenReturn(tempFile);
+		when(mockFileProvider.createTempFile("snapshot", ".cbor")).thenReturn(mockFile);
+		when(mockEncoderProvider.getEncoder(any(), any())).thenReturn(mockEncoder);
 
 		GridSession expected = new GridSession().setSessionId(gridSessionId);
 		when(mockGridDao.createGridSession(
@@ -201,7 +204,7 @@ public class QueryCreateGridHandlerTest {
 		SnapshotRowHandler snapshotHandler = (SnapshotRowHandler) rp.getHandler(mockQueryTranslattion);
 		snapshotHandler.close();
 
-		verify(mockSnapshotStore).saveSnapshot(eq(gridSessionId), any(), eq(userId), eq(tempFile));
+		verify(mockSnapshotStore).saveSnapshot(eq(gridSessionId), any(), eq(userId), eq(mockFile));
 	}
 
 	@Test
@@ -213,7 +216,8 @@ public class QueryCreateGridHandlerTest {
 		when(mockQueryManager.runQueryAsStream(eq(mockCallback), eq(mockSessionOwnerUser), eq(query),
 				rowHandlerProviderCaptor.capture(), eq(ACCESS_TYPE.READ), eq(ACCESS_TYPE.UPDATE))).thenReturn(new QueryResultBundle());
 		doReturn(Optional.empty()).when(handler).getSchemaId(mockUser, tableId, rows);
-		when(mockFileProvider.createTempFile("snapshot", ".cbor")).thenReturn(tempFile);
+		when(mockFileProvider.createTempFile("snapshot", ".cbor")).thenReturn(mockFile);
+		when(mockEncoderProvider.getEncoder(any(), any())).thenReturn(mockEncoder);
 
 		GridSession expected = new GridSession().setSessionId(gridSessionId);
 		when(mockGridDao
@@ -231,7 +235,7 @@ public class QueryCreateGridHandlerTest {
 		when(mockTranslator.getSchemaOfSelect()).thenReturn(schema);
 		SnapshotRowHandler snapshotHandler = (SnapshotRowHandler) rp.getHandler(mockQueryTranslattion);
 		snapshotHandler.close();
-		verify(mockSnapshotStore).saveSnapshot(eq(gridSessionId), any(), eq(userId), eq(tempFile));
+		verify(mockSnapshotStore).saveSnapshot(eq(gridSessionId), any(), eq(userId), eq(mockFile));
 	}
 
 	@Test

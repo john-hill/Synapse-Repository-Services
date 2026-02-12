@@ -13,6 +13,9 @@ package org.sagebionetworks.repo.model;
  */
 public class ServiceConstants {
 	
+	public static final String USER_ID_PARAM = "userId";
+	
+	
 	/**
 	 * 
 	 */

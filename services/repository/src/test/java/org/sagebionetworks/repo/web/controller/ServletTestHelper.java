@@ -937,6 +937,9 @@ public class ServletTestHelper {
 		if (pefix != null) {
 			request.setParameter(UrlHelpers.PREFIX_FILTER, pefix);
 		}
+		
+		request.setParameter(ServiceConstants.USER_ID_PARAM, 
+				AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.toString());
 		request.setParameter(ServiceConstants.PAGINATION_LIMIT_PARAM, ""
 				+ limit);
 		request.setParameter(ServiceConstants.PAGINATION_OFFSET_PARAM, ""

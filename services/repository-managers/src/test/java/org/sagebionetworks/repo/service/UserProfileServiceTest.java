@@ -15,6 +15,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_REALM_ID;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -135,8 +136,8 @@ public class UserProfileServiceTest {
 		
 		extraProfile = new UserProfile();
 		extraProfile.setOwnerId(EXTRA_USER_ID.toString());
-		userInfo = new UserInfo(false, EXTRA_USER_ID);
-		otherUserInfo = new UserInfo(false, OTHER_USER_ID);
+		userInfo = new UserInfo(false, EXTRA_USER_ID, DEFAULT_REALM_ID);
+		otherUserInfo = new UserInfo(false, OTHER_USER_ID, DEFAULT_REALM_ID);
 		
 		aliasList = new AliasList();
 		aliasList.setList(Lists.newArrayList("aliasOne", "aliasTwo"));
@@ -158,7 +159,8 @@ public class UserProfileServiceTest {
 		UserGroupHeader two = new UserGroupHeader();
 		two.setOwnerId("2");
 		List<UserGroupHeader> headers = Lists.newArrayList(one, two);
-		when(mockPrincipalAliasDAO.listPrincipalHeaders(any(), anyString())).thenReturn(headers);
+		when(mockPrincipalAliasDAO.listPrincipalHeaders(any(), eq(DEFAULT_REALM_ID))).thenReturn(headers);
+		when(mockUserManager.getUserInfo(EXTRA_USER_ID)).thenReturn(userInfo);
 		
 		List<Long> ids = new ArrayList<Long>();
 		ids.add(0L);
@@ -221,7 +223,7 @@ public class UserProfileServiceTest {
 		userProfile.setEmails(Collections.singletonList(email));
 		when(mockUserManager.getUserInfo(EXTRA_USER_ID)).thenReturn(userInfo);
 		when(mockUserProfileManager.getUserProfile(profileId)).thenReturn(userProfile);
-		when(mockUserProfileManager.list(singletonIdList(ownerId), EXTRA_USER_ID.toString())).thenReturn(wrap(userProfile));
+		when(mockUserProfileManager.list(singletonIdList(ownerId), DEFAULT_REALM_ID)).thenReturn(wrap(userProfile));
 		
 		UserProfile someOtherUserProfile = userProfileService.getUserProfileByOwnerId(EXTRA_USER_ID, profileId);
 		assertNull(someOtherUserProfile.getEtag());
@@ -243,10 +245,10 @@ public class UserProfileServiceTest {
 		userProfile.setOwnerId(ownerId);
 		userProfile.setEmails(Collections.singletonList(email));
 
-		userInfo = new UserInfo(true, EXTRA_USER_ID);
+		userInfo = new UserInfo(true, EXTRA_USER_ID, DEFAULT_REALM_ID);
 		when(mockUserManager.getUserInfo(EXTRA_USER_ID)).thenReturn(userInfo);
 		when(mockUserProfileManager.getUserProfile(profileId)).thenReturn(userProfile);
-		when(mockUserProfileManager.list(singletonIdList(ownerId), EXTRA_USER_ID.toString())).thenReturn(wrap(userProfile));
+		when(mockUserProfileManager.list(singletonIdList(ownerId), DEFAULT_REALM_ID)).thenReturn(wrap(userProfile));
 		
 		UserProfile someOtherUserProfile = userProfileService.getUserProfileByOwnerId(EXTRA_USER_ID, profileId);
 		assertNull(someOtherUserProfile.getEtag());
@@ -269,7 +271,7 @@ public class UserProfileServiceTest {
 		notificationSettingsSignedToken.setSettings(settings);
 		notificationSettingsSignedToken.setHmac("signed");
 		
-		UserInfo userInfo = new UserInfo(false);
+		UserInfo userInfo = new UserInfo(false, userId, DEFAULT_REALM_ID);
 		userInfo.setId(userId);
 		when(mockUserManager.getUserInfo(userId)).thenReturn(userInfo);
 		UserProfile userProfile = new UserProfile();
@@ -318,8 +320,7 @@ public class UserProfileServiceTest {
 	}
 	
 	private void mockUserInfo(Long userId, boolean isACTMember, boolean isCertified, Boolean isARReviewer) {
-		UserInfo userInfo = new UserInfo(false);
-		userInfo.setId(userId);
+		UserInfo userInfo = new UserInfo(false, userId, DEFAULT_REALM_ID);
 		userInfo.setGroups(new HashSet<Long>(Arrays.asList(userId)));
 		if (isACTMember) userInfo.getGroups().add(TeamConstants.ACT_TEAM_ID);
 		if (isCertified) userInfo.getGroups().add(BOOTSTRAP_PRINCIPAL.CERTIFIED_USERS.getPrincipalId());
@@ -548,9 +549,10 @@ public class UserProfileServiceTest {
 	@Test
 	public void testGetUserGroupHeadersByAlias(){
 		when(mockPrincipalAliasDAO.findPrincipalsWithAliases(aliasList.getList(), typeList)).thenReturn(principalIds);
-		when(mockPrincipalAliasDAO.listPrincipalHeaders(principalIds, anyString())).thenReturn(headers);
+		when(mockPrincipalAliasDAO.listPrincipalHeaders(principalIds, DEFAULT_REALM_ID)).thenReturn(headers);
+		when(mockUserManager.getUserInfo(EXTRA_USER_ID)).thenReturn(userInfo);
 		
-		UserGroupHeaderResponse response = userProfileService.getUserGroupHeadersByAlias(anyLong(), aliasList);
+		UserGroupHeaderResponse response = userProfileService.getUserGroupHeadersByAlias(EXTRA_USER_ID, aliasList);
 		assertNotNull(response);
 		assertNotNull(response.getList());
 		assertEquals(headers, response.getList());
@@ -583,6 +585,8 @@ public class UserProfileServiceTest {
 			list.add("a"+i);
 		}
 		assertEquals(list.size(), UserProfileServiceImpl.MAX_HEADERS_PER_REQUEST);
+		when(mockUserManager.getUserInfo(EXTRA_USER_ID)).thenReturn(userInfo);
+
 		// call under test
 		userProfileService.getUserGroupHeadersByAlias(EXTRA_USER_ID, aliasList);
 	}
@@ -615,7 +619,8 @@ public class UserProfileServiceTest {
 		UserGroupHeader two = new UserGroupHeader();
 		two.setOwnerId("2");
 		List<UserGroupHeader> headers = Lists.newArrayList(one, two);
-		when(mockPrincipalAliasDAO.listPrincipalHeaders(anyListOf(Long.class), EXTRA_USER_ID.toString())).thenReturn(headers);
+		when(mockPrincipalAliasDAO.listPrincipalHeaders(anyListOf(Long.class), eq(DEFAULT_REALM_ID))).thenReturn(headers);
+		when(mockUserManager.getUserInfo(EXTRA_USER_ID)).thenReturn(userInfo);
 		
 		// call under test
 		UserGroupHeaderResponsePage page = userProfileService.getUserGroupHeadersByPrefix(EXTRA_USER_ID, prefix, filter, offset, limit);
@@ -640,7 +645,8 @@ public class UserProfileServiceTest {
 		UserGroupHeader two = new UserGroupHeader();
 		two.setOwnerId("2");
 		List<UserGroupHeader> headers = Lists.newArrayList(one, two);
-		when(mockPrincipalAliasDAO.listPrincipalHeaders(anyListOf(Long.class), EXTRA_USER_ID.toString())).thenReturn(headers);
+		when(mockPrincipalAliasDAO.listPrincipalHeaders(anyListOf(Long.class), eq(DEFAULT_REALM_ID))).thenReturn(headers);
+		when(mockUserManager.getUserInfo(EXTRA_USER_ID)).thenReturn(userInfo);
 		
 		// call under test
 		UserGroupHeaderResponsePage page = userProfileService.getUserGroupHeadersByPrefix(EXTRA_USER_ID, prefix, filter, offset, limit);

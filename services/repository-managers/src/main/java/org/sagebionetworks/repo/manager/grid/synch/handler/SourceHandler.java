@@ -101,4 +101,12 @@ public interface SourceHandler extends AutoCloseable {
 	 */
 	void removeRow(SynchRow fetchRow);
 
+	/**
+	 * Provide all error messages generated during the synchronization process to be
+	 * forwarded to the caller.
+	 * 
+	 * @return
+	 */
+	List<String> getErrorMessages();
+
 }

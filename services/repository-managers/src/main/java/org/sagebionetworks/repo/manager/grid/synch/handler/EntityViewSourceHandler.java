@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.sagebionetworks.repo.manager.grid.GridAuthorizationManager;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.SynapseRow;
@@ -50,8 +51,6 @@ import org.springframework.stereotype.Component;
 @Scope("prototype")
 public class EntityViewSourceHandler implements SourceHandler {
 
-	private static final Logger log = LogManager.getLogger(EntityViewSourceHandler.class);
-
 	private final AsyncJobProgressCallback callback;
 	private final UserInfo user;
 	private final GridSession session;
@@ -61,6 +60,7 @@ public class EntityViewSourceHandler implements SourceHandler {
 	private final AnnotationWriter annotationWriter;
 	private final JsonSchemaManager jsonSchemaManager;
 	private final AnnotationsTranslator annotationsTranslator;
+	private final List<String> errorMessages;
 	private List<ColumnModel> schema;
 	private List<DiskPointer> diskPointers;
 	private File tempFile;
@@ -81,6 +81,7 @@ public class EntityViewSourceHandler implements SourceHandler {
 		this.annotationWriter = annotationWriter;
 		this.jsonSchemaManager = jsonSchemaManager;
 		this.annotationsTranslator = annotationsTranslator;
+		this.errorMessages = new ArrayList<>();
 		initialize();
 	}
 
@@ -132,7 +133,7 @@ public class EntityViewSourceHandler implements SourceHandler {
 
 	@Override
 	public void addNewRowToSource(SynchRow copy) {
-		log.warn("call to addNewRowToSource() will be ignored for copy.key: {}", copy.getKey());
+		errorMessages.add(String.format("Cannot add the row: '%s' to a source view.", copy.getKey()));
 	}
 
 	@Override
@@ -142,33 +143,40 @@ public class EntityViewSourceHandler implements SourceHandler {
 
 	@Override
 	public void addColumnToSource(String name) {
-		log.warn("call to addColumnToSource() will be ignored for columnName: {}", name);
+		errorMessages.add(String.format("Cannot add the column: '%s' to a source view.", name));
 	}
 
 	@Override
 	public void removeColumn(String columnName) {
-		log.warn("call to deleteColumn() will be ignored for columnName: {}", columnName);
+		errorMessages.add(String.format("Cannot remove the column: '%s' from a source view.", columnName));
 	}
 
 	@Override
 	public void removeRow(SynchRow fetchRow) {
-		log.warn("call to removeRow() will be ignored for key: {}", fetchRow.getKey());
+		errorMessages.add(String.format("Cannot remove the row: '%s' from a source view.", fetchRow.getKey()));
 	}
 
 	@Override
 	public void applyCellChangesFromCopyToSource(String rowId, Map<String, ConValue> changes) {
-		Map<String, AnnotationsValue> changedCells = new HashMap<>();
-		for (Map.Entry<String, ConValue> e : changes.entrySet()) {
-			ConValue cv = e.getValue();
-			if (cv == null || ConType.UNDEFINED.equals(cv.getType()) || ConType.NULL.equals(cv.getType())) {
-				changedCells.put(e.getKey(), null);
-			} else {
-				JSONObject json = new JSONObject();
-				json.put(e.getKey(), cv.getValue());
-				changedCells.put(e.getKey(), annotationsTranslator.getAnnotationValueFromJsonObject(e.getKey(), json));
+		try {
+			Map<String, AnnotationsValue> changedCells = new HashMap<>();
+			for (Map.Entry<String, ConValue> e : changes.entrySet()) {
+				ConValue cv = e.getValue();
+				if (cv == null || ConType.UNDEFINED.equals(cv.getType()) || ConType.NULL.equals(cv.getType())) {
+					changedCells.put(e.getKey(), null);
+				} else {
+					JSONObject json = new JSONObject();
+					json.put(e.getKey(), cv.getValue());
+					changedCells.put(e.getKey(),
+							annotationsTranslator.getAnnotationValueFromJsonObject(e.getKey(), json));
+				}
 			}
+			annotationWriter.updateChangedAnnotations(user, rowId, changedCells);
+		} catch (IllegalArgumentException e) {
+			errorMessages.add(String.format("Failed to update row: '%s' in the source view.  Error message: %s", rowId,
+					e.getMessage()));
+			throw e;
 		}
-		annotationWriter.updateChangedAnnotations(user, rowId, changedCells);
 	}
 
 	@Override
@@ -176,6 +184,11 @@ public class EntityViewSourceHandler implements SourceHandler {
 		if (tempFile != null) {
 			tempFile.delete();
 		}
+	}
+
+	@Override
+	public List<String> getErrorMessages() {
+		return errorMessages;
 	}
 
 }

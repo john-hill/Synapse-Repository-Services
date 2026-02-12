@@ -11,6 +11,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.DeleteRowChange;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangePublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.UpdateRowChange;
@@ -64,6 +66,8 @@ import com.google.common.base.Functions;
  * consistency.
  */
 public class RowMergeImpl implements RowMerge {
+
+	private static final Logger log = LogManager.getLogger(RowMergeImpl.class);
 
 	private final SynchronizationLogic logic;
 	private final SourceHandler sourceHandler;
@@ -216,18 +220,26 @@ public class RowMergeImpl implements RowMerge {
 			}
 		});
 
-		try {
-			// Apply accumulated user cell changes to source row
-			if (!userChangedCells.isEmpty()) {
+		// Apply accumulated user cell changes to source row
+		if (!userChangedCells.isEmpty()) {
+			try {
 				sourceHandler.applyCellChangesFromCopyToSource(rowKey, userChangedCells);
+			} catch (IllegalArgumentException ex) {
+				//
+				log.warn("Failed to merge row: {}.  Row will not be reset in the grid.  Error message: {}", rowKey,
+						ex.getMessage());
+				return;
+			} catch (NotFoundException | UnauthorizedException ex) {
+				log.warn("Row: {} will be removed from the grid with message: {}", rowKey, ex.getMessage());
+				// Source row was deleted or became unauthorized - delete from copy for
+				// consistency
+				intendedChangePublisher.publish(new DeleteRowChange(rowsArrayId, copyItem.getRgaNodeId()));
+				return;
 			}
-			// Reset copy row with merged result
-			resetCopyRow(copyItem.getVectorNodeId(), mergeCells);
-		} catch (NotFoundException | UnauthorizedException e) {
-			// Source row was deleted or became unauthorized - delete from copy for
-			// consistency
-			intendedChangePublisher.publish(new DeleteRowChange(rowsArrayId, copyItem.getRgaNodeId()));
 		}
+		// Reset copy row with merged result
+		resetCopyRow(copyItem.getVectorNodeId(), mergeCells);
+
 	}
 
 	/**

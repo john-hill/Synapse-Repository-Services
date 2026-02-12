@@ -291,11 +291,11 @@ public class DBOUserProfileDAOImplTest {
 		
 		Long idLong1 = Long.parseLong(userProfiles.get(1).getOwnerId());
 		Long idLong0 = Long.parseLong(userProfiles.get(0).getOwnerId());
-		List<UserProfile> listed = userProfileDAO.list(Arrays.asList(new Long[]{idLong1, idLong0}));
+		List<UserProfile> listed = userProfileDAO.list(Arrays.asList(new Long[]{idLong1, idLong0}), AuthorizationConstants.DEFAULT_REALM_ID);
 		assertEquals(2, listed.size());
 		assertEquals(Arrays.asList(new UserProfile[]{userProfiles.get(1), userProfiles.get(0)}), listed);
 		try {
-			userProfileDAO.list(Arrays.asList(new Long[]{idLong1, 87765443L+idLong0}));
+			userProfileDAO.list(Arrays.asList(new Long[]{idLong1, 87765443L+idLong0}), AuthorizationConstants.DEFAULT_REALM_ID);
 			fail("NotFoundException expected");
 		} catch (NotFoundException e) {
 			//as expected

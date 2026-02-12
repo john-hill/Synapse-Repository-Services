@@ -734,7 +734,7 @@ public class TeamManagerImpl implements TeamManager {
 			}
 			groupMembersDAO.removeMembers(teamId, Collections.singletonList(principalId));
 			Team team = get(teamId);
-			aclManager.update(userInfo, acl, ObjectType.TEAM, Long.parseLong(team.getId()));
+			aclManager.update(userInfo, acl, ObjectType.TEAM, Long.parseLong(team.getCreatedBy()));
 		}
 	}
 

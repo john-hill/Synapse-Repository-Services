@@ -29,6 +29,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.ResourceAccess;
@@ -57,8 +58,8 @@ public class AccessControlListManagerTest {
 
 	@BeforeEach
 	public void before() {
-		userInfo = new UserInfo(false, 123L, DEFAULT_REALM);
-		adminUser = new UserInfo(true, 456L, DEFAULT_REALM);
+		userInfo = new UserInfo(false, 123L, AuthorizationConstants.DEFAULT_REALM_ID);
+		adminUser = new UserInfo(true, 456L, AuthorizationConstants.DEFAULT_REALM_ID);
 		acl = new AccessControlList().setId("222").setCreationDate(new Date());
 		acl.setResourceAccess(Set.of(new ResourceAccess().setPrincipalId(1L).setAccessType(Set.of(ACCESS_TYPE.READ)),
 				new ResourceAccess().setPrincipalId(123L).setAccessType(Set.of(ACCESS_TYPE.READ)) ));
@@ -133,6 +134,25 @@ public class AccessControlListManagerTest {
 		// call under test
 		aclManager.create(userInfo, acl, ObjectType.ENTITY, userInfo.getId());
 		verify(aclDao, times(1)).create(acl, ObjectType.ENTITY);
+	}
+
+
+	@Test
+	public void testDefaultRealmAdminCreateACLForDifferentRealm(){
+		UserInfo otherRealmUser = new UserInfo(true, 666L, "1");
+		acl.setResourceAccess(Set.of(new ResourceAccess().setPrincipalId(otherRealmUser.getId()).setAccessType(Set.of(ACCESS_TYPE.READ)),
+				new ResourceAccess().setPrincipalId(adminUser.getId()).setAccessType(Set.of(ACCESS_TYPE.READ)) ));
+		when(userGroupDAO.getUsersRealms(anyList())).thenReturn(Map.of("1", Set.of(otherRealmUser.getId().toString())));
+
+		// Admin should be able to create ACL for a different realm
+		aclManager.create(adminUser, acl, ObjectType.ENTITY, adminUser.getId());
+		verify(aclDao, times(1)).create(acl, ObjectType.ENTITY);
+
+		// non admin should not be able to create ACL for a different realm
+		String message = assertThrows(InvalidModelException.class, ()-> {
+			aclManager.create(userInfo, acl, ObjectType.ENTITY, userInfo.getId());
+		}).getMessage();
+		assertEquals("All principals in the ACL must be from the same realm as the caller principal.", message);
 	}
 
 	@Test

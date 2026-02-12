@@ -40,24 +40,25 @@ public class AccessControlListManagerImpl implements AccessControlListManager {
 
 	@Override
 	public void create(UserInfo userInfo, AccessControlList acl, ObjectType objectType, Long ownerId) {
-		PermissionsManagerUtils.validateACLContent(acl, userInfo, getRealmForPrincipalIds(acl), ownerId);
+		PermissionsManagerUtils.validateACLContent(acl, userInfo, getRealmForPrincipalIds(acl, userInfo), ownerId);
 		this.aclDao.create(acl, objectType);
 	}
 
-	private Set<String> getRealmForPrincipalIds(AccessControlList acl) {
+	private Set<String> getRealmForPrincipalIds(AccessControlList acl, UserInfo userInfo) {
 		if(acl.getResourceAccess() == null || acl.getResourceAccess().isEmpty()){
 			return new HashSet<>(0);
 		}
 
 		List<String> principalIds = acl.getResourceAccess().stream().map(ResourceAccess::getPrincipalId)
-				.map(String::valueOf).collect(Collectors.toList());
+				.map(String::valueOf).filter(id -> !id.equals(userInfo.getId().toString()))
+				.collect(Collectors.toList());
 
 		return new HashSet<>(userGroupDAO.getUsersRealms(principalIds).keySet());
 	}
 
 	@Override
 	public void update(UserInfo userInfo, AccessControlList acl, ObjectType objectType, Long ownerId) {
-		PermissionsManagerUtils.validateACLContent(acl, userInfo, getRealmForPrincipalIds(acl), ownerId);
+		PermissionsManagerUtils.validateACLContent(acl, userInfo, getRealmForPrincipalIds(acl, userInfo), ownerId);
 		aclDao.update(acl, objectType);
 	}
 

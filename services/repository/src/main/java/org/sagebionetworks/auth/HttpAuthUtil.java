@@ -25,7 +25,6 @@ import org.sagebionetworks.schema.adapter.JSONEntity;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapter;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 import org.sagebionetworks.schema.adapter.org.json.JSONObjectAdapterImpl;
-import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.http.HttpStatus;
 
 public class HttpAuthUtil {
@@ -202,8 +201,6 @@ public class HttpAuthUtil {
 	
 	public static boolean isAnonymous(HttpServletRequest httpRequest) {
 		String param = httpRequest.getParameter(AuthorizationConstants.ANONYMOUS_PARAM);
-		if (param==null) throw new IllegalArgumentException();
-		ValidateArgument.required(param, AuthorizationConstants.ANONYMOUS_PARAM+" parameter");
 		return Boolean.parseBoolean(param);
 	}
 

@@ -67,7 +67,6 @@ import org.sagebionetworks.repo.model.verification.AttachmentMetadata;
 import org.sagebionetworks.repo.model.verification.VerificationState;
 import org.sagebionetworks.repo.model.verification.VerificationStateEnum;
 import org.sagebionetworks.repo.model.verification.VerificationSubmission;
-import org.sagebionetworks.repo.service.UserProfileServiceImpl;
 import org.sagebionetworks.repo.web.NotFoundException;
 
 import com.google.common.collect.Lists;
@@ -159,7 +158,7 @@ public class UserProfileServiceTest {
 		UserGroupHeader two = new UserGroupHeader();
 		two.setOwnerId("2");
 		List<UserGroupHeader> headers = Lists.newArrayList(one, two);
-		when(mockPrincipalAliasDAO.listPrincipalHeaders(any())).thenReturn(headers);
+		when(mockPrincipalAliasDAO.listPrincipalHeaders(any(), anyString())).thenReturn(headers);
 		
 		List<Long> ids = new ArrayList<Long>();
 		ids.add(0L);
@@ -167,7 +166,7 @@ public class UserProfileServiceTest {
 		ids.add(2L);
 		ids.add(NONEXISTENT_USER_ID); // should not exist
 		
-		UserGroupHeaderResponsePage response = userProfileService.getUserGroupHeadersByIds(ids);
+		UserGroupHeaderResponsePage response = userProfileService.getUserGroupHeadersByIds(EXTRA_USER_ID, ids);
 		assertEquals(headers, response.getChildren());
 	}
 
@@ -222,7 +221,7 @@ public class UserProfileServiceTest {
 		userProfile.setEmails(Collections.singletonList(email));
 		when(mockUserManager.getUserInfo(EXTRA_USER_ID)).thenReturn(userInfo);
 		when(mockUserProfileManager.getUserProfile(profileId)).thenReturn(userProfile);
-		when(mockUserProfileManager.list(singletonIdList(ownerId))).thenReturn(wrap(userProfile));
+		when(mockUserProfileManager.list(singletonIdList(ownerId), EXTRA_USER_ID.toString())).thenReturn(wrap(userProfile));
 		
 		UserProfile someOtherUserProfile = userProfileService.getUserProfileByOwnerId(EXTRA_USER_ID, profileId);
 		assertNull(someOtherUserProfile.getEtag());
@@ -247,7 +246,7 @@ public class UserProfileServiceTest {
 		userInfo = new UserInfo(true, EXTRA_USER_ID);
 		when(mockUserManager.getUserInfo(EXTRA_USER_ID)).thenReturn(userInfo);
 		when(mockUserProfileManager.getUserProfile(profileId)).thenReturn(userProfile);
-		when(mockUserProfileManager.list(singletonIdList(ownerId))).thenReturn(wrap(userProfile));
+		when(mockUserProfileManager.list(singletonIdList(ownerId), EXTRA_USER_ID.toString())).thenReturn(wrap(userProfile));
 		
 		UserProfile someOtherUserProfile = userProfileService.getUserProfileByOwnerId(EXTRA_USER_ID, profileId);
 		assertNull(someOtherUserProfile.getEtag());
@@ -549,9 +548,9 @@ public class UserProfileServiceTest {
 	@Test
 	public void testGetUserGroupHeadersByAlias(){
 		when(mockPrincipalAliasDAO.findPrincipalsWithAliases(aliasList.getList(), typeList)).thenReturn(principalIds);
-		when(mockPrincipalAliasDAO.listPrincipalHeaders(principalIds)).thenReturn(headers);
+		when(mockPrincipalAliasDAO.listPrincipalHeaders(principalIds, anyString())).thenReturn(headers);
 		
-		UserGroupHeaderResponse response = userProfileService.getUserGroupHeadersByAlias(aliasList);
+		UserGroupHeaderResponse response = userProfileService.getUserGroupHeadersByAlias(anyLong(), aliasList);
 		assertNotNull(response);
 		assertNotNull(response.getList());
 		assertEquals(headers, response.getList());
@@ -562,7 +561,7 @@ public class UserProfileServiceTest {
 		aliasList = null;
 		assertThrows(IllegalArgumentException.class, ()->{
 			// call under test
-			userProfileService.getUserGroupHeadersByAlias(aliasList);
+			userProfileService.getUserGroupHeadersByAlias(EXTRA_USER_ID, aliasList);
 		});
 	}
 	
@@ -572,7 +571,7 @@ public class UserProfileServiceTest {
 		aliasList.setList(new LinkedList<String>());
 		assertThrows(IllegalArgumentException.class, ()->{
 			// call under test
-			userProfileService.getUserGroupHeadersByAlias(aliasList);
+			userProfileService.getUserGroupHeadersByAlias(EXTRA_USER_ID, aliasList);
 		});
 	}
 	
@@ -585,7 +584,7 @@ public class UserProfileServiceTest {
 		}
 		assertEquals(list.size(), UserProfileServiceImpl.MAX_HEADERS_PER_REQUEST);
 		// call under test
-		userProfileService.getUserGroupHeadersByAlias(aliasList);
+		userProfileService.getUserGroupHeadersByAlias(EXTRA_USER_ID, aliasList);
 	}
 	
 	@Test
@@ -598,7 +597,7 @@ public class UserProfileServiceTest {
 		assertEquals(list.size(), UserProfileServiceImpl.MAX_HEADERS_PER_REQUEST+1);
 		String message = assertThrows(IllegalArgumentException.class, ()->{
 			// call under test
-			userProfileService.getUserGroupHeadersByAlias(aliasList);
+			userProfileService.getUserGroupHeadersByAlias(EXTRA_USER_ID, aliasList);
 		}).getMessage();
 
 		// expected
@@ -616,10 +615,10 @@ public class UserProfileServiceTest {
 		UserGroupHeader two = new UserGroupHeader();
 		two.setOwnerId("2");
 		List<UserGroupHeader> headers = Lists.newArrayList(one, two);
-		when(mockPrincipalAliasDAO.listPrincipalHeaders(anyListOf(Long.class))).thenReturn(headers);
+		when(mockPrincipalAliasDAO.listPrincipalHeaders(anyListOf(Long.class), EXTRA_USER_ID.toString())).thenReturn(headers);
 		
 		// call under test
-		UserGroupHeaderResponsePage page = userProfileService.getUserGroupHeadersByPrefix(prefix, filter, offset, limit);
+		UserGroupHeaderResponsePage page = userProfileService.getUserGroupHeadersByPrefix(EXTRA_USER_ID, prefix, filter, offset, limit);
 		assertNotNull(page);
 		assertEquals(headers, page.getChildren());
 		assertEquals(new Long(3), page.getTotalNumberOfResults());
@@ -641,10 +640,10 @@ public class UserProfileServiceTest {
 		UserGroupHeader two = new UserGroupHeader();
 		two.setOwnerId("2");
 		List<UserGroupHeader> headers = Lists.newArrayList(one, two);
-		when(mockPrincipalAliasDAO.listPrincipalHeaders(anyListOf(Long.class))).thenReturn(headers);
+		when(mockPrincipalAliasDAO.listPrincipalHeaders(anyListOf(Long.class), EXTRA_USER_ID.toString())).thenReturn(headers);
 		
 		// call under test
-		UserGroupHeaderResponsePage page = userProfileService.getUserGroupHeadersByPrefix(prefix, filter, offset, limit);
+		UserGroupHeaderResponsePage page = userProfileService.getUserGroupHeadersByPrefix(EXTRA_USER_ID, prefix, filter, offset, limit);
 		assertNotNull(page);
 		assertEquals(headers, page.getChildren());
 		assertEquals(new Long(3), page.getTotalNumberOfResults());

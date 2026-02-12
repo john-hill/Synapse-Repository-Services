@@ -295,11 +295,12 @@ public class UserProfileController {
 	@RequestMapping(value = UrlHelpers.USER_GROUP_HEADERS, method = RequestMethod.GET)
 	public @ResponseBody
 	UserGroupHeaderResponsePage getUserGroupHeadersByPrefix(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@RequestParam(value = UrlHelpers.PREFIX_FILTER, required = false) String prefixFilter,
 			@RequestParam(required = false) TypeFilter typeFilter,
 			@RequestParam(value = ServiceConstants.PAGINATION_OFFSET_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_OFFSET_PARAM) Integer offset,
 			@RequestParam(value = ServiceConstants.PAGINATION_LIMIT_PARAM, required = false, defaultValue = ServiceConstants.DEFAULT_PAGINATION_LIMIT_PARAM) Integer limit) throws DatastoreException, NotFoundException, IOException {
-		return serviceProvider.getUserProfileService().getUserGroupHeadersByPrefix(prefixFilter, typeFilter, offset, limit);
+		return serviceProvider.getUserProfileService().getUserGroupHeadersByPrefix(userId, prefixFilter, typeFilter, offset, limit);
 	}
 	
 	/**
@@ -318,9 +319,10 @@ public class UserProfileController {
 	@RequestMapping(value = UrlHelpers.USER_GROUP_HEADERS_BY_ALIASES, method = RequestMethod.POST)
 	public @ResponseBody
 	UserGroupHeaderResponse getUserGroupHeadersByAliases(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@RequestBody AliasList request) {
 		return serviceProvider.getUserProfileService()
-				.getUserGroupHeadersByAlias(request);
+				.getUserGroupHeadersByAlias(userId, request);
 	}
 	
 	/**

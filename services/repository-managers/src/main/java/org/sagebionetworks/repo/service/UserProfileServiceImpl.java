@@ -381,7 +381,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 	 * @see org.sagebionetworks.repo.web.service.UserProfileService#getUserGroupHeadersByAlias(org.sagebionetworks.repo.model.principal.AliasList)
 	 */
 	@Override
-	public UserGroupHeaderResponse getUserGroupHeadersByAlias(AliasList request) {
+	public UserGroupHeaderResponse getUserGroupHeadersByAlias(Long userId, AliasList request) {
 		ValidateArgument.required(request, "request");
 		ValidateArgument.required(request.getList(), "request.list");
 		ValidateArgument.requirement(!request.getList().isEmpty(),
@@ -394,10 +394,11 @@ public class UserProfileServiceImpl implements UserProfileService {
 		 * Note: Callers can only lookup team names and user names. They
 		 * cannot lookup email addresses or other alias types.
 		 */
+		UserInfo userInfo = userManager.getUserInfo(userId);
 		List<AliasType> types = Lists.newArrayList(AliasType.TEAM_NAME, AliasType.USER_NAME);
 		List<Long> principalIds = principalAliasDAO.findPrincipalsWithAliases(request.getList(), types);
 		// Convert the Ids to headers
-		List<UserGroupHeader> resultList = principalAliasDAO.listPrincipalHeaders(principalIds);
+		List<UserGroupHeader> resultList = principalAliasDAO.listPrincipalHeaders(principalIds, userInfo.getRealmId());
 		UserGroupHeaderResponse response = new UserGroupHeaderResponse();
 		response.setList(resultList);
 		return response;

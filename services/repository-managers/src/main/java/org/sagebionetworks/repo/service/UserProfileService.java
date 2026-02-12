@@ -220,7 +220,6 @@ public interface UserProfileService {
 	 * @param request
 	 * @return
 	 */
-	public UserGroupHeaderResponse getUserGroupHeadersByAlias(
-			AliasList request);
+	public UserGroupHeaderResponse getUserGroupHeadersByAlias(Long userId, AliasList request);
 
 }

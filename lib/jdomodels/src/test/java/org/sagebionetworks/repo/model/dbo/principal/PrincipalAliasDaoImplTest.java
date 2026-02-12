@@ -6,6 +6,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
+import static org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_REALM_ID;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -72,14 +73,14 @@ public class PrincipalAliasDaoImplTest {
 		UserGroup ug = new UserGroup();
 		ug.setCreationDate(new Date());
 		ug.setIsIndividual(true);
-		ug.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
+		ug.setRealmId(DEFAULT_REALM_ID);
 		principalId = userGroupDao.create(ug);
 		toDelete.add(principalId);
 		
 		ug = new UserGroup();
 		ug.setCreationDate(new Date());
 		ug.setIsIndividual(true);
-		ug.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
+		ug.setRealmId(DEFAULT_REALM_ID);
 		principalId2 = userGroupDao.create(ug);
 		toDelete.add(principalId2);
 	}
@@ -532,7 +533,7 @@ public class PrincipalAliasDaoImplTest {
 		assertNotNull(two);
 		
 		// call under test
-		List<UserGroupHeader> headers = principalAliasDao.listPrincipalHeaders(Lists.newArrayList(principalId2, principalId));
+		List<UserGroupHeader> headers = principalAliasDao.listPrincipalHeaders(Lists.newArrayList(principalId2, principalId), DEFAULT_REALM_ID);
 		assertNotNull(headers);
 		assertEquals(2, headers.size());
 		// the first header is for a team
@@ -568,7 +569,7 @@ public class PrincipalAliasDaoImplTest {
 		userProfileDao.create(profile);
 		
 		// call under test
-		List<UserGroupHeader> headers = principalAliasDao.listPrincipalHeaders(Lists.newArrayList(principalId));
+		List<UserGroupHeader> headers = principalAliasDao.listPrincipalHeaders(Lists.newArrayList(principalId), DEFAULT_REALM_ID);
 		assertNotNull(headers);
 		assertEquals(1, headers.size());
 		// the first header is for a team
@@ -603,7 +604,7 @@ public class PrincipalAliasDaoImplTest {
 		userProfileDao.create(profile);
 		
 		// call under test
-		List<UserGroupHeader> headers = principalAliasDao.listPrincipalHeaders(Lists.newArrayList(principalId));
+		List<UserGroupHeader> headers = principalAliasDao.listPrincipalHeaders(Lists.newArrayList(principalId), DEFAULT_REALM_ID);
 		assertNotNull(headers);
 		assertEquals(1, headers.size());
 		UserGroupHeader header = headers.get(0);
@@ -629,7 +630,7 @@ public class PrincipalAliasDaoImplTest {
 		long idDoesNotExist = -1L;
 		
 		// call under test
-		List<UserGroupHeader> headers = principalAliasDao.listPrincipalHeaders(Lists.newArrayList(principalId, idDoesNotExist));
+		List<UserGroupHeader> headers = principalAliasDao.listPrincipalHeaders(Lists.newArrayList(principalId, idDoesNotExist), DEFAULT_REALM_ID);
 		assertNotNull(headers);
 		assertEquals(1, headers.size());
 		UserGroupHeader header = headers.get(0);
@@ -640,7 +641,7 @@ public class PrincipalAliasDaoImplTest {
 	public void testListPrincipalHeadersEmpty(){
 		// empty list should not fail.
 		// call under test
-		List<UserGroupHeader> headers = principalAliasDao.listPrincipalHeaders(new LinkedList<Long>());
+		List<UserGroupHeader> headers = principalAliasDao.listPrincipalHeaders(new LinkedList<Long>(), DEFAULT_REALM_ID);
 		assertNotNull(headers);
 		assertEquals(0, headers.size());
 	}
@@ -648,7 +649,7 @@ public class PrincipalAliasDaoImplTest {
 	@Test (expected=IllegalArgumentException.class)
 	public void testListPrincipalHeadersNull(){
 		// call under test
-		List<UserGroupHeader> headers = principalAliasDao.listPrincipalHeaders(null);
+		List<UserGroupHeader> headers = principalAliasDao.listPrincipalHeaders(null, DEFAULT_REALM_ID);
 		assertNotNull(headers);
 		assertEquals(0, headers.size());
 	}

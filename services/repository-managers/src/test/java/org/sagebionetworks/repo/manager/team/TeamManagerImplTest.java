@@ -815,10 +815,11 @@ public class TeamManagerImplTest {
 		acl.getResourceAccess().add(TeamManagerImpl.createResourceAccess(Long.parseLong(memberPrincipalId), Collections.singleton(ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)));
 		acl.getResourceAccess().add(TeamManagerImpl.createResourceAccess(Long.parseLong("000"), Collections.singleton(ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)));
 		when(mockAclManager.getAcl(TEAM_ID, ObjectType.TEAM)).thenReturn(Optional.of(acl));
-		when(mockTeamDAO.get(TEAM_ID)).thenReturn(new Team().setId(TEAM_ID).setCreatedBy(userInfo.getId().toString()));
+		Team team = new Team().setId(TEAM_ID).setCreatedBy(userInfo.getId().toString());
+		when(mockTeamDAO.get(TEAM_ID)).thenReturn(team);
 		teamManagerImpl.removeMember(userInfo, TEAM_ID, memberPrincipalId);
 		verify(mockGroupMembersDAO).removeMembers(TEAM_ID, Arrays.asList(new String[]{memberPrincipalId}));
-		verify(mockAclManager).update(eq(userInfo), (AccessControlList)any(), eq(ObjectType.TEAM), eq(Long.parseLong(TEAM_ID)));
+		verify(mockAclManager).update(eq(userInfo), (AccessControlList)any(), eq(ObjectType.TEAM), eq(Long.parseLong(team.getCreatedBy())));
 		assertEquals(1, acl.getResourceAccess().size());
 	}
 

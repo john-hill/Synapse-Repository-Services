@@ -331,7 +331,7 @@ public class TeamManagerImpl implements TeamManager {
 	 * @param team
 	 * @return
 	 */
-	private Team bootstrapCreate(Team team) {
+	private Team bootstrapCreate(Team team, String realmId) {
 		Long teamId = Long.parseLong(team.getId());
 		Date now = new Date();
 		
@@ -345,7 +345,7 @@ public class TeamManagerImpl implements TeamManager {
 		dbo.setEtag(UUID.randomUUID().toString());
 		dbo.setIsIndividual(false);
 		dbo.setCreationDate(now);
-		dbo.setRealmId(Long.parseLong(AuthorizationConstants.DEFAULT_REALM_ID));
+		dbo.setRealmId(Long.valueOf(realmId));
 		basicDao.createOrUpdate(dbo);
 		
 		// bind the team name to this principal. 
@@ -880,22 +880,28 @@ public class TeamManagerImpl implements TeamManager {
 				if(!AuthorizationConstants.BOOTSTRAP_PRINCIPAL.isBootstrapPrincipalId(teamIdLong)) {
 					throw new IllegalArgumentException("Not a bootstrap principal: "+teamIdLong);
 				}
-				Team newTeam = new Team();
-				newTeam.setId(team.getId());
-				newTeam.setName(team.getName());
-				newTeam.setCanPublicJoin(team.getCanPublicJoin());
-				newTeam.setDescription(team.getDescription());
-				newTeam.setIcon(team.getIcon());
-				newTeam = bootstrapCreate(newTeam);
-
-				if (null!=team.getInitialMembers()) {
-					groupMembersDAO.addMembers(newTeam.getId(), team.getInitialMembers());
-				}
-				// create ACL
-				AccessControlList acl = createBootstrapTeamAcl(newTeam.getId(), new Date());
-				aclDAO.create(acl, ObjectType.TEAM);
+				bootstrapTeam(team,AuthorizationConstants.DEFAULT_REALM_ID);
 			}
 		}
+	}
+
+	@Override
+	public String bootstrapTeam(BootstrapTeam team, String realmId) {
+		Team newTeam = new Team();
+		newTeam.setId(team.getId());
+		newTeam.setName(team.getName());
+		newTeam.setCanPublicJoin(team.getCanPublicJoin());
+		newTeam.setDescription(team.getDescription());
+		newTeam.setIcon(team.getIcon());
+		newTeam = bootstrapCreate(newTeam, realmId);
+
+		if (null != team.getInitialMembers()) {
+			groupMembersDAO.addMembers(newTeam.getId(), team.getInitialMembers());
+		}
+		// create ACL
+		AccessControlList acl = createBootstrapTeamAcl(newTeam.getId(), new Date());
+		aclDAO.create(acl, ObjectType.TEAM);
+		return newTeam.getId();
 	}
 
 }

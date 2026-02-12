@@ -298,8 +298,12 @@ public class PermissionsManagerUtilsTest {
 
 		assertEquals("All principals in the ACL must be from the same realm as the caller principal.", ex.getMessage());
 
-		// Admin caller can change ACL principal in different realm
-		PermissionsManagerUtils.validateACLContent(acl, adminUserInfo, realmIdSet, ownerId);
+		// Admin caller can not change ACL principal in different realm
+		InvalidModelException exception = assertThrows(InvalidModelException.class, () -> {
+			PermissionsManagerUtils.validateACLContent(acl, adminUserInfo, realmIdSet, ownerId);
+		});
+
+		assertEquals("All principals in the ACL must be from the same realm as the caller principal.", exception.getMessage());
 	}
 
 	@Test

@@ -78,7 +78,7 @@ public class PermissionsManagerUtils {
 		if (realmIds.size() > 1) {
 			throw new InvalidModelException("All principals in the ACL must be from the same realm.");
 		}
-		if (!userInfo.isAdmin() && realmIds.size() == 1 && !realmIds.contains(userInfo.getRealmId())) {
+		if (realmIds.size() == 1 && !realmIds.contains(userInfo.getRealmId())) {
 			throw new InvalidModelException("All principals in the ACL must be from the same realm as the caller principal.");
 		}
 	}

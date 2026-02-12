@@ -50,8 +50,7 @@ public class AccessControlListManagerImpl implements AccessControlListManager {
 		}
 
 		List<String> principalIds = acl.getResourceAccess().stream().map(ResourceAccess::getPrincipalId)
-				.map(String::valueOf).filter(id -> !id.equals(userInfo.getId().toString()))
-				.collect(Collectors.toList());
+				.map(String::valueOf).collect(Collectors.toList());
 
 		return new HashSet<>(userGroupDAO.getUsersRealms(principalIds).keySet());
 	}

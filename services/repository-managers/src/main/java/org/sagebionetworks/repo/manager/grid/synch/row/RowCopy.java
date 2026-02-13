@@ -23,7 +23,7 @@ import org.sagebionetworks.repo.manager.grid.synch.io.RowHeader;
  * </ul>
  *
  * <p>
- * This interface extends {@link Copy} with {@link CopyRow} as the copy item
+ * This interface extends {@link Copy} with {@link RowCopyItem} as the copy item
  * type and {@link RowHeader} as the source item type, enabling the generic
  * {@link SynchronizationLogic#synchronize} algorithm to work with row-level
  * synchronization.
@@ -33,11 +33,11 @@ import org.sagebionetworks.repo.manager.grid.synch.io.RowHeader;
  * row, enabling consistent row ordering and conflict-free synchronization even
  * when rows are added, deleted, or reordered in the source.
  *
- * @see CopyRow the type of rows in the copy
+ * @see RowCopyItem the type of rows in the copy
  * @see RowHeader the type of row identifiers from the source
  * @see RowSource the corresponding source side of row synchronization
  * @see RowMerge the merge strategy for resolving row-level conflicts
  */
-public interface RowCopy extends Copy<CopyRow, RowHeader> {
+public interface RowCopy extends Copy<RowCopyItem, RowHeader> {
 
 }

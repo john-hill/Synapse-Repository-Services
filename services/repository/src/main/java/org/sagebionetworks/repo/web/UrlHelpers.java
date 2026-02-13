@@ -466,6 +466,9 @@ public class UrlHelpers {
     public static final String GRID_IMPORT_CSV_ASYNC_START = GRID+"/import/csv"+ASYNC_START_REQUEST;
     public static final String GRID_IMPORT_CSV_ASYNC_GET = GRID+"/import/csv"+ASYNC_GET_REQUEST;
     
+    public static final String GRID_SYNCHRONIZE_ASYNC_START = GRID+"/synchronize"+ASYNC_START_REQUEST;
+    public static final String GRID_SYNCHRONIZE_ASYNC_GET = GRID+"/synchronize"+ASYNC_GET_REQUEST;
+    
     public static final String GRID_SESSION_ID_PRESIGNED_URL = GRID_SESSION_ID+"/presigned/url";
 	
 	public static final String GRID_SESSION_ID_SCHEMA = GRID_SESSION_ID+"/schema";

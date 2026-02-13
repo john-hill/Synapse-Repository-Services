@@ -8,7 +8,6 @@ import static org.junit.Assert.assertTrue;
 import static org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_REALM_ID;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -133,18 +132,25 @@ public class DBOUserGroupDAOImplTest {
 		List<String> individualIdsInNewRealm = createUserGroups(3, true, this.realmId);
 		List<String> groupIdsInNewRealm = createUserGroups(3, false, this.realmId);
 		
-
-		// method under test
-		List<UserGroup> ugs = userGroupDAO.getInRange(0L, Long.MAX_VALUE, true, realmId);
+		// check that we get back only the individuals added to the new realm
+		// method under test:
+		List<UserGroup> individuals = userGroupDAO.getInRange(0L, Long.MAX_VALUE, true, realmId);
+		assertEquals(individualIdsInNewRealm, getIdsForUserGroups(individuals));
 		
-		// we get back just the individuals added to the new realm
-		assertEquals(individualIdsInNewRealm, getIdsForUserGroups(ugs));
+		// check UserGroup object by checking that one of the returned list is the same
+		// as the UserGroup object returned by UserGroupDAO.get()
+		assertEquals(userGroupDAO.get(Long.parseLong(individualIdsInNewRealm.get(0))), individuals.get(0));
 		
-		// TODO check UserGroup object
+		// check pagination
+		// method under test:
+		individuals = userGroupDAO.getInRange(0L, 1L, true, realmId);
+		assertEquals(1, individuals.size()); // page size is correct
+		assertEquals(individualIdsInNewRealm.get(0), individuals.get(0).getId()); // we got the right ID back
 		
-		// TODO check pagination
-		
-		// TODO check non-individuals
+		// check non-individuals
+		// method under test:
+		List<UserGroup> groups = userGroupDAO.getInRange(0L, Long.MAX_VALUE, false, realmId);
+		assertEquals(groupIdsInNewRealm, getIdsForUserGroups(groups));
 	}
 
 	@Test(expected = NotFoundException.class)

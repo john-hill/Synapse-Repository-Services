@@ -4,10 +4,12 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import org.sagebionetworks.repo.manager.grid.synch.core.SynchronizationLogic;
 import org.sagebionetworks.repo.manager.grid.synch.handler.SourceHandler;
 import org.sagebionetworks.repo.manager.grid.synch.io.RowHeader;
 import org.sagebionetworks.repo.manager.grid.synch.io.RowReader;
@@ -74,7 +76,7 @@ public class RowSourceImpl implements RowSource {
 	 * @return the source system's identifier for this row
 	 */
 	@Override
-	public String getKey(CopyRow copyItem) {
+	public String getKey(RowCopyItem copyItem) {
 		return sourceHandler.getRowKey(copyItem);
 	}
 
@@ -126,7 +128,7 @@ public class RowSourceImpl implements RowSource {
 	 * @param copyItem the row from the copy to add to the source
 	 */
 	@Override
-	public void addItem(CopyRow copyItem) {
+	public void addItem(RowCopyItem copyItem) {
 		sourceHandler.addNewRowToSource(createSynchRow(copyItem, getKey(copyItem)));
 	}
 
@@ -163,7 +165,7 @@ public class RowSourceImpl implements RowSource {
 	 * @return true if the rows have identical content, false if they differ
 	 */
 	@Override
-	public boolean matches(CopyRow copyItem, RowHeader sourceItem) {
+	public boolean matches(RowCopyItem copyItem, RowHeader sourceItem) {
 		SynchRow copySynch = createSynchRow(copyItem, sourceItem.getKey());
 		return Arrays.equals(copySynch.getHash(), sourceItem.getHash());
 	}
@@ -177,9 +179,11 @@ public class RowSourceImpl implements RowSource {
 	 * @param key  the source system's identifier for the row
 	 * @return a SynchRow representation suitable for source operations
 	 */
-	private SynchRow createSynchRow(CopyRow copy, String key) {
-		return new SynchRow(copy.getCells().stream().collect(Collectors.toMap(CopyCell::getName, CopyCell::getValue)),
-				key);
+	private SynchRow createSynchRow(RowCopyItem copy, String key) {
+		return new SynchRow(
+				copy.getCells().stream().collect(
+						Collectors.toMap(CellCopyItem::getName, CellCopyItem::getValue, (v1, v2) -> v2, TreeMap::new)),
+				key, copy.getSynapseRow().orElse(null));
 	}
 
 }

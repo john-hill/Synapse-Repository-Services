@@ -15,6 +15,7 @@ import java.util.Optional;
 import java.util.TreeMap;
 
 import org.junit.jupiter.api.Test;
+import org.sagebionetworks.repo.manager.grid.internal.replica.model.SynapseRow;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 
@@ -26,9 +27,11 @@ public class RowWriterReaderTest {
 		try {
 			List<DiskPointer> dp = new ArrayList<>();
 			List<SynchRow> rows = List.of(
-					new SynchRow(new TreeMap<>(Map.of("aLong", new ConValue(ConType.LONG, 123L), "aBoolean",
-							new ConValue(ConType.BOOLEAN, true), "aString",
-							new ConValue(ConType.STRING, "some string"))), "one"),
+					new SynchRow(
+							new TreeMap<>(Map.of("aLong", new ConValue(ConType.LONG, 123L), "aBoolean",
+									new ConValue(ConType.BOOLEAN, true), "aString",
+									new ConValue(ConType.STRING, "some string"))),
+							"one", new SynapseRow().setRowId(34L).setVersionNumber(3L).setEtag("e")),
 					new SynchRow(new TreeMap<>(Map.of("aLong", new ConValue(ConType.LONG, 452L), "aBoolean",
 							new ConValue(ConType.BOOLEAN, Boolean.FALSE), "aString",
 							new ConValue(ConType.STRING, "something elese"))), "two"),

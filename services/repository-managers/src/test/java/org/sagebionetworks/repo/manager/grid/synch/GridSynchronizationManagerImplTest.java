@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.grid.synch;
 
 import static org.junit.Assert.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -17,6 +18,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.manager.grid.GridManager;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangePublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.PatchBuilderPublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
@@ -38,10 +40,14 @@ import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.dbo.grid.GridSource;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.SynchronizeGridRequest;
+import org.sagebionetworks.repo.model.grid.SynchronizeGridResponse;
 
 @ExtendWith(MockitoExtension.class)
 public class GridSynchronizationManagerImplTest {
 
+	@Mock
+	private GridManager mockGridManager;
 	@Mock
 	private PatchBuilderPublisher mockPatchBuilderPublisher;
 	@Mock
@@ -83,19 +89,24 @@ public class GridSynchronizationManagerImplTest {
 	@InjectMocks
 	private GridSynchronizationManagerImpl manager;
 
+	private String gridSessionId;
 	private GridSession gridSession;
 	private GridSource gridSource;
 	private List<Column> finalSchema;
+	private SynchronizeGridRequest request;
 
 	@BeforeEach
 	public void before() {
-		gridSession = new GridSession().setSessionId("123");
+		gridSessionId = "123";
+		request = new SynchronizeGridRequest().setGridSessionId(gridSessionId);
+		gridSession = new GridSession().setSessionId(gridSessionId);
 		gridSource = new GridSource(333L, EntityType.entityview);
 		finalSchema = List.of(new Column().setName("foo"));
 	}
 
 	@Test
 	public void testSynchronizeCopyWithSource() throws Exception {
+		when(mockGridManager.getGridSession(mockUser, gridSessionId)).thenReturn(gridSession);
 		when(mockCopyHandlerProvider.createCopyHandler(gridSession)).thenReturn(mockCopyHandler);
 		when(mockCopyHandler.getGridSource()).thenReturn(gridSource);
 		when(mockSourceHandlerProvdier.createNewProvider(mockCallback, mockUser, gridSession, gridSource))
@@ -111,10 +122,14 @@ public class GridSynchronizationManagerImplTest {
 		when(mockSynchronizeProvider.getRowMerge(mockLogic, mockIntendedChangePublisher, finalSchema, mockCopyHandler,
 				mockSourceHandler)).thenReturn(mockRowMerge);
 
+		when(mockSourceHandler.getErrorMessages()).thenReturn(List.of("errorOne", "errorTwo"));
+
 		doReturn(mockIntendedChangePublisher).when(manager).newIntendedChangePublisher(mockCopyHandler);
 
 		// call under test
-		manager.synchronizeCopyWithSource(mockCallback, mockUser, gridSession);
+		SynchronizeGridResponse response = manager.synchronizeCopyWithSource(mockCallback, mockUser, request);
+		assertEquals(new SynchronizeGridResponse().setGridSessionId(request.getGridSessionId())
+				.setErrorMessages(List.of("errorOne", "errorTwo")), response);
 
 		verify(mockLogic).synchronize(eq(mockSchemaCopy), eq(mockSchemaSource), any());
 		verify(mockLogic).synchronize(mockRowCopy, mockRowSource, mockRowMerge);

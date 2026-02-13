@@ -14,15 +14,15 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.QueryElement;
-import org.sagebionetworks.repo.manager.grid.synch.row.CopyCell;
-import org.sagebionetworks.repo.manager.grid.synch.row.CopyRow;
-import org.sagebionetworks.repo.manager.grid.synch.row.CopyRowImpl;
+import org.sagebionetworks.repo.manager.grid.synch.row.CellCopyItem;
+import org.sagebionetworks.repo.manager.grid.synch.row.RowCopyItem;
+import org.sagebionetworks.repo.manager.grid.synch.row.RowCopyItemImpl;
 import org.sagebionetworks.repo.model.dbo.grid.GridSource;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.node.RGANode;
-import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.web.NotFoundException;
 
@@ -45,16 +45,16 @@ public class CopyHandlerImpl implements CopyHandler {
 		this.indexToColumnMap = buildIndexToColumnMap(header.getOrderedColumns());
 	}
 
-	private GridSource getSourceOrThrow(GridManager gridManager, String sessionId) {
+	GridSource getSourceOrThrow(GridManager gridManager, String sessionId) {
 		return gridManager.getSessionSource(sessionId).orElseThrow(() -> new NotFoundException("Grid: " + sessionId));
 	}
 
-	private GridConnectionInfo getConnectionOrThrow(GridManager gridManager, String sessionId) {
+	GridConnectionInfo getConnectionOrThrow(GridManager gridManager, String sessionId) {
 		return gridManager.getSingletonConnection(sessionId, EventSource.INTERNAL)
 				.orElseThrow(() -> new NotFoundException("Grid: " + sessionId));
 	}
 
-	private LogicalTimestamp getLastRowsRgaNodeId(GridIndexDao gridIndexDao, GridHeader header) {
+	LogicalTimestamp getLastRowsRgaNodeId(GridIndexDao gridIndexDao, GridHeader header) {
 		return gridIndexDao.getRgaLastNode(header.getSessionId(), header.getReplicaId(), header.getRowsId())
 				.map(RGANode::getNodeId).orElse(null);
 	}
@@ -82,12 +82,12 @@ public class CopyHandlerImpl implements CopyHandler {
 	}
 
 	@Override
-	public Iterator<CopyRow> getRows() {
+	public Iterator<RowCopyItem> getRows() {
 		Iterator<RowView> rowIterator = gridReplicaViewManager.getQueryIterator(header, new QueryElement());
-		return new Iterator<CopyRow>() {
+		return new Iterator<RowCopyItem>() {
 
 			@Override
-			public CopyRow next() {
+			public RowCopyItem next() {
 				RowView rowView = rowIterator.next();
 				return createCopyRow(rowView);
 			}
@@ -99,21 +99,21 @@ public class CopyHandlerImpl implements CopyHandler {
 		};
 	}
 
-	private CopyRow createCopyRow(RowView rowView) {
+	private RowCopyItem createCopyRow(RowView rowView) {
 		LogicalTimestamp vectorId = rowView.getRowObject().getData().getVectorId();
-		List<CopyCell> cells = createCopyCells(rowView.getCells());
-		return new CopyRowImpl().setCells(cells).setRgaNodeId(rowView.getArrNodeId()).setVectorNodeId(vectorId);
+		List<CellCopyItem> cells = createCopyCells(rowView.getRowObject().getData().getNodes());
+		return new RowCopyItemImpl().setCells(cells).setRgaNodeId(rowView.getArrNodeId()).setVectorNodeId(vectorId)
+				.setSynapseRow(rowView.getSynapseRow());
 	}
 
-	private List<CopyCell> createCopyCells(List<ConValue> cellData) {
-		List<CopyCell> cells = new ArrayList<>(cellData.size());
-		for (int i = 0; i < cellData.size(); i++) {
-			ConValue value = cellData.get(i);
-			// TODO: Set using the ConstantNode replicaId compared to the
-			// connection.getReplicaId() to set:
-			boolean wasChangedByUser = false;
+	private List<CellCopyItem> createCopyCells(List<ConstantNode> nodes) {
+		List<CellCopyItem> cells = new ArrayList<>(nodes.size());
+		for (int i = 0; i < nodes.size(); i++) {
+			ConstantNode node = nodes.get(i);
+			boolean wasChangedByUser = node.getId().getReplicaId() != getInternalReplicaId();
 			String columnName = indexToColumnMap.get(i);
-			cells.add(new CopyCell().setName(columnName).setValue(value).setWasChangedByUser(wasChangedByUser));
+			cells.add(new CellCopyItem().setName(columnName).setValue(node.getConValue())
+					.setWasChangedByUser(wasChangedByUser));
 		}
 		return cells;
 	}

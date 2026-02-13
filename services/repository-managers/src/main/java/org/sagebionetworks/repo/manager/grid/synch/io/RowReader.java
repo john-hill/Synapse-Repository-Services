@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.manager.grid.synch.io;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -44,7 +45,9 @@ public class RowReader implements AutoCloseable {
 	public RowReader(List<DiskPointer> diskPointers, RandomAccessFile raf) {
 		ValidateArgument.required(raf, "RandomAccessFile");
 		ValidateArgument.required(diskPointers, "DiskPointers");
-		this.diskPointerMap = diskPointers.stream().collect(Collectors.toMap(DiskPointer::getKey, pointer -> pointer));
+		this.diskPointerMap = diskPointers.stream()
+				.collect(Collectors.toMap(DiskPointer::getKey, pointer -> pointer, (a, b) -> a, LinkedHashMap::new));
+		;
 		this.raf = raf;
 	}
 

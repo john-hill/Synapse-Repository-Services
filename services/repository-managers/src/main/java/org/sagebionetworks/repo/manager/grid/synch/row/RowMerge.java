@@ -36,12 +36,12 @@ import org.sagebionetworks.repo.manager.grid.synch.io.RowHeader;
  * concurrent changes to different cells in the same row can be merged together
  * without data loss.
  *
- * @see CopyRow the type of rows in the copy
+ * @see RowCopyItem the type of rows in the copy
  * @see RowHeader the type of row identifiers from the source
- * @see CopyCell the individual cells compared during merging
+ * @see CellCopyItem the individual cells compared during merging
  * @see CellSourceItem the source cell values compared during merging
  * @see RowMergeImpl the implementation that performs cell-level synchronization
  */
-public interface RowMerge extends Merge<CopyRow, RowHeader> {
+public interface RowMerge extends Merge<RowCopyItem, RowHeader> {
 
 }

@@ -10,11 +10,14 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.TreeMap;
 
 import org.json.JSONArray;
+import org.sagebionetworks.repo.manager.grid.internal.replica.model.SynapseRow;
 import org.sagebionetworks.repo.manager.grid.synch.core.SourceItem;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
+import org.sagebionetworks.util.ValidateArgument;
 
 /**
  * Represents a source row during Phase 2 (row synchronization) with both
@@ -34,41 +37,58 @@ import org.sagebionetworks.repo.model.grid.patch.ConValue;
  * The row supports two construction paths:
  * <ul>
  * <li>From data map (when reading from source) - generates bytes and hash</li>
- * <li>From bytes (when loading from disk) - lazily reconstructs data map when
- * accessed</li>
+ * <li>From bytes (when loading from disk) - lazily reconstructs data map and
+ * optional SynapseRow when accessed</li>
  * </ul>
  *
  * <p>
  * The hash is used for quick comparison during synchronization - rows with
- * matching hashes can skip cell-level comparison and merging.
+ * matching hashes can skip cell-level comparison and merging. The hash includes
+ * both the cell data and the optional SynapseRow metadata.
  */
 public class SynchRow implements SourceItem {
 
-	private final Map<String, ConValue> data;
+	private final TreeMap<String, ConValue> data;
 	private final String key;
+	private final SynapseRow synRow;
 	private final byte[] hash;
 	private final byte[] bytes;
+	
+	/**
+	 * Creates a row from in-memory data without Synapse metadata. Used when reading rows 
+	 * from the source during Phase 2 that don't have associated SynapseRow metadata.
+	 * The row is immediately serialized to bytes and hashed for disk storage and quick comparison.
+	 *
+	 * @param data the row's cell data (column name to value mappings)
+	 * @param key  the unique identifier for this row
+	 */
+	public SynchRow(TreeMap<String, ConValue> data, String key) {
+	    this(data, key, null);
+	}
 
 	/**
 	 * Creates a row from in-memory data. Used when reading rows from the source
 	 * during Phase 2. The row is immediately serialized to bytes and hashed for
 	 * disk storage and quick comparison.
 	 *
-	 * @param data the row's cell data (column name to value mappings)
-	 * @param key  the unique identifier for this row
+	 * @param data   the row's cell data (column name to value mappings)
+	 * @param key    the unique identifier for this row
+	 * @param synRow the optional Synapse row metadata (may be null)
 	 */
-	public SynchRow(Map<String, ConValue> data, String key) {
-		super();
+	public SynchRow(TreeMap<String, ConValue> data, String key, SynapseRow synRow) {
+		ValidateArgument.required(data, "data");
+		ValidateArgument.required(key, "key");
 		this.data = data;
 		this.key = key;
+		this.synRow = synRow;
 		this.bytes = generateBytes();
 		this.hash = generateHash();
 	}
 
 	/**
 	 * Creates a row from serialized bytes. Used when loading a row from disk via
-	 * {@link RowReader}. The data map is lazily reconstructed from bytes when
-	 * getData() is called, enabling lazy loading for memory efficiency.
+	 * {@link RowReader}. The data map and optional SynapseRow are reconstructed
+	 * from bytes during construction, enabling lazy loading for memory efficiency.
 	 *
 	 * @param bytes the serialized row data
 	 * @param key   the unique identifier for this row
@@ -78,12 +98,15 @@ public class SynchRow implements SourceItem {
 		this.key = key;
 		this.bytes = bytes;
 		this.hash = generateHash();
-		this.data = generateDataFromBytes();
+		WrittenData wd = generateDataFromBytes();
+		this.data = wd.getData();
+		this.synRow = wd.getSynRow();
 	}
 
 	/**
 	 * Gets the row's cell data. When the row was constructed from bytes (loaded
-	 * from disk), this reconstructs the data map from the serialized bytes.
+	 * from disk), this returns the data map that was reconstructed from the
+	 * serialized bytes.
 	 *
 	 * @return map of column names to cell values
 	 */
@@ -104,6 +127,7 @@ public class SynchRow implements SourceItem {
 	/**
 	 * Gets the hash of the serialized row data. Used for quick comparison during
 	 * synchronization - rows with matching hashes can skip cell-level comparison.
+	 * The hash includes both cell data and optional SynapseRow metadata.
 	 *
 	 * @return the MD5 hash of the serialized bytes
 	 */
@@ -122,18 +146,32 @@ public class SynchRow implements SourceItem {
 	}
 
 	/**
-	 * Reconstructs the data map from the serialized bytes. Called when loading a
-	 * row from disk to access its cell data.
+	 * Gets the optional Synapse row metadata associated with this row.
 	 *
-	 * @return the reconstructed data map
+	 * @return Optional containing the SynapseRow if present, empty otherwise
+	 */
+	public Optional<SynapseRow> getSynRow() {
+		return Optional.ofNullable(synRow);
+	}
+
+	/**
+	 * Reconstructs the data map and optional SynapseRow from the serialized bytes.
+	 * Called when loading a row from disk to access its cell data and metadata.
+	 * The SynapseRow is deserialized only if present (indicated by a boolean flag).
+	 *
+	 * @return the reconstructed data and SynapseRow
 	 * @throws RuntimeException if deserialization fails
 	 */
-	private Map<String, ConValue> generateDataFromBytes() {
+	private WrittenData generateDataFromBytes() {
 		try (ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
 				DataInputStream dis = new DataInputStream(bais)) {
 
-			Map<String, ConValue> result = new TreeMap<>();
+			SynapseRow synRow = null;
+			if (dis.readBoolean()) {
+				synRow = new SynapseRow().setFromJSON(dis.readUTF());
+			}
 
+			TreeMap<String, ConValue> result = new TreeMap<>();
 			while (dis.available() > 0) {
 				String mapKey = dis.readUTF();
 				String valueString = dis.readUTF();
@@ -141,15 +179,17 @@ public class SynchRow implements SourceItem {
 				result.put(mapKey, value);
 			}
 
-			return result;
+			return new WrittenData(result, synRow);
 		} catch (IOException e) {
 			throw new RuntimeException("Failed to generate data from bytes", e);
 		}
 	}
 
 	/**
-	 * Serializes the data map to bytes for disk storage. Keys are sorted
-	 * alphabetically to ensure consistent byte representation for hash comparison.
+	 * Serializes the data map and optional SynapseRow to bytes for disk storage.
+	 * A boolean flag is written first to indicate whether SynapseRow is present.
+	 * Keys are sorted alphabetically to ensure consistent byte representation for
+	 * hash comparison.
 	 *
 	 * @return the serialized row data
 	 * @throws RuntimeException if serialization fails
@@ -158,10 +198,12 @@ public class SynchRow implements SourceItem {
 		try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
 				DataOutputStream dos = new DataOutputStream(baos)) {
 
-			// Sort keys alphabetically for consistent serialization
-			TreeMap<String, ConValue> sortedData = new TreeMap<>(data);
+			dos.writeBoolean(synRow != null);
+			if (synRow != null) {
+				dos.writeUTF(synRow.toJSON());
+			}
 
-			for (Map.Entry<String, ConValue> entry : sortedData.entrySet()) {
+			for (Map.Entry<String, ConValue> entry : data.entrySet()) {
 				dos.writeUTF(entry.getKey());
 				dos.writeUTF(entry.getValue().toCompact().toString());
 			}
@@ -174,7 +216,8 @@ public class SynchRow implements SourceItem {
 
 	/**
 	 * Generates an MD5 hash of the serialized bytes. Used for quick row comparison
-	 * during synchronization - matching hashes indicate identical row data.
+	 * during synchronization - matching hashes indicate identical row data. The
+	 * hash includes both cell data and optional SynapseRow metadata.
 	 *
 	 * @return the MD5 hash
 	 * @throws RuntimeException if MD5 algorithm is not available
@@ -194,7 +237,7 @@ public class SynchRow implements SourceItem {
 		int result = 1;
 		result = prime * result + Arrays.hashCode(bytes);
 		result = prime * result + Arrays.hashCode(hash);
-		result = prime * result + Objects.hash(data, key);
+		result = prime * result + Objects.hash(data, key, synRow);
 		return result;
 	}
 
@@ -208,13 +251,55 @@ public class SynchRow implements SourceItem {
 			return false;
 		SynchRow other = (SynchRow) obj;
 		return Arrays.equals(bytes, other.bytes) && Objects.equals(data, other.data) && Arrays.equals(hash, other.hash)
-				&& Objects.equals(key, other.key);
+				&& Objects.equals(key, other.key) && Objects.equals(synRow, other.synRow);
 	}
 
 	@Override
 	public String toString() {
-		return "SynchRow [data=" + data + ", key=" + key + ", hash=" + Arrays.toString(hash) + ", bytes="
-				+ Arrays.toString(bytes) + "]";
+		return "SynchRow [data=" + data + ", key=" + key + ", synRow=" + synRow + ", hash=" + Arrays.toString(hash)
+				+ ", bytes=" + Arrays.toString(bytes) + "]";
+	}
+
+	/**
+	 * Helper class to encapsulate both the data map and optional SynapseRow during
+	 * deserialization. Used to initialize final fields in the constructor that
+	 * reads from bytes.
+	 */
+	private static class WrittenData {
+		private final TreeMap<String, ConValue> data;
+		private final SynapseRow synRow;
+
+		public WrittenData(TreeMap<String, ConValue> data, SynapseRow synRow) {
+			super();
+			this.data = data;
+			this.synRow = synRow;
+		}
+
+		public TreeMap<String, ConValue> getData() {
+			return data;
+		}
+
+		public SynapseRow getSynRow() {
+			return synRow;
+		}
+
+		@Override
+		public int hashCode() {
+			return Objects.hash(data, synRow);
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+			if (this == obj)
+				return true;
+			if (obj == null)
+				return false;
+			if (getClass() != obj.getClass())
+				return false;
+			WrittenData other = (WrittenData) obj;
+			return Objects.equals(data, other.data) && Objects.equals(synRow, other.synRow);
+		}
+
 	}
 
 }

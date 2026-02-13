@@ -52,15 +52,6 @@ public interface UserProfileDAO {
 	public List<UserProfile> list(List<Long> ids, String realmId) throws DatastoreException, NotFoundException;
 
 	/**
-	 * Get the total count of UserProfiles in the system
-	 * 
-	 * @return
-	 * @throws DatastoreException
-	 * @throws NotFoundException
-	 */
-	public long getCount() throws DatastoreException, NotFoundException;
-
-	/**
 	 * Updates the 'shallow' properties of an object.
 	 *
 	 * @param dto

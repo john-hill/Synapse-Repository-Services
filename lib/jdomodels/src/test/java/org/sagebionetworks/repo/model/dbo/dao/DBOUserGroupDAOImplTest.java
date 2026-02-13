@@ -5,8 +5,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_REALM_ID;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -18,7 +20,6 @@ import org.junit.runner.RunWith;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
-import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.ObjectType;
@@ -85,12 +86,11 @@ public class DBOUserGroupDAOImplTest {
 	public void testRoundTrip() throws Exception {
 		UserGroup group = new UserGroup();
 		group.setIsIndividual(false);
-		group.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
+		group.setRealmId(DEFAULT_REALM_ID);
 		// Give it an ID
 		String startingId = "123";
 		group.setId("" + startingId);
-		group.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
-		long initialCount = userGroupDAO.getCount();
+		group.setRealmId(DEFAULT_REALM_ID);
 		String groupId = userGroupDAO.create(group).toString();
 		assertNotNull(groupId);
 		groupsToDelete.add(groupId);
@@ -98,11 +98,28 @@ public class DBOUserGroupDAOImplTest {
 		UserGroup clone = userGroupDAO.get(Long.parseLong(groupId));
 		assertEquals(groupId, clone.getId());
 		assertEquals(group.getIsIndividual(), clone.getIsIndividual());
-		assertEquals(1 + initialCount, userGroupDAO.getCount());
+	}
+	
+	List<String> createUserGroups(long count, boolean isIndividual, String realm) {
+		List<String> result = new ArrayList<String>();
+		for (int i = 0; i<count; i++) {
+			Long id = userGroupDAO.create(new UserGroup().setIsIndividual(isIndividual).setRealmId(realm));
+			groupsToDelete.add(id.toString());
+			result.add(id.toString());
+		}
+		return result;
+	}
+	
+	private static List<String> getIdsForUserGroups(List<UserGroup> ugs) {
+		List<String> result = new ArrayList<String>();
+		for (UserGroup ug: ugs) {
+			result.add(ug.getId());
+		}
+		return result;
 	}
 	
 	@Test
-	public void testGetAll() throws Exception {
+	public void testGetInRange() throws Exception {
 		// create a second realm
 		Realm testRealm = new Realm();
 		testRealm.setName("test");
@@ -110,14 +127,24 @@ public class DBOUserGroupDAOImplTest {
 		testRealm = realmDao.createRealm(testRealm);
 		this.realmId=testRealm.getId();
 		
-		// create an individual and non-individual user in each realm
-		UserGroup individualInRealm0;
-		UserGroup teamInRealm0;
-		UserGroup individualInRealm1;
-		UserGroup teamInRealm1;
+		// create a few individual and non-individual UserGroups in each realm
+		createUserGroups(3, true, DEFAULT_REALM_ID);
+		createUserGroups(3, false, DEFAULT_REALM_ID);
+		List<String> individualIdsInNewRealm = createUserGroups(3, true, this.realmId);
+		List<String> groupIdsInNewRealm = createUserGroups(3, false, this.realmId);
 		
+
 		// method under test
-		userGroupDAO.getAll(false, aclToDelete);
+		List<UserGroup> ugs = userGroupDAO.getInRange(0L, Long.MAX_VALUE, true, realmId);
+		
+		// we get back just the individuals added to the new realm
+		assertEquals(individualIdsInNewRealm, getIdsForUserGroups(ugs));
+		
+		// TODO check UserGroup object
+		
+		// TODO check pagination
+		
+		// TODO check non-individuals
 	}
 
 	@Test(expected = NotFoundException.class)
@@ -129,7 +156,7 @@ public class DBOUserGroupDAOImplTest {
 	public void testIsIndividualTrue() throws Exception {
 		UserGroup group = new UserGroup();
 		group.setIsIndividual(true);
-		group.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
+		group.setRealmId(DEFAULT_REALM_ID);
 		Long principalId = userGroupDAO.create(group);
 		assertNotNull(principalId);
 		groupsToDelete.add(principalId.toString());
@@ -140,7 +167,7 @@ public class DBOUserGroupDAOImplTest {
 	public void testIsIndividualFalse() throws Exception {
 		UserGroup group = new UserGroup();
 		group.setIsIndividual(false);
-		group.setRealmId(AuthorizationConstants.DEFAULT_REALM_ID);
+		group.setRealmId(DEFAULT_REALM_ID);
 		Long principalId = userGroupDAO.create(group);
 		assertNotNull(principalId);
 		groupsToDelete.add(principalId.toString());

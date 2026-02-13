@@ -237,11 +237,6 @@ public class DBOUserProfileDAOImpl implements UserProfileDAO {
 		return dtos;
 	}
 
-	@Override
-	public long getCount() throws DatastoreException {
-		return basicDao.getCount(DBOUserProfile.class);
-	}
-
 	/*
 	 * (non-Javadoc)
 	 * 

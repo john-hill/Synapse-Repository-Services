@@ -30,7 +30,9 @@ import org.sagebionetworks.repo.model.UserProfile;
 import org.sagebionetworks.repo.model.UserProfileDAO;
 import org.sagebionetworks.repo.model.broadcast.UserNotificationInfo;
 import org.sagebionetworks.repo.model.dao.NotificationEmailDAO;
+import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.dbo.file.FileHandleDao;
+import org.sagebionetworks.repo.model.dbo.persistence.DBOUserProfile;
 import org.sagebionetworks.repo.model.file.ExternalFileHandle;
 import org.sagebionetworks.repo.model.message.Settings;
 import org.sagebionetworks.repo.model.principal.AliasType;
@@ -64,6 +66,9 @@ public class DBOUserProfileDAOImplTest {
 
 	@Autowired
 	private IdGenerator idGenerator;
+	
+	@Autowired
+	private DBOBasicDao basicDao;
 	
 	private UserGroup principal = null;
 	private UserGroup principal2 = null;
@@ -256,10 +261,14 @@ public class DBOUserProfileDAOImplTest {
 		userProfileDAO.get("-123");
 	}
 	
+	private long getCount() throws DatastoreException {
+		return basicDao.getCount(DBOUserProfile.class);
+	}
+	
 	@Test
 	public void testCRUD() throws Exception{
 		List<UserProfile> userProfiles = new ArrayList<UserProfile>();
-		long initialCount = userProfileDAO.getCount();
+		long initialCount = getCount();
 		// Create it
 		for (UserGroup ug : principalToDelete) {
 			// Create a new user profile
@@ -280,7 +289,7 @@ public class DBOUserProfileDAOImplTest {
 			userProfile.setCreatedOn(userGroupDAO.get(Long.parseLong(id)).getCreationDate());
 		}
 		
-		assertEquals(userProfiles.size()+initialCount, userProfileDAO.getCount());
+		assertEquals(userProfiles.size()+initialCount, getCount());
 		
 		// Fetch it
 		UserProfile userProfile = userProfiles.get(0);
@@ -319,7 +328,7 @@ public class DBOUserProfileDAOImplTest {
 			userProfileDAO.delete(up.getOwnerId());
 		}
 
-		assertEquals(initialCount, userProfileDAO.getCount());
+		assertEquals(initialCount, getCount());
 	}
 	
 	@Test

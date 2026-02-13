@@ -10,8 +10,6 @@ import java.util.UUID;
 
 import org.sagebionetworks.repo.manager.principal.NewUserUtils;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
-import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
-import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.GroupMembersDAO;
 import org.sagebionetworks.repo.model.NameConflictException;
@@ -265,11 +263,6 @@ public class UserManagerImpl implements UserManager {
 		}
 		
 		userGroupDAO.delete(principalId.toString());
-	}
-
-	@Override
-	public Collection<UserGroup> getGroups(UserInfo userInfo) throws DatastoreException {
-		return userGroupDAO.getAll(false, userInfo.getRealmId());
 	}
 
 	@Override

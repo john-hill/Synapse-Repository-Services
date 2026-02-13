@@ -10,7 +10,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,15 +74,11 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 			"SELECT * FROM "+SqlConstants.TABLE_USER_GROUP+
 			" WHERE "+SqlConstants.COL_USER_GROUP_ID+" IN (:"+ID_PARAM_NAME+")";
 	
-	private static final String SELECT_BY_IS_INDIVID_SQL = 
-			"SELECT * FROM "+SqlConstants.TABLE_USER_GROUP+
-			" WHERE "+SqlConstants.COL_USER_GROUP_IS_INDIVIDUAL+"=:"+IS_INDIVIDUAL_PARAM_NAME+
-			" AND "+SqlConstants.COL_USER_GROUP_REALM+"=:"+REALM_PARAM_NAME;
-	
 	private static final String SELECT_BY_IS_INDIVID_SQL_PAGINATED = 
 			"SELECT * FROM "+SqlConstants.TABLE_USER_GROUP+
 			" WHERE "+SqlConstants.COL_USER_GROUP_IS_INDIVIDUAL+"=:"+IS_INDIVIDUAL_PARAM_NAME+
 			" AND "+SqlConstants.COL_USER_GROUP_REALM+"=:"+REALM_PARAM_NAME+
+			" ORDER BY "+SqlConstants.COL_USER_GROUP_ID+
 			" LIMIT :"+LIMIT_PARAM_NAME+" OFFSET :"+OFFSET_PARAM_NAME;
 	
 	private static final String SELECT_ETAG_AND_LOCK_ROW_BY_ID = 
@@ -114,18 +109,6 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 	public void setBootstrapPrincipals(List<BootstrapPrincipal> bootstrapPrincipals) {
 		this.bootstrapPrincipals = bootstrapPrincipals;
 	}
-
-	@Override
-	public Collection<UserGroup> getAll(boolean isIndividual, String realmId)
-			throws DatastoreException {
-		MapSqlParameterSource param = new MapSqlParameterSource();
-		param.addValue(IS_INDIVIDUAL_PARAM_NAME, isIndividual);
-		param.addValue(REALM_PARAM_NAME, realmId);
-		List<DBOUserGroup> dbos = namedJdbcTemplate.query(SELECT_BY_IS_INDIVID_SQL, param, userGroupRowMapper);
-		List<UserGroup> dtos = new ArrayList<UserGroup>();
-		UserGroupUtils.copyDboToDto(dbos, dtos);
-		return dtos;
-	}
 	
 	@Override
 	public List<UserGroup> getAllPrincipals() {
@@ -133,11 +116,6 @@ public class DBOUserGroupDAOImpl implements UserGroupDAO {
 		List<UserGroup> dtos = new ArrayList<UserGroup>();
 		UserGroupUtils.copyDboToDto(dbos, dtos);
 		return dtos;
-	}
-	
-	@Override
-	public long getCount()  throws DatastoreException {
-		return basicDao.getCount(DBOUserGroup.class);
 	}
 	
 	@Override

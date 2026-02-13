@@ -44,11 +44,6 @@ public interface UserManager {
 	void deletePrincipal(UserInfo adminUserInfo, Long principalId) throws NotFoundException;
 
 	/**
-	 * Get all non-individual user groups in the realm, including Public.
-	 */
-	Collection<UserGroup> getGroups(UserInfo userInfo) throws DatastoreException;
-
-	/**
 	 * Get non-individual user groups (including Public) in the user's realm, in range
 	 **/
 	List<UserGroup> getGroupsInRange(UserInfo userInfo, long startIncl, long endExcl, String sort, boolean ascending) throws DatastoreException, UnauthorizedException;

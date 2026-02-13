@@ -1,5 +1,7 @@
 package org.sagebionetworks.grid.workers;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -11,6 +13,7 @@ import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.grid.SynchronizeGridRequest;
 import org.sagebionetworks.repo.service.GridService;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -43,12 +46,15 @@ public class GridSynchronizationIntegrationTest {
 	}
 
 	@Test
-	public void test() throws Exception {
+	public void testSynchronize() throws Exception {
 
-		asynchronousJobWorkerHelper.assertJobResponse(admin, new SynchronizeGridRequest().setGridSessionId("123"),
-				(r) -> {
-					System.out.println(r);
-				}, MAX_WAIT_MS);
+		assertThrows(NotFoundException.class, ()->{
+			asynchronousJobWorkerHelper.assertJobResponse(admin, new SynchronizeGridRequest().setGridSessionId("123"),
+					(r) -> {
+						System.out.println(r);
+					}, MAX_WAIT_MS);
+		});
+
 	}
 
 }

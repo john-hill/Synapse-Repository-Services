@@ -6,7 +6,7 @@ import java.util.Map;
 
 import org.sagebionetworks.repo.manager.grid.synch.io.RowReader;
 import org.sagebionetworks.repo.manager.grid.synch.io.SynchRow;
-import org.sagebionetworks.repo.manager.grid.synch.row.CopyRow;
+import org.sagebionetworks.repo.manager.grid.synch.row.RowCopyItem;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 
 /**
@@ -39,7 +39,7 @@ public interface SourceHandler extends AutoCloseable {
 	 * @param rowView the row from the copy
 	 * @return the source system's identifier for this row
 	 */
-	String getRowKey(CopyRow rowView);
+	String getRowKey(RowCopyItem rowView);
 
 	/**
 	 * Adds a new row to the source. Called during synchronization when a row exists

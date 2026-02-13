@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.grid.synch.handler;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -12,9 +13,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.json.JSONException;
 import org.json.JSONObject;
 import org.sagebionetworks.repo.manager.grid.GridAuthorizationManager;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.SynapseRow;
@@ -24,7 +22,7 @@ import org.sagebionetworks.repo.manager.grid.synch.io.DiskPointer;
 import org.sagebionetworks.repo.manager.grid.synch.io.RowReader;
 import org.sagebionetworks.repo.manager.grid.synch.io.RowWriter;
 import org.sagebionetworks.repo.manager.grid.synch.io.SynchRow;
-import org.sagebionetworks.repo.manager.grid.synch.row.CopyRow;
+import org.sagebionetworks.repo.manager.grid.synch.row.RowCopyItem;
 import org.sagebionetworks.repo.manager.schema.AnnotationsTranslator;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.manager.table.TableQueryManager;
@@ -93,7 +91,7 @@ public class EntityViewSourceHandler implements SourceHandler {
 
 		tempFile = fileProvider.createTempFile("Source-" + session.getSourceEntityId(), ".bin");
 		diskPointers = new ArrayList<>();
-		try (RowWriter writer = new RowWriter(fileProvider.createFileOutputStream(tempFile))) {
+		try (RowWriter writer = createRowWriter(tempFile)) {
 			UserInfo sessionOwner = gridAuthorizationManager.getRowLevelFilterUserInfo(user, session.getSessionId());
 			Query query = new Query().setSql("select * from " + session.getSourceEntityId());
 
@@ -107,6 +105,10 @@ public class EntityViewSourceHandler implements SourceHandler {
 		}
 	}
 
+	RowWriter createRowWriter(File temp) throws FileNotFoundException {
+		return new RowWriter(fileProvider.createFileOutputStream(tempFile));
+	}
+
 	SynchRow createSynchRow(Row row) {
 		String key = IdAndVersion.newBuilder().setId(row.getRowId()).build().toString();
 		TreeMap<String, ConValue> data = new TreeMap<>();
@@ -116,7 +118,8 @@ public class EntityViewSourceHandler implements SourceHandler {
 					requiredColumnNames.contains(columnName));
 			data.put(columnName, conValue);
 		}
-		return new SynchRow(data, key);
+		return new SynchRow(data, key, new SynapseRow().setRowId(row.getRowId())
+				.setVersionNumber(row.getVersionNumber()).setEtag(row.getEtag()));
 	}
 
 	@Override
@@ -125,7 +128,7 @@ public class EntityViewSourceHandler implements SourceHandler {
 	}
 
 	@Override
-	public String getRowKey(CopyRow rowView) {
+	public String getRowKey(RowCopyItem rowView) {
 		SynapseRow synRow = rowView.getSynapseRow()
 				.orElseThrow(() -> new IllegalArgumentException("Expected Synapse rows"));
 		return IdAndVersion.newBuilder().setId(synRow.getRowId()).build().toString();
@@ -159,24 +162,29 @@ public class EntityViewSourceHandler implements SourceHandler {
 	@Override
 	public void applyCellChangesFromCopyToSource(String rowId, Map<String, ConValue> changes) {
 		try {
-			Map<String, AnnotationsValue> changedCells = new HashMap<>();
-			for (Map.Entry<String, ConValue> e : changes.entrySet()) {
-				ConValue cv = e.getValue();
-				if (cv == null || ConType.UNDEFINED.equals(cv.getType()) || ConType.NULL.equals(cv.getType())) {
-					changedCells.put(e.getKey(), null);
-				} else {
-					JSONObject json = new JSONObject();
-					json.put(e.getKey(), cv.getValue());
-					changedCells.put(e.getKey(),
-							annotationsTranslator.getAnnotationValueFromJsonObject(e.getKey(), json));
-				}
-			}
+			Map<String, AnnotationsValue> changedCells = translateCellChanges(changes);
 			annotationWriter.updateChangedAnnotations(user, rowId, changedCells);
 		} catch (IllegalArgumentException e) {
 			errorMessages.add(String.format("Failed to update row: '%s' in the source view.  Error message: %s", rowId,
 					e.getMessage()));
 			throw e;
 		}
+	}
+
+	Map<String, AnnotationsValue> translateCellChanges(Map<String, ConValue> changes) {
+		Map<String, AnnotationsValue> changedCells = new HashMap<>();
+		for (Map.Entry<String, ConValue> e : changes.entrySet()) {
+			ConValue cv = e.getValue();
+			if (cv == null || ConType.UNDEFINED.equals(cv.getType()) || ConType.NULL.equals(cv.getType())
+					|| cv.getValue() == null) {
+				changedCells.put(e.getKey(), null);
+			} else {
+				JSONObject json = new JSONObject();
+				json.put(e.getKey(), cv.getValue());
+				changedCells.put(e.getKey(), annotationsTranslator.getAnnotationValueFromJsonObject(e.getKey(), json));
+			}
+		}
+		return changedCells;
 	}
 
 	@Override

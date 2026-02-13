@@ -33,7 +33,7 @@ import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
  * enables the copy to track row identity and ordering across synchronization
  * cycles, even when rows are added, deleted, or reordered in the source.
  */
-public interface CopyRow extends CopyItem {
+public interface RowCopyItem extends CopyItem {
 
 	/**
 	 * Gets the underlying Synapse row representation, if available. The
@@ -90,6 +90,6 @@ public interface CopyRow extends CopyItem {
 	 *
 	 * @return the list of cells in this row
 	 */
-	List<CopyCell> getCells();
+	List<CellCopyItem> getCells();
 
 }

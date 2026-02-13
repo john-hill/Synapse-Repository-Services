@@ -35,7 +35,7 @@ public class PermissionsManagerUtils {
 
 		// Verify that the caller maintains permissions access
 		String callerPrincipalId = userInfo.getId().toString();
-		boolean callerIsOwner = callerPrincipalId.equals(ownerId.toString());
+		boolean callerIsOwner = ownerId !=null && callerPrincipalId.equals(ownerId.toString());
 		boolean foundCallerInAcl = false;
 		for (ResourceAccess ra : acl.getResourceAccess()) {
 			if (ra==null) throw new InvalidModelException("ACL row is null.");

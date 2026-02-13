@@ -296,7 +296,7 @@ public class TeamManagerImpl implements TeamManager {
 		groupMembersDAO.addMembers(id.toString(), Arrays.asList(new String[]{userInfo.getId().toString()}));
 		// create ACL, adding the current user to the team, as an admin
 		AccessControlList acl = createInitialAcl(userInfo, id.toString(), now);
-		aclManager.create(userInfo, acl, ObjectType.TEAM, Long.parseLong(created.getCreatedBy()));
+		aclManager.create(userInfo, acl, ObjectType.TEAM, getTeamOwner(created));
 		return created;
 	}
 	
@@ -734,7 +734,7 @@ public class TeamManagerImpl implements TeamManager {
 			}
 			groupMembersDAO.removeMembers(teamId, Collections.singletonList(principalId));
 			Team team = get(teamId);
-			aclManager.update(userInfo, acl, ObjectType.TEAM, Long.parseLong(team.getCreatedBy()));
+			aclManager.update(userInfo, acl, ObjectType.TEAM, getTeamOwner(team));
 		}
 	}
 
@@ -756,7 +756,7 @@ public class TeamManagerImpl implements TeamManager {
 			throws DatastoreException, UnauthorizedException, NotFoundException {
 		authorizationManager.canAccess(userInfo, acl.getId(), ObjectType.TEAM, ACCESS_TYPE.UPDATE).checkAuthorizationOrElseThrow();
 		Team team = get(acl.getId());
-		aclManager.update(userInfo, acl, ObjectType.TEAM, Long.parseLong(team.getCreatedBy()));
+		aclManager.update(userInfo, acl, ObjectType.TEAM, getTeamOwner(team));
 		return aclManager.getAcl(acl.getId(), ObjectType.TEAM).orElseThrow(() -> new NotFoundException("ACL not found for team " + acl.getId()));
 	}
 
@@ -825,7 +825,16 @@ public class TeamManagerImpl implements TeamManager {
 		if (!userInfo.isAdmin() && !aclHasTeamAdmin(acl)) throw new InvalidModelException(MSG_TEAM_MUST_HAVE_AT_LEAST_ONE_TEAM_MANAGER);
 		// finally, update the ACL
 		Team team = get(teamId);
-		aclManager.update(userInfo, acl, ObjectType.TEAM, Long.parseLong(team.getCreatedBy()));
+		aclManager.update(userInfo, acl, ObjectType.TEAM, getTeamOwner(team));
+	}
+
+	private Long getTeamOwner(Team team) {
+		//The bootstrap team have null value in createdBy field.
+		Long createdBy = null;
+		if (team.getCreatedBy() != null) {
+			createdBy = Long.parseLong(team.getCreatedBy());
+		}
+		return createdBy;
 	}
 	
 	// answers the question about whether membership approval is required to add principal to team

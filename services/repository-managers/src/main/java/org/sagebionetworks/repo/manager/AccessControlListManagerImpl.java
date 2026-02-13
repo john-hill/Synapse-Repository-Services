@@ -40,11 +40,11 @@ public class AccessControlListManagerImpl implements AccessControlListManager {
 
 	@Override
 	public void create(UserInfo userInfo, AccessControlList acl, ObjectType objectType, Long ownerId) {
-		PermissionsManagerUtils.validateACLContent(acl, userInfo, getRealmForPrincipalIds(acl, userInfo), ownerId);
+		PermissionsManagerUtils.validateACLContent(acl, userInfo, getRealmForPrincipalIds(acl), ownerId);
 		this.aclDao.create(acl, objectType);
 	}
 
-	private Set<String> getRealmForPrincipalIds(AccessControlList acl, UserInfo userInfo) {
+	private Set<String> getRealmForPrincipalIds(AccessControlList acl) {
 		if(acl.getResourceAccess() == null || acl.getResourceAccess().isEmpty()){
 			return new HashSet<>(0);
 		}
@@ -57,7 +57,7 @@ public class AccessControlListManagerImpl implements AccessControlListManager {
 
 	@Override
 	public void update(UserInfo userInfo, AccessControlList acl, ObjectType objectType, Long ownerId) {
-		PermissionsManagerUtils.validateACLContent(acl, userInfo, getRealmForPrincipalIds(acl, userInfo), ownerId);
+		PermissionsManagerUtils.validateACLContent(acl, userInfo, getRealmForPrincipalIds(acl), ownerId);
 		aclDao.update(acl, objectType);
 	}
 

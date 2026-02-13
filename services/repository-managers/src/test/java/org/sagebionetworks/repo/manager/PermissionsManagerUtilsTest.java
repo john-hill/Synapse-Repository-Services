@@ -327,4 +327,30 @@ public class PermissionsManagerUtilsTest {
 
 	}
 
+	@Test
+	public void testValidateACLContentWithNullOwnerId() {
+		ResourceAccess userRA = new ResourceAccess();
+		userRA.setPrincipalId(userInfo.getId());
+		Set<ACCESS_TYPE> ats = new HashSet<ACCESS_TYPE>();
+		ats.add(ACCESS_TYPE.READ);
+		userRA.setAccessType(ats);
+
+		Set<ResourceAccess> ras = new HashSet<ResourceAccess>();
+		ras.add(userRA);
+
+		AccessControlList acl = new AccessControlList();
+		acl.setId("resource id");
+		acl.setResourceAccess(ras);
+
+		// call under test. Null is passed a ownerId, which mean caller is not Owner, condition will fail and throw exception.
+		InvalidModelException exception = assertThrows(InvalidModelException.class, () -> {
+			PermissionsManagerUtils.validateACLContent(acl, userInfo, realmIds, null);
+		});
+
+		assertEquals("Caller is trying to revoke their own ACL editing permissions.", exception.getMessage());
+
+		// caller is owner, so no exception should be thrown.
+		PermissionsManagerUtils.validateACLContent(acl, userInfo, realmIds, ownerId);
+	}
+
 }

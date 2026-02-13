@@ -824,6 +824,18 @@ public class TeamManagerImplTest {
 	}
 
 	@Test
+	public void testUpdateACLWithNullCreatedByOfTeam(){
+		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
+		AccessControlList acl = new AccessControlList();
+		acl.setId(TEAM_ID);
+		Team team = new Team().setId(TEAM_ID).setCreatedBy(null);
+		when(mockAclManager.getAcl(TEAM_ID, ObjectType.TEAM)).thenReturn(Optional.of(acl));
+		when(mockTeamDAO.get(TEAM_ID)).thenReturn(team);
+		teamManagerImpl.updateACL(userInfo, acl);
+		verify(mockAclManager).update(userInfo, acl, ObjectType.TEAM, null);
+	}
+
+	@Test
 	public void testRemoveLastAdminMember() {
 		String memberPrincipalId = "987";
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.TEAM_MEMBERSHIP_UPDATE)).thenReturn(AuthorizationStatus.authorized());

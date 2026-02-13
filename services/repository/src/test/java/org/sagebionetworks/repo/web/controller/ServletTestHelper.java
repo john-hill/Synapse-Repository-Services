@@ -933,13 +933,11 @@ public class ServletTestHelper {
 	public UserGroupHeaderResponsePage getUserGroupHeadersByPrefix(
 			String pefix, int limit, int offest) throws Exception {
 		MockHttpServletRequest request = ServletTestHelperUtils.initRequest(
-				HTTPMODE.GET, UrlHelpers.USER_GROUP_HEADERS, null, null, null);
+				HTTPMODE.GET, UrlHelpers.USER_GROUP_HEADERS, userId, token(userId), null);
+		
 		if (pefix != null) {
 			request.setParameter(UrlHelpers.PREFIX_FILTER, pefix);
 		}
-		
-		request.setParameter(ServiceConstants.USER_ID_PARAM, 
-				AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.toString());
 		request.setParameter(ServiceConstants.PAGINATION_LIMIT_PARAM, ""
 				+ limit);
 		request.setParameter(ServiceConstants.PAGINATION_OFFSET_PARAM, ""

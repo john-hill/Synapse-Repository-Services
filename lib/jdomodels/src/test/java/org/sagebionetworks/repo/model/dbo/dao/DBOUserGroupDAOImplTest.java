@@ -11,10 +11,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 import org.junit.runner.RunWith;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
@@ -59,7 +62,8 @@ public class DBOUserGroupDAOImplTest {
 	private List<String> groupsToDelete;
 	private String aclToDelete;
 	private String projectToDelete;
-	private String realmId;
+
+	private Realm realm;
 
 
 	@Before
@@ -75,9 +79,9 @@ public class DBOUserGroupDAOImplTest {
 		for (String toDelete : groupsToDelete) {
 			userGroupDAO.delete(toDelete);
 		}
-		if (realmId!=null) {
-			realmDao.deleteRealm(realmId);
-			realmId=null;
+
+		if (realm != null) {
+			realmDao.deleteRealm(realm.getId());
 		}
 	}
 
@@ -120,21 +124,20 @@ public class DBOUserGroupDAOImplTest {
 	@Test
 	public void testGetInRange() throws Exception {
 		// create a second realm
-		Realm testRealm = new Realm();
-		testRealm.setName("test");
-		testRealm.setIdentityProvider(List.of(new OAuthIdentityProvider().setProvider(OAuthProvider.SAGE_BIONETWORKS)));
-		testRealm = realmDao.createRealm(testRealm);
-		this.realmId=testRealm.getId();
+		realm = new Realm();
+		realm.setName("test");
+		realm.setIdentityProvider(List.of(new OAuthIdentityProvider().setProvider(OAuthProvider.SAGE_BIONETWORKS)));
+		realm = realmDao.createRealm(realm);
 		
 		// create a few individual and non-individual UserGroups in each realm
 		createUserGroups(3, true, DEFAULT_REALM_ID);
 		createUserGroups(3, false, DEFAULT_REALM_ID);
-		List<String> individualIdsInNewRealm = createUserGroups(3, true, this.realmId);
-		List<String> groupIdsInNewRealm = createUserGroups(3, false, this.realmId);
+		List<String> individualIdsInNewRealm = createUserGroups(3, true, realm.getId());
+		List<String> groupIdsInNewRealm = createUserGroups(3, false, realm.getId());
 		
 		// check that we get back only the individuals added to the new realm
 		// method under test:
-		List<UserGroup> individuals = userGroupDAO.getInRange(0L, Long.MAX_VALUE, true, realmId);
+		List<UserGroup> individuals = userGroupDAO.getInRange(0L, Long.MAX_VALUE, true, realm.getId());
 		assertEquals(individualIdsInNewRealm, getIdsForUserGroups(individuals));
 		
 		// check UserGroup object by checking that one of the returned list is the same
@@ -143,13 +146,13 @@ public class DBOUserGroupDAOImplTest {
 		
 		// check pagination
 		// method under test:
-		individuals = userGroupDAO.getInRange(0L, 1L, true, realmId);
+		individuals = userGroupDAO.getInRange(0L, 1L, true, realm.getId());
 		assertEquals(1, individuals.size()); // page size is correct
 		assertEquals(individualIdsInNewRealm.get(0), individuals.get(0).getId()); // we got the right ID back
 		
 		// check non-individuals
 		// method under test:
-		List<UserGroup> groups = userGroupDAO.getInRange(0L, Long.MAX_VALUE, false, realmId);
+		List<UserGroup> groups = userGroupDAO.getInRange(0L, Long.MAX_VALUE, false, realm.getId());
 		assertEquals(groupIdsInNewRealm, getIdsForUserGroups(groups));
 	}
 
@@ -246,6 +249,46 @@ public class DBOUserGroupDAOImplTest {
 
 		// Call under test
 		userGroupDAO.delete(groupId.toString());
+	}
+
+	@Test
+	public void testGetUserRealm() {
+		//User in default realm
+		UserGroup group = new UserGroup();
+		group.setIsIndividual(false);
+		group.setRealmId(DEFAULT_REALM_ID);
+		String groupId = userGroupDAO.create(group).toString();
+		assertNotNull(groupId);
+		groupsToDelete.add(groupId);
+
+		//User in another realm
+		realm = realmDao.createRealm(new Realm().setName("test realm").setCreatedOn(new Date())
+				.setIdentityProvider(List.of(new OAuthIdentityProvider().setProvider(OAuthProvider.ARCUS_BIOSCIENCES))));
+		Assertions.assertNotNull(realm.getId());
+		UserGroup groupTwo = new UserGroup();
+		groupTwo.setIsIndividual(true);
+		groupTwo.setRealmId(realm.getId());
+		String groupIdTwo = userGroupDAO.create(groupTwo).toString();
+		assertNotNull(groupIdTwo);
+		groupsToDelete.add(groupIdTwo);
+
+		Map<String, Set<String>> userRealms = userGroupDAO.getUsersRealms(List.of(groupId, groupIdTwo));
+		assertNotNull(userRealms);
+		assertEquals(2, userRealms.size());
+		userRealms.entrySet().stream().forEach(entry -> {
+			if (entry.getKey().equals(DEFAULT_REALM_ID)) {
+				assertEquals(groupId, entry.getValue().iterator().next());
+			} else if (entry.getKey().equals(realm.getId())) {
+				assertEquals(groupIdTwo, entry.getValue().iterator().next());
+			}
+		});
+	}
+
+	@Test
+	public void testGetUsersRealmsForNonExistingUserIds() {
+		Map<String, Set<String>> userRealms = userGroupDAO.getUsersRealms(List.of("-999", "-998"));
+		assertNotNull(userRealms);
+		assertEquals(0, userRealms.size());
 	}
 
 }

@@ -15,6 +15,7 @@ import org.sagebionetworks.repo.model.TeamMembershipStatus;
 import org.sagebionetworks.repo.model.TeamSortOrder;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.principal.BootstrapTeam;
 import org.sagebionetworks.repo.web.NotFoundException;
 
 import java.util.Collection;
@@ -277,4 +278,13 @@ public interface TeamManager {
 	public List<MessageToUserAndBody> createJoinedTeamNotifications(UserInfo joinerInfo,
 			UserInfo memberInfo, String teamId, String teamEndpoint,
 			String notificationUnsubscribeEndpoint) throws NotFoundException;
+
+	/**
+	 * Bootstrap the given team.  This is only used internally, to set up the default admins team with initial ACL.
+	 * @param team
+	 * @param realmId
+	 *
+	 */
+
+	 String bootstrapTeam(BootstrapTeam team, String realmId);
 }

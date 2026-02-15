@@ -8,7 +8,7 @@ import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.sagebionetworks.repo.manager.grid.internal.replica.change.DeleteRowChange;
+import org.sagebionetworks.repo.manager.grid.internal.replica.change.DeleteArrayNodeChange;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangePublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.UpdateRowChange;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
@@ -151,7 +151,7 @@ public class RowMergeImpl implements RowMerge {
 				log.warn("Row: {} will be removed from the grid with message: {}", rowKey, ex.getMessage());
 				// Source row was deleted or became unauthorized - delete from copy for
 				// consistency
-				intendedChangePublisher.publish(new DeleteRowChange(rowsArrayId, copyItem.getRgaNodeId()));
+				intendedChangePublisher.publish(new DeleteArrayNodeChange(rowsArrayId, copyItem.getRgaNodeId()));
 				return;
 			}
 		}

@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.sagebionetworks.repo.manager.grid.internal.replica.change.DeleteRowChange;
+import org.sagebionetworks.repo.manager.grid.internal.replica.change.DeleteArrayNodeChange;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.InsertRowChange;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangePublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
@@ -85,7 +85,7 @@ public class RowCopyImplTest {
 				new RowCopyItemImpl().setRgaNodeId(new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(6L)));
 
 		verify(mockIntendedChangePublisher).publish(
-				new DeleteRowChange(rowsArrayId, new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(6L)));
+				new DeleteArrayNodeChange(rowsArrayId, new LogicalTimestamp().setReplicaId(5L).setSequenceNumber(6L)));
 		verifyNoMoreInteractionsWithAllMocks();
 	}
 
@@ -102,7 +102,7 @@ public class RowCopyImplTest {
 		// call under test
 		copy.addItem(mockRowHeader);
 		verify(mockIntendedChangePublisher).publish(new InsertRowChange(rowsArrayId, lastRowsRgaNodeId,
-				List.of(firstCellValue, secondCellValue), new Integer[] { 1, 0 }, synRow));
+				List.of(firstCellValue, secondCellValue), new Integer[] { 1, 0 }, synRow.toConValue()));
 	}
 	
 	@Test

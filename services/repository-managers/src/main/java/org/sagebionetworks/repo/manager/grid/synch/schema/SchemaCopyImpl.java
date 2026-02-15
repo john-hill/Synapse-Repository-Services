@@ -6,10 +6,10 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.sagebionetworks.repo.manager.grid.internal.replica.change.AddColumn;
-import org.sagebionetworks.repo.manager.grid.internal.replica.change.DeleteColumn;
+import org.sagebionetworks.repo.manager.grid.internal.replica.change.AddColumnChange;
+import org.sagebionetworks.repo.manager.grid.internal.replica.change.DeleteArrayNodeChange;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangePublisher;
-import org.sagebionetworks.repo.manager.grid.internal.replica.change.UpdateColumnNames;
+import org.sagebionetworks.repo.manager.grid.internal.replica.change.UpdateColumnNamesChange;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.synch.core.SynchronizationLogic;
@@ -162,14 +162,14 @@ public class SchemaCopyImpl implements SchemaCopy {
 	 * from source).
 	 *
 	 * <p>
-	 * Publishes a {@link DeleteColumn} change to the CRDT using the column's RGA
+	 * Publishes a {@link DeleteColumnChange} change to the CRDT using the column's RGA
 	 * node ID, then removes the column from the final schema used in Phase 2.
 	 *
 	 * @param item the copy column to remove
 	 */
 	@Override
 	public void removeItem(ColumnCopyItem item) {
-		intendedChangePublisher.publish(new DeleteColumn(columnOrderArrId, item.getColumnOrderNodeId()));
+		intendedChangePublisher.publish(new DeleteArrayNodeChange(columnOrderArrId, item.getColumnOrderNodeId()));
 		finalSchema.removeIf(column -> column.getName().equals(item.getColumnName()));
 		hasSchemaChange = true;
 	}
@@ -182,7 +182,7 @@ public class SchemaCopyImpl implements SchemaCopy {
 	 *
 	 * <p>
 	 * Creates a new {@link Column} with a unique vector index, publishes an
-	 * {@link AddColumn} change to the CRDT with the column name and vector index,
+	 * {@link AddColumnChange} change to the CRDT with the column name and vector index,
 	 * then adds the column to the final schema. The vector index enables the CRDT
 	 * to store column values efficiently in vector\-based row storage.
 	 *
@@ -191,7 +191,7 @@ public class SchemaCopyImpl implements SchemaCopy {
 	@Override
 	public void addItem(ColumnSourceItem item) {
 		Column newColumn = new Column().setName(item.getColumnName()).setVectorIndex(nextColumnIndex);
-		intendedChangePublisher.publish(new AddColumn(columnOrderArrId, columnOrderArrId, (long) nextColumnIndex));
+		intendedChangePublisher.publish(new AddColumnChange(columnOrderArrId, columnOrderArrId, (long) nextColumnIndex));
 		finalSchema.add(newColumn);
 		nextColumnIndex++;
 		hasSchemaChange = true;
@@ -229,7 +229,7 @@ public class SchemaCopyImpl implements SchemaCopy {
 	    if (hasSchemaChange && !hasUpdatedColumnNameVec) {
 	        Map<Integer, String> indexToNameMap = finalSchema.stream()
 	                .collect(Collectors.toMap(Column::getVectorIndex, Column::getName));
-	        intendedChangePublisher.publish(new UpdateColumnNames(columnNamesVecId, indexToNameMap));
+	        intendedChangePublisher.publish(new UpdateColumnNamesChange(columnNamesVecId, indexToNameMap));
 	        hasUpdatedColumnNameVec = true;
 	    }
 	}

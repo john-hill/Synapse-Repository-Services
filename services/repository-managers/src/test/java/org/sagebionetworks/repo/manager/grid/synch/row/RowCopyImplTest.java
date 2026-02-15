@@ -1,4 +1,4 @@
-package org.sagebionetworks.repo.manager.grid.synch.schema.row;
+package org.sagebionetworks.repo.manager.grid.synch.row;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verify;
@@ -22,8 +22,8 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.SynapseRow;
 import org.sagebionetworks.repo.manager.grid.synch.handler.CopyHandler;
-import org.sagebionetworks.repo.manager.grid.synch.io.RowHeader;
-import org.sagebionetworks.repo.manager.grid.synch.io.SynchRow;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReference;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItem;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowCopyImpl;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowCopyItem;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowCopyItemImpl;
@@ -41,7 +41,7 @@ public class RowCopyImplTest {
 	@Mock
 	private GridHeader mockHeader;
 	@Mock
-	private RowHeader mockRowHeader;
+	private RowSourceItemReference mockRowHeader;
 
 	private List<Column> finalSchema;
 	private LogicalTimestamp lastRowsRgaNodeId;
@@ -96,7 +96,7 @@ public class RowCopyImplTest {
 		ConValue firstCellValue = new ConValue(ConType.LONG, 222L);
 		ConValue secondCellValue = new ConValue(ConType.STRING, "other");
 		when(mockRowHeader.fetchRow()).thenReturn(
-				new SynchRow(new TreeMap<>(Map.of("a", firstCellValue, "b", new ConValue(ConType.STRING, "other"))),
+				new RowSourceItem(new TreeMap<>(Map.of("a", firstCellValue, "b", new ConValue(ConType.STRING, "other"))),
 						"syn123", synRow));
 
 		// call under test
@@ -112,7 +112,7 @@ public class RowCopyImplTest {
 		ConValue firstCellValue = new ConValue(ConType.LONG, 222L);
 		ConValue secondCellValue = new ConValue(ConType.STRING, "other");
 		when(mockRowHeader.fetchRow()).thenReturn(
-				new SynchRow(new TreeMap<>(Map.of("a", firstCellValue, "b", new ConValue(ConType.STRING, "other"))),
+				new RowSourceItem(new TreeMap<>(Map.of("a", firstCellValue, "b", new ConValue(ConType.STRING, "other"))),
 						"syn123", synRow));
 
 		// call under test

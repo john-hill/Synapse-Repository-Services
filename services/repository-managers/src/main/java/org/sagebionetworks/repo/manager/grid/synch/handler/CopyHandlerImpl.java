@@ -103,7 +103,7 @@ public class CopyHandlerImpl implements CopyHandler {
 		LogicalTimestamp vectorId = rowView.getRowObject().getData().getVectorId();
 		List<CellCopyItem> cells = createCopyCells(rowView.getRowObject().getData().getNodes());
 		return new RowCopyItemImpl().setCells(cells).setRgaNodeId(rowView.getArrNodeId()).setVectorNodeId(vectorId)
-				.setSynapseRow(rowView.getSynapseRow());
+				.setMetadataNodeId(rowView.getRowMetadataNodeId()).setSynapseRow(rowView.getSynapseRow());
 	}
 
 	private List<CellCopyItem> createCopyCells(List<ConstantNode> nodes) {

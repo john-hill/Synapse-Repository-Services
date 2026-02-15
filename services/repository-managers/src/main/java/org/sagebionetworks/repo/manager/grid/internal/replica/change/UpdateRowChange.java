@@ -19,7 +19,7 @@ public class UpdateRowChange implements IntendedChange {
 	private final List<ConValue> rowData; // The cells that needs updating
 	private final Integer[] rowVectorIndex; // For each cell in rowData, the vector index of the cell in the row vector.
 	private final LogicalTimestamp metadataObjectId;// The id of the metadata object.
-	private final ConValue synapseRow; // For rows that include the
+	private final ConValue synapseRow; // For rows that include a SynapseRow
 
 	public UpdateRowChange(LogicalTimestamp rowVectorId, List<ConValue> rowData, Integer[] rowVectorIndex) {
 		this(rowVectorId, rowData, rowVectorIndex, null, null);
@@ -32,8 +32,8 @@ public class UpdateRowChange implements IntendedChange {
 		ValidateArgument.required(rowVectorIndex, "rowVectorIndex");
 		ValidateArgument.requirement(rowData.size() == rowVectorIndex.length,
 				"rowData and rowVectorIndex must have the same length");
-		if (synapseRow != null) {
-			ValidateArgument.required(metadataObjectId, "metadataObjectId");
+		if (synapseRow != null && metadataObjectId == null) {
+			throw new IllegalArgumentException("metadataNodeId must be provided when synapseRow is provided.");
 		}
 		this.rowVectorId = rowVectorId;
 		this.rowData = rowData;
@@ -51,8 +51,7 @@ public class UpdateRowChange implements IntendedChange {
 		});
 		this.rowVectorIndex = json.getJSONArray("v").toList().stream().map(o -> (Integer) o).toArray(Integer[]::new);
 		JSONArray metadataArray = json.optJSONArray("m");
-		this.metadataObjectId = metadataArray != null
-				? LogicalTimestampCompactSerializable.deserialize(metadataArray)
+		this.metadataObjectId = metadataArray != null ? LogicalTimestampCompactSerializable.deserialize(metadataArray)
 				: null;
 		JSONArray synArray = json.optJSONArray("s");
 		this.synapseRow = synArray != null ? ConValue.fromCompact(synArray) : null;
@@ -96,8 +95,8 @@ public class UpdateRowChange implements IntendedChange {
 	public Optional<ConValue> getSynapseRow() {
 		return Optional.ofNullable(synapseRow);
 	}
-	
-	public Optional<LogicalTimestamp> getMetadataObjectId(){
+
+	public Optional<LogicalTimestamp> getMetadataObjectId() {
 		return Optional.ofNullable(metadataObjectId);
 	}
 

@@ -16,8 +16,8 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedCha
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.SynapseRow;
 import org.sagebionetworks.repo.manager.grid.synch.handler.CopyHandler;
-import org.sagebionetworks.repo.manager.grid.synch.io.RowHeader;
-import org.sagebionetworks.repo.manager.grid.synch.io.SynchRow;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReference;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItem;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
@@ -150,7 +150,7 @@ public class RowCopyImpl implements RowCopy {
 	 * The insert operation:
 	 * <ul>
 	 * <li>Fetches the row data from the source via
-	 * {@link RowHeader#fetchRow()}</li>
+	 * {@link RowSourceItemReference#fetchRow()}</li>
 	 * <li>Maps column names to column indices using the synchronized schema</li>
 	 * <li>Filters out columns that don't exist in the schema</li>
 	 * <li>Inserts the row after the last known row (using {@link #lastRowId})</li>
@@ -160,10 +160,10 @@ public class RowCopyImpl implements RowCopy {
 	 * @param sourceItem the header for the source row to add to the copy
 	 */
 	@Override
-	public void addItem(RowHeader sourceItem) {
+	public void addItem(RowSourceItemReference sourceItem) {
 		List<ConValue> values = new ArrayList<>();
 		List<Integer> valueIndex = new ArrayList<>();
-		SynchRow synchRow = sourceItem.fetchRow();
+		RowSourceItem synchRow = sourceItem.fetchRow();
 		for (Entry<String, ConValue> e : synchRow.getData().entrySet()) {
 			Column column = columnNameMap.get(e.getKey());
 			if (column != null) {
@@ -172,7 +172,7 @@ public class RowCopyImpl implements RowCopy {
 			}
 		}
 		intendedChangePublisher.publish(new InsertRowChange(rowsArrayId, lastRowId, values,
-				valueIndex.toArray(Integer[]::new), synchRow.getSynRow().map(SynapseRow::toConValue).orElse(null)));
+				valueIndex.toArray(Integer[]::new), synchRow.getSynapseRow().map(SynapseRow::toConValue).orElse(null)));
 	}
 
 }

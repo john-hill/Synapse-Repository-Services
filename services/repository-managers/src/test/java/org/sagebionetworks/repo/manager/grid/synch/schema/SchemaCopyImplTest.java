@@ -77,9 +77,6 @@ public class SchemaCopyImplTest {
 		when(mockHeader.getColumnOrderArrId()).thenReturn(columnOrderArrId);
 		when(mockHeader.getColumnNamesVecId()).thenReturn(columnNamesVecId);
 
-		when(mockCopyHandler.getConnectionInfo()).thenReturn(mockConnection);
-		when(mockConnection.getReplicaId()).thenReturn(internalReplicaId);
-
 		copy = new SchemaCopyImpl(mockIntendedChangePublisher, mockCopyHandler);
 	}
 

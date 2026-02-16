@@ -19,9 +19,9 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.SynapseRow;
 import org.sagebionetworks.repo.manager.grid.row.translator.ColumnTypeToConType;
 import org.sagebionetworks.repo.manager.grid.row.translator.Translator;
 import org.sagebionetworks.repo.manager.grid.synch.io.DiskPointer;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItem;
 import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReader;
 import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemWriter;
-import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItem;
 import org.sagebionetworks.repo.manager.grid.synch.row.RowCopyItem;
 import org.sagebionetworks.repo.manager.schema.AnnotationsTranslator;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
@@ -37,11 +37,7 @@ import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.Query;
 import org.sagebionetworks.repo.model.table.Row;
-import org.sagebionetworks.repo.model.table.TableFailedException;
-import org.sagebionetworks.repo.model.table.TableUnavailableException;
-import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.FileProvider;
-import org.sagebionetworks.workers.util.semaphore.LockUnavilableException;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
@@ -68,8 +64,7 @@ public class EntityViewSourceHandler implements SourceHandler {
 	public EntityViewSourceHandler(AsyncJobProgressCallback callback, UserInfo user, GridSession session,
 			TableQueryManager tableQueryManager, GridAuthorizationManager gridAuthorizationManager,
 			FileProvider fileProvider, AnnotationWriter annotationWriter, JsonSchemaManager jsonSchemaManager,
-			AnnotationsTranslator annotationsTranslator) throws NotFoundException, LockUnavilableException,
-			TableUnavailableException, TableFailedException, IOException {
+			AnnotationsTranslator annotationsTranslator) {
 		this.callback = callback;
 		this.user = user;
 		this.session = session;
@@ -83,25 +78,29 @@ public class EntityViewSourceHandler implements SourceHandler {
 		initialize();
 	}
 
-	void initialize() throws NotFoundException, LockUnavilableException, TableUnavailableException,
-			TableFailedException, IOException {
-		requiredColumnNames = session.getGridJsonSchema$Id() != null
-				? new HashSet<>(jsonSchemaManager.getValidationSchema(session.getGridJsonSchema$Id()).getRequired())
-				: Collections.emptySet();
+	void initialize() {
+		try {
+			requiredColumnNames = session.getGridJsonSchema$Id() != null
+					? new HashSet<>(jsonSchemaManager.getValidationSchema(session.getGridJsonSchema$Id()).getRequired())
+					: Collections.emptySet();
 
-		tempFile = fileProvider.createTempFile("Source-" + session.getSourceEntityId(), ".bin");
-		diskPointers = new ArrayList<>();
-		try (RowSourceItemWriter writer = createRowWriter(tempFile)) {
-			UserInfo sessionOwner = gridAuthorizationManager.getRowLevelFilterUserInfo(user, session.getSessionId());
-			Query query = new Query().setSql("select * from " + session.getSourceEntityId());
+			tempFile = fileProvider.createTempFile("Source-" + session.getSourceEntityId(), ".bin");
+			diskPointers = new ArrayList<>();
+			try (RowSourceItemWriter writer = createRowWriter(tempFile)) {
+				UserInfo sessionOwner = gridAuthorizationManager.getRowLevelFilterUserInfo(user,
+						session.getSessionId());
+				Query query = new Query().setSql("select * from " + session.getSourceEntityId());
 
-			schema = new ArrayList<>();
-			tableQueryManager.runQueryAsStream(callback, sessionOwner, query, t -> {
-				schema.addAll(t.getMainQuery().getTranslator().getSchemaOfSelect());
-				translators = schema.stream().collect(Collectors.toMap(ColumnModel::getName,
-						cm -> ColumnTypeToConType.lookUpType(cm.getColumnType()).getTranslator()));
-				return row -> diskPointers.add(writer.nextRow(createSynchRow(row)));
-			}, ACCESS_TYPE.READ, ACCESS_TYPE.UPDATE);
+				schema = new ArrayList<>();
+				tableQueryManager.runQueryAsStream(callback, sessionOwner, query, t -> {
+					schema.addAll(t.getMainQuery().getTranslator().getSchemaOfSelect());
+					translators = schema.stream().collect(Collectors.toMap(ColumnModel::getName,
+							cm -> ColumnTypeToConType.lookUpType(cm.getColumnType()).getTranslator()));
+					return row -> diskPointers.add(writer.nextRow(createSynchRow(row)));
+				}, ACCESS_TYPE.READ, ACCESS_TYPE.UPDATE);
+			}
+		} catch (Exception e) {
+			throw new RuntimeException(e);
 		}
 	}
 

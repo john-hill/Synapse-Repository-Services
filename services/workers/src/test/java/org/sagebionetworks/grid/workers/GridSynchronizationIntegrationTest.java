@@ -1,19 +1,51 @@
 package org.sagebionetworks.grid.workers;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.AsynchronousJobWorkerHelper;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
+import org.sagebionetworks.repo.manager.file.FileHandleManager;
+import org.sagebionetworks.repo.manager.grid.GridManager;
+import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
+import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
+import org.sagebionetworks.repo.manager.table.ColumnModelManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
+import org.sagebionetworks.repo.model.FileEntity;
+import org.sagebionetworks.repo.model.Folder;
+import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.file.ExternalFileHandle;
+import org.sagebionetworks.repo.model.grid.CreateGridRequest;
+import org.sagebionetworks.repo.model.grid.CreateGridResponse;
+import org.sagebionetworks.repo.model.grid.EventSource;
+import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
+import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.SynchronizeGridRequest;
-import org.sagebionetworks.repo.service.GridService;
-import org.sagebionetworks.repo.web.NotFoundException;
+import org.sagebionetworks.repo.model.jdo.KeyFactory;
+import org.sagebionetworks.repo.model.table.ColumnModel;
+import org.sagebionetworks.repo.model.table.ColumnType;
+import org.sagebionetworks.repo.model.table.EntityView;
+import org.sagebionetworks.repo.model.table.Query;
+import org.sagebionetworks.repo.model.table.QueryResultBundle;
+import org.sagebionetworks.repo.model.table.ReplicationType;
+import org.sagebionetworks.repo.service.EntityService;
+import org.sagebionetworks.util.Pair;
+import org.sagebionetworks.util.TimeUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -25,7 +57,9 @@ public class GridSynchronizationIntegrationTest {
 	public static final long MAX_WAIT_MS = 120_000;
 
 	@Autowired
-	private GridService gridService;
+	private EntityService entityService;
+	@Autowired
+	private FileHandleManager fileHandleManager;
 	@Autowired
 	private UserManager userManager;
 	@Autowired
@@ -34,6 +68,12 @@ public class GridSynchronizationIntegrationTest {
 	private JsonSchemaManager jsonSchemaManager;
 	@Autowired
 	private EntityManager entityManager;
+	@Autowired
+	private ColumnModelManager columnModelManager;
+	@Autowired
+	private GridReplicaViewManager gridViewManager;
+	@Autowired
+	private GridManager gridManager;
 
 	private UserInfo admin;
 
@@ -46,15 +86,173 @@ public class GridSynchronizationIntegrationTest {
 	}
 
 	@Test
-	public void testSynchronize() throws Exception {
+	public void testSynchronizeEntityView() throws Exception {
 
-		assertThrows(NotFoundException.class, ()->{
-			asynchronousJobWorkerHelper.assertJobResponse(admin, new SynchronizeGridRequest().setGridSessionId("123"),
-					(r) -> {
-						System.out.println(r);
-					}, MAX_WAIT_MS);
+		Project project = entityService.createEntity(admin.getId(), new Project().setName("test"), null);
+		Folder folder = entityService.createEntity(admin.getId(),
+				new Folder().setName("folder").setParentId(project.getId()), null);
+
+		ExternalFileHandle fh = fileHandleManager.createExternalFileHandle(admin, new ExternalFileHandle()
+				.setContentType("text/plain").setFileName("foo.bar").setExternalURL("https://something.org"));
+
+		// create the starting files
+		int fileCount = 3;
+		List<FileEntity> files = createFiles(fileCount, folder.getId(), fh.getId());
+
+		// define the view schema
+		String c1Name = "theString";
+		String c2Name = "theId";
+		String c3Name = "toRemove";
+		List<ColumnModel> startingSchema = List.of(new ColumnModel().setColumnType(ColumnType.STRING).setName(c1Name),
+				new ColumnModel().setColumnType(ColumnType.INTEGER).setName(c2Name),
+				new ColumnModel().setColumnType(ColumnType.DOUBLE).setName(c3Name));
+		startingSchema = columnModelManager.createColumnModels(admin, startingSchema);
+		ColumnModel toAdd = columnModelManager
+				.createColumnModel(new ColumnModel().setColumnType(ColumnType.DOUBLE).setName("added"));
+
+		List<ColumnModel> finalSchema = List.of(startingSchema.get(0), startingSchema.get(1), toAdd);
+
+		// Add annotation data to the files
+		setFileJSON(files.get(0).getId(), new JSONObject().put(c1Name, "one").put(c2Name, 111L).put(c3Name, 1.1));
+		setFileJSON(files.get(1).getId(),
+				new JSONObject().put(c1Name, "two").put(c2Name, JSONObject.NULL).put(c3Name, 2.2));
+		setFileJSON(files.get(2).getId(),
+				new JSONObject().put(c1Name, "three").put(c2Name, 333L).put(c3Name, JSONObject.NULL));
+		waitForFilesToReplicat(files);
+
+		// setup the view
+		EntityView view = entityService.createEntity(admin.getId(),
+				new EntityView().setScopeIds(List.of(project.getId())).setViewTypeMask(0x01L)
+						.setParentId(project.getId()).setColumnIds(
+								startingSchema.stream().map(ColumnModel::getId).collect(Collectors.toList())),
+				null);
+		String sql = String.format("select * from %s", view.getId());
+		asynchronousJobWorkerHelper.assertQueryResult(admin, sql, (QueryResultBundle result) -> {
+			assertEquals((long) fileCount, result.getQueryResult().getQueryResults().getRows().size());
+		}, MAX_WAIT_MS);
+
+		// create a grid using the view.
+		GridSession session = asynchronousJobWorkerHelper
+				.assertJobResponse(admin, new CreateGridRequest().setOwnerPrincipalId(admin.getId().toString())
+						.setInitialQuery(new Query().setSql(sql)), (CreateGridResponse response) -> {
+							assertNotNull(response);
+							assertNotNull(response.getGridSession());
+						}, MAX_WAIT_MS)
+				.getResponse().getGridSession();
+		assertNotNull(session);
+		assertEquals(view.getId(), session.getSourceEntityId());
+
+		GridConnectionInfo internalConnection = TimeUtils.waitFor(MAX_WAIT_MS, 10, ()->{
+			Optional<GridConnectionInfo> op = gridManager
+					.getSingletonConnection(session.getSessionId(), EventSource.INTERNAL);
+			if(op.isEmpty()) {
+				return Pair.create(false, null);
+			}else {
+				return Pair.create(true, op.get());
+			}
+		});
+
+		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+			Optional<GridHeader> header = gridViewManager.readHeader(session.getSessionId(),
+					internalConnection.getReplicaId());
+			if (header.isEmpty()) {
+				return Pair.create(false, null);
+			}
+			List<RowView> rows = gridViewManager.querySinglePage(header.get(), 100L, 0L);
+			System.out.println("row count" + rows.size());
+			Set<String> results = rows.stream().map(r -> r.getRowObject().getData().getRowJsonDocument().toString())
+					.collect(Collectors.toSet());
+			System.out.println(results);
+			Set<String> expected = Set.of(
+					//
+					"{\"theString\":\"one\",\"theId\":111,\"toRemove\":1.1}",
+					//
+					"{\"theString\":\"two\",\"toRemove\":2.2}",
+					//
+					"{\"theString\":\"three\",\"theId\":333}");
+			return Pair.create(expected.equals(results), null);
+		});
+
+		// delete the third file
+		FileEntity toDelete = files.remove(2);
+		entityManager.deleteEntity(admin, toDelete.getId());
+		// add a new File
+		FileEntity newfile = entityService.createEntity(admin.getId(),
+				new FileEntity().setName("the new file").setParentId(folder.getId()).setDataFileHandleId(fh.getId()),
+				null);
+		files.add(newfile);
+		setFileJSON(newfile.getId(), new JSONObject().put(c1Name, "four").put(c2Name, 444L).put(c3Name, 4.4));
+		waitForFilesToReplicat(files);
+
+		sql = "select * from " + view.getId() + " where ROW_ID = " + KeyFactory.stringToKey(newfile.getId());
+		asynchronousJobWorkerHelper.assertQueryResult(admin, sql, (QueryResultBundle result) -> {
+			assertEquals((long) 1, result.getQueryResult().getQueryResults().getRows().size());
+		}, MAX_WAIT_MS);
+
+		// call under test
+		asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new SynchronizeGridRequest().setGridSessionId(session.getSessionId()), (r) -> {
+					System.out.println(r);
+				}, MAX_WAIT_MS);
+
+		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+			Optional<GridHeader> header = gridViewManager.readHeader(session.getSessionId(),
+					internalConnection.getReplicaId());
+			if (header.isEmpty()) {
+				return Pair.create(false, null);
+			}
+			List<RowView> rows = gridViewManager.querySinglePage(header.get(), 100L, 0L);
+			System.out.println("row count" + rows.size());
+			Set<String> results = rows.stream().map(r -> r.getRowObject().getData().getRowJsonDocument().toString())
+					.collect(Collectors.toSet());
+			System.out.println(results);
+			Set<String> expected = Set.of(
+					//
+					"{\"theString\":\"one\",\"theId\":111,\"toRemove\":1.1}",
+					//
+					"{\"theString\":\"two\",\"toRemove\":2.2}",
+					//
+					"{\"theString\":\"four\",\"theId\":444,\"toRemove\":4.4}");
+			return Pair.create(expected.equals(results), null);
 		});
 
 	}
 
+	public void setFileJSON(String fileId, JSONObject json) {
+		boolean includeDerived = false;
+		JSONObject fetched = entityService.getEntityJson(admin.getId(), fileId, includeDerived);
+		Iterator<String> it = json.keys();
+		while (it.hasNext()) {
+			String key = it.next();
+			Object value = json.get(key);
+			if (JSONObject.NULL.equals(value)) {
+				fetched.remove(key);
+			} else {
+				fetched.put(key, json.get(key));
+			}
+		}
+		entityService.updateEntityJson(admin.getId(), fileId, fetched);
+	}
+
+	List<FileEntity> createFiles(int count, String folderId, String fileHandleId) {
+		List<FileEntity> files = new ArrayList<>();
+		for (int i = 0; i < count; i++) {
+			FileEntity file = entityService.createEntity(admin.getId(),
+					new FileEntity().setName("file" + i).setParentId(folderId).setDataFileHandleId(fileHandleId), null);
+			files.add(file);
+		}
+		return files;
+	}
+
+	public void waitForFilesToReplicat(List<FileEntity> files) {
+		files.forEach((f) -> {
+			FileEntity fetched = entityService.getEntity(admin.getId(), f.getId(), FileEntity.class);
+			try {
+				asynchronousJobWorkerHelper.waitForObjectReplication(ReplicationType.ENTITY,
+						KeyFactory.stringToKey(f.getId()), fetched.getEtag(), MAX_WAIT_MS);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
+			}
+		});
+	}
 }

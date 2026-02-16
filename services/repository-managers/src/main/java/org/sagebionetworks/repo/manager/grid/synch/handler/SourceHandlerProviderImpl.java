@@ -36,7 +36,7 @@ public class SourceHandlerProviderImpl implements SourceHandlerProvider {
 
 	@Override
 	public SourceHandler createNewProvider(AsyncJobProgressCallback callback, UserInfo user, GridSession session,
-			GridSource gridSource) {
+			GridSource gridSource) throws Exception {
 		switch (gridSource.getType()) {
 		case entityview:
 			return new EntityViewSourceHandler(callback, user, session, tableQueryManager, gridAuthorizationManager,

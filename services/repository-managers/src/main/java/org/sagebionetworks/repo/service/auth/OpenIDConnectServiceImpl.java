@@ -24,6 +24,8 @@ import org.sagebionetworks.repo.model.oauth.OAuthRefreshTokenInformation;
 import org.sagebionetworks.repo.model.oauth.OAuthRefreshTokenInformationList;
 import org.sagebionetworks.repo.model.oauth.OAuthResponseType;
 import org.sagebionetworks.repo.model.oauth.OAuthScope;
+import org.sagebionetworks.repo.model.oauth.OAuthTokenIntrospectionRequest;
+import org.sagebionetworks.repo.model.oauth.OAuthTokenIntrospectionResponse;
 import org.sagebionetworks.repo.model.oauth.OAuthTokenRevocationRequest;
 import org.sagebionetworks.repo.model.oauth.OIDCAuthorizationRequest;
 import org.sagebionetworks.repo.model.oauth.OIDCAuthorizationRequestDescription;
@@ -59,6 +61,7 @@ public class OpenIDConnectServiceImpl implements OpenIDConnectService {
 	public static final String OAUTH_2_JWKS = AUTH_OAUTH_2+"/jwks";
 	public static final String OAUTH_2_AUTH_REQUEST_DESCRIPTION = AUTH_OAUTH_2+"/description";
 	public static final String OAUTH_2_REVOKE = AUTH_OAUTH_2+"/revoke";
+	public static final String OAUTH_2_INTROSPECT = AUTH_OAUTH_2+"/introspect";
 	public static final String OAUTH_2_TOKEN_ID = OAUTH_2_TOKEN + "/{tokenId}";
 	public static final String OAUTH_2_TOKEN_ID_METADATA = OAUTH_2_TOKEN_ID + "/metadata";
 	
@@ -258,6 +261,13 @@ public class OpenIDConnectServiceImpl implements OpenIDConnectService {
 	@Override
 	public OAuthRefreshTokenInformation getRefreshTokenMetadataAsClient(String verifiedClientId, String tokenId) {
 		return oauthRefreshTokenManager.getRefreshTokenMetadata(verifiedClientId, tokenId);
+	}
+
+	@Override
+	public OAuthTokenIntrospectionResponse introspectToken(Long userId, OAuthTokenIntrospectionRequest request) {
+		ValidateArgument.required(request, "request body");
+		ValidateArgument.required(request.getToken(), "token");
+		return oidcManager.introspectToken(request.getToken(), request.getMax_age());
 	}
 
 }

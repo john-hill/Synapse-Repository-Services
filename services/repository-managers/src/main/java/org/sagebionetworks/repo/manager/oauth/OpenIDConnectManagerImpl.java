@@ -22,7 +22,6 @@ import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.authentication.PersonalAccessTokenManager;
 import org.sagebionetworks.repo.manager.oauth.claimprovider.OIDCClaimProvider;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
-import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthenticationDAO;
 import org.sagebionetworks.repo.model.auth.OAuthClientDao;
@@ -33,6 +32,7 @@ import org.sagebionetworks.repo.model.oauth.OAuthClient;
 import org.sagebionetworks.repo.model.oauth.OAuthRefreshTokenInformation;
 import org.sagebionetworks.repo.model.oauth.OAuthResponseType;
 import org.sagebionetworks.repo.model.oauth.OAuthScope;
+import org.sagebionetworks.repo.model.oauth.OAuthTokenIntrospectionResponse;
 import org.sagebionetworks.repo.model.oauth.OAuthTokenRevocationRequest;
 import org.sagebionetworks.repo.model.oauth.OIDCAuthorizationRequest;
 import org.sagebionetworks.repo.model.oauth.OIDCAuthorizationRequestDescription;
@@ -691,5 +691,94 @@ public class OpenIDConnectManagerImpl implements OpenIDConnectManager {
 		// Revoke all authorization consents
 		oauthDao.deleteAllAuthorizationConsents(userId);
 	}
+
+	private static OAuthTokenIntrospectionResponse inactiveIntrospectionResponse() {
+		return new OAuthTokenIntrospectionResponse().setActive(false);
+	}
+
+	@Override
+	public OAuthTokenIntrospectionResponse introspectToken(String token, Long maxAge) {
+		ValidateArgument.required(token, "token");
+
+		// Parse the JWT. If parsing fails (expired, invalid signature, etc.), the token is inactive.
+		Jwt<JwsHeader, Claims> jwt;
+		try {
+			jwt = oidcTokenManager.parseJWT(token);
+		} catch (Exception e) {
+			return inactiveIntrospectionResponse();
+		}
+
+		Claims claims = jwt.getBody();
+
+		// Check token type — only OIDC_ACCESS_TOKEN and PERSONAL_ACCESS_TOKEN are valid
+		TokenType tokenType;
+		try {
+			tokenType = TokenType.valueOf(claims.get(OIDCClaimName.token_type.name(), String.class));
+		} catch (Exception e) {
+			return inactiveIntrospectionResponse();
+		}
+
+		switch (tokenType) {
+			case OIDC_ACCESS_TOKEN:
+				String tokenId = claims.getId();
+				if (!oidcTokenManager.doesOIDCAccessTokenExist(tokenId)) {
+					return inactiveIntrospectionResponse();
+				}
+				String refreshTokenId = claims.get(OIDCClaimName.refresh_token_id.name(), String.class);
+				if (refreshTokenId != null && !oauthRefreshTokenManager.isRefreshTokenActive(refreshTokenId)) {
+					return inactiveIntrospectionResponse();
+				}
+				break;
+			case PERSONAL_ACCESS_TOKEN:
+				String personalAccessTokenId = claims.getId();
+				if (!personalAccessTokenManager.isTokenActive(personalAccessTokenId)) {
+					return inactiveIntrospectionResponse();
+				}
+				break;
+			default:
+				return inactiveIntrospectionResponse();
+		}
+
+		// Check max_age if provided
+		// auth_time is stored as seconds since epoch in the JWT
+		Number authTimeValue = claims.get(OIDCClaimName.auth_time.name(), Number.class);
+		Long authTimeSeconds = authTimeValue != null ? authTimeValue.longValue() : null;
+
+		if (maxAge != null && authTimeSeconds != null) {
+			long nowSeconds = clock.currentTimeMillis() / 1000L;
+			if (nowSeconds - authTimeSeconds > maxAge) {
+				return inactiveIntrospectionResponse();
+			}
+		} else if (maxAge != null && authTimeSeconds == null) {
+			// max_age was requested but auth_time is not available in the token
+			// This should never happen, but fail the request since we cannot guarantee the token is still valid
+			return inactiveIntrospectionResponse();
+		}
+
+		// Build the active response with claims from the JWT
+		OAuthTokenIntrospectionResponse response = new OAuthTokenIntrospectionResponse();
+		response.setActive(true);
+		response.setSub(claims.getSubject());
+		response.setAud(claims.getAudience());
+		response.setIss(claims.getIssuer());
+		response.setJti(claims.getId());
+		response.setToken_type(tokenType);
+
+		if (claims.getExpiration() != null) {
+			response.setExp(claims.getExpiration().getTime() / 1000L);
+		}
+		if (claims.getIssuedAt() != null) {
+			response.setIat(claims.getIssuedAt().getTime() / 1000L);
+		}
+		if (authTimeSeconds != null) {
+			response.setAuth_time(authTimeSeconds);
+		}
+
+		// Extract scopes
+		response.setScope(ClaimsJsonUtil.getScopeFromClaims(claims));
+
+		return response;
+	}
+
 
 }

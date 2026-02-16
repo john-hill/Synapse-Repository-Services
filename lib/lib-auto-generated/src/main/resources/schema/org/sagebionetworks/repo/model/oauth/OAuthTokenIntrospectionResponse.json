@@ -1,0 +1,47 @@
+{
+    "description": "Response from token introspection, based on <a href=\"https://tools.ietf.org/html/rfc7662\">RFC 7662</a> but intended for use by a first-party client.",
+ 	"properties": {
+		"active": {
+			"type": "boolean",
+			"description": "Whether the token is active"
+		},
+		"scope": {
+			"type": "array",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.oauth.OAuthScope"
+			},
+			"description": "Scopes granted by the token"
+		},
+		"aud": {
+			"type": "string",
+			"description": "The audience (realm or OAuth Client) the token was issued for"
+		},
+		"sub": {
+			"type": "string",
+			"description": "Subject identifier (Pairwise Pseudonymous Identifier)"
+		},
+		"token_type": {
+			"$ref": "org.sagebionetworks.repo.model.auth.TokenType"
+		},
+		"exp": {
+			"type": "integer",
+			"description": "Expiration time (seconds since epoch)"
+		},
+		"iat": {
+			"type": "integer",
+			"description": "Issued at time (seconds since epoch)"
+		},
+		"auth_time": {
+			"type": "integer",
+			"description": "Time of user authentication (seconds since epoch)"
+		},
+		"iss": {
+			"type": "string",
+			"description": "Token issuer"
+		},
+		"jti": {
+			"type": "string",
+			"description": "Unique token identifier"
+		}
+	}
+}

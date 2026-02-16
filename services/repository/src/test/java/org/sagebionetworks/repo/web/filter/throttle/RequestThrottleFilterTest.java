@@ -56,6 +56,7 @@ public class RequestThrottleFilterTest {
 
 		//set up request identifiers in the mock request
 		mockRequest.setParameter(AuthorizationConstants.USER_ID_PARAM, userId);
+		mockRequest.setParameter(AuthorizationConstants.ANONYMOUS_PARAM, "false");
 		mockRequest.setRemoteAddr(ipAddress);
 		mockRequest.setRequestURI(path);
 		mockRequest.setCookies(new Cookie(SESSION_ID_COOKIE_NAME, sessionId));

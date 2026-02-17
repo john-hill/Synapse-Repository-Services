@@ -179,7 +179,6 @@ public class RealmManagerImpl implements RealmManager {
 		boolean removed = removePrincipalFromACL(acl, Long.parseLong(realmPrincipal.getAuthenticatedUsers()));
 		if (!removed) {
 			throw new IllegalStateException("Unable to find authenticated users group for realm "+realmId+" in root ACL.");
-			
 		}
 		aclDAO.update(acl, ObjectType.ENTITY);
 		// next, delete the realm-principal association

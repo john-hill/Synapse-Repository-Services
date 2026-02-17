@@ -155,7 +155,7 @@ public class RealmManagerImpl implements RealmManager {
 		Set<ResourceAccess> modifiedResourceAccess = new HashSet<ResourceAccess>();
 		boolean removed=false;
 		for (ResourceAccess ra : acl.getResourceAccess()) {
-			if (ra.getPrincipalId()!=principalId) {
+			if (!ra.getPrincipalId().equals(principalId)) {
 				modifiedResourceAccess.add(ra);
 			} else {
 				removed=true;

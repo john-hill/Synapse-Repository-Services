@@ -25,7 +25,6 @@ import org.sagebionetworks.schema.adapter.JSONEntity;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapter;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 import org.sagebionetworks.schema.adapter.org.json.JSONObjectAdapterImpl;
-import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.http.HttpStatus;
 
 import io.netty.util.internal.StringUtil;

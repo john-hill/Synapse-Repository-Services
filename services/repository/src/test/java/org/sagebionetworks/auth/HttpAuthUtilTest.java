@@ -289,6 +289,6 @@ class HttpAuthUtilTest {
 	@Test
 	void testIsAnonymousMissing() throws Exception {
 		when(httpRequest.getParameter("anonymous")).thenReturn(null);
-		assertThrows(IllegalArgumentException.class, ()->{HttpAuthUtil.isAnonymous(httpRequest);});
+		assertTrue(HttpAuthUtil.isAnonymous(httpRequest));
 	}
 }

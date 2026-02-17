@@ -66,16 +66,11 @@ public class ServletTestHelperUtils {
 			String requestURI, Long userId, String accessToken, JSONEntity entity)
 			throws Exception {
 		MockHttpServletRequest request = initRequestUnauthenticated(mode, path, requestURI, entity);
-		request.setParameter(AuthorizationConstants.ANONYMOUS_PARAM, "true");
 		if (userId != null) {
 			request.setParameter(AuthorizationConstants.USER_ID_PARAM, userId.toString());
-			if (!userId.equals(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId())) {
-				request.setParameter(AuthorizationConstants.ANONYMOUS_PARAM, "false");
-			}
 		}
 		if (accessToken != null) {
 			request.addHeader(AuthorizationConstants.SYNAPSE_AUTHORIZATION_HEADER_NAME, "Bearer "+accessToken);
-			request.setParameter(AuthorizationConstants.ANONYMOUS_PARAM, "false");
 		}
 		return request;
 	}
@@ -84,7 +79,6 @@ public class ServletTestHelperUtils {
 				String requestURI, JSONEntity entity)
 				throws Exception {
 		MockHttpServletRequest request = new MockHttpServletRequest();
-		request.setParameter(AuthorizationConstants.ANONYMOUS_PARAM, "true");
 		request.setMethod(mode.name());
 		request.addHeader("Accept", "application/json; charset="+RESPONSE_ENCODING_CHARSET);
 		request.addHeader("Accept-Encoding", RESPONSE_ENCODING_CHARSET);

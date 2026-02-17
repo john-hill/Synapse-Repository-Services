@@ -56,7 +56,6 @@ public class RequestThrottleFilterTest {
 
 		//set up request identifiers in the mock request
 		mockRequest.setParameter(AuthorizationConstants.USER_ID_PARAM, userId);
-		mockRequest.setParameter(AuthorizationConstants.ANONYMOUS_PARAM, "false");
 		mockRequest.setRemoteAddr(ipAddress);
 		mockRequest.setRequestURI(path);
 		mockRequest.setCookies(new Cookie(SESSION_ID_COOKIE_NAME, sessionId));
@@ -98,6 +97,7 @@ public class RequestThrottleFilterTest {
 		ProfileData profileData = new ProfileData();
 		when(mockRequestThrottler.doThrottle(any(HttpRequestIdentifier.class)))
 				.thenThrow(new RequestThrottledException(throttleMessage, profileData));
+		mockRequest.setParameter(AuthorizationConstants.ANONYMOUS_PARAM, "false");
 
 		//method under test
 		filter.doFilter(mockRequest, mockResponse, mockFilterChain);
@@ -114,7 +114,8 @@ public class RequestThrottleFilterTest {
 	@Test
 	public void testThrottlerPassed() throws Exception {
 		when(mockRequestThrottler.doThrottle(any(HttpRequestIdentifier.class))).thenReturn(mockRequestThrottlerCleanup);
-
+		mockRequest.setParameter(AuthorizationConstants.ANONYMOUS_PARAM, "false");
+		
 		//method under test
 		filter.doFilter(mockRequest, mockResponse, mockFilterChain);
 

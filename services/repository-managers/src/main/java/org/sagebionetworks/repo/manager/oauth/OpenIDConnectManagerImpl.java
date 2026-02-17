@@ -14,6 +14,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 import org.sagebionetworks.manager.util.OAuthPermissionUtils;
@@ -735,6 +736,10 @@ public class OpenIDConnectManagerImpl implements OpenIDConnectManager {
 					return inactiveIntrospectionResponse();
 				}
 				break;
+			case OIDC_ID_TOKEN:
+				// ID tokens cannot be "revoked", so there is nothing to check.
+				// The parse step above would have thrown an exception if it expired
+				break;
 			default:
 				return inactiveIntrospectionResponse();
 		}
@@ -774,8 +779,12 @@ public class OpenIDConnectManagerImpl implements OpenIDConnectManager {
 			response.setAuth_time(authTimeSeconds);
 		}
 
-		// Extract scopes
-		response.setScope(ClaimsJsonUtil.getScopeFromClaims(claims));
+		// space-delimited string containing all scopes
+		response.setScope(ClaimsJsonUtil.getScopeFromClaims(claims)
+				.stream()
+				.map(OAuthScope::name)
+				.collect(Collectors.joining(" "))
+		);
 
 		return response;
 	}

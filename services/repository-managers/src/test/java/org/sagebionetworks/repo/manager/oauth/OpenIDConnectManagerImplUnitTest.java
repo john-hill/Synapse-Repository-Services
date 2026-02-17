@@ -1913,7 +1913,31 @@ public class OpenIDConnectManagerImplUnitTest {
 		assertNotNull(response.getExp());
 		assertNotNull(response.getIat());
 		assertNotNull(response.getAuth_time());
-		assertEquals(List.of(OAuthScope.openid, OAuthScope.view, OAuthScope.download, OAuthScope.authorize, OAuthScope.modify), response.getScope());
+		assertEquals("openid view download authorize modify", response.getScope());
+	}
+
+	@Test
+	public void testIntrospectToken_validIdToken() {
+		String token = "some.jwt.token";
+		String tokenId = "token-id-1";
+		Claims claims = createIntrospectionClaims(TokenType.OIDC_ID_TOKEN, tokenId, null, now);
+
+		when(oidcTokenManager.parseJWT(token)).thenReturn(mockJWT);
+		when(mockJWT.getBody()).thenReturn(claims);
+
+		// method under test - ID tokens should not be introspectable
+		OAuthTokenIntrospectionResponse response = openIDConnectManagerImpl.introspectToken(token, null);
+
+		assertTrue(response.getActive());
+		assertEquals(ppid, response.getSub());
+		assertEquals(OAUTH_CLIENT_ID, response.getAud());
+		assertEquals(OAUTH_ENDPOINT, response.getIss());
+		assertEquals(tokenId, response.getJti());
+		assertEquals(TokenType.OIDC_ID_TOKEN, response.getToken_type());
+		assertNotNull(response.getExp());
+		assertNotNull(response.getIat());
+		assertNotNull(response.getAuth_time());
+		assertEquals("openid view download authorize modify", response.getScope());
 	}
 
 	@Test
@@ -2062,20 +2086,6 @@ public class OpenIDConnectManagerImplUnitTest {
 		assertFalse(response.getActive());
 	}
 
-	@Test
-	public void testIntrospectToken_invalidTokenType() {
-		String token = "some.jwt.token";
-		Claims claims = ClaimsWithAuthTime.newClaims();
-		claims.put(OIDCClaimName.token_type.name(), TokenType.OIDC_ID_TOKEN.name());
-
-		when(oidcTokenManager.parseJWT(token)).thenReturn(mockJWT);
-		when(mockJWT.getBody()).thenReturn(claims);
-
-		// method under test - ID tokens should not be introspectable
-		OAuthTokenIntrospectionResponse response = openIDConnectManagerImpl.introspectToken(token, null);
-
-		assertFalse(response.getActive());
-	}
 
 	@Test
 	public void testIntrospectToken_nullToken() {

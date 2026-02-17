@@ -1,16 +1,13 @@
 {
-    "description": "Response from token introspection, based on <a href=\"https://tools.ietf.org/html/rfc7662\">RFC 7662</a> but intended for use by a first-party client.",
+    "description": "Response from token introspection conforming to <a href=\"https://tools.ietf.org/html/rfc7662\">RFC 7662</a>.",
  	"properties": {
 		"active": {
 			"type": "boolean",
 			"description": "Whether the token is active"
 		},
 		"scope": {
-			"type": "array",
-			"items": {
-				"$ref": "org.sagebionetworks.repo.model.oauth.OAuthScope"
-			},
-			"description": "Scopes granted by the token"
+			"type": "string",
+			"description": "A JSON string containing a space-separated list of scopes associated with this token, in the format described in Section 3.3 of OAuth 2.0"
 		},
 		"aud": {
 			"type": "string",
@@ -18,7 +15,7 @@
 		},
 		"sub": {
 			"type": "string",
-			"description": "Subject identifier (Pairwise Pseudonymous Identifier)"
+			"description": "Subject identifier. For a first-party access token, this is the Synapse user ID. For tokens issued to OAuth Clients, this is a PPID (Pairwise Pseudonymous Identifier)"
 		},
 		"token_type": {
 			"$ref": "org.sagebionetworks.repo.model.auth.TokenType"

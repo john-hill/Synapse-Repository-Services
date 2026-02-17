@@ -6,10 +6,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.stream.Collectors;
 
+import org.java_websocket.WebSocket;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,12 +34,22 @@ import org.sagebionetworks.repo.model.Folder;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.file.ExternalFileHandle;
+import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridResponse;
-import org.sagebionetworks.repo.model.grid.EventSource;
+import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
+import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.SynchronizeGridRequest;
+import org.sagebionetworks.repo.model.grid.message.JsonRxMessage;
+import org.sagebionetworks.repo.model.grid.message.JsonRxMessageType;
+import org.sagebionetworks.repo.model.grid.patch.ConType;
+import org.sagebionetworks.repo.model.grid.patch.ConValue;
+import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.grid.patch.Patch;
+import org.sagebionetworks.repo.model.grid.patch.compact.PatchCompactSerializable;
+import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
@@ -44,6 +58,7 @@ import org.sagebionetworks.repo.model.table.Query;
 import org.sagebionetworks.repo.model.table.QueryResultBundle;
 import org.sagebionetworks.repo.model.table.ReplicationType;
 import org.sagebionetworks.repo.service.EntityService;
+import org.sagebionetworks.repo.service.GridService;
 import org.sagebionetworks.util.Pair;
 import org.sagebionetworks.util.TimeUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -72,6 +87,8 @@ public class GridSynchronizationIntegrationTest {
 	private ColumnModelManager columnModelManager;
 	@Autowired
 	private GridReplicaViewManager gridViewManager;
+	@Autowired
+	private GridService gridService;
 	@Autowired
 	private GridManager gridManager;
 
@@ -103,19 +120,20 @@ public class GridSynchronizationIntegrationTest {
 		String c1Name = "theString";
 		String c2Name = "theId";
 		String c3Name = "toRemove";
+		String c4Name = "added";
 		List<ColumnModel> startingSchema = List.of(new ColumnModel().setColumnType(ColumnType.STRING).setName(c1Name),
 				new ColumnModel().setColumnType(ColumnType.INTEGER).setName(c2Name),
-				new ColumnModel().setColumnType(ColumnType.DOUBLE).setName(c3Name));
+				new ColumnModel().setColumnType(ColumnType.STRING).setName(c3Name));
 		startingSchema = columnModelManager.createColumnModels(admin, startingSchema);
 		ColumnModel toAdd = columnModelManager
-				.createColumnModel(new ColumnModel().setColumnType(ColumnType.DOUBLE).setName("added"));
+				.createColumnModel(new ColumnModel().setColumnType(ColumnType.STRING).setName("added"));
 
 		List<ColumnModel> finalSchema = List.of(startingSchema.get(0), startingSchema.get(1), toAdd);
 
 		// Add annotation data to the files
-		setFileJSON(files.get(0).getId(), new JSONObject().put(c1Name, "one").put(c2Name, 111L).put(c3Name, 1.1));
+		setFileJSON(files.get(0).getId(), new JSONObject().put(c1Name, "one").put(c2Name, 111L).put(c3Name, "1.1"));
 		setFileJSON(files.get(1).getId(),
-				new JSONObject().put(c1Name, "two").put(c2Name, JSONObject.NULL).put(c3Name, 2.2));
+				new JSONObject().put(c1Name, "two").put(c2Name, JSONObject.NULL).put(c3Name, "2.2"));
 		setFileJSON(files.get(2).getId(),
 				new JSONObject().put(c1Name, "three").put(c2Name, 333L).put(c3Name, JSONObject.NULL));
 		waitForFilesToReplicat(files);
@@ -142,19 +160,23 @@ public class GridSynchronizationIntegrationTest {
 		assertNotNull(session);
 		assertEquals(view.getId(), session.getSourceEntityId());
 
-		GridConnectionInfo internalConnection = TimeUtils.waitFor(MAX_WAIT_MS, 10, ()->{
-			Optional<GridConnectionInfo> op = gridManager
-					.getSingletonConnection(session.getSessionId(), EventSource.INTERNAL);
-			if(op.isEmpty()) {
-				return Pair.create(false, null);
-			}else {
-				return Pair.create(true, op.get());
-			}
-		});
+		GridConnectionInfo internalCon = asynchronousJobWorkerHelper.getInternalGridConnection(session.getSessionId(),
+				MAX_WAIT_MS);
 
-		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+		GridReplica userReplica = gridManager
+				.createReplica(admin, new CreateReplicaRequest().setGridSessionId(session.getSessionId())).getReplica();
+
+		String urlOne = gridService
+				.createPresignedUrl(admin.getId(), new CreateGridPresignedUrlRequest()
+						.setGridSessionId(session.getSessionId()).setReplicaId(userReplica.getReplicaId()))
+				.getPresignedUrl();
+		assertNotNull(urlOne);
+		BlockingQueue<String> incomingMessages = new LinkedBlockingQueue<>();
+		WebSocket websoceket = asynchronousJobWorkerHelper.createConnection(urlOne, incomingMessages);
+
+		List<RowView> fetchedRows = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
 			Optional<GridHeader> header = gridViewManager.readHeader(session.getSessionId(),
-					internalConnection.getReplicaId());
+					internalCon.getReplicaId());
 			if (header.isEmpty()) {
 				return Pair.create(false, null);
 			}
@@ -165,12 +187,46 @@ public class GridSynchronizationIntegrationTest {
 			System.out.println(results);
 			Set<String> expected = Set.of(
 					//
-					"{\"theString\":\"one\",\"theId\":111,\"toRemove\":1.1}",
+					"{\"theString\":\"one\",\"theId\":111,\"toRemove\":\"1.1\"}",
 					//
-					"{\"theString\":\"two\",\"toRemove\":2.2}",
+					"{\"theString\":\"two\",\"toRemove\":\"2.2\"}",
 					//
 					"{\"theString\":\"three\",\"theId\":333}");
-			return Pair.create(expected.equals(results), null);
+			return Pair.create(expected.equals(results), rows);
+		});
+
+		// update the first row in the grid
+		Patch patch = new Patch()
+				.setPatchId(new LogicalTimestamp().setReplicaId(userReplica.getReplicaId()).setSequenceNumber(101L));
+		LogicalTimestamp conId = patch
+				.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.STRING, "oneUpdated")));
+		patch.addNewOperation(Operations.insertVector()
+				.setVectorId(fetchedRows.get(0).getRowObject().getData().getVectorId()).setMap(Map.of(0, conId)));
+		JsonRxMessage message = new JsonRxMessage(JsonRxMessageType.RequestData).setId(102).setMethod("patch")
+				.setBody(PatchCompactSerializable.serialize(patch));
+		websoceket.send(message.toJson());
+		asynchronousJobWorkerHelper.waitForMessage((a) -> a.optInt(0) == 5 && a.optInt(1) == message.getId().get(),
+				incomingMessages);
+
+		fetchedRows = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+			Optional<GridHeader> header = gridViewManager.readHeader(session.getSessionId(),
+					internalCon.getReplicaId());
+			if (header.isEmpty()) {
+				return Pair.create(false, null);
+			}
+			List<RowView> rows = gridViewManager.querySinglePage(header.get(), 100L, 0L);
+			System.out.println("row count" + rows.size());
+			Set<String> results = rows.stream().map(r -> r.getRowObject().getData().getRowJsonDocument().toString())
+					.collect(Collectors.toSet());
+			System.out.println(results);
+			Set<String> expected = Set.of(
+					//
+					"{\"theString\":\"oneUpdated\",\"theId\":111,\"toRemove\":\"1.1\"}",
+					//
+					"{\"theString\":\"two\",\"toRemove\":\"2.2\"}",
+					//
+					"{\"theString\":\"three\",\"theId\":333}");
+			return Pair.create(expected.equals(results), rows);
 		});
 
 		// delete the third file
@@ -181,8 +237,18 @@ public class GridSynchronizationIntegrationTest {
 				new FileEntity().setName("the new file").setParentId(folder.getId()).setDataFileHandleId(fh.getId()),
 				null);
 		files.add(newfile);
-		setFileJSON(newfile.getId(), new JSONObject().put(c1Name, "four").put(c2Name, 444L).put(c3Name, 4.4));
+		setFileJSON(files.get(0).getId(), new JSONObject().put(c1Name, "shouldBeReplaced").put(c2Name, 111L)
+				.put(c3Name, "1.2").put(c4Name, "oneUpdatedInSource"));
+		setFileJSON(newfile.getId(),
+				new JSONObject().put(c1Name, "four").put(c2Name, 444L).put(c3Name, "4.4").put(c4Name, "newlyAdded"));
+		setFileJSON(files.get(1).getId(),
+				new JSONObject().put(c1Name, "two").put(c2Name, 222L).put(c3Name, "2.2").put(c4Name, "updatedInSource"));
 		waitForFilesToReplicat(files);
+
+		boolean newVersion = false;
+		// add a new column and remove an old.
+		view.setColumnIds(finalSchema.stream().map(ColumnModel::getId).collect(Collectors.toList()));
+		view = entityService.updateEntity(admin.getId(), view, newVersion, null);
 
 		sql = "select * from " + view.getId() + " where ROW_ID = " + KeyFactory.stringToKey(newfile.getId());
 		asynchronousJobWorkerHelper.assertQueryResult(admin, sql, (QueryResultBundle result) -> {
@@ -197,7 +263,7 @@ public class GridSynchronizationIntegrationTest {
 
 		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
 			Optional<GridHeader> header = gridViewManager.readHeader(session.getSessionId(),
-					internalConnection.getReplicaId());
+					internalCon.getReplicaId());
 			if (header.isEmpty()) {
 				return Pair.create(false, null);
 			}
@@ -208,14 +274,34 @@ public class GridSynchronizationIntegrationTest {
 			System.out.println(results);
 			Set<String> expected = Set.of(
 					//
-					"{\"theString\":\"one\",\"theId\":111,\"toRemove\":1.1}",
+					"{\"added\":\"oneUpdatedInSource\",\"theString\":\"oneUpdated\",\"theId\":111}",
 					//
-					"{\"theString\":\"two\",\"toRemove\":2.2}",
+					"{\"added\":\"updatedInSource\",\"theString\":\"two\",\"theId\":222}",
 					//
-					"{\"theString\":\"four\",\"theId\":444,\"toRemove\":4.4}");
+					"{\"added\":\"newlyAdded\",\"theString\":\"four\",\"theId\":444}");
 			return Pair.create(expected.equals(results), null);
 		});
 
+		verifyExpectedAnnotations(files.get(0).getId(), new JSONObject().put(c1Name, "oneUpdated").put(c2Name, 111L)
+				.put(c3Name, "1.2").put(c4Name, "oneUpdatedInSource"));
+		verifyExpectedAnnotations(files.get(1).getId(), new JSONObject().put(c1Name, "two").put(c2Name, 222L)
+				.put(c3Name, "2.2").put(c4Name, "updatedInSource"));
+		verifyExpectedAnnotations(files.get(2).getId(), new JSONObject().put(c1Name, "four").put(c2Name, 444L)
+				.put(c3Name, "4.4").put(c4Name, "newlyAdded"));
+
+	}
+
+	void verifyExpectedAnnotations(String fileId, JSONObject expected) {
+		boolean includeDerived = false;
+		JSONObject fetched = entityService.getEntityJson(admin.getId(), fileId, includeDerived);
+		System.out.println("FileId:  "+fileId);
+		System.out.println("Fetched: "+fetched.toString());
+		System.out.println("Passed:  "+expected.toString());
+		Iterator<String> it = expected.keys();
+		while (it.hasNext()) {
+			String key = it.next();
+			assertEquals(expected.get(key),fetched.get(key));
+		}
 	}
 
 	public void setFileJSON(String fileId, JSONObject json) {

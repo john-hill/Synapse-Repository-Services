@@ -293,6 +293,8 @@ import org.sagebionetworks.repo.model.oauth.OAuthGrantType;
 import org.sagebionetworks.repo.model.oauth.OAuthProvider;
 import org.sagebionetworks.repo.model.oauth.OAuthRefreshTokenInformation;
 import org.sagebionetworks.repo.model.oauth.OAuthRefreshTokenInformationList;
+import org.sagebionetworks.repo.model.oauth.OAuthTokenIntrospectionRequest;
+import org.sagebionetworks.repo.model.oauth.OAuthTokenIntrospectionResponse;
 import org.sagebionetworks.repo.model.oauth.OAuthTokenRevocationRequest;
 import org.sagebionetworks.repo.model.oauth.OAuthUrlRequest;
 import org.sagebionetworks.repo.model.oauth.OAuthUrlResponse;
@@ -626,6 +628,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public static final String AUTH_OAUTH_2_AUDIT_CLIENTS = AUTH_OAUTH_2_AUDIT + "/grantedClients";
 	public static final String METADATA = "/metadata";
 	public static final String REVOKE = "/revoke";
+	public static final String AUTH_OAUTH_2_INTROSPECT = AUTH_OAUTH_2 + "/introspect";
 	public static final String TOKENS = "/tokens";
 
 	public static final String AUTH_OAUTH_2_GRANT_TYPE_PARAM = "grant_type";
@@ -4820,6 +4823,12 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 		SimpleHttpResponse response = dispatchSynapseRequest(getAuthEndpoint(),
 				AUTH_OAUTH_2 + REVOKE, POST, requestBody, headers, null);
 		ClientUtils.checkStatusCodeAndThrowException(response);
+	}
+
+	@Override
+	public OAuthTokenIntrospectionResponse introspectToken(OAuthTokenIntrospectionRequest request) throws SynapseException {
+		ValidateArgument.required(request, "request");
+		return postJSONEntity(getAuthEndpoint(), AUTH_OAUTH_2_INTROSPECT, request, OAuthTokenIntrospectionResponse.class);
 	}
 
 	@Override

@@ -253,6 +253,8 @@ import org.sagebionetworks.repo.model.oauth.OAuthGrantType;
 import org.sagebionetworks.repo.model.oauth.OAuthProvider;
 import org.sagebionetworks.repo.model.oauth.OAuthRefreshTokenInformation;
 import org.sagebionetworks.repo.model.oauth.OAuthRefreshTokenInformationList;
+import org.sagebionetworks.repo.model.oauth.OAuthTokenIntrospectionRequest;
+import org.sagebionetworks.repo.model.oauth.OAuthTokenIntrospectionResponse;
 import org.sagebionetworks.repo.model.oauth.OAuthTokenRevocationRequest;
 import org.sagebionetworks.repo.model.oauth.OAuthUrlRequest;
 import org.sagebionetworks.repo.model.oauth.OAuthUrlResponse;
@@ -2305,6 +2307,12 @@ public interface SynapseClient extends BaseClient {
 	 * @throws UnsupportedEncodingException 
 	 */
 	void revokeTokenURLEncoded(String token) throws SynapseException, UnsupportedEncodingException;
+
+	/**
+	 * Introspects an access token, returning whether it is active and its claims.
+	 * Authenticated by the calling Synapse user (not an OAuth client).
+	 */
+	OAuthTokenIntrospectionResponse introspectToken(OAuthTokenIntrospectionRequest request) throws SynapseException;
 
 	/**
 	 * Updates the metadata for a particular refresh token.

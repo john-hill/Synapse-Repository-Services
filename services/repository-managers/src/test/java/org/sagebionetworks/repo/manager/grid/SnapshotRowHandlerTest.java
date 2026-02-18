@@ -118,10 +118,10 @@ public class SnapshotRowHandlerTest {
 		// Verify root object contains all required fields
 		Map<String, LogicalTimestamp> rootMap = result.rootObjectNode.getValue();
 		assertEquals(4, rootMap.size());
-		assertTrue(rootMap.containsKey(SnapshotRowHandler.FIELD_DOC_VERSION));
-		assertTrue(rootMap.containsKey(SnapshotRowHandler.FIELD_COLUMN_NAMES));
-		assertTrue(rootMap.containsKey(SnapshotRowHandler.FIELD_COLUMN_ORDER));
-		assertTrue(rootMap.containsKey(SnapshotRowHandler.FIELD_ROWS));
+		assertTrue(rootMap.containsKey(DocumentConstants.DOC_VERSION));
+		assertTrue(rootMap.containsKey(DocumentConstants.COLUMN_NAMES));
+		assertTrue(rootMap.containsKey(DocumentConstants.COLUMN_ORDER));
+		assertTrue(rootMap.containsKey(DocumentConstants.ROWS));
 
 		// Verify document version
 		assertEquals(ConType.STRING, result.documentVersionNode.getConValue().getType());
@@ -372,7 +372,7 @@ public class SnapshotRowHandlerTest {
 		// Verify metadata structure
 		Map<String, LogicalTimestamp> metadataMap = metadata.getValue();
 		assertEquals(1, metadataMap.size());
-		assertTrue(metadataMap.containsKey(SnapshotRowHandler.FIELD_SYNAPSE_ROW));
+		assertTrue(metadataMap.containsKey(DocumentConstants.SYNAPSE_ROW));
 
 		handler.close();
 	}
@@ -416,7 +416,7 @@ public class SnapshotRowHandlerTest {
 		// Verify metadata structure
 		Map<String, LogicalTimestamp> metadataMap = metadata.getValue();
 		assertEquals(1, metadataMap.size());
-		assertTrue(metadataMap.containsKey(SnapshotRowHandler.FIELD_ROW_VALIDATION));
+		assertTrue(metadataMap.containsKey(DocumentConstants.ROW_VALIDATION));
 
 		verify(mockValidationManager, times(1)).validate(eq(validationSchema), any(JsonSubject.class));
 
@@ -462,8 +462,8 @@ public class SnapshotRowHandlerTest {
 		// Verify metadata structure
 		Map<String, LogicalTimestamp> metadataMap = metadata.getValue();
 		assertEquals(2, metadataMap.size());
-		assertTrue(metadataMap.containsKey(SnapshotRowHandler.FIELD_SYNAPSE_ROW));
-		assertTrue(metadataMap.containsKey(SnapshotRowHandler.FIELD_ROW_VALIDATION));
+		assertTrue(metadataMap.containsKey(DocumentConstants.SYNAPSE_ROW));
+		assertTrue(metadataMap.containsKey(DocumentConstants.ROW_VALIDATION));
 
 		handler.close();
 	}

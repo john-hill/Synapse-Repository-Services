@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 import org.apache.http.entity.ContentType;
 import org.sagebionetworks.manager.util.Validate;
 import org.sagebionetworks.reflection.model.PaginatedResults;
+import org.sagebionetworks.repo.manager.AccessControlListManager;
 import org.sagebionetworks.repo.manager.AuthorizationManager;
 import org.sagebionetworks.repo.manager.EmailUtils;
 import org.sagebionetworks.repo.manager.MessageToUserAndBody;
@@ -99,6 +100,8 @@ public class TeamManagerImpl implements TeamManager {
 	private UserGroupDAO userGroupDAO;
 	@Autowired
 	private AccessControlListDAO aclDAO;
+	@Autowired
+	private AccessControlListManager aclManager;
 	@Autowired
 	private PrincipalAliasDAO principalAliasDAO;
 	@Autowired
@@ -293,7 +296,7 @@ public class TeamManagerImpl implements TeamManager {
 		groupMembersDAO.addMembers(id.toString(), Arrays.asList(new String[]{userInfo.getId().toString()}));
 		// create ACL, adding the current user to the team, as an admin
 		AccessControlList acl = createInitialAcl(userInfo, id.toString(), now);
-		aclDAO.create(acl, ObjectType.TEAM);
+		aclManager.create(userInfo, acl, ObjectType.TEAM, getTeamOwner(created));
 		return created;
 	}
 	
@@ -328,7 +331,7 @@ public class TeamManagerImpl implements TeamManager {
 	 * @param team
 	 * @return
 	 */
-	private Team bootstrapCreate(Team team) {
+	private Team bootstrapCreate(Team team, String realmId) {
 		Long teamId = Long.parseLong(team.getId());
 		Date now = new Date();
 		
@@ -342,7 +345,7 @@ public class TeamManagerImpl implements TeamManager {
 		dbo.setEtag(UUID.randomUUID().toString());
 		dbo.setIsIndividual(false);
 		dbo.setCreationDate(now);
-		dbo.setRealmId(Long.parseLong(AuthorizationConstants.DEFAULT_REALM_ID));
+		dbo.setRealmId(Long.valueOf(realmId));
 		basicDao.createOrUpdate(dbo);
 		
 		// bind the team name to this principal. 
@@ -523,7 +526,7 @@ public class TeamManagerImpl implements TeamManager {
 		}
 		authorizationManager.canAccess(userInfo, id, ObjectType.TEAM, ACCESS_TYPE.DELETE).checkAuthorizationOrElseThrow();
 		// delete ACL
-		aclDAO.delete(id, ObjectType.TEAM);
+		aclManager.delete(id, ObjectType.TEAM);
 		// delete Team
 		teamDAO.delete(id);
 		try {
@@ -724,13 +727,14 @@ public class TeamManagerImpl implements TeamManager {
 		if (currentMembers.contains(Long.valueOf(principalId))) {
 			if (currentMembers.size() == 1) throw new UnauthorizedException("Cannot remove the last member of a Team.");
 			// remove from ACL
-			AccessControlList acl = aclDAO.get(teamId, ObjectType.TEAM);
+			AccessControlList acl = aclManager.getAcl(teamId, ObjectType.TEAM).orElseThrow(() -> new NotFoundException("ACL not found for team " + teamId));
 			removeFromACL(acl, principalId);
 			if (!userInfo.isAdmin() && !aclHasTeamAdmin(acl)) {
 				throw new InvalidModelException(MSG_TEAM_MUST_HAVE_AT_LEAST_ONE_TEAM_MANAGER);
 			}
 			groupMembersDAO.removeMembers(teamId, Collections.singletonList(principalId));
-			aclDAO.update(acl, ObjectType.TEAM);
+			Team team = get(teamId);
+			aclManager.update(userInfo, acl, ObjectType.TEAM, getTeamOwner(team));
 		}
 	}
 
@@ -741,7 +745,7 @@ public class TeamManagerImpl implements TeamManager {
 	public AccessControlList getACL(UserInfo userInfo, String teamId)
 			throws DatastoreException, UnauthorizedException, NotFoundException {
 		authorizationManager.canAccess(userInfo, teamId, ObjectType.TEAM, ACCESS_TYPE.READ).checkAuthorizationOrElseThrow();
-		return aclDAO.get(teamId, ObjectType.TEAM);
+		return aclManager.getAcl(teamId, ObjectType.TEAM).orElseThrow(() -> new NotFoundException("ACL not found for team " + teamId));
 	}
 
 	/* (non-Javadoc)
@@ -751,9 +755,9 @@ public class TeamManagerImpl implements TeamManager {
 	public AccessControlList updateACL(UserInfo userInfo, AccessControlList acl)
 			throws DatastoreException, UnauthorizedException, NotFoundException {
 		authorizationManager.canAccess(userInfo, acl.getId(), ObjectType.TEAM, ACCESS_TYPE.UPDATE).checkAuthorizationOrElseThrow();
-		//TODO PLFM-9327 before updating ACL ,it should be verified that user is upating ACL in the correct realm
-		aclDAO.update(acl, ObjectType.TEAM);
-		return aclDAO.get(acl.getId(), ObjectType.TEAM);
+		Team team = get(acl.getId());
+		aclManager.update(userInfo, acl, ObjectType.TEAM, getTeamOwner(team));
+		return aclManager.getAcl(acl.getId(), ObjectType.TEAM).orElseThrow(() -> new NotFoundException("ACL not found for team " + acl.getId()));
 	}
 
 	@Override
@@ -810,7 +814,7 @@ public class TeamManagerImpl implements TeamManager {
 			String principalId, boolean isAdmin) throws DatastoreException,
 			UnauthorizedException, NotFoundException {
 		authorizationManager.canAccess(userInfo, teamId, ObjectType.TEAM, ACCESS_TYPE.UPDATE).checkAuthorizationOrElseThrow();
-		AccessControlList acl = aclDAO.get(teamId, ObjectType.TEAM);
+		AccessControlList acl = aclManager.getAcl(teamId, ObjectType.TEAM).orElseThrow(() -> new NotFoundException("ACL not found for team " +	teamId));
 		// first, remove the principal's entries from the ACL
 		removeFromACL(acl, principalId);
 		// now, if isAdmin is false, the team membership is enough to give the user basic permissions
@@ -820,7 +824,17 @@ public class TeamManagerImpl implements TeamManager {
 		}
 		if (!userInfo.isAdmin() && !aclHasTeamAdmin(acl)) throw new InvalidModelException(MSG_TEAM_MUST_HAVE_AT_LEAST_ONE_TEAM_MANAGER);
 		// finally, update the ACL
-		aclDAO.update(acl, ObjectType.TEAM);
+		Team team = get(teamId);
+		aclManager.update(userInfo, acl, ObjectType.TEAM, getTeamOwner(team));
+	}
+
+	private Long getTeamOwner(Team team) {
+		//The bootstrap team have null value in createdBy field.
+		Long createdBy = null;
+		if (team.getCreatedBy() != null) {
+			createdBy = Long.parseLong(team.getCreatedBy());
+		}
+		return createdBy;
 	}
 	
 	// answers the question about whether membership approval is required to add principal to team
@@ -875,22 +889,28 @@ public class TeamManagerImpl implements TeamManager {
 				if(!AuthorizationConstants.BOOTSTRAP_PRINCIPAL.isBootstrapPrincipalId(teamIdLong)) {
 					throw new IllegalArgumentException("Not a bootstrap principal: "+teamIdLong);
 				}
-				Team newTeam = new Team();
-				newTeam.setId(team.getId());
-				newTeam.setName(team.getName());
-				newTeam.setCanPublicJoin(team.getCanPublicJoin());
-				newTeam.setDescription(team.getDescription());
-				newTeam.setIcon(team.getIcon());
-				newTeam = bootstrapCreate(newTeam);
-
-				if (null!=team.getInitialMembers()) {
-					groupMembersDAO.addMembers(newTeam.getId(), team.getInitialMembers());
-				}
-				// create ACL
-				AccessControlList acl = createBootstrapTeamAcl(newTeam.getId(), new Date());
-				aclDAO.create(acl, ObjectType.TEAM);
+				bootstrapTeam(team,AuthorizationConstants.DEFAULT_REALM_ID);
 			}
 		}
+	}
+
+	@Override
+	public String bootstrapTeam(BootstrapTeam team, String realmId) {
+		Team newTeam = new Team();
+		newTeam.setId(team.getId());
+		newTeam.setName(team.getName());
+		newTeam.setCanPublicJoin(team.getCanPublicJoin());
+		newTeam.setDescription(team.getDescription());
+		newTeam.setIcon(team.getIcon());
+		newTeam = bootstrapCreate(newTeam, realmId);
+
+		if (null != team.getInitialMembers()) {
+			groupMembersDAO.addMembers(newTeam.getId(), team.getInitialMembers());
+		}
+		// create ACL
+		AccessControlList acl = createBootstrapTeamAcl(newTeam.getId(), new Date());
+		aclDAO.create(acl, ObjectType.TEAM);
+		return newTeam.getId();
 	}
 
 }

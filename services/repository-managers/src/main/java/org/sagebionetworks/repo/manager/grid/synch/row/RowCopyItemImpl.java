@@ -8,7 +8,7 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.SynapseRow;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
 /**
- * Implementation of {@link CopyRow} that represents a materialized row from the
+ * Implementation of {@link RowCopyItem} that represents a materialized row from the
  * copy (CRDT replica) during Phase 2 row synchronization.
  *
  * <p>
@@ -29,12 +29,13 @@ import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
  * replica</li>
  * </ul>
  */
-public class CopyRowImpl implements CopyRow {
+public class RowCopyItemImpl implements RowCopyItem {
 
 	private SynapseRow synapseRow;
 	private LogicalTimestamp rgaNodeId;
 	private LogicalTimestamp vectorNodeId;
-	private List<CopyCell> cells;
+	private LogicalTimestamp metadataNodeId;
+	private List<CellCopyItem> cells;
 
 	/**
 	 * Determines whether this row was changed by the user by checking if any of its
@@ -44,14 +45,14 @@ public class CopyRowImpl implements CopyRow {
 	 *
 	 * <p>
 	 * Returns true if at least one cell in this row has
-	 * {@link CopyCell#wasChangedByUser()} returning true, indicating the user made
+	 * {@link CellCopyItem#wasChangedByUser()} returning true, indicating the user made
 	 * modifications to this row that should be synchronized to the source.
 	 *
 	 * @return true if any cell was changed by the user, false otherwise
 	 */
 	@Override
 	public boolean wasChangedByUser() {
-		return cells != null && cells.stream().anyMatch(CopyCell::wasChangedByUser);
+		return cells != null && cells.stream().anyMatch(CellCopyItem::wasChangedByUser);
 	}
 
 	/**
@@ -102,7 +103,7 @@ public class CopyRowImpl implements CopyRow {
 	 * @param rgaNodeId the RGA node identifier
 	 * @return this instance for method chaining
 	 */
-	public CopyRowImpl setRgaNodeId(LogicalTimestamp rgaNodeId) {
+	public RowCopyItemImpl setRgaNodeId(LogicalTimestamp rgaNodeId) {
 		this.rgaNodeId = rgaNodeId;
 		return this;
 	}
@@ -115,7 +116,7 @@ public class CopyRowImpl implements CopyRow {
 	 *
 	 * @return the list of cells in this row
 	 */
-	public List<CopyCell> getCells() {
+	public List<CellCopyItem> getCells() {
 		return cells;
 	}
 
@@ -125,7 +126,7 @@ public class CopyRowImpl implements CopyRow {
 	 * @param cells the list of cells
 	 * @return this instance for method chaining
 	 */
-	public CopyRowImpl setCells(List<CopyCell> cells) {
+	public RowCopyItemImpl setCells(List<CellCopyItem> cells) {
 		this.cells = cells;
 		return this;
 	}
@@ -136,7 +137,7 @@ public class CopyRowImpl implements CopyRow {
 	 * @param synapseRow the Synapse row
 	 * @return this instance for method chaining
 	 */
-	public CopyRowImpl setSynapseRow(SynapseRow synapseRow) {
+	public RowCopyItemImpl setSynapseRow(SynapseRow synapseRow) {
 		this.synapseRow = synapseRow;
 		return this;
 	}
@@ -147,14 +148,33 @@ public class CopyRowImpl implements CopyRow {
 	 * @param vectorNodeId the vector clock node identifier
 	 * @return this instance for method chaining
 	 */
-	public CopyRowImpl setVectorNodeId(LogicalTimestamp vectorNodeId) {
+	public RowCopyItemImpl setVectorNodeId(LogicalTimestamp vectorNodeId) {
 		this.vectorNodeId = vectorNodeId;
+		return this;
+	}
+	
+	/**
+	 * The ID of the metadata object that defines this row's metadata.
+	 */
+	@Override
+	public LogicalTimestamp getMetadataNodeId() {
+		return metadataNodeId;
+	}
+
+
+	/**
+	 * The ID of the metadata object that defines this row's metadata.
+	 * @param metadataNodeId
+	 * @return
+	 */
+	public RowCopyItemImpl setMetadataNodeId(LogicalTimestamp metadataNodeId) {
+		this.metadataNodeId = metadataNodeId;
 		return this;
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(cells, rgaNodeId, synapseRow, vectorNodeId);
+		return Objects.hash(cells, metadataNodeId, rgaNodeId, synapseRow, vectorNodeId);
 	}
 
 	@Override
@@ -165,15 +185,16 @@ public class CopyRowImpl implements CopyRow {
 			return false;
 		if (getClass() != obj.getClass())
 			return false;
-		CopyRowImpl other = (CopyRowImpl) obj;
-		return Objects.equals(cells, other.cells) && Objects.equals(rgaNodeId, other.rgaNodeId)
-				&& Objects.equals(synapseRow, other.synapseRow) && Objects.equals(vectorNodeId, other.vectorNodeId);
+		RowCopyItemImpl other = (RowCopyItemImpl) obj;
+		return Objects.equals(cells, other.cells) && Objects.equals(metadataNodeId, other.metadataNodeId)
+				&& Objects.equals(rgaNodeId, other.rgaNodeId) && Objects.equals(synapseRow, other.synapseRow)
+				&& Objects.equals(vectorNodeId, other.vectorNodeId);
 	}
 
 	@Override
 	public String toString() {
-		return "CopyRowImpl [synapseRow=" + synapseRow + ", rgaNodeId=" + rgaNodeId + ", vectorNodeId=" + vectorNodeId
-				+ ", cells=" + cells + "]";
+		return "RowCopyItemImpl [synapseRow=" + synapseRow + ", rgaNodeId=" + rgaNodeId + ", vectorNodeId="
+				+ vectorNodeId + ", metadataNodeId=" + metadataNodeId + ", cells=" + cells + "]";
 	}
 
 }

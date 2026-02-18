@@ -7,8 +7,9 @@ import org.sagebionetworks.repo.model.grid.patch.ConValue;
 
 /**
  * Represents a single cell from a copy row during Phase 2 cell-level
- * synchronization. Provides the cell's value and tracks whether the user
- * modified this cell, enabling conflict resolution during row merging.
+ * synchronization. Provides the cell's value and tracks whether it was changed
+ * by the user, enabling the synchronization logic to determine if changes
+ * should be pushed to the source.
  *
  * <p>
  * During row synchronization, when a copy row and source row don't match
@@ -16,18 +17,17 @@ import org.sagebionetworks.repo.model.grid.patch.ConValue;
  * determine:
  * <ul>
  * <li>Which cells changed in the copy vs. source</li>
- * <li>Which changes came from the user vs. external source updates</li>
- * <li>How to resolve conflicts when both copy and source changed the same
- * cell</li>
+ * <li>Which cells need to be pushed to the source (user changes)</li>
+ * <li>Which cells need to be pulled to the copy (external source updates)</li>
  * </ul>
  *
  * <p>
- * The {@code wasChangedByUser} flag is critical for conflict resolution:
+ * The key distinction from {@link CellSourceItem} is that copy cells track user
+ * modifications via {@link #wasChangedByUser()}. This enables the
+ * synchronization logic to distinguish between:
  * <ul>
- * <li>User changes are pushed to the source (user intent preserved)</li>
- * <li>External source changes are pulled to the copy (source updates
- * synced)</li>
- * <li>When both changed, user changes take precedence</li>
+ * <li>User changes that should be pushed to the source</li>
+ * <li>Copy values that should be updated with external source changes</li>
  * </ul>
  */
 public class CellCopyItem implements CopyItem {
@@ -58,8 +58,9 @@ public class CellCopyItem implements CopyItem {
 	}
 
 	/**
-	 * Gets the cell's value from the copy. This value is compared with the source
-	 * cell value during cell-level synchronization to detect changes.
+	 * Gets the cell's current value from the copy. This value is compared with the
+	 * source cell value during cell-level synchronization to detect changes and
+	 * resolve conflicts.
 	 *
 	 * @return the cell value
 	 */
@@ -79,23 +80,16 @@ public class CellCopyItem implements CopyItem {
 	}
 
 	/**
-	 * Indicates whether this cell was modified by the user in the copy. Used during
-	 * cell-level conflict resolution to determine whether to push this change to
-	 * the source or pull the source's value to the copy.
-	 *
-	 * <p>
-	 * During synchronization:
+	 * Indicates whether this cell was modified by the user in the copy. This flag
+	 * determines conflict resolution during cell-level synchronization:
 	 * <ul>
-	 * <li>If {@code true} and source cell differs: push user's change to
-	 * source</li>
-	 * <li>If {@code false} and source cell differs: pull source's change to
-	 * copy</li>
-	 * <li>If both copy and source changed: user change takes precedence (pushed to
-	 * source)</li>
+	 * <li>If true and values differ → push copy value to source (user's change
+	 * wins)</li>
+	 * <li>If false and values differ → pull source value to copy (external change
+	 * wins)</li>
 	 * </ul>
 	 *
-	 * @return true if the user modified this cell, false if it was externally
-	 *         changed or unchanged
+	 * @return true if the user modified this cell, false otherwise
 	 */
 	@Override
 	public boolean wasChangedByUser() {
@@ -103,9 +97,9 @@ public class CellCopyItem implements CopyItem {
 	}
 
 	/**
-	 * Sets whether this cell was modified by the user.
+	 * Sets whether this cell was changed by the user.
 	 *
-	 * @param wasChangedByUser true if user modified the cell, false otherwise
+	 * @param wasChangedByUser true if changed by user, false otherwise
 	 * @return this instance for method chaining
 	 */
 	public CellCopyItem setWasChangedByUser(boolean wasChangedByUser) {
@@ -133,7 +127,7 @@ public class CellCopyItem implements CopyItem {
 
 	@Override
 	public String toString() {
-		return "Cell [name=" + name + ", value=" + value + ", wasChangedByUser=" + wasChangedByUser + "]";
+		return "CopyCell [name=" + name + ", value=" + value + ", wasChangedByUser=" + wasChangedByUser + "]";
 	}
 
 }

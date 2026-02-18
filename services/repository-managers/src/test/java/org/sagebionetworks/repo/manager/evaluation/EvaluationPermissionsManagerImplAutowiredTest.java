@@ -320,7 +320,7 @@ public class EvaluationPermissionsManagerImplAutowiredTest {
 		String evalId = createEval(evalName, nodeId, adminUserInfo);
 		evaluationPermissionsManager.deleteAcl(adminUserInfo, evalId);
 
-		// ACL does not exist yet (e-tag is null)
+		// ACL does not exist yet
 		try {
 			AccessControlList acl = new AccessControlList();
 			acl.setId(evalId);

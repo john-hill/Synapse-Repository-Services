@@ -141,14 +141,14 @@ public class SchemaSourceImpl implements SchemaSource {
 	 * source).
 	 *
 	 * <p>
-	 * Delegates to {@link SourceHandler#deleteColumn(String)} to perform the actual
+	 * Delegates to {@link SourceHandler#removeColumn(String)} to perform the actual
 	 * schema modification on the external data source.
 	 *
 	 * @param toRemove the source column to remove
 	 */
 	@Override
 	public void removeItem(ColumnSourceItem toRemove) {
-		handler.deleteColumn(toRemove.getColumnName());
+		handler.removeColumn(toRemove.getColumnName());
 	}
 
 	/**

@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.grid.synch.handler;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -9,20 +10,19 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.json.JSONObject;
 import org.sagebionetworks.repo.manager.grid.GridAuthorizationManager;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.SynapseRow;
 import org.sagebionetworks.repo.manager.grid.row.translator.ColumnTypeToConType;
 import org.sagebionetworks.repo.manager.grid.row.translator.Translator;
 import org.sagebionetworks.repo.manager.grid.synch.io.DiskPointer;
-import org.sagebionetworks.repo.manager.grid.synch.io.RowReader;
-import org.sagebionetworks.repo.manager.grid.synch.io.RowWriter;
-import org.sagebionetworks.repo.manager.grid.synch.io.SynchRow;
-import org.sagebionetworks.repo.manager.grid.synch.row.CopyRow;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItem;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReader;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemWriter;
+import org.sagebionetworks.repo.manager.grid.synch.row.RowCopyItem;
 import org.sagebionetworks.repo.manager.schema.AnnotationsTranslator;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.manager.table.TableQueryManager;
@@ -49,8 +49,6 @@ import org.springframework.stereotype.Component;
 @Scope("prototype")
 public class EntityViewSourceHandler implements SourceHandler {
 
-	private static final Logger log = LogManager.getLogger(EntityViewSourceHandler.class);
-
 	private final AsyncJobProgressCallback callback;
 	private final UserInfo user;
 	private final GridSession session;
@@ -60,6 +58,7 @@ public class EntityViewSourceHandler implements SourceHandler {
 	private final AnnotationWriter annotationWriter;
 	private final JsonSchemaManager jsonSchemaManager;
 	private final AnnotationsTranslator annotationsTranslator;
+	private final List<String> errorMessages;
 	private List<ColumnModel> schema;
 	private List<DiskPointer> diskPointers;
 	private File tempFile;
@@ -69,8 +68,7 @@ public class EntityViewSourceHandler implements SourceHandler {
 	public EntityViewSourceHandler(AsyncJobProgressCallback callback, UserInfo user, GridSession session,
 			TableQueryManager tableQueryManager, GridAuthorizationManager gridAuthorizationManager,
 			FileProvider fileProvider, AnnotationWriter annotationWriter, JsonSchemaManager jsonSchemaManager,
-			AnnotationsTranslator annotationsTranslator) throws NotFoundException, LockUnavilableException,
-			TableUnavailableException, TableFailedException, IOException {
+			AnnotationsTranslator annotationsTranslator) throws NotFoundException, LockUnavilableException, TableUnavailableException, TableFailedException, IOException {
 		this.callback = callback;
 		this.user = user;
 		this.session = session;
@@ -80,6 +78,7 @@ public class EntityViewSourceHandler implements SourceHandler {
 		this.annotationWriter = annotationWriter;
 		this.jsonSchemaManager = jsonSchemaManager;
 		this.annotationsTranslator = annotationsTranslator;
+		this.errorMessages = new ArrayList<>();
 		initialize();
 	}
 
@@ -89,9 +88,9 @@ public class EntityViewSourceHandler implements SourceHandler {
 				? new HashSet<>(jsonSchemaManager.getValidationSchema(session.getGridJsonSchema$Id()).getRequired())
 				: Collections.emptySet();
 
-		tempFile = fileProvider.createTempFile("Source" + session.getSourceEntityId(), ".bin");
+		tempFile = fileProvider.createTempFile("Source-" + session.getSourceEntityId(), ".bin");
 		diskPointers = new ArrayList<>();
-		try (RowWriter writer = new RowWriter(fileProvider.createFileOutputStream(tempFile))) {
+		try (RowSourceItemWriter writer = createRowWriter(tempFile)) {
 			UserInfo sessionOwner = gridAuthorizationManager.getRowLevelFilterUserInfo(user, session.getSessionId());
 			Query query = new Query().setSql("select * from " + session.getSourceEntityId());
 
@@ -105,33 +104,38 @@ public class EntityViewSourceHandler implements SourceHandler {
 		}
 	}
 
-	SynchRow createSynchRow(Row row) {
-		String key = IdAndVersion.newBuilder().setId(row.getRowId()).toString();
-		Map<String, ConValue> data = new HashMap<>();
+	RowSourceItemWriter createRowWriter(File temp) throws FileNotFoundException {
+		return new RowSourceItemWriter(fileProvider.createFileOutputStream(tempFile));
+	}
+
+	RowSourceItem createSynchRow(Row row) {
+		String key = IdAndVersion.newBuilder().setId(row.getRowId()).build().toString();
+		TreeMap<String, ConValue> data = new TreeMap<>();
 		for (int i = 0; i < schema.size(); i++) {
 			String columnName = schema.get(i).getName();
 			ConValue conValue = translators.get(columnName).translateNullable(row.getValues().get(i),
 					requiredColumnNames.contains(columnName));
 			data.put(columnName, conValue);
 		}
-		return new SynchRow(data, key);
+		return new RowSourceItem(data, key, new SynapseRow().setRowId(row.getRowId())
+				.setVersionNumber(row.getVersionNumber()).setEtag(row.getEtag()));
 	}
 
 	@Override
-	public RowReader getSourceRowReader() throws IOException {
-		return new RowReader(diskPointers, fileProvider.createRandomAccessFile(tempFile, "r"));
+	public RowSourceItemReader getSourceRowReader() throws IOException {
+		return new RowSourceItemReader(diskPointers, fileProvider.createRandomAccessFile(tempFile, "r"));
 	}
 
 	@Override
-	public String getRowKey(CopyRow rowView) {
+	public String getRowKey(RowCopyItem rowView) {
 		SynapseRow synRow = rowView.getSynapseRow()
 				.orElseThrow(() -> new IllegalArgumentException("Expected Synapse rows"));
-		return IdAndVersion.newBuilder().setId(synRow.getRowId()).toString();
+		return IdAndVersion.newBuilder().setId(synRow.getRowId()).build().toString();
 	}
 
 	@Override
-	public void addNewRowToSource(SynchRow copy) {
-		log.warn("call to addNewRowToSource() will be ignored for copy.key: {}", copy.getKey());
+	public void addNewRowToSource(RowSourceItem copy) {
+		errorMessages.add(String.format("Cannot add the row: '%s' to a source view.", copy.getKey()));
 	}
 
 	@Override
@@ -141,25 +145,37 @@ public class EntityViewSourceHandler implements SourceHandler {
 
 	@Override
 	public void addColumnToSource(String name) {
-		log.warn("call to addColumnToSource() will be ignored for columnName: {}", name);
+		errorMessages.add(String.format("Cannot add the column: '%s' to a source view.", name));
 	}
 
 	@Override
-	public void deleteColumn(String columnName) {
-		log.warn("call to deleteColumn() will be ignored for columnName: {}", columnName);
+	public void removeColumn(String columnName) {
+		errorMessages.add(String.format("Cannot remove the column: '%s' from a source view.", columnName));
 	}
 
 	@Override
-	public void removeRow(SynchRow fetchRow) {
-		log.warn("call to removeRow() will be ignored for key: {}", fetchRow.getKey());
+	public void removeRow(RowSourceItem fetchRow) {
+		errorMessages.add(String.format("Cannot remove the row: '%s' from a source view.", fetchRow.getKey()));
 	}
 
 	@Override
 	public void applyCellChangesFromCopyToSource(String rowId, Map<String, ConValue> changes) {
+		try {
+			Map<String, AnnotationsValue> changedCells = translateCellChanges(changes);
+			annotationWriter.updateChangedAnnotations(user, rowId, changedCells);
+		} catch (IllegalArgumentException e) {
+			errorMessages.add(String.format("Failed to update row: '%s' in the source view.  Error message: %s", rowId,
+					e.getMessage()));
+			throw e;
+		}
+	}
+
+	Map<String, AnnotationsValue> translateCellChanges(Map<String, ConValue> changes) {
 		Map<String, AnnotationsValue> changedCells = new HashMap<>();
 		for (Map.Entry<String, ConValue> e : changes.entrySet()) {
 			ConValue cv = e.getValue();
-			if (cv == null || ConType.UNDEFINED.equals(cv.getType()) || ConType.NULL.equals(cv.getType())) {
+			if (cv == null || ConType.UNDEFINED.equals(cv.getType()) || ConType.NULL.equals(cv.getType())
+					|| cv.getValue() == null) {
 				changedCells.put(e.getKey(), null);
 			} else {
 				JSONObject json = new JSONObject();
@@ -167,7 +183,7 @@ public class EntityViewSourceHandler implements SourceHandler {
 				changedCells.put(e.getKey(), annotationsTranslator.getAnnotationValueFromJsonObject(e.getKey(), json));
 			}
 		}
-		annotationWriter.updateChangedAnnotations(user, rowId, changedCells);
+		return changedCells;
 	}
 
 	@Override
@@ -175,6 +191,11 @@ public class EntityViewSourceHandler implements SourceHandler {
 		if (tempFile != null) {
 			tempFile.delete();
 		}
+	}
+
+	@Override
+	public List<String> getErrorMessages() {
+		return errorMessages;
 	}
 
 }

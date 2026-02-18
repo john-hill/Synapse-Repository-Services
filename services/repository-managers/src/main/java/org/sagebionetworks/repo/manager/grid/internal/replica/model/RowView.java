@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Objects;
 
 import org.sagebionetworks.repo.model.grid.CrdtId;
+import org.sagebionetworks.repo.model.grid.node.ConstantNode;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.schema.ValidationResults;
@@ -68,6 +69,10 @@ public class RowView {
 		return rowObject != null ? rowObject.getMetadata() : null;
 	}
 
+	public LogicalTimestamp getRowMetadataNodeId() {
+		return getRowMetadata() != null? getRowMetadata().getObjectId(): null;
+	}
+
 	public SynapseRow getSynapseRow() {
 		return rowObject != null ? rowObject.getSynapseRow() : null;
 	}
@@ -108,5 +113,6 @@ public class RowView {
 	public String toString() {
 		return "RowView [arrNodeId=" + arrNodeId + ", rowIndex=" + rowIndex + ", rowObject=" + rowObject + "]";
 	}
+
 
 }

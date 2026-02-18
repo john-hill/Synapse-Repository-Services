@@ -3,7 +3,7 @@ package org.sagebionetworks.repo.manager.grid.synch.handler;
 import java.util.Iterator;
 
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
-import org.sagebionetworks.repo.manager.grid.synch.row.CopyRow;
+import org.sagebionetworks.repo.manager.grid.synch.row.RowCopyItem;
 import org.sagebionetworks.repo.model.dbo.grid.GridSource;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
@@ -43,12 +43,6 @@ public interface CopyHandler extends AutoCloseable {
 	 */
 	GridConnectionInfo getConnectionInfo();
 
-	/**
-	 * Gets the internal database identifier for this replica.
-	 *
-	 * @return the replica's internal ID
-	 */
-	Long getInternalReplicaId();
 
 	/**
 	 * Streams all rows currently in the copy. Used during Phase 2 (row
@@ -56,7 +50,7 @@ public interface CopyHandler extends AutoCloseable {
 	 *
 	 * @return an iterator over all rows in the copy
 	 */
-	Iterator<CopyRow> getRows();
+	Iterator<RowCopyItem> getRows();
 
 	/**
 	 * Gets the last logical timestamp used for RGA (Replicated Growable Array) node

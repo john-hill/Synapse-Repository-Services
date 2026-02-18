@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.manager.grid.synch.io;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,7 +30,7 @@ import org.sagebionetworks.util.ValidateArgument;
  * This approach allows synchronization to handle arbitrarily large datasets
  * without loading all source rows into memory at once.
  */
-public class RowReader implements AutoCloseable {
+public class RowSourceItemReader implements AutoCloseable {
 
 	private final Map<String, DiskPointer> diskPointerMap;
 	private final RandomAccessFile raf;
@@ -41,10 +42,12 @@ public class RowReader implements AutoCloseable {
 	 *                     key)
 	 * @param raf          the random access file containing the serialized row data
 	 */
-	public RowReader(List<DiskPointer> diskPointers, RandomAccessFile raf) {
+	public RowSourceItemReader(List<DiskPointer> diskPointers, RandomAccessFile raf) {
 		ValidateArgument.required(raf, "RandomAccessFile");
 		ValidateArgument.required(diskPointers, "DiskPointers");
-		this.diskPointerMap = diskPointers.stream().collect(Collectors.toMap(DiskPointer::getKey, pointer -> pointer));
+		this.diskPointerMap = diskPointers.stream()
+				.collect(Collectors.toMap(DiskPointer::getKey, pointer -> pointer, (a, b) -> a, LinkedHashMap::new));
+		;
 		this.raf = raf;
 	}
 
@@ -61,7 +64,7 @@ public class RowReader implements AutoCloseable {
 	 * @return RowHeader for the consumed row, or empty if no row exists with that
 	 *         key
 	 */
-	public Optional<RowHeader> consumeRow(String key) {
+	public Optional<RowSourceItemReference> consumeRow(String key) {
 
 		DiskPointer diskPointer = diskPointerMap.remove(key);
 		if (diskPointer == null) {
@@ -81,7 +84,7 @@ public class RowReader implements AutoCloseable {
 	 *
 	 * @return iterator over remaining unmatched rows
 	 */
-	public Iterator<RowHeader> remainingRows() {
+	public Iterator<RowSourceItemReference> remainingRows() {
 		return diskPointerMap.values().stream().map(this::createRowHeader).iterator();
 	}
 
@@ -93,20 +96,20 @@ public class RowReader implements AutoCloseable {
 	 * @param diskPointer pointer to the row's location and metadata on disk
 	 * @return RowHeader providing lazy access to the row
 	 */
-	private RowHeader createRowHeader(DiskPointer diskPointer) {
-		return new RowHeader() {
+	private RowSourceItemReference createRowHeader(DiskPointer diskPointer) {
+		return new RowSourceItemReference() {
 			@Override
 			public byte[] getHash() {
 				return diskPointer.getHash();
 			}
 
 			@Override
-			public SynchRow fetchRow() {
+			public RowSourceItem fetchRow() {
 				try {
 					raf.seek(diskPointer.getOffset());
 					byte[] buffer = new byte[diskPointer.getLength()];
 					raf.readFully(buffer);
-					return new SynchRow(buffer, diskPointer.getKey());
+					return new RowSourceItem(buffer, diskPointer.getKey());
 				} catch (IOException e) {
 					throw new RuntimeException(e);
 				}

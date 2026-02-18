@@ -10,12 +10,14 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import org.sagebionetworks.repo.manager.grid.internal.replica.change.DeleteRowChange;
+import org.sagebionetworks.repo.manager.grid.internal.replica.change.DeleteArrayNodeChange;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.InsertRowChange;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangePublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
+import org.sagebionetworks.repo.manager.grid.internal.replica.model.SynapseRow;
 import org.sagebionetworks.repo.manager.grid.synch.handler.CopyHandler;
-import org.sagebionetworks.repo.manager.grid.synch.io.RowHeader;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReference;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItem;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 
@@ -53,7 +55,7 @@ import com.google.common.base.Functions;
 public class RowCopyImpl implements RowCopy {
 
 	private final IntendedChangePublisher intendedChangePublisher;
-	private final CopyHandler copyReader;
+	private final CopyHandler copyHandler;
 	private final LogicalTimestamp rowsArrayId;
 	private final LogicalTimestamp lastRowId;
 	private final Map<String, Column> columnNameMap;
@@ -66,15 +68,15 @@ public class RowCopyImpl implements RowCopy {
 	 *                                metadata
 	 * @param intendedChangePublisher the publisher for sending row changes to the
 	 *                                CRDT replica
-	 * @param copyReader              the handler for reading rows from the replica
+	 * @param copyHandler             the handler for reading rows from the replica
 	 */
 	public RowCopyImpl(List<Column> finalSchema, IntendedChangePublisher intendedChangePublisher,
-			CopyHandler copyReader) {
+			CopyHandler copyHandler) {
 		super();
 		this.intendedChangePublisher = intendedChangePublisher;
-		this.copyReader = copyReader;
-		this.rowsArrayId = copyReader.getHeader().getRowsId();
-		this.lastRowId = copyReader.getLastRowsRgaNodeId();
+		this.copyHandler = copyHandler;
+		this.rowsArrayId = copyHandler.getHeader().getRowsId();
+		this.lastRowId = copyHandler.getLastRowsRgaNodeId();
 		this.columnNameMap = finalSchema.stream().collect(Collectors.toMap(Column::getName, Functions.identity()));
 	}
 
@@ -90,8 +92,8 @@ public class RowCopyImpl implements RowCopy {
 	 * @return a stream of rows from the copy
 	 */
 	@Override
-	public Stream<CopyRow> streamItems() {
-		return StreamSupport.stream(Spliterators.spliteratorUnknownSize(copyReader.getRows(),
+	public Stream<RowCopyItem> streamItems() {
+		return StreamSupport.stream(Spliterators.spliteratorUnknownSize(copyHandler.getRows(),
 				Spliterator.ORDERED | Spliterator.NONNULL | Spliterator.IMMUTABLE), false);
 	}
 
@@ -134,8 +136,8 @@ public class RowCopyImpl implements RowCopy {
 	 * @param item the row to remove from the copy
 	 */
 	@Override
-	public void removeItem(CopyRow item) {
-		intendedChangePublisher.publish(new DeleteRowChange(rowsArrayId, item.getRgaNodeId()));
+	public void removeItem(RowCopyItem item) {
+		intendedChangePublisher.publish(new DeleteArrayNodeChange(rowsArrayId, item.getRgaNodeId()));
 	}
 
 	/**
@@ -148,7 +150,7 @@ public class RowCopyImpl implements RowCopy {
 	 * The insert operation:
 	 * <ul>
 	 * <li>Fetches the row data from the source via
-	 * {@link RowHeader#fetchRow()}</li>
+	 * {@link RowSourceItemReference#fetchRow()}</li>
 	 * <li>Maps column names to column indices using the synchronized schema</li>
 	 * <li>Filters out columns that don't exist in the schema</li>
 	 * <li>Inserts the row after the last known row (using {@link #lastRowId})</li>
@@ -158,18 +160,19 @@ public class RowCopyImpl implements RowCopy {
 	 * @param sourceItem the header for the source row to add to the copy
 	 */
 	@Override
-	public void addItem(RowHeader sourceItem) {
+	public void addItem(RowSourceItemReference sourceItem) {
 		List<ConValue> values = new ArrayList<>();
 		List<Integer> valueIndex = new ArrayList<>();
-		for (Entry<String, ConValue> e : sourceItem.fetchRow().getData().entrySet()) {
+		RowSourceItem synchRow = sourceItem.fetchRow();
+		for (Entry<String, ConValue> e : synchRow.getData().entrySet()) {
 			Column column = columnNameMap.get(e.getKey());
 			if (column != null) {
 				values.add(e.getValue());
 				valueIndex.add(column.getVectorIndex());
 			}
 		}
-		intendedChangePublisher
-				.publish(new InsertRowChange(rowsArrayId, lastRowId, values, valueIndex.toArray(Integer[]::new)));
+		intendedChangePublisher.publish(new InsertRowChange(rowsArrayId, lastRowId, values,
+				valueIndex.toArray(Integer[]::new), synchRow.getSynapseRow().map(SynapseRow::toConValue).orElse(null)));
 	}
 
 }

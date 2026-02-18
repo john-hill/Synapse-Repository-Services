@@ -1,31 +1,30 @@
 package org.sagebionetworks.repo.manager.grid.synch.row;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import org.sagebionetworks.repo.manager.grid.internal.replica.change.DeleteRowChange;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.sagebionetworks.repo.manager.grid.internal.replica.change.DeleteArrayNodeChange;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangePublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.UpdateRowChange;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
+import org.sagebionetworks.repo.manager.grid.internal.replica.model.SynapseRow;
 import org.sagebionetworks.repo.manager.grid.synch.core.Copy;
 import org.sagebionetworks.repo.manager.grid.synch.core.Source;
 import org.sagebionetworks.repo.manager.grid.synch.core.SynchronizationLogic;
 import org.sagebionetworks.repo.manager.grid.synch.handler.CopyHandler;
 import org.sagebionetworks.repo.manager.grid.synch.handler.SourceHandler;
-import org.sagebionetworks.repo.manager.grid.synch.io.RowHeader;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItem;
+import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReference;
 import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.web.NotFoundException;
+import org.sagebionetworks.util.ValidateArgument;
 
 import com.google.common.base.Functions;
 
@@ -64,6 +63,8 @@ import com.google.common.base.Functions;
  * consistency.
  */
 public class RowMergeImpl implements RowMerge {
+
+	private static final Logger log = LogManager.getLogger(RowMergeImpl.class);
 
 	private final SynchronizationLogic logic;
 	private final SourceHandler sourceHandler;
@@ -118,116 +119,50 @@ public class RowMergeImpl implements RowMerge {
 	 * <li>If source row deleted/unauthorized: delete copy row for consistency</li>
 	 * </ol>
 	 *
-	 * @param rowKey     the source system's identifier for this row
-	 * @param copyItem   the row from the copy (CRDT replica)
-	 * @param sourceItem the row header from the source (fetches actual row data)
+	 * @param rowKey        the source system's identifier for this row
+	 * @param copyItem      the row from the copy (CRDT replica)
+	 * @param sourceItemRef the row header from the source (fetches actual row data)
 	 */
 	@Override
-	public void merge(String rowKey, CopyRow copyItem, RowHeader sourceItem) {
-		// Track cells for the merged result - starts with all copy cells
-		Map<String, ConValue> mergeCells = copyItem.getCells().stream()
-				.collect(Collectors.toMap(CopyCell::getName, CopyCell::getValue));
+	public void merge(String rowKey, RowCopyItem copyItem, RowSourceItemReference sourceItemRef) {
 
-		// Track user-deleted cells (cells changed by user to null/undefined)
-		Set<String> userDeletedCells = copyItem.getCells().stream()
-				.filter(cell -> cell.wasChangedByUser() && cell.getValue() != null
-						&& (ConType.UNDEFINED.equals(cell.getValue().getType())
-								|| ConType.NULL.equals(cell.getValue().getType())))
-				.map(CopyCell::getName).collect(java.util.stream.Collectors.toSet());
-		Map<String, ConValue> userChangedCells = new HashMap<>();
-
-		// Create Copy implementation for cells - adapts row cells to Copy interface
-		Copy<CopyCell, CellSourceItem> cellCopy = new Copy<CopyCell, CellSourceItem>() {
-			@Override
-			public Stream<CopyCell> streamItems() {
-				return copyItem.getCells().stream();
-			}
-
-			@Override
-			public boolean wasDeletedByUser(String key) {
-				return userDeletedCells.contains(key);
-			}
-
-			@Override
-			public void removeItem(CopyCell item) {
-				// Cell was removed from source - remove from merged result
-				mergeCells.remove(item.getName());
-			}
-
-			@Override
-			public void addItem(CellSourceItem item) {
-				// Cell was added to source - add to merged result
-				mergeCells.put(item.getColumnName(), item.getValue());
-			}
-		};
-
-		// Create Source implementation for cells - adapts source row data to Source
-		// interface
-		Map<String, CellSourceItem> sourceMap = new HashMap<>();
-		for (Entry<String, ConValue> e : sourceItem.fetchRow().getData().entrySet()) {
-			sourceMap.put(e.getKey(), new CellSourceItem().setColumnName(e.getKey()).setValue(e.getValue()));
-		}
-
-		Source<CopyCell, CellSourceItem> cellSource = new Source<CopyCell, CellSourceItem>() {
-			@Override
-			public String getKey(CopyCell item) {
-				return item.getName();
-			}
-
-			@Override
-			public Optional<CellSourceItem> consume(String key) {
-				return Optional.ofNullable(sourceMap.remove(key));
-			}
-
-			@Override
-			public Stream<CellSourceItem> streamRemaining() {
-				return sourceMap.values().stream();
-			}
-
-			@Override
-			public void addItem(CopyCell toAdd) {
-				// Cell exists only in copy - push if changed by user
-				if (toAdd.wasChangedByUser()) {
-					userChangedCells.put(toAdd.getName(), toAdd.getValue());
-				}
-			}
-
-			@Override
-			public void removeItem(CellSourceItem toRemove) {
-				// Cell deleted by user - track deletion for source update
-				userChangedCells.put(toRemove.getColumnName(), null);
-			}
-
-			@Override
-			public boolean matches(CopyCell copyItem, CellSourceItem sourceItem) {
-				return Objects.equals(copyItem.getValue(), sourceItem.getValue());
-			}
-		};
+		RowSourceItem sourceItem = sourceItemRef.fetchRow();
+		CellCopyImpl cellCopy = new CellCopyImpl(copyItem);
+		CellSourceImpl cellSource = new CellSourceImpl(sourceItem);
 
 		// Synchronize cells using nested application of SynchronizationLogic
 		logic.synchronize(cellCopy, cellSource, (key, copyCellItem, sourceCellItem) -> {
 			// Cell-level merge: user changes win, otherwise take source value
-			mergeCells.put(copyCellItem.getName(),
+			cellCopy.getMergedCells().put(copyCellItem.getName(),
 					copyCellItem.wasChangedByUser() ? copyCellItem.getValue() : sourceCellItem.getValue());
 
 			// Track cells changed by user for source update
 			if (copyCellItem.wasChangedByUser()) {
-				userChangedCells.put(copyCellItem.getName(), copyCellItem.getValue());
+				cellSource.getUserChangedCells().put(copyCellItem.getName(), copyCellItem.getValue());
 			}
 		});
 
-		try {
-			// Apply accumulated user cell changes to source row
-			if (!userChangedCells.isEmpty()) {
-				sourceHandler.applyCellChangesFromCopyToSource(rowKey, userChangedCells);
+		// Apply accumulated user cell changes to source row
+		if (!cellSource.getUserChangedCells().isEmpty()) {
+			try {
+				sourceHandler.applyCellChangesFromCopyToSource(rowKey, cellSource.getUserChangedCells());
+			} catch (IllegalArgumentException ex) {
+				//
+				log.warn("Failed to merge row: {}.  Row will not be reset in the grid.  Error message: {}", rowKey,
+						ex.getMessage());
+				return;
+			} catch (NotFoundException | UnauthorizedException ex) {
+				log.warn("Row: {} will be removed from the grid with message: {}", rowKey, ex.getMessage());
+				// Source row was deleted or became unauthorized - delete from copy for
+				// consistency
+				intendedChangePublisher.publish(new DeleteArrayNodeChange(rowsArrayId, copyItem.getRgaNodeId()));
+				return;
 			}
-			// Reset copy row with merged result
-			resetCopyRow(copyItem.getVectorNodeId(), mergeCells);
-		} catch (NotFoundException | UnauthorizedException e) {
-			// Source row was deleted or became unauthorized - delete from copy for
-			// consistency
-			intendedChangePublisher.publish(new DeleteRowChange(rowsArrayId, copyItem.getRgaNodeId()));
 		}
+		// Reset copy row with merged result
+		resetCopyRow(copyItem.getVectorNodeId(), cellCopy.getMergedCells(), copyItem.getMetadataNodeId(),
+				sourceItem.getSynapseRow().map(SynapseRow::toConValue).orElse(null));
+
 	}
 
 	/**
@@ -235,10 +170,17 @@ public class RowMergeImpl implements RowMerge {
 	 * to the CRDT replica. Maps column names to vector indices using the
 	 * synchronized schema to construct the CRDT update operation.
 	 *
-	 * @param vectorNodeId the vector clock node ID of the row to update
-	 * @param mergeCells   the merged cell values (column name to value map)
+	 * @param vectorNodeId       the vector clock node ID of the row to update
+	 * @param mergeCells         the merged cell values (column name to value map)
+	 * @param metadataNodeId     the metadata node ID (must be provided with
+	 *                           synapseRowConValue, or both must be null)
+	 * @param synapseRowConValue the Synapse row metadata value (must be provided
+	 *                           with metadataNodeId, or both must be null)
 	 */
-	void resetCopyRow(LogicalTimestamp vectorNodeId, Map<String, ConValue> mergeCells) {
+	void resetCopyRow(LogicalTimestamp vectorNodeId, Map<String, ConValue> mergeCells, LogicalTimestamp metadataNodeId,
+			ConValue synapseRowConValue) {
+		ValidateArgument.required(vectorNodeId, "vectorNodeId");
+		ValidateArgument.required(mergeCells, "mergeCells");
 		List<ConValue> values = new ArrayList<>();
 		List<Integer> valueIndex = new ArrayList<>();
 		for (Entry<String, ConValue> e : mergeCells.entrySet()) {
@@ -246,7 +188,8 @@ public class RowMergeImpl implements RowMerge {
 			values.add(e.getValue());
 			valueIndex.add(column.getVectorIndex());
 		}
-		intendedChangePublisher.publish(new UpdateRowChange(vectorNodeId, values, valueIndex.toArray(Integer[]::new)));
+		intendedChangePublisher.publish(new UpdateRowChange(vectorNodeId, values, valueIndex.toArray(Integer[]::new),
+				metadataNodeId, synapseRowConValue));
 	}
 
 }

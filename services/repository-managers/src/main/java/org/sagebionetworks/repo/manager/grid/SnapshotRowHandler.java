@@ -118,9 +118,6 @@ public class SnapshotRowHandler implements RowHandler {
         }
     }
 
-    // TODO: Update tests to properly unit test the snapshot structure and validation metadata instead of just testing that a snapshot is created.
-    // Maybe spy on methods to verify expected nodes are created and written to the encoder with the correct structure and timestamps
-
     public SnapshotRowHandler(SnapshotStore snapshotStore, String sessionId, Long replicaId, List<ColumnModel> schema,
                               List<Integer> requiredColumnIndices, FileProvider fileProvider, IndexedModelEncoderProvider encoderProvider,
                               Long createdByUserId, JsonSchemaValidationManager jsonSchemaValidationManager, JsonSchema validationSchema) {

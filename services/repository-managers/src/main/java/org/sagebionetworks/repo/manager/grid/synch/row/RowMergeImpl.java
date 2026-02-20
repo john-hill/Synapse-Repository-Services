@@ -127,8 +127,8 @@ public class RowMergeImpl implements RowMerge {
 	public void merge(String rowKey, RowCopyItem copyItem, RowSourceItemReference sourceItemRef) {
 
 		RowSourceItem sourceItem = sourceItemRef.fetchRow();
-		CellCopyImpl cellCopy = new CellCopyImpl(copyItem);
-		CellSourceImpl cellSource = new CellSourceImpl(sourceItem, columnNameMap.keySet());
+		CellCopyImpl cellCopy = new CellCopyImpl(copyItem, columnNameMap.keySet());
+		CellSourceImpl cellSource = new CellSourceImpl(sourceItem);
 
 		// Synchronize cells using nested application of SynchronizationLogic
 		logic.synchronize(cellCopy, cellSource, (key, copyCellItem, sourceCellItem) -> {
@@ -137,7 +137,7 @@ public class RowMergeImpl implements RowMerge {
 					copyCellItem.wasChangedByUser() ? copyCellItem.getValue() : sourceCellItem.getValue());
 
 			// Track cells changed by user for source update
-			if (copyCellItem.wasChangedByUser() && columnNameMap.containsKey(key)) {
+			if (copyCellItem.wasChangedByUser()) {
 				cellSource.getUserChangedCells().put(copyCellItem.getName(), copyCellItem.getValue());
 			}
 		});

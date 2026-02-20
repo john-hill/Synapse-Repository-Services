@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import org.sagebionetworks.repo.manager.grid.synch.core.Source;
@@ -15,13 +16,15 @@ public class CellSourceImpl implements Source<CellCopyItem, CellSourceItem> {
 
 	private final Map<String, CellSourceItem> sourceMap;
 	private final Map<String, ConValue> userChangedCells;
+	private final Set<String> finalColumnNames;
 
-	public CellSourceImpl(RowSourceItem sourceItem) {
+	public CellSourceImpl(RowSourceItem sourceItem, Set<String> finalColumnNames) {
 		this.sourceMap = new HashMap<>();
 		for (Entry<String, ConValue> e : sourceItem.getData().entrySet()) {
 			sourceMap.put(e.getKey(), new CellSourceItem().setColumnName(e.getKey()).setValue(e.getValue()));
 		}
 		this.userChangedCells = new HashMap<>();
+		this.finalColumnNames = finalColumnNames;
 	}
 
 	@Override
@@ -41,7 +44,9 @@ public class CellSourceImpl implements Source<CellCopyItem, CellSourceItem> {
 
 	@Override
 	public void addItem(CellCopyItem item) {
-		userChangedCells.put(item.getName(), item.getValue());
+		if(finalColumnNames.contains(item.getName())) {
+			userChangedCells.put(item.getName(), item.getValue());
+		}
 	}
 
 	@Override

@@ -205,7 +205,7 @@ public class GridSynchronizationIntegrationTest {
 								// 0
 								0, patch.addNewOperation(
 								Operations.newConstant().setValue(new ConValue(ConType.STRING, "oneUpdated"))),
-								// 
+								// 2
 								2, patch.addNewOperation(
 								Operations.newConstant().setValue(new ConValue(ConType.STRING, "1.3")))
 								

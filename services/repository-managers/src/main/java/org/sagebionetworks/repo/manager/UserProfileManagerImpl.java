@@ -187,8 +187,8 @@ public class UserProfileManagerImpl implements UserProfileManager {
 	}
 	
 	@Override
-	public List<UserProfile> getInRange(UserInfo userInfo, long startIncl, long endExcl) throws DatastoreException, NotFoundException{
-		List<UserProfile> userProfiles = userProfileDAO.getInRange(startIncl, endExcl);
+	public List<UserProfile> getInRange(UserInfo userInfo, long startIncl, long endExcl, String realmId) throws DatastoreException, NotFoundException{
+		List<UserProfile> userProfiles = userProfileDAO.getInRange(startIncl, endExcl, realmId);
 		addAliasesToProfiles(userProfiles);
 		addTwoFactorAuthInfo(userProfiles);
 		addTermsOfServiceAgreements(userProfiles);
@@ -201,8 +201,8 @@ public class UserProfileManagerImpl implements UserProfileManager {
 	 * @throws DatastoreException
 	 * @throws NotFoundException
 	 */
-	public ListWrapper<UserProfile> list(IdList ids) throws DatastoreException, NotFoundException {
-		List<UserProfile> userProfiles = userProfileDAO.list(ids.getList());
+	public ListWrapper<UserProfile> list(IdList ids, String realmId) throws DatastoreException, NotFoundException {
+		List<UserProfile> userProfiles = userProfileDAO.list(ids.getList(), realmId);
 		addAliasesToProfiles(userProfiles);
 		addTwoFactorAuthInfo(userProfiles);
 		addTermsOfServiceAgreements(userProfiles);

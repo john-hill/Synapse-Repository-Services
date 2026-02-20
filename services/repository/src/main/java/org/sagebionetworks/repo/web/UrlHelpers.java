@@ -1253,6 +1253,7 @@ public class UrlHelpers {
 	public static final String OAUTH_2_JWKS = AUTH_OAUTH_2+"/jwks";
 	public static final String OAUTH_2_AUTH_REQUEST_DESCRIPTION = AUTH_OAUTH_2+"/description";
 	public static final String OAUTH_2_REVOKE = AUTH_OAUTH_2+"/revoke";
+	public static final String OAUTH_2_INTROSPECT = AUTH_OAUTH_2+"/introspect";
 	public static final String OAUTH_2_TOKEN_ID = OAUTH_2_TOKEN + "/{tokenId}";
 	public static final String OAUTH_2_TOKEN_ID_METADATA = OAUTH_2_TOKEN_ID + "/metadata";
 

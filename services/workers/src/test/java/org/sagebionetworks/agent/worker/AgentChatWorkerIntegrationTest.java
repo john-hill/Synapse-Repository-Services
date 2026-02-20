@@ -192,6 +192,7 @@ public class AgentChatWorkerIntegrationTest {
 					assertNotNull(response);
 					assertEquals(session.getSessionId(), response.getSessionId());
 					assertNotNull(response.getResponseText());
+					
 					assertTrue(response.getResponseText().contains(f1.getName()));
 					assertTrue(response.getResponseText().contains(f2.getName()));
 					assertTrue(response.getResponseText().contains(f1.getId()));

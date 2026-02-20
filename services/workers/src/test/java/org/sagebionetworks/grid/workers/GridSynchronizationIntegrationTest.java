@@ -198,10 +198,18 @@ public class GridSynchronizationIntegrationTest {
 		// update the first row in the grid
 		Patch patch = new Patch()
 				.setPatchId(new LogicalTimestamp().setReplicaId(userReplica.getReplicaId()).setSequenceNumber(101L));
-		LogicalTimestamp conId = patch
-				.addNewOperation(Operations.newConstant().setValue(new ConValue(ConType.STRING, "oneUpdated")));
-		patch.addNewOperation(Operations.insertVector()
-				.setVectorId(fetchedRows.get(0).getRowObject().getData().getVectorId()).setMap(Map.of(0, conId)));
+
+		patch.addNewOperation(
+				Operations.insertVector().setVectorId(fetchedRows.get(0).getRowObject().getData().getVectorId())
+						.setMap(Map.of(
+								// 0
+								0, patch.addNewOperation(
+								Operations.newConstant().setValue(new ConValue(ConType.STRING, "oneUpdated"))),
+								// 
+								2, patch.addNewOperation(
+								Operations.newConstant().setValue(new ConValue(ConType.STRING, "1.3")))
+								
+								)));
 		JsonRxMessage message = new JsonRxMessage(JsonRxMessageType.RequestData).setId(102).setMethod("patch")
 				.setBody(PatchCompactSerializable.serialize(patch));
 		websoceket.send(message.toJson());
@@ -221,7 +229,7 @@ public class GridSynchronizationIntegrationTest {
 			System.out.println(results);
 			Set<String> expected = Set.of(
 					//
-					"{\"theString\":\"oneUpdated\",\"theId\":111,\"toRemove\":\"1.1\"}",
+					"{\"theString\":\"oneUpdated\",\"theId\":111,\"toRemove\":\"1.3\"}",
 					//
 					"{\"theString\":\"two\",\"toRemove\":\"2.2\"}",
 					//
@@ -241,8 +249,8 @@ public class GridSynchronizationIntegrationTest {
 				.put(c3Name, "1.2").put(c4Name, "oneUpdatedInSource"));
 		setFileJSON(newfile.getId(),
 				new JSONObject().put(c1Name, "four").put(c2Name, 444L).put(c3Name, "4.4").put(c4Name, "newlyAdded"));
-		setFileJSON(files.get(1).getId(),
-				new JSONObject().put(c1Name, "two").put(c2Name, 222L).put(c3Name, "2.2").put(c4Name, "updatedInSource"));
+		setFileJSON(files.get(1).getId(), new JSONObject().put(c1Name, "two").put(c2Name, 222L).put(c3Name, "2.2")
+				.put(c4Name, "updatedInSource"));
 		waitForFilesToReplicat(files);
 
 		boolean newVersion = false;
@@ -286,21 +294,21 @@ public class GridSynchronizationIntegrationTest {
 				.put(c3Name, "1.2").put(c4Name, "oneUpdatedInSource"));
 		verifyExpectedAnnotations(files.get(1).getId(), new JSONObject().put(c1Name, "two").put(c2Name, 222L)
 				.put(c3Name, "2.2").put(c4Name, "updatedInSource"));
-		verifyExpectedAnnotations(files.get(2).getId(), new JSONObject().put(c1Name, "four").put(c2Name, 444L)
-				.put(c3Name, "4.4").put(c4Name, "newlyAdded"));
+		verifyExpectedAnnotations(files.get(2).getId(),
+				new JSONObject().put(c1Name, "four").put(c2Name, 444L).put(c3Name, "4.4").put(c4Name, "newlyAdded"));
 
 	}
 
 	void verifyExpectedAnnotations(String fileId, JSONObject expected) {
 		boolean includeDerived = false;
 		JSONObject fetched = entityService.getEntityJson(admin.getId(), fileId, includeDerived);
-		System.out.println("FileId:  "+fileId);
-		System.out.println("Fetched: "+fetched.toString());
-		System.out.println("Passed:  "+expected.toString());
+		System.out.println("FileId:  " + fileId);
+		System.out.println("Fetched: " + fetched.toString());
+		System.out.println("Passed:  " + expected.toString());
 		Iterator<String> it = expected.keys();
 		while (it.hasNext()) {
 			String key = it.next();
-			assertEquals(expected.get(key),fetched.get(key));
+			assertEquals(expected.get(key), fetched.get(key));
 		}
 	}
 

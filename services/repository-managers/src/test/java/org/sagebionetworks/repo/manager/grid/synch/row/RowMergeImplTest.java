@@ -190,7 +190,7 @@ public class RowMergeImplTest {
 
 		verifyNoMoreInteractionsWithAllMocks();
 	}
-	
+
 	@Test
 	public void testMergeWithCellUpdatedInCopyAndApplyCellsNotFoundException() {
 
@@ -218,7 +218,7 @@ public class RowMergeImplTest {
 
 		verifyNoMoreInteractionsWithAllMocks();
 	}
-	
+
 	@Test
 	public void testMergeWithCellUpdatedInCopyAndApplyCellsUnauthorizedException() {
 
@@ -301,6 +301,30 @@ public class RowMergeImplTest {
 	}
 
 	@Test
+	public void testMergeWithCellUpdedAndNotInFinalSchema() {
+		finalSchema = List.of(new Column().setName("a").setVectorIndex(1), new Column().setName("c").setVectorIndex(2));
+		RowMergeImpl merge = setupRowMerge();
+
+		RowSourceItem sourceItem = new RowSourceItem(new TreeMap<>(Map.of("a", c1, "b", c2, "c", c3)), rowKey, synRow);
+
+		RowCopyItemImpl copyItem = new RowCopyItemImpl().setVectorNodeId(rowVectorId).setRgaNodeId(rgaNodeId)
+				.setMetadataNodeId(metadataNodeId)
+				.setCells(List.of(new CellCopyItem().setName("a").setValue(c1).setWasChangedByUser(false),
+						new CellCopyItem().setName("b").setValue(c2).setWasChangedByUser(true)))
+				.setSynapseRow(synRow);
+
+		when(mockRowSourceItemReference.fetchRow()).thenReturn(sourceItem);
+
+		// call under test
+		merge.merge(rowKey, copyItem, mockRowSourceItemReference);
+
+		verify(mockIntendedChangePublisher).publish(new UpdateRowChange(rowVectorId, List.of(c1, c3),
+				new Integer[] { 1, 2 }, metadataNodeId, synRow.toConValue()));
+
+		verifyNoMoreInteractionsWithAllMocks();
+	}
+
+	@Test
 	public void testMergeWithCellDeletedFromSource() {
 		finalSchema = List.of(new Column().setName("a").setVectorIndex(1), new Column().setName("b").setVectorIndex(0));
 		RowMergeImpl merge = setupRowMerge();
@@ -324,7 +348,6 @@ public class RowMergeImplTest {
 
 		verifyNoMoreInteractionsWithAllMocks();
 	}
-
 
 	@Test
 	public void testMergeWithNoSynapseRow() {

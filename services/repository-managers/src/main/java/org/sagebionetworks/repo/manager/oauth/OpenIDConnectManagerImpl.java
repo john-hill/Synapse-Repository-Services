@@ -1,6 +1,8 @@
 package org.sagebionetworks.repo.manager.oauth;
 
 import static org.sagebionetworks.repo.manager.oauth.OpenIDConnectManager.getScopeHash;
+import static org.sagebionetworks.repo.model.AuthorizationConstants.APPLICATION_JSON_MIME_TYPE_LOWERCASE;
+import static org.sagebionetworks.repo.model.AuthorizationConstants.APPLICATION_JWT_MIME_TYPE_LOWERCASE;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
@@ -568,9 +570,35 @@ public class OpenIDConnectManagerImpl implements OpenIDConnectManager {
 		}
 		return claims;
 	}
+	
+	/*
+	 * Returns 
+	 * - 'application/json' if that string is in the accept header
+	 * - 'application/jwt' if that string is in the accept header
+	 * - null if neither or BOTH of these are in the accept header
+	 */
+	public String extractAcceptHeader(String acceptHeader) {
+		if (acceptHeader==null) return  null;
+		boolean hasApplicationJson = acceptHeader.toLowerCase().contains(APPLICATION_JSON_MIME_TYPE_LOWERCASE);
+		boolean hasApplicationJwt = acceptHeader.toLowerCase().contains(APPLICATION_JWT_MIME_TYPE_LOWERCASE);
+		if (hasApplicationJson) {
+			if (hasApplicationJwt) {
+				return null; // ambiguous
+			} else {
+				return APPLICATION_JSON_MIME_TYPE_LOWERCASE;
+			}
+		} else {
+			if (hasApplicationJwt) {
+				return APPLICATION_JWT_MIME_TYPE_LOWERCASE;
+			} else {
+				return null; // neither
+			}
+		}
+	}
 
 	@Override
-	public Object getUserInfo(String accessTokenParam, String oauthEndpoint) {
+	public Object getUserInfo(String accessTokenParam, String oauthEndpoint, String acceptHeader) {
+		// TODO acceptHeader
 		ValidateArgument.required(accessTokenParam, "Access token");
 		Jwt<JwsHeader,Claims> accessToken = oidcTokenManager.parseJWT(accessTokenParam);
 		Claims accessTokenClaims = accessToken.getBody();
@@ -594,13 +622,23 @@ public class OpenIDConnectManagerImpl implements OpenIDConnectManager {
 		// Note: This leaves ambiguous what to do if the client is registered with a signing algorithm
 		// and then sends a request with Accept: application/json or vice versa (registers with no 
 		// algorithm and then sends a request with Accept: application/jwt).
+		// we allow overriding the registered type with the request's Accept header
+		
 		boolean returnJson;
-		if (oauthClientId.equals(AuthorizationConstants.SYNAPSE_OAUTH_CLIENT_ID)) {
-			returnJson = true;
+		String extractedAcceptHeader = extractAcceptHeader(acceptHeader);
+		if (APPLICATION_JSON_MIME_TYPE_LOWERCASE.equals(extractedAcceptHeader)) {
+			returnJson=true;
+		} else if (APPLICATION_JWT_MIME_TYPE_LOWERCASE.equals(extractedAcceptHeader)) {
+			returnJson=false;
 		} else {
-			OAuthClient oauthClient = oauthClientDao.getOAuthClient(oauthClientId);
-			returnJson = oauthClient.getUserinfo_signed_response_alg()==null;
-		}		
+			// if there is no override, then check the return type registered with the client
+			if (oauthClientId.equals(AuthorizationConstants.SYNAPSE_OAUTH_CLIENT_ID)) {
+				returnJson = true;
+			} else {
+				OAuthClient oauthClient = oauthClientDao.getOAuthClient(oauthClientId);
+				returnJson = oauthClient.getUserinfo_signed_response_alg()==null;
+			}
+		}
 
 		if (returnJson) {
 			// https://openid.net/specs/openid-connect-core-1_0.html#UserInfoResponse
@@ -614,7 +652,7 @@ public class OpenIDConnectManagerImpl implements OpenIDConnectManager {
 
 			return new JWTWrapper(jwtIdToken);
 		}
-	}	
+	}
 	
 	/**
 	 * Validates that the verified flag is true for the client with the given id

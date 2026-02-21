@@ -1391,7 +1391,7 @@ public class OpenIDConnectManagerImplUnitTest {
 	
 		// method under test
 		Map<OIDCClaimName,Object> userInfo = (Map<OIDCClaimName,Object>)openIDConnectManagerImpl.
-				getUserInfo(ACCESS_TOKEN, OAUTH_ENDPOINT);
+				getUserInfo(ACCESS_TOKEN, OAUTH_ENDPOINT, null);
 
 		verify(mockJWT).getBody();
 		verify(mockOauthClientDao).getSectorIdentifierSecretForClient(OAUTH_CLIENT_ID);
@@ -1436,7 +1436,7 @@ public class OpenIDConnectManagerImplUnitTest {
 				eq(null), eq(now), anyString(), userInfoCaptor.capture())).thenReturn(expectedIdToken);
 
 		// method under test
-		JWTWrapper jwt = (JWTWrapper)openIDConnectManagerImpl.getUserInfo(ACCESS_TOKEN, OAUTH_ENDPOINT);
+		JWTWrapper jwt = (JWTWrapper)openIDConnectManagerImpl.getUserInfo(ACCESS_TOKEN, OAUTH_ENDPOINT, null);
 		
 		assertEquals(expectedIdToken, jwt.getJwt());
 		
@@ -1455,7 +1455,7 @@ public class OpenIDConnectManagerImplUnitTest {
 
 		// method under test
 		Map<OIDCClaimName,Object> userInfo = (Map<OIDCClaimName,Object>)
-				openIDConnectManagerImpl.getUserInfo(ACCESS_TOKEN, OAUTH_ENDPOINT);
+				openIDConnectManagerImpl.getUserInfo(ACCESS_TOKEN, OAUTH_ENDPOINT, null);
 
 		assertEquals(USER_ID, userInfo.get(OIDCClaimName.sub));
 		assertEquals(USER_ID, userInfo.get(OIDCClaimName.userid));
@@ -1470,13 +1470,13 @@ public class OpenIDConnectManagerImplUnitTest {
 		mockAccessToken(null);
 		
 		// method under test
-		assertThrows(IllegalArgumentException.class, () -> openIDConnectManagerImpl.getUserInfo(ACCESS_TOKEN, OAUTH_ENDPOINT));
+		assertThrows(IllegalArgumentException.class, () -> openIDConnectManagerImpl.getUserInfo(ACCESS_TOKEN, OAUTH_ENDPOINT, null));
 	}
 
 	@Test
 	public void testGetUserInfoNoAccessToken() {
 		// method under test
-		assertThrows(IllegalArgumentException.class, () -> openIDConnectManagerImpl.getUserInfo(null, OAUTH_ENDPOINT));
+		assertThrows(IllegalArgumentException.class, () -> openIDConnectManagerImpl.getUserInfo(null, OAUTH_ENDPOINT, null));
 	}
 
 	@Test

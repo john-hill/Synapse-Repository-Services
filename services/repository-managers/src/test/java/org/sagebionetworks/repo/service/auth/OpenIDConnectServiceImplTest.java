@@ -87,9 +87,9 @@ public class OpenIDConnectServiceImplTest {
 		String accessToken = "acess token";
 
 		// method under test
-		oidcServiceImpl.getUserInfo(accessToken, OAUTH_ENDPOINT);
+		oidcServiceImpl.getUserInfo(accessToken, OAUTH_ENDPOINT, null);
 
-		verify(oidcManager).getUserInfo(accessToken, OAUTH_ENDPOINT);
+		verify(oidcManager).getUserInfo(accessToken, OAUTH_ENDPOINT, null);
 	}
 
 	@Test

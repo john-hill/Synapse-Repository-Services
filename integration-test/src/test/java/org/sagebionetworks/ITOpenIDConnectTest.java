@@ -234,7 +234,7 @@ public class ITOpenIDConnectTest {
 			synapseClientForOAuthClient.setBearerAuthorizationToken(tokenResponse.getAccess_token());
 			
 			SynapseUnauthorizedException uex = assertThrows(SynapseUnauthorizedException.class, () -> {
-				synapseClientForOAuthClient.getUserInfoAsJSON();
+				synapseClientForOAuthClient.getUserInfoAsJSON(false);
 			});
 			
 			assertEquals("Invalid access token", uex.getMessage());
@@ -243,7 +243,7 @@ public class ITOpenIDConnectTest {
 			client = adminSynapse.updateOAuthClientVerifiedStatus(client.getClient_id(), client.getEtag(), true);
 			
 			// Now we should be able to get the user info
-			synapseClientForOAuthClient.getUserInfoAsJSON();
+			synapseClientForOAuthClient.getUserInfoAsJSON(false);
 			
 		} finally {
 			synapseClientForOAuthClient.removeAuthorizationHeader();
@@ -403,12 +403,13 @@ public class ITOpenIDConnectTest {
 		// Note, we use a bearer token to authorize the client 
 		try {
 			synapseClientForOAuthClient.setBearerAuthorizationToken(tokenResponse.getAccess_token());
-			JSONObject userInfo = synapseClientForOAuthClient.getUserInfoAsJSON();
+			JSONObject userInfoJSON = synapseClientForOAuthClient.getUserInfoAsJSON(false);
 			// check userInfo
-			assertEquals(myId, (String)userInfo.get("userid"));
-			assertEquals(email, (String)userInfo.get("email"));
-			assertTrue((Boolean)userInfo.get("is_certified"));
-			assertEquals(0, ((JSONArray)userInfo.get("team")).length());
+			verifyUserInfoJSON(userInfoJSON, myId, email);
+			
+			// Override the registered user info format with an Accept header to get a JWT
+			Jwt<JwsHeader,Claims> userInfoJWT = synapseClientForOAuthClient.getUserInfoAsJSONWebToken(true);
+			verifyUserInfoJWT(userInfoJWT, myId, email);
 		} finally {
 			synapseClientForOAuthClient.removeAuthorizationHeader();
 		}
@@ -427,17 +428,33 @@ public class ITOpenIDConnectTest {
 		// Note, we use a bearer token to authorize the client 
 		try {
 			synapseClientForOAuthClient.setBearerAuthorizationToken(tokenResponse.getAccess_token());
-			Jwt<JwsHeader,Claims> userInfo = synapseClientForOAuthClient.getUserInfoAsJSONWebToken();
-			Claims body = userInfo.getBody();
-			assertEquals(myId, body.get("userid", String.class));
-			assertEquals(email, body.get("email", String.class));
-			assertTrue(body.get("is_certified", Boolean.class));
-			assertEquals(Collections.EMPTY_LIST, body.get("team", List.class));
+			Jwt<JwsHeader,Claims> userInfoJWT = synapseClientForOAuthClient.getUserInfoAsJSONWebToken(false);
+			verifyUserInfoJWT(userInfoJWT, myId, email);
+			
+			// Override the registered user info format to get a JSON response
+			JSONObject userInfoJSON = synapseClientForOAuthClient.getUserInfoAsJSON(true);
+			// check userInfo
+			verifyUserInfoJSON(userInfoJSON, myId, email);
+
 		} finally {
 			synapseClientForOAuthClient.removeAuthorizationHeader();
 		}
 	}
 
+	private void verifyUserInfoJSON(JSONObject userInfo, String myId, String email) {
+		assertEquals(myId, (String)userInfo.get("userid"));
+		assertEquals(email, (String)userInfo.get("email"));
+		assertTrue((Boolean)userInfo.get("is_certified"));
+		assertEquals(0, ((JSONArray)userInfo.get("team")).length());
+	}
+	private void verifyUserInfoJWT(Jwt<JwsHeader,Claims> userInfo, String myId, String email) {
+		Claims body = userInfo.getBody();
+		assertEquals(myId, body.get("userid", String.class));
+		assertEquals(email, body.get("email", String.class));
+		assertTrue(body.get("is_certified", Boolean.class));
+		assertEquals(Collections.EMPTY_LIST, body.get("team", List.class));
+	}
+	
 	private static OIDCAuthorizationRequest setUpAuthorizationRequest(OAuthClient client) throws Exception {
 		OIDCAuthorizationRequest authorizationRequest = new OIDCAuthorizationRequest();
 		authorizationRequest.setClientId(client.getClient_id());
@@ -516,7 +533,7 @@ public class ITOpenIDConnectTest {
 		// Both the old and the new access tokens should work
 		try { // Get userInfo using old access token
 			synapseClientForOAuthClient.setBearerAuthorizationToken(tokenResponse.getAccess_token());
-			JSONObject userInfo = synapseClientForOAuthClient.getUserInfoAsJSON();
+			JSONObject userInfo = synapseClientForOAuthClient.getUserInfoAsJSON(false);
 			assertTrue((Boolean)userInfo.get("is_certified"));
 		} finally {
 			synapseClientForOAuthClient.removeAuthorizationHeader();
@@ -538,7 +555,7 @@ public class ITOpenIDConnectTest {
 
 		try { // Get userInfo using new access token
 			synapseClientForOAuthClient.setBearerAuthorizationToken(newTokenResponse.getAccess_token());
-			JSONObject userInfo = synapseClientForOAuthClient.getUserInfoAsJSON();
+			JSONObject userInfo = synapseClientForOAuthClient.getUserInfoAsJSON(false);
 			assertTrue((Boolean)userInfo.get("is_certified"));
 		} finally {
 			synapseClientForOAuthClient.removeAuthorizationHeader();
@@ -587,7 +604,7 @@ public class ITOpenIDConnectTest {
 		try {
 			synapseClientForOAuthClient.setBearerAuthorizationToken(tokenResponse.getAccess_token());
 			assertThrows(SynapseUnauthorizedException.class, () ->
-					synapseClientForOAuthClient.getUserInfoAsJSONWebToken()
+					synapseClientForOAuthClient.getUserInfoAsJSONWebToken(false)
 			);
 		} finally {
 			synapseClientForOAuthClient.removeAuthorizationHeader();

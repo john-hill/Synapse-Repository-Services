@@ -4798,8 +4798,6 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 		
 		validateContentType(response, APPLICATION_JSON);
 		return ClientUtils.convertResponseBodyToJSONAndThrowException(response);
-		
-
 	}
 
 	@Override

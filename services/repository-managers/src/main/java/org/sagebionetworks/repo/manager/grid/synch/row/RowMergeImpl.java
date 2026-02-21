@@ -127,7 +127,7 @@ public class RowMergeImpl implements RowMerge {
 	public void merge(String rowKey, RowCopyItem copyItem, RowSourceItemReference sourceItemRef) {
 
 		RowSourceItem sourceItem = sourceItemRef.fetchRow();
-		CellCopyImpl cellCopy = new CellCopyImpl(copyItem);
+		CellCopyImpl cellCopy = new CellCopyImpl(copyItem, columnNameMap.keySet());
 		CellSourceImpl cellSource = new CellSourceImpl(sourceItem);
 
 		// Synchronize cells using nested application of SynchronizationLogic
@@ -185,8 +185,10 @@ public class RowMergeImpl implements RowMerge {
 		List<Integer> valueIndex = new ArrayList<>();
 		for (Entry<String, ConValue> e : mergeCells.entrySet()) {
 			Column column = columnNameMap.get(e.getKey());
-			values.add(e.getValue());
-			valueIndex.add(column.getVectorIndex());
+			if(column != null) {
+				values.add(e.getValue());
+				valueIndex.add(column.getVectorIndex());
+			}
 		}
 		intendedChangePublisher.publish(new UpdateRowChange(vectorNodeId, values, valueIndex.toArray(Integer[]::new),
 				metadataNodeId, synapseRowConValue));

@@ -27,9 +27,6 @@ import org.sagebionetworks.repo.manager.grid.synch.handler.CopyHandler;
 import org.sagebionetworks.repo.manager.grid.synch.handler.SourceHandler;
 import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItem;
 import org.sagebionetworks.repo.manager.grid.synch.io.RowSourceItemReference;
-import org.sagebionetworks.repo.manager.grid.synch.row.CellCopyItem;
-import org.sagebionetworks.repo.manager.grid.synch.row.RowCopyItemImpl;
-import org.sagebionetworks.repo.manager.grid.synch.row.RowMergeImpl;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
@@ -190,7 +187,7 @@ public class RowMergeImplTest {
 
 		verifyNoMoreInteractionsWithAllMocks();
 	}
-	
+
 	@Test
 	public void testMergeWithCellUpdatedInCopyAndApplyCellsNotFoundException() {
 
@@ -218,7 +215,7 @@ public class RowMergeImplTest {
 
 		verifyNoMoreInteractionsWithAllMocks();
 	}
-	
+
 	@Test
 	public void testMergeWithCellUpdatedInCopyAndApplyCellsUnauthorizedException() {
 
@@ -301,6 +298,56 @@ public class RowMergeImplTest {
 	}
 
 	@Test
+	public void testMergeWithCellUpdedAndNotInFinalSchema() {
+		finalSchema = List.of(new Column().setName("a").setVectorIndex(1), new Column().setName("c").setVectorIndex(2));
+		RowMergeImpl merge = setupRowMerge();
+
+		RowSourceItem sourceItem = new RowSourceItem(new TreeMap<>(Map.of("a", c1, "b", c2, "c", c3)), rowKey, synRow);
+
+		RowCopyItemImpl copyItem = new RowCopyItemImpl().setVectorNodeId(rowVectorId).setRgaNodeId(rgaNodeId)
+				.setMetadataNodeId(metadataNodeId)
+				.setCells(List.of(new CellCopyItem().setName("a").setValue(c1).setWasChangedByUser(false),
+						new CellCopyItem().setName("b").setValue(new ConValue(ConType.STRING, "deleted"))
+								.setWasChangedByUser(true)))
+				.setSynapseRow(synRow);
+
+		when(mockRowSourceItemReference.fetchRow()).thenReturn(sourceItem);
+
+		// call under test
+		merge.merge(rowKey, copyItem, mockRowSourceItemReference);
+
+		verify(mockIntendedChangePublisher).publish(new UpdateRowChange(rowVectorId, List.of(c1, c3),
+				new Integer[] { 1, 2 }, metadataNodeId, synRow.toConValue()));
+
+		verifyNoMoreInteractionsWithAllMocks();
+	}
+	
+	@Test
+	public void testMergeWithCellUpdedAndNotInFinalSchemaAndMissingFromSource() {
+		finalSchema = List.of(new Column().setName("a").setVectorIndex(1), new Column().setName("c").setVectorIndex(2));
+		RowMergeImpl merge = setupRowMerge();
+
+		RowSourceItem sourceItem = new RowSourceItem(new TreeMap<>(Map.of("a", c1, "c", c3)), rowKey, synRow);
+
+		RowCopyItemImpl copyItem = new RowCopyItemImpl().setVectorNodeId(rowVectorId).setRgaNodeId(rgaNodeId)
+				.setMetadataNodeId(metadataNodeId)
+				.setCells(List.of(new CellCopyItem().setName("a").setValue(c1).setWasChangedByUser(false),
+						new CellCopyItem().setName("b").setValue(new ConValue(ConType.STRING, "deleted"))
+								.setWasChangedByUser(true)))
+				.setSynapseRow(synRow);
+
+		when(mockRowSourceItemReference.fetchRow()).thenReturn(sourceItem);
+
+		// call under test
+		merge.merge(rowKey, copyItem, mockRowSourceItemReference);
+
+		verify(mockIntendedChangePublisher).publish(new UpdateRowChange(rowVectorId, List.of(c1, c3),
+				new Integer[] { 1, 2 }, metadataNodeId, synRow.toConValue()));
+
+		verifyNoMoreInteractionsWithAllMocks();
+	}
+
+	@Test
 	public void testMergeWithCellDeletedFromSource() {
 		finalSchema = List.of(new Column().setName("a").setVectorIndex(1), new Column().setName("b").setVectorIndex(0));
 		RowMergeImpl merge = setupRowMerge();
@@ -324,7 +371,6 @@ public class RowMergeImplTest {
 
 		verifyNoMoreInteractionsWithAllMocks();
 	}
-
 
 	@Test
 	public void testMergeWithNoSynapseRow() {

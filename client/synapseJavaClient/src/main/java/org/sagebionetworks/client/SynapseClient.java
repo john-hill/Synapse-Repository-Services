@@ -2261,11 +2261,6 @@ public interface SynapseClient extends BaseClient {
 	 */
 	JSONObject getUserInfoAsJSON(boolean includeAcceptHeader) throws SynapseException;
 	
-	/*
-	 * Send getUserInfo request with Accept: application/json header
-	 */
-	JSONObject getUserInfoAsJSONWithAcceptHeader() throws SynapseException;
-
 	/**
 	 * Get a paginated record of the OAuth clients that currently have access to the
 	 * logged-in user's Synapse resources via OAuth 2.0 refresh tokens.

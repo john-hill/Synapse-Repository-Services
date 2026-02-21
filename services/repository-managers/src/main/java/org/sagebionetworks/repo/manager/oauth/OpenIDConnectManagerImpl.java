@@ -577,7 +577,7 @@ public class OpenIDConnectManagerImpl implements OpenIDConnectManager {
 	 * - 'application/jwt' if that string is in the accept header
 	 * - null if neither or BOTH of these are in the accept header
 	 */
-	public String extractAcceptHeader(String acceptHeader) {
+	public static String extractAcceptHeader(String acceptHeader) {
 		if (acceptHeader==null) return  null;
 		boolean hasApplicationJson = acceptHeader.toLowerCase().contains(APPLICATION_JSON_MIME_TYPE_LOWERCASE);
 		boolean hasApplicationJwt = acceptHeader.toLowerCase().contains(APPLICATION_JWT_MIME_TYPE_LOWERCASE);
@@ -598,7 +598,6 @@ public class OpenIDConnectManagerImpl implements OpenIDConnectManager {
 
 	@Override
 	public Object getUserInfo(String accessTokenParam, String oauthEndpoint, String acceptHeader) {
-		// TODO acceptHeader
 		ValidateArgument.required(accessTokenParam, "Access token");
 		Jwt<JwsHeader,Claims> accessToken = oidcTokenManager.parseJWT(accessTokenParam);
 		Claims accessTokenClaims = accessToken.getBody();

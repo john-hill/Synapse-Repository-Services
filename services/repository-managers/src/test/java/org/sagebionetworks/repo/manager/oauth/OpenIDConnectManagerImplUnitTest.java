@@ -1447,6 +1447,51 @@ public class OpenIDConnectManagerImplUnitTest {
 	}
 	
 	@Test
+	public void testExtractAcceptHeader() {
+		
+		// method under test
+		assertEquals(null, openIDConnectManagerImpl.extractAcceptHeader(null));
+		
+		// method under test
+		assertEquals("application/json", openIDConnectManagerImpl.extractAcceptHeader("something, application/json; charset=UTF-8, something"));
+		
+		// method under test
+		assertEquals("application/jwt", openIDConnectManagerImpl.extractAcceptHeader("something, application/jwt; charset=UTF-8, something"));
+		
+		// method under test
+		assertEquals(null, openIDConnectManagerImpl.extractAcceptHeader("application/json; charset=UTF-8, application/jwt; charset=UTF-8"));
+		
+	}
+	
+	@Test
+	public void testGetUserInfoAcceptHeaderOverride() {
+		when(mockOauthClientDao.getSectorIdentifierSecretForClient(OAUTH_CLIENT_ID)).thenReturn(clientSpecificEncodingSecret);
+		when(mockAuthDao.getAuthenticatedOn(USER_ID_LONG)).thenReturn(now);
+		when(mockClock.currentTimeMillis()).thenReturn(System.currentTimeMillis());
+		when(mockNotificationEmailDao.getNotificationEmailForPrincipal(USER_ID_LONG)).thenReturn(EMAIL);
+		when(mockOauthClientDao.isOauthClientVerified(OAUTH_CLIENT_ID)).thenReturn(true);
+		mockAccessToken(OAUTH_CLIENT_ID);
+		when(mockPrincipalAliasDao.getUserName(USER_ID_LONG)).thenReturn(USER_NAME);
+		when(mockUserProfileManager.getUserProfile(USER_ID)).thenReturn(userProfile);
+
+		// if the client sets a signing algorithm it means it wants the UserInfo json
+		// to be encoded as a JWT and signed
+		oauthClient.setUserinfo_signed_response_alg(OIDCSigningAlgorithm.RS256);
+		
+		// method under test
+		Object userInfo = openIDConnectManagerImpl.getUserInfo(ACCESS_TOKEN, OAUTH_ENDPOINT, "something, application/json; charset=UTF-8, something");
+		assertTrue(userInfo instanceof Map);
+		
+		oauthClient.setUserinfo_signed_response_alg(null);
+		
+		// method under test
+		userInfo = openIDConnectManagerImpl.getUserInfo(ACCESS_TOKEN, OAUTH_ENDPOINT, "something, application/jwt; charset=UTF-8, something");
+
+		assertTrue(userInfo instanceof JWTWrapper);
+		
+	}
+	
+	@Test
 	public void testGetUserInfoDefaultClient() {
 		mockAccessToken(AuthorizationConstants.SYNAPSE_OAUTH_CLIENT_ID);
 		when(mockNotificationEmailDao.getNotificationEmailForPrincipal(USER_ID_LONG)).thenReturn(EMAIL);

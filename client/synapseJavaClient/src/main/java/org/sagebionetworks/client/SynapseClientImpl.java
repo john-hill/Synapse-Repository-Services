@@ -4789,14 +4789,17 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 		} else {
 			requestHeaders.remove(ACCEPT);
 		}
+		
+		SimpleHttpResponse response = dispatchSynapseRequest(
+				getAuthEndpoint(), AUTH_OAUTH_2_USER_INFO, GET, null, requestHeaders, null);
+		if (!ClientUtils.is200sStatusCode(response.getStatusCode())) {
+			ClientUtils.throwException(response.getStatusCode(), response.getContent());
+		}
+		
+		validateContentType(response, APPLICATION_JSON);
+		return ClientUtils.convertResponseBodyToJSONAndThrowException(response);
+		
 
-		return getJson(getAuthEndpoint(), AUTH_OAUTH_2_USER_INFO);
-	}
-
-	@Override
-	public JSONObject getUserInfoAsJSONWithAcceptHeader() throws SynapseException {
-		// TODO add header
-		return getJson(getAuthEndpoint(), AUTH_OAUTH_2_USER_INFO);
 	}
 
 	@Override

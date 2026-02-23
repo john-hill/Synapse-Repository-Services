@@ -56,8 +56,7 @@ public class CopyHandlerImpl implements CopyHandler {
 	}
 
 	LogicalTimestamp getLastRowsRgaNodeId(GridIndexDao gridIndexDao, GridHeader header) {
-		return gridIndexDao.getRgaLastNode(header.getSessionId(), header.getReplicaId(), header.getRowsId())
-				.map(RGANode::getNodeId).orElse(null);
+		return gridIndexDao.getArrayLastNodeId(header.getSessionId(), header.getReplicaId(), header.getRowsId());
 	}
 
 	private Map<Integer, String> buildIndexToColumnMap(List<Column> columns) {

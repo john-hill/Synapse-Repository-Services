@@ -16,6 +16,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -27,6 +28,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,13 +47,13 @@ import org.sagebionetworks.repo.manager.grid.create.CreateGridHandlerResult;
 import org.sagebionetworks.repo.manager.grid.response.InternalReplicaToHubEventPublisher;
 import org.sagebionetworks.repo.manager.table.RowHandlerProvider;
 import org.sagebionetworks.repo.manager.table.TableQueryManager;
-import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
+import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlResponse;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
@@ -61,7 +63,6 @@ import org.sagebionetworks.repo.model.grid.CreateReplicaResponse;
 import org.sagebionetworks.repo.model.grid.EventContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.EventType;
-import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
@@ -80,7 +81,6 @@ import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.Upload;
 import com.amazonaws.services.s3.transfer.model.UploadResult;
-
 import au.com.bytecode.opencsv.CSVReader;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -90,8 +90,6 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-
-import java.io.File;
 
 @ExtendWith(MockitoExtension.class)
 public class GridManagerUnitTest {
@@ -1307,4 +1305,125 @@ public class GridManagerUnitTest {
 		assertEquals("context is required.", message);
 		verifyZeroInteractions(mockGridDao, mockSynapseS3Client);
 	}
+
+	@Test
+	public void testGetNextSynchronizeResponseWithNullClockAndSnapshot() throws MalformedURLException {
+		when(mockGridDao.getConnection(connectionId)).thenReturn(
+				Optional.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)));
+
+		GridSnapshot snapshot = new GridSnapshot().setS3Key("snapshot-key-123");
+		when(mockGridDao.getLatestSnapshot(gridSessionId)).thenReturn(Optional.of(snapshot));
+
+		URL presignedUrl = new URL("https://example.com/snapshot");
+		when(mockSynapseS3Client.generatePresignedUrl(any(GeneratePresignedUrlRequest.class))).thenReturn(presignedUrl);
+
+		// call under test
+		Optional<String> result = gridManager.getNextSynchronizeResponse(eventContext, null);
+
+		assertTrue(result.isPresent());
+		String response = result.get();
+		JSONObject json = new JSONObject(response);
+		assertEquals("snapshot", json.getString("type"));
+		assertEquals("https://example.com/snapshot", json.getString("body"));
+	}
+
+	@Test
+	public void testGetNextSynchronizeResponseWithEmptyClockAndSnapshot() throws MalformedURLException {
+		when(mockGridDao.getConnection(connectionId)).thenReturn(
+				Optional.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)));
+
+		GridSnapshot snapshot = new GridSnapshot().setS3Key("snapshot-key-123");
+		when(mockGridDao.getLatestSnapshot(gridSessionId)).thenReturn(Optional.of(snapshot));
+
+		URL presignedUrl = new URL("https://example.com/snapshot");
+		when(mockSynapseS3Client.generatePresignedUrl(any(GeneratePresignedUrlRequest.class))).thenReturn(presignedUrl);
+
+		// call under test
+		Optional<String> result = gridManager.getNextSynchronizeResponse(eventContext, Collections.emptyList());
+
+		assertTrue(result.isPresent());
+		String response = result.get();
+		JSONObject json = new JSONObject(response);
+		assertEquals("snapshot", json.getString("type"));
+		assertEquals("https://example.com/snapshot", json.getString("body"));
+	}
+
+	@Test
+	public void testGetNextSynchronizeResponseWithEmptyClockAndNoSnapshotButHasPatch() {
+		when(mockGridDao.getConnection(connectionId)).thenReturn(
+				Optional.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)));
+
+		when(mockGridDao.getLatestSnapshot(gridSessionId)).thenReturn(Optional.empty());
+
+		// A patch is available
+		List<LogicalTimestamp> missing = List.of(new LogicalTimestamp().setReplicaId(44L).setSequenceNumber(90L));
+		when(mockGridDao.listMissingPatchIdsForClock(gridSessionId, Collections.emptyList(), 1)).thenReturn(missing);
+		doReturn(Optional.of(patchBody)).when(gridManager).getPatchBody(gridSessionId, missing.get(0));
+
+		// call under test
+		Optional<String> result = gridManager.getNextSynchronizeResponse(eventContext, Collections.emptyList());
+
+		assertTrue(result.isPresent());
+		String response = result.get();
+
+		JSONObject json = new JSONObject(response);
+		assertEquals("{\"type\":\"patch\",\"body\":" + patchBody + "}", response);
+		verifyZeroInteractions(mockSynapseS3Client);
+	}
+
+	@Test
+	public void testGetNextSynchronizeResponseWithEmptyClockNoSnapshotNoPatch() {
+		when(mockGridDao.getConnection(connectionId)).thenReturn(
+				Optional.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)));
+
+		when(mockGridDao.getLatestSnapshot(gridSessionId)).thenReturn(Optional.empty());
+
+		// No patches available
+		when(mockGridDao.listMissingPatchIdsForClock(gridSessionId, Collections.emptyList(), 1))
+				.thenReturn(Collections.emptyList());
+
+		// call under test
+		Optional<String> result = gridManager.getNextSynchronizeResponse(eventContext, Collections.emptyList());
+
+		assertTrue(result.isEmpty());
+		verifyZeroInteractions(mockSynapseS3Client);
+	}
+
+	@Test
+	public void testGetNextSynchronizeResponseWithNonEmptyClockAndPatch() {
+		when(mockGridDao.getConnection(connectionId)).thenReturn(
+				Optional.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)));
+
+		List<LogicalTimestamp> missing = List.of(new LogicalTimestamp().setReplicaId(44L).setSequenceNumber(90L));
+
+		when(mockGridDao.listMissingPatchIdsForClock(gridSessionId, clock, 1)).thenReturn(missing);
+		doReturn(Optional.of(patchBody)).when(gridManager).getPatchBody(gridSessionId, missing.get(0));
+
+		// call under test
+		Optional<String> result = gridManager.getNextSynchronizeResponse(eventContext, clock);
+
+		assertTrue(result.isPresent());
+		String response = result.get();
+		assertEquals("{\"type\":\"patch\",\"body\":" + patchBody + "}", response);
+
+		// Should not check for snapshot when clock is non-empty
+		verify(mockGridDao, never()).getLatestSnapshot(any());
+	}
+
+	@Test
+	public void testGetNextSynchronizeResponseWithNonEmptyClockAndNoPatch() {
+		when(mockGridDao.getConnection(connectionId)).thenReturn(
+				Optional.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)));
+
+		when(mockGridDao.listMissingPatchIdsForClock(gridSessionId, clock, 1)).thenReturn(Collections.emptyList());
+
+		// call under test
+		Optional<String> result = gridManager.getNextSynchronizeResponse(eventContext, clock);
+
+		assertTrue(result.isEmpty());
+
+		// Should not check for snapshot when clock is non-empty
+		verify(mockGridDao, never()).getLatestSnapshot(any());
+	}
+
 }

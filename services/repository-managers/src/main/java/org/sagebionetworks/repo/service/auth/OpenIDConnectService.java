@@ -11,6 +11,8 @@ import org.sagebionetworks.repo.model.oauth.OAuthClientVerificationPrecheckResul
 import org.sagebionetworks.repo.model.oauth.OAuthGrantType;
 import org.sagebionetworks.repo.model.oauth.OAuthRefreshTokenInformation;
 import org.sagebionetworks.repo.model.oauth.OAuthRefreshTokenInformationList;
+import org.sagebionetworks.repo.model.oauth.OAuthTokenIntrospectionRequest;
+import org.sagebionetworks.repo.model.oauth.OAuthTokenIntrospectionResponse;
 import org.sagebionetworks.repo.model.oauth.OAuthTokenRevocationRequest;
 import org.sagebionetworks.repo.model.oauth.OIDCAuthorizationRequest;
 import org.sagebionetworks.repo.model.oauth.OIDCAuthorizationRequestDescription;
@@ -173,4 +175,6 @@ public interface OpenIDConnectService {
 	OAuthRefreshTokenInformation getRefreshTokenMetadataAsUser(Long userId, String tokenId);
 
 	OAuthRefreshTokenInformation getRefreshTokenMetadataAsClient(String verifiedClientId, String tokenId);
+
+	OAuthTokenIntrospectionResponse introspectToken(Long userId, OAuthTokenIntrospectionRequest request);
 }

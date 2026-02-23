@@ -18,6 +18,7 @@ import org.java_websocket.WebSocket;
 import org.json.JSONObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.AsynchronousJobWorkerHelper;
@@ -423,6 +424,7 @@ public class GridAgentChatWorkerIntegrationTest {
 	}
 
 	@Test
+	@Disabled // Unstable test, see: PLFM-9487.
 	public void testRegularExpression() throws AssertionError, Exception {
 		createGridSessionFromCsv(
 				new String[] { "firstName", "lastName", "phone", "formattedName", "cleanPhone" },

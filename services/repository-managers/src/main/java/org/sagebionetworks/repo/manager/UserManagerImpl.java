@@ -270,14 +270,9 @@ public class UserManagerImpl implements UserManager {
 	}
 
 	@Override
-	public Collection<UserGroup> getGroups() throws DatastoreException {
-		return userGroupDAO.getAll(false);
-	}
-
-	@Override
 	public List<UserGroup> getGroupsInRange(UserInfo userInfo, long startIncl, long endExcl, String sort, boolean ascending) 
 			throws DatastoreException, UnauthorizedException {
-		return userGroupDAO.getInRange(startIncl, endExcl, false);
+		return userGroupDAO.getInRange(startIncl, endExcl, false, userInfo.getRealmId());
 	}
 
 	@Override

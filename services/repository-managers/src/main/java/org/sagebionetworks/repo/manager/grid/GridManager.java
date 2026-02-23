@@ -146,6 +146,16 @@ public interface GridManager extends PatchStore, SnapshotStore {
 	List<GridConnectionInfo> listActiveConnections(String connectionId);
 
 	/**
+	 * Given a replica's clock, find the next snapshot or patch that the replica is missing, and format a message that
+	 * can be sent to the replica to apply the snapshot/patch.
+	 *
+	 * @param context
+	 * @param clock
+	 * @return {@link Optional#empty()} If the replica is up-to-date.
+	 */
+	Optional<String> getNextSynchronizeResponse(EventContext context, List<LogicalTimestamp> clock);
+
+	/**
 	 * Given a replica's clock, find the next patch that the replica is missing.
 	 * 
 	 * @param context

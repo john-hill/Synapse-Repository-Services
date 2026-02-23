@@ -16,6 +16,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_REALM_ID;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,6 +37,7 @@ import org.mockito.stubbing.Answer;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.file.FileHandleUrlRequest;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.Favorite;
 import org.sagebionetworks.repo.model.FavoriteDAO;
 import org.sagebionetworks.repo.model.IdList;
@@ -277,20 +279,20 @@ public class UserProfileManagerImplUnitTest {
 		upForList.setOpenIds(userProfile.getOpenIds());
 		
 		List<UserProfile> upList = Collections.singletonList(upForList);
-		when(mockProfileDAO.getInRange(0L, 1L)).thenReturn(upList);
+		when(mockProfileDAO.getInRange(0L, 1L, DEFAULT_REALM_ID)).thenReturn(upList);
 
-		List<UserProfile> results=userProfileManager.getInRange(adminUserInfo, 0, 1);
+		List<UserProfile> results=userProfileManager.getInRange(adminUserInfo, 0, 1, DEFAULT_REALM_ID);
 		
 		assertFalse(upForList.getEmails().isEmpty());
 		assertFalse(upForList.getOpenIds().isEmpty());
 		
 		assertEquals(upList, results);
 		
-		when(mockProfileDAO.list(Collections.singletonList(Long.parseLong(userProfile.getOwnerId())))).thenReturn(upList);
+		when(mockProfileDAO.list(Collections.singletonList(Long.parseLong(userProfile.getOwnerId())), DEFAULT_REALM_ID)).thenReturn(upList);
 		
 		IdList ids = new IdList();
 		ids.setList(Collections.singletonList(Long.parseLong(userProfile.getOwnerId())));
-		assertEquals(results, userProfileManager.list(ids).getList());
+		assertEquals(results, userProfileManager.list(ids, DEFAULT_REALM_ID).getList());
 	}
 		
 	@Test

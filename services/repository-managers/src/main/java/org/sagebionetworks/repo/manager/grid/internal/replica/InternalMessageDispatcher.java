@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.manager.grid.internal.replica;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Optional;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.sagebionetworks.grid.db.GridIndexManager;

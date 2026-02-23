@@ -19,10 +19,6 @@
 			"description": "System-generated principals for security realm"
 		},
 		{
-			"name": "CERTIFIED_USERS",
-			"description": "Certified users to use the Synapse."
-		},
-		{
 			"name": "GROUP_MEMBERS",
 			"description": "TODO: Auto-generated description"
 		},
@@ -125,6 +121,10 @@
 		{
 			"name": "DOCKER_COMMIT",
 			"description": "TODO: Auto-generated description"
+		},
+		{
+			"name": "CERTIFIED_USERS",
+			"description": "Certified users to use the Synapse."
 		},
 		{
 			"name": "TEAM",

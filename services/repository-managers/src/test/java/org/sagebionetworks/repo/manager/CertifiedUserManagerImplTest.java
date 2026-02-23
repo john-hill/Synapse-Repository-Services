@@ -36,7 +36,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
-import org.sagebionetworks.repo.model.GroupMembersDAO;
+import org.sagebionetworks.repo.model.CertifiedUsersDAO;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.QuizResponseDAO;
 import org.sagebionetworks.repo.model.UnauthorizedException;
@@ -70,7 +70,7 @@ public class CertifiedUserManagerImplTest {
 	@Mock
 	private AmazonS3Utility s3Utility;
 	@Mock
-	private GroupMembersDAO groupMembersDao;
+	private CertifiedUsersDAO certifiedUsersDAO;
 	@Mock
 	private QuizResponseDAO quizResponseDao;
 	@Mock
@@ -646,7 +646,7 @@ public class CertifiedUserManagerImplTest {
 		assertEquals(2L, passingRecord.getScore().longValue());
 		assertNotNull(quizResponse.getCreatedOn());
 		verify(quizResponseDao).create(eq(quizResponse), captor.capture());
-		verify(groupMembersDao).addMembers(anyString(), (List<String>)any());
+		verify(certifiedUsersDAO).addCertifiedUser(anyLong());
 		assertEquals(passingRecord.getPassed(), pr.getPassed());
 		assertTrue(passingRecord.getCertified());
 		assertFalse(passingRecord.getRevoked());
@@ -684,7 +684,7 @@ public class CertifiedUserManagerImplTest {
 		assertEquals(quizGenerator.getId(), quizResponse.getQuizId());
 		assertEquals(1L, passingRecord.getScore().longValue());
 		assertNotNull(quizResponse.getCreatedOn());
-		verify(groupMembersDao, never()).addMembers(anyString(), (List<String>)any());
+		verify(certifiedUsersDAO, never()).addCertifiedUser(anyLong());
 		assertEquals(passingRecord.getPassed(), pr.getPassed());
 		assertFalse(passingRecord.getCertified());
 		assertFalse(passingRecord.getRevoked());
@@ -747,7 +747,7 @@ public class CertifiedUserManagerImplTest {
 		certifiedUserManager.submitCertificationQuizResponse(userInfo, quizResponse);		
 		
 		verify(quizResponseDao).create(eq(quizResponse), captor.capture());
-		verify(groupMembersDao).addMembers(anyString(), (List<String>)any());
+		verify(certifiedUsersDAO).addCertifiedUser(anyLong());
 		verify(mockTransactionalMessenger).sendMessageAfterCommit(userInfo.getId().toString(), ObjectType.CERTIFIED_USER_PASSING_RECORD, ChangeType.CREATE);
 	}
 	
@@ -847,7 +847,7 @@ public class CertifiedUserManagerImplTest {
 	public void testRevokeCertification() {
 		UserInfo userInfo = new UserInfo(true);
 		
-		when(groupMembersDao.areMemberOf(any(), any())).thenReturn(true);
+		when(certifiedUsersDAO.isCertifiedUser(anyString())).thenReturn(true);
 		
 		PassingRecord expected = new PassingRecord().setResponseId(123L).setPassed(true).setRevoked(false);
 		
@@ -858,10 +858,10 @@ public class CertifiedUserManagerImplTest {
 		
 		assertEquals(expected, result);
 		
-		verify(groupMembersDao).areMemberOf(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.CERTIFIED_USERS.getPrincipalId().toString(), Set.of("111"));
+		verify(certifiedUsersDAO).isCertifiedUser("111");
 		verify(quizResponseDao, times(2)).getLatestPassingRecord(1L, 111L);
 		verify(quizResponseDao).revokeQuizResponse(123L);
-		verify(groupMembersDao).removeMembers(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.CERTIFIED_USERS.getPrincipalId().toString(), List.of("111"));
+		verify(certifiedUsersDAO).removeCertifiedUser(111L);
 		verify(mockTransactionalMessenger).sendMessageAfterCommit("111", ObjectType.CERTIFIED_USER_PASSING_RECORD, ChangeType.UPDATE);
 		
 	}
@@ -870,7 +870,7 @@ public class CertifiedUserManagerImplTest {
 	public void testRevokeCertificationWithNotCertified() {
 		UserInfo userInfo = new UserInfo(true);
 		
-		when(groupMembersDao.areMemberOf(any(), any())).thenReturn(false);
+		when(certifiedUsersDAO.isCertifiedUser(anyString())).thenReturn(false);
 				
 		String result = assertThrows(IllegalArgumentException.class, () -> {			
 			// Call under test
@@ -879,9 +879,9 @@ public class CertifiedUserManagerImplTest {
 		
 		assertEquals("The user 111 is not certified yet.", result);
 		
-		verify(groupMembersDao).areMemberOf(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.CERTIFIED_USERS.getPrincipalId().toString(), Set.of("111"));
+		verify(certifiedUsersDAO).isCertifiedUser("111");
 		verifyNoMoreInteractions(quizResponseDao);
-		verifyNoMoreInteractions(groupMembersDao);
+		verifyNoMoreInteractions(certifiedUsersDAO);
 		verifyNoMoreInteractions(mockTransactionalMessenger);
 		
 	}
@@ -890,7 +890,7 @@ public class CertifiedUserManagerImplTest {
 	public void testRevokeCertificationWithNoPassingRecord() {
 		UserInfo userInfo = new UserInfo(true);
 		
-		when(groupMembersDao.areMemberOf(any(), any())).thenReturn(true);
+		when(certifiedUsersDAO.isCertifiedUser(anyString())).thenReturn(true);
 		when(quizResponseDao.getLatestPassingRecord(any(), any())).thenReturn(Optional.empty());
 		
 		// Call under test
@@ -898,10 +898,10 @@ public class CertifiedUserManagerImplTest {
 		
 		assertEquals(null, result);
 		
-		verify(groupMembersDao).areMemberOf(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.CERTIFIED_USERS.getPrincipalId().toString(), Set.of("111"));
+		verify(certifiedUsersDAO).isCertifiedUser("111");
 		verify(quizResponseDao, times(2)).getLatestPassingRecord(1L, 111L);
 		verifyNoMoreInteractions(quizResponseDao);
-		verify(groupMembersDao).removeMembers(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.CERTIFIED_USERS.getPrincipalId().toString(), List.of("111"));
+		verify(certifiedUsersDAO).removeCertifiedUser(111L);
 		verify(mockTransactionalMessenger).sendMessageAfterCommit("111", ObjectType.CERTIFIED_USER_PASSING_RECORD, ChangeType.UPDATE);
 		
 	}
@@ -910,7 +910,7 @@ public class CertifiedUserManagerImplTest {
 	public void testRevokeCertificationWithFailedRecord() {
 		UserInfo userInfo = new UserInfo(true);
 		
-		when(groupMembersDao.areMemberOf(any(), any())).thenReturn(true);
+		when(certifiedUsersDAO.isCertifiedUser(anyString())).thenReturn(true);
 		
 		PassingRecord expected = new PassingRecord().setResponseId(123L).setPassed(false).setRevoked(false);
 		
@@ -921,10 +921,10 @@ public class CertifiedUserManagerImplTest {
 		
 		assertEquals(expected, result);
 		
-		verify(groupMembersDao).areMemberOf(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.CERTIFIED_USERS.getPrincipalId().toString(), Set.of("111"));
+		verify(certifiedUsersDAO).isCertifiedUser("111");
 		verify(quizResponseDao, times(2)).getLatestPassingRecord(1L, 111L);
 		verifyNoMoreInteractions(quizResponseDao);
-		verify(groupMembersDao).removeMembers(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.CERTIFIED_USERS.getPrincipalId().toString(), List.of("111"));
+		verify(certifiedUsersDAO).removeCertifiedUser(111L);
 		verify(mockTransactionalMessenger).sendMessageAfterCommit("111", ObjectType.CERTIFIED_USER_PASSING_RECORD, ChangeType.UPDATE);
 		
 	}
@@ -933,7 +933,7 @@ public class CertifiedUserManagerImplTest {
 	public void testRevokeCertificationWithAlreadyRevokedRecord() {
 		UserInfo userInfo = new UserInfo(true);
 		
-		when(groupMembersDao.areMemberOf(any(), any())).thenReturn(true);
+		when(certifiedUsersDAO.isCertifiedUser(anyString())).thenReturn(true);
 		
 		PassingRecord expected = new PassingRecord().setResponseId(123L).setPassed(true).setRevoked(true);
 		
@@ -944,10 +944,10 @@ public class CertifiedUserManagerImplTest {
 		
 		assertEquals(expected, result);
 		
-		verify(groupMembersDao).areMemberOf(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.CERTIFIED_USERS.getPrincipalId().toString(), Set.of("111"));
+		verify(certifiedUsersDAO).isCertifiedUser("111");
 		verify(quizResponseDao, times(2)).getLatestPassingRecord(1L, 111L);
 		verifyNoMoreInteractions(quizResponseDao);
-		verify(groupMembersDao).removeMembers(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.CERTIFIED_USERS.getPrincipalId().toString(), List.of("111"));
+		verify(certifiedUsersDAO).removeCertifiedUser(111L);
 		verify(mockTransactionalMessenger).sendMessageAfterCommit("111", ObjectType.CERTIFIED_USER_PASSING_RECORD, ChangeType.UPDATE);	
 	}
 	
@@ -963,7 +963,7 @@ public class CertifiedUserManagerImplTest {
 		assertEquals("Only an ACT member can perform this operation.", result);
 				
 		verifyNoMoreInteractions(quizResponseDao);
-		verifyNoMoreInteractions(groupMembersDao);
+		verifyNoMoreInteractions(certifiedUsersDAO);
 		verifyNoMoreInteractions(mockTransactionalMessenger);
 		
 	}
@@ -980,7 +980,7 @@ public class CertifiedUserManagerImplTest {
 		assertEquals("The userInfo is required.", result);
 				
 		verifyNoMoreInteractions(quizResponseDao);
-		verifyNoMoreInteractions(groupMembersDao);
+		verifyNoMoreInteractions(certifiedUsersDAO);
 		verifyNoMoreInteractions(mockTransactionalMessenger);
 		
 	}
@@ -997,7 +997,7 @@ public class CertifiedUserManagerImplTest {
 		assertEquals("The principalId is required.", result);
 				
 		verifyNoMoreInteractions(quizResponseDao);
-		verifyNoMoreInteractions(groupMembersDao);
+		verifyNoMoreInteractions(certifiedUsersDAO);
 		verifyNoMoreInteractions(mockTransactionalMessenger);
 		
 	}

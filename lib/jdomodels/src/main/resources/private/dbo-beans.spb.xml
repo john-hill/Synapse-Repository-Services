@@ -253,6 +253,7 @@
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBONode" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBODockerManagedRepositoryName" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBODockerCommit" />
+				<bean class = "org.sagebionetworks.repo.model.dbo.persistence.DBOCertifiedUsers" />
 				<!-- Team-related beans -->
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOTeam" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOMembershipInvitation" />

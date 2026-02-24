@@ -1,12 +1,14 @@
 package org.sagebionetworks.repo.manager.migration;
 
 import org.sagebionetworks.repo.model.AuthorizationConstants;
-import org.sagebionetworks.repo.model.dbo.DatabaseObject;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableDAO;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOCertifiedUsers;
 import org.sagebionetworks.repo.model.dbo.persistence.DBOGroupMembers;
 import org.sagebionetworks.repo.model.migration.MigrationType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -17,9 +19,11 @@ public class certifiedUserMigrationListener implements MigrationTypeListener<DBO
 
 
     private final MigratableTableDAO migratableTableDAO;
+    private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
-    public certifiedUserMigrationListener(MigratableTableDAO migratableTableDAO) {
+    public certifiedUserMigrationListener(MigratableTableDAO migratableTableDAO, NamedParameterJdbcTemplate namedParameterJdbcTemplate) {
         this.migratableTableDAO = migratableTableDAO;
+        this.namedParameterJdbcTemplate = namedParameterJdbcTemplate;
     }
 
     @Override
@@ -44,12 +48,29 @@ public class certifiedUserMigrationListener implements MigrationTypeListener<DBO
                 })
                 .collect(Collectors.toList());
 
-        List<DatabaseObject<?>> certifiedUserDbos = certifiedUsers.stream()
-                .map(cu -> (DatabaseObject<?>) cu)
-                .collect(Collectors.toList());
 
-        // Add the member to the certified users group
-        migratableTableDAO.createOrUpdate(MigrationType.CERTIFIED_USERS, certifiedUserDbos);
+        try {
+            migratableTableDAO.runWithKeyChecksIgnored(() -> {
+                createOrUpdate(certifiedUsers);
+                return null;
+            });
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
+    private void createOrUpdate(List<DBOCertifiedUsers> batch) {
+        if (batch == null || batch.isEmpty()) {
+            return;
+        }
+        String sql = "INSERT IGNORE INTO CERTIFIED_USERS (USER_ID) VALUES (:userId)";
+        SqlParameterSource[] batchArgs = batch.stream()
+                .map(cu -> {
+                    MapSqlParameterSource param = new MapSqlParameterSource();
+                    param.addValue("userId", cu.getUserId());
+                    return param;
+                })
+                .toArray(SqlParameterSource[]::new);
+        namedParameterJdbcTemplate.batchUpdate(sql, batchArgs);
     }
 }

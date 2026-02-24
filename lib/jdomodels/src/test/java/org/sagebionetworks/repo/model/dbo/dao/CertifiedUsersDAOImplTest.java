@@ -59,12 +59,15 @@ public class CertifiedUsersDAOImplTest {
     @Test
     public void testCURDCertifiedUser() {
         //call under test
+        //check if user id already certified
         Boolean isCertified =  certifiedUsersDAO.isCertifiedUser(longUserId.toString());
         assertFalse(isCertified);
 
+        //add user id to certified users
         certifiedUsersDAO.addCertifiedUser(longUserId);
         assertTrue(certifiedUsersDAO.isCertifiedUser(longUserId.toString()));
 
+        //remove user id from certified users
         certifiedUsersDAO.removeCertifiedUser(longUserId);
         assertFalse(certifiedUsersDAO.isCertifiedUser(longUserId.toString()));
     }

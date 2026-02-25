@@ -87,13 +87,15 @@ public class GridReplicaManagerImpl implements GridReplicaManager {
 	}
 
 	@Override
-	public void onApplyPatch(ProgressCallback callback, GridConnectionInfo connection, Integer messageId, Patch patch) {
+	public void onApplyPatches(ProgressCallback callback, GridConnectionInfo connection, Integer messageId, List<Patch> patches) {
 		gridIndexManager.refreshMessageChain(connection.getSessionId(), connection.getReplicaId(), messageId);
-		Map<IndexType, Set<LogicalTimestamp>> changes = gridIndexManager.applyPatch(connection.getSessionId(),
-				connection.getReplicaId(), patch);
+		patches.forEach(patch -> {
+			Map<IndexType, Set<LogicalTimestamp>> patchChanges = gridIndexManager.applyPatch(connection.getSessionId(), connection.getReplicaId(), patch);
+			sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, patch.getPatchId(), patchChanges));
+		});
+
 		List<LogicalTimestamp> clock = gridIndexManager.getClock(connection.getSessionId(), connection.getReplicaId());
 		sendClockMessage(messageId, connection.getConnectionId(), clock);
-		sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, patch.getPatchId(), changes));
 	}
 
 	@Override

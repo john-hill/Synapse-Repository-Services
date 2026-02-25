@@ -117,7 +117,7 @@ public class InternalMessageDispatcherTest {
 		bundle = new JsonRxMessageBundle(message, connection, mockCallback);
 		// call under test
 		dispatcher.dispatchMessage(bundle);
-		verify(mockGridReplicaManager).onApplyPatch(mockCallback, connection, chainId, patch);
+		verify(mockGridReplicaManager).onApplyPatches(mockCallback, connection, chainId, List.of(patch));
 	}
 
 	@Test

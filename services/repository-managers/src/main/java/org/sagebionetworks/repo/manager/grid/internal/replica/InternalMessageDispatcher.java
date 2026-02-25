@@ -2,6 +2,8 @@ package org.sagebionetworks.repo.manager.grid.internal.replica;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import org.json.JSONArray;
@@ -85,7 +87,7 @@ public class InternalMessageDispatcher {
 			}
 			String type = messageBody.getString("type");
 			switch (type) {
-			case "snapshot":
+			case "snapshot": {
 				String urlString = messageBody.getString("body");
 				URL url;
 				try {
@@ -96,13 +98,24 @@ public class InternalMessageDispatcher {
 				gridReplicaManager.onApplySnapshot(bundle.getProgressCallback(), bundle.getConnection(),
 						bundle.getMessage().getId().get(), url);
 				return true;
-			case "patch":
-				JSONArray patchArray = messageBody.getJSONArray("body");
-				Patch patch = PatchCompactSerializable.deserialize(patchArray);
-				gridReplicaManager.onApplyPatch(bundle.getProgressCallback(), bundle.getConnection(),
-						bundle.getMessage().getId().get(), patch);
+			} case "patch": {
+				JSONArray patchAsJson = messageBody.getJSONArray("body");
+				List<Patch> patchList = List.of(PatchCompactSerializable.deserialize(patchAsJson));
+				gridReplicaManager.onApplyPatches(bundle.getProgressCallback(), bundle.getConnection(),
+						bundle.getMessage().getId().get(), patchList);
 				return true;
-			default:
+			} case "patches": {
+				JSONArray patchesAsJson = messageBody.getJSONArray("body");
+				List<Patch> patchList = new ArrayList<>(patchesAsJson.length());
+				for (int i = 0; i < patchesAsJson.length(); i++) {
+					JSONArray patchJson = patchesAsJson.getJSONArray(i);
+					patchList.add(PatchCompactSerializable.deserialize(patchJson));
+				}
+				gridReplicaManager.onApplyPatches(bundle.getProgressCallback(), bundle.getConnection(),
+						bundle.getMessage().getId().get(), patchList);
+
+				return true;
+			} default:
 				throw new IllegalArgumentException("Unknown ResponseData body type: " + type);
 			}
 		}

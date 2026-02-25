@@ -60,7 +60,7 @@ public class DBOGridPatch implements MigratableDatabaseObject<DBOGridPatch, DBOG
 				dbo.setCreatedOn(rs.getTimestamp(COL_GRID_PAT_CREATED_ON));
 				dbo.setExpiresOn(rs.getTimestamp(COL_GRID_PAT_EXPIRES_ON));
 				dbo.setS3Key(rs.getString(COL_GRID_PAT_S3_KEY));
-				dbo.setSizeBytes(rs.getObject(COL_GRID_PAT_SIZE_BYTES, Long.class));
+				dbo.setSizeBytes(rs.getLong(COL_GRID_PAT_SIZE_BYTES));
 				return dbo;
 			}
 

@@ -235,6 +235,18 @@ public class AuthorizationConstants {
 	public static final String AUTHORIZATION_HEADER_NAME = "Authorization";
 	
 	/**
+	 * Standard name for the HTTP Accept Header
+	 */
+	public static final String ACCEPT_HEADER_NAME = "Accept";
+	
+	/**
+	 * Some MIME types that can be used in the Accept header
+	 */
+	public static final String APPLICATION_JSON_MIME_TYPE_LOWERCASE = "application/json".toLowerCase();
+	public static final String APPLICATION_JWT_MIME_TYPE_LOWERCASE = "application/jwt".toLowerCase();
+	
+	
+	/**
 	 * Internal header name used when passing authorization from a Synapse HTTP Filter to a Spring Controller
 	 */
 	public static final String SYNAPSE_AUTHORIZATION_HEADER_NAME = "Synapse-Authorization";

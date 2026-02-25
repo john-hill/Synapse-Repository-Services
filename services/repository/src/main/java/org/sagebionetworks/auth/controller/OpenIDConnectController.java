@@ -431,10 +431,11 @@ public class OpenIDConnectController {
 	public @ResponseBody
 	Object getUserInfoGET(
 			@RequestHeader(value = AuthorizationConstants.SYNAPSE_AUTHORIZATION_HEADER_NAME, required=false) String authorizationHeader,
+			@RequestHeader(value = AuthorizationConstants.ACCEPT_HEADER_NAME, required=false) String acceptHeader,
 			UriComponentsBuilder uriComponentsBuilder
 			)  throws NotFoundException, OAuthClientNotVerifiedException {
 		String accessToken = HttpAuthUtil.getBearerTokenFromAuthorizationHeader(authorizationHeader);
-		return serviceProvider.getOpenIDConnectService().getUserInfo(accessToken, EndpointHelper.getEndpoint(uriComponentsBuilder));
+		return serviceProvider.getOpenIDConnectService().getUserInfo(accessToken, EndpointHelper.getEndpoint(uriComponentsBuilder), acceptHeader);
 	}
 
 	/**
@@ -453,10 +454,11 @@ public class OpenIDConnectController {
 	public @ResponseBody
 	Object getUserInfoPOST(
 			@RequestHeader(value = AuthorizationConstants.SYNAPSE_AUTHORIZATION_HEADER_NAME, required=false) String authorizationHeader,
+			@RequestHeader(value = AuthorizationConstants.ACCEPT_HEADER_NAME, required=false) String acceptHeader,
 			UriComponentsBuilder uriComponentsBuilder
 			)  throws NotFoundException, OAuthClientNotVerifiedException {
 		String accessToken = HttpAuthUtil.getBearerTokenFromAuthorizationHeader(authorizationHeader);
-		return serviceProvider.getOpenIDConnectService().getUserInfo(accessToken, EndpointHelper.getEndpoint(uriComponentsBuilder));
+		return serviceProvider.getOpenIDConnectService().getUserInfo(accessToken, EndpointHelper.getEndpoint(uriComponentsBuilder), acceptHeader);
 	}
 
 	/**

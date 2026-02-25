@@ -156,9 +156,10 @@ public interface OpenIDConnectService {
 	 * 
 	 * @param accessToken
 	 * @param oauthEndpoint
+	 * @param acceptHeader
 	 * @return
 	 */
-	public Object getUserInfo(String accessToken, String oauthEndpoint);
+	public Object getUserInfo(String accessToken, String oauthEndpoint, String acceptHeader);
 
 	OAuthClientAuthorizationHistoryList getClientAuthorizationHistory(Long userId, String nextPageToken);
 

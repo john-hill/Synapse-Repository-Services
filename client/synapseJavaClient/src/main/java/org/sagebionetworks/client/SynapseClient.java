@@ -2242,23 +2242,25 @@ public interface SynapseClient extends BaseClient {
 	 * bearer token (which must be included as the authorization header).
 	 * 
 	 * The result is expected to be a JWT token, which is invoked by the 
-	 * client having registered a 'user info signed response algorithm'.
+	 * client having registered a 'user info signed response algorithm' or
+	 * by adding the header 'Accept: application/jwt'
 	 * 
 	 * @return
 	 */
-	Jwt<JwsHeader,Claims> getUserInfoAsJSONWebToken() throws SynapseException;
+	Jwt<JwsHeader,Claims> getUserInfoAsJSONWebToken(boolean includeAcceptHeader) throws SynapseException;
 	
 	/**
 	 * Get the user information for the user specified by the authorization
 	 * bearer token (which must be included as the authorization header).
 	 * 
 	 * The result is expected to be a Map, which is invoked by the 
-	 * client having omitted a 'user info signed response algorithm'.
+	 * client having omitted a 'user info signed response algorithm', 
+	 * or by adding the header 'Accept: application/json'
 	 * 
 	 * @return
 	 */
-	JSONObject getUserInfoAsJSON() throws SynapseException;
-
+	JSONObject getUserInfoAsJSON(boolean includeAcceptHeader) throws SynapseException;
+	
 	/**
 	 * Get a paginated record of the OAuth clients that currently have access to the
 	 * logged-in user's Synapse resources via OAuth 2.0 refresh tokens.

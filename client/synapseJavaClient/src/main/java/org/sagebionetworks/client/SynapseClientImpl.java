@@ -4750,9 +4750,14 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	 * @return
 	 */
 	@Override
-	public Jwt<JwsHeader,Claims> getUserInfoAsJSONWebToken() throws SynapseException {
+	public Jwt<JwsHeader,Claims> getUserInfoAsJSONWebToken(boolean includeAcceptHeader) throws SynapseException {
 		Map<String,String> requestHeaders = new HashMap<String,String>();
 		requestHeaders.put(AuthorizationConstants.AUTHORIZATION_HEADER_NAME, getAuthorizationHeader());
+		if (includeAcceptHeader) {
+			requestHeaders.put(ACCEPT, APPLICATION_JWT_CHARSET_UTF8);
+		} else {
+			requestHeaders.remove(ACCEPT);
+		}
 		SimpleHttpResponse response = dispatchSynapseRequest(
 				getAuthEndpoint(), AUTH_OAUTH_2_USER_INFO, GET, null, requestHeaders, null);
 		if (!ClientUtils.is200sStatusCode(response.getStatusCode())) {
@@ -4776,8 +4781,23 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	 * @return
 	 */
 	@Override
-	public JSONObject getUserInfoAsJSON() throws SynapseException {
-		return getJson(getAuthEndpoint(), AUTH_OAUTH_2_USER_INFO);
+	public JSONObject getUserInfoAsJSON(boolean includeAcceptHeader) throws SynapseException {
+		Map<String,String> requestHeaders = new HashMap<String,String>();
+		requestHeaders.put(AuthorizationConstants.AUTHORIZATION_HEADER_NAME, getAuthorizationHeader());
+		if (includeAcceptHeader) {
+			requestHeaders.put(ACCEPT, APPLICATION_JSON_CHARSET_UTF8);
+		} else {
+			requestHeaders.remove(ACCEPT);
+		}
+		
+		SimpleHttpResponse response = dispatchSynapseRequest(
+				getAuthEndpoint(), AUTH_OAUTH_2_USER_INFO, GET, null, requestHeaders, null);
+		if (!ClientUtils.is200sStatusCode(response.getStatusCode())) {
+			ClientUtils.throwException(response.getStatusCode(), response.getContent());
+		}
+		
+		validateContentType(response, APPLICATION_JSON);
+		return ClientUtils.convertResponseBodyToJSONAndThrowException(response);
 	}
 
 	@Override

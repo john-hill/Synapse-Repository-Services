@@ -158,6 +158,30 @@
 	<bean id="updateDefaultRealm" class="org.springframework.beans.factory.config.MethodInvokingBean" depends-on="userGroupDAO" >
 		<property name="targetObject" ref="realmDAO"/>
 		<property name="targetMethod" value="addPrincipalsToDefaultRealm"/>
+		<property name="arguments">
+			<util:map>
+				<entry key="273950">
+					<bean class="java.lang.Long">
+						<constructor-arg value="1261"/>
+					</bean>
+				</entry>
+				<entry key="273948">
+					<bean class="java.lang.Long">
+						<constructor-arg value="1263"/>
+					</bean>
+				</entry>
+				<entry key="273949">
+					<bean class="java.lang.Long">
+						<constructor-arg value="1262"/>
+					</bean>
+				</entry>
+				<entry key="2">
+					<bean class="java.lang.Long">
+						<constructor-arg value="1264"/>
+					</bean>
+				</entry>
+			</util:map>
+		</property>
 	</bean>
 
 	<bean id="principalPrefixDao"

@@ -73,12 +73,12 @@ public class DBOCertifiedUsers implements MigratableDatabaseObject<DBOCertifiedU
 
     @Override
     public Class<? extends DBOCertifiedUsers> getBackupClass() {
-        return null;
+        return DBOCertifiedUsers.class;
     }
 
     @Override
     public Class<? extends DBOCertifiedUsers> getDatabaseObjectClass() {
-        return null;
+        return DBOCertifiedUsers.class;
     }
 
     @Override

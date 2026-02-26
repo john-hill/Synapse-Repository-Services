@@ -26,7 +26,6 @@ import org.sagebionetworks.repo.model.auth.OAuthIdentityProvider;
 import org.sagebionetworks.repo.model.auth.Realm;
 import org.sagebionetworks.repo.model.auth.RealmPrincipal;
 import org.sagebionetworks.repo.model.auth.SynapseIdentityProvider;
-import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.dbo.persistence.DBORealmPrincipal;
 import org.sagebionetworks.repo.model.oauth.OAuthProvider;
 import org.sagebionetworks.repo.web.NotFoundException;

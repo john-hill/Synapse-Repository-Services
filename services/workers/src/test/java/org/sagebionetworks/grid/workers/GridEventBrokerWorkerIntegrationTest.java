@@ -42,6 +42,7 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.QueryElement;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.manager.table.ColumnModelManager;
 import org.sagebionetworks.repo.manager.team.TeamManager;
@@ -541,7 +542,8 @@ public class GridEventBrokerWorkerIntegrationTest {
 			if (header.isEmpty()) {
 				return Pair.create(false, null);
 			}
-			List<RowView> rows = gridViewManager.querySinglePage(header.get(), 100L, 0L);
+			List<RowView> rows = gridViewManager.querySinglePage(header.get(),
+					new QueryElement().setIncludeValidationMessages(true));
 			if (rows.size() != 1) {
 				return Pair.create(false, null);
 			}

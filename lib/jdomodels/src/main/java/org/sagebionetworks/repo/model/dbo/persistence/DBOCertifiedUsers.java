@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.model.dbo.persistence;
 import org.sagebionetworks.repo.model.dbo.FieldColumn;
 import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
 import org.sagebionetworks.repo.model.dbo.TableMapping;
+import org.sagebionetworks.repo.model.dbo.migration.BasicMigratableTableTranslation;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
 import org.sagebionetworks.repo.model.migration.MigrationType;
 import org.sagebionetworks.repo.model.query.jdo.SqlConstants;
@@ -67,7 +68,7 @@ public class DBOCertifiedUsers implements MigratableDatabaseObject<DBOCertifiedU
 
     @Override
     public MigratableTableTranslation<DBOCertifiedUsers, DBOCertifiedUsers> getTranslator() {
-        return null;
+        return new BasicMigratableTableTranslation<>();
     }
 
     @Override

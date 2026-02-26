@@ -178,28 +178,28 @@ public class RealmDaoImpl implements RealmDao {
 		DBORealmPrincipal dbo = new DBORealmPrincipal();
 		dbo.setRealmId(stringToLong(realmPrincipal.getRealmId()));
 		dbo.setPrincipalId(stringToLong(realmPrincipal.getAnonymousUser()));
-		dbo.setId(principalIdToRealmPrincipalDboId.getOrDefault(dbo.getPrincipalId(),
+		dbo.setId(principalIdToRealmPrincipalDboId.getOrDefault(dbo.getPrincipalId().toString(),
 				idGenerator.generateNewId(IdType.REALM_PRINCIPAL)));
 		dbo.setPrincipalType(REALM_PRINCIPAL_TYPE_ANONYMOUS);
 		result.add(dbo);
 		dbo = new DBORealmPrincipal();
 		dbo.setRealmId(stringToLong(realmPrincipal.getRealmId()));
 		dbo.setPrincipalId(stringToLong(realmPrincipal.getPublicGroup()));
-		dbo.setId(principalIdToRealmPrincipalDboId.getOrDefault(dbo.getPrincipalId(),
+		dbo.setId(principalIdToRealmPrincipalDboId.getOrDefault(dbo.getPrincipalId().toString(),
 				idGenerator.generateNewId(IdType.REALM_PRINCIPAL)));
 		dbo.setPrincipalType(REALM_PRINCIPAL_TYPE_PUBLIC);
 		result.add(dbo);
 		dbo = new DBORealmPrincipal();
 		dbo.setRealmId(stringToLong(realmPrincipal.getRealmId()));
 		dbo.setPrincipalId(stringToLong(realmPrincipal.getAuthenticatedUsers()));
-		dbo.setId(principalIdToRealmPrincipalDboId.getOrDefault(dbo.getPrincipalId(),
+		dbo.setId(principalIdToRealmPrincipalDboId.getOrDefault(dbo.getPrincipalId().toString(),
 				idGenerator.generateNewId(IdType.REALM_PRINCIPAL)));
 		dbo.setPrincipalType(REALM_PRINCIPAL_TYPE_AUTHENTICATED);
 		result.add(dbo);
 		dbo = new DBORealmPrincipal();
 		dbo.setRealmId(stringToLong(realmPrincipal.getRealmId()));
 		dbo.setPrincipalId(stringToLong(realmPrincipal.getAdministrativeGroup()));
-		dbo.setId(principalIdToRealmPrincipalDboId.getOrDefault(dbo.getPrincipalId(),
+		dbo.setId(principalIdToRealmPrincipalDboId.getOrDefault(dbo.getPrincipalId().toString(),
 				idGenerator.generateNewId(IdType.REALM_PRINCIPAL)));
 		dbo.setPrincipalType(REALM_PRINCIPAL_TYPE_ADMINISTRATORS);
 		result.add(dbo);

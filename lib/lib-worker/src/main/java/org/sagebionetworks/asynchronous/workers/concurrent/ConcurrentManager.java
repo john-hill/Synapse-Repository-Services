@@ -91,6 +91,33 @@ public interface ConcurrentManager {
 	 */
 	List<WorkerJob> pollForMessagesAndStartJobs(String queueUrl, int maxNumberOfMessages,
 			int messageVisibilityTimeoutSec, MessageDrivenRunner worker);
+
+	/**
+	 * Poll for messages from an SQS FIFO queue. Unlike
+	 * {@link #pollForMessagesAndStartJobs(String, int, int, MessageDrivenRunner)},
+	 * this method makes multiple individual {@code receiveMessage} calls, each
+	 * requesting a single message. This leverages SQS FIFO's per-message-group
+	 * in-flight blocking to ensure that messages from the same message group are
+	 * never processed concurrently, while still allowing messages from different
+	 * message groups to be processed in parallel.
+	 * <p>
+	 * Each received message is immediately submitted to a worker thread. If any
+	 * individual poll returns no messages, polling stops early.
+	 * 
+	 * @param queueUrl                    The URL of the FIFO queue to poll.
+	 * @param maxNumberOfMessages         The maximum number of individual
+	 *                                    {@code receiveMessage} calls to make. Each
+	 *                                    call requests exactly one message.
+	 * @param messageVisibilityTimeoutSec The number of seconds that received
+	 *                                    messages will remain in-flight before being
+	 *                                    returned to the queue.
+	 * @param worker                      For each message polled this worker will
+	 *                                    receive a call to:
+	 *                                    {@link MessageDrivenRunner#run(ProgressCallback, com.amazonaws.services.sqs.model.Message)}
+	 * @return
+	 */
+	List<WorkerJob> pollForMessagesAndStartFifoJobs(String queueUrl, int maxNumberOfMessages,
+			int messageVisibilityTimeoutSec, MessageDrivenRunner worker);
 	
 	/**
 	 * Allows the client to be shared with the rest of the stack.

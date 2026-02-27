@@ -61,6 +61,7 @@ public class ConcurrentWorkerStack implements Runnable {
 	// derived parameters
 	private final int lockRefreshFrequencyMS;
 	private final String queueUrl;
+	private final boolean isFifo;
 
 	// local state
 	private long nextRefreshTimeMS;
@@ -81,6 +82,7 @@ public class ConcurrentWorkerStack implements Runnable {
 		worker = null;
 		lockRefreshFrequencyMS = -1;
 		queueUrl = null;
+		isFifo = false;
 	};
 
 	private ConcurrentWorkerStack(ConcurrentManager manager, Boolean canRunInReadOnly, String semaphoreLockKey,
@@ -100,11 +102,6 @@ public class ConcurrentWorkerStack implements Runnable {
 				"maxThreadsPerMachine must be greater than or equal to 1.");
 		ValidateArgument.required(worker, "worker");
 		ValidateArgument.required(queueName, "queueName");
-		if (queueName.toLowerCase().endsWith("fifo") && maxThreadsPerMachine != 1) {
-			throw new IllegalArgumentException(
-					"For FIFO queues, maxThreadsPerMachine must be 1 to ensure messages from the same group are processed in order."
-					+ " Otherwise, concurrent threads could break FIFO message-group ordering.");
-		}
 
 		this.manager = manager;
 		this.canRunInReadOnly = Boolean.TRUE.equals(canRunInReadOnly);
@@ -115,6 +112,7 @@ public class ConcurrentWorkerStack implements Runnable {
 		this.worker = worker;
 		this.lockRefreshFrequencyMS = (semaphoreLockAndMessageVisibilityTimeoutSec * 1000) / 3;
 		this.queueUrl = manager.getSqsQueueUrl(queueName);
+		this.isFifo = queueName.toLowerCase().endsWith("fifo");
 	}
 
 	/**
@@ -257,8 +255,13 @@ public class ConcurrentWorkerStack implements Runnable {
 			return false;
 		}
 
-		return runningJobs.addAll(manager.pollForMessagesAndStartJobs(queueUrl, maxNumberOfMessagesToRecieve,
-				semaphoreLockAndMessageVisibilityTimeoutSec, worker));
+		List<WorkerJob> messages;
+		if (isFifo) {
+			messages = manager.pollForMessagesAndStartFifoJobs(queueUrl, maxNumberOfMessagesToRecieve, semaphoreLockAndMessageVisibilityTimeoutSec, worker);
+		} else {
+			messages = manager.pollForMessagesAndStartJobs(queueUrl, maxNumberOfMessagesToRecieve, semaphoreLockAndMessageVisibilityTimeoutSec, worker);
+		}
+		return runningJobs.addAll(messages);
 	}
 	
 	
@@ -295,6 +298,10 @@ public class ConcurrentWorkerStack implements Runnable {
 	
 	long getLockRefreshFrequencyMS() {
 		return lockRefreshFrequencyMS;
+	}
+	
+	boolean isFifo() {
+		return isFifo;
 	}
 
 	/**

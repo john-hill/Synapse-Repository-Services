@@ -1,5 +1,6 @@
 package org.sagebionetworks.asynchronous.workers.concurrent;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
@@ -133,6 +134,43 @@ public class ConcurrentManagerImpl implements ConcurrentManager {
 		return messages.stream().map((message) -> {
 			return startWorkerJob(queueUrl, messageVisibilityTimeoutSec, worker, message);
 		}).collect(Collectors.toList());
+	}
+
+	@Override
+	public List<WorkerJob> pollForMessagesAndStartFifoJobs(String queueUrl, int maxNumberOfMessages,
+			int messageVisibilityTimeoutSec, MessageDrivenRunner worker) {
+		ValidateArgument.required(queueUrl, "queueUrl");
+		ValidateArgument.required(worker, "worker");
+		ValidateArgument.requirement(maxNumberOfMessages >= 1,
+				"maxNumberOfMessages must be greater than or equals to 1.");
+		ValidateArgument.requirement(maxNumberOfMessages <= 10,
+				"maxNumberOfMessages must be less than or equals to 10.");
+		ValidateArgument.requirement(messageVisibilityTimeoutSec >= 10,
+				"messageVisibilityTimeoutSec must be greater than or equals to 10.");
+
+		List<WorkerJob> jobs = new ArrayList<>(maxNumberOfMessages);
+
+		// Requesting `n` messages a FIFO queue may return messages with the same MessageGroupId
+		// Instead, receive 1 message `n` times, which ensures in-order processing
+		for (int i = 0; i < maxNumberOfMessages; i++) {
+			ReceiveMessageRequest request = new ReceiveMessageRequest()
+				.withQueueUrl(queueUrl)
+				.withWaitTimeSeconds(0)
+				.withMaxNumberOfMessages(1)
+				.withVisibilityTimeout(messageVisibilityTimeoutSec);
+
+			if (worker.getMessageAttributeNames() != null && !worker.getMessageAttributeNames().isEmpty()) {
+				request.withMessageAttributeNames(worker.getMessageAttributeNames());
+			}
+
+			List<Message> messages = amazonSQSClient.receiveMessage(request).getMessages();
+			if (messages.isEmpty()) {
+				break;
+			}
+			jobs.add(startWorkerJob(queueUrl, messageVisibilityTimeoutSec, worker, messages.get(0)));
+		}
+
+		return jobs;
 	}
 
 	/**

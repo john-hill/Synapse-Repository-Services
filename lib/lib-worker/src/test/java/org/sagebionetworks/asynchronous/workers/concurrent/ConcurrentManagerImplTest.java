@@ -387,6 +387,160 @@ public class ConcurrentManagerImplTest {
 	}
 
 	@Test
+	public void testPollForMessagesAndStartFifoJobsWithNoMessages() {
+		when(mockAmazonSQSClient.receiveMessage(any(ReceiveMessageRequest.class)))
+				.thenReturn(new ReceiveMessageResult().withMessages(Collections.emptyList()));
+
+		// call under test
+		List<WorkerJob> jobs = manager.pollForMessagesAndStartFifoJobs(queueUrl, maxThreadCount, lockTimeoutSec,
+				mockWorker);
+		assertEquals(Collections.emptyList(), jobs);
+
+		// Should make a single call with maxNumberOfMessages=1, then stop (empty result)
+		verify(mockAmazonSQSClient).receiveMessage(new ReceiveMessageRequest().withQueueUrl(queueUrl)
+				.withWaitTimeSeconds(0).withMaxNumberOfMessages(1).withVisibilityTimeout(lockTimeoutSec));
+
+		verify(manager, never()).startWorkerJob(any(), anyInt(), any(), any());
+	}
+
+	@Test
+	public void testPollForMessagesAndStartFifoJobsWithMessageAttributes() {
+		when(mockAmazonSQSClient.receiveMessage(any(ReceiveMessageRequest.class)))
+				.thenReturn(new ReceiveMessageResult().withMessages(Collections.emptyList()));
+
+		when(mockWorker.getMessageAttributeNames()).thenReturn(List.of("All"));
+
+		// call under test
+		List<WorkerJob> jobs = manager.pollForMessagesAndStartFifoJobs(queueUrl, maxThreadCount, lockTimeoutSec,
+				mockWorker);
+		assertEquals(Collections.emptyList(), jobs);
+
+		verify(mockAmazonSQSClient).receiveMessage(new ReceiveMessageRequest()
+			.withQueueUrl(queueUrl)
+			.withWaitTimeSeconds(0)
+			.withMaxNumberOfMessages(1)
+			.withVisibilityTimeout(lockTimeoutSec)
+			.withMessageAttributeNames("All")
+		);
+
+		verify(manager, never()).startWorkerJob(any(), anyInt(), any(), any());
+	}
+
+	@Test
+	public void testPollForMessagesAndStartFifoJobsWithPartialMessages() {
+
+		Message messageOne = new Message().withReceiptHandle("one");
+		Message messageTwo = new Message().withReceiptHandle("two");
+
+		when(mockAmazonSQSClient.receiveMessage(any(ReceiveMessageRequest.class)))
+				.thenReturn(new ReceiveMessageResult().withMessages(messageOne))
+				.thenReturn(new ReceiveMessageResult().withMessages(messageTwo))
+				.thenReturn(new ReceiveMessageResult().withMessages(Collections.emptyList()));
+
+		maxThreadCount = 3;
+
+		// call under test
+		List<WorkerJob> jobs = manager.pollForMessagesAndStartFifoJobs(queueUrl, maxThreadCount, lockTimeoutSec,
+				mockWorker);
+
+		assertNotNull(jobs);
+		assertEquals(2, jobs.size());
+
+		ReceiveMessageRequest expectedRequest = new ReceiveMessageRequest().withQueueUrl(queueUrl)
+				.withWaitTimeSeconds(0).withMaxNumberOfMessages(1).withVisibilityTimeout(lockTimeoutSec);
+
+		// Should have made 3 individual calls: 2 returned messages, 3rd was empty so stopped
+		verify(mockAmazonSQSClient, times(3)).receiveMessage(expectedRequest);
+
+		verify(manager, times(2)).startWorkerJob(any(), anyInt(), any(), any());
+		verify(manager).startWorkerJob(queueUrl, lockTimeoutSec, mockWorker, messageOne);
+		verify(manager).startWorkerJob(queueUrl, lockTimeoutSec, mockWorker, messageTwo);
+	}
+
+	@Test
+	public void testPollForMessagesAndStartFifoJobsWithMaxMessages() {
+
+		Message messageOne = new Message().withReceiptHandle("one");
+		Message messageTwo = new Message().withReceiptHandle("two");
+		Message messageThree = new Message().withReceiptHandle("three");
+
+		when(mockAmazonSQSClient.receiveMessage(any(ReceiveMessageRequest.class)))
+				.thenReturn(new ReceiveMessageResult().withMessages(messageOne))
+				.thenReturn(new ReceiveMessageResult().withMessages(messageTwo))
+				.thenReturn(new ReceiveMessageResult().withMessages(messageThree));
+
+		maxThreadCount = 3;
+
+		// call under test
+		List<WorkerJob> jobs = manager.pollForMessagesAndStartFifoJobs(queueUrl, maxThreadCount, lockTimeoutSec,
+				mockWorker);
+
+		assertNotNull(jobs);
+		assertEquals(3, jobs.size());
+
+		ReceiveMessageRequest expectedRequest = new ReceiveMessageRequest().withQueueUrl(queueUrl)
+				.withWaitTimeSeconds(0).withMaxNumberOfMessages(1).withVisibilityTimeout(lockTimeoutSec);
+
+		// Should have made exactly 3 calls (all returned messages, hit the limit)
+		verify(mockAmazonSQSClient, times(3)).receiveMessage(expectedRequest);
+
+		verify(manager, times(3)).startWorkerJob(any(), anyInt(), any(), any());
+		verify(manager).startWorkerJob(queueUrl, lockTimeoutSec, mockWorker, messageOne);
+		verify(manager).startWorkerJob(queueUrl, lockTimeoutSec, mockWorker, messageTwo);
+		verify(manager).startWorkerJob(queueUrl, lockTimeoutSec, mockWorker, messageThree);
+	}
+
+	@Test
+	public void testPollForMessagesAndStartFifoJobsWithNullUrl() {
+		queueUrl = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			manager.pollForMessagesAndStartFifoJobs(queueUrl, maxThreadCount, lockTimeoutSec, mockWorker);
+		}).getMessage();
+		assertEquals("queueUrl is required.", message);
+	}
+
+	@Test
+	public void testPollForMessagesAndStartFifoJobsWithNullWorker() {
+		mockWorker = null;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			manager.pollForMessagesAndStartFifoJobs(queueUrl, maxThreadCount, lockTimeoutSec, mockWorker);
+		}).getMessage();
+		assertEquals("worker is required.", message);
+	}
+
+	@Test
+	public void testPollForMessagesAndStartFifoJobsWithCountLessThanOne() {
+		maxThreadCount = 0;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			manager.pollForMessagesAndStartFifoJobs(queueUrl, maxThreadCount, lockTimeoutSec, mockWorker);
+		}).getMessage();
+		assertEquals("maxNumberOfMessages must be greater than or equals to 1.", message);
+	}
+
+	@Test
+	public void testPollForMessagesAndStartFifoJobsWithCountMoreThanTen() {
+		maxThreadCount = 11;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			manager.pollForMessagesAndStartFifoJobs(queueUrl, maxThreadCount, lockTimeoutSec, mockWorker);
+		}).getMessage();
+		assertEquals("maxNumberOfMessages must be less than or equals to 10.", message);
+	}
+
+	@Test
+	public void testPollForMessagesAndStartFifoJobsWithVisibilityLessThan10() {
+		lockTimeoutSec = 9;
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			manager.pollForMessagesAndStartFifoJobs(queueUrl, maxThreadCount, lockTimeoutSec, mockWorker);
+		}).getMessage();
+		assertEquals("messageVisibilityTimeoutSec must be greater than or equals to 10.", message);
+	}
+
+	@Test
 	public void testPollForMessagesAndStartJobsWithNullUrl() {
 		queueUrl = null;
 		String message = assertThrows(IllegalArgumentException.class, () -> {

@@ -106,15 +106,22 @@ public class ConcurrentWorkerStackTest {
 	}
 	
 	@Test
-	public void testBuildWithFifoQueueMaxThreadsNotOne() {
+	public void testBuildWithFifoQueue() {
 		queueName = "some.FiFo";
 		maxThreadsPerMachine = 3;
-		String message = assertThrows(IllegalArgumentException.class, () -> {
-			// call under test
-			createStack();
-		}).getMessage();
-		assertEquals("For FIFO queues, maxThreadsPerMachine must be 1 to ensure messages from the same group are processed in order."
-				+ " Otherwise, concurrent threads could break FIFO message-group ordering.", message);
+		when(mockManager.getSqsQueueUrl(any())).thenReturn(queueUrl);
+		// call under test
+		ConcurrentWorkerStack stack = createStack();
+		assertTrue(stack.isFifo());
+	}
+
+	@Test
+	public void testBuildWithNonFifoQueue() {
+		queueName = "some-queue";
+		when(mockManager.getSqsQueueUrl(any())).thenReturn(queueUrl);
+		// call under test
+		ConcurrentWorkerStack stack = createStack();
+		assertFalse(stack.isFifo());
 	}
 
 	@Test
@@ -622,9 +629,39 @@ public class ConcurrentWorkerStackTest {
 		int maxNumberOfMessages = maxThreadsPerMachine;
 		verify(mockManager).pollForMessagesAndStartJobs(queueUrl, maxNumberOfMessages,
 				semaphoreLockAndMessageVisibilityTimeoutSec, mockWorker);
-
+		verify(mockManager, never()).pollForMessagesAndStartFifoJobs(any(), anyInt(), anyInt(), any());
 	}
 	
+	@Test
+	public void testAttemptToAddMoreWorkersWithFifoQueue() {
+		queueName = "some-queue.fifo";
+		maxThreadsPerMachine = 8;
+		when(mockManager.getSqsQueueUrl(any())).thenReturn(queueUrl);
+		ConcurrentWorkerStack stack = Mockito.spy(createStack());
+		stack.resetAllState();
+
+		doReturn(true).when(stack).canProcessMoreMessages();
+
+		List<WorkerJob> jobs = List.of(new WorkerJob(futureOne, mockProgressListenerOne),
+				new WorkerJob(futureTwo, mockProgressListenerTwo),
+				new WorkerJob(futureThree, mockProgressListenerThree));
+
+		when(mockManager.pollForMessagesAndStartFifoJobs(any(), anyInt(), anyInt(), any())).thenReturn(jobs);
+
+		// call under test
+		boolean result = stack.attemptToAddMoreWorkers();
+
+		assertTrue(result);
+
+		verify(mockManager).getSqsQueueUrl(queueName);
+		assertEquals(jobs, stack.getRunningJobs());
+		verify(stack).canProcessMoreMessages();
+		int maxNumberOfMessages = maxThreadsPerMachine;
+		verify(mockManager).pollForMessagesAndStartFifoJobs(queueUrl, maxNumberOfMessages,
+				semaphoreLockAndMessageVisibilityTimeoutSec, mockWorker);
+		verify(mockManager, never()).pollForMessagesAndStartJobs(any(), anyInt(), anyInt(), any());
+	}
+
 	@Test
 	public void testAttemptToAddMoreWorkersWithNoAddedWorkers() {
 		maxThreadsPerMachine = 8;

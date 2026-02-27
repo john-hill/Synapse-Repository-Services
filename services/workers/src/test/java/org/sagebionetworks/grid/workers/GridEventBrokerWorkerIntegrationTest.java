@@ -308,8 +308,8 @@ public class GridEventBrokerWorkerIntegrationTest {
 		assertTrue(waitForMessage((a) -> {
 			if (a.optInt(0) == 4 && a.optInt(1) == 99) {
 				JSONObject body = a.getJSONObject(2);
-				assertEquals("patch", body.getString("type"), "Expected patch type for empty grid");
-				Patch p = PatchCompactSerializable.deserialize(body.getJSONArray("body"));
+				assertEquals("patches", body.getString("type"), "Expected patches type for empty grid");
+				Patch p = PatchCompactSerializable.deserialize(body.getJSONArray("body").getJSONArray(0));
 				clock.add(LogicalTimestamp.newIncrement(p.getPatchId(), p.getSpan()));
 				return true;
 			} else {

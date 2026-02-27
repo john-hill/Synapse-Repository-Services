@@ -352,8 +352,8 @@ public class GridManagerImpl implements GridManager {
 		return gridDao.listConnections(thisCon.getSessionId());
 	}
 
-	static final long BATCH_BUDGET_BYTES = PatchUtils.MAX_BYTES_PER_PATCH - 1_000L;
-	static final int BATCH_CANDIDATE_LIMIT = 100;
+	static final long PATCH_BATCH_BUDGET_BYTES = PatchUtils.MAX_BYTES_PER_PATCH - 1_000L; // WebSocket message limit, minus ~1KB for overhead
+	static final long PATCH_BATCH_CANDIDATE_LIMIT = PATCH_BATCH_BUDGET_BYTES / 10; // Assume minimum patch size of ~10B
 
 	@Override
 	public Optional<String> getNextSynchronizeResponse(EventContext context, List<LogicalTimestamp> clock) {
@@ -377,16 +377,20 @@ public class GridManagerImpl implements GridManager {
 		String sessionId = thisCon.getSessionId();
 		List<LogicalTimestamp> effectiveClock = clock != null ? clock : List.of();
 
-		List<PatchInfo> missingPatches = gridDao.listMissingPatchInfoForClock(sessionId, effectiveClock, BATCH_CANDIDATE_LIMIT);
+		List<PatchInfo> missingPatches = gridDao.listMissingPatchInfoForClock(sessionId, effectiveClock, PATCH_BATCH_CANDIDATE_LIMIT);
 		if (missingPatches.isEmpty()) {
 			return Optional.empty();
 		}
-		return createMaxSizedPatchMessage(sessionId, missingPatches);
+		JSONArray patches = createMaxSizedPatchArray(sessionId, missingPatches);
+		JSONObject response = new JSONObject();
+		response.put("type", "patches");
+		response.put("body", patches);
+		return Optional.of(response.toString());
 	}
 
-	Optional<String> createMaxSizedPatchMessage(String sessionId, List<PatchInfo> candidatePatches) {
+	JSONArray createMaxSizedPatchArray(String sessionId, List<PatchInfo> candidatePatches) {
 		long cumulativeSize = 0;
-		List<String> patchBodies = new ArrayList<>();
+		JSONArray arrayOfPatches = new JSONArray();
 
 		for (PatchInfo candidate : candidatePatches) {
 			// Temporary code - there are patches in the database that were created before size was tracked.
@@ -394,15 +398,18 @@ public class GridManagerImpl implements GridManager {
 			// This can happen once all patches without a size expire, or if we backfill the size for all existing patches.
 			if (candidate.getSizeBytes() == null) {
 				// Null size means pre-existing record — fallback to single-patch behavior
-				if (patchBodies.isEmpty()) {
+				if (arrayOfPatches.length() == 0) {
 					Optional<String> body = getPatchBody(sessionId, candidate);
-					return body.map(patchBody -> "{\"type\":\"patch\",\"body\":" + patchBody + "}");
+					if (body.isPresent()) {
+						arrayOfPatches.put(body.get());
+					}
+					return arrayOfPatches;
 				}
 				// Stop accumulating; send what we have
 				break;
 			}
 
-			if (!patchBodies.isEmpty() && cumulativeSize + candidate.getSizeBytes() > BATCH_BUDGET_BYTES) {
+			if (!(arrayOfPatches.length() == 0) && cumulativeSize + candidate.getSizeBytes() > PATCH_BATCH_BUDGET_BYTES) {
 				break;
 			}
 
@@ -410,28 +417,11 @@ public class GridManagerImpl implements GridManager {
 			if (body.isEmpty()) {
 				break;
 			}
-			patchBodies.add(body.get());
+			arrayOfPatches.put(new JSONArray(body.get()));
 			cumulativeSize += candidate.getSizeBytes();
 		}
 
-		if (patchBodies.isEmpty()) {
-			return Optional.empty();
-		}
-
-		if (patchBodies.size() == 1) {
-			return Optional.of("{\"type\":\"patch\",\"body\":" + patchBodies.get(0) + "}");
-		}
-
-		// Multiple patches: return as array of arrays
-		JSONArray batchArray = new JSONArray();
-		for (String patchBody : patchBodies) {
-			batchArray.put(new JSONArray(patchBody));
-		}
-
-		JSONObject response = new JSONObject();
-		response.put("type", "patches");
-		response.put("body", batchArray);
-		return Optional.of(response.toString());
+		return arrayOfPatches;
 	}
 
 	GridConnectionInfo getConnectionInfo(String connectionId) {

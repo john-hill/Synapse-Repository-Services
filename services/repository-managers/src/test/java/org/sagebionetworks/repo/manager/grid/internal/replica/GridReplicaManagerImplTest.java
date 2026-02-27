@@ -160,8 +160,10 @@ public class GridReplicaManagerImplTest {
 		Map<IndexType, Set<LogicalTimestamp>> changes2 = Map.of(IndexType.arr, Set.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(77L)));
 		when(mockGridIndexManager.applyPatch(sessionId, replicaId, patch1)).thenReturn(changes);
 		when(mockGridIndexManager.applyPatch(sessionId, replicaId, patch2)).thenReturn(changes2);
-		doNothing().when(manager).sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, patch1.getPatchId(), changes));
-		doNothing().when(manager).sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, patch2.getPatchId(), changes2));
+		Map<IndexType, Set<LogicalTimestamp>> expectedCumulativeChanges = Map.of(IndexType.arr, Set.of(
+				new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(55L),
+				new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(77L)));
+		doNothing().when(manager).sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, patch2.getPatchId(), expectedCumulativeChanges));
 
 		// Mock the gridIndexManager calls
 		when(mockGridIndexManager.getClock(sessionId, replicaId)).thenReturn(clock);
@@ -174,9 +176,8 @@ public class GridReplicaManagerImplTest {
 		InOrder inOrder = inOrder(mockGridIndexManager, manager);
 		inOrder.verify(mockGridIndexManager).refreshMessageChain(sessionId, replicaId, methodId);
 		inOrder.verify(mockGridIndexManager).applyPatch(sessionId, replicaId, patch1);
-		inOrder.verify(manager).sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, patch1.getPatchId(), changes));
 		inOrder.verify(mockGridIndexManager).applyPatch(sessionId, replicaId, patch2);
-		inOrder.verify(manager).sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, patch2.getPatchId(), changes2));
+		inOrder.verify(manager).sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, patch2.getPatchId(), expectedCumulativeChanges));
 		inOrder.verify(mockGridIndexManager).getClock(sessionId, replicaId);
 		inOrder.verify(manager).sendClockMessage(methodId, connectionId, clock);
 	}

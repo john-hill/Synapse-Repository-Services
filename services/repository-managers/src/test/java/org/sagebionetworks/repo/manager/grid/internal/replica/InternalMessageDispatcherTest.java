@@ -110,8 +110,10 @@ public class InternalMessageDispatcherTest {
 		array.put(JsonRxMessageType.ResponseData.getCode());
 		array.put(chainId);
 		JSONObject body = new JSONObject();
-		body.put("type", "patch");
-		body.put("body", PatchCompactSerializable.serialize(patch));
+		body.put("type", "patches");
+		JSONArray patches = new JSONArray();
+		patches.put(PatchCompactSerializable.serialize(patch));
+		body.put("body", patches);
 		array.put(body);
 		message = new JsonRxMessage(array);
 		bundle = new JsonRxMessageBundle(message, connection, mockCallback);

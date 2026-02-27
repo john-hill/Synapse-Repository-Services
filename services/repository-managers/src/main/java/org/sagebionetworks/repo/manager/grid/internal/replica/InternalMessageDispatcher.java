@@ -98,12 +98,6 @@ public class InternalMessageDispatcher {
 				gridReplicaManager.onApplySnapshot(bundle.getProgressCallback(), bundle.getConnection(),
 						bundle.getMessage().getId().get(), url);
 				return true;
-			} case "patch": {
-				JSONArray patchAsJson = messageBody.getJSONArray("body");
-				List<Patch> patchList = List.of(PatchCompactSerializable.deserialize(patchAsJson));
-				gridReplicaManager.onApplyPatches(bundle.getProgressCallback(), bundle.getConnection(),
-						bundle.getMessage().getId().get(), patchList);
-				return true;
 			} case "patches": {
 				JSONArray patchesAsJson = messageBody.getJSONArray("body");
 				List<Patch> patchList = new ArrayList<>(patchesAsJson.length());

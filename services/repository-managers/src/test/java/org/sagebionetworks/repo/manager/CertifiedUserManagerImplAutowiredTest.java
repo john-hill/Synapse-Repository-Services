@@ -25,7 +25,7 @@ public class CertifiedUserManagerImplAutowiredTest {
 	@Test
 	public void testCertifiedUserGroupExistence() {
 		Long arbitraryPrincipalId = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
-		certifiedUsersDAO.addCertifiedUser(arbitraryPrincipalId);
+		certifiedUsersDAO.addCertifiedUser(arbitraryPrincipalId, true);
 		certifiedUsersDAO.removeCertifiedUser(arbitraryPrincipalId);
 	}
 

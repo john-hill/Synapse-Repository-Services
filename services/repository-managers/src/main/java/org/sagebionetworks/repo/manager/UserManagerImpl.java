@@ -254,7 +254,7 @@ public class UserManagerImpl implements UserManager {
 		ui.setRealmAuthenticatedUsersId(Long.valueOf(realmPrincipals.getAuthenticatedUsers()));
 		ui.setRealmPublicUsersId(Long.valueOf(realmPrincipals.getPublicGroup()));
 		ui.setTwoFactorAuthEnabled(authDAO.isTwoFactorAuthEnabled(principalId));
-		ui.setCertified(certifiedUsersDAO.isCertifiedUser(principalId.toString())); // do admin not need to be certified
+		ui.setCertified(certifiedUsersDAO.isCertifiedUser(principalId.toString()));
 		ui.setContext(new CallersContext().setSessionId(SessionIdThreadLocal.getThreadsSessionId().orElse("missing")));
 		return ui;
 	}

@@ -1,11 +1,7 @@
 package org.sagebionetworks.repo.model.dbo.dao;
 
 import org.sagebionetworks.repo.model.CertifiedUsersDAO;
-import org.sagebionetworks.repo.model.DatastoreException;
-import org.sagebionetworks.repo.model.UserGroup;
-import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.query.jdo.SqlConstants;
-import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -22,15 +18,13 @@ public class CertifiedUsersDAOImpl implements CertifiedUsersDAO {
     private static final String USER_IDS = "UserIds";
 
 
-    private UserGroupDAO userGroupDAO;
     private JdbcTemplate jdbcTemplate;
     private NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
 
     @Autowired
-    public CertifiedUsersDAOImpl(UserGroupDAO userGroupDAO, JdbcTemplate jdbcTemplate,
+    public CertifiedUsersDAOImpl(JdbcTemplate jdbcTemplate,
                                  NamedParameterJdbcTemplate namedParameterJdbcTemplate) {
-        this.userGroupDAO = userGroupDAO;
         this.jdbcTemplate = jdbcTemplate;
         this.namedParameterJdbcTemplate = namedParameterJdbcTemplate;
     }
@@ -48,21 +42,20 @@ public class CertifiedUsersDAOImpl implements CertifiedUsersDAO {
                     " WHERE " + SqlConstants.COL_CERTIFIED_USERS_USER_ID + " IN (:" + USER_IDS + ")";
 
     @Override
-    public void addCertifiedUser(Long userId) throws DatastoreException, NotFoundException {
-        UserGroup user = userGroupDAO.get(userId);
-        if (!user.getIsIndividual()) {
+    public void addCertifiedUser(Long userId, boolean isIndividual) throws IllegalArgumentException {
+        if (!isIndividual) {
             throw new IllegalArgumentException("Only individuals can be added as certified users.");
         }
         jdbcTemplate.update(ADD_CERTIFIED_USERS, userId);
     }
 
     @Override
-    public void removeCertifiedUser(Long userId) throws DatastoreException, NotFoundException {
+    public void removeCertifiedUser(Long userId) {
             jdbcTemplate.update(DELETE_CERTIFIED_USERS, userId);
     }
 
     @Override
-    public boolean areCertifiedUsers(Set<String> userIds) throws DatastoreException, NotFoundException {
+    public boolean areAllCertifiedUsers(Set<String> userIds) {
         if (userIds == null || userIds.isEmpty()) {
             return false;
         }
@@ -79,10 +72,10 @@ public class CertifiedUsersDAOImpl implements CertifiedUsersDAO {
     }
 
     @Override
-    public boolean isCertifiedUser(String userId) throws DatastoreException, NotFoundException {
+    public boolean isCertifiedUser(String userId) {
         if (userId == null) {
             return false;
         }
-        return areCertifiedUsers(Set.of(userId));
+        return areAllCertifiedUsers(Set.of(userId));
     }
 }

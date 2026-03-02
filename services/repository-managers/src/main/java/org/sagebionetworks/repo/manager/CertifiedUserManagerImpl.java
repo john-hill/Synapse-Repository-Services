@@ -22,6 +22,8 @@ import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.QuizResponseDAO;
 import org.sagebionetworks.repo.model.UnauthorizedException;
+import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.message.ChangeType;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
@@ -61,6 +63,8 @@ public class CertifiedUserManagerImpl implements CertifiedUserManager {
 
 	private CertifiedUsersDAO certifiedUsersDao;
 
+	private UserGroupDAO userGroupDao;
+
 	private QuizResponseDAO quizResponseDao;
 
 	private TransactionalMessenger transactionalMessenger;
@@ -77,11 +81,13 @@ public class CertifiedUserManagerImpl implements CertifiedUserManager {
 	public CertifiedUserManagerImpl(
 			 AmazonS3Utility s3Utility,
 			 CertifiedUsersDAO certifiedUsersDAO,
+			 UserGroupDAO UserGroupDAO,
 			 QuizResponseDAO quizResponseDao,
 			 TransactionalMessenger transactionalMessenger
 			) {
 		this.s3Utility=s3Utility;
 		this.certifiedUsersDao=certifiedUsersDAO;
+		this.userGroupDao=UserGroupDAO;
 		this.quizResponseDao=quizResponseDao;
 		this.transactionalMessenger=transactionalMessenger;
 	}
@@ -372,7 +378,8 @@ public class CertifiedUserManagerImpl implements CertifiedUserManager {
 		passingRecord.setResponseId(created.getId());
 		// if pass, add to Certified group
 		if (passingRecord.getPassed()) {
-			certifiedUsersDao.addCertifiedUser(userInfo.getId());
+			UserGroup userGroup = userGroupDao.get(userInfo.getId());
+			certifiedUsersDao.addCertifiedUser(userInfo.getId(), userGroup.getIsIndividual());
 		}
 		transactionalMessenger.sendMessageAfterCommit(userInfo.getId().toString(), ObjectType.CERTIFIED_USER_PASSING_RECORD, ChangeType.CREATE);
 		return passingRecord;
@@ -382,7 +389,8 @@ public class CertifiedUserManagerImpl implements CertifiedUserManager {
 	public void setUserCertificationStatus(UserInfo userInfo, Long principalId, boolean isCertified) throws DatastoreException, NotFoundException {
 		if (!userInfo.isAdmin()) throw new UnauthorizedException("You are not a Synapse Administrator.");
 		if (isCertified) {
-			certifiedUsersDao.addCertifiedUser(principalId);
+			UserGroup userGroup = userGroupDao.get(userInfo.getId());
+			certifiedUsersDao.addCertifiedUser(principalId, userGroup.getIsIndividual());
 		} else {
 			certifiedUsersDao.removeCertifiedUser(principalId);
 		}
@@ -425,7 +433,6 @@ public class CertifiedUserManagerImpl implements CertifiedUserManager {
 		QuizGenerator quizGenerator = retrieveCertificationQuizGenerator();
 		
 		long quizId = quizGenerator.getId();
-		// user is already in the realm,
 		return quizResponseDao.getLatestPassingRecord(quizId, principalId)
 			.orElseThrow(() -> new NotFoundException("No quiz results for quiz " + quizId + " and user " + principalId));
 	}

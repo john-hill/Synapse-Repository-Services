@@ -874,7 +874,7 @@ public class AccessApprovalManagerImplUnitTest {
 		HasAccessorRequirement req = new SelfSignAccessRequirement();
 		req.setIsCertifiedUserRequired(true);
 		req.setIsValidatedProfileRequired(false);
-		when(mockCertifiedUsersDao.areCertifiedUsers(accessors)).thenReturn(false);
+		when(mockCertifiedUsersDao.areAllCertifiedUsers(accessors)).thenReturn(false);
 		assertThrows(UserCertificationRequiredException.class, ()-> {
 			// call under test
 			manager.validateHasAccessorRequirement(req, accessors);
@@ -900,7 +900,7 @@ public class AccessApprovalManagerImplUnitTest {
 		HasAccessorRequirement req = new SelfSignAccessRequirement();
 		req.setIsCertifiedUserRequired(true);
 		req.setIsValidatedProfileRequired(true);
-		when(mockCertifiedUsersDao.areCertifiedUsers(accessors)).thenReturn(true);
+		when(mockCertifiedUsersDao.areAllCertifiedUsers(accessors)).thenReturn(true);
 		when(mockVerificationDao.haveValidatedProfiles(accessors)).thenReturn(true);
 		// call under test
 		manager.validateHasAccessorRequirement(req, accessors);

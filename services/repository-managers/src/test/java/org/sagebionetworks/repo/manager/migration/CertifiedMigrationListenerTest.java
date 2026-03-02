@@ -33,7 +33,7 @@ public class CertifiedMigrationListenerTest {
     @Autowired
     private CertifiedUsersDAO certifiedUsersDAO;
     @Autowired
-    private certifiedUserMigrationListener certifiedUserMigrationListener;
+    private CertifiedUserMigrationListener certifiedUserMigrationListener;
 
     private UserInfo userOne;
     private UserInfo userTwo;

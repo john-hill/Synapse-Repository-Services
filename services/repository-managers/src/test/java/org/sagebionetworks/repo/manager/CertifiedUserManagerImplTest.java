@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -40,6 +41,8 @@ import org.sagebionetworks.repo.model.CertifiedUsersDAO;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.QuizResponseDAO;
 import org.sagebionetworks.repo.model.UnauthorizedException;
+import org.sagebionetworks.repo.model.UserGroup;
+import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.message.ChangeType;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
@@ -71,6 +74,8 @@ public class CertifiedUserManagerImplTest {
 	private AmazonS3Utility s3Utility;
 	@Mock
 	private CertifiedUsersDAO certifiedUsersDAO;
+	@Mock
+	private UserGroupDAO userGroupDao;
 	@Mock
 	private QuizResponseDAO quizResponseDao;
 	@Mock
@@ -634,6 +639,7 @@ public class CertifiedUserManagerImplTest {
 		created.setCreatedBy(userInfo.getId().toString());
 		created.setCreatedOn(new Date());
 		created.setId(10101L);
+		when(userGroupDao.get(anyLong())).thenReturn(new UserGroup().setId("666").setIsIndividual(true));
 		ArgumentCaptor<PassingRecord> captor = ArgumentCaptor.forClass(PassingRecord.class);
 		when(quizResponseDao.create(eq(quizResponse), captor.capture())).thenReturn(created);
 		when(quizResponseDao.getLatestPassingRecord(quizGenerator.getId(), 666L)).thenReturn(Optional.empty());
@@ -646,7 +652,7 @@ public class CertifiedUserManagerImplTest {
 		assertEquals(2L, passingRecord.getScore().longValue());
 		assertNotNull(quizResponse.getCreatedOn());
 		verify(quizResponseDao).create(eq(quizResponse), captor.capture());
-		verify(certifiedUsersDAO).addCertifiedUser(anyLong());
+		verify(certifiedUsersDAO).addCertifiedUser(666L, true);
 		assertEquals(passingRecord.getPassed(), pr.getPassed());
 		assertTrue(passingRecord.getCertified());
 		assertFalse(passingRecord.getRevoked());
@@ -684,7 +690,7 @@ public class CertifiedUserManagerImplTest {
 		assertEquals(quizGenerator.getId(), quizResponse.getQuizId());
 		assertEquals(1L, passingRecord.getScore().longValue());
 		assertNotNull(quizResponse.getCreatedOn());
-		verify(certifiedUsersDAO, never()).addCertifiedUser(anyLong());
+		verify(certifiedUsersDAO, never()).addCertifiedUser(anyLong(), anyBoolean());
 		assertEquals(passingRecord.getPassed(), pr.getPassed());
 		assertFalse(passingRecord.getCertified());
 		assertFalse(passingRecord.getRevoked());
@@ -737,7 +743,8 @@ public class CertifiedUserManagerImplTest {
 		created.setId(10101L);
 		ArgumentCaptor<PassingRecord> captor = ArgumentCaptor.forClass(PassingRecord.class);
 		when(quizResponseDao.create(eq(quizResponse), captor.capture())).thenReturn(created);
-		
+		when(userGroupDao.get(anyLong())).thenReturn(new UserGroup().setId("666").setIsIndividual(true));
+
 		PassingRecord previousPR = new PassingRecord();
 		previousPR.setPassed(true);
 		previousPR.setRevoked(true);
@@ -747,7 +754,7 @@ public class CertifiedUserManagerImplTest {
 		certifiedUserManager.submitCertificationQuizResponse(userInfo, quizResponse);		
 		
 		verify(quizResponseDao).create(eq(quizResponse), captor.capture());
-		verify(certifiedUsersDAO).addCertifiedUser(anyLong());
+		verify(certifiedUsersDAO).addCertifiedUser(666L, true);
 		verify(mockTransactionalMessenger).sendMessageAfterCommit(userInfo.getId().toString(), ObjectType.CERTIFIED_USER_PASSING_RECORD, ChangeType.CREATE);
 	}
 	

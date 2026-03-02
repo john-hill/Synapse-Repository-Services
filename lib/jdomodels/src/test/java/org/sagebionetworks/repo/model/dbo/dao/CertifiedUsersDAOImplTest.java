@@ -16,8 +16,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
@@ -26,14 +29,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class CertifiedUsersDAOImplTest {
 
     @Autowired
-    private UserGroupDAO userGroupDAO;
-
-    @Autowired
     CertifiedUsersDAO certifiedUsersDAO;
-
+    @Autowired
+    private UserGroupDAO userGroupDAO;
     private List<String> groupsToDelete;
 
     private Long longUserId;
+
+    private Long userIdTwo;
 
 
     @BeforeEach
@@ -46,6 +49,8 @@ public class CertifiedUsersDAOImplTest {
         group.setCreationDate(new Date());
         longUserId = userGroupDAO.create(group);
         groupsToDelete.add(longUserId.toString());
+        userIdTwo = userGroupDAO.create(group);
+        groupsToDelete.add(userIdTwo.toString());
     }
 
     @AfterEach
@@ -60,11 +65,37 @@ public class CertifiedUsersDAOImplTest {
     public void testCURDCertifiedUser() {
         //call under test
         //check if user id already certified
-        Boolean isCertified =  certifiedUsersDAO.isCertifiedUser(longUserId.toString());
+        Boolean isCertified = certifiedUsersDAO.isCertifiedUser(longUserId.toString());
         assertFalse(isCertified);
 
         //add user id to certified users
-        certifiedUsersDAO.addCertifiedUser(longUserId);
+        certifiedUsersDAO.addCertifiedUser(longUserId, true);
+        assertTrue(certifiedUsersDAO.isCertifiedUser(longUserId.toString()));
+
+        //remove user id from certified users
+        certifiedUsersDAO.removeCertifiedUser(longUserId);
+        assertFalse(certifiedUsersDAO.isCertifiedUser(longUserId.toString()));
+    }
+
+    @Test
+    public void testaddCertifiedUserIsIndividualFalse() {
+        //call under test
+        String message = assertThrows(IllegalArgumentException.class, () -> {
+            certifiedUsersDAO.addCertifiedUser(longUserId, false);
+        }).getMessage();
+
+        assertEquals("Only individuals can be added as certified users.", message);
+    }
+
+    @Test
+    public void testAreAllCertifiedUser() {
+        //call under test
+        //check if user id already certified
+        Boolean isCertified = certifiedUsersDAO.isCertifiedUser(longUserId.toString());
+        assertFalse(isCertified);
+
+        //add user id to certified users
+        certifiedUsersDAO.addCertifiedUser(longUserId, true);
         assertTrue(certifiedUsersDAO.isCertifiedUser(longUserId.toString()));
 
         //remove user id from certified users
@@ -74,16 +105,26 @@ public class CertifiedUsersDAOImplTest {
 
     @Test
     public void testIsCertifiedWithWrongId() {
-        //call under test
-        Boolean isCertified =  certifiedUsersDAO.isCertifiedUser("-99");
+        // both user are uncertified
+        assertFalse(certifiedUsersDAO.isCertifiedUser(longUserId.toString()));
+        assertFalse(certifiedUsersDAO.isCertifiedUser(userIdTwo.toString()));
+
+        // add one user to certified users
+        certifiedUsersDAO.addCertifiedUser(longUserId, true);
+        assertTrue(certifiedUsersDAO.isCertifiedUser(longUserId.toString()));
+        assertFalse(certifiedUsersDAO.isCertifiedUser(userIdTwo.toString()));
+
+        //call under test. Returns false because all users in the set are not certified.
+        Boolean isCertified = certifiedUsersDAO.areAllCertifiedUsers(Set.of(userIdTwo.toString(), longUserId.toString()));
         assertFalse(isCertified);
+
 
     }
 
     @Test
     public void testIsCertifiedWithNullId() {
         //call under test
-        Boolean isCertified =  certifiedUsersDAO.isCertifiedUser(null);
+        Boolean isCertified = certifiedUsersDAO.isCertifiedUser(null);
         assertFalse(isCertified);
 
     }
@@ -91,7 +132,7 @@ public class CertifiedUsersDAOImplTest {
     @Test
     public void testIsCertifiedWithEmptyString() {
         //call under test
-        Boolean isCertified =  certifiedUsersDAO.isCertifiedUser("");
+        Boolean isCertified = certifiedUsersDAO.isCertifiedUser("");
         assertFalse(isCertified);
 
     }
@@ -99,7 +140,7 @@ public class CertifiedUsersDAOImplTest {
     @Test
     public void testAreCertifiedWithNull() {
         //call under test
-        Boolean isCertified =  certifiedUsersDAO.areCertifiedUsers(null);
+        Boolean isCertified = certifiedUsersDAO.areAllCertifiedUsers(null);
         assertFalse(isCertified);
 
     }
@@ -107,7 +148,7 @@ public class CertifiedUsersDAOImplTest {
     @Test
     public void testAreCertifiedWithEmptySet() {
         //call under test
-        Boolean isCertified =  certifiedUsersDAO.areCertifiedUsers(Collections.emptySet());
+        Boolean isCertified = certifiedUsersDAO.areAllCertifiedUsers(Collections.emptySet());
         assertFalse(isCertified);
 
     }

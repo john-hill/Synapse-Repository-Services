@@ -11,7 +11,7 @@ import org.sagebionetworks.repo.model.query.jdo.SqlConstants;
 import java.util.List;
 import java.util.Objects;
 
-public class DBOCertifiedUsers implements MigratableDatabaseObject<DBOCertifiedUsers, DBOCertifiedUsers> {
+public class DBOCertifiedUser implements MigratableDatabaseObject<DBOCertifiedUser, DBOCertifiedUser> {
 
     private Long userId;
 
@@ -21,12 +21,12 @@ public class DBOCertifiedUsers implements MigratableDatabaseObject<DBOCertifiedU
     };
 
     @Override
-    public TableMapping<DBOCertifiedUsers> getTableMapping() {
-        return new TableMapping<DBOCertifiedUsers>() {
+    public TableMapping<DBOCertifiedUser> getTableMapping() {
+        return new TableMapping<DBOCertifiedUser>() {
 
             @Override
-            public DBOCertifiedUsers mapRow(java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
-                DBOCertifiedUsers dbo = new DBOCertifiedUsers();
+            public DBOCertifiedUser mapRow(java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
+                DBOCertifiedUser dbo = new DBOCertifiedUser();
                 dbo.setUserId(rs.getLong(SqlConstants.COL_CERTIFIED_USERS_USER_ID));
                 return dbo;
             }
@@ -47,8 +47,8 @@ public class DBOCertifiedUsers implements MigratableDatabaseObject<DBOCertifiedU
             }
 
             @Override
-            public Class<? extends DBOCertifiedUsers> getDBOClass() {
-                return DBOCertifiedUsers.class;
+            public Class<? extends DBOCertifiedUser> getDBOClass() {
+                return DBOCertifiedUser.class;
             }
         };
     }
@@ -67,18 +67,18 @@ public class DBOCertifiedUsers implements MigratableDatabaseObject<DBOCertifiedU
     }
 
     @Override
-    public MigratableTableTranslation<DBOCertifiedUsers, DBOCertifiedUsers> getTranslator() {
+    public MigratableTableTranslation<DBOCertifiedUser, DBOCertifiedUser> getTranslator() {
         return new BasicMigratableTableTranslation<>();
     }
 
     @Override
-    public Class<? extends DBOCertifiedUsers> getBackupClass() {
-        return DBOCertifiedUsers.class;
+    public Class<? extends DBOCertifiedUser> getBackupClass() {
+        return DBOCertifiedUser.class;
     }
 
     @Override
-    public Class<? extends DBOCertifiedUsers> getDatabaseObjectClass() {
-        return DBOCertifiedUsers.class;
+    public Class<? extends DBOCertifiedUser> getDatabaseObjectClass() {
+        return DBOCertifiedUser.class;
     }
 
     @Override
@@ -90,7 +90,7 @@ public class DBOCertifiedUsers implements MigratableDatabaseObject<DBOCertifiedU
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        DBOCertifiedUsers that = (DBOCertifiedUsers) o;
+        DBOCertifiedUser that = (DBOCertifiedUser) o;
         return Objects.equals(userId, that.userId);
     }
 

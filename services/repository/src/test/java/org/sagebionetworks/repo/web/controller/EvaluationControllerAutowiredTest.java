@@ -116,7 +116,7 @@ public class EvaluationControllerAutowiredTest extends AbstractAutowiredControll
 		user.setUserName(UUID.randomUUID().toString());
 		testUserId = userManager.createOrGetTestUser(adminUserInfo, user).getId();
 
-		certifiedUsersDAO.addCertifiedUser(testUserId);
+		certifiedUsersDAO.addCertifiedUser(testUserId, true);
 
 		testUserInfo = userManager.getUserInfo(testUserId);
 

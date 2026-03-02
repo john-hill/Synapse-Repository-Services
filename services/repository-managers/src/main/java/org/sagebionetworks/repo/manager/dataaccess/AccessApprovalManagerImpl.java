@@ -286,7 +286,7 @@ public class AccessApprovalManagerImpl implements AccessApprovalManager {
 	@Override
 	public void validateHasAccessorRequirement(HasAccessorRequirement req, Set<String> accessors) {
 		if (req.getIsCertifiedUserRequired()) {
-			if(!certifiedUsersDAO.areCertifiedUsers(accessors)){
+			if(!certifiedUsersDAO.areAllCertifiedUsers(accessors)){
 				throw new UserCertificationRequiredException("Accessors must be Synapse Certified Users.");
 			}
 		}

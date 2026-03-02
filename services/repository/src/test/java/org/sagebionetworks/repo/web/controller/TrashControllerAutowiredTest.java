@@ -70,7 +70,7 @@ public class TrashControllerAutowiredTest extends AbstractAutowiredControllerTes
 		user.setUserName(UUID.randomUUID().toString());
 		boolean acceptsTermsOfUse = true;
 		testUserId = userManager.createOrGetTestUser(adminUserInfo, user).getId();
-		certifiedUsersDAO.addCertifiedUser(testUserId);
+		certifiedUsersDAO.addCertifiedUser(testUserId, true);
 		testUserInfo = userManager.getUserInfo(testUserId);
 		
 		assertNotNull(this.entityService);

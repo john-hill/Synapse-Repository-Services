@@ -139,7 +139,7 @@ public class GridReplicaManagerImplTest {
 	@Test
 	public void testOnApplyPatchesSinglePatch() {
 		when(mockGridIndexManager.applyPatch(sessionId, replicaId, patch1)).thenReturn(changes);
-		doNothing().when(manager).sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, patch1.getPatchId(), changes));
+		doNothing().when(manager).sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, changes));
 
 		// Mock the gridIndexManager calls
 		when(mockGridIndexManager.getClock(sessionId, replicaId)).thenReturn(clock);
@@ -163,7 +163,7 @@ public class GridReplicaManagerImplTest {
 		Map<IndexType, Set<LogicalTimestamp>> expectedCumulativeChanges = Map.of(IndexType.arr, Set.of(
 				new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(55L),
 				new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(77L)));
-		doNothing().when(manager).sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, patch2.getPatchId(), expectedCumulativeChanges));
+		doNothing().when(manager).sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, expectedCumulativeChanges));
 
 		// Mock the gridIndexManager calls
 		when(mockGridIndexManager.getClock(sessionId, replicaId)).thenReturn(clock);
@@ -177,7 +177,7 @@ public class GridReplicaManagerImplTest {
 		inOrder.verify(mockGridIndexManager).refreshMessageChain(sessionId, replicaId, methodId);
 		inOrder.verify(mockGridIndexManager).applyPatch(sessionId, replicaId, patch1);
 		inOrder.verify(mockGridIndexManager).applyPatch(sessionId, replicaId, patch2);
-		inOrder.verify(manager).sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, patch2.getPatchId(), expectedCumulativeChanges));
+		inOrder.verify(manager).sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, expectedCumulativeChanges));
 		inOrder.verify(mockGridIndexManager).getClock(sessionId, replicaId);
 		inOrder.verify(manager).sendClockMessage(methodId, connectionId, clock);
 	}
@@ -259,9 +259,9 @@ public class GridReplicaManagerImplTest {
 	@Test
 	public void testSendChangesToTopic() {
 		// call under test
-		manager.sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, patch1.getPatchId(), changes));
+		manager.sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, changes));
 		verify(mockSnsClient).publish(PublishRequest.builder().targetArn(topicArn)
-				.message("{\"sessionId\":\"session456\",\"replicaId\":111,\"changeSource\":\"PATCH\",\"patchId\":[3,4],"
+				.message("{\"sessionId\":\"session456\",\"replicaId\":111,\"changeSource\":\"PATCH\","
 						+ "\"changes\":{\"arr\":[[111,55]]}}")
 				.build());
 	}

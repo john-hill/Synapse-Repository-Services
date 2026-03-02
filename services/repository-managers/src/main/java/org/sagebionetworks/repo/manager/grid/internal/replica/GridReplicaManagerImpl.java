@@ -94,14 +94,12 @@ public class GridReplicaManagerImpl implements GridReplicaManager {
 	public void onApplyPatches(ProgressCallback callback, GridConnectionInfo connection, Integer messageId, List<Patch> patches) {
 		gridIndexManager.refreshMessageChain(connection.getSessionId(), connection.getReplicaId(), messageId);
 		Map<IndexType, Set<LogicalTimestamp>> cumulativeChanges = new LinkedHashMap<>();
-		AtomicReference<LogicalTimestamp> lastPatchId = new AtomicReference<>();
 		patches.forEach(patch -> {
 			Map<IndexType, Set<LogicalTimestamp>> patchChanges = gridIndexManager.applyPatch(connection.getSessionId(), connection.getReplicaId(), patch);
 			patchChanges.forEach((indexType, timestamps) -> cumulativeChanges.computeIfAbsent(indexType, k -> new LinkedHashSet<>()).addAll(timestamps));
-			lastPatchId.set(patch.getPatchId());
 		});
 
-		sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, lastPatchId.get(), cumulativeChanges));
+		sendChangesToTopic(ReplicaChangeSet.fromPatch(connection, cumulativeChanges));
 		List<LogicalTimestamp> clock = gridIndexManager.getClock(connection.getSessionId(), connection.getReplicaId());
 		sendClockMessage(messageId, connection.getConnectionId(), clock);
 	}

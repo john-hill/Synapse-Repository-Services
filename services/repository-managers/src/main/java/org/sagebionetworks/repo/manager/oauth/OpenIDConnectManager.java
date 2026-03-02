@@ -71,10 +71,12 @@ public interface OpenIDConnectManager {
 	 * requested in the scopes / claims embedded in the access token
 	 * 
 	 * @param accessToken
+	 * @param oauthEndpoint
+	 * @param acceptHeader
 	 * @return either a JWT or a JSON Object, depending on whether the client registered a value for
-	 * userinfo_signed_response_alg
+	 * userinfo_signed_response_alg.  We allow overriding the returned format via the Accept header
 	 */
-	Object getUserInfo(String accessToken, String oauthEndpoint);
+	Object getUserInfo(String accessToken, String oauthEndpoint, String acceptHeader);
 	
 	/**
 	 * 

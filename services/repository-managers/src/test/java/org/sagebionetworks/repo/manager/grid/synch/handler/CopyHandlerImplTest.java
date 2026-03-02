@@ -69,7 +69,6 @@ public class CopyHandlerImplTest {
 	private Long userReplicaId;
 	private LogicalTimestamp lastRowsRgaNodeId;
 	private LogicalTimestamp rowsId;
-	private RGANode rgaNode;
 
 	@BeforeEach
 	public void before() {
@@ -81,7 +80,6 @@ public class CopyHandlerImplTest {
 		rowsId = new LogicalTimestamp().setReplicaId(internalReplicaId).setSequenceNumber(4L);
 		columns = List.of(new Column().setName("a").setVectorIndex(1), new Column().setName("b").setVectorIndex(0));
 		gridSource = new GridSource(222L, EntityType.entityview);
-		rgaNode = new RGANode().setContainerId(rowsId).setNodeId(lastRowsRgaNodeId);
 	}
 
 	CopyHandlerImpl setupHandler() {
@@ -91,7 +89,7 @@ public class CopyHandlerImplTest {
 		when(mockGridManager.getSingletonConnection(sessionId, EventSource.USER_SUPPORT))
 				.thenReturn(Optional.of(mockConnection));
 		when(mockHeader.getRowsId()).thenReturn(rowsId);
-		when(mockGridIndexDao.getRgaLastNode(sessionId, internalReplicaId, rowsId)).thenReturn(Optional.of(rgaNode));
+		when(mockGridIndexDao.getArrayLastNodeId(sessionId, internalReplicaId, rowsId)).thenReturn(lastRowsRgaNodeId);
 		when(mockHeader.getSessionId()).thenReturn(sessionId);
 		when(mockHeader.getReplicaId()).thenReturn(internalReplicaId);
 		return new CopyHandlerImpl(mockGridReplicaViewManager, mockGridReplicaSupport, mockGridIndexDao,

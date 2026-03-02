@@ -42,6 +42,7 @@ import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.QueryElement;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.manager.table.ColumnModelManager;
 import org.sagebionetworks.repo.manager.team.TeamManager;
@@ -283,14 +284,22 @@ public class GridEventBrokerWorkerIntegrationTest {
 		assertTrue(waitForMessage((a) -> {
 			if (a.optInt(0) == 4 && a.optInt(1) == 99) {
 				JSONObject body = a.getJSONObject(2);
-				assertEquals("patch", body.getString("type"), "Expected patch type for empty grid");
-				Patch p = PatchCompactSerializable.deserialize(body.getJSONArray("body"));
-				clock.add(LogicalTimestamp.newIncrement(p.getPatchId(), p.getSpan()));
+				assertEquals("patches", body.getString("type"), "Expected multiple patches to be returned");
+				JSONArray patches = body.getJSONArray("body");
+				Patch lastPatch = PatchCompactSerializable.deserialize(patches.getJSONArray(patches.length() - 1));
+				clock.add(LogicalTimestamp.newIncrement(lastPatch.getPatchId(), lastPatch.getSpan()));
 				return true;
 			} else {
 				return false;
 			}
 		}, incomingMessagesTwo));
+
+		// one applies one more patch
+		patchBody = String.format("[[[%d,5]],[0]]", replicaOne.getReplicaId());
+		patchRequest = String.format("[1,103,\"patch\", %s]", patchBody);
+		wsOne.send(patchRequest);
+
+		assertTrue(waitForMessage((a) -> a.optInt(0) == 8 && "new-patch".equals(a.optString(1)), incomingMessagesTwo));
 
 		// after applying the patch update the clock and synchronize again.
 		String newClock = LogicalTimestampCompactSerializable.serializeClock(clock).toString();
@@ -300,8 +309,8 @@ public class GridEventBrokerWorkerIntegrationTest {
 		assertTrue(waitForMessage((a) -> {
 			if (a.optInt(0) == 4 && a.optInt(1) == 99) {
 				JSONObject body = a.getJSONObject(2);
-				assertEquals("patch", body.getString("type"), "Expected patch type for empty grid");
-				Patch p = PatchCompactSerializable.deserialize(body.getJSONArray("body"));
+				assertEquals("patches", body.getString("type"), "Expected patches type for empty grid");
+				Patch p = PatchCompactSerializable.deserialize(body.getJSONArray("body").getJSONArray(0));
 				clock.add(LogicalTimestamp.newIncrement(p.getPatchId(), p.getSpan()));
 				return true;
 			} else {
@@ -309,7 +318,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 			}
 		}, incomingMessagesTwo));
 
-		// after the second sync, replica two should be up-to-date.
+		// after the third sync, replica two should be up-to-date.
 		newClock = LogicalTimestampCompactSerializable.serializeClock(clock).toString();
 		wsTwo.send(String.format("[1,99,\"synchronize-clock\",%s]", newClock));
 
@@ -541,7 +550,8 @@ public class GridEventBrokerWorkerIntegrationTest {
 			if (header.isEmpty()) {
 				return Pair.create(false, null);
 			}
-			List<RowView> rows = gridViewManager.querySinglePage(header.get(), 100L, 0L);
+			List<RowView> rows = gridViewManager.querySinglePage(header.get(),
+					new QueryElement().setIncludeValidationMessages(true));
 			if (rows.size() != 1) {
 				return Pair.create(false, null);
 			}

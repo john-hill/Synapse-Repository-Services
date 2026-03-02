@@ -210,8 +210,8 @@ public class OpenIDConnectServiceImpl implements OpenIDConnectService {
 	}
 
 	@Override
-	public Object getUserInfo(String accessToken, String oauthEndpoint) {
-		return oidcManager.getUserInfo(accessToken, oauthEndpoint);
+	public Object getUserInfo(String accessToken, String oauthEndpoint, String acceptHeader) {
+		return oidcManager.getUserInfo(accessToken, oauthEndpoint, acceptHeader);
 	}
 
 	@Override

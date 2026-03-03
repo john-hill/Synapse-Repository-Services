@@ -255,12 +255,7 @@ public class ConcurrentWorkerStack implements Runnable {
 			return false;
 		}
 
-		List<WorkerJob> messages;
-		if (isFifo) {
-			messages = manager.pollForMessagesAndStartFifoJobs(queueUrl, maxNumberOfMessagesToRecieve, semaphoreLockAndMessageVisibilityTimeoutSec, worker);
-		} else {
-			messages = manager.pollForMessagesAndStartJobs(queueUrl, maxNumberOfMessagesToRecieve, semaphoreLockAndMessageVisibilityTimeoutSec, worker);
-		}
+		List<WorkerJob> messages = manager.pollForMessagesAndStartJobs(queueUrl, maxNumberOfMessagesToRecieve, semaphoreLockAndMessageVisibilityTimeoutSec, worker, isFifo);
 		return runningJobs.addAll(messages);
 	}
 	

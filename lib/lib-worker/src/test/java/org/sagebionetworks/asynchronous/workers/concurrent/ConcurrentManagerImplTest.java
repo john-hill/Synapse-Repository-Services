@@ -74,6 +74,7 @@ public class ConcurrentManagerImplTest {
 	private int maxLockCount;
 	private String queueUrl;
 	private int maxThreadCount;
+	private boolean isFifoQueue;
 
 	@BeforeEach
 	public void before() {
@@ -82,6 +83,7 @@ public class ConcurrentManagerImplTest {
 		maxLockCount = 3;
 		queueUrl = "https://aws-some-queue";
 		maxThreadCount = 5;
+		isFifoQueue = false;
 	}
 
 	@Test
@@ -330,7 +332,7 @@ public class ConcurrentManagerImplTest {
 
 		// call under test
 		List<WorkerJob> jobs = manager.pollForMessagesAndStartJobs(queueUrl, maxThreadCount, lockTimeoutSec,
-				mockWorker);
+				mockWorker, isFifoQueue);
 		assertEquals(Collections.emptyList(), jobs);
 
 		verify(mockAmazonSQSClient).receiveMessage(new ReceiveMessageRequest().withQueueUrl(queueUrl)
@@ -348,7 +350,7 @@ public class ConcurrentManagerImplTest {
 		
 		// call under test
 		List<WorkerJob> jobs = manager.pollForMessagesAndStartJobs(queueUrl, maxThreadCount, lockTimeoutSec,
-				mockWorker);
+				mockWorker, isFifoQueue);
 		assertEquals(Collections.emptyList(), jobs);
 
 		verify(mockAmazonSQSClient).receiveMessage(new ReceiveMessageRequest()
@@ -373,7 +375,7 @@ public class ConcurrentManagerImplTest {
 
 		// call under test
 		List<WorkerJob> jobs = manager.pollForMessagesAndStartJobs(queueUrl, maxThreadCount, lockTimeoutSec,
-				mockWorker);
+				mockWorker, isFifoQueue);
 
 		assertNotNull(jobs);
 		assertEquals(2, jobs.size());
@@ -388,12 +390,13 @@ public class ConcurrentManagerImplTest {
 
 	@Test
 	public void testPollForMessagesAndStartFifoJobsWithNoMessages() {
+		isFifoQueue = true;
 		when(mockAmazonSQSClient.receiveMessage(any(ReceiveMessageRequest.class)))
 				.thenReturn(new ReceiveMessageResult().withMessages(Collections.emptyList()));
 
 		// call under test
-		List<WorkerJob> jobs = manager.pollForMessagesAndStartFifoJobs(queueUrl, maxThreadCount, lockTimeoutSec,
-				mockWorker);
+		List<WorkerJob> jobs = manager.pollForMessagesAndStartJobs(queueUrl, maxThreadCount, lockTimeoutSec,
+				mockWorker, isFifoQueue);
 		assertEquals(Collections.emptyList(), jobs);
 
 		// Should make a single call with maxNumberOfMessages=1, then stop (empty result)
@@ -405,14 +408,15 @@ public class ConcurrentManagerImplTest {
 
 	@Test
 	public void testPollForMessagesAndStartFifoJobsWithMessageAttributes() {
+		isFifoQueue = true;
 		when(mockAmazonSQSClient.receiveMessage(any(ReceiveMessageRequest.class)))
 				.thenReturn(new ReceiveMessageResult().withMessages(Collections.emptyList()));
 
 		when(mockWorker.getMessageAttributeNames()).thenReturn(List.of("All"));
 
 		// call under test
-		List<WorkerJob> jobs = manager.pollForMessagesAndStartFifoJobs(queueUrl, maxThreadCount, lockTimeoutSec,
-				mockWorker);
+		List<WorkerJob> jobs = manager.pollForMessagesAndStartJobs(queueUrl, maxThreadCount, lockTimeoutSec,
+				mockWorker, isFifoQueue);
 		assertEquals(Collections.emptyList(), jobs);
 
 		verify(mockAmazonSQSClient).receiveMessage(new ReceiveMessageRequest()
@@ -428,7 +432,7 @@ public class ConcurrentManagerImplTest {
 
 	@Test
 	public void testPollForMessagesAndStartFifoJobsWithPartialMessages() {
-
+		isFifoQueue = true;
 		Message messageOne = new Message().withReceiptHandle("one");
 		Message messageTwo = new Message().withReceiptHandle("two");
 
@@ -440,8 +444,8 @@ public class ConcurrentManagerImplTest {
 		maxThreadCount = 3;
 
 		// call under test
-		List<WorkerJob> jobs = manager.pollForMessagesAndStartFifoJobs(queueUrl, maxThreadCount, lockTimeoutSec,
-				mockWorker);
+		List<WorkerJob> jobs = manager.pollForMessagesAndStartJobs(queueUrl, maxThreadCount, lockTimeoutSec,
+				mockWorker, isFifoQueue);
 
 		assertNotNull(jobs);
 		assertEquals(2, jobs.size());
@@ -459,6 +463,7 @@ public class ConcurrentManagerImplTest {
 
 	@Test
 	public void testPollForMessagesAndStartFifoJobsWithMaxMessages() {
+		isFifoQueue = true;
 
 		Message messageOne = new Message().withReceiptHandle("one");
 		Message messageTwo = new Message().withReceiptHandle("two");
@@ -472,8 +477,8 @@ public class ConcurrentManagerImplTest {
 		maxThreadCount = 3;
 
 		// call under test
-		List<WorkerJob> jobs = manager.pollForMessagesAndStartFifoJobs(queueUrl, maxThreadCount, lockTimeoutSec,
-				mockWorker);
+		List<WorkerJob> jobs = manager.pollForMessagesAndStartJobs(queueUrl, maxThreadCount, lockTimeoutSec,
+				mockWorker, isFifoQueue);
 
 		assertNotNull(jobs);
 		assertEquals(3, jobs.size());
@@ -491,61 +496,11 @@ public class ConcurrentManagerImplTest {
 	}
 
 	@Test
-	public void testPollForMessagesAndStartFifoJobsWithNullUrl() {
-		queueUrl = null;
-		String message = assertThrows(IllegalArgumentException.class, () -> {
-			// call under test
-			manager.pollForMessagesAndStartFifoJobs(queueUrl, maxThreadCount, lockTimeoutSec, mockWorker);
-		}).getMessage();
-		assertEquals("queueUrl is required.", message);
-	}
-
-	@Test
-	public void testPollForMessagesAndStartFifoJobsWithNullWorker() {
-		mockWorker = null;
-		String message = assertThrows(IllegalArgumentException.class, () -> {
-			// call under test
-			manager.pollForMessagesAndStartFifoJobs(queueUrl, maxThreadCount, lockTimeoutSec, mockWorker);
-		}).getMessage();
-		assertEquals("worker is required.", message);
-	}
-
-	@Test
-	public void testPollForMessagesAndStartFifoJobsWithCountLessThanOne() {
-		maxThreadCount = 0;
-		String message = assertThrows(IllegalArgumentException.class, () -> {
-			// call under test
-			manager.pollForMessagesAndStartFifoJobs(queueUrl, maxThreadCount, lockTimeoutSec, mockWorker);
-		}).getMessage();
-		assertEquals("maxNumberOfMessages must be greater than or equals to 1.", message);
-	}
-
-	@Test
-	public void testPollForMessagesAndStartFifoJobsWithCountMoreThanTen() {
-		maxThreadCount = 11;
-		String message = assertThrows(IllegalArgumentException.class, () -> {
-			// call under test
-			manager.pollForMessagesAndStartFifoJobs(queueUrl, maxThreadCount, lockTimeoutSec, mockWorker);
-		}).getMessage();
-		assertEquals("maxNumberOfMessages must be less than or equals to 10.", message);
-	}
-
-	@Test
-	public void testPollForMessagesAndStartFifoJobsWithVisibilityLessThan10() {
-		lockTimeoutSec = 9;
-		String message = assertThrows(IllegalArgumentException.class, () -> {
-			// call under test
-			manager.pollForMessagesAndStartFifoJobs(queueUrl, maxThreadCount, lockTimeoutSec, mockWorker);
-		}).getMessage();
-		assertEquals("messageVisibilityTimeoutSec must be greater than or equals to 10.", message);
-	}
-
-	@Test
 	public void testPollForMessagesAndStartJobsWithNullUrl() {
 		queueUrl = null;
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			manager.pollForMessagesAndStartJobs(queueUrl, maxThreadCount, lockTimeoutSec, mockWorker);
+			manager.pollForMessagesAndStartJobs(queueUrl, maxThreadCount, lockTimeoutSec, mockWorker, isFifoQueue);
 		}).getMessage();
 		assertEquals("queueUrl is required.", message);
 	}
@@ -555,7 +510,7 @@ public class ConcurrentManagerImplTest {
 		mockWorker = null;
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			manager.pollForMessagesAndStartJobs(queueUrl, maxThreadCount, lockTimeoutSec, mockWorker);
+			manager.pollForMessagesAndStartJobs(queueUrl, maxThreadCount, lockTimeoutSec, mockWorker, isFifoQueue);
 		}).getMessage();
 		assertEquals("worker is required.", message);
 	}
@@ -565,7 +520,7 @@ public class ConcurrentManagerImplTest {
 		maxThreadCount = 0;
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			manager.pollForMessagesAndStartJobs(queueUrl, maxThreadCount, lockTimeoutSec, mockWorker);
+			manager.pollForMessagesAndStartJobs(queueUrl, maxThreadCount, lockTimeoutSec, mockWorker, isFifoQueue);
 		}).getMessage();
 		assertEquals("maxNumberOfMessages must be greater than or equals to 1.", message);
 	}
@@ -575,7 +530,7 @@ public class ConcurrentManagerImplTest {
 		maxThreadCount = 11;
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			manager.pollForMessagesAndStartJobs(queueUrl, maxThreadCount, lockTimeoutSec, mockWorker);
+			manager.pollForMessagesAndStartJobs(queueUrl, maxThreadCount, lockTimeoutSec, mockWorker, isFifoQueue);
 		}).getMessage();
 		assertEquals("maxNumberOfMessages must be less than or equals to 10.", message);
 	}
@@ -585,7 +540,7 @@ public class ConcurrentManagerImplTest {
 		lockTimeoutSec = 9;
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			manager.pollForMessagesAndStartJobs(queueUrl, maxThreadCount, lockTimeoutSec, mockWorker);
+			manager.pollForMessagesAndStartJobs(queueUrl, maxThreadCount, lockTimeoutSec, mockWorker, isFifoQueue);
 		}).getMessage();
 		assertEquals("messageVisibilityTimeoutSec must be greater than or equals to 10.", message);
 	}

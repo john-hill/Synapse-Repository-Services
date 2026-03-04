@@ -399,7 +399,7 @@ public class GridManagerImpl implements GridManager {
 			if (candidate.getSizeBytes() == null) {
 				// Null size means pre-existing record — fallback to single-patch behavior
 				if (arrayOfPatches.length() == 0) {
-					Optional<String> body = getPatchBody(sessionId, candidate);
+					Optional<JSONArray> body = getPatchBody(sessionId, candidate);
 					if (body.isPresent()) {
 						arrayOfPatches.put(body.get());
 					}
@@ -413,11 +413,11 @@ public class GridManagerImpl implements GridManager {
 				break;
 			}
 
-			Optional<String> body = getPatchBody(sessionId, candidate);
+			Optional<JSONArray> body = getPatchBody(sessionId, candidate);
 			if (body.isEmpty()) {
 				break;
 			}
-			arrayOfPatches.put(new JSONArray(body.get()));
+			arrayOfPatches.put(body.get());
 			cumulativeSize += candidate.getSizeBytes();
 		}
 
@@ -430,7 +430,7 @@ public class GridManagerImpl implements GridManager {
 	}
 
 	@Override
-	public Optional<String> getNextMissingPatch(EventContext context, List<LogicalTimestamp> clock) {
+	public Optional<JSONArray> getNextMissingPatch(EventContext context, List<LogicalTimestamp> clock) {
 		ValidateArgument.required(context, "context");
 		ValidateArgument.required(clock, "clock");
 		GridConnectionInfo thisCon = getConnectionInfo(context.getConnectionId());
@@ -451,7 +451,7 @@ public class GridManagerImpl implements GridManager {
 	 * @param patch
 	 * @return
 	 */
-	Optional<String> getPatchBody(String sessionId, PatchInfo patch) {
+	Optional<JSONArray> getPatchBody(String sessionId, PatchInfo patch) {
 		ValidateArgument.required(sessionId, "sessionId");
 		ValidateArgument.required(patch, "patch");
 		if (Instant.now().isAfter(patch.getExpiresOn().toInstant())) {
@@ -460,7 +460,7 @@ public class GridManagerImpl implements GridManager {
 
 		return Optional.of(s3Client
 				.getObjectAsBytes(GetObjectRequest.builder().bucket(gridPatchBucket).key(patch.getS3Key()).build())
-				.asString(StandardCharsets.UTF_8));
+				.asString(StandardCharsets.UTF_8)).map(JSONArray::new);
 	}
 
 	@Override

@@ -117,7 +117,7 @@ public class ConcurrentManagerImpl implements ConcurrentManager {
 		ValidateArgument.requirement(messageVisibilityTimeoutSec >= 10,
 				"messageVisibilityTimeoutSec must be greater than or equals to 10.");
 
-		// Requesting `n` messages a FIFO queue may return messages with the same MessageGroupId
+		// Requesting `n` messages for a FIFO queue may return messages with the same MessageGroupId
 		// Instead, receive 1 message `n` times, which ensures in-order processing
 		// SQS will not provide the next message in the group until the previous message is deleted or its visibility timeout expires.
 		int requestCount = isFifoQueue ? maxNumberOfMessages : 1;

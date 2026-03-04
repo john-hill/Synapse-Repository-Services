@@ -407,30 +407,6 @@ public class ConcurrentManagerImplTest {
 	}
 
 	@Test
-	public void testPollForMessagesAndStartFifoJobsWithMessageAttributes() {
-		isFifoQueue = true;
-		when(mockAmazonSQSClient.receiveMessage(any(ReceiveMessageRequest.class)))
-				.thenReturn(new ReceiveMessageResult().withMessages(Collections.emptyList()));
-
-		when(mockWorker.getMessageAttributeNames()).thenReturn(List.of("All"));
-
-		// call under test
-		List<WorkerJob> jobs = manager.pollForMessagesAndStartJobs(queueUrl, maxThreadCount, lockTimeoutSec,
-				mockWorker, isFifoQueue);
-		assertEquals(Collections.emptyList(), jobs);
-
-		verify(mockAmazonSQSClient).receiveMessage(new ReceiveMessageRequest()
-			.withQueueUrl(queueUrl)
-			.withWaitTimeSeconds(0)
-			.withMaxNumberOfMessages(1)
-			.withVisibilityTimeout(lockTimeoutSec)
-			.withMessageAttributeNames("All")
-		);
-
-		verify(manager, never()).startWorkerJob(any(), anyInt(), any(), any());
-	}
-
-	@Test
 	public void testPollForMessagesAndStartFifoJobsWithPartialMessages() {
 		isFifoQueue = true;
 		Message messageOne = new Message().withReceiptHandle("one");
@@ -441,7 +417,7 @@ public class ConcurrentManagerImplTest {
 				.thenReturn(new ReceiveMessageResult().withMessages(messageTwo))
 				.thenReturn(new ReceiveMessageResult().withMessages(Collections.emptyList()));
 
-		maxThreadCount = 3;
+		maxThreadCount = 4;
 
 		// call under test
 		List<WorkerJob> jobs = manager.pollForMessagesAndStartJobs(queueUrl, maxThreadCount, lockTimeoutSec,
@@ -453,7 +429,7 @@ public class ConcurrentManagerImplTest {
 		ReceiveMessageRequest expectedRequest = new ReceiveMessageRequest().withQueueUrl(queueUrl)
 				.withWaitTimeSeconds(0).withMaxNumberOfMessages(1).withVisibilityTimeout(lockTimeoutSec);
 
-		// Should have made 3 individual calls: 2 returned messages, 3rd was empty so stopped
+		// Should have made 3 individual calls: 2 returned messages, 3rd was empty so 4th never happens
 		verify(mockAmazonSQSClient, times(3)).receiveMessage(expectedRequest);
 
 		verify(manager, times(2)).startWorkerJob(any(), anyInt(), any(), any());

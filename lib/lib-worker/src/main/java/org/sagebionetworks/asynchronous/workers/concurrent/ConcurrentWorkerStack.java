@@ -67,6 +67,7 @@ public class ConcurrentWorkerStack implements Runnable {
 	private StackState state;
 	private ConcurrentProgressCallback lockCallback;
 	private List<WorkerJob> runningJobs;
+	private long waitTimeMs;
 	
 	/**
 	 * Empty constructor needed by Spring to create a proxy for this class.
@@ -81,6 +82,7 @@ public class ConcurrentWorkerStack implements Runnable {
 		worker = null;
 		lockRefreshFrequencyMS = -1;
 		queueUrl = null;
+		waitTimeMs = MIN_WAIT_TIME;
 	};
 
 	private ConcurrentWorkerStack(ConcurrentManager manager, Boolean canRunInReadOnly, String semaphoreLockKey,
@@ -140,26 +142,31 @@ public class ConcurrentWorkerStack implements Runnable {
 
 	void infiniteLoop() {
 		while (shouldContinueRunning()) {
-			
+
 			refreshLocksIfNeeded();
-			
+
 			checkRunningJobs();
-			
-			boolean newWorkersAdded = attemptToAddMoreWorkers();
-			
-			// To avoid throttling the amount of messages consumed per second we switch 
-			// to a smaller wait between polls when new threads are added to the pool 
-			// (e.g. messages were available in the queue)
-			// If no worker are added (e.g. we reached capacity or no messages available)
-			// we can wait a bit longer to avoid flooding SQS with requests.
-			long waitTimeMs = newWorkersAdded ? MIN_WAIT_TIME : MAX_WAIT_TIME;
-			
+
+			boolean emptyQueue = attemptToAddMoreWorkers();
+
+			/*
+			 * Use exponential backoff when the queue is empty to avoid flooding SQS with
+			 * requests, while staying responsive when messages are available. When a poll
+			 * returns empty, double the wait time (capped at MAX_WAIT_TIME). When workers
+			 * are added or we're at capacity (didn't poll), reset to MIN_WAIT_TIME to
+			 * quickly detect new messages or job completion.
+			 * 
+			 * Backoff progression on consecutive empty responses: 50ms → 100ms → 200ms →
+			 * 400ms → 800ms → 1000ms (capped)
+			 */
+			waitTimeMs = emptyQueue ? Math.min(MAX_WAIT_TIME, waitTimeMs * 2) : MIN_WAIT_TIME;
+
 			try {
 				manager.sleep(waitTimeMs);
 			} catch (InterruptedException e) {
 				startShutdown();
 			}
-			
+
 		}
 	}
 
@@ -170,6 +177,7 @@ public class ConcurrentWorkerStack implements Runnable {
 		state = StackState.CONTINUE;
 		runningJobs = new ArrayList<>(semaphoreMaxLockCount);
 		lockCallback = new ConcurrentProgressCallback(semaphoreLockAndMessageVisibilityTimeoutSec);
+		waitTimeMs = MIN_WAIT_TIME;
 		resetNextRefreshTimeMS();
 	}
 
@@ -245,7 +253,7 @@ public class ConcurrentWorkerStack implements Runnable {
 	 * {@link AmazonSQSClient#receiveMessage(com.amazonaws.services.sqs.model.ReceiveMessageRequest)},
 	 * no more than 10 worker threads will be started per call.
 	 * 
-	 * @return True if new work was added to the pool, false otherwise
+	 * @return True if we attempted to get messages from the queue and the queue was empty.
 	 */
 	boolean attemptToAddMoreWorkers() {
 		if (!canProcessMoreMessages()) {
@@ -256,9 +264,13 @@ public class ConcurrentWorkerStack implements Runnable {
 		if (maxNumberOfMessagesToRecieve < 1) {
 			return false;
 		}
+		
+		List<WorkerJob> newJobs = manager.pollForMessagesAndStartJobs(queueUrl, maxNumberOfMessagesToRecieve,
+				semaphoreLockAndMessageVisibilityTimeoutSec, worker);
 
-		return runningJobs.addAll(manager.pollForMessagesAndStartJobs(queueUrl, maxNumberOfMessagesToRecieve,
-				semaphoreLockAndMessageVisibilityTimeoutSec, worker));
+		runningJobs.addAll(newJobs);
+		
+		return newJobs.isEmpty();
 	}
 	
 	

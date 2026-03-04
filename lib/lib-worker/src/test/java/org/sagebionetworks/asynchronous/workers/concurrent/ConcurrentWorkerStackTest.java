@@ -230,7 +230,7 @@ public class ConcurrentWorkerStackTest {
 		doReturn(true).when(stack).canProcessMoreMessages();
 		doNothing().when(stack).resetNextRefreshTimeMS();
 		doNothing().when(stack).checkRunningJobs();
-		doReturn(false).when(stack).attemptToAddMoreWorkers();
+		doReturn(true).when(stack).attemptToAddMoreWorkers();
 
 		// call under test
 		stack.run();
@@ -240,7 +240,12 @@ public class ConcurrentWorkerStackTest {
 		verify(mockManager).getSqsQueueUrl(queueName);
 		verify(mockManager).runWithSemaphoreLock(eq(semaphoreLockKey),
 				eq(semaphoreLockAndMessageVisibilityTimeoutSec), eq(semaphoreMaxLockCount), any(), any());
-		verify(mockManager, times(5)).sleep(ConcurrentWorkerStack.MAX_WAIT_TIME);
+		verify(mockManager, times(5)).sleep(anyLong());
+		verify(mockManager).sleep(100L);
+		verify(mockManager).sleep(200L);
+		verify(mockManager).sleep(400L);
+		verify(mockManager).sleep(800L);
+		verify(mockManager).sleep(1000L);
 		verify(stack, times(5)).refreshLocksIfNeeded();
 		verify(stack, times(5)).checkRunningJobs();
 		verify(stack, times(5)).attemptToAddMoreWorkers();
@@ -265,7 +270,7 @@ public class ConcurrentWorkerStackTest {
 		doReturn(true).when(stack).canProcessMoreMessages();
 		doNothing().when(stack).resetNextRefreshTimeMS();
 		doNothing().when(stack).checkRunningJobs();
-		doReturn(true).when(stack).attemptToAddMoreWorkers();
+		doReturn(false).when(stack).attemptToAddMoreWorkers();
 
 		// call under test
 		stack.run();
@@ -612,9 +617,9 @@ public class ConcurrentWorkerStackTest {
 		when(mockManager.pollForMessagesAndStartJobs(any(), anyInt(), anyInt(), any())).thenReturn(jobs);
 
 		// call under test
-		boolean result = stack.attemptToAddMoreWorkers();
+		boolean emptyQueue = stack.attemptToAddMoreWorkers();
 		
-		assertTrue(result);
+		assertFalse(emptyQueue);
 
 		verify(mockManager).getSqsQueueUrl(queueName);
 		assertEquals(jobs, stack.getRunningJobs());
@@ -639,9 +644,9 @@ public class ConcurrentWorkerStackTest {
 		when(mockManager.pollForMessagesAndStartJobs(any(), anyInt(), anyInt(), any())).thenReturn(jobs);
 
 		// call under test
-		boolean result = stack.attemptToAddMoreWorkers();
+		boolean emptyQueue = stack.attemptToAddMoreWorkers();
 		
-		assertFalse(result);
+		assertTrue(emptyQueue);
 
 		verify(mockManager).getSqsQueueUrl(queueName);
 		assertEquals(jobs, stack.getRunningJobs());
@@ -673,9 +678,9 @@ public class ConcurrentWorkerStackTest {
 				.thenReturn(List.of(allJobs.get(1), allJobs.get(2), allJobs.get(3)));
 
 		// call under test
-		boolean result = stack.attemptToAddMoreWorkers();
+		boolean emptyQueue = stack.attemptToAddMoreWorkers();
 		
-		assertTrue(result);
+		assertFalse(emptyQueue);
 
 		verify(mockManager).getSqsQueueUrl(queueName);
 		assertEquals(allJobs, stack.getRunningJobs());
@@ -704,9 +709,9 @@ public class ConcurrentWorkerStackTest {
 		when(mockManager.pollForMessagesAndStartJobs(any(), anyInt(), anyInt(), any())).thenReturn(allJobs);
 
 		// call under test
-		boolean result = stack.attemptToAddMoreWorkers();
+		boolean emptyQueue = stack.attemptToAddMoreWorkers();
 		
-		assertTrue(result);
+		assertFalse(emptyQueue);
 
 		verify(mockManager).getSqsQueueUrl(queueName);
 		assertEquals(allJobs, stack.getRunningJobs());
@@ -735,9 +740,9 @@ public class ConcurrentWorkerStackTest {
 		when(mockManager.pollForMessagesAndStartJobs(any(), anyInt(), anyInt(), any())).thenReturn(allJobs);
 
 		// call under test
-		boolean result = stack.attemptToAddMoreWorkers();
+		boolean emptyQueue = stack.attemptToAddMoreWorkers();
 		
-		assertTrue(result);
+		assertFalse(emptyQueue);
 
 		verify(mockManager).getSqsQueueUrl(queueName);
 		assertEquals(allJobs, stack.getRunningJobs());

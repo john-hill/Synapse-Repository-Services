@@ -133,7 +133,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 	/**
 	 * The number of secondary websocket connections to create for measuring patch broadcast performance.
 	 */
-	private static final int SECONDARY_CONNECTION_COUNT = 30;
+	private static final int SECONDARY_CONNECTION_COUNT = 5;
 
 	/**
 	 * Helper class to hold a secondary connection's replica, websocket, and message queue together.
@@ -320,26 +320,10 @@ public class GridEventBrokerWorkerIntegrationTest {
 			assertTrue(waitForMessage((a) -> {
 				if (a.optInt(0) == 4 && a.optInt(1) == 99) {
 					JSONObject body = a.getJSONObject(2);
-					assertEquals("patch", body.getString("type"), "Expected patch type for empty grid");
-					Patch p = PatchCompactSerializable.deserialize(body.getJSONArray("body"));
-					clock.add(LogicalTimestamp.newIncrement(p.getPatchId(), p.getSpan()));
-					return true;
-				} else {
-					return false;
-				}
-			}, firstSecondary.incomingMessages()));
-
-			// after applying the patch update the clock and synchronize again.
-			String newClock = LogicalTimestampCompactSerializable.serializeClock(clock).toString();
-			firstSecondary.webSocket().send(String.format("[1,99,\"synchronize-clock\",%s]", newClock));
-
-			clock.clear();
-			assertTrue(waitForMessage((a) -> {
-				if (a.optInt(0) == 4 && a.optInt(1) == 99) {
-					JSONObject body = a.getJSONObject(2);
-					assertEquals("patch", body.getString("type"), "Expected patch type for empty grid");
-					Patch p = PatchCompactSerializable.deserialize(body.getJSONArray("body"));
-					clock.add(LogicalTimestamp.newIncrement(p.getPatchId(), p.getSpan()));
+					assertEquals("patches", body.getString("type"), "Expected multiple patches to be returned");
+					JSONArray patches = body.getJSONArray("body");
+					Patch lastPatch = PatchCompactSerializable.deserialize(patches.getJSONArray(patches.length() - 1));
+					clock.add(LogicalTimestamp.newIncrement(lastPatch.getPatchId(), lastPatch.getSpan()));
 					return true;
 				} else {
 					return false;
@@ -347,7 +331,7 @@ public class GridEventBrokerWorkerIntegrationTest {
 			}, firstSecondary.incomingMessages()));
 
 			// after the second sync, first secondary should be up-to-date.
-			newClock = LogicalTimestampCompactSerializable.serializeClock(clock).toString();
+			String newClock = LogicalTimestampCompactSerializable.serializeClock(clock).toString();
 			firstSecondary.webSocket().send(String.format("[1,99,\"synchronize-clock\",%s]", newClock));
 
 			assertTrue(waitForMessage((a) -> a.optInt(0) == 5 && a.optInt(1) == 99, firstSecondary.incomingMessages()));

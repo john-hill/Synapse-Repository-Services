@@ -29,6 +29,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -170,7 +171,7 @@ public class GridManagerUnitTest {
 	private LogicalTimestamp patchId;
 	private PatchInfo patchInfo;
 
-	private String patchBody;
+	private JSONArray patchBody;
 	private List<LogicalTimestamp> clock;
 	private Query query;
 	private String tableId;
@@ -203,7 +204,7 @@ public class GridManagerUnitTest {
 		connectionId = "con444=";
 		eventContext = new EventContext(EventType.CONNECT, eventSource, connectionId);
 		patchId = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(777L);
-		patchBody = "[[[66537,1]],[0]]";
+		patchBody = new JSONArray("[[[66537,1]],[0]]");
 
 		when(mockConfig.getStack()).thenReturn("dev");
 		gridManager = new GridManagerImpl(mockCredentialsProvider, mockWebsocketApi, mockGridDao, mockConfig,
@@ -841,13 +842,13 @@ public class GridManagerUnitTest {
 		when(mockS3Client.putObject(putCaptor.capture(), bodyCaptor.capture())).thenReturn(null);
 		when(mockGridDao.savePatch(any(), any(), any(), any(), anyLong())).thenReturn(true);
 		// call under test
-		boolean isNew = gridManager.savePatch(eventContext, patchId, patchBody);
+		boolean isNew = gridManager.savePatch(eventContext, patchId, patchBody.toString());
 		assertTrue(isNew);
 
 		assertEquals("dev.grid.patch.sagebase.org", putCaptor.getValue().bucket());
 		String key = putCaptor.getValue().key();
 		assertTrue(key.endsWith(".json"));
-		assertEquals(RequestBody.fromString(patchBody, StandardCharsets.UTF_8).optionalContentLength(),
+		assertEquals(RequestBody.fromString(patchBody.toString(), StandardCharsets.UTF_8).optionalContentLength(),
 				bodyCaptor.getValue().optionalContentLength());
 
 		verify(mockGridDao).savePatch(eq(gridSessionId), eq(patchId), eq(key), eq(GridManagerImpl.PATCH_DURATION), anyLong());
@@ -859,13 +860,13 @@ public class GridManagerUnitTest {
 		when(mockS3Client.putObject(putCaptor.capture(), bodyCaptor.capture())).thenReturn(null);
 		when(mockGridDao.savePatch(any(), any(), any(), any(), anyLong())).thenReturn(true);
 		// call under test
-		boolean isNew = gridManager.savePatch(gridSessionId, patchId, patchBody);
+		boolean isNew = gridManager.savePatch(gridSessionId, patchId, patchBody.toString());
 		assertTrue(isNew);
 
 		assertEquals("dev.grid.patch.sagebase.org", putCaptor.getValue().bucket());
 		String key = putCaptor.getValue().key();
 		assertTrue(key.endsWith(".json"));
-		assertEquals(RequestBody.fromString(patchBody, StandardCharsets.UTF_8).optionalContentLength(),
+		assertEquals(RequestBody.fromString(patchBody.toString(), StandardCharsets.UTF_8).optionalContentLength(),
 				bodyCaptor.getValue().optionalContentLength());
 
 		verify(mockGridDao).savePatch(eq(gridSessionId), eq(patchId), eq(key), eq(GridManagerImpl.PATCH_DURATION), anyLong());
@@ -878,13 +879,13 @@ public class GridManagerUnitTest {
 		when(mockS3Client.putObject(putCaptor.capture(), bodyCaptor.capture())).thenReturn(null);
 		when(mockGridDao.savePatch(any(), any(), any(), any(), anyLong())).thenReturn(false);
 		// call under test
-		boolean isNew = gridManager.savePatch(eventContext, patchId, patchBody);
+		boolean isNew = gridManager.savePatch(eventContext, patchId, patchBody.toString());
 		assertFalse(isNew);
 
 		assertEquals("dev.grid.patch.sagebase.org", putCaptor.getValue().bucket());
 		String key = putCaptor.getValue().key();
 		assertTrue(key.endsWith(".json"));
-		assertEquals(RequestBody.fromString(patchBody, StandardCharsets.UTF_8).optionalContentLength(),
+		assertEquals(RequestBody.fromString(patchBody.toString(), StandardCharsets.UTF_8).optionalContentLength(),
 				bodyCaptor.getValue().optionalContentLength());
 
 		verify(mockGridDao).savePatch(eq(gridSessionId), eq(patchId), eq(key), eq(GridManagerImpl.PATCH_DURATION), anyLong());
@@ -896,7 +897,7 @@ public class GridManagerUnitTest {
 		eventContext = null;
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// Call under test
-			gridManager.savePatch(eventContext, patchId, patchBody);
+			gridManager.savePatch(eventContext, patchId, patchBody.toString());
 		}).getMessage();
 		assertEquals("context is required.", message);
 	}
@@ -906,17 +907,16 @@ public class GridManagerUnitTest {
 		patchId = null;
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// Call under test
-			gridManager.savePatch(gridSessionId, patchId, patchBody);
+			gridManager.savePatch(gridSessionId, patchId, patchBody.toString());
 		}).getMessage();
 		assertEquals("patchId is required.", message);
 	}
 
 	@Test
 	public void testSavePatchWithNullPatchBody() {
-		patchBody = null;
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// Call under test
-			gridManager.savePatch(gridSessionId, patchId, patchBody);
+			gridManager.savePatch(gridSessionId, patchId, null);
 		}).getMessage();
 		assertEquals("body is required.", message);
 	}
@@ -924,10 +924,10 @@ public class GridManagerUnitTest {
 	@Test
 	public void testGetPatchBody() {
 		when(mockS3Client.getObjectAsBytes(getObjectRequestCaptor.capture())).thenReturn(ResponseBytes
-				.fromByteArray(GetObjectResponse.builder().build(), patchBody.getBytes(StandardCharsets.UTF_8)));
+				.fromByteArray(GetObjectResponse.builder().build(), patchBody.toString().getBytes(StandardCharsets.UTF_8)));
 		// call under test
-		Optional<String> op = gridManager.getPatchBody(gridSessionId, patchInfo);
-		assertEquals(Optional.of(patchBody), op);
+		Optional<JSONArray> op = gridManager.getPatchBody(gridSessionId, patchInfo);
+		assertEquals(patchBody.toString(), op.get().toString());
 
 		assertEquals("dev.grid.patch.sagebase.org", getObjectRequestCaptor.getValue().bucket());
 		assertEquals("akey", getObjectRequestCaptor.getValue().key());
@@ -983,7 +983,7 @@ public class GridManagerUnitTest {
 		doReturn(Optional.of(patchBody)).when(gridManager).getPatchBody(gridSessionId, missing.get(0));
 
 		// call under test
-		Optional<String> op = gridManager.getNextMissingPatch(eventContext, clock);
+		Optional<JSONArray> op = gridManager.getNextMissingPatch(eventContext, clock);
 		assertEquals(Optional.of(patchBody), op);
 	}
 
@@ -995,7 +995,7 @@ public class GridManagerUnitTest {
 		when(mockGridDao.listMissingPatchInfoForClock(gridSessionId, clock, 1)).thenReturn(Collections.emptyList());
 
 		// call under test
-		Optional<String> op = gridManager.getNextMissingPatch(eventContext, clock);
+		Optional<JSONArray> op = gridManager.getNextMissingPatch(eventContext, clock);
 		assertEquals(Optional.empty(), op);
 	}
 
@@ -1361,7 +1361,7 @@ public class GridManagerUnitTest {
 		JSONObject json = new JSONObject(result.get());
 		assertEquals("patches", json.getString("type"));
 		assertEquals(1, json.getJSONArray("body").length());
-		assertEquals(patchBody, json.getJSONArray("body").getString(0));
+		assertEquals(patchBody.toString(), json.getJSONArray("body").getJSONArray(0).toString());
 
 		verifyZeroInteractions(mockSynapseS3Client);
 	}
@@ -1405,7 +1405,7 @@ public class GridManagerUnitTest {
 		JSONObject json = new JSONObject(result.get());
 		assertEquals("patches", json.getString("type"));
 		assertEquals(1, json.getJSONArray("body").length());
-		assertEquals(patchBody, json.getJSONArray("body").getString(0));
+		assertEquals(patchBody.toString(), json.getJSONArray("body").getJSONArray(0).toString());
 
 
 		// Should not check for snapshot when clock is non-empty
@@ -1480,7 +1480,7 @@ public class GridManagerUnitTest {
 		JSONObject json = new JSONObject(result.get());
 		assertEquals("patches", json.getString("type"));
 		assertEquals(1, json.getJSONArray("body").length());
-		assertEquals(patchBody, json.getJSONArray("body").getString(0));
+		assertEquals(patchBody.toString(), json.getJSONArray("body").getJSONArray(0).toString());
 	}
 
 	@Test

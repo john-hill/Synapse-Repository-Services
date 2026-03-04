@@ -113,16 +113,16 @@ class RealmDaoImplTest {
 		List<DBORealmPrincipal> principals = jdbcTemplate.query(sql, (new DBORealmPrincipal()).getTableMapping(), id);
 		for (DBORealmPrincipal dbo: principals) {
 			if (dbo.getPrincipalId().equals(BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId())) {
-				assertEquals(1261L, dbo.getId());
+				assertEquals(1L, dbo.getId());
 			}
 			if (dbo.getPrincipalId().equals(BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId())) {
-				assertEquals(1262L, dbo.getId());
+				assertEquals(3L, dbo.getId());
 			}
 			if (dbo.getPrincipalId().equals(BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId())) {
-				assertEquals(1263L, dbo.getId());
+				assertEquals(2L, dbo.getId());
 			}
 			if (dbo.getPrincipalId().equals(BOOTSTRAP_PRINCIPAL.ADMINISTRATORS_GROUP.getPrincipalId())) {
-				assertEquals(1264L, dbo.getId());
+				assertEquals(4L, dbo.getId());
 			}
 		}
 		

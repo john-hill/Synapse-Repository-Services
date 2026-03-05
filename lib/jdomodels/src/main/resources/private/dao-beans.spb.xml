@@ -108,7 +108,7 @@
 			   		<property name="aliasName" value="CERTIFIED_USERS" />
 			   		<property name="aliasId" value="6" />
 			   	</bean>
-			</property>			
+			</property>
 		</bean>
 		<bean class="org.sagebionetworks.repo.model.principal.BootstrapGroup">
 			<property name="id" value="6" />

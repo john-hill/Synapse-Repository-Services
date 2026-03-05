@@ -1470,6 +1470,12 @@ public class SqlConstants {
  	public static final String COL_RECORDSET_VALIDATION_STATS_RECORDSET_VERSION	= "RECORDSET_VERSION";
  	public static final String COL_RECORDSET_VALIDATION_STATS_JSON				= "STATS_JSON";
  	public static final String DDL_FILE_RECORDSET_VALIDATION_STATS				= "schema/RecordSetValidationStats-ddl.sql";
+
+	// The certified users table
+	public static final String TABLE_CERTIFIED_USERS                            = "CERTIFIED_USERS";
+	public static final String COL_CERTIFIED_USERS_USER_ID                   	= "USER_ID";
+
+	public static final String DDL_FILE_CERTIFIED_USERS                            = "schema/CertifiedUsers-ddl.sql";
  	
  	// Tables to represent security Realms
  	public static final String TABLE_REALM = "SYNAPSE_REALM";

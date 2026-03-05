@@ -61,6 +61,7 @@ public class ConcurrentWorkerStack implements Runnable {
 	// derived parameters
 	private final int lockRefreshFrequencyMS;
 	private final String queueUrl;
+	private final boolean isFifo;
 
 	// local state
 	private long nextRefreshTimeMS;
@@ -68,7 +69,7 @@ public class ConcurrentWorkerStack implements Runnable {
 	private ConcurrentProgressCallback lockCallback;
 	private List<WorkerJob> runningJobs;
 	private long waitTimeMs;
-	
+
 	/**
 	 * Empty constructor needed by Spring to create a proxy for this class.
 	 */
@@ -83,6 +84,7 @@ public class ConcurrentWorkerStack implements Runnable {
 		lockRefreshFrequencyMS = -1;
 		queueUrl = null;
 		waitTimeMs = MIN_WAIT_TIME;
+		isFifo = false;
 	};
 
 	private ConcurrentWorkerStack(ConcurrentManager manager, Boolean canRunInReadOnly, String semaphoreLockKey,
@@ -102,11 +104,6 @@ public class ConcurrentWorkerStack implements Runnable {
 				"maxThreadsPerMachine must be greater than or equal to 1.");
 		ValidateArgument.required(worker, "worker");
 		ValidateArgument.required(queueName, "queueName");
-		if (queueName.toLowerCase().endsWith("fifo") && maxThreadsPerMachine != 1) {
-			throw new IllegalArgumentException(
-					"For FIFO queues, maxThreadsPerMachine must be 1 to ensure messages from the same group are processed in order."
-					+ " Otherwise, concurrent threads could break FIFO message-group ordering.");
-		}
 
 		this.manager = manager;
 		this.canRunInReadOnly = Boolean.TRUE.equals(canRunInReadOnly);
@@ -117,6 +114,7 @@ public class ConcurrentWorkerStack implements Runnable {
 		this.worker = worker;
 		this.lockRefreshFrequencyMS = (semaphoreLockAndMessageVisibilityTimeoutSec * 1000) / 3;
 		this.queueUrl = manager.getSqsQueueUrl(queueName);
+		this.isFifo = queueName.toLowerCase().endsWith("fifo");
 	}
 
 	/**
@@ -155,7 +153,7 @@ public class ConcurrentWorkerStack implements Runnable {
 			 * returns empty, double the wait time (capped at MAX_WAIT_TIME). When workers
 			 * are added or we're at capacity (didn't poll), reset to MIN_WAIT_TIME to
 			 * quickly detect new messages or job completion.
-			 * 
+			 *
 			 * Backoff progression on consecutive empty responses: 50ms → 100ms → 200ms →
 			 * 400ms → 800ms → 1000ms (capped)
 			 */
@@ -264,12 +262,12 @@ public class ConcurrentWorkerStack implements Runnable {
 		if (maxNumberOfMessagesToRecieve < 1) {
 			return false;
 		}
-		
+
 		List<WorkerJob> newJobs = manager.pollForMessagesAndStartJobs(queueUrl, maxNumberOfMessagesToRecieve,
-				semaphoreLockAndMessageVisibilityTimeoutSec, worker);
+				semaphoreLockAndMessageVisibilityTimeoutSec, worker, isFifo);
 
 		runningJobs.addAll(newJobs);
-		
+
 		return newJobs.isEmpty();
 	}
 	
@@ -307,6 +305,10 @@ public class ConcurrentWorkerStack implements Runnable {
 	
 	long getLockRefreshFrequencyMS() {
 		return lockRefreshFrequencyMS;
+	}
+
+	boolean isFifo() {
+		return isFifo;
 	}
 
 	/**

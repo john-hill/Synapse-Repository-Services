@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -65,6 +66,7 @@ public class ConcurrentWorkerStackTest {
 	private Integer maxThreadsPerMachine;
 	private String queueName;
 	private String queueUrl;
+	private boolean isFifoQueue;
 
 	@BeforeEach
 	public void before() {
@@ -75,6 +77,7 @@ public class ConcurrentWorkerStackTest {
 		maxThreadsPerMachine = 8;
 		queueName = "queue-name";
 		queueUrl = "https://aws-some-queue";
+		isFifoQueue = false;
 	}
 
 	ConcurrentWorkerStack createStack() {
@@ -106,15 +109,22 @@ public class ConcurrentWorkerStackTest {
 	}
 	
 	@Test
-	public void testBuildWithFifoQueueMaxThreadsNotOne() {
+	public void testBuildWithFifoQueue() {
 		queueName = "some.FiFo";
 		maxThreadsPerMachine = 3;
-		String message = assertThrows(IllegalArgumentException.class, () -> {
-			// call under test
-			createStack();
-		}).getMessage();
-		assertEquals("For FIFO queues, maxThreadsPerMachine must be 1 to ensure messages from the same group are processed in order."
-				+ " Otherwise, concurrent threads could break FIFO message-group ordering.", message);
+		when(mockManager.getSqsQueueUrl(any())).thenReturn(queueUrl);
+		// call under test
+		ConcurrentWorkerStack stack = createStack();
+		assertTrue(stack.isFifo());
+	}
+
+	@Test
+	public void testBuildWithNonFifoQueue() {
+		queueName = "some-queue";
+		when(mockManager.getSqsQueueUrl(any())).thenReturn(queueUrl);
+		// call under test
+		ConcurrentWorkerStack stack = createStack();
+		assertFalse(stack.isFifo());
 	}
 
 	@Test
@@ -614,7 +624,7 @@ public class ConcurrentWorkerStackTest {
 				new WorkerJob(futureTwo, mockProgressListenerTwo),
 				new WorkerJob(futureThree, mockProgressListenerThree));
 
-		when(mockManager.pollForMessagesAndStartJobs(any(), anyInt(), anyInt(), any())).thenReturn(jobs);
+		when(mockManager.pollForMessagesAndStartJobs(any(), anyInt(), anyInt(), any(), anyBoolean())).thenReturn(jobs);
 
 		// call under test
 		boolean emptyQueue = stack.attemptToAddMoreWorkers();
@@ -626,10 +636,39 @@ public class ConcurrentWorkerStackTest {
 		verify(stack).canProcessMoreMessages();
 		int maxNumberOfMessages = maxThreadsPerMachine;
 		verify(mockManager).pollForMessagesAndStartJobs(queueUrl, maxNumberOfMessages,
-				semaphoreLockAndMessageVisibilityTimeoutSec, mockWorker);
-
+				semaphoreLockAndMessageVisibilityTimeoutSec, mockWorker, isFifoQueue);
 	}
 	
+	@Test
+	public void testAttemptToAddMoreWorkersWithFifoQueue() {
+		isFifoQueue = true;
+		queueName = "some-queue.fifo";
+		maxThreadsPerMachine = 8;
+		when(mockManager.getSqsQueueUrl(any())).thenReturn(queueUrl);
+		ConcurrentWorkerStack stack = Mockito.spy(createStack());
+		stack.resetAllState();
+
+		doReturn(true).when(stack).canProcessMoreMessages();
+
+		List<WorkerJob> jobs = List.of(new WorkerJob(futureOne, mockProgressListenerOne),
+				new WorkerJob(futureTwo, mockProgressListenerTwo),
+				new WorkerJob(futureThree, mockProgressListenerThree));
+
+		when(mockManager.pollForMessagesAndStartJobs(any(), anyInt(), anyInt(), any(), anyBoolean())).thenReturn(jobs);
+
+		// call under test
+		boolean emptyQueue = stack.attemptToAddMoreWorkers();
+
+		assertFalse(emptyQueue);
+
+		verify(mockManager).getSqsQueueUrl(queueName);
+		assertEquals(jobs, stack.getRunningJobs());
+		verify(stack).canProcessMoreMessages();
+		int maxNumberOfMessages = maxThreadsPerMachine;
+		verify(mockManager).pollForMessagesAndStartJobs(queueUrl, maxNumberOfMessages,
+				semaphoreLockAndMessageVisibilityTimeoutSec, mockWorker, isFifoQueue);
+	}
+
 	@Test
 	public void testAttemptToAddMoreWorkersWithNoAddedWorkers() {
 		maxThreadsPerMachine = 8;
@@ -641,7 +680,7 @@ public class ConcurrentWorkerStackTest {
 
 		List<WorkerJob> jobs = Collections.emptyList();
 
-		when(mockManager.pollForMessagesAndStartJobs(any(), anyInt(), anyInt(), any())).thenReturn(jobs);
+		when(mockManager.pollForMessagesAndStartJobs(any(), anyInt(), anyInt(), any(), anyBoolean())).thenReturn(jobs);
 
 		// call under test
 		boolean emptyQueue = stack.attemptToAddMoreWorkers();
@@ -653,7 +692,7 @@ public class ConcurrentWorkerStackTest {
 		verify(stack).canProcessMoreMessages();
 		int maxNumberOfMessages = maxThreadsPerMachine;
 		verify(mockManager).pollForMessagesAndStartJobs(queueUrl, maxNumberOfMessages,
-				semaphoreLockAndMessageVisibilityTimeoutSec, mockWorker);
+				semaphoreLockAndMessageVisibilityTimeoutSec, mockWorker, isFifoQueue);
 
 	}
 
@@ -674,7 +713,7 @@ public class ConcurrentWorkerStackTest {
 		stack.getRunningJobs().add(allJobs.get(0));
 
 		// three will get added
-		when(mockManager.pollForMessagesAndStartJobs(any(), anyInt(), anyInt(), any()))
+		when(mockManager.pollForMessagesAndStartJobs(any(), anyInt(), anyInt(), any(), anyBoolean()))
 				.thenReturn(List.of(allJobs.get(1), allJobs.get(2), allJobs.get(3)));
 
 		// call under test
@@ -687,7 +726,7 @@ public class ConcurrentWorkerStackTest {
 		verify(stack).canProcessMoreMessages();
 		int maxNumberOfMessages = 3;
 		verify(mockManager).pollForMessagesAndStartJobs(queueUrl, maxNumberOfMessages,
-				semaphoreLockAndMessageVisibilityTimeoutSec, mockWorker);
+				semaphoreLockAndMessageVisibilityTimeoutSec, mockWorker, isFifoQueue);
 
 	}
 
@@ -706,7 +745,7 @@ public class ConcurrentWorkerStackTest {
 		doReturn(true).when(stack).canProcessMoreMessages();
 
 		// three will get added
-		when(mockManager.pollForMessagesAndStartJobs(any(), anyInt(), anyInt(), any())).thenReturn(allJobs);
+		when(mockManager.pollForMessagesAndStartJobs(any(), anyInt(), anyInt(), any(), anyBoolean())).thenReturn(allJobs);
 
 		// call under test
 		boolean emptyQueue = stack.attemptToAddMoreWorkers();
@@ -718,7 +757,7 @@ public class ConcurrentWorkerStackTest {
 		verify(stack).canProcessMoreMessages();
 		int maxNumberOfMessages = 10;
 		verify(mockManager).pollForMessagesAndStartJobs(queueUrl, maxNumberOfMessages,
-				semaphoreLockAndMessageVisibilityTimeoutSec, mockWorker);
+				semaphoreLockAndMessageVisibilityTimeoutSec, mockWorker, isFifoQueue);
 
 	}
 
@@ -737,7 +776,7 @@ public class ConcurrentWorkerStackTest {
 		doReturn(true).when(stack).canProcessMoreMessages();
 
 		// three will get added
-		when(mockManager.pollForMessagesAndStartJobs(any(), anyInt(), anyInt(), any())).thenReturn(allJobs);
+		when(mockManager.pollForMessagesAndStartJobs(any(), anyInt(), anyInt(), any(), anyBoolean())).thenReturn(allJobs);
 
 		// call under test
 		boolean emptyQueue = stack.attemptToAddMoreWorkers();
@@ -749,7 +788,7 @@ public class ConcurrentWorkerStackTest {
 		verify(stack).canProcessMoreMessages();
 		int maxNumberOfMessages = 10;
 		verify(mockManager).pollForMessagesAndStartJobs(queueUrl, maxNumberOfMessages,
-				semaphoreLockAndMessageVisibilityTimeoutSec, mockWorker);
+				semaphoreLockAndMessageVisibilityTimeoutSec, mockWorker, isFifoQueue);
 
 	}
 
@@ -776,7 +815,7 @@ public class ConcurrentWorkerStackTest {
 
 		verify(mockManager).getSqsQueueUrl(queueName);
 		assertEquals(allJobs, stack.getRunningJobs());
-		verify(mockManager, never()).pollForMessagesAndStartJobs(any(), anyInt(), anyInt(), any());
+		verify(mockManager, never()).pollForMessagesAndStartJobs(any(), anyInt(), anyInt(), any(), anyBoolean());
 	}
 
 	@Test
@@ -802,6 +841,6 @@ public class ConcurrentWorkerStackTest {
 
 		verify(mockManager).getSqsQueueUrl(queueName);
 		assertEquals(allJobs, stack.getRunningJobs());
-		verify(mockManager, never()).pollForMessagesAndStartJobs(any(), anyInt(), anyInt(), any());
+		verify(mockManager, never()).pollForMessagesAndStartJobs(any(), anyInt(), anyInt(), any(), anyBoolean());
 	}
 }

@@ -150,6 +150,29 @@ public class RowSourceImpl implements RowSource {
 	}
 
 	/**
+	 * Returns whether rows can be added to or removed from this source. Delegates
+	 * to {@link SourceHandler#canAddRemoveRows()}.
+	 *
+	 * @return true if rows can be added to or removed from this source, false
+	 *         otherwise
+	 */
+	@Override
+	public boolean isItemAdditionSupported() {
+		return sourceHandler.canAddRemoveRows();
+	}
+
+	/**
+	 * Returns whether rows can be removed from this source. Delegates to
+	 * {@link SourceHandler#canAddRemoveRows()}.
+	 *
+	 * @return true if rows can be removed from this source, false otherwise
+	 */
+	@Override
+	public boolean isItemRemovalSupported() {
+		return sourceHandler.canAddRemoveRows();
+	}
+
+	/**
 	 * Determines whether a copy row and source row match (have identical content).
 	 * Uses hash-based comparison for efficient change detection without comparing
 	 * individual cells.

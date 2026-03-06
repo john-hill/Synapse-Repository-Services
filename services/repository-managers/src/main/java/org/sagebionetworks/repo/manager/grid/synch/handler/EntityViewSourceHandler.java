@@ -138,6 +138,16 @@ public class EntityViewSourceHandler implements SourceHandler {
 	}
 
 	@Override
+	public boolean canAddRemoveRows() {
+		return false;
+	}
+
+	@Override
+	public boolean canAddRemoveColumns() {
+		return false;
+	}
+
+	@Override
 	public void addNewRowToSource(RowSourceItem copy) {
 		errorMessages.add(String.format("Cannot add the row: '%s' to a source view.", copy.getKey()));
 	}

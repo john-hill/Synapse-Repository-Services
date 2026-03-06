@@ -392,6 +392,28 @@ public class EntityViewSourceHandlerTest {
 	}
 
 	@Test
+	public void testCanAddRemoveRows() throws Exception {
+		try (EntityViewSourceHandler handler = setupHandler(session, Collections.emptyList(), Collections.emptyList(),
+				Collections.emptyList()); RowSourceItemReader rowReader = handler.getSourceRowReader()) {
+
+			// call under test
+			assertEquals(false, handler.canAddRemoveRows());
+		}
+		verifyNoMoreInteractionsOnAllMocks();
+	}
+
+	@Test
+	public void testCanAddRemoveColumns() throws Exception {
+		try (EntityViewSourceHandler handler = setupHandler(session, Collections.emptyList(), Collections.emptyList(),
+				Collections.emptyList()); RowSourceItemReader rowReader = handler.getSourceRowReader()) {
+
+			// call under test
+			assertEquals(false, handler.canAddRemoveColumns());
+		}
+		verifyNoMoreInteractionsOnAllMocks();
+	}
+
+	@Test
 	public void testAddNewRowToSource() throws Exception {
 		try (EntityViewSourceHandler handler = setupHandler(session, Collections.emptyList(), Collections.emptyList(),
 				Collections.emptyList()); RowSourceItemReader rowReader = handler.getSourceRowReader()) {

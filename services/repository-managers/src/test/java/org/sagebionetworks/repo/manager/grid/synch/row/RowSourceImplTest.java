@@ -178,4 +178,26 @@ public class RowSourceImplTest {
 		assertEquals(input, refs);
 
 	}
+
+	@Test
+	public void testIsItemAdditionSupported() {
+		when(mockSourceHandler.canAddRemoveRows()).thenReturn(false);
+
+		// call under test
+		assertFalse(source.isItemAdditionSupported());
+
+		verify(mockSourceHandler).canAddRemoveRows();
+		verifyNoMoreInteractionsWithAllMocks();
+	}
+
+	@Test
+	public void testIsItemRemovalSupported() {
+		when(mockSourceHandler.canAddRemoveRows()).thenReturn(false);
+
+		// call under test
+		assertFalse(source.isItemRemovalSupported());
+
+		verify(mockSourceHandler).canAddRemoveRows();
+		verifyNoMoreInteractionsWithAllMocks();
+	}
 }

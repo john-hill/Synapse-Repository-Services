@@ -4,9 +4,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +14,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
+import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
+import org.sagebionetworks.repo.model.schema.Organization;
 import org.sagebionetworks.repo.model.table.search.TextAnalyzer;
 import org.sagebionetworks.repo.model.table.search.TextAnalyzerSettings;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,17 +29,26 @@ public class TextAnalyzerDaoImplAutowiredTest {
 	@Autowired
 	private TextAnalyzerDao textAnalyzerDao;
 
+	@Autowired
+	private OrganizationDao organizationDao;
+
 	private Long adminUserId;
+	private String organizationId;
 
 	@BeforeEach
 	public void before() {
 		adminUserId = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
 		textAnalyzerDao.truncateAll();
+		Organization org = organizationDao.createOrganization("test-org-" + UUID.randomUUID(), adminUserId);
+		organizationId = org.getId();
 	}
 
 	@AfterEach
 	public void after() {
 		textAnalyzerDao.truncateAll();
+		if (organizationId != null) {
+			organizationDao.deleteOrganization(organizationId);
+		}
 	}
 
 	@Test
@@ -120,38 +131,25 @@ public class TextAnalyzerDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testListSystemReturnsOnlySystemAnalyzers() {
-		textAnalyzerDao.createOrUpdateSystemAnalyzer(1L, newAnalyzer("SYS_A", "System A"), adminUserId);
-		textAnalyzerDao.createOrUpdateSystemAnalyzer(2L, newAnalyzer("SYS_B", "System B"), adminUserId);
-
-		List<TextAnalyzer> systemAnalyzers = textAnalyzerDao.listSystem();
-
-		assertEquals(2, systemAnalyzers.size());
-		// Ordered by ID ascending
-		assertEquals("SYS_A", systemAnalyzers.get(0).getName());
-		assertEquals("SYS_B", systemAnalyzers.get(1).getName());
-		assertNull(systemAnalyzers.get(0).getOrganizationId());
-		assertNull(systemAnalyzers.get(1).getOrganizationId());
-	}
-
-	@Test
 	public void testCreateOrUpdateSystemAnalyzerIsIdempotent() {
+		Long orgId = Long.parseLong(organizationId);
+
 		// First call inserts
-		textAnalyzerDao.createOrUpdateSystemAnalyzer(1L, newAnalyzer("SCIENTIFIC", "V1"), adminUserId);
+		textAnalyzerDao.createOrUpdateSystemAnalyzer(1L, newAnalyzer("SCIENTIFIC", "V1"), orgId, adminUserId);
 		Optional<TextAnalyzer> first = textAnalyzerDao.get(1L);
 		assertTrue(first.isPresent());
 		assertEquals("V1", first.get().getDescription());
 		String firstEtag = first.get().getEtag();
 
 		// Second call with same ID updates in place
-		textAnalyzerDao.createOrUpdateSystemAnalyzer(1L, newAnalyzer("SCIENTIFIC", "V2"), adminUserId);
+		textAnalyzerDao.createOrUpdateSystemAnalyzer(1L, newAnalyzer("SCIENTIFIC", "V2"), orgId, adminUserId);
 		Optional<TextAnalyzer> second = textAnalyzerDao.get(1L);
 		assertTrue(second.isPresent());
 		assertEquals("V2", second.get().getDescription());
 		assertNotEquals(firstEtag, second.get().getEtag());
 
-		// Still only one row
-		assertEquals(1, textAnalyzerDao.listSystem().size());
+		// Still only one row for this org
+		assertEquals(1, textAnalyzerDao.listByOrganization(orgId, 100, 0).size());
 	}
 
 	@Test
@@ -184,6 +182,7 @@ public class TextAnalyzerDaoImplAutowiredTest {
 		TextAnalyzer analyzer = new TextAnalyzer();
 		analyzer.setName(name);
 		analyzer.setDescription(description);
+		analyzer.setOrganizationId(organizationId);
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
 		settings.setTokenizer("standard");
 		settings.setFilterOrder(Arrays.asList("lowercase"));

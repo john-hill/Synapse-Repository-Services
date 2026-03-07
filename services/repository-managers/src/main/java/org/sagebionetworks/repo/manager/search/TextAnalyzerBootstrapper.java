@@ -2,18 +2,21 @@ package org.sagebionetworks.repo.manager.search;
 
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.table.search.TextAnalyzer;
 import org.sagebionetworks.repo.model.table.search.TextAnalyzerSettings;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.stereotype.Service;
 
 @Service
 public class TextAnalyzerBootstrapper implements InitializingBean {
+
+	static final String ORG_SAGEBIONETWORKS = "org.sagebionetworks";
 
 	public static final long SCIENTIFIC_ID = 1L;
 	public static final long STANDARD_ID = 2L;
@@ -23,9 +26,11 @@ public class TextAnalyzerBootstrapper implements InitializingBean {
 	public static final long AUTOCOMPLETE_SEARCH_ID = 6L;
 
 	private final TextAnalyzerDao textAnalyzerDao;
+	private final OrganizationDao organizationDao;
 
-	public TextAnalyzerBootstrapper(TextAnalyzerDao textAnalyzerDao) {
+	public TextAnalyzerBootstrapper(TextAnalyzerDao textAnalyzerDao, OrganizationDao organizationDao) {
 		this.textAnalyzerDao = textAnalyzerDao;
+		this.organizationDao = organizationDao;
 	}
 
 	@Override
@@ -35,48 +40,49 @@ public class TextAnalyzerBootstrapper implements InitializingBean {
 
 	void bootstrapSystemAnalyzers() {
 		Long adminUserId = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
+		Long organizationId = getOrCreateOrganization(adminUserId);
 
 		// 1. SCIENTIFIC: English stemming, stop words, lowercase, synonym expansion
 		textAnalyzerDao.createOrUpdateSystemAnalyzer(SCIENTIFIC_ID, buildAnalyzer(
 				"SCIENTIFIC",
 				"English stemming, stop words, lowercase, synonym expansion. Best for scientific metadata.",
 				buildScientificSettings()
-		), adminUserId);
+		), organizationId, adminUserId);
 
 		// 2. STANDARD: Standard tokenizer with lowercase
 		textAnalyzerDao.createOrUpdateSystemAnalyzer(STANDARD_ID, buildAnalyzer(
 				"STANDARD",
 				"OpenSearch standard analyzer. Unicode segmentation with lowercase. General-purpose.",
 				buildStandardSettings()
-		), adminUserId);
+		), organizationId, adminUserId);
 
 		// 3. IDENTIFIER: Whitespace tokenizer with lowercase
 		textAnalyzerDao.createOrUpdateSystemAnalyzer(IDENTIFIER_ID, buildAnalyzer(
 				"IDENTIFIER",
 				"Preserves punctuation. Whitespace tokenization plus lowercase. Suitable for DOIs, RRIDs, PMIDs.",
 				buildIdentifierSettings()
-		), adminUserId);
+		), organizationId, adminUserId);
 
 		// 4. KEYWORD: Built-in keyword analyzer
 		textAnalyzerDao.createOrUpdateSystemAnalyzer(KEYWORD_ID, buildAnalyzer(
 				"KEYWORD",
 				"No tokenization. Entire value is a single token. Suitable for facet and filter fields.",
 				buildKeywordSettings()
-		), adminUserId);
+		), organizationId, adminUserId);
 
 		// 5. AUTOCOMPLETE: Edge n-gram for type-ahead
 		textAnalyzerDao.createOrUpdateSystemAnalyzer(AUTOCOMPLETE_ID, buildAnalyzer(
 				"AUTOCOMPLETE",
 				"Edge n-gram (2-20 chars) for type-ahead. Paired with AUTOCOMPLETE_SEARCH at search time.",
 				buildAutocompleteSettings()
-		), adminUserId);
+		), organizationId, adminUserId);
 
 		// 6. AUTOCOMPLETE_SEARCH: Standard tokenizer with lowercase (search-time pair for AUTOCOMPLETE)
 		textAnalyzerDao.createOrUpdateSystemAnalyzer(AUTOCOMPLETE_SEARCH_ID, buildAnalyzer(
 				"AUTOCOMPLETE_SEARCH",
 				"Search-time analyzer paired with AUTOCOMPLETE. Standard tokenizer with lowercase and synonyms.",
 				buildAutocompleteSearchSettings()
-		), adminUserId);
+		), organizationId, adminUserId);
 	}
 
 	private TextAnalyzer buildAnalyzer(String name, String description, TextAnalyzerSettings settings) {
@@ -180,5 +186,13 @@ public class TextAnalyzerBootstrapper implements InitializingBean {
 		settings.setFilterOrder(Arrays.asList("acs_word_delimiter", "lowercase"));
 		settings.setSynonymAware(true);
 		return settings;
+	}
+
+	private Long getOrCreateOrganization(Long createdBy) {
+		try {
+			return Long.parseLong(organizationDao.getOrganizationByName(ORG_SAGEBIONETWORKS).getId());
+		} catch (NotFoundException e) {
+			return Long.parseLong(organizationDao.createOrganization(ORG_SAGEBIONETWORKS, createdBy).getId());
+		}
 	}
 }

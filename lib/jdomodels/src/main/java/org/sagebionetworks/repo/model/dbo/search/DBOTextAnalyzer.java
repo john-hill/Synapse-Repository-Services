@@ -49,8 +49,7 @@ public class DBOTextAnalyzer implements MigratableDatabaseObject<DBOTextAnalyzer
 			dbo.setEtag(rs.getString(COL_TEXT_ANALYZER_ETAG));
 			dbo.setName(rs.getString(COL_TEXT_ANALYZER_NAME));
 			dbo.setDescription(rs.getString(COL_TEXT_ANALYZER_DESCRIPTION));
-			long orgId = rs.getLong(COL_TEXT_ANALYZER_ORGANIZATION_ID);
-			dbo.setOrganizationId(rs.wasNull() ? null : orgId);
+			dbo.setOrganizationId(rs.getLong(COL_TEXT_ANALYZER_ORGANIZATION_ID));
 			dbo.setSettings(rs.getString(COL_TEXT_ANALYZER_SETTINGS));
 			dbo.setCreatedBy(rs.getLong(COL_TEXT_ANALYZER_CREATED_BY));
 			dbo.setCreatedOn(rs.getTimestamp(COL_TEXT_ANALYZER_CREATED_ON));

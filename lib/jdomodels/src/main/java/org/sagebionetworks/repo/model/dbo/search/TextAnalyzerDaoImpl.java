@@ -56,10 +56,6 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 			+ " WHERE " + COL_TEXT_ANALYZER_ORGANIZATION_ID
 			+ " = ? ORDER BY " + COL_TEXT_ANALYZER_NAME + " ASC LIMIT ? OFFSET ?";
 
-	private static final String SQL_LIST_SYSTEM = "SELECT * FROM " + TABLE_TEXT_ANALYZER
-			+ " WHERE " + COL_TEXT_ANALYZER_ORGANIZATION_ID
-			+ " IS NULL ORDER BY " + COL_TEXT_ANALYZER_ID + " ASC";
-
 	private static final String SQL_EXISTS = "SELECT COUNT(*) FROM " + TABLE_TEXT_ANALYZER
 			+ " WHERE " + COL_TEXT_ANALYZER_ID + " = ?";
 
@@ -87,8 +83,7 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 		analyzer.setEtag(rs.getString(COL_TEXT_ANALYZER_ETAG));
 		analyzer.setName(rs.getString(COL_TEXT_ANALYZER_NAME));
 		analyzer.setDescription(rs.getString(COL_TEXT_ANALYZER_DESCRIPTION));
-		long orgId = rs.getLong(COL_TEXT_ANALYZER_ORGANIZATION_ID);
-		analyzer.setOrganizationId(rs.wasNull() ? null : String.valueOf(orgId));
+		analyzer.setOrganizationId(String.valueOf(rs.getLong(COL_TEXT_ANALYZER_ORGANIZATION_ID)));
 		analyzer.setSettings(settingsFromJson(rs.getString(COL_TEXT_ANALYZER_SETTINGS)));
 		analyzer.setCreatedBy(String.valueOf(rs.getLong(COL_TEXT_ANALYZER_CREATED_BY)));
 		analyzer.setCreatedOn(new Date(rs.getTimestamp(COL_TEXT_ANALYZER_CREATED_ON).getTime()));
@@ -110,6 +105,7 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 	public TextAnalyzer create(TextAnalyzer analyzer, Long userId) {
 		ValidateArgument.required(analyzer, "analyzer");
 		ValidateArgument.required(analyzer.getName(), "analyzer.name");
+		ValidateArgument.required(analyzer.getOrganizationId(), "analyzer.organizationId");
 		ValidateArgument.required(analyzer.getSettings(), "analyzer.settings");
 		ValidateArgument.required(userId, "userId");
 
@@ -123,7 +119,7 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 					etag,
 					analyzer.getName(),
 					analyzer.getDescription(),
-					analyzer.getOrganizationId() != null ? Long.parseLong(analyzer.getOrganizationId()) : null,
+					Long.parseLong(analyzer.getOrganizationId()),
 					settingsToJson(analyzer.getSettings()),
 					userId,
 					now,
@@ -196,24 +192,20 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 	}
 
 	@Override
-	public List<TextAnalyzer> listSystem() {
-		return jdbcTemplate.query(SQL_LIST_SYSTEM, ROW_MAPPER);
-	}
-
-	@Override
 	public boolean exists(Long id) {
 		ValidateArgument.required(id, "id");
 		Integer count = jdbcTemplate.queryForObject(SQL_EXISTS, Integer.class, id);
-		return count != null && count > 0;
+		return count > 0;
 	}
 
 	@WriteTransaction
 	@Override
-	public void createOrUpdateSystemAnalyzer(Long id, TextAnalyzer analyzer, Long userId) {
+	public void createOrUpdateSystemAnalyzer(Long id, TextAnalyzer analyzer, Long organizationId, Long userId) {
 		ValidateArgument.required(id, "id");
 		ValidateArgument.required(analyzer, "analyzer");
 		ValidateArgument.required(analyzer.getName(), "analyzer.name");
 		ValidateArgument.required(analyzer.getSettings(), "analyzer.settings");
+		ValidateArgument.required(organizationId, "organizationId");
 		ValidateArgument.required(userId, "userId");
 
 		String etag = UUID.randomUUID().toString();
@@ -224,7 +216,7 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 				etag,
 				analyzer.getName(),
 				analyzer.getDescription(),
-				null, // system analyzers have no organization
+				organizationId,
 				settingsToJson(analyzer.getSettings()),
 				userId,
 				now,

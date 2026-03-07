@@ -14,7 +14,6 @@ import org.springframework.stereotype.Service;
 public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 
 	private static final long DEFAULT_LIMIT = 50L;
-	private static final long MAX_LIMIT = 100L;
 
 	private final TextAnalyzerDao textAnalyzerDao;
 
@@ -32,28 +31,23 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 	@Override
 	public ListTextAnalyzersResponse list(ListTextAnalyzersRequest request) {
 		ValidateArgument.required(request, "request");
+		ValidateArgument.required(request.getOrganizationId(), "request.organizationId");
 
 		ListTextAnalyzersResponse response = new ListTextAnalyzersResponse();
 
-		if (request.getOrganizationId() != null) {
-			// List by organization
-			long offset = 0L;
-			long limit = DEFAULT_LIMIT;
-			if (request.getNextPageToken() != null) {
-				offset = Long.parseLong(request.getNextPageToken());
-			}
-			List<TextAnalyzer> results = textAnalyzerDao.listByOrganization(
-					Long.parseLong(request.getOrganizationId()), limit + 1, offset);
-
-			if (results.size() > limit) {
-				results = results.subList(0, (int) limit);
-				response.setNextPageToken(String.valueOf(offset + limit));
-			}
-			response.setResults(results);
-		} else {
-			// List system analyzers
-			response.setResults(textAnalyzerDao.listSystem());
+		long offset = 0L;
+		long limit = DEFAULT_LIMIT;
+		if (request.getNextPageToken() != null) {
+			offset = Long.parseLong(request.getNextPageToken());
 		}
+		List<TextAnalyzer> results = textAnalyzerDao.listByOrganization(
+				Long.parseLong(request.getOrganizationId()), limit + 1, offset);
+
+		if (results.size() > limit) {
+			results = results.subList(0, (int) limit);
+			response.setNextPageToken(String.valueOf(offset + limit));
+		}
+		response.setResults(results);
 
 		return response;
 	}

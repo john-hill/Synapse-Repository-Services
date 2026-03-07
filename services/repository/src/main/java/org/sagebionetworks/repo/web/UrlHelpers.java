@@ -1359,6 +1359,11 @@ public class UrlHelpers {
 	public static final String DRS_OBJECT = "/objects/{object_id}";
 	public static final String DRS_FETCH_BYTES = DRS_OBJECT + "/access/{access_id}";
 
+	// Search - Text Analyzer
+	public static final String SEARCH_TEXT_ANALYZER = "/search/text/analyzer";
+	public static final String SEARCH_TEXT_ANALYZER_ID = SEARCH_TEXT_ANALYZER + "/{id}";
+	public static final String SEARCH_TEXT_ANALYZER_LIST = SEARCH_TEXT_ANALYZER + "/list";
+
 	static {
 		@SuppressWarnings("rawtypes")
 		Map<Class, String> property2urlsuffix = new HashMap<Class, String>();

@@ -1,0 +1,39 @@
+{
+	"description": "The OpenSearch analyzer configuration. Stores the full definition of how text is analyzed.",
+	"properties": {
+		"charFilters": {
+			"type": "map",
+			"description": "Named character filter definitions. Keys are filter names, values are JSON-serialized filter config objects.",
+			"key": { "type": "string" },
+			"value": { "type": "string" }
+		},
+		"tokenizer": {
+			"type": "string",
+			"description": "The tokenizer name (e.g., 'standard', 'whitespace'). For custom tokenizers, define in 'tokenizerConfig'."
+		},
+		"tokenizerConfig": {
+			"type": "string",
+			"description": "JSON-serialized custom tokenizer configuration object. Must include a 'type' field. Example: {\"type\":\"edge_ngram\",\"min_gram\":2,\"max_gram\":20,\"token_chars\":[\"letter\",\"digit\"]}"
+		},
+		"tokenFilters": {
+			"type": "map",
+			"description": "Named token filter definitions. Keys are filter names, values are JSON-serialized filter config objects.",
+			"key": { "type": "string" },
+			"value": { "type": "string" }
+		},
+		"filterOrder": {
+			"type": "array",
+			"description": "Ordered list of token filter names to apply. Can reference built-in filters (e.g., 'lowercase') or custom ones defined in 'tokenFilters'.",
+			"items": { "type": "string" }
+		},
+		"charFilterOrder": {
+			"type": "array",
+			"description": "Ordered list of character filter names to apply.",
+			"items": { "type": "string" }
+		},
+		"synonymAware": {
+			"type": "boolean",
+			"description": "Whether the synonym token filter should be appended when synonyms are configured."
+		}
+	}
+}

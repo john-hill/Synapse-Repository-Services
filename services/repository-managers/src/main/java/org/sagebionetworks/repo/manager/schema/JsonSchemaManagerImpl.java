@@ -30,6 +30,7 @@ import org.sagebionetworks.repo.model.dbo.schema.BindSchemaRequest;
 import org.sagebionetworks.repo.model.dbo.schema.JsonSchemaDao;
 import org.sagebionetworks.repo.model.dbo.schema.NewSchemaVersionRequest;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
+import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.dbo.schema.SchemaDependency;
 import org.sagebionetworks.repo.model.dbo.schema.ValidationJsonSchemaIndexDao;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
@@ -98,6 +99,9 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 	
 	@Autowired
 	private JsonSchemaValidatorFactory validatorFactory;
+
+	@Autowired
+	private TextAnalyzerDao textAnalyzerDao;
 
 	public static final Set<ACCESS_TYPE> ADMIN_PERMISSIONS = Sets.newHashSet(READ, CREATE, CHANGE_PERMISSIONS, UPDATE,
 			DELETE);
@@ -379,6 +383,7 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 	@WriteTransaction
 	@Override
 	public void truncateAll() {
+		textAnalyzerDao.truncateAll();
 		jsonSchemaDao.truncateAll();
 		organizationDao.truncateAll();
 	}

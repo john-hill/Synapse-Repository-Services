@@ -165,6 +165,7 @@ public class TextAnalyzerDaoImplAutowiredTest {
 
 		TextAnalyzer analyzer = new TextAnalyzer();
 		analyzer.setName("settings-roundtrip");
+		analyzer.setOrganizationId(organizationId);
 		analyzer.setSettings(settings);
 
 		TextAnalyzer created = textAnalyzerDao.create(analyzer, adminUserId);

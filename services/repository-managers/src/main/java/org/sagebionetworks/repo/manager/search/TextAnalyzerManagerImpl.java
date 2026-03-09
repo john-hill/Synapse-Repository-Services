@@ -31,7 +31,6 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 	@Override
 	public ListTextAnalyzersResponse list(ListTextAnalyzersRequest request) {
 		ValidateArgument.required(request, "request");
-		ValidateArgument.required(request.getOrganizationId(), "request.organizationId");
 
 		ListTextAnalyzersResponse response = new ListTextAnalyzersResponse();
 
@@ -40,8 +39,13 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		if (request.getNextPageToken() != null) {
 			offset = Long.parseLong(request.getNextPageToken());
 		}
-		List<TextAnalyzer> results = textAnalyzerDao.listByOrganization(
-				Long.parseLong(request.getOrganizationId()), limit + 1, offset);
+		List<TextAnalyzer> results;
+		if (request.getOrganizationId() == null) {
+			results = textAnalyzerDao.listAll(limit + 1, offset);
+		} else {
+			results = textAnalyzerDao.listByOrganization(
+					Long.parseLong(request.getOrganizationId()), limit + 1, offset);
+		}
 
 		if (results.size() > limit) {
 			results = results.subList(0, (int) limit);

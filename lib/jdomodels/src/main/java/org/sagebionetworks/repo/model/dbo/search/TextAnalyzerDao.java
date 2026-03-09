@@ -17,6 +17,8 @@ public interface TextAnalyzerDao {
 
 	List<TextAnalyzer> listByOrganization(Long organizationId, long limit, long offset);
 
+	List<TextAnalyzer> listAll(long limit, long offset);
+
 	boolean exists(Long id);
 
 	void createOrUpdateSystemAnalyzer(Long id, TextAnalyzer analyzer, Long organizationId, Long userId);

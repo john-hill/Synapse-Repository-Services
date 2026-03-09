@@ -56,6 +56,9 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 			+ " WHERE " + COL_TEXT_ANALYZER_ORGANIZATION_ID
 			+ " = ? ORDER BY " + COL_TEXT_ANALYZER_NAME + " ASC LIMIT ? OFFSET ?";
 
+	private static final String SQL_LIST_ALL = "SELECT * FROM " + TABLE_TEXT_ANALYZER
+			+ " ORDER BY " + COL_TEXT_ANALYZER_NAME + " ASC LIMIT ? OFFSET ?";
+
 	private static final String SQL_EXISTS = "SELECT COUNT(*) FROM " + TABLE_TEXT_ANALYZER
 			+ " WHERE " + COL_TEXT_ANALYZER_ID + " = ?";
 
@@ -189,6 +192,11 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 	public List<TextAnalyzer> listByOrganization(Long organizationId, long limit, long offset) {
 		ValidateArgument.required(organizationId, "organizationId");
 		return jdbcTemplate.query(SQL_LIST_BY_ORG, ROW_MAPPER, organizationId, limit, offset);
+	}
+
+	@Override
+	public List<TextAnalyzer> listAll(long limit, long offset) {
+		return jdbcTemplate.query(SQL_LIST_ALL, ROW_MAPPER, limit, offset);
 	}
 
 	@Override

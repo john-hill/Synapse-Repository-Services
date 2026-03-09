@@ -55,9 +55,8 @@ public class TextAnalyzerControllerAutowiredTest extends AbstractAutowiredContro
 		assertNotNull(response.getResults());
 		// At minimum, the 6 bootstrapped system analyzers
 		assertTrue(response.getResults().size() >= 6);
-		// System analyzers should have null organizationId
 		for (TextAnalyzer analyzer : response.getResults()) {
-			assertNull(analyzer.getOrganizationId());
+			assertNotNull(analyzer.getOrganizationId());
 		}
 	}
 

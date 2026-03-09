@@ -81,6 +81,20 @@ public class TextAnalyzerManagerImplTest {
 	}
 
 	@Test
+	public void testListAllWhenNoOrgId() {
+		when(textAnalyzerDao.listAll(51L, 0L)).thenReturn(Arrays.asList(new TextAnalyzer()));
+
+		ListTextAnalyzersRequest request = new ListTextAnalyzersRequest();
+
+		ListTextAnalyzersResponse response = manager.list(request);
+
+		assertEquals(1, response.getResults().size());
+		assertNull(response.getNextPageToken());
+		verify(textAnalyzerDao).listAll(51L, 0L);
+		verify(textAnalyzerDao, never()).listByOrganization(anyLong(), anyLong(), anyLong());
+	}
+
+	@Test
 	public void testListByOrganizationWithNextPageToken() {
 		when(textAnalyzerDao.listByOrganization(42L, 51L, 50L)).thenReturn(Arrays.asList(new TextAnalyzer()));
 

@@ -80,6 +80,11 @@ public class TextAnalyzerController {
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@PathVariable Long id,
 			@RequestBody TextAnalyzer request) {
+		String idString = String.valueOf(id);
+		if (!idString.equals(request.getId())) {
+			throw new IllegalArgumentException(
+				"The path ID: " + idString + " does not match the request body's ID: " + request.getId());
+		}
 		return textAnalyzerService.update(userId, request);
 	}
 

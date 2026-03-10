@@ -263,10 +263,22 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		user.setId(1L);
 		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
 		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride().setId("1").setOrganizationId("42").setName("updated");
+		when(columnAnalyzerOverrideDao.get("1")).thenReturn(Optional.of(new ColumnAnalyzerOverride().setId("1").setOrganizationId("42")));
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
 			.thenReturn(AuthorizationStatus.accessDenied("no"));
 
 		assertThrows(UnauthorizedException.class, () -> manager.update(user, request));
+	}
+
+	@Test
+	public void testUpdateRejectsOrgIdMismatch() {
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride().setId("1").setOrganizationId("99").setName("updated");
+		when(columnAnalyzerOverrideDao.get("1")).thenReturn(Optional.of(new ColumnAnalyzerOverride().setId("1").setOrganizationId("42")));
+
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.update(admin, request));
+		assertTrue(ex.getMessage().contains("organizationId cannot be changed"));
 	}
 
 	// --- Delete ACL from stored entity ---

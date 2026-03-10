@@ -76,14 +76,18 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
 			throw new UnauthorizedException("Only Sage Bionetworks employees can manage search configurations.");
 		}
-		if (!user.isAdmin()) {
-			aclDao.canAccess(user, request.getOrganizationId(), ObjectType.ORGANIZATION, ACCESS_TYPE.UPDATE)
-				.checkAuthorizationOrElseThrow();
+		// Fetch stored entity first — use its org ID for ACL, not the request's
+		ColumnAnalyzerOverride existing = columnAnalyzerOverrideDao.get(request.getId())
+			.orElseThrow(() -> new NotFoundException("A column analyzer override with the given id does not exist."));
+
+		if (!existing.getOrganizationId().equals(request.getOrganizationId())) {
+			throw new IllegalArgumentException("The organizationId cannot be changed.");
 		}
 
-		// Ensure the column analyzer override exists
-		columnAnalyzerOverrideDao.get(request.getId())
-			.orElseThrow(() -> new NotFoundException("A column analyzer override with the given id does not exist."));
+		if (!user.isAdmin()) {
+			aclDao.canAccess(user, existing.getOrganizationId(), ObjectType.ORGANIZATION, ACCESS_TYPE.UPDATE)
+				.checkAuthorizationOrElseThrow();
+		}
 
 		return columnAnalyzerOverrideDao.update(user.getId(), request);
 	}

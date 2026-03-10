@@ -149,6 +149,7 @@ public class TextAnalyzerManagerImplTest {
 	public void testUpdateWithoutOrgAclThrows() {
 		TextAnalyzer input = new TextAnalyzer()
 			.setId("1").setOrganizationId("42").setName("updated");
+		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationId("42")));
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
 			.thenReturn(AuthorizationStatus.accessDenied("no"));
 
@@ -159,20 +160,28 @@ public class TextAnalyzerManagerImplTest {
 	public void testUpdateNotFoundThrows() {
 		TextAnalyzer input = new TextAnalyzer()
 			.setId("999").setOrganizationId("42").setName("updated");
-		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
-			.thenReturn(AuthorizationStatus.authorized());
 		when(textAnalyzerDao.get(999L)).thenReturn(Optional.empty());
 
 		assertThrows(NotFoundException.class, () -> manager.update(sageUser, input));
 	}
 
 	@Test
+	public void testUpdateRejectsOrgIdMismatch() {
+		TextAnalyzer input = new TextAnalyzer()
+			.setId("1").setOrganizationId("99").setName("updated");
+		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationId("42")));
+
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.update(sageUser, input));
+		assertTrue(ex.getMessage().contains("organizationId cannot be changed"));
+	}
+
+	@Test
 	public void testUpdateHappyPath() {
 		TextAnalyzer input = new TextAnalyzer()
 			.setId("1").setOrganizationId("42").setName("updated");
+		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationId("42")));
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
 			.thenReturn(AuthorizationStatus.authorized());
-		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer()));
 		when(textAnalyzerDao.update(any(), eq(1L))).thenReturn(input);
 
 		TextAnalyzer result = manager.update(sageUser, input);

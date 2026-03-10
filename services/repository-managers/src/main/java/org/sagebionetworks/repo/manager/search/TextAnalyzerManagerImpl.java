@@ -74,13 +74,18 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
 			throw new UnauthorizedException(MSG_UNAUTHORIZED);
 		}
-		if (!user.isAdmin()) {
-			aclDao.canAccess(user, analyzer.getOrganizationId(), ObjectType.ORGANIZATION, ACCESS_TYPE.UPDATE)
-				.checkAuthorizationOrElseThrow();
+		// Fetch stored entity first — use its org ID for ACL, not the request's
+		TextAnalyzer existing = textAnalyzerDao.get(Long.parseLong(analyzer.getId()))
+			.orElseThrow(() -> new NotFoundException("TextAnalyzer with id '" + analyzer.getId() + "' does not exist."));
+
+		if (!existing.getOrganizationId().equals(analyzer.getOrganizationId())) {
+			throw new IllegalArgumentException("The organizationId cannot be changed.");
 		}
 
-		textAnalyzerDao.get(Long.parseLong(analyzer.getId()))
-			.orElseThrow(() -> new NotFoundException("TextAnalyzer with id '" + analyzer.getId() + "' does not exist."));
+		if (!user.isAdmin()) {
+			aclDao.canAccess(user, existing.getOrganizationId(), ObjectType.ORGANIZATION, ACCESS_TYPE.UPDATE)
+				.checkAuthorizationOrElseThrow();
+		}
 
 		return textAnalyzerDao.update(analyzer, user.getId());
 	}

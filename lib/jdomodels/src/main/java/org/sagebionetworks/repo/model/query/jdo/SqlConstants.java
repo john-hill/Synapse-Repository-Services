@@ -1514,6 +1514,20 @@ public class SqlConstants {
 	public static final String COL_TEXT_ANALYZER_MODIFIED_ON = "MODIFIED_ON";
 	public static final String DDL_TEXT_ANALYZER = "schema/TextAnalyzer-ddl.sql";
 
+	// Search - Column Analyzer Override
+	public static final String TABLE_COLUMN_ANALYZER_OVERRIDE = "COLUMN_ANALYZER_OVERRIDE";
+	public static final String COL_COLUMN_ANALYZER_OVERRIDE_ID = "ID";
+	public static final String COL_COLUMN_ANALYZER_OVERRIDE_ETAG = "ETAG";
+	public static final String COL_COLUMN_ANALYZER_OVERRIDE_ORGANIZATION_ID = "ORGANIZATION_ID";
+	public static final String COL_COLUMN_ANALYZER_OVERRIDE_NAME = "NAME";
+	public static final String COL_COLUMN_ANALYZER_OVERRIDE_DESCRIPTION = "DESCRIPTION";
+	public static final String COL_COLUMN_ANALYZER_OVERRIDE_OVERRIDES = "OVERRIDES";
+	public static final String COL_COLUMN_ANALYZER_OVERRIDE_CREATED_BY = "CREATED_BY";
+	public static final String COL_COLUMN_ANALYZER_OVERRIDE_CREATED_ON = "CREATED_ON";
+	public static final String COL_COLUMN_ANALYZER_OVERRIDE_MODIFIED_BY = "MODIFIED_BY";
+	public static final String COL_COLUMN_ANALYZER_OVERRIDE_MODIFIED_ON = "MODIFIED_ON";
+	public static final String DDL_COLUMN_ANALYZER_OVERRIDE = "schema/ColumnAnalyzerOverride-ddl.sql";
+
 	// This seems to be the name of the id column for all tables.
 	public static final String COLUMN_ID		= "id";
 	

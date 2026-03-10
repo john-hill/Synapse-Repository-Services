@@ -9,12 +9,10 @@ import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.table.search.TextAnalyzer;
 import org.sagebionetworks.repo.model.table.search.TextAnalyzerSettings;
-import org.sagebionetworks.repo.web.NotFoundException;
-import org.springframework.beans.factory.InitializingBean;
 import org.springframework.stereotype.Service;
 
 @Service
-public class TextAnalyzerBootstrapper implements InitializingBean {
+public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 
 	static final String ORG_SAGEBIONETWORKS = "org.sagebionetworks";
 
@@ -34,13 +32,9 @@ public class TextAnalyzerBootstrapper implements InitializingBean {
 	}
 
 	@Override
-	public void afterPropertiesSet() {
-		bootstrapSystemAnalyzers();
-	}
-
-	void bootstrapSystemAnalyzers() {
+	public void bootstrapSystemAnalyzers() {
 		Long adminUserId = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
-		Long organizationId = getOrCreateOrganization(adminUserId);
+		Long organizationId = getOrganization();
 
 		// 1. SCIENTIFIC: English stemming, stop words, lowercase, synonym expansion
 		textAnalyzerDao.createOrUpdateSystemAnalyzer(SCIENTIFIC_ID, buildAnalyzer(
@@ -188,11 +182,7 @@ public class TextAnalyzerBootstrapper implements InitializingBean {
 		return settings;
 	}
 
-	private Long getOrCreateOrganization(Long createdBy) {
-		try {
-			return Long.parseLong(organizationDao.getOrganizationByName(ORG_SAGEBIONETWORKS).getId());
-		} catch (NotFoundException e) {
-			return Long.parseLong(organizationDao.createOrganization(ORG_SAGEBIONETWORKS, createdBy).getId());
-		}
+	private Long getOrganization() {
+		return Long.parseLong(organizationDao.getOrganizationByName(ORG_SAGEBIONETWORKS).getId());
 	}
 }

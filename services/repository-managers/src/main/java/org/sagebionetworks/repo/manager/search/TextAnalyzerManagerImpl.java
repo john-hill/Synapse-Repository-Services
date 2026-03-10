@@ -50,6 +50,12 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 				.checkAuthorizationOrElseThrow();
 		}
 
+		try {
+			Long.parseLong(analyzer.getOrganizationId());
+		} catch (NumberFormatException e) {
+			throw new IllegalArgumentException("Invalid organizationId: '" + analyzer.getOrganizationId() + "'", e);
+		}
+
 		return textAnalyzerDao.create(analyzer, user.getId());
 	}
 
@@ -75,7 +81,13 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 			throw new UnauthorizedException(MSG_UNAUTHORIZED);
 		}
 		// Fetch stored entity first — use its org ID for ACL, not the request's
-		TextAnalyzer existing = textAnalyzerDao.get(Long.parseLong(analyzer.getId()))
+		Long id;
+		try {
+			id = Long.parseLong(analyzer.getId());
+		} catch (NumberFormatException e) {
+			throw new IllegalArgumentException("Invalid TextAnalyzer id: '" + analyzer.getId() + "'", e);
+		}
+		TextAnalyzer existing = textAnalyzerDao.get(id)
 			.orElseThrow(() -> new NotFoundException("TextAnalyzer with id '" + analyzer.getId() + "' does not exist."));
 
 		if (!existing.getOrganizationId().equals(analyzer.getOrganizationId())) {
@@ -127,8 +139,14 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		if (request.getOrganizationId() == null) {
 			page = textAnalyzerDao.listAll(nextPageToken.getLimitForQuery(), nextPageToken.getOffset());
 		} else {
+			Long organizationIdLong;
+			try {
+				organizationIdLong = Long.parseLong(request.getOrganizationId());
+			} catch (NumberFormatException e) {
+				throw new IllegalArgumentException("The organizationId must be a valid numeric ID.", e);
+			}
 			page = textAnalyzerDao.listByOrganization(
-					Long.parseLong(request.getOrganizationId()), nextPageToken.getLimitForQuery(), nextPageToken.getOffset());
+					organizationIdLong, nextPageToken.getLimitForQuery(), nextPageToken.getOffset());
 		}
 
 		return new ListTextAnalyzersResponse()

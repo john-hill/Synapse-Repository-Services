@@ -45,8 +45,10 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
 			throw new UnauthorizedException(MSG_UNAUTHORIZED);
 		}
-		aclDao.canAccess(user, analyzer.getOrganizationId(), ObjectType.ORGANIZATION, ACCESS_TYPE.CREATE)
-			.checkAuthorizationOrElseThrow();
+		if (!user.isAdmin()) {
+			aclDao.canAccess(user, analyzer.getOrganizationId(), ObjectType.ORGANIZATION, ACCESS_TYPE.CREATE)
+				.checkAuthorizationOrElseThrow();
+		}
 
 		return textAnalyzerDao.create(analyzer, user.getId());
 	}
@@ -72,8 +74,10 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
 			throw new UnauthorizedException(MSG_UNAUTHORIZED);
 		}
-		aclDao.canAccess(user, analyzer.getOrganizationId(), ObjectType.ORGANIZATION, ACCESS_TYPE.UPDATE)
-			.checkAuthorizationOrElseThrow();
+		if (!user.isAdmin()) {
+			aclDao.canAccess(user, analyzer.getOrganizationId(), ObjectType.ORGANIZATION, ACCESS_TYPE.UPDATE)
+				.checkAuthorizationOrElseThrow();
+		}
 
 		textAnalyzerDao.get(Long.parseLong(analyzer.getId()))
 			.orElseThrow(() -> new NotFoundException("TextAnalyzer with id '" + analyzer.getId() + "' does not exist."));
@@ -95,8 +99,10 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		TextAnalyzer existing = textAnalyzerDao.get(id)
 			.orElseThrow(() -> new NotFoundException("TextAnalyzer with id '" + id + "' does not exist."));
 
-		aclDao.canAccess(user, existing.getOrganizationId(), ObjectType.ORGANIZATION, ACCESS_TYPE.DELETE)
-			.checkAuthorizationOrElseThrow();
+		if (!user.isAdmin()) {
+			aclDao.canAccess(user, existing.getOrganizationId(), ObjectType.ORGANIZATION, ACCESS_TYPE.DELETE)
+				.checkAuthorizationOrElseThrow();
+		}
 
 		try {
 			textAnalyzerDao.delete(id);

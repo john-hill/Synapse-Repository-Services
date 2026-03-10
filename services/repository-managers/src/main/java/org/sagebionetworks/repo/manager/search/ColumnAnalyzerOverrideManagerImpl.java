@@ -24,6 +24,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverrideManager {
 
+	private static final String MSG_UNAUTHORIZED = "Only Sage Bionetworks employees can manage column analyzer overrides.";
+
 	private final ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao;
 	private final SearchConfigurationDao searchConfigurationDao;
 	private final AccessControlListDAO aclDao;
@@ -45,7 +47,7 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
-			throw new UnauthorizedException("Only Sage Bionetworks employees can manage search configurations.");
+			throw new UnauthorizedException(MSG_UNAUTHORIZED);
 		}
 		if (!user.isAdmin()) {
 			aclDao.canAccess(user, request.getOrganizationId(), ObjectType.ORGANIZATION, ACCESS_TYPE.CREATE)
@@ -74,7 +76,7 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
-			throw new UnauthorizedException("Only Sage Bionetworks employees can manage search configurations.");
+			throw new UnauthorizedException(MSG_UNAUTHORIZED);
 		}
 		// Fetch stored entity first — use its org ID for ACL, not the request's
 		ColumnAnalyzerOverride existing = columnAnalyzerOverrideDao.get(request.getId())
@@ -100,7 +102,7 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
-			throw new UnauthorizedException("Only Sage Bionetworks employees can manage search configurations.");
+			throw new UnauthorizedException(MSG_UNAUTHORIZED);
 		}
 
 		ColumnAnalyzerOverride existing = columnAnalyzerOverrideDao.get(id)

@@ -16,6 +16,7 @@ import org.sagebionetworks.ids.IdType;
 import org.sagebionetworks.repo.model.table.search.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.table.search.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
+import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 import org.sagebionetworks.schema.adapter.org.json.JSONObjectAdapterImpl;
@@ -109,7 +110,7 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 		String currentEtag = getEtagForUpdate(override.getId());
 
 		if (!currentEtag.equals(override.getEtag())) {
-			throw new IllegalArgumentException(
+			throw new ConflictingUpdateException(
 					"The column analyzer override was updated since you last fetched it, please fetch it again and reapply your changes.");
 		}
 

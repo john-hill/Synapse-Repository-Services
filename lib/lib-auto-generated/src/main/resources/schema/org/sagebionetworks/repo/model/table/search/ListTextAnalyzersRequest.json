@@ -1,9 +1,9 @@
 {
-	"description": "Request to list text analyzers. Returns system analyzers if no organizationId is provided.",
+	"description": "Request to list text analyzers. Returns all analyzers if no organizationId is provided.",
 	"properties": {
 		"organizationId": {
 			"type": "string",
-			"description": "The ID of the Organization to list analyzers for. If null, lists system analyzers."
+			"description": "The ID of the Organization to list analyzers for. If not provided, lists all analyzers."
 		},
 		"nextPageToken": {
 			"type": "string",

@@ -4,7 +4,10 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.sagebionetworks.repo.manager.UserManager;
+import org.sagebionetworks.repo.manager.schema.SynapseSchemaBootstrap;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.table.search.TextAnalyzer;
@@ -25,14 +28,21 @@ public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 
 	private final TextAnalyzerDao textAnalyzerDao;
 	private final OrganizationDao organizationDao;
+	private final SynapseSchemaBootstrap synapseSchemaBootstrap;
+	private final UserManager userManager;
 
-	public TextAnalyzerBootstrapper(TextAnalyzerDao textAnalyzerDao, OrganizationDao organizationDao) {
+	public TextAnalyzerBootstrapper(TextAnalyzerDao textAnalyzerDao, OrganizationDao organizationDao,
+			SynapseSchemaBootstrap synapseSchemaBootstrap, UserManager userManager) {
 		this.textAnalyzerDao = textAnalyzerDao;
 		this.organizationDao = organizationDao;
+		this.synapseSchemaBootstrap = synapseSchemaBootstrap;
+		this.userManager = userManager;
 	}
 
 	@Override
 	public void bootstrapSystemAnalyzers() {
+		UserInfo adminUser = userManager.getUserInfo(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId());
+		synapseSchemaBootstrap.createOrganizationIfDoesNotExist(adminUser);
 		Long adminUserId = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
 		Long organizationId = getOrganization();
 

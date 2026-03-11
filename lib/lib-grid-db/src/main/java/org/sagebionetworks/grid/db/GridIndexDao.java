@@ -349,4 +349,57 @@ public interface GridIndexDao {
 	 */
 	Long getClockSequenceMaximum(String gridSessionId, Long replicaId);
 
+	/**
+	 * Stream all constant nodes for a session/replica (paginated).
+	 *
+	 * @param sessionId
+	 * @param replicaId
+	 * @param limit
+	 * @param offset
+	 * @return
+	 */
+	List<ConstantNode> streamConstants(String sessionId, Long replicaId, long limit, long offset);
+
+	/**
+	 * Stream all object nodes for a session/replica (paginated).
+	 *
+	 * @param sessionId
+	 * @param replicaId
+	 * @param limit
+	 * @param offset
+	 * @return
+	 */
+	List<ObjectNode> streamObjects(String sessionId, Long replicaId, long limit, long offset);
+
+	/**
+	 * Stream all value nodes for a session/replica, EXCLUDING the root (0,0) node (paginated).
+	 *
+	 * @param sessionId
+	 * @param replicaId
+	 * @param limit
+	 * @param offset
+	 * @return
+	 */
+	List<ValueNode> streamValues(String sessionId, Long replicaId, long limit, long offset);
+
+	/**
+	 * Stream all vector nodes for a session/replica (paginated).
+	 *
+	 * @param sessionId
+	 * @param replicaId
+	 * @param limit
+	 * @param offset
+	 * @return
+	 */
+	List<VectorNode> streamVectors(String sessionId, Long replicaId, long limit, long offset);
+
+	/**
+	 * Get all array IDs for a session/replica (from GRID_REPLICA_INDEX WHERE KIND = 'arr').
+	 *
+	 * @param sessionId
+	 * @param replicaId
+	 * @return
+	 */
+	List<LogicalTimestamp> getAllArrayIds(String sessionId, Long replicaId);
+
 }

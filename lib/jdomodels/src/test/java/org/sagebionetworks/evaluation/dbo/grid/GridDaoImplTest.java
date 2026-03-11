@@ -862,4 +862,184 @@ public class GridDaoImplTest {
 		assertTrue(results.isEmpty());
 	}
 
+	@Test
+	public void testListSessionsNeedingCompactionWithNoSessions() {
+		// call under test
+		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 10);
+		assertTrue(result.isEmpty());
+	}
+
+	@Test
+	public void testListSessionsNeedingCompactionWithInternalConnection() {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
+		dao.createConnection(new GridConnectionInfo()
+				.setConnectionId(UUID.randomUUID().toString())
+				.setSessionId(session.getSessionId())
+				.setReplicaId(replica.getReplicaId())
+				.setCreatedBy(adminUserId)
+				.setSource(EventSource.INTERNAL));
+
+		// Session with no snapshot should be returned
+		// call under test
+		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 10);
+		assertTrue(result.contains(session.getSessionId()));
+	}
+
+	@Test
+	public void testListSessionsNeedingCompactionWithoutInternalConnection() {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+
+		// Session without an INTERNAL connection should not be returned
+		// call under test
+		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 10);
+		assertFalse(result.contains(session.getSessionId()));
+	}
+
+	@Test
+	public void testListSessionsNeedingCompactionWithRecentSnapshot() {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
+		dao.createConnection(new GridConnectionInfo()
+				.setConnectionId(UUID.randomUUID().toString())
+				.setSessionId(session.getSessionId())
+				.setReplicaId(replica.getReplicaId())
+				.setCreatedBy(adminUserId)
+				.setSource(EventSource.INTERNAL));
+
+		// Save a recent snapshot
+		ClockTable clockTable = new ClockTable(List.of(
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L)));
+		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
+
+		// Session with a recent snapshot and no patches should not need compaction
+		// call under test
+		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 10);
+		assertFalse(result.contains(session.getSessionId()));
+	}
+
+	@Test
+	public void testListSessionsNeedingCompactionWithManyPatchesAfterSnapshot() {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
+		dao.createConnection(new GridConnectionInfo()
+				.setConnectionId(UUID.randomUUID().toString())
+				.setSessionId(session.getSessionId())
+				.setReplicaId(replica.getReplicaId())
+				.setCreatedBy(adminUserId)
+				.setSource(EventSource.INTERNAL));
+
+		// Save a recent snapshot with clock at replica=1, seq=10
+		ClockTable clockTable = new ClockTable(List.of(
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L)));
+		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
+
+		// Add patches with sequence numbers AFTER the snapshot clock (seq > 10)
+		for (int i = 11; i <= 15; i++) {
+			dao.savePatch(session.getSessionId(),
+					new LogicalTimestamp().setReplicaId(1L).setSequenceNumber((long) i),
+					"patch-key-" + i, Duration.ofDays(119), 100);
+		}
+
+		// With maxPatchCount=3, the 5 post-snapshot patches exceed the threshold
+		// call under test
+		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofDays(30), 3, 10);
+		assertTrue(result.contains(session.getSessionId()));
+	}
+
+	@Test
+	public void testListSessionsNeedingCompactionWithManyPatchesBeforeSnapshot() {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
+		dao.createConnection(new GridConnectionInfo()
+				.setConnectionId(UUID.randomUUID().toString())
+				.setSessionId(session.getSessionId())
+				.setReplicaId(replica.getReplicaId())
+				.setCreatedBy(adminUserId)
+				.setSource(EventSource.INTERNAL));
+
+		// Add patches with sequence numbers 0-4 for replica 1
+		for (int i = 0; i < 5; i++) {
+			dao.savePatch(session.getSessionId(),
+					new LogicalTimestamp().setReplicaId(1L).setSequenceNumber((long) i),
+					"patch-key-" + i, Duration.ofDays(119), 100);
+		}
+
+		// Save a snapshot whose clock covers all the patches (seq=10 > 4)
+		ClockTable clockTable = new ClockTable(List.of(
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L)));
+		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
+
+		// Even with maxPatchCount=3 and 5 total patches, they are all included in the snapshot
+		// clock, so 0 patches are counted as "after snapshot" and the session should NOT be returned
+		// call under test
+		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofDays(30), 3, 10);
+		assertFalse(result.contains(session.getSessionId()));
+	}
+
+	@Test
+	public void testListSessionsNeedingCompactionWithPatchesFromNewReplica() {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
+		dao.createConnection(new GridConnectionInfo()
+				.setConnectionId(UUID.randomUUID().toString())
+				.setSessionId(session.getSessionId())
+				.setReplicaId(replica.getReplicaId())
+				.setCreatedBy(adminUserId)
+				.setSource(EventSource.INTERNAL));
+
+		// Save a snapshot covering only replica 1
+		ClockTable clockTable = new ClockTable(List.of(
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L)));
+		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
+
+		// Add patches from replica 2 (not in the snapshot clock at all)
+		for (int i = 0; i < 5; i++) {
+			dao.savePatch(session.getSessionId(),
+					new LogicalTimestamp().setReplicaId(2L).setSequenceNumber((long) i),
+					"patch-key-r2-" + i, Duration.ofDays(119), 100);
+		}
+
+		// With maxPatchCount=3, patches from an unknown replica are all counted as "after snapshot"
+		// call under test
+		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofDays(30), 3, 10);
+		assertTrue(result.contains(session.getSessionId()));
+	}
+
+	@Test
+	public void testListSessionsNeedingCompactionWithNullMaxSnapshotAge() {
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			dao.listSessionsNeedingCompaction(null, 1000, 10);
+		}).getMessage();
+		assertEquals("maxSnapshotAge is required.", message);
+	}
+
+	@Test
+	public void testListSessionsNeedingCompactionWithLimit() {
+		// Create two sessions that need compaction
+		GridSession session1 = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		GridReplica replica1 = dao.createReplica(adminUserId, session1.getSessionId(), false, EventSource.INTERNAL);
+		dao.createConnection(new GridConnectionInfo()
+				.setConnectionId(UUID.randomUUID().toString())
+				.setSessionId(session1.getSessionId())
+				.setReplicaId(replica1.getReplicaId())
+				.setCreatedBy(adminUserId)
+				.setSource(EventSource.INTERNAL));
+
+		GridSession session2 = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		GridReplica replica2 = dao.createReplica(adminUserId, session2.getSessionId(), false, EventSource.INTERNAL);
+		dao.createConnection(new GridConnectionInfo()
+				.setConnectionId(UUID.randomUUID().toString())
+				.setSessionId(session2.getSessionId())
+				.setReplicaId(replica2.getReplicaId())
+				.setCreatedBy(adminUserId)
+				.setSource(EventSource.INTERNAL));
+
+		// With limit=1, only one session should be returned
+		// call under test
+		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 1);
+		assertEquals(1, result.size());
+	}
+
 }

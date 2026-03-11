@@ -1,11 +1,7 @@
 package org.sagebionetworks.grid.db;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -23,6 +19,7 @@ import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.repo.model.grid.ClockTable;
+import org.sagebionetworks.repo.model.grid.encoding.IndexedModelEncoder;
 import org.sagebionetworks.repo.model.grid.encoding.SnapshotFileIndex;
 import org.sagebionetworks.repo.model.grid.encoding.SnapshotFileIndexBuilder;
 import org.sagebionetworks.repo.model.grid.encoding.IndexedNodeCodecMapper;
@@ -151,6 +148,98 @@ public class GridIndexManagerImpl implements GridIndexManager {
 
 		// Update the replica clock
 		dao.setClocks(sessionId, replicaId, snapshotClockTable.getClocks());
+	}
+
+	@Override
+	public ClockTable exportSnapshot(String sessionId, Long replicaId, Path snapshotFile) {
+		ValidateArgument.required(sessionId, "sessionId");
+		ValidateArgument.required(replicaId, "replicaId");
+		ValidateArgument.required(snapshotFile, "snapshotFile");
+
+		// Get the root object to determine the root node ID
+		ObjectNode rootObject = dao.getRootObject(sessionId, replicaId)
+				.orElseThrow(() -> new IllegalStateException(
+						"No root object found for session: " + sessionId + " replica: " + replicaId));
+
+		LogicalTimestamp rootNodeId = rootObject.getId();
+
+		try (OutputStream out = Files.newOutputStream(snapshotFile, StandardOpenOption.CREATE,
+				StandardOpenOption.TRUNCATE_EXISTING);
+				IndexedModelEncoder encoder = new IndexedModelEncoder(out, rootNodeId)) {
+
+			// Stream and write all constants (paginated)
+			exportConstants(sessionId, replicaId, encoder);
+
+			// Stream and write all objects (paginated)
+			exportObjects(sessionId, replicaId, encoder);
+
+			// Stream and write all values, excluding (0,0) (paginated)
+			exportValues(sessionId, replicaId, encoder);
+
+			// Stream and write all vectors (paginated)
+			exportVectors(sessionId, replicaId, encoder);
+
+			// Get all array IDs, then for each array, read and write with tombstones
+			exportArrays(sessionId, replicaId, encoder);
+
+			// The encoder writes the clock table and root reference on close
+			return encoder.getClockTable();
+		} catch (IOException e) {
+			throw new RuntimeException("Failed to export snapshot to file: " + snapshotFile, e);
+		}
+	}
+
+	private void exportConstants(String sessionId, Long replicaId, IndexedModelEncoder encoder) throws IOException {
+		long offset = 0;
+		List<ConstantNode> batch;
+		while (!(batch = dao.streamConstants(sessionId, replicaId, snapshotImportBatchSize, offset)).isEmpty()) {
+			for (ConstantNode node : batch) {
+				encoder.writeNode(node);
+			}
+			offset += batch.size();
+		}
+	}
+
+	private void exportObjects(String sessionId, Long replicaId, IndexedModelEncoder encoder) throws IOException {
+		long offset = 0;
+		List<ObjectNode> batch;
+		while (!(batch = dao.streamObjects(sessionId, replicaId, snapshotImportBatchSize, offset)).isEmpty()) {
+			for (ObjectNode node : batch) {
+				encoder.writeNode(node);
+			}
+			offset += batch.size();
+		}
+	}
+
+	private void exportValues(String sessionId, Long replicaId, IndexedModelEncoder encoder) throws IOException {
+		long offset = 0;
+		List<ValueNode> batch;
+		while (!(batch = dao.streamValues(sessionId, replicaId, snapshotImportBatchSize, offset)).isEmpty()) {
+			for (ValueNode node : batch) {
+				encoder.writeNode(node);
+			}
+			offset += batch.size();
+		}
+	}
+
+	private void exportVectors(String sessionId, Long replicaId, IndexedModelEncoder encoder) throws IOException {
+		long offset = 0;
+		List<VectorNode> batch;
+		while (!(batch = dao.streamVectors(sessionId, replicaId, snapshotImportBatchSize, offset)).isEmpty()) {
+			for (VectorNode node : batch) {
+				encoder.writeNode(node);
+			}
+			offset += batch.size();
+		}
+	}
+
+	private void exportArrays(String sessionId, Long replicaId, IndexedModelEncoder encoder) throws IOException {
+		List<LogicalTimestamp> arrayIds = dao.getAllArrayIds(sessionId, replicaId);
+		for (LogicalTimestamp arrayId : arrayIds) {
+			// Read the full array with tombstones
+			ArrayNode arrayNode = dao.getArrayNode(sessionId, replicaId, arrayId, true, Long.MAX_VALUE, 0L);
+			encoder.writeNode(arrayNode);
+		}
 	}
 
 	/**

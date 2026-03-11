@@ -1169,6 +1169,113 @@ public class GridIndexDaoImplTest {
 		
 	}
 
+	@Test
+	public void testStreamConstants() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		List<ConstantNode> nodes = List.of(
+				new ConstantNode().setId(ids.get(0)).setValue(new ConValue(ConType.STRING, "a")),
+				new ConstantNode().setId(ids.get(1)).setValue(new ConValue(ConType.STRING, "b")),
+				new ConstantNode().setId(ids.get(2)).setValue(new ConValue(ConType.STRING, "c"))
+		);
+		gridIndexDao.saveNewConstants(sessionIdOne, replicaIdOne, nodes);
+
+		// call under test
+		List<ConstantNode> result = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 2, 0);
+		assertEquals(2, result.size());
+
+		result = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 2, 2);
+		assertEquals(1, result.size());
+
+		result = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 100, 0);
+		assertEquals(3, result.size());
+	}
+
+	@Test
+	public void testStreamObjects() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		List<ObjectNode> nodes = List.of(
+				new ObjectNode().setId(ids.get(0)).setValue(Collections.singletonMap("k", ids.get(1))),
+				new ObjectNode().setId(ids.get(2)).setValue(Collections.singletonMap("j", ids.get(3)))
+		);
+		gridIndexDao.saveObjects(sessionIdOne, replicaIdOne, nodes);
+
+		// call under test
+		List<ObjectNode> result = gridIndexDao.streamObjects(sessionIdOne, replicaIdOne, 1, 0);
+		assertEquals(1, result.size());
+
+		result = gridIndexDao.streamObjects(sessionIdOne, replicaIdOne, 100, 0);
+		assertEquals(2, result.size());
+	}
+
+	@Test
+	public void testStreamValuesExcludesRoot() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		LogicalTimestamp rootId = new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L);
+		List<ValueNode> nodes = List.of(
+				new ValueNode().setId(rootId).setValue(ids.get(0)),
+				new ValueNode().setId(ids.get(1)).setValue(ids.get(2)),
+				new ValueNode().setId(ids.get(3)).setValue(ids.get(4))
+		);
+		gridIndexDao.saveValues(sessionIdOne, replicaIdOne, nodes);
+
+		// call under test - should exclude the root (0,0) node
+		List<ValueNode> result = gridIndexDao.streamValues(sessionIdOne, replicaIdOne, 100, 0);
+		assertEquals(2, result.size());
+		assertTrue(result.stream().noneMatch(v -> v.getId().getReplicaId() == 0L && v.getId().getSequenceNumber() == 0L));
+	}
+
+	@Test
+	public void testStreamVectors() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		Map<Integer, ConstantNode> vectorValues = new LinkedHashMap<>();
+		vectorValues.put(0, new ConstantNode().setId(ids.get(5)).setValue(new ConValue(ConType.STRING, "v")));
+		List<VectorNode> nodes = List.of(
+				new VectorNode().setId(ids.get(0)).setValues(vectorValues),
+				new VectorNode().setId(ids.get(1)).setValues(vectorValues)
+		);
+		gridIndexDao.saveVectors(sessionIdOne, replicaIdOne, nodes);
+
+		// call under test
+		List<VectorNode> result = gridIndexDao.streamVectors(sessionIdOne, replicaIdOne, 1, 0);
+		assertEquals(1, result.size());
+
+		result = gridIndexDao.streamVectors(sessionIdOne, replicaIdOne, 100, 0);
+		assertEquals(2, result.size());
+	}
+
+	@Test
+	public void testGetAllArrayIds() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		LogicalTimestamp arrId1 = ids.get(0);
+		LogicalTimestamp arrId2 = ids.get(1);
+		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.arr, List.of(arrId1, arrId2));
+		// Also save some non-array indices
+		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.con, List.of(ids.get(2)));
+
+		// call under test
+		List<LogicalTimestamp> result = gridIndexDao.getAllArrayIds(sessionIdOne, replicaIdOne);
+		assertEquals(2, result.size());
+	}
+
+	@Test
+	public void testStreamConstantsWithPagination() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		List<ConstantNode> nodes = new ArrayList<>();
+		for (int i = 0; i < 5; i++) {
+			nodes.add(new ConstantNode().setId(ids.get(i)).setValue(new ConValue(ConType.LONG, (long) i)));
+		}
+		gridIndexDao.saveNewConstants(sessionIdOne, replicaIdOne, nodes);
+
+		// Read in pages of 2
+		List<ConstantNode> page1 = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 2, 0);
+		List<ConstantNode> page2 = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 2, 2);
+		List<ConstantNode> page3 = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 2, 4);
+
+		assertEquals(2, page1.size());
+		assertEquals(2, page2.size());
+		assertEquals(1, page3.size());
+	}
+
 	/**
 	 * Helper to create a new array.
 	 *

@@ -75,6 +75,8 @@ public class GridDaoImpl implements GridDao {
 
 	public static final String LIST_MISSING_PATCHES = DDLUtilsImpl
 			.loadSQLFromClasspath("sql/grid/ListMissingPatches.sql");
+	public static final String LIST_SESSIONS_NEEDING_COMPACTION = DDLUtilsImpl
+			.loadSQLFromClasspath("sql/grid/ListSessionsNeedingCompaction.sql");
 
 	private final RowMapper<GridSession> SESSION_MAPPER = (ResultSet rs, int rowNum) -> {
 		long sourceIdLong = rs.getLong(COL_GRID_SESSION_SOURCE_ID);
@@ -496,6 +498,13 @@ public class GridDaoImpl implements GridDao {
 		} catch (EmptyResultDataAccessException e) {
 			return Optional.empty();
 		}
+	}
+
+	@Override
+	public List<String> listSessionsNeedingCompaction(Duration maxSnapshotAge, int maxPatchCount, int limit) {
+		ValidateArgument.required(maxSnapshotAge, "maxSnapshotAge");
+		return jdbcTemplate.queryForList(LIST_SESSIONS_NEEDING_COMPACTION, String.class,
+				maxSnapshotAge.getSeconds(), maxPatchCount, limit);
 	}
 
 }

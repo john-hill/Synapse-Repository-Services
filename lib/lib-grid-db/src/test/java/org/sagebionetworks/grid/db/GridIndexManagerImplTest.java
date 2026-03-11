@@ -2,6 +2,7 @@ package org.sagebionetworks.grid.db;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -16,6 +17,7 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,6 +31,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.grid.ClockTable;
@@ -481,6 +484,142 @@ public class GridIndexManagerImplTest {
 		verify(mockDao).saveNewConstants(sessionId, replicaId, List.of(constantNode5));
 
 		verify(mockReader).close();
+	}
+
+	@Test
+	public void testExportSnapshotWithNullSessionId() {
+		assertThrows(IllegalArgumentException.class, () -> {
+			manager.exportSnapshot(null, replicaId, Path.of("/tmp/test.cbor"));
+		});
+	}
+
+	@Test
+	public void testExportSnapshotWithNullReplicaId() {
+		assertThrows(IllegalArgumentException.class, () -> {
+			manager.exportSnapshot(sessionId, null, Path.of("/tmp/test.cbor"));
+		});
+	}
+
+	@Test
+	public void testExportSnapshotWithNullSnapshotFile() {
+		assertThrows(IllegalArgumentException.class, () -> {
+			manager.exportSnapshot(sessionId, replicaId, null);
+		});
+	}
+
+	@Test
+	public void testExportSnapshotWithNoRootObject() {
+		when(mockDao.getRootObject(sessionId, replicaId)).thenReturn(Optional.empty());
+
+		assertThrows(IllegalStateException.class, () -> {
+			manager.exportSnapshot(sessionId, replicaId, Path.of("/tmp/test.cbor"));
+		});
+	}
+
+	@Test
+	public void testExportSnapshotWithAllNodeTypes(@TempDir Path tempDir) {
+		Path snapshotFile = tempDir.resolve("test-snapshot.cbor");
+
+		LogicalTimestamp rootObjId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L);
+		ObjectNode rootObj = new ObjectNode().setId(rootObjId)
+				.setValue(Collections.singletonMap("key", new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(2L)));
+		when(mockDao.getRootObject(sessionId, replicaId)).thenReturn(Optional.of(rootObj));
+
+		// Constants
+		ConstantNode con1 = new ConstantNode().setId(new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(3L))
+				.setValue(new ConValue(ConType.STRING, "hello"));
+		when(mockDao.streamConstants(sessionId, replicaId, 1000, 0)).thenReturn(List.of(con1));
+		when(mockDao.streamConstants(sessionId, replicaId, 1000, 1)).thenReturn(Collections.emptyList());
+
+		// Objects
+		when(mockDao.streamObjects(sessionId, replicaId, 1000, 0)).thenReturn(List.of(rootObj));
+		when(mockDao.streamObjects(sessionId, replicaId, 1000, 1)).thenReturn(Collections.emptyList());
+
+		// Values
+		ValueNode val1 = new ValueNode().setId(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(2L))
+				.setValue(new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(3L));
+		when(mockDao.streamValues(sessionId, replicaId, 1000, 0)).thenReturn(List.of(val1));
+		when(mockDao.streamValues(sessionId, replicaId, 1000, 1)).thenReturn(Collections.emptyList());
+
+		// Vectors
+		when(mockDao.streamVectors(sessionId, replicaId, 1000, 0)).thenReturn(Collections.emptyList());
+
+		// Arrays
+		when(mockDao.getAllArrayIds(sessionId, replicaId)).thenReturn(Collections.emptyList());
+
+		// call under test
+		ClockTable result = manager.exportSnapshot(sessionId, replicaId, snapshotFile);
+
+		assertNotNull(result);
+		assertTrue(Files.exists(snapshotFile));
+
+		verify(mockDao).getRootObject(sessionId, replicaId);
+		verify(mockDao).streamConstants(sessionId, replicaId, 1000, 0);
+		verify(mockDao).streamConstants(sessionId, replicaId, 1000, 1);
+		verify(mockDao).streamObjects(sessionId, replicaId, 1000, 0);
+		verify(mockDao).streamObjects(sessionId, replicaId, 1000, 1);
+		verify(mockDao).streamValues(sessionId, replicaId, 1000, 0);
+		verify(mockDao).streamValues(sessionId, replicaId, 1000, 1);
+		verify(mockDao).streamVectors(sessionId, replicaId, 1000, 0);
+		verify(mockDao).getAllArrayIds(sessionId, replicaId);
+	}
+
+	@Test
+	public void testExportSnapshotWithArrays(@TempDir Path tempDir) {
+		Path snapshotFile = tempDir.resolve("test-snapshot-arrays.cbor");
+
+		LogicalTimestamp rootObjId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L);
+		ObjectNode rootObj = new ObjectNode().setId(rootObjId)
+				.setValue(Collections.singletonMap("rows", new LogicalTimestamp().setReplicaId(10L).setSequenceNumber(10L)));
+		when(mockDao.getRootObject(sessionId, replicaId)).thenReturn(Optional.of(rootObj));
+
+		// Empty constants, objects, values, vectors
+		when(mockDao.streamConstants(sessionId, replicaId, 1000, 0)).thenReturn(Collections.emptyList());
+		when(mockDao.streamObjects(sessionId, replicaId, 1000, 0)).thenReturn(List.of(rootObj));
+		when(mockDao.streamObjects(sessionId, replicaId, 1000, 1)).thenReturn(Collections.emptyList());
+		when(mockDao.streamValues(sessionId, replicaId, 1000, 0)).thenReturn(Collections.emptyList());
+		when(mockDao.streamVectors(sessionId, replicaId, 1000, 0)).thenReturn(Collections.emptyList());
+
+		// One array with elements
+		LogicalTimestamp arrayId = new LogicalTimestamp().setReplicaId(10L).setSequenceNumber(10L);
+		RGANode rgaNode = new RGANode()
+				.setContainerId(arrayId)
+				.setNodeId(new LogicalTimestamp().setReplicaId(11L).setSequenceNumber(11L))
+				.setDataId(new LogicalTimestamp().setReplicaId(12L).setSequenceNumber(12L))
+				.setReferenceNodeId(arrayId)
+				.setIsDeleted(false);
+		ArrayNode arrayNode = new ArrayNode().setId(arrayId).setElements(List.of(rgaNode));
+
+		when(mockDao.getAllArrayIds(sessionId, replicaId)).thenReturn(List.of(arrayId));
+		when(mockDao.getArrayNode(sessionId, replicaId, arrayId, true, Long.MAX_VALUE, 0L)).thenReturn(arrayNode);
+
+		// call under test
+		ClockTable result = manager.exportSnapshot(sessionId, replicaId, snapshotFile);
+
+		assertNotNull(result);
+		verify(mockDao).getArrayNode(sessionId, replicaId, arrayId, true, Long.MAX_VALUE, 0L);
+	}
+
+	@Test
+	public void testExportSnapshotWithNotNull(@TempDir Path tempDir) {
+		Path snapshotFile = tempDir.resolve("test-snapshot-notnull.cbor");
+
+		LogicalTimestamp rootObjId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L);
+		ObjectNode rootObj = new ObjectNode().setId(rootObjId).setValue(Collections.emptyMap());
+		when(mockDao.getRootObject(sessionId, replicaId)).thenReturn(Optional.of(rootObj));
+
+		when(mockDao.streamConstants(sessionId, replicaId, 1000, 0)).thenReturn(Collections.emptyList());
+		when(mockDao.streamObjects(sessionId, replicaId, 1000, 0)).thenReturn(List.of(rootObj));
+		when(mockDao.streamObjects(sessionId, replicaId, 1000, 1)).thenReturn(Collections.emptyList());
+		when(mockDao.streamValues(sessionId, replicaId, 1000, 0)).thenReturn(Collections.emptyList());
+		when(mockDao.streamVectors(sessionId, replicaId, 1000, 0)).thenReturn(Collections.emptyList());
+		when(mockDao.getAllArrayIds(sessionId, replicaId)).thenReturn(Collections.emptyList());
+
+		// call under test
+		ClockTable result = manager.exportSnapshot(sessionId, replicaId, snapshotFile);
+
+		assertNotNull(result);
+		assertNotNull(result.getClocks());
 	}
 
 }

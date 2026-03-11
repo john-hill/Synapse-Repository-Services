@@ -219,4 +219,18 @@ public interface GridDao {
 	 * @return
 	 */
 	List<String> listAllSessionIds(long limit, long offset);
+
+	/**
+	 * Find grid sessions that need snapshot compaction.
+	 * A session needs compaction if:
+	 *   - Its latest snapshot is older than maxSnapshotAge, OR
+	 *   - It has more than maxPatchCount patches since the latest snapshot
+	 * Only sessions with an INTERNAL connection are returned.
+	 *
+	 * @param maxSnapshotAge Maximum age of the latest snapshot
+	 * @param maxPatchCount  Maximum number of patches since the latest snapshot
+	 * @param limit          Maximum number of sessions to return
+	 * @return List of session IDs needing compaction
+	 */
+	List<String> listSessionsNeedingCompaction(Duration maxSnapshotAge, int maxPatchCount, int limit);
 }

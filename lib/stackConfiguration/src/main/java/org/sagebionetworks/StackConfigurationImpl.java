@@ -1339,4 +1339,19 @@ public class StackConfigurationImpl implements StackConfiguration {
 	public Long getDefaultProjectStorageLimit() {
 		return Long.valueOf(configuration.getProperty("org.sagebionetworks.project.storage.default.limit"));
 	}
+
+	@Override
+	public int getGridSnapshotMaxAgeDays() {
+		return Integer.valueOf(configuration.getProperty("org.sagebionetworks.grid.snapshot.max.age.days"));
+	}
+
+	@Override
+	public int getGridSnapshotMaxPatchCount() {
+		return Integer.valueOf(configuration.getProperty("org.sagebionetworks.grid.snapshot.max.patch.count"));
+	}
+
+	@Override
+	public int getGridSnapshotCompactionBatchSize() {
+		return Integer.valueOf(configuration.getProperty("org.sagebionetworks.grid.snapshot.compaction.batch.size"));
+	}
 }

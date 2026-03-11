@@ -919,6 +919,64 @@ public class GridDaoImplTest {
 	}
 
 	@Test
+	public void testListSessionsNeedingCompactionWithExpiredSnapshotAndNoNewPatches() throws Exception {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
+		dao.createConnection(new GridConnectionInfo()
+				.setConnectionId(UUID.randomUUID().toString())
+				.setSessionId(session.getSessionId())
+				.setReplicaId(replica.getReplicaId())
+				.setCreatedBy(adminUserId)
+				.setSource(EventSource.INTERNAL));
+
+		// Save a snapshot with clock covering all patches
+		ClockTable clockTable = new ClockTable(List.of(
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L)));
+		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
+
+		// Wait for the snapshot to exceed the max age
+		Thread.sleep(2000);
+
+		// With maxAge=1 second, the snapshot is old enough even though there are no new patches
+		// call under test
+		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofSeconds(1), 1000, 10);
+		assertTrue(result.contains(session.getSessionId()));
+	}
+
+	@Test
+	public void testListSessionsNeedingCompactionWithExpiredSnapshotAndNewPatches() throws Exception {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
+		dao.createConnection(new GridConnectionInfo()
+				.setConnectionId(UUID.randomUUID().toString())
+				.setSessionId(session.getSessionId())
+				.setReplicaId(replica.getReplicaId())
+				.setCreatedBy(adminUserId)
+				.setSource(EventSource.INTERNAL));
+
+		// Save a snapshot with clock at replica=1, seq=10
+		ClockTable clockTable = new ClockTable(List.of(
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L)));
+		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
+
+		// Add a few patches after the snapshot (below the patch count threshold)
+		for (int i = 11; i <= 13; i++) {
+			dao.savePatch(session.getSessionId(),
+					new LogicalTimestamp().setReplicaId(1L).setSequenceNumber((long) i),
+					"patch-key-" + i, Duration.ofDays(119), 100);
+		}
+
+		// Wait for the snapshot to exceed the max age
+		Thread.sleep(2000);
+
+		// With maxAge=1 second, the session qualifies via the age criterion even though
+		// the 3 new patches are below the maxPatchCount=1000 threshold
+		// call under test
+		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofSeconds(1), 1000, 10);
+		assertTrue(result.contains(session.getSessionId()));
+	}
+
+	@Test
 	public void testListSessionsNeedingCompactionWithManyPatchesAfterSnapshot() {
 		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);

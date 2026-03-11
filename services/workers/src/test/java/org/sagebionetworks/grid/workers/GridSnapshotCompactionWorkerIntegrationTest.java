@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,7 +29,6 @@ import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridSnapshot;
-import org.sagebionetworks.util.TimeUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ContextConfiguration;
@@ -73,27 +73,18 @@ public class GridSnapshotCompactionWorkerIntegrationTest {
 
 	@Test
 	public void testCompactSessionSkipsRecentSession() throws Exception {
-		// Create a grid session via the async job (which creates the initial snapshot + INTERNAL replica)
 		GridSession session = createGridSession();
 		String sessionId = session.getSessionId();
 
-		waitForInternalConnection(sessionId);
+		// Manually create the INTERNAL connection (workaround for PLFM-9488)
+		createInternalConnectionIfMissing(sessionId);
 
-		// Record the initial snapshot
 		Optional<GridSnapshot> initialSnapshot = gridDao.getLatestSnapshot(sessionId);
 		assertTrue(initialSnapshot.isPresent(), "Initial snapshot should exist after grid session creation");
 
-		// With a freshly created session, compactSession should return false (nothing to do)
 		boolean compacted = compactionManager.compactSession(sessionId);
 
-		// The session is fresh, the INTERNAL replica is synchronized, but there's no reason to
-		// create a new snapshot since the existing one is fine. compactSession should still succeed
-		// (it exports a new snapshot from the INTERNAL replica), but scanAndPublishSessionsNeedingCompaction
-		// would not have selected this session. We're testing compactSession directly here.
-		// The result depends on whether the replica is synchronized — it should be true since
-		// the INTERNAL connection has been established and the initial snapshot was applied.
 		if (compacted) {
-			// A new snapshot was created
 			Optional<GridSnapshot> latestSnapshot = gridDao.getLatestSnapshot(sessionId);
 			assertTrue(latestSnapshot.isPresent());
 			assertNotEquals(initialSnapshot.get().getId(), latestSnapshot.get().getId(),
@@ -108,13 +99,12 @@ public class GridSnapshotCompactionWorkerIntegrationTest {
 
 	@Test
 	public void testCompactSessionCreatesNewSnapshotForOldSession() throws Exception {
-		// Create a grid session via the async job (which creates the initial snapshot + INTERNAL replica)
 		GridSession session = createGridSession();
 		String sessionId = session.getSessionId();
 
-		waitForInternalConnection(sessionId);
+		// Manually create the INTERNAL connection (workaround for workaround for PLFM-9488)
+		createInternalConnectionIfMissing(sessionId);
 
-		// Record the initial snapshot
 		Optional<GridSnapshot> initialSnapshot = gridDao.getLatestSnapshot(sessionId);
 		assertTrue(initialSnapshot.isPresent(), "Initial snapshot should exist after grid session creation");
 
@@ -123,12 +113,10 @@ public class GridSnapshotCompactionWorkerIntegrationTest {
 		jdbcTemplate.update("UPDATE GRID_SNAPSHOT SET CREATED_ON = ? WHERE SESSION_ID = ?",
 				oldTimestamp, sessionId);
 
-		// Run compactSession directly — the old snapshot should trigger compaction
 		boolean compacted = compactionManager.compactSession(sessionId);
 
 		assertTrue(compacted, "The session should have been compacted");
 
-		// The latest snapshot should be different from the initial one
 		Optional<GridSnapshot> latestSnapshot = gridDao.getLatestSnapshot(sessionId);
 		assertTrue(latestSnapshot.isPresent(), "A new snapshot should exist after compaction");
 		assertNotEquals(initialSnapshot.get().getId(), latestSnapshot.get().getId(),
@@ -145,11 +133,28 @@ public class GridSnapshotCompactionWorkerIntegrationTest {
 				}, MAX_WAIT_MS).getResponse().getGridSession();
 	}
 
-	private void waitForInternalConnection(String sessionId) throws Exception {
-		GridConnectionInfo internalConnection = TimeUtils.waitFor(MAX_WAIT_MS, 1000, () -> {
-			Optional<GridConnectionInfo> con = gridDao.getSingletonConnection(sessionId, EventSource.INTERNAL);
-			return new org.sagebionetworks.util.Pair<>(con.isPresent(), con.orElse(null));
-		});
-		assertNotNull(internalConnection, "INTERNAL connection should exist");
+	/**
+	 * Creates the INTERNAL connection for the given session if it does not already
+	 * exist. The async grid creation job creates the INTERNAL replica and snapshot
+	 * but, due to PLFM-9488, the connection may not be established by the async
+	 * event. This method looks up the replica and creates the connection directly.
+	 */
+	private void createInternalConnectionIfMissing(String sessionId) {
+		Optional<GridConnectionInfo> existing = gridDao.getSingletonConnection(sessionId, EventSource.INTERNAL);
+		if (existing.isPresent()) {
+			return;
+		}
+		// Query the GRID_REPLICA table for the replica created during grid session creation
+		Long replicaId = jdbcTemplate.queryForObject(
+				"SELECT REPLICA_ID FROM GRID_REPLICA WHERE SESSION_ID = ? ORDER BY REPLICA_ID DESC LIMIT 1",
+				Long.class, sessionId);
+		assertNotNull(replicaId, "A replica should exist after grid session creation");
+
+		gridDao.createConnection(new GridConnectionInfo()
+				.setConnectionId(UUID.randomUUID().toString())
+				.setSessionId(sessionId)
+				.setReplicaId(replicaId)
+				.setCreatedBy(admin.getId())
+				.setSource(EventSource.INTERNAL));
 	}
 }

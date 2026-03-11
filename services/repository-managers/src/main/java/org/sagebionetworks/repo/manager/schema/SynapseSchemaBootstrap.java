@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.schema;
 
+import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 
 /**
@@ -10,8 +11,13 @@ public interface SynapseSchemaBootstrap  {
 	
 	/**
 	 * Start the singleton process to bootstrap all Synapse JSON schemas.
-	 * @throws RecoverableMessageException 
+	 * @throws RecoverableMessageException
 	 */
 	public void bootstrapSynapseSchemas() throws RecoverableMessageException;
+
+	/**
+	 * Create the 'org.sagebionetworks' organization if it does not already exist.
+	 */
+	void createOrganizationIfDoesNotExist(UserInfo adminUser);
 
 }

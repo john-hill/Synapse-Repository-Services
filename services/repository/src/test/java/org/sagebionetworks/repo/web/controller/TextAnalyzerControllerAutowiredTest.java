@@ -3,7 +3,9 @@ package org.sagebionetworks.repo.web.controller;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.junit.jupiter.api.Test;
+import org.sagebionetworks.repo.manager.search.TextAnalyzerBootstrap;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.table.search.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.table.search.ListTextAnalyzersResponse;
@@ -22,11 +24,15 @@ import org.springframework.mock.web.MockHttpServletResponse;
  */
 public class TextAnalyzerControllerAutowiredTest extends AbstractAutowiredControllerTestBase {
 
+	@Autowired
+	private TextAnalyzerBootstrap textAnalyzerBootstrap;
+
 	private Long adminUserId;
 
 	@BeforeEach
 	public void before() {
 		adminUserId = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
+		textAnalyzerBootstrap.bootstrapSystemAnalyzers();
 	}
 
 	@Test

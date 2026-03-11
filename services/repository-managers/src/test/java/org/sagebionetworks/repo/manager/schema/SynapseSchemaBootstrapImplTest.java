@@ -286,7 +286,7 @@ public class SynapseSchemaBootstrapImplTest {
 		verify(mockJsonSchemaManager).getOrganizationByName(admin, organizationName);
 		CreateOrganizationRequest expectedRequest = new CreateOrganizationRequest();
 		expectedRequest.setOrganizationName(organizationName);
-		verify(mockJsonSchemaManager).createOrganziation(admin, expectedRequest);
+		verify(mockJsonSchemaManager).createOrganziation(admin, expectedRequest, SynapseSchemaBootstrapImpl.ORG_SAGEBIONETWORKS_ID);
 	}
 	
 	@Test

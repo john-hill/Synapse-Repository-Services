@@ -113,13 +113,21 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 	@WriteTransaction
 	@Override
 	public Organization createOrganziation(UserInfo user, CreateOrganizationRequest request) {
+		return createOrganziation(user, request, null);
+	}
+
+	@WriteTransaction
+	@Override
+	public Organization createOrganziation(UserInfo user, CreateOrganizationRequest request, Long id) {
 		ValidateArgument.required(user, "User");
 		ValidateArgument.required(request, "OrganizationRequest");
 
 		AuthorizationUtils.disallowAnonymous(user);
 
 		String processedOrganizationName = processAndValidateOrganizationName(user, request.getOrganizationName());
-		Organization org = organizationDao.createOrganization(processedOrganizationName, user.getId());
+		Organization org = id != null
+				? organizationDao.createOrganization(processedOrganizationName, user.getId(), id)
+				: organizationDao.createOrganization(processedOrganizationName, user.getId());
 
 		// Create an ACL for the
 		AccessControlList acl = AccessControlListUtil.createACL(org.getId(), user, ADMIN_PERMISSIONS, new Date());

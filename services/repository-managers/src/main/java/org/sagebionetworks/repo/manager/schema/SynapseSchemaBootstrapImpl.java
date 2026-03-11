@@ -48,6 +48,7 @@ import com.google.common.collect.Lists;
 public class SynapseSchemaBootstrapImpl implements SynapseSchemaBootstrap {
 
 	public static final String ORG_SAGEBIONETWORKS = "org.sagebionetworks";
+	public static final Long ORG_SAGEBIONETWORKS_ID = 7L;
 
 	/**
 	 * The Synapse objects that can be referenced in JSON schemas and therefore must
@@ -99,7 +100,8 @@ public class SynapseSchemaBootstrapImpl implements SynapseSchemaBootstrap {
 	 * Create the 'org.sagebionetworks' organization if it does not already exists
 	 * @param adminUser
 	 */
-	void createOrganizationIfDoesNotExist(UserInfo adminUser) {
+	@Override
+	public void createOrganizationIfDoesNotExist(UserInfo adminUser) {
 		try {
 			// attempt to get the organization to determine if it exists
 			jsonSchemaManager.getOrganizationByName(adminUser, ORG_SAGEBIONETWORKS);
@@ -107,7 +109,7 @@ public class SynapseSchemaBootstrapImpl implements SynapseSchemaBootstrap {
 			// Need to create the organization
 			CreateOrganizationRequest request = new CreateOrganizationRequest();
 			request.setOrganizationName(ORG_SAGEBIONETWORKS);
-			jsonSchemaManager.createOrganziation(adminUser, request);
+			jsonSchemaManager.createOrganziation(adminUser, request, ORG_SAGEBIONETWORKS_ID);
 		}
 	}
 

@@ -18,6 +18,8 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.manager.UserManager;
+import org.sagebionetworks.repo.manager.schema.SynapseSchemaBootstrap;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.schema.Organization;
@@ -34,6 +36,12 @@ public class TextAnalyzerBootstrapperTest {
 
 	@Mock
 	private OrganizationDao organizationDao;
+
+	@Mock
+	private SynapseSchemaBootstrap synapseSchemaBootstrap;
+
+	@Mock
+	private UserManager userManager;
 
 	@InjectMocks
 	private TextAnalyzerBootstrapper bootstrapper;

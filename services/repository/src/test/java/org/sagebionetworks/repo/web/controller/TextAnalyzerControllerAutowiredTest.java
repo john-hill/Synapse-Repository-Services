@@ -39,24 +39,16 @@ public class TextAnalyzerControllerAutowiredTest extends AbstractAutowiredContro
 	private TextAnalyzerBootstrap textAnalyzerBootstrap;
 
 	private Long adminUserId;
-	private List<Long> createdIds;
 
 	@BeforeEach
 	public void before() {
 		adminUserId = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
-		createdIds = new ArrayList<>();
         textAnalyzerBootstrap.bootstrapSystemAnalyzers();
 	}
 
 	@AfterEach
 	public void after() throws Exception {
-		for (Long id : createdIds) {
-			try {
-				deleteTextAnalyzer(id);
-			} catch (Exception e) {
-				// ignore — may have already been deleted in the test
-			}
-		}
+		textAnalyzerDao.truncateAll();
 	}
 
 	@Test
@@ -147,9 +139,6 @@ public class TextAnalyzerControllerAutowiredTest extends AbstractAutowiredContro
 		TextAnalyzer created = createTextAnalyzer(analyzer);
 		Long id = Long.parseLong(created.getId());
 
-		// Remove from cleanup list since we delete it here
-		createdIds.remove(id);
-
 		deleteTextAnalyzer(id);
 
 		assertThrows(NotFoundException.class, () -> getTextAnalyzer(id));
@@ -179,7 +168,6 @@ public class TextAnalyzerControllerAutowiredTest extends AbstractAutowiredContro
 		MockHttpServletResponse response = ServletTestHelperUtils.dispatchRequest(
 				dispatchServlet, request, HttpStatus.CREATED);
 		TextAnalyzer result = EntityFactory.createEntityFromJSONString(response.getContentAsString(), TextAnalyzer.class);
-		createdIds.add(Long.parseLong(result.getId()));
 		return result;
 	}
 

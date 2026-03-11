@@ -49,13 +49,13 @@ DDL files are in `src/main/resources/schema/`.
 ### Layered Design
 
 ```
-GridIndexManager        (high-level: applyPatch, applySnapshot, message chains)
+GridIndexManager        (high-level: applyPatch, applySnapshot, exportSnapshot, message chains)
     ↓
 OperationDispatcher     (groups operations by type, dispatches in enum order)
     ↓
 OperationHandler<T>     (one per OperationType, processes batch of typed operations)
     ↓
-GridIndexDao            (raw JDBC: batch inserts, RGA traversal, clock management)
+GridIndexDao            (raw JDBC: batch inserts, RGA traversal, clock management, paginated streaming for snapshot export)
     ↓
 9 MySQL tables          (via JdbcTemplate / NamedParameterJdbcTemplate)
 ```
@@ -77,6 +77,15 @@ Snapshots are imported without loading the entire file into memory:
 3. Nodes are batched (default 1000) and persisted via `GridIndexDao`
 4. Import order: constants → objects → values → vectors (with constant lookups) → arrays + RGA elements
 
+### Snapshot Export Flow
+
+`GridIndexManager.exportSnapshot()` streams a replica's current state out to a CBOR file without loading the full document into memory:
+1. Has `REPEATABLE_READ` transaction level for a consistent read across paginated queries
+2. Gets the root `ObjectNode` to determine the root node ID for the CBOR header
+3. Streams each node type in pages via `GridIndexDao` pagination methods: `streamConstants`, `streamObjects`, `streamValues` (excludes root (0,0) node), `streamVectors`
+4. Fetches all array IDs via `getAllArrayIds`, reads each full `ArrayNode` including tombstones
+5. Merges the database replica clock into the encoder's derived clock so the saved `ClockTable` exactly matches the DB state — preventing clock skew when the snapshot is imported on another replica
+
 ### RGA Insert Algorithm
 
 The `GRID_REPLICA_RGA` table implements the Replicated Growable Array with predecessor links (`REF_REP`/`REF_SEQ`). Insertion uses a recursive CTE query (`FindInsertLocation.sql`) to find the correct position following the RGA algorithm — traversing the predecessor chain while respecting causal ordering via `(DATA_SEQ, DATA_REP)` comparison.
@@ -87,7 +96,7 @@ The `GRID_REPLICA_RGA` table implements the Replicated Growable Array with prede
 
 ### `@GridTransaction` Annotation
 
-Custom transaction annotation that binds to `gridTransactionManager` (NOT the main app's primary transaction manager). Required because the grid uses a **separate database** from the main Synapse database. Always uses `READ_COMMITTED` isolation and `REQUIRED` propagation.
+Custom transaction annotation that binds to `gridTransactionManager` (NOT the main app's primary transaction manager). Required because the grid uses a **separate database** from the main Synapse database. Defaults to `READ_COMMITTED` isolation and `REQUIRED` propagation. Supports an `isolation` attribute to override per-method — snapshot export uses `REPEATABLE_READ` to ensure a consistent view across paginated reads.
 
 ### Handler Pattern
 
@@ -113,7 +122,7 @@ Track json-rx request/response chains with TTL-based expiration. Message IDs cyc
 ## Testing
 
 - `GridIndexDaoImplTest` — Spring integration test (`@ContextConfiguration`) testing all DAO operations
-- `GridIndexManagerImplTest` — Mockito unit test for patch/snapshot logic
+- `GridIndexManagerImplTest` — Mockito unit test for patch/snapshot/export logic
 - `GridIndexManagerAutowiredTest` — Performance/scale test (10M cells target, PLFM-9032)
 - `OperationDispatcherImplTest` — Tests operation grouping and handler dispatch
 - One unit test per handler (e.g., `NewConstantHandlerTest`, `InsertArrayHandlerTest`)

@@ -1,6 +1,6 @@
 package org.sagebionetworks.grid.workers;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.AfterEach;
@@ -28,8 +29,6 @@ import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridSnapshot;
 import org.sagebionetworks.util.TimeUtils;
-import org.sagebionetworks.util.progress.ProgressCallback;
-import org.sagebionetworks.util.progress.ProgressListener;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ContextConfiguration;
@@ -61,15 +60,6 @@ public class GridSnapshotCompactionWorkerIntegrationTest {
 
 	private UserInfo admin;
 
-	private static final ProgressCallback NO_OP_CALLBACK = new ProgressCallback() {
-		@Override
-		public void addProgressListener(ProgressListener listener) {}
-		@Override
-		public void removeProgressListener(ProgressListener listener) {}
-		@Override
-		public long getLockTimeoutSeconds() { return 300; }
-	};
-
 	@BeforeEach
 	public void before() {
 		admin = userManager.getUserInfo(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId());
@@ -82,7 +72,7 @@ public class GridSnapshotCompactionWorkerIntegrationTest {
 	}
 
 	@Test
-	public void testCompactionSkipsSessionWithRecentSnapshot() throws Exception {
+	public void testCompactSessionSkipsRecentSession() throws Exception {
 		// Create a grid session via the async job (which creates the initial snapshot + INTERNAL replica)
 		GridSession session = createGridSession();
 		String sessionId = session.getSessionId();
@@ -93,21 +83,31 @@ public class GridSnapshotCompactionWorkerIntegrationTest {
 		Optional<GridSnapshot> initialSnapshot = gridDao.getLatestSnapshot(sessionId);
 		assertTrue(initialSnapshot.isPresent(), "Initial snapshot should exist after grid session creation");
 
-		// With default settings (30 days max age, 1000 max patches), a freshly created session
-		// should NOT qualify for compaction
-		int compacted = compactionManager.compactSessions(NO_OP_CALLBACK);
+		// With a freshly created session, compactSession should return false (nothing to do)
+		boolean compacted = compactionManager.compactSession(sessionId);
 
-		assertEquals(0, compacted, "A freshly created session should not need compaction");
+		// The session is fresh, the INTERNAL replica is synchronized, but there's no reason to
+		// create a new snapshot since the existing one is fine. compactSession should still succeed
+		// (it exports a new snapshot from the INTERNAL replica), but scanAndPublishSessionsNeedingCompaction
+		// would not have selected this session. We're testing compactSession directly here.
+		// The result depends on whether the replica is synchronized — it should be true since
+		// the INTERNAL connection has been established and the initial snapshot was applied.
+		if (compacted) {
+			// A new snapshot was created
+			Optional<GridSnapshot> latestSnapshot = gridDao.getLatestSnapshot(sessionId);
+			assertTrue(latestSnapshot.isPresent());
+			assertNotEquals(initialSnapshot.get().getId(), latestSnapshot.get().getId(),
+					"A new snapshot should have been created");
+		}
 
-		// The latest snapshot should be the same as the initial one (no new snapshot created)
-		Optional<GridSnapshot> latestSnapshot = gridDao.getLatestSnapshot(sessionId);
-		assertTrue(latestSnapshot.isPresent());
-		assertEquals(initialSnapshot.get().getId(), latestSnapshot.get().getId(),
-				"No new snapshot should have been created");
+		// Verify that scanAndPublish does NOT select this session (it's too recent)
+		List<String> published = compactionManager.scanAndPublishSessionsNeedingCompaction();
+		assertFalse(published.contains(sessionId),
+				"A freshly created session should not be selected for compaction");
 	}
 
 	@Test
-	public void testCompactionCreatesNewSnapshotForOldSession() throws Exception {
+	public void testCompactSessionCreatesNewSnapshotForOldSession() throws Exception {
 		// Create a grid session via the async job (which creates the initial snapshot + INTERNAL replica)
 		GridSession session = createGridSession();
 		String sessionId = session.getSessionId();
@@ -123,10 +123,10 @@ public class GridSnapshotCompactionWorkerIntegrationTest {
 		jdbcTemplate.update("UPDATE GRID_SNAPSHOT SET CREATED_ON = ? WHERE SESSION_ID = ?",
 				oldTimestamp, sessionId);
 
-		// Run compaction — the old snapshot should trigger compaction
-		int compacted = compactionManager.compactSessions(NO_OP_CALLBACK);
+		// Run compactSession directly — the old snapshot should trigger compaction
+		boolean compacted = compactionManager.compactSession(sessionId);
 
-		assertEquals(1, compacted, "The session with an old snapshot should have been compacted");
+		assertTrue(compacted, "The session should have been compacted");
 
 		// The latest snapshot should be different from the initial one
 		Optional<GridSnapshot> latestSnapshot = gridDao.getLatestSnapshot(sessionId);

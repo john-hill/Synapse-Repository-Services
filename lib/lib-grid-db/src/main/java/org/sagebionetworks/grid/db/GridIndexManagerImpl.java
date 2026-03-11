@@ -2,9 +2,7 @@ package org.sagebionetworks.grid.db;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
@@ -34,8 +32,10 @@ import org.sagebionetworks.repo.model.grid.node.ValueNode;
 import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
+import org.sagebionetworks.util.FileProvider;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 
 import com.google.common.collect.Iterables;
 
@@ -55,21 +55,23 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	private final OperationDispatcher operationDispatcher;
 	private final SnapshotFileIndexBuilder snapshotIndexBuilder;
 	private final SeekingNodeReaderProvider readerProvider;
+	private final FileProvider fileProvider;
 	private final int snapshotImportBatchSize;
 
 	@Inject
 	public GridIndexManagerImpl(GridIndexDao dao, OperationDispatcher operationDispatcher, SnapshotFileIndexBuilder snapshotIndexBuilder,
-								SeekingNodeReaderProvider readerProvider) {
-		this(dao, operationDispatcher, snapshotIndexBuilder, readerProvider, DEFAULT_SNAPSHOT_IMPORT_BATCH_SIZE);
+								SeekingNodeReaderProvider readerProvider, FileProvider fileProvider) {
+		this(dao, operationDispatcher, snapshotIndexBuilder, readerProvider, fileProvider, DEFAULT_SNAPSHOT_IMPORT_BATCH_SIZE);
 	}
 
 	public GridIndexManagerImpl(GridIndexDao dao, OperationDispatcher operationDispatcher, SnapshotFileIndexBuilder snapshotIndexBuilder,
-								SeekingNodeReaderProvider readerProvider, int snapshotImportBatchSize) {
+								SeekingNodeReaderProvider readerProvider, FileProvider fileProvider, int snapshotImportBatchSize) {
 		super();
 		this.dao = dao;
 		this.operationDispatcher = operationDispatcher;
 		this.snapshotIndexBuilder = snapshotIndexBuilder;
 		this.readerProvider = readerProvider;
+		this.fileProvider = fileProvider;
 		this.snapshotImportBatchSize = snapshotImportBatchSize;
 	}
 
@@ -151,6 +153,7 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	}
 
 	@Override
+	@GridTransaction(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 	public ClockTable exportSnapshot(String sessionId, Long replicaId, Path snapshotFile) {
 		ValidateArgument.required(sessionId, "sessionId");
 		ValidateArgument.required(replicaId, "replicaId");
@@ -163,8 +166,7 @@ public class GridIndexManagerImpl implements GridIndexManager {
 
 		LogicalTimestamp rootNodeId = rootObject.getId();
 
-		try (OutputStream out = Files.newOutputStream(snapshotFile, StandardOpenOption.CREATE,
-				StandardOpenOption.TRUNCATE_EXISTING);
+		try (OutputStream out = fileProvider.createFileOutputStream(snapshotFile.toFile());
 				IndexedModelEncoder encoder = new IndexedModelEncoder(out, rootNodeId)) {
 
 			// Stream and write all constants (paginated)

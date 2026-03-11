@@ -6,8 +6,9 @@ import org.sagebionetworks.util.progress.ProgressingRunner;
 import org.springframework.stereotype.Component;
 
 /**
- * Periodic worker that scans for grid sessions needing snapshot compaction
- * and creates new snapshots from the INTERNAL replica's current CRDT state.
+ * Periodic worker that scans for grid sessions needing snapshot compaction and
+ * publishes their session IDs to the compaction SQS queue for individual
+ * processing by {@link GridSnapshotCompactionMessageWorker}.
  */
 @Component
 public class GridSnapshotCompactionWorker implements ProgressingRunner {
@@ -20,6 +21,6 @@ public class GridSnapshotCompactionWorker implements ProgressingRunner {
 
 	@Override
 	public void run(ProgressCallback callback) throws Exception {
-		compactionManager.compactSessions(callback);
+		compactionManager.scanAndPublishSessionsNeedingCompaction();
 	}
 }

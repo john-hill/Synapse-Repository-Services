@@ -11,6 +11,7 @@ import org.sagebionetworks.grid.workers.GridEventBrokerWorker;
 import org.sagebionetworks.grid.workers.GridReplicaPatchBuilderWorker;
 import org.sagebionetworks.grid.workers.GridReplicaValidationWorker;
 import org.sagebionetworks.grid.workers.GridReplicaWorker;
+import org.sagebionetworks.grid.workers.GridSnapshotCompactionMessageWorker;
 import org.sagebionetworks.limits.workers.ProjectStorageDataRefreshWorker;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
 import org.sagebionetworks.ses.workers.SESNotificationWorker;
@@ -372,6 +373,28 @@ public class MessageDrivenWorkersConfig {
 				)
 				.withRepeatInterval(971)
 				.withStartDelay(3063)
+				.build();
+	}
+	
+	@Bean
+	public SimpleTriggerFactoryBean gridSnapshotCompactionMessageWorkerTrigger(GridSnapshotCompactionMessageWorker worker) {
+
+		String queueName = stackConfig.getQueueName("GRID_SNAPSHOT_COMPACTION");
+
+		return new WorkerTriggerBuilder()
+				.withStack(ConcurrentWorkerStack.builder()
+						.withSemaphoreLockKey("gridSnapshotCompactionMessageWorker")
+						.withSemaphoreMaxLockCount(3)
+						.withSemaphoreLockAndMessageVisibilityTimeoutSec(120)
+						.withMaxThreadsPerMachine(1)
+						.withSingleton(concurrentStackManager)
+						.withCanRunInReadOnly(false)
+						.withQueueName(queueName)
+						.withWorker(worker)
+						.build()
+				)
+				.withRepeatInterval(2187)
+				.withStartDelay(3065)
 				.build();
 	}
 	

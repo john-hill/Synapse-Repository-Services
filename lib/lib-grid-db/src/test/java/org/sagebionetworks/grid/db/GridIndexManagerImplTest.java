@@ -53,6 +53,7 @@ import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewConstant;
 import org.sagebionetworks.repo.model.grid.patch.operation.NewVector;
+import org.sagebionetworks.util.FileProviderImpl;
 
 @ExtendWith(MockitoExtension.class)
 public class GridIndexManagerImplTest {
@@ -86,7 +87,8 @@ public class GridIndexManagerImplTest {
 	@BeforeEach
 	public void before() {
 		// Explicitly create the manager with default batch size and wrap it in a spy
-		manager = spy(new GridIndexManagerImpl(mockDao, mockOperationDispatcher, mockIndexBuilder, mockReaderProvider));
+		manager = spy(new GridIndexManagerImpl(mockDao, mockOperationDispatcher, mockIndexBuilder, mockReaderProvider,
+				new FileProviderImpl()));
 
 		sessionId = "sessionOne";
 		replicaId = 123L;
@@ -431,7 +433,7 @@ public class GridIndexManagerImplTest {
 		// Use a small batch size to verify batching behavior
 		int batchSize = 2;
 		GridIndexManagerImpl managerWithSmallBatch = new GridIndexManagerImpl(
-			mockDao, mockOperationDispatcher, mockIndexBuilder, mockReaderProvider, batchSize
+			mockDao, mockOperationDispatcher, mockIndexBuilder, mockReaderProvider, new FileProviderImpl(), batchSize
 		);
 
 		LogicalTimestamp rootId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(1L);

@@ -2,9 +2,8 @@ package org.sagebionetworks.repo.manager.grid;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,12 +17,17 @@ import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.GridReplicaPatchBuilderManager;
+import org.sagebionetworks.util.FileProvider;
 import org.sagebionetworks.util.ValidateArgument;
-import org.sagebionetworks.util.progress.ProgressCallback;
 import org.springframework.stereotype.Service;
+
+import com.amazonaws.services.sqs.AmazonSQS;
+import com.amazonaws.services.sqs.model.SendMessageRequest;
 
 @Service
 public class GridSnapshotCompactionManagerImpl implements GridSnapshotCompactionManager {
+
+	static final String COMPACTION_QUEUE_NAME = "GRID_SNAPSHOT_COMPACTION";
 
 	private static final Logger log = LogManager.getLogger(GridSnapshotCompactionManagerImpl.class);
 
@@ -32,21 +36,25 @@ public class GridSnapshotCompactionManagerImpl implements GridSnapshotCompaction
 	private final GridReplicaPatchBuilderManager patchBuilderManager;
 	private final SnapshotStore snapshotStore;
 	private final StackConfiguration stackConfiguration;
+	private final FileProvider fileProvider;
+	private final AmazonSQS sqsClient;
+	private final String sqsQueueUrl;
 
 	public GridSnapshotCompactionManagerImpl(GridDao gridDao, GridIndexManager gridIndexManager,
 			GridReplicaPatchBuilderManager patchBuilderManager, SnapshotStore snapshotStore,
-			StackConfiguration stackConfiguration) {
+			StackConfiguration stackConfiguration, FileProvider fileProvider, AmazonSQS sqsClient) {
 		this.gridDao = gridDao;
 		this.gridIndexManager = gridIndexManager;
 		this.patchBuilderManager = patchBuilderManager;
 		this.snapshotStore = snapshotStore;
 		this.stackConfiguration = stackConfiguration;
+		this.fileProvider = fileProvider;
+		this.sqsClient = sqsClient;
+		this.sqsQueueUrl = sqsClient.getQueueUrl(stackConfiguration.getQueueName(COMPACTION_QUEUE_NAME)).getQueueUrl();
 	}
 
 	@Override
-	public int compactSessions(ProgressCallback callback) {
-		ValidateArgument.required(callback, "callback");
-
+	public List<String> scanAndPublishSessionsNeedingCompaction() {
 		Duration maxAge = Duration.ofDays(stackConfiguration.getGridSnapshotMaxAgeDays());
 		int maxPatchCount = stackConfiguration.getGridSnapshotMaxPatchCount();
 		int batchSize = stackConfiguration.getGridSnapshotCompactionBatchSize();
@@ -55,33 +63,24 @@ public class GridSnapshotCompactionManagerImpl implements GridSnapshotCompaction
 
 		if (sessionIds.isEmpty()) {
 			log.debug("No grid sessions need snapshot compaction.");
-			return 0;
+			return Collections.emptyList();
 		}
 
-		log.info("Found {} grid session(s) needing snapshot compaction.", sessionIds.size());
+		log.info("Found {} grid session(s) needing snapshot compaction. Publishing to queue.", sessionIds.size());
 
-		int compactedCount = 0;
 		for (String sessionId : sessionIds) {
-			try {
-				if (compactSession(sessionId)) {
-					compactedCount++;
-				}
-			} catch (Exception e) {
-				log.warn("Failed to compact session: {}. Skipping.", sessionId, e);
-			}
+			sqsClient.sendMessage(new SendMessageRequest()
+					.withQueueUrl(sqsQueueUrl)
+					.withMessageBody(sessionId));
 		}
 
-		log.info("Compacted {} grid session(s).", compactedCount);
-		return compactedCount;
+		return sessionIds;
 	}
 
-	/**
-	 * Attempt to compact a single session.
-	 *
-	 * @param sessionId
-	 * @return true if the session was compacted, false if skipped
-	 */
-	boolean compactSession(String sessionId) {
+	@Override
+	public boolean compactSession(String sessionId) {
+		ValidateArgument.required(sessionId, "sessionId");
+
 		// Get the INTERNAL connection
 		Optional<GridConnectionInfo> internalConnection = gridDao.getSingletonConnection(sessionId,
 				EventSource.INTERNAL);
@@ -103,15 +102,15 @@ public class GridSnapshotCompactionManagerImpl implements GridSnapshotCompaction
 		}
 
 		// Create a temp file for the snapshot
-		Path tempFile = null;
+		File tempFile = null;
 		try {
-			tempFile = Files.createTempFile("grid-snapshot-", ".cbor");
+			tempFile = fileProvider.createTempFile("grid-snapshot-", ".cbor");
 
 			// Export the snapshot
-			ClockTable clockTable = gridIndexManager.exportSnapshot(sessionId, replicaId, tempFile);
+			ClockTable clockTable = gridIndexManager.exportSnapshot(sessionId, replicaId, tempFile.toPath());
 
 			// Upload to S3 and record in DB
-			snapshotStore.saveSnapshot(sessionId, clockTable, createdByUserId, tempFile.toFile());
+			snapshotStore.saveSnapshot(sessionId, clockTable, createdByUserId, tempFile);
 
 			log.info("Successfully compacted session {} with {} clock entries.", sessionId,
 					clockTable.getClocks().size());
@@ -121,11 +120,7 @@ public class GridSnapshotCompactionManagerImpl implements GridSnapshotCompaction
 		} finally {
 			// Clean up the temp file
 			if (tempFile != null) {
-				try {
-					Files.deleteIfExists(tempFile);
-				} catch (IOException e) {
-					log.warn("Failed to delete temp file: {}", tempFile, e);
-				}
+				tempFile.delete();
 			}
 		}
 	}

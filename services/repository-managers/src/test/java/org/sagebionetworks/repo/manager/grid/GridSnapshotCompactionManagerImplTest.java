@@ -1,13 +1,17 @@
 package org.sagebionetworks.repo.manager.grid;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import java.io.File;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Collections;
@@ -17,6 +21,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.StackConfiguration;
@@ -27,7 +32,11 @@ import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.GridReplicaPatchBuilderManager;
-import org.sagebionetworks.util.progress.ProgressCallback;
+import org.sagebionetworks.util.FileProvider;
+
+import com.amazonaws.services.sqs.AmazonSQS;
+import com.amazonaws.services.sqs.model.GetQueueUrlResult;
+import com.amazonaws.services.sqs.model.SendMessageRequest;
 
 @ExtendWith(MockitoExtension.class)
 public class GridSnapshotCompactionManagerImplTest {
@@ -43,7 +52,9 @@ public class GridSnapshotCompactionManagerImplTest {
 	@Mock
 	private StackConfiguration mockStackConfig;
 	@Mock
-	private ProgressCallback mockCallback;
+	private FileProvider mockFileProvider;
+	@Mock
+	private AmazonSQS mockSqsClient;
 
 	private GridSnapshotCompactionManagerImpl manager;
 
@@ -51,38 +62,122 @@ public class GridSnapshotCompactionManagerImplTest {
 	private Long replicaId;
 	private Long userId;
 
+	private static final String QUEUE_URL = "https://sqs.us-east-1.amazonaws.com/123456789/dev-test-GRID_SNAPSHOT_COMPACTION";
+
 	@BeforeEach
 	public void before() {
+		when(mockStackConfig.getQueueName(GridSnapshotCompactionManagerImpl.COMPACTION_QUEUE_NAME))
+				.thenReturn("dev-test-GRID_SNAPSHOT_COMPACTION");
+		when(mockSqsClient.getQueueUrl("dev-test-GRID_SNAPSHOT_COMPACTION"))
+				.thenReturn(new GetQueueUrlResult().withQueueUrl(QUEUE_URL));
+
 		manager = new GridSnapshotCompactionManagerImpl(mockGridDao, mockGridIndexManager, mockPatchBuilderManager,
-				mockSnapshotStore, mockStackConfig);
+				mockSnapshotStore, mockStackConfig, mockFileProvider, mockSqsClient);
 
 		sessionId = "session-123";
 		replicaId = 456L;
 		userId = 789L;
+	}
 
+	// --- scanAndPublishSessionsNeedingCompaction tests ---
+
+	@Test
+	public void testScanAndPublishWithNoSessionsNeeding() {
 		when(mockStackConfig.getGridSnapshotMaxAgeDays()).thenReturn(30);
 		when(mockStackConfig.getGridSnapshotMaxPatchCount()).thenReturn(1000);
 		when(mockStackConfig.getGridSnapshotCompactionBatchSize()).thenReturn(10);
-	}
-
-	@Test
-	public void testCompactSessionsWithNoSessionsNeeding() {
 		when(mockGridDao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 10))
 				.thenReturn(Collections.emptyList());
 
 		// call under test
-		int result = manager.compactSessions(mockCallback);
+		List<String> result = manager.scanAndPublishSessionsNeedingCompaction();
 
-		assertEquals(0, result);
-		verifyZeroInteractions(mockGridIndexManager);
-		verifyZeroInteractions(mockSnapshotStore);
+		assertEquals(Collections.emptyList(), result);
+		verify(mockSqsClient, never()).sendMessage(any(SendMessageRequest.class));
 	}
 
 	@Test
-	public void testCompactSessionsWithOneSession() {
+	public void testScanAndPublishWithOneSessions() {
+		when(mockStackConfig.getGridSnapshotMaxAgeDays()).thenReturn(30);
+		when(mockStackConfig.getGridSnapshotMaxPatchCount()).thenReturn(1000);
+		when(mockStackConfig.getGridSnapshotCompactionBatchSize()).thenReturn(10);
 		when(mockGridDao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 10))
 				.thenReturn(List.of(sessionId));
 
+		// call under test
+		List<String> result = manager.scanAndPublishSessionsNeedingCompaction();
+
+		assertEquals(List.of(sessionId), result);
+
+		ArgumentCaptor<SendMessageRequest> captor = ArgumentCaptor.forClass(SendMessageRequest.class);
+		verify(mockSqsClient).sendMessage(captor.capture());
+		SendMessageRequest request = captor.getValue();
+		assertEquals(QUEUE_URL, request.getQueueUrl());
+		assertEquals(sessionId, request.getMessageBody());
+	}
+
+	@Test
+	public void testScanAndPublishWithMultipleSessions() {
+		String sessionId2 = "session-456";
+
+		when(mockStackConfig.getGridSnapshotMaxAgeDays()).thenReturn(30);
+		when(mockStackConfig.getGridSnapshotMaxPatchCount()).thenReturn(1000);
+		when(mockStackConfig.getGridSnapshotCompactionBatchSize()).thenReturn(10);
+		when(mockGridDao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 10))
+				.thenReturn(List.of(sessionId, sessionId2));
+
+		// call under test
+		List<String> result = manager.scanAndPublishSessionsNeedingCompaction();
+
+		assertEquals(List.of(sessionId, sessionId2), result);
+
+		ArgumentCaptor<SendMessageRequest> captor = ArgumentCaptor.forClass(SendMessageRequest.class);
+		verify(mockSqsClient, org.mockito.Mockito.times(2)).sendMessage(captor.capture());
+		List<SendMessageRequest> requests = captor.getAllValues();
+		assertEquals(sessionId, requests.get(0).getMessageBody());
+		assertEquals(sessionId2, requests.get(1).getMessageBody());
+	}
+
+	// --- compactSession tests ---
+
+	@Test
+	public void testCompactSessionWithNullSessionId() {
+		assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			manager.compactSession(null);
+		});
+	}
+
+	@Test
+	public void testCompactSessionWithNoInternalConnection() {
+		when(mockGridDao.getSingletonConnection(sessionId, EventSource.INTERNAL))
+				.thenReturn(Optional.empty());
+
+		// call under test
+		boolean result = manager.compactSession(sessionId);
+
+		assertFalse(result);
+		verify(mockGridIndexManager, never()).exportSnapshot(any(), any(), any());
+	}
+
+	@Test
+	public void testCompactSessionWithUnsynchronizedReplica() {
+		GridConnectionInfo connection = new GridConnectionInfo().setSessionId(sessionId).setReplicaId(replicaId)
+				.setCreatedBy(userId).setSource(EventSource.INTERNAL);
+		when(mockGridDao.getSingletonConnection(sessionId, EventSource.INTERNAL))
+				.thenReturn(Optional.of(connection));
+		when(mockPatchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId))
+				.thenReturn(Optional.empty());
+
+		// call under test
+		boolean result = manager.compactSession(sessionId);
+
+		assertFalse(result);
+		verify(mockGridIndexManager, never()).exportSnapshot(any(), any(), any());
+	}
+
+	@Test
+	public void testCompactSessionSuccess() throws IOException {
 		GridConnectionInfo connection = new GridConnectionInfo().setSessionId(sessionId).setReplicaId(replicaId)
 				.setCreatedBy(userId).setSource(EventSource.INTERNAL);
 		when(mockGridDao.getSingletonConnection(sessionId, EventSource.INTERNAL))
@@ -91,57 +186,25 @@ public class GridSnapshotCompactionManagerImplTest {
 		LogicalTimestamp clock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(100L);
 		when(mockPatchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId))
 				.thenReturn(Optional.of(clock));
+
+		File tempFile = File.createTempFile("test-", ".cbor");
+		tempFile.deleteOnExit();
+		when(mockFileProvider.createTempFile(any(), any())).thenReturn(tempFile);
 
 		ClockTable clockTable = new ClockTable(List.of(clock));
 		when(mockGridIndexManager.exportSnapshot(eq(sessionId), eq(replicaId), any(Path.class)))
 				.thenReturn(clockTable);
 
 		// call under test
-		int result = manager.compactSessions(mockCallback);
+		boolean result = manager.compactSession(sessionId);
 
-		assertEquals(1, result);
+		assertTrue(result);
 		verify(mockGridIndexManager).exportSnapshot(eq(sessionId), eq(replicaId), any(Path.class));
-		verify(mockSnapshotStore).saveSnapshot(eq(sessionId), eq(clockTable), eq(userId), any());
+		verify(mockSnapshotStore).saveSnapshot(eq(sessionId), eq(clockTable), eq(userId), any(File.class));
 	}
 
 	@Test
-	public void testCompactSessionsWithNoInternalConnection() {
-		when(mockGridDao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 10))
-				.thenReturn(List.of(sessionId));
-		when(mockGridDao.getSingletonConnection(sessionId, EventSource.INTERNAL))
-				.thenReturn(Optional.empty());
-
-		// call under test
-		int result = manager.compactSessions(mockCallback);
-
-		assertEquals(0, result);
-		verify(mockGridIndexManager, never()).exportSnapshot(any(), any(), any());
-	}
-
-	@Test
-	public void testCompactSessionsWithUnsynchronizedReplica() {
-		when(mockGridDao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 10))
-				.thenReturn(List.of(sessionId));
-
-		GridConnectionInfo connection = new GridConnectionInfo().setSessionId(sessionId).setReplicaId(replicaId)
-				.setCreatedBy(userId).setSource(EventSource.INTERNAL);
-		when(mockGridDao.getSingletonConnection(sessionId, EventSource.INTERNAL))
-				.thenReturn(Optional.of(connection));
-		when(mockPatchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId))
-				.thenReturn(Optional.empty());
-
-		// call under test
-		int result = manager.compactSessions(mockCallback);
-
-		assertEquals(0, result);
-		verify(mockGridIndexManager, never()).exportSnapshot(any(), any(), any());
-	}
-
-	@Test
-	public void testCompactSessionsWithExportFailure() {
-		when(mockGridDao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 10))
-				.thenReturn(List.of(sessionId));
-
+	public void testCompactSessionWithExportFailure() throws IOException {
 		GridConnectionInfo connection = new GridConnectionInfo().setSessionId(sessionId).setReplicaId(replicaId)
 				.setCreatedBy(userId).setSource(EventSource.INTERNAL);
 		when(mockGridDao.getSingletonConnection(sessionId, EventSource.INTERNAL))
@@ -150,43 +213,45 @@ public class GridSnapshotCompactionManagerImplTest {
 		LogicalTimestamp clock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(100L);
 		when(mockPatchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId))
 				.thenReturn(Optional.of(clock));
+
+		File tempFile = File.createTempFile("test-", ".cbor");
+		tempFile.deleteOnExit();
+		when(mockFileProvider.createTempFile(any(), any())).thenReturn(tempFile);
+
 		when(mockGridIndexManager.exportSnapshot(eq(sessionId), eq(replicaId), any(Path.class)))
 				.thenThrow(new RuntimeException("Export failed"));
 
-		// call under test -- should not throw, but return 0
-		int result = manager.compactSessions(mockCallback);
+		// call under test
+		assertThrows(RuntimeException.class, () -> {
+			manager.compactSession(sessionId);
+		});
 
-		assertEquals(0, result);
 		verify(mockSnapshotStore, never()).saveSnapshot(any(), any(), any(), any());
 	}
 
 	@Test
-	public void testCompactSessionsWithMultipleSessions() {
-		String sessionId2 = "session-456";
-		Long replicaId2 = 789L;
-
-		when(mockGridDao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 10))
-				.thenReturn(List.of(sessionId, sessionId2));
-
-		// First session compacts successfully
-		GridConnectionInfo connection1 = new GridConnectionInfo().setSessionId(sessionId).setReplicaId(replicaId)
+	public void testCompactSessionCleansUpTempFile() throws IOException {
+		GridConnectionInfo connection = new GridConnectionInfo().setSessionId(sessionId).setReplicaId(replicaId)
 				.setCreatedBy(userId).setSource(EventSource.INTERNAL);
 		when(mockGridDao.getSingletonConnection(sessionId, EventSource.INTERNAL))
-				.thenReturn(Optional.of(connection1));
-		when(mockPatchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId))
-				.thenReturn(Optional.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(100L)));
-		ClockTable clockTable1 = new ClockTable(
-				List.of(new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(100L)));
-		when(mockGridIndexManager.exportSnapshot(eq(sessionId), eq(replicaId), any(Path.class)))
-				.thenReturn(clockTable1);
+				.thenReturn(Optional.of(connection));
 
-		// Second session has no internal connection
-		when(mockGridDao.getSingletonConnection(sessionId2, EventSource.INTERNAL))
-				.thenReturn(Optional.empty());
+		LogicalTimestamp clock = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(100L);
+		when(mockPatchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId))
+				.thenReturn(Optional.of(clock));
+
+		File tempFile = File.createTempFile("test-", ".cbor");
+		tempFile.deleteOnExit();
+		when(mockFileProvider.createTempFile(any(), any())).thenReturn(tempFile);
+
+		ClockTable clockTable = new ClockTable(List.of(clock));
+		when(mockGridIndexManager.exportSnapshot(eq(sessionId), eq(replicaId), any(Path.class)))
+				.thenReturn(clockTable);
 
 		// call under test
-		int result = manager.compactSessions(mockCallback);
+		manager.compactSession(sessionId);
 
-		assertEquals(1, result);
+		// The temp file should have been deleted
+		assertFalse(tempFile.exists(), "Temp file should be deleted after successful compaction");
 	}
 }

@@ -27,6 +27,6 @@ public class GridSnapshotCompactionWorkerTest {
 		// call under test
 		worker.run(mockCallback);
 
-		verify(mockCompactionManager).compactSessions(mockCallback);
+		verify(mockCompactionManager).scanAndPublishSessionsNeedingCompaction();
 	}
 }

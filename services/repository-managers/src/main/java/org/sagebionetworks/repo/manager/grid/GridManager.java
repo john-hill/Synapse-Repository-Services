@@ -196,4 +196,13 @@ public interface GridManager extends PatchStore, SnapshotStore {
 	 */
 	Optional<GridSource> getSessionSource(String sessionId);
 
+	/**
+	 * Backfill CHANGES entries for all existing grid sessions. This must be run on
+	 * the source stack before migration so the entries migrate with the CHANGES
+	 * table.
+	 *
+	 * @return The number of sessions backfilled.
+	 */
+	long backfillGridSessionChanges();
+
 }

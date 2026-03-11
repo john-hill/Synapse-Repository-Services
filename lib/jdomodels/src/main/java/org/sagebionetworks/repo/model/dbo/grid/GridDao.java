@@ -199,4 +199,13 @@ public interface GridDao {
 	 * @return
 	 */
 	Optional<GridSnapshot> getLatestSnapshot(String sessionId);
+
+	/**
+	 * List all grid session IDs.
+	 *
+	 * @param limit
+	 * @param offset
+	 * @return
+	 */
+	List<String> listAllSessionIds(long limit, long offset);
 }

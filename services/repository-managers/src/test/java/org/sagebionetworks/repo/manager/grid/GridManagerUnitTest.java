@@ -133,6 +133,9 @@ public class GridManagerUnitTest {
 	private TransferManager mockTransferManager;
 
 	@Mock
+	private org.sagebionetworks.repo.model.message.TransactionalMessenger mockTransactionalMessenger;
+
+	@Mock
 	private Upload mockUpload;
 
 	@Mock
@@ -208,7 +211,8 @@ public class GridManagerUnitTest {
 
 		when(mockConfig.getStack()).thenReturn("dev");
 		gridManager = new GridManagerImpl(mockCredentialsProvider, mockWebsocketApi, mockGridDao, mockConfig,
-			mockS3Client, mockSynapseS3Client, mockInternalEventPublisher, List.of(mockCreateGridHandler), mockGridAuthManager, mockTransferManager
+			mockS3Client, mockSynapseS3Client, mockInternalEventPublisher, List.of(mockCreateGridHandler), mockGridAuthManager, mockTransferManager,
+			mockTransactionalMessenger
 		);
 		
 		gridManager = Mockito.spy(gridManager);
@@ -852,6 +856,9 @@ public class GridManagerUnitTest {
 				bodyCaptor.getValue().optionalContentLength());
 
 		verify(mockGridDao).savePatch(eq(gridSessionId), eq(patchId), eq(key), eq(GridManagerImpl.PATCH_DURATION), anyLong());
+		verify(mockTransactionalMessenger).sendMessageAfterCommit(
+				gridSessionIdLong.toString(), org.sagebionetworks.repo.model.ObjectType.GRID_SESSION,
+				org.sagebionetworks.repo.model.message.ChangeType.UPDATE);
 
 	}
 
@@ -870,6 +877,9 @@ public class GridManagerUnitTest {
 				bodyCaptor.getValue().optionalContentLength());
 
 		verify(mockGridDao).savePatch(eq(gridSessionId), eq(patchId), eq(key), eq(GridManagerImpl.PATCH_DURATION), anyLong());
+		verify(mockTransactionalMessenger).sendMessageAfterCommit(
+				gridSessionIdLong.toString(), org.sagebionetworks.repo.model.ObjectType.GRID_SESSION,
+				org.sagebionetworks.repo.model.message.ChangeType.UPDATE);
 	}
 
 	@Test
@@ -889,7 +899,7 @@ public class GridManagerUnitTest {
 				bodyCaptor.getValue().optionalContentLength());
 
 		verify(mockGridDao).savePatch(eq(gridSessionId), eq(patchId), eq(key), eq(GridManagerImpl.PATCH_DURATION), anyLong());
-
+		verify(mockTransactionalMessenger, never()).sendMessageAfterCommit(any(), any(), any());
 	}
 
 	@Test
@@ -1545,6 +1555,38 @@ public class GridManagerUnitTest {
 
 		// Second patch should not be fetched
 		verify(gridManager, never()).getPatchBody(gridSessionId, patchInfo2);
+	}
+
+	@Test
+	public void testBackfillGridSessionChanges() {
+		List<String> firstBatch = List.of(
+				GridUtils.gridSessionIdAsString(100L),
+				GridUtils.gridSessionIdAsString(200L));
+		List<String> emptyBatch = Collections.emptyList();
+		when(mockGridDao.listAllSessionIds(100, 0)).thenReturn(firstBatch);
+		when(mockGridDao.listAllSessionIds(100, 100)).thenReturn(emptyBatch);
+
+		// call under test
+		long count = gridManager.backfillGridSessionChanges();
+
+		assertEquals(2L, count);
+		verify(mockTransactionalMessenger).sendMessageAfterCommit(
+				"100", org.sagebionetworks.repo.model.ObjectType.GRID_SESSION,
+				org.sagebionetworks.repo.model.message.ChangeType.UPDATE);
+		verify(mockTransactionalMessenger).sendMessageAfterCommit(
+				"200", org.sagebionetworks.repo.model.ObjectType.GRID_SESSION,
+				org.sagebionetworks.repo.model.message.ChangeType.UPDATE);
+	}
+
+	@Test
+	public void testBackfillGridSessionChangesWithNoSessions() {
+		when(mockGridDao.listAllSessionIds(100, 0)).thenReturn(Collections.emptyList());
+
+		// call under test
+		long count = gridManager.backfillGridSessionChanges();
+
+		assertEquals(0L, count);
+		verify(mockTransactionalMessenger, never()).sendMessageAfterCommit(any(), any(), any());
 	}
 
 }

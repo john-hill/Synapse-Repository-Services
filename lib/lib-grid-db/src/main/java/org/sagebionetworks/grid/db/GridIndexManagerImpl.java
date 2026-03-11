@@ -184,8 +184,19 @@ public class GridIndexManagerImpl implements GridIndexManager {
 			// Get all array IDs, then for each array, read and write with tombstones
 			exportArrays(sessionId, replicaId, encoder);
 
-			// The encoder writes the clock table and root reference on close
-			return encoder.getClockTable();
+			/*
+			 * Use the replica's database clock rather than the encoder's node-derived clock.
+			 * The encoder tracks the maximum sequence number seen across node IDs, but the
+			 * replica clock advances beyond the last node ID (patchId + span). Using the
+			 * database clock ensures that importing this snapshot onto another replica
+			 * produces an identical clock state.
+			 */
+			List<LogicalTimestamp> dbClock = dao.getClock(sessionId, replicaId);
+			ClockTable clockTable = encoder.getClockTable();
+			for (LogicalTimestamp dbEntry : dbClock) {
+				clockTable.updateClockTable(dbEntry);
+			}
+			return clockTable;
 		} catch (IOException e) {
 			throw new RuntimeException("Failed to export snapshot to file: " + snapshotFile, e);
 		}

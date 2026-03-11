@@ -135,8 +135,9 @@ public class GridIndexManagerAutowiredTest {
     @Test
     @Timeout(value = 1, unit = TimeUnit.MINUTES)
     public void testExportSnapshotRoundTrip(@TempDir Path tempDir) {
-        Long replicaA = Math.abs(random.nextLong());
-        Long replicaB = Math.abs(random.nextLong());
+        // Replica IDs must fit within 57 bits for CBOR encoding
+        Long replicaA = Math.abs(random.nextLong()) % (1L << 57);
+        Long replicaB = Math.abs(random.nextLong()) % (1L << 57);
 
         // Build and apply patches to replica A
         patch = new Patch().setPatchId(new LogicalTimestamp().setReplicaId(replicaA).setSequenceNumber(0L));
@@ -147,6 +148,12 @@ public class GridIndexManagerAutowiredTest {
                 Operations.insertObject()
                         .setObjectId(objRef)
                         .setMap(Collections.singletonMap("rows", rowsArrayRef))
+        );
+        // Wire the root value node (0,0) to point to the root object
+        patch.addNewOperation(
+                Operations.insertValue()
+                        .setValueId(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L))
+                        .setReferenceId(objRef)
         );
         savePatch();
 

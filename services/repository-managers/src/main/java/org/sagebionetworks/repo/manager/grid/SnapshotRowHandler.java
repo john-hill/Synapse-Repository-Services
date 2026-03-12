@@ -26,6 +26,7 @@ import org.sagebionetworks.repo.manager.grid.row.translator.Translator;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaValidationManager;
 import org.sagebionetworks.repo.manager.schema.JsonSubject;
 import org.sagebionetworks.repo.model.dao.table.RowHandler;
+import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.encoding.IndexedModelEncoder;
 import org.sagebionetworks.repo.model.grid.node.ArrayNode;
 import org.sagebionetworks.repo.model.grid.node.ConstantNode;
@@ -467,7 +468,17 @@ public class SnapshotRowHandler implements RowHandler {
         }
         try {
             finalizeEncoding();
-            snapshotStore.saveSnapshot(this.sessionId, this.encoder.getClockTable(), createdByUserId, snapshotFile);
+            /*
+             * The snapshot's clock table is stored as the maximum sequence number seen across
+             * node IDs, but clock representations stored in the patch and snapshot tables
+             * use the next available sequence number (patchId.sequenceNumber + span), which
+             * is one past the last used ID. Increment each entry by 1 to align with this convention.
+             */
+            ClockTable clockTable = this.encoder.getClockTable();
+            for (LogicalTimestamp clock : clockTable.getClocks()) {
+                clock.setSequenceNumber(clock.getSequenceNumber() + 1);
+            }
+            snapshotStore.saveSnapshot(this.sessionId, clockTable, createdByUserId, snapshotFile);
         } finally {
             // Delete the file on disk
             if (snapshotFile != null && snapshotFile.exists()) {

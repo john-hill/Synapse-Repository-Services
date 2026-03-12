@@ -186,7 +186,7 @@ public class GridIndexManagerImpl implements GridIndexManager {
 
 			/*
 			 * Patches may have incremented the clock without creating corresponding nodes. This is expected; not all
-			 *  patch operations create nodes).
+			 * patch operations create nodes).
 			 *
 			 * Ensure these operations are accounted for by using the replica's database clock rather than the encoder's
 			 * node-derived clock (which is intended to only be used for newly-instantiated grids).
@@ -194,7 +194,12 @@ public class GridIndexManagerImpl implements GridIndexManager {
 			List<LogicalTimestamp> dbClock = dao.getClock(sessionId, replicaId);
 			ClockTable clockTable = encoder.getClockTable();
 			for (LogicalTimestamp dbEntry : dbClock) {
-				clockTable.updateClockTable(dbEntry);
+				// The dbClock stores the 'next-available' sequence number, but the snapshot encodes the last-used
+				// sequence number. Decrement the dbClock sequence numbers before updating the snapshot clock.
+				LogicalTimestamp dbEntryDecrementedForSnapshot = new LogicalTimestamp()
+						.setReplicaId(dbEntry.getReplicaId())
+						.setSequenceNumber(dbEntry.getSequenceNumber() - 1L);
+				clockTable.updateClockTable(dbEntryDecrementedForSnapshot);
 			}
 			return clockTable;
 		} catch (IOException e) {

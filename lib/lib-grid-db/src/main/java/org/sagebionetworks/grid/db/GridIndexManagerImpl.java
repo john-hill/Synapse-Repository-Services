@@ -185,11 +185,11 @@ public class GridIndexManagerImpl implements GridIndexManager {
 			exportArrays(sessionId, replicaId, encoder);
 
 			/*
-			 * Use the replica's database clock rather than the encoder's node-derived clock.
-			 * The encoder tracks the maximum sequence number seen across node IDs, but the
-			 * replica clock advances beyond the last node ID (patchId + span). Using the
-			 * database clock ensures that importing this snapshot onto another replica
-			 * produces an identical clock state.
+			 * Patches may have incremented the clock without creating corresponding nodes. This is expected; not all
+			 *  patch operations create nodes).
+			 *
+			 * Ensure these operations are accounted for by using the replica's database clock rather than the encoder's
+			 * node-derived clock (which is intended to only be used for newly-instantiated grids).
 			 */
 			List<LogicalTimestamp> dbClock = dao.getClock(sessionId, replicaId);
 			ClockTable clockTable = encoder.getClockTable();

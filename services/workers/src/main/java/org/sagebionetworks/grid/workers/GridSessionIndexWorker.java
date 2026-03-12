@@ -50,6 +50,7 @@ public class GridSessionIndexWorker implements ChangeMessageDrivenRunner {
 			return;
 		}
 		log.info("Firing new-patch for grid session: {}", sessionId);
+		//
 		publisher.publishEventResponses(
 				List.of(new EventContext(EventType.MESSAGE, EventSource.INTERNAL,
 						connection.get().getConnectionId())),

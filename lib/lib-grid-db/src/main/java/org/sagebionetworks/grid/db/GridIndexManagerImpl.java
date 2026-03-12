@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -149,7 +150,16 @@ public class GridIndexManagerImpl implements GridIndexManager {
 		);
 
 		// Update the replica clock
-		dao.setClocks(sessionId, replicaId, snapshotClockTable.getClocks());
+		// The snapshot encodes the clocks as the 'last used' sequence number, but our clock table stores the
+		// 'next available' sequence number. Increment each clock entry before storing in the database
+		ClockTable dbClockTable = new ClockTable(new ArrayList<>());
+		for (LogicalTimestamp snapshotEntry : snapshotClockTable.getClocks()) {
+			LogicalTimestamp dbEntry = new LogicalTimestamp()
+					.setReplicaId(snapshotEntry.getReplicaId())
+					.setSequenceNumber(snapshotEntry.getSequenceNumber() + 1L);
+			dbClockTable.updateClockTable(dbEntry);
+		}
+		dao.setClocks(sessionId, replicaId, dbClockTable.getClocks());
 	}
 
 	@Override
@@ -191,9 +201,9 @@ public class GridIndexManagerImpl implements GridIndexManager {
 			 * Ensure these operations are accounted for by using the replica's database clock rather than the encoder's
 			 * node-derived clock (which is intended to only be used for newly-instantiated grids).
 			 */
-			List<LogicalTimestamp> dbClock = dao.getClock(sessionId, replicaId);
+			ClockTable dbClock = new ClockTable(dao.getClock(sessionId, replicaId));
 			ClockTable clockTable = encoder.getClockTable();
-			for (LogicalTimestamp dbEntry : dbClock) {
+			for (LogicalTimestamp dbEntry : dbClock.getClocks()) {
 				// The dbClock stores the 'next-available' sequence number, but the snapshot encodes the last-used
 				// sequence number. Decrement the dbClock sequence numbers before updating the snapshot clock.
 				LogicalTimestamp dbEntryDecrementedForSnapshot = new LogicalTimestamp()
@@ -201,7 +211,8 @@ public class GridIndexManagerImpl implements GridIndexManager {
 						.setSequenceNumber(dbEntry.getSequenceNumber() - 1L);
 				clockTable.updateClockTable(dbEntryDecrementedForSnapshot);
 			}
-			return clockTable;
+			// Return the database clock to be stored with snapshot metadata.
+			return dbClock;
 		} catch (IOException e) {
 			throw new RuntimeException("Failed to export snapshot to file: " + snapshotFile, e);
 		}

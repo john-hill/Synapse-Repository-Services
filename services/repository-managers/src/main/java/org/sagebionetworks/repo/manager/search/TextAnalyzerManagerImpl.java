@@ -50,11 +50,7 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 				.checkAuthorizationOrElseThrow();
 		}
 
-		try {
-			Long.parseLong(analyzer.getOrganizationId());
-		} catch (NumberFormatException e) {
-			throw new IllegalArgumentException("Invalid organizationId: '" + analyzer.getOrganizationId() + "'", e);
-		}
+		parseId(analyzer.getOrganizationId(), "organizationId");
 
 		return textAnalyzerDao.create(analyzer, user.getId());
 	}
@@ -81,12 +77,7 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 			throw new UnauthorizedException(MSG_UNAUTHORIZED);
 		}
 		// Fetch stored entity first — use its org ID for ACL, not the request's
-		Long id;
-		try {
-			id = Long.parseLong(analyzer.getId());
-		} catch (NumberFormatException e) {
-			throw new IllegalArgumentException("Invalid TextAnalyzer id: '" + analyzer.getId() + "'", e);
-		}
+		Long id = parseId(analyzer.getId(), "TextAnalyzer id");
 		TextAnalyzer existing = textAnalyzerDao.get(id)
 			.orElseThrow(() -> new NotFoundException("TextAnalyzer with id '" + analyzer.getId() + "' does not exist."));
 
@@ -139,12 +130,7 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		if (request.getOrganizationId() == null) {
 			page = textAnalyzerDao.listAll(nextPageToken.getLimitForQuery(), nextPageToken.getOffset());
 		} else {
-			Long organizationIdLong;
-			try {
-				organizationIdLong = Long.parseLong(request.getOrganizationId());
-			} catch (NumberFormatException e) {
-				throw new IllegalArgumentException("The organizationId must be a valid numeric ID.", e);
-			}
+			Long organizationIdLong = parseId(request.getOrganizationId(), "organizationId");
 			page = textAnalyzerDao.listByOrganization(
 					organizationIdLong, nextPageToken.getLimitForQuery(), nextPageToken.getOffset());
 		}
@@ -152,5 +138,13 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		return new ListTextAnalyzersResponse()
 			.setResults(page)
 			.setNextPageToken(nextPageToken.getNextPageTokenForCurrentResults(page));
+	}
+
+	private Long parseId(String value, String fieldName) {
+		try {
+			return Long.parseLong(value);
+		} catch (NumberFormatException e) {
+			throw new IllegalArgumentException("Invalid " + fieldName + ": '" + value + "'", e);
+		}
 	}
 }

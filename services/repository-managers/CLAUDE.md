@@ -102,6 +102,32 @@ For long-running operations exposed as async REST endpoints:
 - **Legacy**: Spring XML configs (`*-spb.xml` in `src/main/resources/`) still used for some beans and `MigrationTypeListener` registration (`managers-spb.xml`). Do not add new XML configs.
 - Controllers access managers through `ServiceProvider` (not direct injection)
 
+## Common Patterns
+
+### ID Parsing
+When parsing string IDs to Long, always wrap `Long.parseLong()` in a try-catch that throws `IllegalArgumentException` with a descriptive message. Extract to a common private method if the same parsing is needed in multiple places within a class:
+```java
+private Long parseId(String value, String fieldName) {
+    try {
+        return Long.parseLong(value);
+    } catch (NumberFormatException e) {
+        throw new IllegalArgumentException("Invalid " + fieldName + ": '" + value + "'", e);
+    }
+}
+```
+
+### Pagination
+Use the existing `NextPageToken` utility for all paginated list operations. Do NOT create custom pagination logic:
+```java
+NextPageToken nextPageToken = new NextPageToken(request.getNextPageToken());
+List<T> page = dao.list(nextPageToken.getLimitForQuery(), nextPageToken.getOffset());
+return new ListResponse().setResults(page)
+    .setNextPageToken(nextPageToken.getNextPageTokenForCurrentResults(page));
+```
+
+### Interfaces
+Only create a separate interface when there's a genuine abstraction benefit (multiple implementations, or callers need to be decoupled from the implementation). For classes with a single implementation and no need for abstraction, use the concrete class directly. Don't copy the interface+impl pattern from older code just because it exists.
+
 ## Testing
 
 - Unit tests: `@ExtendWith(MockitoExtension.class)` with `@Mock` and `@InjectMocks`
@@ -109,3 +135,4 @@ For long-running operations exposed as async REST endpoints:
 - Test authorization failures (verify `UnauthorizedException` thrown)
 - Test input validation (verify `IllegalArgumentException` thrown)
 - Integration tests in `integration-test/` module test the full stack
+- **Service layer tests are usually unnecessary.** Most services are thin delegation layers that convert `Long userId` → `UserInfo` and forward to the manager. If the service has no real logic (no branching, no transformation, no error handling), skip the unit test. The IT-level controller test will verify the wiring. Only test services that contain actual business logic (e.g., `EntityService`).

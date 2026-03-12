@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.schema;
 
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.schema.Organization;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 
 /**
@@ -18,6 +19,6 @@ public interface SynapseSchemaBootstrap  {
 	/**
 	 * Create the 'org.sagebionetworks' organization if it does not already exist.
 	 */
-	void createOrganizationIfDoesNotExist(UserInfo adminUser);
+	public Organization createOrganizationIfDoesNotExist(UserInfo adminUser);
 
 }

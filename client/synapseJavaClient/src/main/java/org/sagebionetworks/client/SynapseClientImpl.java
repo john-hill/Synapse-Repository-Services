@@ -399,6 +399,9 @@ import org.sagebionetworks.repo.model.table.ViewColumnModelResponse;
 import org.sagebionetworks.repo.model.table.ViewEntityType;
 import org.sagebionetworks.repo.model.table.ViewScope;
 import org.sagebionetworks.repo.model.table.ViewType;
+import org.sagebionetworks.repo.model.table.search.ListTextAnalyzersRequest;
+import org.sagebionetworks.repo.model.table.search.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.table.search.TextAnalyzer;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiHeader;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiHistorySnapshot;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiOrderHint;
@@ -760,7 +763,9 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	
 	protected static final String REALM = "/realm";
 	protected static final String PRINCIPALS = "/principals";
-	
+
+	private static final String SEARCH_TEXT_ANALYZER = "/search/text/analyzer";
+	private static final String SEARCH_TEXT_ANALYZER_LIST = SEARCH_TEXT_ANALYZER + "/list";
 
 	/**
 	 * Default constructor uses the default repository and file services endpoints.
@@ -6632,4 +6637,36 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public RealmPrincipal getRealmPrincipals() throws SynapseException {
 		return getJSONEntity(getRepoEndpoint(), REALM+PRINCIPALS, RealmPrincipal.class);
 	}
+
+	@Override
+	public TextAnalyzer createTextAnalyzer(TextAnalyzer analyzer) throws SynapseException {
+		ValidateArgument.required(analyzer, "analyzer");
+		return postJSONEntity(getRepoEndpoint(), SEARCH_TEXT_ANALYZER, analyzer, TextAnalyzer.class);
+	}
+
+	@Override
+	public TextAnalyzer getTextAnalyzer(String id) throws SynapseException {
+		ValidateArgument.required(id, "id");
+		return getJSONEntity(getRepoEndpoint(), createEntityUri(SEARCH_TEXT_ANALYZER, id), TextAnalyzer.class);
+	}
+
+	@Override
+	public TextAnalyzer updateTextAnalyzer(TextAnalyzer analyzer) throws SynapseException {
+		ValidateArgument.required(analyzer, "analyzer");
+		ValidateArgument.required(analyzer.getId(), "analyzer.id");
+		return putJSONEntity(getRepoEndpoint(), createEntityUri(SEARCH_TEXT_ANALYZER, analyzer.getId()), analyzer, TextAnalyzer.class);
+	}
+
+	@Override
+	public void deleteTextAnalyzer(String id) throws SynapseException {
+		ValidateArgument.required(id, "id");
+		deleteUri(getRepoEndpoint(), createEntityUri(SEARCH_TEXT_ANALYZER, id));
+	}
+
+	@Override
+	public ListTextAnalyzersResponse listTextAnalyzers(ListTextAnalyzersRequest request) throws SynapseException {
+		ValidateArgument.required(request, "request");
+		return postJSONEntity(getRepoEndpoint(), SEARCH_TEXT_ANALYZER_LIST, request, ListTextAnalyzersResponse.class);
+	}
+
 }

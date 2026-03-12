@@ -398,6 +398,7 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 		textAnalyzerDao.truncateAll();
 		columnAnalyzerOverrideDao.truncateAll();
 		jsonSchemaDao.truncateAll();
+		aclManager.truncateAll();
 		organizationDao.truncateAll();
 	}
 

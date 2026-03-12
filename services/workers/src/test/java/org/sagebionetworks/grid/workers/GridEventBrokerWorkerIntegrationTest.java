@@ -35,15 +35,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.AsynchronousJobWorkerHelper;
 import org.sagebionetworks.aws.SynapseS3Client;
+import org.sagebionetworks.grid.db.GridIndexDao;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
-import org.sagebionetworks.repo.manager.grid.GridManager;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
 import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.QueryElement;
+import org.sagebionetworks.repo.manager.message.RepositoryMessagePublisher;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.manager.table.ColumnModelManager;
 import org.sagebionetworks.repo.manager.team.TeamManager;
@@ -62,6 +63,7 @@ import org.sagebionetworks.repo.model.annotation.v2.Annotations;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValue;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValueType;
 import org.sagebionetworks.repo.model.auth.NewUser;
+import org.sagebionetworks.repo.model.dbo.dao.DBOChangeDAO;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.dbo.schema.EntitySchemaValidationResultDao;
 import org.sagebionetworks.repo.model.entity.BindSchemaToEntityRequest;
@@ -81,6 +83,7 @@ import org.sagebionetworks.repo.model.grid.GridRecordSetExportRequest;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportResponse;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
@@ -93,6 +96,8 @@ import org.sagebionetworks.repo.model.grid.patch.operation.builder.NewConstantBu
 import org.sagebionetworks.repo.model.grid.patch.operation.builder.Operations;
 import org.sagebionetworks.repo.model.helper.AccessControlListObjectHelper;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
+import org.sagebionetworks.repo.model.message.ChangeMessage;
+import org.sagebionetworks.repo.model.message.ChangeType;
 import org.sagebionetworks.repo.model.schema.CreateSchemaRequest;
 import org.sagebionetworks.repo.model.schema.CreateSchemaResponse;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
@@ -203,6 +208,15 @@ public class GridEventBrokerWorkerIntegrationTest {
 	
 	@Autowired
 	private GridDao gridDao;
+	
+	@Autowired
+	private GridIndexDao gridIndexDao;
+	
+	@Autowired
+	private RepositoryMessagePublisher repositoryMessagePublisher;
+
+	@Autowired
+	private DBOChangeDAO changeDao;
 
 	private UserInfo admin;
 
@@ -349,6 +363,80 @@ public class GridEventBrokerWorkerIntegrationTest {
 			return Pair.create(webSocketConnections.size() == 0, null);
 		});
 		
+	}
+
+	/**
+	 * This is a test for PLFM-9488. For a grid session that starts on production
+	 * and is migrated to staging, the staging session needs a way to trigger the
+	 * patch synchronization process to apply migrated patches. In order to address
+	 * this issue gridManager.savePatch() was extends to push a grid_session change
+	 * message. The ChangeSentMessageSynchWorker will re-broacast this message on
+	 * staging which is then picked up by the GridSessionIndexWorker. The
+	 * GridSessionIndexWorker will then trigger the patch synchronization process
+	 * for the associated grid session.
+	 * @throws AsynchJobFailedException 
+	 * @throws Exception 
+	 */
+	@Test
+	public void testGridWithNoActiveSession() throws Exception {
+
+		String projectId = entityManager.createEntity(admin, new Project().setName("test"), null);
+		List<ColumnModel> schema = List.of(new ColumnModel().setName("anInt").setColumnType(ColumnType.INTEGER));
+		schema = columnManager.createColumnModels(admin, schema);
+		List<String> colIds = schema.stream().map(c -> c.getId()).collect(Collectors.toList());
+
+		TableEntity table = asynchronousJobWorkerHelper.createTable(admin, "testTable", projectId, colIds, false);
+
+		List<Row> rows = List.of(new Row().setValues(List.of("7070")), new Row().setValues(List.of("8080")),
+				new Row().setValues(List.of("9090")));
+
+		asynchronousJobWorkerHelper.appendRowsToTable(admin, schema, table.getId(), rows, MAX_WAIT_MS);
+
+		String sql = String.format("select * from %s", table.getId());
+
+		// create a grid using the table
+		GridSession session = asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new CreateGridRequest().setInitialQuery(new Query().setSql(sql)), (CreateGridResponse response) -> {
+					assertNotNull(response);
+					assertNotNull(response.getGridSession());
+				}, MAX_WAIT_MS).getResponse().getGridSession();
+
+		assertNotNull(session);
+		assertEquals(table.getId(), session.getSourceEntityId());
+
+		// Wait for the internal replica to be created for this grid session.
+		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+			Optional<GridHeader> op = gridViewManager.readHeader(session.getSessionId(), INTERNAL_REPLICA_ID);
+			if (op.isEmpty()) {
+				return Pair.create(false, null);
+			} else {
+				List<RowView> viewRows = gridViewManager.querySinglePage(op.get(), new QueryElement());
+				System.out.println("waiting for view header before truncate...");
+				return Pair.create(viewRows.size() == 3, viewRows);
+			}
+		});
+
+		// delete all replica data simulating an empty staging stack.
+		gridIndexDao.truncateAll();
+
+		// Trigger the same type of event sent by ChangeSentMessageSynchWorker
+		ChangeMessage change = changeDao.replaceChange(
+				new ChangeMessage().setChangeType(ChangeType.UPDATE).setObjectType(ObjectType.GRID_SESSION)
+						.setObjectId(GridUtils.gridSessionIdAsLong(session.getSessionId()).toString()));
+		repositoryMessagePublisher.publishBatchToTopic(ObjectType.GRID_SESSION, List.of(change));
+
+		// the internal replica should be recreated.
+		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+			Optional<GridHeader> op = gridViewManager.readHeader(session.getSessionId(), INTERNAL_REPLICA_ID);
+			if (op.isEmpty()) {
+				System.out.println("Waiting for grid header to be restored...");
+				return Pair.create(false, null);
+			} else {
+				List<RowView> viewRows = gridViewManager.querySinglePage(op.get(), new QueryElement());
+				System.out.println("Waiting for three rows, current count: "+viewRows.size());
+				return Pair.create(viewRows.size() == 3, viewRows);
+			}
+		});
 	}
 
 	@Test

@@ -449,6 +449,12 @@ public class GridDaoImpl implements GridDao {
 	}
 
 	@Override
+	public List<String> listAllSessionIds(long limit, long offset) {
+		return jdbcTemplate.queryForList("SELECT SESSION_ID FROM GRID_SESSION ORDER BY ID ASC LIMIT ? OFFSET ?",
+				String.class, limit, offset);
+	}
+
+	@Override
 	public Optional<GridSource> getSessionSource(String sessionId) {
 		ValidateArgument.required(sessionId, "sessionId");
 		try {

@@ -393,6 +393,7 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 	public void truncateAll() {
 		textAnalyzerDao.truncateAll();
 		jsonSchemaDao.truncateAll();
+		aclManager.truncateAll();
 		organizationDao.truncateAll();
 	}
 

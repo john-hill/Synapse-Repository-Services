@@ -4,13 +4,16 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -37,6 +40,7 @@ public class TextAnalyzerManagerImplTest {
 	@Mock
 	private AccessControlListDAO aclDao;
 
+	@InjectMocks
 	private TextAnalyzerManagerImpl manager;
 
 	private UserInfo sageUser;
@@ -45,8 +49,6 @@ public class TextAnalyzerManagerImplTest {
 
 	@BeforeEach
 	void setUp() {
-		manager = new TextAnalyzerManagerImpl(textAnalyzerDao, aclDao);
-
 		sageUser = new UserInfo(false);
 		sageUser.setId(1L);
 		sageUser.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
@@ -265,5 +267,33 @@ public class TextAnalyzerManagerImplTest {
 		assertEquals(1, response.getResults().size());
 		verify(textAnalyzerDao).listAll(anyLong(), anyLong());
 		verify(textAnalyzerDao, never()).listByOrganization(anyLong(), anyLong(), anyLong());
+	}
+
+	@Test
+	public void testListReturnsNextPageTokenWhenMoreResults() {
+		// NextPageToken default limit is 50, so limitForQuery is 51
+		List<TextAnalyzer> page = new ArrayList<>();
+		for (int i = 0; i < 51; i++) {
+			page.add(new TextAnalyzer().setId(String.valueOf(i)));
+		}
+		when(textAnalyzerDao.listAll(eq(51L), eq(0L))).thenReturn(page);
+
+		ListTextAnalyzersRequest request = new ListTextAnalyzersRequest();
+		ListTextAnalyzersResponse response = manager.list(new UserInfo(false), request);
+
+		assertNotNull(response.getNextPageToken(), "Expected a next page token when DAO returns more than limit results");
+		assertEquals(50, response.getResults().size());
+	}
+
+	@Test
+	public void testListReturnsNullNextPageTokenWhenNoMoreResults() {
+		List<TextAnalyzer> page = Arrays.asList(new TextAnalyzer().setId("1"));
+		when(textAnalyzerDao.listAll(eq(51L), eq(0L))).thenReturn(page);
+
+		ListTextAnalyzersRequest request = new ListTextAnalyzersRequest();
+		ListTextAnalyzersResponse response = manager.list(new UserInfo(false), request);
+
+		assertNull(response.getNextPageToken(), "Expected null next page token when all results fit in one page");
+		assertEquals(1, response.getResults().size());
 	}
 }

@@ -2,10 +2,8 @@
 	"description": "The OpenSearch analyzer configuration. Stores the full definition of how text is analyzed.",
 	"properties": {
 		"charFilters": {
-			"type": "map",
-			"description": "Named character filter definitions. Keys are filter names, values are JSON-serialized filter config objects.",
-			"key": { "type": "string" },
-			"value": { "type": "string" }
+			"type": "string",
+			"description": "JSON string defining named character filter configurations. Each key is a filter name, each value is the filter config object."
 		},
 		"tokenizer": {
 			"type": "string",
@@ -16,10 +14,8 @@
 			"description": "JSON-serialized custom tokenizer configuration object. Must include a 'type' field. Example: {\"type\":\"edge_ngram\",\"min_gram\":2,\"max_gram\":20,\"token_chars\":[\"letter\",\"digit\"]}"
 		},
 		"tokenFilters": {
-			"type": "map",
-			"description": "Named token filter definitions. Keys are filter names, values are JSON-serialized filter config objects.",
-			"key": { "type": "string" },
-			"value": { "type": "string" }
+			"type": "string",
+			"description": "JSON string defining named token filter configurations. Each key is a filter name, each value is the filter config object."
 		},
 		"filterOrder": {
 			"type": "array",

@@ -17,13 +17,7 @@ import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.docker.DockerRepository;
-import org.sagebionetworks.repo.model.schema.CreateOrganizationRequest;
-import org.sagebionetworks.repo.model.schema.CreateSchemaRequest;
-import org.sagebionetworks.repo.model.schema.JsonSchema;
-import org.sagebionetworks.repo.model.schema.JsonSchemaConstants;
-import org.sagebionetworks.repo.model.schema.JsonSchemaVersionInfo;
-import org.sagebionetworks.repo.model.schema.NormalizedJsonSchema;
-import org.sagebionetworks.repo.model.schema.SubSchemaIterable;
+import org.sagebionetworks.repo.model.schema.*;
 import org.sagebionetworks.repo.model.table.Dataset;
 import org.sagebionetworks.repo.model.table.DatasetCollection;
 import org.sagebionetworks.repo.model.table.EntityView;
@@ -101,15 +95,15 @@ public class SynapseSchemaBootstrapImpl implements SynapseSchemaBootstrap {
 	 * @param adminUser
 	 */
 	@Override
-	public void createOrganizationIfDoesNotExist(UserInfo adminUser) {
+	public Organization createOrganizationIfDoesNotExist(UserInfo adminUser) {
 		try {
 			// attempt to get the organization to determine if it exists
-			jsonSchemaManager.getOrganizationByName(adminUser, ORG_SAGEBIONETWORKS);
+			return jsonSchemaManager.getOrganizationByName(adminUser, ORG_SAGEBIONETWORKS);
 		} catch (NotFoundException e) {
 			// Need to create the organization
 			CreateOrganizationRequest request = new CreateOrganizationRequest();
 			request.setOrganizationName(ORG_SAGEBIONETWORKS);
-			jsonSchemaManager.createOrganziation(adminUser, request, ORG_SAGEBIONETWORKS_ID);
+			return jsonSchemaManager.createOrganziation(adminUser, request, ORG_SAGEBIONETWORKS_ID);
 		}
 	}
 
@@ -169,7 +163,6 @@ public class SynapseSchemaBootstrapImpl implements SynapseSchemaBootstrap {
 	 * 
 	 * @param organizationName
 	 * @param schemaName
-	 * @param jsonSHA256Hex
 	 * @return
 	 */
 	Optional<Long> getNextPatchNumberIfNeeded(String organizationName, String schemaName, JsonSchema testSchema) {

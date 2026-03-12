@@ -3,8 +3,6 @@ package org.sagebionetworks.repo.model.dbo.search;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -135,14 +133,14 @@ public class TextAnalyzerDaoImplAutowiredTest {
 		Long orgId = Long.parseLong(organizationId);
 
 		// First call inserts
-		textAnalyzerDao.createOrUpdateSystemAnalyzer(1L, newAnalyzer("SCIENTIFIC", "V1"), orgId, adminUserId);
+		textAnalyzerDao.createOrUpdateSystemAnalyzerForBootstrapOnly(1L, newAnalyzer("SCIENTIFIC", "V1"), orgId, adminUserId);
 		Optional<TextAnalyzer> first = textAnalyzerDao.get(1L);
 		assertTrue(first.isPresent());
 		assertEquals("V1", first.get().getDescription());
 		String firstEtag = first.get().getEtag();
 
 		// Second call with same ID updates in place
-		textAnalyzerDao.createOrUpdateSystemAnalyzer(1L, newAnalyzer("SCIENTIFIC", "V2"), orgId, adminUserId);
+		textAnalyzerDao.createOrUpdateSystemAnalyzerForBootstrapOnly(1L, newAnalyzer("SCIENTIFIC", "V2"), orgId, adminUserId);
 		Optional<TextAnalyzer> second = textAnalyzerDao.get(1L);
 		assertTrue(second.isPresent());
 		assertEquals("V2", second.get().getDescription());
@@ -158,10 +156,8 @@ public class TextAnalyzerDaoImplAutowiredTest {
 		settings.setTokenizer("standard");
 		settings.setSynonymAware(true);
 		settings.setFilterOrder(Arrays.asList("lowercase", "english_stop", "english_stemmer"));
-		Map<String, String> tokenFilters = new HashMap<>();
-		tokenFilters.put("english_stop", "{\"type\":\"stop\",\"stopwords\":\"_english_\"}");
-		tokenFilters.put("english_stemmer", "{\"type\":\"stemmer\",\"language\":\"english\"}");
-		settings.setTokenFilters(tokenFilters);
+		settings.setTokenFilters("{\"english_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"},"
+				+ "\"english_stemmer\":{\"type\":\"stemmer\",\"language\":\"english\"}}");
 
 		TextAnalyzer analyzer = new TextAnalyzer();
 		analyzer.setName("settings-roundtrip");
@@ -175,8 +171,9 @@ public class TextAnalyzerDaoImplAutowiredTest {
 		assertEquals("standard", fetchedSettings.getTokenizer());
 		assertTrue(fetchedSettings.getSynonymAware());
 		assertEquals(Arrays.asList("lowercase", "english_stop", "english_stemmer"), fetchedSettings.getFilterOrder());
-		assertTrue(fetchedSettings.getTokenFilters().containsKey("english_stop"));
-		assertTrue(fetchedSettings.getTokenFilters().containsKey("english_stemmer"));
+		assertNotNull(fetchedSettings.getTokenFilters());
+		assertTrue(fetchedSettings.getTokenFilters().contains("english_stop"));
+		assertTrue(fetchedSettings.getTokenFilters().contains("english_stemmer"));
 	}
 
 	private TextAnalyzer newAnalyzer(String name, String description) {

@@ -21,7 +21,7 @@ public interface TextAnalyzerDao {
 
 	boolean exists(Long id);
 
-	void createOrUpdateSystemAnalyzer(Long id, TextAnalyzer analyzer, Long organizationId, Long userId);
+	void createOrUpdateSystemAnalyzerForBootstrapOnly(Long id, TextAnalyzer analyzer, Long organizationId, Long userId);
 
 	void truncateAll();
 }

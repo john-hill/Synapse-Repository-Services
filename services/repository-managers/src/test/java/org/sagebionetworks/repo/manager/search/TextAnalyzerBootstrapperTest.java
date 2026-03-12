@@ -9,7 +9,6 @@ import static org.mockito.Mockito.verify;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -60,12 +59,12 @@ public class TextAnalyzerBootstrapperTest {
 		setupOrgMock();
 		bootstrapper.bootstrapSystemAnalyzers();
 
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzer(eq(TextAnalyzerBootstrapper.SCIENTIFIC_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzer(eq(TextAnalyzerBootstrapper.STANDARD_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzer(eq(TextAnalyzerBootstrapper.IDENTIFIER_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzer(eq(TextAnalyzerBootstrapper.KEYWORD_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzer(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzer(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.SCIENTIFIC_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.STANDARD_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.IDENTIFIER_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.KEYWORD_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
 	}
 
 	@Test
@@ -73,7 +72,7 @@ public class TextAnalyzerBootstrapperTest {
 		setupOrgMock();
 		bootstrapper.bootstrapSystemAnalyzers();
 
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzer(eq(TextAnalyzerBootstrapper.SCIENTIFIC_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.SCIENTIFIC_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
 		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
 
 		assertEquals("standard", settings.getTokenizer());
@@ -88,7 +87,7 @@ public class TextAnalyzerBootstrapperTest {
 		setupOrgMock();
 		bootstrapper.bootstrapSystemAnalyzers();
 
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzer(eq(TextAnalyzerBootstrapper.STANDARD_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.STANDARD_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
 		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
 
 		assertEquals("standard", settings.getTokenizer());
@@ -102,7 +101,7 @@ public class TextAnalyzerBootstrapperTest {
 		setupOrgMock();
 		bootstrapper.bootstrapSystemAnalyzers();
 
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzer(eq(TextAnalyzerBootstrapper.IDENTIFIER_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.IDENTIFIER_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
 		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
 
 		assertEquals("whitespace", settings.getTokenizer());
@@ -116,7 +115,7 @@ public class TextAnalyzerBootstrapperTest {
 		setupOrgMock();
 		bootstrapper.bootstrapSystemAnalyzers();
 
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzer(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
 		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
 
 		assertEquals("standard", settings.getTokenizer());
@@ -132,7 +131,7 @@ public class TextAnalyzerBootstrapperTest {
 		setupOrgMock();
 		bootstrapper.bootstrapSystemAnalyzers();
 
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzer(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
 		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
 
 		assertEquals("standard", settings.getTokenizer());
@@ -157,7 +156,7 @@ public class TextAnalyzerBootstrapperTest {
 		);
 
 		for (Long id : idsWithWordDelimiter) {
-			verify(textAnalyzerDao).createOrUpdateSystemAnalyzer(eq(id), analyzerCaptor.capture(), eq(100L), any(Long.class));
+			verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(id), analyzerCaptor.capture(), eq(100L), any(Long.class));
 			TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
 			List<String> order = settings.getFilterOrder();
 			int wdIdx = -1;
@@ -172,17 +171,17 @@ public class TextAnalyzerBootstrapperTest {
 		}
 	}
 
-	private void assertWordDelimiterGraphFilter(Map<String, String> tokenFilters, String filterName) {
-		assertNotNull(tokenFilters, "tokenFilters should not be null");
-		String filterConfig = tokenFilters.get(filterName);
-		assertNotNull(filterConfig, "Expected token filter '" + filterName + "' not found");
-		assertTrue(filterConfig.contains("\"type\":\"word_delimiter_graph\""),
+	private void assertWordDelimiterGraphFilter(String tokenFiltersJson, String filterName) {
+		assertNotNull(tokenFiltersJson, "tokenFilters should not be null");
+		assertTrue(tokenFiltersJson.contains("\"" + filterName + "\""),
+				"Expected token filter '" + filterName + "' not found in JSON");
+		assertTrue(tokenFiltersJson.contains("\"type\":\"word_delimiter_graph\""),
 				"Filter should be of type word_delimiter_graph");
-		assertTrue(filterConfig.contains("\"preserve_original\":true"),
+		assertTrue(tokenFiltersJson.contains("\"preserve_original\":true"),
 				"Filter should have preserve_original=true");
-		assertTrue(filterConfig.contains("\"split_on_case_change\":true"),
+		assertTrue(tokenFiltersJson.contains("\"split_on_case_change\":true"),
 				"Filter should have split_on_case_change=true");
-		assertTrue(filterConfig.contains("\"catenate_words\":true"),
+		assertTrue(tokenFiltersJson.contains("\"catenate_words\":true"),
 				"Filter should have catenate_words=true");
 	}
 }

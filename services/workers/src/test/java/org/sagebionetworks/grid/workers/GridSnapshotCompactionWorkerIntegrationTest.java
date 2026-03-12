@@ -12,7 +12,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +22,8 @@ import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
 import org.sagebionetworks.repo.manager.file.LocalFileUploadRequest;
 import org.sagebionetworks.repo.manager.grid.GridSnapshotCompactionManager;
+import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.RecordSet;
@@ -31,12 +32,12 @@ import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.CreateGridResponse;
-import org.sagebionetworks.repo.model.grid.EventSource;
-import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridSnapshot;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.repo.service.EntityService;
+import org.sagebionetworks.util.Pair;
+import org.sagebionetworks.util.TimeUtils;
 import org.sagebionetworks.util.csv.CSVWriterProviderImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -50,6 +51,8 @@ import au.com.bytecode.opencsv.CSVWriter;
 public class GridSnapshotCompactionWorkerIntegrationTest {
 
 	public static final long MAX_WAIT_MS = 120_000;
+
+	private static final long INTERNAL_REPLICA_ID = 66534L;
 
 	@Autowired
 	private UserManager userManager;
@@ -68,6 +71,9 @@ public class GridSnapshotCompactionWorkerIntegrationTest {
 
 	@Autowired
 	private GridSnapshotCompactionManager compactionManager;
+
+	@Autowired
+	private GridReplicaViewManager gridViewManager;
 
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
@@ -90,8 +96,8 @@ public class GridSnapshotCompactionWorkerIntegrationTest {
 		GridSession session = createGridSessionWithData();
 		String sessionId = session.getSessionId();
 
-		// Workaround for PLFM-9488: the INTERNAL connection may not be auto-created
-		createInternalConnectionIfMissing(sessionId);
+		// Wait for the INTERNAL replica to be fully synchronized (snapshot applied via async workers)
+		waitForInternalReplicaReady(sessionId);
 
 		Optional<GridSnapshot> initialSnapshot = gridDao.getLatestSnapshot(sessionId);
 		assertTrue(initialSnapshot.isPresent(), "Initial snapshot should exist after grid session creation");
@@ -116,8 +122,8 @@ public class GridSnapshotCompactionWorkerIntegrationTest {
 		GridSession session = createGridSessionWithData();
 		String sessionId = session.getSessionId();
 
-		// Workaround for PLFM-9488: the INTERNAL connection may not be auto-created
-		createInternalConnectionIfMissing(sessionId);
+		// Wait for the INTERNAL replica to be fully synchronized (snapshot applied via async workers)
+		waitForInternalReplicaReady(sessionId);
 
 		Optional<GridSnapshot> initialSnapshot = gridDao.getLatestSnapshot(sessionId);
 		assertTrue(initialSnapshot.isPresent(), "Initial snapshot should exist after grid session creation");
@@ -180,25 +186,14 @@ public class GridSnapshotCompactionWorkerIntegrationTest {
 	}
 
 	/**
-	 * Creates the INTERNAL connection for the given session if it does not already
-	 * exist. Due to PLFM-9488 the connection may not be established by the async
-	 * event. This method looks up the replica and creates the connection directly.
+	 * Waits for the INTERNAL replica's snapshot to be applied by the async workers.
+	 * The snapshot application is asynchronous (multiple SQS hops after session
+	 * creation), so we poll until the replica's grid header is available.
 	 */
-	private void createInternalConnectionIfMissing(String sessionId) {
-		Optional<GridConnectionInfo> existing = gridDao.getSingletonConnection(sessionId, EventSource.INTERNAL);
-		if (existing.isPresent()) {
-			return;
-		}
-		Long replicaId = jdbcTemplate.queryForObject(
-				"SELECT REPLICA_ID FROM GRID_REPLICA WHERE SESSION_ID = ? ORDER BY REPLICA_ID DESC LIMIT 1",
-				Long.class, sessionId);
-		assertNotNull(replicaId, "A replica should exist after grid session creation");
-
-		gridDao.createConnection(new GridConnectionInfo()
-				.setConnectionId(UUID.randomUUID().toString())
-				.setSessionId(sessionId)
-				.setReplicaId(replicaId)
-				.setCreatedBy(admin.getId())
-				.setSource(EventSource.INTERNAL));
+	private void waitForInternalReplicaReady(String sessionId) throws Exception {
+		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+			Optional<GridHeader> header = gridViewManager.readHeader(sessionId, INTERNAL_REPLICA_ID);
+			return Pair.create(header.isPresent(), null);
+		});
 	}
 }

@@ -15,8 +15,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 
-	static final String ORG_SAGEBIONETWORKS = "org.sagebionetworks";
-
 	public static final long SCIENTIFIC_ID = 1L;
 	public static final long STANDARD_ID = 2L;
 	public static final long IDENTIFIER_ID = 3L;

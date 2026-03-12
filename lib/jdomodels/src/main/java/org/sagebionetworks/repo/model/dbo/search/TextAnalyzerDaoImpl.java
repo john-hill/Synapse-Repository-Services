@@ -2,7 +2,6 @@ package org.sagebionetworks.repo.model.dbo.search;
 
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.*;
 
-import java.sql.Timestamp;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -33,7 +32,7 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 			+ COL_TEXT_ANALYZER_ORGANIZATION_ID + ", " + COL_TEXT_ANALYZER_SETTINGS + ", "
 			+ COL_TEXT_ANALYZER_CREATED_BY + ", " + COL_TEXT_ANALYZER_CREATED_ON + ", "
 			+ COL_TEXT_ANALYZER_MODIFIED_BY + ", " + COL_TEXT_ANALYZER_MODIFIED_ON
-			+ ") VALUES (?, UUID(), ?, ?, ?, ?, ?, ?, ?, ?)";
+			+ ") VALUES (?, UUID(), ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))";
 
 	private static final String SQL_SELECT_BY_ID = "SELECT * FROM " + TABLE_TEXT_ANALYZER
 			+ " WHERE " + COL_TEXT_ANALYZER_ID + " = ?";
@@ -66,7 +65,7 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 			+ COL_TEXT_ANALYZER_ORGANIZATION_ID + ", " + COL_TEXT_ANALYZER_SETTINGS + ", "
 			+ COL_TEXT_ANALYZER_CREATED_BY + ", " + COL_TEXT_ANALYZER_CREATED_ON + ", "
 			+ COL_TEXT_ANALYZER_MODIFIED_BY + ", " + COL_TEXT_ANALYZER_MODIFIED_ON
-			+ ") VALUES (?, UUID(), ?, ?, ?, ?, ?, ?, ?, ?)"
+			+ ") VALUES (?, UUID(), ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))"
 			+ " ON DUPLICATE KEY UPDATE "
 			+ COL_TEXT_ANALYZER_ETAG + " = UUID(), "
 			+ COL_TEXT_ANALYZER_NAME + " = VALUES(" + COL_TEXT_ANALYZER_NAME + "), "
@@ -111,7 +110,6 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 		ValidateArgument.required(userId, "userId");
 
 		Long id = idGenerator.generateNewId(IdType.TEXT_ANALYZER_ID);
-		Timestamp now = new Timestamp(System.currentTimeMillis());
 
 		try {
 			jdbcTemplate.update(SQL_INSERT,
@@ -121,9 +119,7 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 					Long.parseLong(analyzer.getOrganizationId()),
 					JDOSecondaryPropertyUtils.createJSONFromObject(analyzer.getSettings()),
 					userId,
-					now,
-					userId,
-					now
+					userId
 			);
 		} catch (DuplicateKeyException e) {
 			throw new IllegalArgumentException(MSG_DUPLICATE_NAME, e);
@@ -212,8 +208,6 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 		ValidateArgument.required(organizationId, "organizationId");
 		ValidateArgument.required(userId, "userId");
 
-		Timestamp now = new Timestamp(System.currentTimeMillis());
-
 		jdbcTemplate.update(SQL_UPSERT_SYSTEM,
 				id,
 				analyzer.getName(),
@@ -221,9 +215,7 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 				organizationId,
 				JDOSecondaryPropertyUtils.createJSONFromObject(analyzer.getSettings()),
 				userId,
-				now,
-				userId,
-				now
+				userId
 		);
 	}
 

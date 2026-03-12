@@ -10,9 +10,11 @@ import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.schema.Organization;
 import org.sagebionetworks.repo.model.table.search.TextAnalyzer;
 import org.sagebionetworks.repo.model.table.search.TextAnalyzerSettings;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Service;
 
 @Service
+@DependsOn("updateDefaultRealm")
 public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 
 	public static final long SCIENTIFIC_ID = 1L;

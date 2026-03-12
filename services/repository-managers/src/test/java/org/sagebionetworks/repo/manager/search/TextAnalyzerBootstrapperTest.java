@@ -19,6 +19,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.schema.SynapseSchemaBootstrap;
+import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.schema.Organization;
@@ -42,7 +44,6 @@ public class TextAnalyzerBootstrapperTest {
 	@Mock
 	private UserManager userManager;
 
-	@InjectMocks
 	private TextAnalyzerBootstrapper bootstrapper;
 
 	@Captor
@@ -51,13 +52,15 @@ public class TextAnalyzerBootstrapperTest {
 	private void setupOrgMock() {
 		Organization org = new Organization();
 		org.setId("100");
-		when(organizationDao.getOrganizationByName(TextAnalyzerBootstrapper.ORG_SAGEBIONETWORKS)).thenReturn(org);
+		when(synapseSchemaBootstrap.createOrganizationIfDoesNotExist(any())).thenReturn(org);
+		when(userManager.getUserInfo(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId()))
+				.thenReturn(new UserInfo(true));
+		bootstrapper = new TextAnalyzerBootstrapper(textAnalyzerDao, synapseSchemaBootstrap, userManager);
 	}
 
 	@Test
 	public void testBootstrapCreatesAllSixSystemAnalyzers() {
 		setupOrgMock();
-		bootstrapper.bootstrapSystemAnalyzers();
 
 		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.SCIENTIFIC_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
 		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.STANDARD_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
@@ -70,7 +73,6 @@ public class TextAnalyzerBootstrapperTest {
 	@Test
 	public void testScientificAnalyzerHasWordDelimiterGraph() {
 		setupOrgMock();
-		bootstrapper.bootstrapSystemAnalyzers();
 
 		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.SCIENTIFIC_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
 		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
@@ -85,7 +87,6 @@ public class TextAnalyzerBootstrapperTest {
 	@Test
 	public void testStandardAnalyzerHasWordDelimiterGraph() {
 		setupOrgMock();
-		bootstrapper.bootstrapSystemAnalyzers();
 
 		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.STANDARD_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
 		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
@@ -99,7 +100,6 @@ public class TextAnalyzerBootstrapperTest {
 	@Test
 	public void testIdentifierAnalyzerHasWordDelimiterGraph() {
 		setupOrgMock();
-		bootstrapper.bootstrapSystemAnalyzers();
 
 		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.IDENTIFIER_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
 		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
@@ -113,7 +113,6 @@ public class TextAnalyzerBootstrapperTest {
 	@Test
 	public void testAutocompleteAnalyzerHasWordDelimiterGraph() {
 		setupOrgMock();
-		bootstrapper.bootstrapSystemAnalyzers();
 
 		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
 		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
@@ -129,7 +128,6 @@ public class TextAnalyzerBootstrapperTest {
 	@Test
 	public void testAutocompleteSearchAnalyzerHasWordDelimiterGraph() {
 		setupOrgMock();
-		bootstrapper.bootstrapSystemAnalyzers();
 
 		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
 		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
@@ -143,7 +141,6 @@ public class TextAnalyzerBootstrapperTest {
 	@Test
 	public void testWordDelimiterGraphComesBeforeLowercaseInAllAnalyzers() {
 		setupOrgMock();
-		bootstrapper.bootstrapSystemAnalyzers();
 
 		// Verify that word_delimiter_graph is always first in filter order (before lowercase)
 		// so that case-change boundaries can be detected

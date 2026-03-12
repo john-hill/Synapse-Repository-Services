@@ -100,6 +100,32 @@ Naming: `TABLE_` prefix for table names, `COL_` for columns, `DDL_` for DDL path
 
 This module primarily targets the **main (transactional) database**. The index database is managed by `lib-table-cluster`. The two databases use separate `DataSource` / `JdbcTemplate` beans.
 
+## JSON Serialization in DAOs
+
+When serializing/deserializing `JSONEntity` objects to/from JSON strings for database storage, **always use `JDOSecondaryPropertyUtils`**:
+```java
+// Object → JSON string
+String json = JDOSecondaryPropertyUtils.createJSONFromObject(myEntity);
+
+// JSON string → Object
+MyClass obj = JDOSecondaryPropertyUtils.createObjectFromJSON(MyClass.class, jsonString);
+```
+
+Do NOT create custom `ObjectMapper` or `JSONObjectAdapter` serialization code in DAO classes — the utilities in `JDOSecondaryPropertyUtils` are already tested and handle null/error cases.
+
+## SQL Patterns
+
+- **Database-generated values**: Prefer MySQL functions over Java-side generation:
+  - Use `UUID()` in SQL for etag generation instead of passing `UUID.randomUUID().toString()` as a bind parameter
+  - Use `NOW(3)` for timestamps instead of passing `new Timestamp(System.currentTimeMillis())`
+- **SQL injection prevention**: All SQL MUST use bind variables (`?` or named parameters). Never concatenate user input into SQL strings.
+- **Inline SQL preferred**: The legacy pattern of defining SQL as `static final String` concatenations of column/table constants was a workaround for a Java memory bug that no longer exists. For new code, prefer writing SQL inline where it's used. Column/table name constants are still appropriate in DDL, DBO field mappings, and row mappers — just not for building SQL query strings via concatenation.
+
+## Method Naming Conventions
+
+- Methods that use `SELECT ... FOR UPDATE` should include `ForUpdate` in the name (e.g., `getCurrentEtagForUpdate()`) to signal pessimistic locking to readers.
+- Methods intended only for bootstrapping/system use should include `ForBootstrapOnly` in the name (e.g., `createOrUpdateForBootstrapOnly()`) to prevent misuse for user-facing operations where etag checks are required.
+
 ## Testing
 
 - DAO unit tests mock `JdbcTemplate` / `NamedParameterJdbcTemplate`

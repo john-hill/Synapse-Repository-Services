@@ -49,5 +49,8 @@ public class EntityController {
 ## Testing
 
 - Unit tests: Mock `ServiceProvider` and verify delegation
-- Integration tests: In `integration-test/` module with embedded Tomcat
+- **Do NOT write autowired controller tests** (`*AutowiredTest` extending `AbstractAutowiredControllerTestBase`). These mock the servlet layer and have repeatedly failed to catch real controller bugs.
+- **DO write IT-level integration tests** in `integration-test/src/test/java/` that use the `SynapseClient` Java client to make real HTTP requests against Tomcat. These are the only reliable way to verify controller wiring.
+- IT tests should cover all endpoints with basic happy-path verification. Deep branch coverage is handled by manager unit tests. Follow the pattern in existing IT tests (e.g., `ITGridControllerTest.java`).
 - Migration test: `MigrationIntegrationAutowireTest` — extend when adding new migratable types
+- **New controller endpoints**: Every new controller method needs a corresponding method in `SynapseClient`/`SynapseClientImpl` and an IT test in `integration-test/`.

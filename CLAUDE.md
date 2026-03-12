@@ -186,6 +186,9 @@ A dedicated worker listens to grid changes via an SQS queue, validates each chan
 - Entity IDs: String-typed but numeric (`KeyFactory` converts)
 - Spring config: mix of XML (`WEB-INF/` and `src/main/resources/*-spb.xml`) and annotations
 - Logging: Log4j 2
+- **JSON serialization**: Use `JDOSecondaryPropertyUtils.createJSONFromObject()` / `createObjectFromJSON()` for converting `JSONEntity` objects to/from JSON strings. Do not write custom serialization code.
+- **SQL safety**: All SQL must use bind variables. Never concatenate strings into SQL. For generated values (UUIDs, timestamps), prefer MySQL functions (`UUID()`, `NOW(3)`) over Java-side generation.
+- **Controller testing**: Use IT tests with the Java client in `integration-test/`, not autowired controller tests. Every new controller method needs a corresponding `SynapseClient`/`SynapseClientImpl` method and an IT test.
 
 ## Critical Constraints
 

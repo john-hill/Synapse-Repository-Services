@@ -45,12 +45,14 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.dbo.grid.CreateGridSession;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
+import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.encoding.IndexedModelEncoder;
+import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
 import org.sagebionetworks.repo.model.schema.JsonSchemaObjectBinding;
 import org.sagebionetworks.repo.model.schema.JsonSchemaVersionInfo;
@@ -139,6 +141,7 @@ public class QueryCreateGridHandlerTest {
 	private String schema$id;
 	private QueryOptions queryOptions;
 	private Long maxRowsPerPage;
+	private ClockTable clockTable;
 
 	private JsonSchemaObjectBinding schemaBinding;
 
@@ -163,6 +166,7 @@ public class QueryCreateGridHandlerTest {
 
 		schemaBinding = new JsonSchemaObjectBinding()
 				.setJsonSchemaVersionInfo(new JsonSchemaVersionInfo().set$id(schema$id));
+		clockTable = new ClockTable(List.of(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L)));
 	}
 	
 	@Test
@@ -185,6 +189,7 @@ public class QueryCreateGridHandlerTest {
 		when(mockSchemaManager.getValidationSchema(schema$id)).thenReturn(new JsonSchema().setRequired(List.of("foo")));
 		when(mockFileProvider.createTempFile("snapshot", ".cbor")).thenReturn(mockFile);
 		when(mockEncoderProvider.getEncoder(any(), any())).thenReturn(mockEncoder);
+		when(mockEncoder.getClockTable()).thenReturn(clockTable);
 
 		GridSession expected = new GridSession().setSessionId(gridSessionId);
 		when(mockGridDao.createGridSession(
@@ -204,7 +209,7 @@ public class QueryCreateGridHandlerTest {
 		SnapshotRowHandler snapshotHandler = (SnapshotRowHandler) rp.getHandler(mockQueryTranslattion);
 		snapshotHandler.close();
 
-		verify(mockSnapshotStore).saveSnapshot(eq(gridSessionId), any(), eq(userId), eq(mockFile));
+		verify(mockSnapshotStore).saveSnapshot(eq(gridSessionId), eq(clockTable), eq(userId), eq(mockFile));
 	}
 
 	@Test
@@ -218,6 +223,7 @@ public class QueryCreateGridHandlerTest {
 		doReturn(Optional.empty()).when(handler).getSchemaId(mockUser, tableId, rows);
 		when(mockFileProvider.createTempFile("snapshot", ".cbor")).thenReturn(mockFile);
 		when(mockEncoderProvider.getEncoder(any(), any())).thenReturn(mockEncoder);
+		when(mockEncoder.getClockTable()).thenReturn(clockTable);
 
 		GridSession expected = new GridSession().setSessionId(gridSessionId);
 		when(mockGridDao
@@ -235,7 +241,7 @@ public class QueryCreateGridHandlerTest {
 		when(mockTranslator.getSchemaOfSelect()).thenReturn(schema);
 		SnapshotRowHandler snapshotHandler = (SnapshotRowHandler) rp.getHandler(mockQueryTranslattion);
 		snapshotHandler.close();
-		verify(mockSnapshotStore).saveSnapshot(eq(gridSessionId), any(), eq(userId), eq(mockFile));
+		verify(mockSnapshotStore).saveSnapshot(eq(gridSessionId), eq(clockTable), eq(userId), eq(mockFile));
 	}
 
 	@Test

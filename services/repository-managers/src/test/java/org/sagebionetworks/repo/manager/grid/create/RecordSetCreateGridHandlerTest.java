@@ -43,12 +43,14 @@ import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.dbo.grid.CreateGridSession;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
+import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.encoding.IndexedModelEncoder;
+import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
 import org.sagebionetworks.repo.model.schema.JsonSchemaObjectBinding;
 import org.sagebionetworks.repo.model.schema.JsonSchemaVersionInfo;
@@ -121,7 +123,7 @@ public class RecordSetCreateGridHandlerTest {
 	private List<ColumnModel> csvSchema;
 	private RecordSet recordSet;
 	private JsonSchema jsonSchema;
-
+	private ClockTable clockTable;
 	@Mock
 	private CSVReader mockCsvReader;
 
@@ -151,6 +153,8 @@ public class RecordSetCreateGridHandlerTest {
 
 		recordSet = new RecordSet().setId("syn456").setDataFileHandleId(csvFile.getId())
 				.setCsvDescriptor(csvDescriptor);
+
+		clockTable = new ClockTable(List.of(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L)));
 
 	}
 	
@@ -368,6 +372,7 @@ public class RecordSetCreateGridHandlerTest {
 	public void testGetSnapshotRowHandler() throws IOException {
 		when(mockFileProvider.createTempFile("snapshot", ".cbor")).thenReturn(mockFile);
 		when(mockEncoderProvider.getEncoder(any(), any())).thenReturn(mockEncoder);
+		when(mockEncoder.getClockTable()).thenReturn(clockTable);
 		gridSession = new GridSession().setSessionId(gridSessionId);
 
 		// Call under test
@@ -381,7 +386,7 @@ public class RecordSetCreateGridHandlerTest {
 		snapshotHandler.nextRow(new Row().setValues(Arrays.asList("1", "one")));
 		snapshotHandler.close();
 
-		verify(mockSnapshotStore).saveSnapshot(eq(gridSessionId), any(), eq(userId), eq(mockFile));
+		verify(mockSnapshotStore).saveSnapshot(eq(gridSessionId), eq(clockTable), eq(userId), eq(mockFile));
 	}
 
 	@Test

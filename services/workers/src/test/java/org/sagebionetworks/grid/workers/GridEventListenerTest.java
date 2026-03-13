@@ -117,10 +117,22 @@ public class GridEventListenerTest {
 	@Test
 	public void testOnConnection() {
 		when(mockUserManager.getUserInfo(userId)).thenReturn(mockUser);
+		List<GridConnectionInfo> activeCons = List.of(
+				new GridConnectionInfo().setConnectionId(connectionId).setSource(EventSource.WEBSOCKET),
+				new GridConnectionInfo().setConnectionId("con999").setSource(EventSource.INTERNAL),
+				new GridConnectionInfo().setConnectionId("con888").setSource(EventSource.WEBSOCKET));
+		when(mockManager.listActiveConnections(connectionId)).thenReturn(activeCons);
 		// call under test
 		listener.onConnection(connectionMessage);
 		verify(mockManager).createReplicaConnection(mockUser, context, connection);
 		verify(mockPublisher).publishEventResponse(context, JsonRxMessageType.Notification, "connected");
+		// Verify broadcast to other connections
+		verify(mockPublisher).publishEventResponses(contextsCaptor.capture(), eq(JsonRxMessageType.Notification),
+				eq("replica-connected"));
+		List<EventContext> capturedContexts = contextsCaptor.getValue();
+		assertEquals(2, capturedContexts.size());
+		assertTrue(capturedContexts.contains(new EventContext(EventType.MESSAGE, EventSource.INTERNAL, "con999")));
+		assertTrue(capturedContexts.contains(new EventContext(EventType.MESSAGE, EventSource.WEBSOCKET, "con888")));
 	}
 
 	@Test
@@ -154,9 +166,33 @@ public class GridEventListenerTest {
 	public void testOnDisconnected(EventType type) {
 		context = new EventContext(type, eventSource, connectionId);
 		disconnectMessage = new DisconnectedMessage(context, null, null);
+		GridConnectionInfo thisConnection = new GridConnectionInfo().setConnectionId(connectionId)
+				.setSource(EventSource.WEBSOCKET);
+		when(mockManager.getConnectionInfoOptional(connectionId)).thenReturn(Optional.of(thisConnection));
+		List<GridConnectionInfo> activeCons = List.of(thisConnection,
+				new GridConnectionInfo().setConnectionId("con999").setSource(EventSource.INTERNAL));
+		when(mockManager.listActiveConnections(connectionId)).thenReturn(activeCons);
 		// call under test
 		listener.onDisconnected(disconnectMessage);
 		verify(mockManager).removeReplicatConnection(type, connectionId);
+		// Verify broadcast to remaining connections
+		verify(mockPublisher).publishEventResponses(contextsCaptor.capture(), eq(JsonRxMessageType.Notification),
+				eq("replica-disconnected"));
+		List<EventContext> capturedContexts = contextsCaptor.getValue();
+		assertEquals(1, capturedContexts.size());
+		assertTrue(capturedContexts.contains(new EventContext(EventType.MESSAGE, EventSource.INTERNAL, "con999")));
+	}
+
+	@Test
+	public void testOnDisconnectedWithNoExistingConnection() {
+		when(mockManager.getConnectionInfoOptional(connectionId)).thenReturn(Optional.empty());
+		// call under test
+		listener.onDisconnected(disconnectMessage);
+		verify(mockManager).removeReplicatConnection(eventType, connectionId);
+		verify(mockManager, never()).listActiveConnections(any());
+		// Still broadcasts with empty list (no-op)
+		verify(mockPublisher).publishEventResponses(eq(List.of()), eq(JsonRxMessageType.Notification),
+				eq("replica-disconnected"));
 	}
 
 	@Test

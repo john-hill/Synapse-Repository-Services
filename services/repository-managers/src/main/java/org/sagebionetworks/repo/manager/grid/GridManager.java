@@ -20,6 +20,8 @@ import org.sagebionetworks.repo.model.grid.EventType;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.ListGridReplicasRequest;
+import org.sagebionetworks.repo.model.grid.ListGridReplicasResponse;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
@@ -66,15 +68,24 @@ public interface GridManager extends PatchStore, SnapshotStore {
 	CreateReplicaResponse createReplica(UserInfo user, String gridSessionId, boolean isAgent, EventSource source);
 
 	/**
-	 * 
+	 *
 	 * Get the identified replica.
-	 * 
+	 *
 	 * @param user
 	 * @param sessionId
 	 * @param repicaId
 	 * @return
 	 */
 	GridReplica getReplica(UserInfo user, String sessionId, Long repicaId);
+
+	/**
+	 * List all replicas for a grid session with their connection status and type.
+	 *
+	 * @param user
+	 * @param request
+	 * @return
+	 */
+	ListGridReplicasResponse listReplicas(UserInfo user, ListGridReplicasRequest request);
 
 	/**
 	 * Create new presigned URL to establish a websocket connection to the grid.

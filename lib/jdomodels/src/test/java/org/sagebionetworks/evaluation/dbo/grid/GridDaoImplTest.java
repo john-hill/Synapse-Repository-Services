@@ -880,10 +880,10 @@ public class GridDaoImplTest {
 				.setCreatedBy(adminUserId)
 				.setSource(EventSource.INTERNAL));
 
-		// Session with no snapshot should be returned
+		// Session with an INTERNAL connection but no patches should not need compaction
 		// call under test
 		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 10);
-		assertTrue(result.contains(session.getSessionId()));
+		assertFalse(result.contains(session.getSessionId()));
 	}
 
 	@Test
@@ -937,10 +937,10 @@ public class GridDaoImplTest {
 		// Wait for the snapshot to exceed the max age
 		Thread.sleep(2000);
 
-		// With maxAge=1 second, the snapshot is old enough even though there are no new patches
+		// Zero patches since the last snapshot means compaction is never needed, regardless of snapshot age
 		// call under test
 		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofSeconds(1), 1000, 10);
-		assertTrue(result.contains(session.getSessionId()));
+		assertFalse(result.contains(session.getSessionId()));
 	}
 
 	@Test
@@ -1093,6 +1093,14 @@ public class GridDaoImplTest {
 				.setReplicaId(replica2.getReplicaId())
 				.setCreatedBy(adminUserId)
 				.setSource(EventSource.INTERNAL));
+
+		// Add patches to both sessions so they qualify for compaction (no snapshot, so all patches are "after snapshot")
+		dao.savePatch(session1.getSessionId(),
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L),
+				"patch-s1", Duration.ofDays(119), 100);
+		dao.savePatch(session2.getSessionId(),
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L),
+				"patch-s2", Duration.ofDays(119), 100);
 
 		// With limit=1, only one session should be returned
 		// call under test

@@ -35,6 +35,8 @@ import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridConstants;
 import org.sagebionetworks.repo.model.grid.GridReplica;
+import org.sagebionetworks.repo.model.grid.GridReplicaInfo;
+import org.sagebionetworks.repo.model.grid.GridReplicaType;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridSnapshot;
 import org.sagebionetworks.repo.model.grid.PatchInfo;
@@ -803,6 +805,61 @@ public class GridDaoImplTest {
 			dao.getLatestSnapshot(null);
 		}).getMessage();
 		assertEquals("sessionId is required.", message);
+	}
+
+	@Test
+	public void testListReplicas() {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		// Create a user replica, an agent replica, and a service replica
+		GridReplica userReplica = dao.createReplica(adminUserId, session.getSessionId(), false,
+				EventSource.WEBSOCKET);
+		GridReplica agentReplica = dao.createReplica(adminUserId, session.getSessionId(), true, EventSource.AGENT);
+		GridReplica serviceReplica = dao.createReplica(adminUserId, session.getSessionId(), false,
+				EventSource.INTERNAL);
+		// Create a connection for only the user replica
+		dao.createConnection(new GridConnectionInfo().setConnectionId(UUID.randomUUID().toString())
+				.setCreatedBy(adminUserId).setReplicaId(userReplica.getReplicaId())
+				.setSessionId(session.getSessionId()).setSource(EventSource.WEBSOCKET));
+		// call under test
+		List<GridReplicaInfo> results = dao.listReplicas(session.getSessionId(), 100, 0);
+		assertEquals(3, results.size());
+		// Service replica has lowest replicaId (decremented), so comes first
+		GridReplicaInfo serviceInfo = results.get(0);
+		assertEquals(serviceReplica.getReplicaId(), serviceInfo.getReplicaId());
+		assertEquals(adminUserId.toString(), serviceInfo.getCreatedBy());
+		assertEquals(GridReplicaType.SERVICE, serviceInfo.getReplicaType());
+		assertFalse(serviceInfo.getIsConnected());
+		// User replica comes next
+		GridReplicaInfo userInfo = results.get(1);
+		assertEquals(userReplica.getReplicaId(), userInfo.getReplicaId());
+		assertEquals(GridReplicaType.USER, userInfo.getReplicaType());
+		assertTrue(userInfo.getIsConnected());
+		// Agent replica has highest replicaId (incremented from user range)
+		GridReplicaInfo agentInfo = results.get(2);
+		assertEquals(agentReplica.getReplicaId(), agentInfo.getReplicaId());
+		assertEquals(GridReplicaType.AGENT, agentInfo.getReplicaType());
+		assertFalse(agentInfo.getIsConnected());
+	}
+
+	@Test
+	public void testListReplicasWithPagination() {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.WEBSOCKET);
+		dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.WEBSOCKET);
+		dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.WEBSOCKET);
+		// call under test
+		List<GridReplicaInfo> firstPage = dao.listReplicas(session.getSessionId(), 2, 0);
+		assertEquals(2, firstPage.size());
+		List<GridReplicaInfo> secondPage = dao.listReplicas(session.getSessionId(), 2, 2);
+		assertEquals(1, secondPage.size());
+	}
+
+	@Test
+	public void testListReplicasWithNoReplicas() {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		// call under test
+		List<GridReplicaInfo> results = dao.listReplicas(session.getSessionId(), 100, 0);
+		assertTrue(results.isEmpty());
 	}
 
 }

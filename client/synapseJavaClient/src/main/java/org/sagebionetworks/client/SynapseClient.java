@@ -232,6 +232,8 @@ import org.sagebionetworks.repo.model.grid.GridRecordSetExportRequest;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportResponse;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.ListGridReplicasRequest;
+import org.sagebionetworks.repo.model.grid.ListGridReplicasResponse;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
 import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
@@ -4603,6 +4605,14 @@ public interface SynapseClient extends BaseClient {
 	 * @throws SynapseException
 	 */
 	GridReplica getGridReplica(String sessionId, Long replicaId) throws SynapseException;
+
+	/**
+	 * List all replicas for a grid session.
+	 * @param request
+	 * @return
+	 * @throws SynapseException
+	 */
+	ListGridReplicasResponse listGridReplicas(ListGridReplicasRequest request) throws SynapseException;
 
 	/**
 	 * Create a websocket presigned URL to connect to a grid.

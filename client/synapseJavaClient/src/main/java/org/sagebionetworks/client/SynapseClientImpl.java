@@ -270,6 +270,8 @@ import org.sagebionetworks.repo.model.grid.GridRecordSetExportRequest;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportResponse;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.ListGridReplicasRequest;
+import org.sagebionetworks.repo.model.grid.ListGridReplicasResponse;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
 import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
@@ -6541,6 +6543,13 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 		return getJSONEntity(getRepoEndpoint(), "/grid/session/" + sessionId + "/replica/" + replicaId, GridReplica.class);
 	}
 	
+	@Override
+	public ListGridReplicasResponse listGridReplicas(ListGridReplicasRequest request) throws SynapseException {
+		return postJSONEntity(getRepoEndpoint(),
+				"/grid/session/" + request.getGridSessionId() + "/replica/list", request,
+				ListGridReplicasResponse.class);
+	}
+
 	@Override
 	public CreateGridPresignedUrlResponse createGridPresignedUrl(CreateGridPresignedUrlRequest request)
 			throws SynapseException {

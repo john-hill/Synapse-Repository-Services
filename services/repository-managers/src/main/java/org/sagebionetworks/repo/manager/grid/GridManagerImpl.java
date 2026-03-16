@@ -40,9 +40,12 @@ import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.EventType;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridReplica;
+import org.sagebionetworks.repo.model.grid.GridReplicaInfo;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridSnapshot;
 import org.sagebionetworks.repo.model.grid.GridUtils;
+import org.sagebionetworks.repo.model.grid.ListGridReplicasRequest;
+import org.sagebionetworks.repo.model.grid.ListGridReplicasResponse;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
 import org.sagebionetworks.repo.model.grid.PatchInfo;
@@ -504,6 +507,19 @@ public class GridManagerImpl implements GridManager {
 				: gridDao.listActiveGridSession(user.getId(), nextPageToken.getLimitForQuery(),
 						nextPageToken.getOffset());
 		return new ListGridSessionsResponse().setPage(page)
+				.setNextPageToken(nextPageToken.getNextPageTokenForCurrentResults(page));
+	}
+
+	@Override
+	public ListGridReplicasResponse listReplicas(UserInfo user, ListGridReplicasRequest request) {
+		ValidateArgument.required(user, "user");
+		ValidateArgument.required(request, "request");
+		ValidateArgument.required(request.getGridSessionId(), "request.gridSessionId");
+		validGridSessionAccess(user, request.getGridSessionId());
+		NextPageToken nextPageToken = new NextPageToken(request.getNextPageToken());
+		List<GridReplicaInfo> page = gridDao.listReplicas(request.getGridSessionId(), nextPageToken.getLimitForQuery(),
+				nextPageToken.getOffset());
+		return new ListGridReplicasResponse().setPage(page)
 				.setNextPageToken(nextPageToken.getNextPageTokenForCurrentResults(page));
 	}
 

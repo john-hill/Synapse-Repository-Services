@@ -20,6 +20,8 @@ import org.sagebionetworks.repo.model.grid.EventType;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.ListGridReplicasRequest;
+import org.sagebionetworks.repo.model.grid.ListGridReplicasResponse;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
@@ -66,15 +68,24 @@ public interface GridManager extends PatchStore, SnapshotStore {
 	CreateReplicaResponse createReplica(UserInfo user, String gridSessionId, boolean isAgent, EventSource source);
 
 	/**
-	 * 
+	 *
 	 * Get the identified replica.
-	 * 
+	 *
 	 * @param user
 	 * @param sessionId
 	 * @param repicaId
 	 * @return
 	 */
 	GridReplica getReplica(UserInfo user, String sessionId, Long repicaId);
+
+	/**
+	 * List all replicas for a grid session with their connection status and type.
+	 *
+	 * @param user
+	 * @param request
+	 * @return
+	 */
+	ListGridReplicasResponse listReplicas(UserInfo user, ListGridReplicasRequest request);
 
 	/**
 	 * Create new presigned URL to establish a websocket connection to the grid.
@@ -195,5 +206,14 @@ public interface GridManager extends PatchStore, SnapshotStore {
 	 * @return Optional.empty() if the session does not have a source.
 	 */
 	Optional<GridSource> getSessionSource(String sessionId);
+
+	/**
+	 * Backfill CHANGES entries for all existing grid sessions. This must be run on
+	 * the source stack before migration so the entries migrate with the CHANGES
+	 * table.
+	 *
+	 * @return The number of sessions backfilled.
+	 */
+	long backfillGridSessionChanges();
 
 }

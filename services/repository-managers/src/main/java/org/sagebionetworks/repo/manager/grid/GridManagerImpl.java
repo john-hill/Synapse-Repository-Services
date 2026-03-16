@@ -7,7 +7,6 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -23,6 +22,7 @@ import org.sagebionetworks.repo.manager.grid.create.CreateGridHandlerResult;
 import org.sagebionetworks.repo.manager.grid.response.InternalReplicaToHubEventPublisher;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.NextPageToken;
+import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
@@ -40,15 +40,20 @@ import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.EventType;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridReplica;
+import org.sagebionetworks.repo.model.grid.GridReplicaInfo;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridSnapshot;
 import org.sagebionetworks.repo.model.grid.GridUtils;
+import org.sagebionetworks.repo.model.grid.ListGridReplicasRequest;
+import org.sagebionetworks.repo.model.grid.ListGridReplicasResponse;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
 import org.sagebionetworks.repo.model.grid.PatchInfo;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
 import org.sagebionetworks.repo.model.grid.message.JsonRxMessageType;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.message.ChangeType;
+import org.sagebionetworks.repo.model.message.TransactionalMessenger;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.ValidateArgument;
@@ -60,6 +65,7 @@ import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.model.UploadResult;
+
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.SdkHttpMethod;
@@ -97,11 +103,13 @@ public class GridManagerImpl implements GridManager {
 	private final List<CreateGridHandler> createGridHandlers;
 	private final GridAuthorizationManager gridAuthorizationManager;
 	private final TransferManager transferManager;
+	private final TransactionalMessenger transactionalMessenger;
 
 	@Autowired
 	public GridManagerImpl(AwsCredentialsProvider awsCredentialsProvider, WebsocketApi websocketApi, GridDao gridDao,
 	   StackConfiguration config, S3Client s3Client, SynapseS3Client synapseS3Client, InternalReplicaToHubEventPublisher internalEventPublisher,
-	   List<CreateGridHandler> createHandlers, GridAuthorizationManager gridAuthorizationManager, TransferManager transferManager) {
+	   List<CreateGridHandler> createHandlers, GridAuthorizationManager gridAuthorizationManager, TransferManager transferManager,
+	   TransactionalMessenger transactionalMessenger) {
 		super();
 		this.awsCredentialsProvider = awsCredentialsProvider;
 		this.websocketApi = websocketApi;
@@ -114,6 +122,7 @@ public class GridManagerImpl implements GridManager {
 		this.createGridHandlers = createHandlers;
 		this.gridAuthorizationManager = gridAuthorizationManager;
 		this.transferManager = transferManager;
+		this.transactionalMessenger = transactionalMessenger;
 	}
 
 	@WriteTransaction
@@ -341,7 +350,13 @@ public class GridManagerImpl implements GridManager {
 		byte[] bodyBytes = body.getBytes(StandardCharsets.UTF_8);
 		s3Client.putObject(PutObjectRequest.builder().bucket(gridPatchBucket).key(s3Key).build(),
 				RequestBody.fromBytes(bodyBytes));
-		return gridDao.savePatch(sessionId, patchId, s3Key, PATCH_DURATION, bodyBytes.length);
+		boolean isNew = gridDao.savePatch(sessionId, patchId, s3Key, PATCH_DURATION, bodyBytes.length);
+		if (isNew) {
+			transactionalMessenger.sendMessageAfterCommit(
+					GridUtils.gridSessionIdAsLong(sessionId).toString(), ObjectType.GRID_SESSION,
+					ChangeType.UPDATE);
+		}
+		return isNew;
 	}
 
 	@Override
@@ -496,6 +511,19 @@ public class GridManagerImpl implements GridManager {
 	}
 
 	@Override
+	public ListGridReplicasResponse listReplicas(UserInfo user, ListGridReplicasRequest request) {
+		ValidateArgument.required(user, "user");
+		ValidateArgument.required(request, "request");
+		ValidateArgument.required(request.getGridSessionId(), "request.gridSessionId");
+		validGridSessionAccess(user, request.getGridSessionId());
+		NextPageToken nextPageToken = new NextPageToken(request.getNextPageToken());
+		List<GridReplicaInfo> page = gridDao.listReplicas(request.getGridSessionId(), nextPageToken.getLimitForQuery(),
+				nextPageToken.getOffset());
+		return new ListGridReplicasResponse().setPage(page)
+				.setNextPageToken(nextPageToken.getNextPageTokenForCurrentResults(page));
+	}
+
+	@Override
 	public void deleteGridSession(UserInfo user, String sessionId) {
 		// User must have access to the session in order to delete it.
 		validGridSessionAccess(user, sessionId);
@@ -546,6 +574,25 @@ public class GridManagerImpl implements GridManager {
 			throw new RuntimeException("Failed to upload snapshot to S3", e);
 		}
 		gridDao.saveSnapshot(sessionId, clockTable, uploadResult.getKey(), createdBy);
+	}
+
+	@WriteTransaction
+	@Override
+	public long backfillGridSessionChanges() {
+		long count = 0;
+		long offset = 0;
+		long limit = 100;
+		List<String> sessionIds;
+		while (!(sessionIds = gridDao.listAllSessionIds(limit, offset)).isEmpty()) {
+			for (String sessionId : sessionIds) {
+				transactionalMessenger.sendMessageAfterCommit(
+						GridUtils.gridSessionIdAsLong(sessionId).toString(), ObjectType.GRID_SESSION,
+						ChangeType.UPDATE);
+				count++;
+			}
+			offset += limit;
+		}
+		return count;
 	}
 
 }

@@ -181,6 +181,7 @@
 		<ref bean="gridRecordSetExportWorkerTrigger" />
 		<ref bean="gridCsvImportWorkerTrigger" />
 		<ref bean="gridSynchronizationWorkerTrigger" />
+		<ref bean="gridSessionIndexWorkerTrigger" />
 		
 		<ref bean="inactiveUsersWorkerTrigger"/>
 		

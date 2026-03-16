@@ -8,6 +8,7 @@ import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridReplica;
+import org.sagebionetworks.repo.model.grid.GridReplicaInfo;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridSnapshot;
 import org.sagebionetworks.repo.model.grid.PatchInfo;
@@ -64,13 +65,23 @@ public interface GridDao {
 
 	/**
 	 * Get the replica createdBy of the replica matching the parameters.
-	 * 
+	 *
 	 * @param sessionId
 	 * @param replicaId
 	 * @param isAgent
 	 * @return
 	 */
 	Optional<Long> getReplicaCreatedBy(String sessionId, Long replicaId);
+
+	/**
+	 * List all replicas for a session with their connection status.
+	 *
+	 * @param sessionId
+	 * @param limit
+	 * @param offset
+	 * @return
+	 */
+	List<GridReplicaInfo> listReplicas(String sessionId, long limit, long offset);
 
 	/**
 	 * Crete a new connection.
@@ -199,4 +210,13 @@ public interface GridDao {
 	 * @return
 	 */
 	Optional<GridSnapshot> getLatestSnapshot(String sessionId);
+
+	/**
+	 * List all grid session IDs.
+	 *
+	 * @param limit
+	 * @param offset
+	 * @return
+	 */
+	List<String> listAllSessionIds(long limit, long offset);
 }

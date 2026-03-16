@@ -52,6 +52,8 @@ import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridConstants;
 import org.sagebionetworks.repo.model.grid.GridReplica;
+import org.sagebionetworks.repo.model.grid.GridReplicaInfo;
+import org.sagebionetworks.repo.model.grid.GridReplicaType;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridSnapshot;
 import org.sagebionetworks.repo.model.grid.GridUtils;
@@ -256,6 +258,36 @@ public class GridDaoImpl implements GridDao {
 	}
 
 	@Override
+	public List<GridReplicaInfo> listReplicas(String sessionId, long limit, long offset) {
+		ValidateArgument.required(sessionId, "sessionId");
+		return jdbcTemplate.query(
+				"SELECT r.REPLICA_ID, r.CREATED_BY, r.IS_AGENT, (c.REPLICA_ID IS NOT NULL) AS IS_CONNECTED"
+						+ " FROM GRID_REPLICA r"
+						+ " LEFT JOIN GRID_CONNECTION c ON r.SESSION_ID = c.SESSION_ID AND r.REPLICA_ID = c.REPLICA_ID"
+						+ " WHERE r.SESSION_ID = ?"
+						+ " ORDER BY r.REPLICA_ID ASC"
+						+ " LIMIT ? OFFSET ?",
+				(ResultSet rs, int rowNum) -> {
+					long replicaId = rs.getLong(COL_GRID_REPLICA_REPLICA_ID);
+					boolean isAgent = rs.getBoolean(COL_GRID_REPLICA_IS_AGENT);
+					GridReplicaType type;
+					if (isAgent) {
+						type = GridReplicaType.AGENT;
+					} else if (GridConstants.isUserReplica(replicaId)) {
+						type = GridReplicaType.USER;
+					} else {
+						type = GridReplicaType.SERVICE;
+					}
+					return new GridReplicaInfo()
+							.setReplicaId(replicaId)
+							.setCreatedBy(rs.getString(COL_GRID_REPLICA_CREATE_BY))
+							.setIsConnected(rs.getBoolean("IS_CONNECTED"))
+							.setReplicaType(type);
+				},
+				sessionId, limit, offset);
+	}
+
+	@Override
 	public void truncateAll() {
 		jdbcTemplate.update("DELETE FROM GRID_SESSION WHERE ID > -1");
 
@@ -446,6 +478,12 @@ public class GridDaoImpl implements GridDao {
 	public void deleteGridSession(String sessionId) {
 		ValidateArgument.required(sessionId, "sessionId");
 		jdbcTemplate.update("DELETE FROM GRID_SESSION WHERE SESSION_ID = ?", sessionId);
+	}
+
+	@Override
+	public List<String> listAllSessionIds(long limit, long offset) {
+		return jdbcTemplate.queryForList("SELECT SESSION_ID FROM GRID_SESSION ORDER BY ID ASC LIMIT ? OFFSET ?",
+				String.class, limit, offset);
 	}
 
 	@Override

@@ -454,6 +454,7 @@ public class UrlHelpers {
 	
 	public static final String GRID_SESSION_ID_REPLICA = GRID_SESSION_ID+"/replica";
 	public static final String GRID_SESSION_ID_REPLICA_ID = GRID_SESSION_ID_REPLICA+"/{replicaId}";
+	public static final String GRID_SESSION_ID_REPLICA_LIST = GRID_SESSION_ID_REPLICA+"/list";
 
     public static final String GRID_DOWNLOAD = GRID+"/download";
     public static final String GRID_DOWNLOAD_CSV = GRID_DOWNLOAD+"/csv";
@@ -473,7 +474,9 @@ public class UrlHelpers {
 	
 	public static final String GRID_SESSION_ID_SCHEMA = GRID_SESSION_ID+"/schema";
 	public static final String GRID_SESSION_LIST = GRID_SESSION + "/list";
-	
+
+	public static final String ADMIN_GRID_SESSION_BACKFILL = ADMIN + GRID_SESSION + "/backfill";
+
 	/*
 	 * The regular expression is needed in the path variable due to:
 	 * https://stackoverflow.com/questions/3526523/spring-mvc-pathvariable-getting-

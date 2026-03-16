@@ -70,6 +70,10 @@ import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridSnapshot;
 import org.sagebionetworks.repo.model.grid.GridUtils;
+import org.sagebionetworks.repo.model.grid.GridReplicaInfo;
+import org.sagebionetworks.repo.model.grid.GridReplicaType;
+import org.sagebionetworks.repo.model.grid.ListGridReplicasRequest;
+import org.sagebionetworks.repo.model.grid.ListGridReplicasResponse;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
 import org.sagebionetworks.repo.model.grid.PatchInfo;
@@ -131,6 +135,9 @@ public class GridManagerUnitTest {
 	
 	@Mock
 	private TransferManager mockTransferManager;
+
+	@Mock
+	private org.sagebionetworks.repo.model.message.TransactionalMessenger mockTransactionalMessenger;
 
 	@Mock
 	private Upload mockUpload;
@@ -208,7 +215,8 @@ public class GridManagerUnitTest {
 
 		when(mockConfig.getStack()).thenReturn("dev");
 		gridManager = new GridManagerImpl(mockCredentialsProvider, mockWebsocketApi, mockGridDao, mockConfig,
-			mockS3Client, mockSynapseS3Client, mockInternalEventPublisher, List.of(mockCreateGridHandler), mockGridAuthManager, mockTransferManager
+			mockS3Client, mockSynapseS3Client, mockInternalEventPublisher, List.of(mockCreateGridHandler), mockGridAuthManager, mockTransferManager,
+			mockTransactionalMessenger
 		);
 		
 		gridManager = Mockito.spy(gridManager);
@@ -852,6 +860,9 @@ public class GridManagerUnitTest {
 				bodyCaptor.getValue().optionalContentLength());
 
 		verify(mockGridDao).savePatch(eq(gridSessionId), eq(patchId), eq(key), eq(GridManagerImpl.PATCH_DURATION), anyLong());
+		verify(mockTransactionalMessenger).sendMessageAfterCommit(
+				gridSessionIdLong.toString(), org.sagebionetworks.repo.model.ObjectType.GRID_SESSION,
+				org.sagebionetworks.repo.model.message.ChangeType.UPDATE);
 
 	}
 
@@ -870,6 +881,9 @@ public class GridManagerUnitTest {
 				bodyCaptor.getValue().optionalContentLength());
 
 		verify(mockGridDao).savePatch(eq(gridSessionId), eq(patchId), eq(key), eq(GridManagerImpl.PATCH_DURATION), anyLong());
+		verify(mockTransactionalMessenger).sendMessageAfterCommit(
+				gridSessionIdLong.toString(), org.sagebionetworks.repo.model.ObjectType.GRID_SESSION,
+				org.sagebionetworks.repo.model.message.ChangeType.UPDATE);
 	}
 
 	@Test
@@ -889,7 +903,7 @@ public class GridManagerUnitTest {
 				bodyCaptor.getValue().optionalContentLength());
 
 		verify(mockGridDao).savePatch(eq(gridSessionId), eq(patchId), eq(key), eq(GridManagerImpl.PATCH_DURATION), anyLong());
-
+		verify(mockTransactionalMessenger, never()).sendMessageAfterCommit(any(), any(), any());
 	}
 
 	@Test
@@ -1545,6 +1559,111 @@ public class GridManagerUnitTest {
 
 		// Second patch should not be fetched
 		verify(gridManager, never()).getPatchBody(gridSessionId, patchInfo2);
+	}
+
+	@Test
+	public void testBackfillGridSessionChanges() {
+		List<String> firstBatch = List.of(
+				GridUtils.gridSessionIdAsString(100L),
+				GridUtils.gridSessionIdAsString(200L));
+		List<String> emptyBatch = Collections.emptyList();
+		when(mockGridDao.listAllSessionIds(100, 0)).thenReturn(firstBatch);
+		when(mockGridDao.listAllSessionIds(100, 100)).thenReturn(emptyBatch);
+
+		// call under test
+		long count = gridManager.backfillGridSessionChanges();
+
+		assertEquals(2L, count);
+		verify(mockTransactionalMessenger).sendMessageAfterCommit(
+				"100", org.sagebionetworks.repo.model.ObjectType.GRID_SESSION,
+				org.sagebionetworks.repo.model.message.ChangeType.UPDATE);
+		verify(mockTransactionalMessenger).sendMessageAfterCommit(
+				"200", org.sagebionetworks.repo.model.ObjectType.GRID_SESSION,
+				org.sagebionetworks.repo.model.message.ChangeType.UPDATE);
+	}
+
+	@Test
+	public void testBackfillGridSessionChangesWithNoSessions() {
+		when(mockGridDao.listAllSessionIds(100, 0)).thenReturn(Collections.emptyList());
+
+		// call under test
+		long count = gridManager.backfillGridSessionChanges();
+
+		assertEquals(0L, count);
+		verify(mockTransactionalMessenger, never()).sendMessageAfterCommit(any(), any(), any());
+	}
+
+	@Test
+	public void testListReplicas() {
+		doNothing().when(gridManager).validGridSessionAccess(mockUser, gridSessionId);
+		List<GridReplicaInfo> replicas = List.of(
+				new GridReplicaInfo().setReplicaId(1L).setCreatedBy("123").setIsConnected(true)
+						.setReplicaType(GridReplicaType.USER),
+				new GridReplicaInfo().setReplicaId(2L).setCreatedBy("456").setIsConnected(false)
+						.setReplicaType(GridReplicaType.AGENT));
+		when(mockGridDao.listReplicas(gridSessionId, 51L, 0L)).thenReturn(replicas);
+
+		ListGridReplicasRequest request = new ListGridReplicasRequest().setGridSessionId(gridSessionId);
+
+		// call under test
+		ListGridReplicasResponse response = gridManager.listReplicas(mockUser, request);
+
+		ListGridReplicasResponse expected = new ListGridReplicasResponse().setPage(replicas).setNextPageToken(null);
+		assertEquals(expected, response);
+	}
+
+	@Test
+	public void testListReplicasWithNextPageToken() {
+		doNothing().when(gridManager).validGridSessionAccess(mockUser, gridSessionId);
+		List<GridReplicaInfo> page = IntStream.range(0, 51)
+				.mapToObj(i -> new GridReplicaInfo().setReplicaId((long) i).setCreatedBy("123").setIsConnected(false)
+						.setReplicaType(GridReplicaType.USER))
+				.collect(Collectors.toList());
+		when(mockGridDao.listReplicas(gridSessionId, 51L, 0L)).thenReturn(page);
+
+		ListGridReplicasRequest request = new ListGridReplicasRequest().setGridSessionId(gridSessionId);
+
+		// call under test
+		ListGridReplicasResponse response = gridManager.listReplicas(mockUser, request);
+
+		assertEquals(50, response.getPage().size());
+		assertNotNull(response.getNextPageToken());
+		assertEquals("50a50", response.getNextPageToken());
+	}
+
+	@Test
+	public void testListReplicasWithNullUser() {
+		mockUser = null;
+		ListGridReplicasRequest request = new ListGridReplicasRequest().setGridSessionId(gridSessionId);
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.listReplicas(mockUser, request);
+		}).getMessage();
+		assertEquals("user is required.", message);
+		verifyZeroInteractions(mockGridDao);
+	}
+
+	@Test
+	public void testListReplicasWithNullRequest() {
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.listReplicas(mockUser, null);
+		}).getMessage();
+		assertEquals("request is required.", message);
+		verifyZeroInteractions(mockGridDao);
+	}
+
+	@Test
+	public void testListReplicasWithNullGridSessionId() {
+		ListGridReplicasRequest request = new ListGridReplicasRequest().setGridSessionId(null);
+
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.listReplicas(mockUser, request);
+		}).getMessage();
+		assertEquals("request.gridSessionId is required.", message);
+		verifyZeroInteractions(mockGridDao);
 	}
 
 }

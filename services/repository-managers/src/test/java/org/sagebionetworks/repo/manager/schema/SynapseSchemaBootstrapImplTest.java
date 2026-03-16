@@ -295,7 +295,7 @@ public class SynapseSchemaBootstrapImplTest {
 		doReturn(objectSchemas).when(bootstrapSpy).loadAllSchemasAndReferences(any());
 		when(mockTranslator.translate(any())).thenReturn(jsonSchema, jsonSchemaTwo);
 		doNothing().when(bootstrapSpy).registerSchemaIfDoesNotExist(any(),any());
-		doNothing().when(bootstrapSpy).createOrganizationIfDoesNotExist(any());
+		doReturn(new Organization()).when(bootstrapSpy).createOrganizationIfDoesNotExist(any());
 		doNothing().when(bootstrapSpy).replaceReferencesWithLatestVersion(any());
 		// call under test
 		bootstrapSpy.bootstrapSynapseSchemas();

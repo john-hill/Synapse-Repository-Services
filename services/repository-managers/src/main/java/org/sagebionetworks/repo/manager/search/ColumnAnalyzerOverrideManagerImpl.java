@@ -1,7 +1,6 @@
 package org.sagebionetworks.repo.manager.search;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
@@ -11,11 +10,9 @@ import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
-import org.sagebionetworks.repo.model.dbo.search.SearchConfigurationDao;
 import org.sagebionetworks.repo.model.table.search.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.table.search.ListColumnAnalyzerOverridesRequest;
 import org.sagebionetworks.repo.model.table.search.ListColumnAnalyzerOverridesResponse;
-import org.sagebionetworks.repo.model.table.search.SearchConfiguration;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.ValidateArgument;
@@ -27,13 +24,11 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 	private static final String MSG_UNAUTHORIZED = "Only Sage Bionetworks employees can manage column analyzer overrides.";
 
 	private final ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao;
-	private final SearchConfigurationDao searchConfigurationDao;
 	private final AccessControlListDAO aclDao;
 
 	public ColumnAnalyzerOverrideManagerImpl(ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao,
-			SearchConfigurationDao searchConfigurationDao, AccessControlListDAO aclDao) {
+			AccessControlListDAO aclDao) {
 		this.columnAnalyzerOverrideDao = columnAnalyzerOverrideDao;
-		this.searchConfigurationDao = searchConfigurationDao;
 		this.aclDao = aclDao;
 	}
 
@@ -111,14 +106,6 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 		if (!user.isAdmin()) {
 			aclDao.canAccess(user, existing.getOrganizationId(), ObjectType.ORGANIZATION, ACCESS_TYPE.DELETE)
 				.checkAuthorizationOrElseThrow();
-		}
-
-		// Check for referencing search configurations
-		List<SearchConfiguration> refs = searchConfigurationDao.findByColumnAnalyzerOverrideId(id);
-		if (!refs.isEmpty()) {
-			List<String> ids = refs.stream().map(SearchConfiguration::getId).collect(Collectors.toList());
-			throw new IllegalArgumentException(
-				"Cannot delete column analyzer override because it is referenced by search configurations: " + ids);
 		}
 
 		columnAnalyzerOverrideDao.delete(id);

@@ -350,6 +350,9 @@ import org.sagebionetworks.repo.model.table.ViewColumnModelResponse;
 import org.sagebionetworks.repo.model.table.ViewEntityType;
 import org.sagebionetworks.repo.model.table.ViewScope;
 import org.sagebionetworks.repo.model.table.ViewType;
+import org.sagebionetworks.repo.model.table.search.ColumnAnalyzerOverride;
+import org.sagebionetworks.repo.model.table.search.ListColumnAnalyzerOverridesRequest;
+import org.sagebionetworks.repo.model.table.search.ListColumnAnalyzerOverridesResponse;
 import org.sagebionetworks.repo.model.table.search.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.table.search.ListTextAnalyzersResponse;
 import org.sagebionetworks.repo.model.table.search.TextAnalyzer;
@@ -4682,6 +4685,16 @@ public interface SynapseClient extends BaseClient {
     void deleteTextAnalyzer(String id) throws SynapseException;
 
     ListTextAnalyzersResponse listTextAnalyzers(ListTextAnalyzersRequest request) throws SynapseException;
+
+    ColumnAnalyzerOverride createColumnAnalyzerOverride(ColumnAnalyzerOverride override) throws SynapseException;
+
+    ColumnAnalyzerOverride getColumnAnalyzerOverride(String id) throws SynapseException;
+
+    ColumnAnalyzerOverride updateColumnAnalyzerOverride(ColumnAnalyzerOverride override) throws SynapseException;
+
+    void deleteColumnAnalyzerOverride(String id) throws SynapseException;
+
+    ListColumnAnalyzerOverridesResponse listColumnAnalyzerOverrides(ListColumnAnalyzerOverridesRequest request) throws SynapseException;
 
 }
 

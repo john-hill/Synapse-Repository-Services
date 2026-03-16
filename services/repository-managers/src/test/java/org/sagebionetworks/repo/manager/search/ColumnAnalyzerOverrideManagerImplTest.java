@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -16,7 +17,6 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -35,11 +35,9 @@ import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
-import org.sagebionetworks.repo.model.dbo.search.SearchConfigurationDao;
 import org.sagebionetworks.repo.model.table.search.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.table.search.ListColumnAnalyzerOverridesRequest;
 import org.sagebionetworks.repo.model.table.search.ListColumnAnalyzerOverridesResponse;
-import org.sagebionetworks.repo.model.table.search.SearchConfiguration;
 import org.sagebionetworks.repo.web.NotFoundException;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,15 +46,13 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 	@Mock
 	private ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao;
 	@Mock
-	private SearchConfigurationDao searchConfigurationDao;
-	@Mock
 	private AccessControlListDAO aclDao;
 
 	private ColumnAnalyzerOverrideManagerImpl manager;
 
 	@BeforeEach
 	void setUp() {
-		manager = new ColumnAnalyzerOverrideManagerImpl(columnAnalyzerOverrideDao, searchConfigurationDao, aclDao);
+		manager = new ColumnAnalyzerOverrideManagerImpl(columnAnalyzerOverrideDao, aclDao);
 	}
 
 	// --- Sage employee / admin authorization ---
@@ -186,7 +182,6 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		admin.setId(1L);
 		ColumnAnalyzerOverride existing = new ColumnAnalyzerOverride().setId("1").setOrganizationId("42");
 		when(columnAnalyzerOverrideDao.get("1")).thenReturn(Optional.of(existing));
-		when(searchConfigurationDao.findByColumnAnalyzerOverrideId("1")).thenReturn(Collections.emptyList());
 
 		manager.delete(admin, "1");
 		verify(columnAnalyzerOverrideDao).delete("1");
@@ -202,32 +197,31 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		verifyZeroInteractions(aclDao);
 	}
 
-	// --- Deletion protection ---
+	// --- Deletion ---
 
 	@Test
-	public void testDeleteBlockedBySearchConfigReference() {
+	public void testDeleteSucceeds() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
 		ColumnAnalyzerOverride existing = new ColumnAnalyzerOverride().setId("1").setOrganizationId("42");
 		when(columnAnalyzerOverrideDao.get("1")).thenReturn(Optional.of(existing));
-		when(searchConfigurationDao.findByColumnAnalyzerOverrideId("1"))
-			.thenReturn(List.of(new SearchConfiguration().setId("99")));
-
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-			manager.delete(admin, "1"));
-		assertTrue(ex.getMessage().contains("referenced"));
-	}
-
-	@Test
-	public void testDeleteSucceedsWhenUnreferenced() {
-		UserInfo admin = new UserInfo(true);
-		admin.setId(1L);
-		ColumnAnalyzerOverride existing = new ColumnAnalyzerOverride().setId("1").setOrganizationId("42");
-		when(columnAnalyzerOverrideDao.get("1")).thenReturn(Optional.of(existing));
-		when(searchConfigurationDao.findByColumnAnalyzerOverrideId("1")).thenReturn(Collections.emptyList());
 
 		manager.delete(admin, "1");
 		verify(columnAnalyzerOverrideDao).delete("1");
+	}
+
+	@Test
+	public void testDeleteFailsWhenStillReferenced() {
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		ColumnAnalyzerOverride existing = new ColumnAnalyzerOverride().setId("1").setOrganizationId("42");
+		when(columnAnalyzerOverrideDao.get("1")).thenReturn(Optional.of(existing));
+		doThrow(new IllegalArgumentException("Cannot delete column analyzer override '1' because it is still referenced."))
+			.when(columnAnalyzerOverrideDao).delete("1");
+
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+			manager.delete(admin, "1"));
+		assertTrue(ex.getMessage().contains("still referenced"));
 	}
 
 	// --- Not found ---

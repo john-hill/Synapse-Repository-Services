@@ -68,7 +68,7 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 		try {
 			jdbcTemplate.update(sql,
 					id,
-					mapId(override.getOrganizationId()),
+					mapId(override.getOrganizationId(), "organizationId"),
 					override.getName(),
 					override.getDescription(),
 					override.getOverrides() == null ? "[]" : JDOSecondaryPropertyUtils.writeEntityListToJson(override.getOverrides()),
@@ -87,7 +87,7 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 	public Optional<ColumnAnalyzerOverride> get(String id) {
 		String sql = "SELECT * FROM " + TABLE_COLUMN_ANALYZER_OVERRIDE + " WHERE " + COL_COLUMN_ANALYZER_OVERRIDE_ID + " = ?";
 		try {
-			return Optional.ofNullable(jdbcTemplate.queryForObject(sql, ROW_MAPPER, mapId(id)));
+			return Optional.ofNullable(jdbcTemplate.queryForObject(sql, ROW_MAPPER, mapId(id, "id")));
 		} catch (EmptyResultDataAccessException e) {
 			return Optional.empty();
 		}
@@ -118,7 +118,7 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 					override.getDescription(),
 					override.getOverrides() == null ? "[]" : JDOSecondaryPropertyUtils.writeEntityListToJson(override.getOverrides()),
 					modifiedBy,
-					mapId(override.getId())
+					mapId(override.getId(), "id")
 			);
 		} catch (DuplicateKeyException e) {
 			handleDuplicateKeyException(e);
@@ -133,7 +133,7 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 	public void delete(String id) {
 		String sql = "DELETE FROM " + TABLE_COLUMN_ANALYZER_OVERRIDE + " WHERE " + COL_COLUMN_ANALYZER_OVERRIDE_ID + " = ?";
 		try {
-			jdbcTemplate.update(sql, mapId(id));
+			jdbcTemplate.update(sql, mapId(id, "id"));
 		} catch (DataIntegrityViolationException e) {
 			throw new IllegalArgumentException("Cannot delete column analyzer override '" + id + "' because it is still referenced.", e);
 		}
@@ -145,7 +145,7 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 				+ " WHERE " + COL_COLUMN_ANALYZER_OVERRIDE_ORGANIZATION_ID + " = ?"
 				+ " ORDER BY " + COL_COLUMN_ANALYZER_OVERRIDE_ID
 				+ " LIMIT ? OFFSET ?";
-		return jdbcTemplate.query(sql, ROW_MAPPER, mapId(organizationId), limit, offset);
+		return jdbcTemplate.query(sql, ROW_MAPPER, mapId(organizationId, "organizationId"), limit, offset);
 	}
 
 	@Override
@@ -159,24 +159,24 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 	@Override
 	@WriteTransaction
 	public void truncateAll() {
-		jdbcTemplate.update("DELETE FROM " + TABLE_COLUMN_ANALYZER_OVERRIDE);
+		jdbcTemplate.update("DELETE FROM " + TABLE_COLUMN_ANALYZER_OVERRIDE + " WHERE " + COL_COLUMN_ANALYZER_OVERRIDE_ID + " > -1");
 	}
 
 	private String getEtagForUpdate(String id) {
 		String sql = "SELECT " + COL_COLUMN_ANALYZER_OVERRIDE_ETAG + " FROM " + TABLE_COLUMN_ANALYZER_OVERRIDE
 				+ " WHERE " + COL_COLUMN_ANALYZER_OVERRIDE_ID + " = ? FOR UPDATE";
 		try {
-			return jdbcTemplate.queryForObject(sql, String.class, mapId(id));
+			return jdbcTemplate.queryForObject(sql, String.class, mapId(id, "id"));
 		} catch (EmptyResultDataAccessException e) {
 			throw new NotFoundException("A column analyzer override with ID " + id + " does not exist.");
 		}
 	}
 
-	static Long mapId(String id) {
+	static Long mapId(String id, String fieldName) {
 		try {
 			return Long.valueOf(id);
 		} catch (NumberFormatException e) {
-			throw new IllegalArgumentException("Invalid id: " + id);
+			throw new IllegalArgumentException("Invalid " + fieldName + ": " + id);
 		}
 	}
 

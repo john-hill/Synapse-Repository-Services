@@ -80,6 +80,10 @@ public class ColumnAnalyzerOverrideController {
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@PathVariable String columnAnalyzerOverrideId,
 			@RequestBody ColumnAnalyzerOverride request) {
+		if (!columnAnalyzerOverrideId.equals(request.getId())) {
+			throw new IllegalArgumentException(
+				"The path ID: " + columnAnalyzerOverrideId + " does not match the request body's ID: " + request.getId());
+		}
 		return columnAnalyzerOverrideService.update(userId, request);
 	}
 

@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.search;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -13,6 +14,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -325,5 +327,32 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		ListColumnAnalyzerOverridesResponse response = manager.list(new UserInfo(false), request);
 		assertEquals(1, response.getResults().size());
 		assertEquals("1", response.getResults().get(0).getId());
+	}
+
+	@Test
+	public void testListReturnsNextPageTokenWhenMoreResults() {
+		List<ColumnAnalyzerOverride> page = new ArrayList<>();
+		for (int i = 0; i < 51; i++) {
+			page.add(new ColumnAnalyzerOverride().setId(String.valueOf(i)));
+		}
+		when(columnAnalyzerOverrideDao.listAll(eq(51L), eq(0L))).thenReturn(page);
+
+		ListColumnAnalyzerOverridesRequest request = new ListColumnAnalyzerOverridesRequest();
+		ListColumnAnalyzerOverridesResponse response = manager.list(new UserInfo(false), request);
+
+		assertNotNull(response.getNextPageToken(), "Expected a next page token when DAO returns more than limit results");
+		assertEquals(50, response.getResults().size());
+	}
+
+	@Test
+	public void testListReturnsNullNextPageTokenWhenNoMoreResults() {
+		List<ColumnAnalyzerOverride> page = Arrays.asList(new ColumnAnalyzerOverride().setId("1"));
+		when(columnAnalyzerOverrideDao.listAll(eq(51L), eq(0L))).thenReturn(page);
+
+		ListColumnAnalyzerOverridesRequest request = new ListColumnAnalyzerOverridesRequest();
+		ListColumnAnalyzerOverridesResponse response = manager.list(new UserInfo(false), request);
+
+		assertNull(response.getNextPageToken(), "Expected null next page token when all results fit in one page");
+		assertEquals(1, response.getResults().size());
 	}
 }

@@ -2,24 +2,18 @@ package org.sagebionetworks.repo.model.dbo.search;
 
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.*;
 
-import java.sql.Timestamp;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
+import org.sagebionetworks.repo.model.ConflictingUpdateException;
+import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.table.search.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.table.search.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
-import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.web.NotFoundException;
-import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
-import org.sagebionetworks.schema.adapter.org.json.JSONObjectAdapterImpl;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -45,7 +39,7 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 		dto.setOrganizationId(String.valueOf(rs.getLong(COL_COLUMN_ANALYZER_OVERRIDE_ORGANIZATION_ID)));
 		dto.setName(rs.getString(COL_COLUMN_ANALYZER_OVERRIDE_NAME));
 		dto.setDescription(rs.getString(COL_COLUMN_ANALYZER_OVERRIDE_DESCRIPTION));
-		dto.setOverrides(overridesFromJson(rs.getString(COL_COLUMN_ANALYZER_OVERRIDE_OVERRIDES)));
+		dto.setOverrides(JDOSecondaryPropertyUtils.readJsonToEntityList(rs.getString(COL_COLUMN_ANALYZER_OVERRIDE_OVERRIDES), ColumnAnalyzerOverrideEntry.class));
 		dto.setCreatedBy(String.valueOf(rs.getLong(COL_COLUMN_ANALYZER_OVERRIDE_CREATED_BY)));
 		dto.setCreatedOn(new Date(rs.getTimestamp(COL_COLUMN_ANALYZER_OVERRIDE_CREATED_ON).getTime()));
 		dto.setModifiedBy(String.valueOf(rs.getLong(COL_COLUMN_ANALYZER_OVERRIDE_MODIFIED_BY)));
@@ -57,8 +51,6 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 	@WriteTransaction
 	public ColumnAnalyzerOverride create(Long createdBy, ColumnAnalyzerOverride override) {
 		Long id = idGenerator.generateNewId(IdType.COLUMN_ANALYZER_OVERRIDE_ID);
-		String etag = UUID.randomUUID().toString();
-		Timestamp now = new Timestamp(System.currentTimeMillis());
 
 		String sql = "INSERT INTO " + TABLE_COLUMN_ANALYZER_OVERRIDE + " ("
 				+ COL_COLUMN_ANALYZER_OVERRIDE_ID + ", "
@@ -71,20 +63,17 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 				+ COL_COLUMN_ANALYZER_OVERRIDE_CREATED_ON + ", "
 				+ COL_COLUMN_ANALYZER_OVERRIDE_MODIFIED_BY + ", "
 				+ COL_COLUMN_ANALYZER_OVERRIDE_MODIFIED_ON
-				+ ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+				+ ") VALUES (?, UUID(), ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))";
 
 		try {
 			jdbcTemplate.update(sql,
 					id,
-					etag,
-					Long.parseLong(override.getOrganizationId()),
+					mapId(override.getOrganizationId()),
 					override.getName(),
 					override.getDescription(),
-					overridesToJson(override.getOverrides()),
+					override.getOverrides() == null ? "[]" : JDOSecondaryPropertyUtils.writeEntityListToJson(override.getOverrides()),
 					createdBy,
-					now,
-					createdBy,
-					now
+					createdBy
 			);
 		} catch (DuplicateKeyException e) {
 			handleDuplicateKeyException(e);
@@ -98,7 +87,7 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 	public Optional<ColumnAnalyzerOverride> get(String id) {
 		String sql = "SELECT * FROM " + TABLE_COLUMN_ANALYZER_OVERRIDE + " WHERE " + COL_COLUMN_ANALYZER_OVERRIDE_ID + " = ?";
 		try {
-			return Optional.ofNullable(jdbcTemplate.queryForObject(sql, ROW_MAPPER, Long.parseLong(id)));
+			return Optional.ofNullable(jdbcTemplate.queryForObject(sql, ROW_MAPPER, mapId(id)));
 		} catch (EmptyResultDataAccessException e) {
 			return Optional.empty();
 		}
@@ -127,9 +116,9 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 			jdbcTemplate.update(sql,
 					override.getName(),
 					override.getDescription(),
-					overridesToJson(override.getOverrides()),
+					override.getOverrides() == null ? "[]" : JDOSecondaryPropertyUtils.writeEntityListToJson(override.getOverrides()),
 					modifiedBy,
-					Long.parseLong(override.getId())
+					mapId(override.getId())
 			);
 		} catch (DuplicateKeyException e) {
 			handleDuplicateKeyException(e);
@@ -144,7 +133,7 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 	public void delete(String id) {
 		String sql = "DELETE FROM " + TABLE_COLUMN_ANALYZER_OVERRIDE + " WHERE " + COL_COLUMN_ANALYZER_OVERRIDE_ID + " = ?";
 		try {
-			jdbcTemplate.update(sql, Long.parseLong(id));
+			jdbcTemplate.update(sql, mapId(id));
 		} catch (DataIntegrityViolationException e) {
 			throw new IllegalArgumentException("Cannot delete column analyzer override '" + id + "' because it is still referenced.", e);
 		}
@@ -156,7 +145,7 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 				+ " WHERE " + COL_COLUMN_ANALYZER_OVERRIDE_ORGANIZATION_ID + " = ?"
 				+ " ORDER BY " + COL_COLUMN_ANALYZER_OVERRIDE_ID
 				+ " LIMIT ? OFFSET ?";
-		return jdbcTemplate.query(sql, ROW_MAPPER, Long.parseLong(organizationId), limit, offset);
+		return jdbcTemplate.query(sql, ROW_MAPPER, mapId(organizationId), limit, offset);
 	}
 
 	@Override
@@ -177,9 +166,17 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 		String sql = "SELECT " + COL_COLUMN_ANALYZER_OVERRIDE_ETAG + " FROM " + TABLE_COLUMN_ANALYZER_OVERRIDE
 				+ " WHERE " + COL_COLUMN_ANALYZER_OVERRIDE_ID + " = ? FOR UPDATE";
 		try {
-			return jdbcTemplate.queryForObject(sql, String.class, Long.parseLong(id));
+			return jdbcTemplate.queryForObject(sql, String.class, mapId(id));
 		} catch (EmptyResultDataAccessException e) {
 			throw new NotFoundException("A column analyzer override with ID " + id + " does not exist.");
+		}
+	}
+
+	static Long mapId(String id) {
+		try {
+			return Long.valueOf(id);
+		} catch (NumberFormatException e) {
+			throw new IllegalArgumentException("Invalid id: " + id);
 		}
 	}
 
@@ -189,43 +186,6 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 					"A column analyzer override with the same name already exists in this organization.", e);
 		}
 		throw e;
-	}
-
-	static String overridesToJson(List<ColumnAnalyzerOverrideEntry> entries) {
-		if (entries == null) {
-			return "[]";
-		}
-		JSONArray jsonArray = new JSONArray();
-		for (ColumnAnalyzerOverrideEntry entry : entries) {
-			try {
-				JSONObjectAdapterImpl adapter = new JSONObjectAdapterImpl();
-				entry.writeToJSONObject(adapter);
-				jsonArray.put(new JSONObject(adapter.toJSONString()));
-			} catch (JSONObjectAdapterException e) {
-				throw new RuntimeException(e);
-			}
-		}
-		return jsonArray.toString();
-	}
-
-	static List<ColumnAnalyzerOverrideEntry> overridesFromJson(String json) {
-		if (json == null || json.isEmpty()) {
-			return new ArrayList<>();
-		}
-		JSONArray jsonArray = new JSONArray(json);
-		List<ColumnAnalyzerOverrideEntry> entries = new ArrayList<>();
-		for (int i = 0; i < jsonArray.length(); i++) {
-			try {
-				JSONObject obj = jsonArray.getJSONObject(i);
-				JSONObjectAdapterImpl adapter = new JSONObjectAdapterImpl(obj);
-				ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
-				entry.initializeFromJSONObject(adapter);
-				entries.add(entry);
-			} catch (JSONObjectAdapterException e) {
-				throw new RuntimeException(e);
-			}
-		}
-		return entries;
 	}
 
 }

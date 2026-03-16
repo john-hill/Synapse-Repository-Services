@@ -350,6 +350,9 @@ import org.sagebionetworks.repo.model.table.ViewColumnModelResponse;
 import org.sagebionetworks.repo.model.table.ViewEntityType;
 import org.sagebionetworks.repo.model.table.ViewScope;
 import org.sagebionetworks.repo.model.table.ViewType;
+import org.sagebionetworks.repo.model.table.search.ListTextAnalyzersRequest;
+import org.sagebionetworks.repo.model.table.search.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.table.search.TextAnalyzer;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiHeader;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiHistorySnapshot;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiOrderHint;
@@ -4393,7 +4396,7 @@ public interface SynapseClient extends BaseClient {
 	/**
 	 * Creates a new webhook.
 	 * 
-	 * @param reqeust
+	 * @param request
 	 * @return
 	 * @throws SynapseException
 	 */
@@ -4669,5 +4672,16 @@ public interface SynapseClient extends BaseClient {
     RealmPrincipal getRealmPrincipals(String id) throws SynapseException ;
     
     RealmPrincipal getRealmPrincipals() throws SynapseException;
+
+    TextAnalyzer createTextAnalyzer(TextAnalyzer analyzer) throws SynapseException;
+
+    TextAnalyzer getTextAnalyzer(String id) throws SynapseException;
+
+    TextAnalyzer updateTextAnalyzer(TextAnalyzer analyzer) throws SynapseException;
+
+    void deleteTextAnalyzer(String id) throws SynapseException;
+
+    ListTextAnalyzersResponse listTextAnalyzers(ListTextAnalyzersRequest request) throws SynapseException;
+
 }
 

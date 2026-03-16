@@ -1500,6 +1500,20 @@ public class SqlConstants {
 	public static final String REALM_PRINCIPAL_TYPE_ADMINISTRATORS = "ADMINISTRATORS";
 	public static final String DDL_FILE_REALM_PRINCIPAL = "schema/RealmPrincipal-ddl.sql";
 
+	// Search - Text Analyzer
+	public static final String TABLE_TEXT_ANALYZER = "TEXT_ANALYZER";
+	public static final String COL_TEXT_ANALYZER_ID = "ID";
+	public static final String COL_TEXT_ANALYZER_ETAG = "ETAG";
+	public static final String COL_TEXT_ANALYZER_NAME = "NAME";
+	public static final String COL_TEXT_ANALYZER_DESCRIPTION = "DESCRIPTION";
+	public static final String COL_TEXT_ANALYZER_ORGANIZATION_ID = "ORGANIZATION_ID";
+	public static final String COL_TEXT_ANALYZER_SETTINGS = "SETTINGS";
+	public static final String COL_TEXT_ANALYZER_CREATED_BY = "CREATED_BY";
+	public static final String COL_TEXT_ANALYZER_CREATED_ON = "CREATED_ON";
+	public static final String COL_TEXT_ANALYZER_MODIFIED_BY = "MODIFIED_BY";
+	public static final String COL_TEXT_ANALYZER_MODIFIED_ON = "MODIFIED_ON";
+	public static final String DDL_TEXT_ANALYZER = "schema/TextAnalyzer-ddl.sql";
+
 	// This seems to be the name of the id column for all tables.
 	public static final String COLUMN_ID		= "id";
 	

@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -212,6 +213,42 @@ public class CurationTaskManagerImplUnitTest {
         assertEquals(Arrays.asList(task1, task2), response.getPage());
         assertEquals(bundles, response.getBundlePage());
     }
+    
+	@Test
+	public void testGetCurationTasksWithAssigneeIds() {
+		ListCurationTaskRequest request = new ListCurationTaskRequest().setProjectId(projectId)
+				.setAssigneeIds(List.of("111", "222"));
+		CurationTask task1 = createCurationTask(CurationTaskPropertiesType.FILE_BASED);
+		CurationTask task2 = createCurationTask(CurationTaskPropertiesType.RECORD_BASED);
+		TaskBundle bundle1 = new TaskBundle().setTask(task1);
+		TaskBundle bundle2 = new TaskBundle().setTask(task2);
+		List<TaskBundle> bundles = Arrays.asList(bundle1, bundle2);
+
+		when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY),
+				eq(ACCESS_TYPE.READ))).thenReturn(mockAuthorizationStatus);
+		when(mockCurationTaskDao.getCurationTaskBundles(eq(List.of(KeyFactory.stringToKey(projectId))), eq(List.of(111L,222L)),
+				eq(null), anyLong(), anyLong())).thenReturn(bundles);
+
+		// Call under test
+		ListCurationTaskResponse response = curationTaskManager.getCurationTasks(userInfo, request);
+
+		assertEquals(Arrays.asList(task1, task2), response.getPage());
+		assertEquals(bundles, response.getBundlePage());
+	}
+	
+	@Test
+	public void testGetCurationTasksWithAssigneeIdsNotNumber() {
+		ListCurationTaskRequest request = new ListCurationTaskRequest().setProjectId(projectId)
+				.setAssigneeIds(List.of("not a number", "222"));
+
+		String message = assertThrows(IllegalArgumentException.class, ()->{
+			// Call under test
+			curationTaskManager.getCurationTasks(userInfo, request);
+		}).getMessage();
+		assertEquals("For input string: \"not a number\"", message);
+		
+        verifyZeroInteractions(mockCurationTaskDao, mockAclManager);
+	}
 
     @Test
     public void testGetCurationTasksWithNoProjectId() {
@@ -305,6 +342,24 @@ public class CurationTaskManagerImplUnitTest {
         TaskStatus result = curationTaskManager.updateTaskStatus(userInfo, taskId, statusUpdate);
 
         assertSame(expectedResult, result);
+    }
+    
+    @Test
+    public void testUpdateTaskStatusWithNullAssignee() {
+        // The assignee is null
+        TaskStatus statusUpdate = new TaskStatus().setState(TaskState.IN_PROGRESS).setEtag("etag-1");
+        CurationTask task = new CurationTask().setTaskId(taskId).setProjectId(projectId)
+                .setAssigneePrincipalId(null);
+
+        when(mockCurationTaskDao.getCurationTask(taskId)).thenReturn(Optional.of(task));
+        // No UPDATE access on project
+        when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.UPDATE)))
+                .thenReturn(AuthorizationStatus.accessDenied("no access"));
+
+        // Call under test
+        UnauthorizedException ex = assertThrows(UnauthorizedException.class,
+                () -> curationTaskManager.updateTaskStatus(userInfo, taskId, statusUpdate));
+        assertTrue(ex.getMessage().contains("You must have UPDATE access on the project or be an assignee of the task."));
     }
 
     @Test

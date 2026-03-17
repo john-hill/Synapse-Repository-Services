@@ -9,19 +9,17 @@ import org.sagebionetworks.repo.manager.AccessControlListManager;
 import org.sagebionetworks.repo.manager.AuthorizationManager;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
+import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.NextPageToken;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.curation.CurationTask;
 import org.sagebionetworks.repo.model.curation.ListCurationTaskRequest;
 import org.sagebionetworks.repo.model.curation.ListCurationTaskResponse;
 import org.sagebionetworks.repo.model.curation.TaskBundle;
-import org.sagebionetworks.repo.model.curation.TaskState;
 import org.sagebionetworks.repo.model.curation.TaskStatus;
-import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
-import org.sagebionetworks.repo.model.AuthorizationUtils;
-import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.curation.metadata.FileBasedMetadataTaskProperties;
 import org.sagebionetworks.repo.model.curation.metadata.RecordBasedMetadataTaskProperties;
 import org.sagebionetworks.repo.model.dbo.curation.CurationTaskDao;
@@ -99,6 +97,10 @@ public class CurationTaskManagerImpl implements CurationTaskManager {
     public ListCurationTaskResponse getCurationTasks(UserInfo userInfo, ListCurationTaskRequest request) {
         NextPageToken token = new NextPageToken(request.getNextPageToken());
 
+        List<Long> assigneeIds = request.getAssigneeIds() != null
+                ? request.getAssigneeIds().stream().map(Long::parseLong).collect(Collectors.toList())
+                : null;
+        
         List<Long> accessibleProjectIds;
 
         if (request.getProjectId() != null) {
@@ -117,10 +119,6 @@ public class CurationTaskManagerImpl implements CurationTaskManager {
             }
         }
 
-        List<Long> assigneeIds = request.getAssigneeIds() != null
-                ? request.getAssigneeIds().stream().map(Long::parseLong).collect(Collectors.toList())
-                : null;
-
         List<TaskBundle> bundles = curationTaskDao.getCurationTaskBundles(
                 accessibleProjectIds, assigneeIds, request.getStateFilter(),
                 token.getLimitForQuery(), token.getOffset());
@@ -134,7 +132,8 @@ public class CurationTaskManagerImpl implements CurationTaskManager {
         return response;
     }
 
-    @Override
+
+	@Override
     @WriteTransaction
     public TaskStatus updateTaskStatus(UserInfo userInfo, Long taskId, TaskStatus statusUpdate) {
         ValidateArgument.required(statusUpdate, "statusUpdate");

@@ -53,7 +53,7 @@ public class DBOCurationTask implements MigratableDatabaseObject<DBOCurationTask
                     .setAssigneeId(rs.getLong(SqlConstants.COL_CURATION_TASK_ASSIGNEE))
                     .setState(rs.getString(SqlConstants.COL_CURATION_TASK_STATE))
                     .setExecutionDetailsJson(rs.getString(SqlConstants.COL_CURATION_TASK_EXECUTION_DETAILS))
-                    .setStateUpdatedBy(rs.getObject(SqlConstants.COL_CURATION_TASK_STATE_UPDATED_BY, Long.class))
+                    .setStateUpdatedBy(rs.getLong(SqlConstants.COL_CURATION_TASK_STATE_UPDATED_BY))
                     .setStateUpdatedOn(rs.getTimestamp(SqlConstants.COL_CURATION_TASK_STATE_UPDATED_ON));
         }
 

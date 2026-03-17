@@ -146,6 +146,7 @@ import org.sagebionetworks.repo.model.auth.Username;
 import org.sagebionetworks.repo.model.curation.CurationTask;
 import org.sagebionetworks.repo.model.curation.ListCurationTaskRequest;
 import org.sagebionetworks.repo.model.curation.ListCurationTaskResponse;
+import org.sagebionetworks.repo.model.curation.TaskStatus;
 import org.sagebionetworks.repo.model.dao.WikiPageKey;
 import org.sagebionetworks.repo.model.dataaccess.AccessApprovalNotificationRequest;
 import org.sagebionetworks.repo.model.dataaccess.AccessApprovalNotificationResponse;
@@ -6625,6 +6626,11 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
     @Override
     public ListCurationTaskResponse listMetadataTasks(ListCurationTaskRequest request) throws SynapseException {
         return postJSONEntity(getRepoEndpoint(), "/curation/task/list", request, ListCurationTaskResponse.class);
+    }
+
+    @Override
+    public TaskStatus updateTaskStatus(Long taskId, TaskStatus statusUpdate) throws SynapseException {
+        return putJSONEntity(getRepoEndpoint(), "/curation/task/" + taskId + "/status", statusUpdate, TaskStatus.class);
     }
 
 	@Override

@@ -164,18 +164,18 @@ public class ITCurationTaskControllerTest {
             assertEquals(task, bundle.getTask());
             assertNotNull(bundle.getStatus());
             assertEquals(TaskState.NOT_STARTED, bundle.getStatus().getState());
-            assertEquals("0", bundle.getStatus().getEtag());
+            assertEquals(task.getEtag(), bundle.getStatus().getEtag());
 
             // Update status to IN_PROGRESS
             TaskStatus statusUpdate = new TaskStatus()
                     .setState(TaskState.IN_PROGRESS)
-                    .setEtag("0");
+                    .setEtag(task.getEtag());
 
             TaskStatus updatedStatus = synapse.updateTaskStatus(task.getTaskId(), statusUpdate);
 
             assertEquals(TaskState.IN_PROGRESS, updatedStatus.getState());
             assertNotNull(updatedStatus.getEtag());
-            assertNotEquals("0", updatedStatus.getEtag());
+            assertNotEquals(task.getEtag(), updatedStatus.getEtag());
             assertNotNull(updatedStatus.getLastUpdatedBy());
             assertNotNull(updatedStatus.getLastUpdatedOn());
 
@@ -223,7 +223,7 @@ public class ITCurationTaskControllerTest {
             // Update the file-based task to IN_PROGRESS
             TaskStatus statusUpdate = new TaskStatus()
                     .setState(TaskState.IN_PROGRESS)
-                    .setEtag("0");
+                    .setEtag(fbTask.getEtag());
 
             synapse.updateTaskStatus(fbTask.getTaskId(), statusUpdate);
 

@@ -367,7 +367,7 @@ class CurationTaskDaoAutowireTest {
 
         assertEquals(created.getTaskId(), status.getTaskId());
         assertEquals(TaskState.NOT_STARTED, status.getState());
-        assertEquals("0", status.getEtag());
+        assertEquals(created.getEtag(), status.getEtag());
         assertNull(status.getExecutionDetails());
         assertNull(status.getLastUpdatedBy());
         assertNull(status.getLastUpdatedOn());
@@ -390,7 +390,7 @@ class CurationTaskDaoAutowireTest {
 
         TaskStatus initialStatus = dao.getTaskStatus(created.getTaskId());
         assertEquals(TaskState.NOT_STARTED, initialStatus.getState());
-        assertEquals("0", initialStatus.getEtag());
+        assertEquals(created.getEtag(), initialStatus.getEtag());
 
         TaskStatus statusUpdate = new TaskStatus()
                 .setState(TaskState.IN_PROGRESS)
@@ -400,7 +400,7 @@ class CurationTaskDaoAutowireTest {
         TaskStatus updated = dao.updateTaskStatus(userId, created.getTaskId(), statusUpdate);
 
         assertEquals(TaskState.IN_PROGRESS, updated.getState());
-        assertNotEquals("0", updated.getEtag());
+        assertNotEquals(initialStatus.getEtag(), updated.getEtag());
         assertEquals(userId.toString(), updated.getLastUpdatedBy());
         assertNotNull(updated.getLastUpdatedOn());
         assertNull(updated.getExecutionDetails());

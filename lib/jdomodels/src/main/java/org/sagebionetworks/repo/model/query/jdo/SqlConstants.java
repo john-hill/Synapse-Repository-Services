@@ -1465,7 +1465,7 @@ public class SqlConstants {
     public static final String COL_CURATION_TASK_EXECUTION_DETAILS = "EXECUTION_DETAILS";
     public static final String COL_CURATION_TASK_STATE_UPDATED_BY = "STATE_UPDATED_BY";
     public static final String COL_CURATION_TASK_STATE_UPDATED_ON = "STATE_UPDATED_ON";
-    public static final String COL_CURATION_TASK_STATE_ETAG = "STATE_ETAG";
+
 
     // Table to track a record set validation summary for a specific version
  	public static final String TABLE_RECORDSET_VALIDATION_STATS					= "RECORDSET_VALIDATION_STATS";

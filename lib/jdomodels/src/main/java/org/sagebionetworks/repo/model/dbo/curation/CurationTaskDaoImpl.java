@@ -12,7 +12,6 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_CURATION
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_CURATION_TASK_MODIFIED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_CURATION_TASK_PROJECT_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_CURATION_TASK_STATE;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_CURATION_TASK_STATE_ETAG;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_CURATION_TASK_STATE_UPDATED_BY;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_CURATION_TASK_STATE_UPDATED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_CURATION_TASK_TASK_PROPERTIES;
@@ -91,7 +90,7 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
                 .setExecutionDetails(executionDetails)
                 .setLastUpdatedBy(stateUpdatedBy != null ? stateUpdatedBy.toString() : null)
                 .setLastUpdatedOn(stateUpdatedOn != null ? new Date(stateUpdatedOn.getTime()) : null)
-                .setEtag(rs.getString(COL_CURATION_TASK_STATE_ETAG));
+                .setEtag(rs.getString(COL_CURATION_TASK_ETAG));
     };
 
     private static final RowMapper<TaskBundle> TASK_BUNDLE_ROW_MAPPER = (rs, rowNum) -> {
@@ -204,7 +203,7 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
     public TaskStatus getTaskStatus(Long taskId) {
         try {
             return jdbcTemplate.queryForObject(
-                    "SELECT ID, STATE, EXECUTION_DETAILS, STATE_UPDATED_BY, STATE_UPDATED_ON, STATE_ETAG"
+                    "SELECT ID, STATE, EXECUTION_DETAILS, STATE_UPDATED_BY, STATE_UPDATED_ON, ETAG"
                             + " FROM CURATION_TASK WHERE ID = ?",
                     TASK_STATUS_ROW_MAPPER, taskId);
         } catch (EmptyResultDataAccessException e) {
@@ -215,9 +214,9 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
     @Override
     @WriteTransaction
     public TaskStatus updateTaskStatus(Long userId, Long taskId, TaskStatus statusUpdate) {
-        String currentStateEtag = getStateEtagForUpdate(taskId);
+        String currentEtag = getEtagForCurationTaskForUpdate(taskId);
 
-        if (!currentStateEtag.equals(statusUpdate.getEtag())) {
+        if (!currentEtag.equals(statusUpdate.getEtag())) {
             throw new ConflictingUpdateException(
                     "The task status was updated since you last fetched it, please fetch it again and reapply your changes.");
         }
@@ -228,7 +227,7 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
 
         jdbcTemplate.update(
                 "UPDATE CURATION_TASK SET STATE = ?, EXECUTION_DETAILS = ?,"
-                        + " STATE_UPDATED_BY = ?, STATE_UPDATED_ON = NOW(3), STATE_ETAG = UUID()"
+                        + " STATE_UPDATED_BY = ?, STATE_UPDATED_ON = NOW(3), ETAG = UUID()"
                         + " WHERE ID = ?",
                 statusUpdate.getState().name(),
                 executionDetailsJson,
@@ -269,17 +268,6 @@ public class CurationTaskDaoImpl implements CurationTaskDao {
     public Set<Long> getDistinctProjectIds() {
         return new HashSet<>(jdbcTemplate.queryForList(
                 "SELECT DISTINCT PROJECT_ID FROM CURATION_TASK", Long.class));
-    }
-
-    @MandatoryWriteTransaction
-    String getStateEtagForUpdate(Long taskId) {
-        try {
-            return jdbcTemplate.queryForObject(
-                    "SELECT STATE_ETAG FROM CURATION_TASK WHERE ID = ? FOR UPDATE",
-                    (rs, rowNum) -> rs.getString("STATE_ETAG"), taskId);
-        } catch (EmptyResultDataAccessException e) {
-            throw new NotFoundException("A curation task with ID " + taskId + " does not exist.");
-        }
     }
 
     @MandatoryWriteTransaction

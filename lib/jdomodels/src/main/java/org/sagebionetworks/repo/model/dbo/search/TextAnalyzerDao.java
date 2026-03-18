@@ -15,13 +15,13 @@ public interface TextAnalyzerDao {
 
 	void delete(Long id);
 
-	List<TextAnalyzer> listByOrganization(Long organizationId, long limit, long offset);
+	List<TextAnalyzer> listByOrganization(String organizationName, long limit, long offset);
 
 	List<TextAnalyzer> listAll(long limit, long offset);
 
 	boolean exists(Long id);
 
-	void createOrUpdateSystemAnalyzerForBootstrapOnly(Long id, TextAnalyzer analyzer, Long organizationId, Long userId);
+	void createOrUpdateSystemAnalyzerForBootstrapOnly(Long id, TextAnalyzer analyzer, String organizationName, Long userId);
 
 	void truncateAll();
 }

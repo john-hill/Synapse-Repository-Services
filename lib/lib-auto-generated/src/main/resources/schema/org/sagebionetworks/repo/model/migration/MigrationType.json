@@ -531,6 +531,10 @@
 			"description": "Text analyzer configurations for search"
 		},
 		{
+			"name": "COLUMN_ANALYZER_OVERRIDE",
+			"description": "Table that stores column analyzer overrides for search"
+		},
+		{
 			"name": "CHANGE",
 			"description": "TODO: Auto-generated description"
 		}

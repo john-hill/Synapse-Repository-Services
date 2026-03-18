@@ -41,49 +41,49 @@ public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 		UserInfo adminUser = userManager.getUserInfo(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId());
 		Organization organization = synapseSchemaBootstrap.createOrganizationIfDoesNotExist(adminUser);
 		Long adminUserId = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
-		Long organizationId = Long.valueOf(organization.getId());
+		String organizationName = organization.getName();
 
 		// 1. SCIENTIFIC: English stemming, stop words, lowercase, synonym expansion
 		textAnalyzerDao.createOrUpdateSystemAnalyzerForBootstrapOnly(SCIENTIFIC_ID, buildAnalyzer(
 				"SCIENTIFIC",
 				"English stemming, stop words, lowercase, synonym expansion. Best for scientific metadata.",
 				buildScientificSettings()
-		), organizationId, adminUserId);
+		), organizationName, adminUserId);
 
 		// 2. STANDARD: Standard tokenizer with lowercase
 		textAnalyzerDao.createOrUpdateSystemAnalyzerForBootstrapOnly(STANDARD_ID, buildAnalyzer(
 				"STANDARD",
 				"OpenSearch standard analyzer. Unicode segmentation with lowercase. General-purpose.",
 				buildStandardSettings()
-		), organizationId, adminUserId);
+		), organizationName, adminUserId);
 
 		// 3. IDENTIFIER: Whitespace tokenizer with lowercase
 		textAnalyzerDao.createOrUpdateSystemAnalyzerForBootstrapOnly(IDENTIFIER_ID, buildAnalyzer(
 				"IDENTIFIER",
 				"Preserves punctuation. Whitespace tokenization plus lowercase. Suitable for DOIs, RRIDs, PMIDs.",
 				buildIdentifierSettings()
-		), organizationId, adminUserId);
+		), organizationName, adminUserId);
 
 		// 4. KEYWORD: Built-in keyword analyzer
 		textAnalyzerDao.createOrUpdateSystemAnalyzerForBootstrapOnly(KEYWORD_ID, buildAnalyzer(
 				"KEYWORD",
 				"No tokenization. Entire value is a single token. Suitable for facet and filter fields.",
 				buildKeywordSettings()
-		), organizationId, adminUserId);
+		), organizationName, adminUserId);
 
 		// 5. AUTOCOMPLETE: Edge n-gram for type-ahead
 		textAnalyzerDao.createOrUpdateSystemAnalyzerForBootstrapOnly(AUTOCOMPLETE_ID, buildAnalyzer(
 				"AUTOCOMPLETE",
 				"Edge n-gram (2-20 chars) for type-ahead. Paired with AUTOCOMPLETE_SEARCH at search time.",
 				buildAutocompleteSettings()
-		), organizationId, adminUserId);
+		), organizationName, adminUserId);
 
 		// 6. AUTOCOMPLETE_SEARCH: Standard tokenizer with lowercase (search-time pair for AUTOCOMPLETE)
 		textAnalyzerDao.createOrUpdateSystemAnalyzerForBootstrapOnly(AUTOCOMPLETE_SEARCH_ID, buildAnalyzer(
 				"AUTOCOMPLETE_SEARCH",
 				"Search-time analyzer paired with AUTOCOMPLETE. Standard tokenizer with lowercase and synonyms.",
 				buildAutocompleteSearchSettings()
-		), organizationId, adminUserId);
+		), organizationName, adminUserId);
 	}
 
 	private TextAnalyzer buildAnalyzer(String name, String description, TextAnalyzerSettings settings) {

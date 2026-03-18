@@ -773,6 +773,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	private static final String SEARCH_TEXT_ANALYZER_LIST = SEARCH_TEXT_ANALYZER + "/list";
 	private static final String SEARCH_COLUMN_ANALYZER_OVERRIDE = "/search/column/analyzer/override";
 	private static final String SEARCH_COLUMN_ANALYZER_OVERRIDE_LIST = SEARCH_COLUMN_ANALYZER_OVERRIDE + "/list";
+	private static final String SEARCH_AUTOCOMPLETE = "/search/autocomplete";
 
 	/**
 	 * Default constructor uses the default repository and file services endpoints.
@@ -6712,6 +6713,24 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public ListColumnAnalyzerOverridesResponse listColumnAnalyzerOverrides(ListColumnAnalyzerOverridesRequest request) throws SynapseException {
 		ValidateArgument.required(request, "request");
 		return postJSONEntity(getRepoEndpoint(), SEARCH_COLUMN_ANALYZER_OVERRIDE_LIST, request, ListColumnAnalyzerOverridesResponse.class);
+	}
+
+	@Override
+	public org.sagebionetworks.repo.model.table.search.SearchResults searchAutocomplete(
+			org.sagebionetworks.repo.model.table.search.SearchQuery request) throws SynapseException {
+		ValidateArgument.required(request, "request");
+		return postJSONEntity(getRepoEndpoint(), SEARCH_AUTOCOMPLETE, request,
+				org.sagebionetworks.repo.model.table.search.SearchResults.class);
+	}
+
+	@Override
+	public String startSearchIndexQuery(org.sagebionetworks.repo.model.table.search.SearchQuery request) throws SynapseException {
+		return startAsynchJob(AsynchJobType.SearchIndexQuery, request);
+	}
+
+	@Override
+	public org.sagebionetworks.repo.model.table.search.SearchResults getSearchIndexQueryResults(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException {
+		return (org.sagebionetworks.repo.model.table.search.SearchResults) getAsyncResult(AsynchJobType.SearchIndexQuery, asyncJobToken, (String) null);
 	}
 
 }

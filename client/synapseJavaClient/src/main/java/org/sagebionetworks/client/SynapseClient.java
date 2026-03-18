@@ -4696,5 +4696,11 @@ public interface SynapseClient extends BaseClient {
 
     ListColumnAnalyzerOverridesResponse listColumnAnalyzerOverrides(ListColumnAnalyzerOverridesRequest request) throws SynapseException;
 
+	org.sagebionetworks.repo.model.table.search.SearchResults searchAutocomplete(
+			org.sagebionetworks.repo.model.table.search.SearchQuery request) throws SynapseException;
+
+	String startSearchIndexQuery(org.sagebionetworks.repo.model.table.search.SearchQuery request) throws SynapseException;
+
+	org.sagebionetworks.repo.model.table.search.SearchResults getSearchIndexQueryResults(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException;
 }
 

@@ -9,6 +9,7 @@ import org.sagebionetworks.repo.model.NextPageToken;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.table.search.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.table.search.ListTextAnalyzersResponse;
@@ -26,10 +27,13 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 
 	private final TextAnalyzerDao textAnalyzerDao;
 	private final AccessControlListDAO aclDao;
+	private final OrganizationDao organizationDao;
 
-	public TextAnalyzerManagerImpl(TextAnalyzerDao textAnalyzerDao, AccessControlListDAO aclDao) {
+	public TextAnalyzerManagerImpl(TextAnalyzerDao textAnalyzerDao, AccessControlListDAO aclDao,
+			OrganizationDao organizationDao) {
 		this.textAnalyzerDao = textAnalyzerDao;
 		this.aclDao = aclDao;
+		this.organizationDao = organizationDao;
 	}
 
 	@Override
@@ -37,7 +41,7 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 	public TextAnalyzer create(UserInfo user, TextAnalyzer analyzer) {
 		ValidateArgument.required(user, "user");
 		ValidateArgument.required(analyzer, "analyzer");
-		ValidateArgument.requiredNotBlank(analyzer.getOrganizationId(), "organizationId");
+		ValidateArgument.requiredNotBlank(analyzer.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(analyzer.getName(), "name");
 		ValidateArgument.required(analyzer.getSettings(), "settings");
 
@@ -46,11 +50,9 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 			throw new UnauthorizedException(MSG_UNAUTHORIZED);
 		}
 		if (!user.isAdmin()) {
-			aclDao.canAccess(user, analyzer.getOrganizationId(), ObjectType.ORGANIZATION, ACCESS_TYPE.CREATE)
+			aclDao.canAccess(user, resolveOrganizationId(analyzer.getOrganizationName()), ObjectType.ORGANIZATION, ACCESS_TYPE.CREATE)
 				.checkAuthorizationOrElseThrow();
 		}
-
-		parseId(analyzer.getOrganizationId(), "organizationId");
 
 		return textAnalyzerDao.create(analyzer, user.getId());
 	}
@@ -69,24 +71,23 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		ValidateArgument.required(user, "user");
 		ValidateArgument.required(analyzer, "analyzer");
 		ValidateArgument.requiredNotBlank(analyzer.getId(), "id");
-		ValidateArgument.requiredNotBlank(analyzer.getOrganizationId(), "organizationId");
+		ValidateArgument.requiredNotBlank(analyzer.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(analyzer.getName(), "name");
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
 			throw new UnauthorizedException(MSG_UNAUTHORIZED);
 		}
-		// Fetch stored entity first — use its org ID for ACL, not the request's
-		Long id = parseId(analyzer.getId(), "TextAnalyzer id");
+		Long id = Long.parseLong(analyzer.getId());
 		TextAnalyzer existing = textAnalyzerDao.get(id)
 			.orElseThrow(() -> new NotFoundException("TextAnalyzer with id '" + analyzer.getId() + "' does not exist."));
 
-		if (!existing.getOrganizationId().equals(analyzer.getOrganizationId())) {
-			throw new IllegalArgumentException("The organizationId cannot be changed.");
+		if (!existing.getOrganizationName().equals(analyzer.getOrganizationName())) {
+			throw new IllegalArgumentException("The organizationName cannot be changed.");
 		}
 
 		if (!user.isAdmin()) {
-			aclDao.canAccess(user, existing.getOrganizationId(), ObjectType.ORGANIZATION, ACCESS_TYPE.UPDATE)
+			aclDao.canAccess(user, resolveOrganizationId(existing.getOrganizationName()), ObjectType.ORGANIZATION, ACCESS_TYPE.UPDATE)
 				.checkAuthorizationOrElseThrow();
 		}
 
@@ -108,7 +109,7 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 			.orElseThrow(() -> new NotFoundException("TextAnalyzer with id '" + id + "' does not exist."));
 
 		if (!user.isAdmin()) {
-			aclDao.canAccess(user, existing.getOrganizationId(), ObjectType.ORGANIZATION, ACCESS_TYPE.DELETE)
+			aclDao.canAccess(user, resolveOrganizationId(existing.getOrganizationName()), ObjectType.ORGANIZATION, ACCESS_TYPE.DELETE)
 				.checkAuthorizationOrElseThrow();
 		}
 
@@ -127,12 +128,11 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		NextPageToken nextPageToken = new NextPageToken(request.getNextPageToken());
 
 		List<TextAnalyzer> page;
-		if (request.getOrganizationId() == null) {
+		if (request.getOrganizationName() == null) {
 			page = textAnalyzerDao.listAll(nextPageToken.getLimitForQuery(), nextPageToken.getOffset());
 		} else {
-			Long organizationIdLong = parseId(request.getOrganizationId(), "organizationId");
 			page = textAnalyzerDao.listByOrganization(
-					organizationIdLong, nextPageToken.getLimitForQuery(), nextPageToken.getOffset());
+					request.getOrganizationName(), nextPageToken.getLimitForQuery(), nextPageToken.getOffset());
 		}
 
 		return new ListTextAnalyzersResponse()
@@ -140,11 +140,7 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 			.setNextPageToken(nextPageToken.getNextPageTokenForCurrentResults(page));
 	}
 
-	private Long parseId(String value, String fieldName) {
-		try {
-			return Long.parseLong(value);
-		} catch (NumberFormatException e) {
-			throw new IllegalArgumentException("Invalid " + fieldName + ": '" + value + "'", e);
-		}
+	private String resolveOrganizationId(String organizationName) {
+		return organizationDao.getOrganizationByName(organizationName).getId();
 	}
 }

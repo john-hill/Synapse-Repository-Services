@@ -9,6 +9,7 @@ import org.sagebionetworks.repo.model.NextPageToken;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
 import org.sagebionetworks.repo.model.table.search.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.table.search.ListColumnAnalyzerOverridesRequest;
@@ -25,11 +26,13 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 
 	private final ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao;
 	private final AccessControlListDAO aclDao;
+	private final OrganizationDao organizationDao;
 
 	public ColumnAnalyzerOverrideManagerImpl(ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao,
-			AccessControlListDAO aclDao) {
+			AccessControlListDAO aclDao, OrganizationDao organizationDao) {
 		this.columnAnalyzerOverrideDao = columnAnalyzerOverrideDao;
 		this.aclDao = aclDao;
+		this.organizationDao = organizationDao;
 	}
 
 	@Override
@@ -37,7 +40,7 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 	public ColumnAnalyzerOverride create(UserInfo user, ColumnAnalyzerOverride request) {
 		ValidateArgument.required(user, "user");
 		ValidateArgument.required(request, "request");
-		ValidateArgument.requiredNotBlank(request.getOrganizationId(), "organizationId");
+		ValidateArgument.requiredNotBlank(request.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(request.getName(), "name");
 
 		AuthorizationUtils.disallowAnonymous(user);
@@ -45,7 +48,7 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 			throw new UnauthorizedException(MSG_UNAUTHORIZED);
 		}
 		if (!user.isAdmin()) {
-			aclDao.canAccess(user, request.getOrganizationId(), ObjectType.ORGANIZATION, ACCESS_TYPE.CREATE)
+			aclDao.canAccess(user, resolveOrganizationId(request.getOrganizationName()), ObjectType.ORGANIZATION, ACCESS_TYPE.CREATE)
 				.checkAuthorizationOrElseThrow();
 		}
 
@@ -66,23 +69,22 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 		ValidateArgument.required(user, "user");
 		ValidateArgument.required(request, "request");
 		ValidateArgument.requiredNotBlank(request.getId(), "id");
-		ValidateArgument.requiredNotBlank(request.getOrganizationId(), "organizationId");
+		ValidateArgument.requiredNotBlank(request.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(request.getName(), "name");
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
 			throw new UnauthorizedException(MSG_UNAUTHORIZED);
 		}
-		// Fetch stored entity first — use its org ID for ACL, not the request's
 		ColumnAnalyzerOverride existing = columnAnalyzerOverrideDao.get(request.getId())
 			.orElseThrow(() -> new NotFoundException("A column analyzer override with the given id does not exist."));
 
-		if (!existing.getOrganizationId().equals(request.getOrganizationId())) {
-			throw new IllegalArgumentException("The organizationId cannot be changed.");
+		if (!existing.getOrganizationName().equals(request.getOrganizationName())) {
+			throw new IllegalArgumentException("The organizationName cannot be changed.");
 		}
 
 		if (!user.isAdmin()) {
-			aclDao.canAccess(user, existing.getOrganizationId(), ObjectType.ORGANIZATION, ACCESS_TYPE.UPDATE)
+			aclDao.canAccess(user, resolveOrganizationId(existing.getOrganizationName()), ObjectType.ORGANIZATION, ACCESS_TYPE.UPDATE)
 				.checkAuthorizationOrElseThrow();
 		}
 
@@ -104,7 +106,7 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 			.orElseThrow(() -> new NotFoundException("A column analyzer override with the given id does not exist."));
 
 		if (!user.isAdmin()) {
-			aclDao.canAccess(user, existing.getOrganizationId(), ObjectType.ORGANIZATION, ACCESS_TYPE.DELETE)
+			aclDao.canAccess(user, resolveOrganizationId(existing.getOrganizationName()), ObjectType.ORGANIZATION, ACCESS_TYPE.DELETE)
 				.checkAuthorizationOrElseThrow();
 		}
 
@@ -118,15 +120,19 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 		NextPageToken nextPageToken = new NextPageToken(request.getNextPageToken());
 
 		List<ColumnAnalyzerOverride> page;
-		if (request.getOrganizationId() == null) {
+		if (request.getOrganizationName() == null) {
 			page = columnAnalyzerOverrideDao.listAll(nextPageToken.getLimitForQuery(), nextPageToken.getOffset());
 		} else {
-			page = columnAnalyzerOverrideDao.list(request.getOrganizationId(),
+			page = columnAnalyzerOverrideDao.list(request.getOrganizationName(),
 				nextPageToken.getLimitForQuery(), nextPageToken.getOffset());
 		}
 
 		return new ListColumnAnalyzerOverridesResponse()
 			.setResults(page)
 			.setNextPageToken(nextPageToken.getNextPageTokenForCurrentResults(page));
+	}
+
+	private String resolveOrganizationId(String organizationName) {
+		return organizationDao.getOrganizationByName(organizationName).getId();
 	}
 }

@@ -32,6 +32,7 @@ public class TextAnalyzerDaoImplAutowiredTest {
 
 	private Long adminUserId;
 	private String organizationId;
+	private String organizationName;
 
 	@BeforeEach
 	public void before() {
@@ -39,6 +40,7 @@ public class TextAnalyzerDaoImplAutowiredTest {
 		textAnalyzerDao.truncateAll();
 		Organization org = organizationDao.createOrganization("test-org-" + UUID.randomUUID(), adminUserId);
 		organizationId = org.getId();
+		organizationName = org.getName();
 	}
 
 	@AfterEach
@@ -130,24 +132,22 @@ public class TextAnalyzerDaoImplAutowiredTest {
 
 	@Test
 	public void testCreateOrUpdateSystemAnalyzerIsIdempotent() {
-		Long orgId = Long.parseLong(organizationId);
-
 		// First call inserts
-		textAnalyzerDao.createOrUpdateSystemAnalyzerForBootstrapOnly(1L, newAnalyzer("SCIENTIFIC", "V1"), orgId, adminUserId);
+		textAnalyzerDao.createOrUpdateSystemAnalyzerForBootstrapOnly(1L, newAnalyzer("SCIENTIFIC", "V1"), organizationName, adminUserId);
 		Optional<TextAnalyzer> first = textAnalyzerDao.get(1L);
 		assertTrue(first.isPresent());
 		assertEquals("V1", first.get().getDescription());
 		String firstEtag = first.get().getEtag();
 
 		// Second call with same ID updates in place
-		textAnalyzerDao.createOrUpdateSystemAnalyzerForBootstrapOnly(1L, newAnalyzer("SCIENTIFIC", "V2"), orgId, adminUserId);
+		textAnalyzerDao.createOrUpdateSystemAnalyzerForBootstrapOnly(1L, newAnalyzer("SCIENTIFIC", "V2"), organizationName, adminUserId);
 		Optional<TextAnalyzer> second = textAnalyzerDao.get(1L);
 		assertTrue(second.isPresent());
 		assertEquals("V2", second.get().getDescription());
 		assertNotEquals(firstEtag, second.get().getEtag());
 
 		// Still only one row for this org
-		assertEquals(1, textAnalyzerDao.listByOrganization(orgId, 100, 0).size());
+		assertEquals(1, textAnalyzerDao.listByOrganization(organizationName, 100, 0).size());
 	}
 
 	@Test
@@ -161,7 +161,7 @@ public class TextAnalyzerDaoImplAutowiredTest {
 
 		TextAnalyzer analyzer = new TextAnalyzer();
 		analyzer.setName("settings-roundtrip");
-		analyzer.setOrganizationId(organizationId);
+		analyzer.setOrganizationName(organizationName);
 		analyzer.setSettings(settings);
 
 		TextAnalyzer created = textAnalyzerDao.create(analyzer, adminUserId);
@@ -180,7 +180,7 @@ public class TextAnalyzerDaoImplAutowiredTest {
 		TextAnalyzer analyzer = new TextAnalyzer();
 		analyzer.setName(name);
 		analyzer.setDescription(description);
-		analyzer.setOrganizationId(organizationId);
+		analyzer.setOrganizationName(organizationName);
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
 		settings.setTokenizer("standard");
 		settings.setFilterOrder(Arrays.asList("lowercase"));

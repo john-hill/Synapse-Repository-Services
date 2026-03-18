@@ -1,7 +1,5 @@
 package org.sagebionetworks.repo.model.dbo.search;
 
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.*;
-
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -34,16 +32,16 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 
 	private static final RowMapper<ColumnAnalyzerOverride> ROW_MAPPER = (rs, rowNum) -> {
 		ColumnAnalyzerOverride dto = new ColumnAnalyzerOverride();
-		dto.setId(String.valueOf(rs.getLong(COL_COLUMN_ANALYZER_OVERRIDE_ID)));
-		dto.setEtag(rs.getString(COL_COLUMN_ANALYZER_OVERRIDE_ETAG));
-		dto.setOrganizationId(String.valueOf(rs.getLong(COL_COLUMN_ANALYZER_OVERRIDE_ORGANIZATION_ID)));
-		dto.setName(rs.getString(COL_COLUMN_ANALYZER_OVERRIDE_NAME));
-		dto.setDescription(rs.getString(COL_COLUMN_ANALYZER_OVERRIDE_DESCRIPTION));
-		dto.setOverrides(JDOSecondaryPropertyUtils.readJsonToEntityList(rs.getString(COL_COLUMN_ANALYZER_OVERRIDE_OVERRIDES), ColumnAnalyzerOverrideEntry.class));
-		dto.setCreatedBy(String.valueOf(rs.getLong(COL_COLUMN_ANALYZER_OVERRIDE_CREATED_BY)));
-		dto.setCreatedOn(new Date(rs.getTimestamp(COL_COLUMN_ANALYZER_OVERRIDE_CREATED_ON).getTime()));
-		dto.setModifiedBy(String.valueOf(rs.getLong(COL_COLUMN_ANALYZER_OVERRIDE_MODIFIED_BY)));
-		dto.setModifiedOn(new Date(rs.getTimestamp(COL_COLUMN_ANALYZER_OVERRIDE_MODIFIED_ON).getTime()));
+		dto.setId(String.valueOf(rs.getLong("ID")));
+		dto.setEtag(rs.getString("ETAG"));
+		dto.setOrganizationName(rs.getString("ORGANIZATION_NAME"));
+		dto.setName(rs.getString("NAME"));
+		dto.setDescription(rs.getString("DESCRIPTION"));
+		dto.setOverrides(JDOSecondaryPropertyUtils.readJsonToEntityList(rs.getString("OVERRIDES"), ColumnAnalyzerOverrideEntry.class));
+		dto.setCreatedBy(String.valueOf(rs.getLong("CREATED_BY")));
+		dto.setCreatedOn(new Date(rs.getTimestamp("CREATED_ON").getTime()));
+		dto.setModifiedBy(String.valueOf(rs.getLong("MODIFIED_BY")));
+		dto.setModifiedOn(new Date(rs.getTimestamp("MODIFIED_ON").getTime()));
 		return dto;
 	};
 
@@ -52,23 +50,13 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 	public ColumnAnalyzerOverride create(Long createdBy, ColumnAnalyzerOverride override) {
 		Long id = idGenerator.generateNewId(IdType.COLUMN_ANALYZER_OVERRIDE_ID);
 
-		String sql = "INSERT INTO " + TABLE_COLUMN_ANALYZER_OVERRIDE + " ("
-				+ COL_COLUMN_ANALYZER_OVERRIDE_ID + ", "
-				+ COL_COLUMN_ANALYZER_OVERRIDE_ETAG + ", "
-				+ COL_COLUMN_ANALYZER_OVERRIDE_ORGANIZATION_ID + ", "
-				+ COL_COLUMN_ANALYZER_OVERRIDE_NAME + ", "
-				+ COL_COLUMN_ANALYZER_OVERRIDE_DESCRIPTION + ", "
-				+ COL_COLUMN_ANALYZER_OVERRIDE_OVERRIDES + ", "
-				+ COL_COLUMN_ANALYZER_OVERRIDE_CREATED_BY + ", "
-				+ COL_COLUMN_ANALYZER_OVERRIDE_CREATED_ON + ", "
-				+ COL_COLUMN_ANALYZER_OVERRIDE_MODIFIED_BY + ", "
-				+ COL_COLUMN_ANALYZER_OVERRIDE_MODIFIED_ON
-				+ ") VALUES (?, UUID(), ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))";
-
 		try {
-			jdbcTemplate.update(sql,
+			jdbcTemplate.update(
+					"INSERT INTO COLUMN_ANALYZER_OVERRIDE (ID, ETAG, ORGANIZATION_NAME, NAME, DESCRIPTION,"
+					+ " OVERRIDES, CREATED_BY, CREATED_ON, MODIFIED_BY, MODIFIED_ON)"
+					+ " VALUES (?, UUID(), ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))",
 					id,
-					mapId(override.getOrganizationId(), "organizationId"),
+					override.getOrganizationName(),
 					override.getName(),
 					override.getDescription(),
 					override.getOverrides() == null ? "[]" : JDOSecondaryPropertyUtils.writeEntityListToJson(override.getOverrides()),
@@ -85,9 +73,10 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 
 	@Override
 	public Optional<ColumnAnalyzerOverride> get(String id) {
-		String sql = "SELECT * FROM " + TABLE_COLUMN_ANALYZER_OVERRIDE + " WHERE " + COL_COLUMN_ANALYZER_OVERRIDE_ID + " = ?";
 		try {
-			return Optional.ofNullable(jdbcTemplate.queryForObject(sql, ROW_MAPPER, mapId(id, "id")));
+			return Optional.ofNullable(jdbcTemplate.queryForObject(
+					"SELECT * FROM COLUMN_ANALYZER_OVERRIDE WHERE ID = ?",
+					ROW_MAPPER, Long.parseLong(id)));
 		} catch (EmptyResultDataAccessException e) {
 			return Optional.empty();
 		}
@@ -103,22 +92,15 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 					"The column analyzer override was updated since you last fetched it, please fetch it again and reapply your changes.");
 		}
 
-		String sql = "UPDATE " + TABLE_COLUMN_ANALYZER_OVERRIDE + " SET "
-				+ COL_COLUMN_ANALYZER_OVERRIDE_ETAG + " = UUID(), "
-				+ COL_COLUMN_ANALYZER_OVERRIDE_NAME + " = ?, "
-				+ COL_COLUMN_ANALYZER_OVERRIDE_DESCRIPTION + " = ?, "
-				+ COL_COLUMN_ANALYZER_OVERRIDE_OVERRIDES + " = ?, "
-				+ COL_COLUMN_ANALYZER_OVERRIDE_MODIFIED_BY + " = ?, "
-				+ COL_COLUMN_ANALYZER_OVERRIDE_MODIFIED_ON + " = NOW(3) "
-				+ "WHERE " + COL_COLUMN_ANALYZER_OVERRIDE_ID + " = ?";
-
 		try {
-			jdbcTemplate.update(sql,
+			jdbcTemplate.update(
+					"UPDATE COLUMN_ANALYZER_OVERRIDE SET ETAG = UUID(), NAME = ?, DESCRIPTION = ?,"
+					+ " OVERRIDES = ?, MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
 					override.getName(),
 					override.getDescription(),
 					override.getOverrides() == null ? "[]" : JDOSecondaryPropertyUtils.writeEntityListToJson(override.getOverrides()),
 					modifiedBy,
-					mapId(override.getId(), "id")
+					Long.parseLong(override.getId())
 			);
 		} catch (DuplicateKeyException e) {
 			handleDuplicateKeyException(e);
@@ -131,52 +113,40 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 	@Override
 	@WriteTransaction
 	public void delete(String id) {
-		String sql = "DELETE FROM " + TABLE_COLUMN_ANALYZER_OVERRIDE + " WHERE " + COL_COLUMN_ANALYZER_OVERRIDE_ID + " = ?";
 		try {
-			jdbcTemplate.update(sql, mapId(id, "id"));
+			jdbcTemplate.update("DELETE FROM COLUMN_ANALYZER_OVERRIDE WHERE ID = ?", Long.parseLong(id));
 		} catch (DataIntegrityViolationException e) {
 			throw new IllegalArgumentException("Cannot delete column analyzer override '" + id + "' because it is still referenced.", e);
 		}
 	}
 
 	@Override
-	public List<ColumnAnalyzerOverride> list(String organizationId, long limit, long offset) {
-		String sql = "SELECT * FROM " + TABLE_COLUMN_ANALYZER_OVERRIDE
-				+ " WHERE " + COL_COLUMN_ANALYZER_OVERRIDE_ORGANIZATION_ID + " = ?"
-				+ " ORDER BY " + COL_COLUMN_ANALYZER_OVERRIDE_ID
-				+ " LIMIT ? OFFSET ?";
-		return jdbcTemplate.query(sql, ROW_MAPPER, mapId(organizationId, "organizationId"), limit, offset);
+	public List<ColumnAnalyzerOverride> list(String organizationName, long limit, long offset) {
+		return jdbcTemplate.query(
+				"SELECT * FROM COLUMN_ANALYZER_OVERRIDE WHERE ORGANIZATION_NAME = ? ORDER BY ID LIMIT ? OFFSET ?",
+				ROW_MAPPER, organizationName, limit, offset);
 	}
 
 	@Override
 	public List<ColumnAnalyzerOverride> listAll(long limit, long offset) {
-		String sql = "SELECT * FROM " + TABLE_COLUMN_ANALYZER_OVERRIDE
-				+ " ORDER BY " + COL_COLUMN_ANALYZER_OVERRIDE_ID
-				+ " LIMIT ? OFFSET ?";
-		return jdbcTemplate.query(sql, ROW_MAPPER, limit, offset);
+		return jdbcTemplate.query(
+				"SELECT * FROM COLUMN_ANALYZER_OVERRIDE ORDER BY ID LIMIT ? OFFSET ?",
+				ROW_MAPPER, limit, offset);
 	}
 
 	@Override
 	@WriteTransaction
 	public void truncateAll() {
-		jdbcTemplate.update("DELETE FROM " + TABLE_COLUMN_ANALYZER_OVERRIDE + " WHERE " + COL_COLUMN_ANALYZER_OVERRIDE_ID + " > -1");
+		jdbcTemplate.update("DELETE FROM COLUMN_ANALYZER_OVERRIDE WHERE ID > -1");
 	}
 
 	private String getEtagForUpdate(String id) {
-		String sql = "SELECT " + COL_COLUMN_ANALYZER_OVERRIDE_ETAG + " FROM " + TABLE_COLUMN_ANALYZER_OVERRIDE
-				+ " WHERE " + COL_COLUMN_ANALYZER_OVERRIDE_ID + " = ? FOR UPDATE";
 		try {
-			return jdbcTemplate.queryForObject(sql, String.class, mapId(id, "id"));
+			return jdbcTemplate.queryForObject(
+					"SELECT ETAG FROM COLUMN_ANALYZER_OVERRIDE WHERE ID = ? FOR UPDATE",
+					String.class, Long.parseLong(id));
 		} catch (EmptyResultDataAccessException e) {
 			throw new NotFoundException("A column analyzer override with ID " + id + " does not exist.");
-		}
-	}
-
-	static Long mapId(String id, String fieldName) {
-		try {
-			return Long.valueOf(id);
-		} catch (NumberFormatException e) {
-			throw new IllegalArgumentException("Invalid " + fieldName + ": " + id);
 		}
 	}
 

@@ -1,9 +1,9 @@
 {
 	"description": "Request to list column analyzer overrides, optionally filtered by organization.",
 	"properties": {
-		"organizationId": {
+		"organizationName": {
 			"type": "string",
-			"description": "Optional filter by organization ID."
+			"description": "Optional filter by organization name."
 		},
 		"nextPageToken": {
 			"type": "string",

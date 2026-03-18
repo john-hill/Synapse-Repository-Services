@@ -55,7 +55,7 @@ public class ITColumnAnalyzerOverrideTest {
 		// Get org ID and an analyzer ID from bootstrapped analyzers
 		ListTextAnalyzersResponse analyzers = adminSynapse.listTextAnalyzers(new ListTextAnalyzersRequest());
 		TextAnalyzer firstAnalyzer = analyzers.getResults().get(0);
-		String orgId = firstAnalyzer.getOrganizationId();
+		String orgName = firstAnalyzer.getOrganizationName();
 		String analyzerId = firstAnalyzer.getId();
 
 		// CREATE
@@ -66,7 +66,7 @@ public class ITColumnAnalyzerOverrideTest {
 		ColumnAnalyzerOverride toCreate = new ColumnAnalyzerOverride();
 		toCreate.setName("IT_TEST_OVERRIDE");
 		toCreate.setDescription("Integration test column analyzer override");
-		toCreate.setOrganizationId(orgId);
+		toCreate.setOrganizationName(orgName);
 		toCreate.setOverrides(Arrays.asList(entry));
 
 		ColumnAnalyzerOverride created = adminSynapse.createColumnAnalyzerOverride(toCreate);
@@ -97,7 +97,7 @@ public class ITColumnAnalyzerOverrideTest {
 
 		// LIST
 		ListColumnAnalyzerOverridesRequest listRequest = new ListColumnAnalyzerOverridesRequest();
-		listRequest.setOrganizationId(orgId);
+		listRequest.setOrganizationName(orgName);
 		ListColumnAnalyzerOverridesResponse listResponse = adminSynapse.listColumnAnalyzerOverrides(listRequest);
 		assertNotNull(listResponse.getResults());
 		assertTrue(listResponse.getResults().stream().anyMatch(o -> created.getId().equals(o.getId())));

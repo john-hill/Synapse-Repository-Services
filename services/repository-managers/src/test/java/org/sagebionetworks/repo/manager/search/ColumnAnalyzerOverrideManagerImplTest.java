@@ -34,7 +34,9 @@ import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
+import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
+import org.sagebionetworks.repo.model.schema.Organization;
 import org.sagebionetworks.repo.model.table.search.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.table.search.ListColumnAnalyzerOverridesRequest;
 import org.sagebionetworks.repo.model.table.search.ListColumnAnalyzerOverridesResponse;
@@ -47,12 +49,14 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 	private ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao;
 	@Mock
 	private AccessControlListDAO aclDao;
+	@Mock
+	private OrganizationDao organizationDao;
 
 	private ColumnAnalyzerOverrideManagerImpl manager;
 
 	@BeforeEach
 	void setUp() {
-		manager = new ColumnAnalyzerOverrideManagerImpl(columnAnalyzerOverrideDao, aclDao);
+		manager = new ColumnAnalyzerOverrideManagerImpl(columnAnalyzerOverrideDao, aclDao, organizationDao);
 	}
 
 	// --- Sage employee / admin authorization ---
@@ -64,7 +68,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		user.setGroups(Set.of(1L));
 
 		assertThrows(UnauthorizedException.class, () ->
-			manager.create(user, new ColumnAnalyzerOverride().setOrganizationId("42").setName("test")));
+			manager.create(user, new ColumnAnalyzerOverride().setOrganizationName("test-org").setName("test")));
 		verifyZeroInteractions(aclDao);
 		verifyZeroInteractions(columnAnalyzerOverrideDao);
 	}
@@ -76,7 +80,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		user.setGroups(Set.of(1L));
 
 		assertThrows(UnauthorizedException.class, () ->
-			manager.update(user, new ColumnAnalyzerOverride().setId("1").setOrganizationId("42").setName("test")));
+			manager.update(user, new ColumnAnalyzerOverride().setId("1").setOrganizationName("test-org").setName("test")));
 		verifyZeroInteractions(aclDao);
 		verifyZeroInteractions(columnAnalyzerOverrideDao);
 	}
@@ -100,7 +104,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		anon.setGroups(Set.of(anon.getId()));
 
 		assertThrows(UnauthorizedException.class, () ->
-			manager.create(anon, new ColumnAnalyzerOverride().setOrganizationId("42").setName("test")));
+			manager.create(anon, new ColumnAnalyzerOverride().setOrganizationName("test-org").setName("test")));
 	}
 
 	@Test
@@ -110,7 +114,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		anon.setGroups(Set.of(anon.getId()));
 
 		assertThrows(UnauthorizedException.class, () ->
-			manager.update(anon, new ColumnAnalyzerOverride().setId("1").setOrganizationId("42").setName("test")));
+			manager.update(anon, new ColumnAnalyzerOverride().setId("1").setOrganizationName("test-org").setName("test")));
 	}
 
 	@Test
@@ -130,11 +134,12 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
+		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.CREATE)))
 			.thenReturn(AuthorizationStatus.accessDenied("no"));
 
 		assertThrows(UnauthorizedException.class, () ->
-			manager.create(user, new ColumnAnalyzerOverride().setOrganizationId("42").setName("test")));
+			manager.create(user, new ColumnAnalyzerOverride().setOrganizationName("test-org").setName("test")));
 	}
 
 	@Test
@@ -142,9 +147,10 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
+		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.CREATE)))
 			.thenReturn(AuthorizationStatus.authorized());
-		ColumnAnalyzerOverride input = new ColumnAnalyzerOverride().setOrganizationId("42").setName("test");
+		ColumnAnalyzerOverride input = new ColumnAnalyzerOverride().setOrganizationName("test-org").setName("test");
 		when(columnAnalyzerOverrideDao.create(eq(1L), any())).thenReturn(input.setId("1"));
 
 		ColumnAnalyzerOverride result = manager.create(user, input);
@@ -155,7 +161,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 	public void testAdminBypassesOrgAclOnCreate() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
-		ColumnAnalyzerOverride input = new ColumnAnalyzerOverride().setOrganizationId("42").setName("test");
+		ColumnAnalyzerOverride input = new ColumnAnalyzerOverride().setOrganizationName("test-org").setName("test");
 		when(columnAnalyzerOverrideDao.create(eq(1L), any())).thenReturn(input.setId("1"));
 
 		ColumnAnalyzerOverride result = manager.create(admin, input);
@@ -167,7 +173,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 	public void testAdminBypassesOrgAclOnUpdate() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
-		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride().setId("1").setOrganizationId("42").setName("updated");
+		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride().setId("1").setOrganizationName("test-org").setName("updated");
 		when(columnAnalyzerOverrideDao.get("1")).thenReturn(Optional.of(request));
 		when(columnAnalyzerOverrideDao.update(eq(1L), any())).thenReturn(request);
 
@@ -180,7 +186,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 	public void testAdminBypassesOrgAclOnDelete() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
-		ColumnAnalyzerOverride existing = new ColumnAnalyzerOverride().setId("1").setOrganizationId("42");
+		ColumnAnalyzerOverride existing = new ColumnAnalyzerOverride().setId("1").setOrganizationName("test-org");
 		when(columnAnalyzerOverrideDao.get("1")).thenReturn(Optional.of(existing));
 
 		manager.delete(admin, "1");
@@ -203,7 +209,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 	public void testDeleteSucceeds() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
-		ColumnAnalyzerOverride existing = new ColumnAnalyzerOverride().setId("1").setOrganizationId("42");
+		ColumnAnalyzerOverride existing = new ColumnAnalyzerOverride().setId("1").setOrganizationName("test-org");
 		when(columnAnalyzerOverrideDao.get("1")).thenReturn(Optional.of(existing));
 
 		manager.delete(admin, "1");
@@ -214,7 +220,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 	public void testDeleteFailsWhenStillReferenced() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
-		ColumnAnalyzerOverride existing = new ColumnAnalyzerOverride().setId("1").setOrganizationId("42");
+		ColumnAnalyzerOverride existing = new ColumnAnalyzerOverride().setId("1").setOrganizationName("test-org");
 		when(columnAnalyzerOverrideDao.get("1")).thenReturn(Optional.of(existing));
 		doThrow(new IllegalArgumentException("Cannot delete column analyzer override '1' because it is still referenced."))
 			.when(columnAnalyzerOverrideDao).delete("1");
@@ -245,7 +251,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 	public void testUpdateNotFoundThrows() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
-		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride().setId("999").setOrganizationId("42").setName("updated");
+		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride().setId("999").setOrganizationName("test-org").setName("updated");
 		when(columnAnalyzerOverrideDao.get("999")).thenReturn(Optional.empty());
 
 		assertThrows(NotFoundException.class, () -> manager.update(admin, request));
@@ -258,8 +264,9 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
-		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride().setId("1").setOrganizationId("42").setName("updated");
-		when(columnAnalyzerOverrideDao.get("1")).thenReturn(Optional.of(new ColumnAnalyzerOverride().setId("1").setOrganizationId("42")));
+		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride().setId("1").setOrganizationName("test-org").setName("updated");
+		when(columnAnalyzerOverrideDao.get("1")).thenReturn(Optional.of(new ColumnAnalyzerOverride().setId("1").setOrganizationName("test-org")));
+		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
 			.thenReturn(AuthorizationStatus.accessDenied("no"));
 
@@ -267,14 +274,14 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 	}
 
 	@Test
-	public void testUpdateRejectsOrgIdMismatch() {
+	public void testUpdateRejectsOrgNameMismatch() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
-		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride().setId("1").setOrganizationId("99").setName("updated");
-		when(columnAnalyzerOverrideDao.get("1")).thenReturn(Optional.of(new ColumnAnalyzerOverride().setId("1").setOrganizationId("42")));
+		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride().setId("1").setOrganizationName("other-org").setName("updated");
+		when(columnAnalyzerOverrideDao.get("1")).thenReturn(Optional.of(new ColumnAnalyzerOverride().setId("1").setOrganizationName("test-org")));
 
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.update(admin, request));
-		assertTrue(ex.getMessage().contains("organizationId cannot be changed"));
+		assertTrue(ex.getMessage().contains("organizationName cannot be changed"));
 	}
 
 	// --- Delete ACL from stored entity ---
@@ -284,8 +291,9 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
-		ColumnAnalyzerOverride existing = new ColumnAnalyzerOverride().setId("1").setOrganizationId("99");
+		ColumnAnalyzerOverride existing = new ColumnAnalyzerOverride().setId("1").setOrganizationName("other-org");
 		when(columnAnalyzerOverrideDao.get("1")).thenReturn(Optional.of(existing));
+		when(organizationDao.getOrganizationByName("other-org")).thenReturn(new Organization().setId("99"));
 		when(aclDao.canAccess(any(UserInfo.class), eq("99"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.DELETE)))
 			.thenReturn(AuthorizationStatus.accessDenied("no"));
 
@@ -296,7 +304,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 	// --- List / pagination ---
 
 	@Test
-	public void testListAllWhenNoOrgId() {
+	public void testListAllWhenNoOrgName() {
 		ColumnAnalyzerOverride item = new ColumnAnalyzerOverride().setId("1");
 		when(columnAnalyzerOverrideDao.listAll(anyLong(), anyLong()))
 			.thenReturn(Arrays.asList(item));
@@ -312,11 +320,11 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 	@Test
 	public void testListDelegatesToDaoWithPagination() {
 		ColumnAnalyzerOverride item = new ColumnAnalyzerOverride().setId("1");
-		when(columnAnalyzerOverrideDao.list(eq("42"), anyLong(), anyLong()))
+		when(columnAnalyzerOverrideDao.list(eq("test-org"), anyLong(), anyLong()))
 			.thenReturn(Arrays.asList(item));
 
 		ListColumnAnalyzerOverridesRequest request = new ListColumnAnalyzerOverridesRequest();
-		request.setOrganizationId("42");
+		request.setOrganizationName("test-org");
 
 		ListColumnAnalyzerOverridesResponse response = manager.list(new UserInfo(false), request);
 		assertEquals(1, response.getResults().size());

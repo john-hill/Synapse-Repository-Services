@@ -10,7 +10,7 @@ public interface ColumnAnalyzerOverrideDao {
 	Optional<ColumnAnalyzerOverride> get(String id);
 	ColumnAnalyzerOverride update(Long modifiedBy, ColumnAnalyzerOverride override);
 	void delete(String id);
-	List<ColumnAnalyzerOverride> list(String organizationId, long limit, long offset);
+	List<ColumnAnalyzerOverride> list(String organizationName, long limit, long offset);
 	List<ColumnAnalyzerOverride> listAll(long limit, long offset);
 	void truncateAll();
 }

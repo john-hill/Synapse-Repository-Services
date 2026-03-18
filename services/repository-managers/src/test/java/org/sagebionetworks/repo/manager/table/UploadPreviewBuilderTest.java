@@ -851,6 +851,41 @@ public class UploadPreviewBuilderTest {
 	}
 	
 	@Test
+	public void testBuildResultWithJSONData() throws IOException {
+		List<String[]> input = new ArrayList<String[]>(3);
+		input.add(new String[] { "aString", "intArray", "stringArray", "jsonObject" });
+		input.add(new String[] { "nulls", null, null, null });
+		input.add(new String[] { "empty", "", "", "" });
+		input.add(new String[] { "one", "[]", "[]", "{}" });
+		input.add(
+				new String[] { "two", "[1,2,3]", "[\"a\",\"b\",\"c\"]", "{ \"a\":true, \"b\":111, \"c1\":\"value\"}" });
+		String eachTypeCSV = TableModelTestUtils.createCSVString(input);
+		CsvTableDescriptor descriptor = new CsvTableDescriptor();
+		descriptor.setIsFirstLineHeader(true);
+		UploadToTablePreviewRequest request = new UploadToTablePreviewRequest();
+		request.setCsvTableDescriptor(descriptor);
+
+		StringReader sReader = new StringReader(eachTypeCSV);
+		CSVReader reader = new CSVReader(sReader);
+		UploadPreviewBuilder builder = new UploadPreviewBuilder(reader, request);
+		// call under test
+		UploadToTablePreviewResult result = builder.buildResult();
+		assertNotNull(result);
+		assertNotNull(result.getSuggestedColumns());
+		List<ColumnModel> expected = List.of(
+				//
+				new ColumnModel().setName("aString").setColumnType(ColumnType.STRING).setMaximumSize(5L),
+				//
+				new ColumnModel().setName("intArray").setColumnType(ColumnType.INTEGER_LIST),
+				//
+				new ColumnModel().setName("stringArray").setColumnType(ColumnType.STRING_LIST),
+				//
+				new ColumnModel().setName("jsonObject").setColumnType(ColumnType.JSON));
+		assertEquals(expected, result.getSuggestedColumns());
+
+	}
+	
+	@Test
 	public void testParseAsLong(){
 		assertEquals(null, UploadPreviewBuilder.parseAsLong(null));
 		assertEquals(null, UploadPreviewBuilder.parseAsLong(""));

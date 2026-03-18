@@ -3,6 +3,9 @@ package org.sagebionetworks.table.cluster.utils;
 import java.io.Reader;
 import java.io.Writer;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.sagebionetworks.repo.model.table.ColumnConstants;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
@@ -111,7 +114,7 @@ public class CSVUtils {
 	/**
 	 * Check if the given value is compatible with the given columnType.
 	 * If not, a ColumnModel that is compatible will be found and returned.
-	 * 
+	 *
 	 * @param value If null, then the currentType will be returned.
 	 * @param currentType If null, then a compatible type will be returned.
 	 * @return
@@ -121,12 +124,34 @@ public class CSVUtils {
 		if(value == null || "".equals(value.trim())){
 			return currentType;
 		}
+		// Empty JSON arrays provide no element type information, treat as no data.
+		if (isEmptyJsonArray(value)) {
+			return currentType;
+		}
 		long currentMaxSize = 0;
 		if(currentType != null){
 			currentMaxSize = currentType.getMaximumSize();
 		}
-		// The current type determines where lookup starts.
-		int startIndex = findIndexOf(currentType);
+		boolean currentIsJsonType = currentType != null && isJsonColumnType(currentType.getColumnType());
+		ColumnType detectedJsonType = detectJsonColumnType(value);
+		// If both are JSON types (or first value is JSON), resolve within the JSON type hierarchy
+		if (detectedJsonType != null && (currentType == null || currentIsJsonType)) {
+			ColumnType resolvedType = currentIsJsonType
+					? widenJsonType(currentType.getColumnType(), detectedJsonType)
+					: detectedJsonType;
+			ColumnModel cm = new ColumnModel();
+			cm.setColumnType(resolvedType);
+			cm.setMaximumSize(Math.max(value.length(), currentMaxSize));
+			return cm;
+		}
+		// If current is a JSON type but new value is not JSON (or vice versa), fall to STRING+ detection.
+		// JSON types are not in typesToCheck, so start from STRING when transitioning away from JSON.
+		int startIndex;
+		if (currentIsJsonType) {
+			startIndex = findIndexOfType(ColumnType.STRING);
+		} else {
+			startIndex = findIndexOf(currentType);
+		}
 		// Try each type in order
 		for(int i=startIndex; i<typesToCheck.length; i++){
 			ColumnModel cm = new ColumnModel();
@@ -145,7 +170,7 @@ public class CSVUtils {
 		// We failed to match a type
 		throw new IllegalArgumentException(ERROR_CELLS_EXCEED_MAX);
 	}
-	
+
 	/**
 	 * Find the index of the given ColumnModel from the typesToCheck.
 	 * @param currentType
@@ -155,12 +180,105 @@ public class CSVUtils {
 		if(currentType == null){
 			return 0;
 		}
-		for(int i=0; i<typesToCheck.length; i++){
-			if(typesToCheck[i].equals(currentType.getColumnType())){
+		return findIndexOfType(currentType.getColumnType());
+	}
+
+	/**
+	 * Find the index of the given ColumnType from the typesToCheck.
+	 * @param type
+	 * @return
+	 */
+	static int findIndexOfType(ColumnType type) {
+		for (int i = 0; i < typesToCheck.length; i++) {
+			if (typesToCheck[i].equals(type)) {
 				return i;
 			}
 		}
-		throw new IllegalArgumentException("Unkown ColumnType: "+currentType.getColumnType());
+		throw new IllegalArgumentException("Unkown ColumnType: " + type);
+	}
+
+	/**
+	 * @return true if the value is a JSON array with no elements.
+	 */
+	static boolean isEmptyJsonArray(String value) {
+		String trimmed = value.trim();
+		if (!trimmed.startsWith("[")) {
+			return false;
+		}
+		try {
+			return new JSONArray(trimmed).length() == 0;
+		} catch (JSONException e) {
+			return false;
+		}
+	}
+
+	/**
+	 * @return true if the given type is a JSON or LIST column type that is detected from JSON values.
+	 */
+	static boolean isJsonColumnType(ColumnType type) {
+		return type == ColumnType.JSON
+				|| type == ColumnType.INTEGER_LIST
+				|| type == ColumnType.STRING_LIST;
+	}
+
+	/**
+	 * Attempt to detect a JSON column type from the given value.
+	 *
+	 * @return The detected JSON column type, or null if the value is not JSON or is an empty array.
+	 */
+	static ColumnType detectJsonColumnType(String value) {
+		String trimmed = value.trim();
+		if (trimmed.startsWith("{")) {
+			try {
+				new JSONObject(trimmed);
+				return ColumnType.JSON;
+			} catch (JSONException e) {
+				return null;
+			}
+		}
+		if (trimmed.startsWith("[")) {
+			try {
+				JSONArray array = new JSONArray(trimmed);
+				// Empty arrays are handled by isEmptyJsonArray() before this method is called
+				for (int i = 0; i < array.length(); i++) {
+					if (array.isNull(i)) {
+						return ColumnType.JSON;
+					}
+					Object elem = array.get(i);
+					if (elem instanceof JSONObject || elem instanceof JSONArray) {
+						return ColumnType.JSON;
+					}
+				}
+				// Check if all elements are valid integers
+				boolean allIntegers = true;
+				for (int i = 0; i < array.length(); i++) {
+					try {
+						Long.parseLong(array.getString(i));
+					} catch (NumberFormatException e) {
+						allIntegers = false;
+						break;
+					}
+				}
+				return allIntegers ? ColumnType.INTEGER_LIST : ColumnType.STRING_LIST;
+			} catch (JSONException e) {
+				return null;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Given two JSON column types, return the wider of the two.
+	 * Hierarchy (narrow to wide): INTEGER_LIST < STRING_LIST < JSON
+	 */
+	static ColumnType widenJsonType(ColumnType current, ColumnType detected) {
+		if (current == ColumnType.JSON || detected == ColumnType.JSON) {
+			return ColumnType.JSON;
+		}
+		if (current == ColumnType.STRING_LIST || detected == ColumnType.STRING_LIST) {
+			return ColumnType.STRING_LIST;
+		}
+		return ColumnType.INTEGER_LIST;
 	}
 
 	/**

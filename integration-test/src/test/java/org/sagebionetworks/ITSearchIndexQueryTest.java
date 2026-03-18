@@ -28,7 +28,7 @@ public class ITSearchIndexQueryTest {
 	public void testSearchIndexQueryRoundTrip() throws Exception {
 		SearchQuery request = new SearchQuery();
 		request.setSearchIndexId("syn123");
-		request.setQueryTerm("test");
+		request.setQueryText("test");
 
 		AsyncJobHelper.assertAysncJobResult(synapse, AsynchJobType.SearchIndexQuery, request,
 				(SearchResults results) -> {
@@ -43,7 +43,7 @@ public class ITSearchIndexQueryTest {
 	public void testSearchAutocomplete() throws Exception {
 		SearchQuery request = new SearchQuery();
 		request.setSearchIndexId("syn123");
-		request.setQueryTerm("test");
+		request.setQueryText("test");
 
 		SearchResults results = synapse.searchAutocomplete(request);
 

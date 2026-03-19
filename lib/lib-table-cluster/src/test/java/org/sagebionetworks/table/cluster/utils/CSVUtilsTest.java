@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.StringReader;
 import java.util.Arrays;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.sagebionetworks.repo.model.table.ColumnConstants;
@@ -598,8 +599,9 @@ public class CSVUtilsTest {
 				.setMaximumListLength(1L);
 		// call under test
 		ColumnModel cm = CSVUtils.checkType("[\"a\",\"b\"]", current);
+		// maximumSize is max of current (4) and longest element "a"/"b" (1) = 4
 		assertEquals(
-				new ColumnModel().setColumnType(ColumnType.STRING_LIST).setMaximumSize(9L).setMaximumListLength(2L),
+				new ColumnModel().setColumnType(ColumnType.STRING_LIST).setMaximumSize(4L).setMaximumListLength(2L),
 				cm);
 	}
 
@@ -614,39 +616,42 @@ public class CSVUtilsTest {
 	}
 
 	@Test
-	public void testCalculateListMaxSizeWithNonListType() {
-		assertEquals(null, CSVUtils.calcualteListMaxSize(ColumnType.STRING, 5L, "[1,2,3]"));
+	public void testParseListValueWithValidArray() {
+		Optional<CSVUtils.ListInfo> result = CSVUtils.parseListValue("[\"a\",\"bb\",\"ccc\"]");
+		assertTrue(result.isPresent());
+		assertEquals(3, result.get().listSize);
+		assertEquals(3, result.get().maxElementSize);
 	}
 
 	@Test
-	public void testCalculateListMaxSizeWithNullCurrentMaxSize() {
-		assertEquals(Long.valueOf(3), CSVUtils.calcualteListMaxSize(ColumnType.INTEGER_LIST, null, "[1,2,3]"));
+	public void testParseListValueWithEmptyArray() {
+		Optional<CSVUtils.ListInfo> result = CSVUtils.parseListValue("[]");
+		assertTrue(result.isPresent());
+		assertEquals(0, result.get().listSize);
+		assertEquals(0, result.get().maxElementSize);
 	}
 
 	@Test
-	public void testCalculateListMaxSizeWithNonJsonValue() {
-		assertEquals(Long.valueOf(5), CSVUtils.calcualteListMaxSize(ColumnType.INTEGER_LIST, 5L, "not json"));
+	public void testParseListValueWithNotAnArray() {
+		assertFalse(CSVUtils.parseListValue("not json").isPresent());
 	}
 
 	@Test
-	public void testCalculateListMaxSizeWithBothNonNull() {
-		assertEquals(Long.valueOf(5), CSVUtils.calcualteListMaxSize(ColumnType.INTEGER_LIST, 5L, "[1,2,3]"));
-		assertEquals(Long.valueOf(4), CSVUtils.calcualteListMaxSize(ColumnType.INTEGER_LIST, 2L, "[1,2,3,4]"));
+	public void testParseListValueWithJsonObject() {
+		assertFalse(CSVUtils.parseListValue("{\"a\":1}").isPresent());
 	}
 
 	@Test
-	public void testValueListSizeWithValidArray() {
-		assertEquals(Long.valueOf(3), CSVUtils.valueListSize("[1,2,3]"));
+	public void testParseListValueWithInvalidBracketString() {
+		assertFalse(CSVUtils.parseListValue("[not json").isPresent());
 	}
 
 	@Test
-	public void testValueListSizeWithInvalidJson() {
-		assertEquals(null, CSVUtils.valueListSize("not json"));
-	}
-
-	@Test
-	public void testValueListSizeWithEmptyArray() {
-		assertEquals(Long.valueOf(0), CSVUtils.valueListSize("[]"));
+	public void testParseListValueWithIntegerArray() {
+		Optional<CSVUtils.ListInfo> result = CSVUtils.parseListValue("[1,2,3]");
+		assertTrue(result.isPresent());
+		assertEquals(3, result.get().listSize);
+		assertEquals(1, result.get().maxElementSize);
 	}
 
 	/**

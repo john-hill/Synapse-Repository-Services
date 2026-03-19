@@ -1,6 +1,7 @@
 package org.sagebionetworks.table.cluster.utils;
 
 import java.io.Reader;
+import java.util.Optional;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -150,23 +151,38 @@ public class CSVUtils {
 		if(value == null || "".equals(value.trim())){
 			return currentType;
 		}
+		// Parse the value as a JSON array once for use during the type scan.
+		Optional<ListInfo> listInfo = parseListValue(value);
 		// Empty JSON arrays provide no element type information, treat as no data.
-		if (isEmptyJsonArray(value)) {
+		if (listInfo.isPresent() && listInfo.get().listSize == 0) {
 			return currentType;
 		}
 		long currentMaxSize = 0;
 		if(currentType != null){
 			currentMaxSize = currentType.getMaximumSize();
 		}
-		Long currentListSize = currentType != null? currentType.getMaximumListLength():null;
+		Long currentListSize = currentType != null ? currentType.getMaximumListLength() : null;
 		int startIndex = findIndexOf(currentType);
 		// Try each type in order
 		for(int i=startIndex; i<typesToCheck.length; i++){
+			ColumnType type = typesToCheck[i];
 			ColumnModel cm = new ColumnModel();
-			cm.setColumnType(typesToCheck[i]);
-			long maxSize = Math.max(value.length(), currentMaxSize);
+			cm.setColumnType(type);
+			long maxSize;
+			if (listInfo.isPresent() && type == ColumnType.STRING_LIST) {
+				maxSize = Math.max(listInfo.get().maxElementSize, currentMaxSize);
+			} else {
+				maxSize = Math.max(value.length(), currentMaxSize);
+			}
 			cm.setMaximumSize(maxSize);
-			cm.setMaximumListLength(calcualteListMaxSize(cm.getColumnType(), currentListSize, value));
+			if (ColumnTypeListMappings.isList(type)) {
+				if (listInfo.isPresent()) {
+					long valueListSize = listInfo.get().listSize;
+					cm.setMaximumListLength(currentListSize != null ? Math.max(valueListSize, currentListSize) : valueListSize);
+				} else {
+					cm.setMaximumListLength(currentListSize);
+				}
+			}
 			try {
 				TableModelUtils.validateValue(value, cm);
 				// We have a match.
@@ -179,26 +195,37 @@ public class CSVUtils {
 		// We failed to match a type
 		throw new IllegalArgumentException(ERROR_CELLS_EXCEED_MAX);
 	}
-	
-	static Long calcualteListMaxSize(ColumnType type, Long currentMaxSize, String value) {
-		if(!ColumnTypeListMappings.isList(type)) {
-			return null;
+
+	static class ListInfo {
+		final long listSize;
+		final long maxElementSize;
+
+		ListInfo(long listSize, long maxElementSize) {
+			this.listSize = listSize;
+			this.maxElementSize = maxElementSize;
 		}
-		Long valueListSize  = valueListSize(value);
-		if(currentMaxSize == null) {
-			return valueListSize;
-		}
-		if(valueListSize == null) {
-			return currentMaxSize;
-		}
-		return Math.max(currentMaxSize, valueListSize);
 	}
-	
-	static Long valueListSize(String value) {
+
+	/**
+	 * Parse the value as a JSON array and return the list size and max element string length.
+	 * @return Empty if the value does not start with '[' or is not a valid JSON array.
+	 */
+	static Optional<ListInfo> parseListValue(String value) {
+		String trimmed = value.trim();
+		if (!trimmed.startsWith("[")) {
+			return Optional.empty();
+		}
 		try {
-			return Long.valueOf(new JSONArray(value).length());
-		} catch (Exception e) {
-			return null;
+			JSONArray array = new JSONArray(trimmed);
+			long maxElementSize = 0;
+			for (int i = 0; i < array.length(); i++) {
+				if (!array.isNull(i)) {
+					maxElementSize = Math.max(maxElementSize, array.getString(i).length());
+				}
+			}
+			return Optional.of(new ListInfo(array.length(), maxElementSize));
+		} catch (JSONException e) {
+			return Optional.empty();
 		}
 	}
 
@@ -226,21 +253,6 @@ public class CSVUtils {
 			}
 		}
 		throw new IllegalArgumentException("Unkown ColumnType: " + type);
-	}
-
-	/**
-	 * @return true if the value is a JSON array with no elements.
-	 */
-	static boolean isEmptyJsonArray(String value) {
-		String trimmed = value.trim();
-		if (!trimmed.startsWith("[")) {
-			return false;
-		}
-		try {
-			return new JSONArray(trimmed).length() == 0;
-		} catch (JSONException e) {
-			return false;
-		}
 	}
 
 	/**

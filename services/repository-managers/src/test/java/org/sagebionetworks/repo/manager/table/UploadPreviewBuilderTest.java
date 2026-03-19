@@ -876,9 +876,9 @@ public class UploadPreviewBuilderTest {
 				//
 				new ColumnModel().setName("aString").setColumnType(ColumnType.STRING).setMaximumSize(5L),
 				//
-				new ColumnModel().setName("intArray").setColumnType(ColumnType.INTEGER_LIST),
+				new ColumnModel().setName("intArray").setColumnType(ColumnType.INTEGER_LIST).setMaximumListLength(3L),
 				//
-				new ColumnModel().setName("stringArray").setColumnType(ColumnType.STRING_LIST),
+				new ColumnModel().setName("stringArray").setColumnType(ColumnType.STRING_LIST).setMaximumListLength(3L),
 				//
 				new ColumnModel().setName("jsonObject").setColumnType(ColumnType.JSON));
 		assertEquals(expected, result.getSuggestedColumns());

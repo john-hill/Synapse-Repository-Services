@@ -1,19 +1,18 @@
 package org.sagebionetworks.table.cluster.utils;
 
 import java.io.Reader;
-import java.io.Writer;
 
 import org.json.JSONArray;
 import org.json.JSONException;
-import org.json.JSONObject;
 import org.sagebionetworks.repo.model.table.ColumnConstants;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 import org.sagebionetworks.repo.model.table.UploadToTablePreviewRequest;
+import org.sagebionetworks.table.query.util.ColumnTypeListMappings;
+import org.sagebionetworks.util.ValidateArgument;
 
 import au.com.bytecode.opencsv.CSVReader;
-import au.com.bytecode.opencsv.CSVWriter;
 import au.com.bytecode.opencsv.Constants;
 
 public class CSVUtils {
@@ -22,7 +21,31 @@ public class CSVUtils {
 	/**
 	 * When searching for a type this setups the order we check for.  Not all types are included.
 	 */
-	private static final ColumnType[] typesToCheck = new ColumnType[]{ColumnType.BOOLEAN, ColumnType.INTEGER, ColumnType.DOUBLE, ColumnType.DATE, ColumnType.ENTITYID, ColumnType.STRING, ColumnType.MEDIUMTEXT, ColumnType.LARGETEXT};
+	private static final ColumnType[] typesToCheck = new ColumnType[] {
+			//
+			ColumnType.BOOLEAN_LIST,
+			//
+			ColumnType.INTEGER_LIST,
+			//
+			ColumnType.STRING_LIST,
+			//
+			ColumnType.JSON,
+			//
+			ColumnType.BOOLEAN,
+			//
+			ColumnType.INTEGER,
+			//
+			ColumnType.DOUBLE,
+			//
+			ColumnType.DATE,
+			//
+			ColumnType.ENTITYID,
+			//
+			ColumnType.STRING,
+			//
+			ColumnType.MEDIUMTEXT,
+			//
+			ColumnType.LARGETEXT };
 
 	/**
 	 * Create CSVReader with the correct parameters using the provided parameters or default values.
@@ -120,6 +143,9 @@ public class CSVUtils {
 	 * @return
 	 */
 	public static ColumnModel checkType(String value, ColumnModel currentType) {
+		if(currentType != null) {
+			ValidateArgument.required(currentType.getMaximumSize(), "maximumSize");
+		}
 		// We can tell nothing from null or empty cells.
 		if(value == null || "".equals(value.trim())){
 			return currentType;
@@ -132,32 +158,15 @@ public class CSVUtils {
 		if(currentType != null){
 			currentMaxSize = currentType.getMaximumSize();
 		}
-		boolean currentIsJsonType = currentType != null && isJsonColumnType(currentType.getColumnType());
-		ColumnType detectedJsonType = detectJsonColumnType(value);
-		// If both are JSON types (or first value is JSON), resolve within the JSON type hierarchy
-		if (detectedJsonType != null && (currentType == null || currentIsJsonType)) {
-			ColumnType resolvedType = currentIsJsonType
-					? widenJsonType(currentType.getColumnType(), detectedJsonType)
-					: detectedJsonType;
-			ColumnModel cm = new ColumnModel();
-			cm.setColumnType(resolvedType);
-			cm.setMaximumSize(Math.max(value.length(), currentMaxSize));
-			return cm;
-		}
-		// If current is a JSON type but new value is not JSON (or vice versa), fall to STRING+ detection.
-		// JSON types are not in typesToCheck, so start from STRING when transitioning away from JSON.
-		int startIndex;
-		if (currentIsJsonType) {
-			startIndex = findIndexOfType(ColumnType.STRING);
-		} else {
-			startIndex = findIndexOf(currentType);
-		}
+		Long currentListSize = currentType != null? currentType.getMaximumListLength():null;
+		int startIndex = findIndexOf(currentType);
 		// Try each type in order
 		for(int i=startIndex; i<typesToCheck.length; i++){
 			ColumnModel cm = new ColumnModel();
 			cm.setColumnType(typesToCheck[i]);
 			long maxSize = Math.max(value.length(), currentMaxSize);
 			cm.setMaximumSize(maxSize);
+			cm.setMaximumListLength(calcualteListMaxSize(cm.getColumnType(), currentListSize, value));
 			try {
 				TableModelUtils.validateValue(value, cm);
 				// We have a match.
@@ -169,6 +178,28 @@ public class CSVUtils {
 		}
 		// We failed to match a type
 		throw new IllegalArgumentException(ERROR_CELLS_EXCEED_MAX);
+	}
+	
+	static Long calcualteListMaxSize(ColumnType type, Long currentMaxSize, String value) {
+		if(!ColumnTypeListMappings.isList(type)) {
+			return null;
+		}
+		Long valueListSize  = valueListSize(value);
+		if(currentMaxSize == null) {
+			return valueListSize;
+		}
+		if(valueListSize == null) {
+			return currentMaxSize;
+		}
+		return Math.max(currentMaxSize, valueListSize);
+	}
+	
+	static Long valueListSize(String value) {
+		try {
+			return Long.valueOf(new JSONArray(value).length());
+		} catch (Exception e) {
+			return null;
+		}
 	}
 
 	/**
@@ -210,75 +241,6 @@ public class CSVUtils {
 		} catch (JSONException e) {
 			return false;
 		}
-	}
-
-	/**
-	 * @return true if the given type is a JSON or LIST column type that is detected from JSON values.
-	 */
-	static boolean isJsonColumnType(ColumnType type) {
-		return type == ColumnType.JSON
-				|| type == ColumnType.INTEGER_LIST
-				|| type == ColumnType.STRING_LIST;
-	}
-
-	/**
-	 * Attempt to detect a JSON column type from the given value.
-	 *
-	 * @return The detected JSON column type, or null if the value is not JSON or is an empty array.
-	 */
-	static ColumnType detectJsonColumnType(String value) {
-		String trimmed = value.trim();
-		if (trimmed.startsWith("{")) {
-			try {
-				new JSONObject(trimmed);
-				return ColumnType.JSON;
-			} catch (JSONException e) {
-				return null;
-			}
-		}
-		if (trimmed.startsWith("[")) {
-			try {
-				JSONArray array = new JSONArray(trimmed);
-				// Empty arrays are handled by isEmptyJsonArray() before this method is called
-				for (int i = 0; i < array.length(); i++) {
-					if (array.isNull(i)) {
-						return ColumnType.JSON;
-					}
-					Object elem = array.get(i);
-					if (elem instanceof JSONObject || elem instanceof JSONArray) {
-						return ColumnType.JSON;
-					}
-				}
-				// Check if all elements are valid integers
-				boolean allIntegers = true;
-				for (int i = 0; i < array.length(); i++) {
-					try {
-						Long.parseLong(array.getString(i));
-					} catch (NumberFormatException e) {
-						allIntegers = false;
-						break;
-					}
-				}
-				return allIntegers ? ColumnType.INTEGER_LIST : ColumnType.STRING_LIST;
-			} catch (JSONException e) {
-				return null;
-			}
-		}
-		return null;
-	}
-
-	/**
-	 * Given two JSON column types, return the wider of the two.
-	 * Hierarchy (narrow to wide): INTEGER_LIST < STRING_LIST < JSON
-	 */
-	static ColumnType widenJsonType(ColumnType current, ColumnType detected) {
-		if (current == ColumnType.JSON || detected == ColumnType.JSON) {
-			return ColumnType.JSON;
-		}
-		if (current == ColumnType.STRING_LIST || detected == ColumnType.STRING_LIST) {
-			return ColumnType.STRING_LIST;
-		}
-		return ColumnType.INTEGER_LIST;
 	}
 
 	/**

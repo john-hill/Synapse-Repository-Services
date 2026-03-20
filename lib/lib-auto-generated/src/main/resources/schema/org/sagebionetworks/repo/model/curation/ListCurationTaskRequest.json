@@ -12,6 +12,10 @@
       },
       "description": "Optional. Filter tasks assigned to specific users or teams."
     },
+    "assignedToMe": {
+      "type": "boolean",
+      "description": "Optional. When true, filter to tasks assigned to the caller or any team the caller belongs to. Cannot be combined with assigneeIds."
+    },
     "stateFilter": {
       "type": "array",
       "items": {

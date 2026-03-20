@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -251,6 +252,48 @@ public class CurationTaskManagerImplUnitTest {
 	}
 
     @Test
+    public void testGetCurationTasksWithAssignedToMe() {
+        Long teamId = 555L;
+        Set<Long> groups = new HashSet<>(Arrays.asList(userId, teamId));
+        userInfo.setGroups(groups);
+
+        ListCurationTaskRequest request = new ListCurationTaskRequest()
+                .setProjectId(projectId)
+                .setAssignedToMe(true);
+
+        CurationTask task1 = createCurationTask(CurationTaskPropertiesType.FILE_BASED);
+        TaskBundle bundle1 = new TaskBundle().setTask(task1);
+        List<TaskBundle> bundles = Arrays.asList(bundle1);
+
+        when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.READ)))
+                .thenReturn(mockAuthorizationStatus);
+        when(mockCurationTaskDao.getCurationTaskBundles(eq(List.of(KeyFactory.stringToKey(projectId))),
+                eq(new ArrayList<>(groups)), eq(null), anyLong(), anyLong())).thenReturn(bundles);
+
+        // Call under test
+        ListCurationTaskResponse response = curationTaskManager.getCurationTasks(userInfo, request);
+
+        assertEquals(Arrays.asList(task1), response.getPage());
+        assertEquals(bundles, response.getBundlePage());
+    }
+
+    @Test
+    public void testGetCurationTasksWithAssignedToMeAndAssigneeIds() {
+        ListCurationTaskRequest request = new ListCurationTaskRequest()
+                .setProjectId(projectId)
+                .setAssignedToMe(true)
+                .setAssigneeIds(List.of("111"));
+
+        // Call under test
+        String message = assertThrows(IllegalArgumentException.class, () -> {
+            curationTaskManager.getCurationTasks(userInfo, request);
+        }).getMessage();
+        assertTrue(message.contains("Cannot specify both"));
+
+        verifyZeroInteractions(mockCurationTaskDao, mockAclManager);
+    }
+
+    @Test
     public void testGetCurationTasksWithNoProjectId() {
         ListCurationTaskRequest request = new ListCurationTaskRequest();
 
@@ -304,6 +347,33 @@ public class CurationTaskManagerImplUnitTest {
         assertNotNull(response);
         assertTrue(response.getPage().isEmpty());
         assertTrue(response.getBundlePage().isEmpty());
+    }
+
+    @Test
+    public void testGetTaskStatus() {
+        CurationTask task = new CurationTask().setTaskId(taskId).setProjectId(projectId);
+        TaskStatus expectedStatus = new TaskStatus().setTaskId(taskId).setState(TaskState.NOT_STARTED);
+
+        when(mockCurationTaskDao.getCurationTask(taskId)).thenReturn(Optional.of(task));
+        when(mockAuthorizationManager.canAccess(eq(userInfo), eq(projectId), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.READ)))
+                .thenReturn(mockAuthorizationStatus);
+        when(mockCurationTaskDao.getTaskStatus(taskId)).thenReturn(expectedStatus);
+
+        // Call under test
+        TaskStatus result = curationTaskManager.getTaskStatus(userInfo, taskId);
+
+        assertSame(expectedStatus, result);
+        verify(mockCurationTaskDao).getTaskStatus(taskId);
+    }
+
+    @Test
+    public void testGetTaskStatusTaskNotFound() {
+        when(mockCurationTaskDao.getCurationTask(taskId)).thenReturn(Optional.empty());
+
+        // Call under test
+        NotFoundException ex = assertThrows(NotFoundException.class,
+                () -> curationTaskManager.getTaskStatus(userInfo, taskId));
+        assertTrue(ex.getMessage().contains("Task not found"));
     }
 
     @Test

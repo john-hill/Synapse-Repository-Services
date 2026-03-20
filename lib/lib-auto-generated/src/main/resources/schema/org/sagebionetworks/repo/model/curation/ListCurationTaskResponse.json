@@ -6,7 +6,7 @@
       "items": {
         "$ref": "org.sagebionetworks.repo.model.curation.CurationTask"
       },
-      "description": "A list of task definitions only. Use 'bundlePage' for task status info."
+      "description": "Deprecated. Use 'bundlePage' instead. A list of task definitions only."
     },
     "bundlePage": {
       "type": "array",

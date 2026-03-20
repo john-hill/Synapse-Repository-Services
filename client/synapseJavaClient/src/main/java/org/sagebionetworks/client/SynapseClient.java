@@ -4666,6 +4666,8 @@ public interface SynapseClient extends BaseClient {
 
     ListCurationTaskResponse listMetadataTasks(ListCurationTaskRequest request) throws SynapseException;
 
+    TaskStatus getTaskStatus(Long taskId) throws SynapseException;
+
     TaskStatus updateTaskStatus(Long taskId, TaskStatus statusUpdate) throws SynapseException;
 
     RealmIdList listRealmIds() throws SynapseException ;

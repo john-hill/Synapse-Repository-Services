@@ -19,5 +19,7 @@ public interface CurationTaskService {
 
     ListCurationTaskResponse getCurationTasks(Long userId, ListCurationTaskRequest request);
 
+    TaskStatus getTaskStatus(Long userId, Long taskId);
+
     TaskStatus updateTaskStatus(Long userId, Long taskId, TaskStatus statusUpdate);
 }

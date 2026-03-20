@@ -6629,6 +6629,11 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
     }
 
     @Override
+    public TaskStatus getTaskStatus(Long taskId) throws SynapseException {
+        return getJSONEntity(getRepoEndpoint(), "/curation/task/" + taskId + "/status", TaskStatus.class);
+    }
+
+    @Override
     public TaskStatus updateTaskStatus(Long taskId, TaskStatus statusUpdate) throws SynapseException {
         return putJSONEntity(getRepoEndpoint(), "/curation/task/" + taskId + "/status", statusUpdate, TaskStatus.class);
     }

@@ -154,6 +154,24 @@ public class CurationTaskController {
     }
 
     /**
+     * Get the current status of a CurationTask. This is useful for fetching a fresh etag after
+     * a conflicting update (409).
+     *
+     * @param userId
+     * @param taskId the ID of the CurationTask
+     * @return the current TaskStatus
+     */
+    @RequiredScope({view})
+    @ResponseStatus(HttpStatus.OK)
+    @RequestMapping(value = UrlHelpers.CURATION_TASK_STATUS, method = RequestMethod.GET)
+    public @ResponseBody
+    TaskStatus getTaskStatus(
+            @RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+            @PathVariable Long taskId) {
+        return service.getTaskStatus(userId, taskId);
+    }
+
+    /**
      * Update the status of a CurationTask. The caller must have UPDATE access on the task's project
      * or be an assignee of the task.
      *

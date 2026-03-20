@@ -57,6 +57,12 @@ public class CurationTaskServiceImpl implements CurationTaskService {
     }
 
     @Override
+    public TaskStatus getTaskStatus(Long userId, Long taskId) {
+        UserInfo userInfo = userManager.getUserInfo(userId);
+        return curationTaskManager.getTaskStatus(userInfo, taskId);
+    }
+
+    @Override
     public TaskStatus updateTaskStatus(Long userId, Long taskId, TaskStatus statusUpdate) {
         UserInfo userInfo = userManager.getUserInfo(userId);
         return curationTaskManager.updateTaskStatus(userInfo, taskId, statusUpdate);

@@ -97,9 +97,18 @@ public class CurationTaskManagerImpl implements CurationTaskManager {
     public ListCurationTaskResponse getCurationTasks(UserInfo userInfo, ListCurationTaskRequest request) {
         NextPageToken token = new NextPageToken(request.getNextPageToken());
 
-        List<Long> assigneeIds = request.getAssigneeIds() != null
-                ? request.getAssigneeIds().stream().map(Long::parseLong).collect(Collectors.toList())
-                : null;
+        ValidateArgument.requirement(
+                !(Boolean.TRUE.equals(request.getAssignedToMe()) && request.getAssigneeIds() != null),
+                "Cannot specify both 'assignedToMe' and 'assigneeIds'.");
+
+        List<Long> assigneeIds;
+        if (Boolean.TRUE.equals(request.getAssignedToMe())) {
+            assigneeIds = new ArrayList<>(userInfo.getGroups());
+        } else if (request.getAssigneeIds() != null) {
+            assigneeIds = request.getAssigneeIds().stream().map(Long::parseLong).collect(Collectors.toList());
+        } else {
+            assigneeIds = null;
+        }
         
         List<Long> accessibleProjectIds;
 
@@ -132,6 +141,17 @@ public class CurationTaskManagerImpl implements CurationTaskManager {
         return response;
     }
 
+
+    @Override
+    public TaskStatus getTaskStatus(UserInfo userInfo, Long taskId) {
+        CurationTask task = curationTaskDao.getCurationTask(taskId)
+                .orElseThrow(() -> new NotFoundException("Task not found: " + taskId));
+
+        authorizationManager.canAccess(userInfo, task.getProjectId(), ObjectType.ENTITY, ACCESS_TYPE.READ)
+                .checkAuthorizationOrElseThrow();
+
+        return curationTaskDao.getTaskStatus(taskId);
+    }
 
 	@Override
     @WriteTransaction

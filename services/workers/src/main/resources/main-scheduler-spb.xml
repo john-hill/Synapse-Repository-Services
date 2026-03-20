@@ -186,9 +186,6 @@
 		
 		<ref bean="inactiveUsersWorkerTrigger"/>
 
-		<!-- Search Index -->
-		<ref bean="searchQueryWorkerTrigger"/>
-
 	</util:list>
 
      <bean id="mainScheduler"

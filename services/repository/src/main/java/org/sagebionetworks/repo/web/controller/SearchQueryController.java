@@ -2,16 +2,14 @@ package org.sagebionetworks.repo.web.controller;
 
 import static org.sagebionetworks.repo.model.oauth.OAuthScope.view;
 
+import org.apache.commons.lang3.NotImplementedException;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.asynch.AsyncJobId;
-import org.sagebionetworks.repo.model.asynch.AsynchronousJobStatus;
 import org.sagebionetworks.repo.model.table.search.SearchQuery;
 import org.sagebionetworks.repo.model.table.search.SearchResults;
-import org.sagebionetworks.repo.service.search.SearchIndexQueryService;
 import org.sagebionetworks.repo.web.RequiredScope;
 import org.sagebionetworks.repo.web.UrlHelpers;
 import org.sagebionetworks.repo.web.rest.doc.ControllerInfo;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,8 +28,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 @RequestMapping(UrlHelpers.REPO_PATH)
 public class SearchQueryController {
 
-	@Autowired
-	private SearchIndexQueryService searchIndexQueryService;
 
 	/**
 	 * Start an asynchronous search query job.
@@ -46,10 +42,7 @@ public class SearchQueryController {
 	public @ResponseBody AsyncJobId startQuery(
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@RequestBody SearchQuery request) {
-		AsynchronousJobStatus job = searchIndexQueryService.startSearchQuery(userId, request);
-		AsyncJobId asyncJobId = new AsyncJobId();
-		asyncJobId.setToken(job.getJobId());
-		return asyncJobId;
+		throw new NotImplementedException("Stub method not yet implemented");
 	}
 
 	/**
@@ -71,8 +64,7 @@ public class SearchQueryController {
 	public @ResponseBody SearchResults getQueryResults(
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@PathVariable String asyncToken) throws Throwable {
-		AsynchronousJobStatus jobStatus = searchIndexQueryService.getSearchQueryResults(userId, asyncToken);
-		return (SearchResults) jobStatus.getResponseBody();
+		throw new NotImplementedException("Stub method not yet implemented");
 	}
 
 	/**
@@ -88,6 +80,6 @@ public class SearchQueryController {
 	public @ResponseBody SearchResults autocomplete(
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@RequestBody SearchQuery request) {
-		return searchIndexQueryService.autocomplete(userId, request);
+		throw new NotImplementedException("Stub method not yet implemented");
 	}
 }

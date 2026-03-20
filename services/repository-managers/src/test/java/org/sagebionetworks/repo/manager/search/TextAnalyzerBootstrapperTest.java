@@ -32,6 +32,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 public class TextAnalyzerBootstrapperTest {
 
+	private static final String TEST_ORG_NAME = "sage.bionetworks";
+
 	@Mock
 	private TextAnalyzerDao textAnalyzerDao;
 
@@ -52,6 +54,7 @@ public class TextAnalyzerBootstrapperTest {
 	private void setupOrgMock() {
 		Organization org = new Organization();
 		org.setId("100");
+		org.setName(TEST_ORG_NAME);
 		when(synapseSchemaBootstrap.createOrganizationIfDoesNotExist(any())).thenReturn(org);
 		when(userManager.getUserInfo(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId()))
 				.thenReturn(new UserInfo(true));
@@ -62,19 +65,19 @@ public class TextAnalyzerBootstrapperTest {
 	public void testBootstrapCreatesAllSixSystemAnalyzers() {
 		setupOrgMock();
 
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.SCIENTIFIC_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.STANDARD_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.IDENTIFIER_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.KEYWORD_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.SCIENTIFIC_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.STANDARD_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.IDENTIFIER_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.KEYWORD_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
 	}
 
 	@Test
 	public void testScientificAnalyzerHasWordDelimiterGraph() {
 		setupOrgMock();
 
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.SCIENTIFIC_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.SCIENTIFIC_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
 		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
 
 		assertEquals("standard", settings.getTokenizer());
@@ -88,7 +91,7 @@ public class TextAnalyzerBootstrapperTest {
 	public void testStandardAnalyzerHasWordDelimiterGraph() {
 		setupOrgMock();
 
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.STANDARD_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.STANDARD_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
 		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
 
 		assertEquals("standard", settings.getTokenizer());
@@ -101,7 +104,7 @@ public class TextAnalyzerBootstrapperTest {
 	public void testIdentifierAnalyzerHasWordDelimiterGraph() {
 		setupOrgMock();
 
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.IDENTIFIER_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.IDENTIFIER_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
 		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
 
 		assertEquals("whitespace", settings.getTokenizer());
@@ -114,7 +117,7 @@ public class TextAnalyzerBootstrapperTest {
 	public void testAutocompleteAnalyzerHasWordDelimiterGraph() {
 		setupOrgMock();
 
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
 		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
 
 		assertEquals("standard", settings.getTokenizer());
@@ -129,7 +132,7 @@ public class TextAnalyzerBootstrapperTest {
 	public void testAutocompleteSearchAnalyzerHasWordDelimiterGraph() {
 		setupOrgMock();
 
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID), analyzerCaptor.capture(), eq(100L), any(Long.class));
+		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
 		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
 
 		assertEquals("standard", settings.getTokenizer());
@@ -153,7 +156,7 @@ public class TextAnalyzerBootstrapperTest {
 		);
 
 		for (Long id : idsWithWordDelimiter) {
-			verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(id), analyzerCaptor.capture(), eq(100L), any(Long.class));
+			verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(id), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
 			TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
 			List<String> order = settings.getFilterOrder();
 			int wdIdx = -1;

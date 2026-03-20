@@ -1368,6 +1368,11 @@ public class UrlHelpers {
 	public static final String SEARCH_TEXT_ANALYZER_ID = SEARCH_TEXT_ANALYZER + "/{id}";
 	public static final String SEARCH_TEXT_ANALYZER_LIST = SEARCH_TEXT_ANALYZER + "/list";
 
+	// Search - Column Analyzer Override
+	public static final String SEARCH_COLUMN_ANALYZER_OVERRIDE = "/search/column/analyzer/override";
+	public static final String SEARCH_COLUMN_ANALYZER_OVERRIDE_ID = SEARCH_COLUMN_ANALYZER_OVERRIDE + "/{columnAnalyzerOverrideId}";
+	public static final String SEARCH_COLUMN_ANALYZER_OVERRIDE_LIST = SEARCH_COLUMN_ANALYZER_OVERRIDE + "/list";
+
 	static {
 		@SuppressWarnings("rawtypes")
 		Map<Class, String> property2urlsuffix = new HashMap<Class, String>();

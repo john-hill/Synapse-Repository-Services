@@ -57,13 +57,13 @@ public class ITTextAnalyzerTest {
 		// System analyzers are bootstrapped, so there should be at least 6
 		assertTrue(listResponse.getResults().size() >= 6);
 
-		String orgId = listResponse.getResults().get(0).getOrganizationId();
+		String orgName = listResponse.getResults().get(0).getOrganizationName();
 
 		// CREATE
 		TextAnalyzer toCreate = new TextAnalyzer();
 		toCreate.setName("IT_TEST_ANALYZER");
 		toCreate.setDescription("Integration test analyzer");
-		toCreate.setOrganizationId(orgId);
+		toCreate.setOrganizationName(orgName);
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
 		settings.setTokenizer("standard");
 		settings.setFilterOrder(Arrays.asList("lowercase"));
@@ -89,7 +89,7 @@ public class ITTextAnalyzerTest {
 
 		// LIST by org
 		ListTextAnalyzersRequest orgRequest = new ListTextAnalyzersRequest();
-		orgRequest.setOrganizationId(orgId);
+		orgRequest.setOrganizationName(orgName);
 		ListTextAnalyzersResponse orgResponse = adminSynapse.listTextAnalyzers(orgRequest);
 		assertNotNull(orgResponse.getResults());
 		assertTrue(orgResponse.getResults().stream().anyMatch(a -> created.getId().equals(a.getId())));

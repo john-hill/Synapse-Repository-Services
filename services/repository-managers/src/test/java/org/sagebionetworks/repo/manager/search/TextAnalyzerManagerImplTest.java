@@ -24,7 +24,9 @@ import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
+import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
+import org.sagebionetworks.repo.model.schema.Organization;
 import org.sagebionetworks.repo.model.table.search.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.table.search.ListTextAnalyzersResponse;
 import org.sagebionetworks.repo.model.table.search.TextAnalyzer;
@@ -39,6 +41,8 @@ public class TextAnalyzerManagerImplTest {
 	private TextAnalyzerDao textAnalyzerDao;
 	@Mock
 	private AccessControlListDAO aclDao;
+	@Mock
+	private OrganizationDao organizationDao;
 
 	@InjectMocks
 	private TextAnalyzerManagerImpl manager;
@@ -66,7 +70,7 @@ public class TextAnalyzerManagerImplTest {
 	@Test
 	public void testCreateAsNonSageUserThrows() {
 		TextAnalyzer input = new TextAnalyzer()
-			.setOrganizationId("42").setName("test").setSettings(new TextAnalyzerSettings());
+			.setOrganizationName("test-org").setName("test").setSettings(new TextAnalyzerSettings());
 
 		assertThrows(UnauthorizedException.class, () -> manager.create(nonSageUser, input));
 		verifyZeroInteractions(textAnalyzerDao);
@@ -79,7 +83,7 @@ public class TextAnalyzerManagerImplTest {
 		anon.setGroups(Set.of(anon.getId()));
 
 		TextAnalyzer input = new TextAnalyzer()
-			.setOrganizationId("42").setName("test").setSettings(new TextAnalyzerSettings());
+			.setOrganizationName("test-org").setName("test").setSettings(new TextAnalyzerSettings());
 
 		assertThrows(UnauthorizedException.class, () -> manager.create(anon, input));
 	}
@@ -87,7 +91,8 @@ public class TextAnalyzerManagerImplTest {
 	@Test
 	public void testCreateWithoutOrgAclThrows() {
 		TextAnalyzer input = new TextAnalyzer()
-			.setOrganizationId("42").setName("test").setSettings(new TextAnalyzerSettings());
+			.setOrganizationName("test-org").setName("test").setSettings(new TextAnalyzerSettings());
+		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.CREATE)))
 			.thenReturn(AuthorizationStatus.accessDenied("no"));
 
@@ -97,7 +102,8 @@ public class TextAnalyzerManagerImplTest {
 	@Test
 	public void testCreateHappyPath() {
 		TextAnalyzer input = new TextAnalyzer()
-			.setOrganizationId("42").setName("test").setSettings(new TextAnalyzerSettings());
+			.setOrganizationName("test-org").setName("test").setSettings(new TextAnalyzerSettings());
+		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.CREATE)))
 			.thenReturn(AuthorizationStatus.authorized());
 		when(textAnalyzerDao.create(any(), eq(1L))).thenReturn(input.setId("1000"));
@@ -110,7 +116,7 @@ public class TextAnalyzerManagerImplTest {
 	@Test
 	public void testCreateAsAdminBypassesAcl() {
 		TextAnalyzer input = new TextAnalyzer()
-			.setOrganizationId("42").setName("test").setSettings(new TextAnalyzerSettings());
+			.setOrganizationName("test-org").setName("test").setSettings(new TextAnalyzerSettings());
 		when(textAnalyzerDao.create(any(), eq(3L))).thenReturn(input.setId("1000"));
 
 		TextAnalyzer result = manager.create(adminUser, input);
@@ -141,7 +147,7 @@ public class TextAnalyzerManagerImplTest {
 	@Test
 	public void testUpdateAsNonSageUserThrows() {
 		TextAnalyzer input = new TextAnalyzer()
-			.setId("1").setOrganizationId("42").setName("updated");
+			.setId("1").setOrganizationName("test-org").setName("updated");
 
 		assertThrows(UnauthorizedException.class, () -> manager.update(nonSageUser, input));
 		verifyZeroInteractions(textAnalyzerDao);
@@ -150,8 +156,9 @@ public class TextAnalyzerManagerImplTest {
 	@Test
 	public void testUpdateWithoutOrgAclThrows() {
 		TextAnalyzer input = new TextAnalyzer()
-			.setId("1").setOrganizationId("42").setName("updated");
-		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationId("42")));
+			.setId("1").setOrganizationName("test-org").setName("updated");
+		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationName("test-org")));
+		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
 			.thenReturn(AuthorizationStatus.accessDenied("no"));
 
@@ -161,27 +168,28 @@ public class TextAnalyzerManagerImplTest {
 	@Test
 	public void testUpdateNotFoundThrows() {
 		TextAnalyzer input = new TextAnalyzer()
-			.setId("999").setOrganizationId("42").setName("updated");
+			.setId("999").setOrganizationName("test-org").setName("updated");
 		when(textAnalyzerDao.get(999L)).thenReturn(Optional.empty());
 
 		assertThrows(NotFoundException.class, () -> manager.update(sageUser, input));
 	}
 
 	@Test
-	public void testUpdateRejectsOrgIdMismatch() {
+	public void testUpdateRejectsOrgNameMismatch() {
 		TextAnalyzer input = new TextAnalyzer()
-			.setId("1").setOrganizationId("99").setName("updated");
-		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationId("42")));
+			.setId("1").setOrganizationName("other-org").setName("updated");
+		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationName("test-org")));
 
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.update(sageUser, input));
-		assertTrue(ex.getMessage().contains("organizationId cannot be changed"));
+		assertTrue(ex.getMessage().contains("organizationName cannot be changed"));
 	}
 
 	@Test
 	public void testUpdateHappyPath() {
 		TextAnalyzer input = new TextAnalyzer()
-			.setId("1").setOrganizationId("42").setName("updated");
-		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationId("42")));
+			.setId("1").setOrganizationName("test-org").setName("updated");
+		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationName("test-org")));
+		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
 			.thenReturn(AuthorizationStatus.authorized());
 		when(textAnalyzerDao.update(any(), eq(1L))).thenReturn(input);
@@ -207,8 +215,9 @@ public class TextAnalyzerManagerImplTest {
 
 	@Test
 	public void testDeleteChecksOrgAclFromStoredEntity() {
-		TextAnalyzer existing = new TextAnalyzer().setId("1").setOrganizationId("99");
+		TextAnalyzer existing = new TextAnalyzer().setId("1").setOrganizationName("other-org");
 		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(existing));
+		when(organizationDao.getOrganizationByName("other-org")).thenReturn(new Organization().setId("99"));
 		when(aclDao.canAccess(any(UserInfo.class), eq("99"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.DELETE)))
 			.thenReturn(AuthorizationStatus.accessDenied("no"));
 
@@ -218,8 +227,9 @@ public class TextAnalyzerManagerImplTest {
 
 	@Test
 	public void testDeleteBlockedWhenReferencedByForeignKey() {
-		TextAnalyzer existing = new TextAnalyzer().setId("1").setOrganizationId("42");
+		TextAnalyzer existing = new TextAnalyzer().setId("1").setOrganizationName("test-org");
 		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(existing));
+		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.DELETE)))
 			.thenReturn(AuthorizationStatus.authorized());
 		doThrow(new DataIntegrityViolationException("FK constraint"))
@@ -231,8 +241,9 @@ public class TextAnalyzerManagerImplTest {
 
 	@Test
 	public void testDeleteHappyPath() {
-		TextAnalyzer existing = new TextAnalyzer().setId("1").setOrganizationId("42");
+		TextAnalyzer existing = new TextAnalyzer().setId("1").setOrganizationName("test-org");
 		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(existing));
+		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.DELETE)))
 			.thenReturn(AuthorizationStatus.authorized());
 
@@ -244,11 +255,11 @@ public class TextAnalyzerManagerImplTest {
 
 	@Test
 	public void testListByOrganizationDelegatesToDao() {
-		when(textAnalyzerDao.listByOrganization(eq(42L), anyLong(), anyLong()))
+		when(textAnalyzerDao.listByOrganization(eq("test-org"), anyLong(), anyLong()))
 			.thenReturn(Arrays.asList(new TextAnalyzer()));
 
 		ListTextAnalyzersRequest request = new ListTextAnalyzersRequest();
-		request.setOrganizationId("42");
+		request.setOrganizationName("test-org");
 
 		ListTextAnalyzersResponse response = manager.list(new UserInfo(false), request);
 
@@ -256,7 +267,7 @@ public class TextAnalyzerManagerImplTest {
 	}
 
 	@Test
-	public void testListAllWhenNoOrgId() {
+	public void testListAllWhenNoOrgName() {
 		when(textAnalyzerDao.listAll(anyLong(), anyLong()))
 			.thenReturn(Arrays.asList(new TextAnalyzer()));
 
@@ -266,7 +277,7 @@ public class TextAnalyzerManagerImplTest {
 
 		assertEquals(1, response.getResults().size());
 		verify(textAnalyzerDao).listAll(anyLong(), anyLong());
-		verify(textAnalyzerDao, never()).listByOrganization(anyLong(), anyLong(), anyLong());
+		verify(textAnalyzerDao, never()).listByOrganization(anyString(), anyLong(), anyLong());
 	}
 
 	@Test

@@ -1309,6 +1309,7 @@ public class UrlHelpers {
     public static final String CURATION_TASK = "/curation/task";
     public static final String CURATION_TASK_ID = CURATION_TASK + "/{taskId}";
     public static final String CURATION_TASK_LIST = CURATION_TASK + LIST;
+    public static final String CURATION_TASK_STATUS = CURATION_TASK_ID + "/status";
 	
 	/**
 	 * API for creating integration test users

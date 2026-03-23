@@ -1461,7 +1461,12 @@ public class SqlConstants {
     public static final String COL_CURATION_TASK_ASSIGNEE = "ASSIGNEE";
     public static final String COL_CURATION_TASK_TASK_PROPERTIES = "TASK_PROPERTIES";
     public static final String DDL_CURATION_TASK = "schema/CurationTask-ddl.sql";
-    
+    public static final String COL_CURATION_TASK_STATE = "STATE";
+    public static final String COL_CURATION_TASK_EXECUTION_DETAILS = "EXECUTION_DETAILS";
+    public static final String COL_CURATION_TASK_STATE_UPDATED_BY = "STATE_UPDATED_BY";
+    public static final String COL_CURATION_TASK_STATE_UPDATED_ON = "STATE_UPDATED_ON";
+
+
     // Table to track a record set validation summary for a specific version
  	public static final String TABLE_RECORDSET_VALIDATION_STATS					= "RECORDSET_VALIDATION_STATS";
  	public static final String COL_RECORDSET_VALIDATION_STATS_ID				= "ID";

@@ -22,6 +22,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class SynonymSetManagerImpl implements SynonymSetManager {
 
+	private static final String MSG_UNAUTHORIZED = "Only Sage Bionetworks employees can manage synonym sets.";
+
 	private final SynonymSetDao synonymSetDao;
 	private final AccessControlListDAO aclDao;
 	private final OrganizationDao organizationDao;
@@ -43,7 +45,7 @@ public class SynonymSetManagerImpl implements SynonymSetManager {
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
-			throw new UnauthorizedException("Only Sage Bionetworks employees can manage synonyms.");
+			throw new UnauthorizedException(MSG_UNAUTHORIZED);
 		}
 		if (!user.isAdmin()) {
 			aclDao.canAccess(user, resolveOrganizationId(request.getOrganizationName()), ObjectType.ORGANIZATION, ACCESS_TYPE.CREATE)
@@ -72,7 +74,7 @@ public class SynonymSetManagerImpl implements SynonymSetManager {
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
-			throw new UnauthorizedException("Only Sage Bionetworks employees can manage search synonyms.");
+			throw new UnauthorizedException(MSG_UNAUTHORIZED);
 		}
 		SynonymSet existing = synonymSetDao.get(request.getId())
 			.orElseThrow(() -> new NotFoundException("A synonym set with the given id does not exist."));
@@ -97,7 +99,7 @@ public class SynonymSetManagerImpl implements SynonymSetManager {
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
-			throw new UnauthorizedException("Only Sage Bionetworks employees can manage search synonyms.");
+			throw new UnauthorizedException(MSG_UNAUTHORIZED);
 		}
 
 		SynonymSet existing = synonymSetDao.get(id)

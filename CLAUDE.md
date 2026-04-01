@@ -125,13 +125,65 @@ When creating new database tables, the DBO must implement `MigratableDatabaseObj
 - Register primary types in `lib/jdomodels/src/main/resources/dbo-beans.spb.xml` (order matters)
 - Secondary types are discovered automatically via `getSecondaryTypes()`
 - Primary tables need an etag column (NOT NULL) for change detection; secondary tables need a foreign key to their owner's backup ID
-- Key test: `services/repository/src/test/java/org/sagebionetworks/repo/web/migration/MigrationIntegrationAutowireTest.java` — extend this when adding new migratable types
+- Key test: `integration-test/src/test/java/org/sagebionetworks/ITMigrationTest.java` — extend this when adding new migratable types
 
 ### Moving Data Between Tables (cross-stack safe)
 
 Use a two-stack rollout:
 1. **Stack N**: Add data mirroring (write to both old and new table) + backfilling via `MigrationTypeListener` registered in `managers-spb.xml`
 2. **Stack N+1**: Remove mirroring, switch reads to new table as source of truth
+
+## Async Jobs & Workers
+
+### Async Job Pattern
+
+User-facing operations that are too slow for synchronous HTTP use the async job framework:
+1. Client submits a request object (extends `AsynchronousRequestBody`) via a start endpoint
+2. Request is serialized to an SQS queue
+3. A worker implementing `AsyncJobRunner<Request, Response>` picks up the message, executes the work, and returns a response object (extends `AsynchronousResponseBody`)
+4. Client polls a get endpoint with the async token until the result is ready
+
+Key classes:
+- `AsyncJobRunner<R, T>` — worker interface (`lib/lib-worker/`). Implement `getRequestType()`, `getResponseType()`, and `run()`.
+- `AsynchJobType` — enum mapping request/response types to queue names (`lib/models/`). New async jobs must be registered here.
+- `SynapseClient` / `SynapseClientImpl` — add client methods for submitting and polling async jobs (`client/synapseJavaClient/`)
+
+### Change-Message-Driven Workers
+
+Workers that react to state changes in the repository (entity create/update/delete, table changes, etc.):
+- Implement `BatchChangeMessageDrivenRunner` (batch) or consume from an SQS queue subscribed to an SNS topic per `ObjectType`
+- Wired via `ChangeMessageBatchProcessor` in `ChangeMessageWorkersConfig` (`services/workers/`)
+- The worker receives `ChangeMessage` objects with `objectId`, `objectType`, and `changeType`
+
+### Worker Registration (Two Steps Required)
+
+Creating a worker `@Bean` trigger in Java config is **not enough**. Workers require two registrations:
+
+1. **Define the trigger bean** in `ChangeMessageWorkersConfig` (or a similar `@Configuration` class) using `WorkerTriggerBuilder` + `ConcurrentWorkerStack.builder()`. This creates a `SimpleTriggerFactoryBean`.
+
+2. **Register the trigger in the Quartz scheduler** by adding a `<ref bean="...Trigger"/>` entry to the `workerTriggersList` in `services/workers/src/main/resources/main-scheduler-spb.xml`. **If this step is missed, the worker will never run** — the bean exists but Quartz never schedules it. There will be no error at startup; the worker silently does nothing.
+
+### Worker Trigger Configuration
+
+Key parameters in `ConcurrentWorkerStack.builder()`:
+- `withSemaphoreLockKey("uniqueWorkerName")` — distributed lock name
+- `withSemaphoreMaxLockCount(N)` — max concurrent instances across all machines
+- `withSemaphoreLockAndMessageVisibilityTimeoutSec(N)` — how long the worker holds the lock/message
+- `withMaxThreadsPerMachine(N)` — concurrency per JVM
+- `withCanRunInReadOnly(false)` — whether the worker runs during read-only mode (migration)
+- `withQueueName(queueName)` — SQS queue to poll
+
+`WorkerTriggerBuilder` parameters:
+- `withRepeatInterval(ms)` — how often Quartz fires the trigger (polling interval)
+- `withStartDelay(ms)` — initial delay before first execution
+
+### SQS Queue Infrastructure
+
+Queue names are resolved at runtime via `stackConfig.getQueueName("BASE_NAME")` → `{stack}-{instance}-BASE_NAME`. The actual SQS queues and SNS topic subscriptions are provisioned by **Synapse-Stack-Builder** (a separate CloudFormation project). New queues must be added to the Stack Builder's `sns-and-sqs-config.json` before they can be used. If a queue doesn't exist in AWS, the worker will fail to get the queue URL at runtime.
+
+### RecoverableMessageException
+
+Throwing `RecoverableMessageException` from a worker returns the message to the SQS queue for retry (with visibility timeout backoff). Use this for transient failures where retrying later may succeed (e.g., a dependency is still processing). **Do not use for permanent failures** — those should throw a regular exception so the message eventually moves to the dead-letter queue.
 
 ## Curation Grid (Curator)
 
@@ -180,15 +232,19 @@ A dedicated worker listens to grid changes via an SQS queue, validates each chan
 
 ## Key Conventions
 
+- **No wildcard imports** — use explicit imports (e.g., `import java.util.List;`), not `import java.util.*;`
 - Package root: `org.sagebionetworks`
 - Branch naming: `PLFM-XXXX` (JIRA tickets)
 - Main branch: `develop`
 - Entity IDs: String-typed but numeric (`KeyFactory` converts)
 - Spring config: mix of XML (`WEB-INF/` and `src/main/resources/*-spb.xml`) and annotations
 - Logging: Log4j 2
-- **JSON serialization**: Use `JDOSecondaryPropertyUtils.createJSONFromObject()` / `createObjectFromJSON()` for converting `JSONEntity` objects to/from JSON strings. Do not write custom serialization code.
-- **SQL safety**: All SQL must use bind variables. Never concatenate strings into SQL. For generated values (UUIDs, timestamps), prefer MySQL functions (`UUID()`, `NOW(3)`) over Java-side generation.
-- **Controller testing**: Use IT tests with the Java client in `integration-test/`, not autowired controller tests. Every new controller method needs a corresponding `SynapseClient`/`SynapseClientImpl` method and an IT test.
+- **JSON serialization**: Use `JDOSecondaryPropertyUtils.createJSONFromObject()` / `createObjectFromJSON()` for converting `JSONEntity` objects to/from JSON strings. Do not write custom `ObjectMapper` or `JSONObjectAdapter` serialization code in DAO classes.
+- **SQL safety**: All SQL must use bind variables. Never concatenate strings into SQL. For generated values (UUIDs, timestamps), prefer MySQL functions (`UUID()`, `NOW(3)`) over Java-side generation. For `DELETE` without specific criteria, always add `WHERE ID > -1` (required for SQL safe-updates mode).
+- **SQL style**: Write SQL inline where it's used. Do not concatenate `SqlConstants` references into SQL query strings. Constants are appropriate in DDL, DBO field mappings, and row mappers — just not for building query strings.
+- **Controller testing**: Use IT tests with the Java client in `integration-test/`, not autowired controller tests (`*AutowiredTest` classes). Every new controller method needs a corresponding `SynapseClient`/`SynapseClientImpl` method and an IT test. Deep logic checks belong in manager unit tests; IT tests just verify each HTTP call works.
+- **Exception mapping**: `NumberFormatException` extends `IllegalArgumentException`, which maps to HTTP 400. It is acceptable to let it propagate without wrapping.
+- **Reuse existing constants**: Before defining a new string constant, check if it already exists in a shared constants class (e.g., `JsonSchemaConstants`, `SqlConstants`). Add new constants to the appropriate shared class rather than defining them locally.
 
 ## Critical Constraints
 

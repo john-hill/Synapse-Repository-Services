@@ -120,6 +120,16 @@ Do NOT create custom `ObjectMapper` or `JSONObjectAdapter` serialization code in
   - Use `NOW(3)` for timestamps instead of passing `new Timestamp(System.currentTimeMillis())`
 - **SQL injection prevention**: All SQL MUST use bind variables (`?` or named parameters). Never concatenate user input into SQL strings.
 - **Inline SQL preferred**: The legacy pattern of defining SQL as `static final String` concatenations of column/table constants was a workaround for a Java memory bug that no longer exists. For new code, prefer writing SQL inline where it's used. Column/table name constants are still appropriate in DDL, DBO field mappings, and row mappers — just not for building SQL query strings via concatenation.
+- **Truncate/delete-all pattern**: Always use `DELETE FROM <table> WHERE ID > -1` instead of bare `DELETE FROM <table>`. The trivial `WHERE` clause is required to avoid failures when MySQL's SQL safe-updates mode is enabled.
+- **FK constraint protection pattern**: When a `DELETE` may fail due to a foreign key constraint, let the database enforce the constraint rather than checking references first ("check then delete" has a race condition). Catch `DataIntegrityViolationException` in the DAO and re-throw as `IllegalArgumentException` with a user-friendly message. This approach avoids cross-DAO dependencies and is race-condition-free:
+  ```java
+  try {
+      jdbcTemplate.update("DELETE FROM MY_TABLE WHERE ID = ?", id);
+  } catch (DataIntegrityViolationException e) {
+      throw new IllegalArgumentException("Cannot delete: still referenced by other resources.", e);
+  }
+  ```
+  When a DAO catches and rewrites exceptions like this, **an autowired integration test must verify the user-facing error message**.
 
 ## Method Naming Conventions
 
@@ -130,4 +140,4 @@ Do NOT create custom `ObjectMapper` or `JSONObjectAdapter` serialization code in
 
 - DAO unit tests mock `JdbcTemplate` / `NamedParameterJdbcTemplate`
 - DAO integration tests use the real database (run via `integration-test` module)
-- Migration test: `MigrationIntegrationAutowireTest` — extend when adding new migratable types
+- Migration test: `ITMigrationTest` — extend when adding new migratable types

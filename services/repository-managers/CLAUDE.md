@@ -105,8 +105,12 @@ For long-running operations exposed as async REST endpoints:
 ## Common Patterns
 
 ### ID Parsing
-When parsing string IDs to Long, always wrap `Long.parseLong()` in a try-catch that throws `IllegalArgumentException` with a descriptive message. Extract to a common private method if the same parsing is needed in multiple places within a class:
+`NumberFormatException` extends `IllegalArgumentException`, which already maps to HTTP 400. Wrapping `Long.parseLong()` in a try-catch is **optional** — it's acceptable to let the `NumberFormatException` propagate directly. If you want a more descriptive error message, extract to a shared utility method rather than duplicating try-catch blocks:
 ```java
+// Option 1: Let NumberFormatException propagate (acceptable — results in 400)
+Long id = Long.parseLong(request.getId());
+
+// Option 2: Wrap for better message (optional, extract to util if reused)
 private Long parseId(String value, String fieldName) {
     try {
         return Long.parseLong(value);
@@ -128,6 +132,31 @@ return new ListResponse().setResults(page)
 ### Interfaces
 Only create a separate interface when there's a genuine abstraction benefit (multiple implementations, or callers need to be decoupled from the implementation). For classes with a single implementation and no need for abstraction, use the concrete class directly. Don't copy the interface+impl pattern from older code just because it exists.
 
+### Bootstrappers
+Classes that bootstrap data on startup should run the bootstrap logic **in the constructor**, not via `InitializingBean.afterPropertiesSet()`. This ensures that loading the bean triggers the bootstrap:
+```java
+@Service
+public class MyBootstrapper {
+    public MyBootstrapper(MyDao dao, ...) {
+        this.dao = dao;
+        bootstrap(); // Run in constructor
+    }
+}
+```
+
+### Magic Strings and Constants
+Before defining a new string constant, check if an existing constants class already holds it (e.g., `JsonSchemaConstants`). If one does, reuse it. If you define a new constant that would be useful elsewhere, add it to the appropriate shared constants class rather than defining it locally.
+
+### Helper Methods Should Return Useful Results
+Methods like `getOrCreate()` should return the found-or-created object so callers don't need a separate query:
+```java
+// Good — returns the organization either way
+public Organization getOrCreateOrganization(String name) { ... }
+
+// Bad — returns void, caller must re-query
+public void ensureOrganizationExists(String name) { ... }
+```
+
 ## Testing
 
 - Unit tests: `@ExtendWith(MockitoExtension.class)` with `@Mock` and `@InjectMocks`
@@ -136,3 +165,11 @@ Only create a separate interface when there's a genuine abstraction benefit (mul
 - Test input validation (verify `IllegalArgumentException` thrown)
 - Integration tests in `integration-test/` module test the full stack
 - **Service layer tests are usually unnecessary.** Most services are thin delegation layers that convert `Long userId` → `UserInfo` and forward to the manager. If the service has no real logic (no branching, no transformation, no error handling), skip the unit test. The IT-level controller test will verify the wiring. Only test services that contain actual business logic (e.g., `EntityService`).
+- **`@InjectMocks` with `@Spy`**: When you need to verify that one method in the class under test calls another method on the same class, use `@Spy` with `@InjectMocks`:
+  ```java
+  @Spy
+  @InjectMocks
+  private MyManagerImpl manager;
+  // Now you can: verify(manager).someInternalMethod(...)
+  ```
+- **Pagination tests**: Always verify `NextPageToken` behavior — test that the response includes the correct next page token, not just the results list.

@@ -16,10 +16,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.client.SynapseAdminClient;
 import org.sagebionetworks.client.exceptions.SynapseException;
 import org.sagebionetworks.client.exceptions.SynapseNotFoundException;
-import org.sagebionetworks.repo.model.table.search.ListTextAnalyzersRequest;
-import org.sagebionetworks.repo.model.table.search.ListTextAnalyzersResponse;
-import org.sagebionetworks.repo.model.table.search.TextAnalyzer;
-import org.sagebionetworks.repo.model.table.search.TextAnalyzerSettings;
+import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
+import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
+import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 
 @ExtendWith(ITTestExtension.class)
 public class ITTextAnalyzerTest {

@@ -21,7 +21,7 @@
 			"type": "array",
 			"description": "The list of per-column analyzer override entries.",
 			"items": {
-				"$ref": "org.sagebionetworks.repo.model.table.search.ColumnAnalyzerOverrideEntry"
+				"$ref": "org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry"
 			}
 		},
 		"etag": {

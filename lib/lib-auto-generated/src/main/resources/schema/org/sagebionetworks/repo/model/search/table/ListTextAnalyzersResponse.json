@@ -5,7 +5,7 @@
 			"type": "array",
 			"description": "The list of text analyzers.",
 			"items": {
-				"$ref": "org.sagebionetworks.repo.model.table.search.TextAnalyzer"
+				"$ref": "org.sagebionetworks.repo.model.search.table.TextAnalyzer"
 			}
 		},
 		"nextPageToken": {

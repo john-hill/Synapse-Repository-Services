@@ -23,8 +23,6 @@ import org.springframework.stereotype.Service;
 public class SynonymSetManagerImpl implements SynonymSetManager {
 
 	private final SynonymSetDao synonymSetDao;
-	// TODO: PLFM-9512 — uncomment SearchConfigurationDao when available for deletion protection
-	// private final SearchConfigurationDao searchConfigurationDao;
 	private final AccessControlListDAO aclDao;
 	private final OrganizationDao organizationDao;
 
@@ -109,14 +107,6 @@ public class SynonymSetManagerImpl implements SynonymSetManager {
 			aclDao.canAccess(user, resolveOrganizationId(existing.getOrganizationName()), ObjectType.ORGANIZATION, ACCESS_TYPE.DELETE)
 				.checkAuthorizationOrElseThrow();
 		}
-
-		// TODO: PLFM-9512 — uncomment deletion protection when SearchConfigurationDao is available
-		// List<SearchConfiguration> refs = searchConfigurationDao.findBySynonymSetId(id);
-		// if (!refs.isEmpty()) {
-		// 	List<String> ids = refs.stream().map(SearchConfiguration::getId).collect(Collectors.toList());
-		// 	throw new IllegalArgumentException(
-		// 		"Cannot delete synonym set because it is referenced by search configurations: " + ids);
-		// }
 
 		synonymSetDao.delete(id);
 	}

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
@@ -20,6 +21,7 @@ import org.sagebionetworks.repo.model.search.table.ListSynonymSetsRequest;
 import org.sagebionetworks.repo.model.search.table.ListSynonymSetsResponse;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SynonymRule;
 import org.sagebionetworks.repo.model.search.table.SynonymRuleType;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
@@ -29,6 +31,7 @@ public class ITSynonymSetTest {
 
 	private final SynapseAdminClient adminSynapse;
 	private final List<String> toDelete = new ArrayList<>();
+	private final List<String> toDeleteConfigs = new ArrayList<>();
 
 	public ITSynonymSetTest(SynapseAdminClient adminSynapse) {
 		this.adminSynapse = adminSynapse;
@@ -41,6 +44,13 @@ public class ITSynonymSetTest {
 
 	@AfterEach
 	public void after() {
+		for (String id : toDeleteConfigs) {
+			try {
+				adminSynapse.deleteSearchConfiguration(id);
+			} catch (SynapseException e) {
+				// ignore
+			}
+		}
 		for (String id : toDelete) {
 			try {
 				adminSynapse.deleteSynonymSet(id);
@@ -107,5 +117,43 @@ public class ITSynonymSetTest {
 
 		// Verify deleted
 		assertThrows(SynapseNotFoundException.class, () -> adminSynapse.getSynonymSet(created.getId()));
+	}
+
+	@Test
+	public void testDeleteSynonymSetBlockedBySearchConfiguration() throws SynapseException {
+		String orgName = "sage.bionetworks";
+
+		// Create a synonym set
+		SynonymRule rule = new SynonymRule();
+		rule.setRuleType(SynonymRuleType.EQUIVALENT);
+		rule.setTerms(Arrays.asList("heart", "cardiac", "cardiovascular"));
+
+		SynonymSet synonymSet = new SynonymSet();
+		synonymSet.setName("IT_TEST_DELETE_PROTECTION");
+		synonymSet.setDescription("Synonym set for deletion protection test");
+		synonymSet.setOrganizationName(orgName);
+		synonymSet.setRules(Arrays.asList(rule));
+
+		SynonymSet createdSynonymSet = adminSynapse.createSynonymSet(synonymSet);
+		toDelete.add(createdSynonymSet.getId());
+
+		// Create a search configuration that references the synonym set
+		SearchConfiguration config = new SearchConfiguration();
+		config.setOrganizationName(orgName);
+		config.setName("IT_TEST_CONFIG_WITH_SYNONYM");
+		config.setSynonymSetIds(Collections.singletonList(createdSynonymSet.getId()));
+
+		SearchConfiguration createdConfig = adminSynapse.createSearchConfiguration(config);
+		toDeleteConfigs.add(createdConfig.getId());
+
+		// Attempt to delete the synonym set while it is referenced by a search configuration
+		assertThrows(SynapseException.class, () -> adminSynapse.deleteSynonymSet(createdSynonymSet.getId()));
+
+		// Clean up: delete the search configuration first, then the synonym set
+		adminSynapse.deleteSearchConfiguration(createdConfig.getId());
+		toDeleteConfigs.remove(createdConfig.getId());
+
+		adminSynapse.deleteSynonymSet(createdSynonymSet.getId());
+		toDelete.remove(createdSynonymSet.getId());
 	}
 }

@@ -46,9 +46,6 @@ public class SynonymSetManagerImplTest {
 
 	@Mock
 	private SynonymSetDao synonymSetDao;
-	// TODO: PLFM-9512 — uncomment when SearchConfigurationDao is available
-	// @Mock
-	// private SearchConfigurationDao searchConfigurationDao;
 	@Mock
 	private AccessControlListDAO aclDao;
 	@Mock
@@ -160,13 +157,10 @@ public class SynonymSetManagerImplTest {
 		verifyZeroInteractions(aclDao);
 	}
 
-	// --- Deletion protection ---
-	// TODO: PLFM-9512 — uncomment when SearchConfigurationDao is available
-	// @Test
-	// public void testDeleteBlockedBySearchConfigReference() { ... }
+	// --- Deletion ---
 
 	@Test
-	public void testDeleteSucceedsWhenUnreferenced() {
+	public void testDeleteDelegatesToDao() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
 		SynonymSet existing = new SynonymSet().setId("1").setOrganizationName("test-org");
@@ -174,6 +168,20 @@ public class SynonymSetManagerImplTest {
 
 		manager.delete(admin, "1");
 		verify(synonymSetDao).delete("1");
+	}
+
+	@Test
+	public void testDeleteBlockedByFkConstraint() {
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		SynonymSet existing = new SynonymSet().setId("1").setOrganizationName("test-org");
+		when(synonymSetDao.get("1")).thenReturn(Optional.of(existing));
+		org.mockito.Mockito.doThrow(new IllegalArgumentException("Cannot delete synonym set '1' because it is still referenced."))
+			.when(synonymSetDao).delete("1");
+
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+			manager.delete(admin, "1"));
+		assertTrue(ex.getMessage().contains("still referenced"));
 	}
 
 	// --- Not found ---

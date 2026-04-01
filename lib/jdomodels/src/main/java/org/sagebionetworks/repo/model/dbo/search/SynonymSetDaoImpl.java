@@ -72,7 +72,7 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 	@Override
 	public Optional<SynonymSet> get(String id) {
 		try {
-			return Optional.of(jdbcTemplate.queryForObject(
+			return Optional.ofNullable(jdbcTemplate.queryForObject(
 					"SELECT * FROM SYNONYM_SET WHERE ID = ?",
 					SYNONYM_SET_ROW_MAPPER, Long.parseLong(id)));
 		} catch (EmptyResultDataAccessException e) {
@@ -137,7 +137,7 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 	@Override
 	public Optional<SynonymSet> getByOrganizationAndName(String organizationName, String name) {
 		try {
-			return Optional.of(jdbcTemplate.queryForObject(
+			return Optional.ofNullable(jdbcTemplate.queryForObject(
 					"SELECT * FROM SYNONYM_SET WHERE ORGANIZATION_NAME = ? AND NAME = ?",
 					SYNONYM_SET_ROW_MAPPER, organizationName, name));
 		} catch (EmptyResultDataAccessException e) {

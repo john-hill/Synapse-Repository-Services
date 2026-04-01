@@ -63,7 +63,7 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 					createdBy
 			);
 		} catch (DuplicateKeyException e) {
-			throw new IllegalArgumentException(MSG_DUPLICATE_NAME);
+			throw new IllegalArgumentException(MSG_DUPLICATE_NAME, e);
 		}
 
 		return get(id.toString()).orElseThrow(() -> new IllegalStateException("The synonym set was not created."));
@@ -104,7 +104,7 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 				throw new NotFoundException("SynonymSet with id '" + synonymSet.getId() + "' does not exist.");
 			}
 		} catch (DuplicateKeyException e) {
-			throw new IllegalArgumentException(MSG_DUPLICATE_NAME);
+			throw new IllegalArgumentException(MSG_DUPLICATE_NAME, e);
 		}
 
 		return get(synonymSet.getId()).orElseThrow(() -> new IllegalStateException("The synonym set was not updated."));
@@ -148,7 +148,7 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 	@Override
 	@WriteTransaction
 	public void truncateAll() {
-		jdbcTemplate.update("DELETE FROM SYNONYM_SET");
+		jdbcTemplate.update("DELETE FROM SYNONYM_SET WHERE ID > -1");
 	}
 
 	private String getCurrentEtagForUpdate(Long id) {

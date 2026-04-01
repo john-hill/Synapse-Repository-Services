@@ -3,7 +3,7 @@ package org.sagebionetworks.repo.model.dbo.search;
 import java.util.List;
 import java.util.Optional;
 
-import org.sagebionetworks.repo.model.table.search.ColumnAnalyzerOverride;
+import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 
 public interface ColumnAnalyzerOverrideDao {
 	ColumnAnalyzerOverride create(Long createdBy, ColumnAnalyzerOverride override);

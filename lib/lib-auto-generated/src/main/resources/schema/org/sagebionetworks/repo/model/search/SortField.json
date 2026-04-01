@@ -7,7 +7,7 @@
 		},
 		"direction": {
 			"description": "Sort direction.",
-			"$ref": "org.sagebionetworks.repo.model.table.search.SortDirection"
+			"$ref": "org.sagebionetworks.repo.model.search.SortDirection"
 		}
 	}
 }

@@ -3,7 +3,7 @@ package org.sagebionetworks.repo.model.dbo.search;
 import java.util.List;
 import java.util.Optional;
 
-import org.sagebionetworks.repo.model.table.search.TextAnalyzer;
+import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 
 public interface TextAnalyzerDao {
 

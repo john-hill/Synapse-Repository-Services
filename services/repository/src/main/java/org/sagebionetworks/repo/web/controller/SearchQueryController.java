@@ -5,8 +5,8 @@ import static org.sagebionetworks.repo.model.oauth.OAuthScope.view;
 import org.apache.commons.lang3.NotImplementedException;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.asynch.AsyncJobId;
-import org.sagebionetworks.repo.model.table.search.SearchQuery;
-import org.sagebionetworks.repo.model.table.search.SearchResults;
+import org.sagebionetworks.repo.model.search.SearchQueryResults;
+import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
 import org.sagebionetworks.repo.web.RequiredScope;
 import org.sagebionetworks.repo.web.UrlHelpers;
 import org.sagebionetworks.repo.web.rest.doc.ControllerInfo;
@@ -41,7 +41,7 @@ public class SearchQueryController {
 	@RequestMapping(value = UrlHelpers.SEARCH_QUERY_ASYNC_START, method = RequestMethod.POST)
 	public @ResponseBody AsyncJobId startQuery(
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
-			@RequestBody SearchQuery request) {
+			@RequestBody SearchIndexQuery request) {
 		throw new NotImplementedException("Stub method not yet implemented");
 	}
 
@@ -61,7 +61,7 @@ public class SearchQueryController {
 	@RequiredScope({ view })
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = UrlHelpers.SEARCH_QUERY_ASYNC_GET, method = RequestMethod.GET)
-	public @ResponseBody SearchResults getQueryResults(
+	public @ResponseBody SearchQueryResults getQueryResults(
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@PathVariable String asyncToken) throws Throwable {
 		throw new NotImplementedException("Stub method not yet implemented");
@@ -77,9 +77,9 @@ public class SearchQueryController {
 	@RequiredScope({ view })
 	@ResponseStatus(HttpStatus.OK)
 	@RequestMapping(value = UrlHelpers.SEARCH_AUTOCOMPLETE, method = RequestMethod.POST)
-	public @ResponseBody SearchResults autocomplete(
+	public @ResponseBody SearchQueryResults autocomplete(
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
-			@RequestBody SearchQuery request) {
+			@RequestBody SearchIndexQuery request) {
 		throw new NotImplementedException("Stub method not yet implemented");
 	}
 }

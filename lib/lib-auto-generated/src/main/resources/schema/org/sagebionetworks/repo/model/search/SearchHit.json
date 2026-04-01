@@ -14,23 +14,17 @@
 			"description": "The relevance score for this hit."
 		},
 		"fields": {
-			"type": "map",
-			"description": "Map of column name to value for the requested return fields.",
-			"key": {
-				"type": "string"
-			},
-			"value": {
-				"type": "string"
+			"type": "array",
+			"description": "Column name/value pairs for the requested return fields.",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.search.SearchFieldValue"
 			}
 		},
 		"highlights": {
-			"type": "map",
-			"description": "Map of column name to highlighted snippet, if highlight was requested.",
-			"key": {
-				"type": "string"
-			},
-			"value": {
-				"type": "string"
+			"type": "array",
+			"description": "Column name/highlighted snippet pairs, if highlight was requested.",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.search.SearchFieldValue"
 			}
 		}
 	}

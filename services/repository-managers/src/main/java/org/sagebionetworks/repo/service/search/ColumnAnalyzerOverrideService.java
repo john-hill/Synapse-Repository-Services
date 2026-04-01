@@ -1,8 +1,8 @@
 package org.sagebionetworks.repo.service.search;
 
-import org.sagebionetworks.repo.model.table.search.ColumnAnalyzerOverride;
-import org.sagebionetworks.repo.model.table.search.ListColumnAnalyzerOverridesRequest;
-import org.sagebionetworks.repo.model.table.search.ListColumnAnalyzerOverridesResponse;
+import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
+import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesRequest;
+import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesResponse;
 
 public interface ColumnAnalyzerOverrideService {
 

@@ -8,6 +8,14 @@
 		"maxValueCount": {
 			"type": "integer",
 			"description": "Maximum number of facet values to return. Default: 25."
+		},
+		"sortField": {
+			"description": "The field to sort facet values by. Default: COUNT.",
+			"$ref": "org.sagebionetworks.repo.model.search.FacetSortField"
+		},
+		"sortDirection": {
+			"description": "The direction to sort facet values. Default: DESC.",
+			"$ref": "org.sagebionetworks.repo.model.search.SortDirection"
 		}
 	}
 }

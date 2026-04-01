@@ -1,18 +1,14 @@
 {
-	"description": "A structured query against a SearchIndex's OpenSearch index. Submitted as an asynchronous job.",
+	"description": "A structured search query against an OpenSearch index. Can be submitted as an asynchronous job.",
 	"implements": [
 		{
 			"$ref": "org.sagebionetworks.repo.model.asynch.AsynchronousRequestBody"
 		}
 	],
 	"properties": {
-		"searchIndexId": {
-			"type": "string",
-			"description": "The ID of the SearchIndex entity to query."
-		},
 		"queryType": {
 			"description": "Full-text query type. Default: SIMPLE_QUERY_STRING.",
-			"$ref": "org.sagebionetworks.repo.model.table.search.SearchQueryType"
+			"$ref": "org.sagebionetworks.repo.model.search.SearchQueryType"
 		},
 		"queryText": {
 			"type": "string",
@@ -25,25 +21,18 @@
 				"type": "string"
 			}
 		},
-		"booleanFilters": {
-			"type": "array",
-			"description": "Exact-match filters.",
-			"items": {
-				"$ref": "org.sagebionetworks.repo.model.search.query.KeyValue"
-			}
-		},
 		"termsFilters": {
 			"type": "array",
 			"description": "Multi-value filters (IN clause).",
 			"items": {
-				"$ref": "org.sagebionetworks.repo.model.table.search.KeyValues"
+				"$ref": "org.sagebionetworks.repo.model.search.KeyValues"
 			}
 		},
 		"rangeFilters": {
 			"type": "array",
 			"description": "Range filters with min and max.",
 			"items": {
-				"$ref": "org.sagebionetworks.repo.model.search.query.KeyRange"
+				"$ref": "org.sagebionetworks.repo.model.search.KeyRange"
 			}
 		},
 		"existsFilters": {
@@ -68,7 +57,7 @@
 			"type": "array",
 			"description": "Columns to aggregate as facets.",
 			"items": {
-				"$ref": "org.sagebionetworks.repo.model.table.search.FacetRequest"
+				"$ref": "org.sagebionetworks.repo.model.search.FacetRequest"
 			}
 		},
 		"returnFields": {
@@ -82,18 +71,18 @@
 			"type": "array",
 			"description": "Sort order. Default: relevance descending.",
 			"items": {
-				"$ref": "org.sagebionetworks.repo.model.table.search.SortField"
+				"$ref": "org.sagebionetworks.repo.model.search.SortField"
 			}
 		},
 		"highlight": {
 			"type": "boolean",
 			"description": "Whether to return highlighted snippets. Default: false."
 		},
-		"from": {
+		"offset": {
 			"type": "integer",
 			"description": "Zero-based pagination offset. Default: 0."
 		},
-		"size": {
+		"limit": {
 			"type": "integer",
 			"description": "Results per page. Default: 25. Max: 100."
 		}

@@ -1,15 +1,11 @@
 {
-	"description": "Results of a search query against a SearchIndex's OpenSearch index.",
+	"description": "Results of a search query against an OpenSearch index.",
 	"implements": [
 		{
 			"$ref": "org.sagebionetworks.repo.model.asynch.AsynchronousResponseBody"
 		}
 	],
 	"properties": {
-		"searchIndexId": {
-			"type": "string",
-			"description": "The ID of the SearchIndex entity that was queried."
-		},
 		"totalHits": {
 			"type": "integer",
 			"description": "The total number of matching documents."
@@ -18,7 +14,7 @@
 			"type": "array",
 			"description": "The list of search result hits for this page.",
 			"items": {
-				"$ref": "org.sagebionetworks.repo.model.table.search.SearchHit"
+				"$ref": "org.sagebionetworks.repo.model.search.SearchHit"
 			}
 		},
 		"facets": {
@@ -28,7 +24,7 @@
 				"$ref": "org.sagebionetworks.repo.model.table.FacetColumnResult"
 			}
 		},
-		"from": {
+		"offset": {
 			"type": "integer",
 			"description": "The offset used for this page of results."
 		}

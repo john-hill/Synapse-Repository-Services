@@ -1,8 +1,8 @@
 package org.sagebionetworks.repo.service.search;
 
-import org.sagebionetworks.repo.model.table.search.ListTextAnalyzersRequest;
-import org.sagebionetworks.repo.model.table.search.ListTextAnalyzersResponse;
-import org.sagebionetworks.repo.model.table.search.TextAnalyzer;
+import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
+import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 
 public interface TextAnalyzerService {
 

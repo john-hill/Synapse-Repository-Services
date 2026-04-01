@@ -29,6 +29,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.file.CsvFileHandleProvider;
 import org.sagebionetworks.repo.manager.grid.GridManager;
+import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.manager.grid.internal.replica.GridReplicaSupport;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
@@ -70,7 +71,9 @@ public class GridCsvImporterImplTest {
 	private GridCsvImportDao mockImportDao;
 	@Mock
 	private JoinedRowChangePublisher mockChangePublisher;
-	
+	@Mock
+	private JsonSchemaManager mockJsonSchemaManager;
+
 	@InjectMocks
 	private GridCsvImporterImpl importer;
 

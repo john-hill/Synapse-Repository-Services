@@ -405,8 +405,11 @@ import org.sagebionetworks.repo.model.table.ViewType;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesRequest;
 import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesResponse;
+import org.sagebionetworks.repo.model.search.table.ListSynonymSetsRequest;
+import org.sagebionetworks.repo.model.search.table.ListSynonymSetsResponse;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiHeader;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiHistorySnapshot;
@@ -772,6 +775,8 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 
 	private static final String SEARCH_TEXT_ANALYZER = "/search/text/analyzer";
 	private static final String SEARCH_TEXT_ANALYZER_LIST = SEARCH_TEXT_ANALYZER + "/list";
+	private static final String SEARCH_SYNONYM_SET = "/search/synonym/set";
+	private static final String SEARCH_SYNONYM_SET_LIST = SEARCH_SYNONYM_SET + "/list";
 	private static final String SEARCH_COLUMN_ANALYZER_OVERRIDE = "/search/column/analyzer/override";
 	private static final String SEARCH_COLUMN_ANALYZER_OVERRIDE_LIST = SEARCH_COLUMN_ANALYZER_OVERRIDE + "/list";
 
@@ -6723,6 +6728,37 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public ListColumnAnalyzerOverridesResponse listColumnAnalyzerOverrides(ListColumnAnalyzerOverridesRequest request) throws SynapseException {
 		ValidateArgument.required(request, "request");
 		return postJSONEntity(getRepoEndpoint(), SEARCH_COLUMN_ANALYZER_OVERRIDE_LIST, request, ListColumnAnalyzerOverridesResponse.class);
+	}
+
+	@Override
+	public SynonymSet createSynonymSet(SynonymSet synonymSet) throws SynapseException {
+		ValidateArgument.required(synonymSet, "synonymSet");
+		return postJSONEntity(getRepoEndpoint(), SEARCH_SYNONYM_SET, synonymSet, SynonymSet.class);
+	}
+
+	@Override
+	public SynonymSet getSynonymSet(String id) throws SynapseException {
+		ValidateArgument.required(id, "id");
+		return getJSONEntity(getRepoEndpoint(), createEntityUri(SEARCH_SYNONYM_SET, id), SynonymSet.class);
+	}
+
+	@Override
+	public SynonymSet updateSynonymSet(SynonymSet synonymSet) throws SynapseException {
+		ValidateArgument.required(synonymSet, "synonymSet");
+		ValidateArgument.required(synonymSet.getId(), "synonymSet.id");
+		return putJSONEntity(getRepoEndpoint(), createEntityUri(SEARCH_SYNONYM_SET, synonymSet.getId()), synonymSet, SynonymSet.class);
+	}
+
+	@Override
+	public void deleteSynonymSet(String id) throws SynapseException {
+		ValidateArgument.required(id, "id");
+		deleteUri(getRepoEndpoint(), createEntityUri(SEARCH_SYNONYM_SET, id));
+	}
+
+	@Override
+	public ListSynonymSetsResponse listSynonymSets(ListSynonymSetsRequest request) throws SynapseException {
+		ValidateArgument.required(request, "request");
+		return postJSONEntity(getRepoEndpoint(), SEARCH_SYNONYM_SET_LIST, request, ListSynonymSetsResponse.class);
 	}
 
 }

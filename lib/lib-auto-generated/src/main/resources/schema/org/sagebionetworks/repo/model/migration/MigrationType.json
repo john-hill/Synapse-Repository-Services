@@ -535,6 +535,10 @@
 			"description": "Table that stores column analyzer overrides for search"
 		},
 		{
+			"name": "SYNONYM_SET",
+			"description": "Table that stores synonym sets for search"
+		},
+		{
 			"name": "CHANGE",
 			"description": "TODO: Auto-generated description"
 		}

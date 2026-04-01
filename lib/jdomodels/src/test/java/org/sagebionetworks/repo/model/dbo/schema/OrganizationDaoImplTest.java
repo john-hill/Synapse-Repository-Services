@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
+import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
 import org.sagebionetworks.repo.model.schema.Organization;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -28,6 +29,8 @@ public class OrganizationDaoImplTest {
 	private OrganizationDao organizationDao;
 	@Autowired
 	private JsonSchemaDao schemaDao;
+	@Autowired
+	private SynonymSetDao synonymSetDao;
 
 	Long adminUserId = BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
 
@@ -36,11 +39,13 @@ public class OrganizationDaoImplTest {
 	@BeforeEach
 	public void before() {
 		name = "Foo.Bar";
+		synonymSetDao.truncateAll();
 		organizationDao.truncateAll();
 	}
 	
 	@AfterEach
 	public void afterEach() {
+		synonymSetDao.truncateAll();
 		schemaDao.truncateAll();
 		organizationDao.truncateAll();
 	}

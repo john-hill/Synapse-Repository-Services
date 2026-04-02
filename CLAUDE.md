@@ -133,6 +133,19 @@ Use a two-stack rollout:
 1. **Stack N**: Add data mirroring (write to both old and new table) + backfilling via `MigrationTypeListener` registered in `managers-spb.xml`
 2. **Stack N+1**: Remove mirroring, switch reads to new table as source of truth
 
+### Renaming a Column (cross-stack safe)
+
+When a DB column is renamed (e.g., `PROJECT_ID` → `OBJECT_ID`), the backup XML from production still serializes the **old Java field name**. Use a two-stack bridge pattern:
+
+1. **Stack N** (this stack):
+   - Update the DDL to use the new column name.
+   - Add a new Java field with the new name (`objectId`) mapped to the new column via `FieldColumn("objectId", COL_NEW_NAME)`.
+   - Keep the old Java field (`projectId`) as a temporary bridge — it has no `FieldColumn` mapping but is still deserialized from old backup XML.
+   - In `MigratableTableTranslation.createDatabaseObjectFromBackup()`, copy the old field into the new field if the new field is null: `if (dbo.getObjectId() == null && dbo.getProjectId() != null) { dbo.setObjectId(dbo.getProjectId()); }`
+   - All new code reads/writes the new field (`objectId`). The old field is only used by the translator.
+2. **Stack N+1** (after production has the new column):
+   - Remove the old bridge field (`projectId`) and the translator bridge logic. The new field is now the sole source of truth.
+
 ## Curation Grid (Curator)
 
 A spreadsheet-style collaborative editing feature that allows data curators to annotate files (FileEntity annotations) and manage record-based metadata (RecordSet entities). Unlike the standard Controller → Manager → DAO pattern, the grid uses a **CRDT (Conflict-free Replicated Data Type)** architecture based on the [JSON-Joy](https://jsonjoy.com/) specification, enabling real-time multi-user and AI-assisted editing.

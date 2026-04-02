@@ -1,7 +1,8 @@
 package org.sagebionetworks.repo.model.dbo.dao.discussion;
 
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_FORUM_ID;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_FORUM_PROJECT_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_FORUM_OBJECT_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_FORUM_OBJECT_TYPE;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_FORUM;
 
 import java.util.List;
@@ -13,6 +14,7 @@ import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.dbo.persistence.discussion.DBOForum;
 import org.sagebionetworks.repo.model.dbo.persistence.discussion.ForumUtils;
 import org.sagebionetworks.repo.model.discussion.Forum;
+import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -23,12 +25,12 @@ import org.springframework.jdbc.core.RowMapper;
 
 public class DBOForumDAOImpl implements ForumDAO {
 
-	private static final String SQL_DELETE_FORUM = "DELETE FROM "+TABLE_FORUM
-			+" WHERE "+COL_FORUM_ID+" = ?";
+	private static final String SQL_DELETE_FORUM = "DELETE FROM " + TABLE_FORUM
+			+ " WHERE " + COL_FORUM_ID + " = ?";
 	private static final String SQL_SELECT_FORUM_BY_ID = "SELECT * FROM "
-			+TABLE_FORUM+" WHERE "+COL_FORUM_ID+" = ?";
-	private static final String SQL_SELECT_FORUM_BY_PROJECT_ID = "SELECT * FROM "
-			+TABLE_FORUM+" WHERE "+COL_FORUM_PROJECT_ID+" = ?";
+			+ TABLE_FORUM + " WHERE " + COL_FORUM_ID + " = ?";
+	private static final String SQL_SELECT_FORUM_BY_OBJECT_ID_AND_TYPE = "SELECT * FROM "
+			+ TABLE_FORUM + " WHERE " + COL_FORUM_OBJECT_ID + " = ? AND " + COL_FORUM_OBJECT_TYPE + " = ?";
 
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
@@ -39,16 +41,18 @@ public class DBOForumDAOImpl implements ForumDAO {
 
 	private static RowMapper<DBOForum> ROW_MAPPER = new DBOForum().getTableMapping();
 
+
 	@WriteTransaction
 	@Override
-	public Forum createForum(String projectId) {
-		ValidateArgument.required(projectId, "projectId");
+	public Forum createForum(String objectId, ForumObjectType objectType) {
+		ValidateArgument.required(objectId, "objectId");
+		ValidateArgument.required(objectType, "objectType");
 		long id = idGenerator.generateNewId(IdType.FORUM_ID);
 		DBOForum dbo = new DBOForum();
 		dbo.setId(id);
-		dbo.setProjectId(KeyFactory.stringToKey(projectId));
-		String etag = UUID.randomUUID().toString();
-		dbo.setEtag(etag);
+		dbo.setObjectId(KeyFactory.stringToKey(objectId));
+		dbo.setObjectType(objectType.name());
+		dbo.setEtag(UUID.randomUUID().toString());
 		basicDao.createNew(dbo);
 		return getForum(id);
 	}
@@ -64,11 +68,17 @@ public class DBOForumDAOImpl implements ForumDAO {
 
 	@Override
 	public Forum getForumByProjectId(String projectId) {
-		ValidateArgument.required(projectId, "projectId");
-		List<DBOForum> results = jdbcTemplate.query(SQL_SELECT_FORUM_BY_PROJECT_ID, ROW_MAPPER,
-				KeyFactory.stringToKey(projectId));
+		return getForumByObjectIdAndType(projectId, ForumObjectType.ENTITY);
+	}
+
+	@Override
+	public Forum getForumByObjectIdAndType(String objectId, ForumObjectType objectType) {
+		ValidateArgument.required(objectId, "objectId");
+		ValidateArgument.required(objectType, "objectType");
+		List<DBOForum> results = jdbcTemplate.query(SQL_SELECT_FORUM_BY_OBJECT_ID_AND_TYPE, ROW_MAPPER,
+				KeyFactory.stringToKey(objectId), objectType.name());
 		if (results.size() != 1) {
-			throw new NotFoundException(String.format("Forum for project '%s' does not exist", projectId));
+			throw new NotFoundException(String.format("Forum for %s '%s' does not exist", objectType, objectId));
 		}
 		return ForumUtils.createDTOFromDBO(results.get(0));
 	}

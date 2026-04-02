@@ -152,6 +152,7 @@ import org.sagebionetworks.repo.model.discussion.DiscussionThreadBundle;
 import org.sagebionetworks.repo.model.discussion.DiscussionThreadOrder;
 import org.sagebionetworks.repo.model.discussion.EntityThreadCounts;
 import org.sagebionetworks.repo.model.discussion.Forum;
+import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.sagebionetworks.repo.model.discussion.ReplyCount;
 import org.sagebionetworks.repo.model.discussion.ThreadCount;
 import org.sagebionetworks.repo.model.discussion.UpdateReplyMessage;
@@ -2847,6 +2848,16 @@ public interface SynapseClient extends BaseClient {
 	 * @throws SynapseException
 	 */
 	Forum getForum(String forumId) throws SynapseException;
+
+	/**
+	 * Get or create forum for the given object.
+	 *
+	 * @param objectId
+	 * @param objectType
+	 * @return
+	 * @throws SynapseException
+	 */
+	Forum getForumByObjectIdAndType(String objectId, ForumObjectType objectType) throws SynapseException;
 
 	/**
 	 * Create a new Discussion Reply

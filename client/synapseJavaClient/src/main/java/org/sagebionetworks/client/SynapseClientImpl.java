@@ -186,6 +186,7 @@ import org.sagebionetworks.repo.model.discussion.DiscussionThreadBundle;
 import org.sagebionetworks.repo.model.discussion.DiscussionThreadOrder;
 import org.sagebionetworks.repo.model.discussion.EntityThreadCounts;
 import org.sagebionetworks.repo.model.discussion.Forum;
+import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.sagebionetworks.repo.model.discussion.MessageURL;
 import org.sagebionetworks.repo.model.discussion.ReplyCount;
 import org.sagebionetworks.repo.model.discussion.ThreadCount;
@@ -726,7 +727,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	private static final String SUBSCRIPTION = "/subscription";
 	private static final String LIST = "/list";
 	private static final String OBJECT_TYPE_PARAM = "objectType";
-	private static final String OBJECT = "/object";	
+	private static final String OBJECT = "/object";
 
 	private static final String PRINCIPAL_ID_REQUEST_PARAM = "principalId";
 
@@ -5180,6 +5181,13 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public Forum getForum(String forumId) throws SynapseException {
 		ValidateArgument.required(forumId, "forumId");
 		return getJSONEntity(getRepoEndpoint(), FORUM+"/"+forumId, Forum.class);
+	}
+
+	@Override
+	public Forum getForumByObjectIdAndType(String objectId, ForumObjectType objectType) throws SynapseException {
+		ValidateArgument.required(objectId, "objectId");
+		ValidateArgument.required(objectType, "objectType");
+		return getJSONEntity(getRepoEndpoint(), OBJECT+"/"+objectId+"/"+objectType.name()+FORUM, Forum.class);
 	}
 
 	@Override

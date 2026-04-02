@@ -42,6 +42,7 @@ import org.sagebionetworks.repo.model.dao.subscription.SubscriptionDAO;
 import org.sagebionetworks.repo.model.dao.subscription.SubscriptionListRequest;
 import org.sagebionetworks.repo.model.dbo.dao.discussion.DiscussionThreadDAO;
 import org.sagebionetworks.repo.model.dbo.dao.discussion.ForumDAO;
+import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.message.Settings;
 import org.sagebionetworks.repo.model.principal.AliasType;
@@ -146,7 +147,7 @@ public class DBOSubscriptionDAOImplTest {
 		node = nodeDAO.createNewNode(node);
 		projectId = KeyFactory.stringToKey(node.getId()).toString();
 		
-		forumId = forumDAO.createForum(projectId).getId();
+		forumId = forumDAO.createForum(projectId, ForumObjectType.ENTITY).getId();
 		threadId = "123";
 		threadDAO.createThread(forumId, threadId, "title", "messageKey", Long.parseLong(userId));
 		threadId2 = "456";
@@ -167,6 +168,7 @@ public class DBOSubscriptionDAOImplTest {
 		try {
 			nodeDAO.delete(projectId);
 		} catch (Exception e) {}
+		forumDAO.deleteForum(Long.parseLong(forumId));
 		for (String userId: usersToDelete) {
 			if (userId != null) {
 				userGroupDAO.delete(userId);
@@ -341,7 +343,8 @@ public class DBOSubscriptionDAOImplTest {
 		assertEquals(forumSub, results.getResults().get(0));
 		nodeDAO.delete(projectId);
 		results = getAllForumSubscriptions(userId, 10L, 0L, projectIds);
-		assertEquals(0L, results.getResults().size());
+		//Forum is not coupled with only project id. There is Forum for deleted projects
+		assertEquals(1L, results.getResults().size());
 		subscriptionIdToDelete.add(forumSub.getSubscriptionId());
 	}
 
@@ -397,7 +400,8 @@ public class DBOSubscriptionDAOImplTest {
 
 		nodeDAO.delete(projectId);
 		results = listSubscriptionForForum(userId, list);
-		assertEquals((Long) 0L, results.getTotalNumberOfResults());
+		//Forum is not coupled with only project id. There is Forum for deleted projects
+		assertEquals((Long) 1L, results.getTotalNumberOfResults());
 	}
 
 	@Test
@@ -625,7 +629,7 @@ public class DBOSubscriptionDAOImplTest {
 		StringBuilder builder = new StringBuilder();
 		// call under test
 		DBOSubscriptionDAOImpl.addTypeSpecificSql(builder, objectType, projectIds);
-		assertEquals(" JOIN FORUM F ON (S.OBJECT_ID = F.ID AND F.PROJECT_ID IN (:projectIds))", builder.toString());
+		assertEquals(" JOIN FORUM F ON (S.OBJECT_ID = F.ID AND F.OBJECT_ID IN (:projectIds))", builder.toString());
 	}
 	
 	@Test
@@ -642,14 +646,14 @@ public class DBOSubscriptionDAOImplTest {
 	@Test
 	public void testAddTypeSpecificSqlThreadWithProjects() {
 		SubscriptionObjectType objectType = SubscriptionObjectType.THREAD;
-		Set<Long> projectIds = new HashSet<>(1);
-		projectIds.add(123L);
+		Set<Long> objectIds = new HashSet<>(1);
+		objectIds.add(123L);
 		StringBuilder builder = new StringBuilder();
 		// call under test
-		DBOSubscriptionDAOImpl.addTypeSpecificSql(builder, objectType, projectIds);
+		DBOSubscriptionDAOImpl.addTypeSpecificSql(builder, objectType, objectIds);
 		// filter deleted threads and projectIds.
 		assertEquals(" JOIN DISCUSSION_THREAD T ON (S.OBJECT_ID = T.ID AND T.IS_DELETED = FALSE)"
-					+ " JOIN FORUM F ON (T.FORUM_ID = F.ID AND F.PROJECT_ID IN (:projectIds))", builder.toString());
+					+ " JOIN FORUM F ON (T.FORUM_ID = F.ID AND F.OBJECT_ID IN (:projectIds))", builder.toString());
 	}
 	
 	@Test

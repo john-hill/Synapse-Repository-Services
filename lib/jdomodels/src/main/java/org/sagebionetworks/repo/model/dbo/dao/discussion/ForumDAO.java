@@ -1,32 +1,42 @@
 package org.sagebionetworks.repo.model.dbo.dao.discussion;
 
 import org.sagebionetworks.repo.model.discussion.Forum;
+import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 
 public interface ForumDAO {
 
 	/**
-	 * create new object
-	 * @param projectId
+	 * Create a new forum for the given object.
+	 * @param objectId
+	 * @param objectType
 	 * @return
 	 */
-	public Forum createForum(String projectId);
+	public Forum createForum(String objectId, ForumObjectType objectType);
 
 	/**
-	 * get the forum object given its Id
+	 * Get the forum object given its Id.
 	 * @param id
 	 * @return
 	 */
 	public Forum getForum(long id);
 
 	/**
-	 * get the forum object given the projectId
+	 * Get the forum object given the projectId (convenience method, delegates to getForumByObjectIdAndType with ENTITY type).
 	 * @param projectId
 	 * @return
 	 */
 	public Forum getForumByProjectId(String projectId);
 
 	/**
-	 * delete forum that has the given forumId
+	 * Get the forum for the given object ID and Type.
+	 * @param objectId
+	 * @param objectType
+	 * @return
+	 */
+	public Forum getForumByObjectIdAndType(String objectId, ForumObjectType objectType);
+
+	/**
+	 * Delete forum that has the given forumId.
 	 * @param id
 	 */
 	public int deleteForum(long id);

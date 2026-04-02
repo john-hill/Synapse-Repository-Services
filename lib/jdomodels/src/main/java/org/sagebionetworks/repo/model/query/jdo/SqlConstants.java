@@ -923,7 +923,8 @@ public class SqlConstants {
 	// Forum table
 	public static final String TABLE_FORUM = "FORUM";
 	public static final String COL_FORUM_ID = "ID";
-	public static final String COL_FORUM_PROJECT_ID = "PROJECT_ID";
+	public static final String COL_FORUM_OBJECT_ID = "OBJECT_ID";
+	public static final String COL_FORUM_OBJECT_TYPE = "OBJECT_TYPE";
 	public static final String COL_FORUM_ETAG = "ETAG";
 	public static final String DDL_FORUM = "schema/discussion/Forum-ddl.sql";
 

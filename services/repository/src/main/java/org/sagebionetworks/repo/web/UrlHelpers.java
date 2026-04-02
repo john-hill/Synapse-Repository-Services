@@ -1154,6 +1154,9 @@ public class UrlHelpers {
 	public static final String OBJECT_ID_TYPE_ETAG = OBJECT+OBJECT_ID+OBJECT_TYPE+ETAG;
 	public static final String SUBSCRIPTION_SUBSCRIBERS = SUBSCRIPTION + "/subscribers";
 	public static final String SUBSCRIPTION_SUBSCRIBER_COUNT = SUBSCRIPTION_SUBSCRIBERS + "/count";
+
+	//Form service to search by id and Type
+	public static final String OBJECT_ID_TYPE_FORUM = OBJECT + OBJECT_ID + OBJECT_TYPE + FORUM;
 	
 	// Docker authorization services
 	public static final String DOCKER_AUTHORIZATION = "/bearerToken";

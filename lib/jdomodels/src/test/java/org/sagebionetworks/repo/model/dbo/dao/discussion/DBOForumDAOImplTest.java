@@ -16,6 +16,7 @@ import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.UserGroup;
 import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.discussion.Forum;
+import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.jdo.NodeTestUtils;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -59,7 +60,7 @@ public class DBOForumDAOImplTest {
 	@Test
 	public void testCreateGetDelete() {
 		// create a forum
-		Forum dto = forumDao.createForum(projectId);
+		Forum dto = forumDao.createForum(projectId, ForumObjectType.ENTITY);
 		long forumId = Long.parseLong(dto.getId());
 
 		// make sure we can find the forum created
@@ -68,7 +69,7 @@ public class DBOForumDAOImplTest {
 
 		// cannot create more than one forum for a project
 		try {
-			forumDao.createForum(projectId);
+			forumDao.createForum(projectId, ForumObjectType.ENTITY);
 		} catch (IllegalArgumentException e) {
 			// as expected
 		}
@@ -93,7 +94,7 @@ public class DBOForumDAOImplTest {
 
 	@Test
 	public void testKeyWithoutSynPrefix() {
-		Forum dto = forumDao.createForum(KeyFactory.stringToKey(projectId).toString());
+		Forum dto = forumDao.createForum(KeyFactory.stringToKey(projectId).toString(), ForumObjectType.ENTITY);
 		long forumId = Long.parseLong(dto.getId());
 		assertEquals(forumDao.getForum(forumId), dto);
 		assertEquals(forumDao.getForumByProjectId(dto.getProjectId()), dto);
@@ -101,7 +102,7 @@ public class DBOForumDAOImplTest {
 
 	@Test (expected = IllegalArgumentException.class)
 	public void createWithNullProjectId() {
-		forumDao.createForum(null);
+		forumDao.createForum(null, null);
 	}
 
 	@Test (expected = IllegalArgumentException.class)

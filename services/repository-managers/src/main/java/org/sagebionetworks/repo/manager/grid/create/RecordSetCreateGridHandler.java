@@ -116,6 +116,7 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 
 		final Optional<JsonSchema> validationSchema = validationSchemaId.map(jsonSchemaManager::getValidationSchema);
 
+		// See: PLFM-9558
 		validationSchema.ifPresent(vs -> CsvSchemaReconciler.reconcile(schema, vs));
 
 		final List<String> columnsRequiredByJsonSchema = validationSchema

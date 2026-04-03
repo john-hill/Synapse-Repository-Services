@@ -123,8 +123,8 @@ public class DiscussionController {
 	@RequestMapping(value = UrlHelpers.OBJECT_ID_TYPE_FORUM, method = RequestMethod.GET)
 	public @ResponseBody Forum getForumByObjectIdAndType(
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
-			@RequestParam(value = AuthorizationConstants.OBJECT_ID_PARAM) String objectId,
-			@RequestParam(value = AuthorizationConstants.OBJECT_TYPE_PARAM) ForumObjectType objectType) {
+			@PathVariable(value = AuthorizationConstants.OBJECT_ID_PARAM) String objectId,
+			@PathVariable(value = AuthorizationConstants.OBJECT_TYPE_PARAM) ForumObjectType objectType) {
 
 		return serviceProvider.getDiscussionService().getForumByObjectIdAndType(userId, objectId, objectType);
 	}

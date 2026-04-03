@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.model.dbo.search;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -107,7 +108,7 @@ public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearc
 
 	@Override
 	public List<MigratableDatabaseObject<?, ?>> getSecondaryTypes() {
-		return null;
+		return Arrays.asList(new DBOSearchConfigSynonymSet(), new DBOSearchConfigColAnalyzer());
 	}
 
 	public Long getId() {

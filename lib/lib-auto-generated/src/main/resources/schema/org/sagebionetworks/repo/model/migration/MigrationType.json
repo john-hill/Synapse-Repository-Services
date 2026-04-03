@@ -543,6 +543,14 @@
 			"description": "Table that stores search configurations for search"
 		},
 		{
+			"name": "SEARCH_CONFIG_SYNONYM_SET",
+			"description": "Junction table linking search configurations to synonym sets"
+		},
+		{
+			"name": "SEARCH_CONFIG_COL_ANALYZER",
+			"description": "Junction table linking search configurations to column analyzer overrides"
+		},
+		{
 			"name": "CHANGE",
 			"description": "TODO: Auto-generated description"
 		}

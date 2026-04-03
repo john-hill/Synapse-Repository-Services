@@ -44,7 +44,6 @@ import org.sagebionetworks.repo.model.dbo.persistence.table.DBOColumnModel;
 import org.sagebionetworks.repo.model.dbo.schema.DBOOrganization;
 import org.sagebionetworks.repo.model.dbo.schema.JsonSchemaDao;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
-import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.file.CloudProviderFileHandleInterface;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.migration.BatchChecksumRequest;
@@ -92,29 +91,24 @@ public class MigratableTableDAOImplAutowireTest {
 		
 	@Autowired
 	private OrganizationDao orgDao;
-	
+
 	@Autowired
 	private JsonSchemaDao schemaDao;
 
-	@Autowired
-	private SynonymSetDao synonymSetDao;
-
 	private String creatorUserGroupId;
-	
+
 	@BeforeEach
 	public void before() {
-		synonymSetDao.truncateAll();
 		schemaDao.truncateAll();
 		orgDao.truncateAll();
 		fileHandleDao.truncateTable();
 		creatorUserGroupId = BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId().toString();
 		assertNotNull(creatorUserGroupId);
 	}
-	
+
 	@AfterEach
 	public void after(){
 		fileHandleDao.truncateTable();
-		synonymSetDao.truncateAll();
 		schemaDao.truncateAll();
 		orgDao.truncateAll();
 	}

@@ -2,7 +2,6 @@ package org.sagebionetworks.repo.model.dbo.schema;
 
 import java.util.ArrayList;
 
-import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.schema.BoundObjectType;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
 import org.sagebionetworks.repo.model.schema.JsonSchemaObjectBinding;
@@ -20,15 +19,12 @@ public class JsonSchemaTestHelperImpl implements JsonSchemaTestHelper {
 
 	private JsonSchemaDao jsonSchemaDao;
 	private OrganizationDao organizationDao;
-	private SynonymSetDao synonymSetDao;
 
 	@Autowired
-	public JsonSchemaTestHelperImpl(JsonSchemaDao jsonSchemaDao, OrganizationDao organizationDao,
-			SynonymSetDao synonymSetDao) {
+	public JsonSchemaTestHelperImpl(JsonSchemaDao jsonSchemaDao, OrganizationDao organizationDao) {
 		super();
 		this.jsonSchemaDao = jsonSchemaDao;
 		this.organizationDao = organizationDao;
-		this.synonymSetDao = synonymSetDao;
 	}
 
 	/**
@@ -95,7 +91,6 @@ public class JsonSchemaTestHelperImpl implements JsonSchemaTestHelper {
 
 	@Override
 	public void truncateAll() {
-		synonymSetDao.truncateAll();
 		jsonSchemaDao.truncateAll();
 		organizationDao.truncateAll();
 	}

@@ -1,7 +1,9 @@
 package org.sagebionetworks.repo.model.dbo.search;
 
 import java.sql.ResultSet;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 
@@ -175,17 +177,19 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 
 	private void insertJunctionRows(Long configId, List<String> synonymSetIds, List<String> columnAnalyzerOverrideIds) {
 		if (synonymSetIds != null) {
-			for (String ssId : synonymSetIds) {
+			List<String> deduped = new ArrayList<>(new LinkedHashSet<>(synonymSetIds));
+			for (int i = 0; i < deduped.size(); i++) {
 				jdbcTemplate.update(
-						"INSERT INTO SEARCH_CONFIG_SYNONYM_SET (CONFIG_ID, SYNONYM_SET_ID) VALUES (?, ?)",
-						configId, Long.parseLong(ssId));
+						"INSERT INTO SEARCH_CONFIG_SYNONYM_SET (CONFIG_ID, ORDINAL, SYNONYM_SET_ID) VALUES (?, ?, ?)",
+						configId, i, Long.parseLong(deduped.get(i)));
 			}
 		}
 		if (columnAnalyzerOverrideIds != null) {
-			for (String caId : columnAnalyzerOverrideIds) {
+			List<String> deduped = new ArrayList<>(new LinkedHashSet<>(columnAnalyzerOverrideIds));
+			for (int i = 0; i < deduped.size(); i++) {
 				jdbcTemplate.update(
-						"INSERT INTO SEARCH_CONFIG_COL_ANALYZER (CONFIG_ID, COLUMN_ANALYZER_OVERRIDE_ID) VALUES (?, ?)",
-						configId, Long.parseLong(caId));
+						"INSERT INTO SEARCH_CONFIG_COL_ANALYZER (CONFIG_ID, ORDINAL, COLUMN_ANALYZER_OVERRIDE_ID) VALUES (?, ?, ?)",
+						configId, i, Long.parseLong(deduped.get(i)));
 			}
 		}
 	}
@@ -196,10 +200,10 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 		}
 		Long id = Long.parseLong(config.getId());
 		config.setSynonymSetIds(jdbcTemplate.queryForList(
-				"SELECT SYNONYM_SET_ID FROM SEARCH_CONFIG_SYNONYM_SET WHERE CONFIG_ID = ?",
+				"SELECT SYNONYM_SET_ID FROM SEARCH_CONFIG_SYNONYM_SET WHERE CONFIG_ID = ? ORDER BY ORDINAL ASC",
 				String.class, id));
 		config.setColumnAnalyzerOverrideIds(jdbcTemplate.queryForList(
-				"SELECT COLUMN_ANALYZER_OVERRIDE_ID FROM SEARCH_CONFIG_COL_ANALYZER WHERE CONFIG_ID = ?",
+				"SELECT COLUMN_ANALYZER_OVERRIDE_ID FROM SEARCH_CONFIG_COL_ANALYZER WHERE CONFIG_ID = ? ORDER BY ORDINAL ASC",
 				String.class, id));
 	}
 

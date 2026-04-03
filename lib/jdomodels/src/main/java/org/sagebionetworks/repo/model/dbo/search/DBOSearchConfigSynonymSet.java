@@ -16,10 +16,12 @@ public class DBOSearchConfigSynonymSet implements MigratableDatabaseObject<DBOSe
 
 	private static final FieldColumn[] FIELDS = new FieldColumn[] {
 			new FieldColumn("configId", "CONFIG_ID", true).withIsBackupId(true),
-			new FieldColumn("synonymSetId", "SYNONYM_SET_ID", true),
+			new FieldColumn("ordinal", "ORDINAL", true),
+			new FieldColumn("synonymSetId", "SYNONYM_SET_ID"),
 	};
 
 	private Long configId;
+	private Integer ordinal;
 	private Long synonymSetId;
 
 	private static final TableMapping<DBOSearchConfigSynonymSet> TABLE_MAPPING = new TableMapping<>() {
@@ -27,6 +29,7 @@ public class DBOSearchConfigSynonymSet implements MigratableDatabaseObject<DBOSe
 		public DBOSearchConfigSynonymSet mapRow(ResultSet rs, int rowNum) throws SQLException {
 			DBOSearchConfigSynonymSet dbo = new DBOSearchConfigSynonymSet();
 			dbo.setConfigId(rs.getLong("CONFIG_ID"));
+			dbo.setOrdinal(rs.getInt("ORDINAL"));
 			dbo.setSynonymSetId(rs.getLong("SYNONYM_SET_ID"));
 			return dbo;
 		}
@@ -92,6 +95,14 @@ public class DBOSearchConfigSynonymSet implements MigratableDatabaseObject<DBOSe
 		this.configId = configId;
 	}
 
+	public Integer getOrdinal() {
+		return ordinal;
+	}
+
+	public void setOrdinal(Integer ordinal) {
+		this.ordinal = ordinal;
+	}
+
 	public Long getSynonymSetId() {
 		return synonymSetId;
 	}
@@ -102,7 +113,7 @@ public class DBOSearchConfigSynonymSet implements MigratableDatabaseObject<DBOSe
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(configId, synonymSetId);
+		return Objects.hash(configId, ordinal, synonymSetId);
 	}
 
 	@Override
@@ -114,6 +125,6 @@ public class DBOSearchConfigSynonymSet implements MigratableDatabaseObject<DBOSe
 			return false;
 		}
 		DBOSearchConfigSynonymSet other = (DBOSearchConfigSynonymSet) obj;
-		return Objects.equals(configId, other.configId) && Objects.equals(synonymSetId, other.synonymSetId);
+		return Objects.equals(configId, other.configId) && Objects.equals(ordinal, other.ordinal) && Objects.equals(synonymSetId, other.synonymSetId);
 	}
 }

@@ -16,10 +16,12 @@ public class DBOSearchConfigColAnalyzer implements MigratableDatabaseObject<DBOS
 
 	private static final FieldColumn[] FIELDS = new FieldColumn[] {
 			new FieldColumn("configId", "CONFIG_ID", true).withIsBackupId(true),
-			new FieldColumn("columnAnalyzerOverrideId", "COLUMN_ANALYZER_OVERRIDE_ID", true),
+			new FieldColumn("ordinal", "ORDINAL", true),
+			new FieldColumn("columnAnalyzerOverrideId", "COLUMN_ANALYZER_OVERRIDE_ID"),
 	};
 
 	private Long configId;
+	private Integer ordinal;
 	private Long columnAnalyzerOverrideId;
 
 	private static final TableMapping<DBOSearchConfigColAnalyzer> TABLE_MAPPING = new TableMapping<>() {
@@ -27,6 +29,7 @@ public class DBOSearchConfigColAnalyzer implements MigratableDatabaseObject<DBOS
 		public DBOSearchConfigColAnalyzer mapRow(ResultSet rs, int rowNum) throws SQLException {
 			DBOSearchConfigColAnalyzer dbo = new DBOSearchConfigColAnalyzer();
 			dbo.setConfigId(rs.getLong("CONFIG_ID"));
+			dbo.setOrdinal(rs.getInt("ORDINAL"));
 			dbo.setColumnAnalyzerOverrideId(rs.getLong("COLUMN_ANALYZER_OVERRIDE_ID"));
 			return dbo;
 		}
@@ -92,6 +95,14 @@ public class DBOSearchConfigColAnalyzer implements MigratableDatabaseObject<DBOS
 		this.configId = configId;
 	}
 
+	public Integer getOrdinal() {
+		return ordinal;
+	}
+
+	public void setOrdinal(Integer ordinal) {
+		this.ordinal = ordinal;
+	}
+
 	public Long getColumnAnalyzerOverrideId() {
 		return columnAnalyzerOverrideId;
 	}
@@ -102,7 +113,7 @@ public class DBOSearchConfigColAnalyzer implements MigratableDatabaseObject<DBOS
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(configId, columnAnalyzerOverrideId);
+		return Objects.hash(configId, ordinal, columnAnalyzerOverrideId);
 	}
 
 	@Override
@@ -114,6 +125,6 @@ public class DBOSearchConfigColAnalyzer implements MigratableDatabaseObject<DBOS
 			return false;
 		}
 		DBOSearchConfigColAnalyzer other = (DBOSearchConfigColAnalyzer) obj;
-		return Objects.equals(configId, other.configId) && Objects.equals(columnAnalyzerOverrideId, other.columnAnalyzerOverrideId);
+		return Objects.equals(configId, other.configId) && Objects.equals(ordinal, other.ordinal) && Objects.equals(columnAnalyzerOverrideId, other.columnAnalyzerOverrideId);
 	}
 }

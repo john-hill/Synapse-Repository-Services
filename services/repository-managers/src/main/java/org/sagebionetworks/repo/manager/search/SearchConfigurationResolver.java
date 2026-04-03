@@ -39,6 +39,9 @@ public class SearchConfigurationResolver {
 			return searchConfigurationDao.get(searchConfigurationId);
 		}
 		// 2. Project settings fallback
+		if (parentId == null || parentId.isEmpty()) {
+			return Optional.empty();
+		}
 		Optional<SearchConfigurationListSetting> setting = projectSettingsManager.getProjectSettingForNode(
 			user, parentId, ProjectSettingsType.search, SearchConfigurationListSetting.class);
 		if (setting.isPresent() && setting.get().getSearchConfigurationId() != null) {

@@ -354,10 +354,13 @@ import org.sagebionetworks.repo.model.table.ViewType;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesRequest;
 import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesResponse;
+import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsRequest;
+import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsResponse;
 import org.sagebionetworks.repo.model.search.table.ListSynonymSetsRequest;
 import org.sagebionetworks.repo.model.search.table.ListSynonymSetsResponse;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiHeader;
@@ -4713,6 +4716,16 @@ public interface SynapseClient extends BaseClient {
 	void deleteSynonymSet(String id) throws SynapseException;
 
 	ListSynonymSetsResponse listSynonymSets(ListSynonymSetsRequest request) throws SynapseException;
+
+	SearchConfiguration createSearchConfiguration(SearchConfiguration config) throws SynapseException;
+
+	SearchConfiguration getSearchConfiguration(String id) throws SynapseException;
+
+	SearchConfiguration updateSearchConfiguration(SearchConfiguration config) throws SynapseException;
+
+	void deleteSearchConfiguration(String id) throws SynapseException;
+
+	ListSearchConfigurationsResponse listSearchConfigurations(ListSearchConfigurationsRequest request) throws SynapseException;
 
 }
 

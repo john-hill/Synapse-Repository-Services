@@ -1378,6 +1378,11 @@ public class UrlHelpers {
 	public static final String SEARCH_COLUMN_ANALYZER_OVERRIDE_ID = SEARCH_COLUMN_ANALYZER_OVERRIDE + "/{columnAnalyzerOverrideId}";
 	public static final String SEARCH_COLUMN_ANALYZER_OVERRIDE_LIST = SEARCH_COLUMN_ANALYZER_OVERRIDE + "/list";
 
+	// Search - Search Configuration
+	public static final String SEARCH_CONFIGURATION = "/search/configuration";
+	public static final String SEARCH_CONFIGURATION_ID = SEARCH_CONFIGURATION + "/{searchConfigurationId}";
+	public static final String SEARCH_CONFIGURATION_LIST = SEARCH_CONFIGURATION + "/list";
+
 	// Search - Query and Autocomplete
 	public static final String SEARCH_QUERY_ASYNC_START = "/search/query/async/start";
 	public static final String SEARCH_QUERY_ASYNC_GET = "/search/query/async/get/{asyncToken}";

@@ -405,10 +405,13 @@ import org.sagebionetworks.repo.model.table.ViewType;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesRequest;
 import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesResponse;
+import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsRequest;
+import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsResponse;
 import org.sagebionetworks.repo.model.search.table.ListSynonymSetsRequest;
 import org.sagebionetworks.repo.model.search.table.ListSynonymSetsResponse;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiHeader;
@@ -779,6 +782,8 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	private static final String SEARCH_SYNONYM_SET_LIST = SEARCH_SYNONYM_SET + "/list";
 	private static final String SEARCH_COLUMN_ANALYZER_OVERRIDE = "/search/column/analyzer/override";
 	private static final String SEARCH_COLUMN_ANALYZER_OVERRIDE_LIST = SEARCH_COLUMN_ANALYZER_OVERRIDE + "/list";
+	private static final String SEARCH_CONFIGURATION = "/search/configuration";
+	private static final String SEARCH_CONFIGURATION_LIST = SEARCH_CONFIGURATION + "/list";
 
 	/**
 	 * Default constructor uses the default repository and file services endpoints.
@@ -6759,6 +6764,37 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public ListSynonymSetsResponse listSynonymSets(ListSynonymSetsRequest request) throws SynapseException {
 		ValidateArgument.required(request, "request");
 		return postJSONEntity(getRepoEndpoint(), SEARCH_SYNONYM_SET_LIST, request, ListSynonymSetsResponse.class);
+	}
+
+	@Override
+	public SearchConfiguration createSearchConfiguration(SearchConfiguration config) throws SynapseException {
+		ValidateArgument.required(config, "config");
+		return postJSONEntity(getRepoEndpoint(), SEARCH_CONFIGURATION, config, SearchConfiguration.class);
+	}
+
+	@Override
+	public SearchConfiguration getSearchConfiguration(String id) throws SynapseException {
+		ValidateArgument.required(id, "id");
+		return getJSONEntity(getRepoEndpoint(), createEntityUri(SEARCH_CONFIGURATION, id), SearchConfiguration.class);
+	}
+
+	@Override
+	public SearchConfiguration updateSearchConfiguration(SearchConfiguration config) throws SynapseException {
+		ValidateArgument.required(config, "config");
+		ValidateArgument.required(config.getId(), "config.id");
+		return putJSONEntity(getRepoEndpoint(), createEntityUri(SEARCH_CONFIGURATION, config.getId()), config, SearchConfiguration.class);
+	}
+
+	@Override
+	public void deleteSearchConfiguration(String id) throws SynapseException {
+		ValidateArgument.required(id, "id");
+		deleteUri(getRepoEndpoint(), createEntityUri(SEARCH_CONFIGURATION, id));
+	}
+
+	@Override
+	public ListSearchConfigurationsResponse listSearchConfigurations(ListSearchConfigurationsRequest request) throws SynapseException {
+		ValidateArgument.required(request, "request");
+		return postJSONEntity(getRepoEndpoint(), SEARCH_CONFIGURATION_LIST, request, ListSearchConfigurationsResponse.class);
 	}
 
 }

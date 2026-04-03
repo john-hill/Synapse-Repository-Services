@@ -539,6 +539,10 @@
 			"description": "Table that stores synonym sets for search"
 		},
 		{
+			"name": "SEARCH_CONFIGURATION",
+			"description": "Table that stores search configurations for search"
+		},
+		{
 			"name": "CHANGE",
 			"description": "TODO: Auto-generated description"
 		}

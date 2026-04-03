@@ -28,6 +28,7 @@ import org.sagebionetworks.repo.model.principal.PrincipalAliasDAO;
 import org.sagebionetworks.repo.model.project.ExternalS3StorageLocationSetting;
 import org.sagebionetworks.repo.model.project.ProjectSetting;
 import org.sagebionetworks.repo.model.project.ProjectSettingsType;
+import org.sagebionetworks.repo.model.project.SearchConfigurationListSetting;
 import org.sagebionetworks.repo.model.project.StorageLocationSetting;
 import org.sagebionetworks.repo.model.project.StsStorageLocationSetting;
 import org.sagebionetworks.repo.model.project.UploadDestinationListSetting;
@@ -66,7 +67,8 @@ public class ProjectSettingsManagerImpl implements ProjectSettingsManager {
 	private ProjectStorageLimitsManager storageLimitsManager;
 	
 	private static final Map<Class<? extends ProjectSetting>, ProjectSettingsType> TYPE_MAP = ImmutableMap.of(
-		UploadDestinationListSetting.class, ProjectSettingsType.upload
+		UploadDestinationListSetting.class, ProjectSettingsType.upload,
+		SearchConfigurationListSetting.class, ProjectSettingsType.search
 	);
 
 	private List<StorageLocationProcessor<? extends StorageLocationSetting>> storageLocationProcessors;

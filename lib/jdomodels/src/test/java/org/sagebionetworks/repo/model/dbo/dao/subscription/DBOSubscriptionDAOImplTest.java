@@ -629,7 +629,7 @@ public class DBOSubscriptionDAOImplTest {
 		StringBuilder builder = new StringBuilder();
 		// call under test
 		DBOSubscriptionDAOImpl.addTypeSpecificSql(builder, objectType, projectIds);
-		assertEquals(" JOIN FORUM F ON (S.OBJECT_ID = F.ID AND F.OBJECT_ID IN (:projectIds))", builder.toString());
+		assertEquals(" JOIN FORUM F ON (S.OBJECT_ID = F.ID AND F.OBJECT_TYPE = 'ENTITY' AND F.OBJECT_ID IN (:projectIds))", builder.toString());
 	}
 	
 	@Test
@@ -653,7 +653,7 @@ public class DBOSubscriptionDAOImplTest {
 		DBOSubscriptionDAOImpl.addTypeSpecificSql(builder, objectType, objectIds);
 		// filter deleted threads and projectIds.
 		assertEquals(" JOIN DISCUSSION_THREAD T ON (S.OBJECT_ID = T.ID AND T.IS_DELETED = FALSE)"
-					+ " JOIN FORUM F ON (T.FORUM_ID = F.ID AND F.OBJECT_ID IN (:projectIds))", builder.toString());
+					+ " JOIN FORUM F ON (T.FORUM_ID = F.ID AND F.OBJECT_TYPE = 'ENTITY' AND F.OBJECT_ID IN (:projectIds))", builder.toString());
 	}
 	
 	@Test

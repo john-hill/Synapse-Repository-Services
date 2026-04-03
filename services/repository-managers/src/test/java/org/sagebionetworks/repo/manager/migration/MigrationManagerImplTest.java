@@ -52,6 +52,7 @@ import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.daemon.BackupAliasType;
 import org.sagebionetworks.repo.model.dbo.DatabaseObject;
+import org.sagebionetworks.repo.model.dbo.dao.discussion.ForumDAO;
 import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
 import org.sagebionetworks.repo.model.dbo.dao.TestUtils;
 import org.sagebionetworks.repo.model.dbo.migration.ForeignKeyInfo;
@@ -122,6 +123,8 @@ public class MigrationManagerImplTest {
 	ArgumentCaptor<Iterable<MigratableDatabaseObject<?, ?>>> iterableCator;
 	@Mock
 	MigrationTypeListener<DatabaseObject<?>> mockMigrationListener;
+	@Mock
+	ForumDAO mockForumDao;
 	@Captor
 	ArgumentCaptor<GetObjectRequest> getObjectRequestCaptor;
 	@InjectMocks

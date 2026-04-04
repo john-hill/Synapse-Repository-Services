@@ -190,8 +190,21 @@ public class GridReplicaViewManagerImpl implements GridReplicaViewManager {
 	@Override
 	public Iterator<RowView> getQueryIterator(GridHeader header, QueryElement query) {
 		final long ROWS_PER_PAGE = 1_000L;
+		final Long callerLimit = query.getLimit();
+		final long callerOffset = query.getOffset() != null ? query.getOffset() : 0L;
 		return new PaginationIterator<>(
-				(long limit, long offset) -> this.querySinglePage(header, query), ROWS_PER_PAGE);
+				(long limit, long offset) -> {
+					long effectiveLimit = limit;
+					if (callerLimit != null) {
+						effectiveLimit = Math.min(limit, Math.max(0, callerLimit - offset));
+					}
+					if (effectiveLimit <= 0) {
+						return Collections.emptyList();
+					}
+					query.setLimit(effectiveLimit);
+					query.setOffset(callerOffset + offset);
+					return this.querySinglePage(header, query);
+				}, ROWS_PER_PAGE);
 	}
 	
 	@Override

@@ -117,6 +117,7 @@ import org.sagebionetworks.repo.model.auth.UserEntityPermissions;
 import org.sagebionetworks.repo.model.curation.CurationTask;
 import org.sagebionetworks.repo.model.curation.ListCurationTaskRequest;
 import org.sagebionetworks.repo.model.curation.ListCurationTaskResponse;
+import org.sagebionetworks.repo.model.curation.TaskStatus;
 import org.sagebionetworks.repo.model.dao.WikiPageKey;
 import org.sagebionetworks.repo.model.dataaccess.AccessApprovalNotificationRequest;
 import org.sagebionetworks.repo.model.dataaccess.AccessApprovalNotificationResponse;
@@ -350,6 +351,12 @@ import org.sagebionetworks.repo.model.table.ViewColumnModelResponse;
 import org.sagebionetworks.repo.model.table.ViewEntityType;
 import org.sagebionetworks.repo.model.table.ViewScope;
 import org.sagebionetworks.repo.model.table.ViewType;
+import org.sagebionetworks.repo.model.table.search.ColumnAnalyzerOverride;
+import org.sagebionetworks.repo.model.table.search.ListColumnAnalyzerOverridesRequest;
+import org.sagebionetworks.repo.model.table.search.ListColumnAnalyzerOverridesResponse;
+import org.sagebionetworks.repo.model.table.search.ListTextAnalyzersRequest;
+import org.sagebionetworks.repo.model.table.search.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.table.search.TextAnalyzer;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiHeader;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiHistorySnapshot;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiOrderHint;
@@ -4393,7 +4400,7 @@ public interface SynapseClient extends BaseClient {
 	/**
 	 * Creates a new webhook.
 	 * 
-	 * @param reqeust
+	 * @param request
 	 * @return
 	 * @throws SynapseException
 	 */
@@ -4661,7 +4668,11 @@ public interface SynapseClient extends BaseClient {
     void deleteMetadataTask(Long taskId) throws SynapseException;
 
     ListCurationTaskResponse listMetadataTasks(ListCurationTaskRequest request) throws SynapseException;
-    
+
+    TaskStatus getTaskStatus(Long taskId) throws SynapseException;
+
+    TaskStatus updateTaskStatus(Long taskId, TaskStatus statusUpdate) throws SynapseException;
+
     RealmIdList listRealmIds() throws SynapseException ;
     
     Realm getRealm(String id) throws SynapseException ;
@@ -4669,5 +4680,26 @@ public interface SynapseClient extends BaseClient {
     RealmPrincipal getRealmPrincipals(String id) throws SynapseException ;
     
     RealmPrincipal getRealmPrincipals() throws SynapseException;
+
+    TextAnalyzer createTextAnalyzer(TextAnalyzer analyzer) throws SynapseException;
+
+    TextAnalyzer getTextAnalyzer(String id) throws SynapseException;
+
+    TextAnalyzer updateTextAnalyzer(TextAnalyzer analyzer) throws SynapseException;
+
+    void deleteTextAnalyzer(String id) throws SynapseException;
+
+    ListTextAnalyzersResponse listTextAnalyzers(ListTextAnalyzersRequest request) throws SynapseException;
+
+    ColumnAnalyzerOverride createColumnAnalyzerOverride(ColumnAnalyzerOverride override) throws SynapseException;
+
+    ColumnAnalyzerOverride getColumnAnalyzerOverride(String id) throws SynapseException;
+
+    ColumnAnalyzerOverride updateColumnAnalyzerOverride(ColumnAnalyzerOverride override) throws SynapseException;
+
+    void deleteColumnAnalyzerOverride(String id) throws SynapseException;
+
+    ListColumnAnalyzerOverridesResponse listColumnAnalyzerOverrides(ListColumnAnalyzerOverridesRequest request) throws SynapseException;
+
 }
 

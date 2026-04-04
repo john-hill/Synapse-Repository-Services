@@ -1309,6 +1309,7 @@ public class UrlHelpers {
     public static final String CURATION_TASK = "/curation/task";
     public static final String CURATION_TASK_ID = CURATION_TASK + "/{taskId}";
     public static final String CURATION_TASK_LIST = CURATION_TASK + LIST;
+    public static final String CURATION_TASK_STATUS = CURATION_TASK_ID + "/status";
 	
 	/**
 	 * API for creating integration test users
@@ -1361,6 +1362,16 @@ public class UrlHelpers {
 	public static final String DRS_SERVICE_INFO = "/service-info";
 	public static final String DRS_OBJECT = "/objects/{object_id}";
 	public static final String DRS_FETCH_BYTES = DRS_OBJECT + "/access/{access_id}";
+
+	// Search - Text Analyzer
+	public static final String SEARCH_TEXT_ANALYZER = "/search/text/analyzer";
+	public static final String SEARCH_TEXT_ANALYZER_ID = SEARCH_TEXT_ANALYZER + "/{id}";
+	public static final String SEARCH_TEXT_ANALYZER_LIST = SEARCH_TEXT_ANALYZER + "/list";
+
+	// Search - Column Analyzer Override
+	public static final String SEARCH_COLUMN_ANALYZER_OVERRIDE = "/search/column/analyzer/override";
+	public static final String SEARCH_COLUMN_ANALYZER_OVERRIDE_ID = SEARCH_COLUMN_ANALYZER_OVERRIDE + "/{columnAnalyzerOverrideId}";
+	public static final String SEARCH_COLUMN_ANALYZER_OVERRIDE_LIST = SEARCH_COLUMN_ANALYZER_OVERRIDE + "/list";
 
 	static {
 		@SuppressWarnings("rawtypes")

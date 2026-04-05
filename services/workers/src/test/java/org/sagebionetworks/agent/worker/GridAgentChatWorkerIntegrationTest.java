@@ -525,7 +525,7 @@ public class GridAgentChatWorkerIntegrationTest {
 				"schema/ArrayProperty.json",
 				"arrayproperty",
 				4,
-				4
+				0
 		);
 
 		GridReplica replicaOne = gridService

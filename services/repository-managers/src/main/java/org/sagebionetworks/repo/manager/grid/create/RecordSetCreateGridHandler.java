@@ -14,6 +14,7 @@ import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
 import org.sagebionetworks.repo.manager.file.CsvFileHandleProvider;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
+import org.sagebionetworks.repo.manager.grid.CsvSchemaReconciler;
 import org.sagebionetworks.repo.manager.grid.IndexedModelEncoderProvider;
 import org.sagebionetworks.repo.manager.grid.SnapshotRowHandler;
 import org.sagebionetworks.repo.manager.grid.SnapshotStore;
@@ -114,6 +115,9 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 		List<ColumnModel> schema = getSchemaFromCsv(fileHandle, csvDescriptor);
 
 		final Optional<JsonSchema> validationSchema = validationSchemaId.map(jsonSchemaManager::getValidationSchema);
+
+		// See: PLFM-9558
+		validationSchema.ifPresent(vs -> CsvSchemaReconciler.reconcile(schema, vs));
 
 		final List<String> columnsRequiredByJsonSchema = validationSchema
 				.map(JsonSchema::getRequired)

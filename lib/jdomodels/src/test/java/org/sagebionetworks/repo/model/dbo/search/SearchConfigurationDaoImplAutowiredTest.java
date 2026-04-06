@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,6 +22,7 @@ import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.schema.Organization;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
+import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
@@ -276,10 +278,15 @@ public class SearchConfigurationDaoImplAutowiredTest {
 	}
 
 	private ColumnAnalyzerOverride newColumnAnalyzerOverride(String name, String analyzerId) {
+		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
+		entry.setColumnName("testColumn");
+		entry.setIndexAnalyzerId(analyzerId);
+		entry.setSearchAnalyzerId(analyzerId);
+
 		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride();
 		override.setName(name);
 		override.setOrganizationName(organizationName);
-		override.setTextAnalyzerId(analyzerId);
+		override.setOverrides(Collections.singletonList(entry));
 		return override;
 	}
 }

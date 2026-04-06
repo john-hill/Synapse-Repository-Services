@@ -83,7 +83,9 @@ platform (root)
   - `@ExtendWith(MockitoExtension.class)`, `@Mock`, `@InjectMocks`
 - Integration tests: `IT*.java` (in integration-test module)
 - Mockito 2.27 — no `mockStatic` or Mockito 4/5 APIs
+- **Test method naming**: `test<methodUnderTest>With<condition>` — e.g., `testCreateWithNonSageUser`, `testGetWithNonExistentId`, `testListWithMultipleOrganizations`. For IT CRUD lifecycle tests: `testCRUDWith<context>`.
 - **Test method structure**: Mark the primary method being tested with a `// call under test` comment directly above it — this makes each test's intent immediately clear during review
+- **Verify no downstream calls after exceptions**: After `assertThrows`, verify that mocked methods past the exception point were NOT called — use `verifyZeroInteractions(mock)` or `verify(mock, never()).method(...)`
 - **Assert on whole objects**: Use `assertEquals(expected, actual)` on objects rather than comparing individual fields — generated POJOs have correct `equals()`/`hashCode()`. Only assert individual fields when testing a specific field transformation.
 - **Include real data in tests**: Don't test CRUD with empty payloads. If a feature serializes data (e.g., JSON columns), include actual values in the test fixture and verify the round-trip — because a bug in serialization won't surface if the payload is empty.
 - **List/filter tests need multiple groups**: When testing list/filter operations, create entries across at least 2 categories (e.g., 2 items in org1, 2 in org2). Verify each filtered list returns the correct subset AND verify ordering is deterministic — because a single-group test can pass even if filtering is broken.

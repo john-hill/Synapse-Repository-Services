@@ -1,5 +1,16 @@
 package org.sagebionetworks.repo.model.dbo.search;
 
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_CREATED_BY;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_CREATED_ON;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_DESCRIPTION;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_ETAG;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_MODIFIED_BY;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_MODIFIED_ON;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_NAME;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_ORGANIZATION_NAME;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_RULES;
+
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -25,16 +36,16 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 	private static final String MSG_DUPLICATE_NAME = "A synonym set with the given name already exists in this organization.";
 
 	private static final RowMapper<SynonymSet> SYNONYM_SET_ROW_MAPPER = (rs, rowNum) -> new SynonymSet()
-		.setId(String.valueOf(rs.getLong("ID")))
-		.setEtag(rs.getString("ETAG"))
-		.setOrganizationName(rs.getString("ORGANIZATION_NAME"))
-		.setName(rs.getString("NAME"))
-		.setDescription(rs.getString("DESCRIPTION"))
-		.setRules(JDOSecondaryPropertyUtils.readJsonToEntityList(rs.getString("RULES"), SynonymRule.class))
-		.setCreatedBy(String.valueOf(rs.getLong("CREATED_BY")))
-		.setCreatedOn(new Date(rs.getTimestamp("CREATED_ON").getTime()))
-		.setModifiedBy(String.valueOf(rs.getLong("MODIFIED_BY")))
-		.setModifiedOn(new Date(rs.getTimestamp("MODIFIED_ON").getTime()));
+		.setId(String.valueOf(rs.getLong(COL_SYNSET_ID)))
+		.setEtag(rs.getString(COL_SYNSET_ETAG))
+		.setOrganizationName(rs.getString(COL_SYNSET_ORGANIZATION_NAME))
+		.setName(rs.getString(COL_SYNSET_NAME))
+		.setDescription(rs.getString(COL_SYNSET_DESCRIPTION))
+		.setRules(JDOSecondaryPropertyUtils.readJsonToEntityList(rs.getString(COL_SYNSET_RULES), SynonymRule.class))
+		.setCreatedBy(String.valueOf(rs.getLong(COL_SYNSET_CREATED_BY)))
+		.setCreatedOn(new Date(rs.getTimestamp(COL_SYNSET_CREATED_ON).getTime()))
+		.setModifiedBy(String.valueOf(rs.getLong(COL_SYNSET_MODIFIED_BY)))
+		.setModifiedOn(new Date(rs.getTimestamp(COL_SYNSET_MODIFIED_ON).getTime()));
 
 	private final JdbcTemplate jdbcTemplate;
 	private final IdGenerator idGenerator;

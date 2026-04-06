@@ -1,5 +1,18 @@
 package org.sagebionetworks.repo.model.dbo.search;
 
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_CREATED_BY;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_CREATED_ON;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_DESCRIPTION;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_ETAG;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_MODIFIED_BY;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_MODIFIED_ON;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_NAME;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_ORGANIZATION_NAME;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_RULES;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.DDL_SYNONYM_SET;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_SYNONYM_SET;
+
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -27,43 +40,43 @@ public class DBOSynonymSet implements MigratableDatabaseObject<DBOSynonymSet, DB
 	private Timestamp modifiedOn;
 
 	private static FieldColumn[] FIELDS = new FieldColumn[] {
-		new FieldColumn("id", "ID", true).withIsBackupId(true),
-		new FieldColumn("etag", "ETAG").withIsEtag(true),
-		new FieldColumn("organizationName", "ORGANIZATION_NAME"),
-		new FieldColumn("name", "NAME"),
-		new FieldColumn("description", "DESCRIPTION"),
-		new FieldColumn("rules", "RULES"),
-		new FieldColumn("createdBy", "CREATED_BY"),
-		new FieldColumn("createdOn", "CREATED_ON"),
-		new FieldColumn("modifiedBy", "MODIFIED_BY"),
-		new FieldColumn("modifiedOn", "MODIFIED_ON")
+		new FieldColumn("id", COL_SYNSET_ID, true).withIsBackupId(true),
+		new FieldColumn("etag", COL_SYNSET_ETAG).withIsEtag(true),
+		new FieldColumn("organizationName", COL_SYNSET_ORGANIZATION_NAME),
+		new FieldColumn("name", COL_SYNSET_NAME),
+		new FieldColumn("description", COL_SYNSET_DESCRIPTION),
+		new FieldColumn("rules", COL_SYNSET_RULES),
+		new FieldColumn("createdBy", COL_SYNSET_CREATED_BY),
+		new FieldColumn("createdOn", COL_SYNSET_CREATED_ON),
+		new FieldColumn("modifiedBy", COL_SYNSET_MODIFIED_BY),
+		new FieldColumn("modifiedOn", COL_SYNSET_MODIFIED_ON)
 	};
 
 	private static final TableMapping<DBOSynonymSet> TABLE_MAPPING = new TableMapping<>() {
 		@Override
 		public DBOSynonymSet mapRow(ResultSet rs, int rowNum) throws SQLException {
 			DBOSynonymSet dbo = new DBOSynonymSet();
-			dbo.setId(rs.getLong("ID"));
-			dbo.setEtag(rs.getString("ETAG"));
-			dbo.setOrganizationName(rs.getString("ORGANIZATION_NAME"));
-			dbo.setName(rs.getString("NAME"));
-			dbo.setDescription(rs.getString("DESCRIPTION"));
-			dbo.setRules(rs.getString("RULES"));
-			dbo.setCreatedBy(rs.getLong("CREATED_BY"));
-			dbo.setCreatedOn(rs.getTimestamp("CREATED_ON"));
-			dbo.setModifiedBy(rs.getLong("MODIFIED_BY"));
-			dbo.setModifiedOn(rs.getTimestamp("MODIFIED_ON"));
+			dbo.setId(rs.getLong(COL_SYNSET_ID));
+			dbo.setEtag(rs.getString(COL_SYNSET_ETAG));
+			dbo.setOrganizationName(rs.getString(COL_SYNSET_ORGANIZATION_NAME));
+			dbo.setName(rs.getString(COL_SYNSET_NAME));
+			dbo.setDescription(rs.getString(COL_SYNSET_DESCRIPTION));
+			dbo.setRules(rs.getString(COL_SYNSET_RULES));
+			dbo.setCreatedBy(rs.getLong(COL_SYNSET_CREATED_BY));
+			dbo.setCreatedOn(rs.getTimestamp(COL_SYNSET_CREATED_ON));
+			dbo.setModifiedBy(rs.getLong(COL_SYNSET_MODIFIED_BY));
+			dbo.setModifiedOn(rs.getTimestamp(COL_SYNSET_MODIFIED_ON));
 			return dbo;
 		}
 
 		@Override
 		public String getTableName() {
-			return "SYNONYM_SET";
+			return TABLE_SYNONYM_SET;
 		}
 
 		@Override
 		public String getDDLFileName() {
-			return "schema/SynonymSet-ddl.sql";
+			return DDL_SYNONYM_SET;
 		}
 
 		@Override

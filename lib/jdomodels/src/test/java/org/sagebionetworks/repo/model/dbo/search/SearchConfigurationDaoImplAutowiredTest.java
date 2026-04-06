@@ -26,6 +26,7 @@ import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
+import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -274,6 +275,9 @@ public class SearchConfigurationDaoImplAutowiredTest {
 		TextAnalyzer analyzer = new TextAnalyzer();
 		analyzer.setName(name);
 		analyzer.setOrganizationName(organizationName);
+		TextAnalyzerSettings settings = new TextAnalyzerSettings();
+		settings.setTokenizer("standard");
+		analyzer.setSettings(settings);
 		return analyzer;
 	}
 

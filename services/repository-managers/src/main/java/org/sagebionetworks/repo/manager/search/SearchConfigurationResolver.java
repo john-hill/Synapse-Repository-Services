@@ -44,7 +44,8 @@ public class SearchConfigurationResolver {
 		}
 		Optional<SearchConfigurationListSetting> setting = projectSettingsManager.getProjectSettingForNode(
 			user, parentId, ProjectSettingsType.search, SearchConfigurationListSetting.class);
-		if (setting.isPresent() && setting.get().getSearchConfigurationId() != null) {
+		if (setting.isPresent() && setting.get().getSearchConfigurationId() != null
+				&& !setting.get().getSearchConfigurationId().isEmpty()) {
 			return searchConfigurationDao.get(setting.get().getSearchConfigurationId());
 		}
 		// 3. No configuration -- use platform defaults

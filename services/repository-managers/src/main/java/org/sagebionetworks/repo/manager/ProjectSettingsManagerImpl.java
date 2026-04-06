@@ -65,14 +65,14 @@ public class ProjectSettingsManagerImpl implements ProjectSettingsManager {
 
 	@Autowired
 	private ProjectStorageLimitsManager storageLimitsManager;
-	
+
 	private static final Map<Class<? extends ProjectSetting>, ProjectSettingsType> TYPE_MAP = ImmutableMap.of(
-		UploadDestinationListSetting.class, ProjectSettingsType.upload,
-		SearchConfigurationListSetting.class, ProjectSettingsType.search
+			UploadDestinationListSetting.class, ProjectSettingsType.upload,
+			SearchConfigurationListSetting.class, ProjectSettingsType.search
 	);
 
 	private List<StorageLocationProcessor<? extends StorageLocationSetting>> storageLocationProcessors;
-	
+
 	@Autowired
 	public void setStorageLocationProcessors(List<StorageLocationProcessor<? extends StorageLocationSetting>> storageLocationProcessors) {
 		this.storageLocationProcessors = storageLocationProcessors;
@@ -98,26 +98,26 @@ public class ProjectSettingsManagerImpl implements ProjectSettingsManager {
 
 	@Override
 	public <T extends ProjectSetting> Optional<T> getProjectSettingForNode(UserInfo userInfo, String nodeId, ProjectSettingsType type,
-			Class<T> expectedType) throws DatastoreException, UnauthorizedException, NotFoundException {
-		
+	                                                                       Class<T> expectedType) throws DatastoreException, UnauthorizedException, NotFoundException {
+
 		ProjectSetting projectSetting = null;
-		
+
 		String projectSettingId = projectSettingsDao.getInheritedProjectSetting(nodeId, type);
-		
+
 		if (projectSettingId != null) {
 			// Note that get throws NotFoundException if the project setting somehow doesn't exist.
 			projectSetting = projectSettingsDao.get(projectSettingId);
-		}	
-		
+		}
+
 		if (projectSetting == null) {
 			// Not having a setting is normal.
 			return Optional.empty();
 		}
-		
+
 		if (!expectedType.isInstance(projectSetting)) {
 			throw new IllegalArgumentException("Settings type for '" + type + "' is not of type " + expectedType.getName());
 		}
-		
+
 		return Optional.of(expectedType.cast(projectSetting));
 	}
 
@@ -136,23 +136,23 @@ public class ProjectSettingsManagerImpl implements ProjectSettingsManager {
 		// make sure the project id is a project
 		EntityType nodeType = nodeManager.getNodeType(userInfo, parentId);
 		Class<? extends Entity> nodeClass = EntityTypeUtils.getClassForType(nodeType);
-		
+
 		if (nodeClass != Project.class && nodeClass != Folder.class) {
 			throw new IllegalArgumentException("The id is not the id of a project or folder entity");
 		}
-		
+
 		if (!authorizationManager.canAccess(userInfo, parentId, ObjectType.ENTITY, ACCESS_TYPE.CREATE).isAuthorized()) {
 			throw new UnauthorizedException("Cannot create settings for this project");
 		}
-	
-		
+
+
 		// Can't create project settings if a parent has an StsStorageLocation.
 		Optional<ProjectSetting> parentSetting = getProjectSettingForNode(userInfo, parentId, ProjectSettingsType.upload,
 				ProjectSetting.class);
 		if (parentSetting.isPresent() && isStsStorageLocationSetting(parentSetting.get())) {
 			throw new IllegalArgumentException("Can't override project settings in an STS-enabled folder path");
 		}
-		
+
 		// Auto-fill the setting type to avoid inconsistencies in the database
 		projectSetting.setSettingsType(TYPE_MAP.get(projectSetting.getClass()));
 
@@ -164,11 +164,11 @@ public class ProjectSettingsManagerImpl implements ProjectSettingsManager {
 		}
 
 		String id = projectSettingsDao.create(projectSetting);
-		
+
 		if (projectSetting instanceof UploadDestinationListSetting) {
 			setDefaultProjectStorageLimits((UploadDestinationListSetting) projectSetting);
 		}
-		
+
 		return projectSettingsDao.get(id);
 	}
 
@@ -177,14 +177,14 @@ public class ProjectSettingsManagerImpl implements ProjectSettingsManager {
 	public void updateProjectSetting(UserInfo userInfo, ProjectSetting projectSetting) throws DatastoreException, NotFoundException {
 		ValidateArgument.required(projectSetting.getId(), "The id");
 		ValidateArgument.required(projectSetting.getProjectId(), "The project id");
-	
+
 		if (!authorizationManager.canAccess(userInfo, projectSetting.getProjectId(), ObjectType.ENTITY, ACCESS_TYPE.UPDATE).isAuthorized()) {
 			throw new UnauthorizedException("Cannot update settings on this project");
 		}
-		
+
 		// Auto-fill the setting type to avoid inconsistencies in the database
 		projectSetting.setSettingsType(TYPE_MAP.get(projectSetting.getClass()));
-		
+
 		validateProjectSetting(projectSetting, userInfo);
 
 		// Can't add or modify an StsStorageLocation on a non-empty entity.
@@ -200,18 +200,18 @@ public class ProjectSettingsManagerImpl implements ProjectSettingsManager {
 		}
 
 		projectSettingsDao.update(projectSetting);
-		
+
 		if (projectSetting instanceof UploadDestinationListSetting) {
 			setDefaultProjectStorageLimits((UploadDestinationListSetting) projectSetting);
 		}
 	}
-	
+
 	void setDefaultProjectStorageLimits(UploadDestinationListSetting settings) {
-		
+
 		String projectId = NodeUtils.getProjectIdFromEntityPath(
-			nodeManager.getNodePathAsAdmin(settings.getProjectId())
+				nodeManager.getNodePathAsAdmin(settings.getProjectId())
 		);
-		
+
 		settings.getLocations().forEach( storageLocationId -> {
 			storageLimitsManager.setDefaultProjectStorageLimit(projectId, storageLocationId);
 		});
@@ -222,12 +222,12 @@ public class ProjectSettingsManagerImpl implements ProjectSettingsManager {
 	public void deleteProjectSetting(UserInfo userInfo, String id) throws DatastoreException, NotFoundException {
 		// Note: projectSettingsDao.get() ensures that projectSetting is not null, or throws a NotFoundException.
 		ProjectSetting projectSetting = projectSettingsDao.get(id);
-		
+
 		if (!authorizationManager.canAccess(userInfo, projectSetting.getProjectId(), ObjectType.ENTITY, ACCESS_TYPE.DELETE)
 				.isAuthorized()) {
 			throw new UnauthorizedException("Cannot delete settings from this project");
 		}
-		
+
 		// Can't delete an StsStorageLocation on a non-empty entity.
 		if (!isEntityEmptyWithTrash(projectSetting.getProjectId()) &&
 				isStsStorageLocationSetting(projectSetting)) {
@@ -249,7 +249,7 @@ public class ProjectSettingsManagerImpl implements ProjectSettingsManager {
 		ValidateArgument.required(storageLocationSetting, "The storage location");
 
 		this.processStorageLocation(userInfo, storageLocationSetting);
-		
+
 		// Default UploadType to null.
 		if (storageLocationSetting.getUploadType() == null) {
 			storageLocationSetting.setUploadType(UploadType.NONE);
@@ -293,11 +293,15 @@ public class ProjectSettingsManagerImpl implements ProjectSettingsManager {
 		ValidateArgument.required(setting.getSettingsType(), "settingsType");
 		if (setting instanceof UploadDestinationListSetting) {
 			validateUploadDestinationListSetting((UploadDestinationListSetting) setting, currentUser);
+		} else if (setting instanceof SearchConfigurationListSetting) {
+			SearchConfigurationListSetting searchSetting = (SearchConfigurationListSetting) setting;
+			ValidateArgument.required(searchSetting.getSearchConfigurationId(), "searchConfigurationId");
+			ValidateArgument.requiredNotBlank(searchSetting.getSearchConfigurationId(), "searchConfigurationId");
 		} else {
 			ValidateArgument.failRequirement("Cannot handle project setting of type " + setting.getClass().getName());
 		}
 	}
-	
+
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	void processStorageLocation(UserInfo userInfo, StorageLocationSetting storageLocation) {
 		for (StorageLocationProcessor processor : storageLocationProcessors) {
@@ -373,9 +377,9 @@ public class ProjectSettingsManagerImpl implements ProjectSettingsManager {
 			return false;
 		}
 	}
-	
+
 	/**
-	 * 
+	 *
 	 * @param entityId
 	 * @return true iff entityId is a descendant of an STS Enabled folder and not an STS Folder itself
 	 */

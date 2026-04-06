@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.model.dbo.persistence.discussion;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 
 import java.util.UUID;
 
@@ -29,6 +30,7 @@ public class ForumUtilsTest {
 		// projectId is populated for backward compat on entity forums
 		assertEquals(KeyFactory.keyToString(OBJECT_ID), dto.getProjectId());
 		assertEquals(dbo.getEtag(), dto.getEtag());
+		dto.setProjectId(null);
 		// From DTO to DBO
 		DBOForum dbo2 = ForumUtils.createDBOFromDTO(dto);
 		assertEquals(dbo, dbo2);
@@ -65,5 +67,23 @@ public class ForumUtilsTest {
 		Forum dto = ForumUtils.createDTOFromDBO(dbo);
 		assertEquals(ForumObjectType.ENTITY, dto.getObjectType());
 		assertEquals(KeyFactory.keyToString(OBJECT_ID), dto.getProjectId());
+	}
+
+	@Test
+	public void testDTOTODBOWithNullObjectId() {
+		assertThrows(IllegalArgumentException.class, () -> ForumUtils.createDBOFromDTO(
+				new Forum().setId("123").setObjectId(null)));
+	}
+
+	@Test
+	public void testDTOTODBOWithNullObjectType() {
+		assertThrows(IllegalArgumentException.class, () -> ForumUtils.createDBOFromDTO(
+				new Forum().setId("123").setObjectId("567").setObjectType(null)));
+	}
+
+	@Test
+	public void testDTOTODBOWithNonNullProjectId() {
+		assertThrows(IllegalArgumentException.class, () -> ForumUtils.createDBOFromDTO(
+				new Forum().setId("123").setObjectId("567").setObjectType(ForumObjectType.ENTITY).setProjectId("567")));
 	}
 }

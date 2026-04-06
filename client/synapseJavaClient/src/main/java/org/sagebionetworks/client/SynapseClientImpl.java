@@ -5187,7 +5187,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public Forum getForumByObjectIdAndType(String objectId, ForumObjectType objectType) throws SynapseException {
 		ValidateArgument.required(objectId, "objectId");
 		ValidateArgument.required(objectType, "objectType");
-		return getJSONEntity(getRepoEndpoint(), OBJECT+"/"+objectId+"/"+objectType.name()+FORUM, Forum.class);
+		return getJSONEntity(getRepoEndpoint(), FORUM+"/"+objectId+"/"+objectType.name(), Forum.class);
 	}
 
 	@Override

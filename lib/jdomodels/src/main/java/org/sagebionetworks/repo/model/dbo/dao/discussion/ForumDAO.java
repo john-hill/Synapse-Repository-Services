@@ -21,13 +21,6 @@ public interface ForumDAO {
 	public Forum getForum(long id);
 
 	/**
-	 * Get the forum object given the projectId (convenience method, delegates to getForumByObjectIdAndType with ENTITY type).
-	 * @param projectId
-	 * @return
-	 */
-	public Forum getForumByProjectId(String projectId);
-
-	/**
 	 * Get the forum for the given object ID and Type.
 	 * @param objectId
 	 * @param objectType

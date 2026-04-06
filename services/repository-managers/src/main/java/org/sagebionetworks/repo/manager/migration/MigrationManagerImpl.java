@@ -60,6 +60,7 @@ import org.sagebionetworks.repo.model.migration.RestoreTypeResponse;
 import org.sagebionetworks.repo.model.migration.TypeData;
 import org.sagebionetworks.repo.model.status.StatusEnum;
 import org.sagebionetworks.repo.model.transactions.MigrationWriteTransaction;
+import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 import org.sagebionetworks.schema.adapter.org.json.EntityFactory;
 import org.sagebionetworks.util.FileProvider;
@@ -741,6 +742,7 @@ public class MigrationManagerImpl implements MigrationManager {
 		return response;
 	}
 
+	@WriteTransaction
 	@Override
 	public CreateForumsForAccessRequirementsResponse createForumsForAccessRequirements(UserInfo user,
 			CreateForumsForAccessRequirementsRequest request) {
@@ -749,12 +751,11 @@ public class MigrationManagerImpl implements MigrationManager {
 		String managedType = ManagedACTAccessRequirement.class.getName();
 		// Find all ManagedACTAccessRequirements that do not have a forum
 		String sql = "SELECT AR.ID FROM ACCESS_REQUIREMENT AR"
+				+ " LEFT JOIN FORUM F ON F.OBJECT_ID = AR.ID AND F.OBJECT_TYPE = ?"
 				+ " WHERE AR.CONCRETE_TYPE = ?"
-				+ " AND NOT EXISTS ("
-				+ "   SELECT 1 FROM FORUM F WHERE F.OBJECT_ID = AR.ID AND F.OBJECT_TYPE = ?"
-				+ " )";
+				+ " AND F.ID IS NULL";
 		List<Long> arIdsWithoutForum = jdbcTemplate.queryForList(sql, Long.class,
-				managedType, ForumObjectType.ACCESS_REQUIREMENT.name());
+				ForumObjectType.ACCESS_REQUIREMENT.name(), managedType);
 		int count = 0;
 		for (Long arId : arIdsWithoutForum) {
 			forumDao.createForum(arId.toString(), ForumObjectType.ACCESS_REQUIREMENT);

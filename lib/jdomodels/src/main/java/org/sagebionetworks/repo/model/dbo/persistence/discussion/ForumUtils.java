@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.model.dbo.persistence.discussion;
 import org.sagebionetworks.repo.model.discussion.Forum;
 import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
+import org.sagebionetworks.util.ValidateArgument;
 
 public class ForumUtils {
 
@@ -12,11 +13,15 @@ public class ForumUtils {
 	 * @return dbo
 	 */
 	public static DBOForum createDBOFromDTO(Forum dto) {
+		ValidateArgument.required(dto.getObjectId(), "objectId");
+		ValidateArgument.required(dto.getObjectType(), "objectType");
+		if(dto.getProjectId() !=null){
+			throw new IllegalArgumentException("Project id should not be provided");
+		}
 		DBOForum dbo = new DBOForum();
 		dbo.setId(Long.parseLong(dto.getId()));
-		String objectId = dto.getObjectId() != null ? dto.getObjectId() : dto.getProjectId();
-		dbo.setObjectId(KeyFactory.stringToKey(objectId));
-		dbo.setObjectType(dto.getObjectType() != null ? dto.getObjectType().name() : ForumObjectType.ENTITY.name());
+		dbo.setObjectId(KeyFactory.stringToKey(dto.getObjectId()));
+		dbo.setObjectType(dto.getObjectType().name());
 		dbo.setEtag(dto.getEtag());
 		return dbo;
 	}

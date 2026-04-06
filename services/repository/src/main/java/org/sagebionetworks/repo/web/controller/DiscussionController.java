@@ -115,12 +115,12 @@ public class DiscussionController {
 	 *
 	 * @param userId - The ID of the user who is making the request.
 	 * @param objectId - The ID of the object to which the forum belongs.
-	 * @param objectType - The type of the object (ENTITY or ACCESS_REQUIREMENT). Defaults to ENTITY if not specified.
+	 * @param objectType - The type of the object (ENTITY or ACCESS_REQUIREMENT).
 	 * @return
 	 */
 	@RequiredScope({view})
 	@ResponseStatus(HttpStatus.OK)
-	@RequestMapping(value = UrlHelpers.OBJECT_ID_TYPE_FORUM, method = RequestMethod.GET)
+	@RequestMapping(value = UrlHelpers.FORUM_BY_ID_TYPE, method = RequestMethod.GET)
 	public @ResponseBody Forum getForumByObjectIdAndType(
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@PathVariable(value = AuthorizationConstants.OBJECT_ID_PARAM) String objectId,

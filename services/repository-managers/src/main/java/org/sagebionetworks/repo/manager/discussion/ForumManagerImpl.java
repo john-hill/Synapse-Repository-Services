@@ -56,7 +56,7 @@ public class ForumManagerImpl implements ForumManager {
 		UserInfo.validateUserInfo(user);
 		authorizationManager.canAccess(user, projectId, ObjectType.ENTITY, ACCESS_TYPE.READ).checkAuthorizationOrElseThrow();
 		try {
-			return forumDao.getForumByProjectId(projectId);
+			return forumDao.getForumByObjectIdAndType(projectId, ForumObjectType.ENTITY);
 		} catch (NotFoundException e) {
 			return createForum(user, projectId);
 		}
@@ -67,10 +67,15 @@ public class ForumManagerImpl implements ForumManager {
 		ValidateArgument.required(forumId, "forumId");
 		UserInfo.validateUserInfo(user);
 		Forum forum = forumDao.getForum(Long.parseLong(forumId));
-		if (ForumObjectType.ENTITY.equals(forum.getObjectType())) {
-			authorizationManager.canAccess(user, forum.getProjectId(), ObjectType.ENTITY, ACCESS_TYPE.READ).checkAuthorizationOrElseThrow();
-		} else if (ForumObjectType.ACCESS_REQUIREMENT.equals(forum.getObjectType())) {
-			dataAccessAuthorizationManager.canReviewAccessRequirementSubmissions(user, forum.getObjectId()).checkAuthorizationOrElseThrow();
+		switch (forum.getObjectType()) {
+			case ENTITY:
+				authorizationManager.canAccess(user, forum.getProjectId(), ObjectType.ENTITY, ACCESS_TYPE.READ).checkAuthorizationOrElseThrow();
+				break;
+			case ACCESS_REQUIREMENT:
+				dataAccessAuthorizationManager.canReviewAccessRequirementSubmissions(user, forum.getObjectId()).checkAuthorizationOrElseThrow();
+				break;
+			default:
+				throw new IllegalArgumentException("Forum object type not supported: " + forum.getObjectType());
 		}
 		return forum;
 	}

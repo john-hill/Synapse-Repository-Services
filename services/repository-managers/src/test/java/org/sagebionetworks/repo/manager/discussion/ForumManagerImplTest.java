@@ -64,6 +64,7 @@ public class ForumManagerImplTest {
 
 	@Test
 	public void testCreateWithNullProjectId() {
+		//call under test
 		assertThrows(IllegalArgumentException.class, () -> {			
 			forumManager.createForum(userInfo, null);
 		});
@@ -73,6 +74,7 @@ public class ForumManagerImplTest {
 	public void testCreateWithNonExistingProjectId() {
 		when(mockNodeDao.doesNodeExist(KeyFactory.stringToKey(projectId)))
 				.thenReturn(false);
+		//call under test
 		assertThrows(NotFoundException.class, () -> {	
 			forumManager.createForum(userInfo, projectId);
 		});
@@ -82,6 +84,7 @@ public class ForumManagerImplTest {
 	public void testCreateWithNullUserInfo() {
 		when(mockNodeDao.doesNodeExist(KeyFactory.stringToKey(projectId)))
 			.thenReturn(true);
+		//call under test
 		assertThrows(IllegalArgumentException.class, () -> {
 			forumManager.createForum(null, projectId);
 		});
@@ -93,7 +96,7 @@ public class ForumManagerImplTest {
 				.thenReturn(true);
 		when(mockAuthManager.canAccess(
 				userInfo, projectId, ENTITY_TYPE, READ_ACCESS)).thenReturn(FAILED);
-		
+		//call under test
 		assertThrows(UnauthorizedException.class, () -> {	
 			forumManager.createForum(userInfo, projectId);
 		});
@@ -106,6 +109,7 @@ public class ForumManagerImplTest {
 		when(mockAuthManager.canAccess(
 				userInfo, projectId, ENTITY_TYPE, READ_ACCESS)).thenReturn(SUCCESS);
 		when(mockForumDao.createForum(projectId, ForumObjectType.ENTITY)).thenReturn(dto);
+		//call under test
 		assertEquals(forumManager.createForum(userInfo, projectId), dto);
 	}
 
@@ -113,7 +117,7 @@ public class ForumManagerImplTest {
 	public void testGetForumByProjectIdWithNullUserInfo() {
 		when(mockNodeDao.doesNodeExist(KeyFactory.stringToKey(projectId)))
 				.thenReturn(true);
-		
+		//call under test
 		assertThrows(IllegalArgumentException.class, () -> {	
 			forumManager.getForumByProjectId(null, projectId);
 		});
@@ -121,6 +125,7 @@ public class ForumManagerImplTest {
 
 	@Test
 	public void testGetForumByProjectIdWithNullProjectId() {
+		//call under test
 		assertThrows(IllegalArgumentException.class, () -> {	
 			forumManager.getForumByProjectId(userInfo, null);
 		});
@@ -130,7 +135,7 @@ public class ForumManagerImplTest {
 	public void testGetForumByProjectIdWithNonExistingProjectId() {
 		when(mockNodeDao.doesNodeExist(KeyFactory.stringToKey(projectId)))
 				.thenReturn(false);
-		
+		//call under test
 		assertThrows(NotFoundException.class, () -> {	
 			forumManager.getForumByProjectId(userInfo, projectId);
 		});
@@ -142,7 +147,7 @@ public class ForumManagerImplTest {
 				.thenReturn(true);
 		when(mockAuthManager.canAccess(
 				userInfo, projectId, ENTITY_TYPE, READ_ACCESS)).thenReturn(FAILED);
-		
+		//call under test
 		assertThrows(UnauthorizedException.class, () -> {	
 			forumManager.getForumByProjectId(userInfo, projectId);
 		});
@@ -154,13 +159,14 @@ public class ForumManagerImplTest {
 				.thenReturn(true);
 		when(mockAuthManager.canAccess(
 				userInfo, projectId, ENTITY_TYPE, READ_ACCESS)).thenReturn(SUCCESS);
-		when(mockForumDao.getForumByProjectId(projectId)).thenReturn(dto);
+		when(mockForumDao.getForumByObjectIdAndType(projectId, ForumObjectType.ENTITY)).thenReturn(dto);
+		//call under test
 		assertEquals(forumManager.getForumByProjectId(userInfo, projectId), dto);
 	}
 
 	@Test
 	public void testGetForumWithNullUserInfo() {
-		
+		//call under test
 		assertThrows(IllegalArgumentException.class, () -> {	
 			forumManager.getForum(null, dto.getId());
 		});
@@ -168,6 +174,7 @@ public class ForumManagerImplTest {
 
 	@Test
 	public void testGetForumWithNullForumId() {
+		//call under test
 		assertThrows(IllegalArgumentException.class, () -> {	
 			forumManager.getForum(userInfo, null);
 		});
@@ -179,7 +186,7 @@ public class ForumManagerImplTest {
 				.thenThrow(new NotFoundException(""));
 		String forumId = dto.getId();
 		when(mockForumDao.getForum(Long.parseLong(forumId))).thenReturn(dto);
-		
+		//call under test
 		assertThrows(NotFoundException.class, () -> {	
 			forumManager.getForum(userInfo, forumId);
 		});
@@ -191,7 +198,7 @@ public class ForumManagerImplTest {
 				userInfo, projectId, ENTITY_TYPE, READ_ACCESS)).thenReturn(FAILED);
 		String forumId = dto.getId();
 		when(mockForumDao.getForum(Long.parseLong(forumId))).thenReturn(dto);
-		
+		//call under test
 		assertThrows(UnauthorizedException.class, () -> {	
 			forumManager.getForum(userInfo, forumId);
 		});
@@ -203,6 +210,7 @@ public class ForumManagerImplTest {
 				userInfo, projectId, ENTITY_TYPE, READ_ACCESS)).thenReturn(SUCCESS);
 		String forumId = dto.getId();
 		when(mockForumDao.getForum(Long.parseLong(forumId))).thenReturn(dto);
+		//call under test
 		assertEquals(forumManager.getForum(userInfo, forumId), dto);
 	}
 
@@ -214,7 +222,7 @@ public class ForumManagerImplTest {
 		when(mockAuthManager.canAccess(
 				userInfo, projectId, ENTITY_TYPE, READ_ACCESS)).thenReturn(SUCCESS);
 		when(mockForumDao.getForumByObjectIdAndType(projectId, ForumObjectType.ENTITY)).thenReturn(dto);
-
+		//call under test
 		assertEquals(dto, forumManager.getForumByObjectIdAndType(userInfo, projectId, ForumObjectType.ENTITY));
 	}
 
@@ -232,7 +240,7 @@ public class ForumManagerImplTest {
 				.thenReturn(SUCCESS);
 		when(mockForumDao.getForumByObjectIdAndType(arId, ForumObjectType.ACCESS_REQUIREMENT))
 				.thenReturn(arForum);
-
+		//call under test
 		assertEquals(arForum, forumManager.getForumByObjectIdAndType(userInfo, arId, ForumObjectType.ACCESS_REQUIREMENT));
 	}
 
@@ -250,6 +258,7 @@ public class ForumManagerImplTest {
 				.thenReturn(SUCCESS);
 		when(mockForumDao.getForumByObjectIdAndType(arId, ForumObjectType.ACCESS_REQUIREMENT)).thenThrow(NotFoundException.class);
 
+		//call under test
 		assertThrows(NotFoundException.class, () -> {
 			forumManager.getForumByObjectIdAndType(userInfo, arId, ForumObjectType.ACCESS_REQUIREMENT);
 		});
@@ -261,6 +270,7 @@ public class ForumManagerImplTest {
 		when(mockAccessRequirementDao.getConcreteType(arId))
 				.thenReturn(SelfSignAccessRequirement.class.getName());
 
+		//call under test
 		assertThrows(IllegalArgumentException.class, () -> {
 			forumManager.getForumByObjectIdAndType(userInfo, arId, ForumObjectType.ACCESS_REQUIREMENT);
 		});
@@ -274,6 +284,7 @@ public class ForumManagerImplTest {
 		when(mockDataAccessAuthManager.canReviewAccessRequirementSubmissions(userInfo, arId))
 				.thenReturn(FAILED);
 
+		//call under test
 		assertThrows(UnauthorizedException.class, () -> {
 			forumManager.getForumByObjectIdAndType(userInfo, arId, ForumObjectType.ACCESS_REQUIREMENT);
 		});

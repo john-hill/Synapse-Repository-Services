@@ -318,8 +318,19 @@ public class SearchConfigurationDaoImplAutowiredTest {
 			nameChars[255] = 'b';
 			String nameB = new String(nameChars);
 
-			searchConfigurationDao.create(adminUserId, newConfig(maxOrgName, nameA, null));
-			searchConfigurationDao.create(adminUserId, newConfig(maxOrgName, nameB, null));
+			SearchConfiguration createdA = searchConfigurationDao.create(adminUserId, newConfig(maxOrgName, nameA, "desc-a"));
+			SearchConfiguration createdB = searchConfigurationDao.create(adminUserId, newConfig(maxOrgName, nameB, "desc-b"));
+
+			// Verify each config retained its own data (not silently overwritten by index truncation)
+			SearchConfiguration fetchedA = searchConfigurationDao.get(createdA.getId()).get();
+			assertEquals(nameA, fetchedA.getName());
+			assertEquals("desc-a", fetchedA.getDescription());
+			assertEquals(maxOrgName, fetchedA.getOrganizationName());
+
+			SearchConfiguration fetchedB = searchConfigurationDao.get(createdB.getId()).get();
+			assertEquals(nameB, fetchedB.getName());
+			assertEquals("desc-b", fetchedB.getDescription());
+			assertEquals(maxOrgName, fetchedB.getOrganizationName());
 
 			// call under test
 			assertThrows(IllegalArgumentException.class,

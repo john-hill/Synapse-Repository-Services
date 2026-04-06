@@ -269,9 +269,35 @@ public class SynonymSetDaoImplAutowiredTest {
 			nameChars[255] = 'b';
 			String nameB = new String(nameChars);
 
+			SynonymRule ruleA = new SynonymRule();
+			ruleA.setRuleType(SynonymRuleType.EQUIVALENT);
+			ruleA.setTerms(Arrays.asList("cancer", "tumor"));
+
+			SynonymRule ruleB = new SynonymRule();
+			ruleB.setRuleType(SynonymRuleType.EXPLICIT);
+			ruleB.setTerms(Arrays.asList("heart", "cardiac"));
+
+			SynonymSet setA = newSynonymSet(maxOrgName, nameA, "desc-a");
+			setA.setRules(Arrays.asList(ruleA));
+			SynonymSet setB = newSynonymSet(maxOrgName, nameB, "desc-b");
+			setB.setRules(Arrays.asList(ruleB));
+
 			// Both should succeed — they are distinct names
-			synonymSetDao.create(adminUserId, newSynonymSet(maxOrgName, nameA, null));
-			synonymSetDao.create(adminUserId, newSynonymSet(maxOrgName, nameB, null));
+			SynonymSet createdA = synonymSetDao.create(adminUserId, setA);
+			SynonymSet createdB = synonymSetDao.create(adminUserId, setB);
+
+			// Verify each set retained its own data (not silently overwritten by index truncation)
+			SynonymSet fetchedA = synonymSetDao.get(createdA.getId()).get();
+			assertEquals(nameA, fetchedA.getName());
+			assertEquals("desc-a", fetchedA.getDescription());
+			assertEquals(maxOrgName, fetchedA.getOrganizationName());
+			assertEquals(Arrays.asList(ruleA), fetchedA.getRules());
+
+			SynonymSet fetchedB = synonymSetDao.get(createdB.getId()).get();
+			assertEquals(nameB, fetchedB.getName());
+			assertEquals("desc-b", fetchedB.getDescription());
+			assertEquals(maxOrgName, fetchedB.getOrganizationName());
+			assertEquals(Arrays.asList(ruleB), fetchedB.getRules());
 
 			// A duplicate of the first name should fail
 			// call under test

@@ -1545,6 +1545,34 @@ public class SqlConstants {
 	public static final String COL_SYNSET_MODIFIED_ON				= "MODIFIED_ON";
 	public static final String DDL_SYNONYM_SET						= "schema/SynonymSet-ddl.sql";
 
+	// Search Configuration
+	public static final String TABLE_SEARCH_CONFIGURATION			= "SEARCH_CONFIGURATION";
+	public static final String COL_SEARCH_CONFIG_ID					= "ID";
+	public static final String COL_SEARCH_CONFIG_ETAG				= "ETAG";
+	public static final String COL_SEARCH_CONFIG_ORGANIZATION_NAME	= "ORGANIZATION_NAME";
+	public static final String COL_SEARCH_CONFIG_NAME				= "NAME";
+	public static final String COL_SEARCH_CONFIG_DESCRIPTION		= "DESCRIPTION";
+	public static final String COL_SEARCH_CONFIG_DEFAULT_ANALYZER_ID = "DEFAULT_ANALYZER_ID";
+	public static final String COL_SEARCH_CONFIG_CREATED_BY			= "CREATED_BY";
+	public static final String COL_SEARCH_CONFIG_CREATED_ON			= "CREATED_ON";
+	public static final String COL_SEARCH_CONFIG_MODIFIED_BY		= "MODIFIED_BY";
+	public static final String COL_SEARCH_CONFIG_MODIFIED_ON		= "MODIFIED_ON";
+	public static final String DDL_SEARCH_CONFIGURATION				= "schema/SearchConfiguration-ddl.sql";
+
+	// Search Config Synonym Set (junction table)
+	public static final String TABLE_SEARCH_CONFIG_SYNONYM_SET		= "SEARCH_CONFIG_SYNONYM_SET";
+	public static final String COL_SCSS_CONFIG_ID					= "CONFIG_ID";
+	public static final String COL_SCSS_ORDINAL						= "ORDINAL";
+	public static final String COL_SCSS_SYNONYM_SET_ID				= "SYNONYM_SET_ID";
+	public static final String DDL_SEARCH_CONFIG_SYNONYM_SET		= "schema/SearchConfigSynonymSet-ddl.sql";
+
+	// Search Config Col Analyzer (junction table)
+	public static final String TABLE_SEARCH_CONFIG_COL_ANALYZER		= "SEARCH_CONFIG_COL_ANALYZER";
+	public static final String COL_SCCA_CONFIG_ID					= "CONFIG_ID";
+	public static final String COL_SCCA_ORDINAL						= "ORDINAL";
+	public static final String COL_SCCA_COL_ANALYZER_OVERRIDE_ID	= "COLUMN_ANALYZER_OVERRIDE_ID";
+	public static final String DDL_SEARCH_CONFIG_COL_ANALYZER		= "schema/SearchConfigColAnalyzer-ddl.sql";
+
 	/**
 	 * Function names:
 	 */

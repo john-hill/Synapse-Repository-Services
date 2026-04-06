@@ -1,5 +1,18 @@
 package org.sagebionetworks.repo.model.dbo.search;
 
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_CREATED_BY;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_CREATED_ON;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_DEFAULT_ANALYZER_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_DESCRIPTION;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_ETAG;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_MODIFIED_BY;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_MODIFIED_ON;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_NAME;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_ORGANIZATION_NAME;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.DDL_SEARCH_CONFIGURATION;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_SEARCH_CONFIGURATION;
+
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -17,16 +30,16 @@ import org.sagebionetworks.repo.model.migration.MigrationType;
 public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearchConfiguration, DBOSearchConfiguration> {
 
 	private static final FieldColumn[] FIELDS = new FieldColumn[] {
-			new FieldColumn("id", "ID", true).withIsBackupId(true),
-			new FieldColumn("etag", "ETAG").withIsEtag(true),
-			new FieldColumn("organizationName", "ORGANIZATION_NAME"),
-			new FieldColumn("name", "NAME"),
-			new FieldColumn("description", "DESCRIPTION"),
-			new FieldColumn("defaultAnalyzerId", "DEFAULT_ANALYZER_ID"),
-			new FieldColumn("createdBy", "CREATED_BY"),
-			new FieldColumn("createdOn", "CREATED_ON"),
-			new FieldColumn("modifiedBy", "MODIFIED_BY"),
-			new FieldColumn("modifiedOn", "MODIFIED_ON"),
+			new FieldColumn("id", COL_SEARCH_CONFIG_ID, true).withIsBackupId(true),
+			new FieldColumn("etag", COL_SEARCH_CONFIG_ETAG).withIsEtag(true),
+			new FieldColumn("organizationName", COL_SEARCH_CONFIG_ORGANIZATION_NAME),
+			new FieldColumn("name", COL_SEARCH_CONFIG_NAME),
+			new FieldColumn("description", COL_SEARCH_CONFIG_DESCRIPTION),
+			new FieldColumn("defaultAnalyzerId", COL_SEARCH_CONFIG_DEFAULT_ANALYZER_ID),
+			new FieldColumn("createdBy", COL_SEARCH_CONFIG_CREATED_BY),
+			new FieldColumn("createdOn", COL_SEARCH_CONFIG_CREATED_ON),
+			new FieldColumn("modifiedBy", COL_SEARCH_CONFIG_MODIFIED_BY),
+			new FieldColumn("modifiedOn", COL_SEARCH_CONFIG_MODIFIED_ON),
 	};
 
 	private Long id;
@@ -44,28 +57,28 @@ public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearc
 		@Override
 		public DBOSearchConfiguration mapRow(ResultSet rs, int rowNum) throws SQLException {
 			DBOSearchConfiguration dbo = new DBOSearchConfiguration();
-			dbo.setId(rs.getLong("ID"));
-			dbo.setEtag(rs.getString("ETAG"));
-			dbo.setOrganizationName(rs.getString("ORGANIZATION_NAME"));
-			dbo.setName(rs.getString("NAME"));
-			dbo.setDescription(rs.getString("DESCRIPTION"));
-			long defAnalyzerId = rs.getLong("DEFAULT_ANALYZER_ID");
+			dbo.setId(rs.getLong(COL_SEARCH_CONFIG_ID));
+			dbo.setEtag(rs.getString(COL_SEARCH_CONFIG_ETAG));
+			dbo.setOrganizationName(rs.getString(COL_SEARCH_CONFIG_ORGANIZATION_NAME));
+			dbo.setName(rs.getString(COL_SEARCH_CONFIG_NAME));
+			dbo.setDescription(rs.getString(COL_SEARCH_CONFIG_DESCRIPTION));
+			long defAnalyzerId = rs.getLong(COL_SEARCH_CONFIG_DEFAULT_ANALYZER_ID);
 			dbo.setDefaultAnalyzerId(rs.wasNull() ? null : defAnalyzerId);
-			dbo.setCreatedBy(rs.getLong("CREATED_BY"));
-			dbo.setCreatedOn(rs.getTimestamp("CREATED_ON"));
-			dbo.setModifiedBy(rs.getLong("MODIFIED_BY"));
-			dbo.setModifiedOn(rs.getTimestamp("MODIFIED_ON"));
+			dbo.setCreatedBy(rs.getLong(COL_SEARCH_CONFIG_CREATED_BY));
+			dbo.setCreatedOn(rs.getTimestamp(COL_SEARCH_CONFIG_CREATED_ON));
+			dbo.setModifiedBy(rs.getLong(COL_SEARCH_CONFIG_MODIFIED_BY));
+			dbo.setModifiedOn(rs.getTimestamp(COL_SEARCH_CONFIG_MODIFIED_ON));
 			return dbo;
 		}
 
 		@Override
 		public String getTableName() {
-			return "SEARCH_CONFIGURATION";
+			return TABLE_SEARCH_CONFIGURATION;
 		}
 
 		@Override
 		public String getDDLFileName() {
-			return "schema/SearchConfiguration-ddl.sql";
+			return DDL_SEARCH_CONFIGURATION;
 		}
 
 		@Override

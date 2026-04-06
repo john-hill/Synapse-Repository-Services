@@ -1,5 +1,11 @@
 package org.sagebionetworks.repo.model.dbo.search;
 
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SCCA_COL_ANALYZER_OVERRIDE_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SCCA_CONFIG_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SCCA_ORDINAL;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.DDL_SEARCH_CONFIG_COL_ANALYZER;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_SEARCH_CONFIG_COL_ANALYZER;
+
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -15,9 +21,9 @@ import org.sagebionetworks.repo.model.migration.MigrationType;
 public class DBOSearchConfigColAnalyzer implements MigratableDatabaseObject<DBOSearchConfigColAnalyzer, DBOSearchConfigColAnalyzer> {
 
 	private static final FieldColumn[] FIELDS = new FieldColumn[] {
-			new FieldColumn("configId", "CONFIG_ID", true).withIsBackupId(true),
-			new FieldColumn("ordinal", "ORDINAL", true),
-			new FieldColumn("columnAnalyzerOverrideId", "COLUMN_ANALYZER_OVERRIDE_ID"),
+			new FieldColumn("configId", COL_SCCA_CONFIG_ID, true).withIsBackupId(true),
+			new FieldColumn("ordinal", COL_SCCA_ORDINAL, true),
+			new FieldColumn("columnAnalyzerOverrideId", COL_SCCA_COL_ANALYZER_OVERRIDE_ID),
 	};
 
 	private Long configId;
@@ -28,20 +34,20 @@ public class DBOSearchConfigColAnalyzer implements MigratableDatabaseObject<DBOS
 		@Override
 		public DBOSearchConfigColAnalyzer mapRow(ResultSet rs, int rowNum) throws SQLException {
 			DBOSearchConfigColAnalyzer dbo = new DBOSearchConfigColAnalyzer();
-			dbo.setConfigId(rs.getLong("CONFIG_ID"));
-			dbo.setOrdinal(rs.getInt("ORDINAL"));
-			dbo.setColumnAnalyzerOverrideId(rs.getLong("COLUMN_ANALYZER_OVERRIDE_ID"));
+			dbo.setConfigId(rs.getLong(COL_SCCA_CONFIG_ID));
+			dbo.setOrdinal(rs.getInt(COL_SCCA_ORDINAL));
+			dbo.setColumnAnalyzerOverrideId(rs.getLong(COL_SCCA_COL_ANALYZER_OVERRIDE_ID));
 			return dbo;
 		}
 
 		@Override
 		public String getTableName() {
-			return "SEARCH_CONFIG_COL_ANALYZER";
+			return TABLE_SEARCH_CONFIG_COL_ANALYZER;
 		}
 
 		@Override
 		public String getDDLFileName() {
-			return "schema/SearchConfigColAnalyzer-ddl.sql";
+			return DDL_SEARCH_CONFIG_COL_ANALYZER;
 		}
 
 		@Override

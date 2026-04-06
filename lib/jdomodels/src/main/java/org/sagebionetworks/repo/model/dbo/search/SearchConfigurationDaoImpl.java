@@ -1,5 +1,16 @@
 package org.sagebionetworks.repo.model.dbo.search;
 
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_CREATED_BY;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_CREATED_ON;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_DEFAULT_ANALYZER_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_DESCRIPTION;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_ETAG;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_MODIFIED_BY;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_MODIFIED_ON;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_NAME;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_ORGANIZATION_NAME;
+
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Date;
@@ -28,17 +39,17 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 
 	private static final RowMapper<SearchConfiguration> ROW_MAPPER = (ResultSet rs, int rowNum) -> {
 		SearchConfiguration config = new SearchConfiguration();
-		config.setId(String.valueOf(rs.getLong("ID")));
-		config.setEtag(rs.getString("ETAG"));
-		config.setOrganizationName(rs.getString("ORGANIZATION_NAME"));
-		config.setName(rs.getString("NAME"));
-		config.setDescription(rs.getString("DESCRIPTION"));
-		long defaultAnalyzerId = rs.getLong("DEFAULT_ANALYZER_ID");
+		config.setId(String.valueOf(rs.getLong(COL_SEARCH_CONFIG_ID)));
+		config.setEtag(rs.getString(COL_SEARCH_CONFIG_ETAG));
+		config.setOrganizationName(rs.getString(COL_SEARCH_CONFIG_ORGANIZATION_NAME));
+		config.setName(rs.getString(COL_SEARCH_CONFIG_NAME));
+		config.setDescription(rs.getString(COL_SEARCH_CONFIG_DESCRIPTION));
+		long defaultAnalyzerId = rs.getLong(COL_SEARCH_CONFIG_DEFAULT_ANALYZER_ID);
 		config.setDefaultAnalyzerId(rs.wasNull() ? null : String.valueOf(defaultAnalyzerId));
-		config.setCreatedBy(String.valueOf(rs.getLong("CREATED_BY")));
-		config.setCreatedOn(new Date(rs.getTimestamp("CREATED_ON").getTime()));
-		config.setModifiedBy(String.valueOf(rs.getLong("MODIFIED_BY")));
-		config.setModifiedOn(new Date(rs.getTimestamp("MODIFIED_ON").getTime()));
+		config.setCreatedBy(String.valueOf(rs.getLong(COL_SEARCH_CONFIG_CREATED_BY)));
+		config.setCreatedOn(new Date(rs.getTimestamp(COL_SEARCH_CONFIG_CREATED_ON).getTime()));
+		config.setModifiedBy(String.valueOf(rs.getLong(COL_SEARCH_CONFIG_MODIFIED_BY)));
+		config.setModifiedOn(new Date(rs.getTimestamp(COL_SEARCH_CONFIG_MODIFIED_ON).getTime()));
 		return config;
 	};
 

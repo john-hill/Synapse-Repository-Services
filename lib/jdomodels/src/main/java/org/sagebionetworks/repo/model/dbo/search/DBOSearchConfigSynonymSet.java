@@ -1,5 +1,11 @@
 package org.sagebionetworks.repo.model.dbo.search;
 
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SCSS_CONFIG_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SCSS_ORDINAL;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SCSS_SYNONYM_SET_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.DDL_SEARCH_CONFIG_SYNONYM_SET;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_SEARCH_CONFIG_SYNONYM_SET;
+
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -15,9 +21,9 @@ import org.sagebionetworks.repo.model.migration.MigrationType;
 public class DBOSearchConfigSynonymSet implements MigratableDatabaseObject<DBOSearchConfigSynonymSet, DBOSearchConfigSynonymSet> {
 
 	private static final FieldColumn[] FIELDS = new FieldColumn[] {
-			new FieldColumn("configId", "CONFIG_ID", true).withIsBackupId(true),
-			new FieldColumn("ordinal", "ORDINAL", true),
-			new FieldColumn("synonymSetId", "SYNONYM_SET_ID"),
+			new FieldColumn("configId", COL_SCSS_CONFIG_ID, true).withIsBackupId(true),
+			new FieldColumn("ordinal", COL_SCSS_ORDINAL, true),
+			new FieldColumn("synonymSetId", COL_SCSS_SYNONYM_SET_ID),
 	};
 
 	private Long configId;
@@ -28,20 +34,20 @@ public class DBOSearchConfigSynonymSet implements MigratableDatabaseObject<DBOSe
 		@Override
 		public DBOSearchConfigSynonymSet mapRow(ResultSet rs, int rowNum) throws SQLException {
 			DBOSearchConfigSynonymSet dbo = new DBOSearchConfigSynonymSet();
-			dbo.setConfigId(rs.getLong("CONFIG_ID"));
-			dbo.setOrdinal(rs.getInt("ORDINAL"));
-			dbo.setSynonymSetId(rs.getLong("SYNONYM_SET_ID"));
+			dbo.setConfigId(rs.getLong(COL_SCSS_CONFIG_ID));
+			dbo.setOrdinal(rs.getInt(COL_SCSS_ORDINAL));
+			dbo.setSynonymSetId(rs.getLong(COL_SCSS_SYNONYM_SET_ID));
 			return dbo;
 		}
 
 		@Override
 		public String getTableName() {
-			return "SEARCH_CONFIG_SYNONYM_SET";
+			return TABLE_SEARCH_CONFIG_SYNONYM_SET;
 		}
 
 		@Override
 		public String getDDLFileName() {
-			return "schema/SearchConfigSynonymSet-ddl.sql";
+			return DDL_SEARCH_CONFIG_SYNONYM_SET;
 		}
 
 		@Override

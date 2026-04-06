@@ -1179,14 +1179,16 @@ public class GridIndexDaoImplTest {
 		);
 		gridIndexDao.saveNewConstants(sessionIdOne, replicaIdOne, nodes);
 
-		// call under test
-		List<ConstantNode> result = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 2, 0);
+		// call under test - first page
+		List<ConstantNode> result = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 2, null);
 		assertEquals(2, result.size());
 
-		result = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 2, 2);
+		// second page using last seen cursor
+		result = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 2, result.get(result.size() - 1).getId());
 		assertEquals(1, result.size());
 
-		result = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 100, 0);
+		// all nodes in one page from start
+		result = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 100, null);
 		assertEquals(3, result.size());
 	}
 
@@ -1199,11 +1201,12 @@ public class GridIndexDaoImplTest {
 		);
 		gridIndexDao.saveObjects(sessionIdOne, replicaIdOne, nodes);
 
-		// call under test
-		List<ObjectNode> result = gridIndexDao.streamObjects(sessionIdOne, replicaIdOne, 1, 0);
+		// call under test - first page of size 1
+		List<ObjectNode> result = gridIndexDao.streamObjects(sessionIdOne, replicaIdOne, 1, null);
 		assertEquals(1, result.size());
 
-		result = gridIndexDao.streamObjects(sessionIdOne, replicaIdOne, 100, 0);
+		// all nodes in one page from start
+		result = gridIndexDao.streamObjects(sessionIdOne, replicaIdOne, 100, null);
 		assertEquals(2, result.size());
 	}
 
@@ -1219,7 +1222,7 @@ public class GridIndexDaoImplTest {
 		gridIndexDao.saveValues(sessionIdOne, replicaIdOne, nodes);
 
 		// call under test - should exclude the root (0,0) node
-		List<ValueNode> result = gridIndexDao.streamValues(sessionIdOne, replicaIdOne, 100, 0);
+		List<ValueNode> result = gridIndexDao.streamValues(sessionIdOne, replicaIdOne, 100, null);
 		assertEquals(2, result.size());
 		assertTrue(result.stream().noneMatch(v -> v.getId().getReplicaId() == 0L && v.getId().getSequenceNumber() == 0L));
 	}
@@ -1235,11 +1238,12 @@ public class GridIndexDaoImplTest {
 		);
 		gridIndexDao.saveVectors(sessionIdOne, replicaIdOne, nodes);
 
-		// call under test
-		List<VectorNode> result = gridIndexDao.streamVectors(sessionIdOne, replicaIdOne, 1, 0);
+		// call under test - first page of size 1
+		List<VectorNode> result = gridIndexDao.streamVectors(sessionIdOne, replicaIdOne, 1, null);
 		assertEquals(1, result.size());
 
-		result = gridIndexDao.streamVectors(sessionIdOne, replicaIdOne, 100, 0);
+		// all nodes in one page from start
+		result = gridIndexDao.streamVectors(sessionIdOne, replicaIdOne, 100, null);
 		assertEquals(2, result.size());
 	}
 
@@ -1266,10 +1270,10 @@ public class GridIndexDaoImplTest {
 		}
 		gridIndexDao.saveNewConstants(sessionIdOne, replicaIdOne, nodes);
 
-		// Read in pages of 2
-		List<ConstantNode> page1 = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 2, 0);
-		List<ConstantNode> page2 = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 2, 2);
-		List<ConstantNode> page3 = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 2, 4);
+		// Read in pages of 2 using keyset pagination
+		List<ConstantNode> page1 = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 2, null);
+		List<ConstantNode> page2 = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 2, page1.get(page1.size() - 1).getId());
+		List<ConstantNode> page3 = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 2, page2.get(page2.size() - 1).getId());
 
 		assertEquals(2, page1.size());
 		assertEquals(2, page2.size());

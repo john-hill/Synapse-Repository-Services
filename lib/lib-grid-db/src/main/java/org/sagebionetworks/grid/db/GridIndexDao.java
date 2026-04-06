@@ -350,48 +350,56 @@ public interface GridIndexDao {
 	Long getClockSequenceMaximum(String gridSessionId, Long replicaId);
 
 	/**
-	 * Stream all constant nodes for a session/replica (paginated).
+	 * Stream all constant nodes for a session/replica (paginated, keyset).
+	 * Results are ordered by (CON_REP, CON_SEQ). Pass {@code null} for the first
+	 * page; pass the last node's ID from the previous page for subsequent pages.
 	 *
 	 * @param sessionId
 	 * @param replicaId
 	 * @param limit
-	 * @param offset
+	 * @param lastSeen the last node returned by the previous page, or {@code null} for the first page
 	 * @return
 	 */
-	List<ConstantNode> streamConstants(String sessionId, Long replicaId, long limit, long offset);
+	List<ConstantNode> streamConstants(String sessionId, Long replicaId, long limit, LogicalTimestamp lastSeen);
 
 	/**
-	 * Stream all object nodes for a session/replica (paginated).
+	 * Stream all object nodes for a session/replica (paginated, keyset).
+	 * Results are ordered by (OBJ_REP, OBJ_SEQ). Pass {@code null} for the first
+	 * page; pass the last node's ID from the previous page for subsequent pages.
 	 *
 	 * @param sessionId
 	 * @param replicaId
 	 * @param limit
-	 * @param offset
+	 * @param lastSeen the last node returned by the previous page, or {@code null} for the first page
 	 * @return
 	 */
-	List<ObjectNode> streamObjects(String sessionId, Long replicaId, long limit, long offset);
+	List<ObjectNode> streamObjects(String sessionId, Long replicaId, long limit, LogicalTimestamp lastSeen);
 
 	/**
-	 * Stream all value nodes for a session/replica, EXCLUDING the root (0,0) node (paginated).
+	 * Stream all value nodes for a session/replica, EXCLUDING the root (0,0) node (paginated, keyset).
+	 * Results are ordered by (VAL_REP, VAL_SEQ). Pass {@code null} for the first
+	 * page; pass the last node's ID from the previous page for subsequent pages.
 	 *
 	 * @param sessionId
 	 * @param replicaId
 	 * @param limit
-	 * @param offset
+	 * @param lastSeen the last node returned by the previous page, or {@code null} for the first page
 	 * @return
 	 */
-	List<ValueNode> streamValues(String sessionId, Long replicaId, long limit, long offset);
+	List<ValueNode> streamValues(String sessionId, Long replicaId, long limit, LogicalTimestamp lastSeen);
 
 	/**
-	 * Stream all vector nodes for a session/replica (paginated).
+	 * Stream all vector nodes for a session/replica (paginated, keyset).
+	 * Results are ordered by (VEC_REP, VEC_SEQ). Pass {@code null} for the first
+	 * page; pass the last node's ID from the previous page for subsequent pages.
 	 *
 	 * @param sessionId
 	 * @param replicaId
 	 * @param limit
-	 * @param offset
+	 * @param lastSeen the last node returned by the previous page, or {@code null} for the first page
 	 * @return
 	 */
-	List<VectorNode> streamVectors(String sessionId, Long replicaId, long limit, long offset);
+	List<VectorNode> streamVectors(String sessionId, Long replicaId, long limit, LogicalTimestamp lastSeen);
 
 	/**
 	 * Get all array IDs for a session/replica (from GRID_REPLICA_INDEX WHERE KIND = 'arr').

@@ -219,46 +219,46 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	}
 
 	private void exportConstants(String sessionId, Long replicaId, IndexedModelEncoder encoder) throws IOException {
-		long offset = 0;
+		LogicalTimestamp lastSeen = null;
 		List<ConstantNode> batch;
-		while (!(batch = dao.streamConstants(sessionId, replicaId, snapshotImportBatchSize, offset)).isEmpty()) {
+		while (!(batch = dao.streamConstants(sessionId, replicaId, snapshotImportBatchSize, lastSeen)).isEmpty()) {
 			for (ConstantNode node : batch) {
 				encoder.writeNode(node);
 			}
-			offset += batch.size();
+			lastSeen = batch.get(batch.size() - 1).getId();
 		}
 	}
 
 	private void exportObjects(String sessionId, Long replicaId, IndexedModelEncoder encoder) throws IOException {
-		long offset = 0;
+		LogicalTimestamp lastSeen = null;
 		List<ObjectNode> batch;
-		while (!(batch = dao.streamObjects(sessionId, replicaId, snapshotImportBatchSize, offset)).isEmpty()) {
+		while (!(batch = dao.streamObjects(sessionId, replicaId, snapshotImportBatchSize, lastSeen)).isEmpty()) {
 			for (ObjectNode node : batch) {
 				encoder.writeNode(node);
 			}
-			offset += batch.size();
+			lastSeen = batch.get(batch.size() - 1).getId();
 		}
 	}
 
 	private void exportValues(String sessionId, Long replicaId, IndexedModelEncoder encoder) throws IOException {
-		long offset = 0;
+		LogicalTimestamp lastSeen = null;
 		List<ValueNode> batch;
-		while (!(batch = dao.streamValues(sessionId, replicaId, snapshotImportBatchSize, offset)).isEmpty()) {
+		while (!(batch = dao.streamValues(sessionId, replicaId, snapshotImportBatchSize, lastSeen)).isEmpty()) {
 			for (ValueNode node : batch) {
 				encoder.writeNode(node);
 			}
-			offset += batch.size();
+			lastSeen = batch.get(batch.size() - 1).getId();
 		}
 	}
 
 	private void exportVectors(String sessionId, Long replicaId, IndexedModelEncoder encoder) throws IOException {
-		long offset = 0;
+		LogicalTimestamp lastSeen = null;
 		List<VectorNode> batch;
-		while (!(batch = dao.streamVectors(sessionId, replicaId, snapshotImportBatchSize, offset)).isEmpty()) {
+		while (!(batch = dao.streamVectors(sessionId, replicaId, snapshotImportBatchSize, lastSeen)).isEmpty()) {
 			for (VectorNode node : batch) {
 				encoder.writeNode(node);
 			}
-			offset += batch.size();
+			lastSeen = batch.get(batch.size() - 1).getId();
 		}
 	}
 

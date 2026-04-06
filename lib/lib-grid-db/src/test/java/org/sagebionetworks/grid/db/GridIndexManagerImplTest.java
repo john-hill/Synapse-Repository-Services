@@ -531,21 +531,21 @@ public class GridIndexManagerImplTest {
 		// Constants
 		ConstantNode con1 = new ConstantNode().setId(new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(3L))
 				.setValue(new ConValue(ConType.STRING, "hello"));
-		when(mockDao.streamConstants(sessionId, replicaId, 1000, 0)).thenReturn(List.of(con1));
-		when(mockDao.streamConstants(sessionId, replicaId, 1000, 1)).thenReturn(Collections.emptyList());
+		when(mockDao.streamConstants(sessionId, replicaId, 1000, null)).thenReturn(List.of(con1));
+		when(mockDao.streamConstants(sessionId, replicaId, 1000, con1.getId())).thenReturn(Collections.emptyList());
 
 		// Objects
-		when(mockDao.streamObjects(sessionId, replicaId, 1000, 0)).thenReturn(List.of(rootObj));
-		when(mockDao.streamObjects(sessionId, replicaId, 1000, 1)).thenReturn(Collections.emptyList());
+		when(mockDao.streamObjects(sessionId, replicaId, 1000, null)).thenReturn(List.of(rootObj));
+		when(mockDao.streamObjects(sessionId, replicaId, 1000, rootObj.getId())).thenReturn(Collections.emptyList());
 
 		// Values
 		ValueNode val1 = new ValueNode().setId(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(2L))
 				.setValue(new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(3L));
-		when(mockDao.streamValues(sessionId, replicaId, 1000, 0)).thenReturn(List.of(val1));
-		when(mockDao.streamValues(sessionId, replicaId, 1000, 1)).thenReturn(Collections.emptyList());
+		when(mockDao.streamValues(sessionId, replicaId, 1000, null)).thenReturn(List.of(val1));
+		when(mockDao.streamValues(sessionId, replicaId, 1000, val1.getId())).thenReturn(Collections.emptyList());
 
 		// Vectors
-		when(mockDao.streamVectors(sessionId, replicaId, 1000, 0)).thenReturn(Collections.emptyList());
+		when(mockDao.streamVectors(sessionId, replicaId, 1000, null)).thenReturn(Collections.emptyList());
 
 		// Arrays
 		when(mockDao.getAllArrayIds(sessionId, replicaId)).thenReturn(Collections.emptyList());
@@ -557,13 +557,13 @@ public class GridIndexManagerImplTest {
 		assertTrue(Files.exists(snapshotFile));
 
 		verify(mockDao).getRootObject(sessionId, replicaId);
-		verify(mockDao).streamConstants(sessionId, replicaId, 1000, 0);
-		verify(mockDao).streamConstants(sessionId, replicaId, 1000, 1);
-		verify(mockDao).streamObjects(sessionId, replicaId, 1000, 0);
-		verify(mockDao).streamObjects(sessionId, replicaId, 1000, 1);
-		verify(mockDao).streamValues(sessionId, replicaId, 1000, 0);
-		verify(mockDao).streamValues(sessionId, replicaId, 1000, 1);
-		verify(mockDao).streamVectors(sessionId, replicaId, 1000, 0);
+		verify(mockDao).streamConstants(sessionId, replicaId, 1000, null);
+		verify(mockDao).streamConstants(sessionId, replicaId, 1000, con1.getId());
+		verify(mockDao).streamObjects(sessionId, replicaId, 1000, null);
+		verify(mockDao).streamObjects(sessionId, replicaId, 1000, rootObj.getId());
+		verify(mockDao).streamValues(sessionId, replicaId, 1000, null);
+		verify(mockDao).streamValues(sessionId, replicaId, 1000, val1.getId());
+		verify(mockDao).streamVectors(sessionId, replicaId, 1000, null);
 		verify(mockDao).getAllArrayIds(sessionId, replicaId);
 	}
 
@@ -577,11 +577,11 @@ public class GridIndexManagerImplTest {
 		when(mockDao.getRootObject(sessionId, replicaId)).thenReturn(Optional.of(rootObj));
 
 		// Empty constants, objects, values, vectors
-		when(mockDao.streamConstants(sessionId, replicaId, 1000, 0)).thenReturn(Collections.emptyList());
-		when(mockDao.streamObjects(sessionId, replicaId, 1000, 0)).thenReturn(List.of(rootObj));
-		when(mockDao.streamObjects(sessionId, replicaId, 1000, 1)).thenReturn(Collections.emptyList());
-		when(mockDao.streamValues(sessionId, replicaId, 1000, 0)).thenReturn(Collections.emptyList());
-		when(mockDao.streamVectors(sessionId, replicaId, 1000, 0)).thenReturn(Collections.emptyList());
+		when(mockDao.streamConstants(sessionId, replicaId, 1000, null)).thenReturn(Collections.emptyList());
+		when(mockDao.streamObjects(sessionId, replicaId, 1000, null)).thenReturn(List.of(rootObj));
+		when(mockDao.streamObjects(sessionId, replicaId, 1000, rootObj.getId())).thenReturn(Collections.emptyList());
+		when(mockDao.streamValues(sessionId, replicaId, 1000, null)).thenReturn(Collections.emptyList());
+		when(mockDao.streamVectors(sessionId, replicaId, 1000, null)).thenReturn(Collections.emptyList());
 
 		// One array with elements
 		LogicalTimestamp arrayId = new LogicalTimestamp().setReplicaId(10L).setSequenceNumber(10L);
@@ -611,11 +611,11 @@ public class GridIndexManagerImplTest {
 		ObjectNode rootObj = new ObjectNode().setId(rootObjId).setValue(Collections.emptyMap());
 		when(mockDao.getRootObject(sessionId, replicaId)).thenReturn(Optional.of(rootObj));
 
-		when(mockDao.streamConstants(sessionId, replicaId, 1000, 0)).thenReturn(Collections.emptyList());
-		when(mockDao.streamObjects(sessionId, replicaId, 1000, 0)).thenReturn(List.of(rootObj));
-		when(mockDao.streamObjects(sessionId, replicaId, 1000, 1)).thenReturn(Collections.emptyList());
-		when(mockDao.streamValues(sessionId, replicaId, 1000, 0)).thenReturn(Collections.emptyList());
-		when(mockDao.streamVectors(sessionId, replicaId, 1000, 0)).thenReturn(Collections.emptyList());
+		when(mockDao.streamConstants(sessionId, replicaId, 1000, null)).thenReturn(Collections.emptyList());
+		when(mockDao.streamObjects(sessionId, replicaId, 1000, null)).thenReturn(List.of(rootObj));
+		when(mockDao.streamObjects(sessionId, replicaId, 1000, rootObj.getId())).thenReturn(Collections.emptyList());
+		when(mockDao.streamValues(sessionId, replicaId, 1000, null)).thenReturn(Collections.emptyList());
+		when(mockDao.streamVectors(sessionId, replicaId, 1000, null)).thenReturn(Collections.emptyList());
 		when(mockDao.getAllArrayIds(sessionId, replicaId)).thenReturn(Collections.emptyList());
 
 		// call under test

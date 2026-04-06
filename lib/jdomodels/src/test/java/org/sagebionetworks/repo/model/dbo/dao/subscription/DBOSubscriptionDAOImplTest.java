@@ -5,10 +5,10 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.sagebionetworks.repo.model.dbo.dao.subscription.DBOSubscriptionDAOImpl.LIMIT;
-import static org.sagebionetworks.repo.model.dbo.dao.subscription.DBOSubscriptionDAOImpl.OBJECT_IDS;
+import static org.sagebionetworks.repo.model.dbo.dao.subscription.DBOSubscriptionDAOImpl.SUBSCRIPTION_OBJECT_IDS;
 import static org.sagebionetworks.repo.model.dbo.dao.subscription.DBOSubscriptionDAOImpl.OBJECT_TYPE;
 import static org.sagebionetworks.repo.model.dbo.dao.subscription.DBOSubscriptionDAOImpl.OFFSET;
-import static org.sagebionetworks.repo.model.dbo.dao.subscription.DBOSubscriptionDAOImpl.PROJECT_IDS;
+import static org.sagebionetworks.repo.model.dbo.dao.subscription.DBOSubscriptionDAOImpl.FORUM_OBJECT_IDS;
 import static org.sagebionetworks.repo.model.dbo.dao.subscription.DBOSubscriptionDAOImpl.SUBSCRIBER_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SUBSCRIPTION_CREATED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SUBSCRIPTION_ID;
@@ -859,8 +859,8 @@ public class DBOSubscriptionDAOImplTest {
 		assertNotNull(params);
 		assertEquals(request.getObjectType().name(), params.getValue(OBJECT_TYPE));
 		assertEquals(request.getSubscriberId(), params.getValue(SUBSCRIBER_ID));
-		assertEquals(request.getObjectIds(), params.getValue(OBJECT_IDS));
-		assertEquals(request.getProjectIds(), params.getValue(PROJECT_IDS));
+		assertEquals(request.getObjectIds(), params.getValue(SUBSCRIPTION_OBJECT_IDS));
+		assertEquals(request.getProjectIds(), params.getValue(FORUM_OBJECT_IDS));
 		assertEquals(request.getLimit(), params.getValue(LIMIT));
 		assertEquals(request.getOffset(), params.getValue(OFFSET));
 	}
@@ -881,8 +881,8 @@ public class DBOSubscriptionDAOImplTest {
 		assertNotNull(params);
 		assertEquals(request.getObjectType().name(), params.getValue(OBJECT_TYPE));
 		assertEquals(request.getSubscriberId(), params.getValue(SUBSCRIBER_ID));
-		assertFalse(params.hasValue(OBJECT_IDS));
-		assertFalse(params.hasValue(PROJECT_IDS));
+		assertFalse(params.hasValue(SUBSCRIPTION_OBJECT_IDS));
+		assertFalse(params.hasValue(FORUM_OBJECT_IDS));
 		assertFalse(params.hasValue(LIMIT));
 		assertFalse(params.hasValue(OFFSET));
 	}

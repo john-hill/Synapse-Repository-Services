@@ -64,7 +64,7 @@ public class SynonymSetDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testCreateAndGet() {
+	public void testCreateAndGetWithRules() {
 		SynonymRule rule = new SynonymRule();
 		rule.setRuleType(SynonymRuleType.EQUIVALENT);
 		rule.setTerms(Arrays.asList("cancer", "tumor", "neoplasm"));
@@ -94,7 +94,7 @@ public class SynonymSetDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testGetNotFound() {
+	public void testGetWithNonExistentId() {
 		// call under test
 		Optional<SynonymSet> result = synonymSetDao.get("999999");
 
@@ -102,7 +102,7 @@ public class SynonymSetDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testCreateDuplicateNameInSameOrgThrows() {
+	public void testCreateWithDuplicateNameInSameOrg() {
 		synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "duplicate-name", "First"));
 
 		SynonymSet second = newSynonymSet(org1Name, "duplicate-name", "Second");
@@ -112,7 +112,7 @@ public class SynonymSetDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testUpdatePersistsChangesAndRotatesEtag() {
+	public void testUpdateWithModifiedRulesAndDescription() {
 		SynonymRule originalRule = new SynonymRule();
 		originalRule.setRuleType(SynonymRuleType.EQUIVALENT);
 		originalRule.setTerms(Arrays.asList("heart attack", "myocardial infarction"));
@@ -156,7 +156,7 @@ public class SynonymSetDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testDelete() {
+	public void testDeleteWithExistingSet() {
 		SynonymSet created = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "test-delete", null));
 		assertTrue(synonymSetDao.get(created.getId()).isPresent());
 
@@ -167,7 +167,7 @@ public class SynonymSetDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testGetByOrganizationAndName() {
+	public void testGetByOrganizationAndNameWithMatchingEntry() {
 		SynonymRule rule = new SynonymRule();
 		rule.setRuleType(SynonymRuleType.EQUIVALENT);
 		rule.setTerms(Arrays.asList("cancer", "tumor"));
@@ -187,7 +187,7 @@ public class SynonymSetDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testGetByOrganizationAndNameNotFound() {
+	public void testGetByOrganizationAndNameWithNonExistentName() {
 		// call under test
 		Optional<SynonymSet> result = synonymSetDao.getByOrganizationAndName(org1Name, "does-not-exist");
 
@@ -195,7 +195,7 @@ public class SynonymSetDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testRulesRoundTripThroughDatabase() {
+	public void testCreateAndGetWithMultipleRuleTypes() {
 		SynonymRule equivalentRule = new SynonymRule();
 		equivalentRule.setRuleType(SynonymRuleType.EQUIVALENT);
 		equivalentRule.setTerms(Arrays.asList("heart attack", "myocardial infarction", "MI"));
@@ -217,7 +217,7 @@ public class SynonymSetDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testListByOrganizationAndListAll() {
+	public void testListWithMultipleOrganizations() {
 		// Create 2 synonym sets in org1
 		SynonymSet org1SetA = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "org1-set-a", "first"));
 		SynonymSet org1SetB = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "org1-set-b", "second"));

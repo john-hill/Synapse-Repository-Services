@@ -61,11 +61,12 @@ public class SynonymSetManagerImplTest {
 	// --- Sage employee / admin authorization ---
 
 	@Test
-	public void testNonSageUserCannotCreate() {
+	public void testCreateWithNonSageUser() {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L));
 
+		// call under test
 		assertThrows(UnauthorizedException.class, () ->
 			manager.create(user, new SynonymSet().setOrganizationName("test-org").setName("test")));
 		verifyZeroInteractions(aclDao);
@@ -73,11 +74,12 @@ public class SynonymSetManagerImplTest {
 	}
 
 	@Test
-	public void testNonSageUserCannotUpdate() {
+	public void testUpdateWithNonSageUser() {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L));
 
+		// call under test
 		assertThrows(UnauthorizedException.class, () ->
 			manager.update(user, new SynonymSet().setId("1").setOrganizationName("test-org").setName("test")));
 		verifyZeroInteractions(aclDao);
@@ -85,11 +87,12 @@ public class SynonymSetManagerImplTest {
 	}
 
 	@Test
-	public void testNonSageUserCannotDelete() {
+	public void testDeleteWithNonSageUser() {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L));
 
+		// call under test
 		assertThrows(UnauthorizedException.class, () ->
 			manager.delete(user, "1"));
 		verifyZeroInteractions(aclDao);
@@ -97,19 +100,23 @@ public class SynonymSetManagerImplTest {
 	}
 
 	@Test
-	public void testAnonymousUserCannotCreate() {
+	public void testCreateWithAnonymousUser() {
 		UserInfo anon = new UserInfo(false);
 		anon.setId(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 		anon.setGroups(Set.of(anon.getId()));
 
+		// call under test
 		assertThrows(UnauthorizedException.class, () ->
 			manager.create(anon, new SynonymSet().setOrganizationName("test-org").setName("test")));
+		verifyZeroInteractions(aclDao);
+		verifyZeroInteractions(synonymSetDao);
+		verifyZeroInteractions(organizationDao);
 	}
 
 	// --- ACL authorization (user is Sage employee) ---
 
 	@Test
-	public void testAuthenticatedUserWithoutOrgAclCannotCreate() {
+	public void testCreateWithUserWithoutOrgAcl() {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
@@ -117,12 +124,14 @@ public class SynonymSetManagerImplTest {
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.CREATE)))
 			.thenReturn(AuthorizationStatus.accessDenied("no"));
 
+		// call under test
 		assertThrows(UnauthorizedException.class, () ->
 			manager.create(user, new SynonymSet().setOrganizationName("test-org").setName("test")));
+		verifyZeroInteractions(synonymSetDao);
 	}
 
 	@Test
-	public void testAuthenticatedUserWithOrgAclCanCreate() {
+	public void testCreateWithUserWithOrgAcl() {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
@@ -132,17 +141,19 @@ public class SynonymSetManagerImplTest {
 		SynonymSet input = new SynonymSet().setOrganizationName("test-org").setName("test");
 		when(synonymSetDao.create(eq(1L), any())).thenReturn(input.setId("1"));
 
+		// call under test
 		SynonymSet result = manager.create(user, input);
 		assertNotNull(result);
 	}
 
 	@Test
-	public void testAdminBypassesOrgAcl() {
+	public void testCreateWithAdminBypassesOrgAcl() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
 		SynonymSet input = new SynonymSet().setOrganizationName("test-org").setName("test");
 		when(synonymSetDao.create(eq(1L), any())).thenReturn(input.setId("1"));
 
+		// call under test
 		SynonymSet result = manager.create(admin, input);
 		assertNotNull(result);
 		verifyZeroInteractions(aclDao);
@@ -151,8 +162,10 @@ public class SynonymSetManagerImplTest {
 	// --- Public read ---
 
 	@Test
-	public void testGetIsPublicNoAuthCheck() {
+	public void testGetWithPublicAccess() {
 		when(synonymSetDao.get("1")).thenReturn(Optional.of(new SynonymSet()));
+
+		// call under test
 		manager.get(new UserInfo(false), "1");
 		verifyZeroInteractions(aclDao);
 	}
@@ -160,18 +173,19 @@ public class SynonymSetManagerImplTest {
 	// --- Deletion ---
 
 	@Test
-	public void testDeleteDelegatesToDao() {
+	public void testDeleteWithAdmin() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
 		SynonymSet existing = new SynonymSet().setId("1").setOrganizationName("test-org");
 		when(synonymSetDao.get("1")).thenReturn(Optional.of(existing));
 
+		// call under test
 		manager.delete(admin, "1");
 		verify(synonymSetDao).delete("1");
 	}
 
 	@Test
-	public void testDeleteBlockedByFkConstraint() {
+	public void testDeleteWithFkConstraint() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
 		SynonymSet existing = new SynonymSet().setId("1").setOrganizationName("test-org");
@@ -179,6 +193,7 @@ public class SynonymSetManagerImplTest {
 		org.mockito.Mockito.doThrow(new IllegalArgumentException("Cannot delete synonym set '1' because it is still referenced."))
 			.when(synonymSetDao).delete("1");
 
+		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
 			manager.delete(admin, "1"));
 		assertTrue(ex.getMessage().contains("still referenced"));
@@ -187,21 +202,25 @@ public class SynonymSetManagerImplTest {
 	// --- Not found ---
 
 	@Test
-	public void testGetNotFoundThrows() {
+	public void testGetWithNonExistentId() {
 		when(synonymSetDao.get("999")).thenReturn(Optional.empty());
-		assertThrows(NotFoundException.class, () -> manager.get(new UserInfo(false), "999"));
+
+		// call under test
+		NotFoundException ex = assertThrows(NotFoundException.class, () -> manager.get(new UserInfo(false), "999"));
+		assertEquals("A synonym set with the given id does not exist.", ex.getMessage());
 	}
 
 	// --- List / pagination ---
 
 	@Test
-	public void testListAllWhenNoOrgName() {
+	public void testListWithNoOrgName() {
 		SynonymSet item = new SynonymSet().setId("1");
 		when(synonymSetDao.listAll(anyLong(), anyLong()))
 			.thenReturn(Arrays.asList(item));
 
 		ListSynonymSetsRequest request = new ListSynonymSetsRequest();
 
+		// call under test
 		ListSynonymSetsResponse response = manager.list(new UserInfo(false), request);
 		assertEquals(1, response.getResults().size());
 		verify(synonymSetDao).listAll(anyLong(), anyLong());
@@ -209,7 +228,7 @@ public class SynonymSetManagerImplTest {
 	}
 
 	@Test
-	public void testListDelegatesToDaoWithPagination() {
+	public void testListWithOrgName() {
 		SynonymSet item = new SynonymSet().setId("1");
 		when(synonymSetDao.list(eq("test-org"), anyLong(), anyLong()))
 			.thenReturn(Arrays.asList(item));
@@ -217,6 +236,7 @@ public class SynonymSetManagerImplTest {
 		ListSynonymSetsRequest request = new ListSynonymSetsRequest();
 		request.setOrganizationName("test-org");
 
+		// call under test
 		ListSynonymSetsResponse response = manager.list(new UserInfo(false), request);
 		assertEquals(1, response.getResults().size());
 		assertEquals("1", response.getResults().get(0).getId());
@@ -225,7 +245,7 @@ public class SynonymSetManagerImplTest {
 	// --- Update ACL ---
 
 	@Test
-	public void testUpdateRequiresOrgAcl() {
+	public void testUpdateWithUserWithoutOrgAcl() {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
@@ -235,22 +255,25 @@ public class SynonymSetManagerImplTest {
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
 			.thenReturn(AuthorizationStatus.accessDenied("no"));
 
+		// call under test
 		assertThrows(UnauthorizedException.class, () -> manager.update(user, request));
+		verify(synonymSetDao, never()).update(anyLong(), any());
 	}
 
 	@Test
-	public void testUpdateRejectsOrgNameMismatch() {
+	public void testUpdateWithOrgNameMismatch() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
 		SynonymSet request = new SynonymSet().setId("1").setOrganizationName("other-org").setName("updated");
 		when(synonymSetDao.get("1")).thenReturn(Optional.of(new SynonymSet().setId("1").setOrganizationName("test-org")));
 
+		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.update(admin, request));
 		assertTrue(ex.getMessage().contains("organizationName cannot be changed"));
 	}
 
 	@Test
-	public void testListReturnsNextPageTokenWhenMoreResults() {
+	public void testListWithMoreResults() {
 		List<SynonymSet> page = new ArrayList<>();
 		for (int i = 0; i < 51; i++) {
 			page.add(new SynonymSet().setId(String.valueOf(i)));
@@ -258,6 +281,8 @@ public class SynonymSetManagerImplTest {
 		when(synonymSetDao.listAll(eq(51L), eq(0L))).thenReturn(page);
 
 		ListSynonymSetsRequest request = new ListSynonymSetsRequest();
+
+		// call under test
 		ListSynonymSetsResponse response = manager.list(new UserInfo(false), request);
 
 		assertNotNull(response.getNextPageToken(), "Expected a next page token when DAO returns more than limit results");
@@ -265,26 +290,30 @@ public class SynonymSetManagerImplTest {
 	}
 
 	@Test
-	public void testDeleteNotFoundThrows() {
+	public void testDeleteWithNonExistentId() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
 		when(synonymSetDao.get("999")).thenReturn(Optional.empty());
 
-		assertThrows(NotFoundException.class, () -> manager.delete(admin, "999"));
+		// call under test
+		NotFoundException ex = assertThrows(NotFoundException.class, () -> manager.delete(admin, "999"));
+		assertEquals("A synonym set with the given id does not exist.", ex.getMessage());
 	}
 
 	@Test
-	public void testUpdateNotFoundThrows() {
+	public void testUpdateWithNonExistentId() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
 		SynonymSet request = new SynonymSet().setId("999").setOrganizationName("test-org").setName("updated");
 		when(synonymSetDao.get("999")).thenReturn(Optional.empty());
 
-		assertThrows(NotFoundException.class, () -> manager.update(admin, request));
+		// call under test
+		NotFoundException ex = assertThrows(NotFoundException.class, () -> manager.update(admin, request));
+		assertEquals("A synonym set with the given id does not exist.", ex.getMessage());
 	}
 
 	@Test
-	public void testDeleteChecksOrgAclFromStoredEntity() {
+	public void testDeleteWithOrgAclCheck() {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
@@ -294,16 +323,20 @@ public class SynonymSetManagerImplTest {
 		when(aclDao.canAccess(any(UserInfo.class), eq("99"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.DELETE)))
 			.thenReturn(AuthorizationStatus.accessDenied("no"));
 
+		// call under test
 		assertThrows(UnauthorizedException.class, () -> manager.delete(user, "1"));
 		verify(aclDao).canAccess(any(UserInfo.class), eq("99"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.DELETE));
+		verify(synonymSetDao, never()).delete(anyString());
 	}
 
 	@Test
-	public void testListReturnsNullNextPageTokenWhenNoMoreResults() {
+	public void testListWithNoMoreResults() {
 		List<SynonymSet> page = Arrays.asList(new SynonymSet().setId("1"));
 		when(synonymSetDao.listAll(eq(51L), eq(0L))).thenReturn(page);
 
 		ListSynonymSetsRequest request = new ListSynonymSetsRequest();
+
+		// call under test
 		ListSynonymSetsResponse response = manager.list(new UserInfo(false), request);
 
 		assertNull(response.getNextPageToken(), "Expected null next page token when all results fit in one page");

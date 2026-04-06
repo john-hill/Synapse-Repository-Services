@@ -73,6 +73,15 @@ DAO interfaces live in `lib/models/` (`org.sagebionetworks.repo.model`). Impleme
 - **`RowMapper<T>`** or `TableMapping<T>` — for result set mapping
 - **No ORM** — all SQL is hand-written
 
+### Junction Table DAO Pattern
+
+When a parent entity has ordered many-to-many relationships (e.g., SearchConfiguration → SynonymSets), the **parent DAO** manages junction rows inline — there is no separate DAO for the junction table. Key conventions (see `SearchConfigurationDaoImpl` for the reference implementation):
+
+- **Dedup before insert**: Wrap input lists in `new LinkedHashSet<>(list)` to remove duplicates while preserving order — because the DB has a unique constraint on `(CONFIG_ID, REFERENCED_ID)`.
+- **ORDINAL column**: 0-indexed integer preserving list order. Part of the composite primary key in the junction DDL.
+- **Complete replacement on update**: Delete all junction rows for the parent, then re-insert — no partial merge. This avoids complex diff logic and is safe because junction rows have no independent identity.
+- **Lazy population**: After fetching the primary record, populate junction data with separate `queryForList` calls. This keeps the primary query simple and avoids joins that would multiply rows.
+
 ### SQL Constants
 
 All table names, column names, and DDL file paths are centralized in `SqlConstants`:
@@ -141,3 +150,5 @@ Do NOT create custom `ObjectMapper` or `JSONObjectAdapter` serialization code in
 - DAO unit tests mock `JdbcTemplate` / `NamedParameterJdbcTemplate`
 - DAO integration tests use the real database (run via `integration-test` module)
 - Migration test: `MigratableTableDAOImplAutowireTest.testAllMigrationTypesRegistered()` — validates all `MigrationType` values have registered DBOs
+- **Autowired test pattern for new DAOs**: Every new DAO with behavioral logic (OCC, duplicate name handling, FK protection, custom queries) needs a `*DaoImplAutowiredTest` covering: create with real data + get round-trip, duplicate name constraint, update with data change verification, OCC conflict, delete, list filtering across multiple groups, and `getByX` with a decoy entry to verify filtering. See `SynonymSetDaoImplAutowiredTest` or `TextAnalyzerDaoImplAutowiredTest` for examples. For DAOs with junction tables, see `SearchConfigurationDaoImplAutowiredTest`.
+- **Uniqueness constraint tests**: When a table has a composite unique key on string columns, test with max-length strings that differ only in the last character — because MySQL index key length limits can silently truncate, causing false collisions that won't appear with short test strings. Give each entry distinct field values (descriptions, rules, etc.), then fetch each by ID and verify all fields survived — because a truncated index could silently overwrite one row with another, and simply asserting the duplicate throws won't catch that.

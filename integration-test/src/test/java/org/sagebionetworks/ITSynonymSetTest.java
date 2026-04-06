@@ -51,7 +51,7 @@ public class ITSynonymSetTest {
 	}
 
 	@Test
-	public void testSynonymSetCRUD() throws SynapseException {
+	public void testCRUDWithSynonymRules() throws SynapseException {
 		// Get org ID from bootstrapped analyzers
 		ListTextAnalyzersResponse analyzers = adminSynapse.listTextAnalyzers(new ListTextAnalyzersRequest());
 		String orgName = analyzers.getResults().get(0).getOrganizationName();
@@ -67,6 +67,7 @@ public class ITSynonymSetTest {
 		toCreate.setOrganizationName(orgName);
 		toCreate.setRules(Arrays.asList(rule));
 
+		// call under test
 		SynonymSet created = adminSynapse.createSynonymSet(toCreate);
 		assertNotNull(created.getId());
 		assertNotNull(created.getEtag());
@@ -74,7 +75,7 @@ public class ITSynonymSetTest {
 		assertEquals(1, created.getRules().size());
 		toDelete.add(created.getId());
 
-		// GET
+		// call under test
 		SynonymSet fetched = adminSynapse.getSynonymSet(created.getId());
 		assertEquals(created.getId(), fetched.getId());
 		assertEquals(created.getEtag(), fetched.getEtag());
@@ -89,23 +90,24 @@ public class ITSynonymSetTest {
 		additionalRule.setTerms(Arrays.asList("AD", "Alzheimer's disease"));
 		fetched.setRules(Arrays.asList(rule, additionalRule));
 
+		// call under test
 		SynonymSet updated = adminSynapse.updateSynonymSet(fetched);
 		assertEquals("Updated description", updated.getDescription());
 		assertEquals(2, updated.getRules().size());
 		assertNotNull(updated.getEtag());
 
-		// LIST
+		// call under test
 		ListSynonymSetsRequest listRequest = new ListSynonymSetsRequest();
 		listRequest.setOrganizationName(orgName);
 		ListSynonymSetsResponse listResponse = adminSynapse.listSynonymSets(listRequest);
 		assertNotNull(listResponse.getResults());
 		assertTrue(listResponse.getResults().stream().anyMatch(s -> created.getId().equals(s.getId())));
 
-		// DELETE
+		// call under test
 		adminSynapse.deleteSynonymSet(created.getId());
 		toDelete.remove(created.getId());
 
-		// Verify deleted
+		// call under test
 		assertThrows(SynapseNotFoundException.class, () -> adminSynapse.getSynonymSet(created.getId()));
 	}
 }

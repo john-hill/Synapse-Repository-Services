@@ -55,4 +55,13 @@ public interface GridReplicaManager {
 	 */
 	void onResponseComplete(ProgressCallback callback, GridConnectionInfo connection, Integer methodId);
 
+	/**
+	 * Called to export a new snapshot for the given connection's replica. If the
+	 * replica is not fully synchronized, this method returns without exporting.
+	 *
+	 * @param callback
+	 * @param connection
+	 */
+	void onExportSnapshot(ProgressCallback callback, GridConnectionInfo connection);
+
 }

@@ -7,8 +7,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * Periodic worker that scans for grid sessions needing snapshot compaction and
- * publishes their session IDs to the compaction SQS queue for individual
- * processing by {@link GridSnapshotCompactionMessageWorker}.
+ * publishes {@code [8,"new-snapshot"]} notifications to the
+ * {@code GRID_INTERNAL_EVENT.fifo} queue for each session.
  */
 @Component
 public class GridSnapshotCompactionWorker implements ProgressingRunner {

@@ -102,15 +102,6 @@ public class GridSnapshotCompactionWorkerIntegrationTest {
 		Optional<GridSnapshot> initialSnapshot = gridDao.getLatestSnapshot(sessionId);
 		assertTrue(initialSnapshot.isPresent(), "Initial snapshot should exist after grid session creation");
 
-		boolean compacted = compactionManager.compactSession(sessionId);
-
-		if (compacted) {
-			Optional<GridSnapshot> latestSnapshot = gridDao.getLatestSnapshot(sessionId);
-			assertTrue(latestSnapshot.isPresent());
-			assertNotEquals(initialSnapshot.get().getId(), latestSnapshot.get().getId(),
-					"A new snapshot should have been created");
-		}
-
 		// Verify that scanAndPublish does NOT select this session (it's too recent)
 		List<String> published = compactionManager.scanAndPublishSessionsNeedingCompaction();
 		assertFalse(published.contains(sessionId),
@@ -127,19 +118,29 @@ public class GridSnapshotCompactionWorkerIntegrationTest {
 
 		Optional<GridSnapshot> initialSnapshot = gridDao.getLatestSnapshot(sessionId);
 		assertTrue(initialSnapshot.isPresent(), "Initial snapshot should exist after grid session creation");
+		Long initialSnapshotId = initialSnapshot.get().getId();
 
 		// Push the snapshot's CREATED_ON back >30 days to make it eligible for compaction
 		Timestamp oldTimestamp = Timestamp.from(Instant.now().minus(31, ChronoUnit.DAYS));
 		jdbcTemplate.update("UPDATE GRID_SNAPSHOT SET CREATED_ON = ? WHERE SESSION_ID = ?",
 				oldTimestamp, sessionId);
 
-		boolean compacted = compactionManager.compactSession(sessionId);
+		// Publish the session for compaction via the FIFO queue
+		List<String> published = compactionManager.scanAndPublishSessionsNeedingCompaction();
+		assertTrue(published.contains(sessionId),
+				"The old session should be selected for compaction");
 
-		assertTrue(compacted, "The session should have been compacted");
+		// Poll until a new snapshot appears (created by the worker processing the FIFO message)
+		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+			Optional<GridSnapshot> latestSnapshot = gridDao.getLatestSnapshot(sessionId);
+			boolean newSnapshotCreated = latestSnapshot.isPresent()
+					&& !latestSnapshot.get().getId().equals(initialSnapshotId);
+			return Pair.create(newSnapshotCreated, null);
+		});
 
 		Optional<GridSnapshot> latestSnapshot = gridDao.getLatestSnapshot(sessionId);
 		assertTrue(latestSnapshot.isPresent(), "A new snapshot should exist after compaction");
-		assertNotEquals(initialSnapshot.get().getId(), latestSnapshot.get().getId(),
+		assertNotEquals(initialSnapshotId, latestSnapshot.get().getId(),
 				"A new snapshot should have been created");
 		assertTrue(latestSnapshot.get().getCreatedOn().getTime() > initialSnapshot.get().getCreatedOn().getTime(),
 				"The new snapshot should be newer than the old one");

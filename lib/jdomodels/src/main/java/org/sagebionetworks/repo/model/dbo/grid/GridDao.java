@@ -221,6 +221,15 @@ public interface GridDao {
 	List<String> listAllSessionIds(long limit, long offset);
 
 	/**
+	 * Count the number of patches that are newer than the latest snapshot's clock for the given session.
+	 * Returns 0 if no patches exist beyond the latest snapshot (or if no patches exist at all).
+	 *
+	 * @param sessionId The grid session ID
+	 * @return The count of patches since the latest snapshot
+	 */
+	int countPatchesSinceLatestSnapshot(String sessionId);
+
+	/**
 	 * Find grid sessions that need snapshot compaction.
 	 * A session needs compaction if:
 	 *   - Its latest snapshot is older than maxSnapshotAge, OR

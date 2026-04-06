@@ -183,7 +183,6 @@
 		<ref bean="gridSynchronizationWorkerTrigger" />
 		<ref bean="gridSessionIndexWorkerTrigger" />
 		<ref bean="gridSnapshotCompactionWorkerTrigger" />
-        <ref bean="gridSnapshotCompactionMessageWorkerTrigger" />
 
 		<ref bean="inactiveUsersWorkerTrigger"/>
 

@@ -36,7 +36,6 @@ import org.sagebionetworks.repo.model.grid.patch.Patch;
 import org.sagebionetworks.util.FileProvider;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Isolation;
 
 import com.google.common.collect.Iterables;
 
@@ -162,8 +161,17 @@ public class GridIndexManagerImpl implements GridIndexManager {
 		dao.setClocks(sessionId, replicaId, dbClockTable.getClocks());
 	}
 
+	/**
+	 * {@inheritDoc}
+	 * <p>
+	 * This method requires at least repeatable read isolation — no concurrent writes to the same
+	 * grid session should occur while the export is in progress. This is guaranteed by
+	 * routing the export through the {@code GRID_INTERNAL_EVENT.fifo} queue, which
+	 * serializes all messages for a given connection. The {@code READ_COMMITTED}
+	 * transaction isolation (the default) is sufficient under this guarantee.
+	 */
 	@Override
-	@GridTransaction(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+	@GridTransaction(readOnly = true)
 	public ClockTable exportSnapshot(String sessionId, Long replicaId, Path snapshotFile) {
 		ValidateArgument.required(sessionId, "sessionId");
 		ValidateArgument.required(replicaId, "replicaId");

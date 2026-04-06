@@ -863,6 +863,94 @@ public class GridDaoImplTest {
 	}
 
 	@Test
+	public void testCountPatchesSinceLatestSnapshotWithNoPatches() {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		// call under test
+		assertEquals(0, dao.countPatchesSinceLatestSnapshot(session.getSessionId()));
+	}
+
+	@Test
+	public void testCountPatchesSinceLatestSnapshotWithPatchesAndNoSnapshot() {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		for (int i = 0; i < 3; i++) {
+			dao.savePatch(session.getSessionId(),
+					new LogicalTimestamp().setReplicaId(1L).setSequenceNumber((long) i),
+					"patch-key-" + i, Duration.ofDays(119), 100);
+		}
+		// call under test
+		assertEquals(3, dao.countPatchesSinceLatestSnapshot(session.getSessionId()));
+	}
+
+	@Test
+	public void testCountPatchesSinceLatestSnapshotWithSnapshotCoveringAllPatches() {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		for (int i = 0; i < 3; i++) {
+			dao.savePatch(session.getSessionId(),
+					new LogicalTimestamp().setReplicaId(1L).setSequenceNumber((long) i),
+					"patch-key-" + i, Duration.ofDays(119), 100);
+		}
+		// Snapshot clock covers all patches (seq=10 > 2)
+		ClockTable clockTable = new ClockTable(List.of(
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L)));
+		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
+
+		// call under test
+		assertEquals(0, dao.countPatchesSinceLatestSnapshot(session.getSessionId()));
+	}
+
+	@Test
+	public void testCountPatchesSinceLatestSnapshotWithNewPatchesAfterSnapshot() {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		// Patches covered by snapshot (seq 0-2)
+		for (int i = 0; i < 3; i++) {
+			dao.savePatch(session.getSessionId(),
+					new LogicalTimestamp().setReplicaId(1L).setSequenceNumber((long) i),
+					"patch-key-" + i, Duration.ofDays(119), 100);
+		}
+		ClockTable clockTable = new ClockTable(List.of(
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L)));
+		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
+
+		// Add 2 new patches after the snapshot (seq 3-4)
+		for (int i = 3; i < 5; i++) {
+			dao.savePatch(session.getSessionId(),
+					new LogicalTimestamp().setReplicaId(1L).setSequenceNumber((long) i),
+					"patch-key-" + i, Duration.ofDays(119), 100);
+		}
+
+		// call under test
+		assertEquals(2, dao.countPatchesSinceLatestSnapshot(session.getSessionId()));
+	}
+
+	@Test
+	public void testCountPatchesSinceLatestSnapshotWithPatchesFromNewReplica() {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		// Snapshot covers only replica 1
+		ClockTable clockTable = new ClockTable(List.of(
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L)));
+		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
+
+		// Patches from replica 2 (not in snapshot clock)
+		for (int i = 0; i < 3; i++) {
+			dao.savePatch(session.getSessionId(),
+					new LogicalTimestamp().setReplicaId(2L).setSequenceNumber((long) i),
+					"patch-key-r2-" + i, Duration.ofDays(119), 100);
+		}
+
+		// call under test
+		assertEquals(3, dao.countPatchesSinceLatestSnapshot(session.getSessionId()));
+	}
+
+	@Test
+	public void testCountPatchesSinceLatestSnapshotWithNullSessionId() {
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			dao.countPatchesSinceLatestSnapshot(null);
+		}).getMessage();
+		assertEquals("sessionId is required.", message);
+	}
+
+	@Test
 	public void testListSessionsNeedingCompactionWithNoSessions() {
 		// call under test
 		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 10);

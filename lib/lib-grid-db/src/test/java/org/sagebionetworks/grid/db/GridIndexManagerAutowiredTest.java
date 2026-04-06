@@ -13,6 +13,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.GridUtils;
+import org.sagebionetworks.repo.model.grid.encoding.IndexedModelEncoder;
+import org.sagebionetworks.repo.model.grid.node.ArrayNode;
+import org.sagebionetworks.repo.model.grid.node.ConstantNode;
+import org.sagebionetworks.repo.model.grid.node.ObjectNode;
+import org.sagebionetworks.repo.model.grid.node.RGANode;
+import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.ConType;
 import org.sagebionetworks.repo.model.grid.patch.ConValue;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
@@ -22,6 +28,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -45,7 +54,7 @@ public class GridIndexManagerAutowiredTest {
 
     private Patch patch;
     private final Random random = new Random(System.currentTimeMillis());
-    private final String sessionId = GridUtils.gridSessionIdAsString(Math.abs(random.nextLong()));
+    private String sessionId = GridUtils.gridSessionIdAsString(Math.abs(random.nextLong()));
     private final Long replicaId = Math.abs(random.nextLong());
 
     private final List<Patch> patches = new ArrayList<>();
@@ -200,4 +209,142 @@ public class GridIndexManagerAutowiredTest {
         assertEquals(clockA, clockB, "Replica A and B should have identical clocks after round-trip");
     }
 
+    /**
+     * Scale benchmark for {@link GridIndexManager#exportSnapshot}.
+     * <p>
+     * Instead of building the DB state by applying patches (which is slow and unrelated to
+     * what we want to measure), this test:
+     * <ol>
+     *   <li>Constructs a snapshot file of the desired size directly with
+     *       {@link IndexedModelEncoder} — O(rows*cols) but no DB calls.</li>
+     *   <li>Imports the snapshot via {@link GridIndexManager#applySnapshot}.</li>
+     *   <li>Benchmarks {@link GridIndexManager#exportSnapshot} over {@code maxRuns} runs.</li>
+     * </ol>
+     */
+    @Test
+    @Disabled("This is a manual benchmark, not a unit test")
+    public void benchmarkApplyAndExportSnapshot(@TempDir Path tempDir) throws Exception {
+        boolean repeatableRead = false;
+        int maxRuns = 2;
+        gridIndexDao.truncateAll();
+
+        for (int nCols = 10; nCols <= 50; nCols += 10) {
+            for (int nRows = 10; nRows <= 10_000; nRows *= 2) {
+                sessionId = GridUtils.gridSessionIdAsString(Math.abs(random.nextLong()));
+                // Replica IDs must fit within 57 bits for CBOR encoding
+                Long replicaA = Math.abs(random.nextLong()) % (1L << 57);
+
+                // Build the snapshot file directly — no patch application needed
+                String label = nRows + "-" + nCols;
+                log.info("Building snapshot file: rows={}, cols={}", nRows, nCols);
+                long buildStart = System.nanoTime();
+                Path snapshotInput = buildSnapshotFile(tempDir, label, replicaA, nRows, nCols);
+                long buildMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - buildStart);
+                log.info("Snapshot file built in {} ms, size={} bytes", buildMs, Files.size(snapshotInput));
+
+                // Populate the replica by importing the snapshot
+                log.info("Importing snapshot into replica A");
+                long importStart = System.nanoTime();
+                gridIndexManager.applySnapshot(sessionId, replicaA, snapshotInput);
+                long importMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - importStart);
+                log.info("applySnapshot (setup) duration={} ms, rows={}, cols={}", importMs, nRows, nCols);
+
+                // Benchmark exportSnapshot
+                for (int run = 0; run < maxRuns; run++) {
+                    Path exportedFile = tempDir.resolve(label + "-" + run + "-exported-snapshot.cbor");
+                    long startNano = System.nanoTime();
+                    ClockTable exportedClock = gridIndexManager.exportSnapshot(sessionId, replicaA, exportedFile);
+                    long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano);
+                    assertNotNull(exportedClock);
+                    long fileSize = Files.exists(exportedFile) ? Files.size(exportedFile) : 0L;
+                    log.info("exportSnapshot duration={} ms, exported file='{}', size={} bytes, rows={}, cols={}, repeatable_read={}",
+                            durationMs, exportedFile.toAbsolutePath(), fileSize, nRows, nCols, repeatableRead);
+                }
+
+                gridIndexDao.truncateAll();
+            }
+        }
+    }
+
+    /**
+     * Builds a snapshot file directly with {@link IndexedModelEncoder} — no patch application —
+     * and uses {@link GridIndexManager#applySnapshot} to populate the replica.
+     * <p>
+     * The document structure written is:
+     * <pre>
+     *   root ObjectNode { "rows" → rowsArrayNode }
+     *   rowsArrayNode: ArrayNode[ row0VecNode, row1VecNode, … ]
+     *   rowNVecNode: VectorNode{ 0→con_0_N, 1→con_1_N, … }
+     * </pre>
+     * Timestamp allocation (all from {@code replicaId}):
+     * <ul>
+     *   <li>seq 0 — root ObjectNode</li>
+     *   <li>seq 1 — rows ArrayNode</li>
+     *   <li>per row (seq base = 2 + row * (nCols + 2)):
+     *     <ul>
+     *       <li>+0 — RGA insert node (the array slot)</li>
+     *       <li>+1 … +nCols — ConstantNodes for columns 0…nCols-1</li>
+     *       <li>+nCols+1 — VectorNode for the row</li>
+     *     </ul>
+     *   </li>
+     * </ul>
+     */
+    private Path buildSnapshotFile(Path dir, String label, long replicaId, int nRows, int nCols) throws IOException {
+        // Monotonically increasing sequence counter; all timestamps share replicaId.
+        long[] seq = {0L};
+
+        LogicalTimestamp objId = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(seq[0]++);
+        LogicalTimestamp arrId = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(seq[0]++);
+
+        Path snapshotFile = dir.resolve(label + "-snapshot.cbor");
+        try (OutputStream out = Files.newOutputStream(snapshotFile);
+             IndexedModelEncoder encoder = new IndexedModelEncoder(out, objId)) {
+
+            // Root ObjectNode: { "rows" → arrId }
+            encoder.writeNode(new ObjectNode()
+                    .setId(objId)
+                    .setValue(Collections.singletonMap("rows", arrId)));
+
+            // Collect RGA elements; the ArrayNode is written last once all are known.
+            List<RGANode> rgaElements = new ArrayList<>(nRows);
+            LogicalTimestamp prevRgaRef = arrId; // first element's predecessor is the array head
+
+            for (int row = 0; row < nRows; row++) {
+                // RGA insert node for this row (the array slot itself)
+                LogicalTimestamp rgaNodeId = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(seq[0]++);
+
+                // ConstantNodes for each column
+                Map<Integer, ConstantNode> vecSlots = new LinkedHashMap<>();
+                for (int col = 0; col < nCols; col++) {
+                    LogicalTimestamp conId = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(seq[0]++);
+                    ConstantNode con = new ConstantNode()
+                            .setId(conId)
+                            .setValue(new ConValue(ConType.STRING, col + "-" + row));
+                    encoder.writeNode(con);
+                    vecSlots.put(col, new ConstantNode().setId(conId)); // stub for VectorNode
+                }
+
+                // VectorNode for this row
+                LogicalTimestamp vecId = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(seq[0]++);
+                encoder.writeNode(new VectorNode()
+                        .setId(vecId)
+                        .setValues(vecSlots));
+
+                // RGA element: slot in the rows array, data = vecId
+                rgaElements.add(new RGANode()
+                        .setContainerId(arrId)
+                        .setNodeId(rgaNodeId)
+                        .setDataId(vecId)
+                        .setReferenceNodeId(prevRgaRef)
+                        .setIsDeleted(false));
+                prevRgaRef = rgaNodeId;
+            }
+
+            // Write the rows ArrayNode last (all elements collected)
+            encoder.writeNode(new ArrayNode()
+                    .setId(arrId)
+                    .setElements(rgaElements));
+        }
+        return snapshotFile;
+    }
 }

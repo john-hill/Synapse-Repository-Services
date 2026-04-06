@@ -88,7 +88,7 @@ public class SearchConfigurationDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testCreateAndGet() {
+	public void testCreateAndGetWithReferencedEntities() {
 		TextAnalyzer analyzer = textAnalyzerDao.create(newTextAnalyzer(org1Name, "analyzer-1"), adminUserId);
 		SynonymSet ss = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "syn-set-1"));
 
@@ -119,7 +119,7 @@ public class SearchConfigurationDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testGetNotFound() {
+	public void testGetWithNonExistentId() {
 		// call under test
 		Optional<SearchConfiguration> result = searchConfigurationDao.get("999999");
 
@@ -127,7 +127,7 @@ public class SearchConfigurationDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testCreateDuplicateNameInSameOrgThrows() {
+	public void testCreateWithDuplicateNameInSameOrg() {
 		searchConfigurationDao.create(adminUserId, newConfig(org1Name, "duplicate-name", "First"));
 
 		SearchConfiguration second = newConfig(org1Name, "duplicate-name", "Second");
@@ -137,7 +137,7 @@ public class SearchConfigurationDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testUpdatePersistsChangesAndRotatesEtag() {
+	public void testUpdateWithModifiedReferencesAndDescription() {
 		TextAnalyzer analyzer1 = textAnalyzerDao.create(newTextAnalyzer(org1Name, "analyzer-orig"), adminUserId);
 		TextAnalyzer analyzer2 = textAnalyzerDao.create(newTextAnalyzer(org1Name, "analyzer-new"), adminUserId);
 		SynonymSet ss1 = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "syn-orig"));
@@ -179,7 +179,7 @@ public class SearchConfigurationDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testDelete() {
+	public void testDeleteWithExistingConfig() {
 		SearchConfiguration created = searchConfigurationDao.create(adminUserId, newConfig(org1Name, "test-delete", null));
 		assertTrue(searchConfigurationDao.get(created.getId()).isPresent());
 
@@ -190,7 +190,7 @@ public class SearchConfigurationDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testListByOrganizationAndListAll() {
+	public void testListWithMultipleOrganizations() {
 		// Create 2 configs in org1 (names chosen so alphabetical order is deterministic)
 		SearchConfiguration org1A = searchConfigurationDao.create(adminUserId, newConfig(org1Name, "aaa-config", "first"));
 		SearchConfiguration org1B = searchConfigurationDao.create(adminUserId, newConfig(org1Name, "bbb-config", "second"));
@@ -270,7 +270,7 @@ public class SearchConfigurationDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testUpdateReplacesJunctionRows() {
+	public void testUpdateWithReplacedJunctionRows() {
 		SynonymSet ss1 = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "syn-set-a"));
 		SynonymSet ss2 = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "syn-set-b"));
 
@@ -288,7 +288,7 @@ public class SearchConfigurationDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testDeleteCascadesJunctionRows() {
+	public void testDeleteWithJunctionRowCascade() {
 		SynonymSet ss = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "cascade-test"));
 
 		SearchConfiguration config = newConfig(org1Name, "cascade-delete", null);

@@ -61,11 +61,12 @@ public class SearchConfigurationManagerImplTest {
 	// --- Sage employee / admin authorization ---
 
 	@Test
-	public void testNonSageUserCannotCreate() {
+	public void testCreateWithNonSageUser() {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L));
 
+		// call under test
 		assertThrows(UnauthorizedException.class, () ->
 			manager.create(user, new SearchConfiguration().setOrganizationName("test-org").setName("test")));
 		verifyZeroInteractions(aclDao);
@@ -73,11 +74,12 @@ public class SearchConfigurationManagerImplTest {
 	}
 
 	@Test
-	public void testNonSageUserCannotUpdate() {
+	public void testUpdateWithNonSageUser() {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L));
 
+		// call under test
 		assertThrows(UnauthorizedException.class, () ->
 			manager.update(user, new SearchConfiguration().setId("1").setOrganizationName("test-org").setName("test")));
 		verifyZeroInteractions(aclDao);
@@ -85,11 +87,12 @@ public class SearchConfigurationManagerImplTest {
 	}
 
 	@Test
-	public void testNonSageUserCannotDelete() {
+	public void testDeleteWithNonSageUser() {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L));
 
+		// call under test
 		assertThrows(UnauthorizedException.class, () ->
 			manager.delete(user, "1"));
 		verifyZeroInteractions(aclDao);
@@ -97,19 +100,23 @@ public class SearchConfigurationManagerImplTest {
 	}
 
 	@Test
-	public void testAnonymousUserCannotCreate() {
+	public void testCreateWithAnonymousUser() {
 		UserInfo anon = new UserInfo(false);
 		anon.setId(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 		anon.setGroups(Set.of(anon.getId()));
 
+		// call under test
 		assertThrows(UnauthorizedException.class, () ->
 			manager.create(anon, new SearchConfiguration().setOrganizationName("test-org").setName("test")));
+		verifyZeroInteractions(aclDao);
+		verifyZeroInteractions(searchConfigurationDao);
+		verifyZeroInteractions(organizationDao);
 	}
 
 	// --- ACL authorization (user is Sage employee) ---
 
 	@Test
-	public void testAuthenticatedUserWithoutOrgAclCannotCreate() {
+	public void testCreateWithUserWithoutOrgAcl() {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
@@ -117,12 +124,14 @@ public class SearchConfigurationManagerImplTest {
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.CREATE)))
 			.thenReturn(AuthorizationStatus.accessDenied("no"));
 
+		// call under test
 		assertThrows(UnauthorizedException.class, () ->
 			manager.create(user, new SearchConfiguration().setOrganizationName("test-org").setName("test")));
+		verifyZeroInteractions(searchConfigurationDao);
 	}
 
 	@Test
-	public void testAuthenticatedUserWithOrgAclCanCreate() {
+	public void testCreateWithUserWithOrgAcl() {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
@@ -132,17 +141,19 @@ public class SearchConfigurationManagerImplTest {
 		SearchConfiguration input = new SearchConfiguration().setOrganizationName("test-org").setName("test");
 		when(searchConfigurationDao.create(eq(1L), any())).thenReturn(input.setId("1"));
 
+		// call under test
 		SearchConfiguration result = manager.create(user, input);
 		assertNotNull(result);
 	}
 
 	@Test
-	public void testAdminBypassesOrgAcl() {
+	public void testCreateWithAdminBypassesOrgAcl() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
 		SearchConfiguration input = new SearchConfiguration().setOrganizationName("test-org").setName("test");
 		when(searchConfigurationDao.create(eq(1L), any())).thenReturn(input.setId("1"));
 
+		// call under test
 		SearchConfiguration result = manager.create(admin, input);
 		assertNotNull(result);
 		verifyZeroInteractions(aclDao);
@@ -151,8 +162,10 @@ public class SearchConfigurationManagerImplTest {
 	// --- Public read ---
 
 	@Test
-	public void testGetIsPublicNoAuthCheck() {
+	public void testGetWithPublicAccess() {
 		when(searchConfigurationDao.get("1")).thenReturn(Optional.of(new SearchConfiguration()));
+
+		// call under test
 		manager.get(new UserInfo(false), "1");
 		verifyZeroInteractions(aclDao);
 	}
@@ -160,34 +173,41 @@ public class SearchConfigurationManagerImplTest {
 	// --- Not found ---
 
 	@Test
-	public void testGetNotFoundThrows() {
+	public void testGetWithNonExistentId() {
 		when(searchConfigurationDao.get("999")).thenReturn(Optional.empty());
-		assertThrows(NotFoundException.class, () -> manager.get(new UserInfo(false), "999"));
+
+		// call under test
+		NotFoundException ex = assertThrows(NotFoundException.class, () -> manager.get(new UserInfo(false), "999"));
+		assertEquals("A search configuration with the given id does not exist.", ex.getMessage());
 	}
 
 	@Test
-	public void testDeleteNotFoundThrows() {
+	public void testDeleteWithNonExistentId() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
 		when(searchConfigurationDao.get("1")).thenReturn(Optional.empty());
 
-		assertThrows(NotFoundException.class, () -> manager.delete(admin, "1"));
+		// call under test
+		NotFoundException ex = assertThrows(NotFoundException.class, () -> manager.delete(admin, "1"));
+		assertEquals("A search configuration with the given id does not exist.", ex.getMessage());
 	}
 
 	@Test
-	public void testUpdateNotFoundThrows() {
+	public void testUpdateWithNonExistentId() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
 		SearchConfiguration request = new SearchConfiguration().setId("999").setOrganizationName("test-org").setName("updated");
 		when(searchConfigurationDao.get("999")).thenReturn(Optional.empty());
 
-		assertThrows(NotFoundException.class, () -> manager.update(admin, request));
+		// call under test
+		NotFoundException ex = assertThrows(NotFoundException.class, () -> manager.update(admin, request));
+		assertEquals("A search configuration with the given id does not exist.", ex.getMessage());
 	}
 
 	// --- Update ACL ---
 
 	@Test
-	public void testUpdateRequiresOrgAcl() {
+	public void testUpdateWithUserWithoutOrgAcl() {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
@@ -197,16 +217,19 @@ public class SearchConfigurationManagerImplTest {
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
 			.thenReturn(AuthorizationStatus.accessDenied("no"));
 
+		// call under test
 		assertThrows(UnauthorizedException.class, () -> manager.update(user, request));
+		verify(searchConfigurationDao, never()).update(anyLong(), any());
 	}
 
 	@Test
-	public void testUpdateRejectsOrgNameMismatch() {
+	public void testUpdateWithOrgNameMismatch() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
 		SearchConfiguration request = new SearchConfiguration().setId("1").setOrganizationName("other-org").setName("updated");
 		when(searchConfigurationDao.get("1")).thenReturn(Optional.of(new SearchConfiguration().setId("1").setOrganizationName("test-org")));
 
+		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.update(admin, request));
 		assertTrue(ex.getMessage().contains("organizationName cannot be changed"));
 	}
@@ -214,7 +237,7 @@ public class SearchConfigurationManagerImplTest {
 	// --- Delete ACL from stored entity ---
 
 	@Test
-	public void testDeleteChecksOrgAclFromStoredEntity() {
+	public void testDeleteWithOrgAclCheck() {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
@@ -224,20 +247,23 @@ public class SearchConfigurationManagerImplTest {
 		when(aclDao.canAccess(any(UserInfo.class), eq("99"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.DELETE)))
 			.thenReturn(AuthorizationStatus.accessDenied("no"));
 
+		// call under test
 		assertThrows(UnauthorizedException.class, () -> manager.delete(user, "1"));
 		verify(aclDao).canAccess(any(UserInfo.class), eq("99"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.DELETE));
+		verify(searchConfigurationDao, never()).delete(anyString());
 	}
 
 	// --- List / pagination ---
 
 	@Test
-	public void testListAllWhenNoOrgName() {
+	public void testListWithNoOrgName() {
 		SearchConfiguration item = new SearchConfiguration().setId("1");
 		when(searchConfigurationDao.listAll(anyLong(), anyLong()))
 			.thenReturn(Arrays.asList(item));
 
 		ListSearchConfigurationsRequest request = new ListSearchConfigurationsRequest();
 
+		// call under test
 		ListSearchConfigurationsResponse response = manager.list(new UserInfo(false), request);
 		assertEquals(1, response.getResults().size());
 		verify(searchConfigurationDao).listAll(anyLong(), anyLong());
@@ -245,7 +271,7 @@ public class SearchConfigurationManagerImplTest {
 	}
 
 	@Test
-	public void testListDelegatesToDaoWithPagination() {
+	public void testListWithOrgName() {
 		SearchConfiguration item = new SearchConfiguration().setId("1");
 		when(searchConfigurationDao.list(eq("test-org"), anyLong(), anyLong()))
 			.thenReturn(Arrays.asList(item));
@@ -253,14 +279,14 @@ public class SearchConfigurationManagerImplTest {
 		ListSearchConfigurationsRequest request = new ListSearchConfigurationsRequest();
 		request.setOrganizationName("test-org");
 
+		// call under test
 		ListSearchConfigurationsResponse response = manager.list(new UserInfo(false), request);
 		assertEquals(1, response.getResults().size());
 		assertEquals("1", response.getResults().get(0).getId());
 	}
 
 	@Test
-	public void testListReturnsNextPageTokenWhenMoreResults() {
-		// NextPageToken default limit is 50, so limitForQuery is 51
+	public void testListWithMoreResults() {
 		List<SearchConfiguration> page = new ArrayList<>();
 		for (int i = 0; i < 51; i++) {
 			page.add(new SearchConfiguration().setId(String.valueOf(i)));
@@ -268,6 +294,8 @@ public class SearchConfigurationManagerImplTest {
 		when(searchConfigurationDao.listAll(eq(51L), eq(0L))).thenReturn(page);
 
 		ListSearchConfigurationsRequest request = new ListSearchConfigurationsRequest();
+
+		// call under test
 		ListSearchConfigurationsResponse response = manager.list(new UserInfo(false), request);
 
 		assertNotNull(response.getNextPageToken(), "Expected a next page token when DAO returns more than limit results");
@@ -275,11 +303,13 @@ public class SearchConfigurationManagerImplTest {
 	}
 
 	@Test
-	public void testListReturnsNullNextPageTokenWhenNoMoreResults() {
+	public void testListWithNoMoreResults() {
 		List<SearchConfiguration> page = Arrays.asList(new SearchConfiguration().setId("1"));
 		when(searchConfigurationDao.listAll(eq(51L), eq(0L))).thenReturn(page);
 
 		ListSearchConfigurationsRequest request = new ListSearchConfigurationsRequest();
+
+		// call under test
 		ListSearchConfigurationsResponse response = manager.list(new UserInfo(false), request);
 
 		assertNull(response.getNextPageToken(), "Expected null next page token when all results fit in one page");

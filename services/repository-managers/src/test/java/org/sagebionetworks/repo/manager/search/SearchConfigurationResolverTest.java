@@ -46,7 +46,7 @@ public class SearchConfigurationResolverTest {
 		SearchConfiguration config = new SearchConfiguration();
 		when(mockSearchConfigurationDao.get("config-1")).thenReturn(Optional.of(config));
 
-		// Call under test
+		// call under test
 		Optional<SearchConfiguration> result = resolver.resolve(user, "config-1", "syn456");
 
 		assertEquals(Optional.of(config), result);
@@ -65,7 +65,7 @@ public class SearchConfigurationResolverTest {
 		SearchConfiguration config = new SearchConfiguration();
 		when(mockSearchConfigurationDao.get("config-2")).thenReturn(Optional.of(config));
 
-		// Call under test
+		// call under test
 		Optional<SearchConfiguration> result = resolver.resolve(user, null, "syn456");
 
 		assertEquals(Optional.of(config), result);
@@ -78,17 +78,17 @@ public class SearchConfigurationResolverTest {
 			eq(user), eq("syn456"), eq(ProjectSettingsType.search), eq(SearchConfigurationListSetting.class)
 		)).thenReturn(Optional.empty());
 
-		// Call under test
+		// call under test
 		Optional<SearchConfiguration> result = resolver.resolve(user, null, "syn456");
 
 		assertTrue(result.isEmpty());
 	}
 
 	@Test
-	public void testResolveExplicitIdNotFound() {
+	public void testResolveWithExplicitIdNotFound() {
 		when(mockSearchConfigurationDao.get("config-missing")).thenReturn(Optional.empty());
 
-		// Call under test
+		// call under test
 		Optional<SearchConfiguration> result = resolver.resolve(user, "config-missing", "syn456");
 
 		assertTrue(result.isEmpty());

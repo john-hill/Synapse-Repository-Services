@@ -125,7 +125,7 @@ When creating new database tables, the DBO must implement `MigratableDatabaseObj
 - Register primary types in `lib/jdomodels/src/main/resources/dbo-beans.spb.xml` (order matters)
 - Secondary types are discovered automatically via `getSecondaryTypes()`
 - Primary tables need an etag column (NOT NULL) for change detection; secondary tables need a foreign key to their owner's backup ID
-- Key test: `integration-test/src/test/java/org/sagebionetworks/ITMigrationTest.java` — extend this when adding new migratable types
+- Key test: `MigratableTableDAOImplAutowireTest.testAllMigrationTypesRegistered()` (`lib/jdomodels/src/test/java/org/sagebionetworks/repo/model/dbo/migration/MigratableTableDAOImplAutowireTest.java`) — validates all `MigrationType` values have registered DBOs
 
 ### Moving Data Between Tables (cross-stack safe)
 

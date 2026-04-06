@@ -140,4 +140,4 @@ Do NOT create custom `ObjectMapper` or `JSONObjectAdapter` serialization code in
 
 - DAO unit tests mock `JdbcTemplate` / `NamedParameterJdbcTemplate`
 - DAO integration tests use the real database (run via `integration-test` module)
-- Migration test: `ITMigrationTest` — extend when adding new migratable types
+- Migration test: `MigratableTableDAOImplAutowireTest.testAllMigrationTypesRegistered()` — validates all `MigrationType` values have registered DBOs

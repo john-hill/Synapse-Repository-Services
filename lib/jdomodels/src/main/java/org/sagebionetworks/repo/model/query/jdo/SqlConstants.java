@@ -1531,6 +1531,20 @@ public class SqlConstants {
 	public static final int MAX_BYTES_PER_LONG_AS_STRING = 20*2; // 20 chars at 2 bytes per char.;
 	public static final int MAX_LONGS_PER_IN_CLAUSE = MAX_ALLOWED_PACKET_BYTES/MAX_BYTES_PER_LONG_AS_STRING;
 	
+	// Synonym Set
+	public static final String TABLE_SYNONYM_SET					= "SYNONYM_SET";
+	public static final String COL_SYNSET_ID						= "ID";
+	public static final String COL_SYNSET_ETAG						= "ETAG";
+	public static final String COL_SYNSET_ORGANIZATION_NAME			= "ORGANIZATION_NAME";
+	public static final String COL_SYNSET_NAME						= "NAME";
+	public static final String COL_SYNSET_DESCRIPTION				= "DESCRIPTION";
+	public static final String COL_SYNSET_RULES						= "RULES";
+	public static final String COL_SYNSET_CREATED_BY				= "CREATED_BY";
+	public static final String COL_SYNSET_CREATED_ON				= "CREATED_ON";
+	public static final String COL_SYNSET_MODIFIED_BY				= "MODIFIED_BY";
+	public static final String COL_SYNSET_MODIFIED_ON				= "MODIFIED_ON";
+	public static final String DDL_SYNONYM_SET						= "schema/SynonymSet-ddl.sql";
+
 	/**
 	 * Function names:
 	 */

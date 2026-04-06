@@ -144,9 +144,6 @@ public class MyBootstrapper {
 }
 ```
 
-### Magic Strings and Constants
-Before defining a new string constant, check if an existing constants class already holds it (e.g., `JsonSchemaConstants`). If one does, reuse it. If you define a new constant that would be useful elsewhere, add it to the appropriate shared constants class rather than defining it locally.
-
 ### Helper Methods Should Return Useful Results
 Methods like `getOrCreate()` should return the found-or-created object so callers don't need a separate query:
 ```java
@@ -173,3 +170,48 @@ public void ensureOrganizationExists(String name) { ... }
   // Now you can: verify(manager).someInternalMethod(...)
   ```
 - **Pagination tests**: Always verify `NextPageToken` behavior — test that the response includes the correct next page token, not just the results list.
+
+## Curation Grid (Curator)
+
+A spreadsheet-style collaborative editing feature that allows data curators to annotate files (FileEntity annotations) and manage record-based metadata (RecordSet entities). Unlike the standard Controller → Manager → DAO pattern, the grid uses a **CRDT (Conflict-free Replicated Data Type)** architecture based on the [JSON-Joy](https://jsonjoy.com/) specification, enabling real-time multi-user and AI-assisted editing.
+
+### Hub-and-Replica Architecture
+
+- **Grid Session**: Created via async job (`POST /grid/session/async/start`). Represents a collaborative editing session backed by a CRDT document.
+- **Replicas**: Each connected client (or AI agent) gets a unique replica with a numeric `replicaId`. Single writer per replica, multiple readers allowed.
+- **Hub**: A cluster of workers that receives patches from all replicas via an **SQS queue**, persists them, and broadcasts `"new-patch"` notifications to all connected replicas.
+
+### WebSocket Protocol
+
+Uses **AWS API Gateway WebSocket** (NOT Spring STOMP/SockJS) with a custom messaging protocol based on the [json-rx specification](https://jsonjoy.com/specs/json-rx/messages):
+- Message format: `[type, sequence, method, payload]` — e.g., `[1, 42, "patch", <data>]`
+- Methods: `"patch"` (send CRDT patch), `"synchronize-clock"` (replica sends version vector to hub)
+- Notifications: `"new-patch"`, `"ping"`/`"pong"`
+- Connection via **pre-signed URL** (15 min expiry) from `POST /grid/{sessionId}/presigned/url`
+
+### CRDT Document Model
+
+The grid document uses JSON-Joy CRDT node types:
+- `con` (Constant) — immutable cell values and metadata
+- `vec` (Vector) — LWW append-only arrays for column names and row data (max 256 entries)
+- `arr` (RGA Array) — mutable ordered arrays for column order and row order
+- Patches encoded in json-joy [compact format](https://jsonjoy.com/specs/json-crdt-patch/encoding/compact-format), serialized as **CBOR** (Jackson `jackson-dataformat-cbor`)
+
+### Database Representation
+
+Grid patches are stored relationally in `lib-grid-db` tables — the full CRDT document is **never loaded into memory**. A SQL template (`services/repository-managers/src/main/resources/grid/grid-index-view-template.sql`) joins patch tables to produce a paginated tabular view, enabling efficient reads over large datasets.
+
+### AI Agent Integration
+
+The AI Grid Assistant binds to a grid session via `GridAgentSessionContext` (containing `gridSessionId` and `usersReplicaId`). The agent reads and writes grid data through **MCP services** (Grid Query / Grid Update) that translate SQL-like operations into CRDT patches flowing through the same hub.
+
+### Validation Worker
+
+A dedicated worker listens to grid changes via an SQS queue, validates each changed row against the bound **JSON Schema**, and writes validation results back as CRDT patches to `rows[*].metadata.rowValidation`.
+
+### Key REST APIs
+
+- `POST /grid/session/async/start` — create a grid session (async job, takes `CreateGridRequest`)
+- `GET /grid/session/async/get/{asyncToken}` — poll for session creation result
+- `POST /grid/{sessionId}/replica` — create a new replica
+- `POST /grid/{sessionId}/presigned/url` — get pre-signed WebSocket URL

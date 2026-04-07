@@ -144,6 +144,19 @@ Use a two-stack rollout:
 
 See `services/workers/CLAUDE.md` for the async job framework, worker types, registration, trigger configuration, and SQS queue infrastructure.
 
+### Renaming a Column (cross-stack safe)
+
+When a DB column is renamed (e.g., `PROJECT_ID` → `OBJECT_ID`), the backup XML from production still serializes the **old Java field name**. Use a two-stack bridge pattern:
+
+1. **Stack N** (this stack):
+   - Update the DDL to use the new column name.
+   - Add a new Java field with the new name (`objectId`) mapped to the new column via `FieldColumn("objectId", COL_NEW_NAME)`.
+   - Keep the old Java field (`projectId`) as a temporary bridge — it has no `FieldColumn` mapping but is still deserialized from old backup XML.
+   - In `MigratableTableTranslation.createDatabaseObjectFromBackup()`, copy the old field into the new field if the new field is null: `if (dbo.getObjectId() == null && dbo.getProjectId() != null) { dbo.setObjectId(dbo.getProjectId()); }`
+   - All new code reads/writes the new field (`objectId`). The old field is only used by the translator.
+2. **Stack N+1** (after production has the new column):
+   - Remove the old bridge field (`projectId`) and the translator bridge logic. The new field is now the sole source of truth.
+
 ## Curation Grid (Curator)
 
 See `services/repository-managers/CLAUDE.md` and `lib/lib-grid/CLAUDE.md` for the CRDT-based grid architecture, WebSocket protocol, and AI agent integration.

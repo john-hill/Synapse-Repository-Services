@@ -57,7 +57,9 @@ public interface GridReplicaManager {
 
 	/**
 	 * Called to export a new snapshot for the given connection's replica. If the
-	 * replica is not fully synchronized, this method returns without exporting.
+	 * replica is not fully synchronized, this method returns without exporting. It does NOT
+	 * throw a RecoverableMessageException because the retry will happen immediately, since it
+	 * uses a FIFO queue.
 	 *
 	 * @param callback
 	 * @param connection

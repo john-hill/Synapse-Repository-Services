@@ -927,7 +927,7 @@ public interface StackConfiguration {
 	int getGridSnapshotMaxPatchCount();
 
 	/**
-	 * Maximum sessions to compact per worker run. Default: 10
+	 * Maximum sessions to snapshot per worker run. Default: 10
 	 */
-	int getGridSnapshotCompactionBatchSize();
+	int getGridSessionSnapshotPublisherBatchSize();
 }

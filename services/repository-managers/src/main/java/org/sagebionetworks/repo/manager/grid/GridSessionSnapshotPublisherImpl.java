@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.grid;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -21,20 +22,20 @@ import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
 @Service
-public class GridSnapshotCompactionManagerImpl implements GridSnapshotCompactionManager {
+public class GridSessionSnapshotPublisherImpl implements GridSessionSnapshotPublisher {
 
 	static final String INTERNAL_EVENT_QUEUE_NAME = "GRID_INTERNAL_EVENT.fifo";
 	static final String NEW_SNAPSHOT_NOTIFICATION = "[8,\"new-snapshot\"]";
 
-	private static final Logger log = LogManager.getLogger(GridSnapshotCompactionManagerImpl.class);
+	private static final Logger log = LogManager.getLogger(GridSessionSnapshotPublisherImpl.class);
 
 	private final GridDao gridDao;
 	private final StackConfiguration stackConfiguration;
 	private final SqsClient sqsClient;
 	private final String sqsQueueUrl;
 
-	public GridSnapshotCompactionManagerImpl(GridDao gridDao, StackConfiguration stackConfiguration,
-			SqsClient sqsClient) {
+	public GridSessionSnapshotPublisherImpl(GridDao gridDao, StackConfiguration stackConfiguration,
+	                                        SqsClient sqsClient) {
 		this.gridDao = gridDao;
 		this.stackConfiguration = stackConfiguration;
 		this.sqsClient = sqsClient;
@@ -45,20 +46,21 @@ public class GridSnapshotCompactionManagerImpl implements GridSnapshotCompaction
 	}
 
 	@Override
-	public List<String> scanAndPublishSessionsNeedingCompaction() {
+	public List<String> scanAndPublishSessionsNeedingSnapshot() {
 		Duration maxAge = Duration.ofDays(stackConfiguration.getGridSnapshotMaxAgeDays());
 		int maxPatchCount = stackConfiguration.getGridSnapshotMaxPatchCount();
-		int batchSize = stackConfiguration.getGridSnapshotCompactionBatchSize();
+		int batchSize = stackConfiguration.getGridSessionSnapshotPublisherBatchSize();
 
-		List<String> sessionIds = gridDao.listSessionsNeedingCompaction(maxAge, maxPatchCount, batchSize);
+		List<String> sessionIds = gridDao.listSessionsNeedingSnapshot(maxAge, maxPatchCount, batchSize);
 
 		if (sessionIds.isEmpty()) {
-			log.debug("No grid sessions need snapshot compaction.");
+			log.debug("No grid sessions require a new snapshot.");
 			return Collections.emptyList();
 		}
 
-		log.info("Found {} grid session(s) needing snapshot compaction. Publishing to FIFO queue.", sessionIds.size());
+		log.info("Found {} grid session(s) needing a new snapshot. Publishing to FIFO queue.", sessionIds.size());
 
+		List<String> sessionsPublished = new ArrayList<>();
 		for (String sessionId : sessionIds) {
 			Optional<GridConnectionInfo> internalConnection = gridDao.getSingletonConnection(sessionId,
 					EventSource.INTERNAL);
@@ -75,8 +77,9 @@ public class GridSnapshotCompactionManagerImpl implements GridSnapshotCompaction
 					.messageAttributes(Map.of("ConnectionId", MessageAttributeValue.builder()
 							.stringValue(connectionId).dataType("String").build()))
 					.build());
+			sessionsPublished.add(sessionId);
 		}
 
-		return sessionIds;
+		return sessionsPublished;
 	}
 }

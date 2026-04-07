@@ -951,14 +951,14 @@ public class GridDaoImplTest {
 	}
 
 	@Test
-	public void testListSessionsNeedingCompactionWithNoSessions() {
+	public void testListSessionsNeedingSnapshotWithNoSessions() {
 		// call under test
-		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 10);
+		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 1000, 10);
 		assertTrue(result.isEmpty());
 	}
 
 	@Test
-	public void testListSessionsNeedingCompactionWithInternalConnection() {
+	public void testListSessionsNeedingSnapshotWithInternalConnection() {
 		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
 		dao.createConnection(new GridConnectionInfo()
@@ -968,24 +968,24 @@ public class GridDaoImplTest {
 				.setCreatedBy(adminUserId)
 				.setSource(EventSource.INTERNAL));
 
-		// Session with an INTERNAL connection but no patches should not need compaction
+		// Session with an INTERNAL connection but no patches should not need a snapshot
 		// call under test
-		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 10);
+		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 1000, 10);
 		assertFalse(result.contains(session.getSessionId()));
 	}
 
 	@Test
-	public void testListSessionsNeedingCompactionWithoutInternalConnection() {
+	public void testListSessionsNeedingSnapshotWithoutInternalConnection() {
 		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 
 		// Session without an INTERNAL connection should not be returned
 		// call under test
-		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 10);
+		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 1000, 10);
 		assertFalse(result.contains(session.getSessionId()));
 	}
 
 	@Test
-	public void testListSessionsNeedingCompactionWithRecentSnapshot() {
+	public void testListSessionsNeedingSnapshotWithRecentSnapshot() {
 		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
 		dao.createConnection(new GridConnectionInfo()
@@ -1000,14 +1000,14 @@ public class GridDaoImplTest {
 				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L)));
 		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
 
-		// Session with a recent snapshot and no patches should not need compaction
+		// Session with a recent snapshot and no patches should not need a snapshot
 		// call under test
-		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 10);
+		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 1000, 10);
 		assertFalse(result.contains(session.getSessionId()));
 	}
 
 	@Test
-	public void testListSessionsNeedingCompactionWithExpiredSnapshotAndNoNewPatches() throws Exception {
+	public void testListSessionsNeedingSnapshotWithExpiredSnapshotAndNoNewPatches() throws Exception {
 		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
 		dao.createConnection(new GridConnectionInfo()
@@ -1025,14 +1025,14 @@ public class GridDaoImplTest {
 		// Wait for the snapshot to exceed the max age
 		Thread.sleep(2000);
 
-		// Zero patches since the last snapshot means compaction is never needed, regardless of snapshot age
+		// Zero uncovered patches means snapshot is never needed
 		// call under test
-		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofSeconds(1), 1000, 10);
+		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofSeconds(1), 1000, 10);
 		assertFalse(result.contains(session.getSessionId()));
 	}
 
 	@Test
-	public void testListSessionsNeedingCompactionWithExpiredSnapshotAndNewPatches() throws Exception {
+	public void testListSessionsNeedingSnapshotWithExpiredSnapshotAndNewPatches() throws Exception {
 		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
 		dao.createConnection(new GridConnectionInfo()
@@ -1054,18 +1054,18 @@ public class GridDaoImplTest {
 					"patch-key-" + i, Duration.ofDays(119), 100);
 		}
 
-		// Wait for the snapshot to exceed the max age
+		// Wait for the patches to exceed the max age
 		Thread.sleep(2000);
 
-		// With maxAge=1 second, the session qualifies via the age criterion even though
+		// With maxPatchAge=1 second, the session qualifies via the patch age criterion even though
 		// the 3 new patches are below the maxPatchCount=1000 threshold
 		// call under test
-		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofSeconds(1), 1000, 10);
+		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofSeconds(1), 1000, 10);
 		assertTrue(result.contains(session.getSessionId()));
 	}
 
 	@Test
-	public void testListSessionsNeedingCompactionWithManyPatchesAfterSnapshot() {
+	public void testListSessionsNeedingSnapshotWithManyPatchesAfterSnapshot() {
 		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
 		dao.createConnection(new GridConnectionInfo()
@@ -1089,12 +1089,12 @@ public class GridDaoImplTest {
 
 		// With maxPatchCount=3, the 5 post-snapshot patches exceed the threshold
 		// call under test
-		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofDays(30), 3, 10);
+		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 3, 10);
 		assertTrue(result.contains(session.getSessionId()));
 	}
 
 	@Test
-	public void testListSessionsNeedingCompactionWithManyPatchesBeforeSnapshot() {
+	public void testListSessionsNeedingSnapshotWithManyPatchesBeforeSnapshot() {
 		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
 		dao.createConnection(new GridConnectionInfo()
@@ -1119,12 +1119,12 @@ public class GridDaoImplTest {
 		// Even with maxPatchCount=3 and 5 total patches, they are all included in the snapshot
 		// clock, so 0 patches are counted as "after snapshot" and the session should NOT be returned
 		// call under test
-		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofDays(30), 3, 10);
+		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 3, 10);
 		assertFalse(result.contains(session.getSessionId()));
 	}
 
 	@Test
-	public void testListSessionsNeedingCompactionWithPatchesFromNewReplica() {
+	public void testListSessionsNeedingSnapshotWithPatchesFromNewReplica() {
 		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
 		dao.createConnection(new GridConnectionInfo()
@@ -1148,22 +1148,22 @@ public class GridDaoImplTest {
 
 		// With maxPatchCount=3, patches from an unknown replica are all counted as "after snapshot"
 		// call under test
-		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofDays(30), 3, 10);
+		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 3, 10);
 		assertTrue(result.contains(session.getSessionId()));
 	}
 
 	@Test
-	public void testListSessionsNeedingCompactionWithNullMaxSnapshotAge() {
+	public void testListSessionsNeedingSnapshotWithNullMaxSnapshotAge() {
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test
-			dao.listSessionsNeedingCompaction(null, 1000, 10);
+			dao.listSessionsNeedingSnapshot(null, 1000, 10);
 		}).getMessage();
 		assertEquals("maxSnapshotAge is required.", message);
 	}
 
 	@Test
-	public void testListSessionsNeedingCompactionWithLimit() {
-		// Create two sessions that need compaction
+	public void testListSessionsNeedingSnapshotWithLimit() {
+		// Create two sessions that need snapshot
 		GridSession session1 = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		GridReplica replica1 = dao.createReplica(adminUserId, session1.getSessionId(), false, EventSource.INTERNAL);
 		dao.createConnection(new GridConnectionInfo()
@@ -1182,7 +1182,7 @@ public class GridDaoImplTest {
 				.setCreatedBy(adminUserId)
 				.setSource(EventSource.INTERNAL));
 
-		// Add patches to both sessions so they qualify for compaction (no snapshot, so all patches are "after snapshot")
+		// Add patches to both sessions so they qualify for snapshotting (no snapshot, so all patches are "after snapshot")
 		dao.savePatch(session1.getSessionId(),
 				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L),
 				"patch-s1", Duration.ofDays(119), 100);
@@ -1192,7 +1192,7 @@ public class GridDaoImplTest {
 
 		// With limit=1, only one session should be returned
 		// call under test
-		List<String> result = dao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 1);
+		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 1000, 1);
 		assertEquals(1, result.size());
 	}
 

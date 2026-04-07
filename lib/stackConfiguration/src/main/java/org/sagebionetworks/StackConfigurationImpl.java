@@ -1351,7 +1351,7 @@ public class StackConfigurationImpl implements StackConfiguration {
 	}
 
 	@Override
-	public int getGridSnapshotCompactionBatchSize() {
-		return Integer.valueOf(configuration.getProperty("org.sagebionetworks.grid.snapshot.compaction.batch.size"));
+	public int getGridSessionSnapshotPublisherBatchSize() {
+		return Integer.valueOf(configuration.getProperty("org.sagebionetworks.grid.snapshot.publisher.batch.size"));
 	}
 }

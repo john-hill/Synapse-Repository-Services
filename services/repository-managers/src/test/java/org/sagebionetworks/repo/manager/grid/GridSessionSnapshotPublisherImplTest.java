@@ -29,7 +29,7 @@ import software.amazon.awssdk.services.sqs.model.GetQueueUrlResponse;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
 @ExtendWith(MockitoExtension.class)
-public class GridSnapshotCompactionManagerImplTest {
+public class GridSessionSnapshotPublisherImplTest {
 
 	@Mock
 	private GridDao mockGridDao;
@@ -38,7 +38,7 @@ public class GridSnapshotCompactionManagerImplTest {
 	@Mock
 	private SqsClient mockSqsClient;
 
-	private GridSnapshotCompactionManagerImpl manager;
+	private GridSessionSnapshotPublisherImpl manager;
 
 	private String sessionId;
 	private String connectionId;
@@ -50,24 +50,24 @@ public class GridSnapshotCompactionManagerImplTest {
 		sessionId = "session-123";
 		connectionId = "con-abc";
 
-		when(mockStackConfig.getQueueName(GridSnapshotCompactionManagerImpl.INTERNAL_EVENT_QUEUE_NAME))
+		when(mockStackConfig.getQueueName(GridSessionSnapshotPublisherImpl.INTERNAL_EVENT_QUEUE_NAME))
 				.thenReturn("dev-test-GRID_INTERNAL_EVENT.fifo");
 		when(mockSqsClient.getQueueUrl(any(GetQueueUrlRequest.class)))
 				.thenReturn(GetQueueUrlResponse.builder().queueUrl(QUEUE_URL).build());
 
-		manager = new GridSnapshotCompactionManagerImpl(mockGridDao, mockStackConfig, mockSqsClient);
+		manager = new GridSessionSnapshotPublisherImpl(mockGridDao, mockStackConfig, mockSqsClient);
 	}
 
 	@Test
 	public void testScanAndPublishWithNoSessionsNeeding() {
 		when(mockStackConfig.getGridSnapshotMaxAgeDays()).thenReturn(30);
 		when(mockStackConfig.getGridSnapshotMaxPatchCount()).thenReturn(1000);
-		when(mockStackConfig.getGridSnapshotCompactionBatchSize()).thenReturn(10);
-		when(mockGridDao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 10))
+		when(mockStackConfig.getGridSessionSnapshotPublisherBatchSize()).thenReturn(10);
+		when(mockGridDao.listSessionsNeedingSnapshot(Duration.ofDays(30), 1000, 10))
 				.thenReturn(Collections.emptyList());
 
 		// call under test
-		List<String> result = manager.scanAndPublishSessionsNeedingCompaction();
+		List<String> result = manager.scanAndPublishSessionsNeedingSnapshot();
 
 		assertEquals(Collections.emptyList(), result);
 		verify(mockSqsClient, never()).sendMessage(any(SendMessageRequest.class));
@@ -77,8 +77,8 @@ public class GridSnapshotCompactionManagerImplTest {
 	public void testScanAndPublishWithOneSession() {
 		when(mockStackConfig.getGridSnapshotMaxAgeDays()).thenReturn(30);
 		when(mockStackConfig.getGridSnapshotMaxPatchCount()).thenReturn(1000);
-		when(mockStackConfig.getGridSnapshotCompactionBatchSize()).thenReturn(10);
-		when(mockGridDao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 10))
+		when(mockStackConfig.getGridSessionSnapshotPublisherBatchSize()).thenReturn(10);
+		when(mockGridDao.listSessionsNeedingSnapshot(Duration.ofDays(30), 1000, 10))
 				.thenReturn(List.of(sessionId));
 
 		GridConnectionInfo connection = new GridConnectionInfo().setSessionId(sessionId)
@@ -87,7 +87,7 @@ public class GridSnapshotCompactionManagerImplTest {
 				.thenReturn(Optional.of(connection));
 
 		// call under test
-		List<String> result = manager.scanAndPublishSessionsNeedingCompaction();
+		List<String> result = manager.scanAndPublishSessionsNeedingSnapshot();
 
 		assertEquals(List.of(sessionId), result);
 
@@ -95,7 +95,7 @@ public class GridSnapshotCompactionManagerImplTest {
 		verify(mockSqsClient).sendMessage(captor.capture());
 		SendMessageRequest request = captor.getValue();
 		assertEquals(QUEUE_URL, request.queueUrl());
-		assertEquals(GridSnapshotCompactionManagerImpl.NEW_SNAPSHOT_NOTIFICATION, request.messageBody());
+		assertEquals(GridSessionSnapshotPublisherImpl.NEW_SNAPSHOT_NOTIFICATION, request.messageBody());
 		assertEquals(connectionId, request.messageGroupId());
 		assertEquals(connectionId,
 				request.messageAttributes().get("ConnectionId").stringValue());
@@ -108,8 +108,8 @@ public class GridSnapshotCompactionManagerImplTest {
 
 		when(mockStackConfig.getGridSnapshotMaxAgeDays()).thenReturn(30);
 		when(mockStackConfig.getGridSnapshotMaxPatchCount()).thenReturn(1000);
-		when(mockStackConfig.getGridSnapshotCompactionBatchSize()).thenReturn(10);
-		when(mockGridDao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 10))
+		when(mockStackConfig.getGridSessionSnapshotPublisherBatchSize()).thenReturn(10);
+		when(mockGridDao.listSessionsNeedingSnapshot(Duration.ofDays(30), 1000, 10))
 				.thenReturn(List.of(sessionId, sessionId2));
 
 		when(mockGridDao.getSingletonConnection(sessionId, EventSource.INTERNAL))
@@ -120,7 +120,7 @@ public class GridSnapshotCompactionManagerImplTest {
 						.setConnectionId(connectionId2).setSource(EventSource.INTERNAL)));
 
 		// call under test
-		List<String> result = manager.scanAndPublishSessionsNeedingCompaction();
+		List<String> result = manager.scanAndPublishSessionsNeedingSnapshot();
 
 		assertEquals(List.of(sessionId, sessionId2), result);
 
@@ -135,15 +135,15 @@ public class GridSnapshotCompactionManagerImplTest {
 	public void testScanAndPublishSkipsSessionWithNoInternalConnection() {
 		when(mockStackConfig.getGridSnapshotMaxAgeDays()).thenReturn(30);
 		when(mockStackConfig.getGridSnapshotMaxPatchCount()).thenReturn(1000);
-		when(mockStackConfig.getGridSnapshotCompactionBatchSize()).thenReturn(10);
-		when(mockGridDao.listSessionsNeedingCompaction(Duration.ofDays(30), 1000, 10))
+		when(mockStackConfig.getGridSessionSnapshotPublisherBatchSize()).thenReturn(10);
+		when(mockGridDao.listSessionsNeedingSnapshot(Duration.ofDays(30), 1000, 10))
 				.thenReturn(List.of(sessionId));
 
 		when(mockGridDao.getSingletonConnection(sessionId, EventSource.INTERNAL))
 				.thenReturn(Optional.empty());
 
 		// call under test
-		List<String> result = manager.scanAndPublishSessionsNeedingCompaction();
+		List<String> result = manager.scanAndPublishSessionsNeedingSnapshot();
 
 		assertEquals(List.of(sessionId), result);
 		verify(mockSqsClient, never()).sendMessage(any(SendMessageRequest.class));

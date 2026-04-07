@@ -3,7 +3,7 @@ package org.sagebionetworks.worker.config;
 import org.sagebionetworks.auth.workers.ExpiredAccessTokenWorker;
 import org.sagebionetworks.database.semaphore.CountingSemaphore;
 import org.sagebionetworks.file.worker.FileHandleAssociationScanDispatcherWorker;
-import org.sagebionetworks.grid.workers.GridSnapshotCompactionWorker;
+import org.sagebionetworks.grid.workers.GridSessionSnapshotPublisherWorker;
 import org.sagebionetworks.principal.worker.InactiveUsersWorker;
 import org.sagebionetworks.table.worker.ReplicatedToViewConsumerWorker;
 import org.sagebionetworks.tos.workers.TermsOfServiceLatestVersionRefreshWorker;
@@ -110,10 +110,10 @@ public class TimerWorkersConfig {
 	}
 	
 	@Bean
-	public SimpleTriggerFactoryBean gridSnapshotCompactionWorkerTrigger(GridSnapshotCompactionWorker worker) {
+	public SimpleTriggerFactoryBean gridSessionSnapshotPublisherWorkerTrigger(GridSessionSnapshotPublisherWorker worker) {
 		SemaphoreGatedWorkerStackConfiguration config = new SemaphoreGatedWorkerStackConfiguration();
 
-		config.setSemaphoreLockKey("gridSnapshotCompactionWorker");
+		config.setSemaphoreLockKey("gridSessionSnapshotPublisherWorkerTrigger");
 		config.setProgressingRunner(worker);
 		config.setSemaphoreMaxLockCount(1);
 		config.setSemaphoreLockTimeoutSec(300);

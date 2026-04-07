@@ -146,7 +146,7 @@ Common transient exceptions to catch and retry:
 | `migration/` | Batch message | Data migration workers |
 | `log/` | Scheduled | S3 log collation |
 | `agent/` | Message-driven | AI agent chat processing |
-| `grid/` | Mixed | Grid CRDT patch processing, validation, snapshot compaction |
+| `grid/` | Mixed | Grid CRDT patch processing, validation, snapshot |
 
 ## Key Architectural Worker: ChangeSentMessageSynchWorker
 

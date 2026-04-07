@@ -7,26 +7,26 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.sagebionetworks.repo.manager.grid.GridSnapshotCompactionManager;
+import org.sagebionetworks.repo.manager.grid.GridSessionSnapshotPublisher;
 import org.sagebionetworks.util.progress.ProgressCallback;
 
 @ExtendWith(MockitoExtension.class)
-public class GridSnapshotCompactionWorkerTest {
+public class GridSessionSnapshotPublisherWorkerTest {
 
 	@Mock
-	private GridSnapshotCompactionManager mockCompactionManager;
+	private GridSessionSnapshotPublisher mockSnapshotPublisher;
 
 	@Mock
 	private ProgressCallback mockCallback;
 
 	@InjectMocks
-	private GridSnapshotCompactionWorker worker;
+	private GridSessionSnapshotPublisherWorker worker;
 
 	@Test
 	public void testRun() throws Exception {
 		// call under test
 		worker.run(mockCallback);
 
-		verify(mockCompactionManager).scanAndPublishSessionsNeedingCompaction();
+		verify(mockSnapshotPublisher).scanAndPublishSessionsNeedingSnapshot();
 	}
 }

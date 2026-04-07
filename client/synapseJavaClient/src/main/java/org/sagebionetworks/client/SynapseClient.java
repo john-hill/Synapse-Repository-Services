@@ -354,8 +354,11 @@ import org.sagebionetworks.repo.model.table.ViewType;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesRequest;
 import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesResponse;
+import org.sagebionetworks.repo.model.search.table.ListSynonymSetsRequest;
+import org.sagebionetworks.repo.model.search.table.ListSynonymSetsResponse;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiHeader;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiHistorySnapshot;
@@ -4700,6 +4703,16 @@ public interface SynapseClient extends BaseClient {
     void deleteColumnAnalyzerOverride(String id) throws SynapseException;
 
     ListColumnAnalyzerOverridesResponse listColumnAnalyzerOverrides(ListColumnAnalyzerOverridesRequest request) throws SynapseException;
+
+	SynonymSet createSynonymSet(SynonymSet synonymSet) throws SynapseException;
+
+	SynonymSet getSynonymSet(String id) throws SynapseException;
+
+	SynonymSet updateSynonymSet(SynonymSet synonymSet) throws SynapseException;
+
+	void deleteSynonymSet(String id) throws SynapseException;
+
+	ListSynonymSetsResponse listSynonymSets(ListSynonymSetsRequest request) throws SynapseException;
 
 }
 

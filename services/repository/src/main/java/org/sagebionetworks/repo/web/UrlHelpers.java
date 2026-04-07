@@ -1363,6 +1363,11 @@ public class UrlHelpers {
 	public static final String DRS_OBJECT = "/objects/{object_id}";
 	public static final String DRS_FETCH_BYTES = DRS_OBJECT + "/access/{access_id}";
 
+	// Search - Synonym Set
+	public static final String SEARCH_SYNONYM_SET = "/search/synonym/set";
+	public static final String SEARCH_SYNONYM_SET_ID = SEARCH_SYNONYM_SET + "/{synonymSetId}";
+	public static final String SEARCH_SYNONYM_SET_LIST = SEARCH_SYNONYM_SET + "/list";
+
 	// Search - Text Analyzer
 	public static final String SEARCH_TEXT_ANALYZER = "/search/text/analyzer";
 	public static final String SEARCH_TEXT_ANALYZER_ID = SEARCH_TEXT_ANALYZER + "/{id}";

@@ -30,6 +30,16 @@ public class EntityController {
 - **URL paths**: Constants in `UrlHelpers`
 - **Response**: `@ResponseBody` + `@ResponseStatus(HttpStatus.OK/CREATED/NO_CONTENT)`
 - **Request body**: `@RequestBody` for POST/PUT payloads
+- **PUT endpoint ID validation**: When a PUT endpoint has `{id}` in the URL path AND an `id` field in the request body, the controller must validate they match or set the body's ID from the path variable before forwarding to the service. This prevents callers from updating the wrong resource via a mismatched body:
+  ```java
+  @RequestMapping(value = "/resource/{id}", method = RequestMethod.PUT)
+  public @ResponseBody MyResource update(
+          @PathVariable String id,
+          @RequestBody MyResource request) {
+      request.setId(id);  // Override body ID with path ID
+      return serviceProvider.getMyService().update(userId, request);
+  }
+  ```
 
 ## ServiceProvider
 
@@ -52,5 +62,5 @@ public class EntityController {
 - **Do NOT write autowired controller tests** (`*AutowiredTest` extending `AbstractAutowiredControllerTestBase`). These mock the servlet layer and have repeatedly failed to catch real controller bugs.
 - **DO write IT-level integration tests** in `integration-test/src/test/java/` that use the `SynapseClient` Java client to make real HTTP requests against Tomcat. These are the only reliable way to verify controller wiring.
 - IT tests should cover all endpoints with basic happy-path verification. Deep branch coverage is handled by manager unit tests. Follow the pattern in existing IT tests (e.g., `ITGridControllerTest.java`).
-- Migration test: `MigrationIntegrationAutowireTest` — extend when adding new migratable types
+- Migration test: `MigratableTableDAOImplAutowireTest.testAllMigrationTypesRegistered()` — validates all `MigrationType` values have registered DBOs
 - **New controller endpoints**: Every new controller method needs a corresponding method in `SynapseClient`/`SynapseClientImpl` and an IT test in `integration-test/`.

@@ -83,6 +83,13 @@ platform (root)
   - `@ExtendWith(MockitoExtension.class)`, `@Mock`, `@InjectMocks`
 - Integration tests: `IT*.java` (in integration-test module)
 - Mockito 2.27 — no `mockStatic` or Mockito 4/5 APIs
+- **Test method naming**: `test<methodUnderTest>With<condition>` — e.g., `testCreateWithNonSageUser`, `testGetWithNonExistentId`, `testListWithMultipleOrganizations`. For IT CRUD lifecycle tests: `testCRUDWith<context>`.
+- **Test method structure**: Mark the primary method being tested with a `// call under test` comment directly above it — this makes each test's intent immediately clear during review
+- **Verify no downstream calls after exceptions**: After `assertThrows`, verify that mocked methods past the exception point were NOT called — use `verifyZeroInteractions(mock)` or `verify(mock, never()).method(...)`
+- **Assert on whole objects**: Use `assertEquals(expected, actual)` on objects rather than comparing individual fields — generated POJOs have correct `equals()`/`hashCode()`. Only assert individual fields when testing a specific field transformation.
+- **Include real data in tests**: Don't test CRUD with empty payloads. If a feature serializes data (e.g., JSON columns), include actual values in the test fixture and verify the round-trip — because a bug in serialization won't surface if the payload is empty.
+- **List/filter tests need multiple groups**: When testing list/filter operations, create entries across at least 2 categories (e.g., 2 items in org1, 2 in org2). Verify each filtered list returns the correct subset AND verify ordering is deterministic — because a single-group test can pass even if filtering is broken.
+- **Update tests must verify data changed**: Assert that updated values are present in the result, not just that metadata (etag) rotated — because an etag rotation doesn't prove the data write succeeded.
 
 ## Deployment & Migration
 
@@ -125,7 +132,7 @@ When creating new database tables, the DBO must implement `MigratableDatabaseObj
 - Register primary types in `lib/jdomodels/src/main/resources/dbo-beans.spb.xml` (order matters)
 - Secondary types are discovered automatically via `getSecondaryTypes()`
 - Primary tables need an etag column (NOT NULL) for change detection; secondary tables need a foreign key to their owner's backup ID
-- Key test: `services/repository/src/test/java/org/sagebionetworks/repo/web/migration/MigrationIntegrationAutowireTest.java` — extend this when adding new migratable types
+- Key test: `MigratableTableDAOImplAutowireTest.testAllMigrationTypesRegistered()` (`lib/jdomodels/src/test/java/org/sagebionetworks/repo/model/dbo/migration/MigratableTableDAOImplAutowireTest.java`) — validates all `MigrationType` values have registered DBOs
 
 ### Moving Data Between Tables (cross-stack safe)
 
@@ -133,62 +140,29 @@ Use a two-stack rollout:
 1. **Stack N**: Add data mirroring (write to both old and new table) + backfilling via `MigrationTypeListener` registered in `managers-spb.xml`
 2. **Stack N+1**: Remove mirroring, switch reads to new table as source of truth
 
+## Async Jobs & Workers
+
+See `services/workers/CLAUDE.md` for the async job framework, worker types, registration, trigger configuration, and SQS queue infrastructure.
+
 ## Curation Grid (Curator)
 
-A spreadsheet-style collaborative editing feature that allows data curators to annotate files (FileEntity annotations) and manage record-based metadata (RecordSet entities). Unlike the standard Controller → Manager → DAO pattern, the grid uses a **CRDT (Conflict-free Replicated Data Type)** architecture based on the [JSON-Joy](https://jsonjoy.com/) specification, enabling real-time multi-user and AI-assisted editing.
-
-### Hub-and-Replica Architecture
-
-- **Grid Session**: Created via async job (`POST /grid/session/async/start`). Represents a collaborative editing session backed by a CRDT document.
-- **Replicas**: Each connected client (or AI agent) gets a unique replica with a numeric `replicaId`. Single writer per replica, multiple readers allowed.
-- **Hub**: A cluster of workers that receives patches from all replicas via an **SQS queue**, persists them, and broadcasts `"new-patch"` notifications to all connected replicas.
-
-### WebSocket Protocol
-
-Uses **AWS API Gateway WebSocket** (NOT Spring STOMP/SockJS) with a custom messaging protocol based on the [json-rx specification](https://jsonjoy.com/specs/json-rx/messages):
-- Message format: `[type, sequence, method, payload]` — e.g., `[1, 42, "patch", <data>]`
-- Methods: `"patch"` (send CRDT patch), `"synchronize-clock"` (replica sends version vector to hub)
-- Notifications: `"new-patch"`, `"ping"`/`"pong"`
-- Connection via **pre-signed URL** (15 min expiry) from `POST /grid/{sessionId}/presigned/url`
-
-### CRDT Document Model
-
-The grid document uses JSON-Joy CRDT node types:
-- `con` (Constant) — immutable cell values and metadata
-- `vec` (Vector) — LWW append-only arrays for column names and row data (max 256 entries)
-- `arr` (RGA Array) — mutable ordered arrays for column order and row order
-- Patches encoded in json-joy [compact format](https://jsonjoy.com/specs/json-crdt-patch/encoding/compact-format), serialized as **CBOR** (Jackson `jackson-dataformat-cbor`)
-
-### Database Representation
-
-Grid patches are stored relationally in `lib-grid-db` tables — the full CRDT document is **never loaded into memory**. A SQL template (`services/repository-managers/src/main/resources/grid/grid-index-view-template.sql`) joins patch tables to produce a paginated tabular view, enabling efficient reads over large datasets.
-
-### AI Agent Integration
-
-The AI Grid Assistant binds to a grid session via `GridAgentSessionContext` (containing `gridSessionId` and `usersReplicaId`). The agent reads and writes grid data through **MCP services** (Grid Query / Grid Update) that translate SQL-like operations into CRDT patches flowing through the same hub.
-
-### Validation Worker
-
-A dedicated worker listens to grid changes via an SQS queue, validates each changed row against the bound **JSON Schema**, and writes validation results back as CRDT patches to `rows[*].metadata.rowValidation`.
-
-### Key REST APIs
-
-- `POST /grid/session/async/start` — create a grid session (async job, takes `CreateGridRequest`)
-- `GET /grid/session/async/get/{asyncToken}` — poll for session creation result
-- `POST /grid/{sessionId}/replica` — create a new replica
-- `POST /grid/{sessionId}/presigned/url` — get pre-signed WebSocket URL
+See `services/repository-managers/CLAUDE.md` and `lib/lib-grid/CLAUDE.md` for the CRDT-based grid architecture, WebSocket protocol, and AI agent integration.
 
 ## Key Conventions
 
+- **No wildcard imports** — use explicit imports (e.g., `import java.util.List;`), not `import java.util.*;`
 - Package root: `org.sagebionetworks`
 - Branch naming: `PLFM-XXXX` (JIRA tickets)
 - Main branch: `develop`
 - Entity IDs: String-typed but numeric (`KeyFactory` converts)
 - Spring config: mix of XML (`WEB-INF/` and `src/main/resources/*-spb.xml`) and annotations
 - Logging: Log4j 2
-- **JSON serialization**: Use `JDOSecondaryPropertyUtils.createJSONFromObject()` / `createObjectFromJSON()` for converting `JSONEntity` objects to/from JSON strings. Do not write custom serialization code.
-- **SQL safety**: All SQL must use bind variables. Never concatenate strings into SQL. For generated values (UUIDs, timestamps), prefer MySQL functions (`UUID()`, `NOW(3)`) over Java-side generation.
-- **Controller testing**: Use IT tests with the Java client in `integration-test/`, not autowired controller tests. Every new controller method needs a corresponding `SynapseClient`/`SynapseClientImpl` method and an IT test.
+- **JSON serialization**: Use `JDOSecondaryPropertyUtils.createJSONFromObject()` / `createObjectFromJSON()` for converting `JSONEntity` objects to/from JSON strings. Do not write custom `ObjectMapper` or `JSONObjectAdapter` serialization code in DAO classes.
+- **SQL safety**: All SQL must use bind variables. Never concatenate strings into SQL. For generated values (UUIDs, timestamps), prefer MySQL functions (`UUID()`, `NOW(3)`) over Java-side generation. For `DELETE` without specific criteria, always add `WHERE ID > -1` (required for SQL safe-updates mode).
+- **SQL style**: Write SQL inline where it's used. Do not concatenate `SqlConstants` references into SQL query strings. Constants are appropriate in DDL, DBO field mappings, and row mappers — just not for building query strings.
+- **Controller testing**: Use IT tests with the Java client in `integration-test/`, not autowired controller tests (`*AutowiredTest` classes). Every new controller method needs a corresponding `SynapseClient`/`SynapseClientImpl` method and an IT test. Deep logic checks belong in manager unit tests; IT tests just verify each HTTP call works.
+- **Exception mapping**: `NumberFormatException` extends `IllegalArgumentException`, which maps to HTTP 400. It is acceptable to let it propagate without wrapping.
+- **Reuse existing constants**: Before defining a new string constant, check if it already exists in a shared constants class (e.g., `SqlConstants`). Add new constants to the appropriate shared class rather than defining them locally.
 
 ## Critical Constraints
 

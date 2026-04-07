@@ -1,9 +1,9 @@
 {
-	"description": "A shared resource containing per-column analyzer override entries. ColumnAnalyzerOverrides belong to an Organization and can be referenced by SearchConfigurations. Cannot be deleted while referenced by any SearchConfiguration.",
+	"description": "A shared set of synonym rules. SynonymSets belong to an Organization and can be referenced by SearchConfigurations. Cannot be deleted while referenced by any SearchConfiguration.",
 	"properties": {
 		"id": {
 			"type": "string",
-			"description": "The unique ID of this column analyzer override."
+			"description": "The unique ID of this synonym set."
 		},
 		"organizationName": {
 			"type": "string",
@@ -15,13 +15,13 @@
 		},
 		"description": {
 			"type": "string",
-			"description": "Optional description."
+			"description": "Optional description of the synonym set."
 		},
-		"overrides": {
+		"rules": {
 			"type": "array",
-			"description": "The list of per-column analyzer override entries.",
+			"description": "The list of synonym rules in this set.",
 			"items": {
-				"$ref": "org.sagebionetworks.repo.model.table.search.ColumnAnalyzerOverrideEntry"
+				"$ref": "org.sagebionetworks.repo.model.search.table.SynonymRule"
 			}
 		},
 		"etag": {

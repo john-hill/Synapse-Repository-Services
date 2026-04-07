@@ -39,6 +39,7 @@ public class GridCSVDownloadWorker implements AsyncJobRunner<DownloadFromGridReq
         try {
             return gridReplicaCsvExporter.exportGridAsCsv(user, request, jobProgressCallback, null);
         } catch (RecoverableMessageException e) {
+        	log.warn("Recoverable Failed to import CSV into the grid (will retry): " + e.getMessage());
             throw e;
         } catch (Exception e) {
             log.error("Worker Failed", e);

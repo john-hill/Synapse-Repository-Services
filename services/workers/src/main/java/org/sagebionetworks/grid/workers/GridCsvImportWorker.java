@@ -52,6 +52,7 @@ public class GridCsvImportWorker implements AsyncJobRunner<GridCsvImportRequest,
 			);
 			
 		} catch (RecoverableMessageException e) {
+			LOGGER.warn("Recoverable Failed to import CSV into the grid (will retry): " + e.getMessage());
 			throw e;
 		} catch (LockUnavilableException e) {
 			LOGGER.warn("Failed to import CSV into the grid (will retry): " + e.getMessage());

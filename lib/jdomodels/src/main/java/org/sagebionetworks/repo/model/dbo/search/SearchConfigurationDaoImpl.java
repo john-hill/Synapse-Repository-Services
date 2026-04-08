@@ -18,8 +18,6 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_C
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_NAME;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_ORGANIZATION_NAME;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_SYNONYM_SET_IDS;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_SEARCH_CONFIG_OBJECT_BINDING;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_SEARCH_CONFIGURATION;
 
 import java.sql.ResultSet;
 import java.util.Date;
@@ -91,7 +89,7 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 		Long id = idGenerator.generateNewId(IdType.SEARCH_CONFIGURATION_ID);
 
 		jdbcTemplate.update(
-				"INSERT INTO " + TABLE_SEARCH_CONFIGURATION + " (ID, ETAG, ORGANIZATION_NAME, NAME, DESCRIPTION,"
+				"INSERT INTO SEARCH_CONFIGURATION (ID, ETAG, ORGANIZATION_NAME, NAME, DESCRIPTION,"
 				+ " DEFAULT_ANALYZER_ID, SYNONYM_SET_IDS, COLUMN_ANALYZER_OVERRIDE_IDS,"
 				+ " CREATED_BY, CREATED_ON, MODIFIED_BY, MODIFIED_ON)"
 				+ " VALUES (?, UUID(), ?, ?, ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))",
@@ -114,7 +112,7 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 		ValidateArgument.required(id, "id");
 		try {
 			SearchConfiguration result = jdbcTemplate.queryForObject(
-					"SELECT * FROM " + TABLE_SEARCH_CONFIGURATION + " WHERE ID = ?",
+					"SELECT * FROM SEARCH_CONFIGURATION WHERE ID = ?",
 					ROW_MAPPER, Long.parseLong(id));
 			return Optional.ofNullable(result);
 		} catch (EmptyResultDataAccessException e) {
@@ -137,7 +135,7 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 		}
 
 		int updated = jdbcTemplate.update(
-				"UPDATE " + TABLE_SEARCH_CONFIGURATION + " SET ETAG = UUID(), NAME = ?, DESCRIPTION = ?,"
+				"UPDATE SEARCH_CONFIGURATION SET ETAG = UUID(), NAME = ?, DESCRIPTION = ?,"
 				+ " DEFAULT_ANALYZER_ID = ?, SYNONYM_SET_IDS = ?, COLUMN_ANALYZER_OVERRIDE_IDS = ?,"
 				+ " MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
 				config.getName(),
@@ -160,21 +158,21 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 	@Override
 	public void delete(String id) {
 		ValidateArgument.required(id, "id");
-		jdbcTemplate.update("DELETE FROM " + TABLE_SEARCH_CONFIGURATION + " WHERE ID = ?", Long.parseLong(id));
+		jdbcTemplate.update("DELETE FROM SEARCH_CONFIGURATION WHERE ID = ?", Long.parseLong(id));
 	}
 
 	@Override
 	public List<SearchConfiguration> list(String organizationName, long limit, long offset) {
 		ValidateArgument.required(organizationName, "organizationName");
 		return jdbcTemplate.query(
-				"SELECT * FROM " + TABLE_SEARCH_CONFIGURATION + " WHERE ORGANIZATION_NAME = ? ORDER BY NAME ASC LIMIT ? OFFSET ?",
+				"SELECT * FROM SEARCH_CONFIGURATION WHERE ORGANIZATION_NAME = ? ORDER BY NAME ASC LIMIT ? OFFSET ?",
 				ROW_MAPPER, organizationName, limit, offset);
 	}
 
 	@Override
 	public List<SearchConfiguration> listAll(long limit, long offset) {
 		return jdbcTemplate.query(
-				"SELECT * FROM " + TABLE_SEARCH_CONFIGURATION + " ORDER BY NAME ASC LIMIT ? OFFSET ?",
+				"SELECT * FROM SEARCH_CONFIGURATION ORDER BY NAME ASC LIMIT ? OFFSET ?",
 				ROW_MAPPER, limit, offset);
 	}
 
@@ -187,7 +185,7 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 		ValidateArgument.required(createdBy, "createdBy");
 		Long bindId = idGenerator.generateNewId(IdType.SEARCH_CONFIG_BINDING_ID);
 		jdbcTemplate.update(
-				"INSERT INTO " + TABLE_SEARCH_CONFIG_OBJECT_BINDING
+				"INSERT INTO SEARCH_CONFIG_OBJECT_BINDING"
 				+ " (BIND_ID, SEARCH_CONFIG_ID, OBJECT_ID, OBJECT_TYPE, CREATED_BY, CREATED_ON)"
 				+ " VALUES (?, ?, ?, ?, ?, NOW(3))"
 				+ " ON DUPLICATE KEY UPDATE SEARCH_CONFIG_ID = VALUES(SEARCH_CONFIG_ID),"
@@ -201,7 +199,7 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 		ValidateArgument.required(objectType, "objectType");
 		try {
 			SearchConfigBinding binding = jdbcTemplate.queryForObject(
-					"SELECT * FROM " + TABLE_SEARCH_CONFIG_OBJECT_BINDING + " WHERE OBJECT_ID = ? AND OBJECT_TYPE = ?",
+					"SELECT * FROM SEARCH_CONFIG_OBJECT_BINDING WHERE OBJECT_ID = ? AND OBJECT_TYPE = ?",
 					BINDING_ROW_MAPPER, objectId, objectType);
 			return Optional.ofNullable(binding);
 		} catch (EmptyResultDataAccessException e) {
@@ -215,21 +213,21 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 		ValidateArgument.required(objectId, "objectId");
 		ValidateArgument.required(objectType, "objectType");
 		jdbcTemplate.update(
-				"DELETE FROM " + TABLE_SEARCH_CONFIG_OBJECT_BINDING + " WHERE OBJECT_ID = ? AND OBJECT_TYPE = ?",
+				"DELETE FROM SEARCH_CONFIG_OBJECT_BINDING WHERE OBJECT_ID = ? AND OBJECT_TYPE = ?",
 				objectId, objectType);
 	}
 
 	@WriteTransaction
 	@Override
 	public void truncateAll() {
-		jdbcTemplate.update("DELETE FROM " + TABLE_SEARCH_CONFIG_OBJECT_BINDING + " WHERE BIND_ID > -1");
-		jdbcTemplate.update("DELETE FROM " + TABLE_SEARCH_CONFIGURATION + " WHERE ID > -1");
+		jdbcTemplate.update("DELETE FROM SEARCH_CONFIG_OBJECT_BINDING WHERE BIND_ID > -1");
+		jdbcTemplate.update("DELETE FROM SEARCH_CONFIGURATION WHERE ID > -1");
 	}
 
 	private String getCurrentEtagForUpdate(Long id) {
 		try {
 			return jdbcTemplate.queryForObject(
-					"SELECT ETAG FROM " + TABLE_SEARCH_CONFIGURATION + " WHERE ID = ? FOR UPDATE",
+					"SELECT ETAG FROM SEARCH_CONFIGURATION WHERE ID = ? FOR UPDATE",
 					String.class, id);
 		} catch (EmptyResultDataAccessException e) {
 			throw new NotFoundException("SearchConfiguration with id '" + id + "' does not exist.");

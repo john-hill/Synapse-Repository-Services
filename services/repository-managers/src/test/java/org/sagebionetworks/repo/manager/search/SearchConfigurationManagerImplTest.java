@@ -291,7 +291,7 @@ public class SearchConfigurationManagerImplTest {
 	public void testBindSearchConfigToEntityWithValidRequest() {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
-		user.setGroups(Set.of(1L));
+		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
 
 		BindSearchConfigToEntityRequest request = new BindSearchConfigToEntityRequest();
 		request.setEntityId("syn123");
@@ -362,7 +362,7 @@ public class SearchConfigurationManagerImplTest {
 	public void testBindSearchConfigToEntityWithNonExistentConfig() {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
-		user.setGroups(Set.of(1L));
+		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
 
 		BindSearchConfigToEntityRequest request = new BindSearchConfigToEntityRequest();
 		request.setEntityId("syn123");
@@ -382,7 +382,7 @@ public class SearchConfigurationManagerImplTest {
 	public void testClearSearchConfigBindingWithValidEntity() {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
-		user.setGroups(Set.of(1L));
+		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
 
 		when(aclDao.canAccess(any(UserInfo.class), eq("123"), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.UPDATE)))
 			.thenReturn(AuthorizationStatus.authorized());

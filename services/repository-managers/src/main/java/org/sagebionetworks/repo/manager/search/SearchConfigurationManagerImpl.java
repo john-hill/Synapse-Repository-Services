@@ -117,12 +117,18 @@ public class SearchConfigurationManagerImpl implements SearchConfigurationManage
 		ValidateArgument.requiredNotBlank(request.getSearchConfigurationId(), "searchConfigurationId");
 
 		AuthorizationUtils.disallowAnonymous(user);
+		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
+			throw new UnauthorizedException("Only Sage Bionetworks employees can bind search configurations.");
+		}
+
 		Long entityId = KeyFactory.stringToKey(request.getEntityId());
 		Long searchConfigId = Long.parseLong(request.getSearchConfigurationId());
 
 		// Verify entity exists and user has EDIT permission
-		aclDao.canAccess(user, String.valueOf(entityId), ObjectType.ENTITY, ACCESS_TYPE.UPDATE)
-			.checkAuthorizationOrElseThrow();
+		if (!user.isAdmin()) {
+			aclDao.canAccess(user, String.valueOf(entityId), ObjectType.ENTITY, ACCESS_TYPE.UPDATE)
+				.checkAuthorizationOrElseThrow();
+		}
 
 		// Verify search config exists
 		searchConfigurationDao.get(request.getSearchConfigurationId())
@@ -154,10 +160,16 @@ public class SearchConfigurationManagerImpl implements SearchConfigurationManage
 		ValidateArgument.requiredNotBlank(entityId, "entityId");
 
 		AuthorizationUtils.disallowAnonymous(user);
+		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
+			throw new UnauthorizedException("Only Sage Bionetworks employees can clear search configuration bindings.");
+		}
+
 		Long nodeId = KeyFactory.stringToKey(entityId);
 
-		aclDao.canAccess(user, String.valueOf(nodeId), ObjectType.ENTITY, ACCESS_TYPE.UPDATE)
-			.checkAuthorizationOrElseThrow();
+		if (!user.isAdmin()) {
+			aclDao.canAccess(user, String.valueOf(nodeId), ObjectType.ENTITY, ACCESS_TYPE.UPDATE)
+				.checkAuthorizationOrElseThrow();
+		}
 
 		searchConfigurationDao.clearSearchConfigBinding(nodeId, ENTITY_OBJECT_TYPE);
 	}

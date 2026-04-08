@@ -346,20 +346,6 @@ public class GridDaoImpl implements GridDao {
         }
     }
     
-    @Override
-    public Optional<GridConnectionInfo> getSingletonUserConnection(String sessionId, Long userId, EventSource source) {
-		ValidateArgument.required(sessionId, "sessionId");
-		ValidateArgument.required(userId, "userId");
-		ValidateArgument.required(source, "source");
-		
-		if(!source.isSingleton()) {
-        	return Optional.empty();
-        }
-		
-		return jdbcTemplate.query("SELECT * FROM GRID_CONNECTION WHERE SESSION_ID = ? AND CREATED_BY = ? AND SOURCE = ? ORDER BY REPLICA_ID DESC LIMIT 1",
-				CONNECTION_MAPPER, sessionId, userId, source.name()).stream().findFirst();
-	}
-    
 	@Override
 	public Optional<GridConnectionInfo> getConnection(String sessionId, Long replicaId) {
 		ValidateArgument.required(sessionId, "sessionId");

@@ -11,6 +11,8 @@ import static org.sagebionetworks.repo.model.util.AccessControlListUtil.createRe
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -25,6 +27,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.http.entity.ContentType;
 import org.java_websocket.WebSocket;
 import org.json.JSONArray;
@@ -36,6 +39,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.AsynchronousJobWorkerHelper;
 import org.sagebionetworks.aws.SynapseS3Client;
 import org.sagebionetworks.grid.db.GridIndexDao;
+import org.sagebionetworks.repo.manager.CertifiedUserManager;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
@@ -114,8 +118,11 @@ import org.sagebionetworks.repo.model.table.QueryResultBundle;
 import org.sagebionetworks.repo.model.table.ReplicationType;
 import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.repo.model.table.TableEntity;
+import org.sagebionetworks.repo.model.table.UploadToTablePreviewRequest;
+import org.sagebionetworks.repo.model.table.UploadToTablePreviewResult;
 import org.sagebionetworks.repo.service.EntityService;
 import org.sagebionetworks.repo.service.GridService;
+import org.sagebionetworks.schema.adapter.org.json.EntityFactory;
 import org.sagebionetworks.table.cluster.utils.CSVUtils;
 import org.sagebionetworks.util.Pair;
 import org.sagebionetworks.util.TimeUtils;
@@ -124,6 +131,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.fasterxml.jackson.databind.jsonschema.SchemaAware;
 
 import au.com.bytecode.opencsv.CSVReader;
 
@@ -217,6 +225,9 @@ public class GridEventBrokerWorkerIntegrationTest {
 
 	@Autowired
 	private DBOChangeDAO changeDao;
+
+	@Autowired
+	private CertifiedUserManager certifiedUserManager;
 
 	private UserInfo admin;
 
@@ -1076,12 +1087,135 @@ public class GridEventBrokerWorkerIntegrationTest {
 		);
 	}
 	
+	@Test
+	public void testRecordSetImportArray() throws Exception {
+		Project project = entityService.createEntity(admin.getId(), new Project().setName("RecordSetImportArray"),
+				null);
+
+		String csvContent = loadFileAsString("landscape-header.csv");
+		S3FileHandle fileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(),
+				csvContent.getBytes(StandardCharsets.UTF_8), "landscape-header.csv", ContentType.create("text/csv"), null);
+
+		RecordSet recordSet = entityService.createEntity(admin.getId(), new RecordSet().setParentId(project.getId())
+				.setName("recordSet").setDataFileHandleId(fileHandle.getId()).setUpsertKey(List.of("aim")),
+				null);
+		String schemaString = loadFileAsString("datalandscape-jsonschema.json");
+		JsonSchema schema = EntityFactory.createEntityFromJSONString(schemaString, JsonSchema.class);
+
+		String schemaId = createJsonSchema(schema.getProperties(), schema.getRequired()).getNewVersionInfo().get$id();
+
+		entityService.bindSchemaToEntity(admin.getId(),
+				new BindSchemaToEntityRequest().setEntityId(recordSet.getId()).setSchema$id(schemaId));
+
+		GridSession session = asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new CreateGridRequest().setRecordSetId(recordSet.getId()), (CreateGridResponse response) -> {
+					assertNotNull(response);
+					assertNotNull(response.getGridSession());
+				}, MAX_WAIT_MS).getResponse().getGridSession();
+
+		assertEquals(recordSet.getId(), session.getSourceEntityId());
+		System.out.println(session);
+		
+		String uploadCsv = loadFileAsString("landscape-upload.csv");
+		S3FileHandle uploadFileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(),
+				uploadCsv.getBytes(StandardCharsets.UTF_8), "landscape-upload.csv", ContentType.create("text/csv"), null);
+		
+		CsvTableDescriptor csvDescriptor = new CsvTableDescriptor().setIsFirstLineHeader(true).setSeparator(",");
+		UploadToTablePreviewResult previewResult = asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new UploadToTablePreviewRequest()
+						.setCsvTableDescriptor(csvDescriptor)
+						.setUploadFileHandleId(uploadFileHandle.getId()),
+				(UploadToTablePreviewResult response) -> {
+					assertNotNull(response);
+				}, MAX_WAIT_MS).getResponse();
+		
+		System.out.println(previewResult);
+		
+		GridCsvImportResponse importResults = asynchronousJobWorkerHelper.assertJobResponse(
+				admin, new GridCsvImportRequest().setSessionId(session.getSessionId()).setCsvDescriptor(csvDescriptor)
+						.setFileHandleId(uploadFileHandle.getId()).setSchema(previewResult.getSuggestedColumns()),
+				(GridCsvImportResponse response) -> {
+					assertNotNull(response);
+				}, MAX_WAIT_MS).getResponse();
+		
+		System.out.println(importResults);
+		
+		importResults = asynchronousJobWorkerHelper.assertJobResponse(
+				admin, new GridCsvImportRequest().setSessionId(session.getSessionId()).setCsvDescriptor(csvDescriptor)
+						.setFileHandleId(uploadFileHandle.getId()).setSchema(previewResult.getSuggestedColumns()),
+				(GridCsvImportResponse response) -> {
+					assertNotNull(response);
+				}, MAX_WAIT_MS).getResponse();
+
+		System.out.println(importResults);
+
+		// Reproduce PLFM-9571: a team member submits a CSV import for a session created by a different team member.
+		// The USER_SUPPORT connection is created for the session creator, so it would not be found for the importing
+		// user, causing a RecoverableMessageException and an infinite retry loop.
+		UserInfo anotherUser = createUser();
+		Team curatorsTeam = teamManager.create(admin, new Team().setName(UUID.randomUUID().toString()));
+		teamManager.addMember(admin, curatorsTeam.getId(), anotherUser);
+
+		// Grant the team READ+DOWNLOAD+UPDATE on the project so that anotherUser can access the RecordSet
+		aclHelper.update(project.getId(), ObjectType.ENTITY, (a) -> {
+			a.getResourceAccess().add(createResourceAccess(Long.parseLong(curatorsTeam.getId()), ACCESS_TYPE.READ));
+			a.getResourceAccess().add(createResourceAccess(Long.parseLong(curatorsTeam.getId()), ACCESS_TYPE.DOWNLOAD));
+			a.getResourceAccess().add(createResourceAccess(Long.parseLong(curatorsTeam.getId()), ACCESS_TYPE.UPDATE));
+		});
+
+		// Create a new session owned by the team (admin creates the session, USER_SUPPORT connection for admin)
+		GridSession teamSession = asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new CreateGridRequest().setRecordSetId(recordSet.getId()).setOwnerPrincipalId(curatorsTeam.getId()),
+				(CreateGridResponse response) -> {
+					assertNotNull(response);
+					assertNotNull(response.getGridSession());
+				}, MAX_WAIT_MS).getResponse().getGridSession();
+
+		// anotherUser creates their own file handle to upload
+		S3FileHandle anotherUserFileHandle = fileHandleManager.createFileFromByteArray(
+				anotherUser.getId().toString(), new Date(),
+				uploadCsv.getBytes(StandardCharsets.UTF_8), "landscape-upload.csv", ContentType.create("text/csv"), null);
+
+		// anotherUser submits the import — this is the cross-user scenario that caused PLFM-9571
+		importResults = asynchronousJobWorkerHelper.assertJobResponse(
+				anotherUser, new GridCsvImportRequest().setSessionId(teamSession.getSessionId())
+						.setCsvDescriptor(csvDescriptor).setFileHandleId(anotherUserFileHandle.getId())
+						.setSchema(previewResult.getSuggestedColumns()),
+				(GridCsvImportResponse response) -> {
+					assertNotNull(response);
+				}, MAX_WAIT_MS).getResponse();
+
+		System.out.println(importResults);
+
+		// anotherUser also submits the export — verifies the cross-user export scenario (PLFM-9571)
+		GridRecordSetExportResponse exportResults = asynchronousJobWorkerHelper.assertJobResponse(
+				anotherUser, new GridRecordSetExportRequest().setSessionId(teamSession.getSessionId()),
+				(GridRecordSetExportResponse response) -> {
+					assertNotNull(response);
+					assertEquals(teamSession.getSessionId(), response.getSessionId());
+				}, MAX_WAIT_MS).getResponse();
+
+		System.out.println(exportResults);
+	}
+	
+	String loadFileAsString(String name) throws IOException {
+		try (InputStream in = GridEventBrokerWorkerIntegrationTest.class.getClassLoader().getResourceAsStream(name);) {
+			if (in == null) {
+				throw new IllegalArgumentException("Cannot find: " + name + " on the classpath");
+			}
+			return IOUtils.toString(in, StandardCharsets.UTF_8);
+		}
+	}
+	
 	UserInfo createUser(){
 		NewUser newUser = new NewUser();
 		newUser.setEmail(UUID.randomUUID().toString() + "@test.com");
 		newUser.setUserName(UUID.randomUUID().toString());
-		return userManager.createOrGetTestUser(admin, newUser);
+		UserInfo user = userManager.createOrGetTestUser(admin, newUser);
+		certifiedUserManager.setUserCertificationStatus(admin, user.getId(), true);
+		return userManager.getUserInfo(user.getId());
 	}
+	
 	List<String[]> createAndDownloadCsvFromGrid(DownloadFromGridRequest request)
 			throws AsynchJobFailedException, IOException {
 		DownloadFromGridResult downloadFromGridResult = asynchronousJobWorkerHelper

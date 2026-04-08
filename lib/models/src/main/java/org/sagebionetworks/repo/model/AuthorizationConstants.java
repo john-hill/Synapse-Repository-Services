@@ -209,7 +209,7 @@ public class AuthorizationConstants {
 	/**
 	 * The time, in seconds, that an access token lasts
 	 */
-	public static final long ACCESS_TOKEN_EXPIRATION_TIME_SECONDS = 3600*24L; // a day
+	public static final long ACCESS_TOKEN_EXPIRATION_TIME_SECONDS = 3600*72L; // 3 days
 
 	
 	/**

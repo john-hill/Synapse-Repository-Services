@@ -343,7 +343,7 @@ public class SearchConfigurationDaoImplAutowiredTest {
 		Optional<SearchConfigBinding> result = searchConfigurationDao.getSearchConfigBindingForObject(objectId, "entity");
 		assertTrue(result.isPresent());
 		assertEquals(configB.getId(), result.get().getSearchConfigurationId());
-		assertNotEquals(first.get().getBindId(), result.get().getBindId());
+		assertEquals(first.get().getBindId(), result.get().getBindId());
 	}
 
 	@Test

@@ -186,14 +186,12 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 		ValidateArgument.required(objectType, "objectType");
 		ValidateArgument.required(createdBy, "createdBy");
 		Long bindId = idGenerator.generateNewId(IdType.SEARCH_CONFIG_BINDING_ID);
-		// Replace any existing binding for this object
-		jdbcTemplate.update(
-				"DELETE FROM " + TABLE_SEARCH_CONFIG_OBJECT_BINDING + " WHERE OBJECT_ID = ? AND OBJECT_TYPE = ?",
-				objectId, objectType);
 		jdbcTemplate.update(
 				"INSERT INTO " + TABLE_SEARCH_CONFIG_OBJECT_BINDING
 				+ " (BIND_ID, SEARCH_CONFIG_ID, OBJECT_ID, OBJECT_TYPE, CREATED_BY, CREATED_ON)"
-				+ " VALUES (?, ?, ?, ?, ?, NOW(3))",
+				+ " VALUES (?, ?, ?, ?, ?, NOW(3))"
+				+ " ON DUPLICATE KEY UPDATE SEARCH_CONFIG_ID = VALUES(SEARCH_CONFIG_ID),"
+				+ " CREATED_BY = VALUES(CREATED_BY), CREATED_ON = NOW(3)",
 				bindId, searchConfigId, objectId, objectType, createdBy);
 	}
 

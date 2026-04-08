@@ -29,15 +29,20 @@ import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
+import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.dbo.search.SearchConfigurationDao;
+import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
+import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
 import org.sagebionetworks.repo.model.schema.Organization;
+import org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest;
 import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsRequest;
 import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsResponse;
+import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.web.NotFoundException;
 
@@ -50,12 +55,19 @@ public class SearchConfigurationManagerImplTest {
 	private AccessControlListDAO aclDao;
 	@Mock
 	private OrganizationDao organizationDao;
+	@Mock
+	private SynonymSetDao synonymSetDao;
+	@Mock
+	private ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao;
+	@Mock
+	private NodeDAO nodeDAO;
 
 	private SearchConfigurationManagerImpl manager;
 
 	@BeforeEach
 	void setUp() {
-		manager = new SearchConfigurationManagerImpl(searchConfigurationDao, aclDao, organizationDao);
+		manager = new SearchConfigurationManagerImpl(searchConfigurationDao, aclDao, organizationDao,
+				synonymSetDao, columnAnalyzerOverrideDao, nodeDAO);
 	}
 
 	// --- Sage employee / admin authorization ---
@@ -82,19 +94,6 @@ public class SearchConfigurationManagerImplTest {
 		// call under test
 		assertThrows(UnauthorizedException.class, () ->
 			manager.update(user, new SearchConfiguration().setId("1").setOrganizationName("test-org").setName("test")));
-		verifyZeroInteractions(aclDao);
-		verifyZeroInteractions(searchConfigurationDao);
-	}
-
-	@Test
-	public void testDeleteWithNonSageUser() {
-		UserInfo user = new UserInfo(false);
-		user.setId(1L);
-		user.setGroups(Set.of(1L));
-
-		// call under test
-		assertThrows(UnauthorizedException.class, () ->
-			manager.delete(user, "1"));
 		verifyZeroInteractions(aclDao);
 		verifyZeroInteractions(searchConfigurationDao);
 	}
@@ -182,17 +181,6 @@ public class SearchConfigurationManagerImplTest {
 	}
 
 	@Test
-	public void testDeleteWithNonExistentId() {
-		UserInfo admin = new UserInfo(true);
-		admin.setId(1L);
-		when(searchConfigurationDao.get("1")).thenReturn(Optional.empty());
-
-		// call under test
-		NotFoundException ex = assertThrows(NotFoundException.class, () -> manager.delete(admin, "1"));
-		assertEquals("A search configuration with the given id does not exist.", ex.getMessage());
-	}
-
-	@Test
 	public void testUpdateWithNonExistentId() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
@@ -232,25 +220,6 @@ public class SearchConfigurationManagerImplTest {
 		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.update(admin, request));
 		assertTrue(ex.getMessage().contains("organizationName cannot be changed"));
-	}
-
-	// --- Delete ACL from stored entity ---
-
-	@Test
-	public void testDeleteWithOrgAclCheck() {
-		UserInfo user = new UserInfo(false);
-		user.setId(1L);
-		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
-		SearchConfiguration existing = new SearchConfiguration().setId("1").setOrganizationName("other-org");
-		when(searchConfigurationDao.get("1")).thenReturn(Optional.of(existing));
-		when(organizationDao.getOrganizationByName("other-org")).thenReturn(new Organization().setId("99"));
-		when(aclDao.canAccess(any(UserInfo.class), eq("99"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.DELETE)))
-			.thenReturn(AuthorizationStatus.accessDenied("no"));
-
-		// call under test
-		assertThrows(UnauthorizedException.class, () -> manager.delete(user, "1"));
-		verify(aclDao).canAccess(any(UserInfo.class), eq("99"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.DELETE));
-		verify(searchConfigurationDao, never()).delete(anyString());
 	}
 
 	// --- List / pagination ---
@@ -314,5 +283,125 @@ public class SearchConfigurationManagerImplTest {
 
 		assertNull(response.getNextPageToken(), "Expected null next page token when all results fit in one page");
 		assertEquals(1, response.getResults().size());
+	}
+
+	// --- Bind / Unbind ---
+
+	@Test
+	public void testBindSearchConfigToEntityWithValidRequest() {
+		UserInfo user = new UserInfo(false);
+		user.setId(1L);
+		user.setGroups(Set.of(1L));
+
+		BindSearchConfigToEntityRequest request = new BindSearchConfigToEntityRequest();
+		request.setEntityId("syn123");
+		request.setSearchConfigurationId("456");
+
+		when(aclDao.canAccess(any(UserInfo.class), eq("123"), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.UPDATE)))
+			.thenReturn(AuthorizationStatus.authorized());
+		when(searchConfigurationDao.get("456")).thenReturn(Optional.of(new SearchConfiguration()));
+		SearchConfigBinding expectedBinding = new SearchConfigBinding();
+		expectedBinding.setBindId("1");
+		when(searchConfigurationDao.getSearchConfigBindingForObject(123L, "entity"))
+			.thenReturn(Optional.of(expectedBinding));
+
+		// call under test
+		SearchConfigBinding result = manager.bindSearchConfigToEntity(user, request);
+
+		assertEquals(expectedBinding, result);
+		verify(searchConfigurationDao).bindSearchConfigToObject(456L, 123L, "entity", 1L);
+	}
+
+	@Test
+	public void testBindSearchConfigToEntityWithAnonymousUser() {
+		UserInfo anon = new UserInfo(false);
+		anon.setId(null);
+
+		BindSearchConfigToEntityRequest request = new BindSearchConfigToEntityRequest();
+		request.setEntityId("syn123");
+		request.setSearchConfigurationId("456");
+
+		// call under test
+		String message = assertThrows(UnauthorizedException.class, () -> manager.bindSearchConfigToEntity(anon, request)).getMessage();
+		assertEquals("Must login to perform this action", message);
+		verifyZeroInteractions(aclDao);
+		verifyZeroInteractions(searchConfigurationDao);
+	}
+
+	@Test
+	public void testBindSearchConfigToEntityWithMissingEntityId() {
+		UserInfo user = new UserInfo(false);
+		user.setId(1L);
+		user.setGroups(Set.of(1L));
+
+		BindSearchConfigToEntityRequest request = new BindSearchConfigToEntityRequest();
+		request.setSearchConfigurationId("456");
+
+		// call under test
+		String message = assertThrows(IllegalArgumentException.class, () -> manager.bindSearchConfigToEntity(user, request)).getMessage();
+		assertEquals("entityId is required and must not be the empty string.", message);
+		verifyZeroInteractions(searchConfigurationDao);
+	}
+
+	@Test
+	public void testBindSearchConfigToEntityWithMissingConfigId() {
+		UserInfo user = new UserInfo(false);
+		user.setId(1L);
+		user.setGroups(Set.of(1L));
+
+		BindSearchConfigToEntityRequest request = new BindSearchConfigToEntityRequest();
+		request.setEntityId("syn123");
+
+		// call under test
+		String message = assertThrows(IllegalArgumentException.class, () -> manager.bindSearchConfigToEntity(user, request)).getMessage();
+		assertEquals("searchConfigurationId is required and must not be the empty string.", message);
+		verifyZeroInteractions(searchConfigurationDao);
+	}
+
+	@Test
+	public void testBindSearchConfigToEntityWithNonExistentConfig() {
+		UserInfo user = new UserInfo(false);
+		user.setId(1L);
+		user.setGroups(Set.of(1L));
+
+		BindSearchConfigToEntityRequest request = new BindSearchConfigToEntityRequest();
+		request.setEntityId("syn123");
+		request.setSearchConfigurationId("999");
+
+		when(aclDao.canAccess(any(UserInfo.class), eq("123"), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.UPDATE)))
+			.thenReturn(AuthorizationStatus.authorized());
+		when(searchConfigurationDao.get("999")).thenReturn(Optional.empty());
+
+		// call under test
+		String message = assertThrows(NotFoundException.class, () -> manager.bindSearchConfigToEntity(user, request)).getMessage();
+		assertEquals("A search configuration with the given id does not exist.", message);
+		verify(searchConfigurationDao, never()).bindSearchConfigToObject(anyLong(), anyLong(), anyString(), anyLong());
+	}
+
+	@Test
+	public void testClearSearchConfigBindingWithValidEntity() {
+		UserInfo user = new UserInfo(false);
+		user.setId(1L);
+		user.setGroups(Set.of(1L));
+
+		when(aclDao.canAccess(any(UserInfo.class), eq("123"), eq(ObjectType.ENTITY), eq(ACCESS_TYPE.UPDATE)))
+			.thenReturn(AuthorizationStatus.authorized());
+
+		// call under test
+		manager.clearSearchConfigBinding(user, "syn123");
+
+		verify(searchConfigurationDao).clearSearchConfigBinding(123L, "entity");
+	}
+
+	@Test
+	public void testClearSearchConfigBindingWithAnonymousUser() {
+		UserInfo anon = new UserInfo(false);
+		anon.setId(null);
+
+		// call under test
+		String message = assertThrows(UnauthorizedException.class, () -> manager.clearSearchConfigBinding(anon, "syn123")).getMessage();
+		assertEquals("Must login to perform this action", message);
+		verifyZeroInteractions(aclDao);
+		verifyZeroInteractions(searchConfigurationDao);
 	}
 }

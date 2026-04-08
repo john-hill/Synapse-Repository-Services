@@ -543,12 +543,8 @@
 			"description": "Table that stores search configurations for search"
 		},
 		{
-			"name": "SEARCH_CONFIG_SYNONYM_SET",
-			"description": "Junction table linking search configurations to synonym sets"
-		},
-		{
-			"name": "SEARCH_CONFIG_COL_ANALYZER",
-			"description": "Junction table linking search configurations to column analyzer overrides"
+			"name": "SEARCH_CONFIG_OBJECT_BINDING",
+			"description": "Table that binds a search configuration to an entity in the hierarchy"
 		},
 		{
 			"name": "CHANGE",

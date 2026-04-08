@@ -13,7 +13,6 @@ import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.ValidateArgument;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -21,8 +20,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
-
-	private static final String MSG_DUPLICATE_NAME = "A text analyzer with the given name already exists in this organization.";
 
 	private static final RowMapper<TextAnalyzer> ROW_MAPPER = (rs, rowNum) -> {
 		TextAnalyzer analyzer = new TextAnalyzer();
@@ -58,22 +55,18 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 
 		Long id = idGenerator.generateNewId(IdType.TEXT_ANALYZER_ID);
 
-		try {
-			jdbcTemplate.update(
-					"INSERT INTO TEXT_ANALYZER (ID, ETAG, NAME, DESCRIPTION, ORGANIZATION_NAME, SETTINGS,"
-					+ " CREATED_BY, CREATED_ON, MODIFIED_BY, MODIFIED_ON)"
-					+ " VALUES (?, UUID(), ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))",
-					id,
-					analyzer.getName(),
-					analyzer.getDescription(),
-					analyzer.getOrganizationName(),
-					JDOSecondaryPropertyUtils.createJSONFromObject(analyzer.getSettings()),
-					userId,
-					userId
-			);
-		} catch (DuplicateKeyException e) {
-			throw new IllegalArgumentException(MSG_DUPLICATE_NAME, e);
-		}
+		jdbcTemplate.update(
+				"INSERT INTO TEXT_ANALYZER (ID, ETAG, NAME, DESCRIPTION, ORGANIZATION_NAME, SETTINGS,"
+				+ " CREATED_BY, CREATED_ON, MODIFIED_BY, MODIFIED_ON)"
+				+ " VALUES (?, UUID(), ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))",
+				id,
+				analyzer.getName(),
+				analyzer.getDescription(),
+				analyzer.getOrganizationName(),
+				JDOSecondaryPropertyUtils.createJSONFromObject(analyzer.getSettings()),
+				userId,
+				userId
+		);
 
 		return get(id).orElseThrow(() -> new IllegalStateException("Failed to create TextAnalyzer"));
 	}
@@ -105,20 +98,15 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 			throw new ConflictingUpdateException("TextAnalyzer was updated since last fetched. Please re-fetch and try again.");
 		}
 
-		int updated;
-		try {
-			updated = jdbcTemplate.update(
-					"UPDATE TEXT_ANALYZER SET ETAG = UUID(), NAME = ?, DESCRIPTION = ?, SETTINGS = ?,"
-					+ " MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
-					analyzer.getName(),
-					analyzer.getDescription(),
-					JDOSecondaryPropertyUtils.createJSONFromObject(analyzer.getSettings()),
-					userId,
-					id
-			);
-		} catch (DuplicateKeyException e) {
-			throw new IllegalArgumentException(MSG_DUPLICATE_NAME, e);
-		}
+		int updated = jdbcTemplate.update(
+				"UPDATE TEXT_ANALYZER SET ETAG = UUID(), NAME = ?, DESCRIPTION = ?, SETTINGS = ?,"
+				+ " MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
+				analyzer.getName(),
+				analyzer.getDescription(),
+				JDOSecondaryPropertyUtils.createJSONFromObject(analyzer.getSettings()),
+				userId,
+				id
+		);
 
 		if (updated == 0) {
 			throw new NotFoundException("TextAnalyzer with id '" + analyzer.getId() + "' does not exist.");

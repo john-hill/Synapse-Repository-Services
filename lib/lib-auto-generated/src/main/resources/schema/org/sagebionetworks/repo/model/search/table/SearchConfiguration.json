@@ -1,5 +1,5 @@
 {
-	"description": "A reusable search configuration resource. Bundles synonym sets, column analyzer overrides, and a default analyzer. Can be associated with projects or folders via the Project Settings framework for inheritance.",
+	"description": "A reusable search configuration resource. Bundles synonym sets, column analyzer overrides, and a default analyzer. Bind to any entity in the hierarchy (entity, folder, or project) to define inherited search configuration.",
 	"properties": {
 		"id": {
 			"type": "string",

@@ -1383,6 +1383,9 @@ public class UrlHelpers {
 	public static final String SEARCH_CONFIGURATION_ID = SEARCH_CONFIGURATION + "/{searchConfigurationId}";
 	public static final String SEARCH_CONFIGURATION_LIST = SEARCH_CONFIGURATION + "/list";
 
+	// Search - Configuration Bindings
+	public static final String ENTITY_SEARCH_CONFIG_BINDING = "/entity/{entityId}/searchconfig/binding";
+
 	// Search - Query and Autocomplete
 	public static final String SEARCH_QUERY_ASYNC_START = "/search/query/async/start";
 	public static final String SEARCH_QUERY_ASYNC_GET = "/search/query/async/get/{asyncToken}";

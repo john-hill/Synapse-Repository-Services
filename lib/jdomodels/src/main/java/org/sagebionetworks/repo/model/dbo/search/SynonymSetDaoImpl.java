@@ -11,9 +11,14 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_N
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_ORGANIZATION_NAME;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_RULES;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
@@ -24,7 +29,6 @@ import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -32,8 +36,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public class SynonymSetDaoImpl implements SynonymSetDao {
-
-	private static final String MSG_DUPLICATE_NAME = "A synonym set with the given name already exists in this organization.";
 
 	private static final RowMapper<SynonymSet> SYNONYM_SET_ROW_MAPPER = (rs, rowNum) -> new SynonymSet()
 		.setId(String.valueOf(rs.getLong(COL_SYNSET_ID)))
@@ -60,22 +62,18 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 	public SynonymSet create(Long createdBy, SynonymSet synonymSet) {
 		Long id = idGenerator.generateNewId(IdType.SYNONYM_SET_ID);
 
-		try {
-			jdbcTemplate.update(
-					"INSERT INTO SYNONYM_SET (ID, ETAG, ORGANIZATION_NAME, NAME, DESCRIPTION, RULES,"
-					+ " CREATED_BY, CREATED_ON, MODIFIED_BY, MODIFIED_ON)"
-					+ " VALUES (?, UUID(), ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))",
-					id,
-					synonymSet.getOrganizationName(),
-					synonymSet.getName(),
-					synonymSet.getDescription(),
-					synonymSet.getRules() == null ? "[]" : JDOSecondaryPropertyUtils.writeEntityListToJson(synonymSet.getRules()),
-					createdBy,
-					createdBy
-			);
-		} catch (DuplicateKeyException e) {
-			throw new IllegalArgumentException(MSG_DUPLICATE_NAME, e);
-		}
+		jdbcTemplate.update(
+				"INSERT INTO SYNONYM_SET (ID, ETAG, ORGANIZATION_NAME, NAME, DESCRIPTION, RULES,"
+				+ " CREATED_BY, CREATED_ON, MODIFIED_BY, MODIFIED_ON)"
+				+ " VALUES (?, UUID(), ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))",
+				id,
+				synonymSet.getOrganizationName(),
+				synonymSet.getName(),
+				synonymSet.getDescription(),
+				synonymSet.getRules() == null ? "[]" : JDOSecondaryPropertyUtils.writeEntityListToJson(synonymSet.getRules()),
+				createdBy,
+				createdBy
+		);
 
 		return get(id.toString()).orElseThrow(() -> new IllegalStateException("The synonym set was not created."));
 	}
@@ -100,22 +98,18 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 			throw new ConflictingUpdateException("SynonymSet was updated since last fetched. Please re-fetch and try again.");
 		}
 
-		try {
-			int updated = jdbcTemplate.update(
-					"UPDATE SYNONYM_SET SET ETAG = UUID(), NAME = ?, DESCRIPTION = ?, RULES = ?,"
-					+ " MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
-					synonymSet.getName(),
-					synonymSet.getDescription(),
-					synonymSet.getRules() == null ? "[]" : JDOSecondaryPropertyUtils.writeEntityListToJson(synonymSet.getRules()),
-					modifiedBy,
-					Long.parseLong(synonymSet.getId())
-			);
+		int updated = jdbcTemplate.update(
+				"UPDATE SYNONYM_SET SET ETAG = UUID(), NAME = ?, DESCRIPTION = ?, RULES = ?,"
+				+ " MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
+				synonymSet.getName(),
+				synonymSet.getDescription(),
+				synonymSet.getRules() == null ? "[]" : JDOSecondaryPropertyUtils.writeEntityListToJson(synonymSet.getRules()),
+				modifiedBy,
+				Long.parseLong(synonymSet.getId())
+		);
 
-			if (updated == 0) {
-				throw new NotFoundException("SynonymSet with id '" + synonymSet.getId() + "' does not exist.");
-			}
-		} catch (DuplicateKeyException e) {
-			throw new IllegalArgumentException(MSG_DUPLICATE_NAME, e);
+		if (updated == 0) {
+			throw new NotFoundException("SynonymSet with id '" + synonymSet.getId() + "' does not exist.");
 		}
 
 		return get(synonymSet.getId()).orElseThrow(() -> new IllegalStateException("The synonym set was not updated."));
@@ -154,6 +148,26 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 		} catch (EmptyResultDataAccessException e) {
 			return Optional.empty();
 		}
+	}
+
+	@Override
+	public List<String> findNonExistentIds(List<String> ids) {
+		if (ids == null || ids.isEmpty()) {
+			return Collections.emptyList();
+		}
+		List<Long> longIds = ids.stream().map(Long::parseLong).collect(Collectors.toList());
+		String placeholders = longIds.stream().map(i -> "?").collect(Collectors.joining(","));
+		List<Long> found = jdbcTemplate.queryForList(
+				"SELECT ID FROM SYNONYM_SET WHERE ID IN (" + placeholders + ")",
+				Long.class, longIds.toArray());
+		Set<Long> foundSet = new HashSet<>(found);
+		List<String> missing = new ArrayList<>();
+		for (Long id : longIds) {
+			if (!foundSet.contains(id)) {
+				missing.add(String.valueOf(id));
+			}
+		}
+		return missing;
 	}
 
 	@Override

@@ -23,6 +23,7 @@ import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.schema.Organization;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
+import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
@@ -124,16 +125,6 @@ public class SearchConfigurationDaoImplAutowiredTest {
 		Optional<SearchConfiguration> result = searchConfigurationDao.get("999999");
 
 		assertFalse(result.isPresent());
-	}
-
-	@Test
-	public void testCreateWithDuplicateNameInSameOrg() {
-		searchConfigurationDao.create(adminUserId, newConfig(org1Name, "duplicate-name", "First"));
-
-		SearchConfiguration second = newConfig(org1Name, "duplicate-name", "Second");
-
-		// call under test
-		assertThrows(IllegalArgumentException.class, () -> searchConfigurationDao.create(adminUserId, second));
 	}
 
 	@Test
@@ -303,45 +294,6 @@ public class SearchConfigurationDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testUniquenessConstraintWithMaxLengthNames() {
-		// ORGANIZATION_NAME is varchar(250) ascii, NAME is varchar(256).
-		char[] orgChars = new char[250];
-		java.util.Arrays.fill(orgChars, 'o');
-		String maxOrgName = new String(orgChars);
-		Organization maxOrg = organizationDao.createOrganization(maxOrgName, adminUserId);
-		String maxOrgId = maxOrg.getId();
-
-		try {
-			char[] nameChars = new char[256];
-			java.util.Arrays.fill(nameChars, 'a');
-			String nameA = new String(nameChars);
-			nameChars[255] = 'b';
-			String nameB = new String(nameChars);
-
-			SearchConfiguration createdA = searchConfigurationDao.create(adminUserId, newConfig(maxOrgName, nameA, "desc-a"));
-			SearchConfiguration createdB = searchConfigurationDao.create(adminUserId, newConfig(maxOrgName, nameB, "desc-b"));
-
-			// Verify each config retained its own data (not silently overwritten by index truncation)
-			SearchConfiguration fetchedA = searchConfigurationDao.get(createdA.getId()).get();
-			assertEquals(nameA, fetchedA.getName());
-			assertEquals("desc-a", fetchedA.getDescription());
-			assertEquals(maxOrgName, fetchedA.getOrganizationName());
-
-			SearchConfiguration fetchedB = searchConfigurationDao.get(createdB.getId()).get();
-			assertEquals(nameB, fetchedB.getName());
-			assertEquals("desc-b", fetchedB.getDescription());
-			assertEquals(maxOrgName, fetchedB.getOrganizationName());
-
-			// call under test
-			assertThrows(IllegalArgumentException.class,
-					() -> searchConfigurationDao.create(adminUserId, newConfig(maxOrgName, nameA, null)));
-		} finally {
-			searchConfigurationDao.truncateAll();
-			organizationDao.deleteOrganization(maxOrgId);
-		}
-	}
-
-	@Test
 	public void testTruncateAll() {
 		searchConfigurationDao.create(adminUserId, newConfig(org1Name, "truncate-a", null));
 		searchConfigurationDao.create(adminUserId, newConfig(org1Name, "truncate-b", null));
@@ -351,6 +303,89 @@ public class SearchConfigurationDaoImplAutowiredTest {
 		searchConfigurationDao.truncateAll();
 
 		assertEquals(0, searchConfigurationDao.listAll(10, 0).size());
+	}
+
+	// --- Binding tests ---
+
+	@Test
+	public void testBindSearchConfigToObjectWithNewBinding() {
+		SearchConfiguration config = searchConfigurationDao.create(adminUserId, newConfig(org1Name, "bind-test", null));
+		Long configId = Long.parseLong(config.getId());
+		Long objectId = 999L;
+
+		// call under test
+		searchConfigurationDao.bindSearchConfigToObject(configId, objectId, "entity", adminUserId);
+
+		Optional<SearchConfigBinding> result = searchConfigurationDao.getSearchConfigBindingForObject(objectId, "entity");
+		assertTrue(result.isPresent());
+		SearchConfigBinding binding = result.get();
+		assertNotNull(binding.getBindId());
+		assertEquals(config.getId(), binding.getSearchConfigurationId());
+		assertEquals(String.valueOf(objectId), binding.getObjectId());
+		assertEquals("entity", binding.getObjectType());
+		assertEquals(adminUserId.toString(), binding.getCreatedBy());
+		assertNotNull(binding.getCreatedOn());
+	}
+
+	@Test
+	public void testBindSearchConfigToObjectWithReplacesExisting() {
+		SearchConfiguration configA = searchConfigurationDao.create(adminUserId, newConfig(org1Name, "bind-replace-a", null));
+		SearchConfiguration configB = searchConfigurationDao.create(adminUserId, newConfig(org1Name, "bind-replace-b", null));
+		Long objectId = 888L;
+
+		searchConfigurationDao.bindSearchConfigToObject(Long.parseLong(configA.getId()), objectId, "entity", adminUserId);
+		Optional<SearchConfigBinding> first = searchConfigurationDao.getSearchConfigBindingForObject(objectId, "entity");
+		assertEquals(configA.getId(), first.get().getSearchConfigurationId());
+
+		// call under test
+		searchConfigurationDao.bindSearchConfigToObject(Long.parseLong(configB.getId()), objectId, "entity", adminUserId);
+
+		Optional<SearchConfigBinding> result = searchConfigurationDao.getSearchConfigBindingForObject(objectId, "entity");
+		assertTrue(result.isPresent());
+		assertEquals(configB.getId(), result.get().getSearchConfigurationId());
+		assertNotEquals(first.get().getBindId(), result.get().getBindId());
+	}
+
+	@Test
+	public void testGetSearchConfigBindingForObjectWithNoBinding() {
+		// call under test
+		Optional<SearchConfigBinding> result = searchConfigurationDao.getSearchConfigBindingForObject(777L, "entity");
+
+		assertFalse(result.isPresent());
+	}
+
+	@Test
+	public void testClearSearchConfigBindingWithExistingBinding() {
+		SearchConfiguration config = searchConfigurationDao.create(adminUserId, newConfig(org1Name, "bind-clear", null));
+		Long objectId = 666L;
+		searchConfigurationDao.bindSearchConfigToObject(Long.parseLong(config.getId()), objectId, "entity", adminUserId);
+		assertTrue(searchConfigurationDao.getSearchConfigBindingForObject(objectId, "entity").isPresent());
+
+		// call under test
+		searchConfigurationDao.clearSearchConfigBinding(objectId, "entity");
+
+		assertFalse(searchConfigurationDao.getSearchConfigBindingForObject(objectId, "entity").isPresent());
+	}
+
+	@Test
+	public void testClearSearchConfigBindingWithNoBinding() {
+		// call under test — should be idempotent (no error)
+		searchConfigurationDao.clearSearchConfigBinding(555L, "entity");
+
+		assertFalse(searchConfigurationDao.getSearchConfigBindingForObject(555L, "entity").isPresent());
+	}
+
+	@Test
+	public void testBindSearchConfigToObjectWithNonExistentConfig() {
+		Long nonExistentConfigId = 999999L;
+		Long objectId = 444L;
+
+		// call under test — no FK constraint, so this should succeed
+		searchConfigurationDao.bindSearchConfigToObject(nonExistentConfigId, objectId, "entity", adminUserId);
+
+		Optional<SearchConfigBinding> result = searchConfigurationDao.getSearchConfigBindingForObject(objectId, "entity");
+		assertTrue(result.isPresent());
+		assertEquals(String.valueOf(nonExistentConfigId), result.get().getSearchConfigurationId());
 	}
 
 	private SearchConfiguration newConfig(String organizationName, String name, String description) {

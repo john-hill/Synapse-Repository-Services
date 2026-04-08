@@ -28,7 +28,6 @@ import org.sagebionetworks.repo.model.principal.PrincipalAliasDAO;
 import org.sagebionetworks.repo.model.project.ExternalS3StorageLocationSetting;
 import org.sagebionetworks.repo.model.project.ProjectSetting;
 import org.sagebionetworks.repo.model.project.ProjectSettingsType;
-import org.sagebionetworks.repo.model.project.SearchConfigurationListSetting;
 import org.sagebionetworks.repo.model.project.StorageLocationSetting;
 import org.sagebionetworks.repo.model.project.StsStorageLocationSetting;
 import org.sagebionetworks.repo.model.project.UploadDestinationListSetting;
@@ -67,8 +66,7 @@ public class ProjectSettingsManagerImpl implements ProjectSettingsManager {
 	private ProjectStorageLimitsManager storageLimitsManager;
 
 	private static final Map<Class<? extends ProjectSetting>, ProjectSettingsType> TYPE_MAP = ImmutableMap.of(
-			UploadDestinationListSetting.class, ProjectSettingsType.upload,
-			SearchConfigurationListSetting.class, ProjectSettingsType.search
+			UploadDestinationListSetting.class, ProjectSettingsType.upload
 	);
 
 	private List<StorageLocationProcessor<? extends StorageLocationSetting>> storageLocationProcessors;
@@ -293,10 +291,6 @@ public class ProjectSettingsManagerImpl implements ProjectSettingsManager {
 		ValidateArgument.required(setting.getSettingsType(), "settingsType");
 		if (setting instanceof UploadDestinationListSetting) {
 			validateUploadDestinationListSetting((UploadDestinationListSetting) setting, currentUser);
-		} else if (setting instanceof SearchConfigurationListSetting) {
-			SearchConfigurationListSetting searchSetting = (SearchConfigurationListSetting) setting;
-			ValidateArgument.required(searchSetting.getSearchConfigurationId(), "searchConfigurationId");
-			ValidateArgument.requiredNotBlank(searchSetting.getSearchConfigurationId(), "searchConfigurationId");
 		} else {
 			ValidateArgument.failRequirement("Cannot handle project setting of type " + setting.getClass().getName());
 		}

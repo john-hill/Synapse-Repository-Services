@@ -102,16 +102,6 @@ public class SynonymSetDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testCreateWithDuplicateNameInSameOrg() {
-		synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "duplicate-name", "First"));
-
-		SynonymSet second = newSynonymSet(org1Name, "duplicate-name", "Second");
-
-		// call under test
-		assertThrows(IllegalArgumentException.class, () -> synonymSetDao.create(adminUserId, second));
-	}
-
-	@Test
 	public void testUpdateWithModifiedRulesAndDescription() {
 		SynonymRule originalRule = new SynonymRule();
 		originalRule.setRuleType(SynonymRuleType.EQUIVALENT);
@@ -249,64 +239,6 @@ public class SynonymSetDaoImplAutowiredTest {
 		assertEquals(org1SetB.getId(), allResults.get(1).getId());
 		assertEquals(org2SetA.getId(), allResults.get(2).getId());
 		assertEquals(org2SetB.getId(), allResults.get(3).getId());
-	}
-
-	@Test
-	public void testUniquenessConstraintWithMaxLengthNames() {
-		// ORGANIZATION_NAME is varchar(250) ascii, NAME is varchar(256).
-		// Create an org with a 250-char name to test max-length unique key behavior.
-		char[] orgChars = new char[250];
-		java.util.Arrays.fill(orgChars, 'o');
-		String maxOrgName = new String(orgChars);
-		Organization maxOrg = organizationDao.createOrganization(maxOrgName, adminUserId);
-		String maxOrgId = maxOrg.getId();
-
-		try {
-			// Create two sets whose 256-char names differ only in the last character
-			char[] nameChars = new char[256];
-			java.util.Arrays.fill(nameChars, 'a');
-			String nameA = new String(nameChars);
-			nameChars[255] = 'b';
-			String nameB = new String(nameChars);
-
-			SynonymRule ruleA = new SynonymRule();
-			ruleA.setRuleType(SynonymRuleType.EQUIVALENT);
-			ruleA.setTerms(Arrays.asList("cancer", "tumor"));
-
-			SynonymRule ruleB = new SynonymRule();
-			ruleB.setRuleType(SynonymRuleType.EXPLICIT);
-			ruleB.setTerms(Arrays.asList("heart", "cardiac"));
-
-			SynonymSet setA = newSynonymSet(maxOrgName, nameA, "desc-a");
-			setA.setRules(Arrays.asList(ruleA));
-			SynonymSet setB = newSynonymSet(maxOrgName, nameB, "desc-b");
-			setB.setRules(Arrays.asList(ruleB));
-
-			// Both should succeed — they are distinct names
-			SynonymSet createdA = synonymSetDao.create(adminUserId, setA);
-			SynonymSet createdB = synonymSetDao.create(adminUserId, setB);
-
-			// Verify each set retained its own data (not silently overwritten by index truncation)
-			SynonymSet fetchedA = synonymSetDao.get(createdA.getId()).get();
-			assertEquals(nameA, fetchedA.getName());
-			assertEquals("desc-a", fetchedA.getDescription());
-			assertEquals(maxOrgName, fetchedA.getOrganizationName());
-			assertEquals(Arrays.asList(ruleA), fetchedA.getRules());
-
-			SynonymSet fetchedB = synonymSetDao.get(createdB.getId()).get();
-			assertEquals(nameB, fetchedB.getName());
-			assertEquals("desc-b", fetchedB.getDescription());
-			assertEquals(maxOrgName, fetchedB.getOrganizationName());
-			assertEquals(Arrays.asList(ruleB), fetchedB.getRules());
-
-			// A duplicate of the first name should fail
-			// call under test
-			assertThrows(IllegalArgumentException.class,
-					() -> synonymSetDao.create(adminUserId, newSynonymSet(maxOrgName, nameA, null)));
-		} finally {
-			synonymSetDao.truncateAll();
-			organizationDao.deleteOrganization(maxOrgId);
-		}
 	}
 
 	private SynonymSet newSynonymSet(String organizationName, String name, String description) {

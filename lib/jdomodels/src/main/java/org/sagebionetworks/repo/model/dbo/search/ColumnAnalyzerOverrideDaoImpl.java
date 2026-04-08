@@ -1,8 +1,13 @@
 package org.sagebionetworks.repo.model.dbo.search;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
@@ -13,7 +18,6 @@ import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -50,22 +54,18 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 	public ColumnAnalyzerOverride create(Long createdBy, ColumnAnalyzerOverride override) {
 		Long id = idGenerator.generateNewId(IdType.COLUMN_ANALYZER_OVERRIDE_ID);
 
-		try {
-			jdbcTemplate.update(
-					"INSERT INTO COLUMN_ANALYZER_OVERRIDE (ID, ETAG, ORGANIZATION_NAME, NAME, DESCRIPTION,"
-					+ " OVERRIDES, CREATED_BY, CREATED_ON, MODIFIED_BY, MODIFIED_ON)"
-					+ " VALUES (?, UUID(), ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))",
-					id,
-					override.getOrganizationName(),
-					override.getName(),
-					override.getDescription(),
-					override.getOverrides() == null ? "[]" : JDOSecondaryPropertyUtils.writeEntityListToJson(override.getOverrides()),
-					createdBy,
-					createdBy
-			);
-		} catch (DuplicateKeyException e) {
-			handleDuplicateKeyException(e);
-		}
+		jdbcTemplate.update(
+				"INSERT INTO COLUMN_ANALYZER_OVERRIDE (ID, ETAG, ORGANIZATION_NAME, NAME, DESCRIPTION,"
+				+ " OVERRIDES, CREATED_BY, CREATED_ON, MODIFIED_BY, MODIFIED_ON)"
+				+ " VALUES (?, UUID(), ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))",
+				id,
+				override.getOrganizationName(),
+				override.getName(),
+				override.getDescription(),
+				override.getOverrides() == null ? "[]" : JDOSecondaryPropertyUtils.writeEntityListToJson(override.getOverrides()),
+				createdBy,
+				createdBy
+		);
 
 		return get(String.valueOf(id))
 				.orElseThrow(() -> new IllegalStateException("The column analyzer override was not created."));
@@ -92,19 +92,15 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 					"The column analyzer override was updated since you last fetched it, please fetch it again and reapply your changes.");
 		}
 
-		try {
-			jdbcTemplate.update(
-					"UPDATE COLUMN_ANALYZER_OVERRIDE SET ETAG = UUID(), NAME = ?, DESCRIPTION = ?,"
-					+ " OVERRIDES = ?, MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
-					override.getName(),
-					override.getDescription(),
-					override.getOverrides() == null ? "[]" : JDOSecondaryPropertyUtils.writeEntityListToJson(override.getOverrides()),
-					modifiedBy,
-					Long.parseLong(override.getId())
-			);
-		} catch (DuplicateKeyException e) {
-			handleDuplicateKeyException(e);
-		}
+		jdbcTemplate.update(
+				"UPDATE COLUMN_ANALYZER_OVERRIDE SET ETAG = UUID(), NAME = ?, DESCRIPTION = ?,"
+				+ " OVERRIDES = ?, MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
+				override.getName(),
+				override.getDescription(),
+				override.getOverrides() == null ? "[]" : JDOSecondaryPropertyUtils.writeEntityListToJson(override.getOverrides()),
+				modifiedBy,
+				Long.parseLong(override.getId())
+		);
 
 		return get(override.getId())
 				.orElseThrow(() -> new IllegalStateException("The column analyzer override was not updated."));
@@ -135,6 +131,26 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 	}
 
 	@Override
+	public List<String> findNonExistentIds(List<String> ids) {
+		if (ids == null || ids.isEmpty()) {
+			return Collections.emptyList();
+		}
+		List<Long> longIds = ids.stream().map(Long::parseLong).collect(Collectors.toList());
+		String placeholders = longIds.stream().map(i -> "?").collect(Collectors.joining(","));
+		List<Long> found = jdbcTemplate.queryForList(
+				"SELECT ID FROM COLUMN_ANALYZER_OVERRIDE WHERE ID IN (" + placeholders + ")",
+				Long.class, longIds.toArray());
+		Set<Long> foundSet = new HashSet<>(found);
+		List<String> missing = new ArrayList<>();
+		for (Long id : longIds) {
+			if (!foundSet.contains(id)) {
+				missing.add(String.valueOf(id));
+			}
+		}
+		return missing;
+	}
+
+	@Override
 	@WriteTransaction
 	public void truncateAll() {
 		jdbcTemplate.update("DELETE FROM COLUMN_ANALYZER_OVERRIDE WHERE ID > -1");
@@ -150,12 +166,5 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 		}
 	}
 
-	private static void handleDuplicateKeyException(DuplicateKeyException e) {
-		if (e.getMessage() != null && e.getMessage().contains("UNIQUE_CAO_ORG_NAME")) {
-			throw new IllegalArgumentException(
-					"A column analyzer override with the same name already exists in this organization.", e);
-		}
-		throw e;
-	}
 
 }

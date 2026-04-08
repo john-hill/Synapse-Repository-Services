@@ -3,8 +3,10 @@ package org.sagebionetworks.repo.service.search;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.search.SearchConfigurationManager;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest;
 import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsRequest;
 import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsResponse;
+import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.springframework.stereotype.Service;
 
@@ -38,14 +40,26 @@ public class SearchConfigurationServiceImpl implements SearchConfigurationServic
 	}
 
 	@Override
-	public void delete(Long userId, String id) {
-		UserInfo user = userManager.getUserInfo(userId);
-		searchConfigurationManager.delete(user, id);
-	}
-
-	@Override
 	public ListSearchConfigurationsResponse list(Long userId, ListSearchConfigurationsRequest request) {
 		UserInfo user = userManager.getUserInfo(userId);
 		return searchConfigurationManager.list(user, request);
+	}
+
+	@Override
+	public SearchConfigBinding bindSearchConfigToEntity(Long userId, BindSearchConfigToEntityRequest request) {
+		UserInfo user = userManager.getUserInfo(userId);
+		return searchConfigurationManager.bindSearchConfigToEntity(user, request);
+	}
+
+	@Override
+	public SearchConfigBinding getSearchConfigBinding(Long userId, String entityId) {
+		UserInfo user = userManager.getUserInfo(userId);
+		return searchConfigurationManager.getSearchConfigBinding(user, entityId);
+	}
+
+	@Override
+	public void clearSearchConfigBinding(Long userId, String entityId) {
+		UserInfo user = userManager.getUserInfo(userId);
+		searchConfigurationManager.clearSearchConfigBinding(user, entityId);
 	}
 }

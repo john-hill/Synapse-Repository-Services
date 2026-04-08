@@ -1,7 +1,9 @@
 package org.sagebionetworks.repo.service.search;
 
+import org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest;
 import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsRequest;
 import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsResponse;
+import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 
 public interface SearchConfigurationService {
@@ -12,7 +14,11 @@ public interface SearchConfigurationService {
 
 	SearchConfiguration update(Long userId, SearchConfiguration request);
 
-	void delete(Long userId, String id);
-
 	ListSearchConfigurationsResponse list(Long userId, ListSearchConfigurationsRequest request);
+
+	SearchConfigBinding bindSearchConfigToEntity(Long userId, BindSearchConfigToEntityRequest request);
+
+	SearchConfigBinding getSearchConfigBinding(Long userId, String entityId);
+
+	void clearSearchConfigBinding(Long userId, String entityId);
 }

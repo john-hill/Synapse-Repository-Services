@@ -93,9 +93,10 @@ public enum IdType {
 	TEXT_ANALYZER_ID(1000L),
 	COLUMN_ANALYZER_OVERRIDE_ID(null),
 	SEARCH_CONFIGURATION_ID(null),
+	SEARCH_CONFIG_BINDING_ID(null),
 	SYNONYM_SET_ID(null)
 	;
-	
+
 	Long startingId;
 
 	/**

@@ -2,20 +2,15 @@ package org.sagebionetworks;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.client.SynapseAdminClient;
 import org.sagebionetworks.client.exceptions.SynapseException;
-import org.sagebionetworks.client.exceptions.SynapseNotFoundException;
 import org.sagebionetworks.repo.model.search.table.ListSynonymSetsRequest;
 import org.sagebionetworks.repo.model.search.table.ListSynonymSetsResponse;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
@@ -28,7 +23,6 @@ import org.sagebionetworks.repo.model.search.table.SynonymSet;
 public class ITSynonymSetTest {
 
 	private final SynapseAdminClient adminSynapse;
-	private final List<String> toDelete = new ArrayList<>();
 
 	public ITSynonymSetTest(SynapseAdminClient adminSynapse) {
 		this.adminSynapse = adminSynapse;
@@ -37,17 +31,6 @@ public class ITSynonymSetTest {
 	@BeforeEach
 	public void before() throws SynapseException {
 		adminSynapse.clearAllLocks();
-	}
-
-	@AfterEach
-	public void after() {
-		for (String id : toDelete) {
-			try {
-				adminSynapse.deleteSynonymSet(id);
-			} catch (SynapseException e) {
-				// ignore
-			}
-		}
 	}
 
 	@Test
@@ -73,7 +56,6 @@ public class ITSynonymSetTest {
 		assertNotNull(created.getEtag());
 		assertEquals("IT_TEST_SYNONYMS", created.getName());
 		assertEquals(1, created.getRules().size());
-		toDelete.add(created.getId());
 
 		// call under test
 		SynonymSet fetched = adminSynapse.getSynonymSet(created.getId());
@@ -102,12 +84,5 @@ public class ITSynonymSetTest {
 		ListSynonymSetsResponse listResponse = adminSynapse.listSynonymSets(listRequest);
 		assertNotNull(listResponse.getResults());
 		assertTrue(listResponse.getResults().stream().anyMatch(s -> created.getId().equals(s.getId())));
-
-		// call under test
-		adminSynapse.deleteSynonymSet(created.getId());
-		toDelete.remove(created.getId());
-
-		// call under test
-		assertThrows(SynapseNotFoundException.class, () -> adminSynapse.getSynonymSet(created.getId()));
 	}
 }

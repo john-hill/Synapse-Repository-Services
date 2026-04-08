@@ -2,9 +2,9 @@ package org.sagebionetworks.repo.manager.search;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Optional;
@@ -14,11 +14,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.sagebionetworks.repo.manager.ProjectSettingsManager;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.dbo.search.SearchConfigurationDao;
-import org.sagebionetworks.repo.model.project.ProjectSettingsType;
-import org.sagebionetworks.repo.model.project.SearchConfigurationListSetting;
+import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 
 @ExtendWith(MockitoExtension.class)
@@ -28,7 +27,7 @@ public class SearchConfigurationResolverTest {
 	private SearchConfigurationDao mockSearchConfigurationDao;
 
 	@Mock
-	private ProjectSettingsManager mockProjectSettingsManager;
+	private NodeDAO mockNodeDAO;
 
 	private SearchConfigurationResolver resolver;
 
@@ -36,7 +35,7 @@ public class SearchConfigurationResolverTest {
 
 	@BeforeEach
 	public void before() {
-		resolver = new SearchConfigurationResolver(mockSearchConfigurationDao, mockProjectSettingsManager);
+		resolver = new SearchConfigurationResolver(mockSearchConfigurationDao, mockNodeDAO);
 		user = new UserInfo(false);
 		user.setId(123L);
 	}
@@ -51,16 +50,17 @@ public class SearchConfigurationResolverTest {
 
 		assertEquals(Optional.of(config), result);
 		verify(mockSearchConfigurationDao).get("config-1");
+		verifyZeroInteractions(mockNodeDAO);
 	}
 
 	@Test
-	public void testResolveWithProjectSettingsFallback() {
-		SearchConfigurationListSetting setting = new SearchConfigurationListSetting();
-		setting.setSearchConfigurationId("config-2");
+	public void testResolveWithBindingFallback() {
+		SearchConfigBinding binding = new SearchConfigBinding();
+		binding.setSearchConfigurationId("config-2");
 
-		when(mockProjectSettingsManager.getProjectSettingForNode(
-			eq(user), eq("syn456"), eq(ProjectSettingsType.search), eq(SearchConfigurationListSetting.class)
-		)).thenReturn(Optional.of(setting));
+		when(mockNodeDAO.getEntityIdOfFirstBoundSearchConfig(456L)).thenReturn(Optional.of(456L));
+		when(mockSearchConfigurationDao.getSearchConfigBindingForObject(456L, "entity"))
+			.thenReturn(Optional.of(binding));
 
 		SearchConfiguration config = new SearchConfiguration();
 		when(mockSearchConfigurationDao.get("config-2")).thenReturn(Optional.of(config));
@@ -74,9 +74,7 @@ public class SearchConfigurationResolverTest {
 
 	@Test
 	public void testResolveWithNoConfigReturnsEmpty() {
-		when(mockProjectSettingsManager.getProjectSettingForNode(
-			eq(user), eq("syn456"), eq(ProjectSettingsType.search), eq(SearchConfigurationListSetting.class)
-		)).thenReturn(Optional.empty());
+		when(mockNodeDAO.getEntityIdOfFirstBoundSearchConfig(456L)).thenReturn(Optional.empty());
 
 		// call under test
 		Optional<SearchConfiguration> result = resolver.resolve(user, null, "syn456");
@@ -93,5 +91,50 @@ public class SearchConfigurationResolverTest {
 
 		assertTrue(result.isEmpty());
 		verify(mockSearchConfigurationDao).get("config-missing");
+	}
+
+	@Test
+	public void testResolveWithNullParentId() {
+		// call under test
+		Optional<SearchConfiguration> result = resolver.resolve(user, null, null);
+
+		assertTrue(result.isEmpty());
+		verifyZeroInteractions(mockNodeDAO);
+	}
+
+	@Test
+	public void testResolveWithEmptyExplicitId() {
+		when(mockNodeDAO.getEntityIdOfFirstBoundSearchConfig(456L)).thenReturn(Optional.empty());
+
+		// call under test
+		Optional<SearchConfiguration> result = resolver.resolve(user, "", "syn456");
+
+		assertTrue(result.isEmpty());
+		verify(mockNodeDAO).getEntityIdOfFirstBoundSearchConfig(456L);
+	}
+
+	@Test
+	public void testResolveWithBindingButConfigDeleted() {
+		SearchConfigBinding binding = new SearchConfigBinding();
+		binding.setSearchConfigurationId("config-deleted");
+
+		when(mockNodeDAO.getEntityIdOfFirstBoundSearchConfig(456L)).thenReturn(Optional.of(456L));
+		when(mockSearchConfigurationDao.getSearchConfigBindingForObject(456L, "entity"))
+			.thenReturn(Optional.of(binding));
+		when(mockSearchConfigurationDao.get("config-deleted")).thenReturn(Optional.empty());
+
+		// call under test
+		Optional<SearchConfiguration> result = resolver.resolve(user, null, "syn456");
+
+		assertTrue(result.isEmpty());
+	}
+
+	@Test
+	public void testResolveWithEmptyParentId() {
+		// call under test
+		Optional<SearchConfiguration> result = resolver.resolve(user, null, "");
+
+		assertTrue(result.isEmpty());
+		verifyZeroInteractions(mockNodeDAO);
 	}
 }

@@ -4,6 +4,7 @@ import static org.sagebionetworks.repo.model.oauth.OAuthScope.modify;
 import static org.sagebionetworks.repo.model.oauth.OAuthScope.view;
 
 import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesRequest;
 import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesResponse;
@@ -13,6 +14,7 @@ import org.sagebionetworks.repo.model.search.table.ListSynonymSetsRequest;
 import org.sagebionetworks.repo.model.search.table.ListSynonymSetsResponse;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
@@ -58,7 +60,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * <li><a href="${POST.search.text.analyzer}">POST /search/text/analyzer</a></li>
  * <li><a href="${GET.search.text.analyzer.id}">GET /search/text/analyzer/{id}</a></li>
  * <li><a href="${PUT.search.text.analyzer.id}">PUT /search/text/analyzer/{id}</a></li>
- * <li><a href="${DELETE.search.text.analyzer.id}">DELETE /search/text/analyzer/{id}</a></li>
  * <li><a href="${POST.search.text.analyzer.list}">POST /search/text/analyzer/list</a></li>
  * </ul>
  *
@@ -76,7 +77,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * <li><a href="${POST.search.column.analyzer.override}">POST /search/column/analyzer/override</a></li>
  * <li><a href="${GET.search.column.analyzer.override.columnAnalyzerOverrideId}">GET /search/column/analyzer/override/{columnAnalyzerOverrideId}</a></li>
  * <li><a href="${PUT.search.column.analyzer.override.columnAnalyzerOverrideId}">PUT /search/column/analyzer/override/{columnAnalyzerOverrideId}</a></li>
- * <li><a href="${DELETE.search.column.analyzer.override.columnAnalyzerOverrideId}">DELETE /search/column/analyzer/override/{columnAnalyzerOverrideId}</a></li>
  * <li><a href="${POST.search.column.analyzer.override.list}">POST /search/column/analyzer/override/list</a></li>
  * </ul>
  *
@@ -98,7 +98,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * <li><a href="${POST.search.synonym.set}">POST /search/synonym/set</a></li>
  * <li><a href="${GET.search.synonym.set.synonymSetId}">GET /search/synonym/set/{synonymSetId}</a></li>
  * <li><a href="${PUT.search.synonym.set.synonymSetId}">PUT /search/synonym/set/{synonymSetId}</a></li>
- * <li><a href="${DELETE.search.synonym.set.synonymSetId}">DELETE /search/synonym/set/{synonymSetId}</a></li>
  * <li><a href="${POST.search.synonym.set.list}">POST /search/synonym/set/list</a></li>
  * </ul>
  *
@@ -112,16 +111,26 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * <code>analysis</code> section of an OpenSearch index definition when a search index is created.
  * </p>
  * <p>
- * Attach a SearchConfiguration to a project by creating a
- * <a href="${org.sagebionetworks.repo.model.project.SearchConfigurationListSetting}">SearchConfigurationListSetting</a>
- * project setting that references the configuration's ID.
+ * Attach a SearchConfiguration to an entity (SearchIndex, Folder, or Project) by creating a binding.
+ * The effective configuration for any entity is resolved by walking up the entity hierarchy.
  * </p>
  * <ul>
  * <li><a href="${POST.search.configuration}">POST /search/configuration</a></li>
  * <li><a href="${GET.search.configuration.searchConfigurationId}">GET /search/configuration/{searchConfigurationId}</a></li>
  * <li><a href="${PUT.search.configuration.searchConfigurationId}">PUT /search/configuration/{searchConfigurationId}</a></li>
- * <li><a href="${DELETE.search.configuration.searchConfigurationId}">DELETE /search/configuration/{searchConfigurationId}</a></li>
  * <li><a href="${POST.search.configuration.list}">POST /search/configuration/list</a></li>
+ * </ul>
+ *
+ * <h6>Search Configuration Bindings</h6>
+ * <p>
+ * Bind a <a href="${org.sagebionetworks.repo.model.search.table.SearchConfiguration}">SearchConfiguration</a>
+ * to an entity. The effective configuration for any entity is resolved by walking up the hierarchy
+ * (entity → folder → project). Requires EDIT permission on the entity.
+ * </p>
+ * <ul>
+ * <li><a href="${PUT.entity.entityId.searchconfig.binding}">PUT /entity/{entityId}/searchconfig/binding</a></li>
+ * <li><a href="${GET.entity.entityId.searchconfig.binding}">GET /entity/{entityId}/searchconfig/binding</a></li>
+ * <li><a href="${DELETE.entity.entityId.searchconfig.binding}">DELETE /entity/{entityId}/searchconfig/binding</a></li>
  * </ul>
  *
  * <h6>Authorization</h6>
@@ -137,8 +146,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * <p>
  * All search management objects belong to an
  * <a href="${org.sagebionetworks.repo.model.schema.Organization}">Organization</a> identified by
- * <code>organizationName</code>. The organization cannot be changed after creation. Names must be
- * unique within an Organization &mdash; attempting to create a duplicate returns a 400 error.
+ * <code>organizationName</code>. The organization cannot be changed after creation.
  * </p>
  */
 @ControllerInfo(displayName = "Search Management Services", path = "repo/v1")
@@ -242,33 +250,6 @@ public class SearchManagementController {
 	}
 
 	/**
-	 * Delete a <a href="${org.sagebionetworks.repo.model.search.table.TextAnalyzer}">TextAnalyzer</a>.
-	 * <p>
-	 * The caller must be a Sage Bionetworks employee with
-	 * <a href="${org.sagebionetworks.repo.model.ACCESS_TYPE}">ACCESS_TYPE.DELETE</a>
-	 * permission on the Organization.
-	 * </p>
-	 * <p>
-	 * Deletion will fail if the text analyzer is still referenced by a
-	 * <a href="${org.sagebionetworks.repo.model.search.table.SearchConfiguration}">SearchConfiguration</a>
-	 * or <a href="${org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride}">ColumnAnalyzerOverride</a>.
-	 * Remove all references before deleting.
-	 * </p>
-	 *
-	 * @param userId The ID of the authenticated user.
-	 * @param id The ID of the text analyzer to delete.
-	 * @throws NotFoundException If no text analyzer exists with the given ID.
-	 */
-	@RequiredScope({ view, modify })
-	@ResponseStatus(HttpStatus.NO_CONTENT)
-	@RequestMapping(value = UrlHelpers.SEARCH_TEXT_ANALYZER_ID, method = RequestMethod.DELETE)
-	public void deleteTextAnalyzer(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
-			@PathVariable Long id) {
-		textAnalyzerService.delete(userId, id);
-	}
-
-	/**
 	 * List <a href="${org.sagebionetworks.repo.model.search.table.TextAnalyzer}">TextAnalyzer</a>
 	 * objects, optionally filtered by Organization.
 	 * <p>
@@ -300,10 +281,6 @@ public class SearchManagementController {
 	 * The caller must be a Sage Bionetworks employee with
 	 * <a href="${org.sagebionetworks.repo.model.ACCESS_TYPE}">ACCESS_TYPE.CREATE</a>
 	 * permission on the Organization.
-	 * </p>
-	 * <p>
-	 * The name must be unique within the Organization. If a column analyzer override with
-	 * the same name already exists in the Organization, a 400 error is returned.
 	 * </p>
 	 *
 	 * @param userId The ID of the authenticated user.
@@ -374,32 +351,6 @@ public class SearchManagementController {
 	}
 
 	/**
-	 * Delete a <a href="${org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride}">ColumnAnalyzerOverride</a>.
-	 * <p>
-	 * The caller must be a Sage Bionetworks employee with
-	 * <a href="${org.sagebionetworks.repo.model.ACCESS_TYPE}">ACCESS_TYPE.DELETE</a>
-	 * permission on the Organization.
-	 * </p>
-	 * <p>
-	 * Deletion will fail if the column analyzer override is still referenced by a
-	 * <a href="${org.sagebionetworks.repo.model.search.table.SearchConfiguration}">SearchConfiguration</a>.
-	 * Remove all references before deleting.
-	 * </p>
-	 *
-	 * @param userId The ID of the authenticated user.
-	 * @param columnAnalyzerOverrideId The ID of the column analyzer override to delete.
-	 * @throws NotFoundException If no column analyzer override exists with the given ID.
-	 */
-	@RequiredScope({ view, modify })
-	@ResponseStatus(HttpStatus.NO_CONTENT)
-	@RequestMapping(value = UrlHelpers.SEARCH_COLUMN_ANALYZER_OVERRIDE_ID, method = RequestMethod.DELETE)
-	public void deleteColumnAnalyzerOverride(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
-			@PathVariable String columnAnalyzerOverrideId) {
-		columnAnalyzerOverrideService.delete(userId, columnAnalyzerOverrideId);
-	}
-
-	/**
 	 * List <a href="${org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride}">ColumnAnalyzerOverride</a>
 	 * objects, optionally filtered by Organization.
 	 * <p>
@@ -431,10 +382,6 @@ public class SearchManagementController {
 	 * The caller must be a Sage Bionetworks employee with
 	 * <a href="${org.sagebionetworks.repo.model.ACCESS_TYPE}">ACCESS_TYPE.CREATE</a>
 	 * permission on the Organization.
-	 * </p>
-	 * <p>
-	 * The name must be unique within the Organization. If a synonym set with the same
-	 * name already exists in the Organization, a 400 error is returned.
 	 * </p>
 	 *
 	 * @param userId The ID of the authenticated user.
@@ -504,32 +451,6 @@ public class SearchManagementController {
 	}
 
 	/**
-	 * Delete a <a href="${org.sagebionetworks.repo.model.search.table.SynonymSet}">SynonymSet</a>.
-	 * <p>
-	 * The caller must be a Sage Bionetworks employee with
-	 * <a href="${org.sagebionetworks.repo.model.ACCESS_TYPE}">ACCESS_TYPE.DELETE</a>
-	 * permission on the Organization.
-	 * </p>
-	 * <p>
-	 * Deletion will fail if the synonym set is still referenced by a
-	 * <a href="${org.sagebionetworks.repo.model.search.table.SearchConfiguration}">SearchConfiguration</a>.
-	 * Remove all references before deleting.
-	 * </p>
-	 *
-	 * @param userId The ID of the authenticated user.
-	 * @param synonymSetId The ID of the synonym set to delete.
-	 * @throws NotFoundException If no synonym set exists with the given ID.
-	 */
-	@RequiredScope({ view, modify })
-	@ResponseStatus(HttpStatus.NO_CONTENT)
-	@RequestMapping(value = UrlHelpers.SEARCH_SYNONYM_SET_ID, method = RequestMethod.DELETE)
-	public void deleteSynonymSet(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
-			@PathVariable String synonymSetId) {
-		synonymSetService.delete(userId, synonymSetId);
-	}
-
-	/**
 	 * List <a href="${org.sagebionetworks.repo.model.search.table.SynonymSet}">SynonymSet</a>
 	 * objects, optionally filtered by Organization.
 	 * <p>
@@ -561,11 +482,6 @@ public class SearchManagementController {
 	 * The caller must be a Sage Bionetworks employee with
 	 * <a href="${org.sagebionetworks.repo.model.ACCESS_TYPE}">ACCESS_TYPE.CREATE</a>
 	 * permission on the Organization.
-	 * </p>
-	 * <p>
-	 * The name must be unique within the Organization. A SearchConfiguration can optionally
-	 * reference a default TextAnalyzer, one or more SynonymSets, and one or more
-	 * ColumnAnalyzerOverrides. All referenced objects must already exist.
 	 * </p>
 	 *
 	 * @param userId The ID of the authenticated user.
@@ -635,27 +551,6 @@ public class SearchManagementController {
 	}
 
 	/**
-	 * Delete a <a href="${org.sagebionetworks.repo.model.search.table.SearchConfiguration}">SearchConfiguration</a>.
-	 * <p>
-	 * The caller must be a Sage Bionetworks employee with
-	 * <a href="${org.sagebionetworks.repo.model.ACCESS_TYPE}">ACCESS_TYPE.DELETE</a>
-	 * permission on the Organization.
-	 * </p>
-	 *
-	 * @param userId The ID of the authenticated user.
-	 * @param searchConfigurationId The ID of the search configuration to delete.
-	 * @throws NotFoundException If no search configuration exists with the given ID.
-	 */
-	@RequiredScope({ view, modify })
-	@ResponseStatus(HttpStatus.NO_CONTENT)
-	@RequestMapping(value = UrlHelpers.SEARCH_CONFIGURATION_ID, method = RequestMethod.DELETE)
-	public void deleteSearchConfiguration(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
-			@PathVariable String searchConfigurationId) {
-		searchConfigurationService.delete(userId, searchConfigurationId);
-	}
-
-	/**
 	 * List <a href="${org.sagebionetworks.repo.model.search.table.SearchConfiguration}">SearchConfiguration</a>
 	 * objects, optionally filtered by Organization.
 	 * <p>
@@ -675,5 +570,66 @@ public class SearchManagementController {
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@RequestBody ListSearchConfigurationsRequest request) {
 		return searchConfigurationService.list(userId, request);
+	}
+
+	// ==================== Search Configuration Bindings ====================
+
+	/**
+	 * Bind a <a href="${org.sagebionetworks.repo.model.search.table.SearchConfiguration}">SearchConfiguration</a>
+	 * to an entity. The caller must have EDIT permission on the entity. Any existing binding on that
+	 * entity is replaced. The effective configuration for any entity is resolved by walking up the
+	 * hierarchy (entity → folder → project).
+	 *
+	 * @param userId The ID of the authenticated user.
+	 * @param entityId The ID of the entity to bind to.
+	 * @param request The bind request containing the searchConfigurationId.
+	 * @return The created binding.
+	 */
+	@RequiredScope({ view, modify })
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.ENTITY_SEARCH_CONFIG_BINDING, method = RequestMethod.PUT)
+	public @ResponseBody SearchConfigBinding bindSearchConfigToEntity(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@PathVariable String entityId,
+			@RequestBody BindSearchConfigToEntityRequest request) {
+		request.setEntityId(entityId);
+		return searchConfigurationService.bindSearchConfigToEntity(userId, request);
+	}
+
+	/**
+	 * Get the effective <a href="${org.sagebionetworks.repo.model.search.table.SearchConfigBinding}">SearchConfigBinding</a>
+	 * for an entity by walking up the hierarchy (entity → folder → project). Returns the first binding
+	 * found on the entity or any ancestor.
+	 *
+	 * @param userId The ID of the authenticated user.
+	 * @param entityId The ID of the entity to look up.
+	 * @return The effective binding.
+	 * @throws NotFoundException If no binding exists on the entity or any ancestor.
+	 */
+	@RequiredScope({ view })
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.ENTITY_SEARCH_CONFIG_BINDING, method = RequestMethod.GET)
+	public @ResponseBody SearchConfigBinding getSearchConfigBinding(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@PathVariable String entityId) {
+		return searchConfigurationService.getSearchConfigBinding(userId, entityId);
+	}
+
+	/**
+	 * Clear the <a href="${org.sagebionetworks.repo.model.search.table.SearchConfigBinding}">SearchConfigBinding</a>
+	 * on a specific entity. Does not affect ancestor bindings. The caller must have EDIT permission on
+	 * the entity.
+	 *
+	 * @param userId The ID of the authenticated user.
+	 * @param entityId The ID of the entity whose binding to clear.
+	 * @throws NotFoundException If no binding exists directly on this entity.
+	 */
+	@RequiredScope({ view, modify })
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	@RequestMapping(value = UrlHelpers.ENTITY_SEARCH_CONFIG_BINDING, method = RequestMethod.DELETE)
+	public void clearSearchConfigBinding(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@PathVariable String entityId) {
+		searchConfigurationService.clearSearchConfigBinding(userId, entityId);
 	}
 }

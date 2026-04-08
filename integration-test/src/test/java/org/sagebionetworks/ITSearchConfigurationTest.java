@@ -7,24 +7,25 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.client.SynapseAdminClient;
 import org.sagebionetworks.client.exceptions.SynapseException;
 import org.sagebionetworks.client.exceptions.SynapseNotFoundException;
+import org.sagebionetworks.repo.model.Entity;
+import org.sagebionetworks.repo.model.Project;
+import org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsRequest;
 import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsResponse;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SynonymRule;
 import org.sagebionetworks.repo.model.search.table.SynonymRuleType;
@@ -34,9 +35,6 @@ import org.sagebionetworks.repo.model.search.table.SynonymSet;
 public class ITSearchConfigurationTest {
 
 	private final SynapseAdminClient adminSynapse;
-	private final List<String> configsToDelete = new ArrayList<>();
-	private final List<String> synonymSetsToDelete = new ArrayList<>();
-	private final List<String> overridesToDelete = new ArrayList<>();
 
 	public ITSearchConfigurationTest(SynapseAdminClient adminSynapse) {
 		this.adminSynapse = adminSynapse;
@@ -45,31 +43,6 @@ public class ITSearchConfigurationTest {
 	@BeforeEach
 	public void before() throws SynapseException {
 		adminSynapse.clearAllLocks();
-	}
-
-	@AfterEach
-	public void after() {
-		for (String id : configsToDelete) {
-			try {
-				adminSynapse.deleteSearchConfiguration(id);
-			} catch (SynapseException e) {
-				// ignore
-			}
-		}
-		for (String id : overridesToDelete) {
-			try {
-				adminSynapse.deleteColumnAnalyzerOverride(id);
-			} catch (SynapseException e) {
-				// ignore
-			}
-		}
-		for (String id : synonymSetsToDelete) {
-			try {
-				adminSynapse.deleteSynonymSet(id);
-			} catch (SynapseException e) {
-				// ignore
-			}
-		}
 	}
 
 	@Test
@@ -91,7 +64,6 @@ public class ITSearchConfigurationTest {
 		synonymSet.setOrganizationName(orgName);
 		synonymSet.setRules(Arrays.asList(equivalentRule, explicitRule));
 		SynonymSet createdSynonymSet = adminSynapse.createSynonymSet(synonymSet);
-		synonymSetsToDelete.add(createdSynonymSet.getId());
 
 		// Create a column analyzer override to reference
 		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
@@ -103,7 +75,6 @@ public class ITSearchConfigurationTest {
 		override.setOrganizationName(orgName);
 		override.setOverrides(Collections.singletonList(entry));
 		ColumnAnalyzerOverride createdOverride = adminSynapse.createColumnAnalyzerOverride(override);
-		overridesToDelete.add(createdOverride.getId());
 
 		// CREATE — include all three reference types
 		SearchConfiguration toCreate = new SearchConfiguration();
@@ -123,7 +94,6 @@ public class ITSearchConfigurationTest {
 		assertEquals(defaultAnalyzerId, created.getDefaultAnalyzerId());
 		assertEquals(Arrays.asList(createdSynonymSet.getId()), created.getSynonymSetIds());
 		assertEquals(Arrays.asList(createdOverride.getId()), created.getColumnAnalyzerOverrideIds());
-		configsToDelete.add(created.getId());
 
 		// call under test — verify GET returns the same data
 		SearchConfiguration fetched = adminSynapse.getSearchConfiguration(created.getId());
@@ -153,12 +123,51 @@ public class ITSearchConfigurationTest {
 		ListSearchConfigurationsResponse listResponse = adminSynapse.listSearchConfigurations(listRequest);
 		assertNotNull(listResponse.getResults());
 		assertTrue(listResponse.getResults().stream().anyMatch(c -> created.getId().equals(c.getId())));
+	}
 
-		// call under test — DELETE
-		adminSynapse.deleteSearchConfiguration(created.getId());
-		configsToDelete.remove(created.getId());
+	@Test
+	public void testBindAndUnbindSearchConfigToEntity() throws SynapseException {
+		// Create a project to bind to
+		Project project = new Project();
+		project.setName("IT_BIND_TEST_PROJECT");
+		Entity createdProject = adminSynapse.createEntity(project);
 
-		// call under test — verify deleted
-		assertThrows(SynapseNotFoundException.class, () -> adminSynapse.getSearchConfiguration(created.getId()));
+		try {
+			// Create a search configuration
+			ListTextAnalyzersRequest analyzerReq = new ListTextAnalyzersRequest();
+			ListTextAnalyzersResponse analyzers = adminSynapse.listTextAnalyzers(analyzerReq);
+			String orgName = analyzers.getResults().get(0).getOrganizationName();
+
+			SearchConfiguration config = new SearchConfiguration();
+			config.setName("IT_BIND_CONFIG");
+			config.setOrganizationName(orgName);
+			SearchConfiguration createdConfig = adminSynapse.createSearchConfiguration(config);
+
+			// call under test — BIND
+			BindSearchConfigToEntityRequest bindRequest = new BindSearchConfigToEntityRequest();
+			bindRequest.setEntityId(createdProject.getId());
+			bindRequest.setSearchConfigurationId(createdConfig.getId());
+			SearchConfigBinding binding = adminSynapse.bindSearchConfigToEntity(bindRequest);
+
+			assertNotNull(binding.getBindId());
+			assertEquals(createdConfig.getId(), binding.getSearchConfigurationId());
+			assertEquals(createdProject.getId(), "syn" + binding.getObjectId());
+			assertEquals("entity", binding.getObjectType());
+			assertNotNull(binding.getCreatedOn());
+
+			// call under test — GET binding
+			SearchConfigBinding fetched = adminSynapse.getSearchConfigBindingForEntity(createdProject.getId());
+			assertEquals(binding.getBindId(), fetched.getBindId());
+			assertEquals(createdConfig.getId(), fetched.getSearchConfigurationId());
+
+			// call under test — UNBIND
+			adminSynapse.clearSearchConfigBindingForEntity(createdProject.getId());
+
+			// Verify binding is gone
+			assertThrows(SynapseNotFoundException.class, () ->
+				adminSynapse.getSearchConfigBindingForEntity(createdProject.getId()));
+		} finally {
+			adminSynapse.deleteEntity(createdProject);
+		}
 	}
 }

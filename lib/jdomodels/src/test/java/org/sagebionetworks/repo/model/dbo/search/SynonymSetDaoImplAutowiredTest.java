@@ -69,7 +69,7 @@ public class SynonymSetDaoImplAutowiredTest {
 		rule.setRuleType(SynonymRuleType.EQUIVALENT);
 		rule.setTerms(Arrays.asList("cancer", "tumor", "neoplasm"));
 
-		SynonymSet toCreate = newSynonymSet(org1Name, "test-create", "A test set");
+		SynonymSet toCreate = newSynonymSet(org1Name, "test_create", "A test set");
 		toCreate.setRules(Arrays.asList(rule));
 
 		// call under test
@@ -77,7 +77,7 @@ public class SynonymSetDaoImplAutowiredTest {
 
 		assertNotNull(created.getId());
 		assertNotNull(created.getEtag());
-		assertEquals("test-create", created.getName());
+		assertEquals("test_create", created.getName());
 		assertEquals("A test set", created.getDescription());
 		assertEquals(org1Name, created.getOrganizationName());
 		assertNotNull(created.getCreatedOn());
@@ -107,7 +107,7 @@ public class SynonymSetDaoImplAutowiredTest {
 		originalRule.setRuleType(SynonymRuleType.EQUIVALENT);
 		originalRule.setTerms(Arrays.asList("heart attack", "myocardial infarction"));
 
-		SynonymSet toCreate = newSynonymSet(org1Name, "test-update", "original");
+		SynonymSet toCreate = newSynonymSet(org1Name, "test_update", "original");
 		toCreate.setRules(Arrays.asList(originalRule));
 
 		SynonymSet created = synonymSetDao.create(adminUserId, toCreate);
@@ -117,14 +117,14 @@ public class SynonymSetDaoImplAutowiredTest {
 		updatedRule.setRuleType(SynonymRuleType.EXPLICIT);
 		updatedRule.setTerms(Arrays.asList("AD", "Alzheimer's disease"));
 
-		created.setName("test-update-renamed");
+		created.setName("test_update_renamed");
 		created.setDescription("updated");
 		created.setRules(Arrays.asList(updatedRule));
 
 		// call under test
 		SynonymSet updated = synonymSetDao.update(adminUserId, created);
 
-		assertEquals("test-update-renamed", updated.getName());
+		assertEquals("test_update_renamed", updated.getName());
 		assertEquals("updated", updated.getDescription());
 		assertNotEquals(originalEtag, updated.getEtag());
 		assertEquals(Arrays.asList(updatedRule), updated.getRules());
@@ -132,7 +132,7 @@ public class SynonymSetDaoImplAutowiredTest {
 
 	@Test
 	public void testUpdateWithStaleEtagThrows() {
-		SynonymSet created = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "test-occ", null));
+		SynonymSet created = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "test_occ", null));
 
 		// First update succeeds and rotates the etag
 		created.setDescription("first update");
@@ -147,7 +147,7 @@ public class SynonymSetDaoImplAutowiredTest {
 
 	@Test
 	public void testDeleteWithExistingSet() {
-		SynonymSet created = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "test-delete", null));
+		SynonymSet created = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "test_delete", null));
 		assertTrue(synonymSetDao.get(created.getId()).isPresent());
 
 		// call under test
@@ -162,15 +162,15 @@ public class SynonymSetDaoImplAutowiredTest {
 		rule.setRuleType(SynonymRuleType.EQUIVALENT);
 		rule.setTerms(Arrays.asList("cancer", "tumor"));
 
-		SynonymSet toCreate = newSynonymSet(org1Name, "find-me", "target");
+		SynonymSet toCreate = newSynonymSet(org1Name, "find_me", "target");
 		toCreate.setRules(Arrays.asList(rule));
 		SynonymSet created = synonymSetDao.create(adminUserId, toCreate);
 
 		// Create another in a different org to ensure filtering
-		synonymSetDao.create(adminUserId, newSynonymSet(org2Name, "find-me", "decoy"));
+		synonymSetDao.create(adminUserId, newSynonymSet(org2Name, "find_me", "decoy"));
 
 		// call under test
-		Optional<SynonymSet> found = synonymSetDao.getByOrganizationAndName(org1Name, "find-me");
+		Optional<SynonymSet> found = synonymSetDao.getByOrganizationAndName(org1Name, "find_me");
 
 		assertTrue(found.isPresent());
 		assertEquals(created, found.get());
@@ -194,7 +194,7 @@ public class SynonymSetDaoImplAutowiredTest {
 		explicitRule.setRuleType(SynonymRuleType.EXPLICIT);
 		explicitRule.setTerms(Arrays.asList("AD", "Alzheimer's disease"));
 
-		SynonymSet set = newSynonymSet(org1Name, "rules-roundtrip", "Rules test");
+		SynonymSet set = newSynonymSet(org1Name, "rules_roundtrip", "Rules test");
 		set.setRules(Arrays.asList(equivalentRule, explicitRule));
 
 		SynonymSet created = synonymSetDao.create(adminUserId, set);
@@ -209,12 +209,12 @@ public class SynonymSetDaoImplAutowiredTest {
 	@Test
 	public void testListWithMultipleOrganizations() {
 		// Create 2 synonym sets in org1
-		SynonymSet org1SetA = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "org1-set-a", "first"));
-		SynonymSet org1SetB = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "org1-set-b", "second"));
+		SynonymSet org1SetA = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "org1_set_a", "first"));
+		SynonymSet org1SetB = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "org1_set_b", "second"));
 
 		// Create 2 synonym sets in org2
-		SynonymSet org2SetA = synonymSetDao.create(adminUserId, newSynonymSet(org2Name, "org2-set-a", "third"));
-		SynonymSet org2SetB = synonymSetDao.create(adminUserId, newSynonymSet(org2Name, "org2-set-b", "fourth"));
+		SynonymSet org2SetA = synonymSetDao.create(adminUserId, newSynonymSet(org2Name, "org2_set_a", "third"));
+		SynonymSet org2SetB = synonymSetDao.create(adminUserId, newSynonymSet(org2Name, "org2_set_b", "fourth"));
 
 		// call under test — list by org1
 		List<SynonymSet> org1Results = synonymSetDao.list(org1Name, 10, 0);

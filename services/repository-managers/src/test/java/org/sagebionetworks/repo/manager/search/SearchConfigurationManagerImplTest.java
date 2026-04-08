@@ -449,7 +449,7 @@ public class SearchConfigurationManagerImplTest {
 			manager.create(admin, new SearchConfiguration()
 				.setOrganizationName("test-org").setName("MyConfig")
 				.setDefaultAnalyzer("noHyphenHere")));
-		assertTrue(ex.getMessage().contains("'{organizationName}-{name}' format"));
+		assertTrue(ex.getMessage().contains("'{organizationName}-{resourceName}'"));
 		verifyZeroInteractions(searchConfigurationDao);
 	}
 

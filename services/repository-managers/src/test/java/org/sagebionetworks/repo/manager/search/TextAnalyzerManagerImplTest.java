@@ -321,4 +321,5 @@ public class TextAnalyzerManagerImplTest {
 		assertNull(response.getNextPageToken(), "Expected null next page token when all results fit in one page");
 		assertEquals(1, response.getResults().size());
 	}
+
 }

@@ -26,8 +26,6 @@ import org.springframework.stereotype.Service;
 public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverrideManager {
 
 	private static final String MSG_UNAUTHORIZED = "Only Sage Bionetworks employees can manage column analyzer overrides.";
-	private static final String RESOURCE_NAME_PATTERN = "^[a-zA-Z][a-zA-Z0-9_]*$";
-	private static final String RESOURCE_NAME_PATTERN_MSG = "Resource name must start with a letter and contain only letters, digits, and underscores.";
 
 	private final ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao;
 	private final TextAnalyzerDao textAnalyzerDao;
@@ -49,9 +47,7 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 		ValidateArgument.required(request, "request");
 		ValidateArgument.requiredNotBlank(request.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(request.getName(), "name");
-		if (!request.getName().matches(RESOURCE_NAME_PATTERN)) {
-			throw new IllegalArgumentException(RESOURCE_NAME_PATTERN_MSG);
-		}
+		SearchResourceConstants.validateResourceName(request.getName());
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
@@ -83,9 +79,7 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 		ValidateArgument.requiredNotBlank(request.getId(), "id");
 		ValidateArgument.requiredNotBlank(request.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(request.getName(), "name");
-		if (!request.getName().matches(RESOURCE_NAME_PATTERN)) {
-			throw new IllegalArgumentException(RESOURCE_NAME_PATTERN_MSG);
-		}
+		SearchResourceConstants.validateResourceName(request.getName());
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
@@ -95,10 +89,10 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 			.orElseThrow(() -> new NotFoundException("A column analyzer override with the given id does not exist."));
 
 		if (!existing.getOrganizationName().equals(request.getOrganizationName())) {
-			throw new IllegalArgumentException("The organizationName cannot be changed.");
+			throw new IllegalArgumentException(SearchResourceConstants.ORG_NAME_IMMUTABLE_MSG);
 		}
 		if (!existing.getName().equals(request.getName())) {
-			throw new IllegalArgumentException("The name cannot be changed. Create a new resource instead.");
+			throw new IllegalArgumentException(SearchResourceConstants.NAME_IMMUTABLE_MSG);
 		}
 
 		if (!user.isAdmin()) {
@@ -159,11 +153,11 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 		List<String> qualifiedNames = new ArrayList<>();
 		for (ColumnAnalyzerOverrideEntry entry : override.getOverrides()) {
 			if (entry.getIndexAnalyzer() != null) {
-				validateQualifiedNameFormat(entry.getIndexAnalyzer(), "indexAnalyzer");
+				SearchResourceConstants.validateQualifiedNameFormat(entry.getIndexAnalyzer(), "indexAnalyzer");
 				qualifiedNames.add(entry.getIndexAnalyzer());
 			}
 			if (entry.getSearchAnalyzer() != null) {
-				validateQualifiedNameFormat(entry.getSearchAnalyzer(), "searchAnalyzer");
+				SearchResourceConstants.validateQualifiedNameFormat(entry.getSearchAnalyzer(), "searchAnalyzer");
 				qualifiedNames.add(entry.getSearchAnalyzer());
 			}
 		}
@@ -175,12 +169,6 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 		}
 	}
 
-	private static void validateQualifiedNameFormat(String qualifiedName, String fieldName) {
-		if (qualifiedName.indexOf('-') < 1) {
-			throw new IllegalArgumentException(
-				"'" + fieldName + "' must be in '{organizationName}-{name}' format but was: '" + qualifiedName + "'");
-		}
-	}
 
 	private String resolveOrganizationId(String organizationName) {
 		return organizationDao.getOrganizationByName(organizationName).getId();

@@ -30,8 +30,6 @@ import org.springframework.stereotype.Service;
 public class SearchConfigurationManagerImpl implements SearchConfigurationManager {
 
 	private static final String ENTITY_OBJECT_TYPE = "entity";
-	private static final String RESOURCE_NAME_PATTERN = "^[a-zA-Z][a-zA-Z0-9_]*$";
-	private static final String RESOURCE_NAME_PATTERN_MSG = "Resource name must start with a letter and contain only letters, digits, and underscores.";
 
 	private final SearchConfigurationDao searchConfigurationDao;
 	private final AccessControlListDAO aclDao;
@@ -60,9 +58,7 @@ public class SearchConfigurationManagerImpl implements SearchConfigurationManage
 		ValidateArgument.required(request, "request");
 		ValidateArgument.requiredNotBlank(request.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(request.getName(), "name");
-		if (!request.getName().matches(RESOURCE_NAME_PATTERN)) {
-			throw new IllegalArgumentException(RESOURCE_NAME_PATTERN_MSG);
-		}
+		SearchResourceConstants.validateResourceName(request.getName());
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
@@ -94,9 +90,7 @@ public class SearchConfigurationManagerImpl implements SearchConfigurationManage
 		ValidateArgument.requiredNotBlank(request.getId(), "id");
 		ValidateArgument.requiredNotBlank(request.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(request.getName(), "name");
-		if (!request.getName().matches(RESOURCE_NAME_PATTERN)) {
-			throw new IllegalArgumentException(RESOURCE_NAME_PATTERN_MSG);
-		}
+		SearchResourceConstants.validateResourceName(request.getName());
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
@@ -106,10 +100,10 @@ public class SearchConfigurationManagerImpl implements SearchConfigurationManage
 			.orElseThrow(() -> new NotFoundException("A search configuration with the given id does not exist."));
 
 		if (!existing.getOrganizationName().equals(request.getOrganizationName())) {
-			throw new IllegalArgumentException("The organizationName cannot be changed.");
+			throw new IllegalArgumentException(SearchResourceConstants.ORG_NAME_IMMUTABLE_MSG);
 		}
 		if (!existing.getName().equals(request.getName())) {
-			throw new IllegalArgumentException("The name cannot be changed. Create a new resource instead.");
+			throw new IllegalArgumentException(SearchResourceConstants.NAME_IMMUTABLE_MSG);
 		}
 
 		if (!user.isAdmin()) {
@@ -209,7 +203,7 @@ public class SearchConfigurationManagerImpl implements SearchConfigurationManage
 
 	private void validateReferencedNames(SearchConfiguration config) {
 		if (config.getDefaultAnalyzer() != null) {
-			validateQualifiedNameFormat(config.getDefaultAnalyzer(), "defaultAnalyzer");
+			SearchResourceConstants.validateQualifiedNameFormat(config.getDefaultAnalyzer(), "defaultAnalyzer");
 			List<String> missing = textAnalyzerDao.findNonExistentNames(List.of(config.getDefaultAnalyzer()));
 			if (!missing.isEmpty()) {
 				throw new IllegalArgumentException("The following default analyzer name does not exist: " + missing);
@@ -217,7 +211,7 @@ public class SearchConfigurationManagerImpl implements SearchConfigurationManage
 		}
 		if (config.getSynonymSets() != null && !config.getSynonymSets().isEmpty()) {
 			for (String name : config.getSynonymSets()) {
-				validateQualifiedNameFormat(name, "synonymSets");
+				SearchResourceConstants.validateQualifiedNameFormat(name, "synonymSets");
 			}
 			List<String> missing = synonymSetDao.findNonExistentNames(config.getSynonymSets());
 			if (!missing.isEmpty()) {
@@ -226,19 +220,12 @@ public class SearchConfigurationManagerImpl implements SearchConfigurationManage
 		}
 		if (config.getColumnAnalyzerOverrides() != null && !config.getColumnAnalyzerOverrides().isEmpty()) {
 			for (String name : config.getColumnAnalyzerOverrides()) {
-				validateQualifiedNameFormat(name, "columnAnalyzerOverrides");
+				SearchResourceConstants.validateQualifiedNameFormat(name, "columnAnalyzerOverrides");
 			}
 			List<String> missing = columnAnalyzerOverrideDao.findNonExistentNames(config.getColumnAnalyzerOverrides());
 			if (!missing.isEmpty()) {
 				throw new IllegalArgumentException("The following column analyzer override names do not exist: " + missing);
 			}
-		}
-	}
-
-	private static void validateQualifiedNameFormat(String qualifiedName, String fieldName) {
-		if (qualifiedName.indexOf('-') < 1) {
-			throw new IllegalArgumentException(
-				"'" + fieldName + "' must be in '{organizationName}-{name}' format but was: '" + qualifiedName + "'");
 		}
 	}
 

@@ -24,20 +24,16 @@ import org.springframework.stereotype.Service;
 public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 
 	private static final String MSG_UNAUTHORIZED = "Only Sage Bionetworks employees can manage text analyzers.";
-	static final String RESOURCE_NAME_PATTERN = "^[a-zA-Z][a-zA-Z0-9_]*$";
-	static final String RESOURCE_NAME_PATTERN_MSG = "Resource name must start with a letter and contain only letters, digits, and underscores.";
 
 	private final TextAnalyzerDao textAnalyzerDao;
 	private final AccessControlListDAO aclDao;
 	private final OrganizationDao organizationDao;
-	private final OpenSearchManager openSearchManager;
 
 	public TextAnalyzerManagerImpl(TextAnalyzerDao textAnalyzerDao, AccessControlListDAO aclDao,
-			OrganizationDao organizationDao, OpenSearchManager openSearchManager) {
+			OrganizationDao organizationDao) {
 		this.textAnalyzerDao = textAnalyzerDao;
 		this.aclDao = aclDao;
 		this.organizationDao = organizationDao;
-		this.openSearchManager = openSearchManager;
 	}
 
 	@Override
@@ -48,9 +44,7 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		ValidateArgument.requiredNotBlank(analyzer.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(analyzer.getName(), "name");
 		ValidateArgument.required(analyzer.getSettings(), "settings");
-		if (!analyzer.getName().matches(RESOURCE_NAME_PATTERN)) {
-			throw new IllegalArgumentException(RESOURCE_NAME_PATTERN_MSG);
-		}
+		SearchResourceConstants.validateResourceName(analyzer.getName());
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
@@ -60,8 +54,6 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 			aclDao.canAccess(user, resolveOrganizationId(analyzer.getOrganizationName()), ObjectType.ORGANIZATION, ACCESS_TYPE.CREATE)
 				.checkAuthorizationOrElseThrow();
 		}
-
-		openSearchManager.validateAnalyzerSettings(analyzer.getSettings());
 
 		return textAnalyzerDao.create(analyzer, user.getId());
 	}
@@ -82,9 +74,7 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		ValidateArgument.requiredNotBlank(analyzer.getId(), "id");
 		ValidateArgument.requiredNotBlank(analyzer.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(analyzer.getName(), "name");
-		if (!analyzer.getName().matches(RESOURCE_NAME_PATTERN)) {
-			throw new IllegalArgumentException(RESOURCE_NAME_PATTERN_MSG);
-		}
+		SearchResourceConstants.validateResourceName(analyzer.getName());
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
@@ -95,19 +85,15 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 			.orElseThrow(() -> new NotFoundException("TextAnalyzer with id '" + analyzer.getId() + "' does not exist."));
 
 		if (!existing.getOrganizationName().equals(analyzer.getOrganizationName())) {
-			throw new IllegalArgumentException("The organizationName cannot be changed.");
+			throw new IllegalArgumentException(SearchResourceConstants.ORG_NAME_IMMUTABLE_MSG);
 		}
 		if (!existing.getName().equals(analyzer.getName())) {
-			throw new IllegalArgumentException("The name cannot be changed. Create a new resource instead.");
+			throw new IllegalArgumentException(SearchResourceConstants.NAME_IMMUTABLE_MSG);
 		}
 
 		if (!user.isAdmin()) {
 			aclDao.canAccess(user, resolveOrganizationId(existing.getOrganizationName()), ObjectType.ORGANIZATION, ACCESS_TYPE.UPDATE)
 				.checkAuthorizationOrElseThrow();
-		}
-
-		if (analyzer.getSettings() != null) {
-			openSearchManager.validateAnalyzerSettings(analyzer.getSettings());
 		}
 
 		return textAnalyzerDao.update(analyzer, user.getId());

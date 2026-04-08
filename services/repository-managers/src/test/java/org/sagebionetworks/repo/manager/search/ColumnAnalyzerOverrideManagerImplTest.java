@@ -407,7 +407,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 
 		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.create(admin, request));
-		assertTrue(ex.getMessage().contains("'{organizationName}-{name}' format"));
+		assertTrue(ex.getMessage().contains("'{organizationName}-{resourceName}'"));
 		verify(columnAnalyzerOverrideDao, never()).create(anyLong(), any());
 	}
 

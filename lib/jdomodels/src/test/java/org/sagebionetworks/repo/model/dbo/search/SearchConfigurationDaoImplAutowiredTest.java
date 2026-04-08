@@ -93,9 +93,12 @@ public class SearchConfigurationDaoImplAutowiredTest {
 		TextAnalyzer analyzer = textAnalyzerDao.create(newTextAnalyzer(org1Name, "analyzer-1"), adminUserId);
 		SynonymSet ss = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "syn-set-1"));
 
+		String analyzerQualifiedName = org1Name + "-" + analyzer.getName();
+		String ssQualifiedName = org1Name + "-" + ss.getName();
+
 		SearchConfiguration toCreate = newConfig(org1Name, "test-create", "A test config");
-		toCreate.setDefaultAnalyzerId(analyzer.getId());
-		toCreate.setSynonymSetIds(Arrays.asList(ss.getId()));
+		toCreate.setDefaultAnalyzer(analyzerQualifiedName);
+		toCreate.setSynonymSets(Arrays.asList(ssQualifiedName));
 
 		// call under test
 		SearchConfiguration created = searchConfigurationDao.create(adminUserId, toCreate);
@@ -105,8 +108,8 @@ public class SearchConfigurationDaoImplAutowiredTest {
 		assertEquals("test-create", created.getName());
 		assertEquals("A test config", created.getDescription());
 		assertEquals(org1Name, created.getOrganizationName());
-		assertEquals(analyzer.getId(), created.getDefaultAnalyzerId());
-		assertEquals(Arrays.asList(ss.getId()), created.getSynonymSetIds());
+		assertEquals(analyzerQualifiedName, created.getDefaultAnalyzer());
+		assertEquals(Arrays.asList(ssQualifiedName), created.getSynonymSets());
 		assertNotNull(created.getCreatedOn());
 		assertNotNull(created.getModifiedOn());
 		assertEquals(adminUserId.toString(), created.getCreatedBy());
@@ -134,17 +137,22 @@ public class SearchConfigurationDaoImplAutowiredTest {
 		SynonymSet ss1 = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "syn-orig"));
 		SynonymSet ss2 = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "syn-new"));
 
+		String analyzer1Name = org1Name + "-" + analyzer1.getName();
+		String analyzer2Name = org1Name + "-" + analyzer2.getName();
+		String ss1Name = org1Name + "-" + ss1.getName();
+		String ss2Name = org1Name + "-" + ss2.getName();
+
 		SearchConfiguration toCreate = newConfig(org1Name, "test-update", "original");
-		toCreate.setDefaultAnalyzerId(analyzer1.getId());
-		toCreate.setSynonymSetIds(Arrays.asList(ss1.getId()));
+		toCreate.setDefaultAnalyzer(analyzer1Name);
+		toCreate.setSynonymSets(Arrays.asList(ss1Name));
 
 		SearchConfiguration created = searchConfigurationDao.create(adminUserId, toCreate);
 		String originalEtag = created.getEtag();
 
 		created.setName("test-update-renamed");
 		created.setDescription("updated");
-		created.setDefaultAnalyzerId(analyzer2.getId());
-		created.setSynonymSetIds(Arrays.asList(ss2.getId()));
+		created.setDefaultAnalyzer(analyzer2Name);
+		created.setSynonymSets(Arrays.asList(ss2Name));
 
 		// call under test
 		SearchConfiguration updated = searchConfigurationDao.update(adminUserId, created);
@@ -152,8 +160,8 @@ public class SearchConfigurationDaoImplAutowiredTest {
 		assertEquals("test-update-renamed", updated.getName());
 		assertEquals("updated", updated.getDescription());
 		assertNotEquals(originalEtag, updated.getEtag());
-		assertEquals(analyzer2.getId(), updated.getDefaultAnalyzerId());
-		assertEquals(Arrays.asList(ss2.getId()), updated.getSynonymSetIds());
+		assertEquals(analyzer2Name, updated.getDefaultAnalyzer());
+		assertEquals(Arrays.asList(ss2Name), updated.getSynonymSets());
 	}
 
 	@Test
@@ -215,75 +223,82 @@ public class SearchConfigurationDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testCreateWithSynonymSetIds() {
+	public void testCreateWithSynonymSets() {
 		SynonymSet ss = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "syn-set-1"));
+		String ssQualifiedName = org1Name + "-" + ss.getName();
 
 		SearchConfiguration config = newConfig(org1Name, "with-synonyms", null);
-		config.setSynonymSetIds(Arrays.asList(ss.getId()));
+		config.setSynonymSets(Arrays.asList(ssQualifiedName));
 
 		// call under test
 		SearchConfiguration created = searchConfigurationDao.create(adminUserId, config);
 
-		assertEquals(Arrays.asList(ss.getId()), created.getSynonymSetIds());
+		assertEquals(Arrays.asList(ssQualifiedName), created.getSynonymSets());
 
 		SearchConfiguration fetched = searchConfigurationDao.get(created.getId()).get();
-		assertEquals(Arrays.asList(ss.getId()), fetched.getSynonymSetIds());
+		assertEquals(Arrays.asList(ssQualifiedName), fetched.getSynonymSets());
 	}
 
 	@Test
-	public void testCreateWithColumnAnalyzerOverrideIds() {
-		TextAnalyzer analyzer = textAnalyzerDao.create(newTextAnalyzer(org1Name, "analyzer-1"), adminUserId);
-		ColumnAnalyzerOverride override = columnAnalyzerOverrideDao.create(adminUserId, newColumnAnalyzerOverride(org1Name, "override-1", analyzer.getId()));
+	public void testCreateWithColumnAnalyzerOverrides() {
+		TextAnalyzer analyzer = textAnalyzerDao.create(newTextAnalyzer(org1Name, "analyzer_1"), adminUserId);
+		String analyzerQualifiedName = org1Name + "-" + analyzer.getName();
+		ColumnAnalyzerOverride override = columnAnalyzerOverrideDao.create(adminUserId, newColumnAnalyzerOverride(org1Name, "override_1", analyzerQualifiedName));
+		String overrideQualifiedName = org1Name + "-" + override.getName();
 
 		SearchConfiguration config = newConfig(org1Name, "with-overrides", null);
-		config.setColumnAnalyzerOverrideIds(Arrays.asList(override.getId()));
+		config.setColumnAnalyzerOverrides(Arrays.asList(overrideQualifiedName));
 
 		// call under test
 		SearchConfiguration created = searchConfigurationDao.create(adminUserId, config);
 
-		assertEquals(Arrays.asList(override.getId()), created.getColumnAnalyzerOverrideIds());
+		assertEquals(Arrays.asList(overrideQualifiedName), created.getColumnAnalyzerOverrides());
 	}
 
 	@Test
-	public void testCreateWithDefaultAnalyzerId() {
-		TextAnalyzer analyzer = textAnalyzerDao.create(newTextAnalyzer(org1Name, "default-analyzer"), adminUserId);
+	public void testCreateWithDefaultAnalyzer() {
+		TextAnalyzer analyzer = textAnalyzerDao.create(newTextAnalyzer(org1Name, "default_analyzer"), adminUserId);
+		String analyzerQualifiedName = org1Name + "-" + analyzer.getName();
 
 		SearchConfiguration config = newConfig(org1Name, "with-default-analyzer", null);
-		config.setDefaultAnalyzerId(analyzer.getId());
+		config.setDefaultAnalyzer(analyzerQualifiedName);
 
 		// call under test
 		SearchConfiguration created = searchConfigurationDao.create(adminUserId, config);
 
-		assertEquals(analyzer.getId(), created.getDefaultAnalyzerId());
+		assertEquals(analyzerQualifiedName, created.getDefaultAnalyzer());
 
 		SearchConfiguration fetched = searchConfigurationDao.get(created.getId()).get();
-		assertEquals(analyzer.getId(), fetched.getDefaultAnalyzerId());
+		assertEquals(analyzerQualifiedName, fetched.getDefaultAnalyzer());
 	}
 
 	@Test
 	public void testUpdateWithReplacedJunctionRows() {
 		SynonymSet ss1 = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "syn-set-a"));
 		SynonymSet ss2 = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "syn-set-b"));
+		String ss1QualifiedName = org1Name + "-" + ss1.getName();
+		String ss2QualifiedName = org1Name + "-" + ss2.getName();
 
 		SearchConfiguration config = newConfig(org1Name, "junction-update", null);
-		config.setSynonymSetIds(Arrays.asList(ss1.getId()));
+		config.setSynonymSets(Arrays.asList(ss1QualifiedName));
 		SearchConfiguration created = searchConfigurationDao.create(adminUserId, config);
-		assertEquals(Arrays.asList(ss1.getId()), created.getSynonymSetIds());
+		assertEquals(Arrays.asList(ss1QualifiedName), created.getSynonymSets());
 
-		created.setSynonymSetIds(Arrays.asList(ss2.getId()));
+		created.setSynonymSets(Arrays.asList(ss2QualifiedName));
 
 		// call under test
 		SearchConfiguration updated = searchConfigurationDao.update(adminUserId, created);
 
-		assertEquals(Arrays.asList(ss2.getId()), updated.getSynonymSetIds());
+		assertEquals(Arrays.asList(ss2QualifiedName), updated.getSynonymSets());
 	}
 
 	@Test
 	public void testDeleteWithJunctionRowCascade() {
 		SynonymSet ss = synonymSetDao.create(adminUserId, newSynonymSet(org1Name, "cascade-test"));
+		String ssQualifiedName = org1Name + "-" + ss.getName();
 
 		SearchConfiguration config = newConfig(org1Name, "cascade-delete", null);
-		config.setSynonymSetIds(Arrays.asList(ss.getId()));
+		config.setSynonymSets(Arrays.asList(ssQualifiedName));
 		SearchConfiguration created = searchConfigurationDao.create(adminUserId, config);
 
 		// call under test
@@ -413,11 +428,11 @@ public class SearchConfigurationDaoImplAutowiredTest {
 		return analyzer;
 	}
 
-	private ColumnAnalyzerOverride newColumnAnalyzerOverride(String organizationName, String name, String analyzerId) {
+	private ColumnAnalyzerOverride newColumnAnalyzerOverride(String organizationName, String name, String analyzerQualifiedName) {
 		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
 		entry.setColumnName("testColumn");
-		entry.setIndexAnalyzerId(analyzerId);
-		entry.setSearchAnalyzerId(analyzerId);
+		entry.setIndexAnalyzer(analyzerQualifiedName);
+		entry.setSearchAnalyzer(analyzerQualifiedName);
 
 		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride();
 		override.setName(name);

@@ -35,16 +35,16 @@ public class ITColumnAnalyzerOverrideTest {
 
 	@Test
 	public void testColumnAnalyzerOverrideCRUD() throws SynapseException {
-		// Get org ID and an analyzer ID from bootstrapped analyzers
+		// Get org name and an analyzer qualified name from bootstrapped analyzers
 		ListTextAnalyzersResponse analyzers = adminSynapse.listTextAnalyzers(new ListTextAnalyzersRequest());
 		TextAnalyzer firstAnalyzer = analyzers.getResults().get(0);
 		String orgName = firstAnalyzer.getOrganizationName();
-		String analyzerId = firstAnalyzer.getId();
+		String analyzerQualifiedName = orgName + "-" + firstAnalyzer.getName();
 
 		// CREATE
 		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
 		entry.setColumnName("diagnosis");
-		entry.setIndexAnalyzerId(analyzerId);
+		entry.setIndexAnalyzer(analyzerQualifiedName);
 
 		ColumnAnalyzerOverride toCreate = new ColumnAnalyzerOverride();
 		toCreate.setName("IT_TEST_OVERRIDE");
@@ -70,7 +70,7 @@ public class ITColumnAnalyzerOverrideTest {
 		fetched.setDescription("Updated description");
 		ColumnAnalyzerOverrideEntry additionalEntry = new ColumnAnalyzerOverrideEntry();
 		additionalEntry.setColumnName("tissue");
-		additionalEntry.setIndexAnalyzerId(analyzerId);
+		additionalEntry.setIndexAnalyzer(analyzerQualifiedName);
 		fetched.setOverrides(Arrays.asList(entry, additionalEntry));
 
 		// call under test

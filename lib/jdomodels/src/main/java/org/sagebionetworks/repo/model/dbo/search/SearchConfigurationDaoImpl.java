@@ -6,10 +6,10 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SCOB_CRE
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SCOB_OBJECT_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SCOB_OBJECT_TYPE;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SCOB_SEARCH_CONFIG_ID;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_COL_ANALYZER_IDS;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_COL_ANALYZER_OVERRIDES;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_CREATED_BY;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_CREATED_ON;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_DEFAULT_ANALYZER_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_DEFAULT_ANALYZER;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_DESCRIPTION;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_ETAG;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_ID;
@@ -17,7 +17,7 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_C
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_MODIFIED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_NAME;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_ORGANIZATION_NAME;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_SYNONYM_SET_IDS;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_SYNONYM_SETS;
 
 import java.sql.ResultSet;
 import java.util.Date;
@@ -33,6 +33,7 @@ import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.ValidateArgument;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -48,10 +49,9 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 		config.setOrganizationName(rs.getString(COL_SEARCH_CONFIG_ORGANIZATION_NAME));
 		config.setName(rs.getString(COL_SEARCH_CONFIG_NAME));
 		config.setDescription(rs.getString(COL_SEARCH_CONFIG_DESCRIPTION));
-		long defaultAnalyzerId = rs.getLong(COL_SEARCH_CONFIG_DEFAULT_ANALYZER_ID);
-		config.setDefaultAnalyzerId(rs.wasNull() ? null : String.valueOf(defaultAnalyzerId));
-		config.setSynonymSetIds(JDOSecondaryPropertyUtils.readJsonToStringList(rs.getString(COL_SEARCH_CONFIG_SYNONYM_SET_IDS)));
-		config.setColumnAnalyzerOverrideIds(JDOSecondaryPropertyUtils.readJsonToStringList(rs.getString(COL_SEARCH_CONFIG_COL_ANALYZER_IDS)));
+		config.setDefaultAnalyzer(rs.getString(COL_SEARCH_CONFIG_DEFAULT_ANALYZER));
+		config.setSynonymSets(JDOSecondaryPropertyUtils.readJsonToStringList(rs.getString(COL_SEARCH_CONFIG_SYNONYM_SETS)));
+		config.setColumnAnalyzerOverrides(JDOSecondaryPropertyUtils.readJsonToStringList(rs.getString(COL_SEARCH_CONFIG_COL_ANALYZER_OVERRIDES)));
 		config.setCreatedBy(String.valueOf(rs.getLong(COL_SEARCH_CONFIG_CREATED_BY)));
 		config.setCreatedOn(new Date(rs.getTimestamp(COL_SEARCH_CONFIG_CREATED_ON).getTime()));
 		config.setModifiedBy(String.valueOf(rs.getLong(COL_SEARCH_CONFIG_MODIFIED_BY)));
@@ -88,21 +88,25 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 
 		Long id = idGenerator.generateNewId(IdType.SEARCH_CONFIGURATION_ID);
 
-		jdbcTemplate.update(
-				"INSERT INTO SEARCH_CONFIGURATION (ID, ETAG, ORGANIZATION_NAME, NAME, DESCRIPTION,"
-				+ " DEFAULT_ANALYZER_ID, SYNONYM_SET_IDS, COLUMN_ANALYZER_OVERRIDE_IDS,"
-				+ " CREATED_BY, CREATED_ON, MODIFIED_BY, MODIFIED_ON)"
-				+ " VALUES (?, UUID(), ?, ?, ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))",
-				id,
-				config.getOrganizationName(),
-				config.getName(),
-				config.getDescription(),
-				config.getDefaultAnalyzerId() != null ? Long.parseLong(config.getDefaultAnalyzerId()) : null,
-				JDOSecondaryPropertyUtils.writeStringListToJson(config.getSynonymSetIds()),
-				JDOSecondaryPropertyUtils.writeStringListToJson(config.getColumnAnalyzerOverrideIds()),
-				createdBy,
-				createdBy
-		);
+		try {
+			jdbcTemplate.update(
+					"INSERT INTO SEARCH_CONFIGURATION (ID, ETAG, ORGANIZATION_NAME, NAME, DESCRIPTION,"
+					+ " DEFAULT_ANALYZER, SYNONYM_SETS, COLUMN_ANALYZER_OVERRIDES,"
+					+ " CREATED_BY, CREATED_ON, MODIFIED_BY, MODIFIED_ON)"
+					+ " VALUES (?, UUID(), ?, ?, ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))",
+					id,
+					config.getOrganizationName(),
+					config.getName(),
+					config.getDescription(),
+					config.getDefaultAnalyzer(),
+					JDOSecondaryPropertyUtils.writeStringListToJson(config.getSynonymSets()),
+					JDOSecondaryPropertyUtils.writeStringListToJson(config.getColumnAnalyzerOverrides()),
+					createdBy,
+					createdBy
+			);
+		} catch (DataIntegrityViolationException e) {
+			throw new IllegalArgumentException("A search configuration with the same name already exists in this organization.", e);
+		}
 
 		return get(id.toString()).orElseThrow(() -> new IllegalStateException("Failed to create SearchConfiguration"));
 	}
@@ -134,18 +138,23 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 			throw new ConflictingUpdateException("SearchConfiguration was updated since last fetched. Please re-fetch and try again.");
 		}
 
-		int updated = jdbcTemplate.update(
-				"UPDATE SEARCH_CONFIGURATION SET ETAG = UUID(), NAME = ?, DESCRIPTION = ?,"
-				+ " DEFAULT_ANALYZER_ID = ?, SYNONYM_SET_IDS = ?, COLUMN_ANALYZER_OVERRIDE_IDS = ?,"
-				+ " MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
-				config.getName(),
-				config.getDescription(),
-				config.getDefaultAnalyzerId() != null ? Long.parseLong(config.getDefaultAnalyzerId()) : null,
-				JDOSecondaryPropertyUtils.writeStringListToJson(config.getSynonymSetIds()),
-				JDOSecondaryPropertyUtils.writeStringListToJson(config.getColumnAnalyzerOverrideIds()),
-				modifiedBy,
-				id
-		);
+		int updated;
+		try {
+			updated = jdbcTemplate.update(
+					"UPDATE SEARCH_CONFIGURATION SET ETAG = UUID(), NAME = ?, DESCRIPTION = ?,"
+					+ " DEFAULT_ANALYZER = ?, SYNONYM_SETS = ?, COLUMN_ANALYZER_OVERRIDES = ?,"
+					+ " MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
+					config.getName(),
+					config.getDescription(),
+					config.getDefaultAnalyzer(),
+					JDOSecondaryPropertyUtils.writeStringListToJson(config.getSynonymSets()),
+					JDOSecondaryPropertyUtils.writeStringListToJson(config.getColumnAnalyzerOverrides()),
+					modifiedBy,
+					id
+			);
+		} catch (DataIntegrityViolationException e) {
+			throw new IllegalArgumentException("A search configuration with the same name already exists in this organization.", e);
+		}
 
 		if (updated == 0) {
 			throw new NotFoundException("SearchConfiguration with id '" + config.getId() + "' does not exist.");

@@ -91,12 +91,12 @@ public class ColumnAnalyzerOverrideDaoImplAutowiredTest {
 	public void testCreateVerifiesOverridesRoundTrip() {
 		ColumnAnalyzerOverrideEntry entry1 = new ColumnAnalyzerOverrideEntry();
 		entry1.setColumnName("diagnosis");
-		entry1.setIndexAnalyzerId("1");
-		entry1.setSearchAnalyzerId("2");
+		entry1.setIndexAnalyzer("org.sagebionetworks-SCIENTIFIC");
+		entry1.setSearchAnalyzer("org.sagebionetworks-STANDARD");
 
 		ColumnAnalyzerOverrideEntry entry2 = new ColumnAnalyzerOverrideEntry();
 		entry2.setColumnName("tissue");
-		entry2.setIndexAnalyzerId("3");
+		entry2.setIndexAnalyzer("org.sagebionetworks-IDENTIFIER");
 
 		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride();
 		override.setName("multi-entry");
@@ -109,11 +109,11 @@ public class ColumnAnalyzerOverrideDaoImplAutowiredTest {
 		List<ColumnAnalyzerOverrideEntry> overrides = created.getOverrides();
 		assertEquals(2, overrides.size());
 		assertEquals("diagnosis", overrides.get(0).getColumnName());
-		assertEquals("1", overrides.get(0).getIndexAnalyzerId());
-		assertEquals("2", overrides.get(0).getSearchAnalyzerId());
+		assertEquals("org.sagebionetworks-SCIENTIFIC", overrides.get(0).getIndexAnalyzer());
+		assertEquals("org.sagebionetworks-STANDARD", overrides.get(0).getSearchAnalyzer());
 		assertEquals("tissue", overrides.get(1).getColumnName());
-		assertEquals("3", overrides.get(1).getIndexAnalyzerId());
-		assertNull(overrides.get(1).getSearchAnalyzerId());
+		assertEquals("org.sagebionetworks-IDENTIFIER", overrides.get(1).getIndexAnalyzer());
+		assertNull(overrides.get(1).getSearchAnalyzer());
 	}
 
 	@Test
@@ -239,7 +239,7 @@ public class ColumnAnalyzerOverrideDaoImplAutowiredTest {
 	private ColumnAnalyzerOverrideEntry newEntry(String columnName) {
 		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
 		entry.setColumnName(columnName);
-		entry.setIndexAnalyzerId("1");
+		entry.setIndexAnalyzer("org.sagebionetworks-SCIENTIFIC");
 		return entry;
 	}
 }

@@ -14,11 +14,8 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_R
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
@@ -62,18 +59,22 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 	public SynonymSet create(Long createdBy, SynonymSet synonymSet) {
 		Long id = idGenerator.generateNewId(IdType.SYNONYM_SET_ID);
 
-		jdbcTemplate.update(
-				"INSERT INTO SYNONYM_SET (ID, ETAG, ORGANIZATION_NAME, NAME, DESCRIPTION, RULES,"
-				+ " CREATED_BY, CREATED_ON, MODIFIED_BY, MODIFIED_ON)"
-				+ " VALUES (?, UUID(), ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))",
-				id,
-				synonymSet.getOrganizationName(),
-				synonymSet.getName(),
-				synonymSet.getDescription(),
-				synonymSet.getRules() == null ? "[]" : JDOSecondaryPropertyUtils.writeEntityListToJson(synonymSet.getRules()),
-				createdBy,
-				createdBy
-		);
+		try {
+			jdbcTemplate.update(
+					"INSERT INTO SYNONYM_SET (ID, ETAG, ORGANIZATION_NAME, NAME, DESCRIPTION, RULES,"
+					+ " CREATED_BY, CREATED_ON, MODIFIED_BY, MODIFIED_ON)"
+					+ " VALUES (?, UUID(), ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))",
+					id,
+					synonymSet.getOrganizationName(),
+					synonymSet.getName(),
+					synonymSet.getDescription(),
+					synonymSet.getRules() == null ? "[]" : JDOSecondaryPropertyUtils.writeEntityListToJson(synonymSet.getRules()),
+					createdBy,
+					createdBy
+			);
+		} catch (DataIntegrityViolationException e) {
+			throw new IllegalArgumentException("A synonym set with the same name already exists in this organization.", e);
+		}
 
 		return get(id.toString()).orElseThrow(() -> new IllegalStateException("The synonym set was not created."));
 	}
@@ -98,15 +99,20 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 			throw new ConflictingUpdateException("SynonymSet was updated since last fetched. Please re-fetch and try again.");
 		}
 
-		int updated = jdbcTemplate.update(
-				"UPDATE SYNONYM_SET SET ETAG = UUID(), NAME = ?, DESCRIPTION = ?, RULES = ?,"
-				+ " MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
-				synonymSet.getName(),
-				synonymSet.getDescription(),
-				synonymSet.getRules() == null ? "[]" : JDOSecondaryPropertyUtils.writeEntityListToJson(synonymSet.getRules()),
-				modifiedBy,
-				Long.parseLong(synonymSet.getId())
-		);
+		int updated;
+		try {
+			updated = jdbcTemplate.update(
+					"UPDATE SYNONYM_SET SET ETAG = UUID(), NAME = ?, DESCRIPTION = ?, RULES = ?,"
+					+ " MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
+					synonymSet.getName(),
+					synonymSet.getDescription(),
+					synonymSet.getRules() == null ? "[]" : JDOSecondaryPropertyUtils.writeEntityListToJson(synonymSet.getRules()),
+					modifiedBy,
+					Long.parseLong(synonymSet.getId())
+			);
+		} catch (DataIntegrityViolationException e) {
+			throw new IllegalArgumentException("A synonym set with the same name already exists in this organization.", e);
+		}
 
 		if (updated == 0) {
 			throw new NotFoundException("SynonymSet with id '" + synonymSet.getId() + "' does not exist.");
@@ -151,20 +157,29 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 	}
 
 	@Override
-	public List<String> findNonExistentIds(List<String> ids) {
-		if (ids == null || ids.isEmpty()) {
+	public List<String> findNonExistentNames(List<String> qualifiedNames) {
+		if (qualifiedNames == null || qualifiedNames.isEmpty()) {
 			return Collections.emptyList();
 		}
-		List<Long> longIds = ids.stream().map(Long::parseLong).collect(Collectors.toList());
-		String placeholders = longIds.stream().map(i -> "?").collect(Collectors.joining(","));
-		List<Long> found = jdbcTemplate.queryForList(
-				"SELECT ID FROM SYNONYM_SET WHERE ID IN (" + placeholders + ")",
-				Long.class, longIds.toArray());
-		Set<Long> foundSet = new HashSet<>(found);
+		StringBuilder sql = new StringBuilder(
+				"SELECT CONCAT(ORGANIZATION_NAME, '-', NAME) FROM SYNONYM_SET WHERE (ORGANIZATION_NAME, NAME) IN (");
+		List<Object> params = new ArrayList<>();
+		for (int i = 0; i < qualifiedNames.size(); i++) {
+			if (i > 0) {
+				sql.append(", ");
+			}
+			sql.append("(?, ?)");
+			String qualifiedName = qualifiedNames.get(i);
+			int dashIndex = qualifiedName.indexOf('-');
+			params.add(qualifiedName.substring(0, dashIndex));
+			params.add(qualifiedName.substring(dashIndex + 1));
+		}
+		sql.append(")");
+		List<String> existingNames = jdbcTemplate.queryForList(sql.toString(), String.class, params.toArray());
 		List<String> missing = new ArrayList<>();
-		for (Long id : longIds) {
-			if (!foundSet.contains(id)) {
-				missing.add(String.valueOf(id));
+		for (String qualifiedName : qualifiedNames) {
+			if (!existingNames.contains(qualifiedName)) {
+				missing.add(qualifiedName);
 			}
 		}
 		return missing;

@@ -1,10 +1,9 @@
 package org.sagebionetworks.repo.model.dbo.search;
 
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_COL_ANALYZER_OVERRIDES;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_CREATED_BY;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_CREATED_ON;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_COL_ANALYZER_IDS;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_DEFAULT_ANALYZER_ID;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_SYNONYM_SET_IDS;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_DEFAULT_ANALYZER;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_DESCRIPTION;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_ETAG;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_ID;
@@ -12,6 +11,7 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_C
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_MODIFIED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_NAME;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_ORGANIZATION_NAME;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_SYNONYM_SETS;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.DDL_SEARCH_CONFIGURATION;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_SEARCH_CONFIGURATION;
 
@@ -37,9 +37,9 @@ public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearc
 			new FieldColumn("organizationName", COL_SEARCH_CONFIG_ORGANIZATION_NAME),
 			new FieldColumn("name", COL_SEARCH_CONFIG_NAME),
 			new FieldColumn("description", COL_SEARCH_CONFIG_DESCRIPTION),
-			new FieldColumn("defaultAnalyzerId", COL_SEARCH_CONFIG_DEFAULT_ANALYZER_ID),
-			new FieldColumn("synonymSetIdsJson", COL_SEARCH_CONFIG_SYNONYM_SET_IDS),
-			new FieldColumn("columnAnalyzerOverrideIdsJson", COL_SEARCH_CONFIG_COL_ANALYZER_IDS),
+			new FieldColumn("defaultAnalyzer", COL_SEARCH_CONFIG_DEFAULT_ANALYZER),
+			new FieldColumn("synonymSetsJson", COL_SEARCH_CONFIG_SYNONYM_SETS),
+			new FieldColumn("columnAnalyzerOverridesJson", COL_SEARCH_CONFIG_COL_ANALYZER_OVERRIDES),
 			new FieldColumn("createdBy", COL_SEARCH_CONFIG_CREATED_BY),
 			new FieldColumn("createdOn", COL_SEARCH_CONFIG_CREATED_ON),
 			new FieldColumn("modifiedBy", COL_SEARCH_CONFIG_MODIFIED_BY),
@@ -51,9 +51,9 @@ public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearc
 	private String organizationName;
 	private String name;
 	private String description;
-	private Long defaultAnalyzerId;
-	private String synonymSetIdsJson;
-	private String columnAnalyzerOverrideIdsJson;
+	private String defaultAnalyzer;
+	private String synonymSetsJson;
+	private String columnAnalyzerOverridesJson;
 	private Long createdBy;
 	private Timestamp createdOn;
 	private Long modifiedBy;
@@ -68,10 +68,9 @@ public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearc
 			dbo.setOrganizationName(rs.getString(COL_SEARCH_CONFIG_ORGANIZATION_NAME));
 			dbo.setName(rs.getString(COL_SEARCH_CONFIG_NAME));
 			dbo.setDescription(rs.getString(COL_SEARCH_CONFIG_DESCRIPTION));
-			long defAnalyzerId = rs.getLong(COL_SEARCH_CONFIG_DEFAULT_ANALYZER_ID);
-			dbo.setDefaultAnalyzerId(rs.wasNull() ? null : defAnalyzerId);
-			dbo.setSynonymSetIdsJson(rs.getString(COL_SEARCH_CONFIG_SYNONYM_SET_IDS));
-			dbo.setColumnAnalyzerOverrideIdsJson(rs.getString(COL_SEARCH_CONFIG_COL_ANALYZER_IDS));
+			dbo.setDefaultAnalyzer(rs.getString(COL_SEARCH_CONFIG_DEFAULT_ANALYZER));
+			dbo.setSynonymSetsJson(rs.getString(COL_SEARCH_CONFIG_SYNONYM_SETS));
+			dbo.setColumnAnalyzerOverridesJson(rs.getString(COL_SEARCH_CONFIG_COL_ANALYZER_OVERRIDES));
 			dbo.setCreatedBy(rs.getLong(COL_SEARCH_CONFIG_CREATED_BY));
 			dbo.setCreatedOn(rs.getTimestamp(COL_SEARCH_CONFIG_CREATED_ON));
 			dbo.setModifiedBy(rs.getLong(COL_SEARCH_CONFIG_MODIFIED_BY));
@@ -177,30 +176,30 @@ public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearc
 		return this;
 	}
 
-	public Long getDefaultAnalyzerId() {
-		return defaultAnalyzerId;
+	public String getDefaultAnalyzer() {
+		return defaultAnalyzer;
 	}
 
-	public DBOSearchConfiguration setDefaultAnalyzerId(Long defaultAnalyzerId) {
-		this.defaultAnalyzerId = defaultAnalyzerId;
+	public DBOSearchConfiguration setDefaultAnalyzer(String defaultAnalyzer) {
+		this.defaultAnalyzer = defaultAnalyzer;
 		return this;
 	}
 
-	public String getSynonymSetIdsJson() {
-		return synonymSetIdsJson;
+	public String getSynonymSetsJson() {
+		return synonymSetsJson;
 	}
 
-	public DBOSearchConfiguration setSynonymSetIdsJson(String synonymSetIdsJson) {
-		this.synonymSetIdsJson = synonymSetIdsJson;
+	public DBOSearchConfiguration setSynonymSetsJson(String synonymSetsJson) {
+		this.synonymSetsJson = synonymSetsJson;
 		return this;
 	}
 
-	public String getColumnAnalyzerOverrideIdsJson() {
-		return columnAnalyzerOverrideIdsJson;
+	public String getColumnAnalyzerOverridesJson() {
+		return columnAnalyzerOverridesJson;
 	}
 
-	public DBOSearchConfiguration setColumnAnalyzerOverrideIdsJson(String columnAnalyzerOverrideIdsJson) {
-		this.columnAnalyzerOverrideIdsJson = columnAnalyzerOverrideIdsJson;
+	public DBOSearchConfiguration setColumnAnalyzerOverridesJson(String columnAnalyzerOverridesJson) {
+		this.columnAnalyzerOverridesJson = columnAnalyzerOverridesJson;
 		return this;
 	}
 
@@ -243,7 +242,7 @@ public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearc
 	@Override
 	public int hashCode() {
 		return Objects.hash(id, etag, organizationName, name, description,
-				defaultAnalyzerId, synonymSetIdsJson, columnAnalyzerOverrideIdsJson,
+				defaultAnalyzer, synonymSetsJson, columnAnalyzerOverridesJson,
 				createdBy, createdOn, modifiedBy, modifiedOn);
 	}
 
@@ -261,9 +260,9 @@ public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearc
 				&& Objects.equals(organizationName, other.organizationName)
 				&& Objects.equals(name, other.name)
 				&& Objects.equals(description, other.description)
-				&& Objects.equals(defaultAnalyzerId, other.defaultAnalyzerId)
-				&& Objects.equals(synonymSetIdsJson, other.synonymSetIdsJson)
-				&& Objects.equals(columnAnalyzerOverrideIdsJson, other.columnAnalyzerOverrideIdsJson)
+				&& Objects.equals(defaultAnalyzer, other.defaultAnalyzer)
+				&& Objects.equals(synonymSetsJson, other.synonymSetsJson)
+				&& Objects.equals(columnAnalyzerOverridesJson, other.columnAnalyzerOverridesJson)
 				&& Objects.equals(createdBy, other.createdBy)
 				&& Objects.equals(createdOn, other.createdOn)
 				&& Objects.equals(modifiedBy, other.modifiedBy)
@@ -273,8 +272,8 @@ public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearc
 	@Override
 	public String toString() {
 		return "DBOSearchConfiguration [id=" + id + ", etag=" + etag + ", organizationName=" + organizationName
-				+ ", name=" + name + ", description=" + description + ", defaultAnalyzerId=" + defaultAnalyzerId
-				+ ", synonymSetIdsJson=" + synonymSetIdsJson + ", columnAnalyzerOverrideIdsJson=" + columnAnalyzerOverrideIdsJson
+				+ ", name=" + name + ", description=" + description + ", defaultAnalyzer=" + defaultAnalyzer
+				+ ", synonymSetsJson=" + synonymSetsJson + ", columnAnalyzerOverridesJson=" + columnAnalyzerOverridesJson
 				+ ", createdBy=" + createdBy + ", createdOn=" + createdOn
 				+ ", modifiedBy=" + modifiedBy + ", modifiedOn=" + modifiedOn + "]";
 	}

@@ -133,6 +133,26 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * <li><a href="${DELETE.entity.entityId.searchconfig.binding}">DELETE /entity/{entityId}/searchconfig/binding</a></li>
  * </ul>
  *
+ * <h6>Public Resources and Cross-Organization Referencing</h6>
+ * <p>
+ * All search management resources (TextAnalyzers, SynonymSets, ColumnAnalyzerOverrides) are
+ * <b>publicly readable</b>. Any authenticated user can list and retrieve resources from any
+ * Organization. This enables cross-organization reuse: a
+ * <a href="${org.sagebionetworks.repo.model.search.table.SearchConfiguration}">SearchConfiguration</a>
+ * can reference resources from any Organization using <b>qualified names</b> in the format
+ * <code>{organizationName}-{resourceName}</code> (e.g., <code>org.sagebionetworks-SCIENTIFIC</code>).
+ * For example, any user can build a SearchConfiguration that uses the platform-provided
+ * <code>org.sagebionetworks</code> analyzers alongside custom resources from their own Organization.
+ * </p>
+ *
+ * <h6>Name Immutability</h6>
+ * <p>
+ * Because resources are referenced by qualified name, the <code>name</code> and
+ * <code>organizationName</code> fields are <b>immutable after creation</b>. Attempting to change
+ * either on update will return a 400 error. To use a different name, create a new resource and
+ * update any SearchConfigurations that reference the old one.
+ * </p>
+ *
  * <h6>Authorization</h6>
  * <p>
  * All management operations (create, update, delete) are restricted to <b>Sage Bionetworks employees</b>
@@ -146,7 +166,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * <p>
  * All search management objects belong to an
  * <a href="${org.sagebionetworks.repo.model.schema.Organization}">Organization</a> identified by
- * <code>organizationName</code>. The organization cannot be changed after creation.
+ * <code>organizationName</code>. The organization and name cannot be changed after creation.
+ * Resource names must start with a letter and contain only letters, digits, and underscores.
  * </p>
  */
 @ControllerInfo(displayName = "Search Management Services", path = "repo/v1")
@@ -221,7 +242,8 @@ public class SearchManagementController {
 	 * <p>
 	 * The caller must be a Sage Bionetworks employee with
 	 * <a href="${org.sagebionetworks.repo.model.ACCESS_TYPE}">ACCESS_TYPE.UPDATE</a>
-	 * permission on the Organization. The organizationName cannot be changed.
+	 * permission on the Organization. The <code>organizationName</code> and <code>name</code>
+	 * are immutable and cannot be changed after creation.
 	 * </p>
 	 * <p>
 	 * Concurrency is managed via the etag field. If the etag in the request does not match
@@ -323,7 +345,8 @@ public class SearchManagementController {
 	 * <p>
 	 * The caller must be a Sage Bionetworks employee with
 	 * <a href="${org.sagebionetworks.repo.model.ACCESS_TYPE}">ACCESS_TYPE.UPDATE</a>
-	 * permission on the Organization. The organizationName cannot be changed.
+	 * permission on the Organization. The <code>organizationName</code> and <code>name</code>
+	 * are immutable and cannot be changed after creation.
 	 * </p>
 	 * <p>
 	 * Concurrency is managed via the etag field. If the etag in the request does not match
@@ -423,7 +446,8 @@ public class SearchManagementController {
 	 * <p>
 	 * The caller must be a Sage Bionetworks employee with
 	 * <a href="${org.sagebionetworks.repo.model.ACCESS_TYPE}">ACCESS_TYPE.UPDATE</a>
-	 * permission on the Organization. The organizationName cannot be changed.
+	 * permission on the Organization. The <code>organizationName</code> and <code>name</code>
+	 * are immutable and cannot be changed after creation.
 	 * </p>
 	 * <p>
 	 * Concurrency is managed via the etag field. If the etag in the request does not match
@@ -523,7 +547,8 @@ public class SearchManagementController {
 	 * <p>
 	 * The caller must be a Sage Bionetworks employee with
 	 * <a href="${org.sagebionetworks.repo.model.ACCESS_TYPE}">ACCESS_TYPE.UPDATE</a>
-	 * permission on the Organization. The organizationName cannot be changed.
+	 * permission on the Organization. The <code>organizationName</code> and <code>name</code>
+	 * are immutable and cannot be changed after creation.
 	 * </p>
 	 * <p>
 	 * Concurrency is managed via the etag field. If the etag in the request does not match

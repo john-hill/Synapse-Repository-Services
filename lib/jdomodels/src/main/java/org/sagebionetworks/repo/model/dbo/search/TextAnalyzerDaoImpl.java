@@ -1,7 +1,11 @@
 package org.sagebionetworks.repo.model.dbo.search;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.sagebionetworks.ids.IdGenerator;
@@ -13,6 +17,7 @@ import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.ValidateArgument;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -55,18 +60,22 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 
 		Long id = idGenerator.generateNewId(IdType.TEXT_ANALYZER_ID);
 
-		jdbcTemplate.update(
-				"INSERT INTO TEXT_ANALYZER (ID, ETAG, NAME, DESCRIPTION, ORGANIZATION_NAME, SETTINGS,"
-				+ " CREATED_BY, CREATED_ON, MODIFIED_BY, MODIFIED_ON)"
-				+ " VALUES (?, UUID(), ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))",
-				id,
-				analyzer.getName(),
-				analyzer.getDescription(),
-				analyzer.getOrganizationName(),
-				JDOSecondaryPropertyUtils.createJSONFromObject(analyzer.getSettings()),
-				userId,
-				userId
-		);
+		try {
+			jdbcTemplate.update(
+					"INSERT INTO TEXT_ANALYZER (ID, ETAG, NAME, DESCRIPTION, ORGANIZATION_NAME, SETTINGS,"
+					+ " CREATED_BY, CREATED_ON, MODIFIED_BY, MODIFIED_ON)"
+					+ " VALUES (?, UUID(), ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))",
+					id,
+					analyzer.getName(),
+					analyzer.getDescription(),
+					analyzer.getOrganizationName(),
+					JDOSecondaryPropertyUtils.createJSONFromObject(analyzer.getSettings()),
+					userId,
+					userId
+			);
+		} catch (DataIntegrityViolationException e) {
+			throw new IllegalArgumentException("A text analyzer with the same name already exists in this organization.", e);
+		}
 
 		return get(id).orElseThrow(() -> new IllegalStateException("Failed to create TextAnalyzer"));
 	}
@@ -98,15 +107,20 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 			throw new ConflictingUpdateException("TextAnalyzer was updated since last fetched. Please re-fetch and try again.");
 		}
 
-		int updated = jdbcTemplate.update(
-				"UPDATE TEXT_ANALYZER SET ETAG = UUID(), NAME = ?, DESCRIPTION = ?, SETTINGS = ?,"
-				+ " MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
-				analyzer.getName(),
-				analyzer.getDescription(),
-				JDOSecondaryPropertyUtils.createJSONFromObject(analyzer.getSettings()),
-				userId,
-				id
-		);
+		int updated;
+		try {
+			updated = jdbcTemplate.update(
+					"UPDATE TEXT_ANALYZER SET ETAG = UUID(), NAME = ?, DESCRIPTION = ?, SETTINGS = ?,"
+					+ " MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
+					analyzer.getName(),
+					analyzer.getDescription(),
+					JDOSecondaryPropertyUtils.createJSONFromObject(analyzer.getSettings()),
+					userId,
+					id
+			);
+		} catch (DataIntegrityViolationException e) {
+			throw new IllegalArgumentException("A text analyzer with the same name already exists in this organization.", e);
+		}
 
 		if (updated == 0) {
 			throw new NotFoundException("TextAnalyzer with id '" + analyzer.getId() + "' does not exist.");
@@ -144,6 +158,75 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 				"SELECT COUNT(*) FROM TEXT_ANALYZER WHERE ID = ?",
 				Integer.class, id);
 		return count > 0;
+	}
+
+	@Override
+	public Optional<TextAnalyzer> getByOrganizationAndName(String organizationName, String name) {
+		ValidateArgument.required(organizationName, "organizationName");
+		ValidateArgument.required(name, "name");
+		try {
+			return Optional.ofNullable(jdbcTemplate.queryForObject(
+					"SELECT * FROM TEXT_ANALYZER WHERE ORGANIZATION_NAME = ? AND NAME = ?",
+					ROW_MAPPER, organizationName, name));
+		} catch (EmptyResultDataAccessException e) {
+			return Optional.empty();
+		}
+	}
+
+	@Override
+	public List<String> findNonExistentNames(List<String> qualifiedNames) {
+		if (qualifiedNames == null || qualifiedNames.isEmpty()) {
+			return Collections.emptyList();
+		}
+		// Build a single query: SELECT CONCAT(ORGANIZATION_NAME, '-', NAME) FROM ... WHERE (ORGANIZATION_NAME, NAME) IN ((?,?), ...)
+		StringBuilder sql = new StringBuilder(
+				"SELECT CONCAT(ORGANIZATION_NAME, '-', NAME) FROM TEXT_ANALYZER WHERE (ORGANIZATION_NAME, NAME) IN (");
+		List<Object> params = new ArrayList<>();
+		for (int i = 0; i < qualifiedNames.size(); i++) {
+			if (i > 0) {
+				sql.append(", ");
+			}
+			sql.append("(?, ?)");
+			String qualifiedName = qualifiedNames.get(i);
+			int dashIndex = qualifiedName.indexOf('-');
+			params.add(qualifiedName.substring(0, dashIndex));
+			params.add(qualifiedName.substring(dashIndex + 1));
+		}
+		sql.append(")");
+		List<String> existingNames = jdbcTemplate.queryForList(sql.toString(), String.class, params.toArray());
+		List<String> missing = new ArrayList<>();
+		for (String qualifiedName : qualifiedNames) {
+			if (!existingNames.contains(qualifiedName)) {
+				missing.add(qualifiedName);
+			}
+		}
+		return missing;
+	}
+
+	@Override
+	public Map<String, TextAnalyzer> getByQualifiedNames(List<String> qualifiedNames) {
+		if (qualifiedNames == null || qualifiedNames.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		StringBuilder sql = new StringBuilder("SELECT * FROM TEXT_ANALYZER WHERE (ORGANIZATION_NAME, NAME) IN (");
+		List<Object> params = new ArrayList<>();
+		for (int i = 0; i < qualifiedNames.size(); i++) {
+			if (i > 0) {
+				sql.append(", ");
+			}
+			sql.append("(?, ?)");
+			String qualifiedName = qualifiedNames.get(i);
+			int dashIndex = qualifiedName.indexOf('-');
+			params.add(qualifiedName.substring(0, dashIndex));
+			params.add(qualifiedName.substring(dashIndex + 1));
+		}
+		sql.append(")");
+		List<TextAnalyzer> analyzers = jdbcTemplate.query(sql.toString(), ROW_MAPPER, params.toArray());
+		Map<String, TextAnalyzer> result = new HashMap<>();
+		for (TextAnalyzer a : analyzers) {
+			result.put(a.getOrganizationName() + "-" + a.getName(), a);
+		}
+		return result;
 	}
 
 	@WriteTransaction

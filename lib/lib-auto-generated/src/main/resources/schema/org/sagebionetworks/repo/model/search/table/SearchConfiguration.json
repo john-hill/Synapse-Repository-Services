@@ -7,33 +7,33 @@
 		},
 		"organizationName": {
 			"type": "string",
-			"description": "The name of the Organization this resource belongs to."
+			"description": "The name of the Organization this resource belongs to. Immutable after creation."
 		},
 		"name": {
 			"type": "string",
-			"description": "Display name. Unique within the organization."
+			"description": "The resource name. Must start with a letter and contain only letters, digits, and underscores. Unique within the organization and immutable after creation. Used as part of the qualified name ({organizationName}-{name}) when referenced by other resources."
 		},
 		"description": {
 			"type": "string",
 			"description": "Optional description."
 		},
-		"synonymSetIds": {
+		"synonymSets": {
 			"type": "array",
-			"description": "Ordered list of SynonymSet IDs to apply. Rules from all sets are unioned.",
+			"description": "Ordered list of SynonymSet qualified names in '{organizationName}-{name}' format to apply. Rules from all sets are unioned.",
 			"items": {
 				"type": "string"
 			}
 		},
-		"columnAnalyzerOverrideIds": {
+		"columnAnalyzerOverrides": {
 			"type": "array",
-			"description": "Ordered list of ColumnAnalyzerOverride IDs to apply. First-found-wins for duplicate columns.",
+			"description": "Ordered list of ColumnAnalyzerOverride qualified names in '{organizationName}-{name}' format to apply. First-found-wins for duplicate columns.",
 			"items": {
 				"type": "string"
 			}
 		},
-		"defaultAnalyzerId": {
+		"defaultAnalyzer": {
 			"type": "string",
-			"description": "Default text analyzer ID for columns without an explicit override."
+			"description": "Default text analyzer for columns without an explicit override, in '{organizationName}-{name}' format."
 		},
 		"etag": {
 			"type": "string",

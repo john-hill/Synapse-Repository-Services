@@ -249,8 +249,8 @@ public class SynonymSetManagerImplTest {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
-		SynonymSet request = new SynonymSet().setId("1").setOrganizationName("test-org").setName("updated");
-		when(synonymSetDao.get("1")).thenReturn(Optional.of(new SynonymSet().setId("1").setOrganizationName("test-org")));
+		SynonymSet request = new SynonymSet().setId("1").setOrganizationName("test-org").setName("test_name");
+		when(synonymSetDao.get("1")).thenReturn(Optional.of(new SynonymSet().setId("1").setOrganizationName("test-org").setName("test_name")));
 		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
 			.thenReturn(AuthorizationStatus.accessDenied("no"));
@@ -264,12 +264,28 @@ public class SynonymSetManagerImplTest {
 	public void testUpdateWithOrgNameMismatch() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
-		SynonymSet request = new SynonymSet().setId("1").setOrganizationName("other-org").setName("updated");
+		SynonymSet request = new SynonymSet().setId("1").setOrganizationName("other-org").setName("test_name");
 		when(synonymSetDao.get("1")).thenReturn(Optional.of(new SynonymSet().setId("1").setOrganizationName("test-org")));
 
 		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.update(admin, request));
 		assertTrue(ex.getMessage().contains("organizationName cannot be changed"));
+	}
+
+	@Test
+	public void testUpdateWithNameChangeThrows() {
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		SynonymSet request = new SynonymSet()
+			.setId("1").setOrganizationName("test-org").setName("new_name");
+		when(synonymSetDao.get("1")).thenReturn(Optional.of(
+			new SynonymSet().setId("1").setOrganizationName("test-org").setName("original_name")));
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.update(admin, request));
+
+		assertTrue(ex.getMessage().contains("name cannot be changed"));
+		verify(synonymSetDao, never()).update(any(), any());
 	}
 
 	@Test

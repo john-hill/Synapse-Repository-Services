@@ -60,6 +60,8 @@ public class SearchConfigurationManagerImplTest {
 	@Mock
 	private ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao;
 	@Mock
+	private org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao textAnalyzerDao;
+	@Mock
 	private NodeDAO nodeDAO;
 
 	private SearchConfigurationManagerImpl manager;
@@ -67,7 +69,7 @@ public class SearchConfigurationManagerImplTest {
 	@BeforeEach
 	void setUp() {
 		manager = new SearchConfigurationManagerImpl(searchConfigurationDao, aclDao, organizationDao,
-				synonymSetDao, columnAnalyzerOverrideDao, nodeDAO);
+				synonymSetDao, columnAnalyzerOverrideDao, textAnalyzerDao, nodeDAO);
 	}
 
 	// --- Sage employee / admin authorization ---
@@ -199,8 +201,8 @@ public class SearchConfigurationManagerImplTest {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
-		SearchConfiguration request = new SearchConfiguration().setId("1").setOrganizationName("test-org").setName("updated");
-		when(searchConfigurationDao.get("1")).thenReturn(Optional.of(new SearchConfiguration().setId("1").setOrganizationName("test-org")));
+		SearchConfiguration request = new SearchConfiguration().setId("1").setOrganizationName("test-org").setName("test_name");
+		when(searchConfigurationDao.get("1")).thenReturn(Optional.of(new SearchConfiguration().setId("1").setOrganizationName("test-org").setName("test_name")));
 		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
 			.thenReturn(AuthorizationStatus.accessDenied("no"));
@@ -214,12 +216,28 @@ public class SearchConfigurationManagerImplTest {
 	public void testUpdateWithOrgNameMismatch() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
-		SearchConfiguration request = new SearchConfiguration().setId("1").setOrganizationName("other-org").setName("updated");
+		SearchConfiguration request = new SearchConfiguration().setId("1").setOrganizationName("other-org").setName("test_name");
 		when(searchConfigurationDao.get("1")).thenReturn(Optional.of(new SearchConfiguration().setId("1").setOrganizationName("test-org")));
 
 		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.update(admin, request));
 		assertTrue(ex.getMessage().contains("organizationName cannot be changed"));
+	}
+
+	@Test
+	public void testUpdateWithNameChangeThrows() {
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		SearchConfiguration request = new SearchConfiguration()
+			.setId("1").setOrganizationName("test-org").setName("new_name");
+		when(searchConfigurationDao.get("1")).thenReturn(Optional.of(
+			new SearchConfiguration().setId("1").setOrganizationName("test-org").setName("original_name")));
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.update(admin, request));
+
+		assertTrue(ex.getMessage().contains("name cannot be changed"));
+		verify(searchConfigurationDao, never()).update(any(), any());
 	}
 
 	// --- List / pagination ---
@@ -403,5 +421,83 @@ public class SearchConfigurationManagerImplTest {
 		assertEquals("Must login to perform this action", message);
 		verifyZeroInteractions(aclDao);
 		verifyZeroInteractions(searchConfigurationDao);
+	}
+
+	// --- Name pattern validation ---
+
+	@Test
+	public void testCreateWithInvalidNamePattern() {
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+			manager.create(admin, new SearchConfiguration().setOrganizationName("test-org").setName("invalid-name")));
+		assertTrue(ex.getMessage().contains("Resource name must start with a letter"));
+		verifyZeroInteractions(searchConfigurationDao);
+	}
+
+	// --- Reference name validation ---
+
+	@Test
+	public void testCreateWithInvalidQualifiedNameFormat() {
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+
+		// call under test — defaultAnalyzer with no hyphen
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+			manager.create(admin, new SearchConfiguration()
+				.setOrganizationName("test-org").setName("MyConfig")
+				.setDefaultAnalyzer("noHyphenHere")));
+		assertTrue(ex.getMessage().contains("'{organizationName}-{name}' format"));
+		verifyZeroInteractions(searchConfigurationDao);
+	}
+
+	@Test
+	public void testCreateWithMissingDefaultAnalyzer() {
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		when(textAnalyzerDao.findNonExistentNames(Arrays.asList("org.sagebionetworks-MISSING")))
+			.thenReturn(Arrays.asList("org.sagebionetworks-MISSING"));
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+			manager.create(admin, new SearchConfiguration()
+				.setOrganizationName("test-org").setName("MyConfig")
+				.setDefaultAnalyzer("org.sagebionetworks-MISSING")));
+		assertTrue(ex.getMessage().contains("default analyzer name does not exist"));
+		verify(searchConfigurationDao, never()).create(anyLong(), any());
+	}
+
+	@Test
+	public void testCreateWithMissingSynonymSet() {
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		when(synonymSetDao.findNonExistentNames(Arrays.asList("org.sagebionetworks-MISSING_SET")))
+			.thenReturn(Arrays.asList("org.sagebionetworks-MISSING_SET"));
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+			manager.create(admin, new SearchConfiguration()
+				.setOrganizationName("test-org").setName("MyConfig")
+				.setSynonymSets(Arrays.asList("org.sagebionetworks-MISSING_SET"))));
+		assertTrue(ex.getMessage().contains("synonym set names do not exist"));
+		verify(searchConfigurationDao, never()).create(anyLong(), any());
+	}
+
+	@Test
+	public void testCreateWithMissingColumnAnalyzerOverride() {
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		when(columnAnalyzerOverrideDao.findNonExistentNames(Arrays.asList("org.sagebionetworks-MISSING_OVERRIDE")))
+			.thenReturn(Arrays.asList("org.sagebionetworks-MISSING_OVERRIDE"));
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+			manager.create(admin, new SearchConfiguration()
+				.setOrganizationName("test-org").setName("MyConfig")
+				.setColumnAnalyzerOverrides(Arrays.asList("org.sagebionetworks-MISSING_OVERRIDE"))));
+		assertTrue(ex.getMessage().contains("column analyzer override names do not exist"));
+		verify(searchConfigurationDao, never()).create(anyLong(), any());
 	}
 }

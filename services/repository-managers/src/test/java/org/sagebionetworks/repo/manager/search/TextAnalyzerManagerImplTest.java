@@ -156,8 +156,8 @@ public class TextAnalyzerManagerImplTest {
 	@Test
 	public void testUpdateWithoutOrgAclThrows() {
 		TextAnalyzer input = new TextAnalyzer()
-			.setId("1").setOrganizationName("test-org").setName("updated");
-		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationName("test-org")));
+			.setId("1").setOrganizationName("test-org").setName("test_name");
+		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationName("test-org").setName("test_name")));
 		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
 			.thenReturn(AuthorizationStatus.accessDenied("no"));
@@ -185,17 +185,31 @@ public class TextAnalyzerManagerImplTest {
 	}
 
 	@Test
+	public void testUpdateWithNameChangeThrows() {
+		TextAnalyzer input = new TextAnalyzer()
+			.setId("1").setOrganizationName("test-org").setName("new_name");
+		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(
+			new TextAnalyzer().setId("1").setOrganizationName("test-org").setName("original_name")));
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.update(sageUser, input));
+
+		assertTrue(ex.getMessage().contains("name cannot be changed"));
+		verify(textAnalyzerDao, never()).update(any(), any());
+	}
+
+	@Test
 	public void testUpdateHappyPath() {
 		TextAnalyzer input = new TextAnalyzer()
-			.setId("1").setOrganizationName("test-org").setName("updated");
-		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationName("test-org")));
+			.setId("1").setOrganizationName("test-org").setName("test_name").setDescription("updated description");
+		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationName("test-org").setName("test_name")));
 		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
 			.thenReturn(AuthorizationStatus.authorized());
 		when(textAnalyzerDao.update(any(), eq(1L))).thenReturn(input);
 
 		TextAnalyzer result = manager.update(sageUser, input);
-		assertEquals("updated", result.getName());
+		assertEquals("test_name", result.getName());
 	}
 
 	// --- Delete authorization ---

@@ -13,6 +13,6 @@ public interface SynonymSetDao {
 	List<SynonymSet> list(String organizationName, long limit, long offset);
 	List<SynonymSet> listAll(long limit, long offset);
 	Optional<SynonymSet> getByOrganizationAndName(String organizationName, String name);
-	List<String> findNonExistentIds(List<String> ids);
+	List<String> findNonExistentNames(List<String> qualifiedNames);
 	void truncateAll();
 }

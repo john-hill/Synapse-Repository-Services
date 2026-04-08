@@ -23,6 +23,8 @@ import org.springframework.stereotype.Service;
 public class SynonymSetManagerImpl implements SynonymSetManager {
 
 	private static final String MSG_UNAUTHORIZED = "Only Sage Bionetworks employees can manage synonym sets.";
+	private static final String RESOURCE_NAME_PATTERN = "^[a-zA-Z][a-zA-Z0-9_]*$";
+	private static final String RESOURCE_NAME_PATTERN_MSG = "Resource name must start with a letter and contain only letters, digits, and underscores.";
 
 	private final SynonymSetDao synonymSetDao;
 	private final AccessControlListDAO aclDao;
@@ -42,6 +44,9 @@ public class SynonymSetManagerImpl implements SynonymSetManager {
 		ValidateArgument.required(request, "request");
 		ValidateArgument.requiredNotBlank(request.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(request.getName(), "name");
+		if (!request.getName().matches(RESOURCE_NAME_PATTERN)) {
+			throw new IllegalArgumentException(RESOURCE_NAME_PATTERN_MSG);
+		}
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
@@ -71,6 +76,9 @@ public class SynonymSetManagerImpl implements SynonymSetManager {
 		ValidateArgument.requiredNotBlank(request.getId(), "id");
 		ValidateArgument.requiredNotBlank(request.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(request.getName(), "name");
+		if (!request.getName().matches(RESOURCE_NAME_PATTERN)) {
+			throw new IllegalArgumentException(RESOURCE_NAME_PATTERN_MSG);
+		}
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
@@ -81,6 +89,9 @@ public class SynonymSetManagerImpl implements SynonymSetManager {
 
 		if (!existing.getOrganizationName().equals(request.getOrganizationName())) {
 			throw new IllegalArgumentException("The organizationName cannot be changed.");
+		}
+		if (!existing.getName().equals(request.getName())) {
+			throw new IllegalArgumentException("The name cannot be changed. Create a new resource instead.");
 		}
 
 		if (!user.isAdmin()) {

@@ -30,6 +30,7 @@ import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SynonymRule;
 import org.sagebionetworks.repo.model.search.table.SynonymRuleType;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
+import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 
 @ExtendWith(ITTestExtension.class)
 public class ITSearchConfigurationTest {
@@ -49,8 +50,9 @@ public class ITSearchConfigurationTest {
 	public void testCRUDWithSearchConfiguration() throws SynapseException {
 		// Get org name and a bootstrapped analyzer to use as default
 		ListTextAnalyzersResponse analyzers = adminSynapse.listTextAnalyzers(new ListTextAnalyzersRequest());
-		String orgName = analyzers.getResults().get(0).getOrganizationName();
-		String defaultAnalyzerId = analyzers.getResults().get(0).getId();
+		TextAnalyzer bootstrappedAnalyzer = analyzers.getResults().get(0);
+		String orgName = bootstrappedAnalyzer.getOrganizationName();
+		String defaultAnalyzerName = orgName + "-" + bootstrappedAnalyzer.getName();
 
 		// Create a synonym set to reference
 		SynonymRule equivalentRule = new SynonymRule();
@@ -64,26 +66,28 @@ public class ITSearchConfigurationTest {
 		synonymSet.setOrganizationName(orgName);
 		synonymSet.setRules(Arrays.asList(equivalentRule, explicitRule));
 		SynonymSet createdSynonymSet = adminSynapse.createSynonymSet(synonymSet);
+		String synonymSetName = orgName + "-" + createdSynonymSet.getName();
 
 		// Create a column analyzer override to reference
 		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
 		entry.setColumnName("abstract");
-		entry.setIndexAnalyzerId(defaultAnalyzerId);
-		entry.setSearchAnalyzerId(defaultAnalyzerId);
+		entry.setIndexAnalyzer(defaultAnalyzerName);
+		entry.setSearchAnalyzer(defaultAnalyzerName);
 		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride();
 		override.setName("IT_CONFIG_OVERRIDE");
 		override.setOrganizationName(orgName);
 		override.setOverrides(Collections.singletonList(entry));
 		ColumnAnalyzerOverride createdOverride = adminSynapse.createColumnAnalyzerOverride(override);
+		String overrideName = orgName + "-" + createdOverride.getName();
 
 		// CREATE — include all three reference types
 		SearchConfiguration toCreate = new SearchConfiguration();
 		toCreate.setName("IT_TEST_CONFIG");
 		toCreate.setDescription("Integration test search configuration");
 		toCreate.setOrganizationName(orgName);
-		toCreate.setDefaultAnalyzerId(defaultAnalyzerId);
-		toCreate.setSynonymSetIds(Arrays.asList(createdSynonymSet.getId()));
-		toCreate.setColumnAnalyzerOverrideIds(Arrays.asList(createdOverride.getId()));
+		toCreate.setDefaultAnalyzer(defaultAnalyzerName);
+		toCreate.setSynonymSets(Arrays.asList(synonymSetName));
+		toCreate.setColumnAnalyzerOverrides(Arrays.asList(overrideName));
 
 		// call under test
 		SearchConfiguration created = adminSynapse.createSearchConfiguration(toCreate);
@@ -91,9 +95,9 @@ public class ITSearchConfigurationTest {
 		assertNotNull(created.getEtag());
 		assertEquals("IT_TEST_CONFIG", created.getName());
 		assertEquals("Integration test search configuration", created.getDescription());
-		assertEquals(defaultAnalyzerId, created.getDefaultAnalyzerId());
-		assertEquals(Arrays.asList(createdSynonymSet.getId()), created.getSynonymSetIds());
-		assertEquals(Arrays.asList(createdOverride.getId()), created.getColumnAnalyzerOverrideIds());
+		assertEquals(defaultAnalyzerName, created.getDefaultAnalyzer());
+		assertEquals(Arrays.asList(synonymSetName), created.getSynonymSets());
+		assertEquals(Arrays.asList(overrideName), created.getColumnAnalyzerOverrides());
 
 		// call under test — verify GET returns the same data
 		SearchConfiguration fetched = adminSynapse.getSearchConfiguration(created.getId());
@@ -104,18 +108,18 @@ public class ITSearchConfigurationTest {
 		SearchConfiguration updated = adminSynapse.updateSearchConfiguration(fetched);
 		assertEquals("Updated description", updated.getDescription());
 		assertNotEquals(created.getEtag(), updated.getEtag());
-		assertEquals(defaultAnalyzerId, updated.getDefaultAnalyzerId());
-		assertEquals(Arrays.asList(createdSynonymSet.getId()), updated.getSynonymSetIds());
-		assertEquals(Arrays.asList(createdOverride.getId()), updated.getColumnAnalyzerOverrideIds());
+		assertEquals(defaultAnalyzerName, updated.getDefaultAnalyzer());
+		assertEquals(Arrays.asList(synonymSetName), updated.getSynonymSets());
+		assertEquals(Arrays.asList(overrideName), updated.getColumnAnalyzerOverrides());
 
 		// call under test — UPDATE: clear optional references
-		updated.setDefaultAnalyzerId(null);
-		updated.setSynonymSetIds(null);
-		updated.setColumnAnalyzerOverrideIds(null);
+		updated.setDefaultAnalyzer(null);
+		updated.setSynonymSets(null);
+		updated.setColumnAnalyzerOverrides(null);
 		SearchConfiguration cleared = adminSynapse.updateSearchConfiguration(updated);
-		assertNull(cleared.getDefaultAnalyzerId());
-		assertTrue(cleared.getSynonymSetIds() == null || cleared.getSynonymSetIds().isEmpty());
-		assertTrue(cleared.getColumnAnalyzerOverrideIds() == null || cleared.getColumnAnalyzerOverrideIds().isEmpty());
+		assertNull(cleared.getDefaultAnalyzer());
+		assertTrue(cleared.getSynonymSets() == null || cleared.getSynonymSets().isEmpty());
+		assertTrue(cleared.getColumnAnalyzerOverrides() == null || cleared.getColumnAnalyzerOverrides().isEmpty());
 
 		// call under test — LIST by org
 		ListSearchConfigurationsRequest listRequest = new ListSearchConfigurationsRequest();

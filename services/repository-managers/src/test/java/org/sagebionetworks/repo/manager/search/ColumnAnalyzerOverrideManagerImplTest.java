@@ -36,8 +36,10 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
+import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.schema.Organization;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
+import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesRequest;
 import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesResponse;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -48,6 +50,8 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 	@Mock
 	private ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao;
 	@Mock
+	private TextAnalyzerDao textAnalyzerDao;
+	@Mock
 	private AccessControlListDAO aclDao;
 	@Mock
 	private OrganizationDao organizationDao;
@@ -56,7 +60,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 
 	@BeforeEach
 	void setUp() {
-		manager = new ColumnAnalyzerOverrideManagerImpl(columnAnalyzerOverrideDao, aclDao, organizationDao);
+		manager = new ColumnAnalyzerOverrideManagerImpl(columnAnalyzerOverrideDao, textAnalyzerDao, aclDao, organizationDao);
 	}
 
 	// --- Sage employee / admin authorization ---
@@ -264,8 +268,8 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
-		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride().setId("1").setOrganizationName("test-org").setName("updated");
-		when(columnAnalyzerOverrideDao.get("1")).thenReturn(Optional.of(new ColumnAnalyzerOverride().setId("1").setOrganizationName("test-org")));
+		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride().setId("1").setOrganizationName("test-org").setName("test_name");
+		when(columnAnalyzerOverrideDao.get("1")).thenReturn(Optional.of(new ColumnAnalyzerOverride().setId("1").setOrganizationName("test-org").setName("test_name")));
 		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
 			.thenReturn(AuthorizationStatus.accessDenied("no"));
@@ -277,11 +281,27 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 	public void testUpdateRejectsOrgNameMismatch() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
-		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride().setId("1").setOrganizationName("other-org").setName("updated");
-		when(columnAnalyzerOverrideDao.get("1")).thenReturn(Optional.of(new ColumnAnalyzerOverride().setId("1").setOrganizationName("test-org")));
+		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride().setId("1").setOrganizationName("other-org").setName("test_name");
+		when(columnAnalyzerOverrideDao.get("1")).thenReturn(Optional.of(new ColumnAnalyzerOverride().setId("1").setOrganizationName("test-org").setName("test_name")));
 
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.update(admin, request));
 		assertTrue(ex.getMessage().contains("organizationName cannot be changed"));
+	}
+
+	@Test
+	public void testUpdateWithNameChangeThrows() {
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride()
+			.setId("1").setOrganizationName("test-org").setName("new_name");
+		when(columnAnalyzerOverrideDao.get("1")).thenReturn(Optional.of(
+			new ColumnAnalyzerOverride().setId("1").setOrganizationName("test-org").setName("original_name")));
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.update(admin, request));
+
+		assertTrue(ex.getMessage().contains("name cannot be changed"));
+		verify(columnAnalyzerOverrideDao, never()).update(any(), any());
 	}
 
 	// --- Delete ACL from stored entity ---
@@ -356,5 +376,76 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 
 		assertNull(response.getNextPageToken(), "Expected null next page token when all results fit in one page");
 		assertEquals(1, response.getResults().size());
+	}
+
+	// --- Name pattern validation ---
+
+	@Test
+	public void testCreateWithInvalidNamePattern() {
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+			manager.create(admin, new ColumnAnalyzerOverride().setOrganizationName("test-org").setName("invalid-name")));
+		assertTrue(ex.getMessage().contains("Resource name must start with a letter"));
+		verifyZeroInteractions(columnAnalyzerOverrideDao);
+	}
+
+	// --- Entry analyzer name validation ---
+
+	@Test
+	public void testCreateWithInvalidQualifiedNameInEntry() {
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry()
+			.setColumnName("myCol")
+			.setIndexAnalyzer("noHyphenHere");
+		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride()
+			.setOrganizationName("test-org").setName("MyOverride")
+			.setOverrides(Arrays.asList(entry));
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.create(admin, request));
+		assertTrue(ex.getMessage().contains("'{organizationName}-{name}' format"));
+		verify(columnAnalyzerOverrideDao, never()).create(anyLong(), any());
+	}
+
+	@Test
+	public void testCreateWithMissingIndexAnalyzer() {
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry()
+			.setColumnName("myCol")
+			.setIndexAnalyzer("org.sagebionetworks-MISSING");
+		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride()
+			.setOrganizationName("test-org").setName("MyOverride")
+			.setOverrides(Arrays.asList(entry));
+		when(textAnalyzerDao.findNonExistentNames(Arrays.asList("org.sagebionetworks-MISSING")))
+			.thenReturn(Arrays.asList("org.sagebionetworks-MISSING"));
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.create(admin, request));
+		assertTrue(ex.getMessage().contains("text analyzer names do not exist"));
+		verify(columnAnalyzerOverrideDao, never()).create(anyLong(), any());
+	}
+
+	@Test
+	public void testCreateWithMissingSearchAnalyzer() {
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry()
+			.setColumnName("myCol")
+			.setSearchAnalyzer("org.sagebionetworks-MISSING");
+		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride()
+			.setOrganizationName("test-org").setName("MyOverride")
+			.setOverrides(Arrays.asList(entry));
+		when(textAnalyzerDao.findNonExistentNames(Arrays.asList("org.sagebionetworks-MISSING")))
+			.thenReturn(Arrays.asList("org.sagebionetworks-MISSING"));
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.create(admin, request));
+		assertTrue(ex.getMessage().contains("text analyzer names do not exist"));
+		verify(columnAnalyzerOverrideDao, never()).create(anyLong(), any());
 	}
 }

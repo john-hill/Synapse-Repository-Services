@@ -384,7 +384,6 @@ public class GridIndexManagerImplTest {
 		Path snapshotFile = Path.of("/tmp/snapshot.cbor");
 
 		when(mockIndexBuilder.build(snapshotFile)).thenThrow(new IOException("Failed to read file"));
-		when(mockDao.createReplicaIfNotExists(sessionId, replicaId)).thenReturn(true);
 
 		// call under test
 		RuntimeException ex = assertThrows(RuntimeException.class, () -> {
@@ -403,7 +402,6 @@ public class GridIndexManagerImplTest {
 		when(mockIndexBuilder.build(snapshotFile)).thenReturn(mockIndex);
 		when(mockIndex.getClockTable()).thenReturn(clockTable);
 		when(mockReaderProvider.create(snapshotFile, mockIndex)).thenThrow(new IOException("Failed to open file"));
-		when(mockDao.createReplicaIfNotExists(sessionId, replicaId)).thenReturn(true);
 
 		// call under test
 		RuntimeException ex = assertThrows(RuntimeException.class, () -> {
@@ -451,7 +449,6 @@ public class GridIndexManagerImplTest {
 		when(mockReader.streamValueNodes()).thenReturn(Stream.empty());
 		when(mockReader.streamArrayNodes()).thenReturn(Stream.empty());
 		when(mockReader.streamVectorNodes()).thenReturn(Stream.empty());
-		when(mockDao.createReplicaIfNotExists(sessionId, replicaId)).thenReturn(true);
 
 		// call under test
 		managerWithSmallBatch.applySnapshot(sessionId, replicaId, snapshotFile);

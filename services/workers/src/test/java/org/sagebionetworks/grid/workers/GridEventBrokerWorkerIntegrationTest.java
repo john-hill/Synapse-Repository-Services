@@ -12,7 +12,6 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -131,7 +130,6 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.fasterxml.jackson.databind.jsonschema.SchemaAware;
 
 import au.com.bytecode.opencsv.CSVReader;
 

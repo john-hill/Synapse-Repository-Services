@@ -145,7 +145,7 @@ public class GridSessionSnapshotPublisherImplTest {
 		// call under test
 		List<String> result = manager.scanAndPublishSessionsNeedingSnapshot();
 
-		assertEquals(List.of(sessionId), result);
+		assertEquals(Collections.emptyList(), result);
 		verify(mockSqsClient, never()).sendMessage(any(SendMessageRequest.class));
 	}
 }

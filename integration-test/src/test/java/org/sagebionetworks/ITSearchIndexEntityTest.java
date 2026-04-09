@@ -115,13 +115,13 @@ public class ITSearchIndexEntityTest {
 		searchIndex.setParentId(project.getId());
 		searchIndex.setName("Configured Search Index");
 		searchIndex.setDefiningSQL("SELECT * FROM " + table.getId());
-		searchIndex.setSearchConfigurationId("org-myConfig");
+		searchIndex.setSearchConfigurationId("12345");
 
 		// call under test
 		searchIndex = adminSynapse.createEntity(searchIndex);
 
 		assertNotNull(searchIndex.getId());
-		assertEquals("org-myConfig", searchIndex.getSearchConfigurationId());
+		assertEquals("12345", searchIndex.getSearchConfigurationId());
 
 		// Verify round-trip via GET
 		SearchIndex retrieved = adminSynapse.getEntity(searchIndex.getId(), SearchIndex.class);

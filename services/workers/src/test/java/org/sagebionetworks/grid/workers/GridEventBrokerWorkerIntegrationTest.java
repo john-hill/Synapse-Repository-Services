@@ -448,6 +448,90 @@ public class GridEventBrokerWorkerIntegrationTest {
 		});
 	}
 
+	/**
+	 * Reproduction test for the bug where applySnapshot() calls deleteReplica(), which cascade-deletes
+	 * GRID_REPLICA_MESSAGE (the active message chain). The hub then sends patches from non-INTERNAL replicas
+	 * (e.g. USER_SUPPORT from a CSV import), but the chain is gone so the patches are permanently discarded.
+	 * The export then blocks forever because getCurrentClockIfAllPatchesApplied() finds those patches missing.
+	 *
+	 * Without the fix: the export job gets stuck in PROCESSING (RecoverableMessageException loop).
+	 * With the fix (clearReplicaData instead of deleteReplica): all patches applied in one sync cycle,
+	 * export succeeds.
+	 */
+	@Test
+	public void testGridRebuildAfterSnapshotWithMultipleReplicas() throws Exception {
+		Project project = entityService.createEntity(admin.getId(), new Project().setName("RebuildTest"), null);
+
+		String csvContent = "integer_column,string_column\n1,row_one\n2,row_two\n3,row_three\n";
+		S3FileHandle fileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(),
+				csvContent.getBytes(StandardCharsets.UTF_8), "data.csv", ContentType.create("text/csv"), null);
+
+		RecordSet recordSet = entityService.createEntity(admin.getId(),
+				new RecordSet().setParentId(project.getId()).setName("testRecordSet")
+						.setDataFileHandleId(fileHandle.getId()).setUpsertKey(List.of("integer_column")),
+				null);
+
+		// Create grid session — RecordSetCreateGridHandler creates a snapshot using the INTERNAL replica ID
+		// for all node timestamps, so the snapshot clock only covers the INTERNAL replica.
+		GridSession session = asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new CreateGridRequest().setRecordSetId(recordSet.getId()),
+				(CreateGridResponse response) -> {
+					assertNotNull(response);
+					assertNotNull(response.getGridSession());
+				}, MAX_WAIT_MS).getResponse().getGridSession();
+
+		// Wait for the internal replica to be ready
+		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+			Optional<GridHeader> op = gridViewManager.readHeader(session.getSessionId(), INTERNAL_REPLICA_ID);
+			System.out.println("Waiting for internal replica to be ready...");
+			return Pair.create(op.isPresent(), null);
+		});
+
+		// Run a CSV import — this creates patches in GRID_PATCH from the USER_SUPPORT replica
+		// (a different replica ID than INTERNAL). These patches will be missing from the
+		// snapshot clock, so the hub must send them in the second half of the sync cycle.
+		csvContent = "integer_column,string_column\n4,row_four\n";
+		S3FileHandle uploadFileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(),
+				csvContent.getBytes(StandardCharsets.UTF_8), "upload.csv", ContentType.create("text/csv"), null);
+
+		CsvTableDescriptor csvDescriptor = new CsvTableDescriptor().setIsFirstLineHeader(true);
+		List<ColumnModel> importSchema = List.of(
+				new ColumnModel().setName("integer_column").setColumnType(ColumnType.INTEGER),
+				new ColumnModel().setName("string_column").setColumnType(ColumnType.STRING));
+
+		asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new GridCsvImportRequest().setSessionId(session.getSessionId())
+						.setCsvDescriptor(csvDescriptor)
+						.setFileHandleId(uploadFileHandle.getId())
+						.setSchema(importSchema),
+				(GridCsvImportResponse response) -> assertNotNull(response), MAX_WAIT_MS);
+
+		// Simulate migration to a new stack: delete all grid index data.
+		gridIndexDao.truncateAll();
+
+		// Trigger the same event that ChangeSentMessageSynchWorker fires on a new stack.
+		ChangeMessage change = changeDao.replaceChange(
+				new ChangeMessage().setChangeType(ChangeType.UPDATE).setObjectType(ObjectType.GRID_SESSION)
+						.setObjectId(GridUtils.gridSessionIdAsLong(session.getSessionId()).toString()));
+		repositoryMessagePublisher.publishBatchToTopic(ObjectType.GRID_SESSION, List.of(change));
+
+		// The export calls getGridHeaderOrThrow() -> getCurrentClockIfAllPatchesApplied(),
+		// which requires ALL patches (INTERNAL + USER_SUPPORT) to be applied.
+		// Without the fix: applySnapshot() deletes the message chain, the hub's USER_SUPPORT
+		// patches are discarded (GridReplicaWorker catches the IllegalArgumentException and
+		// deletes the SQS message), and the export loops forever on RecoverableMessageException.
+		// With the fix: the chain is preserved, USER_SUPPORT patches are applied in the same
+		// sync cycle, and the export succeeds.
+		GridRecordSetExportResponse exportResponse = asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new GridRecordSetExportRequest().setSessionId(session.getSessionId()),
+				(GridRecordSetExportResponse response) -> {
+					assertNotNull(response);
+					assertEquals(session.getSessionId(), response.getSessionId());
+				}, MAX_WAIT_MS).getResponse();
+
+		assertNotNull(exportResponse);
+	}
+
 	@Test
 	public void testGridWithTableQuery() throws Exception {
 		// setup a table

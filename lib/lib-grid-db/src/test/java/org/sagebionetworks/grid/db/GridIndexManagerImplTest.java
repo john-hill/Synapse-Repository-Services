@@ -339,20 +339,12 @@ public class GridIndexManagerImplTest {
 		when(mockReader.streamArrayNodes()).thenReturn(Stream.of(arrayNode));                    	// arrays
 		when(mockReader.streamVectorNodes()).thenReturn(Stream.of(vectorNode));                   	// vectors
 		when(mockReader.readNode(eq(IndexedNodeCodecMapper.CONSTANT), eq(vectorConstId))).thenReturn(vectorConstNode);
-		when(mockDao.createReplicaIfNotExists(sessionId, replicaId)).thenReturn(true);
 
 		// call under test
 		manager.applySnapshot(sessionId, replicaId, snapshotFile);
 
-		// Verify delete and re-create replica
-		verify(mockDao).deleteReplica(sessionId, replicaId);
-		verify(mockDao).createReplicaIfNotExists(sessionId, replicaId);
-		verify(mockDao).saveIndex(sessionId, replicaId, IndexType.val, List.of(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L)));
-		verify(mockDao).saveValues(sessionId, replicaId, List.of(new ValueNode().setId(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L))));
-
-		// Verify replica setup
-		verify(mockDao).deleteReplica(sessionId, replicaId);
-		verify(mockDao).createReplicaIfNotExists(sessionId, replicaId);
+		// Verify clearReplicaData is used (not deleteReplica) so message chains are preserved
+		verify(mockDao).clearReplicaData(sessionId, replicaId);
 
 		// Verify constants
 		verify(mockDao).saveIndex(sessionId, replicaId, IndexType.con, new ArrayList<>(constantEntries.keySet()));

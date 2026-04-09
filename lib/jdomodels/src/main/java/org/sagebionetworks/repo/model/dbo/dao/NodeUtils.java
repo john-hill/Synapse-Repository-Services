@@ -26,14 +26,14 @@ import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 
 /**
  * Translates JDOs and DTOs.
- * 
+ *
  * @author jmhill
  *
  */
 public class NodeUtils {
-	
+
 	private static final String COLUMN_ID_DELIMITER = ",";
-	
+
 	public static final String ROOT_ENTITY_ID = StackConfigurationSingleton.singleton().getRootFolderEntityId();
 
 
@@ -41,9 +41,9 @@ public class NodeUtils {
 	 * Used to update an existing object
 	 * @param dto
 	 * @param jdo
-	 * @param rev 
+	 * @param rev
 	 * @return
-	 * @throws DatastoreException 
+	 * @throws DatastoreException
 	 */
 	public static void updateFromDto(Node dto, DBONode jdo, DBORevision rev, boolean deleteActivityId) throws DatastoreException, InvalidModelException {
 		jdo.setName(dto.getName());
@@ -64,15 +64,15 @@ public class NodeUtils {
 		rev.setModifiedBy(dto.getModifiedByPrincipalId());
 		if (dto.getModifiedOn()==null) throw new InvalidModelException("modifiedOn may not be null");
 		rev.setModifiedOn(dto.getModifiedOn().getTime());
-		
-		if (dto.getVersionComment()!=null && dto.getVersionComment().length()>DBORevision.MAX_COMMENT_LENGTH) 
+
+		if (dto.getVersionComment()!=null && dto.getVersionComment().length()>DBORevision.MAX_COMMENT_LENGTH)
 			throw new IllegalArgumentException("Version comment length exceeds "+DBORevision.MAX_COMMENT_LENGTH+".");
-		
+
 		rev.setComment(dto.getVersionComment());
-		
+
 		if(dto.getVersionLabel() != null){
 			rev.setLabel(dto.getVersionLabel());
-		} 	
+		}
 		rev.setDescription(dto.getDescription());
 		if(dto.getFileHandleId() != null){
 			rev.setFileHandleId(KeyFactory.stringToKey(dto.getFileHandleId()));
@@ -85,7 +85,7 @@ public class NodeUtils {
 		} else if(dto.getActivityId() != null) {
 			rev.setActivityId(Long.parseLong(dto.getActivityId()));
 		}
-		
+
 		if(dto.getColumnModelIds() != null){
 			rev.setColumnModelIds(createByteForIdList(dto.getColumnModelIds()));
 		}
@@ -98,7 +98,7 @@ public class NodeUtils {
 		rev.setDefiningSQL(dto.getDefiningSQL());
 		rev.setUpsertKey(JDOSecondaryPropertyUtils.writeStringListToJson(dto.getUpsertKey()));
 		rev.setCsvDescriptor(JDOSecondaryPropertyUtils.createJSONFromObject(dto.getCsvDescriptor()));
-		if (dto.getValidationResultFileHandleId() != null) {			
+		if (dto.getValidationResultFileHandleId() != null) {
 			rev.setValidationResultFileHandleId(KeyFactory.stringToKey(dto.getValidationResultFileHandleId()));
 		}
 	}
@@ -121,7 +121,7 @@ public class NodeUtils {
 		dbo.seteTag(dto.getETag());
 		return dbo;
 	}
-	
+
 	/**
 	 * Translate a Node to DBORevision.
 	 * @param dto
@@ -149,7 +149,7 @@ public class NodeUtils {
 		dbo.setValidationResultFileHandleId(translateFileHandleId(dto.getValidationResultFileHandleId()));
 		return dbo;
 	}
-	
+
 	/**
 	 * Create the bytes for a given list of ColumnModel IDs
 	 * @param idList
@@ -176,7 +176,7 @@ public class NodeUtils {
 			throw new RuntimeException(e);
 		}
 	}
-	
+
 	/**
 	 * Create a the list of column model ID from bytes.
 	 * @param idListBytes
@@ -187,7 +187,7 @@ public class NodeUtils {
 				.map(id -> id.toString())
 				.collect(Collectors.toList());
 	}
-	
+
 	public static List<Long> createLongIdListFromBytes(byte[] idListBytes) {
 		if (idListBytes == null)
 			throw new IllegalArgumentException("idListBytes cannot be null");
@@ -207,22 +207,22 @@ public class NodeUtils {
 			throw new RuntimeException(e);
 		}
 	}
-	
+
 	/**
 	 * Create a DTO from the JDO
 	 * @param jdo
 	 * @return
-	 * @throws DatastoreException 
+	 * @throws DatastoreException
 	 */
 	public static Node copyFromJDO(DBONode jdo, DBORevision rev) throws DatastoreException{
 		Node dto = new Node();
-		 copyFromJDO(dto, jdo, rev);
+		copyFromJDO(dto, jdo, rev);
 		return dto;
 	}
-	
+
 	/**
 	 * Copy data from the passed DBOs to the passed dto.
-	 * 
+	 *
 	 * @param dto
 	 * @param jdo
 	 * @param rev
@@ -259,7 +259,7 @@ public class NodeUtils {
 		}
 		if(rev.getActivityId() != null) {
 			dto.setActivityId(rev.getActivityId().toString());
-		} 
+		}
 		dto.setReference(JDOSecondaryPropertyUtils.createObjectFromJSON(Reference.class, rev.getReferenceJson()));
 		if(rev.getColumnModelIds() != null){
 			dto.setColumnModelIds(createIdListFromBytes(rev.getColumnModelIds()));
@@ -272,11 +272,11 @@ public class NodeUtils {
 		dto.setDefiningSQL(rev.getDefiningSQL());
 		dto.setUpsertKey(JDOSecondaryPropertyUtils.readJsonToStringList(rev.getUpsertKey()));
 		dto.setCsvDescriptor(JDOSecondaryPropertyUtils.createObjectFromJSON(CsvTableDescriptor.class, rev.getCsvDescriptor()));
-		if (rev.getValidationResultFileHandleId() != null) {			
+		if (rev.getValidationResultFileHandleId() != null) {
 			dto.setValidationResultFileHandleId(rev.getValidationResultFileHandleId().toString());
 		}
 	}
-	
+
 	/**
 	 * A valid node is not null and has not null values for the following fields:
 	 * + id
@@ -287,7 +287,7 @@ public class NodeUtils {
 	 * + createdOn
 	 * + modifiedByPrincipalId
 	 * + modifiedOn
-	 * 
+	 *
 	 * @param node
 	 * @return true if node is valid, false otherwise.
 	 */
@@ -300,14 +300,14 @@ public class NodeUtils {
 				node.getModifiedByPrincipalId() == null ||
 				node.getModifiedOn() == null ||
 				node.getName() == null ||
-				node.getNodeType() == null) 
+				node.getNodeType() == null)
 			return false;
 		return true;
 	}
-	
+
 	/**
 	 * Is the given type a project or folder?
-	 * 
+	 *
 	 * @param type
 	 * @return
 	 */
@@ -315,16 +315,16 @@ public class NodeUtils {
 		return EntityType.project.equals(type)
 				|| EntityType.folder.equals(type);
 	}
-	
+
 	/**
 	 * Is the given entity ID root?
-	 * 
+	 *
 	 * @param entityId
 	 * @return
 	 */
 	public static boolean isRootEntityId(String entityId){
 		return KeyFactory.equals(ROOT_ENTITY_ID, entityId);
-	}	
+	}
 
 	/**
 	 * Translate the provided alias.
@@ -337,7 +337,7 @@ public class NodeUtils {
 		}
 		return alias;
 	}
-	
+
 	/**
 	 * Translate a string activity ID to a long.
 	 * @param activityId
@@ -352,10 +352,10 @@ public class NodeUtils {
 		}
 		return Long.parseLong(activityId);
 	}
-	
+
 	/**
 	 * Translate a node ID to a long.
-	 * 
+	 *
 	 * @param nodeId
 	 * @return
 	 */
@@ -365,7 +365,7 @@ public class NodeUtils {
 		}
 		return KeyFactory.stringToKey(nodeId);
 	}
-	
+
 	/**
 	 * Translate a string file handle ID to a long.
 	 * @param fileId
@@ -377,10 +377,10 @@ public class NodeUtils {
 		}
 		return Long.parseLong(fileId);
 	}
-	
+
 	/**
 	 * Translate the version comment with size check.
-	 * 
+	 *
 	 * @param comment
 	 * @return
 	 */
@@ -393,7 +393,7 @@ public class NodeUtils {
 		}
 		return comment;
 	}
-	
+
 	/**
 	 * Translate the provide version label
 	 * @param label
@@ -405,7 +405,7 @@ public class NodeUtils {
 		}
 		return label;
 	}
-	
+
 	/**
 	 * Translate the given version number.
 	 * @param versionNumber
@@ -425,16 +425,16 @@ public class NodeUtils {
 		if (bucketName == null) return null;
 		return bucketName.equals(StackConfigurationSingleton.singleton().getS3Bucket());
 	}
-	
+
 	/**
 	 * @param entityPath
 	 * @return Extracts the project id from the given entity path 
 	 */
 	public static String getProjectIdFromEntityPath(List<EntityHeader> entityPath) {
 		return entityPath.stream()
-			.filter(header -> EntityType.project.equals(EntityTypeUtils.getEntityTypeForClassName(header.getType())))
-			.map(EntityHeader::getId)
-			.findFirst()
-			.orElseThrow(() -> new IllegalStateException("Could not find a project in the entity path."));
+				.filter(header -> EntityType.project.equals(EntityTypeUtils.getEntityTypeForClassName(header.getType())))
+				.map(EntityHeader::getId)
+				.findFirst()
+				.orElseThrow(() -> new IllegalStateException("Could not find a project in the entity path."));
 	}
 }

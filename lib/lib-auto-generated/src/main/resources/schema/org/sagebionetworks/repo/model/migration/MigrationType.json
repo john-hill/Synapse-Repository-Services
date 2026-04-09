@@ -539,6 +539,14 @@
 			"description": "Table that stores synonym sets for search"
 		},
 		{
+			"name": "SEARCH_CONFIGURATION",
+			"description": "Table that stores search configurations for search"
+		},
+		{
+			"name": "SEARCH_CONFIG_OBJECT_BINDING",
+			"description": "Table that binds a search configuration to an entity in the hierarchy"
+		},
+		{
 			"name": "CHANGE",
 			"description": "TODO: Auto-generated description"
 		}

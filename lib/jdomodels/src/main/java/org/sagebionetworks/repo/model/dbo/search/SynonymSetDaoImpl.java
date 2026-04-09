@@ -11,6 +11,8 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_N
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_ORGANIZATION_NAME;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_RULES;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -24,7 +26,6 @@ import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -32,8 +33,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public class SynonymSetDaoImpl implements SynonymSetDao {
-
-	private static final String MSG_DUPLICATE_NAME = "A synonym set with the given name already exists in this organization.";
 
 	private static final RowMapper<SynonymSet> SYNONYM_SET_ROW_MAPPER = (rs, rowNum) -> new SynonymSet()
 		.setId(String.valueOf(rs.getLong(COL_SYNSET_ID)))
@@ -73,8 +72,8 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 					createdBy,
 					createdBy
 			);
-		} catch (DuplicateKeyException e) {
-			throw new IllegalArgumentException(MSG_DUPLICATE_NAME, e);
+		} catch (DataIntegrityViolationException e) {
+			throw new IllegalArgumentException("A synonym set with the same name already exists in this organization.", e);
 		}
 
 		return get(id.toString()).orElseThrow(() -> new IllegalStateException("The synonym set was not created."));
@@ -100,8 +99,9 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 			throw new ConflictingUpdateException("SynonymSet was updated since last fetched. Please re-fetch and try again.");
 		}
 
+		int updated;
 		try {
-			int updated = jdbcTemplate.update(
+			updated = jdbcTemplate.update(
 					"UPDATE SYNONYM_SET SET ETAG = UUID(), NAME = ?, DESCRIPTION = ?, RULES = ?,"
 					+ " MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
 					synonymSet.getName(),
@@ -110,12 +110,12 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 					modifiedBy,
 					Long.parseLong(synonymSet.getId())
 			);
+		} catch (DataIntegrityViolationException e) {
+			throw new IllegalArgumentException("A synonym set with the same name already exists in this organization.", e);
+		}
 
-			if (updated == 0) {
-				throw new NotFoundException("SynonymSet with id '" + synonymSet.getId() + "' does not exist.");
-			}
-		} catch (DuplicateKeyException e) {
-			throw new IllegalArgumentException(MSG_DUPLICATE_NAME, e);
+		if (updated == 0) {
+			throw new NotFoundException("SynonymSet with id '" + synonymSet.getId() + "' does not exist.");
 		}
 
 		return get(synonymSet.getId()).orElseThrow(() -> new IllegalStateException("The synonym set was not updated."));
@@ -154,6 +154,35 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 		} catch (EmptyResultDataAccessException e) {
 			return Optional.empty();
 		}
+	}
+
+	@Override
+	public List<String> findNonExistentNames(List<String> qualifiedNames) {
+		if (qualifiedNames == null || qualifiedNames.isEmpty()) {
+			return Collections.emptyList();
+		}
+		StringBuilder sql = new StringBuilder(
+				"SELECT CONCAT(ORGANIZATION_NAME, '-', NAME) FROM SYNONYM_SET WHERE (ORGANIZATION_NAME, NAME) IN (");
+		List<Object> params = new ArrayList<>();
+		for (int i = 0; i < qualifiedNames.size(); i++) {
+			if (i > 0) {
+				sql.append(", ");
+			}
+			sql.append("(?, ?)");
+			String qualifiedName = qualifiedNames.get(i);
+			int dashIndex = qualifiedName.indexOf('-');
+			params.add(qualifiedName.substring(0, dashIndex));
+			params.add(qualifiedName.substring(dashIndex + 1));
+		}
+		sql.append(")");
+		List<String> existingNames = jdbcTemplate.queryForList(sql.toString(), String.class, params.toArray());
+		List<String> missing = new ArrayList<>();
+		for (String qualifiedName : qualifiedNames) {
+			if (!existingNames.contains(qualifiedName)) {
+				missing.add(qualifiedName);
+			}
+		}
+		return missing;
 	}
 
 	@Override

@@ -60,7 +60,7 @@ public class ColumnAnalyzerOverrideDaoImplAutowiredTest {
 
 	@Test
 	public void testCreateAndGet() {
-		ColumnAnalyzerOverride override = newOverride("test-create", "A test override");
+		ColumnAnalyzerOverride override = newOverride("test_create", "A test override");
 
 		// call under test
 		ColumnAnalyzerOverride created = columnAnalyzerOverrideDao.create(adminUserId, override);
@@ -68,7 +68,7 @@ public class ColumnAnalyzerOverrideDaoImplAutowiredTest {
 		assertNotNull(created.getId());
 		assertNotNull(created.getEtag());
 		assertEquals(organizationName, created.getOrganizationName());
-		assertEquals("test-create", created.getName());
+		assertEquals("test_create", created.getName());
 		assertEquals("A test override", created.getDescription());
 		assertNotNull(created.getOverrides());
 		assertEquals(1, created.getOverrides().size());
@@ -91,15 +91,15 @@ public class ColumnAnalyzerOverrideDaoImplAutowiredTest {
 	public void testCreateVerifiesOverridesRoundTrip() {
 		ColumnAnalyzerOverrideEntry entry1 = new ColumnAnalyzerOverrideEntry();
 		entry1.setColumnName("diagnosis");
-		entry1.setIndexAnalyzerId("1");
-		entry1.setSearchAnalyzerId("2");
+		entry1.setIndexAnalyzer("org.sagebionetworks-SCIENTIFIC");
+		entry1.setSearchAnalyzer("org.sagebionetworks-STANDARD");
 
 		ColumnAnalyzerOverrideEntry entry2 = new ColumnAnalyzerOverrideEntry();
 		entry2.setColumnName("tissue");
-		entry2.setIndexAnalyzerId("3");
+		entry2.setIndexAnalyzer("org.sagebionetworks-IDENTIFIER");
 
 		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride();
-		override.setName("multi-entry");
+		override.setName("multi_entry");
 		override.setOrganizationName(organizationName);
 		override.setOverrides(Arrays.asList(entry1, entry2));
 
@@ -109,11 +109,11 @@ public class ColumnAnalyzerOverrideDaoImplAutowiredTest {
 		List<ColumnAnalyzerOverrideEntry> overrides = created.getOverrides();
 		assertEquals(2, overrides.size());
 		assertEquals("diagnosis", overrides.get(0).getColumnName());
-		assertEquals("1", overrides.get(0).getIndexAnalyzerId());
-		assertEquals("2", overrides.get(0).getSearchAnalyzerId());
+		assertEquals("org.sagebionetworks-SCIENTIFIC", overrides.get(0).getIndexAnalyzer());
+		assertEquals("org.sagebionetworks-STANDARD", overrides.get(0).getSearchAnalyzer());
 		assertEquals("tissue", overrides.get(1).getColumnName());
-		assertEquals("3", overrides.get(1).getIndexAnalyzerId());
-		assertNull(overrides.get(1).getSearchAnalyzerId());
+		assertEquals("org.sagebionetworks-IDENTIFIER", overrides.get(1).getIndexAnalyzer());
+		assertNull(overrides.get(1).getSearchAnalyzer());
 	}
 
 	@Test
@@ -125,9 +125,9 @@ public class ColumnAnalyzerOverrideDaoImplAutowiredTest {
 
 	@Test
 	public void testCreateDuplicateNameInSameOrgThrows() {
-		columnAnalyzerOverrideDao.create(adminUserId, newOverride("duplicate-name", "First"));
+		columnAnalyzerOverrideDao.create(adminUserId, newOverride("duplicate_name", "First"));
 
-		ColumnAnalyzerOverride second = newOverride("duplicate-name", "Second");
+		ColumnAnalyzerOverride second = newOverride("duplicate_name", "Second");
 
 		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
@@ -137,10 +137,10 @@ public class ColumnAnalyzerOverrideDaoImplAutowiredTest {
 
 	@Test
 	public void testCreateDuplicateNameInDifferentOrgSucceeds() {
-		columnAnalyzerOverrideDao.create(adminUserId, newOverride("shared-name", "First"));
+		columnAnalyzerOverrideDao.create(adminUserId, newOverride("shared_name", "First"));
 
 		ColumnAnalyzerOverride inOrg2 = new ColumnAnalyzerOverride();
-		inOrg2.setName("shared-name");
+		inOrg2.setName("shared_name");
 		inOrg2.setOrganizationName(organizationName2);
 		inOrg2.setOverrides(Arrays.asList(newEntry("col1")));
 
@@ -152,17 +152,17 @@ public class ColumnAnalyzerOverrideDaoImplAutowiredTest {
 
 	@Test
 	public void testUpdatePersistsChangesAndRotatesEtag() {
-		ColumnAnalyzerOverride created = columnAnalyzerOverrideDao.create(adminUserId, newOverride("test-update", "original"));
+		ColumnAnalyzerOverride created = columnAnalyzerOverrideDao.create(adminUserId, newOverride("test_update", "original"));
 		String originalEtag = created.getEtag();
 
-		created.setName("test-update-renamed");
+		created.setName("test_update_renamed");
 		created.setDescription("updated");
 		created.setOverrides(Arrays.asList(newEntry("new-col"), newEntry("another-col")));
 
 		// call under test
 		ColumnAnalyzerOverride updated = columnAnalyzerOverrideDao.update(adminUserId, created);
 
-		assertEquals("test-update-renamed", updated.getName());
+		assertEquals("test_update_renamed", updated.getName());
 		assertEquals("updated", updated.getDescription());
 		assertEquals(2, updated.getOverrides().size());
 		assertNotEquals(originalEtag, updated.getEtag());
@@ -170,7 +170,7 @@ public class ColumnAnalyzerOverrideDaoImplAutowiredTest {
 
 	@Test
 	public void testUpdateWithStaleEtagThrows() {
-		ColumnAnalyzerOverride created = columnAnalyzerOverrideDao.create(adminUserId, newOverride("test-occ", null));
+		ColumnAnalyzerOverride created = columnAnalyzerOverrideDao.create(adminUserId, newOverride("test_occ", null));
 
 		// First update succeeds and rotates the etag
 		created.setDescription("first update");
@@ -186,7 +186,7 @@ public class ColumnAnalyzerOverrideDaoImplAutowiredTest {
 
 	@Test
 	public void testDelete() {
-		ColumnAnalyzerOverride created = columnAnalyzerOverrideDao.create(adminUserId, newOverride("test-delete", null));
+		ColumnAnalyzerOverride created = columnAnalyzerOverrideDao.create(adminUserId, newOverride("test_delete", null));
 
 		assertTrue(columnAnalyzerOverrideDao.get(created.getId()).isPresent());
 
@@ -213,10 +213,10 @@ public class ColumnAnalyzerOverrideDaoImplAutowiredTest {
 
 	@Test
 	public void testListAll() {
-		columnAnalyzerOverrideDao.create(adminUserId, newOverride("in-org1", null));
+		columnAnalyzerOverrideDao.create(adminUserId, newOverride("in_org1", null));
 
 		ColumnAnalyzerOverride inOrg2 = new ColumnAnalyzerOverride();
-		inOrg2.setName("in-org2");
+		inOrg2.setName("in_org2");
 		inOrg2.setOrganizationName(organizationName2);
 		inOrg2.setOverrides(Arrays.asList(newEntry("col1")));
 		columnAnalyzerOverrideDao.create(adminUserId, inOrg2);
@@ -239,7 +239,7 @@ public class ColumnAnalyzerOverrideDaoImplAutowiredTest {
 	private ColumnAnalyzerOverrideEntry newEntry(String columnName) {
 		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
 		entry.setColumnName(columnName);
-		entry.setIndexAnalyzerId("1");
+		entry.setIndexAnalyzer("org.sagebionetworks-SCIENTIFIC");
 		return entry;
 	}
 }

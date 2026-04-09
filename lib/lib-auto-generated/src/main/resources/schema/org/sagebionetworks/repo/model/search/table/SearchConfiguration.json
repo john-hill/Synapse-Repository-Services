@@ -1,9 +1,9 @@
 {
-	"description": "A shared resource containing per-column analyzer override entries. ColumnAnalyzerOverrides belong to an Organization and can be referenced by SearchConfigurations. Cannot be deleted while referenced by any SearchConfiguration.",
+	"description": "A reusable search configuration resource. Bundles synonym sets, column analyzer overrides, and a default analyzer. Bind to any entity in the hierarchy (entity, folder, or project) to define inherited search configuration.",
 	"properties": {
 		"id": {
 			"type": "string",
-			"description": "The unique ID of this column analyzer override."
+			"description": "The unique ID of this search configuration."
 		},
 		"organizationName": {
 			"type": "string",
@@ -17,12 +17,23 @@
 			"type": "string",
 			"description": "Optional description."
 		},
-		"overrides": {
+		"synonymSets": {
 			"type": "array",
-			"description": "The list of per-column analyzer override entries.",
+			"description": "Ordered list of SynonymSet qualified names in '{organizationName}-{name}' format to apply. Rules from all sets are unioned.",
 			"items": {
-				"$ref": "org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry"
+				"type": "string"
 			}
+		},
+		"columnAnalyzerOverrides": {
+			"type": "array",
+			"description": "Ordered list of ColumnAnalyzerOverride qualified names in '{organizationName}-{name}' format to apply. First-found-wins for duplicate columns.",
+			"items": {
+				"type": "string"
+			}
+		},
+		"defaultAnalyzer": {
+			"type": "string",
+			"description": "Default text analyzer for columns without an explicit override, in '{organizationName}-{name}' format."
 		},
 		"etag": {
 			"type": "string",

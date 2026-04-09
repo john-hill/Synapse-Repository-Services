@@ -1,5 +1,7 @@
 package org.sagebionetworks.repo.model.dbo.search;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -13,7 +15,6 @@ import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -63,8 +64,8 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 					createdBy,
 					createdBy
 			);
-		} catch (DuplicateKeyException e) {
-			handleDuplicateKeyException(e);
+		} catch (DataIntegrityViolationException e) {
+			throw new IllegalArgumentException("A column analyzer override with the same name already exists in this organization.", e);
 		}
 
 		return get(String.valueOf(id))
@@ -102,8 +103,8 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 					modifiedBy,
 					Long.parseLong(override.getId())
 			);
-		} catch (DuplicateKeyException e) {
-			handleDuplicateKeyException(e);
+		} catch (DataIntegrityViolationException e) {
+			throw new IllegalArgumentException("A column analyzer override with the same name already exists in this organization.", e);
 		}
 
 		return get(override.getId())
@@ -135,6 +136,46 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 	}
 
 	@Override
+	public Optional<ColumnAnalyzerOverride> getByOrganizationAndName(String organizationName, String name) {
+		try {
+			return Optional.ofNullable(jdbcTemplate.queryForObject(
+					"SELECT * FROM COLUMN_ANALYZER_OVERRIDE WHERE ORGANIZATION_NAME = ? AND NAME = ?",
+					ROW_MAPPER, organizationName, name));
+		} catch (EmptyResultDataAccessException e) {
+			return Optional.empty();
+		}
+	}
+
+	@Override
+	public List<String> findNonExistentNames(List<String> qualifiedNames) {
+		if (qualifiedNames == null || qualifiedNames.isEmpty()) {
+			return Collections.emptyList();
+		}
+		StringBuilder sql = new StringBuilder(
+				"SELECT CONCAT(ORGANIZATION_NAME, '-', NAME) FROM COLUMN_ANALYZER_OVERRIDE WHERE (ORGANIZATION_NAME, NAME) IN (");
+		List<Object> params = new ArrayList<>();
+		for (int i = 0; i < qualifiedNames.size(); i++) {
+			if (i > 0) {
+				sql.append(", ");
+			}
+			sql.append("(?, ?)");
+			String qualifiedName = qualifiedNames.get(i);
+			int dashIndex = qualifiedName.indexOf('-');
+			params.add(qualifiedName.substring(0, dashIndex));
+			params.add(qualifiedName.substring(dashIndex + 1));
+		}
+		sql.append(")");
+		List<String> existingNames = jdbcTemplate.queryForList(sql.toString(), String.class, params.toArray());
+		List<String> missing = new ArrayList<>();
+		for (String qualifiedName : qualifiedNames) {
+			if (!existingNames.contains(qualifiedName)) {
+				missing.add(qualifiedName);
+			}
+		}
+		return missing;
+	}
+
+	@Override
 	@WriteTransaction
 	public void truncateAll() {
 		jdbcTemplate.update("DELETE FROM COLUMN_ANALYZER_OVERRIDE WHERE ID > -1");
@@ -150,12 +191,5 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 		}
 	}
 
-	private static void handleDuplicateKeyException(DuplicateKeyException e) {
-		if (e.getMessage() != null && e.getMessage().contains("UNIQUE_CAO_ORG_NAME")) {
-			throw new IllegalArgumentException(
-					"A column analyzer override with the same name already exists in this organization.", e);
-		}
-		throw e;
-	}
 
 }

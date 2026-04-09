@@ -960,7 +960,7 @@ public class GridDaoImplTest {
 	}
 
 	@Test
-	public void testListSessionsNeedingSnapshotWithInternalConnection() {
+	public void testListSessionsNeedingSnapshotWithInternalConnectionAndNoPatches() {
 		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
 		dao.createConnection(new GridConnectionInfo()
@@ -987,7 +987,7 @@ public class GridDaoImplTest {
 	}
 
 	@Test
-	public void testListSessionsNeedingSnapshotWithRecentSnapshot() {
+	public void testListSessionsNeedingSnapshotWithNoSnapshotAndPatches() {
 		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
 		dao.createConnection(new GridConnectionInfo()
@@ -997,19 +997,18 @@ public class GridDaoImplTest {
 				.setCreatedBy(adminUserId)
 				.setSource(EventSource.INTERNAL));
 
-		// Save a recent snapshot
-		ClockTable clockTable = new ClockTable(List.of(
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L)));
-		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
+		dao.savePatch(session.getSessionId(),
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L),
+				"patch-key-1", Duration.ofDays(119), 100);
 
-		// Session with a recent snapshot and no patches should not need a snapshot
+		// Session with patches but no prior snapshot should always need a snapshot
 		// call under test
 		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 1000, 10);
-		assertFalse(result.contains(session.getSessionId()));
+		assertTrue(result.contains(session.getSessionId()));
 	}
 
 	@Test
-	public void testListSessionsNeedingSnapshotWithExpiredSnapshotAndNoNewPatches() throws Exception {
+	public void testListSessionsNeedingSnapshotWithSnapshotAndNoNewPatches() throws Exception {
 		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
 		dao.createConnection(new GridConnectionInfo()
@@ -1034,7 +1033,7 @@ public class GridDaoImplTest {
 	}
 
 	@Test
-	public void testListSessionsNeedingSnapshotWithExpiredSnapshotAndNewPatches() throws Exception {
+	public void testListSessionsNeedingSnapshotWithSnapshotAndPatchNewerThanMaxPatchAge() throws Exception {
 		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
 		dao.createConnection(new GridConnectionInfo()
@@ -1067,7 +1066,7 @@ public class GridDaoImplTest {
 	}
 
 	@Test
-	public void testListSessionsNeedingSnapshotWithManyPatchesAfterSnapshot() {
+	public void testListSessionsNeedingSnapshotWithNewPatchesExceedingMaxPatchCount() {
 		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
 		dao.createConnection(new GridConnectionInfo()

@@ -35,7 +35,7 @@ import org.sagebionetworks.schema.parser.SchemaIdParser;
 import org.sagebionetworks.schema.semantic.version.SemanticVersion;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DuplicateKeyException;
+
 import org.springframework.stereotype.Component;
 
 import com.google.common.collect.Lists;

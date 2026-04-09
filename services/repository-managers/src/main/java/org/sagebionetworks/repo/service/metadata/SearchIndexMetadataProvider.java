@@ -40,7 +40,7 @@ public class SearchIndexMetadataProvider implements
 		// This will be removed when SearchIndex creation is released to the general user base.
 		UserInfo user = event.getUserInfo();
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
-			throw new UnauthorizedException("Only Sage Bionetworks employees can manage search index entities.");
+			throw new UnauthorizedException("Only Sage Bionetworks employees or admins can manage search index entities.");
 		}
 		// Validate the definingSQL on both CREATE and UPDATE
 		searchIndexValidator.validateDefiningSQL(entity.getDefiningSQL());

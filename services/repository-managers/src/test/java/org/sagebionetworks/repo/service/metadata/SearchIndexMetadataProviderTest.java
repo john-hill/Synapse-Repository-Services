@@ -45,7 +45,7 @@ public class SearchIndexMetadataProviderTest {
 			provider.validateEntity(entity, event);
 		}).getMessage();
 
-		assertEquals("Only Sage Bionetworks employees can manage search index entities.", message);
+		assertEquals("Only Sage Bionetworks employees or admins can manage search index entities.", message);
 		verifyZeroInteractions(mockValidator);
 	}
 
@@ -106,7 +106,7 @@ public class SearchIndexMetadataProviderTest {
 			provider.validateEntity(entity, event);
 		}).getMessage();
 
-		assertEquals("Only Sage Bionetworks employees can manage search index entities.", message);
+		assertEquals("Only Sage Bionetworks employees or admins can manage search index entities.", message);
 		verifyZeroInteractions(mockValidator);
 	}
 

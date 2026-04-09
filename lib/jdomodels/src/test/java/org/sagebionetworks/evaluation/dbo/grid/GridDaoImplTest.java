@@ -901,18 +901,20 @@ public class GridDaoImplTest {
 	@Test
 	public void testCountPatchesSinceLatestSnapshotWithNewPatchesAfterSnapshot() {
 		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
-		// Patches covered by snapshot (seq 0-2)
-		for (int i = 0; i < 3; i++) {
+		// Patches covered by snapshot (seq 1-3)
+		for (int i = 1; i <= 3; i++) {
 			dao.savePatch(session.getSessionId(),
 					new LogicalTimestamp().setReplicaId(1L).setSequenceNumber((long) i),
 					"patch-key-" + i, Duration.ofDays(119), 100);
 		}
+
+		// Clock table is saved using "next-available" sequence number, so it should be seq=4
 		ClockTable clockTable = new ClockTable(List.of(
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L)));
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(4L)));
 		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
 
-		// Add 2 new patches after the snapshot (seq 3-4)
-		for (int i = 3; i < 5; i++) {
+		// Add 2 new patches after the snapshot (seq 4-5)
+		for (int i = 4; i <= 5; i++) {
 			dao.savePatch(session.getSessionId(),
 					new LogicalTimestamp().setReplicaId(1L).setSequenceNumber((long) i),
 					"patch-key-" + i, Duration.ofDays(119), 100);
@@ -1090,6 +1092,33 @@ public class GridDaoImplTest {
 		// With maxPatchCount=3, the 5 post-snapshot patches exceed the threshold
 		// call under test
 		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 3, 10);
+		assertTrue(result.contains(session.getSessionId()));
+	}
+
+	@Test
+	public void testListSessionsNeedingSnapshotWithPatchAtExactSnapshotBoundary() {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
+		dao.createConnection(new GridConnectionInfo()
+				.setConnectionId(UUID.randomUUID().toString())
+				.setSessionId(session.getSessionId())
+				.setReplicaId(replica.getReplicaId())
+				.setCreatedBy(adminUserId)
+				.setSource(EventSource.INTERNAL));
+
+		// Snapshot clock uses next-available convention: seq=5 means patches 0-4 are covered
+		ClockTable clockTable = new ClockTable(List.of(
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(5L)));
+		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
+
+		// A patch at exactly seq=5 (the next-available value) is the first patch after the snapshot
+		// and must be counted as uncovered (>= comparison, not >)
+		dao.savePatch(session.getSessionId(),
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(5L),
+				"patch-key-boundary", Duration.ofDays(119), 100);
+
+		// call under test (set maxPatchCount to 0 to ensure we consider this single patch)
+		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 0, 10);
 		assertTrue(result.contains(session.getSessionId()));
 	}
 

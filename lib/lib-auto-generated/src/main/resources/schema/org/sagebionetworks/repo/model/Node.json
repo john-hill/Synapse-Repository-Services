@@ -68,7 +68,7 @@
             }
         },
         "items":{
-            "description":"For Datasets and Dataset Collections, the list of entity references the define the view.",
+            "description":"For Datasets and Dataset Collections, the list of entity references that define the view.",
             "type":"array",
             "items":{
                 "$ref": "org.sagebionetworks.repo.model.EntityRef"

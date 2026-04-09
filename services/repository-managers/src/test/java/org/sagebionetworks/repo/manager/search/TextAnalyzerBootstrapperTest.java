@@ -24,8 +24,8 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.schema.Organization;
-import org.sagebionetworks.repo.model.table.search.TextAnalyzer;
-import org.sagebionetworks.repo.model.table.search.TextAnalyzerSettings;
+import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
+import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 
 import static org.mockito.Mockito.when;
 

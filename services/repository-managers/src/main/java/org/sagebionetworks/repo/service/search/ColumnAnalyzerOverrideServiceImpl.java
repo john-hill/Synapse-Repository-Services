@@ -3,9 +3,9 @@ package org.sagebionetworks.repo.service.search;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.search.ColumnAnalyzerOverrideManager;
 import org.sagebionetworks.repo.model.UserInfo;
-import org.sagebionetworks.repo.model.table.search.ColumnAnalyzerOverride;
-import org.sagebionetworks.repo.model.table.search.ListColumnAnalyzerOverridesRequest;
-import org.sagebionetworks.repo.model.table.search.ListColumnAnalyzerOverridesResponse;
+import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
+import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesRequest;
+import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesResponse;
 import org.springframework.stereotype.Service;
 
 @Service

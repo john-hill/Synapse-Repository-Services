@@ -5,7 +5,7 @@
 			"type": "array",
 			"description": "The list of column analyzer overrides for this page.",
 			"items": {
-				"$ref": "org.sagebionetworks.repo.model.table.search.ColumnAnalyzerOverride"
+				"$ref": "org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride"
 			}
 		},
 		"nextPageToken": {

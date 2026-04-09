@@ -19,7 +19,7 @@
 		},
 		"settings": {
 			"description": "The analyzer configuration settings.",
-			"$ref": "org.sagebionetworks.repo.model.table.search.TextAnalyzerSettings"
+			"$ref": "org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings"
 		},
 		"etag": {
 			"type": "string",

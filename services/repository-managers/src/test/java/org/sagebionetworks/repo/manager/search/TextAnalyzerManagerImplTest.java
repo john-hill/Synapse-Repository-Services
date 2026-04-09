@@ -27,10 +27,10 @@ import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.schema.Organization;
-import org.sagebionetworks.repo.model.table.search.ListTextAnalyzersRequest;
-import org.sagebionetworks.repo.model.table.search.ListTextAnalyzersResponse;
-import org.sagebionetworks.repo.model.table.search.TextAnalyzer;
-import org.sagebionetworks.repo.model.table.search.TextAnalyzerSettings;
+import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
+import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
+import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
 

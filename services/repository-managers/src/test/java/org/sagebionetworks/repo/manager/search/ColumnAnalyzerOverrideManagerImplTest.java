@@ -37,9 +37,9 @@ import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
 import org.sagebionetworks.repo.model.schema.Organization;
-import org.sagebionetworks.repo.model.table.search.ColumnAnalyzerOverride;
-import org.sagebionetworks.repo.model.table.search.ListColumnAnalyzerOverridesRequest;
-import org.sagebionetworks.repo.model.table.search.ListColumnAnalyzerOverridesResponse;
+import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
+import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesRequest;
+import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesResponse;
 import org.sagebionetworks.repo.web.NotFoundException;
 
 @ExtendWith(MockitoExtension.class)

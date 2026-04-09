@@ -1280,6 +1280,126 @@ public class GridEventBrokerWorkerIntegrationTest {
 		System.out.println(exportResults);
 	}
 	
+	@Test
+	public void testGridWithRecordSetAndArrayColumns() throws Exception {
+		Project project = entityService.createEntity(admin.getId(), new Project().setName("ArrayColumn Test"), null);
+
+		// CSV with plain string values in a column that the JSON schema defines as array
+		String csvContent =
+			"id_column,tags_column,name_column" + System.lineSeparator() +
+			"1,alpha,first"                     + System.lineSeparator() +
+			"2,\"beta, gamma\",second"          + System.lineSeparator() +
+			"3,\"[\"\"delta\"\"]\",third";
+
+		S3FileHandle fileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(),
+			csvContent.getBytes(StandardCharsets.UTF_8), "recordset_array.csv", ContentType.create("text/csv"), null);
+
+		RecordSet recordSet = entityService.createEntity(admin.getId(), new RecordSet()
+			.setParentId(project.getId())
+			.setName("arrayRecordSet")
+			.setDataFileHandleId(fileHandle.getId())
+			.setUpsertKey(List.of("id_column")), null);
+
+		// Schema with tags_column as array type
+		String schemaId = createJsonSchema(Map.of(
+			"id_column", new JsonSchema().setType(Type.integer),
+			"tags_column", new JsonSchema().setType(Type.array).setItems(new JsonSchema().setType(Type.string)),
+			"name_column", new JsonSchema().setType(Type.string)
+		), List.of("id_column", "name_column")).getNewVersionInfo().get$id();
+
+		entityService.bindSchemaToEntity(admin.getId(),
+			new BindSchemaToEntityRequest().setEntityId(recordSet.getId()).setSchema$id(schemaId));
+
+		// Create grid session from RecordSet — exercises RecordSetCreateGridHandler + CsvSchemaReconciler
+		GridSession session = asynchronousJobWorkerHelper.assertJobResponse(admin,
+			new CreateGridRequest().setRecordSetId(recordSet.getId()), (CreateGridResponse response) -> {
+				assertNotNull(response);
+				assertNotNull(response.getGridSession());
+			}, MAX_WAIT_MS).getResponse().getGridSession();
+
+		GridHeader header = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () ->
+			gridViewManager.readHeader(session.getSessionId(), INTERNAL_REPLICA_ID)
+				.map(h -> Pair.create(true, h))
+				.orElse(Pair.create(false, null))
+		);
+
+		assertEquals(
+			List.of("id_column", "tags_column", "name_column"),
+			header.getOrderedColumns().stream().map(Column::getName).collect(Collectors.toList())
+		);
+
+		// Wait for data and validation
+		List<RowView> rowsView = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+			List<RowView> page = gridViewManager.querySinglePage(header, 100L, 0L);
+			if (page.size() != 3) {
+				return Pair.create(false, page);
+			}
+			return Pair.create(
+				page.get(0).getRowValidationResults() != null,
+				page
+			);
+		});
+
+		// Verify that plain strings were coerced to arrays
+		assertEquals(
+			List.of(
+				"{\"id_column\":1,\"tags_column\":[\"alpha\"],\"name_column\":\"first\"}",
+				"{\"id_column\":2,\"tags_column\":[\"beta\",\"gamma\"],\"name_column\":\"second\"}",
+				"{\"id_column\":3,\"tags_column\":[\"delta\"],\"name_column\":\"third\"}"
+			),
+			rowsView.stream().map(r -> r.getRowObject().getData().getRowJsonDocument().toString()).collect(Collectors.toList())
+		);
+
+		// Now test CSV import path — exercises GridCsvImporterImpl + CsvSchemaReconciler
+		String upsertCsvContent =
+			"id_column,tags_column,name_column" + System.lineSeparator() +
+			"1,updated_alpha,first_updated"     + System.lineSeparator() +
+			"4,\"new_a, new_b\",fourth";
+
+		S3FileHandle upsertFileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(),
+			upsertCsvContent.getBytes(StandardCharsets.UTF_8), "recordset_array_upsert.csv", ContentType.create("text/csv"), null);
+
+		// Note: schema uses STRING for tags_column — the reconciler should upgrade to STRING_LIST
+		GridCsvImportRequest csvImportRequest = new GridCsvImportRequest()
+			.setSessionId(session.getSessionId())
+			.setFileHandleId(upsertFileHandle.getId())
+			.setCsvDescriptor(new CsvTableDescriptor().setIsFirstLineHeader(true))
+			.setSchema(List.of(
+				new ColumnModel().setName("id_column").setColumnType(ColumnType.INTEGER),
+				new ColumnModel().setName("tags_column").setColumnType(ColumnType.STRING),
+				new ColumnModel().setName("name_column").setColumnType(ColumnType.STRING)
+			));
+
+		asynchronousJobWorkerHelper.assertJobResponse(admin, csvImportRequest, (GridCsvImportResponse response) -> {
+			assertEquals(session.getSessionId(), response.getSessionId());
+			assertEquals(2, response.getTotalCount());
+			assertEquals(1, response.getUpdatedCount());
+			assertEquals(1, response.getCreatedCount());
+		}, MAX_WAIT_MS).getResponse();
+
+		rowsView = TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+			List<RowView> page = gridViewManager.querySinglePage(header, 100L, 0L);
+			if (page.size() != 4) {
+				return Pair.create(false, page);
+			}
+			return Pair.create(
+				page.get(3).getRowValidationResults() != null,
+				page
+			);
+		});
+
+		assertEquals(
+			List.of(
+				"{\"id_column\":1,\"tags_column\":[\"updated_alpha\"],\"name_column\":\"first_updated\"}",
+				"{\"id_column\":2,\"tags_column\":[\"beta\",\"gamma\"],\"name_column\":\"second\"}",
+				"{\"id_column\":3,\"tags_column\":[\"delta\"],\"name_column\":\"third\"}",
+				"{\"id_column\":4,\"tags_column\":[\"new_a\",\"new_b\"],\"name_column\":\"fourth\"}"
+			),
+			rowsView.stream().map(r -> r.getRowObject().getData().getRowJsonDocument().toString()).collect(Collectors.toList())
+		);
+	}
+	
+	
 	String loadFileAsString(String name) throws IOException {
 		try (InputStream in = GridEventBrokerWorkerIntegrationTest.class.getClassLoader().getResourceAsStream(name);) {
 			if (in == null) {
@@ -1289,6 +1409,8 @@ public class GridEventBrokerWorkerIntegrationTest {
 		}
 	}
 	
+
+
 	UserInfo createUser(){
 		NewUser newUser = new NewUser();
 		newUser.setEmail(UUID.randomUUID().toString() + "@test.com");

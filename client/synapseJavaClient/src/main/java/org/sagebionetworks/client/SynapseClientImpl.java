@@ -786,6 +786,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	private static final String SEARCH_COLUMN_ANALYZER_OVERRIDE_LIST = SEARCH_COLUMN_ANALYZER_OVERRIDE + "/list";
 	private static final String SEARCH_CONFIGURATION = "/search/configuration";
 	private static final String SEARCH_CONFIGURATION_LIST = SEARCH_CONFIGURATION + "/list";
+	private static final String ENTITY_SEARCH_CONFIG_BINDING = "/entity/%s/searchconfig/binding";
 
 	/**
 	 * Default constructor uses the default repository and file services endpoints.

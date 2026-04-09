@@ -1182,6 +1182,70 @@ public class GridDaoImplTest {
 	}
 
 	@Test
+	public void testListSessionsNeedingSnapshotExcludesSessionsWithAnyExpiredUncoveredPatch() throws Exception {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
+		dao.createConnection(new GridConnectionInfo()
+				.setConnectionId(UUID.randomUUID().toString())
+				.setSessionId(session.getSessionId())
+				.setReplicaId(replica.getReplicaId())
+				.setCreatedBy(adminUserId)
+				.setSource(EventSource.INTERNAL));
+
+		// Save one patch with a very short expiry and one with a long expiry — both are uncovered
+		dao.savePatch(session.getSessionId(),
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L),
+				"patch-key-expired", Duration.ofSeconds(1), 100);
+		dao.savePatch(session.getSessionId(),
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L),
+				"patch-key-live", Duration.ofDays(119), 100);
+
+		// Wait for the first patch to expire
+		Thread.sleep(2000);
+
+		// Even one expired uncovered patch is enough to exclude the session
+		// call under test
+		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 1000, 10);
+		assertFalse(result.contains(session.getSessionId()));
+	}
+
+	@Test
+	public void testListSessionsNeedingSnapshotIncludesSessionsWithExpiredCoveredPatch() throws Exception {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
+		dao.createConnection(new GridConnectionInfo()
+				.setConnectionId(UUID.randomUUID().toString())
+				.setSessionId(session.getSessionId())
+				.setReplicaId(replica.getReplicaId())
+				.setCreatedBy(adminUserId)
+				.setSource(EventSource.INTERNAL));
+
+		// Save a patch with a very short expiry
+		dao.savePatch(session.getSessionId(),
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(0L),
+				"patch-key-covered", Duration.ofSeconds(1), 100);
+
+		// Save a snapshot that covers the above patch (clock seq=1 covers seq=0)
+		ClockTable clockTable = new ClockTable(List.of(
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L)));
+		dao.saveSnapshot(session.getSessionId(), clockTable, "snap-key", adminUserId);
+
+		// Wait for the first patch to expire
+		Thread.sleep(2000);
+
+		// Add a live uncovered patch (seq=1 >= snapshot clock seq=1)
+		dao.savePatch(session.getSessionId(),
+				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L),
+				"patch-key-live", Duration.ofDays(119), 100);
+
+		// The expired patch is covered by the snapshot and does not block snapshotting;
+		// the live uncovered patch qualifies the session
+		// call under test
+		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 0, 10);
+		assertTrue(result.contains(session.getSessionId()));
+	}
+
+	@Test
 	public void testListSessionsNeedingSnapshotWithNullMaxSnapshotAge() {
 		String message = assertThrows(IllegalArgumentException.class, () -> {
 			// call under test

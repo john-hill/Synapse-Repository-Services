@@ -2,32 +2,28 @@ package org.sagebionetworks.repo.service.metadata;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
 
 import java.util.Collections;
 import java.util.Set;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.sagebionetworks.repo.manager.search.SearchIndexValidator;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.TeamConstants;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
 
-@ExtendWith(MockitoExtension.class)
 public class SearchIndexMetadataProviderTest {
 
-	@Mock
-	private SearchIndexValidator mockValidator;
-
-	@InjectMocks
 	private SearchIndexMetadataProvider provider;
+
+	@BeforeEach
+	public void setUp() {
+		provider = new SearchIndexMetadataProvider();
+	}
 
 	@Test
 	public void testValidateEntityWithNonSageEmployee() {
@@ -46,7 +42,6 @@ public class SearchIndexMetadataProviderTest {
 		}).getMessage();
 
 		assertEquals("Only Sage Bionetworks employees or admins can manage search index entities.", message);
-		verifyZeroInteractions(mockValidator);
 	}
 
 	@Test
@@ -62,8 +57,6 @@ public class SearchIndexMetadataProviderTest {
 
 		// call under test
 		provider.validateEntity(entity, event);
-
-		verify(mockValidator).validateDefiningSQL("SELECT * FROM syn123");
 	}
 
 	@Test
@@ -78,16 +71,6 @@ public class SearchIndexMetadataProviderTest {
 
 		// call under test
 		provider.validateEntity(entity, event);
-
-		verify(mockValidator).validateDefiningSQL("SELECT * FROM syn456");
-	}
-
-	@Test
-	public void testValidateDefiningSqlWithValidSql() {
-		// call under test
-		provider.validateDefiningSql("SELECT * FROM syn789");
-
-		verify(mockValidator).validateDefiningSQL("SELECT * FROM syn789");
 	}
 
 	@Test
@@ -107,7 +90,6 @@ public class SearchIndexMetadataProviderTest {
 		}).getMessage();
 
 		assertEquals("Only Sage Bionetworks employees or admins can manage search index entities.", message);
-		verifyZeroInteractions(mockValidator);
 	}
 
 	@Test
@@ -122,7 +104,67 @@ public class SearchIndexMetadataProviderTest {
 
 		// call under test
 		provider.validateEntity(entity, event);
+	}
 
-		verify(mockValidator).validateDefiningSQL("SELECT * FROM syn999");
+	@Test
+	public void testValidateDefiningSqlWithValidSingleEntity() {
+		// call under test
+		provider.validateDefiningSql("SELECT * FROM syn123");
+	}
+
+	@Test
+	public void testValidateDefiningSqlWithSelectedColumns() {
+		// call under test
+		provider.validateDefiningSql("SELECT foo, bar FROM syn456");
+	}
+
+	@Test
+	public void testValidateDefiningSqlWithMultiEntityJoin() {
+		assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			provider.validateDefiningSql("SELECT a.x, b.y FROM syn123 a JOIN syn456 b ON a.id = b.id");
+		});
+	}
+
+	@Test
+	public void testValidateDefiningSqlWithNull() {
+		assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			provider.validateDefiningSql(null);
+		});
+	}
+
+	@Test
+	public void testValidateDefiningSqlWithBlank() {
+		assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			provider.validateDefiningSql("   ");
+		});
+	}
+
+	@Test
+	public void testValidateDefiningSqlWithEmptyString() {
+		assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			provider.validateDefiningSql("");
+		});
+	}
+
+	@ParameterizedTest(name = "SQL with whitespace/casing: {0}")
+	@ValueSource(strings = {
+		"  SELECT * FROM syn123  ",
+		"select * from syn123",
+		"SELECT  *  FROM  syn123",
+		"Select studyName From syn123"
+	})
+	public void testValidateDefiningSqlWithWhitespaceAndCasingVariations(String sql) {
+		// call under test
+		provider.validateDefiningSql(sql);
+	}
+
+	@Test
+	public void testValidateDefiningSqlWithWhereClause() {
+		// call under test
+		provider.validateDefiningSql("SELECT studyName FROM syn123 WHERE status = 'Active'");
 	}
 }

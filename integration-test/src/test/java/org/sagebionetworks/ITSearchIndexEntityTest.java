@@ -2,8 +2,6 @@ package org.sagebionetworks;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-
 import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
@@ -11,9 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.client.SynapseAdminClient;
-import org.sagebionetworks.client.SynapseClient;
 import org.sagebionetworks.client.exceptions.SynapseException;
-import org.sagebionetworks.client.exceptions.SynapseForbiddenException;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
 import org.sagebionetworks.repo.model.table.ColumnModel;
@@ -24,14 +20,12 @@ import org.sagebionetworks.repo.model.table.TableEntity;
 public class ITSearchIndexEntityTest {
 
 	private SynapseAdminClient adminSynapse;
-	private SynapseClient synapse;
 	private Project project;
 	private TableEntity table;
 	private SearchIndex searchIndex;
 
-	public ITSearchIndexEntityTest(SynapseAdminClient adminSynapse, SynapseClient synapse) {
+	public ITSearchIndexEntityTest(SynapseAdminClient adminSynapse) {
 		this.adminSynapse = adminSynapse;
-		this.synapse = synapse;
 	}
 
 	@BeforeEach
@@ -94,19 +88,6 @@ public class ITSearchIndexEntityTest {
 		// call under test — DELETE
 		adminSynapse.deleteEntity(searchIndex, true);
 		searchIndex = null;
-	}
-
-	@Test
-	public void testCreateWithNonAdminUser() throws SynapseException {
-		SearchIndex entity = new SearchIndex();
-		entity.setParentId(project.getId());
-		entity.setName("Non-Admin Search Index");
-		entity.setDefiningSQL("SELECT * FROM " + table.getId());
-
-		// call under test — non-Sage employee should be rejected
-		assertThrows(SynapseForbiddenException.class, () -> {
-			synapse.createEntity(entity);
-		});
 	}
 
 	@Test

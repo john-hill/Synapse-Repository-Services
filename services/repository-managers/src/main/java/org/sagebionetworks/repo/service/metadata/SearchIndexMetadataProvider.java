@@ -1,14 +1,17 @@
 package org.sagebionetworks.repo.service.metadata;
 
-import org.sagebionetworks.repo.manager.search.SearchIndexValidator;
+import java.util.List;
+
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.InvalidModelException;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
 import org.sagebionetworks.repo.web.NotFoundException;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.sagebionetworks.table.cluster.utils.TableModelUtils;
+import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.stereotype.Service;
 
 /**
@@ -26,13 +29,6 @@ public class SearchIndexMetadataProvider implements
 		EntityValidator<SearchIndex>,
 		TypeSpecificDefiningSqlProvider<SearchIndex> {
 
-	private final SearchIndexValidator searchIndexValidator;
-
-	@Autowired
-	public SearchIndexMetadataProvider(SearchIndexValidator searchIndexValidator) {
-		this.searchIndexValidator = searchIndexValidator;
-	}
-
 	@Override
 	public void validateEntity(SearchIndex entity, EntityEvent event)
 			throws InvalidModelException, NotFoundException, DatastoreException, UnauthorizedException {
@@ -43,11 +39,16 @@ public class SearchIndexMetadataProvider implements
 			throw new UnauthorizedException("Only Sage Bionetworks employees or admins can manage search index entities.");
 		}
 		// Validate the definingSQL on both CREATE and UPDATE
-		searchIndexValidator.validateDefiningSQL(entity.getDefiningSQL());
+		validateDefiningSql(entity.getDefiningSQL());
 	}
 
 	@Override
 	public void validateDefiningSql(String definingSql) {
-		searchIndexValidator.validateDefiningSQL(definingSql);
+		ValidateArgument.requiredNotBlank(definingSql, "definingSQL");
+		List<IdAndVersion> sourceTableIds = TableModelUtils.getSourceTableIds(definingSql);
+		if (sourceTableIds.size() != 1) {
+			throw new IllegalArgumentException(
+				"definingSQL must reference exactly one entity. Multi-entity JOINs are not supported. Found: " + sourceTableIds);
+		}
 	}
 }

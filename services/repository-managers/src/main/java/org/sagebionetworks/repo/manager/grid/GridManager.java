@@ -130,15 +130,6 @@ public interface GridManager extends PatchStore, SnapshotStore {
 	Optional<GridConnectionInfo> getSingletonConnection(String sessionId, EventSource source);
 
 	/**
-	 * 
-	 * @param sessionId
-	 * @param user
-	 * @param source
-	 * @return The default internal user connection for the given session
-	 */
-	Optional<GridConnectionInfo> getSingletonUserConnection(String sessionId, UserInfo user, EventSource source);
-
-	/**
 	 * Save a patch.
 	 * 
 	 * @param context

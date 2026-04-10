@@ -18,6 +18,7 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.repo.manager.oauth.OpenIDConnectManager.getScopeHash;
 import static org.sagebionetworks.repo.manager.oauth.claimprovider.GA4GHPassportClaimProvider.VISA_CLAIM_NAME;
+import static org.sagebionetworks.repo.model.AuthorizationConstants.ACCESS_TOKEN_EXPIRATION_TIME_SECONDS;
 import static org.sagebionetworks.repo.model.AuthorizationConstants.DEFAULT_REALM_ID;
 
 import java.security.KeyPair;
@@ -120,7 +121,7 @@ public class OpenIDConnectManagerImplUnitTest {
 	private static final String FIRST_NAME = "first-name";
 	private static final String COMPANY = "company";
 	private static final String USER_NAME = "user-name";
-	private static final long EXPECTED_ACCESS_TOKEN_EXPIRATION_TIME_SECONDS = 3600*24L; // a day
+	private static final long EXPECTED_ACCESS_TOKEN_EXPIRATION_TIME_SECONDS = ACCESS_TOKEN_EXPIRATION_TIME_SECONDS;
 	private static final String ACCESS_REQUIREMENT_ID = "1111";
 	private String ppid;
 

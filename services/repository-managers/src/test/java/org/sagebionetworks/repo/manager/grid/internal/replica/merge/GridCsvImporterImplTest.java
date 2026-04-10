@@ -271,7 +271,7 @@ public class GridCsvImporterImplTest {
 		
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
 		when(mockGridReplicaSupport.getGridHeaderOrThrow(session)).thenReturn(gridHeader);
-		when(mockGridManager.getSingletonUserConnection(sessionId, user, EventSource.USER_SUPPORT)).thenReturn(Optional.of(connectionInfo));
+		when(mockGridManager.getSingletonConnection(sessionId, EventSource.USER_SUPPORT)).thenReturn(Optional.of(connectionInfo));
 		when(mockGridReplicaSupport.getRecordSetOrThrow(user, session)).thenReturn(recordSet);
 		when(mockCsvProvider.getCsvReader(user, request.getFileHandleId(), descriptor)).thenReturn(csvReader(csvContent));
 		
@@ -295,7 +295,7 @@ public class GridCsvImporterImplTest {
 		
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
 		when(mockGridReplicaSupport.getGridHeaderOrThrow(session)).thenReturn(gridHeader);
-		when(mockGridManager.getSingletonUserConnection(sessionId, user, EventSource.USER_SUPPORT)).thenReturn(Optional.of(connectionInfo));
+		when(mockGridManager.getSingletonConnection(sessionId, EventSource.USER_SUPPORT)).thenReturn(Optional.of(connectionInfo));
 		when(mockGridReplicaSupport.getRecordSetOrThrow(user, session)).thenReturn(recordSet);
 		when(mockCsvProvider.getCsvReader(user, request.getFileHandleId(), descriptor)).thenReturn(csvReader(csvContent));
 		
@@ -320,7 +320,7 @@ public class GridCsvImporterImplTest {
 		
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
 		when(mockGridReplicaSupport.getGridHeaderOrThrow(session)).thenReturn(gridHeader);
-		when(mockGridManager.getSingletonUserConnection(sessionId, user, EventSource.USER_SUPPORT)).thenReturn(Optional.of(connectionInfo));
+		when(mockGridManager.getSingletonConnection(sessionId, EventSource.USER_SUPPORT)).thenReturn(Optional.of(connectionInfo));
 		when(mockGridReplicaSupport.getRecordSetOrThrow(user, session)).thenReturn(recordSet);
 		when(mockCsvProvider.getCsvReader(user, request.getFileHandleId(), descriptor)).thenReturn(csvReader(csvContent));
 		
@@ -340,7 +340,7 @@ public class GridCsvImporterImplTest {
 		
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
 		when(mockGridReplicaSupport.getGridHeaderOrThrow(session)).thenReturn(gridHeader);
-		when(mockGridManager.getSingletonUserConnection(sessionId, user, EventSource.USER_SUPPORT)).thenReturn(Optional.of(connectionInfo));
+		when(mockGridManager.getSingletonConnection(sessionId, EventSource.USER_SUPPORT)).thenReturn(Optional.of(connectionInfo));
 		when(mockGridReplicaSupport.getRecordSetOrThrow(user, session)).thenReturn(recordSet);
 		when(mockCsvProvider.getCsvReader(user, request.getFileHandleId(), descriptor)).thenReturn(csvReader(csvContent));
 		
@@ -364,7 +364,7 @@ public class GridCsvImporterImplTest {
 		
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
 		when(mockGridReplicaSupport.getGridHeaderOrThrow(session)).thenReturn(gridHeader);
-		when(mockGridManager.getSingletonUserConnection(sessionId, user, EventSource.USER_SUPPORT)).thenReturn(Optional.of(connectionInfo));
+		when(mockGridManager.getSingletonConnection(sessionId, EventSource.USER_SUPPORT)).thenReturn(Optional.of(connectionInfo));
 		when(mockGridReplicaSupport.getRecordSetOrThrow(user, session)).thenReturn(recordSet);
 		when(mockCsvProvider.getCsvReader(user, request.getFileHandleId(), descriptor)).thenReturn(csvReader(csvContent));
 		
@@ -381,7 +381,7 @@ public class GridCsvImporterImplTest {
 	private void setupFullMocks() {
 		when(mockGridManager.getGridSession(user, sessionId)).thenReturn(session);
 		when(mockGridReplicaSupport.getGridHeaderOrThrow(session)).thenReturn(gridHeader);
-		when(mockGridManager.getSingletonUserConnection(sessionId, user, EventSource.USER_SUPPORT)).thenReturn(Optional.of(connectionInfo));
+		when(mockGridManager.getSingletonConnection(sessionId, EventSource.USER_SUPPORT)).thenReturn(Optional.of(connectionInfo));
 		when(mockGridReplicaSupport.getRecordSetOrThrow(user, session)).thenReturn(recordSet);
 		when(mockCsvProvider.getCsvReader(user, request.getFileHandleId(), descriptor)).thenReturn(csvReader(csvContent));
 		when(mockGridViewManager.getQueryIterator(gridHeader, Collections.emptyList())).thenReturn(gridRows.iterator());

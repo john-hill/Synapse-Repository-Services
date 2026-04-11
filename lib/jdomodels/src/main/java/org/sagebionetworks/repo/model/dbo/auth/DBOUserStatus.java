@@ -4,6 +4,7 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_STA
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_STATUS_LAST_SEEN_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_STATUS_ETAG;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_STATUS_PRINCIPAL_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_STATUS_WARNED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.DDL_USER_STATUS;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_USER_STATUS;
 
@@ -26,7 +27,8 @@ public class DBOUserStatus implements MigratableDatabaseObject<DBOUserStatus, DB
 		new FieldColumn("principalId", COL_USER_STATUS_PRINCIPAL_ID, true).withIsBackupId(true),
 		new FieldColumn("etag", COL_USER_STATUS_ETAG).withIsEtag(true),
 		new FieldColumn("lastSeenOn", COL_USER_STATUS_LAST_SEEN_ON),
-		new FieldColumn("disabled", COL_USER_STATUS_DISABLED)
+		new FieldColumn("disabled", COL_USER_STATUS_DISABLED),
+		new FieldColumn("warnedOn", COL_USER_STATUS_WARNED_ON)
 	};
 	
 	private static final TableMapping<DBOUserStatus> TABLE_MAPPING = new TableMapping<DBOUserStatus>() {
@@ -43,7 +45,11 @@ public class DBOUserStatus implements MigratableDatabaseObject<DBOUserStatus, DB
 			}
 			
 			status.setDisabled(rs.getBoolean(COL_USER_STATUS_DISABLED));
-			
+			status.setWarnedOn(rs.getTimestamp(COL_USER_STATUS_WARNED_ON));
+			if (rs.wasNull()) {
+				status.setWarnedOn(null);
+			}
+
 			return status;
 		}
 
@@ -74,6 +80,7 @@ public class DBOUserStatus implements MigratableDatabaseObject<DBOUserStatus, DB
 	private String etag;
 	private Timestamp lastSeenOn;
 	private Boolean disabled;
+	private Timestamp warnedOn;
 
 	public DBOUserStatus() {
 	}
@@ -110,6 +117,14 @@ public class DBOUserStatus implements MigratableDatabaseObject<DBOUserStatus, DB
 		this.disabled = disabled;
 	}
 
+	public Timestamp getWarnedOn() {
+		return warnedOn;
+	}
+
+	public void setWarnedOn(Timestamp warnedOn) {
+		this.warnedOn = warnedOn;
+	}
+
 	@Override
 	public TableMapping<DBOUserStatus> getTableMapping() {
 		return TABLE_MAPPING;
@@ -142,7 +157,7 @@ public class DBOUserStatus implements MigratableDatabaseObject<DBOUserStatus, DB
 	
 	@Override
 	public int hashCode() {
-		return Objects.hash(disabled, etag, lastSeenOn, principalId);
+		return Objects.hash(disabled, etag, lastSeenOn, principalId, warnedOn);
 	}
 
 	@Override
@@ -154,13 +169,15 @@ public class DBOUserStatus implements MigratableDatabaseObject<DBOUserStatus, DB
 			return false;
 		}
 		DBOUserStatus other = (DBOUserStatus) obj;
-		return Objects.equals(disabled, other.disabled) && Objects.equals(etag, other.etag) && Objects.equals(lastSeenOn, other.lastSeenOn)
-			&& Objects.equals(principalId, other.principalId);
+		return Objects.equals(disabled, other.disabled) && Objects.equals(etag, other.etag)
+			&& Objects.equals(lastSeenOn, other.lastSeenOn) && Objects.equals(principalId, other.principalId)
+			&& Objects.equals(warnedOn, other.warnedOn);
 	}
 
 	@Override
 	public String toString() {
-		return String.format("DBOUserStatus [principalId=%s, etag=%s, lastSeenOn=%s, disabled=%s]", principalId, etag, lastSeenOn, disabled);
+		return String.format("DBOUserStatus [principalId=%s, etag=%s, lastSeenOn=%s, disabled=%s, warnedOn=%s]",
+			principalId, etag, lastSeenOn, disabled, warnedOn);
 	}
 	
 }

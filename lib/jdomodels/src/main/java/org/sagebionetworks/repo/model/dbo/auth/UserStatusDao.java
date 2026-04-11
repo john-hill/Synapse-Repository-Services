@@ -19,5 +19,16 @@ public interface UserStatusDao {
 	boolean isDisabled(long principalId);
 	
 	List<Long> getInactiveUsersBatch(Date lastSeenOnThreshold, int batchSize);
+
+	/**
+	 * Returns up to batchSize principal IDs for users who are not disabled,
+	 * have been inactive since before lastSeenOnThreshold, and have not yet been warned.
+	 */
+	List<Long> getInactiveUsersToWarnBatch(Date lastSeenOnThreshold, int batchSize);
+
+	/**
+	 * Records that a warning was sent to each user in the list by setting WARNED_ON = NOW(3).
+	 */
+	void setWarnedOn(List<Long> principalIds);
 }
 

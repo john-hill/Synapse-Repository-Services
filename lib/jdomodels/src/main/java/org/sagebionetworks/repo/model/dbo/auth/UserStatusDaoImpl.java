@@ -4,6 +4,7 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_STA
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_STATUS_ETAG;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_STATUS_LAST_SEEN_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_STATUS_PRINCIPAL_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_STATUS_WARNED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_USER_STATUS;
 
 import java.sql.PreparedStatement;
@@ -40,7 +41,8 @@ public class UserStatusDaoImpl implements UserStatusDao {
 				+ "VALUES (?, UUID(), ?, false) "
 				+ "ON DUPLICATE KEY UPDATE "
 				+ COL_USER_STATUS_ETAG + " = UUID(),"
-				+ COL_USER_STATUS_LAST_SEEN_ON + " = ?";
+				+ COL_USER_STATUS_LAST_SEEN_ON + " = ?,"
+				+ COL_USER_STATUS_WARNED_ON + " = NULL";
 		
 		jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
 			
@@ -113,5 +115,35 @@ public class UserStatusDaoImpl implements UserStatusDao {
 				+ COL_USER_STATUS_LAST_SEEN_ON + " < ? LIMIT ?",
 				Long.class, lastSeenOnThreshold, batchSize);
 	}
-	
+
+	@Override
+	public List<Long> getInactiveUsersToWarnBatch(Date lastSeenOnThreshold, int batchSize) {
+		return jdbcTemplate.queryForList(
+				"SELECT " + COL_USER_STATUS_PRINCIPAL_ID + " FROM " + TABLE_USER_STATUS + " WHERE "
+				+ COL_USER_STATUS_DISABLED + " = false AND "
+				+ COL_USER_STATUS_LAST_SEEN_ON + " < ? AND "
+				+ COL_USER_STATUS_WARNED_ON + " IS NULL LIMIT ?",
+				Long.class, lastSeenOnThreshold, batchSize);
+	}
+
+	@Override
+	@WriteTransaction
+	public void setWarnedOn(List<Long> principalIds) {
+		jdbcTemplate.batchUpdate(
+				"UPDATE " + TABLE_USER_STATUS
+				+ " SET " + COL_USER_STATUS_WARNED_ON + " = NOW(3),"
+				+ " " + COL_USER_STATUS_ETAG + " = UUID()"
+				+ " WHERE " + COL_USER_STATUS_PRINCIPAL_ID + " = ?",
+				new BatchPreparedStatementSetter() {
+					@Override
+					public void setValues(PreparedStatement ps, int i) throws SQLException {
+						ps.setLong(1, principalIds.get(i));
+					}
+					@Override
+					public int getBatchSize() {
+						return principalIds.size();
+					}
+				});
+	}
+
 }

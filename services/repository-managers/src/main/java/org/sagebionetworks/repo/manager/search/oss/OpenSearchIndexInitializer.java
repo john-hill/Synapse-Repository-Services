@@ -11,7 +11,7 @@ import org.opensearch.client.opensearch.indices.CreateIndexResponse;
 import org.opensearch.client.opensearch.indices.OpenSearchIndicesClient;
 import org.sagebionetworks.LoggerProvider;
 import org.sagebionetworks.repo.manager.search.SearchConstants;
-import org.springframework.beans.factory.annotation.Qualifier;
+
 import org.springframework.stereotype.Component;
 
 @Component

@@ -1,6 +1,8 @@
 package org.sagebionetworks.repo.service.metadata;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 
 import org.sagebionetworks.repo.model.Entity;
 import org.sagebionetworks.repo.model.EntityType;
@@ -14,18 +16,19 @@ public class MetadataProviderFactoryImpl implements MetadataProviderFactory {
 
 	@Autowired
 	void metadataProviders(
-			ProjectMetadataProvider projectProvider, 
+			ProjectMetadataProvider projectProvider,
 			FolderMetadataProvider folderProvider,
-			FileEntityMetadataProvider fileProvider, 
+			FileEntityMetadataProvider fileProvider,
 			TableEntityMetadataProvider tableProvider,
-			EntityViewMetadataProvider entityViewProvider, 
+			EntityViewMetadataProvider entityViewProvider,
 			ExternalDockerRepoValidator dockerProvider,
-			SubmissionViewMetadataProvider submissionViewProvider, 
+			SubmissionViewMetadataProvider submissionViewProvider,
 			DatasetMetadataProvider datasetProvider,
 			DatasetCollectionMetadataProvider datasetCollectionProvider,
 			MaterializedViewMetadataProvider materializedViewProvider,
 			VirtualTableMetadataProvider virtualTableProvider,
-			RecordSetMetadataProvider recordSetProvider) {
+			RecordSetMetadataProvider recordSetProvider,
+			SearchIndexMetadataProvider searchIndexProvider) {
 		metadataProviders = new HashMap<EntityType, EntityProvider<? extends Entity>>();
 		metadataProviders.put(EntityType.project, projectProvider);
 		metadataProviders.put(EntityType.folder, folderProvider);
@@ -39,6 +42,7 @@ public class MetadataProviderFactoryImpl implements MetadataProviderFactory {
 		metadataProviders.put(EntityType.materializedview, materializedViewProvider);
 		metadataProviders.put(EntityType.virtualtable, virtualTableProvider);
 		metadataProviders.put(EntityType.recordset, recordSetProvider);
+		metadataProviders.put(EntityType.searchindex, searchIndexProvider);
 	}
 
 	@Override

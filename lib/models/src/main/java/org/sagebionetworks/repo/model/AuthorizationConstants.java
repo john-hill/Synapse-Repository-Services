@@ -71,7 +71,17 @@ public class AuthorizationConstants {
 	 * Request parameter for a Team ID
 	 */
 	public static final String TEAM_ID_PARAM = "teamId";
-	
+
+	/**
+	 * Request parameter for Object Id for a Forum
+	 */
+	public static final String OBJECT_ID_PARAM = "objectId";
+
+	/**
+	 * Request parameter for Object Type for a Forum
+	 */
+	public static final String OBJECT_TYPE_PARAM = "objectType";
+
 	/**
 	 * Request parameter for the authenticated user id or anonymous. Note that
 	 * callers of the service do not actually use this parameter. Instead they
@@ -209,7 +219,7 @@ public class AuthorizationConstants {
 	/**
 	 * The time, in seconds, that an access token lasts
 	 */
-	public static final long ACCESS_TOKEN_EXPIRATION_TIME_SECONDS = 3600*24L; // a day
+	public static final long ACCESS_TOKEN_EXPIRATION_TIME_SECONDS = 3600*72L; // 3 days
 
 	
 	/**

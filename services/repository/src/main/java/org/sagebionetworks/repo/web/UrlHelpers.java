@@ -1154,6 +1154,9 @@ public class UrlHelpers {
 	public static final String OBJECT_ID_TYPE_ETAG = OBJECT+OBJECT_ID+OBJECT_TYPE+ETAG;
 	public static final String SUBSCRIPTION_SUBSCRIBERS = SUBSCRIPTION + "/subscribers";
 	public static final String SUBSCRIPTION_SUBSCRIBER_COUNT = SUBSCRIPTION_SUBSCRIBERS + "/count";
+
+	//Form service to search by id and Type
+	public static final String FORUM_BY_ID_TYPE = FORUM + OBJECT_ID + OBJECT_TYPE;
 	
 	// Docker authorization services
 	public static final String DOCKER_AUTHORIZATION = "/bearerToken";
@@ -1363,6 +1366,11 @@ public class UrlHelpers {
 	public static final String DRS_OBJECT = "/objects/{object_id}";
 	public static final String DRS_FETCH_BYTES = DRS_OBJECT + "/access/{access_id}";
 
+	// Search - Synonym Set
+	public static final String SEARCH_SYNONYM_SET = "/search/synonym/set";
+	public static final String SEARCH_SYNONYM_SET_ID = SEARCH_SYNONYM_SET + "/{synonymSetId}";
+	public static final String SEARCH_SYNONYM_SET_LIST = SEARCH_SYNONYM_SET + "/list";
+
 	// Search - Text Analyzer
 	public static final String SEARCH_TEXT_ANALYZER = "/search/text/analyzer";
 	public static final String SEARCH_TEXT_ANALYZER_ID = SEARCH_TEXT_ANALYZER + "/{id}";
@@ -1372,6 +1380,14 @@ public class UrlHelpers {
 	public static final String SEARCH_COLUMN_ANALYZER_OVERRIDE = "/search/column/analyzer/override";
 	public static final String SEARCH_COLUMN_ANALYZER_OVERRIDE_ID = SEARCH_COLUMN_ANALYZER_OVERRIDE + "/{columnAnalyzerOverrideId}";
 	public static final String SEARCH_COLUMN_ANALYZER_OVERRIDE_LIST = SEARCH_COLUMN_ANALYZER_OVERRIDE + "/list";
+
+	// Search - Search Configuration
+	public static final String SEARCH_CONFIGURATION = "/search/configuration";
+	public static final String SEARCH_CONFIGURATION_ID = SEARCH_CONFIGURATION + "/{searchConfigurationId}";
+	public static final String SEARCH_CONFIGURATION_LIST = SEARCH_CONFIGURATION + "/list";
+
+	// Search - Configuration Bindings
+	public static final String ENTITY_SEARCH_CONFIG_BINDING = "/entity/{entityId}/searchconfig/binding";
 
 	// Search - Query and Autocomplete
 	public static final String SEARCH_QUERY_ASYNC_START = "/search/query/async/start";

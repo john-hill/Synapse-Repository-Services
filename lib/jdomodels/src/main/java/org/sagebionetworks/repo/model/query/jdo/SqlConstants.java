@@ -923,7 +923,8 @@ public class SqlConstants {
 	// Forum table
 	public static final String TABLE_FORUM = "FORUM";
 	public static final String COL_FORUM_ID = "ID";
-	public static final String COL_FORUM_PROJECT_ID = "PROJECT_ID";
+	public static final String COL_FORUM_OBJECT_ID = "OBJECT_ID";
+	public static final String COL_FORUM_OBJECT_TYPE = "OBJECT_TYPE";
 	public static final String COL_FORUM_ETAG = "ETAG";
 	public static final String DDL_FORUM = "schema/discussion/Forum-ddl.sql";
 
@@ -1531,6 +1532,46 @@ public class SqlConstants {
 	public static final int MAX_BYTES_PER_LONG_AS_STRING = 20*2; // 20 chars at 2 bytes per char.;
 	public static final int MAX_LONGS_PER_IN_CLAUSE = MAX_ALLOWED_PACKET_BYTES/MAX_BYTES_PER_LONG_AS_STRING;
 	
+	// Synonym Set
+	public static final String TABLE_SYNONYM_SET					= "SYNONYM_SET";
+	public static final String COL_SYNSET_ID						= "ID";
+	public static final String COL_SYNSET_ETAG						= "ETAG";
+	public static final String COL_SYNSET_ORGANIZATION_NAME			= "ORGANIZATION_NAME";
+	public static final String COL_SYNSET_NAME						= "NAME";
+	public static final String COL_SYNSET_DESCRIPTION				= "DESCRIPTION";
+	public static final String COL_SYNSET_RULES						= "RULES";
+	public static final String COL_SYNSET_CREATED_BY				= "CREATED_BY";
+	public static final String COL_SYNSET_CREATED_ON				= "CREATED_ON";
+	public static final String COL_SYNSET_MODIFIED_BY				= "MODIFIED_BY";
+	public static final String COL_SYNSET_MODIFIED_ON				= "MODIFIED_ON";
+	public static final String DDL_SYNONYM_SET						= "schema/SynonymSet-ddl.sql";
+
+	// Search Configuration
+	public static final String TABLE_SEARCH_CONFIGURATION			= "SEARCH_CONFIGURATION";
+	public static final String COL_SEARCH_CONFIG_ID					= "ID";
+	public static final String COL_SEARCH_CONFIG_ETAG				= "ETAG";
+	public static final String COL_SEARCH_CONFIG_ORGANIZATION_NAME	= "ORGANIZATION_NAME";
+	public static final String COL_SEARCH_CONFIG_NAME				= "NAME";
+	public static final String COL_SEARCH_CONFIG_DESCRIPTION		= "DESCRIPTION";
+	public static final String COL_SEARCH_CONFIG_DEFAULT_ANALYZER		= "DEFAULT_ANALYZER";
+	public static final String COL_SEARCH_CONFIG_SYNONYM_SETS		= "SYNONYM_SETS";
+	public static final String COL_SEARCH_CONFIG_COL_ANALYZER_OVERRIDES	= "COLUMN_ANALYZER_OVERRIDES";
+	public static final String COL_SEARCH_CONFIG_CREATED_BY			= "CREATED_BY";
+	public static final String COL_SEARCH_CONFIG_CREATED_ON			= "CREATED_ON";
+	public static final String COL_SEARCH_CONFIG_MODIFIED_BY		= "MODIFIED_BY";
+	public static final String COL_SEARCH_CONFIG_MODIFIED_ON		= "MODIFIED_ON";
+	public static final String DDL_SEARCH_CONFIGURATION				= "schema/SearchConfiguration-ddl.sql";
+
+	// Search Config Object Binding
+	public static final String TABLE_SEARCH_CONFIG_OBJECT_BINDING		= "SEARCH_CONFIG_OBJECT_BINDING";
+	public static final String COL_SCOB_BIND_ID							= "BIND_ID";
+	public static final String COL_SCOB_SEARCH_CONFIG_ID				= "SEARCH_CONFIG_ID";
+	public static final String COL_SCOB_OBJECT_ID						= "OBJECT_ID";
+	public static final String COL_SCOB_OBJECT_TYPE						= "OBJECT_TYPE";
+	public static final String COL_SCOB_CREATED_BY						= "CREATED_BY";
+	public static final String COL_SCOB_CREATED_ON						= "CREATED_ON";
+	public static final String DDL_SEARCH_CONFIG_OBJECT_BINDING			= "schema/SearchConfigBinding-ddl.sql";
+
 	/**
 	 * Function names:
 	 */

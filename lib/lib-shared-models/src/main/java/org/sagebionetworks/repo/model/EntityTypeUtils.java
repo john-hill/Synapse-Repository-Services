@@ -19,13 +19,14 @@ import org.sagebionetworks.repo.model.table.MaterializedView;
 import org.sagebionetworks.repo.model.table.SubmissionView;
 import org.sagebionetworks.repo.model.table.TableEntity;
 import org.sagebionetworks.repo.model.table.VirtualTable;
+import org.sagebionetworks.repo.model.search.table.SearchIndex;
 
 /**
  * Utilities for entity type.
- * 
+ *
  * When a new EntityType is added to org.sagebionetworks.repo.model.EntityType,
  * a new EntityTypeMetadata must be built and added to the metadataArray.
- * 
+ *
  * @author jmhill
  * @author kimyen
  *
@@ -35,14 +36,14 @@ public class EntityTypeUtils {
 	private static final EntityTypeMetadata[] metadataArray;
 	/*
 	 * This map helps getting the class of an EntityType given the EntityType.
-	 * 
+	 *
 	 * Since GWT does not compile with Class.forName() and there is no ways to
 	 * auto generate EntityTypeMetadata with a class type variable, we store the
 	 * string class name in EntityTypeMetadata, and use this map to look for
 	 * the class of the entity type.
 	 */
 	private static final Map<String, Class<? extends Entity>> className;
-	
+
 	private static final List<EntityType> fileTypes;
 
 	static {
@@ -72,8 +73,10 @@ public class EntityTypeUtils {
 				// materialized view
 				buildMetadata(EntityType.materializedview, Arrays.asList(Project.class.getName(), Folder.class.getName()), MaterializedView.class, "Materialized View"),
 				// virtual table
-				buildMetadata(EntityType.virtualtable, Arrays.asList(Project.class.getName(), Folder.class.getName()), VirtualTable.class, "Virtual Table")
-				
+				buildMetadata(EntityType.virtualtable, Arrays.asList(Project.class.getName(), Folder.class.getName()), VirtualTable.class, "Virtual Table"),
+				// search index
+				buildMetadata(EntityType.searchindex, Arrays.asList(Project.class.getName(), Folder.class.getName()), SearchIndex.class, "Search Index")
+
 		};
 
 		className = new HashMap<String, Class<? extends Entity>>();
@@ -90,15 +93,16 @@ public class EntityTypeUtils {
 		className.put(MaterializedView.class.getName(), MaterializedView.class);
 		className.put(VirtualTable.class.getName(), VirtualTable.class);
 		className.put(RecordSet.class.getName(), RecordSet.class);
-		
+		className.put(SearchIndex.class.getName(), SearchIndex.class);
+
 		fileTypes = new ArrayList<>();
-		
+
 		fileTypes.add(EntityType.file);
 		fileTypes.add(EntityType.recordset);
 	}
 
 	/**
-	 * 
+	 *
 	 * @param type
 	 * @param validParentTypes
 	 * @param clazz
@@ -116,7 +120,7 @@ public class EntityTypeUtils {
 		metadata.setDisplayName(displayName);
 		return metadata;
 	}
-	
+
 	/**
 	 * Get the entity Registry
 	 * @return
@@ -129,9 +133,9 @@ public class EntityTypeUtils {
 		}
 		return reg;
 	}
-	
+
 	/**
-	 * 
+	 *
 	 * @param type
 	 * @return the class that goes with this type
 	 */
@@ -143,38 +147,38 @@ public class EntityTypeUtils {
 			throw new RuntimeException("Class not found for type " + type);
 		}
 	}
-	
+
 	/**
-	 * 
+	 *
 	 * @param type
 	 * @return the valid parent types for this
 	 */
 	public static String[] getValidParentTypes(EntityType type) {
 		EntityTypeMetadata metadata = getMetadata(type);
 		return metadata.getValidParentTypes().toArray(new String[metadata.getValidParentTypes().size()]);
-		
+
 	}
-	
+
 	/**
-	 * @param type 
+	 * @param type
 	 * @return all of the aliases that can be used to look their entity type
 	 */
 	public static Set<String> getAllAliases(EntityType type){
 		return new LinkedHashSet<String>(getMetadata(type).getAliases());
 	}
-	
+
 	/**
-	 * 
+	 *
 	 * @param type
 	 * @return the default parent path for this type
 	 */
 	public static String getDefaultParentPath(EntityType type){
 		return getMetadata(type).getDefaultParentPath();
 	}
-	
+
 	/**
-	 * 
-	 * @param type 
+	 *
+	 * @param type
 	 * @return the EntityTypeMetadata object
 	 */
 	public static EntityTypeMetadata getMetadata(EntityType type) {
@@ -185,9 +189,9 @@ public class EntityTypeUtils {
 		}
 		throw new IllegalArgumentException("Type not supported: " + type);
 	}
-	
+
 	/**
-	 *  
+	 *
 	 * @param child - the child type
 	 * @param parentType - the parent type or null if the child has no parent
 	 * @return true if parent is a valid parent type of child, false otherwise
@@ -195,7 +199,7 @@ public class EntityTypeUtils {
 	public static boolean isValidParentType(EntityType child, EntityType parentType) {
 		return isValidTypeInList(parentType, getMetadata(child).getValidParentTypes());
 	}
-	
+
 	private static boolean isValidTypeInList(EntityType type, List<String> validParentTypes) {
 		String entityTypeClassName;
 		if (type == null) {
@@ -207,11 +211,11 @@ public class EntityTypeUtils {
 			if(validParent.equals(entityTypeClassName)) return true;
 		}
 		// No match found
-		return false;				
+		return false;
 	}
-	
+
 	/**
-	 * 
+	 *
 	 * @param clazz
 	 * @return get the EntityType for an entity class
 	 */
@@ -219,9 +223,9 @@ public class EntityTypeUtils {
 		if(clazz == null) throw new IllegalArgumentException("Clazz cannot be null");
 		return getEntityTypeForClassName(clazz.getName());
 	}
-	
+
 	/**
-	 * 
+	 *
 	 * @param fullClassName
 	 * @return get the EntityType for an Entity class name
 	 */
@@ -236,9 +240,9 @@ public class EntityTypeUtils {
 		}
 		throw new IllegalArgumentException("Unknown EntityType for class name: " + fullClassName);
 	}
-	
+
 	/**
-	 * 
+	 *
 	 * @return the full class name for this EntityType 
 	 */
 	public static String getEntityTypeClassName(EntityType type) {
@@ -246,7 +250,7 @@ public class EntityTypeUtils {
 	}
 
 	/**
-	 * 
+	 *
 	 * @param type
 	 * @return name that can be shown to users
 	 */
@@ -255,18 +259,18 @@ public class EntityTypeUtils {
 	}
 
 	/**
-	 * 
+	 *
 	 * @param type
 	 * @return True if the given entity type represents a physical file
 	 */
 	public static boolean isFile(EntityType type) {
 		return fileTypes.contains(type);
 	}
-	
+
 	/**
 	 * @return The list of entity types that represent a physical file
 	 */
-	public static List<EntityType> getFileTypes() {		
+	public static List<EntityType> getFileTypes() {
 		return fileTypes;
 	}
 

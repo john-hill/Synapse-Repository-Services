@@ -646,6 +646,14 @@ public interface NodeDAO {
 	public Optional<Long> getEntityIdOfFirstBoundSchema(Long entityId);
 
 	/**
+	 * Walk the hierarchy to find the first bound search configuration for the provided entity ID.
+	 * Returns the entity ID (this entity or an ancestor) that has a binding, or empty if none found.
+	 * @param nodeId
+	 * @return
+	 */
+	public Optional<Long> getEntityIdOfFirstBoundSearchConfig(Long nodeId);
+
+	/**
 	 * Updates the file handle of the node with the given id and version
 	 * 
 	 * @param nodeId The id of the node to update

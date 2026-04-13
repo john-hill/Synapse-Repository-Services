@@ -53,13 +53,13 @@ public class TextAnalyzerDaoImplAutowiredTest {
 
 	@Test
 	public void testCreateAndGet() {
-		TextAnalyzer analyzer = newAnalyzer("test-create", "A test analyzer");
+		TextAnalyzer analyzer = newAnalyzer("test_create", "A test analyzer");
 
 		TextAnalyzer created = textAnalyzerDao.create(analyzer, adminUserId);
 
 		assertNotNull(created.getId());
 		assertNotNull(created.getEtag());
-		assertEquals("test-create", created.getName());
+		assertEquals("test_create", created.getName());
 		assertEquals("A test analyzer", created.getDescription());
 		assertNotNull(created.getCreatedOn());
 		assertNotNull(created.getModifiedOn());
@@ -82,18 +82,18 @@ public class TextAnalyzerDaoImplAutowiredTest {
 
 	@Test
 	public void testCreateDuplicateNameInSameOrgThrows() {
-		textAnalyzerDao.create(newAnalyzer("duplicate-name", "First"), adminUserId);
+		textAnalyzerDao.create(newAnalyzer("duplicate_name", "First"), adminUserId);
 
-		TextAnalyzer analyzer2 = newAnalyzer("duplicate-name", "Second");
+		TextAnalyzer analyzer2 = newAnalyzer("duplicate_name", "Second");
 		assertThrows(IllegalArgumentException.class, () -> textAnalyzerDao.create(analyzer2, adminUserId));
 	}
 
 	@Test
 	public void testUpdatePersistsChangesAndRotatesEtag() {
-		TextAnalyzer created = textAnalyzerDao.create(newAnalyzer("test-update", "original"), adminUserId);
+		TextAnalyzer created = textAnalyzerDao.create(newAnalyzer("test_update", "original"), adminUserId);
 		String originalEtag = created.getEtag();
 
-		created.setName("test-update-renamed");
+		created.setName("test_update_renamed");
 		created.setDescription("updated");
 		TextAnalyzerSettings newSettings = new TextAnalyzerSettings();
 		newSettings.setTokenizer("whitespace");
@@ -101,7 +101,7 @@ public class TextAnalyzerDaoImplAutowiredTest {
 
 		TextAnalyzer updated = textAnalyzerDao.update(created, adminUserId);
 
-		assertEquals("test-update-renamed", updated.getName());
+		assertEquals("test_update_renamed", updated.getName());
 		assertEquals("updated", updated.getDescription());
 		assertEquals("whitespace", updated.getSettings().getTokenizer());
 		assertNotEquals(originalEtag, updated.getEtag());
@@ -109,7 +109,7 @@ public class TextAnalyzerDaoImplAutowiredTest {
 
 	@Test
 	public void testUpdateWithStaleEtagThrows() {
-		TextAnalyzer created = textAnalyzerDao.create(newAnalyzer("test-occ", null), adminUserId);
+		TextAnalyzer created = textAnalyzerDao.create(newAnalyzer("test_occ", null), adminUserId);
 
 		// First update succeeds and rotates the etag
 		created.setDescription("first update");
@@ -122,7 +122,7 @@ public class TextAnalyzerDaoImplAutowiredTest {
 
 	@Test
 	public void testDelete() {
-		TextAnalyzer created = textAnalyzerDao.create(newAnalyzer("test-delete", null), adminUserId);
+		TextAnalyzer created = textAnalyzerDao.create(newAnalyzer("test_delete", null), adminUserId);
 		Long id = Long.parseLong(created.getId());
 
 		assertTrue(textAnalyzerDao.exists(id));
@@ -160,7 +160,7 @@ public class TextAnalyzerDaoImplAutowiredTest {
 				+ "\"english_stemmer\":{\"type\":\"stemmer\",\"language\":\"english\"}}");
 
 		TextAnalyzer analyzer = new TextAnalyzer();
-		analyzer.setName("settings-roundtrip");
+		analyzer.setName("settings_roundtrip");
 		analyzer.setOrganizationName(organizationName);
 		analyzer.setSettings(settings);
 

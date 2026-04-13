@@ -152,6 +152,7 @@ import org.sagebionetworks.repo.model.discussion.DiscussionThreadBundle;
 import org.sagebionetworks.repo.model.discussion.DiscussionThreadOrder;
 import org.sagebionetworks.repo.model.discussion.EntityThreadCounts;
 import org.sagebionetworks.repo.model.discussion.Forum;
+import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.sagebionetworks.repo.model.discussion.ReplyCount;
 import org.sagebionetworks.repo.model.discussion.ThreadCount;
 import org.sagebionetworks.repo.model.discussion.UpdateReplyMessage;
@@ -351,11 +352,19 @@ import org.sagebionetworks.repo.model.table.ViewColumnModelResponse;
 import org.sagebionetworks.repo.model.table.ViewEntityType;
 import org.sagebionetworks.repo.model.table.ViewScope;
 import org.sagebionetworks.repo.model.table.ViewType;
+import org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesRequest;
 import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesResponse;
+import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsRequest;
+import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsResponse;
+import org.sagebionetworks.repo.model.search.table.ListSynonymSetsRequest;
+import org.sagebionetworks.repo.model.search.table.ListSynonymSetsResponse;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
+import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
+import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiHeader;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiHistorySnapshot;
@@ -2849,6 +2858,16 @@ public interface SynapseClient extends BaseClient {
 	Forum getForum(String forumId) throws SynapseException;
 
 	/**
+	 * Get or create forum for the given object.
+	 *
+	 * @param objectId
+	 * @param objectType
+	 * @return
+	 * @throws SynapseException
+	 */
+	Forum getForumByObjectIdAndType(String objectId, ForumObjectType objectType) throws SynapseException;
+
+	/**
 	 * Create a new Discussion Reply
 	 * 
 	 * @param toCreate
@@ -4681,15 +4700,13 @@ public interface SynapseClient extends BaseClient {
     
     RealmPrincipal getRealmPrincipals() throws SynapseException;
 
-    TextAnalyzer createTextAnalyzer(TextAnalyzer analyzer) throws SynapseException;
+	TextAnalyzer createTextAnalyzer(TextAnalyzer analyzer) throws SynapseException;
 
-    TextAnalyzer getTextAnalyzer(String id) throws SynapseException;
+	TextAnalyzer getTextAnalyzer(String id) throws SynapseException;
 
-    TextAnalyzer updateTextAnalyzer(TextAnalyzer analyzer) throws SynapseException;
+	TextAnalyzer updateTextAnalyzer(TextAnalyzer analyzer) throws SynapseException;
 
-    void deleteTextAnalyzer(String id) throws SynapseException;
-
-    ListTextAnalyzersResponse listTextAnalyzers(ListTextAnalyzersRequest request) throws SynapseException;
+	ListTextAnalyzersResponse listTextAnalyzers(ListTextAnalyzersRequest request) throws SynapseException;
 
     ColumnAnalyzerOverride createColumnAnalyzerOverride(ColumnAnalyzerOverride override) throws SynapseException;
 
@@ -4697,9 +4714,29 @@ public interface SynapseClient extends BaseClient {
 
     ColumnAnalyzerOverride updateColumnAnalyzerOverride(ColumnAnalyzerOverride override) throws SynapseException;
 
-    void deleteColumnAnalyzerOverride(String id) throws SynapseException;
-
     ListColumnAnalyzerOverridesResponse listColumnAnalyzerOverrides(ListColumnAnalyzerOverridesRequest request) throws SynapseException;
+
+	SynonymSet createSynonymSet(SynonymSet synonymSet) throws SynapseException;
+
+	SynonymSet getSynonymSet(String id) throws SynapseException;
+
+	SynonymSet updateSynonymSet(SynonymSet synonymSet) throws SynapseException;
+
+	ListSynonymSetsResponse listSynonymSets(ListSynonymSetsRequest request) throws SynapseException;
+
+	SearchConfiguration createSearchConfiguration(SearchConfiguration config) throws SynapseException;
+
+	SearchConfiguration getSearchConfiguration(String id) throws SynapseException;
+
+	SearchConfiguration updateSearchConfiguration(SearchConfiguration config) throws SynapseException;
+
+	ListSearchConfigurationsResponse listSearchConfigurations(ListSearchConfigurationsRequest request) throws SynapseException;
+
+	SearchConfigBinding bindSearchConfigToEntity(BindSearchConfigToEntityRequest request) throws SynapseException;
+
+	SearchConfigBinding getSearchConfigBindingForEntity(String entityId) throws SynapseException;
+
+	void clearSearchConfigBindingForEntity(String entityId) throws SynapseException;
 
 }
 

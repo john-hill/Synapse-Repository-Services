@@ -406,7 +406,7 @@ public class OIDCTokenManagerImplTest {
 		assertEquals(principalId.toString(), claims.getSubject());
 		assertEquals(""+AuthorizationConstants.SYNAPSE_OAUTH_CLIENT_ID, claims.getAudience());
 		assertNotNull(claims.getId());
-		assertEquals(now/1000L+24*3600, claims.getExpiration().getTime()/1000L);
+		assertEquals(now/1000L+72*3600, claims.getExpiration().getTime()/1000L);
 		assertEquals(Arrays.asList(OAuthScope.values()), ClaimsJsonUtil.getScopeFromClaims(claims));
 
 		OIDCAccessTokenData expectedRecord = new OIDCAccessTokenData()

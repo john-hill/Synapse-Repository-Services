@@ -12,5 +12,7 @@ public interface ColumnAnalyzerOverrideDao {
 	void delete(String id);
 	List<ColumnAnalyzerOverride> list(String organizationName, long limit, long offset);
 	List<ColumnAnalyzerOverride> listAll(long limit, long offset);
+	Optional<ColumnAnalyzerOverride> getByOrganizationAndName(String organizationName, String name);
+	List<String> findNonExistentNames(List<String> qualifiedNames);
 	void truncateAll();
 }

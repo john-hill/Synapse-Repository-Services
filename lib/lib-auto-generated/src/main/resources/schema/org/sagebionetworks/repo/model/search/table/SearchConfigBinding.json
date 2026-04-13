@@ -1,0 +1,30 @@
+{
+	"description": "Represents a binding between a search configuration and an entity. Walk the entity hierarchy (entity → folder → project) to find the effective configuration.",
+	"properties": {
+		"bindId": {
+			"type": "string",
+			"description": "The unique ID of this binding."
+		},
+		"searchConfigurationId": {
+			"type": "string",
+			"description": "The ID of the SearchConfiguration bound to this entity."
+		},
+		"objectId": {
+			"type": "string",
+			"description": "The ID of the entity this configuration is bound to."
+		},
+		"objectType": {
+			"type": "string",
+			"description": "The type of the object this configuration is bound to."
+		},
+		"createdBy": {
+			"type": "string",
+			"description": "The ID of the user that created this binding."
+		},
+		"createdOn": {
+			"type": "string",
+			"format": "date-time",
+			"description": "The date this binding was created."
+		}
+	}
+}

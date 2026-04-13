@@ -73,6 +73,15 @@ DAO interfaces live in `lib/models/` (`org.sagebionetworks.repo.model`). Impleme
 - **`RowMapper<T>`** or `TableMapping<T>` — for result set mapping
 - **No ORM** — all SQL is hand-written
 
+### Junction Table DAO Pattern
+
+When a parent entity has ordered many-to-many relationships (e.g., SearchConfiguration → SynonymSets), the **parent DAO** manages junction rows inline — there is no separate DAO for the junction table. Key conventions (see `SearchConfigurationDaoImpl` for the reference implementation):
+
+- **Dedup before insert**: Wrap input lists in `new LinkedHashSet<>(list)` to remove duplicates while preserving order — because the DB has a unique constraint on `(CONFIG_ID, REFERENCED_ID)`.
+- **ORDINAL column**: 0-indexed integer preserving list order. Part of the composite primary key in the junction DDL.
+- **Complete replacement on update**: Delete all junction rows for the parent, then re-insert — no partial merge. This avoids complex diff logic and is safe because junction rows have no independent identity.
+- **Lazy population**: After fetching the primary record, populate junction data with separate `queryForList` calls. This keeps the primary query simple and avoids joins that would multiply rows.
+
 ### SQL Constants
 
 All table names, column names, and DDL file paths are centralized in `SqlConstants`:
@@ -120,6 +129,16 @@ Do NOT create custom `ObjectMapper` or `JSONObjectAdapter` serialization code in
   - Use `NOW(3)` for timestamps instead of passing `new Timestamp(System.currentTimeMillis())`
 - **SQL injection prevention**: All SQL MUST use bind variables (`?` or named parameters). Never concatenate user input into SQL strings.
 - **Inline SQL preferred**: The legacy pattern of defining SQL as `static final String` concatenations of column/table constants was a workaround for a Java memory bug that no longer exists. For new code, prefer writing SQL inline where it's used. Column/table name constants are still appropriate in DDL, DBO field mappings, and row mappers — just not for building SQL query strings via concatenation.
+- **Truncate/delete-all pattern**: Always use `DELETE FROM <table> WHERE ID > -1` instead of bare `DELETE FROM <table>`. The trivial `WHERE` clause is required to avoid failures when MySQL's SQL safe-updates mode is enabled.
+- **FK constraint protection pattern**: When a `DELETE` may fail due to a foreign key constraint, let the database enforce the constraint rather than checking references first ("check then delete" has a race condition). Catch `DataIntegrityViolationException` in the DAO and re-throw as `IllegalArgumentException` with a user-friendly message. This approach avoids cross-DAO dependencies and is race-condition-free:
+  ```java
+  try {
+      jdbcTemplate.update("DELETE FROM MY_TABLE WHERE ID = ?", id);
+  } catch (DataIntegrityViolationException e) {
+      throw new IllegalArgumentException("Cannot delete: still referenced by other resources.", e);
+  }
+  ```
+  When a DAO catches and rewrites exceptions like this, **an autowired integration test must verify the user-facing error message**.
 
 ## Method Naming Conventions
 
@@ -130,4 +149,6 @@ Do NOT create custom `ObjectMapper` or `JSONObjectAdapter` serialization code in
 
 - DAO unit tests mock `JdbcTemplate` / `NamedParameterJdbcTemplate`
 - DAO integration tests use the real database (run via `integration-test` module)
-- Migration test: `MigrationIntegrationAutowireTest` — extend when adding new migratable types
+- Migration test: `MigratableTableDAOImplAutowireTest.testAllMigrationTypesRegistered()` — validates all `MigrationType` values have registered DBOs
+- **Autowired test pattern for new DAOs**: Every new DAO with behavioral logic (OCC, duplicate name handling, FK protection, custom queries) needs a `*DaoImplAutowiredTest` covering: create with real data + get round-trip, duplicate name constraint, update with data change verification, OCC conflict, delete, list filtering across multiple groups, and `getByX` with a decoy entry to verify filtering. See `SynonymSetDaoImplAutowiredTest` or `TextAnalyzerDaoImplAutowiredTest` for examples. For DAOs with junction tables, see `SearchConfigurationDaoImplAutowiredTest`.
+- **Uniqueness constraint tests**: When a table has a composite unique key on string columns, test with max-length strings that differ only in the last character — because MySQL index key length limits can silently truncate, causing false collisions that won't appear with short test strings. Give each entry distinct field values (descriptions, rules, etc.), then fetch each by ID and verify all fields survived — because a truncated index could silently overwrite one row with another, and simply asserting the duplicate throws won't catch that.

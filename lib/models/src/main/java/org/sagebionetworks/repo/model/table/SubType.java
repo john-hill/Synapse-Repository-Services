@@ -1,7 +1,7 @@
 package org.sagebionetworks.repo.model.table;
 
 /**
- * 
+ *
  * Defines the sub-type of a replicated object. This is the sub-set of possible
  * EntityTypes that can appear in a view.
  */
@@ -19,5 +19,6 @@ public enum SubType {
 	datasetcollection,
 	materializedview,
 	virtualtable,
-	recordset
+	recordset,
+	searchindex
 }

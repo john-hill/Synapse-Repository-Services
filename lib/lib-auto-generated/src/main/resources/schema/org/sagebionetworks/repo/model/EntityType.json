@@ -39,8 +39,8 @@
             "description": "A dataset is a view of a list of entities."
         },
         {
-        	"name": "datasetcollection",
-        	"description": "A dataset collection is a view of a list of datasets."
+            "name": "datasetcollection",
+            "description": "A dataset collection is a view of a list of datasets."
         },
         {
             "name": "materializedview",
@@ -50,9 +50,13 @@
             "name": "virtualtable",
             "description": "A virtual table is represents the results of Synapse SQL query. The results are not persisted and the query is run each time the virtual table is queried."
         },
-		{
-			"name": "recordset",
+        {
+            "name": "recordset",
             "description": "A special type of file that captures record-based metadata as a special type of CSV."
-		}
+        },
+        {
+            "name": "searchindex",
+            "description": "A search index entity that provides search over Synapse data via OpenSearch."
+        }
     ]
 }

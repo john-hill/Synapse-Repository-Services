@@ -292,15 +292,6 @@ public class GridDaoImplTest {
 			assertTrue(defaultInternalConnection.isEmpty());
 		}
 
-		Optional<GridConnectionInfo> userDefaultConnection = dao.getSingletonUserConnection(info1.getSessionId(),
-				adminUserId, source);
-
-		if (source.isSingleton()) {
-			assertEquals(f1, userDefaultConnection.get());
-		} else {
-			assertTrue(userDefaultConnection.isEmpty());
-		}
-
 		// call under test
 		dao.createConnection(info2);
 		// call under test

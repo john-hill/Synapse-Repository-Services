@@ -186,6 +186,7 @@ import org.sagebionetworks.repo.model.discussion.DiscussionThreadBundle;
 import org.sagebionetworks.repo.model.discussion.DiscussionThreadOrder;
 import org.sagebionetworks.repo.model.discussion.EntityThreadCounts;
 import org.sagebionetworks.repo.model.discussion.Forum;
+import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.sagebionetworks.repo.model.discussion.MessageURL;
 import org.sagebionetworks.repo.model.discussion.ReplyCount;
 import org.sagebionetworks.repo.model.discussion.ThreadCount;
@@ -402,11 +403,19 @@ import org.sagebionetworks.repo.model.table.ViewColumnModelResponse;
 import org.sagebionetworks.repo.model.table.ViewEntityType;
 import org.sagebionetworks.repo.model.table.ViewScope;
 import org.sagebionetworks.repo.model.table.ViewType;
+import org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesRequest;
 import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesResponse;
+import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsRequest;
+import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsResponse;
+import org.sagebionetworks.repo.model.search.table.ListSynonymSetsRequest;
+import org.sagebionetworks.repo.model.search.table.ListSynonymSetsResponse;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
+import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
+import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiHeader;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiHistorySnapshot;
@@ -726,7 +735,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	private static final String SUBSCRIPTION = "/subscription";
 	private static final String LIST = "/list";
 	private static final String OBJECT_TYPE_PARAM = "objectType";
-	private static final String OBJECT = "/object";	
+	private static final String OBJECT = "/object";
 
 	private static final String PRINCIPAL_ID_REQUEST_PARAM = "principalId";
 
@@ -772,8 +781,13 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 
 	private static final String SEARCH_TEXT_ANALYZER = "/search/text/analyzer";
 	private static final String SEARCH_TEXT_ANALYZER_LIST = SEARCH_TEXT_ANALYZER + "/list";
+	private static final String SEARCH_SYNONYM_SET = "/search/synonym/set";
+	private static final String SEARCH_SYNONYM_SET_LIST = SEARCH_SYNONYM_SET + "/list";
 	private static final String SEARCH_COLUMN_ANALYZER_OVERRIDE = "/search/column/analyzer/override";
 	private static final String SEARCH_COLUMN_ANALYZER_OVERRIDE_LIST = SEARCH_COLUMN_ANALYZER_OVERRIDE + "/list";
+	private static final String SEARCH_CONFIGURATION = "/search/configuration";
+	private static final String SEARCH_CONFIGURATION_LIST = SEARCH_CONFIGURATION + "/list";
+	private static final String ENTITY_SEARCH_CONFIG_BINDING = "/entity/%s/searchconfig/binding";
 
 	/**
 	 * Default constructor uses the default repository and file services endpoints.
@@ -5183,6 +5197,13 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	}
 
 	@Override
+	public Forum getForumByObjectIdAndType(String objectId, ForumObjectType objectType) throws SynapseException {
+		ValidateArgument.required(objectId, "objectId");
+		ValidateArgument.required(objectType, "objectType");
+		return getJSONEntity(getRepoEndpoint(), FORUM+"/"+objectId+"/"+objectType.name(), Forum.class);
+	}
+
+	@Override
 	public DiscussionThreadBundle createThread(CreateDiscussionThread toCreate)
 			throws SynapseException {
 		ValidateArgument.required(toCreate, "toCreate");
@@ -6683,15 +6704,81 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	}
 
 	@Override
-	public void deleteTextAnalyzer(String id) throws SynapseException {
-		ValidateArgument.required(id, "id");
-		deleteUri(getRepoEndpoint(), createEntityUri(SEARCH_TEXT_ANALYZER, id));
-	}
-
-	@Override
 	public ListTextAnalyzersResponse listTextAnalyzers(ListTextAnalyzersRequest request) throws SynapseException {
 		ValidateArgument.required(request, "request");
 		return postJSONEntity(getRepoEndpoint(), SEARCH_TEXT_ANALYZER_LIST, request, ListTextAnalyzersResponse.class);
+	}
+
+	@Override
+	public SearchConfiguration createSearchConfiguration(SearchConfiguration config) throws SynapseException {
+		ValidateArgument.required(config, "config");
+		return postJSONEntity(getRepoEndpoint(), SEARCH_CONFIGURATION, config, SearchConfiguration.class);
+	}
+
+	@Override
+	public SearchConfiguration getSearchConfiguration(String id) throws SynapseException {
+		ValidateArgument.required(id, "id");
+		return getJSONEntity(getRepoEndpoint(), createEntityUri(SEARCH_CONFIGURATION, id), SearchConfiguration.class);
+	}
+
+	@Override
+	public SearchConfiguration updateSearchConfiguration(SearchConfiguration config) throws SynapseException {
+		ValidateArgument.required(config, "config");
+		ValidateArgument.required(config.getId(), "config.id");
+		return putJSONEntity(getRepoEndpoint(), createEntityUri(SEARCH_CONFIGURATION, config.getId()), config, SearchConfiguration.class);
+	}
+
+	@Override
+	public ListSearchConfigurationsResponse listSearchConfigurations(ListSearchConfigurationsRequest request) throws SynapseException {
+		ValidateArgument.required(request, "request");
+		return postJSONEntity(getRepoEndpoint(), SEARCH_CONFIGURATION_LIST, request, ListSearchConfigurationsResponse.class);
+	}
+
+	@Override
+	public SearchConfigBinding bindSearchConfigToEntity(BindSearchConfigToEntityRequest request) throws SynapseException {
+		ValidateArgument.required(request, "request");
+		ValidateArgument.required(request.getEntityId(), "request.entityId");
+		String uri = String.format(ENTITY_SEARCH_CONFIG_BINDING, request.getEntityId());
+		return putJSONEntity(getRepoEndpoint(), uri, request, SearchConfigBinding.class);
+	}
+
+	@Override
+	public SearchConfigBinding getSearchConfigBindingForEntity(String entityId) throws SynapseException {
+		ValidateArgument.required(entityId, "entityId");
+		String uri = String.format(ENTITY_SEARCH_CONFIG_BINDING, entityId);
+		return getJSONEntity(getRepoEndpoint(), uri, SearchConfigBinding.class);
+	}
+
+	@Override
+	public void clearSearchConfigBindingForEntity(String entityId) throws SynapseException {
+		ValidateArgument.required(entityId, "entityId");
+		String uri = String.format(ENTITY_SEARCH_CONFIG_BINDING, entityId);
+		deleteUri(getRepoEndpoint(), uri);
+	}
+
+	@Override
+	public SynonymSet createSynonymSet(SynonymSet synonymSet) throws SynapseException {
+		ValidateArgument.required(synonymSet, "synonymSet");
+		return postJSONEntity(getRepoEndpoint(), SEARCH_SYNONYM_SET, synonymSet, SynonymSet.class);
+	}
+
+	@Override
+	public SynonymSet getSynonymSet(String id) throws SynapseException {
+		ValidateArgument.required(id, "id");
+		return getJSONEntity(getRepoEndpoint(), createEntityUri(SEARCH_SYNONYM_SET, id), SynonymSet.class);
+	}
+
+	@Override
+	public SynonymSet updateSynonymSet(SynonymSet synonymSet) throws SynapseException {
+		ValidateArgument.required(synonymSet, "synonymSet");
+		ValidateArgument.required(synonymSet.getId(), "synonymSet.id");
+		return putJSONEntity(getRepoEndpoint(), createEntityUri(SEARCH_SYNONYM_SET, synonymSet.getId()), synonymSet, SynonymSet.class);
+	}
+
+	@Override
+	public ListSynonymSetsResponse listSynonymSets(ListSynonymSetsRequest request) throws SynapseException {
+		ValidateArgument.required(request, "request");
+		return postJSONEntity(getRepoEndpoint(), SEARCH_SYNONYM_SET_LIST, request, ListSynonymSetsResponse.class);
 	}
 
 	@Override
@@ -6711,12 +6798,6 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 		ValidateArgument.required(override, "override");
 		ValidateArgument.required(override.getId(), "override.id");
 		return putJSONEntity(getRepoEndpoint(), createEntityUri(SEARCH_COLUMN_ANALYZER_OVERRIDE, override.getId()), override, ColumnAnalyzerOverride.class);
-	}
-
-	@Override
-	public void deleteColumnAnalyzerOverride(String id) throws SynapseException {
-		ValidateArgument.required(id, "id");
-		deleteUri(getRepoEndpoint(), createEntityUri(SEARCH_COLUMN_ANALYZER_OVERRIDE, id));
 	}
 
 	@Override

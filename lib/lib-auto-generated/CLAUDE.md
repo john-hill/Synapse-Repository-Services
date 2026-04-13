@@ -80,6 +80,8 @@ src/main/resources/schema/org/sagebionetworks/
 - **`format: "date-time"`**: String property treated as ISO 8601 timestamp
 - **Arrays**: `"type": "array"` with `"items": { "$ref": "..." }`, optional `"uniqueItems": true`
 - **Required fields**: `"required": true` on a property
+- **Map types**: For map-like properties, either define the sub-type schema explicitly OR treat the entire value as a plain `"type": "string"` (expecting a JSON string). Do NOT use `Map<String, String>` where the string values are themselves serialized JSON — this creates ambiguous "JSON within JSON" that bypasses schema validation.
+- **Descriptions must match implementation**: Schema descriptions (especially for optional fields like "If null, lists X") are API contracts. Always verify the implementation matches the schema description. If behavior changes, update the schema text to match.
 
 ## Generated Code Patterns
 

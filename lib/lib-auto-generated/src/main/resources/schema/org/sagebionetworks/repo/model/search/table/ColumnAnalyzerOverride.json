@@ -7,11 +7,11 @@
 		},
 		"organizationName": {
 			"type": "string",
-			"description": "The name of the Organization this resource belongs to."
+			"description": "The name of the Organization this resource belongs to. Immutable after creation."
 		},
 		"name": {
 			"type": "string",
-			"description": "Display name. Unique within the organization."
+			"description": "The resource name. Must start with a letter and contain only letters, digits, and underscores. Unique within the organization and immutable after creation. Used as part of the qualified name ({organizationName}-{name}) when referenced by other resources."
 		},
 		"description": {
 			"type": "string",

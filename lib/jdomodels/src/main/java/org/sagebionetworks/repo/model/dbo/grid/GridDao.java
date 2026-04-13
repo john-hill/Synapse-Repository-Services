@@ -114,14 +114,6 @@ public interface GridDao {
      */
     Optional<GridConnectionInfo> getSingletonConnection(String sessionId, EventSource source);
     
-    /**
-     * @param sessionId
-     * @param userId
-     * @param source
-     * @return The internal connection for the given session and source created on behalf of the given user, if it exists.
-     */
-	Optional<GridConnectionInfo> getSingletonUserConnection(String sessionId, Long userId, EventSource source);
-    
 	/**
 	 * Remove an actvie connection.
 	 * 

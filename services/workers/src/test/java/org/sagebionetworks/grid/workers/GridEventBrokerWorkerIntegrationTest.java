@@ -36,6 +36,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.AsynchronousJobWorkerHelper;
 import org.sagebionetworks.aws.SynapseS3Client;
 import org.sagebionetworks.grid.db.GridIndexDao;
+import org.sagebionetworks.repo.manager.CertifiedUserManager;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.file.FileHandleManager;
@@ -217,6 +218,9 @@ public class GridEventBrokerWorkerIntegrationTest {
 
 	@Autowired
 	private DBOChangeDAO changeDao;
+
+	@Autowired
+	private CertifiedUserManager certifiedUserManager;
 
 	private UserInfo admin;
 
@@ -437,6 +441,90 @@ public class GridEventBrokerWorkerIntegrationTest {
 				return Pair.create(viewRows.size() == 3, viewRows);
 			}
 		});
+	}
+
+	/**
+	 * Reproduction test for the bug where applySnapshot() calls deleteReplica(), which cascade-deletes
+	 * GRID_REPLICA_MESSAGE (the active message chain). The hub then sends patches from non-INTERNAL replicas
+	 * (e.g. USER_SUPPORT from a CSV import), but the chain is gone so the patches are permanently discarded.
+	 * The export then blocks forever because getCurrentClockIfAllPatchesApplied() finds those patches missing.
+	 *
+	 * Without the fix: the export job gets stuck in PROCESSING (RecoverableMessageException loop).
+	 * With the fix (clearReplicaData instead of deleteReplica): all patches applied in one sync cycle,
+	 * export succeeds.
+	 */
+	@Test
+	public void testGridRebuildAfterSnapshotWithMultipleReplicas() throws Exception {
+		Project project = entityService.createEntity(admin.getId(), new Project().setName("RebuildTest"), null);
+
+		String csvContent = "integer_column,string_column\n1,row_one\n2,row_two\n3,row_three\n";
+		S3FileHandle fileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(),
+				csvContent.getBytes(StandardCharsets.UTF_8), "data.csv", ContentType.create("text/csv"), null);
+
+		RecordSet recordSet = entityService.createEntity(admin.getId(),
+				new RecordSet().setParentId(project.getId()).setName("testRecordSet")
+						.setDataFileHandleId(fileHandle.getId()).setUpsertKey(List.of("integer_column")),
+				null);
+
+		// Create grid session — RecordSetCreateGridHandler creates a snapshot using the INTERNAL replica ID
+		// for all node timestamps, so the snapshot clock only covers the INTERNAL replica.
+		GridSession session = asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new CreateGridRequest().setRecordSetId(recordSet.getId()),
+				(CreateGridResponse response) -> {
+					assertNotNull(response);
+					assertNotNull(response.getGridSession());
+				}, MAX_WAIT_MS).getResponse().getGridSession();
+
+		// Wait for the internal replica to be ready
+		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> {
+			Optional<GridHeader> op = gridViewManager.readHeader(session.getSessionId(), INTERNAL_REPLICA_ID);
+			System.out.println("Waiting for internal replica to be ready...");
+			return Pair.create(op.isPresent(), null);
+		});
+
+		// Run a CSV import — this creates patches in GRID_PATCH from the USER_SUPPORT replica
+		// (a different replica ID than INTERNAL). These patches will be missing from the
+		// snapshot clock, so the hub must send them in the second half of the sync cycle.
+		csvContent = "integer_column,string_column\n4,row_four\n";
+		S3FileHandle uploadFileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(),
+				csvContent.getBytes(StandardCharsets.UTF_8), "upload.csv", ContentType.create("text/csv"), null);
+
+		CsvTableDescriptor csvDescriptor = new CsvTableDescriptor().setIsFirstLineHeader(true);
+		List<ColumnModel> importSchema = List.of(
+				new ColumnModel().setName("integer_column").setColumnType(ColumnType.INTEGER),
+				new ColumnModel().setName("string_column").setColumnType(ColumnType.STRING));
+
+		asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new GridCsvImportRequest().setSessionId(session.getSessionId())
+						.setCsvDescriptor(csvDescriptor)
+						.setFileHandleId(uploadFileHandle.getId())
+						.setSchema(importSchema),
+				(GridCsvImportResponse response) -> assertNotNull(response), MAX_WAIT_MS);
+
+		// Simulate migration to a new stack: delete all grid index data.
+		gridIndexDao.truncateAll();
+
+		// Trigger the same event that ChangeSentMessageSynchWorker fires on a new stack.
+		ChangeMessage change = changeDao.replaceChange(
+				new ChangeMessage().setChangeType(ChangeType.UPDATE).setObjectType(ObjectType.GRID_SESSION)
+						.setObjectId(GridUtils.gridSessionIdAsLong(session.getSessionId()).toString()));
+		repositoryMessagePublisher.publishBatchToTopic(ObjectType.GRID_SESSION, List.of(change));
+
+		// The export calls getGridHeaderOrThrow() -> getCurrentClockIfAllPatchesApplied(),
+		// which requires ALL patches (INTERNAL + USER_SUPPORT) to be applied.
+		// Without the fix: applySnapshot() deletes the message chain, the hub's USER_SUPPORT
+		// patches are discarded (GridReplicaWorker catches the IllegalArgumentException and
+		// deletes the SQS message), and the export loops forever on RecoverableMessageException.
+		// With the fix: the chain is preserved, USER_SUPPORT patches are applied in the same
+		// sync cycle, and the export succeeds.
+		GridRecordSetExportResponse exportResponse = asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new GridRecordSetExportRequest().setSessionId(session.getSessionId()),
+				(GridRecordSetExportResponse response) -> {
+					assertNotNull(response);
+					assertEquals(session.getSessionId(), response.getSessionId());
+				}, MAX_WAIT_MS).getResponse();
+
+		assertNotNull(exportResponse);
 	}
 
 	@Test
@@ -1075,7 +1163,93 @@ public class GridEventBrokerWorkerIntegrationTest {
 			rowsView.stream().map(r -> r.getRowObject().getData().getRowJsonDocument().toString()).collect(Collectors.toList())
 		);
 	}
+	
+	@Test
+	public void testRecordSetImportArray() throws Exception {
+		Project project = entityService.createEntity(admin.getId(), new Project().setName("RecordSetImportArray"),
+				null);
 
+		String initialCsv = "id,name\n1,Alice\n2,Bob\n3,Charlie\n";
+		S3FileHandle fileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(),
+				initialCsv.getBytes(StandardCharsets.UTF_8), "initial.csv", ContentType.create("text/csv"), null);
+
+		RecordSet recordSet = entityService.createEntity(admin.getId(),
+				new RecordSet().setParentId(project.getId()).setName("recordSet")
+						.setDataFileHandleId(fileHandle.getId()).setUpsertKey(List.of("id")),
+				null);
+
+		GridSession session = asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new CreateGridRequest().setRecordSetId(recordSet.getId()), (CreateGridResponse response) -> {
+					assertNotNull(response);
+					assertNotNull(response.getGridSession());
+				}, MAX_WAIT_MS).getResponse().getGridSession();
+
+		assertEquals(recordSet.getId(), session.getSourceEntityId());
+
+		List<ColumnModel> importSchema = List.of(
+				new ColumnModel().setName("id").setColumnType(ColumnType.INTEGER),
+				new ColumnModel().setName("name").setColumnType(ColumnType.STRING));
+		CsvTableDescriptor csvDescriptor = new CsvTableDescriptor().setIsFirstLineHeader(true);
+
+		String uploadCsv = "id,name\n1,Alice_updated\n4,Dave\n";
+		S3FileHandle uploadFileHandle = fileHandleManager.createFileFromByteArray(admin.getId().toString(), new Date(),
+				uploadCsv.getBytes(StandardCharsets.UTF_8), "upload.csv", ContentType.create("text/csv"), null);
+
+		// Admin runs an import to verify the basic import works
+		GridCsvImportResponse importResults = asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new GridCsvImportRequest().setSessionId(session.getSessionId()).setCsvDescriptor(csvDescriptor)
+						.setFileHandleId(uploadFileHandle.getId()).setSchema(importSchema),
+				(GridCsvImportResponse response) -> assertNotNull(response), MAX_WAIT_MS).getResponse();
+
+		assertNotNull(importResults);
+
+		// Reproduce PLFM-9571: a team member submits a CSV import for a session created by a different team member.
+		// The USER_SUPPORT connection is created for the session creator, so it would not be found for the importing
+		// user, causing a RecoverableMessageException and an infinite retry loop.
+		UserInfo anotherUser = createUser();
+		Team curatorsTeam = teamManager.create(admin, new Team().setName(UUID.randomUUID().toString()));
+		teamManager.addMember(admin, curatorsTeam.getId(), anotherUser);
+
+		// Grant the team READ+DOWNLOAD+UPDATE on the project so that anotherUser can access the RecordSet
+		aclHelper.update(project.getId(), ObjectType.ENTITY, (a) -> {
+			a.getResourceAccess().add(createResourceAccess(Long.parseLong(curatorsTeam.getId()), ACCESS_TYPE.READ));
+			a.getResourceAccess().add(createResourceAccess(Long.parseLong(curatorsTeam.getId()), ACCESS_TYPE.DOWNLOAD));
+			a.getResourceAccess().add(createResourceAccess(Long.parseLong(curatorsTeam.getId()), ACCESS_TYPE.UPDATE));
+		});
+
+		// Create a new session owned by the team (admin creates the session, USER_SUPPORT connection for admin)
+		GridSession teamSession = asynchronousJobWorkerHelper.assertJobResponse(admin,
+				new CreateGridRequest().setRecordSetId(recordSet.getId()).setOwnerPrincipalId(curatorsTeam.getId()),
+				(CreateGridResponse response) -> {
+					assertNotNull(response);
+					assertNotNull(response.getGridSession());
+				}, MAX_WAIT_MS).getResponse().getGridSession();
+
+		// anotherUser creates their own file handle to upload
+		S3FileHandle anotherUserFileHandle = fileHandleManager.createFileFromByteArray(
+				anotherUser.getId().toString(), new Date(),
+				uploadCsv.getBytes(StandardCharsets.UTF_8), "upload.csv", ContentType.create("text/csv"), null);
+
+		// anotherUser submits the import — this is the cross-user scenario that caused PLFM-9571
+		importResults = asynchronousJobWorkerHelper.assertJobResponse(
+				anotherUser, new GridCsvImportRequest().setSessionId(teamSession.getSessionId())
+						.setCsvDescriptor(csvDescriptor).setFileHandleId(anotherUserFileHandle.getId())
+						.setSchema(importSchema),
+				(GridCsvImportResponse response) -> assertNotNull(response), MAX_WAIT_MS).getResponse();
+
+		assertNotNull(importResults);
+
+		// anotherUser also submits the export — verifies the cross-user export scenario (PLFM-9571)
+		GridRecordSetExportResponse exportResults = asynchronousJobWorkerHelper.assertJobResponse(
+				anotherUser, new GridRecordSetExportRequest().setSessionId(teamSession.getSessionId()),
+				(GridRecordSetExportResponse response) -> {
+					assertNotNull(response);
+					assertEquals(teamSession.getSessionId(), response.getSessionId());
+				}, MAX_WAIT_MS).getResponse();
+
+		assertNotNull(exportResults);
+	}
+	
 	@Test
 	public void testGridWithRecordSetAndArrayColumns() throws Exception {
 		Project project = entityService.createEntity(admin.getId(), new Project().setName("ArrayColumn Test"), null);
@@ -1194,13 +1368,17 @@ public class GridEventBrokerWorkerIntegrationTest {
 			rowsView.stream().map(r -> r.getRowObject().getData().getRowJsonDocument().toString()).collect(Collectors.toList())
 		);
 	}
-
+	
+	
 	UserInfo createUser(){
 		NewUser newUser = new NewUser();
 		newUser.setEmail(UUID.randomUUID().toString() + "@test.com");
 		newUser.setUserName(UUID.randomUUID().toString());
-		return userManager.createOrGetTestUser(admin, newUser);
+		UserInfo user = userManager.createOrGetTestUser(admin, newUser);
+		certifiedUserManager.setUserCertificationStatus(admin, user.getId(), true);
+		return userManager.getUserInfo(user.getId());
 	}
+	
 	List<String[]> createAndDownloadCsvFromGrid(DownloadFromGridRequest request)
 			throws AsynchJobFailedException, IOException {
 		DownloadFromGridResult downloadFromGridResult = asynchronousJobWorkerHelper

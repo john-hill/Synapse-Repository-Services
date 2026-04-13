@@ -114,11 +114,13 @@ public class GridIndexManagerImpl implements GridIndexManager {
 		ValidateArgument.required(replicaId, "replicaId");
 		ValidateArgument.required(snapshotFile, "snapshotFile");
 
-		// Delete the replica to clear the index; the snapshot will repopulate the index.
-		dao.deleteReplica(sessionId, replicaId);
-
-		// Recreate the replica. Exclude the root node, which is included in the snapshot.
-		createReplicaIfNotExist(sessionId, replicaId);
+		// Clear CRDT data without deleting the replica row or its message chains.
+		// Using clearReplicaData() instead of deleteReplica() preserves GRID_REPLICA_MESSAGE,
+		// so any active sync message chain (e.g. id=0) survives the snapshot import.
+		// deleteReplica() would cascade-delete GRID_REPLICA_MESSAGE, causing the hub's
+		// subsequent patch messages to fail with "No message chain found" and be permanently
+		// discarded. See PLFM-9571.
+		dao.clearReplicaData(sessionId, replicaId);
 
 		// Build the decoder (extracts ClockTable and rootNodeId, and builds a node index in a single pass)
 		SnapshotFileIndex index;

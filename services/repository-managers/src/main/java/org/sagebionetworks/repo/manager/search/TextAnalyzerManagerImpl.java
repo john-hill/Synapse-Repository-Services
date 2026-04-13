@@ -44,6 +44,7 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		ValidateArgument.requiredNotBlank(analyzer.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(analyzer.getName(), "name");
 		ValidateArgument.required(analyzer.getSettings(), "settings");
+		SearchResourceConstants.validateResourceName(analyzer.getName());
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
@@ -73,6 +74,7 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		ValidateArgument.requiredNotBlank(analyzer.getId(), "id");
 		ValidateArgument.requiredNotBlank(analyzer.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(analyzer.getName(), "name");
+		SearchResourceConstants.validateResourceName(analyzer.getName());
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
@@ -83,7 +85,10 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 			.orElseThrow(() -> new NotFoundException("TextAnalyzer with id '" + analyzer.getId() + "' does not exist."));
 
 		if (!existing.getOrganizationName().equals(analyzer.getOrganizationName())) {
-			throw new IllegalArgumentException("The organizationName cannot be changed.");
+			throw new IllegalArgumentException(SearchResourceConstants.ORG_NAME_IMMUTABLE_MSG);
+		}
+		if (!existing.getName().equals(analyzer.getName())) {
+			throw new IllegalArgumentException(SearchResourceConstants.NAME_IMMUTABLE_MSG);
 		}
 
 		if (!user.isAdmin()) {

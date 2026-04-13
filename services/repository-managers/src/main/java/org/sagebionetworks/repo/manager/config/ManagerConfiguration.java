@@ -396,20 +396,6 @@ public class ManagerConfiguration {
 	}
 
 	@Bean
-	public OpenSearchClient searchIndexOssClient(OpenSearchServerlessClient openSearchServerlessClient,
-			AwsCredentialsProvider credentialProvider, StackConfiguration config, SdkHttpClient httpClient) {
-		// The same collection as Synapse entity search is reused for indexing table-like data as well
-		String collectionName = config.getStack() + "-" + config.getStackInstance() + "-synsearch";
-
-		CollectionDetail collection = openSearchServerlessClient.batchGetCollection(req -> req.names(collectionName))
-				.collectionDetails().stream().findFirst().orElseThrow();
-
-		return new OpenSearchClient(new AwsSdk2Transport(httpClient,
-				collection.collectionEndpoint().replace("https://", ""), "aoss", Region.US_EAST_1,
-				AwsSdk2TransportOptions.builder().setCredentials(credentialProvider).build()));
-	}
-
-	@Bean
 	public BedrockAgentRuntimeAsyncClient customBedrockAgentRuntimeAsyncClient(
 			AwsCredentialsProvider credentialProvider, BedrockAgentRuntimeAsyncClientBuilder builder,
 			StackConfiguration config) {

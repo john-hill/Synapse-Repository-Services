@@ -99,8 +99,8 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	private final OpenSearchClient openSearchClient;
 
-	public OpenSearchManagerImpl(@Qualifier("searchIndexOssClient") OpenSearchClient searchIndexOssClient) {
-		this.openSearchClient = searchIndexOssClient;
+	public OpenSearchManagerImpl(OpenSearchClient openSearchClient) {
+		this.openSearchClient = openSearchClient;
 	}
 
 	@Override
@@ -215,6 +215,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			String effectiveAnalyzerName = resolveEffectiveAnalyzerName(
 					columnId, columnType, defaultAnalyzer, overrideMap, idToQualifiedName);
 			TextAnalyzer effectiveAnalyzer = analyzers.get(effectiveAnalyzerName);
+			ValidateArgument.required(effectiveAnalyzer, "analyzer '" + effectiveAnalyzerName + "' for column " + columnId);
 			ColumnAnalyzerOverrideEntry entry = overrideMap.get(columnId);
 
 			m.properties(columnId, buildProperty(columnType, effectiveAnalyzer, entry, analyzers));
@@ -241,7 +242,9 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 		List<BulkOperation> operations = documents.stream()
 				.map(doc -> {
-					String docId = String.valueOf(doc.get(SYSTEM_FIELD_ROW_ID));
+					Object rowId = doc.get(SYSTEM_FIELD_ROW_ID);
+					ValidateArgument.required(rowId, SYSTEM_FIELD_ROW_ID);
+					String docId = String.valueOf(rowId);
 					return BulkOperation.of(op -> op
 							.index(idx -> idx
 									.index(indexName)
@@ -473,7 +476,8 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 					return sqs;
 				}));
 			case MATCH:
-				String matchField = (fields != null && !fields.isEmpty()) ? stripBoost(fields.get(0)) : "*";
+				ValidateArgument.requiredNotEmpty(fields, "fields for MATCH query");
+				String matchField = stripBoost(fields.get(0));
 				return Query.of(q -> q.match(m -> {
 					m.field(matchField).query(FieldValue.of(queryText));
 					if (fuzziness != null) {
@@ -493,7 +497,8 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 					return mm;
 				}));
 			case MATCH_PHRASE:
-				String phraseField = (fields != null && !fields.isEmpty()) ? stripBoost(fields.get(0)) : "*";
+				ValidateArgument.requiredNotEmpty(fields, "fields for MATCH_PHRASE query");
+				String phraseField = stripBoost(fields.get(0));
 				return Query.of(q -> q.matchPhrase(mp -> mp.field(phraseField).query(queryText)));
 			case PREFIX:
 				return Query.of(q -> q.multiMatch(mm -> {
@@ -505,7 +510,8 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 					return mm;
 				}));
 			case WILDCARD:
-				String wildcardField = (fields != null && !fields.isEmpty()) ? stripBoost(fields.get(0)) : "*";
+				ValidateArgument.requiredNotEmpty(fields, "fields for WILDCARD query");
+				String wildcardField = stripBoost(fields.get(0));
 				return Query.of(q -> q.wildcard(w -> w.field(wildcardField).value(queryText)));
 			case MATCH_ALL:
 			default:

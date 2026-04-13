@@ -21,8 +21,7 @@ public class OpenSearchIndexInitializer {
     private Logger log;
     private OpenSearchClient client;
 
-    public OpenSearchIndexInitializer(LoggerProvider logProvider,
-                                      @Qualifier("synSearchOssClient") OpenSearchClient client) {
+    public OpenSearchIndexInitializer(LoggerProvider logProvider, OpenSearchClient client) {
         this.log = logProvider.getLogger(OpenSearchIndexInitializer.class.getName());
         this.client = client;
 

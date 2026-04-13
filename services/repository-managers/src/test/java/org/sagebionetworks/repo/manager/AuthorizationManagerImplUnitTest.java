@@ -45,20 +45,16 @@ import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
 import org.sagebionetworks.repo.manager.evaluation.EvaluationPermissionsManager;
 import org.sagebionetworks.repo.manager.file.FileHandleAssociationAuthorizationStatus;
 import org.sagebionetworks.repo.manager.file.FileHandleAssociationManager;
-import org.sagebionetworks.repo.manager.file.FileHandleAuthorizationManager;
 import org.sagebionetworks.repo.manager.file.FileHandleAuthorizationStatus;
-import org.sagebionetworks.repo.manager.token.TokenGenerator;
 import org.sagebionetworks.repo.manager.trash.EntityInTrashCanException;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessRequirement;
 import org.sagebionetworks.repo.model.AccessRequirementDAO;
-import org.sagebionetworks.repo.model.ActivityDAO;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.DockerNodeDao;
 import org.sagebionetworks.repo.model.EntityHeader;
 import org.sagebionetworks.repo.model.EntityType;
-import org.sagebionetworks.repo.model.GroupMembersDAO;
 import org.sagebionetworks.repo.model.HasAccessorRequirement;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.ObjectType;
@@ -99,11 +95,7 @@ public class AuthorizationManagerImplUnitTest {
 	@Mock
 	private AccessRequirementDAO  mockAccessRequirementDAO;
 	@Mock
-	private ActivityDAO mockActivityDAO;
-	@Mock
 	private FileHandleDao mockFileHandleDao;
-	@Mock
-	private FileHandleAuthorizationManager fileHandleAuthorizationManager;
 	@Mock
 	private EntityAuthorizationManager mockEntityAuthorizationManager;
 	@Mock
@@ -132,12 +124,6 @@ public class AuthorizationManagerImplUnitTest {
 	private org.sagebionetworks.repo.model.dbo.dao.dataaccess.SubmissionDAO mockDataAccessSubmissionDao;
 	@Mock
 	private UserInfo mockACTUser;
-	@Mock
-	private GroupMembersDAO mockGroupMembersDao;
-	@Mock
-	private Set<String> accessors;
-	@Mock
-	private TokenGenerator mockTokenGenerator;
 	@Mock
 	private DataAccessAuthorizationManager mockDataAccessAuthManager;
 	
@@ -219,9 +205,12 @@ public class AuthorizationManagerImplUnitTest {
 		bundle = new DiscussionThreadBundle();
 		bundle.setForumId(forumId);
 		bundle.setProjectId(projectId);
+		bundle.setObjectId(projectId);
+		bundle.setObjectType("ENTITY");
 		forum = new Forum();
 		forum.setId(forumId);
-		forum.setProjectId(projectId);
+		forum.setObjectId(projectId);
+		forum.setObjectType(ForumObjectType.ENTITY);
 		when(mockThreadDao.getThread(Mockito.anyLong(), Mockito.any(DiscussionFilter.class))).thenReturn(bundle);
 
 		submissionId = "111";
@@ -863,7 +852,7 @@ public class AuthorizationManagerImplUnitTest {
 	@Test
 	public void testCanSubscribeThreadUnauthorized() {
 		when(mockEntityAuthorizationManager.hasAccess(userInfo, projectId, ACCESS_TYPE.READ)).thenReturn(AuthorizationStatus.accessDenied(""));
-		when(mockThreadDao.getProjectId(threadId)).thenReturn(projectId);
+		when(mockThreadDao.getThread(Long.parseLong(threadId), DiscussionFilter.NO_FILTER)).thenReturn(bundle);
 		assertEquals(AuthorizationStatus.accessDenied(""),
 				authorizationManager.canSubscribe(userInfo, threadId, SubscriptionObjectType.THREAD));
 	}
@@ -871,7 +860,22 @@ public class AuthorizationManagerImplUnitTest {
 	@Test
 	public void testCanSubscribeThreadAuthorized() {
 		when(mockEntityAuthorizationManager.hasAccess(userInfo, projectId, ACCESS_TYPE.READ)).thenReturn(AuthorizationStatus.authorized());
-		when(mockThreadDao.getProjectId(threadId)).thenReturn(projectId);
+		when(mockThreadDao.getThread(Long.parseLong(threadId), DiscussionFilter.NO_FILTER)).thenReturn(bundle);
+		assertEquals(AuthorizationStatus.authorized(),
+				authorizationManager.canSubscribe(userInfo, threadId, SubscriptionObjectType.THREAD));
+	}
+
+	@Test
+	public void testCanSubscribeARThreadAuthorized() {
+		Forum arForum = new Forum();
+		arForum.setId(forumId);
+		arForum.setObjectId("789");
+		arForum.setObjectType(ForumObjectType.ACCESS_REQUIREMENT);
+		bundle.setObjectId("789");
+		bundle.setObjectType("ACCESS_REQUIREMENT");
+		when(mockThreadDao.getThread(Long.parseLong(threadId), DiscussionFilter.NO_FILTER)).thenReturn(bundle);
+		when(mockDataAccessAuthManager.canReviewAccessRequirementSubmissions(userInfo, "789"))
+				.thenReturn(AuthorizationStatus.authorized());
 		assertEquals(AuthorizationStatus.authorized(),
 				authorizationManager.canSubscribe(userInfo, threadId, SubscriptionObjectType.THREAD));
 	}

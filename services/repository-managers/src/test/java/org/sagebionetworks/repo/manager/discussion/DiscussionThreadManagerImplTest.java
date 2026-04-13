@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.repo.manager.discussion.DiscussionThreadManagerImpl.MAX_LIMIT;
@@ -34,6 +35,7 @@ import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
 import org.sagebionetworks.reflection.model.PaginatedResults;
 import org.sagebionetworks.repo.manager.AuthorizationManager;
+import org.sagebionetworks.repo.manager.dataaccess.DataAccessAuthorizationManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.EntityIdList;
@@ -55,6 +57,7 @@ import org.sagebionetworks.repo.model.discussion.DiscussionThreadEntityReference
 import org.sagebionetworks.repo.model.discussion.DiscussionThreadOrder;
 import org.sagebionetworks.repo.model.discussion.EntityThreadCounts;
 import org.sagebionetworks.repo.model.discussion.Forum;
+import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.sagebionetworks.repo.model.discussion.MessageURL;
 import org.sagebionetworks.repo.model.discussion.ThreadCount;
 import org.sagebionetworks.repo.model.discussion.UpdateThreadMessage;
@@ -70,8 +73,6 @@ public class DiscussionThreadManagerImplTest {
 	@Mock
 	private DiscussionThreadDAO mockThreadDao;
 	@Mock
-	private DiscussionReplyDAO mockReplyDao;
-	@Mock
 	private ForumDAO mockForumDao;
 	@Mock
 	private UploadContentToS3DAO mockUploadDao;
@@ -79,6 +80,8 @@ public class DiscussionThreadManagerImplTest {
 	private SubscriptionDAO mockSubscriptionDao;
 	@Mock
 	private AuthorizationManager mockAuthorizationManager;
+	@Mock
+	private DataAccessAuthorizationManager mocskDataAccessAuthorizationManager;
 	@Mock
 	private IdGenerator mockIdGenerator;
 	@Mock
@@ -119,8 +122,12 @@ public class DiscussionThreadManagerImplTest {
 		forum = new Forum();
 		forum.setId(forumId.toString());
 		forum.setProjectId(projectId);
+		forum.setObjectId(projectId);
+		forum.setObjectType(ForumObjectType.ENTITY);
 		dto = new DiscussionThreadBundle();
 		dto.setProjectId(projectId);
+		dto.setObjectId(projectId);
+		dto.setObjectType("ENTITY");
 		dto.setMessageKey(messageKey);
 		dto.setId(threadId.toString());
 		dto.setEtag("etag");
@@ -210,6 +217,19 @@ public class DiscussionThreadManagerImplTest {
 		assertThrows(UnauthorizedException.class, () ->{		
 			threadManager.createThread(userInfo, createDto);
 		});
+	}
+
+	@Test
+	public void testCreateThreadForAR() {
+		forum.setObjectType(ForumObjectType.ACCESS_REQUIREMENT);
+		when(mockForumDao.getForum(Long.parseLong(createDto.getForumId()))).thenReturn(forum);
+
+		//call under test
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			threadManager.createThread(userInfo, createDto);
+		}).getMessage();
+
+		assertEquals("Creation, modification and deletion is not allowed on an access requirement thread.", message);
 	}
 
 	@Test
@@ -318,7 +338,7 @@ public class DiscussionThreadManagerImplTest {
 
 	@Test
 	public void testCheckPermissionUnauthorized() {
-		when(mockThreadDao.getProjectId(threadId.toString())).thenReturn(projectId);
+		when(mockThreadDao.getThread(threadId, DiscussionFilter.NO_FILTER)).thenReturn(dto);
 		when(mockAuthorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.READ))
 				.thenReturn(AuthorizationStatus.accessDenied(""));
 		assertThrows(UnauthorizedException.class, () -> {
@@ -327,8 +347,19 @@ public class DiscussionThreadManagerImplTest {
 	}
 
 	@Test
+	public void testCheckPermissionUnauthorizedForAR() {
+		when(mockThreadDao.getThread(threadId, DiscussionFilter.NO_FILTER)).thenReturn(dto);
+		dto.setObjectType(ForumObjectType.ACCESS_REQUIREMENT.name());
+		when(mocskDataAccessAuthorizationManager.canReviewAccessRequirementSubmissions(userInfo, dto.getObjectId()))
+				.thenReturn(AuthorizationStatus.accessDenied(""));
+		assertThrows(UnauthorizedException.class, () -> {
+			threadManager.checkPermission(userInfo, threadId.toString(), ACCESS_TYPE.READ);
+		});
+	}
+
+	@Test
 	public void testCheckPermissionAuthorized() {
-		when(mockThreadDao.getProjectId(threadId.toString())).thenReturn(projectId);
+		when(mockThreadDao.getThread(threadId, DiscussionFilter.NO_FILTER)).thenReturn(dto);
 		when(mockAuthorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.READ))
 				.thenReturn(AuthorizationStatus.authorized());
 		threadManager.checkPermission(userInfo, threadId.toString(), ACCESS_TYPE.READ);
@@ -376,6 +407,63 @@ public class DiscussionThreadManagerImplTest {
 	}
 
 	@Test
+	public void testUpdateTitleForAR() {
+		when(mockThreadDao.updateTitle(anyLong(), any())).thenReturn(dto);
+		dto.setObjectType(ForumObjectType.ACCESS_REQUIREMENT.name());
+		when(mockThreadDao.getAuthorForUpdate(any())).thenReturn(userInfo.getId().toString());
+
+		//call under test
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			threadManager.updateTitle(userInfo, threadId.toString(), newTitle);
+		}).getMessage();
+
+		assertEquals("Creation, modification and deletion is not allowed on an access requirement thread.", message);
+	}
+
+	@Test
+	public void testUpdateMessageForAR() {
+		when(mockThreadDao.getThread(anyLong(), any())).thenReturn(dto);
+		dto.setObjectType(ForumObjectType.ACCESS_REQUIREMENT.name());
+
+		//call under test
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			threadManager.updateMessage(userInfo, threadId.toString(), newMessage);
+		}).getMessage();
+
+		assertEquals("Creation, modification and deletion is not allowed on an access requirement thread.", message);
+	}
+
+	@Test
+	public void testMarkThreadAsDeletedForAR() {
+		when(mockThreadDao.getThread(anyLong(), any())).thenReturn(dto);
+		when(mocskDataAccessAuthorizationManager.canReviewAccessRequirementSubmissions(userInfo, dto.getObjectId()))
+				.thenReturn(AuthorizationStatus.authorized());
+		dto.setObjectType(ForumObjectType.ACCESS_REQUIREMENT.name());
+
+		//call under test
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			threadManager.markThreadAsDeleted(userInfo, threadId.toString());
+		}).getMessage();
+
+		assertEquals("Creation, modification and deletion is not allowed on an access requirement thread.", message);
+	}
+
+	@Test
+	public void testMarkThreadAsNotDeletedForAR() {
+		when(mockThreadDao.getThread(anyLong(), any())).thenReturn(dto);
+		when(mocskDataAccessAuthorizationManager.canReviewAccessRequirementSubmissions(userInfo, dto.getObjectId()))
+				.thenReturn(AuthorizationStatus.authorized());
+		dto.setObjectType(ForumObjectType.ACCESS_REQUIREMENT.name());
+
+		//call under test
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			threadManager.markThreadAsNotDeleted(userInfo, threadId.toString());
+		}).getMessage();
+
+		assertEquals("Creation, modification and deletion is not allowed on an access requirement thread.", message);
+	}
+
+	@Test
 	public void testUpdateMessageWithNullMessage() throws Exception {
 		assertThrows(IllegalArgumentException.class, () -> {
 			threadManager.updateMessage(userInfo, threadId.toString(), null);
@@ -419,7 +507,7 @@ public class DiscussionThreadManagerImplTest {
 
 	@Test
 	public void testDeleteUnauthorized() {
-		when(mockThreadDao.getProjectId(threadId.toString())).thenReturn(projectId);
+		when(mockThreadDao.getThread(threadId, DiscussionFilter.NO_FILTER)).thenReturn(dto);
 		when(mockAuthorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.MODERATE))
 				.thenReturn(AuthorizationStatus.accessDenied(""));
 		assertThrows(UnauthorizedException.class, () -> {
@@ -429,7 +517,7 @@ public class DiscussionThreadManagerImplTest {
 
 	@Test
 	public void testDeleteAuthorized() {
-		when(mockThreadDao.getProjectId(threadId.toString())).thenReturn(projectId);
+		when(mockThreadDao.getThread(threadId, DiscussionFilter.NO_FILTER)).thenReturn(dto);
 		when(mockAuthorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.MODERATE))
 				.thenReturn(AuthorizationStatus.authorized());
 		threadManager.markThreadAsDeleted(userInfo, threadId.toString());
@@ -447,7 +535,7 @@ public class DiscussionThreadManagerImplTest {
 
 	@Test
 	public void testRestoreUnauthorized() {
-		when(mockThreadDao.getProjectId(threadId.toString())).thenReturn(projectId);
+		when(mockThreadDao.getThread(threadId, DiscussionFilter.NO_FILTER)).thenReturn(dto);
 		when(mockAuthorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.MODERATE))
 				.thenReturn(AuthorizationStatus.accessDenied(""));
 		assertThrows(UnauthorizedException.class, () -> {
@@ -457,7 +545,7 @@ public class DiscussionThreadManagerImplTest {
 
 	@Test
 	public void testRestoreAuthorized() {
-		when(mockThreadDao.getProjectId(threadId.toString())).thenReturn(projectId);
+		when(mockThreadDao.getThread(threadId, DiscussionFilter.NO_FILTER)).thenReturn(dto);
 		when(mockAuthorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.MODERATE))
 				.thenReturn(AuthorizationStatus.authorized());
 		threadManager.markThreadAsNotDeleted(userInfo, threadId.toString());
@@ -474,7 +562,7 @@ public class DiscussionThreadManagerImplTest {
 
 	@Test
 	public void testPinThreadUnauthorized() {
-		when(mockThreadDao.getProjectId(threadId.toString())).thenReturn(projectId);
+		when(mockThreadDao.getThread(threadId, DiscussionFilter.NO_FILTER)).thenReturn(dto);
 		when(mockAuthorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.MODERATE))
 				.thenReturn(AuthorizationStatus.accessDenied(""));
 		assertThrows(UnauthorizedException.class, () -> {
@@ -501,7 +589,7 @@ public class DiscussionThreadManagerImplTest {
 
 	@Test
 	public void testPinThreadAuthorized() {
-		when(mockThreadDao.getProjectId(threadId.toString())).thenReturn(projectId);
+		when(mockThreadDao.getThread(threadId, DiscussionFilter.NO_FILTER)).thenReturn(dto);
 		when(mockAuthorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.MODERATE))
 				.thenReturn(AuthorizationStatus.authorized());
 		threadManager.pinThread(userInfo, threadId.toString());
@@ -510,7 +598,7 @@ public class DiscussionThreadManagerImplTest {
 
 	@Test
 	public void testUnpinThreadUnauthorized() {
-		when(mockThreadDao.getProjectId(threadId.toString())).thenReturn(projectId);
+		when(mockThreadDao.getThread(threadId, DiscussionFilter.NO_FILTER)).thenReturn(dto);
 		when(mockAuthorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.MODERATE))
 				.thenReturn(AuthorizationStatus.accessDenied(""));
 		assertThrows(UnauthorizedException.class, () -> {
@@ -537,7 +625,7 @@ public class DiscussionThreadManagerImplTest {
 
 	@Test
 	public void testUnpinThreadAuthorized() {
-		when(mockThreadDao.getProjectId(threadId.toString())).thenReturn(projectId);
+		when(mockThreadDao.getThread(threadId, DiscussionFilter.NO_FILTER)).thenReturn(dto);
 		when(mockAuthorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.MODERATE))
 				.thenReturn(AuthorizationStatus.authorized());
 		threadManager.unpinThread(userInfo, threadId.toString());
@@ -618,7 +706,7 @@ public class DiscussionThreadManagerImplTest {
 
 	@Test
 	public void testGetThreadURLUnauthorized() {
-		when(mockThreadDao.getProjectId(threadId.toString())).thenReturn(projectId);
+		when(mockThreadDao.getThread(threadId, DiscussionFilter.NO_FILTER)).thenReturn(dto);
 		when(mockAuthorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.READ))
 				.thenReturn(AuthorizationStatus.accessDenied(""));
 		assertThrows(UnauthorizedException.class, () -> {
@@ -629,7 +717,7 @@ public class DiscussionThreadManagerImplTest {
 	@Test
 	public void testGetThreadURLAuthorized() {
 		when(mockUploadDao.getThreadUrl(messageKey)).thenReturn(messageUrl);
-		when(mockThreadDao.getProjectId(threadId.toString())).thenReturn(projectId);
+		when(mockThreadDao.getThread(anyLong(), any())).thenReturn(dto);
 		when(mockAuthorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.READ))
 				.thenReturn(AuthorizationStatus.authorized());
 		MessageURL url = threadManager.getMessageUrl(userInfo, messageKey);

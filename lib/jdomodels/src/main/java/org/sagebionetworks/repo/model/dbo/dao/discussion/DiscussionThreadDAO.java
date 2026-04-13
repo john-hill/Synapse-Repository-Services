@@ -128,14 +128,6 @@ public interface DiscussionThreadDAO {
 	public void unpinThread(long threadId);
 
 	/**
-	 * Return the projectID that this thread belong to
-	 * 
-	 * @param threadId
-	 * @return
-	 */
-	public String getProjectId(String threadId);
-
-	/**
 	 * Return the author of the thread
 	 * 
 	 * @param threadId
@@ -173,6 +165,28 @@ public interface DiscussionThreadDAO {
 	 * @param refs
 	 */
 	public void insertEntityReference(List<DiscussionThreadEntityReference> refs);
+
+	/**
+	 * Insert a reference linking a discussion thread to a data access submission.
+	 */
+	public void insertSubmissionReference(String threadId, String submissionId);
+
+	/**
+	 * Get the discussion thread linked to the given submission.
+	 *
+	 * @param submissionId
+	 * @return
+	 */
+	public DiscussionThreadBundle getThreadForSubmission(String submissionId);
+
+	/**
+	 * Get the submission ID linked to the given thread.
+	 *
+	 * @param threadId
+	 * @return the submission ID
+	 * @throws NotFoundException if no submission is linked to the thread
+	 */
+	public String getSubmissionIdForThread(String threadId);
 
 	/**
 	 * Get a list of projectIds that threads, which mentioned entityIds, belongs to.

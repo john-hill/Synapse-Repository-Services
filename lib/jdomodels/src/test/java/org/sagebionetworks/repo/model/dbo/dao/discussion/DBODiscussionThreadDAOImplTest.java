@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.model.dbo.dao.discussion;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.sagebionetworks.repo.model.dbo.dao.discussion.DBODiscussionThreadDAOImpl.DEFAULT_FILTER;
 import static org.sagebionetworks.repo.model.dbo.dao.discussion.DBODiscussionThreadDAOImpl.DELETED_CONDITION;
@@ -25,7 +26,12 @@ import org.junit.runner.RunWith;
 import org.sagebionetworks.StackConfigurationSingleton;
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
+import org.sagebionetworks.repo.model.ACCESS_TYPE;
+import org.sagebionetworks.repo.model.AccessRequirementDAO;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
+import org.sagebionetworks.repo.model.RestrictableObjectType;
+import org.sagebionetworks.repo.model.ManagedACTAccessRequirement;
 import org.sagebionetworks.repo.model.Node;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.UserGroup;
@@ -39,6 +45,18 @@ import org.sagebionetworks.repo.model.discussion.EntityThreadCount;
 import org.sagebionetworks.repo.model.discussion.EntityThreadCounts;
 import org.sagebionetworks.repo.model.discussion.Forum;
 import org.sagebionetworks.repo.model.discussion.ForumObjectType;
+import org.sagebionetworks.repo.model.dataaccess.AccessType;
+import org.sagebionetworks.repo.model.dataaccess.AccessorChange;
+import org.sagebionetworks.repo.model.dataaccess.Request;
+import org.sagebionetworks.repo.model.dataaccess.ResearchProject;
+import org.sagebionetworks.repo.model.dataaccess.Submission;
+import org.sagebionetworks.repo.model.dataaccess.SubmissionState;
+import org.sagebionetworks.repo.model.dataaccess.SubmissionStatus;
+import org.sagebionetworks.repo.model.dbo.dao.dataaccess.RequestDAO;
+import org.sagebionetworks.repo.model.dbo.dao.dataaccess.RequestTestUtils;
+import org.sagebionetworks.repo.model.dbo.dao.dataaccess.ResearchProjectDAO;
+import org.sagebionetworks.repo.model.dbo.dao.dataaccess.ResearchProjectTestUtils;
+import org.sagebionetworks.repo.model.dbo.dao.dataaccess.SubmissionDAO;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.jdo.NodeTestUtils;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -57,16 +75,30 @@ public class DBODiscussionThreadDAOImplTest {
 	@Autowired
 	private NodeDAO nodeDao;
 	@Autowired
+	private AccessRequirementDAO accessRequirementDAO;
+	@Autowired
 	private DiscussionThreadDAO threadDao;
 	@Autowired
 	private IdGenerator idGenerator;
+	@Autowired
+	private ResearchProjectDAO researchProjectDao;
+	@Autowired
+	private RequestDAO requestDao;
+	@Autowired
+	private SubmissionDAO submissionDao;
 
 	private Long userId = null;
 	private Long userId2 = null;
 	private String projectId = null;
+	private String managedARId = null;
 	private String forumId;
+	private String arForumId;
+	private String researchProjectId;
+	private String requestId;
 	private Long threadId;
-	private long forumIdLong;
+	private Long arTheadId;
+	private Long forumIdLong;
+
 
 	@Before
 	public void before() {
@@ -79,7 +111,7 @@ public class DBODiscussionThreadDAOImplTest {
 		Node project = NodeTestUtils.createNew("projectName" + "-" + new Random().nextInt(), userId);
 		project.setParentId(StackConfigurationSingleton.singleton().getRootFolderEntityId());
 		projectId = nodeDao.createNew(project);
-		// create a forum
+		// create a forum for Project
 		Forum dto = forumDao.createForum(projectId, ForumObjectType.ENTITY);
 		forumId = dto.getId();
 		forumIdLong = Long.parseLong(forumId);
@@ -89,11 +121,33 @@ public class DBODiscussionThreadDAOImplTest {
 	@After
 	public void cleanup() {
 		if (projectId != null) nodeDao.delete(projectId);
-		if (userId != null) userGroupDAO.delete(userId.toString());
-		if (userId2 != null) userGroupDAO.delete(userId.toString());
+
 		if (forumId != null) {
 			forumDao.deleteForum(forumIdLong);
 		}
+
+		submissionDao.truncateAll();
+
+		if(requestId != null) {
+			requestDao.delete(requestId);
+		}
+
+		if(researchProjectId != null) {
+			researchProjectDao.delete(researchProjectId);
+		}
+
+		if(arForumId != null) {
+			forumDao.deleteForum(Long.parseLong(arForumId));
+		}
+
+		if(managedARId != null) {
+			accessRequirementDAO.delete(managedARId);
+		}
+
+		if (userId != null) userGroupDAO.delete(userId.toString());
+
+		if (userId2 != null) userGroupDAO.delete(userId.toString());
+
 	}
 
 	@Test (expected = IllegalArgumentException.class)
@@ -137,14 +191,17 @@ public class DBODiscussionThreadDAOImplTest {
 	}
 
 	@Test
-	public void testGetProjectId() {
-		DiscussionThreadBundle dto = threadDao.createThread(forumId, threadId.toString(), "title", "messageKey", userId);
-		assertEquals(projectId, threadDao.getProjectId(dto.getId()));
+	public void testGetObjectId() {
+		DiscussionThreadBundle dto = threadDao.createThread(forumId, threadId.toString(),
+				"title", "messageKey", userId);
+		//call under test
+		assertEquals(projectId, threadDao.getThread(Long.parseLong(dto.getId()), DiscussionFilter.NO_FILTER).getObjectId());
 	}
 
-	@Test (expected=NotFoundException.class)
-	public void testGetProjectIdNotFound() {
-		threadDao.getProjectId("-1");
+	@Test
+	public void testGetObjectIdNotFound() {
+		//call under test
+		assertThrows(NotFoundException.class, () ->threadDao.getThread(-1L, DEFAULT_FILTER));
 	}
 
 	@Test
@@ -580,7 +637,7 @@ public class DBODiscussionThreadDAOImplTest {
 	public void testBuildGetQuery() {
 		String baseQuery = DBODiscussionThreadDAOImpl.SQL_SELECT_THREADS_BY_FORUM_ID;
 		assertEquals("not ordered","SELECT DISCUSSION_THREAD.ID AS ID,"
-				+ " DISCUSSION_THREAD.FORUM_ID AS FORUM_ID, FORUM.OBJECT_ID AS OBJECT_ID,"
+				+ " DISCUSSION_THREAD.FORUM_ID AS FORUM_ID, FORUM.OBJECT_ID AS OBJECT_ID, FORUM.OBJECT_TYPE AS OBJECT_TYPE,"
 				+ " DISCUSSION_THREAD.TITLE AS TITLE, DISCUSSION_THREAD.CREATED_ON AS CREATED_ON,"
 				+ " DISCUSSION_THREAD.CREATED_BY AS CREATED_BY, DISCUSSION_THREAD.MODIFIED_ON AS MODIFIED_ON,"
 				+ " DISCUSSION_THREAD.ETAG AS ETAG, DISCUSSION_THREAD.MESSAGE_KEY AS MESSAGE_KEY,"
@@ -596,7 +653,7 @@ public class DBODiscussionThreadDAOImplTest {
 				+ " LIMIT 10 OFFSET 0",
 				DBODiscussionThreadDAOImpl.buildGetQuery(baseQuery, 10L, 0L, null, null, DiscussionFilter.NO_FILTER));
 		assertEquals("ordered by pinned and last activity","SELECT DISCUSSION_THREAD.ID AS ID,"
-				+ " DISCUSSION_THREAD.FORUM_ID AS FORUM_ID, FORUM.OBJECT_ID AS OBJECT_ID,"
+				+ " DISCUSSION_THREAD.FORUM_ID AS FORUM_ID, FORUM.OBJECT_ID AS OBJECT_ID, FORUM.OBJECT_TYPE AS OBJECT_TYPE,"
 				+ " DISCUSSION_THREAD.TITLE AS TITLE, DISCUSSION_THREAD.CREATED_ON AS CREATED_ON,"
 				+ " DISCUSSION_THREAD.CREATED_BY AS CREATED_BY, DISCUSSION_THREAD.MODIFIED_ON AS MODIFIED_ON,"
 				+ " DISCUSSION_THREAD.ETAG AS ETAG, DISCUSSION_THREAD.MESSAGE_KEY AS MESSAGE_KEY,"
@@ -613,7 +670,7 @@ public class DBODiscussionThreadDAOImplTest {
 				+ " LIMIT 10 OFFSET 0",
 				DBODiscussionThreadDAOImpl.buildGetQuery(baseQuery, 10L, 0L, DiscussionThreadOrder.PINNED_AND_LAST_ACTIVITY, true, DiscussionFilter.NO_FILTER));
 		assertEquals("limit","SELECT DISCUSSION_THREAD.ID AS ID,"
-				+ " DISCUSSION_THREAD.FORUM_ID AS FORUM_ID, FORUM.OBJECT_ID AS OBJECT_ID,"
+				+ " DISCUSSION_THREAD.FORUM_ID AS FORUM_ID, FORUM.OBJECT_ID AS OBJECT_ID, FORUM.OBJECT_TYPE AS OBJECT_TYPE,"
 				+ " DISCUSSION_THREAD.TITLE AS TITLE, DISCUSSION_THREAD.CREATED_ON AS CREATED_ON,"
 				+ " DISCUSSION_THREAD.CREATED_BY AS CREATED_BY, DISCUSSION_THREAD.MODIFIED_ON AS MODIFIED_ON,"
 				+ " DISCUSSION_THREAD.ETAG AS ETAG, DISCUSSION_THREAD.MESSAGE_KEY AS MESSAGE_KEY,"
@@ -629,7 +686,7 @@ public class DBODiscussionThreadDAOImplTest {
 				+ " LIMIT 100 OFFSET 0",
 				DBODiscussionThreadDAOImpl.buildGetQuery(baseQuery, 100L, 0L, null, null, DiscussionFilter.NO_FILTER));
 		assertEquals("offset","SELECT DISCUSSION_THREAD.ID AS ID,"
-				+ " DISCUSSION_THREAD.FORUM_ID AS FORUM_ID, FORUM.OBJECT_ID AS OBJECT_ID,"
+				+ " DISCUSSION_THREAD.FORUM_ID AS FORUM_ID, FORUM.OBJECT_ID AS OBJECT_ID, FORUM.OBJECT_TYPE AS OBJECT_TYPE,"
 				+ " DISCUSSION_THREAD.TITLE AS TITLE, DISCUSSION_THREAD.CREATED_ON AS CREATED_ON,"
 				+ " DISCUSSION_THREAD.CREATED_BY AS CREATED_BY, DISCUSSION_THREAD.MODIFIED_ON AS MODIFIED_ON,"
 				+ " DISCUSSION_THREAD.ETAG AS ETAG, DISCUSSION_THREAD.MESSAGE_KEY AS MESSAGE_KEY,"
@@ -645,7 +702,7 @@ public class DBODiscussionThreadDAOImplTest {
 				+ " LIMIT 10 OFFSET 2",
 				DBODiscussionThreadDAOImpl.buildGetQuery(baseQuery, 10L, 2L, null, null, DiscussionFilter.NO_FILTER));
 		assertEquals("filtered","SELECT DISCUSSION_THREAD.ID AS ID,"
-				+ " DISCUSSION_THREAD.FORUM_ID AS FORUM_ID, FORUM.OBJECT_ID AS OBJECT_ID,"
+				+ " DISCUSSION_THREAD.FORUM_ID AS FORUM_ID, FORUM.OBJECT_ID AS OBJECT_ID, FORUM.OBJECT_TYPE AS OBJECT_TYPE,"
 				+ " DISCUSSION_THREAD.TITLE AS TITLE, DISCUSSION_THREAD.CREATED_ON AS CREATED_ON,"
 				+ " DISCUSSION_THREAD.CREATED_BY AS CREATED_BY, DISCUSSION_THREAD.MODIFIED_ON AS MODIFIED_ON,"
 				+ " DISCUSSION_THREAD.ETAG AS ETAG, DISCUSSION_THREAD.MESSAGE_KEY AS MESSAGE_KEY,"
@@ -956,4 +1013,87 @@ public class DBODiscussionThreadDAOImplTest {
 		return entityRef;
 	}
 
+	@Test
+	public void testGetThreadForSubmissionAndGetSubmissionIdForThread() {
+		RestrictableObjectDescriptor rod = new RestrictableObjectDescriptor();
+		rod.setId(projectId);
+		rod.setType(RestrictableObjectType.ENTITY);
+
+		ManagedACTAccessRequirement managedAR = new ManagedACTAccessRequirement();
+		managedAR.setCreatedBy(String.valueOf(userId));
+		managedAR.setCreatedOn(new Date());
+		managedAR.setModifiedBy(String.valueOf(userId));
+		managedAR.setModifiedOn(new Date());
+		managedAR.setEtag("etag");
+		managedAR.setAccessType(ACCESS_TYPE.DOWNLOAD);
+		managedAR.setVersionNumber(1L);
+		managedAR.setSubjectIds(Arrays.asList(rod));
+		managedAR.setIsTwoFaRequired(false);
+		managedAR = accessRequirementDAO.create(managedAR);
+		managedARId = String.valueOf(managedAR.getId());
+
+		Forum dto1 = forumDao.createForum(managedAR.getId().toString(), ForumObjectType.ACCESS_REQUIREMENT);
+		arForumId = dto1.getId();
+		arTheadId = idGenerator.generateNewId(IdType.DISCUSSION_THREAD_ID);
+
+		// Create a submission to reference
+		ResearchProject rp = ResearchProjectTestUtils.createNewDto();
+		rp.setAccessRequirementId(managedARId);
+		rp = researchProjectDao.create(rp);
+		researchProjectId = rp.getId();
+
+		Request request = RequestTestUtils.createNewRequest();
+		request.setAccessRequirementId(this.managedARId);
+		request.setResearchProjectId(rp.getId());
+		AccessorChange accessorChange = new AccessorChange();
+		accessorChange.setUserId(String.valueOf(userId));
+		accessorChange.setType(AccessType.GAIN_ACCESS);
+		request.setAccessorChanges(Arrays.asList(accessorChange));
+		request = requestDao.create(request);
+		requestId = request.getId();
+
+		Submission submission = new Submission();
+		submission.setAccessRequirementId(this.managedARId);
+		submission.setAccessRequirementVersion(managedAR.getVersionNumber());
+		submission.setRequestId(request.getId());
+		submission.setResearchProjectSnapshot(rp);
+		submission.setAccessorChanges(Arrays.asList(accessorChange));
+		submission.setSubmittedBy(String.valueOf(userId));
+		submission.setSubmittedOn(new Date());
+		submission.setModifiedBy(String.valueOf(userId));
+		submission.setModifiedOn(new Date());
+		submission.setState(SubmissionState.SUBMITTED);
+		SubmissionStatus status = submissionDao.createSubmission(submission);
+		String submissionId = status.getSubmissionId();
+
+		DiscussionThreadBundle thread = threadDao.createThread(arForumId, arTheadId.toString(),
+				"submissionId:" + submissionId, UUID.randomUUID().toString(), userId);
+		// Insert the reference
+		threadDao.insertSubmissionReference(thread.getId(), submissionId);
+
+		// call under test
+		DiscussionThreadBundle result = threadDao.getThreadForSubmission(submissionId);
+		assertEquals(thread.getId(), result.getId());
+		assertEquals(thread.getForumId(), result.getForumId());
+
+		// call under test
+		String resultSubmissionId = threadDao.getSubmissionIdForThread(thread.getId());
+		assertEquals(submissionId, resultSubmissionId);
+	}
+
+	@Test
+	public void testGetThreadForSubmissionWithNonExistentSubmission() {
+		assertThrows(NotFoundException.class, () -> {
+			//call under test
+			threadDao.getThreadForSubmission("999999");
+		});
+	}
+
+	@Test
+	public void testGetSubmissionIdForNonExistingThread() {
+		assertThrows(NotFoundException.class, () -> {
+			//call under test
+			threadDao.getSubmissionIdForThread("999999");
+		});
+	}
 }

@@ -5,6 +5,7 @@ import static org.sagebionetworks.repo.manager.AuthorizationManagerImpl.ANONYMOU
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -12,12 +13,14 @@ import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
 import org.sagebionetworks.reflection.model.PaginatedResults;
 import org.sagebionetworks.repo.manager.AuthorizationManager;
+import org.sagebionetworks.repo.manager.dataaccess.DataAccessAuthorizationManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.EntityIdList;
 import org.sagebionetworks.repo.model.GroupMembersDAO;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.TeamConstants;
 import org.sagebionetworks.repo.model.PaginatedIds;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UploadContentToS3DAO;
@@ -31,6 +34,8 @@ import org.sagebionetworks.repo.model.discussion.DiscussionThreadBundle;
 import org.sagebionetworks.repo.model.discussion.DiscussionThreadEntityReference;
 import org.sagebionetworks.repo.model.discussion.DiscussionThreadOrder;
 import org.sagebionetworks.repo.model.discussion.EntityThreadCounts;
+import org.sagebionetworks.repo.model.discussion.Forum;
+import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.sagebionetworks.repo.model.discussion.MessageURL;
 import org.sagebionetworks.repo.model.discussion.ThreadCount;
 import org.sagebionetworks.repo.model.discussion.UpdateThreadMessage;
@@ -71,6 +76,8 @@ public class DiscussionThreadManagerImpl implements DiscussionThreadManager {
 	private AccessControlListDAO aclDao;
 	@Autowired
 	private GroupMembersDAO groupMembersDao;
+	@Autowired
+	private DataAccessAuthorizationManager dataAccessAuthorizationManager;
 
 	@WriteTransaction
 	@Override
@@ -81,11 +88,14 @@ public class DiscussionThreadManagerImpl implements DiscussionThreadManager {
 		ValidateArgument.required(createThread.getMessageMarkdown(), "CreateDiscussionThread.messageMarkdown");
 		ValidateArgument.requirement(createThread.getTitle().length() <= MAX_TITLE_LENGTH, "Title cannot exceed "+MAX_TITLE_LENGTH+" characters.");
 		UserInfo.validateUserInfo(userInfo);
-		String projectId = forumDao.getForum(Long.parseLong(createThread.getForumId())).getProjectId();
-		if (authorizationManager.isAnonymousUser(userInfo)){
+		Forum forum = forumDao.getForum(Long.parseLong(createThread.getForumId()));
+		validateNotAccessRequirementThread(forum.getObjectType().name());
+
+		if (authorizationManager.isAnonymousUser(userInfo)) {
 			throw new UnauthorizedException(ANONYMOUS_ACCESS_DENIED_REASON);
 		}
-		authorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.READ).checkAuthorizationOrElseThrow();
+
+		authorizationManager.canAccess(userInfo, forum.getObjectId(), ObjectType.ENTITY, ACCESS_TYPE.READ).checkAuthorizationOrElseThrow();
 		Long id = idGenerator.generateNewId(IdType.DISCUSSION_THREAD_ID);
 		String messageKey = uploadDao.uploadThreadMessage(createThread.getMessageMarkdown(), createThread.getForumId(), id.toString());
 		DiscussionThreadBundle thread = threadDao.createThread(createThread.getForumId(), id.toString(), createThread.getTitle(), messageKey, userInfo.getId());
@@ -114,12 +124,12 @@ public class DiscussionThreadManagerImpl implements DiscussionThreadManager {
 		DiscussionThreadBundle thread = threadDao.getThread(threadIdLong, DEFAULT_FILTER);
 		if (thread.getIsDeleted()) {
 			try {
-				authorizationManager.canAccess(userInfo, thread.getProjectId(), ObjectType.ENTITY, ACCESS_TYPE.MODERATE).checkAuthorizationOrElseThrow();
+				checkAccess(userInfo, thread.getObjectType(), thread.getObjectId(), ACCESS_TYPE.MODERATE);
 			} catch (UnauthorizedException e) {
 				throw new NotFoundException(String.format(THREAD_DOES_NOT_EXIST, threadId));
 			}
 		} else {
-			authorizationManager.canAccess(userInfo, thread.getProjectId(), ObjectType.ENTITY, ACCESS_TYPE.READ).checkAuthorizationOrElseThrow();
+			checkAccess(userInfo, thread.getObjectType(), thread.getObjectId(), ACCESS_TYPE.READ);
 		}
 		threadDao.updateThreadView(threadIdLong, userInfo.getId());
 		
@@ -140,8 +150,24 @@ public class DiscussionThreadManagerImpl implements DiscussionThreadManager {
 		ValidateArgument.required(threadId, "threadId");
 		ValidateArgument.required(accessType, "accessType");
 		UserInfo.validateUserInfo(userInfo);
-		String projectId = threadDao.getProjectId(threadId);
-		authorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, accessType).checkAuthorizationOrElseThrow();
+		DiscussionThreadBundle thread = threadDao.getThread(Long.parseLong(threadId), DEFAULT_FILTER);
+		checkAccess(userInfo, thread.getObjectType(), thread.getObjectId(), accessType);
+	}
+
+	private void validateNotAccessRequirementThread(String objectType) {
+		if (ForumObjectType.ACCESS_REQUIREMENT.name().equals(objectType)) {
+			throw new IllegalArgumentException("Creation, modification and deletion is not allowed on an access requirement thread.");
+		}
+	}
+
+	private void checkAccess(UserInfo userInfo, String objectType, String objectId, ACCESS_TYPE accessType) {
+		if (ForumObjectType.ACCESS_REQUIREMENT.name().equals(objectType)) {
+			dataAccessAuthorizationManager.canReviewAccessRequirementSubmissions(userInfo, objectId)
+					.checkAuthorizationOrElseThrow();
+		} else {
+			authorizationManager.canAccess(userInfo, objectId, ObjectType.ENTITY, accessType)
+					.checkAuthorizationOrElseThrow();
+		}
 	}
 
 	@WriteTransaction
@@ -155,6 +181,7 @@ public class DiscussionThreadManagerImpl implements DiscussionThreadManager {
 		String author = threadDao.getAuthorForUpdate(threadId);
 		if (AuthorizationUtils.isUserCreatorOrAdmin(userInfo, author)) {
 			DiscussionThreadBundle thread = threadDao.updateTitle(threadIdLong, newTitle.getTitle());
+			validateNotAccessRequirementThread(thread.getObjectType());
 			threadDao.insertEntityReference(DiscussionUtils.getEntityReferences(newTitle.getTitle(), thread.getId()));
 			
 			MessageToSend changeMessage = new MessageToSend()
@@ -181,6 +208,7 @@ public class DiscussionThreadManagerImpl implements DiscussionThreadManager {
 		UserInfo.validateUserInfo(userInfo);
 		Long threadIdLong = Long.parseLong(threadId);
 		DiscussionThreadBundle thread = threadDao.getThread(threadIdLong, DiscussionFilter.EXCLUDE_DELETED);
+		validateNotAccessRequirementThread(thread.getObjectType());
 		if (AuthorizationUtils.isUserCreatorOrAdmin(userInfo, thread.getCreatedBy())) {
 			String messageKey = uploadDao.uploadThreadMessage(newMessage.getMessageMarkdown(), thread.getForumId(), thread.getId());
 			thread = threadDao.updateMessageKey(threadIdLong, messageKey);
@@ -204,6 +232,8 @@ public class DiscussionThreadManagerImpl implements DiscussionThreadManager {
 	@Override
 	public void markThreadAsDeleted(UserInfo userInfo, String threadId) {
 		checkPermission(userInfo, threadId, ACCESS_TYPE.MODERATE);
+		DiscussionThreadBundle threadBundle = threadDao.getThread(Long.parseLong(threadId), DiscussionFilter.NO_FILTER);
+		validateNotAccessRequirementThread(threadBundle.getObjectType());
 		threadDao.markThreadAsDeleted(Long.parseLong(threadId));
 		
 		MessageToSend changeMessage = new MessageToSend()
@@ -250,11 +280,11 @@ public class DiscussionThreadManagerImpl implements DiscussionThreadManager {
 		}
 		ValidateArgument.requirement(limit >= 0 && offset >= 0 && limit <= MAX_LIMIT,
 				"Limit and offset must be greater than 0, and limit must be smaller than or equal to "+MAX_LIMIT);
-		String projectId = forumDao.getForum(Long.parseLong(forumId)).getProjectId();
+		Forum forum = forumDao.getForum(Long.parseLong(forumId));
 		if (filter.equals(DiscussionFilter.EXCLUDE_DELETED)) {
-			authorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.READ).checkAuthorizationOrElseThrow();
+			checkAccess(userInfo, forum.getObjectType().name(), forum.getObjectId(), ACCESS_TYPE.READ);
 		} else {
-			authorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.MODERATE).checkAuthorizationOrElseThrow();
+			checkAccess(userInfo, forum.getObjectType().name(), forum.getObjectId(), ACCESS_TYPE.MODERATE);
 		}
 		List<DiscussionThreadBundle> results = threadDao.getThreadsForForum(Long.parseLong(forumId), limit, offset, order, ascending, filter);
 		return PaginatedResults.createWithLimitAndOffset(results, limit, offset);
@@ -274,8 +304,8 @@ public class DiscussionThreadManagerImpl implements DiscussionThreadManager {
 		ValidateArgument.required(forumId, "forumId");
 		ValidateArgument.required(filter, "filter");
 		UserInfo.validateUserInfo(userInfo);
-		String projectId = forumDao.getForum(Long.parseLong(forumId)).getProjectId();
-		authorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.READ).checkAuthorizationOrElseThrow();
+		Forum forum = forumDao.getForum(Long.parseLong(forumId));
+		checkAccess(userInfo, forum.getObjectType().name(), forum.getObjectId(),ACCESS_TYPE.READ);
 		ThreadCount count = new ThreadCount();
 		count.setCount(threadDao.getThreadCountForForum(Long.parseLong(forumId), filter));
 		return count;
@@ -284,6 +314,7 @@ public class DiscussionThreadManagerImpl implements DiscussionThreadManager {
 	@Override
 	public PaginatedResults<DiscussionThreadBundle> getThreadsForEntity(UserInfo userInfo, String entityId, Long limit,
 			Long offset, DiscussionThreadOrder order, Boolean ascending) {
+		//check
 		ValidateArgument.required(entityId, "entityId");
 		UserInfo.validateUserInfo(userInfo);
 		if (limit == null) {
@@ -317,6 +348,8 @@ public class DiscussionThreadManagerImpl implements DiscussionThreadManager {
 	@WriteTransaction
 	public void markThreadAsNotDeleted(UserInfo userInfo, String threadId) {
 		checkPermission(userInfo, threadId, ACCESS_TYPE.MODERATE);
+		DiscussionThreadBundle threadBundle = threadDao.getThread(Long.parseLong(threadId), DiscussionFilter.NO_FILTER);
+		validateNotAccessRequirementThread(threadBundle.getObjectType());
 		threadDao.markThreadAsNotDeleted(Long.parseLong(threadId));
 
 		MessageToSend changeMessage = new MessageToSend()
@@ -342,14 +375,24 @@ public class DiscussionThreadManagerImpl implements DiscussionThreadManager {
 				"Limit and offset must be greater than 0, and limit must be smaller than or equal to "+MAX_LIMIT);
 
 		PaginatedIds results = new PaginatedIds();
+		Set<String> principalIds = new HashSet<>();
 		List<String> userIds = new ArrayList<String>();
 		results.setResults(userIds);
-		String projectId = forumDao.getForum(Long.parseLong(forumId)).getProjectId();
-		Set<String> principalIds = aclDao.getPrincipalIds(projectId, ObjectType.ENTITY, ACCESS_TYPE.MODERATE);
+		Forum forum = forumDao.getForum(Long.parseLong(forumId));
+		if (ForumObjectType.ACCESS_REQUIREMENT.equals(forum.getObjectType())) {
+			// For AR forums, moderators are the AR reviewers and ACT team members
+			principalIds = aclDao.getPrincipalIds(forum.getObjectId(), ObjectType.ACCESS_REQUIREMENT, ACCESS_TYPE.REVIEW_SUBMISSIONS);
+			principalIds.add(TeamConstants.ACT_TEAM_ID.toString());
+
+		} else {
+			principalIds = aclDao.getPrincipalIds(forum.getObjectId(), ObjectType.ENTITY, ACCESS_TYPE.MODERATE);
+		}
+
 		if (principalIds.isEmpty()) {
 			results.setTotalNumberOfResults(0L);
 			return results;
 		}
+
 		userIds.addAll(groupMembersDao.getIndividuals(principalIds, limit, offset));
 		results.setTotalNumberOfResults(groupMembersDao.getIndividualCount(principalIds));
 		return results;

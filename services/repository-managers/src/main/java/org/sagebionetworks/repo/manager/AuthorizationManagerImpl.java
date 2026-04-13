@@ -44,6 +44,8 @@ import org.sagebionetworks.repo.model.dbo.dao.discussion.DiscussionThreadDAO;
 import org.sagebionetworks.repo.model.dbo.dao.discussion.ForumDAO;
 import org.sagebionetworks.repo.model.dbo.file.FileHandleDao;
 import org.sagebionetworks.repo.model.dbo.verification.VerificationDAO;
+import org.sagebionetworks.repo.model.discussion.DiscussionFilter;
+import org.sagebionetworks.repo.model.discussion.DiscussionThreadBundle;
 import org.sagebionetworks.repo.model.discussion.Forum;
 import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.sagebionetworks.repo.model.docker.RegistryEventAction;
@@ -406,13 +408,10 @@ public class AuthorizationManagerImpl implements AuthorizationManager {
 		switch (objectType) {
 			case FORUM:
 				Forum forum = forumDao.getForum(Long.parseLong(objectId));
-				if (ForumObjectType.ACCESS_REQUIREMENT.equals(forum.getObjectType())) {
-					return dataAccessAuthorizationManager.canReviewAccessRequirementSubmissions(userInfo, forum.getObjectId());
-				}
-				return canAccess(userInfo, forum.getProjectId(), ObjectType.ENTITY, ACCESS_TYPE.READ);
+				return canSubscribeObjectType(userInfo, forum.getObjectType().name(), forum.getObjectId());
 			case THREAD:
-				String projectId = threadDao.getProjectId(objectId);
-				return canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.READ);
+				DiscussionThreadBundle thread = threadDao.getThread(Long.parseLong(objectId), DiscussionFilter.NO_FILTER);
+				return canSubscribeObjectType(userInfo, thread.getObjectType(), thread.getObjectId());
 			case DATA_ACCESS_SUBMISSION:
 				if (isACTTeamMemberOrAdmin(userInfo)) {
 					return AuthorizationStatus.authorized();
@@ -427,6 +426,13 @@ public class AuthorizationManagerImpl implements AuthorizationManager {
 				}
 		}
 		return AuthorizationStatus.accessDenied("The objectType is unsubscribable.");
+	}
+
+	private AuthorizationStatus canSubscribeObjectType(UserInfo userInfo, String objectType, String objectId) {
+		if (ForumObjectType.ACCESS_REQUIREMENT.name().equals(objectType)) {
+			return dataAccessAuthorizationManager.canReviewAccessRequirementSubmissions(userInfo, objectId);
+		}
+		return canAccess(userInfo, objectId, ObjectType.ENTITY, ACCESS_TYPE.READ);
 	}
 
 	@Override

@@ -87,7 +87,13 @@ import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.file.CloudProviderFileHandleInterface;
 import org.sagebionetworks.repo.model.file.FileHandleAssociateType;
 import org.sagebionetworks.repo.model.file.FileHandleAssociation;
+import org.sagebionetworks.repo.model.discussion.DiscussionFilter;
+import org.sagebionetworks.repo.model.discussion.DiscussionThreadBundle;
+import org.sagebionetworks.repo.model.discussion.DiscussionThreadOrder;
+import org.sagebionetworks.repo.model.discussion.Forum;
+import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
+import org.sagebionetworks.reflection.model.PaginatedResults;
 import org.sagebionetworks.schema.adapter.JSONObjectAdapterException;
 import org.sagebionetworks.warehouse.WarehouseTestHelper;
 
@@ -1114,5 +1120,69 @@ public class ITDataAccessTest {
 			.setIsEntityOpenData(false)
 			.setIsDataContributor(true);
 		return permissions;
+	}
+
+	@Test
+	public void testForumAndThreadCreatedForManagedAR() throws Exception {
+		managedAR = new ManagedACTAccessRequirement()
+				.setAccessType(ACCESS_TYPE.DOWNLOAD)
+				.setSubjectIds(Collections.singletonList(new RestrictableObjectDescriptor().
+						setId(project.getId()).setType(RestrictableObjectType.ENTITY)));
+
+		managedAR = adminSynapse.createAccessRequirement(managedAR);
+
+		ResearchProject rp = synapse.getResearchProjectForUpdate(managedAR.getId().toString());
+		rp.setInstitution("Sage");
+		rp.setProjectLead("Lead");
+		rp.setIntendedDataUseStatement("intendedDataUseStatement");
+		rp.setAccessRequirementId(managedAR.getId().toString());
+		rp = synapse.createOrUpdateResearchProject(rp);
+
+
+		//call under test. Verify forum was created for the managed AR
+		Forum forum = adminSynapse.getForumByObjectIdAndType(managedAR.getId().toString(), ForumObjectType.ACCESS_REQUIREMENT);
+		assertNotNull(forum);
+		assertEquals(managedAR.getId().toString(), forum.getObjectId());
+		assertEquals(ForumObjectType.ACCESS_REQUIREMENT, forum.getObjectType());
+
+		//call under test. No threads exists for Forum.
+		PaginatedResults<DiscussionThreadBundle> threads = adminSynapse.getThreadsForForum(
+				forum.getId(), 10L, 0L, DiscussionThreadOrder.PINNED_AND_LAST_ACTIVITY, true, DiscussionFilter.NO_FILTER);
+		assertEquals(0, threads.getResults().size());
+
+		Request request = (Request) synapse.getRequestForUpdate(managedAR.getId().toString());
+		request.setAccessRequirementId(managedAR.getId().toString());
+		request.setResearchProjectId(rp.getId());
+
+		String userId = synapse.getMyOwnUserBundle(1).getUserProfile().getOwnerId();
+		AccessorChange userChange = new AccessorChange();
+		userChange.setUserId(userId);
+		userChange.setType(AccessType.GAIN_ACCESS);
+		request.setAccessorChanges(Arrays.asList(userChange));
+		Request updatedRequest = (Request) synapse.createOrUpdateRequest(request);
+
+		CreateSubmissionRequest csRequest = new CreateSubmissionRequest();
+		csRequest.setRequestId(updatedRequest.getId());
+		csRequest.setRequestEtag(updatedRequest.getEtag());
+		csRequest.setSubjectId(project.getId());
+		csRequest.setSubjectType(RestrictableObjectType.ENTITY);
+
+		// call under test. Submission should create a thread
+		SubmissionStatus status = synapse.submitRequest(csRequest);
+		assertNotNull(status);
+		submissionId = status.getSubmissionId();
+
+		// call under test. verify thread was created by submission.
+		threads = adminSynapse.getThreadsForForum(
+				forum.getId(), 10L, 0L, DiscussionThreadOrder.PINNED_AND_LAST_ACTIVITY, true, DiscussionFilter.NO_FILTER);
+		assertEquals(1, threads.getResults().size());
+
+		DiscussionThreadBundle thread = threads.getResults().get(0);
+		assertEquals("submissionId:" + submissionId, thread.getTitle());
+		assertEquals(managedAR.getId().toString(), thread.getObjectId());
+		assertEquals(ForumObjectType.ACCESS_REQUIREMENT.name(), thread.getObjectType());
+		assertNotNull(thread.getId());
+		assertNotNull(thread.getForumId());
+		assertEquals(forum.getId(), thread.getForumId());
 	}
 }

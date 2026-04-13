@@ -84,12 +84,12 @@ public class DBODiscussionThreadDAOImpl implements DiscussionThreadDAO {
 			DiscussionThreadBundle dto = new DiscussionThreadBundle();
 			dto.setId(Long.toString(rs.getLong(COL_DISCUSSION_THREAD_ID)));
 			dto.setForumId(Long.toString(rs.getLong(COL_DISCUSSION_THREAD_FORUM_ID)));
-			String objectId = KeyFactory.keyToString(rs.getLong(COL_FORUM_OBJECT_ID));
+			String objectId = rs.getString(COL_FORUM_OBJECT_ID);
 			String objectType = rs.getString(COL_FORUM_OBJECT_TYPE);
 			dto.setObjectId(objectId);
 			dto.setObjectType(objectType);
 			if ("ENTITY".equals(objectType)) {
-				dto.setProjectId(objectId);
+				dto.setProjectId(KeyFactory.keyToString(Long.valueOf(objectId)));
 			}
 			Blob titleBlob = rs.getBlob(COL_DISCUSSION_THREAD_TITLE);
 			dto.setTitle(new String(titleBlob.getBytes(1, (int) titleBlob.length()), UTF8));

@@ -979,4 +979,24 @@ public class DiscussionThreadManagerImplTest {
 		assertTrue(individuals.containsAll(actual.getResults()));
 		assertTrue(actual.getResults().containsAll(individuals));
 	}
+
+	@Test
+	public void testGetModeratorsForAR() {
+		HashSet<String> userGroups = new HashSet<String>();
+		userGroups.addAll(Arrays.asList("1", "2"));
+		forum.setObjectType(ForumObjectType.ACCESS_REQUIREMENT);
+		when(mockForumDao.getForum(Long.parseLong(createDto.getForumId()))).thenReturn(forum);
+		when(mockAclDao.getPrincipalIds(projectId, ObjectType.ACCESS_REQUIREMENT, ACCESS_TYPE.REVIEW_SUBMISSIONS)).thenReturn(userGroups);
+		Set<String> individuals = new HashSet<String>();
+		individuals.addAll(Arrays.asList("2", "3", "4"));
+		when(mockGroupMembersDao.getIndividuals(userGroups, 10L, 0L)).thenReturn(individuals);
+		when(mockGroupMembersDao.getIndividualCount(userGroups)).thenReturn(3L);
+
+		//call under test
+		PaginatedIds actual = threadManager.getModerators(userInfo, forum.getId(), 10L, 0L);
+		assertNotNull(actual);
+		assertEquals((Long) 3L, actual.getTotalNumberOfResults());
+		assertTrue(individuals.containsAll(actual.getResults()));
+		assertTrue(actual.getResults().containsAll(individuals));
+	}
 }

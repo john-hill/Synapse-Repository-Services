@@ -11,6 +11,7 @@ import org.opensearch.client.opensearch.indices.CreateIndexResponse;
 import org.opensearch.client.opensearch.indices.OpenSearchIndicesClient;
 import org.sagebionetworks.LoggerProvider;
 import org.sagebionetworks.repo.manager.search.SearchConstants;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -20,7 +21,8 @@ public class OpenSearchIndexInitializer {
     private Logger log;
     private OpenSearchClient client;
 
-    public OpenSearchIndexInitializer(LoggerProvider logProvider, OpenSearchClient client) {
+    public OpenSearchIndexInitializer(LoggerProvider logProvider,
+                                      @Qualifier("synSearchOssClient") OpenSearchClient client) {
         this.log = logProvider.getLogger(OpenSearchIndexInitializer.class.getName());
         this.client = client;
 
@@ -35,7 +37,7 @@ public class OpenSearchIndexInitializer {
                         .settings(s -> s
                                 .analysis(a -> a
                                         .filter("shingle", f -> f.definition( d -> d
-                                                .shingle(sh -> sh.minShingleSize("2").maxShingleSize("3"))))
+                                                .shingle(sh -> sh.minShingleSize(2).maxShingleSize(3))))
                                         .analyzer(TRIGRAM, an ->an
                                                 .custom(c ->c
                                                         .tokenizer("standard")

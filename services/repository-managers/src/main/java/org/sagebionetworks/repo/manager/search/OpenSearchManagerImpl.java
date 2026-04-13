@@ -394,7 +394,8 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		List<SortOptions> sortOptions = buildSortOptions(query.getSort(), columnMap, nameToId, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName);
 
 		if (query.getTermsFilters() != null
-				|| query.getRangeFilters() != null || query.getExistsFilters() != null) {
+				|| query.getRangeFilters() != null || query.getExistsFilters() != null
+				|| query.getNotExistsFilters() != null) {
 			LOG.info("OpenSearch query on {} includes filters: terms={}, range={}, exists={}, notExists={}",
 					indexName,
 					query.getTermsFilters() != null ? query.getTermsFilters().size() : 0,

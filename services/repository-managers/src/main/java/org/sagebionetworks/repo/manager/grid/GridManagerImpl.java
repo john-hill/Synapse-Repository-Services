@@ -85,13 +85,6 @@ public class GridManagerImpl implements GridManager {
 	public static final String GRID_REPLICA_NOT_FOUND = "Grid replica not found.";
 	public static final String GRID_SESSION_NOT_FOUND = "Grid session not found.";
 
-	/*
-	 * Note: The S3 bucket that store patches will automatically delete all patch
-	 * files that are 120 days old. We expire each patch in the database after 119
-	 * days to ensure we never try to read a files that is about to be deleted
-	 */
-	public static final Duration PATCH_DURATION = Duration.ofDays(119);
-
 	private final AwsCredentialsProvider awsCredentialsProvider;
 	private final WebsocketApi websocketApi;
 	private final GridDao gridDao;
@@ -350,7 +343,7 @@ public class GridManagerImpl implements GridManager {
 		byte[] bodyBytes = body.getBytes(StandardCharsets.UTF_8);
 		s3Client.putObject(PutObjectRequest.builder().bucket(gridPatchBucket).key(s3Key).build(),
 				RequestBody.fromBytes(bodyBytes));
-		boolean isNew = gridDao.savePatch(sessionId, patchId, s3Key, PATCH_DURATION, bodyBytes.length);
+		boolean isNew = gridDao.savePatch(sessionId, patchId, s3Key, bodyBytes.length);
 		if (isNew) {
 			transactionalMessenger.sendMessageAfterCommit(
 					GridUtils.gridSessionIdAsLong(sessionId).toString(), ObjectType.GRID_SESSION,

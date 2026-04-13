@@ -915,19 +915,4 @@ public interface StackConfiguration {
 	 * @return The default project storage limit for the synapse bucket
 	 */
 	Long getDefaultProjectStorageLimit();
-
-	/**
-	 * Maximum age (in days) before a grid session needs a new snapshot. Default: 30
-	 */
-	int getGridSnapshotMaxAgeDays();
-
-	/**
-	 * Maximum patch count before a grid session needs a new snapshot. Default: 1000
-	 */
-	int getGridSnapshotMaxPatchCount();
-
-	/**
-	 * Maximum sessions to snapshot per worker run. Default: 10
-	 */
-	int getGridSessionSnapshotPublisherBatchSize();
 }

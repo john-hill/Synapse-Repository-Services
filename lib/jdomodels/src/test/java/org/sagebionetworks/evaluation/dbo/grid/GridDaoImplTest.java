@@ -358,18 +358,16 @@ public class GridDaoImplTest {
 		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		LogicalTimestamp patchId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(11L);
 		String s3Key = "thekey";
-		Duration expires = Duration.ofSeconds(100L);
 		// call under test
-		assertTrue(dao.savePatch(session.getSessionId(), patchId, s3Key, expires, 100L));
-		assertFalse(dao.savePatch(session.getSessionId(), patchId, s3Key, expires, 100L));
+		assertTrue(dao.savePatch(session.getSessionId(), patchId, s3Key, 100L));
+		assertFalse(dao.savePatch(session.getSessionId(), patchId, s3Key, 100L));
 
 		PatchInfo patch = dao.getPatchInfo(session.getSessionId(), patchId).get();
 		assertNotNull(patch);
 		assertEquals(session.getSessionId(), patch.getSessionId());
 		assertEquals(patchId, patch.getPatchId());
 		assertNotNull(patch.getCreatedOn());
-		assertNotNull(patch.getExpiresOn());
-		assertTrue(patch.getCreatedOn().getTime() < patch.getExpiresOn().getTime());
+		assertNull(patch.getExpiresOn());
 		assertEquals(s3Key, patch.getS3Key());
 		assertEquals(100L, patch.getSizeBytes());
 
@@ -381,12 +379,11 @@ public class GridDaoImplTest {
 		GridSession sessionTwo = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		LogicalTimestamp patchId = new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(11L);
 		String s3Key = "thekey";
-		Duration expires = Duration.ofSeconds(100L);
 		// call under test
-		assertTrue(dao.savePatch(sessionOne.getSessionId(), patchId, s3Key, expires, 100L));
-		assertFalse(dao.savePatch(sessionOne.getSessionId(), patchId, s3Key, expires, 100L));
-		assertTrue(dao.savePatch(sessionTwo.getSessionId(), patchId, s3Key, expires, 100L));
-		assertFalse(dao.savePatch(sessionTwo.getSessionId(), patchId, s3Key, expires, 100L));
+		assertTrue(dao.savePatch(sessionOne.getSessionId(), patchId, s3Key, 100L));
+		assertFalse(dao.savePatch(sessionOne.getSessionId(), patchId, s3Key, 100L));
+		assertTrue(dao.savePatch(sessionTwo.getSessionId(), patchId, s3Key, 100L));
+		assertFalse(dao.savePatch(sessionTwo.getSessionId(), patchId, s3Key, 100L));
 
 		PatchInfo patchOne = dao.getPatchInfo(sessionOne.getSessionId(), patchId).get();
 		assertNotNull(patchOne);
@@ -409,13 +406,12 @@ public class GridDaoImplTest {
 	public void testListMissingPatches() {
 		GridSession sessionOne = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
 		GridSession sessionTwo = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
-		Duration expires = Duration.ofSeconds(100L);
 
 		List<LogicalTimestamp> patchIds = createTestPatchIds(3, 4);
 		patchIds.stream().forEach(p -> {
 			String s3Key = p.toString();
-			assertTrue(dao.savePatch(sessionOne.getSessionId(), p, s3Key, expires, 100L));
-			assertTrue(dao.savePatch(sessionTwo.getSessionId(), p, s3Key, expires, 100L));
+			assertTrue(dao.savePatch(sessionOne.getSessionId(), p, s3Key, 100L));
+			assertTrue(dao.savePatch(sessionTwo.getSessionId(), p, s3Key, 100L));
 		});
 
 		List<LogicalTimestamp> patchIdsSortedBySeq = patchIds.stream().sorted((p1, p2) -> {
@@ -426,50 +422,60 @@ public class GridDaoImplTest {
 			}
 		}).collect(Collectors.toList());
 
+		List<LogicalTimestamp> clock = List.of();
 		// call under test
-		List<PatchInfo> list = dao.listMissingPatchInfoForClock(sessionOne.getSessionId(), List.of(), 100);
+		List<PatchInfo> list = dao.listMissingPatchInfoForClock(sessionOne.getSessionId(), clock, 100);
+		int count = dao.countMissingPatchesForClock(sessionOne.getSessionId(), clock);
 		// empty clock should return all patches in order of sequence number
 		assertEquals(patchIdsSortedBySeq, list.stream().map(PatchInfo::getPatchId).collect(Collectors.toList()));
+		assertEquals(patchIds.size(), count);
 		// also verify that the returned patch info includes other fields (testing the row mapper)
 		for (int i = 0; i < patchIds.size(); i++) {
 			PatchInfo info = list.get(i);
 			assertEquals(sessionOne.getSessionId(), info.getSessionId());
 			assertEquals(patchIdsSortedBySeq.get(i), info.getPatchId());
 			assertNotNull(info.getCreatedOn());
-			assertNotNull(info.getExpiresOn());
-			assertTrue(info.getCreatedOn().getTime() < info.getExpiresOn().getTime());
+			assertNull(info.getExpiresOn());
 			assertNotNull(info.getS3Key());
 			assertEquals(100L, info.getSizeBytes());
 		}
 
+		clock = List.of(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(9L),
+				new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(9L),
+				new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(9L));
 		// call under test
 		list = dao.listMissingPatchInfoForClock(sessionOne.getSessionId(),
-				List.of(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(9L),
-						new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(9L),
-						new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(9L)),
+				clock,
 				100);
+		count = dao.countMissingPatchesForClock(sessionOne.getSessionId(), clock);
 		// up-to-date should be empty patches
 		assertEquals(Collections.emptyList(), list);
+		assertEquals(0, count);
 
+		clock =List.of(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(9L),
+				new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(7L),
+				new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(5L));
 		// call under test
 		list = dao.listMissingPatchInfoForClock(sessionOne.getSessionId(),
-				List.of(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(9L),
-						new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(7L),
-						new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(5L)),
+				clock,
 				100);
+		count = dao.countMissingPatchesForClock(sessionOne.getSessionId(), clock);
 
 		List<LogicalTimestamp> expectedPatchIds = List.of(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(6L),
 				new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(8L),
 				new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(8L));
 
 		assertEquals(expectedPatchIds, list.stream().map(PatchInfo::getPatchId).collect(Collectors.toList()));
+		assertEquals(expectedPatchIds.size(), count);
 
+		clock = List.of(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(8L),
+				new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(6L),
+				new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(4L));
 		// call under test
 		list = dao.listMissingPatchInfoForClock(sessionOne.getSessionId(),
-				List.of(new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(8L),
-						new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(6L),
-						new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(4L)),
+				clock,
 				100);
+		count = dao.countMissingPatchesForClock(sessionOne.getSessionId(), clock);
 
 		expectedPatchIds = List.of(new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(4L),
 				new LogicalTimestamp().setReplicaId(2L).setSequenceNumber(6L),
@@ -479,6 +485,7 @@ public class GridDaoImplTest {
 				new LogicalTimestamp().setReplicaId(3L).setSequenceNumber(8L));
 
 		assertEquals(expectedPatchIds, list.stream().map(PatchInfo::getPatchId).collect(Collectors.toList()));
+		assertEquals(expectedPatchIds.size(), count);
 	}
 
 	@Test
@@ -860,432 +867,6 @@ public class GridDaoImplTest {
 		// call under test
 		List<GridReplicaInfo> results = dao.listReplicas(session.getSessionId(), 100, 0);
 		assertTrue(results.isEmpty());
-	}
-
-	@Test
-	public void testCountPatchesSinceLatestSnapshotWithNoPatches() {
-		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
-		// call under test
-		assertEquals(0, dao.countPatchesSinceLatestSnapshot(session.getSessionId()));
-	}
-
-	@Test
-	public void testCountPatchesSinceLatestSnapshotWithPatchesAndNoSnapshot() {
-		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
-		for (int i = 0; i < 3; i++) {
-			dao.savePatch(session.getSessionId(),
-					new LogicalTimestamp().setReplicaId(1L).setSequenceNumber((long) i),
-					"patch-key-" + i, Duration.ofDays(119), 100);
-		}
-		// call under test
-		assertEquals(3, dao.countPatchesSinceLatestSnapshot(session.getSessionId()));
-	}
-
-	@Test
-	public void testCountPatchesSinceLatestSnapshotWithSnapshotCoveringAllPatches() {
-		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
-		for (int i = 0; i < 3; i++) {
-			dao.savePatch(session.getSessionId(),
-					new LogicalTimestamp().setReplicaId(1L).setSequenceNumber((long) i),
-					"patch-key-" + i, Duration.ofDays(119), 100);
-		}
-		// Snapshot clock covers all patches (seq=10 > 2)
-		ClockTable clockTable = new ClockTable(List.of(
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L)));
-		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
-
-		// call under test
-		assertEquals(0, dao.countPatchesSinceLatestSnapshot(session.getSessionId()));
-	}
-
-	@Test
-	public void testCountPatchesSinceLatestSnapshotWithNewPatchesAfterSnapshot() {
-		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
-		// Patches covered by snapshot (seq 1-3)
-		for (int i = 1; i <= 3; i++) {
-			dao.savePatch(session.getSessionId(),
-					new LogicalTimestamp().setReplicaId(1L).setSequenceNumber((long) i),
-					"patch-key-" + i, Duration.ofDays(119), 100);
-		}
-
-		// Clock table is saved using "next-available" sequence number, so it should be seq=4
-		ClockTable clockTable = new ClockTable(List.of(
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(4L)));
-		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
-
-		// Add 2 new patches after the snapshot (seq 4-5)
-		for (int i = 4; i <= 5; i++) {
-			dao.savePatch(session.getSessionId(),
-					new LogicalTimestamp().setReplicaId(1L).setSequenceNumber((long) i),
-					"patch-key-" + i, Duration.ofDays(119), 100);
-		}
-
-		// call under test
-		assertEquals(2, dao.countPatchesSinceLatestSnapshot(session.getSessionId()));
-	}
-
-	@Test
-	public void testCountPatchesSinceLatestSnapshotWithPatchesFromNewReplica() {
-		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
-		// Snapshot covers only replica 1
-		ClockTable clockTable = new ClockTable(List.of(
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L)));
-		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
-
-		// Patches from replica 2 (not in snapshot clock)
-		for (int i = 0; i < 3; i++) {
-			dao.savePatch(session.getSessionId(),
-					new LogicalTimestamp().setReplicaId(2L).setSequenceNumber((long) i),
-					"patch-key-r2-" + i, Duration.ofDays(119), 100);
-		}
-
-		// call under test
-		assertEquals(3, dao.countPatchesSinceLatestSnapshot(session.getSessionId()));
-	}
-
-	@Test
-	public void testCountPatchesSinceLatestSnapshotWithNullSessionId() {
-		String message = assertThrows(IllegalArgumentException.class, () -> {
-			// call under test
-			dao.countPatchesSinceLatestSnapshot(null);
-		}).getMessage();
-		assertEquals("sessionId is required.", message);
-	}
-
-	@Test
-	public void testListSessionsNeedingSnapshotWithNoSessions() {
-		// call under test
-		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 1000, 10);
-		assertTrue(result.isEmpty());
-	}
-
-	@Test
-	public void testListSessionsNeedingSnapshotWithInternalConnectionAndNoPatches() {
-		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
-		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
-		dao.createConnection(new GridConnectionInfo()
-				.setConnectionId(UUID.randomUUID().toString())
-				.setSessionId(session.getSessionId())
-				.setReplicaId(replica.getReplicaId())
-				.setCreatedBy(adminUserId)
-				.setSource(EventSource.INTERNAL));
-
-		// Session with an INTERNAL connection but no patches should not need a snapshot
-		// call under test
-		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 1000, 10);
-		assertFalse(result.contains(session.getSessionId()));
-	}
-
-	@Test
-	public void testListSessionsNeedingSnapshotWithoutInternalConnection() {
-		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
-
-		// Session without an INTERNAL connection should not be returned
-		// call under test
-		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 1000, 10);
-		assertFalse(result.contains(session.getSessionId()));
-	}
-
-	@Test
-	public void testListSessionsNeedingSnapshotWithNoSnapshotAndPatches() {
-		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
-		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
-		dao.createConnection(new GridConnectionInfo()
-				.setConnectionId(UUID.randomUUID().toString())
-				.setSessionId(session.getSessionId())
-				.setReplicaId(replica.getReplicaId())
-				.setCreatedBy(adminUserId)
-				.setSource(EventSource.INTERNAL));
-
-		dao.savePatch(session.getSessionId(),
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L),
-				"patch-key-1", Duration.ofDays(119), 100);
-
-		// Session with patches but no prior snapshot should always need a snapshot
-		// call under test
-		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 1000, 10);
-		assertTrue(result.contains(session.getSessionId()));
-	}
-
-	@Test
-	public void testListSessionsNeedingSnapshotWithSnapshotAndNoNewPatches() throws Exception {
-		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
-		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
-		dao.createConnection(new GridConnectionInfo()
-				.setConnectionId(UUID.randomUUID().toString())
-				.setSessionId(session.getSessionId())
-				.setReplicaId(replica.getReplicaId())
-				.setCreatedBy(adminUserId)
-				.setSource(EventSource.INTERNAL));
-
-		// Save a snapshot with clock covering all patches
-		ClockTable clockTable = new ClockTable(List.of(
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L)));
-		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
-
-		// Wait for the snapshot to exceed the max age
-		Thread.sleep(2000);
-
-		// Zero uncovered patches means snapshot is never needed
-		// call under test
-		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofSeconds(1), 1000, 10);
-		assertFalse(result.contains(session.getSessionId()));
-	}
-
-	@Test
-	public void testListSessionsNeedingSnapshotWithSnapshotAndPatchNewerThanMaxPatchAge() throws Exception {
-		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
-		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
-		dao.createConnection(new GridConnectionInfo()
-				.setConnectionId(UUID.randomUUID().toString())
-				.setSessionId(session.getSessionId())
-				.setReplicaId(replica.getReplicaId())
-				.setCreatedBy(adminUserId)
-				.setSource(EventSource.INTERNAL));
-
-		// Save a snapshot with clock at replica=1, seq=10
-		ClockTable clockTable = new ClockTable(List.of(
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L)));
-		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
-
-		// Add a few patches after the snapshot (below the patch count threshold)
-		for (int i = 11; i <= 13; i++) {
-			dao.savePatch(session.getSessionId(),
-					new LogicalTimestamp().setReplicaId(1L).setSequenceNumber((long) i),
-					"patch-key-" + i, Duration.ofDays(119), 100);
-		}
-
-		// Wait for the patches to exceed the max age
-		Thread.sleep(2000);
-
-		// With maxPatchAge=1 second, the session qualifies via the patch age criterion even though
-		// the 3 new patches are below the maxPatchCount=1000 threshold
-		// call under test
-		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofSeconds(1), 1000, 10);
-		assertTrue(result.contains(session.getSessionId()));
-	}
-
-	@Test
-	public void testListSessionsNeedingSnapshotWithNewPatchesExceedingMaxPatchCount() {
-		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
-		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
-		dao.createConnection(new GridConnectionInfo()
-				.setConnectionId(UUID.randomUUID().toString())
-				.setSessionId(session.getSessionId())
-				.setReplicaId(replica.getReplicaId())
-				.setCreatedBy(adminUserId)
-				.setSource(EventSource.INTERNAL));
-
-		// Save a recent snapshot with clock at replica=1, seq=10
-		ClockTable clockTable = new ClockTable(List.of(
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L)));
-		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
-
-		// Add patches with sequence numbers AFTER the snapshot clock (seq > 10)
-		for (int i = 11; i <= 15; i++) {
-			dao.savePatch(session.getSessionId(),
-					new LogicalTimestamp().setReplicaId(1L).setSequenceNumber((long) i),
-					"patch-key-" + i, Duration.ofDays(119), 100);
-		}
-
-		// With maxPatchCount=3, the 5 post-snapshot patches exceed the threshold
-		// call under test
-		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 3, 10);
-		assertTrue(result.contains(session.getSessionId()));
-	}
-
-	@Test
-	public void testListSessionsNeedingSnapshotWithPatchAtExactSnapshotBoundary() {
-		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
-		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
-		dao.createConnection(new GridConnectionInfo()
-				.setConnectionId(UUID.randomUUID().toString())
-				.setSessionId(session.getSessionId())
-				.setReplicaId(replica.getReplicaId())
-				.setCreatedBy(adminUserId)
-				.setSource(EventSource.INTERNAL));
-
-		// Snapshot clock uses next-available convention: seq=5 means patches 0-4 are covered
-		ClockTable clockTable = new ClockTable(List.of(
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(5L)));
-		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
-
-		// A patch at exactly seq=5 (the next-available value) is the first patch after the snapshot
-		// and must be counted as uncovered (>= comparison, not >)
-		dao.savePatch(session.getSessionId(),
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(5L),
-				"patch-key-boundary", Duration.ofDays(119), 100);
-
-		// call under test (set maxPatchCount to 0 to ensure we consider this single patch)
-		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 0, 10);
-		assertTrue(result.contains(session.getSessionId()));
-	}
-
-	@Test
-	public void testListSessionsNeedingSnapshotWithManyPatchesBeforeSnapshot() {
-		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
-		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
-		dao.createConnection(new GridConnectionInfo()
-				.setConnectionId(UUID.randomUUID().toString())
-				.setSessionId(session.getSessionId())
-				.setReplicaId(replica.getReplicaId())
-				.setCreatedBy(adminUserId)
-				.setSource(EventSource.INTERNAL));
-
-		// Add patches with sequence numbers 0-4 for replica 1
-		for (int i = 0; i < 5; i++) {
-			dao.savePatch(session.getSessionId(),
-					new LogicalTimestamp().setReplicaId(1L).setSequenceNumber((long) i),
-					"patch-key-" + i, Duration.ofDays(119), 100);
-		}
-
-		// Save a snapshot whose clock covers all the patches (seq=10 > 4)
-		ClockTable clockTable = new ClockTable(List.of(
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L)));
-		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
-
-		// Even with maxPatchCount=3 and 5 total patches, they are all included in the snapshot
-		// clock, so 0 patches are counted as "after snapshot" and the session should NOT be returned
-		// call under test
-		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 3, 10);
-		assertFalse(result.contains(session.getSessionId()));
-	}
-
-	@Test
-	public void testListSessionsNeedingSnapshotWithPatchesFromNewReplica() {
-		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
-		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
-		dao.createConnection(new GridConnectionInfo()
-				.setConnectionId(UUID.randomUUID().toString())
-				.setSessionId(session.getSessionId())
-				.setReplicaId(replica.getReplicaId())
-				.setCreatedBy(adminUserId)
-				.setSource(EventSource.INTERNAL));
-
-		// Save a snapshot covering only replica 1
-		ClockTable clockTable = new ClockTable(List.of(
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(10L)));
-		dao.saveSnapshot(session.getSessionId(), clockTable, "test-key", adminUserId);
-
-		// Add patches from replica 2 (not in the snapshot clock at all)
-		for (int i = 0; i < 5; i++) {
-			dao.savePatch(session.getSessionId(),
-					new LogicalTimestamp().setReplicaId(2L).setSequenceNumber((long) i),
-					"patch-key-r2-" + i, Duration.ofDays(119), 100);
-		}
-
-		// With maxPatchCount=3, patches from an unknown replica are all counted as "after snapshot"
-		// call under test
-		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 3, 10);
-		assertTrue(result.contains(session.getSessionId()));
-	}
-
-	@Test
-	public void testListSessionsNeedingSnapshotExcludesSessionsWithAnyExpiredUncoveredPatch() throws Exception {
-		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
-		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
-		dao.createConnection(new GridConnectionInfo()
-				.setConnectionId(UUID.randomUUID().toString())
-				.setSessionId(session.getSessionId())
-				.setReplicaId(replica.getReplicaId())
-				.setCreatedBy(adminUserId)
-				.setSource(EventSource.INTERNAL));
-
-		// Save one patch with a very short expiry and one with a long expiry — both are uncovered
-		dao.savePatch(session.getSessionId(),
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L),
-				"patch-key-expired", Duration.ofSeconds(1), 100);
-		dao.savePatch(session.getSessionId(),
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(2L),
-				"patch-key-live", Duration.ofDays(119), 100);
-
-		// Wait for the first patch to expire
-		Thread.sleep(2000);
-
-		// Even one expired uncovered patch is enough to exclude the session
-		// call under test
-		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 1000, 10);
-		assertFalse(result.contains(session.getSessionId()));
-	}
-
-	@Test
-	public void testListSessionsNeedingSnapshotIncludesSessionsWithExpiredCoveredPatch() throws Exception {
-		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
-		GridReplica replica = dao.createReplica(adminUserId, session.getSessionId(), false, EventSource.INTERNAL);
-		dao.createConnection(new GridConnectionInfo()
-				.setConnectionId(UUID.randomUUID().toString())
-				.setSessionId(session.getSessionId())
-				.setReplicaId(replica.getReplicaId())
-				.setCreatedBy(adminUserId)
-				.setSource(EventSource.INTERNAL));
-
-		// Save a patch with a very short expiry
-		dao.savePatch(session.getSessionId(),
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(0L),
-				"patch-key-covered", Duration.ofSeconds(1), 100);
-
-		// Save a snapshot that covers the above patch (clock seq=1 covers seq=0)
-		ClockTable clockTable = new ClockTable(List.of(
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L)));
-		dao.saveSnapshot(session.getSessionId(), clockTable, "snap-key", adminUserId);
-
-		// Wait for the first patch to expire
-		Thread.sleep(2000);
-
-		// Add a live uncovered patch (seq=1 >= snapshot clock seq=1)
-		dao.savePatch(session.getSessionId(),
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L),
-				"patch-key-live", Duration.ofDays(119), 100);
-
-		// The expired patch is covered by the snapshot and does not block snapshotting;
-		// the live uncovered patch qualifies the session
-		// call under test
-		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 0, 10);
-		assertTrue(result.contains(session.getSessionId()));
-	}
-
-	@Test
-	public void testListSessionsNeedingSnapshotWithNullMaxSnapshotAge() {
-		String message = assertThrows(IllegalArgumentException.class, () -> {
-			// call under test
-			dao.listSessionsNeedingSnapshot(null, 1000, 10);
-		}).getMessage();
-		assertEquals("maxSnapshotAge is required.", message);
-	}
-
-	@Test
-	public void testListSessionsNeedingSnapshotWithLimit() {
-		// Create two sessions that need snapshot
-		GridSession session1 = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
-		GridReplica replica1 = dao.createReplica(adminUserId, session1.getSessionId(), false, EventSource.INTERNAL);
-		dao.createConnection(new GridConnectionInfo()
-				.setConnectionId(UUID.randomUUID().toString())
-				.setSessionId(session1.getSessionId())
-				.setReplicaId(replica1.getReplicaId())
-				.setCreatedBy(adminUserId)
-				.setSource(EventSource.INTERNAL));
-
-		GridSession session2 = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
-		GridReplica replica2 = dao.createReplica(adminUserId, session2.getSessionId(), false, EventSource.INTERNAL);
-		dao.createConnection(new GridConnectionInfo()
-				.setConnectionId(UUID.randomUUID().toString())
-				.setSessionId(session2.getSessionId())
-				.setReplicaId(replica2.getReplicaId())
-				.setCreatedBy(adminUserId)
-				.setSource(EventSource.INTERNAL));
-
-		// Add patches to both sessions so they qualify for snapshotting (no snapshot, so all patches are "after snapshot")
-		dao.savePatch(session1.getSessionId(),
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L),
-				"patch-s1", Duration.ofDays(119), 100);
-		dao.savePatch(session2.getSessionId(),
-				new LogicalTimestamp().setReplicaId(1L).setSequenceNumber(1L),
-				"patch-s2", Duration.ofDays(119), 100);
-
-		// With limit=1, only one session should be returned
-		// call under test
-		List<String> result = dao.listSessionsNeedingSnapshot(Duration.ofDays(30), 1000, 1);
-		assertEquals(1, result.size());
 	}
 
 }

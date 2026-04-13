@@ -3,7 +3,6 @@ package org.sagebionetworks.worker.config;
 import org.sagebionetworks.auth.workers.ExpiredAccessTokenWorker;
 import org.sagebionetworks.database.semaphore.CountingSemaphore;
 import org.sagebionetworks.file.worker.FileHandleAssociationScanDispatcherWorker;
-import org.sagebionetworks.grid.workers.GridSessionSnapshotPublisherWorker;
 import org.sagebionetworks.principal.worker.InactiveUsersWorker;
 import org.sagebionetworks.table.worker.ReplicatedToViewConsumerWorker;
 import org.sagebionetworks.tos.workers.TermsOfServiceLatestVersionRefreshWorker;
@@ -107,23 +106,6 @@ public class TimerWorkersConfig {
 			.withStartDelay(10_000)
 			.build();
 		
-	}
-	
-	@Bean
-	public SimpleTriggerFactoryBean gridSessionSnapshotPublisherWorkerTrigger(GridSessionSnapshotPublisherWorker worker) {
-		SemaphoreGatedWorkerStackConfiguration config = new SemaphoreGatedWorkerStackConfiguration();
-
-		config.setSemaphoreLockKey("gridSessionSnapshotPublisherWorkerTrigger");
-		config.setProgressingRunner(worker);
-		config.setSemaphoreMaxLockCount(1);
-		config.setSemaphoreLockTimeoutSec(300);
-		config.setGate(stackStatusGate);
-
-		return new WorkerTriggerBuilder()
-			.withStack(new SemaphoreGatedWorkerStack(countingSemaphore, config))
-			.withRepeatInterval(30 * 60 * 1000)  // every 30 minutes
-			.withStartDelay(5 * 60 * 1000)  // 5-minute delay on startup
-			.build();
 	}
 
 	@Bean

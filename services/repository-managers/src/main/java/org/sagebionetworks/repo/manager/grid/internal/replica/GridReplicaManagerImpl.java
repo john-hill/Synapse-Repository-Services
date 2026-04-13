@@ -1,6 +1,5 @@
 package org.sagebionetworks.repo.manager.grid.internal.replica;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.net.URISyntaxException;
@@ -22,11 +21,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.grid.db.GridIndexManager;
 import org.sagebionetworks.grid.db.MessageChain;
-import org.sagebionetworks.repo.model.dbo.grid.GridDao;
-import org.sagebionetworks.repo.manager.grid.SnapshotStore;
-import org.sagebionetworks.repo.manager.grid.internal.replica.change.GridReplicaPatchBuilderManager;
 import org.sagebionetworks.repo.manager.grid.response.InternalReplicaToHubEventPublisher;
-import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.EventContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.EventType;
@@ -37,7 +32,6 @@ import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
 import org.sagebionetworks.repo.model.grid.patch.compact.LogicalTimestampCompactSerializable;
-import org.sagebionetworks.util.FileProvider;
 import org.sagebionetworks.util.RetryException;
 import org.sagebionetworks.util.TimeUtils;
 import org.sagebionetworks.util.ValidateArgument;
@@ -53,28 +47,22 @@ public class GridReplicaManagerImpl implements GridReplicaManager {
 	private static final Logger log = LogManager.getLogger(GridReplicaManagerImpl.class);
 
 	private final GridIndexManager gridIndexManager;
-	private final GridReplicaPatchBuilderManager patchBuilderManager;
-	private final SnapshotStore snapshotStore;
-	private final FileProvider fileProvider;
+	private final GridReplicaSnapshotManager snapshotManager;
 	private final InternalReplicaToHubEventPublisher publisher;
 	private final SnsClient snsClient;
 	private final String topicArn;
 	private final HttpClient httpClient;
-	private final GridDao gridDao;
 
 	public GridReplicaManagerImpl(GridIndexManager gridIndexManager,
-			GridReplicaPatchBuilderManager patchBuilderManager, SnapshotStore snapshotStore, FileProvider fileProvider,
-			InternalReplicaToHubEventPublisher publisher, SnsClient snsClient, String gridReplicaChangeTopicArn,
-			HttpClient httpClient, GridDao gridDao) {
+			GridReplicaSnapshotManager snapshotManager, InternalReplicaToHubEventPublisher publisher,
+			SnsClient snsClient, String gridReplicaChangeTopicArn,
+			HttpClient httpClient) {
 		this.gridIndexManager = gridIndexManager;
-		this.patchBuilderManager = patchBuilderManager;
-		this.snapshotStore = snapshotStore;
-		this.fileProvider = fileProvider;
+		this.snapshotManager = snapshotManager;
 		this.publisher = publisher;
 		this.snsClient = snsClient;
 		this.topicArn = gridReplicaChangeTopicArn;
 		this.httpClient = httpClient;
-		this.gridDao = gridDao;
 	}
 
 	void synchronizeClock(ProgressCallback callback, GridConnectionInfo connection) {
@@ -101,6 +89,7 @@ public class GridReplicaManagerImpl implements GridReplicaManager {
 	@Override
 	public void onResponseComplete(ProgressCallback callback, GridConnectionInfo connection, Integer methodId) {
 		gridIndexManager.completeMessageChain(connection.getSessionId(), connection.getReplicaId(), methodId);
+		snapshotManager.createSnapshotIfPatchCountIsExceeded(connection);
 	}
 
 	@Override
@@ -191,39 +180,5 @@ public class GridReplicaManagerImpl implements GridReplicaManager {
 	@Override
 	public void onNewPatch(ProgressCallback callback, GridConnectionInfo connection) {
 		synchronizeClock(callback, connection);
-	}
-
-	@Override
-	public void onExportSnapshot(ProgressCallback callback, GridConnectionInfo connection) {
-		String sessionId = connection.getSessionId();
-		Long replicaId = connection.getReplicaId();
-		Long createdByUserId = connection.getCreatedBy();
-
-		Optional<LogicalTimestamp> currentClock = patchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId,
-				replicaId);
-		if (!currentClock.isPresent()) {
-			log.info("Session {} replica {} is not fully synchronized. Skipping snapshot export.", sessionId, replicaId);
-			return;
-		}
-
-		if (gridDao.countPatchesSinceLatestSnapshot(sessionId) < 1) {
-			log.info("Session {} has no new patches since latest snapshot. Skipping export.", sessionId);
-			return;
-		}
-
-		File tempFile = null;
-		try {
-			tempFile = fileProvider.createTempFile("grid-snapshot-", ".cbor");
-			ClockTable clockTable = gridIndexManager.exportSnapshot(sessionId, replicaId, tempFile.toPath());
-			snapshotStore.saveSnapshot(sessionId, clockTable, createdByUserId, tempFile);
-			log.info("Successfully exported snapshot for session {} with {} clock entries.", sessionId,
-					clockTable.getClocks().size());
-		} catch (IOException e) {
-			throw new RuntimeException("Failed to create temp file for snapshot export", e);
-		} finally {
-			if (tempFile != null) {
-				tempFile.delete();
-			}
-		}
 	}
 }

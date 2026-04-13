@@ -135,11 +135,10 @@ public interface GridDao {
 	 * @param sessionId
 	 * @param patchId
 	 * @param s3Key
-	 * @param expires
 	 * @param sizeBytes
 	 * @return True of this was a new patch, else false.
 	 */
-	boolean savePatch(String sessionId, LogicalTimestamp patchId, String s3Key, Duration expires, long sizeBytes);
+	boolean savePatch(String sessionId, LogicalTimestamp patchId, String s3Key, long sizeBytes);
 
 	/**
 	 * Save grid snapshot data.
@@ -169,6 +168,14 @@ public interface GridDao {
 	 * @return
 	 */
 	List<PatchInfo> listMissingPatchInfoForClock(String sessionId, List<LogicalTimestamp> clock, long limit);
+
+	/**
+	 * Count the number of patches that are newer than the provided clock for the given session.
+	 *
+	 * @param sessionId The grid session ID
+	 * @return The count of patches after the clock
+	 */
+	int countMissingPatchesForClock(String sessionId, List<LogicalTimestamp> clock);
 
 	/**
 	 * List the active grid session for a user filtered by the provided sourceId.
@@ -220,26 +227,4 @@ public interface GridDao {
 	 */
 	List<String> listAllSessionIds(long limit, long offset);
 
-	/**
-	 * Count the number of patches that are newer than the latest snapshot's clock for the given session.
-	 * Returns 0 if no patches exist beyond the latest snapshot (or if no patches exist at all).
-	 *
-	 * @param sessionId The grid session ID
-	 * @return The count of patches since the latest snapshot
-	 */
-	int countPatchesSinceLatestSnapshot(String sessionId);
-
-	/**
-	 * Find grid sessions that need a new snapshot.
-	 * A session needs a new snapshot if:
-	 *   - Its latest snapshot is older than maxSnapshotAge, OR
-	 *   - It has more than maxPatchCount patches since the latest snapshot
-	 * Only sessions with an INTERNAL connection are returned.
-	 *
-	 * @param maxSnapshotAge Maximum age of the latest snapshot
-	 * @param maxPatchCount  Maximum number of patches since the latest snapshot
-	 * @param limit          Maximum number of sessions to return
-	 * @return List of session IDs needing a new snapshot
-	 */
-	List<String> listSessionsNeedingSnapshot(Duration maxSnapshotAge, int maxPatchCount, int limit);
 }

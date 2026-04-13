@@ -5,18 +5,15 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.net.http.HttpClient;
@@ -39,11 +36,7 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.grid.db.GridIndexManager;
 import org.sagebionetworks.grid.db.MessageChain;
-import org.sagebionetworks.repo.model.dbo.grid.GridDao;
-import org.sagebionetworks.repo.manager.grid.SnapshotStore;
-import org.sagebionetworks.repo.manager.grid.internal.replica.change.GridReplicaPatchBuilderManager;
 import org.sagebionetworks.repo.manager.grid.response.InternalReplicaToHubEventPublisher;
-import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.EventContext;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.EventType;
@@ -54,7 +47,6 @@ import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
 import org.sagebionetworks.repo.model.grid.patch.compact.LogicalTimestampCompactSerializable;
-import org.sagebionetworks.util.FileProvider;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -67,12 +59,6 @@ public class GridReplicaManagerImplTest {
 	@Mock
 	private GridIndexManager mockGridIndexManager;
 	@Mock
-	private GridReplicaPatchBuilderManager mockPatchBuilderManager;
-	@Mock
-	private SnapshotStore mockSnapshotStore;
-	@Mock
-	private FileProvider mockFileProvider;
-	@Mock
 	private InternalReplicaToHubEventPublisher mockPublisher;
 	@Mock
 	private ProgressCallback mockCallback;
@@ -83,7 +69,7 @@ public class GridReplicaManagerImplTest {
 	@Mock
 	private HttpResponse<Path> mockHttpResponse;
 	@Mock
-	private GridDao mockGridDao;
+	private GridReplicaSnapshotManager mockSnapshotManager;
 
 	private GridConnectionInfo connection;
 	private String sessionId;
@@ -140,7 +126,9 @@ public class GridReplicaManagerImplTest {
 	public void testOnResponseComplete() {
 		// call under test
 		manager.onResponseComplete(mockCallback, connection, methodId);
-		verify(mockGridIndexManager).completeMessageChain(sessionId, replicaId, methodId);
+		InOrder inOrder = inOrder(mockGridIndexManager, mockSnapshotManager);
+		inOrder.verify(mockGridIndexManager).completeMessageChain(sessionId, replicaId, methodId);
+		inOrder.verify(mockSnapshotManager).createSnapshotIfPatchCountIsExceeded(connection);
 	}
 
 	@Test
@@ -398,78 +386,5 @@ public class GridReplicaManagerImplTest {
 		Thread.interrupted();
 	}
 
-	@Test
-	public void testOnExportSnapshotSuccess() throws Exception {
-		connection.setCreatedBy(789L);
-		LogicalTimestamp clockEntry = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(100L);
-		when(mockPatchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId))
-				.thenReturn(Optional.of(clockEntry));
-		when(mockGridDao.countPatchesSinceLatestSnapshot(sessionId)).thenReturn(5);
-
-		File tempFile = File.createTempFile("test-", ".cbor");
-		tempFile.deleteOnExit();
-		when(mockFileProvider.createTempFile(any(), any())).thenReturn(tempFile);
-
-		ClockTable clockTable = new ClockTable(List.of(clockEntry));
-		when(mockGridIndexManager.exportSnapshot(eq(sessionId), eq(replicaId), any(Path.class)))
-				.thenReturn(clockTable);
-
-		// call under test
-		manager.onExportSnapshot(mockCallback, connection);
-
-		verify(mockGridIndexManager).exportSnapshot(eq(sessionId), eq(replicaId), any(Path.class));
-		verify(mockSnapshotStore).saveSnapshot(eq(sessionId), eq(clockTable), eq(789L), any(File.class));
-		assertFalse(tempFile.exists(), "Temp file should be deleted after successful export");
-	}
-
-	@Test
-	public void testOnExportSnapshotWithUnsynchronizedReplica() {
-		when(mockPatchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId))
-				.thenReturn(Optional.empty());
-
-		// call under test
-		manager.onExportSnapshot(mockCallback, connection);
-
-		verify(mockGridIndexManager, never()).exportSnapshot(any(), any(), any());
-		verify(mockSnapshotStore, never()).saveSnapshot(any(), any(), any(), any());
-	}
-
-	@Test
-	public void testOnExportSnapshotWithNoPatchesSinceLatestSnapshot() {
-		LogicalTimestamp clockEntry = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(100L);
-		when(mockPatchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId))
-				.thenReturn(Optional.of(clockEntry));
-		when(mockGridDao.countPatchesSinceLatestSnapshot(sessionId)).thenReturn(0);
-
-		// call under test
-		manager.onExportSnapshot(mockCallback, connection);
-
-		verify(mockGridIndexManager, never()).exportSnapshot(any(), any(), any());
-		verify(mockSnapshotStore, never()).saveSnapshot(any(), any(), any(), any());
-	}
-
-	@Test
-	public void testOnExportSnapshotCleansUpOnFailure() throws Exception {
-		connection.setCreatedBy(789L);
-		LogicalTimestamp clockEntry = new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(100L);
-		when(mockPatchBuilderManager.getCurrentClockIfAllPatchesApplied(sessionId, replicaId))
-				.thenReturn(Optional.of(clockEntry));
-		when(mockGridDao.countPatchesSinceLatestSnapshot(sessionId)).thenReturn(5);
-
-		File tempFile = File.createTempFile("test-", ".cbor");
-		tempFile.deleteOnExit();
-		when(mockFileProvider.createTempFile(any(), any())).thenReturn(tempFile);
-
-		when(mockGridIndexManager.exportSnapshot(eq(sessionId), eq(replicaId), any(Path.class)))
-				.thenThrow(new RuntimeException("Export failed"));
-
-		// call under test
-		assertThrows(RuntimeException.class, () -> {
-			manager.onExportSnapshot(mockCallback, connection);
-		});
-
-		verify(mockSnapshotStore, never()).saveSnapshot(any(), any(), any(), any());
-		assertFalse(tempFile.exists(), "Temp file should be deleted after failure");
-	}
 
 }

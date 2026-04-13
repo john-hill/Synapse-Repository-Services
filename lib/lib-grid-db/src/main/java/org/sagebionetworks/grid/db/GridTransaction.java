@@ -34,10 +34,4 @@ public @interface GridTransaction {
 	 */
 	@AliasFor(annotation = Transactional.class)
 	boolean readOnly() default false;
-
-	/**
-	 * Alias for {@link Transactional#isolation}. Defaults to {@link Isolation#READ_COMMITTED}.
-	 */
-	@AliasFor(annotation = Transactional.class)
-	Isolation isolation() default Isolation.READ_COMMITTED;
 }

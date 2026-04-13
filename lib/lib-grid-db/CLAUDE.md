@@ -80,7 +80,7 @@ Snapshots are imported without loading the entire file into memory:
 ### Snapshot Export Flow
 
 `GridIndexManager.exportSnapshot()` streams a replica's current state out to a CBOR file without loading the full document into memory:
-1. Has `REPEATABLE_READ` transaction level for a consistent read across paginated queries
+1. Requires a consistent read for the internal replica nodes
 2. Gets the root `ObjectNode` to determine the root node ID for the CBOR header
 3. Streams each node type in pages via `GridIndexDao` pagination methods: `streamConstants`, `streamObjects`, `streamValues` (excludes root (0,0) node), `streamVectors`
 4. Fetches all array IDs via `getAllArrayIds`, reads each full `ArrayNode` including tombstones
@@ -96,7 +96,7 @@ The `GRID_REPLICA_RGA` table implements the Replicated Growable Array with prede
 
 ### `@GridTransaction` Annotation
 
-Custom transaction annotation that binds to `gridTransactionManager` (NOT the main app's primary transaction manager). Required because the grid uses a **separate database** from the main Synapse database. Defaults to `READ_COMMITTED` isolation and `REQUIRED` propagation. Supports an `isolation` attribute to override per-method — snapshot export uses `REPEATABLE_READ` to ensure a consistent view across paginated reads.
+Custom transaction annotation that binds to `gridTransactionManager` (NOT the main app's primary transaction manager). Required because the grid uses a **separate database** from the main Synapse database. Always uses `READ_COMMITTED` isolation and `REQUIRED` propagation.
 
 ### Handler Pattern
 

@@ -111,6 +111,7 @@
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.discussion.DBODiscussionThreadStats" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.discussion.DBODiscussionThreadView" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.discussion.DBODiscussionThreadEntityReference" />
+				<bean class="org.sagebionetworks.repo.model.dbo.persistence.discussion.DBODiscussionThreadSubmissionReference" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.discussion.DBODiscussionReply" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.discussion.DBODiscussionSearchIndexRecord" />
 

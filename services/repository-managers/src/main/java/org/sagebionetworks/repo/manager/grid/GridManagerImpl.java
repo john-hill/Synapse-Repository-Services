@@ -454,7 +454,7 @@ public class GridManagerImpl implements GridManager {
 	Optional<JSONArray> getPatchBody(String sessionId, PatchInfo patch) {
 		ValidateArgument.required(sessionId, "sessionId");
 		ValidateArgument.required(patch, "patch");
-		if (Instant.now().isAfter(patch.getExpiresOn().toInstant())) {
+		if (patch.getExpiresOn() != null && Instant.now().isAfter(patch.getExpiresOn().toInstant())) {
 			throw new NotFoundException("The requested patch has expired: " + patch.getPatchId());
 		}
 

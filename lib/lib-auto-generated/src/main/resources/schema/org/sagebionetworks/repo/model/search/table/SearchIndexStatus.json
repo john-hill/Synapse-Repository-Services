@@ -1,0 +1,31 @@
+{
+	"description": "The build status of a SearchIndex's OpenSearch index.",
+	"properties": {
+		"searchIndexId": {
+			"type": "string",
+			"description": "The ID of the SearchIndex entity."
+		},
+		"state": {
+			"description": "The current state of the SearchIndex's OpenSearch index.",
+			"$ref": "org.sagebionetworks.repo.model.search.table.SearchIndexState"
+		},
+		"lastBuildOn": {
+			"type": "string",
+			"format": "date-time",
+			"description": "The date-time when the index was last built."
+		},
+		"changedOn": {
+			"type": "string",
+			"format": "date-time",
+			"description": "The date-time when the status last changed."
+		},
+		"errorMessage": {
+			"type": "string",
+			"description": "When the build fails, this is the error message."
+		},
+		"appliedConfiguration": {
+			"type": "string",
+			"description": "The serialized OpenSearch CreateIndexRequest JSON that was applied when the index was last built. Contains the exact settings, mappings, and analysis configuration sent to AOSS. Only present when the state is ACTIVE."
+		}
+	}
+}

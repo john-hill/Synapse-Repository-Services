@@ -125,4 +125,49 @@ public class ColumnTypeToOpenSearchMappingTest {
 	void testEveryColumnTypeHasDefaultAnalyzer(ColumnType type) {
 		assertNotNull(ColumnTypeToOpenSearchMapping.getDefaultAnalyzerId(type));
 	}
+
+	@ParameterizedTest(name = "Every ColumnType has a default analyzer qualified name")
+	@EnumSource(ColumnType.class)
+	void testEveryColumnTypeHasDefaultAnalyzerQualifiedName(ColumnType type) {
+		String qualifiedName = ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(type);
+		assertNotNull(qualifiedName, "Expected non-null qualified name for " + type);
+		assertTrue(qualifiedName.contains("-"), "Qualified name should contain a dash separator: " + qualifiedName);
+	}
+
+	@Test
+	void testGetDefaultAnalyzerQualifiedNameWithStringType() {
+		assertEquals("org.sagebionetworks-SCIENTIFIC",
+				ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(ColumnType.STRING));
+	}
+
+	@Test
+	void testGetDefaultAnalyzerQualifiedNameWithLinkType() {
+		assertEquals("org.sagebionetworks-KEYWORD",
+				ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(ColumnType.LINK));
+	}
+
+	@Test
+	void testGetDefaultAnalyzerQualifiedNameWithJsonType() {
+		assertEquals("org.sagebionetworks-STANDARD",
+				ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(ColumnType.JSON));
+	}
+
+	@Test
+	void testQualifiedNameAndIdMapParityWithAllTypes() {
+		// Verify that every column type maps to consistent ID and qualified name
+		for (ColumnType type : ColumnType.values()) {
+			Long id = ColumnTypeToOpenSearchMapping.getDefaultAnalyzerId(type);
+			String qualifiedName = ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(type);
+			assertNotNull(id, "Missing ID mapping for " + type);
+			assertNotNull(qualifiedName, "Missing qualified name mapping for " + type);
+			// Verify the qualified name ends with the expected analyzer name for the given ID
+			if (id.equals(TextAnalyzerBootstrapper.SCIENTIFIC_ID)) {
+				assertTrue(qualifiedName.endsWith("-SCIENTIFIC"), type + " should map to SCIENTIFIC");
+			} else if (id.equals(TextAnalyzerBootstrapper.KEYWORD_ID)) {
+				assertTrue(qualifiedName.endsWith("-KEYWORD"), type + " should map to KEYWORD");
+			} else if (id.equals(TextAnalyzerBootstrapper.STANDARD_ID)) {
+				assertTrue(qualifiedName.endsWith("-STANDARD"), type + " should map to STANDARD");
+			}
+		}
+	}
 }

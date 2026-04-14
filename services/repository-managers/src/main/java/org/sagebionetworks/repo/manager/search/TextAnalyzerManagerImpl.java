@@ -28,12 +28,14 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 	private final TextAnalyzerDao textAnalyzerDao;
 	private final AccessControlListDAO aclDao;
 	private final OrganizationDao organizationDao;
+	private final OpenSearchManager openSearchManager;
 
 	public TextAnalyzerManagerImpl(TextAnalyzerDao textAnalyzerDao, AccessControlListDAO aclDao,
-			OrganizationDao organizationDao) {
+			OrganizationDao organizationDao, OpenSearchManager openSearchManager) {
 		this.textAnalyzerDao = textAnalyzerDao;
 		this.aclDao = aclDao;
 		this.organizationDao = organizationDao;
+		this.openSearchManager = openSearchManager;
 	}
 
 	@Override
@@ -54,6 +56,8 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 			aclDao.canAccess(user, resolveOrganizationId(analyzer.getOrganizationName()), ObjectType.ORGANIZATION, ACCESS_TYPE.CREATE)
 				.checkAuthorizationOrElseThrow();
 		}
+
+		openSearchManager.validateAnalyzerSettings(analyzer.getSettings());
 
 		return textAnalyzerDao.create(analyzer, user.getId());
 	}
@@ -94,6 +98,10 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		if (!user.isAdmin()) {
 			aclDao.canAccess(user, resolveOrganizationId(existing.getOrganizationName()), ObjectType.ORGANIZATION, ACCESS_TYPE.UPDATE)
 				.checkAuthorizationOrElseThrow();
+		}
+
+		if (analyzer.getSettings() != null) {
+			openSearchManager.validateAnalyzerSettings(analyzer.getSettings());
 		}
 
 		return textAnalyzerDao.update(analyzer, user.getId());

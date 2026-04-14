@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import org.mockito.InOrder;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -43,6 +45,8 @@ public class TextAnalyzerManagerImplTest {
 	private AccessControlListDAO aclDao;
 	@Mock
 	private OrganizationDao organizationDao;
+	@Mock
+	private OpenSearchManager openSearchManager;
 
 	@InjectMocks
 	private TextAnalyzerManagerImpl manager;
@@ -322,4 +326,96 @@ public class TextAnalyzerManagerImplTest {
 		assertEquals(1, response.getResults().size());
 	}
 
+	// --- Analyzer validation ---
+
+	@Test
+	public void testCreateCallsValidateBeforePersist() {
+		TextAnalyzerSettings settings = new TextAnalyzerSettings().setTokenizer("standard");
+		TextAnalyzer input = new TextAnalyzer()
+			.setOrganizationName("test-org").setName("test").setSettings(settings);
+		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
+		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.CREATE)))
+			.thenReturn(AuthorizationStatus.authorized());
+		when(textAnalyzerDao.create(any(), eq(1L))).thenReturn(input.setId("1000"));
+
+		// call under test
+		manager.create(sageUser, input);
+
+		InOrder inOrder = inOrder(openSearchManager, textAnalyzerDao);
+		inOrder.verify(openSearchManager).validateAnalyzerSettings(settings);
+		inOrder.verify(textAnalyzerDao).create(any(), eq(1L));
+	}
+
+	@Test
+	public void testCreateThrowsWhenValidationFails() {
+		TextAnalyzerSettings settings = new TextAnalyzerSettings().setTokenizer("bad_tokenizer");
+		TextAnalyzer input = new TextAnalyzer()
+			.setOrganizationName("test-org").setName("test").setSettings(settings);
+		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
+		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.CREATE)))
+			.thenReturn(AuthorizationStatus.authorized());
+		doThrow(new IllegalArgumentException("Invalid analyzer configuration: Unknown tokenizer"))
+			.when(openSearchManager).validateAnalyzerSettings(settings);
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+			() -> manager.create(sageUser, input));
+		assertTrue(ex.getMessage().contains("Invalid analyzer configuration"));
+		verifyZeroInteractions(textAnalyzerDao);
+	}
+
+	@Test
+	public void testUpdateCallsValidateBeforePersist() {
+		TextAnalyzerSettings settings = new TextAnalyzerSettings().setTokenizer("standard");
+		TextAnalyzer input = new TextAnalyzer()
+			.setId("1").setOrganizationName("test-org").setName("test_name").setSettings(settings);
+		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationName("test-org").setName("test_name")));
+		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
+		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
+			.thenReturn(AuthorizationStatus.authorized());
+		when(textAnalyzerDao.update(any(), eq(1L))).thenReturn(input);
+
+		// call under test
+		manager.update(sageUser, input);
+
+		InOrder inOrder = inOrder(openSearchManager, textAnalyzerDao);
+		inOrder.verify(openSearchManager).validateAnalyzerSettings(settings);
+		inOrder.verify(textAnalyzerDao).update(any(), eq(1L));
+	}
+
+	@Test
+	public void testUpdateThrowsWhenValidationFails() {
+		TextAnalyzerSettings settings = new TextAnalyzerSettings().setTokenizer("bad_tokenizer");
+		TextAnalyzer input = new TextAnalyzer()
+			.setId("1").setOrganizationName("test-org").setName("test_name").setSettings(settings);
+		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationName("test-org").setName("test_name")));
+		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
+		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
+			.thenReturn(AuthorizationStatus.authorized());
+		doThrow(new IllegalArgumentException("Invalid analyzer configuration: Unknown tokenizer"))
+			.when(openSearchManager).validateAnalyzerSettings(settings);
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+			() -> manager.update(sageUser, input));
+		assertTrue(ex.getMessage().contains("Invalid analyzer configuration"));
+		verify(textAnalyzerDao, never()).update(any(), anyLong());
+	}
+
+	@Test
+	public void testUpdateSkipsValidationWhenSettingsNull() {
+		TextAnalyzer input = new TextAnalyzer()
+			.setId("1").setOrganizationName("test-org").setName("test_name");
+		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationName("test-org").setName("test_name")));
+		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
+		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
+			.thenReturn(AuthorizationStatus.authorized());
+		when(textAnalyzerDao.update(any(), eq(1L))).thenReturn(input);
+
+		// call under test
+		manager.update(sageUser, input);
+
+		verifyZeroInteractions(openSearchManager);
+		verify(textAnalyzerDao).update(any(), eq(1L));
+	}
 }

@@ -307,6 +307,7 @@ import org.sagebionetworks.repo.model.schema.Organization;
 import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.schema.ValidationSummaryStatistics;
 import org.sagebionetworks.repo.model.search.SearchResults;
+import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
 import org.sagebionetworks.repo.model.search.query.SearchQuery;
 import org.sagebionetworks.repo.model.statistics.ObjectStatisticsRequest;
 import org.sagebionetworks.repo.model.statistics.ObjectStatisticsResponse;
@@ -4737,6 +4738,8 @@ public interface SynapseClient extends BaseClient {
 	SearchConfigBinding getSearchConfigBindingForEntity(String entityId) throws SynapseException;
 
 	void clearSearchConfigBindingForEntity(String entityId) throws SynapseException;
+
+	SearchIndexStatus getSearchIndexStatus(String searchIndexId) throws SynapseException;
 
 }
 

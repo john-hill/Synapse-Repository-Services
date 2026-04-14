@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.model.dbo.search;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
@@ -14,5 +15,12 @@ public interface SynonymSetDao {
 	List<SynonymSet> listAll(long limit, long offset);
 	Optional<SynonymSet> getByOrganizationAndName(String organizationName, String name);
 	List<String> findNonExistentNames(List<String> qualifiedNames);
+
+	/**
+	 * Batch lookup synonym sets by their qualified names ({orgName}-{name}).
+	 * @return Map of qualified name to SynonymSet for all found entries
+	 */
+	Map<String, SynonymSet> getByQualifiedNames(List<String> qualifiedNames);
+
 	void truncateAll();
 }

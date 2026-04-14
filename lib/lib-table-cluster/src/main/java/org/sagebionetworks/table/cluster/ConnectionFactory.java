@@ -5,6 +5,7 @@ import java.util.List;
 import javax.sql.DataSource;
 
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
+import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
 
 /**
  * The connection factory provides database connections to the cluster of database used to support the Table feature.
@@ -15,12 +16,12 @@ public interface ConnectionFactory {
 
 	/**
 	 * Get a connection used for interacting with a given table.
-	 * 
+	 *
 	 * @param tableId
 	 * @return
 	 */
 	TableIndexDAO getConnection(IdAndVersion tableId);
-	
+
 	/**
 	 * Get all connections.
 	 * @return
@@ -32,12 +33,13 @@ public interface ConnectionFactory {
 	 * @return
 	 */
 	TableIndexDAO getFirstConnection();
-	
+
 	/**
 	 * Get the first DataSource connection.
-	 * 
+	 *
 	 * @return
 	 */
 	DataSource getFirstDataSource();
-	
+
+	SearchIndexStatusDao getSearchIndexStatusDao();
 }

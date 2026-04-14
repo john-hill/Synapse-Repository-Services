@@ -351,6 +351,7 @@ import org.sagebionetworks.repo.model.schema.Organization;
 import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.schema.ValidationSummaryStatistics;
 import org.sagebionetworks.repo.model.search.SearchResults;
+import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
 import org.sagebionetworks.repo.model.search.query.SearchQuery;
 import org.sagebionetworks.repo.model.statistics.ObjectStatisticsRequest;
 import org.sagebionetworks.repo.model.statistics.ObjectStatisticsResponse;
@@ -788,6 +789,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	private static final String SEARCH_CONFIGURATION = "/search/configuration";
 	private static final String SEARCH_CONFIGURATION_LIST = SEARCH_CONFIGURATION + "/list";
 	private static final String ENTITY_SEARCH_CONFIG_BINDING = "/entity/%s/searchconfig/binding";
+	private static final String ENTITY_SEARCH_INDEX_STATUS = "/entity/%s/search/status";
 
 	/**
 	 * Default constructor uses the default repository and file services endpoints.
@@ -6804,6 +6806,13 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public ListColumnAnalyzerOverridesResponse listColumnAnalyzerOverrides(ListColumnAnalyzerOverridesRequest request) throws SynapseException {
 		ValidateArgument.required(request, "request");
 		return postJSONEntity(getRepoEndpoint(), SEARCH_COLUMN_ANALYZER_OVERRIDE_LIST, request, ListColumnAnalyzerOverridesResponse.class);
+	}
+
+	@Override
+	public SearchIndexStatus getSearchIndexStatus(String searchIndexId) throws SynapseException {
+		ValidateArgument.required(searchIndexId, "searchIndexId");
+		String url = String.format(ENTITY_SEARCH_INDEX_STATUS, searchIndexId);
+		return getJSONEntity(getRepoEndpoint(), url, SearchIndexStatus.class);
 	}
 
 }

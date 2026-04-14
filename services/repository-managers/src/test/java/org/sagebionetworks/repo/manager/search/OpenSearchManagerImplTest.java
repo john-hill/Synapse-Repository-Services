@@ -596,6 +596,7 @@ public class OpenSearchManagerImplTest {
 
 			SearchQuery query = buildBasicQuery("cancer");
 			query.setQueryType(SearchQueryType.MATCH);
+			query.setQueryFields(Arrays.asList("studyName"));
 
 			// call under test
 			SearchQueryResults results = manager.search(INDEX_NAME, query, buildTestColumns(),
@@ -625,6 +626,7 @@ public class OpenSearchManagerImplTest {
 
 			SearchQuery query = buildBasicQuery("breast cancer");
 			query.setQueryType(SearchQueryType.MATCH_PHRASE);
+			query.setQueryFields(Arrays.asList("studyName"));
 
 			// call under test
 			SearchQueryResults results = manager.search(INDEX_NAME, query, buildTestColumns(),
@@ -653,6 +655,7 @@ public class OpenSearchManagerImplTest {
 
 			SearchQuery query = buildBasicQuery("can*er");
 			query.setQueryType(SearchQueryType.WILDCARD);
+			query.setQueryFields(Arrays.asList("studyName"));
 
 			// call under test
 			SearchQueryResults results = manager.search(INDEX_NAME, query, buildTestColumns(),

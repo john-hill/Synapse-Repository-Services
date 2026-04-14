@@ -35,12 +35,15 @@ public class SearchIndexStatusDaoImpl implements SearchIndexStatusDao {
 	@Override
 	public void createOrUpdate(Long searchIndexId, SearchIndexState state, String errorMessage,
 			String appliedConfigurationJson) {
+		String stateName = state.name();
+		String activeName = SearchIndexState.ACTIVE.name();
 		template.update(
-				"INSERT INTO SEARCH_INDEX_STATUS (SEARCH_INDEX_ID, STATE, ERROR_MESSAGE, APPLIED_CONFIGURATION, CHANGED_ON)"
-				+ " VALUES (?, ?, ?, ?, NOW(3))"
-				+ " ON DUPLICATE KEY UPDATE STATE = ?, ERROR_MESSAGE = ?, APPLIED_CONFIGURATION = ?, CHANGED_ON = NOW(3)",
-				searchIndexId, state.name(), errorMessage, appliedConfigurationJson,
-				state.name(), errorMessage, appliedConfigurationJson);
+				"INSERT INTO SEARCH_INDEX_STATUS (SEARCH_INDEX_ID, STATE, LAST_BUILD_ON, ERROR_MESSAGE, APPLIED_CONFIGURATION, CHANGED_ON)"
+				+ " VALUES (?, ?, CASE WHEN ? = ? THEN NOW(3) ELSE NULL END, ?, ?, NOW(3))"
+				+ " ON DUPLICATE KEY UPDATE STATE = ?, LAST_BUILD_ON = CASE WHEN ? = ? THEN NOW(3) ELSE LAST_BUILD_ON END,"
+				+ " ERROR_MESSAGE = ?, APPLIED_CONFIGURATION = ?, CHANGED_ON = NOW(3)",
+				searchIndexId, stateName, stateName, activeName, errorMessage, appliedConfigurationJson,
+				stateName, stateName, activeName, errorMessage, appliedConfigurationJson);
 	}
 
 	@Override

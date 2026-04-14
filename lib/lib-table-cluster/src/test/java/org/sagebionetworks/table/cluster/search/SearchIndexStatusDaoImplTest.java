@@ -103,6 +103,7 @@ public class SearchIndexStatusDaoImplTest {
 		assertEquals("Something broke", status.getErrorMessage());
 		assertNull(status.getAppliedConfiguration());
 		assertNotNull(status.getChangedOn());
+		assertNull(status.getLastBuildOn());
 	}
 
 	@Test
@@ -120,6 +121,22 @@ public class SearchIndexStatusDaoImplTest {
 		assertTrue(status.getAppliedConfiguration().contains("mappings"));
 		assertTrue(status.getAppliedConfiguration().contains("settings"));
 		assertNotNull(status.getChangedOn());
+		assertNotNull(status.getLastBuildOn());
+	}
+
+	@Test
+	void testLastBuildOnPreservedAfterFailedRebuild() {
+		dao.createOrUpdate(42L, SearchIndexState.ACTIVE, null, "{}");
+		SearchIndexStatus active = dao.getStatus(42L).orElseThrow();
+		assertNotNull(active.getLastBuildOn());
+
+		// A subsequent FAILED update should preserve the previous lastBuildOn
+		dao.createOrUpdate(42L, SearchIndexState.FAILED, "rebuild failed", null);
+		// call under test
+		SearchIndexStatus failed = dao.getStatus(42L).orElseThrow();
+		assertEquals(SearchIndexState.FAILED, failed.getState());
+		assertNotNull(failed.getLastBuildOn());
+		assertEquals(active.getLastBuildOn(), failed.getLastBuildOn());
 	}
 
 	@Test

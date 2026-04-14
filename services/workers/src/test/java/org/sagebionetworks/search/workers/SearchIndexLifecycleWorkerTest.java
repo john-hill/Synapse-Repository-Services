@@ -225,8 +225,8 @@ public class SearchIndexLifecycleWorkerTest {
 
 		verify(statusDao).createOrUpdate(KeyFactory.stringToKey(entityId), SearchIndexState.CREATING, null, null);
 		verify(statusDao).createOrUpdate(KeyFactory.stringToKey(entityId), SearchIndexState.FAILED, errorMsg, null);
-		// Verify OpenSearch was never called since the failure happened before index creation
-		verifyZeroInteractions(openSearchManager);
+		// Verify partial index is cleaned up on failure
+		verify(openSearchManager).deleteIndex("search-index-" + entityId);
 	}
 
 	// --- Dependency checking tests ---
@@ -287,6 +287,8 @@ public class SearchIndexLifecycleWorkerTest {
 				argThat(s -> s != null && s.contains("PROCESSING_FAILED")), isNull());
 		// CREATING status should NOT have been set
 		verify(statusDao, never()).createOrUpdate(any(), eq(SearchIndexState.CREATING), any(), any());
+		// Verify partial index is cleaned up on failure
+		verify(openSearchManager).deleteIndex("search-index-" + entityId);
 	}
 
 	@Test

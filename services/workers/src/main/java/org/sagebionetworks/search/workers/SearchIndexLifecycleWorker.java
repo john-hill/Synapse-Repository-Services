@@ -211,6 +211,10 @@ public class SearchIndexLifecycleWorker implements BatchChangeMessageDrivenRunne
 
 						String indexName = getIndexName(entityId);
 						String defaultAnalyzer = config != null ? config.getDefaultAnalyzer() : null;
+						// Delete any existing index before creating (no-op if missing).
+						// This ensures UPDATE messages get fresh mappings instead of
+						// silently keeping stale ones from a prior build.
+						openSearchManager.deleteIndex(indexName);
 						// createIndex returns the serialized CreateIndexRequest JSON
 						appliedConfigJson[0] = openSearchManager.createIndex(indexName,
 								selectedColumns, defaultAnalyzer,
@@ -224,6 +228,11 @@ public class SearchIndexLifecycleWorker implements BatchChangeMessageDrivenRunne
 			throw e;
 		} catch (Exception e) {
 			LOG.error("Failed to build search index for entity: " + entityId, e);
+			try {
+				openSearchManager.deleteIndex(getIndexName(entityId));
+			} catch (Exception deleteEx) {
+				LOG.error("Failed to clean up partial index for entity: " + entityId, deleteEx);
+			}
 			String errorMessage = e.getMessage();
 			if (errorMessage != null && errorMessage.length() > MAX_ERROR_MESSAGE_LENGTH) {
 				errorMessage = errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH);

@@ -1,6 +1,8 @@
 package org.sagebionetworks.repo.model.grid;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.ByteArrayOutputStream;
@@ -338,5 +340,49 @@ public class ClockTableTest {
         assertThrows(IllegalArgumentException.class, () -> clockTable.processNode(null));
     }
 
+    @Test
+    public void testIncrement() {
+        ClockTable clockTable = new ClockTable(new ArrayList<>(List.of(
+            new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(10L),
+            new LogicalTimestamp().setReplicaId(101L).setSequenceNumber(11L)
+        )));
+
+        clockTable.incrementClocks();
+
+        assertEquals(2, clockTable.getClocks().size());
+        assertEquals(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(11L), clockTable.getClocks().get(0));
+        assertEquals(new LogicalTimestamp().setReplicaId(101L).setSequenceNumber(12L), clockTable.getClocks().get(1));
+    }
+
+    @Test
+    public void testDecrement() {
+        ClockTable clockTable = new ClockTable(new ArrayList<>(List.of(
+                new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(10L),
+                new LogicalTimestamp().setReplicaId(101L).setSequenceNumber(11L)
+        )));
+
+        clockTable.decrementClocks();
+
+        assertEquals(2, clockTable.getClocks().size());
+        assertEquals(new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(9L), clockTable.getClocks().get(0));
+        assertEquals(new LogicalTimestamp().setReplicaId(101L).setSequenceNumber(10L), clockTable.getClocks().get(1));
+    }
+
+    @Test
+    public void testCopy() {
+        ClockTable clockTable = new ClockTable(new ArrayList<>(List.of(
+                new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(10L),
+                new LogicalTimestamp().setReplicaId(101L).setSequenceNumber(11L)
+        )));
+
+        ClockTable copy = clockTable.copy();
+
+        assertEquals(2, copy.getClocks().size());
+        assertEquals(clockTable.getClocks(), copy.getClocks());
+        assertNotSame(copy, clockTable);
+        assertNotSame(copy.getClocks(), clockTable.getClocks());
+        assertNotSame(copy.getClocks().get(0), clockTable.getClocks().get(0));
+        assertNotSame(copy.getClocks().get(1), clockTable.getClocks().get(1));
+    }
 }
 

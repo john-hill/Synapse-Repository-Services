@@ -153,13 +153,7 @@ public class GridIndexManagerImpl implements GridIndexManager {
 		// Update the replica clock
 		// The snapshot encodes the clocks as the 'last used' sequence number, but our clock table stores the
 		// 'next available' sequence number. Increment each clock entry before storing in the database
-		ClockTable dbClockTable = new ClockTable(new ArrayList<>());
-		for (LogicalTimestamp snapshotEntry : snapshotClockTable.getClocks()) {
-			LogicalTimestamp dbEntry = new LogicalTimestamp()
-					.setReplicaId(snapshotEntry.getReplicaId())
-					.setSequenceNumber(snapshotEntry.getSequenceNumber() + 1L);
-			dbClockTable.updateClockTable(dbEntry);
-		}
+		ClockTable dbClockTable = snapshotClockTable.copy().incrementClocks();
 		dao.setClocks(sessionId, replicaId, dbClockTable.getClocks());
 	}
 
@@ -208,18 +202,18 @@ public class GridIndexManagerImpl implements GridIndexManager {
 			 * Patches may have incremented the clock without creating corresponding nodes. This is expected; not all
 			 * patch operations create nodes).
 			 *
-			 * Ensure these operations are accounted for by using the replica's database clock rather than the encoder's
-			 * node-derived clock (which is intended to only be used for newly-instantiated grids).
+			 * Ensure these operations are accounted for by updating the snapshot's clock values to use the replica's
+			 * database clock rather than the encoder's node-derived clock (which is intended to only be used for
+			 *  newly-instantiated grids).
+			 *
+			 * Before copying over the replica's clocks from the database, we decrement the dbClock sequence numbers
+			 * because our database follows the convention of storing the 'next-available' sequence number, while
+			 * JSON CRDT Snapshots encode the 'last-used' sequence number.
 			 */
-			ClockTable dbClock = new ClockTable(dao.getClock(sessionId, replicaId));
+			ClockTable dbClock = new ClockTable(dao.getClock(sessionId, replicaId)).decrementClocks();
 			ClockTable clockTable = encoder.getClockTable();
-			for (LogicalTimestamp dbEntry : dbClock.getClocks()) {
-				// The dbClock stores the 'next-available' sequence number, but the snapshot encodes the last-used
-				// sequence number. Decrement the dbClock sequence numbers before updating the snapshot clock.
-				LogicalTimestamp dbEntryDecrementedForSnapshot = new LogicalTimestamp()
-						.setReplicaId(dbEntry.getReplicaId())
-						.setSequenceNumber(dbEntry.getSequenceNumber() - 1L);
-				clockTable.updateClockTable(dbEntryDecrementedForSnapshot);
+			for (LogicalTimestamp c : dbClock.getClocks()) {
+				clockTable.updateClockTable(c);
 			}
 			// Return the database clock to be stored with snapshot metadata.
 			return dbClock;

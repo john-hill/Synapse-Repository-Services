@@ -261,6 +261,39 @@ public class ClockTable {
                 .setSequenceNumber(sequenceNumber);
     }
 
+
+    /**
+     * Increases the sequence number of all clocks by 1. Useful to convert "last-used" sequence numbers (e.g. stored in
+     * a JSON CRDT snapshot) to "next-available" sequence numbers (as stored in the GRID_REPLICA_CLOCK, GRID_PATCH, and
+     * GRID_SNAPSHOT tables).
+     * @return this instance of the clock table with sequence numbers mutated to be incremented
+     */
+    public ClockTable incrementClocks() {
+        this.clocks.forEach(clock -> clock.setSequenceNumber(clock.getSequenceNumber() + 1));
+        return this;
+    }
+
+    /**
+     * Decreases the sequence number of all clocks by 1. Useful to convert "next-available" sequence numbers (as stored
+     * in the GRID_REPLICA_CLOCK, GRID_PATCH, and GRID_SNAPSHOT tables) to sequence numbers (e.g. stored in a JSON CRDT
+     * snapshot).
+     * @return this instance of the clock table with sequence numbers mutated to be incremented
+     */
+    public ClockTable decrementClocks() {
+        this.clocks.forEach(clock -> clock.setSequenceNumber(clock.getSequenceNumber() - 1));
+        return this;
+    }
+
+    public ClockTable copy() {
+        List<LogicalTimestamp> copiedClocks = new ArrayList<>();
+        for (LogicalTimestamp clock : clocks) {
+            copiedClocks.add(new LogicalTimestamp()
+                    .setReplicaId(clock.getReplicaId())
+                    .setSequenceNumber(clock.getSequenceNumber()));
+        }
+        return new ClockTable(copiedClocks);
+    }
+
     public JSONArray toJsonArray() {
         JSONArray jsonArray = new JSONArray();
         for (LogicalTimestamp clock : clocks) {

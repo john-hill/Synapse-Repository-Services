@@ -474,10 +474,7 @@ public class SnapshotRowHandler implements RowHandler {
              * use the next available sequence number (patchId.sequenceNumber + span), which
              * is one past the last used ID. Increment each entry by 1 to align with this convention.
              */
-            ClockTable clockTable = this.encoder.getClockTable();
-            for (LogicalTimestamp clock : clockTable.getClocks()) {
-                clock.setSequenceNumber(clock.getSequenceNumber() + 1);
-            }
+            ClockTable clockTable = this.encoder.getClockTable().incrementClocks();
             snapshotStore.saveSnapshot(this.sessionId, clockTable, createdByUserId, snapshotFile);
         } finally {
             // Delete the file on disk

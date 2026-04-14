@@ -200,6 +200,8 @@ public class GridIndexManagerAutowiredTest {
         ClockTable exportedClock = gridIndexManager.exportSnapshot(sessionId, replicaA, exportedFile);
         assertNotNull(exportedClock);
 
+        // Create replica B
+        gridIndexManager.startMessageChain(sessionId, replicaB, "testExportSnapshotRoundTrip");
         // Apply the exported snapshot to replica B
         gridIndexManager.applySnapshot(sessionId, replicaB, exportedFile);
 

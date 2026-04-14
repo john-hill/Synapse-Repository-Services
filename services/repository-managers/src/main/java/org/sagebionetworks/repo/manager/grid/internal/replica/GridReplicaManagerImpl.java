@@ -89,7 +89,6 @@ public class GridReplicaManagerImpl implements GridReplicaManager {
 	@Override
 	public void onResponseComplete(ProgressCallback callback, GridConnectionInfo connection, Integer methodId) {
 		gridIndexManager.completeMessageChain(connection.getSessionId(), connection.getReplicaId(), methodId);
-		snapshotManager.createSnapshotIfPatchCountIsExceeded(connection);
 	}
 
 	@Override

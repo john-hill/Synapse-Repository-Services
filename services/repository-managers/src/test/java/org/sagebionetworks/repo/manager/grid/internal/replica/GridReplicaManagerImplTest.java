@@ -126,9 +126,7 @@ public class GridReplicaManagerImplTest {
 	public void testOnResponseComplete() {
 		// call under test
 		manager.onResponseComplete(mockCallback, connection, methodId);
-		InOrder inOrder = inOrder(mockGridIndexManager, mockSnapshotManager);
-		inOrder.verify(mockGridIndexManager).completeMessageChain(sessionId, replicaId, methodId);
-		inOrder.verify(mockSnapshotManager).createSnapshotIfPatchCountIsExceeded(connection);
+		verify(mockGridIndexManager).completeMessageChain(sessionId, replicaId, methodId);
 	}
 
 	@Test

@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
@@ -203,6 +204,7 @@ public class OpenSearchManagerImplTest {
 				Collections.emptyList(), Collections.emptyList(), buildStandardAnalyzers());
 
 			assertNull(result);
+			verifyNoMoreInteractions(indicesClient);
 		}
 
 		@Test
@@ -376,6 +378,7 @@ public class OpenSearchManagerImplTest {
 
 			// call under test - should not throw
 			assertDoesNotThrow(() -> manager.deleteIndex(INDEX_NAME));
+			verifyNoMoreInteractions(indicesClient);
 		}
 
 		@Test

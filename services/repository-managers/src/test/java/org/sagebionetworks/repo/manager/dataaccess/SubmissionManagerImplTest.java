@@ -169,6 +169,7 @@ public class SubmissionManagerImplTest {
 	private String subjectId;
 	
 	private UserInfo actUser;
+	private Forum mockForum;
 
 	@BeforeEach
 	public void before() {
@@ -229,17 +230,10 @@ public class SubmissionManagerImplTest {
 		lenient().when(mockSubmissionStatus.getSubmissionId()).thenReturn(submissionId);
 		lenient().when(mockAccessApprovalDao.hasApprovalsSubmittedBy(accessorIds, userId, accessRequirementId)).thenReturn(true);
 
-		Forum mockForum = new Forum();
+		mockForum = new Forum();
 		mockForum.setId("100");
 		mockForum.setObjectId(accessRequirementId);
 		mockForum.setObjectType(ForumObjectType.ACCESS_REQUIREMENT);
-		lenient().when(mockForumDao.getForumByObjectIdAndType(accessRequirementId, ForumObjectType.ACCESS_REQUIREMENT)).thenReturn(mockForum);
-		lenient().when(mockIdGenerator.generateNewId(IdType.DISCUSSION_THREAD_ID)).thenReturn(999L);
-		try {
-			lenient().when(mockUploadDao.uploadThreadMessage(any(), any(), any())).thenReturn("messageKey");
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		}
 
 		submission = new Submission();
 		submission.setRequestId(requestId);
@@ -463,6 +457,8 @@ public class SubmissionManagerImplTest {
 
 	@Test
 	public void testCreate() {
+		when(mockForumDao.getForumByObjectIdAndType(accessRequirementId, ForumObjectType.ACCESS_REQUIREMENT))
+				.thenReturn(mockForum);
 		manager.create(mockUser, csRequest);
 		ArgumentCaptor<Submission> submissionCaptor = ArgumentCaptor.forClass(Submission.class);
 		verify(mockSubmissionDao).createSubmission(submissionCaptor.capture());
@@ -515,6 +511,8 @@ public class SubmissionManagerImplTest {
 		request.setAccessorChanges(accessors);
 		request.setEtag(etag);
 		when(mockRequestManager.getRequestForSubmission(requestId)).thenReturn(request);
+		when(mockForumDao.getForumByObjectIdAndType(accessRequirementId, ForumObjectType.ACCESS_REQUIREMENT))
+				.thenReturn(mockForum);
 		manager.create(mockUser, csRequest);
 		ArgumentCaptor<Submission> submissionCaptor = ArgumentCaptor.forClass(Submission.class);
 		verify(mockSubmissionDao).createSubmission(submissionCaptor.capture());

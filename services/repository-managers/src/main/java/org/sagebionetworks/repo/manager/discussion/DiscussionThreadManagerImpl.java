@@ -314,7 +314,6 @@ public class DiscussionThreadManagerImpl implements DiscussionThreadManager {
 	@Override
 	public PaginatedResults<DiscussionThreadBundle> getThreadsForEntity(UserInfo userInfo, String entityId, Long limit,
 			Long offset, DiscussionThreadOrder order, Boolean ascending) {
-		//check
 		ValidateArgument.required(entityId, "entityId");
 		UserInfo.validateUserInfo(userInfo);
 		if (limit == null) {

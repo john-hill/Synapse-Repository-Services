@@ -33,7 +33,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -67,19 +66,13 @@ import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dao.WikiPageKey;
-import org.sagebionetworks.repo.model.dbo.dao.discussion.DiscussionThreadDAO;
-import org.sagebionetworks.repo.model.dbo.dao.discussion.ForumDAO;
 import org.sagebionetworks.repo.model.dbo.file.FileHandleDao;
 import org.sagebionetworks.repo.model.dbo.verification.VerificationDAO;
-import org.sagebionetworks.repo.model.discussion.DiscussionFilter;
-import org.sagebionetworks.repo.model.discussion.DiscussionThreadBundle;
-import org.sagebionetworks.repo.model.discussion.Forum;
-import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.sagebionetworks.repo.model.file.FileHandleAssociateType;
 import org.sagebionetworks.repo.model.file.FileHandleAssociation;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.oauth.OAuthScope;
-import org.sagebionetworks.repo.model.subscription.SubscriptionObjectType;
+
 import org.sagebionetworks.repo.model.v2.dao.V2WikiPageDao;
 import org.sagebionetworks.repo.web.NotFoundException;
 
@@ -106,10 +99,6 @@ public class AuthorizationManagerImplUnitTest {
 	private VerificationDAO mockVerificationDao;
 	@Mock
 	private NodeDAO mockNodeDao;
-	@Mock
-	private DiscussionThreadDAO mockThreadDao;
-	@Mock
-	private ForumDAO mockForumDao;
 	@Mock
 	private V2WikiPageDao mockWikiPageDaoV2;
 	@Mock
@@ -167,11 +156,7 @@ public class AuthorizationManagerImplUnitTest {
 	private UserInfo anonymousUserInfo;
 	private UserInfo adminUser;
 	private Evaluation evaluation;
-	private String threadId;
-	private String forumId;
 	private String projectId;
-	private DiscussionThreadBundle bundle;
-	private Forum forum;
 	private String submissionId;
 
 	HasAccessorRequirement req;
@@ -199,20 +184,7 @@ public class AuthorizationManagerImplUnitTest {
 		when(mockFileHandleAssociationManager.getAuthorizationObjectTypeForAssociatedObjectType(FileHandleAssociateType.TableEntity)).thenReturn(ObjectType.ENTITY);
 		when(mockFileHandleAssociationManager.getAuthorizationObjectTypeForAssociatedObjectType(FileHandleAssociateType.WikiAttachment)).thenReturn(ObjectType.WIKI);
 
-		threadId = "0";
-		forumId = "1";
 		projectId = "syn123";
-		bundle = new DiscussionThreadBundle();
-		bundle.setForumId(forumId);
-		bundle.setProjectId(projectId);
-		bundle.setObjectId(projectId);
-		bundle.setObjectType("ENTITY");
-		forum = new Forum();
-		forum.setId(forumId);
-		forum.setObjectId(projectId);
-		forum.setObjectType(ForumObjectType.ENTITY);
-		when(mockThreadDao.getThread(Mockito.anyLong(), Mockito.any(DiscussionFilter.class))).thenReturn(bundle);
-
 		submissionId = "111";
 
 		Set<Long> groups = new HashSet<Long>();
@@ -807,111 +779,6 @@ public class AuthorizationManagerImplUnitTest {
 		assertEquals(expected, results);
 	}
 	
-	@Test
-	public void testCanSubscribeForumUnauthorized() {
-		when(mockEntityAuthorizationManager.hasAccess(userInfo, projectId, ACCESS_TYPE.READ)).thenReturn(AuthorizationStatus.accessDenied(""));
-		when(mockForumDao.getForum(Long.parseLong(forumId))).thenReturn(forum);
-		assertEquals(AuthorizationStatus.accessDenied(""),
-				authorizationManager.canSubscribe(userInfo, forumId, SubscriptionObjectType.FORUM));
-	}
-
-	@Test
-	public void testCanSubscribeForumAuthorized() {
-		when(mockEntityAuthorizationManager.hasAccess(userInfo, projectId, ACCESS_TYPE.READ)).thenReturn(AuthorizationStatus.authorized());
-		when(mockForumDao.getForum(Long.parseLong(forumId))).thenReturn(forum);
-		assertEquals(AuthorizationStatus.authorized(),
-				authorizationManager.canSubscribe(userInfo, forumId, SubscriptionObjectType.FORUM));
-	}
-
-	@Test
-	public void testCanSubscribeARForumAuthorized() {
-		Forum arForum = new Forum();
-		arForum.setId(forumId);
-		arForum.setObjectId("456");
-		arForum.setObjectType(ForumObjectType.ACCESS_REQUIREMENT);
-		when(mockForumDao.getForum(Long.parseLong(forumId))).thenReturn(arForum);
-		when(mockDataAccessAuthManager.canReviewAccessRequirementSubmissions(userInfo, "456"))
-				.thenReturn(AuthorizationStatus.authorized());
-		assertEquals(AuthorizationStatus.authorized(),
-				authorizationManager.canSubscribe(userInfo, forumId, SubscriptionObjectType.FORUM));
-	}
-
-	@Test
-	public void testCanSubscribeARForumUnauthorized() {
-		Forum arForum = new Forum();
-		arForum.setId(forumId);
-		arForum.setObjectId("456");
-		arForum.setObjectType(ForumObjectType.ACCESS_REQUIREMENT);
-		when(mockForumDao.getForum(Long.parseLong(forumId))).thenReturn(arForum);
-		when(mockDataAccessAuthManager.canReviewAccessRequirementSubmissions(userInfo, "456"))
-				.thenReturn(AuthorizationStatus.accessDenied("no permission"));
-		assertEquals(AuthorizationStatus.accessDenied("no permission"),
-				authorizationManager.canSubscribe(userInfo, forumId, SubscriptionObjectType.FORUM));
-	}
-
-	@Test
-	public void testCanSubscribeThreadUnauthorized() {
-		when(mockEntityAuthorizationManager.hasAccess(userInfo, projectId, ACCESS_TYPE.READ)).thenReturn(AuthorizationStatus.accessDenied(""));
-		when(mockThreadDao.getThread(Long.parseLong(threadId), DiscussionFilter.NO_FILTER)).thenReturn(bundle);
-		assertEquals(AuthorizationStatus.accessDenied(""),
-				authorizationManager.canSubscribe(userInfo, threadId, SubscriptionObjectType.THREAD));
-	}
-
-	@Test
-	public void testCanSubscribeThreadAuthorized() {
-		when(mockEntityAuthorizationManager.hasAccess(userInfo, projectId, ACCESS_TYPE.READ)).thenReturn(AuthorizationStatus.authorized());
-		when(mockThreadDao.getThread(Long.parseLong(threadId), DiscussionFilter.NO_FILTER)).thenReturn(bundle);
-		assertEquals(AuthorizationStatus.authorized(),
-				authorizationManager.canSubscribe(userInfo, threadId, SubscriptionObjectType.THREAD));
-	}
-
-	@Test
-	public void testCanSubscribeARThreadAuthorized() {
-		Forum arForum = new Forum();
-		arForum.setId(forumId);
-		arForum.setObjectId("789");
-		arForum.setObjectType(ForumObjectType.ACCESS_REQUIREMENT);
-		bundle.setObjectId("789");
-		bundle.setObjectType("ACCESS_REQUIREMENT");
-		when(mockThreadDao.getThread(Long.parseLong(threadId), DiscussionFilter.NO_FILTER)).thenReturn(bundle);
-		when(mockDataAccessAuthManager.canReviewAccessRequirementSubmissions(userInfo, "789"))
-				.thenReturn(AuthorizationStatus.authorized());
-		assertEquals(AuthorizationStatus.authorized(),
-				authorizationManager.canSubscribe(userInfo, threadId, SubscriptionObjectType.THREAD));
-	}
-
-	@Test
-	public void testCanSubscribeDataAccessSubmissionUnauthorized() {
-		assertFalse(authorizationManager.canSubscribe(userInfo, submissionId, SubscriptionObjectType.DATA_ACCESS_SUBMISSION).isAuthorized());
-	}
-
-	@Test
-	public void testCanSubscribeDataAccessSubmissionAdminAuthorized() {
-		assertEquals(AuthorizationStatus.authorized(),
-				authorizationManager.canSubscribe(adminUser, submissionId, SubscriptionObjectType.DATA_ACCESS_SUBMISSION));
-	}
-
-	@Test
-	public void testCanSubscribeDataAccessSubmissionACTAuthorized() {
-		assertEquals(AuthorizationStatus.authorized(),
-				authorizationManager.canSubscribe(mockACTUser, submissionId, SubscriptionObjectType.DATA_ACCESS_SUBMISSION));
-	}
-
-	@Test
-	public void testCanSubscribeDataAccessSubmissionStatusUnauthorized() {
-		when(mockDataAccessSubmissionDao.isAccessor(submissionId, userInfo.getId().toString()))
-				.thenReturn(false);
-		assertFalse(authorizationManager.canSubscribe(userInfo, submissionId, SubscriptionObjectType.DATA_ACCESS_SUBMISSION_STATUS).isAuthorized());
-	}
-
-	@Test
-	public void testCanSubscribeDataAccessSubmissionStatusAuthorized() {
-		when(mockDataAccessSubmissionDao.isAccessor(submissionId, userInfo.getId().toString()))
-				.thenReturn(true);
-		assertEquals(AuthorizationStatus.authorized(),
-				authorizationManager.canSubscribe(userInfo, submissionId, SubscriptionObjectType.DATA_ACCESS_SUBMISSION_STATUS));
-	}
-
 	@Test
 	public void testValidParentProjectIdInvalidRepoName() {
 		assertEquals(null, authorizationManager.validDockerRepositoryParentId("/invalid/"));

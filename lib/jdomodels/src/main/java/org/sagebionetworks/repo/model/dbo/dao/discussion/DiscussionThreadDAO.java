@@ -1,9 +1,11 @@
 package org.sagebionetworks.repo.model.dbo.dao.discussion;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import org.sagebionetworks.repo.model.discussion.DiscussionFilter;
+import org.sagebionetworks.repo.model.discussion.DiscussionThread;
 import org.sagebionetworks.repo.model.discussion.DiscussionThreadBundle;
 import org.sagebionetworks.repo.model.discussion.DiscussionThreadEntityReference;
 import org.sagebionetworks.repo.model.discussion.DiscussionThreadOrder;
@@ -33,6 +35,14 @@ public interface DiscussionThreadDAO {
 	 * @return
 	 */
 	public DiscussionThreadBundle getThread(long threadId, DiscussionFilter filter);
+
+	/**
+	 * Get thread info with forum objectId and objectType.
+	 *
+	 * @param threadId
+	 * @return
+	 */
+	public Optional<DiscussionThread> getDiscussionThread(long threadId);
 
 	/**
 	 * Get the number of discussion thread in a given forum
@@ -177,16 +187,15 @@ public interface DiscussionThreadDAO {
 	 * @param submissionId
 	 * @return
 	 */
-	public DiscussionThreadBundle getThreadForSubmission(String submissionId);
+	public Optional<DiscussionThreadBundle> getThreadForSubmission(String submissionId);
 
 	/**
 	 * Get the submission ID linked to the given thread.
 	 *
 	 * @param threadId
-	 * @return the submission ID
-	 * @throws NotFoundException if no submission is linked to the thread
+	 * @return the submission ID, or empty if no submission is linked
 	 */
-	public String getSubmissionIdForThread(String threadId);
+	public Optional<String> getSubmissionIdForThread(String threadId);
 
 	/**
 	 * Get a list of projectIds that threads, which mentioned entityIds, belongs to.

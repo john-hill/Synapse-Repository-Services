@@ -16,12 +16,14 @@ import org.sagebionetworks.repo.model.dbo.TableMapping;
 import org.sagebionetworks.repo.model.dbo.migration.BasicMigratableTableTranslation;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
 import org.sagebionetworks.repo.model.migration.MigrationType;
+import org.springframework.stereotype.Repository;
 
+@Repository
 public class DBODiscussionThreadSubmissionReference implements MigratableDatabaseObject<DBODiscussionThreadSubmissionReference, DBODiscussionThreadSubmissionReference> {
 
 	private static final FieldColumn[] FIELDS = new FieldColumn[] {
 		new FieldColumn("threadId", COL_DISCUSSION_THREAD_SUBMISSION_REFERENCE_THREAD_ID, true).withIsBackupId(true),
-		new FieldColumn("submissionId", COL_DISCUSSION_THREAD_SUBMISSION_REFERENCE_SUBMISSION_ID, true),
+		new FieldColumn("submissionId", COL_DISCUSSION_THREAD_SUBMISSION_REFERENCE_SUBMISSION_ID, false),
 	};
 
 	private Long threadId;

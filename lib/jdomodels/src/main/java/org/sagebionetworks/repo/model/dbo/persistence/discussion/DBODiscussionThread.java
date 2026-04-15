@@ -310,7 +310,6 @@ public class DBODiscussionThread  implements MigratableDatabaseObject<DBODiscuss
 		List<MigratableDatabaseObject<?,?>> list = new LinkedList<MigratableDatabaseObject<?,?>>();
 		list.add(new DBODiscussionThreadView());
 		list.add(new DBODiscussionThreadEntityReference());
-		list.add(new DBODiscussionThreadSubmissionReference());
 		return list;
 	}
 

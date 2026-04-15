@@ -40,20 +40,14 @@ import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dao.WikiPageKey;
-import org.sagebionetworks.repo.model.dbo.dao.discussion.DiscussionThreadDAO;
-import org.sagebionetworks.repo.model.dbo.dao.discussion.ForumDAO;
 import org.sagebionetworks.repo.model.dbo.file.FileHandleDao;
 import org.sagebionetworks.repo.model.dbo.verification.VerificationDAO;
-import org.sagebionetworks.repo.model.discussion.DiscussionFilter;
-import org.sagebionetworks.repo.model.discussion.DiscussionThreadBundle;
-import org.sagebionetworks.repo.model.discussion.Forum;
-import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.sagebionetworks.repo.model.docker.RegistryEventAction;
 import org.sagebionetworks.repo.model.file.FileHandleAssociateType;
 import org.sagebionetworks.repo.model.file.FileHandleAssociation;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.oauth.OAuthScope;
-import org.sagebionetworks.repo.model.subscription.SubscriptionObjectType;
+
 import org.sagebionetworks.repo.model.util.DockerNameUtil;
 import org.sagebionetworks.repo.model.v2.dao.V2WikiPageDao;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -89,10 +83,6 @@ public class AuthorizationManagerImpl implements AuthorizationManager {
 	private AccessControlListManager aclManager;
 	@Autowired
 	private VerificationDAO verificationDao;
-	@Autowired
-	private ForumDAO forumDao;
-	@Autowired
-	private DiscussionThreadDAO threadDao;
 	@Autowired
 	private FileHandleAssociationManager fileHandleAssociationSwitch;
 	@Autowired
@@ -396,43 +386,6 @@ public class AuthorizationManagerImpl implements AuthorizationManager {
 	@Override
 	public Set<Long> getAccessibleBenefactors(UserInfo userInfo, ObjectType objectType, Set<Long> benefactors, ACCESS_TYPE...types) {
 		return aclManager.getAccessibleBenefactors(userInfo, objectType, benefactors, types);
-	}
-
-	@Override
-	public AuthorizationStatus canSubscribe(UserInfo userInfo, String objectId,
-			SubscriptionObjectType objectType)
-			throws DatastoreException, NotFoundException {
-		if (isAnonymousUser(userInfo)) {
-			return AuthorizationStatus.accessDenied(ANONYMOUS_ACCESS_DENIED_REASON);
-		}
-		switch (objectType) {
-			case FORUM:
-				Forum forum = forumDao.getForum(Long.parseLong(objectId));
-				return canSubscribeObjectType(userInfo, forum.getObjectType().name(), forum.getObjectId());
-			case THREAD:
-				DiscussionThreadBundle thread = threadDao.getThread(Long.parseLong(objectId), DiscussionFilter.NO_FILTER);
-				return canSubscribeObjectType(userInfo, thread.getObjectType(), thread.getObjectId());
-			case DATA_ACCESS_SUBMISSION:
-				if (isACTTeamMemberOrAdmin(userInfo)) {
-					return AuthorizationStatus.authorized();
-				} else {
-					return AuthorizationStatus.accessDenied("Only ACT member can follow this topic.");
-				}
-			case DATA_ACCESS_SUBMISSION_STATUS:
-				if (dataAccessSubmissionDao.isAccessor(objectId, userInfo.getId().toString())) {
-					return AuthorizationStatus.authorized();
-				} else {
-					return AuthorizationStatus.accessDenied("Only accessors can follow this topic.");
-				}
-		}
-		return AuthorizationStatus.accessDenied("The objectType is unsubscribable.");
-	}
-
-	private AuthorizationStatus canSubscribeObjectType(UserInfo userInfo, String objectType, String objectId) {
-		if (ForumObjectType.ACCESS_REQUIREMENT.name().equals(objectType)) {
-			return dataAccessAuthorizationManager.canReviewAccessRequirementSubmissions(userInfo, objectId);
-		}
-		return canAccess(userInfo, objectId, ObjectType.ENTITY, ACCESS_TYPE.READ);
 	}
 
 	@Override

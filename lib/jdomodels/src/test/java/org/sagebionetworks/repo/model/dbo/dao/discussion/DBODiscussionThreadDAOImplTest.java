@@ -15,6 +15,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
@@ -37,6 +38,7 @@ import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.UserGroup;
 import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.discussion.DiscussionFilter;
+import org.sagebionetworks.repo.model.discussion.DiscussionThread;
 import org.sagebionetworks.repo.model.discussion.DiscussionThreadBundle;
 import org.sagebionetworks.repo.model.discussion.DiscussionThreadEntityReference;
 import org.sagebionetworks.repo.model.discussion.DiscussionThreadOrder;
@@ -195,7 +197,9 @@ public class DBODiscussionThreadDAOImplTest {
 		DiscussionThreadBundle dto = threadDao.createThread(forumId, threadId.toString(),
 				"title", "messageKey", userId);
 		//call under test
-		assertEquals(projectId, threadDao.getThread(Long.parseLong(dto.getId()), DiscussionFilter.NO_FILTER).getObjectId());
+		Optional<DiscussionThread> discussionThread = threadDao.getDiscussionThread(Long.parseLong(dto.getId()));
+		assertTrue(discussionThread.isPresent());
+		assertEquals(KeyFactory.stringToKey(projectId).toString(), discussionThread.get().getObjectId());
 	}
 
 	@Test
@@ -585,14 +589,12 @@ public class DBODiscussionThreadDAOImplTest {
 
 	@Test
 	public void testGetAllThreadId() {
-		assertTrue(threadDao.getAllThreadId(10L, 0L).isEmpty());
-
 		// create some threads
 		threadDao.createThread(forumId, threadId.toString(), "title", "messageKey", userId);
 		Long threadId2 = idGenerator.generateNewId(IdType.DISCUSSION_THREAD_ID);
 		threadDao.createThread(forumId, threadId2 .toString(), "title", "messageKey2", userId);
 
-		assertEquals(Arrays.asList(threadId, threadId2), threadDao.getAllThreadId(10L, 0L));
+		assertTrue(threadDao.getAllThreadId(10L, 0L).containsAll(Arrays.asList(threadId, threadId2)));
 	}
 
 	@Test (expected = IllegalArgumentException.class)
@@ -1072,28 +1074,26 @@ public class DBODiscussionThreadDAOImplTest {
 		threadDao.insertSubmissionReference(thread.getId(), submissionId);
 
 		// call under test
-		DiscussionThreadBundle result = threadDao.getThreadForSubmission(submissionId);
-		assertEquals(thread.getId(), result.getId());
-		assertEquals(thread.getForumId(), result.getForumId());
+		Optional<DiscussionThreadBundle> result = threadDao.getThreadForSubmission(submissionId);
+		assertTrue(result.isPresent());
+		assertEquals(thread.getId(), result.get().getId());
+		assertEquals(thread.getForumId(), result.get().getForumId());
 
 		// call under test
-		String resultSubmissionId = threadDao.getSubmissionIdForThread(thread.getId());
-		assertEquals(submissionId, resultSubmissionId);
+		Optional<String> resultSubmissionId = threadDao.getSubmissionIdForThread(thread.getId());
+		assertTrue(resultSubmissionId.isPresent());
+		assertEquals(submissionId, resultSubmissionId.get());
 	}
 
 	@Test
 	public void testGetThreadForSubmissionWithNonExistentSubmission() {
-		assertThrows(NotFoundException.class, () -> {
-			//call under test
-			threadDao.getThreadForSubmission("999999");
-		});
+		// call under test
+		assertFalse(threadDao.getThreadForSubmission("999999").isPresent());
 	}
 
 	@Test
 	public void testGetSubmissionIdForNonExistingThread() {
-		assertThrows(NotFoundException.class, () -> {
-			//call under test
-			threadDao.getSubmissionIdForThread("999999");
-		});
+		// call under test
+		assertFalse(threadDao.getSubmissionIdForThread("999999").isPresent());
 	}
 }

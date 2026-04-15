@@ -38,6 +38,7 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.Optional;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -47,6 +48,8 @@ import org.sagebionetworks.repo.model.dbo.DBOBasicDao;
 import org.sagebionetworks.repo.model.dbo.persistence.discussion.DBODiscussionThread;
 import org.sagebionetworks.repo.model.dbo.persistence.discussion.DiscussionThreadUtils;
 import org.sagebionetworks.repo.model.discussion.DiscussionFilter;
+import org.sagebionetworks.repo.model.discussion.DiscussionThread;
+import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.sagebionetworks.repo.model.discussion.DiscussionThreadBundle;
 import org.sagebionetworks.repo.model.discussion.DiscussionThreadEntityReference;
 import org.sagebionetworks.repo.model.discussion.DiscussionThreadOrder;
@@ -87,7 +90,7 @@ public class DBODiscussionThreadDAOImpl implements DiscussionThreadDAO {
 			String objectId = rs.getString(COL_FORUM_OBJECT_ID);
 			String objectType = rs.getString(COL_FORUM_OBJECT_TYPE);
 			dto.setObjectId(objectId);
-			dto.setObjectType(objectType);
+			dto.setObjectType(ForumObjectType.valueOf(objectType));
 			if ("ENTITY".equals(objectType)) {
 				dto.setProjectId(KeyFactory.keyToString(Long.valueOf(objectId)));
 			}
@@ -320,6 +323,27 @@ public class DBODiscussionThreadDAOImpl implements DiscussionThreadDAO {
 			throw new NotFoundException(String.format(THREAD_DOES_NOT_EXIST, threadId));
 		}
 		return results.get(0);
+	}
+
+	@Override
+	public Optional<DiscussionThread> getDiscussionThread(long threadId) {
+		try {
+			return Optional.ofNullable(jdbcTemplate.queryForObject(
+					"SELECT T.ID, T.FORUM_ID, F.OBJECT_ID, F.OBJECT_TYPE"
+							+ " FROM DISCUSSION_THREAD T"
+							+ " JOIN FORUM F ON T.FORUM_ID = F.ID"
+							+ " WHERE T.ID = ?",
+					(rs, rowNum) -> {
+						DiscussionThread dt = new DiscussionThread();
+						dt.setId(Long.toString(rs.getLong("ID")));
+						dt.setForumId(Long.toString(rs.getLong("FORUM_ID")));
+						dt.setObjectId(Long.toString(rs.getLong("OBJECT_ID")));
+						dt.setObjectType(ForumObjectType.valueOf(rs.getString("OBJECT_TYPE")));
+						return dt;
+					}, threadId));
+		} catch (EmptyResultDataAccessException e) {
+			return Optional.empty();
+		}
 	}
 
 	@WriteTransaction
@@ -564,30 +588,30 @@ public class DBODiscussionThreadDAOImpl implements DiscussionThreadDAO {
 	}
 
 	@Override
-	public DiscussionThreadBundle getThreadForSubmission(String submissionId) {
+	public Optional<DiscussionThreadBundle> getThreadForSubmission(String submissionId) {
 		ValidateArgument.required(submissionId, "submissionId");
-		List<DiscussionThreadBundle> results = jdbcTemplate.query(
-				SELECT_THREAD_BUNDLE
-						+ " JOIN DISCUSSION_THREAD_SUBMISSION_REFERENCE R"
-						+ " ON R.THREAD_ID = DISCUSSION_THREAD.ID"
-						+ " WHERE R.SUBMISSION_ID = ?",
-				DISCUSSION_THREAD_BUNDLE_ROW_MAPPER, Long.parseLong(submissionId));
-		if (results.isEmpty()) {
-			throw new NotFoundException(String.format("Thread for submission '%s' does not exist", submissionId));
+		try {
+			return Optional.ofNullable(jdbcTemplate.queryForObject(
+					SELECT_THREAD_BUNDLE
+							+ " JOIN DISCUSSION_THREAD_SUBMISSION_REFERENCE R"
+							+ " ON R.THREAD_ID = DISCUSSION_THREAD.ID"
+							+ " WHERE R.SUBMISSION_ID = ?",
+					DISCUSSION_THREAD_BUNDLE_ROW_MAPPER, Long.parseLong(submissionId)));
+		} catch (EmptyResultDataAccessException e) {
+			return Optional.empty();
 		}
-		return results.get(0);
 	}
 
 	@Override
-	public String getSubmissionIdForThread(String threadId) {
+	public Optional<String> getSubmissionIdForThread(String threadId) {
 		ValidateArgument.required(threadId, "threadId");
-		List<String> results = jdbcTemplate.queryForList(
-				"SELECT SUBMISSION_ID FROM DISCUSSION_THREAD_SUBMISSION_REFERENCE WHERE THREAD_ID = ?",
-				String.class, Long.parseLong(threadId));
-		if (results.isEmpty()) {
-			throw new NotFoundException(String.format("Submission for thread '%s' does not exist", threadId));
+		try {
+			return Optional.of(jdbcTemplate.queryForObject(
+					"SELECT SUBMISSION_ID FROM DISCUSSION_THREAD_SUBMISSION_REFERENCE WHERE THREAD_ID = ?",
+					String.class, Long.parseLong(threadId)));
+		} catch (EmptyResultDataAccessException e) {
+			return Optional.empty();
 		}
-		return results.get(0);
 	}
 
 	@Override

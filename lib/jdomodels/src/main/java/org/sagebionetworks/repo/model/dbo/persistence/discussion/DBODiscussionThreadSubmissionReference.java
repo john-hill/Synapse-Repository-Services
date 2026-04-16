@@ -16,9 +16,8 @@ import org.sagebionetworks.repo.model.dbo.TableMapping;
 import org.sagebionetworks.repo.model.dbo.migration.BasicMigratableTableTranslation;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
 import org.sagebionetworks.repo.model.migration.MigrationType;
-import org.springframework.stereotype.Repository;
 
-@Repository
+
 public class DBODiscussionThreadSubmissionReference implements MigratableDatabaseObject<DBODiscussionThreadSubmissionReference, DBODiscussionThreadSubmissionReference> {
 
 	private static final FieldColumn[] FIELDS = new FieldColumn[] {

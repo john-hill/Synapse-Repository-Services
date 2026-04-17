@@ -14,8 +14,6 @@ import jakarta.json.JsonObject;
 import jakarta.json.JsonReader;
 import jakarta.json.stream.JsonParser;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.client.json.JsonData;
 import org.opensearch.client.json.JsonpMapper;
 import org.opensearch.client.json.jackson.JacksonJsonpMapper;
@@ -95,8 +93,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	private static final int AUTOCOMPLETE_MAX_LIMIT = 8;
 	private static final int DEFAULT_FACET_SIZE = 25;
 
-	private static final Logger LOG = LogManager.getLogger(OpenSearchManagerImpl.class);
-
 	private final OpenSearchClient openSearchClient;
 
 	public OpenSearchManagerImpl(OpenSearchClient openSearchClient) {
@@ -131,16 +127,13 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			String appliedConfigJson = request.toJsonString();
 			CreateIndexResponse response = openSearchClient.indices().create(request);
 
-			if (Boolean.TRUE.equals(response.acknowledged())) {
-				LOG.info("Search index {} created successfully.", indexName);
-			} else {
-				LOG.error("Search index {} creation was not acknowledged.", indexName);
+			if (!Boolean.TRUE.equals(response.acknowledged())) {
+				throw new IllegalStateException("Search index " + indexName + " creation was not acknowledged.");
 			}
 
 			return appliedConfigJson;
 		} catch (OpenSearchException e) {
 			if ("resource_already_exists_exception".equals(e.error().type())) {
-				LOG.warn("Search index {} already exists.", indexName);
 				return null;
 			}
 			throw new RuntimeException("Failed to create search index: " + indexName, e);
@@ -226,33 +219,17 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	public void deleteIndex(String indexName) {
 		try {
 			openSearchClient.indices().delete(req -> req.index(indexName));
-			LOG.info("Search index {} deleted.", indexName);
 		} catch (OpenSearchException e) {
 			if (!INDEX_NOT_FOUND_EXCEPTION.equals(e.error().type())) {
 				throw new RuntimeException("Failed to delete search index: " + indexName, e);
 			}
-			LOG.info("Search index {} does not exist; delete is a no-op.", indexName);
 		} catch (IOException e) {
 			throw new RuntimeException("Failed to delete search index: " + indexName, e);
 		}
 	}
 
 	@Override
-	public long bulkIndex(String indexName, List<Map<String, Object>> documents) {
-
-		List<BulkOperation> operations = documents.stream()
-				.map(doc -> {
-					Object rowId = doc.get(SYSTEM_FIELD_ROW_ID);
-					ValidateArgument.required(rowId, SYSTEM_FIELD_ROW_ID);
-					String docId = String.valueOf(rowId);
-					return BulkOperation.of(op -> op
-							.index(idx -> idx
-									.index(indexName)
-									.id(docId)
-									.document(doc)));
-				})
-				.collect(Collectors.toList());
-
+	public long bulkIndex(String indexName, List<BulkOperation> operations) {
 		if (operations.isEmpty()) {
 			return 0L;
 		}
@@ -260,17 +237,18 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		try {
 			BulkResponse response = openSearchClient.bulk(req -> req.operations(operations));
 
-			long errorCount = response.items().stream()
-					.filter(item -> item.error() != null)
-					.peek(item -> LOG.error(
-							"Bulk index error for doc {} in {}: {} (type: {})",
-							item.id(), indexName, item.error().reason(), item.error().type()))
-					.count();
+			List<String> errors = new ArrayList<>();
+			for (var item : response.items()) {
+				if (item.error() != null) {
+					errors.add("doc " + item.id() + ": " + item.error().reason());
+				}
+			}
 
-			if (errorCount > 0) {
+			if (!errors.isEmpty()) {
 				throw new RuntimeException(String.format(
-						"Bulk index to %s failed: %d document(s) rejected out of %d.",
-						indexName, errorCount, documents.size()));
+						"Bulk index to %s failed: %d document(s) rejected out of %d. First errors: %s",
+						indexName, errors.size(), operations.size(),
+						errors.subList(0, Math.min(errors.size(), 5))));
 			}
 
 			return (long) response.items().size();
@@ -374,9 +352,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 		List<String> resolvedQueryFields = resolveQueryFields(query.getQueryFields(), columns, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName, true);
 
-		LOG.info("OpenSearch query on {}: type={}, text='{}', resolvedFields={}, offset={}, limit={}, fuzziness={}",
-				indexName, finalQueryType, finalQueryText, resolvedQueryFields, offset, limit, fuzziness);
-
 		BoolQuery.Builder boolBuilder = new BoolQuery.Builder();
 
 		Query mainQuery = buildMainQuery(finalQueryType, finalQueryText, resolvedQueryFields, fuzziness);
@@ -395,21 +370,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		List<String> returnFields = query.getReturnFields();
 
 		List<SortOptions> sortOptions = buildSortOptions(query.getSort(), columnMap, nameToId, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName);
-
-		if (query.getTermsFilters() != null
-				|| query.getRangeFilters() != null || query.getExistsFilters() != null
-				|| query.getNotExistsFilters() != null) {
-			LOG.info("OpenSearch query on {} includes filters: terms={}, range={}, exists={}, notExists={}",
-					indexName,
-					query.getTermsFilters() != null ? query.getTermsFilters().size() : 0,
-					query.getRangeFilters() != null ? query.getRangeFilters().size() : 0,
-					query.getExistsFilters() != null ? query.getExistsFilters().size() : 0,
-					query.getNotExistsFilters() != null ? query.getNotExistsFilters().size() : 0);
-		}
-
-		if (!aggregations.isEmpty()) {
-			LOG.info("OpenSearch query on {} includes {} facet aggregations: {}", indexName, aggregations.size(), aggregations.keySet());
-		}
 
 		Map<String, String> idToName = columns.stream()
 				.collect(Collectors.toMap(ColumnModel::getId, ColumnModel::getName, (a2, b) -> a2));
@@ -446,21 +406,13 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 				return req;
 			}, Map.class);
 
-			long totalHits = response.hits().total() != null ? response.hits().total().value() : 0L;
-			int returnedHits = response.hits().hits().size();
-			LOG.info("OpenSearch response from {}: totalHits={}, returnedHits={}, took={}ms",
-					indexName, totalHits, returnedHits, response.took());
-
 			return convertResponse(response, indexName, offset, idToName);
 		} catch (OpenSearchException e) {
 			if (INDEX_NOT_FOUND_EXCEPTION.equals(e.error().type())) {
-				LOG.warn("OpenSearch index {} not found yet (AOSS eventual consistency), treating as still building.", indexName);
 				throw new IllegalStateException("Search index is still building. Please try again later.", e);
 			}
-			LOG.error("OpenSearch query failed on {}: {}", indexName, e.getMessage());
 			throw new RuntimeException("Failed to execute search on search index: " + indexName, e);
 		} catch (IOException e) {
-			LOG.error("OpenSearch query failed on {}: {}", indexName, e.getMessage());
 			throw new RuntimeException("Failed to execute search on search index: " + indexName, e);
 		}
 	}
@@ -514,8 +466,9 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 				String wildcardField = stripBoost(fields.get(0));
 				return Query.of(q -> q.wildcard(w -> w.field(wildcardField).value(queryText)));
 			case MATCH_ALL:
-			default:
 				return Query.of(q -> q.matchAll(m -> m));
+			default:
+				throw new IllegalArgumentException("Unsupported query type: " + queryType);
 		}
 	}
 
@@ -1060,13 +1013,10 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 				return req;
 			});
 		} catch (OpenSearchException e) {
-			LOG.debug("AOSS _analyze validation failed: {}", e.getMessage());
-			LOG.warn("TextAnalyzer validation failed: {}", e.error().reason());
 			throw new IllegalArgumentException(
 				"Invalid analyzer configuration: " + e.error().reason()
 				+ ". Check your tokenizer, token filters, and character filters.", e);
 		} catch (IOException e) {
-			LOG.warn("Failed to reach AOSS for analyzer validation", e);
 			throw new IllegalStateException(
 				"Unable to validate analyzer settings: the search service is temporarily unavailable. Please try again later.", e);
 		}

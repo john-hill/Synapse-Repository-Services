@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.manager.search;
 import java.util.List;
 import java.util.Map;
 
+import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.SearchQuery;
@@ -42,11 +43,11 @@ public interface OpenSearchManager {
 	/**
 	 * Bulk index a batch of documents into the OpenSearch index.
 	 *
-	 * @param indexName  The OpenSearch index name
-	 * @param documents List of documents, each as a map of field name to value
+	 * @param indexName   The OpenSearch index name
+	 * @param operations  List of bulk operations to execute
 	 * @return The number of documents successfully indexed
 	 */
-	long bulkIndex(String indexName, List<Map<String, Object>> documents);
+	long bulkIndex(String indexName, List<BulkOperation> operations);
 
 	/**
 	 * Execute a search query against the OpenSearch index.

@@ -1,17 +1,15 @@
 package org.sagebionetworks.repo.manager.search;
 
-import java.util.EnumMap;
-import java.util.EnumSet;
-import java.util.Map;
-import java.util.Set;
-
 import org.sagebionetworks.repo.model.table.ColumnConstants;
 import org.sagebionetworks.repo.model.table.ColumnType;
 
 /**
- * Utility class that maps Synapse {@link ColumnType} to OpenSearch field mapping characteristics.
- * This drives index creation: determining the primary OS type, sub-fields, analyzer IDs,
+ * Enum that maps each Synapse {@link ColumnType} to its OpenSearch field mapping characteristics.
+ * This drives index creation: determining the primary OS field category, default analyzer,
  * and ignoreAbove limits for keyword sub-fields.
+ *
+ * <p>Adding a new {@link ColumnType} requires adding a corresponding constant here,
+ * forcing the developer to specify all required mapping attributes at compile time.
  *
  * <p>Mapping summary:
  * <ul>
@@ -24,179 +22,131 @@ import org.sagebionetworks.repo.model.table.ColumnType;
  *   <li>JSON: object (dynamic:true)</li>
  * </ul>
  */
-public final class ColumnTypeToOpenSearchMapping {
+public enum ColumnTypeToOpenSearchMapping {
 
-	private ColumnTypeToOpenSearchMapping() {
-		// Utility class, not instantiable
+	STRING       (ColumnType.STRING,        OpenSearchFieldCategory.TEXT,    TextAnalyzerBootstrapper.SCIENTIFIC_ID, "org.sagebionetworks-SCIENTIFIC", ColumnConstants.MAX_ALLOWED_STRING_SIZE.intValue()),
+	STRING_LIST  (ColumnType.STRING_LIST,   OpenSearchFieldCategory.TEXT,    TextAnalyzerBootstrapper.SCIENTIFIC_ID, "org.sagebionetworks-SCIENTIFIC", ColumnConstants.MAX_ALLOWED_STRING_SIZE.intValue()),
+	MEDIUMTEXT   (ColumnType.MEDIUMTEXT,    OpenSearchFieldCategory.TEXT,    TextAnalyzerBootstrapper.SCIENTIFIC_ID, "org.sagebionetworks-SCIENTIFIC", (int) ColumnConstants.MAX_MEDIUM_TEXT_CHARACTERS),
+	LARGETEXT    (ColumnType.LARGETEXT,     OpenSearchFieldCategory.TEXT,    TextAnalyzerBootstrapper.SCIENTIFIC_ID, "org.sagebionetworks-SCIENTIFIC", 8192),
+	LINK         (ColumnType.LINK,          OpenSearchFieldCategory.LINK,   TextAnalyzerBootstrapper.KEYWORD_ID,    "org.sagebionetworks-KEYWORD",    ColumnConstants.MAX_ALLOWED_STRING_SIZE.intValue()),
+	INTEGER      (ColumnType.INTEGER,       OpenSearchFieldCategory.LONG,   TextAnalyzerBootstrapper.KEYWORD_ID,    "org.sagebionetworks-KEYWORD",    null),
+	INTEGER_LIST (ColumnType.INTEGER_LIST,  OpenSearchFieldCategory.LONG,   TextAnalyzerBootstrapper.KEYWORD_ID,    "org.sagebionetworks-KEYWORD",    null),
+	DATE         (ColumnType.DATE,          OpenSearchFieldCategory.LONG,   TextAnalyzerBootstrapper.KEYWORD_ID,    "org.sagebionetworks-KEYWORD",    null),
+	DATE_LIST    (ColumnType.DATE_LIST,     OpenSearchFieldCategory.LONG,   TextAnalyzerBootstrapper.KEYWORD_ID,    "org.sagebionetworks-KEYWORD",    null),
+	FILEHANDLEID (ColumnType.FILEHANDLEID,  OpenSearchFieldCategory.LONG,   TextAnalyzerBootstrapper.KEYWORD_ID,    "org.sagebionetworks-KEYWORD",    null),
+	SUBMISSIONID (ColumnType.SUBMISSIONID,  OpenSearchFieldCategory.LONG,   TextAnalyzerBootstrapper.KEYWORD_ID,    "org.sagebionetworks-KEYWORD",    null),
+	EVALUATIONID (ColumnType.EVALUATIONID,  OpenSearchFieldCategory.LONG,   TextAnalyzerBootstrapper.KEYWORD_ID,    "org.sagebionetworks-KEYWORD",    null),
+	ENTITYID     (ColumnType.ENTITYID,      OpenSearchFieldCategory.KEYWORD, TextAnalyzerBootstrapper.KEYWORD_ID,   "org.sagebionetworks-KEYWORD",    256),
+	USERID       (ColumnType.USERID,        OpenSearchFieldCategory.KEYWORD, TextAnalyzerBootstrapper.KEYWORD_ID,   "org.sagebionetworks-KEYWORD",    256),
+	ENTITYID_LIST(ColumnType.ENTITYID_LIST, OpenSearchFieldCategory.KEYWORD, TextAnalyzerBootstrapper.KEYWORD_ID,   "org.sagebionetworks-KEYWORD",    256),
+	USERID_LIST  (ColumnType.USERID_LIST,   OpenSearchFieldCategory.KEYWORD, TextAnalyzerBootstrapper.KEYWORD_ID,   "org.sagebionetworks-KEYWORD",    256),
+	DOUBLE       (ColumnType.DOUBLE,        OpenSearchFieldCategory.DOUBLE, TextAnalyzerBootstrapper.KEYWORD_ID,    "org.sagebionetworks-KEYWORD",    null),
+	BOOLEAN      (ColumnType.BOOLEAN,       OpenSearchFieldCategory.BOOLEAN, TextAnalyzerBootstrapper.KEYWORD_ID,   "org.sagebionetworks-KEYWORD",    null),
+	BOOLEAN_LIST (ColumnType.BOOLEAN_LIST,  OpenSearchFieldCategory.BOOLEAN, TextAnalyzerBootstrapper.KEYWORD_ID,   "org.sagebionetworks-KEYWORD",    null),
+	JSON         (ColumnType.JSON,          OpenSearchFieldCategory.JSON,   TextAnalyzerBootstrapper.STANDARD_ID,   "org.sagebionetworks-STANDARD",   null);
+
+	/**
+	 * The categories of OpenSearch field types used in search index mappings.
+	 */
+	public enum OpenSearchFieldCategory {
+		TEXT, KEYWORD, LONG, DOUBLE, BOOLEAN, JSON, LINK
+	}
+
+	private final ColumnType columnType;
+	private final OpenSearchFieldCategory fieldCategory;
+	private final Long defaultAnalyzerId;
+	private final String defaultAnalyzerQualifiedName;
+	private final Integer ignoreAbove;
+
+	ColumnTypeToOpenSearchMapping(ColumnType columnType, OpenSearchFieldCategory fieldCategory,
+			Long defaultAnalyzerId, String defaultAnalyzerQualifiedName, Integer ignoreAbove) {
+		this.columnType = columnType;
+		this.fieldCategory = fieldCategory;
+		this.defaultAnalyzerId = defaultAnalyzerId;
+		this.defaultAnalyzerQualifiedName = defaultAnalyzerQualifiedName;
+		this.ignoreAbove = ignoreAbove;
 	}
 
 	/**
-	 * Column types that map to OpenSearch text (full-text searchable).
+	 * Lookup the mapping info for a given ColumnType.
+	 *
+	 * @param type The Synapse column type
+	 * @return The mapping info
+	 * @throws IllegalArgumentException if the type has no mapping
 	 */
-	private static final Set<ColumnType> TEXT_TYPES = EnumSet.of(
-			ColumnType.STRING,
-			ColumnType.STRING_LIST,
-			ColumnType.MEDIUMTEXT,
-			ColumnType.LARGETEXT
-	);
-
-	/**
-	 * Column types that map to OpenSearch long.
-	 */
-	private static final Set<ColumnType> LONG_TYPES = EnumSet.of(
-			ColumnType.INTEGER,
-			ColumnType.DATE,
-			ColumnType.INTEGER_LIST,
-			ColumnType.DATE_LIST,
-			ColumnType.FILEHANDLEID,
-			ColumnType.SUBMISSIONID,
-			ColumnType.EVALUATIONID
-	);
-
-	/**
-	 * Column types that map to OpenSearch keyword (exact match).
-	 */
-	private static final Set<ColumnType> KEYWORD_TYPES = EnumSet.of(
-			ColumnType.ENTITYID,
-			ColumnType.USERID,
-			ColumnType.ENTITYID_LIST,
-			ColumnType.USERID_LIST
-	);
-
-	/**
-	 * Column types that map to OpenSearch boolean.
-	 */
-	private static final Set<ColumnType> BOOLEAN_TYPES = EnumSet.of(
-			ColumnType.BOOLEAN,
-			ColumnType.BOOLEAN_LIST
-	);
-
-	/**
-	 * Numeric column types (long + double).
-	 */
-	private static final Set<ColumnType> NUMERIC_TYPES = EnumSet.of(
-			ColumnType.INTEGER,
-			ColumnType.DATE,
-			ColumnType.INTEGER_LIST,
-			ColumnType.DATE_LIST,
-			ColumnType.FILEHANDLEID,
-			ColumnType.SUBMISSIONID,
-			ColumnType.EVALUATIONID,
-			ColumnType.DOUBLE
-	);
-
-	/**
-	 * Default analyzer IDs per column type, referencing TextAnalyzerBootstrapper constants.
-	 */
-	private static final Map<ColumnType, Long> DEFAULT_ANALYZER_MAP;
-	static {
-		DEFAULT_ANALYZER_MAP = new EnumMap<>(ColumnType.class);
-		// STRING types default to SCIENTIFIC
-		DEFAULT_ANALYZER_MAP.put(ColumnType.STRING, TextAnalyzerBootstrapper.SCIENTIFIC_ID);
-		DEFAULT_ANALYZER_MAP.put(ColumnType.STRING_LIST, TextAnalyzerBootstrapper.SCIENTIFIC_ID);
-		DEFAULT_ANALYZER_MAP.put(ColumnType.MEDIUMTEXT, TextAnalyzerBootstrapper.SCIENTIFIC_ID);
-		DEFAULT_ANALYZER_MAP.put(ColumnType.LARGETEXT, TextAnalyzerBootstrapper.SCIENTIFIC_ID);
-		// LINK defaults to KEYWORD
-		DEFAULT_ANALYZER_MAP.put(ColumnType.LINK, TextAnalyzerBootstrapper.KEYWORD_ID);
-		// ID types default to KEYWORD
-		DEFAULT_ANALYZER_MAP.put(ColumnType.ENTITYID, TextAnalyzerBootstrapper.KEYWORD_ID);
-		DEFAULT_ANALYZER_MAP.put(ColumnType.USERID, TextAnalyzerBootstrapper.KEYWORD_ID);
-		DEFAULT_ANALYZER_MAP.put(ColumnType.ENTITYID_LIST, TextAnalyzerBootstrapper.KEYWORD_ID);
-		DEFAULT_ANALYZER_MAP.put(ColumnType.USERID_LIST, TextAnalyzerBootstrapper.KEYWORD_ID);
-		DEFAULT_ANALYZER_MAP.put(ColumnType.FILEHANDLEID, TextAnalyzerBootstrapper.KEYWORD_ID);
-		DEFAULT_ANALYZER_MAP.put(ColumnType.SUBMISSIONID, TextAnalyzerBootstrapper.KEYWORD_ID);
-		DEFAULT_ANALYZER_MAP.put(ColumnType.EVALUATIONID, TextAnalyzerBootstrapper.KEYWORD_ID);
-		// JSON defaults to STANDARD
-		DEFAULT_ANALYZER_MAP.put(ColumnType.JSON, TextAnalyzerBootstrapper.STANDARD_ID);
-		// Numeric and boolean types have no analyzer; mapped to KEYWORD as a safe default
-		DEFAULT_ANALYZER_MAP.put(ColumnType.INTEGER, TextAnalyzerBootstrapper.KEYWORD_ID);
-		DEFAULT_ANALYZER_MAP.put(ColumnType.INTEGER_LIST, TextAnalyzerBootstrapper.KEYWORD_ID);
-		DEFAULT_ANALYZER_MAP.put(ColumnType.DOUBLE, TextAnalyzerBootstrapper.KEYWORD_ID);
-		DEFAULT_ANALYZER_MAP.put(ColumnType.DATE, TextAnalyzerBootstrapper.KEYWORD_ID);
-		DEFAULT_ANALYZER_MAP.put(ColumnType.DATE_LIST, TextAnalyzerBootstrapper.KEYWORD_ID);
-		DEFAULT_ANALYZER_MAP.put(ColumnType.BOOLEAN, TextAnalyzerBootstrapper.KEYWORD_ID);
-		DEFAULT_ANALYZER_MAP.put(ColumnType.BOOLEAN_LIST, TextAnalyzerBootstrapper.KEYWORD_ID);
+	public static ColumnTypeToOpenSearchMapping getInfoForType(ColumnType type) {
+		for (ColumnTypeToOpenSearchMapping info : values()) {
+			if (info.columnType == type) {
+				return info;
+			}
+		}
+		throw new IllegalArgumentException("Unknown ColumnType: " + type);
 	}
 
-	/**
-	 * OpenSearch ignoreAbove limit for large text keyword sub-fields.
-	 * Distinct from {@link ColumnConstants#MAX_LARGE_TEXT_CHARACTERS} which is the Synapse storage limit.
-	 */
-	private static final int LARGE_TEXT_IGNORE_ABOVE = 8192;
-
-	/**
-	 * OpenSearch ignoreAbove limit for ID-type keyword fields (entity IDs, user IDs).
-	 */
-	private static final int ID_KEYWORD_IGNORE_ABOVE = 256;
-
-	/**
-	 * ignoreAbove values for keyword sub-fields, keyed by column type.
-	 */
-	private static final Map<ColumnType, Integer> IGNORE_ABOVE_MAP;
-	static {
-		IGNORE_ABOVE_MAP = new EnumMap<>(ColumnType.class);
-		IGNORE_ABOVE_MAP.put(ColumnType.STRING, ColumnConstants.MAX_ALLOWED_STRING_SIZE.intValue());
-		IGNORE_ABOVE_MAP.put(ColumnType.STRING_LIST, ColumnConstants.MAX_ALLOWED_STRING_SIZE.intValue());
-		IGNORE_ABOVE_MAP.put(ColumnType.LINK, ColumnConstants.MAX_ALLOWED_STRING_SIZE.intValue());
-		IGNORE_ABOVE_MAP.put(ColumnType.MEDIUMTEXT, (int) ColumnConstants.MAX_MEDIUM_TEXT_CHARACTERS);
-		IGNORE_ABOVE_MAP.put(ColumnType.LARGETEXT, LARGE_TEXT_IGNORE_ABOVE);
-		IGNORE_ABOVE_MAP.put(ColumnType.ENTITYID, ID_KEYWORD_IGNORE_ABOVE);
-		IGNORE_ABOVE_MAP.put(ColumnType.USERID, ID_KEYWORD_IGNORE_ABOVE);
-		IGNORE_ABOVE_MAP.put(ColumnType.ENTITYID_LIST, ID_KEYWORD_IGNORE_ABOVE);
-		IGNORE_ABOVE_MAP.put(ColumnType.USERID_LIST, ID_KEYWORD_IGNORE_ABOVE);
+	public ColumnType getColumnType() {
+		return columnType;
 	}
+
+	public OpenSearchFieldCategory getFieldCategory() {
+		return fieldCategory;
+	}
+
+	public Long getDefaultAnalyzerId() {
+		return defaultAnalyzerId;
+	}
+
+	public String getDefaultAnalyzerQualifiedName() {
+		return defaultAnalyzerQualifiedName;
+	}
+
+	public Integer getIgnoreAbove() {
+		return ignoreAbove;
+	}
+
+	// Static convenience methods for callers that operate on ColumnType directly
 
 	public static boolean isTextType(ColumnType columnType) {
-		return TEXT_TYPES.contains(columnType);
-	}
-
-	public static boolean isNumericType(ColumnType columnType) {
-		return NUMERIC_TYPES.contains(columnType);
+		return getInfoForType(columnType).fieldCategory == OpenSearchFieldCategory.TEXT;
 	}
 
 	public static boolean isKeywordType(ColumnType columnType) {
-		return KEYWORD_TYPES.contains(columnType);
-	}
-
-	public static boolean isBooleanType(ColumnType columnType) {
-		return BOOLEAN_TYPES.contains(columnType);
+		return getInfoForType(columnType).fieldCategory == OpenSearchFieldCategory.KEYWORD;
 	}
 
 	public static boolean isLongType(ColumnType columnType) {
-		return LONG_TYPES.contains(columnType);
+		return getInfoForType(columnType).fieldCategory == OpenSearchFieldCategory.LONG;
 	}
 
 	public static boolean isDoubleType(ColumnType columnType) {
-		return columnType == ColumnType.DOUBLE;
+		return getInfoForType(columnType).fieldCategory == OpenSearchFieldCategory.DOUBLE;
+	}
+
+	public static boolean isBooleanType(ColumnType columnType) {
+		return getInfoForType(columnType).fieldCategory == OpenSearchFieldCategory.BOOLEAN;
 	}
 
 	public static boolean isJsonType(ColumnType columnType) {
-		return columnType == ColumnType.JSON;
+		return getInfoForType(columnType).fieldCategory == OpenSearchFieldCategory.JSON;
 	}
 
 	public static boolean isLinkType(ColumnType columnType) {
-		return columnType == ColumnType.LINK;
+		return getInfoForType(columnType).fieldCategory == OpenSearchFieldCategory.LINK;
 	}
 
-	/**
-	 * Returns the default text analyzer ID for the given column type.
-	 * This is the analyzer used when no explicit override or configuration default is provided.
-	 *
-	 * @param columnType The Synapse column type
-	 * @return The default analyzer ID, never null
-	 */
+	public static boolean isNumericType(ColumnType columnType) {
+		OpenSearchFieldCategory cat = getInfoForType(columnType).fieldCategory;
+		return cat == OpenSearchFieldCategory.LONG || cat == OpenSearchFieldCategory.DOUBLE;
+	}
+
 	public static Long getDefaultAnalyzerId(ColumnType columnType) {
-		Long id = DEFAULT_ANALYZER_MAP.get(columnType);
-		return id != null ? id : TextAnalyzerBootstrapper.SCIENTIFIC_ID;
+		return getInfoForType(columnType).defaultAnalyzerId;
 	}
 
-	/**
-	 * Returns the ignoreAbove value for keyword sub-fields associated with the given column type.
-	 *
-	 * @param columnType The Synapse column type
-	 * @return The ignoreAbove value, or null if not applicable
-	 */
+	public static String getDefaultAnalyzerQualifiedName(ColumnType columnType) {
+		return getInfoForType(columnType).defaultAnalyzerQualifiedName;
+	}
+
 	public static Integer getIgnoreAbove(ColumnType columnType) {
-		return IGNORE_ABOVE_MAP.get(columnType);
+		return getInfoForType(columnType).ignoreAbove;
 	}
 }

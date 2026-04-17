@@ -89,6 +89,7 @@ public class SubscriptionAndDiscussionAuthorizationManagerImplUnitTest {
 	@Test
 	public void testCanSubscribeWithAnonymousUser() {
 		UserInfo anonUser = new UserInfo(false, BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId(), AuthorizationConstants.DEFAULT_REALM_ID);
+		anonUser.setRealmAnonymousUserId(anonUser.getId());
 		// call under test
 		assertFalse(subscriptionAuthorizationManager.canSubscribe(anonUser, forumId, SubscriptionObjectType.FORUM).isAuthorized());
 	}

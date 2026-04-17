@@ -1180,7 +1180,7 @@ public class ITDataAccessTest {
 		DiscussionThreadBundle thread = threads.getResults().get(0);
 		assertEquals("submissionId:" + submissionId, thread.getTitle());
 		assertEquals(managedAR.getId().toString(), thread.getObjectId());
-		assertEquals(ForumObjectType.ACCESS_REQUIREMENT.name(), thread.getObjectType());
+		assertEquals(ForumObjectType.ACCESS_REQUIREMENT, thread.getObjectType());
 		assertNotNull(thread.getId());
 		assertNotNull(thread.getForumId());
 		assertEquals(forum.getId(), thread.getForumId());

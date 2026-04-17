@@ -801,34 +801,4 @@ public class SnapshotRowHandlerTest {
 		assertNotNull(clockTable, "Clock table should not be null");
 	}
 
-	@Test
-	public void testCloseIncrementsClockSequenceNumbers() throws IOException {
-		// Setup: the encoder returns a clock table with known sequence numbers
-		ClockTable encoderClock = new ClockTable(new ArrayList<>(List.of(
-				new LogicalTimestamp().setReplicaId(replicaId).setSequenceNumber(42L),
-				new LogicalTimestamp().setReplicaId(55L).setSequenceNumber(100L)
-		)));
-		when(mockEncoder.getClockTable()).thenReturn(encoderClock);
-
-		SnapshotRowHandler handler = new SnapshotRowHandler(mockSnapshotStore, sessionId, replicaId, schema,
-				requiredColumnIndices, mockFileProvider, mockEncoderProvider, createdByUserId, mockValidationManager, null);
-
-		// call under test
-		handler.close();
-
-		// Verify the clock table passed to saveSnapshot has sequence numbers incremented by 1
-		ArgumentCaptor<ClockTable> clockTableCaptor = ArgumentCaptor.forClass(ClockTable.class);
-		verify(mockSnapshotStore).saveSnapshot(eq(sessionId), clockTableCaptor.capture(), eq(createdByUserId),
-				eq(mockFile));
-
-		ClockTable savedClock = clockTableCaptor.getValue();
-		assertEquals(2, savedClock.getClocks().size());
-		assertEquals(43L, savedClock.getClocks().get(0).getSequenceNumber(),
-				"Clock sequence should be incremented by 1 to match next-available convention");
-		assertEquals(replicaId, savedClock.getClocks().get(0).getReplicaId());
-		assertEquals(101L, savedClock.getClocks().get(1).getSequenceNumber(),
-				"Clock sequence should be incremented by 1 to match next-available convention");
-		assertEquals(55L, savedClock.getClocks().get(1).getReplicaId());
-	}
-
 }

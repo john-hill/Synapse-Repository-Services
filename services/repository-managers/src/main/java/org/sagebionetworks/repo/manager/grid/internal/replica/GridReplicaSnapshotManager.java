@@ -22,7 +22,7 @@ public class GridReplicaSnapshotManager {
 
 	private static final Logger log = LogManager.getLogger(GridReplicaSnapshotManager.class);
 
-	static final int PATCH_COUNT_SNAPSHOT_THRESHOLD = 1000;
+	public static final int PATCH_COUNT_SNAPSHOT_THRESHOLD = 1000;
 
 	private final GridIndexManager gridIndexManager;
 	private final SnapshotStore snapshotStore;

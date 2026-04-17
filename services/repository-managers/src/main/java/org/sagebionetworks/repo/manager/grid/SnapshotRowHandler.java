@@ -468,14 +468,7 @@ public class SnapshotRowHandler implements RowHandler {
         }
         try {
             finalizeEncoding();
-            /*
-             * A JSON CRDT snapshot's clock table is stored as the maximum sequence number seen across
-             * node IDs ("last-seen"), but clock representations stored in the patch and snapshot tables
-             * use the next available sequence number (patchId.sequenceNumber + span), which
-             * is one past the last used ID. Increment each entry by 1 to align with this convention.
-             */
-            ClockTable clockTable = this.encoder.getClockTable().incrementClocks();
-            snapshotStore.saveSnapshot(this.sessionId, clockTable, createdByUserId, snapshotFile);
+            snapshotStore.saveSnapshot(this.sessionId, this.encoder.getClockTable(), createdByUserId, snapshotFile);
         } finally {
             // Delete the file on disk
             if (snapshotFile != null && snapshotFile.exists()) {

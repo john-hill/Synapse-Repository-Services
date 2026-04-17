@@ -150,11 +150,8 @@ public class GridIndexManagerImpl implements GridIndexManager {
 				.setValue(index.getRootNodeId()))
 		);
 
-		// Update the replica clock
-		// The snapshot encodes the clocks as the 'last used' sequence number, but our clock table stores the
-		// 'next available' sequence number. Increment each clock entry before storing in the database
-		ClockTable dbClockTable = snapshotClockTable.copy().incrementClocks();
-		dao.setClocks(sessionId, replicaId, dbClockTable.getClocks());
+		// Update the replica clock to match the snapshot clock
+		dao.setClocks(sessionId, replicaId, snapshotClockTable.getClocks());
 	}
 
 	/**
@@ -205,12 +202,8 @@ public class GridIndexManagerImpl implements GridIndexManager {
 			 * Ensure these operations are accounted for by updating the snapshot's clock values to use the replica's
 			 * database clock rather than the encoder's node-derived clock (which is intended to only be used for
 			 *  newly-instantiated grids).
-			 *
-			 * Before copying over the replica's clocks from the database, we decrement the dbClock sequence numbers
-			 * because our database follows the convention of storing the 'next-available' sequence number, while
-			 * JSON CRDT Snapshots encode the 'last-used' sequence number.
 			 */
-			ClockTable dbClock = new ClockTable(dao.getClock(sessionId, replicaId)).decrementClocks();
+			ClockTable dbClock = new ClockTable(dao.getClock(sessionId, replicaId));
 			ClockTable clockTable = encoder.getClockTable();
 			for (LogicalTimestamp c : dbClock.getClocks()) {
 				clockTable.updateClockTable(c);

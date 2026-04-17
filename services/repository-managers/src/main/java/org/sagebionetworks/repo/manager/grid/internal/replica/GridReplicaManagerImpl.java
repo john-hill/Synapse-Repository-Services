@@ -54,7 +54,8 @@ public class GridReplicaManagerImpl implements GridReplicaManager {
 	private final HttpClient httpClient;
 
 	public GridReplicaManagerImpl(GridIndexManager gridIndexManager,
-			GridReplicaSnapshotManager snapshotManager, InternalReplicaToHubEventPublisher publisher,
+			GridReplicaSnapshotManager snapshotManager,
+			InternalReplicaToHubEventPublisher publisher,
 			SnsClient snsClient, String gridReplicaChangeTopicArn,
 			HttpClient httpClient) {
 		this.gridIndexManager = gridIndexManager;
@@ -179,5 +180,10 @@ public class GridReplicaManagerImpl implements GridReplicaManager {
 	@Override
 	public void onNewPatch(ProgressCallback callback, GridConnectionInfo connection) {
 		synchronizeClock(callback, connection);
+	}
+
+	@Override
+	public void onExportSnapshot(ProgressCallback callback, GridConnectionInfo connection) {
+		snapshotManager.createSnapshotIfPatchCountIsExceeded(connection);
 	}
 }

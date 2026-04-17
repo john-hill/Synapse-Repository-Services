@@ -312,7 +312,6 @@ public class GridIndexManagerImplTest {
 		LogicalTimestamp vectorId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(6L);
 		LogicalTimestamp vectorConstId = new LogicalTimestamp().setReplicaId(100L).setSequenceNumber(7L);
 		ClockTable clockTable = new ClockTable(List.of(rootId));
-		ClockTable expectedClockTable = new ClockTable(List.of(new LogicalTimestamp().setReplicaId(rootId.getReplicaId()).setSequenceNumber(rootId.getSequenceNumber() + 1L)));
 
 		// Create nodes
 		ConstantNode constantNode = new ConstantNode().setId(constId).setValue(new ConValue(ConType.LONG, 42L));
@@ -379,7 +378,7 @@ public class GridIndexManagerImplTest {
 		);
 
 		// Verify clocks
-		verify(mockDao).setClocks(sessionId, replicaId, expectedClockTable.getClocks());
+		verify(mockDao).setClocks(sessionId, replicaId, clockTable.getClocks());
 		verify(mockReader).close();
 
 		verifyNoMoreInteractions(mockDao, mockIndexBuilder, mockReaderProvider, mockReader);

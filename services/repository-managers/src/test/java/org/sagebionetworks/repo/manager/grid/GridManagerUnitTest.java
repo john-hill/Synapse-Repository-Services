@@ -129,7 +129,7 @@ public class GridManagerUnitTest {
 
 	@Mock
 	private InternalReplicaToHubEventPublisher mockInternalEventPublisher;
-	
+
 	@Mock
 	private GridAuthorizationManager mockGridAuthManager;
 	

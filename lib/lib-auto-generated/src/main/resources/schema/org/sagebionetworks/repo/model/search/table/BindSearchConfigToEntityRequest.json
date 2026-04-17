@@ -1,0 +1,13 @@
+{
+	"description": "Request to bind a SearchConfiguration to an entity. The caller must have edit permission on the entity. Replaces any existing binding for the entity.",
+	"properties": {
+		"entityId": {
+			"type": "string",
+			"description": "The ID of the entity to bind the search configuration to."
+		},
+		"searchConfigurationId": {
+			"type": "string",
+			"description": "The ID of the SearchConfiguration to bind."
+		}
+	}
+}

@@ -75,7 +75,7 @@ public class CurationTaskController {
      * @throws InvalidModelException
      * @throws IOException
      */
-    @RequiredScope({view, modify})
+    @RequiredScope({view})
     @ResponseStatus(HttpStatus.OK)
     @RequestMapping(value = UrlHelpers.CURATION_TASK_ID, method = RequestMethod.GET)
     public @ResponseBody
@@ -143,7 +143,7 @@ public class CurationTaskController {
      * @throws InvalidModelException
      * @throws IOException
      */
-    @RequiredScope({view, modify})
+    @RequiredScope({view})
     @ResponseStatus(HttpStatus.OK)
     @RequestMapping(value = UrlHelpers.CURATION_TASK_LIST, method = RequestMethod.POST)
     public @ResponseBody

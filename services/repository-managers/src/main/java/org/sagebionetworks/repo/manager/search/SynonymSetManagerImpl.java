@@ -42,6 +42,7 @@ public class SynonymSetManagerImpl implements SynonymSetManager {
 		ValidateArgument.required(request, "request");
 		ValidateArgument.requiredNotBlank(request.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(request.getName(), "name");
+		SearchResourceConstants.validateResourceName(request.getName());
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
@@ -71,6 +72,7 @@ public class SynonymSetManagerImpl implements SynonymSetManager {
 		ValidateArgument.requiredNotBlank(request.getId(), "id");
 		ValidateArgument.requiredNotBlank(request.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(request.getName(), "name");
+		SearchResourceConstants.validateResourceName(request.getName());
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
@@ -80,7 +82,10 @@ public class SynonymSetManagerImpl implements SynonymSetManager {
 			.orElseThrow(() -> new NotFoundException("A synonym set with the given id does not exist."));
 
 		if (!existing.getOrganizationName().equals(request.getOrganizationName())) {
-			throw new IllegalArgumentException("The organizationName cannot be changed.");
+			throw new IllegalArgumentException(SearchResourceConstants.ORG_NAME_IMMUTABLE_MSG);
+		}
+		if (!existing.getName().equals(request.getName())) {
+			throw new IllegalArgumentException(SearchResourceConstants.NAME_IMMUTABLE_MSG);
 		}
 
 		if (!user.isAdmin()) {

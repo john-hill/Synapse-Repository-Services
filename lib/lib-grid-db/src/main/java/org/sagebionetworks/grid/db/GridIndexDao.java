@@ -41,11 +41,22 @@ public interface GridIndexDao {
 
 	/**
 	 * Delete a replica and all of its data.
-	 * 
+	 *
 	 * @param sessionId
 	 * @param replicaId
 	 */
 	void deleteReplica(String sessionId, Long replicaId);
+
+	/**
+	 * Clear all CRDT data for a replica (index, clock, constants, values, objects,
+	 * vectors, and arrays) without deleting the replica row or its message chains.
+	 * Use this during snapshot application to reset CRDT state while preserving
+	 * active message chains in GRID_REPLICA_MESSAGE.
+	 *
+	 * @param sessionId
+	 * @param replicaId
+	 */
+	void clearReplicaData(String sessionId, Long replicaId);
 
 	/**
 	 * Get the a replica's full clock.

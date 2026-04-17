@@ -152,6 +152,8 @@
 				<bean class="org.sagebionetworks.repo.model.dbo.search.DBOTextAnalyzer" />
 				<bean class="org.sagebionetworks.repo.model.dbo.search.DBOColumnAnalyzerOverride" />
 				<bean class="org.sagebionetworks.repo.model.dbo.search.DBOSynonymSet" />
+				<bean class="org.sagebionetworks.repo.model.dbo.search.DBOSearchConfiguration" />
+				<bean class="org.sagebionetworks.repo.model.dbo.search.DBOSearchConfigBindObject" />
 				<!-- Download -->
 				<bean class="org.sagebionetworks.repo.model.dbo.file.download.DBODownloadList" />
 				<bean class="org.sagebionetworks.repo.model.dbo.file.download.DBODownloadListItem" />
@@ -383,6 +385,8 @@
 				<bean class="org.sagebionetworks.repo.model.dbo.search.DBOTextAnalyzer" />
 				<bean class="org.sagebionetworks.repo.model.dbo.search.DBOColumnAnalyzerOverride" />
 				<bean class="org.sagebionetworks.repo.model.dbo.search.DBOSynonymSet" />
+				<bean class="org.sagebionetworks.repo.model.dbo.search.DBOSearchConfiguration" />
+				<bean class="org.sagebionetworks.repo.model.dbo.search.DBOSearchConfigBindObject" />
 
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOChange" /> <!-- THIS MUST ALWAYS BE THE LAST BEAN -->
 			</list>

@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.search;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -11,7 +12,9 @@ import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
+import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
+import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesRequest;
 import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesResponse;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
@@ -25,12 +28,14 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 	private static final String MSG_UNAUTHORIZED = "Only Sage Bionetworks employees can manage column analyzer overrides.";
 
 	private final ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao;
+	private final TextAnalyzerDao textAnalyzerDao;
 	private final AccessControlListDAO aclDao;
 	private final OrganizationDao organizationDao;
 
 	public ColumnAnalyzerOverrideManagerImpl(ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao,
-			AccessControlListDAO aclDao, OrganizationDao organizationDao) {
+			TextAnalyzerDao textAnalyzerDao, AccessControlListDAO aclDao, OrganizationDao organizationDao) {
 		this.columnAnalyzerOverrideDao = columnAnalyzerOverrideDao;
+		this.textAnalyzerDao = textAnalyzerDao;
 		this.aclDao = aclDao;
 		this.organizationDao = organizationDao;
 	}
@@ -42,6 +47,7 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 		ValidateArgument.required(request, "request");
 		ValidateArgument.requiredNotBlank(request.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(request.getName(), "name");
+		SearchResourceConstants.validateResourceName(request.getName());
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
@@ -51,6 +57,8 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 			aclDao.canAccess(user, resolveOrganizationId(request.getOrganizationName()), ObjectType.ORGANIZATION, ACCESS_TYPE.CREATE)
 				.checkAuthorizationOrElseThrow();
 		}
+
+		validateEntryAnalyzerNames(request);
 
 		return columnAnalyzerOverrideDao.create(user.getId(), request);
 	}
@@ -71,6 +79,7 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 		ValidateArgument.requiredNotBlank(request.getId(), "id");
 		ValidateArgument.requiredNotBlank(request.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(request.getName(), "name");
+		SearchResourceConstants.validateResourceName(request.getName());
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
@@ -80,13 +89,18 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 			.orElseThrow(() -> new NotFoundException("A column analyzer override with the given id does not exist."));
 
 		if (!existing.getOrganizationName().equals(request.getOrganizationName())) {
-			throw new IllegalArgumentException("The organizationName cannot be changed.");
+			throw new IllegalArgumentException(SearchResourceConstants.ORG_NAME_IMMUTABLE_MSG);
+		}
+		if (!existing.getName().equals(request.getName())) {
+			throw new IllegalArgumentException(SearchResourceConstants.NAME_IMMUTABLE_MSG);
 		}
 
 		if (!user.isAdmin()) {
 			aclDao.canAccess(user, resolveOrganizationId(existing.getOrganizationName()), ObjectType.ORGANIZATION, ACCESS_TYPE.UPDATE)
 				.checkAuthorizationOrElseThrow();
 		}
+
+		validateEntryAnalyzerNames(request);
 
 		return columnAnalyzerOverrideDao.update(user.getId(), request);
 	}
@@ -131,6 +145,30 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 			.setResults(page)
 			.setNextPageToken(nextPageToken.getNextPageTokenForCurrentResults(page));
 	}
+
+	private void validateEntryAnalyzerNames(ColumnAnalyzerOverride override) {
+		if (override.getOverrides() == null || override.getOverrides().isEmpty()) {
+			return;
+		}
+		List<String> qualifiedNames = new ArrayList<>();
+		for (ColumnAnalyzerOverrideEntry entry : override.getOverrides()) {
+			if (entry.getIndexAnalyzer() != null) {
+				SearchResourceConstants.validateQualifiedNameFormat(entry.getIndexAnalyzer(), "indexAnalyzer");
+				qualifiedNames.add(entry.getIndexAnalyzer());
+			}
+			if (entry.getSearchAnalyzer() != null) {
+				SearchResourceConstants.validateQualifiedNameFormat(entry.getSearchAnalyzer(), "searchAnalyzer");
+				qualifiedNames.add(entry.getSearchAnalyzer());
+			}
+		}
+		if (!qualifiedNames.isEmpty()) {
+			List<String> missing = textAnalyzerDao.findNonExistentNames(qualifiedNames);
+			if (!missing.isEmpty()) {
+				throw new IllegalArgumentException("The following text analyzer names do not exist: " + missing);
+			}
+		}
+	}
+
 
 	private String resolveOrganizationId(String organizationName) {
 		return organizationDao.getOrganizationByName(organizationName).getId();

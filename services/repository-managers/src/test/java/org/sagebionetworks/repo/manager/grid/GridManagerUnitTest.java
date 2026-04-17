@@ -1155,19 +1155,6 @@ public class GridManagerUnitTest {
         verifyNoMoreInteractions(mockGridDao);
     }
 	
-	@ParameterizedTest
-	@EnumSource(value = EventSource.class)
-    public void testGetDefaultUserInternalConnection(EventSource source) {
-		when(mockUser.getId()).thenReturn(userId);
-        when(mockGridDao.getSingletonUserConnection(gridSessionId, userId, source)).thenReturn(
-                Optional.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)));
-
-        // call under test
-        Optional<GridConnectionInfo> actual = gridManager.getSingletonUserConnection(gridSessionId, mockUser, source);
-        assertEquals(Optional.of(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)), actual);
-        verifyNoMoreInteractions(mockGridDao);
-    }
-
 	void verifyConnectionEvent(EventSource expectedSource, Long replicaId) {
 		verify(mockInternalEventPublisher).publishEventAfterCommit(eventContextCaptor.capture(),
 				eq(JsonRxMessageType.Notification), eq("connection"),

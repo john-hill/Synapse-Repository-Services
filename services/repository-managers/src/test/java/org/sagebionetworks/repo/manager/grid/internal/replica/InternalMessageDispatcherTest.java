@@ -69,6 +69,15 @@ public class InternalMessageDispatcherTest {
 	}
 
 	@Test
+	public void testDispatchMessageWithReplicaConnected() {
+		message = new JsonRxMessage("[8,\"replica-connected\"]");
+		bundle = new JsonRxMessageBundle(message, connection, mockCallback);
+		// call under test
+		dispatcher.dispatchMessage(bundle);
+		verify(mockGridReplicaManager).onConnected(mockCallback, connection);
+	}
+
+	@Test
 	public void testDispatchWithNewPatch() {
 		message = new JsonRxMessage("[8,\"new-patch\"]");
 		bundle = new JsonRxMessageBundle(message, connection, mockCallback);

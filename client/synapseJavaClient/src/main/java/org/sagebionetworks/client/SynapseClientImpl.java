@@ -403,13 +403,18 @@ import org.sagebionetworks.repo.model.table.ViewColumnModelResponse;
 import org.sagebionetworks.repo.model.table.ViewEntityType;
 import org.sagebionetworks.repo.model.table.ViewScope;
 import org.sagebionetworks.repo.model.table.ViewType;
+import org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesRequest;
 import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesResponse;
+import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsRequest;
+import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsResponse;
 import org.sagebionetworks.repo.model.search.table.ListSynonymSetsRequest;
 import org.sagebionetworks.repo.model.search.table.ListSynonymSetsResponse;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
+import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiHeader;
@@ -780,6 +785,9 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	private static final String SEARCH_SYNONYM_SET_LIST = SEARCH_SYNONYM_SET + "/list";
 	private static final String SEARCH_COLUMN_ANALYZER_OVERRIDE = "/search/column/analyzer/override";
 	private static final String SEARCH_COLUMN_ANALYZER_OVERRIDE_LIST = SEARCH_COLUMN_ANALYZER_OVERRIDE + "/list";
+	private static final String SEARCH_CONFIGURATION = "/search/configuration";
+	private static final String SEARCH_CONFIGURATION_LIST = SEARCH_CONFIGURATION + "/list";
+	private static final String ENTITY_SEARCH_CONFIG_BINDING = "/entity/%s/searchconfig/binding";
 
 	/**
 	 * Default constructor uses the default repository and file services endpoints.
@@ -6696,46 +6704,56 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	}
 
 	@Override
-	public void deleteTextAnalyzer(String id) throws SynapseException {
-		ValidateArgument.required(id, "id");
-		deleteUri(getRepoEndpoint(), createEntityUri(SEARCH_TEXT_ANALYZER, id));
-	}
-
-	@Override
 	public ListTextAnalyzersResponse listTextAnalyzers(ListTextAnalyzersRequest request) throws SynapseException {
 		ValidateArgument.required(request, "request");
 		return postJSONEntity(getRepoEndpoint(), SEARCH_TEXT_ANALYZER_LIST, request, ListTextAnalyzersResponse.class);
 	}
 
 	@Override
-	public ColumnAnalyzerOverride createColumnAnalyzerOverride(ColumnAnalyzerOverride override) throws SynapseException {
-		ValidateArgument.required(override, "override");
-		return postJSONEntity(getRepoEndpoint(), SEARCH_COLUMN_ANALYZER_OVERRIDE, override, ColumnAnalyzerOverride.class);
+	public SearchConfiguration createSearchConfiguration(SearchConfiguration config) throws SynapseException {
+		ValidateArgument.required(config, "config");
+		return postJSONEntity(getRepoEndpoint(), SEARCH_CONFIGURATION, config, SearchConfiguration.class);
 	}
 
 	@Override
-	public ColumnAnalyzerOverride getColumnAnalyzerOverride(String id) throws SynapseException {
+	public SearchConfiguration getSearchConfiguration(String id) throws SynapseException {
 		ValidateArgument.required(id, "id");
-		return getJSONEntity(getRepoEndpoint(), createEntityUri(SEARCH_COLUMN_ANALYZER_OVERRIDE, id), ColumnAnalyzerOverride.class);
+		return getJSONEntity(getRepoEndpoint(), createEntityUri(SEARCH_CONFIGURATION, id), SearchConfiguration.class);
 	}
 
 	@Override
-	public ColumnAnalyzerOverride updateColumnAnalyzerOverride(ColumnAnalyzerOverride override) throws SynapseException {
-		ValidateArgument.required(override, "override");
-		ValidateArgument.required(override.getId(), "override.id");
-		return putJSONEntity(getRepoEndpoint(), createEntityUri(SEARCH_COLUMN_ANALYZER_OVERRIDE, override.getId()), override, ColumnAnalyzerOverride.class);
+	public SearchConfiguration updateSearchConfiguration(SearchConfiguration config) throws SynapseException {
+		ValidateArgument.required(config, "config");
+		ValidateArgument.required(config.getId(), "config.id");
+		return putJSONEntity(getRepoEndpoint(), createEntityUri(SEARCH_CONFIGURATION, config.getId()), config, SearchConfiguration.class);
 	}
 
 	@Override
-	public void deleteColumnAnalyzerOverride(String id) throws SynapseException {
-		ValidateArgument.required(id, "id");
-		deleteUri(getRepoEndpoint(), createEntityUri(SEARCH_COLUMN_ANALYZER_OVERRIDE, id));
-	}
-
-	@Override
-	public ListColumnAnalyzerOverridesResponse listColumnAnalyzerOverrides(ListColumnAnalyzerOverridesRequest request) throws SynapseException {
+	public ListSearchConfigurationsResponse listSearchConfigurations(ListSearchConfigurationsRequest request) throws SynapseException {
 		ValidateArgument.required(request, "request");
-		return postJSONEntity(getRepoEndpoint(), SEARCH_COLUMN_ANALYZER_OVERRIDE_LIST, request, ListColumnAnalyzerOverridesResponse.class);
+		return postJSONEntity(getRepoEndpoint(), SEARCH_CONFIGURATION_LIST, request, ListSearchConfigurationsResponse.class);
+	}
+
+	@Override
+	public SearchConfigBinding bindSearchConfigToEntity(BindSearchConfigToEntityRequest request) throws SynapseException {
+		ValidateArgument.required(request, "request");
+		ValidateArgument.required(request.getEntityId(), "request.entityId");
+		String uri = String.format(ENTITY_SEARCH_CONFIG_BINDING, request.getEntityId());
+		return putJSONEntity(getRepoEndpoint(), uri, request, SearchConfigBinding.class);
+	}
+
+	@Override
+	public SearchConfigBinding getSearchConfigBindingForEntity(String entityId) throws SynapseException {
+		ValidateArgument.required(entityId, "entityId");
+		String uri = String.format(ENTITY_SEARCH_CONFIG_BINDING, entityId);
+		return getJSONEntity(getRepoEndpoint(), uri, SearchConfigBinding.class);
+	}
+
+	@Override
+	public void clearSearchConfigBindingForEntity(String entityId) throws SynapseException {
+		ValidateArgument.required(entityId, "entityId");
+		String uri = String.format(ENTITY_SEARCH_CONFIG_BINDING, entityId);
+		deleteUri(getRepoEndpoint(), uri);
 	}
 
 	@Override
@@ -6758,15 +6776,34 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	}
 
 	@Override
-	public void deleteSynonymSet(String id) throws SynapseException {
-		ValidateArgument.required(id, "id");
-		deleteUri(getRepoEndpoint(), createEntityUri(SEARCH_SYNONYM_SET, id));
-	}
-
-	@Override
 	public ListSynonymSetsResponse listSynonymSets(ListSynonymSetsRequest request) throws SynapseException {
 		ValidateArgument.required(request, "request");
 		return postJSONEntity(getRepoEndpoint(), SEARCH_SYNONYM_SET_LIST, request, ListSynonymSetsResponse.class);
+	}
+
+	@Override
+	public ColumnAnalyzerOverride createColumnAnalyzerOverride(ColumnAnalyzerOverride override) throws SynapseException {
+		ValidateArgument.required(override, "override");
+		return postJSONEntity(getRepoEndpoint(), SEARCH_COLUMN_ANALYZER_OVERRIDE, override, ColumnAnalyzerOverride.class);
+	}
+
+	@Override
+	public ColumnAnalyzerOverride getColumnAnalyzerOverride(String id) throws SynapseException {
+		ValidateArgument.required(id, "id");
+		return getJSONEntity(getRepoEndpoint(), createEntityUri(SEARCH_COLUMN_ANALYZER_OVERRIDE, id), ColumnAnalyzerOverride.class);
+	}
+
+	@Override
+	public ColumnAnalyzerOverride updateColumnAnalyzerOverride(ColumnAnalyzerOverride override) throws SynapseException {
+		ValidateArgument.required(override, "override");
+		ValidateArgument.required(override.getId(), "override.id");
+		return putJSONEntity(getRepoEndpoint(), createEntityUri(SEARCH_COLUMN_ANALYZER_OVERRIDE, override.getId()), override, ColumnAnalyzerOverride.class);
+	}
+
+	@Override
+	public ListColumnAnalyzerOverridesResponse listColumnAnalyzerOverrides(ListColumnAnalyzerOverridesRequest request) throws SynapseException {
+		ValidateArgument.required(request, "request");
+		return postJSONEntity(getRepoEndpoint(), SEARCH_COLUMN_ANALYZER_OVERRIDE_LIST, request, ListColumnAnalyzerOverridesResponse.class);
 	}
 
 }

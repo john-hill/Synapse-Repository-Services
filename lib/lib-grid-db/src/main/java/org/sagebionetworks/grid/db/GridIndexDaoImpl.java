@@ -169,6 +169,21 @@ public class GridIndexDaoImpl implements GridIndexDao {
 	}
 
 	@Override
+	@GridTransaction(readOnly = false)
+	public void clearReplicaData(String sessionIdString, Long replicaId) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		// Delete only the CRDT data tables, leaving GRID_REPLICA and GRID_REPLICA_MESSAGE intact.
+		// This preserves active message chains so that in-flight sync responses can still be matched.
+		jdbcTemplate.update("DELETE FROM GRID_REPLICA_RGA WHERE SESSION_ID = ? AND REPLICA_ID = ?", sessionId, replicaId);
+		jdbcTemplate.update("DELETE FROM GRID_REPLICA_VEC WHERE SESSION_ID = ? AND REPLICA_ID = ?", sessionId, replicaId);
+		jdbcTemplate.update("DELETE FROM GRID_REPLICA_OBJ WHERE SESSION_ID = ? AND REPLICA_ID = ?", sessionId, replicaId);
+		jdbcTemplate.update("DELETE FROM GRID_REPLICA_VAL WHERE SESSION_ID = ? AND REPLICA_ID = ?", sessionId, replicaId);
+		jdbcTemplate.update("DELETE FROM GRID_REPLICA_CON WHERE SESSION_ID = ? AND REPLICA_ID = ?", sessionId, replicaId);
+		jdbcTemplate.update("DELETE FROM GRID_REPLICA_INDEX WHERE SESSION_ID = ? AND REPLICA_ID = ?", sessionId, replicaId);
+		jdbcTemplate.update("DELETE FROM GRID_REPLICA_CLOCK WHERE SESSION_ID = ? AND REPLICA_ID = ?", sessionId, replicaId);
+	}
+
+	@Override
 	public Optional<Timestamp> getReplicaCreatedOn(String sessionIdString, Long replicaId) {
 		Long sessionId = validateReplica(sessionIdString, replicaId);
 		try {

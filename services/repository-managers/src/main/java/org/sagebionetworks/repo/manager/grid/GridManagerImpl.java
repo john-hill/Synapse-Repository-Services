@@ -324,14 +324,6 @@ public class GridManagerImpl implements GridManager {
 		return gridDao.getSingletonConnection(sessionId, source);
 	}
 	
-	@Override
-	public Optional<GridConnectionInfo> getSingletonUserConnection(String sessionId, UserInfo user, EventSource source) {
-		ValidateArgument.required(sessionId, "sessionId");
-		ValidateArgument.required(user, "user");
-		ValidateArgument.required(source, "source");
-		return gridDao.getSingletonUserConnection(sessionId, user.getId(), source);
-	}
-
 	@WriteTransaction
 	@Override
 	public boolean savePatch(EventContext context, LogicalTimestamp patchId, String body) {

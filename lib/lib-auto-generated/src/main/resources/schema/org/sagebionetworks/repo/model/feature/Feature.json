@@ -41,10 +41,6 @@
 		{
 			"name": "DISABLE_INACTIVE_USERS",
 			"description": "When enabled (default), users that have been inactive for more than 180 days will be disabled."
-		},
-		{
-			"name": "WARN_INACTIVE_USERS",
-			"description": "When enabled, users inactive for 356+ days receive a warning email 14 days before being disabled."
 		}
     ]
 }

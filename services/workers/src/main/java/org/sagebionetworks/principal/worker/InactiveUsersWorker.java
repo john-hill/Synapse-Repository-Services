@@ -33,16 +33,14 @@ public class InactiveUsersWorker implements ProgressingRunner {
 				return;
 			}
 
-			if (featureManager.isFeatureEnabled(Feature.WARN_INACTIVE_USERS)) {
-				LOG.info("Warning inactive users...");
-				int warnedCount = 0;
-				int warnedBatchCount;
-				do {
-					warnedBatchCount = userStatusManager.warnInactiveUsers(MAX_USERS_TO_PROCESS);
-					warnedCount += warnedBatchCount;
-				} while (warnedBatchCount > 0);
-				LOG.info("Warning inactive users...DONE (Warned Count: {})", warnedCount);
-			}
+			LOG.info("Warning inactive users...");
+			int warnedCount = 0;
+			int warnedBatchCount;
+			do {
+				warnedBatchCount = userStatusManager.warnInactiveUsers(MAX_USERS_TO_PROCESS);
+				warnedCount += warnedBatchCount;
+			} while (warnedBatchCount > 0);
+			LOG.info("Warning inactive users...DONE (Warned Count: {})", warnedCount);
 
 			LOG.info("Disabling inactive users...");
 			int disabledCount = 0;

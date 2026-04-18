@@ -1,6 +1,5 @@
 package org.sagebionetworks.principal.worker;
 
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -21,77 +20,54 @@ public class InactiveUsersWorkerUnitTest {
 
 	@Mock
 	private UserStatusManager mockUserStatusManager;
-	
+
 	@Mock
 	private FeatureManager mockFeatureManager;
-	
+
 	@InjectMocks
 	private InactiveUsersWorker worker;
-	
+
 	@Mock
 	private ProgressCallback mockCallback;
-	
+
 	@Test
 	public void testRun() throws Exception {
-		
+
 		when(mockFeatureManager.isFeatureEnabled(Feature.DISABLE_INACTIVE_USERS)).thenReturn(true);
+		when(mockUserStatusManager.warnInactiveUsers(500)).thenReturn(500, 0);
 		when(mockUserStatusManager.disableInactiveUsers(500)).thenReturn(500, 0);
-		
-		// Call under test
+
+		// call under test
 		worker.run(mockCallback);
-		
+
+		verify(mockUserStatusManager, times(2)).warnInactiveUsers(500);
 		verify(mockUserStatusManager, times(2)).disableInactiveUsers(500);
 	}
-	
+
 	@Test
 	public void testRunWithNoInactiveUsers() throws Exception {
-		
+
 		when(mockFeatureManager.isFeatureEnabled(Feature.DISABLE_INACTIVE_USERS)).thenReturn(true);
+		when(mockUserStatusManager.warnInactiveUsers(500)).thenReturn(0);
 		when(mockUserStatusManager.disableInactiveUsers(500)).thenReturn(0);
-		
-		// Call under test
+
+		// call under test
 		worker.run(mockCallback);
-		
-		verifyNoMoreInteractions(mockUserStatusManager);
+
+		verify(mockUserStatusManager).warnInactiveUsers(500);
+		verify(mockUserStatusManager).disableInactiveUsers(500);
 	}
-	
+
 
 	@Test
 	public void testRunWithFeatureDisabled() throws Exception {
 
 		when(mockFeatureManager.isFeatureEnabled(Feature.DISABLE_INACTIVE_USERS)).thenReturn(false);
 
-		// Call under test
+		// call under test
 		worker.run(mockCallback);
 
 		verifyNoMoreInteractions(mockUserStatusManager);
-	}
-
-	@Test
-	public void testRunWithWarningEnabled() throws Exception {
-		when(mockFeatureManager.isFeatureEnabled(Feature.DISABLE_INACTIVE_USERS)).thenReturn(true);
-		when(mockFeatureManager.isFeatureEnabled(Feature.WARN_INACTIVE_USERS)).thenReturn(true);
-		when(mockUserStatusManager.warnInactiveUsers(500)).thenReturn(500, 0);
-		when(mockUserStatusManager.disableInactiveUsers(500)).thenReturn(0);
-
-		// call under test
-		worker.run(mockCallback);
-
-		verify(mockUserStatusManager, times(2)).warnInactiveUsers(500);
-		verify(mockUserStatusManager).disableInactiveUsers(500);
-	}
-
-	@Test
-	public void testRunWithWarningDisabled() throws Exception {
-		when(mockFeatureManager.isFeatureEnabled(Feature.DISABLE_INACTIVE_USERS)).thenReturn(true);
-		when(mockFeatureManager.isFeatureEnabled(Feature.WARN_INACTIVE_USERS)).thenReturn(false);
-		when(mockUserStatusManager.disableInactiveUsers(500)).thenReturn(0);
-
-		// call under test
-		worker.run(mockCallback);
-
-		verify(mockUserStatusManager, never()).warnInactiveUsers(500);
-		verify(mockUserStatusManager).disableInactiveUsers(500);
 	}
 
 }

@@ -25,7 +25,8 @@ public class ForumUtilsTest {
 		// From DBO to DTO
 		Forum dto = ForumUtils.createDTOFromDBO(dbo);
 		assertEquals(ID.toString(), dto.getId());
-		assertEquals(KeyFactory.keyToString(OBJECT_ID), dto.getObjectId());
+		assertEquals(OBJECT_ID.toString(), dto.getObjectId());
+		assertEquals(KeyFactory.keyToString(OBJECT_ID), dto.getProjectId());
 		assertEquals(ForumObjectType.ENTITY, dto.getObjectType());
 		// projectId is populated for backward compat on entity forums
 		assertEquals(KeyFactory.keyToString(OBJECT_ID), dto.getProjectId());
@@ -46,7 +47,7 @@ public class ForumUtilsTest {
 		// From DBO to DTO
 		Forum dto = ForumUtils.createDTOFromDBO(dbo);
 		assertEquals(ID.toString(), dto.getId());
-		assertEquals(KeyFactory.keyToString(456L), dto.getObjectId());
+		assertEquals("456", dto.getObjectId());
 		assertEquals(ForumObjectType.ACCESS_REQUIREMENT, dto.getObjectType());
 		// projectId is NOT populated for AR forums
 		assertNull(dto.getProjectId());
@@ -61,7 +62,7 @@ public class ForumUtilsTest {
 		DBOForum dbo = new DBOForum();
 		dbo.setId(ID);
 		dbo.setObjectId(OBJECT_ID);
-		dbo.setObjectType(null);
+		dbo.setObjectType(ForumObjectType.ENTITY.name());
 		dbo.setEtag(UUID.randomUUID().toString());
 		// From DBO to DTO - null objectType defaults to ENTITY
 		Forum dto = ForumUtils.createDTOFromDBO(dbo);

@@ -3,7 +3,7 @@ package org.sagebionetworks.repo.manager.subscription;
 import java.util.List;
 import java.util.Set;
 
-import org.sagebionetworks.repo.manager.AuthorizationManager;
+
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.NextPageToken;
@@ -32,7 +32,7 @@ public class SubscriptionManagerImpl implements SubscriptionManager {
 	@Autowired
 	private SubscriptionDAO subscriptionDao;
 	@Autowired
-	private AuthorizationManager authorizationManager;
+	private SubscriptionAndDiscussionAuthorizationManager subscriptionAuthorizationManager;
 	@Autowired
 	private AccessControlListDAO aclDao;
 
@@ -43,7 +43,7 @@ public class SubscriptionManagerImpl implements SubscriptionManager {
 		ValidateArgument.required(toSubscribe, "toSubscribe");
 		ValidateArgument.required(toSubscribe.getObjectId(), "Topic.objectId");
 		ValidateArgument.required(toSubscribe.getObjectType(), "Topic.objectType");
-		authorizationManager.canSubscribe(userInfo, toSubscribe.getObjectId(), toSubscribe.getObjectType()).checkAuthorizationOrElseThrow();
+		subscriptionAuthorizationManager.canSubscribe(userInfo, toSubscribe.getObjectId(), toSubscribe.getObjectType()).checkAuthorizationOrElseThrow();
 		return subscriptionDao.create(userInfo.getId().toString(), toSubscribe.getObjectId(), toSubscribe.getObjectType());
 	}
 
@@ -52,7 +52,7 @@ public class SubscriptionManagerImpl implements SubscriptionManager {
 	public Subscription subscribeAll(UserInfo userInfo, SubscriptionObjectType toSubscribe) {
 		ValidateArgument.required(userInfo, "userInfo");
 		ValidateArgument.required(toSubscribe, "toSubscribe");
-		authorizationManager.canSubscribe(userInfo, ALL_OBJECT_IDS, toSubscribe).checkAuthorizationOrElseThrow();
+		subscriptionAuthorizationManager.canSubscribe(userInfo, ALL_OBJECT_IDS, toSubscribe).checkAuthorizationOrElseThrow();
 		return subscriptionDao.create(userInfo.getId().toString(), ALL_OBJECT_IDS, toSubscribe);
 	}
 
@@ -170,7 +170,7 @@ public class SubscriptionManagerImpl implements SubscriptionManager {
 		ValidateArgument.required(topic, "topic");
 		ValidateArgument.required(topic.getObjectId(), "Topic.objectId");
 		ValidateArgument.required(topic.getObjectType(), "Topic.objectType");
-		authorizationManager.canSubscribe(userInfo, topic.getObjectId(), topic.getObjectType()).checkAuthorizationOrElseThrow();
+		subscriptionAuthorizationManager.canSubscribe(userInfo, topic.getObjectId(), topic.getObjectType()).checkAuthorizationOrElseThrow();
 		NextPageToken token = new NextPageToken(nextPageToken);
 		List<String> subscribers = subscriptionDao.getSubscribers(topic.getObjectId(), topic.getObjectType(), token.getLimitForQuery(), token.getOffset());
 		SubscriberPagedResults results = new SubscriberPagedResults();
@@ -185,7 +185,7 @@ public class SubscriptionManagerImpl implements SubscriptionManager {
 		ValidateArgument.required(topic, "topic");
 		ValidateArgument.required(topic.getObjectId(), "Topic.objectId");
 		ValidateArgument.required(topic.getObjectType(), "Topic.objectType");
-		authorizationManager.canSubscribe(userInfo, topic.getObjectId(), topic.getObjectType()).checkAuthorizationOrElseThrow();
+		subscriptionAuthorizationManager.canSubscribe(userInfo, topic.getObjectId(), topic.getObjectType()).checkAuthorizationOrElseThrow();
 		SubscriberCount count = new SubscriberCount();
 		count.setCount(subscriptionDao.getSubscriberCount(topic.getObjectId(), topic.getObjectType()));
 		return count;

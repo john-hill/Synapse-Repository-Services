@@ -20,7 +20,7 @@ import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.file.FileHandleAssociateType;
 import org.sagebionetworks.repo.model.file.FileHandleAssociation;
 import org.sagebionetworks.repo.model.oauth.OAuthScope;
-import org.sagebionetworks.repo.model.subscription.SubscriptionObjectType;
+
 import org.sagebionetworks.repo.web.NotFoundException;
 
 public interface AuthorizationManager {
@@ -159,18 +159,7 @@ public interface AuthorizationManager {
 	 */
 	Set<Long> getAccessibleBenefactors(UserInfo userInfo, ObjectType objectType, Set<Long> originalBenefactors, ACCESS_TYPE...types);
 
-	/**
-	 * Check user access to an subscribable object
-	 * 
-	 * @param userInfo
-	 * @param objectId
-	 * @param objectType
-	 * @param accessType
-	 * @return whether access is granted and, if not, a String giving the reason why
-	 * @throws NotFoundException 
-	 * @throws DatastoreException 
-	 */
-	AuthorizationStatus canSubscribe(UserInfo userInfo, String objectId, SubscriptionObjectType objectType) throws DatastoreException, NotFoundException;
+
 
 	/**
 	 * Get the set of project IDs that that are visible to the passed set of

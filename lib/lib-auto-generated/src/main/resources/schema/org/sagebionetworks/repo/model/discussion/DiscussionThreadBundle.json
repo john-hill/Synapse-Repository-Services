@@ -13,6 +13,14 @@
 			"type": "string",
 			"description": "The ID of the project this Thread belongs to"
 		},
+		"objectId": {
+			"type": "string",
+			"description": "The ID of the object this Thread belongs to"
+		},
+		"objectType": {
+			"$ref":"org.sagebionetworks.repo.model.discussion.ForumObjectType",
+			"description": "The type of the object this Thread belongs to"
+		},
 		"title": {
 		"type": "string",
 			"description": "The title of the Thread"

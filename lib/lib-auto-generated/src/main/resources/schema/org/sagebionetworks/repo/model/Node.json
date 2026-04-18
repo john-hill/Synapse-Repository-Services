@@ -9,7 +9,7 @@
             "type":"string"
         },
         "description": {
-        	"type":"string"
+            "type":"string"
         },
         "parentId":{
             "type":"string"
@@ -57,34 +57,34 @@
         "columnModelIds":{
             "type":"array",
             "items":{
-            	"type":"string"
+                "type":"string"
             }
         },
         "scopeIds":{
-        	"description":"For FileVeiws, the list of IDs the define the scope of the view.",
+            "description":"For FileViews, the list of IDs that define the scope of the view.",
             "type":"array",
             "items":{
-            	"type":"string"
+                "type":"string"
             }
         },
         "items":{
-        	"description":"For Datasets and Dataset Collections, the list of entity references the define the view.",
+            "description":"For Datasets and Dataset Collections, the list of entity references that define the view.",
             "type":"array",
             "items":{
-            	"$ref": "org.sagebionetworks.repo.model.EntityRef"
+                "$ref": "org.sagebionetworks.repo.model.EntityRef"
             }
         },
-		"upsertKey": {
-			"description": "For RecordSet, one or more column names that define this upsert key.",
-			"type": "array",
-			"items": {
-				"type": "string"
-			}
-		},
-		"csvDescriptor": {
-			"description": "For RecordSet, Defines how to both read-from and write-to, this CSV file.",
-			"$ref": "org.sagebionetworks.repo.model.table.CsvTableDescriptor"
-		},
+        "upsertKey": {
+            "description": "For RecordSet, one or more column names that define this upsert key.",
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "csvDescriptor": {
+            "description": "For RecordSet, Defines how to both read-from and write-to, this CSV file.",
+            "$ref": "org.sagebionetworks.repo.model.table.CsvTableDescriptor"
+        },
         "reference":{
             "type":"object",
             "$ref":"org.sagebionetworks.repo.model.Reference"
@@ -93,15 +93,15 @@
             "type":"string"
         },
         "isSearchEnabled": {
-        	"description":"For table entities, specifies if the full text search index is enabled or not.",
-        	"type":"boolean"
+            "description":"For table entities, specifies if the full text search index is enabled or not.",
+            "type":"boolean"
         },
         "definingSQL": {
-        	"description":"For materialized views and virtual tables, specifies the SQL defining the content of the table.",
-        	"type": "string"
+            "description":"For materialized views, virtual tables, and search indexes, specifies the SQL defining the content.",
+            "type": "string"
         },
-		"validationResultFileHandleId": {
-			"description": "For a RecordSet, the file handle that contains the detailed validation results.",
+        "validationResultFileHandleId": {
+            "description": "For a RecordSet, the file handle that contains the detailed validation results.",
             "type":"string"
         }
     }

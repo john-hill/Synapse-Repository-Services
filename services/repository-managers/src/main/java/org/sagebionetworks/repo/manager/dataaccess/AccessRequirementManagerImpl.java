@@ -478,6 +478,8 @@ public class AccessRequirementManagerImpl implements AccessRequirementManager {
 		ManagedACTAccessRequirement toUpdate = convert((ACTAccessRequirement) current, userInfo.getId().toString());
 		
 		toUpdate = accessRequirementDAO.update(setDefaultValues(toUpdate));
+		//create forum for ManagedACTAccessRequirement
+		forumDao.createForum(toUpdate.getId().toString(), ForumObjectType.ACCESS_REQUIREMENT);
 		
 		sendChangeMessage(userInfo.getId(), ChangeType.UPDATE, toUpdate.getId(), toUpdate.getVersionNumber());
 		

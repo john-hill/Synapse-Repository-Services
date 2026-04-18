@@ -1,9 +1,11 @@
 package org.sagebionetworks.repo.model.dbo.dao.discussion;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import org.sagebionetworks.repo.model.discussion.DiscussionFilter;
+import org.sagebionetworks.repo.model.discussion.DiscussionThread;
 import org.sagebionetworks.repo.model.discussion.DiscussionThreadBundle;
 import org.sagebionetworks.repo.model.discussion.DiscussionThreadEntityReference;
 import org.sagebionetworks.repo.model.discussion.DiscussionThreadOrder;
@@ -33,6 +35,14 @@ public interface DiscussionThreadDAO {
 	 * @return
 	 */
 	public DiscussionThreadBundle getThread(long threadId, DiscussionFilter filter);
+
+	/**
+	 * Get thread info with forum objectId and objectType.
+	 *
+	 * @param threadId
+	 * @return
+	 */
+	public Optional<DiscussionThread> getDiscussionThread(long threadId);
 
 	/**
 	 * Get the number of discussion thread in a given forum
@@ -128,14 +138,6 @@ public interface DiscussionThreadDAO {
 	public void unpinThread(long threadId);
 
 	/**
-	 * Return the projectID that this thread belong to
-	 * 
-	 * @param threadId
-	 * @return
-	 */
-	public String getProjectId(String threadId);
-
-	/**
 	 * Return the author of the thread
 	 * 
 	 * @param threadId
@@ -173,6 +175,27 @@ public interface DiscussionThreadDAO {
 	 * @param refs
 	 */
 	public void insertEntityReference(List<DiscussionThreadEntityReference> refs);
+
+	/**
+	 * Insert a reference linking a discussion thread to a data access submission.
+	 */
+	public void insertSubmissionReference(String threadId, String submissionId);
+
+	/**
+	 * Get the discussion thread linked to the given submission.
+	 *
+	 * @param submissionId
+	 * @return
+	 */
+	public Optional<DiscussionThreadBundle> getThreadForSubmission(String submissionId);
+
+	/**
+	 * Get the submission ID linked to the given thread.
+	 *
+	 * @param threadId
+	 * @return the submission ID, or empty if no submission is linked
+	 */
+	public Optional<String> getSubmissionIdForThread(String threadId);
 
 	/**
 	 * Get a list of projectIds that threads, which mentioned entityIds, belongs to.

@@ -11,6 +11,8 @@ import org.sagebionetworks.repo.model.ManagedACTAccessRequirement;
 import org.sagebionetworks.repo.model.RestrictableObjectDescriptor;
 import org.sagebionetworks.repo.model.RestrictableObjectType;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
+import org.sagebionetworks.repo.model.dbo.dao.discussion.ForumDAO;
+import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -19,6 +21,8 @@ public class ManagedACTAccessRequirementObjectHelper implements DaoObjectHelper<
 	
 	@Autowired
 	private AccessRequirementDAO accessRequirementDAO;
+	@Autowired
+	private ForumDAO forumDAO;
 
 	@Override
 	public ManagedACTAccessRequirement create(Consumer<ManagedACTAccessRequirement> consumer) {
@@ -49,8 +53,11 @@ public class ManagedACTAccessRequirementObjectHelper implements DaoObjectHelper<
 		if(ar.getModifiedBy() == null) {
 			ar.setModifiedBy(ar.getCreatedBy());
 		}
-		
-		return accessRequirementDAO.create(ar);
+
+		ManagedACTAccessRequirement accessRequirement = accessRequirementDAO.create(ar);
+		//Forum should be created for each ManagedACTAccessRequirement
+		forumDAO.createForum(String.valueOf(accessRequirement.getId()), ForumObjectType.ACCESS_REQUIREMENT);
+		return accessRequirement;
 	}
 
 	@Override

@@ -29,7 +29,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.markdown.MarkdownClientException;
-import org.sagebionetworks.repo.manager.AuthorizationManager;
+import org.sagebionetworks.repo.manager.subscription.SubscriptionAndDiscussionAuthorizationManager;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.principal.SynapseEmailService;
 import org.sagebionetworks.repo.model.ObjectType;
@@ -82,7 +82,7 @@ public class BroadcastMessageManagerImplTest {
 	@Mock
 	private UserManager mockUserManager;
 	@Mock
-	private AuthorizationManager mockAuthManager;
+	private SubscriptionAndDiscussionAuthorizationManager subscriptionAndDiscussionAuthorizationManager;
 	@Mock
 	private EmailQuarantineDao mockEmailQuarantineDao;
 
@@ -199,9 +199,9 @@ public class BroadcastMessageManagerImplTest {
 		accessDeniedUserInfo.setId(222L);
 		when(mockUserManager.getUserInfo(111L)).thenReturn(hasAccessUserInfo);
 		when(mockUserManager.getUserInfo(222L)).thenReturn(accessDeniedUserInfo);
-		when(mockAuthManager.canSubscribe(hasAccessUserInfo, topic.getObjectId(), topic.getObjectType()))
+		when(subscriptionAndDiscussionAuthorizationManager.canSubscribe(hasAccessUserInfo, topic.getObjectId(), topic.getObjectType()))
 				.thenReturn(AuthorizationStatus.authorized());
-		when(mockAuthManager.canSubscribe(accessDeniedUserInfo, topic.getObjectId(), topic.getObjectType()))
+		when(subscriptionAndDiscussionAuthorizationManager.canSubscribe(accessDeniedUserInfo, topic.getObjectId(), topic.getObjectType()))
 				.thenReturn(AuthorizationStatus.accessDenied(""));
 
 		// Call under test
@@ -214,8 +214,8 @@ public class BroadcastMessageManagerImplTest {
 		verify(mockUserManager).getUserInfo(111L);
 		verify(mockUserManager).getUserInfo(222L);
 		verify(mockUserManager, never()).getUserInfo(2L);
-		verify(mockAuthManager).canSubscribe(hasAccessUserInfo, topic.getObjectId(), topic.getObjectType());
-		verify(mockAuthManager).canSubscribe(accessDeniedUserInfo, topic.getObjectId(), topic.getObjectType());
+		verify(subscriptionAndDiscussionAuthorizationManager).canSubscribe(hasAccessUserInfo, topic.getObjectId(), topic.getObjectType());
+		verify(subscriptionAndDiscussionAuthorizationManager).canSubscribe(accessDeniedUserInfo, topic.getObjectId(), topic.getObjectType());
 		verify(mockSesClient, times(2)).sendRawEmail(any(SendRawEmailRequest.class));
 	}
 	
@@ -302,9 +302,9 @@ public class BroadcastMessageManagerImplTest {
 		accessDeniedUserInfo.setId(222L);
 		when(mockUserManager.getUserInfo(111L)).thenReturn(hasAccessUserInfo);
 		when(mockUserManager.getUserInfo(222L)).thenReturn(accessDeniedUserInfo);
-		when(mockAuthManager.canSubscribe(hasAccessUserInfo, topic.getObjectId(), topic.getObjectType()))
+		when(subscriptionAndDiscussionAuthorizationManager.canSubscribe(hasAccessUserInfo, topic.getObjectId(), topic.getObjectType()))
 				.thenReturn(AuthorizationStatus.authorized());
-		when(mockAuthManager.canSubscribe(accessDeniedUserInfo, topic.getObjectId(), topic.getObjectType()))
+		when(subscriptionAndDiscussionAuthorizationManager.canSubscribe(accessDeniedUserInfo, topic.getObjectId(), topic.getObjectType()))
 				.thenReturn(AuthorizationStatus.accessDenied(""));
 		
 		// Call under test
@@ -314,8 +314,8 @@ public class BroadcastMessageManagerImplTest {
 		verify(mockUserProfileDao).getUserNotificationInfo(userIds);
 		verify(mockUserManager).getUserInfo(111L);
 		verify(mockUserManager).getUserInfo(222L);
-		verify(mockAuthManager).canSubscribe(hasAccessUserInfo, topic.getObjectId(), topic.getObjectType());
-		verify(mockAuthManager).canSubscribe(accessDeniedUserInfo, topic.getObjectId(), topic.getObjectType());
+		verify(subscriptionAndDiscussionAuthorizationManager).canSubscribe(hasAccessUserInfo, topic.getObjectId(), topic.getObjectType());
+		verify(subscriptionAndDiscussionAuthorizationManager).canSubscribe(accessDeniedUserInfo, topic.getObjectId(), topic.getObjectType());
 		verify(mockSesClient).sendRawEmail(any(SendRawEmailRequest.class));
 	}
 
@@ -337,9 +337,9 @@ public class BroadcastMessageManagerImplTest {
 		hasAccessUserInfo2.setId(222L);
 		when(mockUserManager.getUserInfo(111L)).thenReturn(hasAccessUserInfo1);
 		when(mockUserManager.getUserInfo(222L)).thenReturn(hasAccessUserInfo2);
-		when(mockAuthManager.canSubscribe(hasAccessUserInfo1, topic.getObjectId(), topic.getObjectType()))
+		when(subscriptionAndDiscussionAuthorizationManager.canSubscribe(hasAccessUserInfo1, topic.getObjectId(), topic.getObjectType()))
 				.thenReturn(AuthorizationStatus.authorized());
-		when(mockAuthManager.canSubscribe(hasAccessUserInfo2, topic.getObjectId(), topic.getObjectType()))
+		when(subscriptionAndDiscussionAuthorizationManager.canSubscribe(hasAccessUserInfo2, topic.getObjectId(), topic.getObjectType()))
 				.thenReturn(AuthorizationStatus.authorized());
 		
 		// Call under test
@@ -349,8 +349,8 @@ public class BroadcastMessageManagerImplTest {
 		verify(mockUserProfileDao).getUserNotificationInfo(userIds);
 		verify(mockUserManager).getUserInfo(111L);
 		verify(mockUserManager).getUserInfo(222L);
-		verify(mockAuthManager).canSubscribe(hasAccessUserInfo1, topic.getObjectId(), topic.getObjectType());
-		verify(mockAuthManager).canSubscribe(hasAccessUserInfo2, topic.getObjectId(), topic.getObjectType());
+		verify(subscriptionAndDiscussionAuthorizationManager).canSubscribe(hasAccessUserInfo1, topic.getObjectId(), topic.getObjectType());
+		verify(subscriptionAndDiscussionAuthorizationManager).canSubscribe(hasAccessUserInfo2, topic.getObjectId(), topic.getObjectType());
 		verify(mockSesClient, times(2)).sendRawEmail(any(SendRawEmailRequest.class));
 	}
 	
@@ -374,7 +374,7 @@ public class BroadcastMessageManagerImplTest {
 		when(mockBroadcastMessageBuilder.getRelatedUsers()).thenReturn(userIds);
 		when(mockUserProfileDao.getUserNotificationInfo(userIds)).thenReturn(Arrays.asList(userNotificationInfo1, userNotificationInfo2));
 		
-		when(mockAuthManager.canSubscribe(any(), any(), any())).thenReturn(AuthorizationStatus.authorized());
+		when(subscriptionAndDiscussionAuthorizationManager.canSubscribe(any(), any(), any())).thenReturn(AuthorizationStatus.authorized());
 		
 		// Call under test
 		manager.sendMessageToNonSubscribers(mockCallback, change, mockBroadcastMessageBuilder, new ArrayList<String>(), topic);

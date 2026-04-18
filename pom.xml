@@ -818,6 +818,11 @@
 			    <artifactId>semver4j</artifactId>
 			    <version>5.4.0</version>
 			</dependency>
+			<dependency>
+				<groupId>com.mysql</groupId>
+				<artifactId>mysql-connector-j</artifactId>
+				<version>${mysql.mysql-connector-java.version}</version>
+			</dependency>
 		</dependencies>
 
 	</dependencyManagement>

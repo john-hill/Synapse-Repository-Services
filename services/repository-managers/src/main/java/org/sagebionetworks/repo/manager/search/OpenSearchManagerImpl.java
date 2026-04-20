@@ -15,6 +15,7 @@ import jakarta.json.JsonReader;
 import jakarta.json.stream.JsonParser;
 
 import org.opensearch.client.json.JsonData;
+import org.opensearch.client.json.JsonpDeserializer;
 import org.opensearch.client.json.JsonpMapper;
 import org.opensearch.client.json.jackson.JacksonJsonpMapper;
 import org.opensearch.client.opensearch._types.analysis.CharFilter;
@@ -278,51 +279,53 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	// ---- Private helpers ----
 
-	/**
-	 * Register all custom token filters from a JSON string of the form:
-	 * {"filterName": {"type": "...", ...}, "filterName2": {"type": "...", ...}}
-	 * Each key-value pair is deserialized into a typed {@link TokenFilterDefinition}.
-	 */
 	private void registerTokenFilters(IndexSettingsAnalysis.Builder a, String filtersJson) {
-		JsonpMapper mapper = new JacksonJsonpMapper();
-		try (JsonReader reader = Json.createReader(new StringReader(filtersJson))) {
-			JsonObject obj = reader.readObject();
-			for (String filterName : obj.keySet()) {
-				String valueJson = obj.getJsonObject(filterName).toString();
-				try (JsonParser parser = Json.createParser(new StringReader(valueJson))) {
-					TokenFilterDefinition def = TokenFilterDefinition._DESERIALIZER.deserialize(parser, mapper);
-					a.filter(filterName, f -> f.definition(def));
-				}
-			}
+		Map<String, TokenFilterDefinition> defs = deserializeDefinitionMap(filtersJson, TokenFilterDefinition._DESERIALIZER);
+		for (Map.Entry<String, TokenFilterDefinition> entry : defs.entrySet()) {
+			TokenFilterDefinition def = entry.getValue();
+			a.filter(entry.getKey(), f -> f.definition(def));
 		}
 	}
 
-	/**
-	 * Register all custom character filters from a JSON string of the form:
-	 * {"filterName": {"type": "...", ...}, "filterName2": {"type": "...", ...}}
-	 */
 	private void registerCharFilters(IndexSettingsAnalysis.Builder a, String filtersJson) {
-		JsonpMapper mapper = new JacksonJsonpMapper();
-		try (JsonReader reader = Json.createReader(new StringReader(filtersJson))) {
-			JsonObject obj = reader.readObject();
-			for (String filterName : obj.keySet()) {
-				String valueJson = obj.getJsonObject(filterName).toString();
-				try (JsonParser parser = Json.createParser(new StringReader(valueJson))) {
-					CharFilterDefinition def = CharFilterDefinition._DESERIALIZER.deserialize(parser, mapper);
-					a.charFilter(filterName, f -> f.definition(def));
-				}
-			}
+		Map<String, CharFilterDefinition> defs = deserializeDefinitionMap(filtersJson, CharFilterDefinition._DESERIALIZER);
+		for (Map.Entry<String, CharFilterDefinition> entry : defs.entrySet()) {
+			CharFilterDefinition def = entry.getValue();
+			a.charFilter(entry.getKey(), f -> f.definition(def));
 		}
 	}
 
-	/**
-	 * Register a custom tokenizer by deserializing the JSON config.
-	 */
 	private void registerTokenizer(IndexSettingsAnalysis.Builder a, String tokenizerName, String tokenizerConfigJson) {
+		TokenizerDefinition def = deserializeDefinition(tokenizerConfigJson, TokenizerDefinition._DESERIALIZER);
+		a.tokenizer(tokenizerName, t -> t.definition(def));
+	}
+
+	/**
+	 * Deserialize a JSON object of the form {"name1": {...}, "name2": {...}} into a
+	 * Map keyed by name, using the OpenSearch client's typed deserializer for each value.
+	 */
+	private <T> Map<String, T> deserializeDefinitionMap(String json, JsonpDeserializer<T> deserializer) {
+		Map<String, T> result = new HashMap<>();
 		JsonpMapper mapper = new JacksonJsonpMapper();
-		try (JsonParser parser = Json.createParser(new StringReader(tokenizerConfigJson))) {
-			TokenizerDefinition def = TokenizerDefinition._DESERIALIZER.deserialize(parser, mapper);
-			a.tokenizer(tokenizerName, t -> t.definition(def));
+		try (JsonReader reader = Json.createReader(new StringReader(json))) {
+			JsonObject obj = reader.readObject();
+			for (String name : obj.keySet()) {
+				String valueJson = obj.getJsonObject(name).toString();
+				try (JsonParser parser = Json.createParser(new StringReader(valueJson))) {
+					result.put(name, deserializer.deserialize(parser, mapper));
+				}
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Deserialize a single JSON object into an OpenSearch typed definition.
+	 */
+	private <T> T deserializeDefinition(String json, JsonpDeserializer<T> deserializer) {
+		JsonpMapper mapper = new JacksonJsonpMapper();
+		try (JsonParser parser = Json.createParser(new StringReader(json))) {
+			return deserializer.deserialize(parser, mapper);
 		}
 	}
 
@@ -1026,7 +1029,8 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	private Tokenizer buildTokenizer(TextAnalyzerSettings settings) {
 		try {
 			if (settings.getTokenizerConfig() != null && !settings.getTokenizerConfig().isEmpty()) {
-				return Tokenizer.of(t -> t.definition(parseTokenizerDefinition(settings.getTokenizerConfig())));
+				TokenizerDefinition def = deserializeDefinition(settings.getTokenizerConfig(), TokenizerDefinition._DESERIALIZER);
+				return Tokenizer.of(t -> t.definition(def));
 			}
 			String tokenizerName = settings.getTokenizer() != null ? settings.getTokenizer() : "standard";
 			return Tokenizer.of(t -> t.name(tokenizerName));
@@ -1039,7 +1043,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		Map<String, TokenFilterDefinition> tokenFilterDefs = Collections.emptyMap();
 		try {
 			if (settings.getTokenFilters() != null && !settings.getTokenFilters().isEmpty()) {
-				tokenFilterDefs = parseTokenFilterDefinitions(settings.getTokenFilters());
+				tokenFilterDefs = deserializeDefinitionMap(settings.getTokenFilters(), TokenFilterDefinition._DESERIALIZER);
 			}
 		} catch (Exception e) {
 			throw new IllegalArgumentException("Invalid tokenFilters JSON: " + e.getMessage(), e);
@@ -1064,7 +1068,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		Map<String, CharFilterDefinition> charFilterDefs = Collections.emptyMap();
 		try {
 			if (settings.getCharFilters() != null && !settings.getCharFilters().isEmpty()) {
-				charFilterDefs = parseCharFilterDefinitions(settings.getCharFilters());
+				charFilterDefs = deserializeDefinitionMap(settings.getCharFilters(), CharFilterDefinition._DESERIALIZER);
 			}
 		} catch (Exception e) {
 			throw new IllegalArgumentException("Invalid charFilters JSON: " + e.getMessage(), e);
@@ -1083,44 +1087,5 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			}
 		}
 		return charFilters;
-	}
-
-	private Map<String, TokenFilterDefinition> parseTokenFilterDefinitions(String filtersJson) {
-		Map<String, TokenFilterDefinition> result = new HashMap<>();
-		JsonpMapper mapper = new JacksonJsonpMapper();
-		try (JsonReader reader = Json.createReader(new StringReader(filtersJson))) {
-			JsonObject obj = reader.readObject();
-			for (String filterName : obj.keySet()) {
-				String valueJson = obj.getJsonObject(filterName).toString();
-				try (JsonParser parser = Json.createParser(new StringReader(valueJson))) {
-					TokenFilterDefinition def = TokenFilterDefinition._DESERIALIZER.deserialize(parser, mapper);
-					result.put(filterName, def);
-				}
-			}
-		}
-		return result;
-	}
-
-	private Map<String, CharFilterDefinition> parseCharFilterDefinitions(String filtersJson) {
-		Map<String, CharFilterDefinition> result = new HashMap<>();
-		JsonpMapper mapper = new JacksonJsonpMapper();
-		try (JsonReader reader = Json.createReader(new StringReader(filtersJson))) {
-			JsonObject obj = reader.readObject();
-			for (String filterName : obj.keySet()) {
-				String valueJson = obj.getJsonObject(filterName).toString();
-				try (JsonParser parser = Json.createParser(new StringReader(valueJson))) {
-					CharFilterDefinition def = CharFilterDefinition._DESERIALIZER.deserialize(parser, mapper);
-					result.put(filterName, def);
-				}
-			}
-		}
-		return result;
-	}
-
-	private TokenizerDefinition parseTokenizerDefinition(String tokenizerConfigJson) {
-		JsonpMapper mapper = new JacksonJsonpMapper();
-		try (JsonParser parser = Json.createParser(new StringReader(tokenizerConfigJson))) {
-			return TokenizerDefinition._DESERIALIZER.deserialize(parser, mapper);
-		}
 	}
 }

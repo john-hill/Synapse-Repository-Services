@@ -6,7 +6,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
@@ -126,16 +125,8 @@ public class SearchIndexContextProviderImpl implements SearchIndexContextProvide
 				|| config.getColumnAnalyzerOverrides().isEmpty()) {
 			return Collections.emptyList();
 		}
-		List<ColumnAnalyzerOverride> result = new ArrayList<>();
-		for (String qualifiedName : config.getColumnAnalyzerOverrides()) {
-			int dashIndex = qualifiedName.indexOf('-');
-			if (dashIndex > 0) {
-				String orgName = qualifiedName.substring(0, dashIndex);
-				String name = qualifiedName.substring(dashIndex + 1);
-				columnAnalyzerOverrideDao.getByOrganizationAndName(orgName, name).ifPresent(result::add);
-			}
-		}
-		return result;
+		return new ArrayList<>(columnAnalyzerOverrideDao.getByQualifiedNames(
+				config.getColumnAnalyzerOverrides()).values());
 	}
 
 	private List<SynonymSet> loadSynonymSets() {
@@ -143,16 +134,8 @@ public class SearchIndexContextProviderImpl implements SearchIndexContextProvide
 				|| config.getSynonymSets().isEmpty()) {
 			return Collections.emptyList();
 		}
-		List<SynonymSet> result = new ArrayList<>();
-		for (String qualifiedName : config.getSynonymSets()) {
-			int dashIndex = qualifiedName.indexOf('-');
-			if (dashIndex > 0) {
-				String orgName = qualifiedName.substring(0, dashIndex);
-				String name = qualifiedName.substring(dashIndex + 1);
-				synonymSetDao.getByOrganizationAndName(orgName, name).ifPresent(result::add);
-			}
-		}
-		return result;
+		return new ArrayList<>(synonymSetDao.getByQualifiedNames(
+				config.getSynonymSets()).values());
 	}
 
 	private Map<String, TextAnalyzer> collectAndLoadAnalyzers() {

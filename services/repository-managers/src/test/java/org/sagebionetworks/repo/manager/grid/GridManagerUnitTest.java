@@ -129,7 +129,7 @@ public class GridManagerUnitTest {
 
 	@Mock
 	private InternalReplicaToHubEventPublisher mockInternalEventPublisher;
-	
+
 	@Mock
 	private GridAuthorizationManager mockGridAuthManager;
 	
@@ -848,7 +848,7 @@ public class GridManagerUnitTest {
 		doReturn(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)).when(gridManager)
 				.getConnectionInfo(connectionId);
 		when(mockS3Client.putObject(putCaptor.capture(), bodyCaptor.capture())).thenReturn(null);
-		when(mockGridDao.savePatch(any(), any(), any(), any(), anyLong())).thenReturn(true);
+		when(mockGridDao.savePatch(any(), any(), any(), anyLong())).thenReturn(true);
 		// call under test
 		boolean isNew = gridManager.savePatch(eventContext, patchId, patchBody.toString());
 		assertTrue(isNew);
@@ -859,7 +859,7 @@ public class GridManagerUnitTest {
 		assertEquals(RequestBody.fromString(patchBody.toString(), StandardCharsets.UTF_8).optionalContentLength(),
 				bodyCaptor.getValue().optionalContentLength());
 
-		verify(mockGridDao).savePatch(eq(gridSessionId), eq(patchId), eq(key), eq(GridManagerImpl.PATCH_DURATION), anyLong());
+		verify(mockGridDao).savePatch(eq(gridSessionId), eq(patchId), eq(key), anyLong());
 		verify(mockTransactionalMessenger).sendMessageAfterCommit(
 				gridSessionIdLong.toString(), org.sagebionetworks.repo.model.ObjectType.GRID_SESSION,
 				org.sagebionetworks.repo.model.message.ChangeType.UPDATE);
@@ -869,7 +869,7 @@ public class GridManagerUnitTest {
 	@Test
 	public void testSavePatchWithGridId() {
 		when(mockS3Client.putObject(putCaptor.capture(), bodyCaptor.capture())).thenReturn(null);
-		when(mockGridDao.savePatch(any(), any(), any(), any(), anyLong())).thenReturn(true);
+		when(mockGridDao.savePatch(any(), any(), any(), anyLong())).thenReturn(true);
 		// call under test
 		boolean isNew = gridManager.savePatch(gridSessionId, patchId, patchBody.toString());
 		assertTrue(isNew);
@@ -880,7 +880,7 @@ public class GridManagerUnitTest {
 		assertEquals(RequestBody.fromString(patchBody.toString(), StandardCharsets.UTF_8).optionalContentLength(),
 				bodyCaptor.getValue().optionalContentLength());
 
-		verify(mockGridDao).savePatch(eq(gridSessionId), eq(patchId), eq(key), eq(GridManagerImpl.PATCH_DURATION), anyLong());
+		verify(mockGridDao).savePatch(eq(gridSessionId), eq(patchId), eq(key), anyLong());
 		verify(mockTransactionalMessenger).sendMessageAfterCommit(
 				gridSessionIdLong.toString(), org.sagebionetworks.repo.model.ObjectType.GRID_SESSION,
 				org.sagebionetworks.repo.model.message.ChangeType.UPDATE);
@@ -891,7 +891,7 @@ public class GridManagerUnitTest {
 		doReturn(new GridConnectionInfo().setSessionId(gridSessionId).setConnectionId(connectionId)).when(gridManager)
 				.getConnectionInfo(connectionId);
 		when(mockS3Client.putObject(putCaptor.capture(), bodyCaptor.capture())).thenReturn(null);
-		when(mockGridDao.savePatch(any(), any(), any(), any(), anyLong())).thenReturn(false);
+		when(mockGridDao.savePatch(any(), any(), any(), anyLong())).thenReturn(false);
 		// call under test
 		boolean isNew = gridManager.savePatch(eventContext, patchId, patchBody.toString());
 		assertFalse(isNew);
@@ -902,7 +902,7 @@ public class GridManagerUnitTest {
 		assertEquals(RequestBody.fromString(patchBody.toString(), StandardCharsets.UTF_8).optionalContentLength(),
 				bodyCaptor.getValue().optionalContentLength());
 
-		verify(mockGridDao).savePatch(eq(gridSessionId), eq(patchId), eq(key), eq(GridManagerImpl.PATCH_DURATION), anyLong());
+		verify(mockGridDao).savePatch(eq(gridSessionId), eq(patchId), eq(key), anyLong());
 		verify(mockTransactionalMessenger, never()).sendMessageAfterCommit(any(), any(), any());
 	}
 

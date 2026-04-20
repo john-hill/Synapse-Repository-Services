@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.node.IndexType;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
@@ -90,6 +91,16 @@ public interface GridIndexManager {
 	 * @return
 	 */
 	Optional<MessageChain> getNonExpiredMessageChain(String sessionId, Long replicaId, String method);
-	
+
+	/**
+	 * Export the current state of a replica as a CBOR snapshot file.
+	 *
+	 * @param sessionId    The grid session ID
+	 * @param replicaId    The replica ID to export
+	 * @param snapshotFile The file to write the snapshot to
+	 * @return The ClockTable representing the exported state
+	 */
+	ClockTable exportSnapshot(String sessionId, Long replicaId, Path snapshotFile);
+
 	void truncateAll();
 }

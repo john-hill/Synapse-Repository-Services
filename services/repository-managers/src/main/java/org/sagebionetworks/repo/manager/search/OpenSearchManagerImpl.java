@@ -263,8 +263,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	@Override
 	public SearchQueryResults search(String indexName, SearchQuery query, SearchIndexContextProvider context) {
-		return executeSearch(indexName, query, context.getColumns(), context.getDefaultAnalyzer(),
-				context.getColumnAnalyzerOverrides(), context.getAnalyzers());
+		return executeSearch(indexName, query, context);
 	}
 
 	@Override
@@ -273,8 +272,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		if (query.getLimit() == null || query.getLimit() > AUTOCOMPLETE_MAX_LIMIT) {
 			query.setLimit((long) AUTOCOMPLETE_MAX_LIMIT);
 		}
-		return executeSearch(indexName, query, context.getColumns(), context.getDefaultAnalyzer(),
-				context.getColumnAnalyzerOverrides(), context.getAnalyzers());
+		return executeSearch(indexName, query, context);
 	}
 
 	// ---- Private helpers ----
@@ -329,16 +327,15 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		}
 	}
 
-	private SearchQueryResults executeSearch(String indexName, SearchQuery query, List<ColumnModel> columns,
-			String defaultAnalyzer, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, TextAnalyzer> analyzers) {
+	private SearchQueryResults executeSearch(String indexName, SearchQuery query, SearchIndexContextProvider context) {
+		// Columns and defaultAnalyzer are always needed (cheap, no DB call)
+		List<ColumnModel> columns = context.getColumns();
+		String defaultAnalyzer = context.getDefaultAnalyzer();
 
 		Map<String, String> nameToId = columns.stream()
 				.collect(Collectors.toMap(ColumnModel::getName, ColumnModel::getId, (a2, b) -> a2));
-		Map<String, ColumnAnalyzerOverrideEntry> overrideMap = buildOverrideMap(columnAnalyzerOverrides, nameToId);
 		Map<String, ColumnModel> columnMap = columns.stream()
 				.collect(Collectors.toMap(ColumnModel::getId, c -> c, (a2, b) -> a2));
-		Map<Long, String> idToQualifiedName = buildIdToQualifiedNameMap(analyzers);
 
 		SearchQueryType queryType = query.getQueryType() != null ? query.getQueryType()
 				: SearchQueryType.SIMPLE_QUERY_STRING;
@@ -353,6 +350,13 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 		final SearchQueryType finalQueryType = queryType;
 		final String finalQueryText = queryText;
+
+		// Overrides, analyzers, and derived maps are loaded lazily via the provider.
+		// For simple queries (MATCH_ALL with no filters/facets/sort), these may never
+		// be accessed, avoiding unnecessary DB calls.
+		Map<String, ColumnAnalyzerOverrideEntry> overrideMap = buildOverrideMap(context.getColumnAnalyzerOverrides(), nameToId);
+		Map<String, TextAnalyzer> analyzers = context.getAnalyzers();
+		Map<Long, String> idToQualifiedName = buildIdToQualifiedNameMap(analyzers);
 
 		List<String> resolvedQueryFields = resolveQueryFields(query.getQueryFields(), columns, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName, true);
 

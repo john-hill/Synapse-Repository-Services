@@ -8,8 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
-import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
@@ -21,28 +19,26 @@ import org.sagebionetworks.repo.model.table.ColumnType;
 
 /**
  * Lazy-loading implementation of {@link SearchIndexContextProvider}.
- * Columns and defaultAnalyzer are set eagerly (no DB call needed).
- * Analyzers, overrides, and synonym sets are loaded on first access and cached.
+ * Columns, defaultAnalyzer, overrides, and synonym sets are set eagerly.
+ * Analyzers are loaded lazily on first access via {@link TextAnalyzerDao}.
  */
 public class SearchIndexContextProviderImpl implements SearchIndexContextProvider {
 
 	private final SearchConfiguration config;
 	private final List<ColumnModel> columns;
-	private final SynonymSetDao synonymSetDao;
-	private final ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao;
+	private final List<ColumnAnalyzerOverride> columnAnalyzerOverrides;
+	private final List<SynonymSet> synonymSets;
 	private final TextAnalyzerDao textAnalyzerDao;
 
-	private List<ColumnAnalyzerOverride> columnAnalyzerOverrides;
 	private Map<String, TextAnalyzer> analyzers;
-	private List<SynonymSet> synonymSets;
 
 	public SearchIndexContextProviderImpl(SearchConfiguration config, List<ColumnModel> columns,
-			SynonymSetDao synonymSetDao, ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao,
+			List<ColumnAnalyzerOverride> columnAnalyzerOverrides, List<SynonymSet> synonymSets,
 			TextAnalyzerDao textAnalyzerDao) {
 		this.config = config;
 		this.columns = columns;
-		this.synonymSetDao = synonymSetDao;
-		this.columnAnalyzerOverrideDao = columnAnalyzerOverrideDao;
+		this.columnAnalyzerOverrides = columnAnalyzerOverrides != null ? columnAnalyzerOverrides : Collections.emptyList();
+		this.synonymSets = synonymSets != null ? synonymSets : Collections.emptyList();
 		this.textAnalyzerDao = textAnalyzerDao;
 	}
 
@@ -58,9 +54,6 @@ public class SearchIndexContextProviderImpl implements SearchIndexContextProvide
 
 	@Override
 	public List<ColumnAnalyzerOverride> getColumnAnalyzerOverrides() {
-		if (columnAnalyzerOverrides == null) {
-			columnAnalyzerOverrides = loadColumnAnalyzerOverrides();
-		}
 		return columnAnalyzerOverrides;
 	}
 
@@ -74,26 +67,7 @@ public class SearchIndexContextProviderImpl implements SearchIndexContextProvide
 
 	@Override
 	public List<SynonymSet> getSynonymSets() {
-		if (synonymSets == null) {
-			synonymSets = loadSynonymSets();
-		}
 		return synonymSets;
-	}
-
-	private List<ColumnAnalyzerOverride> loadColumnAnalyzerOverrides() {
-		if (config == null || config.getColumnAnalyzerOverrides() == null
-				|| config.getColumnAnalyzerOverrides().isEmpty()) {
-			return Collections.emptyList();
-		}
-		return new ArrayList<>(columnAnalyzerOverrideDao.getByQualifiedNames(
-				config.getColumnAnalyzerOverrides()).values());
-	}
-
-	private List<SynonymSet> loadSynonymSets() {
-		if (config == null || config.getSynonymSets() == null || config.getSynonymSets().isEmpty()) {
-			return Collections.emptyList();
-		}
-		return new ArrayList<>(synonymSetDao.getByQualifiedNames(config.getSynonymSets()).values());
 	}
 
 	private Map<String, TextAnalyzer> collectAndLoadAnalyzers() {
@@ -103,7 +77,7 @@ public class SearchIndexContextProviderImpl implements SearchIndexContextProvide
 		qualifiedNames.add(ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(ColumnType.STRING));
 
 		// From column analyzer overrides
-		for (ColumnAnalyzerOverride cao : getColumnAnalyzerOverrides()) {
+		for (ColumnAnalyzerOverride cao : columnAnalyzerOverrides) {
 			if (cao.getOverrides() != null) {
 				for (ColumnAnalyzerOverrideEntry entry : cao.getOverrides()) {
 					if (entry.getIndexAnalyzer() != null) {

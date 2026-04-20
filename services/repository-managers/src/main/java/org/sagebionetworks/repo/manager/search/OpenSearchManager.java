@@ -1,37 +1,28 @@
 package org.sagebionetworks.repo.manager.search;
 
 import java.util.List;
-import java.util.Map;
 
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
-import org.sagebionetworks.repo.model.table.ColumnModel;
-import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
-import org.sagebionetworks.repo.model.search.table.SynonymSet;
-import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 
 /**
  * Manager interface for OpenSearch Serverless (AOSS) operations.
  * Manages index lifecycle (create, delete) and query execution (search, autocomplete).
+ * Configuration data is provided via {@link SearchIndexContextProvider} which supports
+ * lazy loading to avoid unnecessary DB lookups for simple operations.
  */
 public interface OpenSearchManager {
 
 	/**
 	 * Create an OpenSearch index with the given schema and configuration.
 	 *
-	 * @param indexName                The OpenSearch index name
-	 * @param columns                  The column models defining the entity's schema
-	 * @param defaultAnalyzer          The default analyzer qualified name (may be null for platform defaults)
-	 * @param synonymSets              The resolved synonym sets (may be empty)
-	 * @param columnAnalyzerOverrides  The resolved column analyzer overrides (may be empty)
-	 * @param analyzers                Map of analyzer qualified name to TextAnalyzer for all analyzers needed
+	 * @param indexName The OpenSearch index name
+	 * @param context   Provider for columns, analyzers, synonym sets, and overrides
 	 * @return The JSON representation of the CreateIndexRequest sent to OpenSearch
 	 */
-	String createIndex(String indexName, List<ColumnModel> columns, String defaultAnalyzer,
-			List<SynonymSet> synonymSets, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, TextAnalyzer> analyzers);
+	String createIndex(String indexName, SearchIndexContextProvider context);
 
 	/**
 	 * Delete an OpenSearch index. No-op if the index does not exist.
@@ -52,33 +43,23 @@ public interface OpenSearchManager {
 	/**
 	 * Execute a search query against the OpenSearch index.
 	 *
-	 * @param indexName                The OpenSearch index name
-	 * @param query                    The search query
-	 * @param columns                  The column models for field routing
-	 * @param defaultAnalyzer          The default analyzer qualified name (may be null)
-	 * @param columnAnalyzerOverrides  The resolved overrides (may be empty)
-	 * @param analyzers                Map of analyzer qualified name to TextAnalyzer
+	 * @param indexName The OpenSearch index name
+	 * @param query     The search query
+	 * @param context   Provider for columns, analyzers, and overrides
 	 * @return The search results
 	 */
-	SearchQueryResults search(String indexName, SearchQuery query, List<ColumnModel> columns,
-			String defaultAnalyzer, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, TextAnalyzer> analyzers);
+	SearchQueryResults search(String indexName, SearchQuery query, SearchIndexContextProvider context);
 
 	/**
 	 * Execute an autocomplete query. Forces PREFIX query type (mapped to multi_match with bool_prefix)
 	 * and caps size at 8.
 	 *
-	 * @param indexName                The OpenSearch index name
-	 * @param query                    The search query (queryType will be overridden to PREFIX)
-	 * @param columns                  The column models
-	 * @param defaultAnalyzer          The default analyzer qualified name (may be null)
-	 * @param columnAnalyzerOverrides  The resolved overrides (may be empty)
-	 * @param analyzers                Map of analyzer qualified name to TextAnalyzer
+	 * @param indexName The OpenSearch index name
+	 * @param query     The search query (queryType will be overridden to PREFIX)
+	 * @param context   Provider for columns, analyzers, and overrides
 	 * @return The autocomplete results
 	 */
-	SearchQueryResults autocomplete(String indexName, SearchQuery query, List<ColumnModel> columns,
-			String defaultAnalyzer, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, TextAnalyzer> analyzers);
+	SearchQueryResults autocomplete(String indexName, SearchQuery query, SearchIndexContextProvider context);
 
 	/**
 	 * Validate analyzer settings by invoking the AOSS _analyze API.

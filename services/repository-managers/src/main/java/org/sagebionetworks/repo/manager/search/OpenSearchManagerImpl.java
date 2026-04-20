@@ -100,9 +100,12 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	@Override
-	public String createIndex(String indexName, List<ColumnModel> columns, String defaultAnalyzer,
-			List<SynonymSet> synonymSets, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, TextAnalyzer> analyzers) {
+	public String createIndex(String indexName, SearchIndexContextProvider context) {
+		List<ColumnModel> columns = context.getColumns();
+		String defaultAnalyzer = context.getDefaultAnalyzer();
+		List<SynonymSet> synonymSets = context.getSynonymSets();
+		List<ColumnAnalyzerOverride> columnAnalyzerOverrides = context.getColumnAnalyzerOverrides();
+		Map<String, TextAnalyzer> analyzers = context.getAnalyzers();
 
 		List<String> synonymRules = buildSynonymRules(synonymSets);
 		boolean hasSynonyms = !synonymRules.isEmpty();
@@ -258,21 +261,19 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	@Override
-	public SearchQueryResults search(String indexName, SearchQuery query, List<ColumnModel> columns,
-			String defaultAnalyzer, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, TextAnalyzer> analyzers) {
-		return executeSearch(indexName, query, columns, defaultAnalyzer, columnAnalyzerOverrides, analyzers);
+	public SearchQueryResults search(String indexName, SearchQuery query, SearchIndexContextProvider context) {
+		return executeSearch(indexName, query, context.getColumns(), context.getDefaultAnalyzer(),
+				context.getColumnAnalyzerOverrides(), context.getAnalyzers());
 	}
 
 	@Override
-	public SearchQueryResults autocomplete(String indexName, SearchQuery query, List<ColumnModel> columns,
-			String defaultAnalyzer, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, TextAnalyzer> analyzers) {
+	public SearchQueryResults autocomplete(String indexName, SearchQuery query, SearchIndexContextProvider context) {
 		query.setQueryType(SearchQueryType.PREFIX);
 		if (query.getLimit() == null || query.getLimit() > AUTOCOMPLETE_MAX_LIMIT) {
 			query.setLimit((long) AUTOCOMPLETE_MAX_LIMIT);
 		}
-		return executeSearch(indexName, query, columns, defaultAnalyzer, columnAnalyzerOverrides, analyzers);
+		return executeSearch(indexName, query, context.getColumns(), context.getDefaultAnalyzer(),
+				context.getColumnAnalyzerOverrides(), context.getAnalyzers());
 	}
 
 	// ---- Private helpers ----

@@ -21,8 +21,6 @@ import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.SearchQueryType;
-import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
-import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.sagebionetworks.repo.model.table.ColumnModel;
@@ -48,11 +46,13 @@ public class OpenSearchManagerImplAutoWiredTest {
 	private OpenSearchManager openSearchManager;
 
 	private String indexName;
+	private Map<String, TextAnalyzer> defaultAnalyzers;
 
 	@BeforeEach
 	public void setUp() {
 		assertNotNull(openSearchManager);
 		indexName = "test-index-" + UUID.randomUUID().toString().substring(0, 8);
+		defaultAnalyzers = buildDefaultAnalyzers();
 	}
 
 	@AfterEach
@@ -68,13 +68,14 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 	@Test
 	public void testCreateIndexWithValidColumns() {
-		SearchIndexContextProvider context = buildContext(
+		List<ColumnModel> columns = buildColumns(
 				column("1", "name", ColumnType.STRING),
 				column("2", "age", ColumnType.INTEGER)
 		);
 
 		// call under test
-		String appliedConfig = openSearchManager.createIndex(indexName, context);
+		String appliedConfig = openSearchManager.createIndex(indexName, columns, null,
+				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
 
 		assertNotNull(appliedConfig);
 		assertTrue(appliedConfig.length() > 0);
@@ -82,7 +83,9 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 	@Test
 	public void testDeleteIndexWithExistingIndex() {
-		openSearchManager.createIndex(indexName, buildContext(column("1", "name", ColumnType.STRING)));
+		List<ColumnModel> columns = buildColumns(column("1", "name", ColumnType.STRING));
+		openSearchManager.createIndex(indexName, columns, null,
+				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
 
 		// call under test
 		openSearchManager.deleteIndex(indexName);
@@ -99,12 +102,13 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 	@Test
 	public void testCreateIndexWithDuplicateName() {
-		SearchIndexContextProvider context = buildContext(column("1", "name", ColumnType.STRING));
-
-		openSearchManager.createIndex(indexName, context);
+		List<ColumnModel> columns = buildColumns(column("1", "name", ColumnType.STRING));
+		openSearchManager.createIndex(indexName, columns, null,
+				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
 
 		// call under test — resource_already_exists returns null
-		String result = openSearchManager.createIndex(indexName, context);
+		String result = openSearchManager.createIndex(indexName, columns, null,
+				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
 
 		assertEquals(null, result);
 	}
@@ -119,12 +123,12 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 	@Test
 	public void testCRUDWithSearchQuery() {
-		SearchIndexContextProvider context = buildContext(
+		List<ColumnModel> columns = buildColumns(
 				column("1", "title", ColumnType.STRING),
 				column("2", "count", ColumnType.INTEGER)
 		);
-
-		openSearchManager.createIndex(indexName, context);
+		openSearchManager.createIndex(indexName, columns, null,
+				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
 
 		List<BulkOperation> operations = new ArrayList<>();
 		operations.add(buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "mitochondria research", "2", "42")));
@@ -143,7 +147,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		query.setOffset(0L);
 
 		// call under test
-		SearchQueryResults results = waitForSearch(query, context, 2);
+		SearchQueryResults results = waitForSearch(query, columns, 2);
 
 		assertNotNull(results);
 		assertEquals(2L, results.getTotalHits());
@@ -153,9 +157,9 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 	@Test
 	public void testSearchWithMatchAllQueryType() {
-		SearchIndexContextProvider context = buildContext(column("1", "name", ColumnType.STRING));
-
-		openSearchManager.createIndex(indexName, context);
+		List<ColumnModel> columns = buildColumns(column("1", "name", ColumnType.STRING));
+		openSearchManager.createIndex(indexName, columns, null,
+				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
 
 		List<BulkOperation> operations = new ArrayList<>();
 		operations.add(buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "alpha")));
@@ -169,7 +173,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		query.setOffset(0L);
 
 		// call under test
-		SearchQueryResults results = waitForSearch(query, context, 2);
+		SearchQueryResults results = waitForSearch(query, columns, 2);
 
 		assertNotNull(results);
 		assertEquals(2L, results.getTotalHits());
@@ -185,11 +189,12 @@ public class OpenSearchManagerImplAutoWiredTest {
 		query.setLimit(10L);
 		query.setOffset(0L);
 
-		SearchIndexContextProvider context = buildContext(column("1", "name", ColumnType.STRING));
+		List<ColumnModel> columns = buildColumns(column("1", "name", ColumnType.STRING));
 
 		// call under test
 		assertThrows(IllegalStateException.class, () ->
-				openSearchManager.search("nonexistent-" + UUID.randomUUID(), query, context));
+				openSearchManager.search("nonexistent-" + UUID.randomUUID(), query, columns,
+						null, Collections.emptyList(), defaultAnalyzers));
 	}
 
 	// ---- Polling helpers ----
@@ -208,12 +213,13 @@ public class OpenSearchManagerImplAutoWiredTest {
 		return result[0];
 	}
 
-	private SearchQueryResults waitForSearch(SearchQuery query, SearchIndexContextProvider context,
+	private SearchQueryResults waitForSearch(SearchQuery query, List<ColumnModel> columns,
 			long expectedMinHits) {
 		SearchQueryResults[] result = {null};
 		boolean success = TimeUtils.waitForExponential(POLL_MAX_MS, POLL_INTERVAL_MS, null, (v) -> {
 			try {
-				result[0] = openSearchManager.search(indexName, query, context);
+				result[0] = openSearchManager.search(indexName, query, columns,
+						null, Collections.emptyList(), defaultAnalyzers);
 				return result[0].getTotalHits() != null && result[0].getTotalHits() >= expectedMinHits;
 			} catch (IllegalStateException e) {
 				return false;
@@ -225,39 +231,16 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 	// ---- Test data helpers ----
 
-	private static SearchIndexContextProvider buildContext(ColumnModel... columns) {
-		List<ColumnModel> columnList = Arrays.asList(columns);
-		Map<String, TextAnalyzer> analyzers = buildDefaultAnalyzers();
-		return new SearchIndexContextProvider() {
-			@Override
-			public List<ColumnModel> getColumns() {
-				return columnList;
-			}
-			@Override
-			public String getDefaultAnalyzer() {
-				return null;
-			}
-			@Override
-			public List<ColumnAnalyzerOverride> getColumnAnalyzerOverrides() {
-				return Collections.emptyList();
-			}
-			@Override
-			public Map<String, TextAnalyzer> getAnalyzers() {
-				return analyzers;
-			}
-			@Override
-			public List<SynonymSet> getSynonymSets() {
-				return Collections.emptyList();
-			}
-		};
-	}
-
 	private static ColumnModel column(String id, String name, ColumnType type) {
 		ColumnModel cm = new ColumnModel();
 		cm.setId(id);
 		cm.setName(name);
 		cm.setColumnType(type);
 		return cm;
+	}
+
+	private static List<ColumnModel> buildColumns(ColumnModel... columns) {
+		return Arrays.asList(columns);
 	}
 
 	private static Map<String, TextAnalyzer> buildDefaultAnalyzers() {

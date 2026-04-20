@@ -77,9 +77,18 @@ import org.sagebionetworks.repo.model.grid.ListGridReplicasResponse;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
 import org.sagebionetworks.repo.model.grid.PatchInfo;
+import org.sagebionetworks.repo.manager.agent.handler.grid.SetValueProcessorFactory;
+import org.sagebionetworks.repo.manager.grid.internal.replica.change.PatchBuilderPublisher;
+import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.QueryElement;
+import org.sagebionetworks.repo.model.grid.GridQueryJobRequest;
+import org.sagebionetworks.repo.model.grid.GridQueryJobResponse;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
 import org.sagebionetworks.repo.model.grid.message.JsonRxMessageType;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.grid.query.QueryRequest;
+import org.sagebionetworks.repo.model.grid.query.result.QueryResult;
 import org.sagebionetworks.repo.model.table.Query;
 import org.sagebionetworks.repo.web.NotFoundException;
 
@@ -195,6 +204,15 @@ public class GridManagerUnitTest {
 	private PatchRowHandler mockRowHandler;
 	@Mock
 	private CreateGridHandler mockCreateGridHandler;
+
+	@Mock
+	private GridReplicaViewManager mockGridReplicaViewManager;
+
+	@Mock
+	private PatchBuilderPublisher mockPatchBuilderPublisher;
+
+	@Mock
+	private SetValueProcessorFactory mockSetValueProcessorFactory;
 	
 	@BeforeEach
 	public void before() {
@@ -216,7 +234,7 @@ public class GridManagerUnitTest {
 		when(mockConfig.getStack()).thenReturn("dev");
 		gridManager = new GridManagerImpl(mockCredentialsProvider, mockWebsocketApi, mockGridDao, mockConfig,
 			mockS3Client, mockSynapseS3Client, mockInternalEventPublisher, List.of(mockCreateGridHandler), mockGridAuthManager, mockTransferManager,
-			mockTransactionalMessenger
+			mockTransactionalMessenger, mockGridReplicaViewManager, mockPatchBuilderPublisher, mockSetValueProcessorFactory
 		);
 		
 		gridManager = Mockito.spy(gridManager);
@@ -1651,6 +1669,147 @@ public class GridManagerUnitTest {
 		}).getMessage();
 		assertEquals("request.gridSessionId is required.", message);
 		verifyZeroInteractions(mockGridDao);
+	}
+
+	private GridQueryJobRequest buildQueryRequest(Long replicaId) {
+		return new GridQueryJobRequest()
+				.setSessionId(gridSessionId)
+				.setReplicaId(replicaId)
+				.setQueryRequest(new QueryRequest().setQuery(new org.sagebionetworks.repo.model.grid.query.Query()));
+	}
+
+	@Test
+	public void testQueryGridWithValidRequest() {
+		doNothing().when(gridManager).validGridSessionAccess(mockUser, gridSessionId);
+		doNothing().when(gridManager).validateRepicaOwner(mockUser, gridSessionId, replicaId);
+		GridConnectionInfo internalConnection = new GridConnectionInfo().setReplicaId(replicaId);
+		when(mockGridDao.getSingletonConnection(gridSessionId, EventSource.INTERNAL))
+				.thenReturn(Optional.of(internalConnection));
+		GridHeader header = new GridHeader().setReplicaId(replicaId);
+		when(mockGridReplicaViewManager.readHeader(gridSessionId, replicaId, replicaId)).thenReturn(Optional.of(header));
+		QueryResult expectedQueryResult = new QueryResult();
+		when(mockGridReplicaViewManager.querySinglePageAsQueryResult(eq(header), any(QueryElement.class)))
+				.thenReturn(expectedQueryResult);
+
+		// call under test
+		GridQueryJobResponse result = gridManager.queryGrid(mockUser, buildQueryRequest(replicaId));
+
+		assertEquals(expectedQueryResult, result.getQueryResult());
+		verify(gridManager).validGridSessionAccess(mockUser, gridSessionId);
+		verify(mockGridDao).getSingletonConnection(gridSessionId, EventSource.INTERNAL);
+		verify(mockGridReplicaViewManager).readHeader(gridSessionId, replicaId, replicaId);
+		verify(mockGridReplicaViewManager).querySinglePageAsQueryResult(eq(header), any(QueryElement.class));
+	}
+
+	@Test
+	public void testQueryGridWithNullUser() {
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.queryGrid(null, buildQueryRequest(replicaId));
+		}).getMessage();
+		assertEquals("user is required.", message);
+		verifyZeroInteractions(mockGridDao, mockGridReplicaViewManager);
+	}
+
+	@Test
+	public void testQueryGridWithNullRequest() {
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.queryGrid(mockUser, null);
+		}).getMessage();
+		assertEquals("request is required.", message);
+		verifyZeroInteractions(mockGridDao, mockGridReplicaViewManager);
+	}
+
+	@Test
+	public void testQueryGridWithNullSessionId() {
+		GridQueryJobRequest request = buildQueryRequest(replicaId).setSessionId(null);
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.queryGrid(mockUser, request);
+		}).getMessage();
+		assertEquals("request.sessionId is required.", message);
+		verifyZeroInteractions(mockGridDao, mockGridReplicaViewManager);
+	}
+
+	@Test
+	public void testQueryGridWithNullReplicaId() {
+		GridQueryJobRequest request = buildQueryRequest(null);
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.queryGrid(mockUser, request);
+		}).getMessage();
+		assertEquals("request.replicaId is required.", message);
+		verifyZeroInteractions(mockGridDao, mockGridReplicaViewManager);
+	}
+
+	@Test
+	public void testQueryGridWithNullQueryRequest() {
+		GridQueryJobRequest request = buildQueryRequest(replicaId).setQueryRequest(null);
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.queryGrid(mockUser, request);
+		}).getMessage();
+		assertEquals("request.queryRequest is required.", message);
+		verifyZeroInteractions(mockGridDao, mockGridReplicaViewManager);
+	}
+
+	@Test
+	public void testQueryGridWithNullQuery() {
+		GridQueryJobRequest request = buildQueryRequest(replicaId)
+				.setQueryRequest(new QueryRequest());
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			// call under test
+			gridManager.queryGrid(mockUser, request);
+		}).getMessage();
+		assertEquals("request.queryRequest.query is required.", message);
+		verifyZeroInteractions(mockGridDao, mockGridReplicaViewManager);
+	}
+
+	@Test
+	public void testQueryGridWithNoLimitDefaultsTo100() {
+		doNothing().when(gridManager).validGridSessionAccess(mockUser, gridSessionId);
+		doNothing().when(gridManager).validateRepicaOwner(mockUser, gridSessionId, replicaId);
+		GridConnectionInfo internalConnection = new GridConnectionInfo().setReplicaId(replicaId);
+		when(mockGridDao.getSingletonConnection(gridSessionId, EventSource.INTERNAL))
+				.thenReturn(Optional.of(internalConnection));
+		GridHeader header = new GridHeader().setReplicaId(replicaId);
+		when(mockGridReplicaViewManager.readHeader(gridSessionId, replicaId, replicaId)).thenReturn(Optional.of(header));
+		when(mockGridReplicaViewManager.querySinglePageAsQueryResult(eq(header), any(QueryElement.class)))
+				.thenReturn(new QueryResult());
+
+		GridQueryJobRequest request = buildQueryRequest(replicaId);
+
+		// call under test
+		gridManager.queryGrid(mockUser, request);
+
+		assertEquals(GridManagerImpl.DEFAULT_QUERY_LIMIT, request.getQueryRequest().getQuery().getLimit());
+	}
+
+	@Test
+	public void testQueryGridWithUnauthorizedUser() {
+		when(mockGridAuthManager.hasGridSessionAccess(mockUser, gridSessionId))
+				.thenReturn(AuthorizationStatus.accessDenied("not allowed"));
+
+		assertThrows(UnauthorizedException.class, () -> {
+			// call under test
+			gridManager.queryGrid(mockUser, buildQueryRequest(replicaId));
+		});
+		verifyZeroInteractions(mockGridReplicaViewManager);
+		verify(mockGridDao, never()).getSingletonConnection(any(), any());
+	}
+
+	@Test
+	public void testQueryGridWithNoInternalConnection() {
+		doNothing().when(gridManager).validGridSessionAccess(mockUser, gridSessionId);
+		doNothing().when(gridManager).validateRepicaOwner(mockUser, gridSessionId, replicaId);
+		when(mockGridDao.getSingletonConnection(gridSessionId, EventSource.INTERNAL)).thenReturn(Optional.empty());
+
+		assertThrows(NotFoundException.class, () -> {
+			// call under test
+			gridManager.queryGrid(mockUser, buildQueryRequest(replicaId));
+		});
+		verifyZeroInteractions(mockGridReplicaViewManager);
 	}
 
 }

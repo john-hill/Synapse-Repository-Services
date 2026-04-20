@@ -7,10 +7,15 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -52,8 +57,31 @@ import org.sagebionetworks.repo.model.grid.PatchInfo;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
 import org.sagebionetworks.repo.model.grid.message.JsonRxMessageType;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.grid.GridQueryJobRequest;
+import org.sagebionetworks.repo.model.grid.GridQueryJobResponse;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobRequest;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobResponse;
+import org.sagebionetworks.repo.model.grid.query.QueryRequest;
+import org.sagebionetworks.repo.model.grid.query.result.QueryResult;
+import org.sagebionetworks.repo.model.grid.update.GridUpdateResponse;
+import org.sagebionetworks.repo.model.grid.update.SetValue;
+import org.sagebionetworks.repo.model.grid.update.Update;
 import org.sagebionetworks.repo.model.message.ChangeType;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
+import org.sagebionetworks.repo.manager.agent.handler.grid.SetValueProcessorFactory;
+import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChange;
+import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangePublisher;
+import org.sagebionetworks.repo.manager.grid.internal.replica.change.PatchBuilderPublisher;
+import org.sagebionetworks.repo.manager.grid.internal.replica.change.UpdateRowChange;
+import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
+import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
+import org.sagebionetworks.repo.manager.grid.internal.replica.model.RowView;
+import org.sagebionetworks.repo.model.grid.patch.ConValue;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.GridReplicaViewManager;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.QueryElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.FilterElement;
+import org.sagebionetworks.repo.manager.grid.internal.replica.view.query.filter.FilterTranslation;
+import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.ValidateArgument;
@@ -104,12 +132,16 @@ public class GridManagerImpl implements GridManager {
 	private final GridAuthorizationManager gridAuthorizationManager;
 	private final TransferManager transferManager;
 	private final TransactionalMessenger transactionalMessenger;
+	private final GridReplicaViewManager gridReplicaViewManager;
+	private final PatchBuilderPublisher patchBuilderPublisher;
+	private final SetValueProcessorFactory setValueProcessorFactory;
 
 	@Autowired
 	public GridManagerImpl(AwsCredentialsProvider awsCredentialsProvider, WebsocketApi websocketApi, GridDao gridDao,
 	   StackConfiguration config, S3Client s3Client, SynapseS3Client synapseS3Client, InternalReplicaToHubEventPublisher internalEventPublisher,
 	   List<CreateGridHandler> createHandlers, GridAuthorizationManager gridAuthorizationManager, TransferManager transferManager,
-	   TransactionalMessenger transactionalMessenger) {
+	   TransactionalMessenger transactionalMessenger, GridReplicaViewManager gridReplicaViewManager,
+	   PatchBuilderPublisher patchBuilderPublisher, SetValueProcessorFactory setValueProcessorFactory) {
 		super();
 		this.awsCredentialsProvider = awsCredentialsProvider;
 		this.websocketApi = websocketApi;
@@ -123,6 +155,9 @@ public class GridManagerImpl implements GridManager {
 		this.gridAuthorizationManager = gridAuthorizationManager;
 		this.transferManager = transferManager;
 		this.transactionalMessenger = transactionalMessenger;
+		this.gridReplicaViewManager = gridReplicaViewManager;
+		this.patchBuilderPublisher = patchBuilderPublisher;
+		this.setValueProcessorFactory = setValueProcessorFactory;
 	}
 
 	@WriteTransaction
@@ -585,6 +620,125 @@ public class GridManagerImpl implements GridManager {
 			offset += limit;
 		}
 		return count;
+	}
+
+	static final long DEFAULT_QUERY_LIMIT = 100L;
+
+	@Override
+	public GridQueryJobResponse queryGrid(UserInfo user, GridQueryJobRequest request) {
+		ValidateArgument.required(user, "user");
+		ValidateArgument.required(request, "request");
+		ValidateArgument.required(request.getSessionId(), "request.sessionId");
+		ValidateArgument.required(request.getReplicaId(), "request.replicaId");
+		ValidateArgument.required(request.getQueryRequest(), "request.queryRequest");
+		ValidateArgument.required(request.getQueryRequest().getQuery(), "request.queryRequest.query");
+		String sessionId = request.getSessionId();
+		Long replicaId = request.getReplicaId();
+		QueryRequest queryRequest = request.getQueryRequest();
+		if (queryRequest.getQuery().getLimit() == null) {
+			queryRequest.getQuery().setLimit(DEFAULT_QUERY_LIMIT);
+		}
+		validGridSessionAccess(user, sessionId);
+		validateRepicaOwner(user, sessionId, replicaId);
+		GridConnectionInfo internalConnection = gridDao.getSingletonConnection(sessionId, EventSource.INTERNAL)
+				.orElseThrow(() -> new NotFoundException("No internal connection exists for this grid session."));
+		GridHeader header = gridReplicaViewManager
+				.readHeader(sessionId, internalConnection.getReplicaId(), replicaId)
+				.orElseThrow(() -> new NotFoundException("Grid session does not exist."));
+		QueryResult queryResult = gridReplicaViewManager.querySinglePageAsQueryResult(header,
+				new QueryElement(queryRequest.getQuery()));
+		return new GridQueryJobResponse().setQueryResult(queryResult);
+	}
+
+	@Override
+	public long executeGridUpdate(GridHeader header, GridConnectionInfo publishingConnection,
+			JSONObject rawUpdate) throws Exception {
+		Update update = JDOSecondaryPropertyUtils.createEntityFromJSONObject(rawUpdate, Update.class);
+		JSONArray rawSetValueArray = rawUpdate.getJSONArray("set");
+		List<SetValue> set = update.getSet();
+		List<FilterElement> filters = update.getFilters() == null ? Collections.emptyList()
+				: update.getFilters().stream().map(FilterTranslation::translate).collect(Collectors.toList());
+		Map<String, Integer> indexByName = header.getOrderedColumns().stream()
+				.collect(Collectors.toMap(Column::getName, Column::getVectorIndex));
+		Integer[] indexArray = set.stream().map(s -> {
+			Integer idx = indexByName.get(s.getColumnName());
+			if (idx == null) {
+				throw new IllegalArgumentException("Column name: " + s.getColumnName() + " not found.");
+			}
+			return idx;
+		}).toArray(Integer[]::new);
+
+		long updateCount = 0;
+		Iterator<RowView> rows = gridReplicaViewManager.getQueryIterator(header,
+				new QueryElement().setWhere(filters).setLimit(update.getLimit()));
+		try (IntendedChangePublisher icp = new IntendedChangePublisher(publishingConnection,
+				header.getClockSequenceMaximum(), patchBuilderPublisher, PatchUtils.MAX_CHANGE_SET_SIZE)) {
+			while (rows.hasNext()) {
+				List<ConValue> updates = new ArrayList<>();
+				List<Integer> finalIndex = new ArrayList<>();
+				RowView row = rows.next();
+				for (int i = 0; i < set.size(); i++) {
+					JSONObject rawSetValue = rawSetValueArray.optJSONObject(i);
+					Optional<ConValue> op = setValueProcessorFactory.createConValue(row, set.get(i), rawSetValue);
+					if (op.isPresent()) {
+						finalIndex.add(indexArray[i]);
+						updates.add(op.get());
+					}
+				}
+				if (!updates.isEmpty()) {
+					icp.publish(new UpdateRowChange(row.getRowObject().getData().getVectorId(), updates,
+							finalIndex.toArray(new Integer[finalIndex.size()])));
+					updateCount++;
+				}
+			}
+		}
+		return updateCount;
+	}
+
+	@WriteTransaction
+	@Override
+	public GridUpdateJobResponse updateGrid(UserInfo user, GridUpdateJobRequest request) throws Exception {
+		ValidateArgument.required(user, "user");
+		ValidateArgument.required(request, "request");
+		ValidateArgument.required(request.getSessionId(), "request.sessionId");
+		ValidateArgument.required(request.getReplicaId(), "request.replicaId");
+		ValidateArgument.required(request.getUpdateRequest(), "request.updateRequest");
+		ValidateArgument.required(request.getUpdateRequest().getUpdate(), "request.updateRequest.update");
+		ValidateArgument.required(request.getUpdateRequest().getUpdate().getBatch(),
+				"request.updateRequest.update.batch");
+		String sessionId = request.getSessionId();
+		Long replicaId = request.getReplicaId();
+		validGridSessionAccess(user, sessionId);
+		validateRepicaOwner(user, sessionId, replicaId);
+		GridConnectionInfo internalConnection = gridDao.getSingletonConnection(sessionId, EventSource.INTERNAL)
+				.orElseThrow(() -> new NotFoundException("No internal connection exists for this grid session."));
+		GridHeader header = gridReplicaViewManager
+				.readHeader(sessionId, internalConnection.getReplicaId(), replicaId)
+				.orElseThrow(() -> new NotFoundException("Grid session does not exist."));
+		GridConnectionInfo publishingConnection = gridDao.getConnection(sessionId, replicaId)
+				.orElseGet(() -> {
+					String connectionId = UUID.randomUUID().toString();
+					gridDao.createConnection(new GridConnectionInfo()
+							.setConnectionId(connectionId)
+							.setSessionId(sessionId)
+							.setReplicaId(replicaId)
+							.setCreatedBy(user.getId())
+							.setSource(EventSource.API));
+					return gridDao.getConnection(sessionId, replicaId)
+							.orElseThrow(() -> new IllegalStateException("Failed to create connection."));
+				});
+		// Re-serialize to JSON so that the existing raw-JSON processing logic in
+		// executeGridUpdate can distinguish absent vs. null in LiteralSetValue.value.
+		String updateRequestJson = JDOSecondaryPropertyUtils.createJSONFromObject(request.getUpdateRequest());
+		JSONArray updateBatch = new JSONObject(updateRequestJson).getJSONObject("update").getJSONArray("batch");
+		List<Long> updateCounts = new ArrayList<>();
+		for (int i = 0; i < updateBatch.length(); i++) {
+			updateCounts.add(executeGridUpdate(header, publishingConnection, updateBatch.getJSONObject(i)));
+		}
+		GridUpdateResponse updateResponse = new GridUpdateResponse()
+				.setUpdateResults(updateCounts)
+				.setTotalRowsUpdated(updateCounts.stream().mapToLong(Long::longValue).sum());
+		return new GridUpdateJobResponse().setUpdateResponse(updateResponse);
 	}
 
 }

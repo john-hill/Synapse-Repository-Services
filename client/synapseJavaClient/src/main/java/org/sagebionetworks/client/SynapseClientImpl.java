@@ -276,6 +276,11 @@ import org.sagebionetworks.repo.model.grid.ListGridReplicasRequest;
 import org.sagebionetworks.repo.model.grid.ListGridReplicasResponse;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
+import org.sagebionetworks.repo.model.grid.GridQueryJobRequest;
+import org.sagebionetworks.repo.model.grid.GridQueryJobResponse;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobRequest;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobResponse;
+import org.sagebionetworks.repo.model.grid.query.QueryRequest;
 import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
 import org.sagebionetworks.repo.model.message.MessageBundle;
 import org.sagebionetworks.repo.model.message.MessageRecipientSet;
@@ -6628,6 +6633,26 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
     public GridRecordSetExportResponse exportGridRecordSetAsyncGet(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException {
     	return (GridRecordSetExportResponse) getAsyncResult(AsynchJobType.GridExportRecordSet, asyncJobToken);
     }
+
+	@Override
+	public String gridQueryAsyncStart(GridQueryJobRequest request) throws SynapseException {
+		return startAsynchJob(AsynchJobType.GridQuery, request);
+	}
+
+	@Override
+	public GridQueryJobResponse gridQueryAsyncGet(String asyncToken) throws SynapseException, SynapseResultNotReadyException {
+		return (GridQueryJobResponse) getAsyncResult(AsynchJobType.GridQuery, asyncToken);
+	}
+
+	@Override
+	public String gridUpdateAsyncStart(GridUpdateJobRequest request) throws SynapseException {
+		return startAsynchJob(AsynchJobType.GridUpdate, request);
+	}
+
+	@Override
+	public GridUpdateJobResponse gridUpdateAsyncGet(String asyncToken) throws SynapseException, SynapseResultNotReadyException {
+		return (GridUpdateJobResponse) getAsyncResult(AsynchJobType.GridUpdate, asyncToken);
+	}
 
     @Override
     public CurationTask createCurationTask(CurationTask task) throws SynapseException{

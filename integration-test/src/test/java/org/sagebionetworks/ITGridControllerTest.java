@@ -59,6 +59,10 @@ import org.sagebionetworks.repo.model.grid.ListGridReplicasRequest;
 import org.sagebionetworks.repo.model.grid.ListGridReplicasResponse;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
+import org.sagebionetworks.repo.model.grid.GridQueryJobRequest;
+import org.sagebionetworks.repo.model.grid.GridQueryJobResponse;
+import org.sagebionetworks.repo.model.grid.query.QueryRequest;
+import org.sagebionetworks.repo.model.grid.query.SelectAll;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.ResourceAccess;
@@ -322,6 +326,49 @@ public class ITGridControllerTest {
 
 		assertEquals(1, resTwo.size());
 		assertNotNull(resTwo.get(0).getPreSignedURL());
+    }
+
+    @Test
+    public void testQueryGridWithEmptySession() throws Exception {
+        CreateGridResponse createGridResponse = (CreateGridResponse) AsyncJobHelper
+                .assertAysncJobResult(synapse, AsynchJobType.CreateGrid, new CreateGridRequest(), body -> {
+                    assertInstanceOf(CreateGridResponse.class, body);
+                    CreateGridResponse r = (CreateGridResponse) body;
+                    assertNotNull(r.getGridSession());
+                    assertNotNull(r.getGridSession().getSessionId());
+                }, MAX_TME_MS, AsyncJobHelper.INFINITE_RETRIES).getResponse();
+
+        GridSession session = createGridResponse.getGridSession();
+
+        // Create a replica to use for the query
+        CreateReplicaResponse replicaResponse = synapse
+                .createGridReplica(new CreateReplicaRequest().setGridSessionId(session.getSessionId()));
+        Long replicaId = replicaResponse.getReplica().getReplicaId();
+
+        GridQueryJobRequest request = new GridQueryJobRequest()
+                .setSessionId(session.getSessionId())
+                .setReplicaId(replicaId)
+                .setQueryRequest(new QueryRequest().setQuery(
+                        new org.sagebionetworks.repo.model.grid.query.Query()
+                                .setColumnSelection(List.of(new SelectAll()))
+                                .setLimit(10L)));
+
+        // call under test
+        String asyncToken = synapse.gridQueryAsyncStart(request);
+        GridQueryJobResponse[] responseHolder = new GridQueryJobResponse[1];
+        TimeUtils.waitFor(MAX_TME_MS, ASYNC_JOB_POLL_TIME_MS, () -> {
+            try {
+                responseHolder[0] = synapse.gridQueryAsyncGet(asyncToken);
+                return Pair.create(true, null);
+            } catch (SynapseResultNotReadyException e) {
+                return Pair.create(false, null);
+            }
+        });
+
+        assertNotNull(responseHolder[0]);
+        assertNotNull(responseHolder[0].getQueryResult());
+        assertNotNull(responseHolder[0].getQueryResult().getSelectColumns());
+        assertNotNull(responseHolder[0].getQueryResult().getRows());
     }
 
     private TableEntity createTableForInitialGrid() throws Exception {

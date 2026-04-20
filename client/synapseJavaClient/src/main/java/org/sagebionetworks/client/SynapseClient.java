@@ -238,6 +238,11 @@ import org.sagebionetworks.repo.model.grid.ListGridReplicasRequest;
 import org.sagebionetworks.repo.model.grid.ListGridReplicasResponse;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
+import org.sagebionetworks.repo.model.grid.GridQueryJobRequest;
+import org.sagebionetworks.repo.model.grid.GridQueryJobResponse;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobRequest;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobResponse;
+import org.sagebionetworks.repo.model.grid.query.QueryRequest;
 import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
 import org.sagebionetworks.repo.model.message.MessageBundle;
 import org.sagebionetworks.repo.model.message.MessageRecipientSet;
@@ -4677,7 +4682,37 @@ public interface SynapseClient extends BaseClient {
     String exportGridRecordSetAsyncStart(GridRecordSetExportRequest request) throws SynapseException;
 
     GridRecordSetExportResponse exportGridRecordSetAsyncGet(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException;
-    
+
+	/**
+	 * Execute a query against a grid session and return a single page of results.
+	 *
+	 * @param sessionId
+	 * @param request
+	 * @return
+	 * @throws SynapseException
+	 */
+	/**
+	 * Start an async job to query a grid session. The request must include sessionId
+	 * and replicaId.
+	 */
+	String gridQueryAsyncStart(GridQueryJobRequest request) throws SynapseException;
+
+	/**
+	 * Get the results of a grid query async job.
+	 */
+	GridQueryJobResponse gridQueryAsyncGet(String asyncToken) throws SynapseException, SynapseResultNotReadyException;
+
+	/**
+	 * Start an async job to execute batch updates against a grid session. The
+	 * request must include sessionId and replicaId.
+	 */
+	String gridUpdateAsyncStart(GridUpdateJobRequest request) throws SynapseException;
+
+	/**
+	 * Get the results of a grid update async job.
+	 */
+	GridUpdateJobResponse gridUpdateAsyncGet(String asyncToken) throws SynapseException, SynapseResultNotReadyException;
+
     CurationTask createCurationTask(CurationTask request) throws SynapseException;
 
     CurationTask getMetadataTask(Long taskId) throws SynapseException;

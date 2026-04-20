@@ -1,0 +1,22 @@
+{
+	"description": "Asynchronous job request to execute a batch of update operations against a grid session. Patches are attributed to the caller's replica. Does not require a WebSocket connection.",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.asynch.AsynchronousRequestBody"
+		}
+	],
+	"properties": {
+		"sessionId": {
+			"type": "string",
+			"description": "Required. The grid session ID to update."
+		},
+		"replicaId": {
+			"type": "integer",
+			"description": "Required. The caller's replica ID. Patches are attributed to this replica for cell-level attribution and sync change detection. Must be owned by the caller."
+		},
+		"updateRequest": {
+			"$ref": "org.sagebionetworks.repo.model.grid.update.GridUpdateRequest",
+			"description": "Required. The batch of update operations to execute."
+		}
+	}
+}

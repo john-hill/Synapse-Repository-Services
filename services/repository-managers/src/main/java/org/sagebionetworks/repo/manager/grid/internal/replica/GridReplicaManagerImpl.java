@@ -10,14 +10,12 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -49,19 +47,23 @@ public class GridReplicaManagerImpl implements GridReplicaManager {
 	private static final Logger log = LogManager.getLogger(GridReplicaManagerImpl.class);
 
 	private final GridIndexManager gridIndexManager;
+	private final GridReplicaSnapshotManager snapshotManager;
 	private final InternalReplicaToHubEventPublisher publisher;
 	private final SnsClient snsClient;
 	private final String topicArn;
 	private final HttpClient httpClient;
 
-	public GridReplicaManagerImpl(GridIndexManager gridIndexManager, InternalReplicaToHubEventPublisher publisher,
-			SnsClient snsClient, String gridReplicaChangeTopicArn, HttpClient httpClient) {
+	public GridReplicaManagerImpl(GridIndexManager gridIndexManager,
+			GridReplicaSnapshotManager snapshotManager,
+			InternalReplicaToHubEventPublisher publisher,
+			SnsClient snsClient, String gridReplicaChangeTopicArn,
+			HttpClient httpClient) {
 		this.gridIndexManager = gridIndexManager;
+		this.snapshotManager = snapshotManager;
 		this.publisher = publisher;
 		this.snsClient = snsClient;
 		this.topicArn = gridReplicaChangeTopicArn;
 		this.httpClient = httpClient;
-
 	}
 
 	void synchronizeClock(ProgressCallback callback, GridConnectionInfo connection) {
@@ -178,5 +180,10 @@ public class GridReplicaManagerImpl implements GridReplicaManager {
 	@Override
 	public void onNewPatch(ProgressCallback callback, GridConnectionInfo connection) {
 		synchronizeClock(callback, connection);
+	}
+
+	@Override
+	public void onExportSnapshot(ProgressCallback callback, GridConnectionInfo connection) {
+		snapshotManager.createSnapshotIfPatchCountIsExceeded(connection);
 	}
 }

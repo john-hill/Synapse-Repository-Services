@@ -184,7 +184,7 @@
 		<ref bean="gridQueryWorkerTrigger" />
 		<ref bean="gridUpdateWorkerTrigger" />
 		<ref bean="gridSessionIndexWorkerTrigger" />
-		
+
 		<ref bean="inactiveUsersWorkerTrigger"/>
 
 	</util:list>

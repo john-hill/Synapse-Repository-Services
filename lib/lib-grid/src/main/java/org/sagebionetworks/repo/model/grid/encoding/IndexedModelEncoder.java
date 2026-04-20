@@ -42,6 +42,7 @@ public class IndexedModelEncoder implements Closeable {
 	private final NodeCodec nodeCodec;
 	private final CBORGenerator generator;
     private final ClockTable clockTable;
+	private final ByteArrayOutputStream nodeBuffer = new ByteArrayOutputStream(256);
 
 	private boolean closed = false;
 
@@ -90,13 +91,12 @@ public class IndexedModelEncoder implements Closeable {
 		String nodeKey = clockTable.encodeNodeKey(node.getId());
 
 		// Encode the node to binary
-		try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-			nodeCodec.encode(node, clockTable, baos);
+		nodeBuffer.reset();
+		nodeCodec.encode(node, clockTable, nodeBuffer);
 
-			// Write the entry to the output file
-			generator.writeFieldName(nodeKey);
-			generator.writeBinary(baos.toByteArray());
-		}
+		// Write the entry to the output file
+		generator.writeFieldName(nodeKey);
+		generator.writeBinary(nodeBuffer.toByteArray());
 	}
 
 	public ClockTable getClockTable() {

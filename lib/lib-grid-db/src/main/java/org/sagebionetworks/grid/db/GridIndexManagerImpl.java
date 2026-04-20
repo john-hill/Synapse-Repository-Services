@@ -1,15 +1,10 @@
 package org.sagebionetworks.grid.db;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.file.Files;
+import java.io.OutputStream;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +18,7 @@ import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.repo.model.grid.ClockTable;
+import org.sagebionetworks.repo.model.grid.encoding.IndexedModelEncoder;
 import org.sagebionetworks.repo.model.grid.encoding.SnapshotFileIndex;
 import org.sagebionetworks.repo.model.grid.encoding.SnapshotFileIndexBuilder;
 import org.sagebionetworks.repo.model.grid.encoding.IndexedNodeCodecMapper;
@@ -37,6 +33,7 @@ import org.sagebionetworks.repo.model.grid.node.ValueNode;
 import org.sagebionetworks.repo.model.grid.node.VectorNode;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
 import org.sagebionetworks.repo.model.grid.patch.Patch;
+import org.sagebionetworks.util.FileProvider;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.stereotype.Service;
 
@@ -58,21 +55,23 @@ public class GridIndexManagerImpl implements GridIndexManager {
 	private final OperationDispatcher operationDispatcher;
 	private final SnapshotFileIndexBuilder snapshotIndexBuilder;
 	private final SeekingNodeReaderProvider readerProvider;
+	private final FileProvider fileProvider;
 	private final int snapshotImportBatchSize;
 
 	@Inject
 	public GridIndexManagerImpl(GridIndexDao dao, OperationDispatcher operationDispatcher, SnapshotFileIndexBuilder snapshotIndexBuilder,
-								SeekingNodeReaderProvider readerProvider) {
-		this(dao, operationDispatcher, snapshotIndexBuilder, readerProvider, DEFAULT_SNAPSHOT_IMPORT_BATCH_SIZE);
+								SeekingNodeReaderProvider readerProvider, FileProvider fileProvider) {
+		this(dao, operationDispatcher, snapshotIndexBuilder, readerProvider, fileProvider, DEFAULT_SNAPSHOT_IMPORT_BATCH_SIZE);
 	}
 
 	public GridIndexManagerImpl(GridIndexDao dao, OperationDispatcher operationDispatcher, SnapshotFileIndexBuilder snapshotIndexBuilder,
-								SeekingNodeReaderProvider readerProvider, int snapshotImportBatchSize) {
+								SeekingNodeReaderProvider readerProvider, FileProvider fileProvider, int snapshotImportBatchSize) {
 		super();
 		this.dao = dao;
 		this.operationDispatcher = operationDispatcher;
 		this.snapshotIndexBuilder = snapshotIndexBuilder;
 		this.readerProvider = readerProvider;
+		this.fileProvider = fileProvider;
 		this.snapshotImportBatchSize = snapshotImportBatchSize;
 	}
 
@@ -151,8 +150,122 @@ public class GridIndexManagerImpl implements GridIndexManager {
 				.setValue(index.getRootNodeId()))
 		);
 
-		// Update the replica clock
+		// Update the replica clock to match the snapshot clock
 		dao.setClocks(sessionId, replicaId, snapshotClockTable.getClocks());
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * <p>
+	 * This method requires at least repeatable read isolation — no concurrent writes to the same
+	 * grid session should occur while the export is in progress. This is guaranteed by
+	 * routing the export through the {@code GRID_INTERNAL_EVENT.fifo} queue, which
+	 * serializes all messages for a given connection. The {@code READ_COMMITTED}
+	 * transaction isolation (the default) is sufficient under this guarantee.
+	 */
+	@Override
+	@GridTransaction(readOnly = true)
+	public ClockTable exportSnapshot(String sessionId, Long replicaId, Path snapshotFile) {
+		ValidateArgument.required(sessionId, "sessionId");
+		ValidateArgument.required(replicaId, "replicaId");
+		ValidateArgument.required(snapshotFile, "snapshotFile");
+
+		// Get the root object to determine the root node ID
+		ObjectNode rootObject = dao.getRootObject(sessionId, replicaId)
+				.orElseThrow(() -> new IllegalStateException(
+						"No root object found for session: " + sessionId + " replica: " + replicaId));
+
+		LogicalTimestamp rootNodeId = rootObject.getId();
+
+		try (OutputStream out = fileProvider.createFileOutputStream(snapshotFile.toFile());
+				IndexedModelEncoder encoder = new IndexedModelEncoder(out, rootNodeId)) {
+
+			// Stream and write all constants (paginated)
+			exportConstants(sessionId, replicaId, encoder);
+
+			// Stream and write all objects (paginated)
+			exportObjects(sessionId, replicaId, encoder);
+
+			// Stream and write all values, excluding (0,0) (paginated)
+			exportValues(sessionId, replicaId, encoder);
+
+			// Stream and write all vectors (paginated)
+			exportVectors(sessionId, replicaId, encoder);
+
+			// Get all array IDs, then for each array, read and write with tombstones
+			exportArrays(sessionId, replicaId, encoder);
+
+			/*
+			 * Patches may have incremented the clock without creating corresponding nodes. This is expected; not all
+			 * patch operations create nodes).
+			 *
+			 * Ensure these operations are accounted for by updating the snapshot's clock values to use the replica's
+			 * database clock rather than the encoder's node-derived clock (which is intended to only be used for
+			 *  newly-instantiated grids).
+			 */
+			ClockTable dbClock = new ClockTable(dao.getClock(sessionId, replicaId));
+			ClockTable clockTable = encoder.getClockTable();
+			for (LogicalTimestamp c : dbClock.getClocks()) {
+				clockTable.updateClockTable(c);
+			}
+			// Return the database clock to be stored with snapshot metadata.
+			return dbClock;
+		} catch (IOException e) {
+			throw new RuntimeException("Failed to export snapshot to file: " + snapshotFile, e);
+		}
+	}
+
+	private void exportConstants(String sessionId, Long replicaId, IndexedModelEncoder encoder) throws IOException {
+		LogicalTimestamp lastSeen = null;
+		List<ConstantNode> batch;
+		while (!(batch = dao.streamConstants(sessionId, replicaId, snapshotImportBatchSize, lastSeen)).isEmpty()) {
+			for (ConstantNode node : batch) {
+				encoder.writeNode(node);
+			}
+			lastSeen = batch.get(batch.size() - 1).getId();
+		}
+	}
+
+	private void exportObjects(String sessionId, Long replicaId, IndexedModelEncoder encoder) throws IOException {
+		LogicalTimestamp lastSeen = null;
+		List<ObjectNode> batch;
+		while (!(batch = dao.streamObjects(sessionId, replicaId, snapshotImportBatchSize, lastSeen)).isEmpty()) {
+			for (ObjectNode node : batch) {
+				encoder.writeNode(node);
+			}
+			lastSeen = batch.get(batch.size() - 1).getId();
+		}
+	}
+
+	private void exportValues(String sessionId, Long replicaId, IndexedModelEncoder encoder) throws IOException {
+		LogicalTimestamp lastSeen = null;
+		List<ValueNode> batch;
+		while (!(batch = dao.streamValues(sessionId, replicaId, snapshotImportBatchSize, lastSeen)).isEmpty()) {
+			for (ValueNode node : batch) {
+				encoder.writeNode(node);
+			}
+			lastSeen = batch.get(batch.size() - 1).getId();
+		}
+	}
+
+	private void exportVectors(String sessionId, Long replicaId, IndexedModelEncoder encoder) throws IOException {
+		LogicalTimestamp lastSeen = null;
+		List<VectorNode> batch;
+		while (!(batch = dao.streamVectors(sessionId, replicaId, snapshotImportBatchSize, lastSeen)).isEmpty()) {
+			for (VectorNode node : batch) {
+				encoder.writeNode(node);
+			}
+			lastSeen = batch.get(batch.size() - 1).getId();
+		}
+	}
+
+	private void exportArrays(String sessionId, Long replicaId, IndexedModelEncoder encoder) throws IOException {
+		List<LogicalTimestamp> arrayIds = dao.getAllArrayIds(sessionId, replicaId);
+		for (LogicalTimestamp arrayId : arrayIds) {
+			// Read the full array with tombstones
+			ArrayNode arrayNode = dao.getArrayNode(sessionId, replicaId, arrayId, true, Long.MAX_VALUE, 0L);
+			encoder.writeNode(arrayNode);
+		}
 	}
 
 	/**

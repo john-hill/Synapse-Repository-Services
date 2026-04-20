@@ -134,23 +134,6 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 					user, searchIndex.getSearchConfigurationId(), searchIndex.getParentId());
 			SearchConfiguration config = configOpt.orElse(null);
 
-			final List<ColumnAnalyzerOverride> overrides;
-			if (config != null && config.getColumnAnalyzerOverrides() != null
-					&& !config.getColumnAnalyzerOverrides().isEmpty()) {
-				overrides = new ArrayList<>(columnAnalyzerOverrideDao.getByQualifiedNames(
-						config.getColumnAnalyzerOverrides()).values());
-			} else {
-				overrides = Collections.emptyList();
-			}
-			final List<SynonymSet> synonymSets;
-			if (config != null && config.getSynonymSets() != null
-					&& !config.getSynonymSets().isEmpty()) {
-				synonymSets = new ArrayList<>(synonymSetDao.getByQualifiedNames(
-						config.getSynonymSets()).values());
-			} else {
-				synonymSets = Collections.emptyList();
-			}
-
 			UserInfo anonymousUser = userManager.getUserInfo(
 					AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 			Query query = new Query();
@@ -188,8 +171,8 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 						if (deleteExistingFirst) {
 							openSearchManager.deleteIndex(indexName);
 						}
-						SearchIndexContextProvider context = new SearchIndexContextProviderImpl(
-								config, selectedColumns, overrides, synonymSets, textAnalyzerDao);
+						SearchIndexContextProvider context = SearchIndexContextProviderImpl.lazy(
+								config, selectedColumns, columnAnalyzerOverrideDao, synonymSetDao, textAnalyzerDao);
 						appliedConfigJson[0] = openSearchManager.createIndex(indexName, context);
 						return new SearchIndexRowHandler(indexName, selectColumns,
 								openSearchManager);

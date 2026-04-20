@@ -134,6 +134,9 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 					user, searchIndex.getSearchConfigurationId(), searchIndex.getParentId());
 			SearchConfiguration config = configOpt.orElse(null);
 
+			List<ColumnAnalyzerOverride> overrides = loadColumnAnalyzerOverrides(config);
+			List<SynonymSet> synonymSets = loadSynonymSets(config);
+
 			UserInfo anonymousUser = userManager.getUserInfo(
 					AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
 			Query query = new Query();
@@ -167,13 +170,17 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 							}
 						}
 
+						Map<String, TextAnalyzer> analyzers = collectAndLoadAnalyzers(
+								config, overrides, selectedColumns);
+
 						String indexName = getIndexName(entityId);
+						String defaultAnalyzer = config != null ? config.getDefaultAnalyzer() : null;
 						if (deleteExistingFirst) {
 							openSearchManager.deleteIndex(indexName);
 						}
-						SearchIndexContextProvider context = SearchIndexContextProviderImpl.lazy(
-								config, selectedColumns, columnAnalyzerOverrideDao, synonymSetDao, textAnalyzerDao);
-						appliedConfigJson[0] = openSearchManager.createIndex(indexName, context);
+						appliedConfigJson[0] = openSearchManager.createIndex(indexName,
+								selectedColumns, defaultAnalyzer,
+								synonymSets, overrides, analyzers);
 						return new SearchIndexRowHandler(indexName, selectColumns,
 								openSearchManager);
 					}, ACCESS_TYPE.READ);
@@ -249,6 +256,54 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			default:
 				break;
 		}
+	}
+
+	Map<String, TextAnalyzer> collectAndLoadAnalyzers(SearchConfiguration config,
+			List<ColumnAnalyzerOverride> overrides, List<ColumnModel> columns) {
+		Set<String> qualifiedNames = new HashSet<>();
+
+		qualifiedNames.add(ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(ColumnType.STRING));
+
+		if (overrides != null) {
+			for (ColumnAnalyzerOverride cao : overrides) {
+				if (cao.getOverrides() != null) {
+					for (ColumnAnalyzerOverrideEntry entry : cao.getOverrides()) {
+						if (entry.getIndexAnalyzer() != null) {
+							qualifiedNames.add(entry.getIndexAnalyzer());
+						}
+						if (entry.getSearchAnalyzer() != null) {
+							qualifiedNames.add(entry.getSearchAnalyzer());
+						}
+					}
+				}
+			}
+		}
+
+		if (config != null && config.getDefaultAnalyzer() != null) {
+			qualifiedNames.add(config.getDefaultAnalyzer());
+		}
+
+		for (ColumnModel column : columns) {
+			qualifiedNames.add(ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(column.getColumnType()));
+		}
+
+		return new HashMap<>(textAnalyzerDao.getByQualifiedNames(new ArrayList<>(qualifiedNames)));
+	}
+
+	private List<SynonymSet> loadSynonymSets(SearchConfiguration config) {
+		if (config == null || config.getSynonymSets() == null || config.getSynonymSets().isEmpty()) {
+			return Collections.emptyList();
+		}
+		return new ArrayList<>(synonymSetDao.getByQualifiedNames(config.getSynonymSets()).values());
+	}
+
+	private List<ColumnAnalyzerOverride> loadColumnAnalyzerOverrides(SearchConfiguration config) {
+		if (config == null || config.getColumnAnalyzerOverrides() == null
+				|| config.getColumnAnalyzerOverrides().isEmpty()) {
+			return Collections.emptyList();
+		}
+		return new ArrayList<>(columnAnalyzerOverrideDao.getByQualifiedNames(
+				config.getColumnAnalyzerOverrides()).values());
 	}
 
 	private String getIndexName(String entityId) {

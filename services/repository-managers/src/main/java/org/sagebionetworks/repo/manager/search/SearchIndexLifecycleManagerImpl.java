@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Set;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -23,6 +24,7 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
 import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
+import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
@@ -137,8 +139,19 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			List<ColumnAnalyzerOverride> overrides = loadColumnAnalyzerOverrides(config);
 			List<SynonymSet> synonymSets = loadSynonymSets(config);
 
-			UserInfo anonymousUser = userManager.getUserInfo(
-					AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
+			// Query data as an unprivileged authenticated user to enforce
+			// row-level ACL filtering. Uses the change message user's identity
+			// but restricts groups to only PUBLIC_GROUP and AUTHENTICATED_USERS_GROUP,
+			// stripping any user-specific team memberships or ACL grants.
+			// This ensures only data visible to all authenticated users gets indexed,
+			// while still allowing table DOWNLOAD access (which anonymous lacks).
+			UserInfo authenticatedUser = new UserInfo(false);
+			authenticatedUser.setId(userId);
+			Set<Long> restrictedGroups = new HashSet<>();
+			restrictedGroups.add(userId);
+			restrictedGroups.add(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId());
+			restrictedGroups.add(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId());
+			authenticatedUser.setGroups(restrictedGroups);
 			Query query = new Query();
 			query.setSql(definingSQL);
 
@@ -148,7 +161,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 					.withReturnSelectColumns(false)
 					.withReturnFacets(false);
 			QueryResultBundle countResult = tableQueryManager.querySinglePage(
-					progressCallback, anonymousUser, query, countOnly);
+					progressCallback, authenticatedUser, query, countOnly);
 			Long rowCount = countResult.getQueryCount();
 			if (rowCount != null && rowCount > MAX_ROWS) {
 				throw new IllegalStateException(
@@ -157,7 +170,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			}
 
 			final String[] appliedConfigJson = {null};
-			tableQueryManager.runQueryAsStream(progressCallback, anonymousUser, query,
+			tableQueryManager.runQueryAsStream(progressCallback, authenticatedUser, query,
 					(QueryTranslations translations) -> {
 						List<ColumnModel> selectedColumns = translations.getMainQuery()
 								.getTranslator().getSchemaOfSelect();

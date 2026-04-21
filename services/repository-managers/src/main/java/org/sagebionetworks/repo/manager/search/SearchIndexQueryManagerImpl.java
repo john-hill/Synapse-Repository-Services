@@ -12,8 +12,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
@@ -57,7 +55,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 
-	private static final Logger LOG = LogManager.getLogger(SearchIndexQueryManagerImpl.class);
 	private static final String INDEX_PREFIX = "search-index-";
 
 	private final EntityManager entityManager;
@@ -113,10 +110,6 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		ValidateArgument.required(searchIndexId, "searchIndexId");
 		ValidateArgument.required(query, "query");
 
-		LOG.info("Search request for index {} by user {}: queryType={}, queryText='{}', fields={}, offset={}, limit={}",
-				searchIndexId, user.getId(), query.getQueryType(), query.getQueryText(),
-				query.getQueryFields(), query.getOffset(), query.getLimit());
-
 		SearchIndex searchIndex = entityManager.getEntity(user, searchIndexId, SearchIndex.class);
 		entityAuthorizationManager.hasAccess(user, searchIndexId, ACCESS_TYPE.READ)
 				.checkAuthorizationOrElseThrow();
@@ -126,8 +119,6 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		IdAndVersion sourceEntityId = sourceTableIds.get(0);
 		entityAuthorizationManager.hasAccess(user, sourceEntityId.toString(), ACCESS_TYPE.READ)
 				.checkAuthorizationOrElseThrow();
-
-		LOG.info("Search index {} authorized for user {}, source table: {}", searchIndexId, user.getId(), sourceEntityId);
 
 		checkIndexStatus(searchIndexId);
 		Optional<SearchConfiguration> configOpt = searchConfigurationResolver.resolve(
@@ -164,9 +155,6 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 
 		// Translate column IDs back to names in the response
 		translateResultIdsToNames(results, idToName);
-
-		LOG.info("Search index {} returned {} hits (total: {})",
-				searchIndexId, results.getHits() != null ? results.getHits().size() : 0, results.getTotalHits());
 
 		return results;
 	}
@@ -250,7 +238,6 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 	private void checkIndexStatus(String searchIndexId) {
 		SearchIndexStatusDao statusDao = connectionFactory.getSearchIndexStatusDao();
 		Optional<SearchIndexState> state = statusDao.getState(KeyFactory.stringToKey(searchIndexId));
-		LOG.info("Search index {} status check: state={}", searchIndexId, state.map(Enum::name).orElse("NOT_FOUND"));
 		if (state.isEmpty() || state.get() == SearchIndexState.CREATING) {
 			throw new IllegalStateException("Search index is still building. Please try again later.");
 		}

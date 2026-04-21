@@ -118,6 +118,10 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 	@Autowired
 	public TableManagerSupportImpl(TableStatusDAO tableStatusDAO, TimeoutUtils timeoutUtils,
 	                               TransactionalMessenger transactionalMessenger, ConnectionFactory tableConnectionFactory,
+	                               // @Lazy breaks a circular dependency: sourceHandlerProviderImpl → tableQueryManager →
+	                               // tableManagerSupportImpl → columnModelManager → authorizationManager →
+	                               // fileHandleAssociationManagerImpl → ... → tableManagerSupport. Only manifests in
+	                               // IT WAR context (full Spring context with SourceHandlerProviderImpl from Grid feature).
 	                               @Lazy ColumnModelManager columnModelManager, NodeDAO nodeDao, TableRowTruthDAO tableTruthDao,
 	                               ViewScopeTypeDao viewScopeDao, WriteReadSemaphore writeReadSemaphoreRunner,
 	                               @Lazy AuthorizationManager authorizationManager, TableSnapshotDao tableSnapshotDao,

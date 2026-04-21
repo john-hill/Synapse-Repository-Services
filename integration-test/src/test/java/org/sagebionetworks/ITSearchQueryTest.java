@@ -144,10 +144,12 @@ public class ITSearchQueryTest {
 		AsyncJobHelper.assertAysncJobResult(synapse, AsynchJobType.SearchIndexQuery, indexQuery,
 			(SearchQueryResults results) -> {
 				assertNotNull(results);
-				assertNotNull(results.getTotalHits());
-				assertTrue(results.getTotalHits() > 0, "Expected at least one hit for 'Alzheimer'");
+				assertEquals(1L, (long) results.getTotalHits(), "Expected exactly one hit for 'Alzheimer'");
 				assertNotNull(results.getHits());
-				assertTrue(results.getHits().size() > 0);
+				assertEquals(1, results.getHits().size());
+				assertTrue(results.getHits().get(0).getFields().stream()
+						.anyMatch(f -> "Alzheimer's Disease Genetics Study".equals(f.getValue())),
+						"Hit should contain the Alzheimer's study name");
 			},
 			MAX_QUERY_TIMEOUT_MS,
 			AsyncJobHelper.INFINITE_RETRIES

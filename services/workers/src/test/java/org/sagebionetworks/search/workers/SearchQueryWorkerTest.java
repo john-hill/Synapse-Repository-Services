@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -47,17 +48,17 @@ public class SearchQueryWorkerTest {
 	}
 
 	@Test
-	public void testRequestType() {
+	public void testGetRequestType() {
 		assertEquals(SearchIndexQuery.class, worker.getRequestType());
 	}
 
 	@Test
-	public void testResponseType() {
+	public void testGetResponseType() {
 		assertEquals(SearchQueryResults.class, worker.getResponseType());
 	}
 
 	@Test
-	public void testDelegatesToManager() throws Exception {
+	public void testRunWithValidRequest() throws Exception {
 		SearchQueryResults expected = new SearchQueryResults();
 		when(mockSearchIndexQueryManager.search(user, searchIndexId, request)).thenReturn(expected);
 
@@ -69,7 +70,7 @@ public class SearchQueryWorkerTest {
 	}
 
 	@Test
-	public void testStillBuildingThrowsRecoverable() throws Exception {
+	public void testRunWithStillBuildingStatus() throws Exception {
 		when(mockSearchIndexQueryManager.search(user, searchIndexId, request))
 			.thenThrow(new IllegalStateException("Index is still building"));
 
@@ -80,7 +81,7 @@ public class SearchQueryWorkerTest {
 	}
 
 	@Test
-	public void testOtherIllegalStateRethrown() throws Exception {
+	public void testRunWithOtherIllegalState() throws Exception {
 		IllegalStateException cause = new IllegalStateException("Some other error");
 		when(mockSearchIndexQueryManager.search(user, searchIndexId, request)).thenThrow(cause);
 
@@ -93,7 +94,7 @@ public class SearchQueryWorkerTest {
 	}
 
 	@Test
-	public void testFailedIndexDoesNotThrowRecoverable() throws Exception {
+	public void testRunWithFailedIndexStatus() throws Exception {
 		when(mockSearchIndexQueryManager.search(user, searchIndexId, request))
 			.thenThrow(new IllegalStateException("Search index build failed. Delete or update the SearchIndex to trigger a rebuild."));
 
@@ -106,7 +107,7 @@ public class SearchQueryWorkerTest {
 	}
 
 	@Test
-	public void testDeletingIndexDoesNotThrowRecoverable() throws Exception {
+	public void testRunWithDeletingIndexStatus() throws Exception {
 		when(mockSearchIndexQueryManager.search(user, searchIndexId, request))
 			.thenThrow(new IllegalStateException("Search index is being deleted."));
 
@@ -118,7 +119,7 @@ public class SearchQueryWorkerTest {
 	}
 
 	@Test
-	public void testUnexpectedExceptionPropagates() throws Exception {
+	public void testRunWithUnexpectedException() throws Exception {
 		when(mockSearchIndexQueryManager.search(user, searchIndexId, request))
 			.thenThrow(new RuntimeException("unexpected error"));
 

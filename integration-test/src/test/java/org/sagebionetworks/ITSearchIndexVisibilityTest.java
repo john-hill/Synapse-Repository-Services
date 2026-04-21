@@ -28,9 +28,10 @@ import org.sagebionetworks.repo.model.FileEntity;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.file.ExternalFileHandle;
-import org.sagebionetworks.repo.model.search.SearchQuery;
+import org.sagebionetworks.client.AsynchJobType;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.SearchQueryType;
+import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
 import org.sagebionetworks.repo.model.search.table.SearchIndexState;
 import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
@@ -159,21 +160,26 @@ public class ITSearchIndexVisibilityTest {
 		assertNotNull(status.getAppliedConfiguration());
 
 		// 9. Query the search index with MATCH_ALL — should only return the public file
-		// The index was built using the anonymous user, so private rows should be excluded.
-		SearchQuery query = new SearchQuery();
-		query.setQueryType(SearchQueryType.MATCH_ALL);
-		query.setLimit(10L);
-		query.setOffset(0L);
+		// The index was built using the authenticated user, so private rows should be excluded.
+		SearchIndexQuery indexQuery = new SearchIndexQuery();
+		indexQuery.setSearchIndexId(searchIndex.getId());
+		indexQuery.setQueryType(SearchQueryType.MATCH_ALL);
+		indexQuery.setLimit(10L);
+		indexQuery.setOffset(0L);
 
-		// TODO: Uncomment when query endpoints are implemented
-		// SearchQueryResults results = synapse.searchIndex(searchIndex.getId(), query);
-		// assertNotNull(results);
-		// assertEquals(1L, results.getTotalHits(),
-		//         "Search index should only contain the public file, not the private one");
-		// assertEquals(1, results.getHits().size());
-		// assertTrue(results.getHits().get(0).getFields().stream()
-		//         .anyMatch(f -> "Public Alzheimer Study".equals(f.getValue())),
-		//         "The indexed row should be the public file");
+		AsyncJobHelper.assertAysncJobResult(synapse, AsynchJobType.SearchIndexQuery, indexQuery,
+			(SearchQueryResults results) -> {
+				assertNotNull(results);
+				assertEquals(1L, results.getTotalHits(),
+						"Search index should only contain the public file, not the private one");
+				assertEquals(1, results.getHits().size());
+				assertTrue(results.getHits().get(0).getFields().stream()
+						.anyMatch(f -> "Public Alzheimer Study".equals(f.getValue())),
+						"The indexed row should be the public file");
+			},
+			MAX_QUERY_TIMEOUT_MS,
+			AsyncJobHelper.INFINITE_RETRIES
+		);
 	}
 
 	private void grantPublicRead(String entityId) throws SynapseException {

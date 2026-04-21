@@ -174,7 +174,12 @@ public class ITSearchIndexSpecialCharColumnTest {
 		AsyncJobHelper.assertAysncJobResult(synapse, AsynchJobType.SearchIndexQuery, textIndexQuery,
 			(SearchQueryResults results) -> {
 				assertNotNull(results);
-				assertTrue(results.getTotalHits() > 0, "Expected hits for 'Alzheimer' in special char columns");
+				assertEquals(1L, results.getTotalHits(), "Expected exactly one hit for 'Alzheimer' in special char columns");
+				assertNotNull(results.getHits());
+				assertEquals(1, results.getHits().size());
+				assertTrue(results.getHits().get(0).getFields().stream()
+						.anyMatch(f -> "Study Name".equals(f.getName()) && "Alzheimer Study".equals(f.getValue())),
+						"Hit should have 'Study Name' field with value 'Alzheimer Study'");
 			},
 			MAX_QUERY_TIMEOUT_MS,
 			AsyncJobHelper.INFINITE_RETRIES

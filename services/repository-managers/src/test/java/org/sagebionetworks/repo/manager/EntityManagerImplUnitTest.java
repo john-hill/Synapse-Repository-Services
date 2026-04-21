@@ -1681,7 +1681,7 @@ public class EntityManagerImplUnitTest {
 	}
 
 	@Test
-	public void testCreateEntity_SearchIndex_nonSageUser_throwsUnauthorized() {
+	public void testCreateEntityWithSearchIndexAndNonSageUser() {
 		SearchIndex searchIndex = new SearchIndex();
 		searchIndex.setParentId(PARENT_ENTITY_ID);
 		when(mockUser.isAdmin()).thenReturn(false);
@@ -1693,7 +1693,7 @@ public class EntityManagerImplUnitTest {
 	}
 
 	@Test
-	public void testCreateEntity_SearchIndex_admin_succeeds() throws Exception {
+	public void testCreateEntityWithSearchIndexAndAdmin() throws Exception {
 		SearchIndex searchIndex = new SearchIndex();
 		searchIndex.setParentId(PARENT_ENTITY_ID);
 		when(mockUser.isAdmin()).thenReturn(true);
@@ -1706,7 +1706,7 @@ public class EntityManagerImplUnitTest {
 	}
 
 	@Test
-	public void testUpdateEntity_SearchIndex_nonSageUser_throwsUnauthorized() throws Exception {
+	public void testUpdateEntityWithSearchIndexAndNonSageUser() throws Exception {
 		SearchIndex searchIndex = new SearchIndex();
 		searchIndex.setId(ENTITY_ID);
 		Node node = new Node();
@@ -1721,7 +1721,7 @@ public class EntityManagerImplUnitTest {
 	}
 
 	@Test
-	public void testDeleteEntity_SearchIndex_nonSageUser_throwsUnauthorized() {
+	public void testDeleteEntityWithSearchIndexAndNonSageUser() {
 		when(mockNodeManager.getNodeType(ENTITY_ID)).thenReturn(EntityType.searchindex);
 		when(mockUser.isAdmin()).thenReturn(false);
 		when(mockUser.getGroups()).thenReturn(Collections.emptySet());
@@ -1732,7 +1732,7 @@ public class EntityManagerImplUnitTest {
 	}
 
 	@Test
-	public void testUpdateSearchIndexPreventsNewVersion() throws Exception {
+	public void testUpdateEntityWithSearchIndexAndNewVersionForcedFalse() throws Exception {
 		SearchIndex entity = new SearchIndex();
 		entity.setId(ENTITY_ID);
 		entity.setDefiningSQL("SELECT * FROM syn456");

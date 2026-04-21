@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Optional;
@@ -21,7 +22,6 @@ import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
-import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
@@ -98,17 +98,18 @@ public class SearchIndexQueryManagerImplTest {
 	}
 
 	@Test
-	public void testSearchRequiresReadOnSearchIndex() {
+	public void testSearchWithNoReadOnSearchIndex() {
 		SearchIndex si = setupSearchIndex();
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		when(entityAuthorizationManager.hasAccess(user, "1", ACCESS_TYPE.READ))
 				.thenReturn(AuthorizationStatus.accessDenied("no access"));
 
 		assertThrows(UnauthorizedException.class, () -> manager.search(user, SEARCH_INDEX_ID, buildQuery()));
+		verifyNoMoreInteractions(connectionFactory, openSearchManager);
 	}
 
 	@Test
-	public void testSearchRequiresReadOnSourceTable() {
+	public void testSearchWithNoReadOnSourceTable() {
 		SearchIndex si = setupSearchIndex();
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		when(entityAuthorizationManager.hasAccess(user, "1", ACCESS_TYPE.READ))
@@ -117,10 +118,11 @@ public class SearchIndexQueryManagerImplTest {
 				.thenReturn(AuthorizationStatus.accessDenied("no access to source"));
 
 		assertThrows(UnauthorizedException.class, () -> manager.search(user, SEARCH_INDEX_ID, buildQuery()));
+		verifyNoMoreInteractions(connectionFactory, openSearchManager);
 	}
 
 	@Test
-	public void testCreatingStatusThrows() {
+	public void testSearchWithCreatingStatus() {
 		SearchIndex si = setupSearchIndex();
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
@@ -130,10 +132,11 @@ public class SearchIndexQueryManagerImplTest {
 		IllegalStateException ex = assertThrows(IllegalStateException.class,
 				() -> manager.search(user, SEARCH_INDEX_ID, buildQuery()));
 		assertEquals(true, ex.getMessage().contains("still building"));
+		verifyNoMoreInteractions(openSearchManager);
 	}
 
 	@Test
-	public void testFailedStatusThrows() {
+	public void testSearchWithFailedStatus() {
 		SearchIndex si = setupSearchIndex();
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
@@ -143,10 +146,11 @@ public class SearchIndexQueryManagerImplTest {
 		IllegalStateException ex = assertThrows(IllegalStateException.class,
 				() -> manager.search(user, SEARCH_INDEX_ID, buildQuery()));
 		assertEquals(true, ex.getMessage().contains("build failed"));
+		verifyNoMoreInteractions(openSearchManager);
 	}
 
 	@Test
-	public void testDeletingStatusThrows() {
+	public void testSearchWithDeletingStatus() {
 		SearchIndex si = setupSearchIndex();
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
@@ -156,10 +160,11 @@ public class SearchIndexQueryManagerImplTest {
 		IllegalStateException ex = assertThrows(IllegalStateException.class,
 				() -> manager.search(user, SEARCH_INDEX_ID, buildQuery()));
 		assertEquals(true, ex.getMessage().contains("being deleted"));
+		verifyNoMoreInteractions(openSearchManager);
 	}
 
 	@Test
-	public void testMissingStatusThrows() {
+	public void testSearchWithMissingStatus() {
 		SearchIndex si = setupSearchIndex();
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
@@ -169,21 +174,17 @@ public class SearchIndexQueryManagerImplTest {
 		IllegalStateException ex = assertThrows(IllegalStateException.class,
 				() -> manager.search(user, SEARCH_INDEX_ID, buildQuery()));
 		assertEquals(true, ex.getMessage().contains("still building"));
+		verifyNoMoreInteractions(openSearchManager);
 	}
 
 	@Test
-	public void testActiveStatusExecutesQuery() {
+	public void testSearchWithActiveStatus() {
 		SearchIndex si = setupSearchIndex();
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(statusDao.getState(1L)).thenReturn(Optional.of(SearchIndexState.ACTIVE));
-
-		UserInfo adminUser = new UserInfo(true);
-		when(userManager.getUserInfo(
-				AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId()))
-				.thenReturn(adminUser);
-		when(searchConfigurationResolver.resolve(adminUser, null, "syn789"))
+		when(searchConfigurationResolver.resolve(user, null, "syn789"))
 				.thenReturn(Optional.empty());
 
 		IdAndVersion sourceId = IdAndVersion.parse("syn456");
@@ -198,18 +199,13 @@ public class SearchIndexQueryManagerImplTest {
 	}
 
 	@Test
-	public void testAutocompleteCallsOssClientAutocomplete() {
+	public void testAutocompleteWithActiveStatus() {
 		SearchIndex si = setupSearchIndex();
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(statusDao.getState(1L)).thenReturn(Optional.of(SearchIndexState.ACTIVE));
-
-		UserInfo adminUser = new UserInfo(true);
-		when(userManager.getUserInfo(
-				AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId()))
-				.thenReturn(adminUser);
-		when(searchConfigurationResolver.resolve(adminUser, null, "syn789"))
+		when(searchConfigurationResolver.resolve(user, null, "syn789"))
 				.thenReturn(Optional.empty());
 
 		IdAndVersion sourceId = IdAndVersion.parse("syn456");
@@ -258,11 +254,6 @@ public class SearchIndexQueryManagerImplTest {
 
 		if (shouldSucceed) {
 			setupStatusAndConfig();
-
-			UserInfo adminUser = new UserInfo(true);
-			when(userManager.getUserInfo(
-					AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId()))
-					.thenReturn(adminUser);
 
 			IdAndVersion sourceId = IdAndVersion.parse("syn456");
 			when(tableManagerSupport.getIndexDescription(sourceId)).thenReturn(null);

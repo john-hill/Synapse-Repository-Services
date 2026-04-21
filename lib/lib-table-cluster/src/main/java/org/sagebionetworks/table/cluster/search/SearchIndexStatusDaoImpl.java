@@ -13,9 +13,9 @@ import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
 import org.sagebionetworks.table.cluster.SQLUtils;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Repository;
 
-@Service
+@Repository
 public class SearchIndexStatusDaoImpl implements SearchIndexStatusDao {
 
 	private static final String DDL = SQLUtils.loadSQLFromClasspath("schema/SearchIndexStatus.sql");
@@ -109,7 +109,7 @@ public class SearchIndexStatusDaoImpl implements SearchIndexStatusDao {
 		Long count = template.queryForObject(
 				"SELECT COUNT(*) FROM SEARCH_INDEX_STATUS WHERE SEARCH_INDEX_ID = ?",
 				Long.class, searchIndexId);
-		return count != null && count > 0;
+		return count > 0;
 	}
 
 	@Override

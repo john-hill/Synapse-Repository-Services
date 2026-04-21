@@ -1,8 +1,20 @@
 package org.sagebionetworks.repo.manager.search;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.when;
 
 import org.mockito.InOrder;
 
@@ -76,6 +88,7 @@ public class TextAnalyzerManagerImplTest {
 		TextAnalyzer input = new TextAnalyzer()
 			.setOrganizationName("test-org").setName("test").setSettings(new TextAnalyzerSettings());
 
+		// call under test
 		assertThrows(UnauthorizedException.class, () -> manager.create(nonSageUser, input));
 		verifyZeroInteractions(textAnalyzerDao);
 	}
@@ -89,6 +102,7 @@ public class TextAnalyzerManagerImplTest {
 		TextAnalyzer input = new TextAnalyzer()
 			.setOrganizationName("test-org").setName("test").setSettings(new TextAnalyzerSettings());
 
+		// call under test
 		assertThrows(UnauthorizedException.class, () -> manager.create(anon, input));
 	}
 
@@ -100,6 +114,7 @@ public class TextAnalyzerManagerImplTest {
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.CREATE)))
 			.thenReturn(AuthorizationStatus.accessDenied("no"));
 
+		// call under test
 		assertThrows(UnauthorizedException.class, () -> manager.create(sageUser, input));
 	}
 
@@ -112,7 +127,9 @@ public class TextAnalyzerManagerImplTest {
 			.thenReturn(AuthorizationStatus.authorized());
 		when(textAnalyzerDao.create(any(), eq(1L))).thenReturn(input.setId("1000"));
 
+		// call under test
 		TextAnalyzer result = manager.create(sageUser, input);
+
 		assertNotNull(result);
 		assertEquals("1000", result.getId());
 	}
@@ -123,7 +140,9 @@ public class TextAnalyzerManagerImplTest {
 			.setOrganizationName("test-org").setName("test").setSettings(new TextAnalyzerSettings());
 		when(textAnalyzerDao.create(any(), eq(3L))).thenReturn(input.setId("1000"));
 
+		// call under test
 		TextAnalyzer result = manager.create(adminUser, input);
+
 		assertNotNull(result);
 		verifyZeroInteractions(aclDao);
 	}
@@ -135,6 +154,7 @@ public class TextAnalyzerManagerImplTest {
 		TextAnalyzer analyzer = new TextAnalyzer().setId("1");
 		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(analyzer));
 
+		// call under test
 		assertEquals("1", manager.get(new UserInfo(false), 1L).getId());
 		verifyZeroInteractions(aclDao);
 	}
@@ -143,6 +163,7 @@ public class TextAnalyzerManagerImplTest {
 	public void testGetNotFoundThrows() {
 		when(textAnalyzerDao.get(999L)).thenReturn(Optional.empty());
 
+		// call under test
 		assertThrows(NotFoundException.class, () -> manager.get(new UserInfo(false), 999L));
 	}
 
@@ -153,6 +174,7 @@ public class TextAnalyzerManagerImplTest {
 		TextAnalyzer input = new TextAnalyzer()
 			.setId("1").setOrganizationName("test-org").setName("updated").setSettings(new TextAnalyzerSettings());
 
+		// call under test
 		assertThrows(UnauthorizedException.class, () -> manager.update(nonSageUser, input));
 		verifyZeroInteractions(textAnalyzerDao);
 	}
@@ -166,6 +188,7 @@ public class TextAnalyzerManagerImplTest {
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
 			.thenReturn(AuthorizationStatus.accessDenied("no"));
 
+		// call under test
 		assertThrows(UnauthorizedException.class, () -> manager.update(sageUser, input));
 	}
 
@@ -175,6 +198,7 @@ public class TextAnalyzerManagerImplTest {
 			.setId("999").setOrganizationName("test-org").setName("updated").setSettings(new TextAnalyzerSettings());
 		when(textAnalyzerDao.get(999L)).thenReturn(Optional.empty());
 
+		// call under test
 		assertThrows(NotFoundException.class, () -> manager.update(sageUser, input));
 	}
 
@@ -184,6 +208,7 @@ public class TextAnalyzerManagerImplTest {
 			.setId("1").setOrganizationName("other-org").setName("updated").setSettings(new TextAnalyzerSettings());
 		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationName("test-org")));
 
+		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.update(sageUser, input));
 		assertTrue(ex.getMessage().contains("organizationName cannot be changed"));
 	}
@@ -212,7 +237,9 @@ public class TextAnalyzerManagerImplTest {
 			.thenReturn(AuthorizationStatus.authorized());
 		when(textAnalyzerDao.update(any(), eq(1L))).thenReturn(input);
 
+		// call under test
 		TextAnalyzer result = manager.update(sageUser, input);
+
 		assertEquals("test_name", result.getName());
 	}
 
@@ -220,6 +247,7 @@ public class TextAnalyzerManagerImplTest {
 
 	@Test
 	public void testDeleteAsNonSageUserThrows() {
+		// call under test
 		assertThrows(UnauthorizedException.class, () -> manager.delete(nonSageUser, 1L));
 		verifyZeroInteractions(textAnalyzerDao);
 	}
@@ -228,6 +256,7 @@ public class TextAnalyzerManagerImplTest {
 	public void testDeleteNotFoundThrows() {
 		when(textAnalyzerDao.get(1L)).thenReturn(Optional.empty());
 
+		// call under test
 		assertThrows(NotFoundException.class, () -> manager.delete(adminUser, 1L));
 	}
 
@@ -239,6 +268,7 @@ public class TextAnalyzerManagerImplTest {
 		when(aclDao.canAccess(any(UserInfo.class), eq("99"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.DELETE)))
 			.thenReturn(AuthorizationStatus.accessDenied("no"));
 
+		// call under test
 		assertThrows(UnauthorizedException.class, () -> manager.delete(sageUser, 1L));
 		verify(aclDao).canAccess(any(UserInfo.class), eq("99"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.DELETE));
 	}
@@ -253,6 +283,7 @@ public class TextAnalyzerManagerImplTest {
 		doThrow(new DataIntegrityViolationException("FK constraint"))
 			.when(textAnalyzerDao).delete(1L);
 
+		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.delete(sageUser, 1L));
 		assertTrue(ex.getMessage().contains("still referenced"));
 	}
@@ -265,7 +296,9 @@ public class TextAnalyzerManagerImplTest {
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.DELETE)))
 			.thenReturn(AuthorizationStatus.authorized());
 
+		// call under test
 		manager.delete(sageUser, 1L);
+
 		verify(textAnalyzerDao).delete(1L);
 	}
 
@@ -279,6 +312,7 @@ public class TextAnalyzerManagerImplTest {
 		ListTextAnalyzersRequest request = new ListTextAnalyzersRequest();
 		request.setOrganizationName("test-org");
 
+		// call under test
 		ListTextAnalyzersResponse response = manager.list(new UserInfo(false), request);
 
 		assertEquals(1, response.getResults().size());
@@ -291,6 +325,7 @@ public class TextAnalyzerManagerImplTest {
 
 		ListTextAnalyzersRequest request = new ListTextAnalyzersRequest();
 
+		// call under test
 		ListTextAnalyzersResponse response = manager.list(new UserInfo(false), request);
 
 		assertEquals(1, response.getResults().size());
@@ -308,6 +343,8 @@ public class TextAnalyzerManagerImplTest {
 		when(textAnalyzerDao.listAll(eq(51L), eq(0L))).thenReturn(page);
 
 		ListTextAnalyzersRequest request = new ListTextAnalyzersRequest();
+
+		// call under test
 		ListTextAnalyzersResponse response = manager.list(new UserInfo(false), request);
 
 		assertNotNull(response.getNextPageToken(), "Expected a next page token when DAO returns more than limit results");
@@ -320,6 +357,8 @@ public class TextAnalyzerManagerImplTest {
 		when(textAnalyzerDao.listAll(eq(51L), eq(0L))).thenReturn(page);
 
 		ListTextAnalyzersRequest request = new ListTextAnalyzersRequest();
+
+		// call under test
 		ListTextAnalyzersResponse response = manager.list(new UserInfo(false), request);
 
 		assertNull(response.getNextPageToken(), "Expected null next page token when all results fit in one page");

@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.manager.search;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
@@ -81,6 +82,7 @@ public class SearchIndexLifecycleManagerImplTest {
 
 		assertEquals("One or more source tables are still processing. Deferring search index build.",
 			ex.getMessage());
+		verifyZeroInteractions(openSearchManager);
 	}
 
 	@Test
@@ -94,6 +96,7 @@ public class SearchIndexLifecycleManagerImplTest {
 
 		assertEquals("Cannot build search index: source entity syn123 is in PROCESSING_FAILED state.",
 			ex.getMessage());
+		verifyZeroInteractions(openSearchManager);
 	}
 
 	@Test
@@ -110,6 +113,7 @@ public class SearchIndexLifecycleManagerImplTest {
 
 		assertEquals("Cannot build search index: source entity syn456 is in PROCESSING_FAILED state.",
 			ex.getMessage());
+		verifyZeroInteractions(openSearchManager);
 	}
 
 	@Test
@@ -118,7 +122,8 @@ public class SearchIndexLifecycleManagerImplTest {
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
 			() -> manager.checkSourceTablesReady("this is not valid sql"));
 
-		// TableQueryParser throws IllegalArgumentException for unparseable SQL
+		verifyZeroInteractions(tableManagerSupport);
+		verifyZeroInteractions(openSearchManager);
 	}
 
 	@Test

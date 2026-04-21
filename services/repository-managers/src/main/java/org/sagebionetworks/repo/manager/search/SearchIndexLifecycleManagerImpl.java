@@ -4,13 +4,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Set;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -39,8 +36,10 @@ import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.repo.model.table.SelectColumn;
 import org.sagebionetworks.repo.model.table.TableState;
+import org.sagebionetworks.repo.model.table.TableStatus;
 import org.sagebionetworks.table.cluster.ConnectionFactory;
 import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
+import org.sagebionetworks.table.cluster.utils.TableModelUtils;
 import org.sagebionetworks.repo.manager.table.query.QueryTranslations;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.progress.ProgressCallback;
@@ -63,9 +62,6 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	private static final int MAX_ERROR_MESSAGE_LENGTH = 3000;
 	private static final int BATCH_SIZE = 1000;
 	private static final long MAX_ROWS = 500_000L;
-
-	static final Pattern FROM_TABLE_PATTERN = Pattern.compile(
-			"FROM\\s+(syn\\d+(?:\\.\\d+)?)", Pattern.CASE_INSENSITIVE);
 
 	private final ConnectionFactory connectionFactory;
 	private final OpenSearchManager openSearchManager;
@@ -128,7 +124,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 
 			String definingSQL = searchIndex.getDefiningSQL();
 
-			checkSourceTableReady(definingSQL);
+			checkSourceTablesReady(definingSQL);
 
 			statusDao.createOrUpdate(searchIndexId, SearchIndexState.CREATING, null, null);
 
@@ -245,29 +241,30 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		}
 	}
 
-	void checkSourceTableReady(String definingSQL) throws RecoverableMessageException {
-		Matcher matcher = FROM_TABLE_PATTERN.matcher(definingSQL);
-		if (!matcher.find()) {
-			return;
+	void checkSourceTablesReady(String definingSQL) throws RecoverableMessageException {
+		List<IdAndVersion> sourceTableIds = TableModelUtils.getSourceTableIds(definingSQL);
+		if (sourceTableIds.isEmpty()) {
+			throw new IllegalArgumentException("No source tables found in defining SQL: " + definingSQL);
 		}
-		String sourceTableRef = matcher.group(1);
-		IdAndVersion sourceTableId = IdAndVersion.parse(sourceTableRef);
-		Optional<TableState> stateOpt = tableManagerSupport.getTableStatusState(sourceTableId);
-		if (stateOpt.isEmpty()) {
+		boolean hasProcessing = false;
+		for (IdAndVersion sourceTableId : sourceTableIds) {
+			TableState state = tableManagerSupport.getTableStatusOrCreateIfNotExists(sourceTableId).getState();
+			switch (state) {
+				case PROCESSING_FAILED:
+					throw new IllegalStateException(
+							"Cannot build search index: source entity " + sourceTableId + " is in PROCESSING_FAILED state.");
+				case PROCESSING:
+					hasProcessing = true;
+					break;
+				case AVAILABLE:
+					break;
+				default:
+					throw new IllegalStateException("Unknown table state: " + state);
+			}
+		}
+		if (hasProcessing) {
 			throw new RecoverableMessageException(
-					"Source entity " + sourceTableId + " has no status yet. Deferring search index build.");
-		}
-		switch (stateOpt.get()) {
-			case PROCESSING:
-				throw new RecoverableMessageException(
-						"Source entity " + sourceTableId + " is still processing. Deferring search index build.");
-			case PROCESSING_FAILED:
-				throw new IllegalStateException(
-						"Cannot build search index: source entity " + sourceTableId + " is in PROCESSING_FAILED state.");
-			case AVAILABLE:
-				break;
-			default:
-				break;
+					"One or more source tables are still processing. Deferring search index build.");
 		}
 	}
 

@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import jakarta.json.Json;
@@ -101,7 +102,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	@Override
-	public String createIndex(String indexName, List<ColumnModel> columns, String defaultAnalyzer,
+	public Optional<String> createIndex(String indexName, List<ColumnModel> columns, String defaultAnalyzer,
 			List<SynonymSet> synonymSets, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
 			Map<String, TextAnalyzer> analyzers) {
 
@@ -132,10 +133,10 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 				throw new IllegalStateException("Search index " + indexName + " creation was not acknowledged.");
 			}
 
-			return appliedConfigJson;
+			return Optional.of(appliedConfigJson);
 		} catch (OpenSearchException e) {
 			if ("resource_already_exists_exception".equals(e.error().type())) {
-				return null;
+				return Optional.empty();
 			}
 			throw new RuntimeException("Failed to create search index: " + indexName, e);
 		} catch (IOException e) {

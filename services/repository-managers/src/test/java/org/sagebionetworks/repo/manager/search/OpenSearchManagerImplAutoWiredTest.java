@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Optional;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -73,11 +74,11 @@ public class OpenSearchManagerImplAutoWiredTest {
 		);
 
 		// call under test
-		String appliedConfig = openSearchManager.createIndex(indexName, columns, null,
+		Optional<String> appliedConfig = openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
 
-		assertNotNull(appliedConfig);
-		assertTrue(appliedConfig.length() > 0);
+		assertTrue(appliedConfig.isPresent());
+		assertTrue(appliedConfig.get().length() > 0);
 	}
 
 	@Test
@@ -107,11 +108,11 @@ public class OpenSearchManagerImplAutoWiredTest {
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
 
-		// call under test — resource_already_exists returns null
-		String result = openSearchManager.createIndex(indexName, columns, null,
+		// call under test — resource_already_exists returns empty Optional
+		Optional<String> result = openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
 
-		assertEquals(null, result);
+		assertTrue(result.isEmpty());
 	}
 
 	@Test

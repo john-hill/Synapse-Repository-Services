@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.search;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.sagebionetworks.repo.model.table.ColumnModel;
@@ -27,9 +28,9 @@ public interface OpenSearchManager {
 	 * @param synonymSets              The resolved synonym sets (may be empty)
 	 * @param columnAnalyzerOverrides  The resolved column analyzer overrides (may be empty)
 	 * @param analyzers                Map of analyzer qualified name to TextAnalyzer for all analyzers needed
-	 * @return The JSON representation of the CreateIndexRequest sent to OpenSearch
+	 * @return The JSON representation of the CreateIndexRequest, or empty if the index already existed
 	 */
-	String createIndex(String indexName, List<ColumnModel> columns, String defaultAnalyzer,
+	Optional<String> createIndex(String indexName, List<ColumnModel> columns, String defaultAnalyzer,
 			List<SynonymSet> synonymSets, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
 			Map<String, TextAnalyzer> analyzers);
 

@@ -15,6 +15,7 @@ import org.sagebionetworks.table.cluster.metadata.ObjectFieldModelResolverFactor
 import org.sagebionetworks.table.cluster.metadata.ObjectFieldTypeMapper;
 import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -25,8 +26,8 @@ public class DefaultColumnModelMapperImpl implements DefaultColumnModelMapper {
 	private ColumnModelManager columnModelManager;
 
 	@Autowired
-	public DefaultColumnModelMapperImpl(MetadataIndexProviderFactory metadataIndexProviderFactory,
-			ObjectFieldModelResolverFactory objectFieldModelResolverFactory, ColumnModelManager columnModelManager) {
+	public DefaultColumnModelMapperImpl(@Lazy MetadataIndexProviderFactory metadataIndexProviderFactory,
+	                                    ObjectFieldModelResolverFactory objectFieldModelResolverFactory, ColumnModelManager columnModelManager) {
 		this.metadataIndexProviderFactory = metadataIndexProviderFactory;
 		this.objectFieldModelResolverFactory = objectFieldModelResolverFactory;
 		this.columnModelManager = columnModelManager;
@@ -37,9 +38,9 @@ public class DefaultColumnModelMapperImpl implements DefaultColumnModelMapper {
 		ValidateArgument.required(defaultColumns, "defaultColumns");
 		ValidateArgument.required(defaultColumns.getObjectType(), "defaultColumns.objectType");
 		ValidateArgument.requiredNotEmpty(defaultColumns.getDefaultFields(), "defaultColumns.defaultFields");
-		
+
 		ObjectFieldModelResolver fieldResolver = getObjectFieldResolver(defaultColumns.getObjectType());
-		
+
 		List<ColumnModel> defaultFields = map(defaultColumns.getDefaultFields(), fieldResolver);
 		List<ColumnModel> customFields = defaultColumns.getCustomFields();
 
@@ -51,7 +52,7 @@ public class DefaultColumnModelMapperImpl implements DefaultColumnModelMapper {
 
 		columnModels.addAll(defaultFields);
 		columnModels.addAll(customFields);
-		
+
 		return create(columnModels);
 	}
 
@@ -59,28 +60,28 @@ public class DefaultColumnModelMapperImpl implements DefaultColumnModelMapper {
 	public List<ColumnModel> getColumnModels(ViewObjectType objectType, ObjectField ...fields) {
 		ValidateArgument.required(objectType, "objectType");
 		ValidateArgument.required(fields, "fields");
-		
+
 		if (fields.length == 0) {
 			return Collections.emptyList();
 		}
-		
+
 		ObjectFieldModelResolver fieldResolver = getObjectFieldResolver(objectType);
-		
+
 		List<ColumnModel> models = map(Arrays.asList(fields), fieldResolver);
-		
+
 		return create(models);
 	}
-	
+
 	private List<ColumnModel> create(List<ColumnModel> models) {
 		return models.stream()
-			.map(columnModelManager::createColumnModel)
-			.collect(Collectors.toList());
+				.map(columnModelManager::createColumnModel)
+				.collect(Collectors.toList());
 	}
-	
+
 	private List<ColumnModel> map(List<ObjectField> fields, ObjectFieldModelResolver fieldModelResolver) {
 		return fields.stream().map(fieldModelResolver::getColumnModel).collect(Collectors.toList());
 	}
-	
+
 	private ObjectFieldModelResolver getObjectFieldResolver(ViewObjectType objectType) {
 		ObjectFieldTypeMapper fieldTypeMapper = metadataIndexProviderFactory.getMetadataIndexProvider(objectType);
 		return objectFieldModelResolverFactory.getObjectFieldModelResolver(fieldTypeMapper);

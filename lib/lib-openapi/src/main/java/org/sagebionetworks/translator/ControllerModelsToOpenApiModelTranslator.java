@@ -3,6 +3,7 @@ package org.sagebionetworks.translator;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,24 +35,26 @@ import static org.sagebionetworks.translator.ControllerToControllerModelTranslat
 
 public class ControllerModelsToOpenApiModelTranslator {
 	private final Map<String, OpenApiJsonSchema> classNameToJsonSchema;
-	
+
 	public ControllerModelsToOpenApiModelTranslator(Map<String, OpenApiJsonSchema> classNameToJsonSchema) {
 		this.classNameToJsonSchema = classNameToJsonSchema;
 	}
-		
+
 	/**
 	 * Translates a list of controller models to an OpenAPI model.
-	 * 
+	 *
 	 * @param controllerModels - the list of controller models to be translated
 	 * @return the resulting OpenAPI model.
 	 */
 	public OpenApiSpecModel translate(List<ControllerModel> controllerModels) {
 		ValidateArgument.required(controllerModels, "controllerModels");
-		
+
 		List<TagInfo> tags = new ArrayList<>();
-		
+
 		Map<String, Map<String, EndpointInfo>> paths = new LinkedHashMap<>();
-		
+
+		controllerModels.sort(Comparator.comparing(ControllerModel::getDisplayName));
+
 		for (ControllerModel controllerModel : controllerModels) {
 			String displayName = controllerModel.getDisplayName();
 			String basePath = controllerModel.getPath();
@@ -60,16 +63,16 @@ public class ControllerModelsToOpenApiModelTranslator {
 			insertPaths(methods, basePath, displayName, paths);
 			tags.add(new TagInfo().withDescription(description).withName(displayName));
 		}
-		
+
 		Collections.sort(tags, (t1, t2) -> t1.getName().compareTo(t2.getName()));
-		
+
 		return new OpenApiSpecModel().withInfo(getApiInfo()).withOpenapi("3.0.1").withServers(getServers())
 				.withComponents(getComponents()).withPaths(paths).withTags(tags);
 	}
-	
+
 	/**
 	 * Generates and returns the components section of the OpenAPI specification.
-	 * 
+	 *
 	 * @return a nested map, from component_type (schemas, parameters) -> { class_name -> JsonSchema} and from security scheme name -> security scheme.
 	 */
 	Components getComponents() {
@@ -95,7 +98,7 @@ public class ControllerModelsToOpenApiModelTranslator {
 
 	/**
 	 * Get the API information, such as the title and the version.
-	 * 
+	 *
 	 * @return an object that represents the API information
 	 */
 	ApiInfo getApiInfo() {
@@ -104,7 +107,7 @@ public class ControllerModelsToOpenApiModelTranslator {
 
 	/**
 	 * Get server information, such as URLs and description.
-	 * 
+	 *
 	 * @return a list of objects that represents information on the servers.
 	 */
 	List<ServerInfo> getServers() {
@@ -114,14 +117,14 @@ public class ControllerModelsToOpenApiModelTranslator {
 
 	/**
 	 * Inserts the paths from the given methods into the "paths" map
-	 * 
+	 *
 	 * @param methods     - the methods whose paths are to be inserted
 	 * @param basePath    - the base path of the controller
 	 * @param displayName - the display name of the controller
 	 * @param paths       - the map which we are inserting paths into.
 	 */
 	void insertPaths(List<MethodModel> methods, String basePath, String displayName,
-			Map<String, Map<String, EndpointInfo>> paths) {
+	                 Map<String, Map<String, EndpointInfo>> paths) {
 		ValidateArgument.required(methods, "methods");
 		ValidateArgument.required(basePath, "basePath");
 		ValidateArgument.required(displayName, "displayName");
@@ -142,7 +145,7 @@ public class ControllerModelsToOpenApiModelTranslator {
 
 	/**
 	 * Insert an operation and its corresponding endpoint information into the map.
-	 * 
+	 *
 	 * @param operationToEndpoint - the map to which we are inserting these values
 	 * @param method              - the method being looked at
 	 * @param displayName         - the display name of the controller in which this
@@ -150,7 +153,7 @@ public class ControllerModelsToOpenApiModelTranslator {
 	 * @param fullPath            - the full path to the method
 	 */
 	void insertOperationAndEndpointInfo(Map<String, EndpointInfo> operationToEndpoint, MethodModel method,
-			String displayName, String fullPath) {
+	                                    String displayName, String fullPath) {
 		ValidateArgument.required(operationToEndpoint, "operationToEndpoint");
 		ValidateArgument.required(method, "method");
 		ValidateArgument.required(displayName, "displayName");
@@ -165,7 +168,7 @@ public class ControllerModelsToOpenApiModelTranslator {
 	/**
 	 * Get a object that represents the endpoint information from the method being
 	 * looked at.
-	 * 
+	 *
 	 * @param method      - the method being looked at
 	 * @param displayName - the name of the controller where this method resides.
 	 * @param fullPath    - the full path to the method
@@ -196,11 +199,11 @@ public class ControllerModelsToOpenApiModelTranslator {
 		return requirements;
 	}
 
-	
+
 	/**
 	 * Generates a JsonSchema that is a basic type or a reference to a class defined in
 	 * the "components" section of the specification with class name of "id"
-	 * 
+	 *
 	 * @param id the id of the class
 	 * @return JsonSchema that is a reference to class in "components"
 	 */
@@ -219,7 +222,7 @@ public class ControllerModelsToOpenApiModelTranslator {
 
 	/**
 	 * Constructs and object that represents the responses of a method.
-	 * 
+	 *
 	 * @param response - a model that represents the response of a method.
 	 * @return a map whose keys represent the status code and values are objects
 	 *         that describe the response.
@@ -242,15 +245,15 @@ public class ControllerModelsToOpenApiModelTranslator {
 		responses.put(statusCode, responseInfo);
 		return responses;
 	}
-	
+
 	/**
 	 * If the endpoint is redirected, the response can either be a 
-	 * 
+	 *
 	 * @param contentTypeToSchema
 	 */
 	Map<String, ResponseInfo> generateResponsesForRedirectedEndpoint() {
 		Map<String, ResponseInfo> responses = new LinkedHashMap<>();
-		
+
 		// the two possible status codes for a redirected endpoint
 		String statusCodeRedirected = "307";
 		String statusCodeOk = "200";
@@ -259,17 +262,17 @@ public class ControllerModelsToOpenApiModelTranslator {
 		statusCodeOkContentTypeToSchema.put("text/plain", new Schema().withSchema(new JsonSchema()));
 		ResponseInfo responseOk = new ResponseInfo().withDescription("Status 200 will be returned if the 'redirect' boolean param is false").withContent(statusCodeOkContentTypeToSchema);
 		responses.put(statusCodeOk, responseOk);
-		
+
 		Map<String, Schema> statusCodeRedirectedContentTypeToSchema = new HashMap<>();
 		ResponseInfo responseRedirected = new ResponseInfo().withDescription("Status 307 will be returned if the 'redirect' boolean param is true or null").withContent(statusCodeRedirectedContentTypeToSchema);
 		responses.put(statusCodeRedirected, responseRedirected);
-		
+
 		return responses;
 	}
 
 	/**
 	 * Construct a model that represents the Request Body for the OpenAPI model.
-	 * 
+	 *
 	 * @param requestBody - the request body representation from the ControllerModel
 	 * @return a model that represents the request body
 	 */
@@ -283,7 +286,7 @@ public class ControllerModelsToOpenApiModelTranslator {
 
 	/**
 	 * Constructs a list of objects that represents the parameters of the method.
-	 * 
+	 *
 	 * @param method - the method being looked at.
 	 * @return a list that represents the parameters of the method/endpoint.
 	 */
@@ -299,7 +302,7 @@ public class ControllerModelsToOpenApiModelTranslator {
 	/**
 	 * Converts the ControllerModel way of representing a parameter to the OpenAPI
 	 * model's way.
-	 * 
+	 *
 	 * @param parameter - the parameter being looked at.
 	 * @return a model that represents the parameter.
 	 */

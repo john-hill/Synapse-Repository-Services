@@ -1,0 +1,130 @@
+package org.sagebionetworks.search.workers;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.manager.search.SearchIndexQueryManager;
+import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
+import org.sagebionetworks.repo.model.search.SearchQueryResults;
+import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
+import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
+
+@ExtendWith(MockitoExtension.class)
+public class SearchQueryWorkerTest {
+
+	@Mock
+	private SearchIndexQueryManager mockSearchIndexQueryManager;
+
+	@InjectMocks
+	private SearchQueryWorker worker;
+
+	@Mock
+	private AsyncJobProgressCallback mockJobCallback;
+
+	private UserInfo user;
+	private SearchIndexQuery request;
+	private String searchIndexId;
+	private String jobId;
+
+	@BeforeEach
+	public void before() {
+		user = new UserInfo(false);
+		user.setId(123L);
+		searchIndexId = "syn456";
+		request = new SearchIndexQuery();
+		request.setSearchIndexId(searchIndexId);
+		jobId = "job-1";
+	}
+
+	@Test
+	public void testRequestType() {
+		assertEquals(SearchIndexQuery.class, worker.getRequestType());
+	}
+
+	@Test
+	public void testResponseType() {
+		assertEquals(SearchQueryResults.class, worker.getResponseType());
+	}
+
+	@Test
+	public void testDelegatesToManager() throws Exception {
+		SearchQueryResults expected = new SearchQueryResults();
+		when(mockSearchIndexQueryManager.search(user, searchIndexId, request)).thenReturn(expected);
+
+		// Call under test
+		SearchQueryResults result = worker.run(jobId, user, request, mockJobCallback);
+
+		assertEquals(expected, result);
+		verify(mockSearchIndexQueryManager).search(user, searchIndexId, request);
+	}
+
+	@Test
+	public void testStillBuildingThrowsRecoverable() throws Exception {
+		when(mockSearchIndexQueryManager.search(user, searchIndexId, request))
+			.thenThrow(new IllegalStateException("Index is still building"));
+
+		// Call under test
+		assertThrows(RecoverableMessageException.class, () -> {
+			worker.run(jobId, user, request, mockJobCallback);
+		});
+	}
+
+	@Test
+	public void testOtherIllegalStateRethrown() throws Exception {
+		IllegalStateException cause = new IllegalStateException("Some other error");
+		when(mockSearchIndexQueryManager.search(user, searchIndexId, request)).thenThrow(cause);
+
+		// Call under test
+		IllegalStateException result = assertThrows(IllegalStateException.class, () -> {
+			worker.run(jobId, user, request, mockJobCallback);
+		});
+
+		assertEquals(cause, result);
+	}
+
+	@Test
+	public void testFailedIndexDoesNotThrowRecoverable() throws Exception {
+		when(mockSearchIndexQueryManager.search(user, searchIndexId, request))
+			.thenThrow(new IllegalStateException("Search index build failed. Delete or update the SearchIndex to trigger a rebuild."));
+
+		// "build failed" does NOT contain "still building", so it should NOT be wrapped
+		// as RecoverableMessageException -- it should propagate as-is
+		IllegalStateException ex = assertThrows(IllegalStateException.class, () -> {
+			worker.run(jobId, user, request, mockJobCallback);
+		});
+		assertTrue(ex.getMessage().contains("build failed"));
+	}
+
+	@Test
+	public void testDeletingIndexDoesNotThrowRecoverable() throws Exception {
+		when(mockSearchIndexQueryManager.search(user, searchIndexId, request))
+			.thenThrow(new IllegalStateException("Search index is being deleted."));
+
+		// Call under test
+		IllegalStateException ex = assertThrows(IllegalStateException.class, () -> {
+			worker.run(jobId, user, request, mockJobCallback);
+		});
+		assertTrue(ex.getMessage().contains("being deleted"));
+	}
+
+	@Test
+	public void testUnexpectedExceptionPropagates() throws Exception {
+		when(mockSearchIndexQueryManager.search(user, searchIndexId, request))
+			.thenThrow(new RuntimeException("unexpected error"));
+
+		// Call under test
+		assertThrows(RuntimeException.class, () -> {
+			worker.run(jobId, user, request, mockJobCallback);
+		});
+	}
+}

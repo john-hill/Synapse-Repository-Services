@@ -26,6 +26,7 @@ import org.sagebionetworks.repo.manager.asynch.AsynchJobStatusManager;
 import org.sagebionetworks.report.worker.StorageReportCSVDownloadWorker;
 import org.sagebionetworks.schema.worker.CreateJsonSchemaWorker;
 import org.sagebionetworks.schema.worker.GetValidationSchemaWorker;
+import org.sagebionetworks.search.workers.SearchQueryWorker;
 import org.sagebionetworks.table.worker.PFBDownloadWorker;
 import org.sagebionetworks.table.worker.TableCSVAppenderPreviewWorker;
 import org.sagebionetworks.table.worker.TableCSVDownloadWorker;
@@ -710,5 +711,28 @@ public class AsyncJobWorkersConfig {
 		MessageDrivenWorkerStack stack = new MessageDrivenWorkerStack(countingSemaphore, amazonSQSClient, config);
 
 		return new WorkerTriggerBuilder().withStack(stack).withRepeatInterval(1134).withStartDelay(131).build();
+	}
+
+	@Bean
+	public SimpleTriggerFactoryBean searchQueryWorkerTrigger(ConcurrentManager concurrentStackManager, SearchQueryWorker searchQueryWorker) {
+
+		String queueName = stackConfig.getQueueName("SEARCH_QUERY");
+		MessageDrivenRunner worker = new AsyncJobRunnerAdapter<>(jobStatusManager, userManager, searchQueryWorker);
+
+		return new WorkerTriggerBuilder()
+				.withStack(ConcurrentWorkerStack.builder()
+						.withSemaphoreLockKey("searchQueryWorker")
+						.withSemaphoreMaxLockCount(4)
+						.withSemaphoreLockAndMessageVisibilityTimeoutSec(120)
+						.withMaxThreadsPerMachine(3)
+						.withSingleton(concurrentStackManager)
+						.withCanRunInReadOnly(false)
+						.withQueueName(queueName)
+						.withWorker(worker)
+						.build()
+				)
+				.withRepeatInterval(2039)
+				.withStartDelay(317)
+				.build();
 	}
 }

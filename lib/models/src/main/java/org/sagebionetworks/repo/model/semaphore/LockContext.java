@@ -11,7 +11,7 @@ import org.sagebionetworks.util.ValidateArgument;
  * Captures the context of a lock acquisition as a serialized string that can be
  * passed to
  * {@link CountingSemaphore#attemptToAcquireLock(String, long, int, String)}
- * 
+ *
  *
  */
 public class LockContext {
@@ -26,7 +26,8 @@ public class LockContext {
 		Query("Querying table/view: '%s' ..."),
 		BuildMaterializedView("Rebuilding materialized view: '%s' ..."),
 		UpdatingMaterializedView("Updating materialized view: '%s' ..."),
-		SearchIndexLifecycle("Building search index: '%s' ...");
+		SearchIndexLifecycle("Building search index: '%s' ..."),
+		SearchIndexQuery("Querying search index: '%s' ...");
 
 		String template;
 
@@ -41,9 +42,9 @@ public class LockContext {
 
 	private final ContextType type;
 	private final IdAndVersion objectId;
-	
+
 	/**
-	 * 
+	 *
 	 * @param type
 	 * @param objectId
 	 */
@@ -57,7 +58,7 @@ public class LockContext {
 
 	/**
 	 * Create a new lock context from its serialized string.
-	 * 
+	 *
 	 * @param serialized
 	 */
 	public static LockContext deserialize(String serialized) {
@@ -72,7 +73,7 @@ public class LockContext {
 	/**
 	 * Serialize this lock context to a string that can be provided when the lock is
 	 * acquired.
-	 * 
+	 *
 	 * @return
 	 */
 	public String serializeToString() {
@@ -83,17 +84,17 @@ public class LockContext {
 
 	/**
 	 * Create a string that can be displayed to a user or logged.
-	 * 
+	 *
 	 * @return
 	 */
 	public String toDisplayString() {
 		return String.format(this.type.getDisplayStringTemplate(), this.objectId.toString());
 	}
-	
+
 	/**
 	 * Generate a message indicating that this context is waiting on the passed
 	 * context.
-	 * 
+	 *
 	 * @param waitingOn
 	 * @return
 	 */

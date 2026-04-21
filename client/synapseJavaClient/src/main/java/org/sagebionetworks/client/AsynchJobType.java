@@ -41,6 +41,7 @@ import org.sagebionetworks.repo.model.schema.GetValidationSchemaResponse;
 import org.sagebionetworks.repo.model.table.DownloadFromTableResult;
 import org.sagebionetworks.repo.model.table.DownloadPFBResult;
 import org.sagebionetworks.repo.model.table.HasEntityId;
+import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.table.QueryResult;
 import org.sagebionetworks.repo.model.table.QueryResultBundle;
 import org.sagebionetworks.repo.model.table.RowReferenceSetResults;
@@ -76,7 +77,8 @@ public enum AsynchJobType {
 	TablePFBDownload("/table/download/pfb", DownloadPFBResult.class, RestEndpointType.repo),
     CreateGrid("/grid/session", CreateGridResponse.class, RestEndpointType.repo),
     GridCsvDownload("/grid/download/csv", DownloadFromGridResult.class, RestEndpointType.repo),
-	GridExportRecordSet("/grid/export/recordset", GridRecordSetExportResponse.class, RestEndpointType.repo)
+	GridExportRecordSet("/grid/export/recordset", GridRecordSetExportResponse.class, RestEndpointType.repo),
+	SearchIndexQuery("/search/query", SearchQueryResults.class, RestEndpointType.repo)
 	;
 
 	String prefix;

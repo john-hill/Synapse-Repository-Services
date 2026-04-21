@@ -187,6 +187,7 @@
 		<ref bean="inactiveUsersWorkerTrigger"/>
 
 		<!-- Search Index -->
+		<ref bean="searchQueryWorkerTrigger"/>
 		<ref bean="searchIndexLifecycleWorkerTrigger"/>
 
 	</util:list>

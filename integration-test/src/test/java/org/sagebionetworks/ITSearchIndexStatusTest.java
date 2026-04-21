@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 
@@ -17,14 +18,18 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.client.SynapseAdminClient;
 import org.sagebionetworks.client.SynapseClient;
 import org.sagebionetworks.client.exceptions.SynapseException;
+import org.sagebionetworks.repo.model.ACCESS_TYPE;
+import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.Entity;
 import org.sagebionetworks.repo.model.Project;
+import org.sagebionetworks.repo.model.ResourceAccess;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
 import org.sagebionetworks.repo.model.search.table.SearchIndexState;
 import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
+import org.sagebionetworks.repo.model.table.QueryResultBundle;
 import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.repo.model.table.RowSet;
 import org.sagebionetworks.repo.model.table.TableEntity;
@@ -85,6 +90,10 @@ public class ITSearchIndexStatusTest {
 		project = synapse.createEntity(project);
 		entitiesToDelete.add(project);
 
+		// Grant PUBLIC_GROUP read access — the lifecycle worker queries data as
+		// the anonymous user, so the project must be publicly readable.
+		grantPublicRead(project.getId());
+
 		// 2. Create columns and table
 		ColumnModel nameCol = new ColumnModel();
 		nameCol.setName("studyName");
@@ -110,13 +119,31 @@ public class ITSearchIndexStatusTest {
 		));
 		synapse.appendRowsToTable(rowSet, MAX_APPEND_TIMEOUT, table.getId());
 
-		// 4. Create SearchIndex entity
+		// Wait for the table to be queryable before creating the SearchIndex.
+		// This ensures entity replication is complete and ACLs are resolved,
+		// so the lifecycle worker can read the SearchIndex entity when it
+		// processes the CREATE change message.
+		AsyncJobHelper.assertQueryBundleResults(synapse, table.getId(),
+				"select * from " + table.getId(), null, null,
+				SynapseClient.COUNT_PARTMASK,
+				(QueryResultBundle result) -> {
+					assertNotNull(result.getQueryCount());
+					assertTrue(result.getQueryCount() > 0, "Table should have rows before SearchIndex build");
+				}, MAX_WAIT_MS);
+
+		// 4. Create SearchIndex entity (after replication is complete)
 		SearchIndex searchIndex = new SearchIndex();
 		searchIndex.setName("StatusTestSearchIndex");
 		searchIndex.setParentId(project.getId());
 		searchIndex.setDefiningSQL("select * from " + table.getId());
 		searchIndex = synapse.createEntity(searchIndex);
 		entitiesToDelete.add(searchIndex);
+
+		// Wait briefly for entity replication to propagate the SearchIndex's
+		// benefactor ACL, then trigger an update to generate a fresh change
+		// message that the worker can process after replication is complete.
+		Thread.sleep(5000);
+		searchIndex = synapse.putEntity(searchIndex);
 
 		// 5. Check initial status — may be null state (worker hasn't picked it up yet)
 		//    or CREATING (worker started)
@@ -152,6 +179,8 @@ public class ITSearchIndexStatusTest {
 		project.setName("ITSearchIndexStatusFail_" + UUID.randomUUID());
 		project = synapse.createEntity(project);
 		entitiesToDelete.add(project);
+
+		grantPublicRead(project.getId());
 
 		// Create a real table so the source entity exists
 		ColumnModel col = new ColumnModel();
@@ -204,5 +233,23 @@ public class ITSearchIndexStatusTest {
 		}
 		throw new AssertionError("Timed out waiting for state " + desiredState
 				+ ". Last status: " + (status != null ? status.getState() : "null"));
+	}
+
+	private void grantPublicRead(String entityId) throws SynapseException {
+		AccessControlList acl = synapse.getACL(entityId);
+		// Grant PUBLIC_GROUP READ for entity visibility
+		ResourceAccess publicAccess = new ResourceAccess();
+		publicAccess.setPrincipalId(
+				AuthorizationConstants.BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId());
+		publicAccess.setAccessType(new HashSet<>(Arrays.asList(ACCESS_TYPE.READ)));
+		acl.getResourceAccess().add(publicAccess);
+		// Grant AUTHENTICATED_USERS READ + DOWNLOAD for table data access
+		// (tables require DOWNLOAD permission to query content)
+		ResourceAccess authUsersAccess = new ResourceAccess();
+		authUsersAccess.setPrincipalId(
+				AuthorizationConstants.BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId());
+		authUsersAccess.setAccessType(new HashSet<>(Arrays.asList(ACCESS_TYPE.READ, ACCESS_TYPE.DOWNLOAD)));
+		acl.getResourceAccess().add(authUsersAccess);
+		synapse.updateACL(acl);
 	}
 }

@@ -78,7 +78,7 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 
 	public static final int MAX_ORGANZIATION_NAME_CHARS = 250;
 	public static final int MIN_ORGANZIATION_NAME_CHARS = 6;
-	
+
 	private static final long PAGE_SIZE_LIMIT = 10000L;
 
 	@Autowired
@@ -89,16 +89,16 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 
 	@Autowired
 	private JsonSchemaDao jsonSchemaDao;
-	
+
 	@Autowired
 	private NodeDAO nodeDao;
-	
+
 	@Autowired
 	private ValidationJsonSchemaIndexDao validationIndexDao;
-	
+
 	@Autowired
 	private TransactionalMessenger transactionalMessenger;
-	
+
 	@Autowired
 	private JsonSchemaValidatorFactory validatorFactory;
 
@@ -143,7 +143,7 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 	/**
 	 * If the provided organization name is not valid, an IllegalArgumentException
 	 * will be thrown. The process name will be trimmed.
-	 * 
+	 *
 	 * @param name
 	 * @return
 	 */
@@ -251,9 +251,9 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 				.withSemanticVersion(semanticVersionString).withJsonSchema(request.getSchema())
 				.withDependencies(dependencies);
 		JsonSchemaVersionInfo info = jsonSchemaDao.createNewSchemaVersion(newVersionRequest);
-		
+
 		JsonSchema validationSchema = null;
-		
+
 		if (Boolean.TRUE.equals(request.getDryRun())) {
 			validationSchema = buildValidationSchema(info.get$id());
 		} else {
@@ -262,18 +262,18 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 			validationSchema = createOrUpdateValidationSchemaIndex(info.getVersionId());
 			transactionalMessenger.sendMessageAfterCommit(info.getVersionId(), ObjectType.JSON_SCHEMA_DEPENDANT, ChangeType.UPDATE);
 		}
-		
+
 		/*
 		 * Validate that the resulting validation schema can actually be loaded by the validation library.
 		 * This uses the same logic as JsonSchemaValidationManagerImpl to ensure the schema is compatible with the SchemaLoader.
 		 */
 		validatorFactory.buildValidator(validationSchema, false);
-		
+
 		CreateSchemaResponse response = new CreateSchemaResponse();
-		
+
 		response.setNewVersionInfo(info);
 		response.setValidationSchema(validationSchema);
-		
+
 		// If this is a dry run, then we do not keep the resulting schema.
 		if(Boolean.TRUE.equals(request.getDryRun())) {
 			jsonSchemaDao.deleteSchemaVersion(info.getVersionId());
@@ -295,19 +295,19 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 			}
 		}
 	}
-	
+
 	/**
 	 * Validate the given schema.
-	 * 
+	 *
 	 * @param schema
 	 * @return
 	 */
 	SchemaId validateSchema(JsonSchema schema) {
 		ValidateArgument.required(schema, "schema");
-		ValidateArgument.required(schema.get$id(), "schema.$id");		
-		
+		ValidateArgument.required(schema.get$id(), "schema.$id");
+
 		SchemaId schemaId = SchemaIdParser.parseSchemaId(schema.get$id());
-		
+
 		if (schemaId.getSemanticVersion() != null) {
 			/*
 			 * Any schema that includes a semantic version in its $id must be immutable.
@@ -356,7 +356,7 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 
 	/**
 	 * Get the versionId for the given $id
-	 * 
+	 *
 	 * @param $id
 	 * @return
 	 */
@@ -374,7 +374,7 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 
 	/**
 	 * Get the JsonSchemaVersionInfo for the given $id
-	 * 
+	 *
 	 * @param $id
 	 * @return
 	 */
@@ -496,7 +496,7 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 
 	/**
 	 * Recursively build the validation schema for the given $id.
-	 * 
+	 *
 	 * @param visitedStack
 	 * @param $id
 	 * @return
@@ -544,7 +544,7 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 
 	/**
 	 * Get a JsonSchema given its $id;
-	 * 
+	 *
 	 * @param $id
 	 * @return
 	 */
@@ -568,7 +568,7 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 
 	@Override
 	public JsonSchemaObjectBinding bindSchemaToObject(Long createdBy, String $id, Long objectId,
-			BoundObjectType objectType, boolean enableDerivedAnnotations) {
+	                                                  BoundObjectType objectType, boolean enableDerivedAnnotations) {
 		ValidateArgument.required(createdBy, "createdBy");
 		ValidateArgument.required($id, "$id");
 		ValidateArgument.required(objectId, "objectId");
@@ -596,7 +596,7 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 	public void clearBoundSchema(Long objectId, BoundObjectType objectType) {
 		jsonSchemaDao.clearBoundSchema(objectId, objectType);
 	}
-	
+
 	@Override
 	public JsonSchema createOrUpdateValidationSchemaIndex(String versionId) {
 		ValidateArgument.required(versionId, "versionId");
@@ -608,7 +608,7 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 		}
 		return schema;
 	}
-	
+
 	@Override
 	public void sendUpdateNotificationsForDependantSchemas(String versionId) {
 		ValidateArgument.required(versionId, "versionId");
@@ -617,11 +617,11 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 		Iterator<String> versionIds = getVersionIdsOfDependantsIterator(schemaId);
 		while (versionIds.hasNext()) {
 			// send ChangeType.UPDATE so createOrUpdateValidationSchemaIndex doesn't re-send dependent notifications
-			transactionalMessenger.sendMessageAfterCommit(versionIds.next(), 
+			transactionalMessenger.sendMessageAfterCommit(versionIds.next(),
 					ObjectType.JSON_SCHEMA, ChangeType.UPDATE);
 		}
 	}
-	
+
 	@Override
 	public JsonSchema getValidationSchema(String $id) {
 		ValidateArgument.required($id, "$id");
@@ -632,7 +632,7 @@ public class JsonSchemaManagerImpl implements JsonSchemaManager {
 			return createOrUpdateValidationSchemaIndex(versionId);
 		}
 	}
-	
+
 	@Override
 	public Iterator<String> getVersionIdsOfDependantsIterator(String schemaId) {
 		ValidateArgument.required(schemaId, "schemaId");

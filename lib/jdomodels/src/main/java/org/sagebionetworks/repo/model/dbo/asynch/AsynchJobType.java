@@ -58,6 +58,8 @@ import org.sagebionetworks.repo.model.table.UploadToTablePreviewRequest;
 import org.sagebionetworks.repo.model.table.UploadToTablePreviewResult;
 import org.sagebionetworks.repo.model.table.ViewColumnModelRequest;
 import org.sagebionetworks.repo.model.table.ViewColumnModelResponse;
+import org.sagebionetworks.repo.model.search.SearchQueryResults;
+import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
 
 /**
  * This enum maps types to classes.
@@ -120,7 +122,9 @@ public enum AsynchJobType {
 	GRID_SYNCHRONIZATION(SynchronizeGridRequest.class, SynchronizeGridResponse.class,
 			(s) -> new FifoQueueParameters()
 					.setMessageGroupId(((SynchronizeGridRequest) s.getRequestBody()).getGridSessionId())
-					.setMessageDeduplicationId(s.getJobId()));
+					.setMessageDeduplicationId(s.getJobId())),
+
+	SEARCH_QUERY(SearchIndexQuery.class, SearchQueryResults.class);
 
 	private final Class<? extends AsynchronousRequestBody> requestClass;
 	private final Class<? extends AsynchronousResponseBody> responseClass;

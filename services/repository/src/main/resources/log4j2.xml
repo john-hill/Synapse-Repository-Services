@@ -6,11 +6,11 @@
 	<appenders>
 		<Console name="Console" target="SYSTEM_OUT">
 			<PatternLayout
-				pattern="%d{ISO8601}{GMT+0} %X{sessionId} [%t] %-5level %logger{36} - %msg%n" />
+					pattern="%d{ISO8601}{GMT+0} %X{sessionId} [%t] %-5level %logger{36} - %msg%n" />
 		</Console>
 		<RollingFile name="traceProfiling"
-			fileName="${org.sagebionetworks.local.logging.dir}/repo-trace-profile.log"
-			filePattern="${org.sagebionetworks.local.logging.dir}/repo-trace-profile.%d{yyyy-MM-dd-hh-mm}.log.gz">
+		             fileName="${org.sagebionetworks.local.logging.dir}/repo-trace-profile.log"
+		             filePattern="${org.sagebionetworks.local.logging.dir}/repo-trace-profile.%d{yyyy-MM-dd-hh-mm}.log.gz">
 			<PatternLayout>
 				<pattern>%d{ISO8601}{GMT+0} %X{sessionId} %-5p [%15.15t] [%c] - %m%n</pattern>
 			</PatternLayout>
@@ -20,8 +20,8 @@
 			</Policies>
 		</RollingFile>
 		<RollingFile name="performanceProfiling"
-			fileName="${org.sagebionetworks.local.logging.dir}/repo-performance-profile.log"
-			filePattern="${org.sagebionetworks.local.logging.dir}/repo-performance-profile.%d{yyyy-MM-dd-hh-mm}.log.gz">
+		             fileName="${org.sagebionetworks.local.logging.dir}/repo-performance-profile.log"
+		             filePattern="${org.sagebionetworks.local.logging.dir}/repo-performance-profile.%d{yyyy-MM-dd-hh-mm}.log.gz">
 			<PatternLayout>
 				<pattern>%d{ISO8601}{GMT+0} %m%n</pattern>
 			</PatternLayout>
@@ -31,8 +31,8 @@
 			</Policies>
 		</RollingFile>
 		<RollingFile name="repository"
-			fileName="${org.sagebionetworks.local.logging.dir}/repo-services.log"
-			filePattern="${org.sagebionetworks.local.logging.dir}/repo-services.%d{yyyy-MM-dd-hh-mm}.log.gz">
+		             fileName="${org.sagebionetworks.local.logging.dir}/repo-services.log"
+		             filePattern="${org.sagebionetworks.local.logging.dir}/repo-services.%d{yyyy-MM-dd-hh-mm}.log.gz">
 			<PatternLayout>
 				<pattern>%d{ISO8601}{GMT+0} %X{sessionId} %-5p [%15.15t] [%c] - %m%n</pattern>
 			</PatternLayout>
@@ -44,15 +44,18 @@
 	</appenders>
 	<loggers>
 		<logger name="org.sagebionetworks.profiler.LoggingProfiler"
-			level="debug" additivity="false">
+		        level="debug" additivity="false">
 			<appender-ref ref="traceProfiling" />
+			<appender-ref ref="Console" />
 		</logger>
 		<logger name="org.sagebionetworks.spring"
-			level="info" additivity="false">
+		        level="info" additivity="false">
 			<appender-ref ref="performanceProfiling" />
+			<appender-ref ref="Console" />
 		</logger>
 		<logger name="org.sagebionetworks" level="info" additivity="true">
 			<appender-ref ref="repository" />
+			<appender-ref ref="Console" />
 		</logger>
 		<root level="error">
 			<appender-ref ref="Console" />

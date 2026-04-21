@@ -77,6 +77,7 @@ import org.sagebionetworks.workers.util.semaphore.WriteLock;
 import org.sagebionetworks.workers.util.semaphore.WriteLockRequest;
 import org.sagebionetworks.workers.util.semaphore.WriteReadSemaphore;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import com.amazonaws.AmazonServiceException;
@@ -92,7 +93,7 @@ import au.com.bytecode.opencsv.CSVWriter;
 public class TableManagerSupportImpl implements TableManagerSupport {
 
 	public static final long TABLE_PROCESSING_TIMEOUT_MS = 1000 * 60 * 10; // 10 mins
-	
+
 	public static final long MAX_BYTES_PER_BATCH = 1024*1024*5;// 5MB
 
 	private final TableStatusDAO tableStatusDAO;
@@ -113,15 +114,15 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 	private final Clock clock;
 	private final Logger log;
 	private final TableExceptionTranslator tableExceptionTranslator;
-	
+
 	@Autowired
 	public TableManagerSupportImpl(TableStatusDAO tableStatusDAO, TimeoutUtils timeoutUtils,
-			TransactionalMessenger transactionalMessenger, ConnectionFactory tableConnectionFactory,
-			ColumnModelManager columnModelManager, NodeDAO nodeDao, TableRowTruthDAO tableTruthDao,
-			ViewScopeTypeDao viewScopeDao, WriteReadSemaphore writeReadSemaphoreRunner,
-			AuthorizationManager authorizationManager, TableSnapshotDao tableSnapshotDao,
-			MetadataIndexProviderFactory metadataIndexProviderFactory, DefaultColumnModelMapper defaultColumnMapper,
-			MaterializedViewDao materializedViewDao, FileProvider fileProvider, SynapseS3Client s3Client, Clock clock, LoggerProvider loggerProvider
+	                               TransactionalMessenger transactionalMessenger, ConnectionFactory tableConnectionFactory,
+	                               @Lazy ColumnModelManager columnModelManager, NodeDAO nodeDao, TableRowTruthDAO tableTruthDao,
+	                               ViewScopeTypeDao viewScopeDao, WriteReadSemaphore writeReadSemaphoreRunner,
+	                               @Lazy AuthorizationManager authorizationManager, TableSnapshotDao tableSnapshotDao,
+	                               @Lazy MetadataIndexProviderFactory metadataIndexProviderFactory, @Lazy DefaultColumnModelMapper defaultColumnMapper,
+	                               MaterializedViewDao materializedViewDao, FileProvider fileProvider, SynapseS3Client s3Client, Clock clock, LoggerProvider loggerProvider
 			, TableExceptionTranslator tableExceptionTranslator) {
 		super();
 		this.tableStatusDAO = tableStatusDAO;
@@ -146,7 +147,7 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see org.sagebionetworks.repo.manager.table.TableRowManager#
 	 * getTableStatusOrCreateIfNotExists(java.lang.String)
 	 */
@@ -159,7 +160,7 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 				// A virtual table has no index
 				return new TableStatus().setState(TableState.AVAILABLE);
 			}
-			
+
 			TableStatus status = tableStatusDAO.getTableStatus(idAndVersion);
 			if (!TableState.AVAILABLE.equals(status.getState())) {
 				// Processing or Failed.
@@ -207,7 +208,7 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see org.sagebionetworks.repo.manager.table.TableManagerSupport#
 	 * setTableToProcessingAndTriggerUpdate(java.lang.String)
 	 */
@@ -217,29 +218,29 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 		boolean resetToken = true;
 		return setTableToProcessingAndTriggerUpdate(idAndVersion, resetToken);
 	}
-	
+
 	TableStatus setTableToProcessingAndTriggerUpdate(IdAndVersion idAndVersion, boolean resetToken) {
 		ValidateArgument.required(idAndVersion, "idAndVersion");
 		// lookup the table type.
 		ObjectType tableType = getTableObjectType(idAndVersion);
-		
+
 		// we get here, if the index for this table is not (yet?) being build. We need
 		// to kick off the
 		// building of the index and report the table as unavailable
 		tableStatusDAO.resetTableStatusToProcessing(idAndVersion, resetToken);
-		
+
 		// notify all listeners.
 		triggerIndexUpdate(tableType, idAndVersion);
 		// status should exist now
 		return tableStatusDAO.getTableStatus(idAndVersion);
 	}
-	
+
 	@Override
 	@WriteTransaction
 	public void triggerIndexUpdate(IdAndVersion idAndVersion) {
 		triggerIndexUpdate(getTableObjectType(idAndVersion), idAndVersion);
 	}
-	
+
 	private void triggerIndexUpdate(ObjectType tableType, IdAndVersion idAndVersion) {
 		transactionalMessenger.sendMessageAfterCommit(new MessageToSend().withObjectId(idAndVersion.getId().toString())
 				.withObjectVersion(idAndVersion.getVersion().orElse(null)).withObjectType(tableType)
@@ -268,14 +269,14 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 	@NewWriteTransaction
 	@Override
 	public void attemptToUpdateTableProgress(IdAndVersion idAndVersion, String resetToken, String progressMessage,
-			Long currentProgress, Long totalProgress) throws ConflictingUpdateException, NotFoundException {
+	                                         Long currentProgress, Long totalProgress) throws ConflictingUpdateException, NotFoundException {
 		tableStatusDAO.attemptToUpdateTableProgress(idAndVersion, resetToken, progressMessage, currentProgress,
 				totalProgress);
 	}
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see org.sagebionetworks.repo.manager.table.TableStatusManager#
 	 * startTableProcessing(java.lang.String)
 	 */
@@ -288,7 +289,7 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see org.sagebionetworks.repo.manager.table.TableStatusManager#
 	 * isIndexSynchronizedWithTruth(java.lang.String)
 	 */
@@ -303,17 +304,17 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 		// compare the truth with the index.
 		return isIndexSynchronized(idAndVersion, truthSchemaIds, truthLastVersion, truthSearchEnabled);
 	}
-	
+
 	@Override
 	public boolean isIndexSynchronized(IdAndVersion idAndVersion, List<String> schemaIds, long version, boolean isSearchEnabled) {
 		// MD5 of the table's schema
 		String schemaMD5Hex = TableModelUtils.createSchemaMD5Hex(schemaIds);
 		return tableConnectionFactory.getConnection(idAndVersion).doesIndexStateMatch(idAndVersion, version, schemaMD5Hex, isSearchEnabled);
 	}
-	
+
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see
 	 * org.sagebionetworks.repo.manager.table.TableStatusManager#isIndexWorkRequired
 	 * (java.lang.String)
@@ -339,7 +340,7 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see
 	 * org.sagebionetworks.repo.manager.table.TableStatusManager#setTableDeleted(
 	 * java.lang.String)
@@ -360,7 +361,7 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see
 	 * org.sagebionetworks.repo.manager.table.TableManagerSupport#isTableAvailable(
 	 * java.lang.String)
@@ -377,7 +378,7 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see
 	 * org.sagebionetworks.repo.manager.table.TableManagerSupport#getTableType(java.
 	 * lang.String)
@@ -389,7 +390,7 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see
 	 * org.sagebionetworks.repo.manager.table.TableManagerSupport#getTableVersion(
 	 * java.lang.String)
@@ -398,32 +399,32 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 	public long getTableVersion(IdAndVersion idAndVersion) {
 		return getTableVersion(getTableObjectType(idAndVersion), idAndVersion);
 	}
-	
+
 	long getTableVersion(ObjectType type, IdAndVersion idAndVersion) {
 		switch (type) {
-		case TABLE:
-			// For TableEntity the version of the last change set is used.
-			return getLastTableChangeNumber(idAndVersion).orElse(-1L);
-		case ENTITY_VIEW:
-		case MATERIALIZED_VIEW:
-			/*
-			 * By returning the version already associated with the view index, we ensure
-			 * this call will not trigger a view to be rebuilt.
-			 */
-			return this.tableConnectionFactory.getConnection(idAndVersion).getMaxCurrentCompleteVersionForTable(idAndVersion);
-		default:
-			throw new IllegalArgumentException("unknown table type: " + type);
+			case TABLE:
+				// For TableEntity the version of the last change set is used.
+				return getLastTableChangeNumber(idAndVersion).orElse(-1L);
+			case ENTITY_VIEW:
+			case MATERIALIZED_VIEW:
+				/*
+				 * By returning the version already associated with the view index, we ensure
+				 * this call will not trigger a view to be rebuilt.
+				 */
+				return this.tableConnectionFactory.getConnection(idAndVersion).getMaxCurrentCompleteVersionForTable(idAndVersion);
+			default:
+				throw new IllegalArgumentException("unknown table type: " + type);
 		}
 	}
-		
+
 	@Override
 	public <R> R tryRunWithTableExclusiveLock(ProgressCallback callback, LockContext context, String key,
-			ProgressingCallable<R> callable) throws Exception {
+	                                          ProgressingCallable<R> callable) throws Exception {
 		ValidateArgument.required(callback, "callback");
 		ValidateArgument.required(context, "context");
 		ValidateArgument.required(key, "key");
 		ValidateArgument.required(callable, "callable");
-		
+
 		logContext(callback, context);
 		try {
 			try (WriteLock lock = writeReadSemaphoreRunner
@@ -446,7 +447,7 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 
 	@Override
 	public <R> R tryRunWithTableExclusiveLock(ProgressCallback callback, LockContext context, IdAndVersion tableId,
-			ProgressingCallable<R> callable) throws Exception {
+	                                          ProgressingCallable<R> callable) throws Exception {
 		String key = TableModelUtils.getTableSemaphoreKey(tableId);
 		// The semaphore runner does all of the lock work.
 		return tryRunWithTableExclusiveLock(callback, context, key, callable);
@@ -455,12 +456,12 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 
 	@Override
 	public <R> R tryRunWithTableNonExclusiveLock(ProgressCallback callback, LockContext context, ProgressingCallable<R> runner,
-			String... keys) throws Exception {
+	                                             String... keys) throws Exception {
 		ValidateArgument.required(callback, "callback");
 		ValidateArgument.required(context, "context");
 		ValidateArgument.required(runner, "runner");
 		ValidateArgument.required(keys, "keys");
-		
+
 		logContext(callback, context);
 		try {
 			try(ReadLock lock = writeReadSemaphoreRunner.getReadLock(new ReadLockRequest(callback, context.serializeToString(), keys))){
@@ -473,7 +474,7 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 			throw e;
 		}
 	}
-	
+
 	/**
 	 * Will log that the current context is waiting for the waitingOn.
 	 * Will also update the progress message with the waitingOn context display message.
@@ -485,26 +486,26 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 		log.info(current.toWaitingOnMessage(waitingOn));
 		logContext(callback, waitingOn);
 	}
-	
+
 	/**
 	 * Log the display message
 	 * @param callback
 	 * @param existingContext
 	 */
 	void logContext(ProgressCallback callback, LockContext existingContext) {
-		 String message = existingContext.toDisplayString();
-		 log.info(message);
-		 if(callback instanceof AsyncJobProgressCallback) {
-			 AsyncJobProgressCallback asynchCallback = (AsyncJobProgressCallback)callback;
-			 asynchCallback.updateProgress(message, 0L, 100L);
-		 }
+		String message = existingContext.toDisplayString();
+		log.info(message);
+		if(callback instanceof AsyncJobProgressCallback) {
+			AsyncJobProgressCallback asynchCallback = (AsyncJobProgressCallback)callback;
+			asynchCallback.updateProgress(message, 0L, 100L);
+		}
 	}
-	
+
 
 
 	@Override
 	public <R> R tryRunWithTableNonExclusiveLock(ProgressCallback callback, LockContext context, ProgressingCallable<R> callable,
-			IdAndVersion... tableIds) throws Exception {
+	                                             IdAndVersion... tableIds) throws Exception {
 		ValidateArgument.required(tableIds, "TableIds");
 		List<String> keys = Arrays.stream(tableIds).map(i -> TableModelUtils.getTableSemaphoreKey(i))
 				.collect(Collectors.toList());
@@ -648,20 +649,20 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 	public IndexDescription getIndexDescription(IdAndVersion idAndVersion) {
 		TableType type = getTableType(idAndVersion);
 		switch (type) {
-		case table:
-			return new TableIndexDescription(idAndVersion, getTableVersion(type.getObjectType(), idAndVersion));
-		case entityview:
-		case dataset:
-		case datasetcollection:
-		case submissionview:
-			return new ViewIndexDescription(idAndVersion, type, getTableVersion(type.getObjectType(), idAndVersion));
-		case materializedview:
-			return new MaterializedViewIndexDescription(idAndVersion, nodeDao.getDefiningSql(idAndVersion).get(), this);
-		case virtualtable:
-			return new VirtualTableIndexDescription(idAndVersion, nodeDao.getDefiningSql(idAndVersion).get(), this);
-		default:
-			throw new IllegalArgumentException("Unexpected type for entity with id " + idAndVersion.toString() + ": "
-					+ type + " (expected a table or view type)");
+			case table:
+				return new TableIndexDescription(idAndVersion, getTableVersion(type.getObjectType(), idAndVersion));
+			case entityview:
+			case dataset:
+			case datasetcollection:
+			case submissionview:
+				return new ViewIndexDescription(idAndVersion, type, getTableVersion(type.getObjectType(), idAndVersion));
+			case materializedview:
+				return new MaterializedViewIndexDescription(idAndVersion, nodeDao.getDefiningSql(idAndVersion).get(), this);
+			case virtualtable:
+				return new VirtualTableIndexDescription(idAndVersion, nodeDao.getDefiningSql(idAndVersion).get(), this);
+			default:
+				throw new IllegalArgumentException("Unexpected type for entity with id " + idAndVersion.toString() + ": "
+						+ type + " (expected a table or view type)");
 		}
 	}
 
@@ -669,7 +670,7 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 	public boolean isTableSearchEnabled(IdAndVersion idAndVersion) {
 		return nodeDao.isSearchEnabled(idAndVersion.getId(), idAndVersion.getVersion().orElse(null));
 	}
-	
+
 	@Override
 	public List<String> streamTableIndexToS3(IdAndVersion idAndVersion, String bucket, String key) {
 		File tempFile = null;
@@ -679,8 +680,8 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 			// Stream view data from the replication database to a local CSV file.
 			try (CSVWriter writer = new CSVWriter(fileProvider.createWriter(
 					fileProvider.createGZIPOutputStream(
-						fileProvider.createFileOutputStream(tempFile)), StandardCharsets.UTF_8)
-					)) {
+							fileProvider.createFileOutputStream(tempFile)), StandardCharsets.UTF_8)
+			)) {
 				// write the snapshot to the temp file.
 				TableIndexDAO tableIndex = tableConnectionFactory.getConnection(idAndVersion);
 				schema = tableIndex.streamTableIndexData(idAndVersion, writer::writeNext);
@@ -704,7 +705,7 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 		}
 		return schema;
 	}
-	
+
 	@Override
 	public void restoreTableIndexFromS3(IdAndVersion idAndVersion, String bucket, String key) {
 		File tempFile = null;
@@ -732,7 +733,7 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 			}
 		}
 	}
-	
+
 	@Override
 	public Optional<TableSnapshot> getMostRecentTableSnapshot(IdAndVersion idAndVersion) {
 		return tableSnapshotDao.getMostRecentTableSnapshot(idAndVersion);
@@ -742,7 +743,7 @@ public class TableManagerSupportImpl implements TableManagerSupport {
 	public ColumnModel getColumnModel(String id) {
 		return columnModelManager.getColumnModel(id);
 	}
-	
+
 	@Override
 	public ActionsRequiredDao getActionsRequiredDao(IdAndVersion idAndVersion) {
 		return new ActionsRequiredDao(tableConnectionFactory.getConnection(idAndVersion).getConnection());

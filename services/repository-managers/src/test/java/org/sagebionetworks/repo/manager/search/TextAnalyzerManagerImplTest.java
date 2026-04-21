@@ -151,7 +151,7 @@ public class TextAnalyzerManagerImplTest {
 	@Test
 	public void testUpdateAsNonSageUserThrows() {
 		TextAnalyzer input = new TextAnalyzer()
-			.setId("1").setOrganizationName("test-org").setName("updated");
+			.setId("1").setOrganizationName("test-org").setName("updated").setSettings(new TextAnalyzerSettings());
 
 		assertThrows(UnauthorizedException.class, () -> manager.update(nonSageUser, input));
 		verifyZeroInteractions(textAnalyzerDao);
@@ -160,7 +160,7 @@ public class TextAnalyzerManagerImplTest {
 	@Test
 	public void testUpdateWithoutOrgAclThrows() {
 		TextAnalyzer input = new TextAnalyzer()
-			.setId("1").setOrganizationName("test-org").setName("test_name");
+			.setId("1").setOrganizationName("test-org").setName("test_name").setSettings(new TextAnalyzerSettings());
 		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationName("test-org").setName("test_name")));
 		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
@@ -172,7 +172,7 @@ public class TextAnalyzerManagerImplTest {
 	@Test
 	public void testUpdateNotFoundThrows() {
 		TextAnalyzer input = new TextAnalyzer()
-			.setId("999").setOrganizationName("test-org").setName("updated");
+			.setId("999").setOrganizationName("test-org").setName("updated").setSettings(new TextAnalyzerSettings());
 		when(textAnalyzerDao.get(999L)).thenReturn(Optional.empty());
 
 		assertThrows(NotFoundException.class, () -> manager.update(sageUser, input));
@@ -181,7 +181,7 @@ public class TextAnalyzerManagerImplTest {
 	@Test
 	public void testUpdateRejectsOrgNameMismatch() {
 		TextAnalyzer input = new TextAnalyzer()
-			.setId("1").setOrganizationName("other-org").setName("updated");
+			.setId("1").setOrganizationName("other-org").setName("updated").setSettings(new TextAnalyzerSettings());
 		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationName("test-org")));
 
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.update(sageUser, input));
@@ -191,7 +191,7 @@ public class TextAnalyzerManagerImplTest {
 	@Test
 	public void testUpdateWithNameChangeThrows() {
 		TextAnalyzer input = new TextAnalyzer()
-			.setId("1").setOrganizationName("test-org").setName("new_name");
+			.setId("1").setOrganizationName("test-org").setName("new_name").setSettings(new TextAnalyzerSettings());
 		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(
 			new TextAnalyzer().setId("1").setOrganizationName("test-org").setName("original_name")));
 
@@ -205,7 +205,7 @@ public class TextAnalyzerManagerImplTest {
 	@Test
 	public void testUpdateHappyPath() {
 		TextAnalyzer input = new TextAnalyzer()
-			.setId("1").setOrganizationName("test-org").setName("test_name").setDescription("updated description");
+			.setId("1").setOrganizationName("test-org").setName("test_name").setDescription("updated description").setSettings(new TextAnalyzerSettings());
 		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationName("test-org").setName("test_name")));
 		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
@@ -329,7 +329,7 @@ public class TextAnalyzerManagerImplTest {
 	// --- Analyzer validation ---
 
 	@Test
-	public void testCreateCallsValidateBeforePersist() {
+	public void testCreateWithSettingsValidatesBeforePersist() {
 		TextAnalyzerSettings settings = new TextAnalyzerSettings().setTokenizer("standard");
 		TextAnalyzer input = new TextAnalyzer()
 			.setOrganizationName("test-org").setName("test").setSettings(settings);
@@ -347,7 +347,7 @@ public class TextAnalyzerManagerImplTest {
 	}
 
 	@Test
-	public void testCreateThrowsWhenValidationFails() {
+	public void testCreateWithInvalidSettingsThrows() {
 		TextAnalyzerSettings settings = new TextAnalyzerSettings().setTokenizer("bad_tokenizer");
 		TextAnalyzer input = new TextAnalyzer()
 			.setOrganizationName("test-org").setName("test").setSettings(settings);
@@ -365,7 +365,7 @@ public class TextAnalyzerManagerImplTest {
 	}
 
 	@Test
-	public void testUpdateCallsValidateBeforePersist() {
+	public void testUpdateWithSettingsValidatesBeforePersist() {
 		TextAnalyzerSettings settings = new TextAnalyzerSettings().setTokenizer("standard");
 		TextAnalyzer input = new TextAnalyzer()
 			.setId("1").setOrganizationName("test-org").setName("test_name").setSettings(settings);
@@ -384,7 +384,7 @@ public class TextAnalyzerManagerImplTest {
 	}
 
 	@Test
-	public void testUpdateThrowsWhenValidationFails() {
+	public void testUpdateWithInvalidSettingsThrows() {
 		TextAnalyzerSettings settings = new TextAnalyzerSettings().setTokenizer("bad_tokenizer");
 		TextAnalyzer input = new TextAnalyzer()
 			.setId("1").setOrganizationName("test-org").setName("test_name").setSettings(settings);
@@ -403,19 +403,14 @@ public class TextAnalyzerManagerImplTest {
 	}
 
 	@Test
-	public void testUpdateSkipsValidationWhenSettingsNull() {
+	public void testUpdateWithNullSettingsThrows() {
 		TextAnalyzer input = new TextAnalyzer()
 			.setId("1").setOrganizationName("test-org").setName("test_name");
-		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationName("test-org").setName("test_name")));
-		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
-		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
-			.thenReturn(AuthorizationStatus.authorized());
-		when(textAnalyzerDao.update(any(), eq(1L))).thenReturn(input);
 
 		// call under test
-		manager.update(sageUser, input);
+		assertThrows(IllegalArgumentException.class, () -> manager.update(sageUser, input));
 
+		verifyZeroInteractions(textAnalyzerDao);
 		verifyZeroInteractions(openSearchManager);
-		verify(textAnalyzerDao).update(any(), eq(1L));
 	}
 }

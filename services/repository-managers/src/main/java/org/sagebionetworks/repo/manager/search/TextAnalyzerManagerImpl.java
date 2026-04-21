@@ -78,6 +78,7 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		ValidateArgument.requiredNotBlank(analyzer.getId(), "id");
 		ValidateArgument.requiredNotBlank(analyzer.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(analyzer.getName(), "name");
+		ValidateArgument.required(analyzer.getSettings(), "settings");
 		SearchResourceConstants.validateResourceName(analyzer.getName());
 
 		AuthorizationUtils.disallowAnonymous(user);
@@ -100,9 +101,7 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 				.checkAuthorizationOrElseThrow();
 		}
 
-		if (analyzer.getSettings() != null) {
-			openSearchManager.validateAnalyzerSettings(analyzer.getSettings());
-		}
+		openSearchManager.validateAnalyzerSettings(analyzer.getSettings());
 
 		return textAnalyzerDao.update(analyzer, user.getId());
 	}

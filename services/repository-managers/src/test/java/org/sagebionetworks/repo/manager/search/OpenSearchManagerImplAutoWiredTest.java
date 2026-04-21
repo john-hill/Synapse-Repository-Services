@@ -5,8 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -33,7 +31,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 /**
  * AutoWire integration test for {@link OpenSearchManagerImpl} that hits real AWS OpenSearch.
  * This class is treated as a DAO-level test — it verifies actual OpenSearch behavior
- * rather than mocked assumptions.
+ * rather than mocked assumptions. Document content is verified deeply here so that
+ * higher-level tests can trust the DAO and do spot checks only.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
@@ -68,9 +67,9 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 	@Test
 	public void testCreateIndexWithValidColumns() {
-		List<ColumnModel> columns = buildColumns(
-				column("1", "name", ColumnType.STRING),
-				column("2", "age", ColumnType.INTEGER)
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING),
+				new ColumnModel().setId("2").setName("age").setColumnType(ColumnType.INTEGER)
 		);
 
 		// call under test
@@ -83,7 +82,8 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 	@Test
 	public void testDeleteIndexWithExistingIndex() {
-		List<ColumnModel> columns = buildColumns(column("1", "name", ColumnType.STRING));
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
 
@@ -102,7 +102,8 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 	@Test
 	public void testCreateIndexWithDuplicateName() {
-		List<ColumnModel> columns = buildColumns(column("1", "name", ColumnType.STRING));
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
 
@@ -122,21 +123,22 @@ public class OpenSearchManagerImplAutoWiredTest {
 	}
 
 	@Test
-	public void testCRUDWithSearchQuery() {
-		List<ColumnModel> columns = buildColumns(
-				column("1", "title", ColumnType.STRING),
-				column("2", "count", ColumnType.INTEGER)
+	public void testCRUDWithSearchQueryAndDocumentVerification() {
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("title").setColumnType(ColumnType.STRING),
+				new ColumnModel().setId("2").setName("count").setColumnType(ColumnType.INTEGER)
 		);
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
 
-		List<BulkOperation> operations = new ArrayList<>();
-		operations.add(buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "mitochondria research", "2", "42")));
-		operations.add(buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "genome sequencing study", "2", "99")));
-		operations.add(buildBulkOp(indexName, "3", Map.of("_row_id", 3L, "_row_version", 1L, "1", "mitochondria function", "2", "7")));
+		List<BulkOperation> operations = List.of(
+				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "mitochondria research", "2", "42")),
+				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "genome sequencing study", "2", "99")),
+				buildBulkOp(indexName, "3", Map.of("_row_id", 3L, "_row_version", 1L, "1", "mitochondria function", "2", "7"))
+		);
 
-		// call under test
-		long indexed = waitForBulkIndex(operations);
+		// call under test — bulk index should succeed on first attempt without retries
+		long indexed = openSearchManager.bulkIndex(indexName, operations);
 
 		assertEquals(3L, indexed);
 
@@ -146,26 +148,40 @@ public class OpenSearchManagerImplAutoWiredTest {
 		query.setLimit(10L);
 		query.setOffset(0L);
 
-		// call under test
+		// call under test — poll for search results (AOSS eventual consistency)
 		SearchQueryResults results = waitForSearch(query, columns, 2);
 
 		assertNotNull(results);
 		assertEquals(2L, results.getTotalHits());
 		assertNotNull(results.getHits());
 		assertEquals(2, results.getHits().size());
+
+		// Verify actual document content — this is the deep check so higher-level
+		// tests can trust the DAO and just do count/spot checks.
+		results.getHits().forEach(hit -> {
+			assertNotNull(hit.getFields(), "Hit should have fields");
+			assertTrue(hit.getFields().stream().anyMatch(f -> "1".equals(f.getName())),
+					"Hit should have field '1' (title column)");
+			String titleValue = hit.getFields().stream()
+					.filter(f -> "1".equals(f.getName()))
+					.findFirst().get().getValue();
+			assertTrue(titleValue.contains("mitochondria"),
+					"Title field should contain 'mitochondria', got: " + titleValue);
+		});
 	}
 
 	@Test
 	public void testSearchWithMatchAllQueryType() {
-		List<ColumnModel> columns = buildColumns(column("1", "name", ColumnType.STRING));
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
 
-		List<BulkOperation> operations = new ArrayList<>();
-		operations.add(buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "alpha")));
-		operations.add(buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "beta")));
-
-		waitForBulkIndex(operations);
+		List<BulkOperation> operations = List.of(
+				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "alpha")),
+				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "beta"))
+		);
+		openSearchManager.bulkIndex(indexName, operations);
 
 		SearchQuery query = new SearchQuery();
 		query.setQueryType(SearchQueryType.MATCH_ALL);
@@ -189,30 +205,24 @@ public class OpenSearchManagerImplAutoWiredTest {
 		query.setLimit(10L);
 		query.setOffset(0L);
 
-		List<ColumnModel> columns = buildColumns(column("1", "name", ColumnType.STRING));
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
 
 		// call under test
-		assertThrows(IllegalStateException.class, () ->
+		IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
 				openSearchManager.search("nonexistent-" + UUID.randomUUID(), query, columns,
 						null, Collections.emptyList(), defaultAnalyzers));
+
+		assertTrue(ex.getMessage().contains("still building"),
+				"Exception message should indicate the index is not ready, got: " + ex.getMessage());
 	}
 
 	// ---- Polling helpers ----
 
-	private long waitForBulkIndex(List<BulkOperation> operations) {
-		long[] result = {0L};
-		boolean success = TimeUtils.waitForExponential(POLL_MAX_MS, POLL_INTERVAL_MS, null, (v) -> {
-			try {
-				result[0] = openSearchManager.bulkIndex(indexName, operations);
-				return true;
-			} catch (RuntimeException e) {
-				return false;
-			}
-		});
-		assertTrue(success, "Timed out waiting for bulk index to succeed");
-		return result[0];
-	}
-
+	/**
+	 * Poll until search returns at least {@code expectedMinHits} results.
+	 * AOSS is eventually consistent — documents may not be visible immediately after indexing.
+	 */
 	private SearchQueryResults waitForSearch(SearchQuery query, List<ColumnModel> columns,
 			long expectedMinHits) {
 		SearchQueryResults[] result = {null};
@@ -222,6 +232,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 						null, Collections.emptyList(), defaultAnalyzers);
 				return result[0].getTotalHits() != null && result[0].getTotalHits() >= expectedMinHits;
 			} catch (IllegalStateException e) {
+				// index_not_found — not ready yet
 				return false;
 			}
 		});
@@ -230,18 +241,6 @@ public class OpenSearchManagerImplAutoWiredTest {
 	}
 
 	// ---- Test data helpers ----
-
-	private static ColumnModel column(String id, String name, ColumnType type) {
-		ColumnModel cm = new ColumnModel();
-		cm.setId(id);
-		cm.setName(name);
-		cm.setColumnType(type);
-		return cm;
-	}
-
-	private static List<ColumnModel> buildColumns(ColumnModel... columns) {
-		return Arrays.asList(columns);
-	}
 
 	private static Map<String, TextAnalyzer> buildDefaultAnalyzers() {
 		Map<String, TextAnalyzer> analyzers = new HashMap<>();

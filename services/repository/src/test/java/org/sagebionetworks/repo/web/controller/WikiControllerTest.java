@@ -156,8 +156,6 @@ public class WikiControllerTest extends AbstractAutowiredControllerTestBase {
 	 * @throws Exception
 	 */
 	private void doWikiCRUDForOwnerObject(String ownerId, ObjectType ownerType) throws Exception{
-		// Capture the initial wiki count so assertions are not affected by wiki pages from other tests
-		long initialCount = v2WikiPageDao.getCount();
 		// Create a wiki page
 		WikiPage wiki = new WikiPage();
 		wiki.setTitle("testCreateEntityWikiRoundTrip-"+ownerId+"-"+ownerType);
@@ -171,7 +169,7 @@ public class WikiControllerTest extends AbstractAutowiredControllerTestBase {
 		assertNotNull(wiki.getEtag());
 		assertNotNull(ownerId, wiki.getModifiedBy());
 		assertNotNull(ownerId, wiki.getCreatedBy());
-		assertEquals(initialCount + 1, v2WikiPageDao.getCount());
+		assertEquals(1, v2WikiPageDao.getCount());
 		// Get the wiki page.
 		WikiPage clone = entityServletHelper.getWikiPage(key, adminUserId);
 		assertNotNull(clone);
@@ -212,7 +210,7 @@ public class WikiControllerTest extends AbstractAutowiredControllerTestBase {
 		assertNotNull(child.getId());
 		WikiPageKey childKey = WikiPageKeyHelper.createWikiPageKey(ownerId, ownerType, child.getId());
 		toDelete.add(childKey);
-		assertEquals(initialCount + 2, v2WikiPageDao.getCount());
+		assertEquals(2, v2WikiPageDao.getCount());
 		// List the hierarchy
 		PaginatedResults<WikiHeader> paginated = entityServletHelper.getWikiHeaderTree(adminUserId, ownerId, ownerType);
 		assertNotNull(paginated);
@@ -276,6 +274,6 @@ public class WikiControllerTest extends AbstractAutowiredControllerTestBase {
 		} catch (NotFoundException e) {
 			// this is expected
 		}
-		assertEquals(initialCount, v2WikiPageDao.getCount());
+		assertEquals(0, v2WikiPageDao.getCount());
 	}
 }

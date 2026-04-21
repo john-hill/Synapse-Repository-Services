@@ -159,12 +159,13 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 		// Verify actual document content — this is the deep check so higher-level
 		// tests can trust the DAO and just do count/spot checks.
+		// Note: convertResponse translates column IDs back to names using idToName map.
 		results.getHits().forEach(hit -> {
 			assertNotNull(hit.getFields(), "Hit should have fields");
-			assertTrue(hit.getFields().stream().anyMatch(f -> "1".equals(f.getName())),
-					"Hit should have field '1' (title column)");
+			assertTrue(hit.getFields().stream().anyMatch(f -> "title".equals(f.getName())),
+					"Hit should have field 'title' (translated from column ID '1')");
 			String titleValue = hit.getFields().stream()
-					.filter(f -> "1".equals(f.getName()))
+					.filter(f -> "title".equals(f.getName()))
 					.findFirst().get().getValue();
 			assertTrue(titleValue.contains("mitochondria"),
 					"Title field should contain 'mitochondria', got: " + titleValue);

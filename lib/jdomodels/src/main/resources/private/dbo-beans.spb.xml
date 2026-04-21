@@ -131,7 +131,9 @@
 				<bean class="org.sagebionetworks.repo.model.dbo.dao.dataaccess.DBODataAccessNotification" />
 				<bean class="org.sagebionetworks.repo.model.dbo.dao.dataaccess.DBOSubmissionAccessorChange" />
 				<bean class="org.sagebionetworks.repo.model.dbo.dao.dataaccess.DBOAccessRequirementProject" />
-				
+
+				<bean class="org.sagebionetworks.repo.model.dbo.persistence.discussion.DBODiscussionThreadSubmissionReference" />
+
 				<!-- Forms -->
 				<bean class="org.sagebionetworks.repo.model.dbo.form.DBOFormGroup" />
 				<bean class="org.sagebionetworks.repo.model.dbo.form.DBOFormData" />
@@ -299,6 +301,7 @@
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.DBOVerificationState" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.discussion.DBOForum" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.discussion.DBODiscussionThread" />
+				<bean class="org.sagebionetworks.repo.model.dbo.persistence.discussion.DBODiscussionThreadSubmissionReference" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.discussion.DBODiscussionReply" />
 				<bean class="org.sagebionetworks.repo.model.dbo.persistence.subscription.DBOSubscription" />
 				<bean class="org.sagebionetworks.repo.model.message.DBOBroadcastMessage" />

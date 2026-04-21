@@ -1169,6 +1169,117 @@ public class GridIndexDaoImplTest {
 		
 	}
 
+	@Test
+	public void testStreamConstants() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		List<ConstantNode> nodes = List.of(
+				new ConstantNode().setId(ids.get(0)).setValue(new ConValue(ConType.STRING, "a")),
+				new ConstantNode().setId(ids.get(1)).setValue(new ConValue(ConType.STRING, "b")),
+				new ConstantNode().setId(ids.get(2)).setValue(new ConValue(ConType.STRING, "c"))
+		);
+		gridIndexDao.saveNewConstants(sessionIdOne, replicaIdOne, nodes);
+
+		// call under test - first page
+		List<ConstantNode> result = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 2, null);
+		assertEquals(2, result.size());
+
+		// second page using last seen cursor
+		result = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 2, result.get(result.size() - 1).getId());
+		assertEquals(1, result.size());
+
+		// all nodes in one page from start
+		result = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 100, null);
+		assertEquals(3, result.size());
+	}
+
+	@Test
+	public void testStreamObjects() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		List<ObjectNode> nodes = List.of(
+				new ObjectNode().setId(ids.get(0)).setValue(Collections.singletonMap("k", ids.get(1))),
+				new ObjectNode().setId(ids.get(2)).setValue(Collections.singletonMap("j", ids.get(3)))
+		);
+		gridIndexDao.saveObjects(sessionIdOne, replicaIdOne, nodes);
+
+		// call under test - first page of size 1
+		List<ObjectNode> result = gridIndexDao.streamObjects(sessionIdOne, replicaIdOne, 1, null);
+		assertEquals(1, result.size());
+
+		// all nodes in one page from start
+		result = gridIndexDao.streamObjects(sessionIdOne, replicaIdOne, 100, null);
+		assertEquals(2, result.size());
+	}
+
+	@Test
+	public void testStreamValuesExcludesRoot() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		LogicalTimestamp rootId = new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L);
+		List<ValueNode> nodes = List.of(
+				new ValueNode().setId(rootId).setValue(ids.get(0)),
+				new ValueNode().setId(ids.get(1)).setValue(ids.get(2)),
+				new ValueNode().setId(ids.get(3)).setValue(ids.get(4))
+		);
+		gridIndexDao.saveValues(sessionIdOne, replicaIdOne, nodes);
+
+		// call under test - should exclude the root (0,0) node
+		List<ValueNode> result = gridIndexDao.streamValues(sessionIdOne, replicaIdOne, 100, null);
+		assertEquals(2, result.size());
+		assertTrue(result.stream().noneMatch(v -> v.getId().getReplicaId() == 0L && v.getId().getSequenceNumber() == 0L));
+	}
+
+	@Test
+	public void testStreamVectors() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		Map<Integer, ConstantNode> vectorValues = new LinkedHashMap<>();
+		vectorValues.put(0, new ConstantNode().setId(ids.get(5)).setValue(new ConValue(ConType.STRING, "v")));
+		List<VectorNode> nodes = List.of(
+				new VectorNode().setId(ids.get(0)).setValues(vectorValues),
+				new VectorNode().setId(ids.get(1)).setValues(vectorValues)
+		);
+		gridIndexDao.saveVectors(sessionIdOne, replicaIdOne, nodes);
+
+		// call under test - first page of size 1
+		List<VectorNode> result = gridIndexDao.streamVectors(sessionIdOne, replicaIdOne, 1, null);
+		assertEquals(1, result.size());
+
+		// all nodes in one page from start
+		result = gridIndexDao.streamVectors(sessionIdOne, replicaIdOne, 100, null);
+		assertEquals(2, result.size());
+	}
+
+	@Test
+	public void testGetAllArrayIds() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		LogicalTimestamp arrId1 = ids.get(0);
+		LogicalTimestamp arrId2 = ids.get(1);
+		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.arr, List.of(arrId1, arrId2));
+		// Also save some non-array indices
+		gridIndexDao.saveIndex(sessionIdOne, replicaIdOne, IndexType.con, List.of(ids.get(2)));
+
+		// call under test
+		List<LogicalTimestamp> result = gridIndexDao.getAllArrayIds(sessionIdOne, replicaIdOne);
+		assertEquals(2, result.size());
+	}
+
+	@Test
+	public void testStreamConstantsWithPagination() {
+		gridIndexDao.createReplicaIfNotExists(sessionIdOne, replicaIdOne);
+		List<ConstantNode> nodes = new ArrayList<>();
+		for (int i = 0; i < 5; i++) {
+			nodes.add(new ConstantNode().setId(ids.get(i)).setValue(new ConValue(ConType.LONG, (long) i)));
+		}
+		gridIndexDao.saveNewConstants(sessionIdOne, replicaIdOne, nodes);
+
+		// Read in pages of 2 using keyset pagination
+		List<ConstantNode> page1 = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 2, null);
+		List<ConstantNode> page2 = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 2, page1.get(page1.size() - 1).getId());
+		List<ConstantNode> page3 = gridIndexDao.streamConstants(sessionIdOne, replicaIdOne, 2, page2.get(page2.size() - 1).getId());
+
+		assertEquals(2, page1.size());
+		assertEquals(2, page2.size());
+		assertEquals(1, page3.size());
+	}
+
 	/**
 	 * Helper to create a new array.
 	 *

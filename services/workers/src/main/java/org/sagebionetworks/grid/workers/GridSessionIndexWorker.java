@@ -7,6 +7,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.asynchronous.workers.changes.ChangeMessageDrivenRunner;
 import org.sagebionetworks.repo.manager.grid.GridManager;
+import org.sagebionetworks.repo.manager.grid.GridSnapshotExportRequester;
 import org.sagebionetworks.repo.manager.grid.response.GridEventResponsePublisher;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.grid.EventContext;
@@ -31,10 +32,13 @@ public class GridSessionIndexWorker implements ChangeMessageDrivenRunner {
 
 	private final GridManager gridManager;
 	private final GridEventResponsePublisher publisher;
+	private final GridSnapshotExportRequester snapshotExportRequester;
 
-	public GridSessionIndexWorker(GridManager gridManager, GridEventResponsePublisher publisher) {
+	public GridSessionIndexWorker(GridManager gridManager, GridEventResponsePublisher publisher,
+			GridSnapshotExportRequester snapshotExportRequester) {
 		this.gridManager = gridManager;
 		this.publisher = publisher;
+		this.snapshotExportRequester = snapshotExportRequester;
 	}
 
 	@Override
@@ -50,10 +54,11 @@ public class GridSessionIndexWorker implements ChangeMessageDrivenRunner {
 			return;
 		}
 		log.info("Firing new-patch for grid session: {}", sessionId);
-		//
 		publisher.publishEventResponses(
 				List.of(new EventContext(EventType.MESSAGE, EventSource.INTERNAL,
 						connection.get().getConnectionId())),
 				JsonRxMessageType.Notification, "new-patch");
+		// Additionally, see if a new snapshot should be created.
+		snapshotExportRequester.requestSnapshotExportIfNeeded(sessionId);
 	}
 }

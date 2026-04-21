@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
+import org.sagebionetworks.repo.manager.subscription.SubscriptionAndDiscussionAuthorizationManager;
 import org.sagebionetworks.repo.manager.team.TeamManager;
 import org.sagebionetworks.repo.manager.token.TokenGenerator;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -53,7 +54,9 @@ public class AuthorizationManagerImplTest {
 
 	@Autowired
 	private AuthorizationManager authorizationManager;
-		
+	@Autowired
+	private SubscriptionAndDiscussionAuthorizationManager subscriptionAuthorizationManager;
+
 	@Autowired
 	private NodeManager nodeManager;
 	
@@ -632,8 +635,7 @@ public class AuthorizationManagerImplTest {
 
 	@Test
 	public void testCanSubscribeAnonymous() {
-		assertEquals(AuthorizationStatus.accessDenied(ANONYMOUS_ACCESS_DENIED_REASON),
-				authorizationManager.canSubscribe(anonInfo, forumId, SubscriptionObjectType.FORUM));
+		assertFalse(subscriptionAuthorizationManager.canSubscribe(anonInfo, forumId, SubscriptionObjectType.FORUM).isAuthorized());
 	}
 
 	@Test

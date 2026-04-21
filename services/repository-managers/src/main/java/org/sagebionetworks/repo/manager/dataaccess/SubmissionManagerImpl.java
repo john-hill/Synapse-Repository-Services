@@ -53,8 +53,16 @@ import org.sagebionetworks.repo.model.dataaccess.SubmissionStatus;
 import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResponse;
 import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResult;
+import org.sagebionetworks.ids.IdGenerator;
+import org.sagebionetworks.ids.IdType;
+import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
+import org.sagebionetworks.repo.model.UploadContentToS3DAO;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.ResearchProjectDAO;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.SubmissionDAO;
+import org.sagebionetworks.repo.model.dbo.dao.discussion.DiscussionThreadDAO;
+import org.sagebionetworks.repo.model.dbo.dao.discussion.ForumDAO;
+import org.sagebionetworks.repo.model.discussion.Forum;
+import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.sagebionetworks.repo.model.message.ChangeType;
 import org.sagebionetworks.repo.model.message.MessageToSend;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
@@ -78,12 +86,17 @@ public class SubmissionManagerImpl implements SubmissionManager{
 	private TransactionalMessenger transactionalMessenger;
 	private AccessApprovalManager accessAprovalManager;
 	private DataAccessAuthorizationManager authorizationManager;
-	
+	private ForumDAO forumDao;
+	private DiscussionThreadDAO threadDao;
+	private UploadContentToS3DAO uploadDao;
+	private IdGenerator idGenerator;
+
 	@Autowired
 	public SubmissionManagerImpl(AccessRequirementDAO accessRequirementDao, RequestManager requestManager,
 			ResearchProjectDAO researchProjectDao, SubmissionDAO submissionDao, AccessApprovalDAO accessApprovalDao,
 			SubscriptionDAO subscriptionDao, TransactionalMessenger transactionalMessenger, AccessApprovalManager accessAprovalManager,
-			DataAccessAuthorizationManager authorizationManager) {
+			DataAccessAuthorizationManager authorizationManager, ForumDAO forumDao, DiscussionThreadDAO threadDao,
+			UploadContentToS3DAO uploadDao, IdGenerator idGenerator) {
 		this.accessRequirementDao = accessRequirementDao;
 		this.requestManager = requestManager;
 		this.researchProjectDao = researchProjectDao;
@@ -93,6 +106,10 @@ public class SubmissionManagerImpl implements SubmissionManager{
 		this.transactionalMessenger = transactionalMessenger;
 		this.accessAprovalManager = accessAprovalManager;
 		this.authorizationManager = authorizationManager;
+		this.forumDao = forumDao;
+		this.threadDao = threadDao;
+		this.uploadDao = uploadDao;
+		this.idGenerator = idGenerator;
 	}
 
 	@WriteTransaction
@@ -118,6 +135,8 @@ public class SubmissionManagerImpl implements SubmissionManager{
 		SubmissionStatus status = submissionDao.createSubmission(submissionToCreate);
 		subscriptionDao.create(userInfo.getId().toString(), status.getSubmissionId(), SubscriptionObjectType.DATA_ACCESS_SUBMISSION_STATUS);
 
+		createThreadForSubmission(submissionToCreate.getAccessRequirementId(), status.getSubmissionId());
+
 		MessageToSend changeMessage = new MessageToSend()
 				.withUserId(userInfo.getId())
 				.withObjectType(ObjectType.DATA_ACCESS_SUBMISSION)
@@ -139,6 +158,16 @@ public class SubmissionManagerImpl implements SubmissionManager{
 	 * 
 	 * @param submissionId
 	 */
+	private void createThreadForSubmission(String accessRequirementId, String submissionId) {
+		Forum forum = forumDao.getForumByObjectIdAndType(accessRequirementId, ForumObjectType.ACCESS_REQUIREMENT);
+		Long threadId = idGenerator.generateNewId(IdType.DISCUSSION_THREAD_ID);
+		String title = "submissionId:" + submissionId;
+        String messageKey = UUID.randomUUID().toString();
+        long senderUserId = BOOTSTRAP_PRINCIPAL.DATA_ACCESS_NOTFICATIONS_SENDER.getPrincipalId();
+        threadDao.createThread(forum.getId(), threadId.toString(), title, messageKey, senderUserId);
+        threadDao.insertSubmissionReference(threadId.toString(), submissionId);
+    }
+
 	private void sendLocalEventAfterCommit(String submissionId) {
 		transactionalMessenger.publishMessageAfterCommit(new DataAccessSubmissionEvent().setObjectId(submissionId)
 				.setObjectType(ObjectType.DATA_ACCESS_SUBMISSION_EVENT).setTimestamp(Instant.now().toDate()));

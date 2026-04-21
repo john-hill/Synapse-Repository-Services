@@ -283,6 +283,10 @@
 			"description": "TODO: Auto-generated description"
 		},
 		{
+			"name": "DISCUSSION_THREAD_SUBMISSION_REFERENCE",
+			"description": "Links discussion threads to data access submissions"
+		},
+		{
 			"name": "DISCUSSION_REPLY",
 			"description": "TODO: Auto-generated description"
 		},

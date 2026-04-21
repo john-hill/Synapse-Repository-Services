@@ -811,5 +811,96 @@ public class GridIndexDaoImpl implements GridIndexDao {
 		return max != null ? max : 1L;
 	}
 
+	@Override
+	public List<ConstantNode> streamConstants(String sessionIdString, Long replicaId, long limit, LogicalTimestamp lastSeen) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		if (lastSeen == null) {
+			return jdbcTemplate.query(
+					"SELECT CON_REP, CON_SEQ, CON_VAL FROM GRID_REPLICA_CON"
+							+ " WHERE SESSION_ID = ? AND REPLICA_ID = ?"
+							+ " ORDER BY CON_REP, CON_SEQ LIMIT ?",
+					CONSTANT_NODE_MAPPER, sessionId, replicaId, limit);
+		} else {
+			return jdbcTemplate.query(
+					"SELECT CON_REP, CON_SEQ, CON_VAL FROM GRID_REPLICA_CON"
+							+ " WHERE SESSION_ID = ? AND REPLICA_ID = ?"
+							+ " AND ((CON_REP = ? AND CON_SEQ > ?) OR CON_REP > ?)"
+							+ " ORDER BY CON_REP, CON_SEQ LIMIT ?",
+					CONSTANT_NODE_MAPPER, sessionId, replicaId,
+					lastSeen.getReplicaId(), lastSeen.getSequenceNumber(), lastSeen.getReplicaId(), limit);
+		}
+	}
+
+	@Override
+	public List<ObjectNode> streamObjects(String sessionIdString, Long replicaId, long limit, LogicalTimestamp lastSeen) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		if (lastSeen == null) {
+			return jdbcTemplate.query(
+					"SELECT OBJ_REP, OBJ_SEQ, OBJ_VAL FROM GRID_REPLICA_OBJ"
+							+ " WHERE SESSION_ID = ? AND REPLICA_ID = ?"
+							+ " ORDER BY OBJ_REP, OBJ_SEQ LIMIT ?",
+					OBJECT_NODE_MAPPER, sessionId, replicaId, limit);
+		} else {
+			return jdbcTemplate.query(
+					"SELECT OBJ_REP, OBJ_SEQ, OBJ_VAL FROM GRID_REPLICA_OBJ"
+							+ " WHERE SESSION_ID = ? AND REPLICA_ID = ?"
+							+ " AND ((OBJ_REP = ? AND OBJ_SEQ > ?) OR OBJ_REP > ?)"
+							+ " ORDER BY OBJ_REP, OBJ_SEQ LIMIT ?",
+					OBJECT_NODE_MAPPER, sessionId, replicaId,
+					lastSeen.getReplicaId(), lastSeen.getSequenceNumber(), lastSeen.getReplicaId(), limit);
+		}
+	}
+
+	@Override
+	public List<ValueNode> streamValues(String sessionIdString, Long replicaId, long limit, LogicalTimestamp lastSeen) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		if (lastSeen == null) {
+			return jdbcTemplate.query(
+					"SELECT VAL_REP, VAL_SEQ, VAL_REF FROM GRID_REPLICA_VAL"
+							+ " WHERE SESSION_ID = ? AND REPLICA_ID = ? AND NOT (VAL_REP = 0 AND VAL_SEQ = 0)"
+							+ " ORDER BY VAL_REP, VAL_SEQ LIMIT ?",
+					VALUE_NODE_MAPPER, sessionId, replicaId, limit);
+		} else {
+			return jdbcTemplate.query(
+					"SELECT VAL_REP, VAL_SEQ, VAL_REF FROM GRID_REPLICA_VAL"
+							+ " WHERE SESSION_ID = ? AND REPLICA_ID = ? AND NOT (VAL_REP = 0 AND VAL_SEQ = 0)"
+							+ " AND ((VAL_REP = ? AND VAL_SEQ > ?) OR VAL_REP > ?)"
+							+ " ORDER BY VAL_REP, VAL_SEQ LIMIT ?",
+					VALUE_NODE_MAPPER, sessionId, replicaId,
+					lastSeen.getReplicaId(), lastSeen.getSequenceNumber(), lastSeen.getReplicaId(), limit);
+		}
+	}
+
+	@Override
+	public List<VectorNode> streamVectors(String sessionIdString, Long replicaId, long limit, LogicalTimestamp lastSeen) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		if (lastSeen == null) {
+			return jdbcTemplate.query(
+					"SELECT VEC_REP, VEC_SEQ, VEC_VAL FROM GRID_REPLICA_VEC"
+							+ " WHERE SESSION_ID = ? AND REPLICA_ID = ?"
+							+ " ORDER BY VEC_REP, VEC_SEQ LIMIT ?",
+					VECTOR_NODE_MAPPER, sessionId, replicaId, limit);
+		} else {
+			return jdbcTemplate.query(
+					"SELECT VEC_REP, VEC_SEQ, VEC_VAL FROM GRID_REPLICA_VEC"
+							+ " WHERE SESSION_ID = ? AND REPLICA_ID = ?"
+							+ " AND ((VEC_REP = ? AND VEC_SEQ > ?) OR VEC_REP > ?)"
+							+ " ORDER BY VEC_REP, VEC_SEQ LIMIT ?",
+					VECTOR_NODE_MAPPER, sessionId, replicaId,
+					lastSeen.getReplicaId(), lastSeen.getSequenceNumber(), lastSeen.getReplicaId(), limit);
+		}
+	}
+
+	@Override
+	public List<LogicalTimestamp> getAllArrayIds(String sessionIdString, Long replicaId) {
+		Long sessionId = validateReplica(sessionIdString, replicaId);
+		return jdbcTemplate.query(
+				"SELECT NODE_REP, NODE_SEQ FROM GRID_REPLICA_INDEX"
+						+ " WHERE SESSION_ID = ? AND REPLICA_ID = ? AND KIND = 'arr'",
+				(ResultSet rs, int rowNum) -> new LogicalTimestamp()
+						.setReplicaId(rs.getLong("NODE_REP"))
+						.setSequenceNumber(rs.getLong("NODE_SEQ")),
+				sessionId, replicaId);
+	}
 
 }

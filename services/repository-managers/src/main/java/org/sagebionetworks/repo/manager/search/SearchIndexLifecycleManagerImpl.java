@@ -193,7 +193,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 						}
 						appliedConfigJson[0] = openSearchManager.createIndex(indexName,
 								selectedColumns, defaultAnalyzer,
-								synonymSets, overrides, analyzers);
+								synonymSets, overrides, analyzers).orElse(null);
 						return new SearchIndexRowHandler(indexName, selectColumns,
 								openSearchManager);
 					}, ACCESS_TYPE.READ);

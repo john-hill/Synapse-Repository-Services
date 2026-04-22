@@ -83,6 +83,8 @@ import org.sagebionetworks.repo.model.dataaccess.SubmissionState;
 import org.sagebionetworks.repo.model.dataaccess.SubmissionStatus;
 import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResponse;
+import org.sagebionetworks.repo.model.discussion.CreateDiscussionReply;
+import org.sagebionetworks.repo.model.discussion.DiscussionReplyBundle;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.file.CloudProviderFileHandleInterface;
 import org.sagebionetworks.repo.model.file.FileHandleAssociateType;
@@ -1184,5 +1186,16 @@ public class ITDataAccessTest {
 		assertNotNull(thread.getId());
 		assertNotNull(thread.getForumId());
 		assertEquals(forum.getId(), thread.getForumId());
+
+		//create a reply
+		CreateDiscussionReply replyToCreate = new CreateDiscussionReply();
+		replyToCreate.setThreadId(thread.getId());
+		String message = "This is test message";
+		replyToCreate.setMessageMarkdown(message);
+
+		DiscussionReplyBundle replyBundle = adminSynapse.createReply(replyToCreate);
+		assertEquals(thread.getId(), replyBundle.getThreadId());
+		assertEquals(managedAR.getId().toString(), replyBundle.getObjectId());
+		assertEquals(ForumObjectType.ACCESS_REQUIREMENT, replyBundle.getObjectType());
 	}
 }

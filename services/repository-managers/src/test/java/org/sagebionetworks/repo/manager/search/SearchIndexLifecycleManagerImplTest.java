@@ -149,6 +149,37 @@ public class SearchIndexLifecycleManagerImplTest {
 	}
 
 	@Test
+	public void testHandleCreateTruncatesLongErrorMessage() throws Exception {
+		// A malformed defining-SQL error message can be arbitrarily long (stack-trace-like
+		// messages from the table query layer), but the status table column caps at 3000
+		// chars. Verify the manager truncates before persisting so the write succeeds.
+		UserInfo triggering = triggeringUser();
+		SearchIndex searchIndex = new SearchIndex();
+		searchIndex.setDefiningSQL(DEFINING_SQL);
+		searchIndex.setParentId("syn100");
+
+		String longMessage = "x".repeat(5000);
+
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
+		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
+		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
+		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
+		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
+				.thenThrow(new RuntimeException(longMessage));
+
+		// call under test
+		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao, org.mockito.Mockito.times(2)).createOrUpdate(captor.capture());
+		SearchIndexStatus failed = captor.getAllValues().get(1);
+		assertEquals(SearchIndexState.FAILED, failed.getState());
+		assertEquals(3000, failed.getErrorMessage().length(),
+				"Error message should be truncated to MAX_ERROR_MESSAGE_LENGTH");
+	}
+
+	@Test
 	public void testHandleCreateExceedsMaxRowsRecordsFailed() throws Exception {
 		UserInfo triggering = triggeringUser();
 		SearchIndex searchIndex = new SearchIndex();

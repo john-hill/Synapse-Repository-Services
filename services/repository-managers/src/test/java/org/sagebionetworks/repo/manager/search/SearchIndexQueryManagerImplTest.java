@@ -36,15 +36,22 @@ import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
 import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
+import org.sagebionetworks.repo.model.search.FacetRequest;
+import org.sagebionetworks.repo.model.search.KeyRange;
+import org.sagebionetworks.repo.model.search.KeyValues;
 import org.sagebionetworks.repo.model.search.SearchFieldValue;
 import org.sagebionetworks.repo.model.search.SearchHit;
 import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
+import org.sagebionetworks.repo.model.search.SortDirection;
+import org.sagebionetworks.repo.model.search.SortField;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
 import org.sagebionetworks.repo.model.search.table.SearchIndexState;
 import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
+import org.sagebionetworks.repo.model.table.FacetColumnResult;
+import org.sagebionetworks.repo.model.table.FacetColumnResultValues;
 import org.sagebionetworks.table.cluster.ConnectionFactory;
 import org.sagebionetworks.table.cluster.description.TableIndexDescription;
 import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
@@ -265,6 +272,113 @@ public class SearchIndexQueryManagerImplTest {
 		assertEquals(NAME_COLUMN, hit.getHighlights().get(0).getName());
 
 		verify(openSearchManager).search(eq("search-index-1"), any(), any(), any(), any(), any());
+	}
+
+	/**
+	 * Columns with special characters in their names (spaces, apostrophes, parens, dots,
+	 * brackets) must round-trip through the translation layer: user-facing names going in
+	 * get mapped to column IDs before reaching OpenSearch, and the IDs coming back in
+	 * results get translated back to the original names. This used to require an end-to-end
+	 * IT to verify, but the logic is entirely local to the manager — OpenSearch only ever
+	 * sees numeric column IDs, so the special characters never leave this layer.
+	 */
+	@Test
+	public void testSearchWithSpecialCharColumnNames() {
+		// Columns whose names would be problematic if used as OpenSearch field names directly
+		String studyNameId = "101";
+		String diagnosisId = "102";
+		String ageId = "103";
+		String dataFieldId = "104";
+		String metadataId = "105";
+		ColumnModel studyName = TableModelTestUtils.createColumn(Long.parseLong(studyNameId),
+				"Study Name", ColumnType.STRING);
+		ColumnModel diagnosis = TableModelTestUtils.createColumn(Long.parseLong(diagnosisId),
+				"patient's diagnosis", ColumnType.STRING);
+		ColumnModel age = TableModelTestUtils.createColumn(Long.parseLong(ageId),
+				"Age (years)", ColumnType.INTEGER);
+		ColumnModel dataField = TableModelTestUtils.createColumn(Long.parseLong(dataFieldId),
+				"data.field", ColumnType.STRING);
+		ColumnModel metadata = TableModelTestUtils.createColumn(Long.parseLong(metadataId),
+				"[metadata]", ColumnType.STRING);
+		List<ColumnModel> schema = Arrays.asList(studyName, diagnosis, age, dataField, metadata);
+
+		SearchIndex si = setupSearchIndex();
+		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
+		setupAuthMocks();
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getStatus(1L)).thenReturn(Optional.of(
+				new SearchIndexStatus().setSearchIndexId(SEARCH_INDEX_ID).setState(SearchIndexState.ACTIVE)));
+		when(searchConfigurationResolver.resolve(user, null, "syn789")).thenReturn(Optional.empty());
+		when(tableManagerSupport.getIndexDescription(SOURCE_ID)).thenReturn(new TableIndexDescription(SOURCE_ID));
+		when(tableManagerSupport.getTableSchema(SOURCE_ID)).thenReturn(schema);
+		for (ColumnModel cm : schema) {
+			when(tableManagerSupport.getColumnModel(cm.getId())).thenReturn(cm);
+		}
+		when(textAnalyzerDao.getByQualifiedNames(anyList())).thenReturn(Collections.emptyMap());
+
+		// Build results shaped like what OpenSearch would return: fields keyed by ID, a
+		// highlight keyed by "id.searchable", and a facet keyed by ID. These should all be
+		// translated back to their special-char original names.
+		SearchHit hit = new SearchHit();
+		hit.setRowId(1L);
+		hit.setFields(new ArrayList<>(Arrays.asList(
+				new SearchFieldValue().setName(studyNameId).setValue("Alzheimer Study"),
+				new SearchFieldValue().setName(ageId).setValue("65"))));
+		hit.setHighlights(new ArrayList<>(Collections.singletonList(
+				new SearchFieldValue().setName(studyNameId + ".searchable").setValue("<em>Alzheimer</em> Study"))));
+		FacetColumnResult facetResult = new FacetColumnResultValues().setColumnName(diagnosisId);
+		SearchQueryResults raw = new SearchQueryResults()
+				.setTotalHits(1L)
+				.setHits(new ArrayList<>(Collections.singletonList(hit)))
+				.setFacets(new ArrayList<>(Collections.singletonList(facetResult)));
+		when(openSearchManager.search(eq("search-index-1"), any(), any(), any(), any(), any()))
+				.thenReturn(raw);
+
+		// Build a SearchQuery exercising every translation path with special-char names
+		SearchQuery query = new SearchQuery();
+		query.setQueryText("Alzheimer");
+		query.setQueryFields(new ArrayList<>(Arrays.asList("Study Name", "data.field^3")));
+		query.setTermsFilters(new ArrayList<>(Collections.singletonList(
+				new KeyValues().setKey("Study Name").setValues(Arrays.asList("Alzheimer Study")))));
+		query.setRangeFilters(new ArrayList<>(Collections.singletonList(
+				new KeyRange().setKey("Age (years)").setMin("0").setMax("100"))));
+		query.setFacetRequests(new ArrayList<>(Collections.singletonList(
+				new FacetRequest().setColumnName("patient's diagnosis").setMaxValueCount(10L))));
+		query.setExistsFilters(new ArrayList<>(Collections.singletonList("[metadata]")));
+		query.setNotExistsFilters(new ArrayList<>(Collections.singletonList("data.field")));
+		query.setReturnFields(new ArrayList<>(Arrays.asList("Study Name", "Age (years)")));
+		query.setSort(new ArrayList<>(Arrays.asList(
+				new SortField().setColumnName("Age (years)").setDirection(SortDirection.ASC),
+				new SortField().setColumnName("_score").setDirection(SortDirection.DESC))));
+
+		// call under test
+		SearchQueryResults results = manager.search(user, SEARCH_INDEX_ID, query);
+
+		// Verify the query reached OpenSearch with every user-facing name translated to an ID
+		ArgumentCaptor<SearchQuery> captor = ArgumentCaptor.forClass(SearchQuery.class);
+		verify(openSearchManager).search(eq("search-index-1"), captor.capture(), any(), any(), any(), any());
+		SearchQuery translated = captor.getValue();
+
+		assertEquals(Arrays.asList(studyNameId, dataFieldId + "^3"), translated.getQueryFields());
+		assertEquals(studyNameId, translated.getTermsFilters().get(0).getKey());
+		assertEquals(ageId, translated.getRangeFilters().get(0).getKey());
+		assertEquals(diagnosisId, translated.getFacetRequests().get(0).getColumnName());
+		assertEquals(Collections.singletonList(metadataId), translated.getExistsFilters());
+		assertEquals(Collections.singletonList(dataFieldId), translated.getNotExistsFilters());
+		assertEquals(Arrays.asList(studyNameId, ageId), translated.getReturnFields());
+		assertEquals(ageId, translated.getSort().get(0).getColumnName());
+		// "_score" is never a column name — it must be left alone
+		assertEquals("_score", translated.getSort().get(1).getColumnName());
+
+		// Verify result IDs were translated back to special-char original names
+		assertEquals(1L, results.getTotalHits());
+		SearchHit resultHit = results.getHits().get(0);
+		assertEquals("Study Name", resultHit.getFields().get(0).getName());
+		assertEquals("Age (years)", resultHit.getFields().get(1).getName());
+		// Highlight strips ".searchable" suffix and translates ID back to name
+		assertEquals("Study Name", resultHit.getHighlights().get(0).getName());
+		// Facet column name translates back to its apostrophe-containing original
+		assertEquals("patient's diagnosis", results.getFacets().get(0).getColumnName());
 	}
 
 	@Test

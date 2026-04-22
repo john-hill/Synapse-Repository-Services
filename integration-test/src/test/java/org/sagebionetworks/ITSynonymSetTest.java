@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,13 +40,17 @@ public class ITSynonymSetTest {
 		ListTextAnalyzersResponse analyzers = adminSynapse.listTextAnalyzers(new ListTextAnalyzersRequest());
 		String orgName = analyzers.getResults().get(0).getOrganizationName();
 
+		// Names are unique per organization with no delete endpoint, so use a UUID
+		// suffix to avoid collisions across re-runs of the test.
+		String name = "IT_TEST_SYNONYMS_" + UUID.randomUUID().toString().replace("-", "");
+
 		// CREATE
 		SynonymRule rule = new SynonymRule();
 		rule.setRuleType(SynonymRuleType.EQUIVALENT);
 		rule.setTerms(Arrays.asList("cancer", "tumor", "neoplasm"));
 
 		SynonymSet toCreate = new SynonymSet();
-		toCreate.setName("IT_TEST_SYNONYMS");
+		toCreate.setName(name);
 		toCreate.setDescription("Integration test synonym set");
 		toCreate.setOrganizationName(orgName);
 		toCreate.setRules(Arrays.asList(rule));
@@ -54,14 +59,14 @@ public class ITSynonymSetTest {
 		SynonymSet created = adminSynapse.createSynonymSet(toCreate);
 		assertNotNull(created.getId());
 		assertNotNull(created.getEtag());
-		assertEquals("IT_TEST_SYNONYMS", created.getName());
+		assertEquals(name, created.getName());
 		assertEquals(1, created.getRules().size());
 
 		// call under test
 		SynonymSet fetched = adminSynapse.getSynonymSet(created.getId());
 		assertEquals(created.getId(), fetched.getId());
 		assertEquals(created.getEtag(), fetched.getEtag());
-		assertEquals("IT_TEST_SYNONYMS", fetched.getName());
+		assertEquals(name, fetched.getName());
 		assertEquals(1, fetched.getRules().size());
 		assertEquals(SynonymRuleType.EQUIVALENT, fetched.getRules().get(0).getRuleType());
 

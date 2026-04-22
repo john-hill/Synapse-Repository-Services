@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,6 +55,13 @@ public class ITSearchConfigurationTest {
 		String orgName = bootstrappedAnalyzer.getOrganizationName();
 		String defaultAnalyzerName = orgName + "-" + bootstrappedAnalyzer.getName();
 
+		// Names are unique per organization with no delete endpoint, so use UUID
+		// suffixes to avoid collisions across re-runs of the test.
+		String uniqueSuffix = UUID.randomUUID().toString().replace("-", "");
+		String synonymName = "IT_CONFIG_SYNONYMS_" + uniqueSuffix;
+		String overrideLocalName = "IT_CONFIG_OVERRIDE_" + uniqueSuffix;
+		String configName = "IT_TEST_CONFIG_" + uniqueSuffix;
+
 		// Create a synonym set to reference
 		SynonymRule equivalentRule = new SynonymRule();
 		equivalentRule.setRuleType(SynonymRuleType.EQUIVALENT);
@@ -62,7 +70,7 @@ public class ITSearchConfigurationTest {
 		explicitRule.setRuleType(SynonymRuleType.EXPLICIT);
 		explicitRule.setTerms(Arrays.asList("AD", "Alzheimer's disease"));
 		SynonymSet synonymSet = new SynonymSet();
-		synonymSet.setName("IT_CONFIG_SYNONYMS");
+		synonymSet.setName(synonymName);
 		synonymSet.setOrganizationName(orgName);
 		synonymSet.setRules(Arrays.asList(equivalentRule, explicitRule));
 		SynonymSet createdSynonymSet = adminSynapse.createSynonymSet(synonymSet);
@@ -74,7 +82,7 @@ public class ITSearchConfigurationTest {
 		entry.setIndexAnalyzer(defaultAnalyzerName);
 		entry.setSearchAnalyzer(defaultAnalyzerName);
 		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride();
-		override.setName("IT_CONFIG_OVERRIDE");
+		override.setName(overrideLocalName);
 		override.setOrganizationName(orgName);
 		override.setOverrides(Collections.singletonList(entry));
 		ColumnAnalyzerOverride createdOverride = adminSynapse.createColumnAnalyzerOverride(override);
@@ -82,7 +90,7 @@ public class ITSearchConfigurationTest {
 
 		// CREATE — include all three reference types
 		SearchConfiguration toCreate = new SearchConfiguration();
-		toCreate.setName("IT_TEST_CONFIG");
+		toCreate.setName(configName);
 		toCreate.setDescription("Integration test search configuration");
 		toCreate.setOrganizationName(orgName);
 		toCreate.setDefaultAnalyzer(defaultAnalyzerName);
@@ -93,7 +101,7 @@ public class ITSearchConfigurationTest {
 		SearchConfiguration created = adminSynapse.createSearchConfiguration(toCreate);
 		assertNotNull(created.getId());
 		assertNotNull(created.getEtag());
-		assertEquals("IT_TEST_CONFIG", created.getName());
+		assertEquals(configName, created.getName());
 		assertEquals("Integration test search configuration", created.getDescription());
 		assertEquals(defaultAnalyzerName, created.getDefaultAnalyzer());
 		assertEquals(Arrays.asList(synonymSetName), created.getSynonymSets());
@@ -133,7 +141,7 @@ public class ITSearchConfigurationTest {
 	public void testBindAndUnbindSearchConfigToEntity() throws SynapseException {
 		// Create a project to bind to
 		Project project = new Project();
-		project.setName("IT_BIND_TEST_PROJECT");
+		project.setName("IT_BIND_TEST_PROJECT_" + UUID.randomUUID().toString().replace("-", ""));
 		Entity createdProject = adminSynapse.createEntity(project);
 
 		try {
@@ -143,7 +151,7 @@ public class ITSearchConfigurationTest {
 			String orgName = analyzers.getResults().get(0).getOrganizationName();
 
 			SearchConfiguration config = new SearchConfiguration();
-			config.setName("IT_BIND_CONFIG");
+			config.setName("IT_BIND_CONFIG_" + UUID.randomUUID().toString().replace("-", ""));
 			config.setOrganizationName(orgName);
 			SearchConfiguration createdConfig = adminSynapse.createSearchConfiguration(config);
 

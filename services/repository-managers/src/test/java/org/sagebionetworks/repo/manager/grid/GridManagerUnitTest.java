@@ -106,6 +106,7 @@ import org.sagebionetworks.repo.model.grid.query.QueryRequest;
 import org.sagebionetworks.repo.model.grid.query.result.QueryResult;
 import org.sagebionetworks.repo.model.table.Query;
 import org.sagebionetworks.repo.web.NotFoundException;
+import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.transfer.TransferManager;
@@ -1820,7 +1821,7 @@ public class GridManagerUnitTest {
 		doNothing().when(gridManager).validateRepicaOwner(mockUser, gridSessionId, replicaId);
 		when(mockGridDao.getSingletonConnection(gridSessionId, EventSource.INTERNAL)).thenReturn(Optional.empty());
 
-		assertThrows(NotFoundException.class, () -> {
+		assertThrows(RecoverableMessageException.class, () -> {
 			// call under test
 			gridManager.queryGrid(mockUser, buildQueryRequest(replicaId));
 		});
@@ -1862,7 +1863,7 @@ public class GridManagerUnitTest {
 		when(mockGridReplicaViewManager.readHeader(gridSessionId, replicaId, replicaId))
 				.thenReturn(Optional.empty());
 
-		assertThrows(NotFoundException.class, () -> {
+		assertThrows(RecoverableMessageException.class, () -> {
 			// call under test
 			gridManager.queryGrid(mockUser, buildQueryRequest(replicaId));
 		});
@@ -2117,7 +2118,7 @@ public class GridManagerUnitTest {
 		doNothing().when(gridManager).validGridSessionAccess(mockUser, gridSessionId);
 		doNothing().when(gridManager).validateRepicaOwner(mockUser, gridSessionId, replicaId);
 		when(mockGridDao.getSingletonConnection(gridSessionId, EventSource.INTERNAL)).thenReturn(Optional.empty());
-		assertThrows(NotFoundException.class, () -> {
+		assertThrows(RecoverableMessageException.class, () -> {
 			// call under test
 			gridManager.updateGrid(mockUser, buildUpdateRequest(replicaId));
 		});
@@ -2134,7 +2135,7 @@ public class GridManagerUnitTest {
 		when(mockGridReplicaViewManager.readHeader(gridSessionId, replicaId, replicaId))
 				.thenReturn(Optional.empty());
 
-		assertThrows(NotFoundException.class, () -> {
+		assertThrows(RecoverableMessageException.class, () -> {
 			// call under test
 			gridManager.updateGrid(mockUser, buildUpdateRequest(replicaId));
 		});

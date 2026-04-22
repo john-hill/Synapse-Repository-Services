@@ -84,6 +84,7 @@ import org.sagebionetworks.repo.model.message.TransactionalMessenger;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.ValidateArgument;
+import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -633,10 +634,10 @@ public class GridManagerImpl implements GridManager {
 		validGridSessionAccess(user, sessionId);
 		validateRepicaOwner(user, sessionId, replicaId);
 		GridConnectionInfo internalConnection = gridDao.getSingletonConnection(sessionId, EventSource.INTERNAL)
-				.orElseThrow(() -> new NotFoundException("No internal connection exists for this grid session."));
+				.orElseThrow(() -> new RecoverableMessageException("No internal connection exists for this grid session."));
 		GridHeader header = gridReplicaViewManager
 				.readHeader(sessionId, internalConnection.getReplicaId(), replicaId)
-				.orElseThrow(() -> new NotFoundException("Grid session does not exist."));
+				.orElseThrow(() -> new RecoverableMessageException("Grid session does not exist."));
 		QueryResult queryResult = gridReplicaViewManager.querySinglePageAsQueryResult(header,
 				new QueryElement(queryRequest.getQuery()));
 		return new GridQueryJobResponse().setQueryResult(queryResult);
@@ -703,10 +704,10 @@ public class GridManagerImpl implements GridManager {
 		validGridSessionAccess(user, sessionId);
 		validateRepicaOwner(user, sessionId, replicaId);
 		GridConnectionInfo internalConnection = gridDao.getSingletonConnection(sessionId, EventSource.INTERNAL)
-				.orElseThrow(() -> new NotFoundException("No internal connection exists for this grid session."));
+				.orElseThrow(() -> new RecoverableMessageException("No internal connection exists for this grid session."));
 		GridHeader header = gridReplicaViewManager
 				.readHeader(sessionId, internalConnection.getReplicaId(), replicaId)
-				.orElseThrow(() -> new NotFoundException("Grid session does not exist."));
+				.orElseThrow(() -> new RecoverableMessageException("Grid session does not exist."));
 		GridConnectionInfo publishingConnection = gridDao.getConnection(sessionId, replicaId)
 				.orElseGet(() -> {
 					String connectionId = UUID.randomUUID().toString();

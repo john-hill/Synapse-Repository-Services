@@ -53,6 +53,8 @@ import org.sagebionetworks.repo.model.grid.GridRecordSetExportRequest;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportResponse;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobRequest;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobResponse;
 import org.sagebionetworks.repo.model.grid.GridReplicaInfo;
 import org.sagebionetworks.repo.model.grid.GridReplicaType;
 import org.sagebionetworks.repo.model.grid.ListGridReplicasRequest;
@@ -61,8 +63,14 @@ import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
 import org.sagebionetworks.repo.model.grid.GridQueryJobRequest;
 import org.sagebionetworks.repo.model.grid.GridQueryJobResponse;
+import org.sagebionetworks.repo.model.grid.query.CellValueFilter;
+import org.sagebionetworks.repo.model.grid.query.CellValueOperator;
 import org.sagebionetworks.repo.model.grid.query.QueryRequest;
 import org.sagebionetworks.repo.model.grid.query.SelectAll;
+import org.sagebionetworks.repo.model.grid.update.GridUpdateRequest;
+import org.sagebionetworks.repo.model.grid.update.LiteralSetValue;
+import org.sagebionetworks.repo.model.grid.update.Update;
+import org.sagebionetworks.repo.model.grid.update.UpdateBatch;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlList;
 import org.sagebionetworks.repo.model.ResourceAccess;
@@ -329,14 +337,20 @@ public class ITGridControllerTest {
     }
 
     @Test
-    public void testQueryGridWithEmptySession() throws Exception {
+    public void testQueryAndUpdateGridWithSession() throws Exception {
+        // A grid requires a data source to establish the INTERNAL connection used for
+        // querying. Use a table-backed grid so the connection is ready after creation.
+        String tableId = createTableForInitialGrid().getId();
+
         CreateGridResponse createGridResponse = (CreateGridResponse) AsyncJobHelper
-                .assertAysncJobResult(synapse, AsynchJobType.CreateGrid, new CreateGridRequest(), body -> {
-                    assertInstanceOf(CreateGridResponse.class, body);
-                    CreateGridResponse r = (CreateGridResponse) body;
-                    assertNotNull(r.getGridSession());
-                    assertNotNull(r.getGridSession().getSessionId());
-                }, MAX_TME_MS, AsyncJobHelper.INFINITE_RETRIES).getResponse();
+                .assertAysncJobResult(synapse, AsynchJobType.CreateGrid,
+                        new CreateGridRequest().setInitialQuery(new Query().setSql("SELECT * FROM " + tableId)),
+                        body -> {
+                            assertInstanceOf(CreateGridResponse.class, body);
+                            CreateGridResponse r = (CreateGridResponse) body;
+                            assertNotNull(r.getGridSession());
+                            assertNotNull(r.getGridSession().getSessionId());
+                        }, MAX_TME_MS, AsyncJobHelper.INFINITE_RETRIES).getResponse();
 
         GridSession session = createGridResponse.getGridSession();
 
@@ -352,24 +366,35 @@ public class ITGridControllerTest {
                         new org.sagebionetworks.repo.model.grid.query.Query()
                                 .setColumnSelection(List.of(new SelectAll()))
                                 .setLimit(10L)));
+        
 
         // call under test
-        String asyncToken = synapse.gridQueryAsyncStart(request);
-        GridQueryJobResponse[] responseHolder = new GridQueryJobResponse[1];
-        TimeUtils.waitFor(MAX_TME_MS, ASYNC_JOB_POLL_TIME_MS, () -> {
-            try {
-                responseHolder[0] = synapse.gridQueryAsyncGet(asyncToken);
-                return Pair.create(true, null);
-            } catch (SynapseResultNotReadyException e) {
-                return Pair.create(false, null);
-            }
-        });
+		GridQueryJobResponse queryResponse = (GridQueryJobResponse) AsyncJobHelper
+				.assertAysncJobResult(synapse, AsynchJobType.GridQuery, request, body -> {
+					assertInstanceOf(GridQueryJobResponse.class, body);
+					GridQueryJobResponse r = (GridQueryJobResponse) body;
+					assertNotNull(r.getQueryResult());
+					assertNotNull(r.getQueryResult().getRows());
+				}, MAX_TME_MS, AsyncJobHelper.INFINITE_RETRIES).getResponse();
+		
+		// call under test
+		GridUpdateJobResponse updateResponse = (GridUpdateJobResponse) AsyncJobHelper.assertAysncJobResult(synapse,
+				AsynchJobType.GridUpdate,
+				new GridUpdateJobRequest().setSessionId(session.getSessionId()).setReplicaId(replicaId)
+						.setUpdateRequest(
+								new GridUpdateRequest().setUpdate(new UpdateBatch().setBatch(List.of(new Update()
+										.setSet(List.of(new LiteralSetValue().setColumnName("one").setValue("updated")))
+										.setFilters(List.of(new CellValueFilter().setColumnName("one")
+												.setOperator(CellValueOperator.IS_NOT_NULL))))))),
+				body -> {
+					assertInstanceOf(GridUpdateJobResponse.class, body);
+					GridUpdateJobResponse r = (GridUpdateJobResponse) body;
+					assertNotNull(r.getUpdateResponse());
+					System.out.println(r);
+					assertEquals(2L, r.getUpdateResponse().getTotalRowsUpdated());
+				}, MAX_TME_MS, AsyncJobHelper.INFINITE_RETRIES).getResponse();
 
-        assertNotNull(responseHolder[0]);
-        assertNotNull(responseHolder[0].getQueryResult());
-        assertNotNull(responseHolder[0].getQueryResult().getSelectColumns());
-        assertNotNull(responseHolder[0].getQueryResult().getRows());
-    }
+	}
 
     private TableEntity createTableForInitialGrid() throws Exception {
         // Create a few columns to add to a table entity

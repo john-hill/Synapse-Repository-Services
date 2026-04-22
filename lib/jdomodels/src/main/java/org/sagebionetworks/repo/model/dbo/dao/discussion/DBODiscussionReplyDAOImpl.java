@@ -15,6 +15,7 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DISCUSSI
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_DISCUSSION_THREAD_STATS_NUMBER_OF_REPLIES;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_FORUM_ID;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_FORUM_OBJECT_ID;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_FORUM_OBJECT_TYPE;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_DISCUSSION_REPLY;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_DISCUSSION_THREAD;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_FORUM;
@@ -33,6 +34,7 @@ import org.sagebionetworks.repo.model.discussion.DiscussionFilter;
 import org.sagebionetworks.repo.model.discussion.DiscussionReplyBundle;
 import org.sagebionetworks.repo.model.discussion.DiscussionReplyOrder;
 import org.sagebionetworks.repo.model.discussion.DiscussionThreadReplyStat;
+import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -58,7 +60,12 @@ public class DBODiscussionReplyDAOImpl implements DiscussionReplyDAO{
 			dto.setId(Long.toString(rs.getLong(COL_DISCUSSION_REPLY_ID)));
 			dto.setThreadId(Long.toString(rs.getLong(COL_DISCUSSION_REPLY_THREAD_ID)));
 			dto.setForumId(Long.toString(rs.getLong(COL_DISCUSSION_THREAD_FORUM_ID)));
-			dto.setProjectId(KeyFactory.keyToString(rs.getLong(COL_FORUM_OBJECT_ID)));
+			String objectType = rs.getString(COL_FORUM_OBJECT_TYPE);
+			dto.setObjectType(ForumObjectType.valueOf(objectType));
+			dto.setObjectId(rs.getString(COL_FORUM_OBJECT_ID));
+			if ("ENTITY".equals(objectType)) {
+				dto.setProjectId(KeyFactory.keyToString(rs.getLong(COL_FORUM_OBJECT_ID)));
+			}
 			dto.setMessageKey(rs.getString(COL_DISCUSSION_REPLY_MESSAGE_KEY));
 			dto.setCreatedBy(Long.toString(rs.getLong(COL_DISCUSSION_REPLY_CREATED_BY)));
 			dto.setCreatedOn(new Date(rs.getTimestamp(COL_DISCUSSION_REPLY_CREATED_ON).getTime()));
@@ -125,6 +132,7 @@ public class DBODiscussionReplyDAOImpl implements DiscussionReplyDAO{
 			+COL_DISCUSSION_REPLY_THREAD_ID+", "
 			+COL_DISCUSSION_THREAD_FORUM_ID+", "
 			+COL_FORUM_OBJECT_ID+", "
+			+COL_FORUM_OBJECT_TYPE+", "
 			+TABLE_DISCUSSION_REPLY+"."+COL_DISCUSSION_REPLY_MESSAGE_KEY+" AS "+COL_DISCUSSION_REPLY_MESSAGE_KEY+" , "
 			+TABLE_DISCUSSION_REPLY+"."+COL_DISCUSSION_REPLY_CREATED_BY+" AS "+COL_DISCUSSION_REPLY_CREATED_BY+", "
 			+TABLE_DISCUSSION_REPLY+"."+COL_DISCUSSION_REPLY_CREATED_ON+" AS "+COL_DISCUSSION_REPLY_CREATED_ON+", "

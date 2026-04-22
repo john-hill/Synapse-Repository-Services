@@ -17,6 +17,14 @@
 			"type": "string",
 			"description": "The ID of the project this Reply belongs to"
 		},
+		"objectId": {
+			"type": "string",
+			"description": "The ID of the object this Reply belongs to"
+		},
+		"objectType": {
+			"$ref":"org.sagebionetworks.repo.model.discussion.ForumObjectType",
+			"description": "The type of the object this Reply belongs to"
+		},
 		"createdOn": {
 			"type": "string",
 			"format":"date-time",

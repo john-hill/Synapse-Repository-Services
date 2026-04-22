@@ -14,6 +14,7 @@ import org.sagebionetworks.repo.manager.schema.EntityJsonSubject;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.manager.schema.JsonSubject;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
+import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.DataType;
 import org.sagebionetworks.repo.model.DataTypeResponse;
@@ -58,6 +59,7 @@ import org.sagebionetworks.repo.model.schema.ListValidationResultsRequest;
 import org.sagebionetworks.repo.model.schema.ListValidationResultsResponse;
 import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.schema.ValidationSummaryStatistics;
+import org.sagebionetworks.repo.model.search.table.SearchIndex;
 import org.sagebionetworks.repo.model.table.Table;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -110,6 +112,10 @@ public class EntityManagerImpl implements EntityManager {
 	@Override
 	public <T extends Entity> String createEntity(UserInfo userInfo, T newEntity, String activityId)
 			throws DatastoreException, InvalidModelException, UnauthorizedException, NotFoundException {
+		// SearchIndex entities are restricted to Sage employees and admins.
+		if (newEntity instanceof SearchIndex && !AuthorizationUtils.isSageEmployeeOrAdmin(userInfo)) {
+			throw new UnauthorizedException("Only Sage employees and administrators can create a SearchIndex.");
+		}
 		// First create a node the represent the entity
 		Node node = NodeTranslationUtils.createFromEntity(newEntity);
 		// Set the type for this object
@@ -268,6 +274,11 @@ public class EntityManagerImpl implements EntityManager {
 			throws NotFoundException, DatastoreException, UnauthorizedException {
 		if (entityId == null)
 			throw new IllegalArgumentException("Entity ID cannot be null");
+		// SearchIndex entities are restricted to Sage employees and admins.
+		if (EntityType.searchindex.equals(nodeManager.getNodeType(entityId))
+				&& !AuthorizationUtils.isSageEmployeeOrAdmin(userInfo)) {
+			throw new UnauthorizedException("Only Sage employees and administrators can delete a SearchIndex.");
+		}
 		nodeManager.delete(userInfo, entityId);
 	}
 
@@ -318,6 +329,12 @@ public class EntityManagerImpl implements EntityManager {
 			InvalidModelException {
 
 		Node node = nodeManager.getNode(userInfo, updated.getId());
+
+		// SearchIndex entities are restricted to Sage employees and admins.
+		if (EntityType.searchindex.equals(node.getNodeType())
+				&& !AuthorizationUtils.isSageEmployeeOrAdmin(userInfo)) {
+			throw new UnauthorizedException("Only Sage employees and administrators can update a SearchIndex.");
+		}
 		// Now get the annotations for this node
 		org.sagebionetworks.repo.model.Annotations entityPropertyAnnotations = nodeManager
 				.getEntityPropertyAnnotations(userInfo, updated.getId());
@@ -345,6 +362,13 @@ public class EntityManagerImpl implements EntityManager {
 			 * breaking their tables/views by explicitly creating new entity versions, we
 			 * unconditionally ignore this parameter for table/views.
 			 */
+			newVersion = false;
+		}
+
+		if (updated instanceof SearchIndex) {
+			// SearchIndex entities are versionless — the OpenSearch index is rebuilt on
+			// every update via the lifecycle worker, so there is no concept of a new
+			// version at the entity level.
 			newVersion = false;
 		}
 

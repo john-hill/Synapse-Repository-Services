@@ -13,11 +13,9 @@ public interface SearchIndexStatusDao {
 
 	void createTableIfDoesNotExist();
 
-	void createOrUpdate(Long searchIndexId, SearchIndexState state, String errorMessage, String appliedConfigurationJson);
+	void createOrUpdate(SearchIndexStatus status);
 
 	Optional<SearchIndexState> getState(Long searchIndexId);
-
-	Optional<String> getAppliedConfiguration(Long searchIndexId);
 
 	Optional<SearchIndexStatus> getStatus(Long searchIndexId);
 

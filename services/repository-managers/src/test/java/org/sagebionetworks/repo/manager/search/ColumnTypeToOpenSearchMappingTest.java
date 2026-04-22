@@ -70,14 +70,6 @@ public class ColumnTypeToOpenSearchMappingTest {
 		assertEquals(Integer.valueOf(256), ColumnTypeToOpenSearchMapping.getIgnoreAbove(ColumnType.ENTITYID));
 	}
 
-	@Test
-	public void testAllColumnTypesHaveDefaultAnalyzer() {
-		for (ColumnType type : ColumnType.values()) {
-			assertNotNull(ColumnTypeToOpenSearchMapping.getDefaultAnalyzerId(type),
-				"Expected non-null default analyzer ID for " + type);
-		}
-	}
-
 	@ParameterizedTest(name = "{0} ignoreAbove = {1}")
 	@MethodSource("ignoreAboveProvider")
 	void testIgnoreAboveParameterized(ColumnType type, Integer expected) {
@@ -120,18 +112,23 @@ public class ColumnTypeToOpenSearchMappingTest {
 		assertTrue(ColumnTypeToOpenSearchMapping.isLongType(type));
 	}
 
-	@ParameterizedTest(name = "Every ColumnType has a default analyzer")
+	@ParameterizedTest(name = "Every ColumnType has a consistent default analyzer id + qualified name")
 	@EnumSource(ColumnType.class)
-	void testEveryColumnTypeHasDefaultAnalyzer(ColumnType type) {
-		assertNotNull(ColumnTypeToOpenSearchMapping.getDefaultAnalyzerId(type));
-	}
-
-	@ParameterizedTest(name = "Every ColumnType has a default analyzer qualified name")
-	@EnumSource(ColumnType.class)
-	void testEveryColumnTypeHasDefaultAnalyzerQualifiedName(ColumnType type) {
+	void testDefaultAnalyzerMappingForColumnType(ColumnType type) {
+		Long id = ColumnTypeToOpenSearchMapping.getDefaultAnalyzerId(type);
 		String qualifiedName = ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(type);
-		assertNotNull(qualifiedName, "Expected non-null qualified name for " + type);
+		assertNotNull(id, "Missing ID mapping for " + type);
+		assertNotNull(qualifiedName, "Missing qualified name mapping for " + type);
 		assertTrue(qualifiedName.contains("-"), "Qualified name should contain a dash separator: " + qualifiedName);
+
+		// ID and qualified name must agree — the suffix reflects the analyzer the ID points at.
+		if (id.equals(TextAnalyzerBootstrapper.SCIENTIFIC_ID)) {
+			assertTrue(qualifiedName.endsWith("-SCIENTIFIC"), type + " should map to SCIENTIFIC");
+		} else if (id.equals(TextAnalyzerBootstrapper.KEYWORD_ID)) {
+			assertTrue(qualifiedName.endsWith("-KEYWORD"), type + " should map to KEYWORD");
+		} else if (id.equals(TextAnalyzerBootstrapper.STANDARD_ID)) {
+			assertTrue(qualifiedName.endsWith("-STANDARD"), type + " should map to STANDARD");
+		}
 	}
 
 	@Test
@@ -152,22 +149,4 @@ public class ColumnTypeToOpenSearchMappingTest {
 				ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(ColumnType.JSON));
 	}
 
-	@Test
-	void testQualifiedNameAndIdMapParityWithAllTypes() {
-		// Verify that every column type maps to consistent ID and qualified name
-		for (ColumnType type : ColumnType.values()) {
-			Long id = ColumnTypeToOpenSearchMapping.getDefaultAnalyzerId(type);
-			String qualifiedName = ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(type);
-			assertNotNull(id, "Missing ID mapping for " + type);
-			assertNotNull(qualifiedName, "Missing qualified name mapping for " + type);
-			// Verify the qualified name ends with the expected analyzer name for the given ID
-			if (id.equals(TextAnalyzerBootstrapper.SCIENTIFIC_ID)) {
-				assertTrue(qualifiedName.endsWith("-SCIENTIFIC"), type + " should map to SCIENTIFIC");
-			} else if (id.equals(TextAnalyzerBootstrapper.KEYWORD_ID)) {
-				assertTrue(qualifiedName.endsWith("-KEYWORD"), type + " should map to KEYWORD");
-			} else if (id.equals(TextAnalyzerBootstrapper.STANDARD_ID)) {
-				assertTrue(qualifiedName.endsWith("-STANDARD"), type + " should map to STANDARD");
-			}
-		}
-	}
 }

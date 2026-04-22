@@ -11,6 +11,7 @@ import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.search.table.SearchIndexState;
 import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
 import org.sagebionetworks.table.cluster.SQLUtils;
+import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -33,35 +34,22 @@ public class SearchIndexStatusDaoImpl implements SearchIndexStatusDao {
 	}
 
 	@Override
-	public void createOrUpdate(Long searchIndexId, SearchIndexState state, String errorMessage,
-			String appliedConfigurationJson) {
-		boolean updateLastBuildOn = (state == SearchIndexState.ACTIVE);
-		String stateName = state.name();
+	public void createOrUpdate(SearchIndexStatus status) {
+		ValidateArgument.required(status, "status");
+		ValidateArgument.required(status.getSearchIndexId(), "status.searchIndexId");
+		ValidateArgument.required(status.getState(), "status.state");
 		template.update(
 				"INSERT INTO SEARCH_INDEX_STATUS"
-				+ "  (SEARCH_INDEX_ID, STATE, LAST_BUILD_ON, ERROR_MESSAGE, APPLIED_CONFIGURATION, CHANGED_ON)"
+				+ "  (SEARCH_INDEX_ID, STATE, ERROR_MESSAGE, CHANGED_ON)"
 				+ " VALUES"
-				+ "  (?, ?, IF(?, NOW(3), NULL), ?, ?, NOW(3))"
+				+ "  (?, ?, ?, NOW(3)) AS new"
 				+ " ON DUPLICATE KEY UPDATE"
-				+ "  STATE = ?,"
-				+ "  LAST_BUILD_ON = COALESCE(IF(?, NOW(3), NULL), LAST_BUILD_ON),"
-				+ "  ERROR_MESSAGE = ?,"
-				+ "  APPLIED_CONFIGURATION = ?,"
+				+ "  STATE = new.STATE,"
+				+ "  ERROR_MESSAGE = new.ERROR_MESSAGE,"
 				+ "  CHANGED_ON = NOW(3)",
-				searchIndexId, stateName, updateLastBuildOn, errorMessage, appliedConfigurationJson,
-				stateName, updateLastBuildOn, errorMessage, appliedConfigurationJson);
-	}
-
-	@Override
-	public Optional<String> getAppliedConfiguration(Long searchIndexId) {
-		try {
-			String json = template.queryForObject(
-					"SELECT APPLIED_CONFIGURATION FROM SEARCH_INDEX_STATUS WHERE SEARCH_INDEX_ID = ?",
-					String.class, searchIndexId);
-			return Optional.ofNullable(json);
-		} catch (EmptyResultDataAccessException e) {
-			return Optional.empty();
-		}
+				KeyFactory.stringToKey(status.getSearchIndexId()),
+				status.getState().name(),
+				status.getErrorMessage());
 	}
 
 	@Override
@@ -80,18 +68,13 @@ public class SearchIndexStatusDaoImpl implements SearchIndexStatusDao {
 	public Optional<SearchIndexStatus> getStatus(Long searchIndexId) {
 		try {
 			SearchIndexStatus status = template.queryForObject(
-					"SELECT SEARCH_INDEX_ID, STATE, LAST_BUILD_ON, ERROR_MESSAGE, APPLIED_CONFIGURATION, CHANGED_ON"
+					"SELECT SEARCH_INDEX_ID, STATE, ERROR_MESSAGE, CHANGED_ON"
 					+ " FROM SEARCH_INDEX_STATUS WHERE SEARCH_INDEX_ID = ?",
 					(ResultSet rs, int rowNum) -> {
 						SearchIndexStatus s = new SearchIndexStatus();
 						s.setSearchIndexId(KeyFactory.keyToString(rs.getLong("SEARCH_INDEX_ID")));
 						s.setState(SearchIndexState.valueOf(rs.getString("STATE")));
-						Timestamp lastBuild = rs.getTimestamp("LAST_BUILD_ON");
-						if (lastBuild != null) {
-							s.setLastBuildOn(new Date(lastBuild.getTime()));
-						}
 						s.setErrorMessage(rs.getString("ERROR_MESSAGE"));
-						s.setAppliedConfiguration(rs.getString("APPLIED_CONFIGURATION"));
 						Timestamp changedOn = rs.getTimestamp("CHANGED_ON");
 						if (changedOn != null) {
 							s.setChangedOn(new Date(changedOn.getTime()));

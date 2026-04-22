@@ -10,9 +10,12 @@ import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
+import org.sagebionetworks.repo.model.table.TableFailedException;
+import org.sagebionetworks.repo.model.table.TableUnavailableException;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
+import org.sagebionetworks.workers.util.semaphore.LockUnavilableException;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DeadlockLoserDataAccessException;
 import org.springframework.stereotype.Service;
@@ -70,6 +73,12 @@ public class SearchIndexLifecycleWorker implements BatchChangeMessageDrivenRunne
 		} catch (RecoverableMessageException e) {
 			LOG.warn("Recoverable exception for entity {}: {}", entityId, e.getMessage());
 			throw e;
+		} catch (TableUnavailableException | LockUnavilableException e) {
+			LOG.warn("Source table unavailable for entity {}, retrying: {}", entityId, e.getMessage());
+			throw new RecoverableMessageException(e);
+		} catch (TableFailedException e) {
+			// Permanent failure — the manager already recorded FAILED in the DAO.
+			LOG.error("Source table failed for entity {}: {}", entityId, e.getMessage());
 		} catch (LockReleaseFailedException | CannotAcquireLockException | DeadlockLoserDataAccessException e) {
 			LOG.warn("Transient lock exception for entity {}, retrying: {}", entityId, e.getMessage());
 			throw new RecoverableMessageException(e);

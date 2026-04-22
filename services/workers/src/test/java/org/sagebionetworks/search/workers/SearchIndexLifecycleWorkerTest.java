@@ -12,17 +12,27 @@ import java.util.Collections;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.database.semaphore.LockReleaseFailedException;
 import org.sagebionetworks.repo.manager.search.SearchIndexLifecycleManager;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.message.ChangeMessage;
 import org.sagebionetworks.repo.model.message.ChangeType;
+import org.sagebionetworks.repo.model.table.TableFailedException;
+import org.sagebionetworks.repo.model.table.TableStatus;
+import org.sagebionetworks.repo.model.table.TableUnavailableException;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
+import org.sagebionetworks.workers.util.semaphore.LockType;
+import org.sagebionetworks.workers.util.semaphore.LockUnavilableException;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.DeadlockLoserDataAccessException;
 
 @ExtendWith(MockitoExtension.class)
 public class SearchIndexLifecycleWorkerTest {
@@ -134,6 +144,77 @@ public class SearchIndexLifecycleWorkerTest {
 		// call under test
 		assertThrows(RecoverableMessageException.class, () ->
 				worker.run(progressCallback, Collections.singletonList(entityMessage(ENTITY_ID, ChangeType.CREATE))));
+
+		verify(searchIndexLifecycleManager, never()).handleDelete(ENTITY_ID);
+	}
+
+	@Test
+	public void testRunWithTableUnavailableExceptionIsRecoverable() throws Exception {
+		when(nodeDao.getNodeTypeById(ENTITY_ID)).thenReturn(EntityType.searchindex);
+		doThrow(new TableUnavailableException(new TableStatus()))
+				.when(searchIndexLifecycleManager).handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		// call under test
+		assertThrows(RecoverableMessageException.class, () ->
+				worker.run(progressCallback, Collections.singletonList(entityMessage(ENTITY_ID, ChangeType.CREATE))));
+
+		verify(searchIndexLifecycleManager, never()).handleDelete(ENTITY_ID);
+	}
+
+	@Test
+	public void testRunWithLockUnavailableExceptionIsRecoverable() throws Exception {
+		when(nodeDao.getNodeTypeById(ENTITY_ID)).thenReturn(EntityType.searchindex);
+		doThrow(new LockUnavilableException(LockType.Read, "key", "context"))
+				.when(searchIndexLifecycleManager).handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		// call under test
+		assertThrows(RecoverableMessageException.class, () ->
+				worker.run(progressCallback, Collections.singletonList(entityMessage(ENTITY_ID, ChangeType.CREATE))));
+	}
+
+	@Test
+	public void testRunWithTableFailedExceptionIsSwallowed() throws Exception {
+		when(nodeDao.getNodeTypeById(ENTITY_ID)).thenReturn(EntityType.searchindex);
+		doThrow(new TableFailedException(new TableStatus()))
+				.when(searchIndexLifecycleManager).handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		// call under test — the manager records FAILED; worker logs and moves on.
+		worker.run(progressCallback, Collections.singletonList(entityMessage(ENTITY_ID, ChangeType.CREATE)));
+
+		verify(searchIndexLifecycleManager, never()).handleDelete(ENTITY_ID);
+	}
+
+	@ParameterizedTest
+	@ValueSource(classes = {
+			LockReleaseFailedException.class,
+			CannotAcquireLockException.class,
+			DeadlockLoserDataAccessException.class
+	})
+	public void testRunWithTransientLockExceptionIsRecoverable(Class<? extends RuntimeException> exceptionClass) throws Exception {
+		when(nodeDao.getNodeTypeById(ENTITY_ID)).thenReturn(EntityType.searchindex);
+		RuntimeException ex;
+		if (exceptionClass == LockReleaseFailedException.class) {
+			ex = new LockReleaseFailedException("lost lock");
+		} else if (exceptionClass == CannotAcquireLockException.class) {
+			ex = new CannotAcquireLockException("cannot acquire");
+		} else {
+			ex = new DeadlockLoserDataAccessException("deadlock", null);
+		}
+		doThrow(ex).when(searchIndexLifecycleManager).handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		// call under test
+		assertThrows(RecoverableMessageException.class, () ->
+				worker.run(progressCallback, Collections.singletonList(entityMessage(ENTITY_ID, ChangeType.CREATE))));
+	}
+
+	@Test
+	public void testRunWithUnknownRuntimeExceptionIsSwallowed() throws Exception {
+		when(nodeDao.getNodeTypeById(ENTITY_ID)).thenReturn(EntityType.searchindex);
+		doThrow(new RuntimeException("boom"))
+				.when(searchIndexLifecycleManager).handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		// call under test — unknown runtime exceptions are logged and swallowed.
+		worker.run(progressCallback, Collections.singletonList(entityMessage(ENTITY_ID, ChangeType.CREATE)));
 
 		verify(searchIndexLifecycleManager, never()).handleDelete(ENTITY_ID);
 	}

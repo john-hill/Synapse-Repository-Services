@@ -60,25 +60,13 @@ public class ITSearchQueryTest {
 		this.synapse = synapse;
 	}
 
-	private static final String SAGE_TEAM_ID = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS
-			.getPrincipalId().toString();
-
 	@BeforeEach
 	public void before() throws SynapseException {
 		adminSynapse.clearAllLocks();
-		// The test user must be a Sage Bionetworks team member to manage SearchIndex entities
-		String userId = synapse.getMyProfile().getOwnerId();
-		adminSynapse.addTeamMember(SAGE_TEAM_ID, userId, null, null);
 	}
 
 	@AfterEach
 	public void after() {
-		// Remove user from Sage team
-		try {
-			adminSynapse.removeTeamMember(SAGE_TEAM_ID, synapse.getMyProfile().getOwnerId());
-		} catch (SynapseException e) {
-			// ignore
-		}
 		// Delete in reverse order (search index before table before project)
 		for (int i = entitiesToDelete.size() - 1; i >= 0; i--) {
 			try {
@@ -168,7 +156,7 @@ public class ITSearchQueryTest {
 		searchIndex.setParentId(project.getId());
 		searchIndex.setDefiningSQL("select * from " + table.getId());
 		searchIndex.setSearchConfigurationId(config.getId());
-		searchIndex = synapse.createEntity(searchIndex);
+		searchIndex = adminSynapse.createEntity(searchIndex);
 		entitiesToDelete.add(searchIndex);
 
 		// 8. Wait for the index to be ACTIVE

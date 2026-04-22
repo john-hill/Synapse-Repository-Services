@@ -1,0 +1,14 @@
+{
+	"description": "Response for the grid query asynchronous job.",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.asynch.AsynchronousResponseBody"
+		}
+	],
+	"properties": {
+		"queryResult": {
+			"$ref": "org.sagebionetworks.repo.model.grid.query.result.QueryResult",
+			"description": "The query results including selected columns and a single page of rows."
+		}
+	}
+}

@@ -67,4 +67,5 @@ public class GridServiceImpl implements GridService {
 		gridManager.deleteGridSession(user, gridSessionId);
 	}
 
+
 }

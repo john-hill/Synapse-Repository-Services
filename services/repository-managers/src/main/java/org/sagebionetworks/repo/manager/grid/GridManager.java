@@ -5,7 +5,13 @@ import java.util.List;
 import java.util.Optional;
 
 import org.json.JSONArray;
+import org.json.JSONObject;
+import org.sagebionetworks.repo.manager.grid.internal.replica.model.GridHeader;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.grid.GridQueryJobRequest;
+import org.sagebionetworks.repo.model.grid.GridQueryJobResponse;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobRequest;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobResponse;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.dbo.grid.GridSource;
 import org.sagebionetworks.repo.model.grid.CreateGridPresignedUrlRequest;
@@ -26,6 +32,7 @@ import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
 import org.sagebionetworks.repo.model.grid.internal.Connection;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
+import org.sagebionetworks.repo.model.grid.update.GridUpdateResponse;
 
 public interface GridManager extends PatchStore, SnapshotStore {
 
@@ -206,5 +213,36 @@ public interface GridManager extends PatchStore, SnapshotStore {
 	 * @return The number of sessions backfilled.
 	 */
 	long backfillGridSessionChanges();
+
+	/**
+	 * Execute a single update operation against a grid session. The patches are
+	 * attributed to the caller's replica. Used by both the agent handler and the
+	 * async job worker.
+	 *
+	 * @param header               Grid header for column metadata
+	 * @param publishingConnection Connection whose replicaId is embedded in patches
+	 * @param rawUpdate            Raw JSON of a single Update object
+	 * @return Number of rows updated
+	 */
+	long executeGridUpdate(GridHeader header, GridConnectionInfo publishingConnection,
+			JSONObject rawUpdate) throws Exception;
+
+	/**
+	 * Execute a grid query async job. Called by the GridQueryWorker.
+	 *
+	 * @param user
+	 * @param request The job request containing sessionId, replicaId, and query.
+	 * @return
+	 */
+	GridQueryJobResponse queryGrid(UserInfo user, GridQueryJobRequest request);
+
+	/**
+	 * Execute a grid update async job. Called by the GridUpdateWorker.
+	 *
+	 * @param user
+	 * @param request The job request containing sessionId, replicaId, and updates.
+	 * @return
+	 */
+	GridUpdateJobResponse updateGrid(UserInfo user, GridUpdateJobRequest request) throws Exception;
 
 }

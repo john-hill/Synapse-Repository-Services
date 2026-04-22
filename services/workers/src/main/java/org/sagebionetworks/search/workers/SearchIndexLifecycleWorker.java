@@ -1,0 +1,91 @@
+package org.sagebionetworks.search.workers;
+
+import java.util.List;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.sagebionetworks.asynchronous.workers.changes.BatchChangeMessageDrivenRunner;
+import org.sagebionetworks.repo.manager.search.SearchIndexLifecycleManager;
+import org.sagebionetworks.repo.model.EntityType;
+import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.NodeDAO;
+import org.sagebionetworks.repo.model.message.ChangeMessage;
+import org.sagebionetworks.repo.model.table.TableFailedException;
+import org.sagebionetworks.repo.model.table.TableUnavailableException;
+import org.sagebionetworks.repo.web.NotFoundException;
+import org.sagebionetworks.util.progress.ProgressCallback;
+import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
+import org.sagebionetworks.workers.util.semaphore.LockUnavilableException;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.DeadlockLoserDataAccessException;
+import org.springframework.stereotype.Service;
+
+import org.sagebionetworks.database.semaphore.LockReleaseFailedException;
+
+@Service
+public class SearchIndexLifecycleWorker implements BatchChangeMessageDrivenRunner {
+
+	private static final Logger LOG = LogManager.getLogger(SearchIndexLifecycleWorker.class);
+
+	private final NodeDAO nodeDao;
+	private final SearchIndexLifecycleManager searchIndexLifecycleManager;
+
+	public SearchIndexLifecycleWorker(NodeDAO nodeDao,
+			SearchIndexLifecycleManager searchIndexLifecycleManager) {
+		this.nodeDao = nodeDao;
+		this.searchIndexLifecycleManager = searchIndexLifecycleManager;
+	}
+
+	@Override
+	public void run(ProgressCallback progressCallback, List<ChangeMessage> messages)
+			throws RecoverableMessageException, Exception {
+		for (ChangeMessage message : messages) {
+			if (message.getObjectType() != ObjectType.ENTITY) {
+				continue;
+			}
+			processMessage(progressCallback, message);
+		}
+	}
+
+	private void processMessage(ProgressCallback progressCallback, ChangeMessage message)
+			throws RecoverableMessageException {
+		String entityId = message.getObjectId();
+		try {
+			EntityType nodeType = nodeDao.getNodeTypeById(entityId);
+			if (nodeType != EntityType.searchindex) {
+				return;
+			}
+			switch (message.getChangeType()) {
+				case CREATE:
+					searchIndexLifecycleManager.handleCreate(
+							progressCallback, entityId, message.getUserId());
+					break;
+				case UPDATE:
+					searchIndexLifecycleManager.handleUpdate(
+							progressCallback, entityId, message.getUserId());
+					break;
+				case DELETE:
+					searchIndexLifecycleManager.handleDelete(entityId);
+					break;
+				default:
+					break;
+			}
+		} catch (RecoverableMessageException e) {
+			LOG.warn("Recoverable exception for entity {}: {}", entityId, e.getMessage());
+			throw e;
+		} catch (TableUnavailableException | LockUnavilableException e) {
+			LOG.warn("Source table unavailable for entity {}, retrying: {}", entityId, e.getMessage());
+			throw new RecoverableMessageException(e);
+		} catch (TableFailedException e) {
+			// Permanent failure — the manager already recorded FAILED in the DAO.
+			LOG.error("Source table failed for entity {}: {}", entityId, e.getMessage());
+		} catch (LockReleaseFailedException | CannotAcquireLockException | DeadlockLoserDataAccessException e) {
+			LOG.warn("Transient lock exception for entity {}, retrying: {}", entityId, e.getMessage());
+			throw new RecoverableMessageException(e);
+		} catch (NotFoundException e) {
+			searchIndexLifecycleManager.handleDelete(entityId);
+		} catch (Exception e) {
+			LOG.error("Failed to process lifecycle message for entity: " + entityId, e);
+		}
+	}
+}

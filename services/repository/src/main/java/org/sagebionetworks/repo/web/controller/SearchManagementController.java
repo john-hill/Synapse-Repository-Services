@@ -169,6 +169,83 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * <code>organizationName</code>. The organization and name cannot be changed after creation.
  * Resource names must start with a letter and contain only letters, digits, and underscores.
  * </p>
+ *
+ * <h6>Search Index Field Limits</h6>
+ * <p>
+ * When a search index is built, each column from the defining SQL query is mapped to an
+ * OpenSearch field type. Text and keyword fields have an <code>ignore_above</code> limit on
+ * their keyword sub-field &mdash; values longer than this limit are <b>not indexed</b> for
+ * exact-match or sorting, but remain stored in the source document. Numeric, boolean, and
+ * JSON fields have no such limit.
+ * </p>
+ * <b>Search Index Field Mapping and Limits</b>
+ * <table border="1">
+ * <tr>
+ * <th>Synapse Column Type</th>
+ * <th>OpenSearch Field Type</th>
+ * <th>Keyword ignore_above</th>
+ * <th>Default Analyzer</th>
+ * </tr>
+ * <tr>
+ * <td>STRING, STRING_LIST</td>
+ * <td>text + keyword sub-field</td>
+ * <td>1,000 characters</td>
+ * <td>SCIENTIFIC</td>
+ * </tr>
+ * <tr>
+ * <td>MEDIUMTEXT</td>
+ * <td>text + keyword sub-field</td>
+ * <td>2,000 characters</td>
+ * <td>SCIENTIFIC</td>
+ * </tr>
+ * <tr>
+ * <td>LARGETEXT</td>
+ * <td>text + keyword sub-field</td>
+ * <td>8,192 characters</td>
+ * <td>SCIENTIFIC</td>
+ * </tr>
+ * <tr>
+ * <td>LINK</td>
+ * <td>text + keyword sub-field (or keyword + searchable, depending on analyzer)</td>
+ * <td>1,000 characters</td>
+ * <td>KEYWORD</td>
+ * </tr>
+ * <tr>
+ * <td>ENTITYID, USERID, ENTITYID_LIST, USERID_LIST</td>
+ * <td>keyword</td>
+ * <td>256 characters</td>
+ * <td>KEYWORD</td>
+ * </tr>
+ * <tr>
+ * <td>INTEGER, DATE, INTEGER_LIST, DATE_LIST, FILEHANDLEID, SUBMISSIONID, EVALUATIONID</td>
+ * <td>long</td>
+ * <td>N/A</td>
+ * <td>KEYWORD</td>
+ * </tr>
+ * <tr>
+ * <td>DOUBLE</td>
+ * <td>double</td>
+ * <td>N/A</td>
+ * <td>KEYWORD</td>
+ * </tr>
+ * <tr>
+ * <td>BOOLEAN, BOOLEAN_LIST</td>
+ * <td>boolean</td>
+ * <td>N/A</td>
+ * <td>KEYWORD</td>
+ * </tr>
+ * <tr>
+ * <td>JSON</td>
+ * <td>object (dynamic mapping)</td>
+ * <td>N/A</td>
+ * <td>STANDARD</td>
+ * </tr>
+ * </table>
+ * <p>
+ * <b>Query Limits:</b> Results per page default to 25 with a maximum of 100.
+ * Autocomplete results are capped at 8. The maximum number of rows that can be indexed
+ * in a single search index is 500,000.
+ * </p>
  */
 @ControllerInfo(displayName = "Search Management Services", path = "repo/v1")
 @Controller

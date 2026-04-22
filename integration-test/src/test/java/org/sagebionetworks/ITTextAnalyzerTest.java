@@ -2,10 +2,10 @@ package org.sagebionetworks;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,7 +45,7 @@ public class ITTextAnalyzerTest {
 
 		// CREATE
 		TextAnalyzer toCreate = new TextAnalyzer();
-		toCreate.setName("IT_TEST_ANALYZER");
+		toCreate.setName("IT_TEST_ANALYZER_" + UUID.randomUUID().toString().replace("-", ""));
 		toCreate.setDescription("Integration test analyzer");
 		toCreate.setOrganizationName(orgName);
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
@@ -57,13 +57,13 @@ public class ITTextAnalyzerTest {
 		TextAnalyzer created = adminSynapse.createTextAnalyzer(toCreate);
 		assertNotNull(created.getId());
 		assertNotNull(created.getEtag());
-		assertEquals("IT_TEST_ANALYZER", created.getName());
+		assertEquals(toCreate.getName(), created.getName());
 
 		// call under test
 		TextAnalyzer fetched = adminSynapse.getTextAnalyzer(created.getId());
 		assertEquals(created.getId(), fetched.getId());
 		assertEquals(created.getEtag(), fetched.getEtag());
-		assertEquals("IT_TEST_ANALYZER", fetched.getName());
+		assertEquals(toCreate.getName(), fetched.getName());
 
 		// call under test
 		fetched.setDescription("Updated description");
@@ -79,5 +79,4 @@ public class ITTextAnalyzerTest {
 		assertTrue(orgResponse.getResults().stream().anyMatch(a -> created.getId().equals(a.getId())));
 
 	}
-
 }

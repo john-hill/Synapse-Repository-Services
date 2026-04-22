@@ -70,14 +70,6 @@ public class ColumnTypeToOpenSearchMappingTest {
 		assertEquals(Integer.valueOf(256), ColumnTypeToOpenSearchMapping.getIgnoreAbove(ColumnType.ENTITYID));
 	}
 
-	@Test
-	public void testAllColumnTypesHaveDefaultAnalyzer() {
-		for (ColumnType type : ColumnType.values()) {
-			assertNotNull(ColumnTypeToOpenSearchMapping.getDefaultAnalyzerId(type),
-				"Expected non-null default analyzer ID for " + type);
-		}
-	}
-
 	@ParameterizedTest(name = "{0} ignoreAbove = {1}")
 	@MethodSource("ignoreAboveProvider")
 	void testIgnoreAboveParameterized(ColumnType type, Integer expected) {
@@ -120,9 +112,41 @@ public class ColumnTypeToOpenSearchMappingTest {
 		assertTrue(ColumnTypeToOpenSearchMapping.isLongType(type));
 	}
 
-	@ParameterizedTest(name = "Every ColumnType has a default analyzer")
+	@ParameterizedTest(name = "Every ColumnType has a consistent default analyzer id + qualified name")
 	@EnumSource(ColumnType.class)
-	void testEveryColumnTypeHasDefaultAnalyzer(ColumnType type) {
-		assertNotNull(ColumnTypeToOpenSearchMapping.getDefaultAnalyzerId(type));
+	void testDefaultAnalyzerMappingForColumnType(ColumnType type) {
+		Long id = ColumnTypeToOpenSearchMapping.getDefaultAnalyzerId(type);
+		String qualifiedName = ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(type);
+		assertNotNull(id, "Missing ID mapping for " + type);
+		assertNotNull(qualifiedName, "Missing qualified name mapping for " + type);
+		assertTrue(qualifiedName.contains("-"), "Qualified name should contain a dash separator: " + qualifiedName);
+
+		// ID and qualified name must agree — the suffix reflects the analyzer the ID points at.
+		if (id.equals(TextAnalyzerBootstrapper.SCIENTIFIC_ID)) {
+			assertTrue(qualifiedName.endsWith("-SCIENTIFIC"), type + " should map to SCIENTIFIC");
+		} else if (id.equals(TextAnalyzerBootstrapper.KEYWORD_ID)) {
+			assertTrue(qualifiedName.endsWith("-KEYWORD"), type + " should map to KEYWORD");
+		} else if (id.equals(TextAnalyzerBootstrapper.STANDARD_ID)) {
+			assertTrue(qualifiedName.endsWith("-STANDARD"), type + " should map to STANDARD");
+		}
 	}
+
+	@Test
+	void testGetDefaultAnalyzerQualifiedNameWithStringType() {
+		assertEquals("org.sagebionetworks-SCIENTIFIC",
+				ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(ColumnType.STRING));
+	}
+
+	@Test
+	void testGetDefaultAnalyzerQualifiedNameWithLinkType() {
+		assertEquals("org.sagebionetworks-KEYWORD",
+				ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(ColumnType.LINK));
+	}
+
+	@Test
+	void testGetDefaultAnalyzerQualifiedNameWithJsonType() {
+		assertEquals("org.sagebionetworks-STANDARD",
+				ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(ColumnType.JSON));
+	}
+
 }

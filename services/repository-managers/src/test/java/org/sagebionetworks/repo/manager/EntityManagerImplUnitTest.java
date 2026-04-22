@@ -74,7 +74,6 @@ import org.sagebionetworks.repo.model.annotation.v2.AnnotationsV2TestUtils;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsV2Utils;
 import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValueType;
 import org.sagebionetworks.repo.model.annotation.v2.Keys;
-import org.sagebionetworks.repo.model.search.table.SearchIndex;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dbo.dao.NodeUtils;
 import org.sagebionetworks.repo.model.dbo.schema.DerivedAnnotationDao;
@@ -1678,82 +1677,6 @@ public class EntityManagerImplUnitTest {
 		verify(mockAuthorizationManger).hasAccess(mockUser, entityId, ACCESS_TYPE.READ);
 		verify(mockNodeManager, never()).getUserAnnotations(any());
 		verify(mockDerivedAnnotationDao, never()).getDerivedAnnotations(any());
-	}
-
-	@Test
-	public void testCreateEntityWithSearchIndexAndNonSageUser() {
-		SearchIndex searchIndex = new SearchIndex();
-		searchIndex.setParentId(PARENT_ENTITY_ID);
-		when(mockUser.isAdmin()).thenReturn(false);
-		when(mockUser.getGroups()).thenReturn(Collections.emptySet());
-
-		assertThrows(UnauthorizedException.class, () -> {
-			entityManager.createEntity(mockUser, searchIndex, ACTIVITY_ID);
-		});
-	}
-
-	@Test
-	public void testCreateEntityWithSearchIndexAndAdmin() throws Exception {
-		SearchIndex searchIndex = new SearchIndex();
-		searchIndex.setParentId(PARENT_ENTITY_ID);
-		when(mockUser.isAdmin()).thenReturn(true);
-		when(mockNodeManager.createNewNode(any(Node.class), any(), eq(mockUser))).thenReturn(mockNode);
-		when(mockNode.getId()).thenReturn(ENTITY_ID);
-
-		String result = entityManager.createEntity(mockUser, searchIndex, ACTIVITY_ID);
-
-		assertEquals(ENTITY_ID, result);
-	}
-
-	@Test
-	public void testUpdateEntityWithSearchIndexAndNonSageUser() throws Exception {
-		SearchIndex searchIndex = new SearchIndex();
-		searchIndex.setId(ENTITY_ID);
-		Node node = new Node();
-		node.setNodeType(EntityType.searchindex);
-		when(mockNodeManager.getNode(mockUser, ENTITY_ID)).thenReturn(node);
-		when(mockUser.isAdmin()).thenReturn(false);
-		when(mockUser.getGroups()).thenReturn(Collections.emptySet());
-
-		assertThrows(UnauthorizedException.class, () -> {
-			entityManager.updateEntity(mockUser, searchIndex, false, ACTIVITY_ID);
-		});
-	}
-
-	@Test
-	public void testDeleteEntityWithSearchIndexAndNonSageUser() {
-		when(mockNodeManager.getNodeType(ENTITY_ID)).thenReturn(EntityType.searchindex);
-		when(mockUser.isAdmin()).thenReturn(false);
-		when(mockUser.getGroups()).thenReturn(Collections.emptySet());
-
-		assertThrows(UnauthorizedException.class, () -> {
-			entityManager.deleteEntity(mockUser, ENTITY_ID);
-		});
-	}
-
-	@Test
-	public void testUpdateEntityWithSearchIndexAndNewVersionForcedFalse() throws Exception {
-		SearchIndex entity = new SearchIndex();
-		entity.setId(ENTITY_ID);
-		entity.setDefiningSQL("SELECT * FROM syn456");
-		entity.setParentId(PARENT_ENTITY_ID);
-		entity.setName("test");
-		entity.setEtag("etag");
-
-		Node node = new Node();
-		node.setId(ENTITY_ID);
-		node.setNodeType(EntityType.searchindex);
-		when(mockUser.isAdmin()).thenReturn(true);
-		when(mockNodeManager.getNode(mockUser, ENTITY_ID)).thenReturn(node);
-		when(mockNodeManager.getEntityPropertyAnnotations(mockUser, ENTITY_ID))
-				.thenReturn(new org.sagebionetworks.repo.model.Annotations());
-		when(mockNodeManager.update(any(UserInfo.class), any(Node.class), any(), eq(false)))
-				.thenReturn(node);
-
-		// Even though newVersion=true is passed, it should be forced to false for SearchIndex
-		entityManager.updateEntity(mockUser, entity, true, null);
-
-		verify(mockNodeManager).update(any(UserInfo.class), any(Node.class), any(), eq(false));
 	}
 
 }

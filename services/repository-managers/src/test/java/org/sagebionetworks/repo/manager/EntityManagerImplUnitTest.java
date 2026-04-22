@@ -136,9 +136,6 @@ public class EntityManagerImplUnitTest {
 	@Mock
 	private DerivedAnnotationDao mockDerivedAnnotationDao;
 
-	@Mock
-	private Node mockNode;
-
 	@Captor
 	private ArgumentCaptor<ChildStatsRequest> statsRequestCaptor;
 
@@ -330,14 +327,14 @@ public class EntityManagerImplUnitTest {
 		Node node = new Node();
 		node.setFileHandleId(sourceFileHandleId);
 		org.sagebionetworks.repo.model.Annotations annos = new org.sagebionetworks.repo.model.Annotations();
-
+		
 		when(mockNodeManager.getNode(mockUser, id)).thenReturn(node);
 		when(mockNodeManager.getEntityPropertyAnnotations(mockUser, id)).thenReturn(annos);
-
+		
 		boolean matchingMD5 = false;
-
+		
 		when(mockFileHandleManager.isMatchingMD5(any(), any())).thenReturn(matchingMD5);
-
+		
 		// Make file entity to update.
 		FileEntity entity = new FileEntity();
 		entity.setId(id);
@@ -352,7 +349,7 @@ public class EntityManagerImplUnitTest {
 
 		// method under test
 		entityManager.updateEntity(mockUser, entity, newVersion, null);
-
+		
 		verify(mockNodeManager).getNode(mockUser, id);
 		verify(mockNodeManager).getEntityPropertyAnnotations(mockUser, id);
 		verify(mockFileHandleManager).isMatchingMD5(sourceFileHandleId, targetFileHandleId);
@@ -361,7 +358,7 @@ public class EntityManagerImplUnitTest {
 		assertNull(node.getVersionComment());
 		assertNull(node.getVersionLabel());
 	}
-
+	
 	@Test
 	public void testUpdateEntityAndNoNewVersionWithNewFileHandleIdSameMD5() throws Exception {
 		// Mock dependencies.
@@ -372,14 +369,14 @@ public class EntityManagerImplUnitTest {
 		Node node = new Node();
 		node.setFileHandleId(sourceFileHandleId);
 		org.sagebionetworks.repo.model.Annotations annos = new org.sagebionetworks.repo.model.Annotations();
-
+		
 		when(mockNodeManager.getNode(mockUser, id)).thenReturn(node);
 		when(mockNodeManager.getEntityPropertyAnnotations(mockUser, id)).thenReturn(annos);
-
+		
 		boolean matchingMD5 = true;
-
+		
 		when(mockFileHandleManager.isMatchingMD5(any(), any())).thenReturn(matchingMD5);
-
+		
 		// Make file entity to update.
 		FileEntity entity = new FileEntity();
 		entity.setId(id);
@@ -393,7 +390,7 @@ public class EntityManagerImplUnitTest {
 
 		// method under test
 		entityManager.updateEntity(mockUser, entity, newVersion, null);
-
+		
 		verify(mockNodeManager).getNode(mockUser, id);
 		verify(mockNodeManager).getEntityPropertyAnnotations(mockUser, id);
 		verify(mockFileHandleManager).isMatchingMD5(sourceFileHandleId, targetFileHandleId);
@@ -841,7 +838,7 @@ public class EntityManagerImplUnitTest {
 		verify(mockJsonSchemaManager).clearBoundSchema(123L, BoundObjectType.entity);
 		verify(entityManagerSpy).sendEntityUpdateNotifications(entityId);
 	}
-
+	
 	@Test
 	public void testSendEntityUpdateNotificationsWithFile() {
 		when(mockNodeManager.getNodeType(entityId)).thenReturn(EntityType.file);
@@ -851,7 +848,7 @@ public class EntityManagerImplUnitTest {
 		verify(mockTransactionalMessenger).sendMessageAfterCommit(entityId, ObjectType.ENTITY, ChangeType.UPDATE);
 		verify(mockTransactionalMessenger, never()).sendMessageAfterCommit(any(), eq(ObjectType.ENTITY_CONTAINER), any());
 	}
-
+	
 	@Test
 	public void testSendEntityUpdateNotificationsWithFolder() {
 		when(mockNodeManager.getNodeType(entityId)).thenReturn(EntityType.folder);
@@ -861,7 +858,7 @@ public class EntityManagerImplUnitTest {
 		verify(mockTransactionalMessenger).sendMessageAfterCommit(entityId, ObjectType.ENTITY, ChangeType.UPDATE);
 		verify(mockTransactionalMessenger).sendMessageAfterCommit(entityId, ObjectType.ENTITY_CONTAINER, ChangeType.UPDATE);
 	}
-
+	
 	@Test
 	public void testSendEntityUpdateNotificationsWithProject() {
 		when(mockNodeManager.getNodeType(entityId)).thenReturn(EntityType.folder);
@@ -901,7 +898,7 @@ public class EntityManagerImplUnitTest {
 			entityManager.clearBoundSchema(mockUser, entityId);
 		});
 	}
-
+	
 	@Test
 	public void testGetEntityJson() {
 		JsonSchema schema = null;
@@ -924,7 +921,7 @@ public class EntityManagerImplUnitTest {
 		verify(mockAnnotationTranslator).writeToJsonObject(project, annos, schema);
 		verifyZeroInteractions(mockDerivedAnnotationDao);
 	}
-
+	
 	@Test
 	public void testGetEntityJsonWithIncludeDerivedAnnotationsAndEmpty() {
 		JsonSchema schema = null;
@@ -948,7 +945,7 @@ public class EntityManagerImplUnitTest {
 		verify(mockAnnotationTranslator).writeToJsonObject(project, annos, schema);
 		verify(mockDerivedAnnotationDao).getDerivedAnnotations(entityId);
 	}
-
+	
 	@Test
 	public void testGetEntityJsonWithBoundJsonSchema() {
 		when(mockAuthorizationManger.hasAccess(any(), any(), any(ACCESS_TYPE.class))).thenReturn(AuthorizationStatus.authorized());
@@ -987,7 +984,7 @@ public class EntityManagerImplUnitTest {
 		verifyNoMoreInteractions(mockAnnotationTranslator);
 		verifyZeroInteractions(mockDerivedAnnotationDao);
 	}
-
+	
 	@Test
 	public void testGetEntityJsonWithNullUser() {
 		mockUser = null;
@@ -996,7 +993,7 @@ public class EntityManagerImplUnitTest {
 			entityManagerSpy.getEntityJson(mockUser, entityId, false);
 		});
 	}
-
+	
 	@Test
 	public void testGetEntityJsonWithNullEntityId() {
 		String entityId = null;
@@ -1005,7 +1002,7 @@ public class EntityManagerImplUnitTest {
 			entityManagerSpy.getEntityJson(mockUser, entityId, false);
 		});
 	}
-
+	
 	@Test
 	public void testGetEntityJsonSubject() {
 		JsonSchema schema = null;
@@ -1029,7 +1026,7 @@ public class EntityManagerImplUnitTest {
 		verify(mockAnnotationTranslator).writeToJsonObject(project, annos, schema);
 		verifyZeroInteractions(mockDerivedAnnotationDao);
 	}
-
+	
 	@Test
 	public void testGetEntityJsonSubjectWithIncludeDerivedAnnotations() {
 		JsonSchema schema = null;
@@ -1054,7 +1051,7 @@ public class EntityManagerImplUnitTest {
 		verify(mockAnnotationTranslator).writeToJsonObject(project, annos, schema);
 		verify(mockDerivedAnnotationDao).getDerivedAnnotations(entityId);
 	}
-
+	
 	@Test
 	public void testGetEntityJsonSubjectWithBoundSchema() {
 		Project project = new Project();
@@ -1081,7 +1078,7 @@ public class EntityManagerImplUnitTest {
 		verify(mockAnnotationTranslator).writeToJsonObject(project, annos, schema);
 		verifyZeroInteractions(mockDerivedAnnotationDao);
 	}
-
+	
 	@Test
 	public void testGetEntityJsonSubjectWithNullEntityId() {
 		String entityId = null;
@@ -1093,7 +1090,7 @@ public class EntityManagerImplUnitTest {
 		verifyNoMoreInteractions(mockAnnotationTranslator);
 		verifyZeroInteractions(mockDerivedAnnotationDao);
 	}
-
+	
 	@Test
 	public void testUpdateEntityJson() {
 		JSONObject inputJson = new JSONObject();
@@ -1109,7 +1106,7 @@ public class EntityManagerImplUnitTest {
 		verify(mockNodeManager).updateUserAnnotations(mockUser, entityId, annos);
 		verify(mockAnnotationTranslator).readFromJsonObject(Project.class, inputJson);
 	}
-
+	
 	@Test
 	public void testUpdateEntityJsonWithNullUser() {
 		mockUser = null;
@@ -1119,7 +1116,7 @@ public class EntityManagerImplUnitTest {
 			entityManagerSpy.updateEntityJson(mockUser, entityId, inputJson);
 		});
 	}
-
+	
 	@Test
 	public void testUpdateEntityJsonWithNullEntityId() {
 		entityId = null;
@@ -1129,7 +1126,7 @@ public class EntityManagerImplUnitTest {
 			entityManagerSpy.updateEntityJson(mockUser, entityId, inputJson);
 		});
 	}
-
+	
 	@Test
 	public void testUpdateEntityJsonWithNullJson() {
 		JSONObject inputJson = null;
@@ -1138,7 +1135,7 @@ public class EntityManagerImplUnitTest {
 			entityManagerSpy.updateEntityJson(mockUser, entityId, inputJson);
 		});
 	}
-
+	
 	@Test
 	public void testGetEntityValidationResults() {
 		when(mockAuthorizationManger.hasAccess(any(), any(), any(ACCESS_TYPE.class))).thenReturn(AuthorizationStatus.authorized());
@@ -1151,7 +1148,7 @@ public class EntityManagerImplUnitTest {
 		verify(mockAuthorizationManger).hasAccess(mockUser, entityId, ACCESS_TYPE.READ);
 		verify(mockEntitySchemaValidationResultDao).getValidationResults(entityId);
 	}
-
+	
 	@Test
 	public void testGetEntityValidationResultsWithUnauthorized() {
 		when(mockAuthorizationManger.hasAccess(any(), any(), any(ACCESS_TYPE.class))).thenReturn(AuthorizationStatus.accessDenied("no"));
@@ -1161,7 +1158,7 @@ public class EntityManagerImplUnitTest {
 		verify(mockAuthorizationManger).hasAccess(mockUser, entityId, ACCESS_TYPE.READ);
 		verify(mockEntitySchemaValidationResultDao, never()).getValidationResults(any());
 	}
-
+	
 	@Test
 	public void testGetEntityValidationResultsWithNullUser() {
 		mockUser = null;
@@ -1169,7 +1166,7 @@ public class EntityManagerImplUnitTest {
 			entityManager.getEntityValidationResults(mockUser, entityId);
 		});
 	}
-
+	
 	@Test
 	public void testGetEntityValidationResultsWithNullEntityId() {
 		String entityId = null;
@@ -1177,7 +1174,7 @@ public class EntityManagerImplUnitTest {
 			entityManager.getEntityValidationResults(mockUser, entityId);
 		});
 	}
-
+	
 	@Test
 	public void testAuthorizedListChildren() {
 		when(mockAuthorizationManger.hasAccess(any(), any(), any(ACCESS_TYPE.class))).thenReturn(AuthorizationStatus.authorized());
@@ -1189,7 +1186,7 @@ public class EntityManagerImplUnitTest {
 		verify(mockAuthorizationManger).hasAccess(mockUser, entityId, ACCESS_TYPE.READ);
 		verify(mockEntityAclManager).getNonvisibleChildren(mockUser, entityId);
 	}
-
+	
 	@Test
 	public void testAuthorizedListChildrenWithUnauthorized() {
 		when(mockAuthorizationManger.hasAccess(any(), any(), any(ACCESS_TYPE.class))).thenReturn(AuthorizationStatus.accessDenied("no access"));
@@ -1200,8 +1197,8 @@ public class EntityManagerImplUnitTest {
 		verify(mockAuthorizationManger).hasAccess(mockUser, entityId, ACCESS_TYPE.READ);
 		verify(mockEntityAclManager, never()).getNonvisibleChildren(any(), any());
 	}
-
-
+	
+	
 	@Test
 	public void testAuthorizedListChildrenWithRootId() {
 		entityId = NodeUtils.ROOT_ENTITY_ID;
@@ -1213,7 +1210,7 @@ public class EntityManagerImplUnitTest {
 		verify(mockAuthorizationManger, never()).hasAccess(any(), any(), any(ACCESS_TYPE.class));
 		verify(mockEntityAclManager).getNonvisibleChildren(mockUser, entityId);
 	}
-
+	
 	@Test
 	public void testGetEntityValidationStatistics() {
 		Set<Long> nonVisibleChildren = Sets.newHashSet(111L,222L);
@@ -1227,7 +1224,7 @@ public class EntityManagerImplUnitTest {
 		verify(entityManagerSpy).authorizedListChildren(mockUser, entityId);
 		verify(mockEntitySchemaValidationResultDao).getEntityValidationStatistics(entityId, nonVisibleChildren);
 	}
-
+	
 	@Test
 	public void testGetInvalidEntitySchemaValidationResults() {
 		Set<Long> nonVisibleChildren = Sets.newHashSet(111L, 222L);
@@ -1250,7 +1247,7 @@ public class EntityManagerImplUnitTest {
 		verify(mockEntitySchemaValidationResultDao).getInvalidEntitySchemaValidationPage(entityId, nonVisibleChildren,
 				expectedLimit, expectedOffset);
 	}
-
+	
 	@Test
 	public void testGetInvalidEntitySchemaValidationResultsWithReturnedNextPageToken() {
 		Set<Long> nonVisibleChildren = Sets.newHashSet(111L, 222L);
@@ -1275,7 +1272,7 @@ public class EntityManagerImplUnitTest {
 		verify(mockEntitySchemaValidationResultDao).getInvalidEntitySchemaValidationPage(entityId, nonVisibleChildren,
 				expectedLimit, expectedOffset);
 	}
-
+	
 	@Test
 	public void testGetInvalidEntitySchemaValidationResultsWithInputNextPage() {
 		Set<Long> nonVisibleChildren = Sets.newHashSet(111L, 222L);
@@ -1302,7 +1299,7 @@ public class EntityManagerImplUnitTest {
 		verify(mockEntitySchemaValidationResultDao).getInvalidEntitySchemaValidationPage(entityId, nonVisibleChildren,
 				expectedLimit, expectedOffset);
 	}
-
+	
 	@Test
 	public void testGetInvalidEntitySchemaValidationResultsWithNullRequest() {
 		ListValidationResultsRequest request = null;
@@ -1311,7 +1308,7 @@ public class EntityManagerImplUnitTest {
 			entityManagerSpy.getInvalidEntitySchemaValidationResults(mockUser, request);
 		});
 	}
-
+	
 	@Test
 	public void testGetInvalidEntitySchemaValidationResultsWithNullContainerId() {
 		ListValidationResultsRequest request = new ListValidationResultsRequest();
@@ -1321,23 +1318,23 @@ public class EntityManagerImplUnitTest {
 			entityManagerSpy.getInvalidEntitySchemaValidationResults(mockUser, request);
 		});
 	}
-
+	
 	@Test
 	public void testUpdateEntityFileHandle() {
 		Long versionNumber = 1L;
-
+		
 		FileHandleUpdateRequest updateRequest = new FileHandleUpdateRequest();
 		updateRequest.setOldFileHandleId("123");
 		updateRequest.setNewFileHandleId("456");
-
+		
 		doNothing().when(mockNodeManager).updateNodeFileHandle(any(), any(), any(), any());
-
+		
 		// Call under test
 		entityManager.updateEntityFileHandle(mockUser, entityId, versionNumber, updateRequest);
-
+		
 		verify(mockNodeManager).updateNodeFileHandle(mockUser, entityId, versionNumber, updateRequest);
 	}
-
+	
 	static public List<ValidationResults> createValidationResultsListOfSize(int size){
 		List<ValidationResults> list = new ArrayList<ValidationResults>(size);
 		for(int i=0; i<size; i++) {
@@ -1348,7 +1345,7 @@ public class EntityManagerImplUnitTest {
 		}
 		return list;
 	}
-
+	
 	@Test
 	public void testBindSchemaToEntityWithSendNotificationMessage() {
 		when(mockAuthorizationManger.hasAccess(any(), any(), any(ACCESS_TYPE.class))).thenReturn(AuthorizationStatus.authorized());
@@ -1362,7 +1359,7 @@ public class EntityManagerImplUnitTest {
 				BoundObjectType.entity, false);
 		verify(entityManagerSpy).sendEntityUpdateNotifications(entityId);
 	}
-
+	
 	@Test
 	public void testBindSchemaToEntityWithNoSendNotificationMessage() {
 		when(mockAuthorizationManger.hasAccess(any(), any(), any(ACCESS_TYPE.class))).thenReturn(AuthorizationStatus.authorized());
@@ -1522,7 +1519,7 @@ public class EntityManagerImplUnitTest {
 		});
 		assertEquals("userInfo is required.", error.getMessage());
 	}
-
+	
 	@Test
 	public void testBindSchemaToEntityWithDerivedEnabled() {
 		schemaBindRequest.setEnableDerivedAnnotations(true);
@@ -1537,7 +1534,7 @@ public class EntityManagerImplUnitTest {
 				BoundObjectType.entity, true);
 		verify(entityManagerSpy).sendEntityUpdateNotifications(entityId);
 	}
-
+	
 	@Test
 	public void testBindSchemaToEntityWithDerivedEnabledNull() {
 		schemaBindRequest.setEnableDerivedAnnotations(null);
@@ -1552,7 +1549,7 @@ public class EntityManagerImplUnitTest {
 				BoundObjectType.entity, false);
 		verify(entityManagerSpy).sendEntityUpdateNotifications(entityId);
 	}
-
+	
 	@Test
 	public void testBindSchemaToEntityWithDerivedEnabledFalse() {
 		schemaBindRequest.setEnableDerivedAnnotations(false);
@@ -1567,7 +1564,7 @@ public class EntityManagerImplUnitTest {
 				BoundObjectType.entity, false);
 		verify(entityManagerSpy).sendEntityUpdateNotifications(entityId);
 	}
-
+	
 	@Test
 	public void testGetDerivedAnnotations() {
 		when(mockAuthorizationManger.hasAccess(any(), any(), any(ACCESS_TYPE.class)))
@@ -1581,7 +1578,7 @@ public class EntityManagerImplUnitTest {
 		verify(mockAuthorizationManger).hasAccess(mockUser, entityId, ACCESS_TYPE.READ);
 		verify(mockDerivedAnnotationDao).getDerivedAnnotationKeys(entityId);
 	}
-
+	
 	@Test
 	public void testGetDerivedAnnotationsWithEmpty() {
 		when(mockAuthorizationManger.hasAccess(any(), any(), any(ACCESS_TYPE.class)))
@@ -1594,7 +1591,7 @@ public class EntityManagerImplUnitTest {
 		verify(mockAuthorizationManger).hasAccess(mockUser, entityId, ACCESS_TYPE.READ);
 		verify(mockDerivedAnnotationDao).getDerivedAnnotationKeys(entityId);
 	}
-
+	
 	@Test
 	public void testGetDerivedAnnotationsWithUnauthorized() {
 		when(mockAuthorizationManger.hasAccess(any(), any(), any(ACCESS_TYPE.class)))
@@ -1605,7 +1602,7 @@ public class EntityManagerImplUnitTest {
 		verify(mockAuthorizationManger).hasAccess(mockUser, entityId, ACCESS_TYPE.READ);
 		verifyZeroInteractions(mockDerivedAnnotationDao);
 	}
-
+	
 	@Test
 	public void testGetDerivedAnnotationsWithNullUser() {
 		mockUser = null;
@@ -1615,7 +1612,7 @@ public class EntityManagerImplUnitTest {
 		}).getMessage();
 		assertEquals("userInfo is required.", message);
 	}
-
+	
 	@Test
 	public void testGetDerivedAnnotationsWithNulEntityId() {
 		entityId = null;
@@ -1625,7 +1622,7 @@ public class EntityManagerImplUnitTest {
 		}).getMessage();
 		assertEquals("entityId is required.", message);
 	}
-
+	
 	@Test
 	public void testGetAnnotations() {
 		when(mockAuthorizationManger.hasAccess(any(), any(), any(ACCESS_TYPE.class)))
@@ -1640,7 +1637,7 @@ public class EntityManagerImplUnitTest {
 		verify(mockNodeManager).getUserAnnotations(entityId);
 		verify(mockDerivedAnnotationDao, never()).getDerivedAnnotations(any());
 	}
-
+	
 	@Test
 	public void testGetAnnotationsWithDerived() {
 		when(mockAuthorizationManger.hasAccess(any(), any(), any(ACCESS_TYPE.class)))
@@ -1663,13 +1660,13 @@ public class EntityManagerImplUnitTest {
 		verify(mockNodeManager).getUserAnnotations(entityId);
 		verify(mockDerivedAnnotationDao).getDerivedAnnotations(entityId);
 	}
-
+	
 	@Test
 	public void testGetAnnotationsWithUnauthorized() {
 		when(mockAuthorizationManger.hasAccess(any(), any(), any(ACCESS_TYPE.class)))
 				.thenReturn(AuthorizationStatus.accessDenied("no"));
 		boolean includeDerived = false;
-
+		
 		assertThrows(UnauthorizedException.class, ()->{
 			// call under test
 			entityManager.getAnnotations(mockUser, entityId, includeDerived);
@@ -1678,5 +1675,6 @@ public class EntityManagerImplUnitTest {
 		verify(mockNodeManager, never()).getUserAnnotations(any());
 		verify(mockDerivedAnnotationDao, never()).getDerivedAnnotations(any());
 	}
+
 
 }

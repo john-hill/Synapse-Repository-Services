@@ -1,0 +1,21 @@
+{
+	"description": "The Thread model object represents a Thread info.",
+	"properties": {
+		"id": {
+			"type": "string",
+			"description": "The ID of the Thread"
+		},
+		"forumId": {
+			"type": "string",
+			"description": "The ID of the forum this Thread belongs to"
+		},
+		"objectId": {
+			"type": "string",
+			"description": "The ID of the object this Thread belongs to"
+		},
+		"objectType": {
+			"$ref":"org.sagebionetworks.repo.model.discussion.ForumObjectType",
+			"description": "The type of the object this Thread belongs to"
+		}
+	}
+}

@@ -1,10 +1,12 @@
 package org.sagebionetworks.repo.manager.search;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Optional;
@@ -217,6 +219,42 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 		assertTrue(ex.getMessage().contains("still building"),
 				"Exception message should indicate the index is not ready, got: " + ex.getMessage());
+	}
+
+	@Test
+	public void testValidateAnalyzerSettingsWithInvalidTokenizer() {
+		TextAnalyzerSettings settings = new TextAnalyzerSettings();
+		settings.setTokenizer("nonexistent_tokenizer_xyz");
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> openSearchManager.validateAnalyzerSettings(settings));
+		assertTrue(ex.getMessage().contains("Invalid analyzer configuration"),
+				"Expected 'Invalid analyzer configuration' in message, got: " + ex.getMessage());
+	}
+
+	@Test
+	public void testValidateAnalyzerSettingsWithInvalidFilter() {
+		TextAnalyzerSettings settings = new TextAnalyzerSettings();
+		settings.setTokenizer("standard");
+		settings.setFilterOrder(Arrays.asList("bogus_filter_name_xyz"));
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> openSearchManager.validateAnalyzerSettings(settings));
+		assertTrue(ex.getMessage().contains("Invalid analyzer configuration"),
+				"Expected 'Invalid analyzer configuration' in message, got: " + ex.getMessage());
+	}
+
+	@Test
+	public void testValidateAnalyzerSettingsWithCustomFilters() {
+		TextAnalyzerSettings settings = new TextAnalyzerSettings();
+		settings.setTokenizer("standard");
+		settings.setTokenFilters("{\"my_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"}}");
+		settings.setFilterOrder(Arrays.asList("my_stop", "lowercase"));
+
+		// call under test
+		assertDoesNotThrow(() -> openSearchManager.validateAnalyzerSettings(settings));
 	}
 
 	// ---- Polling helpers ----

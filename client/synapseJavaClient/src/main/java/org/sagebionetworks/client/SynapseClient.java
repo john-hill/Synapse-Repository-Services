@@ -313,7 +313,6 @@ import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.SearchResults;
 import org.sagebionetworks.repo.model.search.query.SearchQuery;
 import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
-import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
 import org.sagebionetworks.repo.model.statistics.ObjectStatisticsRequest;
 import org.sagebionetworks.repo.model.statistics.ObjectStatisticsResponse;
 import org.sagebionetworks.repo.model.status.StackStatus;
@@ -4858,8 +4857,6 @@ public interface SynapseClient extends BaseClient {
 	String startSearchIndexQuery(SearchIndexQuery request) throws SynapseException;
 
 	SearchQueryResults getSearchIndexQueryResults(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException;
-
-	SearchIndexStatus getSearchIndexStatus(String searchIndexId) throws SynapseException;
 
 }
 

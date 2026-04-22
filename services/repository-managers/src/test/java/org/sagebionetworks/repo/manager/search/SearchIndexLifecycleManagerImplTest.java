@@ -1,0 +1,336 @@
+package org.sagebionetworks.repo.manager.search;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.opensearch.client.opensearch.core.bulk.BulkOperation;
+import org.sagebionetworks.repo.manager.EntityManager;
+import org.sagebionetworks.repo.manager.UserManager;
+import org.sagebionetworks.repo.manager.table.TableQueryManager;
+import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
+import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
+import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
+import org.sagebionetworks.repo.model.search.table.SearchIndex;
+import org.sagebionetworks.repo.model.search.table.SearchIndexState;
+import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
+import org.sagebionetworks.repo.model.table.QueryResultBundle;
+import org.sagebionetworks.repo.model.table.Row;
+import org.sagebionetworks.repo.model.table.SelectColumn;
+import org.sagebionetworks.repo.model.table.TableStatus;
+import org.sagebionetworks.repo.model.table.TableUnavailableException;
+import org.sagebionetworks.table.cluster.ConnectionFactory;
+import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
+import org.sagebionetworks.util.progress.ProgressCallback;
+
+@ExtendWith(MockitoExtension.class)
+public class SearchIndexLifecycleManagerImplTest {
+
+	private static final String ENTITY_ID = "syn456";
+	private static final Long USER_ID = 123L;
+	private static final Long ANON_ID = 273950L;
+	private static final String DEFINING_SQL = "SELECT * FROM syn789";
+
+	@Mock
+	private ConnectionFactory connectionFactory;
+	@Mock
+	private OpenSearchManager openSearchManager;
+	@Mock
+	private SearchConfigurationResolver searchConfigurationResolver;
+	@Mock
+	private TableQueryManager tableQueryManager;
+	@Mock
+	private UserManager userManager;
+	@Mock
+	private EntityManager entityManager;
+	@Mock
+	private SynonymSetDao synonymSetDao;
+	@Mock
+	private ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao;
+	@Mock
+	private TextAnalyzerDao textAnalyzerDao;
+	@Mock
+	private SearchIndexStatusDao statusDao;
+	@Mock
+	private ProgressCallback progressCallback;
+
+	@InjectMocks
+	private SearchIndexLifecycleManagerImpl manager;
+
+	private UserInfo triggeringUser() {
+		UserInfo user = new UserInfo(false, USER_ID, null);
+		user.setRealmAnonymousUserId(ANON_ID);
+		return user;
+	}
+
+	private UserInfo anonymousUser() {
+		UserInfo user = new UserInfo(false, ANON_ID, null);
+		user.setRealmAnonymousUserId(ANON_ID);
+		return user;
+	}
+
+	@Test
+	public void testHandleCreatePassesAnonymousUserToQueryManager() throws Exception {
+		UserInfo triggering = triggeringUser();
+		UserInfo anon = anonymousUser();
+		SearchIndex searchIndex = new SearchIndex();
+		searchIndex.setDefiningSQL(DEFINING_SQL);
+		searchIndex.setParentId("syn100");
+
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
+		when(userManager.getUserInfo(ANON_ID)).thenReturn(anon);
+		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
+		when(searchConfigurationResolver.resolve(eq(triggering), any(), eq("syn100")))
+				.thenReturn(Optional.empty());
+		when(tableQueryManager.querySinglePage(eq(progressCallback), any(UserInfo.class), any(), any()))
+				.thenReturn(new QueryResultBundle().setQueryCount(0L));
+
+		// call under test
+		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		// Verify the anonymous user — not the triggering user — was passed to both query calls.
+		ArgumentCaptor<UserInfo> countUser = ArgumentCaptor.forClass(UserInfo.class);
+		verify(tableQueryManager).querySinglePage(eq(progressCallback), countUser.capture(), any(), any());
+		assertSame(anon, countUser.getValue());
+
+		ArgumentCaptor<UserInfo> streamUser = ArgumentCaptor.forClass(UserInfo.class);
+		verify(tableQueryManager).runQueryAsStream(eq(progressCallback), streamUser.capture(), any(), any(), any());
+		assertSame(anon, streamUser.getValue());
+	}
+
+	@Test
+	public void testHandleCreateOnExceptionRecordsFailedWithErrorMessage() throws Exception {
+		UserInfo triggering = triggeringUser();
+		SearchIndex searchIndex = new SearchIndex();
+		searchIndex.setDefiningSQL(DEFINING_SQL);
+		searchIndex.setParentId("syn100");
+
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
+		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
+		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
+		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
+		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
+				.thenThrow(new RuntimeException("bad SQL"));
+
+		// call under test
+		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao, org.mockito.Mockito.times(2)).createOrUpdate(captor.capture());
+		List<SearchIndexStatus> saved = captor.getAllValues();
+		assertEquals(SearchIndexState.CREATING, saved.get(0).getState());
+		assertEquals(SearchIndexState.FAILED, saved.get(1).getState());
+		assertEquals("bad SQL", saved.get(1).getErrorMessage());
+		// Best-effort cleanup after failure
+		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
+	}
+
+	@Test
+	public void testHandleCreateExceedsMaxRowsRecordsFailed() throws Exception {
+		UserInfo triggering = triggeringUser();
+		SearchIndex searchIndex = new SearchIndex();
+		searchIndex.setDefiningSQL(DEFINING_SQL);
+		searchIndex.setParentId("syn100");
+
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
+		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
+		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
+		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
+		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
+				.thenReturn(new QueryResultBundle().setQueryCount(500_001L));
+
+		// call under test
+		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao, org.mockito.Mockito.times(2)).createOrUpdate(captor.capture());
+		assertEquals(SearchIndexState.FAILED, captor.getAllValues().get(1).getState());
+		assertNotNull(captor.getAllValues().get(1).getErrorMessage());
+		// Stream query never runs past the row-count gate
+		verify(tableQueryManager, never()).runQueryAsStream(any(), any(), any(), any(), any());
+	}
+
+	@Test
+	public void testHandleCreateOnTableUnavailablePropagates() throws Exception {
+		UserInfo triggering = triggeringUser();
+		SearchIndex searchIndex = new SearchIndex();
+		searchIndex.setDefiningSQL(DEFINING_SQL);
+		searchIndex.setParentId("syn100");
+
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
+		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
+		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
+		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
+		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
+				.thenThrow(new TableUnavailableException(new TableStatus()));
+
+		// call under test — TableUnavailableException must propagate so the worker can retry.
+		assertThrows(TableUnavailableException.class,
+				() -> manager.handleCreate(progressCallback, ENTITY_ID, USER_ID));
+
+		// Only the CREATING status was written — no FAILED record, no cleanup.
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao).createOrUpdate(captor.capture());
+		assertEquals(SearchIndexState.CREATING, captor.getValue().getState());
+		verify(openSearchManager, never()).deleteIndex(any());
+	}
+
+	@Test
+	public void testHandleDeleteWithCreatingStateThrowsRecoverable() {
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getState(456L)).thenReturn(Optional.of(SearchIndexState.CREATING));
+
+		// call under test
+		assertThrows(org.sagebionetworks.workers.util.aws.message.RecoverableMessageException.class,
+				() -> manager.handleDelete(ENTITY_ID));
+
+		verify(openSearchManager, never()).deleteIndex(any());
+		verify(statusDao, never()).delete(any());
+	}
+
+	@Test
+	public void testHandleDeleteWithActiveStateDeletesIndexAndStatus() throws Exception {
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getState(456L)).thenReturn(Optional.of(SearchIndexState.ACTIVE));
+
+		// call under test
+		manager.handleDelete(ENTITY_ID);
+
+		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
+		verify(statusDao).delete(456L);
+	}
+
+	@Test
+	public void testHandleDeleteWithFailedStateDeletesIndexAndStatus() throws Exception {
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getState(456L)).thenReturn(Optional.of(SearchIndexState.FAILED));
+
+		// call under test
+		manager.handleDelete(ENTITY_ID);
+
+		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
+		verify(statusDao).delete(456L);
+	}
+
+	@Test
+	public void testHandleDeleteWithMissingStatusIsNoOp() throws Exception {
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getState(456L)).thenReturn(Optional.empty());
+
+		// call under test
+		manager.handleDelete(ENTITY_ID);
+
+		verify(openSearchManager, never()).deleteIndex(any());
+		verify(statusDao, never()).delete(any());
+	}
+
+	// -------- SearchIndexRowHandler tests --------
+
+	@Test
+	public void testRowHandlerNextRowBuildsDocumentFromColumnValues() {
+		SelectColumn col1 = new SelectColumn();
+		col1.setId("100");
+		SelectColumn col2 = new SelectColumn();
+		col2.setId("200");
+		List<SelectColumn> columns = Arrays.asList(col1, col2);
+		SearchIndexLifecycleManagerImpl.SearchIndexRowHandler handler =
+				new SearchIndexLifecycleManagerImpl.SearchIndexRowHandler("test-index", columns, openSearchManager);
+
+		Row row = new Row();
+		row.setRowId(42L);
+		row.setVersionNumber(1L);
+		row.setValues(Arrays.asList("hello", "world"));
+
+		// call under test
+		handler.nextRow(row);
+
+		// No flush yet — batch size is 1000
+		verify(openSearchManager, never()).bulkIndex(any(), any());
+	}
+
+	@Test
+	public void testRowHandlerNextRowSkipsNullValues() throws IOException {
+		SelectColumn col1 = new SelectColumn();
+		col1.setId("100");
+		SelectColumn col2 = new SelectColumn();
+		col2.setId("200");
+		List<SelectColumn> columns = Arrays.asList(col1, col2);
+		SearchIndexLifecycleManagerImpl.SearchIndexRowHandler handler =
+				new SearchIndexLifecycleManagerImpl.SearchIndexRowHandler("test-index", columns, openSearchManager);
+
+		Row row = new Row();
+		row.setRowId(42L);
+		row.setVersionNumber(1L);
+		row.setValues(Arrays.asList("hello", null));
+		handler.nextRow(row);
+
+		// call under test — close forces a flush of the single-row batch
+		handler.close();
+
+		ArgumentCaptor<List<BulkOperation>> captor = ArgumentCaptor.forClass(List.class);
+		verify(openSearchManager).bulkIndex(eq("test-index"), captor.capture());
+		assertEquals(1, captor.getValue().size());
+		// Indirect check via the BulkOperation's index op — the exact JSON content
+		// of the null-excluded field is enforced by the OpenSearch autowire test.
+	}
+
+	@Test
+	public void testRowHandlerCloseFlushesPartialBatch() throws IOException {
+		SelectColumn col = new SelectColumn();
+		col.setId("100");
+		SearchIndexLifecycleManagerImpl.SearchIndexRowHandler handler =
+				new SearchIndexLifecycleManagerImpl.SearchIndexRowHandler("test-index", Collections.singletonList(col), openSearchManager);
+
+		// 3 rows — well under the 1000 batch size
+		for (long i = 1; i <= 3; i++) {
+			Row row = new Row();
+			row.setRowId(i);
+			row.setVersionNumber(1L);
+			row.setValues(Collections.singletonList("v" + i));
+			handler.nextRow(row);
+		}
+
+		// call under test
+		handler.close();
+
+		verify(openSearchManager).bulkIndex(eq("test-index"), any());
+	}
+
+	@Test
+	public void testRowHandlerCloseWithEmptyBatchIsNoOp() throws IOException {
+		SelectColumn col = new SelectColumn();
+		col.setId("100");
+		SearchIndexLifecycleManagerImpl.SearchIndexRowHandler handler =
+				new SearchIndexLifecycleManagerImpl.SearchIndexRowHandler("test-index", Collections.singletonList(col), openSearchManager);
+
+		// call under test
+		handler.close();
+
+		verify(openSearchManager, never()).bulkIndex(any(), any());
+	}
+}

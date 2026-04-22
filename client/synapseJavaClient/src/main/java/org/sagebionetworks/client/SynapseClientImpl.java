@@ -354,7 +354,6 @@ import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.SearchResults;
 import org.sagebionetworks.repo.model.search.query.SearchQuery;
 import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
-import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
 import org.sagebionetworks.repo.model.statistics.ObjectStatisticsRequest;
 import org.sagebionetworks.repo.model.statistics.ObjectStatisticsResponse;
 import org.sagebionetworks.repo.model.status.StackStatus;
@@ -792,7 +791,6 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	private static final String SEARCH_COLUMN_ANALYZER_OVERRIDE_LIST = SEARCH_COLUMN_ANALYZER_OVERRIDE + "/list";
 	private static final String SEARCH_AUTOCOMPLETE = "/search/autocomplete";
 	private static final String ENTITY_SEARCH_CONFIG_BINDING = "/entity/%s/searchconfig/binding";
-	private static final String ENTITY_SEARCH_INDEX_STATUS = "/entity/%s/search/status";
 
 
 	/**
@@ -6828,12 +6826,5 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public SearchQueryResults getSearchIndexQueryResults(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException {
 		ValidateArgument.required(asyncJobToken, "asyncJobToken");
 		return (SearchQueryResults) getAsyncResult(AsynchJobType.SearchIndexQuery, asyncJobToken, (String) null);
-	}
-
-	@Override
-	public SearchIndexStatus getSearchIndexStatus(String searchIndexId) throws SynapseException {
-		ValidateArgument.required(searchIndexId, "searchIndexId");
-		String url = String.format(ENTITY_SEARCH_INDEX_STATUS, searchIndexId);
-		return getJSONEntity(getRepoEndpoint(), url, SearchIndexStatus.class);
 	}
 }

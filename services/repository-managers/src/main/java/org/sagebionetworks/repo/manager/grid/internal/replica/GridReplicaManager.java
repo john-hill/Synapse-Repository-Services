@@ -55,4 +55,12 @@ public interface GridReplicaManager {
 	 */
 	void onResponseComplete(ProgressCallback callback, GridConnectionInfo connection, Integer methodId);
 
+	/**
+	 * Called when the hub requests the internal replica export a new snapshot.
+	 *
+	 * @param callback
+	 * @param connection
+	 */
+	void onExportSnapshot(ProgressCallback callback, GridConnectionInfo connection);
+
 }

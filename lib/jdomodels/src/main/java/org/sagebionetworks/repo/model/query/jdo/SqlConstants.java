@@ -987,6 +987,12 @@ public class SqlConstants {
 	public static final String COL_DISCUSSION_THREAD_ENTITY_REFERENCE_ENTITY_ID = "ENTITY_ID";
 	public static final String DDL_DISCUSSION_THREAD_ENTITY_REFERENCE = "schema/discussion/DiscussionThreadEntityReference-ddl.sql";
 
+	// Discussion Thread Submission Reference table
+	public static final String TABLE_DISCUSSION_THREAD_SUBMISSION_REFERENCE = "DISCUSSION_THREAD_SUBMISSION_REFERENCE";
+	public static final String COL_DISCUSSION_THREAD_SUBMISSION_REFERENCE_THREAD_ID = "THREAD_ID";
+	public static final String COL_DISCUSSION_THREAD_SUBMISSION_REFERENCE_SUBMISSION_ID = "SUBMISSION_ID";
+	public static final String DDL_DISCUSSION_THREAD_SUBMISSION_REFERENCE = "schema/discussion/DiscussionThreadSubmissionReference-ddl.sql";
+
 	// Subscription table
 	public static final String TABLE_SUBSCRIPTION = "SUBSCRIPTION";
 	public static final String COL_SUBSCRIPTION_ID = "ID";

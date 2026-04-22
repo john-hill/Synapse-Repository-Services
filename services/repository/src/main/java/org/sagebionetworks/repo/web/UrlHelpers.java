@@ -1389,9 +1389,6 @@ public class UrlHelpers {
 	// Search - Configuration Bindings
 	public static final String ENTITY_SEARCH_CONFIG_BINDING = "/entity/{entityId}/searchconfig/binding";
 
-	// Search - Index Status
-	public static final String ENTITY_SEARCH_INDEX_STATUS = "/entity/{id}/search/status";
-
 	// Search - Query and Autocomplete
 	public static final String SEARCH_QUERY_ASYNC_START = "/search/query/async/start";
 	public static final String SEARCH_QUERY_ASYNC_GET = "/search/query/async/get/{asyncToken}";

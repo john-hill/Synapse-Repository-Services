@@ -37,7 +37,6 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_GRID_SNA
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_NODE_TYPE;
 
 import java.sql.ResultSet;
-import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.StringJoiner;
@@ -368,18 +367,17 @@ public class GridDaoImpl implements GridDao {
 
 	@WriteTransaction
 	@Override
-	public boolean savePatch(String sessionId, LogicalTimestamp patchId, String s3Key, Duration expires, long sizeBytes) {
+	public boolean savePatch(String sessionId, LogicalTimestamp patchId, String s3Key, long sizeBytes) {
 		ValidateArgument.required(sessionId, "sessionId");
 		ValidateArgument.required(patchId, "patchId");
 		ValidateArgument.required(s3Key, "s3Key");
-		ValidateArgument.required(expires, "expires");
 
 		Long id = idGenerator.generateNewId(IdType.GRID_SESSION_ID);
 		return jdbcTemplate.update(
 				"INSERT IGNORE INTO GRID_PATCH "
 						+ "(ID, SESSION_ID, PATCH_ID_REP, PATCH_ID_SEQ, CREATED_ON, EXPIRES_ON, S3_KEY, SIZE_BYTES)"
-						+ " VALUES (?,?,?,?,NOW(),NOW() + INTERVAL ? SECOND,?,?)",
-				id, sessionId, patchId.getReplicaId(), patchId.getSequenceNumber(), expires.getSeconds(), s3Key, sizeBytes) > 0;
+						+ " VALUES (?,?,?,?,NOW(),NULL,?,?)",
+				id, sessionId, patchId.getReplicaId(), patchId.getSequenceNumber(), s3Key, sizeBytes) > 0;
 	}
 
 	@WriteTransaction
@@ -435,7 +433,25 @@ public class GridDaoImpl implements GridDao {
 			rows.add(String.format("ROW(%d,%d)", id.getReplicaId(), id.getSequenceNumber()));
 		});
 		String sql = String.format(LIST_MISSING_PATCHES, rows.toString());
+		sql += " LIMIT ?;";
 		return jdbcTemplate.query(sql, PATCH_INFO_MAPPER, sessionId, limit);
+	}
+
+	@Override
+	public int countMissingPatchesForClock(String sessionId, List<LogicalTimestamp> clock) {
+		ValidateArgument.required(sessionId, "sessionId");
+		ValidateArgument.required(clock, "clock");
+		if (clock.isEmpty()) {
+			clock = List.of(new LogicalTimestamp().setReplicaId(0L).setSequenceNumber(0L));
+		}
+		StringJoiner rows = new StringJoiner(",");
+		clock.forEach(id -> {
+			rows.add(String.format("ROW(%d,%d)", id.getReplicaId(), id.getSequenceNumber()));
+		});
+		String sql = "SELECT COUNT(*) FROM ("  +
+				String.format(LIST_MISSING_PATCHES, rows) +
+				") as mp;";
+		return jdbcTemplate.queryForObject(sql, Integer.class, sessionId);
 	}
 
 	@Override
@@ -483,5 +499,7 @@ public class GridDaoImpl implements GridDao {
 			return Optional.empty();
 		}
 	}
+
+
 
 }

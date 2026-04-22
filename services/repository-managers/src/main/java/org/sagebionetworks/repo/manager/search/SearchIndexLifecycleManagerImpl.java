@@ -4,47 +4,43 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Set;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
-import org.sagebionetworks.repo.manager.table.TableManagerSupport;
 import org.sagebionetworks.repo.manager.table.TableQueryManager;
-import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
 import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
-import org.sagebionetworks.repo.model.UnauthorizedException;
-import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
 import org.sagebionetworks.repo.model.search.table.SearchIndexState;
+import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.repo.model.table.SelectColumn;
-import org.sagebionetworks.repo.model.table.TableState;
+import org.sagebionetworks.repo.model.table.TableFailedException;
+import org.sagebionetworks.repo.model.table.TableUnavailableException;
 import org.sagebionetworks.table.cluster.ConnectionFactory;
 import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
 import org.sagebionetworks.repo.manager.table.query.QueryTranslations;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
+import org.sagebionetworks.workers.util.semaphore.LockUnavilableException;
 import org.springframework.stereotype.Service;
 
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -64,13 +60,9 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	private static final int BATCH_SIZE = 1000;
 	private static final long MAX_ROWS = 500_000L;
 
-	static final Pattern FROM_TABLE_PATTERN = Pattern.compile(
-			"FROM\\s+(syn\\d+(?:\\.\\d+)?)", Pattern.CASE_INSENSITIVE);
-
 	private final ConnectionFactory connectionFactory;
 	private final OpenSearchManager openSearchManager;
 	private final SearchConfigurationResolver searchConfigurationResolver;
-	private final TableManagerSupport tableManagerSupport;
 	private final TableQueryManager tableQueryManager;
 	private final UserManager userManager;
 	private final EntityManager entityManager;
@@ -81,7 +73,6 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	public SearchIndexLifecycleManagerImpl(ConnectionFactory connectionFactory,
 			OpenSearchManager openSearchManager,
 			SearchConfigurationResolver searchConfigurationResolver,
-			TableManagerSupport tableManagerSupport,
 			TableQueryManager tableQueryManager, UserManager userManager,
 			EntityManager entityManager,
 			SynonymSetDao synonymSetDao, ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao,
@@ -89,7 +80,6 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		this.connectionFactory = connectionFactory;
 		this.openSearchManager = openSearchManager;
 		this.searchConfigurationResolver = searchConfigurationResolver;
-		this.tableManagerSupport = tableManagerSupport;
 		this.tableQueryManager = tableQueryManager;
 		this.userManager = userManager;
 		this.entityManager = entityManager;
@@ -100,27 +90,22 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 
 	@Override
 	public void handleCreate(ProgressCallback progressCallback, String entityId, Long userId)
-			throws RecoverableMessageException {
+			throws RecoverableMessageException, TableUnavailableException, TableFailedException, LockUnavilableException {
 		buildIndex(progressCallback, entityId, userId, true);
 	}
 
 	@Override
 	public void handleUpdate(ProgressCallback progressCallback, String entityId, Long userId)
-			throws RecoverableMessageException {
-		Long searchIndexId = KeyFactory.stringToKey(entityId);
-		SearchIndexStatusDao statusDao = connectionFactory.getSearchIndexStatusDao();
-		// Only build if the index does not already exist
-		if (statusDao.exists(searchIndexId)) {
-			return;
-		}
-		buildIndex(progressCallback, entityId, userId, false);
+			throws RecoverableMessageException, TableUnavailableException, TableFailedException, LockUnavilableException {
+		// In the MVP updates are unconditionally replacing the index on all changes regardless of what the change is.
+		buildIndex(progressCallback, entityId, userId, true);
 	}
 
 	private void buildIndex(ProgressCallback progressCallback, String entityId, Long userId,
-			boolean deleteExistingFirst) throws RecoverableMessageException {
+			boolean deleteExistingFirst)
+			throws RecoverableMessageException, TableUnavailableException, TableFailedException, LockUnavilableException {
 		ValidateArgument.required(entityId, "entityId");
 		ValidateArgument.required(userId, "userId");
-		Long searchIndexId = KeyFactory.stringToKey(entityId);
 		SearchIndexStatusDao statusDao = connectionFactory.getSearchIndexStatusDao();
 		try {
 			UserInfo user = userManager.getUserInfo(userId);
@@ -128,9 +113,9 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 
 			String definingSQL = searchIndex.getDefiningSQL();
 
-			checkSourceTableReady(definingSQL);
-
-			statusDao.createOrUpdate(searchIndexId, SearchIndexState.CREATING, null, null);
+			statusDao.createOrUpdate(new SearchIndexStatus()
+					.setSearchIndexId(entityId)
+					.setState(SearchIndexState.CREATING));
 
 			Optional<SearchConfiguration> configOpt = searchConfigurationResolver.resolve(
 					user, searchIndex.getSearchConfigurationId(), searchIndex.getParentId());
@@ -139,19 +124,11 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			List<ColumnAnalyzerOverride> overrides = loadColumnAnalyzerOverrides(config);
 			List<SynonymSet> synonymSets = loadSynonymSets(config);
 
-			// Query data as an unprivileged authenticated user to enforce
-			// row-level ACL filtering. Uses the change message user's identity
-			// but restricts groups to only PUBLIC_GROUP and AUTHENTICATED_USERS_GROUP,
-			// stripping any user-specific team memberships or ACL grants.
-			// This ensures only data visible to all authenticated users gets indexed,
-			// while still allowing table DOWNLOAD access (which anonymous lacks).
-			UserInfo authenticatedUser = new UserInfo(false);
-			authenticatedUser.setId(userId);
-			Set<Long> restrictedGroups = new HashSet<>();
-			restrictedGroups.add(userId);
-			restrictedGroups.add(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.PUBLIC_GROUP.getPrincipalId());
-			restrictedGroups.add(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.AUTHENTICATED_USERS_GROUP.getPrincipalId());
-			authenticatedUser.setGroups(restrictedGroups);
+			// Build the index as the anonymous user. This enforces Sage governance:
+			// only tables marked DataType.OPEN_DATA with PUBLIC read access can be
+			// indexed. Any other table will fail authorization during queryPreflight,
+			// and the search index will be recorded as FAILED.
+			UserInfo anonymousUser = userManager.getUserInfo(user.getRealmAnonymousUserId());
 			Query query = new Query();
 			query.setSql(definingSQL);
 
@@ -161,7 +138,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 					.withReturnSelectColumns(false)
 					.withReturnFacets(false);
 			QueryResultBundle countResult = tableQueryManager.querySinglePage(
-					progressCallback, authenticatedUser, query, countOnly);
+					progressCallback, anonymousUser, query, countOnly);
 			Long rowCount = countResult.getQueryCount();
 			if (rowCount != null && rowCount > MAX_ROWS) {
 				throw new IllegalStateException(
@@ -169,8 +146,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 								+ " rows. Row count: " + rowCount);
 			}
 
-			final String[] appliedConfigJson = {null};
-			tableQueryManager.runQueryAsStream(progressCallback, authenticatedUser, query,
+			tableQueryManager.runQueryAsStream(progressCallback, anonymousUser, query,
 					(QueryTranslations translations) -> {
 						List<ColumnModel> selectedColumns = translations.getMainQuery()
 								.getTranslator().getSchemaOfSelect();
@@ -191,24 +167,33 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 						if (deleteExistingFirst) {
 							openSearchManager.deleteIndex(indexName);
 						}
-						appliedConfigJson[0] = openSearchManager.createIndex(indexName,
+						openSearchManager.createIndex(indexName,
 								selectedColumns, defaultAnalyzer,
-								synonymSets, overrides, analyzers).orElse(null);
+								synonymSets, overrides, analyzers);
 						return new SearchIndexRowHandler(indexName, selectColumns,
 								openSearchManager);
 					}, ACCESS_TYPE.READ);
 
-			statusDao.createOrUpdate(searchIndexId, SearchIndexState.ACTIVE, null, appliedConfigJson[0]);
-		} catch (RecoverableMessageException e) {
+			statusDao.createOrUpdate(new SearchIndexStatus()
+					.setSearchIndexId(entityId)
+					.setState(SearchIndexState.ACTIVE));
+		} catch (RecoverableMessageException | TableUnavailableException | TableFailedException | LockUnavilableException e) {
+			// Propagate transient/infrastructure exceptions to the worker so it can
+			// convert them into RecoverableMessageException (table unavailable / lock)
+			// or permanent failure (table failed). Do not record FAILED here — the
+			// failure is not in the search index's configuration.
 			throw e;
-		} catch (Exception e) {
+		} catch (Throwable e) {
 			LOG.error("Failed to build search index for entity: " + entityId, e);
 			String errorMessage = e.getMessage();
 			if (errorMessage != null && errorMessage.length() > MAX_ERROR_MESSAGE_LENGTH) {
 				errorMessage = errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH);
 			}
 			// Set FAILED first — status table is the source of truth
-			statusDao.createOrUpdate(searchIndexId, SearchIndexState.FAILED, errorMessage, null);
+			statusDao.createOrUpdate(new SearchIndexStatus()
+					.setSearchIndexId(entityId)
+					.setState(SearchIndexState.FAILED)
+					.setErrorMessage(errorMessage));
 			// Best-effort cleanup of partial AOSS index
 			try {
 				openSearchManager.deleteIndex(getIndexName(entityId));
@@ -229,45 +214,16 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			// No status row — already cleaned up, nothing to do
 			return;
 		}
-		SearchIndexState currentState = stateOpt.get();
-		if (currentState == SearchIndexState.CREATING) {
+		if (stateOpt.get() == SearchIndexState.CREATING) {
+			// Cannot interrupt an in-flight build — retry the delete later.
 			throw new RecoverableMessageException(
 					"Search index " + entityId + " is still building. Will retry delete later.");
 		}
-		// ACTIVE, FAILED, or DELETING (retry) — proceed with delete.
-		// DELETING is retried rather than no-oped to avoid zombie rows from transient failures.
 		try {
-			statusDao.createOrUpdate(searchIndexId, SearchIndexState.DELETING, null, null);
 			openSearchManager.deleteIndex(getIndexName(entityId));
 			statusDao.delete(searchIndexId);
-		} catch (Exception e) {
+		} catch (Throwable e) {
 			LOG.error("Failed to delete search index for entity: " + entityId, e);
-		}
-	}
-
-	void checkSourceTableReady(String definingSQL) throws RecoverableMessageException {
-		Matcher matcher = FROM_TABLE_PATTERN.matcher(definingSQL);
-		if (!matcher.find()) {
-			return;
-		}
-		String sourceTableRef = matcher.group(1);
-		IdAndVersion sourceTableId = IdAndVersion.parse(sourceTableRef);
-		Optional<TableState> stateOpt = tableManagerSupport.getTableStatusState(sourceTableId);
-		if (stateOpt.isEmpty()) {
-			throw new RecoverableMessageException(
-					"Source entity " + sourceTableId + " has no status yet. Deferring search index build.");
-		}
-		switch (stateOpt.get()) {
-			case PROCESSING:
-				throw new RecoverableMessageException(
-						"Source entity " + sourceTableId + " is still processing. Deferring search index build.");
-			case PROCESSING_FAILED:
-				throw new IllegalStateException(
-						"Cannot build search index: source entity " + sourceTableId + " is in PROCESSING_FAILED state.");
-			case AVAILABLE:
-				break;
-			default:
-				break;
 		}
 	}
 
@@ -323,7 +279,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		return INDEX_PREFIX + entityId;
 	}
 
-	private static class SearchIndexRowHandler implements RowHandler {
+	static class SearchIndexRowHandler implements RowHandler {
 
 		private final String indexName;
 		private final List<SelectColumn> columns;

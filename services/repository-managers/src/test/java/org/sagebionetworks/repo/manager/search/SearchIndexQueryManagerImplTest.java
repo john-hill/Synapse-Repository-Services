@@ -31,6 +31,7 @@ import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
 import org.sagebionetworks.repo.model.search.table.SearchIndexState;
+import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
 import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryType;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
@@ -127,7 +128,8 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(statusDao.getState(1L)).thenReturn(Optional.of(SearchIndexState.CREATING));
+		when(statusDao.getStatus(1L)).thenReturn(Optional.of(
+				new SearchIndexStatus().setSearchIndexId(SEARCH_INDEX_ID).setState(SearchIndexState.CREATING)));
 
 		IllegalStateException ex = assertThrows(IllegalStateException.class,
 				() -> manager.search(user, SEARCH_INDEX_ID, buildQuery()));
@@ -136,30 +138,42 @@ public class SearchIndexQueryManagerImplTest {
 	}
 
 	@Test
-	public void testSearchWithFailedStatus() {
+	public void testSearchWithFailedStatusIncludesStoredErrorMessage() {
 		SearchIndex si = setupSearchIndex();
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(statusDao.getState(1L)).thenReturn(Optional.of(SearchIndexState.FAILED));
+		when(statusDao.getStatus(1L)).thenReturn(Optional.of(new SearchIndexStatus()
+				.setSearchIndexId(SEARCH_INDEX_ID)
+				.setState(SearchIndexState.FAILED)
+				.setErrorMessage("Column 'bogus_col' does not exist.")));
 
-		IllegalStateException ex = assertThrows(IllegalStateException.class,
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
 				() -> manager.search(user, SEARCH_INDEX_ID, buildQuery()));
+
 		assertEquals(true, ex.getMessage().contains("build failed"));
+		assertEquals(true, ex.getMessage().contains("Column 'bogus_col' does not exist."),
+				"Expected the stored error message to be forwarded to the user: " + ex.getMessage());
+		assertEquals(true, ex.getMessage().contains("Delete or update the SearchIndex"));
 		verifyNoMoreInteractions(openSearchManager);
 	}
 
 	@Test
-	public void testSearchWithDeletingStatus() {
+	public void testSearchWithFailedStatusAndMissingErrorMessage() {
 		SearchIndex si = setupSearchIndex();
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(statusDao.getState(1L)).thenReturn(Optional.of(SearchIndexState.DELETING));
+		when(statusDao.getStatus(1L)).thenReturn(Optional.of(new SearchIndexStatus()
+				.setSearchIndexId(SEARCH_INDEX_ID)
+				.setState(SearchIndexState.FAILED)));
 
-		IllegalStateException ex = assertThrows(IllegalStateException.class,
+		// call under test — no stored error, fall back to the generic remediation hint
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
 				() -> manager.search(user, SEARCH_INDEX_ID, buildQuery()));
-		assertEquals(true, ex.getMessage().contains("being deleted"));
+
+		assertEquals(true, ex.getMessage().contains("Delete or update the SearchIndex"));
 		verifyNoMoreInteractions(openSearchManager);
 	}
 
@@ -169,7 +183,7 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(statusDao.getState(1L)).thenReturn(Optional.empty());
+		when(statusDao.getStatus(1L)).thenReturn(Optional.empty());
 
 		IllegalStateException ex = assertThrows(IllegalStateException.class,
 				() -> manager.search(user, SEARCH_INDEX_ID, buildQuery()));
@@ -183,7 +197,7 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(statusDao.getState(1L)).thenReturn(Optional.of(SearchIndexState.ACTIVE));
+		when(statusDao.getStatus(1L)).thenReturn(Optional.of(new SearchIndexStatus().setSearchIndexId(SEARCH_INDEX_ID).setState(SearchIndexState.ACTIVE)));
 		when(searchConfigurationResolver.resolve(user, null, "syn789"))
 				.thenReturn(Optional.empty());
 
@@ -204,7 +218,7 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(statusDao.getState(1L)).thenReturn(Optional.of(SearchIndexState.ACTIVE));
+		when(statusDao.getStatus(1L)).thenReturn(Optional.of(new SearchIndexStatus().setSearchIndexId(SEARCH_INDEX_ID).setState(SearchIndexState.ACTIVE)));
 		when(searchConfigurationResolver.resolve(user, null, "syn789"))
 				.thenReturn(Optional.empty());
 
@@ -227,7 +241,7 @@ public class SearchIndexQueryManagerImplTest {
 
 	private void setupStatusAndConfig() {
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(statusDao.getState(any())).thenReturn(Optional.of(SearchIndexState.ACTIVE));
+		when(statusDao.getStatus(any())).thenReturn(Optional.of(new SearchIndexStatus().setSearchIndexId(SEARCH_INDEX_ID).setState(SearchIndexState.ACTIVE)));
 		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
 	}
 

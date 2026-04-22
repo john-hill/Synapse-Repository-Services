@@ -28,7 +28,6 @@ import org.mockito.Mock;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.mockito.stubbing.Answer;
-import org.sagebionetworks.repo.manager.AuthorizationManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.NextPageToken;
@@ -38,7 +37,6 @@ import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dao.subscription.SubscriptionDAO;
 import org.sagebionetworks.repo.model.dao.subscription.SubscriptionListRequest;
-import org.sagebionetworks.repo.model.dbo.dao.DBOChangeDAO;
 import org.sagebionetworks.repo.model.subscription.SortByType;
 import org.sagebionetworks.repo.model.subscription.SortDirection;
 import org.sagebionetworks.repo.model.subscription.SubscriberCount;
@@ -57,9 +55,7 @@ import com.google.common.collect.Sets;
 public class SubscriptionManagerImplTest {
 
 	@Mock
-	private AuthorizationManager mockAuthorizationManager;
-	@Mock
-	private DBOChangeDAO mockChangeDao;
+	private SubscriptionAndDiscussionAuthorizationManager mockAuthorizationManager;
 	@Mock
 	private SubscriptionDAO mockDao;
 	@Mock

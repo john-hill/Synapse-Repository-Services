@@ -39,6 +39,7 @@ import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
 import org.sagebionetworks.repo.model.search.table.SearchIndexState;
+import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
 import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryType;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
@@ -237,16 +238,18 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 
 	private void checkIndexStatus(String searchIndexId) {
 		SearchIndexStatusDao statusDao = connectionFactory.getSearchIndexStatusDao();
-		Optional<SearchIndexState> state = statusDao.getState(KeyFactory.stringToKey(searchIndexId));
-		if (state.isEmpty() || state.get() == SearchIndexState.CREATING) {
+		Optional<SearchIndexStatus> statusOpt = statusDao.getStatus(KeyFactory.stringToKey(searchIndexId));
+		if (statusOpt.isEmpty() || statusOpt.get().getState() == SearchIndexState.CREATING) {
 			throw new IllegalStateException("Search index is still building. Please try again later.");
 		}
-		if (state.get() == SearchIndexState.FAILED) {
-			throw new IllegalStateException(
-					"Search index build failed. Delete or update the SearchIndex to trigger a rebuild.");
-		}
-		if (state.get() == SearchIndexState.DELETING) {
-			throw new IllegalStateException("Search index is being deleted.");
+		if (statusOpt.get().getState() == SearchIndexState.FAILED) {
+			String storedError = statusOpt.get().getErrorMessage();
+			String detail = storedError == null || storedError.isBlank()
+					? "Delete or update the SearchIndex to trigger a rebuild."
+					: storedError;
+			throw new IllegalArgumentException(
+					"Search index build failed: " + detail
+							+ " Delete or update the SearchIndex to trigger a rebuild.");
 		}
 	}
 

@@ -20,13 +20,11 @@ import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
 import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
-import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.service.search.ColumnAnalyzerOverrideService;
 import org.sagebionetworks.repo.service.search.SearchConfigurationService;
 import org.sagebionetworks.repo.service.search.SearchIndexQueryService;
-import org.sagebionetworks.repo.service.search.SearchIndexStatusService;
 import org.sagebionetworks.repo.service.search.SynonymSetService;
 import org.sagebionetworks.repo.service.search.TextAnalyzerService;
 import org.sagebionetworks.repo.web.RequiredScope;
@@ -285,9 +283,6 @@ public class SearchManagementController {
 
 	@Autowired
 	private SearchConfigurationService searchConfigurationService;
-
-	@Autowired
-	private SearchIndexStatusService searchIndexStatusService;
 
 	@Autowired
 	private SearchIndexQueryService searchIndexQueryService;
@@ -761,39 +756,6 @@ public class SearchManagementController {
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@PathVariable String entityId) {
 		searchConfigurationService.clearSearchConfigBinding(userId, entityId);
-	}
-
-	// ==================== Search Index Status ====================
-
-	/**
-	 * Get the build status of a
-	 * <a href="${org.sagebionetworks.repo.model.search.table.SearchIndex}">SearchIndex</a>
-	 * entity's OpenSearch index.
-	 * <p>
-	 * Returns the current state of the index build process. Possible states are:
-	 * </p>
-	 * <ul>
-	 * <li><b>CREATING</b> &mdash; Index build in progress. Queries will automatically retry.</li>
-	 * <li><b>ACTIVE</b> &mdash; Index is live and serving queries.</li>
-	 * <li><b>FAILED</b> &mdash; Last build failed. The errorMessage field contains details.</li>
-	 * <li><b>DELETING</b> &mdash; AOSS index cleanup in progress.</li>
-	 * </ul>
-	 * <p>
-	 * If the index has not been built yet (no status row exists), a response with only the
-	 * searchIndexId is returned (state will be null).
-	 * </p>
-	 *
-	 * @param userId The ID of the authenticated user.
-	 * @param id The ID of the SearchIndex entity.
-	 * @return The current build status.
-	 */
-	@RequiredScope({ view })
-	@ResponseStatus(HttpStatus.OK)
-	@RequestMapping(value = UrlHelpers.ENTITY_SEARCH_INDEX_STATUS, method = RequestMethod.GET)
-	public @ResponseBody SearchIndexStatus getSearchIndexStatus(
-			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
-			@PathVariable String id) {
-		return searchIndexStatusService.getSearchIndexStatus(userId, id);
 	}
 
 	// ==================== Search Queries ====================

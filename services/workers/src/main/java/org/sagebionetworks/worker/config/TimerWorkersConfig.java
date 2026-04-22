@@ -107,7 +107,7 @@ public class TimerWorkersConfig {
 			.build();
 		
 	}
-	
+
 	@Bean
 	public SimpleTriggerFactoryBean inactiveUsersWorkerTrigger(InactiveUsersWorker worker) {
 		SemaphoreGatedWorkerStackConfiguration config = new SemaphoreGatedWorkerStackConfiguration();

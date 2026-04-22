@@ -112,8 +112,6 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		ValidateArgument.required(query, "query");
 
 		SearchIndex searchIndex = entityManager.getEntity(user, searchIndexId, SearchIndex.class);
-		entityAuthorizationManager.hasAccess(user, searchIndexId, ACCESS_TYPE.READ)
-				.checkAuthorizationOrElseThrow();
 
 		String definingSQL = searchIndex.getDefiningSQL();
 		List<IdAndVersion> sourceTableIds = TableModelUtils.getSourceTableIds(definingSQL);

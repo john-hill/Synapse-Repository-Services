@@ -19,7 +19,9 @@ import org.sagebionetworks.grid.workers.GridCSVDownloadWorker;
 import org.sagebionetworks.grid.workers.GridCreateWorker;
 import org.sagebionetworks.grid.workers.GridCsvImportWorker;
 import org.sagebionetworks.grid.workers.GridRecordSetExportWorker;
+import org.sagebionetworks.grid.workers.GridQueryWorker;
 import org.sagebionetworks.grid.workers.GridSynchronizationWorker;
+import org.sagebionetworks.grid.workers.GridUpdateWorker;
 import org.sagebionetworks.migration.worker.MigrationWorker;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.asynch.AsynchJobStatusManager;
@@ -710,5 +712,45 @@ public class AsyncJobWorkersConfig {
 		MessageDrivenWorkerStack stack = new MessageDrivenWorkerStack(countingSemaphore, amazonSQSClient, config);
 
 		return new WorkerTriggerBuilder().withStack(stack).withRepeatInterval(1134).withStartDelay(131).build();
+	}
+
+	@Bean
+	public SimpleTriggerFactoryBean gridQueryWorkerTrigger(GridQueryWorker gridQueryWorker) {
+
+		String queueName = stackConfig.getQueueName("GRID_QUERY.fifo");
+		MessageDrivenRunner worker = new AsyncJobRunnerAdapter<>(jobStatusManager, userManager, gridQueryWorker);
+
+		MessageDrivenWorkerStackConfiguration config = new MessageDrivenWorkerStackConfiguration();
+
+		config.setGate(stackStatusGate);
+		config.setQueueName(queueName);
+		config.setRunner(worker);
+		config.setSemaphoreLockAndMessageVisibilityTimeoutSec(60);
+		config.setSemaphoreMaxLockCount(8);
+		config.setSemaphoreLockKey("gridQueryWorker");
+
+		MessageDrivenWorkerStack stack = new MessageDrivenWorkerStack(countingSemaphore, amazonSQSClient, config);
+
+		return new WorkerTriggerBuilder().withStack(stack).withRepeatInterval(1057).withStartDelay(443).build();
+	}
+
+	@Bean
+	public SimpleTriggerFactoryBean gridUpdateWorkerTrigger(GridUpdateWorker gridUpdateWorker) {
+
+		String queueName = stackConfig.getQueueName("GRID_UPDATE.fifo");
+		MessageDrivenRunner worker = new AsyncJobRunnerAdapter<>(jobStatusManager, userManager, gridUpdateWorker);
+
+		MessageDrivenWorkerStackConfiguration config = new MessageDrivenWorkerStackConfiguration();
+
+		config.setGate(stackStatusGate);
+		config.setQueueName(queueName);
+		config.setRunner(worker);
+		config.setSemaphoreLockAndMessageVisibilityTimeoutSec(60);
+		config.setSemaphoreMaxLockCount(4);
+		config.setSemaphoreLockKey("gridUpdateWorker");
+
+		MessageDrivenWorkerStack stack = new MessageDrivenWorkerStack(countingSemaphore, amazonSQSClient, config);
+
+		return new WorkerTriggerBuilder().withStack(stack).withRepeatInterval(1213).withStartDelay(577).build();
 	}
 }

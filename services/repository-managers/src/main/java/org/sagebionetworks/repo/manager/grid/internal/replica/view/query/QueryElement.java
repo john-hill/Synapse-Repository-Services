@@ -42,11 +42,11 @@ public class QueryElement implements Element {
 		select = query.getColumnSelection() != null ? query.getColumnSelection().stream()
 				.map(SelectItemTranslator::translate)
 				.collect(Collectors.toList()) : List.of(new SelectAllElement());
-		
+
 		if (query.getFilters() != null) {
 			where = query.getFilters().stream().map(FilterTranslation::translate).collect(Collectors.toList());
 		}
-		
+
 		this.limit = query.getLimit();
 		this.offset = query.getOffset();
 		this.includeValidationMessages = query.getIncludeValidationMessages();

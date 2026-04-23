@@ -113,8 +113,7 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		IdAndVersion sourceEntityId = sourceTableIds.get(0);
 		// Mirrors the table-query auth gate (TableQueryManagerImpl.queryPreflight): READ on the
 		// source entity, plus DOWNLOAD if it's a table, applied recursively to all transitive
-		// dependencies of the IndexDescription. Row-level benefactor filtering for views is a
-		// known follow-up — see PLFM-9517 PR discussion.
+		// dependencies of the IndexDescription.
 		IndexDescription indexDescription = tableManagerSupport.getIndexDescription(sourceEntityId);
 		tableManagerSupport.validateTableReadAccess(user, indexDescription);
 

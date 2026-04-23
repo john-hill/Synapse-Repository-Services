@@ -1,0 +1,14 @@
+{
+	"description": "Response for the grid update asynchronous job.",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.asynch.AsynchronousResponseBody"
+		}
+	],
+	"properties": {
+		"updateResponse": {
+			"$ref": "org.sagebionetworks.repo.model.grid.update.GridUpdateResponse",
+			"description": "The update results including per-operation row counts and the total rows updated."
+		}
+	}
+}

@@ -32,8 +32,12 @@ import org.sagebionetworks.repo.model.grid.DownloadFromGridRequest;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
 import org.sagebionetworks.repo.model.grid.GridCsvImportRequest;
 import org.sagebionetworks.repo.model.grid.GridCsvImportResponse;
+import org.sagebionetworks.repo.model.grid.GridQueryJobRequest;
+import org.sagebionetworks.repo.model.grid.GridQueryJobResponse;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportRequest;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportResponse;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobRequest;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobResponse;
 import org.sagebionetworks.repo.model.grid.SynchronizeGridRequest;
 import org.sagebionetworks.repo.model.grid.SynchronizeGridResponse;
 import org.sagebionetworks.repo.model.migration.AsyncMigrationRequest;
@@ -122,6 +126,18 @@ public enum AsynchJobType {
 	GRID_SYNCHRONIZATION(SynchronizeGridRequest.class, SynchronizeGridResponse.class,
 			(s) -> new FifoQueueParameters()
 					.setMessageGroupId(((SynchronizeGridRequest) s.getRequestBody()).getGridSessionId())
+					.setMessageDeduplicationId(s.getJobId())),
+
+	GRID_QUERY(GridQueryJobRequest.class, GridQueryJobResponse.class,
+			(s) -> new FifoQueueParameters()
+					.setMessageGroupId(((GridQueryJobRequest) s.getRequestBody()).getSessionId() + "-"
+							+ ((GridQueryJobRequest) s.getRequestBody()).getReplicaId())
+					.setMessageDeduplicationId(s.getJobId())),
+
+	GRID_UPDATE(GridUpdateJobRequest.class, GridUpdateJobResponse.class,
+			(s) -> new FifoQueueParameters()
+					.setMessageGroupId(((GridUpdateJobRequest) s.getRequestBody()).getSessionId() + "-"
+							+ ((GridUpdateJobRequest) s.getRequestBody()).getReplicaId())
 					.setMessageDeduplicationId(s.getJobId())),
 
 	SEARCH_QUERY(SearchIndexQuery.class, SearchQueryResults.class);

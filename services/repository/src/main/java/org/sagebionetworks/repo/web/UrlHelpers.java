@@ -448,12 +448,12 @@ public class UrlHelpers {
 	public static final String GRID_SESSION_ASYNC_START = GRID_SESSION + ASYNC_START_REQUEST;
 	public static final String GRID_SESSION_ASYNC_GET = GRID_SESSION + ASYNC_GET_REQUEST;
 	
-	public static final String GRID_SESSION_ID_SQL = GRID_SESSION_ID+"/sql";
-	public static final String GRID_SESSION_ID_SQL_QUERY = GRID_SESSION_ID_SQL+"/query";
-	public static final String GRID_SESSION_ID_SQL_UPDATE = GRID_SESSION_ID_SQL+"/update";
-	
 	public static final String GRID_SESSION_ID_REPLICA = GRID_SESSION_ID+"/replica";
 	public static final String GRID_SESSION_ID_REPLICA_ID = GRID_SESSION_ID_REPLICA+"/{replicaId}";
+	public static final String GRID_SESSION_QUERY_ASYNC_START = GRID_SESSION+"/query"+ASYNC_START_REQUEST;
+	public static final String GRID_SESSION_QUERY_ASYNC_GET = GRID_SESSION+"/query"+ASYNC_GET_REQUEST;
+	public static final String GRID_SESSION_UPDATE_ASYNC_START = GRID_SESSION+"/update"+ASYNC_START_REQUEST;
+	public static final String GRID_SESSION_UPDATE_ASYNC_GET = GRID_SESSION+"/update"+ASYNC_GET_REQUEST;
 	public static final String GRID_SESSION_ID_REPLICA_LIST = GRID_SESSION_ID_REPLICA+"/list";
 
     public static final String GRID_DOWNLOAD = GRID+"/download";

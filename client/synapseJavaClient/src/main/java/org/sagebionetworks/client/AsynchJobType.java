@@ -34,7 +34,11 @@ import org.sagebionetworks.repo.model.file.BulkFileDownloadResponse;
 import org.sagebionetworks.repo.model.file.FileHandleRestoreResponse;
 import org.sagebionetworks.repo.model.grid.CreateGridResponse;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
+import org.sagebionetworks.repo.model.grid.GridQueryJobRequest;
+import org.sagebionetworks.repo.model.grid.GridQueryJobResponse;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportResponse;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobRequest;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobResponse;
 import org.sagebionetworks.repo.model.report.DownloadStorageReportResponse;
 import org.sagebionetworks.repo.model.schema.CreateSchemaResponse;
 import org.sagebionetworks.repo.model.schema.GetValidationSchemaResponse;
@@ -78,6 +82,8 @@ public enum AsynchJobType {
     CreateGrid("/grid/session", CreateGridResponse.class, RestEndpointType.repo),
     GridCsvDownload("/grid/download/csv", DownloadFromGridResult.class, RestEndpointType.repo),
 	GridExportRecordSet("/grid/export/recordset", GridRecordSetExportResponse.class, RestEndpointType.repo),
+	GridQuery("/grid/session/query", GridQueryJobResponse.class, RestEndpointType.repo),
+	GridUpdate("/grid/session/update", GridUpdateJobResponse.class, RestEndpointType.repo),
 	SearchIndexQuery("/search/query", SearchQueryResults.class, RestEndpointType.repo)
 	;
 

@@ -140,7 +140,11 @@ public enum AsynchJobType {
 							+ ((GridUpdateJobRequest) s.getRequestBody()).getReplicaId())
 					.setMessageDeduplicationId(s.getJobId())),
 
-	SEARCH_QUERY(SearchIndexQuery.class, SearchQueryResults.class);
+	SEARCH_QUERY(SearchIndexQuery.class, SearchQueryResults.class,
+			(s) -> new FifoQueueParameters()
+					.setMessageGroupId(((SearchIndexQuery) s.getRequestBody()).getSearchIndexId()
+							+ "-" + s.getStartedByUserId())
+					.setMessageDeduplicationId(s.getJobId()));
 
 	private final Class<? extends AsynchronousRequestBody> requestClass;
 	private final Class<? extends AsynchronousResponseBody> responseClass;

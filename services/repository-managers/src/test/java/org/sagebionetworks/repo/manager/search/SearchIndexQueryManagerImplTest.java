@@ -1,12 +1,16 @@
 package org.sagebionetworks.repo.manager.search;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -14,7 +18,9 @@ import static org.mockito.Mockito.when;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -25,12 +31,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
-import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
-import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
-import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dbo.dao.table.TableModelTestUtils;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
 import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
@@ -45,13 +48,18 @@ import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.SortDirection;
 import org.sagebionetworks.repo.model.search.SortField;
+import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
+import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
+import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
 import org.sagebionetworks.repo.model.search.table.SearchIndexState;
 import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
+import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.FacetColumnResult;
 import org.sagebionetworks.repo.model.table.FacetColumnResultValues;
+import org.sagebionetworks.repo.model.table.SelectColumn;
 import org.sagebionetworks.table.cluster.ConnectionFactory;
 import org.sagebionetworks.table.cluster.description.TableIndexDescription;
 import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
@@ -61,8 +69,6 @@ public class SearchIndexQueryManagerImplTest {
 
 	@Mock
 	private EntityManager entityManager;
-	@Mock
-	private EntityAuthorizationManager entityAuthorizationManager;
 	@Mock
 	private ConnectionFactory connectionFactory;
 	@Mock
@@ -95,7 +101,7 @@ public class SearchIndexQueryManagerImplTest {
 	@BeforeEach
 	public void setUp() {
 		manager = new SearchIndexQueryManagerImpl(
-				entityManager, entityAuthorizationManager, connectionFactory,
+				entityManager, connectionFactory,
 				openSearchManager, searchConfigurationResolver, userManager,
 				tableManagerSupport, columnAnalyzerOverrideDao, synonymSetDao, textAnalyzerDao);
 		user = new UserInfo(false);
@@ -111,8 +117,11 @@ public class SearchIndexQueryManagerImplTest {
 	}
 
 	private void setupAuthMocks() {
-		when(entityAuthorizationManager.hasAccess(any(UserInfo.class), any(String.class), any(ACCESS_TYPE.class)))
-				.thenReturn(AuthorizationStatus.authorized());
+		// tableManagerSupport.validateTableReadAccess is void; default Mockito behavior does nothing → pass.
+		// getIndexDescription is stubbed in setupHappyPathMocks. Tests that only need auth to pass
+		// without exercising the index-description path stub it here.
+		when(tableManagerSupport.getIndexDescription(SOURCE_ID))
+				.thenReturn(new TableIndexDescription(SOURCE_ID));
 	}
 
 	private SearchQuery buildQuery() {
@@ -133,8 +142,9 @@ public class SearchIndexQueryManagerImplTest {
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(statusDao.getStatus(1L)).thenReturn(Optional.of(
 				new SearchIndexStatus().setSearchIndexId(SEARCH_INDEX_ID).setState(SearchIndexState.ACTIVE)));
-		when(searchConfigurationResolver.resolve(user, null, "syn789")).thenReturn(Optional.empty());
-		when(tableManagerSupport.getIndexDescription(SOURCE_ID)).thenReturn(new TableIndexDescription(SOURCE_ID));
+		// Lenient because testSearchWithConfigDefaultAnalyzer overrides this for a non-null configId.
+		lenient().when(searchConfigurationResolver.resolve(user, null, "syn789")).thenReturn(Optional.empty());
+		// Note: getIndexDescription is already stubbed by setupAuthMocks().
 		when(tableManagerSupport.getTableSchema(SOURCE_ID)).thenReturn(schema);
 		for (ColumnModel cm : schema) {
 			when(tableManagerSupport.getColumnModel(cm.getId())).thenReturn(cm);
@@ -172,9 +182,12 @@ public class SearchIndexQueryManagerImplTest {
 	public void testSearchWithNoReadOnSourceTable() {
 		SearchIndex si = setupSearchIndex();
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
-		when(entityAuthorizationManager.hasAccess(user, "syn456", ACCESS_TYPE.READ))
-				.thenReturn(AuthorizationStatus.accessDenied("no access to source"));
+		TableIndexDescription indexDescription = new TableIndexDescription(SOURCE_ID);
+		when(tableManagerSupport.getIndexDescription(SOURCE_ID)).thenReturn(indexDescription);
+		doThrow(new UnauthorizedException("no access to source"))
+				.when(tableManagerSupport).validateTableReadAccess(user, indexDescription);
 
+		// call under test
 		assertThrows(UnauthorizedException.class, () -> manager.search(user, SEARCH_INDEX_ID, buildQuery()));
 		verifyNoMoreInteractions(connectionFactory, openSearchManager);
 	}
@@ -406,5 +419,482 @@ public class SearchIndexQueryManagerImplTest {
 		assertNotNull(queryFields);
 		assertTrue(queryFields.contains(NAME_COLUMN_ID));
 		assertTrue(queryFields.contains(DESC_COLUMN_ID));
+	}
+
+	@Test
+	public void testAutocompleteWithEmptyQueryFields() {
+		// Exercises the branch at L135 where isAutocomplete=true and queryFields is non-null but empty —
+		// the empty case should enter the auto-populate block.
+		SearchIndex si = setupSearchIndex();
+		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
+		setupAuthMocks();
+		setupHappyPathMocks();
+		when(openSearchManager.autocomplete(eq("search-index-1"), any(), any(), any(), any(), any()))
+				.thenReturn(buildRawResults());
+
+		SearchQuery query = buildQuery();
+		query.setQueryFields(new ArrayList<>());
+
+		// call under test
+		manager.autocomplete(user, SEARCH_INDEX_ID, query);
+
+		ArgumentCaptor<SearchQuery> queryCaptor = ArgumentCaptor.forClass(SearchQuery.class);
+		verify(openSearchManager).autocomplete(eq("search-index-1"), queryCaptor.capture(), any(), any(), any(), any());
+		List<String> queryFields = queryCaptor.getValue().getQueryFields();
+		assertTrue(queryFields.contains(NAME_COLUMN_ID));
+		assertTrue(queryFields.contains(DESC_COLUMN_ID));
+	}
+
+	@Test
+	public void testCopyMissingIdsFromSelectColumnsAllBranches() {
+		// Four cases to cover every combination of: schema.getId()==null AND selectColumn.getId()!=null
+		// - schema id null + selectCol id non-null → copy
+		// - schema id null + selectCol id null → no copy
+		// - schema id non-null + selectCol id non-null → no copy (schema wins)
+		// - schema id non-null + selectCol id null → no copy
+		List<ColumnModel> schemaOfSelect = Arrays.asList(
+				new ColumnModel().setName("a"),                  // id=null
+				new ColumnModel().setName("b"),                  // id=null
+				new ColumnModel().setId("3").setName("c"),       // id non-null
+				new ColumnModel().setId("4").setName("d"));      // id non-null
+		List<SelectColumn> selectColumns = Arrays.asList(
+				new SelectColumn().setId("111").setName("a"),    // non-null
+				new SelectColumn().setName("b"),                 // null
+				new SelectColumn().setId("333").setName("c"),    // non-null (won't copy, schema already has id)
+				new SelectColumn().setName("d"));                // null
+
+		// call under test
+		manager.copyMissingIdsFromSelectColumns(schemaOfSelect, selectColumns);
+
+		assertEquals("111", schemaOfSelect.get(0).getId());      // copied
+		assertNull(schemaOfSelect.get(1).getId());               // not copied — source was null
+		assertEquals("3", schemaOfSelect.get(2).getId());        // not copied — target already had id
+		assertEquals("4", schemaOfSelect.get(3).getId());        // not copied — target already had id
+	}
+
+	@Test
+	public void testCopyMissingIdsFromSelectColumnsWithMismatchedLengths() {
+		// Exercises the loop-bound branches: the shorter list terminates the loop.
+		List<ColumnModel> schemaOfSelect = Arrays.asList(
+				new ColumnModel().setName("a"),
+				new ColumnModel().setName("b"));
+		List<SelectColumn> selectColumns = Arrays.asList(
+				new SelectColumn().setId("111").setName("a"));   // only one entry
+
+		// call under test — must not throw IndexOutOfBounds
+		manager.copyMissingIdsFromSelectColumns(schemaOfSelect, selectColumns);
+
+		assertEquals("111", schemaOfSelect.get(0).getId());
+		assertNull(schemaOfSelect.get(1).getId());               // loop stopped before index 1
+	}
+
+	@Test
+	public void testAutocompleteWithPrePopulatedQueryFields() {
+		// Exercises the branch at L135 where isAutocomplete=true but queryFields is already populated —
+		// auto-populate should be skipped.
+		SearchIndex si = setupSearchIndex();
+		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
+		setupAuthMocks();
+		setupHappyPathMocks();
+		when(openSearchManager.autocomplete(eq("search-index-1"), any(), any(), any(), any(), any()))
+				.thenReturn(buildRawResults());
+
+		SearchQuery query = buildQuery();
+		query.setQueryFields(new ArrayList<>(Arrays.asList(NAME_COLUMN)));
+
+		// call under test
+		manager.autocomplete(user, SEARCH_INDEX_ID, query);
+
+		ArgumentCaptor<SearchQuery> queryCaptor = ArgumentCaptor.forClass(SearchQuery.class);
+		verify(openSearchManager).autocomplete(eq("search-index-1"), queryCaptor.capture(), any(), any(), any(), any());
+		// Only the caller-provided field survives (translated to its ID); the other column was NOT auto-added.
+		assertEquals(Arrays.asList(NAME_COLUMN_ID), queryCaptor.getValue().getQueryFields());
+	}
+
+	@Test
+	public void testSearchWithConfigDefaultAnalyzer() {
+		// Exercises the non-null config branch at L145 and L216 in collectAndLoadAnalyzers.
+		SearchIndex si = setupSearchIndex();
+		si.setSearchConfigurationId("cfg1");
+		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
+		setupAuthMocks();
+		setupHappyPathMocks();
+		SearchConfiguration config = new SearchConfiguration();
+		config.setDefaultAnalyzer("org.sage-DEFAULT");
+		when(searchConfigurationResolver.resolve(user, "cfg1", "syn789"))
+				.thenReturn(Optional.of(config));
+		when(openSearchManager.search(eq("search-index-1"), any(), any(), eq("org.sage-DEFAULT"), any(), any()))
+				.thenReturn(buildRawResults());
+
+		// call under test
+		manager.search(user, SEARCH_INDEX_ID, buildQuery());
+
+		verify(openSearchManager).search(eq("search-index-1"), any(), any(), eq("org.sage-DEFAULT"), any(), any());
+	}
+
+	@Test
+	public void testCollectAndLoadAnalyzersWithConfigButNullDefault() {
+		// Exercises the L216 partial branch where config != null but defaultAnalyzer == null.
+		SearchConfiguration config = new SearchConfiguration();
+		// defaultAnalyzer explicitly left null
+		when(textAnalyzerDao.getByQualifiedNames(anyList())).thenReturn(Collections.emptyMap());
+
+		// call under test — must not add null to the qualified name set
+		manager.collectAndLoadAnalyzers(config, null, Collections.emptyList());
+	}
+
+	// --- Focused unit tests for package-protected helpers ---
+
+	@Test
+	public void testGetSearchableColumnNamesWithMixedTypes() {
+		List<ColumnModel> columns = Arrays.asList(
+				TableModelTestUtils.createColumn(1L, "str", ColumnType.STRING),
+				TableModelTestUtils.createColumn(2L, "link", ColumnType.LINK),
+				TableModelTestUtils.createColumn(3L, "num", ColumnType.INTEGER),
+				TableModelTestUtils.createColumn(4L, "flag", ColumnType.BOOLEAN));
+
+		// call under test
+		List<String> names = manager.getSearchableColumnNames(columns);
+
+		assertEquals(Arrays.asList("str", "link"), names);
+	}
+
+	@Test
+	public void testGetSearchableColumnNamesWithEmpty() {
+		// call under test
+		List<String> names = manager.getSearchableColumnNames(Collections.emptyList());
+
+		assertTrue(names.isEmpty());
+	}
+
+	@Test
+	public void testGetIndexName() {
+		// call under test
+		assertEquals("search-index-syn42", manager.getIndexName("syn42"));
+	}
+
+	@Test
+	public void testCheckIndexStatusWithActive() {
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getStatus(1L)).thenReturn(Optional.of(
+				new SearchIndexStatus().setSearchIndexId(SEARCH_INDEX_ID).setState(SearchIndexState.ACTIVE)));
+
+		// call under test — should not throw
+		manager.checkIndexStatus(SEARCH_INDEX_ID);
+	}
+
+	@Test
+	public void testCheckIndexStatusWithMissing() {
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getStatus(1L)).thenReturn(Optional.empty());
+
+		// call under test
+		IllegalStateException ex = assertThrows(IllegalStateException.class,
+				() -> manager.checkIndexStatus(SEARCH_INDEX_ID));
+		assertTrue(ex.getMessage().contains("still building"));
+	}
+
+	@Test
+	public void testCheckIndexStatusWithCreating() {
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getStatus(1L)).thenReturn(Optional.of(
+				new SearchIndexStatus().setSearchIndexId(SEARCH_INDEX_ID).setState(SearchIndexState.CREATING)));
+
+		// call under test
+		IllegalStateException ex = assertThrows(IllegalStateException.class,
+				() -> manager.checkIndexStatus(SEARCH_INDEX_ID));
+		assertTrue(ex.getMessage().contains("still building"));
+	}
+
+	@Test
+	public void testCheckIndexStatusWithFailedAndErrorMessage() {
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getStatus(1L)).thenReturn(Optional.of(new SearchIndexStatus()
+				.setSearchIndexId(SEARCH_INDEX_ID)
+				.setState(SearchIndexState.FAILED)
+				.setErrorMessage("boom")));
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> manager.checkIndexStatus(SEARCH_INDEX_ID));
+		assertTrue(ex.getMessage().contains("boom"));
+	}
+
+	@Test
+	public void testCheckIndexStatusWithFailedAndNullErrorMessage() {
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getStatus(1L)).thenReturn(Optional.of(new SearchIndexStatus()
+				.setSearchIndexId(SEARCH_INDEX_ID)
+				.setState(SearchIndexState.FAILED)));
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> manager.checkIndexStatus(SEARCH_INDEX_ID));
+		assertTrue(ex.getMessage().contains("Delete or update the SearchIndex"));
+	}
+
+	@Test
+	public void testCheckIndexStatusWithFailedAndBlankErrorMessage() {
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getStatus(1L)).thenReturn(Optional.of(new SearchIndexStatus()
+				.setSearchIndexId(SEARCH_INDEX_ID)
+				.setState(SearchIndexState.FAILED)
+				.setErrorMessage("   ")));
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> manager.checkIndexStatus(SEARCH_INDEX_ID));
+		assertTrue(ex.getMessage().contains("Delete or update the SearchIndex"));
+	}
+
+	@Test
+	public void testLoadColumnAnalyzerOverridesWithNullConfig() {
+		// call under test
+		assertTrue(manager.loadColumnAnalyzerOverrides(null).isEmpty());
+	}
+
+	@Test
+	public void testLoadColumnAnalyzerOverridesWithNullList() {
+		SearchConfiguration config = new SearchConfiguration();
+
+		// call under test
+		assertTrue(manager.loadColumnAnalyzerOverrides(config).isEmpty());
+	}
+
+	@Test
+	public void testLoadColumnAnalyzerOverridesWithEmptyList() {
+		SearchConfiguration config = new SearchConfiguration();
+		config.setColumnAnalyzerOverrides(Collections.emptyList());
+
+		// call under test
+		assertTrue(manager.loadColumnAnalyzerOverrides(config).isEmpty());
+	}
+
+	@Test
+	public void testLoadColumnAnalyzerOverridesWithPopulated() {
+		SearchConfiguration config = new SearchConfiguration();
+		config.setColumnAnalyzerOverrides(Arrays.asList("org.sage-OV1"));
+		ColumnAnalyzerOverride ov = new ColumnAnalyzerOverride();
+		ov.setName("OV1");
+		Map<String, ColumnAnalyzerOverride> map = new HashMap<>();
+		map.put("org.sage-OV1", ov);
+		when(columnAnalyzerOverrideDao.getByQualifiedNames(Arrays.asList("org.sage-OV1"))).thenReturn(map);
+
+		// call under test
+		List<ColumnAnalyzerOverride> result = manager.loadColumnAnalyzerOverrides(config);
+
+		assertEquals(1, result.size());
+		assertEquals("OV1", result.get(0).getName());
+	}
+
+	@Test
+	public void testCollectAndLoadAnalyzersWithNullConfigAndOverrides() {
+		List<ColumnModel> columns = Arrays.asList(
+				TableModelTestUtils.createColumn(1L, "a", ColumnType.STRING));
+		ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
+		when(textAnalyzerDao.getByQualifiedNames(captor.capture())).thenReturn(Collections.emptyMap());
+
+		// call under test — null config, null overrides: still gets SCIENTIFIC + per-column-type defaults
+		Map<String, TextAnalyzer> result = manager.collectAndLoadAnalyzers(null, null, columns);
+
+		assertNotNull(result);
+		// SCIENTIFIC is always included (keyword .searchable)
+		assertTrue(captor.getValue().contains("org.sagebionetworks-SCIENTIFIC"));
+	}
+
+	@Test
+	public void testCollectAndLoadAnalyzersWithOverridesAndConfigDefault() {
+		SearchConfiguration config = new SearchConfiguration();
+		config.setDefaultAnalyzer("org.sage-DEFAULT");
+
+		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
+		entry.setColumnName("c1");
+		entry.setIndexAnalyzer("org.sage-IDX");
+		entry.setSearchAnalyzer("org.sage-SRCH");
+		ColumnAnalyzerOverride ov = new ColumnAnalyzerOverride();
+		ov.setOverrides(Arrays.asList(entry));
+		List<ColumnAnalyzerOverride> overrides = Arrays.asList(ov);
+
+		List<ColumnModel> columns = Arrays.asList(
+				TableModelTestUtils.createColumn(1L, "a", ColumnType.STRING));
+
+		ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
+		when(textAnalyzerDao.getByQualifiedNames(captor.capture())).thenReturn(Collections.emptyMap());
+
+		// call under test
+		manager.collectAndLoadAnalyzers(config, overrides, columns);
+
+		List<String> requested = captor.getValue();
+		assertTrue(requested.contains("org.sagebionetworks-SCIENTIFIC"));
+		assertTrue(requested.contains("org.sage-DEFAULT"));
+		assertTrue(requested.contains("org.sage-IDX"));
+		assertTrue(requested.contains("org.sage-SRCH"));
+	}
+
+	@Test
+	public void testCollectAndLoadAnalyzersWithOverrideEntryNullAnalyzers() {
+		// entry with null index/search analyzers — exercises the null-check branches
+		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
+		entry.setColumnName("c1");
+		// indexAnalyzer and searchAnalyzer left null
+		ColumnAnalyzerOverride ov = new ColumnAnalyzerOverride();
+		ov.setOverrides(Arrays.asList(entry));
+		List<ColumnAnalyzerOverride> overrides = Arrays.asList(ov);
+
+		ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
+		when(textAnalyzerDao.getByQualifiedNames(captor.capture())).thenReturn(Collections.emptyMap());
+
+		// call under test
+		manager.collectAndLoadAnalyzers(null, overrides, Collections.emptyList());
+
+		// Null index/search analyzers must not be added to the qualified-name request list.
+		assertFalse(captor.getValue().contains(null));
+	}
+
+	@Test
+	public void testCollectAndLoadAnalyzersWithOverrideNullOverridesList() {
+		// ColumnAnalyzerOverride whose overrides list is null — exercises the null-check
+		ColumnAnalyzerOverride ov = new ColumnAnalyzerOverride();
+		ov.setOverrides(null);
+
+		ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
+		when(textAnalyzerDao.getByQualifiedNames(captor.capture())).thenReturn(Collections.emptyMap());
+
+		// call under test
+		manager.collectAndLoadAnalyzers(null, Arrays.asList(ov), Collections.emptyList());
+
+		// Only the always-included SCIENTIFIC analyzer should be requested; nulls must not leak through.
+		assertEquals(Arrays.asList("org.sagebionetworks-SCIENTIFIC"), captor.getValue());
+	}
+
+	@Test
+	public void testTranslateFieldWithBoostWithoutBoost() {
+		Map<String, String> nameToId = Map.of("name", "111");
+
+		// call under test
+		assertEquals("111", manager.translateFieldWithBoost("name", nameToId));
+	}
+
+	@Test
+	public void testTranslateFieldWithBoostWithBoost() {
+		Map<String, String> nameToId = Map.of("name", "111");
+
+		// call under test
+		assertEquals("111^3", manager.translateFieldWithBoost("name^3", nameToId));
+	}
+
+	@Test
+	public void testTranslateFieldWithBoostUnknownName() {
+		Map<String, String> nameToId = Map.of("name", "111");
+
+		// call under test — unknown field passes through unchanged (with and without boost)
+		assertEquals("unknown", manager.translateFieldWithBoost("unknown", nameToId));
+		assertEquals("unknown^2", manager.translateFieldWithBoost("unknown^2", nameToId));
+	}
+
+	@Test
+	public void testTranslateNamesWithNull() {
+		// call under test
+		assertNull(manager.translateNames(null, Collections.emptyMap()));
+	}
+
+	@Test
+	public void testTranslateNamesWithUnknownPassesThrough() {
+		Map<String, String> nameToId = Map.of("name", "111");
+
+		// call under test
+		assertEquals(Arrays.asList("111", "other"),
+				manager.translateNames(Arrays.asList("name", "other"), nameToId));
+	}
+
+	@Test
+	public void testTranslateQueryNamesToIdsWithAllFieldsPopulated() {
+		Map<String, String> nameToId = Map.of("name", "111", "age", "222");
+		SearchQuery q = new SearchQuery();
+		q.setQueryFields(new ArrayList<>(Arrays.asList("name^3", "unknown")));
+		q.setTermsFilters(new ArrayList<>(Arrays.asList(new KeyValues().setKey("name"))));
+		q.setRangeFilters(new ArrayList<>(Arrays.asList(new KeyRange().setKey("age"))));
+		q.setFacetRequests(new ArrayList<>(Arrays.asList(new FacetRequest().setColumnName("name"))));
+		q.setExistsFilters(new ArrayList<>(Arrays.asList("name")));
+		q.setNotExistsFilters(new ArrayList<>(Arrays.asList("age")));
+		q.setReturnFields(new ArrayList<>(Arrays.asList("name")));
+		q.setSort(new ArrayList<>(Arrays.asList(
+				new SortField().setColumnName("name"),
+				new SortField().setColumnName("_score"),          // must be preserved as-is
+				new SortField().setColumnName("unknown"))));       // unknown stays as-is
+
+		// call under test
+		manager.translateQueryNamesToIds(q, nameToId);
+
+		assertEquals(Arrays.asList("111^3", "unknown"), q.getQueryFields());
+		assertEquals("111", q.getTermsFilters().get(0).getKey());
+		assertEquals("222", q.getRangeFilters().get(0).getKey());
+		assertEquals("111", q.getFacetRequests().get(0).getColumnName());
+		assertEquals(Arrays.asList("111"), q.getExistsFilters());
+		assertEquals(Arrays.asList("222"), q.getNotExistsFilters());
+		assertEquals(Arrays.asList("111"), q.getReturnFields());
+		assertEquals("111", q.getSort().get(0).getColumnName());
+		assertEquals("_score", q.getSort().get(1).getColumnName());
+		assertEquals("unknown", q.getSort().get(2).getColumnName());
+	}
+
+	@Test
+	public void testTranslateQueryNamesToIdsWithAllFieldsNull() {
+		// Every optional list null — must not NPE
+		SearchQuery q = new SearchQuery();
+
+		// call under test
+		manager.translateQueryNamesToIds(q, Collections.emptyMap());
+	}
+
+	@Test
+	public void testTranslateResultIdsToNamesWithFullShape() {
+		Map<String, String> idToName = Map.of("111", "name", "222", "age");
+
+		SearchHit hit = new SearchHit();
+		hit.setFields(new ArrayList<>(Arrays.asList(
+				new SearchFieldValue().setName("111").setValue("Alice"),
+				new SearchFieldValue().setName("unknown").setValue("v"))));
+		hit.setHighlights(new ArrayList<>(Arrays.asList(
+				new SearchFieldValue().setName("111.searchable").setValue("<em>Alice</em>"),
+				new SearchFieldValue().setName("222").setValue("<em>30</em>"),
+				new SearchFieldValue().setName("unk.searchable").setValue("v"))));
+
+		SearchQueryResults results = new SearchQueryResults()
+				.setHits(new ArrayList<>(Arrays.asList(hit)))
+				.setFacets(new ArrayList<>(Arrays.asList(
+						new FacetColumnResultValues().setColumnName("111"))));
+
+		// call under test
+		manager.translateResultIdsToNames(results, idToName);
+
+		assertEquals("name", hit.getFields().get(0).getName());
+		assertEquals("unknown", hit.getFields().get(1).getName());
+		assertEquals("name", hit.getHighlights().get(0).getName());   // .searchable stripped + ID translated
+		assertEquals("age", hit.getHighlights().get(1).getName());    // no .searchable, just ID translate
+		assertEquals("unk", hit.getHighlights().get(2).getName());    // unknown ID → strip suffix, passthrough
+		assertEquals("name", results.getFacets().get(0).getColumnName());
+	}
+
+	@Test
+	public void testTranslateResultIdsToNamesWithNullHitsAndFacets() {
+		// Everything null — must not NPE
+		SearchQueryResults results = new SearchQueryResults();
+
+		// call under test
+		manager.translateResultIdsToNames(results, Collections.emptyMap());
+	}
+
+	@Test
+	public void testTranslateHitIdsToNamesWithNullHighlights() {
+		SearchHit hit = new SearchHit()
+				.setFields(new ArrayList<>(Arrays.asList(
+						new SearchFieldValue().setName("111").setValue("v"))));
+		// highlights left null
+
+		// call under test
+		manager.translateHitIdsToNames(hit, Map.of("111", "name"));
+
+		assertEquals("name", hit.getFields().get(0).getName());
 	}
 }

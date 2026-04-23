@@ -14,9 +14,7 @@ import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
-import org.sagebionetworks.repo.manager.entity.EntityAuthorizationManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
-import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
@@ -59,7 +57,6 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 	private static final String INDEX_PREFIX = "search-index-";
 
 	private final EntityManager entityManager;
-	private final EntityAuthorizationManager entityAuthorizationManager;
 	private final ConnectionFactory connectionFactory;
 	private final OpenSearchManager openSearchManager;
 	private final SearchConfigurationResolver searchConfigurationResolver;
@@ -70,7 +67,6 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 	private final TextAnalyzerDao textAnalyzerDao;
 
 	public SearchIndexQueryManagerImpl(EntityManager entityManager,
-			EntityAuthorizationManager entityAuthorizationManager,
 			ConnectionFactory connectionFactory,
 			OpenSearchManager openSearchManager,
 			SearchConfigurationResolver searchConfigurationResolver,
@@ -80,7 +76,6 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 			SynonymSetDao synonymSetDao,
 			TextAnalyzerDao textAnalyzerDao) {
 		this.entityManager = entityManager;
-		this.entityAuthorizationManager = entityAuthorizationManager;
 		this.connectionFactory = connectionFactory;
 		this.openSearchManager = openSearchManager;
 		this.searchConfigurationResolver = searchConfigurationResolver;
@@ -116,8 +111,12 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		String definingSQL = searchIndex.getDefiningSQL();
 		List<IdAndVersion> sourceTableIds = TableModelUtils.getSourceTableIds(definingSQL);
 		IdAndVersion sourceEntityId = sourceTableIds.get(0);
-		entityAuthorizationManager.hasAccess(user, sourceEntityId.toString(), ACCESS_TYPE.READ)
-				.checkAuthorizationOrElseThrow();
+		// Mirrors the table-query auth gate (TableQueryManagerImpl.queryPreflight): READ on the
+		// source entity, plus DOWNLOAD if it's a table, applied recursively to all transitive
+		// dependencies of the IndexDescription. Row-level benefactor filtering for views is a
+		// known follow-up — see PLFM-9517 PR discussion.
+		IndexDescription indexDescription = tableManagerSupport.getIndexDescription(sourceEntityId);
+		tableManagerSupport.validateTableReadAccess(user, indexDescription);
 
 		checkIndexStatus(searchIndexId);
 		Optional<SearchConfiguration> configOpt = searchConfigurationResolver.resolve(
@@ -161,7 +160,7 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 	/**
 	 * Returns the names of all text and link columns that are searchable for autocomplete.
 	 */
-	private List<String> getSearchableColumnNames(List<ColumnModel> columns) {
+	List<String> getSearchableColumnNames(List<ColumnModel> columns) {
 		List<String> names = new ArrayList<>();
 		for (ColumnModel column : columns) {
 			if (ColumnTypeToOpenSearchMapping.isTextType(column.getColumnType())
@@ -172,7 +171,7 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		return names;
 	}
 
-	private List<ColumnModel> getSchemaOfDefiningSQL(String definingSQL, IdAndVersion sourceEntityId) {
+	List<ColumnModel> getSchemaOfDefiningSQL(String definingSQL, IdAndVersion sourceEntityId) {
 		IndexDescription indexDescription = tableManagerSupport.getIndexDescription(sourceEntityId);
 		QueryTranslator translator = QueryTranslator.builder()
 				.sql(definingSQL)
@@ -182,17 +181,25 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 				.build();
 		List<ColumnModel> schemaOfSelect = translator.getSchemaOfSelect();
 		List<SelectColumn> selectColumns = translator.getSelectColumns();
-		// getSchemaOfSelect() returns ColumnModel objects without IDs set.
-		// Copy IDs from the SelectColumn list which has the original column IDs.
+		copyMissingIdsFromSelectColumns(schemaOfSelect, selectColumns);
+		return schemaOfSelect;
+	}
+
+	/**
+	 * {@link QueryTranslator#getSchemaOfSelect()} returns {@link ColumnModel} instances
+	 * without IDs populated; the parallel {@link SelectColumn} list from the same
+	 * translator carries the original column IDs. Copy each ID across when the
+	 * schema entry is missing one.
+	 */
+	void copyMissingIdsFromSelectColumns(List<ColumnModel> schemaOfSelect, List<SelectColumn> selectColumns) {
 		for (int i = 0; i < schemaOfSelect.size() && i < selectColumns.size(); i++) {
 			if (schemaOfSelect.get(i).getId() == null && selectColumns.get(i).getId() != null) {
 				schemaOfSelect.get(i).setId(selectColumns.get(i).getId());
 			}
 		}
-		return schemaOfSelect;
 	}
 
-	private Map<String, TextAnalyzer> collectAndLoadAnalyzers(SearchConfiguration config,
+	Map<String, TextAnalyzer> collectAndLoadAnalyzers(SearchConfiguration config,
 			List<ColumnAnalyzerOverride> overrides, List<ColumnModel> columns) {
 		Set<String> qualifiedNames = new HashSet<>();
 
@@ -225,7 +232,7 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		return new HashMap<>(textAnalyzerDao.getByQualifiedNames(new ArrayList<>(qualifiedNames)));
 	}
 
-	private List<ColumnAnalyzerOverride> loadColumnAnalyzerOverrides(SearchConfiguration config) {
+	List<ColumnAnalyzerOverride> loadColumnAnalyzerOverrides(SearchConfiguration config) {
 		if (config == null || config.getColumnAnalyzerOverrides() == null
 				|| config.getColumnAnalyzerOverrides().isEmpty()) {
 			return Collections.emptyList();
@@ -234,7 +241,7 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 				config.getColumnAnalyzerOverrides()).values());
 	}
 
-	private void checkIndexStatus(String searchIndexId) {
+	void checkIndexStatus(String searchIndexId) {
 		SearchIndexStatusDao statusDao = connectionFactory.getSearchIndexStatusDao();
 		Optional<SearchIndexStatus> statusOpt = statusDao.getStatus(KeyFactory.stringToKey(searchIndexId));
 		if (statusOpt.isEmpty() || statusOpt.get().getState() == SearchIndexState.CREATING) {
@@ -251,7 +258,7 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		}
 	}
 
-	private String getIndexName(String entityId) {
+	String getIndexName(String entityId) {
 		return INDEX_PREFIX + entityId;
 	}
 
@@ -259,7 +266,7 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 	 * Translates all user-facing column name references in a SearchQuery to column IDs.
 	 * Handles boost syntax in queryFields (e.g., "name^3" becomes "id^3").
 	 */
-	private void translateQueryNamesToIds(SearchQuery query, Map<String, String> nameToId) {
+	void translateQueryNamesToIds(SearchQuery query, Map<String, String> nameToId) {
 		if (query.getQueryFields() != null) {
 			query.setQueryFields(query.getQueryFields().stream()
 					.map(field -> translateFieldWithBoost(field, nameToId))
@@ -286,7 +293,7 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		}
 	}
 
-	private String translateFieldWithBoost(String field, Map<String, String> nameToId) {
+	String translateFieldWithBoost(String field, Map<String, String> nameToId) {
 		int boostIdx = field.indexOf('^');
 		if (boostIdx >= 0) {
 			String name = field.substring(0, boostIdx);
@@ -311,7 +318,7 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		}
 	}
 
-	private List<String> translateNames(List<String> names, Map<String, String> nameToId) {
+	List<String> translateNames(List<String> names, Map<String, String> nameToId) {
 		if (names == null) {
 			return null;
 		}
@@ -324,7 +331,7 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 	 * Translates column IDs back to user-facing names in the search results.
 	 * Handles field keys, highlight keys (stripping .searchable suffix), and facet column names.
 	 */
-	private void translateResultIdsToNames(SearchQueryResults results, Map<String, String> idToName) {
+	void translateResultIdsToNames(SearchQueryResults results, Map<String, String> idToName) {
 		if (results.getHits() != null) {
 			for (SearchHit hit : results.getHits()) {
 				translateHitIdsToNames(hit, idToName);
@@ -333,7 +340,7 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		translateKeyed(results.getFacets(), FacetColumnResult::getColumnName, FacetColumnResult::setColumnName, idToName);
 	}
 
-	private void translateHitIdsToNames(SearchHit hit, Map<String, String> idToName) {
+	void translateHitIdsToNames(SearchHit hit, Map<String, String> idToName) {
 		translateKeyed(hit.getFields(), SearchFieldValue::getName, SearchFieldValue::setName, idToName);
 		if (hit.getHighlights() != null) {
 			for (SearchFieldValue hv : hit.getHighlights()) {

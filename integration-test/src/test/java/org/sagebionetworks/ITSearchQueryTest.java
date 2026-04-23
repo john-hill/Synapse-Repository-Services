@@ -177,6 +177,7 @@ public class ITSearchQueryTest {
 		autocompleteIndexQuery.setSearchIndexId(searchIndex.getId());
 		autocompleteIndexQuery.setQueryText("BRC");
 
+		// call under test
 		SearchQueryResults autocompleteResults = synapse.searchAutocomplete(autocompleteIndexQuery);
 		assertNotNull(autocompleteResults);
 		assertNotNull(autocompleteResults.getHits());

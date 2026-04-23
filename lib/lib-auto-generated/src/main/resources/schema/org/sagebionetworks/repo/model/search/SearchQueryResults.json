@@ -1,5 +1,5 @@
 {
-	"description": "Results of a search query against an OpenSearch index. Returned by both the async SearchIndex query and the synchronous autocomplete endpoints. The set of populated fields is governed by the request's responseParts: hits and offset are populated by default; the remaining fields are populated only when the corresponding SearchQueryPart is requested.",
+	"description": "Results of a search query against an OpenSearch index. The set of populated fields is governed by the request's responseParts: hits and offset are populated by default; the remaining fields are populated only when the corresponding SearchQueryPart is requested.",
 	"implements": [
 		{
 			"$ref": "org.sagebionetworks.repo.model.asynch.AsynchronousResponseBody"

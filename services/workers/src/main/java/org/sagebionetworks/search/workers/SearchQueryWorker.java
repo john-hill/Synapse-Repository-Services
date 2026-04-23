@@ -5,7 +5,6 @@ import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.repo.manager.search.SearchIndexQueryManager;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
-import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
 import org.sagebionetworks.worker.AsyncJobRunner;
@@ -43,7 +42,7 @@ public class SearchQueryWorker implements AsyncJobRunner<SearchIndexQuery, Searc
 			AsyncJobProgressCallback jobProgressCallback)
 			throws RecoverableMessageException, Exception {
 		try {
-			return searchIndexQueryManager.search(user, request.getSearchIndexId(), request);
+			return searchIndexQueryManager.search(user, request.getSearchIndexId(), request.getSearchQuery());
 		} catch (IllegalStateException e) {
 			if (e.getMessage() != null && e.getMessage().contains("still building")) {
 				throw new RecoverableMessageException(e.getMessage());

@@ -16,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.search.SearchIndexQueryManager;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
+import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
@@ -34,6 +35,7 @@ public class SearchQueryWorkerTest {
 
 	private UserInfo user;
 	private SearchIndexQuery request;
+	private SearchQuery searchQuery;
 	private String searchIndexId;
 	private String jobId;
 
@@ -42,8 +44,10 @@ public class SearchQueryWorkerTest {
 		user = new UserInfo(false);
 		user.setId(123L);
 		searchIndexId = "syn456";
+		searchQuery = new SearchQuery();
 		request = new SearchIndexQuery();
 		request.setSearchIndexId(searchIndexId);
+		request.setSearchQuery(searchQuery);
 		jobId = "job-1";
 	}
 
@@ -60,18 +64,18 @@ public class SearchQueryWorkerTest {
 	@Test
 	public void testRunWithValidRequest() throws Exception {
 		SearchQueryResults expected = new SearchQueryResults();
-		when(mockSearchIndexQueryManager.search(user, searchIndexId, request)).thenReturn(expected);
+		when(mockSearchIndexQueryManager.search(user, searchIndexId, searchQuery)).thenReturn(expected);
 
 		// Call under test
 		SearchQueryResults result = worker.run(jobId, user, request, mockJobCallback);
 
 		assertEquals(expected, result);
-		verify(mockSearchIndexQueryManager).search(user, searchIndexId, request);
+		verify(mockSearchIndexQueryManager).search(user, searchIndexId, searchQuery);
 	}
 
 	@Test
 	public void testRunWithStillBuildingStatus() throws Exception {
-		when(mockSearchIndexQueryManager.search(user, searchIndexId, request))
+		when(mockSearchIndexQueryManager.search(user, searchIndexId, searchQuery))
 			.thenThrow(new IllegalStateException("Index is still building"));
 
 		// Call under test
@@ -83,7 +87,7 @@ public class SearchQueryWorkerTest {
 	@Test
 	public void testRunWithOtherIllegalState() throws Exception {
 		IllegalStateException cause = new IllegalStateException("Some other error");
-		when(mockSearchIndexQueryManager.search(user, searchIndexId, request)).thenThrow(cause);
+		when(mockSearchIndexQueryManager.search(user, searchIndexId, searchQuery)).thenThrow(cause);
 
 		// Call under test
 		IllegalStateException result = assertThrows(IllegalStateException.class, () -> {
@@ -95,7 +99,7 @@ public class SearchQueryWorkerTest {
 
 	@Test
 	public void testRunWithFailedIndexStatus() throws Exception {
-		when(mockSearchIndexQueryManager.search(user, searchIndexId, request))
+		when(mockSearchIndexQueryManager.search(user, searchIndexId, searchQuery))
 			.thenThrow(new IllegalStateException("Search index build failed. Delete or update the SearchIndex to trigger a rebuild."));
 
 		// "build failed" does NOT contain "still building", so it should NOT be wrapped
@@ -108,7 +112,7 @@ public class SearchQueryWorkerTest {
 
 	@Test
 	public void testRunWithDeletingIndexStatus() throws Exception {
-		when(mockSearchIndexQueryManager.search(user, searchIndexId, request))
+		when(mockSearchIndexQueryManager.search(user, searchIndexId, searchQuery))
 			.thenThrow(new IllegalStateException("Search index is being deleted."));
 
 		// Call under test
@@ -120,7 +124,7 @@ public class SearchQueryWorkerTest {
 
 	@Test
 	public void testRunWithUnexpectedException() throws Exception {
-		when(mockSearchIndexQueryManager.search(user, searchIndexId, request))
+		when(mockSearchIndexQueryManager.search(user, searchIndexId, searchQuery))
 			.thenThrow(new RuntimeException("unexpected error"));
 
 		// Call under test

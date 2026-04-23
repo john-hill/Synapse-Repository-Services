@@ -37,6 +37,7 @@ import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
+import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
 
@@ -162,6 +163,7 @@ public class ITSearchQueryTest {
 		// 8. Wait for the index to be ACTIVE
 		SearchIndexQuery waitIndexQuery = new SearchIndexQuery();
 		waitIndexQuery.setSearchIndexId(searchIndex.getId());
+		waitIndexQuery.setSearchQuery(new SearchQuery());
 
 		AsyncJobHelper.assertAysncJobResult(synapse, AsynchJobType.SearchIndexQuery, waitIndexQuery,
 			(SearchQueryResults results) -> {
@@ -175,7 +177,7 @@ public class ITSearchQueryTest {
 		// 9. Test autocomplete (synchronous)
 		SearchIndexQuery autocompleteIndexQuery = new SearchIndexQuery();
 		autocompleteIndexQuery.setSearchIndexId(searchIndex.getId());
-		autocompleteIndexQuery.setQueryText("BRC");
+		autocompleteIndexQuery.setSearchQuery(new SearchQuery().setQueryText("BRC"));
 
 		// call under test
 		SearchQueryResults autocompleteResults = synapse.searchAutocomplete(autocompleteIndexQuery);

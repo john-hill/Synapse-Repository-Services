@@ -16,7 +16,7 @@
 		},
 		"responseParts": {
 			"type": "array",
-			"description": "Optional list of additional parts to include in the SearchQueryResults beyond the default HITS + offset. Null or empty means HITS only (the default minimal payload). Requesting parts also drives the corresponding work in OpenSearch (aggregations, total-hit tracking) — this is a real efficiency knob, not just response trimming.",
+			"description": "Optional list of additional parts to include in the SearchQueryResults beyond the default HITS + offset. Null or empty means HITS only (the default minimal payload). Requesting parts also drives the corresponding work in OpenSearch (aggregations, total-hit tracking).",
 			"uniqueItems": true,
 			"items": {
 				"$ref": "org.sagebionetworks.repo.model.search.SearchQueryPart"

@@ -18,10 +18,13 @@ import static org.mockito.Mockito.when;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,6 +55,8 @@ import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
+import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
+import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.table.SearchIndexState;
 import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
@@ -130,6 +135,20 @@ public class SearchIndexQueryManagerImplTest {
 		return query;
 	}
 
+	/** Wrap a SearchQuery in a SearchIndexQuery bound to {@link #SEARCH_INDEX_ID}. */
+	private SearchIndexQuery buildRequest(SearchQuery query) {
+		return new SearchIndexQuery().setSearchIndexId(SEARCH_INDEX_ID).setSearchQuery(query);
+	}
+
+	/** Wrap a SearchQuery plus an explicit set of response parts. */
+	private SearchIndexQuery buildRequest(SearchQuery query, SearchQueryPart... parts) {
+		Set<SearchQueryPart> partSet = new LinkedHashSet<>(Arrays.asList(parts));
+		return new SearchIndexQuery()
+				.setSearchIndexId(SEARCH_INDEX_ID)
+				.setSearchQuery(query)
+				.setResponseParts(partSet);
+	}
+
 	/**
 	 * Wires up the mocks needed for the full execute-query flow to succeed:
 	 * status check, QueryTranslator schema resolution, and analyzer lookup.
@@ -174,7 +193,7 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class))
 				.thenThrow(new UnauthorizedException("no access"));
 
-		assertThrows(UnauthorizedException.class, () -> manager.search(user, SEARCH_INDEX_ID, buildQuery()));
+		assertThrows(UnauthorizedException.class, () -> manager.search(user, buildRequest(buildQuery())));
 		verifyNoMoreInteractions(connectionFactory, openSearchManager);
 	}
 
@@ -188,7 +207,7 @@ public class SearchIndexQueryManagerImplTest {
 				.when(tableManagerSupport).validateTableReadAccess(user, indexDescription);
 
 		// call under test
-		assertThrows(UnauthorizedException.class, () -> manager.search(user, SEARCH_INDEX_ID, buildQuery()));
+		assertThrows(UnauthorizedException.class, () -> manager.search(user, buildRequest(buildQuery())));
 		verifyNoMoreInteractions(connectionFactory, openSearchManager);
 	}
 
@@ -202,7 +221,7 @@ public class SearchIndexQueryManagerImplTest {
 				new SearchIndexStatus().setSearchIndexId(SEARCH_INDEX_ID).setState(SearchIndexState.CREATING)));
 
 		IllegalStateException ex = assertThrows(IllegalStateException.class,
-				() -> manager.search(user, SEARCH_INDEX_ID, buildQuery()));
+				() -> manager.search(user, buildRequest(buildQuery())));
 		assertTrue(ex.getMessage().contains("still building"));
 		verifyNoMoreInteractions(openSearchManager);
 	}
@@ -220,7 +239,7 @@ public class SearchIndexQueryManagerImplTest {
 
 		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> manager.search(user, SEARCH_INDEX_ID, buildQuery()));
+				() -> manager.search(user, buildRequest(buildQuery())));
 
 		assertTrue(ex.getMessage().contains("build failed"));
 		assertTrue(ex.getMessage().contains("Column 'bogus_col' does not exist."),
@@ -241,7 +260,7 @@ public class SearchIndexQueryManagerImplTest {
 
 		// call under test — no stored error, fall back to the generic remediation hint
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> manager.search(user, SEARCH_INDEX_ID, buildQuery()));
+				() -> manager.search(user, buildRequest(buildQuery())));
 
 		assertTrue(ex.getMessage().contains("Delete or update the SearchIndex"));
 		verifyNoMoreInteractions(openSearchManager);
@@ -256,7 +275,7 @@ public class SearchIndexQueryManagerImplTest {
 		when(statusDao.getStatus(1L)).thenReturn(Optional.empty());
 
 		IllegalStateException ex = assertThrows(IllegalStateException.class,
-				() -> manager.search(user, SEARCH_INDEX_ID, buildQuery()));
+				() -> manager.search(user, buildRequest(buildQuery())));
 		assertTrue(ex.getMessage().contains("still building"));
 		verifyNoMoreInteractions(openSearchManager);
 	}
@@ -267,13 +286,14 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		setupHappyPathMocks();
-		when(openSearchManager.search(eq("search-index-1"), any(), any(), any(), any(), any()))
+		when(openSearchManager.search(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
 				.thenReturn(buildRawResults());
 
 		SearchQuery query = buildQuery();
 
-		// call under test
-		SearchQueryResults results = manager.search(user, SEARCH_INDEX_ID, query);
+		// call under test — request HITS + TOTAL_HITS so the assertions on totalHits work
+		SearchQueryResults results = manager.search(user, buildRequest(query,
+				SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS));
 
 		assertNotNull(results);
 		assertEquals(1L, results.getTotalHits());
@@ -284,7 +304,7 @@ public class SearchIndexQueryManagerImplTest {
 		// Highlight name has its ".searchable" suffix stripped and ID translated to name
 		assertEquals(NAME_COLUMN, hit.getHighlights().get(0).getName());
 
-		verify(openSearchManager).search(eq("search-index-1"), any(), any(), any(), any(), any());
+		verify(openSearchManager).search(eq("search-index-1"), any(), any(), any(), any(), any(), any());
 	}
 
 	/**
@@ -344,7 +364,7 @@ public class SearchIndexQueryManagerImplTest {
 				.setTotalHits(1L)
 				.setHits(new ArrayList<>(Collections.singletonList(hit)))
 				.setFacets(new ArrayList<>(Collections.singletonList(facetResult)));
-		when(openSearchManager.search(eq("search-index-1"), any(), any(), any(), any(), any()))
+		when(openSearchManager.search(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
 				.thenReturn(raw);
 
 		// Build a SearchQuery exercising every translation path with special-char names
@@ -364,12 +384,13 @@ public class SearchIndexQueryManagerImplTest {
 				new SortField().setColumnName("Age (years)").setDirection(SortDirection.ASC),
 				new SortField().setColumnName("_score").setDirection(SortDirection.DESC))));
 
-		// call under test
-		SearchQueryResults results = manager.search(user, SEARCH_INDEX_ID, query);
+		// call under test — request HITS + TOTAL_HITS + FACETS so we exercise translation in every code path
+		SearchQueryResults results = manager.search(user, buildRequest(query,
+				SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS, SearchQueryPart.FACETS));
 
 		// Verify the query reached OpenSearch with every user-facing name translated to an ID
 		ArgumentCaptor<SearchQuery> captor = ArgumentCaptor.forClass(SearchQuery.class);
-		verify(openSearchManager).search(eq("search-index-1"), captor.capture(), any(), any(), any(), any());
+		verify(openSearchManager).search(eq("search-index-1"), captor.capture(), any(), any(), any(), any(), any());
 		SearchQuery translated = captor.getValue();
 
 		assertEquals(Arrays.asList(studyNameId, dataFieldId + "^3"), translated.getQueryFields());
@@ -400,13 +421,13 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		setupHappyPathMocks();
-		when(openSearchManager.autocomplete(eq("search-index-1"), any(), any(), any(), any(), any()))
+		when(openSearchManager.autocomplete(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
 				.thenReturn(buildRawResults());
 
 		SearchQuery query = buildQuery();
 
 		// call under test
-		SearchQueryResults results = manager.autocomplete(user, SEARCH_INDEX_ID, query);
+		SearchQueryResults results = manager.autocomplete(user, buildRequest(query));
 
 		assertNotNull(results);
 		assertEquals(NAME_COLUMN, results.getHits().get(0).getFields().get(0).getName());
@@ -414,7 +435,7 @@ public class SearchIndexQueryManagerImplTest {
 		// Auto-populated queryFields should contain all searchable columns (translated to IDs
 		// before reaching OpenSearch). The STRING columns in our schema are text-searchable.
 		ArgumentCaptor<SearchQuery> queryCaptor = ArgumentCaptor.forClass(SearchQuery.class);
-		verify(openSearchManager).autocomplete(eq("search-index-1"), queryCaptor.capture(), any(), any(), any(), any());
+		verify(openSearchManager).autocomplete(eq("search-index-1"), queryCaptor.capture(), any(), any(), any(), any(), any());
 		List<String> queryFields = queryCaptor.getValue().getQueryFields();
 		assertNotNull(queryFields);
 		assertTrue(queryFields.contains(NAME_COLUMN_ID));
@@ -429,17 +450,17 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		setupHappyPathMocks();
-		when(openSearchManager.autocomplete(eq("search-index-1"), any(), any(), any(), any(), any()))
+		when(openSearchManager.autocomplete(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
 				.thenReturn(buildRawResults());
 
 		SearchQuery query = buildQuery();
 		query.setQueryFields(new ArrayList<>());
 
 		// call under test
-		manager.autocomplete(user, SEARCH_INDEX_ID, query);
+		manager.autocomplete(user, buildRequest(query));
 
 		ArgumentCaptor<SearchQuery> queryCaptor = ArgumentCaptor.forClass(SearchQuery.class);
-		verify(openSearchManager).autocomplete(eq("search-index-1"), queryCaptor.capture(), any(), any(), any(), any());
+		verify(openSearchManager).autocomplete(eq("search-index-1"), queryCaptor.capture(), any(), any(), any(), any(), any());
 		List<String> queryFields = queryCaptor.getValue().getQueryFields();
 		assertTrue(queryFields.contains(NAME_COLUMN_ID));
 		assertTrue(queryFields.contains(DESC_COLUMN_ID));
@@ -496,17 +517,17 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		setupHappyPathMocks();
-		when(openSearchManager.autocomplete(eq("search-index-1"), any(), any(), any(), any(), any()))
+		when(openSearchManager.autocomplete(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
 				.thenReturn(buildRawResults());
 
 		SearchQuery query = buildQuery();
 		query.setQueryFields(new ArrayList<>(Arrays.asList(NAME_COLUMN)));
 
 		// call under test
-		manager.autocomplete(user, SEARCH_INDEX_ID, query);
+		manager.autocomplete(user, buildRequest(query));
 
 		ArgumentCaptor<SearchQuery> queryCaptor = ArgumentCaptor.forClass(SearchQuery.class);
-		verify(openSearchManager).autocomplete(eq("search-index-1"), queryCaptor.capture(), any(), any(), any(), any());
+		verify(openSearchManager).autocomplete(eq("search-index-1"), queryCaptor.capture(), any(), any(), any(), any(), any());
 		// Only the caller-provided field survives (translated to its ID); the other column was NOT auto-added.
 		assertEquals(Arrays.asList(NAME_COLUMN_ID), queryCaptor.getValue().getQueryFields());
 	}
@@ -523,13 +544,13 @@ public class SearchIndexQueryManagerImplTest {
 		config.setDefaultAnalyzer("org.sage-DEFAULT");
 		when(searchConfigurationResolver.resolve(user, "cfg1", "syn789"))
 				.thenReturn(Optional.of(config));
-		when(openSearchManager.search(eq("search-index-1"), any(), any(), eq("org.sage-DEFAULT"), any(), any()))
+		when(openSearchManager.search(eq("search-index-1"), any(), any(), eq("org.sage-DEFAULT"), any(), any(), any()))
 				.thenReturn(buildRawResults());
 
 		// call under test
-		manager.search(user, SEARCH_INDEX_ID, buildQuery());
+		manager.search(user, buildRequest(buildQuery()));
 
-		verify(openSearchManager).search(eq("search-index-1"), any(), any(), eq("org.sage-DEFAULT"), any(), any());
+		verify(openSearchManager).search(eq("search-index-1"), any(), any(), eq("org.sage-DEFAULT"), any(), any(), any());
 	}
 
 	@Test
@@ -896,5 +917,365 @@ public class SearchIndexQueryManagerImplTest {
 		manager.translateHitIdsToNames(hit, Map.of("111", "name"));
 
 		assertEquals("name", hit.getFields().get(0).getName());
+	}
+
+	// --- responseParts: resolveRequestedParts ---
+
+	@Test
+	public void testResolveRequestedPartsWithNull() {
+		// call under test — null defaults to HITS-only
+		assertEquals(EnumSet.of(SearchQueryPart.HITS),
+				SearchIndexQueryManagerImpl.resolveRequestedParts(null));
+	}
+
+	@Test
+	public void testResolveRequestedPartsWithEmpty() {
+		// call under test — empty also defaults to HITS-only (matches null semantics)
+		assertEquals(EnumSet.of(SearchQueryPart.HITS),
+				SearchIndexQueryManagerImpl.resolveRequestedParts(Collections.emptySet()));
+	}
+
+	@Test
+	public void testResolveRequestedPartsWithSinglePart() {
+		// call under test — caller can request a single part (no implicit HITS)
+		assertEquals(EnumSet.of(SearchQueryPart.TOTAL_HITS),
+				SearchIndexQueryManagerImpl.resolveRequestedParts(EnumSet.of(SearchQueryPart.TOTAL_HITS)));
+	}
+
+	@Test
+	public void testResolveRequestedPartsWithAllParts() {
+		Set<SearchQueryPart> all = EnumSet.allOf(SearchQueryPart.class);
+
+		// call under test
+		assertEquals(all, SearchIndexQueryManagerImpl.resolveRequestedParts(all));
+	}
+
+	@Test
+	public void testResolveRequestedPartsReturnsEnumSet() {
+		// The contract is that callers get an EnumSet for O(1) contains; verify the type.
+		Set<SearchQueryPart> result = SearchIndexQueryManagerImpl.resolveRequestedParts(
+				new LinkedHashSet<>(Arrays.asList(SearchQueryPart.HITS, SearchQueryPart.FACETS)));
+
+		assertTrue(result instanceof EnumSet);
+		assertEquals(EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.FACETS), result);
+	}
+
+	// --- responseParts: filterSelectColumnsForReturnFields ---
+
+	@Test
+	public void testFilterSelectColumnsForReturnFieldsWithNullSelectColumns() {
+		// call under test — defensive null-in / null-out
+		assertNull(manager.filterSelectColumnsForReturnFields(null, Arrays.asList("a")));
+	}
+
+	@Test
+	public void testFilterSelectColumnsForReturnFieldsWithNullReturnFields() {
+		List<SelectColumn> all = Arrays.asList(
+				new SelectColumn().setName("a").setId("1"),
+				new SelectColumn().setName("b").setId("2"));
+
+		// call under test — null returnFields means "all columns"; the same list is returned
+		assertEquals(all, manager.filterSelectColumnsForReturnFields(all, null));
+	}
+
+	@Test
+	public void testFilterSelectColumnsForReturnFieldsWithEmptyReturnFields() {
+		List<SelectColumn> all = Arrays.asList(
+				new SelectColumn().setName("a").setId("1"),
+				new SelectColumn().setName("b").setId("2"));
+
+		// call under test — empty returnFields also means "all columns"
+		assertEquals(all, manager.filterSelectColumnsForReturnFields(all, Collections.emptyList()));
+	}
+
+	@Test
+	public void testFilterSelectColumnsForReturnFieldsWithSubset() {
+		SelectColumn a = new SelectColumn().setName("a").setId("1");
+		SelectColumn b = new SelectColumn().setName("b").setId("2");
+		SelectColumn c = new SelectColumn().setName("c").setId("3");
+		List<SelectColumn> all = Arrays.asList(a, b, c);
+
+		// call under test — only matching columns survive, in SELECT-clause order
+		assertEquals(Arrays.asList(a, c), manager.filterSelectColumnsForReturnFields(all, Arrays.asList("a", "c")));
+	}
+
+	@Test
+	public void testFilterSelectColumnsForReturnFieldsPreservesSelectClauseOrder() {
+		SelectColumn a = new SelectColumn().setName("a").setId("1");
+		SelectColumn b = new SelectColumn().setName("b").setId("2");
+		SelectColumn c = new SelectColumn().setName("c").setId("3");
+		List<SelectColumn> all = Arrays.asList(a, b, c);
+
+		// call under test — returnFields order is ["c","a"] but SELECT-clause order ["a","c"] wins
+		assertEquals(Arrays.asList(a, c),
+				manager.filterSelectColumnsForReturnFields(all, Arrays.asList("c", "a")));
+	}
+
+	@Test
+	public void testFilterSelectColumnsForReturnFieldsDropsUnknownNames() {
+		SelectColumn a = new SelectColumn().setName("a").setId("1");
+		SelectColumn b = new SelectColumn().setName("b").setId("2");
+		List<SelectColumn> all = Arrays.asList(a, b);
+
+		// call under test — "unknown" name is silently dropped (it wouldn't appear in hits anyway)
+		assertEquals(Arrays.asList(a),
+				manager.filterSelectColumnsForReturnFields(all, Arrays.asList("a", "unknown")));
+	}
+
+	// --- State-table: responseParts → which response fields populated ---
+
+	/**
+	 * Mocks the openSearchManager to return a fully-populated SearchQueryResults regardless
+	 * of which parts are requested. The manager's own gating then determines which fields
+	 * survive — that's what we want to assert here. (Real OpenSearchManagerImpl populates
+	 * only the requested fields; the AutoWired test covers that.)
+	 */
+	private SearchQueryResults rawHits() {
+		SearchHit hit = new SearchHit();
+		hit.setRowId(1L);
+		hit.setFields(new ArrayList<>(Arrays.asList(
+				new SearchFieldValue().setName(NAME_COLUMN_ID).setValue("Alice"))));
+		return new SearchQueryResults()
+				.setHits(new ArrayList<>(Arrays.asList(hit)))
+				.setTotalHits(7L)
+				.setFacets(new ArrayList<>(Arrays.asList(new FacetColumnResultValues().setColumnName(NAME_COLUMN_ID))))
+				.setOffset(0L);
+	}
+
+	@Test
+	public void testSearchWithDefaultPartsReturnsHitsOnly() {
+		SearchIndex si = setupSearchIndex();
+		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
+		setupAuthMocks();
+		setupHappyPathMocks();
+		when(openSearchManager.search(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
+				.thenReturn(rawHits());
+
+		// call under test — buildRequest with no parts ⇒ default minimal payload
+		SearchQueryResults results = manager.search(user, buildRequest(buildQuery()));
+
+		assertNotNull(results.getHits());
+		assertNull(results.getTotalHits(),     "totalHits should be null when TOTAL_HITS not requested");
+		assertNull(results.getSelectColumns(), "selectColumns should be null when SELECT_COLUMNS not requested");
+		assertNull(results.getFacets(),        "facets should be null when FACETS not requested");
+		assertEquals(0L, results.getOffset(),  "offset is always populated");
+	}
+
+	@Test
+	public void testSearchWithAllPartsRequested() {
+		SearchIndex si = setupSearchIndex();
+		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
+		setupAuthMocks();
+		setupHappyPathMocks();
+		when(openSearchManager.search(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
+				.thenReturn(rawHits());
+
+		// call under test
+		SearchQueryResults results = manager.search(user, buildRequest(buildQuery(),
+				SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS,
+				SearchQueryPart.SELECT_COLUMNS, SearchQueryPart.FACETS));
+
+		assertNotNull(results.getHits());
+		assertEquals(7L, results.getTotalHits());
+		assertNotNull(results.getSelectColumns());
+		assertNotNull(results.getFacets());
+		assertEquals(0L, results.getOffset());
+	}
+
+	@Test
+	public void testSearchWithSelectColumnsOnly() {
+		SearchIndex si = setupSearchIndex();
+		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
+		setupAuthMocks();
+		setupHappyPathMocks();
+		when(openSearchManager.search(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
+				.thenReturn(rawHits());
+
+		// call under test
+		SearchQueryResults results = manager.search(user, buildRequest(buildQuery(), SearchQueryPart.SELECT_COLUMNS));
+
+		assertNull(results.getHits(),     "hits should be null when HITS not requested");
+		assertNull(results.getTotalHits());
+		assertNotNull(results.getSelectColumns(),
+				"selectColumns should be populated when SELECT_COLUMNS is requested");
+		assertNull(results.getFacets());
+		assertEquals(0L, results.getOffset());
+	}
+
+	@Test
+	public void testSearchWithSelectColumnsRespectsReturnFields() {
+		SearchIndex si = setupSearchIndex();
+		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
+		setupAuthMocks();
+		setupHappyPathMocks();
+		when(openSearchManager.search(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
+				.thenReturn(rawHits());
+
+		// returnFields narrows to one column; selectColumns response should match
+		SearchQuery query = buildQuery();
+		query.setReturnFields(new ArrayList<>(Arrays.asList(NAME_COLUMN)));
+
+		// call under test
+		SearchQueryResults results = manager.search(user, buildRequest(query, SearchQueryPart.SELECT_COLUMNS));
+
+		assertEquals(1, results.getSelectColumns().size());
+		assertEquals(NAME_COLUMN, results.getSelectColumns().get(0).getName());
+	}
+
+	@Test
+	public void testSearchPassesResolvedPartsToOpenSearchManager() {
+		SearchIndex si = setupSearchIndex();
+		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
+		setupAuthMocks();
+		setupHappyPathMocks();
+		when(openSearchManager.search(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
+				.thenReturn(rawHits());
+
+		// call under test — request HITS + TOTAL_HITS
+		manager.search(user, buildRequest(buildQuery(), SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS));
+
+		// Verify the manager forwarded the resolved EnumSet to OpenSearchManager unchanged
+		ArgumentCaptor<Set<SearchQueryPart>> partsCaptor = ArgumentCaptor.forClass(Set.class);
+		verify(openSearchManager).search(eq("search-index-1"), any(), any(), any(), any(), any(), partsCaptor.capture());
+		assertEquals(EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS), partsCaptor.getValue());
+	}
+
+	@Test
+	public void testSearchWithoutFacetsClearsFacetRequestsBeforeOpenSearch() {
+		// When FACETS is absent from responseParts, the manager should drop facetRequests
+		// from the SearchQuery before forwarding to OpenSearchManager — so the OS layer
+		// doesn't waste cycles building aggregations.
+		SearchIndex si = setupSearchIndex();
+		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
+		setupAuthMocks();
+		setupHappyPathMocks();
+		when(openSearchManager.search(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
+				.thenReturn(rawHits());
+
+		SearchQuery query = buildQuery();
+		query.setFacetRequests(new ArrayList<>(Arrays.asList(
+				new FacetRequest().setColumnName(NAME_COLUMN))));
+
+		// call under test — default HITS-only, FACETS not requested
+		manager.search(user, buildRequest(query));
+
+		ArgumentCaptor<SearchQuery> captor = ArgumentCaptor.forClass(SearchQuery.class);
+		verify(openSearchManager).search(eq("search-index-1"), captor.capture(), any(), any(), any(), any(), any());
+		assertNull(captor.getValue().getFacetRequests(),
+				"facetRequests should be cleared when FACETS is not in responseParts");
+	}
+
+	@Test
+	public void testSearchWithFacetsKeepsFacetRequests() {
+		SearchIndex si = setupSearchIndex();
+		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
+		setupAuthMocks();
+		setupHappyPathMocks();
+		when(openSearchManager.search(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
+				.thenReturn(rawHits());
+
+		SearchQuery query = buildQuery();
+		query.setFacetRequests(new ArrayList<>(Arrays.asList(
+				new FacetRequest().setColumnName(NAME_COLUMN))));
+
+		// call under test
+		manager.search(user, buildRequest(query, SearchQueryPart.HITS, SearchQueryPart.FACETS));
+
+		ArgumentCaptor<SearchQuery> captor = ArgumentCaptor.forClass(SearchQuery.class);
+		verify(openSearchManager).search(eq("search-index-1"), captor.capture(), any(), any(), any(), any(), any());
+		assertNotNull(captor.getValue().getFacetRequests(),
+				"facetRequests should be preserved when FACETS is in responseParts");
+		// And translated from name → ID
+		assertEquals(NAME_COLUMN_ID, captor.getValue().getFacetRequests().get(0).getColumnName());
+	}
+
+	// --- Same state-table assertions for autocomplete (consistency across endpoints) ---
+
+	@Test
+	public void testAutocompleteWithDefaultPartsReturnsHitsOnly() {
+		SearchIndex si = setupSearchIndex();
+		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
+		setupAuthMocks();
+		setupHappyPathMocks();
+		when(openSearchManager.autocomplete(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
+				.thenReturn(rawHits());
+
+		// call under test
+		SearchQueryResults results = manager.autocomplete(user, buildRequest(buildQuery()));
+
+		assertNotNull(results.getHits());
+		assertNull(results.getTotalHits());
+		assertNull(results.getSelectColumns());
+		assertNull(results.getFacets());
+		assertEquals(0L, results.getOffset());
+	}
+
+	@Test
+	public void testAutocompleteWithAllPartsRequested() {
+		SearchIndex si = setupSearchIndex();
+		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
+		setupAuthMocks();
+		setupHappyPathMocks();
+		when(openSearchManager.autocomplete(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
+				.thenReturn(rawHits());
+
+		// call under test
+		SearchQueryResults results = manager.autocomplete(user, buildRequest(buildQuery(),
+				SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS,
+				SearchQueryPart.SELECT_COLUMNS, SearchQueryPart.FACETS));
+
+		assertNotNull(results.getHits());
+		assertEquals(7L, results.getTotalHits());
+		assertNotNull(results.getSelectColumns());
+		// FACETS may be null in real autocomplete (no facetRequests), but here the mocked OS
+		// returned a facet result and we asked for FACETS, so it's preserved.
+		assertNotNull(results.getFacets());
+	}
+
+	@Test
+	public void testAutocompletePassesResolvedPartsToOpenSearchManager() {
+		SearchIndex si = setupSearchIndex();
+		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
+		setupAuthMocks();
+		setupHappyPathMocks();
+		when(openSearchManager.autocomplete(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
+				.thenReturn(rawHits());
+
+		// call under test
+		manager.autocomplete(user, buildRequest(buildQuery(), SearchQueryPart.SELECT_COLUMNS));
+
+		ArgumentCaptor<Set<SearchQueryPart>> partsCaptor = ArgumentCaptor.forClass(Set.class);
+		verify(openSearchManager).autocomplete(eq("search-index-1"), any(), any(), any(), any(), any(), partsCaptor.capture());
+		assertEquals(EnumSet.of(SearchQueryPart.SELECT_COLUMNS), partsCaptor.getValue());
+	}
+
+	// --- Validation tests ---
+
+	@Test
+	public void testAutocompleteWithNullRequestThrows() {
+		// call under test
+		assertThrows(IllegalArgumentException.class, () -> manager.autocomplete(user, null));
+	}
+
+	@Test
+	public void testAutocompleteWithNullSearchQueryThrows() {
+		SearchIndexQuery request = new SearchIndexQuery().setSearchIndexId(SEARCH_INDEX_ID);
+
+		// call under test
+		assertThrows(IllegalArgumentException.class, () -> manager.autocomplete(user, request));
+	}
+
+	@Test
+	public void testSearchWithNullRequestThrows() {
+		// call under test
+		assertThrows(IllegalArgumentException.class, () -> manager.search(user, null));
+	}
+
+	@Test
+	public void testSearchWithNullSearchIndexIdThrows() {
+		SearchIndexQuery request = new SearchIndexQuery().setSearchQuery(buildQuery());
+
+		// call under test
+		assertThrows(IllegalArgumentException.class, () -> manager.search(user, request));
 	}
 }

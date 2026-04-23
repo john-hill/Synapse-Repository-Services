@@ -2,11 +2,13 @@ package org.sagebionetworks;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.UUID;
 
@@ -38,6 +40,7 @@ import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
 import org.sagebionetworks.repo.model.search.SearchQuery;
+import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
 
@@ -160,21 +163,30 @@ public class ITSearchQueryTest {
 		searchIndex = adminSynapse.createEntity(searchIndex);
 		entitiesToDelete.add(searchIndex);
 
-		// 8. Wait for the index to be ACTIVE
+		// 8. Wait for the index to be ACTIVE — request HITS + TOTAL_HITS + SELECT_COLUMNS so we can
+		// assert on all three in one shot. (HITS alone is the default, but we want totalHits and
+		// selectColumns populated here to verify the end-to-end plumbing for each opt-in part.)
 		SearchIndexQuery waitIndexQuery = new SearchIndexQuery();
 		waitIndexQuery.setSearchIndexId(searchIndex.getId());
 		waitIndexQuery.setSearchQuery(new SearchQuery());
+		waitIndexQuery.setResponseParts(new LinkedHashSet<>(Arrays.asList(
+				SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS, SearchQueryPart.SELECT_COLUMNS)));
 
 		AsyncJobHelper.assertAysncJobResult(synapse, AsynchJobType.SearchIndexQuery, waitIndexQuery,
 			(SearchQueryResults results) -> {
 				assertNotNull(results);
 				assertEquals(3L, (long) results.getTotalHits());
+				assertNotNull(results.getSelectColumns(),
+					"selectColumns should be populated when SELECT_COLUMNS is requested");
+				assertEquals(1, results.getSelectColumns().size(),
+					"definingSQL is 'select * from <table>' with one column (geneName)");
+				assertEquals("geneName", results.getSelectColumns().get(0).getName());
 			},
 			MAX_QUERY_TIMEOUT_MS,
 			AsyncJobHelper.INFINITE_RETRIES
 		);
 
-		// 9. Test autocomplete (synchronous)
+		// 9. Test autocomplete (synchronous) — default responseParts (null) returns HITS only
 		SearchIndexQuery autocompleteIndexQuery = new SearchIndexQuery();
 		autocompleteIndexQuery.setSearchIndexId(searchIndex.getId());
 		autocompleteIndexQuery.setSearchQuery(new SearchQuery().setQueryText("BRC"));
@@ -183,8 +195,13 @@ public class ITSearchQueryTest {
 		SearchQueryResults autocompleteResults = synapse.searchAutocomplete(autocompleteIndexQuery);
 		assertNotNull(autocompleteResults);
 		assertNotNull(autocompleteResults.getHits());
-		assertTrue(autocompleteResults.getTotalHits() >= 2,
+		assertTrue(autocompleteResults.getHits().size() >= 2,
 			"Expected at least 2 autocomplete hits for 'BRC' (BRCA1, BRCA2)");
+		// Default responseParts should omit the opt-in parts
+		assertNull(autocompleteResults.getTotalHits(),
+			"totalHits should be null when responseParts is left at default (HITS only)");
+		assertNull(autocompleteResults.getSelectColumns(),
+			"selectColumns should be null when responseParts is left at default (HITS only)");
 	}
 
 	private void grantPublicRead(String entityId) throws SynapseException {

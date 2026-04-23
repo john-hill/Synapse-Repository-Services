@@ -36,6 +36,6 @@ public class SearchIndexQueryServiceImpl implements SearchIndexQueryService {
 	@Override
 	public SearchQueryResults autocomplete(Long userId, SearchIndexQuery query) {
 		UserInfo userInfo = userManager.getUserInfo(userId);
-		return searchIndexQueryManager.autocomplete(userInfo, query.getSearchIndexId(), query.getSearchQuery());
+		return searchIndexQueryManager.autocomplete(userInfo, query);
 	}
 }

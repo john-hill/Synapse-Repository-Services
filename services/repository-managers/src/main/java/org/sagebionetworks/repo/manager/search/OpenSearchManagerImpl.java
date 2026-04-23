@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import jakarta.json.Json;
@@ -66,6 +67,7 @@ import org.sagebionetworks.repo.model.search.SortDirection;
 import org.sagebionetworks.repo.model.search.SortField;
 import org.sagebionetworks.repo.model.search.table.SynonymRule;
 import org.sagebionetworks.repo.model.search.table.SynonymRuleType;
+import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
@@ -262,19 +264,19 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	@Override
 	public SearchQueryResults search(String indexName, SearchQuery query, List<ColumnModel> columns,
 			String defaultAnalyzer, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, TextAnalyzer> analyzers) {
-		return executeSearch(indexName, query, columns, defaultAnalyzer, columnAnalyzerOverrides, analyzers);
+			Map<String, TextAnalyzer> analyzers, Set<SearchQueryPart> parts) {
+		return executeSearch(indexName, query, columns, defaultAnalyzer, columnAnalyzerOverrides, analyzers, parts);
 	}
 
 	@Override
 	public SearchQueryResults autocomplete(String indexName, SearchQuery query, List<ColumnModel> columns,
 			String defaultAnalyzer, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, TextAnalyzer> analyzers) {
+			Map<String, TextAnalyzer> analyzers, Set<SearchQueryPart> parts) {
 		query.setQueryType(SearchQueryType.PREFIX);
 		if (query.getLimit() == null || query.getLimit() > AUTOCOMPLETE_MAX_LIMIT) {
 			query.setLimit((long) AUTOCOMPLETE_MAX_LIMIT);
 		}
-		return executeSearch(indexName, query, columns, defaultAnalyzer, columnAnalyzerOverrides, analyzers);
+		return executeSearch(indexName, query, columns, defaultAnalyzer, columnAnalyzerOverrides, analyzers, parts);
 	}
 
 	// ---- Private helpers ----
@@ -331,7 +333,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	private SearchQueryResults executeSearch(String indexName, SearchQuery query, List<ColumnModel> columns,
 			String defaultAnalyzer, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, TextAnalyzer> analyzers) {
+			Map<String, TextAnalyzer> analyzers, Set<SearchQueryPart> parts) {
 
 		Map<String, String> nameToId = columns.stream()
 				.collect(Collectors.toMap(ColumnModel::getName, ColumnModel::getId, (a2, b) -> a2));
@@ -363,54 +365,70 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 		addFilters(boolBuilder, query, columnMap, nameToId, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName);
 
-		Map<String, Aggregation> aggregations = buildAggregations(query.getFacetRequests(), columnMap, nameToId, defaultAnalyzer,
-				overrideMap, analyzers, idToQualifiedName);
+		// Skip aggregation construction entirely when the caller didn't ask for FACETS.
+		Map<String, Aggregation> aggregations = parts.contains(SearchQueryPart.FACETS)
+				? buildAggregations(query.getFacetRequests(), columnMap, nameToId, defaultAnalyzer,
+						overrideMap, analyzers, idToQualifiedName)
+				: Collections.emptyMap();
 
 		Map<String, HighlightField> highlightFields = null;
-		if (Boolean.TRUE.equals(query.getHighlight())) {
+		if (parts.contains(SearchQueryPart.HITS) && Boolean.TRUE.equals(query.getHighlight())) {
 			highlightFields = buildHighlightFields(columns, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName);
 		}
 
 		List<String> returnFields = query.getReturnFields();
 
-		List<SortOptions> sortOptions = buildSortOptions(query.getSort(), columnMap, nameToId, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName);
+		List<SortOptions> sortOptions = parts.contains(SearchQueryPart.HITS)
+				? buildSortOptions(query.getSort(), columnMap, nameToId, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName)
+				: Collections.emptyList();
 
 		Map<String, String> idToName = columns.stream()
 				.collect(Collectors.toMap(ColumnModel::getId, ColumnModel::getName, (a2, b) -> a2));
 
 		return callSearchApi(indexName, boolBuilder, offset, limit, aggregations,
-				highlightFields, returnFields, sortOptions, idToName);
+				highlightFields, returnFields, sortOptions, idToName, parts);
 	}
 
 	@SuppressWarnings("rawtypes")
 	private SearchQueryResults callSearchApi(String indexName, BoolQuery.Builder boolBuilder,
 			int offset, int limit, Map<String, Aggregation> aggregations,
 			Map<String, HighlightField> highlightFields, List<String> returnFields,
-			List<SortOptions> sortOptions, Map<String, String> idToName) {
+			List<SortOptions> sortOptions, Map<String, String> idToName,
+			Set<SearchQueryPart> parts) {
+		boolean returnHits = parts.contains(SearchQueryPart.HITS);
+		boolean returnTotalHits = parts.contains(SearchQueryPart.TOTAL_HITS);
 		try {
 			SearchResponse<Map> response = openSearchClient.search(req -> {
 				req.index(indexName);
 				req.query(q -> q.bool(boolBuilder.build()));
 				req.from(offset);
-				req.size(limit);
+				// size=0 when hits aren't requested — saves source fetch + transport cost
+				req.size(returnHits ? limit : 0);
+				// Disable total-hit tracking when the caller doesn't need the count
+				if (!returnTotalHits) {
+					req.trackTotalHits(t -> t.enabled(false));
+				}
 
 				if (!aggregations.isEmpty()) {
 					req.aggregations(aggregations);
 				}
-				if (highlightFields != null && !highlightFields.isEmpty()) {
-					req.highlight(h -> h.fields(highlightFields));
-				}
-				if (returnFields != null && !returnFields.isEmpty()) {
-					req.source(src -> src.filter(f -> f.includes(returnFields)));
-				}
-				if (!sortOptions.isEmpty()) {
-					req.sort(sortOptions);
+				// Highlights and source filters are meaningless without hits.
+				if (returnHits) {
+					if (highlightFields != null && !highlightFields.isEmpty()) {
+						req.highlight(h -> h.fields(highlightFields));
+					}
+					if (returnFields != null && !returnFields.isEmpty()) {
+						req.source(src -> src.filter(f -> f.includes(returnFields)));
+					}
+					if (!sortOptions.isEmpty()) {
+						req.sort(sortOptions);
+					}
 				}
 
 				return req;
 			}, Map.class);
 
-			return convertResponse(response, indexName, offset, idToName);
+			return convertResponse(response, indexName, offset, idToName, parts);
 		} catch (OpenSearchException e) {
 			if (INDEX_NOT_FOUND_EXCEPTION.equals(e.error().type())) {
 				throw new IllegalStateException("Search index is still building. Please try again later.", e);
@@ -702,18 +720,24 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	private SearchQueryResults convertResponse(SearchResponse<Map> response, String indexName, int offset,
-			Map<String, String> idToName) {
+			Map<String, String> idToName, Set<SearchQueryPart> parts) {
 		SearchQueryResults results = new SearchQueryResults();
-		results.setTotalHits(response.hits().total() != null ? response.hits().total().value() : 0L);
 		results.setOffset((long) offset);
 
-		List<SearchHit> hits = new ArrayList<>();
-		for (Hit<Map> hit : response.hits().hits()) {
-			hits.add(convertHit(hit, idToName));
+		if (parts.contains(SearchQueryPart.TOTAL_HITS)) {
+			results.setTotalHits(response.hits().total() != null ? response.hits().total().value() : 0L);
 		}
-		results.setHits(hits);
 
-		if (response.aggregations() != null && !response.aggregations().isEmpty()) {
+		if (parts.contains(SearchQueryPart.HITS)) {
+			List<SearchHit> hits = new ArrayList<>();
+			for (Hit<Map> hit : response.hits().hits()) {
+				hits.add(convertHit(hit, idToName));
+			}
+			results.setHits(hits);
+		}
+
+		if (parts.contains(SearchQueryPart.FACETS)
+				&& response.aggregations() != null && !response.aggregations().isEmpty()) {
 			results.setFacets(convertAggregations(response.aggregations(), idToName));
 		}
 

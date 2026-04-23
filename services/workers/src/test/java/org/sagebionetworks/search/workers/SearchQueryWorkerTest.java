@@ -64,18 +64,18 @@ public class SearchQueryWorkerTest {
 	@Test
 	public void testRunWithValidRequest() throws Exception {
 		SearchQueryResults expected = new SearchQueryResults();
-		when(mockSearchIndexQueryManager.search(user, searchIndexId, searchQuery)).thenReturn(expected);
+		when(mockSearchIndexQueryManager.search(user, request)).thenReturn(expected);
 
 		// Call under test
 		SearchQueryResults result = worker.run(jobId, user, request, mockJobCallback);
 
 		assertEquals(expected, result);
-		verify(mockSearchIndexQueryManager).search(user, searchIndexId, searchQuery);
+		verify(mockSearchIndexQueryManager).search(user, request);
 	}
 
 	@Test
 	public void testRunWithStillBuildingStatus() throws Exception {
-		when(mockSearchIndexQueryManager.search(user, searchIndexId, searchQuery))
+		when(mockSearchIndexQueryManager.search(user, request))
 			.thenThrow(new IllegalStateException("Index is still building"));
 
 		// Call under test
@@ -87,7 +87,7 @@ public class SearchQueryWorkerTest {
 	@Test
 	public void testRunWithOtherIllegalState() throws Exception {
 		IllegalStateException cause = new IllegalStateException("Some other error");
-		when(mockSearchIndexQueryManager.search(user, searchIndexId, searchQuery)).thenThrow(cause);
+		when(mockSearchIndexQueryManager.search(user, request)).thenThrow(cause);
 
 		// Call under test
 		IllegalStateException result = assertThrows(IllegalStateException.class, () -> {
@@ -99,7 +99,7 @@ public class SearchQueryWorkerTest {
 
 	@Test
 	public void testRunWithFailedIndexStatus() throws Exception {
-		when(mockSearchIndexQueryManager.search(user, searchIndexId, searchQuery))
+		when(mockSearchIndexQueryManager.search(user, request))
 			.thenThrow(new IllegalStateException("Search index build failed. Delete or update the SearchIndex to trigger a rebuild."));
 
 		// "build failed" does NOT contain "still building", so it should NOT be wrapped
@@ -112,7 +112,7 @@ public class SearchQueryWorkerTest {
 
 	@Test
 	public void testRunWithDeletingIndexStatus() throws Exception {
-		when(mockSearchIndexQueryManager.search(user, searchIndexId, searchQuery))
+		when(mockSearchIndexQueryManager.search(user, request))
 			.thenThrow(new IllegalStateException("Search index is being deleted."));
 
 		// Call under test
@@ -124,7 +124,7 @@ public class SearchQueryWorkerTest {
 
 	@Test
 	public void testRunWithUnexpectedException() throws Exception {
-		when(mockSearchIndexQueryManager.search(user, searchIndexId, searchQuery))
+		when(mockSearchIndexQueryManager.search(user, request))
 			.thenThrow(new RuntimeException("unexpected error"));
 
 		// Call under test

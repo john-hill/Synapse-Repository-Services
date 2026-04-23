@@ -1,32 +1,39 @@
 {
-	"description": "Results of a search query against an OpenSearch index.",
+	"description": "Results of a search query against an OpenSearch index. Returned by both the async SearchIndex query and the synchronous autocomplete endpoints. The set of populated fields is governed by the request's responseParts: hits and offset are populated by default; the remaining fields are populated only when the corresponding SearchQueryPart is requested.",
 	"implements": [
 		{
 			"$ref": "org.sagebionetworks.repo.model.asynch.AsynchronousResponseBody"
 		}
 	],
 	"properties": {
-		"totalHits": {
-			"type": "integer",
-			"description": "The total number of matching documents."
-		},
 		"hits": {
 			"type": "array",
-			"description": "The list of search result hits for this page.",
+			"description": "Matching documents. Populated by default (or whenever SearchQueryPart.HITS is requested).",
 			"items": {
 				"$ref": "org.sagebionetworks.repo.model.search.SearchHit"
 			}
 		},
+		"totalHits": {
+			"type": "integer",
+			"description": "The total number of matching documents. Populated when SearchQueryPart.TOTAL_HITS is requested."
+		},
+		"selectColumns": {
+			"type": "array",
+			"description": "The columns represented in each hit's fields, in SELECT-clause order. Populated when SearchQueryPart.SELECT_COLUMNS is requested. When SearchQuery.returnFields is non-empty, this is the subset of columns matching those names.",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.table.SelectColumn"
+			}
+		},
 		"facets": {
 			"type": "array",
-			"description": "Facet aggregation results, if requested.",
+			"description": "Facet aggregation results. Populated when SearchQueryPart.FACETS is requested. Autocomplete never produces facets regardless of this part being requested.",
 			"items": {
 				"$ref": "org.sagebionetworks.repo.model.table.FacetColumnResult"
 			}
 		},
 		"offset": {
 			"type": "integer",
-			"description": "The offset used for this page of results."
+			"description": "Zero-based pagination offset echoed from the request. Always populated."
 		}
 	}
 }

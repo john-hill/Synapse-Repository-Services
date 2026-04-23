@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Optional;
 import java.util.List;
@@ -22,6 +23,7 @@ import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.SearchQueryType;
+import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.sagebionetworks.repo.model.table.ColumnModel;
@@ -215,7 +217,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		// call under test
 		IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
 				openSearchManager.search("nonexistent-" + UUID.randomUUID(), query, columns,
-						null, Collections.emptyList(), defaultAnalyzers));
+						null, Collections.emptyList(), defaultAnalyzers, EnumSet.allOf(SearchQueryPart.class)));
 
 		assertTrue(ex.getMessage().contains("still building"),
 				"Exception message should indicate the index is not ready, got: " + ex.getMessage());
@@ -269,7 +271,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		boolean success = TimeUtils.waitForExponential(POLL_MAX_MS, POLL_INTERVAL_MS, null, (v) -> {
 			try {
 				result[0] = openSearchManager.search(indexName, query, columns,
-						null, Collections.emptyList(), defaultAnalyzers);
+						null, Collections.emptyList(), defaultAnalyzers, EnumSet.allOf(SearchQueryPart.class));
 				return result[0].getTotalHits() != null && result[0].getTotalHits() >= expectedMinHits;
 			} catch (IllegalStateException e) {
 				// index_not_found — not ready yet

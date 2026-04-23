@@ -42,7 +42,7 @@ public class SearchQueryWorker implements AsyncJobRunner<SearchIndexQuery, Searc
 			AsyncJobProgressCallback jobProgressCallback)
 			throws RecoverableMessageException, Exception {
 		try {
-			return searchIndexQueryManager.search(user, request.getSearchIndexId(), request.getSearchQuery());
+			return searchIndexQueryManager.search(user, request);
 		} catch (IllegalStateException e) {
 			if (e.getMessage() != null && e.getMessage().contains("still building")) {
 				throw new RecoverableMessageException(e.getMessage());

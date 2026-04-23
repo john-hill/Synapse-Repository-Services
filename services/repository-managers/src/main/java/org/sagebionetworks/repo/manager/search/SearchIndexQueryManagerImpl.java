@@ -2,8 +2,10 @@ package org.sagebionetworks.repo.manager.search;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -36,6 +38,8 @@ import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
+import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
+import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.table.SearchIndexState;
 import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
 import org.sagebionetworks.repo.model.search.SearchQuery;
@@ -87,24 +91,26 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 	}
 
 	@Override
-	public SearchQueryResults search(UserInfo user, String searchIndexId, SearchQuery query) {
-		return executeQuery(user, searchIndexId, query);
+	public SearchQueryResults search(UserInfo user, SearchIndexQuery request) {
+		return executeQuery(user, request, false);
 	}
 
 	@Override
-	public SearchQueryResults autocomplete(UserInfo user, String searchIndexId, SearchQuery query) {
-		ValidateArgument.required(query, "query");
-		return executeQuery(user, searchIndexId, query, true);
+	public SearchQueryResults autocomplete(UserInfo user, SearchIndexQuery request) {
+		ValidateArgument.required(request, "request");
+		ValidateArgument.required(request.getSearchQuery(), "request.searchQuery");
+		return executeQuery(user, request, true);
 	}
 
-	private SearchQueryResults executeQuery(UserInfo user, String searchIndexId, SearchQuery query) {
-		return executeQuery(user, searchIndexId, query, false);
-	}
-
-	private SearchQueryResults executeQuery(UserInfo user, String searchIndexId, SearchQuery query, boolean isAutocomplete) {
+	private SearchQueryResults executeQuery(UserInfo user, SearchIndexQuery request, boolean isAutocomplete) {
 		ValidateArgument.required(user, "user");
-		ValidateArgument.required(searchIndexId, "searchIndexId");
-		ValidateArgument.required(query, "query");
+		ValidateArgument.required(request, "request");
+		ValidateArgument.required(request.getSearchIndexId(), "request.searchIndexId");
+		ValidateArgument.required(request.getSearchQuery(), "request.searchQuery");
+
+		String searchIndexId = request.getSearchIndexId();
+		SearchQuery query = request.getSearchQuery();
+		Set<SearchQueryPart> parts = resolveRequestedParts(request.getResponseParts());
 
 		SearchIndex searchIndex = entityManager.getEntity(user, searchIndexId, SearchIndex.class);
 
@@ -122,7 +128,8 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 				user, searchIndex.getSearchConfigurationId(), searchIndex.getParentId());
 		SearchConfiguration config = configOpt.orElse(null);
 
-		List<ColumnModel> columns = getSchemaOfDefiningSQL(definingSQL, sourceEntityId);
+		QueryMetadata metadata = buildQueryMetadata(definingSQL, sourceEntityId);
+		List<ColumnModel> columns = metadata.getColumns();
 
 		// Build name↔ID translation maps
 		Map<String, String> nameToId = columns.stream()
@@ -135,6 +142,18 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 			query.setQueryFields(getSearchableColumnNames(columns));
 		}
 
+		// When facets aren't in the response parts, skip building/translating them entirely.
+		if (!parts.contains(SearchQueryPart.FACETS)) {
+			query.setFacetRequests(null);
+		}
+
+		// Snapshot the user-facing returnFields BEFORE translateQueryNamesToIds rewrites them
+		// to column IDs in place. The response's selectColumns filter operates on user-facing
+		// names, so the snapshot is what we need below.
+		List<String> originalReturnFields = query.getReturnFields() == null
+				? null
+				: new ArrayList<>(query.getReturnFields());
+
 		// Translate user-facing column names to IDs before sending to OpenSearch
 		translateQueryNamesToIds(query, nameToId);
 
@@ -143,17 +162,71 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		Map<String, TextAnalyzer> analyzers = collectAndLoadAnalyzers(config, overrides, columns);
 		String defaultAnalyzer = config != null ? config.getDefaultAnalyzer() : null;
 
-		SearchQueryResults results;
+		SearchQueryResults rawResults;
 		if (isAutocomplete) {
-			results = openSearchManager.autocomplete(getIndexName(searchIndexId), query, columns, defaultAnalyzer, overrides, analyzers);
+			rawResults = openSearchManager.autocomplete(getIndexName(searchIndexId), query, columns, defaultAnalyzer, overrides, analyzers, parts);
 		} else {
-			results = openSearchManager.search(getIndexName(searchIndexId), query, columns, defaultAnalyzer, overrides, analyzers);
+			rawResults = openSearchManager.search(getIndexName(searchIndexId), query, columns, defaultAnalyzer, overrides, analyzers, parts);
 		}
 
-		// Translate column IDs back to names in the response
-		translateResultIdsToNames(results, idToName);
+		// Translate column IDs back to names in the results before assembling the response.
+		translateResultIdsToNames(rawResults, idToName);
 
+		// Defense-in-depth: gate every opt-in field by the resolved parts even though
+		// OpenSearchManager already obeys them. Keeps the response contract crisp regardless
+		// of upstream behavior, and makes the per-part wiring obvious to readers.
+		SearchQueryResults results = new SearchQueryResults().setOffset(rawResults.getOffset());
+		if (parts.contains(SearchQueryPart.HITS)) {
+			results.setHits(rawResults.getHits());
+		}
+		if (parts.contains(SearchQueryPart.TOTAL_HITS)) {
+			results.setTotalHits(rawResults.getTotalHits());
+		}
+		if (parts.contains(SearchQueryPart.FACETS)) {
+			results.setFacets(rawResults.getFacets());
+		}
+		// SELECT_COLUMNS is a manager-layer addition (not produced by OpenSearch), so set it here.
+		if (parts.contains(SearchQueryPart.SELECT_COLUMNS)) {
+			results.setSelectColumns(filterSelectColumnsForReturnFields(
+					metadata.getSelectColumns(), originalReturnFields));
+		}
 		return results;
+	}
+
+	/**
+	 * Resolves the caller's requested response parts. A null or empty set means
+	 * "default minimal payload" (just {@link SearchQueryPart#HITS}); otherwise the
+	 * input is returned as an {@link EnumSet} for O(1) {@code contains} lookups.
+	 *
+	 * <p>The default-minimal behavior matches what most callers want — they ask
+	 * for hits, and only opt in to extras like total count or facets when needed.
+	 * It also keeps the OpenSearch request lean for the common case (no aggregations,
+	 * no total-hit tracking).
+	 */
+	static Set<SearchQueryPart> resolveRequestedParts(Set<SearchQueryPart> requested) {
+		if (requested == null || requested.isEmpty()) {
+			return EnumSet.of(SearchQueryPart.HITS);
+		}
+		return EnumSet.copyOf(requested);
+	}
+
+	/**
+	 * Filter a SELECT-clause {@link SelectColumn} list down to entries whose names
+	 * match {@code returnFields}. When {@code returnFields} is null or empty, the
+	 * original list is returned unchanged. Unknown names are silently dropped; the
+	 * SELECT-clause order is preserved.
+	 */
+	List<SelectColumn> filterSelectColumnsForReturnFields(List<SelectColumn> selectColumns, List<String> returnFields) {
+		if (selectColumns == null) {
+			return null;
+		}
+		if (returnFields == null || returnFields.isEmpty()) {
+			return selectColumns;
+		}
+		Set<String> allowed = new LinkedHashSet<>(returnFields);
+		return selectColumns.stream()
+				.filter(sc -> allowed.contains(sc.getName()))
+				.collect(Collectors.toList());
 	}
 
 	/**
@@ -170,7 +243,12 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		return names;
 	}
 
-	List<ColumnModel> getSchemaOfDefiningSQL(String definingSQL, IdAndVersion sourceEntityId) {
+	/**
+	 * Builds the {@link ColumnModel} list for analyzer routing and the parallel
+	 * {@link SelectColumn} list for the response — from a single
+	 * {@link QueryTranslator}, so we pay the translator cost once per query.
+	 */
+	QueryMetadata buildQueryMetadata(String definingSQL, IdAndVersion sourceEntityId) {
 		IndexDescription indexDescription = tableManagerSupport.getIndexDescription(sourceEntityId);
 		QueryTranslator translator = QueryTranslator.builder()
 				.sql(definingSQL)
@@ -181,7 +259,7 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		List<ColumnModel> schemaOfSelect = translator.getSchemaOfSelect();
 		List<SelectColumn> selectColumns = translator.getSelectColumns();
 		copyMissingIdsFromSelectColumns(schemaOfSelect, selectColumns);
-		return schemaOfSelect;
+		return new QueryMetadata(schemaOfSelect, selectColumns);
 	}
 
 	/**
@@ -350,6 +428,30 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 				String name = idToName.get(key);
 				hv.setName(name != null ? name : key);
 			}
+		}
+	}
+
+	/**
+	 * Holder for the two parallel column views produced from a single
+	 * {@link QueryTranslator} build: the full {@link ColumnModel} list used for
+	 * analyzer routing and name/ID translation, and the parallel
+	 * {@link SelectColumn} list surfaced in the response.
+	 */
+	static final class QueryMetadata {
+		private final List<ColumnModel> columns;
+		private final List<SelectColumn> selectColumns;
+
+		QueryMetadata(List<ColumnModel> columns, List<SelectColumn> selectColumns) {
+			this.columns = columns;
+			this.selectColumns = selectColumns;
+		}
+
+		List<ColumnModel> getColumns() {
+			return columns;
+		}
+
+		List<SelectColumn> getSelectColumns() {
+			return selectColumns;
 		}
 	}
 }

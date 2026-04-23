@@ -3,12 +3,14 @@ package org.sagebionetworks.repo.manager.search;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
+import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
@@ -51,7 +53,11 @@ public interface OpenSearchManager {
 	long bulkIndex(String indexName, List<BulkOperation> operations);
 
 	/**
-	 * Execute a search query against the OpenSearch index.
+	 * Execute a search query against the OpenSearch index. The {@code parts} set controls
+	 * which sections of the OpenSearch request are populated: omitting HITS switches the
+	 * request to {@code size=0}, omitting TOTAL_HITS disables total-hits tracking, and
+	 * omitting FACETS skips aggregation construction. The returned {@link SearchQueryResults}
+	 * only carries the fields corresponding to the requested parts plus {@code offset}.
 	 *
 	 * @param indexName                The OpenSearch index name
 	 * @param query                    The search query
@@ -59,14 +65,16 @@ public interface OpenSearchManager {
 	 * @param defaultAnalyzer          The default analyzer qualified name (may be null)
 	 * @param columnAnalyzerOverrides  The resolved overrides (may be empty)
 	 * @param analyzers                Map of analyzer qualified name to TextAnalyzer
-	 * @return The search results
+	 * @param parts                    The response parts requested; must be non-null and non-empty.
+	 * @return The search results (only fields corresponding to requested parts are populated)
 	 */
 	SearchQueryResults search(String indexName, SearchQuery query, List<ColumnModel> columns,
 			String defaultAnalyzer, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, TextAnalyzer> analyzers);
+			Map<String, TextAnalyzer> analyzers, Set<SearchQueryPart> parts);
 
 	/**
 	 * Execute an autocomplete query. Forces PREFIX query type and caps size at 8.
+	 * Autocomplete never produces facets regardless of the {@code parts} set.
 	 *
 	 * @param indexName                The OpenSearch index name
 	 * @param query                    The search query (queryType will be overridden to PREFIX)
@@ -74,11 +82,12 @@ public interface OpenSearchManager {
 	 * @param defaultAnalyzer          The default analyzer qualified name (may be null)
 	 * @param columnAnalyzerOverrides  The resolved overrides (may be empty)
 	 * @param analyzers                Map of analyzer qualified name to TextAnalyzer
+	 * @param parts                    The response parts requested; must be non-null and non-empty.
 	 * @return The autocomplete results
 	 */
 	SearchQueryResults autocomplete(String indexName, SearchQuery query, List<ColumnModel> columns,
 			String defaultAnalyzer, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, TextAnalyzer> analyzers);
+			Map<String, TextAnalyzer> analyzers, Set<SearchQueryPart> parts);
 
 	/**
 	 * Validate analyzer settings by invoking the AOSS _analyze API.

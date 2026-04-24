@@ -6,8 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
@@ -22,7 +21,9 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -156,18 +157,29 @@ public class SearchIndexQueryManagerImplTest {
 	 * Returns the schema so tests can reference column names/IDs.
 	 */
 	private List<ColumnModel> setupHappyPathMocks() {
-		return setupHappyPathMocks(true);
+		return setupHappyPathMocks(true, true);
+	}
+
+	private List<ColumnModel> setupHappyPathMocks(boolean stubNullConfigResolver) {
+		return setupHappyPathMocks(stubNullConfigResolver, true);
 	}
 
 	/**
-	 * Wires the mocks needed for a successful execute-query flow. When
-	 * {@code stubNullConfigResolver} is {@code true} (the default for tests where
+	 * Wires the mocks needed for a successful execute-query flow.
+	 *
+	 * <p>{@code stubNullConfigResolver} — when {@code true} (the default, for tests where
 	 * {@link SearchIndex#getSearchConfigurationId()} is {@code null}), stubs
-	 * {@link SearchConfigurationResolver#resolve(UserInfo, String, String)} with
-	 * a null config id to return {@link Optional#empty()}. Tests that exercise a
-	 * non-null config id pass {@code false} and stub the resolver themselves.
+	 * {@link SearchConfigurationResolver#resolve(UserInfo, String, String)} with a null
+	 * config id to return {@link Optional#empty()}. Tests that exercise a non-null config
+	 * id pass {@code false} and stub the resolver themselves.
+	 *
+	 * <p>{@code stubStringAnalyzerLookup} — when {@code true}, stubs
+	 * {@link TextAnalyzerDao#getByQualifiedNames} with the single-element list
+	 * {@code [SCIENTIFIC]} expected from a STRING-only schema plus no defaultAnalyzer/overrides.
+	 * Tests whose flow asks for a different set (e.g. a config-specified defaultAnalyzer adds
+	 * a second entry) pass {@code false} and stub the DAO themselves.
 	 */
-	private List<ColumnModel> setupHappyPathMocks(boolean stubNullConfigResolver) {
+	private List<ColumnModel> setupHappyPathMocks(boolean stubNullConfigResolver, boolean stubStringAnalyzerLookup) {
 		List<ColumnModel> schema = Arrays.asList(
 				TableModelTestUtils.createColumn(Long.parseLong(NAME_COLUMN_ID), NAME_COLUMN, ColumnType.STRING),
 				TableModelTestUtils.createColumn(Long.parseLong(DESC_COLUMN_ID), DESC_COLUMN, ColumnType.STRING));
@@ -182,7 +194,14 @@ public class SearchIndexQueryManagerImplTest {
 		for (ColumnModel cm : schema) {
 			when(tableManagerSupport.getColumnModel(cm.getId())).thenReturn(cm);
 		}
-		when(textAnalyzerDao.getByQualifiedNames(anyList())).thenReturn(Collections.emptyMap());
+		if (stubStringAnalyzerLookup) {
+			// STRING-only schema → collectAndLoadAnalyzers produces [SCIENTIFIC] (single element).
+			// Concrete eq() so the stub misses if the manager asks for a different analyzer set,
+			// rather than silently returning emptyMap().
+			when(textAnalyzerDao.getByQualifiedNames(
+					eq(Collections.singletonList("org.sagebionetworks-SCIENTIFIC"))))
+					.thenReturn(Collections.emptyMap());
+		}
 		return schema;
 	}
 
@@ -249,6 +268,49 @@ public class SearchIndexQueryManagerImplTest {
 		assertEquals(expectedColumnNames, columnsCaptor.getValue().stream()
 				.map(ColumnModel::getName).collect(Collectors.toList()));
 		return queryCaptor.getValue();
+	}
+
+	/**
+	 * Stubs {@code openSearchManager.search(...)} to return {@code returnValue} when called
+	 * with matching arguments. Uses concrete matchers throughout — no positional {@code any()} —
+	 * so that a manager that wires the wrong defaultAnalyzer/overrides/analyzers/options/columns/
+	 * queryText will miss the stub, receive {@code null}, and fail the test explicitly.
+	 *
+	 * <p>{@code argThat} rather than {@code eq} is used for the query and columns args because
+	 * the manager constructs those internally (the query is translated in-place via
+	 * {@code translateQueryNamesToIds}, and columns come from {@code QueryTranslator}); what we
+	 * check is stable content — queryText (never mutated by the manager) and column names
+	 * (stable across the translator pipeline).
+	 */
+	private void stubOpenSearchSearchReturns(String expectedQueryText,
+			Set<SearchQueryPart> expectedOptions, String expectedDefaultAnalyzer,
+			List<String> expectedColumnNames, SearchQueryResults returnValue) {
+		when(openSearchManager.search(
+				eq("search-index-1"),
+				argThat(q -> q != null && Objects.equals(expectedQueryText, q.getQueryText())),
+				argThat(cols -> cols != null && expectedColumnNames.equals(
+						cols.stream().map(ColumnModel::getName).collect(Collectors.toList()))),
+				expectedDefaultAnalyzer == null ? isNull() : eq(expectedDefaultAnalyzer),
+				eq(Collections.emptyList()),
+				eq(Collections.emptyMap()),
+				eq(expectedOptions)
+		)).thenReturn(returnValue);
+	}
+
+	/** Autocomplete analog of {@link #stubOpenSearchSearchReturns}. */
+	private void stubOpenSearchAutocompleteReturns(String expectedQueryText,
+			Set<SearchQueryPart> expectedOptions, String expectedDefaultAnalyzer,
+			List<String> expectedColumnNames, SearchQueryResults returnValue) {
+		when(openSearchManager.autocomplete(
+				eq("search-index-1"),
+				argThat(q -> q != null && Objects.equals(expectedQueryText, q.getQueryText())),
+				argThat(cols -> cols != null && expectedColumnNames.equals(
+						cols.stream().map(ColumnModel::getName).collect(Collectors.toList()))),
+				expectedDefaultAnalyzer == null ? isNull() : eq(expectedDefaultAnalyzer),
+				eq(Collections.emptyList()),
+				eq(Collections.emptyMap()),
+				eq(expectedOptions)
+		)).thenReturn(returnValue);
 	}
 
 	@Test
@@ -349,8 +411,9 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		setupHappyPathMocks();
-		when(openSearchManager.search(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
-				.thenReturn(buildRawResults());
+		stubOpenSearchSearchReturns("test",
+				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS),
+				null, Arrays.asList(NAME_COLUMN, DESC_COLUMN), buildRawResults());
 
 		SearchQuery query = buildQuery();
 
@@ -413,7 +476,14 @@ public class SearchIndexQueryManagerImplTest {
 		for (ColumnModel cm : schema) {
 			when(tableManagerSupport.getColumnModel(cm.getId())).thenReturn(cm);
 		}
-		when(textAnalyzerDao.getByQualifiedNames(anyList())).thenReturn(Collections.emptyMap());
+		// The special-char schema mixes STRING and INTEGER columns → collectAndLoadAnalyzers
+		// produces a two-element list containing both the STRING default (SCIENTIFIC) and the
+		// INTEGER default (KEYWORD). Order is non-deterministic (HashSet → ArrayList), so match
+		// by set equality via argThat.
+		when(textAnalyzerDao.getByQualifiedNames(argThat(list -> list != null
+				&& new HashSet<>(list).equals(new HashSet<>(Arrays.asList(
+						"org.sagebionetworks-SCIENTIFIC", "org.sagebionetworks-KEYWORD"))))))
+				.thenReturn(Collections.emptyMap());
 
 		// Build results shaped like what OpenSearch would return: fields keyed by ID, a
 		// highlight keyed by "id.searchable", and a facet keyed by ID. These should all be
@@ -430,8 +500,11 @@ public class SearchIndexQueryManagerImplTest {
 				.setTotalHits(1L)
 				.setHits(new ArrayList<>(Collections.singletonList(hit)))
 				.setFacets(new ArrayList<>(Collections.singletonList(facetResult)));
-		when(openSearchManager.search(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
-				.thenReturn(raw);
+		stubOpenSearchSearchReturns("Alzheimer",
+				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS, SearchQueryPart.FACETS),
+				null,
+				Arrays.asList("Study Name", "patient's diagnosis", "Age (years)", "data.field", "[metadata]"),
+				raw);
 
 		// Build a SearchQuery exercising every translation path with special-char names
 		SearchQuery query = new SearchQuery();
@@ -488,8 +561,9 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		setupHappyPathMocks();
-		when(openSearchManager.autocomplete(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
-				.thenReturn(buildRawResults());
+		stubOpenSearchAutocompleteReturns("test",
+				EnumSet.of(SearchQueryPart.HITS), null,
+				Arrays.asList(NAME_COLUMN, DESC_COLUMN), buildRawResults());
 
 		SearchQuery query = buildQuery();
 
@@ -519,8 +593,9 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		setupHappyPathMocks();
-		when(openSearchManager.autocomplete(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
-				.thenReturn(buildRawResults());
+		stubOpenSearchAutocompleteReturns("test",
+				EnumSet.of(SearchQueryPart.HITS), null,
+				Arrays.asList(NAME_COLUMN, DESC_COLUMN), buildRawResults());
 
 		SearchQuery query = buildQuery();
 		query.setQueryFields(new ArrayList<>());
@@ -588,8 +663,9 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		setupHappyPathMocks();
-		when(openSearchManager.autocomplete(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
-				.thenReturn(buildRawResults());
+		stubOpenSearchAutocompleteReturns("test",
+				EnumSet.of(SearchQueryPart.HITS), null,
+				Arrays.asList(NAME_COLUMN, DESC_COLUMN), buildRawResults());
 
 		SearchQuery query = buildQuery();
 		query.setQueryFields(new ArrayList<>(Arrays.asList(NAME_COLUMN)));
@@ -612,14 +688,21 @@ public class SearchIndexQueryManagerImplTest {
 		si.setSearchConfigurationId("cfg1");
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
-		// Skip the null-config resolver stub — this test stubs the resolver with "cfg1" below.
-		setupHappyPathMocks(false);
+		// Skip the default resolver + STRING-only analyzer stubs — this test wires the
+		// resolver with "cfg1" and a configured defaultAnalyzer, which widens the analyzer
+		// lookup to [SCIENTIFIC, DEFAULT] (order non-deterministic from the backing HashSet).
+		setupHappyPathMocks(false, false);
 		SearchConfiguration config = new SearchConfiguration();
 		config.setDefaultAnalyzer("org.sage-DEFAULT");
 		when(searchConfigurationResolver.resolve(user, "cfg1", "syn789"))
 				.thenReturn(Optional.of(config));
-		when(openSearchManager.search(eq("search-index-1"), any(), any(), eq("org.sage-DEFAULT"), any(), any(), any()))
-				.thenReturn(buildRawResults());
+		when(textAnalyzerDao.getByQualifiedNames(argThat(list -> list != null
+				&& new HashSet<>(list).equals(new HashSet<>(Arrays.asList(
+						"org.sagebionetworks-SCIENTIFIC", "org.sage-DEFAULT"))))))
+				.thenReturn(Collections.emptyMap());
+		stubOpenSearchSearchReturns("test",
+				EnumSet.of(SearchQueryPart.HITS), "org.sage-DEFAULT",
+				Arrays.asList(NAME_COLUMN, DESC_COLUMN), buildRawResults());
 
 		// call under test
 		manager.search(user, buildRequest(buildQuery()));
@@ -634,8 +717,11 @@ public class SearchIndexQueryManagerImplTest {
 	public void testCollectAndLoadAnalyzersWithConfigButNullDefault() {
 		// Exercises the L216 partial branch where config != null but defaultAnalyzer == null.
 		SearchConfiguration config = new SearchConfiguration();
-		// defaultAnalyzer explicitly left null
-		when(textAnalyzerDao.getByQualifiedNames(anyList())).thenReturn(Collections.emptyMap());
+		// defaultAnalyzer explicitly left null; overrides null; columns empty → the qualified-name
+		// set contains only the initial STRING default (SCIENTIFIC).
+		when(textAnalyzerDao.getByQualifiedNames(
+				eq(Collections.singletonList("org.sagebionetworks-SCIENTIFIC"))))
+				.thenReturn(Collections.emptyMap());
 
 		// call under test — must not add null to the qualified name set
 		manager.collectAndLoadAnalyzers(config, null, Collections.emptyList());
@@ -1125,8 +1211,9 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		setupHappyPathMocks();
-		when(openSearchManager.search(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
-				.thenReturn(rawHits());
+		stubOpenSearchSearchReturns("test",
+				EnumSet.of(SearchQueryPart.HITS), null,
+				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
 
 		// call under test — buildRequest with no parts ⇒ default minimal payload
 		SearchQueryResults results = manager.search(user, buildRequest(buildQuery()));
@@ -1144,8 +1231,10 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		setupHappyPathMocks();
-		when(openSearchManager.search(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
-				.thenReturn(rawHits());
+		stubOpenSearchSearchReturns("test",
+				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS,
+						SearchQueryPart.SELECT_COLUMNS, SearchQueryPart.FACETS),
+				null, Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
 
 		// call under test
 		SearchQueryResults results = manager.search(user, buildRequest(buildQuery(),
@@ -1165,8 +1254,9 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		setupHappyPathMocks();
-		when(openSearchManager.search(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
-				.thenReturn(rawHits());
+		stubOpenSearchSearchReturns("test",
+				EnumSet.of(SearchQueryPart.SELECT_COLUMNS), null,
+				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
 
 		// call under test
 		SearchQueryResults results = manager.search(user, buildRequest(buildQuery(), SearchQueryPart.SELECT_COLUMNS));
@@ -1185,8 +1275,9 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		setupHappyPathMocks();
-		when(openSearchManager.search(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
-				.thenReturn(rawHits());
+		stubOpenSearchSearchReturns("test",
+				EnumSet.of(SearchQueryPart.SELECT_COLUMNS), null,
+				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
 
 		// returnFields narrows to one column; selectColumns response should match
 		SearchQuery query = buildQuery();
@@ -1205,8 +1296,9 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		setupHappyPathMocks();
-		when(openSearchManager.search(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
-				.thenReturn(rawHits());
+		stubOpenSearchSearchReturns("test",
+				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS), null,
+				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
 
 		// call under test — request HITS + TOTAL_HITS
 		manager.search(user, buildRequest(buildQuery(), SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS));
@@ -1229,8 +1321,9 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		setupHappyPathMocks();
-		when(openSearchManager.search(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
-				.thenReturn(rawHits());
+		stubOpenSearchSearchReturns("test",
+				EnumSet.of(SearchQueryPart.HITS), null,
+				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
 
 		SearchQuery query = buildQuery();
 		query.setFacetRequests(new ArrayList<>(Arrays.asList(
@@ -1253,8 +1346,9 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		setupHappyPathMocks();
-		when(openSearchManager.search(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
-				.thenReturn(rawHits());
+		stubOpenSearchSearchReturns("test",
+				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.FACETS), null,
+				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
 
 		SearchQuery query = buildQuery();
 		query.setFacetRequests(new ArrayList<>(Arrays.asList(
@@ -1281,8 +1375,9 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		setupHappyPathMocks();
-		when(openSearchManager.autocomplete(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
-				.thenReturn(rawHits());
+		stubOpenSearchAutocompleteReturns("test",
+				EnumSet.of(SearchQueryPart.HITS), null,
+				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
 
 		// call under test
 		SearchQueryResults results = manager.autocomplete(user, buildRequest(buildQuery()));
@@ -1300,8 +1395,10 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		setupHappyPathMocks();
-		when(openSearchManager.autocomplete(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
-				.thenReturn(rawHits());
+		stubOpenSearchAutocompleteReturns("test",
+				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS,
+						SearchQueryPart.SELECT_COLUMNS, SearchQueryPart.FACETS),
+				null, Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
 
 		// call under test
 		SearchQueryResults results = manager.autocomplete(user, buildRequest(buildQuery(),
@@ -1322,8 +1419,9 @@ public class SearchIndexQueryManagerImplTest {
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		setupHappyPathMocks();
-		when(openSearchManager.autocomplete(eq("search-index-1"), any(), any(), any(), any(), any(), any()))
-				.thenReturn(rawHits());
+		stubOpenSearchAutocompleteReturns("test",
+				EnumSet.of(SearchQueryPart.SELECT_COLUMNS), null,
+				Arrays.asList(NAME_COLUMN, DESC_COLUMN), rawHits());
 
 		// call under test
 		manager.autocomplete(user, buildRequest(buildQuery(), SearchQueryPart.SELECT_COLUMNS));

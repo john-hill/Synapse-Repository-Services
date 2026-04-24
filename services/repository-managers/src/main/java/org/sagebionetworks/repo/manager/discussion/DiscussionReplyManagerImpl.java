@@ -8,10 +8,11 @@ import java.util.List;
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
 import org.sagebionetworks.reflection.model.PaginatedResults;
-import org.sagebionetworks.repo.manager.AuthorizationManager;
+import org.sagebionetworks.repo.manager.subscription.SubscriptionAndDiscussionAuthorizationManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UploadContentToS3DAO;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -45,8 +46,6 @@ public class DiscussionReplyManagerImpl implements DiscussionReplyManager {
 	@Autowired
 	private UploadContentToS3DAO uploadDao;
 	@Autowired
-	private AuthorizationManager authorizationManager;
-	@Autowired
 	private DiscussionReplyDAO replyDao;
 	@Autowired
 	private SubscriptionDAO subscriptionDao;
@@ -54,6 +53,8 @@ public class DiscussionReplyManagerImpl implements DiscussionReplyManager {
 	private IdGenerator idGenerator;
 	@Autowired
 	private TransactionalMessenger transactionalMessenger;
+	@Autowired
+	private SubscriptionAndDiscussionAuthorizationManager subscriptionAndDiscussionAuthorizationManager;
 
 	@WriteTransaction
 	@Override
@@ -64,7 +65,7 @@ public class DiscussionReplyManagerImpl implements DiscussionReplyManager {
 		String threadId = createReply.getThreadId();
 		ValidateArgument.required(threadId, "CreateDiscussionReply.threadId");
 		ValidateArgument.required(createReply.getMessageMarkdown(), "CreateDiscussionReply.messageMarkdown");
-		if (authorizationManager.isAnonymousUser(userInfo)){
+		if (userInfo.isUserAnonymous()){
 			throw new UnauthorizedException(ANONYMOUS_ACCESS_DENIED_REASON);
 		}
 		DiscussionThreadBundle thread = threadManager.getThread(userInfo, threadId);
@@ -80,9 +81,9 @@ public class DiscussionReplyManagerImpl implements DiscussionReplyManager {
 				.withChangeType(ChangeType.CREATE);
 		
 		transactionalMessenger.sendMessageAfterCommit(replyChange);
-		
-		threadDao.insertEntityReference(DiscussionUtils.getEntityReferences(createReply.getMessageMarkdown(), threadId));
-		
+
+		insertEntityReference(reply.getObjectType(), createReply.getMessageMarkdown(), threadId);
+
 		// An additional message is sent to re-compute the statistics about the thread
 		MessageToSend threadChange = new MessageToSend()
 				.withUserId(userInfo.getId())
@@ -95,19 +96,27 @@ public class DiscussionReplyManagerImpl implements DiscussionReplyManager {
 		return reply;
 	}
 
+	private void insertEntityReference(ForumObjectType objectType, String messageMarkdown, String threadId) {
+		if (objectType == ForumObjectType.ENTITY) {
+			threadDao.insertEntityReference(DiscussionUtils.getEntityReferences(messageMarkdown, threadId));
+		}
+	}
+
 	@Override
 	public DiscussionReplyBundle getReply(UserInfo userInfo, String replyId) {
 		UserInfo.validateUserInfo(userInfo);
 		ValidateArgument.required(replyId, "replyId");
-		DiscussionReplyBundle reply = replyDao.getReply(Long.parseLong(replyId), DiscussionFilter.NO_FILTER);
+		DiscussionReplyBundle reply = replyDao.getReply(Long.parseLong(replyId), DiscussionFilter.NO_FILTER); // should we add type to reply
 		if (reply.getIsDeleted()) {
 			try {
-				authorizationManager.canAccess(userInfo, reply.getProjectId(), ObjectType.ENTITY, ACCESS_TYPE.MODERATE).checkAuthorizationOrElseThrow();
+				subscriptionAndDiscussionAuthorizationManager.canAccessObjectType(userInfo, reply.getObjectType(), reply.getObjectId(), ACCESS_TYPE.MODERATE)
+						.checkAuthorizationOrElseThrow();
 			} catch (UnauthorizedException e) {
 				throw new NotFoundException(String.format("Reply: '%s' does not exist", replyId));
 			}
 		} else {
-			authorizationManager.canAccess(userInfo, reply.getProjectId(), ObjectType.ENTITY, ACCESS_TYPE.READ).checkAuthorizationOrElseThrow();
+			subscriptionAndDiscussionAuthorizationManager.canAccessObjectType(userInfo, reply.getObjectType(), reply.getObjectId(), ACCESS_TYPE.READ)
+					.checkAuthorizationOrElseThrow();
 		}
 		return reply;
 	}
@@ -125,7 +134,7 @@ public class DiscussionReplyManagerImpl implements DiscussionReplyManager {
 		if (AuthorizationUtils.isUserCreatorOrAdmin(userInfo, reply.getCreatedBy())) {
 			String messageKey = uploadDao.uploadReplyMessage(newMessage.getMessageMarkdown(), reply.getForumId(), reply.getThreadId(), reply.getId());
 			reply = replyDao.updateMessageKey(replyIdLong, messageKey);
-			threadDao.insertEntityReference(DiscussionUtils.getEntityReferences(newMessage.getMessageMarkdown(), reply.getThreadId()));
+			insertEntityReference(reply.getObjectType(), newMessage.getMessageMarkdown(), reply.getThreadId());
 			
 			MessageToSend replyChange = new MessageToSend()
 					.withUserId(userInfo.getId())
@@ -182,9 +191,9 @@ public class DiscussionReplyManagerImpl implements DiscussionReplyManager {
 		ValidateArgument.required(replyId, "replyId");
 		ValidateArgument.required(accessType, "accessType");
 		UserInfo.validateUserInfo(userInfo);
-		String projectId = replyDao.getProjectId(replyId);
-		authorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, accessType).checkAuthorizationOrElseThrow();
-		
+		DiscussionReplyBundle reply = replyDao.getReply(Long.parseLong(replyId), DiscussionFilter.NO_FILTER);
+		subscriptionAndDiscussionAuthorizationManager.canAccessObjectType(userInfo, reply.getObjectType(), reply.getObjectId(), accessType)
+				.checkAuthorizationOrElseThrow();
 	}
 
 	@Override

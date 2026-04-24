@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.isNotNull;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import org.junit.Before;
@@ -26,6 +27,7 @@ import org.sagebionetworks.repo.model.dbo.dao.discussion.DiscussionThreadDAO;
 import org.sagebionetworks.repo.model.discussion.DiscussionFilter;
 import org.sagebionetworks.repo.model.discussion.DiscussionReplyBundle;
 import org.sagebionetworks.repo.model.discussion.DiscussionThreadBundle;
+import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.sagebionetworks.repo.model.message.ChangeType;
 import org.sagebionetworks.repo.model.principal.PrincipalAliasDAO;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -73,6 +75,8 @@ public class ReplyMessageBuilderFactoryTest {
 		threadBundle = new DiscussionThreadBundle();
 		threadBundle.setId("333");
 		threadBundle.setProjectId("444");
+		threadBundle.setObjectId("444");
+		threadBundle.setObjectType(ForumObjectType.ENTITY);
 		threadBundle.setTitle("title");
 		when(mockThreadDao.getThread(anyLong(), any(DiscussionFilter.class))).thenReturn(threadBundle);
 		
@@ -86,12 +90,23 @@ public class ReplyMessageBuilderFactoryTest {
 	}
 	
 	@Test
-	public void testBuild(){
+	public void testBuildForProject(){
 		String objectId = "123";
 		ChangeType type = ChangeType.CREATE;
 		BroadcastMessageBuilder bulider = factory.createMessageBuilder(objectId, type, actorUserId);
 		assertNotNull(bulider);
 		verify(mockNodeDao).getNodeName("444");
+		verify(mockUploadDao).getMessage(key);
+	}
+
+	@Test
+	public void testBuildForAR(){
+		threadBundle.setObjectType(ForumObjectType.ACCESS_REQUIREMENT);
+		String objectId = "123";
+		ChangeType type = ChangeType.CREATE;
+		BroadcastMessageBuilder bulider = factory.createMessageBuilder(objectId, type, actorUserId);
+		assertNotNull(bulider);
+		verifyZeroInteractions(mockNodeDao);
 		verify(mockUploadDao).getMessage(key);
 	}
 }

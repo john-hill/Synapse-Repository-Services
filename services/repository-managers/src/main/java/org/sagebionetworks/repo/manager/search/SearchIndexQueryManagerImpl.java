@@ -5,7 +5,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -102,7 +101,7 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		return executeQuery(user, request, true);
 	}
 
-	private SearchQueryResults executeQuery(UserInfo user, SearchIndexQuery request, boolean isAutocomplete) {
+	SearchQueryResults executeQuery(UserInfo user, SearchIndexQuery request, boolean isAutocomplete) {
 		ValidateArgument.required(user, "user");
 		ValidateArgument.required(request, "request");
 		ValidateArgument.required(request.getSearchIndexId(), "request.searchIndexId");
@@ -117,9 +116,10 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		String definingSQL = searchIndex.getDefiningSQL();
 		List<IdAndVersion> sourceTableIds = TableModelUtils.getSourceTableIds(definingSQL);
 		IdAndVersion sourceEntityId = sourceTableIds.get(0);
-		// Mirrors the table-query auth gate (TableQueryManagerImpl.queryPreflight): READ on the
-		// source entity, plus DOWNLOAD if it's a table, applied recursively to all transitive
-		// dependencies of the IndexDescription.
+		// TODO: Copy-pasted from TableQueryManagerImpl.queryPreflight — READ on the source entity
+		// (plus DOWNLOAD if it's a table) applied recursively across the IndexDescription. Remove
+		// this duplication when row-level filtering lands and unifies the auth gate between the
+		// table-query and search-query paths.
 		IndexDescription indexDescription = tableManagerSupport.getIndexDescription(sourceEntityId);
 		tableManagerSupport.validateTableReadAccess(user, indexDescription);
 
@@ -223,7 +223,7 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		if (returnFields == null || returnFields.isEmpty()) {
 			return selectColumns;
 		}
-		Set<String> allowed = new LinkedHashSet<>(returnFields);
+		Set<String> allowed = new HashSet<>(returnFields);
 		return selectColumns.stream()
 				.filter(sc -> allowed.contains(sc.getName()))
 				.collect(Collectors.toList());

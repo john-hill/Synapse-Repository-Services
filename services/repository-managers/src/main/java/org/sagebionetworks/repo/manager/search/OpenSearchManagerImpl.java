@@ -264,19 +264,19 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	@Override
 	public SearchQueryResults search(String indexName, SearchQuery query, List<ColumnModel> columns,
 			String defaultAnalyzer, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, TextAnalyzer> analyzers, Set<SearchQueryPart> parts) {
-		return executeSearch(indexName, query, columns, defaultAnalyzer, columnAnalyzerOverrides, analyzers, parts);
+			Map<String, TextAnalyzer> analyzers, Set<SearchQueryPart> options) {
+		return executeSearch(indexName, query, columns, defaultAnalyzer, columnAnalyzerOverrides, analyzers, options);
 	}
 
 	@Override
 	public SearchQueryResults autocomplete(String indexName, SearchQuery query, List<ColumnModel> columns,
 			String defaultAnalyzer, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, TextAnalyzer> analyzers, Set<SearchQueryPart> parts) {
+			Map<String, TextAnalyzer> analyzers, Set<SearchQueryPart> options) {
 		query.setQueryType(SearchQueryType.PREFIX);
 		if (query.getLimit() == null || query.getLimit() > AUTOCOMPLETE_MAX_LIMIT) {
 			query.setLimit((long) AUTOCOMPLETE_MAX_LIMIT);
 		}
-		return executeSearch(indexName, query, columns, defaultAnalyzer, columnAnalyzerOverrides, analyzers, parts);
+		return executeSearch(indexName, query, columns, defaultAnalyzer, columnAnalyzerOverrides, analyzers, options);
 	}
 
 	// ---- Private helpers ----
@@ -333,7 +333,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	private SearchQueryResults executeSearch(String indexName, SearchQuery query, List<ColumnModel> columns,
 			String defaultAnalyzer, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, TextAnalyzer> analyzers, Set<SearchQueryPart> parts) {
+			Map<String, TextAnalyzer> analyzers, Set<SearchQueryPart> options) {
 
 		Map<String, String> nameToId = columns.stream()
 				.collect(Collectors.toMap(ColumnModel::getName, ColumnModel::getId, (a2, b) -> a2));
@@ -366,19 +366,19 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		addFilters(boolBuilder, query, columnMap, nameToId, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName);
 
 		// Skip aggregation construction entirely when the caller didn't ask for FACETS.
-		Map<String, Aggregation> aggregations = parts.contains(SearchQueryPart.FACETS)
+		Map<String, Aggregation> aggregations = options.contains(SearchQueryPart.FACETS)
 				? buildAggregations(query.getFacetRequests(), columnMap, nameToId, defaultAnalyzer,
 						overrideMap, analyzers, idToQualifiedName)
 				: Collections.emptyMap();
 
 		Map<String, HighlightField> highlightFields = null;
-		if (parts.contains(SearchQueryPart.HITS) && Boolean.TRUE.equals(query.getHighlight())) {
+		if (options.contains(SearchQueryPart.HITS) && Boolean.TRUE.equals(query.getHighlight())) {
 			highlightFields = buildHighlightFields(columns, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName);
 		}
 
 		List<String> returnFields = query.getReturnFields();
 
-		List<SortOptions> sortOptions = parts.contains(SearchQueryPart.HITS)
+		List<SortOptions> sortOptions = options.contains(SearchQueryPart.HITS)
 				? buildSortOptions(query.getSort(), columnMap, nameToId, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName)
 				: Collections.emptyList();
 
@@ -386,7 +386,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 				.collect(Collectors.toMap(ColumnModel::getId, ColumnModel::getName, (a2, b) -> a2));
 
 		return callSearchApi(indexName, boolBuilder, offset, limit, aggregations,
-				highlightFields, returnFields, sortOptions, idToName, parts);
+				highlightFields, returnFields, sortOptions, idToName, options);
 	}
 
 	@SuppressWarnings("rawtypes")
@@ -394,9 +394,9 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			int offset, int limit, Map<String, Aggregation> aggregations,
 			Map<String, HighlightField> highlightFields, List<String> returnFields,
 			List<SortOptions> sortOptions, Map<String, String> idToName,
-			Set<SearchQueryPart> parts) {
-		boolean returnHits = parts.contains(SearchQueryPart.HITS);
-		boolean returnTotalHits = parts.contains(SearchQueryPart.TOTAL_HITS);
+			Set<SearchQueryPart> options) {
+		boolean returnHits = options.contains(SearchQueryPart.HITS);
+		boolean returnTotalHits = options.contains(SearchQueryPart.TOTAL_HITS);
 		try {
 			SearchResponse<Map> response = openSearchClient.search(req -> {
 				req.index(indexName);
@@ -428,7 +428,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 				return req;
 			}, Map.class);
 
-			return convertResponse(response, indexName, offset, idToName, parts);
+			return convertResponse(response, indexName, offset, idToName, options);
 		} catch (OpenSearchException e) {
 			if (INDEX_NOT_FOUND_EXCEPTION.equals(e.error().type())) {
 				throw new IllegalStateException("Search index is still building. Please try again later.", e);
@@ -439,7 +439,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		}
 	}
 
-	private Query buildMainQuery(SearchQueryType queryType, String queryText, List<String> fields, String fuzziness) {
+	Query buildMainQuery(SearchQueryType queryType, String queryText, List<String> fields, String fuzziness) {
 		switch (queryType) {
 			case SIMPLE_QUERY_STRING:
 				return Query.of(q -> q.simpleQueryString(sqs -> {
@@ -568,7 +568,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		}
 	}
 
-	private Map<String, Aggregation> buildAggregations(List<FacetRequest> facetRequests,
+	Map<String, Aggregation> buildAggregations(List<FacetRequest> facetRequests,
 			Map<String, ColumnModel> columnMap, Map<String, String> nameToId, String defaultAnalyzer,
 			Map<String, ColumnAnalyzerOverrideEntry> overrideMap, Map<String, TextAnalyzer> analyzers,
 			Map<Long, String> idToQualifiedName) {
@@ -595,7 +595,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		return aggregations;
 	}
 
-	private Map<String, HighlightField> buildHighlightFields(List<ColumnModel> columns,
+	Map<String, HighlightField> buildHighlightFields(List<ColumnModel> columns,
 			String defaultAnalyzer, Map<String, ColumnAnalyzerOverrideEntry> overrideMap,
 			Map<String, TextAnalyzer> analyzers, Map<Long, String> idToQualifiedName) {
 		Map<String, HighlightField> highlightFields = new HashMap<>();
@@ -617,7 +617,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		return highlightFields;
 	}
 
-	private List<SortOptions> buildSortOptions(List<SortField> sortFields,
+	List<SortOptions> buildSortOptions(List<SortField> sortFields,
 			Map<String, ColumnModel> columnMap, Map<String, String> nameToId, String defaultAnalyzer,
 			Map<String, ColumnAnalyzerOverrideEntry> overrideMap, Map<String, TextAnalyzer> analyzers,
 			Map<Long, String> idToQualifiedName) {
@@ -641,7 +641,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 				.collect(Collectors.toList());
 	}
 
-	private String getFilterFieldName(String columnId, Map<String, ColumnModel> columnMap,
+	String getFilterFieldName(String columnId, Map<String, ColumnModel> columnMap,
 			String defaultAnalyzer, Map<String, ColumnAnalyzerOverrideEntry> overrideMap,
 			Map<String, TextAnalyzer> analyzers, Map<Long, String> idToQualifiedName) {
 		ColumnModel column = columnMap.get(columnId);
@@ -667,7 +667,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		return columnId;
 	}
 
-	private String getSearchFieldName(String columnId, Map<String, ColumnModel> columnMap,
+	String getSearchFieldName(String columnId, Map<String, ColumnModel> columnMap,
 			String defaultAnalyzer, Map<String, ColumnAnalyzerOverrideEntry> overrideMap,
 			Map<String, TextAnalyzer> analyzers, Map<Long, String> idToQualifiedName) {
 		ColumnModel column = columnMap.get(columnId);
@@ -688,7 +688,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		return columnId;
 	}
 
-	private List<String> resolveQueryFields(List<String> queryFields, List<ColumnModel> columns,
+	List<String> resolveQueryFields(List<String> queryFields, List<ColumnModel> columns,
 			String defaultAnalyzer, Map<String, ColumnAnalyzerOverrideEntry> overrideMap,
 			Map<String, TextAnalyzer> analyzers, Map<Long, String> idToQualifiedName, boolean forSearch) {
 		if (queryFields == null || queryFields.isEmpty()) {
@@ -719,16 +719,16 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
-	private SearchQueryResults convertResponse(SearchResponse<Map> response, String indexName, int offset,
-			Map<String, String> idToName, Set<SearchQueryPart> parts) {
+	SearchQueryResults convertResponse(SearchResponse<Map> response, String indexName, int offset,
+			Map<String, String> idToName, Set<SearchQueryPart> options) {
 		SearchQueryResults results = new SearchQueryResults();
 		results.setOffset((long) offset);
 
-		if (parts.contains(SearchQueryPart.TOTAL_HITS)) {
+		if (options.contains(SearchQueryPart.TOTAL_HITS)) {
 			results.setTotalHits(response.hits().total() != null ? response.hits().total().value() : 0L);
 		}
 
-		if (parts.contains(SearchQueryPart.HITS)) {
+		if (options.contains(SearchQueryPart.HITS)) {
 			List<SearchHit> hits = new ArrayList<>();
 			for (Hit<Map> hit : response.hits().hits()) {
 				hits.add(convertHit(hit, idToName));
@@ -736,7 +736,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			results.setHits(hits);
 		}
 
-		if (parts.contains(SearchQueryPart.FACETS)
+		if (options.contains(SearchQueryPart.FACETS)
 				&& response.aggregations() != null && !response.aggregations().isEmpty()) {
 			results.setFacets(convertAggregations(response.aggregations(), idToName));
 		}
@@ -745,7 +745,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
-	private SearchHit convertHit(Hit<Map> hit, Map<String, String> idToName) {
+	SearchHit convertHit(Hit<Map> hit, Map<String, String> idToName) {
 		SearchHit searchHit = new SearchHit();
 		searchHit.setScore(hit.score());
 
@@ -773,7 +773,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		return searchHit;
 	}
 
-	private List<SearchFieldValue> convertHighlights(Map<String, List<String>> highlightMap,
+	List<SearchFieldValue> convertHighlights(Map<String, List<String>> highlightMap,
 			Map<String, String> idToName) {
 		List<SearchFieldValue> highlights = new ArrayList<>();
 		for (Map.Entry<String, List<String>> entry : highlightMap.entrySet()) {
@@ -790,7 +790,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		return highlights;
 	}
 
-	private List<FacetColumnResult> convertAggregations(Map<String, Aggregate> aggregations,
+	List<FacetColumnResult> convertAggregations(Map<String, Aggregate> aggregations,
 			Map<String, String> idToName) {
 		List<FacetColumnResult> facets = new ArrayList<>();
 		for (Map.Entry<String, Aggregate> entry : aggregations.entrySet()) {
@@ -817,7 +817,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		return facets;
 	}
 
-	private FacetColumnResultValues buildFacetResult(String columnName, List<FacetColumnResultValueCount> valueCounts) {
+	FacetColumnResultValues buildFacetResult(String columnName, List<FacetColumnResultValueCount> valueCounts) {
 		FacetColumnResultValues result = new FacetColumnResultValues();
 		result.setColumnName(columnName);
 		result.setFacetType(FacetType.enumeration);
@@ -825,7 +825,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		return result;
 	}
 
-	private FacetColumnResultValueCount buildFacetValueCount(String key, long docCount) {
+	FacetColumnResultValueCount buildFacetValueCount(String key, long docCount) {
 		FacetColumnResultValueCount vc = new FacetColumnResultValueCount();
 		vc.setValue(key);
 		vc.setCount(docCount);
@@ -897,7 +897,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		}));
 	}
 
-	private String resolveIndexAnalyzerName(TextAnalyzer effectiveAnalyzer,
+	String resolveIndexAnalyzerName(TextAnalyzer effectiveAnalyzer,
 			ColumnAnalyzerOverrideEntry entry, Map<String, TextAnalyzer> analyzers) {
 		if (entry != null && entry.getIndexAnalyzer() != null) {
 			return analyzerToOpenSearchName(analyzers.get(entry.getIndexAnalyzer()));
@@ -905,7 +905,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		return analyzerToOpenSearchName(effectiveAnalyzer);
 	}
 
-	private String resolveSearchAnalyzerName(String indexAnalyzerName,
+	String resolveSearchAnalyzerName(String indexAnalyzerName,
 			ColumnAnalyzerOverrideEntry entry, Map<String, TextAnalyzer> analyzers) {
 		if (entry != null && entry.getSearchAnalyzer() != null) {
 			return analyzerToOpenSearchName(analyzers.get(entry.getSearchAnalyzer()));
@@ -942,7 +942,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		return idToQualifiedName.get(defaultId);
 	}
 
-	private Map<String, ColumnAnalyzerOverrideEntry> buildOverrideMap(
+	Map<String, ColumnAnalyzerOverrideEntry> buildOverrideMap(
 			List<ColumnAnalyzerOverride> columnAnalyzerOverrides, Map<String, String> nameToId) {
 		Map<String, ColumnAnalyzerOverrideEntry> map = new HashMap<>();
 		if (columnAnalyzerOverrides == null) {
@@ -962,7 +962,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		return map;
 	}
 
-	private List<String> buildSynonymRules(List<SynonymSet> synonymSets) {
+	List<String> buildSynonymRules(List<SynonymSet> synonymSets) {
 		if (synonymSets == null || synonymSets.isEmpty()) {
 			return Collections.emptyList();
 		}
@@ -999,17 +999,17 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		return result;
 	}
 
-	private boolean isKeywordAnalyzer(TextAnalyzer analyzer) {
+	boolean isKeywordAnalyzer(TextAnalyzer analyzer) {
 		return analyzer != null && analyzer.getSettings() != null
 				&& "keyword".equals(analyzer.getSettings().getTokenizer());
 	}
 
-	private String stripBoost(String fieldSpec) {
+	String stripBoost(String fieldSpec) {
 		int caretIndex = fieldSpec.indexOf('^');
 		return caretIndex > 0 ? fieldSpec.substring(0, caretIndex) : fieldSpec;
 	}
 
-	private Long toLong(Object value) {
+	Long toLong(Object value) {
 		if (value instanceof Number) {
 			return ((Number) value).longValue();
 		}

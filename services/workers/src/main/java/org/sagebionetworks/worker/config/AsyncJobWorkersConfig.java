@@ -758,7 +758,7 @@ public class AsyncJobWorkersConfig {
 	@Bean
 	public SimpleTriggerFactoryBean searchQueryWorkerTrigger(ConcurrentManager concurrentStackManager, SearchQueryWorker searchQueryWorker) {
 
-		String queueName = stackConfig.getQueueName("SEARCH_QUERY.fifo");
+		String queueName = stackConfig.getQueueName("SEARCH_QUERY");
 		MessageDrivenRunner worker = new AsyncJobRunnerAdapter<>(jobStatusManager, userManager, searchQueryWorker);
 
 		return new WorkerTriggerBuilder()

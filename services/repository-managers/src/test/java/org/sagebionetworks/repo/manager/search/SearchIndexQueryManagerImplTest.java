@@ -19,7 +19,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.HashSet;
 import java.util.Map;
@@ -144,7 +143,9 @@ public class SearchIndexQueryManagerImplTest {
 
 	/** Wrap a SearchQuery plus an explicit set of response parts. */
 	private SearchIndexQuery buildRequest(SearchQuery query, SearchQueryPart... parts) {
-		Set<SearchQueryPart> partSet = new LinkedHashSet<>(Arrays.asList(parts));
+		Set<SearchQueryPart> partSet = parts.length == 0
+				? EnumSet.noneOf(SearchQueryPart.class)
+				: EnumSet.copyOf(Arrays.asList(parts));
 		return new SearchIndexQuery()
 				.setSearchIndexId(SEARCH_INDEX_ID)
 				.setSearchQuery(query)
@@ -1117,7 +1118,7 @@ public class SearchIndexQueryManagerImplTest {
 	public void testResolveRequestedPartsReturnsEnumSet() {
 		// The contract is that callers get an EnumSet for O(1) contains; verify the type.
 		Set<SearchQueryPart> result = SearchIndexQueryManagerImpl.resolveRequestedParts(
-				new LinkedHashSet<>(Arrays.asList(SearchQueryPart.HITS, SearchQueryPart.FACETS)));
+				EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.FACETS));
 
 		assertTrue(result instanceof EnumSet);
 		assertEquals(EnumSet.of(SearchQueryPart.HITS, SearchQueryPart.FACETS), result);

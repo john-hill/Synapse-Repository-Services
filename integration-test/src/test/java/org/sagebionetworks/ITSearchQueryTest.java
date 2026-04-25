@@ -7,8 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.UUID;
 
@@ -45,9 +45,17 @@ import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
 
 /**
- * Integration test for the SearchIndex entity and async SearchQuery workflow.
- * Creates a table with data, builds a SearchIndex from it, and verifies
- * async queries and autocomplete return results.
+ * Integration tests for the SearchIndex query path.
+ *
+ * The two test methods are split deliberately so a single AOSS analyzer issue can't take
+ * out coverage of both paths:
+ *
+ *   - {@link #testAsyncQueryWithDefaultAnalyzer()} exercises the async start-job/poll-job path
+ *     and the {@code responseParts} opt-in mechanic against an index built with the platform
+ *     default analyzer. No custom analyzer override.
+ *   - {@link #testAutocompleteWithEdgeNgram()} exercises the sync autocomplete endpoint against
+ *     an index built with a {@code ColumnAnalyzerOverride} mapped to the bootstrapped
+ *     {@code AUTOCOMPLETE} / {@code AUTOCOMPLETE_SEARCH} edge-ngram analyzers.
  */
 @ExtendWith(ITTestExtension.class)
 public class ITSearchQueryTest {
@@ -82,49 +90,20 @@ public class ITSearchQueryTest {
 	}
 
 	/**
-	 * Tests autocomplete WITH edge_ngram AUTOCOMPLETE analyzer configured via
-	 * ColumnAnalyzerOverride and SearchConfiguration. This is the optimal setup
-	 * for high-performance type-ahead: edge_ngram pre-computes prefix tokens at
-	 * index time so matching is an exact token lookup.
+	 * Async query path against an index built with the platform default analyzer (no
+	 * ColumnAnalyzerOverride). Verifies the start-job/poll-job round trip plus the
+	 * {@code responseParts} opt-in mechanic — HITS + TOTAL_HITS + SELECT_COLUMNS are
+	 * populated when requested, and remain null when left at the default.
 	 */
 	@Test
-	public void testAutocompleteWithEdgeNgram() throws Exception {
-		// 1. Create project
+	public void testAsyncQueryWithDefaultAnalyzer() throws Exception {
 		Project project = new Project();
-		project.setName("ITSearchAutocomplete_EdgeNgram_" + UUID.randomUUID());
+		project.setName("ITAsyncQuery_Default_" + UUID.randomUUID());
 		project = synapse.createEntity(project);
 		entitiesToDelete.add(project);
 
-		// The lifecycle worker queries table data as the anonymous user to enforce
-		// OPEN_DATA visibility. Grant PUBLIC READ on the project and DOWNLOAD on the
-		// AUTHENTICATED_USERS group so the built index contains public-readable rows.
 		grantPublicRead(project.getId());
 
-		// 2. Get org name from bootstrapped analyzers
-		ListTextAnalyzersResponse analyzers = adminSynapse.listTextAnalyzers(new ListTextAnalyzersRequest());
-		String orgName = analyzers.getResults().get(0).getOrganizationName();
-
-		// 3. Create ColumnAnalyzerOverride: geneName -> AUTOCOMPLETE (index) + AUTOCOMPLETE_SEARCH (search)
-		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
-		entry.setColumnName("geneName");
-		entry.setIndexAnalyzer(orgName + "-AUTOCOMPLETE");
-		entry.setSearchAnalyzer(orgName + "-AUTOCOMPLETE_SEARCH");
-
-		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride();
-		override.setName("IT_AUTOCOMPLETE_OVERRIDE_" + UUID.randomUUID().toString().replace("-", ""));
-		override.setOrganizationName(orgName);
-		override.setOverrides(Arrays.asList(entry));
-		override = adminSynapse.createColumnAnalyzerOverride(override);
-
-		// 4. Create SearchConfiguration referencing the override
-		String overrideQualifiedName = orgName + "-" + override.getName();
-		SearchConfiguration config = new SearchConfiguration();
-		config.setName("IT_AUTOCOMPLETE_CONFIG_" + UUID.randomUUID().toString().replace("-", ""));
-		config.setOrganizationName(orgName);
-		config.setColumnAnalyzerOverrides(Arrays.asList(overrideQualifiedName));
-		config = adminSynapse.createSearchConfiguration(config);
-
-		// 5. Create columns and table
 		ColumnModel nameCol = new ColumnModel();
 		nameCol.setName("geneName");
 		nameCol.setColumnType(ColumnType.STRING);
@@ -132,17 +111,16 @@ public class ITSearchQueryTest {
 		nameCol = synapse.createColumnModel(nameCol);
 
 		TableEntity table = new TableEntity();
-		table.setName("AutocompleteEdgeNgramTable");
+		table.setName("AsyncQueryDefaultTable");
 		table.setParentId(project.getId());
 		table.setColumnIds(Arrays.asList(nameCol.getId()));
 		table = synapse.createEntity(table);
 		entitiesToDelete.add(table);
 
-		// The lifecycle worker queries table data as the anonymous user, which
-		// requires the source table to be marked OPEN_DATA (Sage governance).
+		// The lifecycle worker queries table data as the anonymous user, which requires the
+		// source table to be marked OPEN_DATA (Sage governance).
 		adminSynapse.changeEntitysDataType(table.getId(), DataType.OPEN_DATA);
 
-		// 6. Populate with rows
 		List<ColumnModel> columns = synapse.getColumnModelsForTableEntity(table.getId());
 		RowSet rowSet = new RowSet();
 		rowSet.setTableId(table.getId());
@@ -154,25 +132,23 @@ public class ITSearchQueryTest {
 		));
 		synapse.appendRowsToTable(rowSet, MAX_APPEND_TIMEOUT, table.getId());
 
-		// 7. Create SearchIndex entity with the SearchConfiguration
+		// SearchIndex with no SearchConfiguration — default analyzer (no edge_ngram).
 		SearchIndex searchIndex = new SearchIndex();
-		searchIndex.setName("AutocompleteEdgeNgramSearchIndex");
+		searchIndex.setName("AsyncQueryDefaultSearchIndex");
 		searchIndex.setParentId(project.getId());
 		searchIndex.setDefiningSQL("select * from " + table.getId());
-		searchIndex.setSearchConfigurationId(config.getId());
 		searchIndex = adminSynapse.createEntity(searchIndex);
 		entitiesToDelete.add(searchIndex);
 
-		// 8. Wait for the index to be ACTIVE — request HITS + TOTAL_HITS + SELECT_COLUMNS so we can
-		// assert on all three in one shot. (HITS alone is the default, but we want totalHits and
-		// selectColumns populated here to verify the end-to-end plumbing for each opt-in part.)
-		SearchIndexQuery waitIndexQuery = new SearchIndexQuery();
-		waitIndexQuery.setSearchIndexId(searchIndex.getId());
-		waitIndexQuery.setSearchQuery(new SearchQuery());
-		waitIndexQuery.setResponseParts(new LinkedHashSet<>(Arrays.asList(
-				SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS, SearchQueryPart.SELECT_COLUMNS)));
+		// Async query with all opt-in parts.
+		SearchIndexQuery fullQuery = new SearchIndexQuery();
+		fullQuery.setSearchIndexId(searchIndex.getId());
+		fullQuery.setSearchQuery(new SearchQuery());
+		fullQuery.setResponseParts(EnumSet.of(
+				SearchQueryPart.HITS, SearchQueryPart.TOTAL_HITS, SearchQueryPart.SELECT_COLUMNS));
 
-		AsyncJobHelper.assertAysncJobResult(synapse, AsynchJobType.SearchIndexQuery, waitIndexQuery,
+		// call under test — async start/poll path with responseParts populated
+		AsyncJobHelper.assertAysncJobResult(synapse, AsynchJobType.SearchIndexQuery, fullQuery,
 			(SearchQueryResults results) -> {
 				assertNotNull(results);
 				assertEquals(3L, (long) results.getTotalHits());
@@ -186,7 +162,112 @@ public class ITSearchQueryTest {
 			AsyncJobHelper.INFINITE_RETRIES
 		);
 
-		// 9. Test autocomplete (synchronous) — default responseParts (null) returns HITS only
+		// Async query with responseParts left null — defaults to HITS only, the rest must be null.
+		SearchIndexQuery defaultPartsQuery = new SearchIndexQuery();
+		defaultPartsQuery.setSearchIndexId(searchIndex.getId());
+		defaultPartsQuery.setSearchQuery(new SearchQuery());
+
+		// call under test — async path, default response parts
+		AsyncJobHelper.assertAysncJobResult(synapse, AsynchJobType.SearchIndexQuery, defaultPartsQuery,
+			(SearchQueryResults results) -> {
+				assertNotNull(results);
+				assertNotNull(results.getHits(), "HITS is always populated by default");
+				assertNull(results.getTotalHits(),
+					"totalHits should be null when responseParts is left at default (HITS only)");
+				assertNull(results.getSelectColumns(),
+					"selectColumns should be null when responseParts is left at default (HITS only)");
+			},
+			MAX_QUERY_TIMEOUT_MS,
+			AsyncJobHelper.INFINITE_RETRIES
+		);
+	}
+
+	/**
+	 * Sync autocomplete with edge_ngram AUTOCOMPLETE analyzer configured via
+	 * ColumnAnalyzerOverride and SearchConfiguration. This is the optimal setup for
+	 * high-performance type-ahead: edge_ngram pre-computes prefix tokens at index time so
+	 * matching is an exact token lookup.
+	 */
+	@Test
+	public void testAutocompleteWithEdgeNgram() throws Exception {
+		Project project = new Project();
+		project.setName("ITSearchAutocomplete_EdgeNgram_" + UUID.randomUUID());
+		project = synapse.createEntity(project);
+		entitiesToDelete.add(project);
+
+		grantPublicRead(project.getId());
+
+		ListTextAnalyzersResponse analyzers = adminSynapse.listTextAnalyzers(new ListTextAnalyzersRequest());
+		String orgName = analyzers.getResults().get(0).getOrganizationName();
+
+		// ColumnAnalyzerOverride: geneName -> AUTOCOMPLETE (index) + AUTOCOMPLETE_SEARCH (search)
+		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
+		entry.setColumnName("geneName");
+		entry.setIndexAnalyzer(orgName + "-AUTOCOMPLETE");
+		entry.setSearchAnalyzer(orgName + "-AUTOCOMPLETE_SEARCH");
+
+		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride();
+		override.setName("IT_AUTOCOMPLETE_OVERRIDE_" + UUID.randomUUID().toString().replace("-", ""));
+		override.setOrganizationName(orgName);
+		override.setOverrides(Arrays.asList(entry));
+		override = adminSynapse.createColumnAnalyzerOverride(override);
+
+		String overrideQualifiedName = orgName + "-" + override.getName();
+		SearchConfiguration config = new SearchConfiguration();
+		config.setName("IT_AUTOCOMPLETE_CONFIG_" + UUID.randomUUID().toString().replace("-", ""));
+		config.setOrganizationName(orgName);
+		config.setColumnAnalyzerOverrides(Arrays.asList(overrideQualifiedName));
+		config = adminSynapse.createSearchConfiguration(config);
+
+		ColumnModel nameCol = new ColumnModel();
+		nameCol.setName("geneName");
+		nameCol.setColumnType(ColumnType.STRING);
+		nameCol.setMaximumSize(100L);
+		nameCol = synapse.createColumnModel(nameCol);
+
+		TableEntity table = new TableEntity();
+		table.setName("AutocompleteEdgeNgramTable");
+		table.setParentId(project.getId());
+		table.setColumnIds(Arrays.asList(nameCol.getId()));
+		table = synapse.createEntity(table);
+		entitiesToDelete.add(table);
+
+		adminSynapse.changeEntitysDataType(table.getId(), DataType.OPEN_DATA);
+
+		List<ColumnModel> columns = synapse.getColumnModelsForTableEntity(table.getId());
+		RowSet rowSet = new RowSet();
+		rowSet.setTableId(table.getId());
+		rowSet.setHeaders(TableModelUtils.getSelectColumns(columns));
+		rowSet.setRows(Arrays.asList(
+			new Row().setValues(Arrays.asList("BRCA1")),
+			new Row().setValues(Arrays.asList("BRCA2")),
+			new Row().setValues(Arrays.asList("TP53"))
+		));
+		synapse.appendRowsToTable(rowSet, MAX_APPEND_TIMEOUT, table.getId());
+
+		SearchIndex searchIndex = new SearchIndex();
+		searchIndex.setName("AutocompleteEdgeNgramSearchIndex");
+		searchIndex.setParentId(project.getId());
+		searchIndex.setDefiningSQL("select * from " + table.getId());
+		searchIndex.setSearchConfigurationId(config.getId());
+		searchIndex = adminSynapse.createEntity(searchIndex);
+		entitiesToDelete.add(searchIndex);
+
+		// Wait for the index to be ACTIVE by polling a count query. If the index ends up FAILED
+		// the manager raises IllegalArgumentException with the stored errorMessage which the
+		// async helper surfaces verbatim — that's what we want, since the autocomplete check
+		// below would otherwise time out without context.
+		SearchIndexQuery waitIndexQuery = new SearchIndexQuery();
+		waitIndexQuery.setSearchIndexId(searchIndex.getId());
+		waitIndexQuery.setSearchQuery(new SearchQuery());
+		waitIndexQuery.setResponseParts(EnumSet.of(SearchQueryPart.TOTAL_HITS));
+
+		AsyncJobHelper.assertAysncJobResult(synapse, AsynchJobType.SearchIndexQuery, waitIndexQuery,
+			(SearchQueryResults results) -> assertEquals(3L, (long) results.getTotalHits()),
+			MAX_QUERY_TIMEOUT_MS,
+			AsyncJobHelper.INFINITE_RETRIES
+		);
+
 		SearchIndexQuery autocompleteIndexQuery = new SearchIndexQuery();
 		autocompleteIndexQuery.setSearchIndexId(searchIndex.getId());
 		autocompleteIndexQuery.setSearchQuery(new SearchQuery().setQueryText("BRC"));

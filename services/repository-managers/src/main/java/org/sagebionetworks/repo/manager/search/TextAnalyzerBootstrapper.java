@@ -148,8 +148,14 @@ public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 	private TextAnalyzerSettings buildAutocompleteSettings() {
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
 		settings.setTokenizer("standard");
+		// AUTOCOMPLETE is an index-time analyzer ending in edge_ngram. word_delimiter_graph emits
+		// multi-position graph tokens which edge_ngram (a non-graph filter) cannot consume, so the
+		// chain breaks at index time and AOSS rejects the document with a generic "Internal error".
+		// We use the legacy word_delimiter (positionLength always 1) here; graph attributes aren't
+		// useful at index time anyway. AUTOCOMPLETE_SEARCH keeps word_delimiter_graph since search
+		// time is where the graph matters.
 		settings.setTokenFilters("{"
-				+ "\"ac_word_delimiter\":{\"type\":\"word_delimiter_graph\",\"preserve_original\":true,"
+				+ "\"ac_word_delimiter\":{\"type\":\"word_delimiter\",\"preserve_original\":true,"
 				+ "\"split_on_case_change\":true,\"split_on_numerics\":true,"
 				+ "\"catenate_words\":true,\"catenate_numbers\":false,"
 				+ "\"stem_english_possessive\":true},"

@@ -23,6 +23,7 @@ import org.opensearch.client.opensearch._types.analysis.TokenFilterDefinition;
 import org.opensearch.client.opensearch._types.analysis.Tokenizer;
 import org.opensearch.client.opensearch._types.analysis.TokenizerDefinition;
 import org.opensearch.client.opensearch.OpenSearchClient;
+import org.opensearch.client.opensearch._types.ErrorCause;
 import org.opensearch.client.opensearch._types.FieldSort;
 import org.opensearch.client.opensearch._types.FieldValue;
 import org.opensearch.client.opensearch._types.OpenSearchException;
@@ -240,7 +241,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			List<String> errors = new ArrayList<>();
 			for (var item : response.items()) {
 				if (item.error() != null) {
-					errors.add("doc " + item.id() + ": " + item.error().reason());
+					errors.add("doc " + item.id() + ": " + describeError(item.error()));
 				}
 			}
 
@@ -255,6 +256,26 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		} catch (OpenSearchException | IOException e) {
 			throw new RuntimeException("Failed to bulk index to search index: " + indexName, e);
 		}
+	}
+
+	/**
+	 * AOSS often returns a generic {@code reason} ("Internal error occurred while processing
+	 * request") on the outer error, with the actual cause buried in the nested {@code caused_by}
+	 * chain. Walk the chain so the surfaced message is diagnosable.
+	 */
+	static String describeError(ErrorCause error) {
+		StringBuilder sb = new StringBuilder();
+		ErrorCause current = error;
+		while (current != null) {
+			if (sb.length() > 0) {
+				sb.append(" caused by ");
+			}
+			sb.append(current.type() == null ? "?" : current.type())
+					.append(": ")
+					.append(current.reason() == null ? "?" : current.reason());
+			current = current.causedBy();
+		}
+		return sb.toString();
 	}
 
 	@Override

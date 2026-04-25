@@ -259,6 +259,91 @@ public class OpenSearchManagerImplAutoWiredTest {
 		assertDoesNotThrow(() -> openSearchManager.validateAnalyzerSettings(settings));
 	}
 
+	/**
+	 * The bootstrapped AUTOCOMPLETE analyzer combines word_delimiter (legacy, non-graph) with
+	 * edge_ngram. Earlier the chain used word_delimiter_graph which produces multi-position
+	 * graph tokens that edge_ngram (a non-graph filter) cannot consume — AOSS rejected every
+	 * document during bulk index with a generic "Internal error". This test reproduces the
+	 * production analyzer config end-to-end against AOSS and asserts that bulk index succeeds.
+	 */
+	@Test
+	public void testBulkIndexWithAutocompleteAnalyzerOverride() {
+		// Build the same analyzer settings the bootstrapper installs in production.
+		TextAnalyzer autocomplete = autocompleteIndexAnalyzer();
+		TextAnalyzer autocompleteSearch = autocompleteSearchAnalyzer();
+		TextAnalyzer scientific = buildAnalyzer(TextAnalyzerBootstrapper.SCIENTIFIC_ID, "standard");
+
+		Map<String, TextAnalyzer> analyzers = new HashMap<>();
+		analyzers.put("org.sagebionetworks-AUTOCOMPLETE", autocomplete);
+		analyzers.put("org.sagebionetworks-AUTOCOMPLETE_SEARCH", autocompleteSearch);
+		analyzers.put("org.sagebionetworks-SCIENTIFIC", scientific);
+
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("geneName").setColumnType(ColumnType.STRING));
+
+		org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry entry =
+				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry();
+		entry.setColumnName("geneName");
+		entry.setIndexAnalyzer("org.sagebionetworks-AUTOCOMPLETE");
+		entry.setSearchAnalyzer("org.sagebionetworks-AUTOCOMPLETE_SEARCH");
+
+		org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride override =
+				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride();
+		override.setName("AUTOCOMPLETE_OVERRIDE");
+		override.setOrganizationName("org.sagebionetworks");
+		override.setOverrides(List.of(entry));
+
+		openSearchManager.createIndex(indexName, columns, null,
+				Collections.emptyList(), List.of(override), analyzers);
+
+		List<BulkOperation> operations = List.of(
+				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "BRCA1")),
+				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "BRCA2")),
+				buildBulkOp(indexName, "3", Map.of("_row_id", 3L, "_row_version", 1L, "1", "TP53"))
+		);
+
+		// call under test — every document must be accepted; the previous word_delimiter_graph
+		// + edge_ngram chain caused AOSS to reject all 3 here with "Internal error".
+		long indexed = openSearchManager.bulkIndex(indexName, operations);
+
+		assertEquals(3L, indexed);
+	}
+
+	private static TextAnalyzer autocompleteIndexAnalyzer() {
+		TextAnalyzerSettings settings = new TextAnalyzerSettings();
+		settings.setTokenizer("standard");
+		settings.setTokenFilters("{"
+				+ "\"ac_word_delimiter\":{\"type\":\"word_delimiter\",\"preserve_original\":true,"
+				+ "\"split_on_case_change\":true,\"split_on_numerics\":true,"
+				+ "\"catenate_words\":true,\"catenate_numbers\":false,"
+				+ "\"stem_english_possessive\":true},"
+				+ "\"edge_ngram_filter\":{\"type\":\"edge_ngram\",\"min_gram\":2,\"max_gram\":20}"
+				+ "}");
+		settings.setFilterOrder(Arrays.asList("ac_word_delimiter", "lowercase", "edge_ngram_filter"));
+
+		TextAnalyzer analyzer = new TextAnalyzer();
+		analyzer.setId(Long.toString(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID));
+		analyzer.setSettings(settings);
+		return analyzer;
+	}
+
+	private static TextAnalyzer autocompleteSearchAnalyzer() {
+		TextAnalyzerSettings settings = new TextAnalyzerSettings();
+		settings.setTokenizer("standard");
+		settings.setTokenFilters("{"
+				+ "\"acs_word_delimiter\":{\"type\":\"word_delimiter_graph\",\"preserve_original\":true,"
+				+ "\"split_on_case_change\":true,\"split_on_numerics\":true,"
+				+ "\"catenate_words\":true,\"catenate_numbers\":false,"
+				+ "\"stem_english_possessive\":true}"
+				+ "}");
+		settings.setFilterOrder(Arrays.asList("acs_word_delimiter", "lowercase"));
+
+		TextAnalyzer analyzer = new TextAnalyzer();
+		analyzer.setId(Long.toString(TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID));
+		analyzer.setSettings(settings);
+		return analyzer;
+	}
+
 	// ---- Polling helpers ----
 
 	/**

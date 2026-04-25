@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.search;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -114,14 +115,16 @@ public class TextAnalyzerBootstrapperTest {
 	}
 
 	@Test
-	public void testAutocompleteAnalyzerHasWordDelimiterGraph() {
+	public void testAutocompleteAnalyzerUsesLegacyWordDelimiter() {
 		setupOrgMock();
 
 		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
 		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
 
 		assertEquals("standard", settings.getTokenizer());
-		assertWordDelimiterGraphFilter(settings.getTokenFilters(), "ac_word_delimiter");
+		// Index-time analyzer ending in edge_ngram requires legacy word_delimiter (non-graph),
+		// otherwise multi-position graph tokens break edge_ngram and AOSS rejects every document.
+		assertWordDelimiterFilter(settings.getTokenFilters(), "ac_word_delimiter");
 		List<String> filterOrder = settings.getFilterOrder();
 		assertEquals("ac_word_delimiter", filterOrder.get(0));
 		assertEquals("lowercase", filterOrder.get(1));
@@ -142,11 +145,10 @@ public class TextAnalyzerBootstrapperTest {
 	}
 
 	@Test
-	public void testWordDelimiterGraphComesBeforeLowercaseInAllAnalyzers() {
+	public void testWordDelimiterComesBeforeLowercaseInAllAnalyzers() {
 		setupOrgMock();
 
-		// Verify that word_delimiter_graph is always first in filter order (before lowercase)
-		// so that case-change boundaries can be detected
+		// word_delimiter must come before lowercase so case-change boundaries can be detected
 		List<Long> idsWithWordDelimiter = Arrays.asList(
 				TextAnalyzerBootstrapper.SCIENTIFIC_ID,
 				TextAnalyzerBootstrapper.STANDARD_ID,
@@ -165,9 +167,9 @@ public class TextAnalyzerBootstrapperTest {
 				if (order.get(i).contains("word_delimiter")) wdIdx = i;
 				if ("lowercase".equals(order.get(i))) lcIdx = i;
 			}
-			assertTrue(wdIdx >= 0, "word_delimiter_graph filter missing for analyzer ID " + id);
+			assertTrue(wdIdx >= 0, "word_delimiter filter missing for analyzer ID " + id);
 			assertTrue(lcIdx >= 0, "lowercase filter missing for analyzer ID " + id);
-			assertTrue(wdIdx < lcIdx, "word_delimiter_graph must come before lowercase for analyzer ID " + id);
+			assertTrue(wdIdx < lcIdx, "word_delimiter must come before lowercase for analyzer ID " + id);
 		}
 	}
 
@@ -177,6 +179,23 @@ public class TextAnalyzerBootstrapperTest {
 				"Expected token filter '" + filterName + "' not found in JSON");
 		assertTrue(tokenFiltersJson.contains("\"type\":\"word_delimiter_graph\""),
 				"Filter should be of type word_delimiter_graph");
+		assertTrue(tokenFiltersJson.contains("\"preserve_original\":true"),
+				"Filter should have preserve_original=true");
+		assertTrue(tokenFiltersJson.contains("\"split_on_case_change\":true"),
+				"Filter should have split_on_case_change=true");
+		assertTrue(tokenFiltersJson.contains("\"catenate_words\":true"),
+				"Filter should have catenate_words=true");
+	}
+
+	private void assertWordDelimiterFilter(String tokenFiltersJson, String filterName) {
+		assertNotNull(tokenFiltersJson, "tokenFilters should not be null");
+		assertTrue(tokenFiltersJson.contains("\"" + filterName + "\""),
+				"Expected token filter '" + filterName + "' not found in JSON");
+		// Legacy non-graph word_delimiter — must be exactly "word_delimiter", not "word_delimiter_graph"
+		assertTrue(tokenFiltersJson.contains("\"type\":\"word_delimiter\""),
+				"Filter should be of type word_delimiter");
+		assertFalse(tokenFiltersJson.contains("\"type\":\"word_delimiter_graph\""),
+				"Filter must not be word_delimiter_graph (graph tokens break edge_ngram at index time)");
 		assertTrue(tokenFiltersJson.contains("\"preserve_original\":true"),
 				"Filter should have preserve_original=true");
 		assertTrue(tokenFiltersJson.contains("\"split_on_case_change\":true"),

@@ -807,4 +807,40 @@ public class OpenSearchManagerImplTest {
 	// the client's builder API. Those helpers are exercised end-to-end by the AutoWired IT;
 	// convertHighlights above covers the only branch with non-trivial logic that isn't
 	// exclusively OpenSearch-client plumbing.
+
+	@Test
+	public void testDescribeErrorWithSingleCause() {
+		org.opensearch.client.opensearch._types.ErrorCause cause =
+				org.opensearch.client.opensearch._types.ErrorCause.of(b -> b
+						.type("mapper_parsing_exception")
+						.reason("failed to parse field [123]"));
+
+		// call under test
+		String desc = OpenSearchManagerImpl.describeError(cause);
+
+		assertEquals("mapper_parsing_exception: failed to parse field [123]", desc);
+	}
+
+	@Test
+	public void testDescribeErrorWalksCausedByChain() {
+		// AOSS typically returns a generic outer reason; the actual cause is in caused_by.
+		org.opensearch.client.opensearch._types.ErrorCause inner =
+				org.opensearch.client.opensearch._types.ErrorCause.of(b -> b
+						.type("illegal_state_exception")
+						.reason("Position increment must be non-negative"));
+		org.opensearch.client.opensearch._types.ErrorCause outer =
+				org.opensearch.client.opensearch._types.ErrorCause.of(b -> b
+						.type("?")
+						.reason("Internal error occurred while processing request")
+						.causedBy(inner));
+
+		// call under test
+		String desc = OpenSearchManagerImpl.describeError(outer);
+
+		assertEquals(
+				"?: Internal error occurred while processing request"
+						+ " caused by illegal_state_exception: Position increment must be non-negative",
+				desc);
+	}
+
 }

@@ -11,14 +11,12 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import jakarta.json.Json;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonReader;
 import jakarta.json.stream.JsonParser;
 
 import org.opensearch.client.json.JsonData;
 import org.opensearch.client.json.JsonpDeserializer;
 import org.opensearch.client.json.JsonpMapper;
+import org.opensearch.client.json.JsonpUtils;
 import org.opensearch.client.json.jackson.JacksonJsonpMapper;
 import org.opensearch.client.opensearch._types.analysis.CharFilter;
 import org.opensearch.client.opensearch._types.analysis.CharFilterDefinition;
@@ -305,28 +303,36 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	/**
 	 * Deserialize a JSON object of the form {"name1": {...}, "name2": {...}} into a
 	 * Map keyed by name, using the OpenSearch client's typed deserializer for each value.
+	 * The parser is created via the mapper's own JSON provider so the deserializer reads
+	 * events from the implementation it expects, and the outer object is streamed in a
+	 * single pass instead of round-tripping each value through toString().
 	 */
 	private <T> Map<String, T> deserializeDefinitionMap(String json, JsonpDeserializer<T> deserializer) {
 		Map<String, T> result = new HashMap<>();
 		JsonpMapper mapper = new JacksonJsonpMapper();
-		try (JsonReader reader = Json.createReader(new StringReader(json))) {
-			JsonObject obj = reader.readObject();
-			for (String name : obj.keySet()) {
-				String valueJson = obj.getJsonObject(name).toString();
-				try (JsonParser parser = Json.createParser(new StringReader(valueJson))) {
-					result.put(name, deserializer.deserialize(parser, mapper));
+		try (JsonParser parser = mapper.jsonProvider().createParser(new StringReader(json))) {
+			JsonpUtils.expectNextEvent(parser, JsonParser.Event.START_OBJECT);
+			JsonParser.Event event;
+			while ((event = parser.next()) != JsonParser.Event.END_OBJECT) {
+				if (event != JsonParser.Event.KEY_NAME) {
+					throw new IllegalArgumentException(
+							"Expected KEY_NAME at position " + parser.getLocation() + ", got " + event);
 				}
+				String name = parser.getString();
+				result.put(name, deserializer.deserialize(parser, mapper));
 			}
 		}
 		return result;
 	}
 
 	/**
-	 * Deserialize a single JSON object into an OpenSearch typed definition.
+	 * Deserialize a single JSON object into an OpenSearch typed definition. Uses the
+	 * mapper's own JSON provider so the deserializer reads events from the implementation
+	 * it expects.
 	 */
 	private <T> T deserializeDefinition(String json, JsonpDeserializer<T> deserializer) {
 		JsonpMapper mapper = new JacksonJsonpMapper();
-		try (JsonParser parser = Json.createParser(new StringReader(json))) {
+		try (JsonParser parser = mapper.jsonProvider().createParser(new StringReader(json))) {
 			return deserializer.deserialize(parser, mapper);
 		}
 	}

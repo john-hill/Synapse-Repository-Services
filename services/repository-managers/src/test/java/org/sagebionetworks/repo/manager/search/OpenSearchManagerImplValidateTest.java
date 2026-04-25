@@ -14,7 +14,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.opensearch.client.json.jackson.JacksonJsonpMapper;
 import org.opensearch.client.opensearch.OpenSearchClient;
+import org.opensearch.client.transport.OpenSearchTransport;
 import org.opensearch.client.opensearch._types.ErrorResponse;
 import org.opensearch.client.opensearch._types.OpenSearchException;
 import org.opensearch.client.opensearch.indices.AnalyzeRequest;
@@ -31,6 +33,8 @@ public class OpenSearchManagerImplValidateTest {
 	private OpenSearchIndicesClient indicesClient;
 	@Mock
 	private AnalyzeResponse analyzeResponse;
+	@Mock
+	private OpenSearchTransport transport;
 
 	private OpenSearchManagerImpl manager;
 
@@ -42,6 +46,11 @@ public class OpenSearchManagerImplValidateTest {
 	private void setupAnalyzeSuccess() throws IOException {
 		when(openSearchClient.indices()).thenReturn(indicesClient);
 		when(indicesClient.analyze(any(AnalyzeRequest.class))).thenReturn(analyzeResponse);
+	}
+
+	private void setupJsonpMapper() {
+		when(openSearchClient._transport()).thenReturn(transport);
+		when(transport.jsonpMapper()).thenReturn(new JacksonJsonpMapper());
 	}
 
 	@Test
@@ -58,6 +67,7 @@ public class OpenSearchManagerImplValidateTest {
 	@Test
 	public void testValidateWithFiltersSuccess() throws IOException {
 		setupAnalyzeSuccess();
+		setupJsonpMapper();
 
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
 		settings.setTokenizer("standard");
@@ -71,6 +81,7 @@ public class OpenSearchManagerImplValidateTest {
 	@Test
 	public void testValidateWithCustomTokenizerConfig() throws IOException {
 		setupAnalyzeSuccess();
+		setupJsonpMapper();
 
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
 		settings.setTokenizerConfig("{\"type\":\"edge_ngram\",\"min_gram\":2,\"max_gram\":20,\"token_chars\":[\"letter\",\"digit\"]}");
@@ -83,6 +94,7 @@ public class OpenSearchManagerImplValidateTest {
 	@Test
 	public void testValidateWithCharFilters() throws IOException {
 		setupAnalyzeSuccess();
+		setupJsonpMapper();
 
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
 		settings.setTokenizer("standard");

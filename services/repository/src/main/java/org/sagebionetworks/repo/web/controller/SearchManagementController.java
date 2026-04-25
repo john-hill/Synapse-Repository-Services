@@ -4,6 +4,9 @@ import static org.sagebionetworks.repo.model.oauth.OAuthScope.modify;
 import static org.sagebionetworks.repo.model.oauth.OAuthScope.view;
 
 import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.asynch.AsyncJobId;
+import org.sagebionetworks.repo.model.asynch.AsynchronousJobStatus;
+import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesRequest;
@@ -16,10 +19,12 @@ import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
 import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
+import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.service.search.ColumnAnalyzerOverrideService;
 import org.sagebionetworks.repo.service.search.SearchConfigurationService;
+import org.sagebionetworks.repo.service.search.SearchIndexQueryService;
 import org.sagebionetworks.repo.service.search.SynonymSetService;
 import org.sagebionetworks.repo.service.search.TextAnalyzerService;
 import org.sagebionetworks.repo.web.RequiredScope;
@@ -170,6 +175,21 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * Resource names must start with a letter and contain only letters, digits, and underscores.
  * </p>
  *
+ * <h6>Search Queries</h6>
+ * <p>
+ * Query a <a href="${org.sagebionetworks.repo.model.search.table.SearchIndex}">SearchIndex</a>
+ * using the async job pattern. Submit a
+ * <a href="${org.sagebionetworks.repo.model.search.table.SearchIndexQuery}">SearchIndexQuery</a>
+ * to start a job, then poll for
+ * <a href="${org.sagebionetworks.repo.model.search.SearchQueryResults}">SearchQueryResults</a>.
+ * A synchronous autocomplete endpoint is also available for typeahead patterns.
+ * </p>
+ * <ul>
+ * <li><a href="${POST.search.query.async.start}">POST /search/query/async/start</a> &mdash; Start async query</li>
+ * <li><a href="${GET.search.query.async.get.asyncToken}">GET /search/query/async/get/{asyncToken}</a> &mdash; Poll for results</li>
+ * <li><a href="${POST.search.autocomplete}">POST /search/autocomplete</a> &mdash; Synchronous autocomplete (max 8 results)</li>
+ * </ul>
+ *
  * <h6>Search Index Field Limits</h6>
  * <p>
  * When a search index is built, each column from the defining SQL query is mapped to an
@@ -263,6 +283,9 @@ public class SearchManagementController {
 
 	@Autowired
 	private SearchConfigurationService searchConfigurationService;
+
+	@Autowired
+	private SearchIndexQueryService searchIndexQueryService;
 
 	// ==================== Text Analyzers ====================
 
@@ -733,5 +756,75 @@ public class SearchManagementController {
 			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
 			@PathVariable String entityId) {
 		searchConfigurationService.clearSearchConfigBinding(userId, entityId);
+	}
+
+	// ==================== Search Queries ====================
+
+	/**
+	 * Start an asynchronous search query job against a
+	 * <a href="${org.sagebionetworks.repo.model.search.table.SearchIndex}">SearchIndex</a>.
+	 * <p>
+	 * Use <a href="${GET.search.query.async.get.asyncToken}">GET /search/query/async/get/{asyncToken}</a>
+	 * to poll for results.
+	 * </p>
+	 *
+	 * @param userId The ID of the authenticated user.
+	 * @param request The search query request including the searchIndexId and query parameters.
+	 * @return An async job token to poll for results.
+	 */
+	@RequiredScope({ view })
+	@ResponseStatus(HttpStatus.CREATED)
+	@RequestMapping(value = UrlHelpers.SEARCH_QUERY_ASYNC_START, method = RequestMethod.POST)
+	public @ResponseBody AsyncJobId startQuery(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@RequestBody SearchIndexQuery request) {
+		AsynchronousJobStatus job = searchIndexQueryService.startSearchQuery(userId, request);
+		AsyncJobId asyncJobId = new AsyncJobId();
+		asyncJobId.setToken(job.getJobId());
+		return asyncJobId;
+	}
+
+	/**
+	 * Get the results of a previously started asynchronous search query.
+	 * <p>
+	 * Note: When the result is not ready yet, this method will return a status
+	 * code of 202 (ACCEPTED) and the response body will be a
+	 * <a href="${org.sagebionetworks.repo.model.asynch.AsynchronousJobStatus}">AsynchronousJobStatus</a> object.
+	 * </p>
+	 *
+	 * @param userId The ID of the authenticated user.
+	 * @param asyncToken The token returned by the start query endpoint.
+	 * @return The search query results.
+	 * @throws Throwable
+	 */
+	@RequiredScope({ view })
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.SEARCH_QUERY_ASYNC_GET, method = RequestMethod.GET)
+	public @ResponseBody SearchQueryResults getQueryResults(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@PathVariable String asyncToken) throws Throwable {
+		AsynchronousJobStatus jobStatus = searchIndexQueryService.getSearchQueryResults(userId, asyncToken);
+		return (SearchQueryResults) jobStatus.getResponseBody();
+	}
+
+	/**
+	 * Perform a synchronous autocomplete search query against a
+	 * <a href="${org.sagebionetworks.repo.model.search.table.SearchIndex}">SearchIndex</a>.
+	 * <p>
+	 * This endpoint uses a PREFIX query type and caps results at 8. It is intended for
+	 * typeahead / autocomplete UI patterns where low latency and small result sets are preferred.
+	 * </p>
+	 *
+	 * @param userId The ID of the authenticated user.
+	 * @param request The search query request including the searchIndexId.
+	 * @return The autocomplete results.
+	 */
+	@RequiredScope({ view })
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.SEARCH_AUTOCOMPLETE, method = RequestMethod.POST)
+	public @ResponseBody SearchQueryResults autocomplete(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@RequestBody SearchIndexQuery request) {
+		return searchIndexQueryService.autocomplete(userId, request);
 	}
 }

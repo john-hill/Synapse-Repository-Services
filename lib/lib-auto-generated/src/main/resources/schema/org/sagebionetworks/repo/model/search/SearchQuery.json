@@ -1,10 +1,5 @@
 {
-	"description": "A structured search query against an OpenSearch index. Can be submitted as an asynchronous job.",
-	"implements": [
-		{
-			"$ref": "org.sagebionetworks.repo.model.asynch.AsynchronousRequestBody"
-		}
-	],
+	"description": "A structured search query against an OpenSearch index. Composed into request objects (e.g., SearchIndexQuery) that wrap it with context such as which index to target.",
 	"properties": {
 		"queryType": {
 			"description": "Full-text query type. Default: SIMPLE_QUERY_STRING.",

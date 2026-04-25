@@ -70,6 +70,7 @@ import org.sagebionetworks.repo.model.status.StackStatus;
 import org.sagebionetworks.repo.model.status.StatusEnum;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -110,6 +111,9 @@ public class MigrationManagerImplAutowireTest {
 	@Autowired
 	private ForumDAO forumDao;
 
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
+
 	private List<String> toDelete;
 	private List<Long> arIdsToDelete;
 	private List<Long> forumIdsToDelete;
@@ -128,6 +132,11 @@ public class MigrationManagerImplAutowireTest {
 
 	@BeforeEach
 	public void before() throws Exception {
+		// Clear child rows that reference USER_GROUP.ID so userManager.truncateAll() below does not
+		// fail if a prior test leaked OAuth sector-identifier rows (no ON DELETE CASCADE on the FK).
+		// OAUTH_CLIENT.SECTOR_IDENTIFIER_URI references OAUTH_SECTOR_IDENTIFIER.URI, so clients first.
+		jdbcTemplate.update("DELETE FROM OAUTH_CLIENT WHERE ID > -1");
+		jdbcTemplate.update("DELETE FROM OAUTH_SECTOR_IDENTIFIER WHERE ID > -1");
 		userManager.truncateAll();
 		mockProgressCallback = Mockito.mock(ProgressCallback.class);
 		mockProgressCallbackVoid = Mockito.mock(ProgressCallback.class);

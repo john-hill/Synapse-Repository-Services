@@ -1,12 +1,26 @@
 {
-	"description": "A search query against a SearchIndex entity's OpenSearch index. Extends SearchQuery with searchIndexId to identify which index to query.",
-	"extends": {
-		"$ref": "org.sagebionetworks.repo.model.search.SearchQuery"
-	},
+	"description": "Async request to query a SearchIndex entity's OpenSearch index. Identifies the target index and carries the search parameters.",
+	"implements": [
+		{
+			"$ref": "org.sagebionetworks.repo.model.asynch.AsynchronousRequestBody"
+		}
+	],
 	"properties": {
 		"searchIndexId": {
 			"type": "string",
 			"description": "The ID of the SearchIndex entity to query."
+		},
+		"searchQuery": {
+			"description": "The structured search query to execute against the index.",
+			"$ref": "org.sagebionetworks.repo.model.search.SearchQuery"
+		},
+		"responseParts": {
+			"type": "array",
+			"description": "Optional list of additional parts to include in the SearchQueryResults beyond the default HITS + offset. Null or empty means HITS only (the default minimal payload). Requesting parts also drives the corresponding work in OpenSearch (aggregations, total-hit tracking).",
+			"uniqueItems": true,
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.search.SearchQueryPart"
+			}
 		}
 	}
 }

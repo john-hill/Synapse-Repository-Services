@@ -45,6 +45,7 @@ import org.sagebionetworks.repo.model.schema.GetValidationSchemaResponse;
 import org.sagebionetworks.repo.model.table.DownloadFromTableResult;
 import org.sagebionetworks.repo.model.table.DownloadPFBResult;
 import org.sagebionetworks.repo.model.table.HasEntityId;
+import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.table.QueryResult;
 import org.sagebionetworks.repo.model.table.QueryResultBundle;
 import org.sagebionetworks.repo.model.table.RowReferenceSetResults;
@@ -82,7 +83,8 @@ public enum AsynchJobType {
     GridCsvDownload("/grid/download/csv", DownloadFromGridResult.class, RestEndpointType.repo),
 	GridExportRecordSet("/grid/export/recordset", GridRecordSetExportResponse.class, RestEndpointType.repo),
 	GridQuery("/grid/session/query", GridQueryJobResponse.class, RestEndpointType.repo),
-	GridUpdate("/grid/session/update", GridUpdateJobResponse.class, RestEndpointType.repo)
+	GridUpdate("/grid/session/update", GridUpdateJobResponse.class, RestEndpointType.repo),
+	SearchIndexQuery("/search/query", SearchQueryResults.class, RestEndpointType.repo)
 	;
 
 	String prefix;

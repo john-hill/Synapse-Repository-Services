@@ -310,6 +310,7 @@ import org.sagebionetworks.repo.model.schema.ListValidationResultsResponse;
 import org.sagebionetworks.repo.model.schema.Organization;
 import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.schema.ValidationSummaryStatistics;
+import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.SearchResults;
 import org.sagebionetworks.repo.model.search.query.SearchQuery;
 import org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest;
@@ -324,6 +325,7 @@ import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
 import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
+import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.statistics.ObjectStatisticsRequest;
@@ -4763,6 +4765,12 @@ public interface SynapseClient extends BaseClient {
 	SearchConfigBinding getSearchConfigBindingForEntity(String entityId) throws SynapseException;
 
 	void clearSearchConfigBindingForEntity(String entityId) throws SynapseException;
+
+	SearchQueryResults searchAutocomplete(SearchIndexQuery request) throws SynapseException;
+
+	String startSearchIndexQuery(SearchIndexQuery request) throws SynapseException;
+
+	SearchQueryResults getSearchIndexQueryResults(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException;
 
 }
 

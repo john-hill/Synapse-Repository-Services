@@ -1,6 +1,7 @@
 package org.sagebionetworks;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -91,6 +92,15 @@ public class ITSearchIndexEntityTest {
 		// call under test — GET round-trip
 		SearchIndex retrieved = adminSynapse.getEntity(searchIndex.getId(), SearchIndex.class);
 		assertEquals(searchIndex, retrieved);
+
+		// call under test — UPDATE: change the name only (definingSQL unchanged) so we
+		// cover the successful PUT path without churning the index through more shapes.
+		String preUpdateEtag = searchIndex.getEtag();
+		searchIndex.setName("Updated Search Index");
+		searchIndex = adminSynapse.putEntity(searchIndex);
+		assertEquals("Updated Search Index", searchIndex.getName());
+		assertEquals(allShapesSql, searchIndex.getDefiningSQL());
+		assertNotEquals(preUpdateEtag, searchIndex.getEtag());
 
 		// call under test — UPDATE rejection: bare double-quoted strings parse as SQL
 		// identifiers, not string literals; an unknown identifier must fail synchronously

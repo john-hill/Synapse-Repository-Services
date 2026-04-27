@@ -1438,12 +1438,47 @@ public class SearchIndexQueryManagerImplTest {
 		when(textAnalyzerDao.getByQualifiedNames(
 				eq(Collections.singletonList("org.sagebionetworks-SCIENTIFIC"))))
 				.thenReturn(Collections.emptyMap());
-		when(openSearchManager.search(eq("search-index-1"), argThat(q -> q != null), argThat(cols -> cols != null),
+		// Capture the columns and SearchQuery that reach OpenSearch so we can assert the
+		// synthetic-id column was included and the user-facing "tag" was translated to its id.
+		ArgumentCaptor<List<ColumnModel>> columnsCaptor = ArgumentCaptor.forClass(List.class);
+		ArgumentCaptor<SearchQuery> queryCaptor = ArgumentCaptor.forClass(SearchQuery.class);
+		when(openSearchManager.search(eq("search-index-1"), queryCaptor.capture(), columnsCaptor.capture(),
 				isNull(), eq(Collections.emptyList()), eq(Collections.emptyMap()),
 				eq(EnumSet.of(SearchQueryPart.HITS))))
 				.thenReturn(new SearchQueryResults().setHits(Collections.emptyList()));
 
 		// call under test
-		manager.search(user, buildRequest(buildQuery()));
+		SearchQuery query = buildQuery();
+		query.setQueryFields(new ArrayList<>(Arrays.asList(NAME_COLUMN, "tag")));
+		manager.search(user, buildRequest(query));
+
+		// The bound list with both real-id and synthetic-id columns reached OpenSearch.
+		assertEquals(Arrays.asList(nameCol, tagCol), columnsCaptor.getValue());
+		// User-facing names in queryFields were translated to their ids before reaching OpenSearch.
+		assertEquals(Arrays.asList(NAME_COLUMN_ID, "999"), queryCaptor.getValue().getQueryFields());
+		// The schema is read once via `getTableSchema(searchIndexId)` — no per-request
+		// QueryTranslator construction. Verify the new code path is taken.
+		verify(tableManagerSupport).getTableSchema(IdAndVersion.parse(SEARCH_INDEX_ID));
+	}
+
+	@Test
+	public void testSearchWhenSearchIndexHasNoBoundSchemaThrows() {
+		SearchIndex si = setupSearchIndex();
+		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
+		setupAuthMocks();
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getStatus(1L)).thenReturn(Optional.of(
+				new SearchIndexStatus().setSearchIndexId(SEARCH_INDEX_ID).setState(SearchIndexState.ACTIVE)));
+		when(searchConfigurationResolver.resolve(user, null, "syn789")).thenReturn(Optional.empty());
+		// SearchIndex created on a stack before `registerSchema` existed — no bound columns.
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(SEARCH_INDEX_ID)))
+				.thenReturn(Collections.emptyList());
+
+		// call under test — clear failure rather than NPE in nameToId construction.
+		IllegalStateException ex = assertThrows(IllegalStateException.class,
+				() -> manager.search(user, buildRequest(buildQuery())));
+		assertTrue(ex.getMessage().contains("no bound schema"),
+				"expected 'no bound schema' in message, got: " + ex.getMessage());
+		verifyNoMoreInteractions(openSearchManager);
 	}
 }

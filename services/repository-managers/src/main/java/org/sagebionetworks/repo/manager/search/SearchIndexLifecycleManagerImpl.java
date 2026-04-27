@@ -166,7 +166,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			List<ColumnModel> selectedColumns = tableManagerSupport.getTableSchema(IdAndVersion.parse(entityId));
 			if (selectedColumns == null || selectedColumns.isEmpty()) {
 				throw new IllegalStateException("SearchIndex " + entityId
-						+ " has no bound schema — update the entity to re-register, or rebuild via the lifecycle manager.");
+						+ " has no bound schema — update the entity to re-register.");
 			}
 			List<SelectColumn> selectColumns = TableModelUtils.getSelectColumns(selectedColumns);
 

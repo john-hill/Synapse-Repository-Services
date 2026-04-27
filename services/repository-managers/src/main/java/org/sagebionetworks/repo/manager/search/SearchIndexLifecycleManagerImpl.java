@@ -9,17 +9,27 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import java.util.stream.Collectors;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
+import org.sagebionetworks.repo.manager.table.ColumnModelManager;
+import org.sagebionetworks.repo.manager.table.TableManagerSupport;
 import org.sagebionetworks.repo.manager.table.TableQueryManager;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
 import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
+import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
+import org.sagebionetworks.repo.transactions.WriteTransaction;
+import org.sagebionetworks.table.cluster.QueryTranslator;
+import org.sagebionetworks.table.cluster.description.IndexDescription;
+import org.sagebionetworks.table.cluster.utils.TableModelUtils;
+import org.sagebionetworks.table.query.model.SqlContext;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
@@ -69,6 +79,8 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	private final SynonymSetDao synonymSetDao;
 	private final ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao;
 	private final TextAnalyzerDao textAnalyzerDao;
+	private final TableManagerSupport tableManagerSupport;
+	private final ColumnModelManager columnModelManager;
 
 	public SearchIndexLifecycleManagerImpl(ConnectionFactory connectionFactory,
 			OpenSearchManager openSearchManager,
@@ -76,7 +88,9 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			TableQueryManager tableQueryManager, UserManager userManager,
 			EntityManager entityManager,
 			SynonymSetDao synonymSetDao, ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao,
-			TextAnalyzerDao textAnalyzerDao) {
+			TextAnalyzerDao textAnalyzerDao,
+			TableManagerSupport tableManagerSupport,
+			ColumnModelManager columnModelManager) {
 		this.connectionFactory = connectionFactory;
 		this.openSearchManager = openSearchManager;
 		this.searchConfigurationResolver = searchConfigurationResolver;
@@ -86,6 +100,29 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		this.synonymSetDao = synonymSetDao;
 		this.columnAnalyzerOverrideDao = columnAnalyzerOverrideDao;
 		this.textAnalyzerDao = textAnalyzerDao;
+		this.tableManagerSupport = tableManagerSupport;
+		this.columnModelManager = columnModelManager;
+	}
+
+	@Override
+	@WriteTransaction
+	public List<String> registerSchema(IdAndVersion searchIndexId, String definingSql) {
+		ValidateArgument.required(searchIndexId, "searchIndexId");
+		ValidateArgument.requiredNotBlank(definingSql, "definingSql");
+		IdAndVersion sourceId = TableModelUtils.getSourceTableIds(definingSql).get(0);
+		IndexDescription indexDescription = tableManagerSupport.getIndexDescription(sourceId);
+		// SqlContext.query: TableIndexDescription rejects `build`; only Views/MVs accept it.
+		QueryTranslator sqlQuery = QueryTranslator.builder()
+				.sql(definingSql)
+				.schemaProvider(tableManagerSupport)
+				.sqlContext(SqlContext.query)
+				.indexDescription(indexDescription)
+				.build();
+		List<String> schemaIds = sqlQuery.getSchemaOfSelect().stream()
+				.map(c -> columnModelManager.createColumnModel(c).getId())
+				.collect(Collectors.toList());
+		columnModelManager.bindColumnsToVersionOfObject(schemaIds, searchIndexId);
+		return schemaIds;
 	}
 
 	@Override
@@ -124,6 +161,15 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			List<ColumnAnalyzerOverride> overrides = loadColumnAnalyzerOverrides(config);
 			List<SynonymSet> synonymSets = loadSynonymSets(config);
 
+			// Bound schema is stored in SELECT-list order, lining up positionally with
+			// the row values streamed by `runQueryAsStream` below.
+			List<ColumnModel> selectedColumns = tableManagerSupport.getTableSchema(IdAndVersion.parse(entityId));
+			if (selectedColumns == null || selectedColumns.isEmpty()) {
+				throw new IllegalStateException("SearchIndex " + entityId
+						+ " has no bound schema — update the entity to re-register, or rebuild via the lifecycle manager.");
+			}
+			List<SelectColumn> selectColumns = TableModelUtils.getSelectColumns(selectedColumns);
+
 			// Build the index as the anonymous user. This enforces Sage governance:
 			// only tables marked DataType.OPEN_DATA with PUBLIC read access can be
 			// indexed. Any other table will fail authorization during queryPreflight,
@@ -146,33 +192,20 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 								+ " rows. Row count: " + rowCount);
 			}
 
+			Map<String, TextAnalyzer> analyzers = collectAndLoadAnalyzers(
+					config, overrides, selectedColumns);
+			String indexName = getIndexName(entityId);
+			String defaultAnalyzer = config != null ? config.getDefaultAnalyzer() : null;
+			if (deleteExistingFirst) {
+				openSearchManager.deleteIndex(indexName);
+			}
+			openSearchManager.createIndex(indexName, selectedColumns, defaultAnalyzer,
+					synonymSets, overrides, analyzers);
+
 			tableQueryManager.runQueryAsStream(progressCallback, anonymousUser, query,
-					(QueryTranslations translations) -> {
-						List<ColumnModel> selectedColumns = translations.getMainQuery()
-								.getTranslator().getSchemaOfSelect();
-						List<SelectColumn> selectColumns = translations.getMainQuery()
-								.getTranslator().getSelectColumns();
-
-						for (int i = 0; i < selectedColumns.size() && i < selectColumns.size(); i++) {
-							if (selectedColumns.get(i).getId() == null && selectColumns.get(i).getId() != null) {
-								selectedColumns.get(i).setId(selectColumns.get(i).getId());
-							}
-						}
-
-						Map<String, TextAnalyzer> analyzers = collectAndLoadAnalyzers(
-								config, overrides, selectedColumns);
-
-						String indexName = getIndexName(entityId);
-						String defaultAnalyzer = config != null ? config.getDefaultAnalyzer() : null;
-						if (deleteExistingFirst) {
-							openSearchManager.deleteIndex(indexName);
-						}
-						openSearchManager.createIndex(indexName,
-								selectedColumns, defaultAnalyzer,
-								synonymSets, overrides, analyzers);
-						return new SearchIndexRowHandler(indexName, selectColumns,
-								openSearchManager);
-					}, ACCESS_TYPE.READ);
+					(QueryTranslations translations) -> new SearchIndexRowHandler(
+							indexName, selectColumns, openSearchManager),
+					ACCESS_TYPE.READ);
 
 			statusDao.createOrUpdate(new SearchIndexStatus()
 					.setSearchIndexId(entityId)

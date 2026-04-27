@@ -190,11 +190,8 @@ public class SearchIndexQueryManagerImplTest {
 		if (stubNullConfigResolver) {
 			when(searchConfigurationResolver.resolve(user, null, "syn789")).thenReturn(Optional.empty());
 		}
-		// Note: getIndexDescription is already stubbed by setupAuthMocks().
-		when(tableManagerSupport.getTableSchema(SOURCE_ID)).thenReturn(schema);
-		for (ColumnModel cm : schema) {
-			when(tableManagerSupport.getColumnModel(cm.getId())).thenReturn(cm);
-		}
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(SEARCH_INDEX_ID)))
+				.thenReturn(schema);
 		if (stubStringAnalyzerLookup) {
 			// STRING-only schema → collectAndLoadAnalyzers produces [SCIENTIFIC] (single element).
 			// Concrete eq() so the stub misses if the manager asks for a different analyzer set,
@@ -473,10 +470,8 @@ public class SearchIndexQueryManagerImplTest {
 				new SearchIndexStatus().setSearchIndexId(SEARCH_INDEX_ID).setState(SearchIndexState.ACTIVE)));
 		when(searchConfigurationResolver.resolve(user, null, "syn789")).thenReturn(Optional.empty());
 		when(tableManagerSupport.getIndexDescription(SOURCE_ID)).thenReturn(new TableIndexDescription(SOURCE_ID));
-		when(tableManagerSupport.getTableSchema(SOURCE_ID)).thenReturn(schema);
-		for (ColumnModel cm : schema) {
-			when(tableManagerSupport.getColumnModel(cm.getId())).thenReturn(cm);
-		}
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(SEARCH_INDEX_ID)))
+				.thenReturn(schema);
 		// The special-char schema mixes STRING and INTEGER columns → collectAndLoadAnalyzers
 		// produces a two-element list containing both the STRING default (SCIENTIFIC) and the
 		// INTEGER default (KEYWORD). Order is non-deterministic (HashSet → ArrayList), so match
@@ -611,49 +606,6 @@ public class SearchIndexQueryManagerImplTest {
 		List<String> queryFields = translated.getQueryFields();
 		assertTrue(queryFields.contains(NAME_COLUMN_ID));
 		assertTrue(queryFields.contains(DESC_COLUMN_ID));
-	}
-
-	@Test
-	public void testCopyMissingIdsFromSelectColumnsAllBranches() {
-		// Four cases to cover every combination of: schema.getId()==null AND selectColumn.getId()!=null
-		// - schema id null + selectCol id non-null → copy
-		// - schema id null + selectCol id null → no copy
-		// - schema id non-null + selectCol id non-null → no copy (schema wins)
-		// - schema id non-null + selectCol id null → no copy
-		List<ColumnModel> schemaOfSelect = Arrays.asList(
-				new ColumnModel().setName("a"),                  // id=null
-				new ColumnModel().setName("b"),                  // id=null
-				new ColumnModel().setId("3").setName("c"),       // id non-null
-				new ColumnModel().setId("4").setName("d"));      // id non-null
-		List<SelectColumn> selectColumns = Arrays.asList(
-				new SelectColumn().setId("111").setName("a"),    // non-null
-				new SelectColumn().setName("b"),                 // null
-				new SelectColumn().setId("333").setName("c"),    // non-null (won't copy, schema already has id)
-				new SelectColumn().setName("d"));                // null
-
-		// call under test
-		manager.copyMissingIdsFromSelectColumns(schemaOfSelect, selectColumns);
-
-		assertEquals("111", schemaOfSelect.get(0).getId());      // copied
-		assertNull(schemaOfSelect.get(1).getId());               // not copied — source was null
-		assertEquals("3", schemaOfSelect.get(2).getId());        // not copied — target already had id
-		assertEquals("4", schemaOfSelect.get(3).getId());        // not copied — target already had id
-	}
-
-	@Test
-	public void testCopyMissingIdsFromSelectColumnsWithMismatchedLengths() {
-		// Exercises the loop-bound branches: the shorter list terminates the loop.
-		List<ColumnModel> schemaOfSelect = Arrays.asList(
-				new ColumnModel().setName("a"),
-				new ColumnModel().setName("b"));
-		List<SelectColumn> selectColumns = Arrays.asList(
-				new SelectColumn().setId("111").setName("a"));   // only one entry
-
-		// call under test — must not throw IndexOutOfBounds
-		manager.copyMissingIdsFromSelectColumns(schemaOfSelect, selectColumns);
-
-		assertEquals("111", schemaOfSelect.get(0).getId());
-		assertNull(schemaOfSelect.get(1).getId());               // loop stopped before index 1
 	}
 
 	@Test
@@ -1463,5 +1415,35 @@ public class SearchIndexQueryManagerImplTest {
 
 		// call under test
 		assertThrows(IllegalArgumentException.class, () -> manager.search(user, request));
+	}
+
+	// A bound literal column with a synthetic id round-trips through the query path
+	// without tripping `Collectors.toMap`'s no-null-values rule when nameToId is built.
+	@Test
+	public void testSearchWithLiteralColumnInDefiningSqlAssignsSyntheticId() {
+		SearchIndex si = setupSearchIndex();
+		si.setDefiningSQL("SELECT name, 'tag' as tag FROM syn456");
+		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
+		setupAuthMocks();
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getStatus(1L)).thenReturn(Optional.of(
+				new SearchIndexStatus().setSearchIndexId(SEARCH_INDEX_ID).setState(SearchIndexState.ACTIVE)));
+		when(searchConfigurationResolver.resolve(user, null, "syn789")).thenReturn(Optional.empty());
+		ColumnModel nameCol = TableModelTestUtils.createColumn(
+				Long.parseLong(NAME_COLUMN_ID), NAME_COLUMN, ColumnType.STRING);
+		ColumnModel tagCol = new ColumnModel().setId("999").setName("tag")
+				.setColumnType(ColumnType.STRING).setMaximumSize(50L);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(SEARCH_INDEX_ID)))
+				.thenReturn(Arrays.asList(nameCol, tagCol));
+		when(textAnalyzerDao.getByQualifiedNames(
+				eq(Collections.singletonList("org.sagebionetworks-SCIENTIFIC"))))
+				.thenReturn(Collections.emptyMap());
+		when(openSearchManager.search(eq("search-index-1"), argThat(q -> q != null), argThat(cols -> cols != null),
+				isNull(), eq(Collections.emptyList()), eq(Collections.emptyMap()),
+				eq(EnumSet.of(SearchQueryPart.HITS))))
+				.thenReturn(new SearchQueryResults().setHits(Collections.emptyList()));
+
+		// call under test
+		manager.search(user, buildRequest(buildQuery()));
 	}
 }

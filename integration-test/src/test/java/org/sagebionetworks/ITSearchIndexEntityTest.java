@@ -1,7 +1,10 @@
 package org.sagebionetworks;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
@@ -9,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.client.SynapseAdminClient;
+import org.sagebionetworks.client.exceptions.SynapseBadRequestException;
 import org.sagebionetworks.client.exceptions.SynapseException;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
@@ -84,6 +88,53 @@ public class ITSearchIndexEntityTest {
 
 		assertEquals("Updated Search Index", searchIndex.getName());
 		assertEquals("SELECT studyName FROM " + table.getId(), searchIndex.getDefiningSQL());
+
+		// Each successful PUT cycles definingSQL through a different stakeholder shape
+		// (derived columns, literals, hyphenated quoted alias). The etag must change to
+		// prove the entity actually mutated.
+		String prevEtag = searchIndex.getEtag();
+		String concatSql = "SELECT concat('[', studyName, ']') as studyName FROM " + table.getId();
+		searchIndex.setDefiningSQL(concatSql);
+		searchIndex = adminSynapse.putEntity(searchIndex);
+		assertEquals(concatSql, searchIndex.getDefiningSQL());
+		assertNotEquals(prevEtag, searchIndex.getEtag());
+
+		prevEtag = searchIndex.getEtag();
+		String literalSql = "SELECT studyName, 'usedInBridge2AI' as usedInBridge2AI FROM " + table.getId();
+		searchIndex.setDefiningSQL(literalSql);
+		searchIndex = adminSynapse.putEntity(searchIndex);
+		assertEquals(literalSql, searchIndex.getDefiningSQL());
+		assertNotEquals(prevEtag, searchIndex.getEtag());
+
+		prevEtag = searchIndex.getEtag();
+		String newAliasSql = "SELECT studyName, concat(studyName, '_x') as studyName_with_x FROM " + table.getId();
+		searchIndex.setDefiningSQL(newAliasSql);
+		searchIndex = adminSynapse.putEntity(searchIndex);
+		assertEquals(newAliasSql, searchIndex.getDefiningSQL());
+		assertNotEquals(prevEtag, searchIndex.getEtag());
+
+		prevEtag = searchIndex.getEtag();
+		String hyphenSql = "SELECT studyName, concat(studyName, '_x') as \"non-existant-column\" FROM " + table.getId();
+		searchIndex.setDefiningSQL(hyphenSql);
+		searchIndex = adminSynapse.putEntity(searchIndex);
+		assertEquals(hyphenSql, searchIndex.getDefiningSQL());
+		assertNotEquals(prevEtag, searchIndex.getEtag());
+
+		// Bare double-quoted strings parse as SQL identifiers, not string literals;
+		// `tag` is not on the source schema, so the PUT must reject with a 400.
+		final String beforeEtag = searchIndex.getEtag();
+		final String badId = searchIndex.getId();
+		searchIndex.setDefiningSQL("SELECT studyName, \"tag\" FROM " + table.getId());
+		String errorMessage = assertThrows(SynapseBadRequestException.class,
+				() -> adminSynapse.putEntity(searchIndex)).getMessage();
+		assertTrue(errorMessage.contains("Unknown column"),
+				"expected error message to mention 'Unknown column', got: " + errorMessage);
+		assertTrue(errorMessage.contains("tag"),
+				"expected error message to mention 'tag', got: " + errorMessage);
+		// The failed PUT rolls back; reload to confirm the entity is still on the previous good state.
+		searchIndex = adminSynapse.getEntity(badId, SearchIndex.class);
+		assertEquals(beforeEtag, searchIndex.getEtag());
+		assertEquals(hyphenSql, searchIndex.getDefiningSQL());
 
 		// call under test — DELETE
 		adminSynapse.deleteEntity(searchIndex, true);

@@ -171,6 +171,16 @@ public void ensureOrganizationExists(String name) { ... }
   ```
 - **Pagination tests**: Always verify `NextPageToken` behavior — test that the response includes the correct next page token, not just the results list.
 
+## SearchIndex `definingSql`
+
+A `SearchIndex` entity is built from a `definingSql` query against a Synapse table or view. The select-list columns (including computed expressions and literals) become OpenSearch fields.
+
+- **Synthetic column registration**: Mirrors MaterializedView's pattern (`MaterializedViewManagerImpl.bindSchemaToView`). On `entityCreated`/`entityUpdated`, `SearchIndexLifecycleManager.registerSchema` runs each `getSchemaOfSelect` ColumnModel through `ColumnModelManager.createColumnModel` (hash-dedup persisted) and binds the resulting ids to the SearchIndex entity. Literals (`'tag' as tag`) and aliases that don't appear on the source schema (`concat(a, b) as new_alias`) get a real `ColumnModel` id and can be indexed/queried like any other column.
+- **Build and query both read the bound schema** via `tableManagerSupport.getTableSchema(searchIndexId)`. They do not re-translate the SQL — schema changes flow only through entity create/update.
+- **Constants must use single quotes** — `'foo' as foo`. Double-quoted strings (`"foo"`) are SQL identifiers (column refs); they fail validation if the identifier doesn't exist on the source schema.
+- **Aliases that match a source column name** (`concat(name, 'x') as name`) reuse the source column's `ColumnModel` id, because `getSchemaOfDerivedColumn` clones the source's properties and `createColumnModel` hashes to the same row. This preserves analyzer overrides registered against the source column.
+- **Inner column references must still resolve.** Aliasing only frees up the *output* name, not the inputs. `concat(unknown_col, 'x') as foo` fails because `unknown_col` isn't on the source schema.
+
 ## Curation Grid (Curator)
 
 A spreadsheet-style collaborative editing feature that allows data curators to annotate files (FileEntity annotations) and manage record-based metadata (RecordSet entities). Unlike the standard Controller → Manager → DAO pattern, the grid uses a **CRDT (Conflict-free Replicated Data Type)** architecture based on the [JSON-Joy](https://jsonjoy.com/) specification, enabling real-time multi-user and AI-assisted editing.

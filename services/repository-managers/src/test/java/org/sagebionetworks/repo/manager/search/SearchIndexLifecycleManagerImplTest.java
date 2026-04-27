@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -27,8 +28,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
+import org.sagebionetworks.repo.manager.table.ColumnModelManager;
+import org.sagebionetworks.repo.manager.table.TableManagerSupport;
 import org.sagebionetworks.repo.manager.table.TableQueryManager;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.entity.IdAndVersion;
+import org.sagebionetworks.repo.model.table.ColumnModel;
+import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
 import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
@@ -74,6 +80,10 @@ public class SearchIndexLifecycleManagerImplTest {
 	private SearchIndexStatusDao statusDao;
 	@Mock
 	private ProgressCallback progressCallback;
+	@Mock
+	private TableManagerSupport tableManagerSupport;
+	@Mock
+	private ColumnModelManager columnModelManager;
 
 	@InjectMocks
 	private SearchIndexLifecycleManagerImpl manager;
@@ -102,6 +112,9 @@ public class SearchIndexLifecycleManagerImplTest {
 		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
 		when(userManager.getUserInfo(ANON_ID)).thenReturn(anon);
 		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Collections.singletonList(
+						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
 		when(searchConfigurationResolver.resolve(eq(triggering), any(), eq("syn100")))
 				.thenReturn(Optional.empty());
 		when(tableQueryManager.querySinglePage(eq(progressCallback), any(UserInfo.class), any(), any()))
@@ -131,6 +144,9 @@ public class SearchIndexLifecycleManagerImplTest {
 		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
 		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
 		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Collections.singletonList(
+						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
 		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
 		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
 				.thenThrow(new RuntimeException("bad SQL"));
@@ -164,6 +180,9 @@ public class SearchIndexLifecycleManagerImplTest {
 		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
 		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
 		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Collections.singletonList(
+						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
 		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
 		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
 				.thenThrow(new RuntimeException(longMessage));
@@ -190,6 +209,9 @@ public class SearchIndexLifecycleManagerImplTest {
 		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
 		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
 		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Collections.singletonList(
+						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
 		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
 		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
 				.thenReturn(new QueryResultBundle().setQueryCount(500_001L));
@@ -216,6 +238,9 @@ public class SearchIndexLifecycleManagerImplTest {
 		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
 		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
 		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Collections.singletonList(
+						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
 		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
 		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
 				.thenThrow(new TableUnavailableException(new TableStatus()));
@@ -363,5 +388,42 @@ public class SearchIndexLifecycleManagerImplTest {
 		handler.close();
 
 		verify(openSearchManager, never()).bulkIndex(any(), any());
+	}
+
+	// Locks in the row handler's behavior when a SelectColumn has a null id: the
+	// OpenSearch document is keyed by id, so the value lands under a literal `null`
+	// key — unreachable via field-name lookups. Upstream registration is responsible
+	// for ensuring every column has a real id before this code runs.
+	@Test
+	public void testRowHandlerNextRowWithNullColumnIdWritesNullKey() throws IOException {
+		SelectColumn nullIdCol = new SelectColumn();
+		nullIdCol.setId(null);
+		nullIdCol.setName("derived_alias");
+		SelectColumn realIdCol = new SelectColumn();
+		realIdCol.setId("100");
+		realIdCol.setName("real");
+		List<SelectColumn> columns = Arrays.asList(nullIdCol, realIdCol);
+		SearchIndexLifecycleManagerImpl.SearchIndexRowHandler handler =
+				new SearchIndexLifecycleManagerImpl.SearchIndexRowHandler("test-index", columns, openSearchManager);
+
+		Row row = new Row();
+		row.setRowId(42L);
+		row.setVersionNumber(1L);
+		row.setValues(Arrays.asList("derived-value", "real-value"));
+		handler.nextRow(row);
+
+		// call under test — close to flush
+		handler.close();
+
+		ArgumentCaptor<List<BulkOperation>> captor = ArgumentCaptor.forClass(List.class);
+		verify(openSearchManager).bulkIndex(eq("test-index"), captor.capture());
+		assertEquals(1, captor.getValue().size());
+
+		BulkOperation op = captor.getValue().get(0);
+		@SuppressWarnings("unchecked")
+		Map<String, Object> doc = (Map<String, Object>) op.index().document();
+		assertEquals("real-value", doc.get("100"));
+		assertTrue(doc.containsKey(null));
+		assertEquals("derived-value", doc.get(null));
 	}
 }

@@ -88,6 +88,25 @@ public class ITSearchIndexEntityTest {
 		assertEquals("Updated Search Index", searchIndex.getName());
 		assertEquals("SELECT studyName FROM " + table.getId(), searchIndex.getDefiningSQL());
 
+		// call under test — UPDATE rejection: bare double-quoted strings parse as SQL
+		// identifiers, not string literals; an unknown identifier must fail synchronously
+		// with a 400 and leave the entity unchanged.
+		final String beforeEtag = searchIndex.getEtag();
+		final String entityId = searchIndex.getId();
+		final String preRejectSql = searchIndex.getDefiningSQL();
+		searchIndex.setDefiningSQL("SELECT studyName, \"tag\" FROM " + table.getId());
+		String errorMessage = assertThrows(SynapseBadRequestException.class,
+				() -> adminSynapse.putEntity(searchIndex)).getMessage();
+		assertTrue(errorMessage.contains("Unknown column"),
+				"expected error message to mention 'Unknown column', got: " + errorMessage);
+		assertTrue(errorMessage.contains("tag"),
+				"expected error message to mention 'tag', got: " + errorMessage);
+
+		// The failed PUT rolled back — reload and confirm the entity is unchanged.
+		searchIndex = adminSynapse.getEntity(entityId, SearchIndex.class);
+		assertEquals(beforeEtag, searchIndex.getEtag());
+		assertEquals(preRejectSql, searchIndex.getDefiningSQL());
+
 		// call under test — DELETE
 		adminSynapse.deleteEntity(searchIndex, true);
 		searchIndex = null;
@@ -111,33 +130,5 @@ public class ITSearchIndexEntityTest {
 		SearchIndex retrieved = adminSynapse.getEntity(searchIndex.getId(), SearchIndex.class);
 
 		assertEquals(searchIndex, retrieved);
-	}
-
-	// Bare double-quoted strings parse as SQL identifiers, not string literals;
-	// an unknown identifier must fail synchronously with a 400 at PUT time.
-	@Test
-	public void testUpdateWithBareDoubleQuotedUnknownIdentifierRejected() throws SynapseException {
-		searchIndex = new SearchIndex();
-		searchIndex.setParentId(project.getId());
-		searchIndex.setName("Reject test SearchIndex");
-		searchIndex.setDefiningSQL("SELECT * FROM " + table.getId());
-		searchIndex = adminSynapse.createEntity(searchIndex);
-
-		final String beforeEtag = searchIndex.getEtag();
-		final String entityId = searchIndex.getId();
-		searchIndex.setDefiningSQL("SELECT studyName, \"tag\" FROM " + table.getId());
-
-		// call under test
-		String errorMessage = assertThrows(SynapseBadRequestException.class,
-				() -> adminSynapse.putEntity(searchIndex)).getMessage();
-		assertTrue(errorMessage.contains("Unknown column"),
-				"expected error message to mention 'Unknown column', got: " + errorMessage);
-		assertTrue(errorMessage.contains("tag"),
-				"expected error message to mention 'tag', got: " + errorMessage);
-
-		// The failed PUT rolled back — reload and confirm the entity is unchanged.
-		searchIndex = adminSynapse.getEntity(entityId, SearchIndex.class);
-		assertEquals(beforeEtag, searchIndex.getEtag());
-		assertEquals("SELECT * FROM " + table.getId(), searchIndex.getDefiningSQL());
 	}
 }

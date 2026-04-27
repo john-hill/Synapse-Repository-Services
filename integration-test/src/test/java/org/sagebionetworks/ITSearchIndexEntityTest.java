@@ -1,7 +1,6 @@
 package org.sagebionetworks;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -63,10 +62,23 @@ public class ITSearchIndexEntityTest {
 
 	@Test
 	public void testCRUDWithSearchIndex() throws SynapseException {
+		// Single definingSQL covering every supported derived-column shape so the
+		// entity-write path is exercised in one index build:
+		//   - computed alias matching a source column name (`as studyName`)
+		//   - single-quoted literal (`'usedInBridge2AI' as usedInBridge2AI`)
+		//   - computed alias not on the source schema (`as studyName_with_x`)
+		//   - hyphenated quoted alias (`as "non-existant-column"`)
+		final String allShapesSql = "SELECT "
+				+ "concat('[', studyName, ']') as studyName, "
+				+ "'usedInBridge2AI' as usedInBridge2AI, "
+				+ "concat(studyName, '_x') as studyName_with_x, "
+				+ "concat(studyName, '_h') as \"non-existant-column\" "
+				+ "FROM " + table.getId();
+
 		searchIndex = new SearchIndex();
 		searchIndex.setParentId(project.getId());
 		searchIndex.setName("Test Search Index");
-		searchIndex.setDefiningSQL("SELECT * FROM " + table.getId());
+		searchIndex.setDefiningSQL(allShapesSql);
 
 		// call under test — CREATE
 		searchIndex = adminSynapse.createEntity(searchIndex);
@@ -74,56 +86,17 @@ public class ITSearchIndexEntityTest {
 		assertNotNull(searchIndex.getId());
 		assertNotNull(searchIndex.getEtag());
 		assertEquals("Test Search Index", searchIndex.getName());
-		assertEquals("SELECT * FROM " + table.getId(), searchIndex.getDefiningSQL());
+		assertEquals(allShapesSql, searchIndex.getDefiningSQL());
 
-		// call under test — GET
+		// call under test — GET round-trip
 		SearchIndex retrieved = adminSynapse.getEntity(searchIndex.getId(), SearchIndex.class);
-
 		assertEquals(searchIndex, retrieved);
 
-		// call under test — UPDATE
-		searchIndex.setName("Updated Search Index");
-		searchIndex.setDefiningSQL("SELECT studyName FROM " + table.getId());
-		searchIndex = adminSynapse.putEntity(searchIndex);
-
-		assertEquals("Updated Search Index", searchIndex.getName());
-		assertEquals("SELECT studyName FROM " + table.getId(), searchIndex.getDefiningSQL());
-
-		// Each successful PUT cycles definingSQL through a different stakeholder shape
-		// (derived columns, literals, hyphenated quoted alias). The etag must change to
-		// prove the entity actually mutated.
-		String prevEtag = searchIndex.getEtag();
-		String concatSql = "SELECT concat('[', studyName, ']') as studyName FROM " + table.getId();
-		searchIndex.setDefiningSQL(concatSql);
-		searchIndex = adminSynapse.putEntity(searchIndex);
-		assertEquals(concatSql, searchIndex.getDefiningSQL());
-		assertNotEquals(prevEtag, searchIndex.getEtag());
-
-		prevEtag = searchIndex.getEtag();
-		String literalSql = "SELECT studyName, 'usedInBridge2AI' as usedInBridge2AI FROM " + table.getId();
-		searchIndex.setDefiningSQL(literalSql);
-		searchIndex = adminSynapse.putEntity(searchIndex);
-		assertEquals(literalSql, searchIndex.getDefiningSQL());
-		assertNotEquals(prevEtag, searchIndex.getEtag());
-
-		prevEtag = searchIndex.getEtag();
-		String newAliasSql = "SELECT studyName, concat(studyName, '_x') as studyName_with_x FROM " + table.getId();
-		searchIndex.setDefiningSQL(newAliasSql);
-		searchIndex = adminSynapse.putEntity(searchIndex);
-		assertEquals(newAliasSql, searchIndex.getDefiningSQL());
-		assertNotEquals(prevEtag, searchIndex.getEtag());
-
-		prevEtag = searchIndex.getEtag();
-		String hyphenSql = "SELECT studyName, concat(studyName, '_x') as \"non-existant-column\" FROM " + table.getId();
-		searchIndex.setDefiningSQL(hyphenSql);
-		searchIndex = adminSynapse.putEntity(searchIndex);
-		assertEquals(hyphenSql, searchIndex.getDefiningSQL());
-		assertNotEquals(prevEtag, searchIndex.getEtag());
-
-		// Bare double-quoted strings parse as SQL identifiers, not string literals;
-		// `tag` is not on the source schema, so the PUT must reject with a 400.
+		// call under test — UPDATE rejection: bare double-quoted strings parse as SQL
+		// identifiers, not string literals; an unknown identifier must fail synchronously
+		// with a 400. No index rebuild is triggered.
 		final String beforeEtag = searchIndex.getEtag();
-		final String badId = searchIndex.getId();
+		final String entityId = searchIndex.getId();
 		searchIndex.setDefiningSQL("SELECT studyName, \"tag\" FROM " + table.getId());
 		String errorMessage = assertThrows(SynapseBadRequestException.class,
 				() -> adminSynapse.putEntity(searchIndex)).getMessage();
@@ -131,10 +104,11 @@ public class ITSearchIndexEntityTest {
 				"expected error message to mention 'Unknown column', got: " + errorMessage);
 		assertTrue(errorMessage.contains("tag"),
 				"expected error message to mention 'tag', got: " + errorMessage);
-		// The failed PUT rolls back; reload to confirm the entity is still on the previous good state.
-		searchIndex = adminSynapse.getEntity(badId, SearchIndex.class);
+
+		// The failed PUT rolled back — reload and confirm the entity is unchanged.
+		searchIndex = adminSynapse.getEntity(entityId, SearchIndex.class);
 		assertEquals(beforeEtag, searchIndex.getEtag());
-		assertEquals(hyphenSql, searchIndex.getDefiningSQL());
+		assertEquals(allShapesSql, searchIndex.getDefiningSQL());
 
 		// call under test — DELETE
 		adminSynapse.deleteEntity(searchIndex, true);

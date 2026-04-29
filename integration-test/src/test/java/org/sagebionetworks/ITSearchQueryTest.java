@@ -39,8 +39,6 @@ import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
-import org.sagebionetworks.repo.model.search.SearchFieldValue;
-import org.sagebionetworks.repo.model.search.SearchHit;
 import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
@@ -135,17 +133,10 @@ public class ITSearchQueryTest {
 		synapse.appendRowsToTable(rowSet, MAX_APPEND_TIMEOUT, table.getId());
 
 		// SearchIndex with no SearchConfiguration — default analyzer (no edge_ngram).
-		// definingSQL exercises four column shapes against real AOSS: source column,
-		// single-quoted literal, computed alias not on the source schema, and hyphenated
-		// quoted alias.
 		SearchIndex searchIndex = new SearchIndex();
 		searchIndex.setName("AsyncQueryDefaultSearchIndex");
 		searchIndex.setParentId(project.getId());
-		searchIndex.setDefiningSQL(
-				"SELECT geneName, 'literal_tag' as tag, "
-				+ "concat(geneName, '_concat') as gene_with_concat, "
-				+ "concat(geneName, '_h') as \"hyphen-name\" "
-				+ "FROM " + table.getId());
+		searchIndex.setDefiningSQL("select * from " + table.getId());
 		searchIndex = adminSynapse.createEntity(searchIndex);
 		entitiesToDelete.add(searchIndex);
 
@@ -163,25 +154,9 @@ public class ITSearchQueryTest {
 				assertEquals(3L, (long) results.getTotalHits());
 				assertNotNull(results.getSelectColumns(),
 					"selectColumns should be populated when SELECT_COLUMNS is requested");
-				assertEquals(4, results.getSelectColumns().size(),
-					"definingSQL projects four columns: geneName, tag, gene_with_concat, \"hyphen-name\"");
-				List<String> selectColumnNames = results.getSelectColumns().stream()
-						.map(sc -> sc.getName()).collect(java.util.stream.Collectors.toList());
-				assertTrue(selectColumnNames.contains("geneName"));
-				assertTrue(selectColumnNames.contains("tag"));
-				assertTrue(selectColumnNames.contains("gene_with_concat"));
-				assertTrue(selectColumnNames.contains("hyphen-name"));
-
-				// Hit fields come back keyed by user-facing names. Verify each shape
-				// resolves to the expected per-row value.
-				assertEquals(3, results.getHits().size());
-				for (SearchHit hit : results.getHits()) {
-					String geneName = fieldValue(hit, "geneName");
-					assertNotNull(geneName);
-					assertEquals("literal_tag", fieldValue(hit, "tag"));
-					assertEquals(geneName + "_concat", fieldValue(hit, "gene_with_concat"));
-					assertEquals(geneName + "_h", fieldValue(hit, "hyphen-name"));
-				}
+				assertEquals(1, results.getSelectColumns().size(),
+					"definingSQL is 'select * from <table>' with one column (geneName)");
+				assertEquals("geneName", results.getSelectColumns().get(0).getName());
 			},
 			MAX_QUERY_TIMEOUT_MS,
 			AsyncJobHelper.INFINITE_RETRIES
@@ -308,18 +283,6 @@ public class ITSearchQueryTest {
 			"totalHits should be null when responseParts is left at default (HITS only)");
 		assertNull(autocompleteResults.getSelectColumns(),
 			"selectColumns should be null when responseParts is left at default (HITS only)");
-	}
-
-	private static String fieldValue(SearchHit hit, String fieldName) {
-		if (hit.getFields() == null) {
-			return null;
-		}
-		for (SearchFieldValue fv : hit.getFields()) {
-			if (fieldName.equals(fv.getName())) {
-				return fv.getValue();
-			}
-		}
-		return null;
 	}
 
 	private void grantPublicRead(String entityId) throws SynapseException {

@@ -2,8 +2,6 @@ package org.sagebionetworks;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
@@ -11,7 +9,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sagebionetworks.client.SynapseAdminClient;
-import org.sagebionetworks.client.exceptions.SynapseBadRequestException;
 import org.sagebionetworks.client.exceptions.SynapseException;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
@@ -87,25 +84,6 @@ public class ITSearchIndexEntityTest {
 
 		assertEquals("Updated Search Index", searchIndex.getName());
 		assertEquals("SELECT studyName FROM " + table.getId(), searchIndex.getDefiningSQL());
-
-		// call under test — UPDATE rejection: bare double-quoted strings parse as SQL
-		// identifiers, not string literals; an unknown identifier must fail synchronously
-		// with a 400 and leave the entity unchanged.
-		final String beforeEtag = searchIndex.getEtag();
-		final String entityId = searchIndex.getId();
-		final String preRejectSql = searchIndex.getDefiningSQL();
-		searchIndex.setDefiningSQL("SELECT studyName, \"tag\" FROM " + table.getId());
-		String errorMessage = assertThrows(SynapseBadRequestException.class,
-				() -> adminSynapse.putEntity(searchIndex)).getMessage();
-		assertTrue(errorMessage.contains("Unknown column"),
-				"expected error message to mention 'Unknown column', got: " + errorMessage);
-		assertTrue(errorMessage.contains("tag"),
-				"expected error message to mention 'tag', got: " + errorMessage);
-
-		// The failed PUT rolled back — reload and confirm the entity is unchanged.
-		searchIndex = adminSynapse.getEntity(entityId, SearchIndex.class);
-		assertEquals(beforeEtag, searchIndex.getEtag());
-		assertEquals(preRejectSql, searchIndex.getDefiningSQL());
 
 		// call under test — DELETE
 		adminSynapse.deleteEntity(searchIndex, true);

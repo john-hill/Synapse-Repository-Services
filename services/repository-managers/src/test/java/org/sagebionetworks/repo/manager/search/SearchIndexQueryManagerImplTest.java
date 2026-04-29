@@ -1419,10 +1419,12 @@ public class SearchIndexQueryManagerImplTest {
 
 	// A bound literal column with a synthetic id round-trips through the query path
 	// without tripping `Collectors.toMap`'s no-null-values rule when nameToId is built.
+	// The alias intentionally differs from the literal value so the rename is
+	// observable in the bound schema and the query-field translation.
 	@Test
 	public void testSearchWithLiteralColumnInDefiningSqlAssignsSyntheticId() {
 		SearchIndex si = setupSearchIndex();
-		si.setDefiningSQL("SELECT name, 'tag' as tag FROM syn456");
+		si.setDefiningSQL("SELECT name, 'tag' as tag_alias FROM syn456");
 		when(entityManager.getEntity(user, "1", SearchIndex.class)).thenReturn(si);
 		setupAuthMocks();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
@@ -1431,15 +1433,15 @@ public class SearchIndexQueryManagerImplTest {
 		when(searchConfigurationResolver.resolve(user, null, "syn789")).thenReturn(Optional.empty());
 		ColumnModel nameCol = TableModelTestUtils.createColumn(
 				Long.parseLong(NAME_COLUMN_ID), NAME_COLUMN, ColumnType.STRING);
-		ColumnModel tagCol = new ColumnModel().setId("999").setName("tag")
+		ColumnModel tagAliasCol = new ColumnModel().setId("999").setName("tag_alias")
 				.setColumnType(ColumnType.STRING).setMaximumSize(50L);
 		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(SEARCH_INDEX_ID)))
-				.thenReturn(Arrays.asList(nameCol, tagCol));
+				.thenReturn(Arrays.asList(nameCol, tagAliasCol));
 		when(textAnalyzerDao.getByQualifiedNames(
 				eq(Collections.singletonList("org.sagebionetworks-SCIENTIFIC"))))
 				.thenReturn(Collections.emptyMap());
 		// Capture the columns and SearchQuery that reach OpenSearch so we can assert the
-		// synthetic-id column was included and the user-facing "tag" was translated to its id.
+		// synthetic-id column was included and the user-facing alias was translated to its id.
 		ArgumentCaptor<List<ColumnModel>> columnsCaptor = ArgumentCaptor.forClass(List.class);
 		ArgumentCaptor<SearchQuery> queryCaptor = ArgumentCaptor.forClass(SearchQuery.class);
 		when(openSearchManager.search(eq("search-index-1"), queryCaptor.capture(), columnsCaptor.capture(),
@@ -1449,12 +1451,13 @@ public class SearchIndexQueryManagerImplTest {
 
 		// call under test
 		SearchQuery query = buildQuery();
-		query.setQueryFields(new ArrayList<>(Arrays.asList(NAME_COLUMN, "tag")));
+		query.setQueryFields(new ArrayList<>(Arrays.asList(NAME_COLUMN, "tag_alias")));
 		manager.search(user, buildRequest(query));
 
 		// The bound list with both real-id and synthetic-id columns reached OpenSearch.
-		assertEquals(Arrays.asList(nameCol, tagCol), columnsCaptor.getValue());
-		// User-facing names in queryFields were translated to their ids before reaching OpenSearch.
+		assertEquals(Arrays.asList(nameCol, tagAliasCol), columnsCaptor.getValue());
+		// User-facing names (including the alias) in queryFields were translated to their ids
+		// before reaching OpenSearch.
 		assertEquals(Arrays.asList(NAME_COLUMN_ID, "999"), queryCaptor.getValue().getQueryFields());
 		// The schema is read once via `getTableSchema(searchIndexId)` — no per-request
 		// QueryTranslator construction. Verify the new code path is taken.

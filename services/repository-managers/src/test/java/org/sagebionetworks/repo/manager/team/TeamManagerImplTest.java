@@ -901,7 +901,7 @@ public class TeamManagerImplTest {
 		// ACL changed — update IS called via the DAO (bypassing the validateACLContent guard that would
 		// otherwise block a manager from removing their own ACL editing permission)
 		verify(mockAclDAO).update(acl, ObjectType.TEAM);
-		// caller is no longer in the ACL; the other manager remains
+		// caller is no longer in the ACL, the other manager remains
 		assertEquals(1, acl.getResourceAccess().size());
 	}
 

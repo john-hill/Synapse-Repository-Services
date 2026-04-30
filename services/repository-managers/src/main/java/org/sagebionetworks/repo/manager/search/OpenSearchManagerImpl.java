@@ -219,7 +219,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			String effectiveAnalyzerName = resolveEffectiveAnalyzerName(
 					columnId, columnType, defaultAnalyzer, overrideMap, idToQualifiedName);
 			TextAnalyzer effectiveAnalyzer = analyzers.get(effectiveAnalyzerName);
-			LOG.info("buildMappings: column id={} name={} type={} → effectiveAnalyzerName={} effectiveAnalyzer={}",
+			LOG.info("buildMappings : column id={} name={} type={} → effectiveAnalyzerName={} effectiveAnalyzer={}",
 					columnId, column.getName(), columnType, effectiveAnalyzerName,
 					effectiveAnalyzer == null ? "null" : effectiveAnalyzer.getName());
 			ValidateArgument.required(effectiveAnalyzer, "analyzer '" + effectiveAnalyzerName + "' for column " + columnId);

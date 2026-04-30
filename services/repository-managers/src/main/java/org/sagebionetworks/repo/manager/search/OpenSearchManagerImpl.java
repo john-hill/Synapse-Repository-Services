@@ -210,7 +210,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 		// PLFM-9612 diagnostic: log the analyzer-resolution context once per build so a
 		// failed lookup can be traced to which column / type / map state caused it.
-		LOG.info("buildMappings: defaultAnalyzer={} overrideKeys={} loadedAnalyzers={} idToQualifiedName={}",
+		LOG.info("buildMappings : defaultAnalyzer={} overrideKeys={} loadedAnalyzers={} idToQualifiedName={}",
 				defaultAnalyzer, overrideMap.keySet(), analyzers.keySet(), idToQualifiedName);
 
 		for (ColumnModel column : columns) {

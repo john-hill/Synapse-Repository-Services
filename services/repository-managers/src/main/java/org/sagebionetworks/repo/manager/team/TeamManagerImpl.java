@@ -729,8 +729,10 @@ public class TeamManagerImpl implements TeamManager {
 			}
 			groupMembersDAO.removeMembers(teamId, Collections.singletonList(principalId));
 			if (removed) {
-				Team team = get(teamId);
-				aclManager.update(userInfo, acl, ObjectType.TEAM, getTeamOwner(team));
+				// Bypass aclManager.update because validateACLContent enforces "caller must retain ACL edit
+				// permission" — that's an ACL-edit invariant, not a team-leave invariant. We need to remove user form ACL here.
+				// Authorization for removal is handled above by canRemoveTeamMember and the team-admin invariant by aclHasTeamAdmin.
+				aclDAO.update(acl, ObjectType.TEAM);
 			}
 		}
 	}

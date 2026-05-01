@@ -13,6 +13,8 @@ import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.opensearch.client.opensearch._types.OpenSearchException;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
@@ -69,6 +71,38 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	private static final int MAX_ERROR_MESSAGE_LENGTH = 3000;
 	private static final int BATCH_SIZE = 1000;
 	private static final long MAX_ROWS = 500_000L;
+	private static final ObjectMapper SEARCH_DOC_MAPPER = new ObjectMapper();
+
+    /**
+	 * Convert a raw String row value (as delivered by the table query stream) into the Java
+	 * type expected by the column's OpenSearch mapping. List columns are parsed as JSON
+	 * arrays. Bare-string columns (text / keyword / link) pass through as {@code String};
+	 * everything else is parsed via Jackson's untyped {@code readValue}, which yields the
+	 * natural Java equivalent of the JSON token — {@code Integer}/{@code Long},
+	 * {@code Double}, {@code Boolean}, {@code List}, or {@code Map} — each of which the
+	 * OpenSearch client serializes as the right JSON type. Returning the raw String for
+	 * non-string columns causes AOSS to reject the doc.
+	 */
+	static Object convertForDocument(String value, ColumnType type) {
+		if (value == null) {
+			return null;
+		}
+		// List types must be checked before the bare-string short-circuit: STRING_LIST maps
+		// to TEXT and ENTITYID_LIST/USERID_LIST map to KEYWORD, so isTextType/isKeywordType
+		// would otherwise pass the raw JSON-array string straight through.
+		if (!ColumnTypeToOpenSearchMapping.isListType(type)
+				&& (ColumnTypeToOpenSearchMapping.isTextType(type)
+				|| ColumnTypeToOpenSearchMapping.isKeywordType(type)
+				|| ColumnTypeToOpenSearchMapping.isLinkType(type))) {
+			return value;
+		}
+		try {
+			return SEARCH_DOC_MAPPER.readValue(value, Object.class);
+		} catch (IOException e) {
+			throw new IllegalArgumentException(
+					"Failed to convert column value for type " + type + ": " + value, e);
+		}
+	}
 
 	private final ConnectionFactory connectionFactory;
 	private final OpenSearchManager openSearchManager;
@@ -217,6 +251,16 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			// failure is not in the search index's configuration.
 			throw e;
 		} catch (Throwable e) {
+			// Another worker is currently deleting this same AOSS index. Translate
+			// to a recoverable SQS retry: by the time the retry runs, the winning
+			// delete has finished and our deleteIndex on retry no-ops via
+			// index_not_found. Don't record FAILED — this is transient.
+			if (e instanceof OpenSearchException
+					&& OpenSearchManagerImpl.isConcurrentDeleteError((OpenSearchException) e)) {
+				throw new RecoverableMessageException(
+						"Concurrent delete in progress while building search index for entity "
+								+ entityId, e);
+			}
 			LOG.error("Failed to build search index for entity: " + entityId, e);
 			String errorMessage = e.getMessage();
 			if (errorMessage != null && errorMessage.length() > MAX_ERROR_MESSAGE_LENGTH) {
@@ -339,7 +383,8 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			for (int i = 0; i < columns.size() && i < values.size(); i++) {
 				String value = values.get(i);
 				if (value != null) {
-					doc.put(columns.get(i).getId(), value);
+					SelectColumn column = columns.get(i);
+					doc.put(column.getId(), convertForDocument(value, column.getColumnType()));
 				}
 			}
 			String docId = String.valueOf(row.getRowId());

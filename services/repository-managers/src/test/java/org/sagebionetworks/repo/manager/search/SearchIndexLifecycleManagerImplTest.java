@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -25,6 +26,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.opensearch.client.opensearch._types.ErrorCause;
+import org.opensearch.client.opensearch._types.ErrorResponse;
+import org.opensearch.client.opensearch._types.OpenSearchException;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
@@ -32,15 +36,15 @@ import org.sagebionetworks.repo.manager.table.ColumnModelManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
 import org.sagebionetworks.repo.manager.table.TableQueryManager;
 import org.sagebionetworks.repo.model.UserInfo;
-import org.sagebionetworks.repo.model.entity.IdAndVersion;
-import org.sagebionetworks.repo.model.table.ColumnModel;
-import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
 import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
+import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
 import org.sagebionetworks.repo.model.search.table.SearchIndexState;
 import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
+import org.sagebionetworks.repo.model.table.ColumnModel;
+import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.QueryResultBundle;
 import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.repo.model.table.SelectColumn;
@@ -49,6 +53,7 @@ import org.sagebionetworks.repo.model.table.TableUnavailableException;
 import org.sagebionetworks.table.cluster.ConnectionFactory;
 import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
 import org.sagebionetworks.util.progress.ProgressCallback;
+import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 
 @ExtendWith(MockitoExtension.class)
 public class SearchIndexLifecycleManagerImplTest {
@@ -228,6 +233,54 @@ public class SearchIndexLifecycleManagerImplTest {
 	}
 
 	@Test
+	public void testHandleCreateOnConcurrentDeleteThrowsRecoverable() throws Exception {
+		// AOSS rejects deleteIndex when another worker is mid-delete on the same index.
+		// The lifecycle manager must translate that into RecoverableMessageException so
+		// SQS retries the message — by then the winning delete is done and the retry
+		// either no-ops the delete (index_not_found) or proceeds normally.
+		UserInfo triggering = triggeringUser();
+		SearchIndex searchIndex = new SearchIndex();
+		searchIndex.setDefiningSQL(DEFINING_SQL);
+		searchIndex.setParentId("syn100");
+
+		ErrorCause cause = ErrorCause.of(b -> b
+				.type("status_exception")
+				.reason("Deletion failed for indices [search-index-syn456] due to concurrent deletes, please try again"));
+		OpenSearchException concurrentDelete = new OpenSearchException(
+				ErrorResponse.of(er -> er.error(cause).status(400)));
+
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
+		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
+		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Collections.singletonList(
+						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
+		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
+		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
+				.thenReturn(new QueryResultBundle().setQueryCount(0L));
+		doThrow(concurrentDelete)
+				.when(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
+
+		// call under test
+		RecoverableMessageException thrown = assertThrows(RecoverableMessageException.class,
+				() -> manager.handleCreate(progressCallback, ENTITY_ID, USER_ID));
+
+		assertSame(concurrentDelete, thrown.getCause());
+		assertEquals("Concurrent delete in progress while building search index for entity "
+				+ ENTITY_ID, thrown.getMessage());
+		// The state row was set CREATING upfront, but no FAILED was recorded — this
+		// is transient, not a configuration failure.
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao).createOrUpdate(captor.capture());
+		assertEquals(SearchIndexState.CREATING, captor.getValue().getState());
+		// The pre-build deleteIndex was attempted (it threw); createIndex / row stream never ran.
+		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
+		verify(openSearchManager, never()).createIndex(any(), any(), any(), any(), any(), any());
+		verify(tableQueryManager, never()).runQueryAsStream(any(), any(), any(), any(), any());
+	}
+
+	@Test
 	public void testHandleCreateOnTableUnavailablePropagates() throws Exception {
 		UserInfo triggering = triggeringUser();
 		SearchIndex searchIndex = new SearchIndex();
@@ -311,8 +364,10 @@ public class SearchIndexLifecycleManagerImplTest {
 	public void testRowHandlerNextRowBuildsDocumentFromColumnValues() {
 		SelectColumn col1 = new SelectColumn();
 		col1.setId("100");
+		col1.setColumnType(ColumnType.STRING);
 		SelectColumn col2 = new SelectColumn();
 		col2.setId("200");
+		col2.setColumnType(ColumnType.STRING);
 		List<SelectColumn> columns = Arrays.asList(col1, col2);
 		SearchIndexLifecycleManagerImpl.SearchIndexRowHandler handler =
 				new SearchIndexLifecycleManagerImpl.SearchIndexRowHandler("test-index", columns, openSearchManager);
@@ -333,8 +388,10 @@ public class SearchIndexLifecycleManagerImplTest {
 	public void testRowHandlerNextRowSkipsNullValues() throws IOException {
 		SelectColumn col1 = new SelectColumn();
 		col1.setId("100");
+		col1.setColumnType(ColumnType.STRING);
 		SelectColumn col2 = new SelectColumn();
 		col2.setId("200");
+		col2.setColumnType(ColumnType.STRING);
 		List<SelectColumn> columns = Arrays.asList(col1, col2);
 		SearchIndexLifecycleManagerImpl.SearchIndexRowHandler handler =
 				new SearchIndexLifecycleManagerImpl.SearchIndexRowHandler("test-index", columns, openSearchManager);
@@ -359,6 +416,7 @@ public class SearchIndexLifecycleManagerImplTest {
 	public void testRowHandlerCloseFlushesPartialBatch() throws IOException {
 		SelectColumn col = new SelectColumn();
 		col.setId("100");
+		col.setColumnType(ColumnType.STRING);
 		SearchIndexLifecycleManagerImpl.SearchIndexRowHandler handler =
 				new SearchIndexLifecycleManagerImpl.SearchIndexRowHandler("test-index", Collections.singletonList(col), openSearchManager);
 
@@ -399,9 +457,11 @@ public class SearchIndexLifecycleManagerImplTest {
 		SelectColumn nullIdCol = new SelectColumn();
 		nullIdCol.setId(null);
 		nullIdCol.setName("derived_alias");
+		nullIdCol.setColumnType(ColumnType.STRING);
 		SelectColumn realIdCol = new SelectColumn();
 		realIdCol.setId("100");
 		realIdCol.setName("real");
+		realIdCol.setColumnType(ColumnType.STRING);
 		List<SelectColumn> columns = Arrays.asList(nullIdCol, realIdCol);
 		SearchIndexLifecycleManagerImpl.SearchIndexRowHandler handler =
 				new SearchIndexLifecycleManagerImpl.SearchIndexRowHandler("test-index", columns, openSearchManager);

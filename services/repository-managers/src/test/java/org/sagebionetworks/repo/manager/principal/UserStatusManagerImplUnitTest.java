@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.principal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -123,6 +124,35 @@ public class UserStatusManagerImplUnitTest {
 		assertEquals(1, result);
 		verify(mockTemplatedMessageSender, times(1)).sendMessage(any());
 		verify(mockUserStatusDao).setWarnedOn(List.of(userId));
+	}
+
+	@Test
+	public void testWarnInactiveUsersWithEmailFailure() {
+		long userId1 = 111L;
+		long userId2 = 222L;
+		Instant now = Instant.now();
+		when(mockClock.now()).thenReturn(Date.from(now));
+		Date expectedThreshold = Date.from(now.minus(UserStatusManager.INACTIVITY_WARNING_DAYS, ChronoUnit.DAYS));
+		when(mockUserStatusDao.getInactiveUsersToWarnBatch(expectedThreshold, 500))
+				.thenReturn(List.of(userId1, userId2));
+
+		UserInfo sender = new UserInfo(false);
+		sender.setId(BOOTSTRAP_PRINCIPAL.DATA_ACCESS_NOTFICATIONS_SENDER.getPrincipalId());
+		when(mockUserManager.getUserInfo(BOOTSTRAP_PRINCIPAL.DATA_ACCESS_NOTFICATIONS_SENDER.getPrincipalId()))
+				.thenReturn(sender);
+
+		doThrow(new RuntimeException("email service unavailable")).when(manager).sendInactivityWarningEmail(sender, userId1);
+		when(mockPrincipalNameProvider.getPrincipalName(userId2)).thenReturn("Bob");
+		when(mockTemplatedMessageSender.sendMessage(any())).thenReturn(new MessageToUser().setId("msg-1"));
+
+		// call under test
+		int result = manager.warnInactiveUsers(500);
+
+		assertEquals(2, result);
+		// userId1 email failed, userId2 email succeeded
+		verify(mockTemplatedMessageSender, times(1)).sendMessage(any());
+		// both users must be marked warned regardless of email failure
+		verify(mockUserStatusDao).setWarnedOn(List.of(userId1, userId2));
 	}
 
 	@Test

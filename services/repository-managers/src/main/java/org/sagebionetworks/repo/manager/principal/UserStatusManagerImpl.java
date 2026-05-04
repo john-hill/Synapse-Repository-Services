@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.message.MessageTemplate;
 import org.sagebionetworks.repo.manager.message.PrincipalNameProvider;
@@ -22,6 +24,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class UserStatusManagerImpl implements UserStatusManager {
+
+	private static final Logger log = LogManager.getLogger(UserStatusManagerImpl.class);
 
 	private UserStatusDao userStatusDao;
 
@@ -48,7 +52,6 @@ public class UserStatusManagerImpl implements UserStatusManager {
 
 
 	@Override
-	@WriteTransaction
 	public int disableInactiveUsers(int maxBatchSize) {
 		Date inactivityThreshold = Date.from(clock.now().toInstant().minus(INACTIVITY_DAYS, ChronoUnit.DAYS));
 		
@@ -89,7 +92,11 @@ public class UserStatusManagerImpl implements UserStatusManager {
 		UserInfo sender = userManager.getUserInfo(BOOTSTRAP_PRINCIPAL.DATA_ACCESS_NOTFICATIONS_SENDER.getPrincipalId());
 
 		for (Long userId : usersToWarn) {
-			sendInactivityWarningEmail(sender, userId);
+			try {
+				sendInactivityWarningEmail(sender, userId);
+			} catch (Exception e) {
+				log.error("Failed to send inactivity warning email to user {}, marking as warned anyway", userId, e);
+			}
 		}
 
 		userStatusDao.setWarnedOn(usersToWarn);

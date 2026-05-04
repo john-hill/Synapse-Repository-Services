@@ -1,16 +1,8 @@
 package org.sagebionetworks.repo.model.dbo.auth;
 
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_STATUS_DISABLED;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_STATUS_ETAG;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_STATUS_LAST_SEEN_ON;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_STATUS_PRINCIPAL_ID;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_USER_STATUS_WARNED_ON;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_USER_STATUS;
-
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -24,105 +16,77 @@ import org.springframework.stereotype.Repository;
 public class UserStatusDaoImpl implements UserStatusDao {
 
 	private JdbcTemplate jdbcTemplate;
-	
+
 	public UserStatusDaoImpl(JdbcTemplate jdbcTemplate) {
 		this.jdbcTemplate = jdbcTemplate;
 	}
-	
+
 	@Override
 	@WriteTransaction
 	public void setLastSeenOn(List<Long> principalIds, Date lastSeenOn) {
-		
-		String sql = "INSERT INTO " + TABLE_USER_STATUS + " ("
-				+ COL_USER_STATUS_PRINCIPAL_ID + ", "
-				+ COL_USER_STATUS_ETAG + ","
-				+ COL_USER_STATUS_LAST_SEEN_ON + ","
-				+ COL_USER_STATUS_DISABLED + ") "
-				+ "VALUES (?, UUID(), ?, false) "
-				+ "ON DUPLICATE KEY UPDATE "
-				+ COL_USER_STATUS_ETAG + " = UUID(),"
-				+ COL_USER_STATUS_LAST_SEEN_ON + " = ?,"
-				+ COL_USER_STATUS_WARNED_ON + " = NULL";
-		
-		jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
-			
-			@Override
-			public void setValues(PreparedStatement ps, int i) throws SQLException {
-				ps.setLong(1, principalIds.get(i));
-				ps.setTimestamp(2, new Timestamp(lastSeenOn.getTime()));
-				ps.setTimestamp(3, new Timestamp(lastSeenOn.getTime()));
-			}
-			
-			@Override
-			public int getBatchSize() {
-				return principalIds.size();
-			}
-		});
+		jdbcTemplate.batchUpdate(
+				"INSERT INTO USER_STATUS (PRINCIPAL_ID, ETAG, LAST_SEEN_ON, DISABLED)"
+				+ " VALUES (?, UUID(), ?, false)"
+				+ " ON DUPLICATE KEY UPDATE ETAG = UUID(), LAST_SEEN_ON = ?, WARNED_ON = NULL",
+				new BatchPreparedStatementSetter() {
+					@Override
+					public void setValues(PreparedStatement ps, int i) throws SQLException {
+						ps.setLong(1, principalIds.get(i));
+						ps.setTimestamp(2, new Timestamp(lastSeenOn.getTime()));
+						ps.setTimestamp(3, new Timestamp(lastSeenOn.getTime()));
+					}
+					@Override
+					public int getBatchSize() {
+						return principalIds.size();
+					}
+				});
 	}
-	
+
 	@Override
 	public Optional<Date> getLastSeenOn(long principalId) {
 		return jdbcTemplate.queryForList(
-				"SELECT " + COL_USER_STATUS_LAST_SEEN_ON + " FROM " + TABLE_USER_STATUS + " WHERE " + COL_USER_STATUS_PRINCIPAL_ID + "=?",
+				"SELECT LAST_SEEN_ON FROM USER_STATUS WHERE PRINCIPAL_ID = ?",
 				Date.class, principalId).stream().findFirst();
 	}
-	
+
 	@Override
 	@WriteTransaction
 	public void setDisabled(long principalId, boolean disabled) {
-		String sql = "INSERT INTO " + TABLE_USER_STATUS + " ("
-			+ COL_USER_STATUS_PRINCIPAL_ID + ", "
-			+ COL_USER_STATUS_ETAG + ","
-			+ COL_USER_STATUS_DISABLED + ") "
-			+ "VALUES (?, UUID(), ?) "
-			+ "ON DUPLICATE KEY UPDATE "
-			+ COL_USER_STATUS_ETAG + " = UUID(),"
-			+ COL_USER_STATUS_DISABLED + " = ?";
-		
-		jdbcTemplate.update(sql, principalId, disabled, disabled);
+		jdbcTemplate.update(
+				"INSERT INTO USER_STATUS (PRINCIPAL_ID, ETAG, DISABLED)"
+				+ " VALUES (?, UUID(), ?)"
+				+ " ON DUPLICATE KEY UPDATE ETAG = UUID(), DISABLED = ?",
+				principalId, disabled, disabled);
 	}
 
 	@WriteTransaction
 	@Override
 	public void resetStatusToEnabled(long principalId) {
-
-		String sql = "INSERT INTO " + TABLE_USER_STATUS + " ("
-				+ COL_USER_STATUS_PRINCIPAL_ID + ", "
-				+ COL_USER_STATUS_ETAG + ","
-				+ COL_USER_STATUS_LAST_SEEN_ON + ","
-				+ COL_USER_STATUS_DISABLED + ") "
-				+ "VALUES (?, UUID(), NOW(), false) "
-				+ "ON DUPLICATE KEY UPDATE "
-				+ COL_USER_STATUS_ETAG + " = UUID(),"
-				+ COL_USER_STATUS_LAST_SEEN_ON + " = NOW(),"
-				+ COL_USER_STATUS_DISABLED + " = false";
-
-		jdbcTemplate.update(sql, principalId);
+		jdbcTemplate.update(
+				"INSERT INTO USER_STATUS (PRINCIPAL_ID, ETAG, LAST_SEEN_ON, DISABLED)"
+				+ " VALUES (?, UUID(), NOW(), false)"
+				+ " ON DUPLICATE KEY UPDATE ETAG = UUID(), LAST_SEEN_ON = NOW(), DISABLED = false",
+				principalId);
 	}
-	
+
 	@Override
 	public boolean isDisabled(long principalId) {
 		return jdbcTemplate.queryForList(
-				"SELECT " + COL_USER_STATUS_DISABLED + " FROM " + TABLE_USER_STATUS + " WHERE " + COL_USER_STATUS_PRINCIPAL_ID + "=?",
+				"SELECT DISABLED FROM USER_STATUS WHERE PRINCIPAL_ID = ?",
 				Boolean.class, principalId).stream().findFirst().orElse(false);
 	}
-	
+
 	@Override
 	public List<Long> getInactiveUsersBatch(Date lastSeenOnThreshold, int batchSize) {
 		return jdbcTemplate.queryForList(
-				"SELECT " + COL_USER_STATUS_PRINCIPAL_ID + " FROM " + TABLE_USER_STATUS + " WHERE "
-				+ COL_USER_STATUS_DISABLED + " = false AND "
-				+ COL_USER_STATUS_LAST_SEEN_ON + " < ? LIMIT ?",
+				"SELECT PRINCIPAL_ID FROM USER_STATUS WHERE DISABLED = false AND LAST_SEEN_ON < ? LIMIT ?",
 				Long.class, lastSeenOnThreshold, batchSize);
 	}
 
 	@Override
 	public List<Long> getInactiveUsersToWarnBatch(Date lastSeenOnThreshold, int batchSize) {
 		return jdbcTemplate.queryForList(
-				"SELECT " + COL_USER_STATUS_PRINCIPAL_ID + " FROM " + TABLE_USER_STATUS + " WHERE "
-				+ COL_USER_STATUS_DISABLED + " = false AND "
-				+ COL_USER_STATUS_LAST_SEEN_ON + " < ? AND "
-				+ COL_USER_STATUS_WARNED_ON + " IS NULL LIMIT ?",
+				"SELECT PRINCIPAL_ID FROM USER_STATUS WHERE DISABLED = false AND LAST_SEEN_ON < ? AND WARNED_ON IS NULL LIMIT ?",
 				Long.class, lastSeenOnThreshold, batchSize);
 	}
 
@@ -130,10 +94,7 @@ public class UserStatusDaoImpl implements UserStatusDao {
 	@WriteTransaction
 	public void setWarnedOn(List<Long> principalIds) {
 		jdbcTemplate.batchUpdate(
-				"UPDATE " + TABLE_USER_STATUS
-				+ " SET " + COL_USER_STATUS_WARNED_ON + " = NOW(3),"
-				+ " " + COL_USER_STATUS_ETAG + " = UUID()"
-				+ " WHERE " + COL_USER_STATUS_PRINCIPAL_ID + " = ?",
+				"UPDATE USER_STATUS SET WARNED_ON = NOW(3), ETAG = UUID() WHERE PRINCIPAL_ID = ?",
 				new BatchPreparedStatementSetter() {
 					@Override
 					public void setValues(PreparedStatement ps, int i) throws SQLException {

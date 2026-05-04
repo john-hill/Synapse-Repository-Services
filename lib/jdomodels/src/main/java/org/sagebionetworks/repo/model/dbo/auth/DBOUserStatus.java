@@ -39,16 +39,8 @@ public class DBOUserStatus implements MigratableDatabaseObject<DBOUserStatus, DB
 			status.setPrincipalId(rs.getLong(COL_USER_STATUS_PRINCIPAL_ID));
 			status.setEtag(rs.getString(COL_USER_STATUS_ETAG));
 			status.setLastSeenOn(rs.getTimestamp(COL_USER_STATUS_LAST_SEEN_ON));
-			
-			if (rs.wasNull()) {
-				status.setLastSeenOn(null);
-			}
-			
 			status.setDisabled(rs.getBoolean(COL_USER_STATUS_DISABLED));
 			status.setWarnedOn(rs.getTimestamp(COL_USER_STATUS_WARNED_ON));
-			if (rs.wasNull()) {
-				status.setWarnedOn(null);
-			}
 
 			return status;
 		}

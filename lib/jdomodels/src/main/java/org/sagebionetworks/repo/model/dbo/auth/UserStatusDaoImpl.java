@@ -27,7 +27,7 @@ public class UserStatusDaoImpl implements UserStatusDao {
 		jdbcTemplate.batchUpdate(
 				"INSERT INTO USER_STATUS (PRINCIPAL_ID, ETAG, LAST_SEEN_ON, DISABLED)"
 				+ " VALUES (?, UUID(), ?, false)"
-				+ " ON DUPLICATE KEY UPDATE ETAG = UUID(), LAST_SEEN_ON = ?, WARNED_ON = NULL",
+				+ " ON DUPLICATE KEY UPDATE ETAG = UUID(), LAST_SEEN_ON = ?, DISABLE_WARNING_SENT_ON = NULL",
 				new BatchPreparedStatementSetter() {
 					@Override
 					public void setValues(PreparedStatement ps, int i) throws SQLException {
@@ -64,8 +64,8 @@ public class UserStatusDaoImpl implements UserStatusDao {
 	public void resetStatusToEnabled(long principalId) {
 		jdbcTemplate.update(
 				"INSERT INTO USER_STATUS (PRINCIPAL_ID, ETAG, LAST_SEEN_ON, DISABLED)"
-				+ " VALUES (?, UUID(), NOW(), false)"
-				+ " ON DUPLICATE KEY UPDATE ETAG = UUID(), LAST_SEEN_ON = NOW(), DISABLED = false",
+				+ " VALUES (?, UUID(), NOW(3), false)"
+				+ " ON DUPLICATE KEY UPDATE ETAG = UUID(), LAST_SEEN_ON = NOW(3), DISABLED = false",
 				principalId);
 	}
 
@@ -86,7 +86,7 @@ public class UserStatusDaoImpl implements UserStatusDao {
 	@Override
 	public List<Long> getInactiveUsersToWarnBatch(Date lastSeenOnThreshold, int batchSize) {
 		return jdbcTemplate.queryForList(
-				"SELECT PRINCIPAL_ID FROM USER_STATUS WHERE DISABLED = false AND LAST_SEEN_ON < ? AND WARNED_ON IS NULL LIMIT ?",
+				"SELECT PRINCIPAL_ID FROM USER_STATUS WHERE DISABLED = false AND LAST_SEEN_ON < ? AND DISABLE_WARNING_SENT_ON IS NULL LIMIT ?",
 				Long.class, lastSeenOnThreshold, batchSize);
 	}
 
@@ -94,7 +94,7 @@ public class UserStatusDaoImpl implements UserStatusDao {
 	@WriteTransaction
 	public void setWarnedOn(List<Long> principalIds) {
 		jdbcTemplate.batchUpdate(
-				"UPDATE USER_STATUS SET WARNED_ON = NOW(3), ETAG = UUID() WHERE PRINCIPAL_ID = ?",
+				"UPDATE USER_STATUS SET DISABLE_WARNING_SENT_ON = NOW(3), ETAG = UUID() WHERE PRINCIPAL_ID = ?",
 				new BatchPreparedStatementSetter() {
 					@Override
 					public void setValues(PreparedStatement ps, int i) throws SQLException {

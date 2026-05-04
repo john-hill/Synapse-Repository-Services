@@ -27,7 +27,7 @@ public interface UserStatusDao {
 	List<Long> getInactiveUsersToWarnBatch(Date lastSeenOnThreshold, int batchSize);
 
 	/**
-	 * Records that a warning was sent to each user in the list by setting WARNED_ON = NOW(3).
+	 * Records that a warning was sent to each user in the list by setting DISABLE_WARNING_SENT_ON = NOW(3).
 	 */
 	void setWarnedOn(List<Long> principalIds);
 }

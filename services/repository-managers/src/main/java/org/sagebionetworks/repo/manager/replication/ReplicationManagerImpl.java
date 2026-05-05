@@ -47,7 +47,7 @@ public class ReplicationManagerImpl implements ReplicationManager {
 	
 	private final Logger log;
 
-	public static final int MAX_ANNOTATION_CHARS = 500;
+	public static final int MAX_ANNOTATION_CHARS = 2000;
 	
 	public static final int MAX_MESSAGE_PAGE_SIZE = 1000;
 	

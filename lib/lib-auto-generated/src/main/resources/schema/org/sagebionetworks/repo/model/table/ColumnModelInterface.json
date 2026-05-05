@@ -67,7 +67,7 @@
 				},
 				{
 					"name": "STRING_LIST",
-					"description": "Multiple values of STRING"
+					"description": "Multiple values of STRING. The maximumSize parameter (defaulting to 50 characters) limits the character length of each individual string value, and maximumListLength (defaulting to 100) limits the number of values in the list. Each STRING_LIST column counts as the lesser of maxSize*4*maxListLength or 2133 bytes towards the total width of a table."
 				},
 				{
 					"name": "INTEGER_LIST",

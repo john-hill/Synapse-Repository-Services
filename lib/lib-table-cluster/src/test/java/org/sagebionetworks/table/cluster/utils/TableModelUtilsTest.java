@@ -923,7 +923,17 @@ public class TableModelUtilsTest {
 	public void testCalculateMaxSizeForTypeStringList(){
 		long maxSize = 444;
 		long maxListLength = 52;
-		int expected = (int) (maxSize * ColumnConstants.MAX_BYTES_PER_CHAR_UTF_8) * 52;
+		// formula (4*444*52=92352) exceeds the JSON cap, so the cap wins
+		assertEquals(ColumnConstants.SIZE_OF_JSON_FOR_COLUMN_SIZE_ESTIMATE_BYTES,
+				TableModelUtils.calculateMaxSizeForType(ColumnType.STRING_LIST, maxSize, maxListLength));
+	}
+
+	@Test
+	public void testCalculateMaxSizeForTypeStringList_smallValues(){
+		long maxSize = 1;
+		long maxListLength = 2;
+		// formula (4*1*2=8) is below the JSON cap, so the formula wins
+		int expected = (int)(ColumnConstants.MAX_BYTES_PER_CHAR_UTF_8 * maxSize * maxListLength);
 		assertEquals(expected,
 				TableModelUtils.calculateMaxSizeForType(ColumnType.STRING_LIST, maxSize, maxListLength));
 	}
@@ -1092,7 +1102,7 @@ public class TableModelUtilsTest {
 	public void testCalculateMaxRowSize() {
 		List<ColumnModel> all = TableModelTestUtils.createOneOfEachType();
 		int allBytes = TableModelUtils.calculateMaxRowSize(all);
-		assertEquals(18620, allBytes);
+		assertEquals(12293, allBytes);
 	}
 
 	@Test

@@ -25,6 +25,10 @@ public class StringValueListValidatorTest {
 		int secondStringSize = 42;
 		valueValidator.validate(key, Arrays.asList(Strings.repeat("a", StringValueListValidator.MAX_STRING_SIZE - secondStringSize ),
 				Strings.repeat("a", secondStringSize )));
+		// each value is validated independently: two full-length values are both valid
+		valueValidator.validate(key, Arrays.asList(
+				Strings.repeat("a", StringValueListValidator.MAX_STRING_SIZE),
+				Strings.repeat("b", StringValueListValidator.MAX_STRING_SIZE)));
 	}
 
 	@Test
@@ -43,12 +47,11 @@ public class StringValueListValidatorTest {
 		assertThrows(IllegalArgumentException.class, ()->{
 			valueValidator.validate(key, Collections.singletonList(Strings.repeat("a", StringValueListValidator.MAX_STRING_SIZE + 1)));
 		});
-
-		int secondStringSize = 42;
+		// each value is checked independently: a single over-limit value in a list fails
 		assertThrows(IllegalArgumentException.class, ()->{
-			valueValidator.validate(key, Arrays.asList(Strings.repeat("a", StringValueListValidator.MAX_STRING_SIZE - secondStringSize ),
-					Strings.repeat("a", secondStringSize ),
-					"a"));
+			valueValidator.validate(key, Arrays.asList(
+					Strings.repeat("a", StringValueListValidator.MAX_STRING_SIZE),
+					Strings.repeat("a", StringValueListValidator.MAX_STRING_SIZE + 1)));
 		});
 	}
 

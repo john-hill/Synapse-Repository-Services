@@ -840,8 +840,10 @@ public class TableModelUtils {
 				if(maxListLength == null){
 					throw new IllegalArgumentException("maxListLength cannot be null for List types");
 				}
-
-				return (int) (ColumnConstants.MAX_BYTES_PER_CHAR_UTF_8 * maxSize * maxListLength);
+				return (int) Math.min(
+					(long) ColumnConstants.MAX_BYTES_PER_CHAR_UTF_8 * maxSize * maxListLength,
+					ColumnConstants.SIZE_OF_JSON_FOR_COLUMN_SIZE_ESTIMATE_BYTES
+				);
 			case INTEGER_LIST:
 			case DATE_LIST:
 			case USERID_LIST:

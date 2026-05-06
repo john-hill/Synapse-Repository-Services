@@ -116,7 +116,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	/**
 	 * Workaround for OpenSearch SDK 3.7.0 lazy initialization race condition.
-	 * See {@code ManagerConfiguration.synSearchOssClient()} for details.
 	 */
 	public static void warmAnalysisDeserializers(OpenSearchClient client) {
 		try {

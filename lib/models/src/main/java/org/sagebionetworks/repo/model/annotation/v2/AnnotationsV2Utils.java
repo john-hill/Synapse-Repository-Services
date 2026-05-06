@@ -27,7 +27,8 @@ import java.util.stream.Collectors;
 public class AnnotationsV2Utils {
 
 	static final int MAX_ANNOTATION_KEYS = 100;
-	static final int MAX_VALUES_PER_KEY = 100;
+	// Aligned with MAX_STRING_LIST_TOTAL_CHARS: a list of 2,000 single-char elements hits both limits simultaneously.
+	static final int MAX_VALUES_PER_KEY = 2000;
 	
 	// match one or more whitespace characters
 	private static final Pattern ALLOWABLE_CHARS = Pattern

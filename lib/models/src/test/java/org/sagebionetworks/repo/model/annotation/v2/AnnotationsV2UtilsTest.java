@@ -413,6 +413,16 @@ public class AnnotationsV2UtilsTest {
 	}
 
 	@Test
+	public void testCheckValue_ValueListAtMaxSize(){
+		// exactly MAX_VALUES_PER_KEY values is valid (boundary condition)
+		AnnotationsValue value = new AnnotationsValue()
+				.setType(AnnotationsValueType.STRING)
+				.setValue(Collections.nCopies(AnnotationsV2Utils.MAX_VALUES_PER_KEY, "v"));
+		// call under test — should not throw
+		AnnotationsV2Utils.checkValue(key, value);
+	}
+
+	@Test
 	public void testCheckValue_ValueListExceedMaxSize(){
 		List<String> valuesList = Collections.nCopies(AnnotationsV2Utils.MAX_VALUES_PER_KEY + 1, "value");
 		annotationsV2Value.setValue(valuesList);

@@ -223,7 +223,7 @@ public class TableModelUtils {
 	 * @return
 	 */
 	public static boolean isMaximumSizeRequired(ColumnType type) {
-		return type == ColumnType.STRING || type == ColumnType.STRING_LIST || type == ColumnType.LINK;
+		return type == ColumnType.STRING || type == ColumnType.LINK;
 	}
 
 	/**
@@ -296,20 +296,32 @@ public class TableModelUtils {
 				return null;
 			}
 
-			//validate values for each individual string in the list
 			JSONArray jsonArray = new JSONArray(listValue);
 
-			if (jsonArray.length() > cm.getMaximumListLength()) {
+			// Element count check: only enforced when maximumListLength is explicitly set
+			if (cm.getMaximumListLength() != null && jsonArray.length() > cm.getMaximumListLength()) {
 				throw new IllegalArgumentException(
 						"Exceeds the maximum number of list elements defined in the ColumnModel ("+cm.getMaximumListLength()+"): \"" +
 								value + "\"");
 			}
 
 			if(cm.getColumnType() == ColumnType.STRING_LIST) {
+				if (cm.getMaximumSize() != null && cm.getMaximumSize() > ColumnConstants.MAX_ALLOWED_STRING_SIZE) {
+					throw new IllegalArgumentException(String.format("Column maximum size cannot exceed %s", ColumnConstants.MAX_ALLOWED_STRING_SIZE));
+				}
+				int totalChars = 0;
 				for (Object listElem : jsonArray) {
 					String strListElem = listElem.toString();
-					validateStringValueSize(strListElem, cm);
+					// Per-element size check: only enforced when maximumSize is explicitly set
+					if (cm.getMaximumSize() != null) {
+						validateStringValueSize(strListElem, cm);
+					}
+					totalChars += strListElem.length();
 					checkStringEnum(strListElem, cm);
+				}
+				if (totalChars > ColumnConstants.MAX_STRING_LIST_TOTAL_CHARS) {
+					throw new IllegalArgumentException("Total string length (" + totalChars
+							+ ") of list exceeds the maximum of " + ColumnConstants.MAX_STRING_LIST_TOTAL_CHARS + " characters.");
 				}
 			}
 			return listValue;
@@ -834,31 +846,28 @@ public class TableModelUtils {
 			case USERID:
 				return ColumnConstants.MAX_USER_ID_BYTES_AS_STRING;
 			case STRING_LIST:
-				if (maxSize == null) {
-					throw new IllegalArgumentException("maxSize cannot be null for String List types");
-				}
-				if(maxListLength == null){
-					throw new IllegalArgumentException("maxListLength cannot be null for List types");
+				if (maxSize == null || maxListLength == null) {
+					return ColumnConstants.SIZE_OF_STRING_LIST_FOR_COLUMN_SIZE_ESTIMATE_BYTES;
 				}
 				return (int) Math.min(
 					(long) ColumnConstants.MAX_BYTES_PER_CHAR_UTF_8 * maxSize * maxListLength,
-					ColumnConstants.SIZE_OF_JSON_FOR_COLUMN_SIZE_ESTIMATE_BYTES
+					ColumnConstants.SIZE_OF_STRING_LIST_FOR_COLUMN_SIZE_ESTIMATE_BYTES
 				);
 			case INTEGER_LIST:
 			case DATE_LIST:
 			case USERID_LIST:
 				if(maxListLength == null){
-					throw new IllegalArgumentException("maxListLength cannot be null for List types");
+					return ColumnConstants.SIZE_OF_STRING_LIST_FOR_COLUMN_SIZE_ESTIMATE_BYTES;
 				}
 				return (int) (ColumnConstants.MAX_INTEGER_BYTES_AS_STRING * maxListLength);
 			case BOOLEAN_LIST:
 				if(maxListLength == null){
-					throw new IllegalArgumentException("maxListLength cannot be null for List types");
+					return ColumnConstants.SIZE_OF_STRING_LIST_FOR_COLUMN_SIZE_ESTIMATE_BYTES;
 				}
 				return (int) (ColumnConstants.MAX_BOOLEAN_BYTES_AS_STRING * maxListLength);
 			case ENTITYID_LIST:
 				if(maxListLength == null){
-					throw new IllegalArgumentException("maxListLength cannot be null for List types");
+					return ColumnConstants.SIZE_OF_STRING_LIST_FOR_COLUMN_SIZE_ESTIMATE_BYTES;
 				}
 				return (int) (ColumnConstants.MAX_ENTITY_ID_BYTES_AS_STRING * maxListLength);
 		}

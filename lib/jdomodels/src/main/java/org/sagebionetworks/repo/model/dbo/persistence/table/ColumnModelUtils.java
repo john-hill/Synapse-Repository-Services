@@ -151,7 +151,15 @@ public class ColumnModelUtils {
 			switch (clone.getColumnType()) {
 			case STRING_LIST:
 				validateListLengthForClone(clone);
-				// intentional no break to also validate max size
+				// maximumSize is optional for STRING_LIST; if provided, validate it
+				if (clone.getMaximumSize() != null) {
+					if (clone.getMaximumSize() > ColumnConstants.MAX_ALLOWED_STRING_SIZE) {
+						throw new IllegalArgumentException("ColumnModel.maximumSize for a STRING_LIST cannot exceed: " + ColumnConstants.MAX_ALLOWED_STRING_SIZE);
+					} else if (clone.getMaximumSize() < 1) {
+						throw new IllegalArgumentException("ColumnModel.maximumSize for a STRING_LIST must be greater than 0");
+					}
+				}
+				break;
 			case STRING:
 			case LINK:
 				if(clone.getMaximumSize() == null){
@@ -301,15 +309,9 @@ public class ColumnModelUtils {
 	}
 
 	static void validateListLengthForClone(ColumnModel clone){
-		if(clone.getMaximumListLength() == null){
-			// Use the default value
-			clone.setMaximumListLength(ColumnConstants.MAX_ALLOWED_LIST_LENGTH);
-		}else if(clone.getMaximumListLength() > ColumnConstants.MAX_ALLOWED_LIST_LENGTH){
-			// The max is beyond the allowed size
-			throw new IllegalArgumentException("ColumnModel.maximumListLength for a LIST column cannot exceed: "+ColumnConstants.MAX_ALLOWED_LIST_LENGTH);
-		} else if (clone.getMaximumListLength() < 2) {
-			// The max is beyond the allowed size
-			throw new IllegalArgumentException("ColumnModel.maximumListLength for a LIST column must be at least 2");
+		// maximumListLength is optional; null means unconstrained (total chars limit still applies for STRING_LIST)
+		if (clone.getMaximumListLength() != null && clone.getMaximumListLength() < 1) {
+			throw new IllegalArgumentException("ColumnModel.maximumListLength for a LIST column must be at least 1");
 		}
 	}
 

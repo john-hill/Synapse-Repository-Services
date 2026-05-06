@@ -181,9 +181,23 @@ public class ColumnConstants {
 	public static final Long DEFAULT_STRING_SIZE = 50L;
 
 	/**
-	 * The maximum number of elements allowed for list column types.
+	 * The default number of elements for list column types when maximumListLength is not specified.
 	 */
 	public static final Long MAX_ALLOWED_LIST_LENGTH = 100L;
+
+	/**
+	 * The maximum total character length across all elements of a STRING_LIST value.
+	 * Matches MAX_MEDIUM_TEXT_CHARACTERS since STRING_LIST is treated as MEDIUMTEXT
+	 * for table width budget purposes.
+	 */
+	public static final long MAX_STRING_LIST_TOTAL_CHARS = MAX_MEDIUM_TEXT_CHARACTERS;
+
+	/**
+	 * The column size estimate in bytes for STRING_LIST columns, used when calculating
+	 * the total width of a table/view. Currently matches MEDIUMTEXT, allowing up to
+	 * 152 STRING_LIST columns per table.
+	 */
+	public static final int SIZE_OF_STRING_LIST_FOR_COLUMN_SIZE_ESTIMATE_BYTES = SIZE_OF_MEDIUM_TEXT_FOR_COLUMN_SIZE_ESTIMATE_BYTES;
 
 	/**
 	 * Size of a 64 bit reference in bytes.

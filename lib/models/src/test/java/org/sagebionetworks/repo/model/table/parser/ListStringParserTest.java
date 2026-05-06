@@ -25,17 +25,17 @@ class ListStringParserTest {
 	/////////////////////////////////////////////////////////
 
 	@Test
-	public void testApplyFunctionOnParsedJsonElements_listTooLong(){
+	public void testApplyFunctionOnParsedJsonElements_listWithManySmallElements(){
+		// lists with many elements are now valid as long as they come from valid JSON arrays;
+		// the old global element-count cap has been removed — enforcement is in TableModelUtils.validateValue()
 		StringJoiner joiner = new StringJoiner(",", "[", "]");
 		for(int i = 0; i < ColumnConstants.MAX_ALLOWED_LIST_LENGTH + 1; i++){
-			joiner.add("str" + i);
+			joiner.add("\"a\"");
 		}
 
-		IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->{
-			listStringParser.applyFunctionOnParsedJsonElements(joiner.toString(), this::testFunction);
-		});
-
-		assertTrue(exception.getMessage().contains("value can not exceed 100 elements in list: "));
+		// call under test — should not throw
+		String result = listStringParser.applyFunctionOnParsedJsonElements(joiner.toString(), this::testFunction);
+		assertNotNull(result);
 	}
 
 	@Test

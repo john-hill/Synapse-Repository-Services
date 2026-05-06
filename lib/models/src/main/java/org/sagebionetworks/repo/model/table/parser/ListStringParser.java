@@ -42,9 +42,6 @@ public class ListStringParser extends AbstractValueParser{
 			if(parsed.length() == 0){
 				return null;
 			}
-			if(parsed.length() > ColumnConstants.MAX_ALLOWED_LIST_LENGTH){
-				throw new IllegalArgumentException("value can not exceed " + ColumnConstants.MAX_ALLOWED_LIST_LENGTH + " elements in list: " + value);
-			}
 			for(int i = 0; i < parsed.length(); i++){
 				if(parsed.isNull(i)){
 					throw new IllegalArgumentException("null value is not allowed");

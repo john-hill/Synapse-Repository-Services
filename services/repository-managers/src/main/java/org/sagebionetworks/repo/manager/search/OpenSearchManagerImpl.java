@@ -114,32 +114,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		this.openSearchClient = openSearchClient;
 	}
 
-	/**
-	 * Workaround for OpenSearch SDK 3.7.0 lazy initialization race condition.
-	 */
-	public static void warmAnalysisDeserializers(OpenSearchClient client) {
-		try {
-			JsonpMapper mapper = client._transport().jsonpMapper();
-			JsonpDeserializer<Map<String, TokenFilterDefinition>> mapDeserializer = JsonpDeserializer
-					.stringMapDeserializer(TokenFilterDefinition._DESERIALIZER);
-			try (JsonParser parser = mapper.jsonProvider().createParser(new StringReader(
-					"{\"w\":{\"type\":\"word_delimiter_graph\",\"preserve_original\":true,"
-							+ "\"split_on_case_change\":true,\"split_on_numerics\":true,"
-							+ "\"catenate_words\":true,\"catenate_numbers\":false,"
-							+ "\"stem_english_possessive\":true},"
-							+ "\"v\":{\"type\":\"word_delimiter\",\"preserve_original\":true},"
-							+ "\"s\":{\"type\":\"stop\",\"stopwords\":\"_english_\"},"
-							+ "\"m\":{\"type\":\"stemmer\",\"language\":\"english\"},"
-							+ "\"e\":{\"type\":\"edge_ngram\",\"min_gram\":2,\"max_gram\":20}}"))) {
-				mapDeserializer.deserialize(parser, mapper);
-			}
-		} catch (RuntimeException ignored) {
-			// Best-effort: in unit tests the OpenSearchClient is a mock without a transport.
-			// The race only matters when real concurrent traffic hits the SDK, which never
-			// happens in mock-based tests, so silent fall-through is safe here.
-		}
-	}
-
 	@Override
 	public Optional<String> createIndex(String indexName, List<ColumnModel> columns, String defaultAnalyzer,
 			List<SynonymSet> synonymSets, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,

@@ -112,21 +112,18 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	public OpenSearchManagerImpl(OpenSearchClient openSearchClient) {
 		this.openSearchClient = openSearchClient;
-		warmAnalysisDeserializers();
 	}
 
 	/**
-	 * OpenSearch SDK 3.7.0's {@code JsonpDeserializerBase.ArrayDeserializer.acceptedEvents()}
-	 * lazy-initializes a non-volatile field via assign-then-mutate. A concurrent reader can
-	 * therefore observe a partially-populated EnumSet (just {@code START_ARRAY}, missing the
-	 * item type's events) and reject a valid event — surfacing as
-	 * "Unexpected JSON event 'VALUE_STRING' instead of '[START_ARRAY, KEY_NAME, VALUE_STRING, ...]'".
-	 * Force one full parse on this thread per filter family so the inner field deserializers
-	 * are fully initialized before any worker thread can touch them.
+	 * Workaround for OpenSearch SDK 3.7.0 lazy initialization race condition.
+	 * See {@code ManagerConfiguration.synSearchOssClient()} for details.
 	 */
-	private void warmAnalysisDeserializers() {
+	public static void warmAnalysisDeserializers(OpenSearchClient client) {
 		try {
-			deserializeDefinitionMap(
+			JsonpMapper mapper = client._transport().jsonpMapper();
+			JsonpDeserializer<Map<String, TokenFilterDefinition>> mapDeserializer = JsonpDeserializer
+					.stringMapDeserializer(TokenFilterDefinition._DESERIALIZER);
+			try (JsonParser parser = mapper.jsonProvider().createParser(new StringReader(
 					"{\"w\":{\"type\":\"word_delimiter_graph\",\"preserve_original\":true,"
 							+ "\"split_on_case_change\":true,\"split_on_numerics\":true,"
 							+ "\"catenate_words\":true,\"catenate_numbers\":false,"
@@ -134,8 +131,9 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 							+ "\"v\":{\"type\":\"word_delimiter\",\"preserve_original\":true},"
 							+ "\"s\":{\"type\":\"stop\",\"stopwords\":\"_english_\"},"
 							+ "\"m\":{\"type\":\"stemmer\",\"language\":\"english\"},"
-							+ "\"e\":{\"type\":\"edge_ngram\",\"min_gram\":2,\"max_gram\":20}}",
-					TokenFilterDefinition._DESERIALIZER);
+							+ "\"e\":{\"type\":\"edge_ngram\",\"min_gram\":2,\"max_gram\":20}}"))) {
+				mapDeserializer.deserialize(parser, mapper);
+			}
 		} catch (RuntimeException ignored) {
 			// Best-effort: in unit tests the OpenSearchClient is a mock without a transport.
 			// The race only matters when real concurrent traffic hits the SDK, which never

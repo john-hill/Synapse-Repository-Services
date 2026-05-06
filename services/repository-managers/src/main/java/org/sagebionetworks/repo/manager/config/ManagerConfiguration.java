@@ -390,9 +390,13 @@ public class ManagerConfiguration {
 		CollectionDetail collection = openSearchServerlessClient.batchGetCollection(req -> req.names(collectionName))
 				.collectionDetails().stream().findFirst().orElseThrow();
 
-		return new OpenSearchClient(new AwsSdk2Transport(httpClient,
+		OpenSearchClient client = new OpenSearchClient(new AwsSdk2Transport(httpClient,
 				collection.collectionEndpoint().replace("https://", ""), "aoss", Region.US_EAST_1,
 				AwsSdk2TransportOptions.builder().setCredentials(credentialProvider).build()));
+
+		org.sagebionetworks.repo.manager.search.OpenSearchManagerImpl.warmAnalysisDeserializers(client);
+
+		return client;
 	}
 
 	@Bean

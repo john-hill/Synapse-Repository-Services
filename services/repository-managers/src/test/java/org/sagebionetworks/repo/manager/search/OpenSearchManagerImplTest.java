@@ -40,7 +40,12 @@ import org.opensearch.client.opensearch._types.aggregations.Aggregation;
 import org.opensearch.client.opensearch._types.query_dsl.Query;
 import org.opensearch.client.opensearch._types.query_dsl.TextQueryType;
 import org.opensearch.client.opensearch.core.search.HighlightField;
+import org.opensearch.client.opensearch.cat.IndicesRequest;
+import org.opensearch.client.opensearch.cat.IndicesResponse;
+import org.opensearch.client.opensearch.cat.OpenSearchCatClient;
+import org.opensearch.client.opensearch.cat.indices.IndicesRecord;
 import org.opensearch.client.opensearch.indices.CreateIndexRequest;
+import org.opensearch.client.opensearch.indices.DeleteIndexRequest;
 import org.opensearch.client.opensearch.indices.OpenSearchIndicesClient;
 import org.sagebionetworks.repo.model.search.FacetRequest;
 import org.sagebionetworks.repo.model.search.FacetSortField;
@@ -73,6 +78,8 @@ public class OpenSearchManagerImplTest {
 	private OpenSearchClient openSearchClient;
 	@Mock
 	private OpenSearchIndicesClient indicesClient;
+	@Mock
+	private OpenSearchCatClient catClient;
 
 	@InjectMocks
 	private OpenSearchManagerImpl manager;
@@ -1006,4 +1013,92 @@ public class OpenSearchManagerImplTest {
 		assertEquals(Optional.empty(), result);
 	}
 
+	@Test
+	public void testListOrphanValidationIndicesWithStaleAndFreshMix() throws IOException {
+		long ageMs = 60 * 60 * 1000L;
+		long now = System.currentTimeMillis();
+		long stale = now - ageMs - 5_000L;
+		long fresh = now - 1_000L;
+
+		IndicesRecord staleRec = IndicesRecord.of(r -> r
+				.index("validation-temp-abc")
+				.creationDate(String.valueOf(stale)));
+		IndicesRecord freshRec = IndicesRecord.of(r -> r
+				.index("validation-temp-def")
+				.creationDate(String.valueOf(fresh)));
+
+		when(openSearchClient.cat()).thenReturn(catClient);
+		when(catClient.indices(argThat((IndicesRequest r) -> r.index().contains("validation-temp-*"))))
+				.thenReturn(IndicesResponse.of(b -> b.valueBody(Arrays.asList(staleRec, freshRec))));
+
+		// call under test
+		List<String> orphans = manager.listOrphanValidationIndices(ageMs);
+
+		assertEquals(Collections.singletonList("validation-temp-abc"), orphans);
+	}
+
+	@Test
+	public void testListOrphanValidationIndicesWithNonPrefixedEntry() throws IOException {
+		long ageMs = 60 * 60 * 1000L;
+		long stale = System.currentTimeMillis() - ageMs - 5_000L;
+
+		IndicesRecord otherRec = IndicesRecord.of(r -> r
+				.index("search-index-syn1")
+				.creationDate(String.valueOf(stale)));
+
+		when(openSearchClient.cat()).thenReturn(catClient);
+		when(catClient.indices(argThat((IndicesRequest r) -> r.index().contains("validation-temp-*"))))
+				.thenReturn(IndicesResponse.of(b -> b.valueBody(Collections.singletonList(otherRec))));
+
+		// call under test
+		List<String> orphans = manager.listOrphanValidationIndices(ageMs);
+
+		assertEquals(Collections.emptyList(), orphans);
+	}
+
+	@Test
+	public void testListOrphanValidationIndicesWithIOException() throws IOException {
+		long ageMs = 60 * 60 * 1000L;
+		when(openSearchClient.cat()).thenReturn(catClient);
+		when(catClient.indices(argThat((IndicesRequest r) -> r.index().contains("validation-temp-*"))))
+				.thenThrow(new IOException("connection refused"));
+
+		// call under test
+		assertThrows(IOException.class, () -> manager.listOrphanValidationIndices(ageMs));
+	}
+
+	@Test
+	public void testListOrphanValidationIndicesWithIndexNotFound() throws IOException {
+		long ageMs = 60 * 60 * 1000L;
+		ErrorResponse notFound = ErrorResponse.of(e -> e
+				.error(err -> err.type("index_not_found_exception").reason("no validation indices"))
+				.status(404));
+		when(openSearchClient.cat()).thenReturn(catClient);
+		when(catClient.indices(argThat((IndicesRequest r) -> r.index().contains("validation-temp-*"))))
+				.thenThrow(new OpenSearchException(notFound));
+
+		// call under test
+		List<String> orphans = manager.listOrphanValidationIndices(ageMs);
+
+		assertEquals(Collections.emptyList(), orphans);
+	}
+
+	@Test
+	public void testListOrphanValidationIndicesWithNullOrNonNumericCreationDate() throws IOException {
+		long ageMs = 60 * 60 * 1000L;
+
+		IndicesRecord nullDate = IndicesRecord.of(r -> r.index("validation-temp-x"));
+		IndicesRecord badDate = IndicesRecord.of(r -> r
+				.index("validation-temp-y")
+				.creationDate("not-a-number"));
+
+		when(openSearchClient.cat()).thenReturn(catClient);
+		when(catClient.indices(argThat((IndicesRequest r) -> r.index().contains("validation-temp-*"))))
+				.thenReturn(IndicesResponse.of(b -> b.valueBody(Arrays.asList(nullDate, badDate))));
+
+		// call under test
+		List<String> orphans = manager.listOrphanValidationIndices(ageMs);
+
+		assertEquals(Arrays.asList("validation-temp-x", "validation-temp-y"), orphans);
+	}
 }

@@ -46,6 +46,8 @@ import org.opensearch.client.opensearch.core.SearchResponse;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.opensearch.client.opensearch.core.search.HighlightField;
 import org.opensearch.client.opensearch.core.search.Hit;
+import org.opensearch.client.opensearch.cat.IndicesRequest;
+import org.opensearch.client.opensearch.cat.indices.IndicesRecord;
 import org.opensearch.client.opensearch.indices.CreateIndexRequest;
 import org.opensearch.client.opensearch.indices.CreateIndexResponse;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
@@ -100,13 +102,12 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	static final String CONCURRENT_DELETES_MARKER = "concurrent deletes";
 	private static final String ANALYZER_PREFIX = "synapse_analyzer_";
 	private static final String SYNONYM_FILTER_NAME = "synapse_synonyms";
-	private static final String VALIDATION_INDEX_PREFIX = "validation-temp-";
+	static final String VALIDATION_INDEX_PREFIX = "validation-temp-";
 	private static final String VALIDATION_ANALYZER_ID = "validation";
+	// Materializes synapse_synonyms at admit time so synonym-aware analyzer chains are validated.
+	private static final List<String> VALIDATION_SYNONYM_RULES = Collections.singletonList("placeholder, validation");
 
-	// AOSS's control plane is eventually consistent across the envoy proxy fleet, so a delete
-	// issued immediately after a create can race and surface index_not_found_exception while
-	// the create is still propagating. 15 retries with 250ms initial + 1.2x backoff totals
-	// ~18s, enough to ride out propagation without leaving billed zombie indices.
+	// 15 retries * 1.2x from 250ms ~= 18s total budget for concurrent-delete retries.
 	private static final int CLEANUP_MAX_RETRIES = 15;
 	private static final long CLEANUP_INITIAL_BACKOFF_MS = 250L;
 
@@ -1116,13 +1117,20 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		synthetic.setId(VALIDATION_ANALYZER_ID);
 		synthetic.setSettings(settings);
 
+		boolean hasSynonyms = Boolean.TRUE.equals(settings.getSynonymAware());
+		List<String> validationSynonyms = hasSynonyms ? VALIDATION_SYNONYM_RULES : Collections.emptyList();
+
 		String tempIndexName = VALIDATION_INDEX_PREFIX + UUID.randomUUID();
 		try {
 			CreateIndexRequest request = CreateIndexRequest.of(requestBuilder -> requestBuilder
 					.index(tempIndexName)
 					.settings(settingsBuilder -> settingsBuilder.analysis(analysisBuilder -> {
+						if (hasSynonyms) {
+							analysisBuilder.filter(SYNONYM_FILTER_NAME, f -> f.definition(d -> d
+									.synonym(syn -> syn.synonyms(validationSynonyms))));
+						}
 						try {
-							registerAnalyzer(analysisBuilder, synthetic, false);
+							registerAnalyzer(analysisBuilder, synthetic, hasSynonyms);
 						} catch (RuntimeException parseException) {
 							throw new IllegalArgumentException(
 									"Invalid analyzer configuration: " + parseException.getMessage(), parseException);
@@ -1152,6 +1160,9 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 				} catch (OpenSearchException openSearchException) {
 					if (openSearchException.error() != null
 							&& INDEX_NOT_FOUND_EXCEPTION.equals(openSearchException.error().type())) {
+						return null;
+					}
+					if (openSearchException.error() != null && isConcurrentDeleteError(openSearchException)) {
 						throw new RetryException(openSearchException);
 					}
 					throw openSearchException;
@@ -1164,6 +1175,41 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		} catch (Exception cleanupException) {
 			log.error("Failed to delete temporary validation index: {}", tempIndexName, cleanupException);
 		}
+	}
+
+	@Override
+	public List<String> listOrphanValidationIndices(long olderThanMillis) throws IOException {
+		long threshold = System.currentTimeMillis() - olderThanMillis;
+		IndicesRequest listRequest = IndicesRequest.of(r -> r.index(VALIDATION_INDEX_PREFIX + "*"));
+		List<IndicesRecord> records;
+		try {
+			records = openSearchClient.cat().indices(listRequest).valueBody();
+		} catch (OpenSearchException e) {
+			if (e.error() != null && INDEX_NOT_FOUND_EXCEPTION.equals(e.error().type())) {
+				return Collections.emptyList();
+			}
+			throw e;
+		}
+		List<String> orphans = new ArrayList<>();
+		for (IndicesRecord record : records) {
+			String indexName = record.index();
+			if (indexName == null || !indexName.startsWith(VALIDATION_INDEX_PREFIX)) {
+				continue;
+			}
+			String creationDateStr = record.creationDate();
+			if (creationDateStr == null) {
+				orphans.add(indexName);
+				continue;
+			}
+			try {
+				if (Long.parseLong(creationDateStr) < threshold) {
+					orphans.add(indexName);
+				}
+			} catch (NumberFormatException nfe) {
+				orphans.add(indexName);
+			}
+		}
+		return orphans;
 	}
 
 }

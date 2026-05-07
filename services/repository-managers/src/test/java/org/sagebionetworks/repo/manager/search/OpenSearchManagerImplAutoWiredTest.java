@@ -240,6 +240,8 @@ public class OpenSearchManagerImplAutoWiredTest {
 				"Expected 'Invalid analyzer configuration' in message, got: " + ex.getMessage());
 		assertFalse(ex.getMessage().contains("index_not_found_exception"),
 				"AOSS routing error must not reach the caller, got: " + ex.getMessage());
+		assertFalse(ex.getMessage().contains("Internal error occurred"),
+				"Generic AOSS wrapping must not leak to the caller, got: " + ex.getMessage());
 	}
 
 	@Test
@@ -255,6 +257,8 @@ public class OpenSearchManagerImplAutoWiredTest {
 				"Expected 'Invalid analyzer configuration' in message, got: " + ex.getMessage());
 		assertFalse(ex.getMessage().contains("index_not_found_exception"),
 				"AOSS routing error must not reach the caller, got: " + ex.getMessage());
+		assertFalse(ex.getMessage().contains("Internal error occurred"),
+				"Generic AOSS wrapping must not leak to the caller, got: " + ex.getMessage());
 	}
 
 	@Test
@@ -279,6 +283,8 @@ public class OpenSearchManagerImplAutoWiredTest {
 				"Expected 'Invalid analyzer configuration' in message, got: " + ex.getMessage());
 		assertFalse(ex.getMessage().contains("index_not_found_exception"),
 				"AOSS routing error must not reach the caller, got: " + ex.getMessage());
+		assertFalse(ex.getMessage().contains("Internal error occurred"),
+				"Generic AOSS wrapping must not leak to the caller, got: " + ex.getMessage());
 	}
 
 	/**

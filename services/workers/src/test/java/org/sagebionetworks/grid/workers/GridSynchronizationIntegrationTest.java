@@ -329,7 +329,7 @@ public class GridSynchronizationIntegrationTest {
 		waitForFilesToReplicat(files);
 
 		List<ColumnModel> schema = columnModelManager.createColumnModels(admin,
-				List.of(new ColumnModel().setColumnType(ColumnType.MEDIUMTEXT).setName(colName),
+				List.of(new ColumnModel().setColumnType(ColumnType.STRING).setMaximumSize(2000L).setName(colName),
 						new ColumnModel().setColumnType(ColumnType.STRING_LIST).setMaximumListLength((long) listSize)
 								.setMaximumSize((long) stringSize).setName(listName)));
 

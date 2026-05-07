@@ -17,7 +17,7 @@
 		},
 		"maximumSize": {
 			"type": "integer",
-			"description": "A parameter for columnTypes with a maximum size.  For example, ColumnType.STRINGs have a default maximum size of 50 characters, but can be set to a maximumSize of 1 to 1000 characters. For columnType of STRING_LIST, this optionally limits the character length of each individual string element; if omitted, only the 2,000-character total limit applies."
+			"description": "A parameter for columnTypes with a maximum size.  For example, ColumnType.STRINGs have a default maximum size of 50 characters, but can be set to a maximumSize of 1 to 2000 characters. For columnType of STRING_LIST, this optionally limits the character length of each individual string element; if omitted, only the 524,288-character total limit applies."
 		},
 		"maximumListLength": {
 			"type": "integer",

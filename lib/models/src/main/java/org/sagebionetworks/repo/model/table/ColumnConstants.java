@@ -172,8 +172,10 @@ public class ColumnConstants {
 	
 	/**
 	 * The maximum number of characters allowed for string columns.
+	 * Matches MAX_MEDIUM_TEXT_CHARACTERS so STRING columns align with the
+	 * annotation limit and ANNOTATION_REPLICATION.STRING_VALUE VARCHAR(2000).
 	 */
-	public static final Long MAX_ALLOWED_STRING_SIZE = 1000L;
+	public static final Long MAX_ALLOWED_STRING_SIZE = 2000L;
 	
 	/**
 	 * The default maximum number of characters for string columns.
@@ -187,10 +189,11 @@ public class ColumnConstants {
 
 	/**
 	 * The maximum total character length across all elements of a STRING_LIST value.
-	 * Matches MAX_MEDIUM_TEXT_CHARACTERS since STRING_LIST is treated as MEDIUMTEXT
-	 * for table width budget purposes.
+	 * STRING_LIST is stored as a JSON column (same storage class as LARGETEXT), so
+	 * the natural ceiling is MAX_LARGE_TEXT_CHARACTERS. Note: the row-budget estimate
+	 * (SIZE_OF_STRING_LIST_FOR_COLUMN_SIZE_ESTIMATE_BYTES) is independent of this limit.
 	 */
-	public static final long MAX_STRING_LIST_TOTAL_CHARS = MAX_MEDIUM_TEXT_CHARACTERS;
+	public static final long MAX_STRING_LIST_TOTAL_CHARS = MAX_LARGE_TEXT_CHARACTERS;
 
 	/**
 	 * The column size estimate in bytes for STRING_LIST columns, used when calculating

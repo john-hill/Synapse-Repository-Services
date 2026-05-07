@@ -516,7 +516,7 @@ public class TableModelUtilsTest {
 			TableModelUtils.validateRowValue(valueTooBig, cm, 0, 0);
 			fail("should fail");
 		} catch (IllegalArgumentException e) {
-			assertEquals("Value at [0,0] was not a valid STRING. Column maximum size cannot exceed 1000", e.getMessage());
+			assertEquals("Value at [0,0] was not a valid STRING. Column maximum size cannot exceed 2000", e.getMessage());
 		}
 	}
 	/**
@@ -594,7 +594,7 @@ public class TableModelUtilsTest {
 			// call under test
 			TableModelUtils.validateValue("some string", cm);
 		});
-		assertEquals("Column maximum size cannot exceed 1000", exception.getMessage());
+		assertEquals("Column maximum size cannot exceed 2000", exception.getMessage());
 	}
 	
 	@Test
@@ -606,7 +606,7 @@ public class TableModelUtilsTest {
 			// call under test
 			TableModelUtils.validateValue("some string", cm);
 		});
-		assertEquals("Column maximum size cannot exceed 1000", exception.getMessage());
+		assertEquals("Column maximum size cannot exceed 2000", exception.getMessage());
 	}
 	
 	@Test
@@ -618,7 +618,7 @@ public class TableModelUtilsTest {
 			// call under test
 			TableModelUtils.validateValue("[1, 12345, 123]", cm);
 		});
-		assertEquals("Column maximum size cannot exceed 1000", exception.getMessage());
+		assertEquals("Column maximum size cannot exceed 2000", exception.getMessage());
 	}
 
 	@Test

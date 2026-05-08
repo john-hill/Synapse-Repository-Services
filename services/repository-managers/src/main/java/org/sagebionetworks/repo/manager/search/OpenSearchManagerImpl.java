@@ -17,6 +17,8 @@ import org.json.JSONObject;
 
 import jakarta.json.stream.JsonParser;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.client.json.JsonData;
 import org.opensearch.client.json.JsonpDeserializer;
 import org.opensearch.client.json.JsonpMapper;
@@ -31,6 +33,8 @@ import org.opensearch.client.opensearch._types.ErrorCause;
 import org.opensearch.client.opensearch._types.FieldSort;
 import org.opensearch.client.opensearch._types.FieldValue;
 import org.opensearch.client.opensearch._types.OpenSearchException;
+import org.opensearch.client.opensearch._types.ShardSearchFailure;
+import org.opensearch.client.opensearch._types.ShardStatistics;
 import org.opensearch.client.opensearch._types.SortOptions;
 import org.opensearch.client.opensearch._types.SortOrder;
 import org.opensearch.client.opensearch._types.aggregations.Aggregate;
@@ -41,6 +45,7 @@ import org.opensearch.client.opensearch._types.mapping.Property;
 import org.opensearch.client.opensearch._types.query_dsl.BoolQuery;
 import org.opensearch.client.opensearch._types.query_dsl.Query;
 import org.opensearch.client.opensearch._types.query_dsl.TextQueryType;
+import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
 import org.opensearch.client.opensearch.core.SearchResponse;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
@@ -75,6 +80,7 @@ import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.sagebionetworks.repo.model.search.KeyRange;
 import org.sagebionetworks.repo.model.search.KeyValues;
 import org.sagebionetworks.util.ValidateArgument;
+import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 
 import org.springframework.stereotype.Service;
 
@@ -84,6 +90,11 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class OpenSearchManagerImpl implements OpenSearchManager {
+
+	private static final Logger LOG = LogManager.getLogger(OpenSearchManagerImpl.class);
+
+	private static final int HTTP_TOO_MANY_REQUESTS = 429;
+	private static final int HTTP_SERVICE_UNAVAILABLE = 503;
 
 	private static final String SYSTEM_FIELD_ROW_ID = "_row_id";
 	private static final String SYSTEM_FIELD_ROW_VERSION = "_row_version";
@@ -259,29 +270,50 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		}
 
 		try {
-			BulkResponse response = openSearchClient.bulk(req -> req.operations(operations));
+			// The Function overload of bulk() is final and cannot be stubbed by Mockito 2.27.
+			BulkResponse response = openSearchClient.bulk(
+					BulkRequest.of(req -> req.operations(operations)));
 
-			List<String> errors = new ArrayList<>();
+			int retryableFailures = 0;
+			int permanentFailures = 0;
 			for (var item : response.items()) {
-				if (item.error() != null) {
-					errors.add("doc " + item.id() + ": " + describeError(item.error()));
+				if (item.error() == null) {
+					continue;
+				}
+				LOG.error("Bulk index item failed in {}: {}", indexName, describeBulkItemFailure(item));
+				if (isRetryableItemStatus(item.status())) {
+					retryableFailures++;
+				} else {
+					permanentFailures++;
 				}
 			}
 
-			if (!errors.isEmpty()) {
-				throw new RuntimeException(String.format(
-						"Bulk index to %s failed: %d document(s) rejected out of %d. First errors: %s",
-						indexName, errors.size(), operations.size(),
-						errors.subList(0, Math.min(errors.size(), 5))));
+			int totalFailures = retryableFailures + permanentFailures;
+			if (totalFailures == 0) {
+				return (long) response.items().size();
 			}
 
-			return (long) response.items().size();
+			String summary = String.format(
+					"Bulk index to %s failed: %d document(s) rejected out of %d (%d retryable, %d permanent)",
+					indexName, totalFailures, operations.size(), retryableFailures, permanentFailures);
+			if (permanentFailures == 0) {
+				throw new RecoverableMessageException(summary);
+			}
+			throw new RuntimeException(summary);
 		} catch (OpenSearchException e) {
-			throw new RuntimeException("Failed to bulk index to search index: " + indexName
-					+ " (" + describeError(e.error()) + ")", e);
+			String detail = "Failed to bulk index to search index: " + indexName
+					+ " (" + describeError(e.error()) + ")";
+			if (isRetryableItemStatus(e.status())) {
+				throw new RecoverableMessageException(detail, e);
+			}
+			throw new RuntimeException(detail, e);
 		} catch (IOException e) {
-			throw new RuntimeException("Failed to bulk index to search index: " + indexName, e);
+			throw new RecoverableMessageException("Failed to bulk index to search index: " + indexName, e);
 		}
+	}
+
+	static boolean isRetryableItemStatus(int status) {
+		return status == HTTP_TOO_MANY_REQUESTS || status == HTTP_SERVICE_UNAVAILABLE;
 	}
 
 	/**
@@ -327,6 +359,35 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		if (c.stackTrace() != null) {
 			sb.append(" [stackTrace=").append(c.stackTrace()).append("]");
 		}
+	}
+
+	/**
+	 * Format a single failed {@link org.opensearch.client.opensearch.core.bulk.BulkResponseItem}.
+	 * AOSS often returns a generic {@code error.reason} on each item while leaving the real
+	 * cause in {@code shards.failures[]} and {@code status}. Surface both so callers (and the
+	 * persisted {@code SEARCH_INDEX_STATUS.errorMessage}) see the whole story.
+	 */
+	static String describeBulkItemFailure(
+			org.opensearch.client.opensearch.core.bulk.BulkResponseItem item) {
+		StringBuilder sb = new StringBuilder();
+		sb.append("doc ").append(item.id())
+				.append(" [status=").append(item.status()).append("]: ")
+				.append(describeError(item.error()));
+		ShardStatistics shards = item.shards();
+		if (shards != null && !shards.failures().isEmpty()) {
+			sb.append(" [shardFailures=");
+			boolean first = true;
+			for (ShardSearchFailure sf : shards.failures()) {
+				if (!first) sb.append(", ");
+				sb.append("shard=").append(sf.shard());
+				if (sf.index() != null) sb.append(" index=").append(sf.index());
+				if (sf.node() != null) sb.append(" node=").append(sf.node());
+				sb.append(" reason=").append(describeError(sf.reason()));
+				first = false;
+			}
+			sb.append("]");
+		}
+		return sb.toString();
 	}
 
 	@Override

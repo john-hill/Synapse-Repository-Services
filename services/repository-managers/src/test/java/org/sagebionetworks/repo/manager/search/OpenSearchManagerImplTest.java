@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -34,9 +35,16 @@ import org.opensearch.client.opensearch._types.ErrorCause;
 import org.opensearch.client.opensearch._types.ErrorResponse;
 import org.opensearch.client.opensearch._types.FieldSort;
 import org.opensearch.client.opensearch._types.OpenSearchException;
+import org.opensearch.client.opensearch._types.ShardSearchFailure;
+import org.opensearch.client.opensearch._types.ShardStatistics;
 import org.opensearch.client.opensearch._types.SortOptions;
 import org.opensearch.client.opensearch._types.SortOrder;
+import org.opensearch.client.opensearch.core.BulkRequest;
+import org.opensearch.client.opensearch.core.BulkResponse;
+import org.opensearch.client.opensearch.core.bulk.BulkOperation;
+import org.opensearch.client.opensearch.core.bulk.BulkResponseItem;
 import org.opensearch.client.opensearch._types.aggregations.Aggregation;
+import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.opensearch.client.opensearch._types.query_dsl.Query;
 import org.opensearch.client.opensearch._types.query_dsl.TextQueryType;
 import org.opensearch.client.opensearch.core.search.HighlightField;
@@ -1006,4 +1014,179 @@ public class OpenSearchManagerImplTest {
 		assertEquals(Optional.empty(), result);
 	}
 
+	private static BulkResponseItem okItem(String id) {
+		return BulkResponseItem.of(b -> b
+				.index("search-index-syn1")
+				.id(id)
+				.status(201)
+				.operationType(org.opensearch.client.opensearch.core.bulk.OperationType.Index));
+	}
+
+	private static BulkResponseItem failedItem(String id, int status, String type, String reason) {
+		return BulkResponseItem.of(b -> b
+				.index("search-index-syn1")
+				.id(id)
+				.status(status)
+				.operationType(org.opensearch.client.opensearch.core.bulk.OperationType.Index)
+				.error(ErrorCause.of(e -> e.type(type).reason(reason))));
+	}
+
+	private static BulkOperation bulkOp(String id) {
+		return BulkOperation.of(op -> op
+				.index(idx -> idx.index("search-index-syn1").id(id).document(Map.of("_row_id", Long.parseLong(id)))));
+	}
+
+	private static BulkResponse bulkResponseOf(BulkResponseItem... items) {
+		return BulkResponse.of(b -> b.errors(Arrays.stream(items).anyMatch(i -> i.error() != null))
+				.took(1L).items(Arrays.asList(items)));
+	}
+
+	@Test
+	public void testBulkIndexWithAllItemsSucceed() throws Exception {
+		BulkResponse response = bulkResponseOf(okItem("1"), okItem("2"), okItem("3"));
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenReturn(response);
+
+		// call under test
+		long indexed = manager.bulkIndex("search-index-syn1",
+				Arrays.asList(bulkOp("1"), bulkOp("2"), bulkOp("3")));
+
+		assertEquals(3L, indexed);
+	}
+
+	@Test
+	public void testBulkIndexWithAllRetryableFailuresThrowsRecoverableMessageException() throws Exception {
+		BulkResponse response = bulkResponseOf(
+				okItem("1"),
+				failedItem("2", 429, "circuit_breaking_exception", "rate limited"),
+				failedItem("3", 503, "service_unavailable", "try later"));
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenReturn(response);
+
+		// call under test
+		RecoverableMessageException ex = assertThrows(RecoverableMessageException.class,
+				() -> manager.bulkIndex("search-index-syn1",
+						Arrays.asList(bulkOp("1"), bulkOp("2"), bulkOp("3"))));
+		assertTrue(ex.getMessage().contains("2 retryable"), ex.getMessage());
+		assertTrue(ex.getMessage().contains("0 permanent"), ex.getMessage());
+	}
+
+	@Test
+	public void testBulkIndexWithMixedFailuresThrowsPermanentRuntimeException() throws Exception {
+		BulkResponse response = bulkResponseOf(
+				okItem("1"),
+				failedItem("2", 429, "circuit_breaking_exception", "rate limited"),
+				failedItem("3", 400, "mapper_parsing_exception", "failed to parse field [geneName]"));
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenReturn(response);
+
+		// call under test
+		RuntimeException ex = assertThrows(RuntimeException.class,
+				() -> manager.bulkIndex("search-index-syn1",
+						Arrays.asList(bulkOp("1"), bulkOp("2"), bulkOp("3"))));
+		assertFalse(ex instanceof RecoverableMessageException,
+				ex.getClass().getName() + ": " + ex.getMessage());
+		assertTrue(ex.getMessage().contains("1 retryable"), ex.getMessage());
+		assertTrue(ex.getMessage().contains("1 permanent"), ex.getMessage());
+	}
+
+	@Test
+	public void testBulkIndexWithEnvelope429ThrowsRecoverableMessageException() throws Exception {
+		ErrorResponse rateLimited = ErrorResponse.of(e -> e
+				.error(err -> err.type("circuit_breaking_exception").reason("rate limited"))
+				.status(429));
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenThrow(new OpenSearchException(rateLimited));
+
+		// call under test
+		assertThrows(RecoverableMessageException.class,
+				() -> manager.bulkIndex("search-index-syn1", Arrays.asList(bulkOp("1"))));
+	}
+
+	@Test
+	public void testBulkIndexWithEnvelope400ThrowsPermanentRuntimeException() throws Exception {
+		ErrorResponse badRequest = ErrorResponse.of(e -> e
+				.error(err -> err.type("illegal_argument_exception").reason("bad request"))
+				.status(400));
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenThrow(new OpenSearchException(badRequest));
+
+		// call under test
+		RuntimeException ex = assertThrows(RuntimeException.class,
+				() -> manager.bulkIndex("search-index-syn1", Arrays.asList(bulkOp("1"))));
+		assertFalse(ex instanceof RecoverableMessageException, ex.getClass().getName());
+	}
+
+	@Test
+	public void testBulkIndexWithIOExceptionThrowsRecoverableMessageException() throws Exception {
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenThrow(new IOException("connection reset"));
+
+		// call under test
+		assertThrows(RecoverableMessageException.class,
+				() -> manager.bulkIndex("search-index-syn1", Arrays.asList(bulkOp("1"))));
+	}
+
+	@Test
+	public void testBulkIndexWithEmptyOperationsReturnsZeroAndDoesNotCallClient() {
+		// call under test
+		long indexed = manager.bulkIndex("search-index-syn1", Collections.emptyList());
+
+		assertEquals(0L, indexed);
+		verifyZeroInteractions(openSearchClient);
+	}
+
+	@Test
+	public void testDescribeBulkItemFailureWithNoShardFailures() {
+		BulkResponseItem item = BulkResponseItem.of(b -> b
+				.index("search-index-syn1")
+				.id("1")
+				.status(500)
+				.operationType(org.opensearch.client.opensearch.core.bulk.OperationType.Index)
+				.error(ErrorCause.of(e -> e
+						.type("exception")
+						.reason("Internal error occurred while processing request"))));
+
+		// call under test
+		String result = OpenSearchManagerImpl.describeBulkItemFailure(item);
+
+		assertEquals(
+				"doc 1 [status=500]: exception: Internal error occurred while processing request",
+				result);
+	}
+
+	@Test
+	public void testDescribeBulkItemFailureWithShardFailuresPopulated() {
+		ShardSearchFailure shardFailure = ShardSearchFailure.of(sf -> sf
+				.shard(3)
+				.index("search-index-syn1")
+				.node("node-a")
+				.reason(ErrorCause.of(e -> e
+						.type("mapper_parsing_exception")
+						.reason("failed to parse field [geneName]"))));
+		ShardStatistics shards = ShardStatistics.of(s -> s
+				.total(5).successful(4).failed(1).failures(shardFailure));
+
+		BulkResponseItem item = BulkResponseItem.of(b -> b
+				.index("search-index-syn1")
+				.id("42")
+				.status(400)
+				.operationType(org.opensearch.client.opensearch.core.bulk.OperationType.Index)
+				.shards(shards)
+				.error(ErrorCause.of(e -> e
+						.type("exception")
+						.reason("Internal error occurred while processing request"))));
+
+		// call under test
+		String result = OpenSearchManagerImpl.describeBulkItemFailure(item);
+
+		assertTrue(result.contains("doc 42 [status=400]"), result);
+		assertTrue(result.contains("Internal error occurred while processing request"), result);
+		assertTrue(result.contains("shardFailures="), result);
+		assertTrue(result.contains("shard=3"), result);
+		assertTrue(result.contains("index=search-index-syn1"), result);
+		assertTrue(result.contains("node=node-a"), result);
+		assertTrue(result.contains("mapper_parsing_exception"), result);
+		assertTrue(result.contains("failed to parse field [geneName]"), result);
+	}
 }

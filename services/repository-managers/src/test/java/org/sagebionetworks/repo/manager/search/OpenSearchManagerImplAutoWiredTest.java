@@ -16,6 +16,7 @@ import java.util.Optional;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.AfterEach;
@@ -32,6 +33,7 @@ import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
+import org.sagebionetworks.util.RetryException;
 import org.sagebionetworks.util.TimeUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -49,6 +51,9 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 	private static final long POLL_MAX_MS = 30_000L;
 	private static final long POLL_INTERVAL_MS = 1_000L;
+
+	private static final int VALIDATE_RETRY_MAX = 10;
+	private static final long VALIDATE_RETRY_INITIAL_MS = 1_000L;
 
 	@Autowired
 	private OpenSearchManager openSearchManager;
@@ -95,6 +100,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
+		waitForIndexReachable();
 
 		// call under test
 		openSearchManager.deleteIndex(indexName);
@@ -115,6 +121,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
+		waitForIndexReachable();
 
 		// call under test — resource_already_exists returns empty Optional
 		Optional<String> result = openSearchManager.createIndex(indexName, columns, null,
@@ -139,6 +146,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		);
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
+		waitForIndexReachable();
 
 		List<BulkOperation> operations = List.of(
 				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "mitochondria research", "2", "42")),
@@ -186,6 +194,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
+		waitForIndexReachable();
 
 		List<BulkOperation> operations = List.of(
 				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "alpha")),
@@ -228,39 +237,44 @@ public class OpenSearchManagerImplAutoWiredTest {
 	}
 
 	@Test
-	public void testValidateAnalyzerSettingsWithInvalidTokenizer() {
+	public void testValidateAnalyzerSettingsWithInvalidTokenizer() throws Exception {
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
 		settings.setTokenizer("nonexistent_tokenizer_xyz");
 
 		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> openSearchManager.validateAnalyzerSettings(settings));
+		IllegalArgumentException ex = retryOnAossAnalyzeFlake(() ->
+				assertThrows(IllegalArgumentException.class,
+						() -> openSearchManager.validateAnalyzerSettings(settings)));
 		assertTrue(ex.getMessage().contains("Invalid analyzer configuration"),
 				"Expected 'Invalid analyzer configuration' in message, got: " + ex.getMessage());
 	}
 
 	@Test
-	public void testValidateAnalyzerSettingsWithInvalidFilter() {
+	public void testValidateAnalyzerSettingsWithInvalidFilter() throws Exception {
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
 		settings.setTokenizer("standard");
 		settings.setFilterOrder(Arrays.asList("bogus_filter_name_xyz"));
 
 		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> openSearchManager.validateAnalyzerSettings(settings));
+		IllegalArgumentException ex = retryOnAossAnalyzeFlake(() ->
+				assertThrows(IllegalArgumentException.class,
+						() -> openSearchManager.validateAnalyzerSettings(settings)));
 		assertTrue(ex.getMessage().contains("Invalid analyzer configuration"),
 				"Expected 'Invalid analyzer configuration' in message, got: " + ex.getMessage());
 	}
 
 	@Test
-	public void testValidateAnalyzerSettingsWithCustomFilters() {
+	public void testValidateAnalyzerSettingsWithCustomFilters() throws Exception {
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
 		settings.setTokenizer("standard");
 		settings.setTokenFilters("{\"my_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"}}");
 		settings.setFilterOrder(Arrays.asList("my_stop", "lowercase"));
 
 		// call under test
-		assertDoesNotThrow(() -> openSearchManager.validateAnalyzerSettings(settings));
+		retryOnAossAnalyzeFlake(() -> {
+			assertDoesNotThrow(() -> openSearchManager.validateAnalyzerSettings(settings));
+			return null;
+		});
 	}
 
 	/**
@@ -299,6 +313,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), List.of(override), analyzers);
+		waitForIndexReachable();
 
 		List<BulkOperation> operations = List.of(
 				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "BRCA1")),
@@ -323,6 +338,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), analyzers);
+		waitForIndexReachable();
 
 		List<BulkOperation> operations = List.of(
 				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "BRCA1")),
@@ -363,6 +379,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
+		waitForIndexReachable();
 
 		Map<String, Object> doc = new HashMap<>();
 		doc.put("_row_id", 1L);
@@ -506,6 +523,48 @@ public class OpenSearchManagerImplAutoWiredTest {
 	}
 
 	// ---- Polling helpers ----
+
+	private void waitForIndexReachable() {
+		SearchQuery probe = new SearchQuery();
+		probe.setQueryType(SearchQueryType.MATCH_ALL);
+		probe.setLimit(0L);
+		probe.setOffset(0L);
+		boolean success = TimeUtils.waitForExponential(POLL_MAX_MS, POLL_INTERVAL_MS, null, (v) -> {
+			try {
+				openSearchManager.search(indexName, probe, Collections.emptyList(),
+						null, Collections.emptyList(), defaultAnalyzers,
+						EnumSet.of(SearchQueryPart.TOTAL_HITS));
+				return true;
+			} catch (IllegalStateException notReady) {
+				return false;
+			}
+		});
+		assertTrue(success, "Timed out waiting for AOSS index " + indexName + " to become reachable");
+	}
+
+	private <T> T retryOnAossAnalyzeFlake(Callable<T> action) throws Exception {
+		return TimeUtils.waitForExponentialMaxRetry(VALIDATE_RETRY_MAX, VALIDATE_RETRY_INITIAL_MS, () -> {
+			try {
+				return action.call();
+			} catch (IllegalArgumentException e) {
+				if (isAossIndexNotFoundFlake(e)) {
+					throw new RetryException(e);
+				}
+				throw e;
+			} catch (AssertionError ae) {
+				if (ae.getCause() instanceof IllegalArgumentException
+						&& isAossIndexNotFoundFlake((IllegalArgumentException) ae.getCause())) {
+					throw new RetryException(ae.getCause());
+				}
+				throw ae;
+			}
+		});
+	}
+
+	private static boolean isAossIndexNotFoundFlake(IllegalArgumentException e) {
+		String message = e.getMessage();
+		return message != null && message.contains("index_not_found_exception");
+	}
 
 	/**
 	 * Poll until search returns at least {@code expectedMinHits} results.

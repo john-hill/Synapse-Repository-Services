@@ -39,7 +39,6 @@ import org.opensearch.client.opensearch._types.SortOptions;
 import org.opensearch.client.opensearch._types.SortOrder;
 import org.opensearch.client.opensearch._types.aggregations.Aggregate;
 import org.opensearch.client.opensearch._types.aggregations.Aggregation;
-import org.opensearch.client.opensearch._types.aggregations.StringTermsBucket;
 import org.opensearch.client.opensearch._types.mapping.DynamicMapping;
 import org.opensearch.client.opensearch._types.mapping.Property;
 import org.opensearch.client.opensearch._types.query_dsl.BoolQuery;
@@ -270,10 +269,15 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		}
 
 		try {
-			// The Function overload of bulk() is final and cannot be stubbed by Mockito 2.27.
 			BulkResponse response = openSearchClient.bulk(
 					BulkRequest.of(req -> req.operations(operations)));
 
+			// Per the OpenSearch bulk API contract, errors=false means every item succeeded —
+			// skip iterating items in that case.
+			// https://opensearch.org/blog/error-logs/error-log-bulkindexerror-the-batch-failure/
+			if (!response.errors()) {
+				return (long) response.items().size();
+			}
 			int retryableFailures = 0;
 			int permanentFailures = 0;
 			for (var item : response.items()) {
@@ -289,10 +293,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			}
 
 			int totalFailures = retryableFailures + permanentFailures;
-			if (totalFailures == 0) {
-				return (long) response.items().size();
-			}
-
 			String summary = String.format(
 					"Bulk index to %s failed: %d document(s) rejected out of %d (%d retryable, %d permanent)",
 					indexName, totalFailures, operations.size(), retryableFailures, permanentFailures);

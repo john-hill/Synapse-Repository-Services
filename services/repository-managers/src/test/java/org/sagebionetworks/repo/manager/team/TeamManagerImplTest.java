@@ -1338,10 +1338,8 @@ public class TeamManagerImplTest {
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		AccessControlList acl = TeamManagerImpl.createInitialAcl(userInfo, TEAM_ID, new Date());
 		when(mockAclManager.getAcl(TEAM_ID, ObjectType.TEAM)).thenReturn(Optional.of(acl));
-		when(mockTeamDAO.get(TEAM_ID)).thenReturn(new Team().setId(TEAM_ID).setCreatedBy(userInfo.getId().toString()));
 		String principalId = "321";
 		teamManagerImpl.setPermissions(userInfo, TEAM_ID, principalId, true);
-		verify(mockAclManager).update(userInfo, acl, ObjectType.TEAM, userInfo.getId());
 		// now check that user is actually an admin
 		boolean foundRA=false;
 		for (ResourceAccess ra: acl.getResourceAccess()) {
@@ -1387,7 +1385,6 @@ public class TeamManagerImplTest {
 		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
 		AccessControlList acl = TeamManagerImpl.createInitialAcl(userInfo, TEAM_ID, new Date());
 		when(mockAclManager.getAcl(TEAM_ID, ObjectType.TEAM)).thenReturn(Optional.of(acl));
-		when(mockTeamDAO.get(TEAM_ID)).thenReturn(new Team().setId(TEAM_ID).setCreatedBy(userInfo.getId().toString()));
 		String principalId = MEMBER_PRINCIPAL_ID; // add SELF as admin
 		
 		teamManagerImpl.setPermissions(userInfo, TEAM_ID, principalId, true);

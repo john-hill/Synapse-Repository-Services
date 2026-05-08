@@ -176,7 +176,7 @@ public class CSVUtilsTest {
 		String stringOverLimit = createStringOfSize(ColumnConstants.MAX_ALLOWED_STRING_SIZE.intValue()+1);
 		ColumnModel cm = CSVUtils.checkType(stringOverLimit, null);
 		assertNotNull(cm);
-		assertEquals(ColumnType.MEDIUMTEXT, cm.getColumnType());
+		assertEquals(ColumnType.LARGETEXT, cm.getColumnType());
 		assertEquals(Long.valueOf(stringOverLimit.length()), cm.getMaximumSize());
 	}
 	

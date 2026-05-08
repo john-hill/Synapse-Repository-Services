@@ -1130,6 +1130,97 @@ public class OpenSearchManagerImplTest {
 		assertTrue(ex.getMessage().contains("1 permanent"), ex.getMessage());
 	}
 
+	@Test
+	public void testBulkIndexPermanentMessageIncludesSampleFailures() throws Exception {
+		BulkResponse response = bulkResponseOf(
+				failedItem("1", 400, "mapper_parsing_exception", "failed to parse field [geneName]"),
+				failedItem("2", 400, "mapper_parsing_exception", "failed to parse field [geneLength]"),
+				failedItem("3", 400, "document_parsing_exception", "unexpected character"));
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenReturn(response);
+
+		// call under test
+		RuntimeException ex = assertThrows(RuntimeException.class,
+				() -> manager.bulkIndex("search-index-syn1",
+						Arrays.asList(bulkOp("1"), bulkOp("2"), bulkOp("3"))));
+		assertFalse(ex instanceof RecoverableMessageException, ex.getClass().getName());
+		String msg = ex.getMessage();
+		assertTrue(msg.contains("Sample failures:"), msg);
+		assertTrue(msg.contains("doc 1 [status=400]"), msg);
+		assertTrue(msg.contains("doc 2 [status=400]"), msg);
+		assertTrue(msg.contains("doc 3 [status=400]"), msg);
+		assertTrue(msg.contains("failed to parse field [geneName]"), msg);
+		assertTrue(msg.contains("failed to parse field [geneLength]"), msg);
+		assertTrue(msg.contains("unexpected character"), msg);
+	}
+
+	@Test
+	public void testBulkIndexPermanentMessageCapsAtFiveSamples() throws Exception {
+		BulkResponseItem[] items = new BulkResponseItem[8];
+		BulkOperation[] ops = new BulkOperation[8];
+		for (int i = 0; i < 8; i++) {
+			String id = String.valueOf(i + 1);
+			items[i] = failedItem(id, 400, "mapper_parsing_exception", "field [c" + i + "]");
+			ops[i] = bulkOp(id);
+		}
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenReturn(bulkResponseOf(items));
+
+		// call under test
+		RuntimeException ex = assertThrows(RuntimeException.class,
+				() -> manager.bulkIndex("search-index-syn1", Arrays.asList(ops)));
+		String msg = ex.getMessage();
+		assertTrue(msg.contains("doc 1 [status=400]"), msg);
+		assertTrue(msg.contains("doc 5 [status=400]"), msg);
+		assertFalse(msg.contains("doc 6 [status=400]"), msg);
+		assertFalse(msg.contains("doc 8 [status=400]"), msg);
+	}
+
+	@Test
+	public void testBulkIndexPermanentMessageIncludesOnlyPermanentSamples() throws Exception {
+		BulkResponse response = bulkResponseOf(
+				failedItem("1", 429, "circuit_breaking_exception", "rate limited"),
+				failedItem("2", 429, "circuit_breaking_exception", "rate limited"),
+				failedItem("3", 400, "mapper_parsing_exception", "failed to parse field [geneName]"),
+				failedItem("4", 400, "mapper_parsing_exception", "failed to parse field [geneLength]"),
+				failedItem("5", 400, "document_parsing_exception", "unexpected character"));
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenReturn(response);
+
+		// call under test
+		RuntimeException ex = assertThrows(RuntimeException.class,
+				() -> manager.bulkIndex("search-index-syn1",
+						Arrays.asList(bulkOp("1"), bulkOp("2"), bulkOp("3"), bulkOp("4"), bulkOp("5"))));
+		String msg = ex.getMessage();
+		assertTrue(msg.contains("2 retryable"), msg);
+		assertTrue(msg.contains("3 permanent"), msg);
+		assertTrue(msg.contains("doc 3 [status=400]"), msg);
+		assertTrue(msg.contains("doc 4 [status=400]"), msg);
+		assertTrue(msg.contains("doc 5 [status=400]"), msg);
+		assertFalse(msg.contains("doc 1 [status=429]"), msg);
+		assertFalse(msg.contains("doc 2 [status=429]"), msg);
+		assertFalse(msg.contains("rate limited"), msg);
+	}
+
+	@Test
+	public void testBulkIndexPermanentMessageTruncatesWhenOverBudget() throws Exception {
+		char[] huge = new char[2000];
+		Arrays.fill(huge, 'x');
+		String bigReason = new String(huge);
+		BulkResponse response = bulkResponseOf(
+				failedItem("1", 400, "mapper_parsing_exception", bigReason),
+				failedItem("2", 400, "mapper_parsing_exception", bigReason));
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenReturn(response);
+
+		// call under test
+		RuntimeException ex = assertThrows(RuntimeException.class,
+				() -> manager.bulkIndex("search-index-syn1", Arrays.asList(bulkOp("1"), bulkOp("2"))));
+		String msg = ex.getMessage();
+		assertEquals(2500, msg.length(), "message length=" + msg.length());
+		assertTrue(msg.endsWith("...[truncated]"), msg.substring(msg.length() - 20));
+	}
+
 	@ParameterizedTest
 	@ValueSource(ints = {500, 502, 504})
 	public void testBulkIndexWithEnvelope5xxThrowsRecoverableMessageException(int status) throws Exception {

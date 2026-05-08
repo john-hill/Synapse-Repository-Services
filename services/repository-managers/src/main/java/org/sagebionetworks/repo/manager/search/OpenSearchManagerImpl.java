@@ -48,6 +48,7 @@ import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
 import org.opensearch.client.opensearch.core.SearchResponse;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
+import org.opensearch.client.opensearch.core.bulk.BulkResponseItem;
 import org.opensearch.client.opensearch.core.search.HighlightField;
 import org.opensearch.client.opensearch.core.search.Hit;
 import org.opensearch.client.opensearch.indices.CreateIndexRequest;
@@ -95,6 +96,13 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	private static final int HTTP_TOO_MANY_REQUESTS = 429;
 	private static final int HTTP_INTERNAL_SERVER_ERROR = 500;
 	private static final int HTTP_MAX_SERVER_ERROR = 599;
+
+	// Per-item bulk-failure descriptors are logged in full, but the first N are also
+	// embedded in the thrown RuntimeException message so the reason reaches the user
+	// via SEARCH_INDEX_STATUS.ERROR_MESSAGE (VARCHAR(3000)) and ASYNCH_JOB_STATUS.
+	static final int MAX_FAILURE_SAMPLES = 5;
+	static final int MAX_BULK_ERROR_MESSAGE_CHARS = 2500;
+	static final String TRUNCATION_MARKER = "...[truncated]";
 
 	private static final String SYSTEM_FIELD_ROW_ID = "_row_id";
 	private static final String SYSTEM_FIELD_ROW_VERSION = "_row_version";
@@ -281,15 +289,20 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			}
 			int retryableFailures = 0;
 			int permanentFailures = 0;
+			List<String> permanentSamples = new ArrayList<>();
 			for (var item : response.items()) {
 				if (item.error() == null) {
 					continue;
 				}
-				LOG.error("Bulk index item failed in {}: {}", indexName, describeBulkItemFailure(item));
+				String descriptor = describeBulkItemFailure(item);
+				LOG.error("Bulk index item failed in {}: {}", indexName, descriptor);
 				if (isRetryableItemStatus(item.status())) {
 					retryableFailures++;
 				} else {
 					permanentFailures++;
+					if (permanentSamples.size() < MAX_FAILURE_SAMPLES) {
+						permanentSamples.add(descriptor);
+					}
 				}
 			}
 
@@ -300,7 +313,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			if (permanentFailures == 0) {
 				throw new RecoverableMessageException(summary);
 			}
-			throw new RuntimeException(summary);
+			throw new RuntimeException(buildPermanentFailureMessage(summary, permanentSamples));
 		} catch (OpenSearchException e) {
 			String detail = "Failed to bulk index to search index: " + indexName
 					+ " (" + describeError(e.error()) + ")";
@@ -316,6 +329,27 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	static boolean isRetryableItemStatus(int status) {
 		return status == HTTP_TOO_MANY_REQUESTS
 				|| (status >= HTTP_INTERNAL_SERVER_ERROR && status <= HTTP_MAX_SERVER_ERROR);
+	}
+
+	/**
+	 * Appends up to {@link #MAX_FAILURE_SAMPLES} per-item descriptors to the summary so the
+	 * reason reaches the user via SEARCH_INDEX_STATUS.ERROR_MESSAGE (VARCHAR(3000)). The whole
+	 * message is hard-capped at {@link #MAX_BULK_ERROR_MESSAGE_CHARS} by substring truncation
+	 * to stay safely inside that column width.
+	 */
+	static String buildPermanentFailureMessage(String summary, List<String> permanentSamples) {
+		if (permanentSamples.isEmpty()) {
+			return summary;
+		}
+		StringBuilder sb = new StringBuilder(summary).append(". Sample failures:");
+		for (String sample : permanentSamples) {
+			sb.append("\n - ").append(sample);
+		}
+		if (sb.length() > MAX_BULK_ERROR_MESSAGE_CHARS) {
+			return sb.substring(0, MAX_BULK_ERROR_MESSAGE_CHARS - TRUNCATION_MARKER.length())
+					+ TRUNCATION_MARKER;
+		}
+		return sb.toString();
 	}
 
 	/**
@@ -364,13 +398,13 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	/**
-	 * Format a single failed {@link org.opensearch.client.opensearch.core.bulk.BulkResponseItem}.
+	 * Format a single failed {@link BulkResponseItem}.
 	 * AOSS often returns a generic {@code error.reason} on each item while leaving the real
 	 * cause in {@code shards.failures[]} and {@code status}. Surface both so callers (and the
 	 * persisted {@code SEARCH_INDEX_STATUS.errorMessage}) see the whole story.
 	 */
 	static String describeBulkItemFailure(
-			org.opensearch.client.opensearch.core.bulk.BulkResponseItem item) {
+			BulkResponseItem item) {
 		StringBuilder sb = new StringBuilder();
 		sb.append("doc ").append(item.id())
 				.append(" [status=").append(item.status()).append("]: ")

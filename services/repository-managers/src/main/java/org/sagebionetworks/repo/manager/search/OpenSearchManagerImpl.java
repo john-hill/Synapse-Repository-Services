@@ -93,7 +93,8 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	private static final Logger LOG = LogManager.getLogger(OpenSearchManagerImpl.class);
 
 	private static final int HTTP_TOO_MANY_REQUESTS = 429;
-	private static final int HTTP_SERVICE_UNAVAILABLE = 503;
+	private static final int HTTP_INTERNAL_SERVER_ERROR = 500;
+	private static final int HTTP_MAX_SERVER_ERROR = 599;
 
 	private static final String SYSTEM_FIELD_ROW_ID = "_row_id";
 	private static final String SYSTEM_FIELD_ROW_VERSION = "_row_version";
@@ -313,7 +314,8 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	static boolean isRetryableItemStatus(int status) {
-		return status == HTTP_TOO_MANY_REQUESTS || status == HTTP_SERVICE_UNAVAILABLE;
+		return status == HTTP_TOO_MANY_REQUESTS
+				|| (status >= HTTP_INTERNAL_SERVER_ERROR && status <= HTTP_MAX_SERVER_ERROR);
 	}
 
 	/**

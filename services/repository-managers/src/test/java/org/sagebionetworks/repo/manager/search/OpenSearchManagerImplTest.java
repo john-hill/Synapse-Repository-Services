@@ -27,6 +27,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -1088,6 +1089,59 @@ public class OpenSearchManagerImplTest {
 				ex.getClass().getName() + ": " + ex.getMessage());
 		assertTrue(ex.getMessage().contains("1 retryable"), ex.getMessage());
 		assertTrue(ex.getMessage().contains("1 permanent"), ex.getMessage());
+	}
+
+	@ParameterizedTest
+	@ValueSource(ints = {500, 502, 504})
+	public void testBulkIndexWith5xxItemStatusThrowsRecoverableMessageException(int status) throws Exception {
+		// AOSS returns 500 with type="exception" and the generic "Internal error occurred while
+		// processing request" reason when shard routing hasn't fully propagated after createIndex —
+		// classified as retryable so SQS can redeliver the change message.
+		BulkResponse response = bulkResponseOf(
+				failedItem("1", status, "exception", "Internal error occurred while processing request"),
+				failedItem("2", status, "exception", "Internal error occurred while processing request"),
+				failedItem("3", status, "exception", "Internal error occurred while processing request"));
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenReturn(response);
+
+		// call under test
+		RecoverableMessageException ex = assertThrows(RecoverableMessageException.class,
+				() -> manager.bulkIndex("search-index-syn1",
+						Arrays.asList(bulkOp("1"), bulkOp("2"), bulkOp("3"))));
+		assertTrue(ex.getMessage().contains("3 retryable"), ex.getMessage());
+		assertTrue(ex.getMessage().contains("0 permanent"), ex.getMessage());
+	}
+
+	@Test
+	public void testBulkIndexWithMixed500And400FailuresThrowsPermanentRuntimeException() throws Exception {
+		BulkResponse response = bulkResponseOf(
+				failedItem("1", 500, "exception", "Internal error occurred while processing request"),
+				failedItem("2", 400, "mapper_parsing_exception", "failed to parse field [geneName]"));
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenReturn(response);
+
+		// call under test
+		RuntimeException ex = assertThrows(RuntimeException.class,
+				() -> manager.bulkIndex("search-index-syn1",
+						Arrays.asList(bulkOp("1"), bulkOp("2"))));
+		assertFalse(ex instanceof RecoverableMessageException,
+				ex.getClass().getName() + ": " + ex.getMessage());
+		assertTrue(ex.getMessage().contains("1 retryable"), ex.getMessage());
+		assertTrue(ex.getMessage().contains("1 permanent"), ex.getMessage());
+	}
+
+	@ParameterizedTest
+	@ValueSource(ints = {500, 502, 504})
+	public void testBulkIndexWithEnvelope5xxThrowsRecoverableMessageException(int status) throws Exception {
+		ErrorResponse serverError = ErrorResponse.of(e -> e
+				.error(err -> err.type("exception").reason("Internal error occurred while processing request"))
+				.status(status));
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenThrow(new OpenSearchException(serverError));
+
+		// call under test
+		assertThrows(RecoverableMessageException.class,
+				() -> manager.bulkIndex("search-index-syn1", Arrays.asList(bulkOp("1"))));
 	}
 
 	@Test

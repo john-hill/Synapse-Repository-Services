@@ -765,7 +765,7 @@ public class AsyncJobWorkersConfig {
 				.withStack(ConcurrentWorkerStack.builder()
 						.withSemaphoreLockKey("searchQueryWorker")
 						.withSemaphoreMaxLockCount(4)
-						.withSemaphoreLockAndMessageVisibilityTimeoutSec(120)
+						.withSemaphoreLockAndMessageVisibilityTimeoutSec(30)
 						.withMaxThreadsPerMachine(3)
 						.withSingleton(concurrentStackManager)
 						.withCanRunInReadOnly(false)

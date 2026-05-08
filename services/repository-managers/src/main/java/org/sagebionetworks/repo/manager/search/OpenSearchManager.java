@@ -1,6 +1,5 @@
 package org.sagebionetworks.repo.manager.search;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -96,24 +95,11 @@ public interface OpenSearchManager {
 			Map<String, TextAnalyzer> analyzers, Set<SearchQueryPart> options);
 
 	/**
-	 * Validate analyzer settings by creating an ephemeral AOSS index built from them
-	 * and deleting it again. A configuration that AOSS rejects at admit time fails
-	 * here rather than at the first real index-time.
+	 * Validate analyzer settings by invoking the AOSS _analyze API.
 	 *
 	 * @param settings The TextAnalyzerSettings to validate
 	 * @throws IllegalArgumentException if the analyzer configuration is rejected by OpenSearch
 	 * @throws IllegalStateException if the OpenSearch service is unreachable
 	 */
 	void validateAnalyzerSettings(TextAnalyzerSettings settings);
-
-	/**
-	 * List AOSS indices with prefix {@code validation-temp-} whose creation date is
-	 * older than the given threshold, or that have a missing or non-numeric creation
-	 * date. Names only; the caller is responsible for deleting via {@link #deleteIndex(String)}.
-	 *
-	 * @param olderThanMillis only return indices whose creation date is older than this many millis
-	 * @throws IOException             when AOSS cannot be reached
-	 * @throws OpenSearchException     when AOSS rejects the list request
-	 */
-	List<String> listOrphanValidationIndices(long olderThanMillis) throws IOException;
 }

@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.json.JSONArray;
@@ -18,13 +17,14 @@ import org.json.JSONObject;
 
 import jakarta.json.stream.JsonParser;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.client.json.JsonData;
 import org.opensearch.client.json.JsonpDeserializer;
 import org.opensearch.client.json.JsonpMapper;
+import org.opensearch.client.opensearch._types.analysis.CharFilter;
 import org.opensearch.client.opensearch._types.analysis.CharFilterDefinition;
+import org.opensearch.client.opensearch._types.analysis.TokenFilter;
 import org.opensearch.client.opensearch._types.analysis.TokenFilterDefinition;
+import org.opensearch.client.opensearch._types.analysis.Tokenizer;
 import org.opensearch.client.opensearch._types.analysis.TokenizerDefinition;
 import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch._types.ErrorCause;
@@ -46,8 +46,6 @@ import org.opensearch.client.opensearch.core.SearchResponse;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.opensearch.client.opensearch.core.search.HighlightField;
 import org.opensearch.client.opensearch.core.search.Hit;
-import org.opensearch.client.opensearch.cat.IndicesRequest;
-import org.opensearch.client.opensearch.cat.indices.IndicesRecord;
 import org.opensearch.client.opensearch.indices.CreateIndexRequest;
 import org.opensearch.client.opensearch.indices.CreateIndexResponse;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
@@ -76,8 +74,6 @@ import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.sagebionetworks.repo.model.search.KeyRange;
 import org.sagebionetworks.repo.model.search.KeyValues;
-import org.sagebionetworks.util.RetryException;
-import org.sagebionetworks.util.TimeUtils;
 import org.sagebionetworks.util.ValidateArgument;
 
 import org.springframework.stereotype.Service;
@@ -88,8 +84,6 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class OpenSearchManagerImpl implements OpenSearchManager {
-
-	private static final Logger log = LogManager.getLogger(OpenSearchManagerImpl.class);
 
 	private static final String SYSTEM_FIELD_ROW_ID = "_row_id";
 	private static final String SYSTEM_FIELD_ROW_VERSION = "_row_version";
@@ -102,14 +96,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	static final String CONCURRENT_DELETES_MARKER = "concurrent deletes";
 	private static final String ANALYZER_PREFIX = "synapse_analyzer_";
 	private static final String SYNONYM_FILTER_NAME = "synapse_synonyms";
-	static final String VALIDATION_INDEX_PREFIX = "validation-temp-";
-	private static final String VALIDATION_ANALYZER_ID = "validation";
-	// Materializes synapse_synonyms at admit time so synonym-aware analyzer chains are validated.
-	private static final List<String> VALIDATION_SYNONYM_RULES = Collections.singletonList("placeholder, validation");
-
-	// 15 retries * 1.2x from 250ms ~= 18s total budget for concurrent-delete retries.
-	private static final int CLEANUP_MAX_RETRIES = 15;
-	private static final long CLEANUP_INITIAL_BACKOFF_MS = 250L;
 
 	/** True when the OpenSearch error is AOSS's "concurrent deletes" rejection. */
 	static boolean isConcurrentDeleteError(OpenSearchException e) {
@@ -1113,103 +1099,92 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	public void validateAnalyzerSettings(TextAnalyzerSettings settings) {
 		ValidateArgument.required(settings, "settings");
 
-		TextAnalyzer synthetic = new TextAnalyzer();
-		synthetic.setId(VALIDATION_ANALYZER_ID);
-		synthetic.setSettings(settings);
+		Tokenizer tokenizer = buildTokenizer(settings);
+		List<TokenFilter> tokenFilters = buildTokenFilters(settings);
+		List<CharFilter> charFilters = buildCharFilters(settings);
 
-		boolean hasSynonyms = Boolean.TRUE.equals(settings.getSynonymAware());
-		List<String> validationSynonyms = hasSynonyms ? VALIDATION_SYNONYM_RULES : Collections.emptyList();
-
-		String tempIndexName = VALIDATION_INDEX_PREFIX + UUID.randomUUID();
 		try {
-			CreateIndexRequest request = CreateIndexRequest.of(requestBuilder -> requestBuilder
-					.index(tempIndexName)
-					.settings(settingsBuilder -> settingsBuilder.analysis(analysisBuilder -> {
-						if (hasSynonyms) {
-							analysisBuilder.filter(SYNONYM_FILTER_NAME, f -> f.definition(d -> d
-									.synonym(syn -> syn.synonyms(validationSynonyms))));
-						}
-						try {
-							registerAnalyzer(analysisBuilder, synthetic, hasSynonyms);
-						} catch (RuntimeException parseException) {
-							throw new IllegalArgumentException(
-									"Invalid analyzer configuration: " + parseException.getMessage(), parseException);
-						}
-						return analysisBuilder;
-					})));
-
-			openSearchClient.indices().create(request);
+			openSearchClient.indices().analyze(req -> {
+				req.tokenizer(tokenizer);
+				req.text("The quick brown fox jumps over the lazy dog");
+				if (!tokenFilters.isEmpty()) {
+					req.filter(tokenFilters);
+				}
+				if (!charFilters.isEmpty()) {
+					req.charFilter(charFilters);
+				}
+				return req;
+			});
 		} catch (OpenSearchException e) {
 			throw new IllegalArgumentException(
-					"Invalid analyzer configuration: " + describeError(e.error())
-					+ ". Check your tokenizer, token filters, and character filters.", e);
+				"Invalid analyzer configuration: " + describeError(e.error())
+				+ ". Check your tokenizer, token filters, and character filters.", e);
 		} catch (IOException e) {
 			throw new IllegalStateException(
-					"Unable to validate analyzer settings: the search service is temporarily unavailable. Please try again later.", e);
-		} finally {
-			deleteValidationIndexWithRetry(tempIndexName);
+				"Unable to validate analyzer settings: the search service is temporarily unavailable. Please try again later.", e);
 		}
 	}
 
-	private void deleteValidationIndexWithRetry(String tempIndexName) {
+	private Tokenizer buildTokenizer(TextAnalyzerSettings settings) {
 		try {
-			TimeUtils.waitForExponentialMaxRetry(CLEANUP_MAX_RETRIES, CLEANUP_INITIAL_BACKOFF_MS, () -> {
-				try {
-					openSearchClient.indices().delete(deleteBuilder -> deleteBuilder.index(tempIndexName));
-					return null;
-				} catch (OpenSearchException openSearchException) {
-					if (openSearchException.error() != null
-							&& INDEX_NOT_FOUND_EXCEPTION.equals(openSearchException.error().type())) {
-						return null;
-					}
-					if (openSearchException.error() != null && isConcurrentDeleteError(openSearchException)) {
-						throw new RetryException(openSearchException);
-					}
-					throw openSearchException;
-				}
-			});
-		} catch (RetryException retryExhausted) {
-			log.error(
-					"Failed to clean up temporary AOSS index after retries. Orphaned index: {}",
-					tempIndexName, retryExhausted.getCause());
-		} catch (Exception cleanupException) {
-			log.error("Failed to delete temporary validation index: {}", tempIndexName, cleanupException);
+			if (settings.getTokenizerConfig() != null && !settings.getTokenizerConfig().isEmpty()) {
+				TokenizerDefinition def = deserializeDefinition(settings.getTokenizerConfig(), TokenizerDefinition._DESERIALIZER);
+				return Tokenizer.of(t -> t.definition(def));
+			}
+			String tokenizerName = settings.getTokenizer() != null ? settings.getTokenizer() : "standard";
+			return Tokenizer.of(t -> t.name(tokenizerName));
+		} catch (Exception e) {
+			throw new IllegalArgumentException("Invalid tokenizer configuration: " + e.getMessage(), e);
 		}
 	}
 
-	@Override
-	public List<String> listOrphanValidationIndices(long olderThanMillis) throws IOException {
-		long threshold = System.currentTimeMillis() - olderThanMillis;
-		IndicesRequest listRequest = IndicesRequest.of(r -> r.index(VALIDATION_INDEX_PREFIX + "*"));
-		List<IndicesRecord> records;
+	private List<TokenFilter> buildTokenFilters(TextAnalyzerSettings settings) {
+		Map<String, TokenFilterDefinition> tokenFilterDefs = Collections.emptyMap();
 		try {
-			records = openSearchClient.cat().indices(listRequest).valueBody();
-		} catch (OpenSearchException e) {
-			if (e.error() != null && INDEX_NOT_FOUND_EXCEPTION.equals(e.error().type())) {
-				return Collections.emptyList();
+			if (settings.getTokenFilters() != null && !settings.getTokenFilters().isEmpty()) {
+				tokenFilterDefs = deserializeDefinitionMap(settings.getTokenFilters(), TokenFilterDefinition._DESERIALIZER);
 			}
-			throw e;
+		} catch (Exception e) {
+			throw new IllegalArgumentException("Invalid tokenFilters JSON: " + e.getMessage(), e);
 		}
-		List<String> orphans = new ArrayList<>();
-		for (IndicesRecord record : records) {
-			String indexName = record.index();
-			if (indexName == null || !indexName.startsWith(VALIDATION_INDEX_PREFIX)) {
-				continue;
-			}
-			String creationDateStr = record.creationDate();
-			if (creationDateStr == null) {
-				orphans.add(indexName);
-				continue;
-			}
-			try {
-				if (Long.parseLong(creationDateStr) < threshold) {
-					orphans.add(indexName);
-				}
-			} catch (NumberFormatException nfe) {
-				orphans.add(indexName);
+
+		List<TokenFilter> tokenFilters = new ArrayList<>();
+		if (settings.getFilterOrder() == null) {
+			return tokenFilters;
+		}
+		for (String filterName : settings.getFilterOrder()) {
+			TokenFilterDefinition def = tokenFilterDefs.get(filterName);
+			if (def != null) {
+				tokenFilters.add(TokenFilter.of(f -> f.definition(def)));
+			} else {
+				tokenFilters.add(TokenFilter.of(f -> f.name(filterName)));
 			}
 		}
-		return orphans;
+		return tokenFilters;
 	}
 
+	private List<CharFilter> buildCharFilters(TextAnalyzerSettings settings) {
+		Map<String, CharFilterDefinition> charFilterDefs = Collections.emptyMap();
+		try {
+			if (settings.getCharFilters() != null && !settings.getCharFilters().isEmpty()) {
+				charFilterDefs = deserializeDefinitionMap(settings.getCharFilters(), CharFilterDefinition._DESERIALIZER);
+			}
+		} catch (Exception e) {
+			throw new IllegalArgumentException("Invalid charFilters JSON: " + e.getMessage(), e);
+		}
+
+		List<CharFilter> charFilters = new ArrayList<>();
+		if (settings.getCharFilterOrder() == null) {
+			return charFilters;
+		}
+		for (String filterName : settings.getCharFilterOrder()) {
+			CharFilterDefinition def = charFilterDefs.get(filterName);
+			if (def != null) {
+				charFilters.add(CharFilter.of(f -> f.definition(def)));
+			} else {
+				charFilters.add(CharFilter.of(f -> f.name(filterName)));
+			}
+		}
+		return charFilters;
+	}
 }

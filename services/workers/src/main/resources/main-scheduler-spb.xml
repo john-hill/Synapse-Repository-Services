@@ -191,7 +191,6 @@
 		<!-- Search Index -->
 		<ref bean="searchQueryWorkerTrigger"/>
 		<ref bean="searchIndexLifecycleWorkerTrigger"/>
-		<ref bean="validationIndexSweeperWorkerTrigger"/>
 
 	</util:list>
 

@@ -4,7 +4,6 @@ import org.sagebionetworks.auth.workers.ExpiredAccessTokenWorker;
 import org.sagebionetworks.database.semaphore.CountingSemaphore;
 import org.sagebionetworks.file.worker.FileHandleAssociationScanDispatcherWorker;
 import org.sagebionetworks.principal.worker.InactiveUsersWorker;
-import org.sagebionetworks.search.workers.ValidationIndexSweeperWorker;
 import org.sagebionetworks.table.worker.ReplicatedToViewConsumerWorker;
 import org.sagebionetworks.tos.workers.TermsOfServiceLatestVersionRefreshWorker;
 import org.sagebionetworks.worker.utils.StackStatusGate;
@@ -107,23 +106,6 @@ public class TimerWorkersConfig {
 			.withStartDelay(10_000)
 			.build();
 		
-	}
-
-	@Bean
-	public SimpleTriggerFactoryBean validationIndexSweeperWorkerTrigger(ValidationIndexSweeperWorker worker) {
-		SemaphoreGatedWorkerStackConfiguration config = new SemaphoreGatedWorkerStackConfiguration();
-
-		config.setSemaphoreLockKey("validationIndexSweeperWorker");
-		config.setProgressingRunner(worker);
-		config.setSemaphoreMaxLockCount(1);
-		config.setSemaphoreLockTimeoutSec(120);
-		config.setGate(stackStatusGate);
-
-		return new WorkerTriggerBuilder()
-			.withStack(new SemaphoreGatedWorkerStack(countingSemaphore, config))
-			.withRepeatInterval(15 * 60 * 1000)
-			.withStartDelay(5 * 60 * 1000)
-			.build();
 	}
 
 	@Bean

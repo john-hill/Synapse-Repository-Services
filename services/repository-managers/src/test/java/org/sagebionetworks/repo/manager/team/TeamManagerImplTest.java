@@ -1334,33 +1334,48 @@ public class TeamManagerImplTest {
 	}
 
 	@Test
-	public void testSetPermissions() {
-		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.UPDATE)).thenReturn(AuthorizationStatus.authorized());
+	public void testSetPermissionsWithIsTeamManagerTrue() {
+		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.UPDATE))
+				.thenReturn(AuthorizationStatus.authorized());
 		AccessControlList acl = TeamManagerImpl.createInitialAcl(userInfo, TEAM_ID, new Date());
 		when(mockAclManager.getAcl(TEAM_ID, ObjectType.TEAM)).thenReturn(Optional.of(acl));
 		String principalId = "321";
+
+		// call under test: promote principalId to team manager
 		teamManagerImpl.setPermissions(userInfo, TEAM_ID, principalId, true);
-		// now check that user is actually an admin
-		boolean foundRA=false;
-		for (ResourceAccess ra: acl.getResourceAccess()) {
-			if (principalId.equals(ra.getPrincipalId().toString())) {
-				foundRA=true;
-				for (ACCESS_TYPE at : ModelConstants.TEAM_ADMIN_PERMISSIONS) {
-					assertTrue(ra.getAccessType().contains(at));
-				}
-			}
-		}
-		assertTrue(foundRA);
-		
-		// now remove admin permissions
+
+		ArgumentCaptor<AccessControlList> captor = ArgumentCaptor.forClass(AccessControlList.class);
+		verify(mockAclDAO).update(captor.capture(), eq(ObjectType.TEAM));
+		AccessControlList captured = captor.getValue();
+
+		ResourceAccess promoted = captured.getResourceAccess().stream()
+				.filter(ra -> principalId.equals(ra.getPrincipalId().toString()))
+				.findFirst()
+				.orElse(null);
+		assertNotNull(promoted);
+		assertEquals(ModelConstants.TEAM_ADMIN_PERMISSIONS, promoted.getAccessType());
+	}
+
+	@Test
+	public void testSetPermissionsWithIsTeamManagerFalse() {
+		when(mockAuthorizationManager.canAccess(userInfo, TEAM_ID, ObjectType.TEAM, ACCESS_TYPE.UPDATE))
+				.thenReturn(AuthorizationStatus.authorized());
+		AccessControlList acl = TeamManagerImpl.createInitialAcl(userInfo, TEAM_ID, new Date());
+		String principalId = "321";
+		// start with principalId already in the ACL as a team manager
+		acl.getResourceAccess().add(TeamManagerImpl.createResourceAccess(Long.parseLong(principalId), ModelConstants.TEAM_ADMIN_PERMISSIONS));
+		when(mockAclManager.getAcl(TEAM_ID, ObjectType.TEAM)).thenReturn(Optional.of(acl));
+
+		// call under test: demote principalId back to non-manager
 		teamManagerImpl.setPermissions(userInfo, TEAM_ID, principalId, false);
-		foundRA=false;
-		for (ResourceAccess ra: acl.getResourceAccess()) {
-			if (principalId.equals(ra.getPrincipalId().toString())) {
-				foundRA=true;
-			}
-		}
-		assertFalse(foundRA);
+
+		ArgumentCaptor<AccessControlList> captor = ArgumentCaptor.forClass(AccessControlList.class);
+		verify(mockAclDAO).update(captor.capture(), eq(ObjectType.TEAM));
+		AccessControlList captured = captor.getValue();
+
+		boolean stillPresent = captured.getResourceAccess().stream()
+				.anyMatch(ra -> principalId.equals(ra.getPrincipalId().toString()));
+		assertFalse(stillPresent);
 	}
 
 	@Test

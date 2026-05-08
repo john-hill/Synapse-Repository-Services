@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
@@ -19,6 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +47,7 @@ import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.opensearch.client.opensearch.core.bulk.BulkResponseItem;
+import org.mockito.ArgumentCaptor;
 import org.opensearch.client.opensearch._types.aggregations.Aggregation;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.opensearch.client.opensearch._types.query_dsl.Query;
@@ -90,11 +94,22 @@ public class OpenSearchManagerImplTest {
 	private TextAnalyzer scientific;
 	private String scientificQualifiedName;
 
+	private long originalBulkInitialBackoffMs;
+
 	@BeforeEach
 	public void setUp() {
 		scientificQualifiedName = "org.sagebionetworks-SCIENTIFIC";
 		scientific = new TextAnalyzer().setId("1")
 				.setSettings(new TextAnalyzerSettings().setTokenizer("standard"));
+		// Drop bulk-index retry backoff to 1ms in tests so retry-exhaustion paths don't
+		// actually sleep ~21s per invocation. Restored in @AfterEach.
+		originalBulkInitialBackoffMs = OpenSearchManagerImpl.BULK_INDEX_INITIAL_BACKOFF_MS;
+		OpenSearchManagerImpl.BULK_INDEX_INITIAL_BACKOFF_MS = 1L;
+	}
+
+	@AfterEach
+	public void tearDown() {
+		OpenSearchManagerImpl.BULK_INDEX_INITIAL_BACKOFF_MS = originalBulkInitialBackoffMs;
 	}
 
 	private TextAnalyzer keywordAnalyzer(String id) {
@@ -1056,9 +1071,9 @@ public class OpenSearchManagerImplTest {
 	}
 
 	@Test
-	public void testBulkIndexWithAllRetryableFailuresThrowsRecoverableMessageException() throws Exception {
+	public void testBulkIndexWithAllRetryableFailuresExhaustsRetriesAndThrowsRecoverableMessageException() throws Exception {
 		BulkResponse response = bulkResponseOf(
-				okItem("1"),
+				failedItem("1", 429, "circuit_breaking_exception", "rate limited"),
 				failedItem("2", 429, "circuit_breaking_exception", "rate limited"),
 				failedItem("3", 503, "service_unavailable", "try later"));
 		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
@@ -1068,8 +1083,12 @@ public class OpenSearchManagerImplTest {
 		RecoverableMessageException ex = assertThrows(RecoverableMessageException.class,
 				() -> manager.bulkIndex("search-index-syn1",
 						Arrays.asList(bulkOp("1"), bulkOp("2"), bulkOp("3"))));
-		assertTrue(ex.getMessage().contains("2 retryable"), ex.getMessage());
-		assertTrue(ex.getMessage().contains("0 permanent"), ex.getMessage());
+		assertTrue(ex.getMessage().contains(
+				"failed after " + OpenSearchManagerImpl.BULK_INDEX_MAX_RETRIES + " attempts"),
+				ex.getMessage());
+		assertTrue(ex.getMessage().contains("3 document(s) still retryable out of 3"), ex.getMessage());
+		verify(openSearchClient, times(OpenSearchManagerImpl.BULK_INDEX_MAX_RETRIES))
+				.bulk(argThat((BulkRequest req) -> req != null));
 	}
 
 	@Test
@@ -1093,10 +1112,10 @@ public class OpenSearchManagerImplTest {
 
 	@ParameterizedTest
 	@ValueSource(ints = {500, 502, 504})
-	public void testBulkIndexWith5xxItemStatusThrowsRecoverableMessageException(int status) throws Exception {
+	public void testBulkIndexWith5xxItemStatusExhaustsRetriesAndThrowsRecoverableMessageException(int status) throws Exception {
 		// AOSS returns 500 with type="exception" and the generic "Internal error occurred while
 		// processing request" reason when shard routing hasn't fully propagated after createIndex —
-		// classified as retryable so SQS can redeliver the change message.
+		// classified as retryable so the intra-batch retry loop backs off and resubmits the subset.
 		BulkResponse response = bulkResponseOf(
 				failedItem("1", status, "exception", "Internal error occurred while processing request"),
 				failedItem("2", status, "exception", "Internal error occurred while processing request"),
@@ -1108,8 +1127,12 @@ public class OpenSearchManagerImplTest {
 		RecoverableMessageException ex = assertThrows(RecoverableMessageException.class,
 				() -> manager.bulkIndex("search-index-syn1",
 						Arrays.asList(bulkOp("1"), bulkOp("2"), bulkOp("3"))));
-		assertTrue(ex.getMessage().contains("3 retryable"), ex.getMessage());
-		assertTrue(ex.getMessage().contains("0 permanent"), ex.getMessage());
+		assertTrue(ex.getMessage().contains(
+				"failed after " + OpenSearchManagerImpl.BULK_INDEX_MAX_RETRIES + " attempts"),
+				ex.getMessage());
+		assertTrue(ex.getMessage().contains("3 document(s) still retryable out of 3"), ex.getMessage());
+		verify(openSearchClient, times(OpenSearchManagerImpl.BULK_INDEX_MAX_RETRIES))
+				.bulk(argThat((BulkRequest req) -> req != null));
 	}
 
 	@Test
@@ -1223,7 +1246,7 @@ public class OpenSearchManagerImplTest {
 
 	@ParameterizedTest
 	@ValueSource(ints = {500, 502, 504})
-	public void testBulkIndexWithEnvelope5xxThrowsRecoverableMessageException(int status) throws Exception {
+	public void testBulkIndexWithEnvelope5xxExhaustsRetriesAndThrowsRecoverableMessageException(int status) throws Exception {
 		ErrorResponse serverError = ErrorResponse.of(e -> e
 				.error(err -> err.type("exception").reason("Internal error occurred while processing request"))
 				.status(status));
@@ -1233,10 +1256,12 @@ public class OpenSearchManagerImplTest {
 		// call under test
 		assertThrows(RecoverableMessageException.class,
 				() -> manager.bulkIndex("search-index-syn1", Arrays.asList(bulkOp("1"))));
+		verify(openSearchClient, times(OpenSearchManagerImpl.BULK_INDEX_MAX_RETRIES))
+				.bulk(argThat((BulkRequest req) -> req != null));
 	}
 
 	@Test
-	public void testBulkIndexWithEnvelope429ThrowsRecoverableMessageException() throws Exception {
+	public void testBulkIndexWithEnvelope429ExhaustsRetriesAndThrowsRecoverableMessageException() throws Exception {
 		ErrorResponse rateLimited = ErrorResponse.of(e -> e
 				.error(err -> err.type("circuit_breaking_exception").reason("rate limited"))
 				.status(429));
@@ -1246,6 +1271,8 @@ public class OpenSearchManagerImplTest {
 		// call under test
 		assertThrows(RecoverableMessageException.class,
 				() -> manager.bulkIndex("search-index-syn1", Arrays.asList(bulkOp("1"))));
+		verify(openSearchClient, times(OpenSearchManagerImpl.BULK_INDEX_MAX_RETRIES))
+				.bulk(argThat((BulkRequest req) -> req != null));
 	}
 
 	@Test
@@ -1260,16 +1287,20 @@ public class OpenSearchManagerImplTest {
 		RuntimeException ex = assertThrows(RuntimeException.class,
 				() -> manager.bulkIndex("search-index-syn1", Arrays.asList(bulkOp("1"))));
 		assertFalse(ex instanceof RecoverableMessageException, ex.getClass().getName());
+		verify(openSearchClient, times(1))
+				.bulk(argThat((BulkRequest req) -> req != null));
 	}
 
 	@Test
-	public void testBulkIndexWithIOExceptionThrowsRecoverableMessageException() throws Exception {
+	public void testBulkIndexWithIOExceptionExhaustsRetriesAndThrowsRecoverableMessageException() throws Exception {
 		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
 				.thenThrow(new IOException("connection reset"));
 
 		// call under test
 		assertThrows(RecoverableMessageException.class,
 				() -> manager.bulkIndex("search-index-syn1", Arrays.asList(bulkOp("1"))));
+		verify(openSearchClient, times(OpenSearchManagerImpl.BULK_INDEX_MAX_RETRIES))
+				.bulk(argThat((BulkRequest req) -> req != null));
 	}
 
 	@Test
@@ -1279,6 +1310,86 @@ public class OpenSearchManagerImplTest {
 
 		assertEquals(0L, indexed);
 		verifyZeroInteractions(openSearchClient);
+	}
+
+	@Test
+	public void testBulkIndexWithTransientRetryableFailureRecoversOnSecondAttempt() throws Exception {
+		// First attempt: docs 1 and 3 fail with 500 (retryable); doc 2 succeeds.
+		// Second attempt: all remaining succeed — bulkIndex should return the original total.
+		BulkResponse firstResponse = bulkResponseOf(
+				failedItem("1", 500, "exception", "Internal error occurred while processing request"),
+				okItem("2"),
+				failedItem("3", 503, "service_unavailable", "try later"));
+		BulkResponse secondResponse = bulkResponseOf(okItem("1"), okItem("3"));
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenReturn(firstResponse)
+				.thenReturn(secondResponse);
+
+		// call under test
+		long indexed = manager.bulkIndex("search-index-syn1",
+				Arrays.asList(bulkOp("1"), bulkOp("2"), bulkOp("3")));
+
+		assertEquals(3L, indexed);
+		verify(openSearchClient, times(2))
+				.bulk(argThat((BulkRequest req) -> req != null));
+	}
+
+	@Test
+	public void testBulkIndexRetryResubmitsOnlyFailedOps() throws Exception {
+		// Doc 2 succeeds on first attempt; only docs 1 and 3 should appear in the second bulk request.
+		BulkResponse firstResponse = bulkResponseOf(
+				failedItem("1", 500, "exception", "Internal error occurred while processing request"),
+				okItem("2"),
+				failedItem("3", 500, "exception", "Internal error occurred while processing request"));
+		BulkResponse secondResponse = bulkResponseOf(okItem("1"), okItem("3"));
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenReturn(firstResponse)
+				.thenReturn(secondResponse);
+
+		// call under test
+		manager.bulkIndex("search-index-syn1",
+				Arrays.asList(bulkOp("1"), bulkOp("2"), bulkOp("3")));
+
+		ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
+		verify(openSearchClient, times(2)).bulk(captor.capture());
+		List<BulkRequest> requests = captor.getAllValues();
+		assertEquals(3, requests.get(0).operations().size(), "first attempt submits all operations");
+		assertEquals(2, requests.get(1).operations().size(), "second attempt submits only failed subset");
+	}
+
+	@Test
+	public void testBulkIndexWithPermanentFailureDoesNotRetry() throws Exception {
+		// Mixed 500 (retryable) + 400 (permanent): one permanent failure disqualifies the batch
+		// from retrying, so bulk() is called exactly once.
+		BulkResponse response = bulkResponseOf(
+				failedItem("1", 500, "exception", "Internal error occurred while processing request"),
+				failedItem("2", 400, "mapper_parsing_exception", "failed to parse field [geneName]"));
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenReturn(response);
+
+		// call under test
+		RuntimeException ex = assertThrows(RuntimeException.class,
+				() -> manager.bulkIndex("search-index-syn1", Arrays.asList(bulkOp("1"), bulkOp("2"))));
+		assertFalse(ex instanceof RecoverableMessageException, ex.getClass().getName());
+		verify(openSearchClient, times(1))
+				.bulk(argThat((BulkRequest req) -> req != null));
+	}
+
+	@Test
+	public void testBulkIndexWithIOExceptionThenSuccessRecovers() throws Exception {
+		// Transient network issue on first two attempts, then success — covers the IOException
+		// branch of the retry loop.
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenThrow(new IOException("connection reset"))
+				.thenThrow(new IOException("connection reset"))
+				.thenReturn(bulkResponseOf(okItem("1")));
+
+		// call under test
+		long indexed = manager.bulkIndex("search-index-syn1", Arrays.asList(bulkOp("1")));
+
+		assertEquals(1L, indexed);
+		verify(openSearchClient, times(3))
+				.bulk(argThat((BulkRequest req) -> req != null));
 	}
 
 	@Test

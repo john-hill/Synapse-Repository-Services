@@ -79,6 +79,8 @@ import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.sagebionetworks.repo.model.search.KeyRange;
 import org.sagebionetworks.repo.model.search.KeyValues;
+import org.sagebionetworks.util.RetryException;
+import org.sagebionetworks.util.TimeUtils;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 
@@ -103,6 +105,13 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	static final int MAX_FAILURE_SAMPLES = 5;
 	static final int MAX_BULK_ERROR_MESSAGE_CHARS = 2500;
 	static final String TRUNCATION_MARKER = "...[truncated]";
+
+	// Intra-batch retry for transient AOSS rejections (429 / 5xx on a subset of items).
+	// Resubmit only the failed subset with exponential backoff so the batch can drain
+	// instead of bouncing the whole change message back to SQS on every partial failure.
+	// Non-final so unit tests can lower the values and avoid real-wall-clock sleeps.
+	static int BULK_INDEX_MAX_RETRIES = 10;
+	static long BULK_INDEX_INITIAL_BACKOFF_MS = 1000L;
 
 	private static final String SYSTEM_FIELD_ROW_ID = "_row_id";
 	private static final String SYSTEM_FIELD_ROW_VERSION = "_row_version";
@@ -276,53 +285,125 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		if (operations.isEmpty()) {
 			return 0L;
 		}
+		final int totalOps = operations.size();
+		final BulkRetryState state = new BulkRetryState(operations);
 
 		try {
-			BulkResponse response = openSearchClient.bulk(
-					BulkRequest.of(req -> req.operations(operations)));
-
-			// Per the OpenSearch bulk API contract, errors=false means every item succeeded —
-			// skip iterating items in that case.
-			// https://opensearch.org/blog/error-logs/error-log-bulkindexerror-the-batch-failure/
-			if (!response.errors()) {
-				return (long) response.items().size();
+			return TimeUtils.waitForExponentialMaxRetry(BULK_INDEX_MAX_RETRIES, BULK_INDEX_INITIAL_BACKOFF_MS,
+					() -> attemptBulk(indexName, state, totalOps));
+		} catch (RetryException e) {
+			// Retries exhausted. Emit per-item ERROR descriptors for the last attempt's failures so
+			// per-doc diagnostics remain in the logs when we surface the recoverable error.
+			for (BulkResponseItem item : state.lastRetryableItems) {
+				LOG.error("Bulk index item failed in {}: {}", indexName, describeBulkItemFailure(item));
 			}
-			int retryableFailures = 0;
-			int permanentFailures = 0;
-			List<String> permanentSamples = new ArrayList<>();
-			for (var item : response.items()) {
-				if (item.error() == null) {
-					continue;
-				}
+			throw new RecoverableMessageException(String.format(
+					"Bulk index to %s failed after %d attempts: %d document(s) still retryable out of %d",
+					indexName, BULK_INDEX_MAX_RETRIES, state.lastRetryableItems.size(), totalOps),
+					e.getCause());
+		} catch (RuntimeException e) {
+			throw e;
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to bulk index to search index: " + indexName, e);
+		}
+	}
+
+	/**
+	 * Submits the currently-outstanding operations once. Returns the total success count if the
+	 * attempt fully succeeds; throws {@link RuntimeException} for any permanent failure (no
+	 * further retries); throws {@link RetryException} when only transient failures remain so
+	 * {@link TimeUtils#waitForExponentialMaxRetry} backs off and re-invokes with the trimmed
+	 * subset of still-failing operations.
+	 */
+	private long attemptBulk(String indexName, BulkRetryState state, int totalOps) throws RetryException {
+		state.attempt++;
+		BulkResponse response = executeBulk(indexName, state.remaining);
+
+		// Per the OpenSearch bulk API contract, errors=false means every item succeeded.
+		// https://opensearch.org/blog/error-logs/error-log-bulkindexerror-the-batch-failure/
+		if (!response.errors()) {
+			return (long) totalOps;
+		}
+
+		List<BulkOperation> nextRemaining = new ArrayList<>();
+		List<BulkResponseItem> retryableItems = new ArrayList<>();
+		List<String> permanentSamples = new ArrayList<>();
+		int permanentFailures = 0;
+		List<BulkResponseItem> items = response.items();
+		for (int i = 0; i < items.size(); i++) {
+			BulkResponseItem item = items.get(i);
+			if (item.error() == null) {
+				continue;
+			}
+			if (isRetryableItemStatus(item.status())) {
+				retryableItems.add(item);
+				nextRemaining.add(state.remaining.get(i));
+			} else {
+				permanentFailures++;
 				String descriptor = describeBulkItemFailure(item);
 				LOG.error("Bulk index item failed in {}: {}", indexName, descriptor);
-				if (isRetryableItemStatus(item.status())) {
-					retryableFailures++;
-				} else {
-					permanentFailures++;
-					if (permanentSamples.size() < MAX_FAILURE_SAMPLES) {
-						permanentSamples.add(descriptor);
-					}
+				if (permanentSamples.size() < MAX_FAILURE_SAMPLES) {
+					permanentSamples.add(descriptor);
 				}
 			}
+		}
 
-			int totalFailures = retryableFailures + permanentFailures;
-			String summary = String.format(
-					"Bulk index to %s failed: %d document(s) rejected out of %d (%d retryable, %d permanent)",
-					indexName, totalFailures, operations.size(), retryableFailures, permanentFailures);
-			if (permanentFailures == 0) {
-				throw new RecoverableMessageException(summary);
-			}
+		int totalFailures = retryableItems.size() + permanentFailures;
+		String summary = String.format(
+				"Bulk index to %s failed: %d document(s) rejected out of %d (%d retryable, %d permanent)",
+				indexName, totalFailures, totalOps, retryableItems.size(), permanentFailures);
+
+		if (permanentFailures > 0) {
 			throw new RuntimeException(buildPermanentFailureMessage(summary, permanentSamples));
+		}
+
+		// Only transient failures remain. Log one WARN per attempt (not per item) so sustained
+		// throttling doesn't explode log volume; per-item ERROR descriptors are emitted only if
+		// retries are ultimately exhausted.
+		LOG.warn("Bulk index attempt {}/{} for {}: {} retryable of {}; backing off",
+				state.attempt, BULK_INDEX_MAX_RETRIES, indexName, retryableItems.size(), state.remaining.size());
+		state.advanceTo(nextRemaining, retryableItems);
+		throw new RetryException(summary);
+	}
+
+	/**
+	 * Executes a single bulk request. Envelope-level 429/5xx and IOExceptions are translated to
+	 * {@link RetryException} so the outer retry loop backs off; envelope-level 4xx becomes a
+	 * permanent {@link RuntimeException}.
+	 */
+	private BulkResponse executeBulk(String indexName, List<BulkOperation> ops) throws RetryException {
+		// Snapshot the list so the BulkRequest isn't mutated when retry state is advanced in place
+		// between attempts.
+		List<BulkOperation> snapshot = new ArrayList<>(ops);
+		try {
+			return openSearchClient.bulk(BulkRequest.of(req -> req.operations(snapshot)));
 		} catch (OpenSearchException e) {
 			String detail = "Failed to bulk index to search index: " + indexName
 					+ " (" + describeError(e.error()) + ")";
 			if (isRetryableItemStatus(e.status())) {
-				throw new RecoverableMessageException(detail, e);
+				throw new RetryException(detail, e);
 			}
 			throw new RuntimeException(detail, e);
 		} catch (IOException e) {
-			throw new RecoverableMessageException("Failed to bulk index to search index: " + indexName, e);
+			throw new RetryException("Failed to bulk index to search index: " + indexName, e);
+		}
+	}
+
+	/** Mutable state threaded through {@link #attemptBulk} across retry iterations. */
+	private static final class BulkRetryState {
+		final List<BulkOperation> remaining;
+		final List<BulkResponseItem> lastRetryableItems = new ArrayList<>();
+		int attempt;
+
+		BulkRetryState(List<BulkOperation> operations) {
+			this.remaining = new ArrayList<>(operations);
+		}
+
+		void advanceTo(List<BulkOperation> nextRemaining, List<BulkResponseItem> retryableItems) {
+			remaining.clear();
+			remaining.addAll(nextRemaining);
+			lastRetryableItems.clear();
+			lastRetryableItems.addAll(retryableItems);
 		}
 	}
 

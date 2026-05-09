@@ -13,6 +13,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.sagebionetworks.repo.model.table.ColumnConstants;
 import org.sagebionetworks.repo.model.table.ColumnType;
 
 public class ColumnTypeToOpenSearchMappingTest {
@@ -64,7 +65,7 @@ public class ColumnTypeToOpenSearchMappingTest {
 
 	@Test
 	public void testIgnoreAboveValues() {
-		assertEquals(Integer.valueOf(1000), ColumnTypeToOpenSearchMapping.getIgnoreAbove(ColumnType.STRING));
+		assertEquals(ColumnConstants.MAX_ALLOWED_STRING_SIZE.intValue(), ColumnTypeToOpenSearchMapping.getIgnoreAbove(ColumnType.STRING));
 		assertEquals(Integer.valueOf(2000), ColumnTypeToOpenSearchMapping.getIgnoreAbove(ColumnType.MEDIUMTEXT));
 		assertEquals(Integer.valueOf(8192), ColumnTypeToOpenSearchMapping.getIgnoreAbove(ColumnType.LARGETEXT));
 		assertEquals(Integer.valueOf(256), ColumnTypeToOpenSearchMapping.getIgnoreAbove(ColumnType.ENTITYID));
@@ -77,14 +78,15 @@ public class ColumnTypeToOpenSearchMappingTest {
 	}
 
 	static Stream<Arguments> ignoreAboveProvider() {
+		int maxStringSize = ColumnConstants.MAX_ALLOWED_STRING_SIZE.intValue();
 		return Stream.of(
-			Arguments.of(ColumnType.STRING, 1000),
-			Arguments.of(ColumnType.STRING_LIST, 1000),
+			Arguments.of(ColumnType.STRING, maxStringSize),
+			Arguments.of(ColumnType.STRING_LIST, maxStringSize),
 			Arguments.of(ColumnType.MEDIUMTEXT, 2000),
 			Arguments.of(ColumnType.LARGETEXT, 8192),
 			Arguments.of(ColumnType.ENTITYID, 256),
 			Arguments.of(ColumnType.USERID, 256),
-			Arguments.of(ColumnType.LINK, 1000)
+			Arguments.of(ColumnType.LINK, maxStringSize)
 		);
 	}
 

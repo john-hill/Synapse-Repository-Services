@@ -189,11 +189,14 @@ public class ColumnConstants {
 
 	/**
 	 * The maximum total character length across all elements of a STRING_LIST value.
-	 * STRING_LIST is stored as a JSON column (same storage class as LARGETEXT), so
-	 * the natural ceiling is MAX_LARGE_TEXT_CHARACTERS. Note: the row-budget estimate
-	 * (SIZE_OF_STRING_LIST_FOR_COLUMN_SIZE_ESTIMATE_BYTES) is independent of this limit.
+	 * Derived from the per-row memory budget divided across the maximum number of columns:
+	 * MAX_MEMORY_PER_ROW_BYTES / (MAX_BYTES_PER_CHAR_UTF_8 * MY_SQL_MAX_COLUMNS_PER_TABLE)
+	 * = 64,424,509 / (4 * 152) = 105,961 chars.
+	 * This is consistent with SIZE_OF_STRING_LIST_FOR_COLUMN_SIZE_ESTIMATE_BYTES (MEDIUMTEXT
+	 * sizing), which allows up to 152 STRING_LIST columns per table.
 	 */
-	public static final long MAX_STRING_LIST_TOTAL_CHARS = MAX_LARGE_TEXT_CHARACTERS;
+	public static final long MAX_STRING_LIST_TOTAL_CHARS =
+			MAX_MEMORY_PER_ROW_BYTES / (MAX_BYTES_PER_CHAR_UTF_8 * MY_SQL_MAX_COLUMNS_PER_TABLE);
 
 	/**
 	 * The column size estimate in bytes for STRING_LIST columns, used when calculating

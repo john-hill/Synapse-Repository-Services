@@ -206,8 +206,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * </tr>
  * <tr>
  * <td>Entity View only: The maximum total character length for all values in a STRING_LIST <a href="${org.sagebionetworks.repo.model.table.ColumnType}" >ColumnType</a></td>
- * <td>524,288 characters (2 MB)</td>
- * <td>Entity Views ONLY! This follows limitations placed on Annotations. The 524,288-character limit applies to the sum of all string values in the list.</td>
+ * <td>105,961 characters</td>
+ * <td>Entity Views ONLY! This follows limitations placed on Annotations. The 105,961-character limit applies to the sum of all string values in the list.</td>
  * </tr>
  * </table>
  * 

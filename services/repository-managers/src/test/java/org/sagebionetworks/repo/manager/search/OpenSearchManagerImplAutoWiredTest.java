@@ -6,28 +6,34 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Optional;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
+import org.sagebionetworks.repo.model.search.SearchFieldValue;
 import org.sagebionetworks.repo.model.search.SearchQuery;
+import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.SearchQueryType;
-import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
+import org.sagebionetworks.util.RetryException;
 import org.sagebionetworks.util.TimeUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -45,6 +51,9 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 	private static final long POLL_MAX_MS = 30_000L;
 	private static final long POLL_INTERVAL_MS = 1_000L;
+
+	private static final int VALIDATE_RETRY_MAX = 10;
+	private static final long VALIDATE_RETRY_INITIAL_MS = 1_000L;
 
 	@Autowired
 	private OpenSearchManager openSearchManager;
@@ -91,6 +100,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
+		waitForIndexReachable();
 
 		// call under test
 		openSearchManager.deleteIndex(indexName);
@@ -111,6 +121,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
+		waitForIndexReachable();
 
 		// call under test — resource_already_exists returns empty Optional
 		Optional<String> result = openSearchManager.createIndex(indexName, columns, null,
@@ -135,6 +146,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		);
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
+		waitForIndexReachable();
 
 		List<BulkOperation> operations = List.of(
 				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "mitochondria research", "2", "42")),
@@ -182,6 +194,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
+		waitForIndexReachable();
 
 		List<BulkOperation> operations = List.of(
 				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "alpha")),
@@ -224,39 +237,44 @@ public class OpenSearchManagerImplAutoWiredTest {
 	}
 
 	@Test
-	public void testValidateAnalyzerSettingsWithInvalidTokenizer() {
+	public void testValidateAnalyzerSettingsWithInvalidTokenizer() throws Exception {
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
 		settings.setTokenizer("nonexistent_tokenizer_xyz");
 
 		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> openSearchManager.validateAnalyzerSettings(settings));
+		IllegalArgumentException ex = retryOnAossAnalyzeFlake(() ->
+				assertThrows(IllegalArgumentException.class,
+						() -> openSearchManager.validateAnalyzerSettings(settings)));
 		assertTrue(ex.getMessage().contains("Invalid analyzer configuration"),
 				"Expected 'Invalid analyzer configuration' in message, got: " + ex.getMessage());
 	}
 
 	@Test
-	public void testValidateAnalyzerSettingsWithInvalidFilter() {
+	public void testValidateAnalyzerSettingsWithInvalidFilter() throws Exception {
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
 		settings.setTokenizer("standard");
 		settings.setFilterOrder(Arrays.asList("bogus_filter_name_xyz"));
 
 		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> openSearchManager.validateAnalyzerSettings(settings));
+		IllegalArgumentException ex = retryOnAossAnalyzeFlake(() ->
+				assertThrows(IllegalArgumentException.class,
+						() -> openSearchManager.validateAnalyzerSettings(settings)));
 		assertTrue(ex.getMessage().contains("Invalid analyzer configuration"),
 				"Expected 'Invalid analyzer configuration' in message, got: " + ex.getMessage());
 	}
 
 	@Test
-	public void testValidateAnalyzerSettingsWithCustomFilters() {
+	public void testValidateAnalyzerSettingsWithCustomFilters() throws Exception {
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
 		settings.setTokenizer("standard");
 		settings.setTokenFilters("{\"my_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"}}");
 		settings.setFilterOrder(Arrays.asList("my_stop", "lowercase"));
 
 		// call under test
-		assertDoesNotThrow(() -> openSearchManager.validateAnalyzerSettings(settings));
+		retryOnAossAnalyzeFlake(() -> {
+			assertDoesNotThrow(() -> openSearchManager.validateAnalyzerSettings(settings));
+			return null;
+		});
 	}
 
 	/**
@@ -295,6 +313,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), List.of(override), analyzers);
+		waitForIndexReachable();
 
 		List<BulkOperation> operations = List.of(
 				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "BRCA1")),
@@ -307,6 +326,165 @@ public class OpenSearchManagerImplAutoWiredTest {
 		long indexed = openSearchManager.bulkIndex(indexName, operations);
 
 		assertEquals(3L, indexed);
+	}
+
+	@Test
+	public void testBulkIndexWithBootstrappedScientificAnalyzer() {
+		Map<String, TextAnalyzer> analyzers = new HashMap<>();
+		analyzers.put("org.sagebionetworks-SCIENTIFIC", bootstrappedScientificAnalyzer());
+
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("geneName").setColumnType(ColumnType.STRING));
+
+		openSearchManager.createIndex(indexName, columns, null,
+				Collections.emptyList(), Collections.emptyList(), analyzers);
+		waitForIndexReachable();
+
+		List<BulkOperation> operations = List.of(
+				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "BRCA1")),
+				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "BRCA2")),
+				buildBulkOp(indexName, "3", Map.of("_row_id", 3L, "_row_version", 1L, "1", "TP53"))
+		);
+
+		// call under test — all 3 docs must be accepted. Pre-fix this returned 3 per-item
+		// errors with "Internal error occurred while processing request".
+		long indexed = openSearchManager.bulkIndex(indexName, operations);
+
+		assertEquals(3L, indexed);
+	}
+
+	/**
+	 * Round-trips one row through every Synapse {@link ColumnType} simultaneously: each fixture
+	 * pairs the raw String value (the form delivered by {@code tableQueryManager.runQueryAsStream})
+	 * with the typed Java value the production converter should produce. The test exercises both
+	 * the converter and the AOSS contract — bulk index must accept every column type, and the
+	 * search response must return the values back. A coverage guard fails the test if a new
+	 * ColumnType is added to the enum without a fixture row.
+	 */
+	@Test
+	public void testCRUDWithEveryColumnType() {
+		Map<ColumnType, RoundTripCase> casesByType = buildEveryColumnTypeCase();
+
+		assertEquals(EnumSet.allOf(ColumnType.class), casesByType.keySet(),
+				"Every Synapse ColumnType must be represented in this round-trip test");
+
+		List<ColumnModel> columns = new ArrayList<>();
+		int nextId = 1;
+		for (ColumnType type : casesByType.keySet()) {
+			String columnId = Integer.toString(nextId++);
+			columns.add(new ColumnModel().setId(columnId)
+					.setName("c_" + type.name().toLowerCase())
+					.setColumnType(type));
+		}
+
+		openSearchManager.createIndex(indexName, columns, null,
+				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
+		waitForIndexReachable();
+
+		Map<String, Object> doc = new HashMap<>();
+		doc.put("_row_id", 1L);
+		doc.put("_row_version", 1L);
+		for (ColumnModel column : columns) {
+			ColumnType type = column.getColumnType();
+			RoundTripCase rtc = casesByType.get(type);
+			Object converted = SearchIndexLifecycleManagerImpl.convertForDocument(rtc.raw, type);
+			assertEquals(rtc.expected, converted,
+					"convertForDocument produced unexpected value for " + type);
+			doc.put(column.getId(), converted);
+		}
+
+		// call under test
+		long indexed = openSearchManager.bulkIndex(indexName, List.of(
+				BulkOperation.of(op -> op.index(idx -> idx.index(indexName).id("1").document(doc)))));
+
+		assertEquals(1L, indexed);
+
+		SearchQuery query = new SearchQuery();
+		query.setQueryType(SearchQueryType.MATCH_ALL);
+		query.setLimit(10L);
+		query.setOffset(0L);
+		SearchQueryResults results = waitForSearch(query, columns, 1L);
+
+		assertEquals(1L, results.getTotalHits());
+		assertEquals(1, results.getHits().size());
+
+		Map<String, String> idToName = columns.stream()
+				.collect(Collectors.toMap(ColumnModel::getId, ColumnModel::getName));
+		Map<String, String> returnedByName = new HashMap<>();
+		for (SearchFieldValue fv : results.getHits().get(0).getFields()) {
+			returnedByName.put(fv.getName(), fv.getValue());
+		}
+
+		for (ColumnModel column : columns) {
+			ColumnType type = column.getColumnType();
+			String fieldName = idToName.get(column.getId());
+			String actual = returnedByName.get(fieldName);
+			assertNotNull(actual, "missing returned value for " + type);
+			assertEquals(casesByType.get(type).expectedReturned, actual,
+					"round-trip mismatch for " + type);
+		}
+	}
+
+	private static Map<ColumnType, RoundTripCase> buildEveryColumnTypeCase() {
+		Map<ColumnType, RoundTripCase> casesByType = new LinkedHashMap<>();
+		casesByType.put(ColumnType.STRING,        new RoundTripCase("alpha",                              "alpha",                                  "alpha"));
+		casesByType.put(ColumnType.STRING_LIST,   new RoundTripCase("[\"alpha\",\"beta\"]",               List.of("alpha", "beta"),                 "[\"alpha\",\"beta\"]"));
+		casesByType.put(ColumnType.MEDIUMTEXT,    new RoundTripCase("alpha beta gamma",                   "alpha beta gamma",                       "alpha beta gamma"));
+		casesByType.put(ColumnType.LARGETEXT,     new RoundTripCase("alpha beta gamma",                   "alpha beta gamma",                       "alpha beta gamma"));
+		casesByType.put(ColumnType.LINK,          new RoundTripCase("https://example.org/a",              "https://example.org/a",                  "https://example.org/a"));
+		casesByType.put(ColumnType.INTEGER,       new RoundTripCase("123",                                123,                                      "123"));
+		casesByType.put(ColumnType.INTEGER_LIST,  new RoundTripCase("[1,2,3]",                            List.of(1, 2, 3),                         "[1,2,3]"));
+		casesByType.put(ColumnType.DATE,          new RoundTripCase("1609459200000",                      1609459200000L,                           "1609459200000"));
+		casesByType.put(ColumnType.DATE_LIST,     new RoundTripCase("[1609459200000,1609545600000]",      List.of(1609459200000L, 1609545600000L),  "[1609459200000,1609545600000]"));
+		casesByType.put(ColumnType.FILEHANDLEID,  new RoundTripCase("9876543",                            9876543,                                  "9876543"));
+		casesByType.put(ColumnType.SUBMISSIONID,  new RoundTripCase("555",                                555,                                      "555"));
+		casesByType.put(ColumnType.EVALUATIONID,  new RoundTripCase("777",                                777,                                      "777"));
+		casesByType.put(ColumnType.ENTITYID,      new RoundTripCase("syn123456",                          "syn123456",                              "syn123456"));
+		casesByType.put(ColumnType.USERID,        new RoundTripCase("3412396",                            "3412396",                                "3412396"));
+		casesByType.put(ColumnType.ENTITYID_LIST, new RoundTripCase("[\"syn1\",\"syn2\"]",                List.of("syn1", "syn2"),                  "[\"syn1\",\"syn2\"]"));
+		casesByType.put(ColumnType.USERID_LIST,   new RoundTripCase("[\"100\",\"200\"]",                  List.of("100", "200"),                    "[\"100\",\"200\"]"));
+		casesByType.put(ColumnType.DOUBLE,        new RoundTripCase("1.5",                                1.5,                                      "1.5"));
+		casesByType.put(ColumnType.BOOLEAN,       new RoundTripCase("true",                               Boolean.TRUE,                             "true"));
+		casesByType.put(ColumnType.BOOLEAN_LIST,  new RoundTripCase("[true,false]",                       List.of(true, false),                     "[true,false]"));
+		casesByType.put(ColumnType.JSON,          new RoundTripCase("{\"a\":1,\"b\":\"x\"}",              Map.of("a", 1, "b", "x"),                 "{\"a\":1,\"b\":\"x\"}"));
+		return casesByType;
+	}
+
+	private static final class RoundTripCase {
+		final String raw;
+		final Object expected;
+		final String expectedReturned;
+		RoundTripCase(String raw, Object expected, String expectedReturned) {
+			this.raw = raw;
+			this.expected = expected;
+			this.expectedReturned = expectedReturned;
+		}
+	}
+
+	/**
+	 * Mirrors {@code TextAnalyzerBootstrapper.buildScientificSettings()}. Kept inline (matching
+	 * the autocomplete helpers below) so this test exercises the exact production config without
+	 * requiring the bootstrapper to expose its internals.
+	 */
+	private static TextAnalyzer bootstrappedScientificAnalyzer() {
+		TextAnalyzerSettings settings = new TextAnalyzerSettings();
+		settings.setTokenizer("standard");
+		settings.setTokenFilters("{"
+				+ "\"sci_word_delimiter\":{\"type\":\"word_delimiter\",\"preserve_original\":true,"
+				+ "\"split_on_case_change\":true,\"split_on_numerics\":true,"
+				+ "\"catenate_words\":true,\"catenate_numbers\":false,"
+				+ "\"stem_english_possessive\":true},"
+				+ "\"english_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"},"
+				+ "\"english_stemmer\":{\"type\":\"stemmer\",\"language\":\"english\"}"
+				+ "}");
+		settings.setFilterOrder(Arrays.asList(
+				"sci_word_delimiter", "lowercase", "english_stop", "english_stemmer"));
+		settings.setSynonymAware(true);
+
+		TextAnalyzer analyzer = new TextAnalyzer();
+		analyzer.setId(Long.toString(TextAnalyzerBootstrapper.SCIENTIFIC_ID));
+		analyzer.setSettings(settings);
+		return analyzer;
 	}
 
 	private static TextAnalyzer autocompleteIndexAnalyzer() {
@@ -345,6 +523,48 @@ public class OpenSearchManagerImplAutoWiredTest {
 	}
 
 	// ---- Polling helpers ----
+
+	private void waitForIndexReachable() {
+		SearchQuery probe = new SearchQuery();
+		probe.setQueryType(SearchQueryType.MATCH_ALL);
+		probe.setLimit(0L);
+		probe.setOffset(0L);
+		boolean success = TimeUtils.waitForExponential(POLL_MAX_MS, POLL_INTERVAL_MS, null, (v) -> {
+			try {
+				openSearchManager.search(indexName, probe, Collections.emptyList(),
+						null, Collections.emptyList(), defaultAnalyzers,
+						EnumSet.of(SearchQueryPart.TOTAL_HITS));
+				return true;
+			} catch (IllegalStateException notReady) {
+				return false;
+			}
+		});
+		assertTrue(success, "Timed out waiting for AOSS index " + indexName + " to become reachable");
+	}
+
+	private <T> T retryOnAossAnalyzeFlake(Callable<T> action) throws Exception {
+		return TimeUtils.waitForExponentialMaxRetry(VALIDATE_RETRY_MAX, VALIDATE_RETRY_INITIAL_MS, () -> {
+			try {
+				return action.call();
+			} catch (IllegalArgumentException e) {
+				if (isAossIndexNotFoundFlake(e)) {
+					throw new RetryException(e);
+				}
+				throw e;
+			} catch (AssertionError ae) {
+				if (ae.getCause() instanceof IllegalArgumentException
+						&& isAossIndexNotFoundFlake((IllegalArgumentException) ae.getCause())) {
+					throw new RetryException(ae.getCause());
+				}
+				throw ae;
+			}
+		});
+	}
+
+	private static boolean isAossIndexNotFoundFlake(IllegalArgumentException e) {
+		String message = e.getMessage();
+		return message != null && message.contains("index_not_found_exception");
+	}
 
 	/**
 	 * Poll until search returns at least {@code expectedMinHits} results.

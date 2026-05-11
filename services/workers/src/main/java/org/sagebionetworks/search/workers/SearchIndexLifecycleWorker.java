@@ -65,7 +65,7 @@ public class SearchIndexLifecycleWorker implements BatchChangeMessageDrivenRunne
 							progressCallback, entityId, message.getUserId());
 					break;
 				case DELETE:
-					searchIndexLifecycleManager.handleDelete(entityId);
+					searchIndexLifecycleManager.handleDelete(progressCallback, entityId);
 					break;
 				default:
 					break;
@@ -85,7 +85,14 @@ public class SearchIndexLifecycleWorker implements BatchChangeMessageDrivenRunne
 			LOG.warn("Transient lock exception for entity {}, retrying: {}", entityId, e.getMessage());
 			throw new RecoverableMessageException(e);
 		} catch (NotFoundException e) {
-			searchIndexLifecycleManager.handleDelete(entityId);
+			try {
+				searchIndexLifecycleManager.handleDelete(progressCallback, entityId);
+			} catch (RecoverableMessageException rme) {
+				LOG.warn("Recoverable exception for entity {}: {}", entityId, rme.getMessage());
+				throw rme;
+			} catch (Exception deleteEx) {
+				LOG.error("Failed to process lifecycle message for entity: " + entityId, deleteEx);
+			}
 		} catch (Throwable e) {
 			// Unexpected — keep full stack trace; this is the path that surfaces real bugs.
 			LOG.error("Failed to process lifecycle message for entity: " + entityId, e);

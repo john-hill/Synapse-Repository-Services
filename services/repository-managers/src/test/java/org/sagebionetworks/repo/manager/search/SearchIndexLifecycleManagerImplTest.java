@@ -54,6 +54,11 @@ import org.sagebionetworks.table.cluster.ConnectionFactory;
 import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
+import org.sagebionetworks.workers.util.semaphore.LockUnavilableException;
+import org.sagebionetworks.workers.util.semaphore.LockType;
+import org.sagebionetworks.workers.util.semaphore.WriteLock;
+import org.sagebionetworks.workers.util.semaphore.WriteLockRequest;
+import org.sagebionetworks.workers.util.semaphore.WriteReadSemaphore;
 
 @ExtendWith(MockitoExtension.class)
 public class SearchIndexLifecycleManagerImplTest {
@@ -89,9 +94,26 @@ public class SearchIndexLifecycleManagerImplTest {
 	private TableManagerSupport tableManagerSupport;
 	@Mock
 	private ColumnModelManager columnModelManager;
+	@Mock
+	private WriteReadSemaphore writeReadSemaphore;
+	@Mock
+	private WriteLock writeLock;
 
 	@InjectMocks
 	private SearchIndexLifecycleManagerImpl manager;
+
+	private static final String LOCK_KEY = "search-index-build:" + ENTITY_ID;
+
+	private void stubBuildLock() throws Exception {
+		when(progressCallback.getLockTimeoutSeconds()).thenReturn(300L);
+		when(writeReadSemaphore.getWriteLock(any(WriteLockRequest.class))).thenReturn(writeLock);
+	}
+
+	private void stubLockUnavailable() throws Exception {
+		when(progressCallback.getLockTimeoutSeconds()).thenReturn(300L);
+		when(writeReadSemaphore.getWriteLock(any(WriteLockRequest.class)))
+				.thenThrow(new LockUnavilableException(LockType.Write, LOCK_KEY, "other-worker"));
+	}
 
 	private UserInfo triggeringUser() {
 		UserInfo user = new UserInfo(false, USER_ID, null);
@@ -113,6 +135,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		searchIndex.setDefiningSQL(DEFINING_SQL);
 		searchIndex.setParentId("syn100");
 
+		stubBuildLock();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
 		when(userManager.getUserInfo(ANON_ID)).thenReturn(anon);
@@ -145,6 +168,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		searchIndex.setDefiningSQL(DEFINING_SQL);
 		searchIndex.setParentId("syn100");
 
+		stubBuildLock();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
 		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
@@ -181,6 +205,7 @@ public class SearchIndexLifecycleManagerImplTest {
 
 		String longMessage = "x".repeat(5000);
 
+		stubBuildLock();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
 		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
@@ -210,6 +235,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		searchIndex.setDefiningSQL(DEFINING_SQL);
 		searchIndex.setParentId("syn100");
 
+		stubBuildLock();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
 		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
@@ -243,6 +269,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		searchIndex.setDefiningSQL(DEFINING_SQL);
 		searchIndex.setParentId("syn100");
 
+		stubBuildLock();
 		ErrorCause cause = ErrorCause.of(b -> b
 				.type("status_exception")
 				.reason("Deletion failed for indices [search-index-syn456] due to concurrent deletes, please try again"));
@@ -287,6 +314,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		searchIndex.setDefiningSQL(DEFINING_SQL);
 		searchIndex.setParentId("syn100");
 
+		stubBuildLock();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
 		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
@@ -310,52 +338,126 @@ public class SearchIndexLifecycleManagerImplTest {
 	}
 
 	@Test
-	public void testHandleDeleteWithCreatingStateThrowsRecoverable() {
-		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
-		when(statusDao.getState(456L)).thenReturn(Optional.of(SearchIndexState.CREATING));
-
-		// call under test
-		assertThrows(org.sagebionetworks.workers.util.aws.message.RecoverableMessageException.class,
-				() -> manager.handleDelete(ENTITY_ID));
-
-		verify(openSearchManager, never()).deleteIndex(any());
-		verify(statusDao, never()).delete(any());
-	}
-
-	@Test
 	public void testHandleDeleteWithActiveStateDeletesIndexAndStatus() throws Exception {
+		stubBuildLock();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(statusDao.getState(456L)).thenReturn(Optional.of(SearchIndexState.ACTIVE));
 
 		// call under test
-		manager.handleDelete(ENTITY_ID);
+		manager.handleDelete(progressCallback, ENTITY_ID);
 
 		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
 		verify(statusDao).delete(456L);
+		verify(writeLock).close();
 	}
 
 	@Test
 	public void testHandleDeleteWithFailedStateDeletesIndexAndStatus() throws Exception {
+		stubBuildLock();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(statusDao.getState(456L)).thenReturn(Optional.of(SearchIndexState.FAILED));
 
 		// call under test
-		manager.handleDelete(ENTITY_ID);
+		manager.handleDelete(progressCallback, ENTITY_ID);
 
 		verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
 		verify(statusDao).delete(456L);
+		verify(writeLock).close();
 	}
 
 	@Test
 	public void testHandleDeleteWithMissingStatusIsNoOp() throws Exception {
+		stubBuildLock();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(statusDao.getState(456L)).thenReturn(Optional.empty());
 
 		// call under test
-		manager.handleDelete(ENTITY_ID);
+		manager.handleDelete(progressCallback, ENTITY_ID);
 
 		verify(openSearchManager, never()).deleteIndex(any());
 		verify(statusDao, never()).delete(any());
+		verify(writeLock).close();
+	}
+
+	@Test
+	public void testHandleDeleteWithLockAlreadyHeld() throws Exception {
+		stubLockUnavailable();
+
+		// call under test
+		assertThrows(RecoverableMessageException.class,
+				() -> manager.handleDelete(progressCallback, ENTITY_ID));
+
+		verify(openSearchManager, never()).deleteIndex(any());
+		verify(statusDao, never()).delete(any());
+	}
+
+	// -------- per-entity lock tests --------
+
+	@Test
+	public void testHandleCreateWithLockAlreadyHeld() throws Exception {
+		stubLockUnavailable();
+
+		// call under test
+		assertThrows(RecoverableMessageException.class,
+				() -> manager.handleCreate(progressCallback, ENTITY_ID, USER_ID));
+
+		verify(statusDao, never()).createOrUpdate(any());
+		verify(openSearchManager, never()).deleteIndex(any());
+		verify(openSearchManager, never()).createIndex(any(), any(), any(), any(), any(), any());
+	}
+
+	@Test
+	public void testHandleCreateReleasesLockOnSuccess() throws Exception {
+		stubBuildLock();
+		UserInfo triggering = triggeringUser();
+		SearchIndex searchIndex = new SearchIndex();
+		searchIndex.setDefiningSQL(DEFINING_SQL);
+		searchIndex.setParentId("syn100");
+
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
+		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
+		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Collections.singletonList(
+						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
+		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
+		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
+				.thenReturn(new QueryResultBundle().setQueryCount(0L));
+
+		// call under test
+		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		verify(writeLock).close();
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao, org.mockito.Mockito.times(2)).createOrUpdate(captor.capture());
+		assertEquals(SearchIndexState.ACTIVE, captor.getAllValues().get(1).getState());
+	}
+
+	@Test
+	public void testHandleCreateReleasesLockOnFailure() throws Exception {
+		stubBuildLock();
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(userManager.getUserInfo(USER_ID)).thenReturn(triggeringUser());
+		SearchIndex searchIndex = new SearchIndex();
+		searchIndex.setDefiningSQL(DEFINING_SQL);
+		searchIndex.setParentId("syn100");
+		when(entityManager.getEntity(triggeringUser(), ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Collections.singletonList(
+						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
+		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
+		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
+		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
+				.thenThrow(new RuntimeException("unexpected failure"));
+
+		// call under test — exception is swallowed by the FAILED handler, lock must still be released
+		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		verify(writeLock).close();
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao, org.mockito.Mockito.times(2)).createOrUpdate(captor.capture());
+		assertEquals(SearchIndexState.FAILED, captor.getAllValues().get(1).getState());
 	}
 
 	// -------- SearchIndexRowHandler tests --------

@@ -7,7 +7,6 @@ import org.sagebionetworks.repo.model.table.TableFailedException;
 import org.sagebionetworks.repo.model.table.TableUnavailableException;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
-import org.sagebionetworks.workers.util.semaphore.LockUnavilableException;
 
 /**
  * Manager for search index lifecycle operations (create, update, delete).
@@ -24,8 +23,7 @@ public interface SearchIndexLifecycleManager {
 	 * @param entityId         The SearchIndex entity ID
 	 * @param userId           The user who triggered the change
 	 */
-	void handleCreate(ProgressCallback progressCallback, String entityId, Long userId)
-			throws RecoverableMessageException, TableUnavailableException, TableFailedException, LockUnavilableException;
+	void handleCreate(ProgressCallback progressCallback, String entityId, Long userId) throws Exception;
 
 	/**
 	 * Handle an update event for a SearchIndex entity. Unconditionally deletes and rebuilds
@@ -35,17 +33,16 @@ public interface SearchIndexLifecycleManager {
 	 * @param entityId         The SearchIndex entity ID
 	 * @param userId           The user who triggered the change
 	 */
-	void handleUpdate(ProgressCallback progressCallback, String entityId, Long userId)
-			throws RecoverableMessageException, TableUnavailableException, TableFailedException, LockUnavilableException;
+	void handleUpdate(ProgressCallback progressCallback, String entityId, Long userId) throws Exception;
 
 	/**
-	 * Handle a delete event for a SearchIndex entity. If the index is currently being built
-	 * (CREATING), throws RecoverableMessageException to retry later. Otherwise deletes the
-	 * AOSS index and the status row.
+	 * Handle a delete event for a SearchIndex entity. Acquires the per-entity write lock
+	 * to serialize with any concurrent build, then deletes the AOSS index and the status row.
 	 *
-	 * @param entityId The SearchIndex entity ID
+	 * @param progressCallback Progress callback used to hold the per-entity lock
+	 * @param entityId         The SearchIndex entity ID
 	 */
-	void handleDelete(String entityId) throws RecoverableMessageException;
+	void handleDelete(ProgressCallback progressCallback, String entityId) throws Exception;
 
 	/**
 	 * Resolve every SELECT-list column in {@code definingSql} — including literals

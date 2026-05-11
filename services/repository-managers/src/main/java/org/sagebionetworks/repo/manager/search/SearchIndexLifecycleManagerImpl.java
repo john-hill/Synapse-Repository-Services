@@ -53,6 +53,9 @@ import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.sagebionetworks.workers.util.semaphore.LockUnavilableException;
+import org.sagebionetworks.workers.util.semaphore.WriteLock;
+import org.sagebionetworks.workers.util.semaphore.WriteLockRequest;
+import org.sagebionetworks.workers.util.semaphore.WriteReadSemaphore;
 import org.springframework.stereotype.Service;
 
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -68,6 +71,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 
 	private static final Logger LOG = LogManager.getLogger(SearchIndexLifecycleManagerImpl.class);
 	private static final String INDEX_PREFIX = "search-index-";
+	private static final String LOCK_KEY_PREFIX = "search-index-build:";
 	private static final int MAX_ERROR_MESSAGE_LENGTH = 3000;
 	private static final int BATCH_SIZE = 1000;
 	private static final long MAX_ROWS = 500_000L;
@@ -115,6 +119,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	private final TextAnalyzerDao textAnalyzerDao;
 	private final TableManagerSupport tableManagerSupport;
 	private final ColumnModelManager columnModelManager;
+	private final WriteReadSemaphore writeReadSemaphore;
 
 	public SearchIndexLifecycleManagerImpl(ConnectionFactory connectionFactory,
 			OpenSearchManager openSearchManager,
@@ -124,7 +129,8 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			SynonymSetDao synonymSetDao, ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao,
 			TextAnalyzerDao textAnalyzerDao,
 			TableManagerSupport tableManagerSupport,
-			ColumnModelManager columnModelManager) {
+			ColumnModelManager columnModelManager,
+			WriteReadSemaphore writeReadSemaphore) {
 		this.connectionFactory = connectionFactory;
 		this.openSearchManager = openSearchManager;
 		this.searchConfigurationResolver = searchConfigurationResolver;
@@ -136,6 +142,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		this.textAnalyzerDao = textAnalyzerDao;
 		this.tableManagerSupport = tableManagerSupport;
 		this.columnModelManager = columnModelManager;
+		this.writeReadSemaphore = writeReadSemaphore;
 	}
 
 	@Override
@@ -160,23 +167,35 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	}
 
 	@Override
-	public void handleCreate(ProgressCallback progressCallback, String entityId, Long userId)
-			throws RecoverableMessageException, TableUnavailableException, TableFailedException, LockUnavilableException {
-		buildIndex(progressCallback, entityId, userId, true);
+	public void handleCreate(ProgressCallback progressCallback, String entityId, Long userId) throws Exception {
+		ValidateArgument.required(entityId, "entityId");
+		ValidateArgument.required(userId, "userId");
+		try (WriteLock lock = writeReadSemaphore.getWriteLock(
+				new WriteLockRequest(progressCallback, "SearchIndexLifecycleManager.buildIndex", LOCK_KEY_PREFIX + entityId))) {
+			buildIndex(progressCallback, entityId, userId, true);
+		} catch (LockUnavilableException e) {
+			throw new RecoverableMessageException(
+					"Search index " + entityId + " is already being built by another worker", e);
+		}
 	}
 
 	@Override
-	public void handleUpdate(ProgressCallback progressCallback, String entityId, Long userId)
-			throws RecoverableMessageException, TableUnavailableException, TableFailedException, LockUnavilableException {
-		// In the MVP updates are unconditionally replacing the index on all changes regardless of what the change is.
-		buildIndex(progressCallback, entityId, userId, true);
+	public void handleUpdate(ProgressCallback progressCallback, String entityId, Long userId) throws Exception {
+		ValidateArgument.required(entityId, "entityId");
+		ValidateArgument.required(userId, "userId");
+		try (WriteLock lock = writeReadSemaphore.getWriteLock(
+				new WriteLockRequest(progressCallback, "SearchIndexLifecycleManager.buildIndex", LOCK_KEY_PREFIX + entityId))) {
+			// In the MVP updates are unconditionally replacing the index on all changes regardless of what the change is.
+			buildIndex(progressCallback, entityId, userId, true);
+		} catch (LockUnavilableException e) {
+			throw new RecoverableMessageException(
+					"Search index " + entityId + " is already being built by another worker", e);
+		}
 	}
 
 	private void buildIndex(ProgressCallback progressCallback, String entityId, Long userId,
 			boolean deleteExistingFirst)
-			throws RecoverableMessageException, TableUnavailableException, TableFailedException, LockUnavilableException {
-		ValidateArgument.required(entityId, "entityId");
-		ValidateArgument.required(userId, "userId");
+			throws Exception {
 		SearchIndexStatusDao statusDao = connectionFactory.getSearchIndexStatusDao();
 		try {
 			UserInfo user = userManager.getUserInfo(userId);
@@ -244,7 +263,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			statusDao.createOrUpdate(new SearchIndexStatus()
 					.setSearchIndexId(entityId)
 					.setState(SearchIndexState.ACTIVE));
-		} catch (RecoverableMessageException | TableUnavailableException | TableFailedException | LockUnavilableException e) {
+		} catch (RecoverableMessageException | TableUnavailableException | TableFailedException e) {
 			// Propagate transient/infrastructure exceptions to the worker so it can
 			// convert them into RecoverableMessageException (table unavailable / lock)
 			// or permanent failure (table failed). Do not record FAILED here — the
@@ -281,26 +300,26 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	}
 
 	@Override
-	public void handleDelete(String entityId) throws RecoverableMessageException {
+	public void handleDelete(ProgressCallback progressCallback, String entityId) throws Exception {
 		ValidateArgument.required(entityId, "entityId");
 		Long searchIndexId = KeyFactory.stringToKey(entityId);
-		SearchIndexStatusDao statusDao = connectionFactory.getSearchIndexStatusDao();
-
-		Optional<SearchIndexState> stateOpt = statusDao.getState(searchIndexId);
-		if (stateOpt.isEmpty()) {
-			// No status row — already cleaned up, nothing to do
-			return;
-		}
-		if (stateOpt.get() == SearchIndexState.CREATING) {
-			// Cannot interrupt an in-flight build — retry the delete later.
+		try (WriteLock lock = writeReadSemaphore.getWriteLock(
+				new WriteLockRequest(progressCallback, "SearchIndexLifecycleManager.handleDelete", LOCK_KEY_PREFIX + entityId))) {
+			SearchIndexStatusDao statusDao = connectionFactory.getSearchIndexStatusDao();
+			Optional<SearchIndexState> stateOpt = statusDao.getState(searchIndexId);
+			if (stateOpt.isEmpty()) {
+				// No status row — already cleaned up, nothing to do
+				return;
+			}
+			try {
+				openSearchManager.deleteIndex(getIndexName(entityId));
+				statusDao.delete(searchIndexId);
+			} catch (Throwable e) {
+				LOG.error("Failed to delete search index for entity: " + entityId, e);
+			}
+		} catch (LockUnavilableException e) {
 			throw new RecoverableMessageException(
-					"Search index " + entityId + " is still building. Will retry delete later.");
-		}
-		try {
-			openSearchManager.deleteIndex(getIndexName(entityId));
-			statusDao.delete(searchIndexId);
-		} catch (Throwable e) {
-			LOG.error("Failed to delete search index for entity: " + entityId, e);
+					"Search index " + entityId + " is locked by another worker", e);
 		}
 	}
 

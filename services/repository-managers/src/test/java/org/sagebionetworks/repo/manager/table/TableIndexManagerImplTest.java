@@ -1732,6 +1732,27 @@ public class TableIndexManagerImplTest {
 	}
 
 	@Test
+	public void testValidateTableMaximumListLengthChanges_newListLengthNull() {
+		ColumnModel oldCol = new ColumnModel();
+		oldCol.setId("5");
+		oldCol.setName("old");
+		oldCol.setColumnType(ColumnType.STRING_LIST);
+		oldCol.setMaximumListLength(4L);
+		ColumnModel newCol = new ColumnModel();
+		newCol.setId("56");
+		newCol.setName("new");
+		newCol.setColumnType(ColumnType.STRING_LIST);
+		// maximumListLength is null (unconstrained) — previously NPEd, now skips validation
+
+		ColumnChangeDetails change = new ColumnChangeDetails(oldCol, newCol);
+
+		// call under test
+		manager.validateTableMaximumListLengthChanges(tableId, change);
+
+		verify(mockIndexDao, never()).tempTableListColumnMaxLength(any(), any());
+	}
+
+	@Test
 	public void testDetermineCauseOfExceptionLists() {
 		Exception original = new Exception("Some exception");
 		ColumnModel columnModel = new ColumnModel();

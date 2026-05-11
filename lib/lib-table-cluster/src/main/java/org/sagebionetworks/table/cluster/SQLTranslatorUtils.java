@@ -729,8 +729,12 @@ public class SQLTranslatorUtils {
 			
 			String unnestColumnType = unnestColumnTypeInfo.getMySqlType().toString();
 			
-			if (unnestColumnTypeInfo.getMySqlType().hasSize && columnReference.getMaximumSize() != null) {
-				unnestColumnType += "(" + columnReference.getMaximumSize() + ")";
+			if (unnestColumnTypeInfo.getMySqlType().hasSize) {
+				// maximumSize is optional for STRING_LIST; fall back to MAX_ALLOWED_STRING_SIZE when not set
+				long size = columnReference.getMaximumSize() != null
+						? columnReference.getMaximumSize()
+						: ColumnConstants.MAX_ALLOWED_STRING_SIZE;
+				unnestColumnType += "(" + size + ")";
 			}
 			
 			List<JsonTableColumn> jsonColumns = List.of(new JsonTableColumn(unnestColumnName, unnestColumnType));

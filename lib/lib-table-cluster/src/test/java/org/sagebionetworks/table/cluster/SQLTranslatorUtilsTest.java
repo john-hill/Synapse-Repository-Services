@@ -1367,6 +1367,33 @@ public class SQLTranslatorUtilsTest {
 	}
 	
 	@Test
+	public void tesTranslateArrayFunction_nullMaximumSize() throws ParseException {
+		columnFoo.setColumnType(ColumnType.STRING_LIST);
+		columnFoo.setMaximumSize(null);
+		when(mockSchemaProvider.getTableSchema(IdAndVersion.parse("syn123"))).thenReturn(Collections.singletonList(columnFoo));
+		when(mockSchemaProvider.getTableSchema(IdAndVersion.parse("syn456"))).thenReturn(Collections.singletonList(columnBar));
+
+		TableAndColumnMapper multiTableMapper = new TableAndColumnMapper(
+				new TableQueryParser("select * from syn123 join syn456").queryExpression()
+						.getFirstElementOfType(QuerySpecification.class), mockSchemaProvider);
+
+		QuerySpecification querySpecification = TableQueryParser.parserQuery(
+				"SELECT UNNEST(T123._C111_) FROM T123 _A0 join T456 _A1 ORDER BY UNNEST(T123._C111_)"
+		);
+
+		// call under test
+		SQLTranslatorUtils.translateArrayFunctions(querySpecification, multiTableMapper);
+
+		// null maximumSize falls back to MAX_ALLOWED_STRING_SIZE (2000) in the JSON_TABLE VARCHAR
+		String expected = "SELECT T123_INDEX_C111_._C111__UNNEST " +
+				"FROM T123 _A0 JOIN T456 _A1 " +
+				"LEFT JOIN JSON_TABLE(_A0._C111_, '$[*]' COLUMNS(_C111__UNNEST VARCHAR(2000) PATH '$' ERROR ON ERROR)) AS T123_INDEX_C111_ ON TRUE " +
+				"ORDER BY T123_INDEX_C111_._C111__UNNEST";
+
+		assertEquals(expected, querySpecification.toSql());
+	}
+
+	@Test
 	public void tesTranslateArrayFunctionWithJoinAndMultipleColumns() throws ParseException {
 		columnFoo.setColumnType(ColumnType.STRING_LIST);
 		columnBar.setColumnType(ColumnType.STRING_LIST);

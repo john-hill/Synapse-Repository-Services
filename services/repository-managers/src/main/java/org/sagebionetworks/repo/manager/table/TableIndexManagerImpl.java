@@ -274,7 +274,9 @@ public class TableIndexManagerImpl implements TableIndexManager {
 		ColumnType newColumnType = newColumn != null ? newColumn.getColumnType() : null;
 		if(ColumnTypeListMappings.isList(oldColumnType)
 				&& ColumnTypeListMappings.isList(newColumnType)
-				//we are decreasing the maximum list size
+				// we are decreasing the maximum list length (null means unconstrained, skip when either side is null)
+				&& oldColumn.getMaximumListLength() != null
+				&& newColumn.getMaximumListLength() != null
 				&& oldColumn.getMaximumListLength() > newColumn.getMaximumListLength()) {
 
 			long maximumListLengthInTable = tableIndexDao.tempTableListColumnMaxLength(tableId, oldColumn.getId());

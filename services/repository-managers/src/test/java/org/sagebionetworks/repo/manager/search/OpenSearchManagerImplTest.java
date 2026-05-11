@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -47,8 +48,17 @@ import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.opensearch.client.opensearch.core.bulk.BulkResponseItem;
+import java.util.EnumSet;
 import org.mockito.ArgumentCaptor;
 import org.opensearch.client.opensearch._types.aggregations.Aggregation;
+import org.opensearch.client.opensearch._types.query_dsl.BoolQuery;
+import org.opensearch.client.opensearch.core.SearchRequest;
+import org.opensearch.client.opensearch.core.SearchResponse;
+import org.opensearch.client.opensearch.core.search.HitsMetadata;
+import org.opensearch.client.opensearch.core.search.TotalHits;
+import org.opensearch.client.opensearch.core.search.TotalHitsRelation;
+import org.opensearch.client.opensearch.core.search.TrackHits;
+import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.opensearch.client.opensearch._types.query_dsl.Query;
 import org.opensearch.client.opensearch._types.query_dsl.TextQueryType;
@@ -1373,6 +1383,57 @@ public class OpenSearchManagerImplTest {
 		assertFalse(ex instanceof RecoverableMessageException, ex.getClass().getName());
 		verify(openSearchClient, times(1))
 				.bulk(argThat((BulkRequest req) -> req != null));
+	}
+
+	// --- callSearchApi: trackTotalHits wire behavior ---
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	private SearchResponse<Map> emptySearchResponse() {
+		TotalHits total = TotalHits.of(t -> t.value(0L).relation(TotalHitsRelation.Eq));
+		HitsMetadata<Map> hits = HitsMetadata.of(h -> h.total(total).hits(Collections.emptyList()));
+		return SearchResponse.searchResponseOf(r -> r
+				.took(0L)
+				.timedOut(false)
+				.shards(s -> s.total(1).successful(1).failed(0))
+				.hits(hits));
+	}
+
+	@Test
+	public void testCallSearchApiWithTotalHitsSetsCountToIntMaxValue() throws IOException {
+		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
+				.thenReturn(emptySearchResponse());
+
+		// call under test
+		manager.callSearchApi("my-index", new BoolQuery.Builder(),
+				0, 10, Collections.emptyMap(), null, null,
+				Collections.emptyList(), Collections.emptyMap(),
+				EnumSet.of(SearchQueryPart.TOTAL_HITS));
+
+		ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
+		verify(openSearchClient).search(captor.capture(), eq(Map.class));
+		TrackHits trackHits = captor.getValue().trackTotalHits();
+		assertNotNull(trackHits, "trackTotalHits must be set when TOTAL_HITS requested");
+		assertTrue(trackHits.isCount(), "must use count() variant, not enabled()");
+		assertEquals(Integer.MAX_VALUE, trackHits.count());
+	}
+
+	@Test
+	public void testCallSearchApiWithoutTotalHitsSetsEnabledFalse() throws IOException {
+		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
+				.thenReturn(emptySearchResponse());
+
+		// call under test
+		manager.callSearchApi("my-index", new BoolQuery.Builder(),
+				0, 10, Collections.emptyMap(), null, null,
+				Collections.emptyList(), Collections.emptyMap(),
+				EnumSet.of(SearchQueryPart.HITS));
+
+		ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
+		verify(openSearchClient).search(captor.capture(), eq(Map.class));
+		TrackHits trackHits = captor.getValue().trackTotalHits();
+		assertNotNull(trackHits, "trackTotalHits must be explicitly disabled");
+		assertTrue(trackHits.isEnabled(), "must use enabled() variant");
+		assertEquals(Boolean.FALSE, trackHits.enabled());
 	}
 
 	@Test

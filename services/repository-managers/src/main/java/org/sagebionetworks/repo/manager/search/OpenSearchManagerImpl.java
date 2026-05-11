@@ -622,7 +622,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	@SuppressWarnings("rawtypes")
-	private SearchQueryResults callSearchApi(String indexName, BoolQuery.Builder boolBuilder,
+	SearchQueryResults callSearchApi(String indexName, BoolQuery.Builder boolBuilder,
 			int offset, int limit, Map<String, Aggregation> aggregations,
 			Map<String, HighlightField> highlightFields, List<String> returnFields,
 			List<SortOptions> sortOptions, Map<String, String> idToName,
@@ -636,8 +636,10 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 				req.from(offset);
 				// size=0 when hits aren't requested — saves source fetch + transport cost
 				req.size(returnHits ? limit : 0);
-				// Disable total-hit tracking when the caller doesn't need the count
-				if (!returnTotalHits) {
+				if (returnTotalHits) {
+					// Use a count value instead of enabled(true) — the boolean form caps at 10k
+					req.trackTotalHits(t -> t.count(Integer.MAX_VALUE));
+				} else {
 					req.trackTotalHits(t -> t.enabled(false));
 				}
 

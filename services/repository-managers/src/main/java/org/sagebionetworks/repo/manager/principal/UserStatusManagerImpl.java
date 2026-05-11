@@ -99,7 +99,7 @@ public class UserStatusManagerImpl implements UserStatusManager {
 			}
 		}
 
-		userStatusDao.setWarnedOn(usersToWarn);
+		userStatusDao.setDisableWarningSentOn(usersToWarn);
 
 		return usersToWarn.size();
 	}

@@ -70,7 +70,7 @@ public class UserStatusManagerImplUnitTest {
 
 		assertEquals(0, result);
 		verify(mockTemplatedMessageSender, never()).sendMessage(any());
-		verify(mockUserStatusDao, never()).setWarnedOn(any());
+		verify(mockUserStatusDao, never()).setDisableWarningSentOn(any());
 	}
 
 	@Test
@@ -97,7 +97,7 @@ public class UserStatusManagerImplUnitTest {
 
 		assertEquals(2, result);
 		verify(mockTemplatedMessageSender, times(2)).sendMessage(any());
-		verify(mockUserStatusDao).setWarnedOn(List.of(userId1, userId2));
+		verify(mockUserStatusDao).setDisableWarningSentOn(List.of(userId1, userId2));
 	}
 
 	@Test
@@ -123,7 +123,7 @@ public class UserStatusManagerImplUnitTest {
 
 		assertEquals(1, result);
 		verify(mockTemplatedMessageSender, times(1)).sendMessage(any());
-		verify(mockUserStatusDao).setWarnedOn(List.of(userId));
+		verify(mockUserStatusDao).setDisableWarningSentOn(List.of(userId));
 	}
 
 	@Test
@@ -152,7 +152,7 @@ public class UserStatusManagerImplUnitTest {
 		// userId1 email failed, userId2 email succeeded
 		verify(mockTemplatedMessageSender, times(1)).sendMessage(any());
 		// both users must be marked warned regardless of email failure
-		verify(mockUserStatusDao).setWarnedOn(List.of(userId1, userId2));
+		verify(mockUserStatusDao).setDisableWarningSentOn(List.of(userId1, userId2));
 	}
 
 	@Test

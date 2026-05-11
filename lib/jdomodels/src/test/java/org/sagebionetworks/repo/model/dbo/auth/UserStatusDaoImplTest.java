@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
@@ -144,7 +143,7 @@ public class UserStatusDaoImplTest {
 		assertEquals(List.of(userId), userStatusDao.getInactiveUsersToWarnBatch(warningThreshold, 10));
 
 		// Call under test: after setting warned, the user should no longer appear
-		userStatusDao.setWarnedOn(List.of(userId));
+		userStatusDao.setDisableWarningSentOn(List.of(userId));
 		assertTrue(userStatusDao.getInactiveUsersToWarnBatch(warningThreshold, 10).isEmpty());
 	}
 
@@ -152,7 +151,7 @@ public class UserStatusDaoImplTest {
 	public void testSetLastSeenOnClearsWarnedOn() {
 		Date warningThreshold = Date.from(Instant.now().minus(356, ChronoUnit.DAYS));
 		userStatusDao.setLastSeenOn(List.of(userId), Date.from(Instant.now().minus(357, ChronoUnit.DAYS)));
-		userStatusDao.setWarnedOn(List.of(userId));
+		userStatusDao.setDisableWarningSentOn(List.of(userId));
 
 		// User has been warned — no longer in the warn batch
 		assertTrue(userStatusDao.getInactiveUsersToWarnBatch(warningThreshold, 10).isEmpty());

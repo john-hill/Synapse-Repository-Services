@@ -92,7 +92,7 @@ public class UserStatusDaoImpl implements UserStatusDao {
 
 	@Override
 	@WriteTransaction
-	public void setWarnedOn(List<Long> principalIds) {
+	public void setDisableWarningSentOn(List<Long> principalIds) {
 		jdbcTemplate.batchUpdate(
 				"UPDATE USER_STATUS SET DISABLE_WARNING_SENT_ON = NOW(3), ETAG = UUID() WHERE PRINCIPAL_ID = ?",
 				new BatchPreparedStatementSetter() {

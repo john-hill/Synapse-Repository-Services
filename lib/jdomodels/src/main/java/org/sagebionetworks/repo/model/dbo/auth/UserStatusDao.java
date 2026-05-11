@@ -1,7 +1,5 @@
 package org.sagebionetworks.repo.model.dbo.auth;
 
-import org.sagebionetworks.repo.transactions.WriteTransaction;
-
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -29,6 +27,6 @@ public interface UserStatusDao {
 	/**
 	 * Records that a warning was sent to each user in the list by setting DISABLE_WARNING_SENT_ON = NOW(3).
 	 */
-	void setWarnedOn(List<Long> principalIds);
+	void setDisableWarningSentOn(List<Long> principalIds);
 }
 

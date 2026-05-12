@@ -263,7 +263,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			statusDao.createOrUpdate(new SearchIndexStatus()
 					.setSearchIndexId(entityId)
 					.setState(SearchIndexState.ACTIVE));
-		} catch (RecoverableMessageException | TableUnavailableException | TableFailedException e) {
+		} catch (RecoverableMessageException | TableUnavailableException | TableFailedException | LockUnavilableException e) {
 			// Propagate transient/infrastructure exceptions to the worker so it can
 			// convert them into RecoverableMessageException (table unavailable / lock)
 			// or permanent failure (table failed). Do not record FAILED here — the

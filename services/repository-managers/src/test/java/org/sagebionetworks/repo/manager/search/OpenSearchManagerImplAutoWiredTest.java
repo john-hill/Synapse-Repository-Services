@@ -49,8 +49,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
 public class OpenSearchManagerImplAutoWiredTest {
 
-	private static final long POLL_MAX_MS = 30_000L;
-	private static final long POLL_INTERVAL_MS = 1_000L;
+	private static final long POLL_MAX_MS = 600_000L;
+	private static final long POLL_INTERVAL_MS = 2_000L;
 
 	private static final int VALIDATE_RETRY_MAX = 10;
 	private static final long VALIDATE_RETRY_INITIAL_MS = 1_000L;
@@ -523,23 +523,23 @@ public class OpenSearchManagerImplAutoWiredTest {
 	}
 
 	// ---- Polling helpers ----
-
 	private void waitForIndexReachable() {
-		SearchQuery probe = new SearchQuery();
-		probe.setQueryType(SearchQueryType.MATCH_ALL);
-		probe.setLimit(0L);
-		probe.setOffset(0L);
+		String sentinelDocId = "__readiness_probe__";
+		Map<String, Object> sentinel = Map.of("_row_id", -1L, "_row_version", -1L);
 		boolean success = TimeUtils.waitForExponential(POLL_MAX_MS, POLL_INTERVAL_MS, null, (v) -> {
 			try {
-				openSearchManager.search(indexName, probe, Collections.emptyList(),
-						null, Collections.emptyList(), defaultAnalyzers,
-						EnumSet.of(SearchQueryPart.TOTAL_HITS));
+				openSearchManager.bulkIndex(indexName, List.of(
+						BulkOperation.of(op -> op.index(idx -> idx
+								.index(indexName).id(sentinelDocId).document(sentinel)))));
 				return true;
-			} catch (IllegalStateException notReady) {
+			} catch (RecoverableMessageException | RuntimeException notReady) {
 				return false;
 			}
 		});
-		assertTrue(success, "Timed out waiting for AOSS index " + indexName + " to become reachable");
+		assertTrue(success, "Timed out waiting for AOSS index " + indexName + " to accept writes");
+		// Remove the sentinel so subsequent search assertions don't count it as a hit.
+		openSearchManager.bulkIndex(indexName, List.of(
+				BulkOperation.of(op -> op.delete(d -> d.index(indexName).id(sentinelDocId)))));
 	}
 
 	private <T> T retryOnAossAnalyzeFlake(Callable<T> action) throws Exception {

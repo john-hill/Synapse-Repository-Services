@@ -236,17 +236,8 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 					.withRunCount(true)
 					.withReturnSelectColumns(false)
 					.withReturnFacets(false);
-			QueryResultBundle countResult;
-			try {
-				countResult = tableQueryManager.querySinglePage(
-						progressCallback, anonymousUser, query, countOnly);
-			} catch (RuntimeException e) {
-				if (e.getCause() instanceof LockUnavilableException) {
-					throw (LockUnavilableException) e.getCause();
-				}
-				throw e;
-			}
-
+			QueryResultBundle countResult = tableQueryManager.querySinglePage(
+					progressCallback, anonymousUser, query, countOnly);
 			Long rowCount = countResult.getQueryCount();
 			if (rowCount != null && rowCount > MAX_ROWS) {
 				throw new IllegalStateException(
@@ -263,17 +254,11 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			}
 			openSearchManager.createIndex(indexName, selectedColumns, defaultAnalyzer,
 					synonymSets, overrides, analyzers);
-			try {
-				tableQueryManager.runQueryAsStream(progressCallback, anonymousUser, query,
-						(QueryTranslations translations) -> new SearchIndexRowHandler(
-								indexName, selectColumns, openSearchManager),
-						ACCESS_TYPE.READ);
-			} catch (RuntimeException e) {
-				if (e.getCause() instanceof LockUnavilableException) {
-					throw (LockUnavilableException) e.getCause();
-				}
-				throw e;
-			}
+
+			tableQueryManager.runQueryAsStream(progressCallback, anonymousUser, query,
+					(QueryTranslations translations) -> new SearchIndexRowHandler(
+							indexName, selectColumns, openSearchManager),
+					ACCESS_TYPE.READ);
 
 			statusDao.createOrUpdate(new SearchIndexStatus()
 					.setSearchIndexId(entityId)
@@ -294,6 +279,15 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 				throw new RecoverableMessageException(
 						"Concurrent delete in progress while building search index for entity "
 								+ entityId, e);
+			}
+			// Defensive: a LockUnavilableException wrapped inside another exception is
+			// still a transient writer-contention signal, not a build defect. Surface
+			// the original so the worker re-queues the message instead of marking the
+			// SearchIndex permanently FAILED.
+			if (e.getCause() instanceof LockUnavilableException) {
+				LockUnavilableException lockEx = (LockUnavilableException) e.getCause();
+				LOG.warn("Lock unavailable for entity {}, retrying: {}", entityId, lockEx.getMessage());
+				throw lockEx;
 			}
 			LOG.error("Failed to build search index for entity: " + entityId, e);
 			String errorMessage = e.getMessage();

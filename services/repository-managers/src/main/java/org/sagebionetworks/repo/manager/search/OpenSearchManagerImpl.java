@@ -111,7 +111,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	// instead of bouncing the whole change message back to SQS on every partial failure.
 	// Non-final so unit tests can lower the values and avoid real-wall-clock sleeps.
 	static int BULK_INDEX_MAX_RETRIES = 10;
-	static long BULK_INDEX_INITIAL_BACKOFF_MS = 1000L;
+	static long BULK_INDEX_INITIAL_BACKOFF_MS = 10000L;
 
 	private static final String SYSTEM_FIELD_ROW_ID = "_row_id";
 	private static final String SYSTEM_FIELD_ROW_VERSION = "_row_version";

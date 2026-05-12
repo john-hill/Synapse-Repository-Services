@@ -533,7 +533,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 						BulkOperation.of(op -> op.index(idx -> idx
 								.index(indexName).id(sentinelDocId).document(sentinel)))));
 				return true;
-			} catch (RecoverableMessageException | RuntimeException notReady) {
+			} catch (RuntimeException notReady) {
 				return false;
 			}
 		});

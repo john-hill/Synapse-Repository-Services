@@ -236,8 +236,17 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 					.withRunCount(true)
 					.withReturnSelectColumns(false)
 					.withReturnFacets(false);
-			QueryResultBundle countResult = tableQueryManager.querySinglePage(
-					progressCallback, anonymousUser, query, countOnly);
+			QueryResultBundle countResult;
+			try {
+				countResult = tableQueryManager.querySinglePage(
+						progressCallback, anonymousUser, query, countOnly);
+			} catch (RuntimeException e) {
+				if (e.getCause() instanceof LockUnavilableException) {
+					throw (LockUnavilableException) e.getCause();
+				}
+				throw e;
+			}
+
 			Long rowCount = countResult.getQueryCount();
 			if (rowCount != null && rowCount > MAX_ROWS) {
 				throw new IllegalStateException(
@@ -254,11 +263,17 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			}
 			openSearchManager.createIndex(indexName, selectedColumns, defaultAnalyzer,
 					synonymSets, overrides, analyzers);
-
-			tableQueryManager.runQueryAsStream(progressCallback, anonymousUser, query,
-					(QueryTranslations translations) -> new SearchIndexRowHandler(
-							indexName, selectColumns, openSearchManager),
-					ACCESS_TYPE.READ);
+			try {
+				tableQueryManager.runQueryAsStream(progressCallback, anonymousUser, query,
+						(QueryTranslations translations) -> new SearchIndexRowHandler(
+								indexName, selectColumns, openSearchManager),
+						ACCESS_TYPE.READ);
+			} catch (RuntimeException e) {
+				if (e.getCause() instanceof LockUnavilableException) {
+					throw (LockUnavilableException) e.getCause();
+				}
+				throw e;
+			}
 
 			statusDao.createOrUpdate(new SearchIndexStatus()
 					.setSearchIndexId(entityId)

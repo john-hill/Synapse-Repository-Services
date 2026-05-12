@@ -1,10 +1,8 @@
 package org.sagebionetworks.search.workers;
 
-import java.util.List;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.sagebionetworks.asynchronous.workers.changes.BatchChangeMessageDrivenRunner;
+import org.sagebionetworks.asynchronous.workers.changes.ChangeMessageDrivenRunner;
 import org.sagebionetworks.repo.manager.search.SearchIndexLifecycleManager;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.ObjectType;
@@ -23,7 +21,7 @@ import org.springframework.stereotype.Service;
 import org.sagebionetworks.database.semaphore.LockReleaseFailedException;
 
 @Service
-public class SearchIndexLifecycleWorker implements BatchChangeMessageDrivenRunner {
+public class SearchIndexLifecycleWorker implements ChangeMessageDrivenRunner {
 
 	private static final Logger LOG = LogManager.getLogger(SearchIndexLifecycleWorker.class);
 
@@ -37,14 +35,12 @@ public class SearchIndexLifecycleWorker implements BatchChangeMessageDrivenRunne
 	}
 
 	@Override
-	public void run(ProgressCallback progressCallback, List<ChangeMessage> messages)
+	public void run(ProgressCallback progressCallback, ChangeMessage message)
 			throws RecoverableMessageException, Exception {
-		for (ChangeMessage message : messages) {
-			if (message.getObjectType() != ObjectType.ENTITY) {
-				continue;
-			}
-			processMessage(progressCallback, message);
+		if (message.getObjectType() != ObjectType.ENTITY) {
+			return;
 		}
+		processMessage(progressCallback, message);
 	}
 
 	private void processMessage(ProgressCallback progressCallback, ChangeMessage message)

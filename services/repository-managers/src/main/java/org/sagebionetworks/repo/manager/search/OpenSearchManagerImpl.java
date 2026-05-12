@@ -12,22 +12,13 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
-
-import jakarta.json.stream.JsonParser;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.opensearch.client.json.JsonData;
 import org.opensearch.client.json.JsonpDeserializer;
 import org.opensearch.client.json.JsonpMapper;
-import org.opensearch.client.opensearch._types.analysis.CharFilter;
-import org.opensearch.client.opensearch._types.analysis.CharFilterDefinition;
-import org.opensearch.client.opensearch._types.analysis.TokenFilter;
-import org.opensearch.client.opensearch._types.analysis.TokenFilterDefinition;
-import org.opensearch.client.opensearch._types.analysis.Tokenizer;
-import org.opensearch.client.opensearch._types.analysis.TokenizerDefinition;
 import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch._types.ErrorCause;
 import org.opensearch.client.opensearch._types.FieldSort;
@@ -39,6 +30,12 @@ import org.opensearch.client.opensearch._types.SortOptions;
 import org.opensearch.client.opensearch._types.SortOrder;
 import org.opensearch.client.opensearch._types.aggregations.Aggregate;
 import org.opensearch.client.opensearch._types.aggregations.Aggregation;
+import org.opensearch.client.opensearch._types.analysis.CharFilter;
+import org.opensearch.client.opensearch._types.analysis.CharFilterDefinition;
+import org.opensearch.client.opensearch._types.analysis.TokenFilter;
+import org.opensearch.client.opensearch._types.analysis.TokenFilterDefinition;
+import org.opensearch.client.opensearch._types.analysis.Tokenizer;
+import org.opensearch.client.opensearch._types.analysis.TokenizerDefinition;
 import org.opensearch.client.opensearch._types.mapping.DynamicMapping;
 import org.opensearch.client.opensearch._types.mapping.Property;
 import org.opensearch.client.opensearch._types.query_dsl.BoolQuery;
@@ -46,6 +43,8 @@ import org.opensearch.client.opensearch._types.query_dsl.Query;
 import org.opensearch.client.opensearch._types.query_dsl.TextQueryType;
 import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
+import org.opensearch.client.opensearch.core.DeleteRequest;
+import org.opensearch.client.opensearch.core.IndexRequest;
 import org.opensearch.client.opensearch.core.SearchResponse;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.opensearch.client.opensearch.core.bulk.BulkResponseItem;
@@ -54,37 +53,38 @@ import org.opensearch.client.opensearch.core.search.Hit;
 import org.opensearch.client.opensearch.indices.CreateIndexRequest;
 import org.opensearch.client.opensearch.indices.CreateIndexResponse;
 import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
+import org.sagebionetworks.repo.model.search.FacetRequest;
+import org.sagebionetworks.repo.model.search.FacetSortField;
+import org.sagebionetworks.repo.model.search.KeyRange;
+import org.sagebionetworks.repo.model.search.KeyValues;
+import org.sagebionetworks.repo.model.search.SearchFieldValue;
+import org.sagebionetworks.repo.model.search.SearchHit;
+import org.sagebionetworks.repo.model.search.SearchQuery;
+import org.sagebionetworks.repo.model.search.SearchQueryPart;
+import org.sagebionetworks.repo.model.search.SearchQueryResults;
+import org.sagebionetworks.repo.model.search.SearchQueryType;
+import org.sagebionetworks.repo.model.search.SortDirection;
+import org.sagebionetworks.repo.model.search.SortField;
+import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
+import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
+import org.sagebionetworks.repo.model.search.table.SynonymRule;
+import org.sagebionetworks.repo.model.search.table.SynonymRuleType;
+import org.sagebionetworks.repo.model.search.table.SynonymSet;
+import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
+import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.FacetColumnResult;
 import org.sagebionetworks.repo.model.table.FacetColumnResultValueCount;
 import org.sagebionetworks.repo.model.table.FacetColumnResultValues;
 import org.sagebionetworks.repo.model.table.FacetType;
-import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
-import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
-import org.sagebionetworks.repo.model.search.FacetRequest;
-import org.sagebionetworks.repo.model.search.FacetSortField;
-import org.sagebionetworks.repo.model.search.SearchFieldValue;
-import org.sagebionetworks.repo.model.search.SearchHit;
-import org.sagebionetworks.repo.model.search.SearchQuery;
-import org.sagebionetworks.repo.model.search.SearchQueryType;
-import org.sagebionetworks.repo.model.search.SearchQueryResults;
-import org.sagebionetworks.repo.model.search.SortDirection;
-import org.sagebionetworks.repo.model.search.SortField;
-import org.sagebionetworks.repo.model.search.table.SynonymRule;
-import org.sagebionetworks.repo.model.search.table.SynonymRuleType;
-import org.sagebionetworks.repo.model.search.SearchQueryPart;
-import org.sagebionetworks.repo.model.search.table.SynonymSet;
-import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
-import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
-import org.sagebionetworks.repo.model.search.KeyRange;
-import org.sagebionetworks.repo.model.search.KeyValues;
 import org.sagebionetworks.util.RetryException;
 import org.sagebionetworks.util.TimeUtils;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
-
 import org.springframework.stereotype.Service;
+
+import jakarta.json.stream.JsonParser;
 
 /**
  * Implementation of {@link OpenSearchManager} that wraps the OpenSearch Java client
@@ -112,6 +112,13 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	// Non-final so unit tests can lower the values and avoid real-wall-clock sleeps.
 	static int BULK_INDEX_MAX_RETRIES = 10;
 	static long BULK_INDEX_INITIAL_BACKOFF_MS = 10000L;
+
+	// Readiness probe for a freshly-created index. AOSS acknowledges createIndex and is
+	// queryable before shards are ready to accept writes, so the only reliable probe is
+	// an actual write. Same budget as the bulk-index retry for consistency.
+	static int INDEX_WRITABLE_MAX_RETRIES = 10;
+	static long INDEX_WRITABLE_INITIAL_BACKOFF_MS = 10000L;
+	static final String READINESS_PROBE_DOC_ID = "__readiness_probe__";
 
 	private static final String SYSTEM_FIELD_ROW_ID = "_row_id";
 	private static final String SYSTEM_FIELD_ROW_VERSION = "_row_version";
@@ -281,6 +288,56 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	@Override
+	public void waitForIndexWritable(String indexName) throws RecoverableMessageException {
+		// Fixed sentinel id so repeated probe writes on the same index overwrite the same
+		// document rather than accumulating copies — one delete at the end is sufficient.
+		Map<String, Object> sentinel = new HashMap<>();
+		sentinel.put(SYSTEM_FIELD_ROW_ID, -1L);
+		sentinel.put(SYSTEM_FIELD_ROW_VERSION, -1L);
+		final int[] attempt = {0};
+		try {
+			TimeUtils.waitForExponentialMaxRetry(INDEX_WRITABLE_MAX_RETRIES, INDEX_WRITABLE_INITIAL_BACKOFF_MS,
+					() -> {
+						attempt[0]++;
+						try {
+							openSearchClient.index(IndexRequest.of(r -> r
+									.index(indexName)
+									.id(READINESS_PROBE_DOC_ID)
+									.document(sentinel)));
+							return Boolean.TRUE;
+						} catch (OpenSearchException e) {
+							LOG.warn("Index {} not yet writable (attempt {}/{}): {}",
+									indexName, attempt[0], INDEX_WRITABLE_MAX_RETRIES, describeError(e.error()));
+							throw new RetryException(e);
+						} catch (IOException e) {
+							LOG.warn("Index {} not yet writable (attempt {}/{}): {}",
+									indexName, attempt[0], INDEX_WRITABLE_MAX_RETRIES, e.getMessage());
+							throw new RetryException(e);
+						}
+					});
+		} catch (RetryException e) {
+			LOG.error("Index {} did not accept writes after {} attempts", indexName, INDEX_WRITABLE_MAX_RETRIES);
+			throw new RecoverableMessageException(
+					"AOSS index " + indexName + " did not accept writes within the retry budget",
+					e.getCause());
+		} catch (RuntimeException e) {
+			throw e;
+		} catch (Exception e) {
+			throw new RuntimeException("Failed readiness probe for search index: " + indexName, e);
+		}
+		// Remove the sentinel so real indexing never observes it. Cleanup failures are
+		// non-fatal: the sentinel's _row_id = -1 cannot collide with real row ids.
+		try {
+			openSearchClient.delete(DeleteRequest.of(r -> r
+					.index(indexName)
+					.id(READINESS_PROBE_DOC_ID)));
+		} catch (OpenSearchException | IOException e) {
+			LOG.warn("Failed to delete readiness probe document from index {}: {}",
+					indexName, e.getMessage());
+		}
+	}
+
+	@Override
 	public long bulkIndex(String indexName, List<BulkOperation> operations) {
 		if (operations.isEmpty()) {
 			return 0L;
@@ -309,61 +366,125 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	/**
-	 * Submits the currently-outstanding operations once. Returns the total success count if the
-	 * attempt fully succeeds; throws {@link RuntimeException} for any permanent failure (no
-	 * further retries); throws {@link RetryException} when only transient failures remain so
-	 * {@link TimeUtils#waitForExponentialMaxRetry} backs off and re-invokes with the trimmed
-	 * subset of still-failing operations.
+	 * Runs a single retry iteration. Dispatches to either the batch or per-document path based on
+	 * {@link BulkRetryState#perDocumentMode}. Returns {@code totalOps} when the attempt fully
+	 * succeeds; throws {@link RuntimeException} for a permanent failure (no further retries);
+	 * throws {@link RetryException} when only transient failures remain so
+	 * {@link TimeUtils#waitForExponentialMaxRetry} backs off and invokes us again.
 	 */
 	private long attemptBulk(String indexName, BulkRetryState state, int totalOps) throws RetryException {
 		state.attempt++;
-		BulkResponse response = executeBulk(indexName, state.remaining);
+		if (state.perDocumentMode) {
+			attemptPerDocument(indexName, state, totalOps);
+		} else {
+			attemptBatch(indexName, state, totalOps);
+		}
+		return (long) totalOps;
+	}
 
+	/** Submits all outstanding ops in a single bulk request and decides what happens next. */
+	private void attemptBatch(String indexName, BulkRetryState state, int totalOps) throws RetryException {
+		BulkResponse response = executeBulk(indexName, state.remaining);
 		// Per the OpenSearch bulk API contract, errors=false means every item succeeded.
 		// https://opensearch.org/blog/error-logs/error-log-bulkindexerror-the-batch-failure/
 		if (!response.errors()) {
-			return (long) totalOps;
+			return;
 		}
+		BulkItemClassification c = classifyItems(indexName, response.items(), state.remaining);
+		if (c.hasPermanentFailures()) {
+			throw new RuntimeException(buildPermanentFailureMessage(
+					attemptFailureSummary(indexName, totalOps, c), c.permanentSamples));
+		}
+		// Only retryable failures. Flip to per-document mode so the next attempt (and all
+		// subsequent ones within this bulkIndex call) submit one op per request — a single
+		// slow shard should not cause the whole batch to be rejected again.
+		logRetryableAttempt(indexName, state, c, state.remaining.size());
+		LOG.warn("Switching bulk index to {} to per-document mode for remaining {} document(s)",
+				indexName, c.retryableItems.size());
+		state.perDocumentMode = true;
+		state.advanceTo(c.nextRemaining, c.retryableItems);
+		throw new RetryException(attemptFailureSummary(indexName, totalOps, c));
+	}
 
-		List<BulkOperation> nextRemaining = new ArrayList<>();
-		List<BulkResponseItem> retryableItems = new ArrayList<>();
-		List<String> permanentSamples = new ArrayList<>();
-		int permanentFailures = 0;
-		List<BulkResponseItem> items = response.items();
+	/**
+	 * Submits each outstanding op in its own single-item bulk request, removing each from
+	 * {@link BulkRetryState#remaining} as soon as the client returns. If any request throws
+	 * a retryable envelope-level error, {@code state.remaining} already holds exactly the ops
+	 * that were never submitted — the next attempt picks up there without resubmitting the ones
+	 * that already landed.
+	 */
+	private void attemptPerDocument(String indexName, BulkRetryState state, int totalOps) throws RetryException {
+		List<BulkResponseItem> items = new ArrayList<>(state.remaining.size());
+		List<BulkOperation> submitted = new ArrayList<>(state.remaining.size());
+		while (!state.remaining.isEmpty()) {
+			BulkOperation op = state.remaining.get(0);
+			// executeBulk may throw RetryException (envelope 429/5xx, IOException) or
+			// RuntimeException (envelope 4xx). Either propagates; nothing else to do here
+			// because the loop already advanced state.remaining past the ops it finished.
+			BulkResponse single = executeBulk(indexName, Collections.singletonList(op));
+			items.addAll(single.items());
+			submitted.add(op);
+			state.remaining.remove(0);
+		}
+		// Every outstanding op was submitted without an envelope-level error. Now classify the
+		// item-level outcomes just like the batch path does.
+		BulkItemClassification c = classifyItems(indexName, items, submitted);
+		if (c.hasPermanentFailures()) {
+			throw new RuntimeException(buildPermanentFailureMessage(
+					attemptFailureSummary(indexName, totalOps, c), c.permanentSamples));
+		}
+		if (c.retryableItems.isEmpty()) {
+			return;
+		}
+		logRetryableAttempt(indexName, state, c, submitted.size());
+		state.advanceTo(c.nextRemaining, c.retryableItems);
+		throw new RetryException(attemptFailureSummary(indexName, totalOps, c));
+	}
+
+	/**
+	 * Partitions bulk response items into (ok, retryable, permanent), emits an ERROR log per
+	 * permanent failure, and captures up to {@link #MAX_FAILURE_SAMPLES} descriptors for the
+	 * exception message. The returned classification is the input to the caller's retry decision.
+	 * {@code items} and {@code ops} must be the same length and aligned by index.
+	 */
+	private BulkItemClassification classifyItems(String indexName, List<BulkResponseItem> items,
+			List<BulkOperation> ops) {
+		BulkItemClassification c = new BulkItemClassification();
 		for (int i = 0; i < items.size(); i++) {
 			BulkResponseItem item = items.get(i);
 			if (item.error() == null) {
 				continue;
 			}
 			if (isRetryableItemStatus(item.status())) {
-				retryableItems.add(item);
-				nextRemaining.add(state.remaining.get(i));
+				c.retryableItems.add(item);
+				c.nextRemaining.add(ops.get(i));
 			} else {
-				permanentFailures++;
+				c.permanentFailures++;
 				String descriptor = describeBulkItemFailure(item);
 				LOG.error("Bulk index item failed in {}: {}", indexName, descriptor);
-				if (permanentSamples.size() < MAX_FAILURE_SAMPLES) {
-					permanentSamples.add(descriptor);
+				if (c.permanentSamples.size() < MAX_FAILURE_SAMPLES) {
+					c.permanentSamples.add(descriptor);
 				}
 			}
 		}
+		return c;
+	}
 
-		int totalFailures = retryableItems.size() + permanentFailures;
-		String summary = String.format(
-				"Bulk index to %s failed: %d document(s) rejected out of %d (%d retryable, %d permanent)",
-				indexName, totalFailures, totalOps, retryableItems.size(), permanentFailures);
-
-		if (permanentFailures > 0) {
-			throw new RuntimeException(buildPermanentFailureMessage(summary, permanentSamples));
-		}
-
-		// Only transient failures remain. Log one WARN per attempt (not per item) so sustained
-		// throttling doesn't explode log volume; per-item ERROR descriptors are emitted only if
-		// retries are ultimately exhausted.
+	/**
+	 * One WARN per attempt (not per item) so sustained throttling does not explode log volume;
+	 * per-item ERROR descriptors are emitted only if retries are ultimately exhausted.
+	 */
+	private void logRetryableAttempt(String indexName, BulkRetryState state,
+			BulkItemClassification c, int attemptSize) {
 		LOG.warn("Bulk index attempt {}/{} for {}: {} retryable of {}; backing off",
-				state.attempt, BULK_INDEX_MAX_RETRIES, indexName, retryableItems.size(), state.remaining.size());
-		state.advanceTo(nextRemaining, retryableItems);
-		throw new RetryException(summary);
+				state.attempt, BULK_INDEX_MAX_RETRIES, indexName, c.retryableItems.size(), attemptSize);
+	}
+
+	private static String attemptFailureSummary(String indexName, int totalOps, BulkItemClassification c) {
+		int totalFailures = c.retryableItems.size() + c.permanentFailures;
+		return String.format(
+				"Bulk index to %s failed: %d document(s) rejected out of %d (%d retryable, %d permanent)",
+				indexName, totalFailures, totalOps, c.retryableItems.size(), c.permanentFailures);
 	}
 
 	/**
@@ -389,11 +510,27 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		}
 	}
 
+	/** Output of {@link #classifyItems} — used by both the batch and per-document paths. */
+	private static final class BulkItemClassification {
+		final List<BulkOperation> nextRemaining = new ArrayList<>();
+		final List<BulkResponseItem> retryableItems = new ArrayList<>();
+		final List<String> permanentSamples = new ArrayList<>();
+		int permanentFailures;
+
+		boolean hasPermanentFailures() {
+			return permanentFailures > 0;
+		}
+	}
+
 	/** Mutable state threaded through {@link #attemptBulk} across retry iterations. */
 	private static final class BulkRetryState {
 		final List<BulkOperation> remaining;
 		final List<BulkResponseItem> lastRetryableItems = new ArrayList<>();
 		int attempt;
+		// Flips true the first time a batch returns with only retryable (429/5xx) failures.
+		// Once set, every subsequent attempt submits one op per bulk request so a single slow
+		// shard doesn't cause the whole batch to be rejected again.
+		boolean perDocumentMode;
 
 		BulkRetryState(List<BulkOperation> operations) {
 			this.remaining = new ArrayList<>(operations);

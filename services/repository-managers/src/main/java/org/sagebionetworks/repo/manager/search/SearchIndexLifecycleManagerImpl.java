@@ -255,6 +255,11 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			openSearchManager.createIndex(indexName, selectedColumns, defaultAnalyzer,
 					synonymSets, overrides, analyzers);
 
+			// AOSS acknowledges createIndex and returns an already-queryable index before its
+			// shards are actually ready to accept writes. Block until a real sentinel write
+			// succeeds so the bulk stream below does not race against index_not_found_exception.
+			openSearchManager.waitForIndexWritable(indexName);
+
 			tableQueryManager.runQueryAsStream(progressCallback, anonymousUser, query,
 					(QueryTranslations translations) -> new SearchIndexRowHandler(
 							indexName, selectColumns, openSearchManager),

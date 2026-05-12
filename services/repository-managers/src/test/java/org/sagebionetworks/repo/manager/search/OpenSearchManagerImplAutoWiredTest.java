@@ -101,7 +101,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
-		waitForIndexReachable();
+		openSearchManager.waitForIndexWritable(indexName);
 
 		// call under test
 		openSearchManager.deleteIndex(indexName);
@@ -122,7 +122,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
-		waitForIndexReachable();
+		openSearchManager.waitForIndexWritable(indexName);
 
 		// call under test — resource_already_exists returns empty Optional
 		Optional<String> result = openSearchManager.createIndex(indexName, columns, null,
@@ -147,7 +147,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		);
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
-		waitForIndexReachable();
+		openSearchManager.waitForIndexWritable(indexName);
 
 		List<BulkOperation> operations = List.of(
 				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "mitochondria research", "2", "42")),
@@ -195,7 +195,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
-		waitForIndexReachable();
+		openSearchManager.waitForIndexWritable(indexName);
 
 		List<BulkOperation> operations = List.of(
 				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "alpha")),
@@ -314,7 +314,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), List.of(override), analyzers);
-		waitForIndexReachable();
+		openSearchManager.waitForIndexWritable(indexName);
 
 		List<BulkOperation> operations = List.of(
 				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "BRCA1")),
@@ -339,7 +339,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), analyzers);
-		waitForIndexReachable();
+		openSearchManager.waitForIndexWritable(indexName);
 
 		List<BulkOperation> operations = List.of(
 				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "BRCA1")),
@@ -380,7 +380,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
-		waitForIndexReachable();
+		openSearchManager.waitForIndexWritable(indexName);
 
 		Map<String, Object> doc = new HashMap<>();
 		doc.put("_row_id", 1L);
@@ -524,24 +524,6 @@ public class OpenSearchManagerImplAutoWiredTest {
 	}
 
 	// ---- Polling helpers ----
-	private void waitForIndexReachable() {
-		String sentinelDocId = "__readiness_probe__";
-		Map<String, Object> sentinel = Map.of("_row_id", -1L, "_row_version", -1L);
-		boolean success = TimeUtils.waitForExponential(POLL_MAX_MS, POLL_INTERVAL_MS, null, (v) -> {
-			try {
-				openSearchManager.bulkIndex(indexName, List.of(
-						BulkOperation.of(op -> op.index(idx -> idx
-								.index(indexName).id(sentinelDocId).document(sentinel)))));
-				return true;
-			} catch (RuntimeException notReady) {
-				return false;
-			}
-		});
-		assertTrue(success, "Timed out waiting for AOSS index " + indexName + " to accept writes");
-		// Remove the sentinel so subsequent search assertions don't count it as a hit.
-		openSearchManager.bulkIndex(indexName, List.of(
-				BulkOperation.of(op -> op.delete(d -> d.index(indexName).id(sentinelDocId)))));
-	}
 
 	private <T> T retryOnAossAnalyzeFlake(Callable<T> action) throws Exception {
 		return TimeUtils.waitForExponentialMaxRetry(VALIDATE_RETRY_MAX, VALIDATE_RETRY_INITIAL_MS, () -> {

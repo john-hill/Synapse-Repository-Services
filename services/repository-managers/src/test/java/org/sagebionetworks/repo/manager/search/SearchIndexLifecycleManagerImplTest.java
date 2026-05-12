@@ -338,6 +338,44 @@ public class SearchIndexLifecycleManagerImplTest {
 	}
 
 	@Test
+	public void testHandleCreateOnSourceTableLockUnavailablePropagates() throws Exception {
+		// The source table's read lock is unavailable (a writer holds it — e.g. BuildTableIndex
+		// is running). LockUnavilableException is thrown bare from querySinglePage with no cause
+		// chain. It must propagate out of buildIndex without recording FAILED so the worker can
+		// translate it to RecoverableMessageException and SQS retries.
+		UserInfo triggering = triggeringUser();
+		SearchIndex searchIndex = new SearchIndex();
+		searchIndex.setDefiningSQL(DEFINING_SQL);
+		searchIndex.setParentId("syn100");
+
+		stubBuildLock();
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
+		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
+		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Collections.singletonList(
+						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
+		when(searchConfigurationResolver.resolve(eq(triggering), any(), eq("syn100"))).thenReturn(Optional.empty());
+		LockUnavilableException lockEx = new LockUnavilableException(LockType.Write, "TABLE-LOCK-789", "BuildTableIndex,syn789");
+		when(tableQueryManager.querySinglePage(eq(progressCallback), any(UserInfo.class), any(), any()))
+				.thenThrow(lockEx);
+
+		// call under test — LockUnavilableException from buildIndex propagates out of the
+		// inner multi-catch and is then wrapped by handleCreate's outer catch into
+		// RecoverableMessageException so the worker retries rather than recording FAILED.
+		RecoverableMessageException thrown = assertThrows(RecoverableMessageException.class,
+				() -> manager.handleCreate(progressCallback, ENTITY_ID, USER_ID));
+
+		assertSame(lockEx, thrown.getCause());
+		// Only CREATING was written — no FAILED, no cleanup
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao).createOrUpdate(captor.capture());
+		assertEquals(SearchIndexState.CREATING, captor.getValue().getState());
+		verify(openSearchManager, never()).deleteIndex(any());
+	}
+
+	@Test
 	public void testHandleDeleteWithActiveStateDeletesIndexAndStatus() throws Exception {
 		stubBuildLock();
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
@@ -458,6 +496,78 @@ public class SearchIndexLifecycleManagerImplTest {
 		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
 		verify(statusDao, org.mockito.Mockito.times(2)).createOrUpdate(captor.capture());
 		assertEquals(SearchIndexState.FAILED, captor.getAllValues().get(1).getState());
+	}
+
+	@Test
+	public void testHandleCreateCallsWaitForIndexWritableBetweenCreateAndRunQuery() throws Exception {
+		// AOSS acknowledges createIndex while shards are still not writable; the readiness probe
+		// must run before runQueryAsStream so the bulk stream does not race against
+		// index_not_found_exception.
+		UserInfo triggering = triggeringUser();
+		SearchIndex searchIndex = new SearchIndex();
+		searchIndex.setDefiningSQL(DEFINING_SQL);
+		searchIndex.setParentId("syn100");
+
+		stubBuildLock();
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
+		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
+		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Collections.singletonList(
+						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
+		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
+		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
+				.thenReturn(new QueryResultBundle().setQueryCount(0L));
+
+		// call under test
+		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		org.mockito.InOrder order = org.mockito.Mockito.inOrder(openSearchManager, tableQueryManager);
+		order.verify(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
+		order.verify(openSearchManager).createIndex(eq("search-index-" + ENTITY_ID),
+				any(), any(), any(), any(), any());
+		order.verify(openSearchManager).waitForIndexWritable("search-index-" + ENTITY_ID);
+		order.verify(tableQueryManager).runQueryAsStream(eq(progressCallback), any(UserInfo.class),
+				any(), any(), any());
+	}
+
+	@Test
+	public void testHandleCreateWhenProbeThrowsRecoverablePropagatesWithoutRecordingFailed() throws Exception {
+		// waitForIndexWritable exhausts its retry budget and throws RecoverableMessageException.
+		// That must propagate out of buildIndex unchanged and NOT flip the SearchIndex to FAILED —
+		// the build will succeed on a later SQS retry.
+		UserInfo triggering = triggeringUser();
+		SearchIndex searchIndex = new SearchIndex();
+		searchIndex.setDefiningSQL(DEFINING_SQL);
+		searchIndex.setParentId("syn100");
+
+		stubBuildLock();
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
+		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
+		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Collections.singletonList(
+						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
+		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
+		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
+				.thenReturn(new QueryResultBundle().setQueryCount(0L));
+		RecoverableMessageException probeFailed = new RecoverableMessageException(
+				"AOSS index search-index-" + ENTITY_ID + " did not accept writes within the retry budget");
+		doThrow(probeFailed).when(openSearchManager).waitForIndexWritable("search-index-" + ENTITY_ID);
+
+		// call under test
+		RecoverableMessageException thrown = assertThrows(RecoverableMessageException.class,
+				() -> manager.handleCreate(progressCallback, ENTITY_ID, USER_ID));
+		assertSame(probeFailed, thrown);
+
+		// Only CREATING was recorded — probe failure is transient, not a permanent failure.
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao).createOrUpdate(captor.capture());
+		assertEquals(SearchIndexState.CREATING, captor.getValue().getState());
+		// Streaming must not have started — the probe runs first.
+		verify(tableQueryManager, never()).runQueryAsStream(any(), any(), any(), any(), any());
 	}
 
 	// -------- SearchIndexRowHandler tests --------

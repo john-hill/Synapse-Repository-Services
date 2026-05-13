@@ -473,7 +473,8 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 		// (a) Multi-word LHS expands to the abbreviation. Plain `synonym` (non-graph)
 		//     fails this; `synonym_graph` is required.
-		assertEquals(1L, runQuery(SearchQueryType.SIMPLE_QUERY_STRING, "\"deep learning\"", columns).getTotalHits(),
+		SearchQueryResults dlSimple = runQuery(SearchQueryType.SIMPLE_QUERY_STRING, "\"deep learning\"", columns);
+		assertEquals(1L, dlSimple.getTotalHits(),
 				"quoted multi-word \"deep learning\" (SIMPLE_QUERY_STRING) must match doc indexed with 'DL' via synonym_graph");
 		assertEquals(1L, runQuery(SearchQueryType.MULTI_MATCH, "deep learning", columns).getTotalHits(),
 				"unquoted multi-word 'deep learning' (MULTI_MATCH, UI default) must match doc indexed with 'DL' via synonym_graph");
@@ -488,10 +489,24 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 		// (c) Mixed-case query against a different multi-word rule, exercising the
 		//     same case-normalization path with a separate vocabulary.
-		assertEquals(1L, runQuery(SearchQueryType.SIMPLE_QUERY_STRING, "\"Electronic Health Record\"", columns).getTotalHits(),
+		SearchQueryResults ehrSimple = runQuery(SearchQueryType.SIMPLE_QUERY_STRING, "\"Electronic Health Record\"", columns);
+		assertEquals(1L, ehrSimple.getTotalHits(),
 				"mixed-case \"Electronic Health Record\" (SIMPLE_QUERY_STRING) must match doc indexed with 'EHR'");
 		assertEquals(1L, runQuery(SearchQueryType.MULTI_MATCH, "Electronic Health Record", columns).getTotalHits(),
 				"mixed-case 'Electronic Health Record' (MULTI_MATCH) must match doc indexed with 'EHR'");
+
+		assertEquals("neural network DL paper", descriptionOf(dlSimple),
+				"hit value must preserve original casing of indexed text — lowercase filter applies to the inverted index only");
+		assertEquals("EHR data extraction", descriptionOf(ehrSimple),
+				"hit value must preserve original casing of indexed text — lowercase filter applies to the inverted index only");
+	}
+
+	private static String descriptionOf(SearchQueryResults results) {
+		return results.getHits().get(0).getFields().stream()
+				.filter(f -> "description".equals(f.getName()))
+				.findFirst()
+				.orElseThrow(() -> new AssertionError("no 'description' field on hit"))
+				.getValue();
 	}
 
 	private SearchQueryResults runQuery(SearchQueryType queryType, String text, List<ColumnModel> columns) {

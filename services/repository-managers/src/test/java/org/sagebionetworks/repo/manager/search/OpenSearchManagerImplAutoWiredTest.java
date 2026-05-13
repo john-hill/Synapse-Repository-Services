@@ -35,6 +35,7 @@ import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.util.RetryException;
 import org.sagebionetworks.util.TimeUtils;
+import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -100,7 +101,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
-		waitForIndexReachable();
+		openSearchManager.waitForIndexWritable(indexName);
 
 		// call under test
 		openSearchManager.deleteIndex(indexName);
@@ -121,7 +122,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
-		waitForIndexReachable();
+		openSearchManager.waitForIndexWritable(indexName);
 
 		// call under test — resource_already_exists returns empty Optional
 		Optional<String> result = openSearchManager.createIndex(indexName, columns, null,
@@ -146,7 +147,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		);
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
-		waitForIndexReachable();
+		openSearchManager.waitForIndexWritable(indexName);
 
 		List<BulkOperation> operations = List.of(
 				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "mitochondria research", "2", "42")),
@@ -194,7 +195,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
-		waitForIndexReachable();
+		openSearchManager.waitForIndexWritable(indexName);
 
 		List<BulkOperation> operations = List.of(
 				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "alpha")),
@@ -313,7 +314,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), List.of(override), analyzers);
-		waitForIndexReachable();
+		openSearchManager.waitForIndexWritable(indexName);
 
 		List<BulkOperation> operations = List.of(
 				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "BRCA1")),
@@ -338,7 +339,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), analyzers);
-		waitForIndexReachable();
+		openSearchManager.waitForIndexWritable(indexName);
 
 		List<BulkOperation> operations = List.of(
 				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "BRCA1")),
@@ -379,7 +380,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 		openSearchManager.createIndex(indexName, columns, null,
 				Collections.emptyList(), Collections.emptyList(), defaultAnalyzers);
-		waitForIndexReachable();
+		openSearchManager.waitForIndexWritable(indexName);
 
 		Map<String, Object> doc = new HashMap<>();
 		doc.put("_row_id", 1L);
@@ -523,24 +524,6 @@ public class OpenSearchManagerImplAutoWiredTest {
 	}
 
 	// ---- Polling helpers ----
-
-	private void waitForIndexReachable() {
-		SearchQuery probe = new SearchQuery();
-		probe.setQueryType(SearchQueryType.MATCH_ALL);
-		probe.setLimit(0L);
-		probe.setOffset(0L);
-		boolean success = TimeUtils.waitForExponential(POLL_MAX_MS, POLL_INTERVAL_MS, null, (v) -> {
-			try {
-				openSearchManager.search(indexName, probe, Collections.emptyList(),
-						null, Collections.emptyList(), defaultAnalyzers,
-						EnumSet.of(SearchQueryPart.TOTAL_HITS));
-				return true;
-			} catch (IllegalStateException notReady) {
-				return false;
-			}
-		});
-		assertTrue(success, "Timed out waiting for AOSS index " + indexName + " to become reachable");
-	}
 
 	private <T> T retryOnAossAnalyzeFlake(Callable<T> action) throws Exception {
 		return TimeUtils.waitForExponentialMaxRetry(VALIDATE_RETRY_MAX, VALIDATE_RETRY_INITIAL_MS, () -> {

@@ -329,6 +329,59 @@ public class OpenSearchManagerImplAutoWiredTest {
 		assertEquals(3L, indexed);
 	}
 
+	/**
+	 * Regression test for PLFM-9636: AOSS rejected createIndex with
+	 * "illegal_argument_exception: Token filter [std_word_delimiter] cannot be used to parse synonyms"
+	 * whenever a bootstrapped synonym-aware analyzer was paired with a non-empty SynonymSet.
+	 *
+	 * The bootstrapped STANDARD analyzer starts with {@code std_word_delimiter}
+	 * ({@code word_delimiter} type), which emits multiple tokens per input and therefore cannot
+	 * appear before the synonym filter during synonym parsing. The fix places the synonym filter
+	 * first in the chain. This test confirms (1) createIndex succeeds end-to-end against live
+	 * AOSS with synonyms configured, and (2) a query for one synonym term matches documents
+	 * containing the other.
+	 */
+	@Test
+	public void testCreateIndexWithBootstrappedStandardAnalyzerAndSynonyms() {
+		Map<String, TextAnalyzer> analyzers = new HashMap<>();
+		analyzers.put("org.sagebionetworks-STANDARD", bootstrappedStandardAnalyzer());
+
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("diagnosis").setColumnType(ColumnType.STRING));
+
+		org.sagebionetworks.repo.model.search.table.SynonymSet synonymSet =
+				new org.sagebionetworks.repo.model.search.table.SynonymSet().setRules(List.of(
+						new org.sagebionetworks.repo.model.search.table.SynonymRule()
+								.setRuleType(org.sagebionetworks.repo.model.search.table.SynonymRuleType.EQUIVALENT)
+								.setTerms(List.of("cancer", "tumor", "neoplasm"))));
+
+		// call under test — createIndex must succeed. Pre-fix this threw
+		// "Token filter [std_word_delimiter] cannot be used to parse synonyms".
+		openSearchManager.createIndex(indexName, columns, "org.sagebionetworks-STANDARD",
+				List.of(synonymSet), Collections.emptyList(), analyzers);
+		openSearchManager.waitForIndexWritable(indexName);
+
+		// Index one doc per synonym term so each query can match via synonym expansion at
+		// search time regardless of which direction OpenSearch applies the rule internally.
+		List<BulkOperation> operations = List.of(
+				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "cancer")),
+				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "tumor")),
+				buildBulkOp(indexName, "3", Map.of("_row_id", 3L, "_row_version", 1L, "1", "neoplasm")));
+
+		assertEquals(3L, openSearchManager.bulkIndex(indexName, operations));
+
+		// Querying for any one term must match all three docs via the EQUIVALENT synonym rule.
+		SearchQuery query = new SearchQuery();
+		query.setQueryText("cancer");
+		query.setQueryType(SearchQueryType.SIMPLE_QUERY_STRING);
+		query.setLimit(10L);
+		query.setOffset(0L);
+
+		SearchQueryResults results = waitForSearch(query, columns, 3);
+		assertEquals(3L, results.getTotalHits(),
+				"Query for 'cancer' must return all three docs via EQUIVALENT synonym expansion");
+	}
+
 	@Test
 	public void testBulkIndexWithBootstrappedScientificAnalyzer() {
 		Map<String, TextAnalyzer> analyzers = new HashMap<>();
@@ -484,6 +537,29 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 		TextAnalyzer analyzer = new TextAnalyzer();
 		analyzer.setId(Long.toString(TextAnalyzerBootstrapper.SCIENTIFIC_ID));
+		analyzer.setSettings(settings);
+		return analyzer;
+	}
+
+	/**
+	 * Mirrors {@code TextAnalyzerBootstrapper.buildStandardSettings()}. Kept inline so this test
+	 * exercises the exact production chain (std_word_delimiter → lowercase) that triggered
+	 * PLFM-9636 when combined with synonyms.
+	 */
+	private static TextAnalyzer bootstrappedStandardAnalyzer() {
+		TextAnalyzerSettings settings = new TextAnalyzerSettings();
+		settings.setTokenizer("standard");
+		settings.setTokenFilters("{"
+				+ "\"std_word_delimiter\":{\"type\":\"word_delimiter\",\"preserve_original\":true,"
+				+ "\"split_on_case_change\":true,\"split_on_numerics\":true,"
+				+ "\"catenate_words\":true,\"catenate_numbers\":false,"
+				+ "\"stem_english_possessive\":true}"
+				+ "}");
+		settings.setFilterOrder(Arrays.asList("std_word_delimiter", "lowercase"));
+		settings.setSynonymAware(true);
+
+		TextAnalyzer analyzer = new TextAnalyzer();
+		analyzer.setId(Long.toString(TextAnalyzerBootstrapper.STANDARD_ID));
 		analyzer.setSettings(settings);
 		return analyzer;
 	}

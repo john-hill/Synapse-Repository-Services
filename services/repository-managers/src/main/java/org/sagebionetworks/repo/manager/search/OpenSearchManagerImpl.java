@@ -222,11 +222,15 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		}
 
 		List<String> filters = new ArrayList<>();
-		if (settings.getFilterOrder() != null) {
-			filters.addAll(settings.getFilterOrder());
-		}
+		// Synonym filter must come BEFORE word_delimiter-style filters: OpenSearch parses each
+		// synonym entry through all preceding filters, and word_delimiter can emit multiple
+		// tokens per input which synonym parsing rejects with "Token filter [X] cannot be used
+		// to parse synonyms".
 		if (Boolean.TRUE.equals(settings.getSynonymAware()) && hasSynonyms) {
 			filters.add(SYNONYM_FILTER_NAME);
+		}
+		if (settings.getFilterOrder() != null) {
+			filters.addAll(settings.getFilterOrder());
 		}
 
 		String analyzerName = ANALYZER_PREFIX + analyzer.getId();

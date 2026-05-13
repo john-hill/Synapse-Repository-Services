@@ -131,6 +131,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	static final String CONCURRENT_DELETES_MARKER = "concurrent deletes";
 	private static final String ANALYZER_PREFIX = "synapse_analyzer_";
 	private static final String SYNONYM_FILTER_NAME = "synapse_synonyms";
+	static final String SEARCH_ANALYZER_SUFFIX = "_search";
 
 	/** True when the OpenSearch error is AOSS's "concurrent deletes" rejection. */
 	static boolean isConcurrentDeleteError(OpenSearchException e) {
@@ -169,7 +170,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 						return a;
 					}))
 					.mappings(m -> {
-						buildMappings(m, columns, defaultAnalyzer, overrideMap, analyzers);
+						buildMappings(m, columns, defaultAnalyzer, overrideMap, analyzers, hasSynonyms);
 						return m;
 					})
 			);
@@ -196,8 +197,11 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	private void buildAnalysisSettings(IndexSettingsAnalysis.Builder a,
 			Map<String, TextAnalyzer> analyzers, boolean hasSynonyms, List<String> synonymRules) {
 		if (hasSynonyms) {
+			// synonym_graph (not plain synonym) so multi-word left-hand sides like
+			// "deep learning, DL" expand at query time — plain synonym can't emit the
+			// multi-position graph tokens needed for a phrase to match its abbreviation.
 			a.filter(SYNONYM_FILTER_NAME, f -> f.definition(d -> d
-					.synonym(syn -> syn.synonyms(synonymRules))));
+					.synonymGraph(syn -> syn.synonyms(synonymRules))));
 		}
 		for (Map.Entry<String, TextAnalyzer> entry : analyzers.entrySet()) {
 			registerAnalyzer(a, entry.getValue(), hasSynonyms);
@@ -221,29 +225,54 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			tokenizer = customTokenizerName;
 		}
 
-		List<String> filters = new ArrayList<>();
-		// Synonym filter must come BEFORE word_delimiter-style filters: OpenSearch parses each
-		// synonym entry through all preceding filters, and word_delimiter can emit multiple
-		// tokens per input which synonym parsing rejects with "Token filter [X] cannot be used
-		// to parse synonyms".
-		if (Boolean.TRUE.equals(settings.getSynonymAware()) && hasSynonyms) {
-			filters.add(SYNONYM_FILTER_NAME);
-		}
-		if (settings.getFilterOrder() != null) {
-			filters.addAll(settings.getFilterOrder());
-		}
-
 		String analyzerName = ANALYZER_PREFIX + analyzer.getId();
-		final String finalTokenizer = tokenizer;
-		final List<String> finalFilters = filters;
+		List<String> declared = settings.getFilterOrder() != null ? settings.getFilterOrder() : Collections.emptyList();
 
-		a.analyzer(analyzerName, an -> an.custom(c -> {
-			c.tokenizer(finalTokenizer);
-			if (!finalFilters.isEmpty()) {
-				c.filter(finalFilters);
+		// Synonym expansion runs only at search time. At index time, running synonyms
+		// before word_delimiter trips Lucene's offset-monotonicity invariant once an
+		// expansion is token-split.
+		registerCustomAnalyzer(a, analyzerName, tokenizer, declared, settings.getCharFilterOrder());
+
+		if (Boolean.TRUE.equals(settings.getSynonymAware()) && hasSynonyms) {
+			registerCustomAnalyzer(a, analyzerName + SEARCH_ANALYZER_SUFFIX, tokenizer,
+					buildSearchFilterChain(declared), settings.getCharFilterOrder());
+		}
+	}
+
+	/**
+	 * Builds the search-time filter chain. The synonym filter parses each rule by walking
+	 * the chain segment that precedes it, and rejects any preceding filter whose output
+	 * has positionLength > 1 — including both {@code word_delimiter} and
+	 * {@code word_delimiter_graph}. So the synonym filter must come BEFORE every
+	 * word_delimiter* filter at search time. Placing {@code lowercase} first (a strict
+	 * 1-to-1 filter, accepted by synonym rule-parsing) and then the synonym filter gives
+	 * us case-insensitive matching for both rules and queries; word_delimiter* runs
+	 * downstream on the synonym-expanded stream. Index-time word_delimiter* still runs
+	 * on raw tokens with {@code preserve_original=true}, so split sub-tokens like
+	 * {@code messenger}/{@code rna} from {@code messengerRNA} are present in the index
+	 * regardless.
+	 */
+	private static List<String> buildSearchFilterChain(List<String> declared) {
+		List<String> filters = new ArrayList<>(declared.size() + 1);
+		filters.add("lowercase");
+		filters.add(SYNONYM_FILTER_NAME);
+		for (String filter : declared) {
+			if (!"lowercase".equals(filter)) {
+				filters.add(filter);
 			}
-			if (settings.getCharFilterOrder() != null && !settings.getCharFilterOrder().isEmpty()) {
-				c.charFilter(settings.getCharFilterOrder());
+		}
+		return filters;
+	}
+
+	private void registerCustomAnalyzer(IndexSettingsAnalysis.Builder a, String name,
+			String tokenizer, List<String> filters, List<String> charFilters) {
+		a.analyzer(name, an -> an.custom(c -> {
+			c.tokenizer(tokenizer);
+			if (!filters.isEmpty()) {
+				c.filter(filters);
+			}
+			if (charFilters != null && !charFilters.isEmpty()) {
+				c.charFilter(charFilters);
 			}
 			return c;
 		}));
@@ -251,7 +280,8 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	private void buildMappings(org.opensearch.client.opensearch._types.mapping.TypeMapping.Builder m,
 			List<ColumnModel> columns, String defaultAnalyzer,
-			Map<String, ColumnAnalyzerOverrideEntry> overrideMap, Map<String, TextAnalyzer> analyzers) {
+			Map<String, ColumnAnalyzerOverrideEntry> overrideMap, Map<String, TextAnalyzer> analyzers,
+			boolean hasSynonyms) {
 		m.properties(SYSTEM_FIELD_ROW_ID, p -> p.long_(l -> l));
 		m.properties(SYSTEM_FIELD_ROW_VERSION, p -> p.long_(l -> l));
 
@@ -266,7 +296,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			ValidateArgument.required(effectiveAnalyzer, "analyzer '" + effectiveAnalyzerName + "' for column " + columnId);
 			ColumnAnalyzerOverrideEntry entry = overrideMap.get(columnId);
 
-			m.properties(columnId, buildProperty(columnType, effectiveAnalyzer, entry, analyzers));
+			m.properties(columnId, buildProperty(columnType, effectiveAnalyzer, entry, analyzers, hasSynonyms));
 		}
 	}
 
@@ -1189,17 +1219,17 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	 */
 	private Property buildProperty(ColumnType columnType,
 			TextAnalyzer effectiveAnalyzer, ColumnAnalyzerOverrideEntry entry,
-			Map<String, TextAnalyzer> analyzers) {
+			Map<String, TextAnalyzer> analyzers, boolean hasSynonyms) {
 
 		if (ColumnTypeToOpenSearchMapping.isTextType(columnType)) {
-			return buildTextProperty(columnType, effectiveAnalyzer, entry, analyzers);
+			return buildTextProperty(columnType, effectiveAnalyzer, entry, analyzers, hasSynonyms);
 		}
 
 		if (ColumnTypeToOpenSearchMapping.isLinkType(columnType)) {
 			if (isKeywordAnalyzer(effectiveAnalyzer)) {
 				return buildKeywordWithSearchableProperty(analyzers);
 			}
-			return buildTextProperty(columnType, effectiveAnalyzer, entry, analyzers);
+			return buildTextProperty(columnType, effectiveAnalyzer, entry, analyzers, hasSynonyms);
 		}
 
 		if (ColumnTypeToOpenSearchMapping.isKeywordType(columnType)) {
@@ -1230,12 +1260,13 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	private Property buildTextProperty(ColumnType columnType,
 			TextAnalyzer effectiveAnalyzer, ColumnAnalyzerOverrideEntry entry,
-			Map<String, TextAnalyzer> analyzers) {
+			Map<String, TextAnalyzer> analyzers, boolean hasSynonyms) {
 		Integer ignoreAbove = ColumnTypeToOpenSearchMapping.getIgnoreAbove(columnType);
 		int ia = ignoreAbove != null ? ignoreAbove : 1000;
 
 		String indexAnalyzerName = resolveIndexAnalyzerName(effectiveAnalyzer, entry, analyzers);
-		String searchAnalyzerName = resolveSearchAnalyzerName(indexAnalyzerName, entry, analyzers);
+		String searchAnalyzerName = resolveSearchAnalyzerName(
+				indexAnalyzerName, effectiveAnalyzer, entry, analyzers, hasSynonyms);
 		final int finalIa = ia;
 
 		return Property.of(p -> p.text(t -> {
@@ -1256,12 +1287,21 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		return analyzerToOpenSearchName(effectiveAnalyzer);
 	}
 
-	String resolveSearchAnalyzerName(String indexAnalyzerName,
-			ColumnAnalyzerOverrideEntry entry, Map<String, TextAnalyzer> analyzers) {
+	String resolveSearchAnalyzerName(String indexAnalyzerName, TextAnalyzer effectiveAnalyzer,
+			ColumnAnalyzerOverrideEntry entry, Map<String, TextAnalyzer> analyzers, boolean hasSynonyms) {
+		TextAnalyzer chosen = effectiveAnalyzer;
+		String chosenName = indexAnalyzerName;
 		if (entry != null && entry.getSearchAnalyzer() != null) {
-			return analyzerToOpenSearchName(analyzers.get(entry.getSearchAnalyzer()));
+			chosen = analyzers.get(entry.getSearchAnalyzer());
+			chosenName = analyzerToOpenSearchName(chosen);
+		} else if (entry != null && entry.getIndexAnalyzer() != null) {
+			chosen = analyzers.get(entry.getIndexAnalyzer());
 		}
-		return indexAnalyzerName;
+		if (hasSynonyms && chosen != null && chosen.getSettings() != null
+				&& Boolean.TRUE.equals(chosen.getSettings().getSynonymAware())) {
+			return chosenName + SEARCH_ANALYZER_SUFFIX;
+		}
+		return chosenName;
 	}
 
 	private Property buildKeywordWithSearchableProperty(Map<String, TextAnalyzer> analyzers) {

@@ -263,129 +263,97 @@ public class OpenSearchManagerImplTest {
 		assertEquals(Collections.emptyList(), rules);
 	}
 
-	// --- createIndex filter ordering with synonyms ---
+	// --- createIndex analyzer registration with synonyms ---
 
-	/**
-	 * Regression guard for the AOSS "Token filter [std_word_delimiter] cannot be used to parse
-	 * synonyms" failure. OpenSearch parses synonym entries through every filter that precedes
-	 * the synonym filter in the analyzer chain; {@code word_delimiter}-style filters emit
-	 * multiple tokens per input, which synonym parsing rejects. The fix places the synonym
-	 * filter FIRST in the chain so the preceding chain is empty at synonym-parse time. This
-	 * test locks that ordering contract.
-	 */
 	@Test
-	public void testCreateIndexWithSynonymsPlacesSynonymFilterFirst() throws IOException {
-		String indexName = "search-index-syn1";
-		ArgumentCaptor<CreateIndexRequest> captor = ArgumentCaptor.forClass(CreateIndexRequest.class);
-		when(openSearchClient.indices()).thenReturn(indicesClient);
-		when(indicesClient.create(captor.capture())).thenReturn(
-				new org.opensearch.client.opensearch.indices.CreateIndexResponse.Builder()
-						.index(indexName).acknowledged(true).shardsAcknowledged(true).build());
-
-		// Mirrors the bootstrapped STANDARD analyzer chain ordering. The filter names in
-		// filterOrder do not need a corresponding tokenFilters JSON for this ordering-contract
-		// test (AOSS would resolve them either as built-ins or as named filters registered
-		// elsewhere); the assertion is purely on the emitted list ordering.
-		TextAnalyzer standard = new TextAnalyzer().setId("2").setSettings(
-				new TextAnalyzerSettings()
-						.setTokenizer("standard")
-						.setFilterOrder(Arrays.asList("std_word_delimiter", "lowercase"))
-						.setSynonymAware(true));
-		Map<String, TextAnalyzer> analyzers = new HashMap<>();
-		analyzers.put("org.sage-STANDARD", standard);
-
-		SynonymSet set = new SynonymSet().setRules(Collections.singletonList(
-				new SynonymRule().setRuleType(SynonymRuleType.EQUIVALENT)
-						.setTerms(Arrays.asList("cancer", "tumor"))));
-
-		// call under test
-		manager.createIndex(indexName, Collections.emptyList(), null,
-				Collections.singletonList(set), Collections.emptyList(), analyzers);
-
-		List<String> filters = captor.getValue().settings().analysis()
-				.analyzer().get("synapse_analyzer_2").custom().filter();
-		assertEquals(Arrays.asList("synapse_synonyms", "std_word_delimiter", "lowercase"), filters,
-				"Synonym filter must precede word_delimiter-style filters — OpenSearch parses each "
-						+ "synonym entry through every preceding filter, and word_delimiter cannot be used to parse synonyms.");
-	}
-
-	/**
-	 * When a synonym-aware analyzer is configured but no synonym rules are supplied, the synonym
-	 * filter must not appear in the chain at all — the declared filterOrder is the final chain.
-	 * Protects against a naive fix that always prepends the synonym name.
-	 */
-	@Test
-	public void testCreateIndexWithoutSynonymsOmitsSynonymFilter() throws IOException {
-		String indexName = "search-index-syn1";
-		ArgumentCaptor<CreateIndexRequest> captor = ArgumentCaptor.forClass(CreateIndexRequest.class);
-		when(openSearchClient.indices()).thenReturn(indicesClient);
-		when(indicesClient.create(captor.capture())).thenReturn(
-				new org.opensearch.client.opensearch.indices.CreateIndexResponse.Builder()
-						.index(indexName).acknowledged(true).shardsAcknowledged(true).build());
-
-		TextAnalyzer standard = new TextAnalyzer().setId("2").setSettings(
-				new TextAnalyzerSettings()
-						.setTokenizer("standard")
-						.setFilterOrder(Arrays.asList("std_word_delimiter", "lowercase"))
-						.setSynonymAware(true));
-		Map<String, TextAnalyzer> analyzers = new HashMap<>();
-		analyzers.put("org.sage-STANDARD", standard);
-
-		// call under test — empty synonymSets → hasSynonyms=false
-		manager.createIndex(indexName, Collections.emptyList(), null,
-				Collections.emptyList(), Collections.emptyList(), analyzers);
-
-		List<String> filters = captor.getValue().settings().analysis()
-				.analyzer().get("synapse_analyzer_2").custom().filter();
-		assertEquals(Arrays.asList("std_word_delimiter", "lowercase"), filters);
-	}
-
-	/**
-	 * Analyzers that opt out of synonyms ({@code synonymAware=false}, e.g. AUTOCOMPLETE index-time)
-	 * must never get the synonym filter injected, even when synonym rules are provided for other
-	 * analyzers in the same index.
-	 */
-	@Test
-	public void testCreateIndexWithSynonymsSkipsNonSynonymAwareAnalyzer() throws IOException {
-		String indexName = "search-index-syn1";
-		ArgumentCaptor<CreateIndexRequest> captor = ArgumentCaptor.forClass(CreateIndexRequest.class);
-		when(openSearchClient.indices()).thenReturn(indicesClient);
-		when(indicesClient.create(captor.capture())).thenReturn(
-				new org.opensearch.client.opensearch.indices.CreateIndexResponse.Builder()
-						.index(indexName).acknowledged(true).shardsAcknowledged(true).build());
-
-		// synonym-aware analyzer
-		TextAnalyzer standard = new TextAnalyzer().setId("2").setSettings(
-				new TextAnalyzerSettings()
-						.setTokenizer("standard")
-						.setFilterOrder(Arrays.asList("std_word_delimiter", "lowercase"))
-						.setSynonymAware(true));
-		// opted out — mirrors the bootstrapped AUTOCOMPLETE (index-time) analyzer
-		TextAnalyzer autocomplete = new TextAnalyzer().setId("5").setSettings(
-				new TextAnalyzerSettings()
-						.setTokenizer("standard")
-						.setFilterOrder(Arrays.asList("ac_word_delimiter", "lowercase"))
-						.setSynonymAware(false));
-		Map<String, TextAnalyzer> analyzers = new HashMap<>();
-		analyzers.put("org.sage-STANDARD", standard);
-		analyzers.put("org.sage-AUTOCOMPLETE", autocomplete);
-
-		SynonymSet set = new SynonymSet().setRules(Collections.singletonList(
-				new SynonymRule().setRuleType(SynonymRuleType.EQUIVALENT)
-						.setTerms(Arrays.asList("cancer", "tumor"))));
-
-		// call under test
-		manager.createIndex(indexName, Collections.emptyList(), null,
-				Collections.singletonList(set), Collections.emptyList(), analyzers);
+	public void testCreateIndexWithSynonymAwareAnalyzerAndSynonyms() throws IOException {
+		Map<String, TextAnalyzer> analyzers = Collections.singletonMap("org.sage-STANDARD",
+				buildTestAnalyzer("2", true, "std_word_delimiter", "lowercase"));
 
 		Map<String, org.opensearch.client.opensearch._types.analysis.Analyzer> registered =
-				captor.getValue().settings().analysis().analyzer();
-		assertEquals(Arrays.asList("synapse_synonyms", "std_word_delimiter", "lowercase"),
-				registered.get("synapse_analyzer_2").custom().filter(),
-				"Synonym-aware analyzer must have synonym filter prepended");
+				captureCreateIndexAnalyzers(analyzers, Collections.singletonList(equivalentSynonymSet("cancer", "tumor")));
+
+		assertEquals(Arrays.asList("std_word_delimiter", "lowercase"),
+				registered.get("synapse_analyzer_2").custom().filter());
+		// Search variant: lowercase must run before the synonym filter (synonym rule-parsing
+		// rejects preceding filters with positionLength > 1, which includes both
+		// word_delimiter and word_delimiter_graph). word_delimiter then runs on the
+		// synonym-expanded stream.
+		assertEquals(Arrays.asList("lowercase", "synapse_synonyms", "std_word_delimiter"),
+				registered.get("synapse_analyzer_2_search").custom().filter());
+	}
+
+	@Test
+	public void testCreateIndexWithSynonymAwareAnalyzerAndNoSynonyms() throws IOException {
+		Map<String, TextAnalyzer> analyzers = Collections.singletonMap("org.sage-STANDARD",
+				buildTestAnalyzer("2", true, "std_word_delimiter", "lowercase"));
+
+		Map<String, org.opensearch.client.opensearch._types.analysis.Analyzer> registered =
+				captureCreateIndexAnalyzers(analyzers, Collections.emptyList());
+
+		assertEquals(Arrays.asList("std_word_delimiter", "lowercase"),
+				registered.get("synapse_analyzer_2").custom().filter());
+		assertFalse(registered.containsKey("synapse_analyzer_2_search"));
+	}
+
+	@Test
+	public void testCreateIndexWithNonSynonymAwareAnalyzerAndSynonyms() throws IOException {
+		Map<String, TextAnalyzer> analyzers = new HashMap<>();
+		analyzers.put("org.sage-STANDARD", buildTestAnalyzer("2", true, "std_word_delimiter", "lowercase"));
+		analyzers.put("org.sage-AUTOCOMPLETE", buildTestAnalyzer("5", false, "ac_word_delimiter", "lowercase"));
+
+		Map<String, org.opensearch.client.opensearch._types.analysis.Analyzer> registered =
+				captureCreateIndexAnalyzers(analyzers, Collections.singletonList(equivalentSynonymSet("cancer", "tumor")));
+
+		assertEquals(Arrays.asList("std_word_delimiter", "lowercase"),
+				registered.get("synapse_analyzer_2").custom().filter());
+		assertEquals(Arrays.asList("lowercase", "synapse_synonyms", "std_word_delimiter"),
+				registered.get("synapse_analyzer_2_search").custom().filter());
 		assertEquals(Arrays.asList("ac_word_delimiter", "lowercase"),
-				registered.get("synapse_analyzer_5").custom().filter(),
-				"synonymAware=false analyzer must NOT receive the synonym filter");
+				registered.get("synapse_analyzer_5").custom().filter());
+		assertFalse(registered.containsKey("synapse_analyzer_5_search"));
+	}
+
+	@Test
+	public void testCreateIndexWithSynonymAwareAnalyzerWithoutLowercaseInDeclaredChain() throws IOException {
+		// lowercase + synapse_synonyms are always prepended at search time so synonym
+		// rule-parsing succeeds and matching is case-insensitive, regardless of whether
+		// the declared chain itself includes lowercase.
+		Map<String, TextAnalyzer> analyzers = Collections.singletonMap("org.sage-CUSTOM",
+				buildTestAnalyzer("99", true, "custom_filter"));
+
+		Map<String, org.opensearch.client.opensearch._types.analysis.Analyzer> registered =
+				captureCreateIndexAnalyzers(analyzers, Collections.singletonList(equivalentSynonymSet("a", "b")));
+
+		assertEquals(Arrays.asList("lowercase", "synapse_synonyms", "custom_filter"),
+				registered.get("synapse_analyzer_99_search").custom().filter());
+	}
+
+	private static TextAnalyzer buildTestAnalyzer(String id, boolean synonymAware, String... filters) {
+		return new TextAnalyzer().setId(id).setSettings(new TextAnalyzerSettings()
+				.setTokenizer("standard")
+				.setFilterOrder(Arrays.asList(filters))
+				.setSynonymAware(synonymAware));
+	}
+
+	private static SynonymSet equivalentSynonymSet(String... terms) {
+		return new SynonymSet().setRules(Collections.singletonList(
+				new SynonymRule().setRuleType(SynonymRuleType.EQUIVALENT).setTerms(Arrays.asList(terms))));
+	}
+
+	private Map<String, org.opensearch.client.opensearch._types.analysis.Analyzer> captureCreateIndexAnalyzers(
+			Map<String, TextAnalyzer> analyzers, List<SynonymSet> synonymSets) throws IOException {
+		String indexName = "search-index-syn1";
+		ArgumentCaptor<CreateIndexRequest> captor = ArgumentCaptor.forClass(CreateIndexRequest.class);
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		when(indicesClient.create(captor.capture())).thenReturn(
+				new org.opensearch.client.opensearch.indices.CreateIndexResponse.Builder()
+						.index(indexName).acknowledged(true).shardsAcknowledged(true).build());
+
+		manager.createIndex(indexName, Collections.emptyList(), null,
+				synonymSets, Collections.emptyList(), analyzers);
+
+		return captor.getValue().settings().analysis().analyzer();
 	}
 
 	// --- buildOverrideMap ---
@@ -541,22 +509,75 @@ public class OpenSearchManagerImplTest {
 	}
 
 	@Test
-	public void testResolveSearchAnalyzerNameWithEntry() {
-		Map<String, TextAnalyzer> analyzers = new HashMap<>();
-		analyzers.put("org.sage-SEARCH",
-				new TextAnalyzer().setId("42").setSettings(new TextAnalyzerSettings().setTokenizer("standard")));
+	public void testResolveSearchAnalyzerNameWithSearchOverride() {
+		TextAnalyzer searchAnalyzer = new TextAnalyzer().setId("42")
+				.setSettings(new TextAnalyzerSettings().setTokenizer("standard"));
+		Map<String, TextAnalyzer> analyzers = Collections.singletonMap("org.sage-SEARCH", searchAnalyzer);
 		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry().setSearchAnalyzer("org.sage-SEARCH");
 
-		// call under test — entry.searchAnalyzer wins over indexAnalyzerName
+		// call under test
 		assertEquals("synapse_analyzer_42",
-				manager.resolveSearchAnalyzerName("synapse_analyzer_99", entry, analyzers));
+				manager.resolveSearchAnalyzerName("synapse_analyzer_99", scientific, entry, analyzers, true));
 	}
 
 	@Test
-	public void testResolveSearchAnalyzerNameFallsBackToIndexAnalyzer() {
-		// call under test — no entry → indexAnalyzerName is returned unchanged
+	public void testResolveSearchAnalyzerNameWithoutEntryAndNotSynonymAware() {
+		// call under test
 		assertEquals("synapse_analyzer_99",
-				manager.resolveSearchAnalyzerName("synapse_analyzer_99", null, Collections.emptyMap()));
+				manager.resolveSearchAnalyzerName("synapse_analyzer_99", scientific, null,
+						Collections.emptyMap(), true));
+	}
+
+	@Test
+	public void testResolveSearchAnalyzerNameWithSynonymAwareEffectiveAnalyzerAndSynonyms() {
+		TextAnalyzer synonymAware = new TextAnalyzer().setId("1").setSettings(
+				new TextAnalyzerSettings().setTokenizer("standard").setSynonymAware(true));
+
+		// call under test
+		assertEquals("synapse_analyzer_1_search",
+				manager.resolveSearchAnalyzerName("synapse_analyzer_1", synonymAware, null,
+						Collections.emptyMap(), true));
+	}
+
+	@Test
+	public void testResolveSearchAnalyzerNameWithSynonymAwareEffectiveAnalyzerAndNoSynonyms() {
+		TextAnalyzer synonymAware = new TextAnalyzer().setId("1").setSettings(
+				new TextAnalyzerSettings().setTokenizer("standard").setSynonymAware(true));
+
+		// call under test
+		assertEquals("synapse_analyzer_1",
+				manager.resolveSearchAnalyzerName("synapse_analyzer_1", synonymAware, null,
+						Collections.emptyMap(), false));
+	}
+
+	@Test
+	public void testResolveSearchAnalyzerNameWithAsymmetricOverrideUsesSearchSide() {
+		TextAnalyzer keyword = new TextAnalyzer().setId("4").setSettings(
+				new TextAnalyzerSettings().setTokenizer("keyword").setSynonymAware(false));
+		TextAnalyzer standard = new TextAnalyzer().setId("2").setSettings(
+				new TextAnalyzerSettings().setTokenizer("standard").setSynonymAware(true));
+		Map<String, TextAnalyzer> analyzers = new HashMap<>();
+		analyzers.put("org.sage-KEYWORD", keyword);
+		analyzers.put("org.sage-STANDARD", standard);
+		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry()
+				.setIndexAnalyzer("org.sage-KEYWORD")
+				.setSearchAnalyzer("org.sage-STANDARD");
+
+		// call under test
+		assertEquals("synapse_analyzer_2_search",
+				manager.resolveSearchAnalyzerName("synapse_analyzer_4", keyword, entry, analyzers, true));
+	}
+
+	@Test
+	public void testResolveSearchAnalyzerNameWithIndexOnlyOverrideReadsSynonymAwareFromOverride() {
+		TextAnalyzer standard = new TextAnalyzer().setId("2").setSettings(
+				new TextAnalyzerSettings().setTokenizer("standard").setSynonymAware(true));
+		Map<String, TextAnalyzer> analyzers = Collections.singletonMap("org.sage-STANDARD", standard);
+		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry().setIndexAnalyzer("org.sage-STANDARD");
+
+		// call under test — scientific (effective) is not synonymAware, but the index override IS
+		assertEquals("synapse_analyzer_2_search",
+				manager.resolveSearchAnalyzerName("synapse_analyzer_2", scientific, entry, analyzers, true));
 	}
 
 	// --- getFilterFieldName ---

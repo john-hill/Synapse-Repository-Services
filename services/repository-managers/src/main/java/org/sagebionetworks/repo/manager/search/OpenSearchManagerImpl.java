@@ -197,9 +197,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	private void buildAnalysisSettings(IndexSettingsAnalysis.Builder a,
 			Map<String, TextAnalyzer> analyzers, boolean hasSynonyms, List<String> synonymRules) {
 		if (hasSynonyms) {
-			// synonym_graph (not plain synonym) so multi-word left-hand sides like
-			// "deep learning, DL" expand at query time — plain synonym can't emit the
-			// multi-position graph tokens needed for a phrase to match its abbreviation.
 			a.filter(SYNONYM_FILTER_NAME, f -> f.definition(d -> d
 					.synonymGraph(syn -> syn.synonyms(synonymRules))));
 		}

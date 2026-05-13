@@ -50,8 +50,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
 public class OpenSearchManagerImplAutoWiredTest {
 
-	private static final long POLL_MAX_MS = 600_000L;
-	private static final long POLL_INTERVAL_MS = 2_000L;
+	private static final long POLL_MAX_MS = 30_000L;
+	private static final long POLL_INTERVAL_MS = 1_000L;
 
 	private static final int VALIDATE_RETRY_MAX = 10;
 	private static final long VALIDATE_RETRY_INITIAL_MS = 1_000L;

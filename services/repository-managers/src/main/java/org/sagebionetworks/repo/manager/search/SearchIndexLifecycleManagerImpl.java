@@ -73,7 +73,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	private static final String INDEX_PREFIX = "search-index-";
 	private static final String LOCK_KEY_PREFIX = "search-index-build:";
 	private static final int MAX_ERROR_MESSAGE_LENGTH = 3000;
-	private static final int BATCH_SIZE = 100;
+	private static final int BATCH_SIZE = 1000;
 	private static final long MAX_ROWS = 500_000L;
 	private static final ObjectMapper SEARCH_DOC_MAPPER = new ObjectMapper();
 

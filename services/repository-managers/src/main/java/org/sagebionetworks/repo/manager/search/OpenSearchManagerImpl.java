@@ -107,7 +107,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	static final String TRUNCATION_MARKER = "...[truncated]";
 
 	// Intra-batch retry for transient AOSS rejections (429 / 5xx on a subset of items).
-	// Resubmit only the failed subset with exponential backoff so the batch can drain
+	// Resubmit only the incomplete subset with exponential backoff so the batch can drain
 	// instead of bouncing the whole change message back to SQS on every partial failure.
 	// Non-final so unit tests can lower the values and avoid real-wall-clock sleeps.
 	static int BULK_INDEX_MAX_RETRIES = 10;
@@ -343,20 +343,29 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			return 0L;
 		}
 		final int totalOps = operations.size();
-		final BulkRetryState state = new BulkRetryState(operations);
+		// Ops still needing to be submitted. Attempt 1 sends the whole list as one bulk request;
+		// later attempts iterate this list and send each op as its own single-op bulk request
+		// so a single slow shard can't reject the whole batch.
+		final List<BulkOperation> incomplete = new ArrayList<>(operations);
+		// Most recent classification's retryable items — used for final ERROR-per-item diagnostics
+		// when retries are exhausted.
+		final List<BulkResponseItem> lastRetryable = new ArrayList<>();
+		final int[] attempt = {0};
 
 		try {
-			return TimeUtils.waitForExponentialMaxRetry(BULK_INDEX_MAX_RETRIES, BULK_INDEX_INITIAL_BACKOFF_MS,
-					() -> attemptBulk(indexName, state, totalOps));
+			TimeUtils.waitForExponentialMaxRetry(BULK_INDEX_MAX_RETRIES, BULK_INDEX_INITIAL_BACKOFF_MS, () -> {
+				attempt[0]++;
+				runAttempt(indexName, totalOps, attempt[0], incomplete, lastRetryable);
+				return Boolean.TRUE;
+			});
+			return totalOps;
 		} catch (RetryException e) {
-			// Retries exhausted. Emit per-item ERROR descriptors for the last attempt's failures so
-			// per-doc diagnostics remain in the logs when we surface the recoverable error.
-			for (BulkResponseItem item : state.lastRetryableItems) {
+			for (BulkResponseItem item : lastRetryable) {
 				LOG.error("Bulk index item failed in {}: {}", indexName, describeBulkItemFailure(item));
 			}
 			throw new RecoverableMessageException(String.format(
 					"Bulk index to %s failed after %d attempts: %d document(s) still retryable out of %d",
-					indexName, BULK_INDEX_MAX_RETRIES, state.lastRetryableItems.size(), totalOps),
+					indexName, BULK_INDEX_MAX_RETRIES, incomplete.size(), totalOps),
 					e.getCause());
 		} catch (RuntimeException e) {
 			throw e;
@@ -366,78 +375,56 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	/**
-	 * Runs a single retry iteration. Dispatches to either the batch or per-document path based on
-	 * {@link BulkRetryState#perDocumentMode}. Returns {@code totalOps} when the attempt fully
-	 * succeeds; throws {@link RuntimeException} for a permanent failure (no further retries);
-	 * throws {@link RetryException} when only transient failures remain so
+	 * Runs one retry iteration. Attempt 1 submits {@code incomplete} as a single bulk request;
+	 * later attempts submit each op in {@code incomplete} as its own single-op bulk request.
+	 * Mutates {@code incomplete} and {@code lastRetryable} in place to reflect the set of ops
+	 * still incomplete after this attempt. Returns normally when everything has been indexed, throws
+	 * {@link RuntimeException} on any permanent failure, or throws {@link RetryException} so
 	 * {@link TimeUtils#waitForExponentialMaxRetry} backs off and invokes us again.
 	 */
-	private long attemptBulk(String indexName, BulkRetryState state, int totalOps) throws RetryException {
-		state.attempt++;
-		if (state.perDocumentMode) {
-			attemptPerDocument(indexName, state, totalOps);
+	private void runAttempt(String indexName, int totalOps, int attempt,
+			List<BulkOperation> incomplete, List<BulkResponseItem> lastRetryable) throws RetryException {
+		List<BulkResponseItem> items;
+		List<BulkOperation> opsSubmitted;
+		if (attempt == 1) {
+			BulkResponse response = executeBulk(indexName, incomplete);
+			if (!response.errors()) {
+				incomplete.clear();
+				lastRetryable.clear();
+				return;
+			}
+			items = response.items();
+			opsSubmitted = new ArrayList<>(incomplete);
+			incomplete.clear();
 		} else {
-			attemptBatch(indexName, state, totalOps);
+			// Per-op: remove each op from `incomplete` only AFTER executeBulk returns. If
+			// executeBulk throws an envelope RetryException mid-iteration, the current op + any
+			// not-yet-iterated ops remain in `incomplete` so the next attempt resubmits them
+			// without reprocessing the ops that already landed.
+			items = new ArrayList<>(incomplete.size());
+			opsSubmitted = new ArrayList<>(incomplete.size());
+			while (!incomplete.isEmpty()) {
+				BulkOperation op = incomplete.get(0);
+				BulkResponse single = executeBulk(indexName, Collections.singletonList(op));
+				items.addAll(single.items());
+				opsSubmitted.add(op);
+				incomplete.remove(0);
+			}
 		}
-		return (long) totalOps;
-	}
 
-	/** Submits all outstanding ops in a single bulk request and decides what happens next. */
-	private void attemptBatch(String indexName, BulkRetryState state, int totalOps) throws RetryException {
-		BulkResponse response = executeBulk(indexName, state.remaining);
-		// Per the OpenSearch bulk API contract, errors=false means every item succeeded.
-		// https://opensearch.org/blog/error-logs/error-log-bulkindexerror-the-batch-failure/
-		if (!response.errors()) {
-			return;
-		}
-		BulkItemClassification c = classifyItems(indexName, response.items(), state.remaining);
+		BulkItemClassification c = classifyItems(indexName, items, opsSubmitted);
 		if (c.hasPermanentFailures()) {
 			throw new RuntimeException(buildPermanentFailureMessage(
 					attemptFailureSummary(indexName, totalOps, c), c.permanentSamples));
 		}
-		// Only retryable failures. Flip to per-document mode so the next attempt (and all
-		// subsequent ones within this bulkIndex call) submit one op per request — a single
-		// slow shard should not cause the whole batch to be rejected again.
-		logRetryableAttempt(indexName, state, c, state.remaining.size());
-		LOG.warn("Switching bulk index to {} to per-document mode for remaining {} document(s)",
-				indexName, c.retryableItems.size());
-		state.perDocumentMode = true;
-		state.advanceTo(c.nextRemaining, c.retryableItems);
-		throw new RetryException(attemptFailureSummary(indexName, totalOps, c));
-	}
-
-	/**
-	 * Submits each outstanding op in its own single-item bulk request, removing each from
-	 * {@link BulkRetryState#remaining} as soon as the client returns. If any request throws
-	 * a retryable envelope-level error, {@code state.remaining} already holds exactly the ops
-	 * that were never submitted — the next attempt picks up there without resubmitting the ones
-	 * that already landed.
-	 */
-	private void attemptPerDocument(String indexName, BulkRetryState state, int totalOps) throws RetryException {
-		List<BulkResponseItem> items = new ArrayList<>(state.remaining.size());
-		List<BulkOperation> submitted = new ArrayList<>(state.remaining.size());
-		while (!state.remaining.isEmpty()) {
-			BulkOperation op = state.remaining.get(0);
-			// executeBulk may throw RetryException (envelope 429/5xx, IOException) or
-			// RuntimeException (envelope 4xx). Either propagates; nothing else to do here
-			// because the loop already advanced state.remaining past the ops it finished.
-			BulkResponse single = executeBulk(indexName, Collections.singletonList(op));
-			items.addAll(single.items());
-			submitted.add(op);
-			state.remaining.remove(0);
-		}
-		// Every outstanding op was submitted without an envelope-level error. Now classify the
-		// item-level outcomes just like the batch path does.
-		BulkItemClassification c = classifyItems(indexName, items, submitted);
-		if (c.hasPermanentFailures()) {
-			throw new RuntimeException(buildPermanentFailureMessage(
-					attemptFailureSummary(indexName, totalOps, c), c.permanentSamples));
-		}
-		if (c.retryableItems.isEmpty()) {
+		incomplete.addAll(c.nextRemaining);
+		lastRetryable.clear();
+		lastRetryable.addAll(c.retryableItems);
+		if (incomplete.isEmpty()) {
 			return;
 		}
-		logRetryableAttempt(indexName, state, c, submitted.size());
-		state.advanceTo(c.nextRemaining, c.retryableItems);
+		LOG.warn("Bulk index attempt {}/{} for {}: {} retryable of {}; backing off",
+				attempt, BULK_INDEX_MAX_RETRIES, indexName, c.retryableItems.size(), opsSubmitted.size());
 		throw new RetryException(attemptFailureSummary(indexName, totalOps, c));
 	}
 
@@ -468,16 +455,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			}
 		}
 		return c;
-	}
-
-	/**
-	 * One WARN per attempt (not per item) so sustained throttling does not explode log volume;
-	 * per-item ERROR descriptors are emitted only if retries are ultimately exhausted.
-	 */
-	private void logRetryableAttempt(String indexName, BulkRetryState state,
-			BulkItemClassification c, int attemptSize) {
-		LOG.warn("Bulk index attempt {}/{} for {}: {} retryable of {}; backing off",
-				state.attempt, BULK_INDEX_MAX_RETRIES, indexName, c.retryableItems.size(), attemptSize);
 	}
 
 	private static String attemptFailureSummary(String indexName, int totalOps, BulkItemClassification c) {
@@ -519,28 +496,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 		boolean hasPermanentFailures() {
 			return permanentFailures > 0;
-		}
-	}
-
-	/** Mutable state threaded through {@link #attemptBulk} across retry iterations. */
-	private static final class BulkRetryState {
-		final List<BulkOperation> remaining;
-		final List<BulkResponseItem> lastRetryableItems = new ArrayList<>();
-		int attempt;
-		// Flips true the first time a batch returns with only retryable (429/5xx) failures.
-		// Once set, every subsequent attempt submits one op per bulk request so a single slow
-		// shard doesn't cause the whole batch to be rejected again.
-		boolean perDocumentMode;
-
-		BulkRetryState(List<BulkOperation> operations) {
-			this.remaining = new ArrayList<>(operations);
-		}
-
-		void advanceTo(List<BulkOperation> nextRemaining, List<BulkResponseItem> retryableItems) {
-			remaining.clear();
-			remaining.addAll(nextRemaining);
-			lastRetryableItems.clear();
-			lastRetryableItems.addAll(retryableItems);
 		}
 	}
 

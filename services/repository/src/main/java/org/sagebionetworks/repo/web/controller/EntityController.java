@@ -251,12 +251,15 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * </tr>
  * <tr>
  * <td>Maximum number of values associated with a single key in Annotations</td>
- * <td>100</td>
+ * <td>1,000</td>
  * </tr>
  * <tr>
- * <td>Maximum total character count for all values associated with a single key
- * in Annotations when the AnnotationValueType is STRING</td>
- * <td>500</td>
+ * <td>Maximum size of a single STRING value in Annotations</td>
+ * <td>1,000 characters</td>
+ * </tr>
+ * <tr>
+ * <td>Maximum total character count for all STRING values associated with a single key in Annotations</td>
+ * <td>100,000 characters</td>
  * </tr>
  * <tr>
  * <td>Maximum hierarchical depth of an Entity</td>

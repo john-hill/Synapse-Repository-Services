@@ -300,16 +300,37 @@ public class ColumnModelUtils {
 		validateFacetSortConfig(sub);
 	}
 
-	static void validateListLengthForClone(ColumnModel clone){
-		if(clone.getMaximumListLength() == null){
-			// Use the default value
-			clone.setMaximumListLength(ColumnConstants.MAX_ALLOWED_LIST_LENGTH);
-		}else if(clone.getMaximumListLength() > ColumnConstants.MAX_ALLOWED_LIST_LENGTH){
-			// The max is beyond the allowed size
-			throw new IllegalArgumentException("ColumnModel.maximumListLength for a LIST column cannot exceed: "+ColumnConstants.MAX_ALLOWED_LIST_LENGTH);
+	static void validateListLengthForClone(ColumnModel clone) {
+		if (clone.getMaximumListLength() == null) {
+			clone.setMaximumListLength(ColumnConstants.DEFAULT_LIST_LENGTH);
 		} else if (clone.getMaximumListLength() < 2) {
-			// The max is beyond the allowed size
 			throw new IllegalArgumentException("ColumnModel.maximumListLength for a LIST column must be at least 2");
+		} else if (ColumnTypeListMappings.isList(clone.getColumnType())) {
+			long maxCharsPerElement = getMaxCharsPerListElement(clone);
+			long maxAllowedLength = ColumnConstants.MAX_ALLOWED_LIST_TOTAL_CHARACTERS / maxCharsPerElement;
+			if (clone.getMaximumListLength() > maxAllowedLength) {
+				throw new IllegalArgumentException("ColumnModel.maximumListLength for a " + clone.getColumnType()
+						+ " column cannot exceed: " + maxAllowedLength);
+			}
+		}
+	}
+
+	static long getMaxCharsPerListElement(ColumnModel column) {
+		switch (column.getColumnType()) {
+			case STRING_LIST:
+				return column.getMaximumSize() != null
+						? column.getMaximumSize()
+						: ColumnConstants.MAX_ALLOWED_STRING_SIZE;
+			case INTEGER_LIST:
+			case DATE_LIST:
+			case USERID_LIST:
+				return ColumnConstants.MAX_INTEGER_CHARACTERS_AS_STRING;
+			case BOOLEAN_LIST:
+				return ColumnConstants.MAX_BOOLEAN_CHARACTERS_AS_STRING;
+			case ENTITYID_LIST:
+				return ColumnConstants.MAX_ENTITY_ID_CHARACTERS_AS_STRING;
+			default:
+				throw new IllegalArgumentException("Not a list type: " + column.getColumnType());
 		}
 	}
 

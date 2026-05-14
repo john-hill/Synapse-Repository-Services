@@ -156,9 +156,6 @@ public class TextAnalyzerDaoImplAutowiredTest {
 		settings.setTokenizer("standard");
 		settings.setSynonymAware(true);
 		settings.setIndexFilterOrder(Arrays.asList("lowercase", "english_stop", "english_stemmer"));
-		// searchFilterOrder is the asymmetric search-time chain — distinct from
-		// indexFilterOrder both in length and content, so a round-trip that loses or
-		// swaps one will fail on the assertions below.
 		settings.setSearchFilterOrder(Arrays.asList("lowercase", "synapse_synonyms", "english_stop"));
 		settings.setTokenFilters("{\"english_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"},"
 				+ "\"english_stemmer\":{\"type\":\"stemmer\",\"language\":\"english\"}}");

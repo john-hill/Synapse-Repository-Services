@@ -63,12 +63,16 @@ public class OpenSearchManagerImplAutoWiredTest {
 	@Autowired
 	private TextAnalyzerDao textAnalyzerDao;
 
+	@Autowired
+	private TextAnalyzerBootstrap textAnalyzerBootstrap;
+
 	private String indexName;
 	private Map<String, TextAnalyzer> defaultAnalyzers;
 
 	@BeforeEach
 	public void setUp() {
 		assertNotNull(openSearchManager);
+		textAnalyzerBootstrap.bootstrapSystemAnalyzers();
 		indexName = "test-index-" + UUID.randomUUID().toString().substring(0, 8);
 		defaultAnalyzers = buildDefaultAnalyzers();
 	}

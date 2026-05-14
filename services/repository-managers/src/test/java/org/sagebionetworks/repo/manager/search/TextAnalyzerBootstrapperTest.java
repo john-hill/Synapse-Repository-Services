@@ -75,41 +75,41 @@ public class TextAnalyzerBootstrapperTest {
 	}
 
 	@Test
-	public void testScientificAnalyzerUsesLegacyWordDelimiter() {
+	public void testScientificAnalyzerUsesWordDelimiterGraph() {
 		setupOrgMock();
 
 		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.SCIENTIFIC_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
 		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
 
 		assertEquals("standard", settings.getTokenizer());
-		assertWordDelimiterFilter(settings.getTokenFilters(), "sci_word_delimiter");
+		assertWordDelimiterGraphFilter(settings.getTokenFilters(), "sci_word_delimiter");
 		assertEquals(Arrays.asList("sci_word_delimiter", "lowercase", "english_stop", "english_stemmer"),
 				settings.getFilterOrder());
 		assertTrue(settings.getSynonymAware());
 	}
 
 	@Test
-	public void testStandardAnalyzerUsesLegacyWordDelimiter() {
+	public void testStandardAnalyzerUsesWordDelimiterGraph() {
 		setupOrgMock();
 
 		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.STANDARD_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
 		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
 
 		assertEquals("standard", settings.getTokenizer());
-		assertWordDelimiterFilter(settings.getTokenFilters(), "std_word_delimiter");
+		assertWordDelimiterGraphFilter(settings.getTokenFilters(), "std_word_delimiter");
 		assertEquals(Arrays.asList("std_word_delimiter", "lowercase"), settings.getFilterOrder());
 		assertTrue(settings.getSynonymAware());
 	}
 
 	@Test
-	public void testIdentifierAnalyzerUsesLegacyWordDelimiter() {
+	public void testIdentifierAnalyzerUsesWordDelimiterGraph() {
 		setupOrgMock();
 
 		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.IDENTIFIER_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
 		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
 
 		assertEquals("whitespace", settings.getTokenizer());
-		assertWordDelimiterFilter(settings.getTokenFilters(), "id_word_delimiter");
+		assertWordDelimiterGraphFilter(settings.getTokenFilters(), "id_word_delimiter");
 		assertEquals(Arrays.asList("id_word_delimiter", "lowercase"), settings.getFilterOrder());
 		assertTrue(settings.getSynonymAware());
 	}

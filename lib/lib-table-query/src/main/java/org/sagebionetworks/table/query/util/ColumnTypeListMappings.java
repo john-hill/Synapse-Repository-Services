@@ -91,6 +91,17 @@ public enum ColumnTypeListMappings {
 	}
 
 	/**
+	 * Returns the effective maximum number of characters per list element: uses
+	 * {@code maximumSize} when provided, otherwise falls back to this type's
+	 * built-in default (e.g. 1,000 for STRING_LIST, 20 for INTEGER_LIST).
+	 *
+	 * @param maximumSize the column's maximumSize field (may be null)
+	 */
+	public long getEffectiveMaxCharsPerItem(Long maximumSize) {
+		return maximumSize != null ? maximumSize : defaultMaxCharsPerItem;
+	}
+
+	/**
 	 * Returns the maximum in-memory byte size for one value of this list column type,
 	 * capped at {@link ColumnConstants#MAX_BYTES_PER_LIST_COLUMN_ESTIMATE}.
 	 *
@@ -99,7 +110,7 @@ public enum ColumnTypeListMappings {
 	 *                        {@link ColumnConstants#MAX_ALLOWED_LIST_TOTAL_CHARACTERS} budget)
 	 */
 	public int calculateMaxSize(Long maxCharsPerItem, Long maxListLength) {
-		long effectiveMaxCharsPerItem = maxCharsPerItem != null ? maxCharsPerItem : defaultMaxCharsPerItem;
+		long effectiveMaxCharsPerItem = getEffectiveMaxCharsPerItem(maxCharsPerItem);
 		long effectiveMaxListLength = maxListLength != null ? maxListLength
 				: ColumnConstants.MAX_ALLOWED_LIST_TOTAL_CHARACTERS / effectiveMaxCharsPerItem;
 		return (int) Math.min(

@@ -316,22 +316,8 @@ public class ColumnModelUtils {
 	}
 
 	static long getMaxCharsPerListElement(ColumnModel column) {
-		switch (column.getColumnType()) {
-			case STRING_LIST:
-				return column.getMaximumSize() != null
-						? column.getMaximumSize()
-						: ColumnConstants.MAX_ALLOWED_STRING_SIZE;
-			case INTEGER_LIST:
-			case DATE_LIST:
-			case USERID_LIST:
-				return ColumnConstants.MAX_INTEGER_CHARACTERS_AS_STRING;
-			case BOOLEAN_LIST:
-				return ColumnConstants.MAX_BOOLEAN_CHARACTERS_AS_STRING;
-			case ENTITYID_LIST:
-				return ColumnConstants.MAX_ENTITY_ID_CHARACTERS_AS_STRING;
-			default:
-				throw new IllegalArgumentException("Not a list type: " + column.getColumnType());
-		}
+		return ColumnTypeListMappings.forListType(column.getColumnType())
+				.getEffectiveMaxCharsPerItem(column.getMaximumSize());
 	}
 
 	

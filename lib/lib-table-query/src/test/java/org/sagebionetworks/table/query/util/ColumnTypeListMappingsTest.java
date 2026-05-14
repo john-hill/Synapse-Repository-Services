@@ -44,6 +44,22 @@ class ColumnTypeListMappingsTest {
 		assertThrows(IllegalArgumentException.class, () -> ColumnTypeListMappings.forNonListType(ColumnType.STRING_LIST));
 	}
 
+	@Test
+	public void testGetEffectiveMaxCharsPerItemWithExplicitSize() {
+		// explicit maximumSize overrides the type default
+		assertEquals(42L, ColumnTypeListMappings.STRING.getEffectiveMaxCharsPerItem(42L));
+		assertEquals(42L, ColumnTypeListMappings.INTEGER.getEffectiveMaxCharsPerItem(42L));
+	}
+
+	@Test
+	public void testGetEffectiveMaxCharsPerItemWithNullUsesDefault() {
+		// null falls back to each type's built-in default chars-per-element
+		assertEquals(ColumnConstants.MAX_ALLOWED_STRING_SIZE, ColumnTypeListMappings.STRING.getEffectiveMaxCharsPerItem(null));
+		assertEquals((long) ColumnConstants.MAX_INTEGER_CHARACTERS_AS_STRING, ColumnTypeListMappings.INTEGER.getEffectiveMaxCharsPerItem(null));
+		assertEquals((long) ColumnConstants.MAX_BOOLEAN_CHARACTERS_AS_STRING, ColumnTypeListMappings.BOOLEAN.getEffectiveMaxCharsPerItem(null));
+		assertEquals((long) ColumnConstants.MAX_ENTITY_ID_CHARACTERS_AS_STRING, ColumnTypeListMappings.ENTITYID.getEffectiveMaxCharsPerItem(null));
+	}
+
 	@ParameterizedTest(name = "{0}: maxCharsPerItem={1}, maxListLength={2}")
 	@MethodSource("calculateMaxSizeArguments")
 	public void testCalculateMaxSize(ColumnTypeListMappings mapping, Long maxCharsPerItem, Long maxListLength, int expected) {

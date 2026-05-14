@@ -200,6 +200,12 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * <td></td>
  * </tr>
  * <tr>
+ * <td>Maximum number of characters for a MEDIUMTEXT column value</td>
+ * <td>100,000 characters</td>
+ * <td>152 MEDIUMTEXT columns fit within MySQL's 64 KB inline row limit (stored off-page) and the
+ * 2% server memory budget (152 * 100,000 chars * 4 bytes = ~58 MB).</td>
+ * </tr>
+ * <tr>
  * <td>Entity View only: The maximum size of a single string annotation value</td>
  * <td>1,000 characters</td>
  * <td>Entity Views ONLY! This follows limitations placed on Annotations. Applies to both STRING and STRING_LIST column types.</td>

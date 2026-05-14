@@ -458,7 +458,7 @@ public class TableModelUtilsTest {
 			TableModelUtils.validateRowValue(valueTooBig, cm, 0, 0);
 			fail("should fail");
 		} catch (IllegalArgumentException e) {
-			assertEquals("Value at [0,0] was not a valid MEDIUMTEXT. Exceeds the maximum number of characters: 2000", e.getMessage());
+			assertEquals("Value at [0,0] was not a valid MEDIUMTEXT. Exceeds the maximum number of characters: " + ColumnConstants.MAX_MEDIUM_TEXT_CHARACTERS, e.getMessage());
 		}
 	}
 	

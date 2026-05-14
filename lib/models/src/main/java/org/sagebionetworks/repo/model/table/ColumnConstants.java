@@ -129,8 +129,10 @@ public class ColumnConstants {
 	
 	/**
 	 * The maximum number of characters allowed for a MEDIUMTEXT value.
+	 * Derived from the same 100,000-character budget used for list columns, ensuring 152 MEDIUMTEXT
+	 * columns fit within the server memory budget (152 * 100,000 * 4 bytes = ~58 MB < 2% of 3 GB).
 	 */
-	public static final long MAX_MEDIUM_TEXT_CHARACTERS = 2000;
+	public static final long MAX_MEDIUM_TEXT_CHARACTERS = 100_000L;
 	
 	/**
 	 * The maximum number of characters allowed for a JSON value. Treat it as a large text.

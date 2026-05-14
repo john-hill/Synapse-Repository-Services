@@ -92,6 +92,7 @@ public class ReplyMessageBuilderFactoryTest {
 		BroadcastMessageBuilder bulider = factory.createMessageBuilder(objectId, type, actorUserId);
 		assertNotNull(bulider);
 		assertEquals("syn" + threadBundle.getObjectId(), ((DiscussionBroadcastMessageBuilder) bulider).projectId);
+		assertEquals("project name",  ((DiscussionBroadcastMessageBuilder) bulider).projectName);
 		verify(mockNodeDao).getNodeName("444");
 		verify(mockUploadDao).getMessage(key);
 	}

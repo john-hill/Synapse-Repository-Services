@@ -156,6 +156,10 @@ public class TextAnalyzerDaoImplAutowiredTest {
 		settings.setTokenizer("standard");
 		settings.setSynonymAware(true);
 		settings.setIndexFilterOrder(Arrays.asList("lowercase", "english_stop", "english_stemmer"));
+		// searchFilterOrder is the asymmetric search-time chain — distinct from
+		// indexFilterOrder both in length and content, so a round-trip that loses or
+		// swaps one will fail on the assertions below.
+		settings.setSearchFilterOrder(Arrays.asList("lowercase", "synapse_synonyms", "english_stop"));
 		settings.setTokenFilters("{\"english_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"},"
 				+ "\"english_stemmer\":{\"type\":\"stemmer\",\"language\":\"english\"}}");
 
@@ -167,13 +171,7 @@ public class TextAnalyzerDaoImplAutowiredTest {
 		TextAnalyzer created = textAnalyzerDao.create(analyzer, adminUserId);
 		TextAnalyzer fetched = textAnalyzerDao.get(Long.parseLong(created.getId())).get();
 
-		TextAnalyzerSettings fetchedSettings = fetched.getSettings();
-		assertEquals("standard", fetchedSettings.getTokenizer());
-		assertTrue(fetchedSettings.getSynonymAware());
-		assertEquals(Arrays.asList("lowercase", "english_stop", "english_stemmer"), fetchedSettings.getIndexFilterOrder());
-		assertNotNull(fetchedSettings.getTokenFilters());
-		assertTrue(fetchedSettings.getTokenFilters().contains("english_stop"));
-		assertTrue(fetchedSettings.getTokenFilters().contains("english_stemmer"));
+		assertEquals(settings, fetched.getSettings());
 	}
 
 	private TextAnalyzer newAnalyzer(String name, String description) {

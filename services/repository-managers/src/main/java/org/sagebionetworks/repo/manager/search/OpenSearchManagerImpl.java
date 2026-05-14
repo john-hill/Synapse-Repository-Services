@@ -223,42 +223,28 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		}
 
 		String analyzerName = ANALYZER_PREFIX + analyzer.getId();
-		List<String> declared = settings.getFilterOrder() != null ? settings.getFilterOrder() : Collections.emptyList();
+		List<String> indexFilters = settings.getIndexFilterOrder() != null ? settings.getIndexFilterOrder() : Collections.emptyList();
+		registerCustomAnalyzer(a, analyzerName, tokenizer, indexFilters, settings.getCharFilterOrder());
 
-		// Synonym expansion runs only at search time. At index time, running synonyms
-		// before word_delimiter trips Lucene's offset-monotonicity invariant once an
-		// expansion is token-split.
-		registerCustomAnalyzer(a, analyzerName, tokenizer, declared, settings.getCharFilterOrder());
-
-		if (Boolean.TRUE.equals(settings.getSynonymAware()) && hasSynonyms) {
+		if (shouldRegisterSearchVariant(settings, hasSynonyms)) {
 			registerCustomAnalyzer(a, analyzerName + SEARCH_ANALYZER_SUFFIX, tokenizer,
-					buildSearchFilterChain(declared), settings.getCharFilterOrder());
+					settings.getSearchFilterOrder(), settings.getCharFilterOrder());
 		}
 	}
 
 	/**
-	 * Builds the search-time filter chain. The synonym filter parses each rule by walking
-	 * the chain segment that precedes it, and rejects any preceding filter whose output
-	 * has positionLength > 1 — including both {@code word_delimiter} and
-	 * {@code word_delimiter_graph}. So the synonym filter must come BEFORE every
-	 * word_delimiter* filter at search time. Placing {@code lowercase} first (a strict
-	 * 1-to-1 filter, accepted by synonym rule-parsing) and then the synonym filter gives
-	 * us case-insensitive matching for both rules and queries; word_delimiter* runs
-	 * downstream on the synonym-expanded stream. Index-time word_delimiter* still runs
-	 * on raw tokens with {@code preserve_original=true}, so split sub-tokens like
-	 * {@code messenger}/{@code rna} from {@code messengerRNA} are present in the index
-	 * regardless.
+	 * A {@code _search} analyzer variant is registered when the analyzer is asymmetric —
+	 * i.e., it provides a {@code searchFilterOrder} distinct from {@code indexFilterOrder}.
+	 * One special case: if the search chain references {@code synapse_synonyms} but the
+	 * SearchIndex has no synonyms configured, the synonym filter is not registered in the
+	 * index settings; we skip the variant and the analyzer behaves symmetrically.
 	 */
-	private static List<String> buildSearchFilterChain(List<String> declared) {
-		List<String> filters = new ArrayList<>(declared.size() + 1);
-		filters.add("lowercase");
-		filters.add(SYNONYM_FILTER_NAME);
-		for (String filter : declared) {
-			if (!"lowercase".equals(filter)) {
-				filters.add(filter);
-			}
+	private static boolean shouldRegisterSearchVariant(TextAnalyzerSettings settings, boolean hasSynonyms) {
+		List<String> search = settings.getSearchFilterOrder();
+		if (search == null || search.isEmpty()) {
+			return false;
 		}
-		return filters;
+		return hasSynonyms || !search.contains(SYNONYM_FILTER_NAME);
 	}
 
 	private void registerCustomAnalyzer(IndexSettingsAnalysis.Builder a, String name,
@@ -1294,8 +1280,11 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		} else if (entry != null && entry.getIndexAnalyzer() != null) {
 			chosen = analyzers.get(entry.getIndexAnalyzer());
 		}
-		if (hasSynonyms && chosen != null && chosen.getSettings() != null
-				&& Boolean.TRUE.equals(chosen.getSettings().getSynonymAware())) {
+		// Mirror registerAnalyzer's decision: pick the _search variant exactly when one
+		// was registered. Otherwise the analyzer is symmetric and OpenSearch reuses the
+		// index-time analyzer.
+		if (chosen != null && chosen.getSettings() != null
+				&& shouldRegisterSearchVariant(chosen.getSettings(), hasSynonyms)) {
 			return chosenName + SEARCH_ANALYZER_SUFFIX;
 		}
 		return chosenName;
@@ -1350,29 +1339,54 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		return map;
 	}
 
+	/**
+	 * Flattens user-authored {@link SynonymSet}s into the OpenSearch synonym filter's wire
+	 * format. Each rule is emitted twice: once with the user's original casing, once
+	 * lowercased (skipped if the rule is already all-lowercase). This means a query in any
+	 * casing — {@code BRCA1}, {@code brca1}, {@code Brca1} — triggers expansion regardless
+	 * of where {@code lowercase} sits in the analyzer's search-time chain. Users author
+	 * rules in natural casing without learning the chain's casing rules.
+	 *
+	 * <p>Duplicates collapse via {@link java.util.LinkedHashSet}, so a rule whose terms
+	 * are already lowercase doesn't produce two identical lines.
+	 */
 	List<String> buildSynonymRules(List<SynonymSet> synonymSets) {
 		if (synonymSets == null || synonymSets.isEmpty()) {
 			return Collections.emptyList();
 		}
-		List<String> rules = new ArrayList<>();
+		java.util.LinkedHashSet<String> rules = new java.util.LinkedHashSet<>();
 		for (SynonymSet ss : synonymSets) {
 			if (ss.getRules() == null) {
 				continue;
 			}
 			for (SynonymRule rule : ss.getRules()) {
-				if (rule.getTerms() == null || rule.getTerms().size() < 2) {
+				if (rule.getTerms() == null || rule.getTerms().size() < 2 || rule.getRuleType() == null) {
 					continue;
 				}
-				if (rule.getRuleType() == SynonymRuleType.EQUIVALENT) {
-					rules.add(String.join(", ", rule.getTerms()));
-				} else if (rule.getRuleType() == SynonymRuleType.EXPLICIT) {
-					String source = rule.getTerms().get(0);
-					List<String> targets = rule.getTerms().subList(1, rule.getTerms().size());
-					rules.add(source + " => " + String.join(", ", targets));
+				addRuleVariant(rules, rule.getRuleType(), rule.getTerms());
+				List<String> lowered = lowercaseAll(rule.getTerms());
+				if (!lowered.equals(rule.getTerms())) {
+					addRuleVariant(rules, rule.getRuleType(), lowered);
 				}
 			}
 		}
-		return rules;
+		return new ArrayList<>(rules);
+	}
+
+	private static void addRuleVariant(java.util.LinkedHashSet<String> rules, SynonymRuleType type, List<String> terms) {
+		if (type == SynonymRuleType.EQUIVALENT) {
+			rules.add(String.join(", ", terms));
+		} else if (type == SynonymRuleType.EXPLICIT) {
+			rules.add(terms.get(0) + " => " + String.join(", ", terms.subList(1, terms.size())));
+		}
+	}
+
+	private static List<String> lowercaseAll(List<String> terms) {
+		List<String> result = new ArrayList<>(terms.size());
+		for (String term : terms) {
+			result.add(term == null ? null : term.toLowerCase(java.util.Locale.ROOT));
+		}
+		return result;
 	}
 
 	private String analyzerToOpenSearchName(TextAnalyzer analyzer) {
@@ -1411,6 +1425,15 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	@Override
 	public void validateAnalyzerSettings(TextAnalyzerSettings settings) {
 		ValidateArgument.required(settings, "settings");
+
+		if (Boolean.TRUE.equals(settings.getSynonymAware())) {
+			List<String> searchOrder = settings.getSearchFilterOrder();
+			if (searchOrder == null || searchOrder.isEmpty() || !searchOrder.contains(SYNONYM_FILTER_NAME)) {
+				throw new IllegalArgumentException("synonymAware analyzers must declare 'searchFilterOrder' and include '"
+						+ SYNONYM_FILTER_NAME + "' in it. Place '" + SYNONYM_FILTER_NAME
+						+ "' upstream of any 'word_delimiter'/'word_delimiter_graph' filters, and downstream of 'lowercase' for case-insensitive matching.");
+			}
+		}
 
 		Tokenizer tokenizer = buildTokenizer(settings);
 		List<TokenFilter> tokenFilters = buildTokenFilters(settings);
@@ -1462,10 +1485,10 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		}
 
 		List<TokenFilter> tokenFilters = new ArrayList<>();
-		if (settings.getFilterOrder() == null) {
+		if (settings.getIndexFilterOrder() == null) {
 			return tokenFilters;
 		}
-		for (String filterName : settings.getFilterOrder()) {
+		for (String filterName : settings.getIndexFilterOrder()) {
 			TokenFilterDefinition def = tokenFilterDefs.get(filterName);
 			if (def != null) {
 				tokenFilters.add(TokenFilter.of(f -> f.definition(def)));

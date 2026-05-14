@@ -57,7 +57,7 @@ public class ITTextAnalyzerTest {
 		toCreate.setOrganizationName(orgName);
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
 		settings.setTokenizer("standard");
-		settings.setFilterOrder(Arrays.asList("lowercase"));
+		settings.setIndexFilterOrder(Arrays.asList("lowercase"));
 		toCreate.setSettings(settings);
 
 		// call under test

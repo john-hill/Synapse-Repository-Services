@@ -233,10 +233,37 @@ public class OpenSearchManagerImplTest {
 				new SynonymRule().setRuleType(SynonymRuleType.EXPLICIT)
 						.setTerms(Arrays.asList("AD", "Alzheimer's disease"))));
 
-		// call under test
+		// call under test — both the user-authored line and the lowercased copy are emitted
+		// so a query in any casing (AD, ad, Ad) triggers the expansion.
 		List<String> rules = manager.buildSynonymRules(Collections.singletonList(set));
 
-		assertEquals(Collections.singletonList("AD => Alzheimer's disease"), rules);
+		assertEquals(Arrays.asList("AD => Alzheimer's disease", "ad => alzheimer's disease"), rules);
+	}
+
+	@Test
+	public void testBuildSynonymRulesWithMixedCaseEquivalentRuleEmitsBothCasings() {
+		SynonymSet set = new SynonymSet().setRules(Collections.singletonList(
+				new SynonymRule().setRuleType(SynonymRuleType.EQUIVALENT)
+						.setTerms(Arrays.asList("BRCA1", "Breast Cancer 1"))));
+
+		// call under test — original casing first (so the dictionary preserves the
+		// user-authored form for tooling), then a lowercased duplicate.
+		List<String> rules = manager.buildSynonymRules(Collections.singletonList(set));
+
+		assertEquals(Arrays.asList("BRCA1, Breast Cancer 1", "brca1, breast cancer 1"), rules);
+	}
+
+	@Test
+	public void testBuildSynonymRulesWithAlreadyLowercaseRuleDoesNotDuplicate() {
+		SynonymSet set = new SynonymSet().setRules(Collections.singletonList(
+				new SynonymRule().setRuleType(SynonymRuleType.EQUIVALENT)
+						.setTerms(Arrays.asList("cancer", "tumor"))));
+
+		// call under test — terms already lowercase → lowered copy equals original →
+		// LinkedHashSet collapses to one entry.
+		List<String> rules = manager.buildSynonymRules(Collections.singletonList(set));
+
+		assertEquals(Collections.singletonList("cancer, tumor"), rules);
 	}
 
 	@Test
@@ -267,26 +294,32 @@ public class OpenSearchManagerImplTest {
 
 	@Test
 	public void testCreateIndexWithSynonymAwareAnalyzerAndSynonyms() throws IOException {
+		// call under test — synonymAware analyzer with synonyms configured registers both
+		// the index-time analyzer (filterOrder as authored) and the _search variant
+		// (searchFilterOrder as authored, with synapse_synonyms wired in).
 		Map<String, TextAnalyzer> analyzers = Collections.singletonMap("org.sage-STANDARD",
-				buildTestAnalyzer("2", true, "std_word_delimiter", "lowercase"));
+				buildSynonymAwareAnalyzer("2",
+						Arrays.asList("std_word_delimiter", "lowercase"),
+						Arrays.asList("lowercase", "synapse_synonyms", "std_word_delimiter")));
 
 		Map<String, org.opensearch.client.opensearch._types.analysis.Analyzer> registered =
 				captureCreateIndexAnalyzers(analyzers, Collections.singletonList(equivalentSynonymSet("cancer", "tumor")));
 
 		assertEquals(Arrays.asList("std_word_delimiter", "lowercase"),
 				registered.get("synapse_analyzer_2").custom().filter());
-		// Search variant: lowercase must run before the synonym filter (synonym rule-parsing
-		// rejects preceding filters with positionLength > 1, which includes both
-		// word_delimiter and word_delimiter_graph). word_delimiter then runs on the
-		// synonym-expanded stream.
 		assertEquals(Arrays.asList("lowercase", "synapse_synonyms", "std_word_delimiter"),
 				registered.get("synapse_analyzer_2_search").custom().filter());
 	}
 
 	@Test
 	public void testCreateIndexWithSynonymAwareAnalyzerAndNoSynonyms() throws IOException {
+		// call under test — when no synonyms are configured, the synonym filter isn't
+		// available in the index settings, so the _search variant (which references it) is
+		// skipped and the analyzer behaves symmetrically.
 		Map<String, TextAnalyzer> analyzers = Collections.singletonMap("org.sage-STANDARD",
-				buildTestAnalyzer("2", true, "std_word_delimiter", "lowercase"));
+				buildSynonymAwareAnalyzer("2",
+						Arrays.asList("std_word_delimiter", "lowercase"),
+						Arrays.asList("lowercase", "synapse_synonyms", "std_word_delimiter")));
 
 		Map<String, org.opensearch.client.opensearch._types.analysis.Analyzer> registered =
 				captureCreateIndexAnalyzers(analyzers, Collections.emptyList());
@@ -299,9 +332,16 @@ public class OpenSearchManagerImplTest {
 	@Test
 	public void testCreateIndexWithNonSynonymAwareAnalyzerAndSynonyms() throws IOException {
 		Map<String, TextAnalyzer> analyzers = new HashMap<>();
-		analyzers.put("org.sage-STANDARD", buildTestAnalyzer("2", true, "std_word_delimiter", "lowercase"));
-		analyzers.put("org.sage-AUTOCOMPLETE", buildTestAnalyzer("5", false, "ac_word_delimiter", "lowercase"));
+		analyzers.put("org.sage-STANDARD", buildSynonymAwareAnalyzer("2",
+				Arrays.asList("std_word_delimiter", "lowercase"),
+				Arrays.asList("lowercase", "synapse_synonyms", "std_word_delimiter")));
+		// AUTOCOMPLETE-style analyzer: synonymAware=false but still asymmetric (different
+		// search-time chain). The _search variant must still be registered.
+		analyzers.put("org.sage-AUTOCOMPLETE", buildAsymmetricAnalyzer("5",
+				Arrays.asList("ac_word_delimiter", "lowercase", "edge_ngram_filter"),
+				Arrays.asList("acs_word_delimiter", "lowercase")));
 
+		// call under test
 		Map<String, org.opensearch.client.opensearch._types.analysis.Analyzer> registered =
 				captureCreateIndexAnalyzers(analyzers, Collections.singletonList(equivalentSynonymSet("cancer", "tumor")));
 
@@ -309,31 +349,62 @@ public class OpenSearchManagerImplTest {
 				registered.get("synapse_analyzer_2").custom().filter());
 		assertEquals(Arrays.asList("lowercase", "synapse_synonyms", "std_word_delimiter"),
 				registered.get("synapse_analyzer_2_search").custom().filter());
-		assertEquals(Arrays.asList("ac_word_delimiter", "lowercase"),
+		assertEquals(Arrays.asList("ac_word_delimiter", "lowercase", "edge_ngram_filter"),
 				registered.get("synapse_analyzer_5").custom().filter());
-		assertFalse(registered.containsKey("synapse_analyzer_5_search"));
+		assertEquals(Arrays.asList("acs_word_delimiter", "lowercase"),
+				registered.get("synapse_analyzer_5_search").custom().filter());
 	}
 
 	@Test
-	public void testCreateIndexWithSynonymAwareAnalyzerWithoutLowercaseInDeclaredChain() throws IOException {
-		// lowercase + synapse_synonyms are always prepended at search time so synonym
-		// rule-parsing succeeds and matching is case-insensitive, regardless of whether
-		// the declared chain itself includes lowercase.
-		Map<String, TextAnalyzer> analyzers = Collections.singletonMap("org.sage-CUSTOM",
-				buildTestAnalyzer("99", true, "custom_filter"));
+	public void testCreateIndexWithSymmetricAnalyzerNoSearchVariantRegistered() throws IOException {
+		// call under test — symmetric analyzer (no searchFilterOrder, no synonymAware) only
+		// gets the index-time analyzer registered. OpenSearch reuses it at search time.
+		Map<String, TextAnalyzer> analyzers = Collections.singletonMap("org.sage-SYMMETRIC",
+				new TextAnalyzer().setId("7").setSettings(new TextAnalyzerSettings()
+						.setTokenizer("standard")
+						.setIndexFilterOrder(Arrays.asList("lowercase"))
+						.setSynonymAware(false)));
+
+		Map<String, org.opensearch.client.opensearch._types.analysis.Analyzer> registered =
+				captureCreateIndexAnalyzers(analyzers, Collections.emptyList());
+
+		assertEquals(Arrays.asList("lowercase"),
+				registered.get("synapse_analyzer_7").custom().filter());
+		assertFalse(registered.containsKey("synapse_analyzer_7_search"));
+	}
+
+	@Test
+	public void testCreateIndexWithCaseSensitiveSynonymAwareAnalyzer() throws IOException {
+		// call under test — a synonymAware analyzer that intentionally omits 'lowercase' from
+		// its search chain. Synonym rules must be authored in the casing the tokenizer emits
+		// (raw casing). The registered chain mirrors what the user authored; no synthetic
+		// lowercase is injected.
+		Map<String, TextAnalyzer> analyzers = Collections.singletonMap("org.sage-CASE",
+				buildSynonymAwareAnalyzer("99",
+						Arrays.asList("custom_filter"),
+						Arrays.asList("synapse_synonyms", "custom_filter")));
 
 		Map<String, org.opensearch.client.opensearch._types.analysis.Analyzer> registered =
 				captureCreateIndexAnalyzers(analyzers, Collections.singletonList(equivalentSynonymSet("a", "b")));
 
-		assertEquals(Arrays.asList("lowercase", "synapse_synonyms", "custom_filter"),
+		assertEquals(Arrays.asList("synapse_synonyms", "custom_filter"),
 				registered.get("synapse_analyzer_99_search").custom().filter());
 	}
 
-	private static TextAnalyzer buildTestAnalyzer(String id, boolean synonymAware, String... filters) {
+	private static TextAnalyzer buildSynonymAwareAnalyzer(String id, List<String> indexFilterOrder, List<String> searchFilterOrder) {
 		return new TextAnalyzer().setId(id).setSettings(new TextAnalyzerSettings()
 				.setTokenizer("standard")
-				.setFilterOrder(Arrays.asList(filters))
-				.setSynonymAware(synonymAware));
+				.setIndexFilterOrder(indexFilterOrder)
+				.setSearchFilterOrder(searchFilterOrder)
+				.setSynonymAware(true));
+	}
+
+	private static TextAnalyzer buildAsymmetricAnalyzer(String id, List<String> indexFilterOrder, List<String> searchFilterOrder) {
+		return new TextAnalyzer().setId(id).setSettings(new TextAnalyzerSettings()
+				.setTokenizer("standard")
+				.setIndexFilterOrder(indexFilterOrder)
+				.setSearchFilterOrder(searchFilterOrder)
+				.setSynonymAware(false));
 	}
 
 	private static SynonymSet equivalentSynonymSet(String... terms) {
@@ -531,9 +602,12 @@ public class OpenSearchManagerImplTest {
 	@Test
 	public void testResolveSearchAnalyzerNameWithSynonymAwareEffectiveAnalyzerAndSynonyms() {
 		TextAnalyzer synonymAware = new TextAnalyzer().setId("1").setSettings(
-				new TextAnalyzerSettings().setTokenizer("standard").setSynonymAware(true));
+				new TextAnalyzerSettings().setTokenizer("standard")
+						.setSearchFilterOrder(Arrays.asList("lowercase", "synapse_synonyms"))
+						.setSynonymAware(true));
 
-		// call under test
+		// call under test — synonyms are configured AND the chosen analyzer's searchFilterOrder
+		// references synapse_synonyms, so a _search variant is registered → resolver picks it.
 		assertEquals("synapse_analyzer_1_search",
 				manager.resolveSearchAnalyzerName("synapse_analyzer_1", synonymAware, null,
 						Collections.emptyMap(), true));
@@ -542,11 +616,32 @@ public class OpenSearchManagerImplTest {
 	@Test
 	public void testResolveSearchAnalyzerNameWithSynonymAwareEffectiveAnalyzerAndNoSynonyms() {
 		TextAnalyzer synonymAware = new TextAnalyzer().setId("1").setSettings(
-				new TextAnalyzerSettings().setTokenizer("standard").setSynonymAware(true));
+				new TextAnalyzerSettings().setTokenizer("standard")
+						.setSearchFilterOrder(Arrays.asList("lowercase", "synapse_synonyms"))
+						.setSynonymAware(true));
 
-		// call under test
+		// call under test — searchFilterOrder references synapse_synonyms but no synonyms are
+		// configured on this index, so the _search variant is skipped → resolver returns the
+		// bare index analyzer name (analyzer behaves symmetrically in that scenario).
 		assertEquals("synapse_analyzer_1",
 				manager.resolveSearchAnalyzerName("synapse_analyzer_1", synonymAware, null,
+						Collections.emptyMap(), false));
+	}
+
+	@Test
+	public void testResolveSearchAnalyzerNameWithAsymmetricNonSynonymAnalyzerNoSynonymsConfigured() {
+		// AUTOCOMPLETE-style analyzer: not synonymAware, but has its own search-time chain.
+		// _search variant is registered regardless of synonym configuration.
+		TextAnalyzer autocomplete = new TextAnalyzer().setId("8").setSettings(
+				new TextAnalyzerSettings().setTokenizer("standard")
+						.setIndexFilterOrder(Arrays.asList("ac_word_delimiter", "lowercase", "edge_ngram_filter"))
+						.setSearchFilterOrder(Arrays.asList("acs_word_delimiter", "lowercase"))
+						.setSynonymAware(false));
+
+		// call under test — even with hasSynonyms=false the resolver picks the _search variant
+		// because the asymmetric chain doesn't reference synapse_synonyms.
+		assertEquals("synapse_analyzer_8_search",
+				manager.resolveSearchAnalyzerName("synapse_analyzer_8", autocomplete, null,
 						Collections.emptyMap(), false));
 	}
 
@@ -555,7 +650,9 @@ public class OpenSearchManagerImplTest {
 		TextAnalyzer keyword = new TextAnalyzer().setId("4").setSettings(
 				new TextAnalyzerSettings().setTokenizer("keyword").setSynonymAware(false));
 		TextAnalyzer standard = new TextAnalyzer().setId("2").setSettings(
-				new TextAnalyzerSettings().setTokenizer("standard").setSynonymAware(true));
+				new TextAnalyzerSettings().setTokenizer("standard")
+						.setSearchFilterOrder(Arrays.asList("lowercase", "synapse_synonyms", "std_word_delimiter"))
+						.setSynonymAware(true));
 		Map<String, TextAnalyzer> analyzers = new HashMap<>();
 		analyzers.put("org.sage-KEYWORD", keyword);
 		analyzers.put("org.sage-STANDARD", standard);
@@ -563,19 +660,23 @@ public class OpenSearchManagerImplTest {
 				.setIndexAnalyzer("org.sage-KEYWORD")
 				.setSearchAnalyzer("org.sage-STANDARD");
 
-		// call under test
+		// call under test — entry.searchAnalyzer points at a synonymAware analyzer with
+		// synapse_synonyms in its search chain, and synonyms are configured → _search variant.
 		assertEquals("synapse_analyzer_2_search",
 				manager.resolveSearchAnalyzerName("synapse_analyzer_4", keyword, entry, analyzers, true));
 	}
 
 	@Test
-	public void testResolveSearchAnalyzerNameWithIndexOnlyOverrideReadsSynonymAwareFromOverride() {
+	public void testResolveSearchAnalyzerNameWithIndexOnlyOverrideReadsAsymmetryFromOverride() {
 		TextAnalyzer standard = new TextAnalyzer().setId("2").setSettings(
-				new TextAnalyzerSettings().setTokenizer("standard").setSynonymAware(true));
+				new TextAnalyzerSettings().setTokenizer("standard")
+						.setSearchFilterOrder(Arrays.asList("lowercase", "synapse_synonyms", "std_word_delimiter"))
+						.setSynonymAware(true));
 		Map<String, TextAnalyzer> analyzers = Collections.singletonMap("org.sage-STANDARD", standard);
 		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry().setIndexAnalyzer("org.sage-STANDARD");
 
-		// call under test — scientific (effective) is not synonymAware, but the index override IS
+		// call under test — scientific (effective) has no asymmetric chain, but the index
+		// override points at a synonymAware analyzer whose search chain references synonyms.
 		assertEquals("synapse_analyzer_2_search",
 				manager.resolveSearchAnalyzerName("synapse_analyzer_2", scientific, entry, analyzers, true));
 	}

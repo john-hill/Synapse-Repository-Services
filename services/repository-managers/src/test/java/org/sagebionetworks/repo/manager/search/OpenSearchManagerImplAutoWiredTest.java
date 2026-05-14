@@ -262,7 +262,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 	public void testValidateAnalyzerSettingsWithInvalidFilter() throws Exception {
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
 		settings.setTokenizer("standard");
-		settings.setFilterOrder(Arrays.asList("bogus_filter_name_xyz"));
+		settings.setIndexFilterOrder(Arrays.asList("bogus_filter_name_xyz"));
 
 		// call under test
 		IllegalArgumentException ex = retryOnAossAnalyzeFlake(() ->
@@ -277,7 +277,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
 		settings.setTokenizer("standard");
 		settings.setTokenFilters("{\"my_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"}}");
-		settings.setFilterOrder(Arrays.asList("my_stop", "lowercase"));
+		settings.setIndexFilterOrder(Arrays.asList("my_stop", "lowercase"));
 
 		// call under test
 		retryOnAossAnalyzeFlake(() -> {
@@ -729,7 +729,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		analyzer.setId(id.toString());
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
 		settings.setTokenizer(tokenizer);
-		settings.setFilterOrder(Collections.singletonList("lowercase"));
+		settings.setIndexFilterOrder(Collections.singletonList("lowercase"));
 		analyzer.setSettings(settings);
 		return analyzer;
 	}

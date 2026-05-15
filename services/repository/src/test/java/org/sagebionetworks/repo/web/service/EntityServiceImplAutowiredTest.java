@@ -12,9 +12,12 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -33,6 +36,9 @@ import org.sagebionetworks.repo.manager.table.ColumnModelManager;
 import org.sagebionetworks.repo.manager.table.TableEntityManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
+import org.sagebionetworks.repo.model.annotation.v2.Annotations;
+import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValue;
+import org.sagebionetworks.repo.model.annotation.v2.AnnotationsValueType;
 import org.sagebionetworks.repo.model.DatastoreException;
 import org.sagebionetworks.repo.model.EntityRef;
 import org.sagebionetworks.repo.model.FileEntity;
@@ -1047,5 +1053,73 @@ public class EntityServiceImplAutowiredTest  {
 		assertThrows(NotFoundException.class, ()->{
 			entityService.getEntity(adminUserId, recordsetId);
 		});
+	}
+
+	@Test
+	public void testUpdateEntityAnnotationsWithTooManyKeys() {
+		Annotations current = entityService.getEntityAnnotations(adminUserId, project.getId());
+
+		Map<String, AnnotationsValue> annotationMap = new HashMap<>();
+		for (int i = 0; i < 101; i++) {
+			annotationMap.put("key" + i, new AnnotationsValue()
+				.setType(AnnotationsValueType.STRING)
+				.setValue(Collections.singletonList("v")));
+		}
+		Annotations toUpdate = new Annotations()
+			.setId(project.getId())
+			.setEtag(current.getEtag())
+			.setAnnotations(annotationMap);
+
+		// call under test
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			entityService.updateEntityAnnotations(adminUserId, project.getId(), toUpdate);
+		}).getMessage();
+		assertEquals("Exceeded maximum number of annotation keys: 100", message);
+	}
+
+	@Test
+	public void testUpdateEntityAnnotationsWithTooManyValuesPerKey() {
+		Annotations current = entityService.getEntityAnnotations(adminUserId, project.getId());
+
+		List<String> values = new ArrayList<>();
+		for (int i = 0; i < 1001; i++) {
+			values.add("v");
+		}
+		Map<String, AnnotationsValue> annotationMap = new HashMap<>();
+		annotationMap.put("myKey", new AnnotationsValue()
+			.setType(AnnotationsValueType.STRING)
+			.setValue(values));
+		Annotations toUpdate = new Annotations()
+			.setId(project.getId())
+			.setEtag(current.getEtag())
+			.setAnnotations(annotationMap);
+
+		// call under test
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			entityService.updateEntityAnnotations(adminUserId, project.getId(), toUpdate);
+		}).getMessage();
+		assertEquals("key=myKey has exceeded the maximum number of values allowed: 1000", message);
+	}
+
+	@Test
+	public void testUpdateEntityAnnotationsWithStringValuesTooLong() {
+		Annotations current = entityService.getEntityAnnotations(adminUserId, project.getId());
+
+		// one character over the per-value limit of 1000
+		String longValue = "a".repeat(1001);
+		Map<String, AnnotationsValue> annotationMap = new HashMap<>();
+		annotationMap.put("myKey", new AnnotationsValue()
+			.setType(AnnotationsValueType.STRING)
+			.setValue(Collections.singletonList(longValue)));
+		Annotations toUpdate = new Annotations()
+			.setId(project.getId())
+			.setEtag(current.getEtag())
+			.setAnnotations(annotationMap);
+
+		// call under test
+		String message = assertThrows(IllegalArgumentException.class, () -> {
+			entityService.updateEntityAnnotations(adminUserId, project.getId(), toUpdate);
+		}).getMessage();
+		assertEquals("A single string annotation value cannot exceed 1000 characters.", message);
 	}
 }

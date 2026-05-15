@@ -215,7 +215,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * <tr>
  * <td>MEDIUMTEXT</td>
  * <td>text + keyword sub-field</td>
- * <td>2,000 characters</td>
+ * <td>100,000 characters</td>
  * <td>SCIENTIFIC</td>
  * </tr>
  * <tr>

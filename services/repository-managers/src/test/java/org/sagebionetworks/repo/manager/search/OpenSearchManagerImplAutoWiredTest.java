@@ -18,12 +18,17 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
+import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.search.SearchFieldValue;
 import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
@@ -59,12 +64,19 @@ public class OpenSearchManagerImplAutoWiredTest {
 	@Autowired
 	private OpenSearchManager openSearchManager;
 
+	@Autowired
+	private TextAnalyzerDao textAnalyzerDao;
+
+	@Autowired
+	private TextAnalyzerBootstrap textAnalyzerBootstrap;
+
 	private String indexName;
 	private Map<String, TextAnalyzer> defaultAnalyzers;
 
 	@BeforeEach
 	public void setUp() {
 		assertNotNull(openSearchManager);
+		textAnalyzerBootstrap.bootstrapSystemAnalyzers();
 		indexName = "test-index-" + UUID.randomUUID().toString().substring(0, 8);
 		defaultAnalyzers = buildDefaultAnalyzers();
 	}
@@ -254,7 +266,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 	public void testValidateAnalyzerSettingsWithInvalidFilter() throws Exception {
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
 		settings.setTokenizer("standard");
-		settings.setFilterOrder(Arrays.asList("bogus_filter_name_xyz"));
+		settings.setIndexFilterOrder(Arrays.asList("bogus_filter_name_xyz"));
 
 		// call under test
 		IllegalArgumentException ex = retryOnAossAnalyzeFlake(() ->
@@ -269,7 +281,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
 		settings.setTokenizer("standard");
 		settings.setTokenFilters("{\"my_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"}}");
-		settings.setFilterOrder(Arrays.asList("my_stop", "lowercase"));
+		settings.setIndexFilterOrder(Arrays.asList("my_stop", "lowercase"));
 
 		// call under test
 		retryOnAossAnalyzeFlake(() -> {
@@ -288,8 +300,8 @@ public class OpenSearchManagerImplAutoWiredTest {
 	@Test
 	public void testBulkIndexWithAutocompleteAnalyzerOverride() {
 		// Build the same analyzer settings the bootstrapper installs in production.
-		TextAnalyzer autocomplete = autocompleteIndexAnalyzer();
-		TextAnalyzer autocompleteSearch = autocompleteSearchAnalyzer();
+		TextAnalyzer autocomplete = bootstrappedAnalyzer(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID);
+		TextAnalyzer autocompleteSearch = bootstrappedAnalyzer(TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID);
 		TextAnalyzer scientific = buildAnalyzer(TextAnalyzerBootstrapper.SCIENTIFIC_ID, "standard");
 
 		Map<String, TextAnalyzer> analyzers = new HashMap<>();
@@ -329,10 +341,218 @@ public class OpenSearchManagerImplAutoWiredTest {
 		assertEquals(3L, indexed);
 	}
 
+	/**
+	 * Regression test for PLFM-9636: AOSS rejected createIndex with
+	 * "illegal_argument_exception: Token filter [std_word_delimiter] cannot be used to parse synonyms"
+	 * whenever a bootstrapped synonym-aware analyzer was paired with a non-empty SynonymSet.
+	 * Confirms (1) createIndex succeeds against live AOSS with synonyms configured, and
+	 * (2) a query for one synonym term matches documents containing the other. Run against
+	 * every bootstrapped synonym-aware analyzer so a regression on any one of them surfaces.
+	 */
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("synonymAwareBootstrappedAnalyzers")
+	public void testCreateIndexWithBootstrappedSynonymAwareAnalyzerAndSynonyms(String analyzerKey, long bootstrapId) {
+		Map<String, TextAnalyzer> analyzers = new HashMap<>();
+		analyzers.put(analyzerKey, bootstrappedAnalyzer(bootstrapId));
+
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("diagnosis").setColumnType(ColumnType.STRING));
+
+		org.sagebionetworks.repo.model.search.table.SynonymSet synonymSet =
+				new org.sagebionetworks.repo.model.search.table.SynonymSet().setRules(List.of(
+						new org.sagebionetworks.repo.model.search.table.SynonymRule()
+								.setRuleType(org.sagebionetworks.repo.model.search.table.SynonymRuleType.EQUIVALENT)
+								.setTerms(List.of("cancer", "tumor", "neoplasm"))));
+
+		// call under test — createIndex must succeed. Pre-fix this threw
+		// "Token filter [std_word_delimiter] cannot be used to parse synonyms".
+		openSearchManager.createIndex(indexName, columns, analyzerKey,
+				List.of(synonymSet), Collections.emptyList(), analyzers);
+		openSearchManager.waitForIndexWritable(indexName);
+
+		// Index one doc per synonym term so each query can match via synonym expansion at
+		// search time regardless of which direction OpenSearch applies the rule internally.
+		List<BulkOperation> operations = List.of(
+				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "cancer")),
+				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "tumor")),
+				buildBulkOp(indexName, "3", Map.of("_row_id", 3L, "_row_version", 1L, "1", "neoplasm")));
+
+		assertEquals(3L, openSearchManager.bulkIndex(indexName, operations));
+
+		// Querying for any one term must match all three docs via the EQUIVALENT synonym rule.
+		SearchQuery query = new SearchQuery();
+		query.setQueryText("cancer");
+		query.setQueryType(SearchQueryType.SIMPLE_QUERY_STRING);
+		query.setLimit(10L);
+		query.setOffset(0L);
+
+		SearchQueryResults results = waitForSearch(query, columns, 3);
+		assertEquals(3L, results.getTotalHits(),
+				"Query for 'cancer' must return all three docs via EQUIVALENT synonym expansion");
+	}
+
+	/**
+	 * @return one row per bootstrapped synonym-aware analyzer:
+	 *         {@code (analyzerKey, bootstrapId)}. Analyzer key matches the
+	 *         {@code org.sagebionetworks-<NAME>} convention used elsewhere in this file.
+	 */
+	private static Stream<Arguments> synonymAwareBootstrappedAnalyzers() {
+		return Stream.of(
+				Arguments.of("org.sagebionetworks-SCIENTIFIC", TextAnalyzerBootstrapper.SCIENTIFIC_ID),
+				Arguments.of("org.sagebionetworks-STANDARD", TextAnalyzerBootstrapper.STANDARD_ID),
+				Arguments.of("org.sagebionetworks-IDENTIFIER", TextAnalyzerBootstrapper.IDENTIFIER_ID),
+				Arguments.of("org.sagebionetworks-AUTOCOMPLETE_SEARCH", TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID));
+	}
+
+	/**
+	 * Regression for the Lucene offset-monotonicity bulk-index failure: hyphenated /
+	 * CamelCase / digit-letter tokens adjacent to a synonym source term caused
+	 * {@code illegal_argument_exception: startOffset must be non-negative ... offsets must not go backwards}
+	 * when synonym expansion and {@code word_delimiter} both ran at index time. Synonyms now expand only
+	 * at search time, so every document must be accepted and a search for a synonym source must still match.
+	 */
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("synonymAwareBootstrappedAnalyzers")
+	public void testBulkIndexWithSynonymsAndWordDelimiterSplittableNeighbors(String analyzerKey, long bootstrapId) {
+		Map<String, TextAnalyzer> analyzers = new HashMap<>();
+		analyzers.put(analyzerKey, bootstrappedAnalyzer(bootstrapId));
+
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("description").setColumnType(ColumnType.STRING));
+
+		org.sagebionetworks.repo.model.search.table.SynonymSet synonymSet =
+				new org.sagebionetworks.repo.model.search.table.SynonymSet().setRules(List.of(
+						new org.sagebionetworks.repo.model.search.table.SynonymRule()
+								.setRuleType(org.sagebionetworks.repo.model.search.table.SynonymRuleType.EQUIVALENT)
+								.setTerms(List.of("mRNA", "messenger-RNA", "messengerRNA"))));
+
+		openSearchManager.createIndex(indexName, columns, analyzerKey,
+				List.of(synonymSet), Collections.emptyList(), analyzers);
+		openSearchManager.waitForIndexWritable(indexName);
+
+		List<BulkOperation> operations = List.of(
+				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "cancer-related mRNA seq analysis")),
+				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "messengerRNA profiling in TP53-deficient cells")),
+				buildBulkOp(indexName, "3", Map.of("_row_id", 3L, "_row_version", 1L, "1", "messenger-RNA 2024 study")));
+
+		// call under test
+		assertEquals(3L, openSearchManager.bulkIndex(indexName, operations));
+
+		// Query the multi-token synonym variant: it produces a richer graph at search
+		// time (hyphen split → `messenger AND rna`) that reaches all three docs across
+		// every bootstrapped synonym-aware analyzer regardless of tokenizer choice.
+		// `mRNA` alone is insufficient on the IDENTIFIER chain (whitespace tokenizer +
+		// id_word_delimiter), where the search-side synonym graph for a single-token
+		// LHS does not consistently reach a doc whose `mRNA` neighbor is itself the
+		// only synonym source — see PLFM-9636 review for diagnostic detail.
+		SearchQuery query = new SearchQuery();
+		query.setQueryText("messenger-RNA");
+		query.setQueryType(SearchQueryType.SIMPLE_QUERY_STRING);
+		query.setLimit(10L);
+		query.setOffset(0L);
+
+		SearchQueryResults results = waitForSearch(query, columns, 3);
+		assertEquals(3L, results.getTotalHits(),
+				"Query for 'messenger-RNA' must match all three docs via EQUIVALENT synonym expansion at search time");
+	}
+
+	/**
+	 * Round-trip regression for PLFM-9636: the search-variant chain runs
+	 * {@code lowercase → synapse_synonyms → word_delimiter_graph}, so multi-word synonym
+	 * left-hand sides expand correctly and queries match regardless of casing. Each doc
+	 * here is indexed only with the abbreviation form; the long-form / mixed-case query
+	 * must match via synonym expansion at search time. Pre-fix (plain {@code synonym}
+	 * filter, no leading {@code lowercase}), all three assertions returned 0 hits.
+	 */
+	@Test
+	public void testSearchWithMultiWordAndMixedCaseSynonymQueries() {
+		Map<String, TextAnalyzer> analyzers = new HashMap<>();
+		analyzers.put("org.sagebionetworks-STANDARD", bootstrappedAnalyzer(TextAnalyzerBootstrapper.STANDARD_ID));
+
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("description").setColumnType(ColumnType.STRING));
+
+		org.sagebionetworks.repo.model.search.table.SynonymSet synonymSet =
+				new org.sagebionetworks.repo.model.search.table.SynonymSet().setRules(List.of(
+						new org.sagebionetworks.repo.model.search.table.SynonymRule()
+								.setRuleType(org.sagebionetworks.repo.model.search.table.SynonymRuleType.EQUIVALENT)
+								.setTerms(List.of("deep learning", "DL")),
+						new org.sagebionetworks.repo.model.search.table.SynonymRule()
+								.setRuleType(org.sagebionetworks.repo.model.search.table.SynonymRuleType.EQUIVALENT)
+								.setTerms(List.of("electronic health record", "EHR"))));
+
+		openSearchManager.createIndex(indexName, columns, "org.sagebionetworks-STANDARD",
+				List.of(synonymSet), Collections.emptyList(), analyzers);
+		openSearchManager.waitForIndexWritable(indexName);
+
+		// Each doc contains only the abbreviation — a query for the long form (or a
+		// mixed-case variant) must reach it via synonym expansion at search time.
+		List<BulkOperation> operations = List.of(
+				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "neural network DL paper")),
+				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "EHR data extraction")),
+				buildBulkOp(indexName, "3", Map.of("_row_id", 3L, "_row_version", 1L, "1", "unrelated content")));
+
+		assertEquals(3L, openSearchManager.bulkIndex(indexName, operations));
+
+		// Verify both query types the production stack uses:
+		//   - SIMPLE_QUERY_STRING: requires multi-word phrases to be quoted so the
+		//     analyzer sees them as adjacent tokens (the parser otherwise splits on
+		//     whitespace before analysis). This is the type used by the /search endpoint.
+		//   - MULTI_MATCH: what the portal UI sends. Whitespace-separated tokens are
+		//     analyzed together, so the synonym_graph filter sees the full phrase
+		//     without requiring user-supplied quotes.
+
+		// (a) Multi-word LHS expands to the abbreviation. Plain `synonym` (non-graph)
+		//     fails this; `synonym_graph` is required.
+		SearchQueryResults dlSimple = runQuery(SearchQueryType.SIMPLE_QUERY_STRING, "\"deep learning\"", columns);
+		assertEquals(1L, dlSimple.getTotalHits(),
+				"quoted multi-word \"deep learning\" (SIMPLE_QUERY_STRING) must match doc indexed with 'DL' via synonym_graph");
+		assertEquals(1L, runQuery(SearchQueryType.MULTI_MATCH, "deep learning", columns).getTotalHits(),
+				"unquoted multi-word 'deep learning' (MULTI_MATCH, UI default) must match doc indexed with 'DL' via synonym_graph");
+
+		// (b) Mixed-case multi-word query. Requires `lowercase` to run before the
+		//     synonym filter so query tokens and rule LHS both reach the filter
+		//     in the same case.
+		assertEquals(1L, runQuery(SearchQueryType.SIMPLE_QUERY_STRING, "\"Deep Learning\"", columns).getTotalHits(),
+				"mixed-case \"Deep Learning\" (SIMPLE_QUERY_STRING) must match doc indexed with 'DL' via lowercase-before-synonym chain");
+		assertEquals(1L, runQuery(SearchQueryType.MULTI_MATCH, "Deep Learning", columns).getTotalHits(),
+				"mixed-case 'Deep Learning' (MULTI_MATCH) must match doc indexed with 'DL' via lowercase-before-synonym chain");
+
+		// (c) Mixed-case query against a different multi-word rule, exercising the
+		//     same case-normalization path with a separate vocabulary.
+		SearchQueryResults ehrSimple = runQuery(SearchQueryType.SIMPLE_QUERY_STRING, "\"Electronic Health Record\"", columns);
+		assertEquals(1L, ehrSimple.getTotalHits(),
+				"mixed-case \"Electronic Health Record\" (SIMPLE_QUERY_STRING) must match doc indexed with 'EHR'");
+		assertEquals(1L, runQuery(SearchQueryType.MULTI_MATCH, "Electronic Health Record", columns).getTotalHits(),
+				"mixed-case 'Electronic Health Record' (MULTI_MATCH) must match doc indexed with 'EHR'");
+
+		assertEquals("neural network DL paper", descriptionOf(dlSimple),
+				"hit value must preserve original casing of indexed text — lowercase filter applies to the inverted index only");
+		assertEquals("EHR data extraction", descriptionOf(ehrSimple),
+				"hit value must preserve original casing of indexed text — lowercase filter applies to the inverted index only");
+	}
+
+	private static String descriptionOf(SearchQueryResults results) {
+		return results.getHits().get(0).getFields().stream()
+				.filter(f -> "description".equals(f.getName()))
+				.findFirst()
+				.orElseThrow(() -> new AssertionError("no 'description' field on hit"))
+				.getValue();
+	}
+
+	private SearchQueryResults runQuery(SearchQueryType queryType, String text, List<ColumnModel> columns) {
+		SearchQuery query = new SearchQuery();
+		query.setQueryText(text);
+		query.setQueryType(queryType);
+		query.setLimit(10L);
+		query.setOffset(0L);
+		return waitForSearch(query, columns, 1L);
+	}
+
 	@Test
 	public void testBulkIndexWithBootstrappedScientificAnalyzer() {
 		Map<String, TextAnalyzer> analyzers = new HashMap<>();
-		analyzers.put("org.sagebionetworks-SCIENTIFIC", bootstrappedScientificAnalyzer());
+		analyzers.put("org.sagebionetworks-SCIENTIFIC", bootstrappedAnalyzer(TextAnalyzerBootstrapper.SCIENTIFIC_ID));
 
 		List<ColumnModel> columns = List.of(
 				new ColumnModel().setId("1").setName("geneName").setColumnType(ColumnType.STRING));
@@ -463,64 +683,15 @@ public class OpenSearchManagerImplAutoWiredTest {
 	}
 
 	/**
-	 * Mirrors {@code TextAnalyzerBootstrapper.buildScientificSettings()}. Kept inline (matching
-	 * the autocomplete helpers below) so this test exercises the exact production config without
-	 * requiring the bootstrapper to expose its internals.
+	 * Loads a bootstrapped system analyzer from the database by its id (e.g.
+	 * {@link TextAnalyzerBootstrapper#STANDARD_ID}). Reading the live row from
+	 * {@link TextAnalyzerDao} keeps these tests from drifting away from the real
+	 * configuration emitted by {@link TextAnalyzerBootstrapper}.
 	 */
-	private static TextAnalyzer bootstrappedScientificAnalyzer() {
-		TextAnalyzerSettings settings = new TextAnalyzerSettings();
-		settings.setTokenizer("standard");
-		settings.setTokenFilters("{"
-				+ "\"sci_word_delimiter\":{\"type\":\"word_delimiter\",\"preserve_original\":true,"
-				+ "\"split_on_case_change\":true,\"split_on_numerics\":true,"
-				+ "\"catenate_words\":true,\"catenate_numbers\":false,"
-				+ "\"stem_english_possessive\":true},"
-				+ "\"english_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"},"
-				+ "\"english_stemmer\":{\"type\":\"stemmer\",\"language\":\"english\"}"
-				+ "}");
-		settings.setFilterOrder(Arrays.asList(
-				"sci_word_delimiter", "lowercase", "english_stop", "english_stemmer"));
-		settings.setSynonymAware(true);
-
-		TextAnalyzer analyzer = new TextAnalyzer();
-		analyzer.setId(Long.toString(TextAnalyzerBootstrapper.SCIENTIFIC_ID));
-		analyzer.setSettings(settings);
-		return analyzer;
-	}
-
-	private static TextAnalyzer autocompleteIndexAnalyzer() {
-		TextAnalyzerSettings settings = new TextAnalyzerSettings();
-		settings.setTokenizer("standard");
-		settings.setTokenFilters("{"
-				+ "\"ac_word_delimiter\":{\"type\":\"word_delimiter\",\"preserve_original\":true,"
-				+ "\"split_on_case_change\":true,\"split_on_numerics\":true,"
-				+ "\"catenate_words\":true,\"catenate_numbers\":false,"
-				+ "\"stem_english_possessive\":true},"
-				+ "\"edge_ngram_filter\":{\"type\":\"edge_ngram\",\"min_gram\":2,\"max_gram\":20}"
-				+ "}");
-		settings.setFilterOrder(Arrays.asList("ac_word_delimiter", "lowercase", "edge_ngram_filter"));
-
-		TextAnalyzer analyzer = new TextAnalyzer();
-		analyzer.setId(Long.toString(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID));
-		analyzer.setSettings(settings);
-		return analyzer;
-	}
-
-	private static TextAnalyzer autocompleteSearchAnalyzer() {
-		TextAnalyzerSettings settings = new TextAnalyzerSettings();
-		settings.setTokenizer("standard");
-		settings.setTokenFilters("{"
-				+ "\"acs_word_delimiter\":{\"type\":\"word_delimiter_graph\",\"preserve_original\":true,"
-				+ "\"split_on_case_change\":true,\"split_on_numerics\":true,"
-				+ "\"catenate_words\":true,\"catenate_numbers\":false,"
-				+ "\"stem_english_possessive\":true}"
-				+ "}");
-		settings.setFilterOrder(Arrays.asList("acs_word_delimiter", "lowercase"));
-
-		TextAnalyzer analyzer = new TextAnalyzer();
-		analyzer.setId(Long.toString(TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID));
-		analyzer.setSettings(settings);
-		return analyzer;
+	private TextAnalyzer bootstrappedAnalyzer(long id) {
+		return textAnalyzerDao.get(id).orElseThrow(() -> new IllegalStateException(
+				"Bootstrapped TextAnalyzer not found for id " + id
+						+ "; TextAnalyzerBootstrapper should have populated it on startup."));
 	}
 
 	// ---- Polling helpers ----
@@ -585,7 +756,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		analyzer.setId(id.toString());
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
 		settings.setTokenizer(tokenizer);
-		settings.setFilterOrder(Collections.singletonList("lowercase"));
+		settings.setIndexFilterOrder(Collections.singletonList("lowercase"));
 		analyzer.setSettings(settings);
 		return analyzer;
 	}

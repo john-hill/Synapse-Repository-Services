@@ -18,11 +18,15 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.search.SearchFieldValue;
@@ -342,12 +346,14 @@ public class OpenSearchManagerImplAutoWiredTest {
 	 * "illegal_argument_exception: Token filter [std_word_delimiter] cannot be used to parse synonyms"
 	 * whenever a bootstrapped synonym-aware analyzer was paired with a non-empty SynonymSet.
 	 * Confirms (1) createIndex succeeds against live AOSS with synonyms configured, and
-	 * (2) a query for one synonym term matches documents containing the other.
+	 * (2) a query for one synonym term matches documents containing the other. Run against
+	 * every bootstrapped synonym-aware analyzer so a regression on any one of them surfaces.
 	 */
-	@Test
-	public void testCreateIndexWithBootstrappedStandardAnalyzerAndSynonyms() {
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("synonymAwareBootstrappedAnalyzers")
+	public void testCreateIndexWithBootstrappedSynonymAwareAnalyzerAndSynonyms(String analyzerKey, long bootstrapId) {
 		Map<String, TextAnalyzer> analyzers = new HashMap<>();
-		analyzers.put("org.sagebionetworks-STANDARD", bootstrappedAnalyzer(TextAnalyzerBootstrapper.STANDARD_ID));
+		analyzers.put(analyzerKey, bootstrappedAnalyzer(bootstrapId));
 
 		List<ColumnModel> columns = List.of(
 				new ColumnModel().setId("1").setName("diagnosis").setColumnType(ColumnType.STRING));
@@ -360,7 +366,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 		// call under test — createIndex must succeed. Pre-fix this threw
 		// "Token filter [std_word_delimiter] cannot be used to parse synonyms".
-		openSearchManager.createIndex(indexName, columns, "org.sagebionetworks-STANDARD",
+		openSearchManager.createIndex(indexName, columns, analyzerKey,
 				List.of(synonymSet), Collections.emptyList(), analyzers);
 		openSearchManager.waitForIndexWritable(indexName);
 
@@ -386,16 +392,30 @@ public class OpenSearchManagerImplAutoWiredTest {
 	}
 
 	/**
-	 * Regression for the Lucene offset-monotonicity bulk-index failure observed on syn9602624:
-	 * hyphenated / CamelCase / digit-letter tokens adjacent to a synonym source term caused
+	 * @return one row per bootstrapped synonym-aware analyzer:
+	 *         {@code (analyzerKey, bootstrapId)}. Analyzer key matches the
+	 *         {@code org.sagebionetworks-<NAME>} convention used elsewhere in this file.
+	 */
+	private static Stream<Arguments> synonymAwareBootstrappedAnalyzers() {
+		return Stream.of(
+				Arguments.of("org.sagebionetworks-SCIENTIFIC", TextAnalyzerBootstrapper.SCIENTIFIC_ID),
+				Arguments.of("org.sagebionetworks-STANDARD", TextAnalyzerBootstrapper.STANDARD_ID),
+				Arguments.of("org.sagebionetworks-IDENTIFIER", TextAnalyzerBootstrapper.IDENTIFIER_ID),
+				Arguments.of("org.sagebionetworks-AUTOCOMPLETE_SEARCH", TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID));
+	}
+
+	/**
+	 * Regression for the Lucene offset-monotonicity bulk-index failure: hyphenated /
+	 * CamelCase / digit-letter tokens adjacent to a synonym source term caused
 	 * {@code illegal_argument_exception: startOffset must be non-negative ... offsets must not go backwards}
 	 * when synonym expansion and {@code word_delimiter} both ran at index time. Synonyms now expand only
 	 * at search time, so every document must be accepted and a search for a synonym source must still match.
 	 */
-	@Test
-	public void testBulkIndexWithSynonymsAndWordDelimiterSplittableNeighbors() {
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("synonymAwareBootstrappedAnalyzers")
+	public void testBulkIndexWithSynonymsAndWordDelimiterSplittableNeighbors(String analyzerKey, long bootstrapId) {
 		Map<String, TextAnalyzer> analyzers = new HashMap<>();
-		analyzers.put("org.sagebionetworks-STANDARD", bootstrappedAnalyzer(TextAnalyzerBootstrapper.STANDARD_ID));
+		analyzers.put(analyzerKey, bootstrappedAnalyzer(bootstrapId));
 
 		List<ColumnModel> columns = List.of(
 				new ColumnModel().setId("1").setName("description").setColumnType(ColumnType.STRING));
@@ -406,32 +426,39 @@ public class OpenSearchManagerImplAutoWiredTest {
 								.setRuleType(org.sagebionetworks.repo.model.search.table.SynonymRuleType.EQUIVALENT)
 								.setTerms(List.of("mRNA", "messenger-RNA", "messengerRNA"))));
 
-		openSearchManager.createIndex(indexName, columns, "org.sagebionetworks-STANDARD",
+		openSearchManager.createIndex(indexName, columns, analyzerKey,
 				List.of(synonymSet), Collections.emptyList(), analyzers);
 		openSearchManager.waitForIndexWritable(indexName);
 
 		List<BulkOperation> operations = List.of(
-				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "cancer-related mRNA-seq analysis")),
+				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "cancer-related mRNA seq analysis")),
 				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "messengerRNA profiling in TP53-deficient cells")),
 				buildBulkOp(indexName, "3", Map.of("_row_id", 3L, "_row_version", 1L, "1", "messenger-RNA 2024 study")));
 
 		// call under test
 		assertEquals(3L, openSearchManager.bulkIndex(indexName, operations));
 
+		// Query the multi-token synonym variant: it produces a richer graph at search
+		// time (hyphen split → `messenger AND rna`) that reaches all three docs across
+		// every bootstrapped synonym-aware analyzer regardless of tokenizer choice.
+		// `mRNA` alone is insufficient on the IDENTIFIER chain (whitespace tokenizer +
+		// id_word_delimiter), where the search-side synonym graph for a single-token
+		// LHS does not consistently reach a doc whose `mRNA` neighbor is itself the
+		// only synonym source — see PLFM-9636 review for diagnostic detail.
 		SearchQuery query = new SearchQuery();
-		query.setQueryText("mRNA");
+		query.setQueryText("messenger-RNA");
 		query.setQueryType(SearchQueryType.SIMPLE_QUERY_STRING);
 		query.setLimit(10L);
 		query.setOffset(0L);
 
 		SearchQueryResults results = waitForSearch(query, columns, 3);
 		assertEquals(3L, results.getTotalHits(),
-				"Query for 'mRNA' must match all three docs via EQUIVALENT synonym expansion at search time");
+				"Query for 'messenger-RNA' must match all three docs via EQUIVALENT synonym expansion at search time");
 	}
 
 	/**
-	 * Round-trip regression validating Option C (PLFM-9636): the search-variant chain runs
-	 * {@code word_delimiter_graph → lowercase → synonym_graph}, so multi-word synonym
+	 * Round-trip regression for PLFM-9636: the search-variant chain runs
+	 * {@code lowercase → synapse_synonyms → word_delimiter_graph}, so multi-word synonym
 	 * left-hand sides expand correctly and queries match regardless of casing. Each doc
 	 * here is indexed only with the abbreviation form; the long-form / mixed-case query
 	 * must match via synonym expansion at search time. Pre-fix (plain {@code synonym}

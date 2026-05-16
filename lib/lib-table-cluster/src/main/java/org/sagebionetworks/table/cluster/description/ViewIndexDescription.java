@@ -80,9 +80,10 @@ public class ViewIndexDescription implements IndexDescription {
 		}
 		if (includeEtag) {
 			return Arrays.asList(new ColumnToAdd(idAndVersion, ROW_ID), new ColumnToAdd(idAndVersion, ROW_VERSION),
-					new ColumnToAdd(idAndVersion, ROW_ETAG));
+					new ColumnToAdd(idAndVersion, ROW_ETAG), new ColumnToAdd(idAndVersion, ROW_BENEFACTOR));
 		} else {
-			return Arrays.asList(new ColumnToAdd(idAndVersion, ROW_ID), new ColumnToAdd(idAndVersion, ROW_VERSION));
+			return Arrays.asList(new ColumnToAdd(idAndVersion, ROW_ID), new ColumnToAdd(idAndVersion, ROW_VERSION),
+					new ColumnToAdd(idAndVersion, ROW_BENEFACTOR));
 		}
 	}
 

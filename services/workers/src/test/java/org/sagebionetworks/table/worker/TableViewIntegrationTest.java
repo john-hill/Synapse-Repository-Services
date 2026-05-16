@@ -408,7 +408,7 @@ public class TableViewIntegrationTest {
 		query.setIncludeEntityEtag(true);
 
 		// run the query again
-		waitForConsistentQuery(adminUserInfo, query, (results) -> {			
+		waitForConsistentQuery(adminUserInfo, query, (results) -> {
 			assertNotNull(results);
 			assertEquals(new Long(fileCount), results.getQueryCount());
 			assertNotNull(results.getQueryResult());
@@ -419,7 +419,32 @@ public class TableViewIntegrationTest {
 			validateRowsMatchFiles(rows);
 		});
 	}
-	
+
+	@Test
+	public void testFileViewWithEtagReturnsBenefactorId() throws Exception {
+		createFileView();
+		// wait for replication
+		waitForEntityReplication(fileViewId);
+		Query query = new Query();
+		query.setSql("select * from " + fileViewId);
+		query.setIncludeEntityEtag(true);
+
+		Long expectedBenefactorId = KeyFactory.stringToKey(project.getId());
+
+		// call under test
+		waitForConsistentQuery(adminUserInfo, query, (results) -> {
+			assertNotNull(results);
+			assertEquals(new Long(fileCount), results.getQueryCount());
+			List<Row> rows = results.getQueryResult().getQueryResults().getRows();
+			assertEquals(fileCount, rows.size());
+			for (Row row : rows) {
+				FileEntity entity = entityManager.getEntity(adminUserInfo, "" + row.getRowId(), FileEntity.class);
+				assertEquals(entity.getEtag(), row.getEtag());
+				assertEquals(expectedBenefactorId, row.getBenefactorId());
+			}
+		});
+	}
+
 	@Test
 	public void testSumFileSizes() throws Exception{
 		createFileView();

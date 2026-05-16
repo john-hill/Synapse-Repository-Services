@@ -1,5 +1,6 @@
 package org.sagebionetworks.table.cluster;
 
+import static org.sagebionetworks.repo.model.table.TableConstants.ROW_BENEFACTOR;
 import static org.sagebionetworks.repo.model.table.TableConstants.ROW_ETAG;
 import static org.sagebionetworks.repo.model.table.TableConstants.ROW_ID;
 import static org.sagebionetworks.repo.model.table.TableConstants.ROW_VERSION;
@@ -330,7 +331,7 @@ public class SQLTranslatorUtils {
 	 * @return
 	 * @throws SQLException
 	 */
-	public static Row readRow(ResultSet rs, boolean includesRowIdAndVersion, boolean includeEtag, ColumnTypeInfo[] colunTypes) throws SQLException{
+	public static Row readRow(ResultSet rs, boolean includesRowIdAndVersion, boolean includeEtag, boolean includeBenefactorId, ColumnTypeInfo[] colunTypes) throws SQLException{
 		Row row = new Row();
 		List<String> values = new ArrayList<String>(colunTypes.length);
 		row.setValues(values);
@@ -339,6 +340,9 @@ public class SQLTranslatorUtils {
 			row.setVersionNumber(rs.getLong(ROW_VERSION));
 			if(includeEtag){
 				row.setEtag(rs.getString(ROW_ETAG));
+			}
+			if(includeBenefactorId){
+				row.setBenefactorId(rs.getLong(ROW_BENEFACTOR));
 			}
 		}
 		// Read the select columns.

@@ -28,6 +28,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -88,7 +89,13 @@ import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResponse;
 import org.sagebionetworks.repo.model.dataaccess.UserSubmissionSearchResult;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.ResearchProjectDAO;
+import org.sagebionetworks.ids.IdGenerator;
+import org.sagebionetworks.repo.model.UploadContentToS3DAO;
 import org.sagebionetworks.repo.model.dbo.dao.dataaccess.SubmissionDAO;
+import org.sagebionetworks.repo.model.dbo.dao.discussion.DiscussionThreadDAO;
+import org.sagebionetworks.repo.model.dbo.dao.discussion.ForumDAO;
+import org.sagebionetworks.repo.model.discussion.Forum;
+import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.sagebionetworks.repo.model.message.ChangeType;
 import org.sagebionetworks.repo.model.message.MessageToSend;
 import org.sagebionetworks.repo.model.message.TransactionalMessenger;
@@ -126,6 +133,14 @@ public class SubmissionManagerImplTest {
 	private RequestManager mockRequestManager;
 	@Mock
 	private DataAccessAuthorizationManager mockAuthManager;
+	@Mock
+	private ForumDAO mockForumDao;
+	@Mock
+	private DiscussionThreadDAO mockThreadDao;
+	@Mock
+	private UploadContentToS3DAO mockUploadDao;
+	@Mock
+	private IdGenerator mockIdGenerator;
 	@InjectMocks
 	private SubmissionManagerImpl manager;
 	@Captor
@@ -153,6 +168,7 @@ public class SubmissionManagerImplTest {
 	private String subjectId;
 	
 	private UserInfo actUser;
+	private Forum mockForum;
 
 	@BeforeEach
 	public void before() {
@@ -212,6 +228,11 @@ public class SubmissionManagerImplTest {
 				.thenReturn(mockSubmissionStatus);
 		lenient().when(mockSubmissionStatus.getSubmissionId()).thenReturn(submissionId);
 		lenient().when(mockAccessApprovalDao.hasApprovalsSubmittedBy(accessorIds, userId, accessRequirementId)).thenReturn(true);
+
+		mockForum = new Forum();
+		mockForum.setId("100");
+		mockForum.setObjectId(accessRequirementId);
+		mockForum.setObjectType(ForumObjectType.ACCESS_REQUIREMENT);
 
 		submission = new Submission();
 		submission.setRequestId(requestId);
@@ -435,6 +456,8 @@ public class SubmissionManagerImplTest {
 
 	@Test
 	public void testCreate() {
+		when(mockForumDao.getForumByObjectIdAndType(accessRequirementId, ForumObjectType.ACCESS_REQUIREMENT))
+				.thenReturn(mockForum);
 		manager.create(mockUser, csRequest);
 		ArgumentCaptor<Submission> submissionCaptor = ArgumentCaptor.forClass(Submission.class);
 		verify(mockSubmissionDao).createSubmission(submissionCaptor.capture());
@@ -487,6 +510,8 @@ public class SubmissionManagerImplTest {
 		request.setAccessorChanges(accessors);
 		request.setEtag(etag);
 		when(mockRequestManager.getRequestForSubmission(requestId)).thenReturn(request);
+		when(mockForumDao.getForumByObjectIdAndType(accessRequirementId, ForumObjectType.ACCESS_REQUIREMENT))
+				.thenReturn(mockForum);
 		manager.create(mockUser, csRequest);
 		ArgumentCaptor<Submission> submissionCaptor = ArgumentCaptor.forClass(Submission.class);
 		verify(mockSubmissionDao).createSubmission(submissionCaptor.capture());
@@ -2087,5 +2112,29 @@ public class SubmissionManagerImplTest {
 
 		verify(mockAccessApprovalDao).searchAccessApprovalsForSubmission(Set.of(Long.parseLong(submission.getId())), userId);
 		verify(mockAccessRequirementDao).getAccessRequirementNames(Set.of(Long.parseLong(accessRequirementId)));
+	}
+
+	@Test
+	public void testGetSubmissionForThreadAuthorized() {
+		String threadId = "555";
+		submission.setAccessorChanges(Collections.emptyList());
+		when(mockThreadDao.getSubmissionIdForThread(threadId)).thenReturn(Optional.of(submissionId));
+		when(mockAuthManager.canReviewAccessRequirementSubmissions(any(), any())).thenReturn(AuthorizationStatus.authorized());
+		when(mockSubmissionDao.getSubmission(any())).thenReturn(submission);
+		// call under test
+		Submission result = manager.getSubmissionForThread(mockUser, threadId);
+		assertNotNull(result);
+		assertEquals(submission, result);
+		verify(mockAuthManager).canReviewAccessRequirementSubmissions(mockUser, accessRequirementId);
+	}
+
+	@Test
+	public void testGetSubmissionForThreadNotFound() {
+		String threadId = "555";
+		when(mockThreadDao.getSubmissionIdForThread(threadId)).thenReturn(Optional.empty());
+		// call under test
+		assertThrows(NotFoundException.class, () -> {
+			manager.getSubmissionForThread(mockUser, threadId);
+		});
 	}
 }

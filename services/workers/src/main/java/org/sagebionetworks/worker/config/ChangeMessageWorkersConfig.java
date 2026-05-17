@@ -16,6 +16,7 @@ import org.sagebionetworks.replication.workers.ObjectReplicationReconciliationWo
 import org.sagebionetworks.replication.workers.ObjectReplicationWorker;
 import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.search.oss.worker.SearchIndexWorker;
+import org.sagebionetworks.search.workers.SearchIndexLifecycleWorker;
 import org.sagebionetworks.snapshot.workers.ObjectSnapshotWorker;
 import org.sagebionetworks.snapshot.workers.writers.ObjectRecordWriter;
 import org.sagebionetworks.table.worker.MaterializedViewUpdateWorker;
@@ -285,6 +286,29 @@ public class ChangeMessageWorkersConfig {
 			)
 			.withRepeatInterval(1532)
 			.withStartDelay(1236)
+			.build();
+	}
+
+	@Bean
+	public SimpleTriggerFactoryBean searchIndexLifecycleWorkerTrigger(SearchIndexLifecycleWorker searchIndexLifecycleWorker) {
+
+		String queueName = stackConfig.getQueueName("SEARCH_INDEX_LIFECYCLE");
+		MessageDrivenRunner worker = new ChangeMessageBatchProcessor(amazonSQSClient, queueName, searchIndexLifecycleWorker);
+
+		return new WorkerTriggerBuilder()
+			.withStack(ConcurrentWorkerStack.builder()
+				.withSemaphoreLockKey("searchIndexLifecycleWorker")
+				.withSemaphoreMaxLockCount(2)
+				.withSemaphoreLockAndMessageVisibilityTimeoutSec(300)
+				.withMaxThreadsPerMachine(2)
+				.withSingleton(concurrentStackManager)
+				.withCanRunInReadOnly(false)
+				.withQueueName(queueName)
+				.withWorker(worker)
+				.build()
+			)
+			.withRepeatInterval(2053)
+			.withStartDelay(523)
 			.build();
 	}
 

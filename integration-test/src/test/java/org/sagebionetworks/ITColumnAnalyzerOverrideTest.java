@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,13 +42,17 @@ public class ITColumnAnalyzerOverrideTest {
 		String orgName = firstAnalyzer.getOrganizationName();
 		String analyzerQualifiedName = orgName + "-" + firstAnalyzer.getName();
 
+		// Names are unique per organization with no delete endpoint, so use a UUID
+		// suffix to avoid collisions across re-runs of the test.
+		String name = "IT_TEST_OVERRIDE_" + UUID.randomUUID().toString().replace("-", "");
+
 		// CREATE
 		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
 		entry.setColumnName("diagnosis");
 		entry.setIndexAnalyzer(analyzerQualifiedName);
 
 		ColumnAnalyzerOverride toCreate = new ColumnAnalyzerOverride();
-		toCreate.setName("IT_TEST_OVERRIDE");
+		toCreate.setName(name);
 		toCreate.setDescription("Integration test column analyzer override");
 		toCreate.setOrganizationName(orgName);
 		toCreate.setOverrides(Arrays.asList(entry));
@@ -56,7 +61,7 @@ public class ITColumnAnalyzerOverrideTest {
 		ColumnAnalyzerOverride created = adminSynapse.createColumnAnalyzerOverride(toCreate);
 		assertNotNull(created.getId());
 		assertNotNull(created.getEtag());
-		assertEquals("IT_TEST_OVERRIDE", created.getName());
+		assertEquals(name, created.getName());
 		assertEquals(1, created.getOverrides().size());
 		assertEquals("diagnosis", created.getOverrides().get(0).getColumnName());
 
@@ -64,7 +69,7 @@ public class ITColumnAnalyzerOverrideTest {
 		ColumnAnalyzerOverride fetched = adminSynapse.getColumnAnalyzerOverride(created.getId());
 		assertEquals(created.getId(), fetched.getId());
 		assertEquals(created.getEtag(), fetched.getEtag());
-		assertEquals("IT_TEST_OVERRIDE", fetched.getName());
+		assertEquals(name, fetched.getName());
 
 		// UPDATE
 		fetched.setDescription("Updated description");

@@ -1,0 +1,23 @@
+{
+	"description": "Identifiers for the opt-in parts of a SearchQueryResults. Clients pass a list of these values in SearchIndexQuery.responseParts to widen what the server computes and returns. When the list is null or empty the server returns the default minimal payload — HITS plus the always-populated offset — and skips the corresponding work in OpenSearch (no aggregations, no total-hit tracking).",
+	"name": "SearchQueryPart",
+	"type": "string",
+	"enum": [
+		{
+			"name": "HITS",
+			"description": "The matching documents, one SearchHit per row. Returned by default."
+		},
+		{
+			"name": "TOTAL_HITS",
+			"description": "The total number of matches. May exceed the size of the returned hits list when paginated."
+		},
+		{
+			"name": "SELECT_COLUMNS",
+			"description": "The list of SelectColumns describing the shape of each hit's fields."
+		},
+		{
+			"name": "FACETS",
+			"description": "Facet aggregations over the matched documents."
+		}
+	]
+}

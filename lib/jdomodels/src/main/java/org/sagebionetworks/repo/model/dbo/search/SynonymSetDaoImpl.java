@@ -14,8 +14,12 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SYNSET_R
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
@@ -175,7 +179,7 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 			params.add(qualifiedName.substring(dashIndex + 1));
 		}
 		sql.append(")");
-		List<String> existingNames = jdbcTemplate.queryForList(sql.toString(), String.class, params.toArray());
+		Set<String> existingNames = new HashSet<>(jdbcTemplate.queryForList(sql.toString(), String.class, params.toArray()));
 		List<String> missing = new ArrayList<>();
 		for (String qualifiedName : qualifiedNames) {
 			if (!existingNames.contains(qualifiedName)) {
@@ -183,6 +187,32 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 			}
 		}
 		return missing;
+	}
+
+	@Override
+	public Map<String, SynonymSet> getByQualifiedNames(List<String> qualifiedNames) {
+		if (qualifiedNames == null || qualifiedNames.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		StringBuilder sql = new StringBuilder("SELECT * FROM SYNONYM_SET WHERE (ORGANIZATION_NAME, NAME) IN (");
+		List<Object> params = new ArrayList<>();
+		for (int i = 0; i < qualifiedNames.size(); i++) {
+			if (i > 0) {
+				sql.append(", ");
+			}
+			sql.append("(?, ?)");
+			String qualifiedName = qualifiedNames.get(i);
+			int dashIndex = qualifiedName.indexOf('-');
+			params.add(qualifiedName.substring(0, dashIndex));
+			params.add(qualifiedName.substring(dashIndex + 1));
+		}
+		sql.append(")");
+		List<SynonymSet> sets = jdbcTemplate.query(sql.toString(), SYNONYM_SET_ROW_MAPPER, params.toArray());
+		Map<String, SynonymSet> result = new HashMap<>();
+		for (SynonymSet s : sets) {
+			result.put(s.getOrganizationName() + "-" + s.getName(), s);
+		}
+		return result;
 	}
 
 	@Override

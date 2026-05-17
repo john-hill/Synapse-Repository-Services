@@ -76,7 +76,7 @@ public class OpenSearchIndexInitializerTest {
         when(mockIndicesClient.exists((ExistsRequest) ArgumentMatchers.any())).thenReturn(new BooleanResponse(false));
         when(mockIndicesClient.create((CreateIndexRequest) ArgumentMatchers.any())).thenReturn(
                 new CreateIndexResponse.Builder().index(SearchConstants.OPEN_SEARCH_INDEX_NAME)
-                        .acknowledged(null).shardsAcknowledged(true).build());
+                        .acknowledged(false).shardsAcknowledged(true).build());
 
         //call under test
         initializer.init();

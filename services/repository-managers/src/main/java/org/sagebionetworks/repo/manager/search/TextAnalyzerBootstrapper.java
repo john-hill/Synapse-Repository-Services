@@ -105,8 +105,14 @@ public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 				+ "\"english_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"},"
 				+ "\"english_stemmer\":{\"type\":\"stemmer\",\"language\":\"english\"}"
 				+ "}");
-		settings.setFilterOrder(Arrays.asList(
+		settings.setIndexFilterOrder(Arrays.asList(
 				"sci_word_delimiter", "lowercase", "english_stop", "english_stemmer"));
+		// At search time we run lowercase first (so synonym rule LHS and query tokens reach
+		// the filter in the same case), then synapse_synonyms, then sci_word_delimiter.
+		// word_delimiter_graph must be DOWNSTREAM of synapse_synonyms because the synonym
+		// filter's rule parser rejects upstream filters with positionLength > 1.
+		settings.setSearchFilterOrder(Arrays.asList(
+				"lowercase", "synapse_synonyms", "sci_word_delimiter", "english_stop", "english_stemmer"));
 		settings.setSynonymAware(true);
 		return settings;
 	}
@@ -120,7 +126,8 @@ public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 				+ "\"catenate_words\":true,\"catenate_numbers\":false,"
 				+ "\"stem_english_possessive\":true}"
 				+ "}");
-		settings.setFilterOrder(Arrays.asList("std_word_delimiter", "lowercase"));
+		settings.setIndexFilterOrder(Arrays.asList("std_word_delimiter", "lowercase"));
+		settings.setSearchFilterOrder(Arrays.asList("lowercase", "synapse_synonyms", "std_word_delimiter"));
 		settings.setSynonymAware(true);
 		return settings;
 	}
@@ -134,7 +141,8 @@ public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 				+ "\"catenate_words\":true,\"catenate_numbers\":false,"
 				+ "\"stem_english_possessive\":false}"
 				+ "}");
-		settings.setFilterOrder(Arrays.asList("id_word_delimiter", "lowercase"));
+		settings.setIndexFilterOrder(Arrays.asList("id_word_delimiter", "lowercase"));
+		settings.setSearchFilterOrder(Arrays.asList("lowercase", "synapse_synonyms", "id_word_delimiter"));
 		settings.setSynonymAware(true);
 		return settings;
 	}
@@ -148,14 +156,20 @@ public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 	private TextAnalyzerSettings buildAutocompleteSettings() {
 		TextAnalyzerSettings settings = new TextAnalyzerSettings();
 		settings.setTokenizer("standard");
+		// AUTOCOMPLETE is an index-time analyzer ending in edge_ngram. word_delimiter_graph emits
+		// multi-position graph tokens which edge_ngram (a non-graph filter) cannot consume, so the
+		// chain breaks at index time and AOSS rejects the document with a generic "Internal error".
+		// We use the legacy word_delimiter (positionLength always 1) here; graph attributes aren't
+		// useful at index time anyway. AUTOCOMPLETE_SEARCH keeps word_delimiter_graph since search
+		// time is where the graph matters.
 		settings.setTokenFilters("{"
-				+ "\"ac_word_delimiter\":{\"type\":\"word_delimiter_graph\",\"preserve_original\":true,"
+				+ "\"ac_word_delimiter\":{\"type\":\"word_delimiter\",\"preserve_original\":true,"
 				+ "\"split_on_case_change\":true,\"split_on_numerics\":true,"
 				+ "\"catenate_words\":true,\"catenate_numbers\":false,"
 				+ "\"stem_english_possessive\":true},"
 				+ "\"edge_ngram_filter\":{\"type\":\"edge_ngram\",\"min_gram\":2,\"max_gram\":20}"
 				+ "}");
-		settings.setFilterOrder(Arrays.asList("ac_word_delimiter", "lowercase", "edge_ngram_filter"));
+		settings.setIndexFilterOrder(Arrays.asList("ac_word_delimiter", "lowercase", "edge_ngram_filter"));
 		settings.setSynonymAware(false);
 		return settings;
 	}
@@ -169,7 +183,8 @@ public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 				+ "\"catenate_words\":true,\"catenate_numbers\":false,"
 				+ "\"stem_english_possessive\":true}"
 				+ "}");
-		settings.setFilterOrder(Arrays.asList("acs_word_delimiter", "lowercase"));
+		settings.setIndexFilterOrder(Arrays.asList("acs_word_delimiter", "lowercase"));
+		settings.setSearchFilterOrder(Arrays.asList("lowercase", "synapse_synonyms", "acs_word_delimiter"));
 		settings.setSynonymAware(true);
 		return settings;
 	}

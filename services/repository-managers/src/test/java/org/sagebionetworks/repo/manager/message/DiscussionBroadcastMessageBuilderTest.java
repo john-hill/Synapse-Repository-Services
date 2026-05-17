@@ -127,6 +127,55 @@ public class DiscussionBroadcastMessageBuilderTest {
 	}
 
 	@Test
+	public void testBuildARReplyRawBodyForSubscriber() {
+		String arId = "456";
+		String arName = "AccessRequirement 456";
+		topic.setObjectType(SubscriptionObjectType.THREAD);
+		builder = new DiscussionBroadcastMessageBuilder(actorUsername, actorUserId,
+				threadTitle, threadId, arId, arName, markdown,
+				ReplyMessageBuilderFactory.REPLY_AR_TEMPLATE, ReplyMessageBuilderFactory.REPLY_CREATED_TITLE,
+				ReplyMessageBuilderFactory.UNSUBSCRIBE_THREAD, mockMarkdownDao, topic, mockUserManager);
+
+		//call under test
+		String body = builder.buildRawBodyForSubscriber(subscriber);
+		assertNotNull(body);
+		assertTrue(body.contains("someone"));
+		assertTrue(body.contains(threadTitle));
+		assertTrue(body.contains(arName));
+		// AR links
+		assertTrue(body.contains("https://www.synapse.org/AccessRequirement:AR_ID=456&threadId=333"));
+		assertTrue(body.contains("https://www.synapse.org/AccessRequirement:AR_ID=456"));
+		// Should NOT contain project-style links
+		assertFalse(body.contains("Synapse:syn"));
+		assertFalse(body.contains("Subscribe to the thread"));
+		assertTrue(body.contains("Unsubscribe from the thread"));
+	}
+
+	@Test
+	public void testBuildARReplyRawBodyForNonSubscriber() {
+		String arId = "456";
+		String arName = "AccessRequirement 456";
+		topic.setObjectType(SubscriptionObjectType.THREAD);
+		builder = new DiscussionBroadcastMessageBuilder(actorUsername, actorUserId,
+				threadTitle, threadId, arId, arName, markdown,
+				ReplyMessageBuilderFactory.REPLY_AR_TEMPLATE, ReplyMessageBuilderFactory.REPLY_CREATED_TITLE,
+				ReplyMessageBuilderFactory.UNSUBSCRIBE_THREAD, mockMarkdownDao, topic, mockUserManager);
+
+		//call under test
+		String body = builder.buildRawBodyForNonSubscriber(user);
+		assertNotNull(body);
+		assertTrue(body.contains("someone"));
+		assertTrue(body.contains(threadTitle));
+		assertTrue(body.contains(arName));
+		// AR links
+		assertTrue(body.contains("https://www.synapse.org/AccessRequirement:AR_ID=456&threadId=333"));
+		assertTrue(body.contains("https://www.synapse.org/AccessRequirement:AR_ID=456"));
+		// Should NOT contain project-style links
+		assertFalse(body.contains("Synapse:syn"));
+		assertTrue(body.contains("Subscribe to the thread"));
+	}
+
+	@Test
 	public void testBuildRawBodyForNoneSubscriber(){
 		String body = builder.buildRawBodyForNonSubscriber(user);
 		assertNotNull(body);

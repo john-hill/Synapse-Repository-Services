@@ -15,10 +15,8 @@ import org.opensearch.client.opensearch._types.aggregations.LongTermsBucket;
 import org.opensearch.client.opensearch._types.aggregations.StringTermsAggregate;
 import org.opensearch.client.opensearch._types.aggregations.StringTermsBucket;
 import org.opensearch.client.opensearch._types.query_dsl.BoolQuery;
-import org.opensearch.client.opensearch._types.query_dsl.MatchAllQuery;
 import org.opensearch.client.opensearch._types.query_dsl.Query;
 import org.opensearch.client.opensearch._types.query_dsl.RangeQuery;
-import org.opensearch.client.opensearch._types.query_dsl.TermQuery;
 import org.opensearch.client.opensearch.core.SearchRequest;
 import org.opensearch.client.opensearch.core.SearchResponse;
 import org.opensearch.client.opensearch.core.search.Hit;
@@ -290,7 +288,7 @@ public class OssUtil {
         searchBuilder.size(0);
 
         return searchBuilder
-                .query(boolBuilder.build()._toQuery()).build();
+                .query(Query.of(q -> q.bool(boolBuilder.build()))).build();
     }
 
     public static SearchRequest generateSearchRequest(UserInfo userInfo, SearchQuery searchQuery) {
@@ -324,16 +322,16 @@ public class OssUtil {
         } else {
             // If no terms, use match_all
             boolBuilder.must(
-                    MatchAllQuery.of(m -> m)._toQuery()
+                    Query.of(q -> q.matchAll(m -> m))
             );
         }
 
         if (!CollectionUtils.isEmpty(booleanQueries)) {
             booleanQueries.forEach(query -> {
-                Query termQuery = TermQuery.of(t -> t
+                Query termQuery = Query.of(q -> q.term(t -> t
                         .field(query.getKey())
                         .value(FieldValue.of(query.getValue()))
-                )._toQuery();
+                ));
                 if (query.getNot() != null && query.getNot()) {
                     // Add to must_not if this is a NOT condition
                     boolBuilder.mustNot(termQuery);
@@ -410,7 +408,7 @@ public class OssUtil {
         }
 
         return searchBuilder
-                .query(boolBuilder.build()._toQuery()).build();
+                .query(Query.of(q -> q.bool(boolBuilder.build()))).build();
 
     }
 
@@ -466,7 +464,7 @@ public class OssUtil {
                 LongTermsAggregate termsAgg = aggregate.lterms();
 
                 for (LongTermsBucket bucket : termsAgg.buckets().array()) {
-                    constraints.add(new FacetConstraint().setValue(bucket.key()).setCount(bucket.docCount()));
+                    constraints.add(new FacetConstraint().setValue(bucket.keyAsString()).setCount(bucket.docCount()));
                 }
             }
 

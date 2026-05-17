@@ -8,6 +8,7 @@ import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AuthorizationUtils;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
+import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
@@ -21,10 +22,13 @@ public class GridAuthorizationManagerImpl implements GridAuthorizationManager {
 
 	private final GridDao gridDao;
 	private final EntityAuthorizationManager entityAuthorizationManager;
+	private final UserGroupDAO userGroupDAO;
 
-	public GridAuthorizationManagerImpl(GridDao gridDao, EntityAuthorizationManager entityAuthorizationManager) {
+	public GridAuthorizationManagerImpl(GridDao gridDao, EntityAuthorizationManager entityAuthorizationManager,
+			UserGroupDAO userGroupDAO) {
 		this.gridDao = gridDao;
 		this.entityAuthorizationManager = entityAuthorizationManager;
+		this.userGroupDAO = userGroupDAO;
 	}
 
 	@Override
@@ -114,6 +118,10 @@ public class GridAuthorizationManagerImpl implements GridAuthorizationManager {
 		}
 
 		Long ownerId = parseOwner(ownerString);
+		if (!userGroupDAO.doesIdExist(ownerId)) {
+			throw new IllegalArgumentException(
+					String.format("ownerPrincipalId '%s' does not exist.", ownerString));
+		}
 		if (!isAuthorizedUser(user, ownerId)) {
 			throw new UnauthorizedException("Caller must be a member of the owner's team.");
 		}

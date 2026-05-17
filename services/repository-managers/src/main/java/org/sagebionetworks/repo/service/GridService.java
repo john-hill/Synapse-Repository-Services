@@ -27,4 +27,5 @@ public interface GridService {
 
 	void deleteGridSession(Long userId, String gridSessionId);
 
+
 }

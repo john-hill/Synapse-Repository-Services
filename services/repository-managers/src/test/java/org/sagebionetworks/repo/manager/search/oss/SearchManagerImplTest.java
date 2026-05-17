@@ -195,7 +195,7 @@ public class SearchManagerImplTest {
 
         verify(mockLog).error("Could not process document {} (Operation: {}): {} (Error Type: {}).", document.getId() + 1, OperationType.Index, errorCause.reason(), errorCause.type());
         verify(mockLog).error("Could not process document {} (Operation: {}): {} (Error Type: {}).", document.getId(), OperationType.Delete, errorCause.reason(), errorCause.type());
-        
+
         verify(mockLog).error("Could not process a batch of {} documents, received {} error(s). Will retry.", 3, 2L);
     }
 
@@ -373,7 +373,7 @@ public class SearchManagerImplTest {
         Map<String, FiltersBucket> mockFilteredBuckets = Map.of(
                 "cancer", FiltersBucket.of(b -> b.docCount(10L).aggregations(Map.of(
                         "count", Aggregate.of(agg -> agg
-                                .valueCount(ValueCountAggregate.of(vca -> vca.value(1L)))
+                                .valueCount(ValueCountAggregate.of(vca -> vca.value(1.0)))
                         )
                 )))
         );
@@ -509,7 +509,7 @@ public class SearchManagerImplTest {
         Map<String, FiltersBucket> mockFilteredBuckets = Map.of(
                 "other", FiltersBucket.of(b -> b.docCount(10L).aggregations(Map.of(
                         "count", Aggregate.of(agg -> agg
-                                .valueCount(ValueCountAggregate.of(vca -> vca.value(1L)))
+                                .valueCount(ValueCountAggregate.of(vca -> vca.value(1.0)))
                         )
                 )))
         );

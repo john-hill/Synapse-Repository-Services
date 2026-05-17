@@ -2,6 +2,8 @@ package org.sagebionetworks.repo.manager.grid;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
@@ -23,6 +25,7 @@ import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
+import org.sagebionetworks.repo.model.UserGroupDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
@@ -37,6 +40,8 @@ public class GridAuthorizationManagerTest {
 	private GridDao mockGridDao;
 	@Mock
 	private EntityAuthorizationManager mockEntityAuthorizationManager;
+	@Mock
+	private UserGroupDAO mockUserGroupDAO;
 
 	@InjectMocks
 	private GridAuthorizationManagerImpl manager;
@@ -165,6 +170,7 @@ public class GridAuthorizationManagerTest {
 		Long ownerGroup = 444L;
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockUser.getGroups()).thenReturn(Set.of(userId, ownerGroup));
+		when(mockUserGroupDAO.doesIdExist(ownerGroup)).thenReturn(true);
 
 		// call under test
 		Long result = manager.validateGridOwner(mockUser, ownerGroup.toString());
@@ -176,6 +182,7 @@ public class GridAuthorizationManagerTest {
 		Long ownerGroup = 444L;
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockUser.getGroups()).thenReturn(Set.of(userId, 333L));
+		when(mockUserGroupDAO.doesIdExist(ownerGroup)).thenReturn(true);
 
 		String message = assertThrows(UnauthorizedException.class, () -> {
 			// call under test
@@ -188,6 +195,7 @@ public class GridAuthorizationManagerTest {
 	@Test
 	public void testValidateGridOwnerWithUserOwner() {
 		when(mockUser.getId()).thenReturn(userId);
+		when(mockUserGroupDAO.doesIdExist(userId)).thenReturn(true);
 
 		// call under test
 		Long result = manager.validateGridOwner(mockUser, userId.toString());
@@ -201,6 +209,7 @@ public class GridAuthorizationManagerTest {
 		// call under test
 		Long result = manager.validateGridOwner(mockUser, null);
 		assertEquals(userId, result);
+		verifyNoMoreInteractions(mockUserGroupDAO);
 	}
 
 	@Test
@@ -305,6 +314,77 @@ public class GridAuthorizationManagerTest {
 			manager.getRowLevelFilterUserInfo(mockUser, gridSessionId);
 		}).getMessage();
 		assertEquals("Grid does not have a source", message);	
+	}
+	
+	@Test
+	public void testValidateGridOwnerWithNonExistentOwner() {
+		when(mockUserGroupDAO.doesIdExist(0L)).thenReturn(false);
+
+		// call under test
+		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+				() -> manager.validateGridOwner(mockUser, "0"));
+
+		assertEquals("ownerPrincipalId '0' does not exist.", e.getMessage());
+		verify(mockUserGroupDAO).doesIdExist(0L);
+		verifyNoMoreInteractions(mockUserGroupDAO);
+	}
+
+	@Test
+	public void testValidateGridOwnerWithNonExistentOwnerAsAdmin() {
+		UserInfo admin = new UserInfo(true, 333L);
+		when(mockUserGroupDAO.doesIdExist(0L)).thenReturn(false);
+
+		// call under test
+		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+				() -> manager.validateGridOwner(admin, "0"));
+
+		assertEquals("ownerPrincipalId '0' does not exist.", e.getMessage());
+		verify(mockUserGroupDAO).doesIdExist(0L);
+		verifyNoMoreInteractions(mockUserGroupDAO);
+	}
+
+	@Test
+	public void testValidateGridOwnerWithValidOwnerAsMember() {
+		Long teamId = 444L;
+		when(mockUser.getId()).thenReturn(userId);
+		when(mockUser.getGroups()).thenReturn(Set.of(userId, teamId));
+		when(mockUserGroupDAO.doesIdExist(teamId)).thenReturn(true);
+
+		// call under test
+		Long result = manager.validateGridOwner(mockUser, teamId.toString());
+
+		assertEquals(teamId, result);
+	}
+
+	@Test
+	public void testValidateGridOwnerWithValidOwnerAsAdmin() {
+		UserInfo admin = new UserInfo(true, 333L);
+		Long teamId = 999L;
+		when(mockUserGroupDAO.doesIdExist(teamId)).thenReturn(true);
+
+		// call under test
+		Long result = manager.validateGridOwner(admin, teamId.toString());
+
+		assertEquals(teamId, result);
+	}
+
+	@Test
+	public void testValidateGridOwnerWithUnauthorizedUser() {
+		Long teamId = 999L;
+		when(mockUser.getId()).thenReturn(userId);
+		when(mockUser.getGroups()).thenReturn(Set.of(userId, 333L));
+		when(mockUserGroupDAO.doesIdExist(teamId)).thenReturn(true);
+
+		// call under test
+		assertThrows(UnauthorizedException.class, () -> manager.validateGridOwner(mockUser, teamId.toString()));
+	}
+
+	@Test
+	public void testValidateGridOwnerWithInvalidFormat() {
+		// call under test
+		assertThrows(IllegalArgumentException.class, () -> manager.validateGridOwner(mockUser, "not-a-number"));
+
+		verifyNoMoreInteractions(mockUserGroupDAO);
 	}
 
 }

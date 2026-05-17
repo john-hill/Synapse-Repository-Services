@@ -11,7 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.JSONException;
 import org.sagebionetworks.markdown.MarkdownClientException;
-import org.sagebionetworks.repo.manager.AuthorizationManager;
+import org.sagebionetworks.repo.manager.subscription.SubscriptionAndDiscussionAuthorizationManager;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.principal.SynapseEmailService;
 import org.sagebionetworks.repo.model.ObjectType;
@@ -77,8 +77,8 @@ public class BroadcastMessageManagerImpl implements BroadcastMessageManager {
 	private UserManager userManager;
 	
 	@Autowired
-	private AuthorizationManager authManager;
-	
+	private SubscriptionAndDiscussionAuthorizationManager subscriptionAndDiscussionAuthorizationManager;
+
 	@Autowired
 	private EmailQuarantineDao emailQuarantineDao;
 	
@@ -168,7 +168,7 @@ public class BroadcastMessageManagerImpl implements BroadcastMessageManager {
 				continue;
 			}
 			UserInfo userInfo = userManager.getUserInfo(Long.parseLong(userNotificationInfo.getUserId()));
-			if (authManager.canSubscribe(userInfo, topic.getObjectId(), topic.getObjectType()).isAuthorized()) {
+			if (subscriptionAndDiscussionAuthorizationManager.canSubscribe(userInfo, topic.getObjectId(), topic.getObjectType()).isAuthorized()) {
 				SendRawEmailRequest emailRequest = builder.buildEmailForNonSubscriber(userNotificationInfo);
 				log.debug("sending email to "+userNotificationInfo.getNotificationEmail());
 				sesClient.sendRawEmail(emailRequest);

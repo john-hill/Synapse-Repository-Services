@@ -448,12 +448,12 @@ public class UrlHelpers {
 	public static final String GRID_SESSION_ASYNC_START = GRID_SESSION + ASYNC_START_REQUEST;
 	public static final String GRID_SESSION_ASYNC_GET = GRID_SESSION + ASYNC_GET_REQUEST;
 	
-	public static final String GRID_SESSION_ID_SQL = GRID_SESSION_ID+"/sql";
-	public static final String GRID_SESSION_ID_SQL_QUERY = GRID_SESSION_ID_SQL+"/query";
-	public static final String GRID_SESSION_ID_SQL_UPDATE = GRID_SESSION_ID_SQL+"/update";
-	
 	public static final String GRID_SESSION_ID_REPLICA = GRID_SESSION_ID+"/replica";
 	public static final String GRID_SESSION_ID_REPLICA_ID = GRID_SESSION_ID_REPLICA+"/{replicaId}";
+	public static final String GRID_SESSION_QUERY_ASYNC_START = GRID_SESSION+"/query"+ASYNC_START_REQUEST;
+	public static final String GRID_SESSION_QUERY_ASYNC_GET = GRID_SESSION+"/query"+ASYNC_GET_REQUEST;
+	public static final String GRID_SESSION_UPDATE_ASYNC_START = GRID_SESSION+"/update"+ASYNC_START_REQUEST;
+	public static final String GRID_SESSION_UPDATE_ASYNC_GET = GRID_SESSION+"/update"+ASYNC_GET_REQUEST;
 	public static final String GRID_SESSION_ID_REPLICA_LIST = GRID_SESSION_ID_REPLICA+"/list";
 
     public static final String GRID_DOWNLOAD = GRID+"/download";
@@ -605,6 +605,7 @@ public class UrlHelpers {
 	public static final String ACCESS_REQUIREMENT_WITH_REQUIREMENT_ID = ACCESS_REQUIREMENT+ACCESS_REQUIREMENT_ID;
 	public static final String ENTITY_LOCK_ACCESS_REQURIEMENT = ENTITY_ID+"/lockAccessRequirement";	
 	public static final String ACCESS_REQUIREMENT_ACL = ACCESS_REQUIREMENT_WITH_REQUIREMENT_ID + "/acl";
+	public static final String ACCESS_REQUIREMENT_PERMISSIONS = ACCESS_REQUIREMENT_WITH_REQUIREMENT_ID + "/permissions";
 	public static final String ACCESS_REQUIREMENT_SEARCH = ACCESS_REQUIREMENT + "/search";
 
 	public static final String ACCESS_REQUIREMENT_CONVERSION = ACCESS_REQUIREMENT+"/conversion";
@@ -1114,6 +1115,8 @@ public class UrlHelpers {
 	public static final String THREAD = "/thread";
 	public static final String THREAD_ID = "/{threadId}";
 	public static final String THREAD_THREAD_ID = THREAD+THREAD_ID;
+	public static final String SUBMISSION_ID_PATH = "/{submissionId}";
+	public static final String THREAD_SUBMISSION_SUBMISSION_ID = THREAD + "/submission" + SUBMISSION_ID_PATH;
 	public static final String THREAD_THREAD_ID_RESTORE = THREAD+THREAD_ID+"/restore";
 	public static final String PIN = "/pin";
 	public static final String UNPIN = "/unpin";
@@ -1192,6 +1195,7 @@ public class UrlHelpers {
 	public static final String DATA_ACCESS_SUBMISSION_OPEN_SUBMISSIONS = DATA_ACCESS_SUBMISSION+"/openSubmissions";
 	public static final String ACCESS_APPROVAL_BATCH = ACCESS_APPROVAL+"/batch";
 	public static final String DATA_ACCESS_SUBMISSION_SEARCH = DATA_ACCESS_SUBMISSION + "/search";
+	public static final String DATA_ACCESS_SUBMISSION_THREAD = DATA_ACCESS_SUBMISSION + THREAD + THREAD_ID;
 	
 	// Statistics Services
 	public static final String STATISTICS = "/statistics";
@@ -1335,6 +1339,11 @@ public class UrlHelpers {
 	 * Obtains the access token of a user with the given id to be used as a bearer token (e.g. during integration tests)
 	 */
 	public static final String ADMIN_USER_TOKEN = ADMIN_USER + ID + "/token";
+	
+	/**
+	 * Admin endpoint to remove 2FA from a user, used to recover an account when the user has lost their authenticator and password.
+	 */
+	public static final String ADMIN_USER_2FA = ADMIN_USER + ID + "/2fa";
 	
 	public static final String ADMIN_EMAIL_QUARANTINE_EXPIRE = ADMIN + "/emailQuarantine/expire";
 	

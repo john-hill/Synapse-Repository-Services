@@ -30,6 +30,7 @@ import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.Reference;
 import org.sagebionetworks.repo.model.SchemaCache;
 import org.sagebionetworks.repo.model.audit.NodeRecord;
+import org.sagebionetworks.repo.model.search.table.SearchIndex;
 import org.sagebionetworks.repo.model.table.Dataset;
 import org.sagebionetworks.repo.model.table.DatasetCollection;
 import org.sagebionetworks.repo.model.table.EntityView;
@@ -389,6 +390,23 @@ public class NodeTranslationUtilsTest {
 				.noneMatch(field -> ObjectSchema.CONCRETE_TYPE.equals(field.getName())));
 	}
 	
+	@Test
+	public void testSearchIndexRoundTripWithSearchConfigurationId()
+			throws InstantiationException, IllegalAccessException {
+		SearchIndex searchIndex = new SearchIndex();
+		searchIndex.setName("testIndex");
+		searchIndex.setDefiningSQL("select * from syn123");
+		searchIndex.setSearchConfigurationId("456");
+
+		// call under test
+		SearchIndex clone = cloneUsingNodeTranslation(searchIndex);
+
+		assertNotNull(clone);
+		assertEquals("testIndex", clone.getName());
+		assertEquals("select * from syn123", clone.getDefiningSQL());
+		assertEquals("456", clone.getSearchConfigurationId());
+	}
+
 	@Test
 	public void testCopyNodeProperties() {
 		Node source = new Node()

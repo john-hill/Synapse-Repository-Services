@@ -32,6 +32,10 @@ import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
 import org.sagebionetworks.repo.model.grid.SynchronizeGridRequest;
 import org.sagebionetworks.repo.model.grid.SynchronizeGridResponse;
+import org.sagebionetworks.repo.model.grid.GridQueryJobRequest;
+import org.sagebionetworks.repo.model.grid.GridQueryJobResponse;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobRequest;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobResponse;
 import org.sagebionetworks.repo.service.AsynchronousJobServices;
 import org.sagebionetworks.repo.service.GridService;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -51,7 +55,57 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
 /**
- * Services for create and managing grid data session.
+ * Services for creating and managing curation grid sessions.
+ *
+ * <h2>CLI / Programmatic Access (No WebSocket or CRDT Required)</h2>
+ *
+ * <p>
+ * CLI clients and programmatic callers (e.g., Python scripts using the Synapse
+ * client) can read and write grid data without establishing a WebSocket
+ * connection or implementing CRDT binary decoding. The following workflow uses
+ * only standard HTTP async jobs:
+ * </p>
+ *
+ * <ol>
+ * <li><b>Create a grid session</b> (if one does not already exist):
+ * <ul>
+ * <li>Start: <a href="${POST.grid.session.async.start}">POST /grid/session/async/start</a></li>
+ * <li>Poll: <a href="${GET.grid.session.async.get.asyncToken}">GET /grid/session/async/get/{asyncToken}</a></li>
+ * </ul>
+ * </li>
+ * <li><b>Create a replica</b> (if one does not already exist for this session):
+ * <ul>
+ * <li><a href="${POST.grid.session.sessionId.replica}">POST /grid/session/{sessionId}/replica</a></li>
+ * <li>Save the returned {@code replicaId} — it is required for all query and
+ * update requests and is used to attribute changes to the calling user.</li>
+ * </ul>
+ * </li>
+ * <li><b>Query grid data</b> (read rows with optional per-row validation results):
+ * <ul>
+ * <li>Start: <a href="${POST.grid.session.query.async.start}">POST /grid/session/query/async/start</a>
+ * — body is a {@link org.sagebionetworks.repo.model.grid.GridQueryJobRequest}
+ * containing {@code sessionId}, {@code replicaId}, and a structured
+ * {@link org.sagebionetworks.repo.model.grid.query.QueryRequest}</li>
+ * <li>Poll: <a href="${GET.grid.session.query.async.get.asyncToken}">GET /grid/session/query/async/get/{asyncToken}</a></li>
+ * </ul>
+ * </li>
+ * <li><b>Update grid data</b> (apply batch cell-level updates):
+ * <ul>
+ * <li>Start: <a href="${POST.grid.session.update.async.start}">POST /grid/session/update/async/start</a>
+ * — body is a {@link org.sagebionetworks.repo.model.grid.GridUpdateJobRequest}
+ * containing {@code sessionId}, {@code replicaId}, and a
+ * {@link org.sagebionetworks.repo.model.grid.update.GridUpdateRequest} with the
+ * batch of updates to apply</li>
+ * <li>Poll: <a href="${GET.grid.session.update.async.get.asyncToken}">GET /grid/session/update/async/get/{asyncToken}</a></li>
+ * </ul>
+ * </li>
+ * </ol>
+ *
+ * <p>
+ * Update patches are attributed to the caller's replica, preserving cell-level
+ * attribution (who last updated each cell) and ensuring the synchronization
+ * logic correctly distinguishes user changes from system changes.
+ * </p>
  */
 @Controller
 @ControllerInfo(displayName = "Grid Services", path = "repo/v1")
@@ -497,5 +551,94 @@ public class GridController {
 		ValidateArgument.required(asyncToken, "asyncToken");
 		AsynchronousJobStatus jobStatus = asynchronousJobServices.getJobStatusAndThrow(userId, asyncToken);
 		return (SynchronizeGridResponse) jobStatus.getResponseBody();
+	}
+
+	/**
+	 * Start an asynchronous job to query a grid session. The request body must
+	 * include the session ID and replica ID. Use the returned job id and
+	 * <a href="${GET.grid.session.query.async.get.asyncToken}">GET
+	 * /grid/session/query/async/get/{asyncToken}</a> to retrieve results. Does not
+	 * require a WebSocket connection.
+	 *
+	 * @param userId
+	 * @param request - Contains sessionId, replicaId, and the structured query.
+	 * @return
+	 */
+	@RequiredScope({ view })
+	@ResponseStatus(HttpStatus.CREATED)
+	@RequestMapping(value = UrlHelpers.GRID_SESSION_QUERY_ASYNC_START, method = RequestMethod.POST)
+	public @ResponseBody AsyncJobId gridQueryAsyncStart(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@RequestBody GridQueryJobRequest request) {
+		ValidateArgument.required(request, "request");
+		AsynchronousJobStatus job = asynchronousJobServices.startJob(userId, request);
+		AsyncJobId asyncJobId = new AsyncJobId();
+		asyncJobId.setToken(job.getJobId());
+		return asyncJobId;
+	}
+
+	/**
+	 * Get the results of a grid query job started with
+	 * <a href="${POST.grid.session.query.async.start}">POST
+	 * /grid/session/query/async/start</a>.
+	 *
+	 * @param userId
+	 * @param asyncToken
+	 * @return
+	 * @throws Throwable
+	 */
+	@RequiredScope({ view })
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.GRID_SESSION_QUERY_ASYNC_GET, method = RequestMethod.GET)
+	public @ResponseBody GridQueryJobResponse gridQueryAsyncGet(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@PathVariable String asyncToken) throws Throwable {
+		AsynchronousJobStatus jobStatus = asynchronousJobServices.getJobStatusAndThrow(userId, asyncToken);
+		return (GridQueryJobResponse) jobStatus.getResponseBody();
+	}
+
+	/**
+	 * Start an asynchronous job to execute a batch of update operations against a
+	 * grid session. The request body must include the session ID and replica ID.
+	 * Patches are attributed to the caller's replica. Use the returned job id and
+	 * <a href="${GET.grid.session.update.async.get.asyncToken}">GET
+	 * /grid/session/update/async/get/{asyncToken}</a> to retrieve results. Does not
+	 * require a WebSocket connection.
+	 *
+	 * @param userId
+	 * @param request - Contains sessionId, replicaId, and the batch of updates.
+	 * @return
+	 */
+	@RequiredScope({ view, modify })
+	@ResponseStatus(HttpStatus.CREATED)
+	@RequestMapping(value = UrlHelpers.GRID_SESSION_UPDATE_ASYNC_START, method = RequestMethod.POST)
+	public @ResponseBody AsyncJobId gridUpdateAsyncStart(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@RequestBody GridUpdateJobRequest request) {
+		ValidateArgument.required(request, "request");
+		AsynchronousJobStatus job = asynchronousJobServices.startJob(userId, request);
+		AsyncJobId asyncJobId = new AsyncJobId();
+		asyncJobId.setToken(job.getJobId());
+		return asyncJobId;
+	}
+
+	/**
+	 * Get the results of a grid update job started with
+	 * <a href="${POST.grid.session.update.async.start}">POST
+	 * /grid/session/update/async/start</a>.
+	 *
+	 * @param userId
+	 * @param asyncToken
+	 * @return
+	 * @throws Throwable
+	 */
+	@RequiredScope({ view, modify })
+	@ResponseStatus(HttpStatus.OK)
+	@RequestMapping(value = UrlHelpers.GRID_SESSION_UPDATE_ASYNC_GET, method = RequestMethod.GET)
+	public @ResponseBody GridUpdateJobResponse gridUpdateAsyncGet(
+			@RequestParam(value = AuthorizationConstants.USER_ID_PARAM) Long userId,
+			@PathVariable String asyncToken) throws Throwable {
+		AsynchronousJobStatus jobStatus = asynchronousJobServices.getJobStatusAndThrow(userId, asyncToken);
+		return (GridUpdateJobResponse) jobStatus.getResponseBody();
 	}
 }

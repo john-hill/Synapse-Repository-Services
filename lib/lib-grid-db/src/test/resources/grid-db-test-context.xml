@@ -15,4 +15,6 @@
 
 	<import resource="classpath:grid-db-spb.xml" />
 
+	<bean id="fileProvider" class="org.sagebionetworks.util.FileProviderImpl" />
+
 </beans>

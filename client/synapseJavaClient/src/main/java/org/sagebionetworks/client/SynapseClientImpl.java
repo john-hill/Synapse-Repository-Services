@@ -153,6 +153,7 @@ import org.sagebionetworks.repo.model.dataaccess.AccessApprovalNotificationRespo
 import org.sagebionetworks.repo.model.dataaccess.AccessApprovalSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.AccessApprovalSearchResponse;
 import org.sagebionetworks.repo.model.dataaccess.AccessRequirementConversionRequest;
+import org.sagebionetworks.repo.model.dataaccess.AccessRequirementPermissions;
 import org.sagebionetworks.repo.model.dataaccess.AccessRequirementSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.AccessRequirementSearchResponse;
 import org.sagebionetworks.repo.model.dataaccess.AccessRequirementStatus;
@@ -276,6 +277,10 @@ import org.sagebionetworks.repo.model.grid.ListGridReplicasRequest;
 import org.sagebionetworks.repo.model.grid.ListGridReplicasResponse;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsResponse;
+import org.sagebionetworks.repo.model.grid.GridQueryJobRequest;
+import org.sagebionetworks.repo.model.grid.GridQueryJobResponse;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobRequest;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobResponse;
 import org.sagebionetworks.repo.model.limits.ProjectStorageUsage;
 import org.sagebionetworks.repo.model.message.MessageBundle;
 import org.sagebionetworks.repo.model.message.MessageRecipientSet;
@@ -350,6 +355,7 @@ import org.sagebionetworks.repo.model.schema.ListValidationResultsResponse;
 import org.sagebionetworks.repo.model.schema.Organization;
 import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.schema.ValidationSummaryStatistics;
+import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.SearchResults;
 import org.sagebionetworks.repo.model.search.query.SearchQuery;
 import org.sagebionetworks.repo.model.statistics.ObjectStatisticsRequest;
@@ -415,6 +421,7 @@ import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
 import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
+import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiHeader;
@@ -787,6 +794,7 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	private static final String SEARCH_COLUMN_ANALYZER_OVERRIDE_LIST = SEARCH_COLUMN_ANALYZER_OVERRIDE + "/list";
 	private static final String SEARCH_CONFIGURATION = "/search/configuration";
 	private static final String SEARCH_CONFIGURATION_LIST = SEARCH_CONFIGURATION + "/list";
+	private static final String SEARCH_AUTOCOMPLETE = "/search/autocomplete";
 	private static final String ENTITY_SEARCH_CONFIG_BINDING = "/entity/%s/searchconfig/binding";
 
 	/**
@@ -5218,6 +5226,24 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	}
 
 	@Override
+	public DiscussionThreadBundle getThreadForSubmission(String submissionId) throws SynapseException {
+		ValidateArgument.required(submissionId, "submissionId");
+		return getJSONEntity(getRepoEndpoint(), THREAD+"/submission/"+submissionId, DiscussionThreadBundle.class);
+	}
+
+	@Override
+	public org.sagebionetworks.repo.model.dataaccess.Submission getSubmissionForThread(String threadId) throws SynapseException {
+		ValidateArgument.required(threadId, "threadId");
+		return getJSONEntity(getRepoEndpoint(), "/dataAccessSubmission/thread/"+threadId, org.sagebionetworks.repo.model.dataaccess.Submission.class);
+	}
+
+	@Override
+	public AccessRequirementPermissions getAccessRequirementPermissions(String requirementId) throws SynapseException {
+		ValidateArgument.required(requirementId, "requirementId");
+		return getJSONEntity(getRepoEndpoint(), ACCESS_REQUIREMENT+"/"+requirementId+"/permissions", AccessRequirementPermissions.class);
+	}
+
+	@Override
 	public PaginatedResults<DiscussionThreadBundle> getThreadsForForum(
 			String forumId, Long limit, Long offset, DiscussionThreadOrder order,
 			Boolean ascending, DiscussionFilter filter) throws SynapseException {
@@ -6629,6 +6655,26 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
     	return (GridRecordSetExportResponse) getAsyncResult(AsynchJobType.GridExportRecordSet, asyncJobToken);
     }
 
+	@Override
+	public String gridQueryAsyncStart(GridQueryJobRequest request) throws SynapseException {
+		return startAsynchJob(AsynchJobType.GridQuery, request);
+	}
+
+	@Override
+	public GridQueryJobResponse gridQueryAsyncGet(String asyncToken) throws SynapseException, SynapseResultNotReadyException {
+		return (GridQueryJobResponse) getAsyncResult(AsynchJobType.GridQuery, asyncToken);
+	}
+
+	@Override
+	public String gridUpdateAsyncStart(GridUpdateJobRequest request) throws SynapseException {
+		return startAsynchJob(AsynchJobType.GridUpdate, request);
+	}
+
+	@Override
+	public GridUpdateJobResponse gridUpdateAsyncGet(String asyncToken) throws SynapseException, SynapseResultNotReadyException {
+		return (GridUpdateJobResponse) getAsyncResult(AsynchJobType.GridUpdate, asyncToken);
+	}
+
     @Override
     public CurationTask createCurationTask(CurationTask task) throws SynapseException{
         return postJSONEntity(getRepoEndpoint(), "/curation/task", task, CurationTask.class);
@@ -6804,6 +6850,24 @@ public class SynapseClientImpl extends BaseClientImpl implements SynapseClient {
 	public ListColumnAnalyzerOverridesResponse listColumnAnalyzerOverrides(ListColumnAnalyzerOverridesRequest request) throws SynapseException {
 		ValidateArgument.required(request, "request");
 		return postJSONEntity(getRepoEndpoint(), SEARCH_COLUMN_ANALYZER_OVERRIDE_LIST, request, ListColumnAnalyzerOverridesResponse.class);
+	}
+
+	@Override
+	public SearchQueryResults searchAutocomplete(SearchIndexQuery request) throws SynapseException {
+		ValidateArgument.required(request, "request");
+		return postJSONEntity(getRepoEndpoint(), SEARCH_AUTOCOMPLETE, request, SearchQueryResults.class);
+	}
+
+	@Override
+	public String startSearchIndexQuery(SearchIndexQuery request) throws SynapseException {
+		ValidateArgument.required(request, "request");
+		return startAsynchJob(AsynchJobType.SearchIndexQuery, request);
+	}
+
+	@Override
+	public SearchQueryResults getSearchIndexQueryResults(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException {
+		ValidateArgument.required(asyncJobToken, "asyncJobToken");
+		return (SearchQueryResults) getAsyncResult(AsynchJobType.SearchIndexQuery, asyncJobToken, (String) null);
 	}
 
 }

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sagebionetworks.lib.dbuserhelper.DBUserHelper;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
+import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -20,7 +21,7 @@ import org.springframework.stereotype.Service;
 /**
  * Note: For the first pass at this feature we are only using one database. This
  * will be extended in the future.
- * 
+ *
  * @author jmhill
  *
  */
@@ -44,11 +45,15 @@ public class ConnectionFactoryImpl implements ConnectionFactory {
 	 * future.
 	 */
 	private TableIndexDAO tableIndexDao;
-	
+
+	private SearchIndexStatusDao searchIndexStatusDao;
+
 	@Autowired
-	public ConnectionFactoryImpl(BasicDataSource tableDatabaseConnectionPool, TableIndexDAO tableIndexDao, DBUserHelper dbuh) {
+	public ConnectionFactoryImpl(BasicDataSource tableDatabaseConnectionPool, TableIndexDAO tableIndexDao,
+	                             SearchIndexStatusDao searchIndexStatusDao, DBUserHelper dbuh) {
 		this.singleConnectionPool = tableDatabaseConnectionPool;
 		this.tableIndexDao = tableIndexDao;
+		this.searchIndexStatusDao = searchIndexStatusDao;
 		this.dbUserHelper = dbuh;
 	}
 
@@ -66,6 +71,8 @@ public class ConnectionFactoryImpl implements ConnectionFactory {
 		// ensure the index has the correct tables
 		tableIndexDao.setDataSource(singleConnectionPool);
 		tableIndexDao.createObjectReplicationTablesIfDoesNotExist();
+		searchIndexStatusDao.setDataSource(singleConnectionPool);
+		searchIndexStatusDao.createTableIfDoesNotExist();
 		createDBUser();
 	}
 
@@ -77,7 +84,7 @@ public class ConnectionFactoryImpl implements ConnectionFactory {
 	/**
 	 * Spring will calls this method when this bean is destroyed. This is our chance
 	 * to shutdown the database connection pools.
-	 * 
+	 *
 	 * @throws SQLException
 	 */
 	@PreDestroy
@@ -101,6 +108,11 @@ public class ConnectionFactoryImpl implements ConnectionFactory {
 	@Override
 	public DataSource getFirstDataSource() {
 		return singleConnectionPool;
+	}
+
+	@Override
+	public SearchIndexStatusDao getSearchIndexStatusDao() {
+		return searchIndexStatusDao;
 	}
 
 }

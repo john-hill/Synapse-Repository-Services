@@ -8,7 +8,6 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -26,9 +25,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
 import org.sagebionetworks.reflection.model.PaginatedResults;
-import org.sagebionetworks.repo.manager.AuthorizationManager;
+import org.sagebionetworks.repo.manager.subscription.SubscriptionAndDiscussionAuthorizationManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.discussion.ForumObjectType;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UploadContentToS3DAO;
 import org.sagebionetworks.repo.model.UserInfo;
@@ -63,13 +63,13 @@ public class DiscussionReplyManagerImplTest {
 	@Mock
 	private SubscriptionDAO mockSubscriptionDao;
 	@Mock
-	private AuthorizationManager mockAuthorizationManager;
-	@Mock
 	private DiscussionThreadBundle mockThread;
 	@Mock
 	private IdGenerator mockIdGenerator;
 	@Mock
 	private TransactionalMessenger mockTransactionalMessenger;
+	@Mock
+	private SubscriptionAndDiscussionAuthorizationManager mockSubscriptionAndDiscussionAuthorizationManager;
 
 	@InjectMocks
 	private DiscussionReplyManagerImpl replyManager;
@@ -78,6 +78,7 @@ public class DiscussionReplyManagerImplTest {
 	private Long userId = 765L;
 	private String threadId = "123";
 	private String projectId = "syn456";
+	private String objectId = "456";
 	private String forumId = "789";
 	private Long replyId = 222L;
 	private DiscussionReplyBundle bundle;
@@ -91,6 +92,8 @@ public class DiscussionReplyManagerImplTest {
 		bundle.setThreadId(threadId);
 		bundle.setForumId(forumId);
 		bundle.setProjectId(projectId);
+		bundle.setObjectId(objectId);
+		bundle.setObjectType(ForumObjectType.ENTITY);
 		bundle.setId(replyId.toString());
 		bundle.setThreadId(threadId);
 		bundle.setEtag("etag");
@@ -98,7 +101,7 @@ public class DiscussionReplyManagerImplTest {
 		messageKey = forumId + "/" + threadId + "/" + replyId +"/" + UUID.randomUUID().toString();
 		bundle.setMessageKey(messageKey);
 		userInfo.setId(userId);
-		bundle.setCreatedBy(userInfo.getId().toString());		
+		bundle.setCreatedBy(userInfo.getId().toString());
 	}
 
 	@Test
@@ -151,7 +154,7 @@ public class DiscussionReplyManagerImplTest {
 
 	@Test
 	public void testCreateReplyByAnonymous() throws IOException {
-		when(mockAuthorizationManager.isAnonymousUser(userInfo)).thenReturn(true);
+		userInfo.setRealmAnonymousUserId(userId);
 		CreateDiscussionReply createReply = new CreateDiscussionReply();
 		createReply.setThreadId(threadId);
 		createReply.setMessageMarkdown("messageMarkdown");
@@ -167,7 +170,6 @@ public class DiscussionReplyManagerImplTest {
 		when(mockThreadManager.getThread(userInfo, threadId)).thenReturn(mockThread);
 		when(mockThread.getForumId()).thenReturn(forumId);
 		when(mockIdGenerator.generateNewId(IdType.DISCUSSION_REPLY_ID)).thenReturn(replyId);
-		when(mockAuthorizationManager.isAnonymousUser(userInfo)).thenReturn(false);
 		
 		String message = "messageMarkdown";
 		CreateDiscussionReply createReply = new CreateDiscussionReply();
@@ -205,10 +207,10 @@ public class DiscussionReplyManagerImplTest {
 	@Test
 	public void testGetReplyUnauthorized() {
 		when(mockReplyDao.getReply(Mockito.anyLong(), Mockito.any(DiscussionFilter.class))).thenReturn(bundle);
-		when(mockAuthorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.READ))
+		when(mockSubscriptionAndDiscussionAuthorizationManager.canAccessObjectType(userInfo, ForumObjectType.ENTITY, objectId, ACCESS_TYPE.READ))
 				.thenReturn(AuthorizationStatus.accessDenied(""));
-		
-		assertThrows(UnauthorizedException.class, () -> {			
+
+		assertThrows(UnauthorizedException.class, () -> {
 			replyManager.getReply(userInfo, replyId.toString());
 		});
 	}
@@ -216,7 +218,7 @@ public class DiscussionReplyManagerImplTest {
 	@Test
 	public void testGetReplyAuthorized() {
 		when(mockReplyDao.getReply(Mockito.anyLong(), Mockito.any(DiscussionFilter.class))).thenReturn(bundle);
-		when(mockAuthorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.READ))
+		when(mockSubscriptionAndDiscussionAuthorizationManager.canAccessObjectType(userInfo, ForumObjectType.ENTITY, objectId, ACCESS_TYPE.READ))
 				.thenReturn(AuthorizationStatus.authorized());
 		DiscussionReplyBundle reply = replyManager.getReply(userInfo, replyId.toString());
 		assertEquals(bundle, reply);
@@ -226,10 +228,10 @@ public class DiscussionReplyManagerImplTest {
 	public void testGetDeletedReplyUnauthorized() {
 		bundle.setIsDeleted(true);
 		when(mockReplyDao.getReply(Mockito.anyLong(), Mockito.any(DiscussionFilter.class))).thenReturn(bundle);
-		when(mockAuthorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.MODERATE))
+		when(mockSubscriptionAndDiscussionAuthorizationManager.canAccessObjectType(userInfo, ForumObjectType.ENTITY, objectId, ACCESS_TYPE.MODERATE))
 				.thenReturn(AuthorizationStatus.accessDenied(""));
-		
-		String message = assertThrows(NotFoundException.class, () -> {			
+
+		String message = assertThrows(NotFoundException.class, () -> {
 			replyManager.getReply(userInfo, replyId.toString());
 		}).getMessage();
 		assertEquals("Reply: '222' does not exist", message);
@@ -239,7 +241,7 @@ public class DiscussionReplyManagerImplTest {
 	public void testGetDeletedReplyAuthorized() {
 		bundle.setIsDeleted(true);
 		when(mockReplyDao.getReply(Mockito.anyLong(), Mockito.any(DiscussionFilter.class))).thenReturn(bundle);
-		when(mockAuthorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.MODERATE))
+		when(mockSubscriptionAndDiscussionAuthorizationManager.canAccessObjectType(userInfo, ForumObjectType.ENTITY, objectId, ACCESS_TYPE.MODERATE))
 				.thenReturn(AuthorizationStatus.authorized());
 		assertEquals(bundle, replyManager.getReply(userInfo, replyId.toString()));
 	}
@@ -300,29 +302,28 @@ public class DiscussionReplyManagerImplTest {
 
 	@Test
 	public void testMarkReplyAsDeletedUnauthorized() {
-		when(mockReplyDao.getProjectId(replyId.toString())).thenReturn(projectId);
-		when(mockAuthorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.MODERATE))
+		when(mockReplyDao.getReply(replyId, DiscussionFilter.NO_FILTER)).thenReturn(bundle);
+		when(mockSubscriptionAndDiscussionAuthorizationManager.canAccessObjectType(userInfo, ForumObjectType.ENTITY, objectId, ACCESS_TYPE.MODERATE))
 				.thenReturn(AuthorizationStatus.accessDenied(""));
 		assertThrows(UnauthorizedException.class, () -> {
 			replyManager.markReplyAsDeleted(userInfo, replyId.toString());
 		});
-		verifyZeroInteractions(mockReplyDao);
 	}
 
 	@Test
 	public void testMarkReplyAsDeletedAuthorized() {
-		when(mockReplyDao.getProjectId(replyId.toString())).thenReturn(projectId);
-		when(mockAuthorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.MODERATE))
+		when(mockReplyDao.getReply(replyId, DiscussionFilter.NO_FILTER)).thenReturn(bundle);
+		when(mockSubscriptionAndDiscussionAuthorizationManager.canAccessObjectType(userInfo, ForumObjectType.ENTITY, objectId, ACCESS_TYPE.MODERATE))
 				.thenReturn(AuthorizationStatus.authorized());
 		replyManager.markReplyAsDeleted(userInfo, replyId.toString());
 		verify(mockReplyDao).markReplyAsDeleted(replyId);
-		
+
 		MessageToSend expectedMessage = new MessageToSend()
 			.withUserId(userId)
 			.withObjectType(ObjectType.REPLY)
 			.withObjectId(replyId.toString())
 			.withChangeType(ChangeType.UPDATE);
-		
+
 		verify(mockTransactionalMessenger).sendMessageAfterCommit(expectedMessage);
 	}
 
@@ -362,8 +363,8 @@ public class DiscussionReplyManagerImplTest {
 
 	@Test
 	public void testGetReplyUrlUnauthorized() {
-		when(mockReplyDao.getProjectId(replyId.toString())).thenReturn(projectId);
-		when(mockAuthorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.READ))
+		when(mockReplyDao.getReply(replyId, DiscussionFilter.NO_FILTER)).thenReturn(bundle);
+		when(mockSubscriptionAndDiscussionAuthorizationManager.canAccessObjectType(userInfo, ForumObjectType.ENTITY, objectId, ACCESS_TYPE.READ))
 				.thenReturn(AuthorizationStatus.accessDenied(""));
 		assertThrows(UnauthorizedException.class, () -> {
 			replyManager.getMessageUrl(userInfo, messageKey);
@@ -373,8 +374,8 @@ public class DiscussionReplyManagerImplTest {
 	@Test
 	public void testGetReplyUrlAuthorized() {
 		when(mockUploadDao.getReplyUrl(Mockito.anyString())).thenReturn(messageUrl);
-		when(mockReplyDao.getProjectId(replyId.toString())).thenReturn(projectId);
-		when(mockAuthorizationManager.canAccess(userInfo, projectId, ObjectType.ENTITY, ACCESS_TYPE.READ))
+		when(mockReplyDao.getReply(replyId, DiscussionFilter.NO_FILTER)).thenReturn(bundle);
+		when(mockSubscriptionAndDiscussionAuthorizationManager.canAccessObjectType(userInfo, ForumObjectType.ENTITY, objectId, ACCESS_TYPE.READ))
 				.thenReturn(AuthorizationStatus.authorized());
 		MessageURL url = replyManager.getMessageUrl(userInfo, messageKey);
 		assertNotNull(url);
@@ -412,4 +413,64 @@ public class DiscussionReplyManagerImplTest {
 		assertEquals((Long)3L, replyManager.getReplyCountForThread(userInfo, threadId, DiscussionFilter.NO_FILTER).getCount());
 	}
 
+
+	@Test
+	public void testGetReplyForARThreadAuthorized() {
+		bundle.setObjectType(ForumObjectType.ACCESS_REQUIREMENT);
+		when(mockReplyDao.getReply(Mockito.anyLong(), Mockito.any(DiscussionFilter.class))).thenReturn(bundle);
+		when(mockSubscriptionAndDiscussionAuthorizationManager.canAccessObjectType(userInfo, ForumObjectType.ACCESS_REQUIREMENT,
+				objectId, ACCESS_TYPE.READ)).thenReturn(AuthorizationStatus.authorized());
+
+		// call under test
+		assertEquals(bundle, replyManager.getReply(userInfo, replyId.toString()));
+	}
+
+	@Test
+	public void testGetReplyForARThreadUnauthorized() {
+		bundle.setObjectType(ForumObjectType.ACCESS_REQUIREMENT);
+
+		when(mockReplyDao.getReply(Mockito.anyLong(), Mockito.any(DiscussionFilter.class))).thenReturn(bundle);
+		when(mockSubscriptionAndDiscussionAuthorizationManager.canAccessObjectType(userInfo, ForumObjectType.ACCESS_REQUIREMENT,
+				objectId, ACCESS_TYPE.READ)).thenReturn(AuthorizationStatus.accessDenied("no review permission"));
+		// call under test
+		assertThrows(UnauthorizedException.class, () -> {
+			replyManager.getReply(userInfo, replyId.toString());
+		});
+	}
+
+	@Test
+	public void testMarkReplyAsDeletedForARThreadAuthorized() {
+		bundle.setObjectType(ForumObjectType.ACCESS_REQUIREMENT);
+
+		when(mockReplyDao.getReply(replyId, DiscussionFilter.NO_FILTER)).thenReturn(bundle);
+		when(mockSubscriptionAndDiscussionAuthorizationManager.canAccessObjectType(userInfo, ForumObjectType.ACCESS_REQUIREMENT,
+				objectId, ACCESS_TYPE.MODERATE)).thenReturn(AuthorizationStatus.authorized());
+		// call under test
+		replyManager.markReplyAsDeleted(userInfo, replyId.toString());
+		verify(mockReplyDao).markReplyAsDeleted(replyId);
+	}
+
+	@Test
+	public void testCheckPermissionForARThreadAuthorized() {
+		bundle.setObjectType(ForumObjectType.ACCESS_REQUIREMENT);
+
+		when(mockReplyDao.getReply(replyId, DiscussionFilter.NO_FILTER)).thenReturn(bundle);
+		when(mockSubscriptionAndDiscussionAuthorizationManager.canAccessObjectType(userInfo, ForumObjectType.ACCESS_REQUIREMENT,
+				objectId, ACCESS_TYPE.READ)).thenReturn(AuthorizationStatus.authorized());
+		// call under test
+		replyManager.checkPermission(userInfo, replyId.toString(), ACCESS_TYPE.READ);
+	}
+
+	@Test
+	public void testCheckPermissionForARThreadUnauthorized() {
+		bundle.setObjectType(ForumObjectType.ACCESS_REQUIREMENT);
+
+		when(mockReplyDao.getReply(replyId, DiscussionFilter.NO_FILTER)).thenReturn(bundle);
+		when(mockSubscriptionAndDiscussionAuthorizationManager.canAccessObjectType(userInfo, ForumObjectType.ACCESS_REQUIREMENT,
+				objectId, ACCESS_TYPE.READ)).thenReturn(AuthorizationStatus.accessDenied("no review permission"));
+		// call under test
+		assertThrows(UnauthorizedException.class, () -> {
+			replyManager.checkPermission(userInfo, replyId.toString(), ACCESS_TYPE.READ);
+		});
+	}
 }

@@ -124,6 +124,7 @@ import org.sagebionetworks.repo.model.dataaccess.AccessApprovalNotificationRespo
 import org.sagebionetworks.repo.model.dataaccess.AccessApprovalSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.AccessApprovalSearchResponse;
 import org.sagebionetworks.repo.model.dataaccess.AccessRequirementConversionRequest;
+import org.sagebionetworks.repo.model.dataaccess.AccessRequirementPermissions;
 import org.sagebionetworks.repo.model.dataaccess.AccessRequirementSearchRequest;
 import org.sagebionetworks.repo.model.dataaccess.AccessRequirementSearchResponse;
 import org.sagebionetworks.repo.model.dataaccess.AccessRequirementStatus;
@@ -230,10 +231,14 @@ import org.sagebionetworks.repo.model.grid.CreateReplicaRequest;
 import org.sagebionetworks.repo.model.grid.CreateReplicaResponse;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridRequest;
 import org.sagebionetworks.repo.model.grid.DownloadFromGridResult;
+import org.sagebionetworks.repo.model.grid.GridQueryJobRequest;
+import org.sagebionetworks.repo.model.grid.GridQueryJobResponse;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportRequest;
 import org.sagebionetworks.repo.model.grid.GridRecordSetExportResponse;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobRequest;
+import org.sagebionetworks.repo.model.grid.GridUpdateJobResponse;
 import org.sagebionetworks.repo.model.grid.ListGridReplicasRequest;
 import org.sagebionetworks.repo.model.grid.ListGridReplicasResponse;
 import org.sagebionetworks.repo.model.grid.ListGridSessionsRequest;
@@ -306,8 +311,24 @@ import org.sagebionetworks.repo.model.schema.ListValidationResultsResponse;
 import org.sagebionetworks.repo.model.schema.Organization;
 import org.sagebionetworks.repo.model.schema.ValidationResults;
 import org.sagebionetworks.repo.model.schema.ValidationSummaryStatistics;
+import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.SearchResults;
 import org.sagebionetworks.repo.model.search.query.SearchQuery;
+import org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest;
+import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
+import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesRequest;
+import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesResponse;
+import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsRequest;
+import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsResponse;
+import org.sagebionetworks.repo.model.search.table.ListSynonymSetsRequest;
+import org.sagebionetworks.repo.model.search.table.ListSynonymSetsResponse;
+import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
+import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
+import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
+import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
+import org.sagebionetworks.repo.model.search.table.SynonymSet;
+import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.statistics.ObjectStatisticsRequest;
 import org.sagebionetworks.repo.model.statistics.ObjectStatisticsResponse;
 import org.sagebionetworks.repo.model.status.StackStatus;
@@ -352,20 +373,6 @@ import org.sagebionetworks.repo.model.table.ViewColumnModelResponse;
 import org.sagebionetworks.repo.model.table.ViewEntityType;
 import org.sagebionetworks.repo.model.table.ViewScope;
 import org.sagebionetworks.repo.model.table.ViewType;
-import org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest;
-import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
-import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesRequest;
-import org.sagebionetworks.repo.model.search.table.ListColumnAnalyzerOverridesResponse;
-import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsRequest;
-import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsResponse;
-import org.sagebionetworks.repo.model.search.table.ListSynonymSetsRequest;
-import org.sagebionetworks.repo.model.search.table.ListSynonymSetsResponse;
-import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
-import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
-import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
-import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
-import org.sagebionetworks.repo.model.search.table.SynonymSet;
-import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiHeader;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiHistorySnapshot;
 import org.sagebionetworks.repo.model.v2.wiki.V2WikiOrderHint;
@@ -2954,6 +2961,21 @@ public interface SynapseClient extends BaseClient {
 	DiscussionThreadBundle getThread(String threadId) throws SynapseException;
 
 	/**
+	 * Get the discussion thread for a given submission.
+	 */
+	DiscussionThreadBundle getThreadForSubmission(String submissionId) throws SynapseException;
+
+	/**
+	 * Get the submission associated with a given thread.
+	 */
+	org.sagebionetworks.repo.model.dataaccess.Submission getSubmissionForThread(String threadId) throws SynapseException;
+
+	/**
+	 * Get the caller's permissions for a given access requirement.
+	 */
+	AccessRequirementPermissions getAccessRequirementPermissions(String requirementId) throws SynapseException;
+
+	/**
 	 * Get threads for a given forum
 	 * 
 	 * @param forumId
@@ -4677,7 +4699,29 @@ public interface SynapseClient extends BaseClient {
     String exportGridRecordSetAsyncStart(GridRecordSetExportRequest request) throws SynapseException;
 
     GridRecordSetExportResponse exportGridRecordSetAsyncGet(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException;
-    
+
+	/**
+	 * Start an async job to query a grid session. The request must include sessionId
+	 * and replicaId.
+	 */
+	String gridQueryAsyncStart(GridQueryJobRequest request) throws SynapseException;
+
+	/**
+	 * Get the results of a grid query async job.
+	 */
+	GridQueryJobResponse gridQueryAsyncGet(String asyncToken) throws SynapseException, SynapseResultNotReadyException;
+
+	/**
+	 * Start an async job to execute batch updates against a grid session. The
+	 * request must include sessionId and replicaId.
+	 */
+	String gridUpdateAsyncStart(GridUpdateJobRequest request) throws SynapseException;
+
+	/**
+	 * Get the results of a grid update async job.
+	 */
+	GridUpdateJobResponse gridUpdateAsyncGet(String asyncToken) throws SynapseException, SynapseResultNotReadyException;
+
     CurationTask createCurationTask(CurationTask request) throws SynapseException;
 
     CurationTask getMetadataTask(Long taskId) throws SynapseException;
@@ -4737,6 +4781,12 @@ public interface SynapseClient extends BaseClient {
 	SearchConfigBinding getSearchConfigBindingForEntity(String entityId) throws SynapseException;
 
 	void clearSearchConfigBindingForEntity(String entityId) throws SynapseException;
+
+	SearchQueryResults searchAutocomplete(SearchIndexQuery request) throws SynapseException;
+
+	String startSearchIndexQuery(SearchIndexQuery request) throws SynapseException;
+
+	SearchQueryResults getSearchIndexQueryResults(String asyncJobToken) throws SynapseException, SynapseResultNotReadyException;
 
 }
 

@@ -77,7 +77,6 @@ public class UserStatusManagerImpl implements UserStatusManager {
 	}
 
 	@Override
-	@WriteTransaction
 	public int warnInactiveUsers(int maxBatchSize) {
 		Date warningThreshold = Date.from(clock.now().toInstant().minus(INACTIVITY_WARNING_DAYS, ChronoUnit.DAYS));
 

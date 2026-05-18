@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +17,9 @@ import org.sagebionetworks.repo.model.search.table.ListSynonymSetsResponse;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @ExtendWith(ITTestExtension.class)
 public class ITSynonymSetTest {
@@ -57,14 +61,16 @@ public class ITSynonymSetTest {
 		assertNotNull(created.getId());
 		assertNotNull(created.getEtag());
 		assertEquals(name, created.getName());
-		assertEquals(EQUIVALENT_DEF, created.getDefinition());
+		// MySQL stores definition as a JSON column and reformats whitespace on read,
+		// so compare semantically rather than character-for-character.
+		assertJsonEquals(EQUIVALENT_DEF, created.getDefinition());
 
 		// call under test
 		SynonymSet fetched = adminSynapse.getSynonymSet(created.getId());
 		assertEquals(created.getId(), fetched.getId());
 		assertEquals(created.getEtag(), fetched.getEtag());
 		assertEquals(name, fetched.getName());
-		assertEquals(EQUIVALENT_DEF, fetched.getDefinition());
+		assertJsonEquals(EQUIVALENT_DEF, fetched.getDefinition());
 
 		// UPDATE — swap to a two-rule definition
 		fetched.setDescription("Updated description");
@@ -73,7 +79,7 @@ public class ITSynonymSetTest {
 		// call under test
 		SynonymSet updated = adminSynapse.updateSynonymSet(fetched);
 		assertEquals("Updated description", updated.getDescription());
-		assertEquals(TWO_RULE_DEF, updated.getDefinition());
+		assertJsonEquals(TWO_RULE_DEF, updated.getDefinition());
 		assertNotNull(updated.getEtag());
 
 		// call under test
@@ -81,5 +87,17 @@ public class ITSynonymSetTest {
 				new ListSynonymSetsRequest().setOrganizationName(orgName));
 		assertNotNull(listResponse.getResults());
 		assertTrue(listResponse.getResults().stream().anyMatch(s -> created.getId().equals(s.getId())));
+	}
+
+	private static void assertJsonEquals(String expected, String actual) {
+		ObjectMapper mapper = new ObjectMapper();
+		try {
+			JsonNode expectedNode = mapper.readTree(expected);
+			JsonNode actualNode = mapper.readTree(actual);
+			assertEquals(expectedNode, actualNode,
+					"JSON mismatch — expected: " + expected + " actual: " + actual);
+		} catch (IOException e) {
+			throw new AssertionError("Invalid JSON in test assertion", e);
+		}
 	}
 }

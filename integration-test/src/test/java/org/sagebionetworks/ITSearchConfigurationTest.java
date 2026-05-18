@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -27,10 +28,14 @@ import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
 import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
+import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 
 @ExtendWith(ITTestExtension.class)
 public class ITSearchConfigurationTest {
+
+	private static final String SYNONYM_DEF =
+			"{\"type\":\"synonym_graph\",\"synonyms\":[\"cancer, tumor, neoplasm\"]}";
 
 	private final SynapseAdminClient adminSynapse;
 
@@ -52,8 +57,16 @@ public class ITSearchConfigurationTest {
 		String defaultAnalyzerName = orgName + "-" + bootstrappedAnalyzer.getName();
 
 		String uniqueSuffix = UUID.randomUUID().toString().replace("-", "");
+		String synonymLocalName = "IT_CONFIG_SYNONYMS_" + uniqueSuffix;
 		String overrideLocalName = "IT_CONFIG_OVERRIDE_" + uniqueSuffix;
 		String configName = "IT_TEST_CONFIG_" + uniqueSuffix;
+
+		// Create a SynonymSet to reference from the SearchConfiguration
+		SynonymSet createdSynonymSet = adminSynapse.createSynonymSet(new SynonymSet()
+				.setName(synonymLocalName)
+				.setOrganizationName(orgName)
+				.setDefinition(SYNONYM_DEF));
+		String synonymSetName = orgName + "-" + createdSynonymSet.getName();
 
 		// Create a column analyzer override to reference
 		ColumnAnalyzerOverride createdOverride = adminSynapse.createColumnAnalyzerOverride(new ColumnAnalyzerOverride()
@@ -65,13 +78,14 @@ public class ITSearchConfigurationTest {
 						.setSearchAnalyzer(defaultAnalyzerName))));
 		String overrideName = orgName + "-" + createdOverride.getName();
 
-		// CREATE — both default analyzers are required; overrides optional
+		// CREATE — both default analyzers are required; synonym sets and overrides optional
 		SearchConfiguration toCreate = new SearchConfiguration()
 				.setName(configName)
 				.setDescription("Integration test search configuration")
 				.setOrganizationName(orgName)
 				.setDefaultIndexAnalyzer(defaultAnalyzerName)
 				.setDefaultSearchAnalyzer(defaultAnalyzerName)
+				.setSynonymSets(Arrays.asList(synonymSetName))
 				.setColumnAnalyzerOverrides(Arrays.asList(overrideName));
 
 		// call under test
@@ -82,6 +96,7 @@ public class ITSearchConfigurationTest {
 		assertEquals("Integration test search configuration", created.getDescription());
 		assertEquals(defaultAnalyzerName, created.getDefaultIndexAnalyzer());
 		assertEquals(defaultAnalyzerName, created.getDefaultSearchAnalyzer());
+		assertEquals(Arrays.asList(synonymSetName), created.getSynonymSets());
 		assertEquals(Arrays.asList(overrideName), created.getColumnAnalyzerOverrides());
 
 		// call under test — verify GET returns the same data
@@ -95,13 +110,30 @@ public class ITSearchConfigurationTest {
 		assertNotEquals(created.getEtag(), updated.getEtag());
 		assertEquals(defaultAnalyzerName, updated.getDefaultIndexAnalyzer());
 		assertEquals(defaultAnalyzerName, updated.getDefaultSearchAnalyzer());
+		assertEquals(Arrays.asList(synonymSetName), updated.getSynonymSets());
 		assertEquals(Arrays.asList(overrideName), updated.getColumnAnalyzerOverrides());
+
+		// call under test — UPDATE: clear optional references. An etag rotation alone
+		// does not prove the cleared lists actually persisted; assert on the data.
+		updated.setSynonymSets(null);
+		updated.setColumnAnalyzerOverrides(null);
+		SearchConfiguration cleared = adminSynapse.updateSearchConfiguration(updated);
+		assertTrue(isNullOrEmpty(cleared.getSynonymSets()),
+				"synonymSets should be cleared, was: " + cleared.getSynonymSets());
+		assertTrue(isNullOrEmpty(cleared.getColumnAnalyzerOverrides()),
+				"columnAnalyzerOverrides should be cleared, was: " + cleared.getColumnAnalyzerOverrides());
+		assertEquals(defaultAnalyzerName, cleared.getDefaultIndexAnalyzer());
+		assertEquals(defaultAnalyzerName, cleared.getDefaultSearchAnalyzer());
 
 		// call under test — LIST by org
 		ListSearchConfigurationsResponse listResponse = adminSynapse.listSearchConfigurations(
 				new ListSearchConfigurationsRequest().setOrganizationName(orgName));
 		assertNotNull(listResponse.getResults());
 		assertTrue(listResponse.getResults().stream().anyMatch(c -> created.getId().equals(c.getId())));
+	}
+
+	private static boolean isNullOrEmpty(List<?> list) {
+		return list == null || list.isEmpty();
 	}
 
 	@Test

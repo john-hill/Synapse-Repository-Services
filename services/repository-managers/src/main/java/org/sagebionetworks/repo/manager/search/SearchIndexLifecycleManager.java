@@ -24,18 +24,39 @@ public interface SearchIndexLifecycleManager {
 	/**
 	 * Handle a create event for a SearchIndex entity. Always deletes any existing AOSS index,
 	 * then builds the index from scratch and indexes all data.
+	 *
+	 * @param progressCallback Progress callback used to refresh the per-entity write lock
+	 *        while the build runs.
+	 * @param entityId         The SearchIndex entity ID being built.
+	 * @param userId           The ID of the user who triggered the change. Authorization
+	 *                         decisions during the row stream are made as the realm's
+	 *                         anonymous user; this id is recorded for audit only.
+	 * @throws Exception transient failures (table unavailable, AOSS retryable error)
+	 *         propagate so the worker can re-queue. Permanent failures are recorded as
+	 *         FAILED on {@code SearchIndexStatus} and not rethrown.
 	 */
 	void handleCreate(ProgressCallback progressCallback, String entityId, Long userId) throws Exception;
 
 	/**
 	 * Handle an update event for a SearchIndex entity. Unconditionally deletes and rebuilds
 	 * the AOSS index — simpler and bulletproof for the MVP.
+	 *
+	 * @param progressCallback Progress callback used to refresh the per-entity write lock
+	 *        while the rebuild runs.
+	 * @param entityId         The SearchIndex entity ID being rebuilt.
+	 * @param userId           The ID of the user who triggered the change.
+	 * @throws Exception same retry / fail-recording semantics as {@link #handleCreate}.
 	 */
 	void handleUpdate(ProgressCallback progressCallback, String entityId, Long userId) throws Exception;
 
 	/**
 	 * Handle a delete event for a SearchIndex entity. Acquires the per-entity write lock
 	 * to serialize with any concurrent build, then deletes the AOSS index and the status row.
+	 *
+	 * @param progressCallback Progress callback used to hold the per-entity write lock.
+	 * @param entityId         The SearchIndex entity ID being deleted.
+	 * @throws Exception transient AOSS / lock errors propagate; the AOSS delete itself is
+	 *         idempotent.
 	 */
 	void handleDelete(ProgressCallback progressCallback, String entityId) throws Exception;
 
@@ -43,7 +64,15 @@ public interface SearchIndexLifecycleManager {
 	 * Resolve every SELECT-list column in {@code definingSql} — including literals
 	 * and aliases not on the source schema — to a persisted {@link
 	 * org.sagebionetworks.repo.model.table.ColumnModel} and bind them to the
-	 * SearchIndex. Returns the bound column ids in SELECT-list order.
+	 * SearchIndex. Called from the entity metadata provider on create / update so a
+	 * malformed query fails synchronously with HTTP 400 instead of FAILED'ing the async
+	 * build.
+	 *
+	 * @param searchIndexId The SearchIndex entity ID (with version) whose schema is being
+	 *                      bound.
+	 * @param definingSql   The SQL the SearchIndex is defined by.
+	 * @return The bound column ids in SELECT-list order — also the order rows stream out
+	 *         at index-build time.
 	 */
 	List<String> registerSchema(IdAndVersion searchIndexId, String definingSql);
 }

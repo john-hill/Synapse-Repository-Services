@@ -138,6 +138,22 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	static final String SEARCH_ANALYZER_SUFFIX = "__search";
 
 	/**
+	 * Translate a Synapse qualified name (e.g. {@code org.sagebionetworks-SCIENTIFIC}) to a
+	 * settings key safe to emit under {@code analysis.analyzer} / {@code analysis.filter} /
+	 * {@code analysis.tokenizer}. AOSS treats {@code .} in these keys as a JSON path
+	 * separator and rejects the index, so dots are folded to underscores at the wire boundary.
+	 *
+	 * <p>Every site that emits a qname as an OpenSearch settings key — analyzer registration,
+	 * owned-component namespacing, filter-chain references, the synonym-placeholder
+	 * expansion, and the {@code analyzer} / {@code search_analyzer} bindings on field
+	 * mappings — must route through this helper so the keys match consistently. The
+	 * user-facing qname in DAOs and on the manager API is unchanged; this is wire-only.
+	 */
+	static String toAossKey(String qualifiedName) {
+		return qualifiedName == null ? null : qualifiedName.replace('.', '_');
+	}
+
+	/**
 	 * Reserved token in {@code indexFilterOrder} / {@code searchFilterOrder} that the
 	 * translator substitutes in place with the qualified names of every SynonymSet listed in
 	 * {@code SearchConfiguration.synonymSets}, preserving their order. The expansion is
@@ -229,42 +245,43 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	private void buildAnalysisSettings(IndexSettingsAnalysis.Builder a,
 			Map<String, TextAnalyzer> analyzers,
 			List<SynonymSet> synonymSets, List<String> synonymQnames) {
+		List<String> synonymKeys = new ArrayList<>(synonymQnames.size());
+		for (String qn : synonymQnames) {
+			synonymKeys.add(toAossKey(qn));
+		}
 		for (SynonymSet ss : synonymSets) {
-			String qname = ss.getOrganizationName() + "-" + ss.getName();
+			String key = toAossKey(ss.getOrganizationName() + "-" + ss.getName());
 			TokenFilterDefinition def = deserialize(ss.getDefinition(), TokenFilterDefinition._DESERIALIZER);
-			a.filter(qname, f -> f.definition(def));
+			a.filter(key, f -> f.definition(def));
 		}
 		for (Map.Entry<String, TextAnalyzer> entry : analyzers.entrySet()) {
-			registerAnalyzer(a, entry.getKey(), entry.getValue(), synonymQnames);
+			registerAnalyzer(a, entry.getKey(), entry.getValue(), synonymKeys);
 		}
 	}
 
 	private void registerAnalyzer(IndexSettingsAnalysis.Builder a, String qname, TextAnalyzer analyzer,
-			List<String> synonymQnames) {
+			List<String> synonymKeys) {
+		String aossKey = toAossKey(qname);
 		TextAnalyzerSettings settings = analyzer.getSettings();
 
-		// Tokenizer — owned by this analyzer. If a custom definition is provided, register
-		// it under "<qname>__<component-name>"; otherwise the built-in name is used directly.
-		String tokenizerRef = registerTokenizer(a, qname, settings.getTokenizer());
+		String tokenizerRef = registerTokenizer(a, aossKey, settings.getTokenizer());
 
-		// Char filters — owned by this analyzer; same namespacing rule.
-		registerCharFilterDefs(a, qname, settings.getCharFilters());
-		List<String> charFilterChain = resolveOwnedChain(qname, settings.getCharFilterOrder(), namesOf(settings.getCharFilters()));
+		registerCharFilterDefs(a, aossKey, settings.getCharFilters());
+		List<String> charFilterChain = resolveOwnedChain(aossKey, settings.getCharFilterOrder(), namesOf(settings.getCharFilters()));
 
-		// Token filters — owned by this analyzer; same namespacing rule.
-		registerTokenFilterDefs(a, qname, settings.getTokenFilters());
+		registerTokenFilterDefs(a, aossKey, settings.getTokenFilters());
 		Set<String> ownedFilterNames = namesOf(settings.getTokenFilters());
 
-		List<String> indexChain = resolveFilterChain(qname, settings.getIndexFilterOrder(), ownedFilterNames, synonymQnames);
-		List<String> searchChain = resolveFilterChain(qname, settings.getSearchFilterOrder(), ownedFilterNames, synonymQnames);
+		List<String> indexChain = resolveFilterChain(aossKey, settings.getIndexFilterOrder(), ownedFilterNames, synonymKeys);
+		List<String> searchChain = resolveFilterChain(aossKey, settings.getSearchFilterOrder(), ownedFilterNames, synonymKeys);
 
 		Integer pig = settings.getPositionIncrementGap() != null ? settings.getPositionIncrementGap().intValue() : null;
-		registerCustomAnalyzer(a, qname, tokenizerRef, indexChain, charFilterChain, pig);
+		registerCustomAnalyzer(a, aossKey, tokenizerRef, indexChain, charFilterChain, pig);
 
 		// Search-time variant: register only when the user provided a distinct searchFilterOrder.
 		if (settings.getSearchFilterOrder() != null && !settings.getSearchFilterOrder().isEmpty()
 				&& !indexChain.equals(searchChain)) {
-			registerCustomAnalyzer(a, qname + SEARCH_ANALYZER_SUFFIX, tokenizerRef,
+			registerCustomAnalyzer(a, aossKey + SEARCH_ANALYZER_SUFFIX, tokenizerRef,
 					searchChain, charFilterChain, pig);
 		}
 	}
@@ -1315,12 +1332,15 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			Map<String, TextAnalyzer> analyzers) {
 		Integer ignoreAbove = ColumnTypeToOpenSearchMapping.getIgnoreAbove(columnType);
 		final int finalIa = ignoreAbove != null ? ignoreAbove : 1000;
-		final String resolvedSearch = searchVariantOf(searchQname, analyzers);
+		// analyzer / search_analyzer must reference the same keys that buildAnalysisSettings
+		// registered the analyzer under — both sides go through toAossKey.
+		final String indexKey = toAossKey(indexQname);
+		final String searchKey = searchVariantOf(searchQname, analyzers);
 
 		return Property.of(p -> p.text(t -> {
-			t.analyzer(indexQname);
-			if (!indexQname.equals(resolvedSearch)) {
-				t.searchAnalyzer(resolvedSearch);
+			t.analyzer(indexKey);
+			if (!indexKey.equals(searchKey)) {
+				t.searchAnalyzer(searchKey);
 			}
 			t.fields(SUB_FIELD_KEYWORD, f -> f.keyword(k -> k.ignoreAbove(finalIa)));
 			return t;
@@ -1328,23 +1348,26 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	/**
+	 * Resolve which analyzer key the field mapping's {@code search_analyzer} should bind to.
 	 * If the analyzer at {@code qname} carries a distinct {@code searchFilterOrder}, the
-	 * translator registered a {@code <qname>__search} variant — return that so field mappings
-	 * can route search-time analysis to it. Otherwise the analyzer is symmetric and the
-	 * unqualified qname suffices.
+	 * translator registered a {@code <aossKey>__search} variant — return that. Otherwise
+	 * the analyzer is symmetric and the sanitized {@code aossKey} suffices. The lookup
+	 * into {@code analyzers} is by the user-facing qname (the map key), but the returned
+	 * value is always the AOSS-side settings key.
 	 */
 	private static String searchVariantOf(String qname, Map<String, TextAnalyzer> analyzers) {
+		String aossKey = toAossKey(qname);
 		TextAnalyzer a = analyzers.get(qname);
 		if (a == null || a.getSettings() == null) {
-			return qname;
+			return aossKey;
 		}
 		List<String> search = a.getSettings().getSearchFilterOrder();
 		if (search == null || search.isEmpty()) {
-			return qname;
+			return aossKey;
 		}
 		List<String> index = a.getSettings().getIndexFilterOrder() != null
 				? a.getSettings().getIndexFilterOrder() : Collections.emptyList();
-		return index.equals(search) ? qname : qname + SEARCH_ANALYZER_SUFFIX;
+		return index.equals(search) ? aossKey : aossKey + SEARCH_ANALYZER_SUFFIX;
 	}
 
 	/**

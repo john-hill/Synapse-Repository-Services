@@ -76,7 +76,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * </table>
  *
  * <h6>Putting it together (concrete example)</h6>
- * <pre>{@code
+ * <pre>
  * // 1. Define a SynonymSet (one of the four resources):
  * POST /repo/v1/search/synonym/set
  * {
@@ -111,7 +111,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * // 4. Bind to a project — every SearchIndex under it inherits:
  * PUT /repo/v1/entity/syn0001/searchconfig/binding
  * { "searchConfigurationId": "9876" }
- * }</pre>
+ * </pre>
  *
  * <h6>Sharing across organizations</h6>
  * <p>All four resource types are <b>publicly readable</b>. Resources are referenced by their
@@ -151,6 +151,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * <p>Max 500,000 indexed rows per SearchIndex. Query page size defaults to 25, capped at 100.
  * Per-column field type and <code>ignore_above</code> sizing are documented on
  * <a href="${org.sagebionetworks.repo.model.search.table.SearchIndex}">SearchIndex</a>.</p>
+ *
  */
 @ControllerInfo(displayName = "Search Management Services", path = "repo/v1")
 @Controller

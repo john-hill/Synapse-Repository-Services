@@ -254,6 +254,49 @@ public class SearchConfigurationManagerImplTest {
 		assertEquals(saved, result);
 	}
 
+	@Test
+	public void testCreateWithSynonymSets() {
+		// Positive companion to testCreateWithUnknownSynonymSetThrows: when every
+		// referenced SynonymSet exists, the populated list must reach the DAO unchanged.
+		when(textAnalyzerDao.findNonExistentNames(any())).thenReturn(Collections.emptyList());
+		when(synonymSetDao.findNonExistentNames(Arrays.asList("biomed-medical_terms")))
+				.thenReturn(Collections.emptyList());
+		SearchConfiguration request = validRequest()
+				.setSynonymSets(Arrays.asList("biomed-medical_terms"));
+		SearchConfiguration saved = request.setId("999");
+		when(searchConfigurationDao.create(eq(1L), eq(request))).thenReturn(saved);
+
+		// call under test
+		SearchConfiguration result = manager.create(adminUser(), request);
+
+		assertEquals(saved, result);
+		assertEquals(Arrays.asList("biomed-medical_terms"), result.getSynonymSets());
+	}
+
+	@Test
+	public void testUpdateClearsSynonymSets() {
+		// The DAO update wipes-and-reinserts junction rows on every write — but only if
+		// the manager forwards the cleared list intact. Verify that nulling synonymSets /
+		// columnAnalyzerOverrides on the request reaches the DAO with the same nulls
+		// rather than the manager defaulting back to the existing values.
+		when(textAnalyzerDao.findNonExistentNames(any())).thenReturn(Collections.emptyList());
+		SearchConfiguration request = validRequest().setId("999").setEtag("etag-1");
+		request.setSynonymSets(null);
+		request.setColumnAnalyzerOverrides(null);
+		SearchConfiguration existing = validRequest().setId("999").setEtag("etag-1")
+				.setSynonymSets(Arrays.asList("biomed-medical_terms"))
+				.setColumnAnalyzerOverrides(Arrays.asList("biomed-overrides"));
+		when(searchConfigurationDao.get("999")).thenReturn(Optional.of(existing));
+		SearchConfiguration cleared = validRequest().setId("999").setEtag("etag-2");
+		when(searchConfigurationDao.update(eq(1L), eq(request))).thenReturn(cleared);
+
+		// call under test
+		SearchConfiguration result = manager.update(adminUser(), request);
+
+		assertEquals(cleared, result);
+		verify(searchConfigurationDao).update(eq(1L), eq(request));
+	}
+
 	// --- update ---
 
 	@Test

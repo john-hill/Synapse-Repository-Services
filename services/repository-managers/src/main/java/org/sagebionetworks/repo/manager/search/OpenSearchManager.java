@@ -91,6 +91,17 @@ public interface OpenSearchManager {
 	 * disables total-hits tracking, and omitting FACETS skips aggregation construction. The
 	 * returned {@link SearchQueryResults} only carries the fields corresponding to the
 	 * requested options plus {@code offset}.
+	 *
+	 * @param indexName                The OpenSearch index name.
+	 * @param query                    The search query.
+	 * @param columns                  The column models for field routing (user-facing names).
+	 * @param defaultSearchAnalyzer    The qualified name of the SearchConfiguration's
+	 *                                 {@code defaultSearchAnalyzer}; may be {@code null}.
+	 * @param columnAnalyzerOverrides  The resolved per-column analyzer overrides (may be empty).
+	 * @param analyzers                Map of qualified name → TextAnalyzer for every analyzer
+	 *                                 referenced by the default or overrides.
+	 * @param options                  The response options requested; must be non-null and non-empty.
+	 * @return The search results — only fields corresponding to requested options are populated.
 	 */
 	SearchQueryResults search(String indexName, SearchQuery query, List<ColumnModel> columns,
 			String defaultSearchAnalyzer,
@@ -100,6 +111,17 @@ public interface OpenSearchManager {
 	/**
 	 * Execute an autocomplete query. Forces PREFIX query type and caps size at 8.
 	 * Autocomplete never produces facets regardless of the {@code options} set.
+	 *
+	 * @param indexName                The OpenSearch index name.
+	 * @param query                    The search query (queryType is overridden to PREFIX).
+	 * @param columns                  The column models for field routing (user-facing names).
+	 * @param defaultSearchAnalyzer    The qualified name of the SearchConfiguration's
+	 *                                 {@code defaultSearchAnalyzer}; may be {@code null}.
+	 * @param columnAnalyzerOverrides  The resolved per-column analyzer overrides (may be empty).
+	 * @param analyzers                Map of qualified name → TextAnalyzer for every analyzer
+	 *                                 referenced by the default or overrides.
+	 * @param options                  The response options requested; must be non-null and non-empty.
+	 * @return The autocomplete results.
 	 */
 	SearchQueryResults autocomplete(String indexName, SearchQuery query, List<ColumnModel> columns,
 			String defaultSearchAnalyzer,
@@ -113,8 +135,9 @@ public interface OpenSearchManager {
 	 * those references are validated lazily at index build time, after SynonymSets are
 	 * resolved.
 	 *
-	 * @throws IllegalArgumentException if the analyzer configuration is rejected by OpenSearch
-	 * @throws IllegalStateException if the OpenSearch service is unreachable
+	 * @param settings The TextAnalyzerSettings to validate. Must be non-null with a tokenizer.
+	 * @throws IllegalArgumentException if the analyzer configuration is rejected by OpenSearch.
+	 * @throws IllegalStateException    if the OpenSearch service is unreachable.
 	 */
 	void validateAnalyzerSettings(TextAnalyzerSettings settings);
 }

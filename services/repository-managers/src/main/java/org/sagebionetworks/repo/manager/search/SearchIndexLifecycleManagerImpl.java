@@ -190,6 +190,23 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		}
 	}
 
+	/**
+	 * Build (or rebuild) the AOSS index for {@code entityId}. Caller holds the
+	 * per-entity write lock. Records lifecycle state on {@code SearchIndexStatus}:
+	 * CREATING on entry, ACTIVE on success, FAILED with a truncated error message
+	 * on permanent failure. Transient failures (table unavailable, lock contention,
+	 * concurrent-delete on AOSS) propagate as {@link RecoverableMessageException}
+	 * so the worker can re-queue without flipping the index to FAILED.
+	 *
+	 * @param progressCallback     Refreshes the per-entity write lock during the build.
+	 * @param entityId             SearchIndex entity ID.
+	 * @param userId               User who triggered the change. Authorization for the
+	 *                             row stream is performed as the realm's anonymous user;
+	 *                             this id is recorded for audit only.
+	 * @param deleteExistingFirst  When true, the AOSS index is dropped before the build
+	 *                             (the rebuild path); when false, the build assumes no
+	 *                             existing index exists.
+	 */
 	private void buildIndex(ProgressCallback progressCallback, String entityId, Long userId,
 			boolean deleteExistingFirst)
 			throws Exception {
@@ -345,6 +362,18 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		}
 	}
 
+	/**
+	 * Collect every TextAnalyzer qualified name referenced by the configuration's
+	 * defaults, the per-column overrides, and each column type's system default, then
+	 * bulk-load them via {@code textAnalyzerDao}. Returns a mutable map keyed by
+	 * qualified name.
+	 *
+	 * @param config    Effective {@link SearchConfiguration}; may be {@code null}.
+	 * @param overrides Resolved column-analyzer overrides; may be empty.
+	 * @param columns   Columns of the source table; the system default analyzer for
+	 *                  each column type is always loaded.
+	 * @return mutable map qualified-name → TextAnalyzer.
+	 */
 	Map<String, TextAnalyzer> collectAndLoadAnalyzers(SearchConfiguration config,
 			List<ColumnAnalyzerOverride> overrides, List<ColumnModel> columns) {
 		Set<String> qualifiedNames = new HashSet<>();
@@ -389,6 +418,12 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	 * time. Validation at SearchConfiguration create/update guarantees every listed qname
 	 * resolves, so a missing qname here is a transient inconsistency (the SynonymSet was
 	 * deleted out from under us) and yields a build-time failure.
+	 *
+	 * @param config Effective {@link SearchConfiguration}; may be {@code null}.
+	 * @return SynonymSets in the order declared by {@code config.getSynonymSets()};
+	 *         empty when the config is {@code null} or has no synonym sets.
+	 * @throws IllegalArgumentException when any listed qname no longer resolves (the
+	 *         SynonymSet was deleted between SearchConfiguration save and index build).
 	 */
 	List<SynonymSet> loadConfiguredSynonymSets(SearchConfiguration config) {
 		if (config == null || config.getSynonymSets() == null || config.getSynonymSets().isEmpty()) {
@@ -488,6 +523,16 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	 * {@link #MAX_ERROR_MESSAGE_LENGTH}) and the SearchIndex is marked FAILED. SynonymSet
 	 * references are best-effort — resolved sets become filters; unresolved dash-names pass
 	 * through to AOSS as-is.
+	 *
+	 * @param defaultIndexAnalyzer  Qualified name of the SearchConfiguration's default
+	 *                              index analyzer; may be {@code null}.
+	 * @param defaultSearchAnalyzer Qualified name of the SearchConfiguration's default
+	 *                              search analyzer; may be {@code null}.
+	 * @param overrides             Resolved column-analyzer overrides; may be empty.
+	 * @param analyzers             Map of qualified name → TextAnalyzer loaded via
+	 *                              {@link #collectAndLoadAnalyzers}.
+	 * @throws IllegalArgumentException when any non-null qname does not resolve to a
+	 *         loaded TextAnalyzer.
 	 */
 	private void validateReferencedResources(String defaultIndexAnalyzer, String defaultSearchAnalyzer,
 			List<ColumnAnalyzerOverride> overrides,

@@ -148,19 +148,15 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 	@Test
 	public void testCreateIndexAndSearchWithSynonymPlaceholder() {
-		// Custom analyzer with the reserved 'synapse_synonyms' placeholder in the chain.
-		// At index-build time OpenSearchManagerImpl substitutes the SynonymSet qnames in
-		// place of the placeholder — that's the substitution path under test.
-		String analyzerQname = ORG + "-SYNONYM_TEST";
-		String synonymQname = ORG + "-SYNONYM_TEST_SET";
-		TextAnalyzer analyzer = new TextAnalyzer()
-				.setId("9001")
-				.setSettings(new TextAnalyzerSettings()
-						.setTokenizer(new AnalyzerComponent().setName("standard"))
-						.setIndexFilterOrder(Arrays.asList("lowercase", "synapse_synonyms"))
-						.setSearchFilterOrder(Arrays.asList("lowercase", "synapse_synonyms")));
+		// Anchors the SCIENTIFIC + SynonymSet round-trip against live AOSS. The bootstrapped
+		// analyzer's chain mixes a word_delimiter_graph filter with the synapse_synonyms
+		// placeholder; placing the placeholder anywhere AFTER a graph-emitting filter causes
+		// OpenSearch to reject the index at init with "cannot be used to parse synonyms".
+		// This test exercises the full path — index creation, bulk indexing, and a query
+		// that must traverse the synonym equivalence rule — to lock in both the chain
+		// shape and the runtime expansion.
 		Map<String, TextAnalyzer> analyzers = new HashMap<>();
-		analyzers.put(analyzerQname, analyzer);
+		analyzers.put(SCIENTIFIC_QNAME, requireBootstrapped(TextAnalyzerBootstrapper.SCIENTIFIC_ID));
 
 		SynonymSet synonymSet = new SynonymSet()
 				.setOrganizationName(ORG)
@@ -170,9 +166,9 @@ public class OpenSearchManagerImplAutoWiredTest {
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("1").setName("diagnosis").setColumnType(ColumnType.STRING));
 
-		// call under test — createIndex must accept the placeholder + synonym graph wiring.
+		// call under test — createIndex must accept the SCIENTIFIC analyzer + synonym graph wiring.
 		openSearchManager.createIndex(indexName, columns,
-				analyzerQname, analyzerQname,
+				SCIENTIFIC_QNAME, SCIENTIFIC_QNAME,
 				Collections.emptyList(), analyzers, Collections.singletonList(synonymSet));
 		openSearchManager.waitForIndexWritable(indexName);
 
@@ -188,7 +184,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		query.setLimit(10L);
 		query.setOffset(0L);
 
-		SearchQueryResults results = waitForSearch(query, columns, analyzers, analyzerQname, 3L);
+		SearchQueryResults results = waitForSearch(query, columns, analyzers, SCIENTIFIC_QNAME, 3L);
 		assertEquals(3L, results.getTotalHits(),
 				"Query for 'cancer' must reach all three docs via the equivalent synonym rule wired in via the synapse_synonyms placeholder");
 	}

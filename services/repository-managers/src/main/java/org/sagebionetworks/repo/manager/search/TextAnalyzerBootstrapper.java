@@ -120,10 +120,14 @@ public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 		return new AnalyzerComponent().setName(name).setDefinition(definition);
 	}
 
-	// Reserved injection-point token. Each bootstrapped analyzer that supports synonyms places
-	// 'synapse_synonyms' at the OpenSearch-recommended slot in its chain (after lowercase, before
-	// any case-folding / stemming / n-gram filter). At index-build time the translator expands
-	// the placeholder into the SynonymSet qnames listed on the SearchConfiguration.
+	// Reserved injection-point token expanded at index-build time into the SynonymSet
+	// qnames listed on the SearchConfiguration. Lives in searchFilterOrder only —
+	// synonym_graph is a search-time filter by design (index-time use forces re-index
+	// on dictionary change, bloats storage, distorts TF scoring). OpenSearch compiles
+	// the synonym dictionary at index-init by feeding raw synonyms through every filter
+	// preceding the placeholder, so any graph-emitting filter (word_delimiter_graph,
+	// edge_ngram, ...) must come AFTER 'synapse_synonyms' in the chain or OpenSearch
+	// rejects the index with "cannot be used to parse synonyms".
 	private static final String SYN = "synapse_synonyms";
 
 	private TextAnalyzerSettings buildScientificSettings() {
@@ -134,7 +138,9 @@ public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 						custom("english_stop", ENGLISH_STOP_DEF),
 						custom("english_stemmer", ENGLISH_STEMMER_DEF)))
 				.setIndexFilterOrder(Arrays.asList(
-						"sci_word_delimiter", "lowercase", SYN, "english_stop", "english_stemmer"));
+						"sci_word_delimiter", "lowercase", "english_stop", "english_stemmer"))
+				.setSearchFilterOrder(Arrays.asList(
+						"lowercase", SYN, "sci_word_delimiter", "english_stop", "english_stemmer"));
 	}
 
 	private TextAnalyzerSettings buildStandardSettings() {
@@ -142,7 +148,8 @@ public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 				.setTokenizer(builtIn("standard"))
 				.setTokenFilters(Collections.singletonList(
 						custom("std_word_delimiter", WORD_DELIMITER_GRAPH_DEF)))
-				.setIndexFilterOrder(Arrays.asList("std_word_delimiter", "lowercase", SYN));
+				.setIndexFilterOrder(Arrays.asList("std_word_delimiter", "lowercase"))
+				.setSearchFilterOrder(Arrays.asList("lowercase", SYN, "std_word_delimiter"));
 	}
 
 	private TextAnalyzerSettings buildIdentifierSettings() {
@@ -150,7 +157,8 @@ public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 				.setTokenizer(builtIn("whitespace"))
 				.setTokenFilters(Collections.singletonList(
 						custom("id_word_delimiter", WORD_DELIMITER_NO_POSSESSIVE_DEF)))
-				.setIndexFilterOrder(Arrays.asList("id_word_delimiter", "lowercase", SYN));
+				.setIndexFilterOrder(Arrays.asList("id_word_delimiter", "lowercase"))
+				.setSearchFilterOrder(Arrays.asList("lowercase", SYN, "id_word_delimiter"));
 	}
 
 	private TextAnalyzerSettings buildKeywordSettings() {
@@ -180,7 +188,7 @@ public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 				.setTokenizer(builtIn("standard"))
 				.setTokenFilters(Collections.singletonList(
 						custom("acs_word_delimiter", WORD_DELIMITER_GRAPH_DEF)))
-				.setIndexFilterOrder(Arrays.asList("acs_word_delimiter", "lowercase", SYN));
+				.setIndexFilterOrder(Arrays.asList("lowercase", SYN, "acs_word_delimiter"));
 	}
 
 }

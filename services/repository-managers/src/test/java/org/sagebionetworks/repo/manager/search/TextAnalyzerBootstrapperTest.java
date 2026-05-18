@@ -85,39 +85,61 @@ public class TextAnalyzerBootstrapperTest {
 	}
 
 	@Test
-	public void testScientificAnalyzerPlacesSynonymPlaceholderAfterLowercase() {
-		// Synonym injection must happen after lowercase so synonym matching is case-insensitive,
-		// and before stemming so 'cancer'→'cancer'→'cancer' (stem) survives.
+	public void testScientificAnalyzerPlacesSynonymPlaceholderInSearchChainBeforeWordDelimiter() {
+		// synonym_graph is search-time only (re-index avoidance, no TF distortion). At index-init
+		// OpenSearch compiles the dictionary by feeding raw synonyms through every preceding
+		// filter — so SYN must sit BEFORE sci_word_delimiter (a word_delimiter_graph) in the
+		// search chain, otherwise OpenSearch rejects with "cannot be used to parse synonyms".
 		TextAnalyzer scientific = captureAllUpserts().get(TextAnalyzerBootstrapper.SCIENTIFIC_ID);
-		List<String> order = scientific.getSettings().getIndexFilterOrder();
+		List<String> indexOrder = scientific.getSettings().getIndexFilterOrder();
+		List<String> searchOrder = scientific.getSettings().getSearchFilterOrder();
 
-		int lowercaseIdx = order.indexOf("lowercase");
-		int placeholderIdx = order.indexOf(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER);
-		int stopIdx = order.indexOf("english_stop");
-		int stemmerIdx = order.indexOf("english_stemmer");
+		assertTrue(!indexOrder.contains(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER),
+				"SCIENTIFIC indexFilterOrder must NOT contain synapse_synonyms (search-time only): "
+						+ indexOrder);
 
-		assertTrue(lowercaseIdx >= 0, "SCIENTIFIC must contain lowercase: " + order);
+		int lowercaseIdx = searchOrder.indexOf("lowercase");
+		int placeholderIdx = searchOrder.indexOf(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER);
+		int wordDelimIdx = searchOrder.indexOf("sci_word_delimiter");
+		int stopIdx = searchOrder.indexOf("english_stop");
+		int stemmerIdx = searchOrder.indexOf("english_stemmer");
+
+		assertTrue(lowercaseIdx >= 0, "SCIENTIFIC search chain must contain lowercase: " + searchOrder);
+		assertTrue(placeholderIdx >= 0,
+				"SCIENTIFIC search chain must contain synapse_synonyms: " + searchOrder);
 		assertTrue(lowercaseIdx < placeholderIdx,
-				"Placeholder must come AFTER lowercase (case-insensitive synonym match): " + order);
-		assertTrue(placeholderIdx < stopIdx,
-				"Placeholder must come BEFORE english_stop: " + order);
+				"Placeholder must come AFTER lowercase (case-insensitive synonym match): " + searchOrder);
+		assertTrue(placeholderIdx < wordDelimIdx,
+				"Placeholder must come BEFORE sci_word_delimiter (graph predecessor rule): " + searchOrder);
+		assertTrue(wordDelimIdx < stopIdx,
+				"sci_word_delimiter must come BEFORE english_stop: " + searchOrder);
 		assertTrue(stopIdx < stemmerIdx,
-				"english_stop must come BEFORE stemmer: " + order);
+				"english_stop must come BEFORE stemmer: " + searchOrder);
 	}
 
 	@Test
-	public void testStandardAndIdentifierAnalyzersExposePlaceholder() {
+	public void testStandardAndIdentifierAnalyzersExposePlaceholderInSearchChainOnly() {
 		Map<Long, TextAnalyzer> upserts = captureAllUpserts();
 
-		List<String> standard = upserts.get(TextAnalyzerBootstrapper.STANDARD_ID)
+		List<String> standardIndex = upserts.get(TextAnalyzerBootstrapper.STANDARD_ID)
 				.getSettings().getIndexFilterOrder();
-		List<String> identifier = upserts.get(TextAnalyzerBootstrapper.IDENTIFIER_ID)
+		List<String> standardSearch = upserts.get(TextAnalyzerBootstrapper.STANDARD_ID)
+				.getSettings().getSearchFilterOrder();
+		List<String> identifierIndex = upserts.get(TextAnalyzerBootstrapper.IDENTIFIER_ID)
 				.getSettings().getIndexFilterOrder();
+		List<String> identifierSearch = upserts.get(TextAnalyzerBootstrapper.IDENTIFIER_ID)
+				.getSettings().getSearchFilterOrder();
 
-		assertTrue(standard.contains(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER),
-				"STANDARD must expose 'synapse_synonyms': " + standard);
-		assertTrue(identifier.contains(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER),
-				"IDENTIFIER must expose 'synapse_synonyms': " + identifier);
+		assertTrue(!standardIndex.contains(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER),
+				"STANDARD indexFilterOrder must NOT expose synapse_synonyms: " + standardIndex);
+		assertTrue(!identifierIndex.contains(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER),
+				"IDENTIFIER indexFilterOrder must NOT expose synapse_synonyms: " + identifierIndex);
+		assertTrue(standardSearch.indexOf(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER)
+						< standardSearch.indexOf("std_word_delimiter"),
+				"STANDARD search chain must place synapse_synonyms before std_word_delimiter: " + standardSearch);
+		assertTrue(identifierSearch.indexOf(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER)
+						< identifierSearch.indexOf("id_word_delimiter"),
+				"IDENTIFIER search chain must place synapse_synonyms before id_word_delimiter: " + identifierSearch);
 	}
 
 	@Test
@@ -148,14 +170,19 @@ public class TextAnalyzerBootstrapperTest {
 	}
 
 	@Test
-	public void testAutocompleteSearchAnalyzerExposesPlaceholder() {
-		// Search-time synonym expansion pairs with the index-time edge_ngram from AUTOCOMPLETE,
-		// giving 'tumor'→'cancer' type-ahead without exploding the index.
+	public void testAutocompleteSearchAnalyzerExposesPlaceholderBeforeWordDelimiter() {
+		// AUTOCOMPLETE_SEARCH IS the search-time analyzer paired with AUTOCOMPLETE; SYN must
+		// appear here, and must precede acs_word_delimiter (a word_delimiter_graph) so the
+		// synonym dictionary compile at index-init isn't preceded by a graph filter.
 		TextAnalyzer search = captureAllUpserts().get(TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID);
 		List<String> order = search.getSettings().getIndexFilterOrder();
 
-		assertTrue(order.contains(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER),
+		int placeholderIdx = order.indexOf(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER);
+		int wordDelimIdx = order.indexOf("acs_word_delimiter");
+		assertTrue(placeholderIdx >= 0,
 				"AUTOCOMPLETE_SEARCH must expose 'synapse_synonyms' at search time: " + order);
+		assertTrue(placeholderIdx < wordDelimIdx,
+				"AUTOCOMPLETE_SEARCH must place synapse_synonyms before acs_word_delimiter: " + order);
 	}
 
 	@Test

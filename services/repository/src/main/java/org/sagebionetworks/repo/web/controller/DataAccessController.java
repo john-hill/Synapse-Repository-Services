@@ -77,7 +77,7 @@ public class DataAccessController {
 
 	/**
 	 * Retrieve an existing ResearchProject that the user owns.
-	 * If none exists, a ResearchProject with some re-filled information is returned to the user.
+	 * If none exists, a ResearchProject with some pre-filled information is returned to the user.
 	 * Only the owner of the researchProject can perform this action.
 	 * 
 	 * @param userId - The ID of the user who is making the request.
@@ -133,7 +133,7 @@ public class DataAccessController {
 	}
 
 	/**
-	 * Submit a Submission using information from a Request.
+	 * Submit an Access Request using information from a Request.
 	 * 
 	 * @param userId - The ID of the user who is making the request.
 	 * @param request - The object that contains information to create a submission.

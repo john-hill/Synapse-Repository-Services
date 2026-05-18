@@ -3,7 +3,6 @@ package org.sagebionetworks;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -28,9 +27,6 @@ import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
 import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
-import org.sagebionetworks.repo.model.search.table.SynonymRule;
-import org.sagebionetworks.repo.model.search.table.SynonymRuleType;
-import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 
 @ExtendWith(ITTestExtension.class)
@@ -55,47 +51,28 @@ public class ITSearchConfigurationTest {
 		String orgName = bootstrappedAnalyzer.getOrganizationName();
 		String defaultAnalyzerName = orgName + "-" + bootstrappedAnalyzer.getName();
 
-		// Names are unique per organization with no delete endpoint, so use UUID
-		// suffixes to avoid collisions across re-runs of the test.
 		String uniqueSuffix = UUID.randomUUID().toString().replace("-", "");
-		String synonymName = "IT_CONFIG_SYNONYMS_" + uniqueSuffix;
 		String overrideLocalName = "IT_CONFIG_OVERRIDE_" + uniqueSuffix;
 		String configName = "IT_TEST_CONFIG_" + uniqueSuffix;
 
-		// Create a synonym set to reference
-		SynonymRule equivalentRule = new SynonymRule();
-		equivalentRule.setRuleType(SynonymRuleType.EQUIVALENT);
-		equivalentRule.setTerms(Arrays.asList("cancer", "tumor", "neoplasm"));
-		SynonymRule explicitRule = new SynonymRule();
-		explicitRule.setRuleType(SynonymRuleType.EXPLICIT);
-		explicitRule.setTerms(Arrays.asList("AD", "Alzheimer's disease"));
-		SynonymSet synonymSet = new SynonymSet();
-		synonymSet.setName(synonymName);
-		synonymSet.setOrganizationName(orgName);
-		synonymSet.setRules(Arrays.asList(equivalentRule, explicitRule));
-		SynonymSet createdSynonymSet = adminSynapse.createSynonymSet(synonymSet);
-		String synonymSetName = orgName + "-" + createdSynonymSet.getName();
-
 		// Create a column analyzer override to reference
-		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
-		entry.setColumnName("abstract");
-		entry.setIndexAnalyzer(defaultAnalyzerName);
-		entry.setSearchAnalyzer(defaultAnalyzerName);
-		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride();
-		override.setName(overrideLocalName);
-		override.setOrganizationName(orgName);
-		override.setOverrides(Collections.singletonList(entry));
-		ColumnAnalyzerOverride createdOverride = adminSynapse.createColumnAnalyzerOverride(override);
+		ColumnAnalyzerOverride createdOverride = adminSynapse.createColumnAnalyzerOverride(new ColumnAnalyzerOverride()
+				.setName(overrideLocalName)
+				.setOrganizationName(orgName)
+				.setOverrides(Collections.singletonList(new ColumnAnalyzerOverrideEntry()
+						.setColumnName("abstract")
+						.setIndexAnalyzer(defaultAnalyzerName)
+						.setSearchAnalyzer(defaultAnalyzerName))));
 		String overrideName = orgName + "-" + createdOverride.getName();
 
-		// CREATE — include all three reference types
-		SearchConfiguration toCreate = new SearchConfiguration();
-		toCreate.setName(configName);
-		toCreate.setDescription("Integration test search configuration");
-		toCreate.setOrganizationName(orgName);
-		toCreate.setDefaultAnalyzer(defaultAnalyzerName);
-		toCreate.setSynonymSets(Arrays.asList(synonymSetName));
-		toCreate.setColumnAnalyzerOverrides(Arrays.asList(overrideName));
+		// CREATE — both default analyzers are required; overrides optional
+		SearchConfiguration toCreate = new SearchConfiguration()
+				.setName(configName)
+				.setDescription("Integration test search configuration")
+				.setOrganizationName(orgName)
+				.setDefaultIndexAnalyzer(defaultAnalyzerName)
+				.setDefaultSearchAnalyzer(defaultAnalyzerName)
+				.setColumnAnalyzerOverrides(Arrays.asList(overrideName));
 
 		// call under test
 		SearchConfiguration created = adminSynapse.createSearchConfiguration(toCreate);
@@ -103,36 +80,26 @@ public class ITSearchConfigurationTest {
 		assertNotNull(created.getEtag());
 		assertEquals(configName, created.getName());
 		assertEquals("Integration test search configuration", created.getDescription());
-		assertEquals(defaultAnalyzerName, created.getDefaultAnalyzer());
-		assertEquals(Arrays.asList(synonymSetName), created.getSynonymSets());
+		assertEquals(defaultAnalyzerName, created.getDefaultIndexAnalyzer());
+		assertEquals(defaultAnalyzerName, created.getDefaultSearchAnalyzer());
 		assertEquals(Arrays.asList(overrideName), created.getColumnAnalyzerOverrides());
 
 		// call under test — verify GET returns the same data
 		SearchConfiguration fetched = adminSynapse.getSearchConfiguration(created.getId());
 		assertEquals(created, fetched);
 
-		// call under test — UPDATE: change description and verify references survive
+		// call under test — UPDATE: change description, verify references survive
 		fetched.setDescription("Updated description");
 		SearchConfiguration updated = adminSynapse.updateSearchConfiguration(fetched);
 		assertEquals("Updated description", updated.getDescription());
 		assertNotEquals(created.getEtag(), updated.getEtag());
-		assertEquals(defaultAnalyzerName, updated.getDefaultAnalyzer());
-		assertEquals(Arrays.asList(synonymSetName), updated.getSynonymSets());
+		assertEquals(defaultAnalyzerName, updated.getDefaultIndexAnalyzer());
+		assertEquals(defaultAnalyzerName, updated.getDefaultSearchAnalyzer());
 		assertEquals(Arrays.asList(overrideName), updated.getColumnAnalyzerOverrides());
 
-		// call under test — UPDATE: clear optional references
-		updated.setDefaultAnalyzer(null);
-		updated.setSynonymSets(null);
-		updated.setColumnAnalyzerOverrides(null);
-		SearchConfiguration cleared = adminSynapse.updateSearchConfiguration(updated);
-		assertNull(cleared.getDefaultAnalyzer());
-		assertTrue(cleared.getSynonymSets() == null || cleared.getSynonymSets().isEmpty());
-		assertTrue(cleared.getColumnAnalyzerOverrides() == null || cleared.getColumnAnalyzerOverrides().isEmpty());
-
 		// call under test — LIST by org
-		ListSearchConfigurationsRequest listRequest = new ListSearchConfigurationsRequest();
-		listRequest.setOrganizationName(orgName);
-		ListSearchConfigurationsResponse listResponse = adminSynapse.listSearchConfigurations(listRequest);
+		ListSearchConfigurationsResponse listResponse = adminSynapse.listSearchConfigurations(
+				new ListSearchConfigurationsRequest().setOrganizationName(orgName));
 		assertNotNull(listResponse.getResults());
 		assertTrue(listResponse.getResults().stream().anyMatch(c -> created.getId().equals(c.getId())));
 	}
@@ -145,21 +112,21 @@ public class ITSearchConfigurationTest {
 		Entity createdProject = adminSynapse.createEntity(project);
 
 		try {
-			// Create a search configuration
-			ListTextAnalyzersRequest analyzerReq = new ListTextAnalyzersRequest();
-			ListTextAnalyzersResponse analyzers = adminSynapse.listTextAnalyzers(analyzerReq);
-			String orgName = analyzers.getResults().get(0).getOrganizationName();
+			ListTextAnalyzersResponse analyzers = adminSynapse.listTextAnalyzers(new ListTextAnalyzersRequest());
+			TextAnalyzer bootstrappedAnalyzer = analyzers.getResults().get(0);
+			String orgName = bootstrappedAnalyzer.getOrganizationName();
+			String defaultAnalyzerName = orgName + "-" + bootstrappedAnalyzer.getName();
 
-			SearchConfiguration config = new SearchConfiguration();
-			config.setName("IT_BIND_CONFIG_" + UUID.randomUUID().toString().replace("-", ""));
-			config.setOrganizationName(orgName);
-			SearchConfiguration createdConfig = adminSynapse.createSearchConfiguration(config);
+			SearchConfiguration createdConfig = adminSynapse.createSearchConfiguration(new SearchConfiguration()
+					.setName("IT_BIND_CONFIG_" + UUID.randomUUID().toString().replace("-", ""))
+					.setOrganizationName(orgName)
+					.setDefaultIndexAnalyzer(defaultAnalyzerName)
+					.setDefaultSearchAnalyzer(defaultAnalyzerName));
 
 			// call under test — BIND
-			BindSearchConfigToEntityRequest bindRequest = new BindSearchConfigToEntityRequest();
-			bindRequest.setEntityId(createdProject.getId());
-			bindRequest.setSearchConfigurationId(createdConfig.getId());
-			SearchConfigBinding binding = adminSynapse.bindSearchConfigToEntity(bindRequest);
+			SearchConfigBinding binding = adminSynapse.bindSearchConfigToEntity(new BindSearchConfigToEntityRequest()
+					.setEntityId(createdProject.getId())
+					.setSearchConfigurationId(createdConfig.getId()));
 
 			assertNotNull(binding.getBindId());
 			assertEquals(createdConfig.getId(), binding.getSearchConfigurationId());

@@ -1,5 +1,5 @@
 {
-	"description": "A shared set of synonym rules. SynonymSets belong to an Organization and can be referenced by SearchConfigurations. Cannot be deleted while referenced by any SearchConfiguration.",
+	"description": "A shareable OpenSearch <a href='https://docs.opensearch.org/latest/analyzers/token-filters/synonym-graph/'>synonym_graph</a> (or legacy <a href='https://docs.opensearch.org/latest/analyzers/token-filters/synonym/'>synonym</a>) token filter. SynonymSets belong to an Organization; the qualified name '{organizationName}-{name}' is what a SearchConfiguration references in its 'synonymSets' list to bring this filter into the index. SynonymSets are injected into analyzers at the 'synapse_synonyms' placeholder position in 'indexFilterOrder' / 'searchFilterOrder' — see TextAnalyzerSettings for the rule.\n\nA small example using OpenSearch native synonym syntax — 'a, b, c' for equivalent (bidirectional) and 'a, b => c, d' for explicit (directional) expansion:\n\n  {\n    \"organizationName\": \"biomed\",\n    \"name\": \"medical_terms\",\n    \"definition\": \"{\\\"type\\\":\\\"synonym_graph\\\",\\\"synonyms\\\":[\\\"tumor, neoplasm, cancer\\\",\\\"AD => Alzheimer's disease\\\"]}\"\n  }\n\nTuning suggestions:\n\n  // Multi-word synonyms — prefer synonym_graph (it handles phrases correctly):\n  \"definition\": \"{\\\"type\\\":\\\"synonym_graph\\\",\\\"synonyms\\\":[\\\"new york city, NYC, nyc\\\"]}\"\n\n  // Disable bidirectional expansion (only the LHS is treated as a synonym source):\n  \"definition\": \"{\\\"type\\\":\\\"synonym_graph\\\",\\\"synonyms\\\":[...], \\\"expand\\\":false}\"\n\n  // Tolerate malformed rule lines without failing the whole filter:\n  \"definition\": \"{\\\"type\\\":\\\"synonym_graph\\\",\\\"synonyms\\\":[...], \\\"lenient\\\":true}\"\n\nCannot be deleted while any persisted resource references it. See the OpenSearch <a href='https://docs.opensearch.org/latest/analyzers/token-filters/synonym-graph/'>synonym_graph filter docs</a> for the full parameter list (synonyms, format, expand, lenient, etc.).",
 	"properties": {
 		"id": {
 			"type": "string",
@@ -7,44 +7,42 @@
 		},
 		"organizationName": {
 			"type": "string",
-			"description": "The name of the Organization this resource belongs to. Immutable after creation."
+			"description": "The Organization that owns this resource. Immutable after creation."
 		},
 		"name": {
 			"type": "string",
-			"description": "The resource name. Must start with a letter and contain only letters, digits, and underscores. Unique within the organization and immutable after creation. Used as part of the qualified name ({organizationName}-{name}) when referenced by other resources."
+			"description": "Resource name (letters, digits, underscores, must start with a letter). Combined with organizationName to form the qualified name '{organizationName}-{name}'. Immutable after creation."
 		},
 		"description": {
 			"type": "string",
-			"description": "Optional description of the synonym set."
+			"description": "Optional free-form description."
 		},
-		"rules": {
-			"type": "array",
-			"description": "The list of synonym rules in this set.",
-			"items": {
-				"$ref": "org.sagebionetworks.repo.model.search.table.SynonymRule"
-			}
+		"definition": {
+			"type": "string",
+			"description": "Required. The full OpenSearch token filter definition as a JSON object string. Must include a 'type' of 'synonym' or 'synonym_graph' ('synonym_graph' is recommended — see the OpenSearch <a href='https://docs.opensearch.org/latest/analyzers/token-filters/synonym-graph/'>docs</a> for why). All other parameters (expand, lenient, format, updateable, etc.) are passthrough — supply them as OpenSearch documents them. AOSS NOTE: file-based parameters like 'synonyms_path' are rejected at create/update time (AOSS Serverless does not support file uploads). Supply the synonym list inline via the 'synonyms' array using OpenSearch's native syntax: 'a, b, c' for equivalent, 'a, b => c, d' for explicit.",
+			"required": true
 		},
 		"etag": {
 			"type": "string",
-			"description": "Synapse employs an Optimistic Concurrency Control (OCC) scheme."
+			"description": "Synapse Optimistic Concurrency Control (OCC) value. Send the etag from a GET back on update; a mismatch returns 409."
 		},
 		"createdOn": {
 			"type": "string",
 			"format": "date-time",
-			"description": "The date this resource was created."
+			"description": "When this resource was created."
 		},
 		"createdBy": {
 			"type": "string",
-			"description": "The ID of the user that created this resource."
+			"description": "ID of the user that created this resource."
 		},
 		"modifiedOn": {
 			"type": "string",
 			"format": "date-time",
-			"description": "The date this resource was last modified."
+			"description": "When this resource was last modified."
 		},
 		"modifiedBy": {
 			"type": "string",
-			"description": "The ID of the user that last modified this resource."
+			"description": "ID of the user that last modified this resource."
 		}
 	}
 }

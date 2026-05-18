@@ -1,5 +1,5 @@
 {
-	"description": "A shared resource containing per-column analyzer override entries. ColumnAnalyzerOverrides belong to an Organization and can be referenced by SearchConfigurations. Cannot be deleted while referenced by any SearchConfiguration.",
+	"description": "A shareable bundle of per-column analyzer assignments. Wires up OpenSearch's per-field <a href='https://docs.opensearch.org/latest/field-types/supported-field-types/text/'>analyzer + search_analyzer</a> mapping for specific columns of a SearchIndex, overriding the SearchConfiguration's defaults. Example assigning a strict acronym analyzer to the 'disease_code' column and a fuzzy scientific analyzer to 'authors':\n\n  {\n    \"organizationName\": \"biomed\",\n    \"name\": \"publication_columns\",\n    \"overrides\": [\n      { \"columnName\": \"disease_code\", \"indexAnalyzer\": \"biomed-acronym_exact\",    \"searchAnalyzer\": \"biomed-acronym_exact\" },\n      { \"columnName\": \"authors\",      \"indexAnalyzer\": \"biomed-scientific_search\", \"searchAnalyzer\": \"biomed-scientific_search\" }\n    ]\n  }\n\nReferenced from a SearchConfiguration's columnAnalyzerOverrides by qualified name '{organizationName}-{name}'. Entries whose 'columnName' is not present in a given SearchIndex's schema are silently skipped — a single override resource can therefore apply to multiple indexes that share some column names. Cannot be deleted while referenced by any SearchConfiguration.",
 	"properties": {
 		"id": {
 			"type": "string",
@@ -7,44 +7,44 @@
 		},
 		"organizationName": {
 			"type": "string",
-			"description": "The name of the Organization this resource belongs to. Immutable after creation."
+			"description": "The Organization that owns this resource. Immutable after creation."
 		},
 		"name": {
 			"type": "string",
-			"description": "The resource name. Must start with a letter and contain only letters, digits, and underscores. Unique within the organization and immutable after creation. Used as part of the qualified name ({organizationName}-{name}) when referenced by other resources."
+			"description": "Resource name (letters, digits, underscores, must start with a letter). Combined with organizationName to form the qualified name '{organizationName}-{name}'. Immutable after creation."
 		},
 		"description": {
 			"type": "string",
-			"description": "Optional description."
+			"description": "Optional free-form description."
 		},
 		"overrides": {
 			"type": "array",
-			"description": "The list of per-column analyzer override entries.",
+			"description": "The per-column analyzer assignments — see ColumnAnalyzerOverrideEntry.",
 			"items": {
 				"$ref": "org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry"
 			}
 		},
 		"etag": {
 			"type": "string",
-			"description": "Synapse employs an Optimistic Concurrency Control (OCC) scheme."
+			"description": "Synapse Optimistic Concurrency Control (OCC) value. Send the etag from a GET back on update; a mismatch returns 409."
 		},
 		"createdOn": {
 			"type": "string",
 			"format": "date-time",
-			"description": "The date this resource was created."
+			"description": "When this resource was created."
 		},
 		"createdBy": {
 			"type": "string",
-			"description": "The ID of the user that created this resource."
+			"description": "ID of the user that created this resource."
 		},
 		"modifiedOn": {
 			"type": "string",
 			"format": "date-time",
-			"description": "The date this resource was last modified."
+			"description": "When this resource was last modified."
 		},
 		"modifiedBy": {
 			"type": "string",
-			"description": "The ID of the user that last modified this resource."
+			"description": "ID of the user that last modified this resource."
 		}
 	}
 }

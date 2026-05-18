@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.search;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -8,12 +9,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.opensearch.client.opensearch._types.OpenSearchException;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.sagebionetworks.repo.manager.EntityManager;
@@ -21,17 +21,15 @@ import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.table.ColumnModelManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
 import org.sagebionetworks.repo.manager.table.TableQueryManager;
+import org.sagebionetworks.repo.manager.table.query.QueryTranslations;
+import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.dao.table.RowHandler;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
 import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
-import org.sagebionetworks.repo.transactions.WriteTransaction;
-import org.sagebionetworks.table.cluster.QueryTranslator;
-import org.sagebionetworks.table.cluster.description.IndexDescription;
-import org.sagebionetworks.table.cluster.utils.TableModelUtils;
-import org.sagebionetworks.table.query.model.SqlContext;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
@@ -42,13 +40,20 @@ import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
+import org.sagebionetworks.repo.model.table.Query;
+import org.sagebionetworks.repo.model.table.QueryOptions;
+import org.sagebionetworks.repo.model.table.QueryResultBundle;
 import org.sagebionetworks.repo.model.table.Row;
 import org.sagebionetworks.repo.model.table.SelectColumn;
 import org.sagebionetworks.repo.model.table.TableFailedException;
 import org.sagebionetworks.repo.model.table.TableUnavailableException;
+import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.table.cluster.ConnectionFactory;
+import org.sagebionetworks.table.cluster.QueryTranslator;
+import org.sagebionetworks.table.cluster.description.IndexDescription;
 import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
-import org.sagebionetworks.repo.manager.table.query.QueryTranslations;
+import org.sagebionetworks.table.cluster.utils.TableModelUtils;
+import org.sagebionetworks.table.query.model.SqlContext;
 import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.util.progress.ProgressCallback;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
@@ -57,14 +62,6 @@ import org.sagebionetworks.workers.util.semaphore.WriteLock;
 import org.sagebionetworks.workers.util.semaphore.WriteLockRequest;
 import org.sagebionetworks.workers.util.semaphore.WriteReadSemaphore;
 import org.springframework.stereotype.Service;
-
-import org.sagebionetworks.repo.model.ACCESS_TYPE;
-import org.sagebionetworks.repo.model.table.Query;
-import org.sagebionetworks.repo.model.table.QueryOptions;
-import org.sagebionetworks.repo.model.table.QueryResultBundle;
-import org.sagebionetworks.repo.model.dao.table.RowHandler;
-
-import java.io.IOException;
 
 @Service
 public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleManager {
@@ -212,10 +209,9 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			SearchConfiguration config = configOpt.orElse(null);
 
 			List<ColumnAnalyzerOverride> overrides = loadColumnAnalyzerOverrides(config);
-			List<SynonymSet> synonymSets = loadSynonymSets(config);
 
-			// Bound schema is stored in SELECT-list order, lining up positionally with
-			// the row values streamed by `runQueryAsStream` below.
+			// Bound schema order must match the streamed row values' order positionally —
+			// runQueryAsStream below relies on this alignment to map values to columns.
 			List<ColumnModel> selectedColumns = tableManagerSupport.getTableSchema(IdAndVersion.parse(entityId));
 			if (selectedColumns == null || selectedColumns.isEmpty()) {
 				throw new IllegalStateException("SearchIndex " + entityId
@@ -247,13 +243,24 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 
 			Map<String, TextAnalyzer> analyzers = collectAndLoadAnalyzers(
 					config, overrides, selectedColumns);
+			List<SynonymSet> synonymSets = loadConfiguredSynonymSets(config);
+			String defaultIndexAnalyzer = config != null ? config.getDefaultIndexAnalyzer() : null;
+			String defaultSearchAnalyzer = config != null ? config.getDefaultSearchAnalyzer() : null;
+
+			// Pre-flight: every default / override analyzer qname must resolve to a loaded
+			// TextAnalyzer. SynonymSet qname existence was already validated at SearchConfiguration
+			// create/update time. A miss here throws IllegalArgumentException — caught below and
+			// surfaced via SearchIndexStatus.errorMessage.
+			validateReferencedResources(defaultIndexAnalyzer, defaultSearchAnalyzer,
+					overrides, analyzers);
+
 			String indexName = getIndexName(entityId);
-			String defaultAnalyzer = config != null ? config.getDefaultAnalyzer() : null;
 			if (deleteExistingFirst) {
 				openSearchManager.deleteIndex(indexName);
 			}
-			openSearchManager.createIndex(indexName, selectedColumns, defaultAnalyzer,
-					synonymSets, overrides, analyzers);
+			openSearchManager.createIndex(indexName, selectedColumns,
+					defaultIndexAnalyzer, defaultSearchAnalyzer,
+					overrides, analyzers, synonymSets);
 
 			// AOSS acknowledges createIndex and returns an already-queryable index before its
 			// shards are actually ready to accept writes. Block until a real sentinel write
@@ -299,7 +306,8 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			if (errorMessage != null && errorMessage.length() > MAX_ERROR_MESSAGE_LENGTH) {
 				errorMessage = errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH);
 			}
-			// Set FAILED first — status table is the source of truth
+			// Mark the SearchIndex permanently FAILED. The truncated message stays the
+			// single source of truth — users retrieve it via getSearchIndexStatus on the entity.
 			statusDao.createOrUpdate(new SearchIndexStatus()
 					.setSearchIndexId(entityId)
 					.setState(SearchIndexState.FAILED)
@@ -358,8 +366,13 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			}
 		}
 
-		if (config != null && config.getDefaultAnalyzer() != null) {
-			qualifiedNames.add(config.getDefaultAnalyzer());
+		if (config != null) {
+			if (config.getDefaultIndexAnalyzer() != null) {
+				qualifiedNames.add(config.getDefaultIndexAnalyzer());
+			}
+			if (config.getDefaultSearchAnalyzer() != null) {
+				qualifiedNames.add(config.getDefaultSearchAnalyzer());
+			}
 		}
 
 		for (ColumnModel column : columns) {
@@ -369,11 +382,34 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 		return new HashMap<>(textAnalyzerDao.getByQualifiedNames(new ArrayList<>(qualifiedNames)));
 	}
 
-	private List<SynonymSet> loadSynonymSets(SearchConfiguration config) {
+	/**
+	 * Load every SynonymSet listed in {@code config.getSynonymSets()} in the order the
+	 * SearchConfiguration declared them. These are the SynonymSets that will be substituted
+	 * for the 'synapse_synonyms' placeholder in any analyzer's filter chain at index-build
+	 * time. Validation at SearchConfiguration create/update guarantees every listed qname
+	 * resolves, so a missing qname here is a transient inconsistency (the SynonymSet was
+	 * deleted out from under us) and yields a build-time failure.
+	 */
+	List<SynonymSet> loadConfiguredSynonymSets(SearchConfiguration config) {
 		if (config == null || config.getSynonymSets() == null || config.getSynonymSets().isEmpty()) {
 			return Collections.emptyList();
 		}
-		return new ArrayList<>(synonymSetDao.getByQualifiedNames(config.getSynonymSets()).values());
+		Map<String, SynonymSet> byQname = synonymSetDao.getByQualifiedNames(config.getSynonymSets());
+		List<SynonymSet> ordered = new ArrayList<>(config.getSynonymSets().size());
+		List<String> missing = new ArrayList<>();
+		for (String qname : config.getSynonymSets()) {
+			SynonymSet ss = byQname.get(qname);
+			if (ss == null) {
+				missing.add(qname);
+			} else {
+				ordered.add(ss);
+			}
+		}
+		if (!missing.isEmpty()) {
+			throw new IllegalArgumentException(
+					"SearchConfiguration references SynonymSet(s) that no longer exist: " + missing);
+		}
+		return ordered;
 	}
 
 	private List<ColumnAnalyzerOverride> loadColumnAnalyzerOverrides(SearchConfiguration config) {
@@ -444,4 +480,51 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			flush();
 		}
 	}
+
+	/**
+	 * Pre-flight check: every analyzer qname referenced by the configuration must resolve
+	 * to a loaded TextAnalyzer. Throws on first miss so the outer catch records the failure
+	 * into {@code SearchIndexStatus.errorMessage} (truncated to 3000 chars by
+	 * {@link #MAX_ERROR_MESSAGE_LENGTH}) and the SearchIndex is marked FAILED. SynonymSet
+	 * references are best-effort — resolved sets become filters; unresolved dash-names pass
+	 * through to AOSS as-is.
+	 */
+	private void validateReferencedResources(String defaultIndexAnalyzer, String defaultSearchAnalyzer,
+			List<ColumnAnalyzerOverride> overrides,
+			Map<String, TextAnalyzer> analyzers) {
+
+		// Default analyzers: must exist in the loaded analyzers map when set.
+		assertAnalyzerExists(defaultIndexAnalyzer, analyzers, "defaultIndexAnalyzer");
+		assertAnalyzerExists(defaultSearchAnalyzer, analyzers, "defaultSearchAnalyzer");
+
+		// Override analyzers: must exist when set.
+		if (overrides != null) {
+			for (ColumnAnalyzerOverride cao : overrides) {
+				if (cao.getOverrides() == null) {
+					continue;
+				}
+				for (ColumnAnalyzerOverrideEntry entry : cao.getOverrides()) {
+					assertAnalyzerExists(entry.getIndexAnalyzer(), analyzers,
+							"override '" + cao.getName() + "' indexAnalyzer for column '" + entry.getColumnName() + "'");
+					assertAnalyzerExists(entry.getSearchAnalyzer(), analyzers,
+							"override '" + cao.getName() + "' searchAnalyzer for column '" + entry.getColumnName() + "'");
+				}
+			}
+		}
+
+		// SynonymSet references in filter chains are best-effort: we already bulk-loaded
+		// every dash-bearing candidate in loadReferencedSynonymSets. Resolved SynonymSets
+		// become named filters under settings.analysis.filter; unresolved names pass through
+		// to AOSS unchanged so it can accept them as built-ins / plugin filter names, or
+		// reject them with its own diagnostic — surfaced via SearchIndexStatus.errorMessage.
+	}
+
+	private static void assertAnalyzerExists(String qname,
+			Map<String, TextAnalyzer> analyzers, String context) {
+		if (qname == null || analyzers.containsKey(qname)) {
+			return;
+		}
+		throw new IllegalArgumentException("TextAnalyzer '" + qname + "' (" + context + ") does not resolve.");
+	}
+
 }

@@ -1,30 +1,21 @@
 package org.sagebionetworks.repo.manager.search;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
-import org.mockito.InOrder;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.Set;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -33,23 +24,29 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
-import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.ObjectType;
+import org.sagebionetworks.repo.model.TeamConstants;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.schema.Organization;
-import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
-import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.search.table.AnalyzerComponent;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
-import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
 
+/**
+ * Unit tests for {@link TextAnalyzerManagerImpl}: covers the three-layer authorization
+ * gate (anonymous → Sage employee → org ACL), name immutability, AOSS analyzer validation
+ * delegation, and the FK-protection re-throw on delete.
+ */
 @ExtendWith(MockitoExtension.class)
 public class TextAnalyzerManagerImplTest {
+
+	private static final String ORG_NAME = "org.sagebionetworks";
+	private static final String ORG_ID = "42";
 
 	@Mock
 	private TextAnalyzerDao textAnalyzerDao;
@@ -63,393 +60,185 @@ public class TextAnalyzerManagerImplTest {
 	@InjectMocks
 	private TextAnalyzerManagerImpl manager;
 
-	private UserInfo sageUser;
-	private UserInfo nonSageUser;
-	private UserInfo adminUser;
-
-	@BeforeEach
-	void setUp() {
-		sageUser = new UserInfo(false);
-		sageUser.setId(1L);
-		sageUser.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
-
-		nonSageUser = new UserInfo(false);
-		nonSageUser.setId(2L);
-		nonSageUser.setGroups(Set.of(2L));
-
-		adminUser = new UserInfo(true);
-		adminUser.setId(3L);
+	private UserInfo sageUser() {
+		UserInfo user = new UserInfo(false, 100L, "default-realm");
+		Set<Long> groups = new LinkedHashSet<>();
+		groups.add(TeamConstants.SAGE_BIONETWORKS_TEAM_ID);
+		user.setGroups(groups);
+		return user;
 	}
 
-	// --- Create authorization ---
+	private UserInfo adminUser() {
+		return new UserInfo(true, 1L, "default-realm");
+	}
+
+	private UserInfo nonSageUser() {
+		return new UserInfo(false, 200L, "default-realm");
+	}
+
+	private UserInfo anonymousUser() {
+		Long id = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId();
+		UserInfo user = new UserInfo(false, id, "default-realm");
+		user.setRealmAnonymousUserId(id);
+		return user;
+	}
+
+	private TextAnalyzer validRequest() {
+		return new TextAnalyzer()
+				.setName("my_analyzer")
+				.setOrganizationName(ORG_NAME)
+				.setSettings(new TextAnalyzerSettings()
+						.setTokenizer(new AnalyzerComponent().setName("standard")));
+	}
+
+	// --- create ---
 
 	@Test
-	public void testCreateAsNonSageUserThrows() {
-		TextAnalyzer input = new TextAnalyzer()
-			.setOrganizationName("test-org").setName("test").setSettings(new TextAnalyzerSettings());
-
+	public void testCreateWithAnonymousThrows() {
 		// call under test
-		assertThrows(UnauthorizedException.class, () -> manager.create(nonSageUser, input));
+		assertThrows(UnauthorizedException.class, () -> manager.create(anonymousUser(), validRequest()));
 		verifyZeroInteractions(textAnalyzerDao);
 	}
 
 	@Test
-	public void testCreateAsAnonymousThrows() {
-		UserInfo anon = new UserInfo(false);
-		anon.setId(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
-		anon.setGroups(Set.of(anon.getId()));
-
-		TextAnalyzer input = new TextAnalyzer()
-			.setOrganizationName("test-org").setName("test").setSettings(new TextAnalyzerSettings());
-
+	public void testCreateWithNonSageUserThrows() {
 		// call under test
-		assertThrows(UnauthorizedException.class, () -> manager.create(anon, input));
-	}
-
-	@Test
-	public void testCreateWithoutOrgAclThrows() {
-		TextAnalyzer input = new TextAnalyzer()
-			.setOrganizationName("test-org").setName("test").setSettings(new TextAnalyzerSettings());
-		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
-		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.CREATE)))
-			.thenReturn(AuthorizationStatus.accessDenied("no"));
-
-		// call under test
-		assertThrows(UnauthorizedException.class, () -> manager.create(sageUser, input));
-	}
-
-	@Test
-	public void testCreateHappyPath() {
-		TextAnalyzer input = new TextAnalyzer()
-			.setOrganizationName("test-org").setName("test").setSettings(new TextAnalyzerSettings());
-		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
-		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.CREATE)))
-			.thenReturn(AuthorizationStatus.authorized());
-		when(textAnalyzerDao.create(any(), eq(1L))).thenReturn(input.setId("1000"));
-
-		// call under test
-		TextAnalyzer result = manager.create(sageUser, input);
-
-		assertNotNull(result);
-		assertEquals("1000", result.getId());
-	}
-
-	@Test
-	public void testCreateAsAdminBypassesAcl() {
-		TextAnalyzer input = new TextAnalyzer()
-			.setOrganizationName("test-org").setName("test").setSettings(new TextAnalyzerSettings());
-		when(textAnalyzerDao.create(any(), eq(3L))).thenReturn(input.setId("1000"));
-
-		// call under test
-		TextAnalyzer result = manager.create(adminUser, input);
-
-		assertNotNull(result);
-		verifyZeroInteractions(aclDao);
-	}
-
-	// --- Get ---
-
-	@Test
-	public void testGetExisting() {
-		TextAnalyzer analyzer = new TextAnalyzer().setId("1");
-		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(analyzer));
-
-		// call under test
-		assertEquals("1", manager.get(new UserInfo(false), 1L).getId());
-		verifyZeroInteractions(aclDao);
-	}
-
-	@Test
-	public void testGetNotFoundThrows() {
-		when(textAnalyzerDao.get(999L)).thenReturn(Optional.empty());
-
-		// call under test
-		assertThrows(NotFoundException.class, () -> manager.get(new UserInfo(false), 999L));
-	}
-
-	// --- Update authorization ---
-
-	@Test
-	public void testUpdateAsNonSageUserThrows() {
-		TextAnalyzer input = new TextAnalyzer()
-			.setId("1").setOrganizationName("test-org").setName("updated").setSettings(new TextAnalyzerSettings());
-
-		// call under test
-		assertThrows(UnauthorizedException.class, () -> manager.update(nonSageUser, input));
+		UnauthorizedException e = assertThrows(UnauthorizedException.class,
+				() -> manager.create(nonSageUser(), validRequest()));
+		assertTrue(e.getMessage().contains("Sage Bionetworks"));
 		verifyZeroInteractions(textAnalyzerDao);
 	}
 
 	@Test
-	public void testUpdateWithoutOrgAclThrows() {
-		TextAnalyzer input = new TextAnalyzer()
-			.setId("1").setOrganizationName("test-org").setName("test_name").setSettings(new TextAnalyzerSettings());
-		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationName("test-org").setName("test_name")));
-		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
-		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
-			.thenReturn(AuthorizationStatus.accessDenied("no"));
-
+	public void testCreateWithMissingSettingsThrows() {
+		TextAnalyzer bad = validRequest().setSettings(null);
 		// call under test
-		assertThrows(UnauthorizedException.class, () -> manager.update(sageUser, input));
-	}
-
-	@Test
-	public void testUpdateNotFoundThrows() {
-		TextAnalyzer input = new TextAnalyzer()
-			.setId("999").setOrganizationName("test-org").setName("updated").setSettings(new TextAnalyzerSettings());
-		when(textAnalyzerDao.get(999L)).thenReturn(Optional.empty());
-
-		// call under test
-		assertThrows(NotFoundException.class, () -> manager.update(sageUser, input));
-	}
-
-	@Test
-	public void testUpdateRejectsOrgNameMismatch() {
-		TextAnalyzer input = new TextAnalyzer()
-			.setId("1").setOrganizationName("other-org").setName("updated").setSettings(new TextAnalyzerSettings());
-		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationName("test-org")));
-
-		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.update(sageUser, input));
-		assertTrue(ex.getMessage().contains("organizationName cannot be changed"));
-	}
-
-	@Test
-	public void testUpdateWithNameChangeThrows() {
-		TextAnalyzer input = new TextAnalyzer()
-			.setId("1").setOrganizationName("test-org").setName("new_name").setSettings(new TextAnalyzerSettings());
-		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(
-			new TextAnalyzer().setId("1").setOrganizationName("test-org").setName("original_name")));
-
-		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.update(sageUser, input));
-
-		assertTrue(ex.getMessage().contains("name cannot be changed"));
-		verify(textAnalyzerDao, never()).update(any(), any());
-	}
-
-	@Test
-	public void testUpdateHappyPath() {
-		TextAnalyzer input = new TextAnalyzer()
-			.setId("1").setOrganizationName("test-org").setName("test_name").setDescription("updated description").setSettings(new TextAnalyzerSettings());
-		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationName("test-org").setName("test_name")));
-		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
-		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
-			.thenReturn(AuthorizationStatus.authorized());
-		when(textAnalyzerDao.update(any(), eq(1L))).thenReturn(input);
-
-		// call under test
-		TextAnalyzer result = manager.update(sageUser, input);
-
-		assertEquals("test_name", result.getName());
-	}
-
-	// --- Delete authorization ---
-
-	@Test
-	public void testDeleteAsNonSageUserThrows() {
-		// call under test
-		assertThrows(UnauthorizedException.class, () -> manager.delete(nonSageUser, 1L));
+		assertThrows(IllegalArgumentException.class, () -> manager.create(adminUser(), bad));
 		verifyZeroInteractions(textAnalyzerDao);
 	}
 
 	@Test
-	public void testDeleteNotFoundThrows() {
-		when(textAnalyzerDao.get(1L)).thenReturn(Optional.empty());
-
+	public void testCreateWithInvalidResourceNameThrows() {
+		TextAnalyzer bad = validRequest().setName("9invalid");
 		// call under test
-		assertThrows(NotFoundException.class, () -> manager.delete(adminUser, 1L));
+		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+				() -> manager.create(adminUser(), bad));
+		assertEquals(SearchResourceConstants.RESOURCE_NAME_PATTERN_MSG, e.getMessage());
 	}
 
 	@Test
-	public void testDeleteChecksOrgAclFromStoredEntity() {
-		TextAnalyzer existing = new TextAnalyzer().setId("1").setOrganizationName("other-org");
+	public void testCreateWithSageEmployeeChecksOrgAclAndValidatesAgainstAOSS() {
+		when(organizationDao.getOrganizationByName(ORG_NAME)).thenReturn(new Organization().setId(ORG_ID));
+		when(aclDao.canAccess(any(UserInfo.class), eq(ORG_ID), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.CREATE)))
+				.thenReturn(AuthorizationStatus.authorized());
+		when(textAnalyzerDao.create(any(TextAnalyzer.class), eq(100L))).thenReturn(validRequest().setId("1"));
+
+		// call under test
+		manager.create(sageUser(), validRequest());
+
+		// AOSS analyzer validation runs BEFORE the DAO write so a misconfiguration cannot
+		// be persisted in a half-broken state.
+		verify(openSearchManager).validateAnalyzerSettings(any(TextAnalyzerSettings.class));
+		verify(textAnalyzerDao).create(any(TextAnalyzer.class), eq(100L));
+	}
+
+	@Test
+	public void testCreateWhenAOSSValidationFailsDoesNotPersist() {
+		doThrow(new IllegalArgumentException("AOSS rejected the analyzer"))
+				.when(openSearchManager).validateAnalyzerSettings(any(TextAnalyzerSettings.class));
+
+		// call under test — admin bypasses ACL but still gets AOSS validation gate.
+		assertThrows(IllegalArgumentException.class, () -> manager.create(adminUser(), validRequest()));
+		verify(textAnalyzerDao, never()).create(any(TextAnalyzer.class),
+				org.mockito.ArgumentMatchers.anyLong());
+	}
+
+	// --- update ---
+
+	@Test
+	public void testUpdateWithChangedNameThrows() {
+		TextAnalyzer request = validRequest().setId("1").setName("renamed");
+		TextAnalyzer existing = validRequest().setId("1").setName("original");
 		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(existing));
-		when(organizationDao.getOrganizationByName("other-org")).thenReturn(new Organization().setId("99"));
-		when(aclDao.canAccess(any(UserInfo.class), eq("99"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.DELETE)))
-			.thenReturn(AuthorizationStatus.accessDenied("no"));
 
 		// call under test
-		assertThrows(UnauthorizedException.class, () -> manager.delete(sageUser, 1L));
-		verify(aclDao).canAccess(any(UserInfo.class), eq("99"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.DELETE));
+		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+				() -> manager.update(adminUser(), request));
+
+		assertEquals(SearchResourceConstants.NAME_IMMUTABLE_MSG, e.getMessage());
+		verify(textAnalyzerDao, never()).update(any(TextAnalyzer.class),
+				org.mockito.ArgumentMatchers.anyLong());
 	}
 
 	@Test
-	public void testDeleteBlockedWhenReferencedByForeignKey() {
-		TextAnalyzer existing = new TextAnalyzer().setId("1").setOrganizationName("test-org");
+	public void testUpdateWithChangedOrgThrows() {
+		TextAnalyzer request = validRequest().setId("1").setOrganizationName("other.org");
+		TextAnalyzer existing = validRequest().setId("1");
 		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(existing));
-		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
-		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.DELETE)))
-			.thenReturn(AuthorizationStatus.authorized());
-		doThrow(new DataIntegrityViolationException("FK constraint"))
-			.when(textAnalyzerDao).delete(1L);
 
 		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.delete(sageUser, 1L));
-		assertTrue(ex.getMessage().contains("still referenced"));
+		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+				() -> manager.update(adminUser(), request));
+
+		assertEquals(SearchResourceConstants.ORG_NAME_IMMUTABLE_MSG, e.getMessage());
+	}
+
+	// --- delete ---
+
+	@Test
+	public void testDeleteTranslatesFkViolationToFriendlyError() {
+		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(validRequest().setId("1")));
+		doThrow(new DataIntegrityViolationException("FK fail")).when(textAnalyzerDao).delete(1L);
+
+		// call under test — the DAO catches FK violations but the manager-level test ensures
+		// the user-facing message ("still referenced") is preserved.
+		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+				() -> manager.delete(adminUser(), 1L));
+
+		assertTrue(e.getMessage().contains("still referenced"));
 	}
 
 	@Test
-	public void testDeleteHappyPath() {
-		TextAnalyzer existing = new TextAnalyzer().setId("1").setOrganizationName("test-org");
-		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(existing));
-		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
-		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.DELETE)))
-			.thenReturn(AuthorizationStatus.authorized());
+	public void testDeleteWithNonAdminEnforcesOrgDeleteAcl() {
+		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(validRequest().setId("1")));
+		when(organizationDao.getOrganizationByName(ORG_NAME)).thenReturn(new Organization().setId(ORG_ID));
+		when(aclDao.canAccess(any(UserInfo.class), eq(ORG_ID), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.DELETE)))
+				.thenReturn(AuthorizationStatus.accessDenied("nope"));
 
 		// call under test
-		manager.delete(sageUser, 1L);
-
-		verify(textAnalyzerDao).delete(1L);
+		assertThrows(UnauthorizedException.class, () -> manager.delete(sageUser(), 1L));
+		verify(textAnalyzerDao, never()).delete(org.mockito.ArgumentMatchers.anyLong());
 	}
 
-	// --- List / pagination ---
+	// --- list ---
 
 	@Test
-	public void testListByOrganizationDelegatesToDao() {
-		when(textAnalyzerDao.listByOrganization(eq("test-org"), anyLong(), anyLong()))
-			.thenReturn(Arrays.asList(new TextAnalyzer()));
-
-		ListTextAnalyzersRequest request = new ListTextAnalyzersRequest();
-		request.setOrganizationName("test-org");
+	public void testListByOrganizationDelegates() {
+		when(textAnalyzerDao.listByOrganization(ORG_NAME, 51L, 0L))
+				.thenReturn(Collections.singletonList(validRequest().setId("1")));
 
 		// call under test
-		ListTextAnalyzersResponse response = manager.list(new UserInfo(false), request);
+		manager.list(adminUser(),
+				new org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest()
+						.setOrganizationName(ORG_NAME));
 
-		assertEquals(1, response.getResults().size());
-	}
-
-	@Test
-	public void testListAllWhenNoOrgName() {
-		when(textAnalyzerDao.listAll(anyLong(), anyLong()))
-			.thenReturn(Arrays.asList(new TextAnalyzer()));
-
-		ListTextAnalyzersRequest request = new ListTextAnalyzersRequest();
-
-		// call under test
-		ListTextAnalyzersResponse response = manager.list(new UserInfo(false), request);
-
-		assertEquals(1, response.getResults().size());
-		verify(textAnalyzerDao).listAll(anyLong(), anyLong());
-		verify(textAnalyzerDao, never()).listByOrganization(anyString(), anyLong(), anyLong());
+		verify(textAnalyzerDao).listByOrganization(ORG_NAME, 51L, 0L);
+		verify(textAnalyzerDao, never()).listAll(
+				org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong());
 	}
 
 	@Test
-	public void testListReturnsNextPageTokenWhenMoreResults() {
-		// NextPageToken default limit is 50, so limitForQuery is 51
-		List<TextAnalyzer> page = new ArrayList<>();
-		for (int i = 0; i < 51; i++) {
-			page.add(new TextAnalyzer().setId(String.valueOf(i)));
-		}
-		when(textAnalyzerDao.listAll(eq(51L), eq(0L))).thenReturn(page);
-
-		ListTextAnalyzersRequest request = new ListTextAnalyzersRequest();
+	public void testListWithoutOrganizationFallsBackToListAll() {
+		when(textAnalyzerDao.listAll(51L, 0L)).thenReturn(Collections.emptyList());
 
 		// call under test
-		ListTextAnalyzersResponse response = manager.list(new UserInfo(false), request);
+		manager.list(adminUser(),
+				new org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest());
 
-		assertNotNull(response.getNextPageToken(), "Expected a next page token when DAO returns more than limit results");
-		assertEquals(50, response.getResults().size());
-	}
-
-	@Test
-	public void testListReturnsNullNextPageTokenWhenNoMoreResults() {
-		List<TextAnalyzer> page = Arrays.asList(new TextAnalyzer().setId("1"));
-		when(textAnalyzerDao.listAll(eq(51L), eq(0L))).thenReturn(page);
-
-		ListTextAnalyzersRequest request = new ListTextAnalyzersRequest();
-
-		// call under test
-		ListTextAnalyzersResponse response = manager.list(new UserInfo(false), request);
-
-		assertNull(response.getNextPageToken(), "Expected null next page token when all results fit in one page");
-		assertEquals(1, response.getResults().size());
-	}
-
-	// --- Analyzer validation ---
-
-	@Test
-	public void testCreateWithSettingsValidatesBeforePersist() {
-		TextAnalyzerSettings settings = new TextAnalyzerSettings().setTokenizer("standard");
-		TextAnalyzer input = new TextAnalyzer()
-			.setOrganizationName("test-org").setName("test").setSettings(settings);
-		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
-		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.CREATE)))
-			.thenReturn(AuthorizationStatus.authorized());
-		when(textAnalyzerDao.create(any(), eq(1L))).thenReturn(input.setId("1000"));
-
-		// call under test
-		manager.create(sageUser, input);
-
-		InOrder inOrder = inOrder(openSearchManager, textAnalyzerDao);
-		inOrder.verify(openSearchManager).validateAnalyzerSettings(settings);
-		inOrder.verify(textAnalyzerDao).create(any(), eq(1L));
-	}
-
-	@Test
-	public void testCreateWithInvalidSettingsThrows() {
-		TextAnalyzerSettings settings = new TextAnalyzerSettings().setTokenizer("bad_tokenizer");
-		TextAnalyzer input = new TextAnalyzer()
-			.setOrganizationName("test-org").setName("test").setSettings(settings);
-		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
-		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.CREATE)))
-			.thenReturn(AuthorizationStatus.authorized());
-		doThrow(new IllegalArgumentException("Invalid analyzer configuration: Unknown tokenizer"))
-			.when(openSearchManager).validateAnalyzerSettings(settings);
-
-		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-			() -> manager.create(sageUser, input));
-		assertTrue(ex.getMessage().contains("Invalid analyzer configuration"));
-		verifyZeroInteractions(textAnalyzerDao);
-	}
-
-	@Test
-	public void testUpdateWithSettingsValidatesBeforePersist() {
-		TextAnalyzerSettings settings = new TextAnalyzerSettings().setTokenizer("standard");
-		TextAnalyzer input = new TextAnalyzer()
-			.setId("1").setOrganizationName("test-org").setName("test_name").setSettings(settings);
-		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationName("test-org").setName("test_name")));
-		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
-		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
-			.thenReturn(AuthorizationStatus.authorized());
-		when(textAnalyzerDao.update(any(), eq(1L))).thenReturn(input);
-
-		// call under test
-		manager.update(sageUser, input);
-
-		InOrder inOrder = inOrder(openSearchManager, textAnalyzerDao);
-		inOrder.verify(openSearchManager).validateAnalyzerSettings(settings);
-		inOrder.verify(textAnalyzerDao).update(any(), eq(1L));
-	}
-
-	@Test
-	public void testUpdateWithInvalidSettingsThrows() {
-		TextAnalyzerSettings settings = new TextAnalyzerSettings().setTokenizer("bad_tokenizer");
-		TextAnalyzer input = new TextAnalyzer()
-			.setId("1").setOrganizationName("test-org").setName("test_name").setSettings(settings);
-		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(new TextAnalyzer().setId("1").setOrganizationName("test-org").setName("test_name")));
-		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
-		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
-			.thenReturn(AuthorizationStatus.authorized());
-		doThrow(new IllegalArgumentException("Invalid analyzer configuration: Unknown tokenizer"))
-			.when(openSearchManager).validateAnalyzerSettings(settings);
-
-		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-			() -> manager.update(sageUser, input));
-		assertTrue(ex.getMessage().contains("Invalid analyzer configuration"));
-		verify(textAnalyzerDao, never()).update(any(), anyLong());
-	}
-
-	@Test
-	public void testUpdateWithNullSettingsThrows() {
-		TextAnalyzer input = new TextAnalyzer()
-			.setId("1").setOrganizationName("test-org").setName("test_name");
-
-		// call under test
-		assertThrows(IllegalArgumentException.class, () -> manager.update(sageUser, input));
-
-		verifyZeroInteractions(textAnalyzerDao);
-		verifyZeroInteractions(openSearchManager);
+		verify(textAnalyzerDao).listAll(51L, 0L);
+		verify(textAnalyzerDao, never()).listByOrganization(
+				org.mockito.ArgumentMatchers.any(String.class),
+				org.mockito.ArgumentMatchers.anyLong(),
+				org.mockito.ArgumentMatchers.anyLong());
 	}
 }

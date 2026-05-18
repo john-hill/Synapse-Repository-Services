@@ -1,217 +1,193 @@
 package org.sagebionetworks.repo.manager.search;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.schema.SynapseSchemaBootstrap;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.UserInfo;
-import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.schema.Organization;
+import org.sagebionetworks.repo.model.search.table.AnalyzerComponent;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 
-import static org.mockito.Mockito.when;
-
+/**
+ * Verifies that {@link TextAnalyzerBootstrapper} idempotently upserts the six system
+ * analyzers at the expected reserved IDs, in the right order, with the right filter
+ * chain and {@code synapse_synonyms} placeholder placement. The bootstrap method must
+ * be invoked in the constructor (not via {@code afterPropertiesSet}) so loading the
+ * bean triggers the upsert.
+ */
 @ExtendWith(MockitoExtension.class)
 public class TextAnalyzerBootstrapperTest {
 
-	private static final String TEST_ORG_NAME = "sage.bionetworks";
+	private static final String ORG_NAME = "org.sagebionetworks";
+	private static final Long ADMIN_USER_ID =
+			AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
 
 	@Mock
 	private TextAnalyzerDao textAnalyzerDao;
-
-	@Mock
-	private OrganizationDao organizationDao;
-
 	@Mock
 	private SynapseSchemaBootstrap synapseSchemaBootstrap;
-
 	@Mock
 	private UserManager userManager;
 
-	private TextAnalyzerBootstrapper bootstrapper;
+	private final UserInfo adminUser = new UserInfo(true, ADMIN_USER_ID, "default-realm");
 
-	@Captor
-	private ArgumentCaptor<TextAnalyzer> analyzerCaptor;
-
-	private void setupOrgMock() {
-		Organization org = new Organization();
-		org.setId("100");
-		org.setName(TEST_ORG_NAME);
-		when(synapseSchemaBootstrap.createOrganizationIfDoesNotExist(any())).thenReturn(org);
-		when(userManager.getUserInfo(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId()))
-				.thenReturn(new UserInfo(true));
-		bootstrapper = new TextAnalyzerBootstrapper(textAnalyzerDao, synapseSchemaBootstrap, userManager);
+	@BeforeEach
+	public void before() {
+		when(userManager.getUserInfo(ADMIN_USER_ID)).thenReturn(adminUser);
+		when(synapseSchemaBootstrap.createOrganizationIfDoesNotExist(adminUser))
+				.thenReturn(new Organization().setName(ORG_NAME));
 	}
 
 	@Test
-	public void testBootstrapCreatesAllSixSystemAnalyzers() {
-		setupOrgMock();
+	public void testConstructorBootstrapsAllSixSystemAnalyzers() {
+		// call under test — constructor runs bootstrap unconditionally.
+		new TextAnalyzerBootstrapper(textAnalyzerDao, synapseSchemaBootstrap, userManager);
 
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.SCIENTIFIC_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.STANDARD_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.IDENTIFIER_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.KEYWORD_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
+		// Each reserved ID 1..6 must be upserted exactly once.
+		verify(textAnalyzerDao, times(6)).createOrUpdateSystemAnalyzerForBootstrapOnly(
+				anyLong(), org.mockito.ArgumentMatchers.any(TextAnalyzer.class), eq(ORG_NAME), eq(ADMIN_USER_ID));
 	}
 
 	@Test
-	public void testScientificAnalyzerUsesWordDelimiterGraph() {
-		setupOrgMock();
+	public void testBootstrappedAnalyzersHaveStableNamesAndIds() {
+		// Capture every upsert and assert the per-ID name mapping (analyzers are referenced
+		// by qname elsewhere; renaming them would break every IT and downstream consumer).
+		Map<Long, TextAnalyzer> upserts = captureAllUpserts();
 
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.SCIENTIFIC_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
-		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
-
-		assertEquals("standard", settings.getTokenizer());
-		assertWordDelimiterGraphFilter(settings.getTokenFilters(), "sci_word_delimiter");
-		assertEquals(Arrays.asList("sci_word_delimiter", "lowercase", "english_stop", "english_stemmer"),
-				settings.getIndexFilterOrder());
-		// Search-time chain: lowercase first so synonym rule LHS and query tokens reach
-		// the synonym filter in the same case; word_delimiter_graph downstream of
-		// synapse_synonyms so the synonym rule parser doesn't see positionLength>1 tokens.
-		assertEquals(Arrays.asList("lowercase", "synapse_synonyms", "sci_word_delimiter", "english_stop", "english_stemmer"),
-				settings.getSearchFilterOrder());
-		assertTrue(settings.getSynonymAware());
+		assertEquals("SCIENTIFIC", upserts.get(TextAnalyzerBootstrapper.SCIENTIFIC_ID).getName());
+		assertEquals("STANDARD", upserts.get(TextAnalyzerBootstrapper.STANDARD_ID).getName());
+		assertEquals("IDENTIFIER", upserts.get(TextAnalyzerBootstrapper.IDENTIFIER_ID).getName());
+		assertEquals("KEYWORD", upserts.get(TextAnalyzerBootstrapper.KEYWORD_ID).getName());
+		assertEquals("AUTOCOMPLETE", upserts.get(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID).getName());
+		assertEquals("AUTOCOMPLETE_SEARCH",
+				upserts.get(TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID).getName());
 	}
 
 	@Test
-	public void testStandardAnalyzerUsesWordDelimiterGraph() {
-		setupOrgMock();
+	public void testScientificAnalyzerPlacesSynonymPlaceholderAfterLowercase() {
+		// Synonym injection must happen after lowercase so synonym matching is case-insensitive,
+		// and before stemming so 'cancer'→'cancer'→'cancer' (stem) survives.
+		TextAnalyzer scientific = captureAllUpserts().get(TextAnalyzerBootstrapper.SCIENTIFIC_ID);
+		List<String> order = scientific.getSettings().getIndexFilterOrder();
 
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.STANDARD_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
-		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
+		int lowercaseIdx = order.indexOf("lowercase");
+		int placeholderIdx = order.indexOf(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER);
+		int stopIdx = order.indexOf("english_stop");
+		int stemmerIdx = order.indexOf("english_stemmer");
 
-		assertEquals("standard", settings.getTokenizer());
-		assertWordDelimiterGraphFilter(settings.getTokenFilters(), "std_word_delimiter");
-		assertEquals(Arrays.asList("std_word_delimiter", "lowercase"), settings.getIndexFilterOrder());
-		assertEquals(Arrays.asList("lowercase", "synapse_synonyms", "std_word_delimiter"),
-				settings.getSearchFilterOrder());
-		assertTrue(settings.getSynonymAware());
+		assertTrue(lowercaseIdx >= 0, "SCIENTIFIC must contain lowercase: " + order);
+		assertTrue(lowercaseIdx < placeholderIdx,
+				"Placeholder must come AFTER lowercase (case-insensitive synonym match): " + order);
+		assertTrue(placeholderIdx < stopIdx,
+				"Placeholder must come BEFORE english_stop: " + order);
+		assertTrue(stopIdx < stemmerIdx,
+				"english_stop must come BEFORE stemmer: " + order);
 	}
 
 	@Test
-	public void testIdentifierAnalyzerUsesWordDelimiterGraph() {
-		setupOrgMock();
+	public void testStandardAndIdentifierAnalyzersExposePlaceholder() {
+		Map<Long, TextAnalyzer> upserts = captureAllUpserts();
 
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.IDENTIFIER_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
-		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
+		List<String> standard = upserts.get(TextAnalyzerBootstrapper.STANDARD_ID)
+				.getSettings().getIndexFilterOrder();
+		List<String> identifier = upserts.get(TextAnalyzerBootstrapper.IDENTIFIER_ID)
+				.getSettings().getIndexFilterOrder();
 
-		assertEquals("whitespace", settings.getTokenizer());
-		assertWordDelimiterGraphFilter(settings.getTokenFilters(), "id_word_delimiter");
-		assertEquals(Arrays.asList("id_word_delimiter", "lowercase"), settings.getIndexFilterOrder());
-		assertEquals(Arrays.asList("lowercase", "synapse_synonyms", "id_word_delimiter"),
-				settings.getSearchFilterOrder());
-		assertTrue(settings.getSynonymAware());
+		assertTrue(standard.contains(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER),
+				"STANDARD must expose 'synapse_synonyms': " + standard);
+		assertTrue(identifier.contains(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER),
+				"IDENTIFIER must expose 'synapse_synonyms': " + identifier);
 	}
 
 	@Test
-	public void testAutocompleteAnalyzerUsesLegacyWordDelimiter() {
-		setupOrgMock();
+	public void testKeywordAnalyzerHasNoTokenFilters() {
+		// KEYWORD produces one token; synonym substitution against the whole field value is
+		// almost never what users want, so the bootstrap intentionally omits the placeholder.
+		TextAnalyzer keyword = captureAllUpserts().get(TextAnalyzerBootstrapper.KEYWORD_ID);
 
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
-		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
-
-		assertEquals("standard", settings.getTokenizer());
-		// Index-time analyzer ending in edge_ngram requires legacy word_delimiter (non-graph),
-		// otherwise multi-position graph tokens break edge_ngram and AOSS rejects every document.
-		assertWordDelimiterFilter(settings.getTokenFilters(), "ac_word_delimiter");
-		List<String> filterOrder = settings.getIndexFilterOrder();
-		assertEquals("ac_word_delimiter", filterOrder.get(0));
-		assertEquals("lowercase", filterOrder.get(1));
-		assertEquals("edge_ngram_filter", filterOrder.get(2));
+		assertEquals("keyword", keyword.getSettings().getTokenizer().getName());
+		assertNotNull(keyword.getSettings(), "KEYWORD must have settings");
+		// No indexFilterOrder set → no token filters in the chain.
+		assertTrue(keyword.getSettings().getIndexFilterOrder() == null
+				|| keyword.getSettings().getIndexFilterOrder().isEmpty(),
+				"KEYWORD must have no filter chain: " + keyword.getSettings().getIndexFilterOrder());
 	}
 
 	@Test
-	public void testAutocompleteSearchAnalyzerHasWordDelimiterGraph() {
-		setupOrgMock();
+	public void testAutocompleteAnalyzerOmitsPlaceholderBeforeEdgeNgram() {
+		// edge_ngram is a non-graph filter that cannot consume the multi-position graph tokens
+		// from synonym_graph; emitting synonyms before edge_ngram would explode the index.
+		TextAnalyzer autocomplete = captureAllUpserts().get(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID);
+		List<String> order = autocomplete.getSettings().getIndexFilterOrder();
 
-		verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
-		TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
-
-		assertEquals("standard", settings.getTokenizer());
-		assertWordDelimiterGraphFilter(settings.getTokenFilters(), "acs_word_delimiter");
-		assertEquals(Arrays.asList("acs_word_delimiter", "lowercase"), settings.getIndexFilterOrder());
-		assertEquals(Arrays.asList("lowercase", "synapse_synonyms", "acs_word_delimiter"),
-				settings.getSearchFilterOrder());
-		assertTrue(settings.getSynonymAware());
+		assertTrue(order.contains("edge_ngram_filter"),
+				"AUTOCOMPLETE must end with edge_ngram_filter: " + order);
+		assertTrue(!order.contains(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER),
+				"AUTOCOMPLETE must NOT inject synonyms at index time: " + order);
 	}
 
 	@Test
-	public void testWordDelimiterComesBeforeLowercaseInAllAnalyzers() {
-		setupOrgMock();
+	public void testAutocompleteSearchAnalyzerExposesPlaceholder() {
+		// Search-time synonym expansion pairs with the index-time edge_ngram from AUTOCOMPLETE,
+		// giving 'tumor'→'cancer' type-ahead without exploding the index.
+		TextAnalyzer search = captureAllUpserts().get(TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID);
+		List<String> order = search.getSettings().getIndexFilterOrder();
 
-		// word_delimiter must come before lowercase so case-change boundaries can be detected
-		List<Long> idsWithWordDelimiter = Arrays.asList(
-				TextAnalyzerBootstrapper.SCIENTIFIC_ID,
-				TextAnalyzerBootstrapper.STANDARD_ID,
-				TextAnalyzerBootstrapper.IDENTIFIER_ID,
-				TextAnalyzerBootstrapper.AUTOCOMPLETE_ID,
-				TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID
-		);
+		assertTrue(order.contains(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER),
+				"AUTOCOMPLETE_SEARCH must expose 'synapse_synonyms' at search time: " + order);
+	}
 
-		for (Long id : idsWithWordDelimiter) {
-			verify(textAnalyzerDao).createOrUpdateSystemAnalyzerForBootstrapOnly(eq(id), analyzerCaptor.capture(), eq(TEST_ORG_NAME), any(Long.class));
-			TextAnalyzerSettings settings = analyzerCaptor.getValue().getSettings();
-			List<String> order = settings.getIndexFilterOrder();
-			int wdIdx = -1;
-			int lcIdx = -1;
-			for (int i = 0; i < order.size(); i++) {
-				if (order.get(i).contains("word_delimiter")) wdIdx = i;
-				if ("lowercase".equals(order.get(i))) lcIdx = i;
+	@Test
+	public void testBootstrappedComponentsAllCarryOpenSearchDefinitions() {
+		// Every custom (non-built-in) token filter referenced in indexFilterOrder must be
+		// declared in tokenFilters with a non-null definition; otherwise the translator can't
+		// register it at index-build time and AOSS rejects the analyzer.
+		for (Map.Entry<Long, TextAnalyzer> entry : captureAllUpserts().entrySet()) {
+			TextAnalyzer a = entry.getValue();
+			if (a.getSettings().getTokenFilters() == null) {
+				continue;
 			}
-			assertTrue(wdIdx >= 0, "word_delimiter filter missing for analyzer ID " + id);
-			assertTrue(lcIdx >= 0, "lowercase filter missing for analyzer ID " + id);
-			assertTrue(wdIdx < lcIdx, "word_delimiter must come before lowercase for analyzer ID " + id);
+			for (AnalyzerComponent c : a.getSettings().getTokenFilters()) {
+				assertNotNull(c.getDefinition(),
+						"Owned token filter '" + c.getName() + "' in " + a.getName() + " must carry a definition");
+			}
 		}
 	}
 
-	private void assertWordDelimiterGraphFilter(String tokenFiltersJson, String filterName) {
-		assertNotNull(tokenFiltersJson, "tokenFilters should not be null");
-		assertTrue(tokenFiltersJson.contains("\"" + filterName + "\""),
-				"Expected token filter '" + filterName + "' not found in JSON");
-		assertTrue(tokenFiltersJson.contains("\"type\":\"word_delimiter_graph\""),
-				"Filter should be of type word_delimiter_graph");
-		assertTrue(tokenFiltersJson.contains("\"preserve_original\":true"),
-				"Filter should have preserve_original=true");
-		assertTrue(tokenFiltersJson.contains("\"split_on_case_change\":true"),
-				"Filter should have split_on_case_change=true");
-		assertTrue(tokenFiltersJson.contains("\"catenate_words\":true"),
-				"Filter should have catenate_words=true");
-	}
+	// --- helpers ---
 
-	private void assertWordDelimiterFilter(String tokenFiltersJson, String filterName) {
-		assertNotNull(tokenFiltersJson, "tokenFilters should not be null");
-		assertTrue(tokenFiltersJson.contains("\"" + filterName + "\""),
-				"Expected token filter '" + filterName + "' not found in JSON");
-		// Legacy non-graph word_delimiter — must be exactly "word_delimiter", not "word_delimiter_graph"
-		assertTrue(tokenFiltersJson.contains("\"type\":\"word_delimiter\""),
-				"Filter should be of type word_delimiter");
-		assertFalse(tokenFiltersJson.contains("\"type\":\"word_delimiter_graph\""),
-				"Filter must not be word_delimiter_graph (graph tokens break edge_ngram at index time)");
-		assertTrue(tokenFiltersJson.contains("\"preserve_original\":true"),
-				"Filter should have preserve_original=true");
-		assertTrue(tokenFiltersJson.contains("\"split_on_case_change\":true"),
-				"Filter should have split_on_case_change=true");
-		assertTrue(tokenFiltersJson.contains("\"catenate_words\":true"),
-				"Filter should have catenate_words=true");
+	private Map<Long, TextAnalyzer> captureAllUpserts() {
+		new TextAnalyzerBootstrapper(textAnalyzerDao, synapseSchemaBootstrap, userManager);
+		ArgumentCaptor<Long> idCaptor = ArgumentCaptor.forClass(Long.class);
+		ArgumentCaptor<TextAnalyzer> analyzerCaptor = ArgumentCaptor.forClass(TextAnalyzer.class);
+		verify(textAnalyzerDao, times(6)).createOrUpdateSystemAnalyzerForBootstrapOnly(
+				idCaptor.capture(), analyzerCaptor.capture(), eq(ORG_NAME), eq(ADMIN_USER_ID));
+
+		Map<Long, TextAnalyzer> result = new HashMap<>();
+		for (int i = 0; i < idCaptor.getAllValues().size(); i++) {
+			result.put(idCaptor.getAllValues().get(i), analyzerCaptor.getAllValues().get(i));
+		}
+		return result;
 	}
 }

@@ -1,5 +1,5 @@
 {
-	"description": "Represents a binding between a search configuration and an entity. Walk the entity hierarchy (entity → folder → project) to find the effective configuration.",
+	"description": "Attaches a SearchConfiguration to an entity. When a SearchIndex is built, the effective SearchConfiguration is resolved by walking up the entity hierarchy (entity → folder → project) and using the first binding found. The typical setup is one binding on the project so every descendant SearchIndex inherits it automatically. Create / replace via PUT /entity/{entityId}/searchconfig/binding; read the effective binding via GET; remove via DELETE.",
 	"properties": {
 		"bindId": {
 			"type": "string",
@@ -7,24 +7,24 @@
 		},
 		"searchConfigurationId": {
 			"type": "string",
-			"description": "The ID of the SearchConfiguration bound to this entity."
+			"description": "ID of the SearchConfiguration bound here."
 		},
 		"objectId": {
 			"type": "string",
-			"description": "The ID of the entity this configuration is bound to."
+			"description": "ID of the entity this binding is attached to."
 		},
 		"objectType": {
 			"type": "string",
-			"description": "The type of the object this configuration is bound to."
+			"description": "Object type of the bound entity (typically 'entity')."
 		},
 		"createdBy": {
 			"type": "string",
-			"description": "The ID of the user that created this binding."
+			"description": "ID of the user that created this binding."
 		},
 		"createdOn": {
 			"type": "string",
 			"format": "date-time",
-			"description": "The date this binding was created."
+			"description": "When this binding was created."
 		}
 	}
 }

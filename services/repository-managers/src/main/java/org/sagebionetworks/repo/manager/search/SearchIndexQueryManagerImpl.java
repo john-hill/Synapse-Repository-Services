@@ -14,12 +14,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.manager.EntityManager;
-import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
-import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
-import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
@@ -42,12 +39,10 @@ import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.table.SearchIndexState;
 import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
 import org.sagebionetworks.repo.model.search.SearchQuery;
-import org.sagebionetworks.repo.model.search.SearchQueryType;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.table.cluster.ConnectionFactory;
 import org.sagebionetworks.table.cluster.QueryTranslator;
-import org.sagebionetworks.table.query.model.SqlContext;
 import org.sagebionetworks.table.cluster.description.IndexDescription;
 import org.sagebionetworks.table.cluster.search.SearchIndexStatusDao;
 import org.sagebionetworks.table.cluster.utils.TableModelUtils;
@@ -63,29 +58,23 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 	private final ConnectionFactory connectionFactory;
 	private final OpenSearchManager openSearchManager;
 	private final SearchConfigurationResolver searchConfigurationResolver;
-	private final UserManager userManager;
 	private final TableManagerSupport tableManagerSupport;
 	private final ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao;
-	private final SynonymSetDao synonymSetDao;
 	private final TextAnalyzerDao textAnalyzerDao;
 
 	public SearchIndexQueryManagerImpl(EntityManager entityManager,
 			ConnectionFactory connectionFactory,
 			OpenSearchManager openSearchManager,
 			SearchConfigurationResolver searchConfigurationResolver,
-			UserManager userManager,
 			TableManagerSupport tableManagerSupport,
 			ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao,
-			SynonymSetDao synonymSetDao,
 			TextAnalyzerDao textAnalyzerDao) {
 		this.entityManager = entityManager;
 		this.connectionFactory = connectionFactory;
 		this.openSearchManager = openSearchManager;
 		this.searchConfigurationResolver = searchConfigurationResolver;
-		this.userManager = userManager;
 		this.tableManagerSupport = tableManagerSupport;
 		this.columnAnalyzerOverrideDao = columnAnalyzerOverrideDao;
-		this.synonymSetDao = synonymSetDao;
 		this.textAnalyzerDao = textAnalyzerDao;
 	}
 
@@ -157,16 +146,19 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		// Translate user-facing column names to IDs before sending to OpenSearch
 		translateQueryNamesToIds(query, nameToId);
 
-		// Load overrides and analyzers needed for field routing
+		// Load overrides and analyzers needed for field routing. Query-time analysis only
+		// needs the search analyzer; the index analyzer is already baked into AOSS at build.
 		List<ColumnAnalyzerOverride> overrides = loadColumnAnalyzerOverrides(config);
 		Map<String, TextAnalyzer> analyzers = collectAndLoadAnalyzers(config, overrides, columns);
-		String defaultAnalyzer = config != null ? config.getDefaultAnalyzer() : null;
+		String defaultSearchAnalyzer = config != null ? config.getDefaultSearchAnalyzer() : null;
 
 		SearchQueryResults rawResults;
 		if (isAutocomplete) {
-			rawResults = openSearchManager.autocomplete(getIndexName(searchIndexId), query, columns, defaultAnalyzer, overrides, analyzers, parts);
+			rawResults = openSearchManager.autocomplete(getIndexName(searchIndexId), query, columns,
+					defaultSearchAnalyzer, overrides, analyzers, parts);
 		} else {
-			rawResults = openSearchManager.search(getIndexName(searchIndexId), query, columns, defaultAnalyzer, overrides, analyzers, parts);
+			rawResults = openSearchManager.search(getIndexName(searchIndexId), query, columns,
+					defaultSearchAnalyzer, overrides, analyzers, parts);
 		}
 
 		// Translate column IDs back to names in the results before assembling the response.
@@ -256,20 +248,23 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		return new QueryMetadata(columns, TableModelUtils.getSelectColumns(columns));
 	}
 
+	/**
+	 * Load just the analyzers that route at QUERY time: per-column searchAnalyzer overrides,
+	 * the configuration's defaultSearchAnalyzer, the platform default for each column type
+	 * (fallback when no override and no config default), and SCIENTIFIC (used to drive the
+	 * .searchable sub-field on KEYWORD columns). Index-time analyzers are baked into AOSS at
+	 * build time and are not needed here.
+	 */
 	Map<String, TextAnalyzer> collectAndLoadAnalyzers(SearchConfiguration config,
 			List<ColumnAnalyzerOverride> overrides, List<ColumnModel> columns) {
 		Set<String> qualifiedNames = new HashSet<>();
 
-		// SCIENTIFIC is always needed for keyword .searchable sub-fields
 		qualifiedNames.add(ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(ColumnType.STRING));
 
 		if (overrides != null) {
 			for (ColumnAnalyzerOverride cao : overrides) {
 				if (cao.getOverrides() != null) {
 					for (ColumnAnalyzerOverrideEntry entry : cao.getOverrides()) {
-						if (entry.getIndexAnalyzer() != null) {
-							qualifiedNames.add(entry.getIndexAnalyzer());
-						}
 						if (entry.getSearchAnalyzer() != null) {
 							qualifiedNames.add(entry.getSearchAnalyzer());
 						}
@@ -278,8 +273,8 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 			}
 		}
 
-		if (config != null && config.getDefaultAnalyzer() != null) {
-			qualifiedNames.add(config.getDefaultAnalyzer());
+		if (config != null && config.getDefaultSearchAnalyzer() != null) {
+			qualifiedNames.add(config.getDefaultSearchAnalyzer());
 		}
 
 		for (ColumnModel column : columns) {

@@ -1,0 +1,14 @@
+{
+	"description": "A single OpenSearch analysis component: a tokenizer, a char filter, or a token filter. Two shapes:\n\n  // Built-in component — just the OpenSearch name:\n  { \"name\": \"standard\" }\n  { \"name\": \"lowercase\" }\n  { \"name\": \"html_strip\" }\n\n  // Custom component — any unique name + an OpenSearch JSON definition under 'definition':\n  { \"name\": \"my_edge_ngram\",\n    \"definition\": \"{\\\"type\\\":\\\"edge_ngram\\\",\\\"min_gram\\\":2,\\\"max_gram\\\":20}\" }\n  { \"name\": \"my_stop\",\n    \"definition\": \"{\\\"type\\\":\\\"stop\\\",\\\"stopwords\\\":[\\\"the\\\",\\\"a\\\",\\\"of\\\"]}\" }\n\nFor the full inventory of types and parameters see the OpenSearch docs for <a href='https://docs.opensearch.org/latest/analyzers/tokenizers/index/'>tokenizers</a>, <a href='https://docs.opensearch.org/latest/analyzers/character-filters/index/'>char filters</a>, and <a href='https://docs.opensearch.org/latest/analyzers/token-filters/index/'>token filters</a>. At index-build time custom-component names are namespaced by their owning TextAnalyzer's qualified name so multiple analyzers can reuse the same local name without collision.",
+	"properties": {
+		"name": {
+			"type": "string",
+			"description": "Required. For a built-in, the OpenSearch built-in name (e.g. 'standard', 'lowercase', 'html_strip', 'icu_tokenizer', 'phonetic'). For a custom component, any identifier unique within the owning TextAnalyzer.",
+			"required": true
+		},
+		"definition": {
+			"type": "string",
+			"description": "Optional. A JSON object string carrying the OpenSearch component definition; required when the component is not a built-in. The JSON object must include a 'type' field naming the OpenSearch component type — see e.g. <a href='https://docs.opensearch.org/latest/analyzers/tokenizers/edge-n-gram/'>edge_ngram tokenizer</a>, <a href='https://docs.opensearch.org/latest/analyzers/token-filters/stop/'>stop token filter</a>, <a href='https://docs.opensearch.org/latest/analyzers/character-filters/pattern-replace-character-filter/'>pattern_replace char filter</a>. AOSS NOTE: file-based parameters are not supported — any key ending in '_path' ('stopwords_path', 'synonyms_path', 'mappings_path', 'protected_words_path', 'rules_path', etc.) is rejected at create/update time. Use the inline equivalents ('stopwords', 'synonyms', 'mappings', 'protected_words')."
+		}
+	}
+}

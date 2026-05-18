@@ -17,8 +17,13 @@ import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 
 /**
- * Manager interface for OpenSearch Serverless (AOSS) operations.
- * Manages index lifecycle (create, delete) and query execution (search, autocomplete).
+ * AOSS-facing client seam for the SearchIndex feature. Owns index lifecycle
+ * (create / delete / writability probe), bulk document indexing, query execution
+ * (search and autocomplete), and synchronous analyzer-settings validation.
+ *
+ * <p>Implementations translate user-facing schema names to OpenSearch column-ID field
+ * names before delegating to the OpenSearch Java client; callers (managers, workers)
+ * pass user-facing names throughout.</p>
  */
 public interface OpenSearchManager {
 
@@ -27,15 +32,22 @@ public interface OpenSearchManager {
 	 *
 	 * @param indexName                The OpenSearch index name
 	 * @param columns                  The column models defining the entity's schema
-	 * @param defaultAnalyzer          The default analyzer qualified name (may be null for platform defaults)
-	 * @param synonymSets              The resolved synonym sets (may be empty)
+	 * @param defaultIndexAnalyzer     The qualified name of the TextAnalyzer to apply at INDEX time to text columns without an override. Required.
+	 * @param defaultSearchAnalyzer    The qualified name of the TextAnalyzer to apply at SEARCH time to text columns without an override. Required.
 	 * @param columnAnalyzerOverrides  The resolved column analyzer overrides (may be empty)
-	 * @param analyzers                Map of analyzer qualified name to TextAnalyzer for all analyzers needed
+	 * @param analyzers                Map of qualified name → TextAnalyzer for every analyzer referenced by defaults or overrides
+	 * @param synonymSets              Ordered SynonymSets from {@code SearchConfiguration.synonymSets}.
+	 *                                 The translator renders each as a named synonym filter under
+	 *                                 {@code settings.analysis.filter.<qname>} and substitutes
+	 *                                 their qnames in place of every {@code synapse_synonyms}
+	 *                                 placeholder found in any analyzer's filter chain.
 	 * @return The JSON representation of the CreateIndexRequest, or empty if the index already existed
 	 */
-	Optional<String> createIndex(String indexName, List<ColumnModel> columns, String defaultAnalyzer,
-			List<SynonymSet> synonymSets, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, TextAnalyzer> analyzers);
+	Optional<String> createIndex(String indexName, List<ColumnModel> columns,
+			String defaultIndexAnalyzer, String defaultSearchAnalyzer,
+			List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
+			Map<String, TextAnalyzer> analyzers,
+			List<SynonymSet> synonymSets);
 
 	/**
 	 * Delete an OpenSearch index. No-op if the index does not exist.
@@ -72,46 +84,35 @@ public interface OpenSearchManager {
 	void waitForIndexWritable(String indexName) throws RecoverableMessageException;
 
 	/**
-	 * Execute a search query against the OpenSearch index. The {@code options} set controls
-	 * which sections of the OpenSearch request are populated: omitting HITS switches the
-	 * request to {@code size=0}, omitting TOTAL_HITS disables total-hits tracking, and
-	 * omitting FACETS skips aggregation construction. The returned {@link SearchQueryResults}
-	 * only carries the fields corresponding to the requested options plus {@code offset}.
-	 *
-	 * @param indexName                The OpenSearch index name
-	 * @param query                    The search query
-	 * @param columns                  The column models for field routing
-	 * @param defaultAnalyzer          The default analyzer qualified name (may be null)
-	 * @param columnAnalyzerOverrides  The resolved overrides (may be empty)
-	 * @param analyzers                Map of analyzer qualified name to TextAnalyzer
-	 * @param options                    The response options requested; must be non-null and non-empty.
-	 * @return The search results (only fields corresponding to requested options are populated)
+	 * Execute a search query against the OpenSearch index. Query-time analysis routes through
+	 * {@code defaultSearchAnalyzer} (index-time analysis is already baked into the index at
+	 * build time). The {@code options} set controls which sections of the OpenSearch request
+	 * are populated: omitting HITS switches the request to {@code size=0}, omitting TOTAL_HITS
+	 * disables total-hits tracking, and omitting FACETS skips aggregation construction. The
+	 * returned {@link SearchQueryResults} only carries the fields corresponding to the
+	 * requested options plus {@code offset}.
 	 */
 	SearchQueryResults search(String indexName, SearchQuery query, List<ColumnModel> columns,
-			String defaultAnalyzer, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
+			String defaultSearchAnalyzer,
+			List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
 			Map<String, TextAnalyzer> analyzers, Set<SearchQueryPart> options);
 
 	/**
 	 * Execute an autocomplete query. Forces PREFIX query type and caps size at 8.
 	 * Autocomplete never produces facets regardless of the {@code options} set.
-	 *
-	 * @param indexName                The OpenSearch index name
-	 * @param query                    The search query (queryType will be overridden to PREFIX)
-	 * @param columns                  The column models
-	 * @param defaultAnalyzer          The default analyzer qualified name (may be null)
-	 * @param columnAnalyzerOverrides  The resolved overrides (may be empty)
-	 * @param analyzers                Map of analyzer qualified name to TextAnalyzer
-	 * @param options                    The response options requested; must be non-null and non-empty.
-	 * @return The autocomplete results
 	 */
 	SearchQueryResults autocomplete(String indexName, SearchQuery query, List<ColumnModel> columns,
-			String defaultAnalyzer, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
+			String defaultSearchAnalyzer,
+			List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
 			Map<String, TextAnalyzer> analyzers, Set<SearchQueryPart> options);
 
 	/**
-	 * Validate analyzer settings by invoking the AOSS _analyze API.
+	 * Validate analyzer settings by invoking the AOSS _analyze API with the analyzer's
+	 * owned tokenizer + tokenFilters + charFilters. Names in {@code indexFilterOrder} /
+	 * {@code searchFilterOrder} that match a SynonymSet qualified-name shape are skipped —
+	 * those references are validated lazily at index build time, after SynonymSets are
+	 * resolved.
 	 *
-	 * @param settings The TextAnalyzerSettings to validate
 	 * @throws IllegalArgumentException if the analyzer configuration is rejected by OpenSearch
 	 * @throws IllegalStateException if the OpenSearch service is unreachable
 	 */

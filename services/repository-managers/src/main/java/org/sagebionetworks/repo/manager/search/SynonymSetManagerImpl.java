@@ -43,6 +43,7 @@ public class SynonymSetManagerImpl implements SynonymSetManager {
 		ValidateArgument.requiredNotBlank(request.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(request.getName(), "name");
 		SearchResourceConstants.validateResourceName(request.getName());
+		SearchResourceConstants.rejectFilePathParameters(request.getDefinition(), "definition");
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
@@ -73,6 +74,7 @@ public class SynonymSetManagerImpl implements SynonymSetManager {
 		ValidateArgument.requiredNotBlank(request.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(request.getName(), "name");
 		SearchResourceConstants.validateResourceName(request.getName());
+		SearchResourceConstants.rejectFilePathParameters(request.getDefinition(), "definition");
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {

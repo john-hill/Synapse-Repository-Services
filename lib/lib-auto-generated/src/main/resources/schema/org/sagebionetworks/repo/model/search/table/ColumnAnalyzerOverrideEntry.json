@@ -1,17 +1,17 @@
 {
-	"description": "A per-column analyzer override entry. Specifies which analyzers to use at index time and search time for a specific column.",
+	"description": "Assigns a TextAnalyzer pair to one column. Maps to OpenSearch's <a href='https://docs.opensearch.org/latest/field-types/supported-field-types/text/'>analyzer + search_analyzer</a> on the column's field mapping. Typically the two are the same; supply different analyzers only when index-time and search-time should produce different token streams (e.g. edge n-gram index analyzer paired with a non-ngram search analyzer for autocomplete fields).",
 	"properties": {
 		"columnName": {
 			"type": "string",
-			"description": "The name of the column to override. Must exist in the entity's schema."
+			"description": "The name of the column to override. Silently skipped at index-build time if the column is not present in the target SearchIndex's schema — a single override bundle can therefore be applied across several indexes that share some column names."
 		},
 		"indexAnalyzer": {
 			"type": "string",
-			"description": "The qualified name ('{organizationName}-{name}') of the TextAnalyzer to use when indexing this column."
+			"description": "Qualified name ('{organizationName}-{name}') of the TextAnalyzer to use when INDEXING this column."
 		},
 		"searchAnalyzer": {
 			"type": "string",
-			"description": "The qualified name ('{organizationName}-{name}') of the TextAnalyzer to use when searching this column. Most asymmetric analysis should be expressed by setting 'searchFilterOrder' on the analyzer itself; reach for this field only when search needs a *different analyzer record* than indexing (for example, when reusing a single search-time analyzer across columns indexed with different analyzers). Synonym handling does NOT require setting this — when the chosen analyzer has 'synonymAware=true', the synonym-enabled search variant is selected automatically."
+			"description": "Qualified name ('{organizationName}-{name}') of the TextAnalyzer to use when SEARCHING this column. Often identical to indexAnalyzer. Use a different qname when search-time analysis should swap to a wholly different analyzer record rather than just a different filter chain inside the same analyzer (the latter is handled by 'searchFilterOrder' inside TextAnalyzerSettings)."
 		}
 	}
 }

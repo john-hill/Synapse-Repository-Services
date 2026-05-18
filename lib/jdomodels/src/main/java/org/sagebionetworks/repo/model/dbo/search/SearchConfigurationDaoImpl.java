@@ -9,7 +9,9 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SCOB_SEA
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_COL_ANALYZER_OVERRIDES;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_CREATED_BY;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_CREATED_ON;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_DEFAULT_ANALYZER;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_DEFAULT_INDEX_ANALYZER;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_DEFAULT_SEARCH_ANALYZER;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_SYNONYM_SETS;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_DESCRIPTION;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_ETAG;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_ID;
@@ -17,7 +19,6 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_C
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_MODIFIED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_NAME;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_ORGANIZATION_NAME;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_SYNONYM_SETS;
 
 import java.sql.ResultSet;
 import java.util.Date;
@@ -49,7 +50,8 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 		config.setOrganizationName(rs.getString(COL_SEARCH_CONFIG_ORGANIZATION_NAME));
 		config.setName(rs.getString(COL_SEARCH_CONFIG_NAME));
 		config.setDescription(rs.getString(COL_SEARCH_CONFIG_DESCRIPTION));
-		config.setDefaultAnalyzer(rs.getString(COL_SEARCH_CONFIG_DEFAULT_ANALYZER));
+		config.setDefaultIndexAnalyzer(rs.getString(COL_SEARCH_CONFIG_DEFAULT_INDEX_ANALYZER));
+		config.setDefaultSearchAnalyzer(rs.getString(COL_SEARCH_CONFIG_DEFAULT_SEARCH_ANALYZER));
 		config.setSynonymSets(JDOSecondaryPropertyUtils.readJsonToStringList(rs.getString(COL_SEARCH_CONFIG_SYNONYM_SETS)));
 		config.setColumnAnalyzerOverrides(JDOSecondaryPropertyUtils.readJsonToStringList(rs.getString(COL_SEARCH_CONFIG_COL_ANALYZER_OVERRIDES)));
 		config.setCreatedBy(String.valueOf(rs.getLong(COL_SEARCH_CONFIG_CREATED_BY)));
@@ -91,14 +93,15 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 		try {
 			jdbcTemplate.update(
 					"INSERT INTO SEARCH_CONFIGURATION (ID, ETAG, ORGANIZATION_NAME, NAME, DESCRIPTION,"
-					+ " DEFAULT_ANALYZER, SYNONYM_SETS, COLUMN_ANALYZER_OVERRIDES,"
+					+ " DEFAULT_INDEX_ANALYZER, DEFAULT_SEARCH_ANALYZER, SYNONYM_SETS, COLUMN_ANALYZER_OVERRIDES,"
 					+ " CREATED_BY, CREATED_ON, MODIFIED_BY, MODIFIED_ON)"
-					+ " VALUES (?, UUID(), ?, ?, ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))",
+					+ " VALUES (?, UUID(), ?, ?, ?, ?, ?, ?, ?, ?, NOW(3), ?, NOW(3))",
 					id,
 					config.getOrganizationName(),
 					config.getName(),
 					config.getDescription(),
-					config.getDefaultAnalyzer(),
+					config.getDefaultIndexAnalyzer(),
+					config.getDefaultSearchAnalyzer(),
 					JDOSecondaryPropertyUtils.writeStringListToJson(config.getSynonymSets()),
 					JDOSecondaryPropertyUtils.writeStringListToJson(config.getColumnAnalyzerOverrides()),
 					createdBy,
@@ -142,11 +145,13 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 		try {
 			updated = jdbcTemplate.update(
 					"UPDATE SEARCH_CONFIGURATION SET ETAG = UUID(), NAME = ?, DESCRIPTION = ?,"
-					+ " DEFAULT_ANALYZER = ?, SYNONYM_SETS = ?, COLUMN_ANALYZER_OVERRIDES = ?,"
+					+ " DEFAULT_INDEX_ANALYZER = ?, DEFAULT_SEARCH_ANALYZER = ?,"
+					+ " SYNONYM_SETS = ?, COLUMN_ANALYZER_OVERRIDES = ?,"
 					+ " MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
 					config.getName(),
 					config.getDescription(),
-					config.getDefaultAnalyzer(),
+					config.getDefaultIndexAnalyzer(),
+					config.getDefaultSearchAnalyzer(),
 					JDOSecondaryPropertyUtils.writeStringListToJson(config.getSynonymSets()),
 					JDOSecondaryPropertyUtils.writeStringListToJson(config.getColumnAnalyzerOverrides()),
 					modifiedBy,

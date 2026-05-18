@@ -1,5 +1,5 @@
 {
-	"description": "A reusable search configuration resource. Bundles synonym sets, column analyzer overrides, and a default analyzer. Bind to any entity in the hierarchy (entity, folder, or project) to define inherited search configuration.",
+	"description": "Bundles the analyzers, synonym sets, and overrides used to build a SearchIndex. A SearchConfiguration is the equivalent of the analyzer wiring in an OpenSearch <a href='https://docs.opensearch.org/latest/install-and-configure/configuring-opensearch/index-settings/'>index settings</a> block — it points at the default index-time and search-time analyzers, lists the SynonymSets to apply, and adds any per-column analyzer overrides. Bind one to a project (or any entity) and every SearchIndex below it inherits the configuration.\n\nExample using the system-bootstrapped SCIENTIFIC analyzer plus two SynonymSets from another organization:\n\n  {\n    \"organizationName\": \"biomed\",\n    \"name\": \"publications_v1\",\n    \"defaultIndexAnalyzer\":  \"org.sagebionetworks-SCIENTIFIC\",\n    \"defaultSearchAnalyzer\": \"org.sagebionetworks-SCIENTIFIC\",\n    \"synonymSets\": [\"org123-medical_terms\", \"org123-disease_acronyms\"]\n  }\n\nHow synonyms get into the index: any TextAnalyzer whose filter chain contains the reserved token 'synapse_synonyms' has that token expanded at build time, in place, into the qnames listed in 'synonymSets' (in order). The bootstrapped system analyzers ship with 'synapse_synonyms' positioned at the OpenSearch-recommended slot in their chains (after lowercase, before any case-folding or n-gram filter); user-authored TextAnalyzers must include 'synapse_synonyms' in their indexFilterOrder / searchFilterOrder explicitly if they want synonyms applied — see TextAnalyzerSettings. A SearchConfiguration with synonymSets pointed at an analyzer that lacks the placeholder will build successfully, but no synonyms will be applied to that analyzer.\n\nSee SearchConfigBinding for how the configuration attaches to a project, TextAnalyzer / ColumnAnalyzerOverride for the analyzer components, and SynonymSet for the synonyms themselves.",
 	"properties": {
 		"id": {
 			"type": "string",
@@ -7,55 +7,59 @@
 		},
 		"organizationName": {
 			"type": "string",
-			"description": "The name of the Organization this resource belongs to. Immutable after creation."
+			"description": "The Organization that owns this resource. Immutable after creation."
 		},
 		"name": {
 			"type": "string",
-			"description": "The resource name. Must start with a letter and contain only letters, digits, and underscores. Unique within the organization and immutable after creation. Used as part of the qualified name ({organizationName}-{name}) when referenced by other resources."
+			"description": "Resource name (letters, digits, underscores, must start with a letter). Combined with organizationName to form the qualified name '{organizationName}-{name}'. Immutable after creation."
 		},
 		"description": {
 			"type": "string",
-			"description": "Optional description."
+			"description": "Optional free-form description."
+		},
+		"defaultIndexAnalyzer": {
+			"type": "string",
+			"description": "Optional. Qualified name ('{organizationName}-{name}') of the TextAnalyzer applied at INDEX time to text columns without an override. This is the analyzer that runs against documents as they are written to OpenSearch — see the OpenSearch docs on <a href='https://docs.opensearch.org/latest/analyzers/index-analyzers/'>index analyzers</a>. If omitted, each column falls back to the system default analyzer for its data type (see ColumnTypeToOpenSearchMapping)."
+		},
+		"defaultSearchAnalyzer": {
+			"type": "string",
+			"description": "Optional. Qualified name of the TextAnalyzer applied at SEARCH time to text columns without an override. Often the same as defaultIndexAnalyzer; differs when index-time and search-time should produce different token streams (e.g. edge_ngram at index time but not at search time — the typical autocomplete pattern). See OpenSearch <a href='https://docs.opensearch.org/latest/analyzers/search-analyzers/'>search analyzers</a>. If omitted, each column falls back to the system default analyzer for its data type (see ColumnTypeToOpenSearchMapping)."
 		},
 		"synonymSets": {
 			"type": "array",
-			"description": "Ordered list of SynonymSet qualified names in '{organizationName}-{name}' format to apply. Rules from all sets are unioned.",
+			"description": "Optional ordered list of SynonymSet qualified names ('{organizationName}-{name}'). Each one referenced here is rendered as a named OpenSearch synonym filter in the index's analysis settings. They are injected into every TextAnalyzer (defaults and per-column overrides) whose filter chain contains the reserved token 'synapse_synonyms' — expanded in place, in order — see TextAnalyzerSettings for the injection rule. Each SynonymSet keeps its own parameters (synonym vs synonym_graph, expand, lenient, format) when expanded — they are applied as sequential filters, not merged. Build fails at create/update time if any listed qname does not resolve to an existing SynonymSet.",
 			"items": {
 				"type": "string"
 			}
 		},
 		"columnAnalyzerOverrides": {
 			"type": "array",
-			"description": "Ordered list of ColumnAnalyzerOverride qualified names in '{organizationName}-{name}' format to apply. First-found-wins for duplicate columns.",
+			"description": "Optional ordered list of ColumnAnalyzerOverride qualified names. Each one names per-column analyzer assignments; first match wins for duplicated column names across overrides.",
 			"items": {
 				"type": "string"
 			}
 		},
-		"defaultAnalyzer": {
-			"type": "string",
-			"description": "Default text analyzer for columns without an explicit override, in '{organizationName}-{name}' format."
-		},
 		"etag": {
 			"type": "string",
-			"description": "Synapse employs an Optimistic Concurrency Control (OCC) scheme."
+			"description": "Synapse Optimistic Concurrency Control (OCC) value. Send the etag from a GET back on update; a mismatch returns 409."
 		},
 		"createdOn": {
 			"type": "string",
 			"format": "date-time",
-			"description": "The date this resource was created."
+			"description": "When this resource was created."
 		},
 		"createdBy": {
 			"type": "string",
-			"description": "The ID of the user that created this resource."
+			"description": "ID of the user that created this resource."
 		},
 		"modifiedOn": {
 			"type": "string",
 			"format": "date-time",
-			"description": "The date this resource was last modified."
+			"description": "When this resource was last modified."
 		},
 		"modifiedBy": {
 			"type": "string",
-			"description": "The ID of the user that last modified this resource."
+			"description": "ID of the user that last modified this resource."
 		}
 	}
 }

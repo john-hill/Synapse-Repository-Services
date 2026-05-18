@@ -1,40 +1,43 @@
 {
-	"description": "The OpenSearch analyzer configuration. Stores the full definition of how text is analyzed.",
+	"description": "The pipeline of a custom OpenSearch analyzer: char filters that clean the raw text, a tokenizer that splits it into tokens, and a chain of token filters that transform those tokens. Direct parallel to an OpenSearch <a href='https://docs.opensearch.org/latest/analyzers/custom-analyzer/'>custom analyzer</a>; refer to that page for what each piece does and to the inventories of available <a href='https://docs.opensearch.org/latest/analyzers/character-filters/index/'>char filters</a>, <a href='https://docs.opensearch.org/latest/analyzers/tokenizers/index/'>tokenizers</a>, and <a href='https://docs.opensearch.org/latest/analyzers/token-filters/index/'>token filters</a> for the exhaustive list of names and parameters. A minimal example (standard tokenizer with lowercase folding):\n\n  {\n    \"tokenizer\": { \"name\": \"standard\" },\n    \"indexFilterOrder\":  [\"lowercase\"],\n    \"searchFilterOrder\": [\"lowercase\"]\n  }\n\nA stemming example (English stop words + Porter stem) — note 'lowercase' comes before stop and stemmer so the English stop list and stemmer see lowercase input:\n\n  {\n    \"tokenizer\": { \"name\": \"standard\" },\n    \"tokenFilters\": [\n      { \"name\": \"english_stop\",    \"definition\": \"{\\\"type\\\":\\\"stop\\\",\\\"stopwords\\\":\\\"_english_\\\"}\" },\n      { \"name\": \"english_stemmer\", \"definition\": \"{\\\"type\\\":\\\"stemmer\\\",\\\"language\\\":\\\"english\\\"}\" }\n    ],\n    \"indexFilterOrder\":  [\"lowercase\", \"english_stop\", \"english_stemmer\"],\n    \"searchFilterOrder\": [\"lowercase\", \"english_stop\", \"english_stemmer\"]\n  }\n\nAn autocomplete example (edge n-gram at index, plain match at search) — the asymmetric pattern:\n\n  {\n    \"tokenizer\": { \"name\": \"standard\" },\n    \"tokenFilters\": [\n      { \"name\": \"autocomplete_ngram\", \"definition\": \"{\\\"type\\\":\\\"edge_ngram\\\",\\\"min_gram\\\":2,\\\"max_gram\\\":20}\" }\n    ],\n    \"indexFilterOrder\":  [\"lowercase\", \"autocomplete_ngram\"],\n    \"searchFilterOrder\": [\"lowercase\"]\n  }\n\nA synonym example — declare WHERE synonyms go in the chain using the reserved 'synapse_synonyms' token; the SynonymSets listed on the SearchConfiguration are then expanded in place:\n\n  {\n    \"tokenizer\": { \"name\": \"standard\" },\n    \"indexFilterOrder\":  [\"lowercase\", \"synapse_synonyms\"],\n    \"searchFilterOrder\": [\"lowercase\", \"synapse_synonyms\"]\n  }",
 	"properties": {
-		"charFilters": {
-			"type": "string",
-			"description": "JSON string defining named character filter configurations. Each key is a filter name, each value is the filter config object."
-		},
 		"tokenizer": {
-			"type": "string",
-			"description": "The tokenizer name (e.g., 'standard', 'whitespace'). For custom tokenizers, define in 'tokenizerConfig'."
+			"description": "Required. The tokenizer that splits text into terms. Reference a built-in by name (e.g. 'standard', 'keyword', 'whitespace', 'icu_tokenizer') or supply a custom OpenSearch <a href='https://docs.opensearch.org/latest/analyzers/tokenizers/index/'>tokenizer</a> definition. See AnalyzerComponent.",
+			"$ref": "org.sagebionetworks.repo.model.search.table.AnalyzerComponent",
+			"required": true
 		},
-		"tokenizerConfig": {
-			"type": "string",
-			"description": "JSON-serialized custom tokenizer configuration object. Must include a 'type' field. Example: {\"type\":\"edge_ngram\",\"min_gram\":2,\"max_gram\":20,\"token_chars\":[\"letter\",\"digit\"]}"
+		"charFilters": {
+			"type": "array",
+			"description": "Char filters owned by this analyzer — applied to the raw text BEFORE tokenization. Each entry is either a built-in (e.g. 'html_strip') or a custom OpenSearch <a href='https://docs.opensearch.org/latest/analyzers/character-filters/index/'>char filter</a>. Referenced by name in 'charFilterOrder'.",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.search.table.AnalyzerComponent"
+			}
 		},
 		"tokenFilters": {
-			"type": "string",
-			"description": "JSON string defining named token filter configurations. Each key is a filter name, each value is the filter config object."
+			"type": "array",
+			"description": "Token filters owned by this analyzer — applied AFTER tokenization. Each entry is either a built-in (e.g. 'lowercase', 'stop', 'porter_stem') or a custom OpenSearch <a href='https://docs.opensearch.org/latest/analyzers/token-filters/index/'>token filter</a>. Referenced by name in 'indexFilterOrder' and 'searchFilterOrder'.",
+			"items": {
+				"$ref": "org.sagebionetworks.repo.model.search.table.AnalyzerComponent"
+			}
 		},
 		"indexFilterOrder": {
 			"type": "array",
-			"description": "Ordered list of token filter names applied at INDEX time. Can reference built-in filters (e.g., 'lowercase') or custom ones defined in 'tokenFilters'.",
+			"description": "Ordered token-filter chain applied at INDEX time. Each name is resolved as: a filter defined in this analyzer's 'tokenFilters' (rendered with its definition); the reserved token 'synapse_synonyms' (see below); or, anything else, passed verbatim to OpenSearch — works for any built-in like 'lowercase' or for plugin filters like 'phonetic' that ship with AOSS. SYNONYM INJECTION: the token 'synapse_synonyms' is the only way to wire SynonymSets into an analyzer. At index-build time it is replaced in place by the qnames listed in the SearchConfiguration's 'synonymSets', in order; if 'synonymSets' is empty the placeholder is dropped. An analyzer with no 'synapse_synonyms' in its chain will NOT have any synonyms applied even if the SearchConfiguration lists them — by design, so chain authors stay in control of position. ORDERING PITFALLS: (1) graph-aware filters ('synonym_graph', 'word_delimiter_graph') emit multi-position tokens — a non-graph filter following them can yield an invalid token graph. (2) 'word_delimiter_graph' BEFORE 'synonym_graph' is rejected by OpenSearch (synonym rules are parsed using preceding filters). (3) Synonym matching is case-sensitive unless 'lowercase' precedes 'synapse_synonyms' and the rule terms are lowercase. (4) Conventional stemmer position is AFTER 'lowercase' and AFTER stopword removal — see the OpenSearch <a href='https://docs.opensearch.org/latest/analyzers/stemming/'>stemming guide</a>.",
 			"items": { "type": "string" }
 		},
 		"searchFilterOrder": {
 			"type": "array",
-			"description": "Ordered list of token filter names applied at SEARCH time. Optional. If absent, search reuses 'indexFilterOrder' (symmetric analysis). Set this when index-time and search-time analysis legitimately differ — e.g., index with 'edge_ngram' and search without it (autocomplete pattern), or index without stop words and search with stop-word removal. When 'synonymAware' is true this field is REQUIRED and must include the literal 'synapse_synonyms' token (the system-managed synonym filter); every filter BEFORE 'synapse_synonyms' must produce single-position output (positionLength=1), so 'word_delimiter' and 'word_delimiter_graph' must be placed AFTER it. Synonym rule casing is handled automatically — see SynonymRule.terms.",
+			"description": "Ordered token-filter chain applied at SEARCH time. Optional — if absent the search chain mirrors 'indexFilterOrder' (symmetric analysis, the common case). Set this when the two paths legitimately differ; for example, an edge n-gram autocomplete chain at index time + a plain analyzer at search time. Same name-resolution (owned filter, 'synapse_synonyms' placeholder, or verbatim built-in) and same ordering pitfalls as 'indexFilterOrder'.",
 			"items": { "type": "string" }
 		},
 		"charFilterOrder": {
 			"type": "array",
-			"description": "Ordered list of character filter names to apply. Used for both index-time and search-time analysis.",
+			"description": "Ordered char-filter chain applied to raw text before tokenization. Used for both index-time and search-time. Each name is either a built-in (e.g. 'html_strip', 'icu_normalizer') or a filter defined in this analyzer's 'charFilters'.",
 			"items": { "type": "string" }
 		},
-		"synonymAware": {
-			"type": "boolean",
-			"description": "When true, the system-managed 'synapse_synonyms' token filter is wired into the search-time chain at the position the user authored in 'searchFilterOrder'. Setting this true requires 'searchFilterOrder' to be provided and to contain 'synapse_synonyms'."
+		"positionIncrementGap": {
+			"type": "integer",
+			"description": "Optional. Sets OpenSearch's <a href='https://docs.opensearch.org/latest/field-types/supported-field-types/text/'>position_increment_gap</a> on the analyzer — the position gap inserted between values of a multi-valued field so phrase queries don't match across value boundaries. Defaults to the OpenSearch default (100 for text) when omitted."
 		}
 	}
 }

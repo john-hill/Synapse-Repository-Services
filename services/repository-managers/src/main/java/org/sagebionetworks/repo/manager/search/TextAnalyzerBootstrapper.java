@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.search;
 
 import java.util.Arrays;
+import java.util.Collections;
 
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.schema.SynapseSchemaBootstrap;
@@ -8,6 +9,7 @@ import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.schema.Organization;
+import org.sagebionetworks.repo.model.search.table.AnalyzerComponent;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.springframework.context.annotation.DependsOn;
@@ -23,6 +25,32 @@ public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 	public static final long KEYWORD_ID = 4L;
 	public static final long AUTOCOMPLETE_ID = 5L;
 	public static final long AUTOCOMPLETE_SEARCH_ID = 6L;
+
+	// Reusable token-filter definitions. Bootstrapped analyzers are symmetric (same chain
+	// at index and search time) and contain no synonym references — users who want synonym
+	// expansion create their own TextAnalyzers that reference SynonymSet qnames directly
+	// from indexFilterOrder / searchFilterOrder.
+	private static final String WORD_DELIMITER_GRAPH_DEF =
+			"{\"type\":\"word_delimiter_graph\",\"preserve_original\":true,"
+			+ "\"split_on_case_change\":true,\"split_on_numerics\":true,"
+			+ "\"catenate_words\":true,\"catenate_numbers\":false,"
+			+ "\"stem_english_possessive\":true}";
+	private static final String WORD_DELIMITER_NO_POSSESSIVE_DEF =
+			"{\"type\":\"word_delimiter_graph\",\"preserve_original\":true,"
+			+ "\"split_on_case_change\":true,\"split_on_numerics\":true,"
+			+ "\"catenate_words\":true,\"catenate_numbers\":false,"
+			+ "\"stem_english_possessive\":false}";
+	private static final String WORD_DELIMITER_NON_GRAPH_DEF =
+			"{\"type\":\"word_delimiter\",\"preserve_original\":true,"
+			+ "\"split_on_case_change\":true,\"split_on_numerics\":true,"
+			+ "\"catenate_words\":true,\"catenate_numbers\":false,"
+			+ "\"stem_english_possessive\":true}";
+	private static final String EDGE_NGRAM_FILTER_DEF =
+			"{\"type\":\"edge_ngram\",\"min_gram\":2,\"max_gram\":20}";
+	private static final String ENGLISH_STOP_DEF =
+			"{\"type\":\"stop\",\"stopwords\":\"_english_\"}";
+	private static final String ENGLISH_STEMMER_DEF =
+			"{\"type\":\"stemmer\",\"language\":\"english\"}";
 
 	private final TextAnalyzerDao textAnalyzerDao;
 	private final SynapseSchemaBootstrap synapseSchemaBootstrap;
@@ -43,150 +71,116 @@ public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 		Long adminUserId = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
 		String organizationName = organization.getName();
 
-		// 1. SCIENTIFIC: English stemming, stop words, lowercase, synonym expansion
 		textAnalyzerDao.createOrUpdateSystemAnalyzerForBootstrapOnly(SCIENTIFIC_ID, buildAnalyzer(
 				"SCIENTIFIC",
-				"English stemming, stop words, lowercase, synonym expansion. Best for scientific metadata.",
+				"English stemming, stop words, lowercase. Best for scientific metadata.",
 				buildScientificSettings()
 		), organizationName, adminUserId);
 
-		// 2. STANDARD: Standard tokenizer with lowercase
 		textAnalyzerDao.createOrUpdateSystemAnalyzerForBootstrapOnly(STANDARD_ID, buildAnalyzer(
 				"STANDARD",
 				"OpenSearch standard analyzer. Unicode segmentation with lowercase. General-purpose.",
 				buildStandardSettings()
 		), organizationName, adminUserId);
 
-		// 3. IDENTIFIER: Whitespace tokenizer with lowercase
 		textAnalyzerDao.createOrUpdateSystemAnalyzerForBootstrapOnly(IDENTIFIER_ID, buildAnalyzer(
 				"IDENTIFIER",
 				"Preserves punctuation. Whitespace tokenization plus lowercase. Suitable for DOIs, RRIDs, PMIDs.",
 				buildIdentifierSettings()
 		), organizationName, adminUserId);
 
-		// 4. KEYWORD: Built-in keyword analyzer
 		textAnalyzerDao.createOrUpdateSystemAnalyzerForBootstrapOnly(KEYWORD_ID, buildAnalyzer(
 				"KEYWORD",
 				"No tokenization. Entire value is a single token. Suitable for facet and filter fields.",
 				buildKeywordSettings()
 		), organizationName, adminUserId);
 
-		// 5. AUTOCOMPLETE: Edge n-gram for type-ahead
 		textAnalyzerDao.createOrUpdateSystemAnalyzerForBootstrapOnly(AUTOCOMPLETE_ID, buildAnalyzer(
 				"AUTOCOMPLETE",
 				"Edge n-gram (2-20 chars) for type-ahead. Paired with AUTOCOMPLETE_SEARCH at search time.",
 				buildAutocompleteSettings()
 		), organizationName, adminUserId);
 
-		// 6. AUTOCOMPLETE_SEARCH: Standard tokenizer with lowercase (search-time pair for AUTOCOMPLETE)
 		textAnalyzerDao.createOrUpdateSystemAnalyzerForBootstrapOnly(AUTOCOMPLETE_SEARCH_ID, buildAnalyzer(
 				"AUTOCOMPLETE_SEARCH",
-				"Search-time analyzer paired with AUTOCOMPLETE. Standard tokenizer with lowercase and synonyms.",
+				"Search-time analyzer paired with AUTOCOMPLETE. Standard tokenizer with lowercase.",
 				buildAutocompleteSearchSettings()
 		), organizationName, adminUserId);
 	}
 
 	private TextAnalyzer buildAnalyzer(String name, String description, TextAnalyzerSettings settings) {
-		TextAnalyzer analyzer = new TextAnalyzer();
-		analyzer.setName(name);
-		analyzer.setDescription(description);
-		analyzer.setSettings(settings);
-		return analyzer;
+		return new TextAnalyzer().setName(name).setDescription(description).setSettings(settings);
 	}
 
+	private static AnalyzerComponent builtIn(String name) {
+		return new AnalyzerComponent().setName(name);
+	}
+
+	private static AnalyzerComponent custom(String name, String definition) {
+		return new AnalyzerComponent().setName(name).setDefinition(definition);
+	}
+
+	// Reserved injection-point token. Each bootstrapped analyzer that supports synonyms places
+	// 'synapse_synonyms' at the OpenSearch-recommended slot in its chain (after lowercase, before
+	// any case-folding / stemming / n-gram filter). At index-build time the translator expands
+	// the placeholder into the SynonymSet qnames listed on the SearchConfiguration.
+	private static final String SYN = "synapse_synonyms";
+
 	private TextAnalyzerSettings buildScientificSettings() {
-		TextAnalyzerSettings settings = new TextAnalyzerSettings();
-		settings.setTokenizer("standard");
-		settings.setTokenFilters("{"
-				+ "\"sci_word_delimiter\":{\"type\":\"word_delimiter_graph\",\"preserve_original\":true,"
-				+ "\"split_on_case_change\":true,\"split_on_numerics\":true,"
-				+ "\"catenate_words\":true,\"catenate_numbers\":false,"
-				+ "\"stem_english_possessive\":true},"
-				+ "\"english_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"},"
-				+ "\"english_stemmer\":{\"type\":\"stemmer\",\"language\":\"english\"}"
-				+ "}");
-		settings.setIndexFilterOrder(Arrays.asList(
-				"sci_word_delimiter", "lowercase", "english_stop", "english_stemmer"));
-		// At search time we run lowercase first (so synonym rule LHS and query tokens reach
-		// the filter in the same case), then synapse_synonyms, then sci_word_delimiter.
-		// word_delimiter_graph must be DOWNSTREAM of synapse_synonyms because the synonym
-		// filter's rule parser rejects upstream filters with positionLength > 1.
-		settings.setSearchFilterOrder(Arrays.asList(
-				"lowercase", "synapse_synonyms", "sci_word_delimiter", "english_stop", "english_stemmer"));
-		settings.setSynonymAware(true);
-		return settings;
+		return new TextAnalyzerSettings()
+				.setTokenizer(builtIn("standard"))
+				.setTokenFilters(Arrays.asList(
+						custom("sci_word_delimiter", WORD_DELIMITER_GRAPH_DEF),
+						custom("english_stop", ENGLISH_STOP_DEF),
+						custom("english_stemmer", ENGLISH_STEMMER_DEF)))
+				.setIndexFilterOrder(Arrays.asList(
+						"sci_word_delimiter", "lowercase", SYN, "english_stop", "english_stemmer"));
 	}
 
 	private TextAnalyzerSettings buildStandardSettings() {
-		TextAnalyzerSettings settings = new TextAnalyzerSettings();
-		settings.setTokenizer("standard");
-		settings.setTokenFilters("{"
-				+ "\"std_word_delimiter\":{\"type\":\"word_delimiter_graph\",\"preserve_original\":true,"
-				+ "\"split_on_case_change\":true,\"split_on_numerics\":true,"
-				+ "\"catenate_words\":true,\"catenate_numbers\":false,"
-				+ "\"stem_english_possessive\":true}"
-				+ "}");
-		settings.setIndexFilterOrder(Arrays.asList("std_word_delimiter", "lowercase"));
-		settings.setSearchFilterOrder(Arrays.asList("lowercase", "synapse_synonyms", "std_word_delimiter"));
-		settings.setSynonymAware(true);
-		return settings;
+		return new TextAnalyzerSettings()
+				.setTokenizer(builtIn("standard"))
+				.setTokenFilters(Collections.singletonList(
+						custom("std_word_delimiter", WORD_DELIMITER_GRAPH_DEF)))
+				.setIndexFilterOrder(Arrays.asList("std_word_delimiter", "lowercase", SYN));
 	}
 
 	private TextAnalyzerSettings buildIdentifierSettings() {
-		TextAnalyzerSettings settings = new TextAnalyzerSettings();
-		settings.setTokenizer("whitespace");
-		settings.setTokenFilters("{"
-				+ "\"id_word_delimiter\":{\"type\":\"word_delimiter_graph\",\"preserve_original\":true,"
-				+ "\"split_on_case_change\":true,\"split_on_numerics\":true,"
-				+ "\"catenate_words\":true,\"catenate_numbers\":false,"
-				+ "\"stem_english_possessive\":false}"
-				+ "}");
-		settings.setIndexFilterOrder(Arrays.asList("id_word_delimiter", "lowercase"));
-		settings.setSearchFilterOrder(Arrays.asList("lowercase", "synapse_synonyms", "id_word_delimiter"));
-		settings.setSynonymAware(true);
-		return settings;
+		return new TextAnalyzerSettings()
+				.setTokenizer(builtIn("whitespace"))
+				.setTokenFilters(Collections.singletonList(
+						custom("id_word_delimiter", WORD_DELIMITER_NO_POSSESSIVE_DEF)))
+				.setIndexFilterOrder(Arrays.asList("id_word_delimiter", "lowercase", SYN));
 	}
 
 	private TextAnalyzerSettings buildKeywordSettings() {
-		TextAnalyzerSettings settings = new TextAnalyzerSettings();
-		settings.setTokenizer("keyword");
-		return settings;
+		// KEYWORD tokenizer produces one token (the whole field value). Whole-value synonym
+		// matching is rarely what users want, so no placeholder is exposed.
+		return new TextAnalyzerSettings().setTokenizer(builtIn("keyword"));
 	}
 
+	/**
+	 * AUTOCOMPLETE is an index-time analyzer ending in edge_ngram. word_delimiter_graph emits
+	 * multi-position graph tokens which edge_ngram (a non-graph filter) cannot consume, so the
+	 * legacy non-graph word_delimiter is used here. No synonym placeholder at index time —
+	 * synonyms before edge_ngram explode the index; users get synonym matching at search time
+	 * via the paired AUTOCOMPLETE_SEARCH analyzer.
+	 */
 	private TextAnalyzerSettings buildAutocompleteSettings() {
-		TextAnalyzerSettings settings = new TextAnalyzerSettings();
-		settings.setTokenizer("standard");
-		// AUTOCOMPLETE is an index-time analyzer ending in edge_ngram. word_delimiter_graph emits
-		// multi-position graph tokens which edge_ngram (a non-graph filter) cannot consume, so the
-		// chain breaks at index time and AOSS rejects the document with a generic "Internal error".
-		// We use the legacy word_delimiter (positionLength always 1) here; graph attributes aren't
-		// useful at index time anyway. AUTOCOMPLETE_SEARCH keeps word_delimiter_graph since search
-		// time is where the graph matters.
-		settings.setTokenFilters("{"
-				+ "\"ac_word_delimiter\":{\"type\":\"word_delimiter\",\"preserve_original\":true,"
-				+ "\"split_on_case_change\":true,\"split_on_numerics\":true,"
-				+ "\"catenate_words\":true,\"catenate_numbers\":false,"
-				+ "\"stem_english_possessive\":true},"
-				+ "\"edge_ngram_filter\":{\"type\":\"edge_ngram\",\"min_gram\":2,\"max_gram\":20}"
-				+ "}");
-		settings.setIndexFilterOrder(Arrays.asList("ac_word_delimiter", "lowercase", "edge_ngram_filter"));
-		settings.setSynonymAware(false);
-		return settings;
+		return new TextAnalyzerSettings()
+				.setTokenizer(builtIn("standard"))
+				.setTokenFilters(Arrays.asList(
+						custom("ac_word_delimiter", WORD_DELIMITER_NON_GRAPH_DEF),
+						custom("edge_ngram_filter", EDGE_NGRAM_FILTER_DEF)))
+				.setIndexFilterOrder(Arrays.asList("ac_word_delimiter", "lowercase", "edge_ngram_filter"));
 	}
 
 	private TextAnalyzerSettings buildAutocompleteSearchSettings() {
-		TextAnalyzerSettings settings = new TextAnalyzerSettings();
-		settings.setTokenizer("standard");
-		settings.setTokenFilters("{"
-				+ "\"acs_word_delimiter\":{\"type\":\"word_delimiter_graph\",\"preserve_original\":true,"
-				+ "\"split_on_case_change\":true,\"split_on_numerics\":true,"
-				+ "\"catenate_words\":true,\"catenate_numbers\":false,"
-				+ "\"stem_english_possessive\":true}"
-				+ "}");
-		settings.setIndexFilterOrder(Arrays.asList("acs_word_delimiter", "lowercase"));
-		settings.setSearchFilterOrder(Arrays.asList("lowercase", "synapse_synonyms", "acs_word_delimiter"));
-		settings.setSynonymAware(true);
-		return settings;
+		return new TextAnalyzerSettings()
+				.setTokenizer(builtIn("standard"))
+				.setTokenFilters(Collections.singletonList(
+						custom("acs_word_delimiter", WORD_DELIMITER_GRAPH_DEF)))
+				.setIndexFilterOrder(Arrays.asList("acs_word_delimiter", "lowercase", SYN));
 	}
 
 }

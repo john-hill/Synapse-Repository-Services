@@ -1,5 +1,5 @@
 {
-	"description": "A text analyzer configuration. Used to configure how text is tokenized for a search index.",
+	"description": "A shareable, named OpenSearch <a href='https://docs.opensearch.org/latest/analyzers/custom-analyzer/'>custom analyzer</a>. Decides how text is broken into searchable tokens — see the OpenSearch <a href='https://docs.opensearch.org/latest/analyzers/'>text analysis overview</a> for the high-level concept. The owned pipeline (char filters → tokenizer → token filters) lives in 'settings'; see TextAnalyzerSettings for the field shape. Example shape:\n\n  {\n    \"organizationName\": \"biomed\",\n    \"name\": \"scientific\",\n    \"settings\": {\n      \"tokenizer\": { \"name\": \"standard\" },\n      \"tokenFilters\": [\n        { \"name\": \"english_stop\", \"definition\": \"{\\\"type\\\":\\\"stop\\\",\\\"stopwords\\\":\\\"_english_\\\"}\" }\n      ],\n      \"indexFilterOrder\":  [\"lowercase\", \"english_stop\"],\n      \"searchFilterOrder\": [\"lowercase\", \"english_stop\"]\n    }\n  }\n\nReference this analyzer from a SearchConfiguration's defaultIndexAnalyzer / defaultSearchAnalyzer, or from a ColumnAnalyzerOverride, using its qualified name '{organizationName}-{name}'.",
 	"properties": {
 		"id": {
 			"type": "string",
@@ -7,41 +7,41 @@
 		},
 		"organizationName": {
 			"type": "string",
-			"description": "The name of the Organization this resource belongs to. Immutable after creation."
+			"description": "The Organization that owns this resource. Immutable after creation."
 		},
 		"name": {
 			"type": "string",
-			"description": "The resource name. Must start with a letter and contain only letters, digits, and underscores. Unique within the organization and immutable after creation. Used as part of the qualified name ({organizationName}-{name}) when referenced by other resources."
+			"description": "Resource name (letters, digits, underscores, must start with a letter). Combined with organizationName to form the qualified name '{organizationName}-{name}'. Immutable after creation."
 		},
 		"description": {
 			"type": "string",
-			"description": "Optional description."
+			"description": "Optional free-form description."
 		},
 		"settings": {
-			"description": "The analyzer configuration settings.",
+			"description": "The analyzer pipeline — char filters, tokenizer, token filters, and the order they are applied at index vs search time. See TextAnalyzerSettings.",
 			"$ref": "org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings"
 		},
 		"etag": {
 			"type": "string",
-			"description": "Synapse employs an Optimistic Concurrency Control (OCC) scheme."
+			"description": "Synapse Optimistic Concurrency Control (OCC) value. Send the etag from a GET back on update; a mismatch returns 409."
 		},
 		"createdOn": {
 			"type": "string",
 			"format": "date-time",
-			"description": "The date this resource was created."
+			"description": "When this resource was created."
 		},
 		"createdBy": {
 			"type": "string",
-			"description": "The ID of the user that created this resource."
+			"description": "ID of the user that created this resource."
 		},
 		"modifiedOn": {
 			"type": "string",
 			"format": "date-time",
-			"description": "The date this resource was last modified."
+			"description": "When this resource was last modified."
 		},
 		"modifiedBy": {
 			"type": "string",
-			"description": "The ID of the user that last modified this resource."
+			"description": "ID of the user that last modified this resource."
 		}
 	}
 }

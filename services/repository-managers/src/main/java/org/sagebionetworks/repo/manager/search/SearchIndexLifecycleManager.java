@@ -9,38 +9,33 @@ import org.sagebionetworks.util.progress.ProgressCallback;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 
 /**
- * Manager for search index lifecycle operations (create, update, delete).
- * Orchestrates between the OpenSearchManager (data access layer), entity/table managers,
- * configuration resolution, and the SearchIndexStatusDao.
+ * Orchestrates the build / rebuild / delete lifecycle of an AOSS index that backs a
+ * {@code SearchIndex} entity. Implementations serialize work per entity via a
+ * cluster-wide write lock, resolve the effective {@code SearchConfiguration}, validate
+ * referenced analyzer / synonym qnames, build the index, stream rows from the source
+ * table as the realm's anonymous user (so {@code addRowLevelFilter} enforces benefactor
+ * ACLs and only publicly-visible rows reach AOSS), and persist final state into
+ * {@code SEARCH_INDEX_STATUS}. Transient failures propagate so the worker can translate
+ * them to {@code RecoverableMessageException}; permanent failures are recorded as
+ * FAILED with a truncated error message.
  */
 public interface SearchIndexLifecycleManager {
 
 	/**
 	 * Handle a create event for a SearchIndex entity. Always deletes any existing AOSS index,
 	 * then builds the index from scratch and indexes all data.
-	 *
-	 * @param progressCallback Progress callback for long-running operations
-	 * @param entityId         The SearchIndex entity ID
-	 * @param userId           The user who triggered the change
 	 */
 	void handleCreate(ProgressCallback progressCallback, String entityId, Long userId) throws Exception;
 
 	/**
 	 * Handle an update event for a SearchIndex entity. Unconditionally deletes and rebuilds
 	 * the AOSS index — simpler and bulletproof for the MVP.
-	 *
-	 * @param progressCallback Progress callback for long-running operations
-	 * @param entityId         The SearchIndex entity ID
-	 * @param userId           The user who triggered the change
 	 */
 	void handleUpdate(ProgressCallback progressCallback, String entityId, Long userId) throws Exception;
 
 	/**
 	 * Handle a delete event for a SearchIndex entity. Acquires the per-entity write lock
 	 * to serialize with any concurrent build, then deletes the AOSS index and the status row.
-	 *
-	 * @param progressCallback Progress callback used to hold the per-entity lock
-	 * @param entityId         The SearchIndex entity ID
 	 */
 	void handleDelete(ProgressCallback progressCallback, String entityId) throws Exception;
 

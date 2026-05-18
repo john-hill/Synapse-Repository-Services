@@ -1,8 +1,14 @@
 package org.sagebionetworks.repo.model.dbo.search;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -14,6 +20,7 @@ import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.schema.Organization;
+import org.sagebionetworks.repo.model.search.table.AnalyzerComponent;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,7 +72,7 @@ public class TextAnalyzerDaoImplAutowiredTest {
 		assertNotNull(created.getModifiedOn());
 		assertEquals(adminUserId.toString(), created.getCreatedBy());
 		assertEquals(adminUserId.toString(), created.getModifiedBy());
-		assertEquals("standard", created.getSettings().getTokenizer());
+		assertEquals("standard", created.getSettings().getTokenizer().getName());
 
 		// Verify get returns the same data
 		Optional<TextAnalyzer> fetched = textAnalyzerDao.get(Long.parseLong(created.getId()));
@@ -95,15 +102,14 @@ public class TextAnalyzerDaoImplAutowiredTest {
 
 		created.setName("test_update_renamed");
 		created.setDescription("updated");
-		TextAnalyzerSettings newSettings = new TextAnalyzerSettings();
-		newSettings.setTokenizer("whitespace");
-		created.setSettings(newSettings);
+		created.setSettings(new TextAnalyzerSettings()
+				.setTokenizer(new AnalyzerComponent().setName("whitespace")));
 
 		TextAnalyzer updated = textAnalyzerDao.update(created, adminUserId);
 
 		assertEquals("test_update_renamed", updated.getName());
 		assertEquals("updated", updated.getDescription());
-		assertEquals("whitespace", updated.getSettings().getTokenizer());
+		assertEquals("whitespace", updated.getSettings().getTokenizer().getName());
 		assertNotEquals(originalEtag, updated.getEtag());
 	}
 
@@ -152,18 +158,21 @@ public class TextAnalyzerDaoImplAutowiredTest {
 
 	@Test
 	public void testSettingsRoundTripThroughDatabase() {
-		TextAnalyzerSettings settings = new TextAnalyzerSettings();
-		settings.setTokenizer("standard");
-		settings.setSynonymAware(true);
-		settings.setIndexFilterOrder(Arrays.asList("lowercase", "english_stop", "english_stemmer"));
-		settings.setSearchFilterOrder(Arrays.asList("lowercase", "synapse_synonyms", "english_stop"));
-		settings.setTokenFilters("{\"english_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"},"
-				+ "\"english_stemmer\":{\"type\":\"stemmer\",\"language\":\"english\"}}");
+		TextAnalyzerSettings settings = new TextAnalyzerSettings()
+				.setTokenizer(new AnalyzerComponent().setName("standard"))
+				.setTokenFilters(Arrays.asList(
+						new AnalyzerComponent().setName("english_stop")
+								.setDefinition("{\"type\":\"stop\",\"stopwords\":\"_english_\"}"),
+						new AnalyzerComponent().setName("english_stemmer")
+								.setDefinition("{\"type\":\"stemmer\",\"language\":\"english\"}")))
+				.setIndexFilterOrder(Arrays.asList("lowercase", "english_stop", "english_stemmer"))
+				.setSearchFilterOrder(Arrays.asList("lowercase", "biomed-medical_terms", "english_stop"))
+				.setPositionIncrementGap(100L);
 
-		TextAnalyzer analyzer = new TextAnalyzer();
-		analyzer.setName("settings_roundtrip");
-		analyzer.setOrganizationName(organizationName);
-		analyzer.setSettings(settings);
+		TextAnalyzer analyzer = new TextAnalyzer()
+				.setName("settings_roundtrip")
+				.setOrganizationName(organizationName)
+				.setSettings(settings);
 
 		TextAnalyzer created = textAnalyzerDao.create(analyzer, adminUserId);
 		TextAnalyzer fetched = textAnalyzerDao.get(Long.parseLong(created.getId())).get();
@@ -172,14 +181,13 @@ public class TextAnalyzerDaoImplAutowiredTest {
 	}
 
 	private TextAnalyzer newAnalyzer(String name, String description) {
-		TextAnalyzer analyzer = new TextAnalyzer();
-		analyzer.setName(name);
-		analyzer.setDescription(description);
-		analyzer.setOrganizationName(organizationName);
-		TextAnalyzerSettings settings = new TextAnalyzerSettings();
-		settings.setTokenizer("standard");
-		settings.setIndexFilterOrder(Arrays.asList("lowercase"));
-		analyzer.setSettings(settings);
-		return analyzer;
+		return new TextAnalyzer()
+				.setName(name)
+				.setDescription(description)
+				.setOrganizationName(organizationName)
+				.setSettings(new TextAnalyzerSettings()
+						.setTokenizer(new AnalyzerComponent().setName("standard"))
+						.setTokenFilters(Collections.emptyList())
+						.setIndexFilterOrder(Arrays.asList("lowercase")));
 	}
 }

@@ -55,9 +55,9 @@ public class ITTextAnalyzerTest {
 		toCreate.setName("IT_TEST_ANALYZER_" + UUID.randomUUID().toString().replace("-", ""));
 		toCreate.setDescription("Integration test analyzer");
 		toCreate.setOrganizationName(orgName);
-		TextAnalyzerSettings settings = new TextAnalyzerSettings();
-		settings.setTokenizer("standard");
-		settings.setIndexFilterOrder(Arrays.asList("lowercase"));
+		TextAnalyzerSettings settings = new TextAnalyzerSettings()
+				.setTokenizer(new org.sagebionetworks.repo.model.search.table.AnalyzerComponent().setName("standard"))
+				.setIndexFilterOrder(Arrays.asList("lowercase"));
 		toCreate.setSettings(settings);
 
 		// call under test

@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.Arrays;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -16,12 +15,15 @@ import org.sagebionetworks.repo.model.search.table.ListSynonymSetsRequest;
 import org.sagebionetworks.repo.model.search.table.ListSynonymSetsResponse;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
-import org.sagebionetworks.repo.model.search.table.SynonymRule;
-import org.sagebionetworks.repo.model.search.table.SynonymRuleType;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
 
 @ExtendWith(ITTestExtension.class)
 public class ITSynonymSetTest {
+
+	private static final String EQUIVALENT_DEF =
+			"{\"type\":\"synonym_graph\",\"synonyms\":[\"cancer, tumor, neoplasm\"]}";
+	private static final String TWO_RULE_DEF =
+			"{\"type\":\"synonym_graph\",\"synonyms\":[\"cancer, tumor, neoplasm\",\"AD => Alzheimer's disease\"]}";
 
 	private final SynapseAdminClient adminSynapse;
 
@@ -35,7 +37,7 @@ public class ITSynonymSetTest {
 	}
 
 	@Test
-	public void testCRUDWithSynonymRules() throws SynapseException {
+	public void testCRUDWithSynonymDefinition() throws SynapseException {
 		// Get org ID from bootstrapped analyzers
 		ListTextAnalyzersResponse analyzers = adminSynapse.listTextAnalyzers(new ListTextAnalyzersRequest());
 		String orgName = analyzers.getResults().get(0).getOrganizationName();
@@ -44,49 +46,39 @@ public class ITSynonymSetTest {
 		// suffix to avoid collisions across re-runs of the test.
 		String name = "IT_TEST_SYNONYMS_" + UUID.randomUUID().toString().replace("-", "");
 
-		// CREATE
-		SynonymRule rule = new SynonymRule();
-		rule.setRuleType(SynonymRuleType.EQUIVALENT);
-		rule.setTerms(Arrays.asList("cancer", "tumor", "neoplasm"));
-
-		SynonymSet toCreate = new SynonymSet();
-		toCreate.setName(name);
-		toCreate.setDescription("Integration test synonym set");
-		toCreate.setOrganizationName(orgName);
-		toCreate.setRules(Arrays.asList(rule));
+		SynonymSet toCreate = new SynonymSet()
+				.setName(name)
+				.setDescription("Integration test synonym set")
+				.setOrganizationName(orgName)
+				.setDefinition(EQUIVALENT_DEF);
 
 		// call under test
 		SynonymSet created = adminSynapse.createSynonymSet(toCreate);
 		assertNotNull(created.getId());
 		assertNotNull(created.getEtag());
 		assertEquals(name, created.getName());
-		assertEquals(1, created.getRules().size());
+		assertEquals(EQUIVALENT_DEF, created.getDefinition());
 
 		// call under test
 		SynonymSet fetched = adminSynapse.getSynonymSet(created.getId());
 		assertEquals(created.getId(), fetched.getId());
 		assertEquals(created.getEtag(), fetched.getEtag());
 		assertEquals(name, fetched.getName());
-		assertEquals(1, fetched.getRules().size());
-		assertEquals(SynonymRuleType.EQUIVALENT, fetched.getRules().get(0).getRuleType());
+		assertEquals(EQUIVALENT_DEF, fetched.getDefinition());
 
-		// UPDATE
+		// UPDATE — swap to a two-rule definition
 		fetched.setDescription("Updated description");
-		SynonymRule additionalRule = new SynonymRule();
-		additionalRule.setRuleType(SynonymRuleType.EXPLICIT);
-		additionalRule.setTerms(Arrays.asList("AD", "Alzheimer's disease"));
-		fetched.setRules(Arrays.asList(rule, additionalRule));
+		fetched.setDefinition(TWO_RULE_DEF);
 
 		// call under test
 		SynonymSet updated = adminSynapse.updateSynonymSet(fetched);
 		assertEquals("Updated description", updated.getDescription());
-		assertEquals(2, updated.getRules().size());
+		assertEquals(TWO_RULE_DEF, updated.getDefinition());
 		assertNotNull(updated.getEtag());
 
 		// call under test
-		ListSynonymSetsRequest listRequest = new ListSynonymSetsRequest();
-		listRequest.setOrganizationName(orgName);
-		ListSynonymSetsResponse listResponse = adminSynapse.listSynonymSets(listRequest);
+		ListSynonymSetsResponse listResponse = adminSynapse.listSynonymSets(
+				new ListSynonymSetsRequest().setOrganizationName(orgName));
 		assertNotNull(listResponse.getResults());
 		assertTrue(listResponse.getResults().stream().anyMatch(s -> created.getId().equals(s.getId())));
 	}

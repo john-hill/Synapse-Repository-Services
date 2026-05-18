@@ -3,7 +3,9 @@ package org.sagebionetworks.repo.model.dbo.search;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_COL_ANALYZER_OVERRIDES;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_CREATED_BY;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_CREATED_ON;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_DEFAULT_ANALYZER;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_DEFAULT_INDEX_ANALYZER;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_DEFAULT_SEARCH_ANALYZER;
+import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_SYNONYM_SETS;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_DESCRIPTION;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_ETAG;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_ID;
@@ -11,7 +13,6 @@ import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_C
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_MODIFIED_ON;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_NAME;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_ORGANIZATION_NAME;
-import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.COL_SEARCH_CONFIG_SYNONYM_SETS;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.DDL_SEARCH_CONFIGURATION;
 import static org.sagebionetworks.repo.model.query.jdo.SqlConstants.TABLE_SEARCH_CONFIGURATION;
 
@@ -25,9 +26,9 @@ import java.util.Objects;
 import org.sagebionetworks.repo.model.dbo.FieldColumn;
 import org.sagebionetworks.repo.model.dbo.MigratableDatabaseObject;
 import org.sagebionetworks.repo.model.dbo.TableMapping;
-import org.sagebionetworks.repo.model.dbo.migration.BasicMigratableTableTranslation;
 import org.sagebionetworks.repo.model.dbo.migration.MigratableTableTranslation;
 import org.sagebionetworks.repo.model.migration.MigrationType;
+import org.sagebionetworks.util.TemporaryCode;
 
 public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearchConfiguration, DBOSearchConfiguration> {
 
@@ -37,7 +38,8 @@ public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearc
 			new FieldColumn("organizationName", COL_SEARCH_CONFIG_ORGANIZATION_NAME),
 			new FieldColumn("name", COL_SEARCH_CONFIG_NAME),
 			new FieldColumn("description", COL_SEARCH_CONFIG_DESCRIPTION),
-			new FieldColumn("defaultAnalyzer", COL_SEARCH_CONFIG_DEFAULT_ANALYZER),
+			new FieldColumn("defaultIndexAnalyzer", COL_SEARCH_CONFIG_DEFAULT_INDEX_ANALYZER),
+			new FieldColumn("defaultSearchAnalyzer", COL_SEARCH_CONFIG_DEFAULT_SEARCH_ANALYZER),
 			new FieldColumn("synonymSetsJson", COL_SEARCH_CONFIG_SYNONYM_SETS),
 			new FieldColumn("columnAnalyzerOverridesJson", COL_SEARCH_CONFIG_COL_ANALYZER_OVERRIDES),
 			new FieldColumn("createdBy", COL_SEARCH_CONFIG_CREATED_BY),
@@ -51,13 +53,23 @@ public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearc
 	private String organizationName;
 	private String name;
 	private String description;
-	private String defaultAnalyzer;
+	private String defaultIndexAnalyzer;
+	private String defaultSearchAnalyzer;
 	private String synonymSetsJson;
 	private String columnAnalyzerOverridesJson;
 	private Long createdBy;
 	private Timestamp createdOn;
 	private Long modifiedBy;
 	private Timestamp modifiedOn;
+
+	// PLFM-XXXXX bridge: production backups still serialize the legacy <defaultAnalyzer>
+	// XML element (single qname). Caught here so deserialization does not fail. The
+	// translator below discards the value — the new defaultIndexAnalyzer / defaultSearchAnalyzer
+	// columns are nullable, and per-column resolution falls back to the system default for
+	// each column's data type when both are null. No FieldColumn entry — never read from or
+	// written to the database.
+	@TemporaryCode(author = "BryanFauble", comment = "Remove after the new stack has rolled to prod and the next migration cycle has flushed legacy backup shapes.")
+	private String defaultAnalyzer;
 
 	private static final TableMapping<DBOSearchConfiguration> TABLE_MAPPING = new TableMapping<>() {
 		@Override
@@ -68,7 +80,8 @@ public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearc
 			dbo.setOrganizationName(rs.getString(COL_SEARCH_CONFIG_ORGANIZATION_NAME));
 			dbo.setName(rs.getString(COL_SEARCH_CONFIG_NAME));
 			dbo.setDescription(rs.getString(COL_SEARCH_CONFIG_DESCRIPTION));
-			dbo.setDefaultAnalyzer(rs.getString(COL_SEARCH_CONFIG_DEFAULT_ANALYZER));
+			dbo.setDefaultIndexAnalyzer(rs.getString(COL_SEARCH_CONFIG_DEFAULT_INDEX_ANALYZER));
+			dbo.setDefaultSearchAnalyzer(rs.getString(COL_SEARCH_CONFIG_DEFAULT_SEARCH_ANALYZER));
 			dbo.setSynonymSetsJson(rs.getString(COL_SEARCH_CONFIG_SYNONYM_SETS));
 			dbo.setColumnAnalyzerOverridesJson(rs.getString(COL_SEARCH_CONFIG_COL_ANALYZER_OVERRIDES));
 			dbo.setCreatedBy(rs.getLong(COL_SEARCH_CONFIG_CREATED_BY));
@@ -109,7 +122,27 @@ public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearc
 		return MigrationType.SEARCH_CONFIGURATION;
 	}
 
-	private static final BasicMigratableTableTranslation<DBOSearchConfiguration> MIGRATION_TRANSLATOR = new BasicMigratableTableTranslation<>();
+	@TemporaryCode(author = "BryanFauble", comment = "Replace with BasicMigratableTableTranslation after legacy <defaultAnalyzer> backups can no longer arrive.")
+	private static final MigratableTableTranslation<DBOSearchConfiguration, DBOSearchConfiguration> MIGRATION_TRANSLATOR =
+			new MigratableTableTranslation<DBOSearchConfiguration, DBOSearchConfiguration>() {
+		@Override
+		public DBOSearchConfiguration createDatabaseObjectFromBackup(DBOSearchConfiguration backup) {
+			// Legacy <defaultAnalyzer> values are discarded. The new defaultIndexAnalyzer /
+			// defaultSearchAnalyzer columns are nullable and per-column resolution falls back
+			// to the system default analyzer for each column's data type.
+			// The interior shape of these JSON columns also changed in this PR; null them out
+			// rather than persisting an unreadable blob. Curators recreate via the REST API.
+			backup.setSynonymSetsJson(null);
+			backup.setColumnAnalyzerOverridesJson(null);
+			backup.setDefaultAnalyzer(null);
+			return backup;
+		}
+
+		@Override
+		public DBOSearchConfiguration createBackupFromDatabaseObject(DBOSearchConfiguration dbo) {
+			return dbo;
+		}
+	};
 
 	@Override
 	public MigratableTableTranslation<DBOSearchConfiguration, DBOSearchConfiguration> getTranslator() {
@@ -176,10 +209,30 @@ public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearc
 		return this;
 	}
 
+	public String getDefaultIndexAnalyzer() {
+		return defaultIndexAnalyzer;
+	}
+
+	public DBOSearchConfiguration setDefaultIndexAnalyzer(String defaultIndexAnalyzer) {
+		this.defaultIndexAnalyzer = defaultIndexAnalyzer;
+		return this;
+	}
+
+	public String getDefaultSearchAnalyzer() {
+		return defaultSearchAnalyzer;
+	}
+
+	public DBOSearchConfiguration setDefaultSearchAnalyzer(String defaultSearchAnalyzer) {
+		this.defaultSearchAnalyzer = defaultSearchAnalyzer;
+		return this;
+	}
+
+	@TemporaryCode(author = "BryanFauble", comment = "Remove after the new stack has rolled to prod and the next migration cycle has flushed legacy backup shapes.")
 	public String getDefaultAnalyzer() {
 		return defaultAnalyzer;
 	}
 
+	@TemporaryCode(author = "BryanFauble", comment = "Remove after the new stack has rolled to prod and the next migration cycle has flushed legacy backup shapes.")
 	public DBOSearchConfiguration setDefaultAnalyzer(String defaultAnalyzer) {
 		this.defaultAnalyzer = defaultAnalyzer;
 		return this;
@@ -242,7 +295,7 @@ public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearc
 	@Override
 	public int hashCode() {
 		return Objects.hash(id, etag, organizationName, name, description,
-				defaultAnalyzer, synonymSetsJson, columnAnalyzerOverridesJson,
+				defaultIndexAnalyzer, defaultSearchAnalyzer, synonymSetsJson, columnAnalyzerOverridesJson,
 				createdBy, createdOn, modifiedBy, modifiedOn);
 	}
 
@@ -260,7 +313,8 @@ public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearc
 				&& Objects.equals(organizationName, other.organizationName)
 				&& Objects.equals(name, other.name)
 				&& Objects.equals(description, other.description)
-				&& Objects.equals(defaultAnalyzer, other.defaultAnalyzer)
+				&& Objects.equals(defaultIndexAnalyzer, other.defaultIndexAnalyzer)
+				&& Objects.equals(defaultSearchAnalyzer, other.defaultSearchAnalyzer)
 				&& Objects.equals(synonymSetsJson, other.synonymSetsJson)
 				&& Objects.equals(columnAnalyzerOverridesJson, other.columnAnalyzerOverridesJson)
 				&& Objects.equals(createdBy, other.createdBy)
@@ -272,8 +326,10 @@ public class DBOSearchConfiguration implements MigratableDatabaseObject<DBOSearc
 	@Override
 	public String toString() {
 		return "DBOSearchConfiguration [id=" + id + ", etag=" + etag + ", organizationName=" + organizationName
-				+ ", name=" + name + ", description=" + description + ", defaultAnalyzer=" + defaultAnalyzer
-				+ ", synonymSetsJson=" + synonymSetsJson + ", columnAnalyzerOverridesJson=" + columnAnalyzerOverridesJson
+				+ ", name=" + name + ", description=" + description
+				+ ", defaultIndexAnalyzer=" + defaultIndexAnalyzer + ", defaultSearchAnalyzer=" + defaultSearchAnalyzer
+				+ ", synonymSetsJson=" + synonymSetsJson
+				+ ", columnAnalyzerOverridesJson=" + columnAnalyzerOverridesJson
 				+ ", createdBy=" + createdBy + ", createdOn=" + createdOn
 				+ ", modifiedBy=" + modifiedBy + ", modifiedOn=" + modifiedOn + "]";
 	}

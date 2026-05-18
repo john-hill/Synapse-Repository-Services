@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.search;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -11,9 +12,9 @@ import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
+import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
 import org.sagebionetworks.repo.model.dbo.search.SearchConfigurationDao;
-import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest;
@@ -132,13 +133,11 @@ public class SearchConfigurationManagerImpl implements SearchConfigurationManage
 		Long entityId = KeyFactory.stringToKey(request.getEntityId());
 		Long searchConfigId = Long.parseLong(request.getSearchConfigurationId());
 
-		// Verify entity exists and user has EDIT permission
 		if (!user.isAdmin()) {
 			aclDao.canAccess(user, String.valueOf(entityId), ObjectType.ENTITY, ACCESS_TYPE.UPDATE)
 				.checkAuthorizationOrElseThrow();
 		}
 
-		// Verify search config exists
 		searchConfigurationDao.get(request.getSearchConfigurationId())
 			.orElseThrow(() -> new NotFoundException("A search configuration with the given id does not exist."));
 
@@ -202,11 +201,19 @@ public class SearchConfigurationManagerImpl implements SearchConfigurationManage
 	}
 
 	private void validateReferencedNames(SearchConfiguration config) {
-		if (config.getDefaultAnalyzer() != null) {
-			SearchResourceConstants.validateQualifiedNameFormat(config.getDefaultAnalyzer(), "defaultAnalyzer");
-			List<String> missing = textAnalyzerDao.findNonExistentNames(List.of(config.getDefaultAnalyzer()));
+		List<String> analyzerRefs = new ArrayList<>();
+		if (config.getDefaultIndexAnalyzer() != null) {
+			SearchResourceConstants.validateQualifiedNameFormat(config.getDefaultIndexAnalyzer(), "defaultIndexAnalyzer");
+			analyzerRefs.add(config.getDefaultIndexAnalyzer());
+		}
+		if (config.getDefaultSearchAnalyzer() != null) {
+			SearchResourceConstants.validateQualifiedNameFormat(config.getDefaultSearchAnalyzer(), "defaultSearchAnalyzer");
+			analyzerRefs.add(config.getDefaultSearchAnalyzer());
+		}
+		if (!analyzerRefs.isEmpty()) {
+			List<String> missing = textAnalyzerDao.findNonExistentNames(analyzerRefs);
 			if (!missing.isEmpty()) {
-				throw new IllegalArgumentException("The following default analyzer name does not exist: " + missing);
+				throw new IllegalArgumentException("The following default analyzer name(s) do not exist: " + missing);
 			}
 		}
 		if (config.getSynonymSets() != null && !config.getSynonymSets().isEmpty()) {
@@ -215,7 +222,7 @@ public class SearchConfigurationManagerImpl implements SearchConfigurationManage
 			}
 			List<String> missing = synonymSetDao.findNonExistentNames(config.getSynonymSets());
 			if (!missing.isEmpty()) {
-				throw new IllegalArgumentException("The following synonym set names do not exist: " + missing);
+				throw new IllegalArgumentException("The following synonym set name(s) do not exist: " + missing);
 			}
 		}
 		if (config.getColumnAnalyzerOverrides() != null && !config.getColumnAnalyzerOverrides().isEmpty()) {

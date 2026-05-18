@@ -15,7 +15,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.AfterEach;
@@ -35,7 +34,6 @@ import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
-import org.sagebionetworks.util.RetryException;
 import org.sagebionetworks.util.TimeUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -52,13 +50,10 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(locations = { "classpath:test-context.xml" })
-public class OpenSearchManagerImplAutowireTest {
+public class OpenSearchManagerImplAutoWiredTest {
 
 	private static final long POLL_MAX_MS = 30_000L;
 	private static final long POLL_INTERVAL_MS = 1_000L;
-
-	private static final int VALIDATE_RETRY_MAX = 10;
-	private static final long VALIDATE_RETRY_INITIAL_MS = 1_000L;
 
 	private static final String ORG = "org.sagebionetworks";
 	private static final String SCIENTIFIC_QNAME = ORG + "-SCIENTIFIC";
@@ -134,7 +129,7 @@ public class OpenSearchManagerImplAutowireTest {
 	// --- validate analyzer settings (positive case against live AOSS) ---
 
 	@Test
-	public void testValidateAnalyzerSettingsWithCustomTokenFilter() throws Exception {
+	public void testValidateAnalyzerSettingsWithCustomTokenFilter() {
 		// A custom token filter definition that AOSS must accept via _analyze. The mock
 		// validate test only covers the rejection paths (file paths, null tokenizer);
 		// this anchors the positive AOSS contract.
@@ -146,10 +141,7 @@ public class OpenSearchManagerImplAutowireTest {
 				.setIndexFilterOrder(Arrays.asList("lowercase", "english_stop"));
 
 		// call under test
-		retryOnAossAnalyzeFlake(() -> {
-			assertDoesNotThrow(() -> openSearchManager.validateAnalyzerSettings(settings));
-			return null;
-		});
+		assertDoesNotThrow(() -> openSearchManager.validateAnalyzerSettings(settings));
 	}
 
 	// --- synonym placeholder round-trip (synapse_synonyms expansion at index build) ---
@@ -353,30 +345,6 @@ public class OpenSearchManagerImplAutowireTest {
 						.index(indexName)
 						.id(docId)
 						.document(doc)));
-	}
-
-	private <T> T retryOnAossAnalyzeFlake(Callable<T> action) throws Exception {
-		return TimeUtils.waitForExponentialMaxRetry(VALIDATE_RETRY_MAX, VALIDATE_RETRY_INITIAL_MS, () -> {
-			try {
-				return action.call();
-			} catch (IllegalArgumentException e) {
-				if (isAossIndexNotFoundFlake(e)) {
-					throw new RetryException(e);
-				}
-				throw e;
-			} catch (AssertionError ae) {
-				if (ae.getCause() instanceof IllegalArgumentException
-						&& isAossIndexNotFoundFlake((IllegalArgumentException) ae.getCause())) {
-					throw new RetryException(ae.getCause());
-				}
-				throw ae;
-			}
-		});
-	}
-
-	private static boolean isAossIndexNotFoundFlake(IllegalArgumentException e) {
-		String message = e.getMessage();
-		return message != null && message.contains("index_not_found_exception");
 	}
 
 	private SearchQueryResults waitForSearch(SearchQuery query, List<ColumnModel> columns,

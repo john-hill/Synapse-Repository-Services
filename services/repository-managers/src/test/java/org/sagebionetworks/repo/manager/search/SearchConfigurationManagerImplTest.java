@@ -1,6 +1,8 @@
 package org.sagebionetworks.repo.manager.search;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -10,11 +12,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+
+import org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest;
+import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsRequest;
+import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsResponse;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -243,6 +251,16 @@ public class SearchConfigurationManagerImplTest {
 	}
 
 	@Test
+	public void testGetWithNonExistentId() {
+		when(searchConfigurationDao.get("999")).thenReturn(Optional.empty());
+
+		// call under test
+		NotFoundException ex = assertThrows(NotFoundException.class,
+				() -> manager.get(adminUser(), "999"));
+		assertEquals("A search configuration with the given id does not exist.", ex.getMessage());
+	}
+
+	@Test
 	public void testCreateHappyPathPersists() {
 		when(textAnalyzerDao.findNonExistentNames(any())).thenReturn(Collections.emptyList());
 		SearchConfiguration saved = validRequest().setId("999");
@@ -298,6 +316,15 @@ public class SearchConfigurationManagerImplTest {
 	}
 
 	// --- update ---
+
+	@Test
+	public void testUpdateWithNonSageUser() {
+		// call under test
+		assertThrows(UnauthorizedException.class,
+				() -> manager.update(nonSageUser(), validRequest().setId("1")));
+		verifyZeroInteractions(aclDao);
+		verifyZeroInteractions(searchConfigurationDao);
+	}
 
 	@Test
 	public void testUpdateWithChangedNameThrows() {
@@ -368,6 +395,30 @@ public class SearchConfigurationManagerImplTest {
 		assertThrows(UnauthorizedException.class, () -> manager.bindSearchConfigToEntity(nonSageUser(),
 				new org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest()
 						.setEntityId("syn1").setSearchConfigurationId("2")));
+	}
+
+	@Test
+	public void testBindSearchConfigToEntityWithMissingEntityId() {
+		BindSearchConfigToEntityRequest request = new BindSearchConfigToEntityRequest()
+				.setSearchConfigurationId("456");
+
+		// call under test
+		String message = assertThrows(IllegalArgumentException.class,
+				() -> manager.bindSearchConfigToEntity(adminUser(), request)).getMessage();
+		assertEquals("entityId is required and must not be the empty string.", message);
+		verifyZeroInteractions(searchConfigurationDao);
+	}
+
+	@Test
+	public void testBindSearchConfigToEntityWithMissingConfigId() {
+		BindSearchConfigToEntityRequest request = new BindSearchConfigToEntityRequest()
+				.setEntityId("syn123");
+
+		// call under test
+		String message = assertThrows(IllegalArgumentException.class,
+				() -> manager.bindSearchConfigToEntity(adminUser(), request)).getMessage();
+		assertEquals("searchConfigurationId is required and must not be the empty string.", message);
+		verifyZeroInteractions(searchConfigurationDao);
 	}
 
 	@Test
@@ -495,5 +546,34 @@ public class SearchConfigurationManagerImplTest {
 				any(String.class),
 				org.mockito.ArgumentMatchers.anyLong(),
 				org.mockito.ArgumentMatchers.anyLong());
+	}
+
+	@Test
+	public void testListWithMoreResults() {
+		List<SearchConfiguration> page = new ArrayList<>();
+		for (int i = 0; i < 51; i++) {
+			page.add(validRequest().setId(String.valueOf(i)));
+		}
+		when(searchConfigurationDao.listAll(51L, 0L)).thenReturn(page);
+
+		// call under test
+		ListSearchConfigurationsResponse response = manager.list(adminUser(),
+				new ListSearchConfigurationsRequest());
+
+		assertNotNull(response.getNextPageToken());
+		assertEquals(50, response.getResults().size());
+	}
+
+	@Test
+	public void testListWithNoMoreResults() {
+		List<SearchConfiguration> page = Collections.singletonList(validRequest().setId("1"));
+		when(searchConfigurationDao.listAll(51L, 0L)).thenReturn(page);
+
+		// call under test
+		ListSearchConfigurationsResponse response = manager.list(adminUser(),
+				new ListSearchConfigurationsRequest());
+
+		assertNull(response.getNextPageToken());
+		assertEquals(1, response.getResults().size());
 	}
 }

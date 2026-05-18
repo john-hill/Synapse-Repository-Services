@@ -1,6 +1,8 @@
 package org.sagebionetworks.repo.manager.search;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -11,8 +13,10 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doThrow;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -33,8 +37,11 @@ import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.schema.Organization;
 import org.sagebionetworks.repo.model.search.table.AnalyzerComponent;
+import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
+import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
+import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
 
 /**
@@ -153,6 +160,26 @@ public class TextAnalyzerManagerImplTest {
 				org.mockito.ArgumentMatchers.anyLong());
 	}
 
+	// --- get ---
+
+	@Test
+	public void testGetExisting() {
+		TextAnalyzer analyzer = validRequest().setId("1");
+		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(analyzer));
+
+		// call under test
+		assertEquals("1", manager.get(adminUser(), 1L).getId());
+		verifyZeroInteractions(aclDao);
+	}
+
+	@Test
+	public void testGetNotFoundThrows() {
+		when(textAnalyzerDao.get(999L)).thenReturn(Optional.empty());
+
+		// call under test
+		assertThrows(NotFoundException.class, () -> manager.get(adminUser(), 999L));
+	}
+
 	// --- update ---
 
 	@Test
@@ -183,6 +210,27 @@ public class TextAnalyzerManagerImplTest {
 		assertEquals(SearchResourceConstants.ORG_NAME_IMMUTABLE_MSG, e.getMessage());
 	}
 
+	@Test
+	public void testUpdateNotFoundThrows() {
+		TextAnalyzer input = validRequest().setId("999");
+		when(textAnalyzerDao.get(999L)).thenReturn(Optional.empty());
+
+		// call under test
+		assertThrows(NotFoundException.class, () -> manager.update(sageUser(), input));
+		verify(textAnalyzerDao, never()).update(any(TextAnalyzer.class),
+				org.mockito.ArgumentMatchers.anyLong());
+	}
+
+	@Test
+	public void testUpdateWithNullSettingsThrows() {
+		TextAnalyzer input = validRequest().setId("1").setSettings(null);
+
+		// call under test
+		assertThrows(IllegalArgumentException.class, () -> manager.update(sageUser(), input));
+		verifyZeroInteractions(textAnalyzerDao);
+		verifyZeroInteractions(openSearchManager);
+	}
+
 	// --- delete ---
 
 	@Test
@@ -210,6 +258,29 @@ public class TextAnalyzerManagerImplTest {
 		verify(textAnalyzerDao, never()).delete(org.mockito.ArgumentMatchers.anyLong());
 	}
 
+	@Test
+	public void testDeleteNotFoundThrows() {
+		when(textAnalyzerDao.get(1L)).thenReturn(Optional.empty());
+
+		// call under test
+		assertThrows(NotFoundException.class, () -> manager.delete(adminUser(), 1L));
+		verify(textAnalyzerDao, never()).delete(org.mockito.ArgumentMatchers.anyLong());
+	}
+
+	@Test
+	public void testDeleteHappyPath() {
+		TextAnalyzer existing = validRequest().setId("1");
+		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(existing));
+		when(organizationDao.getOrganizationByName(ORG_NAME)).thenReturn(new Organization().setId(ORG_ID));
+		when(aclDao.canAccess(any(UserInfo.class), eq(ORG_ID), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.DELETE)))
+				.thenReturn(AuthorizationStatus.authorized());
+
+		// call under test
+		manager.delete(sageUser(), 1L);
+
+		verify(textAnalyzerDao).delete(1L);
+	}
+
 	// --- list ---
 
 	@Test
@@ -219,8 +290,7 @@ public class TextAnalyzerManagerImplTest {
 
 		// call under test
 		manager.list(adminUser(),
-				new org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest()
-						.setOrganizationName(ORG_NAME));
+				new ListTextAnalyzersRequest().setOrganizationName(ORG_NAME));
 
 		verify(textAnalyzerDao).listByOrganization(ORG_NAME, 51L, 0L);
 		verify(textAnalyzerDao, never()).listAll(
@@ -232,13 +302,40 @@ public class TextAnalyzerManagerImplTest {
 		when(textAnalyzerDao.listAll(51L, 0L)).thenReturn(Collections.emptyList());
 
 		// call under test
-		manager.list(adminUser(),
-				new org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest());
+		manager.list(adminUser(), new ListTextAnalyzersRequest());
 
 		verify(textAnalyzerDao).listAll(51L, 0L);
 		verify(textAnalyzerDao, never()).listByOrganization(
 				org.mockito.ArgumentMatchers.any(String.class),
 				org.mockito.ArgumentMatchers.anyLong(),
 				org.mockito.ArgumentMatchers.anyLong());
+	}
+
+	@Test
+	public void testListReturnsNextPageTokenWhenMoreResults() {
+		// NextPageToken default limit is 50, so limitForQuery is 51
+		List<TextAnalyzer> page = new ArrayList<>();
+		for (int i = 0; i < 51; i++) {
+			page.add(validRequest().setId(String.valueOf(i)));
+		}
+		when(textAnalyzerDao.listAll(51L, 0L)).thenReturn(page);
+
+		// call under test
+		ListTextAnalyzersResponse response = manager.list(adminUser(), new ListTextAnalyzersRequest());
+
+		assertNotNull(response.getNextPageToken());
+		assertEquals(50, response.getResults().size());
+	}
+
+	@Test
+	public void testListReturnsNullNextPageTokenWhenNoMoreResults() {
+		List<TextAnalyzer> page = Collections.singletonList(validRequest().setId("1"));
+		when(textAnalyzerDao.listAll(51L, 0L)).thenReturn(page);
+
+		// call under test
+		ListTextAnalyzersResponse response = manager.list(adminUser(), new ListTextAnalyzersRequest());
+
+		assertNull(response.getNextPageToken());
+		assertEquals(1, response.getResults().size());
 	}
 }

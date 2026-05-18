@@ -28,10 +28,11 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 @ContextConfiguration(locations = { "classpath:jdomodels-test-context.xml" })
 public class SynonymSetDaoImplAutowiredTest {
 
+	// MySQL JSON columns normalize whitespace and reorder keys by length, then lexicographically.
 	private static final String EQUIVALENT_DEFINITION =
-			"{\"type\":\"synonym_graph\",\"synonyms\":[\"cancer, tumor, neoplasm\"]}";
+			"{\"type\": \"synonym_graph\", \"synonyms\": [\"cancer, tumor, neoplasm\"]}";
 	private static final String EXPLICIT_DEFINITION =
-			"{\"type\":\"synonym_graph\",\"synonyms\":[\"AD => Alzheimer's disease\"],\"expand\":true,\"lenient\":false}";
+			"{\"type\": \"synonym_graph\", \"expand\": true, \"lenient\": false, \"synonyms\": [\"AD => Alzheimer's disease\"]}";
 
 	@Autowired
 	private SynonymSetDao synonymSetDao;

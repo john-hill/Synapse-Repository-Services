@@ -1,14 +1,14 @@
 {
-	"description": "Defines the authorization mode used to gate access to a grid session.",
+	"description": "Defines the authorization mode used to gate access to a grid session. The mode is set at session creation time and cannot be changed. It controls both who may join the session (create a replica) and which rows are included in the session's initial snapshot.\n\nSESSION_OWNER (default): Access is determined by the session owner. Only the owner (or members of the owner's team) may join. When the source is a view, the snapshot includes rows that the owner has access to; non-owner members see data through the owner's access scope.\n\nSOURCE_BENEFACTOR: Access is determined by EDIT access on the source entity's benefactor(s). At session creation the set of benefactor IDs that the creating user (the 'action user') has EDIT access on is captured and stored on the session. Any user who has EDIT access on all of those captured benefactors may join the session and see all rows in the snapshot. This mode is useful when a project administrator wants all editors of a project to be able to collaborate on a grid, without needing to manage a separate owner team.",
 	"type": "string",
 	"enum": [
 		{
 			"name": "SESSION_OWNER",
-			"description": "Access is limited to the session owner or members of the owner's team."
+			"description": "Access is limited to the session owner or members of the owner's team. When the source is a view, the snapshot includes all rows the owner can access; non-owner members see the session data through the owner's permissions. This is the default mode when no authorizationMode is specified."
 		},
 		{
 			"name": "SOURCE_BENEFACTOR",
-			"description": "Access is granted to any user with EDIT access on the source entity's benefactor."
+			"description": "Access is granted to any user who has EDIT (UPDATE) access on all benefactor IDs captured when the session was created. The captured benefactors are determined by the creating user's EDIT access at creation time: for views, the distinct set of benefactor IDs from the rows the action user can edit; for tables and record sets, the single benefactor of the source entity. Any user with EDIT on all of those benefactors may join. Row-level visibility for joining users is determined by their own permissions."
 		}
 	]
 }

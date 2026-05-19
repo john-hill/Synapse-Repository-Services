@@ -106,6 +106,57 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * attribution (who last updated each cell) and ensuring the synchronization
  * logic correctly distinguishes user changes from system changes.
  * </p>
+ *
+ * <h2>Authorization Modes</h2>
+ *
+ * <p>
+ * Grid sessions support two authorization modes, set at creation time via
+ * {@link org.sagebionetworks.repo.model.grid.CreateGridRequest#setAuthorizationMode(org.sagebionetworks.repo.model.grid.AuthorizationMode)}.
+ * The mode controls both who may join the session and which rows are included
+ * in the initial snapshot.
+ * </p>
+ *
+ * <h3>SESSION_OWNER (default)</h3>
+ * <p>
+ * Only the session owner or members of the owner's team may join. The
+ * {@code ownerPrincipalId} field on {@link org.sagebionetworks.repo.model.grid.CreateGridRequest}
+ * sets the owner; if omitted, it defaults to the creating user. When the source
+ * is a view, the snapshot is built using the owner's access scope — non-owner
+ * team members see exactly what the owner sees, not a filtered subset of their
+ * own access.
+ * </p>
+ * <p>
+ * Use this mode when a named curator or a specific team should control both
+ * who participates and what data is visible in the session.
+ * </p>
+ *
+ * <h3>SOURCE_BENEFACTOR</h3>
+ * <p>
+ * Access is granted to any user who has EDIT (UPDATE) access on all benefactor
+ * IDs captured at session creation. The set of captured benefactors is
+ * determined by the creating user's own EDIT access at the time the session is
+ * created:
+ * </p>
+ * <ul>
+ *   <li><b>View source</b>: the distinct set of benefactor IDs from the rows
+ *   the creating user can edit (rows returned when querying the view with
+ *   READ + UPDATE access).</li>
+ *   <li><b>Table or RecordSet source</b>: the single benefactor of the source
+ *   entity itself.</li>
+ * </ul>
+ * <p>
+ * Any user with EDIT access on <em>all</em> of those captured benefactors may
+ * join the session and create a replica. Each joining user's own permissions
+ * determine which rows they see when querying live data — they are not proxied
+ * through the session creator's scope.
+ * </p>
+ * <p>
+ * Use this mode when all editors of a project (or a set of projects) should
+ * be able to collaborate without the session creator needing to maintain an
+ * explicit owner team. For example, if a view spans three projects and the
+ * creating user has EDIT on all three, then any other user who also has EDIT
+ * on all three can join the session automatically.
+ * </p>
  */
 @Controller
 @ControllerInfo(displayName = "Grid Services", path = "repo/v1")

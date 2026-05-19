@@ -120,11 +120,9 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	static int INDEX_WRITABLE_MAX_RETRIES = 10;
 	static long INDEX_WRITABLE_INITIAL_BACKOFF_MS = 10000L;
 
-	// Retry budget for synchronous AOSS validate-analyzer-settings calls. Three attempts
-	// keeps the worst-case user wait under ~3s while absorbing transient 5xx/network
-	// flakes. Non-final so unit tests can lower the values.
-	static int VALIDATE_MAX_RETRIES = 3;
-	static long VALIDATE_INITIAL_BACKOFF_MS = 500L;
+	// Retry budget for synchronous AOSS validate-analyzer-settings calls.
+	static int VALIDATE_MAX_RETRIES = 10;
+	static long VALIDATE_INITIAL_BACKOFF_MS = 1000L;
 	static final String READINESS_PROBE_DOC_ID = "__readiness_probe__";
 
 	private static final String SYSTEM_FIELD_ROW_ID = "_row_id";

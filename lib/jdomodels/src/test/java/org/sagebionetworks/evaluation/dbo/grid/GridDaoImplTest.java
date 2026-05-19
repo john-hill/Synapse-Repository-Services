@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -30,6 +31,7 @@ import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.dbo.grid.CreateGridSession;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.dbo.grid.GridSource;
+import org.sagebionetworks.repo.model.grid.AuthorizationMode;
 import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.EventSource;
@@ -95,6 +97,7 @@ public class GridDaoImplTest {
 		assertNull(session.getSourceEntityId());
 		assertNull(session.getGridJsonSchema$Id());
 		assertEquals(adminUserId.toString(), session.getOwnerPrincipalId());
+		assertNull(session.getAuthorizationMode());
 
 		// call under test
 		GridSession back = dao.getGridSession(session.getSessionId()).get();
@@ -803,6 +806,86 @@ public class GridDaoImplTest {
 			dao.getLatestSnapshot(null);
 		}).getMessage();
 		assertEquals("sessionId is required.", message);
+	}
+
+	@ParameterizedTest
+	@EnumSource(AuthorizationMode.class)
+	public void testCreateGridSessionWithAuthorizationMode(AuthorizationMode mode) {
+		// call under test
+		GridSession session = dao.createGridSession(
+				new CreateGridSession().setUserId(adminUserId).setAuthorizationMode(mode));
+		assertEquals(mode, session.getAuthorizationMode());
+
+		GridSession back = dao.getGridSession(session.getSessionId()).get();
+		assertEquals(session, back);
+	}
+
+	@ParameterizedTest
+	@EnumSource(AuthorizationMode.class)
+	public void testGetAuthorizationModeWithMode(AuthorizationMode mode) {
+		GridSession session = dao.createGridSession(
+				new CreateGridSession().setUserId(adminUserId).setAuthorizationMode(mode));
+		// call under test
+		assertEquals(Optional.of(mode), dao.getAuthorizationMode(session.getSessionId()));
+	}
+
+	@Test
+	public void testGetAuthorizationModeDefaultsToEmpty() {
+		// A session created without an authorizationMode stores null — callers default to SESSION_OWNER
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		// call under test
+		assertEquals(Optional.empty(), dao.getAuthorizationMode(session.getSessionId()));
+	}
+
+	@Test
+	public void testGetAuthorizationModeWithDoesNotExist() {
+		// call under test
+		assertEquals(Optional.empty(), dao.getAuthorizationMode("doesnotexist"));
+	}
+
+	@Test
+	public void testUpdateAndGetSessionBenefactorIds() {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		Set<Long> benefactorIds = Set.of(111L, 222L, 333L);
+		// call under test
+		dao.updateSessionBenefactorIds(session.getSessionId(), benefactorIds);
+		// call under test
+		assertEquals(benefactorIds, dao.getSessionBenefactorIds(session.getSessionId()));
+	}
+
+	@Test
+	public void testUpdateSessionBenefactorIdsRotatesEtag() throws InterruptedException {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		Thread.sleep(1001L);
+		// call under test
+		dao.updateSessionBenefactorIds(session.getSessionId(), Set.of(444L));
+
+		GridSession updated = dao.getGridSession(session.getSessionId()).get();
+		assertNotEquals(session.getEtag(), updated.getEtag());
+		assertTrue(updated.getModifiedOn().getTime() > session.getModifiedOn().getTime());
+	}
+
+	@Test
+	public void testUpdateSessionBenefactorIdsWithEmptySet() {
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		// call under test
+		dao.updateSessionBenefactorIds(session.getSessionId(), Collections.emptySet());
+		// call under test
+		assertEquals(Collections.emptySet(), dao.getSessionBenefactorIds(session.getSessionId()));
+	}
+
+	@Test
+	public void testGetSessionBenefactorIdsWithNoUpdate() {
+		// Before updateSessionBenefactorIds is called, BENEFACTOR_IDS is null
+		GridSession session = dao.createGridSession(new CreateGridSession().setUserId(adminUserId));
+		// call under test
+		assertEquals(Collections.emptySet(), dao.getSessionBenefactorIds(session.getSessionId()));
+	}
+
+	@Test
+	public void testGetSessionBenefactorIdsWithDoesNotExist() {
+		// call under test
+		assertEquals(Collections.emptySet(), dao.getSessionBenefactorIds("doesnotexist"));
 	}
 
 	@Test

@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.manager.EntityManager;
@@ -22,8 +23,10 @@ import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaValidationManager;
 import org.sagebionetworks.repo.manager.table.UploadPreviewBuilder;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
+import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
+import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.dbo.grid.CreateGridSession;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
@@ -54,11 +57,12 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 	private final JsonSchemaValidationManager jsonSchemaValidationManager;
 	private final FileProvider fileProvider;
 	private final IndexedModelEncoderProvider encoderProvider;
+	private final NodeDAO nodeDao;
 
 	public RecordSetCreateGridHandler(GridDao gridDao, EntityManager entityManager, FileHandleManager fileHandleManager,
 									  EntityAuthorizationManager authorizationManager, CsvFileHandleProvider csvProvider,
 									  JsonSchemaManager jsonSchemaManager, JsonSchemaValidationManager jsonSchemaValidationManager,
-									  FileProvider fileProvider, IndexedModelEncoderProvider encoderProvider) {
+									  FileProvider fileProvider, IndexedModelEncoderProvider encoderProvider, NodeDAO nodeDao) {
 		super();
 		this.gridDao = gridDao;
 		this.entityManager = entityManager;
@@ -69,6 +73,7 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 		this.jsonSchemaValidationManager = jsonSchemaValidationManager;
 		this.fileProvider = fileProvider;
 		this.encoderProvider = encoderProvider;
+		this.nodeDao = nodeDao;
 	}
 
 	@Override
@@ -90,7 +95,8 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 				.map(binding -> binding.getJsonSchemaVersionInfo().get$id());
 
 		GridSession session = gridDao.createGridSession(new CreateGridSession().setUserId(user.getId())
-				.setSourceId(recordSet.getId()).setSchemaId(validationSchemaId.orElse(null)).setOwner(request.getOwnerPrincipalId()));
+				.setSourceId(recordSet.getId()).setSchemaId(validationSchemaId.orElse(null))
+				.setOwner(request.getOwnerPrincipalId()).setAuthorizationMode(request.getAuthorizationMode()));
 
 		GridReplica replica = gridDao.createReplica(user.getId(), session.getSessionId(), false, EventSource.INTERNAL);
 
@@ -158,7 +164,9 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 			throw new IllegalStateException(e);
 		}
 
-		return new CreateGridHandlerResult().setGridSession(session).setGridReplica(replica);
+		Set<Long> benefactorIds = Set.of(KeyFactory.stringToKey(nodeDao.getBenefactor(recordSet.getId())));
+		return new CreateGridHandlerResult().setGridSession(session).setGridReplica(replica)
+				.setBenefactorIds(benefactorIds);
 	}
 
 	List<ColumnModel> getSchemaFromCsv(FileHandle fileHandle, CsvTableDescriptor csvDescriptor) {

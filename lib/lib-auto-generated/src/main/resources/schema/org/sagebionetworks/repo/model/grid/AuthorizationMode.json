@@ -1,0 +1,14 @@
+{
+	"description": "Defines the authorization mode used to gate access to a grid session.",
+	"type": "string",
+	"enum": [
+		{
+			"name": "SESSION_OWNER",
+			"description": "Access is limited to the session owner or members of the owner's team."
+		},
+		{
+			"name": "SOURCE_BENEFACTOR",
+			"description": "Access is granted to any user with EDIT access on the source entity's benefactor."
+		}
+	]
+}

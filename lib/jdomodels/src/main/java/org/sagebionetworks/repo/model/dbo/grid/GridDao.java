@@ -1,9 +1,10 @@
 package org.sagebionetworks.repo.model.dbo.grid;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
+import org.sagebionetworks.repo.model.grid.AuthorizationMode;
 import org.sagebionetworks.repo.model.grid.ClockTable;
 import org.sagebionetworks.repo.model.grid.EventSource;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
@@ -202,6 +203,29 @@ public interface GridDao {
 	 * @return Optional.empty() if the session does not have a source.
 	 */
 	Optional<GridSource> getSessionSource(String sessionId);
+
+	/**
+	 * Get the authorization mode for a grid session.
+	 * Returns Optional.empty() if the session does not exist.
+	 * A null stored value indicates SESSION_OWNER (the default).
+	 * @param sessionId
+	 * @return
+	 */
+	Optional<AuthorizationMode> getAuthorizationMode(String sessionId);
+
+	/**
+	 * Update the benefactor IDs JSON column for a grid session.
+	 * @param sessionId
+	 * @param benefactorIds
+	 */
+	void updateSessionBenefactorIds(String sessionId, Set<Long> benefactorIds);
+
+	/**
+	 * Get the set of benefactor IDs stored for a grid session.
+	 * @param sessionId
+	 * @return Empty set if no benefactor IDs have been stored.
+	 */
+	Set<Long> getSessionBenefactorIds(String sessionId);
 
 	/**
 	 * Gets the latest grid snapshot, based on created date

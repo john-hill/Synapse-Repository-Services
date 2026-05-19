@@ -172,12 +172,14 @@ public class GridManagerImpl implements GridManager {
 			.orElseThrow(() -> new IllegalArgumentException("Cannot find a handler for: " + request));
 		
 		CreateGridHandlerResult result = handler.createGrid(callback, user, request, this);
-		
+
 		if (result == null || result.getGridSession() == null) {
 			throw new IllegalStateException("Handler must provide a grid session");
 		}
-		
+
 		GridSession session = result.getGridSession();
+
+		gridDao.updateSessionBenefactorIds(session.getSessionId(), result.getBenefactorIds());
 		
 		if (result.getGridReplica() != null) {
 			GridReplica replica = result.getGridReplica();

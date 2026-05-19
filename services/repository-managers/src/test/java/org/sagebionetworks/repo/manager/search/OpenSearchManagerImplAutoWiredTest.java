@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
+import org.sagebionetworks.repo.model.search.FacetRequest;
 import org.sagebionetworks.repo.model.search.SearchFieldValue;
 import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
@@ -34,6 +36,9 @@ import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
+import org.sagebionetworks.repo.model.table.FacetColumnResult;
+import org.sagebionetworks.repo.model.table.FacetColumnResultValueCount;
+import org.sagebionetworks.repo.model.table.FacetColumnResultValues;
 import org.sagebionetworks.util.TimeUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -230,10 +235,21 @@ public class OpenSearchManagerImplAutoWiredTest {
 				BulkOperation.of(op -> op.index(idx -> idx.index(indexName).id("1").document(doc)))));
 		assertEquals(1L, indexed);
 
+		// Request facets on every terms-aggregable column in the same call so the
+		// numeric (lterms / dterms) and text (sterms) bucket-key paths all run
+		// against live AOSS — regression for PLFM-9673 (lterms.keyAsString() is
+		// null without an explicit `format`, so INTEGER facets came back with
+		// null `value`).
+		List<FacetRequest> facetRequests = columns.stream()
+				.filter(c -> casesByType.get(c.getColumnType()).expectedFacetValues != null)
+				.map(c -> new FacetRequest().setColumnName(c.getName()))
+				.collect(Collectors.toList());
+
 		SearchQuery query = new SearchQuery();
 		query.setQueryType(SearchQueryType.MATCH_ALL);
 		query.setLimit(10L);
 		query.setOffset(0L);
+		query.setFacetRequests(facetRequests);
 		SearchQueryResults results = waitForSearch(query, columns, analyzers, SCIENTIFIC_QNAME, 1L);
 
 		assertEquals(1L, results.getTotalHits());
@@ -254,35 +270,53 @@ public class OpenSearchManagerImplAutoWiredTest {
 			assertEquals(casesByType.get(type).expectedReturned, actual,
 					"round-trip mismatch for " + type);
 		}
+
+		Map<String, FacetColumnResultValues> facetsByColumn = results.getFacets().stream()
+				.collect(Collectors.toMap(FacetColumnResult::getColumnName,
+						f -> (FacetColumnResultValues) f));
+		for (ColumnModel column : columns) {
+			ColumnType type = column.getColumnType();
+			Set<String> expectedValues = casesByType.get(type).expectedFacetValues;
+			if (expectedValues == null) {
+				continue;
+			}
+			FacetColumnResultValues facet = facetsByColumn.get(column.getName());
+			assertNotNull(facet, "missing facet result for " + type);
+			Set<String> actualValues = facet.getFacetValues().stream()
+					.map(FacetColumnResultValueCount::getValue)
+					.collect(Collectors.toSet());
+			assertEquals(expectedValues, actualValues,
+					"facet bucket values for " + type + " must match (PLFM-9673: null on "
+							+ "numeric types prior to fix)");
+		}
 	}
 
 	// ---- helpers ----
 
 	private static Map<ColumnType, RoundTripCase> buildEveryColumnTypeCase() {
 		Map<ColumnType, RoundTripCase> casesByType = new LinkedHashMap<>();
-		casesByType.put(ColumnType.STRING,        new RoundTripCase("alpha",                              "alpha",                                  "alpha"));
-		casesByType.put(ColumnType.STRING_LIST,   new RoundTripCase("[\"alpha\",\"beta\"]",               Arrays.asList("alpha", "beta"),           "[\"alpha\",\"beta\"]"));
-		casesByType.put(ColumnType.MEDIUMTEXT,    new RoundTripCase("alpha beta gamma",                   "alpha beta gamma",                       "alpha beta gamma"));
-		casesByType.put(ColumnType.LARGETEXT,     new RoundTripCase("alpha beta gamma",                   "alpha beta gamma",                       "alpha beta gamma"));
-		casesByType.put(ColumnType.LINK,          new RoundTripCase("https://example.org/a",              "https://example.org/a",                  "https://example.org/a"));
-		casesByType.put(ColumnType.INTEGER,       new RoundTripCase("123",                                123,                                      "123"));
-		casesByType.put(ColumnType.INTEGER_LIST,  new RoundTripCase("[1,2,3]",                            Arrays.asList(1, 2, 3),                   "[1,2,3]"));
-		casesByType.put(ColumnType.DATE,          new RoundTripCase("1609459200000",                      1609459200000L,                           "1609459200000"));
-		casesByType.put(ColumnType.DATE_LIST,     new RoundTripCase("[1609459200000,1609545600000]",      Arrays.asList(1609459200000L, 1609545600000L),  "[1609459200000,1609545600000]"));
-		casesByType.put(ColumnType.FILEHANDLEID,  new RoundTripCase("9876543",                            9876543,                                  "9876543"));
-		casesByType.put(ColumnType.SUBMISSIONID,  new RoundTripCase("555",                                555,                                      "555"));
-		casesByType.put(ColumnType.EVALUATIONID,  new RoundTripCase("777",                                777,                                      "777"));
-		casesByType.put(ColumnType.ENTITYID,      new RoundTripCase("syn123456",                          "syn123456",                              "syn123456"));
-		casesByType.put(ColumnType.USERID,        new RoundTripCase("3412396",                            "3412396",                                "3412396"));
-		casesByType.put(ColumnType.ENTITYID_LIST, new RoundTripCase("[\"syn1\",\"syn2\"]",                Arrays.asList("syn1", "syn2"),            "[\"syn1\",\"syn2\"]"));
-		casesByType.put(ColumnType.USERID_LIST,   new RoundTripCase("[\"100\",\"200\"]",                  Arrays.asList("100", "200"),              "[\"100\",\"200\"]"));
-		casesByType.put(ColumnType.DOUBLE,        new RoundTripCase("1.5",                                1.5,                                      "1.5"));
-		casesByType.put(ColumnType.BOOLEAN,       new RoundTripCase("true",                               Boolean.TRUE,                             "true"));
-		casesByType.put(ColumnType.BOOLEAN_LIST,  new RoundTripCase("[true,false]",                       Arrays.asList(true, false),               "[true,false]"));
-		Map<String, Object> jsonExpected = new LinkedHashMap<>();
-		jsonExpected.put("a", 1);
-		jsonExpected.put("b", "x");
-		casesByType.put(ColumnType.JSON,          new RoundTripCase("{\"a\":1,\"b\":\"x\"}",              jsonExpected,                             "{\"a\":1,\"b\":\"x\"}"));
+		// JSON fields are mapped to OpenSearch `object` and are not terms-aggregable, so
+		// `expectedFacetValues` is null for JSON only and the test skips it for facets.
+		casesByType.put(ColumnType.STRING,        new RoundTripCase("alpha",                              "alpha",                                  "alpha",                                  Set.of("alpha")));
+		casesByType.put(ColumnType.STRING_LIST,   new RoundTripCase("[\"alpha\",\"beta\"]",               List.of("alpha", "beta"),                 "[\"alpha\",\"beta\"]",                   Set.of("alpha", "beta")));
+		casesByType.put(ColumnType.MEDIUMTEXT,    new RoundTripCase("alpha beta gamma",                   "alpha beta gamma",                       "alpha beta gamma",                       Set.of("alpha beta gamma")));
+		casesByType.put(ColumnType.LARGETEXT,     new RoundTripCase("alpha beta gamma",                   "alpha beta gamma",                       "alpha beta gamma",                       Set.of("alpha beta gamma")));
+		casesByType.put(ColumnType.LINK,          new RoundTripCase("https://example.org/a",              "https://example.org/a",                  "https://example.org/a",                  Set.of("https://example.org/a")));
+		casesByType.put(ColumnType.INTEGER,       new RoundTripCase("123",                                123,                                      "123",                                    Set.of("123")));
+		casesByType.put(ColumnType.INTEGER_LIST,  new RoundTripCase("[1,2,3]",                            List.of(1, 2, 3),                         "[1,2,3]",                                Set.of("1", "2", "3")));
+		casesByType.put(ColumnType.DATE,          new RoundTripCase("1609459200000",                      1609459200000L,                           "1609459200000",                          Set.of("1609459200000")));
+		casesByType.put(ColumnType.DATE_LIST,     new RoundTripCase("[1609459200000,1609545600000]",      List.of(1609459200000L, 1609545600000L),  "[1609459200000,1609545600000]",          Set.of("1609459200000", "1609545600000")));
+		casesByType.put(ColumnType.FILEHANDLEID,  new RoundTripCase("9876543",                            9876543,                                  "9876543",                                Set.of("9876543")));
+		casesByType.put(ColumnType.SUBMISSIONID,  new RoundTripCase("555",                                555,                                      "555",                                    Set.of("555")));
+		casesByType.put(ColumnType.EVALUATIONID,  new RoundTripCase("777",                                777,                                      "777",                                    Set.of("777")));
+		casesByType.put(ColumnType.ENTITYID,      new RoundTripCase("syn123456",                          "syn123456",                              "syn123456",                              Set.of("syn123456")));
+		casesByType.put(ColumnType.USERID,        new RoundTripCase("3412396",                            "3412396",                                "3412396",                                Set.of("3412396")));
+		casesByType.put(ColumnType.ENTITYID_LIST, new RoundTripCase("[\"syn1\",\"syn2\"]",                List.of("syn1", "syn2"),                  "[\"syn1\",\"syn2\"]",                    Set.of("syn1", "syn2")));
+		casesByType.put(ColumnType.USERID_LIST,   new RoundTripCase("[\"100\",\"200\"]",                  List.of("100", "200"),                    "[\"100\",\"200\"]",                      Set.of("100", "200")));
+		casesByType.put(ColumnType.DOUBLE,        new RoundTripCase("1.5",                                1.5,                                      "1.5",                                    Set.of("1.5")));
+		casesByType.put(ColumnType.BOOLEAN,       new RoundTripCase("true",                               Boolean.TRUE,                             "true",                                   Set.of("true")));
+		casesByType.put(ColumnType.BOOLEAN_LIST,  new RoundTripCase("[true,false]",                       List.of(true, false),                     "[true,false]",                           Set.of("true", "false")));
+		casesByType.put(ColumnType.JSON,          new RoundTripCase("{\"a\":1,\"b\":\"x\"}",              Map.of("a", 1, "b", "x"),                 "{\"a\":1,\"b\":\"x\"}",                  null));
 		return casesByType;
 	}
 
@@ -290,10 +324,14 @@ public class OpenSearchManagerImplAutoWiredTest {
 		final String raw;
 		final Object expected;
 		final String expectedReturned;
-		RoundTripCase(String raw, Object expected, String expectedReturned) {
+		// Expected bucket value strings when this column is requested as a facet.
+		// Null for column types that are not terms-aggregable (e.g. JSON object fields).
+		final Set<String> expectedFacetValues;
+		RoundTripCase(String raw, Object expected, String expectedReturned, Set<String> expectedFacetValues) {
 			this.raw = raw;
 			this.expected = expected;
 			this.expectedReturned = expectedReturned;
+			this.expectedFacetValues = expectedFacetValues;
 		}
 	}
 

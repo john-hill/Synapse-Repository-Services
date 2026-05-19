@@ -31,6 +31,7 @@ import org.opensearch.client.opensearch._types.SortOptions;
 import org.opensearch.client.opensearch._types.SortOrder;
 import org.opensearch.client.opensearch._types.aggregations.Aggregate;
 import org.opensearch.client.opensearch._types.aggregations.Aggregation;
+import org.opensearch.client.opensearch._types.aggregations.LongTermsBucketKey;
 import org.opensearch.client.opensearch._types.analysis.CharFilter;
 import org.opensearch.client.opensearch._types.analysis.CharFilterDefinition;
 import org.opensearch.client.opensearch._types.analysis.TokenFilter;
@@ -1256,7 +1257,8 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 				facets.add(buildFacetResult(columnName, valueCounts));
 			} else if (aggregate.isLterms()) {
 				List<FacetColumnResultValueCount> valueCounts = aggregate.lterms().buckets().array().stream()
-						.map(bucket -> buildFacetValueCount(bucket.keyAsString(), bucket.docCount()))
+						.map(bucket -> buildFacetValueCount(
+								longBucketKeyToString(bucket.keyAsString(), bucket.key()), bucket.docCount()))
 						.collect(Collectors.toList());
 				facets.add(buildFacetResult(columnName, valueCounts));
 			} else if (aggregate.isDterms()) {
@@ -1283,6 +1285,18 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		vc.setCount(docCount);
 		vc.setIsSelected(false);
 		return vc;
+	}
+
+	// LongTermsBucket.keyAsString() is populated for fields with an implicit format
+	// (BOOLEAN → "true"/"false", date → ISO string) but is null for plain LONG fields
+	// because we don't set an explicit `format` on the terms aggregation. Prefer it
+	// when present so booleans render as "true"/"false" rather than "1"/"0", and fall
+	// back to the typed key for the LONG case.
+	static String longBucketKeyToString(String keyAsString, LongTermsBucketKey key) {
+		if (keyAsString != null) {
+			return keyAsString;
+		}
+		return key.isSigned() ? String.valueOf(key.signed()) : key.unsigned();
 	}
 
 	/**

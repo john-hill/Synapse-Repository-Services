@@ -84,10 +84,10 @@ public class UserStatusDaoImpl implements UserStatusDao {
 	}
 
 	@Override
-	public List<Long> getInactiveUsersToWarnBatch(Date lastSeenOnThreshold, int batchSize) {
+	public List<Long> getInactiveUsersToWarnBatch(Date warningThreshold, Date disableThreshold, int batchSize) {
 		return jdbcTemplate.queryForList(
-				"SELECT PRINCIPAL_ID FROM USER_STATUS WHERE DISABLED = false AND LAST_SEEN_ON < ? AND DISABLE_WARNING_SENT_ON IS NULL LIMIT ?",
-				Long.class, lastSeenOnThreshold, batchSize);
+				"SELECT PRINCIPAL_ID FROM USER_STATUS WHERE DISABLED = false AND LAST_SEEN_ON < ? AND LAST_SEEN_ON >= ? AND DISABLE_WARNING_SENT_ON IS NULL LIMIT ?",
+				Long.class, warningThreshold, disableThreshold, batchSize);
 	}
 
 	@Override

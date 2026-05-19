@@ -62,8 +62,9 @@ public class UserStatusManagerImplUnitTest {
 	public void testWarnInactiveUsersWithNoUsersToWarn() {
 		Instant now = Instant.now();
 		when(mockClock.now()).thenReturn(Date.from(now));
-		Date expectedThreshold = Date.from(now.minus(UserStatusManager.INACTIVITY_WARNING_DAYS, ChronoUnit.DAYS));
-		when(mockUserStatusDao.getInactiveUsersToWarnBatch(expectedThreshold, 500)).thenReturn(Collections.emptyList());
+		Date expectedWarningThreshold = Date.from(now.minus(UserStatusManager.INACTIVITY_WARNING_DAYS, ChronoUnit.DAYS));
+		Date expectedDisableThreshold = Date.from(now.minus(UserStatusManager.INACTIVITY_DAYS, ChronoUnit.DAYS));
+		when(mockUserStatusDao.getInactiveUsersToWarnBatch(expectedWarningThreshold, expectedDisableThreshold, 500)).thenReturn(Collections.emptyList());
 
 		// call under test
 		int result = manager.warnInactiveUsers(500);
@@ -79,8 +80,9 @@ public class UserStatusManagerImplUnitTest {
 		long userId2 = 222L;
 		Instant now = Instant.now();
 		when(mockClock.now()).thenReturn(Date.from(now));
-		Date expectedThreshold = Date.from(now.minus(UserStatusManager.INACTIVITY_WARNING_DAYS, ChronoUnit.DAYS));
-		when(mockUserStatusDao.getInactiveUsersToWarnBatch(expectedThreshold, 500))
+		Date expectedWarningThreshold = Date.from(now.minus(UserStatusManager.INACTIVITY_WARNING_DAYS, ChronoUnit.DAYS));
+		Date expectedDisableThreshold = Date.from(now.minus(UserStatusManager.INACTIVITY_DAYS, ChronoUnit.DAYS));
+		when(mockUserStatusDao.getInactiveUsersToWarnBatch(expectedWarningThreshold, expectedDisableThreshold, 500))
 				.thenReturn(List.of(userId1, userId2));
 
 		UserInfo sender = new UserInfo(false);
@@ -106,8 +108,9 @@ public class UserStatusManagerImplUnitTest {
 		long bootstrapId = BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId();
 		Instant now = Instant.now();
 		when(mockClock.now()).thenReturn(Date.from(now));
-		Date expectedThreshold = Date.from(now.minus(UserStatusManager.INACTIVITY_WARNING_DAYS, ChronoUnit.DAYS));
-		when(mockUserStatusDao.getInactiveUsersToWarnBatch(expectedThreshold, 500))
+		Date expectedWarningThreshold = Date.from(now.minus(UserStatusManager.INACTIVITY_WARNING_DAYS, ChronoUnit.DAYS));
+		Date expectedDisableThreshold = Date.from(now.minus(UserStatusManager.INACTIVITY_DAYS, ChronoUnit.DAYS));
+		when(mockUserStatusDao.getInactiveUsersToWarnBatch(expectedWarningThreshold, expectedDisableThreshold, 500))
 				.thenReturn(List.of(userId, bootstrapId));
 
 		UserInfo sender = new UserInfo(false);
@@ -132,8 +135,9 @@ public class UserStatusManagerImplUnitTest {
 		long userId2 = 222L;
 		Instant now = Instant.now();
 		when(mockClock.now()).thenReturn(Date.from(now));
-		Date expectedThreshold = Date.from(now.minus(UserStatusManager.INACTIVITY_WARNING_DAYS, ChronoUnit.DAYS));
-		when(mockUserStatusDao.getInactiveUsersToWarnBatch(expectedThreshold, 500))
+		Date expectedWarningThreshold = Date.from(now.minus(UserStatusManager.INACTIVITY_WARNING_DAYS, ChronoUnit.DAYS));
+		Date expectedDisableThreshold = Date.from(now.minus(UserStatusManager.INACTIVITY_DAYS, ChronoUnit.DAYS));
+		when(mockUserStatusDao.getInactiveUsersToWarnBatch(expectedWarningThreshold, expectedDisableThreshold, 500))
 				.thenReturn(List.of(userId1, userId2));
 
 		UserInfo sender = new UserInfo(false);

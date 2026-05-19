@@ -79,8 +79,9 @@ public class UserStatusManagerImpl implements UserStatusManager {
 	@Override
 	public int warnInactiveUsers(int maxBatchSize) {
 		Date warningThreshold = Date.from(clock.now().toInstant().minus(INACTIVITY_WARNING_DAYS, ChronoUnit.DAYS));
+		Date disableThreshold = Date.from(clock.now().toInstant().minus(INACTIVITY_DAYS, ChronoUnit.DAYS));
 
-		List<Long> usersToWarn = userStatusDao.getInactiveUsersToWarnBatch(warningThreshold, maxBatchSize).stream()
+		List<Long> usersToWarn = userStatusDao.getInactiveUsersToWarnBatch(warningThreshold, disableThreshold, maxBatchSize).stream()
 				.filter(Predicate.not(BOOTSTRAP_PRINCIPAL::isBootstrapPrincipalId))
 				.collect(Collectors.toList());
 

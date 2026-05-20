@@ -25,6 +25,7 @@ import java.sql.Timestamp;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -279,23 +280,24 @@ public class GridManagerUnitTest {
 		
 		when(mockCreateGridHandler.createGrid(mockCallback, mockUser, request, gridManager))
 				.thenReturn(new CreateGridHandlerResult().setGridSession(expected).setGridReplica(replica));
-		
+
 		when(mockGridDao.createReplica(userId, gridSessionId, false, EventSource.USER_SUPPORT))
 			.thenReturn(new GridReplica().setGridSessionId(gridSessionId).setReplicaId(replicaId - 1));
-		
+
 		when(mockGridDao.getGridSession(gridSessionId)).thenReturn(Optional.of(expected));
-		
+
 		// call under test
 		CreateGridResponse result = gridManager.createGrid(mockCallback, mockUser, request);
 		assertNotNull(result);
 		assertEquals(expected, result.getGridSession());
-		
+
+		verify(mockGridDao).updateSessionBenefactorIds(gridSessionId, Collections.emptySet());
 		verifyConnectionEvent(EventSource.INTERNAL, replicaId);
 		verifyConnectionEvent(EventSource.USER_SUPPORT, replicaId - 1);
-		
+
 		verifyNoMoreInteractions(mockInternalEventPublisher);
 	}
-	
+
 	@Test
 	public void testCreateGridWithTeamOwner() {
 		when(mockUser.getId()).thenReturn(userId);
@@ -305,24 +307,48 @@ public class GridManagerUnitTest {
 
 		GridSession expected = new GridSession().setSessionId(gridSessionId);
 		GridReplica replica = new GridReplica().setGridSessionId(expected.getSessionId()).setReplicaId(replicaId);
-		
+
 		when(mockCreateGridHandler.createGrid(mockCallback, mockUser, request, gridManager))
 				.thenReturn(new CreateGridHandlerResult().setGridSession(expected).setGridReplica(replica));
-		
+
 		when(mockGridDao.createReplica(userId, gridSessionId, false, EventSource.USER_SUPPORT))
 			.thenReturn(new GridReplica().setGridSessionId(gridSessionId).setReplicaId(replicaId - 1));
-		
+
 		when(mockGridDao.getGridSession(gridSessionId)).thenReturn(Optional.of(expected));
-		
+
 		// call under test
 		CreateGridResponse result = gridManager.createGrid(mockCallback, mockUser, request);
 		assertNotNull(result);
 		assertEquals(expected, result.getGridSession());
-		
+
+		verify(mockGridDao).updateSessionBenefactorIds(gridSessionId, Collections.emptySet());
 		verifyConnectionEvent(EventSource.INTERNAL, replicaId);
 		verifyConnectionEvent(EventSource.USER_SUPPORT, replicaId - 1);
-		
+
 		verifyNoMoreInteractions(mockInternalEventPublisher);
+	}
+
+	@Test
+	public void testCreateGridStoresBenefactorIds() {
+		Set<Long> benefactorIds = Set.of(111L, 222L);
+		when(mockUser.getId()).thenReturn(userId);
+		CreateGridRequest request = new CreateGridRequest().setOwnerPrincipalId(null);
+		when(mockGridAuthManager.validateGridOwner(mockUser, null)).thenReturn(userId);
+		when(mockCreateGridHandler.canCreate(request)).thenReturn(true);
+
+		GridSession expected = new GridSession().setSessionId(gridSessionId);
+		GridReplica handlerReplica = new GridReplica().setGridSessionId(gridSessionId).setReplicaId(replicaId);
+		when(mockCreateGridHandler.createGrid(mockCallback, mockUser, request, gridManager))
+				.thenReturn(new CreateGridHandlerResult().setGridSession(expected).setGridReplica(handlerReplica)
+						.setBenefactorIds(benefactorIds));
+		when(mockGridDao.createReplica(userId, gridSessionId, false, EventSource.USER_SUPPORT))
+				.thenReturn(new GridReplica().setGridSessionId(gridSessionId).setReplicaId(replicaId - 1));
+		when(mockGridDao.getGridSession(gridSessionId)).thenReturn(Optional.of(expected));
+
+		// call under test
+		gridManager.createGrid(mockCallback, mockUser, request);
+
+		verify(mockGridDao).updateSessionBenefactorIds(gridSessionId, benefactorIds);
 	}
 	
 	
@@ -352,13 +378,14 @@ public class GridManagerUnitTest {
 
 		assertEquals(expected, result.getGridSession());
 
+		verify(mockGridDao).updateSessionBenefactorIds(gridSessionId, Collections.emptySet());
 		verifyConnectionEvent(EventSource.INTERNAL, replicaId);
 		verifyConnectionEvent(EventSource.VALIDATION, replicaId + 1);
 		verifyConnectionEvent(EventSource.USER_SUPPORT, replicaId - 1);
-		
+
 		verifyNoMoreInteractions(mockInternalEventPublisher);
 	}
-	
+
 	@Test
 	public void testCreateGridWithNoReplica() {
 		when(mockUser.getId()).thenReturn(userId);
@@ -372,16 +399,17 @@ public class GridManagerUnitTest {
 
 		when(mockGridDao.createReplica(userId, gridSessionId, false, EventSource.USER_SUPPORT))
 			.thenReturn(new GridReplica().setGridSessionId(gridSessionId).setReplicaId(replicaId - 1));
-		
+
 		when(mockGridDao.getGridSession(gridSessionId)).thenReturn(Optional.of(expected));
-		
+
 		// call under test
 		CreateGridResponse result = gridManager.createGrid(mockCallback, mockUser, request);
 
 		assertEquals(expected, result.getGridSession());
-		
+
+		verify(mockGridDao).updateSessionBenefactorIds(gridSessionId, Collections.emptySet());
 		verifyConnectionEvent(EventSource.USER_SUPPORT, replicaId - 1);
-		
+
 		verifyNoMoreInteractions(mockInternalEventPublisher);
 	}
 	

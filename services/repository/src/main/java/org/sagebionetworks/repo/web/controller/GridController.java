@@ -106,6 +106,57 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * attribution (who last updated each cell) and ensuring the synchronization
  * logic correctly distinguishes user changes from system changes.
  * </p>
+ *
+ * <h2>Authorization Modes</h2>
+ *
+ * <p>
+ * Grid sessions support two authorization modes, set at creation time via
+ * {@link org.sagebionetworks.repo.model.grid.CreateGridRequest#setAuthorizationMode(org.sagebionetworks.repo.model.grid.AuthorizationMode)}.
+ * The mode controls both who may join the session and which rows are included
+ * in the initial snapshot.
+ * </p>
+ *
+ * <h3>SESSION_OWNER (default)</h3>
+ * <p>
+ * Only the session owner or members of the owner's team may join. The
+ * {@code ownerPrincipalId} field on {@link org.sagebionetworks.repo.model.grid.CreateGridRequest}
+ * sets the owner; if omitted, it defaults to the creating user. When the source
+ * is a view, the snapshot is built using the owner's access scope — non-owner
+ * team members see exactly what the owner sees, not a filtered subset of their
+ * own access.
+ * </p>
+ * <p>
+ * Use this mode when a named curator or a specific team should control both
+ * who participates and what data is visible in the session.
+ * </p>
+ *
+ * <h3>SOURCE_BENEFACTOR</h3>
+ * <p>
+ * Access is granted to any user who has EDIT (UPDATE) access on all benefactor
+ * IDs captured at session creation. The set of captured benefactors is
+ * determined by the creating user's own EDIT access at the time the session is
+ * created:
+ * </p>
+ * <ul>
+ *   <li><b>View source</b>: the distinct set of benefactor IDs from the rows
+ *   the creating user can edit (rows returned when querying the view with
+ *   READ + UPDATE access).</li>
+ *   <li><b>Table or RecordSet source</b>: the single benefactor of the source
+ *   entity itself.</li>
+ * </ul>
+ * <p>
+ * Any user with EDIT access on <em>all</em> of those captured benefactors may
+ * join the session and create a replica. Each joining user's own permissions
+ * determine which rows they see when querying live data — they are not proxied
+ * through the session creator's scope.
+ * </p>
+ * <p>
+ * Use this mode when all editors of a project (or a set of projects) should
+ * be able to collaborate without the session creator needing to maintain an
+ * explicit owner team. For example, if a view spans three projects and the
+ * creating user has EDIT on all three, then any other user who also has EDIT
+ * on all three can join the session automatically.
+ * </p>
  */
 @Controller
 @ControllerInfo(displayName = "Grid Services", path = "repo/v1")
@@ -483,14 +534,14 @@ public class GridController {
 	 * Asynchronously start the synchronization of a grid session with its data
 	 * source. Synchronization is a two-phase process that ensures consistency
 	 * between the user's local changes and external changes made to the source:
-	 * 
+	 *
 	 * <p>
 	 * <b>Phase 1: Schema Synchronization</b>
 	 * <ul>
 	 * <li>Synchronizes column definitions between the grid copy and source</li>
 	 * <li>Resolves schema conflicts</li>
 	 * </ul>
-	 * 
+	 *
 	 * <p>
 	 * <b>Phase 2: Row Synchronization</b>
 	 * <ul>
@@ -499,12 +550,32 @@ public class GridController {
 	 * <li>Pushes user changes from copy to source</li>
 	 * <li>Pulls external changes from source to copy</li>
 	 * </ul>
-	 * 
+	 *
+	 * <p>
+	 * <b>Benefactor ID Update ({@code SOURCE_BENEFACTOR} mode)</b>
+	 * <p>
+	 * After row synchronization completes, the session's stored benefactor IDs
+	 * are refreshed to reflect the current state of the source as seen by the
+	 * calling user (the <em>action user</em>). The benefactor set is recomputed
+	 * using the same rules as session creation:
+	 * <ul>
+	 * <li>For <b>view sources</b>: the distinct set of benefactor IDs from the
+	 * rows the action user has EDIT access to at the time of the sync.</li>
+	 * <li>For <b>table or RecordSet sources</b>: the single benefactor of the
+	 * source entity.</li>
+	 * </ul>
+	 * <p>
+	 * This means that if the underlying data or permissions change between session
+	 * creation and sync, the set of users who can join the session may expand or
+	 * contract accordingly. In particular, if a new entity with a separate
+	 * benefactor appears in the view scope, users who lack EDIT on that benefactor
+	 * will lose access to the session after the next sync.
+	 *
 	 * <p>
 	 * Use the returned job id and
 	 * <a href="${GET.grid.synchronize.async.get.asyncToken}">GET
 	 * /grid/synchronize/async/get</a> to get the results of the job.
-	 * 
+	 *
 	 * @param userId  The ID of the user making the request
 	 * @param request The synchronization request containing the grid session ID
 	 * @return The async job ID to track the synchronization progress

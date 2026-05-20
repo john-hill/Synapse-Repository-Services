@@ -1,6 +1,8 @@
 package org.sagebionetworks.repo.manager.grid.create;
 
+import java.util.Collections;
 import java.util.Objects;
+import java.util.Set;
 
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
@@ -9,6 +11,7 @@ public class CreateGridHandlerResult {
 
 	private GridSession gridSession;
 	private GridReplica gridReplica;
+	private Set<Long> benefactorIds = Collections.emptySet();
 
 	public GridSession getGridSession() {
 		return gridSession;
@@ -28,9 +31,18 @@ public class CreateGridHandlerResult {
 		return this;
 	}
 
+	public Set<Long> getBenefactorIds() {
+		return benefactorIds;
+	}
+
+	public CreateGridHandlerResult setBenefactorIds(Set<Long> benefactorIds) {
+		this.benefactorIds = benefactorIds != null ? benefactorIds : Collections.emptySet();
+		return this;
+	}
+
 	@Override
 	public int hashCode() {
-		return Objects.hash(gridReplica, gridSession);
+		return Objects.hash(benefactorIds, gridReplica, gridSession);
 	}
 
 	@Override
@@ -42,12 +54,14 @@ public class CreateGridHandlerResult {
 		if (getClass() != obj.getClass())
 			return false;
 		CreateGridHandlerResult other = (CreateGridHandlerResult) obj;
-		return Objects.equals(gridReplica, other.gridReplica) && Objects.equals(gridSession, other.gridSession);
+		return Objects.equals(benefactorIds, other.benefactorIds) && Objects.equals(gridReplica, other.gridReplica)
+				&& Objects.equals(gridSession, other.gridSession);
 	}
 
 	@Override
 	public String toString() {
-		return "CreateGridResult [gridSession=" + gridSession + ", gridReplica=" + gridReplica + "]";
+		return "CreateGridResult [gridSession=" + gridSession + ", gridReplica=" + gridReplica + ", benefactorIds="
+				+ benefactorIds + "]";
 	}
 
 }

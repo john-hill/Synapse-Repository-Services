@@ -14,6 +14,10 @@
 			"type": "string",
 			"description": "For queries against EntityViews with query.includeEntityEtag=true, this field will contain the etag of the entity.  Will be null for all other cases."
         },
+		"benefactorId": {
+			"type": "integer",
+			"description": "For queries against views, this field will contain the benefactorId of the entity. Will be null for all other cases."
+		},
 		"values": {
 			"description": "The values for each column of this row. To delete a row, set this to an empty list: []",
 			"type": "array",

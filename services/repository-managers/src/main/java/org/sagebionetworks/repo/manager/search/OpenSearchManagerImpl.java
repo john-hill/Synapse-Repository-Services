@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -32,11 +32,9 @@ import org.opensearch.client.opensearch._types.SortOrder;
 import org.opensearch.client.opensearch._types.aggregations.Aggregate;
 import org.opensearch.client.opensearch._types.aggregations.Aggregation;
 import org.opensearch.client.opensearch._types.aggregations.LongTermsBucketKey;
-import org.opensearch.client.opensearch._types.analysis.CharFilter;
+import org.opensearch.client.opensearch._types.analysis.Analyzer;
 import org.opensearch.client.opensearch._types.analysis.CharFilterDefinition;
-import org.opensearch.client.opensearch._types.analysis.TokenFilter;
 import org.opensearch.client.opensearch._types.analysis.TokenFilterDefinition;
-import org.opensearch.client.opensearch._types.analysis.Tokenizer;
 import org.opensearch.client.opensearch._types.analysis.TokenizerDefinition;
 import org.opensearch.client.opensearch._types.mapping.DynamicMapping;
 import org.opensearch.client.opensearch._types.mapping.Property;
@@ -67,12 +65,8 @@ import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.SearchQueryType;
 import org.sagebionetworks.repo.model.search.SortDirection;
 import org.sagebionetworks.repo.model.search.SortField;
-import org.sagebionetworks.repo.model.search.table.AnalyzerComponent;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
-import org.sagebionetworks.repo.model.search.table.SynonymSet;
-import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
-import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.FacetColumnResult;
@@ -85,12 +79,24 @@ import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
+
 import jakarta.json.stream.JsonParser;
 
 /**
- * Wraps the OpenSearch Java client for all AOSS index, bulk, search, autocomplete, and
- * analyzer-validation operations. Static helpers (filter chain resolution, error
- * classification, bulk-failure message building) are package-private for unit testing.
+ * Wraps the OpenSearch Java client for all AOSS index lifecycle (create / delete /
+ * writability probe), bulk-document indexing, and query execution (search and autocomplete).
+ * Static helpers (component-reference rewriting, error classification, bulk-failure message
+ * building) are package-private for unit testing.
+ *
+ * <p>Each {@link #createIndex} call receives a map of qualified-name &rarr; resolved analyzer
+ * JSON; the manager merges every analyzer's owned components and analyzer entries into a
+ * single OpenSearch {@code settings.analysis} block, namespacing each owned component as
+ * {@code {aossKey}__{localName}} so multiple TextAnalyzers can reuse the same local name
+ * without collision.</p>
  */
 @Service
 public class OpenSearchManagerImpl implements OpenSearchManager {
@@ -121,9 +127,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	static int INDEX_WRITABLE_MAX_RETRIES = 10;
 	static long INDEX_WRITABLE_INITIAL_BACKOFF_MS = 10000L;
 
-	// Retry budget for synchronous AOSS validate-analyzer-settings calls.
-	static int VALIDATE_MAX_RETRIES = 10;
-	static long VALIDATE_INITIAL_BACKOFF_MS = 1000L;
 	static final String READINESS_PROBE_DOC_ID = "__readiness_probe__";
 
 	private static final String SYSTEM_FIELD_ROW_ID = "_row_id";
@@ -134,32 +137,34 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	// "concurrent deletes". Package-visible so callers can recognize and translate
 	// it into a recoverable SQS retry.
 	static final String CONCURRENT_DELETES_MARKER = "concurrent deletes";
-	static final String SEARCH_ANALYZER_SUFFIX = "__search";
+	/**
+	 * OpenSearch reserved analyzer name. The SearchConfiguration's primary TextAnalyzer
+	 * must declare an entry here; it lands at the index's
+	 * {@code analysis.analyzer.default} slot (see
+	 * <a href="https://docs.opensearch.org/latest/analyzers/index-analyzers/">OpenSearch
+	 * index analyzers</a>) and is also the analyzer that override TextAnalyzers' field
+	 * mappings bind to when referenced by qualified name.
+	 */
+	static final String DEFAULT_ANALYZER_NAME = "default";
+
+	/**
+	 * OpenSearch reserved analyzer name for asymmetric search. When the SearchConfiguration's
+	 * primary TextAnalyzer declares an entry at this key, it lands at the index's
+	 * {@code analysis.analyzer.default_search} slot (see
+	 * <a href="https://docs.opensearch.org/latest/analyzers/search-analyzers/">OpenSearch
+	 * search analyzers</a>).
+	 */
+	static final String DEFAULT_SEARCH_ANALYZER_NAME = "default_search";
 
 	/**
 	 * Translate a Synapse qualified name (e.g. {@code org.sagebionetworks-SCIENTIFIC}) to a
 	 * settings key safe to emit under {@code analysis.analyzer} / {@code analysis.filter} /
 	 * {@code analysis.tokenizer}. AOSS treats {@code .} in these keys as a JSON path
 	 * separator and rejects the index, so dots are folded to underscores at the wire boundary.
-	 *
-	 * <p>Every site that emits a qname as an OpenSearch settings key — analyzer registration,
-	 * owned-component namespacing, filter-chain references, the synonym-placeholder
-	 * expansion, and the {@code analyzer} / {@code search_analyzer} bindings on field
-	 * mappings — must route through this helper so the keys match consistently. The
-	 * user-facing qname in DAOs and on the manager API is unchanged; this is wire-only.
 	 */
 	static String toAossKey(String qualifiedName) {
 		return qualifiedName == null ? null : qualifiedName.replace('.', '_');
 	}
-
-	/**
-	 * Reserved token in {@code indexFilterOrder} / {@code searchFilterOrder} that the
-	 * translator substitutes in place with the qualified names of every SynonymSet listed in
-	 * {@code SearchConfiguration.synonymSets}, preserving their order. The expansion is
-	 * empty if the SearchConfiguration has no synonym sets — the placeholder is silently
-	 * dropped from the chain.
-	 */
-	static final String SYNONYM_PLACEHOLDER = "synapse_synonyms";
 
 	/** True when the OpenSearch error is AOSS's "concurrent deletes" rejection. */
 	static boolean isConcurrentDeleteError(OpenSearchException e) {
@@ -180,32 +185,25 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	@Override
 	public Optional<String> createIndex(String indexName, List<ColumnModel> columns,
-			String defaultIndexAnalyzer, String defaultSearchAnalyzer,
+			String defaultAnalyzer,
 			List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, TextAnalyzer> analyzers,
-			List<SynonymSet> synonymSets) {
-		ValidateArgument.required(analyzers, "analyzers");
+			Map<String, JsonNode> resolvedAnalyzers) {
+		ValidateArgument.required(resolvedAnalyzers, "resolvedAnalyzers");
 
 		Map<String, String> nameToId = columns.stream()
 				.collect(Collectors.toMap(ColumnModel::getName, ColumnModel::getId, (a2, b) -> a2));
 		Map<String, ColumnAnalyzerOverrideEntry> overrideMap = buildOverrideMap(columnAnalyzerOverrides, nameToId);
-		final List<SynonymSet> orderedSynonymSets = synonymSets != null ? synonymSets : Collections.emptyList();
-		// Qnames in the SAME ORDER as orderedSynonymSets — substituted in place at every
-		// 'synapse_synonyms' placeholder occurrence in analyzer filter chains.
-		final List<String> orderedSynonymQnames = new ArrayList<>(orderedSynonymSets.size());
-		for (SynonymSet ss : orderedSynonymSets) {
-			orderedSynonymQnames.add(ss.getOrganizationName() + "-" + ss.getName());
-		}
 
 		try {
 			CreateIndexRequest request = CreateIndexRequest.of(req -> req
 					.index(indexName)
 					.settings(s -> s.analysis(a -> {
-						buildAnalysisSettings(a, analyzers, orderedSynonymSets, orderedSynonymQnames);
+						buildAnalysisSettings(a, resolvedAnalyzers, defaultAnalyzer);
 						return a;
 					}))
 					.mappings(m -> {
-						buildMappings(m, columns, defaultIndexAnalyzer, defaultSearchAnalyzer, overrideMap, analyzers);
+						buildMappings(m, columns, defaultAnalyzer,
+								overrideMap, resolvedAnalyzers);
 						return m;
 					})
 			);
@@ -230,156 +228,366 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	/**
-	 * Render the full analysis block.
-	 * <ol>
-	 *   <li>Each SynonymSet from the SearchConfiguration is dropped under
-	 *       {@code settings.analysis.filter.<qname>} with its verbatim filter definition.</li>
-	 *   <li>Each TextAnalyzer's owned tokenizer / char filters / token filters are registered
-	 *       (namespaced by the analyzer's qualified name).</li>
-	 *   <li>Index-time and (if asymmetric) search-time analyzer entries are registered. Inside
-	 *       each chain, the reserved token {@value SYNONYM_PLACEHOLDER} is expanded in place
-	 *       into the ordered SynonymSet qnames.</li>
-	 * </ol>
+	 * Build the OpenSearch index's {@code settings.analysis} block from every TextAnalyzer
+	 * the SearchConfiguration references.
+	 *
+	 * <p><b>Why this is non-trivial:</b> a single AOSS index has exactly ONE
+	 * {@code settings.analysis} block, but a SearchConfiguration may pull in many
+	 * TextAnalyzers (the configuration's primary analyzer plus the analyzers referenced
+	 * by per-column overrides). All of their components (char filters, tokenizers,
+	 * token filters, analyzers) must coexist in that one block. Two TextAnalyzers can
+	 * legitimately each declare a local component named {@code "english_stop"} — to
+	 * prevent collision, every TextAnalyzer's owned components are namespaced by the
+	 * TextAnalyzer's qualified name when written to AOSS. See {@link #registerAnalyzer}
+	 * for the detailed namespacing scheme.</p>
+	 *
+	 * <p><b>Reserved-name promotion:</b> the TextAnalyzer pointed at by
+	 * {@code defaultAnalyzerQname} is the configuration's primary. Its
+	 * {@value #DEFAULT_ANALYZER_NAME} entry is registered at the bare reserved key
+	 * {@value #DEFAULT_ANALYZER_NAME} (so OpenSearch picks it up at
+	 * {@code analysis.analyzer.default}); if it also declares
+	 * {@value #DEFAULT_SEARCH_ANALYZER_NAME}, that lands at the reserved
+	 * {@value #DEFAULT_SEARCH_ANALYZER_NAME} key. All other TextAnalyzers' analyzer
+	 * entries (including any they may name {@code default}) are registered only under
+	 * their namespaced keys; they remain reachable through the bare-qname alias used by
+	 * field mappings, but never claim the reserved index-wide slots.</p>
+	 *
+	 * @param a                    AOSS analysis-builder being populated.
+	 * @param resolvedAnalyzers    qualified-name &rarr; resolved settings JSON. Each value is
+	 *                             the OpenSearch {@code settings.analysis} subset declared by
+	 *                             one TextAnalyzer, with all {@code $ref} entries already
+	 *                             substituted by {@code SearchAnalyzerJson.resolveRefs}.
+	 * @param defaultAnalyzerQname qualified name of the SearchConfiguration's primary
+	 *                             TextAnalyzer, or {@code null} if the SearchConfiguration
+	 *                             does not set one.
 	 */
 	private void buildAnalysisSettings(IndexSettingsAnalysis.Builder a,
-			Map<String, TextAnalyzer> analyzers,
-			List<SynonymSet> synonymSets, List<String> synonymQnames) {
-		List<String> synonymKeys = new ArrayList<>(synonymQnames.size());
-		for (String qn : synonymQnames) {
-			synonymKeys.add(toAossKey(qn));
+			Map<String, JsonNode> resolvedAnalyzers, String defaultAnalyzerQname) {
+		for (Map.Entry<String, JsonNode> entry : resolvedAnalyzers.entrySet()) {
+			boolean isPrimary = entry.getKey().equals(defaultAnalyzerQname);
+			registerAnalyzer(a, entry.getKey(), entry.getValue(), isPrimary);
 		}
-		for (SynonymSet ss : synonymSets) {
-			String key = toAossKey(ss.getOrganizationName() + "-" + ss.getName());
-			TokenFilterDefinition def = deserialize(ss.getDefinition(), TokenFilterDefinition._DESERIALIZER);
-			a.filter(key, f -> f.definition(def));
-		}
-		for (Map.Entry<String, TextAnalyzer> entry : analyzers.entrySet()) {
-			registerAnalyzer(a, entry.getKey(), entry.getValue(), synonymKeys);
-		}
-	}
-
-	private void registerAnalyzer(IndexSettingsAnalysis.Builder a, String qname, TextAnalyzer analyzer,
-			List<String> synonymKeys) {
-		String aossKey = toAossKey(qname);
-		TextAnalyzerSettings settings = analyzer.getSettings();
-
-		String tokenizerRef = registerTokenizer(a, aossKey, settings.getTokenizer());
-
-		registerCharFilterDefs(a, aossKey, settings.getCharFilters());
-		List<String> charFilterChain = resolveOwnedChain(aossKey, settings.getCharFilterOrder(), namesOf(settings.getCharFilters()));
-
-		registerTokenFilterDefs(a, aossKey, settings.getTokenFilters());
-		Set<String> ownedFilterNames = namesOf(settings.getTokenFilters());
-
-		List<String> indexChain = resolveFilterChain(aossKey, settings.getIndexFilterOrder(), ownedFilterNames, synonymKeys);
-		List<String> searchChain = resolveFilterChain(aossKey, settings.getSearchFilterOrder(), ownedFilterNames, synonymKeys);
-
-		Integer pig = settings.getPositionIncrementGap() != null ? settings.getPositionIncrementGap().intValue() : null;
-		registerCustomAnalyzer(a, aossKey, tokenizerRef, indexChain, charFilterChain, pig);
-
-		// Search-time variant: register only when the user provided a distinct searchFilterOrder.
-		if (settings.getSearchFilterOrder() != null && !settings.getSearchFilterOrder().isEmpty()
-				&& !indexChain.equals(searchChain)) {
-			registerCustomAnalyzer(a, aossKey + SEARCH_ANALYZER_SUFFIX, tokenizerRef,
-					searchChain, charFilterChain, pig);
-		}
-	}
-
-	private static Set<String> namesOf(List<AnalyzerComponent> components) {
-		if (components == null || components.isEmpty()) {
-			return Collections.emptySet();
-		}
-		Set<String> names = new HashSet<>();
-		for (AnalyzerComponent c : components) {
-			names.add(c.getName());
-		}
-		return names;
 	}
 
 	/**
-	 * Resolve a filter-chain order:
+	 * Register one TextAnalyzer's components and analyzer entries into the shared AOSS
+	 * {@code settings.analysis} block, namespaced by the TextAnalyzer's qualified name so
+	 * names declared by other TextAnalyzers in the same index can't collide.
+	 *
+	 * <p><b>Naming scheme:</b></p>
 	 * <ul>
-	 *   <li>Names in {@code ownedNames} are namespaced to {@code <qname>__<name>}.</li>
-	 *   <li>The reserved token {@value #SYNONYM_PLACEHOLDER} is expanded in place into
-	 *       {@code synonymQnames}, in order. If {@code synonymQnames} is empty the placeholder
-	 *       is dropped from the chain (no-op for analyzers that declared the placeholder when
-	 *       the SearchConfiguration didn't list any synonym sets).</li>
-	 *   <li>All other names — built-in OpenSearch filter names — pass through unchanged.</li>
+	 *   <li>The TextAnalyzer's qualified name {@code {organizationName}-{name}} is folded
+	 *       to an AOSS-safe key by {@link #toAossKey} ({@code .} &rarr; {@code _}, since
+	 *       AOSS treats {@code .} as a JSON-path separator inside settings keys).</li>
+	 *   <li>Every component (char filter, tokenizer, token filter) declared inside this
+	 *       TextAnalyzer's registry maps is registered in AOSS under
+	 *       {@code {aossKey}__{localName}}.</li>
+	 *   <li>Every entry inside this TextAnalyzer's {@code analyzer} map is registered the
+	 *       same way: {@code {aossKey}__{localName}}.</li>
+	 *   <li>The entry named {@value #DEFAULT_ANALYZER_NAME} is also registered under the
+	 *       bare {@code aossKey} as an alias. Field mappings (built by {@link #buildMappings})
+	 *       bind to this bare-qname form so they don't have to know about the inner
+	 *       analyzer-name layout.</li>
+	 *   <li><b>Primary only:</b> when {@code isPrimary} is true, the entry named
+	 *       {@value #DEFAULT_ANALYZER_NAME} is additionally registered under the bare
+	 *       reserved key {@value #DEFAULT_ANALYZER_NAME} so OpenSearch picks it up at
+	 *       {@code analysis.analyzer.default}. If the TextAnalyzer also declares
+	 *       {@value #DEFAULT_SEARCH_ANALYZER_NAME}, that entry is similarly promoted to
+	 *       the reserved {@value #DEFAULT_SEARCH_ANALYZER_NAME} key.</li>
 	 * </ul>
-	 * Returns an empty list when {@code order} is null/empty.
+	 *
+	 * <p><b>Reference rewriting:</b> when a TextAnalyzer's analyzer entry references one of
+	 * its own owned components by name (e.g. {@code "filter": ["lowercase", "english_stop"]}
+	 * where {@code english_stop} is declared in the same TextAnalyzer's filter registry),
+	 * that reference must be rewritten to the namespaced form ({@code "biomed_pubs__english_stop"})
+	 * so it points at the registered component. Built-in and plugin names (e.g.
+	 * {@code "lowercase"}, {@code "standard"}) are not owned by any TextAnalyzer and pass
+	 * through verbatim. See {@link #rewriteAnalyzerEntry}.</p>
+	 *
+	 * @param a                AOSS analysis-builder being populated.
+	 * @param qname            qualified name of the TextAnalyzer
+	 *                         ({@code {organizationName}-{name}}).
+	 * @param resolvedSettings the TextAnalyzer's settings JSON, post-{@code $ref}
+	 *                         resolution.
+	 * @param isPrimary        true if this TextAnalyzer is the SearchConfiguration's
+	 *                         {@code defaultAnalyzer}; only its {@code default} /
+	 *                         {@code default_search} entries reach the unprefixed reserved
+	 *                         keys at the top of {@code analysis.analyzer}.
 	 */
-	static List<String> resolveFilterChain(String qname, List<String> order, Set<String> ownedNames,
-			List<String> synonymQnames) {
-		if (order == null || order.isEmpty()) {
-			return Collections.emptyList();
+	private void registerAnalyzer(IndexSettingsAnalysis.Builder a, String qname,
+			JsonNode resolvedSettings, boolean isPrimary) {
+		String aossKey = toAossKey(qname);
+		// Snapshot every component name this TextAnalyzer owns up-front; the chain-rewrite
+		// step needs the full owned-name sets to decide which references to namespace.
+		Set<String> ownedCharFilters = ownedNames(resolvedSettings.get("char_filter"));
+		Set<String> ownedTokenizers = ownedNames(resolvedSettings.get("tokenizer"));
+		Set<String> ownedFilters = ownedNames(resolvedSettings.get("filter"));
+
+		// Register each owned component under {aossKey}__{localName}. Each lambda routes
+		// to the right typed setter on the analysis builder for its component family.
+		registerComponentMap(resolvedSettings.get("char_filter"), aossKey, ownedCharFilters,
+				(name, def) -> {
+					CharFilterDefinition cfd = deserialize(def, CharFilterDefinition._DESERIALIZER);
+					a.charFilter(name, f -> f.definition(cfd));
+				});
+		registerComponentMap(resolvedSettings.get("tokenizer"), aossKey, ownedTokenizers,
+				(name, def) -> {
+					TokenizerDefinition td = deserialize(def, TokenizerDefinition._DESERIALIZER);
+					a.tokenizer(name, t -> t.definition(td));
+				});
+		registerComponentMap(resolvedSettings.get("filter"), aossKey, ownedFilters,
+				(name, def) -> {
+					TokenFilterDefinition tfd = deserialize(def, TokenFilterDefinition._DESERIALIZER);
+					a.filter(name, f -> f.definition(tfd));
+				});
+
+		// A TextAnalyzer with no analyzer entries is structurally legal (e.g. a registry-
+		// only resource), but won't be reachable from a SearchConfiguration. Nothing more
+		// to do for this TextAnalyzer in that case.
+		JsonNode analyzers = resolvedSettings.get("analyzer");
+		if (analyzers == null || !analyzers.isObject()) {
+			return;
 		}
-		List<String> resolved = new ArrayList<>(order.size());
-		for (String name : order) {
-			if (SYNONYM_PLACEHOLDER.equals(name)) {
-				resolved.addAll(synonymQnames);
-			} else if (ownedNames.contains(name)) {
-				resolved.add(qname + "__" + name);
-			} else {
-				resolved.add(name);
+		// Register each analyzer entry. The entry's own filter/tokenizer/char_filter chains
+		// are first rewritten so any reference to one of THIS TextAnalyzer's owned
+		// components points at the namespaced registry key.
+		Iterator<Map.Entry<String, JsonNode>> it = analyzers.fields();
+		while (it.hasNext()) {
+			Map.Entry<String, JsonNode> e = it.next();
+			String localName = e.getKey();
+			JsonNode rewritten = rewriteAnalyzerEntry(e.getValue(), aossKey,
+					ownedCharFilters, ownedFilters, ownedTokenizers);
+			Analyzer analyzer = deserialize(rewritten.toString(), Analyzer._DESERIALIZER);
+			String namespacedKey = aossKey + "__" + localName;
+			a.analyzer(namespacedKey, analyzer);
+			if (DEFAULT_ANALYZER_NAME.equals(localName)) {
+				// Bare-qname alias for the canonical "default" analyzer. Field mappings bind
+				// by the bare qname, so this alias is what makes the TextAnalyzer reachable
+				// from defaultAnalyzer / ColumnAnalyzerOverride.
+				a.analyzer(aossKey, analyzer);
+				if (isPrimary) {
+					// Promote the configuration's primary analyzer to OpenSearch's reserved
+					// `default` slot — picked up at analysis.analyzer.default.
+					a.analyzer(DEFAULT_ANALYZER_NAME, analyzer);
+				}
+			} else if (isPrimary && DEFAULT_SEARCH_ANALYZER_NAME.equals(localName)) {
+				// Promote the configuration's primary analyzer's `default_search` entry to
+				// OpenSearch's reserved `default_search` slot — picked up at
+				// analysis.analyzer.default_search at search time.
+				a.analyzer(DEFAULT_SEARCH_ANALYZER_NAME, analyzer);
 			}
 		}
-		return resolved;
 	}
 
-	static List<String> resolveOwnedChain(String qname, List<String> order, Set<String> ownedNames) {
-		// Char-filter chains don't get synonym injection — only token filter chains do.
-		if (order == null || order.isEmpty()) {
-			return Collections.emptyList();
+	/**
+	 * Return the set of keys of a registry map ({@code char_filter} / {@code tokenizer} /
+	 * {@code filter}) declared inside a TextAnalyzer's settings. These are the local names
+	 * that the same TextAnalyzer's analyzer chains may reference and that the rewrite step
+	 * must therefore namespace.
+	 *
+	 * @return the field names of {@code mapNode}, or an empty set if {@code mapNode} is
+	 *         absent or not an object.
+	 */
+	private static Set<String> ownedNames(JsonNode mapNode) {
+		if (mapNode == null || !mapNode.isObject()) {
+			return Collections.emptySet();
 		}
-		List<String> resolved = new ArrayList<>(order.size());
-		for (String name : order) {
-			if (ownedNames.contains(name)) {
-				resolved.add(qname + "__" + name);
-			} else {
-				resolved.add(name);
-			}
-		}
-		return resolved;
+		Set<String> result = new java.util.HashSet<>();
+		mapNode.fieldNames().forEachRemaining(result::add);
+		return result;
 	}
 
-	private void registerCustomAnalyzer(IndexSettingsAnalysis.Builder a, String name,
-			String tokenizer, List<String> filters, List<String> charFilters, Integer positionIncrementGap) {
-		a.analyzer(name, an -> an.custom(c -> {
-			c.tokenizer(tokenizer);
-			if (!filters.isEmpty()) {
-				c.filter(filters);
-			}
-			if (charFilters != null && !charFilters.isEmpty()) {
-				c.charFilter(charFilters);
-			}
-			if (positionIncrementGap != null) {
-				c.positionIncrementGap(positionIncrementGap);
-			}
-			return c;
-		}));
+	/**
+	 * Routes one entry of a typed registry map to the right {@link IndexSettingsAnalysis}
+	 * builder method. Lets {@link #registerComponentMap} share its iteration / namespacing
+	 * logic across all three component families (char filter, tokenizer, token filter)
+	 * without becoming generic over the typed AOSS client classes.
+	 */
+	private interface ComponentRegistrar {
+		/**
+		 * @param namespacedKey  the key to register under in AOSS, already in
+		 *                       {@code {aossKey}__{localName}} form.
+		 * @param definitionJson the component definition as serialized JSON, ready to be
+		 *                       deserialized into the registrar's typed AOSS class.
+		 */
+		void register(String namespacedKey, String definitionJson);
 	}
 
+	/**
+	 * Walk one of a TextAnalyzer's registry maps ({@code char_filter}, {@code tokenizer},
+	 * or {@code filter}) and register every owned entry into AOSS under its namespaced key.
+	 * No-ops when the map is absent / not an object / empty.
+	 *
+	 * @param mapNode    the registry map node from the TextAnalyzer's settings, may be
+	 *                   {@code null}.
+	 * @param aossKey    AOSS-safe form of the TextAnalyzer's qualified name, used as the
+	 *                   namespace prefix.
+	 * @param ownedNames the keys of {@code mapNode} (computed once by {@link #ownedNames}
+	 *                   and reused by both this method and the chain-rewrite step).
+	 * @param registrar  callback that registers one component under
+	 *                   {@code {aossKey}__{name}}.
+	 */
+	private static void registerComponentMap(JsonNode mapNode, String aossKey, Set<String> ownedNames,
+			ComponentRegistrar registrar) {
+		if (mapNode == null || !mapNode.isObject() || ownedNames.isEmpty()) {
+			return;
+		}
+		for (String name : ownedNames) {
+			JsonNode def = mapNode.get(name);
+			if (def == null) {
+				continue;
+			}
+			registrar.register(aossKey + "__" + name, def.toString());
+		}
+	}
+
+	/**
+	 * Rewrite chain-array references on one analyzer entry so they point at the namespaced
+	 * registry keys created by {@link #registerComponentMap}. Called by
+	 * {@link #registerAnalyzer} once per {@code analyzer.<localName>} entry, just before
+	 * the entry is serialized and registered into AOSS.
+	 *
+	 * <p>The entry has up to three chain fields, each handled the same way:</p>
+	 * <ul>
+	 *   <li>{@code "tokenizer": "<name>"} (scalar) &mdash; the named tokenizer.</li>
+	 *   <li>{@code "char_filter": ["<name>", ...]} (array) &mdash; ordered char filter chain.</li>
+	 *   <li>{@code "filter": ["<name>", ...]} (array) &mdash; ordered token filter chain.</li>
+	 * </ul>
+	 *
+	 * <p>For each name encountered:</p>
+	 * <ul>
+	 *   <li>If the name appears in the corresponding {@code ownedX} set, it refers to a
+	 *       component declared inside this same TextAnalyzer; rewrite to
+	 *       {@code {aossKey}__{name}}.</li>
+	 *   <li>Otherwise, the name is a built-in (e.g. {@code lowercase}, {@code standard})
+	 *       or a plugin filter that AOSS resolves on its own; leave it unchanged.</li>
+	 * </ul>
+	 *
+	 * <p>The input node is deep-copied before rewriting so callers' trees are never
+	 * mutated &mdash; safe to call multiple times with overlapping owned sets.</p>
+	 *
+	 * @param entry             the {@code analyzer.<localName>} JSON entry to rewrite.
+	 * @param aossKey           AOSS-safe form of the owning TextAnalyzer's qualified name.
+	 * @param ownedCharFilters  names declared by the owning TextAnalyzer's
+	 *                          {@code char_filter} registry.
+	 * @param ownedFilters      names declared by the owning TextAnalyzer's
+	 *                          {@code filter} registry.
+	 * @param ownedTokenizers   names declared by the owning TextAnalyzer's
+	 *                          {@code tokenizer} registry.
+	 * @return a new {@link JsonNode} with the rewritten chain references; the original
+	 *         {@code entry} is unmodified.
+	 */
+	static JsonNode rewriteAnalyzerEntry(JsonNode entry, String aossKey,
+			Set<String> ownedCharFilters, Set<String> ownedFilters, Set<String> ownedTokenizers) {
+		JsonNode clone = entry.deepCopy();
+		if (!clone.isObject()) {
+			return clone;
+		}
+		ObjectNode obj = (ObjectNode) clone;
+		rewriteScalarReference(obj, "tokenizer", aossKey, ownedTokenizers);
+		rewriteArrayReferences(obj, "char_filter", aossKey, ownedCharFilters);
+		rewriteArrayReferences(obj, "filter", aossKey, ownedFilters);
+		return obj;
+	}
+
+	/**
+	 * Rewrite a single scalar string field on {@code obj} (e.g. an analyzer's
+	 * {@code "tokenizer": "<name>"}). Replaces the value with {@code {aossKey}__{name}}
+	 * when {@code name} is in {@code owned}; otherwise leaves it unchanged. No-ops when
+	 * the field is absent or not a string.
+	 */
+	private static void rewriteScalarReference(ObjectNode obj,
+			String field, String aossKey, Set<String> owned) {
+		JsonNode v = obj.get(field);
+		if (v == null || !v.isTextual()) {
+			return;
+		}
+		String name = v.asText();
+		if (owned.contains(name)) {
+			obj.put(field, aossKey + "__" + name);
+		}
+	}
+
+	/**
+	 * Rewrite a string-array field on {@code obj} (e.g. an analyzer's
+	 * {@code "filter": ["<name>", ...]}) in place. Each array element whose value is in
+	 * {@code owned} is replaced with {@code {aossKey}__{name}}; non-string entries and
+	 * names outside {@code owned} are left as-is. No-ops when the field is absent or not
+	 * an array. Order is preserved &mdash; the chain order in the original analyzer is
+	 * the chain order AOSS will execute.
+	 */
+	private static void rewriteArrayReferences(ObjectNode obj,
+			String field, String aossKey, Set<String> owned) {
+		JsonNode v = obj.get(field);
+		if (v == null || !v.isArray()) {
+			return;
+		}
+		ArrayNode arr = (ArrayNode) v;
+		for (int i = 0; i < arr.size(); i++) {
+			JsonNode item = arr.get(i);
+			if (item != null && item.isTextual() && owned.contains(item.asText())) {
+				arr.set(i, TextNode.valueOf(
+						aossKey + "__" + item.asText()));
+			}
+		}
+	}
+
+	/**
+	 * Build the OpenSearch index's field mappings. The per-column analyzer is whichever
+	 * TextAnalyzer wins precedence (override &gt; column-type default == primary &gt; column-type
+	 * default differs); when that TextAnalyzer declares an {@code analyzer.default_search}
+	 * entry, the field's {@code search_analyzer} is bound to its namespaced registry key so
+	 * asymmetric search-time analysis applies regardless of which lever pulled the analyzer
+	 * in.
+	 */
 	private void buildMappings(org.opensearch.client.opensearch._types.mapping.TypeMapping.Builder m,
-			List<ColumnModel> columns, String defaultIndexAnalyzer, String defaultSearchAnalyzer,
-			Map<String, ColumnAnalyzerOverrideEntry> overrideMap, Map<String, TextAnalyzer> analyzers) {
+			List<ColumnModel> columns, String defaultAnalyzerQname,
+			Map<String, ColumnAnalyzerOverrideEntry> overrideMap,
+			Map<String, JsonNode> resolvedAnalyzers) {
+		Set<String> registeredAnalyzerQnames = resolvedAnalyzers.keySet();
 		m.properties(SYSTEM_FIELD_ROW_ID, p -> p.long_(l -> l));
 		m.properties(SYSTEM_FIELD_ROW_VERSION, p -> p.long_(l -> l));
-
-		Map<Long, String> idToQualifiedName = buildIdToQualifiedNameMap(analyzers);
 
 		for (ColumnModel column : columns) {
 			String columnId = column.getId();
 			ColumnType columnType = column.getColumnType();
-			String effectiveIndexQname = resolveEffectiveAnalyzerQname(
-					columnId, columnType, defaultIndexAnalyzer, overrideMap, idToQualifiedName, /*search*/ false);
-			String effectiveSearchQname = resolveEffectiveAnalyzerQname(
-					columnId, columnType, defaultSearchAnalyzer, overrideMap, idToQualifiedName, /*search*/ true);
-			ValidateArgument.required(analyzers.get(effectiveIndexQname),
-					"index analyzer '" + effectiveIndexQname + "' for column " + columnId);
 
-			m.properties(columnId, buildProperty(columnType,
-					effectiveIndexQname, effectiveSearchQname, analyzers));
+			ColumnAnalyzerOverrideEntry override = overrideMap.get(columnId);
+
+			// Per-column resolution. See the per-bullet rules in the method javadoc above.
+			String effectiveQname;
+			if (override != null) {
+				effectiveQname = override.getAnalyzer();
+			} else {
+				String typeDefault = ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(columnType);
+				if (typeDefault == null || typeDefault.equals(defaultAnalyzerQname)) {
+					effectiveQname = null;
+				} else {
+					effectiveQname = typeDefault;
+				}
+			}
+
+			if (effectiveQname != null) {
+				ValidateArgument.requirement(registeredAnalyzerQnames.contains(effectiveQname),
+						"analyzer '" + effectiveQname + "' for column " + columnId
+								+ " was not registered.");
+			}
+
+			boolean hasDefaultSearch = effectiveQname != null
+					&& analyzerDeclaresDefaultSearch(resolvedAnalyzers, effectiveQname);
+
+			m.properties(columnId, buildProperty(columnType, effectiveQname, hasDefaultSearch));
 		}
+	}
+
+	private static boolean analyzerDeclaresDefaultSearch(Map<String, JsonNode> resolvedAnalyzers,
+			String qname) {
+		JsonNode resolved = resolvedAnalyzers.get(qname);
+		if (resolved == null) {
+			return false;
+		}
+		JsonNode defaultSearch = resolved.at("/analyzer/" + DEFAULT_SEARCH_ANALYZER_NAME);
+		return defaultSearch != null && defaultSearch.isObject();
 	}
 
 	@Override
@@ -717,73 +925,21 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	@Override
 	public SearchQueryResults search(String indexName, SearchQuery query, List<ColumnModel> columns,
-			String defaultSearchAnalyzer,
-			List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, TextAnalyzer> analyzers, Set<SearchQueryPart> options) {
-		return executeSearch(indexName, query, columns, defaultSearchAnalyzer, columnAnalyzerOverrides, analyzers, options);
+			Set<SearchQueryPart> options) {
+		return executeSearch(indexName, query, columns, options);
 	}
 
 	@Override
 	public SearchQueryResults autocomplete(String indexName, SearchQuery query, List<ColumnModel> columns,
-			String defaultSearchAnalyzer,
-			List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, TextAnalyzer> analyzers, Set<SearchQueryPart> options) {
+			Set<SearchQueryPart> options) {
 		query.setQueryType(SearchQueryType.PREFIX);
 		if (query.getLimit() == null || query.getLimit() > AUTOCOMPLETE_MAX_LIMIT) {
 			query.setLimit((long) AUTOCOMPLETE_MAX_LIMIT);
 		}
-		return executeSearch(indexName, query, columns, defaultSearchAnalyzer, columnAnalyzerOverrides, analyzers, options);
+		return executeSearch(indexName, query, columns, options);
 	}
 
 	// ---- Private helpers ----
-
-	/**
-	 * Register the analyzer's tokenizer under {@code settings.analysis.tokenizer}. If the
-	 * component carries a {@code definition}, it's registered as a custom tokenizer keyed
-	 * by {@code <qname>__<name>} and that key is returned. Otherwise {@code name} is the
-	 * built-in OpenSearch tokenizer name and is returned unchanged.
-	 */
-	private String registerTokenizer(IndexSettingsAnalysis.Builder a, String qname, AnalyzerComponent tokenizer) {
-		String name = tokenizer.getName();
-		String defJson = tokenizer.getDefinition();
-		if (defJson == null || defJson.isEmpty()) {
-			return name;
-		}
-		String key = qname + "__" + name;
-		TokenizerDefinition def = deserialize(defJson, TokenizerDefinition._DESERIALIZER);
-		a.tokenizer(key, t -> t.definition(def));
-		return key;
-	}
-
-	private void registerTokenFilterDefs(IndexSettingsAnalysis.Builder a, String qname, List<AnalyzerComponent> components) {
-		if (components == null) {
-			return;
-		}
-		for (AnalyzerComponent c : components) {
-			String defJson = c.getDefinition();
-			if (defJson == null || defJson.isEmpty()) {
-				continue;
-			}
-			String key = qname + "__" + c.getName();
-			TokenFilterDefinition def = deserialize(defJson, TokenFilterDefinition._DESERIALIZER);
-			a.filter(key, f -> f.definition(def));
-		}
-	}
-
-	private void registerCharFilterDefs(IndexSettingsAnalysis.Builder a, String qname, List<AnalyzerComponent> components) {
-		if (components == null) {
-			return;
-		}
-		for (AnalyzerComponent c : components) {
-			String defJson = c.getDefinition();
-			if (defJson == null || defJson.isEmpty()) {
-				continue;
-			}
-			String key = qname + "__" + c.getName();
-			CharFilterDefinition def = deserialize(defJson, CharFilterDefinition._DESERIALIZER);
-			a.charFilter(key, f -> f.definition(def));
-		}
-	}
 
 	private <T> T deserialize(String json, JsonpDeserializer<T> deserializer) {
 		JsonpMapper mapper = openSearchClient._transport().jsonpMapper();
@@ -793,12 +949,10 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	private SearchQueryResults executeSearch(String indexName, SearchQuery query, List<ColumnModel> columns,
-			String defaultAnalyzer, List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, TextAnalyzer> analyzers, Set<SearchQueryPart> options) {
+			Set<SearchQueryPart> options) {
 
 		Map<String, String> nameToId = columns.stream()
 				.collect(Collectors.toMap(ColumnModel::getName, ColumnModel::getId, (a2, b) -> a2));
-		Map<String, ColumnAnalyzerOverrideEntry> overrideMap = buildOverrideMap(columnAnalyzerOverrides, nameToId);
 		Map<String, ColumnModel> columnMap = columns.stream()
 				.collect(Collectors.toMap(ColumnModel::getId, c -> c, (a2, b) -> a2));
 
@@ -815,32 +969,30 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 		final SearchQueryType finalQueryType = queryType;
 		final String finalQueryText = queryText;
-		Map<Long, String> idToQualifiedName = buildIdToQualifiedNameMap(analyzers);
 
-		List<String> resolvedQueryFields = resolveQueryFields(query.getQueryFields(), columns, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName, true);
+		List<String> resolvedQueryFields = resolveQueryFields(query.getQueryFields(), columns, true);
 
 		BoolQuery.Builder boolBuilder = new BoolQuery.Builder();
 
 		Query mainQuery = buildMainQuery(finalQueryType, finalQueryText, resolvedQueryFields, fuzziness);
 		boolBuilder.must(mainQuery);
 
-		addFilters(boolBuilder, query, columnMap, nameToId, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName);
+		addFilters(boolBuilder, query, columnMap, nameToId);
 
 		// Skip aggregation construction entirely when the caller didn't ask for FACETS.
 		Map<String, Aggregation> aggregations = options.contains(SearchQueryPart.FACETS)
-				? buildAggregations(query.getFacetRequests(), columnMap, nameToId, defaultAnalyzer,
-						overrideMap, analyzers, idToQualifiedName)
+				? buildAggregations(query.getFacetRequests(), columnMap, nameToId)
 				: Collections.emptyMap();
 
 		Map<String, HighlightField> highlightFields = null;
 		if (options.contains(SearchQueryPart.HITS) && Boolean.TRUE.equals(query.getHighlight())) {
-			highlightFields = buildHighlightFields(columns, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName);
+			highlightFields = buildHighlightFields(columns);
 		}
 
 		List<String> returnFields = query.getReturnFields();
 
 		List<SortOptions> sortOptions = options.contains(SearchQueryPart.HITS)
-				? buildSortOptions(query.getSort(), columnMap, nameToId, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName)
+				? buildSortOptions(query.getSort(), columnMap, nameToId)
 				: Collections.emptyList();
 
 		Map<String, String> idToName = columns.stream()
@@ -959,25 +1111,21 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	private void addFilters(BoolQuery.Builder boolBuilder, SearchQuery query,
-			Map<String, ColumnModel> columnMap, Map<String, String> nameToId, String defaultAnalyzer,
-			Map<String, ColumnAnalyzerOverrideEntry> overrideMap, Map<String, TextAnalyzer> analyzers,
-			Map<Long, String> idToQualifiedName) {
-		addTermsFilters(boolBuilder, query.getTermsFilters(), columnMap, nameToId, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName);
-		addRangeFilters(boolBuilder, query.getRangeFilters(), columnMap, nameToId, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName);
+			Map<String, ColumnModel> columnMap, Map<String, String> nameToId) {
+		addTermsFilters(boolBuilder, query.getTermsFilters(), columnMap, nameToId);
+		addRangeFilters(boolBuilder, query.getRangeFilters(), columnMap, nameToId);
 		addExistsFilters(boolBuilder, query.getExistsFilters(), nameToId, false);
 		addExistsFilters(boolBuilder, query.getNotExistsFilters(), nameToId, true);
 	}
 
 	private void addTermsFilters(BoolQuery.Builder boolBuilder, List<KeyValues> termsFilters,
-			Map<String, ColumnModel> columnMap, Map<String, String> nameToId, String defaultAnalyzer,
-			Map<String, ColumnAnalyzerOverrideEntry> overrideMap, Map<String, TextAnalyzer> analyzers,
-			Map<Long, String> idToQualifiedName) {
+			Map<String, ColumnModel> columnMap, Map<String, String> nameToId) {
 		if (termsFilters == null) {
 			return;
 		}
 		for (KeyValues kvs : termsFilters) {
 			String columnId = nameToId.getOrDefault(kvs.getKey(), kvs.getKey());
-			String fieldName = getFilterFieldName(columnId, columnMap, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName);
+			String fieldName = getFilterFieldName(columnId, columnMap);
 			List<FieldValue> fieldValues = kvs.getValues().stream()
 					.map(FieldValue::of)
 					.collect(Collectors.toList());
@@ -993,15 +1141,13 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	private void addRangeFilters(BoolQuery.Builder boolBuilder, List<KeyRange> rangeFilters,
-			Map<String, ColumnModel> columnMap, Map<String, String> nameToId, String defaultAnalyzer,
-			Map<String, ColumnAnalyzerOverrideEntry> overrideMap, Map<String, TextAnalyzer> analyzers,
-			Map<Long, String> idToQualifiedName) {
+			Map<String, ColumnModel> columnMap, Map<String, String> nameToId) {
 		if (rangeFilters == null) {
 			return;
 		}
 		for (KeyRange kr : rangeFilters) {
 			String columnId = nameToId.getOrDefault(kr.getKey(), kr.getKey());
-			String fieldName = getFilterFieldName(columnId, columnMap, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName);
+			String fieldName = getFilterFieldName(columnId, columnMap);
 			Query rangeQuery = Query.of(q -> q.range(r -> {
 				r.field(fieldName);
 				if (kr.getMin() != null) {
@@ -1033,9 +1179,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	Map<String, Aggregation> buildAggregations(List<FacetRequest> facetRequests,
-			Map<String, ColumnModel> columnMap, Map<String, String> nameToId, String defaultAnalyzer,
-			Map<String, ColumnAnalyzerOverrideEntry> overrideMap, Map<String, TextAnalyzer> analyzers,
-			Map<Long, String> idToQualifiedName) {
+			Map<String, ColumnModel> columnMap, Map<String, String> nameToId) {
 		if (facetRequests == null || facetRequests.isEmpty()) {
 			return Collections.emptyMap();
 		}
@@ -1043,7 +1187,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		Map<String, Aggregation> aggregations = new HashMap<>();
 		for (FacetRequest facet : facetRequests) {
 			String columnId = nameToId.getOrDefault(facet.getColumnName(), facet.getColumnName());
-			String fieldName = getFilterFieldName(columnId, columnMap, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName);
+			String fieldName = getFilterFieldName(columnId, columnMap);
 			int maxValues = facet.getMaxValueCount() != null ? facet.getMaxValueCount().intValue() : DEFAULT_FACET_SIZE;
 
 			String sortField = facet.getSortField() == FacetSortField.KEY ? "_key" : "_count";
@@ -1059,9 +1203,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		return aggregations;
 	}
 
-	Map<String, HighlightField> buildHighlightFields(List<ColumnModel> columns,
-			String defaultAnalyzer, Map<String, ColumnAnalyzerOverrideEntry> overrideMap,
-			Map<String, TextAnalyzer> analyzers, Map<Long, String> idToQualifiedName) {
+	Map<String, HighlightField> buildHighlightFields(List<ColumnModel> columns) {
 		Map<String, HighlightField> highlightFields = new HashMap<>();
 		for (ColumnModel column : columns) {
 			String columnId = column.getId();
@@ -1075,9 +1217,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	}
 
 	List<SortOptions> buildSortOptions(List<SortField> sortFields,
-			Map<String, ColumnModel> columnMap, Map<String, String> nameToId, String defaultAnalyzer,
-			Map<String, ColumnAnalyzerOverrideEntry> overrideMap, Map<String, TextAnalyzer> analyzers,
-			Map<Long, String> idToQualifiedName) {
+			Map<String, ColumnModel> columnMap, Map<String, String> nameToId) {
 		if (sortFields == null || sortFields.isEmpty()) {
 			return Collections.singletonList(
 				SortOptions.of(so -> so.field(FieldSort.of(fs -> fs.field("_score").order(SortOrder.Desc))))
@@ -1090,7 +1230,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 						sortField = "_score";
 					} else {
 						String columnId = nameToId.getOrDefault(sf.getColumnName(), sf.getColumnName());
-						sortField = getFilterFieldName(columnId, columnMap, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName);
+						sortField = getFilterFieldName(columnId, columnMap);
 					}
 					SortOrder order = (sf.getDirection() == SortDirection.ASC) ? SortOrder.Asc : SortOrder.Desc;
 					return SortOptions.of(so -> so.field(FieldSort.of(fs -> fs.field(sortField).order(order))));
@@ -1098,9 +1238,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 				.collect(Collectors.toList());
 	}
 
-	String getFilterFieldName(String columnId, Map<String, ColumnModel> columnMap,
-			String defaultAnalyzer, Map<String, ColumnAnalyzerOverrideEntry> overrideMap,
-			Map<String, TextAnalyzer> analyzers, Map<Long, String> idToQualifiedName) {
+	String getFilterFieldName(String columnId, Map<String, ColumnModel> columnMap) {
 		ColumnModel column = columnMap.get(columnId);
 		if (column == null) {
 			return columnId;
@@ -1117,17 +1255,14 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		return columnId;
 	}
 
-	String getSearchFieldName(String columnId, Map<String, ColumnModel> columnMap,
-			String defaultAnalyzer, Map<String, ColumnAnalyzerOverrideEntry> overrideMap,
-			Map<String, TextAnalyzer> analyzers, Map<Long, String> idToQualifiedName) {
+	String getSearchFieldName(String columnId) {
 		// Search-path fields use the main analyzed field for TEXT/LINK; the `.keyword`
 		// sub-field is only consulted by filter / sort code paths above.
 		return columnId;
 	}
 
 	List<String> resolveQueryFields(List<String> queryFields, List<ColumnModel> columns,
-			String defaultAnalyzer, Map<String, ColumnAnalyzerOverrideEntry> overrideMap,
-			Map<String, TextAnalyzer> analyzers, Map<Long, String> idToQualifiedName, boolean forSearch) {
+			boolean forSearch) {
 		if (queryFields == null || queryFields.isEmpty()) {
 			return null;
 		}
@@ -1148,8 +1283,8 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 					}
 					String columnId = nameToIdLocal.getOrDefault(fieldName, fieldName);
 					String resolved = forSearch
-							? getSearchFieldName(columnId, columnMap, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName)
-							: getFilterFieldName(columnId, columnMap, defaultAnalyzer, overrideMap, analyzers, idToQualifiedName);
+							? getSearchFieldName(columnId)
+							: getFilterFieldName(columnId, columnMap);
 					return boost != null ? resolved + boost : resolved;
 				})
 				.collect(Collectors.toList());
@@ -1303,15 +1438,14 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	 * Build the OpenSearch field property for a given column type and resolved analyzer qnames.
 	 */
 	private Property buildProperty(ColumnType columnType,
-			String indexQname, String searchQname,
-			Map<String, TextAnalyzer> analyzers) {
+			String qname, boolean hasDefaultSearch) {
 
 		// LINK columns map exactly like TEXT columns. Users who want full-text search
 		// on a URL pick a text-style analyzer via ColumnAnalyzerOverride; users who want
 		// exact-match-only stay on the KEYWORD analyzer and rely on the `.keyword` sub-field.
 		if (ColumnTypeToOpenSearchMapping.isTextType(columnType)
 				|| ColumnTypeToOpenSearchMapping.isLinkType(columnType)) {
-			return buildTextProperty(columnType, indexQname, searchQname, analyzers);
+			return buildTextProperty(columnType, qname, hasDefaultSearch);
 		}
 
 		if (ColumnTypeToOpenSearchMapping.isKeywordType(columnType)) {
@@ -1340,68 +1474,28 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		return Property.of(p -> p.text(t -> t));
 	}
 
-	private Property buildTextProperty(ColumnType columnType, String indexQname, String searchQname,
-			Map<String, TextAnalyzer> analyzers) {
+	private Property buildTextProperty(ColumnType columnType, String qname, boolean hasDefaultSearch) {
 		Integer ignoreAbove = ColumnTypeToOpenSearchMapping.getIgnoreAbove(columnType);
 		final int finalIa = ignoreAbove != null ? ignoreAbove : 1000;
-		// analyzer / search_analyzer must reference the same keys that buildAnalysisSettings
-		// registered the analyzer under — both sides go through toAossKey.
-		final String indexKey = toAossKey(indexQname);
-		final String searchKey = searchVariantOf(searchQname, analyzers);
+		// When qname is null OpenSearch falls through to analysis.analyzer.default (and
+		// default_search). When the referenced TextAnalyzer declares default_search, we must
+		// bind the namespaced registry key explicitly — the bare-qname alias points only at
+		// `default`.
+		final String indexKey = toAossKey(qname);
+		final String searchKey = (qname != null && hasDefaultSearch)
+				? toAossKey(qname) + "__" + DEFAULT_SEARCH_ANALYZER_NAME
+				: null;
 
 		return Property.of(p -> p.text(t -> {
-			t.analyzer(indexKey);
-			if (!indexKey.equals(searchKey)) {
+			if (indexKey != null) {
+				t.analyzer(indexKey);
+			}
+			if (searchKey != null) {
 				t.searchAnalyzer(searchKey);
 			}
 			t.fields(SUB_FIELD_KEYWORD, f -> f.keyword(k -> k.ignoreAbove(finalIa)));
 			return t;
 		}));
-	}
-
-	/**
-	 * Resolve which analyzer key the field mapping's {@code search_analyzer} should bind to.
-	 * If the analyzer at {@code qname} carries a distinct {@code searchFilterOrder}, the
-	 * translator registered a {@code <aossKey>__search} variant — return that. Otherwise
-	 * the analyzer is symmetric and the sanitized {@code aossKey} suffices. The lookup
-	 * into {@code analyzers} is by the user-facing qname (the map key), but the returned
-	 * value is always the AOSS-side settings key.
-	 */
-	private static String searchVariantOf(String qname, Map<String, TextAnalyzer> analyzers) {
-		String aossKey = toAossKey(qname);
-		TextAnalyzer a = analyzers.get(qname);
-		if (a == null || a.getSettings() == null) {
-			return aossKey;
-		}
-		List<String> search = a.getSettings().getSearchFilterOrder();
-		if (search == null || search.isEmpty()) {
-			return aossKey;
-		}
-		List<String> index = a.getSettings().getIndexFilterOrder() != null
-				? a.getSettings().getIndexFilterOrder() : Collections.emptyList();
-		return index.equals(search) ? aossKey : aossKey + SEARCH_ANALYZER_SUFFIX;
-	}
-
-	/**
-	 * Resolve the effective analyzer qualified name for a column at either index time or
-	 * search time. Override (if present) wins over the corresponding default; otherwise the
-	 * default; otherwise the platform default for the column type.
-	 */
-	String resolveEffectiveAnalyzerQname(String columnId, ColumnType columnType,
-			String defaultQname, Map<String, ColumnAnalyzerOverrideEntry> overrideMap,
-			Map<Long, String> idToQualifiedName, boolean searchSide) {
-		ColumnAnalyzerOverrideEntry entry = overrideMap.get(columnId);
-		if (entry != null) {
-			String override = searchSide ? entry.getSearchAnalyzer() : entry.getIndexAnalyzer();
-			if (override != null) {
-				return override;
-			}
-		}
-		if (defaultQname != null) {
-			return defaultQname;
-		}
-		Long defaultId = ColumnTypeToOpenSearchMapping.getDefaultAnalyzerId(columnType);
-		return idToQualifiedName.get(defaultId);
 	}
 
 	Map<String, ColumnAnalyzerOverrideEntry> buildOverrideMap(
@@ -1424,14 +1518,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		return map;
 	}
 
-	static Map<Long, String> buildIdToQualifiedNameMap(Map<String, TextAnalyzer> analyzers) {
-		Map<Long, String> result = new HashMap<>();
-		for (Map.Entry<String, TextAnalyzer> entry : analyzers.entrySet()) {
-			result.put(Long.parseLong(entry.getValue().getId()), entry.getKey());
-		}
-		return result;
-	}
-
 	String stripBoost(String fieldSpec) {
 		int caretIndex = fieldSpec.indexOf('^');
 		return caretIndex > 0 ? fieldSpec.substring(0, caretIndex) : fieldSpec;
@@ -1448,153 +1534,4 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		}
 	}
 
-	/**
-	 * Validate this analyzer's owned components against AOSS by submitting an {@code _analyze}
-	 * call with: the analyzer's tokenizer, every char filter it owns (in {@code charFilterOrder}),
-	 * and every token filter it owns (in {@code indexFilterOrder}). Names in the order arrays
-	 * that don't resolve to an owned component are skipped — they're either built-in OpenSearch
-	 * names (AOSS will accept those at index-build time) or SynonymSet qualified names (validated
-	 * lazily at index-build time, when SynonymSets are loaded).
-	 */
-	@Override
-	public void validateAnalyzerSettings(TextAnalyzerSettings settings) {
-		ValidateArgument.required(settings, "settings");
-		ValidateArgument.required(settings.getTokenizer(), "settings.tokenizer");
-
-		// Reject file-based parameters up front — AOSS Serverless can't honor them and
-		// would return a confusing error at index-build time. The check runs against the
-		// tokenizer's definition and every owned char-/token-filter definition.
-		SearchResourceConstants.rejectFilePathParameters(
-				settings.getTokenizer().getDefinition(), "tokenizer.definition");
-		if (settings.getCharFilters() != null) {
-			for (AnalyzerComponent c : settings.getCharFilters()) {
-				SearchResourceConstants.rejectFilePathParameters(c.getDefinition(),
-						"charFilters[" + c.getName() + "].definition");
-			}
-		}
-		if (settings.getTokenFilters() != null) {
-			for (AnalyzerComponent c : settings.getTokenFilters()) {
-				SearchResourceConstants.rejectFilePathParameters(c.getDefinition(),
-						"tokenFilters[" + c.getName() + "].definition");
-			}
-		}
-
-		Tokenizer tokenizer = buildTokenizer(settings.getTokenizer());
-		List<TokenFilter> tokenFilters = buildOwnedTokenFilters(settings);
-		List<CharFilter> charFilters = buildOwnedCharFilters(settings);
-
-		// AOSS occasionally returns transient 5xx / network errors. Use the existing
-		// exponential-backoff retry helper to absorb those before surfacing the error;
-		// 4xx (IllegalArgumentException) is raised immediately without retry because
-		// it's a permanent configuration problem the user must fix.
-		try {
-			TimeUtils.waitForExponentialMaxRetry(VALIDATE_MAX_RETRIES, VALIDATE_INITIAL_BACKOFF_MS, () -> {
-				try {
-					openSearchClient.indices().analyze(req -> {
-						req.tokenizer(tokenizer);
-						req.text("The quick brown fox jumps over the lazy dog");
-						if (!tokenFilters.isEmpty()) {
-							req.filter(tokenFilters);
-						}
-						if (!charFilters.isEmpty()) {
-							req.charFilter(charFilters);
-						}
-						return req;
-					});
-					return Boolean.TRUE;
-				} catch (OpenSearchException e) {
-					throw new IllegalArgumentException(
-						"Invalid analyzer configuration: " + describeError(e.error())
-						+ ". Check your tokenizer, token filters, and character filters.", e);
-				} catch (IOException e) {
-					throw new RetryException(e);
-				}
-			});
-		} catch (RetryException e) {
-			throw new IllegalStateException(
-				"Unable to validate analyzer settings: the search service is temporarily unavailable. Please try again later.",
-				e.getCause());
-		} catch (IllegalArgumentException e) {
-			throw e;
-		} catch (RuntimeException e) {
-			throw e;
-		} catch (Exception e) {
-			throw new IllegalStateException(
-				"Unable to validate analyzer settings: " + e.getMessage(), e);
-		}
-	}
-
-	private Tokenizer buildTokenizer(AnalyzerComponent tokenizer) {
-		try {
-			String defJson = tokenizer.getDefinition();
-			if (defJson != null && !defJson.isEmpty()) {
-				TokenizerDefinition def = deserialize(defJson, TokenizerDefinition._DESERIALIZER);
-				return Tokenizer.of(t -> t.definition(def));
-			}
-			return Tokenizer.of(t -> t.name(tokenizer.getName()));
-		} catch (Exception e) {
-			throw new IllegalArgumentException("Invalid tokenizer configuration: " + e.getMessage(), e);
-		}
-	}
-
-	/**
-	 * Build a list of TokenFilter values for the analyzer's {@code indexFilterOrder} chain
-	 * containing only the filters this analyzer owns. References to other names (built-ins,
-	 * SynonymSet qnames) are skipped — AOSS would reject them in the validation probe since
-	 * we're calling {@code _analyze} outside of any index context.
-	 */
-	private List<TokenFilter> buildOwnedTokenFilters(TextAnalyzerSettings settings) {
-		Map<String, AnalyzerComponent> owned = mapByName(settings.getTokenFilters());
-		List<String> order = settings.getIndexFilterOrder();
-		if (order == null || owned.isEmpty()) {
-			return Collections.emptyList();
-		}
-		List<TokenFilter> result = new ArrayList<>();
-		for (String name : order) {
-			AnalyzerComponent c = owned.get(name);
-			if (c == null || c.getDefinition() == null || c.getDefinition().isEmpty()) {
-				continue;
-			}
-			try {
-				TokenFilterDefinition def = deserialize(c.getDefinition(), TokenFilterDefinition._DESERIALIZER);
-				result.add(TokenFilter.of(f -> f.definition(def)));
-			} catch (Exception e) {
-				throw new IllegalArgumentException("Invalid token filter definition for '" + name + "': " + e.getMessage(), e);
-			}
-		}
-		return result;
-	}
-
-	private List<CharFilter> buildOwnedCharFilters(TextAnalyzerSettings settings) {
-		Map<String, AnalyzerComponent> owned = mapByName(settings.getCharFilters());
-		List<String> order = settings.getCharFilterOrder();
-		if (order == null || owned.isEmpty()) {
-			return Collections.emptyList();
-		}
-		List<CharFilter> result = new ArrayList<>();
-		for (String name : order) {
-			AnalyzerComponent c = owned.get(name);
-			if (c == null || c.getDefinition() == null || c.getDefinition().isEmpty()) {
-				continue;
-			}
-			try {
-				CharFilterDefinition def = deserialize(c.getDefinition(), CharFilterDefinition._DESERIALIZER);
-				result.add(CharFilter.of(f -> f.definition(def)));
-			} catch (Exception e) {
-				throw new IllegalArgumentException("Invalid char filter definition for '" + name + "': " + e.getMessage(), e);
-			}
-		}
-		return result;
-	}
-
-	private static Map<String, AnalyzerComponent> mapByName(List<AnalyzerComponent> components) {
-		if (components == null || components.isEmpty()) {
-			return Collections.emptyMap();
-		}
-		Map<String, AnalyzerComponent> map = new HashMap<>();
-		for (AnalyzerComponent c : components) {
-			map.put(c.getName(), c);
-		}
-		return map;
-	}
 }

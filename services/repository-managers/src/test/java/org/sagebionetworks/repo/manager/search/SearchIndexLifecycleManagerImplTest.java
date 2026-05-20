@@ -85,76 +85,54 @@ public class SearchIndexLifecycleManagerImplTest {
 	@InjectMocks
 	private SearchIndexLifecycleManagerImpl manager;
 
-	// --- loadConfiguredSynonymSets ---
+	// --- resolveAnalyzers ---
 
 	@Test
-	public void testLoadConfiguredSynonymSetsReturnsEmptyForNullConfig() {
-		// call under test
-		List<SynonymSet> result = manager.loadConfiguredSynonymSets(null);
+	public void testResolveAnalyzersWithoutRefsDoesNotTouchSynonymSetDao() {
+		String settings = "{\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\"}}}";
+		TextAnalyzer ta = new TextAnalyzer().setId("1").setOrganizationName("org").setName("noop")
+				.setSettings(settings);
 
-		assertTrue(result.isEmpty());
+		// call under test
+		Map<String, com.fasterxml.jackson.databind.JsonNode> resolved =
+				manager.resolveAnalyzers(Collections.singletonMap("org-noop", ta));
+
+		assertEquals(1, resolved.size());
 		verifyZeroInteractions(synonymSetDao);
 	}
 
 	@Test
-	public void testLoadConfiguredSynonymSetsReturnsEmptyForConfigWithoutSynonymSets() {
-		SearchConfiguration config = new SearchConfiguration();
-		// call under test
-		List<SynonymSet> result = manager.loadConfiguredSynonymSets(config);
-
-		assertTrue(result.isEmpty());
-		verifyZeroInteractions(synonymSetDao);
-	}
-
-	@Test
-	public void testLoadConfiguredSynonymSetsReturnsEmptyForConfigWithEmptySynonymSets() {
-		SearchConfiguration config = new SearchConfiguration().setSynonymSets(Collections.emptyList());
-		// call under test
-		List<SynonymSet> result = manager.loadConfiguredSynonymSets(config);
-
-		assertTrue(result.isEmpty());
-		verifyZeroInteractions(synonymSetDao);
-	}
-
-	@Test
-	public void testLoadConfiguredSynonymSetsPreservesOrder() {
-		// SearchConfiguration lists qnames in a specific order; the result must come back
-		// in the same order even when the DAO returns them in a different (map) order.
-		SearchConfiguration config = new SearchConfiguration()
-				.setSynonymSets(Arrays.asList("org123-medical_terms", "org123-disease_acronyms"));
-
-		SynonymSet med = new SynonymSet().setId("100").setOrganizationName("org123").setName("medical_terms")
+	public void testResolveAnalyzersResolvesRefAgainstSynonymSetDao() {
+		String settings = "{\"filter\":{\"med\":{\"$ref\":\"biomed-medical_terms\"}}}";
+		TextAnalyzer ta = new TextAnalyzer().setId("1").setOrganizationName("biomed").setName("publications")
+				.setSettings(settings);
+		SynonymSet ss = new SynonymSet().setId("100").setOrganizationName("biomed").setName("medical_terms")
 				.setDefinition("{\"type\":\"synonym_graph\",\"synonyms\":[\"a, b\"]}");
-		SynonymSet acr = new SynonymSet().setId("101").setOrganizationName("org123").setName("disease_acronyms")
-				.setDefinition("{\"type\":\"synonym_graph\",\"synonyms\":[\"AD, alzheimer\"]}");
-
-		Map<String, SynonymSet> daoResult = new HashMap<>();
-		daoResult.put("org123-disease_acronyms", acr);
-		daoResult.put("org123-medical_terms", med);
-		when(synonymSetDao.getByQualifiedNames(config.getSynonymSets())).thenReturn(daoResult);
+		when(synonymSetDao.getByQualifiedNames(Collections.singletonList("biomed-medical_terms")))
+				.thenReturn(Collections.singletonMap("biomed-medical_terms", ss));
 
 		// call under test
-		List<SynonymSet> result = manager.loadConfiguredSynonymSets(config);
+		Map<String, com.fasterxml.jackson.databind.JsonNode> resolved =
+				manager.resolveAnalyzers(Collections.singletonMap("biomed-publications", ta));
 
-		assertEquals(Arrays.asList(med, acr), result);
+		assertEquals("synonym_graph",
+				resolved.get("biomed-publications").at("/filter/med/type").asText());
 	}
 
 	@Test
-	public void testLoadConfiguredSynonymSetsThrowsOnMissingQname() {
-		SearchConfiguration config = new SearchConfiguration()
-				.setSynonymSets(Arrays.asList("org123-exists", "org123-gone"));
-
-		SynonymSet exists = new SynonymSet().setId("100").setOrganizationName("org123").setName("exists")
-				.setDefinition("{\"type\":\"synonym_graph\",\"synonyms\":[\"a, b\"]}");
-		when(synonymSetDao.getByQualifiedNames(config.getSynonymSets()))
-				.thenReturn(Collections.singletonMap("org123-exists", exists));
+	public void testResolveAnalyzersThrowsOnMissingRef() {
+		String settings = "{\"filter\":{\"ghost\":{\"$ref\":\"biomed-ghost\"}}}";
+		TextAnalyzer ta = new TextAnalyzer().setId("1").setOrganizationName("biomed").setName("publications")
+				.setSettings(settings);
+		when(synonymSetDao.getByQualifiedNames(Collections.singletonList("biomed-ghost")))
+				.thenReturn(Collections.emptyMap());
 
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> manager.loadConfiguredSynonymSets(config));
+				() -> manager.resolveAnalyzers(Collections.singletonMap("biomed-publications", ta)));
 
-		assertTrue(e.getMessage().contains("org123-gone"),
-				"Exception must name the missing qname: " + e.getMessage());
+		assertTrue(e.getMessage().contains("Unresolved $ref"));
+		assertTrue(e.getMessage().contains("biomed-ghost"));
 	}
 
 	// --- convertForDocument (parameterized over every ColumnType branch) ---
@@ -268,11 +246,10 @@ public class SearchIndexLifecycleManagerImplTest {
 	}
 
 	@Test
-	public void testCollectAndLoadAnalyzersIncludesConfigDefaults() {
+	public void testCollectAndLoadAnalyzersIncludesConfigDefault() {
 		ColumnModel stringCol = new ColumnModel().setId("col-1").setName("title").setColumnType(ColumnType.STRING);
 		SearchConfiguration config = new SearchConfiguration()
-				.setDefaultIndexAnalyzer("org-biomed-INDEX_ANALYZER")
-				.setDefaultSearchAnalyzer("org-biomed-SEARCH_ANALYZER");
+				.setDefaultAnalyzer("org-biomed-DEFAULT_ANALYZER");
 		when(textAnalyzerDao.getByQualifiedNames(anyList())).thenReturn(Collections.emptyMap());
 
 		// call under test
@@ -280,8 +257,7 @@ public class SearchIndexLifecycleManagerImplTest {
 
 		ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
 		verify(textAnalyzerDao).getByQualifiedNames(captor.capture());
-		assertTrue(captor.getValue().contains("org-biomed-INDEX_ANALYZER"));
-		assertTrue(captor.getValue().contains("org-biomed-SEARCH_ANALYZER"));
+		assertTrue(captor.getValue().contains("org-biomed-DEFAULT_ANALYZER"));
 	}
 
 	@Test
@@ -290,8 +266,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride()
 				.setOverrides(Collections.singletonList(new ColumnAnalyzerOverrideEntry()
 						.setColumnName("title")
-						.setIndexAnalyzer("biomed-CUSTOM_INDEX")
-						.setSearchAnalyzer("biomed-CUSTOM_SEARCH")));
+						.setAnalyzer("biomed-CUSTOM")));
 		when(textAnalyzerDao.getByQualifiedNames(anyList())).thenReturn(Collections.emptyMap());
 
 		// call under test
@@ -300,8 +275,7 @@ public class SearchIndexLifecycleManagerImplTest {
 
 		ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
 		verify(textAnalyzerDao).getByQualifiedNames(captor.capture());
-		assertTrue(captor.getValue().contains("biomed-CUSTOM_INDEX"));
-		assertTrue(captor.getValue().contains("biomed-CUSTOM_SEARCH"));
+		assertTrue(captor.getValue().contains("biomed-CUSTOM"));
 	}
 
 	// --- SearchIndexRowHandler ---

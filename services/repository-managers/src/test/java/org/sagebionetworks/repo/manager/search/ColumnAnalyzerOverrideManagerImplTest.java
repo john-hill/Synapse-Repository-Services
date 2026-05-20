@@ -400,7 +400,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		admin.setId(1L);
 		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry()
 			.setColumnName("myCol")
-			.setIndexAnalyzer("noHyphenHere");
+			.setAnalyzer("noHyphenHere");
 		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride()
 			.setOrganizationName("test-org").setName("MyOverride")
 			.setOverrides(Arrays.asList(entry));
@@ -412,31 +412,12 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 	}
 
 	@Test
-	public void testCreateWithMissingIndexAnalyzer() {
+	public void testCreateWithMissingAnalyzer() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
 		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry()
 			.setColumnName("myCol")
-			.setIndexAnalyzer("org.sagebionetworks-MISSING");
-		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride()
-			.setOrganizationName("test-org").setName("MyOverride")
-			.setOverrides(Arrays.asList(entry));
-		when(textAnalyzerDao.findNonExistentNames(Arrays.asList("org.sagebionetworks-MISSING")))
-			.thenReturn(Arrays.asList("org.sagebionetworks-MISSING"));
-
-		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.create(admin, request));
-		assertTrue(ex.getMessage().contains("text analyzer names do not exist"));
-		verify(columnAnalyzerOverrideDao, never()).create(anyLong(), any());
-	}
-
-	@Test
-	public void testCreateWithMissingSearchAnalyzer() {
-		UserInfo admin = new UserInfo(true);
-		admin.setId(1L);
-		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry()
-			.setColumnName("myCol")
-			.setSearchAnalyzer("org.sagebionetworks-MISSING");
+			.setAnalyzer("org.sagebionetworks-MISSING");
 		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride()
 			.setOrganizationName("test-org").setName("MyOverride")
 			.setOverrides(Arrays.asList(entry));

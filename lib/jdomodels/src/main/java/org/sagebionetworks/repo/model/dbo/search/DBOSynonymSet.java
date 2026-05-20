@@ -90,14 +90,14 @@ public class DBOSynonymSet implements MigratableDatabaseObject<DBOSynonymSet, DB
 		}
 	};
 
-	// PLFM-XXXXX bridge: a valid (empty) OpenSearch synonym_graph token-filter definition.
+	// Migration bridge:a valid (empty) OpenSearch synonym_graph token-filter definition.
 	// Written into the DEFINITION column for any row whose backup carries the legacy
 	// <rules> shape, so the NOT NULL constraint passes on restore. Curators are expected to
 	// DELETE & re-POST these rows through the SynonymSet REST API after migration.
 	@TemporaryCode(author = "BryanFauble", comment = "Remove after the new stack has rolled to prod and the next migration cycle has flushed legacy backup shapes.")
 	static final String PLACEHOLDER_DEFINITION = "{\"type\":\"synonym_graph\",\"synonyms\":[]}";
 
-	// PLFM-XXXXX bridge: production backups still serialize the legacy <rules> XML element
+	// Migration bridge:production backups still serialize the legacy <rules> XML element
 	// (a JSON array of {ruleType, ...} entries). Catch it here so deserialization does not
 	// fail. The translator below discards the value and writes PLACEHOLDER_DEFINITION into
 	// the new DEFINITION column. No FieldColumn entry — this field is never read from or

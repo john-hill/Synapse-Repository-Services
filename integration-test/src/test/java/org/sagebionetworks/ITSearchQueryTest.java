@@ -200,11 +200,11 @@ public class ITSearchQueryTest {
 		ListTextAnalyzersResponse analyzers = adminSynapse.listTextAnalyzers(new ListTextAnalyzersRequest());
 		String orgName = analyzers.getResults().get(0).getOrganizationName();
 
-		// ColumnAnalyzerOverride: geneName -> AUTOCOMPLETE (index) + AUTOCOMPLETE_SEARCH (search)
+		// AUTOCOMPLETE owns both analyzer.default (edge_ngram index) and analyzer.default_search
+		// (non-ngram search), so a single qname covers index and search time.
 		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
 		entry.setColumnName("geneName");
-		entry.setIndexAnalyzer(orgName + "-AUTOCOMPLETE");
-		entry.setSearchAnalyzer(orgName + "-AUTOCOMPLETE_SEARCH");
+		entry.setAnalyzer(orgName + "-AUTOCOMPLETE");
 
 		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride();
 		override.setName("IT_AUTOCOMPLETE_OVERRIDE_" + UUID.randomUUID().toString().replace("-", ""));

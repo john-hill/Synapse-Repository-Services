@@ -42,116 +42,249 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
 /**
- * Build and query <a href="${org.sagebionetworks.repo.model.search.table.SearchIndex}">SearchIndex</a>
- * entities using customizable text analysis.
+ * <p>
+ * Services for managing search configuration objects. These reusable building blocks
+ * define how a <a href="${org.sagebionetworks.repo.model.search.table.SearchIndex}">SearchIndex</a>
+ * analyzes, tokenizes, and matches text. They map directly to
+ * <a href="https://docs.opensearch.org/latest/analyzers/custom-analyzer/">OpenSearch custom analyzer</a>
+ * concepts and are assembled into a
+ * <a href="${org.sagebionetworks.repo.model.search.table.SearchConfiguration}">SearchConfiguration</a>
+ * that can be attached to a project.
+ * </p>
  *
- * <p>These endpoints are a thin layer over Amazon OpenSearch Serverless. Read the
- * <a href="https://docs.opensearch.org/latest/analyzers/custom-analyzer/">OpenSearch custom analyzer guide</a>
- * once before configuring anything here — the four resources below are direct counterparts of
- * OpenSearch concepts.</p>
+ * <h6>Text Analyzers</h6>
+ * <p>
+ * A <a href="${org.sagebionetworks.repo.model.search.table.TextAnalyzer}">TextAnalyzer</a> defines
+ * a text analysis pipeline as the OpenSearch <code>settings.analysis</code> block: any combination
+ * of <a href="https://docs.opensearch.org/latest/analyzers/character-filters/index/">char filters</a>,
+ * <a href="https://docs.opensearch.org/latest/analyzers/tokenizers/index/">tokenizers</a>, and
+ * <a href="https://docs.opensearch.org/latest/analyzers/token-filters/index/">token filters</a>,
+ * plus one or more named custom analyzers that compose them. The whole <code>settings</code> field
+ * is an opaque JSON-object string &mdash; you can paste a snippet from the OpenSearch docs straight
+ * in. Synapse only checks that the JSON parses and that any <code>$ref</code> entries resolve;
+ * AOSS validates the analyzer shape itself at index-build time.
+ * </p>
+ * <ul>
+ * <li><a href="${POST.search.text.analyzer}">POST /search/text/analyzer</a></li>
+ * <li><a href="${GET.search.text.analyzer.id}">GET /search/text/analyzer/{id}</a></li>
+ * <li><a href="${PUT.search.text.analyzer.id}">PUT /search/text/analyzer/{id}</a></li>
+ * <li><a href="${POST.search.text.analyzer.list}">POST /search/text/analyzer/list</a></li>
+ * </ul>
  *
- * <h6>Concept map</h6>
+ * <h6>Column Analyzer Overrides</h6>
+ * <p>
+ * A <a href="${org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride}">ColumnAnalyzerOverride</a>
+ * assigns specific <a href="${org.sagebionetworks.repo.model.search.table.TextAnalyzer}">TextAnalyzers</a>
+ * to individual columns, overriding the SearchConfiguration's default analyzer. Each override entry
+ * specifies an index analyzer (used when building the index) and a search analyzer (used at query time).
+ * This corresponds to the OpenSearch
+ * <a href="https://docs.opensearch.org/latest/field-types/supported-field-types/text/">per-field analyzer + search_analyzer</a>
+ * mapping.
+ * </p>
+ * <ul>
+ * <li><a href="${POST.search.column.analyzer.override}">POST /search/column/analyzer/override</a></li>
+ * <li><a href="${GET.search.column.analyzer.override.columnAnalyzerOverrideId}">GET /search/column/analyzer/override/{columnAnalyzerOverrideId}</a></li>
+ * <li><a href="${PUT.search.column.analyzer.override.columnAnalyzerOverrideId}">PUT /search/column/analyzer/override/{columnAnalyzerOverrideId}</a></li>
+ * <li><a href="${POST.search.column.analyzer.override.list}">POST /search/column/analyzer/override/list</a></li>
+ * </ul>
+ *
+ * <h6>Synonym Sets</h6>
+ * <p>
+ * A <a href="${org.sagebionetworks.repo.model.search.table.SynonymSet}">SynonymSet</a> is a shareable
+ * OpenSearch <a href="https://docs.opensearch.org/latest/analyzers/token-filters/synonym-graph/">synonym_graph</a>
+ * (or legacy <a href="https://docs.opensearch.org/latest/analyzers/token-filters/synonym/">synonym</a>)
+ * token filter. Its <code>definition</code> is the full filter JSON, exactly as documented by
+ * OpenSearch &mdash; supply OpenSearch's native synonym syntax (<code>a, b, c</code> for equivalent
+ * (bidirectional) and <code>a, b =&gt; c, d</code> for explicit (directional) expansion).
+ * A TextAnalyzer brings a SynonymSet into its filter registry by writing
+ * <code>{"$ref": "{organizationName}-{name}"}</code> in place of an inline filter definition;
+ * Synapse resolves the reference at index-build time before sending the analyzer to AOSS.
+ * </p>
+ * <ul>
+ * <li><a href="${POST.search.synonym.set}">POST /search/synonym/set</a></li>
+ * <li><a href="${GET.search.synonym.set.synonymSetId}">GET /search/synonym/set/{synonymSetId}</a></li>
+ * <li><a href="${PUT.search.synonym.set.synonymSetId}">PUT /search/synonym/set/{synonymSetId}</a></li>
+ * <li><a href="${POST.search.synonym.set.list}">POST /search/synonym/set/list</a></li>
+ * </ul>
+ *
+ * <h6>Search Configurations</h6>
+ * <p>
+ * A <a href="${org.sagebionetworks.repo.model.search.table.SearchConfiguration}">SearchConfiguration</a>
+ * bundles a default index-time and search-time
+ * <a href="${org.sagebionetworks.repo.model.search.table.TextAnalyzer}">TextAnalyzer</a> together with
+ * zero or more <a href="${org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride}">ColumnAnalyzerOverrides</a>
+ * into a reusable configuration. These settings populate the <code>analysis</code> section of the
+ * OpenSearch index definition when a search index is created. Synonyms are wired in at the
+ * TextAnalyzer level via <code>$ref</code>, not on the SearchConfiguration.
+ * </p>
+ * <p>
+ * Attach a SearchConfiguration to an entity (SearchIndex, Folder, or Project) by creating a binding.
+ * The effective configuration for any entity is resolved by walking up the entity hierarchy.
+ * </p>
+ * <ul>
+ * <li><a href="${POST.search.configuration}">POST /search/configuration</a></li>
+ * <li><a href="${GET.search.configuration.searchConfigurationId}">GET /search/configuration/{searchConfigurationId}</a></li>
+ * <li><a href="${PUT.search.configuration.searchConfigurationId}">PUT /search/configuration/{searchConfigurationId}</a></li>
+ * <li><a href="${POST.search.configuration.list}">POST /search/configuration/list</a></li>
+ * </ul>
+ *
+ * <h6>Search Configuration Bindings</h6>
+ * <p>
+ * Bind a <a href="${org.sagebionetworks.repo.model.search.table.SearchConfiguration}">SearchConfiguration</a>
+ * to an entity. The effective configuration for any entity is resolved by walking up the hierarchy
+ * (entity &rarr; folder &rarr; project). Requires EDIT permission on the entity.
+ * </p>
+ * <ul>
+ * <li><a href="${PUT.entity.entityId.searchconfig.binding}">PUT /entity/{entityId}/searchconfig/binding</a></li>
+ * <li><a href="${GET.entity.entityId.searchconfig.binding}">GET /entity/{entityId}/searchconfig/binding</a></li>
+ * <li><a href="${DELETE.entity.entityId.searchconfig.binding}">DELETE /entity/{entityId}/searchconfig/binding</a></li>
+ * </ul>
+ *
+ * <h6>Public Resources and Cross-Organization Referencing</h6>
+ * <p>
+ * All search management resources (TextAnalyzers, SynonymSets, ColumnAnalyzerOverrides,
+ * SearchConfigurations) are <b>publicly readable</b>. Any authenticated user can list and retrieve
+ * resources from any Organization. This enables cross-organization reuse: a
+ * <a href="${org.sagebionetworks.repo.model.search.table.SearchConfiguration}">SearchConfiguration</a>
+ * can reference resources from any Organization using <b>qualified names</b> in the format
+ * <code>{organizationName}-{resourceName}</code> (e.g., <code>org.sagebionetworks-SCIENTIFIC</code>).
+ * For example, any user can build a SearchConfiguration that uses the platform-provided
+ * <code>org.sagebionetworks</code> analyzers alongside custom resources from their own Organization.
+ * </p>
+ *
+ * <h6>Name Immutability</h6>
+ * <p>
+ * Because resources are referenced by qualified name, the <code>name</code> and
+ * <code>organizationName</code> fields are <b>immutable after creation</b>. Attempting to change
+ * either on update will return a 400 error. To use a different name, create a new resource and
+ * update any SearchConfigurations that reference the old one.
+ * </p>
+ *
+ * <h6>Authorization</h6>
+ * <p>
+ * All management operations (create, update, delete) are restricted to <b>Sage Bionetworks employees</b>
+ * who have the appropriate
+ * <a href="${org.sagebionetworks.repo.model.ACCESS_TYPE}">ACCESS_TYPE</a> permission on the
+ * <a href="${org.sagebionetworks.repo.model.schema.Organization}">Organization</a> that owns the resource.
+ * Read and list operations are publicly accessible.
+ * </p>
+ *
+ * <h6>Organization Scoping</h6>
+ * <p>
+ * All search management objects belong to an
+ * <a href="${org.sagebionetworks.repo.model.schema.Organization}">Organization</a> identified by
+ * <code>organizationName</code>. The organization and name cannot be changed after creation.
+ * Resource names must start with a letter and contain only letters, digits, and underscores.
+ * </p>
+ *
+ * <h6>Built-in OpenSearch Names Pass Through</h6>
+ * <p>
+ * Filter and tokenizer names inside a TextAnalyzer's chain arrays pass through to OpenSearch
+ * verbatim when they don't match a name registered in the same TextAnalyzer's
+ * <code>filter</code> / <code>tokenizer</code> / <code>char_filter</code> registry maps.
+ * <code>lowercase</code>, <code>standard</code>, <code>english_stemmer</code>,
+ * <code>icu_tokenizer</code>, <code>phonetic</code>, etc. all work without any Synapse-side
+ * registration &mdash; the
+ * <a href="https://docs.aws.amazon.com/opensearch-service/latest/developerguide/serverless-genref.html">analysis-icu, analysis-phonetic, analysis-kuromoji, analysis-nori, analysis-smartcn</a>
+ * plugins ship with AOSS. File-based parameters (<code>stopwords_path</code>,
+ * <code>synonyms_path</code>, <code>mappings_path</code>, <code>protected_words_path</code>,
+ * and any other <code>*_path</code> key) are <b>not supported in AOSS Serverless</b> and will be
+ * rejected by AOSS at index-build time &mdash; use the inline equivalents
+ * (<code>stopwords</code>, <code>synonyms</code>, <code>mappings</code>,
+ * <code>protected_words</code>).
+ * </p>
+ *
+ * <h6>Search Queries</h6>
+ * <p>
+ * Query a <a href="${org.sagebionetworks.repo.model.search.table.SearchIndex}">SearchIndex</a>
+ * using the async job pattern. Submit a
+ * <a href="${org.sagebionetworks.repo.model.search.table.SearchIndexQuery}">SearchIndexQuery</a>
+ * to start a job, then poll for
+ * <a href="${org.sagebionetworks.repo.model.search.SearchQueryResults}">SearchQueryResults</a>.
+ * A synchronous autocomplete endpoint is also available for typeahead patterns.
+ * </p>
+ * <ul>
+ * <li><a href="${POST.search.query.async.start}">POST /search/query/async/start</a> &mdash; Start async query</li>
+ * <li><a href="${GET.search.query.async.get.asyncToken}">GET /search/query/async/get/{asyncToken}</a> &mdash; Poll for results</li>
+ * <li><a href="${POST.search.autocomplete}">POST /search/autocomplete</a> &mdash; Synchronous autocomplete (max 8 results)</li>
+ * </ul>
+ *
+ * <h6>Search Index Field Limits</h6>
+ * <p>
+ * When a search index is built, each column from the defining SQL query is mapped to an
+ * OpenSearch field type. Text and keyword fields have an <code>ignore_above</code> limit on
+ * their keyword sub-field &mdash; values longer than this limit are <b>not indexed</b> for
+ * exact-match or sorting, but remain stored in the source document. Numeric, boolean, and
+ * JSON fields have no such limit.
+ * </p>
+ * <b>Search Index Field Mapping and Limits</b>
  * <table border="1">
- * <tr><th>This API</th><th>OpenSearch</th><th>What it is</th></tr>
  * <tr>
- *   <td><a href="${org.sagebionetworks.repo.model.search.table.TextAnalyzer}">TextAnalyzer</a></td>
- *   <td><a href="https://docs.opensearch.org/latest/analyzers/custom-analyzer/">custom analyzer</a></td>
- *   <td>An ordered pipeline: char filters → tokenizer → token filters. Decides how text becomes searchable terms.</td>
+ * <th>Synapse Column Type</th>
+ * <th>OpenSearch Field Type</th>
+ * <th>Keyword ignore_above</th>
+ * <th>Default Analyzer</th>
  * </tr>
  * <tr>
- *   <td><a href="${org.sagebionetworks.repo.model.search.table.SynonymSet}">SynonymSet</a></td>
- *   <td><a href="https://docs.opensearch.org/latest/analyzers/token-filters/synonym-graph/">synonym_graph token filter</a></td>
- *   <td>A shareable, ACL'd synonym filter. Referenced by qualified name from any TextAnalyzer's filter chain.</td>
+ * <td>STRING, STRING_LIST</td>
+ * <td>text + keyword sub-field</td>
+ * <td>1,000 characters</td>
+ * <td>SCIENTIFIC</td>
  * </tr>
  * <tr>
- *   <td><a href="${org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride}">ColumnAnalyzerOverride</a></td>
- *   <td><a href="https://docs.opensearch.org/latest/field-types/supported-field-types/text/">per-field analyzer + search_analyzer</a></td>
- *   <td>Assigns different analyzers to specific columns, overriding the configuration default.</td>
+ * <td>MEDIUMTEXT</td>
+ * <td>text + keyword sub-field</td>
+ * <td>100,000 characters</td>
+ * <td>SCIENTIFIC</td>
  * </tr>
  * <tr>
- *   <td><a href="${org.sagebionetworks.repo.model.search.table.SearchConfiguration}">SearchConfiguration</a></td>
- *   <td>composition of the above into the index's <code>settings.analysis</code></td>
- *   <td>Defaults + overrides bundle. Bound to a project (or folder/entity) so descendants inherit.</td>
+ * <td>LARGETEXT</td>
+ * <td>text + keyword sub-field</td>
+ * <td>8,192 characters</td>
+ * <td>SCIENTIFIC</td>
+ * </tr>
+ * <tr>
+ * <td>LINK</td>
+ * <td>text + keyword sub-field</td>
+ * <td>1,000 characters</td>
+ * <td>KEYWORD</td>
+ * </tr>
+ * <tr>
+ * <td>ENTITYID, USERID, ENTITYID_LIST, USERID_LIST</td>
+ * <td>keyword</td>
+ * <td>256 characters</td>
+ * <td>KEYWORD</td>
+ * </tr>
+ * <tr>
+ * <td>INTEGER, DATE, INTEGER_LIST, DATE_LIST, FILEHANDLEID, SUBMISSIONID, EVALUATIONID</td>
+ * <td>long</td>
+ * <td>N/A</td>
+ * <td>KEYWORD</td>
+ * </tr>
+ * <tr>
+ * <td>DOUBLE</td>
+ * <td>double</td>
+ * <td>N/A</td>
+ * <td>KEYWORD</td>
+ * </tr>
+ * <tr>
+ * <td>BOOLEAN, BOOLEAN_LIST</td>
+ * <td>boolean</td>
+ * <td>N/A</td>
+ * <td>KEYWORD</td>
+ * </tr>
+ * <tr>
+ * <td>JSON</td>
+ * <td>object (dynamic mapping)</td>
+ * <td>N/A</td>
+ * <td>STANDARD</td>
  * </tr>
  * </table>
- *
- * <h6>Putting it together (concrete example)</h6>
- * <pre>
- * // 1. Define a SynonymSet (one of the four resources):
- * POST /repo/v1/search/synonym/set
- * {
- *   "organizationName": "biomed",
- *   "name": "medical_terms",
- *   "definition": "{\"type\":\"synonym_graph\",\"synonyms\":[\"tumor, neoplasm, cancer\"]}"
- * }
- *
- * // 2. Define a TextAnalyzer that references the SynonymSet by qualified name
- * //    ({organizationName}-{name}) in its filter chain:
- * POST /repo/v1/search/text/analyzer
- * {
- *   "organizationName": "biomed",
- *   "name": "scientific",
- *   "settings": {
- *     "tokenizer":    { "name": "standard" },
- *     "tokenFilters": [],
- *     "indexFilterOrder":  ["lowercase", "biomed-medical_terms"],
- *     "searchFilterOrder": ["lowercase", "biomed-medical_terms"]
- *   }
- * }
- *
- * // 3. Bundle into a SearchConfiguration:
- * POST /repo/v1/search/configuration
- * {
- *   "organizationName": "biomed",
- *   "name": "publications_v1",
- *   "defaultIndexAnalyzer":  "biomed-scientific",
- *   "defaultSearchAnalyzer": "biomed-scientific"
- * }
- *
- * // 4. Bind to a project — every SearchIndex under it inherits:
- * PUT /repo/v1/entity/syn0001/searchconfig/binding
- * { "searchConfigurationId": "9876" }
- * </pre>
- *
- * <h6>Sharing across organizations</h6>
- * <p>All four resource types are <b>publicly readable</b>. Resources are referenced by their
- * qualified name <code>{organizationName}-{resourceName}</code> (e.g.
- * <code>org.sagebionetworks-SCIENTIFIC</code>), so a SearchConfiguration in one organization
- * can mix platform-provided analyzers, another organization's SynonymSet, and the
- * organization's own custom analyzers. Mutations (create / update / delete) require Sage
- * Bionetworks employee status plus the appropriate
- * <a href="${org.sagebionetworks.repo.model.ACCESS_TYPE}">ACCESS_TYPE</a> on the owning
- * <a href="${org.sagebionetworks.repo.model.schema.Organization}">Organization</a>.
- * <code>organizationName</code> and <code>name</code> are immutable after create — to "rename",
- * create a new resource and update any SearchConfigurations that reference the old one.</p>
- *
- * <h6>Built-in OpenSearch names are usable as-is</h6>
- * <p>Filter chains and tokenizer names pass through to OpenSearch verbatim when they don't
- * match a Synapse-managed resource. <code>lowercase</code>, <code>standard</code>,
- * <code>english_stemmer</code>, <code>icu_tokenizer</code>, <code>phonetic</code>, etc. all work
- * without any Synapse-side registration — the
- * <a href="https://docs.aws.amazon.com/opensearch-service/latest/developerguide/serverless-genref.html">analysis-icu, analysis-phonetic, analysis-kuromoji, analysis-nori, analysis-smartcn</a>
- * plugins ship with AOSS. The exception: file-based parameters
- * (<code>stopwords_path</code>, <code>synonyms_path</code>, <code>mappings_path</code>,
- * <code>protected_words_path</code>, and any other <code>*_path</code> key) are <b>not supported in
- * AOSS Serverless</b> and are rejected at create time — use the inline equivalents
- * (<code>stopwords</code>, <code>synonyms</code>, <code>mappings</code>,
- * <code>protected_words</code>).</p>
- *
- * <h6>Querying</h6>
- * <p>Run an async query with
- * <a href="${POST.search.query.async.start}">POST /search/query/async/start</a> + poll
- * <a href="${GET.search.query.async.get.asyncToken}">GET /search/query/async/get/{asyncToken}</a>.
- * For type-ahead use the synchronous
- * <a href="${POST.search.autocomplete}">POST /search/autocomplete</a> (capped at 8 hits, no
- * facets). See <a href="${org.sagebionetworks.repo.model.search.SearchQuery}">SearchQuery</a>
- * for the available knobs (query type, filters, facets, sort, highlight, pagination).</p>
- *
- * <h6>Index limits</h6>
- * <p>Max 500,000 indexed rows per SearchIndex. Query page size defaults to 25, capped at 100.
- * Per-column field type and <code>ignore_above</code> sizing are documented on
- * <a href="${org.sagebionetworks.repo.model.search.table.SearchIndex}">SearchIndex</a>.</p>
- *
+ * <p>
+ * <b>Query Limits:</b> Results per page default to 25 with a maximum of 100.
+ * Autocomplete results are capped at 8. The maximum number of rows that can be indexed
+ * in a single search index is 500,000.
+ * </p>
  */
 @ControllerInfo(displayName = "Search Management Services", path = "repo/v1")
 @Controller
@@ -185,12 +318,10 @@ public class SearchManagementController {
 	 * permission on the Organization.
 	 * </p>
 	 * <p>
-	 * The analyzer's settings are validated against AOSS's
-	 * <a href="https://docs.opensearch.org/latest/api-reference/analyze-apis/">_analyze API</a>
-	 * before save (3-attempt retry on transient AOSS errors). Invalid tokenizer or filter
-	 * configurations return 400 with the AOSS-side reason. File-based parameters
-	 * (any <code>*_path</code> key) are rejected at this stage — see
-	 * <a href="${org.sagebionetworks.repo.model.search.table.AnalyzerComponent}">AnalyzerComponent</a>.
+	 * The analyzer's <code>settings</code> JSON is parsed and any <code>$ref</code> entries
+	 * inside its <code>filter</code> registry are checked for qualified-name format and
+	 * existence. Component shape and parameter validation (tokenizer types, filter parameters,
+	 * file-based <code>*_path</code> keys, etc.) is deferred to AOSS at index-build time.
 	 * </p>
 	 *
 	 * @param userId The ID of the authenticated user.
@@ -236,9 +367,9 @@ public class SearchManagementController {
 	 * are immutable and cannot be changed after creation.
 	 * </p>
 	 * <p>
-	 * Settings are re-validated against AOSS, including the file-based-parameter check.
-	 * Concurrency is managed via the etag field. If the etag in the request does not match
-	 * the current etag, a 409 Conflict is returned.
+	 * The new <code>settings</code> JSON is re-parsed and any <code>$ref</code> entries are
+	 * re-checked for qualified-name format and existence. Concurrency is managed via the etag
+	 * field; an etag mismatch returns 409 Conflict.
 	 * </p>
 	 *
 	 * @param userId The ID of the authenticated user.
@@ -398,10 +529,10 @@ public class SearchManagementController {
 	 * permission on the Organization.
 	 * </p>
 	 * <p>
-	 * The supplied <code>definition</code> is checked for AOSS-incompatible file-based
-	 * parameters at create time — any key ending in <code>_path</code> (e.g.
-	 * <code>synonyms_path</code>) is rejected with 400. Supply the synonym list inline via
-	 * the <code>synonyms</code> array — see
+	 * The supplied <code>definition</code> is parsed to confirm it is valid JSON and otherwise
+	 * passed through to AOSS as-is. AOSS Serverless rejects file-based parameters
+	 * (<code>synonyms_path</code> etc.) at index-build time — supply the synonym list inline
+	 * via the <code>synonyms</code> array; see
 	 * <a href="${org.sagebionetworks.repo.model.search.table.SynonymSet}">SynonymSet</a>.
 	 * </p>
 	 *
@@ -448,9 +579,9 @@ public class SearchManagementController {
 	 * are immutable and cannot be changed after creation.
 	 * </p>
 	 * <p>
-	 * The new <code>definition</code> is re-checked for AOSS-incompatible file-based
-	 * parameters (any <code>*_path</code> key). Concurrency is managed via the etag
-	 * field; an etag mismatch returns 409 Conflict.
+	 * The new <code>definition</code> is re-parsed to confirm it is valid JSON and otherwise
+	 * passed through to AOSS as-is. Concurrency is managed via the etag field; an etag
+	 * mismatch returns 409 Conflict.
 	 * </p>
 	 *
 	 * @param userId The ID of the authenticated user.
@@ -508,8 +639,8 @@ public class SearchManagementController {
 	 * </p>
 	 *
 	 * @param userId The ID of the authenticated user.
-	 * @param request The search configuration to create. Must include organizationName, name,
-	 *        defaultIndexAnalyzer, and defaultSearchAnalyzer.
+	 * @param request The search configuration to create. Must include organizationName and name.
+	 *        Optionally include defaultAnalyzer and columnAnalyzerOverrides.
 	 * @return The created search configuration with a generated ID, etag, and audit timestamps.
 	 */
 	@RequiredScope({ view, modify })

@@ -68,7 +68,7 @@ public class SynonymSetManagerImplTest {
 
 		// call under test
 		assertThrows(UnauthorizedException.class, () ->
-			manager.create(user, new SynonymSet().setOrganizationName("test-org").setName("test")));
+			manager.create(user, validSynonymSet()));
 		verifyZeroInteractions(aclDao);
 		verifyZeroInteractions(synonymSetDao);
 	}
@@ -81,7 +81,7 @@ public class SynonymSetManagerImplTest {
 
 		// call under test
 		assertThrows(UnauthorizedException.class, () ->
-			manager.update(user, new SynonymSet().setId("1").setOrganizationName("test-org").setName("test")));
+			manager.update(user, validSynonymSet().setId("1")));
 		verifyZeroInteractions(aclDao);
 		verifyZeroInteractions(synonymSetDao);
 	}
@@ -107,7 +107,7 @@ public class SynonymSetManagerImplTest {
 
 		// call under test
 		assertThrows(UnauthorizedException.class, () ->
-			manager.create(anon, new SynonymSet().setOrganizationName("test-org").setName("test")));
+			manager.create(anon, validSynonymSet()));
 		verifyZeroInteractions(aclDao);
 		verifyZeroInteractions(synonymSetDao);
 		verifyZeroInteractions(organizationDao);
@@ -126,7 +126,7 @@ public class SynonymSetManagerImplTest {
 
 		// call under test
 		assertThrows(UnauthorizedException.class, () ->
-			manager.create(user, new SynonymSet().setOrganizationName("test-org").setName("test")));
+			manager.create(user, validSynonymSet()));
 		verifyZeroInteractions(synonymSetDao);
 	}
 
@@ -138,7 +138,8 @@ public class SynonymSetManagerImplTest {
 		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.CREATE)))
 			.thenReturn(AuthorizationStatus.authorized());
-		SynonymSet input = new SynonymSet().setOrganizationName("test-org").setName("test");
+		SynonymSet input = new SynonymSet().setOrganizationName("test-org").setName("test")
+				.setDefinition("{\"type\":\"synonym_graph\",\"synonyms\":[\"a, b\"]}");
 		when(synonymSetDao.create(eq(1L), any())).thenReturn(input.setId("1"));
 
 		// call under test
@@ -150,7 +151,8 @@ public class SynonymSetManagerImplTest {
 	public void testCreateWithAdminBypassesOrgAcl() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
-		SynonymSet input = new SynonymSet().setOrganizationName("test-org").setName("test");
+		SynonymSet input = new SynonymSet().setOrganizationName("test-org").setName("test")
+				.setDefinition("{\"type\":\"synonym_graph\",\"synonyms\":[\"a, b\"]}");
 		when(synonymSetDao.create(eq(1L), any())).thenReturn(input.setId("1"));
 
 		// call under test
@@ -249,7 +251,8 @@ public class SynonymSetManagerImplTest {
 		UserInfo user = new UserInfo(false);
 		user.setId(1L);
 		user.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
-		SynonymSet request = new SynonymSet().setId("1").setOrganizationName("test-org").setName("test_name");
+		SynonymSet request = new SynonymSet().setId("1").setOrganizationName("test-org").setName("test_name")
+				.setDefinition("{\"type\":\"synonym_graph\",\"synonyms\":[\"a, b\"]}");
 		when(synonymSetDao.get("1")).thenReturn(Optional.of(new SynonymSet().setId("1").setOrganizationName("test-org").setName("test_name")));
 		when(organizationDao.getOrganizationByName("test-org")).thenReturn(new Organization().setId("42"));
 		when(aclDao.canAccess(any(UserInfo.class), eq("42"), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.UPDATE)))
@@ -264,7 +267,8 @@ public class SynonymSetManagerImplTest {
 	public void testUpdateWithOrgNameMismatch() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
-		SynonymSet request = new SynonymSet().setId("1").setOrganizationName("other-org").setName("test_name");
+		SynonymSet request = new SynonymSet().setId("1").setOrganizationName("other-org").setName("test_name")
+				.setDefinition("{\"type\":\"synonym_graph\",\"synonyms\":[\"a, b\"]}");
 		when(synonymSetDao.get("1")).thenReturn(Optional.of(new SynonymSet().setId("1").setOrganizationName("test-org")));
 
 		// call under test
@@ -277,7 +281,8 @@ public class SynonymSetManagerImplTest {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
 		SynonymSet request = new SynonymSet()
-			.setId("1").setOrganizationName("test-org").setName("new_name");
+			.setId("1").setOrganizationName("test-org").setName("new_name")
+			.setDefinition("{\"type\":\"synonym_graph\",\"synonyms\":[\"a, b\"]}");
 		when(synonymSetDao.get("1")).thenReturn(Optional.of(
 			new SynonymSet().setId("1").setOrganizationName("test-org").setName("original_name")));
 
@@ -320,7 +325,7 @@ public class SynonymSetManagerImplTest {
 	public void testUpdateWithNonExistentId() {
 		UserInfo admin = new UserInfo(true);
 		admin.setId(1L);
-		SynonymSet request = new SynonymSet().setId("999").setOrganizationName("test-org").setName("updated");
+		SynonymSet request = validSynonymSet().setId("999").setName("updated");
 		when(synonymSetDao.get("999")).thenReturn(Optional.empty());
 
 		// call under test
@@ -357,5 +362,18 @@ public class SynonymSetManagerImplTest {
 
 		assertNull(response.getNextPageToken(), "Expected null next page token when all results fit in one page");
 		assertEquals(1, response.getResults().size());
+	}
+
+	/**
+	 * Returns a structurally valid {@link SynonymSet} (organizationName, name, definition all
+	 * set) so tests targeting the authorization layer reach the auth check rather than
+	 * tripping on the structural validation that runs first in
+	 * {@link SynonymSetManagerImpl#create}/{@code update}.
+	 */
+	private static SynonymSet validSynonymSet() {
+		return new SynonymSet()
+				.setOrganizationName("test-org")
+				.setName("test")
+				.setDefinition("{\"type\":\"synonym_graph\",\"synonyms\":[\"a, b\"]}");
 	}
 }

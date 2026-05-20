@@ -34,26 +34,31 @@ import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
+import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.schema.Organization;
-import org.sagebionetworks.repo.model.search.table.AnalyzerComponent;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
-import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
 
 /**
  * Unit tests for {@link TextAnalyzerManagerImpl}: covers the three-layer authorization
- * gate (anonymous → Sage employee → org ACL), name immutability, AOSS analyzer validation
- * delegation, and the FK-protection re-throw on delete.
+ * gate (anonymous → Sage employee → org ACL), name immutability, opaque-JSON parse +
+ * $ref existence validation, and the FK-protection re-throw on delete.
  */
 @ExtendWith(MockitoExtension.class)
 public class TextAnalyzerManagerImplTest {
 
 	private static final String ORG_NAME = "org.sagebionetworks";
 	private static final String ORG_ID = "42";
+	private static final String VALID_SETTINGS =
+			"{\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\"}}}";
+	private static final String SETTINGS_WITH_REF =
+			"{\"filter\":{\"med\":{\"$ref\":\"biomed-medical_terms\"}},"
+			+ "\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\","
+			+ "\"filter\":[\"med\"]}}}";
 
 	@Mock
 	private TextAnalyzerDao textAnalyzerDao;
@@ -62,7 +67,7 @@ public class TextAnalyzerManagerImplTest {
 	@Mock
 	private OrganizationDao organizationDao;
 	@Mock
-	private OpenSearchManager openSearchManager;
+	private SynonymSetDao synonymSetDao;
 
 	@InjectMocks
 	private TextAnalyzerManagerImpl manager;
@@ -94,8 +99,7 @@ public class TextAnalyzerManagerImplTest {
 		return new TextAnalyzer()
 				.setName("my_analyzer")
 				.setOrganizationName(ORG_NAME)
-				.setSettings(new TextAnalyzerSettings()
-						.setTokenizer(new AnalyzerComponent().setName("standard")));
+				.setSettings(VALID_SETTINGS);
 	}
 
 	// --- create ---
@@ -125,6 +129,16 @@ public class TextAnalyzerManagerImplTest {
 	}
 
 	@Test
+	public void testCreateWithMalformedSettingsJsonThrows() {
+		TextAnalyzer bad = validRequest().setSettings("{not_valid");
+		// call under test
+		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+				() -> manager.create(adminUser(), bad));
+		assertTrue(e.getMessage().startsWith("Invalid JSON"));
+		verify(textAnalyzerDao, never()).create(any(), any());
+	}
+
+	@Test
 	public void testCreateWithInvalidResourceNameThrows() {
 		TextAnalyzer bad = validRequest().setName("9invalid");
 		// call under test
@@ -134,30 +148,150 @@ public class TextAnalyzerManagerImplTest {
 	}
 
 	@Test
-	public void testCreateWithSageEmployeeChecksOrgAclAndValidatesAgainstAOSS() {
+	public void testCreateWithRefAndAllExistResolves() {
+		when(synonymSetDao.findNonExistentNames(any())).thenReturn(Collections.emptyList());
+		when(textAnalyzerDao.create(any(TextAnalyzer.class), eq(1L)))
+				.thenReturn(validRequest().setId("1"));
+		TextAnalyzer request = validRequest().setSettings(SETTINGS_WITH_REF);
+
+		// call under test
+		manager.create(adminUser(), request);
+
+		verify(synonymSetDao).findNonExistentNames(Collections.singletonList("biomed-medical_terms"));
+		verify(textAnalyzerDao).create(any(TextAnalyzer.class), eq(1L));
+	}
+
+	@Test
+	public void testCreateWithUnresolvedRefThrows() {
+		when(synonymSetDao.findNonExistentNames(any()))
+				.thenReturn(Collections.singletonList("biomed-medical_terms"));
+		TextAnalyzer request = validRequest().setSettings(SETTINGS_WITH_REF);
+
+		// call under test
+		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+				() -> manager.create(adminUser(), request));
+		assertTrue(e.getMessage().contains("biomed-medical_terms"));
+		verify(textAnalyzerDao, never()).create(any(), any());
+	}
+
+	@Test
+	public void testCreateWithMalformedRefQnameThrows() {
+		TextAnalyzer request = validRequest().setSettings(
+				"{\"filter\":{\"x\":{\"$ref\":\"not-a-valid-qname-9starts\"}},"
+				+ "\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\","
+				+ "\"filter\":[\"x\"]}}}");
+
+		// call under test
+		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+				() -> manager.create(adminUser(), request));
+		assertTrue(e.getMessage().contains("Invalid qualified name format"),
+				"Format error must mention qualified-name: " + e.getMessage());
+		verify(textAnalyzerDao, never()).create(any(), any());
+		verifyZeroInteractions(synonymSetDao);
+	}
+
+	@Test
+	public void testCreateWithoutDefaultAnalyzerThrows() {
+		// SearchConfiguration binds to a TextAnalyzer by its bare qualified name; the index-
+		// build code resolves that to the analyzer entry named "default". A settings blob
+		// that declares only registries (or names its analyzer something else) would never
+		// be reachable, so the manager rejects it at create time.
+		TextAnalyzer bad = validRequest().setSettings(
+				"{\"filter\":{\"english_stop\":{\"type\":\"stop\"}}}");
+
+		// call under test
+		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+				() -> manager.create(adminUser(), bad));
+		assertTrue(e.getMessage().contains("analyzer.default"),
+				"Error must name analyzer.default: " + e.getMessage());
+		verifyZeroInteractions(textAnalyzerDao);
+		verifyZeroInteractions(synonymSetDao);
+	}
+
+	@Test
+	public void testCreateWithDefaultSearchOnlyThrows() {
+		// `default_search` alone (without `default`) is rejected: bindings always resolve to
+		// the `default` entry first, so a record without it can never be addressed.
+		TextAnalyzer bad = validRequest().setSettings(
+				"{\"analyzer\":{\"default_search\":{\"type\":\"custom\",\"tokenizer\":\"standard\"}}}");
+
+		// call under test
+		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+				() -> manager.create(adminUser(), bad));
+		assertTrue(e.getMessage().contains("analyzer.default"),
+				"Error must name analyzer.default: " + e.getMessage());
+		verifyZeroInteractions(textAnalyzerDao);
+		verifyZeroInteractions(synonymSetDao);
+	}
+
+	@Test
+	public void testCreateWithNonObjectAnalyzerKeyThrows() {
+		// `analyzer` present but not an object — surfaced through the same missing-default
+		// path so the user sees the actionable error, not a Jackson type mismatch.
+		TextAnalyzer bad = validRequest().setSettings("{\"analyzer\":\"oops\"}");
+
+		// call under test
+		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+				() -> manager.create(adminUser(), bad));
+		assertTrue(e.getMessage().contains("analyzer.default"),
+				"Error must name analyzer.default: " + e.getMessage());
+		verifyZeroInteractions(textAnalyzerDao);
+	}
+
+	@Test
+	public void testCreateWithDefaultAndDefaultSearchSucceeds() {
+		// Asymmetric index/search analysis (the edge_ngram autocomplete case) is the one
+		// supported reason to declare multiple entries inside the inner `analyzer` map.
+		when(textAnalyzerDao.create(any(TextAnalyzer.class), eq(1L)))
+				.thenReturn(validRequest().setId("1"));
+		String settings = "{\"analyzer\":{"
+				+ "\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\"},"
+				+ "\"default_search\":{\"type\":\"custom\",\"tokenizer\":\"keyword\"}"
+				+ "}}";
+		TextAnalyzer request = validRequest().setSettings(settings);
+
+		// call under test
+		manager.create(adminUser(), request);
+
+		verify(textAnalyzerDao).create(any(TextAnalyzer.class), eq(1L));
+	}
+
+	@Test
+	public void testCreateWithExtraNamedAnalyzerThrows() {
+		// One TextAnalyzer record exposes one externally-addressable analyzer. Curators
+		// who want a separate `headline` analyzer create a separate TextAnalyzer record;
+		// the inner analyzer map cannot carry sibling entries beyond `default` /
+		// `default_search`.
+		String settings = "{\"analyzer\":{"
+				+ "\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\"},"
+				+ "\"headline\":{\"type\":\"custom\",\"tokenizer\":\"standard\"}"
+				+ "}}";
+		TextAnalyzer bad = validRequest().setSettings(settings);
+
+		// call under test
+		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+				() -> manager.create(adminUser(), bad));
+		assertTrue(e.getMessage().contains("rejected: [headline]"),
+				"Error must list the rejected sibling key(s): " + e.getMessage());
+		assertTrue(e.getMessage().contains("default")
+						&& e.getMessage().contains("default_search"),
+				"Error must mention the allowed keys: " + e.getMessage());
+		verifyZeroInteractions(textAnalyzerDao);
+		verifyZeroInteractions(synonymSetDao);
+	}
+
+	@Test
+	public void testCreateWithSageEmployeeChecksOrgAcl() {
 		when(organizationDao.getOrganizationByName(ORG_NAME)).thenReturn(new Organization().setId(ORG_ID));
 		when(aclDao.canAccess(any(UserInfo.class), eq(ORG_ID), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.CREATE)))
 				.thenReturn(AuthorizationStatus.authorized());
-		when(textAnalyzerDao.create(any(TextAnalyzer.class), eq(100L))).thenReturn(validRequest().setId("1"));
+		when(textAnalyzerDao.create(any(TextAnalyzer.class), eq(100L)))
+				.thenReturn(validRequest().setId("1"));
 
 		// call under test
 		manager.create(sageUser(), validRequest());
 
-		// AOSS analyzer validation runs BEFORE the DAO write so a misconfiguration cannot
-		// be persisted in a half-broken state.
-		verify(openSearchManager).validateAnalyzerSettings(any(TextAnalyzerSettings.class));
 		verify(textAnalyzerDao).create(any(TextAnalyzer.class), eq(100L));
-	}
-
-	@Test
-	public void testCreateWhenAOSSValidationFailsDoesNotPersist() {
-		doThrow(new IllegalArgumentException("AOSS rejected the analyzer"))
-				.when(openSearchManager).validateAnalyzerSettings(any(TextAnalyzerSettings.class));
-
-		// call under test — admin bypasses ACL but still gets AOSS validation gate.
-		assertThrows(IllegalArgumentException.class, () -> manager.create(adminUser(), validRequest()));
-		verify(textAnalyzerDao, never()).create(any(TextAnalyzer.class),
-				org.mockito.ArgumentMatchers.anyLong());
 	}
 
 	// --- get ---
@@ -228,7 +362,6 @@ public class TextAnalyzerManagerImplTest {
 		// call under test
 		assertThrows(IllegalArgumentException.class, () -> manager.update(sageUser(), input));
 		verifyZeroInteractions(textAnalyzerDao);
-		verifyZeroInteractions(openSearchManager);
 	}
 
 	// --- delete ---
@@ -313,7 +446,6 @@ public class TextAnalyzerManagerImplTest {
 
 	@Test
 	public void testListReturnsNextPageTokenWhenMoreResults() {
-		// NextPageToken default limit is 50, so limitForQuery is 51
 		List<TextAnalyzer> page = new ArrayList<>();
 		for (int i = 0; i < 51; i++) {
 			page.add(validRequest().setId(String.valueOf(i)));

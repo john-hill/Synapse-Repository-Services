@@ -24,11 +24,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.manager.EntityManager;
-import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
-import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
-import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
-import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.search.FacetRequest;
 import org.sagebionetworks.repo.model.search.KeyRange;
@@ -37,7 +33,6 @@ import org.sagebionetworks.repo.model.search.SearchFieldValue;
 import org.sagebionetworks.repo.model.search.SearchHit;
 import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
-import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.SortField;
 import org.sagebionetworks.repo.model.search.table.SearchIndexState;
 import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
@@ -63,17 +58,7 @@ public class SearchIndexQueryManagerImplTest {
 	@Mock
 	private OpenSearchManager openSearchManager;
 	@Mock
-	private SearchConfigurationResolver searchConfigurationResolver;
-	@Mock
-	private UserManager userManager;
-	@Mock
 	private TableManagerSupport tableManagerSupport;
-	@Mock
-	private ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao;
-	@Mock
-	private SynonymSetDao synonymSetDao;
-	@Mock
-	private TextAnalyzerDao textAnalyzerDao;
 
 	@Mock
 	private SearchIndexStatusDao searchIndexStatusDao;
@@ -353,7 +338,7 @@ public class SearchIndexQueryManagerImplTest {
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(searchIndexStatusDao);
 		when(searchIndexStatusDao.getStatus(123L)).thenReturn(Optional.of(
 				new SearchIndexStatus().setState(SearchIndexState.FAILED)
-						.setErrorMessage("TextAnalyzer 'biomed-ghost' (defaultIndexAnalyzer) does not resolve.")));
+						.setErrorMessage("TextAnalyzer 'biomed-ghost' (defaultAnalyzer) does not resolve.")));
 
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
@@ -399,44 +384,4 @@ public class SearchIndexQueryManagerImplTest {
 		assertEquals("search-index-syn123", manager.getIndexName("syn123"));
 	}
 
-	// --- collectAndLoadAnalyzers (query-side; mirrors lifecycle-side) ---
-
-	@Test
-	public void testCollectAndLoadAnalyzersIncludesStringDefaultEvenWithoutConfig() {
-		ColumnModel intCol = new ColumnModel().setId("col-1").setName("year").setColumnType(ColumnType.INTEGER);
-		when(textAnalyzerDao.getByQualifiedNames(org.mockito.ArgumentMatchers.anyList()))
-				.thenReturn(Collections.emptyMap());
-
-		// call under test
-		Map<String, org.sagebionetworks.repo.model.search.table.TextAnalyzer> result =
-				manager.collectAndLoadAnalyzers(null, null, Collections.singletonList(intCol));
-
-		assertNotNull(result);
-		// We can't capture without ArgumentCaptor for List<>; rely on .getByQualifiedNames being called once
-		// and validate manager behavior via collectAndLoadAnalyzers happy-path result wiring.
-		org.mockito.ArgumentCaptor<List<String>> captor = org.mockito.ArgumentCaptor.forClass(List.class);
-		org.mockito.Mockito.verify(textAnalyzerDao).getByQualifiedNames(captor.capture());
-		assertTrue(captor.getValue().contains(
-				ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(ColumnType.STRING)),
-				"SCIENTIFIC is always loaded because KEYWORD columns expose a .searchable text sub-field.");
-	}
-
-	// --- loadColumnAnalyzerOverrides ---
-
-	@Test
-	public void testLoadColumnAnalyzerOverridesWithNullConfigReturnsEmpty() {
-		// call under test
-		assertTrue(manager.loadColumnAnalyzerOverrides(null).isEmpty());
-		org.mockito.Mockito.verifyZeroInteractions(columnAnalyzerOverrideDao);
-	}
-
-	@Test
-	public void testLoadColumnAnalyzerOverridesWithEmptyReferencesReturnsEmpty() {
-		org.sagebionetworks.repo.model.search.table.SearchConfiguration config =
-				new org.sagebionetworks.repo.model.search.table.SearchConfiguration()
-						.setColumnAnalyzerOverrides(Collections.emptyList());
-		// call under test
-		assertTrue(manager.loadColumnAnalyzerOverrides(config).isEmpty());
-		org.mockito.Mockito.verifyZeroInteractions(columnAnalyzerOverrideDao);
-	}
 }

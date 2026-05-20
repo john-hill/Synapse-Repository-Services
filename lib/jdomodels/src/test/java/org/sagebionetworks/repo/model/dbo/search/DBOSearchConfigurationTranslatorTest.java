@@ -9,10 +9,10 @@ import java.sql.Timestamp;
 import org.junit.jupiter.api.Test;
 import org.sagebionetworks.util.TemporaryCode;
 
-@TemporaryCode(author = "BryanFauble", comment = "Delete alongside the DBOSearchConfiguration bridge once legacy <defaultAnalyzer> / legacy JSON-column-shape backups can no longer arrive.")
+@TemporaryCode(author = "BryanFauble", comment = "Delete alongside the DBOSearchConfiguration bridge once legacy <synonymSetsJson> backups can no longer arrive.")
 public class DBOSearchConfigurationTranslatorTest {
 
-	private static DBOSearchConfiguration legacyBackup() {
+	private static DBOSearchConfiguration backupRow() {
 		return new DBOSearchConfiguration()
 				.setId(42L)
 				.setEtag("etag-1")
@@ -30,15 +30,18 @@ public class DBOSearchConfigurationTranslatorTest {
 
 	@Test
 	public void testCreateDatabaseObjectFromBackupWithLegacyShape() {
-		DBOSearchConfiguration backup = legacyBackup();
+		// A backup carrying the legacy <synonymSetsJson> XML element and an old-shape
+		// COLUMN_ANALYZER_OVERRIDES JSON. The translator nulls both interior shapes.
+		// The DEFAULT_ANALYZER column flows through unchanged — the legacy field name
+		// matches the new column name, so production data is preserved across the
+		// migration cycle rather than being thrown away.
+		DBOSearchConfiguration backup = backupRow();
 
 		// call under test
 		DBOSearchConfiguration result = new DBOSearchConfiguration().getTranslator().createDatabaseObjectFromBackup(backup);
 
-		// Defaults are nullable; per-column resolution falls back to system defaults per data type.
-		assertNull(result.getDefaultIndexAnalyzer());
-		assertNull(result.getDefaultSearchAnalyzer());
-		assertNull(result.getDefaultAnalyzer(), "bridge field should be cleared after translation");
+		assertEquals("sage-STANDARD", result.getDefaultAnalyzer(),
+				"production-supplied default analyzer must survive the migration");
 		assertNull(result.getSynonymSetsJson(), "legacy interior shape must not be persisted");
 		assertNull(result.getColumnAnalyzerOverridesJson(), "legacy interior shape must not be persisted");
 		// identity / audit fields flow through untouched
@@ -50,34 +53,25 @@ public class DBOSearchConfigurationTranslatorTest {
 
 	@Test
 	public void testCreateDatabaseObjectFromBackupWithNewShape() {
-		// A row authored on the new stack — no legacy <defaultAnalyzer>, both new analyzers
-		// populated. The translator must not overwrite either.
-		DBOSearchConfiguration backup = legacyBackup()
-				.setDefaultAnalyzer(null)
-				.setDefaultIndexAnalyzer("sage-SCIENTIFIC")
-				.setDefaultSearchAnalyzer("sage-SCIENTIFIC")
-				.setSynonymSetsJson("[\"123\"]")
-				.setColumnAnalyzerOverridesJson("[{\"columnName\":\"x\",\"analyzerQname\":\"sage-STANDARD\"}]");
+		// A row authored on the new stack — already in the new shape with all interior
+		// blobs absent. Translator is a near-no-op for the analyzer field.
+		DBOSearchConfiguration backup = backupRow()
+				.setDefaultAnalyzer("sage-SCIENTIFIC")
+				.setSynonymSetsJson(null)
+				.setColumnAnalyzerOverridesJson(null);
 
 		// call under test
 		DBOSearchConfiguration result = new DBOSearchConfiguration().getTranslator().createDatabaseObjectFromBackup(backup);
 
-		assertEquals("sage-SCIENTIFIC", result.getDefaultIndexAnalyzer());
-		assertEquals("sage-SCIENTIFIC", result.getDefaultSearchAnalyzer());
-		// New-shape rows still get the JSON columns reset because the translator cannot
-		// distinguish legacy from new shape — curators on the source stack will not be
-		// authoring against the new shape, so this is a safe blanket reset for the bridge
-		// window. Documented as a limitation here.
+		assertEquals("sage-SCIENTIFIC", result.getDefaultAnalyzer());
 		assertNull(result.getSynonymSetsJson());
 		assertNull(result.getColumnAnalyzerOverridesJson());
 	}
 
 	@Test
 	public void testCreateBackupFromDatabaseObjectIsIdentity() {
-		DBOSearchConfiguration dbo = legacyBackup()
-				.setDefaultAnalyzer(null)
-				.setDefaultIndexAnalyzer("sage-STANDARD")
-				.setDefaultSearchAnalyzer("sage-STANDARD")
+		DBOSearchConfiguration dbo = backupRow()
+				.setDefaultAnalyzer("sage-STANDARD")
 				.setSynonymSetsJson(null)
 				.setColumnAnalyzerOverridesJson(null);
 

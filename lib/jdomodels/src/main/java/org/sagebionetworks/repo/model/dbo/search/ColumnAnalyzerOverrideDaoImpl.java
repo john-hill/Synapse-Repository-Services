@@ -24,6 +24,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
 @Repository
 public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao {
 
@@ -35,6 +41,8 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 		this.idGenerator = idGenerator;
 	}
 
+	private static final ObjectMapper MAPPER = new ObjectMapper();
+
 	private static final RowMapper<ColumnAnalyzerOverride> ROW_MAPPER = (rs, rowNum) -> {
 		ColumnAnalyzerOverride dto = new ColumnAnalyzerOverride();
 		dto.setId(String.valueOf(rs.getLong("ID")));
@@ -42,13 +50,49 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 		dto.setOrganizationName(rs.getString("ORGANIZATION_NAME"));
 		dto.setName(rs.getString("NAME"));
 		dto.setDescription(rs.getString("DESCRIPTION"));
-		dto.setOverrides(JDOSecondaryPropertyUtils.readJsonToEntityList(rs.getString("OVERRIDES"), ColumnAnalyzerOverrideEntry.class));
+		dto.setOverrides(JDOSecondaryPropertyUtils.readJsonToEntityList(
+				bridgeLegacyOverridesJson(rs.getString("OVERRIDES")), ColumnAnalyzerOverrideEntry.class));
 		dto.setCreatedBy(String.valueOf(rs.getLong("CREATED_BY")));
 		dto.setCreatedOn(new Date(rs.getTimestamp("CREATED_ON").getTime()));
 		dto.setModifiedBy(String.valueOf(rs.getLong("MODIFIED_BY")));
 		dto.setModifiedOn(new Date(rs.getTimestamp("MODIFIED_ON").getTime()));
 		return dto;
 	};
+
+	// Bridge for prod-restored rows whose OVERRIDES JSON still carries the legacy
+	// `indexAnalyzer` / `searchAnalyzer` fields: rename `indexAnalyzer` to `analyzer` and
+	// drop `searchAnalyzer`. Remove on the next stack once all prod data has been re-saved.
+	static String bridgeLegacyOverridesJson(String json) {
+		if (json == null || json.isEmpty()) {
+			return json;
+		}
+		try {
+			JsonNode root = MAPPER.readTree(json);
+			if (!(root instanceof ArrayNode)) {
+				return json;
+			}
+			boolean changed = false;
+			ArrayNode arr = (ArrayNode) root;
+			for (int i = 0; i < arr.size(); i++) {
+				JsonNode entry = arr.get(i);
+				if (!(entry instanceof ObjectNode)) {
+					continue;
+				}
+				ObjectNode obj = (ObjectNode) entry;
+				if (!obj.has("analyzer") && obj.has("indexAnalyzer")) {
+					obj.set("analyzer", obj.remove("indexAnalyzer"));
+					changed = true;
+				}
+				if (obj.has("searchAnalyzer")) {
+					obj.remove("searchAnalyzer");
+					changed = true;
+				}
+			}
+			return changed ? MAPPER.writeValueAsString(arr) : json;
+		} catch (JsonProcessingException e) {
+			return json;
+		}
+	}
 
 	@Override
 	@WriteTransaction

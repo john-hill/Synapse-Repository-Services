@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.Arrays;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -14,11 +13,15 @@ import org.sagebionetworks.client.SynapseAdminClient;
 import org.sagebionetworks.client.exceptions.SynapseException;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
-import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 
 @ExtendWith(ITTestExtension.class)
 public class ITTextAnalyzerTest {
+
+	private static final String STANDARD_SETTINGS =
+			"{\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\","
+			+ "\"filter\":[\"lowercase\"]}}}";
 
 	private final SynapseAdminClient adminSynapse;
 
@@ -32,13 +35,12 @@ public class ITTextAnalyzerTest {
 	}
 
 	@Test
-	public void testCRUDWithTextAnalyzerSettings() throws Exception {
-		// The org.sagebionetworks organization is bootstrapped on startup
-		// List system analyzers to get the organization ID
+	public void testCRUDWithTextAnalyzer() throws Exception {
+		// The org.sagebionetworks organization is bootstrapped on startup.
 		ListTextAnalyzersRequest listRequest = new ListTextAnalyzersRequest();
 		ListTextAnalyzersResponse listResponse = adminSynapse.listTextAnalyzers(listRequest);
 		assertNotNull(listResponse.getResults());
-		// System analyzers are bootstrapped, so there should be at least 6
+		// System analyzers are bootstrapped, so there should be at least 6.
 		assertTrue(listResponse.getResults().size() >= 6);
 
 		String orgName = listResponse.getResults().get(0).getOrganizationName();
@@ -48,10 +50,7 @@ public class ITTextAnalyzerTest {
 		toCreate.setName("IT_TEST_ANALYZER_" + UUID.randomUUID().toString().replace("-", ""));
 		toCreate.setDescription("Integration test analyzer");
 		toCreate.setOrganizationName(orgName);
-		TextAnalyzerSettings settings = new TextAnalyzerSettings()
-				.setTokenizer(new org.sagebionetworks.repo.model.search.table.AnalyzerComponent().setName("standard"))
-				.setIndexFilterOrder(Arrays.asList("lowercase"));
-		toCreate.setSettings(settings);
+		toCreate.setSettings(STANDARD_SETTINGS);
 
 		// call under test
 		TextAnalyzer created = adminSynapse.createTextAnalyzer(toCreate);
@@ -77,6 +76,38 @@ public class ITTextAnalyzerTest {
 		ListTextAnalyzersResponse orgResponse = adminSynapse.listTextAnalyzers(orgRequest);
 		assertNotNull(orgResponse.getResults());
 		assertTrue(orgResponse.getResults().stream().anyMatch(a -> created.getId().equals(a.getId())));
+	}
 
+	@Test
+	public void testCreateWithSynonymRefRoundTrips() throws Exception {
+		// A TextAnalyzer that references a SynonymSet via $ref must round-trip exactly,
+		// confirming the opaque-JSON contract on the wire end-to-end.
+		ListTextAnalyzersRequest listRequest = new ListTextAnalyzersRequest();
+		String orgName = adminSynapse.listTextAnalyzers(listRequest).getResults().get(0)
+				.getOrganizationName();
+		String unique = UUID.randomUUID().toString().replace("-", "");
+
+		SynonymSet syn = adminSynapse.createSynonymSet(new SynonymSet()
+				.setOrganizationName(orgName)
+				.setName("IT_TEST_SYN_" + unique)
+				.setDefinition("{\"type\":\"synonym_graph\",\"synonyms\":[\"a, b\"]}"));
+		String synQname = orgName + "-" + syn.getName();
+
+		String settings = "{\"filter\":{\"my_syn\":{\"$ref\":\"" + synQname + "\"}},"
+				+ "\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\","
+				+ "\"filter\":[\"lowercase\",\"my_syn\"]}}}";
+
+		TextAnalyzer toCreate = new TextAnalyzer()
+				.setOrganizationName(orgName)
+				.setName("IT_TEST_REF_" + unique)
+				.setSettings(settings);
+
+		// call under test
+		TextAnalyzer created = adminSynapse.createTextAnalyzer(toCreate);
+
+		assertNotNull(created.getId());
+		// MySQL JSON columns may reformat whitespace; compare semantically.
+		com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+		assertEquals(mapper.readTree(settings), mapper.readTree(created.getSettings()));
 	}
 }

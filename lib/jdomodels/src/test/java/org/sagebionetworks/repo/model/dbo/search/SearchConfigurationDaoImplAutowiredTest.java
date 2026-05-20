@@ -21,14 +21,12 @@ import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.schema.Organization;
-import org.sagebionetworks.repo.model.search.table.AnalyzerComponent;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
-import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -99,12 +97,8 @@ public class SearchConfigurationDaoImplAutowiredTest {
 	}
 
 	@Test
-	public void testCreateAndGetWithSplitDefaultAnalyzers() {
-		TextAnalyzer analyzer = textAnalyzerDao.create(newTextAnalyzer(org1Name, "search_analyzer"), adminUserId);
-		String searchQName = org1Name + "-" + analyzer.getName();
-
-		SearchConfiguration toCreate = newConfig(org1Name, "test_create", "A test config")
-				.setDefaultSearchAnalyzer(searchQName);
+	public void testCreateAndGetWithDefaultAnalyzer() {
+		SearchConfiguration toCreate = newConfig(org1Name, "test_create", "A test config");
 
 		// call under test
 		SearchConfiguration created = searchConfigurationDao.create(adminUserId, toCreate);
@@ -114,8 +108,7 @@ public class SearchConfigurationDaoImplAutowiredTest {
 		assertEquals("test_create", created.getName());
 		assertEquals("A test config", created.getDescription());
 		assertEquals(org1Name, created.getOrganizationName());
-		assertEquals(defaultAnalyzerQName, created.getDefaultIndexAnalyzer());
-		assertEquals(searchQName, created.getDefaultSearchAnalyzer());
+		assertEquals(defaultAnalyzerQName, created.getDefaultAnalyzer());
 		assertNotNull(created.getCreatedOn());
 		assertNotNull(created.getModifiedOn());
 		assertEquals(adminUserId.toString(), created.getCreatedBy());
@@ -147,8 +140,7 @@ public class SearchConfigurationDaoImplAutowiredTest {
 
 		created.setName("test_update_renamed");
 		created.setDescription("updated");
-		created.setDefaultIndexAnalyzer(analyzer2Name);
-		created.setDefaultSearchAnalyzer(analyzer2Name);
+		created.setDefaultAnalyzer(analyzer2Name);
 
 		// call under test
 		SearchConfiguration updated = searchConfigurationDao.update(adminUserId, created);
@@ -156,8 +148,7 @@ public class SearchConfigurationDaoImplAutowiredTest {
 		assertEquals("test_update_renamed", updated.getName());
 		assertEquals("updated", updated.getDescription());
 		assertNotEquals(originalEtag, updated.getEtag());
-		assertEquals(analyzer2Name, updated.getDefaultIndexAnalyzer());
-		assertEquals(analyzer2Name, updated.getDefaultSearchAnalyzer());
+		assertEquals(analyzer2Name, updated.getDefaultAnalyzer());
 	}
 
 	@Test
@@ -195,9 +186,9 @@ public class SearchConfigurationDaoImplAutowiredTest {
 		String org2DefaultQName = org2Name + "-" + org2Analyzer.getName();
 
 		SearchConfiguration org2A = searchConfigurationDao.create(adminUserId,
-				newConfig(org2Name, "ccc_config", "third").setDefaultIndexAnalyzer(org2DefaultQName).setDefaultSearchAnalyzer(org2DefaultQName));
+				newConfig(org2Name, "ccc_config", "third").setDefaultAnalyzer(org2DefaultQName));
 		SearchConfiguration org2B = searchConfigurationDao.create(adminUserId,
-				newConfig(org2Name, "ddd_config", "fourth").setDefaultIndexAnalyzer(org2DefaultQName).setDefaultSearchAnalyzer(org2DefaultQName));
+				newConfig(org2Name, "ddd_config", "fourth").setDefaultAnalyzer(org2DefaultQName));
 
 		// call under test — list by org1
 		List<SearchConfiguration> org1Results = searchConfigurationDao.list(org1Name, 10, 0);
@@ -238,32 +229,6 @@ public class SearchConfigurationDaoImplAutowiredTest {
 		SearchConfiguration created = searchConfigurationDao.create(adminUserId, config);
 
 		assertEquals(Arrays.asList(overrideQualifiedName), created.getColumnAnalyzerOverrides());
-	}
-
-	@Test
-	public void testCreateAndUpdateWithSynonymSetsRoundTrip() {
-		SynonymSet s1 = synonymSetDao.create(adminUserId,
-				newSynonymSet(org1Name, "syns_one").setDefinition(SYNSET_DEFINITION));
-		SynonymSet s2 = synonymSetDao.create(adminUserId,
-				newSynonymSet(org1Name, "syns_two").setDefinition(SYNSET_DEFINITION));
-		String s1Qname = org1Name + "-" + s1.getName();
-		String s2Qname = org1Name + "-" + s2.getName();
-
-		SearchConfiguration toCreate = newConfig(org1Name, "with_synonyms", null)
-				.setSynonymSets(Arrays.asList(s1Qname, s2Qname));
-
-		// call under test — create with synonymSets
-		SearchConfiguration created = searchConfigurationDao.create(adminUserId, toCreate);
-		assertEquals(Arrays.asList(s1Qname, s2Qname), created.getSynonymSets());
-
-		// call under test — get returns the same list, same order
-		SearchConfiguration fetched = searchConfigurationDao.get(created.getId()).get();
-		assertEquals(Arrays.asList(s1Qname, s2Qname), fetched.getSynonymSets());
-
-		// call under test — update can change the list (and order)
-		fetched.setSynonymSets(Arrays.asList(s2Qname));
-		SearchConfiguration updated = searchConfigurationDao.update(adminUserId, fetched);
-		assertEquals(Arrays.asList(s2Qname), updated.getSynonymSets());
 	}
 
 	@Test
@@ -382,16 +347,14 @@ public class SearchConfigurationDaoImplAutowiredTest {
 				.setName(name)
 				.setDescription(description)
 				.setOrganizationName(organizationName)
-				.setDefaultIndexAnalyzer(defaultAnalyzerQName)
-				.setDefaultSearchAnalyzer(defaultAnalyzerQName);
+				.setDefaultAnalyzer(defaultAnalyzerQName);
 	}
 
 	private TextAnalyzer newTextAnalyzer(String organizationName, String name) {
 		return new TextAnalyzer()
 				.setName(name)
 				.setOrganizationName(organizationName)
-				.setSettings(new TextAnalyzerSettings()
-						.setTokenizer(new AnalyzerComponent().setName("standard")));
+				.setSettings("{\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\"}}}");
 	}
 
 	private SynonymSet newSynonymSet(String organizationName, String name) {
@@ -406,7 +369,6 @@ public class SearchConfigurationDaoImplAutowiredTest {
 				.setOrganizationName(organizationName)
 				.setOverrides(Collections.singletonList(new ColumnAnalyzerOverrideEntry()
 						.setColumnName("testColumn")
-						.setIndexAnalyzer(analyzerQualifiedName)
-						.setSearchAnalyzer(analyzerQualifiedName)));
+						.setAnalyzer(analyzerQualifiedName)));
 	}
 }

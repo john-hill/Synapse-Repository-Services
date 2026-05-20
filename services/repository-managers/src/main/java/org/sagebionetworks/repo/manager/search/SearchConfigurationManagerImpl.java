@@ -1,6 +1,6 @@
 package org.sagebionetworks.repo.manager.search;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -12,7 +12,6 @@ import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
-import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
 import org.sagebionetworks.repo.model.dbo.search.SearchConfigurationDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
@@ -35,18 +34,16 @@ public class SearchConfigurationManagerImpl implements SearchConfigurationManage
 	private final SearchConfigurationDao searchConfigurationDao;
 	private final AccessControlListDAO aclDao;
 	private final OrganizationDao organizationDao;
-	private final SynonymSetDao synonymSetDao;
 	private final ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao;
 	private final TextAnalyzerDao textAnalyzerDao;
 	private final NodeDAO nodeDAO;
 
 	public SearchConfigurationManagerImpl(SearchConfigurationDao searchConfigurationDao, AccessControlListDAO aclDao,
-			OrganizationDao organizationDao, SynonymSetDao synonymSetDao,
+			OrganizationDao organizationDao,
 			ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao, TextAnalyzerDao textAnalyzerDao, NodeDAO nodeDAO) {
 		this.searchConfigurationDao = searchConfigurationDao;
 		this.aclDao = aclDao;
 		this.organizationDao = organizationDao;
-		this.synonymSetDao = synonymSetDao;
 		this.columnAnalyzerOverrideDao = columnAnalyzerOverrideDao;
 		this.textAnalyzerDao = textAnalyzerDao;
 		this.nodeDAO = nodeDAO;
@@ -201,28 +198,12 @@ public class SearchConfigurationManagerImpl implements SearchConfigurationManage
 	}
 
 	private void validateReferencedNames(SearchConfiguration config) {
-		List<String> analyzerRefs = new ArrayList<>();
-		if (config.getDefaultIndexAnalyzer() != null) {
-			SearchResourceConstants.validateQualifiedNameFormat(config.getDefaultIndexAnalyzer(), "defaultIndexAnalyzer");
-			analyzerRefs.add(config.getDefaultIndexAnalyzer());
-		}
-		if (config.getDefaultSearchAnalyzer() != null) {
-			SearchResourceConstants.validateQualifiedNameFormat(config.getDefaultSearchAnalyzer(), "defaultSearchAnalyzer");
-			analyzerRefs.add(config.getDefaultSearchAnalyzer());
-		}
-		if (!analyzerRefs.isEmpty()) {
-			List<String> missing = textAnalyzerDao.findNonExistentNames(analyzerRefs);
+		if (config.getDefaultAnalyzer() != null) {
+			SearchResourceConstants.validateQualifiedNameFormat(config.getDefaultAnalyzer(), "defaultAnalyzer");
+			List<String> missing = textAnalyzerDao.findNonExistentNames(
+					Collections.singletonList(config.getDefaultAnalyzer()));
 			if (!missing.isEmpty()) {
 				throw new IllegalArgumentException("The following default analyzer name(s) do not exist: " + missing);
-			}
-		}
-		if (config.getSynonymSets() != null && !config.getSynonymSets().isEmpty()) {
-			for (String name : config.getSynonymSets()) {
-				SearchResourceConstants.validateQualifiedNameFormat(name, "synonymSets");
-			}
-			List<String> missing = synonymSetDao.findNonExistentNames(config.getSynonymSets());
-			if (!missing.isEmpty()) {
-				throw new IllegalArgumentException("The following synonym set name(s) do not exist: " + missing);
 			}
 		}
 		if (config.getColumnAnalyzerOverrides() != null && !config.getColumnAnalyzerOverrides().isEmpty()) {

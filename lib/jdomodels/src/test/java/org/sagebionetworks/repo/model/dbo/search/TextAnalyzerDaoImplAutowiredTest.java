@@ -7,8 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,9 +18,7 @@ import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.schema.Organization;
-import org.sagebionetworks.repo.model.search.table.AnalyzerComponent;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
-import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -72,7 +68,7 @@ public class TextAnalyzerDaoImplAutowiredTest {
 		assertNotNull(created.getModifiedOn());
 		assertEquals(adminUserId.toString(), created.getCreatedBy());
 		assertEquals(adminUserId.toString(), created.getModifiedBy());
-		assertEquals("standard", created.getSettings().getTokenizer().getName());
+		assertNotNull(created.getSettings());
 
 		// Verify get returns the same data
 		Optional<TextAnalyzer> fetched = textAnalyzerDao.get(Long.parseLong(created.getId()));
@@ -102,14 +98,20 @@ public class TextAnalyzerDaoImplAutowiredTest {
 
 		created.setName("test_update_renamed");
 		created.setDescription("updated");
-		created.setSettings(new TextAnalyzerSettings()
-				.setTokenizer(new AnalyzerComponent().setName("whitespace")));
+		String newSettings = "{\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"whitespace\"}}}";
+		created.setSettings(newSettings);
 
 		TextAnalyzer updated = textAnalyzerDao.update(created, adminUserId);
 
 		assertEquals("test_update_renamed", updated.getName());
 		assertEquals("updated", updated.getDescription());
-		assertEquals("whitespace", updated.getSettings().getTokenizer().getName());
+		// MySQL JSON columns may reformat whitespace on read, so compare semantically.
+		com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+		try {
+			assertEquals(mapper.readTree(newSettings), mapper.readTree(updated.getSettings()));
+		} catch (java.io.IOException e) {
+			throw new AssertionError(e);
+		}
 		assertNotEquals(originalEtag, updated.getEtag());
 	}
 
@@ -158,16 +160,14 @@ public class TextAnalyzerDaoImplAutowiredTest {
 
 	@Test
 	public void testSettingsRoundTripThroughDatabase() {
-		TextAnalyzerSettings settings = new TextAnalyzerSettings()
-				.setTokenizer(new AnalyzerComponent().setName("standard"))
-				.setTokenFilters(Arrays.asList(
-						new AnalyzerComponent().setName("english_stop")
-								.setDefinition("{\"type\":\"stop\",\"stopwords\":\"_english_\"}"),
-						new AnalyzerComponent().setName("english_stemmer")
-								.setDefinition("{\"type\":\"stemmer\",\"language\":\"english\"}")))
-				.setIndexFilterOrder(Arrays.asList("lowercase", "english_stop", "english_stemmer"))
-				.setSearchFilterOrder(Arrays.asList("lowercase", "biomed-medical_terms", "english_stop"))
-				.setPositionIncrementGap(100L);
+		String settings = "{"
+				+ "\"filter\":{"
+				+ "\"english_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"},"
+				+ "\"english_stemmer\":{\"type\":\"stemmer\",\"language\":\"english\"}"
+				+ "},"
+				+ "\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\","
+				+ "\"filter\":[\"lowercase\",\"english_stop\",\"english_stemmer\"]}}"
+				+ "}";
 
 		TextAnalyzer analyzer = new TextAnalyzer()
 				.setName("settings_roundtrip")
@@ -177,7 +177,13 @@ public class TextAnalyzerDaoImplAutowiredTest {
 		TextAnalyzer created = textAnalyzerDao.create(analyzer, adminUserId);
 		TextAnalyzer fetched = textAnalyzerDao.get(Long.parseLong(created.getId())).get();
 
-		assertEquals(settings, fetched.getSettings());
+		// MySQL JSON columns may reformat whitespace on read, so compare semantically.
+		com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+		try {
+			assertEquals(mapper.readTree(settings), mapper.readTree(fetched.getSettings()));
+		} catch (java.io.IOException e) {
+			throw new AssertionError(e);
+		}
 	}
 
 	private TextAnalyzer newAnalyzer(String name, String description) {
@@ -185,9 +191,7 @@ public class TextAnalyzerDaoImplAutowiredTest {
 				.setName(name)
 				.setDescription(description)
 				.setOrganizationName(organizationName)
-				.setSettings(new TextAnalyzerSettings()
-						.setTokenizer(new AnalyzerComponent().setName("standard"))
-						.setTokenFilters(Collections.emptyList())
-						.setIndexFilterOrder(Arrays.asList("lowercase")));
+				.setSettings("{\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\","
+						+ "\"filter\":[\"lowercase\"]}}}");
 	}
 }

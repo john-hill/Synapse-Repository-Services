@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -260,24 +261,26 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 
 			Map<String, TextAnalyzer> analyzers = collectAndLoadAnalyzers(
 					config, overrides, selectedColumns);
-			List<SynonymSet> synonymSets = loadConfiguredSynonymSets(config);
-			String defaultIndexAnalyzer = config != null ? config.getDefaultIndexAnalyzer() : null;
-			String defaultSearchAnalyzer = config != null ? config.getDefaultSearchAnalyzer() : null;
+			String defaultAnalyzer = config != null ? config.getDefaultAnalyzer() : null;
 
 			// Pre-flight: every default / override analyzer qname must resolve to a loaded
-			// TextAnalyzer. SynonymSet qname existence was already validated at SearchConfiguration
-			// create/update time. A miss here throws IllegalArgumentException — caught below and
-			// surfaced via SearchIndexStatus.errorMessage.
-			validateReferencedResources(defaultIndexAnalyzer, defaultSearchAnalyzer,
-					overrides, analyzers);
+			// TextAnalyzer. A miss throws IllegalArgumentException — caught below and surfaced
+			// via SearchIndexStatus.errorMessage.
+			validateReferencedResources(defaultAnalyzer, overrides, analyzers);
+
+			// Parse each analyzer's settings JSON and resolve all $ref entries to SynonymSet
+			// definitions. The resolved JSON tree is what the OpenSearchManager merges into the
+			// index's settings.analysis block. SynonymSet qname existence is validated lazily
+			// here — a missing target raises IllegalArgumentException via SearchAnalyzerJson.
+			Map<String, JsonNode> resolvedAnalyzers = resolveAnalyzers(analyzers);
 
 			String indexName = getIndexName(entityId);
 			if (deleteExistingFirst) {
 				openSearchManager.deleteIndex(indexName);
 			}
 			openSearchManager.createIndex(indexName, selectedColumns,
-					defaultIndexAnalyzer, defaultSearchAnalyzer,
-					overrides, analyzers, synonymSets);
+					defaultAnalyzer,
+					overrides, resolvedAnalyzers);
 
 			// AOSS acknowledges createIndex and returns an already-queryable index before its
 			// shards are actually ready to accept writes. Block until a real sentinel write
@@ -384,24 +387,16 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			for (ColumnAnalyzerOverride cao : overrides) {
 				if (cao.getOverrides() != null) {
 					for (ColumnAnalyzerOverrideEntry entry : cao.getOverrides()) {
-						if (entry.getIndexAnalyzer() != null) {
-							qualifiedNames.add(entry.getIndexAnalyzer());
-						}
-						if (entry.getSearchAnalyzer() != null) {
-							qualifiedNames.add(entry.getSearchAnalyzer());
+						if (entry.getAnalyzer() != null) {
+							qualifiedNames.add(entry.getAnalyzer());
 						}
 					}
 				}
 			}
 		}
 
-		if (config != null) {
-			if (config.getDefaultIndexAnalyzer() != null) {
-				qualifiedNames.add(config.getDefaultIndexAnalyzer());
-			}
-			if (config.getDefaultSearchAnalyzer() != null) {
-				qualifiedNames.add(config.getDefaultSearchAnalyzer());
-			}
+		if (config != null && config.getDefaultAnalyzer() != null) {
+			qualifiedNames.add(config.getDefaultAnalyzer());
 		}
 
 		for (ColumnModel column : columns) {
@@ -412,39 +407,30 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	}
 
 	/**
-	 * Load every SynonymSet listed in {@code config.getSynonymSets()} in the order the
-	 * SearchConfiguration declared them. These are the SynonymSets that will be substituted
-	 * for the 'synapse_synonyms' placeholder in any analyzer's filter chain at index-build
-	 * time. Validation at SearchConfiguration create/update guarantees every listed qname
-	 * resolves, so a missing qname here is a transient inconsistency (the SynonymSet was
-	 * deleted out from under us) and yields a build-time failure.
+	 * Parse and resolve each TextAnalyzer's settings JSON. The output map is keyed by the
+	 * same qualified names as the input and holds the post-{@code $ref}-resolution JSON tree
+	 * ready for {@link OpenSearchManager#createIndex}. {@code $ref} values are resolved by
+	 * looking up the corresponding SynonymSet definition through {@link SynonymSetDao}.
 	 *
-	 * @param config Effective {@link SearchConfiguration}; may be {@code null}.
-	 * @return SynonymSets in the order declared by {@code config.getSynonymSets()};
-	 *         empty when the config is {@code null} or has no synonym sets.
-	 * @throws IllegalArgumentException when any listed qname no longer resolves (the
-	 *         SynonymSet was deleted between SearchConfiguration save and index build).
+	 * @throws IllegalArgumentException when a {@code $ref} target qname does not resolve to
+	 *         an existing SynonymSet (deleted between TextAnalyzer save and index build).
 	 */
-	List<SynonymSet> loadConfiguredSynonymSets(SearchConfiguration config) {
-		if (config == null || config.getSynonymSets() == null || config.getSynonymSets().isEmpty()) {
-			return Collections.emptyList();
+	Map<String, JsonNode> resolveAnalyzers(Map<String, TextAnalyzer> analyzers) {
+		Map<String, JsonNode> resolved = new java.util.LinkedHashMap<>();
+		for (Map.Entry<String, TextAnalyzer> entry : analyzers.entrySet()) {
+			JsonNode root = SearchAnalyzerJson.parse(entry.getValue().getSettings());
+			JsonNode resolvedRoot = SearchAnalyzerJson.resolveRefs(root, qname -> {
+				Map<String, SynonymSet> map = synonymSetDao.getByQualifiedNames(
+						Collections.singletonList(qname));
+				SynonymSet ss = map.get(qname);
+				if (ss == null) {
+					return null;
+				}
+				return SearchAnalyzerJson.parse(ss.getDefinition());
+			});
+			resolved.put(entry.getKey(), resolvedRoot);
 		}
-		Map<String, SynonymSet> byQname = synonymSetDao.getByQualifiedNames(config.getSynonymSets());
-		List<SynonymSet> ordered = new ArrayList<>(config.getSynonymSets().size());
-		List<String> missing = new ArrayList<>();
-		for (String qname : config.getSynonymSets()) {
-			SynonymSet ss = byQname.get(qname);
-			if (ss == null) {
-				missing.add(qname);
-			} else {
-				ordered.add(ss);
-			}
-		}
-		if (!missing.isEmpty()) {
-			throw new IllegalArgumentException(
-					"SearchConfiguration references SynonymSet(s) that no longer exist: " + missing);
-		}
-		return ordered;
+		return resolved;
 	}
 
 	private List<ColumnAnalyzerOverride> loadColumnAnalyzerOverrides(SearchConfiguration config) {
@@ -517,30 +503,27 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	}
 
 	/**
-	 * Pre-flight check: every analyzer qname referenced by the configuration must resolve
-	 * to a loaded TextAnalyzer. Throws on first miss so the outer catch records the failure
-	 * into {@code SearchIndexStatus.errorMessage} (truncated to 3000 chars by
-	 * {@link #MAX_ERROR_MESSAGE_LENGTH}) and the SearchIndex is marked FAILED. SynonymSet
-	 * references are best-effort — resolved sets become filters; unresolved dash-names pass
-	 * through to AOSS as-is.
+	 * Pre-flight check: every TextAnalyzer qname referenced by the configuration's defaults
+	 * and the per-column overrides must resolve to a loaded TextAnalyzer. Throws on first
+	 * miss so the outer catch records the failure into {@code SearchIndexStatus.errorMessage}
+	 * (truncated to 3000 chars by {@link #MAX_ERROR_MESSAGE_LENGTH}) and the SearchIndex is
+	 * marked FAILED. SynonymSet references inside each TextAnalyzer's settings are validated
+	 * separately, lazily, by {@link #resolveAnalyzers}.
 	 *
-	 * @param defaultIndexAnalyzer  Qualified name of the SearchConfiguration's default
-	 *                              index analyzer; may be {@code null}.
-	 * @param defaultSearchAnalyzer Qualified name of the SearchConfiguration's default
-	 *                              search analyzer; may be {@code null}.
-	 * @param overrides             Resolved column-analyzer overrides; may be empty.
-	 * @param analyzers             Map of qualified name → TextAnalyzer loaded via
-	 *                              {@link #collectAndLoadAnalyzers}.
+	 * @param defaultAnalyzer Qualified name of the SearchConfiguration's primary
+	 *                        TextAnalyzer; may be {@code null}.
+	 * @param overrides       Resolved column-analyzer overrides; may be empty.
+	 * @param analyzers       Map of qualified name → TextAnalyzer loaded via
+	 *                        {@link #collectAndLoadAnalyzers}.
 	 * @throws IllegalArgumentException when any non-null qname does not resolve to a
 	 *         loaded TextAnalyzer.
 	 */
-	private void validateReferencedResources(String defaultIndexAnalyzer, String defaultSearchAnalyzer,
+	private void validateReferencedResources(String defaultAnalyzer,
 			List<ColumnAnalyzerOverride> overrides,
 			Map<String, TextAnalyzer> analyzers) {
 
-		// Default analyzers: must exist in the loaded analyzers map when set.
-		assertAnalyzerExists(defaultIndexAnalyzer, analyzers, "defaultIndexAnalyzer");
-		assertAnalyzerExists(defaultSearchAnalyzer, analyzers, "defaultSearchAnalyzer");
+		// Default analyzer: must exist in the loaded analyzers map when set.
+		assertAnalyzerExists(defaultAnalyzer, analyzers, "defaultAnalyzer");
 
 		// Override analyzers: must exist when set.
 		if (overrides != null) {
@@ -549,19 +532,11 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 					continue;
 				}
 				for (ColumnAnalyzerOverrideEntry entry : cao.getOverrides()) {
-					assertAnalyzerExists(entry.getIndexAnalyzer(), analyzers,
-							"override '" + cao.getName() + "' indexAnalyzer for column '" + entry.getColumnName() + "'");
-					assertAnalyzerExists(entry.getSearchAnalyzer(), analyzers,
-							"override '" + cao.getName() + "' searchAnalyzer for column '" + entry.getColumnName() + "'");
+					assertAnalyzerExists(entry.getAnalyzer(), analyzers,
+							"override '" + cao.getName() + "' analyzer for column '" + entry.getColumnName() + "'");
 				}
 			}
 		}
-
-		// SynonymSet references in filter chains are best-effort: we already bulk-loaded
-		// every dash-bearing candidate in loadReferencedSynonymSets. Resolved SynonymSets
-		// become named filters under settings.analysis.filter; unresolved names pass through
-		// to AOSS unchanged so it can accept them as built-ins / plugin filter names, or
-		// reject them with its own diagnostic — surfaced via SearchIndexStatus.errorMessage.
 	}
 
 	private static void assertAnalyzerExists(String qname,

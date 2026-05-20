@@ -152,13 +152,9 @@ public class ColumnAnalyzerOverrideManagerImpl implements ColumnAnalyzerOverride
 		}
 		List<String> qualifiedNames = new ArrayList<>();
 		for (ColumnAnalyzerOverrideEntry entry : override.getOverrides()) {
-			if (entry.getIndexAnalyzer() != null) {
-				SearchResourceConstants.validateQualifiedNameFormat(entry.getIndexAnalyzer(), "indexAnalyzer");
-				qualifiedNames.add(entry.getIndexAnalyzer());
-			}
-			if (entry.getSearchAnalyzer() != null) {
-				SearchResourceConstants.validateQualifiedNameFormat(entry.getSearchAnalyzer(), "searchAnalyzer");
-				qualifiedNames.add(entry.getSearchAnalyzer());
+			if (entry.getAnalyzer() != null) {
+				SearchResourceConstants.validateQualifiedNameFormat(entry.getAnalyzer(), "analyzer");
+				qualifiedNames.add(entry.getAnalyzer());
 			}
 		}
 		if (!qualifiedNames.isEmpty()) {

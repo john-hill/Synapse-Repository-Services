@@ -1,9 +1,7 @@
 package org.sagebionetworks.repo.manager.search;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -16,8 +14,6 @@ import java.util.stream.Collectors;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.table.TableManagerSupport;
 import org.sagebionetworks.repo.model.UserInfo;
-import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
-import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.search.FacetRequest;
@@ -30,9 +26,6 @@ import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.SelectColumn;
 import org.sagebionetworks.repo.model.table.FacetColumnResult;
-import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
-import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
-import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.model.search.table.SearchIndex;
 import org.sagebionetworks.repo.model.search.table.SearchIndexQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
@@ -40,7 +33,6 @@ import org.sagebionetworks.repo.model.search.table.SearchIndexState;
 import org.sagebionetworks.repo.model.search.table.SearchIndexStatus;
 import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
-import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.table.cluster.ConnectionFactory;
 import org.sagebionetworks.table.cluster.QueryTranslator;
 import org.sagebionetworks.table.cluster.description.IndexDescription;
@@ -57,25 +49,16 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 	private final EntityManager entityManager;
 	private final ConnectionFactory connectionFactory;
 	private final OpenSearchManager openSearchManager;
-	private final SearchConfigurationResolver searchConfigurationResolver;
 	private final TableManagerSupport tableManagerSupport;
-	private final ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao;
-	private final TextAnalyzerDao textAnalyzerDao;
 
 	public SearchIndexQueryManagerImpl(EntityManager entityManager,
 			ConnectionFactory connectionFactory,
 			OpenSearchManager openSearchManager,
-			SearchConfigurationResolver searchConfigurationResolver,
-			TableManagerSupport tableManagerSupport,
-			ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao,
-			TextAnalyzerDao textAnalyzerDao) {
+			TableManagerSupport tableManagerSupport) {
 		this.entityManager = entityManager;
 		this.connectionFactory = connectionFactory;
 		this.openSearchManager = openSearchManager;
-		this.searchConfigurationResolver = searchConfigurationResolver;
 		this.tableManagerSupport = tableManagerSupport;
-		this.columnAnalyzerOverrideDao = columnAnalyzerOverrideDao;
-		this.textAnalyzerDao = textAnalyzerDao;
 	}
 
 	@Override
@@ -113,9 +96,6 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		tableManagerSupport.validateTableReadAccess(user, indexDescription);
 
 		checkIndexStatus(searchIndexId);
-		Optional<SearchConfiguration> configOpt = searchConfigurationResolver.resolve(
-				user, searchIndex.getSearchConfigurationId(), searchIndex.getParentId());
-		SearchConfiguration config = configOpt.orElse(null);
 
 		QueryMetadata metadata = buildQueryMetadata(IdAndVersion.parse(searchIndexId));
 		List<ColumnModel> columns = metadata.getColumns();
@@ -146,19 +126,14 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 		// Translate user-facing column names to IDs before sending to OpenSearch
 		translateQueryNamesToIds(query, nameToId);
 
-		// Load overrides and analyzers needed for field routing. Query-time analysis only
-		// needs the search analyzer; the index analyzer is already baked into AOSS at build.
-		List<ColumnAnalyzerOverride> overrides = loadColumnAnalyzerOverrides(config);
-		Map<String, TextAnalyzer> analyzers = collectAndLoadAnalyzers(config, overrides, columns);
-		String defaultSearchAnalyzer = config != null ? config.getDefaultSearchAnalyzer() : null;
-
+		// Query-time analysis is baked into the AOSS index at build time, so the manager
+		// does not need TextAnalyzer or override metadata here — AOSS routes each field
+		// through its own configured search analyzer automatically.
 		SearchQueryResults rawResults;
 		if (isAutocomplete) {
-			rawResults = openSearchManager.autocomplete(getIndexName(searchIndexId), query, columns,
-					defaultSearchAnalyzer, overrides, analyzers, parts);
+			rawResults = openSearchManager.autocomplete(getIndexName(searchIndexId), query, columns, parts);
 		} else {
-			rawResults = openSearchManager.search(getIndexName(searchIndexId), query, columns,
-					defaultSearchAnalyzer, overrides, analyzers, parts);
+			rawResults = openSearchManager.search(getIndexName(searchIndexId), query, columns, parts);
 		}
 
 		// Translate column IDs back to names in the results before assembling the response.
@@ -246,51 +221,6 @@ public class SearchIndexQueryManagerImpl implements SearchIndexQueryManager {
 					+ " has no bound schema — update the entity to re-register.");
 		}
 		return new QueryMetadata(columns, TableModelUtils.getSelectColumns(columns));
-	}
-
-	/**
-	 * Load just the analyzers that route at QUERY time: per-column searchAnalyzer overrides,
-	 * the configuration's defaultSearchAnalyzer, the platform default for each column type
-	 * (fallback when no override and no config default), and SCIENTIFIC (used to drive the
-	 * .searchable sub-field on KEYWORD columns). Index-time analyzers are baked into AOSS at
-	 * build time and are not needed here.
-	 */
-	Map<String, TextAnalyzer> collectAndLoadAnalyzers(SearchConfiguration config,
-			List<ColumnAnalyzerOverride> overrides, List<ColumnModel> columns) {
-		Set<String> qualifiedNames = new HashSet<>();
-
-		qualifiedNames.add(ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(ColumnType.STRING));
-
-		if (overrides != null) {
-			for (ColumnAnalyzerOverride cao : overrides) {
-				if (cao.getOverrides() != null) {
-					for (ColumnAnalyzerOverrideEntry entry : cao.getOverrides()) {
-						if (entry.getSearchAnalyzer() != null) {
-							qualifiedNames.add(entry.getSearchAnalyzer());
-						}
-					}
-				}
-			}
-		}
-
-		if (config != null && config.getDefaultSearchAnalyzer() != null) {
-			qualifiedNames.add(config.getDefaultSearchAnalyzer());
-		}
-
-		for (ColumnModel column : columns) {
-			qualifiedNames.add(ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(column.getColumnType()));
-		}
-
-		return new HashMap<>(textAnalyzerDao.getByQualifiedNames(new ArrayList<>(qualifiedNames)));
-	}
-
-	List<ColumnAnalyzerOverride> loadColumnAnalyzerOverrides(SearchConfiguration config) {
-		if (config == null || config.getColumnAnalyzerOverrides() == null
-				|| config.getColumnAnalyzerOverrides().isEmpty()) {
-			return Collections.emptyList();
-		}
-		return new ArrayList<>(columnAnalyzerOverrideDao.getByQualifiedNames(
-				config.getColumnAnalyzerOverrides()).values());
 	}
 
 	void checkIndexStatus(String searchIndexId) {

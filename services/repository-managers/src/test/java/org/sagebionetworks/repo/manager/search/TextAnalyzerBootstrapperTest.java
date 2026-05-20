@@ -3,15 +3,15 @@ package org.sagebionetworks.repo.manager.search;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,15 +25,13 @@ import org.sagebionetworks.repo.model.AuthorizationConstants;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.schema.Organization;
-import org.sagebionetworks.repo.model.search.table.AnalyzerComponent;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
-import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
+
+import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * Verifies that {@link TextAnalyzerBootstrapper} idempotently upserts the six system
- * analyzers at the expected reserved IDs, in the right order, with the right filter
- * chain and {@code synapse_synonyms} placeholder placement. The bootstrap method must
- * be invoked in the constructor (not via {@code afterPropertiesSet}) so loading the
+ * Verifies that {@link TextAnalyzerBootstrapper} idempotently upserts the five system
+ * analyzers at the expected reserved IDs. Bootstrap runs in the constructor so loading the
  * bean triggers the upsert.
  */
 @ExtendWith(MockitoExtension.class)
@@ -60,146 +58,106 @@ public class TextAnalyzerBootstrapperTest {
 	}
 
 	@Test
-	public void testConstructorBootstrapsAllSixSystemAnalyzers() {
-		// call under test — constructor runs bootstrap unconditionally.
-		new TextAnalyzerBootstrapper(textAnalyzerDao, synapseSchemaBootstrap, userManager);
-
-		// Each reserved ID 1..6 must be upserted exactly once.
-		verify(textAnalyzerDao, times(6)).createOrUpdateSystemAnalyzerForBootstrapOnly(
-				anyLong(), org.mockito.ArgumentMatchers.any(TextAnalyzer.class), eq(ORG_NAME), eq(ADMIN_USER_ID));
-	}
-
-	@Test
-	public void testBootstrappedAnalyzersHaveStableNamesAndIds() {
-		// Capture every upsert and assert the per-ID name mapping (analyzers are referenced
-		// by qname elsewhere; renaming them would break every IT and downstream consumer).
+	public void testConstructorBootstrapsAllFiveSystemAnalyzersWithStableNamesAndIds() {
+		// call under test — constructor runs bootstrap unconditionally; the helper captures
+		// every (id, analyzer) pair so we can assert exact mapping.
 		Map<Long, TextAnalyzer> upserts = captureAllUpserts();
 
+		assertEquals(5, upserts.size());
 		assertEquals("SCIENTIFIC", upserts.get(TextAnalyzerBootstrapper.SCIENTIFIC_ID).getName());
 		assertEquals("STANDARD", upserts.get(TextAnalyzerBootstrapper.STANDARD_ID).getName());
 		assertEquals("IDENTIFIER", upserts.get(TextAnalyzerBootstrapper.IDENTIFIER_ID).getName());
 		assertEquals("KEYWORD", upserts.get(TextAnalyzerBootstrapper.KEYWORD_ID).getName());
 		assertEquals("AUTOCOMPLETE", upserts.get(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID).getName());
-		assertEquals("AUTOCOMPLETE_SEARCH",
-				upserts.get(TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID).getName());
 	}
 
 	@Test
-	public void testScientificAnalyzerPlacesSynonymPlaceholderInSearchChainBeforeWordDelimiter() {
-		// synonym_graph is search-time only (re-index avoidance, no TF distortion). At index-init
-		// OpenSearch compiles the dictionary by feeding raw synonyms through every preceding
-		// filter — so SYN must sit BEFORE sci_word_delimiter (a word_delimiter_graph) in the
-		// search chain, otherwise OpenSearch rejects with "cannot be used to parse synonyms".
-		TextAnalyzer scientific = captureAllUpserts().get(TextAnalyzerBootstrapper.SCIENTIFIC_ID);
-		List<String> indexOrder = scientific.getSettings().getIndexFilterOrder();
-		List<String> searchOrder = scientific.getSettings().getSearchFilterOrder();
-
-		assertTrue(!indexOrder.contains(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER),
-				"SCIENTIFIC indexFilterOrder must NOT contain synapse_synonyms (search-time only): "
-						+ indexOrder);
-
-		int lowercaseIdx = searchOrder.indexOf("lowercase");
-		int placeholderIdx = searchOrder.indexOf(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER);
-		int wordDelimIdx = searchOrder.indexOf("sci_word_delimiter");
-		int stopIdx = searchOrder.indexOf("english_stop");
-		int stemmerIdx = searchOrder.indexOf("english_stemmer");
-
-		assertTrue(lowercaseIdx >= 0, "SCIENTIFIC search chain must contain lowercase: " + searchOrder);
-		assertTrue(placeholderIdx >= 0,
-				"SCIENTIFIC search chain must contain synapse_synonyms: " + searchOrder);
-		assertTrue(lowercaseIdx < placeholderIdx,
-				"Placeholder must come AFTER lowercase (case-insensitive synonym match): " + searchOrder);
-		assertTrue(placeholderIdx < wordDelimIdx,
-				"Placeholder must come BEFORE sci_word_delimiter (graph predecessor rule): " + searchOrder);
-		assertTrue(wordDelimIdx < stopIdx,
-				"sci_word_delimiter must come BEFORE english_stop: " + searchOrder);
-		assertTrue(stopIdx < stemmerIdx,
-				"english_stop must come BEFORE stemmer: " + searchOrder);
+	public void testAutocompleteAnalyzerDeclaresAsymmetricSearchEntry() {
+		TextAnalyzer autocomplete = captureAllUpserts().get(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID);
+		JsonNode root = SearchAnalyzerJson.parse(autocomplete.getSettings());
+		JsonNode defaultSearch = root.at("/analyzer/default_search");
+		assertNotNull(defaultSearch);
+		assertEquals("custom", defaultSearch.get("type").asText());
 	}
 
 	@Test
-	public void testStandardAndIdentifierAnalyzersExposePlaceholderInSearchChainOnly() {
+	public void testEverySettingsBlobParsesAndDeclaresMainAnalyzer() {
+		// Each bootstrapped analyzer's settings must (a) be valid JSON and (b) declare an
+		// analyzer named "default" — the canonical entry the field-mapping side resolves to.
 		Map<Long, TextAnalyzer> upserts = captureAllUpserts();
 
-		List<String> standardIndex = upserts.get(TextAnalyzerBootstrapper.STANDARD_ID)
-				.getSettings().getIndexFilterOrder();
-		List<String> standardSearch = upserts.get(TextAnalyzerBootstrapper.STANDARD_ID)
-				.getSettings().getSearchFilterOrder();
-		List<String> identifierIndex = upserts.get(TextAnalyzerBootstrapper.IDENTIFIER_ID)
-				.getSettings().getIndexFilterOrder();
-		List<String> identifierSearch = upserts.get(TextAnalyzerBootstrapper.IDENTIFIER_ID)
-				.getSettings().getSearchFilterOrder();
-
-		assertTrue(!standardIndex.contains(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER),
-				"STANDARD indexFilterOrder must NOT expose synapse_synonyms: " + standardIndex);
-		assertTrue(!identifierIndex.contains(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER),
-				"IDENTIFIER indexFilterOrder must NOT expose synapse_synonyms: " + identifierIndex);
-		assertTrue(standardSearch.indexOf(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER)
-						< standardSearch.indexOf("std_word_delimiter"),
-				"STANDARD search chain must place synapse_synonyms before std_word_delimiter: " + standardSearch);
-		assertTrue(identifierSearch.indexOf(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER)
-						< identifierSearch.indexOf("id_word_delimiter"),
-				"IDENTIFIER search chain must place synapse_synonyms before id_word_delimiter: " + identifierSearch);
-	}
-
-	@Test
-	public void testKeywordAnalyzerHasNoTokenFilters() {
-		// KEYWORD produces one token; synonym substitution against the whole field value is
-		// almost never what users want, so the bootstrap intentionally omits the placeholder.
-		TextAnalyzer keyword = captureAllUpserts().get(TextAnalyzerBootstrapper.KEYWORD_ID);
-
-		assertEquals("keyword", keyword.getSettings().getTokenizer().getName());
-		assertNotNull(keyword.getSettings(), "KEYWORD must have settings");
-		// No indexFilterOrder set → no token filters in the chain.
-		assertTrue(keyword.getSettings().getIndexFilterOrder() == null
-				|| keyword.getSettings().getIndexFilterOrder().isEmpty(),
-				"KEYWORD must have no filter chain: " + keyword.getSettings().getIndexFilterOrder());
-	}
-
-	@Test
-	public void testAutocompleteAnalyzerOmitsPlaceholderBeforeEdgeNgram() {
-		// edge_ngram is a non-graph filter that cannot consume the multi-position graph tokens
-		// from synonym_graph; emitting synonyms before edge_ngram would explode the index.
-		TextAnalyzer autocomplete = captureAllUpserts().get(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID);
-		List<String> order = autocomplete.getSettings().getIndexFilterOrder();
-
-		assertTrue(order.contains("edge_ngram_filter"),
-				"AUTOCOMPLETE must end with edge_ngram_filter: " + order);
-		assertTrue(!order.contains(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER),
-				"AUTOCOMPLETE must NOT inject synonyms at index time: " + order);
-	}
-
-	@Test
-	public void testAutocompleteSearchAnalyzerExposesPlaceholderBeforeWordDelimiter() {
-		// AUTOCOMPLETE_SEARCH IS the search-time analyzer paired with AUTOCOMPLETE; SYN must
-		// appear here, and must precede acs_word_delimiter (a word_delimiter_graph) so the
-		// synonym dictionary compile at index-init isn't preceded by a graph filter.
-		TextAnalyzer search = captureAllUpserts().get(TextAnalyzerBootstrapper.AUTOCOMPLETE_SEARCH_ID);
-		List<String> order = search.getSettings().getIndexFilterOrder();
-
-		int placeholderIdx = order.indexOf(OpenSearchManagerImpl.SYNONYM_PLACEHOLDER);
-		int wordDelimIdx = order.indexOf("acs_word_delimiter");
-		assertTrue(placeholderIdx >= 0,
-				"AUTOCOMPLETE_SEARCH must expose 'synapse_synonyms' at search time: " + order);
-		assertTrue(placeholderIdx < wordDelimIdx,
-				"AUTOCOMPLETE_SEARCH must place synapse_synonyms before acs_word_delimiter: " + order);
-	}
-
-	@Test
-	public void testBootstrappedComponentsAllCarryOpenSearchDefinitions() {
-		// Every custom (non-built-in) token filter referenced in indexFilterOrder must be
-		// declared in tokenFilters with a non-null definition; otherwise the translator can't
-		// register it at index-build time and AOSS rejects the analyzer.
-		for (Map.Entry<Long, TextAnalyzer> entry : captureAllUpserts().entrySet()) {
-			TextAnalyzer a = entry.getValue();
-			if (a.getSettings().getTokenFilters() == null) {
-				continue;
-			}
-			for (AnalyzerComponent c : a.getSettings().getTokenFilters()) {
-				assertNotNull(c.getDefinition(),
-						"Owned token filter '" + c.getName() + "' in " + a.getName() + " must carry a definition");
-			}
+		for (Map.Entry<Long, TextAnalyzer> e : upserts.entrySet()) {
+			TextAnalyzer a = e.getValue();
+			assertNotNull(a.getSettings(), "settings required for analyzer " + a.getName());
+			JsonNode root = SearchAnalyzerJson.parse(a.getSettings());
+			JsonNode defaultAnalyzerEntry = root.at("/analyzer/default");
+			assertNotNull(defaultAnalyzerEntry);
+			assertEquals("custom", defaultAnalyzerEntry.get("type").asText(),
+					"analyzer 'default' must be type=custom: " + a.getName());
 		}
+	}
+
+	@Test
+	public void testNoBootstrappedAnalyzerCarriesARefEntry() {
+		// Bootstrapped analyzers don't reference user SynonymSets — users compose their own.
+		for (TextAnalyzer a : captureAllUpserts().values()) {
+			JsonNode root = SearchAnalyzerJson.parse(a.getSettings());
+			assertEquals(0, SearchAnalyzerJson.collectRefs(root).size(),
+					"bootstrapped analyzer '" + a.getName() + "' must not contain any $ref");
+		}
+	}
+
+	@Test
+	public void testKeywordAnalyzerHasNoFilterChain() {
+		TextAnalyzer keyword = captureAllUpserts().get(TextAnalyzerBootstrapper.KEYWORD_ID);
+		JsonNode root = SearchAnalyzerJson.parse(keyword.getSettings());
+		JsonNode defaultAnalyzerEntry = root.at("/analyzer/default");
+		assertEquals("keyword", defaultAnalyzerEntry.get("tokenizer").asText());
+		// No filter array set, or empty.
+		JsonNode filters = defaultAnalyzerEntry.get("filter");
+		boolean isEmpty = filters == null || (filters.isArray() && filters.size() == 0);
+		assertTrue(isEmpty, "KEYWORD must have no token filters: " + filters);
+	}
+
+	@Test
+	public void testAutocompleteAnalyzerEndsWithEdgeNgramFilter() {
+		TextAnalyzer autocomplete = captureAllUpserts().get(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID);
+		JsonNode root = SearchAnalyzerJson.parse(autocomplete.getSettings());
+		JsonNode chain = root.at("/analyzer/default/filter");
+		assertEquals("edge_ngram_filter", chain.get(chain.size() - 1).asText(),
+				"AUTOCOMPLETE must end with edge_ngram_filter: " + chain);
+	}
+
+	@Test
+	public void testBootstrapDeletesStaleAutocompleteSearchRowWhenNameMatches() {
+		when(textAnalyzerDao.get(6L)).thenReturn(
+				Optional.of(new TextAnalyzer().setName("AUTOCOMPLETE_SEARCH")));
+
+		// call under test
+		new TextAnalyzerBootstrapper(textAnalyzerDao, synapseSchemaBootstrap, userManager);
+
+		verify(textAnalyzerDao).delete(6L);
+	}
+
+	@Test
+	public void testBootstrapLeavesId6AloneWhenNameDoesNotMatch() {
+		when(textAnalyzerDao.get(6L)).thenReturn(
+				Optional.of(new TextAnalyzer().setName("RECLAIMED")));
+
+		// call under test
+		new TextAnalyzerBootstrapper(textAnalyzerDao, synapseSchemaBootstrap, userManager);
+
+		verify(textAnalyzerDao, never()).delete(6L);
+	}
+
+	@Test
+	public void testBootstrapLeavesId6AloneWhenAbsent() {
+		when(textAnalyzerDao.get(6L)).thenReturn(Optional.empty());
+
+		// call under test
+		new TextAnalyzerBootstrapper(textAnalyzerDao, synapseSchemaBootstrap, userManager);
+
+		verify(textAnalyzerDao, never()).delete(6L);
 	}
 
 	// --- helpers ---
@@ -208,7 +166,7 @@ public class TextAnalyzerBootstrapperTest {
 		new TextAnalyzerBootstrapper(textAnalyzerDao, synapseSchemaBootstrap, userManager);
 		ArgumentCaptor<Long> idCaptor = ArgumentCaptor.forClass(Long.class);
 		ArgumentCaptor<TextAnalyzer> analyzerCaptor = ArgumentCaptor.forClass(TextAnalyzer.class);
-		verify(textAnalyzerDao, times(6)).createOrUpdateSystemAnalyzerForBootstrapOnly(
+		verify(textAnalyzerDao, times(5)).createOrUpdateSystemAnalyzerForBootstrapOnly(
 				idCaptor.capture(), analyzerCaptor.capture(), eq(ORG_NAME), eq(ADMIN_USER_ID));
 
 		Map<Long, TextAnalyzer> result = new HashMap<>();

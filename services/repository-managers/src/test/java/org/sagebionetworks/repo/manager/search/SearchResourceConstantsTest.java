@@ -11,8 +11,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Unit tests for the input-validation helpers in {@link SearchResourceConstants}:
- * resource-name regex, qualified-name regex, and the {@code *_path} JSON key rejection
- * gate that protects users from AOSS-incompatible custom analyzers.
+ * resource-name regex and qualified-name regex.
  */
 public class SearchResourceConstantsTest {
 
@@ -59,68 +58,5 @@ public class SearchResourceConstantsTest {
 		assertTrue(e.getMessage().contains("Invalid qualified name format"));
 		assertTrue(e.getMessage().contains("myField"),
 				"Error must name the field for diagnostic clarity: " + e.getMessage());
-	}
-
-	// --- rejectFilePathParameters ---
-
-	@Test
-	public void testRejectFilePathParametersWithNullDoesNothing() {
-		// call under test
-		assertDoesNotThrow(() -> SearchResourceConstants.rejectFilePathParameters(null, "definition"));
-	}
-
-	@Test
-	public void testRejectFilePathParametersWithEmptyDoesNothing() {
-		// call under test
-		assertDoesNotThrow(() -> SearchResourceConstants.rejectFilePathParameters("", "definition"));
-	}
-
-	@Test
-	public void testRejectFilePathParametersWithInlineParamsPasses() {
-		// All inline equivalents (synonyms, stopwords, mappings) are allowed.
-		String def = "{\"type\":\"synonym_graph\",\"synonyms\":[\"a, b\"],\"expand\":true,\"lenient\":false}";
-		// call under test
-		assertDoesNotThrow(() -> SearchResourceConstants.rejectFilePathParameters(def, "definition"));
-	}
-
-	@ParameterizedTest
-	@ValueSource(strings = {"synonyms_path", "stopwords_path", "mappings_path",
-			"protected_words_path", "hyphenation_patterns_path", "word_list_path"})
-	public void testRejectFilePathParametersForeachKnownPathKeyThrows(String key) {
-		// call under test
-		String def = "{\"type\":\"x\",\"" + key + "\":\"foo.txt\"}";
-		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> SearchResourceConstants.rejectFilePathParameters(def, "definition"));
-		assertTrue(e.getMessage().contains(key), "Error must name the offending key: " + e.getMessage());
-		assertTrue(e.getMessage().contains("Amazon OpenSearch Serverless"));
-	}
-
-	@Test
-	public void testRejectFilePathParametersWithFuturePathKeyAlsoThrows() {
-		// Forward-compatibility: any `_path` key is rejected, not just a hard-coded list.
-		String def = "{\"type\":\"future_filter\",\"some_future_path\":\"x\"}";
-		// call under test
-		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> SearchResourceConstants.rejectFilePathParameters(def, "definition"));
-		assertTrue(e.getMessage().contains("some_future_path"));
-	}
-
-	@Test
-	public void testRejectFilePathParametersIncludesFieldNameInError() {
-		String def = "{\"type\":\"stop\",\"stopwords_path\":\"analysis/stop.txt\"}";
-		// call under test — the schema field name appears in the error so users find the source.
-		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> SearchResourceConstants.rejectFilePathParameters(def, "tokenFilters[my_stop].definition"));
-		assertTrue(e.getMessage().contains("tokenFilters[my_stop].definition"),
-				"Field name must be included for diagnostic clarity: " + e.getMessage());
-	}
-
-	@Test
-	public void testRejectFilePathParametersDoesNotConfuseEmbeddedPath() {
-		// A `synonyms` value that happens to contain `_path` in its STRING content is fine —
-		// the regex matches the JSON KEY only, not the value.
-		String def = "{\"type\":\"synonym_graph\",\"synonyms\":[\"path_a, path_b\"]}";
-		// call under test
-		assertDoesNotThrow(() -> SearchResourceConstants.rejectFilePathParameters(def, "definition"));
 	}
 }

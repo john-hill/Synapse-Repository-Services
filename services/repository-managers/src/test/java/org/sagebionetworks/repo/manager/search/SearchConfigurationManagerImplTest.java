@@ -41,7 +41,6 @@ import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
 import org.sagebionetworks.repo.model.dbo.schema.OrganizationDao;
 import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
 import org.sagebionetworks.repo.model.dbo.search.SearchConfigurationDao;
-import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.schema.Organization;
 import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
@@ -60,8 +59,7 @@ public class SearchConfigurationManagerImplTest {
 
 	private static final String ORG_NAME = "org.sagebionetworks";
 	private static final String ORG_ID = "42";
-	private static final String DEFAULT_INDEX_ANALYZER = "org.sagebionetworks-SCIENTIFIC";
-	private static final String DEFAULT_SEARCH_ANALYZER = "org.sagebionetworks-SCIENTIFIC";
+	private static final String DEFAULT_ANALYZER = "org.sagebionetworks-SCIENTIFIC";
 
 	@Mock
 	private SearchConfigurationDao searchConfigurationDao;
@@ -69,8 +67,6 @@ public class SearchConfigurationManagerImplTest {
 	private AccessControlListDAO aclDao;
 	@Mock
 	private OrganizationDao organizationDao;
-	@Mock
-	private SynonymSetDao synonymSetDao;
 	@Mock
 	private ColumnAnalyzerOverrideDao columnAnalyzerOverrideDao;
 	@Mock
@@ -108,8 +104,7 @@ public class SearchConfigurationManagerImplTest {
 		return new SearchConfiguration()
 				.setName("my_config")
 				.setOrganizationName(ORG_NAME)
-				.setDefaultIndexAnalyzer(DEFAULT_INDEX_ANALYZER)
-				.setDefaultSearchAnalyzer(DEFAULT_SEARCH_ANALYZER);
+				.setDefaultAnalyzer(DEFAULT_ANALYZER);
 	}
 
 	// --- create authorization gates ---
@@ -167,36 +162,15 @@ public class SearchConfigurationManagerImplTest {
 		when(aclDao.canAccess(any(UserInfo.class), eq(ORG_ID), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.CREATE)))
 				.thenReturn(AuthorizationStatus.authorized());
 		when(textAnalyzerDao.findNonExistentNames(
-				Arrays.asList(DEFAULT_INDEX_ANALYZER, DEFAULT_SEARCH_ANALYZER)))
-				.thenReturn(Collections.singletonList(DEFAULT_INDEX_ANALYZER));
+				Collections.singletonList(DEFAULT_ANALYZER)))
+				.thenReturn(Collections.singletonList(DEFAULT_ANALYZER));
 
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
 				() -> manager.create(sageUser(), validRequest()));
 
-		assertTrue(e.getMessage().contains(DEFAULT_INDEX_ANALYZER));
+		assertTrue(e.getMessage().contains(DEFAULT_ANALYZER));
 		assertTrue(e.getMessage().contains("do not exist"));
-		verify(searchConfigurationDao, never()).create(any(), any());
-	}
-
-	@Test
-	public void testCreateWithUnknownSynonymSetThrows() {
-		when(organizationDao.getOrganizationByName(ORG_NAME)).thenReturn(new Organization().setId(ORG_ID));
-		when(aclDao.canAccess(any(UserInfo.class), eq(ORG_ID), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.CREATE)))
-				.thenReturn(AuthorizationStatus.authorized());
-		when(textAnalyzerDao.findNonExistentNames(any())).thenReturn(Collections.emptyList());
-		when(synonymSetDao.findNonExistentNames(Arrays.asList("biomed-medical_terms", "biomed-ghost")))
-				.thenReturn(Collections.singletonList("biomed-ghost"));
-
-		SearchConfiguration request = validRequest()
-				.setSynonymSets(Arrays.asList("biomed-medical_terms", "biomed-ghost"));
-
-		// call under test
-		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> manager.create(sageUser(), request));
-
-		assertTrue(e.getMessage().contains("biomed-ghost"),
-				"Missing names must be enumerated in the error: " + e.getMessage());
 		verify(searchConfigurationDao, never()).create(any(), any());
 	}
 
@@ -226,7 +200,7 @@ public class SearchConfigurationManagerImplTest {
 				.thenReturn(AuthorizationStatus.authorized());
 
 		// Missing the org segment — no hyphen — fails format validation before DAO is touched.
-		SearchConfiguration request = validRequest().setDefaultIndexAnalyzer("malformed_no_hyphen");
+		SearchConfiguration request = validRequest().setDefaultAnalyzer("malformed_no_hyphen");
 
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
@@ -273,36 +247,13 @@ public class SearchConfigurationManagerImplTest {
 	}
 
 	@Test
-	public void testCreateWithSynonymSets() {
-		// Positive companion to testCreateWithUnknownSynonymSetThrows: when every
-		// referenced SynonymSet exists, the populated list must reach the DAO unchanged.
-		when(textAnalyzerDao.findNonExistentNames(any())).thenReturn(Collections.emptyList());
-		when(synonymSetDao.findNonExistentNames(Arrays.asList("biomed-medical_terms")))
-				.thenReturn(Collections.emptyList());
-		SearchConfiguration request = validRequest()
-				.setSynonymSets(Arrays.asList("biomed-medical_terms"));
-		SearchConfiguration saved = request.setId("999");
-		when(searchConfigurationDao.create(eq(1L), eq(request))).thenReturn(saved);
-
-		// call under test
-		SearchConfiguration result = manager.create(adminUser(), request);
-
-		assertEquals(saved, result);
-		assertEquals(Arrays.asList("biomed-medical_terms"), result.getSynonymSets());
-	}
-
-	@Test
-	public void testUpdateClearsSynonymSets() {
-		// The DAO update wipes-and-reinserts junction rows on every write — but only if
-		// the manager forwards the cleared list intact. Verify that nulling synonymSets /
-		// columnAnalyzerOverrides on the request reaches the DAO with the same nulls
-		// rather than the manager defaulting back to the existing values.
+	public void testUpdateClearsColumnAnalyzerOverrides() {
+		// Verify that nulling columnAnalyzerOverrides on the request reaches the DAO
+		// with the same null rather than the manager defaulting back to the existing values.
 		when(textAnalyzerDao.findNonExistentNames(any())).thenReturn(Collections.emptyList());
 		SearchConfiguration request = validRequest().setId("999").setEtag("etag-1");
-		request.setSynonymSets(null);
 		request.setColumnAnalyzerOverrides(null);
 		SearchConfiguration existing = validRequest().setId("999").setEtag("etag-1")
-				.setSynonymSets(Arrays.asList("biomed-medical_terms"))
 				.setColumnAnalyzerOverrides(Arrays.asList("biomed-overrides"));
 		when(searchConfigurationDao.get("999")).thenReturn(Optional.of(existing));
 		SearchConfiguration cleared = validRequest().setId("999").setEtag("etag-2");

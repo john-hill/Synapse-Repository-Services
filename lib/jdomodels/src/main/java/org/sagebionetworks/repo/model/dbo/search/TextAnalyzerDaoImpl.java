@@ -11,9 +11,7 @@ import java.util.Optional;
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
-import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
-import org.sagebionetworks.repo.model.search.table.TextAnalyzerSettings;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
 import org.sagebionetworks.util.ValidateArgument;
@@ -33,7 +31,7 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 		analyzer.setName(rs.getString("NAME"));
 		analyzer.setDescription(rs.getString("DESCRIPTION"));
 		analyzer.setOrganizationName(rs.getString("ORGANIZATION_NAME"));
-		analyzer.setSettings(JDOSecondaryPropertyUtils.createObjectFromJSON(TextAnalyzerSettings.class, rs.getString("SETTINGS")));
+		analyzer.setSettings(rs.getString("SETTINGS"));
 		analyzer.setCreatedBy(String.valueOf(rs.getLong("CREATED_BY")));
 		analyzer.setCreatedOn(new Date(rs.getTimestamp("CREATED_ON").getTime()));
 		analyzer.setModifiedBy(String.valueOf(rs.getLong("MODIFIED_BY")));
@@ -69,7 +67,7 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 					analyzer.getName(),
 					analyzer.getDescription(),
 					analyzer.getOrganizationName(),
-					JDOSecondaryPropertyUtils.createJSONFromObject(analyzer.getSettings()),
+					analyzer.getSettings(),
 					userId,
 					userId
 			);
@@ -114,7 +112,7 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 					+ " MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
 					analyzer.getName(),
 					analyzer.getDescription(),
-					JDOSecondaryPropertyUtils.createJSONFromObject(analyzer.getSettings()),
+					analyzer.getSettings(),
 					userId,
 					id
 			);
@@ -251,7 +249,7 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 				analyzer.getName(),
 				analyzer.getDescription(),
 				organizationName,
-				JDOSecondaryPropertyUtils.createJSONFromObject(analyzer.getSettings()),
+				analyzer.getSettings(),
 				userId,
 				userId
 		);

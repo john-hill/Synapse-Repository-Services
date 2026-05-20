@@ -25,16 +25,6 @@ public final class SearchResourceConstants {
 			"^[a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)*-[a-zA-Z][a-zA-Z0-9_]*$");
 
 	/**
-	 * Matches any JSON key ending in {@code _path} (e.g. {@code "stopwords_path"},
-	 * {@code "synonyms_path"}, {@code "mappings_path"}, {@code "protected_words_path"},
-	 * {@code "rules_path"}, {@code "word_list_path"}, {@code "hyphenation_patterns_path"}).
-	 * All OpenSearch analysis parameters of this shape point to files on the cluster
-	 * filesystem — unsupported in Amazon OpenSearch Serverless. Forward-compatible: any
-	 * future {@code *_path} parameter is rejected automatically.
-	 */
-	private static final Pattern FILE_PATH_KEY = Pattern.compile("\"([a-zA-Z_]+_path)\"\\s*:");
-
-	/**
 	 * Error message when a resource name does not match {@link #RESOURCE_NAME_PATTERN}.
 	 */
 	public static final String RESOURCE_NAME_PATTERN_MSG = "Resource name must start with a letter and contain only letters, digits, and underscores.";
@@ -79,31 +69,6 @@ public final class SearchResourceConstants {
 					"Invalid qualified name format for '" + fieldName + "': '" + qualifiedName
 							+ "'. Expected format: '{organizationName}-{resourceName}'"
 							+ " (e.g., 'org.sagebionetworks-SCIENTIFIC').");
-		}
-	}
-
-	/**
-	 * Reject OpenSearch analysis JSON that uses file-based parameters
-	 * (any key ending in {@code _path} — see {@link #FILE_PATH_KEY}). Amazon OpenSearch
-	 * Serverless does not support file uploads or custom packages, so these parameters
-	 * fail at index-build time with a confusing AOSS error. Catching them at create/update
-	 * time gives the user a clear remediation message pointing at the inline equivalent.
-	 *
-	 * @param json The OpenSearch component definition or full filter definition as a JSON string
-	 * @param fieldName The schema field name for the error message
-	 * @throws IllegalArgumentException if any {@code *_path} key appears in the JSON
-	 */
-	public static void rejectFilePathParameters(String json, String fieldName) {
-		if (json == null || json.isEmpty()) {
-			return;
-		}
-		java.util.regex.Matcher m = FILE_PATH_KEY.matcher(json);
-		if (m.find()) {
-			throw new IllegalArgumentException(
-					"Amazon OpenSearch Serverless does not support file-based parameters."
-							+ " The '" + m.group(1) + "' parameter in '" + fieldName + "' is not allowed."
-							+ " Use the inline equivalent (e.g. 'stopwords', 'synonyms', 'mappings',"
-							+ " 'protected_words') instead.");
 		}
 	}
 

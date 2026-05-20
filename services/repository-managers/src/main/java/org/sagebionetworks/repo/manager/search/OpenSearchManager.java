@@ -116,4 +116,23 @@ public interface OpenSearchManager {
 	 */
 	SearchQueryResults autocomplete(String indexName, SearchQuery query, List<ColumnModel> columns,
 			Set<SearchQueryPart> options);
+
+	/**
+	 * Validate a TextAnalyzer's settings by registering it into a temporary AOSS index and
+	 * asking AOSS to acknowledge the create. Surfaces real OpenSearch-side errors (bad
+	 * component {@code type}, bad parameters, malformed chain) at TextAnalyzer create/update
+	 * time instead of letting them FAIL asynchronously the first time the analyzer is used
+	 * in an index build.
+	 *
+	 * <p>The {@code resolvedSettings} tree must already have all {@code $ref} entries
+	 * substituted by {@link SearchAnalyzerJson#resolveRefs} — this method does not look up
+	 * SynonymSets. The temporary index is best-effort deleted in a {@code finally}; cleanup
+	 * failures are logged, not propagated.</p>
+	 *
+	 * @param resolvedSettings The OpenSearch {@code settings.analysis} block for the
+	 *                         TextAnalyzer being validated, post-{@code $ref} resolution.
+	 * @throws IllegalArgumentException when AOSS rejects the analyzer configuration.
+	 * @throws IllegalStateException when AOSS is unreachable (the curator should retry).
+	 */
+	void validateAnalyzerSettings(JsonNode resolvedSettings);
 }

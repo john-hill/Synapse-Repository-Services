@@ -33,8 +33,11 @@ import org.opensearch.client.opensearch._types.aggregations.Aggregate;
 import org.opensearch.client.opensearch._types.aggregations.Aggregation;
 import org.opensearch.client.opensearch._types.aggregations.LongTermsBucketKey;
 import org.opensearch.client.opensearch._types.analysis.Analyzer;
+import org.opensearch.client.opensearch._types.analysis.CharFilter;
 import org.opensearch.client.opensearch._types.analysis.CharFilterDefinition;
+import org.opensearch.client.opensearch._types.analysis.TokenFilter;
 import org.opensearch.client.opensearch._types.analysis.TokenFilterDefinition;
+import org.opensearch.client.opensearch._types.analysis.Tokenizer;
 import org.opensearch.client.opensearch._types.analysis.TokenizerDefinition;
 import org.opensearch.client.opensearch._types.mapping.DynamicMapping;
 import org.opensearch.client.opensearch._types.mapping.Property;
@@ -126,6 +129,13 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	// an actual write. Same budget as the bulk-index retry for consistency.
 	static int INDEX_WRITABLE_MAX_RETRIES = 10;
 	static long INDEX_WRITABLE_INITIAL_BACKOFF_MS = 10000L;
+
+	// Retry budget for synchronous AOSS validate-analyzer-settings calls. The cluster-level
+	// _analyze endpoint occasionally returns transient index_not_found_exception or 5xx /
+	// network errors; absorb those before surfacing the error so curators don't see flaky
+	// 400s on legitimate analyzers.
+	static int VALIDATE_MAX_RETRIES = 10;
+	static long VALIDATE_INITIAL_BACKOFF_MS = 1000L;
 
 	static final String READINESS_PROBE_DOC_ID = "__readiness_probe__";
 
@@ -921,6 +931,156 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			sb.append("]");
 		}
 		return sb.toString();
+	}
+
+	@Override
+	public void validateAnalyzerSettings(JsonNode resolvedSettings) {
+		ValidateArgument.required(resolvedSettings, "resolvedSettings");
+
+		// `analyzer.default` is the only analyzer entry that field mappings (and
+		// therefore real queries) ever bind to; validating it covers the whole
+		// reachable surface. `default_search` reuses the same registries, so any
+		// problem with a shared component is caught here too.
+		JsonNode defaultEntry = resolvedSettings.at("/analyzer/" + DEFAULT_ANALYZER_NAME);
+		if (defaultEntry.isMissingNode() || !defaultEntry.isObject()) {
+			throw new IllegalArgumentException(
+					"settings must declare an analyzer named 'default' under analyzer.default.");
+		}
+		JsonNode tokenizerRegistry = resolvedSettings.get("tokenizer");
+		JsonNode filterRegistry = resolvedSettings.get("filter");
+		JsonNode charFilterRegistry = resolvedSettings.get("char_filter");
+
+		Tokenizer tokenizer = buildAnalyzeTokenizer(defaultEntry, tokenizerRegistry);
+		List<TokenFilter> tokenFilters = buildAnalyzeTokenFilters(defaultEntry, filterRegistry);
+		List<CharFilter> charFilters = buildAnalyzeCharFilters(defaultEntry, charFilterRegistry);
+
+		// AOSS occasionally returns a transient index_not_found_exception from the cluster-
+		// level _analyze endpoint while a system index is being provisioned. Retry that case
+		// (and IOException) so curators don't see flaky 400s on legitimate analyzers; bubble
+		// every other OpenSearch error straight up as a permanent IllegalArgumentException.
+		try {
+			TimeUtils.waitForExponentialMaxRetry(VALIDATE_MAX_RETRIES, VALIDATE_INITIAL_BACKOFF_MS, () -> {
+				try {
+					openSearchClient.indices().analyze(req -> {
+						req.tokenizer(tokenizer);
+						req.text("The quick brown fox jumps over the lazy dog");
+						if (!tokenFilters.isEmpty()) {
+							req.filter(tokenFilters);
+						}
+						if (!charFilters.isEmpty()) {
+							req.charFilter(charFilters);
+						}
+						return req;
+					});
+					return Boolean.TRUE;
+				} catch (OpenSearchException e) {
+					if (INDEX_NOT_FOUND_EXCEPTION.equals(e.error() != null ? e.error().type() : null)) {
+						throw new RetryException(e);
+					}
+					throw new IllegalArgumentException(
+							"Invalid analyzer configuration: " + describeError(e.error())
+									+ ". Check your tokenizer, token filters, and character filters.", e);
+				} catch (IOException e) {
+					throw new RetryException(e);
+				}
+			});
+		} catch (RetryException e) {
+			throw new IllegalStateException(
+					"Unable to validate analyzer settings: the search service is temporarily unavailable. Please try again later.",
+					e.getCause());
+		} catch (IllegalArgumentException | IllegalStateException e) {
+			throw e;
+		} catch (Exception e) {
+			throw new IllegalStateException(
+					"Unable to validate analyzer settings: the search service is temporarily unavailable. Please try again later.", e);
+		}
+	}
+
+	/**
+	 * Resolve the analyzer entry's {@code tokenizer} field to a typed {@link Tokenizer} for
+	 * the {@code _analyze} request. A name that appears in the local {@code tokenizer}
+	 * registry is sent inline as a {@link TokenizerDefinition}; any other name is sent
+	 * as a built-in reference (e.g. {@code "standard"}). Missing field defaults to
+	 * {@code "standard"} to match OpenSearch's analyzer default.
+	 */
+	private Tokenizer buildAnalyzeTokenizer(JsonNode defaultEntry, JsonNode tokenizerRegistry) {
+		JsonNode tokenizerNode = defaultEntry.get("tokenizer");
+		String tokenizerName = (tokenizerNode != null && tokenizerNode.isTextual())
+				? tokenizerNode.asText() : "standard";
+		JsonNode inline = (tokenizerRegistry != null && tokenizerRegistry.isObject())
+				? tokenizerRegistry.get(tokenizerName) : null;
+		try {
+			if (inline != null) {
+				TokenizerDefinition def = deserialize(inline.toString(), TokenizerDefinition._DESERIALIZER);
+				return Tokenizer.of(t -> t.definition(def));
+			}
+			return Tokenizer.of(t -> t.name(tokenizerName));
+		} catch (RuntimeException e) {
+			throw new IllegalArgumentException(
+					"Invalid tokenizer configuration: " + e.getMessage(), e);
+		}
+	}
+
+	/**
+	 * Resolve the analyzer entry's {@code filter} chain into typed {@link TokenFilter}s.
+	 * Each chain element that names a local registry entry is sent inline; everything else
+	 * (built-ins like {@code "lowercase"}, plugin-provided filters) goes by name.
+	 */
+	private List<TokenFilter> buildAnalyzeTokenFilters(JsonNode defaultEntry, JsonNode filterRegistry) {
+		List<TokenFilter> result = new ArrayList<>();
+		JsonNode chain = defaultEntry.get("filter");
+		if (chain == null || !chain.isArray()) {
+			return result;
+		}
+		for (JsonNode element : chain) {
+			if (!element.isTextual()) {
+				continue;
+			}
+			String name = element.asText();
+			JsonNode inline = (filterRegistry != null && filterRegistry.isObject())
+					? filterRegistry.get(name) : null;
+			try {
+				if (inline != null) {
+					TokenFilterDefinition def = deserialize(inline.toString(), TokenFilterDefinition._DESERIALIZER);
+					result.add(TokenFilter.of(f -> f.definition(def)));
+				} else {
+					result.add(TokenFilter.of(f -> f.name(name)));
+				}
+			} catch (RuntimeException e) {
+				throw new IllegalArgumentException(
+						"Invalid token filter '" + name + "': " + e.getMessage(), e);
+			}
+		}
+		return result;
+	}
+
+	/** Mirror of {@link #buildAnalyzeTokenFilters} for {@code char_filter}. */
+	private List<CharFilter> buildAnalyzeCharFilters(JsonNode defaultEntry, JsonNode charFilterRegistry) {
+		List<CharFilter> result = new ArrayList<>();
+		JsonNode chain = defaultEntry.get("char_filter");
+		if (chain == null || !chain.isArray()) {
+			return result;
+		}
+		for (JsonNode element : chain) {
+			if (!element.isTextual()) {
+				continue;
+			}
+			String name = element.asText();
+			JsonNode inline = (charFilterRegistry != null && charFilterRegistry.isObject())
+					? charFilterRegistry.get(name) : null;
+			try {
+				if (inline != null) {
+					CharFilterDefinition def = deserialize(inline.toString(), CharFilterDefinition._DESERIALIZER);
+					result.add(CharFilter.of(f -> f.definition(def)));
+				} else {
+					result.add(CharFilter.of(f -> f.name(name)));
+				}
+			} catch (RuntimeException e) {
+				throw new IllegalArgumentException(
+						"Invalid char filter '" + name + "': " + e.getMessage(), e);
+			}
+		}
+		return result;
 	}
 
 	@Override

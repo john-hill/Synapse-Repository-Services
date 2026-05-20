@@ -15,15 +15,11 @@ import static org.mockito.Mockito.when;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-import org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest;
-import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsRequest;
-import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsResponse;
-
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -32,9 +28,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.ObjectType;
-import org.sagebionetworks.repo.model.TeamConstants;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
@@ -43,6 +39,9 @@ import org.sagebionetworks.repo.model.dbo.search.ColumnAnalyzerOverrideDao;
 import org.sagebionetworks.repo.model.dbo.search.SearchConfigurationDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.schema.Organization;
+import org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest;
+import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsRequest;
+import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsResponse;
 import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -77,26 +76,28 @@ public class SearchConfigurationManagerImplTest {
 	@InjectMocks
 	private SearchConfigurationManagerImpl manager;
 
-	private UserInfo sageUser() {
-		UserInfo user = new UserInfo(false, 100L, "default-realm");
-		Set<Long> groups = new LinkedHashSet<>();
-		groups.add(TeamConstants.SAGE_BIONETWORKS_TEAM_ID);
-		user.setGroups(groups);
-		return user;
-	}
+	private UserInfo sageUser;
+	private UserInfo nonSageUser;
+	private UserInfo adminUser;
 
-	private UserInfo adminUser() {
-		return new UserInfo(true, 1L, "default-realm");
-	}
+	@BeforeEach
+	void setUp() {
+		sageUser = new UserInfo(false);
+		sageUser.setId(1L);
+		sageUser.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
 
-	private UserInfo nonSageUser() {
-		return new UserInfo(false, 200L, "default-realm");
+		nonSageUser = new UserInfo(false);
+		nonSageUser.setId(2L);
+		nonSageUser.setGroups(Set.of(2L));
+
+		adminUser = new UserInfo(true);
+		adminUser.setId(3L);
 	}
 
 	private UserInfo anonymousUser() {
-		UserInfo user = new UserInfo(false, AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId(),
-				"default-realm");
-		user.setRealmAnonymousUserId(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
+		UserInfo user = new UserInfo(false);
+		user.setId(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
+		user.setRealmAnonymousUserId(user.getId());
 		return user;
 	}
 
@@ -124,7 +125,7 @@ public class SearchConfigurationManagerImplTest {
 	public void testCreateWithNonSageUserThrows() {
 		// call under test
 		UnauthorizedException e = assertThrows(UnauthorizedException.class,
-				() -> manager.create(nonSageUser(), validRequest()));
+				() -> manager.create(nonSageUser, validRequest()));
 
 		assertTrue(e.getMessage().contains("Sage Bionetworks"));
 		verifyZeroInteractions(searchConfigurationDao);
@@ -137,7 +138,7 @@ public class SearchConfigurationManagerImplTest {
 				.thenReturn(AuthorizationStatus.accessDenied("nope"));
 
 		// call under test — non-admin Sage employee must hold the org's CREATE ACL.
-		assertThrows(UnauthorizedException.class, () -> manager.create(sageUser(), validRequest()));
+		assertThrows(UnauthorizedException.class, () -> manager.create(sageUser, validRequest()));
 		verifyZeroInteractions(searchConfigurationDao);
 	}
 
@@ -145,10 +146,10 @@ public class SearchConfigurationManagerImplTest {
 	public void testCreateWithAdminBypassesOrgAcl() {
 		when(textAnalyzerDao.findNonExistentNames(any())).thenReturn(Collections.emptyList());
 		SearchConfiguration saved = validRequest().setId("999");
-		when(searchConfigurationDao.create(eq(1L), eq(validRequest()))).thenReturn(saved);
+		when(searchConfigurationDao.create(eq(3L), eq(validRequest()))).thenReturn(saved);
 
 		// call under test — admin skips the org ACL check entirely.
-		SearchConfiguration result = manager.create(adminUser(), validRequest());
+		SearchConfiguration result = manager.create(adminUser, validRequest());
 
 		assertEquals(saved, result);
 		verifyZeroInteractions(aclDao);
@@ -167,10 +168,10 @@ public class SearchConfigurationManagerImplTest {
 
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> manager.create(sageUser(), validRequest()));
+				() -> manager.create(sageUser, validRequest()));
 
 		assertTrue(e.getMessage().contains(DEFAULT_ANALYZER));
-		assertTrue(e.getMessage().contains("do not exist"));
+		assertTrue(e.getMessage().contains("does not exist"));
 		verify(searchConfigurationDao, never()).create(any(), any());
 	}
 
@@ -188,7 +189,7 @@ public class SearchConfigurationManagerImplTest {
 
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> manager.create(sageUser(), request));
+				() -> manager.create(sageUser, request));
 
 		assertTrue(e.getMessage().contains("biomed-ghost_override"));
 	}
@@ -204,7 +205,7 @@ public class SearchConfigurationManagerImplTest {
 
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> manager.create(sageUser(), request));
+				() -> manager.create(sageUser, request));
 
 		assertTrue(e.getMessage().contains("Invalid qualified name format"),
 				"Format error must mention qualified-name: " + e.getMessage());
@@ -218,7 +219,7 @@ public class SearchConfigurationManagerImplTest {
 
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> manager.create(sageUser(), request));
+				() -> manager.create(sageUser, request));
 
 		assertEquals(SearchResourceConstants.RESOURCE_NAME_PATTERN_MSG, e.getMessage());
 		verifyZeroInteractions(searchConfigurationDao);
@@ -230,7 +231,7 @@ public class SearchConfigurationManagerImplTest {
 
 		// call under test
 		NotFoundException ex = assertThrows(NotFoundException.class,
-				() -> manager.get(adminUser(), "999"));
+				() -> manager.get(adminUser, "999"));
 		assertEquals("A search configuration with the given id does not exist.", ex.getMessage());
 	}
 
@@ -238,10 +239,10 @@ public class SearchConfigurationManagerImplTest {
 	public void testCreateHappyPathPersists() {
 		when(textAnalyzerDao.findNonExistentNames(any())).thenReturn(Collections.emptyList());
 		SearchConfiguration saved = validRequest().setId("999");
-		when(searchConfigurationDao.create(eq(1L), eq(validRequest()))).thenReturn(saved);
+		when(searchConfigurationDao.create(eq(3L), eq(validRequest()))).thenReturn(saved);
 
 		// call under test
-		SearchConfiguration result = manager.create(adminUser(), validRequest());
+		SearchConfiguration result = manager.create(adminUser, validRequest());
 
 		assertEquals(saved, result);
 	}
@@ -257,13 +258,13 @@ public class SearchConfigurationManagerImplTest {
 				.setColumnAnalyzerOverrides(Arrays.asList("biomed-overrides"));
 		when(searchConfigurationDao.get("999")).thenReturn(Optional.of(existing));
 		SearchConfiguration cleared = validRequest().setId("999").setEtag("etag-2");
-		when(searchConfigurationDao.update(eq(1L), eq(request))).thenReturn(cleared);
+		when(searchConfigurationDao.update(eq(3L), eq(request))).thenReturn(cleared);
 
 		// call under test
-		SearchConfiguration result = manager.update(adminUser(), request);
+		SearchConfiguration result = manager.update(adminUser, request);
 
 		assertEquals(cleared, result);
-		verify(searchConfigurationDao).update(eq(1L), eq(request));
+		verify(searchConfigurationDao).update(eq(3L), eq(request));
 	}
 
 	// --- update ---
@@ -272,7 +273,7 @@ public class SearchConfigurationManagerImplTest {
 	public void testUpdateWithNonSageUser() {
 		// call under test
 		assertThrows(UnauthorizedException.class,
-				() -> manager.update(nonSageUser(), validRequest().setId("1")));
+				() -> manager.update(nonSageUser, validRequest().setId("1")));
 		verifyZeroInteractions(aclDao);
 		verifyZeroInteractions(searchConfigurationDao);
 	}
@@ -285,7 +286,7 @@ public class SearchConfigurationManagerImplTest {
 
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> manager.update(adminUser(), request));
+				() -> manager.update(adminUser, request));
 
 		assertEquals(SearchResourceConstants.NAME_IMMUTABLE_MSG, e.getMessage());
 		verify(searchConfigurationDao, never()).update(any(), any());
@@ -299,7 +300,7 @@ public class SearchConfigurationManagerImplTest {
 
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> manager.update(adminUser(), request));
+				() -> manager.update(adminUser, request));
 
 		assertEquals(SearchResourceConstants.ORG_NAME_IMMUTABLE_MSG, e.getMessage());
 	}
@@ -310,7 +311,7 @@ public class SearchConfigurationManagerImplTest {
 		when(searchConfigurationDao.get("999")).thenReturn(Optional.empty());
 
 		// call under test
-		assertThrows(NotFoundException.class, () -> manager.update(adminUser(), request));
+		assertThrows(NotFoundException.class, () -> manager.update(adminUser, request));
 	}
 
 	@Test
@@ -325,7 +326,7 @@ public class SearchConfigurationManagerImplTest {
 
 		// call under test — ACL check resolves the **stored** org name so callers can't
 		// re-route to a different org by mutating the request.
-		assertThrows(UnauthorizedException.class, () -> manager.update(sageUser(), request));
+		assertThrows(UnauthorizedException.class, () -> manager.update(sageUser, request));
 		verify(searchConfigurationDao, never()).update(any(), any());
 	}
 
@@ -343,7 +344,7 @@ public class SearchConfigurationManagerImplTest {
 	@Test
 	public void testBindSearchConfigWithNonSageThrows() {
 		// call under test
-		assertThrows(UnauthorizedException.class, () -> manager.bindSearchConfigToEntity(nonSageUser(),
+		assertThrows(UnauthorizedException.class, () -> manager.bindSearchConfigToEntity(nonSageUser,
 				new org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest()
 						.setEntityId("syn1").setSearchConfigurationId("2")));
 	}
@@ -355,7 +356,7 @@ public class SearchConfigurationManagerImplTest {
 
 		// call under test
 		String message = assertThrows(IllegalArgumentException.class,
-				() -> manager.bindSearchConfigToEntity(adminUser(), request)).getMessage();
+				() -> manager.bindSearchConfigToEntity(adminUser, request)).getMessage();
 		assertEquals("entityId is required and must not be the empty string.", message);
 		verifyZeroInteractions(searchConfigurationDao);
 	}
@@ -367,7 +368,7 @@ public class SearchConfigurationManagerImplTest {
 
 		// call under test
 		String message = assertThrows(IllegalArgumentException.class,
-				() -> manager.bindSearchConfigToEntity(adminUser(), request)).getMessage();
+				() -> manager.bindSearchConfigToEntity(adminUser, request)).getMessage();
 		assertEquals("searchConfigurationId is required and must not be the empty string.", message);
 		verifyZeroInteractions(searchConfigurationDao);
 	}
@@ -377,7 +378,7 @@ public class SearchConfigurationManagerImplTest {
 		when(searchConfigurationDao.get("2")).thenReturn(Optional.empty());
 
 		// call under test
-		assertThrows(NotFoundException.class, () -> manager.bindSearchConfigToEntity(adminUser(),
+		assertThrows(NotFoundException.class, () -> manager.bindSearchConfigToEntity(adminUser,
 				new org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest()
 						.setEntityId("syn1").setSearchConfigurationId("2")));
 		verify(searchConfigurationDao, never()).bindSearchConfigToObject(
@@ -396,12 +397,12 @@ public class SearchConfigurationManagerImplTest {
 				.thenReturn(Optional.of(binding));
 
 		// call under test
-		SearchConfigBinding result = manager.bindSearchConfigToEntity(adminUser(),
+		SearchConfigBinding result = manager.bindSearchConfigToEntity(adminUser,
 				new org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest()
 						.setEntityId("syn1").setSearchConfigurationId("2"));
 
 		assertEquals(binding, result);
-		verify(searchConfigurationDao).bindSearchConfigToObject(2L, 1L, "entity", 1L);
+		verify(searchConfigurationDao).bindSearchConfigToObject(2L, 1L, "entity", 3L);
 	}
 
 	// --- getSearchConfigBinding ---
@@ -412,7 +413,7 @@ public class SearchConfigurationManagerImplTest {
 
 		// call under test
 		NotFoundException e = assertThrows(NotFoundException.class,
-				() -> manager.getSearchConfigBinding(adminUser(), "syn1"));
+				() -> manager.getSearchConfigBinding(adminUser, "syn1"));
 
 		assertTrue(e.getMessage().contains("any of its ancestors"));
 	}
@@ -426,7 +427,7 @@ public class SearchConfigurationManagerImplTest {
 				.thenReturn(Optional.of(binding));
 
 		// call under test
-		assertEquals(binding, manager.getSearchConfigBinding(adminUser(), "syn1"));
+		assertEquals(binding, manager.getSearchConfigBinding(adminUser, "syn1"));
 	}
 
 	// --- clearSearchConfigBinding ---
@@ -442,7 +443,7 @@ public class SearchConfigurationManagerImplTest {
 	public void testClearSearchConfigBindingWithNonSageThrows() {
 		// call under test
 		assertThrows(UnauthorizedException.class,
-				() -> manager.clearSearchConfigBinding(nonSageUser(), "syn1"));
+				() -> manager.clearSearchConfigBinding(nonSageUser, "syn1"));
 	}
 
 	@Test
@@ -452,7 +453,7 @@ public class SearchConfigurationManagerImplTest {
 
 		// call under test
 		assertThrows(UnauthorizedException.class,
-				() -> manager.clearSearchConfigBinding(sageUser(), "syn1"));
+				() -> manager.clearSearchConfigBinding(sageUser, "syn1"));
 		verify(searchConfigurationDao, never()).clearSearchConfigBinding(
 				org.mockito.ArgumentMatchers.anyLong(), any(String.class));
 	}
@@ -460,7 +461,7 @@ public class SearchConfigurationManagerImplTest {
 	@Test
 	public void testClearSearchConfigBindingAdminBypassesAcl() {
 		// call under test — admin skips the ACL check and proceeds straight to the DAO.
-		manager.clearSearchConfigBinding(adminUser(), "syn1");
+		manager.clearSearchConfigBinding(adminUser, "syn1");
 
 		verify(searchConfigurationDao).clearSearchConfigBinding(1L, "entity");
 		verifyZeroInteractions(aclDao);
@@ -474,7 +475,7 @@ public class SearchConfigurationManagerImplTest {
 				.thenReturn(Collections.singletonList(validRequest().setId("1")));
 
 		// call under test
-		manager.list(adminUser(),
+		manager.list(adminUser,
 				new org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsRequest()
 						.setOrganizationName(ORG_NAME));
 
@@ -489,7 +490,7 @@ public class SearchConfigurationManagerImplTest {
 				.thenReturn(Collections.singletonList(validRequest().setId("1")));
 
 		// call under test
-		manager.list(adminUser(),
+		manager.list(adminUser,
 				new org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsRequest());
 
 		verify(searchConfigurationDao).listAll(51L, 0L);
@@ -508,7 +509,7 @@ public class SearchConfigurationManagerImplTest {
 		when(searchConfigurationDao.listAll(51L, 0L)).thenReturn(page);
 
 		// call under test
-		ListSearchConfigurationsResponse response = manager.list(adminUser(),
+		ListSearchConfigurationsResponse response = manager.list(adminUser,
 				new ListSearchConfigurationsRequest());
 
 		assertNotNull(response.getNextPageToken());
@@ -521,7 +522,7 @@ public class SearchConfigurationManagerImplTest {
 		when(searchConfigurationDao.listAll(51L, 0L)).thenReturn(page);
 
 		// call under test
-		ListSearchConfigurationsResponse response = manager.list(adminUser(),
+		ListSearchConfigurationsResponse response = manager.list(adminUser,
 				new ListSearchConfigurationsRequest());
 
 		assertNull(response.getNextPageToken());

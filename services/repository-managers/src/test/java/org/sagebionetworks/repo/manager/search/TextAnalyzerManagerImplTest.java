@@ -6,20 +6,21 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.doThrow;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -28,8 +29,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.AccessControlListDAO;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
+import org.sagebionetworks.repo.model.AuthorizationConstants.BOOTSTRAP_PRINCIPAL;
 import org.sagebionetworks.repo.model.ObjectType;
-import org.sagebionetworks.repo.model.TeamConstants;
 import org.sagebionetworks.repo.model.UnauthorizedException;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.auth.AuthorizationStatus;
@@ -68,31 +69,28 @@ public class TextAnalyzerManagerImplTest {
 	private OrganizationDao organizationDao;
 	@Mock
 	private SynonymSetDao synonymSetDao;
+	@Mock
+	private OpenSearchManager openSearchManager;
 
 	@InjectMocks
 	private TextAnalyzerManagerImpl manager;
 
-	private UserInfo sageUser() {
-		UserInfo user = new UserInfo(false, 100L, "default-realm");
-		Set<Long> groups = new LinkedHashSet<>();
-		groups.add(TeamConstants.SAGE_BIONETWORKS_TEAM_ID);
-		user.setGroups(groups);
-		return user;
-	}
+	private UserInfo sageUser;
+	private UserInfo nonSageUser;
+	private UserInfo adminUser;
 
-	private UserInfo adminUser() {
-		return new UserInfo(true, 1L, "default-realm");
-	}
+	@BeforeEach
+	void setUp() {
+		sageUser = new UserInfo(false);
+		sageUser.setId(1L);
+		sageUser.setGroups(Set.of(1L, BOOTSTRAP_PRINCIPAL.SAGE_BIONETWORKS.getPrincipalId()));
 
-	private UserInfo nonSageUser() {
-		return new UserInfo(false, 200L, "default-realm");
-	}
+		nonSageUser = new UserInfo(false);
+		nonSageUser.setId(2L);
+		nonSageUser.setGroups(Set.of(2L));
 
-	private UserInfo anonymousUser() {
-		Long id = AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId();
-		UserInfo user = new UserInfo(false, id, "default-realm");
-		user.setRealmAnonymousUserId(id);
-		return user;
+		adminUser = new UserInfo(true);
+		adminUser.setId(3L);
 	}
 
 	private TextAnalyzer validRequest() {
@@ -106,8 +104,12 @@ public class TextAnalyzerManagerImplTest {
 
 	@Test
 	public void testCreateWithAnonymousThrows() {
+		UserInfo anon = new UserInfo(false);
+		anon.setId(AuthorizationConstants.BOOTSTRAP_PRINCIPAL.ANONYMOUS_USER.getPrincipalId());
+		anon.setRealmAnonymousUserId(anon.getId());
+
 		// call under test
-		assertThrows(UnauthorizedException.class, () -> manager.create(anonymousUser(), validRequest()));
+		assertThrows(UnauthorizedException.class, () -> manager.create(anon, validRequest()));
 		verifyZeroInteractions(textAnalyzerDao);
 	}
 
@@ -115,7 +117,7 @@ public class TextAnalyzerManagerImplTest {
 	public void testCreateWithNonSageUserThrows() {
 		// call under test
 		UnauthorizedException e = assertThrows(UnauthorizedException.class,
-				() -> manager.create(nonSageUser(), validRequest()));
+				() -> manager.create(nonSageUser, validRequest()));
 		assertTrue(e.getMessage().contains("Sage Bionetworks"));
 		verifyZeroInteractions(textAnalyzerDao);
 	}
@@ -124,7 +126,7 @@ public class TextAnalyzerManagerImplTest {
 	public void testCreateWithMissingSettingsThrows() {
 		TextAnalyzer bad = validRequest().setSettings(null);
 		// call under test
-		assertThrows(IllegalArgumentException.class, () -> manager.create(adminUser(), bad));
+		assertThrows(IllegalArgumentException.class, () -> manager.create(adminUser, bad));
 		verifyZeroInteractions(textAnalyzerDao);
 	}
 
@@ -133,7 +135,7 @@ public class TextAnalyzerManagerImplTest {
 		TextAnalyzer bad = validRequest().setSettings("{not_valid");
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> manager.create(adminUser(), bad));
+				() -> manager.create(adminUser, bad));
 		assertTrue(e.getMessage().startsWith("Invalid JSON"));
 		verify(textAnalyzerDao, never()).create(any(), any());
 	}
@@ -143,22 +145,65 @@ public class TextAnalyzerManagerImplTest {
 		TextAnalyzer bad = validRequest().setName("9invalid");
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> manager.create(adminUser(), bad));
+				() -> manager.create(adminUser, bad));
 		assertEquals(SearchResourceConstants.RESOURCE_NAME_PATTERN_MSG, e.getMessage());
 	}
 
 	@Test
 	public void testCreateWithRefAndAllExistResolves() {
-		when(synonymSetDao.findNonExistentNames(any())).thenReturn(Collections.emptyList());
-		when(textAnalyzerDao.create(any(TextAnalyzer.class), eq(1L)))
+		when(synonymSetDao.findNonExistentNames(eq(Collections.singletonList("biomed-medical_terms"))))
+				.thenReturn(Collections.emptyList());
+		// resolveRefs walks the parsed settings and calls getByQualifiedNames once per ref;
+		// stub it so the AOSS-side validate hand-off has a real definition to substitute.
+		when(synonymSetDao.getByQualifiedNames(eq(Collections.singletonList("biomed-medical_terms"))))
+				.thenReturn(Collections.singletonMap("biomed-medical_terms",
+						new org.sagebionetworks.repo.model.search.table.SynonymSet()
+								.setDefinition("{\"type\":\"synonym_graph\",\"synonyms\":[\"a, b\"]}")));
+		when(textAnalyzerDao.create(argThat(a -> a != null && SETTINGS_WITH_REF.equals(a.getSettings())), eq(3L)))
 				.thenReturn(validRequest().setId("1"));
 		TextAnalyzer request = validRequest().setSettings(SETTINGS_WITH_REF);
 
 		// call under test
-		manager.create(adminUser(), request);
+		manager.create(adminUser, request);
 
 		verify(synonymSetDao).findNonExistentNames(Collections.singletonList("biomed-medical_terms"));
-		verify(textAnalyzerDao).create(any(TextAnalyzer.class), eq(1L));
+		// The resolved tree handed to AOSS must have the synonym definition substituted in
+		// place of the {"$ref":"biomed-medical_terms"} marker — verify by walking the tree.
+		verify(openSearchManager).validateAnalyzerSettings(argThat(root -> root != null
+				&& "synonym_graph".equals(root.at("/filter/med/type").asText())));
+		verify(textAnalyzerDao).create(argThat(a -> a != null && SETTINGS_WITH_REF.equals(a.getSettings())), eq(3L));
+	}
+
+	@Test
+	public void testCreateWithoutRefsStillCallsAossValidate() {
+		// No $refs in settings — manager should still hand the parsed tree to the AOSS-side
+		// validate probe so component shape / chain ordering get checked. Defends against
+		// a regression where the no-refs path skips the probe entirely.
+		when(textAnalyzerDao.create(argThat(a -> a != null && VALID_SETTINGS.equals(a.getSettings())), eq(3L)))
+				.thenReturn(validRequest().setId("1"));
+
+		// call under test
+		manager.create(adminUser, validRequest());
+
+		verify(openSearchManager).validateAnalyzerSettings(argThat(root -> root != null
+				&& "standard".equals(root.at("/analyzer/default/tokenizer").asText())));
+		verify(textAnalyzerDao).create(argThat(a -> a != null && VALID_SETTINGS.equals(a.getSettings())), eq(3L));
+	}
+
+	@Test
+	public void testCreateWhenAossValidateRejectsThrows() {
+		// AOSS rejects the analyzer at the _analyze probe — manager must propagate the
+		// IllegalArgumentException without persisting the row.
+		doThrow(new IllegalArgumentException("Invalid analyzer configuration: bogus tokenizer"))
+				.when(openSearchManager).validateAnalyzerSettings(
+						argThat(root -> root != null
+								&& "standard".equals(root.at("/analyzer/default/tokenizer").asText())));
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> manager.create(adminUser, validRequest()));
+		assertTrue(ex.getMessage().contains("Invalid analyzer configuration"));
+		verify(textAnalyzerDao, never()).create(any(), any());
 	}
 
 	@Test
@@ -169,7 +214,7 @@ public class TextAnalyzerManagerImplTest {
 
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> manager.create(adminUser(), request));
+				() -> manager.create(adminUser, request));
 		assertTrue(e.getMessage().contains("biomed-medical_terms"));
 		verify(textAnalyzerDao, never()).create(any(), any());
 	}
@@ -183,7 +228,7 @@ public class TextAnalyzerManagerImplTest {
 
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> manager.create(adminUser(), request));
+				() -> manager.create(adminUser, request));
 		assertTrue(e.getMessage().contains("Invalid qualified name format"),
 				"Format error must mention qualified-name: " + e.getMessage());
 		verify(textAnalyzerDao, never()).create(any(), any());
@@ -201,7 +246,7 @@ public class TextAnalyzerManagerImplTest {
 
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> manager.create(adminUser(), bad));
+				() -> manager.create(adminUser, bad));
 		assertTrue(e.getMessage().contains("analyzer.default"),
 				"Error must name analyzer.default: " + e.getMessage());
 		verifyZeroInteractions(textAnalyzerDao);
@@ -217,7 +262,7 @@ public class TextAnalyzerManagerImplTest {
 
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> manager.create(adminUser(), bad));
+				() -> manager.create(adminUser, bad));
 		assertTrue(e.getMessage().contains("analyzer.default"),
 				"Error must name analyzer.default: " + e.getMessage());
 		verifyZeroInteractions(textAnalyzerDao);
@@ -232,7 +277,7 @@ public class TextAnalyzerManagerImplTest {
 
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> manager.create(adminUser(), bad));
+				() -> manager.create(adminUser, bad));
 		assertTrue(e.getMessage().contains("analyzer.default"),
 				"Error must name analyzer.default: " + e.getMessage());
 		verifyZeroInteractions(textAnalyzerDao);
@@ -242,7 +287,7 @@ public class TextAnalyzerManagerImplTest {
 	public void testCreateWithDefaultAndDefaultSearchSucceeds() {
 		// Asymmetric index/search analysis (the edge_ngram autocomplete case) is the one
 		// supported reason to declare multiple entries inside the inner `analyzer` map.
-		when(textAnalyzerDao.create(any(TextAnalyzer.class), eq(1L)))
+		when(textAnalyzerDao.create(any(TextAnalyzer.class), eq(3L)))
 				.thenReturn(validRequest().setId("1"));
 		String settings = "{\"analyzer\":{"
 				+ "\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\"},"
@@ -251,9 +296,9 @@ public class TextAnalyzerManagerImplTest {
 		TextAnalyzer request = validRequest().setSettings(settings);
 
 		// call under test
-		manager.create(adminUser(), request);
+		manager.create(adminUser, request);
 
-		verify(textAnalyzerDao).create(any(TextAnalyzer.class), eq(1L));
+		verify(textAnalyzerDao).create(any(TextAnalyzer.class), eq(3L));
 	}
 
 	@Test
@@ -270,7 +315,7 @@ public class TextAnalyzerManagerImplTest {
 
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> manager.create(adminUser(), bad));
+				() -> manager.create(adminUser, bad));
 		assertTrue(e.getMessage().contains("rejected: [headline]"),
 				"Error must list the rejected sibling key(s): " + e.getMessage());
 		assertTrue(e.getMessage().contains("default")
@@ -285,13 +330,13 @@ public class TextAnalyzerManagerImplTest {
 		when(organizationDao.getOrganizationByName(ORG_NAME)).thenReturn(new Organization().setId(ORG_ID));
 		when(aclDao.canAccess(any(UserInfo.class), eq(ORG_ID), eq(ObjectType.ORGANIZATION), eq(ACCESS_TYPE.CREATE)))
 				.thenReturn(AuthorizationStatus.authorized());
-		when(textAnalyzerDao.create(any(TextAnalyzer.class), eq(100L)))
+		when(textAnalyzerDao.create(any(TextAnalyzer.class), eq(1L)))
 				.thenReturn(validRequest().setId("1"));
 
 		// call under test
-		manager.create(sageUser(), validRequest());
+		manager.create(sageUser, validRequest());
 
-		verify(textAnalyzerDao).create(any(TextAnalyzer.class), eq(100L));
+		verify(textAnalyzerDao).create(any(TextAnalyzer.class), eq(1L));
 	}
 
 	// --- get ---
@@ -302,7 +347,7 @@ public class TextAnalyzerManagerImplTest {
 		when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(analyzer));
 
 		// call under test
-		assertEquals("1", manager.get(adminUser(), 1L).getId());
+		assertEquals("1", manager.get(adminUser, 1L).getId());
 		verifyZeroInteractions(aclDao);
 	}
 
@@ -311,7 +356,7 @@ public class TextAnalyzerManagerImplTest {
 		when(textAnalyzerDao.get(999L)).thenReturn(Optional.empty());
 
 		// call under test
-		assertThrows(NotFoundException.class, () -> manager.get(adminUser(), 999L));
+		assertThrows(NotFoundException.class, () -> manager.get(adminUser, 999L));
 	}
 
 	// --- update ---
@@ -324,7 +369,7 @@ public class TextAnalyzerManagerImplTest {
 
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> manager.update(adminUser(), request));
+				() -> manager.update(adminUser, request));
 
 		assertEquals(SearchResourceConstants.NAME_IMMUTABLE_MSG, e.getMessage());
 		verify(textAnalyzerDao, never()).update(any(TextAnalyzer.class),
@@ -339,7 +384,7 @@ public class TextAnalyzerManagerImplTest {
 
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> manager.update(adminUser(), request));
+				() -> manager.update(adminUser, request));
 
 		assertEquals(SearchResourceConstants.ORG_NAME_IMMUTABLE_MSG, e.getMessage());
 	}
@@ -350,7 +395,7 @@ public class TextAnalyzerManagerImplTest {
 		when(textAnalyzerDao.get(999L)).thenReturn(Optional.empty());
 
 		// call under test
-		assertThrows(NotFoundException.class, () -> manager.update(sageUser(), input));
+		assertThrows(NotFoundException.class, () -> manager.update(sageUser, input));
 		verify(textAnalyzerDao, never()).update(any(TextAnalyzer.class),
 				org.mockito.ArgumentMatchers.anyLong());
 	}
@@ -360,7 +405,7 @@ public class TextAnalyzerManagerImplTest {
 		TextAnalyzer input = validRequest().setId("1").setSettings(null);
 
 		// call under test
-		assertThrows(IllegalArgumentException.class, () -> manager.update(sageUser(), input));
+		assertThrows(IllegalArgumentException.class, () -> manager.update(sageUser, input));
 		verifyZeroInteractions(textAnalyzerDao);
 	}
 
@@ -374,7 +419,7 @@ public class TextAnalyzerManagerImplTest {
 		// call under test — the DAO catches FK violations but the manager-level test ensures
 		// the user-facing message ("still referenced") is preserved.
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> manager.delete(adminUser(), 1L));
+				() -> manager.delete(adminUser, 1L));
 
 		assertTrue(e.getMessage().contains("still referenced"));
 	}
@@ -387,7 +432,7 @@ public class TextAnalyzerManagerImplTest {
 				.thenReturn(AuthorizationStatus.accessDenied("nope"));
 
 		// call under test
-		assertThrows(UnauthorizedException.class, () -> manager.delete(sageUser(), 1L));
+		assertThrows(UnauthorizedException.class, () -> manager.delete(sageUser, 1L));
 		verify(textAnalyzerDao, never()).delete(org.mockito.ArgumentMatchers.anyLong());
 	}
 
@@ -396,7 +441,7 @@ public class TextAnalyzerManagerImplTest {
 		when(textAnalyzerDao.get(1L)).thenReturn(Optional.empty());
 
 		// call under test
-		assertThrows(NotFoundException.class, () -> manager.delete(adminUser(), 1L));
+		assertThrows(NotFoundException.class, () -> manager.delete(adminUser, 1L));
 		verify(textAnalyzerDao, never()).delete(org.mockito.ArgumentMatchers.anyLong());
 	}
 
@@ -409,7 +454,7 @@ public class TextAnalyzerManagerImplTest {
 				.thenReturn(AuthorizationStatus.authorized());
 
 		// call under test
-		manager.delete(sageUser(), 1L);
+		manager.delete(sageUser, 1L);
 
 		verify(textAnalyzerDao).delete(1L);
 	}
@@ -422,7 +467,7 @@ public class TextAnalyzerManagerImplTest {
 				.thenReturn(Collections.singletonList(validRequest().setId("1")));
 
 		// call under test
-		manager.list(adminUser(),
+		manager.list(adminUser,
 				new ListTextAnalyzersRequest().setOrganizationName(ORG_NAME));
 
 		verify(textAnalyzerDao).listByOrganization(ORG_NAME, 51L, 0L);
@@ -435,7 +480,7 @@ public class TextAnalyzerManagerImplTest {
 		when(textAnalyzerDao.listAll(51L, 0L)).thenReturn(Collections.emptyList());
 
 		// call under test
-		manager.list(adminUser(), new ListTextAnalyzersRequest());
+		manager.list(adminUser, new ListTextAnalyzersRequest());
 
 		verify(textAnalyzerDao).listAll(51L, 0L);
 		verify(textAnalyzerDao, never()).listByOrganization(
@@ -453,7 +498,7 @@ public class TextAnalyzerManagerImplTest {
 		when(textAnalyzerDao.listAll(51L, 0L)).thenReturn(page);
 
 		// call under test
-		ListTextAnalyzersResponse response = manager.list(adminUser(), new ListTextAnalyzersRequest());
+		ListTextAnalyzersResponse response = manager.list(adminUser, new ListTextAnalyzersRequest());
 
 		assertNotNull(response.getNextPageToken());
 		assertEquals(50, response.getResults().size());
@@ -465,7 +510,7 @@ public class TextAnalyzerManagerImplTest {
 		when(textAnalyzerDao.listAll(51L, 0L)).thenReturn(page);
 
 		// call under test
-		ListTextAnalyzersResponse response = manager.list(adminUser(), new ListTextAnalyzersRequest());
+		ListTextAnalyzersResponse response = manager.list(adminUser, new ListTextAnalyzersRequest());
 
 		assertNull(response.getNextPageToken());
 		assertEquals(1, response.getResults().size());

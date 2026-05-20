@@ -10,6 +10,7 @@ import java.util.function.Function;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
@@ -71,27 +72,8 @@ public final class SearchAnalyzerJson {
 	 */
 	public static Set<String> collectRefs(JsonNode root) {
 		Set<String> refs = new LinkedHashSet<>();
-		if (root == null) {
-			return refs;
-		}
-		collectRefsRecursive(root, refs);
+		walk(root, (ref, path) -> refs.add(ref));
 		return refs;
-	}
-
-	private static void collectRefsRecursive(JsonNode node, Set<String> refs) {
-		if (node == null) {
-			return;
-		}
-		String ref = readRef(node);
-		if (ref != null) {
-			refs.add(ref);
-			return;
-		}
-		if (node.isObject()) {
-			node.fields().forEachRemaining(e -> collectRefsRecursive(e.getValue(), refs));
-		} else if (node.isArray()) {
-			node.forEach(child -> collectRefsRecursive(child, refs));
-		}
 	}
 
 	/**
@@ -118,9 +100,6 @@ public final class SearchAnalyzerJson {
 
 	private static JsonNode resolveNode(JsonNode node, Function<String, JsonNode> resolver,
 			Deque<String> visiting, Deque<String> jsonPath) {
-		if (node == null) {
-			return null;
-		}
 		String ref = readRef(node);
 		if (ref != null) {
 			if (visiting.contains(ref)) {
@@ -142,12 +121,7 @@ public final class SearchAnalyzerJson {
 		}
 		if (node.isObject()) {
 			ObjectNode obj = (ObjectNode) node;
-			java.util.Iterator<Map.Entry<String, JsonNode>> it = obj.fields();
-			java.util.List<Map.Entry<String, JsonNode>> entries = new java.util.ArrayList<>();
-			while (it.hasNext()) {
-				entries.add(it.next());
-			}
-			for (Map.Entry<String, JsonNode> e : entries) {
+			obj.fields().forEachRemaining(e -> {
 				jsonPath.addLast(escapeJsonPointerToken(e.getKey()));
 				try {
 					JsonNode resolved = resolveNode(e.getValue(), resolver, visiting, jsonPath);
@@ -157,12 +131,11 @@ public final class SearchAnalyzerJson {
 				} finally {
 					jsonPath.removeLast();
 				}
-			}
+			});
 			return obj;
 		}
 		if (node.isArray()) {
-			com.fasterxml.jackson.databind.node.ArrayNode arr =
-					(com.fasterxml.jackson.databind.node.ArrayNode) node;
+			ArrayNode arr = (ArrayNode) node;
 			for (int i = 0; i < arr.size(); i++) {
 				jsonPath.addLast(Integer.toString(i));
 				try {
@@ -180,9 +153,54 @@ public final class SearchAnalyzerJson {
 	}
 
 	/**
+	 * Read-only DFS for {@link #collectRefs}. When a {@code $ref} node is encountered the
+	 * callback is invoked with the qname and the current JSON-pointer path; descent stops
+	 * at that node (refs don't contain refs). Mirrors the structure of {@link #resolveNode}
+	 * minus the mutation/cycle bookkeeping.
+	 */
+	private static void walk(JsonNode node, RefVisitor visitor) {
+		if (node == null) {
+			return;
+		}
+		Deque<String> jsonPath = new ArrayDeque<>();
+		walkRecursive(node, jsonPath, visitor);
+	}
+
+	private static void walkRecursive(JsonNode node, Deque<String> jsonPath, RefVisitor visitor) {
+		String ref = readRef(node);
+		if (ref != null) {
+			visitor.visit(ref, jsonPath);
+			return;
+		}
+		if (node.isObject()) {
+			node.fields().forEachRemaining(e -> {
+				jsonPath.addLast(escapeJsonPointerToken(e.getKey()));
+				try {
+					walkRecursive(e.getValue(), jsonPath, visitor);
+				} finally {
+					jsonPath.removeLast();
+				}
+			});
+		} else if (node.isArray()) {
+			for (int i = 0; i < node.size(); i++) {
+				jsonPath.addLast(Integer.toString(i));
+				try {
+					walkRecursive(node.get(i), jsonPath, visitor);
+				} finally {
+					jsonPath.removeLast();
+				}
+			}
+		}
+	}
+
+	@FunctionalInterface
+	private interface RefVisitor {
+		void visit(String ref, Deque<String> jsonPath);
+	}
+
+	/**
 	 * Render the breadcrumb deque as a JSON Pointer (RFC 6901). Empty deque renders as
-	 * the root pointer {@code ""}; otherwise tokens are joined with {@code /} prefixes,
-	 * matching standard Jackson {@code at(...)} input.
+	 * {@code /}; otherwise tokens are joined with {@code /} prefixes.
 	 */
 	private static String renderJsonPointer(Deque<String> jsonPath) {
 		if (jsonPath.isEmpty()) {
@@ -208,16 +226,10 @@ public final class SearchAnalyzerJson {
 	 * value, return that value; otherwise null.
 	 */
 	private static String readRef(JsonNode node) {
-		if (node == null || !node.isObject()) {
-			return null;
-		}
-		if (node.size() != 1) {
+		if (node == null || !node.isObject() || node.size() != 1) {
 			return null;
 		}
 		JsonNode ref = node.get(REF_KEY);
-		if (ref == null || !ref.isTextual()) {
-			return null;
-		}
-		return ref.asText();
+		return (ref != null && ref.isTextual()) ? ref.asText() : null;
 	}
 }

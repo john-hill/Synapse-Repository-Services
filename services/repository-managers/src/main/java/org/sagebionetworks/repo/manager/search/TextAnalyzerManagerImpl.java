@@ -1,9 +1,11 @@
 package org.sagebionetworks.repo.manager.search;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -18,6 +20,7 @@ import org.sagebionetworks.repo.model.dbo.search.SynonymSetDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersRequest;
 import org.sagebionetworks.repo.model.search.table.ListTextAnalyzersResponse;
+import org.sagebionetworks.repo.model.search.table.SynonymSet;
 import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
@@ -36,13 +39,16 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 	private final AccessControlListDAO aclDao;
 	private final OrganizationDao organizationDao;
 	private final SynonymSetDao synonymSetDao;
+	private final OpenSearchManager openSearchManager;
 
 	public TextAnalyzerManagerImpl(TextAnalyzerDao textAnalyzerDao, AccessControlListDAO aclDao,
-			OrganizationDao organizationDao, SynonymSetDao synonymSetDao) {
+			OrganizationDao organizationDao, SynonymSetDao synonymSetDao,
+			OpenSearchManager openSearchManager) {
 		this.textAnalyzerDao = textAnalyzerDao;
 		this.aclDao = aclDao;
 		this.organizationDao = organizationDao;
 		this.synonymSetDao = synonymSetDao;
+		this.openSearchManager = openSearchManager;
 	}
 
 	@Override
@@ -213,18 +219,29 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 							+ "'); rejected: " + rejected);
 		}
 		Set<String> refs = SearchAnalyzerJson.collectRefs(root);
-		if (refs.isEmpty()) {
-			return;
-		}
 		List<String> refList = new ArrayList<>(refs);
 		for (String qname : refList) {
 			SearchResourceConstants.validateQualifiedNameFormat(qname, "$ref");
 		}
-		List<String> missing = synonymSetDao.findNonExistentNames(refList);
-		if (!missing.isEmpty()) {
-			throw new IllegalArgumentException(
-					"The following $ref synonym set name(s) do not exist: " + missing);
+		if (!refList.isEmpty()) {
+			List<String> missing = synonymSetDao.findNonExistentNames(refList);
+			if (!missing.isEmpty()) {
+				throw new IllegalArgumentException(
+						"The following $ref synonym set name(s) do not exist: " + missing);
+			}
 		}
+
+		// Resolve $refs against the SynonymSet store, then submit to AOSS _analyze for the
+		// real component-shape / chain-ordering check. Curators get a synchronous wire-side
+		// rejection at create/update time instead of an async FAILED state on the first
+		// SearchIndex build that happens to use this analyzer.
+		JsonNode resolvedRoot = SearchAnalyzerJson.resolveRefs(root, qname -> {
+			Map<String, SynonymSet> map = synonymSetDao.getByQualifiedNames(
+					Collections.singletonList(qname));
+			SynonymSet ss = map.get(qname);
+			return ss == null ? null : SearchAnalyzerJson.parse(ss.getDefinition());
+		});
+		openSearchManager.validateAnalyzerSettings(resolvedRoot);
 	}
 
 	private String resolveOrganizationId(String organizationName) {

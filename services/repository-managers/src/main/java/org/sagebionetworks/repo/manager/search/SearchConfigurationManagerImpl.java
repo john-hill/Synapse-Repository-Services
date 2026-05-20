@@ -1,6 +1,5 @@
 package org.sagebionetworks.repo.manager.search;
 
-import java.util.Collections;
 import java.util.List;
 
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -130,11 +129,13 @@ public class SearchConfigurationManagerImpl implements SearchConfigurationManage
 		Long entityId = KeyFactory.stringToKey(request.getEntityId());
 		Long searchConfigId = Long.parseLong(request.getSearchConfigurationId());
 
+		// Verify entity exists and user has EDIT permission
 		if (!user.isAdmin()) {
 			aclDao.canAccess(user, String.valueOf(entityId), ObjectType.ENTITY, ACCESS_TYPE.UPDATE)
 				.checkAuthorizationOrElseThrow();
 		}
 
+		// Verify search config exists
 		searchConfigurationDao.get(request.getSearchConfigurationId())
 			.orElseThrow(() -> new NotFoundException("A search configuration with the given id does not exist."));
 
@@ -200,10 +201,9 @@ public class SearchConfigurationManagerImpl implements SearchConfigurationManage
 	private void validateReferencedNames(SearchConfiguration config) {
 		if (config.getDefaultAnalyzer() != null) {
 			SearchResourceConstants.validateQualifiedNameFormat(config.getDefaultAnalyzer(), "defaultAnalyzer");
-			List<String> missing = textAnalyzerDao.findNonExistentNames(
-					Collections.singletonList(config.getDefaultAnalyzer()));
+			List<String> missing = textAnalyzerDao.findNonExistentNames(List.of(config.getDefaultAnalyzer()));
 			if (!missing.isEmpty()) {
-				throw new IllegalArgumentException("The following default analyzer name(s) do not exist: " + missing);
+				throw new IllegalArgumentException("The following default analyzer name does not exist: " + missing);
 			}
 		}
 		if (config.getColumnAnalyzerOverrides() != null && !config.getColumnAnalyzerOverrides().isEmpty()) {

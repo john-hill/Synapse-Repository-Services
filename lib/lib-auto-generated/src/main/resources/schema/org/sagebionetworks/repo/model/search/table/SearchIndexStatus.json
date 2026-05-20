@@ -12,7 +12,7 @@
 		"changedOn": {
 			"type": "string",
 			"format": "date-time",
-			"description": "When the status last changed."
+			"description": "The date-time when the status last changed."
 		},
 		"errorMessage": {
 			"type": "string",

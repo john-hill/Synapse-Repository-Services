@@ -7,24 +7,24 @@
 		},
 		"searchConfigurationId": {
 			"type": "string",
-			"description": "ID of the SearchConfiguration bound here."
+			"description": "The ID of the SearchConfiguration bound to this entity."
 		},
 		"objectId": {
 			"type": "string",
-			"description": "ID of the entity this binding is attached to."
+			"description": "The ID of the entity this configuration is bound to."
 		},
 		"objectType": {
 			"type": "string",
-			"description": "Object type of the bound entity (typically 'entity')."
+			"description": "The type of the object this configuration is bound to."
 		},
 		"createdBy": {
 			"type": "string",
-			"description": "ID of the user that created this binding."
+			"description": "The ID of the user that created this binding."
 		},
 		"createdOn": {
 			"type": "string",
 			"format": "date-time",
-			"description": "When this binding was created."
+			"description": "The date this binding was created."
 		}
 	}
 }

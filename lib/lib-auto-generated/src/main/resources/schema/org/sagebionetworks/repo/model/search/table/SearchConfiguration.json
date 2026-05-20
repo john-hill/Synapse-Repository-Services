@@ -7,15 +7,15 @@
 		},
 		"organizationName": {
 			"type": "string",
-			"description": "The Organization that owns this resource. Immutable after creation."
+			"description": "The name of the Organization this resource belongs to. Immutable after creation."
 		},
 		"name": {
 			"type": "string",
-			"description": "Resource name (letters, digits, underscores, must start with a letter). Combined with organizationName to form the qualified name '{organizationName}-{name}'. Immutable after creation."
+			"description": "The resource name. Must start with a letter and contain only letters, digits, and underscores. Unique within the organization and immutable after creation. Used as part of the qualified name ({organizationName}-{name}) when referenced by other resources."
 		},
 		"description": {
 			"type": "string",
-			"description": "Optional free-form description."
+			"description": "Optional description."
 		},
 		"defaultAnalyzer": {
 			"type": "string",
@@ -30,25 +30,25 @@
 		},
 		"etag": {
 			"type": "string",
-			"description": "Synapse Optimistic Concurrency Control (OCC) value. Send the etag from a GET back on update; a mismatch returns 409."
+			"description": "Synapse employs an Optimistic Concurrency Control (OCC) scheme."
 		},
 		"createdOn": {
 			"type": "string",
 			"format": "date-time",
-			"description": "When this resource was created."
+			"description": "The date this resource was created."
 		},
 		"createdBy": {
 			"type": "string",
-			"description": "ID of the user that created this resource."
+			"description": "The ID of the user that created this resource."
 		},
 		"modifiedOn": {
 			"type": "string",
 			"format": "date-time",
-			"description": "When this resource was last modified."
+			"description": "The date this resource was last modified."
 		},
 		"modifiedBy": {
 			"type": "string",
-			"description": "ID of the user that last modified this resource."
+			"description": "The ID of the user that last modified this resource."
 		}
 	}
 }

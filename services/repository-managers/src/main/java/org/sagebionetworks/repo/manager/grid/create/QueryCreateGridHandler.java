@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.grid.create;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -19,7 +20,6 @@ import org.sagebionetworks.repo.manager.schema.JsonSchemaValidationManager;
 import org.sagebionetworks.repo.manager.table.TableQueryManager;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.EntityType;
-import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.dbo.grid.CreateGridSession;
@@ -56,12 +56,11 @@ public class QueryCreateGridHandler implements CreateGridHandler {
 	private final GridAuthorizationManager gridAuthorizationManager;
 	private final FileProvider fileProvider;
 	private final IndexedModelEncoderProvider encoderProvider;
-	private final NodeDAO nodeDao;
 
 	public QueryCreateGridHandler(GridDao gridDao, EntityManager entityManager, TableQueryManager tableQueryManager,
 								  JsonSchemaManager schemaManager, JsonSchemaValidationManager jsonSchemaValidationManager,
 								  GridAuthorizationManager gridAuthorizationManager, FileProvider fileProvider,
-								  IndexedModelEncoderProvider encoderProvider, NodeDAO nodeDao) {
+								  IndexedModelEncoderProvider encoderProvider) {
 		super();
 		this.gridDao = gridDao;
 		this.entityManager = entityManager;
@@ -71,7 +70,6 @@ public class QueryCreateGridHandler implements CreateGridHandler {
 		this.gridAuthorizationManager = gridAuthorizationManager;
 		this.fileProvider = fileProvider;
 		this.encoderProvider = encoderProvider;
-		this.nodeDao = nodeDao;
 	}
 
 	@Override
@@ -141,7 +139,9 @@ public class QueryCreateGridHandler implements CreateGridHandler {
 			if (EntityType.entityview.equals(sourceType)) {
 				benefactorIds = collectedBenefactorIds;
 			} else if (EntityType.table.equals(sourceType)) {
-				benefactorIds = Set.of(KeyFactory.stringToKey(nodeDao.getBenefactor(tableId)));
+				// For table sources, checkSourceAccess() already enforces READ+DOWNLOAD+UPDATE
+				// on the source entity (and its benefactor), so no explicit benefactor IDs are needed.
+				benefactorIds = Collections.emptySet();
 			} else {
 				throw new IllegalArgumentException("Unsupported source entity type for grid creation: " + sourceType);
 			}

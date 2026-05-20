@@ -46,11 +46,9 @@ import org.sagebionetworks.repo.model.dbo.grid.CreateGridSession;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.file.S3FileHandle;
 import org.sagebionetworks.repo.model.grid.ClockTable;
-import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.grid.AuthorizationMode;
 import org.sagebionetworks.repo.model.grid.CreateGridRequest;
 import org.sagebionetworks.repo.model.grid.EventSource;
-import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.grid.GridReplica;
 import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridUtils;
@@ -106,9 +104,6 @@ public class RecordSetCreateGridHandlerTest {
 
 	@Mock
 	private IndexedModelEncoder mockEncoder;
-
-	@Mock
-	private NodeDAO mockNodeDao;
 
 	@Spy
 	@InjectMocks
@@ -176,7 +171,6 @@ public class RecordSetCreateGridHandlerTest {
 	@Test
 	public void testBuildSessionFromRecordSet() throws IOException {
 		when(mockUser.getId()).thenReturn(userId);
-		when(mockNodeDao.getBenefactor(recordSet.getId())).thenReturn("syn111");
 		when(mockEntityManager.getEntity(mockUser, recordSet.getId(), RecordSet.class)).thenReturn(recordSet);
 		when(mockAuthorizationManager.hasAccess(mockUser, recordSet.getId(), ACCESS_TYPE.DOWNLOAD)).thenReturn(AuthorizationStatus.authorized());
 		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.of(
@@ -220,7 +214,6 @@ public class RecordSetCreateGridHandlerTest {
 	@Test
 	public void testBuildSessionFromRecordSetWithNoValidationSchema() throws IOException {
 		when(mockUser.getId()).thenReturn(userId);
-		when(mockNodeDao.getBenefactor(recordSet.getId())).thenReturn("syn111");
 		when(mockEntityManager.getEntity(mockUser, recordSet.getId(), RecordSet.class)).thenReturn(recordSet);
 		when(mockAuthorizationManager.hasAccess(mockUser, recordSet.getId(), ACCESS_TYPE.DOWNLOAD)).thenReturn(AuthorizationStatus.authorized());
 		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.empty());
@@ -263,7 +256,6 @@ public class RecordSetCreateGridHandlerTest {
 		recordSet.setCsvDescriptor(null);
 
 		when(mockUser.getId()).thenReturn(userId);
-		when(mockNodeDao.getBenefactor(recordSet.getId())).thenReturn("syn111");
 		when(mockEntityManager.getEntity(mockUser, recordSet.getId(), RecordSet.class)).thenReturn(recordSet);
 		when(mockAuthorizationManager.hasAccess(mockUser, recordSet.getId(), ACCESS_TYPE.DOWNLOAD)).thenReturn(AuthorizationStatus.authorized());
 		when(mockEntityManager.findBoundSchema(recordSet.getId())).thenReturn(Optional.empty());
@@ -401,10 +393,8 @@ public class RecordSetCreateGridHandlerTest {
 	}
 
 	@Test
-	public void testBuildSessionFromRecordSetCapturesBenefactorId() throws IOException {
-		String benefactorSynId = "syn111";
+	public void testBuildSessionFromRecordSetReturnsEmptyBenefactorIds() throws IOException {
 		when(mockUser.getId()).thenReturn(userId);
-		when(mockNodeDao.getBenefactor(recordSet.getId())).thenReturn(benefactorSynId);
 		when(mockEntityManager.getEntity(mockUser, recordSet.getId(), RecordSet.class)).thenReturn(recordSet);
 		when(mockAuthorizationManager.hasAccess(mockUser, recordSet.getId(), ACCESS_TYPE.DOWNLOAD))
 				.thenReturn(AuthorizationStatus.authorized());
@@ -420,18 +410,16 @@ public class RecordSetCreateGridHandlerTest {
 		doReturn(mockRowHandler).when(handler).getSnapshotRowHandler(any(), any(), any(), any(), any(), any(), any(), any());
 		when(mockCsvReader.readNext()).thenReturn(new String[]{"header"}, (String[]) null);
 
-		// call under test
+		// call under test — RecordSet sources return empty set; checkSourceAccess() enforces authorization
 		CreateGridHandlerResult result = handler.createGrid(mockCallback, mockUser,
 				new CreateGridRequest().setRecordSetId(recordSet.getId()), mockSnapshotStore);
 
-		assertEquals(Set.of(KeyFactory.stringToKey(benefactorSynId)), result.getBenefactorIds());
-		verify(mockNodeDao).getBenefactor(recordSet.getId());
+		assertEquals(Collections.emptySet(), result.getBenefactorIds());
 	}
 
 	@Test
 	public void testBuildSessionFromRecordSetPassesAuthorizationMode() throws IOException {
 		when(mockUser.getId()).thenReturn(userId);
-		when(mockNodeDao.getBenefactor(recordSet.getId())).thenReturn("syn111");
 		when(mockEntityManager.getEntity(mockUser, recordSet.getId(), RecordSet.class)).thenReturn(recordSet);
 		when(mockAuthorizationManager.hasAccess(mockUser, recordSet.getId(), ACCESS_TYPE.DOWNLOAD))
 				.thenReturn(AuthorizationStatus.authorized());

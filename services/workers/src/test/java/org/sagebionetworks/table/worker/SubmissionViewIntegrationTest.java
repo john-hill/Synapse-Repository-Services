@@ -539,6 +539,9 @@ public class SubmissionViewIntegrationTest {
 		row.setRowId(id);
 		row.setEtag(eTag);
 		row.setVersionNumber(versionNumber);
+		// For submission views the benefactor of each row is the evaluation itself,
+		// since evaluations have their own ACL.
+		row.setBenefactorId(evaluationId);
 		
 		List<String> values = new ArrayList<>();
 		

@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.manager.grid.create;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,10 +24,8 @@ import org.sagebionetworks.repo.manager.schema.JsonSchemaManager;
 import org.sagebionetworks.repo.manager.schema.JsonSchemaValidationManager;
 import org.sagebionetworks.repo.manager.table.UploadPreviewBuilder;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
-import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
-import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.dbo.grid.CreateGridSession;
 import org.sagebionetworks.repo.model.dbo.grid.GridDao;
@@ -57,12 +56,11 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 	private final JsonSchemaValidationManager jsonSchemaValidationManager;
 	private final FileProvider fileProvider;
 	private final IndexedModelEncoderProvider encoderProvider;
-	private final NodeDAO nodeDao;
 
 	public RecordSetCreateGridHandler(GridDao gridDao, EntityManager entityManager, FileHandleManager fileHandleManager,
 									  EntityAuthorizationManager authorizationManager, CsvFileHandleProvider csvProvider,
 									  JsonSchemaManager jsonSchemaManager, JsonSchemaValidationManager jsonSchemaValidationManager,
-									  FileProvider fileProvider, IndexedModelEncoderProvider encoderProvider, NodeDAO nodeDao) {
+									  FileProvider fileProvider, IndexedModelEncoderProvider encoderProvider) {
 		super();
 		this.gridDao = gridDao;
 		this.entityManager = entityManager;
@@ -73,7 +71,6 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 		this.jsonSchemaValidationManager = jsonSchemaValidationManager;
 		this.fileProvider = fileProvider;
 		this.encoderProvider = encoderProvider;
-		this.nodeDao = nodeDao;
 	}
 
 	@Override
@@ -164,9 +161,10 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 			throw new IllegalStateException(e);
 		}
 
-		Set<Long> benefactorIds = Set.of(KeyFactory.stringToKey(nodeDao.getBenefactor(recordSet.getId())));
+		// For RecordSet sources, checkSourceAccess() already enforces READ+DOWNLOAD+UPDATE
+		// on the source entity (and its benefactor), so no explicit benefactor IDs are needed.
 		return new CreateGridHandlerResult().setGridSession(session).setGridReplica(replica)
-				.setBenefactorIds(benefactorIds);
+				.setBenefactorIds(Collections.emptySet());
 	}
 
 	List<ColumnModel> getSchemaFromCsv(FileHandle fileHandle, CsvTableDescriptor csvDescriptor) {

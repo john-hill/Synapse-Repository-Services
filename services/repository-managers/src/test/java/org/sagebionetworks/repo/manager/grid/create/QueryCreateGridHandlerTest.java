@@ -18,6 +18,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -43,7 +44,6 @@ import org.sagebionetworks.repo.manager.table.query.MainQuery;
 import org.sagebionetworks.repo.manager.table.query.QueryTranslations;
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
 import org.sagebionetworks.repo.model.EntityType;
-import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
 import org.sagebionetworks.repo.model.dbo.grid.CreateGridSession;
@@ -57,7 +57,6 @@ import org.sagebionetworks.repo.model.grid.GridSession;
 import org.sagebionetworks.repo.model.grid.GridUtils;
 import org.sagebionetworks.repo.model.grid.encoding.IndexedModelEncoder;
 import org.sagebionetworks.repo.model.grid.patch.LogicalTimestamp;
-import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.schema.JsonSchema;
 import org.sagebionetworks.repo.model.schema.JsonSchemaObjectBinding;
@@ -121,8 +120,6 @@ public class QueryCreateGridHandlerTest {
 	private IndexedModelEncoderProvider mockEncoderProvider;
 	@Mock
 	private IndexedModelEncoder mockEncoder;
-	@Mock
-	private NodeDAO mockNodeDao;
 	@Mock
 	private BenefactorCollectingRowHandler mockBenefactorCollectingRowHandler;
 
@@ -382,7 +379,7 @@ public class QueryCreateGridHandlerTest {
 	}
 
 	@Test
-	public void testCreateGridWithViewSourceDoesNotCallNodeDao() throws Exception {
+	public void testCreateGridWithViewSourceCollectsBenefactorIdsFromRows() throws Exception {
 		when(mockEntityManager.getEntityType(tableId)).thenReturn(EntityType.entityview);
 		when(mockGridAuthorizationManager.getRowLevelFilterUserInfo(mockUser, gridSessionId)).thenReturn(mockSessionOwnerUser);
 		when(mockUser.getId()).thenReturn(userId);
@@ -395,17 +392,16 @@ public class QueryCreateGridHandlerTest {
 		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
 		when(mockQueryManager.getMaxBytesPerRequest()).thenReturn(2_000_000L);
 
-		// call under test
-		handler.createGrid(mockCallback, mockUser, new CreateGridRequest().setInitialQuery(query), mockSnapshotStore);
+		// call under test — view sources use rows' benefactor IDs (empty here since no rows streamed in mock)
+		CreateGridHandlerResult result = handler.createGrid(mockCallback, mockUser,
+				new CreateGridRequest().setInitialQuery(query), mockSnapshotStore);
 
-		verify(mockNodeDao, never()).getBenefactor(any());
+		assertEquals(Collections.emptySet(), result.getBenefactorIds());
 	}
 
 	@Test
-	public void testCreateGridWithTableSourceUsesBenefactorId() throws Exception {
-		String benefactorSynId = "syn111";
+	public void testCreateGridWithTableSourceReturnsEmptyBenefactorIds() throws Exception {
 		when(mockEntityManager.getEntityType(tableId)).thenReturn(EntityType.table);
-		when(mockNodeDao.getBenefactor(tableId)).thenReturn(benefactorSynId);
 		when(mockGridAuthorizationManager.getRowLevelFilterUserInfo(mockUser, gridSessionId)).thenReturn(mockSessionOwnerUser);
 		when(mockUser.getId()).thenReturn(userId);
 		when(mockQueryManager.querySinglePage(mockCallback, mockUser, new Query().setSql(query.getSql()).setLimit(1L),
@@ -417,12 +413,11 @@ public class QueryCreateGridHandlerTest {
 		when(mockGridDao.createReplica(userId, gridSessionId, isAgent, EventSource.INTERNAL)).thenReturn(replica);
 		when(mockQueryManager.getMaxBytesPerRequest()).thenReturn(2_000_000L);
 
-		// call under test
+		// call under test — table sources return empty set; checkSourceAccess() enforces authorization
 		CreateGridHandlerResult result = handler.createGrid(mockCallback, mockUser,
 				new CreateGridRequest().setInitialQuery(query), mockSnapshotStore);
 
-		assertEquals(Set.of(KeyFactory.stringToKey(benefactorSynId)), result.getBenefactorIds());
-		verify(mockNodeDao).getBenefactor(tableId);
+		assertEquals(Collections.emptySet(), result.getBenefactorIds());
 	}
 
 	@Test

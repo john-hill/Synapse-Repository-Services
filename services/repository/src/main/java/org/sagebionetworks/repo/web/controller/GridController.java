@@ -534,14 +534,14 @@ public class GridController {
 	 * Asynchronously start the synchronization of a grid session with its data
 	 * source. Synchronization is a two-phase process that ensures consistency
 	 * between the user's local changes and external changes made to the source:
-	 * 
+	 *
 	 * <p>
 	 * <b>Phase 1: Schema Synchronization</b>
 	 * <ul>
 	 * <li>Synchronizes column definitions between the grid copy and source</li>
 	 * <li>Resolves schema conflicts</li>
 	 * </ul>
-	 * 
+	 *
 	 * <p>
 	 * <b>Phase 2: Row Synchronization</b>
 	 * <ul>
@@ -550,12 +550,32 @@ public class GridController {
 	 * <li>Pushes user changes from copy to source</li>
 	 * <li>Pulls external changes from source to copy</li>
 	 * </ul>
-	 * 
+	 *
+	 * <p>
+	 * <b>Benefactor ID Update ({@code SOURCE_BENEFACTOR} mode)</b>
+	 * <p>
+	 * After row synchronization completes, the session's stored benefactor IDs
+	 * are refreshed to reflect the current state of the source as seen by the
+	 * calling user (the <em>action user</em>). The benefactor set is recomputed
+	 * using the same rules as session creation:
+	 * <ul>
+	 * <li>For <b>view sources</b>: the distinct set of benefactor IDs from the
+	 * rows the action user has EDIT access to at the time of the sync.</li>
+	 * <li>For <b>table or RecordSet sources</b>: the single benefactor of the
+	 * source entity.</li>
+	 * </ul>
+	 * <p>
+	 * This means that if the underlying data or permissions change between session
+	 * creation and sync, the set of users who can join the session may expand or
+	 * contract accordingly. In particular, if a new entity with a separate
+	 * benefactor appears in the view scope, users who lack EDIT on that benefactor
+	 * will lose access to the session after the next sync.
+	 *
 	 * <p>
 	 * Use the returned job id and
 	 * <a href="${GET.grid.synchronize.async.get.asyncToken}">GET
 	 * /grid/synchronize/async/get</a> to get the results of the job.
-	 * 
+	 *
 	 * @param userId  The ID of the user making the request
 	 * @param request The synchronization request containing the grid session ID
 	 * @return The async job ID to track the synchronization progress

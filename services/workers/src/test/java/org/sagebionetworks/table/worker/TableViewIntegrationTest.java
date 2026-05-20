@@ -1925,9 +1925,11 @@ public class TableViewIntegrationTest {
 			+ ObjectField.dataFileName
 		+ " from " + fileViewId + " where " + ObjectField.id + " = '" + fileZero+"'";
 		
+		Long projectBenefactorId = KeyFactory.stringToKey(project.getId());
 		List<Row> expectedRows = List.of(new Row()
 			.setRowId(KeyFactory.stringToKey(fileZero))
 			.setVersionNumber(1L)
+			.setBenefactorId(projectBenefactorId)
 			.setValues(List.of(
 				sharedHandle.getContentMd5().toString(),
 				sharedHandle.getContentSize().toString(),
@@ -1937,8 +1939,8 @@ public class TableViewIntegrationTest {
 				sharedHandle.getFileName()
 			))
 		);
-		
-		waitForConsistentQuery(adminUserInfo, sql, (results) -> {			
+
+		waitForConsistentQuery(adminUserInfo, sql, (results) -> {
 			assertEquals(expectedRows, extractRows(results));
 		});
 	}
@@ -2360,13 +2362,15 @@ public class TableViewIntegrationTest {
 		String sql = "select " + ObjectField.path + " from " + fileViewId + " where " + ObjectField.id + " = '"
 				+ fileZero + "'";
 		
+		Long projectBenefactorId = KeyFactory.stringToKey(project.getId());
 		List<Row> expectedRows = List.of(new Row()
 			.setRowId(KeyFactory.stringToKey(fileZero))
 			.setVersionNumber(1L)
+			.setBenefactorId(projectBenefactorId)
 			.setValues(List.of(expectedPath))
 		);
-		
-		waitForConsistentQuery(adminUserInfo, sql, (results) -> {			
+
+		waitForConsistentQuery(adminUserInfo, sql, (results) -> {
 			assertEquals(expectedRows, extractRows(results));
 		});
 	}

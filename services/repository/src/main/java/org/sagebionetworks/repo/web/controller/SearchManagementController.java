@@ -77,8 +77,9 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * assigns specific <a href="${org.sagebionetworks.repo.model.search.table.TextAnalyzer}">TextAnalyzers</a>
  * to individual columns, overriding the SearchConfiguration's default analyzer. Each override entry
  * specifies an index analyzer (used when building the index) and a search analyzer (used at query time).
- * This corresponds to the OpenSearch
- * <a href="https://docs.opensearch.org/latest/field-types/supported-field-types/text/">per-field analyzer + search_analyzer</a>
+ * This corresponds to the OpenSearch per-field
+ * <a href="https://docs.opensearch.org/latest/analyzers/index-analyzers/">analyzer</a> +
+ * <a href="https://docs.opensearch.org/latest/analyzers/search-analyzers/">search_analyzer</a>
  * mapping.
  * </p>
  * <ul>

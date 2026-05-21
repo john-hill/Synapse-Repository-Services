@@ -19,6 +19,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.sagebionetworks.StackConfiguration;
@@ -115,6 +117,8 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @Service
 public class GridManagerImpl implements GridManager {
+
+	private static final Logger log = LogManager.getLogger(GridManagerImpl.class);
 
 	public static final String GRID_REPLICA_NOT_FOUND = "Grid replica not found.";
 	public static final String GRID_SESSION_NOT_FOUND = "Grid session not found.";
@@ -399,8 +403,11 @@ public class GridManagerImpl implements GridManager {
 			if (cause instanceof GoneException) {
 				// Connection already gone — clean up DB directly since $disconnect won't fire
 				gridDao.removeConnection(connectionId);
+			} else {
+				// Unexpected error — log and continue since eviction is best-effort
+				log.warn("Failed to delete WebSocket connection '{}' during eviction: {}", connectionId,
+						cause.getMessage(), cause);
 			}
-			// Other errors: log and continue — eviction is best-effort
 		}
 	}
 

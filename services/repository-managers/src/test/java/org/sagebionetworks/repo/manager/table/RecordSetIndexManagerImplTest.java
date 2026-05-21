@@ -134,10 +134,9 @@ public class RecordSetIndexManagerImplTest {
 		doReturn(inferredSchema).when(manager).inferSchema(fileHandle, csvDescriptor);
 		when(mockColumnModelManager.createColumnModels(mockAdminUser, inferredSchema)).thenReturn(persistedSchema);
 		when(mockConnectionFactory.connectToTableIndex(entityKey)).thenReturn(mockIndexManager);
-		// Both index loads stubbed; they execute against the same TableIndexManager mock.
-		doReturn(42L).when(manager).loadRows(eq(mockIndexManager), eq(entityDescription), eq(persistedSchema),
-				eq(fileHandle), eq(csvDescriptor), eq(currentRevision));
-		doReturn(42L).when(manager).loadRows(eq(mockIndexManager), eq(versionedDescription), eq(persistedSchema),
+		List<IndexDescription> bothDescriptions = Arrays.asList(entityDescription, versionedDescription);
+		// Single CSV pass writes rows into both index tables on this TableIndexManager mock.
+		doReturn(42L).when(manager).loadRows(eq(mockIndexManager), eq(bothDescriptions), eq(persistedSchema),
 				eq(fileHandle), eq(csvDescriptor), eq(currentRevision));
 
 		// call under test
@@ -146,16 +145,14 @@ public class RecordSetIndexManagerImplTest {
 		// Bindings: default (current alias) + versioned (snapshot history).
 		verify(mockColumnModelManager).bindColumnsToDefaultVersionOfObject(Arrays.asList("100", "101"), "999");
 		verify(mockColumnModelManager).bindColumnsToVersionOfObject(Arrays.asList("100", "101"), versionedKey);
-		// Build the entity-level T{id} index with the current CSV.
+		// Both index tables are reset before the single-pass row load.
 		verify(mockIndexManager).resetTableIndex(entityDescription, persistedSchema, false);
-		verify(manager).loadRows(mockIndexManager, entityDescription, persistedSchema, fileHandle, csvDescriptor,
+		verify(mockIndexManager).resetTableIndex(versionedDescription, persistedSchema, false);
+		verify(manager).loadRows(mockIndexManager, bothDescriptions, persistedSchema, fileHandle, csvDescriptor,
 				currentRevision);
+		// Secondary indices are built and the version stamped on each table.
 		verify(mockIndexManager).buildTableIndexIndices(entityDescription, persistedSchema);
 		verify(mockIndexManager).setIndexVersion(entityKey, currentRevision);
-		// Build the immutable per-version snapshot T{id}_{v}.
-		verify(mockIndexManager).resetTableIndex(versionedDescription, persistedSchema, false);
-		verify(manager).loadRows(mockIndexManager, versionedDescription, persistedSchema, fileHandle, csvDescriptor,
-				currentRevision);
 		verify(mockIndexManager).buildTableIndexIndices(versionedDescription, persistedSchema);
 		verify(mockIndexManager).setIndexVersion(versionedKey, currentRevision);
 		// Both TABLE_STATUS rows flip to AVAILABLE.

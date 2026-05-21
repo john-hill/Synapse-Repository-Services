@@ -1,6 +1,7 @@
 package org.sagebionetworks.repo.manager.table;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -39,6 +40,9 @@ import au.com.bytecode.opencsv.CSVReader;
 @Service
 public class RecordSetIndexManagerImpl implements RecordSetIndexManager {
 
+	// TableStatus etag for RecordSet indexes does not rotate per build. Safe
+	// only because RecordSetIndexDescription inherits supportQueryCache=false —
+	// if query caching is ever enabled for RecordSet, this becomes stale.
 	private static final String DEFAULT_ETAG = "DEFAULT";
 	// Match the change-set sizing used by TableEntityManagerImpl (configurable
 	// there, but a sensible fixed default is fine for the worker path).
@@ -77,9 +81,9 @@ public class RecordSetIndexManagerImpl implements RecordSetIndexManager {
 		ValidateArgument.required(progressCallback, "progressCallback");
 		// Entity-level state (TableStatus, exclusive lock) is keyed at the
 		// unversioned IdAndVersion: an unversioned query "select * from syn123"
-		// checks status at (id, null), so we keep it there. The per-version
-		// immutable index table T{id}_{v} is identified by the IndexDescription
-		// returned from the factory, which resolves the current version for us.
+		// checks status at (id, null), so we keep it there. createOrUpdateHoldingLock
+		// resolves the current revision from NodeDAO and builds both T{id} and
+		// T{id}_{v} under that lock.
 		IdAndVersion entityKey = IdAndVersion.newBuilder().setId(idAndVersion.getId()).build();
 		tableManagerSupport.tryRunWithTableExclusiveLock(progressCallback,
 				new LockContext(ContextType.BuildTableIndex, entityKey), entityKey,
@@ -134,17 +138,15 @@ public class RecordSetIndexManagerImpl implements RecordSetIndexManager {
 
 			TableIndexManager indexManager = connectionFactory.connectToTableIndex(entityKey);
 
-			// (1) Entity-level T{id} — overwritten with the latest CSV each version.
+			// Reset both index tables, then populate them in a single CSV pass.
+			// T{id} is overwritten with the latest CSV each version; T{id}_{v} is
+			// built once per version and immutable thereafter.
 			indexManager.resetTableIndex(entityDescription, persistedColumns, false);
-			long rowCount = loadRows(indexManager, entityDescription, persistedColumns, dataFileHandle, csvDescriptor,
-					currentRevision);
+			indexManager.resetTableIndex(versionedDescription, persistedColumns, false);
+			long rowCount = loadRows(indexManager, Arrays.asList(entityDescription, versionedDescription),
+					persistedColumns, dataFileHandle, csvDescriptor, currentRevision);
 			indexManager.buildTableIndexIndices(entityDescription, persistedColumns);
 			indexManager.setIndexVersion(entityKey, currentRevision);
-
-			// (2) Per-version snapshot T{id}_{v} — built once per version, immutable thereafter.
-			indexManager.resetTableIndex(versionedDescription, persistedColumns, false);
-			loadRows(indexManager, versionedDescription, persistedColumns, dataFileHandle, csvDescriptor,
-					currentRevision);
 			indexManager.buildTableIndexIndices(versionedDescription, persistedColumns);
 			indexManager.setIndexVersion(versionedKey, currentRevision);
 
@@ -155,7 +157,7 @@ public class RecordSetIndexManagerImpl implements RecordSetIndexManager {
 			tableManagerSupport.attemptToSetTableStatusToAvailable(entityKey, token, DEFAULT_ETAG);
 			log.info("Built RecordSet index {} (rev {}) with {} rows", entityKey, currentRevision, rowCount);
 		} catch (Exception e) {
-			log.error("Failed to build RecordSet index for " + entityKey, e);
+			// Persist the failure in TableStatus; the worker logs on the way out.
 			tableManagerSupport.attemptToSetTableStatusToFailed(entityKey, e);
 			throw e instanceof RuntimeException ? (RuntimeException) e : new RuntimeException(e);
 		}
@@ -176,7 +178,7 @@ public class RecordSetIndexManagerImpl implements RecordSetIndexManager {
 		}
 	}
 
-	long loadRows(TableIndexManager indexManager, IndexDescription indexDescription, List<ColumnModel> schema,
+	long loadRows(TableIndexManager indexManager, List<IndexDescription> indexDescriptions, List<ColumnModel> schema,
 			FileHandle dataFileHandle, CsvTableDescriptor csvDescriptor, long changeSetVersion) throws IOException {
 		long rowCount = 0;
 		// CSV rows have no inherent rowId. We're applying directly to the index (no truth
@@ -184,8 +186,8 @@ public class RecordSetIndexManagerImpl implements RecordSetIndexManager {
 		// + versionNumber ourselves. Each fresh per-version index starts at rowId 1.
 		long nextRowId = 1L;
 		try (CSVReader csvReader = csvFileHandleProvider.getCsvReader(dataFileHandle, csvDescriptor)) {
-			boolean isFirstLineHeader = isFirstLineHeader(csvDescriptor);
-			CSVToRowIterator iterator = new CSVToRowIterator(schema, csvReader, isFirstLineHeader, null);
+			CSVToRowIterator iterator = new CSVToRowIterator(schema, csvReader, csvDescriptor.getIsFirstLineHeader(),
+					null);
 			List<SparseRowDto> batch = new LinkedList<>();
 			int batchBytes = 0;
 			while (iterator.hasNext()) {
@@ -196,30 +198,25 @@ public class RecordSetIndexManagerImpl implements RecordSetIndexManager {
 				rowCount++;
 				batchBytes += TableModelUtils.calculateActualRowSize(row);
 				if (batchBytes >= MAX_BYTES_PER_BATCH) {
-					applyBatch(indexManager, indexDescription, schema, batch, changeSetVersion);
+					applyBatch(indexManager, indexDescriptions, schema, batch, changeSetVersion);
 					batch.clear();
 					batchBytes = 0;
 				}
 			}
 			if (!batch.isEmpty()) {
-				applyBatch(indexManager, indexDescription, schema, batch, changeSetVersion);
+				applyBatch(indexManager, indexDescriptions, schema, batch, changeSetVersion);
 			}
 		}
 		return rowCount;
 	}
 
-	private void applyBatch(TableIndexManager indexManager, IndexDescription indexDescription,
+	private void applyBatch(TableIndexManager indexManager, List<IndexDescription> indexDescriptions,
 			List<ColumnModel> schema, List<SparseRowDto> batch, long changeSetVersion) {
-		SparseChangeSet delta = new SparseChangeSet(indexDescription.getIdAndVersion().getId().toString(), schema,
-				batch, null);
-		indexManager.applyChangeSetToIndex(indexDescription.getIdAndVersion(), delta, changeSetVersion);
-	}
-
-	private static boolean isFirstLineHeader(CsvTableDescriptor csvDescriptor) {
-		if (csvDescriptor == null || csvDescriptor.getIsFirstLineHeader() == null) {
-			return true;
+		for (IndexDescription indexDescription : indexDescriptions) {
+			SparseChangeSet delta = new SparseChangeSet(indexDescription.getIdAndVersion().getId().toString(), schema,
+					batch, null);
+			indexManager.applyChangeSetToIndex(indexDescription.getIdAndVersion(), delta, changeSetVersion);
 		}
-		return csvDescriptor.getIsFirstLineHeader();
 	}
 
 	@Override

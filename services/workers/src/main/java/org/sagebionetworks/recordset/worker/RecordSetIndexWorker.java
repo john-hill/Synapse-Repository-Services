@@ -18,8 +18,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
- * Builds the queryable index for a RecordSet version on each RECORDSET change
- * message. Each new version triggers a fresh full-rebuild of T{id}_{version}.
+ * Builds the queryable indexes for a RecordSet on each RECORDSET change
+ * message. Each new version triggers a fresh rebuild of both the entity-level
+ * alias T{id} and the per-version snapshot T{id}_{v}; both are populated from
+ * the same single-pass read of the current version's CSV.
  */
 @Service
 public class RecordSetIndexWorker implements ChangeMessageDrivenRunner {

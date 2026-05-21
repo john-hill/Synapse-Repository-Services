@@ -66,8 +66,10 @@ public class RecordSetMetadataProvider implements EntityValidator<RecordSet>, Ty
 
 	@Override
 	public void entityDeleted(String deletedId) {
-		// Wipe all per-version indexes for this RecordSet. The worker treats a
-		// version-less RECORDSET DELETE message as an entity-level wipe.
+		// Drops the entity-level index (T{id} + T{id}_STATUS) and unbinds all
+		// columns. Per-version snapshot tables T{id}_{v} are intentionally
+		// left as orphans — they're unreachable now that the entity is gone,
+		// matching how TableEntity treats versioned snapshot index tables.
 		transactionalMessenger.sendMessageAfterCommit(new MessageToSend()
 				.withObjectId(deletedId)
 				.withObjectType(ObjectType.RECORDSET)

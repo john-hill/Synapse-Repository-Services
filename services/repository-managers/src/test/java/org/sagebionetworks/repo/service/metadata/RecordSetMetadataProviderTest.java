@@ -175,8 +175,8 @@ public class RecordSetMetadataProviderTest {
 
 		verify(mockFileEntityMetadataProvider).entityCreated(userInfo, recordSet);
 		// Status/trigger is keyed at the unversioned IdAndVersion so unversioned
-		// queries find the index status. The factory aliases that to the current
-		// revision when building the per-version index table.
+		// queries find the index status. The worker resolves the current revision
+		// from NodeDAO and builds the per-version index table under that key.
 		verify(mockTableManagerSupport).setTableToProcessingAndTriggerUpdate(
 				IdAndVersion.newBuilder().setId(123L).build());
 	}

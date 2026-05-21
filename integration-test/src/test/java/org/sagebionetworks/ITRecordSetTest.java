@@ -148,7 +148,8 @@ public class ITRecordSetTest {
 	 * index (or the timeout expires).
 	 */
 	private void queryAndAssertExpectedRows(String tableId) throws Exception {
-		Query query = new Query().setSql("select * from " + tableId);
+		// Order by ROW_ID so the assertions below don't depend on undefined SQL row order.
+		Query query = new Query().setSql("select * from " + tableId + " order by ROW_ID");
 		QueryOptions options = new QueryOptions().withMask((long) SynapseClient.QUERY_PARTMASK);
 		AsyncJobHelper.assertQueryBundleResults(
 				synapse,

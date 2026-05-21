@@ -14,8 +14,6 @@ import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.json.JSONArray;
-import org.json.JSONObject;
 import org.opensearch.client.json.JsonData;
 import org.opensearch.client.json.JsonpDeserializer;
 import org.opensearch.client.json.JsonpMapper;
@@ -24,6 +22,7 @@ import org.opensearch.client.opensearch._types.ErrorCause;
 import org.opensearch.client.opensearch._types.FieldSort;
 import org.opensearch.client.opensearch._types.FieldValue;
 import org.opensearch.client.opensearch._types.OpenSearchException;
+import org.opensearch.client.opensearch._types.Refresh;
 import org.opensearch.client.opensearch._types.ShardSearchFailure;
 import org.opensearch.client.opensearch._types.ShardStatistics;
 import org.opensearch.client.opensearch._types.SortOptions;
@@ -81,7 +80,9 @@ import org.sagebionetworks.util.ValidateArgument;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
@@ -169,10 +170,17 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	 * Translate a Synapse qualified name (e.g. {@code org.sagebionetworks-SCIENTIFIC}) to a
 	 * settings key safe to emit under {@code analysis.analyzer} / {@code analysis.filter} /
 	 * {@code analysis.tokenizer}. AOSS treats {@code .} in these keys as a JSON path
-	 * separator and rejects the index, so dots are folded to underscores at the wire boundary.
+	 * separator and rejects the index, so dots are encoded at the wire boundary.
+	 *
+	 * <p>The encoding uses the literal sequence {@value #DOT_ENCODING} rather than a single
+	 * underscore so the mapping is bijective: qnames that legitimately contain underscores
+	 * (e.g. {@code org_sage-A_B}) cannot collide with qnames that contain dots
+	 * (e.g. {@code org.sage-A.B}).</p>
 	 */
+	static final String DOT_ENCODING = "__dot__";
+
 	static String toAossKey(String qualifiedName) {
-		return qualifiedName == null ? null : qualifiedName.replace('.', '_');
+		return qualifiedName == null ? null : qualifiedName.replace(".", DOT_ENCODING);
 	}
 
 	/** True when the OpenSearch error is AOSS's "concurrent deletes" rejection. */
@@ -588,10 +596,14 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 					() -> {
 						attempt[0]++;
 						try {
+							// refresh=wait_for so the sentinel document is visible-then-removable
+							// before this call returns; otherwise the doc lingers for one refresh
+							// cycle and bleeds into MATCH_ALL queries that don't filter on _row_id.
 							openSearchClient.index(IndexRequest.of(r -> r
 									.index(indexName)
 									.id(READINESS_PROBE_DOC_ID)
-									.document(sentinel)));
+									.document(sentinel)
+									.refresh(Refresh.WaitFor)));
 							return Boolean.TRUE;
 						} catch (OpenSearchException e) {
 							LOG.warn("Index {} not yet writable (attempt {}/{}): {}",
@@ -613,12 +625,14 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		} catch (Exception e) {
 			throw new RuntimeException("Failed readiness probe for search index: " + indexName, e);
 		}
-		// Remove the sentinel so real indexing never observes it. Cleanup failures are
-		// non-fatal: the sentinel's _row_id = -1 cannot collide with real row ids.
+		// Remove the sentinel so real indexing never observes it. refresh=wait_for so the
+		// delete is visible to subsequent search traffic before this method returns. Cleanup
+		// failures are non-fatal: the sentinel's _row_id = -1 cannot collide with real row ids.
 		try {
 			openSearchClient.delete(DeleteRequest.of(r -> r
 					.index(indexName)
-					.id(READINESS_PROBE_DOC_ID)));
+					.id(READINESS_PROBE_DOC_ID)
+					.refresh(Refresh.WaitFor)));
 		} catch (OpenSearchException | IOException e) {
 			LOG.warn("Failed to delete readiness probe document from index {}: {}",
 					indexName, e.getMessage());
@@ -627,6 +641,10 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	@Override
 	public long bulkIndex(String indexName, List<BulkOperation> operations) {
+		// Callers must hand us idempotent ops (index/delete with explicit _id). When a
+		// transport failure drops the response of a partially-successful envelope, the
+		// retry resubmits ops that may have already landed; idempotent ops absorb that
+		// without writing duplicates. See OpenSearchManager.bulkIndex javadoc.
 		if (operations.isEmpty()) {
 			return 0L;
 		}
@@ -766,7 +784,11 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		} catch (OpenSearchException e) {
 			String detail = "Failed to bulk index to search index: " + indexName
 					+ " (" + describeError(e.error()) + ")";
-			if (isRetryableItemStatus(e.status())) {
+			// status() == 0 indicates the transport never produced an HTTP response (e.g.
+			// the AWS SDK 2 transport surfaced a connection-level failure as
+			// OpenSearchException rather than IOException). Treat the same as a 5xx —
+			// transient, retryable.
+			if (e.status() == 0 || isRetryableItemStatus(e.status())) {
 				throw new RetryException(detail, e);
 			}
 			throw new RuntimeException(detail, e);
@@ -891,27 +913,45 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	public void validateAnalyzerSettings(JsonNode resolvedSettings) {
 		ValidateArgument.required(resolvedSettings, "resolvedSettings");
 
-		// `analyzer.default` is the only analyzer entry that field mappings (and
-		// therefore real queries) ever bind to; validating it covers the whole
-		// reachable surface. `default_search` reuses the same registries, so any
-		// problem with a shared component is caught here too.
+		// `analyzer.default` must be present — it's the entry every field mapping
+		// ultimately binds to (or the entry promoted to the index-wide reserved slot).
 		JsonNode defaultEntry = resolvedSettings.at("/analyzer/" + DEFAULT_ANALYZER_NAME);
 		if (defaultEntry.isMissingNode() || !defaultEntry.isObject()) {
 			throw new IllegalArgumentException(
 					"settings must declare an analyzer named 'default' under analyzer.default.");
 		}
+		JsonNode analyzers = resolvedSettings.get("analyzer");
 		JsonNode tokenizerRegistry = resolvedSettings.get("tokenizer");
 		JsonNode filterRegistry = resolvedSettings.get("filter");
 		JsonNode charFilterRegistry = resolvedSettings.get("char_filter");
 
-		Tokenizer tokenizer = buildAnalyzeTokenizer(defaultEntry, tokenizerRegistry);
-		List<TokenFilter> tokenFilters = buildAnalyzeTokenFilters(defaultEntry, filterRegistry);
-		List<CharFilter> charFilters = buildAnalyzeCharFilters(defaultEntry, charFilterRegistry);
+		// Validate every analyzer entry, not just `default`. A curator may declare a
+		// `default_search` (or any other analyzer) whose chain references a unique filter
+		// or tokenizer that doesn't appear in `default`'s chain — validating only the
+		// `default` chain would let those errors slip through to async index build time.
+		analyzers.fields().forEachRemaining(e -> {
+			String localName = e.getKey();
+			JsonNode entry = e.getValue();
+			if (entry == null || !entry.isObject()) {
+				return;
+			}
+			Tokenizer tokenizer = buildAnalyzeTokenizer(entry, tokenizerRegistry);
+			List<TokenFilter> tokenFilters = buildAnalyzeTokenFilters(entry, filterRegistry);
+			List<CharFilter> charFilters = buildAnalyzeCharFilters(entry, charFilterRegistry);
+			validateOneAnalyzerEntry(localName, tokenizer, tokenFilters, charFilters);
+		});
+	}
 
-		// AOSS occasionally returns a transient index_not_found_exception from the cluster-
-		// level _analyze endpoint while a system index is being provisioned. Retry that case
-		// (and IOException) so curators don't see flaky 400s on legitimate analyzers; bubble
-		// every other OpenSearch error straight up as a permanent IllegalArgumentException.
+	/**
+	 * Run a single {@code _analyze} round-trip for one analyzer entry's resolved chain.
+	 * AOSS occasionally returns a transient {@code index_not_found_exception} from the
+	 * cluster-level {@code _analyze} endpoint while a system index is being provisioned;
+	 * retry that case (and {@link IOException}) so curators don't see flaky 400s on
+	 * legitimate analyzers, and bubble every other OpenSearch error up as a permanent
+	 * {@link IllegalArgumentException} naming the offending analyzer entry.
+	 */
+	private void validateOneAnalyzerEntry(String localName, Tokenizer tokenizer,
+			List<TokenFilter> tokenFilters, List<CharFilter> charFilters) {
 		try {
 			TimeUtils.waitForExponentialMaxRetry(VALIDATE_MAX_RETRIES, VALIDATE_INITIAL_BACKOFF_MS, () -> {
 				try {
@@ -932,7 +972,8 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 						throw new RetryException(e);
 					}
 					throw new IllegalArgumentException(
-							"Invalid analyzer configuration: " + describeError(e.error())
+							"Invalid analyzer configuration in '" + localName + "': "
+									+ describeError(e.error())
 									+ ". Check your tokenizer, token filters, and character filters.", e);
 				} catch (IOException e) {
 					throw new RetryException(e);
@@ -1465,16 +1506,24 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	 * so clients can parse them back; scalars use {@link String#valueOf(Object)} so a raw {@code String}
 	 * column is not double-quoted in the response. Mirrors the pattern at {@code SQLUtils#bindListColumns}
 	 * (lib-table-cluster) which serializes typed Java lists for the table index DB the same way.
+	 *
+	 * <p>Jackson is used (not {@code org.json}) because the latter coerces every numeric value
+	 * through {@code double}, silently truncating long ids past 2^53 — a real problem for
+	 * Synapse entity / file-handle ids, which sit comfortably above that bound.</p>
 	 */
+	private static final ObjectMapper FIELD_VALUE_MAPPER = new ObjectMapper();
+
 	static String convertFieldValue(Object value) {
 		if (value == null) {
 			return null;
 		}
-		if (value instanceof Collection) {
-			return new JSONArray((Collection<?>) value).toString();
-		}
-		if (value instanceof Map) {
-			return new JSONObject((Map<?, ?>) value).toString();
+		if (value instanceof Collection || value instanceof Map) {
+			try {
+				return FIELD_VALUE_MAPPER.writeValueAsString(value);
+			} catch (JsonProcessingException e) {
+				throw new IllegalStateException(
+						"Failed to serialize search field value: " + value, e);
+			}
 		}
 		return String.valueOf(value);
 	}
@@ -1591,14 +1640,29 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	private Property buildTextProperty(ColumnType columnType, String qname, boolean hasDefaultSearch) {
 		Integer ignoreAbove = ColumnTypeToOpenSearchMapping.getIgnoreAbove(columnType);
 		final int finalIa = ignoreAbove != null ? ignoreAbove : 1000;
-		// When qname is null OpenSearch falls through to analysis.analyzer.default (and
-		// default_search). When the referenced TextAnalyzer declares default_search, we must
-		// bind the namespaced registry key explicitly — the bare-qname alias points only at
-		// `default`.
+		// When qname is null OpenSearch falls through to the index-wide
+		// analysis.analyzer.default (and default_search). For a field bound to a specific
+		// TextAnalyzer we must bind both the index- and search-time analyzer explicitly so
+		// the index-wide `default_search` (registered for the SearchConfiguration's PRIMARY
+		// TextAnalyzer) does not hijack a non-primary field at query time. Search-time
+		// precedence (per the OpenSearch docs) is:
+		//   1. query analyzer  >  2. field search_analyzer  >  3. analysis.analyzer.default_search
+		//   >  4. field analyzer  >  5. standard
+		// Without a per-field search_analyzer (rule 2), rule 3 wins for any non-primary field
+		// — the wrong analyzer. Setting search_analyzer explicitly forces rule 2 to win:
+		//   - asymmetric TextAnalyzer (declares its own default_search)  →  bind to that
+		//     entry's namespaced registry key.
+		//   - symmetric TextAnalyzer (no default_search)  →  bind to the same namespaced
+		//     `default` registry key as the index analyzer.
 		final String indexKey = toAossKey(qname);
-		final String searchKey = (qname != null && hasDefaultSearch)
-				? toAossKey(qname) + "__" + DEFAULT_SEARCH_ANALYZER_NAME
-				: null;
+		final String searchKey;
+		if (qname == null) {
+			searchKey = null;
+		} else if (hasDefaultSearch) {
+			searchKey = toAossKey(qname) + "__" + DEFAULT_SEARCH_ANALYZER_NAME;
+		} else {
+			searchKey = indexKey;
+		}
 
 		return Property.of(p -> p.text(t -> {
 			if (indexKey != null) {

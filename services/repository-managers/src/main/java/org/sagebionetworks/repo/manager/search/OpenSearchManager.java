@@ -66,8 +66,16 @@ public interface OpenSearchManager {
 	/**
 	 * Bulk index a batch of documents into the OpenSearch index.
 	 *
+	 * <p><b>Idempotency requirement:</b> every {@link BulkOperation} passed to this method
+	 * MUST be idempotent — i.e. {@code index} or {@code delete} with an explicit {@code _id}.
+	 * The implementation may retry partially-failed envelopes, and a partial transport
+	 * failure can drop the response for an op that AOSS already accepted; on retry the
+	 * same op is resubmitted. Idempotent op types (overwrite-by-id / delete-by-id) make
+	 * that resubmission safe; {@code create} or unkeyed {@code index} ops would write
+	 * duplicates.</p>
+	 *
 	 * @param indexName   The OpenSearch index name
-	 * @param operations  List of bulk operations to execute
+	 * @param operations  List of idempotent bulk operations to execute
 	 * @return The number of documents successfully indexed
 	 */
 	long bulkIndex(String indexName, List<BulkOperation> operations);

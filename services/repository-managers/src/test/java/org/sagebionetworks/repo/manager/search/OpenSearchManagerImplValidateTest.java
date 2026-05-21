@@ -255,6 +255,55 @@ public class OpenSearchManagerImplValidateTest {
 	}
 
 	@Test
+	public void testValidateRunsOneAnalyzePerAnalyzerEntry() throws IOException {
+		// A2 regression: the validator must validate every entry under analyzer.*, not just
+		// `default`. A bad filter referenced only from `default_search` should be caught here.
+		setupAnalyzeSuccess();
+
+		JsonNode settings = parse("{"
+				+ "\"analyzer\":{"
+					+ "\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\"},"
+					+ "\"default_search\":{\"type\":\"custom\",\"tokenizer\":\"keyword\"},"
+					+ "\"third\":{\"type\":\"custom\",\"tokenizer\":\"whitespace\"}"
+				+ "}}");
+
+		// call under test
+		assertDoesNotThrow(() -> manager.validateAnalyzerSettings(settings));
+		verify(indicesClient, times(3)).analyze(any(AnalyzeRequest.class));
+	}
+
+	@Test
+	public void testValidateCatchesBadFilterReferencedOnlyFromNonDefaultEntry() throws IOException {
+		// The motivating case for A2: `default` is fine, but `default_search` references a
+		// filter type that AOSS doesn't know. A `default`-only validator misses this entirely.
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		ErrorResponse goodResponse = ErrorResponse.of(e -> e
+				.error(err -> err.type("ok").reason("ok")).status(200));
+		ErrorResponse bad = ErrorResponse.of(e -> e
+				.error(err -> err.type("illegal_argument_exception")
+						.reason("Unknown token filter type [bogus_type]")).status(400));
+		// First call (default): succeeds. Second call (default_search): fails.
+		when(indicesClient.analyze(any(AnalyzeRequest.class)))
+				.thenReturn(analyzeResponse)
+				.thenThrow(new OpenSearchException(bad));
+
+		JsonNode settings = parse("{"
+				+ "\"analyzer\":{"
+					+ "\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\"},"
+					+ "\"default_search\":{\"type\":\"custom\",\"tokenizer\":\"standard\","
+						+ "\"filter\":[\"bogus_type\"]}"
+				+ "}}");
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> manager.validateAnalyzerSettings(settings));
+		assertTrue(ex.getMessage().contains("default_search"),
+				"Error must name the offending analyzer entry: " + ex.getMessage());
+		assertTrue(ex.getMessage().contains("bogus_type"),
+				"Error must surface AOSS's reason: " + ex.getMessage());
+	}
+
+	@Test
 	public void testValidateThrowsOnMalformedInlineFilter() {
 		// Inline filter registry entry that's not a valid TokenFilterDefinition — typed
 		// deserialize should fail and surface as IllegalArgumentException with the filter name.

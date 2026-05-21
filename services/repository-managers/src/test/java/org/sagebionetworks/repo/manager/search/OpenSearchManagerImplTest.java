@@ -2,10 +2,12 @@ package org.sagebionetworks.repo.manager.search;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
@@ -163,17 +165,28 @@ public class OpenSearchManagerImplTest {
 	// --- toAossKey ---
 
 	@Test
-	public void testToAossKeyReplacesDotsWithUnderscores() {
+	public void testToAossKeyEncodesDots() {
 		// AOSS rejects '.' inside settings keys (it treats them as JSON-path separators), so
-		// the qname-to-AOSS-key translation folds dots to underscores at the wire boundary.
-		assertEquals("org_sagebionetworks-SCIENTIFIC",
+		// the qname-to-AOSS-key translation encodes dots at the wire boundary.
+		assertEquals("org__dot__sagebionetworks-SCIENTIFIC",
 				OpenSearchManagerImpl.toAossKey("org.sagebionetworks-SCIENTIFIC"));
 	}
 
 	@Test
 	public void testToAossKeyWithoutDotsIsUnchanged() {
+		// Underscores in the qname are preserved verbatim — the dot-encoding scheme is bijective
+		// so qnames with underscores can never collide with qnames containing dots.
 		assertEquals("biomed-medical_terms",
 				OpenSearchManagerImpl.toAossKey("biomed-medical_terms"));
+	}
+
+	@Test
+	public void testToAossKeyEncodingIsBijective() {
+		// Regression: the previous `.` -> `_` rule made `org.sage-A.B` and `org_sage-A_B`
+		// collide. The `__dot__` encoding keeps them distinct.
+		assertNotEquals(
+				OpenSearchManagerImpl.toAossKey("org.sage-A.B"),
+				OpenSearchManagerImpl.toAossKey("org_sage-A_B"));
 	}
 
 	@Test
@@ -891,6 +904,26 @@ public class OpenSearchManagerImplTest {
 	}
 
 	@Test
+	public void testConvertFieldValueWithListOfLargeLongsPreservesPrecision() {
+		// Regression: org.json's JSONArray coerces every numeric value through double, silently
+		// truncating long ids past 2^53. Synapse entity / file-handle ids routinely exceed that
+		// bound, so list serialization must preserve full 64-bit precision via Jackson.
+		long beyondDouble = 9007199254740993L;  // 2^53 + 1; not exactly representable as double
+		assertEquals("[9007199254740993,9007199254740994]",
+				OpenSearchManagerImpl.convertFieldValue(Arrays.asList(beyondDouble, beyondDouble + 1L)));
+	}
+
+	@Test
+	public void testConvertFieldValueWithMapOfLargeLongsPreservesPrecision() {
+		// Same regression for JSON column maps.
+		LinkedHashMap<String, Object> map = new LinkedHashMap<>();
+		map.put("id", 9007199254740993L);
+
+		// call under test
+		assertEquals("{\"id\":9007199254740993}", OpenSearchManagerImpl.convertFieldValue(map));
+	}
+
+	@Test
 	public void testDescribeErrorWithSingleCause() {
 		ErrorCause cause = ErrorCause.of(b -> b
 				.type("mapper_parsing_exception")
@@ -1012,6 +1045,114 @@ public class OpenSearchManagerImplTest {
 
 		// And the captured request must target the right index name.
 		assertEquals(indexName, requestCaptor.getValue().index());
+	}
+
+	@Test
+	public void testCreateIndexBindsSymmetricFieldSearchAnalyzerToIndexAnalyzer() throws IOException {
+		// A1 regression: when a non-primary TextAnalyzer (no default_search of its own) is bound
+		// to a field via ColumnAnalyzerOverride, the field must set BOTH analyzer and
+		// search_analyzer to the same namespaced registry key. Otherwise the index-wide
+		// `default_search` (registered for the primary analyzer) hijacks the field at query
+		// time per OpenSearch's analyzer precedence rules.
+		String indexName = "search-index-syn1";
+		// Primary analyzer (declares default_search); collapsed to the column-type default for STRING.
+		String primaryQname = "org.sagebionetworks-SCIENTIFIC";
+		String primarySettings = "{"
+				+ "\"analyzer\":{"
+					+ "\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\"},"
+					+ "\"default_search\":{\"type\":\"custom\",\"tokenizer\":\"keyword\"}"
+				+ "}}";
+		// Override analyzer (symmetric — no default_search). Bound to a specific field below.
+		String overrideQname = "biomed-pubs";
+		String overrideAossKey = OpenSearchManagerImpl.toAossKey(overrideQname);
+		String overrideSettings = "{"
+				+ "\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"whitespace\"}}}";
+		Map<String, JsonNode> resolvedAnalyzers = new java.util.HashMap<>();
+		resolvedAnalyzers.put(primaryQname, MAPPER.readTree(primarySettings));
+		resolvedAnalyzers.put(overrideQname, MAPPER.readTree(overrideSettings));
+
+		List<ColumnModel> columns = Collections.singletonList(
+				new ColumnModel().setId("100").setName("title").setColumnType(ColumnType.STRING));
+		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride();
+		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
+		entry.setColumnName("title");
+		entry.setAnalyzer(overrideQname);
+		override.setOverrides(Collections.singletonList(entry));
+
+		org.opensearch.client.transport.OpenSearchTransport transport =
+				org.mockito.Mockito.mock(org.opensearch.client.transport.OpenSearchTransport.class);
+		when(openSearchClient._transport()).thenReturn(transport);
+		when(transport.jsonpMapper()).thenReturn(new org.opensearch.client.json.jackson.JacksonJsonpMapper());
+
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		org.opensearch.client.opensearch.indices.CreateIndexResponse okResponse =
+				org.opensearch.client.opensearch.indices.CreateIndexResponse.of(b -> b
+						.acknowledged(true).shardsAcknowledged(true).index(indexName));
+		when(indicesClient.create(any(CreateIndexRequest.class))).thenReturn(okResponse);
+
+		// call under test
+		Optional<String> appliedJson = manager.createIndex(indexName, columns, primaryQname,
+				Collections.singletonList(override), resolvedAnalyzers);
+
+		assertTrue(appliedJson.isPresent());
+		// Parse the applied JSON and assert on the typed shape rather than JSON-token order
+		// (the Java client doesn't guarantee a stable property order for text-field properties).
+		JsonNode field100 = MAPPER.readTree(appliedJson.get())
+				.at("/mappings/properties/100");
+		assertEquals("text", field100.path("type").asText());
+		// The field must bind analyzer AND search_analyzer both to the same namespaced key.
+		// Without the explicit search_analyzer the index-wide default_search would win at query time.
+		assertEquals(overrideAossKey, field100.path("analyzer").asText());
+		assertEquals(overrideAossKey, field100.path("search_analyzer").asText());
+	}
+
+	@Test
+	public void testCreateIndexBindsAsymmetricFieldSearchAnalyzerToDefaultSearchKey() throws IOException {
+		// When the override TextAnalyzer declares its own default_search, the field's
+		// search_analyzer must bind to that entry's namespaced registry key (not the bare qname).
+		String indexName = "search-index-syn1";
+		String primaryQname = "org.sagebionetworks-SCIENTIFIC";
+		String primarySettings = "{\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\"}}}";
+		String overrideQname = "biomed-pubs";
+		String overrideAossKey = OpenSearchManagerImpl.toAossKey(overrideQname);
+		String overrideSettings = "{"
+				+ "\"analyzer\":{"
+					+ "\"default\":{\"type\":\"custom\",\"tokenizer\":\"whitespace\"},"
+					+ "\"default_search\":{\"type\":\"custom\",\"tokenizer\":\"keyword\"}"
+				+ "}}";
+		Map<String, JsonNode> resolvedAnalyzers = new java.util.HashMap<>();
+		resolvedAnalyzers.put(primaryQname, MAPPER.readTree(primarySettings));
+		resolvedAnalyzers.put(overrideQname, MAPPER.readTree(overrideSettings));
+
+		List<ColumnModel> columns = Collections.singletonList(
+				new ColumnModel().setId("100").setName("title").setColumnType(ColumnType.STRING));
+		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride();
+		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
+		entry.setColumnName("title");
+		entry.setAnalyzer(overrideQname);
+		override.setOverrides(Collections.singletonList(entry));
+
+		org.opensearch.client.transport.OpenSearchTransport transport =
+				org.mockito.Mockito.mock(org.opensearch.client.transport.OpenSearchTransport.class);
+		when(openSearchClient._transport()).thenReturn(transport);
+		when(transport.jsonpMapper()).thenReturn(new org.opensearch.client.json.jackson.JacksonJsonpMapper());
+
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		org.opensearch.client.opensearch.indices.CreateIndexResponse okResponse =
+				org.opensearch.client.opensearch.indices.CreateIndexResponse.of(b -> b
+						.acknowledged(true).shardsAcknowledged(true).index(indexName));
+		when(indicesClient.create(any(CreateIndexRequest.class))).thenReturn(okResponse);
+
+		// call under test
+		Optional<String> appliedJson = manager.createIndex(indexName, columns, primaryQname,
+				Collections.singletonList(override), resolvedAnalyzers);
+
+		assertTrue(appliedJson.isPresent());
+		JsonNode field100 = MAPPER.readTree(appliedJson.get())
+				.at("/mappings/properties/100");
+		assertEquals("text", field100.path("type").asText());
+		assertEquals(overrideAossKey, field100.path("analyzer").asText());
+		assertEquals(overrideAossKey + "__default_search", field100.path("search_analyzer").asText());
 	}
 
 	@Test
@@ -1350,6 +1491,25 @@ public class OpenSearchManagerImplTest {
 	}
 
 	@Test
+	public void testBulkIndexWithEnvelopeStatusZeroExhaustsRetriesAndIsRecoverable() throws Exception {
+		// A4 regression: an OpenSearchException whose status() == 0 means the transport never
+		// produced an HTTP response (e.g. AwsSdk2Transport surfaced a connection-level failure
+		// as OpenSearchException rather than IOException). That MUST be treated as transient,
+		// not as a permanent 4xx.
+		ErrorResponse noResponse = ErrorResponse.of(e -> e
+				.error(err -> err.type("transport_exception").reason("no http response"))
+				.status(0));
+		when(openSearchClient.bulk(argThat((BulkRequest req) -> req != null)))
+				.thenThrow(new OpenSearchException(noResponse));
+
+		// call under test
+		assertThrows(RecoverableMessageException.class,
+				() -> manager.bulkIndex("search-index-syn1", Arrays.asList(bulkOp("1"))));
+		verify(openSearchClient, times(OpenSearchManagerImpl.BULK_INDEX_MAX_RETRIES))
+				.bulk(argThat((BulkRequest req) -> req != null));
+	}
+
+	@Test
 	public void testBulkIndexWithEmptyOperationsReturnsZeroAndDoesNotCallClient() {
 		// call under test
 		long indexed = manager.bulkIndex("search-index-syn1", Collections.emptyList());
@@ -1588,11 +1748,17 @@ public class OpenSearchManagerImplTest {
 		verify(openSearchClient, times(1)).index(indexCaptor.capture());
 		assertEquals("search-index-syn1", indexCaptor.getValue().index());
 		assertEquals(OpenSearchManagerImpl.READINESS_PROBE_DOC_ID, indexCaptor.getValue().id());
+		// refresh=wait_for so the sentinel is visible-then-removable before this method
+		// returns; otherwise it lingers for one refresh cycle and bleeds into MATCH_ALL queries.
+		assertEquals(org.opensearch.client.opensearch._types.Refresh.WaitFor,
+				indexCaptor.getValue().refresh());
 
 		ArgumentCaptor<DeleteRequest> deleteCaptor = ArgumentCaptor.forClass(DeleteRequest.class);
 		verify(openSearchClient, times(1)).delete(deleteCaptor.capture());
 		assertEquals("search-index-syn1", deleteCaptor.getValue().index());
 		assertEquals(OpenSearchManagerImpl.READINESS_PROBE_DOC_ID, deleteCaptor.getValue().id());
+		assertEquals(org.opensearch.client.opensearch._types.Refresh.WaitFor,
+				deleteCaptor.getValue().refresh());
 	}
 
 	@Test

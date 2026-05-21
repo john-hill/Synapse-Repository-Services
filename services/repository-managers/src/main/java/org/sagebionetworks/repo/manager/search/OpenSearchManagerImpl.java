@@ -496,14 +496,10 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 					() -> {
 						attempt[0]++;
 						try {
-							// refresh=wait_for so the sentinel document is visible-then-removable
-							// before this call returns; otherwise the doc lingers for one refresh
-							// cycle and bleeds into MATCH_ALL queries that don't filter on _row_id.
 							openSearchClient.index(IndexRequest.of(r -> r
 									.index(indexName)
 									.id(READINESS_PROBE_DOC_ID)
-									.document(sentinel)
-									.refresh(Refresh.WaitFor)));
+									.document(sentinel)));
 							return Boolean.TRUE;
 						} catch (OpenSearchException e) {
 							LOG.warn("Index {} not yet writable (attempt {}/{}): {}",
@@ -525,14 +521,12 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		} catch (Exception e) {
 			throw new RuntimeException("Failed readiness probe for search index: " + indexName, e);
 		}
-		// Remove the sentinel so real indexing never observes it. refresh=wait_for so the
-		// delete is visible to subsequent search traffic before this method returns. Cleanup
+		// Remove the sentinel so real indexing never observes it. Cleanup
 		// failures are non-fatal: the sentinel's _row_id = -1 cannot collide with real row ids.
 		try {
 			openSearchClient.delete(DeleteRequest.of(r -> r
 					.index(indexName)
-					.id(READINESS_PROBE_DOC_ID)
-					.refresh(Refresh.WaitFor)));
+					.id(READINESS_PROBE_DOC_ID)));
 		} catch (OpenSearchException | IOException e) {
 			LOG.warn("Failed to delete readiness probe document from index {}: {}",
 					indexName, e.getMessage());

@@ -182,8 +182,9 @@ public class OpenSearchManagerImplTest {
 
 	@Test
 	public void testToAossKeyEncodingIsBijective() {
-		// Regression: the previous `.` -> `_` rule made `org.sage-A.B` and `org_sage-A_B`
-		// collide. The `__dot__` encoding keeps them distinct.
+		// Two qnames that differ only in `.` vs `_` placement must encode to different
+		// AOSS keys, otherwise the analysis registry collapses them to a single namespaced
+		// component and the wrong TextAnalyzer wins.
 		assertNotEquals(
 				OpenSearchManagerImpl.toAossKey("org.sage-A.B"),
 				OpenSearchManagerImpl.toAossKey("org_sage-A_B"));
@@ -905,9 +906,9 @@ public class OpenSearchManagerImplTest {
 
 	@Test
 	public void testConvertFieldValueWithListOfLargeLongsPreservesPrecision() {
-		// Regression: org.json's JSONArray coerces every numeric value through double, silently
-		// truncating long ids past 2^53. Synapse entity / file-handle ids routinely exceed that
-		// bound, so list serialization must preserve full 64-bit precision via Jackson.
+		// Synapse entity / file-handle ids routinely exceed 2^53, so list serialization must
+		// preserve full 64-bit precision. Jackson does this; org.json (which we no longer use)
+		// coerces every numeric through double and would silently truncate the trailing bit.
 		long beyondDouble = 9007199254740993L;  // 2^53 + 1; not exactly representable as double
 		assertEquals("[9007199254740993,9007199254740994]",
 				OpenSearchManagerImpl.convertFieldValue(Arrays.asList(beyondDouble, beyondDouble + 1L)));
@@ -915,7 +916,7 @@ public class OpenSearchManagerImplTest {
 
 	@Test
 	public void testConvertFieldValueWithMapOfLargeLongsPreservesPrecision() {
-		// Same regression for JSON column maps.
+		// Same precision requirement applies to JSON column maps.
 		LinkedHashMap<String, Object> map = new LinkedHashMap<>();
 		map.put("id", 9007199254740993L);
 
@@ -1049,11 +1050,13 @@ public class OpenSearchManagerImplTest {
 
 	@Test
 	public void testCreateIndexBindsSymmetricFieldSearchAnalyzerToIndexAnalyzer() throws IOException {
-		// A1 regression: when a non-primary TextAnalyzer (no default_search of its own) is bound
-		// to a field via ColumnAnalyzerOverride, the field must set BOTH analyzer and
+		// When a non-primary TextAnalyzer (one with no default_search of its own) is bound to
+		// a field via ColumnAnalyzerOverride, the field must set BOTH analyzer and
 		// search_analyzer to the same namespaced registry key. Otherwise the index-wide
 		// `default_search` (registered for the primary analyzer) hijacks the field at query
-		// time per OpenSearch's analyzer precedence rules.
+		// time per OpenSearch's analyzer precedence rules — the per-field `analyzer` mapping
+		// is rule 4, but the index `default_search` is rule 3, so rule 3 wins without an
+		// explicit per-field `search_analyzer` (rule 2).
 		String indexName = "search-index-syn1";
 		// Primary analyzer (declares default_search); collapsed to the column-type default for STRING.
 		String primaryQname = "org.sagebionetworks-SCIENTIFIC";
@@ -1492,10 +1495,10 @@ public class OpenSearchManagerImplTest {
 
 	@Test
 	public void testBulkIndexWithEnvelopeStatusZeroExhaustsRetriesAndIsRecoverable() throws Exception {
-		// A4 regression: an OpenSearchException whose status() == 0 means the transport never
-		// produced an HTTP response (e.g. AwsSdk2Transport surfaced a connection-level failure
-		// as OpenSearchException rather than IOException). That MUST be treated as transient,
-		// not as a permanent 4xx.
+		// An OpenSearchException whose status() == 0 means the transport never produced an
+		// HTTP response — e.g. AwsSdk2Transport surfaced a connection-level failure as
+		// OpenSearchException rather than IOException. Treating it like a 4xx would fail the
+		// whole batch permanently on transient network blips, so it must retry.
 		ErrorResponse noResponse = ErrorResponse.of(e -> e
 				.error(err -> err.type("transport_exception").reason("no http response"))
 				.status(0));

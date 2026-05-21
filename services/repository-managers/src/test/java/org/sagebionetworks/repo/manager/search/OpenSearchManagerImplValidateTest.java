@@ -256,8 +256,9 @@ public class OpenSearchManagerImplValidateTest {
 
 	@Test
 	public void testValidateRunsOneAnalyzePerAnalyzerEntry() throws IOException {
-		// A2 regression: the validator must validate every entry under analyzer.*, not just
-		// `default`. A bad filter referenced only from `default_search` should be caught here.
+		// The validator must exercise every entry under analyzer.* — a single _analyze call
+		// against `default` doesn't cover filters/tokenizers that are only reachable from a
+		// sibling entry like `default_search`.
 		setupAnalyzeSuccess();
 
 		JsonNode settings = parse("{"
@@ -274,8 +275,9 @@ public class OpenSearchManagerImplValidateTest {
 
 	@Test
 	public void testValidateCatchesBadFilterReferencedOnlyFromNonDefaultEntry() throws IOException {
-		// The motivating case for A2: `default` is fine, but `default_search` references a
-		// filter type that AOSS doesn't know. A `default`-only validator misses this entirely.
+		// `default` is well-formed, but `default_search` references a filter type AOSS
+		// doesn't recognize. The first per-entry analyze succeeds; the second must surface
+		// AOSS's rejection as a permanent IllegalArgumentException naming the offending entry.
 		when(openSearchClient.indices()).thenReturn(indicesClient);
 		ErrorResponse goodResponse = ErrorResponse.of(e -> e
 				.error(err -> err.type("ok").reason("ok")).status(200));

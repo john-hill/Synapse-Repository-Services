@@ -737,7 +737,7 @@ public class SearchIndexLifecycleManagerImplTest {
 				.setSettings(settings);
 
 		// call under test
-		Map<String, com.fasterxml.jackson.databind.JsonNode> resolved =
+		Map<String, org.opensearch.client.opensearch.indices.IndexSettingsAnalysis> resolved =
 				manager.resolveAnalyzers(Collections.singletonMap("org-noop", ta));
 
 		assertEquals(1, resolved.size());
@@ -755,11 +755,11 @@ public class SearchIndexLifecycleManagerImplTest {
 				.thenReturn(Collections.singletonMap("biomed-medical_terms", ss));
 
 		// call under test
-		Map<String, com.fasterxml.jackson.databind.JsonNode> resolved =
+		Map<String, org.opensearch.client.opensearch.indices.IndexSettingsAnalysis> resolved =
 				manager.resolveAnalyzers(Collections.singletonMap("biomed-publications", ta));
 
-		assertEquals("synonym_graph",
-				resolved.get("biomed-publications").at("/filter/med/type").asText());
+		// The substituted SynonymSet definition lands as the typed synonym_graph variant.
+		assertTrue(resolved.get("biomed-publications").filter().get("med").definition().isSynonymGraph());
 	}
 
 	@Test

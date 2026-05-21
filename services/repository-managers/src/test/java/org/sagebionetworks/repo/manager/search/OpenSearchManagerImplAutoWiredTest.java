@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
+import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.search.SearchFieldValue;
 import org.sagebionetworks.repo.model.search.SearchQuery;
@@ -66,7 +67,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 	 * contain no {@code $ref}s, so parsing the stored {@code settings} blob is sufficient — no
 	 * SynonymSet substitution needed for this test class.
 	 */
-	private Map<String, JsonNode> defaultAnalyzers;
+	private Map<String, IndexSettingsAnalysis> defaultAnalyzers;
 
 	@BeforeEach
 	public void setUp() {
@@ -208,8 +209,9 @@ public class OpenSearchManagerImplAutoWiredTest {
 				+ "\"analyzer\":{\"default\":{\"type\":\"custom\","
 					+ "\"tokenizer\":\"standard\","
 					+ "\"filter\":[\"lowercase\",\"english_stop\"]}}}";
-		Map<String, JsonNode> analyzers = new HashMap<>(defaultAnalyzers);
-		analyzers.put(customQname, SearchAnalyzerJson.parse(customSettings));
+		Map<String, IndexSettingsAnalysis> analyzers = new HashMap<>(defaultAnalyzers);
+		analyzers.put(customQname,
+				SearchAnalyzerJson.resolveRefs(SearchAnalyzerJson.parse(customSettings), q -> null));
 
 		List<ColumnModel> columns = List.of(
 				new ColumnModel().setId("1").setName("title").setColumnType(ColumnType.STRING));
@@ -311,7 +313,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		// to AUTOCOMPLETE (via override) must let an autocomplete() prefix query match docs
 		// even after only a few characters of the indexed term. This is the only round-trip
 		// that exercises the asymmetric default / default_search behavior end-to-end.
-		Map<String, JsonNode> analyzers = new HashMap<>(defaultAnalyzers);
+		Map<String, IndexSettingsAnalysis> analyzers = new HashMap<>(defaultAnalyzers);
 		analyzers.put("org.sagebionetworks-AUTOCOMPLETE",
 				bootstrappedAnalyzerSettings(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID));
 
@@ -406,7 +408,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 	@Test
 	public void testValidateAnalyzerSettingsWithInvalidTokenizer() {
 		// Bare built-in tokenizer reference that AOSS doesn't recognize.
-		JsonNode settings = SearchAnalyzerJson.parse("{\"analyzer\":{\"default\":{\"type\":\"custom\","
+		IndexSettingsAnalysis settings = toAnalysis("{\"analyzer\":{\"default\":{\"type\":\"custom\","
 				+ "\"tokenizer\":\"nonexistent_tokenizer_xyz\"}}}");
 
 		// call under test
@@ -419,7 +421,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 	@Test
 	public void testValidateAnalyzerSettingsWithInvalidFilter() {
 		// Built-in tokenizer paired with a filter chain that names a nonexistent built-in filter.
-		JsonNode settings = SearchAnalyzerJson.parse("{\"analyzer\":{\"default\":{\"type\":\"custom\","
+		IndexSettingsAnalysis settings = toAnalysis("{\"analyzer\":{\"default\":{\"type\":\"custom\","
 				+ "\"tokenizer\":\"standard\","
 				+ "\"filter\":[\"bogus_filter_name_xyz\"]}}}");
 
@@ -434,7 +436,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 	public void testValidateAnalyzerSettingsWithInlineFilterRegistry() {
 		// Inline filter registry (my_stop) plus a built-in (lowercase). Exercises the typed
 		// TokenFilterDefinition deserialize path against live AOSS.
-		JsonNode settings = SearchAnalyzerJson.parse("{"
+		IndexSettingsAnalysis settings = toAnalysis("{"
 				+ "\"filter\":{\"my_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"}},"
 				+ "\"analyzer\":{\"default\":{\"type\":\"custom\","
 				+ "\"tokenizer\":\"standard\","
@@ -449,10 +451,15 @@ public class OpenSearchManagerImplAutoWiredTest {
 		// Round-trip every bootstrapped analyzer's settings through the validate probe so a
 		// regression on any one of them surfaces here. Each analyzer's stored settings is
 		// already a complete OpenSearch settings.analysis tree with no $refs.
-		for (Map.Entry<String, JsonNode> entry : defaultAnalyzers.entrySet()) {
+		for (Map.Entry<String, IndexSettingsAnalysis> entry : defaultAnalyzers.entrySet()) {
 			// call under test
 			openSearchManager.validateAnalyzerSettings(entry.getValue());
 		}
+	}
+
+	/** Test helper mirroring SearchAnalyzerJson.resolveRefs() with a no-op resolver. */
+	private static IndexSettingsAnalysis toAnalysis(String json) {
+		return SearchAnalyzerJson.resolveRefs(SearchAnalyzerJson.parse(json), q -> null);
 	}
 
 	/**
@@ -565,14 +572,16 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 	/**
 	 * Loads a bootstrapped system analyzer from the database by id and parses its stored
-	 * settings JSON. Reading the live row keeps these tests from drifting away from the
-	 * real configuration emitted by {@link TextAnalyzerBootstrapper}.
+	 * settings JSON into the typed {@link IndexSettingsAnalysis}. Reading the live row
+	 * keeps these tests from drifting away from the real configuration emitted by
+	 * {@link TextAnalyzerBootstrapper}. The bootstrapped settings carry no $refs, so the
+	 * resolver returns null and the boundary deserializer carries the rest.
 	 */
-	private JsonNode bootstrappedAnalyzerSettings(long id) {
+	private IndexSettingsAnalysis bootstrappedAnalyzerSettings(long id) {
 		TextAnalyzer ta = textAnalyzerDao.get(id).orElseThrow(() -> new IllegalStateException(
 				"Bootstrapped TextAnalyzer not found for id " + id
 						+ "; TextAnalyzerBootstrapper should have populated it on startup."));
-		return SearchAnalyzerJson.parse(ta.getSettings());
+		return SearchAnalyzerJson.resolveRefs(SearchAnalyzerJson.parse(ta.getSettings()), qname -> null);
 	}
 
 	// ---- Polling helpers ----
@@ -616,8 +625,8 @@ public class OpenSearchManagerImplAutoWiredTest {
 
 	// ---- Test data helpers ----
 
-	private Map<String, JsonNode> buildDefaultAnalyzers() {
-		Map<String, JsonNode> analyzers = new HashMap<>();
+	private Map<String, IndexSettingsAnalysis> buildDefaultAnalyzers() {
+		Map<String, IndexSettingsAnalysis> analyzers = new HashMap<>();
 		analyzers.put("org.sagebionetworks-SCIENTIFIC", bootstrappedAnalyzerSettings(TextAnalyzerBootstrapper.SCIENTIFIC_ID));
 		analyzers.put("org.sagebionetworks-KEYWORD", bootstrappedAnalyzerSettings(TextAnalyzerBootstrapper.KEYWORD_ID));
 		analyzers.put("org.sagebionetworks-STANDARD", bootstrappedAnalyzerSettings(TextAnalyzerBootstrapper.STANDARD_ID));

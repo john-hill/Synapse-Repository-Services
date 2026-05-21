@@ -12,6 +12,10 @@ import java.util.function.Function;
 
 import org.junit.jupiter.api.Test;
 
+import org.opensearch.client.opensearch._types.analysis.TokenFilter;
+import org.opensearch.client.opensearch._types.analysis.TokenFilterDefinition;
+import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -96,9 +100,16 @@ public class SearchAnalyzerJsonTest {
 				"biomed-medical_terms".equals(qname) ? synonymDef : null;
 
 		// call under test
-		JsonNode resolved = SearchAnalyzerJson.resolveRefs(SearchAnalyzerJson.parse(json), resolver);
+		IndexSettingsAnalysis resolved = SearchAnalyzerJson.resolveRefs(
+				SearchAnalyzerJson.parse(json), resolver);
 
-		assertEquals(synonymDef, resolved.at("/filter/med_syn"));
+		// The resolved tree deserializes through the OpenSearch Java client, so the substituted
+		// SynonymSet definition lands as a typed TokenFilter under filter.med_syn.
+		TokenFilter med = resolved.filter().get("med_syn");
+		assertNotNull(med);
+		TokenFilterDefinition def = med.definition();
+		assertNotNull(def);
+		assertTrue(def.isSynonymGraph(), "med_syn must deserialize as the synonym_graph variant");
 	}
 
 	@Test
@@ -109,14 +120,19 @@ public class SearchAnalyzerJsonTest {
 		JsonNode resolverDef = MAPPER.readTree("{\"type\":\"stop\",\"stopwords\":\"_english_\"}");
 
 		// call under test
-		JsonNode resolved = SearchAnalyzerJson.resolveRefs(SearchAnalyzerJson.parse(json),
+		IndexSettingsAnalysis resolved = SearchAnalyzerJson.resolveRefs(
+				SearchAnalyzerJson.parse(json),
 				qname -> "org-X".equals(qname) ? resolverDef : null);
 
-		assertEquals(resolverDef, resolved.at("/filter/my_filter"));
-		assertEquals("standard", resolved.at("/analyzer/default/tokenizer").asText());
-		// chain array unchanged
-		assertEquals("lowercase", resolved.at("/analyzer/default/filter/0").asText());
-		assertEquals("my_filter", resolved.at("/analyzer/default/filter/1").asText());
+		// my_filter resolves to a typed stop filter
+		TokenFilterDefinition myFilterDef = resolved.filter().get("my_filter").definition();
+		assertNotNull(myFilterDef);
+		assertTrue(myFilterDef.isStop(), "my_filter must deserialize as the stop variant");
+		// analyzer.default chain is preserved verbatim — no rewrite happens at this layer
+		assertTrue(resolved.analyzer().get("default").isCustom());
+		assertEquals("standard", resolved.analyzer().get("default").custom().tokenizer());
+		assertEquals(Arrays.asList("lowercase", "my_filter"),
+				resolved.analyzer().get("default").custom().filter());
 	}
 
 	@Test
@@ -143,21 +159,23 @@ public class SearchAnalyzerJsonTest {
 		JsonNode synonymDef = MAPPER.readTree("{\"type\":\"synonym_graph\",\"synonyms\":[\"a, b\"]}");
 
 		// call under test
-		JsonNode resolved = SearchAnalyzerJson.resolveRefs(SearchAnalyzerJson.parse(json),
+		IndexSettingsAnalysis resolved = SearchAnalyzerJson.resolveRefs(
+				SearchAnalyzerJson.parse(json),
 				qname -> "biomed-medical_terms".equals(qname) ? synonymDef : null);
 
-		assertEquals("stop", resolved.at("/filter/english_stop/type").asText());
-		assertEquals(synonymDef, resolved.at("/filter/med_syn"));
+		assertTrue(resolved.filter().get("english_stop").definition().isStop());
+		assertTrue(resolved.filter().get("med_syn").definition().isSynonymGraph());
 	}
 
 	@Test
-	public void testResolveRefsWithNoRefsReturnsRootUnchanged() throws Exception {
+	public void testResolveRefsWithNoRefsReturnsTypedAnalysis() throws Exception {
 		String json = "{\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\"}}}";
-		JsonNode root = SearchAnalyzerJson.parse(json);
 
 		// call under test
-		JsonNode resolved = SearchAnalyzerJson.resolveRefs(root, qname -> null);
+		IndexSettingsAnalysis resolved = SearchAnalyzerJson.resolveRefs(
+				SearchAnalyzerJson.parse(json), qname -> null);
 
-		assertEquals(MAPPER.readTree(json), resolved);
+		assertTrue(resolved.analyzer().get("default").isCustom());
+		assertEquals("standard", resolved.analyzer().get("default").custom().tokenizer());
 	}
 }

@@ -6,14 +6,13 @@ import java.util.Optional;
 import java.util.Set;
 
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
+import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.sagebionetworks.repo.model.table.ColumnModel;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryResults;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
-
-import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * AOSS-facing client seam for the SearchIndex feature. Owns index lifecycle
@@ -40,16 +39,16 @@ public interface OpenSearchManager {
 	 *                                 — in that case OpenSearch falls back to its built-in
 	 *                                 {@code standard} analyzer for unbound text fields.
 	 * @param columnAnalyzerOverrides  The resolved column analyzer overrides (may be empty)
-	 * @param resolvedAnalyzers        Map of qualified name → fully-resolved analyzer settings JSON tree
-	 *                                 (post-{@code SearchAnalyzerJson.resolveRefs}). Each value is the
-	 *                                 OpenSearch {@code settings.analysis} block for that TextAnalyzer
-	 *                                 with all {@code $ref} entries already substituted.
+	 * @param resolvedAnalyzers        Map of qualified name → typed analysis settings produced by
+	 *                                 {@link SearchAnalyzerJson#resolveRefs}. Each value is the
+	 *                                 {@code settings.analysis} block for one TextAnalyzer with all
+	 *                                 {@code $ref} entries already substituted.
 	 * @return The JSON representation of the CreateIndexRequest, or empty if the index already existed
 	 */
 	Optional<String> createIndex(String indexName, List<ColumnModel> columns,
 			String defaultAnalyzer,
 			List<ColumnAnalyzerOverride> columnAnalyzerOverrides,
-			Map<String, JsonNode> resolvedAnalyzers);
+			Map<String, IndexSettingsAnalysis> resolvedAnalyzers);
 
 	/**
 	 * Delete an OpenSearch index. No-op if the index does not exist.
@@ -126,21 +125,20 @@ public interface OpenSearchManager {
 			Set<SearchQueryPart> options);
 
 	/**
-	 * Validate a TextAnalyzer's settings by registering it into a temporary AOSS index and
-	 * asking AOSS to acknowledge the create. Surfaces real OpenSearch-side errors (bad
-	 * component {@code type}, bad parameters, malformed chain) at TextAnalyzer create/update
-	 * time instead of letting them FAIL asynchronously the first time the analyzer is used
-	 * in an index build.
+	 * Validate a TextAnalyzer's settings by sending each declared analyzer entry's chain
+	 * through AOSS's cluster-level {@code _analyze} endpoint. Surfaces real OpenSearch-side
+	 * errors (bad component {@code type}, bad parameters, malformed chain) at TextAnalyzer
+	 * create/update time instead of letting them FAIL asynchronously the first time the
+	 * analyzer is used in an index build.
 	 *
-	 * <p>The {@code resolvedSettings} tree must already have all {@code $ref} entries
-	 * substituted by {@link SearchAnalyzerJson#resolveRefs} — this method does not look up
-	 * SynonymSets. The temporary index is best-effort deleted in a {@code finally}; cleanup
-	 * failures are logged, not propagated.</p>
+	 * <p>The {@code resolvedSettings} value must already have all {@code $ref} entries
+	 * substituted by {@link SearchAnalyzerJson#resolveRefs} &mdash; this method does not
+	 * look up SynonymSets.</p>
 	 *
-	 * @param resolvedSettings The OpenSearch {@code settings.analysis} block for the
-	 *                         TextAnalyzer being validated, post-{@code $ref} resolution.
+	 * @param resolvedSettings The {@code settings.analysis} block for the TextAnalyzer
+	 *                         being validated, post-{@code $ref} resolution.
 	 * @throws IllegalArgumentException when AOSS rejects the analyzer configuration.
 	 * @throws IllegalStateException when AOSS is unreachable (the curator should retry).
 	 */
-	void validateAnalyzerSettings(JsonNode resolvedSettings);
+	void validateAnalyzerSettings(IndexSettingsAnalysis resolvedSettings);
 }

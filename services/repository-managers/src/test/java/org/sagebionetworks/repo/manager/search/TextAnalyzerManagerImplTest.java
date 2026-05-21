@@ -424,10 +424,13 @@ public class TextAnalyzerManagerImplTest {
 		manager.create(adminUser, request);
 
 		verify(synonymSetDao).findNonExistentNames(Collections.singletonList("biomed-medical_terms"));
-		// The resolved tree handed to AOSS must have the synonym definition substituted in
-		// place of the {"$ref":"biomed-medical_terms"} marker.
-		verify(openSearchManager).validateAnalyzerSettings(argThat(root -> root != null
-			&& "synonym_graph".equals(root.at("/filter/med/type").asText())));
+		// The resolved settings handed to AOSS must have the synonym definition substituted
+		// in place of the {"$ref":"biomed-medical_terms"} marker — in the typed model, the
+		// med filter resolves to a SynonymGraph variant.
+		verify(openSearchManager).validateAnalyzerSettings(argThat(settings -> settings != null
+			&& settings.filter().get("med") != null
+			&& settings.filter().get("med").definition() != null
+			&& settings.filter().get("med").definition().isSynonymGraph()));
 		verify(textAnalyzerDao).create(argThat(a -> a != null && SETTINGS_WITH_REF.equals(a.getSettings())), eq(3L));
 	}
 
@@ -443,8 +446,10 @@ public class TextAnalyzerManagerImplTest {
 		// call under test
 		manager.create(adminUser, request);
 
-		verify(openSearchManager).validateAnalyzerSettings(argThat(root -> root != null
-			&& "standard".equals(root.at("/analyzer/default/tokenizer").asText())));
+		verify(openSearchManager).validateAnalyzerSettings(argThat(settings -> settings != null
+			&& settings.analyzer().get("default") != null
+			&& settings.analyzer().get("default").isCustom()
+			&& "standard".equals(settings.analyzer().get("default").custom().tokenizer())));
 		verify(textAnalyzerDao).create(argThat(a -> a != null && VALID_SETTINGS.equals(a.getSettings())), eq(3L));
 	}
 
@@ -454,8 +459,10 @@ public class TextAnalyzerManagerImplTest {
 		// IllegalArgumentException without persisting the row.
 		doThrow(new IllegalArgumentException("Invalid analyzer configuration: bogus tokenizer"))
 			.when(openSearchManager).validateAnalyzerSettings(
-					argThat(root -> root != null
-							&& "standard".equals(root.at("/analyzer/default/tokenizer").asText())));
+					argThat(settings -> settings != null
+							&& settings.analyzer().get("default") != null
+							&& settings.analyzer().get("default").isCustom()
+							&& "standard".equals(settings.analyzer().get("default").custom().tokenizer())));
 		TextAnalyzer request = new TextAnalyzer()
 			.setOrganizationName("test-org").setName("test").setSettings(VALID_SETTINGS);
 

@@ -54,6 +54,8 @@ import org.opensearch.client.opensearch._types.SortOptions;
 import org.opensearch.client.opensearch._types.SortOrder;
 import org.opensearch.client.opensearch._types.aggregations.Aggregation;
 import org.opensearch.client.opensearch._types.aggregations.LongTermsBucketKey;
+import org.opensearch.client.opensearch._types.analysis.Analyzer;
+import org.opensearch.client.opensearch._types.analysis.CustomAnalyzer;
 import org.opensearch.client.opensearch._types.query_dsl.BoolQuery;
 import org.opensearch.client.opensearch._types.query_dsl.Query;
 import org.opensearch.client.opensearch._types.query_dsl.TextQueryType;
@@ -73,6 +75,7 @@ import org.opensearch.client.opensearch.core.search.TotalHits;
 import org.opensearch.client.opensearch.core.search.TotalHitsRelation;
 import org.opensearch.client.opensearch.core.search.TrackHits;
 import org.opensearch.client.opensearch.indices.CreateIndexRequest;
+import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.opensearch.client.opensearch.indices.OpenSearchIndicesClient;
 import org.sagebionetworks.repo.model.search.FacetRequest;
 import org.sagebionetworks.repo.model.search.FacetSortField;
@@ -110,6 +113,20 @@ public class OpenSearchManagerImplTest {
 	private OpenSearchManagerImpl manager;
 
 	private static final ObjectMapper MAPPER = new ObjectMapper();
+
+	/**
+	 * Test helper: turn a settings JSON string into the typed {@link IndexSettingsAnalysis}
+	 * the manager API takes, going through the same {@link SearchAnalyzerJson} entry point
+	 * the production lifecycle uses. Tests in this class don't exercise SynonymSet $refs,
+	 * so the resolver returns null and a $ref would correctly raise.
+	 */
+	private static IndexSettingsAnalysis toAnalysis(String settingsJson) {
+		try {
+			return SearchAnalyzerJson.resolveRefs(MAPPER.readTree(settingsJson), qname -> null);
+		} catch (java.io.IOException e) {
+			throw new RuntimeException(e);
+		}
+	}
 
 	private long originalBulkInitialBackoffMs;
 	private long originalProbeInitialBackoffMs;
@@ -195,19 +212,16 @@ public class OpenSearchManagerImplTest {
 		assertNull(OpenSearchManagerImpl.toAossKey(null));
 	}
 
-	// --- rewriteAnalyzerEntry ---
+	// --- rewriteOwnedReferences ---
 
 	@Test
-	public void testRewriteAnalyzerEntryRewritesOwnedReferences() throws Exception {
-		// An analyzer entry with a tokenizer reference, char_filter chain, and filter
-		// chain mixing owned and built-in names. Owned names get namespaced; built-ins pass
-		// through unchanged.
-		JsonNode entry = MAPPER.readTree("{"
-				+ "\"type\":\"custom\","
-				+ "\"tokenizer\":\"std\","
-				+ "\"char_filter\":[\"strip_html\",\"icu_normalizer\"],"
-				+ "\"filter\":[\"lowercase\",\"my_syn\",\"english_stop\"]"
-				+ "}");
+	public void testRewriteOwnedReferencesRewritesOwnedReferences() {
+		// A CustomAnalyzer with a tokenizer reference, char_filter chain, and filter chain
+		// mixing owned and built-in names. Owned names get namespaced; built-ins pass through.
+		Analyzer entry = Analyzer.of(b -> b.custom(c -> c
+				.tokenizer("std")
+				.charFilter(Arrays.asList("strip_html", "icu_normalizer"))
+				.filter(Arrays.asList("lowercase", "my_syn", "english_stop"))));
 		Set<String> ownedCharFilters = new HashSet<>();
 		ownedCharFilters.add("strip_html");
 		Set<String> ownedTokenizers = new HashSet<>();
@@ -217,63 +231,44 @@ public class OpenSearchManagerImplTest {
 		ownedFilters.add("english_stop");
 
 		// call under test
-		JsonNode rewritten = OpenSearchManagerImpl.rewriteAnalyzerEntry(entry,
+		Analyzer rewritten = OpenSearchManagerImpl.rewriteOwnedReferences(entry,
 				"biomed-publications", ownedCharFilters, ownedFilters, ownedTokenizers);
 
-		// Owned tokenizer reference is namespaced.
-		assertEquals("biomed-publications__std", rewritten.get("tokenizer").asText());
-		// char_filter chain: owned is namespaced, built-in passes through.
-		assertEquals("biomed-publications__strip_html", rewritten.at("/char_filter/0").asText());
-		assertEquals("icu_normalizer", rewritten.at("/char_filter/1").asText());
-		// filter chain: built-in passes through; both owned filters are namespaced.
-		assertEquals("lowercase", rewritten.at("/filter/0").asText());
-		assertEquals("biomed-publications__my_syn", rewritten.at("/filter/1").asText());
-		assertEquals("biomed-publications__english_stop", rewritten.at("/filter/2").asText());
+		assertTrue(rewritten.isCustom());
+		CustomAnalyzer custom = rewritten.custom();
+		assertEquals("biomed-publications__std", custom.tokenizer());
+		assertEquals(Arrays.asList("biomed-publications__strip_html", "icu_normalizer"),
+				custom.charFilter());
+		assertEquals(Arrays.asList("lowercase", "biomed-publications__my_syn",
+				"biomed-publications__english_stop"), custom.filter());
 	}
 
 	@Test
-	public void testRewriteAnalyzerEntryDoesNotMutateInput() throws Exception {
-		JsonNode entry = MAPPER.readTree("{\"type\":\"custom\",\"tokenizer\":\"std\","
-				+ "\"filter\":[\"my_filter\"]}");
-		Set<String> ownedFilters = new HashSet<>();
-		ownedFilters.add("my_filter");
-		Set<String> ownedTokenizers = new HashSet<>();
-		ownedTokenizers.add("std");
-
-		// call under test
-		OpenSearchManagerImpl.rewriteAnalyzerEntry(entry, "org-X",
-				new HashSet<>(), ownedFilters, ownedTokenizers);
-
-		// Original tree is untouched — still has the un-namespaced names.
-		assertEquals("std", entry.get("tokenizer").asText());
-		assertEquals("my_filter", entry.at("/filter/0").asText());
-	}
-
-	@Test
-	public void testRewriteAnalyzerEntryWithBuiltInsOnlyIsIdempotent() throws Exception {
-		JsonNode entry = MAPPER.readTree("{\"type\":\"custom\",\"tokenizer\":\"standard\","
-				+ "\"filter\":[\"lowercase\",\"english_stop\"]}");
+	public void testRewriteOwnedReferencesWithBuiltInsOnlyIsIdempotent() {
+		Analyzer entry = Analyzer.of(b -> b.custom(c -> c
+				.tokenizer("standard")
+				.filter(Arrays.asList("lowercase", "english_stop"))));
 
 		// call under test — no owned names anywhere; all references should pass through.
-		JsonNode rewritten = OpenSearchManagerImpl.rewriteAnalyzerEntry(entry, "org-X",
+		Analyzer rewritten = OpenSearchManagerImpl.rewriteOwnedReferences(entry, "org-X",
 				new HashSet<>(), new HashSet<>(), new HashSet<>());
 
-		assertEquals("standard", rewritten.get("tokenizer").asText());
-		assertEquals("lowercase", rewritten.at("/filter/0").asText());
-		assertEquals("english_stop", rewritten.at("/filter/1").asText());
+		assertTrue(rewritten.isCustom());
+		assertEquals("standard", rewritten.custom().tokenizer());
+		assertEquals(Arrays.asList("lowercase", "english_stop"), rewritten.custom().filter());
 	}
 
 	@Test
-	public void testRewriteAnalyzerEntryWithoutChainsIsAcceptedUnchanged() throws Exception {
-		// A built-in analyzer entry that doesn't include tokenizer/filter/char_filter (e.g.
-		// type:"keyword") should round-trip unchanged.
-		JsonNode entry = MAPPER.readTree("{\"type\":\"keyword\"}");
+	public void testRewriteOwnedReferencesPassesThroughNonCustomAnalyzers() {
+		// A built-in analyzer (KeywordAnalyzer/StandardAnalyzer/etc.) has no chain and no
+		// references to local components — return as-is.
+		Analyzer keyword = Analyzer.of(b -> b.keyword(k -> k));
 
 		// call under test
-		JsonNode rewritten = OpenSearchManagerImpl.rewriteAnalyzerEntry(entry, "org-X",
+		Analyzer rewritten = OpenSearchManagerImpl.rewriteOwnedReferences(keyword, "org-X",
 				new HashSet<>(), new HashSet<>(), new HashSet<>());
 
-		assertEquals("keyword", rewritten.get("type").asText());
+		assertTrue(rewritten.isKeyword());
 	}
 
 	// --- isConcurrentDeleteError ---
@@ -1005,18 +1000,11 @@ public class OpenSearchManagerImplTest {
 					+ "\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\",\"filter\":[\"english_stop\"]},"
 					+ "\"default_search\":{\"type\":\"custom\",\"tokenizer\":\"keyword\"}"
 				+ "}}";
-		Map<String, JsonNode> resolvedAnalyzers = Collections.singletonMap(qname, MAPPER.readTree(settingsJson));
+		Map<String, IndexSettingsAnalysis> resolvedAnalyzers = Collections.singletonMap(qname,
+				toAnalysis(settingsJson));
 
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("100").setName("title").setColumnType(ColumnType.STRING));
-
-		// JsonpMapper is needed because the impl serializes the request to JSON before
-		// returning it; the validate-test pattern (transport + JacksonJsonpMapper) is the
-		// minimal stub.
-		org.opensearch.client.transport.OpenSearchTransport transport =
-				org.mockito.Mockito.mock(org.opensearch.client.transport.OpenSearchTransport.class);
-		when(openSearchClient._transport()).thenReturn(transport);
-		when(transport.jsonpMapper()).thenReturn(new org.opensearch.client.json.jackson.JacksonJsonpMapper());
 
 		when(openSearchClient.indices()).thenReturn(indicesClient);
 		org.opensearch.client.opensearch.indices.CreateIndexResponse okResponse =
@@ -1070,9 +1058,9 @@ public class OpenSearchManagerImplTest {
 		String overrideAossKey = OpenSearchManagerImpl.toAossKey(overrideQname);
 		String overrideSettings = "{"
 				+ "\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"whitespace\"}}}";
-		Map<String, JsonNode> resolvedAnalyzers = new java.util.HashMap<>();
-		resolvedAnalyzers.put(primaryQname, MAPPER.readTree(primarySettings));
-		resolvedAnalyzers.put(overrideQname, MAPPER.readTree(overrideSettings));
+		Map<String, IndexSettingsAnalysis> resolvedAnalyzers = new HashMap<>();
+		resolvedAnalyzers.put(primaryQname, toAnalysis(primarySettings));
+		resolvedAnalyzers.put(overrideQname, toAnalysis(overrideSettings));
 
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("100").setName("title").setColumnType(ColumnType.STRING));
@@ -1082,10 +1070,6 @@ public class OpenSearchManagerImplTest {
 		entry.setAnalyzer(overrideQname);
 		override.setOverrides(Collections.singletonList(entry));
 
-		org.opensearch.client.transport.OpenSearchTransport transport =
-				org.mockito.Mockito.mock(org.opensearch.client.transport.OpenSearchTransport.class);
-		when(openSearchClient._transport()).thenReturn(transport);
-		when(transport.jsonpMapper()).thenReturn(new org.opensearch.client.json.jackson.JacksonJsonpMapper());
 
 		when(openSearchClient.indices()).thenReturn(indicesClient);
 		org.opensearch.client.opensearch.indices.CreateIndexResponse okResponse =
@@ -1123,9 +1107,9 @@ public class OpenSearchManagerImplTest {
 					+ "\"default\":{\"type\":\"custom\",\"tokenizer\":\"whitespace\"},"
 					+ "\"default_search\":{\"type\":\"custom\",\"tokenizer\":\"keyword\"}"
 				+ "}}";
-		Map<String, JsonNode> resolvedAnalyzers = new java.util.HashMap<>();
-		resolvedAnalyzers.put(primaryQname, MAPPER.readTree(primarySettings));
-		resolvedAnalyzers.put(overrideQname, MAPPER.readTree(overrideSettings));
+		Map<String, IndexSettingsAnalysis> resolvedAnalyzers = new HashMap<>();
+		resolvedAnalyzers.put(primaryQname, toAnalysis(primarySettings));
+		resolvedAnalyzers.put(overrideQname, toAnalysis(overrideSettings));
 
 		List<ColumnModel> columns = Collections.singletonList(
 				new ColumnModel().setId("100").setName("title").setColumnType(ColumnType.STRING));
@@ -1135,10 +1119,6 @@ public class OpenSearchManagerImplTest {
 		entry.setAnalyzer(overrideQname);
 		override.setOverrides(Collections.singletonList(entry));
 
-		org.opensearch.client.transport.OpenSearchTransport transport =
-				org.mockito.Mockito.mock(org.opensearch.client.transport.OpenSearchTransport.class);
-		when(openSearchClient._transport()).thenReturn(transport);
-		when(transport.jsonpMapper()).thenReturn(new org.opensearch.client.json.jackson.JacksonJsonpMapper());
 
 		when(openSearchClient.indices()).thenReturn(indicesClient);
 		org.opensearch.client.opensearch.indices.CreateIndexResponse okResponse =

@@ -17,6 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.client.opensearch._types.OpenSearchException;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
+import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.sagebionetworks.repo.manager.EntityManager;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.table.ColumnModelManager;
@@ -269,10 +270,11 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			validateReferencedResources(defaultAnalyzer, overrides, analyzers);
 
 			// Parse each analyzer's settings JSON and resolve all $ref entries to SynonymSet
-			// definitions. The resolved JSON tree is what the OpenSearchManager merges into the
-			// index's settings.analysis block. SynonymSet qname existence is validated lazily
-			// here — a missing target raises IllegalArgumentException via SearchAnalyzerJson.
-			Map<String, JsonNode> resolvedAnalyzers = resolveAnalyzers(analyzers);
+			// definitions. The resolved value is the typed IndexSettingsAnalysis the
+			// OpenSearchManager merges into the index's settings.analysis block. SynonymSet
+			// qname existence is validated lazily here — a missing target raises
+			// IllegalArgumentException via SearchAnalyzerJson.
+			Map<String, IndexSettingsAnalysis> resolvedAnalyzers = resolveAnalyzers(analyzers);
 
 			String indexName = getIndexName(entityId);
 			if (deleteExistingFirst) {
@@ -408,18 +410,19 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 
 	/**
 	 * Parse and resolve each TextAnalyzer's settings JSON. The output map is keyed by the
-	 * same qualified names as the input and holds the post-{@code $ref}-resolution JSON tree
-	 * ready for {@link OpenSearchManager#createIndex}. {@code $ref} values are resolved by
-	 * looking up the corresponding SynonymSet definition through {@link SynonymSetDao}.
+	 * same qualified names as the input and holds the post-{@code $ref}-resolution typed
+	 * {@link IndexSettingsAnalysis} ready for {@link OpenSearchManager#createIndex}.
+	 * {@code $ref} values are resolved by looking up the corresponding SynonymSet
+	 * definition through {@link SynonymSetDao}.
 	 *
 	 * @throws IllegalArgumentException when a {@code $ref} target qname does not resolve to
 	 *         an existing SynonymSet (deleted between TextAnalyzer save and index build).
 	 */
-	Map<String, JsonNode> resolveAnalyzers(Map<String, TextAnalyzer> analyzers) {
-		Map<String, JsonNode> resolved = new java.util.LinkedHashMap<>();
+	Map<String, IndexSettingsAnalysis> resolveAnalyzers(Map<String, TextAnalyzer> analyzers) {
+		Map<String, IndexSettingsAnalysis> resolved = new HashMap<>();
 		for (Map.Entry<String, TextAnalyzer> entry : analyzers.entrySet()) {
 			JsonNode root = SearchAnalyzerJson.parse(entry.getValue().getSettings());
-			JsonNode resolvedRoot = SearchAnalyzerJson.resolveRefs(root, qname -> {
+			IndexSettingsAnalysis settings = SearchAnalyzerJson.resolveRefs(root, qname -> {
 				Map<String, SynonymSet> map = synonymSetDao.getByQualifiedNames(
 						Collections.singletonList(qname));
 				SynonymSet ss = map.get(qname);
@@ -428,7 +431,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 				}
 				return SearchAnalyzerJson.parse(ss.getDefinition());
 			});
-			resolved.put(entry.getKey(), resolvedRoot);
+			resolved.put(entry.getKey(), settings);
 		}
 		return resolved;
 	}

@@ -27,6 +27,8 @@ import org.sagebionetworks.util.ValidateArgument;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
+import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
+
 import com.fasterxml.jackson.databind.JsonNode;
 
 @Service
@@ -170,7 +172,7 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 	 * {@code $ref} qname inside, verify the qname format, and verify each ref resolves to an
 	 * existing SynonymSet. The presence of {@code analyzer.default} itself and the rest of
 	 * the analyzer shape (component types, parameters, chain ordering) are enforced by
-	 * {@link OpenSearchManager#validateAnalyzerSettings(JsonNode)} at the bottom of this
+	 * {@link OpenSearchManager#validateAnalyzerSettings(IndexSettingsAnalysis)} at the bottom of this
 	 * method.
 	 *
 	 * <p>The single-analyzer-per-record contract is enforced here so that one TextAnalyzer
@@ -222,13 +224,13 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		// real component-shape / chain-ordering check. Curators get a synchronous wire-side
 		// rejection at create/update time instead of an async FAILED state on the first
 		// SearchIndex build that happens to use this analyzer.
-		JsonNode resolvedRoot = SearchAnalyzerJson.resolveRefs(root, qname -> {
+		IndexSettingsAnalysis resolved = SearchAnalyzerJson.resolveRefs(root, qname -> {
 			Map<String, SynonymSet> map = synonymSetDao.getByQualifiedNames(
 					Collections.singletonList(qname));
 			SynonymSet ss = map.get(qname);
 			return ss == null ? null : SearchAnalyzerJson.parse(ss.getDefinition());
 		});
-		openSearchManager.validateAnalyzerSettings(resolvedRoot);
+		openSearchManager.validateAnalyzerSettings(resolved);
 	}
 
 	private String resolveOrganizationId(String organizationName) {

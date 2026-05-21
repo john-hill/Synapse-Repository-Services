@@ -16,14 +16,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.opensearch.client.json.jackson.JacksonJsonpMapper;
 import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch._types.ErrorResponse;
 import org.opensearch.client.opensearch._types.OpenSearchException;
 import org.opensearch.client.opensearch.indices.AnalyzeRequest;
 import org.opensearch.client.opensearch.indices.AnalyzeResponse;
+import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.opensearch.client.opensearch.indices.OpenSearchIndicesClient;
-import org.opensearch.client.transport.OpenSearchTransport;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -45,8 +44,6 @@ public class OpenSearchManagerImplValidateTest {
 	private OpenSearchIndicesClient indicesClient;
 	@Mock
 	private AnalyzeResponse analyzeResponse;
-	@Mock
-	private OpenSearchTransport transport;
 
 	private OpenSearchManagerImpl manager;
 
@@ -71,14 +68,15 @@ public class OpenSearchManagerImplValidateTest {
 		when(indicesClient.analyze(any(AnalyzeRequest.class))).thenReturn(analyzeResponse);
 	}
 
-	private void setupJsonpMapper() {
-		when(openSearchClient._transport()).thenReturn(transport);
-		when(transport.jsonpMapper()).thenReturn(new JacksonJsonpMapper());
-	}
-
-	private static JsonNode parse(String json) {
+	/**
+	 * Parse a settings string the same way the production pipeline does: parse to
+	 * JsonNode, splice in any $ref entries (none in these tests — resolver returns null),
+	 * then deserialize to the typed IndexSettingsAnalysis the manager method takes.
+	 */
+	private static IndexSettingsAnalysis parse(String json) {
 		try {
-			return MAPPER.readTree(json);
+			JsonNode root = MAPPER.readTree(json);
+			return SearchAnalyzerJson.resolveRefs(root, qname -> null);
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}
@@ -89,7 +87,7 @@ public class OpenSearchManagerImplValidateTest {
 		setupAnalyzeSuccess();
 
 		// Bare built-in tokenizer reference; no inline registry needed.
-		JsonNode settings = parse("{\"analyzer\":{\"default\":{\"type\":\"custom\","
+		IndexSettingsAnalysis settings = parse("{\"analyzer\":{\"default\":{\"type\":\"custom\","
 				+ "\"tokenizer\":\"standard\"}}}");
 
 		// call under test
@@ -99,11 +97,10 @@ public class OpenSearchManagerImplValidateTest {
 	@Test
 	public void testValidateWithInlineFilterRegistrySuccess() throws IOException {
 		setupAnalyzeSuccess();
-		setupJsonpMapper();
 
 		// my_stop is owned by this analyzer's filter registry — submitted inline. lowercase
 		// is a built-in — submitted by name.
-		JsonNode settings = parse("{"
+		IndexSettingsAnalysis settings = parse("{"
 				+ "\"filter\":{\"my_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"}},"
 				+ "\"analyzer\":{\"default\":{\"type\":\"custom\","
 				+ "\"tokenizer\":\"standard\","
@@ -116,11 +113,10 @@ public class OpenSearchManagerImplValidateTest {
 	@Test
 	public void testValidateWithInlineTokenizerRegistrySuccess() throws IOException {
 		setupAnalyzeSuccess();
-		setupJsonpMapper();
 
 		// Inline tokenizer definition rather than a built-in — exercises the typed deserialize
 		// path through TokenizerDefinition.
-		JsonNode settings = parse("{"
+		IndexSettingsAnalysis settings = parse("{"
 				+ "\"tokenizer\":{\"my_ngram\":{\"type\":\"edge_ngram\",\"min_gram\":2,"
 				+ "\"max_gram\":20,\"token_chars\":[\"letter\",\"digit\"]}},"
 				+ "\"analyzer\":{\"default\":{\"type\":\"custom\","
@@ -134,9 +130,8 @@ public class OpenSearchManagerImplValidateTest {
 	@Test
 	public void testValidateWithInlineCharFilterRegistrySuccess() throws IOException {
 		setupAnalyzeSuccess();
-		setupJsonpMapper();
 
-		JsonNode settings = parse("{"
+		IndexSettingsAnalysis settings = parse("{"
 				+ "\"char_filter\":{\"my_mapping\":{\"type\":\"mapping\",\"mappings\":[\"& => and\"]}},"
 				+ "\"analyzer\":{\"default\":{\"type\":\"custom\","
 				+ "\"tokenizer\":\"standard\","
@@ -150,8 +145,9 @@ public class OpenSearchManagerImplValidateTest {
 	public void testValidateWithMinimalDefaultEntrySuccess() throws IOException {
 		setupAnalyzeSuccess();
 
-		// analyzer.default with no tokenizer/filter/char_filter — defaults to "standard".
-		JsonNode settings = parse("{\"analyzer\":{\"default\":{\"type\":\"custom\"}}}");
+		// analyzer.default with the bare-minimum required tokenizer field.
+		IndexSettingsAnalysis settings = parse("{\"analyzer\":{\"default\":{\"type\":\"custom\","
+				+ "\"tokenizer\":\"standard\"}}}");
 
 		// call under test
 		assertDoesNotThrow(() -> manager.validateAnalyzerSettings(settings));
@@ -166,7 +162,7 @@ public class OpenSearchManagerImplValidateTest {
 		when(indicesClient.analyze(any(AnalyzeRequest.class)))
 				.thenThrow(new OpenSearchException(errorResponse));
 
-		JsonNode settings = parse("{\"analyzer\":{\"default\":{\"type\":\"custom\","
+		IndexSettingsAnalysis settings = parse("{\"analyzer\":{\"default\":{\"type\":\"custom\","
 				+ "\"tokenizer\":\"foobar\"}}}");
 
 		// call under test
@@ -182,7 +178,7 @@ public class OpenSearchManagerImplValidateTest {
 		when(indicesClient.analyze(any(AnalyzeRequest.class)))
 				.thenThrow(new IOException("Connection refused"));
 
-		JsonNode settings = parse("{\"analyzer\":{\"default\":{\"type\":\"custom\","
+		IndexSettingsAnalysis settings = parse("{\"analyzer\":{\"default\":{\"type\":\"custom\","
 				+ "\"tokenizer\":\"standard\"}}}");
 
 		// call under test
@@ -203,7 +199,7 @@ public class OpenSearchManagerImplValidateTest {
 		// Defense-in-depth — TextAnalyzerManagerImpl.validateSettings already enforces this,
 		// but the AOSS-facing seam should not silently no-op when its core requirement
 		// (an analyzer.default entry) isn't present.
-		JsonNode settings = parse("{\"filter\":{\"english_stop\":{\"type\":\"stop\"}}}");
+		IndexSettingsAnalysis settings = parse("{\"filter\":{\"english_stop\":{\"type\":\"stop\"}}}");
 
 		// call under test
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
@@ -224,7 +220,7 @@ public class OpenSearchManagerImplValidateTest {
 				.thenThrow(new OpenSearchException(indexNotFound))
 				.thenReturn(analyzeResponse);
 
-		JsonNode settings = parse("{\"analyzer\":{\"default\":{\"type\":\"custom\","
+		IndexSettingsAnalysis settings = parse("{\"analyzer\":{\"default\":{\"type\":\"custom\","
 				+ "\"tokenizer\":\"standard\"}}}");
 
 		// call under test — first attempt throws index_not_found, second succeeds
@@ -243,7 +239,7 @@ public class OpenSearchManagerImplValidateTest {
 		when(indicesClient.analyze(any(AnalyzeRequest.class)))
 				.thenThrow(new OpenSearchException(indexNotFound));
 
-		JsonNode settings = parse("{\"analyzer\":{\"default\":{\"type\":\"custom\","
+		IndexSettingsAnalysis settings = parse("{\"analyzer\":{\"default\":{\"type\":\"custom\","
 				+ "\"tokenizer\":\"standard\"}}}");
 
 		// call under test
@@ -261,7 +257,7 @@ public class OpenSearchManagerImplValidateTest {
 		// sibling entry like `default_search`.
 		setupAnalyzeSuccess();
 
-		JsonNode settings = parse("{"
+		IndexSettingsAnalysis settings = parse("{"
 				+ "\"analyzer\":{"
 					+ "\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\"},"
 					+ "\"default_search\":{\"type\":\"custom\",\"tokenizer\":\"keyword\"},"
@@ -276,20 +272,23 @@ public class OpenSearchManagerImplValidateTest {
 	@Test
 	public void testValidateCatchesBadFilterReferencedOnlyFromNonDefaultEntry() throws IOException {
 		// `default` is well-formed, but `default_search` references a filter type AOSS
-		// doesn't recognize. The first per-entry analyze succeeds; the second must surface
-		// AOSS's rejection as a permanent IllegalArgumentException naming the offending entry.
+		// doesn't recognize. Match by request content rather than call order — the typed
+		// analyzer map's iteration order is not guaranteed.
 		when(openSearchClient.indices()).thenReturn(indicesClient);
-		ErrorResponse goodResponse = ErrorResponse.of(e -> e
-				.error(err -> err.type("ok").reason("ok")).status(200));
 		ErrorResponse bad = ErrorResponse.of(e -> e
 				.error(err -> err.type("illegal_argument_exception")
 						.reason("Unknown token filter type [bogus_type]")).status(400));
-		// First call (default): succeeds. Second call (default_search): fails.
-		when(indicesClient.analyze(any(AnalyzeRequest.class)))
-				.thenReturn(analyzeResponse)
+		// Match by request content rather than call order — the typed analyzer map's
+		// iteration order is not guaranteed, so the offending request must be identified
+		// by its filter chain, not its position. The good (default) entry's analyze call,
+		// when it happens, returns Mockito's default null — production code only inspects
+		// the response on exception paths.
+		when(indicesClient.analyze(org.mockito.ArgumentMatchers.argThat(
+				(AnalyzeRequest req) -> req != null && req.filter() != null
+						&& req.filter().stream().anyMatch(f -> "bogus_type".equals(f.name())))))
 				.thenThrow(new OpenSearchException(bad));
 
-		JsonNode settings = parse("{"
+		IndexSettingsAnalysis settings = parse("{"
 				+ "\"analyzer\":{"
 					+ "\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\"},"
 					+ "\"default_search\":{\"type\":\"custom\",\"tokenizer\":\"standard\","
@@ -306,20 +305,24 @@ public class OpenSearchManagerImplValidateTest {
 	}
 
 	@Test
-	public void testValidateThrowsOnMalformedInlineFilter() {
-		// Inline filter registry entry that's not a valid TokenFilterDefinition — typed
-		// deserialize should fail and surface as IllegalArgumentException with the filter name.
-		setupJsonpMapper();
-		JsonNode settings = parse("{"
+	public void testParseThrowsOnMalformedInlineFilter() {
+		// Inline filter registry entry that's not a valid TokenFilterDefinition. With the
+		// boundary deserialization in SearchAnalyzerJson.resolveRefs, this fails fast at
+		// parse time (before the manager method is even invoked) rather than during the
+		// _analyze probe, so the curator gets the rejection earlier in the request lifecycle.
+		String settingsJson = "{"
 				+ "\"filter\":{\"bad_one\":{\"type\":\"this_filter_does_not_exist\"}},"
 				+ "\"analyzer\":{\"default\":{\"type\":\"custom\","
 				+ "\"tokenizer\":\"standard\","
-				+ "\"filter\":[\"bad_one\"]}}}");
+				+ "\"filter\":[\"bad_one\"]}}}";
 
-		// call under test
-		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-				() -> manager.validateAnalyzerSettings(settings));
-		assertTrue(ex.getMessage().contains("bad_one"),
-				"Error must name the offending filter: " + ex.getMessage());
+		// call under test — parse() raises directly; the manager method is unreachable.
+		RuntimeException ex = assertThrows(RuntimeException.class, () -> parse(settingsJson));
+		Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+		assertTrue(cause instanceof IllegalArgumentException,
+				"Underlying cause must be IllegalArgumentException: " + cause);
+		assertTrue(cause.getMessage().toLowerCase().contains("invalid analyzer settings")
+						|| cause.getMessage().contains("this_filter_does_not_exist"),
+				"Error must surface the boundary deserialization failure: " + cause.getMessage());
 	}
 }

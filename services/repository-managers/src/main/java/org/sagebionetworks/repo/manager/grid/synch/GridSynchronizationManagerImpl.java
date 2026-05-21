@@ -5,7 +5,6 @@ import java.util.Set;
 
 import org.sagebionetworks.repo.manager.grid.GridManager;
 import org.sagebionetworks.repo.manager.grid.PatchUtils;
-import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.IntendedChangePublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.change.PatchBuilderPublisher;
 import org.sagebionetworks.repo.manager.grid.internal.replica.model.Column;
@@ -35,7 +34,6 @@ import org.springframework.stereotype.Service;
 public class GridSynchronizationManagerImpl implements GridSynchronizationManager {
 
 	private final GridManager gridManager;
-	private final GridDao gridDao;
 	private final PatchBuilderPublisher patchBuilderPublisher;
 	private final SourceHandlerProvider sourceHandlerProvdier;
 	private final CopyHandlerProvider copyHandlerProvider;
@@ -45,10 +43,9 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 	public GridSynchronizationManagerImpl(SourceHandlerProvider sourceHandlerProvdier,
 			CopyHandlerProvider copyHandlerProvider, SynchronizationLogic logic,
 			SynchronizeProvider synchronizeProvider, PatchBuilderPublisher patchBuilderPublisher,
-			GridManager gridManager, GridDao gridDao) {
+			GridManager gridManager) {
 		super();
 		this.gridManager = gridManager;
-		this.gridDao = gridDao;
 		this.patchBuilderPublisher = patchBuilderPublisher;
 		this.sourceHandlerProvdier = sourceHandlerProvdier;
 		this.copyHandlerProvider = copyHandlerProvider;
@@ -90,10 +87,8 @@ public class GridSynchronizationManagerImpl implements GridSynchronizationManage
 			errorMessage = sourceHandler.getErrorMessages();
 			benefactorIds = sourceHandler.getBenefactorIds();
 		}
-		// Update the session's benefactor IDs to reflect the current state of the
-		// source as seen by the action user. This keeps the SOURCE_BENEFACTOR access
-		// control list in sync with the actual data in the session.
-		gridDao.updateSessionBenefactorIds(session.getSessionId(), benefactorIds);
+		// Update benefactor IDs and evict any connections that no longer have access.
+		gridManager.updateSessionBenefactorIds(session.getSessionId(), benefactorIds);
 		return new SynchronizeGridResponse().setErrorMessages(errorMessage).setGridSessionId(session.getSessionId());
 	}
 

@@ -38,7 +38,6 @@ import org.sagebionetworks.repo.manager.grid.synch.schema.SchemaSource;
 import org.sagebionetworks.repo.model.EntityType;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dao.asynch.AsyncJobProgressCallback;
-import org.sagebionetworks.repo.model.dbo.grid.GridDao;
 import org.sagebionetworks.repo.model.dbo.grid.GridSource;
 import org.sagebionetworks.repo.model.grid.GridConnectionInfo;
 import org.sagebionetworks.repo.model.grid.GridSession;
@@ -50,8 +49,6 @@ public class GridSynchronizationManagerImplTest {
 
 	@Mock
 	private GridManager mockGridManager;
-	@Mock
-	private GridDao mockGridDao;
 	@Mock
 	private PatchBuilderPublisher mockPatchBuilderPublisher;
 	@Mock
@@ -139,7 +136,8 @@ public class GridSynchronizationManagerImplTest {
 
 		verify(mockLogic).synchronize(eq(mockSchemaCopy), eq(mockSchemaSource), any());
 		verify(mockLogic).synchronize(mockRowCopy, mockRowSource, mockRowMerge);
-		verify(mockGridDao).updateSessionBenefactorIds(gridSessionId, benefactorIds);
+		// updateSessionBenefactorIds on gridManager handles both DAO update and eviction
+		verify(mockGridManager).updateSessionBenefactorIds(gridSessionId, benefactorIds);
 
 		verify(mockCopyHandler).close();
 		verify(mockSourceHandler).close();
@@ -148,7 +146,7 @@ public class GridSynchronizationManagerImplTest {
 		verify(mockSchemaCopy).close();
 		verifyNoMoreInteractions(mockCopyHandlerProvider, mockCopyHandler, mockSourceHandler, mockSourceHandlerProvdier,
 				mockSourceReader, mockPatchBuilderPublisher, mockSynchronizeProvider, mockSchemaCopy, mockSchemaSource,
-				mockRowCopy, mockRowSource, mockRowMerge, mockIntendedChangePublisher, mockLogic, mockGridDao);
+				mockRowCopy, mockRowSource, mockRowMerge, mockIntendedChangePublisher, mockLogic);
 	}
 
 	@Test

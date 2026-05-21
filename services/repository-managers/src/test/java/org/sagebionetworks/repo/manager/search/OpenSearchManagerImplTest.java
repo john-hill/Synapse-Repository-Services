@@ -139,6 +139,8 @@ public class OpenSearchManagerImplTest {
 
 	private long originalBulkInitialBackoffMs;
 	private long originalProbeInitialBackoffMs;
+	private long originalCountProbeInitialBackoffMs;
+	private long originalSentinelCleanupInitialBackoffMs;
 
 	@BeforeEach
 	public void setUp() {
@@ -148,12 +150,18 @@ public class OpenSearchManagerImplTest {
 		OpenSearchManagerImpl.BULK_INDEX_INITIAL_BACKOFF_MS = 1L;
 		originalProbeInitialBackoffMs = OpenSearchManagerImpl.INDEX_WRITABLE_INITIAL_BACKOFF_MS;
 		OpenSearchManagerImpl.INDEX_WRITABLE_INITIAL_BACKOFF_MS = 1L;
+		originalCountProbeInitialBackoffMs = OpenSearchManagerImpl.COUNT_PROBE_INITIAL_BACKOFF_MS;
+		OpenSearchManagerImpl.COUNT_PROBE_INITIAL_BACKOFF_MS = 1L;
+		originalSentinelCleanupInitialBackoffMs = OpenSearchManagerImpl.SENTINEL_CLEANUP_INITIAL_BACKOFF_MS;
+		OpenSearchManagerImpl.SENTINEL_CLEANUP_INITIAL_BACKOFF_MS = 1L;
 	}
 
 	@AfterEach
 	public void tearDown() {
 		OpenSearchManagerImpl.BULK_INDEX_INITIAL_BACKOFF_MS = originalBulkInitialBackoffMs;
 		OpenSearchManagerImpl.INDEX_WRITABLE_INITIAL_BACKOFF_MS = originalProbeInitialBackoffMs;
+		OpenSearchManagerImpl.COUNT_PROBE_INITIAL_BACKOFF_MS = originalCountProbeInitialBackoffMs;
+		OpenSearchManagerImpl.SENTINEL_CLEANUP_INITIAL_BACKOFF_MS = originalSentinelCleanupInitialBackoffMs;
 	}
 
 	// --- stripBoost ---
@@ -1802,9 +1810,10 @@ public class OpenSearchManagerImplTest {
 	}
 
 	@Test
-	public void testWaitForIndexWritableSentinelCleanupFailureIsSwallowed() throws Exception {
-		// Write succeeds, but delete fails. The probe should still return normally — cleanup
-		// failures are non-fatal; the sentinel with _row_id = -1 cannot collide with real ids.
+	public void testWaitForIndexWritableSentinelCleanupFailureIsSwallowedAfterRetries() throws Exception {
+		// Write succeeds, every cleanup delete fails. The probe must still return normally —
+		// cleanup failures are non-fatal — but it must exhaust the cleanup retry budget first
+		// so a transient delete failure doesn't immediately orphan the sentinel.
 		when(openSearchClient.index(argThat((IndexRequest<?> req) -> req != null)))
 				.thenReturn(okIndexResponse());
 		when(openSearchClient.delete(argThat((DeleteRequest req) -> req != null)))
@@ -1814,7 +1823,137 @@ public class OpenSearchManagerImplTest {
 		manager.waitForIndexWritable("search-index-syn1");
 
 		verify(openSearchClient, times(1)).index(argThat((IndexRequest<?> req) -> req != null));
-		verify(openSearchClient, times(1)).delete(argThat((DeleteRequest req) -> req != null));
+		verify(openSearchClient, times(OpenSearchManagerImpl.SENTINEL_CLEANUP_MAX_RETRIES))
+				.delete(argThat((DeleteRequest req) -> req != null));
+	}
+
+	@Test
+	public void testWaitForIndexWritableSentinelCleanupRetriesAndSucceeds() throws Exception {
+		// AOSS doesn't honor refresh=wait_for, so a single cleanup delete that fails on a
+		// transient blip would orphan the sentinel. Verify the cleanup retries and lands on
+		// the second attempt — only one orphan-window's worth of MATCH_ALL exposure.
+		when(openSearchClient.index(argThat((IndexRequest<?> req) -> req != null)))
+				.thenReturn(okIndexResponse());
+		when(openSearchClient.delete(argThat((DeleteRequest req) -> req != null)))
+				.thenThrow(new IOException("transient"))
+				.thenReturn(okDeleteResponse());
+
+		// call under test
+		manager.waitForIndexWritable("search-index-syn1");
+
+		verify(openSearchClient, times(1)).index(argThat((IndexRequest<?> req) -> req != null));
+		verify(openSearchClient, times(2)).delete(argThat((DeleteRequest req) -> req != null));
+	}
+
+	// --- waitForDocumentCount ---
+
+	@Test
+	public void testWaitForDocumentCountWithImmediateMatchReturns() throws Exception {
+		// Happy path: AOSS reports the expected count on the first attempt; no retry, no log noise.
+		when(openSearchClient.count(any(org.opensearch.client.opensearch.core.CountRequest.class)))
+				.thenReturn(org.opensearch.client.opensearch.core.CountResponse.of(b -> b
+						.count(5L)
+						.shards(s -> s.total(1).successful(1).failed(0))));
+
+		// call under test
+		manager.waitForDocumentCount("search-index-syn1", 5L);
+
+		verify(openSearchClient, times(1))
+				.count(any(org.opensearch.client.opensearch.core.CountRequest.class));
+	}
+
+	@Test
+	public void testWaitForDocumentCountConvergesAfterUnderCount() throws Exception {
+		// AOSS is eventually consistent: the first probe sees fewer documents than were
+		// bulk-indexed; the second sees the full count and returns.
+		when(openSearchClient.count(any(org.opensearch.client.opensearch.core.CountRequest.class)))
+				.thenReturn(countResponse(2L))
+				.thenReturn(countResponse(5L));
+
+		// call under test
+		manager.waitForDocumentCount("search-index-syn1", 5L);
+
+		verify(openSearchClient, times(2))
+				.count(any(org.opensearch.client.opensearch.core.CountRequest.class));
+	}
+
+	@Test
+	public void testWaitForDocumentCountTreatsExcessAsConverged() throws Exception {
+		// >= rather than == so a leftover readiness-probe sentinel cannot strand convergence
+		// one short. An excess count is therefore a successful return, not a retry.
+		when(openSearchClient.count(any(org.opensearch.client.opensearch.core.CountRequest.class)))
+				.thenReturn(countResponse(6L));
+
+		// call under test
+		manager.waitForDocumentCount("search-index-syn1", 5L);
+
+		verify(openSearchClient, times(1))
+				.count(any(org.opensearch.client.opensearch.core.CountRequest.class));
+	}
+
+	@Test
+	public void testWaitForDocumentCountExhaustsRetriesAndThrowsRecoverableMessageException() throws Exception {
+		// Persistent under-count: every attempt sees fewer documents than expected. The probe
+		// must throw RecoverableMessageException so the lifecycle worker re-queues the message
+		// without writing FAILED — convergence is transient by definition.
+		when(openSearchClient.count(any(org.opensearch.client.opensearch.core.CountRequest.class)))
+				.thenReturn(countResponse(2L));
+
+		// call under test
+		RecoverableMessageException ex = assertThrows(RecoverableMessageException.class,
+				() -> manager.waitForDocumentCount("search-index-syn1", 5L));
+
+		assertTrue(ex.getMessage().contains("did not converge"), ex.getMessage());
+		assertTrue(ex.getMessage().contains("2 of 5"), ex.getMessage());
+		verify(openSearchClient, times(OpenSearchManagerImpl.COUNT_PROBE_MAX_RETRIES))
+				.count(any(org.opensearch.client.opensearch.core.CountRequest.class));
+	}
+
+	@Test
+	public void testWaitForDocumentCountWithIOExceptionExhaustsRetries() throws Exception {
+		when(openSearchClient.count(any(org.opensearch.client.opensearch.core.CountRequest.class)))
+				.thenThrow(new IOException("connection reset"));
+
+		// call under test
+		assertThrows(RecoverableMessageException.class,
+				() -> manager.waitForDocumentCount("search-index-syn1", 5L));
+
+		verify(openSearchClient, times(OpenSearchManagerImpl.COUNT_PROBE_MAX_RETRIES))
+				.count(any(org.opensearch.client.opensearch.core.CountRequest.class));
+	}
+
+	@Test
+	public void testWaitForDocumentCountWithOpenSearchExceptionExhaustsRetries() throws Exception {
+		// AOSS may briefly return index_not_found_exception (or any other transient error) from
+		// _count while shards are still propagating the freshly-written documents.
+		ErrorResponse notFound = ErrorResponse.of(er -> er
+				.error(ErrorCause.of(e -> e.type("index_not_found_exception").reason("no such index")))
+				.status(404));
+		when(openSearchClient.count(any(org.opensearch.client.opensearch.core.CountRequest.class)))
+				.thenThrow(new OpenSearchException(notFound));
+
+		// call under test
+		assertThrows(RecoverableMessageException.class,
+				() -> manager.waitForDocumentCount("search-index-syn1", 5L));
+
+		verify(openSearchClient, times(OpenSearchManagerImpl.COUNT_PROBE_MAX_RETRIES))
+				.count(any(org.opensearch.client.opensearch.core.CountRequest.class));
+	}
+
+	@Test
+	public void testWaitForDocumentCountWithZeroExpectedShortCircuits() throws Exception {
+		// An empty SearchIndex needs no probe — _count would just return 0 and we'd skip the
+		// retry path anyway. Avoid the round-trip entirely.
+		// call under test
+		manager.waitForDocumentCount("search-index-syn1", 0L);
+
+		verifyZeroInteractions(openSearchClient);
+	}
+
+	private static org.opensearch.client.opensearch.core.CountResponse countResponse(long count) {
+		return org.opensearch.client.opensearch.core.CountResponse.of(b -> b
+				.count(count)
+				.shards(s -> s.total(1).successful(1).failed(0)));
 	}
 
 	// --- per-document fallback on partial batch failure ---

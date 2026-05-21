@@ -182,7 +182,7 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 	 * SearchConfigurations.</p>
 	 */
 	private void validateSettings(String settingsJson) {
-		JsonNode root = SearchAnalyzerJson.parse(settingsJson);
+		JsonNode root = SearchAnalyzerJsonUtil.parse(settingsJson);
 		// Enforce one-record-one-analyzer: only `default` and (optionally) `default_search`
 		// may appear inside the inner `analyzer` map. Any other key would be registered
 		// into AOSS but unreachable from a binding (SearchConfiguration / ColumnAnalyzerOverride
@@ -194,21 +194,21 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		if (analyzerMap != null && analyzerMap.isObject()) {
 			Set<String> rejected = new LinkedHashSet<>();
 			analyzerMap.fieldNames().forEachRemaining(key -> {
-				if (!SearchAnalyzerJson.DEFAULT_ANALYZER_KEY.equals(key)
-						&& !SearchAnalyzerJson.DEFAULT_SEARCH_ANALYZER_KEY.equals(key)) {
+				if (!SearchAnalyzerJsonUtil.DEFAULT_ANALYZER_KEY.equals(key)
+						&& !SearchAnalyzerJsonUtil.DEFAULT_SEARCH_ANALYZER_KEY.equals(key)) {
 					rejected.add(key);
 				}
 			});
 			if (!rejected.isEmpty()) {
 				throw new IllegalArgumentException(
 						"settings.analyzer must declare only '"
-								+ SearchAnalyzerJson.DEFAULT_ANALYZER_KEY
+								+ SearchAnalyzerJsonUtil.DEFAULT_ANALYZER_KEY
 								+ "' (and optionally '"
-								+ SearchAnalyzerJson.DEFAULT_SEARCH_ANALYZER_KEY
+								+ SearchAnalyzerJsonUtil.DEFAULT_SEARCH_ANALYZER_KEY
 								+ "'); rejected: " + rejected);
 			}
 		}
-		Set<String> refs = SearchAnalyzerJson.collectRefs(root);
+		Set<String> refs = SearchAnalyzerJsonUtil.collectRefs(root);
 		for (String qname : refs) {
 			SearchResourceConstants.validateQualifiedNameFormat(qname, "$ref");
 		}
@@ -224,11 +224,11 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		// real component-shape / chain-ordering check. Curators get a synchronous wire-side
 		// rejection at create/update time instead of an async FAILED state on the first
 		// SearchIndex build that happens to use this analyzer.
-		IndexSettingsAnalysis resolved = SearchAnalyzerJson.resolveRefs(root, qname -> {
+		IndexSettingsAnalysis resolved = SearchAnalyzerJsonUtil.resolveRefs(root, qname -> {
 			Map<String, SynonymSet> map = synonymSetDao.getByQualifiedNames(
 					Collections.singletonList(qname));
 			SynonymSet ss = map.get(qname);
-			return ss == null ? null : SearchAnalyzerJson.parse(ss.getDefinition());
+			return ss == null ? null : SearchAnalyzerJsonUtil.parse(ss.getDefinition());
 		});
 		openSearchManager.validateAnalyzerSettings(resolved);
 	}

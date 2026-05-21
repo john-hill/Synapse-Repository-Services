@@ -70,6 +70,8 @@ import org.sagebionetworks.repo.model.table.FacetColumnResult;
 import org.sagebionetworks.repo.model.table.FacetColumnResultValueCount;
 import org.sagebionetworks.repo.model.table.FacetColumnResultValues;
 import org.sagebionetworks.repo.model.table.FacetType;
+import org.sagebionetworks.table.cluster.ColumnTypeInfo;
+import org.sagebionetworks.table.query.util.ColumnTypeListMappings;
 import org.sagebionetworks.util.RetryException;
 import org.sagebionetworks.util.TimeUtils;
 import org.sagebionetworks.util.ValidateArgument;
@@ -261,7 +263,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	 *
 	 * @param a                    AOSS analysis-builder being populated.
 	 * @param resolvedAnalyzers    qualified-name &rarr; typed analysis settings (post-
-	 *                             {@code SearchAnalyzerJson.resolveRefs}).
+	 *                             {@code SearchAnalyzerJsonUtil.resolveRefs}).
 	 * @param defaultAnalyzerQname qualified name of the SearchConfiguration's primary
 	 *                             TextAnalyzer, or {@code null} if the SearchConfiguration
 	 *                             does not set one.
@@ -954,8 +956,17 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		SearchQueryType queryType = query.getQueryType() != null ? query.getQueryType()
 				: SearchQueryType.SIMPLE_QUERY_STRING;
 		String queryText = query.getQueryText();
-		int offset = query.getOffset() != null ? query.getOffset().intValue() : 0;
-		int limit = query.getLimit() != null ? Math.min(query.getLimit().intValue(), MAX_LIMIT) : DEFAULT_LIMIT;
+		// SearchQuery.offset / .limit are Long; OpenSearch's `from` / `size` are int.
+		// Validate up-front instead of letting Long.intValue() silently wrap a value
+		// past Integer.MAX_VALUE into a negative int that AOSS interprets unpredictably.
+		long offsetLong = query.getOffset() != null ? query.getOffset() : 0L;
+		ValidateArgument.requirement(offsetLong >= 0L && offsetLong <= Integer.MAX_VALUE,
+				"offset must be between 0 and " + Integer.MAX_VALUE);
+		int offset = (int) offsetLong;
+
+		long limitLong = query.getLimit() != null ? query.getLimit() : DEFAULT_LIMIT;
+		ValidateArgument.requirement(limitLong >= 0L, "limit must be non-negative");
+		int limit = (int) Math.min(limitLong, MAX_LIMIT);
 		String fuzziness = query.getFuzziness();
 
 		if (queryText == null || queryText.trim().isEmpty()) {
@@ -1120,9 +1131,10 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		}
 		for (KeyValues kvs : termsFilters) {
 			String columnId = nameToId.getOrDefault(kvs.getKey(), kvs.getKey());
+			ColumnModel column = columnMap.get(columnId);
 			String fieldName = getFilterFieldName(columnId, columnMap);
 			List<FieldValue> fieldValues = kvs.getValues().stream()
-					.map(FieldValue::of)
+					.map(v -> toTermsFilterValue(v, column))
 					.collect(Collectors.toList());
 			Query termsQuery = Query.of(q -> q.terms(t -> t
 					.field(fieldName)
@@ -1135,6 +1147,33 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		}
 	}
 
+	/**
+	 * Wrap a terms-filter string in the typed {@link FieldValue} variant matching the
+	 * column's scalar type. Each element of a {@code _LIST} column carries the list's
+	 * non-list type, so single-value matches against the list field hit AOSS's term
+	 * dictionary in the same shape the indexer wrote (long, double, boolean) instead
+	 * of relying on AOSS's string→number coercion.
+	 */
+	static FieldValue toTermsFilterValue(String raw, ColumnModel column) {
+		if (column == null) {
+			return FieldValue.of(raw);
+		}
+		ColumnType scalarType = ColumnTypeListMappings.isList(column.getColumnType())
+				? ColumnTypeListMappings.nonListType(column.getColumnType())
+				: column.getColumnType();
+		Object parsed = ColumnTypeInfo.getInfoForType(scalarType).parseValueForDatabaseWrite(raw);
+		if (parsed instanceof Long) {
+			return FieldValue.of((Long) parsed);
+		}
+		if (parsed instanceof Double) {
+			return FieldValue.of((Double) parsed);
+		}
+		if (parsed instanceof Boolean) {
+			return FieldValue.of((Boolean) parsed);
+		}
+		return FieldValue.of(String.valueOf(parsed));
+	}
+
 	private void addRangeFilters(BoolQuery.Builder boolBuilder, List<KeyRange> rangeFilters,
 			Map<String, ColumnModel> columnMap, Map<String, String> nameToId) {
 		if (rangeFilters == null) {
@@ -1142,19 +1181,40 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		}
 		for (KeyRange kr : rangeFilters) {
 			String columnId = nameToId.getOrDefault(kr.getKey(), kr.getKey());
+			ColumnModel column = columnMap.get(columnId);
 			String fieldName = getFilterFieldName(columnId, columnMap);
 			Query rangeQuery = Query.of(q -> q.range(r -> {
 				r.field(fieldName);
 				if (kr.getMin() != null) {
-					r.gte(JsonData.of(kr.getMin()));
+					r.gte(toRangeBound(kr.getMin(), column));
 				}
 				if (kr.getMax() != null) {
-					r.lte(JsonData.of(kr.getMax()));
+					r.lte(toRangeBound(kr.getMax(), column));
 				}
 				return r;
 			}));
 			boolBuilder.filter(rangeQuery);
 		}
+	}
+
+	/**
+	 * Parse a range bound string into a typed {@link JsonData} matching the column's
+	 * scalar type. KeyRange values arrive as strings per the schema, but a numeric
+	 * column wants a JSON number on the wire (otherwise OpenSearch may fall back to
+	 * lexicographic comparison on a keyword field, e.g. "10" &lt; "9"). Delegates to
+	 * the same {@link ColumnTypeInfo} parser the table API uses, which handles all
+	 * three accepted DATE wire formats (epoch-ms, SQL date, ISO-8601). Unknown columns
+	 * fall through as raw strings so the existing relaxed-name behavior is preserved.
+	 */
+	static JsonData toRangeBound(String raw, ColumnModel column) {
+		if (column == null) {
+			return JsonData.of(raw);
+		}
+		ColumnType scalarType = ColumnTypeListMappings.isList(column.getColumnType())
+				? ColumnTypeListMappings.nonListType(column.getColumnType())
+				: column.getColumnType();
+		Object parsed = ColumnTypeInfo.getInfoForType(scalarType).parseValueForDatabaseWrite(raw);
+		return JsonData.of(parsed);
 	}
 
 	private void addExistsFilters(BoolQuery.Builder boolBuilder, List<String> fields,
@@ -1182,6 +1242,13 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		Map<String, Aggregation> aggregations = new HashMap<>();
 		for (FacetRequest facet : facetRequests) {
 			String columnId = nameToId.getOrDefault(facet.getColumnName(), facet.getColumnName());
+			ColumnModel column = columnMap.get(columnId);
+			// JSON columns are mapped as `object`/`dynamic`, not as a leaf doc-values field, so
+			// a `terms` aggregation against them silently returns zero buckets. Reject up-front
+			// rather than handing the caller an empty facet result they can't explain.
+			ValidateArgument.requirement(
+					column == null || !ColumnTypeToOpenSearchMapping.isJsonType(column.getColumnType()),
+					"Cannot facet on JSON column: " + facet.getColumnName());
 			String fieldName = getFilterFieldName(columnId, columnMap);
 			int maxValues = facet.getMaxValueCount() != null ? facet.getMaxValueCount().intValue() : DEFAULT_FACET_SIZE;
 

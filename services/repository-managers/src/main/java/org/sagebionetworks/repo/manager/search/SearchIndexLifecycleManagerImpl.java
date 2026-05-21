@@ -273,7 +273,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			// definitions. The resolved value is the typed IndexSettingsAnalysis the
 			// OpenSearchManager merges into the index's settings.analysis block. SynonymSet
 			// qname existence is validated lazily here — a missing target raises
-			// IllegalArgumentException via SearchAnalyzerJson.
+			// IllegalArgumentException via SearchAnalyzerJsonUtil.
 			Map<String, IndexSettingsAnalysis> resolvedAnalyzers = resolveAnalyzers(analyzers);
 
 			String indexName = getIndexName(entityId);
@@ -421,15 +421,15 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	Map<String, IndexSettingsAnalysis> resolveAnalyzers(Map<String, TextAnalyzer> analyzers) {
 		Map<String, IndexSettingsAnalysis> resolved = new HashMap<>();
 		for (Map.Entry<String, TextAnalyzer> entry : analyzers.entrySet()) {
-			JsonNode root = SearchAnalyzerJson.parse(entry.getValue().getSettings());
-			IndexSettingsAnalysis settings = SearchAnalyzerJson.resolveRefs(root, qname -> {
+			JsonNode root = SearchAnalyzerJsonUtil.parse(entry.getValue().getSettings());
+			IndexSettingsAnalysis settings = SearchAnalyzerJsonUtil.resolveRefs(root, qname -> {
 				Map<String, SynonymSet> map = synonymSetDao.getByQualifiedNames(
 						Collections.singletonList(qname));
 				SynonymSet ss = map.get(qname);
 				if (ss == null) {
 					return null;
 				}
-				return SearchAnalyzerJson.parse(ss.getDefinition());
+				return SearchAnalyzerJsonUtil.parse(ss.getDefinition());
 			});
 			resolved.put(entry.getKey(), settings);
 		}

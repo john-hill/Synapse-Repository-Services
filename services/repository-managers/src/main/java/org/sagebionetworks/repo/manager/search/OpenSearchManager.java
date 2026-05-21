@@ -40,7 +40,7 @@ public interface OpenSearchManager {
 	 *                                 {@code standard} analyzer for unbound text fields.
 	 * @param columnAnalyzerOverrides  The resolved column analyzer overrides (may be empty)
 	 * @param resolvedAnalyzers        Map of qualified name → typed analysis settings produced by
-	 *                                 {@link SearchAnalyzerJson#resolveRefs}. Each value is the
+	 *                                 {@link SearchAnalyzerJsonUtil#resolveRefs}. Each value is the
 	 *                                 {@code settings.analysis} block for one TextAnalyzer with all
 	 *                                 {@code $ref} entries already substituted.
 	 * @return The JSON representation of the CreateIndexRequest, or empty if the index already existed
@@ -132,7 +132,7 @@ public interface OpenSearchManager {
 	 * analyzer is used in an index build.
 	 *
 	 * <p>The {@code resolvedSettings} value must already have all {@code $ref} entries
-	 * substituted by {@link SearchAnalyzerJson#resolveRefs} &mdash; this method does not
+	 * substituted by {@link SearchAnalyzerJsonUtil#resolveRefs} &mdash; this method does not
 	 * look up SynonymSets.</p>
 	 *
 	 * @param resolvedSettings The {@code settings.analysis} block for the TextAnalyzer

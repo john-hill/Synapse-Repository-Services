@@ -20,10 +20,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * Unit tests for {@link SearchAnalyzerJson}: the opaque-JSON parse / collectRefs /
+ * Unit tests for {@link SearchAnalyzerJsonUtil}: the opaque-JSON parse / collectRefs /
  * resolveRefs surface that owns the TextAnalyzer settings contract.
  */
-public class SearchAnalyzerJsonTest {
+public class SearchAnalyzerJsonUtilTest {
 
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -32,7 +32,7 @@ public class SearchAnalyzerJsonTest {
 		String json = "{\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\"}}}";
 
 		// call under test
-		JsonNode root = SearchAnalyzerJson.parse(json);
+		JsonNode root = SearchAnalyzerJsonUtil.parse(json);
 
 		assertNotNull(root);
 		assertEquals("standard", root.at("/analyzer/default/tokenizer").asText());
@@ -42,7 +42,7 @@ public class SearchAnalyzerJsonTest {
 	public void testParseWithMalformedJsonThrows() {
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> SearchAnalyzerJson.parse("{not valid"));
+				() -> SearchAnalyzerJsonUtil.parse("{not valid"));
 		assertTrue(e.getMessage().startsWith("Invalid JSON"),
 				"Error must surface a user-facing message: " + e.getMessage());
 	}
@@ -50,7 +50,7 @@ public class SearchAnalyzerJsonTest {
 	@Test
 	public void testParseWithNullThrows() {
 		// call under test
-		assertThrows(IllegalArgumentException.class, () -> SearchAnalyzerJson.parse(null));
+		assertThrows(IllegalArgumentException.class, () -> SearchAnalyzerJsonUtil.parse(null));
 	}
 
 	@Test
@@ -63,7 +63,7 @@ public class SearchAnalyzerJsonTest {
 				+ "}}";
 
 		// call under test
-		Set<String> refs = SearchAnalyzerJson.collectRefs(SearchAnalyzerJson.parse(json));
+		Set<String> refs = SearchAnalyzerJsonUtil.collectRefs(SearchAnalyzerJsonUtil.parse(json));
 
 		assertEquals(new LinkedHashSet<>(Arrays.asList("org-A", "org-B")), refs);
 	}
@@ -73,7 +73,7 @@ public class SearchAnalyzerJsonTest {
 		String json = "{\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\"}}}";
 
 		// call under test
-		Set<String> refs = SearchAnalyzerJson.collectRefs(SearchAnalyzerJson.parse(json));
+		Set<String> refs = SearchAnalyzerJsonUtil.collectRefs(SearchAnalyzerJsonUtil.parse(json));
 
 		assertTrue(refs.isEmpty());
 	}
@@ -87,7 +87,7 @@ public class SearchAnalyzerJsonTest {
 				+ "\"filter\":[\"lowercase\",\"org-pretend\"]}}}";
 
 		// call under test
-		Set<String> refs = SearchAnalyzerJson.collectRefs(SearchAnalyzerJson.parse(json));
+		Set<String> refs = SearchAnalyzerJsonUtil.collectRefs(SearchAnalyzerJsonUtil.parse(json));
 
 		assertTrue(refs.isEmpty(), "chain-array strings must not be picked up as refs: " + refs);
 	}
@@ -100,8 +100,8 @@ public class SearchAnalyzerJsonTest {
 				"biomed-medical_terms".equals(qname) ? synonymDef : null;
 
 		// call under test
-		IndexSettingsAnalysis resolved = SearchAnalyzerJson.resolveRefs(
-				SearchAnalyzerJson.parse(json), resolver);
+		IndexSettingsAnalysis resolved = SearchAnalyzerJsonUtil.resolveRefs(
+				SearchAnalyzerJsonUtil.parse(json), resolver);
 
 		// The resolved tree deserializes through the OpenSearch Java client, so the substituted
 		// SynonymSet definition lands as a typed TokenFilter under filter.med_syn.
@@ -120,8 +120,8 @@ public class SearchAnalyzerJsonTest {
 		JsonNode resolverDef = MAPPER.readTree("{\"type\":\"stop\",\"stopwords\":\"_english_\"}");
 
 		// call under test
-		IndexSettingsAnalysis resolved = SearchAnalyzerJson.resolveRefs(
-				SearchAnalyzerJson.parse(json),
+		IndexSettingsAnalysis resolved = SearchAnalyzerJsonUtil.resolveRefs(
+				SearchAnalyzerJsonUtil.parse(json),
 				qname -> "org-X".equals(qname) ? resolverDef : null);
 
 		// my_filter resolves to a typed stop filter
@@ -141,7 +141,7 @@ public class SearchAnalyzerJsonTest {
 
 		// call under test
 		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-				() -> SearchAnalyzerJson.resolveRefs(SearchAnalyzerJson.parse(json), qname -> null));
+				() -> SearchAnalyzerJsonUtil.resolveRefs(SearchAnalyzerJsonUtil.parse(json), qname -> null));
 
 		assertTrue(e.getMessage().contains("Unresolved $ref"));
 		assertTrue(e.getMessage().contains("org-Ghost"));
@@ -159,8 +159,8 @@ public class SearchAnalyzerJsonTest {
 		JsonNode synonymDef = MAPPER.readTree("{\"type\":\"synonym_graph\",\"synonyms\":[\"a, b\"]}");
 
 		// call under test
-		IndexSettingsAnalysis resolved = SearchAnalyzerJson.resolveRefs(
-				SearchAnalyzerJson.parse(json),
+		IndexSettingsAnalysis resolved = SearchAnalyzerJsonUtil.resolveRefs(
+				SearchAnalyzerJsonUtil.parse(json),
 				qname -> "biomed-medical_terms".equals(qname) ? synonymDef : null);
 
 		assertTrue(resolved.filter().get("english_stop").definition().isStop());
@@ -172,8 +172,8 @@ public class SearchAnalyzerJsonTest {
 		String json = "{\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\"}}}";
 
 		// call under test
-		IndexSettingsAnalysis resolved = SearchAnalyzerJson.resolveRefs(
-				SearchAnalyzerJson.parse(json), qname -> null);
+		IndexSettingsAnalysis resolved = SearchAnalyzerJsonUtil.resolveRefs(
+				SearchAnalyzerJsonUtil.parse(json), qname -> null);
 
 		assertTrue(resolved.analyzer().get("default").isCustom());
 		assertEquals("standard", resolved.analyzer().get("default").custom().tokenizer());

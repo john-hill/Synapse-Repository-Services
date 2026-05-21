@@ -44,9 +44,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.opensearch.client.opensearch.OpenSearchClient;
+import org.opensearch.client.json.JsonData;
 import org.opensearch.client.opensearch._types.ErrorCause;
 import org.opensearch.client.opensearch._types.ErrorResponse;
 import org.opensearch.client.opensearch._types.FieldSort;
+import org.opensearch.client.opensearch._types.FieldValue;
 import org.opensearch.client.opensearch._types.OpenSearchException;
 import org.opensearch.client.opensearch._types.ShardSearchFailure;
 import org.opensearch.client.opensearch._types.ShardStatistics;
@@ -58,6 +60,8 @@ import org.opensearch.client.opensearch._types.analysis.Analyzer;
 import org.opensearch.client.opensearch._types.analysis.CustomAnalyzer;
 import org.opensearch.client.opensearch._types.query_dsl.BoolQuery;
 import org.opensearch.client.opensearch._types.query_dsl.Query;
+import org.opensearch.client.opensearch._types.query_dsl.RangeQuery;
+import org.opensearch.client.opensearch._types.query_dsl.TermsQuery;
 import org.opensearch.client.opensearch._types.query_dsl.TextQueryType;
 import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
@@ -79,6 +83,9 @@ import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.opensearch.client.opensearch.indices.OpenSearchIndicesClient;
 import org.sagebionetworks.repo.model.search.FacetRequest;
 import org.sagebionetworks.repo.model.search.FacetSortField;
+import org.sagebionetworks.repo.model.search.KeyRange;
+import org.sagebionetworks.repo.model.search.KeyValues;
+import org.sagebionetworks.repo.model.search.SearchQuery;
 import org.sagebionetworks.repo.model.search.SearchQueryPart;
 import org.sagebionetworks.repo.model.search.SearchQueryType;
 import org.sagebionetworks.repo.model.search.SortDirection;
@@ -90,6 +97,8 @@ import org.sagebionetworks.repo.model.table.ColumnType;
 import org.sagebionetworks.repo.model.table.FacetColumnResultValueCount;
 import org.sagebionetworks.repo.model.table.FacetColumnResultValues;
 import org.sagebionetworks.repo.model.table.FacetType;
+import org.sagebionetworks.table.cluster.ColumnTypeInfo;
+import org.sagebionetworks.table.query.util.ColumnTypeListMappings;
 import org.sagebionetworks.workers.util.aws.message.RecoverableMessageException;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -116,13 +125,13 @@ public class OpenSearchManagerImplTest {
 
 	/**
 	 * Test helper: turn a settings JSON string into the typed {@link IndexSettingsAnalysis}
-	 * the manager API takes, going through the same {@link SearchAnalyzerJson} entry point
+	 * the manager API takes, going through the same {@link SearchAnalyzerJsonUtil} entry point
 	 * the production lifecycle uses. Tests in this class don't exercise SynonymSet $refs,
 	 * so the resolver returns null and a $ref would correctly raise.
 	 */
 	private static IndexSettingsAnalysis toAnalysis(String settingsJson) {
 		try {
-			return SearchAnalyzerJson.resolveRefs(MAPPER.readTree(settingsJson), qname -> null);
+			return SearchAnalyzerJsonUtil.resolveRefs(MAPPER.readTree(settingsJson), qname -> null);
 		} catch (java.io.IOException e) {
 			throw new RuntimeException(e);
 		}
@@ -1731,17 +1740,11 @@ public class OpenSearchManagerImplTest {
 		verify(openSearchClient, times(1)).index(indexCaptor.capture());
 		assertEquals("search-index-syn1", indexCaptor.getValue().index());
 		assertEquals(OpenSearchManagerImpl.READINESS_PROBE_DOC_ID, indexCaptor.getValue().id());
-		// refresh=wait_for so the sentinel is visible-then-removable before this method
-		// returns; otherwise it lingers for one refresh cycle and bleeds into MATCH_ALL queries.
-		assertEquals(org.opensearch.client.opensearch._types.Refresh.WaitFor,
-				indexCaptor.getValue().refresh());
 
 		ArgumentCaptor<DeleteRequest> deleteCaptor = ArgumentCaptor.forClass(DeleteRequest.class);
 		verify(openSearchClient, times(1)).delete(deleteCaptor.capture());
 		assertEquals("search-index-syn1", deleteCaptor.getValue().index());
 		assertEquals(OpenSearchManagerImpl.READINESS_PROBE_DOC_ID, deleteCaptor.getValue().id());
-		assertEquals(org.opensearch.client.opensearch._types.Refresh.WaitFor,
-				deleteCaptor.getValue().refresh());
 	}
 
 	@Test
@@ -1929,5 +1932,369 @@ public class OpenSearchManagerImplTest {
 						Arrays.asList(bulkOp("1"), bulkOp("2"))));
 		assertFalse(ex instanceof RecoverableMessageException, ex.getClass().getName());
 		verify(openSearchClient, times(2)).bulk(argThat((BulkRequest req) -> req != null));
+	}
+
+	// --- toTermsFilterValue ---
+	//
+	// Filter values are received as strings on the wire but must be sent to AOSS as the typed
+	// FieldValue variant (Long/Double/Boolean/String) matching the column's scalar type. _LIST
+	// columns use the non-list scalar type because the bulk indexer writes each list element with
+	// that type. Without the right variant, INTEGER_LIST / DOUBLE_LIST / BOOLEAN_LIST terms filters
+	// silently miss rows.
+
+	/**
+	 * Per-ColumnType raw filter input + the FieldValue variant the converter is expected to produce.
+	 * EnumSet.allOf coverage guard fails if a new ColumnType is added without a fixture.
+	 */
+	private static Map<ColumnType, TermsFilterCase> termsFilterCases() {
+		Map<ColumnType, TermsFilterCase> cases = new LinkedHashMap<>();
+		// Text-y columns → String variant
+		cases.put(ColumnType.STRING,        new TermsFilterCase("alpha",        FieldValue.Kind.String,  "alpha"));
+		cases.put(ColumnType.STRING_LIST,   new TermsFilterCase("alpha",        FieldValue.Kind.String,  "alpha"));
+		cases.put(ColumnType.MEDIUMTEXT,    new TermsFilterCase("alpha beta",   FieldValue.Kind.String,  "alpha beta"));
+		cases.put(ColumnType.LARGETEXT,     new TermsFilterCase("alpha beta",   FieldValue.Kind.String,  "alpha beta"));
+		cases.put(ColumnType.LINK,          new TermsFilterCase("https://x",    FieldValue.Kind.String,  "https://x"));
+		// JSON column type — parser canonicalizes a JSON object string. The terms-filter use case
+		// for a JSON column is degenerate, but the converter must still pick a variant; document it.
+		cases.put(ColumnType.JSON,          new TermsFilterCase("{\"a\":1}",    FieldValue.Kind.String,  "{\"a\":1}"));
+		// Long-backed numeric / id columns → Long variant
+		cases.put(ColumnType.INTEGER,       new TermsFilterCase("123",          FieldValue.Kind.Long,    123L));
+		cases.put(ColumnType.INTEGER_LIST,  new TermsFilterCase("123",          FieldValue.Kind.Long,    123L));
+		cases.put(ColumnType.FILEHANDLEID,  new TermsFilterCase("9876543",      FieldValue.Kind.Long,    9876543L));
+		cases.put(ColumnType.SUBMISSIONID,  new TermsFilterCase("555",          FieldValue.Kind.Long,    555L));
+		cases.put(ColumnType.EVALUATIONID,  new TermsFilterCase("777",          FieldValue.Kind.Long,    777L));
+		cases.put(ColumnType.USERID,        new TermsFilterCase("3412396",      FieldValue.Kind.Long,    3412396L));
+		cases.put(ColumnType.USERID_LIST,   new TermsFilterCase("3412396",      FieldValue.Kind.Long,    3412396L));
+		// EntityId — KeyFactory strips the "syn" prefix and returns Long
+		cases.put(ColumnType.ENTITYID,      new TermsFilterCase("syn123456",    FieldValue.Kind.Long,    123456L));
+		cases.put(ColumnType.ENTITYID_LIST, new TermsFilterCase("syn123456",    FieldValue.Kind.Long,    123456L));
+		// Date — epoch-ms wire format → Long variant
+		cases.put(ColumnType.DATE,          new TermsFilterCase("1609459200000", FieldValue.Kind.Long,   1609459200000L));
+		cases.put(ColumnType.DATE_LIST,     new TermsFilterCase("1609459200000", FieldValue.Kind.Long,   1609459200000L));
+		// Double / Boolean
+		cases.put(ColumnType.DOUBLE,        new TermsFilterCase("1.5",          FieldValue.Kind.Double,  1.5));
+		cases.put(ColumnType.BOOLEAN,       new TermsFilterCase("true",         FieldValue.Kind.Boolean, Boolean.TRUE));
+		cases.put(ColumnType.BOOLEAN_LIST,  new TermsFilterCase("false",        FieldValue.Kind.Boolean, Boolean.FALSE));
+		return cases;
+	}
+
+	private static final class TermsFilterCase {
+		final String raw;
+		final FieldValue.Kind expectedKind;
+		final Object expectedValue;
+		TermsFilterCase(String raw, FieldValue.Kind expectedKind, Object expectedValue) {
+			this.raw = raw;
+			this.expectedKind = expectedKind;
+			this.expectedValue = expectedValue;
+		}
+	}
+
+	@Test
+	public void testToTermsFilterValueWithEveryColumnType() {
+		Map<ColumnType, TermsFilterCase> cases = termsFilterCases();
+		assertEquals(EnumSet.allOf(ColumnType.class), cases.keySet(),
+				"Every Synapse ColumnType must be represented in this round-trip test");
+
+		for (Map.Entry<ColumnType, TermsFilterCase> entry : cases.entrySet()) {
+			ColumnType type = entry.getKey();
+			TermsFilterCase tc = entry.getValue();
+			ColumnModel column = new ColumnModel().setId("1").setName("c").setColumnType(type);
+
+			// call under test
+			FieldValue fv = OpenSearchManagerImpl.toTermsFilterValue(tc.raw, column);
+
+			assertEquals(tc.expectedKind, fv._kind(), "kind for " + type);
+			assertEquals(tc.expectedValue, fv._get(), "value for " + type);
+		}
+	}
+
+	@Test
+	public void testToTermsFilterValueWithNullColumnReturnsRawString() {
+		// Relaxed-name path: filter key isn't on the schema → fall through as raw String.
+		// call under test
+		FieldValue fv = OpenSearchManagerImpl.toTermsFilterValue("anything", null);
+
+		assertEquals(FieldValue.Kind.String, fv._kind());
+		assertEquals("anything", fv.stringValue());
+	}
+
+	@Test
+	public void testToTermsFilterValueWithDateAcceptsAllThreeWireFormats() {
+		// DATE schema accepts epoch-ms, SQL date, or ISO-8601. All three must normalize to the
+		// same Long on the wire so a UI sending any format hits the indexed term.
+		ColumnModel column = new ColumnModel().setId("1").setName("d").setColumnType(ColumnType.DATE);
+		long expectedMs = 1609459200000L;
+
+		// call under test (epoch-ms)
+		FieldValue epoch = OpenSearchManagerImpl.toTermsFilterValue("1609459200000", column);
+		// call under test (SQL date)
+		FieldValue sqlDate = OpenSearchManagerImpl.toTermsFilterValue("2021-01-01 00:00:00.000", column);
+		// call under test (ISO-8601)
+		FieldValue iso = OpenSearchManagerImpl.toTermsFilterValue("2021-01-01T00:00:00.000Z", column);
+
+		assertEquals(FieldValue.Kind.Long, epoch._kind());
+		assertEquals(FieldValue.Kind.Long, sqlDate._kind());
+		assertEquals(FieldValue.Kind.Long, iso._kind());
+		assertEquals(expectedMs, epoch.longValue());
+		assertEquals(expectedMs, sqlDate.longValue());
+		assertEquals(expectedMs, iso.longValue());
+	}
+
+	// --- toRangeBound ---
+	//
+	// KeyRange.min / .max are strings on the wire but must reach OpenSearch as JSON numbers for
+	// numeric / date columns; otherwise OS may lex-compare on the keyword sub-field (e.g. "10" < "9").
+
+	@Test
+	public void testToRangeBoundWithEveryColumnType() {
+		// Reuse the terms-filter fixture: range bounds run through the same parser, so the
+		// underlying scalar must be the parsed value for every column type. Coverage guard via
+		// EnumSet.allOf ensures any new ColumnType is forced to declare its expected behavior.
+		Map<ColumnType, TermsFilterCase> cases = termsFilterCases();
+		assertEquals(EnumSet.allOf(ColumnType.class), cases.keySet(),
+				"Every Synapse ColumnType must be represented in this round-trip test");
+
+		for (Map.Entry<ColumnType, TermsFilterCase> entry : cases.entrySet()) {
+			ColumnType type = entry.getKey();
+			TermsFilterCase tc = entry.getValue();
+			ColumnModel column = new ColumnModel().setId("1").setName("c").setColumnType(type);
+			ColumnType scalar = ColumnTypeListMappings.isList(type)
+					? ColumnTypeListMappings.nonListType(type)
+					: type;
+			Object expectedParsed = ColumnTypeInfo.getInfoForType(scalar)
+					.parseValueForDatabaseWrite(tc.raw);
+
+			// call under test
+			JsonData bound = OpenSearchManagerImpl.toRangeBound(tc.raw, column);
+
+			// JsonData.of(value) keeps the underlying object for plain Java types; toString()
+			// delegates to the wrapped value, so equals on string form is a stable assertion.
+			assertEquals(String.valueOf(expectedParsed), bound.toString(),
+					"range bound for " + type);
+		}
+	}
+
+	@Test
+	public void testToRangeBoundWithNullColumnReturnsRawString() {
+		// call under test
+		JsonData bound = OpenSearchManagerImpl.toRangeBound("anything", null);
+
+		assertEquals("anything", bound.toString());
+	}
+
+	@Test
+	public void testToRangeBoundWithDateAcceptsAllThreeWireFormats() {
+		ColumnModel column = new ColumnModel().setId("1").setName("d").setColumnType(ColumnType.DATE);
+		String expectedMs = "1609459200000";
+
+		// call under test (epoch-ms)
+		assertEquals(expectedMs,
+				OpenSearchManagerImpl.toRangeBound("1609459200000", column).toString());
+		// call under test (SQL date)
+		assertEquals(expectedMs,
+				OpenSearchManagerImpl.toRangeBound("2021-01-01 00:00:00.000", column).toString());
+		// call under test (ISO-8601)
+		assertEquals(expectedMs,
+				OpenSearchManagerImpl.toRangeBound("2021-01-01T00:00:00.000Z", column).toString());
+	}
+
+	// --- search(): terms filter shape on the wire ---
+
+	private static SearchQuery searchQueryWithTermsFilter(String columnName, List<String> values) {
+		KeyValues kvs = new KeyValues().setKey(columnName).setValues(values);
+		return new SearchQuery()
+				.setQueryType(SearchQueryType.MATCH_ALL)
+				.setQueryText("")
+				.setOffset(0L).setLimit(10L)
+				.setTermsFilters(Collections.singletonList(kvs));
+	}
+
+	private static TermsQuery extractSingleTermsFilter(SearchRequest captured) {
+		BoolQuery bool = captured.query().bool();
+		Query filter = bool.filter().get(0);
+		assertTrue(filter.isTerms(), "expected terms filter, got " + filter._kind());
+		return filter.terms();
+	}
+
+	@Test
+	public void testSearchWithTermsFilterOnIntegerListColumnSendsLongFieldValue() throws IOException {
+		// Regression: INTEGER_LIST cells are indexed as longs, so a string "123" filter would
+		// silently miss. The terms-filter value must reach AOSS as Kind.Long.
+		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
+				.thenReturn(emptySearchResponse());
+		List<ColumnModel> columns = Collections.singletonList(
+				new ColumnModel().setId("111").setName("ages").setColumnType(ColumnType.INTEGER_LIST));
+
+		// call under test
+		manager.search("search-index-syn1",
+				searchQueryWithTermsFilter("ages", Arrays.asList("123", "456")),
+				columns, EnumSet.of(SearchQueryPart.HITS));
+
+		ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
+		verify(openSearchClient).search(captor.capture(), eq(Map.class));
+		TermsQuery terms = extractSingleTermsFilter(captor.getValue());
+		assertEquals("111", terms.field(), "list columns filter on the bare id, no .keyword");
+		List<FieldValue> values = terms.terms().value();
+		assertEquals(2, values.size());
+		assertEquals(FieldValue.Kind.Long, values.get(0)._kind());
+		assertEquals(123L, values.get(0).longValue());
+		assertEquals(FieldValue.Kind.Long, values.get(1)._kind());
+		assertEquals(456L, values.get(1).longValue());
+	}
+
+	@Test
+	public void testSearchWithTermsFilterOnUnknownColumnFallsBackToString() throws IOException {
+		// Relaxed-name path: filter key isn't on the schema. Behavior must be the pre-typing
+		// fallback — raw String FieldValue against the bare key — so old clients still work.
+		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
+				.thenReturn(emptySearchResponse());
+
+		// call under test
+		manager.search("search-index-syn1",
+				searchQueryWithTermsFilter("not_in_schema", Collections.singletonList("anything")),
+				Collections.emptyList(), EnumSet.of(SearchQueryPart.HITS));
+
+		ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
+		verify(openSearchClient).search(captor.capture(), eq(Map.class));
+		TermsQuery terms = extractSingleTermsFilter(captor.getValue());
+		assertEquals("not_in_schema", terms.field());
+		List<FieldValue> values = terms.terms().value();
+		assertEquals(1, values.size());
+		assertEquals(FieldValue.Kind.String, values.get(0)._kind());
+		assertEquals("anything", values.get(0).stringValue());
+	}
+
+	// --- search(): range filter shape on the wire ---
+
+	@Test
+	public void testSearchWithRangeFilterOnIntegerColumnSendsNumericBound() throws IOException {
+		// Regression: KeyRange.min/max are strings; without typed parsing AOSS may lex-compare
+		// against a keyword sub-field, producing "10" < "9". The bound must reach the wire as a
+		// JSON number. JsonData wraps the parsed Long, so toString() of the bound is "10".
+		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
+				.thenReturn(emptySearchResponse());
+		List<ColumnModel> columns = Collections.singletonList(
+				new ColumnModel().setId("111").setName("age").setColumnType(ColumnType.INTEGER));
+		KeyRange kr = new KeyRange().setKey("age").setMin("10").setMax("99");
+		SearchQuery query = new SearchQuery()
+				.setQueryType(SearchQueryType.MATCH_ALL)
+				.setQueryText("")
+				.setOffset(0L).setLimit(10L)
+				.setRangeFilters(Collections.singletonList(kr));
+
+		// call under test
+		manager.search("search-index-syn1", query, columns, EnumSet.of(SearchQueryPart.HITS));
+
+		ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
+		verify(openSearchClient).search(captor.capture(), eq(Map.class));
+		Query filter = captor.getValue().query().bool().filter().get(0);
+		assertTrue(filter.isRange(), "expected range filter, got " + filter._kind());
+		RangeQuery range = filter.range();
+		assertEquals("111", range.field());
+		assertEquals("10", range.gte().toString(), "lower bound must be JSON number, not quoted string");
+		assertEquals("99", range.lte().toString(), "upper bound must be JSON number, not quoted string");
+	}
+
+	// --- buildAggregations: JSON column rejection ---
+
+	@Test
+	public void testBuildAggregationsWithJsonColumnRejected() {
+		// JSON columns map to `object`/`dynamic`, not a leaf doc-values field, so a `terms` agg
+		// returns zero buckets silently. Reject up-front rather than confusing the caller.
+		Map<String, ColumnModel> columnMap = new HashMap<>();
+		columnMap.put("111",
+				new ColumnModel().setId("111").setName("blob").setColumnType(ColumnType.JSON));
+		Map<String, String> nameToId = new HashMap<>();
+		nameToId.put("blob", "111");
+		FacetRequest facet = new FacetRequest().setColumnName("blob");
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> manager.buildAggregations(Collections.singletonList(facet), columnMap, nameToId));
+
+		assertTrue(ex.getMessage().contains("Cannot facet on JSON column"), ex.getMessage());
+		assertTrue(ex.getMessage().contains("blob"), ex.getMessage());
+		verifyZeroInteractions(openSearchClient);
+	}
+
+	@Test
+	public void testBuildAggregationsWithUnknownColumnAllowed() {
+		// Relaxed-name path: column isn't on the schema. Don't synthesize a JSON-rejection — the
+		// guard only fires when we *know* the column is JSON-typed.
+		FacetRequest facet = new FacetRequest().setColumnName("not_in_schema").setMaxValueCount(5L)
+				.setSortField(FacetSortField.COUNT).setSortDirection(SortDirection.DESC);
+
+		// call under test
+		Map<String, Aggregation> aggs = manager.buildAggregations(
+				Collections.singletonList(facet), Collections.emptyMap(), Collections.emptyMap());
+
+		assertNotNull(aggs.get("not_in_schema"));
+		assertEquals("not_in_schema", aggs.get("not_in_schema").terms().field());
+	}
+
+	// --- search(): offset / limit validation ---
+
+	private static SearchQuery matchAllQuery() {
+		return new SearchQuery()
+				.setQueryType(SearchQueryType.MATCH_ALL)
+				.setQueryText("")
+				.setOffset(0L).setLimit(10L);
+	}
+
+	@Test
+	public void testSearchWithNegativeOffsetThrows() throws IOException {
+		SearchQuery query = matchAllQuery().setOffset(-1L);
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> manager.search("search-index-syn1", query,
+						Collections.emptyList(), EnumSet.of(SearchQueryPart.HITS)));
+
+		assertTrue(ex.getMessage().contains("offset"), ex.getMessage());
+		verify(openSearchClient, org.mockito.Mockito.never()).search(any(SearchRequest.class), eq(Map.class));
+	}
+
+	@Test
+	public void testSearchWithOffsetAboveIntMaxThrows() throws IOException {
+		SearchQuery query = matchAllQuery().setOffset((long) Integer.MAX_VALUE + 1L);
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> manager.search("search-index-syn1", query,
+						Collections.emptyList(), EnumSet.of(SearchQueryPart.HITS)));
+
+		assertTrue(ex.getMessage().contains("offset"), ex.getMessage());
+		verify(openSearchClient, org.mockito.Mockito.never()).search(any(SearchRequest.class), eq(Map.class));
+	}
+
+	@Test
+	public void testSearchWithNegativeLimitThrows() throws IOException {
+		SearchQuery query = matchAllQuery().setLimit(-1L);
+
+		// call under test
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> manager.search("search-index-syn1", query,
+						Collections.emptyList(), EnumSet.of(SearchQueryPart.HITS)));
+
+		assertTrue(ex.getMessage().contains("limit"), ex.getMessage());
+		verify(openSearchClient, org.mockito.Mockito.never()).search(any(SearchRequest.class), eq(Map.class));
+	}
+
+	@Test
+	public void testSearchWithLimitAboveMaxClampsToMaxLimit() throws IOException {
+		// Limit above MAX_LIMIT must clamp (not throw) so the existing relaxed contract is
+		// preserved — the new requirement() check only rejects negative limits.
+		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
+				.thenReturn(emptySearchResponse());
+		SearchQuery query = matchAllQuery().setLimit(10_000L);
+
+		// call under test
+		manager.search("search-index-syn1", query,
+				Collections.emptyList(), EnumSet.of(SearchQueryPart.HITS));
+
+		ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
+		verify(openSearchClient).search(captor.capture(), eq(Map.class));
+		// MAX_LIMIT is 100 in OpenSearchManagerImpl; assert against the clamped value on the wire.
+		assertEquals(Integer.valueOf(100), captor.getValue().size());
 	}
 }

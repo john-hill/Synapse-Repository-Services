@@ -76,7 +76,7 @@ public class TextAnalyzerBootstrapperTest {
 		// analyzer named "default" — the canonical entry the field-mapping side resolves to.
 		for (TextAnalyzer a : captureAllUpserts().values()) {
 			assertNotNull(a.getSettings(), "settings required for analyzer " + a.getName());
-			JsonNode root = SearchAnalyzerJson.parse(a.getSettings());
+			JsonNode root = SearchAnalyzerJsonUtil.parse(a.getSettings());
 			JsonNode defaultEntry = root.at("/analyzer/default");
 			assertTrue(defaultEntry.isObject(),
 					"analyzer.default must exist and be an object: " + a.getName());
@@ -89,8 +89,8 @@ public class TextAnalyzerBootstrapperTest {
 	public void testNoBootstrappedAnalyzerCarriesARefEntry() {
 		// Bootstrapped analyzers don't reference user SynonymSets — users compose their own.
 		for (TextAnalyzer a : captureAllUpserts().values()) {
-			JsonNode root = SearchAnalyzerJson.parse(a.getSettings());
-			assertEquals(0, SearchAnalyzerJson.collectRefs(root).size(),
+			JsonNode root = SearchAnalyzerJsonUtil.parse(a.getSettings());
+			assertEquals(0, SearchAnalyzerJsonUtil.collectRefs(root).size(),
 					"bootstrapped analyzer '" + a.getName() + "' must not contain any $ref");
 		}
 	}

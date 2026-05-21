@@ -31,7 +31,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * Unit tests for {@link OpenSearchManagerImpl#validateAnalyzerSettings(JsonNode)}, the
  * AOSS {@code _analyze} probe that surfaces real OpenSearch-side analyzer errors at
  * TextAnalyzer create/update time. Input is the post-{@code $ref}-resolution settings
- * tree produced by {@link SearchAnalyzerJson#resolveRefs}.
+ * tree produced by {@link SearchAnalyzerJsonUtil#resolveRefs}.
  */
 @ExtendWith(MockitoExtension.class)
 public class OpenSearchManagerImplValidateTest {
@@ -76,7 +76,7 @@ public class OpenSearchManagerImplValidateTest {
 	private static IndexSettingsAnalysis parse(String json) {
 		try {
 			JsonNode root = MAPPER.readTree(json);
-			return SearchAnalyzerJson.resolveRefs(root, qname -> null);
+			return SearchAnalyzerJsonUtil.resolveRefs(root, qname -> null);
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}
@@ -307,7 +307,7 @@ public class OpenSearchManagerImplValidateTest {
 	@Test
 	public void testParseThrowsOnMalformedInlineFilter() {
 		// Inline filter registry entry that's not a valid TokenFilterDefinition. With the
-		// boundary deserialization in SearchAnalyzerJson.resolveRefs, this fails fast at
+		// boundary deserialization in SearchAnalyzerJsonUtil.resolveRefs, this fails fast at
 		// parse time (before the manager method is even invoked) rather than during the
 		// _analyze probe, so the curator gets the rejection earlier in the request lifecycle.
 		String settingsJson = "{"

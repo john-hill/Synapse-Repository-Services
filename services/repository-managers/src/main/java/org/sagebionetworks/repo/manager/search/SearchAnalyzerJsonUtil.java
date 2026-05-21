@@ -45,7 +45,7 @@ import jakarta.json.stream.JsonParser;
  * <p>Synapse only verifies (a) that the JSON parses and (b) that any refs resolve. AOSS
  * validates the analyzer / token-filter shape itself at index-build time.</p>
  */
-public final class SearchAnalyzerJson {
+public final class SearchAnalyzerJsonUtil {
 
 	static final String REF_KEY = "$ref";
 
@@ -70,12 +70,12 @@ public final class SearchAnalyzerJson {
 
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
-	// SearchAnalyzerJson owns its own JsonpMapper so callers don't have to plumb the
+	// SearchAnalyzerJsonUtil owns its own JsonpMapper so callers don't have to plumb the
 	// OpenSearchClient's transport in just to deserialize the analyzer tree. The no-arg
 	// JacksonJsonpMapper constructor picks up the same Jackson defaults the client uses.
 	private static final JsonpMapper JSONP_MAPPER = new JacksonJsonpMapper();
 
-	private SearchAnalyzerJson() {
+	private SearchAnalyzerJsonUtil() {
 		// utility
 	}
 

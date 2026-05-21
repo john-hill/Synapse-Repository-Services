@@ -1,7 +1,12 @@
 package org.sagebionetworks.repo.manager.search;
 
+import java.util.Arrays;
 import java.util.Optional;
 
+import org.opensearch.client.opensearch._types.analysis.Analyzer;
+import org.opensearch.client.opensearch._types.analysis.TokenFilter;
+import org.opensearch.client.opensearch._types.analysis.TokenFilterDefinition;
+import org.opensearch.client.opensearch.indices.IndexSettingsAnalysis;
 import org.sagebionetworks.repo.manager.UserManager;
 import org.sagebionetworks.repo.manager.schema.SynapseSchemaBootstrap;
 import org.sagebionetworks.repo.model.AuthorizationConstants;
@@ -23,135 +28,104 @@ public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 	public static final long KEYWORD_ID = 4L;
 	public static final long AUTOCOMPLETE_ID = 5L;
 
-	// Each analyzer's settings is a single OpenSearch settings.analysis JSON object
-	// with one custom analyzer named "default" — the OpenSearch reserved name that lands
-	// at analysis.analyzer.default for any index that picks this TextAnalyzer as its
-	// SearchConfiguration.defaultAnalyzer. Bootstrapped analyzers contain no $ref entries;
-	// users who want synonyms create their own TextAnalyzers that reference SynonymSet
-	// qnames inside their filter map.
+	// Each bootstrapped analyzer's settings is built with the OpenSearch Java client's
+	// typed builders, then serialized to JSON for the existing string-typed DAO column.
+	// The persisted shape is identical to a hand-typed OpenSearch settings.analysis block;
+	// the typed builders just give us compile-time checking on filter type names and
+	// parameters, plus IDE autocomplete. Bootstrapped analyzers never carry $ref entries —
+	// users who want synonyms compose their own TextAnalyzers.
 
-	private static final String SCIENTIFIC_SETTINGS = "{"
-		+ "\"filter\":{"
-			+ "\"sci_word_delimiter\":{"
-				+ "\"type\":\"word_delimiter_graph\","
-				+ "\"preserve_original\":true,"
-				+ "\"split_on_case_change\":true,"
-				+ "\"split_on_numerics\":true,"
-				+ "\"catenate_words\":true,"
-				+ "\"catenate_numbers\":false,"
-				+ "\"stem_english_possessive\":true"
-			+ "},"
-			+ "\"english_stop\":{"
-				+ "\"type\":\"stop\","
-				+ "\"stopwords\":\"_english_\""
-			+ "},"
-			+ "\"english_stemmer\":{"
-				+ "\"type\":\"stemmer\","
-				+ "\"language\":\"english\""
-			+ "}"
-		+ "},"
-		+ "\"analyzer\":{"
-			+ "\"default\":{"
-				+ "\"type\":\"custom\","
-				+ "\"tokenizer\":\"standard\","
-				+ "\"filter\":[\"sci_word_delimiter\",\"lowercase\",\"english_stop\",\"english_stemmer\"]"
-			+ "}"
-		+ "}"
-	+ "}";
+	/**
+	 * Stop-token-filter type discriminator. The OpenSearch native form
+	 * {@code "stopwords": "_english_"} is a single-string convenience that the typed
+	 * {@code StopTokenFilter.stopwords(List)} setter accepts as a one-element list — the
+	 * serializer collapses it back to the same string at the wire boundary.
+	 */
+	private static final String ENGLISH_STOPWORDS = "_english_";
 
-	private static final String STANDARD_SETTINGS = "{"
-		+ "\"filter\":{"
-			+ "\"std_word_delimiter\":{"
-				+ "\"type\":\"word_delimiter_graph\","
-				+ "\"preserve_original\":true,"
-				+ "\"split_on_case_change\":true,"
-				+ "\"split_on_numerics\":true,"
-				+ "\"catenate_words\":true,"
-				+ "\"catenate_numbers\":false,"
-				+ "\"stem_english_possessive\":true"
-			+ "}"
-		+ "},"
-		+ "\"analyzer\":{"
-			+ "\"default\":{"
-				+ "\"type\":\"custom\","
-				+ "\"tokenizer\":\"standard\","
-				+ "\"filter\":[\"std_word_delimiter\",\"lowercase\"]"
-			+ "}"
-		+ "}"
-	+ "}";
+	private static final IndexSettingsAnalysis SCIENTIFIC_SETTINGS = IndexSettingsAnalysis.of(a -> a
+			.filter("sci_word_delimiter", wordDelimiterGraph(true))
+			.filter("english_stop", filter(b -> b.stop(s -> s.stopwords(ENGLISH_STOPWORDS))))
+			.filter("english_stemmer", filter(b -> b.stemmer(s -> s.language("english"))))
+			.analyzer("default", customAnalyzer("standard",
+					Arrays.asList("sci_word_delimiter", "lowercase", "english_stop", "english_stemmer")))
+	);
 
-	private static final String IDENTIFIER_SETTINGS = "{"
-		+ "\"filter\":{"
-			+ "\"id_word_delimiter\":{"
-				+ "\"type\":\"word_delimiter_graph\","
-				+ "\"preserve_original\":true,"
-				+ "\"split_on_case_change\":true,"
-				+ "\"split_on_numerics\":true,"
-				+ "\"catenate_words\":true,"
-				+ "\"catenate_numbers\":false,"
-				+ "\"stem_english_possessive\":false"
-			+ "}"
-		+ "},"
-		+ "\"analyzer\":{"
-			+ "\"default\":{"
-				+ "\"type\":\"custom\","
-				+ "\"tokenizer\":\"whitespace\","
-				+ "\"filter\":[\"id_word_delimiter\",\"lowercase\"]"
-			+ "}"
-		+ "}"
-	+ "}";
+	private static final IndexSettingsAnalysis STANDARD_SETTINGS = IndexSettingsAnalysis.of(a -> a
+			.filter("std_word_delimiter", wordDelimiterGraph(true))
+			.analyzer("default", customAnalyzer("standard",
+					Arrays.asList("std_word_delimiter", "lowercase")))
+	);
 
-	private static final String KEYWORD_SETTINGS = "{"
-		+ "\"analyzer\":{"
-			+ "\"default\":{"
-				+ "\"type\":\"custom\","
-				+ "\"tokenizer\":\"keyword\""
-			+ "}"
-		+ "}"
-	+ "}";
+	private static final IndexSettingsAnalysis IDENTIFIER_SETTINGS = IndexSettingsAnalysis.of(a -> a
+			.filter("id_word_delimiter", wordDelimiterGraph(false))
+			.analyzer("default", customAnalyzer("whitespace",
+					Arrays.asList("id_word_delimiter", "lowercase")))
+	);
+
+	private static final IndexSettingsAnalysis KEYWORD_SETTINGS = IndexSettingsAnalysis.of(a -> a
+			.analyzer("default", customAnalyzer("keyword", null))
+	);
 
 	// AUTOCOMPLETE pairs an index-time edge_ngram chain with a non-ngram search-time chain in
 	// one record. The index chain uses the legacy non-graph word_delimiter because
 	// word_delimiter_graph emits multi-position graph tokens that edge_ngram cannot consume.
-	private static final String AUTOCOMPLETE_SETTINGS = "{"
-		+ "\"filter\":{"
-			+ "\"ac_word_delimiter\":{"
-				+ "\"type\":\"word_delimiter\","
-				+ "\"preserve_original\":true,"
-				+ "\"split_on_case_change\":true,"
-				+ "\"split_on_numerics\":true,"
-				+ "\"catenate_words\":true,"
-				+ "\"catenate_numbers\":false,"
-				+ "\"stem_english_possessive\":true"
-			+ "},"
-			+ "\"edge_ngram_filter\":{"
-				+ "\"type\":\"edge_ngram\","
-				+ "\"min_gram\":2,"
-				+ "\"max_gram\":20"
-			+ "},"
-			+ "\"acs_word_delimiter\":{"
-				+ "\"type\":\"word_delimiter_graph\","
-				+ "\"preserve_original\":true,"
-				+ "\"split_on_case_change\":true,"
-				+ "\"split_on_numerics\":true,"
-				+ "\"catenate_words\":true,"
-				+ "\"catenate_numbers\":false,"
-				+ "\"stem_english_possessive\":true"
-			+ "}"
-		+ "},"
-		+ "\"analyzer\":{"
-			+ "\"default\":{"
-				+ "\"type\":\"custom\","
-				+ "\"tokenizer\":\"standard\","
-				+ "\"filter\":[\"ac_word_delimiter\",\"lowercase\",\"edge_ngram_filter\"]"
-			+ "},"
-			+ "\"default_search\":{"
-				+ "\"type\":\"custom\","
-				+ "\"tokenizer\":\"standard\","
-				+ "\"filter\":[\"lowercase\",\"acs_word_delimiter\"]"
-			+ "}"
-		+ "}"
-	+ "}";
+	private static final IndexSettingsAnalysis AUTOCOMPLETE_SETTINGS = IndexSettingsAnalysis.of(a -> a
+			.filter("ac_word_delimiter", filter(b -> b.wordDelimiter(w -> w
+					.preserveOriginal(true)
+					.splitOnCaseChange(true)
+					.splitOnNumerics(true)
+					.catenateWords(true)
+					.catenateNumbers(false)
+					.stemEnglishPossessive(true))))
+			.filter("edge_ngram_filter", filter(b -> b.edgeNgram(e -> e.minGram(2).maxGram(20))))
+			.filter("acs_word_delimiter", wordDelimiterGraph(true))
+			.analyzer("default", customAnalyzer("standard",
+					Arrays.asList("ac_word_delimiter", "lowercase", "edge_ngram_filter")))
+			.analyzer("default_search", customAnalyzer("standard",
+					Arrays.asList("lowercase", "acs_word_delimiter")))
+	);
+
+	/**
+	 * Standard-shaped {@code word_delimiter_graph} filter used by SCIENTIFIC, STANDARD,
+	 * IDENTIFIER, and AUTOCOMPLETE.default_search. Only {@code stem_english_possessive}
+	 * varies (false for IDENTIFIER, true for everyone else), so it's the one parameter
+	 * the caller supplies.
+	 */
+	private static TokenFilter wordDelimiterGraph(boolean stemEnglishPossessive) {
+		return filter(b -> b.wordDelimiterGraph(w -> w
+				.preserveOriginal(true)
+				.splitOnCaseChange(true)
+				.splitOnNumerics(true)
+				.catenateWords(true)
+				.catenateNumbers(false)
+				.stemEnglishPossessive(stemEnglishPossessive)));
+	}
+
+	/**
+	 * Build a {@code custom} analyzer with the given tokenizer and (optional) filter chain.
+	 * A null/empty {@code filterChain} produces a tokenizer-only analyzer (used by KEYWORD).
+	 */
+	private static Analyzer customAnalyzer(String tokenizer, java.util.List<String> filterChain) {
+		return Analyzer.of(a -> a.custom(c -> {
+			c.tokenizer(tokenizer);
+			if (filterChain != null && !filterChain.isEmpty()) {
+				c.filter(filterChain);
+			}
+			return c;
+		}));
+	}
+
+	/**
+	 * Wrap a TokenFilterDefinition variant ({@code stop}, {@code stemmer},
+	 * {@code wordDelimiter}, etc.) in a {@link TokenFilter} that the
+	 * {@link IndexSettingsAnalysis.Builder#filter(String, TokenFilter)} setter expects.
+	 */
+	private static TokenFilter filter(java.util.function.Function<TokenFilterDefinition.Builder,
+			org.opensearch.client.util.ObjectBuilder<TokenFilterDefinition>> def) {
+		TokenFilterDefinition d = TokenFilterDefinition.of(def);
+		return TokenFilter.of(f -> f.definition(d));
+	}
 
 	private final TextAnalyzerDao textAnalyzerDao;
 	private final SynapseSchemaBootstrap synapseSchemaBootstrap;
@@ -205,8 +179,16 @@ public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 		), organizationName, adminUserId);
 	}
 
-	private TextAnalyzer buildAnalyzer(String name, String description, String settings) {
-		return new TextAnalyzer().setName(name).setDescription(description).setSettings(settings);
+	/**
+	 * Serialize a typed analyzer to its persisted JSON form using
+	 * {@link IndexSettingsAnalysis#toJsonString()}, the default method on
+	 * {@code PlainJsonSerializable}.
+	 */
+	private TextAnalyzer buildAnalyzer(String name, String description, IndexSettingsAnalysis settings) {
+		return new TextAnalyzer()
+				.setName(name)
+				.setDescription(description)
+				.setSettings(settings.toJsonString());
 	}
 
 	@TemporaryCode(author = "BryanFauble", comment = "Remove after every stack has been redeployed and the legacy AUTOCOMPLETE_SEARCH row from before AUTOCOMPLETE absorbed default_search no longer arrives. The name check guards the id from being clobbered if the slot is later reclaimed.")

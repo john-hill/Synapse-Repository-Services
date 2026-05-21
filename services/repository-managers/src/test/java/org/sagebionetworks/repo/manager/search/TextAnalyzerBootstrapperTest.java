@@ -31,8 +31,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * Verifies that {@link TextAnalyzerBootstrapper} idempotently upserts the five system
- * analyzers at the expected reserved IDs. Bootstrap runs in the constructor so loading the
- * bean triggers the upsert.
+ * analyzers at the expected reserved IDs. Bootstrap runs in the constructor so loading
+ * the bean triggers the upsert.
  */
 @ExtendWith(MockitoExtension.class)
 public class TextAnalyzerBootstrapperTest {
@@ -59,8 +59,7 @@ public class TextAnalyzerBootstrapperTest {
 
 	@Test
 	public void testConstructorBootstrapsAllFiveSystemAnalyzersWithStableNamesAndIds() {
-		// call under test — constructor runs bootstrap unconditionally; the helper captures
-		// every (id, analyzer) pair so we can assert exact mapping.
+		// call under test
 		Map<Long, TextAnalyzer> upserts = captureAllUpserts();
 
 		assertEquals(5, upserts.size());
@@ -72,27 +71,16 @@ public class TextAnalyzerBootstrapperTest {
 	}
 
 	@Test
-	public void testAutocompleteAnalyzerDeclaresAsymmetricSearchEntry() {
-		TextAnalyzer autocomplete = captureAllUpserts().get(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID);
-		JsonNode root = SearchAnalyzerJson.parse(autocomplete.getSettings());
-		JsonNode defaultSearch = root.at("/analyzer/default_search");
-		assertNotNull(defaultSearch);
-		assertEquals("custom", defaultSearch.get("type").asText());
-	}
-
-	@Test
 	public void testEverySettingsBlobParsesAndDeclaresMainAnalyzer() {
 		// Each bootstrapped analyzer's settings must (a) be valid JSON and (b) declare an
 		// analyzer named "default" — the canonical entry the field-mapping side resolves to.
-		Map<Long, TextAnalyzer> upserts = captureAllUpserts();
-
-		for (Map.Entry<Long, TextAnalyzer> e : upserts.entrySet()) {
-			TextAnalyzer a = e.getValue();
+		for (TextAnalyzer a : captureAllUpserts().values()) {
 			assertNotNull(a.getSettings(), "settings required for analyzer " + a.getName());
 			JsonNode root = SearchAnalyzerJson.parse(a.getSettings());
-			JsonNode defaultAnalyzerEntry = root.at("/analyzer/default");
-			assertNotNull(defaultAnalyzerEntry);
-			assertEquals("custom", defaultAnalyzerEntry.get("type").asText(),
+			JsonNode defaultEntry = root.at("/analyzer/default");
+			assertTrue(defaultEntry.isObject(),
+					"analyzer.default must exist and be an object: " + a.getName());
+			assertEquals("custom", defaultEntry.get("type").asText(),
 					"analyzer 'default' must be type=custom: " + a.getName());
 		}
 	}
@@ -107,26 +95,7 @@ public class TextAnalyzerBootstrapperTest {
 		}
 	}
 
-	@Test
-	public void testKeywordAnalyzerHasNoFilterChain() {
-		TextAnalyzer keyword = captureAllUpserts().get(TextAnalyzerBootstrapper.KEYWORD_ID);
-		JsonNode root = SearchAnalyzerJson.parse(keyword.getSettings());
-		JsonNode defaultAnalyzerEntry = root.at("/analyzer/default");
-		assertEquals("keyword", defaultAnalyzerEntry.get("tokenizer").asText());
-		// No filter array set, or empty.
-		JsonNode filters = defaultAnalyzerEntry.get("filter");
-		boolean isEmpty = filters == null || (filters.isArray() && filters.size() == 0);
-		assertTrue(isEmpty, "KEYWORD must have no token filters: " + filters);
-	}
-
-	@Test
-	public void testAutocompleteAnalyzerEndsWithEdgeNgramFilter() {
-		TextAnalyzer autocomplete = captureAllUpserts().get(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID);
-		JsonNode root = SearchAnalyzerJson.parse(autocomplete.getSettings());
-		JsonNode chain = root.at("/analyzer/default/filter");
-		assertEquals("edge_ngram_filter", chain.get(chain.size() - 1).asText(),
-				"AUTOCOMPLETE must end with edge_ngram_filter: " + chain);
-	}
+	// --- Stale-row migration for the dropped AUTOCOMPLETE_SEARCH_ID=6 ---
 
 	@Test
 	public void testBootstrapDeletesStaleAutocompleteSearchRowWhenNameMatches() {

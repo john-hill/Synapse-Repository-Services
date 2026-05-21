@@ -2,7 +2,6 @@ package org.sagebionetworks.repo.manager.search;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -166,12 +165,13 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 	}
 
 	/**
-	 * Parse the analyzer's opaque-JSON settings, require the canonical
-	 * {@code analyzer.default} entry that field mappings bind to, enforce that the inner
-	 * {@code analyzer} map contains only {@code default} and (optionally)
-	 * {@code default_search}, collect every {@code $ref} qname inside, verify the qname
-	 * format, and verify each ref resolves to an existing SynonymSet. AOSS validates
-	 * everything else (component types, parameters, chain ordering) at index-build time.
+	 * Parse the analyzer's opaque-JSON settings, enforce that the inner {@code analyzer} map
+	 * contains only {@code default} and (optionally) {@code default_search}, collect every
+	 * {@code $ref} qname inside, verify the qname format, and verify each ref resolves to an
+	 * existing SynonymSet. The presence of {@code analyzer.default} itself and the rest of
+	 * the analyzer shape (component types, parameters, chain ordering) are enforced by
+	 * {@link OpenSearchManager#validateAnalyzerSettings(JsonNode)} at the bottom of this
+	 * method.
 	 *
 	 * <p>The single-analyzer-per-record contract is enforced here so that one TextAnalyzer
 	 * record always maps to one externally-addressable analyzer. Curators who need
@@ -181,50 +181,37 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 	 */
 	private void validateSettings(String settingsJson) {
 		JsonNode root = SearchAnalyzerJson.parse(settingsJson);
-		// SearchConfiguration.defaultAnalyzer (and ColumnAnalyzerOverride) bind to a
-		// TextAnalyzer by its bare qualified name; the index-build code resolves that to
-		// the analyzer entry named "default". An analyzer that doesn't declare `default`
-		// would build fine inside AOSS but would never be reachable from a
-		// SearchConfiguration.
-		JsonNode analyzerMap = root.get("analyzer");
-		if (analyzerMap == null || !analyzerMap.isObject()) {
-			throw new IllegalArgumentException(
-					"settings must declare an analyzer named 'default' under analyzer.default.");
-		}
-		JsonNode defaultAnalyzer = analyzerMap.get(SearchAnalyzerJson.DEFAULT_ANALYZER_KEY);
-		if (defaultAnalyzer == null || !defaultAnalyzer.isObject()) {
-			throw new IllegalArgumentException(
-					"settings must declare an analyzer named 'default' under analyzer.default.");
-		}
 		// Enforce one-record-one-analyzer: only `default` and (optionally) `default_search`
 		// may appear inside the inner `analyzer` map. Any other key would be registered
 		// into AOSS but unreachable from a binding (SearchConfiguration / ColumnAnalyzerOverride
 		// always resolve to the bare `default`), so reject it here rather than letting it
-		// rot.
-		Set<String> rejected = new LinkedHashSet<>();
-		Iterator<String> fieldNames = analyzerMap.fieldNames();
-		while (fieldNames.hasNext()) {
-			String key = fieldNames.next();
-			if (!SearchAnalyzerJson.DEFAULT_ANALYZER_KEY.equals(key)
-					&& !SearchAnalyzerJson.DEFAULT_SEARCH_ANALYZER_KEY.equals(key)) {
-				rejected.add(key);
+		// rot. The presence-of-`default` check itself is enforced downstream by
+		// OpenSearchManager.validateAnalyzerSettings, which is the single source of truth
+		// for that rule.
+		JsonNode analyzerMap = root.get("analyzer");
+		if (analyzerMap != null && analyzerMap.isObject()) {
+			Set<String> rejected = new LinkedHashSet<>();
+			analyzerMap.fieldNames().forEachRemaining(key -> {
+				if (!SearchAnalyzerJson.DEFAULT_ANALYZER_KEY.equals(key)
+						&& !SearchAnalyzerJson.DEFAULT_SEARCH_ANALYZER_KEY.equals(key)) {
+					rejected.add(key);
+				}
+			});
+			if (!rejected.isEmpty()) {
+				throw new IllegalArgumentException(
+						"settings.analyzer must declare only '"
+								+ SearchAnalyzerJson.DEFAULT_ANALYZER_KEY
+								+ "' (and optionally '"
+								+ SearchAnalyzerJson.DEFAULT_SEARCH_ANALYZER_KEY
+								+ "'); rejected: " + rejected);
 			}
 		}
-		if (!rejected.isEmpty()) {
-			throw new IllegalArgumentException(
-					"settings.analyzer must declare only '"
-							+ SearchAnalyzerJson.DEFAULT_ANALYZER_KEY
-							+ "' (and optionally '"
-							+ SearchAnalyzerJson.DEFAULT_SEARCH_ANALYZER_KEY
-							+ "'); rejected: " + rejected);
-		}
 		Set<String> refs = SearchAnalyzerJson.collectRefs(root);
-		List<String> refList = new ArrayList<>(refs);
-		for (String qname : refList) {
+		for (String qname : refs) {
 			SearchResourceConstants.validateQualifiedNameFormat(qname, "$ref");
 		}
-		if (!refList.isEmpty()) {
-			List<String> missing = synonymSetDao.findNonExistentNames(refList);
+		if (!refs.isEmpty()) {
+			List<String> missing = synonymSetDao.findNonExistentNames(new ArrayList<>(refs));
 			if (!missing.isEmpty()) {
 				throw new IllegalArgumentException(
 						"The following $ref synonym set name(s) do not exist: " + missing);

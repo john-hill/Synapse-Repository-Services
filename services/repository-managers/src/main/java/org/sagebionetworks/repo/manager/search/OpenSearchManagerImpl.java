@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -333,23 +332,25 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		Set<String> ownedTokenizers = ownedNames(resolvedSettings.get("tokenizer"));
 		Set<String> ownedFilters = ownedNames(resolvedSettings.get("filter"));
 
-		// Register each owned component under {aossKey}__{localName}. Each lambda routes
-		// to the right typed setter on the analysis builder for its component family.
-		registerComponentMap(resolvedSettings.get("char_filter"), aossKey, ownedCharFilters,
-				(name, def) -> {
-					CharFilterDefinition cfd = deserialize(def, CharFilterDefinition._DESERIALIZER);
-					a.charFilter(name, f -> f.definition(cfd));
-				});
-		registerComponentMap(resolvedSettings.get("tokenizer"), aossKey, ownedTokenizers,
-				(name, def) -> {
-					TokenizerDefinition td = deserialize(def, TokenizerDefinition._DESERIALIZER);
-					a.tokenizer(name, t -> t.definition(td));
-				});
-		registerComponentMap(resolvedSettings.get("filter"), aossKey, ownedFilters,
-				(name, def) -> {
-					TokenFilterDefinition tfd = deserialize(def, TokenFilterDefinition._DESERIALIZER);
-					a.filter(name, f -> f.definition(tfd));
-				});
+		// Register each owned component under {aossKey}__{localName}.
+		JsonNode charFilterMap = resolvedSettings.get("char_filter");
+		for (String name : ownedCharFilters) {
+			CharFilterDefinition def = deserialize(
+					charFilterMap.get(name).toString(), CharFilterDefinition._DESERIALIZER);
+			a.charFilter(aossKey + "__" + name, f -> f.definition(def));
+		}
+		JsonNode tokenizerMap = resolvedSettings.get("tokenizer");
+		for (String name : ownedTokenizers) {
+			TokenizerDefinition def = deserialize(
+					tokenizerMap.get(name).toString(), TokenizerDefinition._DESERIALIZER);
+			a.tokenizer(aossKey + "__" + name, t -> t.definition(def));
+		}
+		JsonNode filterMap = resolvedSettings.get("filter");
+		for (String name : ownedFilters) {
+			TokenFilterDefinition def = deserialize(
+					filterMap.get(name).toString(), TokenFilterDefinition._DESERIALIZER);
+			a.filter(aossKey + "__" + name, f -> f.definition(def));
+		}
 
 		// A TextAnalyzer with no analyzer entries is structurally legal (e.g. a registry-
 		// only resource), but won't be reachable from a SearchConfiguration. Nothing more
@@ -361,15 +362,12 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		// Register each analyzer entry. The entry's own filter/tokenizer/char_filter chains
 		// are first rewritten so any reference to one of THIS TextAnalyzer's owned
 		// components points at the namespaced registry key.
-		Iterator<Map.Entry<String, JsonNode>> it = analyzers.fields();
-		while (it.hasNext()) {
-			Map.Entry<String, JsonNode> e = it.next();
+		analyzers.fields().forEachRemaining(e -> {
 			String localName = e.getKey();
 			JsonNode rewritten = rewriteAnalyzerEntry(e.getValue(), aossKey,
 					ownedCharFilters, ownedFilters, ownedTokenizers);
 			Analyzer analyzer = deserialize(rewritten.toString(), Analyzer._DESERIALIZER);
-			String namespacedKey = aossKey + "__" + localName;
-			a.analyzer(namespacedKey, analyzer);
+			a.analyzer(aossKey + "__" + localName, analyzer);
 			if (DEFAULT_ANALYZER_NAME.equals(localName)) {
 				// Bare-qname alias for the canonical "default" analyzer. Field mappings bind
 				// by the bare qname, so this alias is what makes the TextAnalyzer reachable
@@ -386,7 +384,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 				// analysis.analyzer.default_search at search time.
 				a.analyzer(DEFAULT_SEARCH_ANALYZER_NAME, analyzer);
 			}
-		}
+		});
 	}
 
 	/**
@@ -405,50 +403,6 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		Set<String> result = new java.util.HashSet<>();
 		mapNode.fieldNames().forEachRemaining(result::add);
 		return result;
-	}
-
-	/**
-	 * Routes one entry of a typed registry map to the right {@link IndexSettingsAnalysis}
-	 * builder method. Lets {@link #registerComponentMap} share its iteration / namespacing
-	 * logic across all three component families (char filter, tokenizer, token filter)
-	 * without becoming generic over the typed AOSS client classes.
-	 */
-	private interface ComponentRegistrar {
-		/**
-		 * @param namespacedKey  the key to register under in AOSS, already in
-		 *                       {@code {aossKey}__{localName}} form.
-		 * @param definitionJson the component definition as serialized JSON, ready to be
-		 *                       deserialized into the registrar's typed AOSS class.
-		 */
-		void register(String namespacedKey, String definitionJson);
-	}
-
-	/**
-	 * Walk one of a TextAnalyzer's registry maps ({@code char_filter}, {@code tokenizer},
-	 * or {@code filter}) and register every owned entry into AOSS under its namespaced key.
-	 * No-ops when the map is absent / not an object / empty.
-	 *
-	 * @param mapNode    the registry map node from the TextAnalyzer's settings, may be
-	 *                   {@code null}.
-	 * @param aossKey    AOSS-safe form of the TextAnalyzer's qualified name, used as the
-	 *                   namespace prefix.
-	 * @param ownedNames the keys of {@code mapNode} (computed once by {@link #ownedNames}
-	 *                   and reused by both this method and the chain-rewrite step).
-	 * @param registrar  callback that registers one component under
-	 *                   {@code {aossKey}__{name}}.
-	 */
-	private static void registerComponentMap(JsonNode mapNode, String aossKey, Set<String> ownedNames,
-			ComponentRegistrar registrar) {
-		if (mapNode == null || !mapNode.isObject() || ownedNames.isEmpty()) {
-			return;
-		}
-		for (String name : ownedNames) {
-			JsonNode def = mapNode.get(name);
-			if (def == null) {
-				continue;
-			}
-			registrar.register(aossKey + "__" + name, def.toString());
-		}
 	}
 
 	/**

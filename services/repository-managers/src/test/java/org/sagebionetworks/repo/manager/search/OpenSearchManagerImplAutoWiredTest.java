@@ -197,6 +197,165 @@ public class OpenSearchManagerImplAutoWiredTest {
 	}
 
 	@Test
+	public void testRoundTripWithCuratorDefinedCustomAnalyzer() {
+		// Register a curator-style custom TextAnalyzer (inline english_stop + lowercase chain)
+		// as the index's defaultAnalyzer. Index docs, run a query that exercises the chain
+		// (stop-word removal: searching for "the genome" must match "genome research"
+		// because "the" is dropped before query matching), and verify the analyzer landed.
+		String customQname = "biomed-publications";
+		String customSettings = "{"
+				+ "\"filter\":{\"english_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"}},"
+				+ "\"analyzer\":{\"default\":{\"type\":\"custom\","
+					+ "\"tokenizer\":\"standard\","
+					+ "\"filter\":[\"lowercase\",\"english_stop\"]}}}";
+		Map<String, JsonNode> analyzers = new HashMap<>(defaultAnalyzers);
+		analyzers.put(customQname, SearchAnalyzerJson.parse(customSettings));
+
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("title").setColumnType(ColumnType.STRING));
+		Optional<String> appliedConfig = openSearchManager.createIndex(indexName, columns, customQname,
+				Collections.emptyList(), analyzers);
+		assertTrue(appliedConfig.isPresent());
+		// The applied config must register the namespaced filter from the custom analyzer.
+		String aossKey = OpenSearchManagerImpl.toAossKey(customQname);
+		assertTrue(appliedConfig.get().contains(aossKey + "__english_stop"),
+				"Custom analyzer's owned filter must be registered under namespaced key");
+		openSearchManager.waitForIndexWritable(indexName);
+
+		List<BulkOperation> operations = List.of(
+				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "the genome research")),
+				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "lunar lander mission")));
+		openSearchManager.bulkIndex(indexName, operations);
+
+		SearchQuery query = new SearchQuery();
+		// "the" is a stop word for the english_stop filter — if the custom analyzer wasn't
+		// applied at search time, "the genome" would also match docs that lack "genome"
+		// (anything containing "the"). Asserting exactly one hit confirms stop-word removal
+		// is in effect.
+		query.setQueryText("the genome");
+		query.setQueryType(SearchQueryType.SIMPLE_QUERY_STRING);
+		query.setLimit(10L);
+		query.setOffset(0L);
+
+		// call under test
+		SearchQueryResults results = waitForSearch(query, columns, 1);
+
+		assertEquals(1L, results.getTotalHits(),
+				"Custom analyzer's english_stop filter must drop 'the' so only 'the genome research' matches");
+		assertEquals(1, results.getHits().size());
+	}
+
+	@Test
+	public void testRoundTripWithColumnAnalyzerOverride() {
+		// Two STRING columns: 'title' (index-default, SCIENTIFIC stemming) and 'tag' (override
+		// to KEYWORD — exact match only). Verify routing: a stemmed query matches 'title' but
+		// not 'tag', and an exact-token query matches 'tag' verbatim.
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("title").setColumnType(ColumnType.STRING),
+				new ColumnModel().setId("2").setName("tag").setColumnType(ColumnType.STRING));
+
+		org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry override =
+				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry()
+						.setColumnName("tag")
+						.setAnalyzer("org.sagebionetworks-KEYWORD");
+		org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride overrideContainer =
+				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride()
+						.setOverrides(List.of(override));
+
+		Optional<String> appliedConfig = openSearchManager.createIndex(indexName, columns,
+				"org.sagebionetworks-SCIENTIFIC", List.of(overrideContainer), defaultAnalyzers);
+		assertTrue(appliedConfig.isPresent());
+		openSearchManager.waitForIndexWritable(indexName);
+
+		List<BulkOperation> operations = List.of(
+				// Use case-mismatched values so KEYWORD's no-lowercasing semantics are
+				// distinguishable from SCIENTIFIC's case-insensitive stemmed matching.
+				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L,
+						"1", "research papers", "2", "BioMed-Cancer")),
+				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L,
+						"1", "biomed papers", "2", "BioMed-Genome")));
+		openSearchManager.bulkIndex(indexName, operations);
+
+		// Exact-keyword query against `tag` matches doc 1 only — KEYWORD doesn't lowercase
+		// so the indexed token is the original "BioMed-Cancer", and "biomed-cancer" must NOT
+		// match. Run two queries scoped to the same column to confirm both directions.
+		SearchQuery exactQuery = new SearchQuery();
+		exactQuery.setQueryText("BioMed-Cancer");
+		exactQuery.setQueryType(SearchQueryType.SIMPLE_QUERY_STRING);
+		exactQuery.setQueryFields(List.of("tag"));
+		exactQuery.setLimit(10L);
+		exactQuery.setOffset(0L);
+
+		// call under test
+		SearchQueryResults exactResults = waitForSearch(exactQuery, columns, 1);
+		assertEquals(1L, exactResults.getTotalHits(),
+				"KEYWORD override on `tag` must match the exact case-preserving token");
+
+		// Stemmed query against `title` matches doc 2 ("biomed papers" → "biomed paper" stem).
+		SearchQuery stemmedQuery = new SearchQuery();
+		stemmedQuery.setQueryText("paper");
+		stemmedQuery.setQueryType(SearchQueryType.SIMPLE_QUERY_STRING);
+		stemmedQuery.setQueryFields(List.of("title"));
+		stemmedQuery.setLimit(10L);
+		stemmedQuery.setOffset(0L);
+
+		// call under test
+		SearchQueryResults stemmedResults = waitForSearch(stemmedQuery, columns, 1);
+		assertTrue(stemmedResults.getTotalHits() >= 1L,
+				"SCIENTIFIC default on `title` must stem 'papers' so 'paper' matches");
+	}
+
+	@Test
+	public void testRoundTripWithAutocompleteBootstrappedAnalyzer() {
+		// AUTOCOMPLETE is the bootstrapped analyzer for prefix-style typeahead. A column bound
+		// to AUTOCOMPLETE (via override) must let an autocomplete() prefix query match docs
+		// even after only a few characters of the indexed term. This is the only round-trip
+		// that exercises the asymmetric default / default_search behavior end-to-end.
+		Map<String, JsonNode> analyzers = new HashMap<>(defaultAnalyzers);
+		analyzers.put("org.sagebionetworks-AUTOCOMPLETE",
+				bootstrappedAnalyzerSettings(TextAnalyzerBootstrapper.AUTOCOMPLETE_ID));
+
+		List<ColumnModel> columns = List.of(
+				new ColumnModel().setId("1").setName("term").setColumnType(ColumnType.STRING));
+
+		org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry override =
+				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry()
+						.setColumnName("term")
+						.setAnalyzer("org.sagebionetworks-AUTOCOMPLETE");
+		org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride overrideContainer =
+				new org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride()
+						.setOverrides(List.of(override));
+
+		openSearchManager.createIndex(indexName, columns, null,
+				List.of(overrideContainer), analyzers);
+		openSearchManager.waitForIndexWritable(indexName);
+
+		List<BulkOperation> operations = List.of(
+				buildBulkOp(indexName, "1", Map.of("_row_id", 1L, "_row_version", 1L, "1", "mitochondria")),
+				buildBulkOp(indexName, "2", Map.of("_row_id", 2L, "_row_version", 1L, "1", "genome")),
+				buildBulkOp(indexName, "3", Map.of("_row_id", 3L, "_row_version", 1L, "1", "microbiome")));
+		openSearchManager.bulkIndex(indexName, operations);
+
+		// Autocomplete with prefix "mit" should match "mitochondria"; "microbiome" begins
+		// with "mic", not "mit", so it must NOT match.
+		SearchQuery query = new SearchQuery();
+		query.setQueryText("mit");
+		query.setLimit(8L);
+		query.setOffset(0L);
+
+		// call under test
+		SearchQueryResults results = waitForAutocomplete(query, columns, 1);
+
+		assertNotNull(results);
+		assertTrue(results.getTotalHits() >= 1L,
+				"Autocomplete must surface 'mitochondria' for prefix 'mit'");
+		assertTrue(results.getHits().stream()
+						.flatMap(h -> h.getFields().stream())
+						.anyMatch(f -> "term".equals(f.getName()) && "mitochondria".equals(f.getValue())),
+				"Autocomplete result must include the 'mitochondria' document");
+	}
+
+	@Test
 	public void testSearchWithMatchAllQueryType() {
 		List<ColumnModel> columns = List.of(
 				new ColumnModel().setId("1").setName("name").setColumnType(ColumnType.STRING));
@@ -436,6 +595,22 @@ public class OpenSearchManagerImplAutoWiredTest {
 			}
 		});
 		assertTrue(success, "Timed out waiting for search results (expected at least " + expectedMinHits + " hits)");
+		return result[0];
+	}
+
+	private SearchQueryResults waitForAutocomplete(SearchQuery query, List<ColumnModel> columns,
+			long expectedMinHits) {
+		SearchQueryResults[] result = {null};
+		boolean success = TimeUtils.waitForExponential(POLL_MAX_MS, POLL_INTERVAL_MS, null, (v) -> {
+			try {
+				result[0] = openSearchManager.autocomplete(indexName, query, columns,
+						EnumSet.allOf(SearchQueryPart.class));
+				return result[0].getTotalHits() != null && result[0].getTotalHits() >= expectedMinHits;
+			} catch (IllegalStateException e) {
+				return false;
+			}
+		});
+		assertTrue(success, "Timed out waiting for autocomplete results (expected at least " + expectedMinHits + " hits)");
 		return result[0];
 	}
 

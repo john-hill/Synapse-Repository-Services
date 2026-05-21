@@ -950,6 +950,71 @@ public class OpenSearchManagerImplTest {
 	}
 
 	@Test
+	public void testCreateIndexHappyPathRegistersResolvedAnalyzersAndReturnsAppliedJson() throws IOException {
+		// Happy-path createIndex with a single resolved analyzer carrying owned filter +
+		// analyzer.default + analyzer.default_search entries, and one STRING column bound
+		// to that analyzer as both the index default and the column-type default. The
+		// applied JSON returned by the manager must include:
+		//   - the namespaced filter under settings.analysis.filter.{aossKey}__english_stop
+		//   - the bare reserved analyzer.default (promoted from primary's default entry)
+		//   - the bare reserved analyzer.default_search (promoted from primary's default_search)
+		//   - the field mapping for the STRING column under mappings.properties.{colId}
+		String indexName = "search-index-syn1";
+		// SCIENTIFIC is the column-type default for STRING; binding the test analyzer at that
+		// qname collapses both the index-default and column-type-default to the same registered
+		// analyzer so the per-column "was not registered" guard is satisfied.
+		String qname = "org.sagebionetworks-SCIENTIFIC";
+		String aossKey = OpenSearchManagerImpl.toAossKey(qname);
+		String settingsJson = "{"
+				+ "\"filter\":{\"english_stop\":{\"type\":\"stop\",\"stopwords\":\"_english_\"}},"
+				+ "\"analyzer\":{"
+					+ "\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\",\"filter\":[\"english_stop\"]},"
+					+ "\"default_search\":{\"type\":\"custom\",\"tokenizer\":\"keyword\"}"
+				+ "}}";
+		Map<String, JsonNode> resolvedAnalyzers = Collections.singletonMap(qname, MAPPER.readTree(settingsJson));
+
+		List<ColumnModel> columns = Collections.singletonList(
+				new ColumnModel().setId("100").setName("title").setColumnType(ColumnType.STRING));
+
+		// JsonpMapper is needed because the impl serializes the request to JSON before
+		// returning it; the validate-test pattern (transport + JacksonJsonpMapper) is the
+		// minimal stub.
+		org.opensearch.client.transport.OpenSearchTransport transport =
+				org.mockito.Mockito.mock(org.opensearch.client.transport.OpenSearchTransport.class);
+		when(openSearchClient._transport()).thenReturn(transport);
+		when(transport.jsonpMapper()).thenReturn(new org.opensearch.client.json.jackson.JacksonJsonpMapper());
+
+		when(openSearchClient.indices()).thenReturn(indicesClient);
+		org.opensearch.client.opensearch.indices.CreateIndexResponse okResponse =
+				org.opensearch.client.opensearch.indices.CreateIndexResponse.of(b -> b
+						.acknowledged(true).shardsAcknowledged(true).index(indexName));
+		ArgumentCaptor<CreateIndexRequest> requestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
+		when(indicesClient.create(requestCaptor.capture())).thenReturn(okResponse);
+
+		// call under test
+		Optional<String> appliedJson = manager.createIndex(indexName, columns, qname,
+				Collections.emptyList(), resolvedAnalyzers);
+
+		assertTrue(appliedJson.isPresent());
+		String applied = appliedJson.get();
+
+		// The applied analysis block must register the namespaced filter and surface the
+		// primary analyzer's default / default_search entries at the bare reserved keys.
+		assertTrue(applied.contains("\"" + aossKey + "__english_stop\""),
+				"Owned filter must be registered under namespaced key: " + applied);
+		assertTrue(applied.contains("\"default\""),
+				"Reserved analyzer.default must be present: " + applied);
+		assertTrue(applied.contains("\"default_search\""),
+				"Reserved analyzer.default_search must be present (asymmetric search): " + applied);
+		// The STRING column must land in the mappings.properties block under its column id.
+		assertTrue(applied.contains("\"100\""),
+				"Field mapping for the STRING column must be registered under its id: " + applied);
+
+		// And the captured request must target the right index name.
+		assertEquals(indexName, requestCaptor.getValue().index());
+	}
+
+	@Test
 	public void testCreateIndexWithOpenSearchException() throws IOException {
 		String indexName = "search-index-syn1";
 		ErrorCause inner = ErrorCause.of(b -> b

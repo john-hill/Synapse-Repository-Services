@@ -96,6 +96,7 @@ import org.sagebionetworks.table.cluster.ConnectionFactory;
 import org.sagebionetworks.table.cluster.TableIndexDAO;
 import org.sagebionetworks.table.cluster.description.IndexDescription;
 import org.sagebionetworks.table.cluster.description.MaterializedViewIndexDescription;
+import org.sagebionetworks.table.cluster.description.RecordSetIndexDescription;
 import org.sagebionetworks.table.cluster.description.TableIndexDescription;
 import org.sagebionetworks.table.cluster.description.ViewIndexDescription;
 import org.sagebionetworks.table.cluster.utils.TableModelUtils;
@@ -678,6 +679,25 @@ public class TableManagerSupportTest {
 	}
 	
 	@Test
+	public void testGetTableVersionForRecordSet() {
+		idAndVersion = IdAndVersion.parse("syn123.7");
+		when(mockNodeDao.getNodeTypeById(tableId)).thenReturn(EntityType.recordset);
+		// call under test
+		Long version = manager.getTableVersion(idAndVersion);
+		assertEquals(7L, version.longValue());
+	}
+
+	@Test
+	public void testGetTableVersionForRecordSetWithoutVersion() {
+		idAndVersion = IdAndVersion.parse("syn123");
+		when(mockNodeDao.getNodeTypeById(tableId)).thenReturn(EntityType.recordset);
+		when(mockNodeDao.getCurrentRevisionNumber("123")).thenReturn(5L);
+		// call under test
+		Long version = manager.getTableVersion(idAndVersion);
+		assertEquals(5L, version.longValue());
+	}
+
+	@Test
 	public void testGetTableVersionForUnknown() {
 		when(mockNodeDao.getNodeTypeById(tableId)).thenReturn(EntityType.folder);
 		assertThrows(IllegalArgumentException.class, ()->{
@@ -1071,6 +1091,28 @@ public class TableManagerSupportTest {
 		verifyZeroInteractions(mockMaterializedViewDao);
 	}
 	
+	@Test
+	public void testGetIndexDescriptionWithRecordSetVersioned() {
+		IdAndVersion idAndVersion = IdAndVersion.parse("syn123.5");
+		when(mockNodeDao.getNodeTypeById(any())).thenReturn(EntityType.recordset);
+		// call under test — a versioned reference targets the snapshot T{id}_{v}.
+		IndexDescription result = managerSpy.getIndexDescription(idAndVersion);
+		IndexDescription expected = new RecordSetIndexDescription(idAndVersion, 5L);
+		assertEquals(expected, result);
+	}
+
+	@Test
+	public void testGetIndexDescriptionWithRecordSetUnversioned() {
+		IdAndVersion idAndVersion = IdAndVersion.parse("syn123");
+		when(mockNodeDao.getNodeTypeById(any())).thenReturn(EntityType.recordset);
+		when(mockNodeDao.getCurrentRevisionNumber("123")).thenReturn(8L);
+		// call under test — an unversioned reference targets the entity-level T{id};
+		// the change number is the current revision for MV cache invalidation.
+		IndexDescription result = managerSpy.getIndexDescription(idAndVersion);
+		IndexDescription expected = new RecordSetIndexDescription(idAndVersion, 8L);
+		assertEquals(expected, result);
+	}
+
 	@Test
 	public void testGetIndexDescriptionWithSubmissionView() {
 		when(mockNodeDao.getNodeTypeById(any())).thenReturn(EntityType.submissionview);

@@ -45,6 +45,7 @@
     <context:component-scan base-package="org.sagebionetworks.grid.workers" annotation-config="false"/>
     <context:component-scan base-package="org.sagebionetworks.principal.worker" annotation-config="false"/>
     <context:component-scan base-package="org.sagebionetworks.search.workers" annotation-config="false"/>
+    <context:component-scan base-package="org.sagebionetworks.recordset.worker" annotation-config="false"/>
 
 	<!-- Non worker triggers that come from the repo dependencies -->
 	<import resource="classpath:external-triggers-spb.xml" />
@@ -106,6 +107,7 @@
 		<!-- workers publish messages too -->
 		<ref bean="messagePublisherTrigger" />
 		<ref bean="tableViewWorkerTrigger" />
+		<ref bean="recordSetIndexWorkerTrigger" />
 		<ref bean="tableUpdateRequestWorkerTrigger" />
 		<ref bean="entityHierarchyChangeWorkerTrigger" />
 		<ref bean="objectReplicationWorkerTrigger" />

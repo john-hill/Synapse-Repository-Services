@@ -18,16 +18,24 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.EnumSource.Mode;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.sagebionetworks.repo.manager.table.TableManagerSupport;
 import org.sagebionetworks.repo.model.EntityHeader;
+import org.sagebionetworks.repo.model.NodeDAO;
 import org.sagebionetworks.repo.model.Folder;
+import org.sagebionetworks.repo.model.ObjectType;
 import org.sagebionetworks.repo.model.Project;
 import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.UserInfo;
 import org.sagebionetworks.repo.model.dbo.schema.EntitySchemaValidationResultDao;
+import org.sagebionetworks.repo.model.entity.IdAndVersion;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
+import org.sagebionetworks.repo.model.message.ChangeType;
+import org.sagebionetworks.repo.model.message.MessageToSend;
+import org.sagebionetworks.repo.model.message.TransactionalMessenger;
 import org.sagebionetworks.repo.model.schema.ValidationSummaryStatistics;
 import org.sagebionetworks.repo.model.table.CsvTableDescriptor;
 
@@ -36,10 +44,19 @@ public class RecordSetMetadataProviderTest {
 
 	@Mock
 	private FileEntityMetadataProvider mockFileEntityMetadataProvider;
-	
+
 	@Mock
 	private EntitySchemaValidationResultDao mockValidationResultDao;
-	
+
+	@Mock
+	private TableManagerSupport mockTableManagerSupport;
+
+	@Mock
+	private TransactionalMessenger mockTransactionalMessenger;
+
+	@Mock
+	private NodeDAO mockNodeDao;
+
 	@InjectMocks
 	private RecordSetMetadataProvider recordSetMetadataProvider;
 	
@@ -155,17 +172,38 @@ public class RecordSetMetadataProviderTest {
 	public void testEntityCreated() {
 		// Call under test
 		recordSetMetadataProvider.entityCreated(userInfo, recordSet);
-	
+
 		verify(mockFileEntityMetadataProvider).entityCreated(userInfo, recordSet);
+		// Status/trigger is keyed at the unversioned IdAndVersion so unversioned
+		// queries find the index status. The factory aliases that to the current
+		// revision when building the per-version index table.
+		verify(mockTableManagerSupport).setTableToProcessingAndTriggerUpdate(
+				IdAndVersion.newBuilder().setId(123L).build());
 	}
-	
+
 	@ParameterizedTest
 	@ValueSource(booleans = {true, false})
 	public void testEntityUpdated(boolean wasNewVersionCreated) {
 		// Call under test
 		recordSetMetadataProvider.entityUpdated(userInfo, recordSet, wasNewVersionCreated);
-	
+
 		verify(mockFileEntityMetadataProvider).entityUpdated(userInfo, recordSet, wasNewVersionCreated);
+		verify(mockTableManagerSupport).setTableToProcessingAndTriggerUpdate(
+				IdAndVersion.newBuilder().setId(123L).build());
+	}
+
+	@Test
+	public void testEntityDeleted() {
+		// Call under test
+		recordSetMetadataProvider.entityDeleted("syn123");
+
+		ArgumentCaptor<MessageToSend> captor = ArgumentCaptor.forClass(MessageToSend.class);
+		verify(mockTransactionalMessenger).sendMessageAfterCommit(captor.capture());
+		MessageToSend sent = captor.getValue();
+		assertEquals("syn123", sent.getObjectId());
+		assertEquals(ObjectType.RECORDSET, sent.getObjectType());
+		assertEquals(ChangeType.DELETE, sent.getChangeType());
+		assertNull(sent.getObjectVersion());
 	}
 	
 	@ParameterizedTest

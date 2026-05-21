@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.UUID;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
@@ -23,9 +24,15 @@ import org.sagebionetworks.repo.model.RecordSet;
 import org.sagebionetworks.repo.model.file.FileHandle;
 import org.sagebionetworks.repo.model.file.FileHandleAssociateType;
 import org.sagebionetworks.repo.model.file.FileHandleAssociation;
+import org.sagebionetworks.repo.model.table.MaterializedView;
+import org.sagebionetworks.repo.model.table.Query;
+import org.sagebionetworks.repo.model.table.QueryOptions;
+import org.sagebionetworks.repo.model.table.Row;
 
 @ExtendWith(ITTestExtension.class)
 public class ITRecordSetTest {
+
+	private static final long INDEX_TIMEOUT_MS = 1000L * 60 * 5;
 
 	private SynapseAdminClient adminSynapse;
 	private SynapseClient synapse;
@@ -33,6 +40,7 @@ public class ITRecordSetTest {
 	private File csvFile;
 	private FileHandle csvFileHandle;
 	private RecordSet recordSet;
+	private MaterializedView materializedView;
 	
 	public ITRecordSetTest(SynapseAdminClient adminSynapse, SynapseClient synapse) {
 		this.adminSynapse = adminSynapse;
@@ -53,11 +61,15 @@ public class ITRecordSetTest {
 	
 	@AfterEach
 	public void after() throws Exception {
-		
+
+		if (materializedView != null) {
+			synapse.deleteEntity(materializedView, true);
+		}
+
 		if (recordSet != null) {
 			synapse.deleteEntity(recordSet, true);
 		}
-		
+
 		if (project != null){
 			synapse.deleteEntity(project, true);
 		}
@@ -83,7 +95,74 @@ public class ITRecordSetTest {
 		);
 		
 		assertEquals(FileUtils.readFileToString(csvFile, StandardCharsets.UTF_8), IOUtils.toString(url, StandardCharsets.UTF_8));
-		
+
+	}
+
+	@Test
+	public void testQueryRecordSet() throws Exception {
+		recordSet = createRecordSet(csvFileHandle.getId());
+
+		// call under test — assertions inside the consumer so AsyncJobHelper retries
+		// while the worker is still building the index.
+		queryAndAssertExpectedRows(recordSet.getId());
+	}
+
+	@Test
+	public void testQueryRecordSetByExplicitVersion() throws Exception {
+		recordSet = createRecordSet(csvFileHandle.getId());
+
+		// call under test — querying with the explicit version hits the immutable T{id}_{v} snapshot.
+		queryAndAssertExpectedRows(recordSet.getId() + "." + recordSet.getVersionNumber());
+	}
+
+	@Test
+	public void testQueryRecordSetThroughMaterializedView() throws Exception {
+		recordSet = createRecordSet(csvFileHandle.getId());
+
+		// Wait for the RecordSet index so the MV build sees rows to copy.
+		queryAndAssertExpectedRows(recordSet.getId());
+
+		materializedView = new MaterializedView()
+				.setDefiningSQL(String.format("select * from %s", recordSet.getId()))
+				.setName(UUID.randomUUID().toString())
+				.setParentId(project.getId());
+		materializedView = synapse.createEntity(materializedView);
+
+		// call under test — same retry posture for the MV build.
+		queryAndAssertExpectedRows(materializedView.getId());
+	}
+
+	private RecordSet createRecordSet(String dataFileHandleId) throws SynapseException {
+		RecordSet rs = new RecordSet();
+		rs.setParentId(project.getId());
+		rs.setName(UUID.randomUUID().toString());
+		rs.setUpsertKey(List.of("a"));
+		rs.setDataFileHandleId(dataFileHandleId);
+		return synapse.createEntity(rs);
+	}
+
+	/**
+	 * Queries the given table/MV with retries: docs/test.csv has two data rows
+	 * ("1,2,3" and "4,5,6") after the header. Assertions live inside the consumer
+	 * so AsyncJobHelper restarts the async query until the worker has built the
+	 * index (or the timeout expires).
+	 */
+	private void queryAndAssertExpectedRows(String tableId) throws Exception {
+		Query query = new Query().setSql("select * from " + tableId);
+		QueryOptions options = new QueryOptions().withMask((long) SynapseClient.QUERY_PARTMASK);
+		AsyncJobHelper.assertQueryBundleResults(
+				synapse,
+				tableId,
+				query,
+				options,
+				bundle -> {
+					List<Row> rows = bundle.getQueryResult().getQueryResults().getRows();
+					assertEquals(2, rows.size());
+					assertEquals(List.of("1", "2", "3"), rows.get(0).getValues());
+					assertEquals(List.of("4", "5", "6"), rows.get(1).getValues());
+				},
+				INDEX_TIMEOUT_MS,
+				AsyncJobHelper.INFINITE_RETRIES);
 	}
 
 }

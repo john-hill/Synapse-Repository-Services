@@ -12,6 +12,7 @@ import org.sagebionetworks.asynchronous.workers.concurrent.ConcurrentWorkerStack
 import org.sagebionetworks.database.semaphore.CountingSemaphore;
 import org.sagebionetworks.file.worker.FileHandleStreamWorker;
 import org.sagebionetworks.grid.workers.GridSessionIndexWorker;
+import org.sagebionetworks.recordset.worker.RecordSetIndexWorker;
 import org.sagebionetworks.replication.workers.ObjectReplicationReconciliationWorker;
 import org.sagebionetworks.replication.workers.ObjectReplicationWorker;
 import org.sagebionetworks.repo.model.ObjectType;
@@ -121,6 +122,29 @@ public class ChangeMessageWorkersConfig {
 			.build();
 	}
 	
+	@Bean
+	public SimpleTriggerFactoryBean recordSetIndexWorkerTrigger(RecordSetIndexWorker recordSetIndexWorker) {
+
+		String queueName = stackConfig.getQueueName("RECORDSET_UPDATE");
+		MessageDrivenRunner worker = new ChangeMessageBatchProcessor(amazonSQSClient, queueName, recordSetIndexWorker);
+
+		return new WorkerTriggerBuilder()
+			.withStack(ConcurrentWorkerStack.builder()
+				.withSemaphoreLockKey("recordSetIndexWorker")
+				.withSemaphoreMaxLockCount(10)
+				.withSemaphoreLockAndMessageVisibilityTimeoutSec(1200)
+				.withMaxThreadsPerMachine(3)
+				.withSingleton(concurrentStackManager)
+				.withCanRunInReadOnly(true)
+				.withQueueName(queueName)
+				.withWorker(worker)
+				.build()
+			)
+			.withRepeatInterval(1733)
+			.withStartDelay(311)
+			.build();
+	}
+
 	@Bean
 	public SimpleTriggerFactoryBean tableViewWorkerTrigger(TableViewWorker tableViewWorker) {
 		

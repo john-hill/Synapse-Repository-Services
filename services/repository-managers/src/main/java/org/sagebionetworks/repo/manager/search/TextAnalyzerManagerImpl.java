@@ -36,6 +36,23 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 
 	private static final String MSG_UNAUTHORIZED = "Only Sage Bionetworks employees can manage text analyzers.";
 
+	/**
+	 * The required entry name inside a TextAnalyzer's inner {@code analyzer} map. Field
+	 * mappings and {@code SearchConfiguration.defaultAnalyzer} resolve a bare qualified
+	 * name to this entry; OpenSearch promotes it to the index's reserved
+	 * {@code analysis.analyzer.default} slot when the TextAnalyzer is the configuration's
+	 * primary.
+	 */
+	public static final String DEFAULT_ANALYZER_KEY = "default";
+
+	/**
+	 * The optional entry name inside a TextAnalyzer's inner {@code analyzer} map for
+	 * asymmetric search analysis. When present alongside {@link #DEFAULT_ANALYZER_KEY},
+	 * the configuration's primary TextAnalyzer also promotes it to the index's reserved
+	 * {@code analysis.analyzer.default_search} slot.
+	 */
+	public static final String DEFAULT_SEARCH_ANALYZER_KEY = "default_search";
+
 	private final TextAnalyzerDao textAnalyzerDao;
 	private final AccessControlListDAO aclDao;
 	private final OrganizationDao organizationDao;
@@ -59,7 +76,7 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		ValidateArgument.required(analyzer, "analyzer");
 		ValidateArgument.requiredNotBlank(analyzer.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(analyzer.getName(), "name");
-		ValidateArgument.requiredNotBlank(analyzer.getSettings(), "settings");
+		ValidateArgument.required(analyzer.getSettings(), "settings");
 		SearchResourceConstants.validateResourceName(analyzer.getName());
 
 		AuthorizationUtils.disallowAnonymous(user);
@@ -92,7 +109,7 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		ValidateArgument.requiredNotBlank(analyzer.getId(), "id");
 		ValidateArgument.requiredNotBlank(analyzer.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(analyzer.getName(), "name");
-		ValidateArgument.requiredNotBlank(analyzer.getSettings(), "settings");
+		ValidateArgument.required(analyzer.getSettings(), "settings");
 		SearchResourceConstants.validateResourceName(analyzer.getName());
 
 		AuthorizationUtils.disallowAnonymous(user);
@@ -181,8 +198,8 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 	 * additional TextAnalyzer records, which are themselves shareable across
 	 * SearchConfigurations.</p>
 	 */
-	private void validateSettings(String settingsJson) {
-		JsonNode root = SearchAnalyzerJsonUtil.parse(settingsJson);
+	void validateSettings(Object settings) {
+		JsonNode root = SearchOpaqueJsonUtil.parse(settings);
 		// Enforce one-record-one-analyzer: only `default` and (optionally) `default_search`
 		// may appear inside the inner `analyzer` map. Any other key would be registered
 		// into AOSS but unreachable from a binding (SearchConfiguration / ColumnAnalyzerOverride
@@ -194,21 +211,21 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		if (analyzerMap != null && analyzerMap.isObject()) {
 			Set<String> rejected = new LinkedHashSet<>();
 			analyzerMap.fieldNames().forEachRemaining(key -> {
-				if (!SearchAnalyzerJsonUtil.DEFAULT_ANALYZER_KEY.equals(key)
-						&& !SearchAnalyzerJsonUtil.DEFAULT_SEARCH_ANALYZER_KEY.equals(key)) {
+				if (!DEFAULT_ANALYZER_KEY.equals(key)
+						&& !DEFAULT_SEARCH_ANALYZER_KEY.equals(key)) {
 					rejected.add(key);
 				}
 			});
 			if (!rejected.isEmpty()) {
 				throw new IllegalArgumentException(
 						"settings.analyzer must declare only '"
-								+ SearchAnalyzerJsonUtil.DEFAULT_ANALYZER_KEY
+								+ DEFAULT_ANALYZER_KEY
 								+ "' (and optionally '"
-								+ SearchAnalyzerJsonUtil.DEFAULT_SEARCH_ANALYZER_KEY
+								+ DEFAULT_SEARCH_ANALYZER_KEY
 								+ "'); rejected: " + rejected);
 			}
 		}
-		Set<String> refs = SearchAnalyzerJsonUtil.collectRefs(root);
+		Set<String> refs = SearchOpaqueJsonUtil.collectRefs(root);
 		for (String qname : refs) {
 			SearchResourceConstants.validateQualifiedNameFormat(qname, "$ref");
 		}
@@ -224,11 +241,11 @@ public class TextAnalyzerManagerImpl implements TextAnalyzerManager {
 		// real component-shape / chain-ordering check. Curators get a synchronous wire-side
 		// rejection at create/update time instead of an async FAILED state on the first
 		// SearchIndex build that happens to use this analyzer.
-		IndexSettingsAnalysis resolved = SearchAnalyzerJsonUtil.resolveRefs(root, qname -> {
+		IndexSettingsAnalysis resolved = SearchOpaqueJsonUtil.resolveAnalyzerSettings(root, qname -> {
 			Map<String, SynonymSet> map = synonymSetDao.getByQualifiedNames(
 					Collections.singletonList(qname));
 			SynonymSet ss = map.get(qname);
-			return ss == null ? null : SearchAnalyzerJsonUtil.parse(ss.getDefinition());
+			return ss == null ? null : SearchOpaqueJsonUtil.parse(ss.getDefinition());
 		});
 		openSearchManager.validateAnalyzerSettings(resolved);
 	}

@@ -149,4 +149,32 @@ public class ColumnTypeToOpenSearchMappingTest {
 				ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(ColumnType.JSON));
 	}
 
+	@ParameterizedTest(name = "{0} numeric={1}")
+	@MethodSource("numericTypeProvider")
+	void testIsNumericTypeParameterized(ColumnType type, boolean expected) {
+		assertEquals(expected, ColumnTypeToOpenSearchMapping.isNumericType(type));
+	}
+
+	static Stream<Arguments> numericTypeProvider() {
+		// Cover the LONG-yes / DOUBLE-yes / other-no branches of isNumericType in one source.
+		return Stream.of(
+			Arguments.of(ColumnType.INTEGER, true),
+			Arguments.of(ColumnType.DATE, true),
+			Arguments.of(ColumnType.DOUBLE, true),
+			Arguments.of(ColumnType.STRING, false),
+			Arguments.of(ColumnType.JSON, false),
+			Arguments.of(ColumnType.BOOLEAN, false));
+	}
+
+	@Test
+	void testGetInfoForTypeWithNullThrows() {
+		// Defensive: a null ColumnType (degenerate input) walks through every enum entry's
+		// equals() check, never matches, and falls through to the unknown-type IAE. This is the
+		// only practical way to exercise the throw at the bottom of getInfoForType — every
+		// declared ColumnType value has a mapping.
+		IllegalArgumentException ex = org.junit.jupiter.api.Assertions.assertThrows(
+				IllegalArgumentException.class,
+				() -> ColumnTypeToOpenSearchMapping.getInfoForType(null));
+		assertTrue(ex.getMessage().contains("Unknown ColumnType"));
+	}
 }

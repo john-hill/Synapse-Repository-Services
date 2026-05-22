@@ -400,7 +400,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		admin.setId(1L);
 		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry()
 			.setColumnName("myCol")
-			.setAnalyzer("noHyphenHere");
+			.setAnalyzer(java.util.Map.of("$ref", "noHyphenHere"));
 		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride()
 			.setOrganizationName("test-org").setName("MyOverride")
 			.setOverrides(Arrays.asList(entry));
@@ -417,7 +417,7 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		admin.setId(1L);
 		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry()
 			.setColumnName("myCol")
-			.setAnalyzer("org.sagebionetworks-MISSING");
+			.setAnalyzer(java.util.Map.of("$ref", "org.sagebionetworks-MISSING"));
 		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride()
 			.setOrganizationName("test-org").setName("MyOverride")
 			.setOverrides(Arrays.asList(entry));
@@ -428,5 +428,141 @@ public class ColumnAnalyzerOverrideManagerImplTest {
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> manager.create(admin, request));
 		assertTrue(ex.getMessage().contains("text analyzer names do not exist"));
 		verify(columnAnalyzerOverrideDao, never()).create(anyLong(), any());
+	}
+
+	// --- validateEntryAnalyzerNames: inline-or-$ref edge branches ---
+
+	@Test
+	public void testCreateWithEmptyOverridesListSkipsValidation() {
+		// Empty overrides[] short-circuits the validator entirely — no DAO call to verify
+		// existence, no shape conversion. The DAO create still proceeds.
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride()
+				.setOrganizationName("test-org").setName("MyOverride")
+				.setOverrides(java.util.Collections.emptyList());
+		when(columnAnalyzerOverrideDao.create(eq(1L), any())).thenReturn(request.setId("1"));
+
+		// call under test
+		manager.create(admin, request);
+
+		verifyZeroInteractions(textAnalyzerDao);
+		verify(columnAnalyzerOverrideDao).create(eq(1L), any());
+	}
+
+	@Test
+	public void testCreateWithNullEntryAnalyzerIsSkipped() {
+		// An entry with no analyzer at all is a degenerate but not invalid shape — the validator
+		// silently skips it rather than NPE on SearchOpaqueJsonUtil.readRef. The DAO create proceeds.
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry()
+				.setColumnName("myCol").setAnalyzer(null);
+		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride()
+				.setOrganizationName("test-org").setName("MyOverride")
+				.setOverrides(Arrays.asList(entry));
+		when(columnAnalyzerOverrideDao.create(eq(1L), any())).thenReturn(request.setId("1"));
+
+		// call under test
+		manager.create(admin, request);
+
+		verifyZeroInteractions(textAnalyzerDao);
+	}
+
+	@Test
+	public void testCreateWithInlineAnalyzerLiteralIsConvertedNotLookedUp() {
+		// An inline analyzer literal must round-trip through the typed deserializer (shape
+		// validation) but no DAO existence check fires — inline literals are ephemeral.
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		java.util.Map<String, Object> inlineAnalyzer = java.util.Map.of(
+				"analyzer", java.util.Map.of("default",
+						java.util.Map.of("type", "custom", "tokenizer", "standard")));
+		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry()
+				.setColumnName("myCol").setAnalyzer(inlineAnalyzer);
+		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride()
+				.setOrganizationName("test-org").setName("MyOverride")
+				.setOverrides(Arrays.asList(entry));
+		when(columnAnalyzerOverrideDao.create(eq(1L), any())).thenReturn(request.setId("1"));
+
+		// call under test
+		manager.create(admin, request);
+
+		verifyZeroInteractions(textAnalyzerDao);
+		verify(columnAnalyzerOverrideDao).create(eq(1L), any());
+	}
+
+	@Test
+	public void testCreateWithMixOfRefAndInlineOnlyChecksRefs() {
+		// One ref + one inline literal: the validator collects only the ref qname into
+		// findNonExistentNames; the inline shape is converted but not looked up.
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		ColumnAnalyzerOverrideEntry refEntry = new ColumnAnalyzerOverrideEntry()
+				.setColumnName("c1").setAnalyzer(java.util.Map.of("$ref", "biomed-FOO"));
+		ColumnAnalyzerOverrideEntry inlineEntry = new ColumnAnalyzerOverrideEntry()
+				.setColumnName("c2").setAnalyzer(java.util.Map.of(
+						"analyzer", java.util.Map.of("default",
+								java.util.Map.of("type", "custom", "tokenizer", "standard"))));
+		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride()
+				.setOrganizationName("test-org").setName("MyOverride")
+				.setOverrides(Arrays.asList(refEntry, inlineEntry));
+		when(textAnalyzerDao.findNonExistentNames(Arrays.asList("biomed-FOO")))
+				.thenReturn(java.util.Collections.emptyList());
+		when(columnAnalyzerOverrideDao.create(eq(1L), any())).thenReturn(request.setId("1"));
+
+		// call under test
+		manager.create(admin, request);
+
+		verify(textAnalyzerDao).findNonExistentNames(Arrays.asList("biomed-FOO"));
+	}
+
+	@Test
+	public void testCreateWithAllInlineEntriesSkipsTextAnalyzerDao() {
+		// When every entry is inline there are no qnames to look up, so the validator never
+		// calls findNonExistentNames at all (covers the L175 empty-qualifiedNames branch).
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		java.util.Map<String, Object> inline = java.util.Map.of(
+				"analyzer", java.util.Map.of("default",
+						java.util.Map.of("type", "custom", "tokenizer", "standard")));
+		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry()
+				.setColumnName("c1").setAnalyzer(inline);
+		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride()
+				.setOrganizationName("test-org").setName("MyOverride")
+				.setOverrides(Arrays.asList(entry));
+		when(columnAnalyzerOverrideDao.create(eq(1L), any())).thenReturn(request.setId("1"));
+
+		// call under test
+		manager.create(admin, request);
+
+		verifyZeroInteractions(textAnalyzerDao);
+	}
+
+	@Test
+	public void testCreateWithMalformedInlineAnalyzerThrows() {
+		// The inline analyzer literal must round-trip through the OpenSearch typed
+		// deserializer; an unknown filter type is rejected at create time before
+		// the DAO is touched.
+		UserInfo admin = new UserInfo(true);
+		admin.setId(1L);
+		java.util.Map<String, Object> malformed = java.util.Map.of(
+				"filter", java.util.Map.of("bogus", java.util.Map.of("type", "this_filter_does_not_exist")),
+				"analyzer", java.util.Map.of("default",
+						java.util.Map.of("type", "custom", "tokenizer", "standard",
+								"filter", java.util.List.of("bogus"))));
+		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry()
+				.setColumnName("c1").setAnalyzer(malformed);
+		ColumnAnalyzerOverride request = new ColumnAnalyzerOverride()
+				.setOrganizationName("test-org").setName("MyOverride")
+				.setOverrides(Arrays.asList(entry));
+
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				// call under test
+				() -> manager.create(admin, request));
+		assertTrue(ex.getMessage().contains("analyzer settings"),
+				"expected typed-deserializer rejection, got: " + ex.getMessage());
+		verifyZeroInteractions(textAnalyzerDao);
+		verifyZeroInteractions(columnAnalyzerOverrideDao);
 	}
 }

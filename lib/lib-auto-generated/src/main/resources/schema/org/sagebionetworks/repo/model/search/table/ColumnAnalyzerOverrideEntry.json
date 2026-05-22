@@ -6,8 +6,8 @@
 			"description": "The name of the column to override. Silently skipped at index-build time if the column is not present in the target SearchIndex's schema — a single override bundle can therefore be applied across several indexes that share some column names."
 		},
 		"analyzer": {
-			"type": "string",
-			"description": "Qualified name ('{organizationName}-{name}') of the TextAnalyzer to use for this column. The TextAnalyzer's <code>analyzer.default</code> entry is bound at index time; if it also declares <code>analyzer.default_search</code>, that entry is bound at search time."
+			"type": "object",
+			"description": "<p>The analyzer to use for this column. Either a reference to a saved TextAnalyzer (preferred &mdash; supports reuse) written as <code>{\"$ref\": \"{organizationName}-{name}\"}</code>, or an inline analyzer literal pasted directly.</p><p><b>$ref form:</b></p><pre><code>\"analyzer\": { \"$ref\": \"biomed-acronym_exact\" }</code></pre><p><b>Inline form</b> &mdash; the bare OpenSearch <code>settings.analysis</code> block (same shape as a TextAnalyzer record's <code>settings</code> field, with no surrounding identity / audit fields and no outer <code>settings</code> wrapper). Allowed root keys are <code>char_filter</code>, <code>tokenizer</code>, <code>filter</code>, and <code>analyzer</code>. The inner <code>analyzer</code> map must declare <code>default</code> (required), and may optionally declare <code>default_search</code> for asymmetric search-time analysis. Refs to SynonymSets are not permitted inside an inline analyzer literal &mdash; save a TextAnalyzer and reference it by qualified name to use synonyms.</p><pre><code>\"analyzer\": {\n  \"analyzer\": {\n    \"default\": {\n      \"type\": \"custom\",\n      \"tokenizer\": \"keyword\",\n      \"filter\": [\"lowercase\"]\n    }\n  }\n}</code></pre><p>The analyzer's <code>analyzer.default</code> entry is bound at index time; if it also declares <code>analyzer.default_search</code>, that entry is bound at search time.</p>"
 		}
 	}
 }

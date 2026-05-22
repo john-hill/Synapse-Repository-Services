@@ -3,6 +3,7 @@ package org.sagebionetworks.repo.manager.search;
 import java.util.Arrays;
 import java.util.Optional;
 
+import org.json.JSONObject;
 import org.opensearch.client.opensearch._types.analysis.Analyzer;
 import org.opensearch.client.opensearch._types.analysis.TokenFilter;
 import org.opensearch.client.opensearch._types.analysis.TokenFilterDefinition;
@@ -181,17 +182,19 @@ public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 
 	/**
 	 * Serialize a typed analyzer to its persisted JSON form using
-	 * {@link IndexSettingsAnalysis#toJsonString()}, the default method on
-	 * {@code PlainJsonSerializable}.
+	 * {@link IndexSettingsAnalysis#toJsonString()} (default method on
+	 * {@code PlainJsonSerializable}), then wrap as a {@link JSONObject} so the
+	 * opaque-Object {@code settings} field carries a JSON object &mdash; not an encoded
+	 * scalar string.
 	 */
 	private TextAnalyzer buildAnalyzer(String name, String description, IndexSettingsAnalysis settings) {
 		return new TextAnalyzer()
 				.setName(name)
 				.setDescription(description)
-				.setSettings(settings.toJsonString());
+				.setSettings(new JSONObject(settings.toJsonString()));
 	}
 
-	@TemporaryCode(author = "BryanFauble", comment = "Remove after every stack has been redeployed and the legacy AUTOCOMPLETE_SEARCH row from before AUTOCOMPLETE absorbed default_search no longer arrives. The name check guards the id from being clobbered if the slot is later reclaimed.")
+	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Remove after every stack has been redeployed and the legacy AUTOCOMPLETE_SEARCH row from before AUTOCOMPLETE absorbed default_search no longer arrives. The name check guards the id from being clobbered if the slot is later reclaimed.")
 	private void dropLegacyAutocompleteSearchAnalyzer() {
 		Optional<TextAnalyzer> existing = textAnalyzerDao.get(LEGACY_AUTOCOMPLETE_SEARCH_ID);
 		if (existing.isPresent() && LEGACY_AUTOCOMPLETE_SEARCH_NAME.equals(existing.get().getName())) {
@@ -199,9 +202,9 @@ public class TextAnalyzerBootstrapper implements TextAnalyzerBootstrap {
 		}
 	}
 
-	@TemporaryCode(author = "BryanFauble", comment = "Remove alongside dropLegacyAutocompleteSearchAnalyzer.")
+	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Remove alongside dropLegacyAutocompleteSearchAnalyzer.")
 	private static final long LEGACY_AUTOCOMPLETE_SEARCH_ID = 6L;
-	@TemporaryCode(author = "BryanFauble", comment = "Remove alongside dropLegacyAutocompleteSearchAnalyzer.")
+	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Remove alongside dropLegacyAutocompleteSearchAnalyzer.")
 	private static final String LEGACY_AUTOCOMPLETE_SEARCH_NAME = "AUTOCOMPLETE_SEARCH";
 
 }

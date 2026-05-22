@@ -599,4 +599,132 @@ public class TextAnalyzerManagerImplTest {
 		verifyZeroInteractions(textAnalyzerDao);
 		verifyZeroInteractions(openSearchManager);
 	}
+
+	// --- validateSettings (package-private): direct branch coverage ---
+
+	@Test
+	public void testValidateSettingsWithMapInputAcceptsParsedTree() {
+		// settings field is now schema-typed as Object; the manager must accept already-parsed
+		// Map values exactly as it accepts JSON-string values.
+		java.util.Map<String, Object> analyzer = java.util.Map.of(
+				"default", java.util.Map.of("type", "custom", "tokenizer", "standard"));
+		java.util.Map<String, Object> settings = java.util.Map.of("analyzer", analyzer);
+
+		// call under test
+		manager.validateSettings(settings);
+
+		verify(openSearchManager).validateAnalyzerSettings(any());
+	}
+
+	@Test
+	public void testValidateSettingsWithoutAnalyzerKeyDelegatesToOpenSearch() {
+		// The manager only enforces sibling-key restrictions when the analyzer map is present;
+		// absence of analyzer is the OpenSearch validator's domain.
+		manager.validateSettings("{\"filter\":{}}");
+
+		verify(openSearchManager).validateAnalyzerSettings(any());
+	}
+
+	@Test
+	public void testValidateSettingsCollectsRefsAndChecksSynonymSetExistence() {
+		// $ref entries inside settings.filter must format-validate and resolve to existing
+		// SynonymSets. A present target is OK; the manager forwards to OpenSearchManager.
+		when(synonymSetDao.findNonExistentNames(Arrays.asList("biomed-medical_terms")))
+				.thenReturn(Collections.emptyList());
+		when(synonymSetDao.getByQualifiedNames(Collections.singletonList("biomed-medical_terms")))
+				.thenReturn(java.util.Map.of("biomed-medical_terms",
+						new SynonymSet().setDefinition("{\"type\":\"synonym_graph\",\"synonyms\":[]}")));
+
+		// call under test
+		manager.validateSettings(SETTINGS_WITH_REF);
+
+		verify(openSearchManager).validateAnalyzerSettings(any());
+	}
+
+	@Test
+	public void testValidateSettingsWithMissingSynonymSetRejects() {
+		when(synonymSetDao.findNonExistentNames(Arrays.asList("biomed-medical_terms")))
+				.thenReturn(Arrays.asList("biomed-medical_terms"));
+
+		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+				() -> manager.validateSettings(SETTINGS_WITH_REF));
+
+		assertTrue(ex.getMessage().contains("biomed-medical_terms"), ex.getMessage());
+		// OpenSearch shouldn't be hit when a $ref already failed to resolve.
+		verify(openSearchManager, never()).validateAnalyzerSettings(any());
+	}
+
+	@Test
+	public void testValidateSettingsWithoutAnalyzerMapDelegatesToOpenSearch() {
+		// settings without an analyzer map at all (only filters) skips the sibling-key check
+		// entirely and goes straight to the typed deserializer + OpenSearch validation.
+		manager.validateSettings("{\"filter\":{\"x\":{\"type\":\"stop\",\"stopwords\":\"_english_\"}}}");
+
+		verify(openSearchManager).validateAnalyzerSettings(any());
+	}
+
+	@Test
+	public void testValidateSettingsWithNonObjectAnalyzerNodeSkipsSiblingCheck() {
+		// If `analyzer` is present but not an object (curator typo: a string instead), the
+		// sibling-key guard short-circuits and the typed deserializer surfaces the shape
+		// error rather than this manager's reject-extra-keys path. The point of this test is
+		// to exercise the `analyzerMap != null && !analyzerMap.isObject()` half of L196.
+		assertThrows(IllegalArgumentException.class,
+				() -> manager.validateSettings("{\"analyzer\":\"not_an_object\"}"));
+		verify(openSearchManager, never()).validateAnalyzerSettings(any());
+	}
+
+	// --- Admin bypass of org-ACL check (parameterized): update/delete/create ---
+
+	private static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> adminMutationActions() {
+		return java.util.stream.Stream.of(
+				org.junit.jupiter.params.provider.Arguments.of("create"),
+				org.junit.jupiter.params.provider.Arguments.of("update"),
+				org.junit.jupiter.params.provider.Arguments.of("delete"));
+	}
+
+	@org.junit.jupiter.params.ParameterizedTest(name = "{0} as admin skips ACL")
+	@org.junit.jupiter.params.provider.MethodSource("adminMutationActions")
+	public void testAdminBypassesOrgAclOnMutation(String action) {
+		// Admin users bypass the per-org ACL check (the !user.isAdmin() guard at L114/L138 in
+		// update/delete and the parallel guard in create). One parameterized test covers every
+		// mutation path rather than three near-identical case bodies.
+		UserInfo admin = new UserInfo(true);
+		admin.setId(2L);
+		admin.setGroups(Set.of(2L));
+
+		switch (action) {
+			case "create": {
+				TextAnalyzer input = new TextAnalyzer()
+						.setOrganizationName("test-org").setName("test").setSettings(VALID_SETTINGS);
+				when(textAnalyzerDao.create(any(), eq(2L))).thenReturn(input.setId("1"));
+				manager.create(admin, input);
+				verifyZeroInteractions(aclDao);
+				verify(textAnalyzerDao).create(any(), eq(2L));
+				break;
+			}
+			case "update": {
+				TextAnalyzer existing = new TextAnalyzer().setId("1")
+						.setOrganizationName("test-org").setName("test").setSettings(VALID_SETTINGS);
+				TextAnalyzer input = new TextAnalyzer().setId("1")
+						.setOrganizationName("test-org").setName("test").setSettings(VALID_SETTINGS);
+				when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(existing));
+				when(textAnalyzerDao.update(any(), eq(2L))).thenReturn(input);
+				manager.update(admin, input);
+				verifyZeroInteractions(aclDao);
+				verify(textAnalyzerDao).update(any(), eq(2L));
+				break;
+			}
+			case "delete": {
+				TextAnalyzer existing = new TextAnalyzer().setId("1")
+						.setOrganizationName("test-org").setName("test").setSettings(VALID_SETTINGS);
+				when(textAnalyzerDao.get(1L)).thenReturn(Optional.of(existing));
+				manager.delete(admin, 1L);
+				verifyZeroInteractions(aclDao);
+				verify(textAnalyzerDao).delete(1L);
+				break;
+			}
+			default: throw new AssertionError("unhandled action: " + action);
+		}
+	}
 }

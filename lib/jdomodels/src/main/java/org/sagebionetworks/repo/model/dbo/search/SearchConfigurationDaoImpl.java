@@ -26,7 +26,6 @@ import java.util.Optional;
 import org.sagebionetworks.ids.IdGenerator;
 import org.sagebionetworks.ids.IdType;
 import org.sagebionetworks.repo.model.ConflictingUpdateException;
-import org.sagebionetworks.repo.model.jdo.JDOSecondaryPropertyUtils;
 import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
 import org.sagebionetworks.repo.model.search.table.SearchConfiguration;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
@@ -41,6 +40,9 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 
+	private static final String DEFAULT_ANALYZER_FIELD = "SearchConfiguration.defaultAnalyzer";
+	private static final String OVERRIDES_FIELD = "SearchConfiguration.columnAnalyzerOverrides";
+
 	private static final RowMapper<SearchConfiguration> ROW_MAPPER = (ResultSet rs, int rowNum) -> {
 		SearchConfiguration config = new SearchConfiguration();
 		config.setId(String.valueOf(rs.getLong(COL_SEARCH_CONFIG_ID)));
@@ -48,8 +50,10 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 		config.setOrganizationName(rs.getString(COL_SEARCH_CONFIG_ORGANIZATION_NAME));
 		config.setName(rs.getString(COL_SEARCH_CONFIG_NAME));
 		config.setDescription(rs.getString(COL_SEARCH_CONFIG_DESCRIPTION));
-		config.setDefaultAnalyzer(rs.getString(COL_SEARCH_CONFIG_DEFAULT_ANALYZER));
-		config.setColumnAnalyzerOverrides(JDOSecondaryPropertyUtils.readJsonToStringList(rs.getString(COL_SEARCH_CONFIG_COL_ANALYZER_OVERRIDES)));
+		config.setDefaultAnalyzer(OpaqueJsonColumnCodecUtil.deserialize(
+				rs.getString(COL_SEARCH_CONFIG_DEFAULT_ANALYZER), DEFAULT_ANALYZER_FIELD));
+		config.setColumnAnalyzerOverrides(OpaqueJsonColumnCodecUtil.deserializeList(
+				rs.getString(COL_SEARCH_CONFIG_COL_ANALYZER_OVERRIDES), OVERRIDES_FIELD));
 		config.setCreatedBy(String.valueOf(rs.getLong(COL_SEARCH_CONFIG_CREATED_BY)));
 		config.setCreatedOn(new Date(rs.getTimestamp(COL_SEARCH_CONFIG_CREATED_ON).getTime()));
 		config.setModifiedBy(String.valueOf(rs.getLong(COL_SEARCH_CONFIG_MODIFIED_BY)));
@@ -96,8 +100,8 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 					config.getOrganizationName(),
 					config.getName(),
 					config.getDescription(),
-					config.getDefaultAnalyzer(),
-					JDOSecondaryPropertyUtils.writeStringListToJson(config.getColumnAnalyzerOverrides()),
+					OpaqueJsonColumnCodecUtil.serialize(config.getDefaultAnalyzer(), DEFAULT_ANALYZER_FIELD),
+					OpaqueJsonColumnCodecUtil.serialize(config.getColumnAnalyzerOverrides(), OVERRIDES_FIELD),
 					createdBy,
 					createdBy
 			);
@@ -144,8 +148,8 @@ public class SearchConfigurationDaoImpl implements SearchConfigurationDao {
 					+ " MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
 					config.getName(),
 					config.getDescription(),
-					config.getDefaultAnalyzer(),
-					JDOSecondaryPropertyUtils.writeStringListToJson(config.getColumnAnalyzerOverrides()),
+					OpaqueJsonColumnCodecUtil.serialize(config.getDefaultAnalyzer(), DEFAULT_ANALYZER_FIELD),
+					OpaqueJsonColumnCodecUtil.serialize(config.getColumnAnalyzerOverrides(), OVERRIDES_FIELD),
 					modifiedBy,
 					id
 			);

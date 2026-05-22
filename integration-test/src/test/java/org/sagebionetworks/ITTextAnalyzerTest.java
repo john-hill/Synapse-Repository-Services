@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.UUID;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,9 +21,19 @@ import org.sagebionetworks.repo.model.search.table.TextAnalyzer;
 @ExtendWith(ITTestExtension.class)
 public class ITTextAnalyzerTest {
 
-	private static final String STANDARD_SETTINGS =
-			"{\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\","
-			+ "\"filter\":[\"lowercase\"]}}}";
+	/**
+	 * Java callers build settings as native JSON objects via {@link JSONObject} /
+	 * {@link JSONArray} — never as pre-stringified JSON. The wire deserializer surfaces
+	 * the same shape on the other side.
+	 */
+	private static JSONObject standardSettings() {
+		return new JSONObject().put(
+				"analyzer", new JSONObject().put(
+						"default", new JSONObject()
+								.put("type", "custom")
+								.put("tokenizer", "standard")
+								.put("filter", new JSONArray().put("lowercase"))));
+	}
 
 	private final SynapseAdminClient adminSynapse;
 
@@ -50,7 +62,7 @@ public class ITTextAnalyzerTest {
 		toCreate.setName("IT_TEST_ANALYZER_" + UUID.randomUUID().toString().replace("-", ""));
 		toCreate.setDescription("Integration test analyzer");
 		toCreate.setOrganizationName(orgName);
-		toCreate.setSettings(STANDARD_SETTINGS);
+		toCreate.setSettings(standardSettings());
 
 		// call under test
 		TextAnalyzer created = adminSynapse.createTextAnalyzer(toCreate);
@@ -90,12 +102,19 @@ public class ITTextAnalyzerTest {
 		SynonymSet syn = adminSynapse.createSynonymSet(new SynonymSet()
 				.setOrganizationName(orgName)
 				.setName("IT_TEST_SYN_" + unique)
-				.setDefinition("{\"type\":\"synonym_graph\",\"synonyms\":[\"a, b\"]}"));
+				.setDefinition(new JSONObject()
+						.put("type", "synonym_graph")
+						.put("synonyms", new JSONArray().put("a, b"))));
 		String synQname = orgName + "-" + syn.getName();
 
-		String settings = "{\"filter\":{\"my_syn\":{\"$ref\":\"" + synQname + "\"}},"
-				+ "\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\","
-				+ "\"filter\":[\"lowercase\",\"my_syn\"]}}}";
+		JSONObject settings = new JSONObject()
+				.put("filter", new JSONObject()
+						.put("my_syn", new JSONObject().put("$ref", synQname)))
+				.put("analyzer", new JSONObject()
+						.put("default", new JSONObject()
+								.put("type", "custom")
+								.put("tokenizer", "standard")
+								.put("filter", new JSONArray().put("lowercase").put("my_syn"))));
 
 		TextAnalyzer toCreate = new TextAnalyzer()
 				.setOrganizationName(orgName)
@@ -106,8 +125,9 @@ public class ITTextAnalyzerTest {
 		TextAnalyzer created = adminSynapse.createTextAnalyzer(toCreate);
 
 		assertNotNull(created.getId());
-		// MySQL JSON columns may reformat whitespace; compare semantically.
+		// JSONObject.equals isn't value-based, so compare semantically via Jackson.
 		com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-		assertEquals(mapper.readTree(settings), mapper.readTree(created.getSettings()));
+		assertEquals(mapper.readTree(settings.toString()),
+				mapper.readTree(String.valueOf(created.getSettings())));
 	}
 }

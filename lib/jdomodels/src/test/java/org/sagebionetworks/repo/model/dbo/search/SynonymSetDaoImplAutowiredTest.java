@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,11 +30,20 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 @ContextConfiguration(locations = { "classpath:jdomodels-test-context.xml" })
 public class SynonymSetDaoImplAutowiredTest {
 
-	// MySQL JSON columns normalize whitespace and reorder keys by length, then lexicographically.
-	private static final String EQUIVALENT_DEFINITION =
-			"{\"type\": \"synonym_graph\", \"synonyms\": [\"cancer, tumor, neoplasm\"]}";
-	private static final String EXPLICIT_DEFINITION =
-			"{\"type\": \"synonym_graph\", \"expand\": true, \"lenient\": false, \"synonyms\": [\"AD => Alzheimer's disease\"]}";
+	// Java callers build JSON objects directly — no String/escape ceremonies. The DAO
+	// surfaces the persisted value as a JSONObject on the way back out.
+	private static JSONObject equivalentDefinition() {
+		return new JSONObject()
+				.put("type", "synonym_graph")
+				.put("synonyms", new JSONArray().put("cancer, tumor, neoplasm"));
+	}
+	private static JSONObject explicitDefinition() {
+		return new JSONObject()
+				.put("type", "synonym_graph")
+				.put("expand", true)
+				.put("lenient", false)
+				.put("synonyms", new JSONArray().put("AD => Alzheimer's disease"));
+	}
 
 	@Autowired
 	private SynonymSetDao synonymSetDao;
@@ -74,7 +85,7 @@ public class SynonymSetDaoImplAutowiredTest {
 	@Test
 	public void testCreateAndGetWithDefinition() {
 		SynonymSet toCreate = newSynonymSet(org1Name, "test_create", "A test set")
-				.setDefinition(EQUIVALENT_DEFINITION);
+				.setDefinition(equivalentDefinition());
 
 		// call under test
 		SynonymSet created = synonymSetDao.create(adminUserId, toCreate);
@@ -88,13 +99,13 @@ public class SynonymSetDaoImplAutowiredTest {
 		assertNotNull(created.getModifiedOn());
 		assertEquals(adminUserId.toString(), created.getCreatedBy());
 		assertEquals(adminUserId.toString(), created.getModifiedBy());
-		assertEquals(EQUIVALENT_DEFINITION, created.getDefinition());
+		assertJsonEquals(equivalentDefinition(), created.getDefinition());
 
 		// call under test
 		Optional<SynonymSet> fetched = synonymSetDao.get(created.getId());
 
 		assertTrue(fetched.isPresent());
-		assertEquals(created, fetched.get());
+		assertSynonymSetsEqual(created, fetched.get());
 	}
 
 	@Test
@@ -108,13 +119,13 @@ public class SynonymSetDaoImplAutowiredTest {
 	@Test
 	public void testUpdateWithModifiedDefinitionAndDescription() {
 		SynonymSet toCreate = newSynonymSet(org1Name, "test_update", "original")
-				.setDefinition(EQUIVALENT_DEFINITION);
+				.setDefinition(equivalentDefinition());
 		SynonymSet created = synonymSetDao.create(adminUserId, toCreate);
 		String originalEtag = created.getEtag();
 
 		created.setName("test_update_renamed");
 		created.setDescription("updated");
-		created.setDefinition(EXPLICIT_DEFINITION);
+		created.setDefinition(explicitDefinition());
 
 		// call under test
 		SynonymSet updated = synonymSetDao.update(adminUserId, created);
@@ -122,13 +133,13 @@ public class SynonymSetDaoImplAutowiredTest {
 		assertEquals("test_update_renamed", updated.getName());
 		assertEquals("updated", updated.getDescription());
 		assertNotEquals(originalEtag, updated.getEtag());
-		assertEquals(EXPLICIT_DEFINITION, updated.getDefinition());
+		assertJsonEquals(explicitDefinition(), updated.getDefinition());
 	}
 
 	@Test
 	public void testUpdateWithStaleEtagThrows() {
 		SynonymSet created = synonymSetDao.create(adminUserId,
-				newSynonymSet(org1Name, "test_occ", null).setDefinition(EQUIVALENT_DEFINITION));
+				newSynonymSet(org1Name, "test_occ", null).setDefinition(equivalentDefinition()));
 
 		// First update succeeds and rotates the etag
 		created.setDescription("first update");
@@ -144,7 +155,7 @@ public class SynonymSetDaoImplAutowiredTest {
 	@Test
 	public void testDeleteWithExistingSet() {
 		SynonymSet created = synonymSetDao.create(adminUserId,
-				newSynonymSet(org1Name, "test_delete", null).setDefinition(EQUIVALENT_DEFINITION));
+				newSynonymSet(org1Name, "test_delete", null).setDefinition(equivalentDefinition()));
 		assertTrue(synonymSetDao.get(created.getId()).isPresent());
 
 		// call under test
@@ -156,18 +167,18 @@ public class SynonymSetDaoImplAutowiredTest {
 	@Test
 	public void testGetByOrganizationAndNameWithMatchingEntry() {
 		SynonymSet toCreate = newSynonymSet(org1Name, "find_me", "target")
-				.setDefinition(EQUIVALENT_DEFINITION);
+				.setDefinition(equivalentDefinition());
 		SynonymSet created = synonymSetDao.create(adminUserId, toCreate);
 
 		// Create another in a different org to ensure filtering
 		synonymSetDao.create(adminUserId,
-				newSynonymSet(org2Name, "find_me", "decoy").setDefinition(EQUIVALENT_DEFINITION));
+				newSynonymSet(org2Name, "find_me", "decoy").setDefinition(equivalentDefinition()));
 
 		// call under test
 		Optional<SynonymSet> found = synonymSetDao.getByOrganizationAndName(org1Name, "find_me");
 
 		assertTrue(found.isPresent());
-		assertEquals(created, found.get());
+		assertSynonymSetsEqual(created, found.get());
 	}
 
 	@Test
@@ -182,15 +193,15 @@ public class SynonymSetDaoImplAutowiredTest {
 	public void testListWithMultipleOrganizations() {
 		// Create 2 synonym sets in org1
 		SynonymSet org1SetA = synonymSetDao.create(adminUserId,
-				newSynonymSet(org1Name, "org1_set_a", "first").setDefinition(EQUIVALENT_DEFINITION));
+				newSynonymSet(org1Name, "org1_set_a", "first").setDefinition(equivalentDefinition()));
 		SynonymSet org1SetB = synonymSetDao.create(adminUserId,
-				newSynonymSet(org1Name, "org1_set_b", "second").setDefinition(EXPLICIT_DEFINITION));
+				newSynonymSet(org1Name, "org1_set_b", "second").setDefinition(explicitDefinition()));
 
 		// Create 2 synonym sets in org2
 		SynonymSet org2SetA = synonymSetDao.create(adminUserId,
-				newSynonymSet(org2Name, "org2_set_a", "third").setDefinition(EQUIVALENT_DEFINITION));
+				newSynonymSet(org2Name, "org2_set_a", "third").setDefinition(equivalentDefinition()));
 		SynonymSet org2SetB = synonymSetDao.create(adminUserId,
-				newSynonymSet(org2Name, "org2_set_b", "fourth").setDefinition(EXPLICIT_DEFINITION));
+				newSynonymSet(org2Name, "org2_set_b", "fourth").setDefinition(explicitDefinition()));
 
 		// call under test — list by org1
 		List<SynonymSet> org1Results = synonymSetDao.list(org1Name, 10, 0);
@@ -222,5 +233,40 @@ public class SynonymSetDaoImplAutowiredTest {
 				.setName(name)
 				.setDescription(description)
 				.setOrganizationName(organizationName);
+	}
+
+	/**
+	 * SynonymSet's generated {@code equals} walks every field including {@code definition},
+	 * which is now an opaque-object {@code org.json.JSONObject} on the post-DAO shape.
+	 * {@code JSONObject} has no value-equality, so {@code created.equals(fetched)} fails for
+	 * two reads of the same row even when the JSON content is identical. Compare the scalar
+	 * fields directly and the {@code definition} field semantically.
+	 */
+	private static void assertSynonymSetsEqual(SynonymSet expected, SynonymSet actual) {
+		assertEquals(expected.getId(), actual.getId());
+		assertEquals(expected.getEtag(), actual.getEtag());
+		assertEquals(expected.getOrganizationName(), actual.getOrganizationName());
+		assertEquals(expected.getName(), actual.getName());
+		assertEquals(expected.getDescription(), actual.getDescription());
+		assertEquals(expected.getCreatedBy(), actual.getCreatedBy());
+		assertEquals(expected.getCreatedOn(), actual.getCreatedOn());
+		assertEquals(expected.getModifiedBy(), actual.getModifiedBy());
+		assertEquals(expected.getModifiedOn(), actual.getModifiedOn());
+		assertJsonEquals(expected.getDefinition(), actual.getDefinition());
+	}
+
+	/**
+	 * Compare two opaque-JSON values structurally via Jackson, accepting either a JSON
+	 * String or anything whose {@code toString()} produces JSON ({@code JSONObject},
+	 * {@code JSONArray}).
+	 */
+	private static void assertJsonEquals(Object expected, Object actual) {
+		com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+		try {
+			assertEquals(mapper.readTree(String.valueOf(expected)),
+					mapper.readTree(String.valueOf(actual)));
+		} catch (java.io.IOException e) {
+			throw new AssertionError(e);
+		}
 	}
 }

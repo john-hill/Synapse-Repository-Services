@@ -229,6 +229,12 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 
 			List<ColumnAnalyzerOverride> overrides = loadColumnAnalyzerOverrides(config);
 
+			// Replace every inline analyzer literal (on config.defaultAnalyzer and on each
+			// override entry's analyzer slot) with a $ref to a synthetic qname, returning a
+			// synthetic TextAnalyzer per inlined slot. After this pass the rest of the build
+			// path is qname-only — no more inline branches.
+			Map<String, TextAnalyzer> inlineAnalyzers = materializeInlineAnalyzerSlots(config, overrides);
+
 			// Bound schema order must match the streamed row values' order positionally —
 			// runQueryAsStream below relies on this alignment to map values to columns.
 			List<ColumnModel> selectedColumns = tableManagerSupport.getTableSchema(IdAndVersion.parse(entityId));
@@ -262,7 +268,10 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 
 			Map<String, TextAnalyzer> analyzers = collectAndLoadAnalyzers(
 					config, overrides, selectedColumns);
-			String defaultAnalyzer = config != null ? config.getDefaultAnalyzer() : null;
+			// Synthetic inline analyzers join the loaded set; downstream code treats them
+			// identically to DAO-loaded TextAnalyzers.
+			analyzers.putAll(inlineAnalyzers);
+			String defaultAnalyzer = config != null ? SearchOpaqueJsonUtil.readRef(config.getDefaultAnalyzer()) : null;
 
 			// Pre-flight: every default / override analyzer qname must resolve to a loaded
 			// TextAnalyzer. A miss throws IllegalArgumentException — caught below and surfaced
@@ -273,7 +282,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			// definitions. The resolved value is the typed IndexSettingsAnalysis the
 			// OpenSearchManager merges into the index's settings.analysis block. SynonymSet
 			// qname existence is validated lazily here — a missing target raises
-			// IllegalArgumentException via SearchAnalyzerJsonUtil.
+			// IllegalArgumentException via SearchOpaqueJsonUtil.
 			Map<String, IndexSettingsAnalysis> resolvedAnalyzers = resolveAnalyzers(analyzers);
 
 			String indexName = getIndexName(entityId);
@@ -354,12 +363,21 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	public void handleDelete(ProgressCallback progressCallback, String entityId) throws Exception {
 		ValidateArgument.required(entityId, "entityId");
 		Long searchIndexId = KeyFactory.stringToKey(entityId);
+		// Cheap precheck before acquiring the write lock. Migration replay delivers ENTITY
+		// changes for entities that have since been deleted; the worker funnels those through
+		// here via the NotFoundException path. If there is no SearchIndexStatus row, there is
+		// no AOSS index to delete and nothing to clean up — skip the lock acquire entirely.
+		// Acquiring the per-entity write lock for every deleted-entity replay is the dominant
+		// cost in the SEARCH_INDEX_LIFECYCLE worker's per-message profile.
+		SearchIndexStatusDao statusDao = connectionFactory.getSearchIndexStatusDao();
+		if (statusDao.getState(searchIndexId).isEmpty()) {
+			return;
+		}
 		try (WriteLock lock = writeReadSemaphore.getWriteLock(
 				new WriteLockRequest(progressCallback, "SearchIndexLifecycleManager.handleDelete", LOCK_KEY_PREFIX + entityId))) {
-			SearchIndexStatusDao statusDao = connectionFactory.getSearchIndexStatusDao();
+			// Re-check under the lock in case a concurrent delete already cleaned up.
 			Optional<SearchIndexState> stateOpt = statusDao.getState(searchIndexId);
 			if (stateOpt.isEmpty()) {
-				// No status row — already cleaned up, nothing to do
 				return;
 			}
 			try {
@@ -396,16 +414,20 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 			for (ColumnAnalyzerOverride cao : overrides) {
 				if (cao.getOverrides() != null) {
 					for (ColumnAnalyzerOverrideEntry entry : cao.getOverrides()) {
-						if (entry.getAnalyzer() != null) {
-							qualifiedNames.add(entry.getAnalyzer());
+						String qname = SearchOpaqueJsonUtil.readRef(entry.getAnalyzer());
+						if (qname != null) {
+							qualifiedNames.add(qname);
 						}
 					}
 				}
 			}
 		}
 
-		if (config != null && config.getDefaultAnalyzer() != null) {
-			qualifiedNames.add(config.getDefaultAnalyzer());
+		if (config != null) {
+			String defaultQname = SearchOpaqueJsonUtil.readRef(config.getDefaultAnalyzer());
+			if (defaultQname != null) {
+				qualifiedNames.add(defaultQname);
+			}
 		}
 
 		for (ColumnModel column : columns) {
@@ -428,28 +450,113 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	Map<String, IndexSettingsAnalysis> resolveAnalyzers(Map<String, TextAnalyzer> analyzers) {
 		Map<String, IndexSettingsAnalysis> resolved = new HashMap<>();
 		for (Map.Entry<String, TextAnalyzer> entry : analyzers.entrySet()) {
-			JsonNode root = SearchAnalyzerJsonUtil.parse(entry.getValue().getSettings());
-			IndexSettingsAnalysis settings = SearchAnalyzerJsonUtil.resolveRefs(root, qname -> {
+			JsonNode root = SearchOpaqueJsonUtil.parse(entry.getValue().getSettings());
+			IndexSettingsAnalysis settings = SearchOpaqueJsonUtil.resolveAnalyzerSettings(root, qname -> {
 				Map<String, SynonymSet> map = synonymSetDao.getByQualifiedNames(
 						Collections.singletonList(qname));
 				SynonymSet ss = map.get(qname);
 				if (ss == null) {
 					return null;
 				}
-				return SearchAnalyzerJsonUtil.parse(ss.getDefinition());
+				return SearchOpaqueJsonUtil.parse(ss.getDefinition());
 			});
 			resolved.put(entry.getKey(), settings);
 		}
 		return resolved;
 	}
 
-	private List<ColumnAnalyzerOverride> loadColumnAnalyzerOverrides(SearchConfiguration config) {
+	// Package-private for branch-coverage tests.
+	List<ColumnAnalyzerOverride> loadColumnAnalyzerOverrides(SearchConfiguration config) {
 		if (config == null || config.getColumnAnalyzerOverrides() == null
 				|| config.getColumnAnalyzerOverrides().isEmpty()) {
 			return Collections.emptyList();
 		}
-		return new ArrayList<>(columnAnalyzerOverrideDao.getByQualifiedNames(
-				config.getColumnAnalyzerOverrides()).values());
+		List<String> qnames = new ArrayList<>();
+		List<ColumnAnalyzerOverride> inlineOverrides = new ArrayList<>();
+		for (Object element : config.getColumnAnalyzerOverrides()) {
+			String qname = SearchOpaqueJsonUtil.readRef(element);
+			if (qname != null) {
+				qnames.add(qname);
+			} else {
+				ColumnAnalyzerOverride inline = SearchOpaqueJsonUtil.toInline(element,
+						ColumnAnalyzerOverride.class);
+				if (inline != null) {
+					inlineOverrides.add(inline);
+				}
+			}
+		}
+		List<ColumnAnalyzerOverride> result = new ArrayList<>();
+		if (!qnames.isEmpty()) {
+			result.addAll(columnAnalyzerOverrideDao.getByQualifiedNames(qnames).values());
+		}
+		result.addAll(inlineOverrides);
+		return result;
+	}
+
+	/**
+	 * Walk every analyzer slot on the configuration / overrides and replace each inline
+	 * literal with a {@code $ref} to a synthetic qualified name, returning a synthetic
+	 * {@link TextAnalyzer} for each so the inline analyzer joins the qname-keyed pipeline
+	 * (existence check, settings resolution, AOSS registration) without further branches.
+	 *
+	 * <p>Synthetic qnames use the {@code synapse-inline_*} prefix. The synthetic qname must
+	 * satisfy {@link SearchResourceConstants#QUALIFIED_NAME_PATTERN} (so downstream code
+	 * that re-validates qnames passes through) and must not start with an underscore (AOSS
+	 * rejects analyzer keys that do). The synthetic qnames live only in memory during the
+	 * build &mdash; nothing is persisted under these names &mdash; so a real TextAnalyzer
+	 * row in the {@code synapse} organization with a clashing local name would shadow the
+	 * synthetic only within a single build, which is harmless because each build assigns
+	 * synthetic qnames fresh from inline literals. The
+	 * SynonymSet {@code $ref} resolver runs on each inline literal during this pass so the
+	 * settings JSON the synthetic TextAnalyzer carries is the same already-validated bytes
+	 * the curator submitted &mdash; {@link #resolveAnalyzers} re-parses and splices refs
+	 * uniformly across both real and synthetic entries.</p>
+	 *
+	 * <p>Mutates {@code config} and each entry of {@code overrides} in place: the inline
+	 * literal slot becomes a {@code {"$ref": "__inline-..."}} value, so all downstream
+	 * {@link SearchOpaqueJsonUtil#readRef} calls (including
+	 * {@link OpenSearchManagerImpl#buildMappings}) return the synthetic qname.</p>
+	 */
+	Map<String, TextAnalyzer> materializeInlineAnalyzerSlots(SearchConfiguration config,
+			List<ColumnAnalyzerOverride> overrides) {
+		Map<String, TextAnalyzer> synthetic = new HashMap<>();
+		if (config != null) {
+			Object defaultSlot = config.getDefaultAnalyzer();
+			if (defaultSlot != null && SearchOpaqueJsonUtil.readRef(defaultSlot) == null) {
+				String qname = "synapse-inline_default";
+				config.setDefaultAnalyzer(refMap(qname));
+				synthetic.put(qname, syntheticTextAnalyzer(qname, defaultSlot));
+			}
+		}
+		int counter = 0;
+		if (overrides != null) {
+			for (ColumnAnalyzerOverride cao : overrides) {
+				if (cao.getOverrides() == null) {
+					continue;
+				}
+				for (ColumnAnalyzerOverrideEntry entry : cao.getOverrides()) {
+					Object analyzerSlot = entry.getAnalyzer();
+					if (analyzerSlot == null
+							|| SearchOpaqueJsonUtil.readRef(analyzerSlot) != null) {
+						continue;
+					}
+					String qname = "synapse-inline_override_" + (counter++);
+					entry.setAnalyzer(refMap(qname));
+					synthetic.put(qname, syntheticTextAnalyzer(qname, analyzerSlot));
+				}
+			}
+		}
+		return synthetic;
+	}
+
+	private static Map<String, String> refMap(String qname) {
+		Map<String, String> ref = new HashMap<>(1);
+		ref.put(SearchOpaqueJsonUtil.REF_KEY, qname);
+		return ref;
+	}
+
+	private static TextAnalyzer syntheticTextAnalyzer(String qname, Object inlineSettings) {
+		return new TextAnalyzer().setName(qname).setSettings(inlineSettings);
 	}
 
 	private String getIndexName(String entityId) {
@@ -539,7 +646,8 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 	 * @throws IllegalArgumentException when any non-null qname does not resolve to a
 	 *         loaded TextAnalyzer.
 	 */
-	private void validateReferencedResources(String defaultAnalyzer,
+	// Package-private for branch-coverage tests.
+	void validateReferencedResources(String defaultAnalyzer,
 			List<ColumnAnalyzerOverride> overrides,
 			Map<String, TextAnalyzer> analyzers) {
 
@@ -553,7 +661,7 @@ public class SearchIndexLifecycleManagerImpl implements SearchIndexLifecycleMana
 					continue;
 				}
 				for (ColumnAnalyzerOverrideEntry entry : cao.getOverrides()) {
-					assertAnalyzerExists(entry.getAnalyzer(), analyzers,
+					assertAnalyzerExists(SearchOpaqueJsonUtil.readRef(entry.getAnalyzer()), analyzers,
 							"override '" + cao.getName() + "' analyzer for column '" + entry.getColumnName() + "'");
 				}
 			}

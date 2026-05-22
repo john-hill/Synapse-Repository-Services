@@ -42,9 +42,9 @@ public class SynonymSetManagerImpl implements SynonymSetManager {
 		ValidateArgument.required(request, "request");
 		ValidateArgument.requiredNotBlank(request.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(request.getName(), "name");
-		ValidateArgument.requiredNotBlank(request.getDefinition(), "definition");
+		ValidateArgument.required(request.getDefinition(), "definition");
 		SearchResourceConstants.validateResourceName(request.getName());
-		SearchAnalyzerJsonUtil.parse(request.getDefinition());
+		SearchOpaqueJsonUtil.parse(request.getDefinition());
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {
@@ -74,9 +74,9 @@ public class SynonymSetManagerImpl implements SynonymSetManager {
 		ValidateArgument.requiredNotBlank(request.getId(), "id");
 		ValidateArgument.requiredNotBlank(request.getOrganizationName(), "organizationName");
 		ValidateArgument.requiredNotBlank(request.getName(), "name");
-		ValidateArgument.requiredNotBlank(request.getDefinition(), "definition");
+		ValidateArgument.required(request.getDefinition(), "definition");
 		SearchResourceConstants.validateResourceName(request.getName());
-		SearchAnalyzerJsonUtil.parse(request.getDefinition());
+		SearchOpaqueJsonUtil.parse(request.getDefinition());
 
 		AuthorizationUtils.disallowAnonymous(user);
 		if (!AuthorizationUtils.isSageEmployeeOrAdmin(user)) {

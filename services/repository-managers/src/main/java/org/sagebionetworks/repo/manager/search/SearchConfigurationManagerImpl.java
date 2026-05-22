@@ -1,5 +1,6 @@
 package org.sagebionetworks.repo.manager.search;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.sagebionetworks.repo.model.ACCESS_TYPE;
@@ -16,6 +17,8 @@ import org.sagebionetworks.repo.model.dbo.search.SearchConfigurationDao;
 import org.sagebionetworks.repo.model.dbo.search.TextAnalyzerDao;
 import org.sagebionetworks.repo.model.jdo.KeyFactory;
 import org.sagebionetworks.repo.model.search.table.BindSearchConfigToEntityRequest;
+import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
+import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsRequest;
 import org.sagebionetworks.repo.model.search.table.ListSearchConfigurationsResponse;
 import org.sagebionetworks.repo.model.search.table.SearchConfigBinding;
@@ -198,23 +201,79 @@ public class SearchConfigurationManagerImpl implements SearchConfigurationManage
 			.setNextPageToken(nextPageToken.getNextPageTokenForCurrentResults(page));
 	}
 
+	/**
+	 * Walk every analyzer / override binding on the SearchConfiguration. Each binding is
+	 * either a {@code $ref} reference to a saved row or an inline literal:
+	 * <ul>
+	 *   <li>For a {@code $ref}: validate the qualified-name format and verify the target
+	 *       row exists.</li>
+	 *   <li>For an inline literal: convert into the typed POJO so the schema-shape check
+	 *       runs at create / update time, then recursively validate any nested {@code $ref}
+	 *       bindings (a ColumnAnalyzerOverride entry's {@code analyzer} can itself be a
+	 *       reference).</li>
+	 * </ul>
+	 * Any unresolved reference or malformed inline literal raises {@link IllegalArgumentException}
+	 * so the API rejects the request synchronously rather than letting the failure surface
+	 * during an async index build.
+	 */
 	private void validateReferencedNames(SearchConfiguration config) {
-		if (config.getDefaultAnalyzer() != null) {
-			SearchResourceConstants.validateQualifiedNameFormat(config.getDefaultAnalyzer(), "defaultAnalyzer");
-			List<String> missing = textAnalyzerDao.findNonExistentNames(List.of(config.getDefaultAnalyzer()));
-			if (!missing.isEmpty()) {
-				throw new IllegalArgumentException("The following default analyzer name does not exist: " + missing);
+		List<String> textAnalyzerRefs = new ArrayList<>();
+		List<String> overrideRefs = new ArrayList<>();
+		collectTextAnalyzerRef(config.getDefaultAnalyzer(), "defaultAnalyzer", textAnalyzerRefs);
+		if (config.getColumnAnalyzerOverrides() != null) {
+			for (Object entry : config.getColumnAnalyzerOverrides()) {
+				String ref = SearchOpaqueJsonUtil.readRef(entry);
+				if (ref != null) {
+					SearchResourceConstants.validateQualifiedNameFormat(ref, "columnAnalyzerOverrides");
+					overrideRefs.add(ref);
+				} else {
+					ColumnAnalyzerOverride inline = SearchOpaqueJsonUtil.toInline(entry, ColumnAnalyzerOverride.class);
+					if (inline != null && inline.getOverrides() != null) {
+						for (ColumnAnalyzerOverrideEntry e : inline.getOverrides()) {
+							collectTextAnalyzerRef(e.getAnalyzer(),
+								"columnAnalyzerOverrides[].overrides[].analyzer", textAnalyzerRefs);
+						}
+					}
+				}
 			}
 		}
-		if (config.getColumnAnalyzerOverrides() != null && !config.getColumnAnalyzerOverrides().isEmpty()) {
-			for (String name : config.getColumnAnalyzerOverrides()) {
-				SearchResourceConstants.validateQualifiedNameFormat(name, "columnAnalyzerOverrides");
-			}
-			List<String> missing = columnAnalyzerOverrideDao.findNonExistentNames(config.getColumnAnalyzerOverrides());
+		if (!textAnalyzerRefs.isEmpty()) {
+			List<String> missing = textAnalyzerDao.findNonExistentNames(textAnalyzerRefs);
 			if (!missing.isEmpty()) {
-				throw new IllegalArgumentException("The following column analyzer override names do not exist: " + missing);
+				throw new IllegalArgumentException("The following text analyzer name(s) do not exist: " + missing);
 			}
 		}
+		if (!overrideRefs.isEmpty()) {
+			List<String> missing = columnAnalyzerOverrideDao.findNonExistentNames(overrideRefs);
+			if (!missing.isEmpty()) {
+				throw new IllegalArgumentException("The following column analyzer override name(s) do not exist: " + missing);
+			}
+		}
+	}
+
+	/**
+	 * If the binding is a {@code $ref}, validate qname format and append to the ref-name
+	 * collector for batched existence checking. Otherwise round-trip the inline analyzer
+	 * literal (a bare OpenSearch {@code settings.analysis} block) through the typed
+	 * deserializer so the analyzer shape is checked at create / update time.
+	 */
+	private static void collectTextAnalyzerRef(Object binding, String fieldName, List<String> refs) {
+		if (binding == null) {
+			return;
+		}
+		String ref = SearchOpaqueJsonUtil.readRef(binding);
+		if (ref != null) {
+			SearchResourceConstants.validateQualifiedNameFormat(ref, fieldName);
+			refs.add(ref);
+			return;
+		}
+		// Inline analyzer literal: a bare OpenSearch settings.analysis block. Round-trip
+		// through the OpenSearch typed deserializer so curator-supplied JSON is rejected at
+		// create / update time if its analyzer / token-filter shape is malformed. The
+		// null resolver rejects any nested $ref entries: refs inside an inline-literal slot
+		// are not a supported feature — curators wanting reusable analyzers (or synonyms)
+		// save a TextAnalyzer / SynonymSet and bind by qname.
+		SearchOpaqueJsonUtil.toInlineAnalyzerSettings(binding, qname -> null);
 	}
 
 	private String resolveOrganizationId(String organizationName) {

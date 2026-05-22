@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,8 +37,11 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 @ContextConfiguration(locations = { "classpath:jdomodels-test-context.xml" })
 public class SearchConfigurationDaoImplAutowiredTest {
 
-	private static final String SYNSET_DEFINITION =
-			"{\"type\":\"synonym_graph\",\"synonyms\":[\"cancer, tumor\"]}";
+	private static JSONObject synsetDefinition() {
+		return new JSONObject()
+				.put("type", "synonym_graph")
+				.put("synonyms", new JSONArray().put("cancer, tumor"));
+	}
 
 	@Autowired
 	private SearchConfigurationDao searchConfigurationDao;
@@ -108,7 +113,7 @@ public class SearchConfigurationDaoImplAutowiredTest {
 		assertEquals("test_create", created.getName());
 		assertEquals("A test config", created.getDescription());
 		assertEquals(org1Name, created.getOrganizationName());
-		assertEquals(defaultAnalyzerQName, created.getDefaultAnalyzer());
+		assertRefEquals(defaultAnalyzerQName, created.getDefaultAnalyzer());
 		assertNotNull(created.getCreatedOn());
 		assertNotNull(created.getModifiedOn());
 		assertEquals(adminUserId.toString(), created.getCreatedBy());
@@ -118,7 +123,7 @@ public class SearchConfigurationDaoImplAutowiredTest {
 		Optional<SearchConfiguration> fetched = searchConfigurationDao.get(created.getId());
 
 		assertTrue(fetched.isPresent());
-		assertEquals(created, fetched.get());
+		assertSearchConfigurationsEqual(created, fetched.get());
 	}
 
 	@Test
@@ -140,7 +145,7 @@ public class SearchConfigurationDaoImplAutowiredTest {
 
 		created.setName("test_update_renamed");
 		created.setDescription("updated");
-		created.setDefaultAnalyzer(analyzer2Name);
+		created.setDefaultAnalyzer(ref(analyzer2Name));
 
 		// call under test
 		SearchConfiguration updated = searchConfigurationDao.update(adminUserId, created);
@@ -148,7 +153,7 @@ public class SearchConfigurationDaoImplAutowiredTest {
 		assertEquals("test_update_renamed", updated.getName());
 		assertEquals("updated", updated.getDescription());
 		assertNotEquals(originalEtag, updated.getEtag());
-		assertEquals(analyzer2Name, updated.getDefaultAnalyzer());
+		assertRefEquals(analyzer2Name, updated.getDefaultAnalyzer());
 	}
 
 	@Test
@@ -186,9 +191,9 @@ public class SearchConfigurationDaoImplAutowiredTest {
 		String org2DefaultQName = org2Name + "-" + org2Analyzer.getName();
 
 		SearchConfiguration org2A = searchConfigurationDao.create(adminUserId,
-				newConfig(org2Name, "ccc_config", "third").setDefaultAnalyzer(org2DefaultQName));
+				newConfig(org2Name, "ccc_config", "third").setDefaultAnalyzer(ref(org2DefaultQName)));
 		SearchConfiguration org2B = searchConfigurationDao.create(adminUserId,
-				newConfig(org2Name, "ddd_config", "fourth").setDefaultAnalyzer(org2DefaultQName));
+				newConfig(org2Name, "ddd_config", "fourth").setDefaultAnalyzer(ref(org2DefaultQName)));
 
 		// call under test — list by org1
 		List<SearchConfiguration> org1Results = searchConfigurationDao.list(org1Name, 10, 0);
@@ -215,6 +220,73 @@ public class SearchConfigurationDaoImplAutowiredTest {
 	}
 
 	@Test
+	public void testCRUDWithInlineDefaultAnalyzer() {
+		// The inline form is a bare OpenSearch settings.analysis block written directly
+		// onto defaultAnalyzer (no $ref, no envelope). The DAO persists the JSON column
+		// verbatim; the round-trip must surface the same JSON the curator submitted.
+		JSONObject inlineDefault = new JSONObject().put(
+				"analyzer", new JSONObject().put(
+						"default", new JSONObject()
+								.put("type", "custom")
+								.put("tokenizer", "standard")
+								.put("filter", new JSONArray().put("lowercase"))));
+		SearchConfiguration toCreate = new SearchConfiguration()
+				.setName("inline_default_" + UUID.randomUUID().toString().replace("-", ""))
+				.setDescription("inline default analyzer")
+				.setOrganizationName(org1Name)
+				.setDefaultAnalyzer(inlineDefault);
+
+		// call under test
+		SearchConfiguration created = searchConfigurationDao.create(adminUserId, toCreate);
+
+		assertNotNull(created.getId());
+		// Persisted as JSON, returned as a JSONObject — assert the round-tripped JSON equals
+		// the submitted JSON byte-for-byte (toString is deterministic for equivalent shapes
+		// on org.json.JSONObject only via mapper round-trip, so compare via Jackson tree).
+		assertJsonEquals(inlineDefault, created.getDefaultAnalyzer());
+
+		// call under test
+		Optional<SearchConfiguration> fetched = searchConfigurationDao.get(created.getId());
+		assertTrue(fetched.isPresent());
+		assertJsonEquals(inlineDefault, fetched.get().getDefaultAnalyzer());
+	}
+
+	@Test
+	public void testCRUDWithInlineColumnAnalyzerOverride() {
+		// An inline ColumnAnalyzerOverride literal (no $ref) with an inline analyzer slot
+		// inside it. Both layers of the inline-or-$ref shape must round-trip through the
+		// JSON column unchanged.
+		JSONObject inlineAnalyzer = new JSONObject().put(
+				"analyzer", new JSONObject().put(
+						"default", new JSONObject()
+								.put("type", "custom")
+								.put("tokenizer", "keyword")
+								.put("filter", new JSONArray().put("lowercase"))));
+		JSONObject inlineOverride = new JSONObject()
+				.put("overrides", new JSONArray().put(new JSONObject()
+						.put("columnName", "title")
+						.put("analyzer", inlineAnalyzer)));
+
+		SearchConfiguration toCreate = newConfig(org1Name,
+				"inline_override_" + UUID.randomUUID().toString().replace("-", ""),
+				"inline override")
+				.setColumnAnalyzerOverrides(Collections.singletonList(inlineOverride));
+
+		// call under test
+		SearchConfiguration created = searchConfigurationDao.create(adminUserId, toCreate);
+
+		assertNotNull(created.getId());
+		assertEquals(1, created.getColumnAnalyzerOverrides().size());
+		assertJsonEquals(inlineOverride, created.getColumnAnalyzerOverrides().get(0));
+
+		// call under test
+		Optional<SearchConfiguration> fetched = searchConfigurationDao.get(created.getId());
+		assertTrue(fetched.isPresent());
+		assertEquals(1, fetched.get().getColumnAnalyzerOverrides().size());
+		assertJsonEquals(inlineOverride, fetched.get().getColumnAnalyzerOverrides().get(0));
+	}
+
+	@Test
 	public void testCreateWithColumnAnalyzerOverrides() {
 		TextAnalyzer analyzer = textAnalyzerDao.create(newTextAnalyzer(org1Name, "analyzer_1"), adminUserId);
 		String analyzerQualifiedName = org1Name + "-" + analyzer.getName();
@@ -223,12 +295,14 @@ public class SearchConfigurationDaoImplAutowiredTest {
 		String overrideQualifiedName = org1Name + "-" + override.getName();
 
 		SearchConfiguration config = newConfig(org1Name, "with_overrides", null)
-				.setColumnAnalyzerOverrides(Arrays.asList(overrideQualifiedName));
+				.setColumnAnalyzerOverrides(Arrays.asList(ref(overrideQualifiedName)));
 
 		// call under test
 		SearchConfiguration created = searchConfigurationDao.create(adminUserId, config);
 
-		assertEquals(Arrays.asList(overrideQualifiedName), created.getColumnAnalyzerOverrides());
+		java.util.List<Object> overrides = created.getColumnAnalyzerOverrides();
+		assertEquals(1, overrides.size());
+		assertRefEquals(overrideQualifiedName, overrides.get(0));
 	}
 
 	@Test
@@ -236,7 +310,7 @@ public class SearchConfigurationDaoImplAutowiredTest {
 		// SynonymSets are referenced from TextAnalyzers (not SearchConfigurations) under the
 		// new shape; SearchConfiguration delete should leave them alone regardless.
 		SynonymSet ss = synonymSetDao.create(adminUserId,
-				newSynonymSet(org1Name, "cascade_test").setDefinition(SYNSET_DEFINITION));
+				newSynonymSet(org1Name, "cascade_test").setDefinition(synsetDefinition()));
 
 		SearchConfiguration created = searchConfigurationDao.create(adminUserId, newConfig(org1Name, "cascade_delete", null));
 
@@ -347,14 +421,18 @@ public class SearchConfigurationDaoImplAutowiredTest {
 				.setName(name)
 				.setDescription(description)
 				.setOrganizationName(organizationName)
-				.setDefaultAnalyzer(defaultAnalyzerQName);
+				.setDefaultAnalyzer(ref(defaultAnalyzerQName));
 	}
 
 	private TextAnalyzer newTextAnalyzer(String organizationName, String name) {
 		return new TextAnalyzer()
 				.setName(name)
 				.setOrganizationName(organizationName)
-				.setSettings("{\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\"}}}");
+				.setSettings(new JSONObject().put(
+						"analyzer", new JSONObject().put(
+								"default", new JSONObject()
+										.put("type", "custom")
+										.put("tokenizer", "standard"))));
 	}
 
 	private SynonymSet newSynonymSet(String organizationName, String name) {
@@ -369,6 +447,108 @@ public class SearchConfigurationDaoImplAutowiredTest {
 				.setOrganizationName(organizationName)
 				.setOverrides(Collections.singletonList(new ColumnAnalyzerOverrideEntry()
 						.setColumnName("testColumn")
-						.setAnalyzer(analyzerQualifiedName)));
+						.setAnalyzer(ref(analyzerQualifiedName))));
+	}
+
+	/** Build a {@code {"$ref": "{org}-{name}"}} reference value for a binding field. */
+	private static JSONObject ref(String qualifiedName) {
+		return new JSONObject().put("$ref", qualifiedName);
+	}
+
+	/**
+	 * Assert that {@code actual} is a {@code {"$ref": qname}} reference. Accepts both the
+	 * pre-write {@code Map} shape and the post-DAO {@code org.json.JSONObject} shape, since
+	 * neither type provides cross-shape value-equality.
+	 */
+	private static void assertRefEquals(String expectedQname, Object actual) {
+		assertNotNull(actual, "expected $ref to '" + expectedQname + "', got null");
+		String actualQname;
+		if (actual instanceof org.json.JSONObject) {
+			org.json.JSONObject obj = (org.json.JSONObject) actual;
+			assertEquals(1, obj.length(),
+					"expected single-key $ref JSONObject, got: " + obj);
+			actualQname = obj.optString("$ref", null);
+		} else if (actual instanceof java.util.Map) {
+			java.util.Map<?, ?> map = (java.util.Map<?, ?>) actual;
+			assertEquals(1, map.size(),
+					"expected single-key $ref Map, got: " + map);
+			Object value = map.get("$ref");
+			actualQname = value instanceof String ? (String) value : null;
+		} else {
+			throw new AssertionError("expected JSONObject or Map for $ref, got: "
+					+ (actual == null ? "null" : actual.getClass().getName()));
+		}
+		assertEquals(expectedQname, actualQname);
+	}
+
+	/**
+	 * SearchConfiguration's generated {@code equals} walks every field including
+	 * {@code defaultAnalyzer} and {@code columnAnalyzerOverrides}, both of which are now
+	 * opaque-object {@code org.json.JSONObject} instances on the post-DAO shape.
+	 * {@code JSONObject} has no value-equality, so {@code created.equals(fetched)} fails
+	 * for two reads of the same row even when the JSON content is identical. Compare the
+	 * scalar fields directly and the JSON-bearing fields semantically.
+	 */
+	private static void assertSearchConfigurationsEqual(
+			SearchConfiguration expected, SearchConfiguration actual) {
+		assertEquals(expected.getId(), actual.getId());
+		assertEquals(expected.getEtag(), actual.getEtag());
+		assertEquals(expected.getOrganizationName(), actual.getOrganizationName());
+		assertEquals(expected.getName(), actual.getName());
+		assertEquals(expected.getDescription(), actual.getDescription());
+		assertEquals(expected.getCreatedBy(), actual.getCreatedBy());
+		assertEquals(expected.getCreatedOn(), actual.getCreatedOn());
+		assertEquals(expected.getModifiedBy(), actual.getModifiedBy());
+		assertEquals(expected.getModifiedOn(), actual.getModifiedOn());
+		assertJsonEquals(expected.getDefaultAnalyzer(), actual.getDefaultAnalyzer());
+		assertJsonListEquals(
+				expected.getColumnAnalyzerOverrides(), actual.getColumnAnalyzerOverrides());
+	}
+
+	/**
+	 * Compare two opaque-JSON values structurally via Jackson, accepting either side as a
+	 * JSON {@code String} or anything whose {@code toString()} yields JSON ({@code Map},
+	 * {@code JSONObject}, {@code JSONArray}). {@code null} on both sides is equal.
+	 */
+	private static void assertJsonEquals(Object expected, Object actual) {
+		if (expected == null && actual == null) {
+			return;
+		}
+		assertNotNull(expected);
+		assertNotNull(actual);
+		com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+		try {
+			assertEquals(mapper.readTree(toJsonString(expected)),
+					mapper.readTree(toJsonString(actual)));
+		} catch (java.io.IOException e) {
+			throw new AssertionError(e);
+		}
+	}
+
+	private static void assertJsonListEquals(
+			java.util.List<Object> expected, java.util.List<Object> actual) {
+		if (expected == null && actual == null) {
+			return;
+		}
+		assertNotNull(expected);
+		assertNotNull(actual);
+		assertEquals(expected.size(), actual.size());
+		for (int i = 0; i < expected.size(); i++) {
+			assertJsonEquals(expected.get(i), actual.get(i));
+		}
+	}
+
+	private static String toJsonString(Object value) {
+		if (value instanceof String) {
+			return (String) value;
+		}
+		if (value instanceof java.util.Map) {
+			return new org.json.JSONObject((java.util.Map<?, ?>) value).toString();
+		}
+		if (value instanceof java.util.Collection) {
+			return new org.json.JSONArray((java.util.Collection<?>) value).toString();
+		}
+		// JSONObject / JSONArray / scalar — toString() already produces JSON.
+		return String.valueOf(value);
 	}
 }

@@ -43,7 +43,7 @@ public class DBOTextAnalyzer implements MigratableDatabaseObject<DBOTextAnalyzer
 	// for any backup whose settings JSON still uses the legacy typed shape (presence of
 	// "tokenFilters" / "indexFilterOrder" keys), so the column passes validation on restore.
 	// Curators are expected to PUT the row through the TextAnalyzer REST API to re-author.
-	@TemporaryCode(author = "BryanFauble", comment = "Can be removed after one migration cycle.")
+	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Can be removed after one migration cycle.")
 	static final String PLACEHOLDER_SETTINGS = "{\"analyzer\":{\"default\":{\"type\":\"custom\",\"tokenizer\":\"standard\"}}}";
 
 	private static final TableMapping<DBOTextAnalyzer> TABLE_MAPPING = new TableMapping<>() {
@@ -94,7 +94,7 @@ public class DBOTextAnalyzer implements MigratableDatabaseObject<DBOTextAnalyzer
 		return MigrationType.TEXT_ANALYZER;
 	}
 
-	@TemporaryCode(author = "BryanFauble", comment = "Can be removed after one migration cycle.")
+	@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Can be removed after one migration cycle.")
 	private static final MigratableTableTranslation<DBOTextAnalyzer, DBOTextAnalyzer> MIGRATION_TRANSLATOR =
 			new MigratableTableTranslation<DBOTextAnalyzer, DBOTextAnalyzer>() {
 		@Override

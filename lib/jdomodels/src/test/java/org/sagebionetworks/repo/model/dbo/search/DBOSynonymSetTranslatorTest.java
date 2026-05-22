@@ -9,7 +9,7 @@ import java.sql.Timestamp;
 import org.junit.jupiter.api.Test;
 import org.sagebionetworks.util.TemporaryCode;
 
-@TemporaryCode(author = "BryanFauble", comment = "Delete alongside the DBOSynonymSet bridge once legacy <rules> backups can no longer arrive.")
+@TemporaryCode(author = "BryanFauble", comment = "PLFM-9676: Delete alongside the DBOSynonymSet bridge once legacy <rules> backups can no longer arrive.")
 public class DBOSynonymSetTranslatorTest {
 
 	private static DBOSynonymSet legacyBackup() {

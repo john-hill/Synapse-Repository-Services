@@ -24,6 +24,8 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 
+	private static final String SETTINGS_FIELD = "TextAnalyzer.settings";
+
 	private static final RowMapper<TextAnalyzer> ROW_MAPPER = (rs, rowNum) -> {
 		TextAnalyzer analyzer = new TextAnalyzer();
 		analyzer.setId(String.valueOf(rs.getLong("ID")));
@@ -31,7 +33,7 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 		analyzer.setName(rs.getString("NAME"));
 		analyzer.setDescription(rs.getString("DESCRIPTION"));
 		analyzer.setOrganizationName(rs.getString("ORGANIZATION_NAME"));
-		analyzer.setSettings(rs.getString("SETTINGS"));
+		analyzer.setSettings(OpaqueJsonColumnCodecUtil.deserialize(rs.getString("SETTINGS"), SETTINGS_FIELD));
 		analyzer.setCreatedBy(String.valueOf(rs.getLong("CREATED_BY")));
 		analyzer.setCreatedOn(new Date(rs.getTimestamp("CREATED_ON").getTime()));
 		analyzer.setModifiedBy(String.valueOf(rs.getLong("MODIFIED_BY")));
@@ -67,7 +69,7 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 					analyzer.getName(),
 					analyzer.getDescription(),
 					analyzer.getOrganizationName(),
-					analyzer.getSettings(),
+					OpaqueJsonColumnCodecUtil.serialize(analyzer.getSettings(), SETTINGS_FIELD),
 					userId,
 					userId
 			);
@@ -112,7 +114,7 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 					+ " MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
 					analyzer.getName(),
 					analyzer.getDescription(),
-					analyzer.getSettings(),
+					OpaqueJsonColumnCodecUtil.serialize(analyzer.getSettings(), SETTINGS_FIELD),
 					userId,
 					id
 			);
@@ -249,7 +251,7 @@ public class TextAnalyzerDaoImpl implements TextAnalyzerDao {
 				analyzer.getName(),
 				analyzer.getDescription(),
 				organizationName,
-				analyzer.getSettings(),
+				OpaqueJsonColumnCodecUtil.serialize(analyzer.getSettings(), SETTINGS_FIELD),
 				userId,
 				userId
 		);

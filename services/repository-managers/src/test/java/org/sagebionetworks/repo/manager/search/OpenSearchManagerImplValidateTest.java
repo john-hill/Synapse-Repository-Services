@@ -76,7 +76,7 @@ public class OpenSearchManagerImplValidateTest {
 	private static IndexSettingsAnalysis parse(String json) {
 		try {
 			JsonNode root = MAPPER.readTree(json);
-			return SearchAnalyzerJsonUtil.resolveRefs(root, qname -> null);
+			return SearchOpaqueJsonUtil.resolveAnalyzerSettings(root, qname -> null);
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}
@@ -307,7 +307,7 @@ public class OpenSearchManagerImplValidateTest {
 	@Test
 	public void testParseThrowsOnMalformedInlineFilter() {
 		// Inline filter registry entry that's not a valid TokenFilterDefinition. With the
-		// boundary deserialization in SearchAnalyzerJsonUtil.resolveRefs, this fails fast at
+		// boundary deserialization in SearchOpaqueJsonUtil.resolveAnalyzerSettings, this fails fast at
 		// parse time (before the manager method is even invoked) rather than during the
 		// _analyze probe, so the curator gets the rejection earlier in the request lifecycle.
 		String settingsJson = "{"

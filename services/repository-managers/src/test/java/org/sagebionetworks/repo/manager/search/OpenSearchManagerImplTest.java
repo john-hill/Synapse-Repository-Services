@@ -131,7 +131,7 @@ public class OpenSearchManagerImplTest {
 	 */
 	private static IndexSettingsAnalysis toAnalysis(String settingsJson) {
 		try {
-			return SearchAnalyzerJsonUtil.resolveRefs(MAPPER.readTree(settingsJson), qname -> null);
+			return SearchOpaqueJsonUtil.resolveAnalyzerSettings(MAPPER.readTree(settingsJson), qname -> null);
 		} catch (java.io.IOException e) {
 			throw new RuntimeException(e);
 		}
@@ -395,7 +395,7 @@ public class OpenSearchManagerImplTest {
 	public void testBuildOverrideMapResolvesNameToId() {
 		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry()
 				.setColumnName("geneName")
-				.setAnalyzer("org.sage-AUTOCOMPLETE");
+				.setAnalyzer(new org.json.JSONObject().put("$ref", "org.sage-AUTOCOMPLETE"));
 		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride()
 				.setOverrides(Collections.singletonList(entry));
 		Map<String, String> nameToId = new HashMap<>();
@@ -413,7 +413,7 @@ public class OpenSearchManagerImplTest {
 	public void testBuildOverrideMapSkipsUnknownColumnName() {
 		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry()
 				.setColumnName("unknownColumn")
-				.setAnalyzer("org.sage-AUTOCOMPLETE");
+				.setAnalyzer(new org.json.JSONObject().put("$ref", "org.sage-AUTOCOMPLETE"));
 		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride()
 				.setOverrides(Collections.singletonList(entry));
 
@@ -428,9 +428,9 @@ public class OpenSearchManagerImplTest {
 	public void testBuildOverrideMapFirstEntryWinsOnDuplicate() {
 		// Two overrides targeting the same column — the first one wins (putIfAbsent)
 		ColumnAnalyzerOverrideEntry first = new ColumnAnalyzerOverrideEntry()
-				.setColumnName("geneName").setAnalyzer("FIRST");
+				.setColumnName("geneName").setAnalyzer(new org.json.JSONObject().put("$ref", "FIRST"));
 		ColumnAnalyzerOverrideEntry second = new ColumnAnalyzerOverrideEntry()
-				.setColumnName("geneName").setAnalyzer("SECOND");
+				.setColumnName("geneName").setAnalyzer(new org.json.JSONObject().put("$ref", "SECOND"));
 		Map<String, String> nameToId = new HashMap<>();
 		nameToId.put("geneName", "111");
 
@@ -1084,7 +1084,7 @@ public class OpenSearchManagerImplTest {
 		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride();
 		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
 		entry.setColumnName("title");
-		entry.setAnalyzer(overrideQname);
+		entry.setAnalyzer(new org.json.JSONObject().put("$ref", overrideQname));
 		override.setOverrides(Collections.singletonList(entry));
 
 
@@ -1133,7 +1133,7 @@ public class OpenSearchManagerImplTest {
 		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride();
 		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry();
 		entry.setColumnName("title");
-		entry.setAnalyzer(overrideQname);
+		entry.setAnalyzer(new org.json.JSONObject().put("$ref", overrideQname));
 		override.setOverrides(Collections.singletonList(entry));
 
 
@@ -2435,5 +2435,288 @@ public class OpenSearchManagerImplTest {
 		verify(openSearchClient).search(captor.capture(), eq(Map.class));
 		// MAX_LIMIT is 100 in OpenSearchManagerImpl; assert against the clamped value on the wire.
 		assertEquals(Integer.valueOf(100), captor.getValue().size());
+	}
+
+	// ===================== branch coverage: buildProperty per ColumnType =====================
+
+	/**
+	 * {@code buildProperty}'s if-chain dispatches by column-type category (text / link /
+	 * keyword / long / double / boolean / json / fallback). Every {@link ColumnType} value
+	 * must yield a non-null {@link org.opensearch.client.opensearch._types.mapping.Property}
+	 * — the parameterized run also pins the dispatch against future ColumnType additions.
+	 */
+	@ParameterizedTest
+	@EnumSource(ColumnType.class)
+	public void testBuildPropertyForEveryColumnType(ColumnType type) {
+		// hasDefaultSearch=false and qname=null hit the simplest branch for each category.
+		org.opensearch.client.opensearch._types.mapping.Property property =
+				manager.buildProperty(type, null, false);
+		assertNotNull(property, "every column type must yield a Property");
+	}
+
+	@Test
+	public void testBuildPropertyTextWithBoundQname() {
+		// Bound qname forces buildTextProperty's "explicit search_analyzer" path so the
+		// search-time analyzer doesn't fall through to the index-wide default.
+		assertNotNull(manager.buildProperty(ColumnType.STRING, "biomed-pubs", false));
+	}
+
+	@Test
+	public void testBuildPropertyTextWithDefaultSearchEnabled() {
+		// hasDefaultSearch=true exercises the asymmetric-analyzer branch where the bound
+		// search analyzer key differs from the index analyzer key.
+		assertNotNull(manager.buildProperty(ColumnType.STRING, "biomed-pubs", true));
+	}
+
+	// ===================== branch coverage: isConcurrentDeleteError null edges =====================
+
+	@Test
+	public void testIsConcurrentDeleteErrorWithNullReason() {
+		// Defensive: error.reason() == null returns false instead of NPE.
+		ErrorResponse response = new ErrorResponse.Builder()
+				.status(500)
+				.error(new ErrorCause.Builder().type("internal_error").build())
+				.build();
+		assertFalse(OpenSearchManagerImpl.isConcurrentDeleteError(new OpenSearchException(response)));
+	}
+
+	// ===================== branch coverage: isRetryableItemStatus boundaries =====================
+
+	@Test
+	public void testIsRetryableItemStatusUpperBoundary() {
+		// MAX_SERVER_ERROR is 599; 600 falls outside the retryable range.
+		assertTrue(OpenSearchManagerImpl.isRetryableItemStatus(599));
+		assertFalse(OpenSearchManagerImpl.isRetryableItemStatus(600));
+	}
+
+	@Test
+	public void testIsRetryableItemStatusLowerBoundary() {
+		// 499 is below the 5xx retry range; 500 is the lower edge.
+		assertFalse(OpenSearchManagerImpl.isRetryableItemStatus(499));
+		assertTrue(OpenSearchManagerImpl.isRetryableItemStatus(500));
+	}
+
+	@Test
+	public void testIsRetryableItemStatusZero() {
+		// 0 isn't a real HTTP status; the bulk path handles 0 separately, so this returns false.
+		assertFalse(OpenSearchManagerImpl.isRetryableItemStatus(0));
+	}
+
+	// ===================== branch coverage: describeError / appendErrorCauseDetail =====================
+
+	@Test
+	public void testDescribeErrorWithRootCauseEntries() {
+		// rootCause iteration walks two entries with first/non-first separator branches.
+		ErrorCause root1 = new ErrorCause.Builder().type("rc1").reason("r1").build();
+		ErrorCause root2 = new ErrorCause.Builder().type("rc2").reason("r2").build();
+		ErrorCause cause = new ErrorCause.Builder()
+				.type("primary").reason("primary reason")
+				.rootCause(Arrays.asList(root1, root2)).build();
+
+		String desc = OpenSearchManagerImpl.describeError(cause);
+
+		assertTrue(desc.contains("rootCause="));
+		assertTrue(desc.contains("rc1: r1"));
+		assertTrue(desc.contains(", rc2: r2"));
+	}
+
+	@Test
+	public void testDescribeErrorWithMetadataPresent() {
+		// metadata-present branch in appendErrorCauseDetail.
+		ErrorCause cause = new ErrorCause.Builder()
+				.type("t").reason("r")
+				.metadata(Collections.singletonMap("k", JsonData.of("v")))
+				.build();
+
+		String desc = OpenSearchManagerImpl.describeError(cause);
+
+		assertTrue(desc.contains("metadata="), "metadata branch must render: " + desc);
+	}
+
+	@Test
+	public void testDescribeErrorWithStackTrace() {
+		// stackTrace-present branch in appendErrorCauseDetail.
+		ErrorCause cause = new ErrorCause.Builder()
+				.type("t").reason("r")
+				.stackTrace("at com.example.Foo.bar(Foo.java:10)")
+				.build();
+
+		String desc = OpenSearchManagerImpl.describeError(cause);
+
+		assertTrue(desc.contains("stackTrace="), "stackTrace branch must render: " + desc);
+	}
+
+	@Test
+	public void testDescribeErrorChainsMultipleCausedByLinks() {
+		// caused-by walk loop runs through the chain, attaching " caused by " between links.
+		ErrorCause innerInner = new ErrorCause.Builder().type("i2").reason("r2").build();
+		ErrorCause inner = new ErrorCause.Builder()
+				.type("i1").reason("r1").causedBy(innerInner).build();
+		ErrorCause outer = new ErrorCause.Builder()
+				.type("outer").reason("outerReason").causedBy(inner).build();
+
+		String desc = OpenSearchManagerImpl.describeError(outer);
+
+		assertTrue(desc.contains("outer: outerReason"));
+		assertTrue(desc.contains("i1: r1"));
+		assertTrue(desc.contains("i2: r2"));
+		// Each caused-by link appears once.
+		int causedByCount = 0;
+		int idx = 0;
+		while ((idx = desc.indexOf(" caused by ", idx)) != -1) {
+			causedByCount++;
+			idx += " caused by ".length();
+		}
+		assertEquals(2, causedByCount, "two caused-by links should join three errors: " + desc);
+	}
+
+	// ===================== branch coverage: describeBulkItemFailure =====================
+
+	// ===================== branch coverage: addExistsFilters =====================
+
+	@Test
+	public void testAddExistsFiltersWithNullFieldsIsNoop() {
+		// fields == null short-circuit — no filter / mustNot calls on the BoolQuery.Builder.
+		BoolQuery.Builder b = new BoolQuery.Builder();
+
+		manager.addExistsFilters(b, null, Collections.emptyMap(), false);
+
+		BoolQuery q = b.build();
+		assertTrue(q.filter().isEmpty(), "no fields → no filters");
+		assertTrue(q.mustNot().isEmpty(), "no fields → no mustNot");
+	}
+
+	@Test
+	public void testAddExistsFiltersAddsFilterWhenNotNegated() {
+		// negate=false branch routes the exists query into filter().
+		BoolQuery.Builder b = new BoolQuery.Builder();
+		Map<String, String> nameToId = Collections.singletonMap("title", "100");
+
+		manager.addExistsFilters(b, Arrays.asList("title"), nameToId, false);
+
+		BoolQuery q = b.build();
+		assertEquals(1, q.filter().size());
+		assertTrue(q.mustNot().isEmpty());
+	}
+
+	@Test
+	public void testAddExistsFiltersAddsMustNotWhenNegated() {
+		// negate=true branch routes the exists query into mustNot().
+		BoolQuery.Builder b = new BoolQuery.Builder();
+		Map<String, String> nameToId = Collections.singletonMap("title", "100");
+
+		manager.addExistsFilters(b, Arrays.asList("title"), nameToId, true);
+
+		BoolQuery q = b.build();
+		assertEquals(1, q.mustNot().size());
+		assertTrue(q.filter().isEmpty());
+	}
+
+	@Test
+	public void testAddExistsFiltersFallsBackToRawNameWhenNotInMap() {
+		// nameToId.getOrDefault branch — when the field name isn't in the map, the field
+		// name itself is used as the field id (legacy migration path).
+		BoolQuery.Builder b = new BoolQuery.Builder();
+
+		manager.addExistsFilters(b, Arrays.asList("unmappedField"), Collections.emptyMap(), false);
+
+		BoolQuery q = b.build();
+		assertEquals(1, q.filter().size());
+	}
+
+	// ===================== branch coverage: autocomplete limit clamp =====================
+
+	@Test
+	public void testAutocompleteWithNullLimitClampsToMax() throws Exception {
+		// limit == null branch clamps to AUTOCOMPLETE_MAX_LIMIT (8).
+		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
+				.thenReturn(emptySearchResponse());
+		SearchQuery query = new SearchQuery()
+				.setQueryText("foo")
+				.setQueryType(SearchQueryType.PREFIX); // limit unset
+
+		manager.autocomplete("search-index-syn1", query,
+				Collections.emptyList(), EnumSet.of(SearchQueryPart.HITS));
+
+		ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
+		verify(openSearchClient).search(captor.capture(), eq(Map.class));
+		assertEquals(Integer.valueOf(8), captor.getValue().size(),
+				"null limit must clamp to AUTOCOMPLETE_MAX_LIMIT");
+	}
+
+	@Test
+	public void testAutocompleteWithLimitAboveMaxClampsToMax() throws Exception {
+		// limit > AUTOCOMPLETE_MAX_LIMIT branch — same clamp.
+		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
+				.thenReturn(emptySearchResponse());
+		SearchQuery query = new SearchQuery()
+				.setQueryText("foo")
+				.setQueryType(SearchQueryType.PREFIX)
+				.setLimit(50L);
+
+		manager.autocomplete("search-index-syn1", query,
+				Collections.emptyList(), EnumSet.of(SearchQueryPart.HITS));
+
+		ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
+		verify(openSearchClient).search(captor.capture(), eq(Map.class));
+		assertEquals(Integer.valueOf(8), captor.getValue().size(),
+				"limit above AUTOCOMPLETE_MAX_LIMIT must clamp");
+	}
+
+	@Test
+	public void testAutocompleteWithLimitWithinRangePassesThrough() throws Exception {
+		// limit <= AUTOCOMPLETE_MAX_LIMIT — no clamp.
+		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
+				.thenReturn(emptySearchResponse());
+		SearchQuery query = new SearchQuery()
+				.setQueryText("foo")
+				.setQueryType(SearchQueryType.PREFIX)
+				.setLimit(5L);
+
+		manager.autocomplete("search-index-syn1", query,
+				Collections.emptyList(), EnumSet.of(SearchQueryPart.HITS));
+
+		ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
+		verify(openSearchClient).search(captor.capture(), eq(Map.class));
+		assertEquals(Integer.valueOf(5), captor.getValue().size());
+	}
+
+	@Test
+	public void testAutocompleteForcesPrefixQueryTypeRegardlessOfInput() throws Exception {
+		// query.setQueryType(SearchQueryType.PREFIX) is unconditional — even an input that
+		// arrives with a different queryType is overwritten before executeSearch runs.
+		when(openSearchClient.search(argThat((SearchRequest req) -> req != null), eq(Map.class)))
+				.thenReturn(emptySearchResponse());
+		SearchQuery query = new SearchQuery()
+				.setQueryText("foo")
+				.setQueryType(SearchQueryType.SIMPLE_QUERY_STRING)
+				.setLimit(3L);
+
+		manager.autocomplete("search-index-syn1", query,
+				Collections.emptyList(), EnumSet.of(SearchQueryPart.HITS));
+
+		assertEquals(SearchQueryType.PREFIX, query.getQueryType(),
+				"autocomplete must always force PREFIX queryType");
+	}
+
+	@Test
+	public void testDescribeBulkItemFailureWithNoShardFailuresOmitsSection() {
+		// shards==null OR shards.failures empty → no "shardFailures=" section.
+		ErrorCause err = new ErrorCause.Builder().type("indexing_error").reason("bad doc").build();
+		BulkResponseItem item = new BulkResponseItem.Builder()
+				.id("doc-42")
+				.operationType(org.opensearch.client.opensearch.core.bulk.OperationType.Index)
+				.status(400)
+				.error(err)
+				.index("test-index")
+				.build();
+
+		String desc = OpenSearchManagerImpl.describeBulkItemFailure(item);
+
+		assertTrue(desc.contains("doc doc-42"));
+		assertTrue(desc.contains("status=400"));
+		assertTrue(desc.contains("indexing_error"));
+		assertFalse(desc.contains("shardFailures="),
+				"no shardFailures section when shards.failures is empty: " + desc);
 	}
 }

@@ -37,13 +37,15 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class SynonymSetDaoImpl implements SynonymSetDao {
 
+	private static final String DEFINITION_FIELD = "SynonymSet.definition";
+
 	private static final RowMapper<SynonymSet> SYNONYM_SET_ROW_MAPPER = (rs, rowNum) -> new SynonymSet()
 		.setId(String.valueOf(rs.getLong(COL_SYNSET_ID)))
 		.setEtag(rs.getString(COL_SYNSET_ETAG))
 		.setOrganizationName(rs.getString(COL_SYNSET_ORGANIZATION_NAME))
 		.setName(rs.getString(COL_SYNSET_NAME))
 		.setDescription(rs.getString(COL_SYNSET_DESCRIPTION))
-		.setDefinition(rs.getString(COL_SYNSET_DEFINITION))
+		.setDefinition(OpaqueJsonColumnCodecUtil.deserialize(rs.getString(COL_SYNSET_DEFINITION), DEFINITION_FIELD))
 		.setCreatedBy(String.valueOf(rs.getLong(COL_SYNSET_CREATED_BY)))
 		.setCreatedOn(new Date(rs.getTimestamp(COL_SYNSET_CREATED_ON).getTime()))
 		.setModifiedBy(String.valueOf(rs.getLong(COL_SYNSET_MODIFIED_BY)))
@@ -73,7 +75,7 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 					synonymSet.getOrganizationName(),
 					synonymSet.getName(),
 					synonymSet.getDescription(),
-					synonymSet.getDefinition(),
+					OpaqueJsonColumnCodecUtil.serialize(synonymSet.getDefinition(), DEFINITION_FIELD),
 					createdBy,
 					createdBy
 			);
@@ -114,7 +116,7 @@ public class SynonymSetDaoImpl implements SynonymSetDao {
 					+ " MODIFIED_BY = ?, MODIFIED_ON = NOW(3) WHERE ID = ?",
 					synonymSet.getName(),
 					synonymSet.getDescription(),
-					synonymSet.getDefinition(),
+					OpaqueJsonColumnCodecUtil.serialize(synonymSet.getDefinition(), DEFINITION_FIELD),
 					modifiedBy,
 					Long.parseLong(synonymSet.getId())
 			);

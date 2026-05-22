@@ -281,7 +281,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 	 *
 	 * @param a                    AOSS analysis-builder being populated.
 	 * @param resolvedAnalyzers    qualified-name &rarr; typed analysis settings (post-
-	 *                             {@code SearchAnalyzerJsonUtil.resolveRefs}).
+	 *                             {@code SearchOpaqueJsonUtil.resolveAnalyzerSettings}).
 	 * @param defaultAnalyzerQname qualified name of the SearchConfiguration's primary
 	 *                             TextAnalyzer, or {@code null} if the SearchConfiguration
 	 *                             does not set one.
@@ -453,7 +453,7 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 			// Per-column resolution. See the per-bullet rules in the method javadoc above.
 			String effectiveQname;
 			if (override != null) {
-				effectiveQname = override.getAnalyzer();
+				effectiveQname = SearchOpaqueJsonUtil.readRef(override.getAnalyzer());
 			} else {
 				String typeDefault = ColumnTypeToOpenSearchMapping.getDefaultAnalyzerQualifiedName(columnType);
 				if (typeDefault == null || typeDefault.equals(defaultAnalyzerQname)) {
@@ -1305,7 +1305,8 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 		return JsonData.of(parsed);
 	}
 
-	private void addExistsFilters(BoolQuery.Builder boolBuilder, List<String> fields,
+	// Package-private for branch-coverage tests.
+	void addExistsFilters(BoolQuery.Builder boolBuilder, List<String> fields,
 			Map<String, String> nameToId, boolean negate) {
 		if (fields == null) {
 			return;
@@ -1594,8 +1595,10 @@ public class OpenSearchManagerImpl implements OpenSearchManager {
 
 	/**
 	 * Build the OpenSearch field property for a given column type and resolved analyzer qnames.
+	 *
+	 * <p>Package-private for branch-coverage tests across all column types.</p>
 	 */
-	private Property buildProperty(ColumnType columnType,
+	Property buildProperty(ColumnType columnType,
 			String qname, boolean hasDefaultSearch) {
 
 		// LINK columns map exactly like TEXT columns. Users who want full-text search

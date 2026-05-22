@@ -18,6 +18,7 @@ import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverride;
 import org.sagebionetworks.repo.model.search.table.ColumnAnalyzerOverrideEntry;
 import org.sagebionetworks.repo.transactions.WriteTransaction;
 import org.sagebionetworks.repo.web.NotFoundException;
+import org.sagebionetworks.util.TemporaryCode;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -61,7 +62,13 @@ public class ColumnAnalyzerOverrideDaoImpl implements ColumnAnalyzerOverrideDao 
 
 	// Bridge for prod-restored rows whose OVERRIDES JSON still carries the legacy
 	// `indexAnalyzer` / `searchAnalyzer` fields: rename `indexAnalyzer` to `analyzer` and
-	// drop `searchAnalyzer`. Remove on the next stack once all prod data has been re-saved.
+	// drop `searchAnalyzer`. Remove in the stack that immediately follows the first prod
+	// stack written with the new `analyzer`-only override JSON shape — by then every
+	// COLUMN_ANALYZER_OVERRIDE row's OVERRIDES JSON has been re-saved into the new shape
+	// (either by the curator hand-editing or by the next migration cycle re-restoring the
+	// table from a backup that was itself produced by a stack already on the new shape).
+	@TemporaryCode(author = "BryanFauble",
+			comment = "PLFM-9676: Remove in the stack after the first prod stack writes COLUMN_ANALYZER_OVERRIDE.OVERRIDES with `analyzer` only. Verify by sampling a few prod backups.")
 	static String bridgeLegacyOverridesJson(String json) {
 		if (json == null || json.isEmpty()) {
 			return json;

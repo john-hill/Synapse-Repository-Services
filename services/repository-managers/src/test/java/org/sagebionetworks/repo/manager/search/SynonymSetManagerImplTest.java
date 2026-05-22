@@ -376,4 +376,22 @@ public class SynonymSetManagerImplTest {
 				.setName("test")
 				.setDefinition("{\"type\":\"synonym_graph\",\"synonyms\":[\"a, b\"]}");
 	}
+
+	@Test
+	public void testAdminBypassesOrgAclOnUpdate() {
+		// Admin users skip the per-org ACL check on update — covers the !user.isAdmin()=false
+		// half of the L95 guard.
+		UserInfo admin = new UserInfo(true);
+		admin.setId(2L);
+		SynonymSet existing = validSynonymSet().setId("1");
+		SynonymSet input = validSynonymSet().setId("1");
+		when(synonymSetDao.get("1")).thenReturn(java.util.Optional.of(existing));
+		when(synonymSetDao.update(2L, input)).thenReturn(input);
+
+		// call under test
+		manager.update(admin, input);
+
+		verifyZeroInteractions(aclDao);
+		verify(synonymSetDao).update(2L, input);
+	}
 }

@@ -81,7 +81,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 	/** SynonymSet ids created during a test, removed in @AfterEach so each run is hermetic. */
 	private final List<String> createdSynonymSetIds = new ArrayList<>();
 	/**
-	 * Per-test resolved-analyzer map. Each value is the post-{@code SearchAnalyzerJsonUtil.resolveRefs}
+	 * Per-test resolved-analyzer map. Each value is the post-{@code SearchOpaqueJsonUtil.resolveAnalyzerSettings}
 	 * settings tree the manager hands to AOSS at index-build time. The bootstrapped analyzers
 	 * contain no {@code $ref}s here, so parsing the stored {@code settings} blob is sufficient —
 	 * synonym tests build their own analyzer entries that splice {@code $ref} entries against
@@ -239,7 +239,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 					+ "\"filter\":[\"lowercase\",\"english_stop\"]}}}";
 		Map<String, IndexSettingsAnalysis> analyzers = new HashMap<>(defaultAnalyzers);
 		analyzers.put(customQname,
-				SearchAnalyzerJsonUtil.resolveRefs(SearchAnalyzerJsonUtil.parse(customSettings), q -> null));
+				SearchOpaqueJsonUtil.resolveAnalyzerSettings(SearchOpaqueJsonUtil.parse(customSettings), q -> null));
 
 		List<ColumnModel> columns = List.of(
 				new ColumnModel().setId("1").setName("title").setColumnType(ColumnType.STRING));
@@ -485,9 +485,9 @@ public class OpenSearchManagerImplAutoWiredTest {
 		}
 	}
 
-	/** Test helper mirroring SearchAnalyzerJsonUtil.resolveRefs() with a no-op resolver. */
+	/** Test helper mirroring SearchOpaqueJsonUtil.resolveAnalyzerSettings() with a no-op resolver. */
 	private static IndexSettingsAnalysis toAnalysis(String json) {
-		return SearchAnalyzerJsonUtil.resolveRefs(SearchAnalyzerJsonUtil.parse(json), q -> null);
+		return SearchOpaqueJsonUtil.resolveAnalyzerSettings(SearchOpaqueJsonUtil.parse(json), q -> null);
 	}
 
 	/**
@@ -889,7 +889,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 		TextAnalyzer ta = textAnalyzerDao.get(id).orElseThrow(() -> new IllegalStateException(
 				"Bootstrapped TextAnalyzer not found for id " + id
 						+ "; TextAnalyzerBootstrapper should have populated it on startup."));
-		return SearchAnalyzerJsonUtil.resolveRefs(SearchAnalyzerJsonUtil.parse(ta.getSettings()), qname -> null);
+		return SearchOpaqueJsonUtil.resolveAnalyzerSettings(SearchOpaqueJsonUtil.parse(ta.getSettings()), qname -> null);
 	}
 
 	/**
@@ -922,7 +922,7 @@ public class OpenSearchManagerImplAutoWiredTest {
 	private IndexSettingsAnalysis synonymAwareAnalyzer(long bootstrapId, String synonymQname) {
 		TextAnalyzer ta = textAnalyzerDao.get(bootstrapId).orElseThrow(() -> new IllegalStateException(
 				"Bootstrapped TextAnalyzer not found for id " + bootstrapId));
-		ObjectNode root = (ObjectNode) SearchAnalyzerJsonUtil.parse(ta.getSettings());
+		ObjectNode root = (ObjectNode) SearchOpaqueJsonUtil.parse(ta.getSettings());
 
 		ObjectNode filterMap = root.has("filter") && root.get("filter").isObject()
 				? (ObjectNode) root.get("filter")
@@ -945,11 +945,11 @@ public class OpenSearchManagerImplAutoWiredTest {
 		searchAnalyzer.set("filter", rebuilt);
 		analyzerMap.set("default_search", searchAnalyzer);
 
-		return SearchAnalyzerJsonUtil.resolveRefs(root, qname -> {
+		return SearchOpaqueJsonUtil.resolveAnalyzerSettings(root, qname -> {
 			Map<String, SynonymSet> hits = synonymSetDao.getByQualifiedNames(
 					Collections.singletonList(qname));
 			SynonymSet ss = hits.get(qname);
-			return ss == null ? null : SearchAnalyzerJsonUtil.parse(ss.getDefinition());
+			return ss == null ? null : SearchOpaqueJsonUtil.parse(ss.getDefinition());
 		});
 	}
 

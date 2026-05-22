@@ -11,6 +11,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -56,13 +57,14 @@ public class ITSearchConfigurationTest {
 		String overrideLocalName = "IT_CONFIG_OVERRIDE_" + uniqueSuffix;
 		String configName = "IT_TEST_CONFIG_" + uniqueSuffix;
 
-		// Create a column analyzer override to reference
+		// Create a column analyzer override to reference. Inside an
+		// ColumnAnalyzerOverrideEntry the analyzer slot is a $ref to a TextAnalyzer.
 		ColumnAnalyzerOverride createdOverride = adminSynapse.createColumnAnalyzerOverride(new ColumnAnalyzerOverride()
 				.setName(overrideLocalName)
 				.setOrganizationName(orgName)
 				.setOverrides(Collections.singletonList(new ColumnAnalyzerOverrideEntry()
 						.setColumnName("abstract")
-						.setAnalyzer(defaultAnalyzerName))));
+						.setAnalyzer(ref(defaultAnalyzerName)))));
 		String overrideName = orgName + "-" + createdOverride.getName();
 
 		// CREATE — defaultAnalyzer points the index at its primary TextAnalyzer; overrides optional.
@@ -70,8 +72,8 @@ public class ITSearchConfigurationTest {
 				.setName(configName)
 				.setDescription("Integration test search configuration")
 				.setOrganizationName(orgName)
-				.setDefaultAnalyzer(defaultAnalyzerName)
-				.setColumnAnalyzerOverrides(Arrays.asList(overrideName));
+				.setDefaultAnalyzer(ref(defaultAnalyzerName))
+				.setColumnAnalyzerOverrides(Arrays.asList(ref(overrideName)));
 
 		// call under test
 		SearchConfiguration created = adminSynapse.createSearchConfiguration(toCreate);
@@ -79,20 +81,24 @@ public class ITSearchConfigurationTest {
 		assertNotNull(created.getEtag());
 		assertEquals(configName, created.getName());
 		assertEquals("Integration test search configuration", created.getDescription());
-		assertEquals(defaultAnalyzerName, created.getDefaultAnalyzer());
-		assertEquals(Arrays.asList(overrideName), created.getColumnAnalyzerOverrides());
+		assertRefEquals(defaultAnalyzerName, created.getDefaultAnalyzer());
+		assertEquals(1, created.getColumnAnalyzerOverrides().size());
+		assertRefEquals(overrideName, created.getColumnAnalyzerOverrides().get(0));
 
 		// call under test — verify GET returns the same data
 		SearchConfiguration fetched = adminSynapse.getSearchConfiguration(created.getId());
-		assertEquals(created, fetched);
+		assertEquals(created.getId(), fetched.getId());
+		assertEquals(created.getEtag(), fetched.getEtag());
+		assertRefEquals(defaultAnalyzerName, fetched.getDefaultAnalyzer());
 
 		// call under test — UPDATE: change description, verify references survive
 		fetched.setDescription("Updated description");
 		SearchConfiguration updated = adminSynapse.updateSearchConfiguration(fetched);
 		assertEquals("Updated description", updated.getDescription());
 		assertNotEquals(created.getEtag(), updated.getEtag());
-		assertEquals(defaultAnalyzerName, updated.getDefaultAnalyzer());
-		assertEquals(Arrays.asList(overrideName), updated.getColumnAnalyzerOverrides());
+		assertRefEquals(defaultAnalyzerName, updated.getDefaultAnalyzer());
+		assertEquals(1, updated.getColumnAnalyzerOverrides().size());
+		assertRefEquals(overrideName, updated.getColumnAnalyzerOverrides().get(0));
 
 		// call under test — UPDATE: clear optional references. An etag rotation alone
 		// does not prove the cleared list actually persisted; assert on the data.
@@ -100,7 +106,7 @@ public class ITSearchConfigurationTest {
 		SearchConfiguration cleared = adminSynapse.updateSearchConfiguration(updated);
 		assertTrue(isNullOrEmpty(cleared.getColumnAnalyzerOverrides()),
 				"columnAnalyzerOverrides should be cleared, was: " + cleared.getColumnAnalyzerOverrides());
-		assertEquals(defaultAnalyzerName, cleared.getDefaultAnalyzer());
+		assertRefEquals(defaultAnalyzerName, cleared.getDefaultAnalyzer());
 
 		// call under test — LIST by org
 		ListSearchConfigurationsResponse listResponse = adminSynapse.listSearchConfigurations(
@@ -109,8 +115,72 @@ public class ITSearchConfigurationTest {
 		assertTrue(listResponse.getResults().stream().anyMatch(c -> created.getId().equals(c.getId())));
 	}
 
+	@Test
+	public void testCRUDWithInlineDefaultAnalyzer() throws SynapseException {
+		// Inline form: defaultAnalyzer carries the bare OpenSearch settings.analysis block
+		// directly (no $ref, no envelope). The wire path must round-trip the JSON through
+		// controller → manager → DAO → re-fetch unchanged.
+		ListTextAnalyzersResponse analyzers = adminSynapse.listTextAnalyzers(new ListTextAnalyzersRequest());
+		String orgName = analyzers.getResults().get(0).getOrganizationName();
+
+		JSONObject inlineDefault = new JSONObject().put(
+				"analyzer", new JSONObject().put(
+						"default", new JSONObject()
+								.put("type", "custom")
+								.put("tokenizer", "standard")
+								.put("filter", new org.json.JSONArray().put("lowercase"))));
+
+		String configName = "IT_INLINE_CONFIG_" + UUID.randomUUID().toString().replace("-", "");
+		SearchConfiguration toCreate = new SearchConfiguration()
+				.setName(configName)
+				.setDescription("Inline default analyzer")
+				.setOrganizationName(orgName)
+				.setDefaultAnalyzer(inlineDefault);
+
+		// call under test
+		SearchConfiguration created = adminSynapse.createSearchConfiguration(toCreate);
+		assertNotNull(created.getId());
+		assertJsonEquals(inlineDefault, created.getDefaultAnalyzer());
+
+		// call under test — GET round-trips the inline JSON unchanged
+		SearchConfiguration fetched = adminSynapse.getSearchConfiguration(created.getId());
+		assertJsonEquals(inlineDefault, fetched.getDefaultAnalyzer());
+	}
+
+	private static void assertJsonEquals(Object expected, Object actual) {
+		com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+		try {
+			assertEquals(mapper.readTree(String.valueOf(expected)),
+					mapper.readTree(String.valueOf(actual)));
+		} catch (java.io.IOException e) {
+			throw new AssertionError(e);
+		}
+	}
+
 	private static boolean isNullOrEmpty(List<?> list) {
 		return list == null || list.isEmpty();
+	}
+
+	/** Build a {@code {"$ref": "{org}-{name}"}} reference value as a JSONObject. */
+	private static JSONObject ref(String qualifiedName) {
+		return new JSONObject().put("$ref", qualifiedName);
+	}
+
+	/**
+	 * Assert that {@code actual} carries a {@code {"$ref": qname}} reference. The wire
+	 * deserializer surfaces it as a {@code JSONObjectAdapter}, so we compare via the
+	 * {@code $ref} value extracted by reflection of the JSON shape.
+	 */
+	private static void assertRefEquals(String expectedQname, Object actual) {
+		assertNotNull(actual, "expected $ref to '" + expectedQname + "', got null");
+		String json = String.valueOf(actual);
+		try {
+			JSONObject parsed = new JSONObject(json);
+			assertEquals(1, parsed.length(), "expected single-key $ref object, got: " + json);
+			assertEquals(expectedQname, parsed.optString("$ref"));
+		} catch (org.json.JSONException e) {
+			throw new AssertionError("expected $ref JSON object, got: " + json, e);
+		}
 	}
 
 	@Test
@@ -129,7 +199,7 @@ public class ITSearchConfigurationTest {
 			SearchConfiguration createdConfig = adminSynapse.createSearchConfiguration(new SearchConfiguration()
 					.setName("IT_BIND_CONFIG_" + UUID.randomUUID().toString().replace("-", ""))
 					.setOrganizationName(orgName)
-					.setDefaultAnalyzer(defaultAnalyzerName));
+					.setDefaultAnalyzer(ref(defaultAnalyzerName)));
 
 			// call under test — BIND
 			SearchConfigBinding binding = adminSynapse.bindSearchConfigToEntity(new BindSearchConfigToEntityRequest()

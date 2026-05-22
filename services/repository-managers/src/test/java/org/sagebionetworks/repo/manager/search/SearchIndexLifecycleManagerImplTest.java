@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -415,8 +416,12 @@ public class SearchIndexLifecycleManagerImplTest {
 	}
 
 	@Test
-	public void testHandleDeleteWithMissingStatusIsNoOp() throws Exception {
-		stubBuildLock();
+	public void testHandleDeleteWithMissingStatusSkipsLockAcquireAndIsNoOp() throws Exception {
+		// Migration replay delivers ENTITY changes for entities that no longer exist;
+		// SearchIndexLifecycleWorker funnels those through handleDelete via NotFoundException.
+		// When there is no status row to clean up, the precheck must skip the write-lock
+		// acquire entirely — it was the dominant cost in the SEARCH_INDEX_LIFECYCLE worker's
+		// per-message profile.
 		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
 		when(statusDao.getState(456L)).thenReturn(Optional.empty());
 
@@ -425,11 +430,14 @@ public class SearchIndexLifecycleManagerImplTest {
 
 		verify(openSearchManager, never()).deleteIndex(any());
 		verify(statusDao, never()).delete(any());
-		verify(writeLock).close();
+		verify(writeReadSemaphore, never()).getWriteLock(any());
 	}
 
 	@Test
 	public void testHandleDeleteWithLockAlreadyHeld() throws Exception {
+		// Status is present so the precheck doesn't short-circuit; then the lock-acquire fails.
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getState(456L)).thenReturn(Optional.of(SearchIndexState.ACTIVE));
 		stubLockUnavailable();
 
 		// call under test
@@ -988,8 +996,10 @@ public class SearchIndexLifecycleManagerImplTest {
 	@Test
 	public void testCollectAndLoadAnalyzersIncludesConfigDefault() {
 		ColumnModel stringCol = new ColumnModel().setId("col-1").setName("title").setColumnType(ColumnType.STRING);
+		// defaultAnalyzer is a $ref to a TextAnalyzer; the lifecycle pipeline extracts the
+		// qname via SearchOpaqueJsonUtil.readRef.
 		SearchConfiguration config = new SearchConfiguration()
-				.setDefaultAnalyzer("org-biomed-DEFAULT_ANALYZER");
+				.setDefaultAnalyzer(new org.json.JSONObject().put("$ref", "org-biomed-DEFAULT_ANALYZER"));
 		when(textAnalyzerDao.getByQualifiedNames(anyList())).thenReturn(Collections.emptyMap());
 
 		// call under test
@@ -1006,7 +1016,7 @@ public class SearchIndexLifecycleManagerImplTest {
 		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride()
 				.setOverrides(Collections.singletonList(new ColumnAnalyzerOverrideEntry()
 						.setColumnName("title")
-						.setAnalyzer("biomed-CUSTOM")));
+						.setAnalyzer(new org.json.JSONObject().put("$ref", "biomed-CUSTOM"))));
 		when(textAnalyzerDao.getByQualifiedNames(anyList())).thenReturn(Collections.emptyMap());
 
 		// call under test
@@ -1022,4 +1032,588 @@ public class SearchIndexLifecycleManagerImplTest {
 	private static List<String> anyList() {
 		return org.mockito.ArgumentMatchers.anyList();
 	}
+
+	/** Stub the minimum chain that lets buildIndex reach the row-stream phase. */
+	private void stubHappyPathThroughCreateIndex() throws Exception {
+		stubBuildLock();
+		UserInfo triggering = triggeringUser();
+		SearchIndex searchIndex = new SearchIndex().setDefiningSQL(DEFINING_SQL).setParentId("syn100");
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
+		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
+		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Collections.singletonList(
+						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
+		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
+		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
+				.thenReturn(new QueryResultBundle().setQueryCount(0L));
+	}
+
+	// -------- buildIndex — additional branch coverage --------
+
+	@Test
+	public void testHandleCreateThrowsWhenSchemaIsNull() throws Exception {
+		// L235: getTableSchema returns null — buildIndex throws "no bound schema", caught
+		// by the outer Throwable handler and recorded as FAILED.
+		stubBuildLock();
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(userManager.getUserInfo(USER_ID)).thenReturn(triggeringUser());
+		when(entityManager.getEntity(any(), any(), any()))
+				.thenReturn(new SearchIndex().setDefiningSQL(DEFINING_SQL).setParentId("syn100"));
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID))).thenReturn(null);
+
+		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao, atLeastOnce()).createOrUpdate(captor.capture());
+		assertTrue(captor.getAllValues().stream()
+				.anyMatch(s -> s.getState() == SearchIndexState.FAILED
+						&& s.getErrorMessage() != null
+						&& s.getErrorMessage().contains("no bound schema")));
+	}
+
+	@Test
+	public void testHandleCreateThrowsWhenSchemaIsEmpty() throws Exception {
+		// L235: empty schema also flows to FAILED via the outer Throwable handler.
+		stubBuildLock();
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(userManager.getUserInfo(USER_ID)).thenReturn(triggeringUser());
+		when(entityManager.getEntity(any(), any(), any()))
+				.thenReturn(new SearchIndex().setDefiningSQL(DEFINING_SQL).setParentId("syn100"));
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Collections.emptyList());
+
+		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao, atLeastOnce()).createOrUpdate(captor.capture());
+		assertTrue(captor.getAllValues().stream()
+				.anyMatch(s -> s.getState() == SearchIndexState.FAILED));
+	}
+
+	@Test
+	public void testHandleCreateRejectsRowCountAboveMax() throws Exception {
+		// L257: rowCount > MAX_ROWS — IllegalStateException is caught by outer handler and
+		// the index is marked FAILED with the row-count message.
+		stubHappyPathThroughCreateIndex();
+		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
+				.thenReturn(new QueryResultBundle().setQueryCount(1_000_000L));
+
+		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao, atLeastOnce()).createOrUpdate(captor.capture());
+		assertTrue(captor.getAllValues().stream()
+				.anyMatch(s -> s.getState() == SearchIndexState.FAILED
+						&& s.getErrorMessage() != null
+						&& s.getErrorMessage().contains("exceed maximum")));
+	}
+
+	@Test
+	public void testHandleCreateAcceptsNullRowCount() throws Exception {
+		// L257: rowCount == null — short-circuits the > MAX_ROWS guard and proceeds.
+		stubHappyPathThroughCreateIndex();
+		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
+				.thenReturn(new QueryResultBundle()); // no queryCount set
+
+		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		verify(openSearchManager).createIndex(any(), any(), any(), any(), any());
+	}
+
+	@Test
+	public void testHandleCreateWithConfigSetsDefaultAnalyzer() throws Exception {
+		// L265: config != null branch — readRef extracts the qname and forwards it to createIndex.
+		stubHappyPathThroughCreateIndex();
+		String defaultQname = "org.sagebionetworks-SCIENTIFIC";
+		SearchConfiguration config = new SearchConfiguration()
+				.setDefaultAnalyzer(new org.json.JSONObject().put("$ref", defaultQname));
+		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.of(config));
+		when(textAnalyzerDao.getByQualifiedNames(anyList())).thenReturn(
+				Collections.singletonMap(defaultQname,
+						new TextAnalyzer().setName("SCIENTIFIC").setSettings(
+								new org.json.JSONObject().put("analyzer",
+										new org.json.JSONObject().put("default",
+												new org.json.JSONObject().put("type", "custom")
+														.put("tokenizer", "standard"))))));
+
+		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		verify(openSearchManager).createIndex(any(), any(), eq(defaultQname), any(), any());
+	}
+
+	@Test
+	public void testHandleCreateWithIOExceptionWithoutRecoverableCauseMarksFailed() throws Exception {
+		// L311: instanceof IOException but cause is NOT RecoverableMessageException — falls
+		// through to the FAILED-marking path. The IOException itself is swallowed.
+		stubHappyPathThroughCreateIndex();
+		doThrow(new IOException("disk full"))
+				.when(tableQueryManager).runQueryAsStream(any(), any(), any(), any(), any());
+
+		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao, atLeastOnce()).createOrUpdate(captor.capture());
+		assertTrue(captor.getAllValues().stream()
+				.anyMatch(s -> s.getState() == SearchIndexState.FAILED));
+	}
+
+	@Test
+	public void testHandleCreateWithOpenSearchExceptionNotConcurrentDeleteMarksFailed() throws Exception {
+		// L319: OpenSearchException that ISN'T a concurrent-delete falls through to the
+		// FAILED-marking path.
+		stubHappyPathThroughCreateIndex();
+		org.opensearch.client.opensearch._types.OpenSearchException opensearchEx =
+				new org.opensearch.client.opensearch._types.OpenSearchException(
+						new org.opensearch.client.opensearch._types.ErrorResponse.Builder()
+								.status(500)
+								.error(new org.opensearch.client.opensearch._types.ErrorCause.Builder()
+										.type("internal_server_error")
+										.reason("not a concurrent delete")
+										.build())
+								.build());
+		doThrow(opensearchEx)
+				.when(tableQueryManager).runQueryAsStream(any(), any(), any(), any(), any());
+
+		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao, atLeastOnce()).createOrUpdate(captor.capture());
+		assertTrue(captor.getAllValues().stream()
+				.anyMatch(s -> s.getState() == SearchIndexState.FAILED));
+	}
+
+	@Test
+	public void testHandleCreateWithNullErrorMessageStillMarksFailed() throws Exception {
+		// L335: e.getMessage() == null — truncate guard short-circuits cleanly and the
+		// FAILED status carries a null errorMessage.
+		stubHappyPathThroughCreateIndex();
+		doThrow(new RuntimeException((String) null))
+				.when(tableQueryManager).runQueryAsStream(any(), any(), any(), any(), any());
+
+		manager.handleCreate(progressCallback, ENTITY_ID, USER_ID);
+
+		ArgumentCaptor<SearchIndexStatus> captor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao, atLeastOnce()).createOrUpdate(captor.capture());
+		SearchIndexStatus failed = captor.getAllValues().stream()
+				.filter(s -> s.getState() == SearchIndexState.FAILED)
+				.findFirst().orElseThrow();
+		assertNull(failed.getErrorMessage());
+	}
+
+	// -------- collectAndLoadAnalyzers — null/empty branches --------
+
+	@Test
+	public void testCollectAndLoadAnalyzersWithNullOverridesAndConfig() {
+		// Both overrides and config null — only the source columns' system defaults plus the
+		// always-loaded STRING default should be requested.
+		ColumnModel intCol = new ColumnModel().setId("c").setName("c").setColumnType(ColumnType.INTEGER);
+		when(textAnalyzerDao.getByQualifiedNames(anyList())).thenReturn(Collections.emptyMap());
+
+		manager.collectAndLoadAnalyzers(null, null, Collections.singletonList(intCol));
+
+		verify(textAnalyzerDao).getByQualifiedNames(anyList());
+	}
+
+	@Test
+	public void testCollectAndLoadAnalyzersIgnoresOverrideWithNullEntries() {
+		// A ColumnAnalyzerOverride whose getOverrides() is null must not NPE — the loop guards
+		// it. The qname-collection should still pull in the column-type defaults.
+		ColumnModel stringCol = new ColumnModel().setId("c").setName("c").setColumnType(ColumnType.STRING);
+		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride();
+		// override.getOverrides() == null
+		when(textAnalyzerDao.getByQualifiedNames(anyList())).thenReturn(Collections.emptyMap());
+
+		manager.collectAndLoadAnalyzers(null, Collections.singletonList(override),
+				Collections.singletonList(stringCol));
+
+		verify(textAnalyzerDao).getByQualifiedNames(anyList());
+	}
+
+	@Test
+	public void testCollectAndLoadAnalyzersIgnoresEntryWithNoRefAnalyzer() {
+		// An override entry whose analyzer slot isn't a {"$ref": ...} (e.g. inline literal,
+		// or simply absent) should NOT be added to the qualified-name set.
+		ColumnModel stringCol = new ColumnModel().setId("c").setName("c").setColumnType(ColumnType.STRING);
+		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride()
+				.setOverrides(Collections.singletonList(new ColumnAnalyzerOverrideEntry()
+						.setColumnName("c")
+						.setAnalyzer(null))); // null analyzer — readRef returns null
+		when(textAnalyzerDao.getByQualifiedNames(anyList())).thenReturn(Collections.emptyMap());
+
+		manager.collectAndLoadAnalyzers(null, Collections.singletonList(override),
+				Collections.singletonList(stringCol));
+
+		ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
+		verify(textAnalyzerDao).getByQualifiedNames(captor.capture());
+		// Only the column-type defaults; no "no-ref" qname leaked through.
+		assertTrue(captor.getValue().stream().noneMatch(q -> q == null));
+	}
+
+	@Test
+	public void testCollectAndLoadAnalyzersWithConfigButNoDefaultAnalyzer() {
+		// Config present but defaultAnalyzer is null/inline — the lifecycle skips the
+		// branch that would add a defaultAnalyzer qname.
+		ColumnModel stringCol = new ColumnModel().setId("c").setName("c").setColumnType(ColumnType.STRING);
+		SearchConfiguration config = new SearchConfiguration(); // defaultAnalyzer is null
+		when(textAnalyzerDao.getByQualifiedNames(anyList())).thenReturn(Collections.emptyMap());
+
+		manager.collectAndLoadAnalyzers(config, null, Collections.singletonList(stringCol));
+
+		verify(textAnalyzerDao).getByQualifiedNames(anyList());
+	}
+
+	// -------- loadColumnAnalyzerOverrides --------
+
+	@Test
+	public void testLoadColumnAnalyzerOverridesWithNullConfigReturnsEmpty() {
+		assertTrue(manager.loadColumnAnalyzerOverrides(null).isEmpty());
+		verify(columnAnalyzerOverrideDao, never()).getByQualifiedNames(any());
+	}
+
+	@Test
+	public void testLoadColumnAnalyzerOverridesWithNullListReturnsEmpty() {
+		// config.getColumnAnalyzerOverrides() == null
+		assertTrue(manager.loadColumnAnalyzerOverrides(new SearchConfiguration()).isEmpty());
+		verify(columnAnalyzerOverrideDao, never()).getByQualifiedNames(any());
+	}
+
+	@Test
+	public void testLoadColumnAnalyzerOverridesWithEmptyListReturnsEmpty() {
+		SearchConfiguration config = new SearchConfiguration()
+				.setColumnAnalyzerOverrides(Collections.emptyList());
+
+		assertTrue(manager.loadColumnAnalyzerOverrides(config).isEmpty());
+		verify(columnAnalyzerOverrideDao, never()).getByQualifiedNames(any());
+	}
+
+	@Test
+	public void testLoadColumnAnalyzerOverridesWithOnlyInlineElementsSkipsDao() {
+		// Schema permits inline ColumnAnalyzerOverride literals in the list; with no $ref
+		// elements the DAO is not hit, but each inline literal is materialized into a typed
+		// ColumnAnalyzerOverride POJO so the build path can walk its entries uniformly.
+		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry()
+				.setColumnName("title")
+				.setAnalyzer(java.util.Map.of(
+						"analyzer", java.util.Map.of("default",
+								java.util.Map.of("type", "custom", "tokenizer", "standard"))));
+		java.util.Map<String, Object> inlineLiteral = java.util.Map.of(
+				"overrides", java.util.List.of(java.util.Map.of(
+						"columnName", "title",
+						"analyzer", entry.getAnalyzer())));
+		SearchConfiguration config = new SearchConfiguration()
+				.setColumnAnalyzerOverrides(Collections.singletonList(inlineLiteral));
+
+		List<ColumnAnalyzerOverride> result = manager.loadColumnAnalyzerOverrides(config);
+
+		assertEquals(1, result.size());
+		assertEquals(1, result.get(0).getOverrides().size());
+		assertEquals("title", result.get(0).getOverrides().get(0).getColumnName());
+		verify(columnAnalyzerOverrideDao, never()).getByQualifiedNames(any());
+	}
+
+	@Test
+	public void testLoadColumnAnalyzerOverridesMixesRefAndInline() {
+		// One $ref + one inline literal: the ref's qname goes to the DAO, the inline literal
+		// is materialized in-memory, and the union is returned (DAO-loaded first, inline last).
+		java.util.Map<String, Object> inlineLiteral = java.util.Map.of(
+				"overrides", java.util.List.of(java.util.Map.of(
+						"columnName", "abstract",
+						"analyzer", java.util.Map.of(
+								"analyzer", java.util.Map.of("default",
+										java.util.Map.of("type", "custom", "tokenizer", "standard"))))));
+		SearchConfiguration config = new SearchConfiguration()
+				.setColumnAnalyzerOverrides(Arrays.asList(
+						new org.json.JSONObject().put("$ref", "biomed-pubs"),
+						inlineLiteral));
+		ColumnAnalyzerOverride loaded = new ColumnAnalyzerOverride().setName("pubs");
+		Map<String, ColumnAnalyzerOverride> daoResult = new java.util.LinkedHashMap<>();
+		daoResult.put("biomed-pubs", loaded);
+		when(columnAnalyzerOverrideDao.getByQualifiedNames(Arrays.asList("biomed-pubs")))
+				.thenReturn(daoResult);
+
+		List<ColumnAnalyzerOverride> result = manager.loadColumnAnalyzerOverrides(config);
+
+		assertEquals(2, result.size());
+		assertEquals("pubs", result.get(0).getName());
+		assertEquals("abstract", result.get(1).getOverrides().get(0).getColumnName());
+	}
+
+	// -------- materializeInlineAnalyzerSlots --------
+
+	@Test
+	public void testMaterializeInlineAnalyzerSlotsWithInlineDefault() {
+		// Inline defaultAnalyzer — gets a synthetic qname, the slot is rewritten in place
+		// to a $ref Map carrying that qname, and the synthetic TextAnalyzer is returned.
+		java.util.Map<String, Object> inlineDefault = java.util.Map.of(
+				"analyzer", java.util.Map.of("default",
+						java.util.Map.of("type", "custom", "tokenizer", "standard")));
+		SearchConfiguration config = new SearchConfiguration().setDefaultAnalyzer(inlineDefault);
+
+		Map<String, TextAnalyzer> result = manager.materializeInlineAnalyzerSlots(
+				config, Collections.emptyList());
+
+		assertEquals(1, result.size());
+		assertTrue(result.containsKey("synapse-inline_default"));
+		assertEquals("synapse-inline_default", SearchOpaqueJsonUtil.readRef(config.getDefaultAnalyzer()));
+		// The synthetic TextAnalyzer carries the original inline JSON as its settings, so
+		// resolveAnalyzers can re-parse it uniformly with DAO-loaded analyzers.
+		assertEquals(inlineDefault, result.get("synapse-inline_default").getSettings());
+	}
+
+	@Test
+	public void testMaterializeInlineAnalyzerSlotsWithRefDefaultIsNoop() {
+		// Default is a $ref; the helper does not touch it, no synthetic entries returned.
+		java.util.Map<String, String> refDefault = java.util.Map.of("$ref", "biomed-PRIMARY");
+		SearchConfiguration config = new SearchConfiguration().setDefaultAnalyzer(refDefault);
+
+		Map<String, TextAnalyzer> result = manager.materializeInlineAnalyzerSlots(
+				config, Collections.emptyList());
+
+		assertTrue(result.isEmpty());
+		assertEquals("biomed-PRIMARY", SearchOpaqueJsonUtil.readRef(config.getDefaultAnalyzer()));
+	}
+
+	@Test
+	public void testMaterializeInlineAnalyzerSlotsWithInlineOverrideEntries() {
+		// Two override entries — both inline. Each gets its own synthetic qname; the slot is
+		// rewritten in place and a synthetic TextAnalyzer is added per entry.
+		java.util.Map<String, Object> inlineA = java.util.Map.of(
+				"analyzer", java.util.Map.of("default",
+						java.util.Map.of("type", "custom", "tokenizer", "standard")));
+		java.util.Map<String, Object> inlineB = java.util.Map.of(
+				"analyzer", java.util.Map.of("default",
+						java.util.Map.of("type", "custom", "tokenizer", "keyword")));
+		ColumnAnalyzerOverrideEntry e1 = new ColumnAnalyzerOverrideEntry()
+				.setColumnName("title").setAnalyzer(inlineA);
+		ColumnAnalyzerOverrideEntry e2 = new ColumnAnalyzerOverrideEntry()
+				.setColumnName("body").setAnalyzer(inlineB);
+		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride()
+				.setName("pubs").setOverrides(Arrays.asList(e1, e2));
+
+		Map<String, TextAnalyzer> result = manager.materializeInlineAnalyzerSlots(
+				null, Collections.singletonList(override));
+
+		assertEquals(2, result.size());
+		assertTrue(result.containsKey("synapse-inline_override_0"));
+		assertTrue(result.containsKey("synapse-inline_override_1"));
+		assertEquals("synapse-inline_override_0", SearchOpaqueJsonUtil.readRef(e1.getAnalyzer()));
+		assertEquals("synapse-inline_override_1", SearchOpaqueJsonUtil.readRef(e2.getAnalyzer()));
+	}
+
+	@Test
+	public void testMaterializeInlineAnalyzerSlotsLeavesRefEntriesAlone() {
+		// $ref override entry passes through; only the inline entry is rewritten.
+		ColumnAnalyzerOverrideEntry refEntry = new ColumnAnalyzerOverrideEntry()
+				.setColumnName("c1").setAnalyzer(java.util.Map.of("$ref", "biomed-FOO"));
+		ColumnAnalyzerOverrideEntry inlineEntry = new ColumnAnalyzerOverrideEntry()
+				.setColumnName("c2").setAnalyzer(java.util.Map.of(
+						"analyzer", java.util.Map.of("default",
+								java.util.Map.of("type", "custom", "tokenizer", "standard"))));
+		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride()
+				.setName("o").setOverrides(Arrays.asList(refEntry, inlineEntry));
+
+		Map<String, TextAnalyzer> result = manager.materializeInlineAnalyzerSlots(
+				null, Collections.singletonList(override));
+
+		assertEquals(1, result.size());
+		assertEquals("biomed-FOO", SearchOpaqueJsonUtil.readRef(refEntry.getAnalyzer()));
+		assertEquals("synapse-inline_override_0", SearchOpaqueJsonUtil.readRef(inlineEntry.getAnalyzer()));
+	}
+
+	@Test
+	public void testMaterializeInlineAnalyzerSlotsWithNullInputsReturnsEmpty() {
+		Map<String, TextAnalyzer> result = manager.materializeInlineAnalyzerSlots(
+				null, Collections.emptyList());
+
+		assertTrue(result.isEmpty());
+	}
+
+	// -------- validateReferencedResources / assertAnalyzerExists --------
+
+	@Test
+	public void testValidateReferencedResourcesWithNullDefaultAndNullOverridesIsNoop() {
+		// Both inputs null — both early-return paths fire; no validation is run.
+		manager.validateReferencedResources(null, null, Collections.emptyMap());
+	}
+
+	@Test
+	public void testValidateReferencedResourcesPassesWhenDefaultExistsInLoadedMap() {
+		Map<String, TextAnalyzer> analyzers = new java.util.HashMap<>();
+		analyzers.put("biomed-PRIMARY", new TextAnalyzer().setName("PRIMARY"));
+
+		manager.validateReferencedResources("biomed-PRIMARY", null, analyzers);
+	}
+
+	@Test
+	public void testValidateReferencedResourcesThrowsWhenDefaultMissing() {
+		// Default analyzer qname provided but not present in the loaded analyzers map.
+		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+				() -> manager.validateReferencedResources(
+						"biomed-MISSING", null, Collections.emptyMap()));
+		assertTrue(e.getMessage().contains("biomed-MISSING"));
+		assertTrue(e.getMessage().contains("defaultAnalyzer"));
+	}
+
+	@Test
+	public void testValidateReferencedResourcesIgnoresOverrideWithNullEntries() {
+		// ColumnAnalyzerOverride whose getOverrides() is null is skipped — the inner-list
+		// guard prevents NPE.
+		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride().setName("o");
+		// no inner entries
+		manager.validateReferencedResources(
+				null, Collections.singletonList(override), Collections.emptyMap());
+	}
+
+	@Test
+	public void testValidateReferencedResourcesThrowsWhenOverrideAnalyzerMissing() {
+		// Override entry references a TextAnalyzer that wasn't loaded.
+		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry()
+				.setColumnName("title")
+				.setAnalyzer(new org.json.JSONObject().put("$ref", "biomed-MISSING"));
+		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride()
+				.setName("pubs")
+				.setOverrides(Collections.singletonList(entry));
+
+		IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+				() -> manager.validateReferencedResources(
+						null, Collections.singletonList(override), Collections.emptyMap()));
+		assertTrue(e.getMessage().contains("biomed-MISSING"));
+		assertTrue(e.getMessage().contains("override 'pubs'"));
+		assertTrue(e.getMessage().contains("'title'"));
+	}
+
+	@Test
+	public void testValidateReferencedResourcesIgnoresOverrideEntryWithNoRefAnalyzer() {
+		// An entry whose analyzer slot is null (or inline-not-ref) yields readRef==null;
+		// assertAnalyzerExists's null-qname branch returns without checking the map.
+		ColumnAnalyzerOverrideEntry entry = new ColumnAnalyzerOverrideEntry()
+				.setColumnName("title")
+				.setAnalyzer(null);
+		ColumnAnalyzerOverride override = new ColumnAnalyzerOverride()
+				.setName("pubs")
+				.setOverrides(Collections.singletonList(entry));
+
+		manager.validateReferencedResources(
+				null, Collections.singletonList(override), Collections.emptyMap());
+	}
+
+	// -------- handleDelete: deleteIndex throws but status row is also cleared --------
+
+	@Test
+	public void testHandleDeleteWhenDeleteIndexThrowsLogsAndContinues() throws Exception {
+		// deleteIndex failure under the lock must not leak — handleDelete swallows the
+		// throwable, logs, and the status row is left in place (since the delete failed,
+		// statusDao.delete is never called).
+		stubBuildLock();
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getState(456L)).thenReturn(Optional.of(SearchIndexState.ACTIVE));
+		doThrow(new RuntimeException("AOSS unavailable"))
+				.when(openSearchManager).deleteIndex("search-index-" + ENTITY_ID);
+
+		// call under test — must not throw
+		manager.handleDelete(progressCallback, ENTITY_ID);
+
+		verify(statusDao, never()).delete(any());
+		verify(writeLock).close();
+	}
+
+	@Test
+	public void testHandleDeleteWithStatusClearedBetweenPrecheckAndLockIsNoop() throws Exception {
+		// First getState returns present (precheck passes), second returns empty (a concurrent
+		// delete already cleaned up under the lock). The lock-protected path early-returns.
+		stubBuildLock();
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(statusDao.getState(456L))
+				.thenReturn(Optional.of(SearchIndexState.ACTIVE)) // precheck
+				.thenReturn(Optional.empty()); // recheck under lock
+
+		manager.handleDelete(progressCallback, ENTITY_ID);
+
+		verify(openSearchManager, never()).deleteIndex(any());
+		verify(statusDao, never()).delete(any());
+		verify(writeLock).close();
+	}
+
+	// -------- buildIndex error-unwrap branches --------
+
+	@Test
+	public void testHandleCreateUnwrapsIOExceptionWrappingRecoverableMessageException() throws Exception {
+		// SearchIndexRowHandler tunnels RecoverableMessageException through IOException because
+		// RowHandler.close() can't declare anything else. handleCreate must unwrap to keep the
+		// retry instead of permanently FAILING the index.
+		stubBuildLock();
+		UserInfo triggering = triggeringUser();
+		SearchIndex searchIndex = new SearchIndex().setDefiningSQL(DEFINING_SQL).setParentId("syn100");
+
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
+		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
+		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Collections.singletonList(
+						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
+		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
+		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
+				.thenReturn(new QueryResultBundle().setQueryCount(0L));
+		// Stream throws IOException wrapping a RecoverableMessageException — handleCreate
+		// must rethrow the inner cause.
+		IOException tunnelled = new IOException("io",
+				new RecoverableMessageException("convergence probe timed out"));
+		doThrow(tunnelled).when(tableQueryManager).runQueryAsStream(any(), any(), any(), any(), any());
+
+		assertThrows(RecoverableMessageException.class,
+				() -> manager.handleCreate(progressCallback, ENTITY_ID, USER_ID));
+
+		// Status must NOT be marked FAILED — this is transient. Only the initial CREATING
+		// status was written (no second createOrUpdate for FAILED).
+		ArgumentCaptor<SearchIndexStatus> statusCaptor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao, atLeastOnce()).createOrUpdate(statusCaptor.capture());
+		assertTrue(statusCaptor.getAllValues().stream()
+				.noneMatch(s -> s.getState() == SearchIndexState.FAILED),
+				"transient errors must not mark the index FAILED");
+	}
+
+	@Test
+	public void testHandleCreateUnwrapsLockUnavailableNestedInsideAnotherException() throws Exception {
+		// LockUnavilableException wrapped inside another exception is still a transient
+		// writer-contention signal — surface the wrapped lock exception so the worker re-queues.
+		stubBuildLock();
+		UserInfo triggering = triggeringUser();
+		SearchIndex searchIndex = new SearchIndex().setDefiningSQL(DEFINING_SQL).setParentId("syn100");
+
+		when(connectionFactory.getSearchIndexStatusDao()).thenReturn(statusDao);
+		when(userManager.getUserInfo(USER_ID)).thenReturn(triggering);
+		when(userManager.getUserInfo(ANON_ID)).thenReturn(anonymousUser());
+		when(entityManager.getEntity(triggering, ENTITY_ID, SearchIndex.class)).thenReturn(searchIndex);
+		when(tableManagerSupport.getTableSchema(IdAndVersion.parse(ENTITY_ID)))
+				.thenReturn(Collections.singletonList(
+						new ColumnModel().setId("100").setName("name").setColumnType(ColumnType.STRING)));
+		when(searchConfigurationResolver.resolve(any(), any(), any())).thenReturn(Optional.empty());
+		when(tableQueryManager.querySinglePage(any(), any(), any(), any()))
+				.thenReturn(new QueryResultBundle().setQueryCount(0L));
+
+		LockUnavilableException nestedLock = new LockUnavilableException(
+				org.sagebionetworks.workers.util.semaphore.LockType.Write, "k", "other-worker");
+		RuntimeException wrapper = new RuntimeException("wrapped", nestedLock);
+		doThrow(wrapper).when(tableQueryManager).runQueryAsStream(any(), any(), any(), any(), any());
+
+		// buildIndex's inner cause-cause unwrap surfaces the LockUnavilableException; the
+		// outer handleCreate wrapper then converts it to RecoverableMessageException. The
+		// branch under test is the LockUnavilableException unwrap path inside buildIndex —
+		// the resulting RecoverableMessageException's cause must be the original lock ex.
+		RecoverableMessageException thrown = assertThrows(RecoverableMessageException.class,
+				() -> manager.handleCreate(progressCallback, ENTITY_ID, USER_ID));
+		assertTrue(thrown.getCause() instanceof LockUnavilableException,
+				"the recoverable wrapper must carry the LockUnavilableException as its cause");
+
+		// Not marked FAILED — transient.
+		ArgumentCaptor<SearchIndexStatus> nestedLockCaptor = ArgumentCaptor.forClass(SearchIndexStatus.class);
+		verify(statusDao, atLeastOnce()).createOrUpdate(nestedLockCaptor.capture());
+		assertTrue(nestedLockCaptor.getAllValues().stream()
+				.noneMatch(s -> s.getState() == SearchIndexState.FAILED),
+				"nested lock-unavailable must not mark the index FAILED");
+	}
+
 }

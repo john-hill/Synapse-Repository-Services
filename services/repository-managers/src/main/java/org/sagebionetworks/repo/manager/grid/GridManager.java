@@ -2,6 +2,7 @@ package org.sagebionetworks.repo.manager.grid;
 
 import java.net.URL;
 import java.util.List;
+import java.util.Set;
 import java.util.Optional;
 
 import org.json.JSONArray;
@@ -148,11 +149,32 @@ public interface GridManager extends PatchStore, SnapshotStore {
 
 	/**
 	 * List the active connections for a grid session.
-	 * 
+	 *
 	 * @param connectionId
 	 * @return
 	 */
 	List<GridConnectionInfo> listActiveConnections(String connectionId);
+
+	/**
+	 * Updates the session's stored benefactor IDs to reflect the current source
+	 * state as seen by the action user, then evicts any active WebSocket connections
+	 * belonging to users who no longer pass the session's authorization check.
+	 * Non-user connections (INTERNAL, VALIDATION, USER_SUPPORT) are always skipped
+	 * during eviction.
+	 *
+	 * @param sessionId
+	 * @param benefactorIds
+	 */
+	void updateSessionBenefactorIds(String sessionId, Set<Long> benefactorIds);
+
+	/**
+	 * Checks all active WebSocket connections for the given session and removes any
+	 * belonging to users who no longer pass the session's authorization check.
+	 * Non-user connections (INTERNAL, VALIDATION, USER_SUPPORT) are always skipped.
+	 *
+	 * @param sessionId
+	 */
+	void evictUnauthorizedConnections(String sessionId);
 
 	/**
 	 * Given a replica's clock, find the next snapshot or patch that the replica is missing, and format a message that

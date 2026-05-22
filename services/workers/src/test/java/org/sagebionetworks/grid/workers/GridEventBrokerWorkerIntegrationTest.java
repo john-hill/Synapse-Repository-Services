@@ -998,6 +998,19 @@ public class GridEventBrokerWorkerIntegrationTest {
 				.getReplica();
 		assertNotNull(replicaTwo);
 
+		// Both users establish WebSocket connections.
+		String urlOne = gridService.createPresignedUrl(userOne.getId(), new CreateGridPresignedUrlRequest()
+				.setGridSessionId(session.getSessionId()).setReplicaId(replicaOne.getReplicaId())).getPresignedUrl();
+		BlockingQueue<String> messagesOne = new LinkedBlockingQueue<>();
+		WebSocket wsOne = createConnection(urlOne, messagesOne);
+		waitForConnected(messagesOne);
+
+		String urlTwo = gridService.createPresignedUrl(userTwo.getId(), new CreateGridPresignedUrlRequest()
+				.setGridSessionId(session.getSessionId()).setReplicaId(replicaTwo.getReplicaId())).getPresignedUrl();
+		BlockingQueue<String> messagesTwo = new LinkedBlockingQueue<>();
+		WebSocket wsTwo = createConnection(urlTwo, messagesTwo);
+		waitForConnected(messagesTwo);
+
 		// userThree cannot join — READ only on the project benefactor, UPDATE is required.
 		assertThrows(UnauthorizedException.class, () -> gridService
 				.createReplica(userThree.getId(), new CreateReplicaRequest().setGridSessionId(session.getSessionId())));
@@ -1048,25 +1061,23 @@ public class GridEventBrokerWorkerIntegrationTest {
 		assertTrue(updatedBenefactorIds.contains(projectId));
 		assertTrue(updatedBenefactorIds.contains(newFileId));
 
+		// userOne's WebSocket connection remains open — ping receives a pong.
+		wsOne.send(new JSONArray("[8,\"ping\"]").toString());
+		assertTrue(waitForMessage((a) -> a.optInt(0) == 8 && "pong".equals(a.optString(1)), messagesOne));
+		wsOne.close();
+
+		// userTwo's WebSocket was force-closed by the eviction — wait for the close to propagate.
+		TimeUtils.waitFor(MAX_WAIT_MS, 1000L, () -> Pair.create(!wsTwo.isOpen(), null));
+
 		// userOne still has UPDATE on all captured benefactors and can join the session.
 		GridReplica replicaOneAfterSync = gridService
 				.createReplica(userOne.getId(), new CreateReplicaRequest().setGridSessionId(session.getSessionId()))
 				.getReplica();
 		assertNotNull(replicaOneAfterSync);
-		
-		// userOne (the session creator) can join.
-		replicaOne = gridService
-				.createReplica(userOne.getId(), new CreateReplicaRequest().setGridSessionId(session.getSessionId()))
-				.getReplica();
-		assertNotNull(replicaOne);
 
 		// userTwo lacks UPDATE on the new file's benefactor, so they lose access after sync.
 		assertThrows(UnauthorizedException.class, () -> gridService
 				.createReplica(userTwo.getId(), new CreateReplicaRequest().setGridSessionId(session.getSessionId())));
-		
-		// userThree cannot join — READ only on the project benefactor, UPDATE is required.
-		assertThrows(UnauthorizedException.class, () -> gridService
-				.createReplica(userThree.getId(), new CreateReplicaRequest().setGridSessionId(session.getSessionId())));
 	}
 
 	List<FileEntity> createFiles(int count, String folderId, String fileHandleId) {

@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.sagebionetworks.repo.manager.EntityManager;
@@ -57,6 +56,8 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 	private final FileProvider fileProvider;
 	private final IndexedModelEncoderProvider encoderProvider;
 
+	public static final CsvTableDescriptor DEFAULT_RECORD_SET_CSV_DESCRIPTOR = new CsvTableDescriptor().setIsFirstLineHeader(true);
+
 	public RecordSetCreateGridHandler(GridDao gridDao, EntityManager entityManager, FileHandleManager fileHandleManager,
 									  EntityAuthorizationManager authorizationManager, CsvFileHandleProvider csvProvider,
 									  JsonSchemaManager jsonSchemaManager, JsonSchemaValidationManager jsonSchemaValidationManager,
@@ -103,7 +104,7 @@ public class RecordSetCreateGridHandler implements CreateGridHandler {
 		CsvTableDescriptor csvDescriptor = recordSet.getCsvDescriptor();
 
 		if (csvDescriptor == null) {
-			csvDescriptor = new CsvTableDescriptor().setIsFirstLineHeader(true);
+			csvDescriptor = DEFAULT_RECORD_SET_CSV_DESCRIPTOR;
 		}
 
 		// In order to emit patches using the PatchRowHandler we need a starting schema,

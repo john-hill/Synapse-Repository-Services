@@ -1,10 +1,13 @@
 package org.sagebionetworks.repo.manager.table;
 
+import static org.sagebionetworks.repo.manager.grid.create.RecordSetCreateGridHandler.DEFAULT_RECORD_SET_CSV_DESCRIPTOR;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.Logger;
@@ -40,12 +43,6 @@ import au.com.bytecode.opencsv.CSVReader;
 @Service
 public class RecordSetIndexManagerImpl implements RecordSetIndexManager {
 
-	// TableStatus etag for RecordSet indexes does not rotate per build. Safe
-	// only because RecordSetIndexDescription inherits supportQueryCache=false —
-	// if query caching is ever enabled for RecordSet, this becomes stale.
-	private static final String DEFAULT_ETAG = "DEFAULT";
-	// Match the change-set sizing used by TableEntityManagerImpl (configurable
-	// there, but a sensible fixed default is fine for the worker path).
 	private static final int MAX_BYTES_PER_BATCH = 1024 * 1024 * 2;
 
 	private final TableManagerSupport tableManagerSupport;
@@ -79,86 +76,101 @@ public class RecordSetIndexManagerImpl implements RecordSetIndexManager {
 			throws Exception {
 		ValidateArgument.required(idAndVersion, "idAndVersion");
 		ValidateArgument.required(progressCallback, "progressCallback");
-		// Entity-level state (TableStatus, exclusive lock) is keyed at the
-		// unversioned IdAndVersion: an unversioned query "select * from syn123"
-		// checks status at (id, null), so we keep it there. createOrUpdateHoldingLock
-		// resolves the current revision from NodeDAO and builds both T{id} and
-		// T{id}_{v} under that lock.
+
+		// The exclusive lock is always taken at the entity level so concurrent
+		// version-targeted rebuilds for the same RecordSet are serialized.
 		IdAndVersion entityKey = IdAndVersion.newBuilder().setId(idAndVersion.getId()).build();
 		tableManagerSupport.tryRunWithTableExclusiveLock(progressCallback,
 				new LockContext(ContextType.BuildTableIndex, entityKey), entityKey,
 				(ProgressCallback inner) -> {
-					createOrUpdateHoldingLock(entityKey);
+					createOrUpdateHoldingLock(idAndVersion, entityKey);
 					return null;
 				});
 	}
 
-	void createOrUpdateHoldingLock(IdAndVersion entityKey) {
-		final String token;
-		try {
-			if (!tableManagerSupport.isIndexWorkRequired(entityKey)) {
-				return;
-			}
-			token = tableManagerSupport.startTableProcessing(entityKey);
-		} catch (Exception e) {
-			// Could not even reach the status table — let the worker retry.
-			throw new RuntimeException(e);
+	void createOrUpdateHoldingLock(IdAndVersion idAndVersion, IdAndVersion entityKey) {
+		long currentRevision = nodeDao.getCurrentRevisionNumber(entityKey.getId().toString());
+		// A versionless message OR a versioned message targeting the current
+		// revision rebuilds both T{id} (the alias for unversioned queries)
+		// and T{id}_{targetVersion} (the per-version snapshot). A versioned
+		// message for any other version only rebuilds that version's
+		// snapshot
+		long targetVersion = idAndVersion.getVersion().orElse(currentRevision);
+		boolean bindDefaultVersion = targetVersion == currentRevision;
+		IdAndVersion versionedKey = IdAndVersion.newBuilder()
+				.setId(entityKey.getId())
+				.setVersion(targetVersion)
+				.build();
+		IdAndVersion statusKey = bindDefaultVersion ? entityKey : versionedKey;
+
+		if (!tableManagerSupport.isIndexWorkRequired(statusKey)) {
+			return;
 		}
+		final String token = tableManagerSupport.startTableProcessing(statusKey);
+
 		try {
-			long currentRevision = nodeDao.getCurrentRevisionNumber(entityKey.getId().toString());
-			IdAndVersion versionedKey = IdAndVersion.newBuilder()
-					.setId(entityKey.getId())
-					.setVersion(currentRevision)
-					.build();
-			// Entity-level index (T{id}) — the alias target for "syn123" queries.
-			IndexDescription entityDescription = new RecordSetIndexDescription(entityKey, currentRevision);
-			// Per-version immutable snapshot (T{id}_{v}) — the target for "syn123.{v}" queries.
-			IndexDescription versionedDescription = new RecordSetIndexDescription(versionedKey, currentRevision);
+			IndexDescription versionedDescription = new RecordSetIndexDescription(versionedKey, targetVersion);
+			IndexDescription entityDescription = bindDefaultVersion
+					? new RecordSetIndexDescription(entityKey, targetVersion)
+					: null;
 
 			RecordSet recordSet = entityManager.getEntityForVersion(getAdminUser(),
-					entityKey.getId().toString(), currentRevision, RecordSet.class);
+					entityKey.getId().toString(), targetVersion, RecordSet.class);
 			FileHandle dataFileHandle = fileHandleManager.getRawFileHandleUnchecked(recordSet.getDataFileHandleId());
-			// RecordSet.csvDescriptor is optional; the grid create flow defaults to an
-			// isFirstLineHeader=true descriptor (RecordSetCreateGridHandler.createGrid),
-			// and CsvFileHandleProvider.getCsvReader requires a non-null descriptor.
-			CsvTableDescriptor csvDescriptor = recordSet.getCsvDescriptor() != null
-					? recordSet.getCsvDescriptor()
-					: new CsvTableDescriptor().setIsFirstLineHeader(true);
+			// RecordSet.csvDescriptor is optional, so fall back to the same default CsvDescriptor as the grid create flow
+			CsvTableDescriptor csvDescriptor = Optional.ofNullable(recordSet.getCsvDescriptor()).orElse(DEFAULT_RECORD_SET_CSV_DESCRIPTOR);
 			List<ColumnModel> schema = inferSchema(dataFileHandle, csvDescriptor);
 			if (schema.isEmpty()) {
 				throw new IllegalArgumentException("RecordSet CSV contains no columns to index.");
 			}
-			List<ColumnModel> persistedColumns = columnModelManager
-					.createColumnModels(getAdminUser(), schema);
+			List<ColumnModel> persistedColumns = columnModelManager.createColumnModels(getAdminUser(), schema);
 			List<String> columnIds = persistedColumns.stream().map(ColumnModel::getId).collect(Collectors.toList());
-			// Default binding serves "syn123" + the current revision's "syn123.{currentRev}".
-			// Versioned binding preserves the schema for snapshots after they're superseded.
-			columnModelManager.bindColumnsToDefaultVersionOfObject(columnIds, entityKey.getId().toString());
+			// Versioned binding preserves the schema for this specific snapshot.
 			columnModelManager.bindColumnsToVersionOfObject(columnIds, versionedKey);
+			if (bindDefaultVersion) {
+				// Default binding serves queries against "syn123" (no 'dot' version) — only rewritten when this rebuild
+				// is for the current revision
+				columnModelManager.bindColumnsToDefaultVersionOfObject(columnIds, entityKey.getId().toString());
+			}
 
 			TableIndexManager indexManager = connectionFactory.connectToTableIndex(entityKey);
 
-			// Reset both index tables, then populate them in a single CSV pass.
-			// T{id} is overwritten with the latest CSV each version; T{id}_{v} is
-			// built once per version and immutable thereafter.
-			indexManager.resetTableIndex(entityDescription, persistedColumns, false);
+			// Reset the destination index table(s), then populate them in a single CSV pass.
 			indexManager.resetTableIndex(versionedDescription, persistedColumns, false);
-			long rowCount = loadRows(indexManager, Arrays.asList(entityDescription, versionedDescription),
-					persistedColumns, dataFileHandle, csvDescriptor, currentRevision);
-			indexManager.buildTableIndexIndices(entityDescription, persistedColumns);
-			indexManager.setIndexVersion(entityKey, currentRevision);
+			List<IndexDescription> destinations;
+			if (bindDefaultVersion) {
+				indexManager.resetTableIndex(entityDescription, persistedColumns, false);
+				destinations = Arrays.asList(entityDescription, versionedDescription);
+			} else {
+				destinations = Collections.singletonList(versionedDescription);
+			}
+			long rowCount = loadRows(indexManager, destinations, persistedColumns, dataFileHandle, csvDescriptor,
+					targetVersion);
 			indexManager.buildTableIndexIndices(versionedDescription, persistedColumns);
-			indexManager.setIndexVersion(versionedKey, currentRevision);
+			indexManager.setIndexVersion(versionedKey, targetVersion);
+			if (bindDefaultVersion) {
+				indexManager.buildTableIndexIndices(entityDescription, persistedColumns);
+				indexManager.setIndexVersion(entityKey, targetVersion);
+			}
 
-			// Per-version TableStatus so "syn123.{v}" queries find AVAILABLE without re-triggering.
-			String versionedToken = tableManagerSupport.startTableProcessing(versionedKey);
-			tableManagerSupport.attemptToSetTableStatusToAvailable(versionedKey, versionedToken, DEFAULT_ETAG);
-			// Entity-level TableStatus last — what unversioned queries read.
-			tableManagerSupport.attemptToSetTableStatusToAvailable(entityKey, token, DEFAULT_ETAG);
-			log.info("Built RecordSet index {} (rev {}) with {} rows", entityKey, currentRevision, rowCount);
+			// Use the RecordSet revision's etag as the table change etag, since each versioned index build corresponds
+			// to a single RecordSet revision.
+			String tableChangeEtag = recordSet.getEtag();
+
+			if (bindDefaultVersion) {
+				// Per-version TableStatus first so "syn123.{v}" queries find AVAILABLE without re-triggering.
+				String versionedToken = tableManagerSupport.startTableProcessing(versionedKey);
+				tableManagerSupport.attemptToSetTableStatusToAvailable(versionedKey, versionedToken, tableChangeEtag);
+				// Entity-level TableStatus last — what unversioned queries read.
+				tableManagerSupport.attemptToSetTableStatusToAvailable(entityKey, token, tableChangeEtag);
+			} else {
+				// Older/out-of-order rebuild — only the per-version status was processed by this build.
+				tableManagerSupport.attemptToSetTableStatusToAvailable(versionedKey, token, tableChangeEtag);
+			}
+			log.info("Built RecordSet index {} (rev {}) with {} rows", versionedKey, targetVersion, rowCount);
 		} catch (Exception e) {
-			// Persist the failure in TableStatus; the worker logs on the way out.
-			tableManagerSupport.attemptToSetTableStatusToFailed(entityKey, e);
+			// Persist the failure on whichever status row this build was processing.
+			tableManagerSupport.attemptToSetTableStatusToFailed(statusKey, e);
 			throw e instanceof RuntimeException ? (RuntimeException) e : new RuntimeException(e);
 		}
 	}
@@ -181,9 +193,7 @@ public class RecordSetIndexManagerImpl implements RecordSetIndexManager {
 	long loadRows(TableIndexManager indexManager, List<IndexDescription> indexDescriptions, List<ColumnModel> schema,
 			FileHandle dataFileHandle, CsvTableDescriptor csvDescriptor, long changeSetVersion) throws IOException {
 		long rowCount = 0;
-		// CSV rows have no inherent rowId. We're applying directly to the index (no truth
-		// layer), so SQLUtils.bindParametersForCreateOrUpdate requires us to assign rowId
-		// + versionNumber ourselves. Each fresh per-version index starts at rowId 1.
+		// CSV rows have no inherent rowId, so just start at 1.
 		long nextRowId = 1L;
 		try (CSVReader csvReader = csvFileHandleProvider.getCsvReader(dataFileHandle, csvDescriptor)) {
 			CSVToRowIterator iterator = new CSVToRowIterator(schema, csvReader, csvDescriptor.getIsFirstLineHeader(),

@@ -106,6 +106,7 @@ public class RecordSetIndexManagerImplTest {
 		recordSet = new RecordSet().setDataFileHandleId("9991").setCsvDescriptor(csvDescriptor);
 		recordSet.setId("syn999");
 		recordSet.setVersionNumber(currentRevision);
+		recordSet.setEtag("some-etag");
 		fileHandle = new S3FileHandle();
 		fileHandle.setId("9991");
 		inferredSchema = Arrays.asList(
@@ -156,8 +157,8 @@ public class RecordSetIndexManagerImplTest {
 		verify(mockIndexManager).buildTableIndexIndices(versionedDescription, persistedSchema);
 		verify(mockIndexManager).setIndexVersion(versionedKey, currentRevision);
 		// Both TABLE_STATUS rows flip to AVAILABLE.
-		verify(mockTableManagerSupport).attemptToSetTableStatusToAvailable(eq(versionedKey), eq(versionedToken), eq("DEFAULT"));
-		verify(mockTableManagerSupport).attemptToSetTableStatusToAvailable(eq(entityKey), eq(token), eq("DEFAULT"));
+		verify(mockTableManagerSupport).attemptToSetTableStatusToAvailable(eq(versionedKey), eq(versionedToken), eq("some-etag"));
+		verify(mockTableManagerSupport).attemptToSetTableStatusToAvailable(eq(entityKey), eq(token), eq("some-etag"));
 		verify(mockTableManagerSupport, never()).attemptToSetTableStatusToFailed(any(), any());
 	}
 
@@ -187,6 +188,10 @@ public class RecordSetIndexManagerImplTest {
 	@Test
 	public void testCreateOrUpdateRecordSetIndexSkipsWhenNotRequired() throws Exception {
 		stubLockToRunInline();
+		// Incoming version matches the current revision, so the worker checks
+		// the entity-level status row (the same one the versionless trigger
+		// reset to PROCESSING).
+		when(mockNodeDao.getCurrentRevisionNumber("999")).thenReturn(currentRevision);
 		when(mockTableManagerSupport.isIndexWorkRequired(entityKey)).thenReturn(false);
 
 		// call under test
@@ -196,6 +201,122 @@ public class RecordSetIndexManagerImplTest {
 		verify(mockTableManagerSupport, never()).attemptToSetTableStatusToAvailable(any(), any(), any());
 		verify(mockTableManagerSupport, never()).attemptToSetTableStatusToFailed(any(), any());
 		verifyZeroInteractions(mockConnectionFactory, mockEntityManager, mockFileHandleManager, mockColumnModelManager);
+	}
+
+	@Test
+	public void testCreateOrUpdateRecordSetIndexForOlderVersionOnlyBuildsSnapshot() throws Exception {
+		// An out-of-order or repair trigger arrives for v=1, but the latest
+		// revision is v=3. The worker must build only T{id}_1, leaving the
+		// entity-level alias T{id} (the target for "syn123" queries) pointing
+		// at the latest revision.
+		long olderVersion = 1L;
+		long latestRevision = 3L;
+		IdAndVersion olderIncoming = IdAndVersion.parse("syn999.1");
+		IdAndVersion versionedOlderKey = IdAndVersion.newBuilder().setId(999L).setVersion(olderVersion).build();
+		RecordSet olderRecordSet = new RecordSet().setDataFileHandleId("9991").setCsvDescriptor(csvDescriptor);
+		olderRecordSet.setId("syn999");
+		olderRecordSet.setVersionNumber(olderVersion);
+		olderRecordSet.setEtag("older-etag");
+
+		stubLockToRunInline();
+		when(mockNodeDao.getCurrentRevisionNumber("999")).thenReturn(latestRevision);
+		when(mockTableManagerSupport.isIndexWorkRequired(versionedOlderKey)).thenReturn(true);
+		when(mockTableManagerSupport.startTableProcessing(versionedOlderKey)).thenReturn(token);
+		IndexDescription versionedDescription = new RecordSetIndexDescription(versionedOlderKey, olderVersion);
+		IndexDescription entityDescriptionAtOlder = new RecordSetIndexDescription(entityKey, olderVersion);
+		when(mockUserManager.getUserInfo(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId())).thenReturn(mockAdminUser);
+		when(mockEntityManager.getEntityForVersion(mockAdminUser, "999", olderVersion, RecordSet.class))
+				.thenReturn(olderRecordSet);
+		when(mockFileHandleManager.getRawFileHandleUnchecked("9991")).thenReturn(fileHandle);
+		doReturn(inferredSchema).when(manager).inferSchema(fileHandle, csvDescriptor);
+		when(mockColumnModelManager.createColumnModels(mockAdminUser, inferredSchema)).thenReturn(persistedSchema);
+		when(mockConnectionFactory.connectToTableIndex(entityKey)).thenReturn(mockIndexManager);
+		List<IndexDescription> versionedOnly = Collections.singletonList(versionedDescription);
+		doReturn(7L).when(manager).loadRows(eq(mockIndexManager), eq(versionedOnly), eq(persistedSchema),
+				eq(fileHandle), eq(csvDescriptor), eq(olderVersion));
+
+		// call under test
+		manager.createOrUpdateRecordSetIndex(olderIncoming, mockProgressCallback);
+
+		// Only the per-version binding — default binding is left alone so T{id}'s schema
+		// keeps following the current revision.
+		verify(mockColumnModelManager).bindColumnsToVersionOfObject(Arrays.asList("100", "101"), versionedOlderKey);
+		verify(mockColumnModelManager, never()).bindColumnsToDefaultVersionOfObject(any(), any());
+		// Only the versioned index table is reset / built / version-stamped.
+		verify(mockIndexManager).resetTableIndex(versionedDescription, persistedSchema, false);
+		verify(mockIndexManager, never()).resetTableIndex(eq(entityDescriptionAtOlder), any(), Mockito.anyBoolean());
+		verify(mockIndexManager).buildTableIndexIndices(versionedDescription, persistedSchema);
+		verify(mockIndexManager, never()).buildTableIndexIndices(eq(entityDescriptionAtOlder), any());
+		verify(mockIndexManager).setIndexVersion(versionedOlderKey, olderVersion);
+		verify(mockIndexManager, never()).setIndexVersion(eq(entityKey), Mockito.anyLong());
+		// Only the per-version status flips to AVAILABLE; the entity-level status row is untouched.
+		verify(mockTableManagerSupport).attemptToSetTableStatusToAvailable(eq(versionedOlderKey), eq(token), eq("older-etag"));
+		verify(mockTableManagerSupport, never()).attemptToSetTableStatusToAvailable(eq(entityKey), any(), any());
+		verify(mockTableManagerSupport, never()).attemptToSetTableStatusToFailed(any(), any());
+	}
+
+	@Test
+	public void testCreateOrUpdateRecordSetIndexForOlderVersionRecordsFailureAtVersionedStatus() throws Exception {
+		// When an older-version rebuild fails, the failure must be persisted
+		// on the per-version status row, not the entity-level one — the
+		// entity-level alias may still be AVAILABLE for a different revision.
+		long olderVersion = 1L;
+		long latestRevision = 3L;
+		IdAndVersion olderIncoming = IdAndVersion.parse("syn999.1");
+		IdAndVersion versionedOlderKey = IdAndVersion.newBuilder().setId(999L).setVersion(olderVersion).build();
+
+		stubLockToRunInline();
+		when(mockNodeDao.getCurrentRevisionNumber("999")).thenReturn(latestRevision);
+		when(mockTableManagerSupport.isIndexWorkRequired(versionedOlderKey)).thenReturn(true);
+		when(mockTableManagerSupport.startTableProcessing(versionedOlderKey)).thenReturn(token);
+		when(mockUserManager.getUserInfo(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId())).thenReturn(mockAdminUser);
+		when(mockEntityManager.getEntityForVersion(mockAdminUser, "999", olderVersion, RecordSet.class))
+				.thenReturn(recordSet);
+		when(mockFileHandleManager.getRawFileHandleUnchecked("9991")).thenReturn(fileHandle);
+		doReturn(Collections.emptyList()).when(manager).inferSchema(fileHandle, csvDescriptor);
+
+		// call under test
+		assertThrows(RuntimeException.class,
+				() -> manager.createOrUpdateRecordSetIndex(olderIncoming, mockProgressCallback));
+
+		verify(mockTableManagerSupport).attemptToSetTableStatusToFailed(eq(versionedOlderKey), any(Exception.class));
+		verify(mockTableManagerSupport, never()).attemptToSetTableStatusToFailed(eq(entityKey), any());
+		verify(mockTableManagerSupport, never()).attemptToSetTableStatusToAvailable(any(), any(), any());
+	}
+
+	@Test
+	public void testCreateOrUpdateRecordSetIndexWithVersionlessIncomingRebuildsBoth() throws Exception {
+		// A versionless message (legacy / explicit entity-level trigger) still
+		// resolves to currentRevision and rebuilds both T{id} and T{id}_{current}.
+		IdAndVersion versionless = IdAndVersion.newBuilder().setId(999L).build();
+		stubLockToRunInline();
+		when(mockTableManagerSupport.isIndexWorkRequired(entityKey)).thenReturn(true);
+		when(mockTableManagerSupport.startTableProcessing(entityKey)).thenReturn(token);
+		String versionedToken = "versioned-token";
+		when(mockTableManagerSupport.startTableProcessing(versionedKey)).thenReturn(versionedToken);
+		when(mockNodeDao.getCurrentRevisionNumber("999")).thenReturn(currentRevision);
+		IndexDescription entityDescription = new RecordSetIndexDescription(entityKey, currentRevision);
+		IndexDescription versionedDescription = new RecordSetIndexDescription(versionedKey, currentRevision);
+		when(mockUserManager.getUserInfo(BOOTSTRAP_PRINCIPAL.THE_ADMIN_USER.getPrincipalId())).thenReturn(mockAdminUser);
+		when(mockEntityManager.getEntityForVersion(mockAdminUser, "999", currentRevision, RecordSet.class))
+				.thenReturn(recordSet);
+		when(mockFileHandleManager.getRawFileHandleUnchecked("9991")).thenReturn(fileHandle);
+		doReturn(inferredSchema).when(manager).inferSchema(fileHandle, csvDescriptor);
+		when(mockColumnModelManager.createColumnModels(mockAdminUser, inferredSchema)).thenReturn(persistedSchema);
+		when(mockConnectionFactory.connectToTableIndex(entityKey)).thenReturn(mockIndexManager);
+		List<IndexDescription> bothDescriptions = Arrays.asList(entityDescription, versionedDescription);
+		doReturn(42L).when(manager).loadRows(eq(mockIndexManager), eq(bothDescriptions), eq(persistedSchema),
+				eq(fileHandle), eq(csvDescriptor), eq(currentRevision));
+
+		// call under test
+		manager.createOrUpdateRecordSetIndex(versionless, mockProgressCallback);
+
+		verify(mockColumnModelManager).bindColumnsToDefaultVersionOfObject(Arrays.asList("100", "101"), "999");
+		verify(mockColumnModelManager).bindColumnsToVersionOfObject(Arrays.asList("100", "101"), versionedKey);
+		verify(mockIndexManager).resetTableIndex(entityDescription, persistedSchema, false);
+		verify(mockIndexManager).resetTableIndex(versionedDescription, persistedSchema, false);
+		verify(mockTableManagerSupport).attemptToSetTableStatusToAvailable(eq(versionedKey), eq(versionedToken), eq("some-etag"));
+		verify(mockTableManagerSupport).attemptToSetTableStatusToAvailable(eq(entityKey), eq(token), eq("some-etag"));
 	}
 
 	@Test

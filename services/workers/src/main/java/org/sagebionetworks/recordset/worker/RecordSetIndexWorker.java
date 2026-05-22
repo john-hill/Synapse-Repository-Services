@@ -51,9 +51,11 @@ public class RecordSetIndexWorker implements ChangeMessageDrivenRunner {
 				return;
 			}
 			recordSetIndexManager.createOrUpdateRecordSetIndex(idAndVersion, progressCallback);
-		} catch (RecoverableMessageException e) {
-			throw e;
-		} catch (TableIndexConnectionUnavailableException | TableUnavailableException | LockUnavilableException e) {
+		} catch (RecoverableMessageException | TableIndexConnectionUnavailableException | TableUnavailableException | LockUnavilableException e) {
+			log.error("Will retry.  Message: {}", e.getMessage());
+			if (e instanceof RecoverableMessageException) {
+				throw e;
+			}
 			throw new RecoverableMessageException(e);
 		} catch (Exception e) {
 			log.error("Failed to build RecordSet index for " + idAndVersion, e);

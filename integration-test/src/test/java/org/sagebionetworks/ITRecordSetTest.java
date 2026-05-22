@@ -104,15 +104,33 @@ public class ITRecordSetTest {
 
 		// call under test — assertions inside the consumer so AsyncJobHelper retries
 		// while the worker is still building the index.
-		queryAndAssertExpectedRows(recordSet.getId());
+		queryAndAssertExpectedRows(recordSet.getId(), List.of("1", "2", "3"), List.of("4", "5", "6"));
 	}
 
 	@Test
 	public void testQueryRecordSetByExplicitVersion() throws Exception {
+		// v1 — original test.csv ("1,2,3" / "4,5,6").
 		recordSet = createRecordSet(csvFileHandle.getId());
+		long v1Version = recordSet.getVersionNumber();
 
-		// call under test — querying with the explicit version hits the immutable T{id}_{v} snapshot.
-		queryAndAssertExpectedRows(recordSet.getId() + "." + recordSet.getVersionNumber());
+		// v2 — upload a CSV with different data and create a new version.
+		File v2CsvFile = File.createTempFile("ITRecordSetTest-v2-", ".csv");
+		v2CsvFile.deleteOnExit();
+		FileUtils.writeStringToFile(v2CsvFile, "a,b,c\n7,8,9\n10,11,12\n", StandardCharsets.UTF_8);
+		FileHandle v2FileHandle = synapse.multipartUpload(v2CsvFile, null, false, true);
+		recordSet.setDataFileHandleId(v2FileHandle.getId());
+		recordSet.setVersionLabel("v2");
+		recordSet = synapse.putEntity(recordSet, null, true);
+		long v2Version = recordSet.getVersionNumber();
+
+		// call under test — each version's immutable snapshot T{id}_{v} returns
+		// its own data, and the unversioned alias T{id} resolves to the latest.
+		queryAndAssertExpectedRows(recordSet.getId() + "." + v1Version,
+				List.of("1", "2", "3"), List.of("4", "5", "6"));
+		queryAndAssertExpectedRows(recordSet.getId() + "." + v2Version,
+				List.of("7", "8", "9"), List.of("10", "11", "12"));
+		queryAndAssertExpectedRows(recordSet.getId(),
+				List.of("7", "8", "9"), List.of("10", "11", "12"));
 	}
 
 	@Test
@@ -120,7 +138,7 @@ public class ITRecordSetTest {
 		recordSet = createRecordSet(csvFileHandle.getId());
 
 		// Wait for the RecordSet index so the MV build sees rows to copy.
-		queryAndAssertExpectedRows(recordSet.getId());
+		queryAndAssertExpectedRows(recordSet.getId(), List.of("1", "2", "3"), List.of("4", "5", "6"));
 
 		materializedView = new MaterializedView()
 				.setDefiningSQL(String.format("select * from %s", recordSet.getId()))
@@ -129,7 +147,7 @@ public class ITRecordSetTest {
 		materializedView = synapse.createEntity(materializedView);
 
 		// call under test — same retry posture for the MV build.
-		queryAndAssertExpectedRows(materializedView.getId());
+		queryAndAssertExpectedRows(materializedView.getId(), List.of("1", "2", "3"), List.of("4", "5", "6"));
 	}
 
 	private RecordSet createRecordSet(String dataFileHandleId) throws SynapseException {
@@ -142,12 +160,12 @@ public class ITRecordSetTest {
 	}
 
 	/**
-	 * Queries the given table/MV with retries: docs/test.csv has two data rows
-	 * ("1,2,3" and "4,5,6") after the header. Assertions live inside the consumer
-	 * so AsyncJobHelper restarts the async query until the worker has built the
-	 * index (or the timeout expires).
+	 * Queries the given table/MV with retries, asserting it returns exactly two rows
+	 * matching the expected values. Assertions live inside the consumer so AsyncJobHelper
+	 * restarts the async query until the worker has built the index (or the timeout expires).
 	 */
-	private void queryAndAssertExpectedRows(String tableId) throws Exception {
+	private void queryAndAssertExpectedRows(String tableId, List<String> expectedRow1, List<String> expectedRow2)
+			throws Exception {
 		// Order by ROW_ID so the assertions below don't depend on undefined SQL row order.
 		Query query = new Query().setSql("select * from " + tableId + " order by ROW_ID");
 		QueryOptions options = new QueryOptions().withMask((long) SynapseClient.QUERY_PARTMASK);
@@ -159,8 +177,8 @@ public class ITRecordSetTest {
 				bundle -> {
 					List<Row> rows = bundle.getQueryResult().getQueryResults().getRows();
 					assertEquals(2, rows.size());
-					assertEquals(List.of("1", "2", "3"), rows.get(0).getValues());
-					assertEquals(List.of("4", "5", "6"), rows.get(1).getValues());
+					assertEquals(expectedRow1, rows.get(0).getValues());
+					assertEquals(expectedRow2, rows.get(1).getValues());
 				},
 				INDEX_TIMEOUT_MS,
 				AsyncJobHelper.INFINITE_RETRIES);

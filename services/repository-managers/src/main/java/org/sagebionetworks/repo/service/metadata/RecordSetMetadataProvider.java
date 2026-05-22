@@ -77,15 +77,19 @@ public class RecordSetMetadataProvider implements EntityValidator<RecordSet>, Ty
 	}
 
 	private void triggerIndexRebuild(RecordSet entity) {
-		// RecordSet versions are immutable per-version indexes (T{id}_{v}), but an
-		// unversioned reference ("select * from syn123") aliases to the latest
-		// version. To keep that alias working, we track entity-level TableStatus
-		// at the unversioned key — the worker is triggered with no version, then
-		// resolves the current revision via the IndexDescription factory and
-		// builds the per-version index.
+		// We fire two triggers per create/update:
+		//   1. A versioned trigger so this specific revision's immutable
+		//      snapshot T{id}_{v} gets built
+		//   2. A versionless trigger so the entity-level alias T{id} (the
+		//      target for "select * from syn123") gets rebuilt and the
+		//      unversioned TableStatus flips to PROCESSING
+		// The worker dedupes via isIndexWorkRequired, so a successful build
+		// for one message short-circuits the other.
 		Long id = KeyFactory.stringToKey(entity.getId());
-		IdAndVersion idAndVersion = IdAndVersion.newBuilder().setId(id).build();
-		tableManagerSupport.setTableToProcessingAndTriggerUpdate(idAndVersion);
+		IdAndVersion versionedKey = IdAndVersion.newBuilder().setId(id).setVersion(entity.getVersionNumber()).build();
+		IdAndVersion entityKey = IdAndVersion.newBuilder().setId(id).build();
+		tableManagerSupport.setTableToProcessingAndTriggerUpdate(versionedKey);
+		tableManagerSupport.setTableToProcessingAndTriggerUpdate(entityKey);
 	}
 
 	@Override

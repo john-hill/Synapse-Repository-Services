@@ -174,9 +174,12 @@ public class RecordSetMetadataProviderTest {
 		recordSetMetadataProvider.entityCreated(userInfo, recordSet);
 
 		verify(mockFileEntityMetadataProvider).entityCreated(userInfo, recordSet);
-		// Status/trigger is keyed at the unversioned IdAndVersion so unversioned
-		// queries find the index status. The worker resolves the current revision
-		// from NodeDAO and builds the per-version index table under that key.
+		// Both triggers fire: the versioned one ensures this revision's
+		// snapshot T{id}_{v} is built even under message-ordering races, and
+		// the versionless one flips entity-level status to PROCESSING so
+		// unversioned queries wait instead of returning stale data.
+		verify(mockTableManagerSupport).setTableToProcessingAndTriggerUpdate(
+				IdAndVersion.newBuilder().setId(123L).setVersion(3L).build());
 		verify(mockTableManagerSupport).setTableToProcessingAndTriggerUpdate(
 				IdAndVersion.newBuilder().setId(123L).build());
 	}
@@ -188,6 +191,8 @@ public class RecordSetMetadataProviderTest {
 		recordSetMetadataProvider.entityUpdated(userInfo, recordSet, wasNewVersionCreated);
 
 		verify(mockFileEntityMetadataProvider).entityUpdated(userInfo, recordSet, wasNewVersionCreated);
+		verify(mockTableManagerSupport).setTableToProcessingAndTriggerUpdate(
+				IdAndVersion.newBuilder().setId(123L).setVersion(3L).build());
 		verify(mockTableManagerSupport).setTableToProcessingAndTriggerUpdate(
 				IdAndVersion.newBuilder().setId(123L).build());
 	}
